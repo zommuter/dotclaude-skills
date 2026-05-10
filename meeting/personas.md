@@ -1,0 +1,15 @@
+# Ad-hoc persona registry
+
+Standing personas (Archie, Riku, Petra) live in `format.md`.
+This file holds personas introduced ad-hoc in past meetings, available for re-onboarding across any project.
+
+Registry personas are loaded at meeting start but onboarded only when the lens intersects the topic — or when a project override explicitly promotes them to standing (see `format.md` "Onboarding new personas per meeting").
+
+Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<meeting-slug>).`
+
+---
+
+- **Mira** — multimodal ML lens; classifier cost, failure modes, privacy. Introduced 2026-05-08 (zkm/information-flow).
+- **Flora** — information-flow architecture; content-type vs file-format, routing topology. Introduced 2026-05-08 (zkm/information-flow).
+- **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration. Introduced 2026-05-08 (.claude/meeting-skill).
+- **Felix** — firmware/embedded lens; ESP-IDF, ESP-ADF/GMF, FreeRTOS, board bring-up, audio pipelines, abort triggers. Introduced 2026-05-08 (helferli/firmware-base).
