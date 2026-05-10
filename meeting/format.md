@@ -6,9 +6,9 @@ Used for design decisions that need multiple viewpoints before committing to cod
 
 | Name | Role | Lens |
 |------|------|------|
-| **Archie** | Architect | Knows the code; proposes architecturally sound solutions; anchors claims in file paths and line numbers |
-| **Riku** | Devil's advocate | Names specific risks; applies rules mechanically; pushes back until the proposal survives scrutiny |
-| **Petra** | Productivity | Enforces scope; applies the N=2 rule; names what is explicitly out of scope |
+| 🏗️ **Archie** | Architect | Knows the code; proposes architecturally sound solutions; anchors claims in file paths and line numbers |
+| 😈 **Riku** | Devil's advocate | Names specific risks; applies rules mechanically; pushes back until the proposal survives scrutiny |
+| ✂️ **Petra** | Productivity | Enforces scope; applies the N=2 rule; names what is explicitly out of scope |
 
 ### Human role
 
@@ -52,7 +52,7 @@ HHMM comes from `date '+%H%M'` captured at meeting start. `$CLAUDE_SESSION_ID` i
 
 **Started:** YYYY-MM-DD HH:MM
 **Session:** <captured $CLAUDE_SESSION_ID>
-**Attendees:** Archie (architect), Riku (devil's advocate), Petra (productivity)
+**Attendees:** 🏗️ Archie (architect), 😈 Riku (devil's advocate), ✂️ Petra (productivity)
 **Topic:** one sentence
 
 ## Agenda
@@ -71,6 +71,45 @@ Checklist. Each item names the session, the file, and the contract
 (what a future test would verify).
 ```
 
+## Class 2 template (planning record — no meeting)
+
+Class 2 dispatches (no-arg mode step 5) produce a **planning record**, not a persona meeting. Use this template instead of the Class 3 format above. Same path/naming convention (`<root>/docs/meeting-notes/YYYY-MM-DD-HHMM-<slug>.md`); structurally distinct so citations aren't misleading.
+
+```
+# YYYY-MM-DD — Short title
+
+**Started:** YYYY-MM-DD HH:MM
+**Session:** <captured $CLAUDE_SESSION_ID>
+**Mode:** Class 2 planning record (no meeting was held — plan-mode output)
+**Topic:** one sentence
+
+## Context
+Why this work was scheduled / what TODO item it addresses.
+
+## Plan
+The approach taken (explore → design → present, native plan-mode flow).
+Reference key files, patterns considered, and why the chosen approach was picked.
+
+## Implementation findings
+What surfaced during implementation: surprises, test results, deviations from plan.
+Omit if implementation hasn't run yet (design-only Class 2).
+
+## Decisions
+Bullet list — same shape as Class 3. Specific enough to serve as an implementation spec.
+Each decision names what is explicitly out of scope.
+
+## Action items
+Checklist — same shape as Class 3. Each item names the file and the contract.
+```
+
+**Key differences from Class 3:**
+- `**Mode:**` replaces `**Attendees:**` — makes the absence of a meeting structurally unambiguous.
+- No `## Discussion` — that heading implies persona dialogue that did not happen.
+- `## Plan` + `## Implementation findings` replace `## Discussion` as the narrative body.
+- `## Decisions` and `## Action items` are identical in shape to Class 3 (so tooling and cross-citations work).
+
+**Content flow:** Synthesise the plan file content (no fresh summary from scratch). The plan file is left to Claude Code's auto-cleanup — no skill-level move or delete.
+
 ## Interactive mode
 
 Meetings run interactively with the user participating turn-by-turn. Protocol:
@@ -85,6 +124,32 @@ Meetings run interactively with the user participating turn-by-turn. Protocol:
      - Freeform "Other" is provided automatically by the tool.
 3. The skill continues the meeting in the next turn based on the user's answer, appending to the transcript.
 4. When all agenda items reach decisions, the skill writes the final transcript to `<root>/docs/meeting-notes/YYYY-MM-DD-HHMM-<slug>.md` and calls `ExitPlanMode`.
+
+## Effort estimate units
+
+**Rule:** Express implementation effort in **session-equivalents** (`~1s`, `~2s + 200k tok`). Never use calendar days or weeks for implementation effort. Calendar dates are reserved for observation windows and external deadlines only.
+
+**v0 rule-of-thumb table** (seeded 2026-05-08, 7 sessions; revise after 10 logged meeting sessions — see `~/.claude/logs/meeting-cost.log`):
+
+| Task class | Median sessions | Median ~tokens | 90th pct |
+|---|---|---|---|
+| Logger / hook (script + settings reg) | 1 | 60k | 2s / 130k |
+| Skill spec edit (format.md / SKILL.md only) | 0.3 | 20k | 1s / 50k |
+| Cross-repo design + impl | 2 | 240k | 4s / 500k |
+| Pure design meeting | 1 | 100k | 1.5s / 180k |
+
+To look up the actual cost of a past session: `bash ~/.claude/skills/meeting/cost-of.sh <session-id>`
+
+## User profile and persona pre-emption
+
+Profile file: `~/.claude/skills/meeting/user-profile.md` (loaded at setup step 6).
+
+**Pre-emption rule:** A persona may insert "I suspect you'd argue X" only when ALL THREE hold:
+- `Pre-emption-eligible: yes` on the profile entry
+- `Confidence: med` or `high`
+- the current proposal directly contradicts the profile fact
+
+Riku handles most pre-emption; Archie/Petra/Sage rarely do.
 
 ## When to call a meeting
 

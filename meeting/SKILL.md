@@ -8,10 +8,16 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 ## Setup (run at every invocation)
 
 1. **Find project root**: run `git rev-parse --show-toplevel`. If not in a git repo, use cwd.
-2. **Capture metadata**: run `echo "$CLAUDE_SESSION_ID"` and `date '+%Y-%m-%d %H:%M'` and `date '+%H%M'` and `git config user.name`. Store the results as literals — use them for the meeting-note filename, header lines, and in-transcript human attribution. Do not re-expand these in Write calls; embed the captured values directly.
+2. **Capture metadata**: run each of the following as a **separate Bash call** (one command per call — combined calls don't match the allowlist):
+   - `echo "$CLAUDE_SESSION_ID"`
+   - `date '+%Y-%m-%d %H:%M'`
+   - `date '+%H%M'`
+   - `git config user.name`
+   Store the results as literals — use them for the meeting-note filename, header lines, and in-transcript human attribution. Do not re-expand these in Write calls; embed the captured values directly.
 3. **Load format spec**: read `~/.claude/skills/meeting/format.md`. If `<root>/docs/meeting-notes/meeting-style.md` exists, append its contents to your working context under "## Project-specific overrides". Honour any natural-language overrides (e.g. "exclude Riku", "include Sage as standing", "meetings here are casual") — no structured parsing, just follow them.
 4. **Load persona registry**: read `~/.claude/skills/meeting/personas.md`. If the meeting calls for any persona by name, onboard them with their established lens from the registry — no re-introduction needed.
 5. **Surface relevant discoveries**: read `~/.claude/skills/meeting/discoveries.md`. At the start of the meeting, mention entries that intersect the meeting topic.
+6. **Load user profile**: read `~/.claude/skills/meeting/user-profile.md`. Personas may apply pre-emption per the rule defined in `format.md` (eligible + med+ confidence + contradiction; Riku ≫ others).
 
 ## With a subject argument
 
@@ -19,27 +25,41 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 2. **Past-meetings audit**: scan `<root>/docs/meeting-notes/*.md` for action items not yet reflected in `<root>/TODO.md`. Flag orphans before the new agenda starts. "Tracked but not yet implemented" is fine; "neither done nor tracked" is not.
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic, then follow the format spec (agenda → named discussion → AskUserQuestion decision points → decisions → action items).
-6. **Print transcript before every AskUserQuestion** — output the relevant meeting chunk as visible text before calling the tool, so the user has full context even if the plan file is not visible in the prompt UI.
+5. **Print transcript before every AskUserQuestion** — output the **complete, verbatim discussion text** for the most recent agenda item as visible chat content, not a summary. The plan file is not shown in the chat UI; the user must read the discussion in the chat response before the options appear.
 6. Proceed to end-of-meeting steps.
 
 ## With no subject (default mode)
 
-1. Read `<root>/TODO.md` (exact filename, no fallback). Read `<root>/docs/meeting-notes/*.md`.
-2. Identify candidates: unchecked TODO items whose scope is ambiguous, approach is undecided, or trade-offs are non-trivial.
-3. Recommend one candidate with 2–3 sentences of reasoning, or explain "no meeting-worthy topic found" and stop.
-4. Ask via AskUserQuestion: "Run a meeting on `<candidate>`?" — options [run on this / pick another / not yet].
-5. On "run": proceed as if `/meeting <candidate>` was invoked. On "pick another": ask follow-up. On "not yet": exit gracefully.
+1. Read `<root>/TODO.md` and `<root>/docs/meeting-notes/*.md`.
+2. **Classify** each unchecked, non-date-triggered TODO item into one of three classes:
+   - **Class 1 — impl-ready**: a linked meeting note exists whose Decisions section covers this item. The design is done; it just needs building.
+   - **Class 2 — planning-worthy**: a linked meeting note frames the question but has no Decisions answer covering it; OR the TODO text signals "design/investigate/decide" with no link. Needs a plan but not a full meeting.
+   - **Class 3 — meeting-worthy**: no link and ambiguous scope; use model judgement when neither rule fires cleanly.
+   Skip items that are purely date-triggered (contain a specific date as their activation condition).
+3. **Print the classified bucket summary** as visible text (group by class, show each item one-liner). Pick `head -1` of the highest-class non-empty bucket (priority: 1 > 2 > 3). Show one-line rationale.
+4. Ask via AskUserQuestion: `[do this / pick something else]` — no "not yet" option.
+5. **Dispatch by class:**
+   - Class 1 → proceed to implementation in normal mode (no plan mode, no meeting).
+   - Class 2 → call `EnterPlanMode`; use Claude Code's native explore → design → present → ExitPlanMode workflow. No persona scaffolding. After `ExitPlanMode` and implementation: write a **Class 2 planning record** to `<root>/docs/meeting-notes/YYYY-MM-DD-HHMM-<slug>.md` using the Class 2 template defined in `format.md` (distinct from Class 3: `**Mode:**` field, no `## Discussion`, uses `## Context / ## Plan / ## Implementation findings / ## Decisions / ## Action items`). Content synthesises the plan file; plan file is left to Claude Code's auto-cleanup. No allowlist changes needed (Read+Write paths already covered).
+   - Class 3 → proceed as if `/meeting <candidate>` was invoked (full meeting flow).
+   On "pick something else": re-ask with the next candidate.
 
 ## End-of-meeting steps
 
 1. **Write meeting note** to `<root>/docs/meeting-notes/YYYY-MM-DD-HHMM-<slug>.md`. Use the captured date, HHMM, and slug derived from the meeting title. Include `**Started:**` and `**Session:**` header lines populated with the captured literals.
-2. **Memory classification**: for each key decision or finding, ask via AskUserQuestion [project / discovery / universal / discard]:
+2. **Profile observations**: for each new behavioural observation the model noticed during the meeting (decision patterns, domain fluency, scope tolerance), ask via AskUserQuestion [save to user-profile / save to user-memory / discard]:
+   - *user-profile* → add an entry to `~/.claude/skills/meeting/user-profile.md` using the `## <trait>` format (Observation/Why/Confidence/Pre-emption-eligible).
+   - *user-memory* → write a `user`-type entry to `~/.claude/projects/<slug>/memory/<topic>.md`; add pointer to MEMORY.md.
+   - *discard* → skip.
+3. **Memory classification**: for each key decision or finding, ask via AskUserQuestion [project / discovery / universal / discard]:
    - *project* → write a `project`-type memory entry to `~/.claude/projects/<slug>/memory/<topic>.md`; add pointer to `MEMORY.md`. Body: "Decision: ... **Why:** ... **How to apply:** ...".
-   - *discovery* → append one line to `~/.claude/skills/meeting/discoveries.md`: `- [YYYY-MM-DD <project>] <one-sentence finding> — see <meeting-note-path>`.
+   - *discovery* → run `~/.claude/skills/meeting/append.sh -t discoveries -e "- [YYYY-MM-DD <project>] <one-sentence finding> — see <meeting-note-path>"`.
    - *universal* → propose a concrete `~/.claude/CLAUDE.md` edit and ask approval. Do not write directly.
    - *discard* → skip.
-3. **Persona registry**: for each new ad-hoc persona introduced, ask [save to global registry / meeting-only]. On save, append to `~/.claude/skills/meeting/personas.md`.
-4. Call `ExitPlanMode`.
+4. **Persona registry**: for each new ad-hoc persona introduced, ask [save to global registry / meeting-only]. On save, run `~/.claude/skills/meeting/append.sh -t personas -e "- 🔣 **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<meeting-slug>)."` (replace `🔣` with an appropriate emoji).
+5. Call `ExitPlanMode`.
+
+> **IMPORTANT — end-of-meeting writes:** Always use `~/.claude/skills/meeting/append.sh -t discoveries -e "…"` or `append.sh -t personas -e "…"` for registry appends. **Never** use direct Edit or Write on `discoveries.md` or `personas.md` — those trigger a permission prompt even though Edit is generally allowlisted. `append.sh` is the allowlisted path.
 
 ## Constraints during a meeting
 

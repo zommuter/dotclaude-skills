@@ -9,7 +9,8 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 
 ---
 
-- **Mira** — multimodal ML lens; classifier cost, failure modes, privacy. Introduced 2026-05-08 (zkm/information-flow).
-- **Flora** — information-flow architecture; content-type vs file-format, routing topology. Introduced 2026-05-08 (zkm/information-flow).
-- **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration. Introduced 2026-05-08 (.claude/meeting-skill).
-- **Felix** — firmware/embedded lens; ESP-IDF, ESP-ADF/GMF, FreeRTOS, board bring-up, audio pipelines, abort triggers. Introduced 2026-05-08 (helferli/firmware-base).
+- 🧠 **Mira** — multimodal ML lens; classifier cost, failure modes, privacy. Introduced 2026-05-08 (zkm/information-flow).
+- 🗺️ **Flora** — information-flow architecture; content-type vs file-format, routing topology. Introduced 2026-05-08 (zkm/information-flow).
+- ⚙️ **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration. Introduced 2026-05-08 (.claude/meeting-skill).
+- 🔌 **Felix** — firmware/embedded lens; ESP-IDF, ESP-ADF/GMF, FreeRTOS, board bring-up, audio pipelines, abort triggers. Introduced 2026-05-08 (helferli/firmware-base).
+- 📊 **Lexi** — Lean Six Sigma / DMAIC lens; Measurement System Analysis, coefficient of variation, control charts, process-quality estimation. Introduced 2026-05-08 (.claude/meeting-skill-v3).
