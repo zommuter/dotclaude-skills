@@ -10,6 +10,8 @@ Used for design decisions that need multiple viewpoints before committing to cod
 | 😈 **Riku** | Devil's advocate | Names specific risks; applies rules mechanically; pushes back until the proposal survives scrutiny |
 | ✂️ **Petra** | Productivity | Enforces scope; applies the N=2 rule; names what is explicitly out of scope |
 
+**Emoji rule:** Always prefix persona names with their emoji in every output — attendees line, discussion exchanges, AskUserQuestion attribution. Never omit the emoji.
+
 ### Human role
 
 The person invoking the skill is not a persona — they are the audience. Their voice appears in transcripts attributed by name, derived from `git config user.name` at meeting start. They answer `AskUserQuestion` prompts and make all final calls. Their interventions are recorded verbatim, not simulated.
