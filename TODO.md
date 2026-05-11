@@ -13,7 +13,7 @@
 - [ ] **Verify Class 2 format (live test)**: next time a Class 2 item is dispatched, confirm the produced note has `**Mode:** Class 2 planning record` + new section headings; no permission prompts expected.
 - [ ] **Whitelist orphan from 2026-05-10-1545**: `[ ] Verify: diary commit at end of this meeting fires without permission prompt` — close if that session's diary did commit cleanly; otherwise investigate. See `~/src/claude-diary/docs/meeting-notes/2026-05-10-1545-heredoc-shell-expansion.md`.
 
-- [ ] **Verify git-diary-workflow end-to-end** after migration: confirm diary-append.sh still appends to `~/src/claude-diary/DIARY.md` (default path unchanged); confirm git-lock-push.sh runs without permission prompt from new install path. *Partial in-session: diary-append.sh appended successfully (2nd attempt — 1st failed with transient "unstaged changes" after the migration commit; may be a race condition worth watching). git-lock-push.sh ran prompt-free at Steps 1 and 1b.* Close after next clean session confirms no prompts.
+- [x] **Verify git-diary-workflow end-to-end** after migration — confirmed by user 2026-05-11. diary-append.sh appends to ~/src/claude-diary/DIARY.md; git-lock-push.sh prompt-free. 1st-run transient "unstaged changes" error was a race condition, not a structural issue.
 
 ## Done
 
