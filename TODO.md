@@ -17,6 +17,7 @@
 
 ## Done
 
+- [x] **Makefile + README updates for skill install** — `make install` / `make install-<skill>` / `make DEST_DIR=/path install`; `git-diary-workflow/README.md` created; `meeting/README.md` manual block replaced; top-level README updated with new skill row and Install section. Verified via round-trip test and `make status`. — verified by user on 2026-05-11.
 - [x] **Prior meeting orphans** (from `2026-05-08-meeting-skill.md`): memory file existed; added missing no-arg default-behaviour decision 2026-05-10. zkm test item ("session 12 zkm-pdf") closed as superseded by 2026-05-10 dispatch validation — verified by user on 2026-05-10.
 - [x] **Verify `/meeting` from foreign cwd** (orphan from `2026-05-08-whitelist-skill-permissions.md`): analytical verification 2026-05-10 — `Read(~/.claude/skills/**)` covers all meeting-skill setup reads; `Write(~/.claude/docs/meeting-notes/*)` covers end-of-meeting write; helferli project settings add no restrictions on `~/.claude/` paths. Global tilde-prefixed allowlist entries are cwd-independent. Live test from helferli optional for empirical confirmation.
 - [x] **Publish meeting skill → `zommuter/dotclaude-skills`** (from 2026-05-10-1658 meeting): created `~/src/dotclaude-skills/`, two-commit history (gist baseline → live state), pushed to https://github.com/zommuter/dotclaude-skills, P2 symlinks in place, gist comment added, 6 gist-read allowlist entries added, Step 1c added to git-diary-workflow/SKILL.md. See `docs/meeting-notes/2026-05-10-1658-publish-meeting-skill.md`.
