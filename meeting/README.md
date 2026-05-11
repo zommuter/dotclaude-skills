@@ -96,27 +96,12 @@ override, not a meeting note.
 ## Install
 
 ```bash
-# 1. Clone or copy this repo
 git clone https://github.com/zommuter/dotclaude-skills.git ~/src/dotclaude-skills
-
-# 2. Create the skills directory if it doesn't exist
-mkdir -p ~/.claude/skills/meeting
-
-# 3. Symlink the spec files (P2 per-file pattern — keeps personal data local)
-for f in SKILL.md format.md personas.md append.sh cost-of.sh; do
-  ln -sf ~/src/dotclaude-skills/meeting/$f ~/.claude/skills/meeting/$f
-done
-
-# 4. Make scripts executable
-chmod +x ~/src/dotclaude-skills/meeting/append.sh
-chmod +x ~/src/dotclaude-skills/meeting/cost-of.sh
-
-# 5. Create local-only personal data files (not in this repo)
-touch ~/.claude/skills/meeting/discoveries.md
-touch ~/.claude/skills/meeting/user-profile.md
+cd ~/src/dotclaude-skills
+make install-meeting
 ```
 
-The P2 symlink pattern means the live skill **is** the published version for spec files. Personal accumulator files (`discoveries.md`, `user-profile.md`) stay local.
+This symlinks the published spec files into `~/.claude/skills/meeting/` (P2 per-file pattern) and creates empty `discoveries.md` and `user-profile.md` if they don't exist — your personal accumulator files stay local and are never overwritten on re-install.
 
 ## Settings.json allowlist
 

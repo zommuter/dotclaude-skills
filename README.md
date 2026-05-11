@@ -7,6 +7,19 @@ Public Claude Code skills by [@zommuter](https://github.com/zommuter).
 | Skill | Description |
 |---|---|
 | [meeting](meeting/) | Structured design meetings with named personas (Archie, Riku, Petra) |
+| [git-diary-workflow](git-diary-workflow/) | Commits, pushes, and appends a diary entry after every substantive prompt |
+
+## Install
+
+```bash
+git clone https://github.com/zommuter/dotclaude-skills.git ~/src/dotclaude-skills
+cd ~/src/dotclaude-skills
+make install            # all skills
+make install-meeting    # one skill
+make help               # list available targets
+```
+
+See each skill's `README.md` for skill-specific notes (settings.json allowlist, local-only files, etc.).
 
 ## Publishing pattern
 
