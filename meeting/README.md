@@ -9,6 +9,22 @@ A structured design meeting skill for Claude Code. Summons named personas (Archi
 - **With a subject**: runs an interactive multi-persona meeting in plan mode, writes a dated meeting note to `<root>/docs/meeting-notes/`, captures decisions and action items.
 - **With no subject**: classifies unchecked TODO items into impl-ready / planning-worthy / meeting-worthy and dispatches the top candidate.
 
+## Example output
+
+Real meeting notes produced by this skill live in
+[`../docs/meeting-notes/`](../docs/meeting-notes/) — most of them are recursive
+(meetings about designing the meeting skill itself), so they double as
+authentic example output.
+
+Good starting points:
+
+- [`2026-05-10-1658-publish-meeting-skill.md`](../docs/meeting-notes/2026-05-10-1658-publish-meeting-skill.md) — deciding how to publish this skill (meta).
+- [`2026-05-10-1623-class2-format.md`](../docs/meeting-notes/2026-05-10-1623-class2-format.md) — Class 2 planning-record format.
+- [`2026-05-10-1519-meeting-skill-planmode-entry.md`](../docs/meeting-notes/2026-05-10-1519-meeting-skill-planmode-entry.md) — design debate over `EnterPlanMode` timing.
+
+`meeting-style.md` in the same directory is the project's standing-attendee
+override, not a meeting note.
+
 ## Install
 
 ```bash
