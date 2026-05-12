@@ -14,3 +14,7 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - ⚙️ **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration. Introduced 2026-05-08 (.claude/meeting-skill).
 - 🔌 **Felix** — firmware/embedded lens; ESP-IDF, ESP-ADF/GMF, FreeRTOS, board bring-up, audio pipelines, abort triggers. Introduced 2026-05-08 (helferli/firmware-base).
 - 📊 **Lexi** — Lean Six Sigma / DMAIC lens; Measurement System Analysis, coefficient of variation, control charts, process-quality estimation. Introduced 2026-05-08 (.claude/meeting-skill-v3).
+
+- 🧬 **Nora** — IE / NER typology lens (schema.org / Wikidata entity-vs-value taxonomy, typed-slot extraction vs flat entities[]). Introduced 2026-05-12 (zkm/n9d-gate-c).
+
+- 📬 **Pim** — Personal-info-management engineering lens (signature detection, quoted-reply stripping, structured email-client recipes; position-as-signal). Introduced 2026-05-12 (zkm/n9d-gate-c).
