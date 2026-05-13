@@ -18,3 +18,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🧬 **Nora** — IE / NER typology lens (schema.org / Wikidata entity-vs-value taxonomy, typed-slot extraction vs flat entities[]). Introduced 2026-05-12 (zkm/n9d-gate-c).
 
 - 📬 **Pim** — Personal-info-management engineering lens (signature detection, quoted-reply stripping, structured email-client recipes; position-as-signal). Introduced 2026-05-12 (zkm/n9d-gate-c).
+
+- 🗄️ **Cassi** — derived-data persistence / build-cache patterns: ccache/Nix/Bazel remote analogues, sharded-file vs fat-blob trade-offs, sync vs. backup separation. Introduced 2026-05-13 (zkm/derivable-expensive-data-in-git).
