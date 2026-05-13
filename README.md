@@ -8,6 +8,7 @@ Public Claude Code skills by [@zommuter](https://github.com/zommuter).
 |---|---|
 | [meeting](meeting/) | Structured design meetings with named personas (Archie, Riku, Petra) |
 | [git-diary-workflow](git-diary-workflow/) | Commits, pushes, and appends a diary entry after every substantive prompt |
+| [todo-update](todo-update/) | Updates TODO.md after every substantive prompt — mandatory alongside git-diary-workflow |
 
 ## Install
 

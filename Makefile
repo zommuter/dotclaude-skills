@@ -2,7 +2,7 @@ SRC_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEST_DIR := $(HOME)/.claude/skills
 export DEST_DIR
 
-SKILLS := meeting git-diary-workflow
+SKILLS := meeting git-diary-workflow todo-update
 
 meeting_FILES := SKILL.md format.md personas.md append.sh cost-of.sh
 meeting_EXEC  := append.sh cost-of.sh
@@ -11,6 +11,10 @@ meeting_LOCAL := discoveries.md user-profile.md
 git-diary-workflow_FILES := SKILL.md diary-append.sh git-lock-push.sh
 git-diary-workflow_EXEC  := diary-append.sh git-lock-push.sh
 git-diary-workflow_LOCAL :=
+
+todo-update_FILES := SKILL.md
+todo-update_EXEC  :=
+todo-update_LOCAL :=
 
 .PHONY: help install uninstall status \
         $(addprefix install-,$(SKILLS)) \
