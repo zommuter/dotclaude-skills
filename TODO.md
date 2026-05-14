@@ -32,14 +32,15 @@
 
 ## hooks
 
-- [ ] **AI-1 — hooks/ verbatim first commit**: copy `~/.claude/hooks/meeting-cost-logger.sh`, `~/.claude/hooks/parallel-edit-detector.py`, `~/.claude/notify-hook.sh` into `dotclaude-skills/hooks/` unchanged. Contract: zero content diff vs live; `git show --stat` lists 3 files.
-- [ ] **AI-2 — sanity-pass `parallel-edit-detector.py`**: check for hard-coded paths/UUIDs before publish; scrub if found.
-- [ ] **AI-3 — rename notify-hook.sh → notify-hook.linux-x11.sh** via `git mv`. Contract: `git log --follow` traces to verbatim commit.
-- [ ] **AI-4 — add `hooks/README.md`**: one-paragraph per hook + settings.json registration snippet (Stop + Notification script-based; SessionStart + PostToolUse inline). See `docs/meeting-notes/2026-05-14-1555-version-hooks-symlink.md`.
-- [ ] **AI-5 — Makefile `install-hooks` target**: `mkdir -p ~/.claude/hooks/` + 3 `ln -sf` lines; add to default `install`. Contract: idempotent.
-- [ ] **AI-6 — top-level README Hooks section**: row table after Skills (3 rows, link to hooks/README.md). Contract: renders on GitHub.
-- [ ] **AI-7 — replace live files with symlinks**: `~/.claude/hooks/{meeting-cost-logger.sh,parallel-edit-detector.py}` + `~/.claude/notify-hook.sh` → dotclaude-skills targets. Contract: `ls -la` shows symlinks.
+- [x] **AI-1 — hooks/ verbatim first commit** — done 2026-05-14. Zero content diff; 3 files in commit 82aeeca.
+- [x] **AI-2 — sanity-pass `parallel-edit-detector.py`** — done 2026-05-14. All paths use `Path.home()`; no hard-coded UUIDs. Clean.
+- [x] **AI-3 — rename notify-hook.sh → notify-hook.linux-x11.sh** — done 2026-05-14. `git mv` in commit 0071a2c; `git log --follow` traces to verbatim commit.
+- [x] **AI-4 — add `hooks/README.md`** — done 2026-05-14. Per-hook purpose + prerequisites + full settings.json snippet. Commit 0071a2c.
+- [x] **AI-5 — Makefile `install-hooks` target** — done 2026-05-14. 3 `ln -sf` lines; in default `install`. Commit 0071a2c.
+- [x] **AI-6 — top-level README Hooks section** — done 2026-05-14. 3-row table + updated Install block. Commit 0071a2c.
+- [x] **AI-7 — replace live files with symlinks** — done 2026-05-14. `ls -la` confirms symlinks to dotclaude-skills.
 - [ ] **AI-8 — post-symlink verification**: confirm `meeting-cost.log` gets a new entry after next Stop; notify-send fires on next permission prompt.
+- [x] **AI-9 — discard historical orphan** (`2026-05-08-meeting-skill.md:71 "Save key decisions to project auto-memory"`) — closed 2026-05-14: superseded by current memory workflow (auto-memory at meeting end).
 
 ## git-diary-workflow
 
