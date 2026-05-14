@@ -30,7 +30,13 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 
 ## With no subject (default mode)
 
-1. Read `<root>/TODO.md`. Run `~/.claude/skills/meeting/orphan-scan.sh` for the orphan check; flag any candidates before classification (verify against in-ctx TODO.md). If the script is missing or exits non-zero, read `<root>/docs/meeting-notes/*.md` directly.
+1. Read `<root>/TODO.md`. Run `~/.claude/skills/meeting/orphan-scan.sh` for the orphan check; flag any candidates before classification (verify against in-ctx TODO.md). If the script is missing or exits non-zero, read `<root>/docs/meeting-notes/*.md` directly. Then run:
+   ```bash
+   find . -mindepth 2 -maxdepth 3 -name TODO.md \
+     -not -path './.git/*' -not -path '*/node_modules/*' \
+     -not -path '*/.venv/*' -not -path '*/*/.git/*' 2>/dev/null
+   ```
+   If any paths are returned, print a warning before the classifier output: `WARNING: subdirectory TODO.md files found — consider merging into <root>/TODO.md: <paths>`. Classification proceeds against root TODO.md only; subdir items are not classified.
 2. **Classify** each unchecked, non-date-triggered TODO item into one of three classes:
    - **Class 1 — impl-ready**: a linked meeting note exists whose Decisions section covers this item. The design is done; it just needs building.
    - **Class 2 — planning-worthy**: a linked meeting note frames the question but has no Decisions answer covering it; OR the TODO text signals "design/investigate/decide" with no link. Needs a plan but not a full meeting.
