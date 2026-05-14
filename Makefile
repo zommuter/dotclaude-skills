@@ -12,8 +12,8 @@ git-diary-workflow_FILES := SKILL.md diary-append.sh git-lock-push.sh
 git-diary-workflow_EXEC  := diary-append.sh git-lock-push.sh
 git-diary-workflow_LOCAL :=
 
-todo-update_FILES := SKILL.md
-todo-update_EXEC  :=
+todo-update_FILES := SKILL.md archive-done.sh
+todo-update_EXEC  := archive-done.sh
 todo-update_LOCAL :=
 
 .PHONY: help install uninstall status \
