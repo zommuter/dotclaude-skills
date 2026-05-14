@@ -22,7 +22,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 ## With a subject argument
 
 1. **Warrantability self-check** (see format spec). If the request looks like a bug fix, one-liner, or already-decided feature, respond "are you sure you want a meeting?" and briefly explain why it might be overkill — before running the agenda. If it clearly passes, note that and proceed.
-2. **Past-meetings audit**: run `~/.claude/skills/meeting/orphan-scan.sh` (uses project root automatically). Print any candidates it returns and verify against in-ctx `<root>/TODO.md`. If the script is missing or exits non-zero, fall back to scanning `<root>/docs/meeting-notes/*.md` manually. "Tracked but not yet implemented" is fine; "neither done nor tracked" is not.
+2. **Past-meetings audit (DISABLED)**: orphan-scan.sh suppressed — FP rate too high (differently-phrased action items resurface as orphans every run regardless of TODO.md status). Skip this step. Re-enable after F-A or F-B redesign ships (see TODO.md).
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic, then follow the format spec (agenda → named discussion → AskUserQuestion decision points → decisions → action items).
 5. **Print transcript before every AskUserQuestion** — output the **complete, verbatim discussion text** for the most recent agenda item as visible chat content, not a summary. The plan file is not shown in the chat UI; the user must read the discussion in the chat response before the options appear.
@@ -30,7 +30,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 
 ## With no subject (default mode)
 
-1. Read `<root>/TODO.md`. Run `~/.claude/skills/meeting/orphan-scan.sh` for the orphan check; flag any candidates before classification (verify against in-ctx TODO.md). If the script is missing or exits non-zero, read `<root>/docs/meeting-notes/*.md` directly. Then run:
+1. Read `<root>/TODO.md`. *(Orphan-scan disabled — FP rate too high; pending F-A/F-B redesign in TODO.md.)* Then run:
    ```bash
    find . -mindepth 2 -maxdepth 3 -name TODO.md \
      -not -path './.git/*' -not -path '*/node_modules/*' \
