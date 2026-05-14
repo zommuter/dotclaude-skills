@@ -10,17 +10,29 @@ Public Claude Code skills by [@zommuter](https://github.com/zommuter).
 | [git-diary-workflow](git-diary-workflow/) | Commits, pushes, and appends a diary entry after every substantive prompt |
 | [todo-update](todo-update/) | Updates TODO.md after every substantive prompt — mandatory alongside git-diary-workflow |
 
+## Hooks
+
+Event hook scripts for Claude Code. See [hooks/README.md](hooks/README.md) for settings.json registration snippets.
+
+| Hook | Description |
+|---|---|
+| [meeting-cost-logger.sh](hooks/README.md#meeting-cost-loggersh) | Stop hook: logs per-session turn/token counts and whether a meeting note was written |
+| [parallel-edit-detector.py](hooks/README.md#parallel-edit-detectorpy) | Stop hook: detects committed file changes not explained by the session's tool calls |
+| [notify-hook.linux-x11.sh](hooks/README.md#notify-hooklinux-x11sh) | Notification hook: desktop notification for permission prompts (XFCE/X11) |
+
 ## Install
 
 ```bash
 git clone https://github.com/zommuter/dotclaude-skills.git ~/src/dotclaude-skills
 cd ~/src/dotclaude-skills
-make install            # all skills
+make install            # all skills and hooks
 make install-meeting    # one skill
+make install-hooks      # hooks only
 make help               # list available targets
 ```
 
-See each skill's `README.md` for skill-specific notes (settings.json allowlist, local-only files, etc.).
+See each skill's `README.md` for skill-specific notes (settings.json allowlist, local-only files, etc.).  
+See [hooks/README.md](hooks/README.md) for hook prerequisites and settings.json registration snippets.
 
 ## Publishing pattern
 
