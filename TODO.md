@@ -30,6 +30,17 @@
 
 - [x] **Verify git-diary-workflow end-to-end** after migration — confirmed by user 2026-05-11. diary-append.sh appends to ~/src/claude-diary/DIARY.md; git-lock-push.sh prompt-free. 1st-run transient "unstaged changes" error was a race condition, not a structural issue.
 
+## hooks
+
+- [ ] **AI-1 — hooks/ verbatim first commit**: copy `~/.claude/hooks/meeting-cost-logger.sh`, `~/.claude/hooks/parallel-edit-detector.py`, `~/.claude/notify-hook.sh` into `dotclaude-skills/hooks/` unchanged. Contract: zero content diff vs live; `git show --stat` lists 3 files.
+- [ ] **AI-2 — sanity-pass `parallel-edit-detector.py`**: check for hard-coded paths/UUIDs before publish; scrub if found.
+- [ ] **AI-3 — rename notify-hook.sh → notify-hook.linux-x11.sh** via `git mv`. Contract: `git log --follow` traces to verbatim commit.
+- [ ] **AI-4 — add `hooks/README.md`**: one-paragraph per hook + settings.json registration snippet (Stop + Notification script-based; SessionStart + PostToolUse inline). See `docs/meeting-notes/2026-05-14-1555-version-hooks-symlink.md`.
+- [ ] **AI-5 — Makefile `install-hooks` target**: `mkdir -p ~/.claude/hooks/` + 3 `ln -sf` lines; add to default `install`. Contract: idempotent.
+- [ ] **AI-6 — top-level README Hooks section**: row table after Skills (3 rows, link to hooks/README.md). Contract: renders on GitHub.
+- [ ] **AI-7 — replace live files with symlinks**: `~/.claude/hooks/{meeting-cost-logger.sh,parallel-edit-detector.py}` + `~/.claude/notify-hook.sh` → dotclaude-skills targets. Contract: `ls -la` shows symlinks.
+- [ ] **AI-8 — post-symlink verification**: confirm `meeting-cost.log` gets a new entry after next Stop; notify-send fires on next permission prompt.
+
 ## git-diary-workflow
 
 - [x] **`git-lock-push.sh` first-push upstream bug** — fixed 2026-05-14: `ls-remote` check before pull (skips rebase when remote branch absent); push loop uses `--set-upstream` on first push. See `git-diary-workflow/git-lock-push.sh`.
