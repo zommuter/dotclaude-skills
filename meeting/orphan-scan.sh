@@ -11,7 +11,7 @@ LOG="$HOME/.claude/logs/meeting-orphan-scan.log"
 mkdir -p "$(dirname "$LOG")"
 
 start_ms=$(date +%s%3N)
-todo="$(cat "$ROOT/TODO.md" 2>/dev/null || true)"
+todo="$(cat "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)"
 notes=0
 unchecked=0
 cand4=0
