@@ -29,6 +29,22 @@ If neither exists, create `TODO.md`:
 ## Done
 ```
 
+### Step 1.5: Warn about subdirectory TODO.md files
+
+Run:
+```bash
+find . -mindepth 2 -maxdepth 3 -name TODO.md \
+  -not -path './.git/*' -not -path '*/node_modules/*' \
+  -not -path '*/.venv/*' -not -path '*/*/.git/*' 2>/dev/null
+```
+
+If any paths are returned, print:
+```
+WARNING: subdirectory TODO.md files found — consider merging into root TODO.md: <paths>
+```
+
+Do not block or auto-merge. Proceed with normal steps; the user decides whether to merge.
+
 ### Step 2: Add newly discovered tasks
 
 If work revealed new tasks (new bugs, missing steps, follow-ups), add them under `## Current`:
