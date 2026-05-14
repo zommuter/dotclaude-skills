@@ -39,7 +39,7 @@
 - [x] **AI-5 — Makefile `install-hooks` target** — done 2026-05-14. 3 `ln -sf` lines; in default `install`. Commit 0071a2c.
 - [x] **AI-6 — top-level README Hooks section** — done 2026-05-14. 3-row table + updated Install block. Commit 0071a2c.
 - [x] **AI-7 — replace live files with symlinks** — done 2026-05-14. `ls -la` confirms symlinks to dotclaude-skills.
-- [ ] **AI-8 — post-symlink verification**: confirm `meeting-cost.log` gets a new entry after next Stop; notify-send fires on next permission prompt.
+- [x] **AI-8 — post-symlink verification** — done 2026-05-14. `~/.claude/logs/meeting-cost.log` entry at 16:49 (symlink installed 16:48, confirmed via dotclaude-skills project session); `notify-hook.sh` symlink → `notify-hook.linux-x11.sh` confirmed in place.
 - [x] **AI-9 — discard historical orphan** (`2026-05-08-meeting-skill.md:71 "Save key decisions to project auto-memory"`) — closed 2026-05-14: superseded by current memory workflow (auto-memory at meeting end).
 
 ## git-diary-workflow
