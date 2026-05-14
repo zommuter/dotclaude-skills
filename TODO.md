@@ -26,6 +26,10 @@
 - [ ] **F-B — hash-based item ID for meeting↔TODO correlation** (forward-flag): give each meeting action item a stable short ID (e.g. `[oa3f]`) that TODO.md cites. Replaces 4-word fuzzy key with exact-match scan; eliminates the FP class entirely. Open `/meeting hash-item-id` when warranted. Subsumes/competes with anchor-marker approach withdrawn in `docs/meeting-notes/2026-05-14-1803-orphan-scan-accumulation.md`.
 
 
+## meeting skill — allowlist
+
+- [ ] **Verify append.sh allowlist consistency** — tilde-prefixed entries `Bash(~/.claude/skills/meeting/append.sh -t * -e *)` and `-f *` exist in settings.json. User reports they should work; verify empirically from a non-dotclaude-skills cwd (e.g. helferli, zkm) that no permission prompt fires. If prompt fires, add absolute-path variants (same fix as diary-append.sh double-entry pattern). See 2026-05-14 meeting session note.
+
 ## hooks
 
 - [x] **AI-1 — Verbatim hooks copy to dotclaude-skills**: `hooks/meeting-cost-logger.sh`, `hooks/parallel-edit-detector.py`, `hooks/notify-hook.linux-x11.sh` all present; content matches `~/.claude/hooks/`. Closed 2026-05-14.
