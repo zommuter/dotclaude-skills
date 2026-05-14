@@ -22,7 +22,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 ## With a subject argument
 
 1. **Warrantability self-check** (see format spec). If the request looks like a bug fix, one-liner, or already-decided feature, respond "are you sure you want a meeting?" and briefly explain why it might be overkill — before running the agenda. If it clearly passes, note that and proceed.
-2. **Past-meetings audit**: scan `<root>/docs/meeting-notes/*.md` for action items not yet reflected in `<root>/TODO.md`. Flag orphans before the new agenda starts. "Tracked but not yet implemented" is fine; "neither done nor tracked" is not.
+2. **Past-meetings audit**: run `~/.claude/skills/meeting/orphan-scan.sh` (uses project root automatically). Print any candidates it returns and verify against in-ctx `<root>/TODO.md`. If the script is missing or exits non-zero, fall back to scanning `<root>/docs/meeting-notes/*.md` manually. "Tracked but not yet implemented" is fine; "neither done nor tracked" is not.
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic, then follow the format spec (agenda → named discussion → AskUserQuestion decision points → decisions → action items).
 5. **Print transcript before every AskUserQuestion** — output the **complete, verbatim discussion text** for the most recent agenda item as visible chat content, not a summary. The plan file is not shown in the chat UI; the user must read the discussion in the chat response before the options appear.
@@ -30,7 +30,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 
 ## With no subject (default mode)
 
-1. Read `<root>/TODO.md` and `<root>/docs/meeting-notes/*.md`.
+1. Read `<root>/TODO.md`. Run `~/.claude/skills/meeting/orphan-scan.sh` for the orphan check; flag any candidates before classification (verify against in-ctx TODO.md). If the script is missing or exits non-zero, read `<root>/docs/meeting-notes/*.md` directly.
 2. **Classify** each unchecked, non-date-triggered TODO item into one of three classes:
    - **Class 1 — impl-ready**: a linked meeting note exists whose Decisions section covers this item. The design is done; it just needs building.
    - **Class 2 — planning-worthy**: a linked meeting note frames the question but has no Decisions answer covering it; OR the TODO text signals "design/investigate/decide" with no link. Needs a plan but not a full meeting.
