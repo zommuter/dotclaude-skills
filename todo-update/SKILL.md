@@ -47,7 +47,13 @@ Do not block or auto-merge. Proceed with normal steps; the user decides whether 
 
 ### Step 2: Add newly discovered tasks
 
-If work revealed new tasks (new bugs, missing steps, follow-ups), add them under `## Current`:
+Before adding a new task, grep the file for keywords to avoid duplicates:
+
+```bash
+grep -i "keyword" TODO.md
+```
+
+If a matching open item already exists, update it in place rather than adding a duplicate. Only add a new line if no near-match is found:
 
 ```markdown
 - [ ] brief description of new task
@@ -67,6 +73,16 @@ When moving, append a verification note:
 ```
 
 **Never mark a task done based solely on Claude's own judgment that the work is complete.**
+
+### Step 4: Archive old done entries
+
+Once per session (skip if `TODO.md` has fewer than 50 lines), run:
+
+```bash
+~/.claude/skills/todo-update/archive-done.sh TODO.md
+```
+
+This moves `[x]` entries dated ≥30 days ago to `TODO.archive.md`. Undated entries are left in place.
 
 ## Format Rules (Sonnet-friendly)
 
