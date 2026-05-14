@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# archive-done.sh — move aged [x] entries from TODO.md to TODO.archive.md
+# archive-done.sh — move [x] entries from TODO.md to TODO.archive.md
 # Usage: archive-done.sh [path/to/TODO.md]   (default: ./TODO.md)
 # Skips if the file has fewer than 50 lines.
-# Only archives lines ending with "on YYYY-MM-DD[.]" that are ≥30 days old.
-# Lines without a parseable date are left in place (safe-default).
+# Archives [x] entries that were already done in the prior commit (count-based),
+# or entries ending with "on YYYY-MM-DD[.]" that are ≥30 days old (age-based).
+# Entries without a parseable date and not in the prior commit are left in place.
 
 set -euo pipefail
 
@@ -22,15 +23,32 @@ if (( line_count < 50 )); then
 fi
 
 cutoff=$(date -d '30 days ago' '+%Y-%m-%d')
+today_ym=$(date '+%Y-%m')
 
-python3 - "$TODO_FILE" "$ARCHIVE_FILE" "$cutoff" <<'PYEOF'
+PRIOR_DONE_FILE=$(mktemp)
+trap 'rm -f "$PRIOR_DONE_FILE"' EXIT
+
+if REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
+    TODO_ABS=$(realpath "$TODO_FILE")
+    TODO_REL=$(realpath --relative-to="$REPO_ROOT" "$TODO_ABS")
+    git show HEAD:"$TODO_REL" 2>/dev/null | grep -E '^\s*- \[x\]' > "$PRIOR_DONE_FILE" || true
+fi
+
+python3 - "$TODO_FILE" "$ARCHIVE_FILE" "$cutoff" "$today_ym" "$PRIOR_DONE_FILE" <<'PYEOF'
 import sys, re
 from pathlib import Path
 from datetime import date
 
-todo_path   = Path(sys.argv[1])
+todo_path    = Path(sys.argv[1])
 archive_path = Path(sys.argv[2])
-cutoff      = date.fromisoformat(sys.argv[3])
+cutoff       = date.fromisoformat(sys.argv[3])
+today_ym     = sys.argv[4]
+prior_file   = Path(sys.argv[5])
+
+prior_done = set()
+if prior_file.exists():
+    for ln in prior_file.read_text().splitlines():
+        prior_done.add(ln.strip())
 
 lines   = todo_path.read_text().splitlines(keepends=True)
 keep    = []
@@ -40,6 +58,9 @@ date_re = re.compile(r' on (\d{4}-\d{2}-\d{2})\.?\s*$')
 
 for line in lines:
     if re.match(r'^\s*- \[x\]', line):
+        if line.rstrip('\n').strip() in prior_done:
+            to_arch.setdefault(today_ym, []).append(line.rstrip('\n'))
+            continue
         m = date_re.search(line)
         if m:
             try:
@@ -54,7 +75,7 @@ for line in lines:
     keep.append(line)
 
 if not to_arch:
-    print("archive-done: nothing old enough to archive.", file=sys.stderr)
+    print("archive-done: nothing to archive.", file=sys.stderr)
     sys.exit(0)
 
 todo_path.write_text(''.join(keep))
