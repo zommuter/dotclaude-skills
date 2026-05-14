@@ -28,7 +28,7 @@
 
 ## git-diary-workflow
 
-- [ ] **`git-lock-push.sh` first-push upstream bug** — fails with `fatal: couldn't find remote ref claude` when the current branch has no upstream yet (first push on a new branch). Workaround: fall back to plain `git push` or `git push --set-upstream origin <branch>`. Fix: detect "no upstream" exit code in git-lock-push.sh and run `git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)` instead.
+- [x] **`git-lock-push.sh` first-push upstream bug** — fixed 2026-05-14: `ls-remote` check before pull (skips rebase when remote branch absent); push loop uses `--set-upstream` on first push. See `git-diary-workflow/git-lock-push.sh`.
 
 ## Done
 

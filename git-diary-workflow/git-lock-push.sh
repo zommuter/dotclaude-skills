@@ -48,13 +48,23 @@ else
   target="$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null | tr '/' ' ')" || target="origin main"
 fi
 
-git pull --rebase --autostash $target
+# Only pull if the remote branch exists (first-push scenario: skip rebase, just push)
+remote_name="${target%% *}"
+remote_branch="${target#* }"
+if git ls-remote --exit-code "$remote_name" "refs/heads/$remote_branch" >/dev/null 2>&1; then
+  git pull --rebase --autostash $target
+fi
 
-# push to all remotes (skip guard pushurls)
+# push to all remotes (skip guard pushurls); set upstream on first push
+current_branch="$(git rev-parse --abbrev-ref HEAD)"
 for remote in $(git remote); do
   pushurl=$(git remote get-url --push "$remote")
   [ "$pushurl" = "no_push" ] && continue
-  git push "$remote"
+  if git ls-remote --exit-code "$remote" "refs/heads/$current_branch" >/dev/null 2>&1; then
+    git push "$remote"
+  else
+    git push --set-upstream "$remote" "$current_branch"
+  fi
 done
 
 exec 8>&-
