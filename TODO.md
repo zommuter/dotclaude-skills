@@ -30,7 +30,7 @@
 
 ## meeting skill — allowlist
 
-- [ ] **Verify append.sh allowlist consistency** — tilde-prefixed entries `Bash(~/.claude/skills/meeting/append.sh -t * -e *)` and `-f *` exist in settings.json. User reports they should work; verify empirically from a non-dotclaude-skills cwd (e.g. helferli, zkm) that no permission prompt fires. If prompt fires, add absolute-path variants (same fix as diary-append.sh double-entry pattern). See 2026-05-14 meeting session note.
+- [x] **Verify append.sh allowlist consistency** — confirmed 2026-05-15: ran `append.sh -t discoveries -f /dev/null` from helferli cwd; no permission prompt fired. Tilde entries work for Bash commands (literal command-string matching, same as diary-append.sh). No absolute-path variants needed.
 
 ## hooks
 
@@ -38,7 +38,7 @@
 - [x] **AI-3 — Rename `hooks/notify-hook.sh → hooks/notify-hook.linux-x11.sh`** via `git mv`. Done — file was already named `.linux-x11.sh` (predates the meeting note). Closed 2026-05-14.
 - [x] **AI-4 — hooks/README.md**: one paragraph per hook + settings.json snippet. Present at `hooks/README.md` (14 May). Closed 2026-05-14.
 - [x] **AI-5 — Makefile `install-hooks` target**: `mkdir -p ~/.claude/hooks/` + 3 `ln -sf` lines; present and idempotent. Closed 2026-05-14.
-- [ ] **AI-8 — Post-symlink verification**: confirm `notify-send` fires on next permission prompt (visual notification). `meeting-cost.log` entry confirmed ✓ (current session logged). Notify-send path unverified. Orphan from `docs/meeting-notes/2026-05-14-1555-version-hooks-symlink.md:89`.
+- [x] **AI-8 — Post-symlink verification** — confirmed 2026-05-15: `notify-send` 0.8.8 installed; hook chain verified (settings.json → `~/.claude/notify-hook.sh` → `notify-hook.linux-x11.sh`); test notification sent successfully. Fixed `set -e` bug: `wait "$notif_pid" 2>/dev/null` → `|| true` to prevent exit 1 on dismiss-without-action (libnotify 0.8 behavior).
 
 ## git-diary-workflow
 
