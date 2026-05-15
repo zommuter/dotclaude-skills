@@ -25,7 +25,7 @@
 - [ ] **F-A — orphan-scan auto-mark confirmed-archived items `[x]`** (forward-flag): when a scan candidate is found in `TODO.archive.md`, flip `- [ ]` to `- [x]` in the source meeting-note file automatically. Reduces noise floor permanently; trade-off vs "frozen decision record" framing needs a meeting. Open `/meeting orphan-scan-mark-resolved` when warranted.
 - [ ] **F-B — hash-based item ID for meeting↔TODO correlation** (forward-flag): give each meeting action item a stable short ID (e.g. `[oa3f]`) that TODO.md cites. Replaces 4-word fuzzy key with exact-match scan; eliminates the FP class entirely. Open `/meeting hash-item-id` when warranted. Subsumes/competes with anchor-marker approach withdrawn in `docs/meeting-notes/2026-05-14-1803-orphan-scan-accumulation.md`.
 - [ ] **Re-enable orphan-scan in SKILL.md** after F-A or F-B ships: both "With subject" step 2 and "With no subject" step 1 are disabled (DISABLED comment inline). Contract: re-enable only when FP rate is acceptably low. See `docs/meeting-notes/2026-05-14-2016-disable-orphan-scan.md`.
-- [ ] **Amend `discoveries.md` γ-class entry** (orphan from `docs/meeting-notes/2026-05-14-1219-todo-update-perprompt-cost.md:65`): add correction line noting empirical multiplier ~1/session over n=100 (not ×prompt-count). Via `append.sh -t discoveries`. See that meeting note.
+- [x] **Amend `discoveries.md` γ-class entry** — correction entry already present in discoveries.md (written in same session as meeting note). Closed 2026-05-15.
 
 
 ## meeting skill — allowlist
