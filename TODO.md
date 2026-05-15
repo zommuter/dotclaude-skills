@@ -27,7 +27,6 @@
 - [ ] **Re-enable orphan-scan in SKILL.md** after F-A or F-B ships: both "With subject" step 2 and "With no subject" step 1 are disabled (DISABLED comment inline). Contract: re-enable only when FP rate is acceptably low. See `docs/meeting-notes/2026-05-14-2016-disable-orphan-scan.md`.
 - [x] **Amend `discoveries.md` γ-class entry** — correction entry already present in discoveries.md (written in same session as meeting note). Closed 2026-05-15.
 
-
 ## meeting skill — allowlist
 
 - [x] **Verify append.sh allowlist consistency** — confirmed 2026-05-15: ran `append.sh -t discoveries -f /dev/null` from helferli cwd; no permission prompt fired. Tilde entries work for Bash commands (literal command-string matching, same as diary-append.sh). No absolute-path variants needed.
@@ -40,8 +39,10 @@
 - [x] **AI-5 — Makefile `install-hooks` target**: `mkdir -p ~/.claude/hooks/` + 3 `ln -sf` lines; present and idempotent. Closed 2026-05-14.
 - [x] **AI-8 — Post-symlink verification** — confirmed 2026-05-15: `notify-send` 0.8.8 installed; hook chain verified (settings.json → `~/.claude/notify-hook.sh` → `notify-hook.linux-x11.sh`); test notification sent successfully. Fixed `set -e` bug: `wait "$notif_pid" 2>/dev/null` → `|| true` to prevent exit 1 on dismiss-without-action (libnotify 0.8 behavior).
 
-## git-diary-workflow
+## todo-update
 
+- [x] **Add empty-section prune pass + gate relocation to `archive-done.sh`** — implemented 2026-05-15; see `docs/meeting-notes/2026-05-15-1121-todo-update-prune-empty-sections.md`.
+- [x] **Edit `todo-update/SKILL.md` Step 4** — dropped "skip if <50 lines" from prose; gate now single-sourced in script. Same session/meeting.
+- [x] **Synthetic round-trip test** — <50-line and ≥50-line fixtures both verified. Same session/meeting.
 
 ## Done
-

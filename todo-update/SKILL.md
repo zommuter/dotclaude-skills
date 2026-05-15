@@ -76,13 +76,13 @@ When moving, append a verification note:
 
 ### Step 4: Archive old done entries
 
-Once per session (skip if `TODO.md` has fewer than 50 lines), run:
+Once per session, run:
 
 ```bash
 ~/.claude/skills/todo-update/archive-done.sh TODO.md
 ```
 
-This moves `[x]` entries dated ≥30 days ago to `TODO.archive.md`. Undated entries are left in place.
+This prunes empty (zero-task-line) non-protected sections unconditionally, and moves `[x]` entries dated ≥30 days ago to `TODO.archive.md` when the file has ≥50 lines. Undated entries are left in place.
 
 ## Format Rules (Sonnet-friendly)
 
