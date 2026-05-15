@@ -45,7 +45,7 @@ if [ -n "$wid" ]; then
         sleep 0.5
     done
 
-    wait "$notif_pid" 2>/dev/null
+    wait "$notif_pid" 2>/dev/null || true
     action=$(sed -n '2p' "$tmpout")
     rm -f "$tmpout"
     [ "$action" = "focus" ] && wmctrl -ia "$wid"
