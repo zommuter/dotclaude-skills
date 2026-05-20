@@ -42,6 +42,7 @@
 ## todo-update
 
 - [x] **Add empty-section prune pass + gate relocation to `archive-done.sh`** — implemented 2026-05-15; see `docs/meeting-notes/2026-05-15-1121-todo-update-prune-empty-sections.md`.
+- [ ] **`archive-done.sh` prunes sections with plain bullets as "empty"** — `has_task` (line 130) only matches `- [ ]`/`- [x]` checkboxes; sections containing plain `- text` bullets (no checkbox) are falsely treated as empty and pruned. Fix: replace `has_task = any(TASK_RE.match(l) for l in body)` with `has_content = any(l.strip() for l in body)` and update the condition accordingly. Repro: `meeting-rpg/TODO.md` "Deferred / eliminated" section (2026-05-20).
 - [x] **Edit `todo-update/SKILL.md` Step 4** — dropped "skip if <50 lines" from prose; gate now single-sourced in script. Same session/meeting.
 - [x] **Synthetic round-trip test** — <50-line and ≥50-line fixtures both verified. Same session/meeting.
 
