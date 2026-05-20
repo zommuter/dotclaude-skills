@@ -22,3 +22,7 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🗄️ **Cassi** — derived-data persistence / build-cache patterns: ccache/Nix/Bazel remote analogues, sharded-file vs fat-blob trade-offs, sync vs. backup separation. Introduced 2026-05-13 (zkm/derivable-expensive-data-in-git).
 
 - 🎮 **Valve** — Steam/Proton platform lens; Steam runtime pipeline, shader pre-caching sequencing, Proton version mechanics, what Steam 'updates' actually touch. Introduced 2026-05-19 (zomni/dbh-startup-hang-workaround).
+
+- 🎮 **Kira** — indie game design / visual novel lens; narrative branching, player agency, art direction, asset pipelines, gamedev-team handoff briefs. Introduced 2026-05-20 (meeting-rpg/meeting-rpg-vision-mvp).
+
+- 🎨 **Vera** — creative frontend UX; TUI vs web rendering tradeoffs, typography, animation timing, audio integration, felt-experience quality judgements. Introduced 2026-05-20 (meeting-rpg/meeting-rpg-vision-mvp).
