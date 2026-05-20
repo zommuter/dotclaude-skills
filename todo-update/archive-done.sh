@@ -127,8 +127,8 @@ for seg_type, seg_lines in segments:
         hm = HEADING_RE.match(heading_line)
         label = hm.group(2).strip() if hm else ''
         body = seg_lines[1:]
-        has_task = any(TASK_RE.match(l) for l in body)
-        if not has_task and label not in PROTECTED:
+        has_content = any(l.strip() for l in body)
+        if not has_content and label not in PROTECTED:
             pruned_any = True
             print(f"archive-done: pruned empty section '{label}'", file=sys.stderr)
             continue
