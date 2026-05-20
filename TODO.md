@@ -30,5 +30,6 @@
 ## todo-update
 
 - [x] **`archive-done.sh` prunes sections with plain bullets as "empty"** — fixed: `has_task` → `has_content` (line 130); sections with any non-blank content (including plain bullets) are no longer pruned. Repro: `meeting-rpg/TODO.md` "Deferred / eliminated" section (2026-05-20).
+- [ ] **subdirectory TODO scan `find` triggers permission prompt** — SKILL.md Step 1.5 runs `find . -mindepth 2 -maxdepth 3 -name TODO.md -not -path '*/node_modules/*' ...`; Bash matcher flags it as "find contains unquoted glob characters — could glob-expand to a dangerous action before find runs". Fix: either add an allowlist entry that covers this exact shape, or rewrite as a quoted-arg form that the matcher accepts without prompting.
 
 ## Done
