@@ -30,7 +30,11 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 
 ## With no subject (default mode)
 
-1. Read `<root>/TODO.md`. *(Orphan-scan disabled — FP rate too high; pending F-A/F-B redesign in TODO.md.)* Then run:
+1. Read `<root>/TODO.md`. *(Orphan-scan disabled — FP rate too high; pending F-A/F-B redesign in TODO.md.)*
+
+   > **Scope discipline:** `<root>/TODO.md` is the *sole* authority for this invocation. Do **not** read or write any other `TODO.md` — not the parent repo's, not a sibling worktree's, not one textually referenced from within this file (e.g. `> Subset of ../../TODO.md`). An empty `## Current` section, or one where all items are checked, is a valid terminal state — report "no open work at `<root>`" and stop; do not look elsewhere for "real" work. If `<root>/TODO.md` does not exist, report missing and ask the user — do not auto-create.
+
+   Then run:
    ```bash
    find . -mindepth 2 -maxdepth 3 -name TODO.md \
      -not -path './.git/*' -not -path '*/node_modules/*' \
@@ -53,7 +57,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 ## End-of-meeting steps
 
 1. **Write meeting note** to `<root>/docs/meeting-notes/YYYY-MM-DD-HHMM-<slug>.md`. Use the captured date, HHMM, and slug derived from the meeting title. Include `**Started:**` and `**Session:**` header lines populated with the captured literals.
-1b. **Mirror action items to TODO.md** (Step 5b): before calling ExitPlanMode, add every `## Action items` entry that will outlive this session to `<root>/TODO.md` (create a new section if needed). Each entry must cite the meeting-note path. Class 2 planning records skip this step — their action items are resolved in-session by implementation. In-session ad-hoc items (resolved before ExitPlanMode) also skip. Purpose: orphan-scan is a *failsafe*, not the primary tracking mechanism.
+1b. **Mirror action items to TODO.md** (Step 5b): before calling ExitPlanMode, add every `## Action items` entry that will outlive this session to `<root>/TODO.md` (create a new section if needed; write only to `<root>/TODO.md` — never to a parent-path file). Each entry must cite the meeting-note path. Class 2 planning records skip this step — their action items are resolved in-session by implementation. In-session ad-hoc items (resolved before ExitPlanMode) also skip. Purpose: orphan-scan is a *failsafe*, not the primary tracking mechanism.
 2. **Profile observations**: for each new behavioural observation the model noticed during the meeting (decision patterns, domain fluency, scope tolerance), ask via AskUserQuestion [save to user-profile / save to user-memory / discard]:
    - *user-profile* → add an entry to `~/.claude/skills/meeting/user-profile.md` using the `## <trait>` format (Observation/Why/Confidence/Pre-emption-eligible).
    - *user-memory* → write a `user`-type entry to `~/.claude/projects/<slug>/memory/<topic>.md`; add pointer to MEMORY.md.

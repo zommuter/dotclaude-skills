@@ -25,6 +25,8 @@
 - [ ] **AI-4b — Improve broker curl allowlist** — current three-pattern workaround (`curl -s`, `curl -N`, `curl -s -X POST`) is fragile; validator rejects `Bash(curl http://127.0.0.1:* *)` (`:*` must be at end of pattern). Better: `broker-curl.sh` wrapper (one allowlist entry, all call shapes covered). Trigger: any permission prompt during `/meeting-live` pilot, or when adding a new curl shape to SKILL.md.
 - [ ] **AI-5 — Pilot live meeting + merge trigger** — once AI-1 through AI-4 land, run a real `/meeting-live <subject>` end-to-end. On success: fold `meeting-live/SKILL.md` deltas into canonical `meeting/SKILL.md`, delete `meeting-live/` sibling, close this TODO. On failure: log failure mode as forward-flag, keep WIP sibling alive. Contract: ≥1 successful live meeting whose chat-side budget (measured via `cost-of.sh`) is ≥5k tokens lower than a comparable canonical-mode meeting. See: `docs/meeting-notes/2026-05-20-1645-meeting-skill-broker-integration.md`.
 
+- [ ] **AI-4 (worktree TODO.md scope)** — after ≥1 live `/meeting` run from a `meeting-rpg` worktree, log whether autonomous upward traversal of TODO.md recurs. If yes, escalate to mechanical guard design (D5 follow-up). See: `docs/meeting-notes/2026-05-20-2105-todo-md-root-resolution-worktrees.md`.
+
 ## todo-update
 
 - [x] **`archive-done.sh` prunes sections with plain bullets as "empty"** — fixed: `has_task` → `has_content` (line 130); sections with any non-blank content (including plain bullets) are no longer pruned. Repro: `meeting-rpg/TODO.md` "Deferred / eliminated" section (2026-05-20).

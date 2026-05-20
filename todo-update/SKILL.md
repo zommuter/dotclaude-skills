@@ -11,6 +11,8 @@ After every prompt where substantive work was done — always run alongside `git
 
 ## Procedure
 
+> **Scope discipline:** The CWD `TODO.md` is the *sole* authority for this invocation. Do **not** read or write any other `TODO.md` — not the parent repo's, not a sibling worktree's, not one textually referenced from within this file (e.g. `> Subset of ../../TODO.md`). An empty `## Current` section, or one where all items are checked, is a valid terminal state — report done and stop; do not look elsewhere for "real" work. The create-if-missing path below applies only to the CWD file; never seed it from a parent-path TODO.md.
+
 ### Step 1: Ensure TODO.md exists
 
 If `PROGRESS.md` exists but `TODO.md` does not:
