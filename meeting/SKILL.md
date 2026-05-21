@@ -22,7 +22,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 ## With a subject argument
 
 1. **Warrantability self-check** (see format spec). If the request looks like a bug fix, one-liner, or already-decided feature, respond "are you sure you want a meeting?" and briefly explain why it might be overkill — before running the agenda. If it clearly passes, note that and proceed.
-2. **Past-meetings audit (DISABLED)**: orphan-scan.sh suppressed — FP rate too high (differently-phrased action items resurface as orphans every run regardless of TODO.md status). Skip this step. Re-enable after F-A or F-B redesign ships (see TODO.md).
+2. **Past-meetings audit (ADVISORY — observation window)**: run `~/.claude/skills/meeting/orphan-scan.sh`. Uses exact `<!-- id:XXXX -->` match; FP is ~0 by construction (un-IDed legacy lines skipped). Display any candidates labeled `ADVISORY — not yet authoritative` before opening the agenda. Once zero spurious candidates are confirmed over an observation window of N meetings, drop the ADVISORY caveat and treat output as authoritative. *(F-B shipped 2026-05-21; prior DISABLED state lifted.)*
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic, then follow the format spec (agenda → named discussion → AskUserQuestion decision points → decisions → action items).
 5. **Print transcript before every AskUserQuestion** — output the **complete, verbatim discussion text** for the most recent agenda item as visible chat content, not a summary. The plan file is not shown in the chat UI; the user must read the discussion in the chat response before the options appear.
@@ -30,7 +30,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 
 ## With no subject (default mode)
 
-1. Read `<root>/TODO.md`. *(Orphan-scan disabled — FP rate too high; pending F-A/F-B redesign in TODO.md.)*
+1. Read `<root>/TODO.md`. Run `~/.claude/skills/meeting/orphan-scan.sh` (**ADVISORY — observation window**): display any candidates before the classifier output as `ADVISORY — orphan scan candidates (informational; exact-ID match, un-IDed legacy skipped)`. Not authoritative until observation window clears. *(F-B shipped 2026-05-21; prior DISABLED state lifted.)*
 
    > **Scope discipline:** `<root>/TODO.md` is the *sole* authority for this invocation. Do **not** read or write any other `TODO.md` — not the parent repo's, not a sibling worktree's, not one textually referenced from within this file (e.g. `> Subset of ../../TODO.md`). An empty `## Current` section, or one where all items are checked, is a valid terminal state — report "no open work at `<root>`" and stop; do not look elsewhere for "real" work. If `<root>/TODO.md` does not exist, report missing and ask the user — do not auto-create.
 
