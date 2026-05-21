@@ -21,6 +21,7 @@ Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/me
 5. **Surface relevant discoveries**: read `~/.claude/skills/meeting/discoveries.md`. At the start of the meeting, mention entries that intersect the meeting topic.
 6. **Load user profile**: read `~/.claude/skills/meeting/user-profile.md`. Personas may apply pre-emption per the rule defined in `format.md` (eligible + med+ confidence + contradiction; Riku ≫ others).
 7. **Start broker (skip if `MEETING_LIVE=0`):** Only on Class 3 / subject-given paths (not Class 1/2 dispatch).
+   - **Probe the flag with `echo "$MEETING_LIVE"`** (plain expansion). Do **not** use `${MEETING_LIVE:-unset}` or any `${VAR:-default}` form — default-expansion syntax triggers the Bash parameter-expansion permission prompt as a class, regardless of allowlist. Empty output = unset = broker enabled; `0` = opt-out (run as canonical `/meeting`).
    - Spawn: `python3 ~/.claude/skills/meeting-live/broker.py "$CLAUDE_SESSION_ID"` with `run_in_background=true`.
    - Poll for port: `jq -r .port /tmp/meeting-rpg/$SID/broker.json` (foreground, ≤2s; use the literal captured session ID, not `$SID`). Store as `<port>`.
    - On success: advertise in chat — print the plain URL `http://127.0.0.1:<port>/events` and the stream command `curl -N http://127.0.0.1:<port>/events` for a second terminal.
