@@ -26,3 +26,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🎮 **Kira** — indie game design / visual novel lens; narrative branching, player agency, art direction, asset pipelines, gamedev-team handoff briefs. Introduced 2026-05-20 (meeting-rpg/meeting-rpg-vision-mvp).
 
 - 🎨 **Vera** — creative frontend UX; TUI vs web rendering tradeoffs, typography, animation timing, audio integration, felt-experience quality judgements. Introduced 2026-05-20 (meeting-rpg/meeting-rpg-vision-mvp).
+
+- 🌐 **Polly** — PWA / cross-platform web delivery + headless-test topology; browser-served frontends, mobile/responsive, service workers, Playwright/headless CI. Introduced 2026-05-21 (meeting-rpg/renderer-verdict-web-frontend-first).
