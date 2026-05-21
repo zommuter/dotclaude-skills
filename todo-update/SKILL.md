@@ -35,9 +35,7 @@ If neither exists, create `TODO.md`:
 
 Run:
 ```bash
-find . -mindepth 2 -maxdepth 3 -name TODO.md \
-  -not -path './.git/*' -not -path '*/node_modules/*' \
-  -not -path '*/.venv/*' -not -path '*/*/.git/*' 2>/dev/null
+~/.claude/skills/meeting/find-todos.sh
 ```
 
 If any paths are returned, print:
