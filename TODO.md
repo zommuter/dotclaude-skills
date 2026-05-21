@@ -30,6 +30,7 @@
 - [ ] **AI-5 — Pilot live meeting + merge trigger** — first pilot ran 2026-05-20 (subject: `/meeting --cross-project`) but was postponed mid-Item-1 due to broker UX gaps (AI-M1–M4). Re-run after AI-4b + AI-M1 + AI-M2 land. On clean success: fold `meeting-live/SKILL.md` deltas into canonical `meeting/SKILL.md`, delete `meeting-live/` sibling, close this TODO. Contract: ≥1 successful live meeting whose chat-side budget (measured via `cost-of.sh`) is ≥5k tokens lower than a comparable canonical-mode meeting. See: `docs/meeting-notes/2026-05-20-1645-meeting-skill-broker-integration.md`.
 
 - [ ] **AI-4 (worktree TODO.md scope)** — after ≥1 live `/meeting` run from a `meeting-rpg` worktree, log whether autonomous upward traversal of TODO.md recurs. If yes, escalate to mechanical guard design (D5 follow-up). See: `docs/meeting-notes/2026-05-20-2105-todo-md-root-resolution-worktrees.md`.
+- [ ] **`meeting-live/SKILL.md` fallback `find` needs allowlist or removal** — the no-subject setup uses `~/.claude/skills/meeting/find-todos.sh 2>/dev/null || find . -mindepth 2 -maxdepth 3 -name TODO.md -not -path './.git/*' ...` — the `||`-fallback raw `find` with glob `-not -path` args is rejected class-wide by the allowlist matcher (same class as AI-4b). Either (a) add an allowlist entry for the exact fallback shape, or (b) remove the fallback and rely solely on `find-todos.sh` (preferred — script is symlinked to `~/.claude/skills/meeting/`). Observed during `/meeting-live` no-arg run 2026-05-21.
 
 ## todo-update
 
