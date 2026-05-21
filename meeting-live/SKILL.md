@@ -1,11 +1,11 @@
 ---
 name: meeting-live
-description: Broker-augmented design meeting — same as /meeting but streams persona discussion to an external renderer via HTTP broker, with γ-branch decision handling. Set MEETING_LIVE=0 to run identically to canonical /meeting. Use for Class 3 meetings or subject-given invocations where a renderer is attached or expected.
+description: Broker-augmented design meeting — same as /meeting but streams persona discussion to an external renderer via HTTP broker, with γ-branch decision handling. Set MEETING_LIVE=1 to self-start the broker daemon; unset/0 = lazy-connect only (never spawns). Use for Class 3 meetings or subject-given invocations where a renderer is attached or expected.
 ---
 
 # Meeting-Live Skill
 
-Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/meeting` when `MEETING_LIVE=0` or no broker subscriber is present. When a renderer is attached (`/status.subscribers > 0`), persona discussion streams via the broker and decision points use POST `/question` + GET `/await` instead of AskUserQuestion.
+Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/meeting` when no broker subscriber is present. Set `MEETING_LIVE=1` to self-start the broker daemon (idempotent); unset/`0` = lazy-connect only. When a renderer is attached (`/status.subscribers > 0`), persona discussion streams via the broker and decision points use POST `/question` + GET `/await` instead of AskUserQuestion.
 
 ## Setup (run at every invocation)
 
@@ -20,12 +20,12 @@ Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/me
 4. **Load persona registry**: read `~/.claude/skills/meeting-live/personas.md`. If the meeting calls for any persona by name, onboard them with their established lens from the registry — no re-introduction needed.
 5. **Surface relevant discoveries**: read `~/.claude/skills/meeting/discoveries.md`. At the start of the meeting, mention entries that intersect the meeting topic.
 6. **Load user profile**: read `~/.claude/skills/meeting/user-profile.md`. Personas may apply pre-emption per the rule defined in `format.md` (eligible + med+ confidence + contradiction; Riku ≫ others).
-7. **Start broker (skip if `MEETING_LIVE=0`):** Only on Class 3 / subject-given paths (not Class 1/2 dispatch).
-   - **Probe the flag with `echo "$MEETING_LIVE"`** (plain expansion). Do **not** use `${MEETING_LIVE:-unset}` or any `${VAR:-default}` form — default-expansion syntax triggers the Bash parameter-expansion permission prompt as a class, regardless of allowlist. Empty output = unset = broker enabled; `0` = opt-out (run as canonical `/meeting`).
-   - Spawn: `python3 ~/.claude/skills/meeting-live/broker.py "$CLAUDE_SESSION_ID"` with `run_in_background=true`.
-   - Poll for port: `jq -r .port /tmp/meeting-rpg/$SID/broker.json` (foreground, ≤2s; use the literal captured session ID, not `$SID`). Store as `<port>`.
-   - On success: advertise in chat — print the plain URL `http://127.0.0.1:<port>/events` and the stream command `curl -N http://127.0.0.1:<port>/events` for a second terminal.
-   - On timeout/bind-fail: note "broker unavailable, falling back to standard mode" in chat; clear `<port>`; continue as canonical `/meeting` for the rest of the session.
+7. **Connect to broker:** Only on Class 3 / subject-given paths (not Class 1/2 dispatch).
+   - **Probe the flag with `echo "$MEETING_LIVE"`** (plain expansion). Do **not** use `${MEETING_LIVE:-unset}` or any `${VAR:-default}` form — default-expansion syntax triggers the Bash parameter-expansion permission prompt as a class, regardless of allowlist. `1` = opt-in self-start; empty or `0` = lazy-connect only (never spawns a process). Tuning: `MEETING_BROKER_PORT` (default 64109), `MEETING_BROKER_IDLE` (idle-shutdown seconds; 0=never).
+   - **Lazy-connect:** read `jq -r .port /tmp/meeting-rpg/broker.json` — if present, store as `<port>`; otherwise clear `<port>`.
+   - **Probe liveness (if `<port>` set):** call `~/.claude/skills/meeting/broker-curl.sh <port> <sid> status` — if response contains `"subscribers"`, daemon is live; otherwise clear `<port>`.
+   - **Self-start (MEETING_LIVE=1 only, if `<port>` still unset):** spawn `python3 ~/.claude/skills/meeting/broker.py` with `run_in_background=true`; poll `jq -r .port /tmp/meeting-rpg/broker.json` (≤3s) until port appears; store as `<port>`. Advertise: print `http://127.0.0.1:<port>/events?session=<sid>` and `curl -N http://127.0.0.1:<port>/events?session=<sid>` for a second terminal.
+   - **If `<port>` unset after all steps:** note "no broker found, running as canonical /meeting" in chat; continue without broker for the rest of the session.
 
 ## With a subject argument
 
@@ -33,9 +33,9 @@ Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/me
 2. **Past-meetings audit (ADVISORY — observation window)**: run `~/.claude/skills/meeting/orphan-scan.sh`. Uses exact `<!-- id:XXXX -->` match; FP is ~0 by construction (un-IDed legacy lines skipped). Display any candidates labeled `ADVISORY — not yet authoritative` before opening the agenda. Once zero spurious candidates are confirmed over an observation window of N meetings, drop the ADVISORY caveat and treat output as authoritative. *(F-B shipped 2026-05-21; prior DISABLED state lifted.)*
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic, then follow the format spec (agenda → named discussion → decision points → decisions → action items).
-   - **Discussion (persona lines):** If `<port>` is set, POST **one batched block per agenda item** (not per exchange line) to `/event` — after the verbatim transcript is already printed as visible chat text. Single call: `~/.claude/skills/meeting/broker-curl.sh <port> event '{"text":"<escaped block>"}'`. The broker is an additive channel; visible chat output is unchanged.
-   - **Before each decision point:** poll `~/.claude/skills/meeting/broker-curl.sh <port> status` (if `<port>` set). Parse `subscribers`.
-     - If `subscribers > 0` (renderer attached): `~/.claude/skills/meeting/broker-curl.sh <port> question '<json>'` to send the decision prompt; `~/.claude/skills/meeting/broker-curl.sh <port> await` to block for the response. Map the returned `answer` back to the decision options list.
+   - **Discussion (persona lines):** If `<port>` is set, POST **one batched block per agenda item** (not per exchange line) to `/event` — after the verbatim transcript is already printed as visible chat text. Single call: `~/.claude/skills/meeting/broker-curl.sh <port> <sid> event '{"text":"<escaped block>"}'`. The broker is an additive channel; visible chat output is unchanged.
+   - **Before each decision point:** poll `~/.claude/skills/meeting/broker-curl.sh <port> <sid> status` (if `<port>` set). Parse `subscribers`.
+     - If `subscribers > 0` (renderer attached): `~/.claude/skills/meeting/broker-curl.sh <port> <sid> question '<json>'` to send the decision prompt; `~/.claude/skills/meeting/broker-curl.sh <port> <sid> await` to block for the response. Map the returned `answer` back to the decision options list.
      - Else (headless): use AskUserQuestion as normal.
 5. **Print transcript before every AskUserQuestion** — output the **complete, verbatim discussion text** for the most recent agenda item as visible chat content, not a summary. Required even in headless mode.
 6. Proceed to end-of-meeting steps.
@@ -98,16 +98,16 @@ Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/me
 | Broker unavailable | Chat only | AskUserQuestion |
 
 Broker endpoints (all at `http://127.0.0.1:<port>`):
-- `GET /status` → `{"subscribers": N}`
-- `POST /event` body `{"text": "..."}` → streams to renderer
-- `POST /question` body `{"text": "...", "options": [...]}` → sends decision prompt to renderer
-- `GET /await` → blocks until renderer POSTs `/response`; returns `{"answer": "..."}`
-- `POST /response` body `{"answer": "..."}` → renderer submits an answer, unblocks `GET /await` (broker.py:49-53). Manual test: `~/.claude/skills/meeting/broker-curl.sh <port> response '{"answer":"<choice>"}'`
-- `GET /events` → SSE stream
+- `GET /status?session=<sid>` → `{"subscribers": N}`
+- `POST /event` body `{"text": "...", "session": "<sid>"}` → streams to renderer
+- `POST /question` body `{"text": "...", "options": [...], "session": "<sid>"}` → sends decision prompt to renderer
+- `GET /await?session=<sid>` → blocks until renderer POSTs `/response`; returns `{"answer": "..."}`
+- `POST /response` body `{"answer": "...", "session": "<sid>"}` → renderer submits an answer, unblocks `GET /await` (broker.py:49-53). Manual test: `~/.claude/skills/meeting/broker-curl.sh <port> <sid> response '{"answer":"<choice>"}'`
+- `GET /events?session=<sid>` → SSE stream
 
 **Debug recipe (readable event tail):**
 ```bash
-~/.claude/skills/meeting/broker-curl.sh <port> events | while read line; do echo "$line" | sed 's/^data: //' | jq -r '.text // .'; done
+~/.claude/skills/meeting/broker-curl.sh <port> <sid> events | while read line; do echo "$line" | sed 's/^data: //' | jq -r '.text // .'; done
 ```
 Raw SSE emits `data: <json>` — the recipe strips the prefix and extracts `.text` for human-readable tailing in a second terminal.
 

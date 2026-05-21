@@ -1,0 +1,13 @@
+[Unit]
+Description=meeting-rpg IPC broker — global daemon on MEETING_BROKER_PORT (default 64109)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=python3 %h/.claude/skills/meeting/broker.py
+Environment=MEETING_BROKER_IDLE=0
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
