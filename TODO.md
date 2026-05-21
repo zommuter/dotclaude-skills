@@ -26,4 +26,6 @@
 
 - [ ] **AI-4 (worktree TODO.md scope)** — after ≥1 live `/meeting` run from a `meeting-rpg` worktree, log whether autonomous upward traversal of TODO.md recurs. If yes, escalate to mechanical guard design (D5 follow-up). See: `docs/meeting-notes/2026-05-20-2105-todo-md-root-resolution-worktrees.md`.
 
+- [ ] **Permission prompts on `archive-done.sh` and `find-todos.sh`** — both scripts fire permission prompts from foreign project CWDs even though their symlink-target paths (`~/src/dotclaude-skills/meeting/find-todos.sh`, `~/.claude/skills/todo-update/archive-done.sh`) are allowlisted. Root cause unknown — may be tilde-vs-absolute mismatch for Bash paths, or cwd-relative rewrite stripping the tilde. Fix options: (a) add absolute-path `/home/tobias/...` allowlist entries for both scripts (same fix applied today for the other meeting `.sh` targets); (b) investigate whether the Bash matcher resolves tilde before or after cwd-relative rewrite. Observed 2026-05-21 during meeting-rpg session.
+
 ## Done
