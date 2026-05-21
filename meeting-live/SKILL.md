@@ -32,9 +32,9 @@ Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/me
 2. **Past-meetings audit (DISABLED)**: orphan-scan.sh suppressed — FP rate too high (differently-phrased action items resurface as orphans every run regardless of TODO.md status). Skip this step. Re-enable after F-A or F-B redesign ships (see TODO.md).
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic, then follow the format spec (agenda → named discussion → decision points → decisions → action items).
-   - **Discussion (persona lines):** If `<port>` is set, POST **one batched block per agenda item** (not per exchange line) to `/event` — after the verbatim transcript is already printed as visible chat text. Single call: `curl -s -X POST http://127.0.0.1:<port>/event -H 'Content-Type: application/json' -d '{"text":"<escaped block>"}'`. The broker is an additive channel; visible chat output is unchanged.
-   - **Before each decision point:** poll `curl -s http://127.0.0.1:<port>/status` (if `<port>` set). Parse `subscribers`.
-     - If `subscribers > 0` (renderer attached): POST question to `/question`, GET `/await` for response. Map response back to the decision options list.
+   - **Discussion (persona lines):** If `<port>` is set, POST **one batched block per agenda item** (not per exchange line) to `/event` — after the verbatim transcript is already printed as visible chat text. Single call: `~/.claude/skills/meeting/broker-curl.sh <port> event '{"text":"<escaped block>"}'`. The broker is an additive channel; visible chat output is unchanged.
+   - **Before each decision point:** poll `~/.claude/skills/meeting/broker-curl.sh <port> status` (if `<port>` set). Parse `subscribers`.
+     - If `subscribers > 0` (renderer attached): `~/.claude/skills/meeting/broker-curl.sh <port> question '<json>'` to send the decision prompt; `~/.claude/skills/meeting/broker-curl.sh <port> await` to block for the response. Map the returned `answer` back to the decision options list.
      - Else (headless): use AskUserQuestion as normal.
 5. **Print transcript before every AskUserQuestion** — output the **complete, verbatim discussion text** for the most recent agenda item as visible chat content, not a summary. Required even in headless mode.
 6. Proceed to end-of-meeting steps.
@@ -103,11 +103,13 @@ Broker endpoints (all at `http://127.0.0.1:<port>`):
 - `POST /event` body `{"text": "..."}` → streams to renderer
 - `POST /question` body `{"text": "...", "options": [...]}` → sends decision prompt to renderer
 - `GET /await` → blocks until renderer POSTs `/response`; returns `{"answer": "..."}`
-- `POST /response` body `{"answer": "..."}` → renderer submits an answer, unblocks `GET /await` (broker.py:49-53). Manual test: `curl -s -X POST http://127.0.0.1:<port>/response -H 'Content-Type: application/json' -d '{"answer":"<choice>"}'`
-- `GET /events` → SSE stream for `curl -N` usage
+- `POST /response` body `{"answer": "..."}` → renderer submits an answer, unblocks `GET /await` (broker.py:49-53). Manual test: `~/.claude/skills/meeting/broker-curl.sh <port> response '{"answer":"<choice>"}'`
+- `GET /events` → SSE stream
 
 **Debug recipe (readable event tail):**
 ```bash
-curl -N http://127.0.0.1:<port>/events | while read line; do echo "$line" | sed 's/^data: //' | jq -r '.text // .'; done
+~/.claude/skills/meeting/broker-curl.sh <port> events | while read line; do echo "$line" | sed 's/^data: //' | jq -r '.text // .'; done
 ```
-Raw `curl -N /events` emits `data: <json>` — the recipe strips the prefix and extracts `.text` for human-readable tailing in a second terminal.
+Raw SSE emits `data: <json>` — the recipe strips the prefix and extracts `.text` for human-readable tailing in a second terminal.
+
+**All broker calls use `broker-curl.sh` — never raw curl to 127.0.0.1.** This keeps the allowlist to one entry: `Bash(~/.claude/skills/meeting/broker-curl.sh *)`.
