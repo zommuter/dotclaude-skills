@@ -32,7 +32,7 @@ Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/me
 2. **Past-meetings audit (DISABLED)**: orphan-scan.sh suppressed — FP rate too high (differently-phrased action items resurface as orphans every run regardless of TODO.md status). Skip this step. Re-enable after F-A or F-B redesign ships (see TODO.md).
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic, then follow the format spec (agenda → named discussion → decision points → decisions → action items).
-   - **Discussion (persona lines):** If `<port>` is set, POST each persona exchange block to `curl -s -X POST http://127.0.0.1:<port>/event -H 'Content-Type: application/json' -d '{"text":"<escaped block>"}'`. Still output persona lines as visible chat text — the broker is an additive channel, not a replacement.
+   - **Discussion (persona lines):** If `<port>` is set, POST **one batched block per agenda item** (not per exchange line) to `/event` — after the verbatim transcript is already printed as visible chat text. Single call: `curl -s -X POST http://127.0.0.1:<port>/event -H 'Content-Type: application/json' -d '{"text":"<escaped block>"}'`. The broker is an additive channel; visible chat output is unchanged.
    - **Before each decision point:** poll `curl -s http://127.0.0.1:<port>/status` (if `<port>` set). Parse `subscribers`.
      - If `subscribers > 0` (renderer attached): POST question to `/question`, GET `/await` for response. Map response back to the decision options list.
      - Else (headless): use AskUserQuestion as normal.
@@ -102,5 +102,12 @@ Broker endpoints (all at `http://127.0.0.1:<port>`):
 - `GET /status` → `{"subscribers": N}`
 - `POST /event` body `{"text": "..."}` → streams to renderer
 - `POST /question` body `{"text": "...", "options": [...]}` → sends decision prompt to renderer
-- `GET /await` → blocks until renderer POSTs a response; returns `{"answer": "..."}`
+- `GET /await` → blocks until renderer POSTs `/response`; returns `{"answer": "..."}`
+- `POST /response` body `{"answer": "..."}` → renderer submits an answer, unblocks `GET /await` (broker.py:49-53). Manual test: `curl -s -X POST http://127.0.0.1:<port>/response -H 'Content-Type: application/json' -d '{"answer":"<choice>"}'`
 - `GET /events` → SSE stream for `curl -N` usage
+
+**Debug recipe (readable event tail):**
+```bash
+curl -N http://127.0.0.1:<port>/events | while read line; do echo "$line" | sed 's/^data: //' | jq -r '.text // .'; done
+```
+Raw `curl -N /events` emits `data: <json>` — the recipe strips the prefix and extracts `.text` for human-readable tailing in a second terminal.
