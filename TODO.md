@@ -34,6 +34,6 @@
 ## todo-update
 
 - [x] **`archive-done.sh` prunes sections with plain bullets as "empty"** — fixed: `has_task` → `has_content` (line 130); sections with any non-blank content (including plain bullets) are no longer pruned. Repro: `meeting-rpg/TODO.md` "Deferred / eliminated" section (2026-05-20).
-- [x] **subdirectory TODO scan `find` triggers permission prompt** — fixed: added `Bash(find . -mindepth 2 -maxdepth 3 -name TODO.md *)` to `~/.claude/settings.json`; covers both todo-update Step 1.5 and meeting default-mode find invocations — verified 2026-05-21.
+- [x] **subdirectory TODO scan `find` triggers permission prompt** — root fix: glob characters in `-not -path '*/...'` args are rejected class-wide even when allowlisted. Created `dotclaude-skills/meeting/find-todos.sh` wrapper; symlinked to `~/.claude/skills/meeting/`; both meeting and todo-update SKILL.md updated to call the script; allowlist entry replaced with `Bash(~/.claude/skills/meeting/find-todos.sh)` — verified 2026-05-21.
 
 ## Done

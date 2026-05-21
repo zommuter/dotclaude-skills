@@ -36,9 +36,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 
    Then run:
    ```bash
-   find . -mindepth 2 -maxdepth 3 -name TODO.md \
-     -not -path './.git/*' -not -path '*/node_modules/*' \
-     -not -path '*/.venv/*' -not -path '*/*/.git/*' 2>/dev/null
+   ~/.claude/skills/meeting/find-todos.sh
    ```
    If any paths are returned, print a warning before the classifier output: `WARNING: subdirectory TODO.md files found — consider merging into <root>/TODO.md: <paths>`. Classification proceeds against root TODO.md only; subdir items are not classified.
 2. **Classify** each unchecked, non-date-triggered TODO item into one of three classes:
