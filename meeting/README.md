@@ -117,6 +117,33 @@ Add these entries to `~/.claude/settings.json` (under `permissions.allow`) for p
 "Read(~/.claude/docs/meeting-notes/*)"
 ```
 
+## Broker daemon (`/meeting-live`)
+
+The companion `/meeting-live` skill can stream persona discussion to a web renderer (meeting-rpg) via an HTTP+SSE broker. The broker is a global fixed-port daemon — one process shared by all concurrent sessions, each isolated by Claude session ID.
+
+**Quick start:**
+
+```bash
+# Option A: let MEETING_LIVE=1 self-start on demand
+MEETING_LIVE=1 claude
+
+# Option B: always-on via systemd --user
+cp meeting/meeting-broker.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now meeting-broker
+```
+
+**Env vars:**
+
+| Variable | Default | Effect |
+|---|---|---|
+| `MEETING_BROKER_PORT` | `64109` | Fixed bind port (IANA-dynamic, above Linux ephemeral ceiling) |
+| `MEETING_BROKER_IDLE` | `300` | Idle-shutdown after N seconds of no subscribers; `0` = never |
+
+**Discovery file:** `/tmp/meeting-rpg/broker.json` → `{"port": N, "pid": M}`.
+
+Clients read the actual port from this file; `64109` is the preferred-bind default and safe to hardcode in Caddy/proxy config.
+
 ## Files
 
 | File | Published | Notes |
@@ -126,5 +153,8 @@ Add these entries to `~/.claude/settings.json` (under `permissions.allow`) for p
 | `personas.md` | ✓ | Ad-hoc persona registry (public, no PII) |
 | `append.sh` | ✓ | Registry append helper — `chmod +x` required |
 | `cost-of.sh` | ✓ | Post-hoc session cost lookup |
+| `broker.py` | ✓ | Global HTTP+SSE broker daemon |
+| `broker-curl.sh` | ✓ | HTTP wrapper for broker calls (allowlist-friendly) |
+| `meeting-broker.service` | ✓ | systemd --user unit for always-on broker |
 | `discoveries.md` | local only | Your cross-project technical findings |
 | `user-profile.md` | local only | Behavioural observations (personal) |

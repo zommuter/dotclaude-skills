@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
-"""HTTP+SSE event broker for meeting-rpg IPC.
-Usage: python broker.py <session-id>
-Writes /tmp/meeting-rpg/<session>/broker.json → {port, pid, session}.
+"""Global HTTP+SSE event broker for meeting-rpg IPC.
+Binds to MEETING_BROKER_PORT (default 64109). On bind-fail, probes /status to
+discriminate our-daemon (already running → exit 0) from stranger (→ ephemeral fallback).
+Writes /tmp/meeting-rpg/broker.json → {port, pid}.
+Idle self-shutdown after MEETING_BROKER_IDLE seconds (default 300; 0 = never).
 """
-import json, os, queue, signal, sys, threading
+import json, os, queue, signal, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+from urllib.request import urlopen
+
+BROKER_DIR = "/tmp/meeting-rpg"
+BROKER_JSON = f"{BROKER_DIR}/broker.json"
+PORT = int(os.environ.get("MEETING_BROKER_PORT", 64109))
+IDLE_TIMEOUT = int(os.environ.get("MEETING_BROKER_IDLE", 300))
 
 sessions: dict = {}
 _lock = threading.Lock()
+_last_activity = [time.monotonic()]
+
+
+def _touch():
+    _last_activity[0] = time.monotonic()
 
 
 def get_session(sid: str) -> dict:
@@ -19,7 +32,7 @@ def get_session(sid: str) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args): pass  # suppress access log
+    def log_message(self, format, *args): pass
 
     def _json_body(self) -> dict:
         return json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
@@ -33,9 +46,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        d, sid = self._json_body(), ""
+        d = self._json_body()
         sid = d.get("session", "")
         s = get_session(sid)
+        _touch()
         if self.path == "/event":
             with _lock:
                 [q.put(d) for q in list(s["subs"])]
@@ -58,6 +72,7 @@ class Handler(BaseHTTPRequestHandler):
         p = urlparse(self.path)
         sid = (parse_qs(p.query).get("session") or [""])[0]
         s = get_session(sid)
+        _touch()
         if p.path == "/await":
             s["ev"].wait(timeout=600)
             with _lock:
@@ -90,14 +105,47 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
 
 
+def _our_broker_running(port: int) -> bool:
+    """Return True if port responds to /status like our broker."""
+    try:
+        with urlopen(f"http://127.0.0.1:{port}/status", timeout=1) as r:
+            data = json.loads(r.read())
+            return "subscribers" in data
+    except Exception:
+        return False
+
+
 if __name__ == "__main__":
-    session_id = sys.argv[1] if len(sys.argv) > 1 else "default"
-    srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    port = srv.server_address[1]
-    disc = f"/tmp/meeting-rpg/{session_id}"
-    os.makedirs(disc, exist_ok=True)
-    with open(f"{disc}/broker.json", "w") as f:
-        json.dump({"port": port, "pid": os.getpid(), "session": session_id}, f)
-    print(f"broker port={port} session={session_id} pid={os.getpid()}", flush=True)
-    signal.signal(signal.SIGTERM, lambda *_: srv.shutdown())
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+        actual_port = PORT
+    except OSError:
+        if _our_broker_running(PORT):
+            print(f"broker already running on port={PORT}", flush=True)
+            sys.exit(0)
+        # Stranger owns PORT → fall back to ephemeral
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        actual_port = srv.server_address[1]
+
+    os.makedirs(BROKER_DIR, exist_ok=True)
+    with open(BROKER_JSON, "w") as f:
+        json.dump({"port": actual_port, "pid": os.getpid()}, f)
+    print(f"broker port={actual_port} pid={os.getpid()}", flush=True)
+
+    def _shutdown(*_):
+        srv.shutdown()
+
+    signal.signal(signal.SIGTERM, _shutdown)
+
+    if IDLE_TIMEOUT > 0:
+        def _idle_watcher():
+            while True:
+                time.sleep(min(IDLE_TIMEOUT, 30))
+                with _lock:
+                    has_subs = any(s["subs"] for s in sessions.values())
+                if not has_subs and time.monotonic() - _last_activity[0] > IDLE_TIMEOUT:
+                    srv.shutdown()
+                    break
+        threading.Thread(target=_idle_watcher, daemon=True).start()
+
     srv.serve_forever()
