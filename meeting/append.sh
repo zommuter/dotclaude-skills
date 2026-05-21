@@ -12,6 +12,23 @@ set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# new-id subcommand: emit a collision-free random 4-hex token for meeting action items.
+# Usage: append.sh new-id [<root-dir>]
+if [[ "${1:-}" == "new-id" ]]; then
+  ROOT="${2:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  existing=$(grep -rho 'id:[0-9a-f]\{4\}' \
+    "$ROOT/docs/meeting-notes" \
+    "$ROOT/TODO.md" \
+    "$ROOT/TODO.archive.md" 2>/dev/null || true)
+  while true; do
+    token=$(python3 -c 'import secrets; print(secrets.token_hex(2))')
+    if ! grep -qF "id:$token" <<< "${existing}"; then
+      echo "$token"
+      exit 0
+    fi
+  done
+fi
+
 target=""
 entry=""
 entry_file=""
