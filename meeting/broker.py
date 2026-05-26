@@ -41,9 +41,17 @@ class Handler(BaseHTTPRequestHandler):
         body = json.dumps(data).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def do_POST(self):
         d = self._json_body()
@@ -52,13 +60,19 @@ class Handler(BaseHTTPRequestHandler):
         _touch()
         if self.path == "/event":
             with _lock:
-                [q.put(d) for q in list(s["subs"])]
+                targets = list(s["subs"])
+                if sid != "live":
+                    targets += list((sessions.get("live") or {}).get("subs", []))
+                [q.put(d) for q in targets]
             self._ok()
         elif self.path == "/question":
             with _lock:
                 s["answer"] = None
                 s["ev"].clear()
-                [q.put({"type": "question", **d}) for q in list(s["subs"])]
+                targets = list(s["subs"])
+                if sid != "live":
+                    targets += list((sessions.get("live") or {}).get("subs", []))
+                [q.put({"type": "question", **d}) for q in targets]
             self._ok()
         elif self.path == "/response":
             with _lock:
@@ -89,6 +103,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             try:
                 while True:
