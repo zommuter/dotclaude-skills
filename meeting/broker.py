@@ -76,10 +76,12 @@ class Handler(BaseHTTPRequestHandler):
         if p.path == "/await":
             s["ev"].wait(timeout=600)
             with _lock:
-                self._ok(s["answer"] or {"id": None, "answer": None})
+                ans = s["answer"] or {"id": None, "answer": None}
+            self._ok(ans)
         elif p.path == "/status":
             with _lock:
-                self._ok({"subscribers": len(s["subs"])})
+                subs = len(s["subs"])
+            self._ok({"subscribers": subs})
         elif p.path == "/events":
             q: queue.Queue = queue.Queue()
             with _lock:
