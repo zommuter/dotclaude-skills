@@ -31,6 +31,8 @@
 
 - [ ] **AI-4 (worktree TODO.md scope)** — after ≥1 live `/meeting` run from a `meeting-rpg` worktree, log whether autonomous upward traversal of TODO.md recurs. If yes, escalate to mechanical guard design (D5 follow-up). See: `docs/meeting-notes/2026-05-20-2105-todo-md-root-resolution-worktrees.md`.
 
+- [ ] **New persona introduction in meeting attendees line** — when a registry-new ad-hoc persona is added to a meeting, their function/lens must be stated in the **Attendees** line opening exchange, not silently present. Surfaced 2026-05-29 (proton-moresync/scope-codereuse): Dario appeared in the attendees line but was never introduced. Fix: at meeting open, emit a one-sentence introduction for each "(new)" persona. — see ~/src/proton-moresync/docs/meeting-notes/2026-05-29-1313-proton-moresync-scope-codereuse.md <!-- id:8365 -->
+- [ ] **Permission prompts on `find-todos.sh` and `orphan-scan.sh` recurring** — both fired again 2026-05-29 during zkm `/meeting` setup. Prior fix (2026-05-27) added absolute-path entries for `find-todos.sh` but prompts re-emerged; `orphan-scan.sh` not yet explicitly allowlisted. Diagnose: check which settings.json entry is missing or not matching (tilde-vs-absolute / args shape). Add `allowedTools` entries for both scripts with and without args.
 - [x] **Permission prompts on `archive-done.sh` and `find-todos.sh`** — **RESOLVED 2026-05-27**: `find-todos.sh` already had absolute-path entries; added `/home/tobias/.claude/skills/todo-update/archive-done.sh` and `/home/tobias/src/dotclaude-skills/todo-update/archive-done.sh` (with and without args) to `~/.claude/settings.json`. Root cause: tilde-vs-absolute mismatch for Bash paths from foreign CWDs. Observed 2026-05-21 during meeting-rpg session.
 
 ## Done

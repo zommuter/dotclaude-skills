@@ -30,3 +30,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🌐 **Polly** — PWA / cross-platform web delivery + headless-test topology; browser-served frontends, mobile/responsive, service workers, Playwright/headless CI. Introduced 2026-05-21 (meeting-rpg/renderer-verdict-web-frontend-first).
 
 - 🔧 **Quinn** — inference-server internals; llama.cpp/llama-server embedding mode, KV-cache, slot/sequence/batch management, pooling modes. Introduced 2026-05-21 (zkm/embed-rebuild-500).
+
+- 🔐 **Dario** — E2E-encrypted PIM API reuse lens; DAV protocol constraints, Proton go-proton-api vs reinvention, write-path risk + rehearsal gates, CardDAV/CalDAV server topology. Introduced 2026-05-29 (proton-moresync/proton-moresync-scope-codereuse).
