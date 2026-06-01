@@ -57,6 +57,10 @@ HHMM comes from `date '+%H%M'` captured at meeting start. `$CLAUDE_SESSION_ID` i
 **Attendees:** 🏗️ Archie (architect), 😈 Riku (devil's advocate), ✂️ Petra (productivity)
 **Topic:** one sentence
 
+## Surfaced discoveries
+Bullet list of `discoveries.md` entries mentioned at meeting start as relevant to the topic.
+Omit section if no discoveries were surfaced. Format: `- [YYYY-MM-DD <project>] one-sentence finding`
+
 ## Agenda
 Numbered list of questions the meeting will resolve.
 
