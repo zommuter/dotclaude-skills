@@ -95,6 +95,8 @@ class Handler(BaseHTTPRequestHandler):
         elif p.path == "/status":
             with _lock:
                 subs = len(s["subs"])
+                if sid != "live":
+                    subs += len((sessions.get("live") or {}).get("subs", []))
             self._ok({"subscribers": subs})
         elif p.path == "/events":
             q: queue.Queue = queue.Queue()
