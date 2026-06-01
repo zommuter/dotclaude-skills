@@ -140,6 +140,11 @@ if __name__ == "__main__":
         actual_port = PORT
     except OSError:
         if _our_broker_running(PORT):
+            # Refresh the advert so broker.json always points at the live canonical
+            # port — never a dead ephemeral fallback left behind by an earlier instance.
+            os.makedirs(BROKER_DIR, exist_ok=True)
+            with open(BROKER_JSON, "w") as f:
+                json.dump({"port": PORT, "pid": None}, f)
             print(f"broker already running on port={PORT}", flush=True)
             sys.exit(0)
         # Stranger owns PORT → fall back to ephemeral
@@ -168,3 +173,12 @@ if __name__ == "__main__":
         threading.Thread(target=_idle_watcher, daemon=True).start()
 
     srv.serve_forever()
+
+    # On graceful shutdown (SIGTERM or idle), clear our own advert so readers fall
+    # back to MEETING_BROKER_PORT rather than a stale port. Only clear if it's ours.
+    try:
+        with open(BROKER_JSON) as f:
+            if json.load(f).get("port") == actual_port:
+                os.remove(BROKER_JSON)
+    except Exception:
+        pass

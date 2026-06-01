@@ -34,7 +34,10 @@ case "$ENDPOINT" in
     curl -s "${BASE}/await?session=${SESSION}"
     ;;
   event|question|response)
-    JSON=$(echo "${4:-{}}" | jq --arg s "$SESSION" '. + {session: $s}')
+    # NB: do not inline a brace-containing default in ${...} — bash closes the
+    # expansion at the first '}', appending a literal '}' that corrupts the JSON.
+    if [[ $# -ge 4 ]]; then BODY=$4; else BODY='{}'; fi
+    JSON=$(printf '%s' "$BODY" | jq --arg s "$SESSION" '. + {session: $s}')
     curl -s -X POST "${BASE}/${ENDPOINT}" \
       -H 'Content-Type: application/json' \
       -d "$JSON"
