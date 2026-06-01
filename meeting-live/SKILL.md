@@ -33,11 +33,14 @@ Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/me
 2. **Past-meetings audit (ADVISORY — observation window)**: run `~/.claude/skills/meeting/orphan-scan.sh`. Uses exact `<!-- id:XXXX -->` match; FP is ~0 by construction (un-IDed legacy lines skipped). Display any candidates labeled `ADVISORY — not yet authoritative` before opening the agenda. Once zero spurious candidates are confirmed over an observation window of N meetings, drop the ADVISORY caveat and treat output as authoritative. *(F-B shipped 2026-05-21; prior DISABLED state lifted.)*
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic, then follow the format spec (agenda → named discussion → decision points → decisions → action items).
-   - **Discussion (persona lines):** If `<port>` is set, POST **one batched block per agenda item** (not per exchange line) to `/event` — after the verbatim transcript is already printed as visible chat text. Single call: `~/.claude/skills/meeting/broker-curl.sh <port> <sid> event '{"text":"<escaped block>"}'`. The broker is an additive channel; visible chat output is unchanged.
-   - **Before each decision point:** poll `~/.claude/skills/meeting/broker-curl.sh <port> <sid> status` (if `<port>` set). Parse `subscribers`.
-     - If `subscribers > 0` (renderer attached): `~/.claude/skills/meeting/broker-curl.sh <port> <sid> question '<json>'` to send the decision prompt; `~/.claude/skills/meeting/broker-curl.sh <port> <sid> await` to block for the response. Map the returned `answer` back to the decision options list.
-     - Else (headless): use AskUserQuestion as normal.
-5. **Print transcript before every AskUserQuestion** — output the **complete, verbatim discussion text** for the most recent agenda item as visible chat content, not a summary. Required even in headless mode.
+   - **At the start of each agenda item**, if `<port>` is set, poll `~/.claude/skills/meeting/broker-curl.sh <port> <sid> status` and store the returned `subscribers` count. Use this count for both the discussion and the decision point of that item (re-poll only if renderer attachment may have changed).
+   - **Discussion (persona lines):** Controlled by `subscribers`:
+     - `subscribers > 0` (renderer attached): POST one batched block per agenda item to `/event` **only** — do **not** print the verbatim discussion to chat. The user reads discussion in the renderer. Single call: `~/.claude/skills/meeting/broker-curl.sh <port> <sid> event '{"text":"<escaped block>"}'`.
+     - `subscribers = 0` (headless) or `<port>` unset: print the **complete, verbatim discussion** to chat as in canonical `/meeting`; **skip** the `/event` POST (no listener).
+   - **Decision point:** Controlled by `subscribers`:
+     - `subscribers > 0`: `~/.claude/skills/meeting/broker-curl.sh <port> <sid> question '<json>'`; `~/.claude/skills/meeting/broker-curl.sh <port> <sid> await`; map returned `answer` to the options list. Do **not** print transcript to chat.
+     - `subscribers = 0` or `<port>` unset: print complete verbatim transcript to chat, then use AskUserQuestion as normal.
+5. **Transcript-visibility rule** — the user must be able to read the verbatim discussion before each decision. When `subscribers > 0`, the renderer feed satisfies this (chat suppression is intentional — this is the source of the token savings). When headless, chat output satisfies it. If `subscribers` flips mid-meeting, the rule applies to the current count at the start of each agenda item.
 6. Proceed to end-of-meeting steps.
 
 ## With no subject (default mode)
@@ -93,8 +96,8 @@ Broker-augmented variant of `/meeting`. Behaviour is identical to canonical `/me
 | State | Discussion | Decision point |
 |---|---|---|
 | `MEETING_LIVE=0` | Chat only | AskUserQuestion |
-| Broker up, `subscribers=0` | Chat + POST `/event` | AskUserQuestion (headless) |
-| Broker up, `subscribers>0` | Chat + POST `/event` | POST `/question` + GET `/await` |
+| Broker up, `subscribers=0` | Chat only | AskUserQuestion (headless) |
+| Broker up, `subscribers>0` | `/event` only (chat suppressed) | POST `/question` + GET `/await` |
 | Broker unavailable | Chat only | AskUserQuestion |
 
 Broker endpoints (all at `http://127.0.0.1:<port>`):
