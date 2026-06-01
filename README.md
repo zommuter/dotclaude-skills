@@ -25,14 +25,19 @@ Event hook scripts for Claude Code. See [hooks/README.md](hooks/README.md) for s
 ```bash
 git clone https://github.com/zommuter/dotclaude-skills.git ~/src/dotclaude-skills
 cd ~/src/dotclaude-skills
-make install            # all skills and hooks
+make install            # all skills, hooks, and allowlist entries
 make install-meeting    # one skill
 make install-hooks      # hooks only
 make help               # list available targets
 ```
 
-See each skill's `README.md` for skill-specific notes (settings.json allowlist, local-only files, etc.).  
-See [hooks/README.md](hooks/README.md) for hook prerequisites and settings.json registration snippets.
+`make install` calls `make install-allowlist` which merges the required `Bash(...)` entries into
+`~/.claude/settings.json` (backup → `settings.json.bak`). The merge is idempotent: re-running
+`make install-allowlist` adds nothing if all entries are already present. Use
+`make print-allowlist` for a read-only preview (shows `+` for missing, `=` for existing).
+
+See each skill's `README.md` for skill-specific notes (local-only files, etc.).  
+See [hooks/README.md](hooks/README.md) for hook prerequisites and additional settings.json snippets.
 
 ## Publishing pattern
 

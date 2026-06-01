@@ -6,19 +6,26 @@ SKILLS := meeting git-diary-workflow todo-update
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
-meeting_FILES := SKILL.md format.md personas.md append.sh cost-of.sh
-meeting_EXEC  := append.sh cost-of.sh
+meeting_FILES := SKILL.md format.md personas.md append.sh cost-of.sh \
+                 find-todos.sh orphan-scan.sh broker-curl.sh broker.py
+meeting_EXEC  := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh broker.py
+meeting_ALLOW := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh
 meeting_LOCAL := discoveries.md user-profile.md
 
 git-diary-workflow_FILES := SKILL.md diary-append.sh git-lock-push.sh
 git-diary-workflow_EXEC  := diary-append.sh git-lock-push.sh
+git-diary-workflow_ALLOW := diary-append.sh git-lock-push.sh
 git-diary-workflow_LOCAL :=
 
 todo-update_FILES := SKILL.md archive-done.sh
 todo-update_EXEC  := archive-done.sh
+todo-update_ALLOW := archive-done.sh
 todo-update_LOCAL :=
 
-.PHONY: help install install-hooks uninstall status \
+SETTINGS_JSON    := $(HOME)/.claude/settings.json
+ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
+
+.PHONY: help install install-hooks install-allowlist print-allowlist uninstall status \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -29,9 +36,11 @@ help:
 	@echo "Usage: make [TARGET]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  install              install all skills and hooks"
+	@echo "  install              install all skills, hooks, and allowlist entries"
 	@echo "  install-<skill>      install one skill"
 	@echo "  install-hooks        install hooks only"
+	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
+	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
 	@echo "  status               show symlink state for all skills"
@@ -40,7 +49,23 @@ help:
 	@echo ""
 	@echo "Install location: $$DEST_DIR  (override: make DEST_DIR=/path install)"
 
-install: $(addprefix install-,$(SKILLS)) install-hooks
+install: $(addprefix install-,$(SKILLS)) install-hooks install-allowlist
+
+print-allowlist:
+	@python3 $(SRC_DIR)/tools/allowlist.py --mode print \
+		--home $(HOME) \
+		--src-dir $(SRC_DIR) \
+		--dest-dir $(DEST_DIR) \
+		--settings $(SETTINGS_JSON) \
+		$(ALLOWLIST_SCRIPTS)
+
+install-allowlist:
+	@python3 $(SRC_DIR)/tools/allowlist.py --mode merge \
+		--home $(HOME) \
+		--src-dir $(SRC_DIR) \
+		--dest-dir $(DEST_DIR) \
+		--settings $(SETTINGS_JSON) \
+		$(ALLOWLIST_SCRIPTS)
 
 install-hooks:
 	@echo "→ installing hooks"
