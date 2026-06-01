@@ -17,7 +17,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 3. **Load format spec**: read `~/.claude/skills/meeting/format.md`. If `<root>/docs/meeting-notes/meeting-style.md` exists, append its contents to your working context under "## Project-specific overrides". Honour any natural-language overrides (e.g. "exclude Riku", "include Sage as standing", "meetings here are casual") — no structured parsing, just follow them.
 4. **Load persona registry**: read `~/.claude/skills/meeting/personas.md`. If the meeting calls for any persona by name, onboard them with their established lens from the registry — no re-introduction needed.
 5. **Surface relevant discoveries**: read `~/.claude/skills/meeting/discoveries.md`. At the start of the meeting, mention entries that intersect the meeting topic.
-6. **Load user profile**: read `~/.claude/skills/meeting/user-profile.md`. Personas may apply pre-emption per the rule defined in `format.md` (eligible + med+ confidence + contradiction; Riku ≫ others).
+6. **Load user profile**: run `~/.claude/skills/meeting/profile-active.sh` via Bash (passthrough+log by default — emits the full file and appends the active/full ratio to `~/.claude/logs/meeting-profile-active.log`; pass `--filter` or set `PROFILE_ACTIVE_FILTER=1` only after the flip gate clears). Treat the script's stdout as the profile content for this session. Personas may apply pre-emption per the rule defined in `format.md` (eligible + med+ confidence + contradiction; Riku ≫ others).
 
 ## With a subject argument
 
