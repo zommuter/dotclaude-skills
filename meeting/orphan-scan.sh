@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # orphan-scan.sh — sibling to append.sh, cost-of.sh
-# Usage: orphan-scan.sh [<root-dir>]
-# Scans <root>/docs/meeting-notes/*.md for ID-bearing unchecked action items whose
-# <!-- id:XXXX --> token is absent from the union of TODO.md + TODO.archive.md.
+# Usage: orphan-scan.sh [--reverse|-r] [<root-dir>]
+# Forward (default): scans <root>/docs/meeting-notes/*.md for ID-bearing unchecked action items
+#   whose <!-- id:XXXX --> token is absent from the union of TODO.md + TODO.archive.md.
+# Reverse (--reverse): finds ID-bearing checked ([x]) or inline lines absent from the TODO union
+#   — the forward scan's blind spot (Step 5b skipped, items completed in-session).
 # Un-IDed lines are skipped (clean cutover; legacy notes stay frozen).
-# Prints candidate orphan lines to stdout; writes one log line to ~/.claude/logs/meeting-orphan-scan.log.
+# Prints candidate lines to stdout; writes one log line to ~/.claude/logs/meeting-orphan-scan.log.
 set -euo pipefail
+
+mode="forward"
+if [[ "${1:-}" == "--reverse" || "${1:-}" == "-r" ]]; then
+  mode="reverse"
+  shift
+fi
 
 ROOT="${1:-$(git rev-parse --show-toplevel)}"
 NOTES_DIR="$ROOT/docs/meeting-notes"
@@ -24,21 +32,41 @@ for f in $(ls -r1 "$NOTES_DIR"/*.md 2>/dev/null); do
   [[ -f "$f" ]] || continue
   [[ "$(basename "$f")" == "meeting-style.md" ]] && continue
   notes=$((notes+1))
-  while IFS=: read -r lineno text; do
-    # Only consider lines that carry an <!-- id:XXXX --> token
-    token=$(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)
-    [[ -z "$token" ]] && continue
-    id_lines=$((id_lines+1))
-    if ! grep -qF "id:$token" <<<"$todo"; then
-      candidates=$((candidates+1))
-      output_lines+=("$(basename "$f"):$lineno  $text")
-    fi
-  done < <(grep -n '^- \[ \] ' "$f" || true)
+  if [[ "$mode" == "forward" ]]; then
+    while IFS=: read -r lineno text; do
+      # Only consider lines that carry an <!-- id:XXXX --> token
+      token=$(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)
+      [[ -z "$token" ]] && continue
+      id_lines=$((id_lines+1))
+      if ! grep -qF "id:$token" <<<"$todo"; then
+        candidates=$((candidates+1))
+        output_lines+=("$(basename "$f"):$lineno  $text")
+      fi
+    done < <(grep -n '^- \[ \] ' "$f" || true)
+  else
+    # Reverse mode: all ID-bearing lines EXCEPT unchecked action items (forward scan's domain)
+    while IFS=: read -r lineno text; do
+      # Skip unchecked action items — covered by the forward scan
+      [[ "${text:0:6}" == "- [ ] " ]] && continue
+      token=$(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)
+      [[ -z "$token" ]] && continue
+      id_lines=$((id_lines+1))
+      if ! grep -qF "id:$token" <<<"$todo"; then
+        candidates=$((candidates+1))
+        if [[ "${text:0:6}" == "- [x] " ]]; then
+          state="[x]"
+        else
+          state="inline"
+        fi
+        output_lines+=("$(basename "$f"):$lineno  $state $text")
+      fi
+    done < <(grep -n '<!-- id:[0-9a-f]\{4\} -->' "$f" || true)
+  fi
 done
 
 runtime_ms=$(( $(date +%s%3N) - start_ms ))
-printf '%s\t%s\tnotes=%d\tid_lines=%d\tcandidates=%d\truntime_ms=%d\n' \
-  "$(date -Iseconds)" "$(basename "$ROOT")" "$notes" "$id_lines" "$candidates" "$runtime_ms" \
+printf '%s\t%s\tmode=%s\tnotes=%d\tid_lines=%d\tcandidates=%d\truntime_ms=%d\n' \
+  "$(date -Iseconds)" "$(basename "$ROOT")" "$mode" "$notes" "$id_lines" "$candidates" "$runtime_ms" \
   >> "$LOG"
 
 total=${#output_lines[@]}
