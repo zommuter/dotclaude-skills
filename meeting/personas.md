@@ -32,3 +32,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🔧 **Quinn** — inference-server internals; llama.cpp/llama-server embedding mode, KV-cache, slot/sequence/batch management, pooling modes. Introduced 2026-05-21 (zkm/embed-rebuild-500).
 
 - 🔐 **Dario** — E2E-encrypted PIM API reuse lens; DAV protocol constraints, Proton go-proton-api vs reinvention, write-path risk + rehearsal gates, CardDAV/CalDAV server topology. Introduced 2026-05-29 (proton-moresync/proton-moresync-scope-codereuse).
+
+- 🔭 **Otto** — observability / measurement-without-perturbation lens; MITM-proxy mechanics, where ground truth lives, zero-perturbation instrumentation. Introduced 2026-06-03 (dotclaude-skills/llm-proxy-token-ctx-and-persona-split).
