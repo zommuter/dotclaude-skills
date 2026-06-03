@@ -129,7 +129,7 @@ Meetings run interactively with the user participating turn-by-turn. Protocol:
      - **Recommended option first**, labelled "(Recommended)" when the personas converge.
      - Freeform "Other" is provided automatically by the tool.
 3. The skill continues the meeting in the next turn based on the user's answer, appending to the transcript.
-4. When all agenda items reach decisions, the skill writes the final transcript to `<root>/docs/meeting-notes/YYYY-MM-DD-HHMM-<slug>.md` and calls `ExitPlanMode`.
+4. When all agenda items reach decisions, the skill calls `ExitPlanMode`, then writes the final transcript to `<root>/docs/meeting-notes/YYYY-MM-DD-HHMM-<slug>.md` and completes the remaining end-of-meeting steps.
 
 ## Effort estimate units
 
