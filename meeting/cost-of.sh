@@ -14,7 +14,21 @@ fi
 TURNS=$(wc -l < "$JSONL")
 SIZE_BYTES=$(stat -c %s "$JSONL")
 SIZE_KB=$(( SIZE_BYTES / 1024 ))
-APPROX_KTOK=$(( SIZE_KB / 4 ))  # SIZE_KB/4 ≈ kTokens (1KB ≈ 250 tok)
+
+# Real token totals from usage objects on every assistant turn
+read -r INPUT_TOK CACHE_READ_TOK CACHE_CREATE_TOK OUTPUT_TOK < <(jq -rs '
+  map(select(.type == "assistant" and .message.usage != null) | .message.usage)
+  | {
+      input:        (map(.input_tokens                // 0) | add // 0),
+      cache_read:   (map(.cache_read_input_tokens     // 0) | add // 0),
+      cache_create: (map(.cache_creation_input_tokens // 0) | add // 0),
+      output:       (map(.output_tokens               // 0) | add // 0)
+    }
+  | "\(.input) \(.cache_read) \(.cache_create) \(.output)"
+' "$JSONL" 2>/dev/null)
+INPUT_TOK=${INPUT_TOK:-0}; CACHE_READ_TOK=${CACHE_READ_TOK:-0}
+CACHE_CREATE_TOK=${CACHE_CREATE_TOK:-0}; OUTPUT_TOK=${OUTPUT_TOK:-0}
+TOTAL_INPUT=$(( INPUT_TOK + CACHE_READ_TOK + CACHE_CREATE_TOK ))
 
 # Wall time: extract first and last timestamps in a single jq pass
 read -r FIRST_TS LAST_TS < <(jq -r '
@@ -33,5 +47,6 @@ echo "Session:       $SESSION_ID"
 echo "File:          $JSONL"
 echo "Turns (lines): $TURNS"
 echo "Size:          ${SIZE_KB} KB"
-echo "Approx tokens: ~${APPROX_KTOK}k"
+echo "Input tokens:  ${TOTAL_INPUT}  (uncached=${INPUT_TOK}  cache_read=${CACHE_READ_TOK}  cache_create=${CACHE_CREATE_TOK})"
+echo "Output tokens: ${OUTPUT_TOK}"
 echo "Wall time:     $WALL_FMT"
