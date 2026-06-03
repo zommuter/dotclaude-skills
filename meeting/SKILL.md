@@ -18,6 +18,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 4. **Load persona registry**: read `~/.claude/skills/meeting/personas.md`. If the meeting calls for any persona by name, onboard them with their established lens from the registry — no re-introduction needed.
 5. **Surface relevant discoveries**: read `~/.claude/skills/meeting/discoveries.md`. At the start of the meeting, mention entries that intersect the meeting topic.
 6. **Load user profile**: run `~/.claude/skills/meeting/profile-active.sh` via Bash (passthrough+log by default — emits the full file and appends the active/full ratio to `~/.claude/logs/meeting-profile-active.log`; pass `--filter` or set `PROFILE_ACTIVE_FILTER=1` only after the flip gate clears). Treat the script's stdout as the profile content for this session. Personas may apply pre-emption per the rule defined in `format.md` (eligible + med+ confidence + contradiction; Riku ≫ others).
+7. **Broker mode (opt-in):** Probe `echo "$MEETING_LIVE"` (plain expansion — **never** `${MEETING_LIVE:-...}`). If non-empty, or if a broker may be running (probe `echo "$MEETING_BROKER_PORT"`), read `~/.claude/skills/meeting/broker-mode.md` and follow it for the rest of step 7, per-item discussion routing, and decision points. If `$MEETING_LIVE` is empty and no broker is probed live, skip `broker-mode.md` entirely — the meeting proceeds as canonical.
 
 ## With a subject argument
 

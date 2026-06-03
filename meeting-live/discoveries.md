@@ -1,2 +1,0 @@
-
-- [2026-06-01 meeting-rpg] Portrait character-consistency for small (6-persona) sets: generate one anchor (neutral) per character via text2img, then derive expression variants (objecting/vindicated) via img2img from the anchor with a locked seed — cheaper than LoRA (no training set needed), holds face better than separate prompts — see ~/src/meeting-rpg/docs/meeting-notes/2026-06-01-1703-persona-continuity-portraits.md
