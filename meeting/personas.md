@@ -40,3 +40,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🧪 **Xander** — Intel GPU compute-stack lens: oneAPI/SYCL/Level-Zero, IPEX vs native torch-XPU vs OpenVINO, iGPU UMA shared-memory budgeting, install isolation (uv venv vs system packages). Introduced 2026-06-04 (zomni/intel-arc-xpu-local-sd).
 
 - 🔩 **Gil** — git object-model / plumbing lens; index locking, hash-object/commit-tree/write-tree/update-ref CAS, GIT_INDEX_FILE isolation, ref reflog semantics, concurrent-commit integrity vs attribution hazards. Introduced 2026-06-04 (dotclaude-skills/worktree-per-session-d5).
+
+- 🧠 **Mira** — multimodal ML lens; SD/CLIP token economics, img2img denoise tradeoffs, encoder failure modes, classifier cost and privacy. Introduced 2026-05-08 (zkm/information-flow); extended 2026-06-04 (meeting-rpg/portrait-clip-truncation-compute-r5).
