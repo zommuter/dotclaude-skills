@@ -25,7 +25,7 @@ Env vars:
 import http.client
 import json
 import os
-import queue
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -41,22 +41,6 @@ _HOP_BY_HOP = frozenset([
 
 _log_lock = threading.Lock()
 
-# Connection pool — reuse HTTPS connections to avoid per-request TLS handshake overhead.
-# Connections are only returned here when the response body is fully consumed; broken
-# or partially-read connections are dropped so the pool stays clean.
-_pool: queue.SimpleQueue = queue.SimpleQueue()
-
-
-def _get_conn() -> http.client.HTTPSConnection:
-    try:
-        return _pool.get_nowait()
-    except queue.Empty:
-        return http.client.HTTPSConnection(UPSTREAM_HOST, timeout=120)
-
-
-def _return_conn(conn: http.client.HTTPSConnection) -> None:
-    _pool.put_nowait(conn)
-
 
 def _log(entry: dict):
     line = json.dumps(entry)
@@ -66,7 +50,73 @@ def _log(entry: dict):
     print(line, flush=True)
 
 
+def _stream_chunked(resp, wfile, buf_lines: list, is_sse: bool) -> bool:
+    """
+    Manually decode a chunked response and forward decoded bytes to wfile.
+
+    fp.read1() on a live keep-alive socket never returns b"" — it blocks waiting
+    for the next response. We must detect the terminating chunk (size == 0) ourselves
+    and stop reading. Returns True if the body was fully consumed.
+    """
+    fp = resp.fp
+    while True:
+        # Read chunk-size line (blocks until the next event arrives — expected for SSE)
+        line = fp.readline(256)
+        if not line:
+            return False  # unexpected EOF
+        try:
+            chunk_size = int(line.split(b";")[0].strip(), 16)
+        except ValueError:
+            return False  # malformed chunk header
+        if chunk_size == 0:
+            # Terminating chunk — consume any trailing headers
+            while True:
+                trailer = fp.readline(256)
+                if trailer in (b"\r\n", b"\n", b""):
+                    break
+            return True  # fully consumed, clean end
+
+        # Read chunk body in pieces (read1 returns immediately with whatever is available)
+        remaining = chunk_size
+        while remaining > 0:
+            try:
+                data = fp.read1(min(4096, remaining))
+            except AttributeError:
+                data = fp.read(min(256, remaining))
+            if not data:
+                return False  # unexpected EOF mid-chunk
+            remaining -= len(data)
+            wfile.write(data)
+            wfile.flush()
+            if is_sse:
+                buf_lines.append(data)
+
+        fp.read(2)  # consume trailing \r\n after chunk body
+
+
+def _stream_plain(resp, wfile, buf_lines: list, is_sse: bool) -> bool:
+    """Forward a non-chunked response. Connection close signals end-of-body."""
+    fp = resp.fp
+    while True:
+        try:
+            data = fp.read1(4096)
+        except AttributeError:
+            data = fp.read(256)
+        if not data:
+            return True
+        wfile.write(data)
+        wfile.flush()
+        if is_sse:
+            buf_lines.append(data)
+
+
 class ProxyHandler(BaseHTTPRequestHandler):
+    def setup(self):
+        super().setup()
+        # TCP_NODELAY: send each SSE chunk immediately; Nagle + delayed-ACK on loopback
+        # would otherwise batch small writes and stall between events.
+        self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
     def log_message(self, format, *args): pass  # silence default access log  # noqa: A002
 
     def _proxy(self):
@@ -74,8 +124,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(req_length) if req_length else b""
 
         # Build upstream headers: drop hop-by-hop, replace Host.
-        # Strip Accept-Encoding: upstream would send compressed bytes that we can't
-        # transparently forward without decompressing first. Force plain text for the spike.
+        # Strip Accept-Encoding: upstream would compress the response and http.client
+        # doesn't auto-decompress — we'd forward opaque bytes and Claude Code would fail.
         fwd_headers = {
             k: v for k, v in self.headers.items()
             if k.lower() not in _HOP_BY_HOP and k.lower() not in ("host", "accept-encoding")
@@ -83,22 +133,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if body:
             fwd_headers["Content-Length"] = str(len(body))
 
-        conn = _get_conn()
         try:
+            conn = http.client.HTTPSConnection(UPSTREAM_HOST, timeout=120)
             conn.request(self.command, self.path, body=body or None, headers=fwd_headers)
             resp = conn.getresponse()
-        except Exception:
-            conn.close()
-            # Stale pooled connection — retry once with a fresh one
-            conn = http.client.HTTPSConnection(UPSTREAM_HOST, timeout=120)
-            try:
-                conn.request(self.command, self.path, body=body or None, headers=fwd_headers)
-                resp = conn.getresponse()
-            except Exception as exc:
-                conn.close()
-                _log({"event": "upstream_error", "path": self.path, "error": str(exc)})
-                self.send_error(502, str(exc))
-                return
+        except Exception as exc:
+            _log({"event": "upstream_error", "path": self.path, "error": str(exc)})
+            self.send_error(502, str(exc))
+            return
 
         # Forward status + response headers (skip hop-by-hop)
         self.send_response(resp.status)
@@ -112,31 +154,19 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         is_sse = "text/event-stream" in resp_content_type
+        is_chunked = bool(resp.chunked)
 
-        # Stream body: use read1() for unbuffered SSE forwarding (one syscall at a time).
         buf_lines: list[bytes] = []
         fully_consumed = False
         try:
-            fp = resp.fp  # socket-backed BufferedReader
-            while True:
-                try:
-                    chunk = fp.read1(4096)  # returns immediately with whatever is available
-                except AttributeError:
-                    chunk = fp.read(256)    # fallback: small fixed read
-                if not chunk:
-                    fully_consumed = True
-                    break
-                self.wfile.write(chunk)
-                self.wfile.flush()
-                if is_sse:
-                    buf_lines.append(chunk)
+            if is_chunked:
+                fully_consumed = _stream_chunked(resp, self.wfile, buf_lines, is_sse)
+            else:
+                fully_consumed = _stream_plain(resp, self.wfile, buf_lines, is_sse)
         except (BrokenPipeError, ConnectionResetError):
             pass
         finally:
-            if fully_consumed:
-                _return_conn(conn)  # safe to reuse — body fully read
-            else:
-                conn.close()       # partial read — don't reuse
+            conn.close()
 
         # Extract usage from the last SSE "data:" line that carries it
         usage = None
@@ -158,6 +188,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             "request_body_bytes": req_length,
             "response_status": resp.status,
             "is_sse": is_sse,
+            "is_chunked": is_chunked,
+            "fully_consumed": fully_consumed,
             "usage": usage,
         })
 
