@@ -84,9 +84,9 @@
 - **D6.5 — Prerequisite re-sequencing.** D6 hard-depends on **D5 ratified** + the **suppress-and-fold dispatch contract** (D6.4). The δ merge helper (id:42f4) is a **soft** prerequisite — still wanted for the human-concurrent-meetings case, not a blocker for sub-agents under one main session.
 
 ## Build gate (all three required before building the dispatcher)
-1. D5 worktree-per-session design meeting ratified.
+1. ✓ D5 worktree-per-session design meeting ratified (2026-06-04).
 2. A logged instance of ≥3 independent impl-ready items with disjoint file footprints queued at once.
-3. Haiku-vs-Sonnet builder pilot run and decided.
+3. ✓ Haiku-vs-Sonnet builder pilot run and decided (2026-06-04). Decision: **Sonnet-default confirmed.** See `2026-06-04-1300-haiku-sonnet-builder-pilot.md`.
 
 ## Action items
-- [ ] **Haiku-vs-Sonnet builder pilot** — run Sonnet and Haiku on the same 2–3 real impl-ready items; compare diff quality vs `Contract:`; record result; decide builder tier. Gated/eventual. <!-- id:c0d2 -->
+- [x] **Haiku-vs-Sonnet builder pilot** — complete 2026-06-04. Sonnet-default confirmed; Haiku fails LOGIC-HEAVY items. See `2026-06-04-1300-haiku-sonnet-builder-pilot.md`. <!-- id:c0d2 -->
