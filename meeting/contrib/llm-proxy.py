@@ -57,9 +57,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(req_length) if req_length else b""
 
         # Build upstream headers: drop hop-by-hop, replace Host
+        # Strip Accept-Encoding: upstream would send compressed bytes that we can't
+        # transparently forward without decompressing first. Force plain text for the spike.
         fwd_headers = {
             k: v for k, v in self.headers.items()
-            if k.lower() not in _HOP_BY_HOP and k.lower() != "host"
+            if k.lower() not in _HOP_BY_HOP and k.lower() not in ("host", "accept-encoding")
         }
         if body:
             fwd_headers["Content-Length"] = str(len(body))
