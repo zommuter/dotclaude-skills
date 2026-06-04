@@ -68,7 +68,7 @@
 - [ ] Create `meeting/broker-mode.md` — broker delta only (step-7 connect/self-start, per-item event streaming, decision-point γ-branch, γ-branch reference). Contract: never restates setup steps 1–6. [session 8520676a]
 - [ ] Add step-7 probe/pointer to canonical `meeting/SKILL.md`. Contract: headless meeting never reads broker-mode.md. [session 8520676a]
 - [ ] Add `broker-mode.md` to `meeting_FILES` + allowlist generator; run `make install`. Contract: `~/.claude/skills/meeting/broker-mode.md` is a symlink. [session 8520676a]
-- [ ] Run broker-curl round-trip (status/question/await); record PASS/FAIL above. Contract: deletion proceeds only on PASS. [session 8520676a] <!-- id:54ba -->
+- [x] Run broker-curl round-trip (status/question/await); record PASS/FAIL above. Contract: deletion proceeds only on PASS. [session 8520676a] DONE 2026-06-03: PASS recorded above (session 8520676a). <!-- id:54ba -->
 - [ ] Delete `meeting-live/` (merge local discoveries.md first). Contract: `/meeting-live` no longer registered; git history retains for rollback. [session 8520676a]
 - [ ] Rewrite canonical id:7b4c + meeting-rpg id:58e3 to re-scoped savings gate. [session 8520676a]
 - [ ] ExitPlanMode-before-end-of-meeting-writes ordering fix in `meeting/SKILL.md`. See `~/src/meeting-rpg/docs/meeting-notes/2026-06-03-1502-r4-end-of-meeting-prompts-renderer.md`. <!-- id:c762 -->
