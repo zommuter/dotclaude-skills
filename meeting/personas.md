@@ -38,3 +38,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🎛️ **Orla** — multi-agent orchestration lens; fan-out topology, model-tier cost/capability economics, worktree-per-agent isolation, verification-before-merge gating. Introduced 2026-06-04 (dotclaude-skills/subagent-parallel-class1).
 
 - 🧪 **Xander** — Intel GPU compute-stack lens: oneAPI/SYCL/Level-Zero, IPEX vs native torch-XPU vs OpenVINO, iGPU UMA shared-memory budgeting, install isolation (uv venv vs system packages). Introduced 2026-06-04 (zomni/intel-arc-xpu-local-sd).
+
+- 🔩 **Gil** — git object-model / plumbing lens; index locking, hash-object/commit-tree/write-tree/update-ref CAS, GIT_INDEX_FILE isolation, ref reflog semantics, concurrent-commit integrity vs attribution hazards. Introduced 2026-06-04 (dotclaude-skills/worktree-per-session-d5).
