@@ -25,6 +25,7 @@ Env vars:
 import http.client
 import json
 import os
+import queue
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -39,6 +40,22 @@ _HOP_BY_HOP = frozenset([
 ])
 
 _log_lock = threading.Lock()
+
+# Connection pool — reuse HTTPS connections to avoid per-request TLS handshake overhead.
+# Connections are only returned here when the response body is fully consumed; broken
+# or partially-read connections are dropped so the pool stays clean.
+_pool: queue.SimpleQueue = queue.SimpleQueue()
+
+
+def _get_conn() -> http.client.HTTPSConnection:
+    try:
+        return _pool.get_nowait()
+    except queue.Empty:
+        return http.client.HTTPSConnection(UPSTREAM_HOST, timeout=120)
+
+
+def _return_conn(conn: http.client.HTTPSConnection) -> None:
+    _pool.put_nowait(conn)
 
 
 def _log(entry: dict):
@@ -56,7 +73,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         req_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(req_length) if req_length else b""
 
-        # Build upstream headers: drop hop-by-hop, replace Host
+        # Build upstream headers: drop hop-by-hop, replace Host.
         # Strip Accept-Encoding: upstream would send compressed bytes that we can't
         # transparently forward without decompressing first. Force plain text for the spike.
         fwd_headers = {
@@ -66,14 +83,22 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if body:
             fwd_headers["Content-Length"] = str(len(body))
 
+        conn = _get_conn()
         try:
-            conn = http.client.HTTPSConnection(UPSTREAM_HOST, timeout=120)
             conn.request(self.command, self.path, body=body or None, headers=fwd_headers)
             resp = conn.getresponse()
-        except Exception as exc:
-            _log({"event": "upstream_error", "path": self.path, "error": str(exc)})
-            self.send_error(502, str(exc))
-            return
+        except Exception:
+            conn.close()
+            # Stale pooled connection — retry once with a fresh one
+            conn = http.client.HTTPSConnection(UPSTREAM_HOST, timeout=120)
+            try:
+                conn.request(self.command, self.path, body=body or None, headers=fwd_headers)
+                resp = conn.getresponse()
+            except Exception as exc:
+                conn.close()
+                _log({"event": "upstream_error", "path": self.path, "error": str(exc)})
+                self.send_error(502, str(exc))
+                return
 
         # Forward status + response headers (skip hop-by-hop)
         self.send_response(resp.status)
@@ -88,16 +113,18 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         is_sse = "text/event-stream" in resp_content_type
 
-        # Stream body: use read1() for SSE to avoid buffering across chunk boundaries
+        # Stream body: use read1() for unbuffered SSE forwarding (one syscall at a time).
         buf_lines: list[bytes] = []
+        fully_consumed = False
         try:
             fp = resp.fp  # socket-backed BufferedReader
             while True:
                 try:
-                    chunk = fp.read1(4096)  # at most one syscall — never waits to fill
+                    chunk = fp.read1(4096)  # returns immediately with whatever is available
                 except AttributeError:
                     chunk = fp.read(256)    # fallback: small fixed read
                 if not chunk:
+                    fully_consumed = True
                     break
                 self.wfile.write(chunk)
                 self.wfile.flush()
@@ -106,9 +133,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass
         finally:
-            conn.close()
+            if fully_consumed:
+                _return_conn(conn)  # safe to reuse — body fully read
+            else:
+                conn.close()       # partial read — don't reuse
 
-        # Extract usage from the last "data:" line that carries it
+        # Extract usage from the last SSE "data:" line that carries it
         usage = None
         if is_sse:
             full = b"".join(buf_lines).decode("utf-8", errors="replace")
