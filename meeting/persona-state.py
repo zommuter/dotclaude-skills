@@ -89,7 +89,9 @@ def update(root: Path, slug: str, delta: dict) -> None:
         stats[key] = stats.get(key, 0) + inc
 
     _save_yaml(yml_path, state, header)
-    _save_json(root / "web" / "persona-state.json", state)
+    json_target = root / "web" / "persona-state.json"
+    if json_target.parent.exists():
+        _save_json(json_target, state)
 
 
 def main() -> None:
