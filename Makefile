@@ -54,12 +54,15 @@ help:
 
 install: $(addprefix install-,$(SKILLS)) install-hooks install-allowlist
 
+ALLOWLIST_EXTRA := $(SRC_DIR)/tools/allow-extra.txt
+
 print-allowlist:
 	@python3 $(SRC_DIR)/tools/allowlist.py --mode print \
 		--home $(HOME) \
 		--src-dir $(SRC_DIR) \
 		--dest-dir $(DEST_DIR) \
 		--settings $(SETTINGS_JSON) \
+		--extra-file $(ALLOWLIST_EXTRA) \
 		$(ALLOWLIST_SCRIPTS)
 
 install-allowlist:
@@ -68,6 +71,7 @@ install-allowlist:
 		--src-dir $(SRC_DIR) \
 		--dest-dir $(DEST_DIR) \
 		--settings $(SETTINGS_JSON) \
+		--extra-file $(ALLOWLIST_EXTRA) \
 		$(ALLOWLIST_SCRIPTS)
 
 install-hooks:

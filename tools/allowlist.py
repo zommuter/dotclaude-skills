@@ -88,6 +88,18 @@ def main() -> None:
                 expected.append(entry)
                 seen.add(entry)
 
+    # Literal extra entries (verbatim "Bash(...)" lines), appended after generated ones
+    if args.extra_file:
+        extra_path = Path(args.extra_file)
+        if extra_path.exists():
+            for raw in extra_path.read_text().splitlines():
+                entry = raw.strip()
+                if not entry or entry.startswith("#"):
+                    continue
+                if entry not in seen:
+                    expected.append(entry)
+                    seen.add(entry)
+
     # Load current allowlist
     with open(settings) as f:
         data = json.load(f)

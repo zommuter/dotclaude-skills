@@ -31,7 +31,7 @@ if [[ "${1:-}" == "new-id" || "${1:-}" == "new-ids" ]]; then
     if ! grep -qF "id:$token" <<< "${existing}"; then
       echo "$token"
       existing+=$'\nid:'"$token"  # guard against duplicates within this batch
-      (( emitted++ ))
+      (( ++emitted ))
     fi
   done
   exit 0
