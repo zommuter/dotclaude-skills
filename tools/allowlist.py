@@ -64,6 +64,12 @@ def main() -> None:
     parser.add_argument("--src-dir",  required=True, help="dotclaude-skills source root (absolute)")
     parser.add_argument("--dest-dir", required=True, help="~/.claude/skills install root (absolute)")
     parser.add_argument("--settings", required=True, help="~/.claude/settings.json path")
+    parser.add_argument("--extra-file", default=None,
+                        help="Optional file of literal allow entries (one per line). "
+                             "Used for exact-command patterns the path×wildcard generator "
+                             "can't express — e.g. commands carrying unexpanded shell "
+                             "variables that the permission matcher flags despite a "
+                             "wildcard rule. Blank lines and #-comments are ignored.")
     parser.add_argument("scripts", nargs="+", metavar="skill/script.sh",
                         help="Relative paths like meeting/append.sh")
     args = parser.parse_args()
