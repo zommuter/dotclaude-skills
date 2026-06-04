@@ -121,9 +121,9 @@ Checklist — same shape as Class 3. Each item names the file and the contract.
 Meetings run interactively with the user participating turn-by-turn. Protocol:
 
 1. The skill accumulates the meeting transcript in the plan file turn-by-turn during plan mode.
-2. At each natural user decision point (roughly every 4–8 exchanges), the skill:
-   - Outputs the relevant transcript chunk as visible text (so the user has context even if the plan file is not visible in the UI).
-   - Poses the decision via `AskUserQuestion` with:
+2. At each natural user decision point (roughly every 4–8 exchanges), the skill emits the transcript chunk **and** calls `AskUserQuestion` **in the same response** — never end a turn on bare prose and send the question in a subsequent turn:
+   - Outputs the relevant transcript chunk as visible chat content (not a summary), so the user sees the discussion before the options appear.
+   - Immediately (same message) poses the decision via `AskUserQuestion` with:
      - **Embedded tl;dr** — standalone-readable summary of the state of play in 2–3 sentences before stating the choice.
      - **3 implication-driven options** — derived from the personas' reasoning, not generic pro/con pairs. Each label 1–5 words; description explains what it commits to and what it defers.
      - **Recommended option first**, labelled "(Recommended)" when the personas converge.
