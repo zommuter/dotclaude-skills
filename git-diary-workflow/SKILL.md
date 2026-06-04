@@ -51,57 +51,58 @@ Replace `PASTE-SESSION-ID-HERE` with the UUID you captured above — never write
 
 Skip this step when the cwd is `~/.claude` itself — Step 1 already handled that repo.
 
-After committing the project repo, check for dirty state:
+After committing the project repo, identify the `~/.claude` files you **edited or created during this session**. Do NOT use `git status` to discover them — it shows all sessions' dirty files, not just yours.
+
+If you made no `~/.claude` changes this session → nothing to do, proceed to Step 2.
+
+If you did make changes, write your file list to a temp manifest and call `git-lock-push.sh` in manifest mode (stage+commit happen inside the lock — no separate `git add` or `git commit`):
 
 ```bash
-git -C ~/.claude status --porcelain
-```
+# Temp manifest — one absolute path per line (only files you edited/created this session)
+manifest=$(mktemp)
+printf '%s\n' \
+  "/home/tobias/.claude/<file1>" \
+  "/home/tobias/.claude/<file2>" \
+  > "$manifest"
 
-Empty output → nothing to do, proceed to Step 2.
-
-Non-empty → `~/.claude` has uncommitted changes (e.g. a new meeting note, registry appends, settings edits). Commit and push them:
-
-```bash
-# Stage the specific files shown in the status output — never -A
-git -C ~/.claude add <files-from-status>
-
-# Commit — reuse the session ID captured above; describe what the skill wrote
-git -C ~/.claude commit -m "$(cat <<'EOF'
+# Commit message in a var first (quoted heredoc so no $-expansion)
+msg="$(cat <<'EOF'
 <brief description of what changed in ~/.claude>
 
 Co-Authored-By: Claude <Model> (<effort>) <PASTE-SESSION-ID-HERE@kienzler.dev>
 EOF
 )"
 
-# Lock-push (uses /tmp lock file automatically for ~/.claude)
-~/.claude/skills/git-diary-workflow/git-lock-push.sh ~/.claude
+# Stage + commit + pull + push atomically inside the per-repo flock
+~/.claude/skills/git-diary-workflow/git-lock-push.sh ~/.claude -f "$manifest" -m "$msg"
+rm -f "$manifest"
 ```
 
 ### Step 1c: Commit and push ~/src/dotclaude-skills (when skill spec files change)
 
 Skip this step when the cwd is `~/src/dotclaude-skills` itself — Step 1 already handled that repo.
 
-After Step 1b, check for dirty state:
+After Step 1b, identify the `~/src/dotclaude-skills` files you **edited or created during this session**. Same rule: do NOT use `git status` — use your session's edit history.
+
+If you made no changes → nothing to do, proceed to Step 2.
+
+If you did make changes (e.g. format.md, personas.md via symlink):
 
 ```bash
-git -C ~/src/dotclaude-skills status --porcelain
-```
+manifest=$(mktemp)
+printf '%s\n' \
+  "/home/tobias/src/dotclaude-skills/<file1>" \
+  > "$manifest"
 
-Empty output → nothing to do, proceed to Step 2.
-
-Non-empty → a meeting skill spec file was modified via symlink (e.g. format.md, personas.md). Commit and push:
-
-```bash
-git -C ~/src/dotclaude-skills add <files-from-status>
-
-git -C ~/src/dotclaude-skills commit -m "$(cat <<'EOF'
+msg="$(cat <<'EOF'
 <brief description of what changed in dotclaude-skills>
 
 Co-Authored-By: Claude <Model> (<effort>) <PASTE-SESSION-ID-HERE@kienzler.dev>
 EOF
 )"
 
-~/.claude/skills/git-diary-workflow/git-lock-push.sh ~/src/dotclaude-skills
+~/.claude/skills/git-diary-workflow/git-lock-push.sh ~/src/dotclaude-skills -f "$manifest" -m "$msg"
+rm -f "$manifest"
 ```
 
 ### Step 2: Append diary entry
