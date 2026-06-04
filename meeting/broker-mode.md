@@ -17,12 +17,20 @@ Only on Class 3 / subject-given paths (not Class 1/2 dispatch).
 
 At the start of each agenda item, if `<port>` is set, poll `~/.claude/skills/meeting/broker-curl.sh <port> <sid> status` and store the returned `subscribers` count. Use this count for both the discussion and the decision point of that item (re-poll only if renderer attachment may have changed).
 
+**Shell-quoting rule — apostrophes in text content break single-quoted literals.**
+Always build the JSON body with `jq -n --arg` so text containing `'` (e.g. "flock'd", "don't") is safely escaped:
+```bash
+BODY=$(jq -n --arg text "<block>" '{"text": $text}')
+~/.claude/skills/meeting/broker-curl.sh <port> <sid> event "$BODY"
+```
+Never pass a raw single-quoted JSON literal when the text is user- or persona-controlled.
+
 **Discussion (persona lines):**
-- `subscribers > 0` (renderer attached): POST one batched block per agenda item to `/event` **only** — do **not** print the verbatim discussion to chat. Single call: `~/.claude/skills/meeting/broker-curl.sh <port> <sid> event '{"text":"<escaped block>"}'`.
+- `subscribers > 0` (renderer attached): POST one batched block per agenda item to `/event` **only** — do **not** print the verbatim discussion to chat. Build JSON safely: `BODY=$(jq -n --arg text "<block>" '{"text":$text}'); ~/.claude/skills/meeting/broker-curl.sh <port> <sid> event "$BODY"`.
 - `subscribers = 0` (headless) or `<port>` unset: print the **complete, verbatim discussion** to chat as in canonical `/meeting`; **skip** the `/event` POST.
 
 **Decision point:**
-- `subscribers > 0`: `~/.claude/skills/meeting/broker-curl.sh <port> <sid> question '<json>'`; `~/.claude/skills/meeting/broker-curl.sh <port> <sid> await`; map returned `answer` to the options list. Do **not** print transcript to chat.
+- `subscribers > 0`: build JSON with `jq -n --arg`, e.g. `BODY=$(jq -n --arg text "<question>" --argjson options '<options-array>' '{"text":$text,"options":$options}')`, then `~/.claude/skills/meeting/broker-curl.sh <port> <sid> question "$BODY"`; `~/.claude/skills/meeting/broker-curl.sh <port> <sid> await`; map returned `answer` to the options list. Do **not** print transcript to chat.
 - `subscribers = 0` or `<port>` unset: print complete verbatim transcript to chat, then use AskUserQuestion as normal.
 
 **Transcript-visibility rule:** the user must be able to read the verbatim discussion before each decision. When `subscribers > 0`, the renderer feed satisfies this (chat suppression is intentional — source of the token savings). When headless, chat output satisfies it.
@@ -41,7 +49,7 @@ Broker endpoints (all at `http://127.0.0.1:<port>`):
 - `POST /event` body `{"text": "...", "session": "<sid>"}` → streams to renderer
 - `POST /question` body `{"text": "...", "options": [...], "session": "<sid>"}` → sends decision prompt to renderer
 - `GET /await?session=<sid>` → blocks until renderer POSTs `/response`; returns `{"answer": "..."}`
-- `POST /response` body `{"answer": "...", "session": "<sid>"}` → renderer submits an answer, unblocks `GET /await`. Manual test: `~/.claude/skills/meeting/broker-curl.sh <port> <sid> response '{"answer":"<choice>"}'`
+- `POST /response` body `{"answer": "...", "session": "<sid>"}` → renderer submits an answer, unblocks `GET /await`. Manual test: `BODY=$(jq -n --arg answer "<choice>" '{"answer":$answer}'); ~/.claude/skills/meeting/broker-curl.sh <port> <sid> response "$BODY"`
 - `GET /events?session=<sid>` → SSE stream
 
 **Debug recipe (readable event tail):**
