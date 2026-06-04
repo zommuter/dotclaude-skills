@@ -36,5 +36,6 @@
 - [x] **Fix /meeting interactive-protocol self-bug** — DONE 2026-06-04: SKILL.md step 5 already updated in db8e43b (same-turn constraint added); format.md Interactive mode step 2 also updated for consistency (explicit "same response" requirement). See `docs/meeting-notes/2026-06-03-1613-parallel-session-state-coordination.md`. <!-- id:ec72 -->
 - [ ] **Design meeting: worktree-per-session for same-repo Class 1 code edits** (D5) — scope, `--no-ff` constraint, lifecycle management. Separate design meeting. See `docs/meeting-notes/2026-06-03-1613-parallel-session-state-coordination.md`. <!-- id:d18d -->
 - [ ] **Design meeting: Sonnet/Haiku sub-agent spawning for parallel Class 1 tasks** (D6) — discuss parallelizing impl-ready items across sub-agents. Separate meeting. See `docs/meeting-notes/2026-06-03-1613-parallel-session-state-coordination.md`. <!-- id:cbb5 -->
+- [ ] **Investigate: `echo "$EMBED_ENDPOINT"` prompted despite structural parity with `$MEETING_LIVE`/`$MEETING_BROKER_PORT`** — both patterns use simple_expansion; EMBED_ENDPOINT was missing from the global allowlist entirely. Question: are there other meeting-skill env-probes missing from the allowlist? Audit SKILL.md step 5 onward for all `echo "$VAR"` calls and cross-check against `~/.claude/settings.json`. Contract: no meeting-setup step prompts for env-expansion commands.
 
 ## Done
