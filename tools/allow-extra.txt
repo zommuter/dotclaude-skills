@@ -1,0 +1,11 @@
+# Literal allow entries for exact-command patterns that the path×wildcard generator
+# cannot express — typically commands carrying unexpanded shell variables that the
+# permission matcher flags despite a wildcard rule.
+#
+# Format: one "Bash(...)" entry per line. Blank lines and #-comments are ignored.
+# Referenced by Makefile via: allowlist.py --extra-file tools/allow-extra.txt
+
+# broker-curl status probe carries $MEETING_BROKER_PORT and $CLAUDE_SESSION_ID;
+# the wildcard rule "Bash(~/.claude/skills/meeting/broker-curl.sh *)" does not
+# suppress the prompt when the command string contains unexpanded variable references.
+Bash(~/.claude/skills/meeting/broker-curl.sh "$MEETING_BROKER_PORT" "$CLAUDE_SESSION_ID" status)
