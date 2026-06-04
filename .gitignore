@@ -1,2 +1,3 @@
 .git-lock-push.lock
+meeting/*.lock
 docs/meeting-notes/persona-state.yml

@@ -73,4 +73,8 @@ if [[ -z "$entry" ]]; then
 fi
 
 # Always prepend a blank line — defensive against missing trailing newline
-printf '\n%s\n' "$entry" >> "$dest"
+# flock prevents concurrent calls from interleaving lines
+(
+  flock -x 9
+  printf '\n%s\n' "$entry" >> "$dest"
+) 9>"${dest}.lock"
