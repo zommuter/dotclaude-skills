@@ -87,6 +87,9 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    ~/.claude/skills/meeting/persona-state.py collapse --root <root>
    ```
    `shard` writes to `<root>/persona-events/<session>.json` (no contention between concurrent meetings). `collapse` acquires an exclusive flock, folds all shard files into `persona-state.yml` (appends events, truncates to last-5, updates affinity running-sum), mirrors `project_stats` + affinities to `<root>/web/persona-state.json`, then deletes the shard files. Both `persona-state.yml` and `persona-events/` are gitignored; no commit needed. Add `persona-events/` to `<root>/.gitignore` if not already present.
+
+> **Broker γ-branch (steps 3–5):** if `<port>` is set (from setup step 7), re-probe `/status` before each prompt and route through the broker when `subscribers > 0`. See `~/.claude/skills/meeting/broker-mode.md` §End-of-meeting prompt routing. `AskUserQuestion` is the fallback when `subscribers = 0` or `<port>` unset — no behaviour change from canonical.
+
 3. **Profile observations**: for each new behavioural observation the model noticed during the meeting (decision patterns, domain fluency, scope tolerance), ask via AskUserQuestion [save to user-profile / save to user-memory / discard]:
    - *user-profile* → use the flock'd merge helper to update the relevant section without clobbering concurrent session edits:
      ```bash
