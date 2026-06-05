@@ -37,12 +37,12 @@ Never pass a raw single-quoted JSON literal when the text is user- or persona-co
 
 ## γ-branch reference
 
-| State | Discussion | Decision point |
-|---|---|---|
-| `MEETING_LIVE=0` | Chat only | AskUserQuestion |
-| Broker up, `subscribers=0` | Chat only | AskUserQuestion (headless) |
-| Broker up, `subscribers>0` | `/event` only (chat suppressed) | POST `/question` + GET `/await` |
-| Broker unavailable | Chat only | AskUserQuestion |
+| State | Discussion | Decision point | End-of-meeting prompts (steps 3–5) |
+|---|---|---|---|
+| `MEETING_LIVE=0` | Chat only | AskUserQuestion | AskUserQuestion |
+| Broker up, `subscribers=0` | Chat only | AskUserQuestion (headless) | AskUserQuestion (per-prompt re-probe) |
+| Broker up, `subscribers>0` | `/event` only (chat suppressed) | POST `/question` + GET `/await` | POST `/question` + GET `/await` (per-prompt re-probe) |
+| Broker unavailable | Chat only | AskUserQuestion | AskUserQuestion |
 
 Broker endpoints (all at `http://127.0.0.1:<port>`):
 - `GET /status?session=<sid>` → `{"subscribers": N}`
@@ -58,3 +58,33 @@ Broker endpoints (all at `http://127.0.0.1:<port>`):
 ```
 
 **All broker calls use `broker-curl.sh` — never raw curl to 127.0.0.1.** This keeps the allowlist to one entry: `Bash(~/.claude/skills/meeting/broker-curl.sh *)`.
+
+## End-of-meeting prompt routing
+
+Steps 3 (profile), 4 (memory), and 5 (persona-registry) in `SKILL.md` use `AskUserQuestion` by default. When `<port>` is set, apply the γ-branch **per prompt** — re-probe `/status` before each one:
+
+1. **Re-probe:** `~/.claude/skills/meeting/broker-curl.sh <port> <sid> status` → get `subscribers`.
+2. **`subscribers > 0`:** build question JSON with `jq -n` (same escaping rules as in-meeting decision points), POST `/question`, GET `/await`, map `answer` to the options list — proceed with the matching action.
+3. **`subscribers = 0` or probe fails:** fall through to `AskUserQuestion` as canonical.
+
+**If `<port>` unset:** skip all probes; use `AskUserQuestion` exclusively (no behaviour change).
+
+**Options per prompt:**
+
+| Step | `text` | `options` array |
+|---|---|---|
+| 3 — Profile observation | `"Profile observation: <observation>"` | `["save to user-profile", "save to user-memory", "discard"]` |
+| 4 — Memory classification | `"Memory: <decision or finding>"` | `["project", "discovery", "universal", "discard"]` |
+| 5 — Persona registry | `"New persona: <Name>"` | `["save to global registry", "meeting-only"]` |
+
+For step 4 with multiple decisions/findings: issue one `/question` + `/await` per item, re-probing `/status` each time.
+
+**Example (step 3 — profile):**
+```bash
+BODY=$(jq -n --arg text "Profile observation: prefers phase-gated scope" \
+  --argjson options '["save to user-profile","save to user-memory","discard"]' \
+  '{"text":$text,"options":$options}')
+~/.claude/skills/meeting/broker-curl.sh <port> <sid> question "$BODY"
+~/.claude/skills/meeting/broker-curl.sh <port> <sid> await
+# map returned {"answer": "save to user-profile"} → proceed with user-profile action
+```
