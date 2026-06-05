@@ -42,3 +42,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🔩 **Gil** — git object-model / plumbing lens; index locking, hash-object/commit-tree/write-tree/update-ref CAS, GIT_INDEX_FILE isolation, ref reflog semantics, concurrent-commit integrity vs attribution hazards. Introduced 2026-06-04 (dotclaude-skills/worktree-per-session-d5).
 
 - 🧠 **Mira** — multimodal ML lens; SD/CLIP token economics, img2img denoise tradeoffs, encoder failure modes, classifier cost and privacy. Introduced 2026-05-08 (zkm/information-flow); extended 2026-06-04 (meeting-rpg/portrait-clip-truncation-compute-r5).
+
+- 🧩 **Memo** — agent-memory-systems lens; data model tradeoffs (peers/sessions/representations), LLM-deriver cost models, benchmark context (LongMem/LoCoMo), managed-vs-self-host risk surface, corpus-scale warranting thresholds. Introduced 2026-06-05 (dotclaude-skills/honcho-memory-eval).
