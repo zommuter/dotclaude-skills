@@ -74,6 +74,16 @@ When moving, append a verification note:
 
 **Never mark a task done based solely on Claude's own judgment that the work is complete.**
 
+**For items tagged `<!-- id:XXXX -->`**: use the flock'd merge helper instead of a direct Edit, to avoid clobbering concurrent session edits:
+
+```bash
+~/.claude/skills/meeting/md-merge.py update-ids --file TODO.md <<'JSON'
+{"updates": [{"id": "XXXX", "line": "- [x] task description — verified by user on YYYY-MM-DD <!-- id:XXXX -->"}]}
+JSON
+```
+
+The helper acquires an exclusive flock, re-reads TODO.md, replaces the `<!-- id:XXXX -->` line in-place, and writes back atomically. Multiple IDs can go in one call. Items without an ID tag use a direct Edit as before.
+
 ### Step 4: Archive old done entries
 
 Once per session, run:
