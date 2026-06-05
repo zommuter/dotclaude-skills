@@ -2,7 +2,7 @@
 
 ## meeting skill
 
-- [ ] **md-merge.py: delete lock file after flock released** — `<file>.lock` sentinel created by `md-merge.py` is never removed on exit; accumulates as untracked noise in project repos. Fix: unlink the lock file in a `finally` block after flock is released. Contract: no `.lock` files remain after a successful or failed `md-merge.py` run. Observed in meeting-rpg 2026-06-05 (workaround: `*.lock` added to project `.gitignore`).
+- [x] **md-merge.py: delete lock file after flock released** — fixed 2026-06-05: `try/finally` wraps both `update_ids` and `update_sections`; `lock_path.unlink(missing_ok=True)` runs after flock released on success and failure. Contract met.
 - [ ] **GitHub-aware orphan/past-meeting audit** — when the project repo has a GitHub remote, the no-arg `/meeting` audit (and the warrantability check in subject mode) should also scan open issues and PRs for relevant context: open issues may already track the proposed topic, and closed issues/PRs may contain decisions not recorded in meeting notes. Trigger: first time a published repo's issue tracker surfaces relevant prior art that /meeting missed (e.g. proton-moresync issue #1 on session-fork). Design: use `gh issue list --state all --json number,title,body` + `gh pr list` as supplementary input to the orphan scan and the pre-meeting surfaced-discoveries block. <!-- id:d9f5 -->
 
 - [ ] **honcho** — evaluation **complete** (record-and-defer, 2026-06-05). Current file-based memory (discoveries.md+RAG / user-profile.md+awk-filter / persona-state.yml / auto-memory MEMORY.md) is sufficient for the current corpus (71 profile sections / 162 discovery lines). Honcho (AGPL-3.0, Postgres+pgvector+Docker+FastAPI+deriver+LLM-key, or managed api.honcho.dev) not warranted now. **Reopen gate:** primary = scale/loss (`user-profile.md` outgrows `profile-active.sh --filter` ctx budget, OR a logged save/discard miss); secondary (opportunistic): (a) piggyback if Honcho Claude Code MCP installs for unrelated reasons; (b) fold into meeting-rpg agent-infra wave with `hermes` + agent-persona-separation. **Privacy invariant: self-host only** if ever piloted — managed api.honcho.dev ships user-profile.md to a third party. See `docs/meeting-notes/2026-06-05-1213-honcho-memory-eval.md`. <!-- id:45ac -->
@@ -38,3 +38,4 @@
 - [x] **Investigate: `echo "$EMBED_ENDPOINT"` prompted despite structural parity with `$MEETING_LIVE`/`$MEETING_BROKER_PORT`** — RESOLVED: all 4 env-probe echo calls confirmed in allowlist; bonus gap found and fixed: `md-merge.py` was missing from script allowlist — added via Makefile 2026-06-05. Contract met.
 
 ## Done
+placeholder
