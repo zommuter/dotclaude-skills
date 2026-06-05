@@ -25,6 +25,12 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
      --k 15
    ```
    Use the stdout as the discoveries context. If the script exits non-zero, `EMBED_ENDPOINT` is unset, or this is a no-arg invocation, fall back to reading `~/.claude/skills/meeting/discoveries.md` (full). At the start of the meeting, mention entries that intersect the meeting topic.
+
+   **GitHub prior art** (subject mode only): also run:
+   ```bash
+   ~/.claude/skills/meeting/gh-audit.sh search "<subject>"
+   ```
+   If stdout is non-empty, surface any matching issues/PRs alongside the discoveries block labeled `GitHub prior art — issues/PRs matching this topic`. Exit 0 with no stdout means no GitHub remote or no matches — skip silently. Do not label as ADVISORY; GitHub search results are factual, not scan candidates.
 6. **Load user profile**: run `~/.claude/skills/meeting/profile-active.sh --filter` via Bash (filter mode — emits only pre-emption-eligible med/high-confidence entries + file header; flip gate cleared 2026-06-05: ratio consistently 0.26–0.34 ≪ 0.60, setup-ctx ~30% of meeting cache_read tokens; ratio still logged to `~/.claude/logs/meeting-profile-active.log` each run for observability). Treat the script's stdout as the profile content for this session. Personas may apply pre-emption per the rule defined in `format.md` (eligible + med+ confidence + contradiction; Riku ≫ others).
 7. **Broker mode (recommended — launch via `~/src/meeting-rpg/meeting-rpg <topic>` to activate):** Probe `echo "$MEETING_LIVE"` (plain expansion — **never** `${MEETING_LIVE:-...}`). If non-empty, or if a broker may be running (probe `echo "$MEETING_BROKER_PORT"`), read `~/.claude/skills/meeting/broker-mode.md` and follow it for the rest of step 7, per-item discussion routing, and decision points. If `$MEETING_LIVE` is empty and no broker is probed live, skip `broker-mode.md` entirely — the meeting proceeds as canonical. **Savings confirmed 2026-06-05:** ≥5k tok/meeting across 3 pilots (discussion suppressed from chat → no context inflation; auto-detects renderer via `$MEETING_BROKER_PORT`).
 
@@ -32,6 +38,8 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 
 1. **Warrantability self-check** (see format spec). If the request looks like a bug fix, one-liner, or already-decided feature, respond "are you sure you want a meeting?" and briefly explain why it might be overkill — before running the agenda. If it clearly passes, note that and proceed.
 2. **Past-meetings audit (ADVISORY — observation window)**: run `~/.claude/skills/meeting/orphan-scan.sh`. Uses exact `<!-- id:XXXX -->` match; FP is ~0 by construction (un-IDed legacy lines skipped). Display any candidates labeled `ADVISORY — not yet authoritative` before opening the agenda. Also run `~/.claude/skills/meeting/orphan-scan.sh --reverse` and display any results labeled `ADVISORY — reverse-orphan candidates (done/inline items never mirrored to TODO; possible ledger gap)`. Once zero spurious candidates are confirmed over an observation window of N meetings, drop the ADVISORY caveat and treat output as authoritative. *(F-B shipped 2026-05-21; prior DISABLED state lifted.)*
+
+   Also run `~/.claude/skills/meeting/gh-audit.sh open` and display any output labeled `ADVISORY — open GitHub issues/PRs (supplementary orphan context)`. Exit 0 with no stdout means no GitHub remote or no open items — skip silently.
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
 4. **Run the interactive meeting**: open with attendees line + topic. For each persona marked "(new)" in the attendees line, emit a one-sentence introduction naming their lens in the opening exchange before the agenda. Then follow the format spec (agenda → named discussion → AskUserQuestion decision points → decisions → action items).
 5. **Print transcript before every AskUserQuestion — in the same turn.** Output the **complete, verbatim discussion text** for the most recent agenda item as visible chat content (not a summary), then immediately call `AskUserQuestion` in the same response. The plan file is not shown in the chat UI; the user must see the discussion *before* the options appear. Never end a turn on bare prose and emit the question in a subsequent turn — both must be in the same message.
@@ -40,6 +48,8 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 ## With no subject (default mode)
 
 1. Read `<root>/TODO.md`. Run `~/.claude/skills/meeting/orphan-scan.sh` (**ADVISORY — observation window**): display any candidates before the classifier output as `ADVISORY — orphan scan candidates (informational; exact-ID match, un-IDed legacy skipped)`. Also run `~/.claude/skills/meeting/orphan-scan.sh --reverse` and display any results labeled `ADVISORY — reverse-orphan candidates (done/inline items never mirrored to TODO; possible ledger gap)`. Not authoritative until observation window clears. *(F-B shipped 2026-05-21; prior DISABLED state lifted.)*
+
+   Also run `~/.claude/skills/meeting/gh-audit.sh open` and display any output labeled `ADVISORY — open GitHub issues/PRs (supplementary orphan context)`. Exit 0 with no stdout means no GitHub remote or no open items — skip silently.
 
    > **Scope discipline:** `<root>/TODO.md` is the *sole* authority for this invocation. Do **not** read or write any other `TODO.md` — not the parent repo's, not a sibling worktree's, not one textually referenced from within this file (e.g. `> Subset of ../../TODO.md`). An empty `## Current` section, or one where all items are checked, is a valid terminal state — report "no open work at `<root>`" and stop; do not look elsewhere for "real" work. If `<root>/TODO.md` does not exist, report missing and ask the user — do not auto-create.
 

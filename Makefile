@@ -8,11 +8,11 @@ HOOKS_DIR := $(HOME)/.claude/hooks
 
 meeting_FILES := SKILL.md format.md personas.md broker-mode.md append.sh cost-of.sh \
                  find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh
 meeting_EXEC  := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh
 meeting_ALLOW := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh
 meeting_LOCAL := discoveries.md user-profile.md
 
 git-diary-workflow_FILES := SKILL.md diary-append.sh git-lock-push.sh
