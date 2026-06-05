@@ -3,9 +3,16 @@
 persona-state.py — update docs/meeting-notes/persona-state.yml and mirror to web/persona-state.json.
 
 Usage:
+    # Write this session's delta to persona-events/<session>.json (zero contention)
+    python3 persona-state.py shard --root <ROOT> --session <SESSION_ID> --slug <SLUG>
+
+    # Fold all shards into persona-state.yml under flock, then GC shards
+    python3 persona-state.py collapse --root <ROOT>
+
+    # Legacy single-session update (equivalent to shard+collapse in one step)
     python3 persona-state.py update --root <ROOT> --slug <SLUG>
 
-Delta JSON on stdin:
+Delta JSON on stdin (for shard/update):
 {
   "personas": {
     "riku":  {"decision_id": "D2", "option": "label", "stance": "advocated", "valence": 1},
@@ -16,8 +23,10 @@ Delta JSON on stdin:
 
 Gate: if <root>/docs/meeting-notes/persona-state.yml does not exist, exit 0 silently.
 Unknown persona keys in the delta are skipped (forward-compat).
+Shard files live in <root>/persona-events/ — add that directory to the project .gitignore.
 """
 import argparse
+import fcntl
 import json
 import sys
 from pathlib import Path
@@ -62,13 +71,7 @@ def _save_json(json_path: Path, state: dict) -> None:
     tmp.replace(json_path)
 
 
-def update(root: Path, slug: str, delta: dict) -> None:
-    yml_path = root / "docs" / "meeting-notes" / "persona-state.yml"
-    if not yml_path.exists():
-        return
-
-    state, header = _load(yml_path)
-
+def _apply_delta(state: dict, slug: str, delta: dict) -> None:
     for name, info in delta.get("personas", {}).items():
         if name not in state.get("personas", {}):
             continue
@@ -88,6 +91,65 @@ def update(root: Path, slug: str, delta: dict) -> None:
     for key, inc in delta.get("project_stats", {}).items():
         stats[key] = stats.get(key, 0) + inc
 
+
+def shard(root: Path, session_id: str, slug: str, delta: dict) -> None:
+    """Append this session's delta to persona-events/<session_id>.json (zero contention)."""
+    shard_dir = root / "persona-events"
+    shard_dir.mkdir(exist_ok=True)
+    shard_path = shard_dir / f"{session_id}.json"
+    shard_path.write_text(json.dumps({"slug": slug, "delta": delta}))
+
+
+def collapse(root: Path) -> None:
+    """Under flock, fold all persona-events shards into persona-state.yml + JSON mirror, then GC shards."""
+    yml_path = root / "docs" / "meeting-notes" / "persona-state.yml"
+    if not yml_path.exists():
+        return
+
+    shard_dir = root / "persona-events"
+    if not shard_dir.exists():
+        return
+
+    shards = sorted(shard_dir.glob("*.json"))
+    if not shards:
+        return
+
+    lock_path = shard_dir / ".lock"
+    with open(lock_path, "w") as lock_fd:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        # Re-read under lock — another collapse may have cleared some shards
+        shards = sorted(shard_dir.glob("*.json"))
+        if not shards:
+            return
+
+        state, header = _load(yml_path)
+        for shard_path in shards:
+            try:
+                record = json.loads(shard_path.read_text())
+                _apply_delta(state, record["slug"], record["delta"])
+            except (json.JSONDecodeError, KeyError, OSError):
+                pass  # corrupt shard — still deleted below
+
+        _save_yaml(yml_path, state, header)
+        json_target = root / "web" / "persona-state.json"
+        if json_target.parent.exists():
+            _save_json(json_target, state)
+
+        for shard_path in shards:
+            try:
+                shard_path.unlink()
+            except OSError:
+                pass
+
+
+def update(root: Path, slug: str, delta: dict) -> None:
+    """Legacy single-session update (equivalent to shard+collapse in one step)."""
+    yml_path = root / "docs" / "meeting-notes" / "persona-state.yml"
+    if not yml_path.exists():
+        return
+
+    state, header = _load(yml_path)
+    _apply_delta(state, slug, delta)
     _save_yaml(yml_path, state, header)
     json_target = root / "web" / "persona-state.json"
     if json_target.parent.exists():
@@ -97,12 +159,31 @@ def update(root: Path, slug: str, delta: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd")
-    p = sub.add_parser("update", help="Apply a delta from stdin to persona-state.yml + JSON mirror")
-    p.add_argument("--root",  required=True, help="Project root (contains docs/meeting-notes/)")
-    p.add_argument("--slug",  required=True, help="Meeting slug (e.g. 2026-06-03-1556-todo-classifier)")
+
+    p_shard = sub.add_parser("shard", help="Write this session's delta to persona-events/<session>.json")
+    p_shard.add_argument("--root",    required=True, help="Project root (contains docs/meeting-notes/)")
+    p_shard.add_argument("--session", required=True, help="Session ID (used as shard filename)")
+    p_shard.add_argument("--slug",    required=True, help="Meeting slug (e.g. 2026-06-05-1100-foo)")
+
+    p_collapse = sub.add_parser("collapse", help="Fold all persona-events shards into persona-state.yml under flock")
+    p_collapse.add_argument("--root", required=True, help="Project root (contains docs/meeting-notes/)")
+
+    p_update = sub.add_parser("update", help="Legacy: apply a delta from stdin directly (no shard file)")
+    p_update.add_argument("--root", required=True, help="Project root (contains docs/meeting-notes/)")
+    p_update.add_argument("--slug", required=True, help="Meeting slug (e.g. 2026-06-03-1556-todo-classifier)")
+
     args = parser.parse_args()
 
-    if args.cmd == "update":
+    if args.cmd == "shard":
+        try:
+            delta = json.load(sys.stdin)
+        except json.JSONDecodeError as e:
+            print(f"persona-state: invalid JSON on stdin: {e}", file=sys.stderr)
+            sys.exit(1)
+        shard(Path(args.root), args.session, args.slug, delta)
+    elif args.cmd == "collapse":
+        collapse(Path(args.root))
+    elif args.cmd == "update":
         try:
             delta = json.load(sys.stdin)
         except json.JSONDecodeError as e:
