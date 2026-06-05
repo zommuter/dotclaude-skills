@@ -66,7 +66,12 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 1. Call `ExitPlanMode`.
 2. **Write meeting note** to `<root>/docs/meeting-notes/YYYY-MM-DD-HHMM-<slug>.md`. Use the captured date, HHMM, and slug derived from the meeting title. Include `**Started:**` and `**Session:**` header lines populated with the captured literals.
 2c. **Create CLAUDE.md if missing**: if `<root>/CLAUDE.md` does not exist, create it from the meeting's decisions — include architecture, output contract, key deps, phases, scope, and related projects. Skip if CLAUDE.md already exists.
-2b. **Mirror action items to TODO.md**: add every `## Action items` entry that will outlive this session to `<root>/TODO.md` (create a new section if needed; write only to `<root>/TODO.md` — never to a parent-path file). Each entry must cite the meeting-note path. **For each item, mint a unique ID via `~/.claude/skills/meeting/append.sh new-id` and embed it as `<!-- id:XXXX -->` at the end of the line in the meeting note AND in the TODO.md entry** (same token in both). The first invocation of this session that creates meeting-note items should call `append.sh new-id` once per item before writing. In-session ad-hoc items skip ID minting — they never reach TODO. Purpose: orphan-scan uses this `<!-- id:XXXX -->` for exact correlation; un-IDed lines are skipped (clean cutover). Class 2 planning records skip this step — their action items are resolved in-session by implementation.
+2b. **Mirror action items to TODO.md**: add every `## Action items` entry that will outlive this session to `<root>/TODO.md` (create a new section if needed; write only to `<root>/TODO.md` — never to a parent-path file). Each entry must cite the meeting-note path. **For each item, mint a unique ID via `~/.claude/skills/meeting/append.sh new-id` and embed it as `<!-- id:XXXX -->` at the end of the line in the meeting note AND in the TODO.md entry** (same token in both). The first invocation of this session that creates meeting-note items should call `append.sh new-id` once per item before writing. In-session ad-hoc items skip ID minting — they never reach TODO. Purpose: orphan-scan uses this `<!-- id:XXXX -->` for exact correlation; un-IDed lines are skipped (clean cutover). Class 2 planning records skip this step — their action items are resolved in-session by implementation. **When closing an existing TODO item** (marking it `[x]` by ID), use the flock'd merge helper to avoid cross-session clobbering:
+   ```bash
+   ~/.claude/skills/meeting/md-merge.py update-ids --file <root>/TODO.md <<'JSON'
+   {"updates": [{"id": "XXXX", "line": "- [x] description <!-- id:XXXX -->"}]}
+   JSON
+   ```
 2d. **Persona-state delta** (skip if `<root>/docs/meeting-notes/persona-state.yml` does not exist, and skip for Class 1/2 dispatch): from the in-context transcript and the picked option at each `AskUserQuestion` decision point, classify each attending persona as `advocated` (argued for the chosen option), `opposed` (argued against it / for a rejected one), or `uninvolved`. Valence is deterministic: `advocated`→+1, `opposed`→−1, `uninvolved`→0. Count `project_stats` increments: `conviction` += number of ratified decisions this meeting; `wisdom` += persona pushbacks that demonstrably changed an outcome; `tech_debt` += items explicitly deferred to out-of-scope / forward-flags. Then invoke the helper in two steps (use **quoted heredoc** `<<'JSON'` — no shell expansion):
    ```
    # Step 1 — shard: write this session's delta to persona-events/<session>.json (zero contention)
@@ -83,7 +88,14 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    ```
    `shard` writes to `<root>/persona-events/<session>.json` (no contention between concurrent meetings). `collapse` acquires an exclusive flock, folds all shard files into `persona-state.yml` (appends events, truncates to last-5, updates affinity running-sum), mirrors `project_stats` + affinities to `<root>/web/persona-state.json`, then deletes the shard files. Both `persona-state.yml` and `persona-events/` are gitignored; no commit needed. Add `persona-events/` to `<root>/.gitignore` if not already present.
 3. **Profile observations**: for each new behavioural observation the model noticed during the meeting (decision patterns, domain fluency, scope tolerance), ask via AskUserQuestion [save to user-profile / save to user-memory / discard]:
-   - *user-profile* → add an entry to `~/.claude/skills/meeting/user-profile.md` using the `## <trait>` format (Observation/Why/Confidence/Pre-emption-eligible).
+   - *user-profile* → use the flock'd merge helper to update the relevant section without clobbering concurrent session edits:
+     ```bash
+     ~/.claude/skills/meeting/md-merge.py update-sections \
+       --file ~/.claude/skills/meeting/user-profile.md <<'JSON'
+     {"sections": [{"heading": "## <exact heading text>", "content": "## <exact heading>\n\n<full updated section body>"}]}
+     JSON
+     ```
+     For a **new** trait (no existing heading), pass the full text; the helper appends it. For an **existing** trait, read the current section first (so you have the exact heading and prior evidence), append new evidence, then pass the full updated text.
    - *user-memory* → write a `user`-type entry to `~/.claude/projects/<slug>/memory/<topic>.md`; add pointer to MEMORY.md.
    - *discard* → skip.
 4. **Memory classification**: for each key decision or finding, ask via AskUserQuestion [project / discovery / universal / discard]:
