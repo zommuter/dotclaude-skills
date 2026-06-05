@@ -2,6 +2,8 @@
 
 ## meeting skill
 
+- [ ] **GitHub-aware orphan/past-meeting audit** — when the project repo has a GitHub remote, the no-arg `/meeting` audit (and the warrantability check in subject mode) should also scan open issues and PRs for relevant context: open issues may already track the proposed topic, and closed issues/PRs may contain decisions not recorded in meeting notes. Trigger: first time a published repo's issue tracker surfaces relevant prior art that /meeting missed (e.g. proton-moresync issue #1 on session-fork). Design: use `gh issue list --state all --json number,title,body` + `gh pr list` as supplementary input to the orphan scan and the pre-meeting surfaced-discoveries block. <!-- id:d9f5 -->
+
 - [ ] **honcho** check for memory storage/retrieval, especially in context of meeting skill
 
 - [ ] **hermes** AI agent <-> meeting skill <-> claude code subscription
