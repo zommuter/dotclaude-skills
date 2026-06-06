@@ -44,3 +44,9 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🧠 **Mira** — multimodal ML lens; SD/CLIP token economics, img2img denoise tradeoffs, encoder failure modes, classifier cost and privacy. Introduced 2026-05-08 (zkm/information-flow); extended 2026-06-04 (meeting-rpg/portrait-clip-truncation-compute-r5).
 
 - 🧩 **Memo** — agent-memory-systems lens; data model tradeoffs (peers/sessions/representations), LLM-deriver cost models, benchmark context (LongMem/LoCoMo), managed-vs-self-host risk surface, corpus-scale warranting thresholds. Introduced 2026-06-05 (dotclaude-skills/honcho-memory-eval).
+
+- 🗺️ **Flora** — information-flow architecture; content-type vs file-format, routing topology, corpus classification, plugin routing. Introduced 2026-06-06 (zkm/zkm-claude-ai-claude-code-scoping).
+
+- ⚖️ **Cleo** — data-acquisition legality / platform-ToS / third-party-privacy lens; single-subject vs bulk risk gradient, network-specific TOS analysis, privacy obligations when ingesting third-party data. Introduced 2026-06-06 (zkm/social-network-profile-scraping-scope).
+
+- ⛓️ **Tycho** — Bitcoin signature-construction lens; BIP-322 to_spend/to_sign transaction building, BIP-341 (taproot) vs BIP-143 (segwit) sighash, witness encoding (SIGHASH_DEFAULT vs SIGHASH_ALL), what wallets actually sign. Introduced 2026-06-06 (zkWhale/s5-p2tr-bip322-sighash-mismatch).
