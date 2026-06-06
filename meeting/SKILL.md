@@ -58,11 +58,15 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    ~/.claude/skills/meeting/find-todos.sh
    ```
    If any paths are returned, print a warning before the classifier output: `WARNING: subdirectory TODO.md files found — consider merging into <root>/TODO.md: <paths>`. Classification proceeds against root TODO.md only; subdir items are not classified.
-2. **Classify** each unchecked, non-date-triggered TODO item into one of three classes:
-   - **Class 1 — impl-ready**: a linked meeting note exists whose Decisions section covers this item. The design is done; it just needs building.
-   - **Class 2 — planning-worthy**: a linked meeting note frames the question but has no Decisions answer covering it; OR the TODO text signals "design/investigate/decide" with no link. Needs a plan but not a full meeting.
-   - **Class 3 — meeting-worthy**: no link and ambiguous scope; use model judgement when neither rule fires cleanly.
-   Skip items that are purely date-triggered (contain a specific date as their activation condition).
+2. **Pre-classify** with `classify.sh` — run:
+   ```bash
+   ~/.claude/skills/meeting/classify.sh <root>
+   ```
+   The script outputs TSV lines (CLASS, ID, SUMMARY, NOTE-LINK) for each unchecked item. Use this as the starting classification, then apply model judgment:
+   - **Class 1 — impl-ready**: C1 from classify.sh (link + Decisions section present). Confirm the design actually covers this item.
+   - **Class 2 — planning-worthy**: C2 from classify.sh (link without Decisions, or keyword hint). Also reclassify C1 items whose linked design is incomplete.
+   - **Class 3 — meeting-worthy**: C3 from classify.sh (no link, ambiguous scope). Use model judgement when neither rule fires cleanly.
+   - **Skip**: items that are purely date-triggered (activation date in text); items explicitly deferred/reopen-gated with unmet conditions.
 3. **Print the classified bucket summary** as visible text (group by class, show each item one-liner). Pick `head -1` of the highest-class non-empty bucket (priority: 1 > 2 > 3). Show one-line rationale.
 4. Ask via AskUserQuestion: `[do this / pick something else]` — no "not yet" option.
 5. **Dispatch by class:**

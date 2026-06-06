@@ -2,18 +2,23 @@ SRC_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEST_DIR := $(HOME)/.claude/skills
 export DEST_DIR
 
-SKILLS := meeting git-diary-workflow todo-update
+SKILLS := meeting meeting-cross git-diary-workflow todo-update
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
 meeting_FILES := SKILL.md format.md personas.md broker-mode.md append.sh cost-of.sh \
                  find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh
 meeting_EXEC  := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh
 meeting_ALLOW := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh
 meeting_LOCAL := discoveries.md user-profile.md
+
+meeting-cross_FILES := SKILL.md
+meeting-cross_EXEC  :=
+meeting-cross_ALLOW :=
+meeting-cross_LOCAL :=
 
 git-diary-workflow_FILES := SKILL.md diary-append.sh git-lock-push.sh
 git-diary-workflow_EXEC  := diary-append.sh git-lock-push.sh
