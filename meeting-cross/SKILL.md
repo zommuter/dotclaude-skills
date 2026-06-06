@@ -83,14 +83,27 @@ After dispatch completes (regardless of outcome), write a lightweight record to:
 
 ## Cross-project connections noted
 - <connection if any, else "none">
+
+## Cost
+Input tokens: NNNN  (uncached=N  cache_read=N  cache_create=N)
+Output tokens: NNNN
+Threshold (250k): BELOW / EXCEEDED
 ```
 
 No action items to mint (routing records don't outlive the session).
 
 ## Ctx-bloat instrumentation (D4 gate)
 
-After dispatch completes, log the combined session cost:
+After dispatch completes, run cost-of.sh and embed the key metrics in the routing-trail note's `## Cost` section:
 ```bash
 ~/.claude/skills/meeting/cost-of.sh <session-id>
 ```
-If the result exceeds 250k tokens, add a TODO item to `~/src/dotclaude-skills/TODO.md` to design a handover-file mechanism before further cross-meetings. Instrument the first 3 cross-meetings this way; gate closes after 3 runs below threshold. See `docs/meeting-notes/2026-05-28-1138-meeting-cross-architecture.md` D4. <!-- id:b427 -->
+Copy `Input tokens:` and `Output tokens:` lines verbatim; set `Threshold (250k): BELOW` or `EXCEEDED` based on total output tokens.
+
+**If EXCEEDED:** add a TODO item to `~/src/dotclaude-skills/TODO.md` to design the handover-file mechanism before further cross-meetings (see D4 in `docs/meeting-notes/2026-05-28-1138-meeting-cross-architecture.md`).
+
+**Gate-close:** once 3 routing-trail notes (`*-cross-classification.md`) all show `Threshold (250k): BELOW`, mark `id:b427` done in `~/src/dotclaude-skills/TODO.md` via the flock'd merge helper. Count existing notes:
+```bash
+ls ~/src/dotclaude-skills/docs/meeting-notes/*-cross-classification.md 2>/dev/null | wc -l
+```
+See `docs/meeting-notes/2026-05-28-1138-meeting-cross-architecture.md` D4. <!-- id:b427 -->
