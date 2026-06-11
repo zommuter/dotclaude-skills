@@ -233,6 +233,18 @@ fi
 # Extract values using jq
 MODEL_DISPLAY=$(echo "$input" | jq -r '.model.display_name // .model.name // .modelName // .model // "claude"')
 CL_MODEL=$(hash2rgb "$MODEL_DISPLAY")
+# Model-family emoji (themed to the literary form each model is named after).
+# Edit the case arms to taste; the *substring* match tolerates version suffixes
+# ("Opus 4.8", "opus", etc.) and the "fast" mode variants.
+MODEL_LC=$(echo "$MODEL_DISPLAY" | tr '[:upper:]' '[:lower:]')
+case "$MODEL_LC" in
+    *opus*)   MODEL_EMOJI="🎼" ;;   # opus  — a grand musical work
+    *sonnet*) MODEL_EMOJI="🪶" ;;   # sonnet — quill / poetry
+    *haiku*)  MODEL_EMOJI="🍃" ;;   # haiku — nature poem (also light/fast)
+    *fable*)  MODEL_EMOJI="🦊" ;;   # fable — storytelling, animal tales
+    *mythos*) MODEL_EMOJI="🐉" ;;   # mythos — myth
+    *)        MODEL_EMOJI="🤖" ;;   # unknown / fallback
+esac
 TOTAL_COST=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 COST_DISPLAY=$(printf "\$%.2f" "$TOTAL_COST")
 
@@ -351,4 +363,4 @@ KV_PART=""
 [ -n "$KV_DISPLAY" ] && KV_PART=" ${CL_KV}${KV_DISPLAY}${CL_D}"
 
 # Print status line with colors
-echo -e "${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN}${SONNET_PART} ${COST_DISPLAY} ${PRICING_EMOJI}${PRICING_STALE} ${CL_AGE}${AGE_DISPLAY}${CL_D}${KV_PART}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"
+echo -e "${MODEL_EMOJI} ${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN}${SONNET_PART} ${COST_DISPLAY} ${PRICING_EMOJI}${PRICING_STALE} ${CL_AGE}${AGE_DISPLAY}${CL_D}${KV_PART}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"
