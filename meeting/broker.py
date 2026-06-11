@@ -15,6 +15,17 @@ BROKER_JSON = f"{BROKER_DIR}/broker.json"
 PORT = int(os.environ.get("MEETING_BROKER_PORT", 64109))
 IDLE_TIMEOUT = int(os.environ.get("MEETING_BROKER_IDLE", 300))
 
+
+def _log_event(sid, path, nbytes, kind=None):
+    try:
+        record = {"ts": time.time(), "session": sid, "path": path, "nbytes": nbytes}
+        if kind is not None:
+            record["kind"] = kind
+        with open(f"{BROKER_DIR}/events-{sid}.jsonl", "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception:
+        pass
+
 sessions: dict = {}
 _lock = threading.Lock()
 _last_activity = [time.monotonic()]
@@ -54,10 +65,13 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        nbytes = int(self.headers.get("Content-Length", 0))
         d = self._json_body()
         sid = d.get("session", "")
         s = get_session(sid)
         _touch()
+        if self.path in ("/event", "/question"):
+            _log_event(sid, self.path, nbytes, d.get("kind"))
         if self.path == "/event":
             with _lock:
                 targets = list(s["subs"])

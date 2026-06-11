@@ -26,7 +26,13 @@ BODY=$(jq -n --arg text "<block>" '{"text": $text}')
 Never pass a raw single-quoted JSON literal when the text is user- or persona-controlled.
 
 **Discussion (persona lines):**
-- `subscribers > 0` (renderer attached): POST one batched block per agenda item to `/event` **only** — do **not** print the verbatim discussion to chat. Build JSON safely: `BODY=$(jq -n --arg text "<block>" '{"text":$text}'); ~/.claude/skills/meeting/broker-curl.sh <port> <sid> event "$BODY"`.
+- `subscribers > 0` (renderer attached): POST a parseBlock-visible **opener stub first** (before the discussion block) to mark t0, then POST the full batched block. Do **not** print the verbatim discussion to chat. The opener must be a dialogue line (emoji + `**Name:**` format) — not a `#` heading or `**Key:**` metadata line (those are skipped by `parse.js`). Include `"kind":"opener"` in the opener body for TTFL logging. Example:
+  ```bash
+  OPENER=$(jq -n --arg text "🏗️ **Archie:** *(opening <item>)*" '{"text":$text,"kind":"opener"}')
+  ~/.claude/skills/meeting/broker-curl.sh <port> <sid> event "$OPENER"
+  BODY=$(jq -n --arg text "<block>" '{"text":$text}')
+  ~/.claude/skills/meeting/broker-curl.sh <port> <sid> event "$BODY"
+  ```
 - `subscribers = 0` (headless) or `<port>` unset: print the **complete, verbatim discussion** to chat as in canonical `/meeting`; **skip** the `/event` POST.
 
 **Decision point:**
@@ -41,7 +47,7 @@ Never pass a raw single-quoted JSON literal when the text is user- or persona-co
 |---|---|---|---|
 | `MEETING_LIVE=0` | Chat only | AskUserQuestion | AskUserQuestion |
 | Broker up, `subscribers=0` | Chat only | AskUserQuestion (headless) | AskUserQuestion (per-prompt re-probe) |
-| Broker up, `subscribers>0` | `/event` only (chat suppressed) | POST `/question` + GET `/await` | POST `/question` + GET `/await` (per-prompt re-probe) |
+| Broker up, `subscribers>0` | opener stub + `/event` (chat suppressed) | POST `/question` + GET `/await` | POST `/question` + GET `/await` (per-prompt re-probe) |
 | Broker unavailable | Chat only | AskUserQuestion | AskUserQuestion |
 
 Broker endpoints (all at `http://127.0.0.1:<port>`):
