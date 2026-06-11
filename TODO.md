@@ -34,9 +34,9 @@
 
 ## local-llama-swap subagent delegation
 
-- [ ] Run the 3-cell spike: probe real n_ctx; bounded "summarize diff" via curl (B) and `opencode run` (C); smallest agentic "append line + confirm" via opencode (C). Write results table + go/no-go finding. Contract: finding states whether B suffices alone or C earns a slot. See `docs/meeting-notes/2026-06-11-2235-subagents-local-llama-swap.md`. <!-- id:95e3 -->
+- [x] Run the 3-cell spike: probe real n_ctx; bounded "summarize diff" via curl (B) and `opencode run` (C); smallest agentic "append line + confirm" via opencode (C). Write results table + go/no-go finding. **Finding: B wins (7s curl vs >5min opencode timeout); C-agentic deferred (RAM pressure).** See `docs/meeting-notes/2026-06-11-2300-subagents-local-llama-spike-finding.md`. <!-- id:95e3 -->
 - [ ] Conditional on bounded-B passing: commit a thin `curl`+`jq` local-delegation wrapper with outcome logging (task/model/outcome, zelegator-consumable) and loud-fail on n_ctx overflow. Contract: routes a bounded prompt to localhost:8080/v1, appends one log line per call, no silent truncation. See `docs/meeting-notes/2026-06-11-2235-subagents-local-llama-swap.md`. <!-- id:85d2 -->
-- [ ] Forward-flags (documented, no work now): (a) auto-routing local-vs-remote → zelegator (semantic-router-benchmark is where the eval lives); (b) opencode → agentic-local escape hatch, gated on two real consumers. See `docs/meeting-notes/2026-06-11-2235-subagents-local-llama-swap.md`. <!-- id:f579 -->
+- [ ] Forward-flags: (a) auto-routing local-vs-remote → zelegator; (b) opencode agentic-local escape hatch — **C-agentic still untested (deferred); run with 30b model in a clean-memory session before closing this flag.** See `docs/meeting-notes/2026-06-11-2300-subagents-local-llama-spike-finding.md`. <!-- id:f579 -->
 
 ## Done
 placeholder
