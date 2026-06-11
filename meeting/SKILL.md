@@ -14,6 +14,19 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    - `date '+%H%M'`
    - `git config user.name`
    Store the results as literals — use them for the meeting-note filename, header lines, and in-transcript human attribution. Do not re-expand these in Write calls; embed the captured values directly.
+2b. **Git hygiene check** (run after metadata, before loading anything else):
+   - Run `git status --short` (one Bash call). If empty → proceed silently.
+   - If dirty → run `git log -1 --format="%cr|%s"` (one Bash call) to get last commit age and subject.
+   - **Classify the situation**:
+     - **Failure-analysis candidate**: last commit ≥ 2 hours ago **and** the dirty files include work artifacts — any of `TODO.md`, files under `docs/meeting-notes/`, source files (`.py`, `.sh`, `.ts`, `.js`, `.rs`, `.go`, `.md` outside docs). Interpretation: `git-diary-workflow` likely failed to run after a prior work session.
+     - **Light case**: otherwise (fresh edits, or only config/lock files, or last commit is recent).
+   - Surface the dirty file list and last commit info as visible text in both cases.
+   - Ask via `AskUserQuestion` before proceeding:
+     - *Failure-analysis candidate*: options `["Commit now (run /git-diary-workflow)", "Hold a failure-analysis meeting on the missed commit", "Proceed to meeting anyway"]`
+     - *Light case*: options `["Commit first, then meeting", "Proceed anyway"]`
+   - **On "Commit now"**: tell the user to run `/git-diary-workflow` in a separate prompt, then re-invoke `/meeting`. Stop here — do not continue setup.
+   - **On "Failure analysis"**: pivot this invocation — override the meeting subject to `"git-diary-workflow failure: why didn't the post-prompt commit run?"` and proceed as a subject-mode meeting on that topic. The dirty-file list and last-commit info become the meeting's context artefact.
+   - **On "Proceed anyway"**: continue setup normally.
 3. **Load format spec**: read `~/.claude/skills/meeting/format.md`. If `<root>/docs/meeting-notes/meeting-style.md` exists, append its contents to your working context under "## Project-specific overrides". Honour any natural-language overrides (e.g. "exclude Riku", "include Sage as standing", "meetings here are casual") — no structured parsing, just follow them.
 4. **Load persona registry**: read `~/.claude/skills/meeting/personas.md`. If the meeting calls for any persona by name, onboard them with their established lens from the registry — no re-introduction needed.
 5. **Surface relevant discoveries**: if `EMBED_ENDPOINT` is set and a meeting subject was provided (i.e., `/meeting <subject>`), run:
