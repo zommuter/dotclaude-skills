@@ -24,9 +24,9 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
      - **Light case**: otherwise (fresh edits, or only config/lock files, or last commit is recent).
    - Surface the dirty file list and last commit info as visible text in both cases.
    - Ask via `AskUserQuestion` before proceeding:
-     - *Failure-analysis candidate*: options `["Commit now (run /git-diary-workflow)", "Hold a failure-analysis meeting on the missed commit", "Proceed to meeting anyway"]`
+     - *Failure-analysis candidate*: options `["Commit now (auto)", "Hold a failure-analysis meeting on the missed commit", "Proceed to meeting anyway"]`
      - *Light case*: options `["Commit first, then meeting", "Proceed anyway"]`
-   - **On "Commit now"**: tell the user to run `/git-diary-workflow` in a separate prompt, then re-invoke `/meeting`. Stop here — do not continue setup.
+   - **On "Commit now" / "Commit first"**: invoke the `git-diary-workflow` skill via the Skill tool. After it completes, re-run `git status --short` to confirm the tree is clean, then continue setup normally from step 2c onward.
    - **On "Failure analysis"**: pivot this invocation — override the meeting subject to `"git-diary-workflow failure: why didn't the post-prompt commit run?"` and proceed as a subject-mode meeting on that topic. The dirty-file list and last-commit info become the meeting's context artefact.
    - **On "Proceed anyway"**: continue setup normally.
 3. **Load format spec**: read `~/.claude/skills/meeting/format.md`. If `<root>/docs/meeting-notes/meeting-style.md` exists, append its contents to your working context under "## Project-specific overrides". Honour any natural-language overrides (e.g. "exclude Riku", "include Sage as standing", "meetings here are casual") — no structured parsing, just follow them.
