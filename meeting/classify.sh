@@ -2,8 +2,10 @@
 # classify.sh — mechanical per-project TODO pre-classifier
 # Called by /meeting (no-arg) and /meeting-cross.
 # Usage: classify.sh [project-root]   — defaults to git toplevel
-# Output: TSV lines:  CLASS  ID  SUMMARY(≤80char)  NOTE-LINK
+# Output: TSV lines:  CLASS  ID  SUMMARY(≤80char)  NOTE-LINK  GATE
 #   CLASS: C1 (link+Decisions), C2 (link-no-Decisions or keyword hint), C3 (no link)
+#   GATE:  GATED if body contains gate/condition/blocked vocabulary; empty otherwise
+#          Advisory only — never reclassifies or skips; model judges satisfaction.
 
 set -euo pipefail
 
@@ -49,5 +51,10 @@ while IFS= read -r line; do
         fi
     fi
 
-    printf '%s\t%s\t%s\t%s\n' "$class" "$id" "$summary" "$note_link"
+    # Gate-text check (advisory): detect gate/condition/blocked vocabulary in body
+    gate=""
+    printf '%s' "$body" | grep -qiE 'gated?|gate:|reopen (gate|trigger)|condition-triggered|blocked on' \
+        && gate="GATED" || true
+
+    printf '%s\t%s\t%s\t%s\t%s\n' "$class" "$id" "$summary" "$note_link" "$gate"
 done < "$TODO"

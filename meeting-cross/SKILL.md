@@ -36,7 +36,7 @@ description: Cross-project /meeting — scan all registered projects' TODO.md fi
    - Note when a gate that was previously blocking has now been met.
    - Surface **cross-project connections**: TODO items that reference paths in other registered projects (`see ~/src/<other>/...`, linked meeting notes in sibling repos).
 
-4. **Print the classified bucket summary** as visible text — grouped first by class (C1 > C2 > C3), then by project. One-liner per item with `[PROJECT]` prefix.
+4. **Print the classified bucket summary** as visible text — grouped first by class (C1 > C2 > C3), then by project. One-liner per item with `[PROJECT]` prefix. If an item has `GATED` in the 5th TSV field, append `[GATED]` to its one-liner.
 
 5. **Pick the top candidate**: highest class, then most-recently-active project as tiebreaker:
    ```bash

@@ -67,7 +67,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    - **Class 2 — planning-worthy**: C2 from classify.sh (link without Decisions, or keyword hint). Also reclassify C1 items whose linked design is incomplete.
    - **Class 3 — meeting-worthy**: C3 from classify.sh (no link, ambiguous scope). Use model judgement when neither rule fires cleanly.
    - **Skip**: items that are purely date-triggered (activation date in text); items explicitly deferred/reopen-gated with unmet conditions.
-3. **Print the classified bucket summary** as visible text (group by class, show each item one-liner). Pick `head -1` of the highest-class non-empty bucket (priority: 1 > 2 > 3). Show one-line rationale.
+3. **Print the classified bucket summary** as visible text (group by class, show each item one-liner). If an item has `GATED` in the 5th TSV field, append `[GATED]` to its one-liner so the gate condition is visually obvious. Pick `head -1` of the highest-class non-empty bucket (priority: 1 > 2 > 3). Show one-line rationale.
 4. Ask via AskUserQuestion: `[do this / pick something else]` — no "not yet" option.
 5. **Dispatch by class:**
    - Class 1 → proceed to implementation in normal mode (no plan mode, no meeting).
