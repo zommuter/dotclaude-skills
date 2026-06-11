@@ -316,6 +316,34 @@ if [ -n "$TRANSCRIPT" ] && LAST=$(stat -c %Y "$TRANSCRIPT" 2>/dev/null); then
     fi
 fi
 
+# ── Quota pricing-tier indicator ────────────────────────────────────────────
+# Anthropic publishes no exact off-peak figures and exposes no API field for the
+# current tier, so this is computed from a community-reported schedule:
+#   PEAK ("regular", higher quota burn): weekdays 05:00–11:00 America/Los_Angeles
+#   off-peak ("reduced"):                everything else
+# Re-verify ~weekly (the window changed 2026-06-10). Bump PRICING_VERIFIED after
+# each re-check; a stale date adds a dim "?" marker to the emoji.
+PEAK_DAYS="1 2 3 4 5"          # ISO day-of-week: 1=Mon … 7=Sun
+PEAK_START=5                    # 05:00 PT, inclusive
+PEAK_END=11                    # 11:00 PT, exclusive
+PEAK_TZ="America/Los_Angeles"
+PRICING_VERIFIED="2026-06-11"   # last confirmed accurate (YYYY-MM-DD)
+PRICING_RECHECK_DAYS=7
+
+PT_DOW=$(TZ="$PEAK_TZ" date +%u)
+PT_HOUR=$((10#$(TZ="$PEAK_TZ" date +%H)))   # 10# forces base-10 (avoid octal 08/09)
+if [[ " $PEAK_DAYS " == *" $PT_DOW "* ]] && [ "$PT_HOUR" -ge "$PEAK_START" ] && [ "$PT_HOUR" -lt "$PEAK_END" ]; then
+    PRICING_EMOJI="💸"   # regular / higher burn
+else
+    PRICING_EMOJI="🪙"   # reduced / off-peak
+fi
+# Weekly re-verify nag: dim "?" once PRICING_VERIFIED is older than the threshold
+PRICING_STALE=""
+VERIFIED_EPOCH=$(date -d "$PRICING_VERIFIED" +%s 2>/dev/null || echo 0)
+if [ "$VERIFIED_EPOCH" -gt 0 ] && [ $(( (NOW - VERIFIED_EPOCH) / 86400 )) -ge "$PRICING_RECHECK_DAYS" ]; then
+    PRICING_STALE="\e[2m?\e[0m"
+fi
+
 # Build optional fields for line 1
 SONNET_PART=""
 [ -n "$SONNET_LABEL" ] && SONNET_PART=" ${CL_SONNET}${SONNET_LABEL}${CL_D}"
@@ -323,4 +351,4 @@ KV_PART=""
 [ -n "$KV_DISPLAY" ] && KV_PART=" ${CL_KV}${KV_DISPLAY}${CL_D}"
 
 # Print status line with colors
-echo -e "${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN}${SONNET_PART} ${COST_DISPLAY} ${CL_AGE}${AGE_DISPLAY}${CL_D}${KV_PART}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"
+echo -e "${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN}${SONNET_PART} ${COST_DISPLAY} ${PRICING_EMOJI}${PRICING_STALE} ${CL_AGE}${AGE_DISPLAY}${CL_D}${KV_PART}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"

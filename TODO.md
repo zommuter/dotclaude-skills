@@ -23,7 +23,9 @@
 
 ## Caude statusbar
 
+- [ ] **Re-verify quota peak-pricing window (~weekly)** — bump `PRICING_VERIFIED` in `statusline/statusline-command.sh` after confirming the schedule against current Anthropic docs/behaviour. Community window = weekday 05:00–11:00 PT (peak/regular burn); last changed 2026-06-10 (peak throttling reportedly dropped for Pro/Max). Triggered in-band by the statusline staleness marker (dim `?` appears on 💸/🪙 once the date is >7 days old).
 - [ ] **Statusbar: other cost-saving indicators** — candidate ideas: current session input-token running total, cache_read vs uncached ratio (shows caching effectiveness), model currently active.
+- [x] **Statusbar: quota pricing-tier emoji (💸 regular / 🪙 reduced)** — computes peak vs off-peak from weekday 05:00–11:00 PT window (no API field exists); placed after cost on line 1; carries `PRICING_VERIFIED` staleness marker for weekly re-verify — verified by render + branch + staleness tests on 2026-06-11.
 
 ## worktrees / D-series
 
