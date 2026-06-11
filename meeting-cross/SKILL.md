@@ -43,12 +43,12 @@ description: Cross-project /meeting — scan all registered projects' TODO.md fi
    ls -t <project>/docs/meeting-notes/*.md 2>/dev/null | head -1
    ```
 
-6. **Surface orphan-scan** (ADVISORY) for the top-candidate project only:
+6. **Surface orphan-scan** for the top-candidate project only:
    ```bash
    ~/.claude/skills/meeting/orphan-scan.sh <project-path>/TODO.md
    ~/.claude/skills/meeting/orphan-scan.sh --reverse
    ```
-   Display any results labelled `ADVISORY — not yet authoritative` before asking the user.
+   Display any forward-scan results as orphan candidates requiring resolution. Display reverse results labeled `ADVISORY — reverse-orphan candidates (done/inline items never mirrored to TODO; possible ledger gap)`.
 
 7. Ask via AskUserQuestion: `[Dispatch top pick / Choose different item]`. Embed a 2-sentence tl;dr of the top pick and its project in the question.
 
