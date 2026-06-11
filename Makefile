@@ -6,7 +6,7 @@ SKILLS := meeting meeting-cross git-diary-workflow todo-update
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
-meeting_FILES := SKILL.md format.md personas.md broker-mode.md append.sh cost-of.sh \
+meeting_FILES := SKILL.md format.md personas.md broker-mode.md cross-mode.md append.sh cost-of.sh \
                  find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
                  persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh
 meeting_EXEC  := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \

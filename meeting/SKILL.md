@@ -14,6 +14,8 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    - `date '+%H%M'`
    - `git config user.name`
    Store the results as literals — use them for the meeting-note filename, header lines, and in-transcript human attribution. Do not re-expand these in Write calls; embed the captured values directly.
+**Cross-project mode:** if the skill argument is exactly `--cross` (literal token, nothing else), read `~/.claude/skills/meeting/cross-mode.md` and follow it for the entire session. The metadata captured in step 2 is available to cross-mode.md for the routing-trail note. Skip steps 2b onward — cross-mode.md owns the full cross flow. Stop reading this document.
+
 2b. **Git hygiene check** (run after metadata, before loading anything else):
    - Run `git status --short` (one Bash call). If empty → proceed silently.
    - If dirty → run `git log -1 --format="%cr|%s"` (one Bash call) to get last commit age and subject.
