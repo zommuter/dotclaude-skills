@@ -20,8 +20,17 @@
 - [ ] **Revisit S1+S2 and S3 adoption on 2026-08-13**: check S2 dedup adoption rate + `proj grep` invocation count; retire S3 if zero uses; re-tune S1 threshold if any `TODO.archive.md` >200 lines. (Orphan from `docs/meeting-notes/2026-05-13-1950-global-todo-skill.md`.)
 - [ ] **Meeting-note archival skill** (deferred — gate re-armed 2026-06-06): open `/meeting meeting-note-archival` when `docs/meeting-notes/` has **≥50 notes AND oldest note >3 months old** (count ≥50 fired 2026-06-06 but all notes <1mo → 0 files qualify → build deferred). Design: move notes >3 months old to `docs/meeting-notes/archive/YYYY-QN/`; orphan-scan MUST **recurse into `archive/**` — never skip** (see §Decisions). Real build-warrant: dotclaude-skills orphan-scan runtime over 1s gate (cross-link: see "Caching for orphan-scan.sh" TODO). See `docs/meeting-notes/2026-05-14-1015-skill-ctx-bloat-audit.md` and `docs/meeting-notes/2026-06-06-1510-meeting-note-archival.md`.
 - [ ] **`git-diary-workflow` SKILL.md size audit** — pre-emptive trim done 2026-06-11 (see `docs/meeting-notes/2026-06-11-0921-git-diary-skillmd-trim.md`). Current gate: `~(wc -c)/4 ≈ N tokens vs. 2k gate` (chars/4 estimate, reuses `cost-of.sh` SIZE_KB/4 convention). Trigger: post-trim token estimate exceeds 2k OR a prompt-bloat episode traced to this file. See `docs/meeting-notes/2026-05-14-1015-skill-ctx-bloat-audit.md`.
-- [x] **At next helferli meeting**: note whether `Write(docs/meeting-notes/...)` prompt fires — NOT reproduced 2026-06-11 (helferli C1 OTA-channel-ownership session; Write completed without prompt). Hypothesis falsified. Noted in `helferli/docs/meeting-notes/2026-06-11-1035-ota-channel-ownership-verification.md`.
+- [ ] **At next helferli meeting**: note whether `Write(docs/meeting-notes/...)` prompt fires — **observation in auto mode is inconclusive** (auto mode silently approves prompts; can't distinguish allowlisted vs auto-approved). Must test in a non-auto session or check settings.json allowlist directly. Contract: result noted in next helferli meeting note. Orphan from `docs/meeting-notes/2026-05-14-1739-class1-cross-repo-verify.md:28`.
 - [ ] **Caching for orphan-scan.sh** (condition-triggered): `~/.claude/logs/meeting-orphan-scan.log` shows helferli ~1200ms, zkm ~2600ms median — both ≥1s gate. Open `/meeting orphan-scan-caching` when zkm/helferli runtime grows further OR the scans cause perceptible friction. See `docs/meeting-notes/2026-05-14-1803-orphan-scan-accumulation.md` gate-(a) analysis.
+
+## Caude statusbar
+
+- [ ] **Statusbar: verify it lives in dotclaude-skills** — check whether Caude's statusbar skill/config is tracked here; if not, move/add it so it benefits from the same skill lifecycle as other tools.
+- [ ] **Statusbar: Sonnet quota display** — extend statusbar to show Sonnet usage quota separately from Opus (they have different limits; conflating them hides Sonnet headroom).
+- [ ] **Statusbar: KV-cache expiration countdown** — display time remaining until the 5-minute prompt-cache TTL expires; helps decide whether to continue a session or let cache warm on next turn.
+- [ ] **Statusbar: other cost-saving indicators** — candidate ideas: current session input-token running total, cache_read vs uncached ratio (shows caching effectiveness), model currently active.
+
+## worktrees / D-series
 
 - [ ] **AI-4 (worktree TODO.md scope)** — after ≥1 live `/meeting` run from a `meeting-rpg` worktree, log whether autonomous upward traversal of TODO.md recurs. If yes, escalate to mechanical guard design (D5 follow-up). See: `docs/meeting-notes/2026-05-20-2105-todo-md-root-resolution-worktrees.md`.
 
