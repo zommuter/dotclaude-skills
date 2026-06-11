@@ -52,3 +52,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - ⛓️ **Tycho** — Bitcoin signature-construction lens; BIP-322 to_spend/to_sign transaction building, BIP-341 (taproot) vs BIP-143 (segwit) sighash, witness encoding (SIGHASH_DEFAULT vs SIGHASH_ALL), what wallets actually sign. Introduced 2026-06-06 (zkWhale/s5-p2tr-bip322-sighash-mismatch).
 
 - ⚙️ **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration, TSV contract design for skill-called scripts. Extended 2026-06-11 (dotclaude-skills/classify-gate-text-check): framed advisory-only constraint as collapsing downside of dumb detection; cited orphan-scan ADVISORY as the pattern precedent.
+
+- ⚙️ **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration, TSV contract design, opencode command/tool/agent primitives. Extended 2026-06-11 (meeting-rpg/opencode-multi-tool-port): mapped Claude Code ↔ opencode primitive parity for meeting skill port.
