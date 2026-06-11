@@ -103,6 +103,8 @@ SESSION_PCT=$(jq -r '.five_hour.utilization // 0' "$USAGE_CACHE" 2>/dev/null)
 WEEKLY_PCT=$(jq -r '.seven_day.utilization // 0' "$USAGE_CACHE" 2>/dev/null)
 SESSION_RESETS=$(jq -r '.five_hour.resets_at // ""' "$USAGE_CACHE" 2>/dev/null)
 WEEKLY_RESETS=$(jq -r '.seven_day.resets_at // ""' "$USAGE_CACHE" 2>/dev/null)
+SONNET_PCT=$(jq -r '.seven_day_sonnet.utilization // empty' "$USAGE_CACHE" 2>/dev/null)
+SONNET_RESETS=$(jq -r '.seven_day_sonnet.resets_at // ""' "$USAGE_CACHE" 2>/dev/null)
 
 # Extrapolate usage when cache is stale >5 minutes
 EXTRAPOLATED=""
@@ -217,6 +219,17 @@ else
     WEEKLY_DISPLAY=$(printf "%.0f%%" "$WEEKLY_PCT")
 fi
 
+# Sonnet 7d quota (separate limit from Opus; absent when null in usage cache)
+SONNET_LABEL=""
+CL_SONNET=""
+if [ -n "$SONNET_PCT" ]; then
+    SONNET_STATS=$(calc_window_stats "$SONNET_RESETS" "7d")
+    SONNET_COOLDOWN=$(echo "$SONNET_STATS" | cut -d'|' -f1)
+    SONNET_ELAPSED=$(echo "$SONNET_STATS" | cut -d'|' -f2)
+    CL_SONNET=$(consistency_color "${SONNET_PCT%.*}" "$SONNET_ELAPSED")
+    SONNET_LABEL=$(printf "Son:%.0f%%→%s" "$SONNET_PCT" "$SONNET_COOLDOWN")
+fi
+
 # Extract values using jq
 MODEL_DISPLAY=$(echo "$input" | jq -r '.model.display_name // .model.name // .modelName // .model // "claude"')
 CL_MODEL=$(hash2rgb "$MODEL_DISPLAY")
@@ -285,7 +298,7 @@ age_display() {
 CL_AGE=$(age_color "$CACHE_AGE")
 AGE_DISPLAY=$(age_display "$CACHE_AGE")
 
-# KV-cache TTL countdown (prompt cache 5-min TTL)
+# KV-cache expiry time (prompt cache 5-min TTL; shown as HH:MM when cache will go cold)
 KV_DISPLAY=""
 CL_KV=""
 TRANSCRIPT=$(echo "$input" | jq -r '.transcript_path // ""')
@@ -295,19 +308,19 @@ if [ -n "$TRANSCRIPT" ] && LAST=$(stat -c %Y "$TRANSCRIPT" 2>/dev/null); then
         KV_DISPLAY="KV:cold"
         CL_KV="\e[0;31m"  # red
     else
-        kv_m=$((KV_REMAIN / 60))
-        kv_s=$((KV_REMAIN % 60))
-        KV_DISPLAY=$(printf "KV:%dm%02ds" "$kv_m" "$kv_s")
+        EXPIRE_EPOCH=$((LAST + 300))
+        KV_DISPLAY=$(printf "KV:%s" "$(date -d @$EXPIRE_EPOCH +%H:%M)")
         # Color: green (fresh) → orange → red (about to expire)
-        # expired_pct = (300 - KV_REMAIN) * 100 / 300
         expired_pct=$(( (300 - KV_REMAIN) * 100 / 300 ))
         CL_KV=$(percent_to_gradient "$expired_pct")
     fi
 fi
 
+# Build optional fields for line 1
+SONNET_PART=""
+[ -n "$SONNET_LABEL" ] && SONNET_PART=" ${CL_SONNET}${SONNET_LABEL}${CL_D}"
+KV_PART=""
+[ -n "$KV_DISPLAY" ] && KV_PART=" ${CL_KV}${KV_DISPLAY}${CL_D}"
+
 # Print status line with colors
-if [ -n "$KV_DISPLAY" ]; then
-    echo -e "${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN} ${COST_DISPLAY} ${CL_AGE}${AGE_DISPLAY}${CL_D} ${CL_KV}${KV_DISPLAY}${CL_D}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"
-else
-    echo -e "${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN} ${COST_DISPLAY} ${CL_AGE}${AGE_DISPLAY}${CL_D}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"
-fi
+echo -e "${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN}${SONNET_PART} ${COST_DISPLAY} ${CL_AGE}${AGE_DISPLAY}${CL_D}${KV_PART}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"
