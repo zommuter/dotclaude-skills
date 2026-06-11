@@ -42,5 +42,11 @@
 - [ ] **D6 — sub-agent parallel Class 1 dispatcher (build-gated)** — design recorded 2026-06-04. Gate: **(1) D5 ratified ✓ 2026-06-04**, (2) ≥3 independent disjoint-footprint items logged at once, **(3) Haiku-vs-Sonnet pilot ✓ 2026-06-04** — Sonnet-default confirmed. Design: Workflow tool, worktree-per-item, baseRef=`fresh`, `--no-ff` merge, Sonnet builds + verifies vs `Contract:`, children return `{branch, diary_fragment, todo_item_id, done_summary, contract_met}`, main owns shared-ledger + push; naming `.claude/worktrees/<item-id>`; fail→don't-merge, surface to user. See `docs/meeting-notes/2026-06-04-1048-subagent-parallel-class1.md` and `docs/meeting-notes/2026-06-04-1144-worktree-per-session-d5.md`. <!-- id:cbb5 -->
 - [ ] **Forward-flag: independent-session flock'd merge-to-canonical** — deferred; build only if a second cross-session race recurs after the flock+manifest fixes land. Contract: a recorded recurrence opens the build. See `docs/meeting-notes/2026-06-04-1144-worktree-per-session-d5.md` (D5.6). <!-- id:3558 -->
 
+## local-llama-swap subagent delegation
+
+- [ ] Run the 3-cell spike: probe real n_ctx; bounded "summarize diff" via curl (B) and `opencode run` (C); smallest agentic "append line + confirm" via opencode (C). Write results table + go/no-go finding. Contract: finding states whether B suffices alone or C earns a slot. See `docs/meeting-notes/2026-06-11-2235-subagents-local-llama-swap.md`. <!-- id:95e3 -->
+- [ ] Conditional on bounded-B passing: commit a thin `curl`+`jq` local-delegation wrapper with outcome logging (task/model/outcome, zelegator-consumable) and loud-fail on n_ctx overflow. Contract: routes a bounded prompt to localhost:8080/v1, appends one log line per call, no silent truncation. See `docs/meeting-notes/2026-06-11-2235-subagents-local-llama-swap.md`. <!-- id:85d2 -->
+- [ ] Forward-flags (documented, no work now): (a) auto-routing local-vs-remote → zelegator (semantic-router-benchmark is where the eval lives); (b) opencode → agentic-local escape hatch, gated on two real consumers. See `docs/meeting-notes/2026-06-11-2235-subagents-local-llama-swap.md`. <!-- id:f579 -->
+
 ## Done
 placeholder
