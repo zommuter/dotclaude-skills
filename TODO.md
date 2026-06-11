@@ -28,9 +28,9 @@
 
 ## Caude statusbar
 
-- [ ] **Statusbar: verify it lives in dotclaude-skills** — check whether Caude's statusbar skill/config is tracked here; if not, move/add it so it benefits from the same skill lifecycle as other tools.
+- [x] **Statusbar: verify it lives in dotclaude-skills** — moved to `statusline/statusline-command.sh`; P2 symlink + Makefile `install-hooks` entry. See `docs/meeting-notes/2026-06-11-1320-statusline-kvcache-countdown.md`.
 - [ ] **Statusbar: Sonnet quota display** — extend statusbar to show Sonnet usage quota separately from Opus (they have different limits; conflating them hides Sonnet headroom).
-- [ ] **Statusbar: KV-cache expiration countdown** — display time remaining until the 5-minute prompt-cache TTL expires; helps decide whether to continue a session or let cache warm on next turn.
+- [x] **Statusbar: KV-cache expiration countdown** — `KV:Mm SSs` / `KV:cold` field added; reads `transcript_path` mtime from statusLine stdin; green→red gradient. See `docs/meeting-notes/2026-06-11-1320-statusline-kvcache-countdown.md`.
 - [ ] **Statusbar: other cost-saving indicators** — candidate ideas: current session input-token running total, cache_read vs uncached ratio (shows caching effectiveness), model currently active.
 
 ## worktrees / D-series
