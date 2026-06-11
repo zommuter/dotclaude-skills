@@ -85,6 +85,7 @@ install-hooks:
 	@ln -sf $(SRC_DIR)/hooks/meeting-cost-logger.sh $(HOOKS_DIR)/meeting-cost-logger.sh
 	@ln -sf $(SRC_DIR)/hooks/parallel-edit-detector.py $(HOOKS_DIR)/parallel-edit-detector.py
 	@ln -sf $(SRC_DIR)/hooks/notify-hook.linux-x11.sh $(HOME)/.claude/notify-hook.sh
+	@ln -sf $(SRC_DIR)/statusline/statusline-command.sh $(HOME)/.claude/statusline-command.sh
 
 uninstall: $(addprefix uninstall-,$(SKILLS))
 
