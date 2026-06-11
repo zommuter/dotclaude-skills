@@ -50,3 +50,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - ⚖️ **Cleo** — data-acquisition legality / platform-ToS / third-party-privacy lens; single-subject vs bulk risk gradient, network-specific TOS analysis, privacy obligations when ingesting third-party data. Introduced 2026-06-06 (zkm/social-network-profile-scraping-scope).
 
 - ⛓️ **Tycho** — Bitcoin signature-construction lens; BIP-322 to_spend/to_sign transaction building, BIP-341 (taproot) vs BIP-143 (segwit) sighash, witness encoding (SIGHASH_DEFAULT vs SIGHASH_ALL), what wallets actually sign. Introduced 2026-06-06 (zkWhale/s5-p2tr-bip322-sighash-mismatch).
+
+- ⚙️ **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration, TSV contract design for skill-called scripts. Extended 2026-06-11 (dotclaude-skills/classify-gate-text-check): framed advisory-only constraint as collapsing downside of dumb detection; cited orphan-scan ADVISORY as the pattern precedent.
