@@ -67,7 +67,8 @@ EOF
 )"
 
 # Stage + commit + pull + push atomically inside the per-repo flock
-~/.claude/skills/git-diary-workflow/git-lock-push.sh ~/.claude -f "$manifest" -m "$msg"
+# NOTE: flags MUST precede REPO_PATH — getopts stops at the first non-flag arg
+~/.claude/skills/git-diary-workflow/git-lock-push.sh -f "$manifest" -m "$msg" ~/.claude
 rm -f "$manifest"
 ```
 
@@ -86,7 +87,7 @@ If non-empty → those files are dirty. This repo is single-user; any dirty file
 If dirty (e.g. format.md, personas.md, or any file reached via symlink): build a manifest and msg exactly as in Step 1b, using `~/src/dotclaude-skills/<file1>` paths and a dotclaude-skills description, then:
 
 ```bash
-~/.claude/skills/git-diary-workflow/git-lock-push.sh ~/src/dotclaude-skills -f "$manifest" -m "$msg"
+~/.claude/skills/git-diary-workflow/git-lock-push.sh -f "$manifest" -m "$msg" ~/src/dotclaude-skills
 rm -f "$manifest"
 ```
 
