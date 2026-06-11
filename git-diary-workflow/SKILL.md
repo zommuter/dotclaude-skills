@@ -35,25 +35,18 @@ EOF
 )"
 ```
 
-Replace `PASTE-SESSION-ID-HERE` with the UUID you captured above — never write the literal string `$CLAUDE_SESSION_ID` in the commit message.
+Co-Authored-By fields: **Model** from system context (e.g. `Claude Sonnet 4.6`); **Effort** = `low` (≤33), `mid` (34–66), `high` (≥67); **Session ID** = the captured UUID — never the literal `$CLAUDE_SESSION_ID`.
 
 ```bash
-# Push with parallel-safe locking (autostash + pull --rebase + push)
+# Push (parallel-safe: autostash + pull --rebase + push)
 ~/.claude/skills/git-diary-workflow/git-lock-push.sh
 ```
-
-**Fill in Co-Authored-By yourself:**
-- **Model**: from your system context (e.g. `Claude Opus 4.6`, `Claude Sonnet 4.6`)
-- **Effort**: map your reasoning effort to `low` (≤33), `mid` (34–66), or `high` (≥67) — omit if unknown
-- **Session ID**: the UUID you captured via `echo "$CLAUDE_SESSION_ID"` — embed the literal, never the variable name
 
 ### Step 1b: Commit and push ~/.claude (when running from a foreign project)
 
 Skip this step when the cwd is `~/.claude` itself — Step 1 already handled that repo.
 
-After committing the project repo, identify the `~/.claude` files you **edited or created during this session**. Do NOT use `git status` to discover them — it shows all sessions' dirty files, not just yours.
-
-If you made no `~/.claude` changes this session → nothing to do, proceed to Step 2.
+Identify `~/.claude` files you **edited/created this session** — do NOT use `git status` (it shows all sessions' dirty files). If none → proceed to Step 2.
 
 If you did make changes, write your file list to a temp manifest and call `git-lock-push.sh` in manifest mode (stage+commit happen inside the lock — no separate `git add` or `git commit`):
 
@@ -90,21 +83,9 @@ If empty → nothing to do, proceed to Step 2.
 
 If non-empty → those files are dirty. This repo is single-user; any dirty file is yours, whether from a direct edit or via a symlink (e.g. `~/src/meeting-rpg/broker.py → ~/src/dotclaude-skills/meeting/broker.py`). Stage and commit all of them. **Do not rely on session memory alone** — symlink-target edits will not appear in the foreign project's git status, so only checking dotclaude-skills directly catches them.
 
-If dirty (e.g. format.md, personas.md, or any file reached via symlink):
+If dirty (e.g. format.md, personas.md, or any file reached via symlink): build a manifest and msg exactly as in Step 1b, using `~/src/dotclaude-skills/<file1>` paths and a dotclaude-skills description, then:
 
 ```bash
-manifest=$(mktemp)
-printf '%s\n' \
-  "/home/tobias/src/dotclaude-skills/<file1>" \
-  > "$manifest"
-
-msg="$(cat <<'EOF'
-<brief description of what changed in dotclaude-skills>
-
-Co-Authored-By: Claude <Model> (<effort>) <PASTE-SESSION-ID-HERE@kienzler.dev>
-EOF
-)"
-
 ~/.claude/skills/git-diary-workflow/git-lock-push.sh ~/src/dotclaude-skills -f "$manifest" -m "$msg"
 rm -f "$manifest"
 ```
@@ -148,9 +129,7 @@ If `git pull --rebase` fails with conflicts:
    - User declines: `git rebase --abort` to restore pre-rebase state. Commit is preserved locally, not pushed.
 4. **Never force-resolve silently.**
 
-For specific file types once in the resolution step:
-- **Diary**: Keep all entries from both sides, ordered chronologically. Entries are independent.
-- **Config files** (CLAUDE.md, etc.): Keep both changes if different sections. Same section → use most complete/recent version and note the merge in diary.
+File-type guidance: **Diary** — keep all entries from both sides, chronological. **Config files** (CLAUDE.md, etc.) — keep both if different sections; same section → most complete/recent, note the merge in diary.
 
 ## Error Handling
 
