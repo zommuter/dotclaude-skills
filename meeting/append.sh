@@ -2,15 +2,43 @@
 # append.sh — append a line or block to a meeting-skill registry file
 #
 # Usage:
-#   append.sh -t {discoveries|personas} -e "line text"
-#   append.sh -t {discoveries|personas} -f entry.txt
-#   echo "line" | append.sh -t {discoveries|personas}
+#   append.sh -t {discoveries|personas|inbox} -e "line text"
+#   append.sh -t {discoveries|personas|inbox} -f entry.txt
+#   echo "line" | append.sh -t {discoveries|personas|inbox}
+#   append.sh inbox-done <4-hex-token>   — mark a routed inbox item as adopted
 #
 # No git operations — the caller (git-diary-workflow) commits the result.
 
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# inbox-done <token>: flip "- [ ]" → "- [x]" on the line containing routed:<token>.
+# No-op exit 0 if the token is not found or the line is already checked.
+if [[ "${1:-}" == "inbox-done" ]]; then
+  token="${2:-}"
+  if [[ -z "$token" ]]; then
+    echo "Usage: $0 inbox-done <4-hex-token>" >&2; exit 1
+  fi
+  inbox="$HOME/.claude/todo-inbox.md"
+  [[ -f "$inbox" ]] || exit 0
+  (
+    flock -x 9
+    python3 - "$inbox" "$token" <<'PYEOF'
+import sys, pathlib
+path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
+lines = path.read_text().splitlines(keepends=True)
+needle = f"routed:{token}"
+new_lines = []
+for line in lines:
+    if needle in line and line.lstrip().startswith("- [ ]"):
+        line = line.replace("- [ ]", "- [x]", 1)
+    new_lines.append(line)
+path.write_text("".join(new_lines))
+PYEOF
+  ) 9>"${inbox}.lock"
+  exit 0
+fi
 
 # new-id / new-ids: emit collision-free random 4-hex token(s) for meeting action items.
 # Usage: append.sh new-id  [<root-dir>]     — emit 1 token
@@ -46,15 +74,16 @@ while getopts "t:e:f:" opt; do
     t) target="$OPTARG" ;;
     e) entry="$OPTARG" ;;
     f) entry_file="$OPTARG" ;;
-    *) echo "Usage: $0 -t {discoveries|personas} [-e text | -f file]" >&2; exit 1 ;;
+    *) echo "Usage: $0 -t {discoveries|personas|inbox} [-e text | -f file]" >&2; exit 1 ;;
   esac
 done
 
 case "$target" in
   discoveries) dest="$SKILL_DIR/discoveries.md" ;;
   personas)    dest="$SKILL_DIR/personas.md" ;;
+  inbox)       dest="$HOME/.claude/todo-inbox.md" ;;
   "")          echo "Error: -t is required" >&2; exit 1 ;;
-  *)           echo "Error: -t must be 'discoveries' or 'personas'" >&2; exit 1 ;;
+  *)           echo "Error: -t must be 'discoveries', 'personas', or 'inbox'" >&2; exit 1 ;;
 esac
 
 if [[ -n "$entry_file" ]]; then
