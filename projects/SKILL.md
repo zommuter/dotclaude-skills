@@ -26,7 +26,14 @@ Run with `refresh` to re-scan all projects first:
 1. Check if `proj` is on PATH: run `which proj`. If not found, suggest `uv tool install --editable ~/src/project_manager`.
 2. If the argument is `refresh` (or `refresh --write`): run `proj refresh --write` and report how many projects were scanned.
 3. Otherwise: run `proj show` and present the output to the user.
-4. Offer to help pick a project to work on: "Want me to `cd` into the top-priority project? Run `cd \"$(proj pick)\"`."
+4. **Inbox surface**: grep `~/.claude/todo-inbox.md` for unchecked `- [ ]` lines; skip silently if the file is missing or has no unchecked lines. Group by `[<repo>]` tag and print:
+   ```
+   📥 Routed to you:
+     dotclaude-skills (2): <first item description>; <second item description>
+     meeting-rpg (1): <item description>
+   ```
+   These are display-only — do not auto-write into any TODO.md.
+5. Offer to help pick a project to work on: "Want me to `cd` into the top-priority project? Run `cd \"$(proj pick)\"`."
 
 ## Notes
 

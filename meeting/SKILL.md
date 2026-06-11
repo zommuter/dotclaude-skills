@@ -48,6 +48,12 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    If stdout is non-empty, surface any matching issues/PRs alongside the discoveries block labeled `GitHub prior art — issues/PRs matching this topic`. Exit 0 with no stdout means no GitHub remote or no matches — skip silently. Do not label as ADVISORY; GitHub search results are factual, not scan candidates.
 6. **Load user profile**: run `~/.claude/skills/meeting/profile-active.sh --filter` via Bash (filter mode — emits only pre-emption-eligible med/high-confidence entries + file header; flip gate cleared 2026-06-05: ratio consistently 0.26–0.34 ≪ 0.60, setup-ctx ~30% of meeting cache_read tokens; ratio still logged to `~/.claude/logs/meeting-profile-active.log` each run for observability). Treat the script's stdout as the profile content for this session. Personas may apply pre-emption per the rule defined in `format.md` (eligible + med+ confidence + contradiction; Riku ≫ others).
 7. **Broker mode (recommended — launch via `~/src/meeting-rpg/meeting-rpg <topic>` to activate):** Probe `echo "$MEETING_LIVE"` (plain expansion — **never** `${MEETING_LIVE:-...}`). If non-empty, or if a broker may be running (probe `echo "$MEETING_BROKER_PORT"`), read `~/.claude/skills/meeting/broker-mode.md` and follow it for the rest of step 7, per-item discussion routing, and decision points. If `$MEETING_LIVE` is empty and no broker is probed live, skip `broker-mode.md` entirely — the meeting proceeds as canonical. **Savings confirmed 2026-06-05:** ≥5k tok/meeting across 3 pilots (discussion suppressed from chat → no context inflation; auto-detects renderer via `$MEETING_BROKER_PORT`).
+7b. **Inbox surface**: grep `~/.claude/todo-inbox.md` (skip silently if the file does not exist) for unchecked lines `- [ ]` tagged with `[<basename of <root>>]`. If any match, display them as visible text before the agenda:
+   ```
+   📥 Inbox — items routed to this repo:
+   - [ ] [<repo>] <description> (from <source>, <note-relpath>) <!-- routed:XXXX -->
+   ```
+   These are read-only; do not auto-write them into `<root>/TODO.md`. To adopt: mint a fresh id, add the item to `<root>/TODO.md` with a `<!-- id:XXXX -->`, and run `~/.claude/skills/meeting/append.sh inbox-done <routed-token>` to mark it resolved.
 
 ## With a subject argument
 
@@ -101,6 +107,10 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    {"updates": [{"id": "XXXX", "line": "- [x] description <!-- id:XXXX -->"}]}
    JSON
    ```
+   **Cross-repo routing sub-step**: for each `## Action items` entry, judge whether its natural home is a **different** repo than `<root>` — e.g. it improves a skill in another project, references paths under `~/src/<other-repo>/`, or was flagged cross-project during discussion. If so, **do not** mint an `id:` or write it to `<root>/TODO.md`. Instead:
+   1. Mint a token: `~/.claude/skills/meeting/append.sh new-id` (collision-free within `<root>`).
+   2. Append to inbox: `~/.claude/skills/meeting/append.sh -t inbox -e "- [ ] [<target-repo>] <description> (from <source-repo>, <note-relpath>) <!-- routed:TOKEN -->"` — `<target-repo>` and `<source-repo>` are bare basenames (e.g. `dotclaude-skills`, `meeting-rpg`).
+   3. Record in the meeting note's `## Action items` as: `→ routed to <target-repo> inbox <!-- routed:TOKEN -->` — **no `<!-- id:XXXX -->` token**. orphan-scan skips un-IDed lines by design.
 2d. **Persona-state delta** (skip if `<root>/docs/meeting-notes/persona-state.yml` does not exist, and skip for Class 1/2 dispatch): from the in-context transcript and the picked option at each `AskUserQuestion` decision point, classify each attending persona as `advocated` (argued for the chosen option), `opposed` (argued against it / for a rejected one), or `uninvolved`. Valence is deterministic: `advocated`→+1, `opposed`→−1, `uninvolved`→0. Count `project_stats` increments: `conviction` += number of ratified decisions this meeting; `wisdom` += persona pushbacks that demonstrably changed an outcome; `tech_debt` += items explicitly deferred to out-of-scope / forward-flags. Then invoke the helper in two steps (use **quoted heredoc** `<<'JSON'` — no shell expansion):
    ```
    # Step 1 — shard: write this session's delta to persona-events/<session>.json (zero contention)
