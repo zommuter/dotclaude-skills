@@ -21,10 +21,10 @@ First, **capture the session ID** in a separate Bash call so the literal value i
 echo "$CLAUDE_SESSION_ID"
 ```
 
-Then stage and commit — substitute the captured literal UUID directly into the Co-Authored-By line:
+Then **run `git status --short`** (separate Bash call) to see every dirty file before staging. Stage ALL modified work artifacts — not just the primary task files. Side-effect edits (e.g. personas.md, meeting notes updated mid-task) must be included. Omit only generated outputs, temp files, and secrets.
 
 ```bash
-# Stage specific files (never git add -A)
+# Stage specific files (never git add -A) — include side-effect edits surfaced by git status
 git add <changed-files>
 # <<'EOF' (quoted) — Claude Code's Bash matcher refuses unquoted <<EOF as a class; body has no $vars since UUID is captured first
 git commit -m "$(cat <<'EOF'
@@ -82,11 +82,15 @@ rm -f "$manifest"
 
 Skip this step when the cwd is `~/src/dotclaude-skills` itself — Step 1 already handled that repo.
 
-After Step 1b, identify the `~/src/dotclaude-skills` files you **edited or created during this session**. Same rule: do NOT use `git status` — use your session's edit history.
+After Step 1b, **always run** (separate Bash call):
+```bash
+git -C ~/src/dotclaude-skills status --short
+```
+If empty → nothing to do, proceed to Step 2.
 
-If you made no changes → nothing to do, proceed to Step 2.
+If non-empty → those files are dirty. This repo is single-user; any dirty file is yours, whether from a direct edit or via a symlink (e.g. `~/src/meeting-rpg/broker.py → ~/src/dotclaude-skills/meeting/broker.py`). Stage and commit all of them. **Do not rely on session memory alone** — symlink-target edits will not appear in the foreign project's git status, so only checking dotclaude-skills directly catches them.
 
-If you did make changes (e.g. format.md, personas.md via symlink):
+If dirty (e.g. format.md, personas.md, or any file reached via symlink):
 
 ```bash
 manifest=$(mktemp)
