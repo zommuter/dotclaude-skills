@@ -50,7 +50,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 ## With a subject argument
 
 1. **Warrantability self-check** (see format spec). If the request looks like a bug fix, one-liner, or already-decided feature, respond "are you sure you want a meeting?" and briefly explain why it might be overkill — before running the agenda. If it clearly passes, note that and proceed.
-2. **Past-meetings audit (ADVISORY — observation window)**: run `~/.claude/skills/meeting/orphan-scan.sh`. Uses exact `<!-- id:XXXX -->` match; FP is ~0 by construction (un-IDed legacy lines skipped). Display any candidates labeled `ADVISORY — not yet authoritative` before opening the agenda. Also run `~/.claude/skills/meeting/orphan-scan.sh --reverse` and display any results labeled `ADVISORY — reverse-orphan candidates (done/inline items never mirrored to TODO; possible ledger gap)`. Once zero spurious candidates are confirmed over an observation window of N meetings, drop the ADVISORY caveat and treat output as authoritative. *(F-B shipped 2026-05-21; prior DISABLED state lifted.)*
+2. **Past-meetings audit**: run `~/.claude/skills/meeting/orphan-scan.sh`. Uses exact `<!-- id:XXXX -->` match; FP is ~0 by construction (un-IDed legacy lines skipped). Display any candidates as orphan candidates requiring resolution before opening the agenda. Also run `~/.claude/skills/meeting/orphan-scan.sh --reverse` and display any results labeled `ADVISORY — reverse-orphan candidates (done/inline items never mirrored to TODO; possible ledger gap)`. *(Observation window closed 2026-06-11: 0 spurious FPs in 34 runs; forward scan is authoritative; reverse stays ADVISORY — expected to return in-session completions.)*
 
    Also run `~/.claude/skills/meeting/gh-audit.sh open` and display any output labeled `ADVISORY — open GitHub issues/PRs (supplementary orphan context)`. Exit 0 with no stdout means no GitHub remote or no open items — skip silently.
 3. Call `EnterPlanMode`. Accumulate the transcript in the plan file the system creates.
@@ -60,7 +60,7 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 
 ## With no subject (default mode)
 
-1. Read `<root>/TODO.md`. Run `~/.claude/skills/meeting/orphan-scan.sh` (**ADVISORY — observation window**): display any candidates before the classifier output as `ADVISORY — orphan scan candidates (informational; exact-ID match, un-IDed legacy skipped)`. Also run `~/.claude/skills/meeting/orphan-scan.sh --reverse` and display any results labeled `ADVISORY — reverse-orphan candidates (done/inline items never mirrored to TODO; possible ledger gap)`. Not authoritative until observation window clears. *(F-B shipped 2026-05-21; prior DISABLED state lifted.)*
+1. Read `<root>/TODO.md`. Run `~/.claude/skills/meeting/orphan-scan.sh`: display any candidates before the classifier output as orphan scan candidates requiring resolution (authoritative; exact-ID match, un-IDed legacy skipped). Also run `~/.claude/skills/meeting/orphan-scan.sh --reverse` and display any results labeled `ADVISORY — reverse-orphan candidates (done/inline items never mirrored to TODO; possible ledger gap)`.
 
    Also run `~/.claude/skills/meeting/gh-audit.sh open` and display any output labeled `ADVISORY — open GitHub issues/PRs (supplementary orphan context)`. Exit 0 with no stdout means no GitHub remote or no open items — skip silently.
 
