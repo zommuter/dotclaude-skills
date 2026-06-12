@@ -41,7 +41,7 @@ Never pass a raw single-quoted JSON literal when the text is user- or persona-co
 
 **Decision point:**
 - `subscribers > 0`: build JSON with `jq -n --arg`, e.g. `BODY=$(jq -n --arg text "<question>" --argjson options '<options-array>' '{"text":$text,"options":$options}')`, then `~/.claude/skills/meeting/broker-curl.sh <port> <sid> question "$BODY"`; `~/.claude/skills/meeting/broker-curl.sh <port> <sid> await`; map returned `answer` to the options list. Do **not** print transcript to chat.
-- `subscribers = 0` or `<port>` unset: print complete verbatim transcript to chat, then use AskUserQuestion as normal.
+- `subscribers = 0` or `<port>` unset: print complete verbatim transcript to chat, then use AskUserQuestion as normal (or inline-prose on Fable-class — see `format.md` §Interactive mode §Harness-class gate).
 
 **Transcript-visibility rule:** the user must be able to read the verbatim discussion before each decision. When `subscribers > 0`, the renderer feed satisfies this (chat suppression is intentional — source of the token savings). When headless, chat output satisfies it.
 
@@ -75,7 +75,7 @@ Steps 3 (profile), 4 (memory), and 5 (persona-registry) in `SKILL.md` use `AskUs
 
 1. **Re-probe:** `~/.claude/skills/meeting/broker-curl.sh <port> <sid> status` → get `subscribers`.
 2. **`subscribers > 0`:** build question JSON with `jq -n` (same escaping rules as in-meeting decision points), POST `/question`, GET `/await`, map `answer` to the options list — proceed with the matching action.
-3. **`subscribers = 0` or probe fails:** fall through to `AskUserQuestion` as canonical.
+3. **`subscribers = 0` or probe fails:** fall through to `AskUserQuestion` as canonical (or inline-prose on Fable-class — see `format.md` §Interactive mode §Harness-class gate).
 
 **If `<port>` unset:** skip all probes; use `AskUserQuestion` exclusively (no behaviour change).
 
