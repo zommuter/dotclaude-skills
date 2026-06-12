@@ -157,6 +157,110 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     First run: covers all work since `fable-ckpt-20260612-1328`. Subsequent runs: diff
     against the most recent `fable-ckpt-*` tag (same window as review mode step 2).
 
+- [ ] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] <!-- id:230f -->
+  - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
+    judgment on the unattended-safe confirmation contract and how the skill hands off to the Workflow engine;
+    wrong front-door behaviour silently skips repos or blocks the unattended run.
+  - **Acceptance**: invoking `/fables-turn` with no keyword (no `handoff`/`review` argument) starts the
+    autonomous pool loop. Non-interactive by default: operates only on relay.toml `classification=own`
+    confirmed repos; surfaces (never asks about) new/dirty/needs_review repos in `RELAY_STATUS.md`.
+    `--interactive` flag re-enables `AskUserQuestion` confirmations. Front door invokes the
+    `relay-loop.js` Workflow script (id:83c9) and exits after the Workflow completes, printing the
+    RELAY_STATUS.md path and HANDBACK count. Existing `handoff` and `review` keyword modes are
+    unchanged and fully compatible. SKILL.md updated to document the new default mode and the knobs
+    (`STRONG_TIER`, `--interactive`, quota-threshold env var).
+  - **Tests**: `tests/test_fables_front_door.sh` (`# roadmap:230f`) — verify (1) no-keyword invocation
+    without relay.toml confirmed repos surfaces a message + exits cleanly; (2) `--interactive` flag is
+    passed through to Workflow args; (3) existing keyword modes remain functional (dry-run check).
+  - **Done-check**: `tests/run-tests.sh tests/test_fables_front_door.sh` then full `make test` after ticking
+  - **Context**: meeting note `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md` D1/D2.
+    fables-turn/SKILL.md and relay-loop.js (id:83c9) must coexist. Workflows are opt-in by design (user
+    invoking the command counts as explicit opt-in per harness rules — no extra gate needed).
+
+- [ ] Workflow script `relay-loop.js` — priority-mixed 5-wide autonomous pool [HARD — strong model] <!-- id:83c9 -->
+  - **Why HARD**: complex Workflow JS orchestrating pool concurrency, the serialized integrator, quota
+    guards, and graceful drain — all interacting. Wrong sequencing causes concurrent pushes (the
+    double-decrement bug from prior executor runs); wrong quota gate causes runaway or premature stop;
+    wrong graceful-drain loses in-flight worktrees.
+  - **Acceptance**: `fables-turn/scripts/relay-loop.js` is a valid Workflow script with `export const meta`.
+    Scheduler: per-repo classifier maps confirmed repos to {execute(Sonnet)/review(strong)/handoff(strong)/idle};
+    pool fills up to 5 execute slots first; backfills idle slots with review (unreviewed-executor-work priority
+    > fresh handoff). SERIALIZED integrator: after each agent completes, ONE coordinator agent runs
+    `--no-ff` merge → `ckpt-tag.sh` → `git-lock-push.sh --ff-only` — never two repos integrating concurrently
+    (one-push-per-repo-per-turn invariant). Quota-stop: calls the id:9934 quota helper; on threshold crossed,
+    stops dispatching new units and lets in-flight agents + ALL integration debt finish before `return`.
+    `STRONG_TIER` env var (default `fable`, `opus` pilotable) sets `model:` on review/handoff agents.
+    `log()` emits phase transitions; `RELAY_STATUS.md` rewritten on each integration.
+  - **Tests**: `tests/test_relay_loop_structure.sh` (`# roadmap:83c9`) — static checks: (1) `meta` block
+    present with required fields; (2) no `AskUserQuestion` call in the script; (3) integration block
+    serialized (no bare `parallel()` over the integration step); (4) `STRONG_TIER` variable referenced.
+    Integration-behaviour tests deferred to the A6 pilot (live integration is too expensive for unit tests).
+  - **Done-check**: `tests/run-tests.sh tests/test_relay_loop_structure.sh` then full `make test` after ticking
+  - **Context**: meeting note D2/D3/D5. Gil's constraint: Workflow JS can't run git; the integrator MUST
+    be an agent that calls the bash scripts. Petra's fallback (not default): if the in-script integrator
+    proves unwieldy, the integrator agent returns branch names and the front-door turn integrates — but
+    don't build the fallback pre-emptively. Reuses `scripts/ckpt-tag.sh`, `scripts/discover-repos.sh`,
+    and `git-diary-workflow/git-lock-push.sh --ff-only`. See also id:9934 (quota helper) and id:aeaf (STRONG_TIER).
+
+- [ ] Tier-aware quota-stop helper for relay-loop.js [ROUTINE] <!-- id:9934 -->
+  - **Acceptance**: `fables-turn/scripts/quota-stop.sh [--tier sonnet|strong]` (or a JS helper inline in
+    relay-loop.js) reads `/tmp/claude-usage-cache.json` and exits 0 (below threshold) or 1 (at/above).
+    Sonnet tier: stop if `seven_day_sonnet`, `five_hour`, OR `seven_day` utilization ≥ threshold
+    (env `RELAY_QUOTA_THRESHOLD`, default 0.90 = 90%). Strong tier: stop if `five_hour` OR `seven_day`
+    ≥ threshold. Stale cache (mtime > 10 min) or missing file → print a warning to stderr and exit 2
+    (caller treats as "stop, uncertain"); missing-key in JSON → same. Threshold 0.90 is the default;
+    override via env for piloting. Seatbelt: if agent-count arg `N` ≥ 200 or wall-clock arg `S` seconds ≥ 7200,
+    also exit 1 regardless of cache.
+  - **Tests**: `tests/test_quota_stop.sh` (`# roadmap:9934`) — synthetic cache JSONs at 0.85/0.90/0.95
+    utilization for each relevant bucket; stale/missing file; seatbelt cap triggers.
+  - **Done-check**: `tests/run-tests.sh tests/test_quota_stop.sh` then full `make test` after ticking
+  - **Context**: meeting note D5. `/tmp/claude-usage-cache.json` format is maintained by
+    `statusline/statusline-command.sh` (keys: `five_hour`, `seven_day`, `seven_day_sonnet`, each with
+    a `percent_used` or similar field — verify the exact key names from the statusline script before coding).
+    NEVER call `/api/oauth/usage` directly (429s after ~5 requests total).
+
+- [ ] `STRONG_TIER` config knob in relay-loop.js and front-door SKILL.md [ROUTINE] <!-- id:aeaf -->
+  - **Acceptance**: relay-loop.js reads `STRONG_TIER` env var (values: `fable` | `opus`, default `fable`);
+    passes it as `model:` override to all review and handoff agent() calls. Front-door SKILL.md documents
+    the knob: `STRONG_TIER=opus /fables-turn` or `--strong-tier opus` flag. Sonnet execute agents never
+    receive the STRONG_TIER override. If `STRONG_TIER` is unset or empty, defaults to `fable`.
+  - **Tests**: `tests/test_strong_tier_knob.sh` (`# roadmap:aeaf`) — verify the JS script references
+    `STRONG_TIER` and the SKILL.md documents it (grep-based static check).
+  - **Done-check**: `tests/run-tests.sh tests/test_strong_tier_knob.sh` then full `make test` after ticking
+  - **Context**: meeting note D4. Opus model ID: `claude-opus-4-8`. fable-class model match: `claude-fable-5`.
+    Workflow agent() `model:` override is a first-class field — no wrapper needed.
+
+- [ ] `RELAY_STATUS.md` cross-repo rollup writer [ROUTINE] <!-- id:80e2 -->
+  - **Acceptance**: relay-loop.js writes/rewrites `~/.config/fables-turn/RELAY_STATUS.md` (or a path
+    configurable via `RELAY_STATUS_PATH` env var) on every integration and every phase transition.
+    Template sections: `## In-flight` (repo, mode, agent-id), `## Completed this run` (repo, mode,
+    ckpt-tag, push status), `## Queued` (repo, classifier verdict), `## Blocked / HANDBACKs` (repo,
+    reason, worktree path), `## Quota remaining` (all three buckets with % remaining and reset time if
+    available), `## REVIEW_ME open items` (per-repo count + path). Header: `# RELAY_STATUS — last updated
+    <ISO timestamp>  run: <runId>`. File is overwritten each time (not appended). Also printed to `log()`
+    as a condensed one-liner on each rewrite (so /workflows live view shows progress without the full file).
+  - **Tests**: `tests/test_relay_status.sh` (`# roadmap:80e2`) — verify template sections present and
+    non-empty for a synthetic completed-run payload; verify `log()` line appears in the condensed form.
+  - **Done-check**: `tests/run-tests.sh tests/test_relay_status.sh` then full `make test` after ticking
+  - **Context**: meeting note "Surfacing (settled, no vote)". Per-repo REVIEW_ME.md stays the judgment-call
+    channel (written by handoff/review children as before). RELAY_STATUS.md is read-only for humans —
+    never edited by executor sessions.
+
+- [ ] Pilot autonomous pool on 1–2 income repos [HARD — strong model] <!-- id:1ad7 -->
+  - **Why HARD**: first-contact with the real relay loop; templates and the executor contract will need
+    revision after seeing actual unattended behaviour; judgment required on HANDBACK handling, REVIEW_ME
+    quality, and whether priority-mixed scheduling converges as designed. Also the natural window to pilot
+    `STRONG_TIER=opus` on handoff/review and compare output quality.
+  - **Acceptance**: at least one complete unattended run on zkWhale or trAIdBTC (income repos) without
+    manual intervention. `RELAY_STATUS.md` is produced. Any HANDBACKs are documented with root-cause.
+    A short retrospective paragraph is appended to RELAY_LOG.md in this (dotclaude-skills) repo noting
+    what needed revision and whether the Opus-handoff pilot was run.
+  - **Tests**: none (pilot output is the deliverable; follow-on fixes get their own tests/items)
+  - **Done-check**: `RELAY_STATUS.md` exists post-run; retrospective paragraph committed to RELAY_LOG.md here.
+  - **Context**: meeting note A6 / D3 / D6. Gate: id:230f (front door) + id:83c9 (relay-loop.js) + id:9934
+    (quota helper) must all be implemented first. Do not run fleet-wide until at least one income-repo
+    pilot validates the design. This item is the verification gate before `--all` runs.
+
 - [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,
