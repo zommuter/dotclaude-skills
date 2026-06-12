@@ -46,3 +46,8 @@ review 2026-06-12 (window fable-ckpt-20260612-1618..HEAD): all five executor ite
 ## 2026-06-12 18:27 — reviewer (Fable)
 
 review turn: verified 5 ROUTINE items (44ba/2520/32d6/1ec1/3b02) genuine-green, no gaming flags; strong-model audit id:401c done (16 findings: 4 fixed incl. git-lock-push slash-branch pull bug + broker-curl port-injection guard, 1 tracked id:697e, rest accepted); ARCHITECTURE/CLAUDE.md drift synced; only gated id:3346 remains open
+
+## 2026-06-12 — executor (Sonnet)
+
+[2026-06-12 executor sonnet] No ROUTINE items available — all prior items ticked. Only open item is id:3346 [HARD — strong model], which is out of scope for executor tier. No work done this session; queue is empty for executor. Reviewer should add new ROUTINE items or tackle id:3346 in a strong-model session.
+Friction: none (no items to work).
