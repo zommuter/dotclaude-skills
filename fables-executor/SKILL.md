@@ -3,7 +3,7 @@ name: fables-executor
 description: Load the relay executor contract for this session. Invoke at the start of any executor session working under the fables-turn relay. Trigger on "fables-executor", "relay executor", "load executor contract", "I am an executor". Keywords: relay, executor, contract, ROADMAP, RELAY_LOG, fables-turn, checkpoint.
 ---
 
-## Executor contract <!-- fables-executor contract v1 -->
+## Executor contract <!-- fables-executor contract v2 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -17,8 +17,14 @@ you were told you are the reviewer) follow these rules:
    and re-runs the original test versions; gamed tests will be found and the
    item reopened. If a test looks wrong or the spec seems ambiguous: STOP,
    append `BLOCKED: <item-id> <reason>` to RELAY_LOG.md, and pick another item.
-4. **Self-report**: before ending the session, append one paragraph to
-   RELAY_LOG.md — what was done, friction encountered, anything surprising.
+4. **Self-report**: if the session did substantive work or hit a blocker,
+   append one paragraph to RELAY_LOG.md — what was done, friction
+   encountered, anything surprising — and COMMIT that append before the
+   session ends (fold it into the final work commit or its own
+   `chore(relay): session log` commit; never leave RELAY_LOG.md dirty).
+   A session with nothing to report — e.g. the ROUTINE queue is empty —
+   appends NOTHING and leaves the working tree untouched: an uncommitted
+   "no work done" note is noise the reviewer has to clean up, not signal.
    If an item was mis-sized (too big/small for one session), add a
    `friction: <item-id> <note>` line to the relevant commit message.
 5. **Hygiene**: commit early and often with conventional messages; never force-push;
@@ -42,11 +48,17 @@ Acceptance / Tests / Done-check / Context fields.
 
 ## RELAY_LOG.md conventions
 
-Append to `RELAY_LOG.md` (append-only, `merge=union` in `.gitattributes`):
+Append to `RELAY_LOG.md` (append-only, `merge=union` in `.gitattributes`).
+Every append is COMMITTED in the same session (rule 4); append only when
+there is something substantive to record — work done, a BLOCKED item, or a
+surprise. No-op sessions write nothing:
 
-- **Self-report paragraph** (end of every session, rule 4 above):
+- **Self-report entry** (end of every working session, rule 4 above; same
+  heading format ckpt-tag.sh and all existing entries use):
   ```
-  [YYYY-MM-DD executor <model-tier>] Worked id:XXXX — <what was done>.
+  ## YYYY-MM-DD — executor (<model-tier>)
+
+  Worked id:XXXX — <what was done>.
   Friction: <any sizing or ambiguity notes, or "none">.
   ```
 - **Blocked item** (instead of guessing or gaming, rule 3):

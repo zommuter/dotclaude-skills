@@ -22,7 +22,8 @@ verify ordering from the returned commit list. Never push.
 
 **C1 — docs.** Read the repo fully; note quirks and implicit conventions. Write or
 refresh `CLAUDE.md` (commands, conventions, deploy, gotchas — nothing implicit; write
-the thin relay pointer as `## Relay contract <!-- fables-executor contract v1 -->` with
+the thin relay pointer as `## Relay contract <!-- fables-executor contract vN -->` —
+vN = the canonical version in `fables-executor/SKILL.md` — with
 the two-line body from conventions.md §Executor-contract pointer). Write
 `ARCHITECTURE.md` (decisions WITH rationale and rejected alternatives). Commit
 `relay(handoff): C1 docs`.
