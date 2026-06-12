@@ -157,7 +157,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     First run: covers all work since `fable-ckpt-20260612-1328`. Subsequent runs: diff
     against the most recent `fable-ckpt-*` tag (same window as review mode step 2).
 
-- [ ] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] <!-- id:230f -->
+- [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
     judgment on the unattended-safe confirmation contract and how the skill hands off to the Workflow engine;
     wrong front-door behaviour silently skips repos or blocks the unattended run.
@@ -254,7 +254,9 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     quality, and whether priority-mixed scheduling converges as designed. Also the natural window to pilot
     `STRONG_TIER=opus` on handoff/review and compare output quality.
   - **Acceptance**: at least one complete unattended run on zkWhale or trAIdBTC (income repos) without
-    manual intervention. `RELAY_STATUS.md` is produced. Any HANDBACKs are documented with root-cause.
+    manual intervention. `RELAY_STATUS.md` is produced **with all six template sections populated
+    correctly — this is the behavioral check of the id:80e2 writer (its unit test is static-grep
+    only; rescoped here by 2026-06-12 review)**. Any HANDBACKs are documented with root-cause.
     A short retrospective paragraph is appended to RELAY_LOG.md in this (dotclaude-skills) repo noting
     what needed revision and whether the Opus-handoff pilot was run.
   - **Tests**: none (pilot output is the deliverable; follow-on fixes get their own tests/items)

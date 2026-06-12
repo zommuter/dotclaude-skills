@@ -18,6 +18,12 @@ const STRONG_MODEL = STRONG_TIER === 'opus' ? 'claude-opus-4-8' : 'claude-fable-
 // RELAY_STATUS_PATH: output file for cross-repo rollup. Overridable for testing.
 const RELAY_STATUS_PATH = (args && args.RELAY_STATUS_PATH) || '~/.config/fables-turn/RELAY_STATUS.md'
 
+// INTERACTIVE: pass-through of the front door's --interactive flag (default false).
+// The Workflow itself NEVER prompts the user (unattended invariant, meeting D2 —
+// enforced by tests/test_fables_front_door.sh grepping this file for the question tool);
+// when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
+const INTERACTIVE = !!(args && args.interactive)
+
 log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}`)
 
 // buildRelayStatus — generate RELAY_STATUS.md content from a run-state snapshot.
