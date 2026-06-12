@@ -207,7 +207,9 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     relay-loop.js) reads `/tmp/claude-usage-cache.json` and exits 0 (below threshold) or 1 (at/above).
     Sonnet tier: stop if `seven_day_sonnet`, `five_hour`, OR `seven_day` utilization ≥ threshold
     (env `RELAY_QUOTA_THRESHOLD`, default 0.90 = 90%). Strong tier: stop if `five_hour` OR `seven_day`
-    ≥ threshold. Stale cache (mtime > 10 min) or missing file → print a warning to stderr and exit 2
+    ≥ threshold. **Scale (review fix 2026-06-12):** the live cache stores `.utilization` as a
+    0–100 percent (e.g. `37.0`), while `RELAY_QUOTA_THRESHOLD` is a 0–1 fraction — the script
+    converts internally (`val >= threshold*100`). Tests must use percent-scale fixtures. Stale cache (mtime > 10 min) or missing file → print a warning to stderr and exit 2
     (caller treats as "stop, uncertain"); missing-key in JSON → same. Threshold 0.90 is the default;
     override via env for piloting. Seatbelt: if agent-count arg `N` ≥ 200 or wall-clock arg `S` seconds ≥ 7200,
     also exit 1 regardless of cache.
