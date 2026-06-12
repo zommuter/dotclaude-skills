@@ -1,5 +1,9 @@
 # TODO
 
+## Relay
+
+- [ ] Relay: 7 open ROADMAP items <!-- id:d5e0 -->
+
 ## meeting skill
 
 - [ ] **honcho** — evaluation **complete** (record-and-defer, 2026-06-05). Current file-based memory (discoveries.md+RAG / user-profile.md+awk-filter / persona-state.yml / auto-memory MEMORY.md) is sufficient for the current corpus (71 profile sections / 162 discovery lines). Honcho (AGPL-3.0, Postgres+pgvector+Docker+FastAPI+deriver+LLM-key, or managed api.honcho.dev) not warranted now. **Reopen gate:** primary = scale/loss (`user-profile.md` outgrows `profile-active.sh --filter` ctx budget, OR a logged save/discard miss); secondary (opportunistic): (a) piggyback if Honcho Claude Code MCP installs for unrelated reasons; (b) fold into meeting-rpg agent-infra wave with `hermes` + agent-persona-separation. **Privacy invariant: self-host only** if ever piloted — managed api.honcho.dev ships user-profile.md to a third party. See `docs/meeting-notes/2026-06-05-1213-honcho-memory-eval.md`. <!-- id:45ac -->
