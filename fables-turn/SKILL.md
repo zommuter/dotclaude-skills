@@ -87,6 +87,20 @@ last_review    = ""
 Tag/dirty facts are re-derivable from git; this file is the confirmation registry and
 wave scheduler. The orchestrator is its only writer (after user confirmation).
 
+## Configuration knobs
+
+| Env var / flag | Values | Default | Effect |
+|---|---|---|---|
+| `STRONG_TIER` | `fable` \| `opus` | `fable` | Model used for review and handoff agents in the autonomous pool. Execute (Sonnet) agents are never affected. |
+
+Usage:
+```bash
+STRONG_TIER=opus /fables-turn          # pilot Opus for review+handoff agents
+/fables-turn --strong-tier opus        # flag form (front door passes it to relay-loop.js via args.STRONG_TIER)
+```
+
+Model IDs: `fable` → `claude-fable-5`, `opus` → `claude-opus-4-8`.
+
 ## Guardrails
 
 - Verification-before-merge; one push per repo per turn; never two children pushing to

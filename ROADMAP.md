@@ -219,7 +219,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     a `percent_used` or similar field — verify the exact key names from the statusline script before coding).
     NEVER call `/api/oauth/usage` directly (429s after ~5 requests total).
 
-- [ ] `STRONG_TIER` config knob in relay-loop.js and front-door SKILL.md [ROUTINE] <!-- id:aeaf -->
+- [x] `STRONG_TIER` config knob in relay-loop.js and front-door SKILL.md [ROUTINE] <!-- id:aeaf -->
   - **Acceptance**: relay-loop.js reads `STRONG_TIER` env var (values: `fable` | `opus`, default `fable`);
     passes it as `model:` override to all review and handoff agent() calls. Front-door SKILL.md documents
     the knob: `STRONG_TIER=opus /fables-turn` or `--strong-tier opus` flag. Sonnet execute agents never
