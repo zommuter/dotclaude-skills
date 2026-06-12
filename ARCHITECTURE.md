@@ -131,3 +131,16 @@ Worktrees go under `~/.cache/fables-turn/worktrees/<repo>/` — outside the repo
 tree so `git status` stays clean. Checkpoint tags `fable-ckpt-*` + RELAY_LOG.md
 entries are written atomically by `fables-turn/scripts/ckpt-tag.sh`; children
 never push (one push per repo per turn via `git-lock-push.sh`).
+
+The integration push uses `git-lock-push.sh --ff-only` (+ `--follow-tags`,
+always on): rebase would rewrite the `--no-ff` merge topology and orphan the
+annotated checkpoint tags, so the relay path fails loud on divergence instead
+of reconciling. The everyday diary-workflow default (`--rebase --autostash`)
+is unchanged. (`docs/meeting-notes/2026-06-12-1342-fables-turn-integration-defects.md`)
+
+The executor contract itself is a versioned skill (`fables-executor/SKILL.md`,
+marker `<!-- fables-executor contract vN -->`); managed repos carry only a
+2-line pointer in their CLAUDE.md whose vN must match — a full move into the
+trigger-gated skill would lose the passively-loaded anti-gaming guarantee
+(Shape B). Version consistency is test-enforced (`tests/test_fables_executor.sh`).
+(`docs/meeting-notes/2026-06-12-1404-fables-executor-skill.md`)

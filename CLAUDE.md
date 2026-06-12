@@ -38,6 +38,7 @@ install IS the published version (per-file symlinks, see Layout).
 | `meeting-cross/` | Deprecated alias skill → `/meeting --cross` (deletion gated, TODO id:4f5f) |
 | `projects/` | Project-dashboard skill (SKILL.md only) |
 | `fables-turn/` | The reviewer/executor relay skill itself (this contract comes from there) |
+| `fables-executor/` | Versioned executor-contract skill (SKILL.md only); the `## Relay contract` pointer below must match its `vN` marker |
 | `hooks/` | Stop/Notification hook scripts; settings.json snippets in `hooks/README.md` |
 | `statusline/` | `statusline-command.sh` — quota/cost/model statusline (reads JSON on stdin) |
 | `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt` |
@@ -96,8 +97,10 @@ install IS the published version (per-file symlinks, see Layout).
 
 Plain-bash harness, zero dependencies beyond `bash`/`python3`/`jq`/`make`:
 
-- `tests/run-tests.sh` runs every `tests/test_*.sh`. Each test file declares its
-  roadmap item with a `# roadmap:XXXX` header comment.
+- `tests/run-tests.sh` runs every `tests/test_*.sh`. Each test file that specs a
+  roadmap item declares it with a `# roadmap:XXXX` header comment. Defect-fix
+  tests without a roadmap item omit the header (and say so in a comment) — their
+  failures always count.
 - **Expected-red semantics**: a failing test file whose roadmap item checkbox in
   `ROADMAP.md` is still **unticked** is reported `EXPECTED-RED` and does **not**
   fail the suite (red tests are the spec for open items). Once the item is ticked,
