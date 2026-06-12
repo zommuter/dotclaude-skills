@@ -135,7 +135,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     TODO id:fba6. The skill body + all reference-file edits may already exist from the
     review turn that wrote this item — verify before re-implementing.
 
-- [ ] Strong-model audit: code review, security, and design coherence [HARD — strong model] <!-- id:401c -->
+- [x] Strong-model audit: code review, security, and design coherence [HARD — strong model] <!-- id:401c -->
   - **Why HARD**: requires adversarial judgment — finding subtle bugs, security issues,
     and internal contradictions in design docs that a weaker model would miss or dismiss.
     Also requires holding the full design history in mind to spot feasibility gaps.
