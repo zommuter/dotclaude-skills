@@ -56,14 +56,18 @@ pass "classifier verdicts execute/review/handoff/idle present"
 grep -q "PRIORITY" "$JS" || fail "no PRIORITY ordering for unit dispatch"
 pass "PRIORITY dispatch ordering present"
 
+# Income preference: income repos win slot contention within a class (user 2026-06-12)
+grep -q "income" "$JS" || fail "no income-preference key in unit ordering"
+pass "income preference present in scheduler"
+
 # (6) Pool width capped at 5 distinct repos (D3)
 grep -q "POOL_WIDTH = 5" "$JS" || fail "POOL_WIDTH = 5 not declared"
 pass "POOL_WIDTH = 5 declared"
 
 # (7) Quota gate is tier-aware and uses the id:9934 helper (D5)
 grep -q "quota-stop.sh" "$JS" || fail "quota-stop.sh helper not referenced"
-grep -q -- "--tier sonnet" "$JS" || fail "sonnet-tier quota gate missing"
-grep -q -- "--tier strong" "$JS" || fail "strong-tier quota gate missing"
+grep -qF -- '--tier ${tier}' "$JS" || fail "quota gate does not pass a per-unit tier"
+grep -qF -- "'sonnet' : 'strong'" "$JS" || fail "tier derivation (execute→sonnet, else strong) missing"
 pass "tier-aware quota-stop gate present"
 
 # (8) Graceful drain: in-flight + integration debt finish before return (D5)
