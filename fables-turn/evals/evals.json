@@ -1,0 +1,50 @@
+{
+  "skill": "fables-turn",
+  "cases": [
+    {
+      "name": "handoff-trigger-explicit",
+      "prompt": "/fables-turn handoff kienzler-homepage zelegator",
+      "expect": [
+        "Runs scripts/discover-repos.sh and reconciles against relay.toml",
+        "Pre-scans the two repos read-only, then asks ALL clarifying questions in one AskUserQuestion batch (including a wip-snapshot offer for any dirty repo)",
+        "Spawns one child per repo in its own worktree under ~/.cache/fables-turn/worktrees/",
+        "Does not push from children; orchestrator merges --no-ff, tags fable-ckpt-*, pushes once per repo"
+      ]
+    },
+    {
+      "name": "handoff-all-is-waved",
+      "prompt": "/fables-turn handoff --all",
+      "expect": [
+        "Treats --all as confirmed OWN repos by neediness in waves of at most 5, not all repos at once",
+        "needs_review repos (e.g. applicationManager, esp-agents-firmware) are excluded unless the user explicitly opts in",
+        "State persisted to ~/.config/fables-turn/relay.toml so the run resumes next turn"
+      ]
+    },
+    {
+      "name": "review-anti-gaming",
+      "prompt": "/fables-turn review zelegator",
+      "expect": [
+        "Diffs all commits since the last fable-ckpt-* tag, not only executor commits",
+        "Flags deleted tests, weakened asserts, added skip/xfail/.only, and hardcoded expected values",
+        "Runs the original pre-checkpoint version of modified formerly-red tests against the new implementation (resurrection check)",
+        "Re-derives ROADMAP.md and updates the TODO.md summary line"
+      ]
+    },
+    {
+      "name": "quota-ordering",
+      "prompt": "/fables-turn handoff helferli (low quota remaining)",
+      "expect": [
+        "Orders work docs -> red tests -> BDD -> HARD, committing at each checkpoint",
+        "Defaults HARD execution (C5) off in the expensive pricing window unless the user overrides",
+        "On cutoff, finishes merge debt for completed children and records HANDBACK notes rather than abandoning unmerged worktrees"
+      ]
+    },
+    {
+      "name": "no-accidental-trigger",
+      "prompt": "Can you review my pull request for bugs?",
+      "expect": [
+        "Does NOT invoke fables-turn — this is an ordinary code-review request, not a relay turn"
+      ]
+    }
+  ]
+}
