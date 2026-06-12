@@ -250,7 +250,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     channel (written by handoff/review children as before). RELAY_STATUS.md is read-only for humans —
     never edited by executor sessions.
 
-- [ ] Pilot autonomous pool on 1–2 income repos [HARD — strong model] <!-- id:1ad7 -->
+- [x] Pilot autonomous pool on 1–2 income repos [HARD — strong model] (done 2026-06-12, run relay-20260612-2304: 6 integrated, 3 HANDBACKs recovered, quota drain verified; retrospective in RELAY_LOG.md 23:50 entry; Opus-handoff pilot NOT run — no handoff units classified; follow-ups id:bae5/59ea/1dff) <!-- id:1ad7 -->
   - **Why HARD**: first-contact with the real relay loop; templates and the executor contract will need
     revision after seeing actual unattended behaviour; judgment required on HANDBACK handling, REVIEW_ME
     quality, and whether priority-mixed scheduling converges as designed. Also the natural window to pilot
