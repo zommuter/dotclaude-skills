@@ -2,7 +2,7 @@
 
 ## Relay
 
-- [ ] Relay: 1 open ROADMAP items <!-- id:d5e0 -->
+- [ ] Relay: 7 open ROADMAP items <!-- id:d5e0 -->
 
 ## meeting skill
 
