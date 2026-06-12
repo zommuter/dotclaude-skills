@@ -31,7 +31,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     `tests/fixtures/mock-broker.py`. TODO id:3b02 is the origin item — option (b)
     batching was chosen; do not also implement (a)/(c).
 
-- [ ] Add the Fable-class caveat to the γ-branch reference table in broker-mode.md [ROUTINE] <!-- id:44ba -->
+- [x] Add the Fable-class caveat to the γ-branch reference table in broker-mode.md [ROUTINE] <!-- id:44ba -->
   - **Acceptance**: in `meeting/broker-mode.md`, the `## γ-branch reference` section
     contains a visible Fable note attached to the table — either a `> **Fable note:**`
     blockquote directly under the table or a footnote marker on the three

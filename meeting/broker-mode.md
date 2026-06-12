@@ -54,6 +54,8 @@ Never pass a raw single-quoted JSON literal when the text is user- or persona-co
 | Broker up, `subscribers>0` | opener stub + per-line `/event` (chat suppressed) | POST `/question` + GET `/await` | POST `/question` + GET `/await` (per-prompt re-probe) |
 | Broker unavailable | Chat only | AskUserQuestion | AskUserQuestion |
 
+> **Fable note:** On Fable-class harnesses, `AskUserQuestion` is unavailable. The three fallback rows (`MEETING_LIVE=0`, `subscribers=0`, and `Broker unavailable`) use inline-prose numbered prompts instead. See `format.md` §Interactive mode §Harness-class gate. The `subscribers>0` row is unaffected — broker routing makes the rendering limit irrelevant.
+
 Broker endpoints (all at `http://127.0.0.1:<port>`):
 - `GET /status?session=<sid>` → `{"subscribers": N}`
 - `POST /event` body `{"text": "...", "session": "<sid>"}` → streams to renderer
