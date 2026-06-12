@@ -55,6 +55,13 @@ conflict if the drift looks unintended. Also check the `## Relay contract` point
 the canonical marker in `dotclaude-skills/fables-executor/SKILL.md`, refresh the pointer
 line (update `vN` only — the two-line pointer body is stable and does not change).
 
+**User-facing docs are drift surface too** (added 2026-06-12, user directive): check
+that `README.md` (feature/skill/usage tables, install instructions) and any user-facing
+pages under `docs/` still describe what shipped in this diff window — a new command,
+mode, knob, or artifact that the README doesn't mention is spec drift, same as a stale
+ARCHITECTURE.md. Fix small gaps inline; queue a roadmap item for rewrites bigger than
+the review turn should absorb.
+
 ## 5. Re-derive ROADMAP.md
 
 - Close items whose tests are genuinely green; update the TODO.md summary count.
