@@ -48,7 +48,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     Prose cross-refs already exist elsewhere in the file — the fix is specifically
     AT the table, which is what gets skimmed.
 
-- [ ] Cover fables-turn and projects skills in the Makefile installer [ROUTINE] <!-- id:1ec1 -->
+- [x] Cover fables-turn and projects skills in the Makefile installer [ROUTINE] <!-- id:1ec1 -->
   - **Acceptance**: `make install-fables-turn` and `make install-projects` exist and
     symlink the skills into `$(DEST_DIR)` (override-able, default `~/.claude/skills`).
     fables-turn installs `SKILL.md`, `references/{handoff,review,conventions,templates}.md`,
