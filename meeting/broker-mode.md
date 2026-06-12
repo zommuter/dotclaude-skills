@@ -26,16 +26,15 @@ BODY=$(jq -n --arg text "<block>" '{"text": $text}')
 Never pass a raw single-quoted JSON literal when the text is user- or persona-controlled.
 
 **Discussion (persona lines):**
-- `subscribers > 0` (renderer attached): POST a parseBlock-visible **opener stub first** to mark t0, then **compose-and-POST each persona line individually** (compose → POST → compose → next), so the renderer paints each line as it is authored. Do **not** print the verbatim discussion to chat. The opener must be a dialogue line (emoji + `**Name:**` format) — not a `#` heading or `**Key:**` metadata line (those are skipped by `parse.js`). Include `"kind":"opener"` in the opener body for TTFL logging. Example:
+- `subscribers > 0` (renderer attached): compose the **full discussion block** (opener stub first, then each persona line), then POST all lines in **one `say` call** — `say` sends one `/event` per line so per-line renderer painting is preserved. Do **not** print the verbatim discussion to chat. The opener must be a dialogue line (emoji + `**Name:**` format) — not a `#` heading or `**Key:**` metadata line (those are skipped by `parse.js`). Use `--opener` so the first line gets `"kind":"opener"` for TTFL logging. Example:
   ```bash
-  OPENER=$(jq -n --arg text "🏗️ **Archie:** *(opening <item>)*" '{"text":$text,"kind":"opener"}')
-  ~/.claude/skills/meeting/broker-curl.sh <port> <sid> event "$OPENER"
-  # Then for each persona line — compose the line, POST immediately, then compose the next:
-  LINE=$(jq -n --arg text "🏗️ **Archie:** <line text>" '{"text":$text}')
-  ~/.claude/skills/meeting/broker-curl.sh <port> <sid> event "$LINE"
-  LINE=$(jq -n --arg text "😈 **Riku:** <line text>" '{"text":$text}')
-  ~/.claude/skills/meeting/broker-curl.sh <port> <sid> event "$LINE"
-  # ... one POST per persona line (never batch the block)
+  # Compose the full discussion block, then POST via say in one Bash call:
+  printf '%s\n' \
+    "🏗️ **Archie:** *(opening <item>)*" \
+    "🏗️ **Archie:** <archie line>" \
+    "😈 **Riku:** <riku line>" \
+    | ~/.claude/skills/meeting/broker-curl.sh <port> <sid> say --opener
+  # say reads each non-empty line, POSTs /event per line; first line gets kind=opener.
   ```
 - `subscribers = 0` (headless) or `<port>` unset: print the **complete, verbatim discussion** to chat as in canonical `/meeting`; **skip** the `/event` POST.
 

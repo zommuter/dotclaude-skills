@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] Add a batched `say` subcommand to broker-curl.sh and route broker-mode.md through it [ROUTINE] <!-- id:3b02 -->
+- [x] Add a batched `say` subcommand to broker-curl.sh and route broker-mode.md through it [ROUTINE] <!-- id:3b02 -->
   - **Acceptance**: `broker-curl.sh <port> <session> say` reads plain-text lines from
     stdin and POSTs **one `/event` per line** (per-line painting in the renderer must
     be preserved — never collapse lines into a single event). A `--opener` first-line

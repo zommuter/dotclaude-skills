@@ -23,7 +23,7 @@ PORT="$(cat "$tmp/port")"
 
 # Three persona lines (middle input has an empty line that must be skipped);
 # text includes apostrophe, double quote, and backslash to prove jq escaping.
-input=$'🏗️ **Archie:** *(opening test-item)*\n😈 **Riku:** don'\''t ship it\n\n🧭 **Petra:** "quote" and back\\slash'
+input=$'🏗️ **Archie:** *(opening test-item)*\n😈 **Riku:** don\'t ship it\n\n🧭 **Petra:** "quote" and back\\slash'
 
 out="$(printf '%s' "$input" | "$BROKER_CURL" "$PORT" testsid say --opener)" \
   || { echo "say subcommand failed (exit $?)"; exit 1; }
