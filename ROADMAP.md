@@ -100,7 +100,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     cost-saving indicators" (this implements the first candidate; cache-read ratio
     is out of scope — it needs transcript parsing).
 
-- [ ] Extend the id-token ecosystem to ROADMAP.md (scan-ids, orphan-scan union, classify relay line) [HARD — strong model] <!-- id:de9c -->
+- [x] Extend the id-token ecosystem to ROADMAP.md (scan-ids, orphan-scan union, classify relay line) [HARD — strong model] <!-- id:de9c -->
   - **Why HARD**: cross-script invariant — three scripts must agree on what counts
     as the id-bearing ledger, and the wrong call silently reintroduces token
     collisions or orphan-scan false positives; also requires deciding how the

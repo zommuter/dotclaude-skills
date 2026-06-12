@@ -3,7 +3,9 @@
 # Called by /meeting (no-arg) and /meeting-cross.
 # Usage: classify.sh [project-root]   — defaults to git toplevel
 # Output: TSV lines:  CLASS  ID  SUMMARY(≤80char)  NOTE-LINK  GATE
-#   CLASS: C1 (link+Decisions), C2 (link-no-Decisions or keyword hint), C3 (no link)
+#   CLASS: C1 (link+Decisions), C2 (link-no-Decisions or keyword hint), C3 (no link),
+#          RELAY (the fables-turn ROADMAP mirror line — executor work, never
+#          meeting-worthy; /meeting dispatch must skip it)
 #   GATE:  GATED if body contains gate/condition/blocked vocabulary; empty otherwise
 #          Advisory only — never reclassifies or skips; model judges satisfaction.
 
@@ -29,6 +31,13 @@ while IFS= read -r line; do
         | sed 's/^[[:space:]]*- \[ \] //' \
         | sed 's/ *<!-- id:[a-f0-9]* -->//')
     summary=$(printf '%s' "$body" | cut -c1-80)
+
+    # Relay mirror line (see ROADMAP.md template): executor work lives in
+    # ROADMAP.md — classify as RELAY so dispatch never proposes a meeting on it.
+    if printf '%s' "$body" | grep -qE '^Relay: [0-9]+ open ROADMAP items[[:space:]]*$'; then
+        printf '%s\t%s\t%s\t%s\t%s\n' "RELAY" "$id" "$summary" "" ""
+        continue
+    fi
 
     # Find first meeting-note link in line
     note_link=$(printf '%s' "$line" \
