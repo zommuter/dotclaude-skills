@@ -1,9 +1,9 @@
 # fables-turn shared conventions
 
-Single source of truth, two audiences: the **environment facts** below inform every
-agent prompt; the **executor-contract block** is copied verbatim into every generated
-CLAUDE.md. Never paraphrase the contract — review mode detects stale copies by the
-version marker.
+Two audiences: the **environment facts** below inform every agent prompt; the
+**executor contract** lives in the `fables-executor` skill (`fables-executor/SKILL.md`
+in dotclaude-skills). Handoff/review embed a thin versioned pointer into managed repos
+rather than copying the full block — see §Executor-contract pointer below.
 
 ## Environment facts (inject into every child-agent prompt)
 
@@ -29,35 +29,24 @@ version marker.
 - Cross-repo action items discovered mid-work go to the shared inbox
   (`~/.claude/skills/meeting/append.sh -t inbox`), never into another repo's TODO.md.
 
-## Executor-contract block
+## Executor-contract pointer
 
-Copy the fenced block below **verbatim** (including the version comment) into every
-generated/refreshed CLAUDE.md, as its own `## Relay contract` section.
+The full executor contract (5 rules + ROADMAP/RELAY_LOG format conventions) lives in
+the `fables-executor` skill at `dotclaude-skills/fables-executor/SKILL.md`. The
+canonical version marker is `<!-- fables-executor contract vN -->` on the
+`## Executor contract` heading inside that file.
+
+**Handoff C1** writes the following thin pointer into the managed repo's `CLAUDE.md`
+(as its own `## Relay contract` section), replacing any older verbatim block:
 
 ```markdown
-## Relay contract <!-- fables-turn contract v1 -->
+## Relay contract <!-- fables-executor contract v1 -->
 
-This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
-you were told you are the reviewer) follow these rules:
-
-1. **Scope**: work only `[ROUTINE]` items from ROADMAP.md, one item per session.
-   Never start `[HARD]` items — they are reserved for the reviewer model.
-2. **Definition of done**: the item's previously-failing tests pass, a refactor
-   pass is done, and the FULL test suite is green. Nothing else counts.
-3. **Test integrity**: never weaken, delete, skip, or rewrite a test to make it
-   pass. The reviewer diffs all test files against the last `fable-ckpt-*` tag
-   and re-runs the original test versions; gamed tests will be found and the
-   item reopened. If a test looks wrong or the spec seems ambiguous: STOP,
-   append `BLOCKED: <item-id> <reason>` to RELAY_LOG.md, and pick another item.
-4. **Self-report**: before ending the session, append one paragraph to
-   RELAY_LOG.md — what was done, friction encountered, anything surprising.
-   If an item was mis-sized (too big/small for one session), add a
-   `friction: <item-id> <note>` line to the relevant commit message.
-5. **Hygiene**: commit early and often with conventional messages; never force-push;
-   never edit ROADMAP.md item definitions (tick checkboxes only); pamac not pacman;
-   uv for Python.
+This repo is managed by a reviewer/executor relay. Load the `fables-executor` skill
+(`/fables-executor`) before working on any item, then follow its rules exactly.
 ```
 
-When review mode finds a CLAUDE.md whose contract block is missing or has a version
-marker older than the current one in this file, it refreshes the block (and only the
-block) as part of its docs pass.
+**Review step 4** checks whether the pointer's `vN` matches the current skill version.
+If stale (pointer vN < skill vN), refresh the pointer line to carry the current vN.
+The pointer body text ("Load the `fables-executor` skill …") is stable and does not
+change with version bumps.

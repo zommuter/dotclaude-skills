@@ -5,9 +5,9 @@ Mostly bash scripts + markdown skill specs; Python is stdlib-only (no venv, no d
 See `ARCHITECTURE.md` for design decisions and rationale; `ROADMAP.md` for the
 executor task queue; `TODO.md` for the broader work inventory.
 
-> Maintenance note: only the `## Relay contract` section below is auto-refreshed
-> (by fables-turn review mode, when its version marker goes stale). Everything else
-> in this file is hand-maintained and preserved across relay turns.
+> Maintenance note: the `## Relay contract` pointer below is auto-refreshed by
+> fables-turn review mode when its version marker goes stale (version lives in
+> `fables-executor/SKILL.md`). Everything else in this file is hand-maintained.
 
 ## Commands
 
@@ -107,24 +107,7 @@ Plain-bash harness, zero dependencies beyond `bash`/`python3`/`jq`/`make`:
 - Tests must be hermetic: work in `mktemp -d`, override `HOME`/`DEST_DIR`/roots via
   args or env, never touch `~/.claude` or the network.
 
-## Relay contract <!-- fables-turn contract v1 -->
+## Relay contract <!-- fables-executor contract v1 -->
 
-This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
-you were told you are the reviewer) follow these rules:
-
-1. **Scope**: work only `[ROUTINE]` items from ROADMAP.md, one item per session.
-   Never start `[HARD]` items — they are reserved for the reviewer model.
-2. **Definition of done**: the item's previously-failing tests pass, a refactor
-   pass is done, and the FULL test suite is green. Nothing else counts.
-3. **Test integrity**: never weaken, delete, skip, or rewrite a test to make it
-   pass. The reviewer diffs all test files against the last `fable-ckpt-*` tag
-   and re-runs the original test versions; gamed tests will be found and the
-   item reopened. If a test looks wrong or the spec seems ambiguous: STOP,
-   append `BLOCKED: <item-id> <reason>` to RELAY_LOG.md, and pick another item.
-4. **Self-report**: before ending the session, append one paragraph to
-   RELAY_LOG.md — what was done, friction encountered, anything surprising.
-   If an item was mis-sized (too big/small for one session), add a
-   `friction: <item-id> <note>` line to the relevant commit message.
-5. **Hygiene**: commit early and often with conventional messages; never force-push;
-   never edit ROADMAP.md item definitions (tick checkboxes only); pamac not pacman;
-   uv for Python.
+This repo is managed by a reviewer/executor relay. Load the `fables-executor` skill
+(`/fables-executor`) before working on any item, then follow its rules exactly.

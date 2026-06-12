@@ -2,7 +2,7 @@ SRC_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEST_DIR := $(HOME)/.claude/skills
 export DEST_DIR
 
-SKILLS := meeting meeting-cross git-diary-workflow todo-update
+SKILLS := meeting meeting-cross git-diary-workflow todo-update fables-executor
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
@@ -29,6 +29,11 @@ todo-update_FILES := SKILL.md archive-done.sh
 todo-update_EXEC  := archive-done.sh
 todo-update_ALLOW := archive-done.sh
 todo-update_LOCAL :=
+
+fables-executor_FILES := SKILL.md
+fables-executor_EXEC  :=
+fables-executor_ALLOW :=
+fables-executor_LOCAL :=
 
 SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))

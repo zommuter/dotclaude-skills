@@ -119,6 +119,22 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Context**: executed by the reviewer in this handoff turn (C5). See
     ARCHITECTURE.md §3.
 
+- [x] Create the `fables-executor` skill: versioned SKILL.md + Makefile registration + test [ROUTINE] <!-- id:7691 -->
+  - **Acceptance**: `fables-executor/SKILL.md` exists with `name`/`description` frontmatter
+    and a `## Executor contract <!-- fables-executor contract v1 -->` heading carrying the
+    5 rules verbatim + ROADMAP item format recap + RELAY_LOG conventions + Maintenance
+    bump-rule note. `fables-executor` is in `Makefile` `SKILLS` with `_FILES := SKILL.md`
+    and empty `_EXEC/_ALLOW/_LOCAL`. `dotclaude-skills/CLAUDE.md` `## Relay contract`
+    section is the thin pointer (`<!-- fables-executor contract v1 -->`). Version-consistency
+    grep: the `vN` in `fables-executor/SKILL.md` equals the `vN` in `CLAUDE.md`'s pointer.
+    `fables-turn/references/conventions.md` no longer contains the fenced 5-rule block.
+    `handoff.md` C1 and `review.md` step 4 reference the pointer, not the block.
+  - **Tests**: `tests/test_fables_executor.sh` (`# roadmap:7691`) (currently RED)
+  - **Done-check**: `tests/run-tests.sh tests/test_fables_executor.sh` then full `make test` after ticking
+  - **Context**: meeting note `docs/meeting-notes/2026-06-12-1404-fables-executor-skill.md`;
+    TODO id:fba6. The skill body + all reference-file edits may already exist from the
+    review turn that wrote this item — verify before re-implementing.
+
 - [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,

@@ -50,9 +50,10 @@ the return report) for the human rather than attempting to automate them.
 
 Does the implementation still match `ARCHITECTURE.md` rationale (new dependencies,
 restructurings, abandoned decisions)? Update the doc to reflect reality, or flag the
-conflict if the drift looks unintended. If `CLAUDE.md`'s contract block is missing or
-its version marker is older than the one in `references/conventions.md`, refresh that
-block (and only that block).
+conflict if the drift looks unintended. Also check the `## Relay contract` pointer in
+`CLAUDE.md`: if the `<!-- fables-executor contract vN -->` version number is older than
+the canonical marker in `dotclaude-skills/fables-executor/SKILL.md`, refresh the pointer
+line (update `vN` only — the two-line pointer body is stable and does not change).
 
 ## 5. Re-derive ROADMAP.md
 
