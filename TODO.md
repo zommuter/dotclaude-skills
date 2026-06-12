@@ -2,7 +2,7 @@
 
 ## Relay
 
-- [ ] Relay: 7 open ROADMAP items <!-- id:d5e0 -->
+- [ ] Relay: 6 open ROADMAP items <!-- id:d5e0 -->
 
 ## meeting skill
 
@@ -44,7 +44,7 @@
 ## fables-turn relay skill
 
 - [ ] **Pilot fables-turn handoff** on confirmed wave (kienzler-homepage, zelegator, helferli, dotclaude-skills, zkWhale; +meeting-rpg as 2nd mini-wave) — suggest starting with dotclaude-skills alone (clean, well-known) to pressure-test templates + executor contract before the dirty income repos. Then revise `references/templates.md` + `conventions.md` from first-contact friction BEFORE any `--all` run. Skill built + symlinked 2026-06-12 (SKILL.md orchestrator, handoff/review procedures, discover-repos.sh + ckpt-tag.sh both tested). See `~/.claude/plans/i-want-to-optimize-quizzical-creek.md`. <!-- id:1107 -->
-- [ ] **fables-turn deferred follow-ups** — (a) extend `meeting/orphan-scan.sh` + `classify.sh` + `append.sh new-id` scan globs to include `ROADMAP.md` (so relay items join the id-token ecosystem); (b) upstream an `ownership` field into `project_manager` scan.py (currently fables-turn classifies own-vs-clone in a sibling script); (c) promote the review-mode anti-gaming recipe from prose to a script after 2 review turns prove the pattern (N=2). <!-- id:62f5 -->
+- [ ] **fables-turn deferred follow-ups** — (a) ~~extend `meeting/orphan-scan.sh` + `classify.sh` + `append.sh new-id` scan globs to include `ROADMAP.md`~~ **shipped 2026-06-12** (roadmap de9c: `append.sh scan-ids` ledger incl. ROADMAP.md, orphan-scan union read, classify RELAY class; spec = `tests/test_id_ecosystem.sh`); (b) upstream an `ownership` field into `project_manager` scan.py (currently fables-turn classifies own-vs-clone in a sibling script); (c) promote the review-mode anti-gaming recipe from prose to a script after 2 review turns prove the pattern (N=2). <!-- id:62f5 -->
 
 ## Done
 placeholder

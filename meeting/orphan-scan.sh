@@ -2,7 +2,7 @@
 # orphan-scan.sh — sibling to append.sh, cost-of.sh
 # Usage: orphan-scan.sh [--reverse|-r] [<root-dir>]
 # Forward (default): scans <root>/docs/meeting-notes/*.md for ID-bearing unchecked action items
-#   whose <!-- id:XXXX --> token is absent from the union of TODO.md + TODO.archive.md.
+#   whose <!-- id:XXXX --> token is absent from the union of TODO.md + TODO.archive.md + ROADMAP.md.
 # Reverse (--reverse): finds ID-bearing checked ([x]) or inline lines absent from the TODO union
 #   — the forward scan's blind spot (Step 5b skipped, items completed in-session).
 # Un-IDed lines are skipped (clean cutover; legacy notes stay frozen).
@@ -22,7 +22,9 @@ mkdir -p "$(dirname "$LOG")"
 
 limit="${ORPHAN_SCAN_LIMIT:-10}"
 start_ms=$(date +%s%3N)
-todo="$(cat "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)"
+# Union ledger: TODO + archive + relay ROADMAP (a note item mirrored to
+# ROADMAP.md instead of TODO.md is not an orphan).
+todo="$(cat "$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md" 2>/dev/null || true)"
 notes=0
 id_lines=0
 candidates=0

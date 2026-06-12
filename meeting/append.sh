@@ -6,6 +6,8 @@
 #   append.sh -t {discoveries|personas|inbox} -f entry.txt
 #   echo "line" | append.sh -t {discoveries|personas|inbox}
 #   append.sh inbox-done <4-hex-token>   — mark a routed inbox item as adopted
+#   append.sh new-id [<root>] | new-ids N [<root>]  — mint collision-free token(s)
+#   append.sh scan-ids [<root>]          — list every existing token (sorted unique)
 #
 # No git operations — the caller (git-diary-workflow) commits the result.
 
@@ -40,6 +42,27 @@ PYEOF
   exit 0
 fi
 
+# Ledger: the file set scanned for existing id:XXXX tokens. Any file class that
+# ORIGINATES tokens must be listed here (TODO ledger, meeting notes, relay
+# ROADMAP). Files that only cite existing tokens (RELAY_LOG.md, REVIEW_ME.md,
+# tests' `# roadmap:` comments) are deliberately excluded.
+scan_ids() {
+  local root="$1"
+  grep -rho 'id:[0-9a-f]\{4\}' \
+    "$root/docs/meeting-notes" \
+    "$root/TODO.md" \
+    "$root/TODO.archive.md" \
+    "$root/ROADMAP.md" 2>/dev/null || true
+}
+
+# scan-ids: print every existing token (bare 4-hex, one per line, sorted unique).
+# Usage: append.sh scan-ids [<root-dir>]
+if [[ "${1:-}" == "scan-ids" ]]; then
+  ROOT="${2:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  scan_ids "$ROOT" | sed 's/^id://' | sort -u
+  exit 0
+fi
+
 # new-id / new-ids: emit collision-free random 4-hex token(s) for meeting action items.
 # Usage: append.sh new-id  [<root-dir>]     — emit 1 token
 #        append.sh new-ids N [<root-dir>]   — emit N tokens, one per line (single scan)
@@ -49,10 +72,7 @@ if [[ "${1:-}" == "new-id" || "${1:-}" == "new-ids" ]]; then
   else
     COUNT=1;        ROOT="${2:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
   fi
-  existing=$(grep -rho 'id:[0-9a-f]\{4\}' \
-    "$ROOT/docs/meeting-notes" \
-    "$ROOT/TODO.md" \
-    "$ROOT/TODO.archive.md" 2>/dev/null || true)
+  existing=$(scan_ids "$ROOT")
   emitted=0
   while (( emitted < COUNT )); do
     token=$(python3 -c 'import secrets; print(secrets.token_hex(2))')
