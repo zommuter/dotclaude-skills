@@ -61,3 +61,8 @@ Friction: id:aeaf and id:80e2 both require relay-loop.js which is a HARD (id:83c
 
 [2026-06-12 executor sonnet] Worked id:aeaf — created `fables-turn/scripts/relay-loop.js` stub with STRONG_TIER knob wired in; updated `fables-turn/SKILL.md` with Configuration knobs table documenting STRONG_TIER=fable|opus, usage examples, and model-ID mapping; created `tests/test_strong_tier_knob.sh` (9 grep-based static checks). Full suite green (11 files, 0 failures). ROADMAP checkbox ticked.
 Friction: relay-loop.js is a stub — the full pool implementation is HARD item id:83c9; this ROUTINE item adds only the STRONG_TIER wiring that id:83c9 and id:80e2 depend on.
+
+## 2026-06-12 — executor (Sonnet)
+
+[2026-06-12 executor sonnet] Worked id:80e2 — added `buildRelayStatus(state)` and `writeRelayStatus(state, path)` to `fables-turn/scripts/relay-loop.js`. All 6 template sections (In-flight, Completed this run, Queued, Blocked/HANDBACKs, Quota remaining, REVIEW_ME open items) plus ISO-timestamp header. RELAY_STATUS_PATH env var support. Agent-based file write (Workflow JS has no fs access); `log()` condensed one-liner on each rewrite. Created `tests/test_relay_status.sh` (14 static grep checks). Full suite green (12 files, 0 failures).
+Friction: none — RELAY_STATUS.md writer is a Workflow JS helper; live integration-behaviour tests deferred to id:83c9 pilot per the ROADMAP spec.
