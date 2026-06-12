@@ -13,12 +13,45 @@ for Sonnet executor sessions driven by a generated `CLAUDE.md` contract.
 Invocation:
 
 ```
+/fables-turn                              # default: autonomous pool (no keyword)
 /fables-turn handoff [repo-list | --all]
 /fables-turn review  [repo-list | --all]
 ```
 
 Default `--all` means "confirmed OWN repos, by neediness, in waves of ≤5, until quota
 says stop" — resumable across turns via the state file, never all 36 at once.
+
+## Default mode: autonomous pool
+
+Invoking `/fables-turn` with no keyword starts the autonomous priority-mixed pool
+(meeting note `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md`,
+D1/D2):
+
+1. **Non-interactive by default.** The front door operates ONLY on relay.toml
+   `classification = "own"` confirmed repos. New, dirty, or `needs_review` repos are
+   *surfaced* in `RELAY_STATUS.md` (Queued/Blocked sections) — never asked about
+   mid-run. No `AskUserQuestion` is issued anywhere in the default mode.
+2. **No confirmed repos → notice, no launch.** If relay.toml has zero confirmed
+   `own` repos, the front door prints a short notice (pointing at
+   `/fables-turn handoff` to confirm a first wave) and exits cleanly without
+   invoking the Workflow.
+3. **Workflow launch.** The front door invokes the `fables-turn/scripts/relay-loop.js`
+   Workflow script (id:83c9), passing `args.STRONG_TIER`, `args.interactive`, and
+   `args.RELAY_STATUS_PATH` (when overridden). The Workflow owns the pool, the
+   serialized integrator, and the quota guards.
+4. **Exit summary.** After the Workflow completes, the front door prints the
+   `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
+   global git-diary-workflow/todo-update obligation).
+
+`--interactive` re-enables the orchestrator's one-batch `AskUserQuestion`
+confirmations (invariant 2 below: new-repo confirms, dirty-repo snapshot offers)
+*before* the Workflow launches, and is passed through as `args.interactive` so the
+Workflow may surface choices instead of silently skipping; the Workflow script
+itself still never calls `AskUserQuestion`.
+
+The existing `handoff` and `review` keyword modes are unchanged and fully
+compatible — the default mode is sugar over the same classifier, references, and
+integration invariants.
 
 ## Orchestrator invariants (never skip)
 
@@ -92,6 +125,9 @@ wave scheduler. The orchestrator is its only writer (after user confirmation).
 | Env var / flag | Values | Default | Effect |
 |---|---|---|---|
 | `STRONG_TIER` | `fable` \| `opus` | `fable` | Model used for review and handoff agents in the autonomous pool. Execute (Sonnet) agents are never affected. |
+| `--interactive` | flag | off | Re-enables the one-batch `AskUserQuestion` confirmations before launch; passed to the Workflow as `args.interactive`. Default mode is unattended. |
+| `RELAY_QUOTA_THRESHOLD` | 0–1 fraction | `0.90` | Quota stop threshold used by `scripts/quota-stop.sh` (cache `.utilization` is 0–100 percent; converted internally). |
+| `RELAY_STATUS_PATH` | path | `~/.config/fables-turn/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |
 
 Usage:
 ```bash

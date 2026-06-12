@@ -157,7 +157,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     First run: covers all work since `fable-ckpt-20260612-1328`. Subsequent runs: diff
     against the most recent `fable-ckpt-*` tag (same window as review mode step 2).
 
-- [ ] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] <!-- id:230f -->
+- [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
     judgment on the unattended-safe confirmation contract and how the skill hands off to the Workflow engine;
     wrong front-door behaviour silently skips repos or blocks the unattended run.
@@ -207,7 +207,9 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     relay-loop.js) reads `/tmp/claude-usage-cache.json` and exits 0 (below threshold) or 1 (at/above).
     Sonnet tier: stop if `seven_day_sonnet`, `five_hour`, OR `seven_day` utilization ≥ threshold
     (env `RELAY_QUOTA_THRESHOLD`, default 0.90 = 90%). Strong tier: stop if `five_hour` OR `seven_day`
-    ≥ threshold. Stale cache (mtime > 10 min) or missing file → print a warning to stderr and exit 2
+    ≥ threshold. **Scale (review fix 2026-06-12):** the live cache stores `.utilization` as a
+    0–100 percent (e.g. `37.0`), while `RELAY_QUOTA_THRESHOLD` is a 0–1 fraction — the script
+    converts internally (`val >= threshold*100`). Tests must use percent-scale fixtures. Stale cache (mtime > 10 min) or missing file → print a warning to stderr and exit 2
     (caller treats as "stop, uncertain"); missing-key in JSON → same. Threshold 0.90 is the default;
     override via env for piloting. Seatbelt: if agent-count arg `N` ≥ 200 or wall-clock arg `S` seconds ≥ 7200,
     also exit 1 regardless of cache.
@@ -252,7 +254,9 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     quality, and whether priority-mixed scheduling converges as designed. Also the natural window to pilot
     `STRONG_TIER=opus` on handoff/review and compare output quality.
   - **Acceptance**: at least one complete unattended run on zkWhale or trAIdBTC (income repos) without
-    manual intervention. `RELAY_STATUS.md` is produced. Any HANDBACKs are documented with root-cause.
+    manual intervention. `RELAY_STATUS.md` is produced **with all six template sections populated
+    correctly — this is the behavioral check of the id:80e2 writer (its unit test is static-grep
+    only; rescoped here by 2026-06-12 review)**. Any HANDBACKs are documented with root-cause.
     A short retrospective paragraph is appended to RELAY_LOG.md in this (dotclaude-skills) repo noting
     what needed revision and whether the Opus-handoff pilot was run.
   - **Tests**: none (pilot output is the deliverable; follow-on fixes get their own tests/items)

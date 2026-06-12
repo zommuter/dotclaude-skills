@@ -10,8 +10,13 @@
 #   2 = stale/missing cache or missing/invalid key (uncertain, stop)
 #
 # Env:
-#   RELAY_QUOTA_THRESHOLD  threshold fraction, default 0.90
+#   RELAY_QUOTA_THRESHOLD  threshold fraction, default 0.90 (= 90%)
 #   USAGE_CACHE            path to cache JSON, default /tmp/claude-usage-cache.json
+#
+# Scale note: the live cache (written by statusline/statusline-command.sh from
+# /api/oauth/usage) stores `.utilization` as a 0-100 PERCENT (e.g. 37.0 = 37%).
+# RELAY_QUOTA_THRESHOLD stays a 0-1 fraction for ergonomic overrides; the
+# comparison converts internally (val >= threshold*100).
 set -euo pipefail
 
 TIER="sonnet"
@@ -60,8 +65,9 @@ check_key() {
     echo "quota-stop: key '$key' missing in cache" >&2
     exit 2
   fi
-  if awk -v v="$val" -v t="$THRESHOLD" 'BEGIN { exit (v >= t) ? 0 : 1 }'; then
-    echo "quota-stop: $key=$val >= threshold $THRESHOLD (tier=$TIER)" >&2
+  # Cache utilization is 0-100 percent; threshold is a 0-1 fraction.
+  if awk -v v="$val" -v t="$THRESHOLD" 'BEGIN { exit (v >= t * 100) ? 0 : 1 }'; then
+    echo "quota-stop: $key=$val% >= threshold $THRESHOLD (tier=$TIER)" >&2
     exit 1
   fi
 }
