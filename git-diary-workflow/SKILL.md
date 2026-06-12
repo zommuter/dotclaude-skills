@@ -82,9 +82,12 @@ git -C ~/src/dotclaude-skills status --short
 ```
 If empty → nothing to do, proceed to Step 2.
 
-If non-empty → those files are dirty. This repo is single-user; any dirty file is yours, whether from a direct edit or via a symlink (e.g. `~/src/meeting-rpg/broker.py → ~/src/dotclaude-skills/meeting/broker.py`). Stage and commit all of them. **Do not rely on session memory alone** — symlink-target edits will not appear in the foreign project's git status, so only checking dotclaude-skills directly catches them.
+If non-empty → **attribute each dirty file before committing**. The repo is single-user but NOT single-session: parallel Claude sessions (e.g. relay turns) leave their own WIP dirty here, and committing another live session's half-finished edits under your session ID mis-attributes work and can race its own end-of-turn commit (observed 2026-06-12: a relay session's relay-loop.js WIP was dirty while still in flight).
 
-If dirty (e.g. format.md, personas.md, or any file reached via symlink): build a manifest and msg exactly as in Step 1b, using `~/src/dotclaude-skills/<file1>` paths and a dotclaude-skills description, then:
+- **Yours** — you edited the file this session, either directly or through a symlink (e.g. `~/src/meeting-rpg/broker.py → ~/src/dotclaude-skills/meeting/broker.py`). Symlink edits are the reason this step exists: they never show up in the foreign project's git status, so check your session's Write/Edit targets against `realpath` into dotclaude-skills — **do not rely on the foreign repo's git status to surface them**.
+- **Not yours / can't attribute** — leave it uncommitted and mention it in the end-of-session summary; the owning session's workflow will commit it.
+
+For YOUR files only: build a manifest and msg exactly as in Step 1b, using `~/src/dotclaude-skills/<file1>` paths and a dotclaude-skills description, then:
 
 ```bash
 ~/.claude/skills/git-diary-workflow/git-lock-push.sh -f "$manifest" -m "$msg" ~/src/dotclaude-skills
