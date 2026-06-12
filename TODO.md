@@ -2,8 +2,6 @@
 
 ## meeting skill
 
-- [x] **Fable-harness fix: transcript + AskUserQuestion same-turn pattern broken** — Fable-gated inline-prose protocol added to format.md §Interactive mode; SKILL.md steps 4+5 and broker-mode.md fallback clauses updated. Contract met: Fable uses inline-prose + Decision provenance; Sonnet/Opus/Haiku unchanged. See `docs/meeting-notes/2026-06-12-0749-fable-harness-interactive-mode-fix.md` — implemented 2026-06-12.
-
 - [ ] **honcho** — evaluation **complete** (record-and-defer, 2026-06-05). Current file-based memory (discoveries.md+RAG / user-profile.md+awk-filter / persona-state.yml / auto-memory MEMORY.md) is sufficient for the current corpus (71 profile sections / 162 discovery lines). Honcho (AGPL-3.0, Postgres+pgvector+Docker+FastAPI+deriver+LLM-key, or managed api.honcho.dev) not warranted now. **Reopen gate:** primary = scale/loss (`user-profile.md` outgrows `profile-active.sh --filter` ctx budget, OR a logged save/discard miss); secondary (opportunistic): (a) piggyback if Honcho Claude Code MCP installs for unrelated reasons; (b) fold into meeting-rpg agent-infra wave with `hermes` + agent-persona-separation. **Privacy invariant: self-host only** if ever piloted — managed api.honcho.dev ships user-profile.md to a third party. See `docs/meeting-notes/2026-06-05-1213-honcho-memory-eval.md`. <!-- id:45ac -->
 
 - [ ] **hermes** — record-and-defer (2026-06-05). 2-axis taxonomy: Axis A [transport: in-harness CC-subagent/`claude -p` vs out-of-harness external framework] × Axis B [authority: observer→unattended]; all cells live, none pre-blocked. Broker transport already shipped; deferred = (1) the *driver* process that subscribes+decides, (2) the *authority policy* (which prompts it may answer vs must escalate). **ToS tripwire:** out-of-harness + subscription-billed cell requires a citation from the then-current Anthropic subscription terms confirming programmatic/agent use is permitted — MUST verify BEFORE any code in that cell. **Reopen trigger (standalone, demand-pull, decoupled from honcho):** a concrete non-interactive driver needs to participate — shapes: (a) queue of unattended Class-3 meetings; (b) meeting-rpg multiplayer needs a non-human participant; (c) external agent framework (OpenClaw/Hermes/etc.) already in stack and asking it to observe/answer is near-free. Home = meeting-rpg; record = dotclaude-skills. See `docs/meeting-notes/2026-06-05-1236-hermes-agent-bridge-triage.md`. <!-- id:5c31 -->
@@ -26,8 +24,6 @@
 
 - [ ] **Re-verify quota peak-pricing window (~weekly)** — bump `PRICING_VERIFIED` in `statusline/statusline-command.sh` after confirming the schedule against current Anthropic docs/behaviour. Community window = weekday 05:00–11:00 PT (peak/regular burn); last changed 2026-06-10 (peak throttling reportedly dropped for Pro/Max). Triggered in-band by the statusline staleness marker (dim `?` appears on 💸/🪙 once the date is >7 days old).
 - [ ] **Statusbar: other cost-saving indicators** — candidate ideas: current session input-token running total, cache_read vs uncached ratio (shows caching effectiveness), model currently active.
-- [x] **Statusbar: quota pricing-tier emoji (💸 regular / 🪙 reduced)** — computes peak vs off-peak from weekday 05:00–11:00 PT window (no API field exists); placed after cost on line 1; carries `PRICING_VERIFIED` staleness marker for weekly re-verify — verified by render + branch + staleness tests on 2026-06-11.
-- [x] **Statusbar: model-family emoji prefix (Opus 🎼 / Sonnet 🪶 / Haiku 🍃 / Fable 🦊 / Mythos 🐉 / fallback 🤖)** — prepends MODEL_DISPLAY on line 1; substring match tolerates version suffixes + fast variants; editable case arms — verified across all six families on 2026-06-11.
 
 ## worktrees / D-series
 
@@ -38,9 +34,13 @@
 
 ## local-llama-swap subagent delegation
 
-- [x] Run the 3-cell spike: probe real n_ctx; bounded "summarize diff" via curl (B) and `opencode run` (C); smallest agentic "append line + confirm" via opencode (C). Write results table + go/no-go finding. **Finding: B wins (7s curl vs >5min opencode timeout); C-agentic deferred (RAM pressure).** See `docs/meeting-notes/2026-06-11-2300-subagents-local-llama-spike-finding.md`. <!-- id:95e3 -->
 - [ ] Conditional on bounded-B passing: commit a thin `curl`+`jq` local-delegation wrapper with outcome logging (task/model/outcome, zelegator-consumable) and loud-fail on n_ctx overflow. Contract: routes a bounded prompt to localhost:8080/v1, appends one log line per call, no silent truncation. See `docs/meeting-notes/2026-06-11-2235-subagents-local-llama-swap.md`. <!-- id:85d2 -->
 - [ ] Forward-flags: (a) auto-routing local-vs-remote → zelegator; (b) opencode agentic-local escape hatch — **C-agentic still untested (deferred); run with 30b model in a clean-memory session before closing this flag.** See `docs/meeting-notes/2026-06-11-2300-subagents-local-llama-spike-finding.md`. <!-- id:f579 -->
+
+## fables-turn relay skill
+
+- [ ] **Pilot fables-turn handoff** on confirmed wave (kienzler-homepage, zelegator, helferli, dotclaude-skills, zkWhale; +meeting-rpg as 2nd mini-wave) — suggest starting with dotclaude-skills alone (clean, well-known) to pressure-test templates + executor contract before the dirty income repos. Then revise `references/templates.md` + `conventions.md` from first-contact friction BEFORE any `--all` run. Skill built + symlinked 2026-06-12 (SKILL.md orchestrator, handoff/review procedures, discover-repos.sh + ckpt-tag.sh both tested). See `~/.claude/plans/i-want-to-optimize-quizzical-creek.md`. <!-- id:1107 -->
+- [ ] **fables-turn deferred follow-ups** — (a) extend `meeting/orphan-scan.sh` + `classify.sh` + `append.sh new-id` scan globs to include `ROADMAP.md` (so relay items join the id-token ecosystem); (b) upstream an `ownership` field into `project_manager` scan.py (currently fables-turn classifies own-vs-clone in a sibling script); (c) promote the review-mode anti-gaming recipe from prose to a script after 2 review turns prove the pattern (N=2). <!-- id:62f5 -->
 
 ## Done
 placeholder
