@@ -66,3 +66,6 @@ Typo fixes and clarifications that don't change behaviour do **not** bump.
 
 After bumping: update the `## Relay contract <!-- fables-executor contract vN -->`
 pointer in the managed repo's `CLAUDE.md` to match.
+
+For the human-facing picture of the whole relay (modes, artifacts, what the
+user does between turns), see `docs/fables-relay.md` in dotclaude-skills.
