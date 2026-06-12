@@ -1,0 +1,76 @@
+# Handoff mode — per-repo child procedure
+
+A handoff child runs inside its own worktree for ONE repo and prepares that repo
+for executor sessions: docs, an executor-facing roadmap, failing tests as the spec,
+and BDD scenarios. Work proceeds as ordered commit checkpoints so an abrupt quota
+cutoff loses the least (docs and red tests are worth more half-done than nice-to-haves).
+
+Read `references/conventions.md` first — its environment facts and the verbatim
+executor-contract block are inputs to C1.
+
+## Inputs the orchestrator provides
+
+- Repo name, worktree path, and base ref (fresh from origin's default branch).
+- A batch of pre-allocated `id:XXXX` tokens (from `append.sh new-ids N <repo-root>`).
+- Whether C5 (HARD execution) is budgeted this turn.
+
+## Checkpoints
+
+Commit after each checkpoint with the stated message prefix so the orchestrator can
+verify ordering from the returned commit list. Never push.
+
+**C1 — docs.** Read the repo fully; note quirks and implicit conventions. Write or
+refresh `CLAUDE.md` (commands, conventions, deploy, gotchas — nothing implicit; embed
+the executor-contract block verbatim as its own section). Write `ARCHITECTURE.md`
+(decisions WITH rationale and rejected alternatives). Commit `relay(handoff): C1 docs`.
+
+**C2 — roadmap.** Write `ROADMAP.md` from the template: items sized for one Sonnet
+session, each self-contained with acceptance criteria and an explicit done-check
+command. Tag each `[ROUTINE]` (executor) or `[HARD — strong model]`. Assign one
+pre-allocated `id:XXXX` per item. Add/refresh the single TODO.md summary line. Commit
+`relay(handoff): C2 roadmap`.
+
+**C3 — spec-as-tests.** For every `[ROUTINE]` item, write the FAILING tests now and
+verify each is actually red (run them; a test that passes pre-implementation is not a
+spec). Map each test to its item with a `# roadmap:XXXX` comment. The suite is the
+spec — an executor is done when it goes green plus a refactor pass, nothing else.
+Commit `relay(handoff): C3 red tests`.
+
+**C4 — BDD + review queue.** For user-facing surfaces, write Given/When/Then scenarios
+for the key journeys:
+- Web → executable headless Playwright features.
+- TUI / Android / other non-automatable surfaces → the same Gherkin tagged `@manual`
+  as a human checklist.
+- **Skip C4 entirely if the repo has no user-facing surface** (library, script, infra).
+
+Every red test that encodes a JUDGMENT CALL (ambiguous spec, a chosen interpretation
+among defensible ones) goes into `REVIEW_ME.md` for the human's 15-min/repo budget.
+Commit `relay(handoff): C4 bdd`.
+
+**C5 — HARD item (only if budgeted).** Execute the top `[HARD]` item full
+red-green-refactor. If cut off mid-item, write a `HANDBACK:` paragraph to RELAY_LOG.md
+describing the exact state and the worktree branch so any session can resume it.
+Commit `relay(handoff): C5 <id>` (or a partial commit + handback).
+
+## Return contract
+
+Return a structured report — do NOT push, do NOT run git-diary-workflow or todo-update
+(those are the orchestrator's job, batched across children):
+
+```json
+{
+  "repo": "<name>",
+  "branch": "<worktree branch>",
+  "stages_completed": ["C1", "C2", "C3", "C4"],
+  "commits": ["<sha> relay(handoff): C1 docs", "..."],
+  "roadmap_items": {"routine": <n>, "hard": <n>},
+  "review_me": <count of REVIEW_ME.md entries>,
+  "diary_fragment": "<one-paragraph summary for the batched diary entry>",
+  "handback": "<text if C5 was interrupted, else empty>",
+  "contract_met": true
+}
+```
+
+`contract_met` is false if checkpoints are out of order (e.g. C3 without C1/C2) or a
+required artifact is missing; the orchestrator holds such a worktree for inspection
+rather than merging it.
