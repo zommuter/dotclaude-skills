@@ -84,7 +84,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     skills multiply their size by prompt count, so their SKILL.md size needs a
     cheap recurring check. ARCHITECTURE.md §9 for the advisory-only philosophy.
 
-- [ ] Show the session token total in the statusline context segment [ROUTINE] <!-- id:2520 -->
+- [x] Show the session token total in the statusline context segment [ROUTINE] <!-- id:2520 -->
   - **Acceptance**: `statusline/statusline-command.sh` line 1 displays the context
     segment as `<pct>%(<tokens>)` where `<tokens>` is `TOTAL_TOKENS` (input+output,
     already computed) humanized: `<1000` → as-is, `≥1000` → `N.Nk` with one decimal

@@ -255,7 +255,18 @@ CONTEXT_SIZE=$(echo "$input" | jq -r '.context_window.context_window_size // 200
 TOTAL_TOKENS=$((TOTAL_INPUT + TOTAL_OUTPUT))
 CONTEXT_PCT=$(echo "scale=1; $TOTAL_TOKENS * 100 / $CONTEXT_SIZE" | bc)
 CL_CONTEXT=$(percent_to_gradient "$CONTEXT_PCT")
-CONTEXT_DISPLAY=$(printf "%.0f%%" "$CONTEXT_PCT")
+humanize_tokens() {
+    local n=$1
+    if [ "$n" -ge 10000 ]; then
+        printf "%dk" "$((n / 1000))"
+    elif [ "$n" -ge 1000 ]; then
+        printf "%s" "$(echo "scale=1; $n / 1000" | bc)k"
+    else
+        printf "%d" "$n"
+    fi
+}
+TOKENS_DISPLAY=$(humanize_tokens "$TOTAL_TOKENS")
+CONTEXT_DISPLAY=$(printf "%.0f%%(%s)" "$CONTEXT_PCT" "$TOKENS_DISPLAY")
 
 CURRENT_DIR=$(echo "$input" | jq -r '.workspace.current_dir // .currentDir // .cwd // ""')
 CL_DIR=$(hash2rgb "$CURRENT_DIR")
