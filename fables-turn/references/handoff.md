@@ -5,8 +5,9 @@ for executor sessions: docs, an executor-facing roadmap, failing tests as the sp
 and BDD scenarios. Work proceeds as ordered commit checkpoints so an abrupt quota
 cutoff loses the least (docs and red tests are worth more half-done than nice-to-haves).
 
-Read `references/conventions.md` first — its environment facts and the verbatim
-executor-contract block are inputs to C1.
+Read `references/conventions.md` first — its environment facts are inputs to C1.
+The executor contract now lives in the `fables-executor` skill; C1 writes the thin
+versioned pointer (see §Executor-contract pointer in conventions.md), not the full block.
 
 ## Inputs the orchestrator provides
 
@@ -20,9 +21,11 @@ Commit after each checkpoint with the stated message prefix so the orchestrator 
 verify ordering from the returned commit list. Never push.
 
 **C1 — docs.** Read the repo fully; note quirks and implicit conventions. Write or
-refresh `CLAUDE.md` (commands, conventions, deploy, gotchas — nothing implicit; embed
-the executor-contract block verbatim as its own section). Write `ARCHITECTURE.md`
-(decisions WITH rationale and rejected alternatives). Commit `relay(handoff): C1 docs`.
+refresh `CLAUDE.md` (commands, conventions, deploy, gotchas — nothing implicit; write
+the thin relay pointer as `## Relay contract <!-- fables-executor contract v1 -->` with
+the two-line body from conventions.md §Executor-contract pointer). Write
+`ARCHITECTURE.md` (decisions WITH rationale and rejected alternatives). Commit
+`relay(handoff): C1 docs`.
 
 **C2 — roadmap.** Write `ROADMAP.md` from the template: items sized for one Sonnet
 session, each self-contained with acceptance criteria and an explicit done-check
