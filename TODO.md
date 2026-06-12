@@ -41,6 +41,10 @@
 - [ ] Conditional on bounded-B passing: commit a thin `curl`+`jq` local-delegation wrapper with outcome logging (task/model/outcome, zelegator-consumable) and loud-fail on n_ctx overflow. Contract: routes a bounded prompt to localhost:8080/v1, appends one log line per call, no silent truncation. See `docs/meeting-notes/2026-06-11-2235-subagents-local-llama-swap.md`. <!-- id:85d2 -->
 - [ ] Forward-flags: (a) auto-routing local-vs-remote → zelegator; (b) opencode agentic-local escape hatch — **C-agentic still untested (deferred); run with 30b model in a clean-memory session before closing this flag.** See `docs/meeting-notes/2026-06-11-2300-subagents-local-llama-spike-finding.md`. <!-- id:f579 -->
 
+## /batch — built-in parallel worktree command
+
+- [ ] **Audit `/batch` for parallel-processing applications** — `/batch` is a built-in Claude Code command (no skill needed): decomposes changes into independent worktree agents, each opens a PR. Candidate applications: (a) parallel ROADMAP `[ROUTINE]` item dispatch as an alternative to the relay for repos where anti-gaming verification isn't critical; (b) parallel meeting-note or TODO migration; (c) multi-repo refactors that are genuinely independent (no review-checkpoint dependency). Also check: whether a unified `fables-turn`/`fables-executor` skill (model-adaptive, detects Fable vs Sonnet via harness-class gate) would be simpler than the current split, now that `/batch` covers the "fan-out parallel" use case. Trigger: open `/meeting batch-applications` after ≥1 `/batch` run in any project. See discovery 2026-06-12. <!-- id:7b23 -->
+
 ## fables-turn relay skill
 
 - [ ] **Pilot fables-turn handoff** on confirmed wave (kienzler-homepage, zelegator, helferli, dotclaude-skills, zkWhale; +meeting-rpg as 2nd mini-wave) — **dotclaude-skills pilot ✓ 2026-06-12** (C1–C5 merged, tag fable-ckpt-20260612-1328, contract_met, suite 1 pass/5 expected-red; integration defects → id:821c). NEXT: revise `references/templates.md` + `conventions.md` from first-contact friction BEFORE the dirty income repos / any `--all` run. See `~/.claude/plans/i-want-to-optimize-quizzical-creek.md`. <!-- id:1107 -->
