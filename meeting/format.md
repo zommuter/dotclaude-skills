@@ -71,6 +71,7 @@ without argument. File paths and line numbers are cited when code is discussed.
 ## Decisions
 Bullet list. Specific enough to serve as an implementation spec.
 Each decision names what is explicitly out of scope.
+On Fable-class runs: prepend a `**Decision provenance:** "…"` line quoting the user's verbatim ratifying prose (one line covers the whole session if all decisions were ratified under one protocol).
 
 ## Action items
 Checklist. Each item names the session, the file, and the contract
@@ -118,7 +119,25 @@ Checklist — same shape as Class 3. Each item names the file and the contract.
 
 ## Interactive mode
 
-Meetings run interactively with the user participating turn-by-turn. Protocol:
+Meetings run interactively with the user participating turn-by-turn.
+
+### Harness-class gate (check once at meeting start)
+
+Read your own model identity from the environment block.
+- **Fable-class** (`claude-fable-*`): use the **Fable inline-prose protocol** below for ALL decision points — never pair visible transcript text with a same-turn tool call.
+- **Sonnet / Opus / Haiku** (all other models): use the default **same-turn `AskUserQuestion` protocol** further below (unchanged).
+
+The end-of-meeting `AskUserQuestion` prompts (steps 3–5) follow the same gate: on Fable, replace them with inline-prose numbered prompts; on all other harnesses, use `AskUserQuestion` as written.
+
+### Fable inline-prose protocol
+
+At each decision point:
+1. Emit the complete, verbatim transcript chunk for the current agenda item as the turn's **FINAL text** — no tool call after it (so it renders on Fable).
+2. End that same message with the decision framed as a **numbered markdown list** of implication-driven options (same content `AskUserQuestion` options carry): embedded tl;dr first, 2–4 options, recommended option marked, an explicit `N. Other — freeform` line (the tool's auto-"Other" is absent).
+3. The user answers in prose in the next turn. Quote their answer **VERBATIM** in the meeting note as the `**Decision provenance:**` ratification marker for that decision (see Decisions template below).
+4. Do **NOT** call `AskUserQuestion` at meeting decision points on Fable.
+
+### Default protocol (Sonnet / Opus / Haiku)
 
 1. The skill accumulates the meeting transcript in the plan file turn-by-turn during plan mode.
 2. At each natural user decision point (roughly every 4–8 exchanges), the skill emits the transcript chunk **and** calls `AskUserQuestion` **in the same response** — never end a turn on bare prose and send the question in a subsequent turn:
