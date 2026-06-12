@@ -2,7 +2,7 @@
 
 ## Relay
 
-- [ ] Relay: 7 open ROADMAP items <!-- id:d5e0 -->
+- [ ] Relay: 6 open ROADMAP items (id:9934 quota-stop.sh done 2026-06-12) <!-- id:d5e0 -->
 
 ## meeting skill
 
