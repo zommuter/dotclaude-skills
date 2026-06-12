@@ -75,3 +75,7 @@ Friction: none.
 ## 2026-06-12 21:57 — reviewer (claude-fable-5)
 
 review ckpt-1827 window: 9934/aeaf/80e2 verified, quota-stop percent-scale fix, id:230f autonomous front door, ARCHITECTURE+SKILL drift sync
+
+## 2026-06-12 22:32 — reviewer (claude-fable-5)
+
+id:83c9 relay-loop.js autonomous pool implemented (income-preferring scheduler per user directive); id:a354 user-facing relay guide docs/fables-relay.md; id:456a flake instrumentation
