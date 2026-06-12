@@ -42,9 +42,9 @@ says stop" — resumable across turns via the state file, never all 36 at once.
    git-diary-workflow or todo-update.
 5. **Integrate per completed child as one uninterrupted block**, repos strictly
    sequential: verify `contract_met` and checkpoint ordering → `--no-ff` merge the
-   worktree branch into the integration branch → `scripts/ckpt-tag.sh <repo> -m
+   worktree branch into the integration branch → `scripts/ckpt-tag.sh <repo-path> -m
    "<summary>" -l "reviewer (<model>)"` → ONE push via
-   `~/.claude/skills/git-diary-workflow/git-lock-push.sh` → `git worktree prune` →
+   `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only` → `git worktree prune` →
    update relay.toml (`status`, `last_ckpt`/`last_review`). A child that fails
    `contract_met` is NOT merged; its worktree is held and listed as a HANDBACK.
 6. **Quota between waves.** Check the statusline pricing indicator (💸 = expensive
