@@ -25,7 +25,10 @@ refresh `CLAUDE.md` (commands, conventions, deploy, gotchas — nothing implicit
 the thin relay pointer as `## Relay contract <!-- fables-executor contract vN -->` —
 vN = the canonical version in `fables-executor/SKILL.md` — with
 the two-line body from conventions.md §Executor-contract pointer). Write
-`ARCHITECTURE.md` (decisions WITH rationale and rejected alternatives). Commit
+`ARCHITECTURE.md` (decisions WITH rationale and rejected alternatives). Refresh
+`README.md` if present and stale (feature/usage tables, install instructions) —
+user-facing docs are part of the docs checkpoint, not an afterthought (review
+step 4 audits them as drift surface from then on). Commit
 `relay(handoff): C1 docs`.
 
 **C2 — roadmap.** Write `ROADMAP.md` from the template: items sized for one Sonnet

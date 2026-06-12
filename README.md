@@ -6,9 +6,28 @@ Public Claude Code skills by [@zommuter](https://github.com/zommuter).
 
 | Skill | Description |
 |---|---|
-| [meeting](meeting/) | Structured design meetings with named personas (Archie, Riku, Petra) |
+| [meeting](meeting/) | Structured design meetings with named personas (Archie, Riku, Petra); `--cross` mode scans all registered projects |
 | [git-diary-workflow](git-diary-workflow/) | Commits, pushes, and appends a diary entry after every substantive prompt |
 | [todo-update](todo-update/) | Updates TODO.md after every substantive prompt — mandatory alongside git-diary-workflow |
+| [fables-turn](fables-turn/) | Reviewer side of the relay: autonomous pool (bare `/fables-turn`), handoff, and anti-gaming review modes |
+| [fables-executor](fables-executor/) | Versioned executor contract loaded by Sonnet sessions working in relay-managed repos |
+| [projects](projects/) | Personal project dashboard — recent activity, open task counts, prioritization |
+
+## The fables relay
+
+A strong reviewer model prepares repos (docs, roadmap, failing tests as the
+spec) and audits finished work; cheap executor sessions grind the well-specified
+items in between. **[docs/fables-relay.md](docs/fables-relay.md)** is the
+user-facing guide: run modes, what every artifact means (ROADMAP.md,
+RELAY_LOG.md, REVIEW_ME.md, `fable-ckpt-*` tags, relay.toml, RELAY_STATUS.md),
+and what the human does between turns.
+
+## Statusline & tools
+
+- [statusline/](statusline/) — quota/cost/model statusline with pricing-window
+  indicator and session token total (`statusline-command.sh`, reads JSON on stdin).
+- [tools/](tools/) — `allowlist.py` (settings.json Bash-allowlist generator) and
+  `ctx-budget.sh` (advisory SKILL.md token-budget audit).
 
 ## Hooks
 
