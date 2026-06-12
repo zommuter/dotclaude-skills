@@ -1,0 +1,128 @@
+# Roadmap <!-- fables-turn roadmap v1 -->
+
+Executor-facing task spec. Each item is sized for ONE Sonnet session. Items are
+the single source of truth — TODO.md carries only a summary line. Executors tick
+checkboxes; only the reviewer adds, removes, or re-scopes items.
+
+Read `CLAUDE.md` (§Testing, §Gotchas, §Relay contract) before starting any item.
+Done-check for every item: tick the item's checkbox below, then `make test` must
+be fully green (see CLAUDE.md §Testing for the expected-red semantics).
+
+## Items
+
+- [ ] Add a batched `say` subcommand to broker-curl.sh and route broker-mode.md through it [ROUTINE] <!-- id:3b02 -->
+  - **Acceptance**: `broker-curl.sh <port> <session> say` reads plain-text lines from
+    stdin and POSTs **one `/event` per line** (per-line painting in the renderer must
+    be preserved — never collapse lines into a single event). A `--opener` first-line
+    flag marks the first stdin line with `"kind":"opener"` for TTFL logging. Text with
+    apostrophes/quotes/backslashes survives intact (JSON built with `jq -n --arg`
+    internally). stdout stays quiet on success (HTTP responses discarded); curl/HTTP
+    failures still reach stderr and exit non-zero. Empty stdin lines are skipped.
+    `meeting/broker-mode.md` §Discussion is updated so the per-persona-line example
+    uses ONE `say` call per agenda item instead of one Bash call per line (this is
+    the actual ctx win: ~25–35 tool-call records/meeting → ≤10). Existing endpoints
+    (`status events event question await response`) are unchanged.
+  - **Tests**: `tests/test_broker_say.sh` (`# roadmap:3b02`) (currently RED)
+  - **Done-check**: `tests/run-tests.sh tests/test_broker_say.sh` then full `make test` after ticking
+  - **Context**: `meeting/broker-curl.sh` (case-arm dispatch; keep the existing
+    brace-default and quoting gotchas documented in CLAUDE.md §Gotchas),
+    `meeting/broker-mode.md` (only the Discussion example block needs rewording —
+    keep the "never batch into one event" semantics explicit). Mock broker fixture:
+    `tests/fixtures/mock-broker.py`. TODO id:3b02 is the origin item — option (b)
+    batching was chosen; do not also implement (a)/(c).
+
+- [ ] Add the Fable-class caveat to the γ-branch reference table in broker-mode.md [ROUTINE] <!-- id:44ba -->
+  - **Acceptance**: in `meeting/broker-mode.md`, the `## γ-branch reference` section
+    contains a visible Fable note attached to the table — either a `> **Fable note:**`
+    blockquote directly under the table or a footnote marker on the three
+    `AskUserQuestion` fallback rows (`MEETING_LIVE=0`, `subscribers=0`,
+    `Broker unavailable`). The note must say that on Fable-class harnesses
+    `AskUserQuestion` is replaced by inline-prose numbered prompts and point to
+    `format.md §Interactive mode §Harness-class gate`. The `subscribers>0` row needs
+    no caveat (broker routing makes the rendering limit irrelevant). Table content
+    itself stays otherwise unchanged.
+  - **Tests**: `tests/test_fable_caveat.sh` (`# roadmap:44ba`) (currently RED)
+  - **Done-check**: `tests/run-tests.sh tests/test_fable_caveat.sh` then full `make test` after ticking
+  - **Context**: TODO.md "broker-mode.md γ-branch table missing Fable caveat" item;
+    `docs/meeting-notes/2026-06-12-0749-fable-harness-interactive-mode-fix.md`.
+    Prose cross-refs already exist elsewhere in the file — the fix is specifically
+    AT the table, which is what gets skimmed.
+
+- [ ] Cover fables-turn and projects skills in the Makefile installer [ROUTINE] <!-- id:1ec1 -->
+  - **Acceptance**: `make install-fables-turn` and `make install-projects` exist and
+    symlink the skills into `$(DEST_DIR)` (override-able, default `~/.claude/skills`).
+    fables-turn installs `SKILL.md`, `references/{handoff,review,conventions,templates}.md`,
+    and `scripts/{discover-repos,ckpt-tag}.sh` (scripts chmod +x), creating the
+    nested `references/` and `scripts/` directories under the destination —
+    extend the `SKILL_RULES` template with a `mkdir -p` of each file's dirname
+    rather than flattening paths. projects installs `SKILL.md` only. Both skills are
+    in `SKILLS` so `make install`, `make status`, `make uninstall` cover them, and
+    `make help` lists them. fables-turn's two scripts join the allowlist generation
+    (`fables-turn_ALLOW`). Neither skill has LOCAL files. `make status-fables-turn`
+    reports nested files correctly.
+  - **Tests**: `tests/test_makefile_skills.sh` (`# roadmap:1ec1`) (currently RED)
+  - **Done-check**: `tests/run-tests.sh tests/test_makefile_skills.sh` then full `make test` after ticking
+  - **Context**: `Makefile` (per-skill variable convention at top + `SKILL_RULES`
+    define). The skill was hand-symlinked on 2026-06-12; the Makefile is the
+    canonical installer and must not lag. Test with `DEST_DIR=$(mktemp -d)` —
+    never the real `~/.claude`.
+
+- [ ] Add tools/ctx-budget.sh — per-skill SKILL.md token-budget audit [ROUTINE] <!-- id:32d6 -->
+  - **Acceptance**: `tools/ctx-budget.sh [root]` (default: git toplevel) scans every
+    `*/SKILL.md` in the repo and prints one TSV line per file:
+    `<relpath>\t<est_tokens>\t<gate>\t<OK|WARN>`, where `est_tokens = bytes/4`
+    (the repo's established chars/4 convention, same as cost-of.sh SIZE_KB/4) and
+    `gate` is 2000 tokens by default, override via `CTX_BUDGET_GATE` env var.
+    Files over gate get `WARN`; exit code is 0 either way (advisory logger, not a
+    blocker — "observe before preventing"). A `--summary` flag prints only the WARN
+    lines plus a final `total: N files, M over gate` line. Executable, `set -euo
+    pipefail`, no dependencies beyond coreutils.
+  - **Tests**: `tests/test_ctx_budget.sh` (`# roadmap:32d6`) (currently RED)
+  - **Done-check**: `tests/run-tests.sh tests/test_ctx_budget.sh` then full `make test` after ticking
+  - **Context**: TODO.md "git-diary-workflow SKILL.md size audit" item and the
+    global "per-prompt ctx multipliers" heuristic — mandatory-after-every-prompt
+    skills multiply their size by prompt count, so their SKILL.md size needs a
+    cheap recurring check. ARCHITECTURE.md §9 for the advisory-only philosophy.
+
+- [ ] Show the session token total in the statusline context segment [ROUTINE] <!-- id:2520 -->
+  - **Acceptance**: `statusline/statusline-command.sh` line 1 displays the context
+    segment as `<pct>%(<tokens>)` where `<tokens>` is `TOTAL_TOKENS` (input+output,
+    already computed) humanized: `<1000` → as-is, `≥1000` → `N.Nk` with one decimal
+    truncated to `Nk` when ≥10k (e.g. `115000` → `115k`, `9500` → `9.5k`, `730` →
+    `730`). Same color as the existing context percentage. No new network calls, no
+    layout change elsewhere on the line. Script must still produce output when run
+    with `HOME` pointing at an empty temp dir (no credentials → fetch skipped).
+  - **Tests**: `tests/test_statusline_tokens.sh` (`# roadmap:2520`) (currently RED)
+  - **Done-check**: `tests/run-tests.sh tests/test_statusline_tokens.sh` then full `make test` after ticking
+  - **Context**: `statusline/statusline-command.sh` (CONTEXT_* block around line
+    251–258; final echo at the bottom). Fixture stdin JSON:
+    `tests/fixtures/statusline-input.json`. Origin: TODO.md "Statusbar: other
+    cost-saving indicators" (this implements the first candidate; cache-read ratio
+    is out of scope — it needs transcript parsing).
+
+- [ ] Extend the id-token ecosystem to ROADMAP.md (scan-ids, orphan-scan union, classify relay line) [HARD — strong model] <!-- id:de9c -->
+  - **Why HARD**: cross-script invariant — three scripts must agree on what counts
+    as the id-bearing ledger, and the wrong call silently reintroduces token
+    collisions or orphan-scan false positives; also requires deciding how the
+    classifier should treat relay-managed lines (judgment, not mechanics).
+  - **Acceptance**: (1) `append.sh` gains a `scan-ids [<root>]` subcommand printing
+    every existing `id:XXXX` token (one per line, sorted unique) from the ledger
+    file set, which now includes `ROADMAP.md`; `new-id`/`new-ids` use the same scan
+    so freshly minted tokens can never collide with roadmap ids. (2)
+    `orphan-scan.sh` includes `ROADMAP.md` in the TODO-union read (forward and
+    reverse modes): a meeting-note item whose token lives in ROADMAP.md is not an
+    orphan. (3) `classify.sh` emits class `RELAY` for the TODO.md relay mirror line
+    (`Relay: N open ROADMAP items`) so `/meeting` no-arg dispatch never proposes a
+    meeting on it. Resolves TODO id:62f5 part (a).
+  - **Tests**: `tests/test_id_ecosystem.sh` (`# roadmap:de9c`)
+  - **Done-check**: `tests/run-tests.sh tests/test_id_ecosystem.sh`
+  - **Context**: executed by the reviewer in this handoff turn (C5). See
+    ARCHITECTURE.md §3.
+
+- [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
+  - **Why HARD**: architectural — moves the whole meeting transcript generation out
+    of the main context into a sub-agent; touches broker contract, persona loading,
+    decision routing, and note-writing; wrong cut loses the user's live view.
+  - **Acceptance**: see TODO id:3346. **GATED — do not start**: gate is "opencode
+    port validated (proves broker contract is stable) + ≥1 meeting with ctx > 200k".
+    Listed here for visibility only; remains parked in TODO.md until the gate fires.
