@@ -85,11 +85,18 @@ if [[ -n "$manifest_file" ]]; then
   git commit -m "$commit_msg"
 fi
 
-# Detect tracking branch, fall back to origin main
+# Detect tracking branch, fall back to origin main.
+# Split remote/branch at the FIRST slash only — branch names may themselves
+# contain slashes (e.g. origin/relay/review-x → remote=origin branch=relay/review-x);
+# the old `tr '/' ' '` split broke those and silently skipped the pull.
 if [[ -n "$branch" ]]; then
   target="$branch"
 else
-  target="$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null | tr '/' ' ')" || target="origin main"
+  if upstream="$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)"; then
+    target="${upstream%%/*} ${upstream#*/}"
+  else
+    target="origin main"
+  fi
 fi
 
 # Only pull if the remote branch exists (first-push scenario: skip, just push)
