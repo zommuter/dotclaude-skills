@@ -177,7 +177,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     fables-turn/SKILL.md and relay-loop.js (id:83c9) must coexist. Workflows are opt-in by design (user
     invoking the command counts as explicit opt-in per harness rules — no extra gate needed).
 
-- [ ] Workflow script `relay-loop.js` — priority-mixed 5-wide autonomous pool [HARD — strong model] <!-- id:83c9 -->
+- [x] Workflow script `relay-loop.js` — priority-mixed 5-wide autonomous pool [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:83c9 -->
   - **Why HARD**: complex Workflow JS orchestrating pool concurrency, the serialized integrator, quota
     guards, and graceful drain — all interacting. Wrong sequencing causes concurrent pushes (the
     double-decrement bug from prior executor runs); wrong quota gate causes runaway or premature stop;
@@ -191,6 +191,8 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     stops dispatching new units and lets in-flight agents + ALL integration debt finish before `return`.
     `STRONG_TIER` env var (default `fable`, `opus` pilotable) sets `model:` on review/handoff agents.
     `log()` emits phase transitions; `RELAY_STATUS.md` rewritten on each integration.
+    **Income preference (user directive 2026-06-12):** within a verdict class, repos flagged
+    `income = true` in relay.toml are dispatched first; the class ordering itself is unchanged.
   - **Tests**: `tests/test_relay_loop_structure.sh` (`# roadmap:83c9`) — static checks: (1) `meta` block
     present with required fields; (2) no `AskUserQuestion` call in the script; (3) integration block
     serialized (no bare `parallel()` over the integration step); (4) `STRONG_TIER` variable referenced.

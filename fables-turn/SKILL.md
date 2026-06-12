@@ -38,7 +38,10 @@ D1/D2):
 3. **Workflow launch.** The front door invokes the `fables-turn/scripts/relay-loop.js`
    Workflow script (id:83c9), passing `args.STRONG_TIER`, `args.interactive`, and
    `args.RELAY_STATUS_PATH` (when overridden). The Workflow owns the pool, the
-   serialized integrator, and the quota guards.
+   serialized integrator, and the quota guards. Scheduling order: verdict class
+   first (execute → review → handoff, the D3 anti-gaming invariant), then repos
+   flagged `income = true` in relay.toml win slot contention within a class
+   (user directive 2026-06-12).
 4. **Exit summary.** After the Workflow completes, the front door prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).

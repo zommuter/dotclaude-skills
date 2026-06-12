@@ -40,12 +40,25 @@ echo "local-side" > "$work/local.txt"
 git -C "$work" add local.txt
 git -C "$work" commit -q -m "local-side commit"
 
-"$LOCK_PUSH" "$work" >/dev/null 2>&1 \
-  || { echo "git-lock-push failed on slash-named branch"; exit 1; }
+# Capture output instead of discarding it — id:456a flake diagnosis: on the
+# intermittent failure we need to see WHICH skip path fired (flock timeout,
+# ls-remote gate, upstream fallback), so dump everything when a check fails.
+lockpush_out="$tmpdir/lockpush.out"
+diagnose() {
+  echo "--- git-lock-push output ---"
+  cat "$lockpush_out"
+  echo "--- branch -vv ---"
+  git -C "$work" branch -vv
+  echo "--- log --all ---"
+  git -C "$work" log --oneline --all
+}
+
+"$LOCK_PUSH" "$work" >"$lockpush_out" 2>&1 \
+  || { echo "git-lock-push failed on slash-named branch"; diagnose; exit 1; }
 
 # Pull must have happened: the remote-side commit is now in local history.
 git -C "$work" log --format=%s | grep -q "remote-side commit" \
-  || { echo "pull was skipped: remote-side commit missing locally (slash-branch parse bug)"; exit 1; }
+  || { echo "pull was skipped: remote-side commit missing locally (slash-branch parse bug)"; diagnose; exit 1; }
 
 # Push must have happened: the local-side commit reached the remote.
 git -C "$bare" log --format=%s "relay/review-x" | grep -q "local-side commit" \

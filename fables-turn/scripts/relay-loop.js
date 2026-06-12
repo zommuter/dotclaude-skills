@@ -24,6 +24,14 @@ const RELAY_STATUS_PATH = (args && args.RELAY_STATUS_PATH) || '~/.config/fables-
 // when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
 const INTERACTIVE = !!(args && args.interactive)
 
+// D3: pool of ≤5 distinct repos; one unit per repo.
+const POOL_WIDTH = 5
+// Agent-count seatbelt for one run (quota-stop.sh hard-caps at 200 independently).
+const MAX_UNITS = (args && args.MAX_UNITS) || 20
+// D3 policy invariant: Sonnet execute fills slots first; unreviewed-executor review
+// ranks above fresh handoff (keeps the anti-gaming window short). Lower = sooner.
+const PRIORITY = { execute: 0, review: 1, handoff: 2 }
+
 log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}`)
 
 // buildRelayStatus — generate RELAY_STATUS.md content from a run-state snapshot.
@@ -98,15 +106,311 @@ async function writeRelayStatus(state, statusPath) {
 
 Content:
 ${content}`,
-    { label: 'write-relay-status', phase: 'Integrate' }
+    { label: 'write-relay-status', phase: 'Integrate', model: 'haiku' }
   )
 }
 
-// Full pool implementation: HARD item id:83c9.
-//
-// Tier dispatch contract (enforced in id:83c9 implementation):
-//   Review agents:   agent(reviewPrompt,  { model: STRONG_MODEL, phase: 'Dispatch' })
-//   Handoff agents:  agent(handoffPrompt, { model: STRONG_MODEL, phase: 'Dispatch' })
-//   Execute agents:  agent(executePrompt, { phase: 'Dispatch' })  ← no model override (Sonnet default)
-//
-// writeRelayStatus() is called after each integration step and each phase transition.
+// ── Schemas (agents return validated objects, never free text) ──
+
+const DISCOVER_SCHEMA = {
+  type: 'object',
+  required: ['runId', 'ts', 'units', 'surfaced'],
+  properties: {
+    runId: { type: 'string' },
+    ts: { type: 'string' },
+    units: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['repo', 'path', 'verdict', 'reason'],
+        properties: {
+          repo: { type: 'string' },
+          path: { type: 'string' },
+          verdict: { enum: ['execute', 'review', 'handoff', 'idle'] },
+          reason: { type: 'string' },
+          lastCkpt: { type: 'string' },
+          income: { type: 'boolean' },
+        },
+      },
+    },
+    surfaced: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['repo', 'reason'],
+        properties: { repo: { type: 'string' }, reason: { type: 'string' } },
+      },
+    },
+  },
+}
+
+const QUOTA_SCHEMA = {
+  type: 'object',
+  required: ['exitCode'],
+  properties: {
+    exitCode: { type: 'number' },
+    buckets: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          bucket: { type: 'string' },
+          pctRemaining: { type: 'number' },
+          resetTime: { type: 'string' },
+        },
+      },
+    },
+  },
+}
+
+const REPORT_SCHEMA = {
+  type: 'object',
+  required: ['contract_met', 'branch', 'worktree', 'summary'],
+  properties: {
+    contract_met: { type: 'boolean' },
+    branch: { type: 'string' },
+    worktree: { type: 'string' },
+    summary: { type: 'string' },
+    review_me_count: { type: 'number' },
+    diary_fragment: { type: 'string' },
+    handback: { type: 'string' },
+  },
+}
+
+const INTEGRATE_SCHEMA = {
+  type: 'object',
+  required: ['merged'],
+  properties: {
+    merged: { type: 'boolean' },
+    ckptTag: { type: 'string' },
+    pushStatus: { type: 'string' },
+    ts: { type: 'string' },
+    reason: { type: 'string' },
+  },
+}
+
+// ── Serialized integrator (D5/D6: one integration at a time, never two concurrent
+// pushes; intentionally NOT parallel() — a promise chain is the serializer) ──
+
+let integrationChain = Promise.resolve()
+function enqueueIntegration(fn) {
+  const run = integrationChain.then(fn, fn)
+  integrationChain = run.then(() => {}, () => {})
+  return run
+}
+
+// ── Phase 1: Discover ──
+
+phase('Discover')
+
+const discovery = await agent(
+  `You are the discovery/classifier step of the fables-turn autonomous relay pool.
+
+Read ~/.config/fables-turn/relay.toml. Consider ONLY repos with classification = "own".
+Repo path default: ~/src/<name>; honor any "# path:" comment override in the repo's
+relay.toml block. For each repo, classify into exactly one verdict:
+
+- "review": commits exist after the last fable-ckpt-* tag (run: git -C <path> tag -l 'fable-ckpt-*' | sort | tail -1, then git -C <path> log <tag>..HEAD --oneline). Unaudited work always wins over other verdicts.
+- "execute": no unaudited commits, and ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE].
+- "handoff": no unaudited commits, and ROADMAP.md is missing/has no roadmap marker, OR every item is ticked while untracked new work exists.
+- "idle": none of the above.
+
+A repo with a DIRTY main working tree (git -C <path> status --porcelain non-empty, ignoring entries already declared acceptable in relay.toml comments) is NOT dispatched: put it in "surfaced" with the reason instead of "units". Repos with no fable-ckpt-* tag and no handoff_date are handoff candidates, not review.
+${INTERACTIVE ? 'Interactive run: include marginal/ambiguous repos in "surfaced" with a one-line question each.' : 'Unattended run: never include questions; surface ambiguous repos with a factual reason only.'}
+
+Also produce:
+- runId: "relay-" + current date-time as YYYYMMDD-HHMM (from the date command)
+- ts: current ISO 8601 timestamp
+- lastCkpt per repo (the tag name, or "" if none)
+- income per repo: true iff the repo's relay.toml block has income = true
+
+Return every own repo exactly once across units (verdict idle included) and surfaced.`,
+  { label: 'discover', phase: 'Discover', schema: DISCOVER_SCHEMA }
+)
+
+if (!discovery) {
+  log('relay-loop: discovery agent failed — aborting before dispatch')
+  return { error: 'discovery failed', completed: [], handbacks: [] }
+}
+
+// Sort: verdict class first (D3 invariant), then income repos win slot contention
+// within a class (user directive 2026-06-12: prefer income-relevant tasks).
+const actionable = discovery.units
+  .filter(u => u.verdict !== 'idle')
+  .sort((a, b) =>
+    (PRIORITY[a.verdict] - PRIORITY[b.verdict]) ||
+    ((b.income ? 1 : 0) - (a.income ? 1 : 0))
+  )
+
+const state = {
+  runId: discovery.runId,
+  ts: discovery.ts,
+  inFlight: [],
+  completed: [],
+  queued: actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
+  blocked: discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' })),
+  quota: [],
+  reviewMe: [],
+}
+
+log(`relay-loop: ${actionable.length} actionable units (${discovery.units.length} own repos, ${discovery.surfaced.length} surfaced)`)
+await writeRelayStatus(state)
+
+// ── Phase 2+3: Dispatch pool + serialized integration ──
+
+phase('Dispatch')
+
+const queue = [...actionable]
+const debts = []
+let quotaStopped = false
+let unitsDispatched = 0
+
+function refDoc(verdict) {
+  if (verdict === 'review') return '~/.claude/skills/fables-turn/references/review.md'
+  if (verdict === 'handoff') return '~/.claude/skills/fables-turn/references/handoff.md'
+  return '~/.claude/skills/fables-executor/SKILL.md'
+}
+
+function unitPrompt(unit) {
+  const wt = `~/.cache/fables-turn/worktrees/${unit.repo}/${state.runId}-${unit.verdict}`
+  const branch = `relay/${state.runId}-${unit.verdict}`
+  return `You are a fables-turn ${unit.verdict.toUpperCase()} child for the repo ${unit.repo} (main checkout: ${unit.path}).
+
+Create your worktree first: git -C ${unit.path} worktree add ${wt} -b ${branch} HEAD
+Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. Last checkpoint tag: ${unit.lastCkpt || '(none)'}.
+
+Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/fables-turn/references/conventions.md for environment facts and relay invariants before starting.
+${unit.verdict === 'execute' ? 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. Stop at a natural boundary; never start an item you cannot finish.' : ''}
+${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
+${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Mint any new id tokens via ~/.claude/skills/meeting/append.sh new-ids N ' + unit.path + ' — NEVER invent tokens.' : ''}
+
+Hard rules: commit in the worktree as you go; NEVER push; NEVER tag; NEVER run git-diary-workflow or todo-update; never prompt the user. If you cannot meet the contract, set contract_met=false and explain in handback.
+
+Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none).`
+}
+
+async function quotaGate(tier) {
+  if (quotaStopped) return false
+  const thresholdEnv = (args && args.RELAY_QUOTA_THRESHOLD)
+    ? `RELAY_QUOTA_THRESHOLD=${args.RELAY_QUOTA_THRESHOLD} `
+    : ''
+  const v = await agent(
+    `Run this command and report the result: ${thresholdEnv}~/.claude/skills/fables-turn/scripts/quota-stop.sh --tier ${tier} ${unitsDispatched} 0
+Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.`,
+    { label: `quota:${tier}`, phase: 'Dispatch', schema: QUOTA_SCHEMA, model: 'haiku' }
+  )
+  if (v && v.buckets && v.buckets.length) state.quota = v.buckets
+  // Fail safe: agent death or exit 1/2 both stop dispatch (exit 2 = "stop, uncertain").
+  if (!v || v.exitCode !== 0) {
+    quotaStopped = true
+    log(`relay-loop: quota gate STOP (tier=${tier}, exit=${v ? v.exitCode : 'agent-failed'}) — draining in-flight units and integration debt`)
+    return false
+  }
+  return true
+}
+
+async function integrate(unit, report) {
+  if (!report) {
+    state.blocked.push({ repo: unit.repo, reason: 'child agent failed/skipped', worktreePath: '-' })
+    await writeRelayStatus(state)
+    return
+  }
+  if (!report.contract_met) {
+    // HANDBACK: not merged; worktree held on disk for a human/strong turn.
+    state.blocked.push({ repo: unit.repo, reason: report.handback || 'contract_met=false', worktreePath: report.worktree })
+    await writeRelayStatus(state)
+    return
+  }
+  const label = unit.verdict === 'execute'
+    ? 'executor (sonnet, relay-loop)'
+    : `reviewer (${STRONG_MODEL}, relay-loop)`
+  const result = await agent(
+    `You are the serialized integrator of the fables-turn relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
+
+1. Verify the main checkout working tree is clean (git -C ${unit.path} status --porcelain). If dirty, abort: return merged=false with reason.
+2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
+   On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
+3. ~/.claude/skills/fables-turn/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}" -l "${label}"
+   It prints the new tag name — capture it as ckptTag.
+4. ~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only ${unit.path}
+   pushStatus = "pushed" on success, otherwise the error summary.
+5. git -C ${unit.path} worktree remove ${report.worktree} && git -C ${unit.path} branch -d ${report.branch}
+6. Update ~/.config/fables-turn/relay.toml for [repos.${unit.repo}]: set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.
+7. Return merged=true, ckptTag, pushStatus, ts (current ISO timestamp).
+
+Never push any other repo, never force-push, never resolve conflicts yourself.`,
+    { label: `integrate:${unit.repo}`, phase: 'Integrate', schema: INTEGRATE_SCHEMA, model: 'sonnet' }
+  )
+  if (result && result.merged) {
+    if (result.ts) state.ts = result.ts
+    state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?' })
+    if (report.review_me_count) {
+      state.reviewMe.push({ repo: unit.repo, count: report.review_me_count, path: `${unit.path}/REVIEW_ME.md` })
+    }
+  } else {
+    state.blocked.push({ repo: unit.repo, reason: (result && result.reason) || 'integration failed', worktreePath: report.worktree })
+  }
+  await writeRelayStatus(state)
+}
+
+async function runUnit(unit) {
+  const tier = unit.verdict === 'execute' ? 'sonnet' : 'strong'
+  if (!(await quotaGate(tier))) {
+    state.queued.push({ repo: unit.repo, verdict: `${unit.verdict} (quota-deferred)` })
+    return
+  }
+  unitsDispatched++
+  state.inFlight.push({ repo: unit.repo, mode: unit.verdict, agentId: `unit-${unitsDispatched}` })
+  log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})`)
+  // Tier dispatch (D4): review/handoff get the STRONG_TIER model. Execute agents are
+  // pinned to Sonnet; STRONG_TIER applies no model override to them.
+  const opts = { label: `${unit.verdict}:${unit.repo}`, phase: 'Dispatch', schema: REPORT_SCHEMA }
+  if (unit.verdict === 'execute') opts.model = 'sonnet'
+  else opts.model = STRONG_MODEL
+  const report = await agent(unitPrompt(unit), opts)
+  state.inFlight = state.inFlight.filter(r => r.repo !== unit.repo)
+  // Integration debt is enqueued, not awaited here: the dispatch slot frees up
+  // immediately while the serialized chain works through merges one at a time.
+  debts.push(enqueueIntegration(() => integrate(unit, report)))
+}
+
+await parallel(
+  Array.from({ length: Math.min(POOL_WIDTH, queue.length) }, () => async () => {
+    while (queue.length && !quotaStopped) {
+      if (unitsDispatched >= MAX_UNITS) {
+        log(`relay-loop: MAX_UNITS seatbelt (${MAX_UNITS}) reached — draining`)
+        quotaStopped = true
+        break
+      }
+      if (budget.total && budget.remaining() < 50000) {
+        log('relay-loop: token budget nearly exhausted — draining')
+        quotaStopped = true
+        break
+      }
+      const unit = queue.shift()
+      state.queued = state.queued.filter(q => q.repo !== unit.repo)
+      await runUnit(unit)
+    }
+  })
+)
+
+// Graceful drain (D5): the parallel() barrier above means all in-flight child agents
+// have returned; now drain ALL integration debt before returning — an unmerged
+// worktree is the worst thing to abandon.
+await Promise.all(debts)
+await integrationChain
+
+state.queued = state.queued.concat(queue.map(u => ({ repo: u.repo, verdict: `${u.verdict} (not dispatched)` })))
+await writeRelayStatus(state)
+
+const handbacks = state.blocked.filter(b => b.worktreePath && b.worktreePath !== '-')
+log(`relay-loop: done — ${state.completed.length} integrated, ${handbacks.length} HANDBACKs, ${state.queued.length} still queued, quotaStopped=${quotaStopped}`)
+
+return {
+  runId: state.runId,
+  statusPath: RELAY_STATUS_PATH,
+  completed: state.completed,
+  handbacks,
+  queuedRemaining: state.queued,
+  quotaStopped,
+}
