@@ -51,3 +51,8 @@ review turn: verified 5 ROUTINE items (44ba/2520/32d6/1ec1/3b02) genuine-green, 
 
 [2026-06-12 executor sonnet] No ROUTINE items available — all prior items ticked. Only open item is id:3346 [HARD — strong model], which is out of scope for executor tier. No work done this session; queue is empty for executor. Reviewer should add new ROUTINE items or tackle id:3346 in a strong-model session.
 Friction: none (no items to work).
+
+## 2026-06-12 — executor (Sonnet)
+
+[2026-06-12 executor sonnet] Worked id:9934 — implemented `fables-turn/scripts/quota-stop.sh` and `tests/test_quota_stop.sh`. Script reads `/tmp/claude-usage-cache.json`, checks tier-specific buckets against `RELAY_QUOTA_THRESHOLD` (default 0.90), exits 0/1/2 for below/above/uncertain. Seatbelt triggers on agents≥200 or wall≥7200s regardless of cache. 17 tests cover all specified cases; full suite green (10 files, 0 failures).
+Friction: id:aeaf and id:80e2 both require relay-loop.js which is a HARD (id:83c9) item not yet built — only id:9934 was actionable this session.
