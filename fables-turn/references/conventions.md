@@ -21,7 +21,7 @@ version marker.
 - One subagent per repo; within a repo, parallel tasks only on disjoint paths.
 - Verification-before-merge: tests green in the worktree → single integration branch →
   `--no-ff` merge by the orchestrator → ONE push per repo per turn via
-  `~/.claude/skills/git-diary-workflow/git-lock-push.sh`. Children NEVER push.
+  `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only`. Children NEVER push.
 - Children do not run git-diary-workflow or todo-update; they return a
   `diary_fragment` and the orchestrator batches.
 - Every touched repo ends the turn with a `fable-ckpt-YYYYMMDD-HHMM` annotated tag and
