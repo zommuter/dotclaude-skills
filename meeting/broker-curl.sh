@@ -14,7 +14,7 @@
 set -euo pipefail
 
 if [[ $# -lt 3 ]]; then
-  echo "Usage: broker-curl.sh <port> <session> <status|events|event|question|await|response> [json]" >&2
+  echo "Usage: broker-curl.sh <port> <session> <status|events|event|question|await|response|say> [json|--opener]" >&2
   exit 1
 fi
 
@@ -42,9 +42,26 @@ case "$ENDPOINT" in
       -H 'Content-Type: application/json' \
       -d "$JSON"
     ;;
+  say)
+    OPENER=0
+    if [[ "${4:-}" == "--opener" ]]; then OPENER=1; fi
+    first=1
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ -z "$line" ]] && continue
+      if [[ $first -eq 1 && $OPENER -eq 1 ]]; then
+        JSON=$(jq -n --arg text "$line" --arg s "$SESSION" '{"text":$text,"kind":"opener","session":$s}')
+      else
+        JSON=$(jq -n --arg text "$line" --arg s "$SESSION" '{"text":$text,"session":$s}')
+      fi
+      curl -s --fail -X POST "${BASE}/event" \
+        -H 'Content-Type: application/json' \
+        -d "$JSON" > /dev/null
+      first=0
+    done
+    ;;
   *)
     echo "Unknown endpoint: ${ENDPOINT}" >&2
-    echo "Valid: status events event question await response" >&2
+    echo "Valid: status events event question await response say" >&2
     exit 1
     ;;
 esac
