@@ -143,6 +143,20 @@ annotated checkpoint tags, so the relay path fails loud on divergence instead
 of reconciling. The everyday diary-workflow default (`--rebase --autostash`)
 is unchanged. (`docs/meeting-notes/2026-06-12-1342-fables-turn-integration-defects.md`)
 
+Since 2026-06-12 the relay is growing an autonomous default mode (meeting note
+`docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md`, D1–D6):
+bare `/fables-turn` is a thin non-interactive front door over a Workflow script
+(`fables-turn/scripts/relay-loop.js` — priority-mixed ≤5-wide pool, serialized
+integrator, full pool logic pending id:83c9). Supporting pieces:
+`scripts/quota-stop.sh` (tier-aware stop gate over the statusline's
+`/tmp/claude-usage-cache.json`; cache `.utilization` is 0–100 *percent*,
+`RELAY_QUOTA_THRESHOLD` a 0–1 fraction, converted internally), the
+`STRONG_TIER ∈ {fable, opus}` model knob for review/handoff agents (execute
+agents stay Sonnet), and the `RELAY_STATUS.md` cross-repo rollup written via an
+agent (Workflow JS has no fs access). Push policy stays push-to-main with
+retrospective review; unreviewed executor work is always the top-priority
+strong unit.
+
 The executor contract itself is a versioned skill (`fables-executor/SKILL.md`,
 marker `<!-- fables-executor contract vN -->`); managed repos carry only a
 2-line pointer in their CLAUDE.md whose vN must match — a full move into the
