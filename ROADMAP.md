@@ -135,6 +135,28 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     TODO id:fba6. The skill body + all reference-file edits may already exist from the
     review turn that wrote this item — verify before re-implementing.
 
+- [ ] Strong-model audit: code review, security, and design coherence [HARD — strong model] <!-- id:401c -->
+  - **Why HARD**: requires adversarial judgment — finding subtle bugs, security issues,
+    and internal contradictions in design docs that a weaker model would miss or dismiss.
+    Also requires holding the full design history in mind to spot feasibility gaps.
+  - **Acceptance**: a meeting note documenting findings across three passes:
+    (1) **Code review** — correctness bugs, error handling gaps, shell quoting issues,
+    race conditions, unhandled edge cases in scripts and Python helpers;
+    (2) **Security audit** — injection risks (command, path, jq), unvalidated inputs
+    at system boundaries, secrets exposure, file permission assumptions;
+    (3) **Design coherence** — check currently-unreviewed design decisions (anything
+    added since last Fable turn) for sensibility, feasibility, and internal
+    contradictions (e.g. a TODO gate that can never fire, a contract rule that
+    contradicts another). Each finding is either fixed inline (if trivial), or
+    becomes a new TODO/ROADMAP item with the finding quoted as context. No finding
+    is silently dropped — if assessed as acceptable risk, say so explicitly.
+  - **Tests**: none (audit output is the deliverable; follow-on items get their own tests)
+  - **Done-check**: meeting note at `docs/meeting-notes/YYYY-MM-DD-HHMM-strong-model-audit.md`
+    exists; every finding is either fixed, tracked, or explicitly accepted with rationale.
+  - **Context**: run after each significant batch of Sonnet executor work or design changes.
+    First run: covers all work since `fable-ckpt-20260612-1328`. Subsequent runs: diff
+    against the most recent `fable-ckpt-*` tag (same window as review mode step 2).
+
 - [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,
