@@ -67,7 +67,6 @@ git -C "$work" tag -a "fable-ckpt-test" -m "checkpoint" HEAD
 
 # Run lock-push with --ff-only (remote is not ahead, so ff succeeds)
 "$LOCK_PUSH" "$work" --ff-only >/dev/null 2>&1
-push_exit=$?
 
 # Tag must still exist and resolve to a commit reachable from HEAD
 if git -C "$work" rev-parse "fable-ckpt-test^{}" >/dev/null 2>&1; then
