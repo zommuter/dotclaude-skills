@@ -129,7 +129,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     grep: the `vN` in `fables-executor/SKILL.md` equals the `vN` in `CLAUDE.md`'s pointer.
     `fables-turn/references/conventions.md` no longer contains the fenced 5-rule block.
     `handoff.md` C1 and `review.md` step 4 reference the pointer, not the block.
-  - **Tests**: `tests/test_fables_executor.sh` (`# roadmap:7691`) (currently RED)
+  - **Tests**: `tests/test_fables_executor.sh` (`# roadmap:7691`)
   - **Done-check**: `tests/run-tests.sh tests/test_fables_executor.sh` then full `make test` after ticking
   - **Context**: meeting note `docs/meeting-notes/2026-06-12-1404-fables-executor-skill.md`;
     TODO id:fba6. The skill body + all reference-file edits may already exist from the
