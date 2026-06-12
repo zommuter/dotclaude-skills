@@ -102,6 +102,8 @@ integration invariants.
 
 ## Shared resources
 
+- `docs/fables-relay.md` (repo root) — user-facing guide: what a relay turn does
+  end-to-end, what the artifacts mean, what the human does between turns.
 - `references/conventions.md` — environment facts + the verbatim executor-contract
   block embedded into every generated CLAUDE.md.
 - `references/templates.md` — ROADMAP.md / RELAY_LOG.md / REVIEW_ME.md templates.
