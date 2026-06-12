@@ -67,7 +67,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     canonical installer and must not lag. Test with `DEST_DIR=$(mktemp -d)` —
     never the real `~/.claude`.
 
-- [ ] Add tools/ctx-budget.sh — per-skill SKILL.md token-budget audit [ROUTINE] <!-- id:32d6 -->
+- [x] Add tools/ctx-budget.sh — per-skill SKILL.md token-budget audit [ROUTINE] <!-- id:32d6 -->
   - **Acceptance**: `tools/ctx-budget.sh [root]` (default: git toplevel) scans every
     `*/SKILL.md` in the repo and prints one TSV line per file:
     `<relpath>\t<est_tokens>\t<gate>\t<OK|WARN>`, where `est_tokens = bytes/4`
