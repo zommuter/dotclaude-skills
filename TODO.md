@@ -2,7 +2,7 @@
 
 ## Relay
 
-- [ ] Relay: 3 open ROADMAP items (id:9934 quota-stop.sh done 2026-06-12; id:aeaf STRONG_TIER knob done 2026-06-12; id:80e2 RELAY_STATUS.md rollup writer done 2026-06-12) <!-- id:d5e0 -->
+- [ ] Relay: 3 open ROADMAP items (id:230f front door done 2026-06-12 by reviewer; open: id:83c9 relay-loop pool, id:1ad7 pilot, id:3346 gated) <!-- id:d5e0 -->
 
 ## meeting skill
 

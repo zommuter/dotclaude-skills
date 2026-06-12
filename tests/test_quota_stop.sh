@@ -42,7 +42,7 @@ JSON
 rm -f "$CACHE"
 run_expect "missing cache → exit 2" 2 --tier sonnet
 
-make_cache 0.50 0.50 0.50
+make_cache 50 50 50
 touch -d "11 minutes ago" "$CACHE"
 run_expect "stale cache (>10 min) → exit 2" 2 --tier sonnet
 # Restore fresh mtime for subsequent tests
@@ -50,74 +50,81 @@ touch "$CACHE"
 
 # ── Missing key in JSON ────────────────────────────────────────────────────────
 
-echo '{ "five_hour": { "utilization": 0.50 }, "seven_day": { "utilization": 0.50 } }' > "$CACHE"
+echo '{ "five_hour": { "utilization": 50 }, "seven_day": { "utilization": 50 } }' > "$CACHE"
 run_expect "missing seven_day_sonnet key (sonnet tier) → exit 2" 2 --tier sonnet
 
-echo '{ "five_hour": { "utilization": 0.50 }, "seven_day": { "utilization": 0.50 }, "seven_day_sonnet": { "utilization": 0.50 } }' > "$CACHE"
+echo '{ "five_hour": { "utilization": 50 }, "seven_day": { "utilization": 50 }, "seven_day_sonnet": { "utilization": 50 } }' > "$CACHE"
 
-# ── Sonnet tier: all at 0.85 (below default 0.90 threshold) ───────────────────
+# ── Live-cache scale regression (utilization is 0-100 percent, NOT 0-1) ───────
+# A real /tmp/claude-usage-cache.json at moderate usage (37%) must NOT trigger
+# the default 0.90 (=90%) threshold. Guards against fraction/percent confusion.
 
-make_cache 0.85 0.85 0.85
-run_expect "sonnet tier, all=0.85 → exit 0" 0 --tier sonnet
+make_cache 37.0 24.0 8.0
+run_expect "live-shaped cache (37%/24%/8%) → exit 0 at default threshold" 0 --tier sonnet
 
-# ── Sonnet tier: each bucket at 0.90 (at threshold) ───────────────────────────
+# ── Sonnet tier: all at 85% (below default 90% threshold) ───────────────────
 
-make_cache 0.90 0.85 0.85
-run_expect "sonnet tier, five_hour=0.90 → exit 1" 1 --tier sonnet
+make_cache 85 85 85
+run_expect "sonnet tier, all=85% → exit 0" 0 --tier sonnet
 
-make_cache 0.85 0.90 0.85
-run_expect "sonnet tier, seven_day=0.90 → exit 1" 1 --tier sonnet
+# ── Sonnet tier: each bucket at 90% (at threshold) ───────────────────────────
 
-make_cache 0.85 0.85 0.90
-run_expect "sonnet tier, seven_day_sonnet=0.90 → exit 1" 1 --tier sonnet
+make_cache 90 85 85
+run_expect "sonnet tier, five_hour=90% → exit 1" 1 --tier sonnet
 
-# ── Sonnet tier: all at 0.95 ───────────────────────────────────────────────────
+make_cache 85 90 85
+run_expect "sonnet tier, seven_day=90% → exit 1" 1 --tier sonnet
 
-make_cache 0.95 0.95 0.95
-run_expect "sonnet tier, all=0.95 → exit 1" 1 --tier sonnet
+make_cache 85 85 90
+run_expect "sonnet tier, seven_day_sonnet=90% → exit 1" 1 --tier sonnet
 
-# ── Strong tier: all at 0.85 ──────────────────────────────────────────────────
+# ── Sonnet tier: all at 95% ───────────────────────────────────────────────────
 
-make_cache 0.85 0.85 0.85
-run_expect "strong tier, all=0.85 → exit 0" 0 --tier strong
+make_cache 95 95 95
+run_expect "sonnet tier, all=95% → exit 1" 1 --tier sonnet
 
-# ── Strong tier: each checked bucket at 0.90 ──────────────────────────────────
+# ── Strong tier: all at 85% ──────────────────────────────────────────────────
 
-make_cache 0.90 0.85 0.85
-run_expect "strong tier, five_hour=0.90 → exit 1" 1 --tier strong
+make_cache 85 85 85
+run_expect "strong tier, all=85% → exit 0" 0 --tier strong
 
-make_cache 0.85 0.90 0.85
-run_expect "strong tier, seven_day=0.90 → exit 1" 1 --tier strong
+# ── Strong tier: each checked bucket at 90% ──────────────────────────────────
+
+make_cache 90 85 85
+run_expect "strong tier, five_hour=90% → exit 1" 1 --tier strong
+
+make_cache 85 90 85
+run_expect "strong tier, seven_day=90% → exit 1" 1 --tier strong
 
 # ── Strong tier does NOT check seven_day_sonnet ───────────────────────────────
 
-make_cache 0.85 0.85 0.95
-run_expect "strong tier, seven_day_sonnet=0.95 (not checked) → exit 0" 0 --tier strong
+make_cache 85 85 95
+run_expect "strong tier, seven_day_sonnet=95% (not checked) → exit 0" 0 --tier strong
 
 # ── Custom threshold via env ───────────────────────────────────────────────────
 
-make_cache 0.85 0.85 0.85
+make_cache 85 85 85
 RELAY_QUOTA_THRESHOLD=0.85 USAGE_CACHE="$CACHE" "$SCRIPT" --tier sonnet && rc=0 || rc=$?
 if [[ "$rc" -eq 1 ]]; then
-  pass "custom threshold 0.85, util=0.85 → exit 1"
+  pass "custom threshold 0.85, util=85% → exit 1"
 else
-  fail "custom threshold 0.85, util=0.85 → expected exit 1, got $rc"
+  fail "custom threshold 0.85, util=85% → expected exit 1, got $rc"
 fi
 
 # ── Seatbelt: agent-count ≥ 200 ───────────────────────────────────────────────
 
-make_cache 0.10 0.10 0.10
+make_cache 10 10 10
 run_expect "seatbelt: agents=200 → exit 1 regardless of low usage" 1 --tier sonnet --agents 200
 
-make_cache 0.10 0.10 0.10
+make_cache 10 10 10
 run_expect "seatbelt: agents=199 → not triggered → exit 0" 0 --tier sonnet --agents 199
 
 # ── Seatbelt: wall-clock ≥ 7200s ──────────────────────────────────────────────
 
-make_cache 0.10 0.10 0.10
+make_cache 10 10 10
 run_expect "seatbelt: wall=7200 → exit 1 regardless of low usage" 1 --tier sonnet --wall 7200
 
-make_cache 0.10 0.10 0.10
+make_cache 10 10 10
 run_expect "seatbelt: wall=7199 → not triggered → exit 0" 0 --tier sonnet --wall 7199
 
 echo "ALL PASS"
