@@ -21,6 +21,12 @@ fi
 PORT=$1
 SESSION=$2
 ENDPOINT=$3
+# PORT may come from /tmp/meeting-rpg/broker.json (world-writable dir) — a
+# non-numeric value like ":@evil.com" would relocate the URL host. Hard-fail.
+if [[ ! "$PORT" =~ ^[0-9]{1,5}$ ]]; then
+  echo "Invalid broker port: ${PORT} (must be numeric)" >&2
+  exit 1
+fi
 BASE="http://127.0.0.1:${PORT}"
 
 case "$ENDPOINT" in
