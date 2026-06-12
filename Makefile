@@ -2,7 +2,7 @@ SRC_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEST_DIR := $(HOME)/.claude/skills
 export DEST_DIR
 
-SKILLS := meeting meeting-cross git-diary-workflow todo-update fables-executor
+SKILLS := meeting meeting-cross git-diary-workflow todo-update fables-executor fables-turn projects
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
@@ -34,6 +34,19 @@ fables-executor_FILES := SKILL.md
 fables-executor_EXEC  :=
 fables-executor_ALLOW :=
 fables-executor_LOCAL :=
+
+fables-turn_FILES := SKILL.md \
+                     references/handoff.md references/review.md \
+                     references/conventions.md references/templates.md \
+                     scripts/discover-repos.sh scripts/ckpt-tag.sh
+fables-turn_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh
+fables-turn_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh
+fables-turn_LOCAL :=
+
+projects_FILES := SKILL.md
+projects_EXEC  :=
+projects_ALLOW :=
+projects_LOCAL :=
 
 SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
@@ -106,6 +119,7 @@ install-$(1):
 	@echo "→ installing $(1)"
 	@mkdir -p $$$$DEST_DIR/$(1)
 	@for f in $($(1)_FILES); do \
+		mkdir -p $$$$DEST_DIR/$(1)/$$$$(dirname $$$$f); \
 		ln -sfn $(SRC_DIR)/$(1)/$$$$f $$$$DEST_DIR/$(1)/$$$$f; \
 	done
 	@for f in $($(1)_EXEC); do \
@@ -123,7 +137,7 @@ uninstall-$(1):
 
 status-$(1):
 	@echo "$(1):"
-	@for f in $($(1)_FILES); do \
+	@trap '' PIPE; for f in $($(1)_FILES); do \
 		if [ -L $$$$DEST_DIR/$(1)/$$$$f ]; then \
 			echo "  ok  $$$$f -> $$$$(readlink $$$$DEST_DIR/$(1)/$$$$f)"; \
 		elif [ -e $$$$DEST_DIR/$(1)/$$$$f ]; then \
@@ -131,7 +145,7 @@ status-$(1):
 		else \
 			echo "  !!  $$$$f (not installed)"; \
 		fi; \
-	done
+	done || true
 
 endef
 
