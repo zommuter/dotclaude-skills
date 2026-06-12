@@ -1,0 +1,10 @@
+{
+  "model": {"display_name": "Sonnet 4.5"},
+  "cost": {"total_cost_usd": 1.23},
+  "context_window": {
+    "total_input_tokens": 110000,
+    "total_output_tokens": 5000,
+    "context_window_size": 200000
+  },
+  "workspace": {"current_dir": "/tmp"}
+}

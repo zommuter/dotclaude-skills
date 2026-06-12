@@ -33,7 +33,7 @@ todo-update_LOCAL :=
 SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
-.PHONY: help install install-hooks install-allowlist print-allowlist uninstall status \
+.PHONY: help install install-hooks install-allowlist print-allowlist uninstall status test \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -52,12 +52,16 @@ help:
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
 	@echo "  status               show symlink state for all skills"
+	@echo "  test                 run the test suite (tests/run-tests.sh)"
 	@echo ""
 	@echo "Skills: $(SKILLS)"
 	@echo ""
 	@echo "Install location: $$DEST_DIR  (override: make DEST_DIR=/path install)"
 
 install: $(addprefix install-,$(SKILLS)) install-hooks install-allowlist
+
+test:
+	@bash $(SRC_DIR)/tests/run-tests.sh
 
 ALLOWLIST_EXTRA := $(SRC_DIR)/tools/allow-extra.txt
 
