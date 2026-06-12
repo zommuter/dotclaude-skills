@@ -51,8 +51,9 @@ FP-prone, breaks on rewording, was the original design and produced noise.
 
 Token minting is centralized in `append.sh new-id` which greps the known
 id-bearing files to guarantee collision-freedom. **Any new id-bearing file class
-must be added to that scan and to orphan-scan's union read** (ROADMAP.md is the
-current case — roadmap item de9c).
+must be added to that scan and to orphan-scan's union read** (ROADMAP.md joined
+the ledger via roadmap item de9c — `append.sh scan-ids`, orphan-scan union read,
+classify RELAY class; spec: `tests/test_id_ecosystem.sh`).
 
 ## 4. `append.sh` as the sole writer for shared registries
 
@@ -80,9 +81,11 @@ around — reversed so the published skill is self-contained.
 - **All HTTP via `broker-curl.sh`**: one wrapper = one allowlist entry, and the
   jq-based JSON building (apostrophe safety, no brace-defaults in `${...}`) is
   written once instead of per-call.
-- Known cost: each wrapper call is a tool-call record in main context
-  (~25–35/meeting) — reduction is roadmap item 3b02; full sub-agent isolation of
-  the meeting transcript is the gated HARD item 3346.
+- Known cost: each wrapper call is a tool-call record in main context — the
+  batched `say` subcommand (roadmap item 3b02, shipped) cuts this to one call
+  per agenda item (~25–35 records/meeting → ≤10) while preserving one `/event`
+  per line for renderer painting; full sub-agent isolation of the meeting
+  transcript is the gated HARD item 3346.
 
 ## 6. classify.sh / orphan-scan.sh: mechanical pre-pass, model judges
 
@@ -122,7 +125,9 @@ tests pass turns the suite red — an honest-by-construction done-check.
 `meeting-cost-logger.sh` and `parallel-edit-detector.py` exist to *measure*
 (cost calibration, parallel-edit frequency) before any prevention mechanism is
 built — per the global "observe before preventing" heuristic. Don't extend them
-into enforcement without logged evidence.
+into enforcement without logged evidence. `tools/ctx-budget.sh` follows the same
+philosophy: advisory TSV scan of every SKILL.md against a 2k-token gate
+(`CTX_BUDGET_GATE` override), always exit 0 — a logger, not a blocker.
 
 ## 10. Relay (fables-turn) self-hosted
 

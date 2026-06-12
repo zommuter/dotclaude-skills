@@ -14,7 +14,7 @@ executor task queue; `TODO.md` for the broader work inventory.
 ```bash
 make help               # list targets
 make install            # symlink all skills + hooks into ~/.claude, merge allowlist
-make install-<skill>    # one skill (meeting, meeting-cross, git-diary-workflow, todo-update)
+make install-<skill>    # one skill (meeting, meeting-cross, git-diary-workflow, todo-update, fables-executor, fables-turn, projects)
 make install-hooks      # hooks + statusline only
 make status             # show symlink state for all skills
 make print-allowlist    # read-only preview of settings.json Bash allowlist entries
@@ -41,7 +41,7 @@ install IS the published version (per-file symlinks, see Layout).
 | `fables-executor/` | Versioned executor-contract skill (SKILL.md only); the `## Relay contract` pointer below must match its `vN` marker |
 | `hooks/` | Stop/Notification hook scripts; settings.json snippets in `hooks/README.md` |
 | `statusline/` | `statusline-command.sh` — quota/cost/model statusline (reads JSON on stdin) |
-| `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt` |
+| `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt`; `ctx-budget.sh` (advisory SKILL.md token-budget audit) |
 | `tests/` | Plain-bash test suite (see Testing) |
 | `docs/meeting-notes/` | Design-meeting records — the project's decision log; cited from TODO items |
 
