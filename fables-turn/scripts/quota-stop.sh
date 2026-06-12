@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# quota-stop.sh — tier-aware quota threshold check for relay-loop.js
+#
+# Usage:
+#   quota-stop.sh [--tier sonnet|strong] [--agents N] [--wall S]
+#
+# Exit codes:
+#   0 = below threshold (safe to continue)
+#   1 = at/above threshold, or seatbelt triggered (stop)
+#   2 = stale/missing cache or missing/invalid key (uncertain, stop)
+#
+# Env:
+#   RELAY_QUOTA_THRESHOLD  threshold fraction, default 0.90
+#   USAGE_CACHE            path to cache JSON, default /tmp/claude-usage-cache.json
+set -euo pipefail
+
+TIER="sonnet"
+AGENTS=0
+WALL=0
+THRESHOLD="${RELAY_QUOTA_THRESHOLD:-0.90}"
+USAGE_CACHE="${USAGE_CACHE:-/tmp/claude-usage-cache.json}"
+STALE_SECS=600
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --tier)   TIER="$2";   shift 2 ;;
+    --agents) AGENTS="$2"; shift 2 ;;
+    --wall)   WALL="$2";   shift 2 ;;
+    *) echo "quota-stop: unknown arg '$1'" >&2; exit 2 ;;
+  esac
+done
+
+# Seatbelt: hard limits regardless of cache
+if [[ "$AGENTS" -ge 200 || "$WALL" -ge 7200 ]]; then
+  echo "quota-stop: seatbelt triggered (agents=$AGENTS wall=${WALL}s)" >&2
+  exit 1
+fi
+
+# Cache presence
+if [[ ! -f "$USAGE_CACHE" ]]; then
+  echo "quota-stop: cache missing: $USAGE_CACHE" >&2
+  exit 2
+fi
+
+# Cache freshness (mtime > 10 min → uncertain)
+NOW=$(date +%s)
+MTIME=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null) || { echo "quota-stop: cannot stat $USAGE_CACHE" >&2; exit 2; }
+AGE=$(( NOW - MTIME ))
+if [[ "$AGE" -gt "$STALE_SECS" ]]; then
+  echo "quota-stop: cache stale (${AGE}s > ${STALE_SECS}s limit)" >&2
+  exit 2
+fi
+
+# check_key KEY — exit 1 if at/above threshold; exit 2 if key missing; else returns
+check_key() {
+  local key="$1"
+  local val
+  val=$(jq -r ".${key}.utilization // empty" "$USAGE_CACHE" 2>/dev/null)
+  if [[ -z "$val" ]]; then
+    echo "quota-stop: key '$key' missing in cache" >&2
+    exit 2
+  fi
+  if awk -v v="$val" -v t="$THRESHOLD" 'BEGIN { exit (v >= t) ? 0 : 1 }'; then
+    echo "quota-stop: $key=$val >= threshold $THRESHOLD (tier=$TIER)" >&2
+    exit 1
+  fi
+}
+
+case "$TIER" in
+  sonnet)
+    check_key seven_day_sonnet
+    check_key five_hour
+    check_key seven_day
+    ;;
+  strong)
+    check_key five_hour
+    check_key seven_day
+    ;;
+  *)
+    echo "quota-stop: unknown tier '$TIER' (expected sonnet|strong)" >&2
+    exit 2
+    ;;
+esac
+
+exit 0
