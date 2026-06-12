@@ -79,3 +79,7 @@ review ckpt-1827 window: 9934/aeaf/80e2 verified, quota-stop percent-scale fix, 
 ## 2026-06-12 22:32 — reviewer (claude-fable-5)
 
 id:83c9 relay-loop.js autonomous pool implemented (income-preferring scheduler per user directive); id:a354 user-facing relay guide docs/fables-relay.md; id:456a flake instrumentation
+
+## 2026-06-12 22:38 — reviewer (claude-fable-5)
+
+Executor contract v2: RELAY_LOG self-reports are committed-or-not-written (no-op sessions leave the tree untouched); pointer trail (own CLAUDE.md, handoff.md C1) follows. make test 14 passed.
