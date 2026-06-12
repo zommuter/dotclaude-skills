@@ -87,6 +87,8 @@ If non-empty → **attribute each dirty file before committing**. The repo is si
 - **Yours** — you edited the file this session, either directly or through a symlink (e.g. `~/src/meeting-rpg/broker.py → ~/src/dotclaude-skills/meeting/broker.py`). Symlink edits are the reason this step exists: they never show up in the foreign project's git status, so check your session's Write/Edit targets against `realpath` into dotclaude-skills — **do not rely on the foreign repo's git status to surface them**.
 - **Not yours / can't attribute** — leave it uncommitted and mention it in the end-of-session summary; the owning session's workflow will commit it.
 
+**Known residual race**: attribution is file-granular. If two sessions edit the SAME file concurrently, staging "your" file scoops the other session's hunks, and git-lock-push's autostash pops over a moving tree. The real fix is worktree-per-session with a flock'd merge to canonical — see dotclaude-skills TODO id:3558 (build opened 2026-06-12). Until that lands: before committing a shared spec file (SKILL.md, format.md, personas.md), eyeball `git diff` for hunks you don't recognize and drop them from the commit.
+
 For YOUR files only: build a manifest and msg exactly as in Step 1b, using `~/src/dotclaude-skills/<file1>` paths and a dotclaude-skills description, then:
 
 ```bash
