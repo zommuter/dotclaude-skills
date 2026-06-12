@@ -2,7 +2,7 @@
 
 ## Relay
 
-- [ ] Relay: 6 open ROADMAP items <!-- id:d5e0 -->
+- [ ] Relay: 5 open ROADMAP items <!-- id:d5e0 -->
 
 ## meeting skill
 
@@ -19,7 +19,6 @@
 - [ ] **Meeting-note archival skill** (deferred — gate re-armed 2026-06-06): open `/meeting meeting-note-archival` when `docs/meeting-notes/` has **≥50 notes AND oldest note >3 months old** (count ≥50 fired 2026-06-06 but all notes <1mo → 0 files qualify → build deferred). Design: move notes >3 months old to `docs/meeting-notes/archive/YYYY-QN/`; orphan-scan MUST **recurse into `archive/**` — never skip** (see §Decisions). Real build-warrant: dotclaude-skills orphan-scan runtime over 1s gate (cross-link: see "Caching for orphan-scan.sh" TODO). See `docs/meeting-notes/2026-05-14-1015-skill-ctx-bloat-audit.md` and `docs/meeting-notes/2026-06-06-1510-meeting-note-archival.md`.
 - [ ] **`git-diary-workflow` SKILL.md size audit** — pre-emptive trim done 2026-06-11 (see `docs/meeting-notes/2026-06-11-0921-git-diary-skillmd-trim.md`). Current gate: `~(wc -c)/4 ≈ N tokens vs. 2k gate` (chars/4 estimate, reuses `cost-of.sh` SIZE_KB/4 convention). Trigger: post-trim token estimate exceeds 2k OR a prompt-bloat episode traced to this file. See `docs/meeting-notes/2026-05-14-1015-skill-ctx-bloat-audit.md`.
 - [ ] **At next helferli meeting**: note whether `Write(docs/meeting-notes/...)` prompt fires — **observation in auto mode is inconclusive** (auto mode silently approves prompts; can't distinguish allowlisted vs auto-approved). Must test in a non-auto session or check settings.json allowlist directly. Contract: result noted in next helferli meeting note. Orphan from `docs/meeting-notes/2026-05-14-1739-class1-cross-repo-verify.md:28`.
-- [x] **broker-mode.md γ-branch table missing Fable caveat** — added `> **Fable note:**` blockquote naming inline-prose replacement and pointing to `format.md §Harness-class gate` — covered by tests (test_fable_caveat.sh) on 2026-06-12
 - [ ] **Reduce broker-curl ctx overhead in meeting skill** — each `broker-curl.sh` call appears as a Bash tool-call entry in main context (the full jq command body, not just `{}`), costing ~25–35 tool-call records per meeting (~few k tokens). Options: (a) allowlist `~/.claude/skills/meeting/broker-curl.sh *` in global settings.json to suppress permission prompts; (b) batch multiple persona lines into a single script call (reduces tool-call count, may trade off TTFL granularity); (c) redirect broker-curl stdout to /dev/null in a wrapper (only errors surface). Contract: tool-call count per meeting ≤ 10 without regressing TTFL logging; CLI display visibly less cluttered. Surfaced 2026-06-11 meeting-rpg meeting. <!-- id:3b02 -->
 - [ ] **Sub-agent meeting simulation for main-ctx isolation** — in broker mode, persona lines are generated *in the main Claude Code context* before being POSTed; broker mode saves the chat round-trip but not the in-context generation (~50–100k tokens/meeting). Additional motivation: parallel slow meetings each accumulate cold-cache penalties (5-min TTL is not user-configurable); sub-agent isolation means the main session never holds meeting token mass and TTL constraint becomes irrelevant. Design: spawn the meeting as a sub-agent (Agent tool or Workflow) that receives topic + user profile + discoveries and returns decisions + meeting-note text; main session processes only the thin return value. Pre-conditions: (1) `broker-mode.md` already has the full decision-routing contract; (2) 2026-06-03 discovery: "defer persona-separation to meeting-rpg-consumable trigger." Gate: opencode port validated (proves broker contract is stable) + ≥1 meeting with ctx > 200k. See: `~/src/dotclaude-skills/docs/meeting-notes/2026-06-03-1452-llm-proxy-token-ctx-and-persona-split.md`. Surfaced 2026-06-11. <!-- id:3346 -->
 - [ ] **Caching for orphan-scan.sh** (condition-triggered): `~/.claude/logs/meeting-orphan-scan.log` shows helferli ~1200ms, zkm ~2600ms median — both ≥1s gate. Open `/meeting orphan-scan-caching` when zkm/helferli runtime grows further OR the scans cause perceptible friction. See `docs/meeting-notes/2026-05-14-1803-orphan-scan-accumulation.md` gate-(a) analysis.
@@ -27,7 +26,7 @@
 ## Caude statusbar
 
 - [ ] **Re-verify quota peak-pricing window (~weekly)** — bump `PRICING_VERIFIED` in `statusline/statusline-command.sh` after confirming the schedule against current Anthropic docs/behaviour. Community window = weekday 05:00–11:00 PT (peak/regular burn); last changed 2026-06-10 (peak throttling reportedly dropped for Pro/Max). Triggered in-band by the statusline staleness marker (dim `?` appears on 💸/🪙 once the date is >7 days old).
-- [ ] **Statusbar: other cost-saving indicators** — candidate ideas: current session input-token running total, cache_read vs uncached ratio (shows caching effectiveness), model currently active.
+- [ ] **Statusbar: other cost-saving indicators** — ~~current session input-token running total~~ done (id:2520 — shows `<pct>%(<tokens>)` in context segment); remaining candidates: cache_read vs uncached ratio (shows caching effectiveness), model currently active.
 
 ## worktrees / D-series
 
