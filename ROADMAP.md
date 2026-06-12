@@ -230,7 +230,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Context**: meeting note D4. Opus model ID: `claude-opus-4-8`. fable-class model match: `claude-fable-5`.
     Workflow agent() `model:` override is a first-class field — no wrapper needed.
 
-- [ ] `RELAY_STATUS.md` cross-repo rollup writer [ROUTINE] <!-- id:80e2 -->
+- [x] `RELAY_STATUS.md` cross-repo rollup writer [ROUTINE] <!-- id:80e2 -->
   - **Acceptance**: relay-loop.js writes/rewrites `~/.config/fables-turn/RELAY_STATUS.md` (or a path
     configurable via `RELAY_STATUS_PATH` env var) on every integration and every phase transition.
     Template sections: `## In-flight` (repo, mode, agent-id), `## Completed this run` (repo, mode,
