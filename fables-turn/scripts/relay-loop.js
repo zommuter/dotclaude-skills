@@ -117,7 +117,13 @@ async function writeRelayStatus(state, statusPath) {
   const blockedCount = (state.blocked || []).length
   log(`RELAY_STATUS updated: in-flight=${inFlightCount} completed=${completedCount} blocked=${blockedCount} → ${path}`)
   await agent(
-    `Write the following content verbatim to the file at path ${path} (expand ~ to $HOME). Create parent directories if needed. Do not truncate or reformat.
+    `Write the following content verbatim to RELAY_STATUS.md. The target path is "${path}".
+
+FIRST resolve it to a real absolute path with the shell, e.g.
+  target=$(python3 -c "import os;print(os.path.expanduser('${path}'))")
+then create parents with mkdir -p "$(dirname "$target")" and write the content to "$target".
+
+CRITICAL (id:c34a): NEVER create a file or directory whose name literally contains "$HOME", "\${HOME}", "~", or a leading "$" — that means expansion failed and leaks a junk dir into the cwd. The final resolved path MUST begin with "/". If you cannot resolve an absolute path beginning with "/", abort WITHOUT writing anything. Do not truncate or reformat.
 
 Content:
 ${content}`,
