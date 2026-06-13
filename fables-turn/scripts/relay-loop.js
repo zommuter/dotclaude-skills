@@ -412,7 +412,8 @@ async function integrate(unit, report) {
    It prints the new tag name — capture it as ckptTag.
 4. ~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only ${unit.path}
    pushStatus = "pushed" on success, otherwise the error summary.
-5. git -C ${unit.path} worktree remove ${report.worktree} && git -C ${unit.path} branch -d ${report.branch}
+5. git -C ${unit.path} worktree remove --force ${report.worktree} && git -C ${unit.path} branch -d ${report.branch}
+   (--force is required and safe here: the merge+tag+push above already integrated the committed branch work, so the only thing --force discards is incidental untracked build artifacts the child left behind, e.g. a uv.lock from running tests. Without --force, worktree remove fails on any untracked file and the worktree+branch silently orphan in ~/.cache/fables-turn/worktrees/ — id:d187.)
 6. Update ~/.config/fables-turn/relay.toml for [repos.${unit.repo}]: set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.
 7. Return merged=true, ckptTag, pushStatus, ts (current ISO timestamp).
 
