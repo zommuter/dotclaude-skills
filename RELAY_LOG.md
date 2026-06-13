@@ -99,3 +99,7 @@ review 20260613-1519: 7 commits audited clean, 16 tests green, resurrection-chec
 ## 2026-06-13 16:18 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260613-1604: 1 commit (7c55793 POOL_WIDTH) audited clean, 16 tests green, default/override verified, doc-drift fix for POOL_WIDTH knob + front-door forwarding
+
+## 2026-06-13 17:17 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 20260613-1712: 1 commit (37e7926 id:738c API-error failsafe) audited clean, 16 tests green, resurrection/no-op check passed, contract pointer v2 in sync, no drift
