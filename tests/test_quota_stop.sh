@@ -127,4 +127,30 @@ run_expect "seatbelt: wall=7200 → exit 1 regardless of low usage" 1 --tier son
 make_cache 10 10 10
 run_expect "seatbelt: wall=7199 → not triggered → exit 0" 0 --tier sonnet --wall 7199
 
+# ── Per-bucket threshold overrides (budget-campaign governor, 2026-06-13) ──────
+# run_expect_env DESC EXPECTED_RC "ENV=val ..." [script args...]
+run_expect_env() {
+  local desc="$1"; local expected="$2"; local envs="$3"; shift 3
+  local rc
+  env $envs USAGE_CACHE="$CACHE" "$SCRIPT" "$@" && rc=0 || rc=$?
+  if [[ "$rc" -eq "$expected" ]]; then pass "$desc"; else fail "$desc (expected $expected, got $rc)"; fi
+}
+
+# seven_day capped at 0.50 trips at 55% even though general THRESHOLD (0.90) wouldn't
+make_cache 85 55 40
+run_expect_env "per-bucket: SEVEN_DAY=0.50, seven_day=55% → exit 1" 1 "RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50" --tier strong
+
+# five_hour keeps the default 0.90 (85%<90 → ok) while 7d/sonnet capped 0.50 and both under
+make_cache 85 40 40
+run_expect_env "per-bucket: 5h stays 0.90 (85%<90) while 7d/sonnet capped 0.50, all under → exit 0" 0 \
+  "RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50 RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET=0.50" --tier sonnet
+
+# seven_day_sonnet capped at 0.50 trips at 55% (sonnet tier checks it)
+make_cache 85 40 55
+run_expect_env "per-bucket: SEVEN_DAY_SONNET=0.50, sonnet=55% → exit 1" 1 "RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET=0.50" --tier sonnet
+
+# additive/no-behaviour-change: without any override, 55% buckets pass under default 0.90
+make_cache 85 55 55
+run_expect "per-bucket: no override → default 0.90 unchanged (55% all pass) → exit 0" 0 --tier strong
+
 echo "ALL PASS"
