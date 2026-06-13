@@ -7,9 +7,15 @@ rather than copying the full block — see §Executor-contract pointer below.
 
 ## Environment facts (inject into every child-agent prompt)
 
-- **OS**: Manjaro Linux — install packages with `pamac`, never `pacman -S` directly.
-- **Python**: `uv` for environments and dependency management (`uv venv`, `uv pip`,
-  `uv run`); never bare pip into system Python.
+- **OS**: Manjaro Linux — install packages with `pamac`, never `pacman -S` directly,
+  and **NEVER `sudo pamac`** (pamac escalates via polkit itself; sudo is wrong and will
+  block on an interactive prompt your unattended session can't answer).
+- **Do NOT install system packages unattended.** A relay child runs without a human to
+  approve a polkit/sudo prompt. If a system dependency is genuinely missing, record it
+  in the `handback` (and REVIEW_ME) instead of trying to install it — never `sudo`.
+- **Python**: `uv` for environments and dependency management (`uv add`, `uv pip`,
+  `uv run`); deps go in the project's venv, NEVER system-wide via pamac or bare pip.
+  A missing Python import is almost always a `uv sync`/`uv add` task, not a system install.
 - **Homepage deploy** (kienzler-homepage): `git push` to the bare repo on fievel;
   a `post-receive` hook deploys with `--ff-only`. Any NEW served file requires
   extending the Caddy whitelist — a deploy without the whitelist entry silently 404s.
