@@ -38,10 +38,27 @@ pre-allocated `id:XXXX` per item. Add/refresh the single TODO.md summary line. C
 `relay(handoff): C2 roadmap`.
 
 **C3 — spec-as-tests.** For every `[ROUTINE]` item, write the FAILING tests now and
-verify each is actually red (run them; a test that passes pre-implementation is not a
-spec). Map each test to its item with a `# roadmap:XXXX` comment. The suite is the
-spec — an executor is done when it goes green plus a refactor pass, nothing else.
-Commit `relay(handoff): C3 red tests`.
+verify each is actually red (run them). Map each test to its item with a
+`# roadmap:XXXX` comment. The suite is the spec — an executor is done when it goes
+green plus a refactor pass, nothing else. Commit `relay(handoff): C3 red tests`.
+
+Two real-world C3 cases the strict "red = spec" rule doesn't cover (meeting
+`docs/meeting-notes/2026-06-13-1751-handoff-review-me-wave.md`, D1/D2):
+
+- **Already-built behavior → labeled regression-guard (not a red spec).** When the
+  feature already exists and a faithful test passes on arrival, do NOT delete working
+  code to manufacture a red. Ship it as a GREEN regression-guard — mark it as such in
+  the test header (e.g. `# regression-guard (passes today): roadmap:XXXX`) and file a
+  REVIEW_ME entry asking **"is this behavior correct, or are we freezing a bug?"** A
+  green guard is allowed; an *unflagged* green guard that silently pins a bug is not.
+- **Relay host can't run the test → mark `unverified`, never count it as a spec or a
+  pass.** If the relay host lacks the toolchain or fixture (no Android SDK, no game-ROM,
+  etc.), you cannot verify redness — assertion "by construction" (uncompilable) is a
+  promissory note, not a verified spec. Tag the test `# unverified — run in <env>`
+  (e.g. Docker on fievel, Termux on pixel, with `<fixture>`), record it in RELAY_LOG.md
+  + REVIEW_ME, and set the item's done-check to REQUIRE running it in that env. A
+  **skipped or uncompiled test is NOT a pass.** If the executor also lacks the env, the
+  item is a HANDBACK (hardware/fixture-gated), not a completion.
 
 **C4 — BDD + review queue.** For user-facing surfaces, write Given/When/Then scenarios
 for the key journeys:
