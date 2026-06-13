@@ -47,6 +47,26 @@ const MAX_UNITS = A.MAX_UNITS || 20
 // ranks above fresh handoff (keeps the anti-gaming window short). Lower = sooner.
 const PRIORITY = { execute: 0, review: 1, handoff: 2 }
 
+// True when THIS session's strong tier is real Fable (not an Opus substitute). Gates
+// the standin re-review preference so an Opus run never re-reviews its own standin work.
+const SESSION_IS_FABLE = STRONG_MODEL === 'claude-fable-5'
+
+// "fable-standin" balance (user directive 2026-06-13): a repo whose latest fable-ckpt
+// carries the `fable-standin` marker (unit.standin) was handed over / reviewed by Opus
+// standing in for Fable, so it (a) still needs an INDEPENDENT Fable re-review, but
+// (b) its roadmap specs are provisional until that happens. Reconcile both as a *slight*
+// within-class tiebreaker (after verdict class + income; never a filter — standin repos
+// are always still dispatched):
+//   • review units on a Fable session  → standin FIRST (deliver the pending re-review, id:9821).
+//   • everything else (execute/handoff dispatch, or any non-Fable session) → Fable-vetted
+//     (non-standin) FIRST, so executors prefer trusted specs and Opus runs don't self-review.
+// Lower rank sorts sooner. Fine-grained ordering vs income is intentionally deferred
+// (income still dominates) per the 2026-06-13 fable-standin meeting note.
+function standInRank(u) {
+  if (u.verdict === 'review' && SESSION_IS_FABLE) return u.standin ? 0 : 1
+  return u.standin ? 1 : 0
+}
+
 log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOWN ? ' (fable-down: strong model skipped, executor-only)' : ''}`)
 
 // buildRelayStatus — generate RELAY_STATUS.md content from a run-state snapshot.
@@ -155,6 +175,10 @@ const DISCOVER_SCHEMA = {
           // INDEPENDENT of verdict — lets --fable-down demote a review repo that
           // also has open executor work instead of deferring it wholesale.
           hasRoutine: { type: 'boolean' },
+          // standin: latest fable-ckpt-* tag message contains the literal `fable-standin`
+          // token — the repo's last relay checkpoint was Opus standing in for Fable, so
+          // it still needs an independent Fable re-review. Drives the standInRank tiebreaker.
+          standin: { type: 'boolean' },
         },
       },
     },
@@ -249,6 +273,7 @@ Also produce:
 - lastCkpt per repo (the tag name, or "" if none)
 - income per repo: true iff the repo's relay.toml block has income = true
 - hasRoutine per repo: true iff ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE], INDEPENDENT of the verdict. A repo classified "review" (unaudited commits) that ALSO has open [ROUTINE] work must report hasRoutine=true — this lets the --fable-down path keep executors busy on routine work in repos whose review must wait for the next strong turn.
+- standin per repo: true iff the repo's LATEST fable-ckpt-* tag message contains the literal token "fable-standin". Detect: T=$(git -C <path> tag -l 'fable-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no fable-ckpt tag.
 
 Return every own repo exactly once across units (verdict idle included) and surfaced.`,
   { label: 'discover', phase: 'Discover', schema: DISCOVER_SCHEMA }
@@ -259,13 +284,35 @@ if (!discovery) {
   return { error: 'discovery failed', completed: [], handbacks: [] }
 }
 
+// Fable-return re-review (id:9821): after a clean handoff a repo's HEAD *is* its
+// fable-ckpt tag, so it has no unaudited commits and the classifier calls it
+// execute/idle — it would otherwise never be re-reviewed. On a real-Fable session,
+// ELEVATE any repo whose latest checkpoint was an Opus standin (unit.standin) to a
+// review verdict so the standin handoff/review gets an independent Fable audit. Repos
+// already classified review (genuine unaudited commits) or handoff (need fresh strong
+// work anyway) are left as-is. Dormant on Opus and --fable-down sessions
+// (SESSION_IS_FABLE false), so Opus never re-reviews its own standin work.
+if (SESSION_IS_FABLE && !FABLE_DOWN) {
+  let elevated = 0
+  for (const u of discovery.units) {
+    if (u.standin && (u.verdict === 'execute' || u.verdict === 'idle')) {
+      u.reason = `standin re-review (latest fable-ckpt carries fable-standin — Opus stood in for Fable; independent audit pending). Prior verdict: ${u.verdict}. ${u.reason || ''}`.trim()
+      u.verdict = 'review'
+      elevated++
+    }
+  }
+  if (elevated) log(`relay-loop: elevated ${elevated} standin repo(s) to review for independent Fable re-audit (id:9821)`)
+}
+
 // Sort: verdict class first (D3 invariant), then income repos win slot contention
-// within a class (user directive 2026-06-12: prefer income-relevant tasks).
+// within a class (user directive 2026-06-12: prefer income-relevant tasks), then the
+// fable-standin tiebreaker (user directive 2026-06-13; see standInRank above).
 let actionable = discovery.units
   .filter(u => u.verdict !== 'idle')
   .sort((a, b) =>
     (PRIORITY[a.verdict] - PRIORITY[b.verdict]) ||
-    ((b.income ? 1 : 0) - (a.income ? 1 : 0))
+    ((b.income ? 1 : 0) - (a.income ? 1 : 0)) ||
+    (standInRank(a) - standInRank(b))
   )
 
 // --fable-down / -d: the strong model is unavailable, so review/handoff units cannot
@@ -292,8 +339,12 @@ if (FABLE_DOWN) {
       fableDownDeferred.push(u)
     }
   }
-  // All-execute now, so PRIORITY ties; income repos still win slot contention.
-  actionable = kept.concat(demoted).sort((a, b) => (b.income ? 1 : 0) - (a.income ? 1 : 0))
+  // All-execute now, so PRIORITY ties; income repos win slot contention, then the
+  // fable-standin tiebreaker prefers Fable-vetted roadmaps (standInRank: execute → non-standin first).
+  actionable = kept.concat(demoted).sort((a, b) =>
+    ((b.income ? 1 : 0) - (a.income ? 1 : 0)) ||
+    (standInRank(a) - standInRank(b))
+  )
   if (demoted.length) {
     log(`relay-loop: --fable-down — demoted ${demoted.length} review unit(s) with open [ROUTINE] work to execute: ${demoted.map(u => u.repo).join(', ')}`)
   }

@@ -52,7 +52,12 @@ D1/D2):
    quota guards. Scheduling order: verdict class
    first (execute → review → handoff, the D3 anti-gaming invariant), then repos
    flagged `income = true` in relay.toml win slot contention within a class
-   (user directive 2026-06-12).
+   (user directive 2026-06-12), then a *slight* `fable-standin` tiebreaker
+   (user directive 2026-06-13): repos whose latest `fable-ckpt-*` was produced by
+   Opus standing in for Fable are sorted **last among executor/handoff work** (prefer
+   Fable-vetted, provisional specs deferred) but **first within review on a Fable
+   session** (deliver the pending independent re-review, id:9821). It never excludes —
+   standin repos are always still dispatched.
 4. **Exit summary.** After the Workflow completes, the front door prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).
