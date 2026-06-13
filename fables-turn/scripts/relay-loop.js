@@ -354,9 +354,10 @@ async function integrate(unit, report) {
     await writeRelayStatus(state)
     return
   }
+  const standInSuffix = (unit.verdict !== 'execute' && STRONG_MODEL === 'claude-opus-4-8') ? ', fable-standin' : ''
   const label = unit.verdict === 'execute'
     ? 'executor (sonnet, relay-loop)'
-    : `reviewer (${STRONG_MODEL}, relay-loop)`
+    : `reviewer (${STRONG_MODEL}${standInSuffix}, relay-loop)`
   const result = await agent(
     `You are the serialized integrator of the fables-turn relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
 
