@@ -37,6 +37,17 @@ satisfy the ORIGINAL test. Check, in order:
    If the original test now fails, the executor changed the spec, not the behaviour.
 4. **Fixture special-casing** — grep the implementation diff for literals that appear
    only in test fixtures (the code branching on the exact test inputs).
+5. **Green regression-guards** (handoff C3 D1, meeting 2026-06-13-1751) — a test that was
+   GREEN since the handoff (pinning already-built behavior) is legitimate ONLY if it is
+   marked a regression-guard AND has a REVIEW_ME "is this correct or a frozen bug?" entry.
+   FLAG an unmarked green test that silently pins behavior with no such REVIEW_ME — it may
+   be freezing a bug (e.g. rawrora's axis-swap/sign). Do not treat "passes today" as
+   self-justifying.
+6. **`unverified` / skipped tests are NOT passes** (handoff C3 D2) — a test tagged
+   `# unverified — run in <env>` or one that SKIPS (missing toolchain/fixture: Android SDK,
+   game-ROM, etc.) must NOT be counted as green. If the diff closes a `[ROUTINE]` item on
+   the strength of a skipped/uncompiled/unverified test, FLAG it and keep the item open
+   until the test actually runs green in the required env. A skip is not a pass.
 
 Anything flagged here is surfaced prominently in the return report and the roadmap item
 is reopened.
