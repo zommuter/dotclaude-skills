@@ -1,5 +1,16 @@
 # REVIEW_ME digest — 2026-06-13
 
+> **STATUS: RESOLVED 2026-06-13** — owner answers (`=>` lines below) processed into
+> the per-repo `REVIEW_ME.md` boxes across 16 repos (commit batch `docs(relay):
+> REVIEW_ME owner decisions 2026-06-13`). Three open points went to design
+> meetings; their notes are the source of truth now:
+> - **zkm frontmatter schema** → `~/src/zkm/docs/meeting-notes/2026-06-13-1413-frontmatter-schema-vocabulary.md` (TODO ids 4431/e2c4/cfd1/f3c6/8d67)
+> - **zkm NER FP doctrine** → `~/src/zkm/docs/meeting-notes/2026-06-13-1413-ner-false-positive-doctrine.md` (TODO ids b99e/f40c/346c)
+> - **zkWhale Matt-resolution / ordinals** → `~/src/zkWhale/docs/meeting-notes/2026-06-13-1413-matt-resolution-ordinals-direction.md` (TODO ids 7c17/80cb/c222/77ad)
+>
+> Only the **@manual smoke checks** (bottom section) remain open. The `=>` answers
+> are kept below as the decision record; this digest is closed.
+
 Cross-repo consolidation of open human-review boxes from the fables-turn relay.
 Each box is a **judgment call encoded in a red test** — the reviewer baked an
 interpretation into a failing spec and is asking you to *confirm or correct* it.
