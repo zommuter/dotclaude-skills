@@ -119,3 +119,7 @@ review 20260613-1837: 1 commit (id:b8ae review→execute chaining) audited clean
 ## 2026-06-13 18:50 — reviewer (claude-opus-4-8, relay-loop)
 
 review 20260613-1850: window fable-ckpt-20260613-1844..HEAD = 1 commit (0262d3a) — a docs-only TODO.md addition by user recording relay defect id:b4f7 (TERMINAL/archived repos re-handed-off forever; voicebot 5×; stopgap = relay.toml classification=excluded). No code/test/spec changes. Test-integrity audit: zero test files touched/deleted, no resurrection/weakening surface. Full suite 16 pass / 0 fail / 0 expected-red. Contract pointer v2 == fables-executor SKILL v2 (no drift). No ARCHITECTURE/README drift. Roadmap re-derived: all [ROUTINE] ticked, 0 open [ROUTINE]; sole open item id:3346 [HARD]. routine_open=0.
+
+## 2026-06-13 18:56 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 20260613-1850: 1 commit audited clean (id:b4f7 docs-only TODO note), 16 tests green, no drift, 0 open ROUTINE
