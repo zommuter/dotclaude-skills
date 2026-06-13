@@ -44,7 +44,11 @@ run_expect "missing cache → exit 2" 2 --tier sonnet
 
 make_cache 50 50 50
 touch -d "11 minutes ago" "$CACHE"
-run_expect "stale cache (>10 min) → exit 2" 2 --tier sonnet
+# USAGE_CREDS=/dev/null ⟹ no token ⟹ self-refresh is skipped, so a stale cache still
+# stops (exit 2). (With a real token, quota-stop self-refreshes from /api/oauth/usage
+# rather than false-stopping a healthy unattended background pool — see quota-stop.sh.)
+USAGE_CREDS=/dev/null USAGE_CACHE="$CACHE" "$SCRIPT" --tier sonnet && rc=0 || rc=$?
+if [[ "$rc" -eq 2 ]]; then pass "stale cache (>10 min) + no creds → exit 2"; else fail "stale+no-creds expected exit 2, got $rc"; fi
 # Restore fresh mtime for subsequent tests
 touch "$CACHE"
 
@@ -152,5 +156,13 @@ run_expect_env "per-bucket: SEVEN_DAY_SONNET=0.50, sonnet=55% → exit 1" 1 "REL
 # additive/no-behaviour-change: without any override, 55% buckets pass under default 0.90
 make_cache 85 55 55
 run_expect "per-bucket: no override → default 0.90 unchanged (55% all pass) → exit 0" 0 --tier strong
+
+# ── Self-refresh of a stale cache (unattended background pools) ────────────────
+# Static guard: the stale path attempts an /api/oauth/usage refresh (under flock) before
+# giving up, and is gated on a token from USAGE_CREDS (so tests stay hermetic).
+grep -q 'api/oauth/usage' "$SCRIPT" || fail "quota-stop.sh stale path does not self-refresh from /api/oauth/usage"
+grep -q 'USAGE_CREDS' "$SCRIPT" || fail "quota-stop.sh self-refresh not gated on USAGE_CREDS token"
+grep -q 'flock -x -w 10 8' "$SCRIPT" || fail "quota-stop.sh self-refresh not serialized under flock"
+pass "stale-cache self-refresh present (flock'd, USAGE_CREDS-gated)"
 
 echo "ALL PASS"

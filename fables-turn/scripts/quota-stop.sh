@@ -24,6 +24,9 @@ AGENTS=0
 WALL=0
 THRESHOLD="${RELAY_QUOTA_THRESHOLD:-0.90}"
 USAGE_CACHE="${USAGE_CACHE:-/tmp/claude-usage-cache.json}"
+# Credentials for the self-refresh below. Tests point this at a tokenless path to keep
+# the stale-cache path hermetic (no network).
+USAGE_CREDS="${USAGE_CREDS:-$HOME/.claude/.credentials.json}"
 STALE_SECS=600
 
 while [[ $# -gt 0 ]]; do
@@ -52,8 +55,34 @@ NOW=$(date +%s)
 MTIME=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null) || { echo "quota-stop: cannot stat $USAGE_CACHE" >&2; exit 2; }
 AGE=$(( NOW - MTIME ))
 if [[ "$AGE" -gt "$STALE_SECS" ]]; then
-  echo "quota-stop: cache stale (${AGE}s > ${STALE_SECS}s limit)" >&2
-  exit 2
+  # Self-refresh: in unattended background pool runs there's no statusline render to keep
+  # the cache fresh, so it goes stale mid-run and we'd false-stop a healthy pool. Refresh
+  # it ourselves from the same /api/oauth/usage endpoint the statusline uses, under a flock
+  # so concurrent quota-gates don't stampede the token's ~5-req limit. If refresh fails,
+  # stay conservative and stop (exit 2). USAGE_CREDS tokenless ⟹ skip (hermetic in tests).
+  TOK=$(jq -r '.claudeAiOauth.accessToken // empty' "$USAGE_CREDS" 2>/dev/null || true)
+  if [[ -n "$TOK" ]]; then
+    (
+      flock -x -w 10 8 || exit 1
+      M2=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
+      if [[ $(( $(date +%s) - M2 )) -gt 60 ]]; then   # someone else may have just refreshed
+        if curl -sf --max-time 8 -o "$USAGE_CACHE.qs.tmp" \
+             -H "Authorization: Bearer $TOK" -H "anthropic-beta: oauth-2025-04-20" \
+             "https://api.anthropic.com/api/oauth/usage" 2>/dev/null && [[ -s "$USAGE_CACHE.qs.tmp" ]]; then
+          mv "$USAGE_CACHE.qs.tmp" "$USAGE_CACHE"
+        else
+          rm -f "$USAGE_CACHE.qs.tmp"
+        fi
+      fi
+    ) 8>"${USAGE_CACHE}.qs.lock"
+    MTIME=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
+    AGE=$(( $(date +%s) - MTIME ))
+  fi
+  if [[ "$AGE" -gt "$STALE_SECS" ]]; then
+    echo "quota-stop: cache stale (${AGE}s > ${STALE_SECS}s limit) and self-refresh unavailable/failed" >&2
+    exit 2
+  fi
+  echo "quota-stop: self-refreshed stale cache" >&2
 fi
 
 # Per-bucket threshold override: RELAY_QUOTA_THRESHOLD_<BUCKET_UPPER> (e.g.
