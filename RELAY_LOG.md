@@ -91,3 +91,7 @@ id:1ad7 pilot retrospective (run relay-20260612-2304, wf_2c2050dd-08d): first fu
 ## 2026-06-13 10:58 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260613-1048: 19 commits audited clean, 16 tests green, id:3737/1ad7 verified, doc-drift fix for --fable-down knob
+
+## 2026-06-13 15:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 20260613-1519: 7 commits audited clean, 16 tests green, resurrection-check passed, doc-drift fix for RELAY_QUOTA_THRESHOLD_<BUCKET>
