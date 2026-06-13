@@ -25,11 +25,19 @@ are genuine forks are listed under "Decisions, not confirmations" — start ther
 
 - **zkWhale `DONATION_ADDRESS` is a placeholder** (roadmap:b0a8) — you must supply the
   real donation address **before deploy**.
+=> bc1qcvp5ax8w097px7xktsxda004tl9t96qa6au7te
 - **zkWhale percentile dataset** (roadmap:73c0) — BitInfoCharts rich-list chosen as the
   citable source; it is a static snapshot (zero network calls), so refresh the band
   table + `asOf` periodically and spot-check two band counts against the source.
+=> so what do I need to do that you can't?
 - **zkWhale HARD ordering** (ROADMAP) — paste-sig (id:9356) ranked above the percentile
   tile; G1 items proceed while **Matt's veto (TODO id:613e) is still formally pending**.
+=> Matt's feedback:
+1. Ich würde 2 Produkte lancieren. Eins bei dem man Bitcoin schicken muss und eins ohne. [I suggested just the ordinals option for that]
+2. serverless mon ist völlig ok für mich. [no server for proof snapshots needed if ordinal inscriptions used]
+3. ok für mich
+4. ein funky design, das einem einen Dopamin-Schub verleiht ist EIN MUSS. Welche Farbenpallette man verwendet, wie das design im Detail aussieht ist flexibel. Aber es muss etwas auslösen.
+5. Degen score completely optional.
 
 ## Cross-cutting themes (decide once, applies to many repos)
 
@@ -37,52 +45,68 @@ are genuine forks are listed under "Decisions, not confirmations" — start ther
    both attach the machine's local TZ to timezone-naive EXIF dates, and **both flag the
    same limitation: wrong for photos taken while travelling.** Decide store-wide: accept
    local-TZ default, or add a per-store configured TZ.
+=> local-TZ default, but ofc in a safeguarded way that won't mix times up (including that nasty DST)
 2. **Independently-added frontmatter scalars** — schema-collision risk worth a shared
    vocabulary: `status:` (zkm-calendar bdfb lowercase; zkm-whatsapp w11 `system`),
    `subject:` + keyword→`tags:` merge (zkm-pdf 03c2, zkm-scan), `recurrence_id:`
    (zkm-calendar 92ce), `project:` (zkm-claude-ai 303a), `ocr_confidence:` (zkm-scan 5d7d).
+=> so what should I do? I guess a /meeting is in order
 3. **`sha256:` field semantics diverge** — zkm-social (297a) stores a URL hash, not the
    file-content hash used elsewhere; blessed in ARCHITECTURE §Dedup. Confirm the
    divergence is acceptable long-term.
+=> I guess URL hash makes more sense, but needs more details
 4. **Plugin error contract** — zkm-notmuch (1af4) raises `RuntimeError` specifically so
    core's amender loop catches it and prints a one-line WARN (not a traceback);
    zkm-claude-ai (fa28) pins `ValueError` *message text*. GitHub stays fail-fast (143c)
    while LinkedIn warns-and-continues (intentional: GitHub names are user-typed). Worth
    ratifying "raise RuntimeError, core catches+WARNs" as the canonical plugin contract.
+=> OK
 5. **Updated docs re-enter amender/auto-commit scope** — zkm-vcard (05a9), zkm-calendar
    (92ce): re-running NER on updated docs is a deliberate cost so amendments don't go
    stale. Confirm the recompute cost is intended.
+=> yes
 6. **Skip-ledger dedup keyed by (sha, reason, threshold)** — zkm-pdf (2abf), zkm-scan
    (8810): a threshold change re-logs / re-OCRs prior skips (experiments stay auditable).
    Consistent pattern across both.
+=> yes
 7. **Observe-before-preventing (matches your design heuristic)** — deliberately inert
    counters/gates awaiting evidence: `ocr_confidence` observe-only (zkm-scan 5d7d),
    `valid:false` census opt-in (zkm 1a6f), RMS energy gate default-disabled (helferli
    6bc4). No action unless you want to flip a default.
+=> ok
 8. **"Wrong entity worse than no entity" (FP minimization)** — LinkedIn drops the broad
    employer fallback (204c), NER currency allowlist is ISO-4217 ∪ {BTC, ETH} only (4352),
    lowercase IBANs gated by the mod-97 checksum (b081).
+=> needs more, /meeting?
 
 ## Decisions, not confirmations (genuine forks — spend your time here)
 
 - **helferli session-log ON by default** (0aaa) — writes voice-audio blobs to a
   gitignored dir on *every* local session (D6 "capture-always" discipline). Privacy/disk
   vs discipline: flip to opt-in?
+=> not yet, we need the info for debugging during develop. Or better: opt-in, but warn (or even error?) if not opted-in for now and make sure our tests continue logging for now
 - **helferli energy gate default** (6bc4) — enabling-by-default + a threshold needs
   captured-session evidence first.
+=> yes?
 - **zkm Phase 2 "done" definition** (roadmap prose) — "γ shipped + rm/gc + 14-day
   zero-intervention window" vs an NER-FP-rate target. Confirm the window and that FP
   targets stay out.
+=> sounds ok
 - **zkm-eml reprocess preserves foreign frontmatter keys** (9255) — multi-producer
   frontmatter vs "reprocess invalidates enrichment, re-run NER." Reviewer chose preserve.
+=> sounds sensible
 - **zkWhale `signature_kind: 'bip137'`** new union member (fb27) + external-signing entry
   gate decoupled from `SUPPORTED_ADDRESS_TYPES` (9356).
+=> too vague?
 - **zkm-claude-code queued-message dedup is lossy-but-simple** (dc2c) — confirm the
   false-positive/false-negative trade-off.
+=> too vague
 - **zkm-whatsapp duplicates message text into frontmatter** (w6f) — lossless rewrite +
   self-contained files vs storage cost; pre-fix files are not healed.
+=> /meeting?
 - **zkm-pdf empty-password encrypted PDFs are imported** (58d7); non-empty-password ones
   skipped with reason "encrypted" (not handed to zkm-scan).
+=> PDFs legible without password should be imported (don't care about passwords for non-read), encrypted ones should be put to a queue and decrypted as soon as a password is known/stored. But really how many passworded PDFs do we have or are we likely to obtain? In most cases PDFs in emails with passwords might have the password in plaintext in the mail, so the connection should be used
 
 ## @manual smoke checks still pending
 
