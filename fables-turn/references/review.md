@@ -81,6 +81,12 @@ the review turn should absorb.
   with — read commit messages (`friction:` lines) and RELAY_LOG.md entries.
 - Cross-repo follow-ups go to the shared inbox (`append.sh -t inbox`), never into
   another repo's TODO.md.
+- **Report `routine_open`** = the number of OPEN (unticked) `[ROUTINE]` items after this
+  re-derivation. The supervisor uses it for review→execute chaining: `routine_open > 0`
+  re-enqueues an execute unit for this repo in the SAME pool (no waiting for the next
+  pool's discovery). Note: one execute turn works AS MANY open `[ROUTINE]` items as it can
+  finish (it's per-repo, not per-item) — so `routine_open` is "is there executor work
+  left," not "how many turns." A review still follows each execute batch (D3 anti-gaming).
 
 ## 6. Spend remaining budget
 
