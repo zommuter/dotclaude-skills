@@ -60,9 +60,9 @@ pass "PRIORITY dispatch ordering present"
 grep -q "income" "$JS" || fail "no income-preference key in unit ordering"
 pass "income preference present in scheduler"
 
-# (6) Pool width capped at 5 distinct repos (D3)
-grep -q "POOL_WIDTH = 5" "$JS" || fail "POOL_WIDTH = 5 not declared"
-pass "POOL_WIDTH = 5 declared"
+# (6) Pool width: default 5, overridable via args.POOL_WIDTH (D3)
+grep -q "POOL_WIDTH = A.POOL_WIDTH || 5" "$JS" || fail "POOL_WIDTH not configurable (expected 'A.POOL_WIDTH || 5')"
+pass "POOL_WIDTH configurable (default 5)"
 
 # (7) Quota gate is tier-aware and uses the id:9934 helper (D5)
 grep -q "quota-stop.sh" "$JS" || fail "quota-stop.sh helper not referenced"

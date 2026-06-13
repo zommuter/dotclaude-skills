@@ -39,8 +39,10 @@ const INTERACTIVE = !!A.interactive
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
 const FABLE_DOWN = !!A.fableDown
 
-// D3: pool of ≤5 distinct repos; one unit per repo.
-const POOL_WIDTH = 5
+// D3: pool of distinct repos, one unit per repo. Default 5; override via args.POOL_WIDTH.
+// NOTE: the Workflow harness independently caps concurrent agents at min(16, cpu_cores-2),
+// so a POOL_WIDTH above that ceiling just queues — no benefit (e.g. 6 on an 8-core box).
+const POOL_WIDTH = A.POOL_WIDTH || 5
 // Agent-count seatbelt for one run (quota-stop.sh hard-caps at 200 independently).
 const MAX_UNITS = A.MAX_UNITS || 20
 // D3 policy invariant: Sonnet execute fills slots first; unreviewed-executor review
