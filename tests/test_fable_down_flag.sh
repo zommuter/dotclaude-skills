@@ -14,10 +14,18 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
 [[ -f "$SKILL" ]] || fail "SKILL.md not found at $SKILL"
 
-# relay-loop.js: FABLE_DOWN constant read from args.fableDown
+# relay-loop.js: FABLE_DOWN constant read from the normalized args object
 grep -q "FABLE_DOWN" "$JS" || fail "relay-loop.js does not define FABLE_DOWN"
-grep -q "args.fableDown" "$JS" || fail "relay-loop.js does not read args.fableDown"
-pass "relay-loop.js reads args.fableDown into FABLE_DOWN"
+grep -qE 'FABLE_DOWN = !!A\.fableDown' "$JS" \
+  || fail "relay-loop.js does not read fableDown from the normalized args object (A.fableDown)"
+pass "relay-loop.js reads A.fableDown into FABLE_DOWN"
+
+# relay-loop.js: args is normalized from a possible JSON string before reading.
+# Regression guard — the harness delivers Workflow args stringified, so reading
+# args.fableDown off a raw string yields undefined and silently disables -d.
+grep -q "JSON.parse(args)" "$JS" \
+  || fail "relay-loop.js does not normalize a stringified args (JSON.parse(args) guard missing) — -d would silently no-op"
+pass "relay-loop.js normalizes stringified args before reading flags"
 
 # relay-loop.js: actionable queue is partitioned when fableDown is set
 grep -q "fableDownDeferred" "$JS" || fail "relay-loop.js missing fableDownDeferred partition variable"

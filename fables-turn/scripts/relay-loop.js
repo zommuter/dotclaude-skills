@@ -8,31 +8,39 @@ export const meta = {
   ],
 }
 
+// args may arrive as a JSON STRING (the harness delivers the Workflow `args` value
+// stringified, even when the front door passes an object literal) or as a parsed
+// object. Normalize to an object once — reading args.fableDown off a raw string
+// yields undefined and silently disables -d, dispatching doomed strong-model units.
+const A = (typeof args === 'string')
+  ? (() => { try { return JSON.parse(args) } catch (_) { return {} } })()
+  : (args || {})
+
 // STRONG_TIER: model override for review and handoff agents.
 // Execute agents (Sonnet) never receive this override — only review and handoff agents do.
 // Values: 'fable' (default) | 'opus'
 // Passed via args.STRONG_TIER from the front-door SKILL.md (set by STRONG_TIER env var or --strong-tier flag).
-const STRONG_TIER = (args && args.STRONG_TIER) || 'fable'
+const STRONG_TIER = A.STRONG_TIER || 'fable'
 const STRONG_MODEL = STRONG_TIER === 'opus' ? 'claude-opus-4-8' : 'claude-fable-5'
 
 // RELAY_STATUS_PATH: output file for cross-repo rollup. Overridable for testing.
-const RELAY_STATUS_PATH = (args && args.RELAY_STATUS_PATH) || '~/.config/fables-turn/RELAY_STATUS.md'
+const RELAY_STATUS_PATH = A.RELAY_STATUS_PATH || '~/.config/fables-turn/RELAY_STATUS.md'
 
 // INTERACTIVE: pass-through of the front door's --interactive flag (default false).
 // The Workflow itself NEVER prompts the user (unattended invariant, meeting D2 —
 // enforced by tests/test_fables_front_door.sh grepping this file for the question tool);
 // when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
-const INTERACTIVE = !!(args && args.interactive)
+const INTERACTIVE = !!A.interactive
 
 // FABLE_DOWN: set by --fable-down / -d front-door flag. When true, review and handoff
 // units are deferred (strong model unavailable); only execute (Sonnet) units run.
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
-const FABLE_DOWN = !!(args && args.fableDown)
+const FABLE_DOWN = !!A.fableDown
 
 // D3: pool of ≤5 distinct repos; one unit per repo.
 const POOL_WIDTH = 5
 // Agent-count seatbelt for one run (quota-stop.sh hard-caps at 200 independently).
-const MAX_UNITS = (args && args.MAX_UNITS) || 20
+const MAX_UNITS = A.MAX_UNITS || 20
 // D3 policy invariant: Sonnet execute fills slots first; unreviewed-executor review
 // ranks above fresh handoff (keeps the anti-gaming window short). Lower = sooner.
 const PRIORITY = { execute: 0, review: 1, handoff: 2 }
@@ -324,8 +332,8 @@ Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one lin
 
 async function quotaGate(tier) {
   if (quotaStopped) return false
-  const thresholdEnv = (args && args.RELAY_QUOTA_THRESHOLD)
-    ? `RELAY_QUOTA_THRESHOLD=${args.RELAY_QUOTA_THRESHOLD} `
+  const thresholdEnv = A.RELAY_QUOTA_THRESHOLD
+    ? `RELAY_QUOTA_THRESHOLD=${A.RELAY_QUOTA_THRESHOLD} `
     : ''
   const v = await agent(
     `Run this command and report the result: ${thresholdEnv}~/.claude/skills/fables-turn/scripts/quota-stop.sh --tier ${tier} ${unitsDispatched} 0
