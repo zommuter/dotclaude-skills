@@ -93,3 +93,14 @@ pass "API-error failsafe: try/catch + handoff auto-resume present"
 #      were never dispatched, so we assert the positive, not the absence of '-').
 grep -q "worktreePath: worktreePathFor(unit)" "$JS" || fail "null-report handback does not record the real worktree path"
 pass "failed-child handback records recoverable worktree path"
+
+# (13) Review→execute chaining: review with open [ROUTINE] re-enqueues an execute unit
+grep -q "routine_open: { type: 'number' }" "$JS" || fail "REPORT_SCHEMA missing routine_open"
+grep -q "unit.verdict === 'review' && report && report.contract_met" "$JS" || fail "no review→execute re-enqueue guard"
+grep -q "verdict: 'execute'" "$JS" || fail "re-enqueue does not push an execute unit"
+pass "review→execute re-enqueue present"
+
+# (14) No intra-pool ping-pong: the re-enqueue is guarded so an execute never re-chains
+grep -q "!unit.rechained" "$JS" || fail "re-enqueue lacks the rechained ping-pong guard"
+grep -q "rechained: true" "$JS" || fail "re-enqueued unit not marked rechained"
+pass "review→execute re-enqueue is single-hop (no ping-pong)"

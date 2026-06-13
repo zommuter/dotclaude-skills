@@ -225,6 +225,10 @@ const REPORT_SCHEMA = {
     review_me_count: { type: 'number' },
     diary_fragment: { type: 'string' },
     handback: { type: 'string' },
+    // routine_open: open [ROUTINE] item count after a REVIEW re-derived the roadmap.
+    // >0 ⟹ the supervisor re-enqueues an execute unit for this repo in the SAME pool
+    // (review→execute chaining) instead of waiting for the next pool's discovery.
+    routine_open: { type: 'number' },
   },
 }
 
@@ -418,11 +422,11 @@ Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. La
 Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/fables-turn/references/conventions.md for environment facts and relay invariants before starting.
 ${unit.verdict === 'execute' ? 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. Stop at a natural boundary; never start an item you cannot finish.' : ''}
 ${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
-${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Mint any new id tokens via ~/.claude/skills/meeting/append.sh new-ids N ' + unit.path + ' — NEVER invent tokens.' : ''}
+${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Mint any new id tokens via ~/.claude/skills/meeting/append.sh new-ids N ' + unit.path + ' — NEVER invent tokens. After re-deriving the roadmap, set routine_open = the number of OPEN (unticked) [ROUTINE] items remaining — the supervisor uses it to re-enqueue an execute unit this same pool.' : ''}
 
 Hard rules: commit in the worktree as you go; NEVER push; NEVER tag; NEVER run git-diary-workflow or todo-update; never prompt the user. If you cannot meet the contract, set contract_met=false and explain in handback.
 
-Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none).`
+Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none), routine_open (review units: open [ROUTINE] count after re-derivation; 0 for handoff/execute).`
 }
 
 // Auto-resume after an API-error / terminal child failure (handoff only — its
@@ -552,6 +556,22 @@ async function runUnit(unit) {
     }
   }
   state.inFlight = state.inFlight.filter(r => r.repo !== unit.repo)
+  // Review→execute chaining (user directive 2026-06-13): when a REVIEW re-derives the
+  // roadmap and open [ROUTINE] work remains, re-enqueue this repo as an execute unit in
+  // the SAME pool rather than waiting for the next pool's discovery. The live lanes pull
+  // it (the pushing lane itself re-checks `queue.length` after this returns, so it's
+  // never lost even as the last unit). Only reviews chain — an execute never re-enqueues,
+  // so there's no intra-pool ping-pong; the execute's own commits are reviewed next pool.
+  // MAX_UNITS / quotaStopped still gate actual dispatch in the lane loop.
+  if (unit.verdict === 'review' && report && report.contract_met &&
+      (report.routine_open || 0) > 0 && !quotaStopped && !unit.rechained) {
+    queue.push({
+      repo: unit.repo, path: unit.path, verdict: 'execute',
+      reason: `post-review re-enqueue: ${report.routine_open} open [ROUTINE] item(s)`,
+      lastCkpt: unit.lastCkpt, income: unit.income, rechained: true,
+    })
+    log(`relay-loop: review→execute re-enqueue ${unit.repo} (${report.routine_open} open [ROUTINE])`)
+  }
   // Integration debt is enqueued, not awaited here: the dispatch slot frees up
   // immediately while the serialized chain works through merges one at a time.
   debts.push(enqueueIntegration(() => integrate(unit, report)))
