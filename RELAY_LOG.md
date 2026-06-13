@@ -95,3 +95,7 @@ review 20260613-1048: 19 commits audited clean, 16 tests green, id:3737/1ad7 ver
 ## 2026-06-13 15:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260613-1519: 7 commits audited clean, 16 tests green, resurrection-check passed, doc-drift fix for RELAY_QUOTA_THRESHOLD_<BUCKET>
+
+## 2026-06-13 16:18 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 20260613-1604: 1 commit (7c55793 POOL_WIDTH) audited clean, 16 tests green, default/override verified, doc-drift fix for POOL_WIDTH knob + front-door forwarding
