@@ -14,6 +14,8 @@ Invocation:
 
 ```
 /fables-turn                              # default: autonomous pool (no keyword)
+/fables-turn -d                           # executor-only: strong model unavailable (--fable-down)
+/fables-turn --fable-down                 # long form of -d
 /fables-turn handoff [repo-list | --all]
 /fables-turn review  [repo-list | --all]
 ```
@@ -27,6 +29,14 @@ Invoking `/fables-turn` with no keyword starts the autonomous priority-mixed poo
 (meeting note `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md`,
 D1/D2):
 
+0. **Self-model guard (Opus only, no `-d`).** Read the current session model from the
+   environment block. If the model is `claude-opus-*` **and** `--fable-down`/`-d` was
+   NOT passed, print:
+   > ⚠️  Running `/fables-turn` on Opus (not Fable). Press Ctrl-C within 10 s to abort
+   > if this was accidental. Pass `-d` if Fable is intentionally unavailable.
+   Then run: `sleep 10`
+   If `-d` is set (knowingly on Opus during a Fable outage), skip the guard silently.
+   Sonnet, Haiku, and Fable proceed immediately with no warning.
 1. **Non-interactive by default.** The front door operates ONLY on relay.toml
    `classification = "own"` confirmed repos. New, dirty, or `needs_review` repos are
    *surfaced* in `RELAY_STATUS.md` (Queued/Blocked sections) — never asked about
@@ -36,9 +46,10 @@ D1/D2):
    `/fables-turn handoff` to confirm a first wave) and exits cleanly without
    invoking the Workflow.
 3. **Workflow launch.** The front door invokes the `fables-turn/scripts/relay-loop.js`
-   Workflow script (id:83c9), passing `args.STRONG_TIER`, `args.interactive`, and
-   `args.RELAY_STATUS_PATH` (when overridden). The Workflow owns the pool, the
-   serialized integrator, and the quota guards. Scheduling order: verdict class
+   Workflow script (id:83c9), passing `args.STRONG_TIER`, `args.interactive`,
+   `args.fableDown` (true when `--fable-down`/`-d` is set), and `args.RELAY_STATUS_PATH`
+   (when overridden). The Workflow owns the pool, the serialized integrator, and the
+   quota guards. Scheduling order: verdict class
    first (execute → review → handoff, the D3 anti-gaming invariant), then repos
    flagged `income = true` in relay.toml win slot contention within a class
    (user directive 2026-06-12).
@@ -130,6 +141,7 @@ wave scheduler. The orchestrator is its only writer (after user confirmation).
 | Env var / flag | Values | Default | Effect |
 |---|---|---|---|
 | `STRONG_TIER` | `fable` \| `opus` | `fable` | Model used for review and handoff agents in the autonomous pool. Execute (Sonnet) agents are never affected. |
+| `--fable-down` / `-d` | flag | off | Executor-only run: defers all review and handoff units (strong model unavailable); execute (Sonnet) units run normally. Deferred units surface in RELAY_STATUS Queued. Suppresses the Opus self-guard. Passed as `args.fableDown = true` to the Workflow. |
 | `--interactive` | flag | off | Re-enables the one-batch `AskUserQuestion` confirmations before launch; passed to the Workflow as `args.interactive`. Default mode is unattended. |
 | `RELAY_QUOTA_THRESHOLD` | 0–1 fraction | `0.90` | Quota stop threshold used by `scripts/quota-stop.sh` (cache `.utilization` is 0–100 percent; converted internally). |
 | `RELAY_STATUS_PATH` | path | `~/.config/fables-turn/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |

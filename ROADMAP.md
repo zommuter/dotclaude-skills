@@ -267,6 +267,24 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     (quota helper) must all be implemented first. Do not run fleet-wide until at least one income-repo
     pilot validates the design. This item is the verification gate before `--all` runs.
 
+- [x] `--fable-down` / `-d` flag for executor-only relay runs (Fable inaccessible) [HARD — strong model] (done 2026-06-13, reviewer) <!-- id:3737 -->
+  - **Why HARD**: touches the dispatch contract in relay-loop.js (pool partitioning, zero-execute edge,
+    deferred-unit surfacing) plus the SKILL.md front-door (Opus self-guard, Workflow args pass-through,
+    invocation block, knobs table). Wrong placement would silently skip the Opus guard or fail to
+    surface deferred units, masking the outage.
+  - **Acceptance**: `--fable-down`/`-d` flag parsed by the front door and passed as `args.fableDown`
+    into `relay-loop.js`. When set: (1) review and handoff units are partitioned out of the dispatch
+    queue and surface in RELAY_STATUS Queued with reason `deferred: --fable-down, strong model skipped`;
+    (2) execute (Sonnet) units proceed normally; (3) zero-execute edge exits cleanly with a log line;
+    (4) integrator, quota gate, and drain logic are untouched. Opus self-guard in SKILL.md Default-mode
+    step 0: if the session model is `claude-opus-*` and `-d` is not set, print a warning + `sleep 10`
+    before launching the Workflow; suppressed when `-d` is set. Auto-probe deferred (forward-compatible:
+    a future probe sets `args.fableDown = true` identically).
+  - **Tests**: `tests/test_fable_down_flag.sh` (`# roadmap:3737`) — 11 static-grep checks
+  - **Done-check**: `tests/run-tests.sh tests/test_fable_down_flag.sh` then full `make test` ✓
+  - **Context**: meeting note `docs/meeting-notes/2026-06-13-0825-fable-down-detection.md`;
+    https://www.anthropic.com/news/fable-mythos-access (access pull announced).
+
 - [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,
