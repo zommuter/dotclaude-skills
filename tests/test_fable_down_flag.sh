@@ -35,6 +35,20 @@ pass "relay-loop.js has fableDownDeferred partition variable"
 grep -q "deferred: --fable-down" "$JS" || fail "relay-loop.js does not label deferred units with --fable-down reason"
 pass "relay-loop.js labels deferred units with --fable-down reason"
 
+# relay-loop.js: under --fable-down, review repos with open [ROUTINE] work are DEMOTED
+# to execute (keep the pool busy when review can't run), not deferred wholesale.
+grep -q "hasRoutine" "$JS" || fail "discovery does not report hasRoutine — --fable-down cannot detect demotable review repos"
+grep -qE "verdict === 'review' && u\.hasRoutine" "$JS" \
+  || fail "relay-loop.js does not demote review-with-routine repos to execute under --fable-down"
+grep -qi "demoted .*to execute\|demoted to execute" "$JS" \
+  || fail "relay-loop.js does not log/label the --fable-down review→execute demotion"
+pass "relay-loop.js demotes review-with-routine repos to execute under --fable-down"
+
+# relay-loop.js: handoff units are NOT demoted (no proper ROADMAP → no executor work)
+grep -q "Handoff repos are NOT demoted" "$JS" \
+  || fail "relay-loop.js does not document that handoff units are excluded from --fable-down demotion"
+pass "relay-loop.js excludes handoff units from demotion"
+
 # relay-loop.js: zero-execute edge case exits cleanly
 grep -q "no executor work" "$JS" || fail "relay-loop.js missing zero-execute + fable-down clean-exit log line"
 pass "relay-loop.js handles zero-execute + --fable-down clean exit"

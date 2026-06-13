@@ -141,7 +141,7 @@ wave scheduler. The orchestrator is its only writer (after user confirmation).
 | Env var / flag | Values | Default | Effect |
 |---|---|---|---|
 | `STRONG_TIER` | `fable` \| `opus` | `fable` | Model used for review and handoff agents in the autonomous pool. Execute (Sonnet) agents are never affected. |
-| `--fable-down` / `-d` | flag | off | Executor-only run: defers all review and handoff units (strong model unavailable); execute (Sonnet) units run normally. Deferred units surface in RELAY_STATUS Queued. Suppresses the Opus self-guard. Passed as `args.fableDown = true` to the Workflow. |
+| `--fable-down` / `-d` | flag | off | Executor-only run (strong model unavailable). Execute (Sonnet) units run normally; a `review` repo that **also** has open `[ROUTINE]` work is **demoted to execute** so the pool stays busy (the next Fable turn reviews the full range). Handoff units, and review units with no routine work, are deferred and surface in RELAY_STATUS Queued. Suppresses the Opus self-guard. Passed as `args.fableDown = true` to the Workflow. |
 | `--interactive` | flag | off | Re-enables the one-batch `AskUserQuestion` confirmations before launch; passed to the Workflow as `args.interactive`. Default mode is unattended. |
 | `RELAY_QUOTA_THRESHOLD` | 0–1 fraction | `0.90` | Quota stop threshold used by `scripts/quota-stop.sh` (cache `.utilization` is 0–100 percent; converted internally). |
 | `RELAY_STATUS_PATH` | path | `~/.config/fables-turn/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |

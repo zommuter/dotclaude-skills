@@ -32,8 +32,10 @@ const RELAY_STATUS_PATH = A.RELAY_STATUS_PATH || '~/.config/fables-turn/RELAY_ST
 // when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
 const INTERACTIVE = !!A.interactive
 
-// FABLE_DOWN: set by --fable-down / -d front-door flag. When true, review and handoff
-// units are deferred (strong model unavailable); only execute (Sonnet) units run.
+// FABLE_DOWN: set by --fable-down / -d front-door flag. When true the strong model is
+// unavailable: handoff units (and review units with no routine work) are deferred, while
+// review repos that ALSO have open [ROUTINE] work are demoted to execute so the Sonnet
+// pool keeps running. See the demotion block in Phase 1 for the D3 rationale.
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
 const FABLE_DOWN = !!A.fableDown
 
@@ -143,6 +145,10 @@ const DISCOVER_SCHEMA = {
           reason: { type: 'string' },
           lastCkpt: { type: 'string' },
           income: { type: 'boolean' },
+          // hasRoutine: ROADMAP.md has >=1 unticked [ROUTINE] item, reported
+          // INDEPENDENT of verdict — lets --fable-down demote a review repo that
+          // also has open executor work instead of deferring it wholesale.
+          hasRoutine: { type: 'boolean' },
         },
       },
     },
@@ -236,6 +242,7 @@ Also produce:
 - ts: current ISO 8601 timestamp
 - lastCkpt per repo (the tag name, or "" if none)
 - income per repo: true iff the repo's relay.toml block has income = true
+- hasRoutine per repo: true iff ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE], INDEPENDENT of the verdict. A repo classified "review" (unaudited commits) that ALSO has open [ROUTINE] work must report hasRoutine=true — this lets the --fable-down path keep executors busy on routine work in repos whose review must wait for the next strong turn.
 
 Return every own repo exactly once across units (verdict idle included) and surfaced.`,
   { label: 'discover', phase: 'Discover', schema: DISCOVER_SCHEMA }
@@ -255,15 +262,38 @@ let actionable = discovery.units
     ((b.income ? 1 : 0) - (a.income ? 1 : 0))
   )
 
-// --fable-down / -d: defer review and handoff units — strong model unavailable this run.
-// Execute (Sonnet) units proceed normally. Deferred units surface in RELAY_STATUS Queued
-// with the deferral reason so the human can see what is waiting for the next Fable turn.
-const fableDownDeferred = FABLE_DOWN
-  ? actionable.filter(u => u.verdict !== 'execute')
-  : []
-if (FABLE_DOWN && fableDownDeferred.length) {
-  actionable = actionable.filter(u => u.verdict === 'execute')
-  log(`relay-loop: --fable-down — deferring ${fableDownDeferred.length} strong-model unit(s): ${fableDownDeferred.map(u => `${u.repo}(${u.verdict})`).join(', ')}`)
+// --fable-down / -d: the strong model is unavailable, so review/handoff units cannot
+// run. Rather than idle the executors, DEMOTE any "review" repo that also has open
+// [ROUTINE] work to an execute unit and keep working it. Rationale: D3's review-first
+// precedence exists only to keep the unreviewed window SHORT — but if review literally
+// cannot run this turn, deferring executable work shortens no window, it just wastes
+// executor capacity (user directive 2026-06-13). The next Fable turn reviews the whole
+// range. Handoff repos are NOT demoted (no proper ROADMAP → no executor work); review
+// repos with no routine work are deferred and surface in RELAY_STATUS for the next turn.
+let fableDownDeferred = []
+if (FABLE_DOWN) {
+  const kept = []
+  const demoted = []
+  for (const u of actionable) {
+    if (u.verdict === 'execute') { kept.push(u); continue }
+    if (u.verdict === 'review' && u.hasRoutine) {
+      demoted.push({
+        ...u,
+        verdict: 'execute',
+        reason: `demoted to execute (--fable-down: review unavailable, repo has open [ROUTINE] work). Original review reason: ${u.reason}`,
+      })
+    } else {
+      fableDownDeferred.push(u)
+    }
+  }
+  // All-execute now, so PRIORITY ties; income repos still win slot contention.
+  actionable = kept.concat(demoted).sort((a, b) => (b.income ? 1 : 0) - (a.income ? 1 : 0))
+  if (demoted.length) {
+    log(`relay-loop: --fable-down — demoted ${demoted.length} review unit(s) with open [ROUTINE] work to execute: ${demoted.map(u => u.repo).join(', ')}`)
+  }
+  if (fableDownDeferred.length) {
+    log(`relay-loop: --fable-down — deferring ${fableDownDeferred.length} strong-model unit(s) (no routine work): ${fableDownDeferred.map(u => `${u.repo}(${u.verdict})`).join(', ')}`)
+  }
 }
 
 const state = {
