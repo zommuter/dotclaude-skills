@@ -85,17 +85,36 @@ if [[ "$AGE" -gt "$STALE_SECS" ]]; then
   echo "quota-stop: self-refreshed stale cache" >&2
 fi
 
-# Per-bucket threshold override: RELAY_QUOTA_THRESHOLD_<BUCKET_UPPER> (e.g.
-# RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50) takes precedence over the general THRESHOLD
-# for that bucket only. Lets a caller cap the long-window buckets tighter than the
-# 5h bucket — e.g. "use most of the 5h window but never exceed 50% of 7d/Sonnet"
-# (budget-campaign governor, 2026-06-13). Default = general THRESHOLD, so behaviour is
-# unchanged unless an override is set.
+# Time-decaying cap for the 7-day buckets (autonomous relay, user directive 2026-06-13):
+# when RELAY_QUOTA_DECAY_7D is set as "START:END" fractions, the seven_day and
+# seven_day_sonnet thresholds linearly interpolate from START (at the rolling 7-day
+# window's open) to END (at its reset), tracking how far into the window we are via
+# seven_day.resets_at. Recomputed each call, so a long self-looping run TIGHTENS as its
+# window ages (e.g. 0.70 day-1 → 0.10 last-day; ~0.53 at 2/7 elapsed). 5h bucket is never
+# decayed. Falls back to THRESHOLD if resets_at is missing/unparseable.
+decay_threshold() {
+  local start end reset now
+  IFS=: read -r start end <<< "${RELAY_QUOTA_DECAY_7D}"
+  reset=$(jq -r '.seven_day.resets_at // empty' "$USAGE_CACHE" 2>/dev/null)
+  [[ -z "$reset" ]] && { printf '%s' "$THRESHOLD"; return; }
+  reset=$(date -d "$reset" +%s 2>/dev/null) || { printf '%s' "$THRESHOLD"; return; }
+  now=$(date +%s)
+  awk -v s="$start" -v e="$end" -v r="$reset" -v n="$now" \
+    'BEGIN { w=7*86400; d=1-(r-n)/w; if(d<0)d=0; if(d>1)d=1; printf "%.4f", s+(e-s)*d }'
+}
+
+# Per-bucket threshold: explicit RELAY_QUOTA_THRESHOLD_<BUCKET> wins; else for the two
+# 7-day buckets a RELAY_QUOTA_DECAY_7D time-decay (if set); else the general THRESHOLD.
+# Default (no env) = THRESHOLD, so behaviour is unchanged unless a caller opts in.
 bucket_threshold() {
   local key="$1" envname val
   envname="RELAY_QUOTA_THRESHOLD_$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')"
   val="${!envname:-}"
-  if [[ -n "$val" ]]; then printf '%s' "$val"; else printf '%s' "$THRESHOLD"; fi
+  if [[ -n "$val" ]]; then printf '%s' "$val"; return; fi
+  if [[ -n "${RELAY_QUOTA_DECAY_7D:-}" && ( "$key" == "seven_day" || "$key" == "seven_day_sonnet" ) ]]; then
+    decay_threshold; return
+  fi
+  printf '%s' "$THRESHOLD"
 }
 
 # check_key KEY — exit 1 if at/above that bucket's threshold; exit 2 if key missing; else returns

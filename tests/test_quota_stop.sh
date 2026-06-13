@@ -165,4 +165,25 @@ grep -q 'USAGE_CREDS' "$SCRIPT" || fail "quota-stop.sh self-refresh not gated on
 grep -q 'flock -x -w 10 8' "$SCRIPT" || fail "quota-stop.sh self-refresh not serialized under flock"
 pass "stale-cache self-refresh present (flock'd, USAGE_CREDS-gated)"
 
+# ── Time-decaying 7-day cap (RELAY_QUOTA_DECAY_7D, autonomous relay) ───────────
+# Cache with a seven_day.resets_at; cap interpolates 0.70 (window open) → 0.10 (reset).
+decay_cache() {  # $1=seven_day_util  $2=resets_in (date -d arg)
+  local reset; reset=$(date -d "$2" -u +%Y-%m-%dT%H:%M:%SZ)
+  cat > "$CACHE" <<JSON
+{ "five_hour": {"utilization": 5, "resets_at": "$reset"},
+  "seven_day": {"utilization": $1, "resets_at": "$reset"},
+  "seven_day_sonnet": {"utilization": 5, "resets_at": "$reset"} }
+JSON
+}
+# 5 days left of 7 ⟹ ~2/7 elapsed ⟹ cap ≈ 0.53; util 40% < cap → exit 0
+decay_cache 40 "+5 days"
+run_expect_env "decay 0.70:0.10, 5d-left, 7d=40%<~53% → exit 0" 0 "RELAY_QUOTA_DECAY_7D=0.70:0.10 USAGE_CREDS=/dev/null" --tier strong
+# same window position, util 60% > ~53% cap → exit 1
+decay_cache 60 "+5 days"
+run_expect_env "decay 0.70:0.10, 5d-left, 7d=60%>~53% → exit 1" 1 "RELAY_QUOTA_DECAY_7D=0.70:0.10 USAGE_CREDS=/dev/null" --tier strong
+# near window end (cap ≈ 0.10): util 40% > 10% → exit 1 (relay backs off late in window)
+decay_cache 40 "+3 hours"
+run_expect_env "decay near reset (cap≈0.10), 7d=40% → exit 1" 1 "RELAY_QUOTA_DECAY_7D=0.70:0.10 USAGE_CREDS=/dev/null" --tier strong
+touch "$CACHE"
+
 echo "ALL PASS"
