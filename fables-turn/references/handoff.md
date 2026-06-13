@@ -81,3 +81,23 @@ Return a structured report — do NOT push, do NOT run git-diary-workflow or tod
 `contract_met` is false if checkpoints are out of order (e.g. C3 without C1/C2) or a
 required artifact is missing; the orchestrator holds such a worktree for inspection
 rather than merging it.
+
+## Resuming an interrupted handoff
+
+Because each checkpoint is its own commit, a handoff killed mid-run (API stream-idle
+timeout, terminal error after the harness's retries, OOM) leaves its completed
+checkpoints safe on the worktree branch — only the in-progress stage is lost. Resume,
+don't restart: a fresh handoff would redo the expensive early work (C1 docs / C2 roadmap).
+
+- **Autonomous pool**: `runUnit` in `relay-loop.js` catches a child throw/null and, for a
+  handoff, spawns ONE auto-resume child (`resumePrompt`) that reads the worktree's
+  committed checkpoints and continues from the next stage. If that also fails, the unit
+  is recorded as a **recoverable handback** in `RELAY_STATUS.md` with the real worktree
+  path (never orphaned with `-`).
+- **Manual / next turn**: point an Opus handoff child at the existing worktree
+  (`~/.cache/fables-turn/worktrees/<repo>/<runId>-handoff`), tell it C1..Cn are committed,
+  and have it continue from C(n+1) using ONLY the id tokens already in the committed
+  `ROADMAP.md`. Then integrate normally (merge → ckpt-tag → push → prune).
+
+A resume child must NOT re-mint tokens or rewrite already-committed checkpoints — it only
+adds the missing stages.

@@ -401,9 +401,15 @@ function refDoc(verdict) {
   return '~/.claude/skills/fables-executor/SKILL.md'
 }
 
+// Deterministic worktree path + branch for a unit — the child creates them, and the
+// API-error recovery path (runUnit catch / integrate null-guard) needs the same names
+// to find a failed child's partial work instead of orphaning it.
+const worktreePathFor = (unit) => `~/.cache/fables-turn/worktrees/${unit.repo}/${state.runId}-${unit.verdict}`
+const branchFor = (unit) => `relay/${state.runId}-${unit.verdict}`
+
 function unitPrompt(unit) {
-  const wt = `~/.cache/fables-turn/worktrees/${unit.repo}/${state.runId}-${unit.verdict}`
-  const branch = `relay/${state.runId}-${unit.verdict}`
+  const wt = worktreePathFor(unit)
+  const branch = branchFor(unit)
   return `You are a fables-turn ${unit.verdict.toUpperCase()} child for the repo ${unit.repo} (main checkout: ${unit.path}).
 
 Create your worktree first: git -C ${unit.path} worktree add ${wt} -b ${branch} HEAD
@@ -417,6 +423,25 @@ ${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including
 Hard rules: commit in the worktree as you go; NEVER push; NEVER tag; NEVER run git-diary-workflow or todo-update; never prompt the user. If you cannot meet the contract, set contract_met=false and explain in handback.
 
 Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none).`
+}
+
+// Auto-resume after an API-error / terminal child failure (handoff only — its
+// per-checkpoint commits make it resumable; review/execute are single-shot and instead
+// surface as recoverable handbacks). The resume child inspects the worktree the failed
+// child already created and continues from its last committed checkpoint to completion,
+// committing per stage so a re-failure loses at most one more stage.
+function resumePrompt(unit) {
+  const wt = worktreePathFor(unit)
+  const branch = branchFor(unit)
+  return `You are RESUMING an interrupted fables-turn HANDOFF for repo ${unit.repo} (main checkout: ${unit.path}). A prior child was killed (API error / timeout) mid-handoff.
+
+The worktree may already exist at ${wt} on branch ${branch} with some checkpoints committed.
+1. If that worktree does NOT exist or has NO committed "relay(handoff): C*" commits, there is nothing to resume: return contract_met=false, handback="no resumable checkpoints — fresh handoff needed", branch="${branch}", worktree="${wt}". Do not create anything.
+2. Otherwise work EXCLUSIVELY in that worktree. Read its committed ROADMAP.md / docs to see which checkpoints (C1 docs, C2 roadmap, C3 red tests, C4 bdd, C5 hard) are already done (git -C ${wt} log --oneline), then CONTINUE from the next stage to completion per ~/.claude/skills/fables-turn/references/handoff.md. Use ONLY the id tokens already in the committed ROADMAP.md; never invent tokens. Commit after EACH stage (so another failure loses at most one stage). C5 only if the top HARD item is small enough to finish safely.
+
+Hard rules: NEVER push; NEVER tag; NEVER run git-diary-workflow/todo-update; never prompt the user. You are Opus standing in for Fable — flag judgment calls in REVIEW_ME.md.
+
+Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line), review_me_count, diary_fragment, handback ("" if none).`
 }
 
 async function quotaGate(tier) {
@@ -441,7 +466,15 @@ Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/
 
 async function integrate(unit, report) {
   if (!report) {
-    state.blocked.push({ repo: unit.repo, reason: 'child agent failed/skipped', worktreePath: '-' })
+    // Child failed terminally (and auto-resume, for handoffs, didn't recover). Record a
+    // RECOVERABLE handback with the deterministic worktree path + resume hint, never an
+    // orphan with worktreePath '-'. Any per-checkpoint commits survive on disk for a
+    // manual/next-turn resume (handoff: re-dispatch reads them; see handoff.md §Resuming).
+    state.blocked.push({
+      repo: unit.repo,
+      reason: `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are preserved in the worktree — re-run /fables-turn to resume (handoff continues from the last checkpoint).`,
+      worktreePath: worktreePathFor(unit),
+    })
     await writeRelayStatus(state)
     return
   }
@@ -499,7 +532,25 @@ async function runUnit(unit) {
   const opts = { label: `${unit.verdict}:${unit.repo}`, phase: 'Dispatch', schema: REPORT_SCHEMA }
   if (unit.verdict === 'execute') opts.model = 'sonnet'
   else opts.model = STRONG_MODEL
-  const report = await agent(unitPrompt(unit), opts)
+  // API-error failsafe: agent() can throw or return null on a terminal API error after
+  // the harness's own retries. Don't let that orphan a worktree with committed
+  // checkpoints — catch it, and for a handoff attempt ONE auto-resume from the last
+  // committed checkpoint. integrate() handles whatever report we end up with (a valid
+  // resume report → merge; null/contract_met=false → recoverable handback with path).
+  let report = null
+  try {
+    report = await agent(unitPrompt(unit), opts)
+  } catch (e) {
+    log(`relay-loop: ${unit.verdict} child for ${unit.repo} failed (${(e && e.message) || e}) — ${unit.verdict === 'handoff' ? 'attempting auto-resume' : 'will surface as handback'}`)
+  }
+  if (!report && unit.verdict === 'handoff') {
+    log(`relay-loop: auto-resuming handoff ${unit.repo} from last checkpoint`)
+    try {
+      report = await agent(resumePrompt(unit), { ...opts, label: `resume:${unit.repo}` })
+    } catch (e2) {
+      log(`relay-loop: auto-resume of ${unit.repo} also failed (${(e2 && e2.message) || e2}) — handback`)
+    }
+  }
   state.inFlight = state.inFlight.filter(r => r.repo !== unit.repo)
   // Integration debt is enqueued, not awaited here: the dispatch slot frees up
   // immediately while the serialized chain works through merges one at a time.
