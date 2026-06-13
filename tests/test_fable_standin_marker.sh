@@ -59,6 +59,58 @@ grep -q 'stamp_human.*label\|label.*stamp_human' "$CKPT" \
   && ok "ckpt-tag.sh still embeds label in RELAY_LOG.md heading" \
   || fail "ckpt-tag.sh lost label in RELAY_LOG.md heading"
 
+# ---- standInRank scheduler tiebreaker checks (user directive 2026-06-13) ----
+
+# 9. standInRank function exists
+grep -q 'function standInRank' "$JS" \
+  && ok "relay-loop.js defines standInRank tiebreaker" \
+  || fail "relay-loop.js missing standInRank function"
+
+# 10. Fable-session gate (SESSION_IS_FABLE) exists and keys on the real Fable model
+grep -q "SESSION_IS_FABLE = STRONG_MODEL === 'claude-fable-5'" "$JS" \
+  && ok "relay-loop.js gates standin re-review on a real-Fable session" \
+  || fail "relay-loop.js missing SESSION_IS_FABLE gate"
+
+# 11. review-on-Fable ranks standin FIRST (return 0 for standin, 1 otherwise)
+grep -q "verdict === 'review' && SESSION_IS_FABLE) return u.standin ? 0 : 1" "$JS" \
+  && ok "standInRank: review on Fable session sorts standin first" \
+  || fail "standInRank missing review-first-on-Fable branch"
+
+# 12. default branch prefers Fable-vetted (non-standin) first
+grep -q 'return u.standin ? 1 : 0' "$JS" \
+  && ok "standInRank: execute/handoff (and non-Fable) prefer non-standin first" \
+  || fail "standInRank missing non-standin-first default branch"
+
+# 13. both sort sites apply the standInRank tiebreaker
+[[ $(grep -c 'standInRank(a) - standInRank(b)' "$JS") -ge 2 ]] \
+  && ok "both scheduler sort sites apply standInRank" \
+  || fail "standInRank not wired into both sort sites"
+
+# 14. DISCOVER_SCHEMA declares the standin property and classifier prompt detects it
+grep -q 'standin: { type: .boolean. }' "$JS" \
+  && grep -q 'standin per repo' "$JS" \
+  && ok "discovery schema + classifier prompt cover standin" \
+  || fail "discovery schema or classifier prompt missing standin"
+
+# 15. tiebreaker is never a filter (slight-preference invariant): standInRank must not
+#     appear inside a .filter predicate
+! grep -q 'filter.*standInRank\|standInRank.*filter' "$JS" \
+  && ok "standInRank used only as sort tiebreaker, never a filter" \
+  || fail "standInRank leaked into a filter (would exclude standin repos)"
+
+# ---- Fable-return re-review elevation (id:9821) ----
+
+# 16. elevation is gated on a real-Fable, non-fable-down session
+grep -q 'if (SESSION_IS_FABLE && !FABLE_DOWN) {' "$JS" \
+  && ok "standin→review elevation gated on Fable session, not fable-down" \
+  || fail "standin elevation missing SESSION_IS_FABLE && !FABLE_DOWN gate"
+
+# 17. elevation promotes execute/idle standin repos to review
+grep -q "u.standin && (u.verdict === 'execute' || u.verdict === 'idle')" "$JS" \
+  && grep -q "u.verdict = 'review'" "$JS" \
+  && ok "standin elevation promotes execute/idle standin repos to review" \
+  || fail "standin elevation does not promote execute/idle repos to review"
+
 # ---- summary ----
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
