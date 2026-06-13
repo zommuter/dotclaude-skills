@@ -56,18 +56,32 @@ if [[ "$AGE" -gt "$STALE_SECS" ]]; then
   exit 2
 fi
 
-# check_key KEY — exit 1 if at/above threshold; exit 2 if key missing; else returns
+# Per-bucket threshold override: RELAY_QUOTA_THRESHOLD_<BUCKET_UPPER> (e.g.
+# RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50) takes precedence over the general THRESHOLD
+# for that bucket only. Lets a caller cap the long-window buckets tighter than the
+# 5h bucket — e.g. "use most of the 5h window but never exceed 50% of 7d/Sonnet"
+# (budget-campaign governor, 2026-06-13). Default = general THRESHOLD, so behaviour is
+# unchanged unless an override is set.
+bucket_threshold() {
+  local key="$1" envname val
+  envname="RELAY_QUOTA_THRESHOLD_$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')"
+  val="${!envname:-}"
+  if [[ -n "$val" ]]; then printf '%s' "$val"; else printf '%s' "$THRESHOLD"; fi
+}
+
+# check_key KEY — exit 1 if at/above that bucket's threshold; exit 2 if key missing; else returns
 check_key() {
   local key="$1"
-  local val
+  local val t
   val=$(jq -r ".${key}.utilization // empty" "$USAGE_CACHE" 2>/dev/null)
   if [[ -z "$val" ]]; then
     echo "quota-stop: key '$key' missing in cache" >&2
     exit 2
   fi
+  t="$(bucket_threshold "$key")"
   # Cache utilization is 0-100 percent; threshold is a 0-1 fraction.
-  if awk -v v="$val" -v t="$THRESHOLD" 'BEGIN { exit (v >= t * 100) ? 0 : 1 }'; then
-    echo "quota-stop: $key=$val% >= threshold $THRESHOLD (tier=$TIER)" >&2
+  if awk -v v="$val" -v t="$t" 'BEGIN { exit (v >= t * 100) ? 0 : 1 }'; then
+    echo "quota-stop: $key=$val% >= threshold $t (tier=$TIER)" >&2
     exit 1
   fi
 }
