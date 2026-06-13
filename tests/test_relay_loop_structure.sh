@@ -104,3 +104,20 @@ pass "review→execute re-enqueue present"
 grep -q "!unit.rechained" "$JS" || fail "re-enqueue lacks the rechained ping-pong guard"
 grep -q "rechained: true" "$JS" || fail "re-enqueued unit not marked rechained"
 pass "review→execute re-enqueue is single-hop (no ping-pong)"
+
+# (15) Self-feeding loop: runRound() + outer while re-discovering until drained/capped
+grep -q "async function runRound()" "$JS" || fail "no runRound() — not self-feeding"
+grep -q "while (!quotaStopped && round < MAX_ROUNDS)" "$JS" || fail "no outer self-feeding loop"
+grep -q "MAX_ROUNDS = A.MAX_ROUNDS" "$JS" || fail "no MAX_ROUNDS seatbelt"
+pass "self-feeding outer loop present (runRound + MAX_ROUNDS)"
+
+# (16) Drained termination: two consecutive empty discoveries stop the run
+grep -q "dry >= 2" "$JS" || fail "no drained-termination (2 dry rounds)"
+pass "drained-termination (2 empty discoveries) present"
+
+# (17) Per-round cap ≠ run-ending stop: MAX_UNITS sets roundCapHit, not quotaStopped
+grep -q "roundCapHit = true" "$JS" || fail "MAX_UNITS does not use a per-round flag"
+grep -q "while (queue.length && !quotaStopped && !roundCapHit)" "$JS" || fail "lane loop missing roundCapHit guard"
+# state + quotaStopped must be module-level accumulators (declared before runRound), not reset per round
+grep -q "^let quotaStopped = false" "$JS" || fail "quotaStopped not a cross-round accumulator"
+pass "per-round cap distinct from run-ending quotaStopped"

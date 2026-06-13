@@ -49,8 +49,12 @@ D1/D2):
    Workflow script (id:83c9), passing `args.STRONG_TIER`, `args.interactive`,
    `args.fableDown` (true when `--fable-down`/`-d` is set), `args.POOL_WIDTH`
    (when overridden via `POOL_WIDTH` env var / `--pool-width` flag), and
-   `args.RELAY_STATUS_PATH` (when overridden). The Workflow owns the pool, the serialized integrator, and the
-   quota guards. Scheduling order: verdict class
+   `args.RELAY_STATUS_PATH` (when overridden). The Workflow owns the pool, the serialized integrator, the
+   quota guards, **and the self-feeding loop** — it re-discovers after each dispatch wave
+   so executes→reviews→executes cycle inside a SINGLE invocation (`runRound()` in a `while`),
+   ending only on the quota cap, two consecutive empty discoveries (backlog drained), or
+   the `MAX_ROUNDS` seatbelt. The front door launches it ONCE; it is not relaunched
+   per-wave. Scheduling order: verdict class
    first (execute → review → handoff, the D3 anti-gaming invariant), then repos
    flagged `income = true` in relay.toml win slot contention within a class
    (user directive 2026-06-12), then a *slight* `fable-standin` tiebreaker
@@ -152,6 +156,8 @@ wave scheduler. The orchestrator is its only writer (after user confirmation).
 | `RELAY_QUOTA_THRESHOLD` | 0–1 fraction | `0.90` | Quota stop threshold used by `scripts/quota-stop.sh` (cache `.utilization` is 0–100 percent; converted internally). |
 | `RELAY_QUOTA_THRESHOLD_<BUCKET>` | 0–1 fraction | (general threshold) | Per-bucket override of `RELAY_QUOTA_THRESHOLD` for one cache bucket only, e.g. `RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50` or `RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET=0.50`. Caps a long-window bucket tighter than the 5h bucket ("use most of the 5h window but never exceed 50% of 7d/Sonnet"); buckets without an override keep the general threshold, so behaviour is unchanged unless set. |
 | `POOL_WIDTH` | integer | `5` | Number of distinct repos dispatched in parallel (one unit per repo). Passed as `args.POOL_WIDTH`. NOTE: the Workflow harness independently caps concurrent agents at `min(16, cpu_cores-2)`, so values above that ceiling just queue — no benefit. |
+| `RELAY_QUOTA_DECAY_7D` | `START:END` fractions | (unset) | Time-decaying cap for the 7-day + 7-day-Sonnet buckets: the threshold linearly interpolates from `START` at the rolling 7-day window's open to `END` at its reset (e.g. `0.70:0.10` → ~0.53 at 2/7 elapsed), so a self-looping run front-loads work early in the window and backs off late. Recomputed each gate check from `seven_day.resets_at`. 5h bucket unaffected. Forwarded into the quota-gate via args. |
+| `MAX_ROUNDS` | integer | `30` | Self-feeding-loop seatbelt: max re-discover→dispatch→drain rounds in one `relay-loop.js` invocation before it returns regardless. The loop normally ends earlier on the quota cap or two consecutive empty discoveries (backlog drained). Passed as `args.MAX_ROUNDS`. |
 | `RELAY_STATUS_PATH` | path | `~/.config/fables-turn/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |
 
 Usage:

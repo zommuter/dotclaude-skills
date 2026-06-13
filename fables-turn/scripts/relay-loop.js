@@ -254,6 +254,18 @@ function enqueueIntegration(fn) {
   return run
 }
 
+// ── Self-feeding loop (user directive 2026-06-13): one launch drains the backlog.
+// runRound() does one re-discover → dispatch wave → drain. The outer loop at the bottom
+// repeats it, so executes→reviews→executes cycle via a FRESH discovery each round, until
+// (a) the quota cap stops it, (b) two consecutive discoveries find no actionable work
+// (drained), or (c) the MAX_ROUNDS seatbelt trips. `state` and `quotaStopped` persist
+// across rounds (accumulators); per-round vars (queue/debts/unitsDispatched/roundCapHit)
+// are local to runRound and reset each round.
+const state = { runId: '', ts: '', inFlight: [], completed: [], queued: [], blocked: [], quota: [], reviewMe: [] }
+let quotaStopped = false
+const MAX_ROUNDS = A.MAX_ROUNDS || 30
+
+async function runRound() {
 // ── Phase 1: Discover ──
 
 phase('Discover')
@@ -286,8 +298,8 @@ Return every own repo exactly once across units (verdict idle included) and surf
 )
 
 if (!discovery) {
-  log('relay-loop: discovery agent failed — aborting before dispatch')
-  return { error: 'discovery failed', completed: [], handbacks: [] }
+  log('relay-loop: discovery agent failed this round')
+  return { failed: true }
 }
 
 // Fable-return re-review (id:9821): after a clean handoff a repo's HEAD *is* its
@@ -359,35 +371,23 @@ if (FABLE_DOWN) {
   }
 }
 
-const state = {
-  runId: discovery.runId,
-  ts: discovery.ts,
-  inFlight: [],
-  completed: [],
-  queued: [
-    ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
-    ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
-  ],
-  blocked: discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' })),
-  quota: [],
-  reviewMe: [],
-}
+// Refresh the cross-round accumulator's per-round views (completed/reviewMe persist).
+state.runId = state.runId || discovery.runId
+state.ts = discovery.ts
+state.queued = [
+  ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
+  ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
+]
+state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
 
 log(`relay-loop: ${actionable.length} actionable units (${discovery.units.length} own repos, ${discovery.surfaced.length} surfaced)`)
 await writeRelayStatus(state)
 
-// --fable-down + zero execute units: no dispatch possible — strong model skipped,
-// all work deferred. Write the all-deferred RELAY_STATUS and exit clean.
-if (FABLE_DOWN && actionable.length === 0) {
-  log('relay-loop: --fable-down set; no executor work — strong model skipped, all work deferred')
-  return {
-    runId: state.runId,
-    statusPath: RELAY_STATUS_PATH,
-    completed: [],
-    handbacks: [],
-    queuedRemaining: state.queued,
-    quotaStopped: false,
-  }
+// No actionable units this round (incl. --fable-down with no executor work) → a dry
+// round; the outer loop counts consecutive dry rounds toward "backlog drained".
+if (actionable.length === 0) {
+  if (FABLE_DOWN) log('relay-loop: --fable-down — no executor work this round, strong work deferred')
+  return { actionable: 0 }
 }
 
 // ── Phase 2+3: Dispatch pool + serialized integration ──
@@ -396,8 +396,8 @@ phase('Dispatch')
 
 const queue = [...actionable]
 const debts = []
-let quotaStopped = false
 let unitsDispatched = 0
+let roundCapHit = false   // per-round MAX_UNITS cap; distinct from quotaStopped (run-ending)
 
 function refDoc(verdict) {
   if (verdict === 'review') return '~/.claude/skills/fables-turn/references/review.md'
@@ -450,9 +450,15 @@ Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one lin
 
 async function quotaGate(tier) {
   if (quotaStopped) return false
-  const thresholdEnv = A.RELAY_QUOTA_THRESHOLD
-    ? `RELAY_QUOTA_THRESHOLD=${A.RELAY_QUOTA_THRESHOLD} `
-    : ''
+  // Forward quota-policy knobs from args into the quota-stop env so a self-looping run
+  // self-enforces the cap with no orchestrator between rounds. RELAY_QUOTA_DECAY_7D gives
+  // the time-decaying 7d/Sonnet cap (e.g. "0.70:0.10"); per-bucket/general thresholds
+  // still work. Only forward what's set (default behaviour unchanged).
+  const envPairs = ['RELAY_QUOTA_THRESHOLD', 'RELAY_QUOTA_DECAY_7D',
+    'RELAY_QUOTA_THRESHOLD_FIVE_HOUR', 'RELAY_QUOTA_THRESHOLD_SEVEN_DAY', 'RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET']
+    .filter(k => A[k] !== undefined && A[k] !== null && A[k] !== '')
+    .map(k => `${k}=${A[k]}`)
+  const thresholdEnv = envPairs.length ? envPairs.join(' ') + ' ' : ''
   const v = await agent(
     `Run this command and report the result: ${thresholdEnv}~/.claude/skills/fables-turn/scripts/quota-stop.sh --tier ${tier} ${unitsDispatched} 0
 Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.`,
@@ -579,10 +585,10 @@ async function runUnit(unit) {
 
 await parallel(
   Array.from({ length: Math.min(POOL_WIDTH, queue.length) }, () => async () => {
-    while (queue.length && !quotaStopped) {
+    while (queue.length && !quotaStopped && !roundCapHit) {
       if (unitsDispatched >= MAX_UNITS) {
-        log(`relay-loop: MAX_UNITS seatbelt (${MAX_UNITS}) reached — draining`)
-        quotaStopped = true
+        log(`relay-loop: MAX_UNITS per-round cap (${MAX_UNITS}) reached — draining this round`)
+        roundCapHit = true
         break
       }
       if (budget.total && budget.remaining() < 50000) {
@@ -605,9 +611,36 @@ await integrationChain
 
 state.queued = state.queued.concat(queue.map(u => ({ repo: u.repo, verdict: `${u.verdict} (not dispatched)` })))
 await writeRelayStatus(state)
+return { actionable: actionable.length }
+}
+// ── end runRound ──
+
+// ── Outer self-feeding loop ──
+// Repeat runRound (fresh discovery each round) until the quota cap stops the run, two
+// consecutive rounds find no actionable work (backlog drained), or MAX_ROUNDS trips.
+let dry = 0
+let round = 0
+while (!quotaStopped && round < MAX_ROUNDS) {
+  round++
+  const r = await runRound()
+  if (r.failed) {
+    if (round === 1) {
+      return { error: 'discovery failed', runId: state.runId, statusPath: RELAY_STATUS_PATH, completed: state.completed, handbacks: [], queuedRemaining: state.queued, quotaStopped }
+    }
+    log('relay-loop: discovery failed mid-run — stopping after completed rounds')
+    break
+  }
+  if (r.actionable === 0) {
+    dry++
+    log(`relay-loop: round ${round} — no actionable work (dry ${dry}/2)`)
+    if (dry >= 2) { log('relay-loop: backlog drained (2 consecutive empty discoveries) — done'); break }
+  } else {
+    dry = 0
+  }
+}
 
 const handbacks = state.blocked.filter(b => b.worktreePath && b.worktreePath !== '-')
-log(`relay-loop: done — ${state.completed.length} integrated, ${handbacks.length} HANDBACKs, ${state.queued.length} still queued, quotaStopped=${quotaStopped}`)
+log(`relay-loop: done — ${round} round(s), ${state.completed.length} integrated, ${handbacks.length} HANDBACKs, quotaStopped=${quotaStopped}`)
 
 return {
   runId: state.runId,
@@ -616,4 +649,5 @@ return {
   handbacks,
   queuedRemaining: state.queued,
   quotaStopped,
+  rounds: round,
 }
