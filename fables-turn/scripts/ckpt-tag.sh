@@ -62,6 +62,8 @@ stamp_human="$(date '+%Y-%m-%d %H:%M')"
     tag="fable-ckpt-$stamp_min-$n"
     (( n++ ))
   done
-  git -C "$repo" tag -a "$tag" -m "$summary"
+  git -C "$repo" tag -a "$tag" -m "$summary
+
+$label"
   echo "$tag"
 ) 9>"$gitdir/relay-ckpt.lock"
