@@ -24,6 +24,11 @@ const RELAY_STATUS_PATH = (args && args.RELAY_STATUS_PATH) || '~/.config/fables-
 // when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
 const INTERACTIVE = !!(args && args.interactive)
 
+// FABLE_DOWN: set by --fable-down / -d front-door flag. When true, review and handoff
+// units are deferred (strong model unavailable); only execute (Sonnet) units run.
+// Forward-compatible: a future auto-probe would set args.fableDown = true identically.
+const FABLE_DOWN = !!(args && args.fableDown)
+
 // D3: pool of ≤5 distinct repos; one unit per repo.
 const POOL_WIDTH = 5
 // Agent-count seatbelt for one run (quota-stop.sh hard-caps at 200 independently).
@@ -32,7 +37,7 @@ const MAX_UNITS = (args && args.MAX_UNITS) || 20
 // ranks above fresh handoff (keeps the anti-gaming window short). Lower = sooner.
 const PRIORITY = { execute: 0, review: 1, handoff: 2 }
 
-log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}`)
+log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOWN ? ' (fable-down: strong model skipped, executor-only)' : ''}`)
 
 // buildRelayStatus — generate RELAY_STATUS.md content from a run-state snapshot.
 // state shape:
@@ -235,19 +240,33 @@ if (!discovery) {
 
 // Sort: verdict class first (D3 invariant), then income repos win slot contention
 // within a class (user directive 2026-06-12: prefer income-relevant tasks).
-const actionable = discovery.units
+let actionable = discovery.units
   .filter(u => u.verdict !== 'idle')
   .sort((a, b) =>
     (PRIORITY[a.verdict] - PRIORITY[b.verdict]) ||
     ((b.income ? 1 : 0) - (a.income ? 1 : 0))
   )
 
+// --fable-down / -d: defer review and handoff units — strong model unavailable this run.
+// Execute (Sonnet) units proceed normally. Deferred units surface in RELAY_STATUS Queued
+// with the deferral reason so the human can see what is waiting for the next Fable turn.
+const fableDownDeferred = FABLE_DOWN
+  ? actionable.filter(u => u.verdict !== 'execute')
+  : []
+if (FABLE_DOWN && fableDownDeferred.length) {
+  actionable = actionable.filter(u => u.verdict === 'execute')
+  log(`relay-loop: --fable-down — deferring ${fableDownDeferred.length} strong-model unit(s): ${fableDownDeferred.map(u => `${u.repo}(${u.verdict})`).join(', ')}`)
+}
+
 const state = {
   runId: discovery.runId,
   ts: discovery.ts,
   inFlight: [],
   completed: [],
-  queued: actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
+  queued: [
+    ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
+    ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
+  ],
   blocked: discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' })),
   quota: [],
   reviewMe: [],
@@ -255,6 +274,20 @@ const state = {
 
 log(`relay-loop: ${actionable.length} actionable units (${discovery.units.length} own repos, ${discovery.surfaced.length} surfaced)`)
 await writeRelayStatus(state)
+
+// --fable-down + zero execute units: no dispatch possible — strong model skipped,
+// all work deferred. Write the all-deferred RELAY_STATUS and exit clean.
+if (FABLE_DOWN && actionable.length === 0) {
+  log('relay-loop: --fable-down set; no executor work — strong model skipped, all work deferred')
+  return {
+    runId: state.runId,
+    statusPath: RELAY_STATUS_PATH,
+    completed: [],
+    handbacks: [],
+    queuedRemaining: state.queued,
+    quotaStopped: false,
+  }
+}
 
 // ── Phase 2+3: Dispatch pool + serialized integration ──
 
