@@ -57,9 +57,9 @@ pass "SKILL.md documents --interactive flag"
 grep -q "AskUserQuestion" "$SKILL" || fail "SKILL.md does not tie --interactive to AskUserQuestion"
 pass "SKILL.md ties --interactive to AskUserQuestion"
 
-grep -q "args.interactive\|args\.interactive" "$JS" \
+grep -qE '!!A\.interactive|args\.interactive' "$JS" \
   || fail "relay-loop.js does not receive the interactive flag via Workflow args"
-pass "relay-loop.js receives args.interactive"
+pass "relay-loop.js receives the interactive flag (A.interactive)"
 
 # The Workflow script itself never prompts (unattended-by-default invariant, D2).
 if grep -q "AskUserQuestion" "$JS"; then
