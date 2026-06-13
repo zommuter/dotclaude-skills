@@ -81,3 +81,15 @@ pass "writeRelayStatus invoked"
 # (10) Structured output: child reports and classifier use schemas (no text parsing)
 grep -q "schema:" "$JS" || fail "no schema-typed agent() calls (structured output required)"
 pass "schema-typed agent() calls present"
+
+# (11) API-error failsafe: child dispatch is wrapped in try/catch (no orphaned worktrees)
+grep -q "try {" "$JS" || fail "child agent() dispatch not wrapped in try/catch"
+grep -q "function resumePrompt" "$JS" || fail "no resumePrompt (auto-resume) defined"
+grep -q "auto-resuming handoff" "$JS" || fail "no auto-resume dispatch for failed handoff"
+pass "API-error failsafe: try/catch + handoff auto-resume present"
+
+# (12) Failed-child handback is recoverable: records the real deterministic worktree
+#      path (the legitimate worktreePath:'-' on line ~367 is for *surfaced* repos that
+#      were never dispatched, so we assert the positive, not the absence of '-').
+grep -q "worktreePath: worktreePathFor(unit)" "$JS" || fail "null-report handback does not record the real worktree path"
+pass "failed-child handback records recoverable worktree path"
