@@ -151,7 +151,7 @@ wave scheduler. The orchestrator is its only writer (after user confirmation).
 | Env var / flag | Values | Default | Effect |
 |---|---|---|---|
 | `STRONG_TIER` | `fable` \| `opus` | `fable` | Model used for review and handoff agents in the autonomous pool. Execute (Sonnet) agents are never affected. |
-| `--fable-down` / `-d` | flag | off | Executor-only run (strong model unavailable). Execute (Sonnet) units run normally; a `review` repo that **also** has open `[ROUTINE]` work is **demoted to execute** so the pool stays busy (the next Fable turn reviews the full range). Handoff units, and review units with no routine work, are deferred and surface in RELAY_STATUS Queued. Suppresses the Opus self-guard. Passed as `args.fableDown = true` to the Workflow. |
+| `--fable-down` / `-d` | flag | off | Asserts the **Fable strong tier is unavailable** this run (one axis). Composes with `STRONG_TIER`: with `fable` (default, no substitute) → **defer** strong work, executor-only — execute (Sonnet) units run normally, a `review` repo that **also** has open `[ROUTINE]` work is **demoted to execute** so the pool stays busy (the next Fable turn reviews the full range), and handoff units plus routine-less review units are deferred and surface in RELAY_STATUS Queued. With `STRONG_TIER=opus` → **substitute** Opus for the strong tier: review/handoff units dispatch **normally on Opus** (marked `fable-standin`), nothing is deferred/demoted. Suppresses the Opus self-guard. Passed as `args.fableDown = true` to the Workflow. |
 | `--interactive` | flag | off | Re-enables the one-batch `AskUserQuestion` confirmations before launch; passed to the Workflow as `args.interactive`. Default mode is unattended. |
 | `RELAY_QUOTA_THRESHOLD` | 0–1 fraction | `0.90` | Quota stop threshold used by `scripts/quota-stop.sh` (cache `.utilization` is 0–100 percent; converted internally). |
 | `RELAY_QUOTA_THRESHOLD_<BUCKET>` | 0–1 fraction | (general threshold) | Per-bucket override of `RELAY_QUOTA_THRESHOLD` for one cache bucket only, e.g. `RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50` or `RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET=0.50`. Caps a long-window bucket tighter than the 5h bucket ("use most of the 5h window but never exceed 50% of 7d/Sonnet"); buckets without an override keep the general threshold, so behaviour is unchanged unless set. |
@@ -164,6 +164,7 @@ Usage:
 ```bash
 STRONG_TIER=opus /fables-turn          # pilot Opus for review+handoff agents
 /fables-turn --strong-tier opus        # flag form (front door passes it to relay-loop.js via args.STRONG_TIER)
+/fables-turn -d --strong-tier opus     # Fable down → substitute Opus for review+handoff
 ```
 
 Model IDs: `fable` → `claude-fable-5`, `opus` → `claude-opus-4-8`.

@@ -285,6 +285,25 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Context**: meeting note `docs/meeting-notes/2026-06-13-0825-fable-down-detection.md`;
     https://www.anthropic.com/news/fable-mythos-access (access pull announced).
 
+- [x] Separate Fable-availability from fallback policy (two-switch: `-d` × `STRONG_TIER`) [ROUTINE] <!-- id:5902 -->
+  - **Acceptance**: `--fable-down`/`-d` asserts ONE axis only — "the Fable strong tier is
+    unavailable this run" — and composes with `STRONG_TIER` (which chooses WHICH strong
+    model review/handoff agents use). The FABLE_DOWN defer/demote block in `relay-loop.js`
+    is gated on `FABLE_DOWN && STRONG_MODEL === 'claude-fable-5'`: (1) `-d` alone (STRONG_TIER
+    `fable`) → defer strong work, executor-only (prior id:3737 behaviour, preserved exactly);
+    (2) `-d` + `STRONG_TIER=opus` (STRONG_MODEL `claude-opus-4-8`) → SUBSTITUTE Opus, skip the
+    defer block, dispatch review/handoff normally on Opus (already marked `fable-standin` by
+    `standInSuffix`). Startup `log()` and explanatory comment describe both axes. SKILL.md
+    knobs row documents defer-vs-substitute; a `/fables-turn -d --strong-tier opus` usage
+    example is added near the STRONG_TIER examples.
+  - **Tests**: `tests/test_fable_down_strong_tier.sh` (`# roadmap:5902`) — static-grep that the
+    defer block is gated on `STRONG_MODEL === 'claude-fable-5'`, that no ungated `if (FABLE_DOWN) {`
+    remains, and that SKILL.md documents the substitute combo + usage example.
+  - **Done-check**: `tests/run-tests.sh tests/test_fable_down_strong_tier.sh` then full `make test` ✓
+  - **Context**: follow-up to id:3737. The `-d` flag conflated "Fable unavailable" with "defer
+    all strong work"; STRONG_TIER already chose the strong model, so the two compose. Opus
+    model ID `claude-opus-4-8`; Fable-class match `claude-fable-5`.
+
 - [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,
