@@ -32,10 +32,16 @@ const RELAY_STATUS_PATH = A.RELAY_STATUS_PATH || '~/.config/fables-turn/RELAY_ST
 // when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
 const INTERACTIVE = !!A.interactive
 
-// FABLE_DOWN: set by --fable-down / -d front-door flag. When true the strong model is
-// unavailable: handoff units (and review units with no routine work) are deferred, while
-// review repos that ALSO have open [ROUTINE] work are demoted to execute so the Sonnet
-// pool keeps running. See the demotion block in Phase 1 for the D3 rationale.
+// FABLE_DOWN: set by --fable-down / -d front-door flag. It asserts ONE axis only — "the
+// Fable strong tier is unavailable this run" — and composes with STRONG_TIER (which axis
+// chooses WHICH strong model the review/handoff agents use):
+//   • -d alone (STRONG_TIER unset/`fable`, STRONG_MODEL=claude-fable-5) → DEFER strong work:
+//     the strong model literally can't run, so handoff units and routine-less review units
+//     are deferred and review repos with open [ROUTINE] work are demoted to execute (the
+//     Sonnet pool keeps running). See the demotion block in Phase 1 for the D3 rationale.
+//   • -d + STRONG_TIER=opus (STRONG_MODEL=claude-opus-4-8) → SUBSTITUTE Opus for the
+//     unavailable Fable: review/handoff units dispatch NORMALLY on Opus (already marked
+//     `fable-standin` by standInSuffix). No defer/demote — the demote block is skipped.
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
 const FABLE_DOWN = !!A.fableDown
 
@@ -69,7 +75,7 @@ function standInRank(u) {
   return u.standin ? 1 : 0
 }
 
-log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOWN ? ' (fable-down: strong model skipped, executor-only)' : ''}`)
+log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOWN ? (STRONG_MODEL === 'claude-fable-5' ? ' (fable-down: Fable unavailable, no substitute → defer strong work, executor-only)' : ' (fable-down: Fable unavailable, STRONG_TIER=opus → substitute Opus for review+handoff, marked fable-standin)') : ''}`)
 
 // buildRelayStatus — generate RELAY_STATUS.md content from a run-state snapshot.
 // state shape:
@@ -333,16 +339,21 @@ let actionable = discovery.units
     (standInRank(a) - standInRank(b))
   )
 
-// --fable-down / -d: the strong model is unavailable, so review/handoff units cannot
-// run. Rather than idle the executors, DEMOTE any "review" repo that also has open
+// --fable-down / -d DEFER path: gated on STRONG_MODEL === 'claude-fable-5', i.e. -d with
+// NO Opus substitute. The strong model is genuinely unavailable, so review/handoff units
+// cannot run. Rather than idle the executors, DEMOTE any "review" repo that also has open
 // [ROUTINE] work to an execute unit and keep working it. Rationale: D3's review-first
 // precedence exists only to keep the unreviewed window SHORT — but if review literally
 // cannot run this turn, deferring executable work shortens no window, it just wastes
 // executor capacity (user directive 2026-06-13). The next Fable turn reviews the whole
 // range. Handoff repos are NOT demoted (no proper ROADMAP → no executor work); review
 // repos with no routine work are deferred and surface in RELAY_STATUS for the next turn.
+//
+// When -d is combined with STRONG_TIER=opus (STRONG_MODEL === 'claude-opus-4-8') this
+// block is SKIPPED entirely: Opus SUBSTITUTES for the unavailable Fable, so review/handoff
+// units dispatch normally (marked fable-standin via standInSuffix) — nothing is deferred.
 let fableDownDeferred = []
-if (FABLE_DOWN) {
+if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') {
   const kept = []
   const demoted = []
   for (const u of actionable) {
@@ -386,7 +397,7 @@ await writeRelayStatus(state)
 // No actionable units this round (incl. --fable-down with no executor work) → a dry
 // round; the outer loop counts consecutive dry rounds toward "backlog drained".
 if (actionable.length === 0) {
-  if (FABLE_DOWN) log('relay-loop: --fable-down — no executor work this round, strong work deferred')
+  if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') log('relay-loop: --fable-down — no executor work this round, strong work deferred')
   return { actionable: 0 }
 }
 
