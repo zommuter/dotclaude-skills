@@ -77,7 +77,7 @@ RELAY_LOG.md, hygiene).
 |---|---|---|
 | `STRONG_TIER` (env or `--strong-tier`) | `fable` | Model for review/handoff agents (`opus` pilotable). Executors are always Sonnet. |
 | `--interactive` | off | Re-enables the one-batch confirmation questions before an autonomous run. |
-| `--fable-down` / `-d` | off | Strong model (Fable/Opus) unavailable: run executors only. A `review` repo that also has open `[ROUTINE]` work is demoted to execute so the pool stays busy; handoff units and review-only repos are deferred and surface in RELAY_STATUS Queued. |
+| `--fable-down` / `-d` | off | Asserts the Fable strong tier is unavailable this run (one axis); composes with `STRONG_TIER`. With `STRONG_TIER=fable` (default, no substitute): defer strong work, run executors only — a `review` repo that also has open `[ROUTINE]` work is demoted to execute so the pool stays busy; handoff units and review-only repos are deferred and surface in RELAY_STATUS Queued. With `STRONG_TIER=opus` (`-d --strong-tier opus`): substitute Opus for the unavailable Fable — review/handoff dispatch normally on Opus (marked `fable-standin`), nothing is deferred/demoted. |
 | `RELAY_QUOTA_THRESHOLD` | `0.90` | Utilization fraction at which dispatch stops (in-flight work still drains and integrates). |
 | `RELAY_STATUS_PATH` | `~/.config/fables-turn/RELAY_STATUS.md` | Rollup location override (mostly for testing). |
 | `income = true` (relay.toml) | — | Marks a repo income-relevant; such repos win dispatch-slot contention within their class. |
