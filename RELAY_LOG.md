@@ -139,3 +139,7 @@ review 20260613-2304: window fable-ckpt-20260613-2004..HEAD = 3 commits (26287cc
 ## 2026-06-13 23:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260613-2304: 3 docs/TODO commits (id:60e1 done, BDD-automation + REVIEW_ME triage) audited clean, 16/16 tests green, no gaming, contract v2 in sync, routine_open=0
+
+## 2026-06-14 09:56 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 20260614-0942: id:5902 two-switch verified genuinely green (gate STRONG_MODEL==='claude-fable-5', new static test, no gaming), 17/17 tests green, fixed fables-relay.md -d knob drift, contract v2 in sync, routine_open=0
