@@ -131,6 +131,7 @@ install-$(1):
 	@mkdir -p $$$$DEST_DIR/$(1)
 	@for f in $($(1)_FILES); do \
 		mkdir -p $$$$DEST_DIR/$(1)/$$$$(dirname $$$$f); \
+		rm -f $$$$DEST_DIR/$(1)/$$$$f; \
 		ln -sfn $(SRC_DIR)/$(1)/$$$$f $$$$DEST_DIR/$(1)/$$$$f; \
 	done
 	@for f in $($(1)_EXEC); do \
