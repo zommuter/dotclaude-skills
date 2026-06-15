@@ -27,9 +27,13 @@ if grep -q "AskUserQuestion" "$JS"; then
 fi
 pass "no AskUserQuestion call"
 
-# (3) Serialized integrator (D5/D6 discipline: one push per repo, never concurrent)
+# (3) Per-repo serialized integrator (D5/D6 restated, id:bc9d: same-repo serialized to
+# preserve review→execute ordering; distinct repos integrate concurrently — distinct remotes
+# don't conflict; the bottleneck fix that stopped checkpoints landing ~1-2 min apart)
 grep -q "enqueueIntegration" "$JS" || fail "missing enqueueIntegration serializer"
-pass "integration serializer (enqueueIntegration) present"
+grep -qE "enqueueIntegration\([^,)]+," "$JS" || fail "enqueueIntegration not keyed by repo (per-repo serialization)"
+grep -q "integrationChains" "$JS" || fail "missing per-repo integration chain map (integrationChains)"
+pass "per-repo integration serializer (enqueueIntegration keyed by repo) present"
 
 grep -q -- "--no-ff" "$JS" || fail "integrator does not document/perform --no-ff merge"
 grep -q "ckpt-tag.sh" "$JS" || fail "integrator does not call ckpt-tag.sh"

@@ -10,6 +10,31 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [x] Relay integrator bottleneck — per-repo serialization, cross-repo concurrency (done 2026-06-15, reviewer) <!-- id:bc9d -->
+  - **Context**: 2026-06-15 — investigating "the pool only runs ~1-wide". Work agents
+    (review/execute/hard) DO run concurrently (harness cap `min(16, cores-2)`; I/O-bound API
+    calls, no mutual block). The apparent serialism was the **single global integrator**
+    (`integrationChain` promise chain, relay-loop.js): every repo's integration ran one-at-a-time,
+    and each is a full Sonnet agent running 4 deterministic commands (merge --no-ff → ckpt-tag.sh
+    → git-lock-push.sh → worktree prune), ~1–2 min each. Checkpoints are stamped at integration,
+    so tags landed ~1–2 min apart no matter how wide dispatch was — that even spacing is what
+    *looked* like a 1-wide pool. (The per-unit quota-agent throttle in 82a2dda was a separate,
+    minor win, NOT this.)
+  - **Fix shipped**: replaced the single `integrationChain` with a per-repo chain map
+    (`integrationChains: Map<repo, tailPromise>`, `enqueueIntegration(repo, fn)`). Same-repo
+    integrations still serialize (preserving review→execute re-chain ordering into one main
+    checkout); DISTINCT repos integrate concurrently — distinct remotes don't conflict, and
+    git-lock-push.sh still flocks per-repo for the residual same-remote case. This restates the
+    D5/D6 invariant from "one concurrent integration per POOL" to "one per REMOTE", which is the
+    only thing safety actually requires. Checkpoint throughput now scales with dispatch width.
+  - **Tests**: `tests/test_relay_integrator_per_repo.sh` (`# roadmap:bc9d`) — no global
+    integrationChain; enqueueIntegration keyed by repo; per-repo map get/set; drain awaits all
+    chains; integration still not wrapped in parallel(). `test_relay_loop_structure.sh` (3)
+    updated to the per-repo assertion.
+  - **Follow-up (deferred, not blocking)**: integration agent could be Haiku and/or BATCH several
+    repos per call to further cut the ~1–2 min/repo agent overhead — left for a later pass; the
+    per-repo concurrency above is the primary throughput lever.
+
 - [ ] Contract tests for relay install-completeness + quota-stop invocation [ROUTINE] <!-- id:5f09 -->
   - **Context**: On 2026-06-15 the default `/relay` autonomous pool was non-functional and
     the full suite was green. Two contract bugs shipped undetected: (1) the Makefile
