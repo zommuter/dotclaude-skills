@@ -922,13 +922,16 @@ function logGamingFlags(repo, runId, report, ts) {
     verified_green: report.verified_green || [],
   }
   const json = JSON.stringify(entry)
-  const logPath = `${process.env.HOME || '~'}/.claude/logs/relay-gaming-flags.log`
+  // The Workflow sandbox has NO Node APIs — process.env threw and crashed the pool 2026-06-15.
+  // Keep the path as a literal ~ and let the AGENT (which runs shell) expand it. Never use
+  // process.*/require()/fs in this file.
+  const logPath = '~/.claude/logs/relay-gaming-flags.log'
   // Spawn a tiny agent (fire-and-forget, not awaited — log failure is non-fatal).
   agent(
     `Append the following JSON line to the gaming-flags log (create if absent, append only).
-Log path: "${logPath}"
-Command: mkdir -p "$(dirname "${logPath}")" && printf '%s\\n' '${json.replace(/'/g, "'\\''")}' >> "${logPath}"
-Run that command verbatim and confirm it succeeded.`,
+FIRST resolve the path with the shell (the JS cannot): log=$(python3 -c "import os;print(os.path.expanduser('${logPath}'))")
+Then run: mkdir -p "$(dirname "$log")" && printf '%s\\n' '${json.replace(/'/g, "'\\''")}' >> "$log"
+Confirm it succeeded.`,
     { label: `gaming-log:${repo}`, phase: 'Integrate', model: 'haiku' }
   ).catch(err => log(`relay-loop: gaming-flags log write failed (non-fatal): ${err}`))
 }
