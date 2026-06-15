@@ -158,4 +158,52 @@ grep -qP '^repoA\t.*test_empty' <<<"$OUT2" || fail "named-repo invocation missed
 grep -q '^repoB' <<<"$OUT2" && fail "named-repo invocation should not include repoB"
 pass "gather honors named-repo argument"
 
+# --- (4) nested-worktree stderr WARN (the "stale checkout" trap) -------------
+# A linked git worktree nested INSIDE a repo's checkout means /relay human may be
+# reading a STALE top-level tree while the live branch sits in a sub-worktree (bit
+# ai-codebench 2026-06-15). gather warns to stderr per such repo, leaving the TSV on
+# stdout unchanged, and stays SILENT for a clean repo. Regression guard for commit
+# 83d8614. Needs real git repos (the function early-returns on non-git dirs, which is
+# why sections 1–3's plain-dir fixtures stay silent).
+WTSTORE="$(mktemp -d)"
+trap 'rm -rf "$STORE" "$WTSTORE"' EXIT
+
+git init -q "$WTSTORE/nested"
+git -C "$WTSTORE/nested" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+git -C "$WTSTORE/nested" worktree add -q "$WTSTORE/nested/sub" -b feat HEAD
+
+git init -q "$WTSTORE/clean"
+git -C "$WTSTORE/clean" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+
+cat > "$WTSTORE/relay.toml" <<EOF
+[repos.nested]
+classification = "own"
+path = "$WTSTORE/nested"
+
+[repos.clean]
+classification = "own"
+path = "$WTSTORE/clean"
+EOF
+
+# Capture stdout and stderr separately: TSV must stay on stdout, WARN on stderr.
+WT_STDOUT="$(SRC_DIR="$WTSTORE" RELAY_TOML="$WTSTORE/relay.toml" bash "$GATHER" 2>"$WTSTORE/err")"
+WT_STDERR="$(cat "$WTSTORE/err")"
+
+# (a) the nested-worktree repo warns to stderr, naming the nested worktree path.
+grep -q "WARN:.*nested has nested worktree" <<<"$WT_STDERR" \
+  || fail "nested-worktree repo did not emit a WARN to stderr"
+grep -qF "$WTSTORE/nested/sub" <<<"$WT_STDERR" \
+  || fail "WARN did not name the nested worktree path"
+pass "gather warns (stderr) on a worktree nested inside the checkout"
+
+# (b) the clean repo must NOT warn — non-vacuous negative control.
+grep -q "clean has nested worktree" <<<"$WT_STDERR" \
+  && fail "clean repo wrongly flagged as nested"
+pass "gather stays silent for a clean repo (no nested worktree)"
+
+# (c) the WARN never contaminates the TSV on stdout.
+grep -q 'WARN' <<<"$WT_STDOUT" \
+  && fail "WARN leaked onto stdout (must go to stderr only)"
+pass "nested-worktree WARN stays off stdout (TSV uncontaminated)"
+
 echo "all checks passed"
