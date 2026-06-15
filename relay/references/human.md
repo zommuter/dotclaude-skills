@@ -115,6 +115,16 @@ so a concurrent pool/meeting surfaces a git conflict rather than silently losing
 toggle. One commit per repo touched; do NOT push, tag, or run git-diary-workflow /
 todo-update (the orchestrator/global obligation owns those).
 
+**Cross-session lease (id:0902).** Before a repo's write-back, acquire its lease:
+`~/.claude/skills/relay/scripts/claim.sh acquire <repo> --run human-$CLAUDE_SESSION_ID --mode human`.
+If REFUSED (a live autonomous pool, `/relay review|handoff`, `/relay executor`, or `/meeting`
+holds the repo), **DEFER** that repo's write-back — surface it in the turn summary ("ledger
+write-back deferred — <repo> claimed by another relay run; re-run once idle") and leave its
+boxes unticked (your auto-answers are re-checkable CLAIMs anyway, so nothing is lost). On a
+clean acquire, do the per-repo write-back, then release run-scoped:
+`claim.sh release <repo> --run human-$CLAUDE_SESSION_ID`. This is the same hold `/meeting`
+uses (id:d748) — so `/relay human --all` never collides with a running pool on a shared ledger.
+
 ## 6. Anti-gaming and the apex framing
 
 - Every tier-(a) auto-answer is a re-checkable CLAIM, not a closed question — the next

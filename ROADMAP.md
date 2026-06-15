@@ -10,6 +10,18 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [x] Interactive relay modes (handoff/review/human) are claim-aware (done 2026-06-15) <!-- id:0902 -->
+  - **Context**: post-cluster gap — the autonomous pool (id:ebfb), `/relay executor` (contract v4),
+    and `/meeting` (id:d748) took the cross-session lease, but the INTERACTIVE orchestrator modes
+    (`/relay handoff|review|human`) were claim-blind, so `/relay human --all` (or two `/relay review`s)
+    could still collide with a live pool on shared ledgers / main checkouts.
+  - **Done 2026-06-15**: SKILL orchestrator invariant 4 acquires `claim.sh acquire <repo> --run
+    relay-<mode>-$CLAUDE_SESSION_ID` before fanning out each handoff/review child (refused → skip +
+    surface, never spawn a colliding child); invariant 5 releases it run-scoped at integration.
+    `references/human.md` §5 acquires the lease before each per-repo REVIEW_ME/ledger write-back and
+    DEFERS on refusal (mirrors `/meeting` id:d748), releasing after. `tests/test_relay_interactive_claim.sh`.
+    Every relay actor — pool, executor, meeting, and the interactive modes — now respects one lease.
+
 - [x] Relay must sync local↔origin before working a repo (stale-clone / divergence guard) (done 2026-06-15) <!-- id:c3f7 -->
   - **Done 2026-06-15**: discovery SYNC-WITH-ORIGIN guard (fetch + ahead/behind; diverged→surface,
     behind-only→ff) in relay-loop.js; `relay/scripts/sync-origin.sh` testable helper (exit 0 ok/ff/

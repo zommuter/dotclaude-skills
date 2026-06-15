@@ -146,6 +146,12 @@ integration invariants.
    tokens, and whether C5/step-6 HARD work is budgeted this turn. Children commit in
    their worktree and return the structured report — they NEVER push and NEVER run
    git-diary-workflow or todo-update.
+   **Cross-session lease (id:0902).** BEFORE spawning each repo's child, acquire the repo
+   lease: `~/.claude/skills/relay/scripts/claim.sh acquire <repo> --run relay-<mode>-$CLAUDE_SESSION_ID
+   --mode <handoff|review>`. If it is REFUSED (a live autonomous pool, `/relay executor`,
+   `/meeting`, or another interactive relay session already holds that repo), SKIP the repo
+   this turn and surface it ("claimed by another relay run") — never spawn a colliding child.
+   Only fan out children for repos whose lease you acquired.
 5. **Integrate per completed child as one uninterrupted block**, repos strictly
    sequential: verify `contract_met` and checkpoint ordering → `--no-ff` merge the
    worktree branch into the integration branch → `scripts/ckpt-tag.sh <repo-path> -m
@@ -153,6 +159,9 @@ integration invariants.
    `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only` → `git worktree prune` →
    update relay.toml (`status`, `last_ckpt`/`last_review`). A child that fails
    `contract_met` is NOT merged; its worktree is held and listed as a HANDBACK.
+   **Release the lease (id:0902)** run-scoped when done with the repo — whether merged OR
+   handed back: `~/.claude/skills/relay/scripts/claim.sh release <repo> --run relay-<mode>-$CLAUDE_SESSION_ID`
+   (run-scoped → a no-op if you don't hold it; a stale lease also auto-expires via the claim TTL).
 6. **Quota between waves.** Check the statusline pricing indicator (💸 = expensive
    weekday window ~05:00–11:00 PT, 🪙 = reduced) if present; otherwise judge by remaining
    quota. Default HARD execution (handoff C5 / review step 6) OFF in the expensive
