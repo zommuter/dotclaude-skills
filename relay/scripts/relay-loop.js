@@ -94,7 +94,15 @@ log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOW
 //     queued:    [{repo, verdict}],
 //     blocked:   [{repo, reason, worktreePath}],
 //     quota:     [{bucket, pctRemaining, resetTime}],
-//     reviewMe:  [{repo, count, path}] }
+//     reviewMe:  [{repo, count, path}],
+//     stopReason: string|null }  // id:8c35 — category of the stop (quota-stale-cache, quota-exhausted:<bucket>, etc.)
+// id:8c35 — build the stop-reason line for RELAY_STATUS (called with the module-level
+// stopReason at status-write time, so writeRelayStatus must pass it in via state).
+function buildStopReasonLine(sr) {
+  if (!sr) return '_(none — run still active or drained cleanly)_'
+  return `**${sr}**`
+}
+
 function buildRelayStatus(state) {
   const header = `# RELAY_STATUS — last updated ${state.ts}  run: ${state.runId}`
 
@@ -130,6 +138,9 @@ function buildRelayStatus(state) {
     ? state.reviewMe.map(r => `- ${r.repo}  open=${r.count}  path=${r.path}`).join('\n')
     : '_(none)_'
 
+  // id:8c35 — stop-reason line alongside Quota remaining so the operator sees WHY the run stopped
+  const stopReasonLine = buildStopReasonLine(state.stopReason || null)
+
   return [
     header,
     '',
@@ -150,6 +161,9 @@ function buildRelayStatus(state) {
     '',
     '## Quota remaining',
     quota,
+    '',
+    '## Stop reason',
+    stopReasonLine,
     '',
     '## REVIEW_ME open items',
     reviewMe,
@@ -200,6 +214,7 @@ function snapshotState(s) {
     inFlight: [...(s.inFlight || [])], completed: [...(s.completed || [])],
     queued: [...(s.queued || [])], blocked: [...(s.blocked || [])],
     skipped: [...(s.skipped || [])], quota: [...(s.quota || [])], reviewMe: [...(s.reviewMe || [])],
+    stopReason,  // id:8c35 — capture module-level stopReason at snapshot time
   }
 }
 function scheduleStatusWrite(state, statusPath) {
@@ -413,6 +428,11 @@ function enqueueIntegration(repo, fn) {
 // are local to runRound and reset each round.
 const state = { runId: '', ts: '', inFlight: [], completed: [], queued: [], blocked: [], skipped: [], quota: [], reviewMe: [] }
 let quotaStopped = false
+// id:8c35 — machine-readable stop reason: null | "quota-stale-cache" |
+// "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds"
+// Populated by quotaGate on any stop so operators (and RELAY_STATUS) see WHY,
+// not just "quotaStopped=true".
+let stopReason = null
 // Quota-check throttle (efficiency): spawning a Haiku quota agent before EVERY unit
 // saturated the harness concurrency cap (min(16, cores-2)) with throwaway checks,
 // starving the work lanes — with POOL_WIDTH lanes the effective WORK parallelism
@@ -759,10 +779,26 @@ Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/
     { label: `quota:${tier}`, phase: 'Dispatch', schema: QUOTA_SCHEMA, model: 'haiku' }
   )
   if (v && v.buckets && v.buckets.length) state.quota = v.buckets
-  // Fail safe: agent death or exit 1/2 both stop dispatch (exit 2 = "stop, uncertain").
+  // id:8c35 — distinguish exit codes instead of collapsing both to quotaStopped:
+  //   exit 0 → proceed
+  //   exit 1 → real threshold exhaustion (a specific bucket hit the cap)
+  //   exit 2 → uncertain/stale-cache: can't verify, conservative STOP
+  //   agent death / missing → fail-safe STOP
   if (!v || v.exitCode !== 0) {
     quotaStopped = true
-    log(`relay-loop: quota gate STOP (tier=${tier}, exit=${v ? v.exitCode : 'agent-failed'}) — draining in-flight units and integration debt`)
+    // Derive the human-readable + machine-readable stop category:
+    if (!v) {
+      stopReason = 'quota-stale-cache'  // agent death treated as stale/uncertain
+      log(`relay-loop: quota gate STOP — reason=quota-stale-cache (agent failed; tier=${tier}) — draining in-flight units and integration debt`)
+    } else if (v.exitCode === 2) {
+      stopReason = 'quota-stale-cache'
+      log(`relay-loop: quota gate STOP — reason=${stopReason} (cache stale or refresh unavailable; tier=${tier}) — draining in-flight units and integration debt`)
+    } else {
+      // exit 1: real exhaustion; pick the first over-threshold bucket when available
+      const exhaustedBucket = (v.buckets || []).find(b => b.pctRemaining <= 10)
+      stopReason = exhaustedBucket ? `quota-exhausted:${exhaustedBucket.bucket}` : 'quota-exhausted:unknown'
+      log(`relay-loop: quota gate STOP — reason=${stopReason} (tier=${tier}) — draining in-flight units and integration debt`)
+    }
     return false
   }
   return true
@@ -996,7 +1032,7 @@ while (!quotaStopped && round < MAX_ROUNDS) {
   if (r.failed) {
     if (round === 1) {
       await statusTail  // id:cb50 — flush any queued status write before the early return
-      return { error: 'discovery failed', runId: state.runId, statusPath: RELAY_STATUS_PATH, completed: state.completed, handbacks: [], queuedRemaining: state.queued, quotaStopped }
+      return { error: 'discovery failed', runId: state.runId, statusPath: RELAY_STATUS_PATH, completed: state.completed, handbacks: [], queuedRemaining: state.queued, quotaStopped, stopReason }
     }
     log('relay-loop: discovery failed mid-run — stopping after completed rounds')
     break
@@ -1021,5 +1057,6 @@ return {
   handbacks,
   queuedRemaining: state.queued,
   quotaStopped,
+  stopReason,  // id:8c35 — category: null | "quota-stale-cache" | "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds"
   rounds: round,
 }
