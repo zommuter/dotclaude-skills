@@ -10,6 +10,21 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] [ROUTINE] Harden relay-state-write.sh toml-set against awk -v / regex-key input (F1/F2) <!-- id:c8db -->
+  - **Source**: id:401c strong-model audit 2026-06-15 (`docs/meeting-notes/2026-06-15-1520-strong-model-audit.md`),
+    findings F1 + F2. Re-filed after the audit's own commit was discarded (stale base) — see that note's provenance header.
+  - **F1**: `toml-set` passes the value via `awk -v val="$value"`, and awk's `-v` processes
+    C-style backslash escapes — a value containing `\` would be silently mangled before it hits
+    the file. **F2**: `key` is spliced into an awk *regex* (`kre="^" key "[ \t]*="`); a key with
+    regex metacharacters would match/replace the wrong line.
+  - **Risk today: zero** — every caller (relay-loop.js integrate step 6) passes only checkpoint
+    tags, ISO dates, and bare tokens (`false`/`"active"`/`"handed-off"`); keys are fixed TOML
+    identifiers. This is forward-robustness so a future caller passing an arbitrary value/key
+    can't be corrupted. Low priority.
+  - **Acceptance**: `toml-set` writes the value without awk `-v` escape processing (e.g. pass via
+    env/ARGV or a literal-safe mechanism) and matches the key by literal compare (not regex);
+    a test feeds a value with a backslash and a key-shaped edge and asserts a faithful round-trip.
+
 - [x] [ROUTINE] Resolver pushes unblocked work to the pool via inject.sh (low-latency REVIEW_ME pickup) (done 2026-06-15) <!-- id:fb75 -->
   - **Context**: 2026-06-15 user observation — a parallel `/relay human` session resolved most
     REVIEW_ME boxes, but the running pool only reacts at its next discovery **round boundary**
