@@ -392,7 +392,7 @@ WORKTREE-AWARE / CLAIMED-ELSEWHERE GUARD (id:ebfb step 1 — don't double-work a
 ${INTERACTIVE ? 'Interactive run: include marginal/ambiguous repos in "surfaced" with a one-line question each.' : 'Unattended run: never include questions; surface ambiguous repos with a factual reason only.'}
 
 Also produce:
-- runId: "relay-" + current date-time as YYYYMMDD-HHMM (from the date command)
+- runId: a PER-RUN UNIQUE id — generate it ONCE with the shell as: relay-$(date +%Y%m%d-%H%M%S)-$RANDOM (seconds + a random suffix). It MUST be unique per pool run: two concurrent pools must NEVER share a runId, because the cross-session lease's same-run re-entrancy AND the worktree-aware discovery guard both key on runId — a shared (e.g. minute-granular) runId would make two pools see each other as "the same run" and double-work a repo (id:0902 follow-up). Do NOT use a minute-granular id.
 - ts: current ISO 8601 timestamp
 - lastCkpt per repo (the tag name, or "" if none)
 - income per repo: true iff the repo's relay.toml block has income = true
