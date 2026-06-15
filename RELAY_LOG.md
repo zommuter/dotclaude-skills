@@ -233,3 +233,11 @@ HARD id:401c strong-model audit run 5 (window 1748..HEAD): clean — two pool-cr
 ## 2026-06-15 21:29 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Review of 7456e1f (gather-human-backlog paused filter): gaming-scan clean, suite 50/50 green, filter verified, pointer v4 current, routine_open=0
+
+## 2026-06-15 21:37 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 6 (window relay-ckpt-20260615-1937..HEAD): clean — only first-seen code is the 2-line gather-human-backlog.sh `paused` filter (7456e1f); no code/security/coherence defects. Forward-robustness gap fixed inline: the new sweep-skip filter shipped untested → added a non-vacuous regression guard (repoD paused fixture) to test_relay_human.sh. Suite 50/0. Item stays open (recurring by design).
+
+## 2026-06-15 21:47 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 7 (window relay-ckpt-20260615-2129..HEAD): clean — only first-seen code is the `warn_nested_worktrees` stale-checkout guard in gather-human-backlog.sh (83d8614); no code/security/coherence defects (`set -e`-safe grep guards, `-F` trailing-slash prefix match, stdout/stderr split all verified correct). Forward-robustness gap fixed inline (same class as run 6): the new warning shipped untested → added a non-vacuous regression guard (test_relay_human.sh section 4: real-git nested-worktree fixture + clean-repo negative control + stdout-clean assertion). Suite 50/0. Item stays open (recurring by design). Note: this branch also carries the un-integrated run-6 commit b6b086d (ahead of main).

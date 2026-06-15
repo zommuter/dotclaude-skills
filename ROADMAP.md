@@ -590,6 +590,21 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       removal of `new Date()`/`process.env` forbidden in the Workflow sandbox) correct with genuine
       regression guards, and the cross-ledger state coherent (0 open ROUTINE / 3 open HARD; d5e0
       summary agrees). See `docs/meeting-notes/2026-06-15-1937-strong-model-audit.md`.
+    - Run 6 (2026-06-15-1937b): `relay-ckpt-20260615-1937..HEAD` (only first-seen code:
+      the 2-line `paused` filter in gather-human-backlog.sh, 7456e1f) — **clean**: no
+      code/security/coherence defects. One forward-robustness gap **fixed inline** — the
+      new `paused = true` sweep-skip filter shipped without a test; added a non-vacuous
+      regression guard (repoD fixture) to `test_relay_human.sh`. Suite 50/0. See
+      `docs/meeting-notes/2026-06-15-1937b-strong-model-audit.md`.
+    - Run 7 (2026-06-15-2147): `relay-ckpt-20260615-2129..HEAD` (only first-seen code:
+      the `warn_nested_worktrees` stale-checkout guard in gather-human-backlog.sh,
+      83d8614) — **clean**: no code/security/coherence defects (`set -e`-safe grep
+      guards, `-F` fixed-string prefix match with trailing-slash, stdout/stderr split all
+      correct). One forward-robustness gap **fixed inline** (same class as Run 6) — the
+      new warning shipped without a test; added a non-vacuous regression guard (section 4:
+      real-git nested-worktree fixture + clean-repo negative control + stdout-clean
+      assertion) to `test_relay_human.sh`. Suite 50/0. See
+      `docs/meeting-notes/2026-06-15-2147-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
