@@ -10,6 +10,25 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] Contract tests for relay install-completeness + quota-stop invocation [ROUTINE] <!-- id:5f09 -->
+  - **Context**: On 2026-06-15 the default `/relay` autonomous pool was non-functional and
+    the full suite was green. Two contract bugs shipped undetected: (1) the Makefile
+    `relay_FILES`/`_EXEC`/`_ALLOW` lists omitted `scripts/quota-stop.sh` and
+    `scripts/relay-loop.js`, so `make install` never symlinked the Workflow engine or the
+    quota helper agents invoke by installed path; (2) `relay-loop.js`'s `quotaGate()` called
+    `quota-stop.sh --tier T <agents> 0` with bare positionals, but the script only accepts
+    `--tier/--agents/--wall` and exits 2 on anything else — tripping the fail-safe STOP on
+    every gate check. Fixed in 5481502; tests did not catch either.
+  - **Acceptance**: (1) a test asserts every `relay/scripts/*` file appears in the Makefile's
+    `relay_FILES` (and every executable `.sh` in `relay_EXEC`/`relay_ALLOW`), so a new helper
+    can't ship un-symlinked; (2) a test asserts the `quota-stop.sh` invocation string embedded
+    in `relay-loop.js` uses only flags `quota-stop.sh` actually parses (`--tier/--agents/--wall`)
+    — ideally by extracting the command and dry-running it, else by static flag-set match.
+  - **Tests**: extend `tests/test_relay_loop_structure.sh` (quota-stop invocation) and add a
+    Makefile-manifest check (new `tests/test_relay_install_manifest.sh` or fold into an existing
+    install test); header `# roadmap:5f09`.
+  - **Done-check**: tick this box, then full `make test` green.
+
 - [x] De-fable checkpoint tags + durable model-tracked Fable-bonus-recheck queue [HARD — strong model] (done 2026-06-15, reviewer; merges id:e030) <!-- id:96a8 -->
   - **Acceptance**: `relay/scripts/ckpt-tag.sh` emits `relay-ckpt-YYYYMMDD-HHMM` annotated
     tags (not `fable-ckpt-*`); the RELAY_LOG.md append + the model+role annotation label are
