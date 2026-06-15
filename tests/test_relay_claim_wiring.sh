@@ -32,4 +32,15 @@ grep -q "claim.sh peek" "$JS" || fail "writeRelayStatus does not project live cl
 grep -q "Claims (live)" "$JS" || fail "RELAY_STATUS has no '## Claims (live)' projection section"
 pass "RELAY_STATUS projects live claims via peek (id:ebfb)"
 
-echo "ALL PASS: claim wired into dispatch path (id:ebfb step 4)"
+# (4) Flock'd single-writer for shared state (id:ebfb step 2): integrator writes relay.toml
+# via relay-state-write.sh toml-set; writeRelayStatus writes RELAY_STATUS via status-write.
+grep -q "relay-state-write.sh toml-set" "$JS" || fail "integrator does not write relay.toml via the flock'd toml-set helper"
+grep -q "relay-state-write.sh status-write" "$JS" || fail "writeRelayStatus does not write via the flock'd status-write helper"
+pass "shared state written via the flock'd single-writer (id:ebfb step 2)"
+
+# (5) Skipped rollup (id:be62): discovery reports skipped; RELAY_STATUS has the section.
+grep -q "## Skipped (this round)" "$JS" || fail "RELAY_STATUS missing the '## Skipped (this round)' rollup (id:be62)"
+grep -qi "excluded-by-config" "$JS" || fail "discovery does not categorize excluded-by-config repos (id:be62)"
+pass "skipped-repos rollup present (id:be62)"
+
+echo "ALL PASS: claim wired into dispatch + single-writer + skipped rollup (id:ebfb/be62)"

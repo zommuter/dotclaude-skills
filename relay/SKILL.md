@@ -1,6 +1,6 @@
 ---
 name: relay
-description: Relay workflow that spends a strong reviewer-model turn (Opus apex; Fable optional bonus) preparing repos for cheaper executor sessions (Sonnet), then verifying their work. Two modes — handoff (write docs, roadmap, failing-test specs, BDD) and review (verify executor work isn't gamed, re-derive roadmap); plus `executor` to load the lean executor contract. Trigger on "relay", "relay handoff", "relay review", "relay executor", "hand off repos to executors", "review executor work". Keywords: relay, handoff, review, executor, checkpoint, ROADMAP, RELAY_LOG.
+description: Relay workflow that spends a strong reviewer-model turn (Opus apex; Fable optional bonus) preparing repos for cheaper executor sessions (Sonnet), then verifying their work. Two modes — handoff (write docs, roadmap, failing-test specs, BDD) and review (verify executor work isn't gamed, re-derive roadmap); plus `executor` to load the lean executor contract and `next` to auto-route the current repo. Trigger on "relay", "relay handoff", "relay review", "relay next", "relay executor", "hand off repos to executors", "review executor work". Keywords: relay, handoff, review, next, executor, checkpoint, ROADMAP, RELAY_LOG.
 ---
 
 # relay
@@ -17,7 +17,8 @@ Invocation:
 /relay -d                           # executor-only: strong model unavailable (--fable-down)
 /relay --fable-down                 # long form of -d
 /relay handoff [repo-list | --all]
-/relay review  [repo-list | --all]
+/relay review  [repo-list | --all]   # default: cwd repo only; --all (or a repo-list) = cross-repo sweep
+/relay next                          # auto-router: inspect the cwd repo's state and act (executor/review/human)
 /relay human   [repo-list | --all]   # interactive: cross-repo human-backlog triage
 /relay executor                      # load the lean executor contract (cheap Sonnet sessions)
 ```
@@ -168,6 +169,10 @@ integration invariants.
   roadmap → C3 red tests → C4 BDD → C5 optional HARD).
 - **Review** — see `references/review.md` (per-repo child: diff since last ckpt →
   test-integrity audit → BDD → spec-drift → re-derive roadmap → optional HARD).
+  **Default scope is the cwd repo only** (`git rev-parse --show-toplevel`),
+  mirroring `/relay executor`'s least-surprise default; pass `--all` (or an explicit
+  repo-list) to opt into the cross-repo sweep over every confirmed `own` repo. (This
+  flips the historical default — bare `/relay review` no longer means `--all`.)
 - **Human** — see `references/human.md` (cross-repo human-backlog triage; the human
   is the relay's 3rd actor). See `## Human mode` below.
 
@@ -202,6 +207,31 @@ Discipline: clean-tree only; commit per-repo **in the main checkout** (the per-r
 `/meeting` REVIEW_ME write-back path, id:15d5), not a worktree merge. An auto-answer is a
 CLAIM the next `review` re-checks (anti-gaming, conservative — **when unsure, downgrade
 a→b**). **Opus is apex**: auto-answers are final, never "pending Fable".
+
+## Next mode
+
+`/relay next` is a quick auto-router: it inspects the CURRENT repo's state and acts,
+collapsing the "human-or-not" decision to its fastest form. It operates on the **cwd
+repo by default** (`git rev-parse --show-toplevel`, consistent with the `review`-default
+flip above) and does NOT define new work — it reuses the existing executor/review/human
+modes. Decide ONE route and take it:
+
+1. **Open `[ROUTINE]` items in `ROADMAP.md`** → run as **`/relay executor`** (load the lean
+   executor contract, work the routine items). Autonomous — do NOT ask.
+2. **Else, unaudited commits since the last relay checkpoint tag** (`git tag -l
+   'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`, then commits after it) → run
+   **`/relay review`** on this cwd repo (the per-repo default). Autonomous — do NOT ask.
+3. **Else, a judgment box truly needing a human** — open `REVIEW_ME.md` `- [ ]` boxes,
+   open `@manual` scenarios, or genuinely-chewy design — → route to **`human`** (the
+   cross-repo human-backlog triage) or **`/meeting`**. This is the ONLY route that
+   involves the human.
+
+Optimize for the fastest human-or-not call: do the autonomous executor/review work
+**without asking**; only stop for the human when a judgment box genuinely requires it.
+**When unsure, prefer acting over asking** — a borderline-routine item runs as executor
+work, and the next `review` re-checks it (anti-gaming). If multiple routes apply, take
+the earliest in the list (execute → review → human), mirroring the default pool's
+verdict-class order.
 
 ## Shared resources
 

@@ -35,7 +35,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     now server-rejected. A controlled-override path (for the user's occasional legitimate force-push) is
     tracked as TODO id:de51 (gerrit is overkill for a Pi).
 
-- [ ] Relay claim-registry + cross-session discovery guards (cluster steps 1–3) [ROUTINE] <!-- id:ebfb -->
+- [x] Relay claim-registry + cross-session safety (cluster steps 1–4 + executor + single-writer) (done 2026-06-15) <!-- id:ebfb -->
   - ROADMAP execution view of TODO id:ebfb (single-id-two-views). Ratified design:
     `docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md`.
   - **Shipped 2026-06-15**: (1) discovery WORKTREE-AWARE (skip a foreign-runId worktree → surfaced) +
@@ -51,13 +51,13 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     (`claim.sh acquire/release`, markers synced across executor-contract.md / CLAUDE.md / conventions.md,
     `tests/test_relay_executor.sh`). Sibling cluster items `[INTENSIVE]` (id:8d52) + `/meeting` hold
     (id:d748) shipped.
-  - **Remaining (item stays open)**: cluster **step 2 — flock'd single-writer for `relay.toml` +
-    `RELAY_STATUS.md`** was NOT implemented. The claim lease *mitigates* it (only the lease-holder writes
-    a repo's relay.toml block, so per-repo blocks don't collide across runs), but RELAY_STATUS is still a
-    per-run whole-file write (clobber if two runs share the path) and relay.toml writes aren't flock'd.
-    Build: field-scoped flock'd relay.toml writes + per-runId RELAY_STATUS sections (append.sh/md-merge.py
-    pattern). Lower urgency now that the lease serializes per-repo work.
-  - **Done-check**: tick when step 2 (flock'd single-writer state) lands; full `make test` green.
+  - **Also done 2026-06-15**: (5) cluster **step 2 — flock'd single-writer state**: `relay/scripts/
+    relay-state-write.sh` (`toml-set <repo> <key> <value>` field-scoped + `status-write <abs-path>`,
+    both flock'd + atomic temp-mv; `tests/test_relay_state_write.sh`). The integrator writes every
+    relay.toml field via `toml-set`; `writeRelayStatus` writes via `status-write` — concurrent runs
+    serialize on one lock, no torn/clobbered writes. (Per-runId RELAY_STATUS *display* sections were not
+    needed — flock'd-atomic single-writer + the claim lease serializing per-repo work cover the cases.)
+    All cluster steps 1–6 + executor-honoring + single-writer now shipped.
 
 <!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — RATIFIED 2026-06-15
      (meeting docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md). The claim
@@ -191,7 +191,11 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Tests**: `tests/test_relay_inject.sh` — inject.sh writes a valid shard; discovery prepends it;
     consumed shard moves to inject.done and isn't re-dispatched. Hermetic.
 
-- [ ] Contract tests for relay install-completeness + quota-stop invocation [ROUTINE] <!-- id:5f09 -->
+- [x] Contract tests for relay install-completeness + quota-stop invocation (done 2026-06-15) <!-- id:5f09 -->
+  - **Done 2026-06-15**: `tests/test_relay_install_manifest.sh` — (1) every `relay/scripts/*` is in
+    the Makefile `relay_FILES` (and every `.sh` in `_EXEC`/`_ALLOW`), so a new helper can't ship
+    un-symlinked; (2) relay-loop.js invokes `quota-stop.sh` with only its accepted flags
+    (`--tier`/`--agents`/`--wall`, no bare positionals). Both 2026-06-15 contract gaps are now gated.
   - **Context**: On 2026-06-15 the default `/relay` autonomous pool was non-functional and
     the full suite was green. Two contract bugs shipped undetected: (1) the Makefile
     `relay_FILES`/`_EXEC`/`_ALLOW` lists omitted `scripts/quota-stop.sh` and

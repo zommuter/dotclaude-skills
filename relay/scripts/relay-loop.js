@@ -114,6 +114,14 @@ function buildRelayStatus(state) {
     ? state.blocked.map(r => `- ${r.repo}  reason=${r.reason}  worktree=${r.worktreePath}`).join('\n')
     : '_(none)_'
 
+  // Skipped (id:be62): every own repo NOT worked this round, with a one-word reason
+  // category — excluded-by-config / idle-in-sync / dirty-worktree / diverged / claimed-
+  // elsewhere / decision-gate / intensive — so the user sees at a glance what the pool is
+  // ignoring and why. Populated from discovery.skipped (excluded + idle) at round start.
+  const skipped = state.skipped && state.skipped.length
+    ? state.skipped.map(r => `- ${r.repo}  ${r.reason}`).join('\n')
+    : '_(none)_'
+
   const quota = state.quota && state.quota.length
     ? state.quota.map(r => `- ${r.bucket}  remaining=${r.pctRemaining}%${r.resetTime ? '  reset=' + r.resetTime : ''}`).join('\n')
     : '_(unknown)_'
@@ -137,6 +145,9 @@ function buildRelayStatus(state) {
     '## Blocked / HANDBACKs',
     blocked,
     '',
+    '## Skipped (this round)',
+    skipped,
+    '',
     '## Quota remaining',
     quota,
     '',
@@ -159,7 +170,10 @@ async function writeRelayStatus(state, statusPath) {
 
 FIRST resolve it to a real absolute path with the shell, e.g.
   target=$(python3 -c "import os;print(os.path.expanduser('${path}'))")
-then create parents with mkdir -p "$(dirname "$target")" and write the content to "$target".
+then write the combined content to "$target" ATOMICALLY via the flock'd single-writer (id:ebfb
+step 2), which serializes concurrent runs + does mkdir -p + temp + atomic mv:
+  printf '%s' "$CONTENT" | ~/.claude/skills/relay/scripts/relay-state-write.sh status-write "$target"
+(the helper also re-checks the path is absolute and refuses a literal ~ / \${HOME} target).
 
 CRITICAL (id:c34a): NEVER create a file or directory whose name literally contains "$HOME", "\${HOME}", "~", or a leading "$" — that means expansion failed and leaks a junk dir into the cwd. The final resolved path MUST begin with "/". If you cannot resolve an absolute path beginning with "/", abort WITHOUT writing anything. Do not truncate or reformat.
 
@@ -232,6 +246,19 @@ const DISCOVER_SCHEMA = {
       },
     },
     surfaced: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['repo', 'reason'],
+        properties: { repo: { type: 'string' }, reason: { type: 'string' } },
+      },
+    },
+    // skipped (id:be62): repos NOT worked this round for a BENIGN reason — every relay.toml
+    // repo with classification != "own" ("excluded-by-config (clone|excluded|needs_review)")
+    // and every own repo classified "idle" ("idle — in sync, no open work"). Distinct from
+    // surfaced (which is needs-attention: dirty/diverged/claimed). Drives the RELAY_STATUS
+    // "## Skipped (this round)" rollup so the user sees what the pool ignores and why.
+    skipped: {
       type: 'array',
       items: {
         type: 'object',
@@ -316,7 +343,7 @@ function enqueueIntegration(repo, fn) {
 // (drained), or (c) the MAX_ROUNDS seatbelt trips. `state` and `quotaStopped` persist
 // across rounds (accumulators); per-round vars (queue/debts/unitsDispatched/roundCapHit)
 // are local to runRound and reset each round.
-const state = { runId: '', ts: '', inFlight: [], completed: [], queued: [], blocked: [], quota: [], reviewMe: [] }
+const state = { runId: '', ts: '', inFlight: [], completed: [], queued: [], blocked: [], skipped: [], quota: [], reviewMe: [] }
 let quotaStopped = false
 // Quota-check throttle (efficiency): spawning a Haiku quota agent before EVERY unit
 // saturated the harness concurrency cap (min(16, cores-2)) with throwaway checks,
@@ -376,6 +403,8 @@ Also produce:
 - intensive per repo (id:8d52): a resource name STRING (e.g. "local-llm") iff this repo's next unit of work is resource-heavy — set it when EITHER (a) the repo's relay.toml block has intensive = "<resource>" (or intensive = true → use "local-llm"), OR (b) the top open "- [ ]" item the unit would work in ROADMAP.md carries an "[INTENSIVE — <resource>]" modifier (parse the resource between "— " and "]"). Otherwise leave it "" (empty). These units are NEVER auto-dispatched (OOM risk) — they are gated behind --allow-intensive.
 
 INJECTED HIGH-PRIORITY UNITS (id:baf1): also run \`~/.claude/skills/relay/scripts/inject.sh take\`. It emits zero or more pending user-injected units as compact JSON lines (and atomically consumes them, so they are NOT re-listed next round): {token, repo, verdict, item, prompt, requested_at}. For EACH such line, add ONE extra unit to "units" with: injected=true, inject_token=<token>, verdict=<its verdict, default "execute">, repo=<its repo>, path=<resolve like any own repo: ~/src/<repo> or the "# path:" override>, reason="user-injected high-priority task", inject_item=<item or "">, inject_prompt=<prompt or "">, and income/standin/hasRoutine/openHard/strongRecheckPending=false, lastCkpt="". These are IN ADDITION to (not instead of) the repo's normal classification — a repo may appear both as its classified unit and as an injected unit. If \`inject.sh take\` emits nothing, add no injected units.
+
+SKIPPED ROLLUP (id:be62): also populate "skipped" — repos NOT worked this round for a benign reason, so the user sees what the pool ignores and why: (a) every relay.toml repo whose classification is NOT "own" (clone / excluded / needs_review) → {repo, reason: "excluded-by-config (<classification>)"}; (b) every OWN repo you classified "idle" → {repo, reason: "idle — in sync, no open work"}. This is distinct from "surfaced" (which is needs-attention: dirty / diverged / claimed-elsewhere). Dirty/diverged/claimed repos go in "surfaced", NOT "skipped".
 
 Return every own repo exactly once across NON-INJECTED units (verdict idle included) and surfaced; injected units are extra.`,
   { label: 'discover', phase: 'Discover', schema: DISCOVER_SCHEMA }
@@ -523,6 +552,7 @@ state.queued = [
   ...intensiveDeferred.map(u => ({ repo: u.repo, verdict: `intensive:${u.intensive} (skipped — needs --allow-intensive/--afk; never auto-run, OOM risk id:8d52)` })),
 ]
 state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
+state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason }))   // id:be62
 
 log(`relay-loop: ${actionable.length} actionable units (${discovery.units.length} own repos, ${discovery.surfaced.length} surfaced)`)
 await writeRelayStatus(state)
@@ -683,8 +713,8 @@ async function integrate(unit, report) {
    pushStatus = "pushed" on success, otherwise the error summary.
 5. git -C ${unit.path} worktree remove --force ${report.worktree} && git -C ${unit.path} branch -d ${report.branch}
    (--force is required and safe here: the merge+tag+push above already integrated the committed branch work, so the only thing --force discards is incidental untracked build artifacts the child left behind, e.g. a uv.lock from running tests. Without --force, worktree remove fails on any untracked file and the worktree+branch silently orphan in ~/.cache/fables-turn/worktrees/ — id:d187.)
-6. Update ~/.config/fables-turn/relay.toml for [repos.${unit.repo}]: set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.${isStrong ? `
-6b. STRONG checkpoint — this is a ${unit.verdict} unit produced by the strong model (${STRONG_MODEL}). ${isFableRecheck ? `This session's strong tier is REAL Fable, and this is a review — it IS the optional Fable recheck (id:e030 consume side). Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = "<today's date, ISO>" (the recheck just happened — mark it done, do NOT set false).` : `Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = false (an Opus-standin/strong checkpoint that still invites an optional Fable recheck).`} These keys survive a LATER executor (sonnet) checkpoint that overwrites last_ckpt — so the pending optional Fable recheck stays visible even when masked. Write all three even if they already exist (overwrite). Change ONLY this repo's block.` : `
+6. Update ~/.config/fables-turn/relay.toml for [repos.${unit.repo}] via the flock'd single-writer (id:ebfb step 2) — for EACH field run \`~/.claude/skills/relay/scripts/relay-state-write.sh toml-set ${unit.repo} <key> <value>\` (value VERBATIM: quote strings e.g. '"<tag>"', bare for bool e.g. false; NEVER hand-edit relay.toml): set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.${isStrong ? `
+6b. STRONG checkpoint — this is a ${unit.verdict} unit produced by the strong model (${STRONG_MODEL}). ${isFableRecheck ? `This session's strong tier is REAL Fable, and this is a review — it IS the optional Fable recheck (id:e030 consume side). Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = "<today's date, ISO>" (the recheck just happened — mark it done, do NOT set false).` : `Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = false (an Opus-standin/strong checkpoint that still invites an optional Fable recheck).`} These keys survive a LATER executor (sonnet) checkpoint that overwrites last_ckpt — so the pending optional Fable recheck stays visible even when masked. Write all three via the same flock'd relay-state-write.sh toml-set helper (overwrite if present; fable_rechecked is a BARE value: false, or '"<ISO date>"' when rechecked). Change ONLY this repo's block.` : `
 6b. EXECUTOR checkpoint — this is an execute unit (sonnet). Do NOT touch last_strong_ckpt, strong_model, or fable_rechecked: an executor checkpoint must never clear the pending Fable-bonus-recheck queue (that is exactly the masking bug id:e030 fixes). Leave those keys untouched.`}
 7. Return merged=true, ckptTag, pushStatus, ts (current ISO timestamp).
 
