@@ -39,7 +39,7 @@ install IS the published version (per-file symlinks, see Layout).
 | `meeting-cross/` | Deprecated alias skill → `/meeting --cross` (deletion gated, TODO id:4f5f) |
 | `projects/` | Project-dashboard skill (SKILL.md only) |
 | `relay/` | The reviewer/executor relay skill itself (this contract comes from there). `references/executor-contract.md` is the versioned executor contract loaded by `/relay executor`; the `## Relay contract` pointer below must match its `vN` marker |
-| ~~`fables-turn/`, `fables-executor/`~~ | Deprecated alias stubs → `/relay` + `/relay executor`. **Untracked 2026-06-15** (`git rm --cached`; migrated, no remaining cron/invocations) — `.gitignore`'d, kept locally only as a fat-finger redirect, no longer installed by `make`. Delete the dirs to drop the redirect. |
+| ~~`fables-turn/`, `fables-executor/`~~ | **Removed 2026-06-15** — deprecated alias stubs → `/relay` + `/relay executor`. Migrated (no remaining cron/invocations); untracked, deleted locally, and the `~/.claude/skills` symlinks uninstalled. The 3 `fables-*` meeting-notes stay as history. `.gitignore` still blocks accidental re-add. |
 | `hooks/` | Stop/Notification hook scripts; settings.json snippets in `hooks/README.md` |
 | `statusline/` | `statusline-command.sh` — quota/cost/model statusline (reads JSON on stdin) |
 | `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt`; `ctx-budget.sh` (advisory SKILL.md token-budget audit) |
