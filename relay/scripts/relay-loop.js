@@ -33,6 +33,11 @@ const RELAY_STATUS_PATH = A.RELAY_STATUS_PATH || '~/.config/fables-turn/RELAY_ST
 // enforced by tests/test_fables_front_door.sh grepping this file for the question tool);
 // when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
 const INTERACTIVE = !!A.interactive
+// [INTENSIVE] gate (id:8d52): resource-heavy units (local-LLM benchmarks, big index rebuilds —
+// the OOM risk that killed 6 sessions) are NEVER auto-dispatched. --allow-intensive / --afk
+// opt in; then they run SERIALLY-ALONE after the normal parallel wave, holding an exclusive
+// resource claim (resource:<name>). --afk is the "I'm away, do something useful" alias.
+const ALLOW_INTENSIVE = !!A.allowIntensive || !!A.afk
 
 // FABLE_DOWN: set by --fable-down / -d front-door flag. It asserts ONE axis only — "the
 // Fable strong tier is unavailable this run" — and composes with STRONG_TIER (which axis
@@ -218,6 +223,11 @@ const DISCOVER_SCHEMA = {
           inject_token: { type: 'string' },   // the consumed shard token (for logging/trace)
           inject_prompt: { type: 'string' },  // optional freeform instruction for the child
           inject_item: { type: 'string' },    // optional specific ROADMAP id to work
+          // intensive (id:8d52): non-empty resource name (e.g. "local-llm") iff this unit is
+          // resource-heavy — the top open item it would work carries [INTENSIVE — <resource>],
+          // or the repo's relay.toml block has intensive = "<resource>" / intensive = true
+          // (→ "local-llm"). Empty/absent for normal units. Drives the never-auto-dispatch gate.
+          intensive: { type: 'string' },
         },
       },
     },
@@ -363,6 +373,7 @@ Also produce:
 - openHard per repo: the COUNT of unticked "- [ ]" items tagged [HARD (i.e. [HARD — strong model]) in ROADMAP.md, INDEPENDENT of the verdict. 0 when none. The supervisor uses it to surface the HARD backlog and (on an apex Opus session) to size the hard verdict.
 - strongRecheckPending per repo: true iff the relay.toml [repos.<name>] block has a non-empty last_strong_ckpt AND fable_rechecked is false (or absent/empty). This is the DURABLE, model-tracked Fable-bonus-recheck queue (id:e030): a strong (Opus) review/handoff/hard checkpoint that has not yet had its optional Fable recheck. It SURVIVES a later executor (sonnet) checkpoint that overwrites last_ckpt and masks the latest-tag fable-standin signal — so prefer this field over the tag grep when deciding optional-recheck candidacy. Report false when last_strong_ckpt is absent/empty or fable_rechecked is true (or a date).
 - standin per repo: true iff the repo's LATEST relay checkpoint tag message contains the literal token "fable-standin". Detect (match BOTH prefixes — the latest tag may be fable-ckpt-* or relay-ckpt-*): T=$(git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no checkpoint tag.
+- intensive per repo (id:8d52): a resource name STRING (e.g. "local-llm") iff this repo's next unit of work is resource-heavy — set it when EITHER (a) the repo's relay.toml block has intensive = "<resource>" (or intensive = true → use "local-llm"), OR (b) the top open "- [ ]" item the unit would work in ROADMAP.md carries an "[INTENSIVE — <resource>]" modifier (parse the resource between "— " and "]"). Otherwise leave it "" (empty). These units are NEVER auto-dispatched (OOM risk) — they are gated behind --allow-intensive.
 
 INJECTED HIGH-PRIORITY UNITS (id:baf1): also run \`~/.claude/skills/relay/scripts/inject.sh take\`. It emits zero or more pending user-injected units as compact JSON lines (and atomically consumes them, so they are NOT re-listed next round): {token, repo, verdict, item, prompt, requested_at}. For EACH such line, add ONE extra unit to "units" with: injected=true, inject_token=<token>, verdict=<its verdict, default "execute">, repo=<its repo>, path=<resolve like any own repo: ~/src/<repo> or the "# path:" override>, reason="user-injected high-priority task", inject_item=<item or "">, inject_prompt=<prompt or "">, and income/standin/hasRoutine/openHard/strongRecheckPending=false, lastCkpt="". These are IN ADDITION to (not instead of) the repo's normal classification — a repo may appear both as its classified unit and as an injected unit. If \`inject.sh take\` emits nothing, add no injected units.
 
@@ -486,6 +497,22 @@ if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') {
   }
 }
 
+// [INTENSIVE] partition (id:8d52): pull resource-heavy units OUT of the parallel wave — they
+// are never auto-run (OOM risk). With --allow-intensive/--afk they run serially-alone AFTER
+// the wave (intensiveUnits); otherwise they are surfaced as skipped (intensiveDeferred).
+let intensiveUnits = []
+let intensiveDeferred = []
+{
+  const normal = []
+  for (const u of actionable) {
+    if (u.intensive) (ALLOW_INTENSIVE ? intensiveUnits : intensiveDeferred).push(u)
+    else normal.push(u)
+  }
+  actionable = normal
+}
+if (intensiveUnits.length) log(`relay-loop: --allow-intensive — ${intensiveUnits.length} [INTENSIVE] unit(s) will run SERIALLY-ALONE after the wave: ${intensiveUnits.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
+if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTENSIVE] unit(s) NOT dispatched — need --allow-intensive/--afk: ${intensiveDeferred.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
+
 // Refresh the cross-round accumulator's per-round views (completed/reviewMe persist).
 state.runId = state.runId || discovery.runId
 state.ts = discovery.ts
@@ -493,6 +520,7 @@ state.queued = [
   ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
   ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: HARD-execute needs apex Opus; STRONG_MODEL=${STRONG_MODEL} — left for Fable handoff-C5/review-step6)` })),
   ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
+  ...intensiveDeferred.map(u => ({ repo: u.repo, verdict: `intensive:${u.intensive} (skipped — needs --allow-intensive/--afk; never auto-run, OOM risk id:8d52)` })),
 ]
 state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
 
@@ -501,7 +529,7 @@ await writeRelayStatus(state)
 
 // No actionable units this round (incl. --fable-down with no executor work) → a dry
 // round; the outer loop counts consecutive dry rounds toward "backlog drained".
-if (actionable.length === 0) {
+if (actionable.length === 0 && intensiveUnits.length === 0) {
   if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') log('relay-loop: --fable-down — no executor work this round, strong work deferred')
   return { actionable: 0 }
 }
@@ -536,7 +564,7 @@ function unitPrompt(unit) {
   return `You are a relay ${unit.verdict.toUpperCase()} child for the repo ${unit.repo} (main checkout: ${unit.path}).
 
 FIRST acquire the cross-session repo lease (id:ebfb): run ~/.claude/skills/relay/scripts/claim.sh acquire ${unit.repo} --run ${state.runId} --mode ${unit.verdict}. If it exits NON-ZERO, another live relay run/session already holds this repo — STOP IMMEDIATELY: do NOT create a worktree, do NOT do any work, and return contract_met=false with handback="claimed by another relay run (cross-session lease id:ebfb): " plus the holder JSON it printed to stderr. The supervisor releases the lease at integration, so do not release it yourself. Only if acquire SUCCEEDS, continue:
-
+${unit.intensive ? '\nThis is an [INTENSIVE — ' + unit.intensive + '] unit (id:8d52): ALSO acquire the exclusive RESOURCE lease before any heavy work — ~/.claude/skills/relay/scripts/claim.sh acquire resource:' + unit.intensive + ' --run ' + state.runId + ' --mode intensive. If it exits non-zero (another relay run is using ' + unit.intensive + '), STOP: return contract_met=false, handback="resource ' + unit.intensive + ' busy (another relay run)". The supervisor releases it at integration.\n' : ''}
 Create your worktree first: git -C ${unit.path} worktree add ${wt} -b ${branch} HEAD
 Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. Last checkpoint tag: ${unit.lastCkpt || '(none)'}.
 
@@ -644,7 +672,7 @@ async function integrate(unit, report) {
   const result = await agent(
     `You are the serialized integrator of the relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
 
-0. Release this repo's cross-session lease (id:ebfb) — the child's work is done; do this FIRST so it runs whether the merge below succeeds or aborts: ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}  (run-scoped — a no-op if this run does not hold it).
+0. Release this repo's cross-session lease (id:ebfb) — the child's work is done; do this FIRST so it runs whether the merge below succeeds or aborts: ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}  (run-scoped — a no-op if this run does not hold it).${unit.intensive ? ` Also release the exclusive resource lease (id:8d52): ~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}.` : ''}
 1. Verify the main checkout working tree is clean (git -C ${unit.path} status --porcelain). If dirty, abort: return merged=false with reason.
 2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
    On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
@@ -758,9 +786,27 @@ await parallel(
 await Promise.all(debts)
 await Promise.all([...integrationChains.values()])
 
+// ── [INTENSIVE] serial run-alone phase (id:8d52) ── the normal parallel wave + ALL its
+// integration have fully drained above, so nothing else is in flight. Run intensive units
+// one-at-a-time, draining each unit's integration before the next, so two heavy local-LLM
+// loads never overlap (the OOM fix). Each child also holds an exclusive resource:<name>
+// claim (acquired in unitPrompt) for cross-run exclusivity.
+let intensiveRan = 0
+for (const unit of intensiveUnits) {
+  if (quotaStopped || roundCapHit) {
+    state.queued.push({ repo: unit.repo, verdict: `intensive:${unit.intensive} (not run — quota/cap)` })
+    continue
+  }
+  log(`relay-loop: [INTENSIVE] serial run-alone dispatch ${unit.repo} (resource=${unit.intensive})`)
+  await runUnit(unit)
+  await Promise.all(debts)
+  await Promise.all([...integrationChains.values()])
+  intensiveRan++
+}
+
 state.queued = state.queued.concat(queue.map(u => ({ repo: u.repo, verdict: `${u.verdict} (not dispatched)` })))
 await writeRelayStatus(state)
-return { actionable: actionable.length }
+return { actionable: actionable.length + intensiveRan }
 }
 // ── end runRound ──
 
