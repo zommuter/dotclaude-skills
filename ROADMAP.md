@@ -719,6 +719,31 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     all strong work"; STRONG_TIER already chose the strong model, so the two compose. Opus
     model ID `claude-opus-4-8`; Fable-class match `claude-fable-5`.
 
+- [ ] [ROUTINE] `gaming-scan.sh` — mechanical gaming detector extracted from `review.md` §2 <!-- id:fa05 -->
+  - **Source**: id:2909 meeting 2026-06-15 (`docs/meeting-notes/2026-06-15-1610-adversarial-review-anti-gaming.md`), Piece 1 / D2-D3.
+  - **Spec**: `relay/scripts/gaming-scan.sh`, `set -euo pipefail`, args `<repo-root> <since-tag>`. Emits one parseable flag line per mechanical detection:
+    - deleted test file: `git diff "$since"..HEAD --diff-filter=D --name-only -- '<test-dirs>'`
+    - added `skip`/`xfail`/`.only`/`@pytest.mark.skip` in test files
+    - removed `assert`/expectation lines without an equivalent addition in test files
+  - **Acceptance**: `tests/test_gaming_scan.sh` (roadmap:fa05) — crafted minimal git repos/diffs: (a) deleted test file → flag emitted; (b) added `@pytest.mark.skip` → flag; (c) removed `assert` line → flag; (d) clean diff (e.g. implementation file only changed) → SILENT. At least one negative control (a legitimate green diff that must NOT flag, modelled on the id:3b02 resurrection case from RELAY_LOG: only input line changed, assertions intact). `make test` green.
+
+- [ ] [ROUTINE] `review.md` §2 delegate rewrite — single source of truth <!-- id:dfaf -->
+  - **Source**: id:2909 meeting 2026-06-15 (`docs/meeting-notes/2026-06-15-1610-adversarial-review-anti-gaming.md`), Piece 2 / D3. **Depends on id:fa05 shipping first** (script must exist before prose delegates to it).
+  - **Spec**: rewrite `relay/references/review.md` §2 so it: (a) invokes `gaming-scan.sh <repo-root> $LAST` as the mechanical pass and surfaces its output; (b) retains prose ONLY for the judgment-residue checks (resurrection-check + fixture-special-casing); (c) removes the inlined `--diff-filter=D` / `skip`/`xfail` grep one-liners from prose (they now live in the script). Single source of truth: script owns mechanical, prose owns judgment.
+  - **Acceptance**: static-grep test (`tests/test_gaming_scan.sh` or a sibling) asserts `review.md` references `gaming-scan.sh` and does NOT contain the old literal one-liners (`--diff-filter=D`, `xfail`, `skip` inline in §2). `make test` green.
+
+- [ ] [ROUTINE] Supervisor flag-rate logger in `relay-loop.js` `integrate()` <!-- id:3826 -->
+  - **Source**: id:2909 meeting 2026-06-15 (`docs/meeting-notes/2026-06-15-1610-adversarial-review-anti-gaming.md`), Piece 4 / D1-D3.
+  - **Spec**: in `relay-loop.js` `integrate()`, after the `gaming_flags` / `verified_green` / `reopened` fields are available in the review `report`, append a line to `~/.claude/logs/relay-gaming-flags.log` with JSON fields: `{repo, runId, ts, closed_ids, gaming_flags, reopened, verified_green}`. Create the log file if absent. Also add a comment block at the append site: `// DEFERRED-FLEET SEAM: to escalate, spawn parallel() refuters over gaming_flags[] or verified_green[] here; see id:2909 meeting 2026-06-15 D1 for the evidence gate.`
+  - **Acceptance**: `tests/test_gaming_logger.sh` (roadmap:3826) — construct a synthetic `report` object with non-empty `gaming_flags` and call the relevant integrate path (or extract the logger into a standalone function that can be called from a test harness); assert the log file receives a line containing the expected repo name, runId, and flag id. `make test` green.
+
+- [ ] [HARD — strong model] Tier B model canary harness for gaming-detection judgment checks <!-- id:414a -->
+  - **Source**: id:2909 meeting 2026-06-15 (`docs/meeting-notes/2026-06-15-1610-adversarial-review-anti-gaming.md`), Piece 3 / D2. **NOT in `run-tests.sh` default sweep** — zero-token; invoked manually via `make gaming-canary`.
+  - **Why HARD**: fixtures are prepared mini git repos containing *intentionally crafted gamed diffs* for the judgment checks (resurrection-check, fixture-special-casing) that gaming-scan.sh deliberately does NOT cover mechanically. The harness spawns one review-style agent per fixture and asserts the `gaming_flags` contract — the design of convincing-but-detectable fixtures requires strong-model craft.
+  - **Spec**: `tests/gaming-canary/` directory: (a) at least one resurrection-rewrite fixture (an executor rewrote a test's `assert` to match whatever the code returns); (b) at least one fixture-special-casing fixture (code branches on exact test-input literals); (c) at least one **negative control** (a legitimate green resurrection where only the test INPUT changed and assertions stayed intact — must NOT flag). `tests/gaming-canary/run.sh` feeds each fixture diff to a compact review-procedure prompt and checks `gaming_flags`/absence. `Makefile` target `gaming-canary` invokes `run.sh`.
+  - **Acceptance**: `make gaming-canary` executes: positive fixtures yield non-empty `gaming_flags`; negative control yields empty `gaming_flags`. The harness itself must not be flaky on identical inputs. Keep each fixture minimal (≤20 lines of diff) so the judgment is unambiguous.
+  - **GATED**: implement id:fa05 + id:dfaf first so the review procedure the harness invokes already delegates to `gaming-scan.sh`.
+
 - [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,
