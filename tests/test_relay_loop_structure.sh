@@ -46,11 +46,11 @@ pass "no parallel() over the integration step"
 grep -q "STRONG_TIER" "$JS" || fail "relay-loop.js does not reference STRONG_TIER"
 pass "STRONG_TIER referenced"
 
-# (5) Per-repo classifier with all four verdicts (D3)
-for verdict in execute review handoff idle; do
+# (5) Per-repo classifier with all five verdicts (D3 + da26 hard-execute)
+for verdict in execute review hard handoff idle; do
   grep -q "'$verdict'" "$JS" || fail "classifier verdict '$verdict' not referenced"
 done
-pass "classifier verdicts execute/review/handoff/idle present"
+pass "classifier verdicts execute/review/hard/handoff/idle present"
 
 # Priority mixing: execute first, review above handoff (D3 policy invariant)
 grep -q "PRIORITY" "$JS" || fail "no PRIORITY ordering for unit dispatch"
@@ -121,3 +121,40 @@ grep -q "while (queue.length && !quotaStopped && !roundCapHit)" "$JS" || fail "l
 # state + quotaStopped must be module-level accumulators (declared before runRound), not reset per round
 grep -q "^let quotaStopped = false" "$JS" || fail "quotaStopped not a cross-round accumulator"
 pass "per-round cap distinct from run-ending quotaStopped"
+
+# ── (18) HARD-execute verdict (id:da26): Opus-apex one-item HARD work ──────────────
+
+# 'hard' is in the DISCOVER_SCHEMA verdict enum, alongside an openHard count field.
+grep -qF "verdict: { enum: ['execute', 'review', 'hard', 'handoff', 'idle'] }" "$JS" \
+  || fail "DISCOVER_SCHEMA verdict enum missing 'hard'"
+grep -q "openHard:" "$JS" || fail "DISCOVER_SCHEMA missing openHard count"
+pass "hard verdict + openHard count in DISCOVER_SCHEMA"
+
+# PRIORITY ordering: execute < review < hard < handoff (review still beats fresh strong work).
+grep -qF "const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3 }" "$JS" \
+  || fail "PRIORITY ordering not exactly execute:0 review:1 hard:2 handoff:3"
+pass "PRIORITY ranks hard after execute+review, before handoff"
+
+# Opus-only gate: hard units are dropped/deferred unless STRONG_MODEL is apex Opus.
+grep -qF "if (STRONG_MODEL !== 'claude-opus-4-8') {" "$JS" \
+  || fail "no opus-only gate guarding hard dispatch (STRONG_MODEL !== 'claude-opus-4-8')"
+grep -q "hardDeferred" "$JS" || fail "no hardDeferred surface for non-apex hard units"
+pass "hard dispatch gated on apex Opus (claude-opus-4-8); non-apex hard surfaced as deferred"
+
+# Sonnet-never-HARD: hard maps to the 'strong' tier, never 'sonnet'. The tier derivation
+# sends only verdict==='execute' to sonnet; everything else (incl. hard) to strong.
+grep -qF "const tier = unit.verdict === 'execute' ? 'sonnet' : 'strong'" "$JS" \
+  || fail "tier derivation does not keep non-execute (incl. hard) off the sonnet tier"
+# and the model override only pins sonnet for execute — hard gets STRONG_MODEL.
+grep -qF "if (unit.verdict === 'execute') opts.model = 'sonnet'" "$JS" \
+  || fail "sonnet model override is not execute-only (hard must not run on Sonnet)"
+pass "Sonnet-never-HARD: hard runs on the strong tier, never Sonnet"
+
+# Checkpoint label: hard integrates with a strong-execute label carrying fable-standin.
+grep -q "strong-execute (\${STRONG_MODEL}\${standInSuffix}, relay-loop)" "$JS" \
+  || fail "hard unit does not use the 'strong-execute (...)' checkpoint label"
+pass "hard unit checkpoint label is strong-execute (model, fable-standin, relay-loop)"
+
+# refDoc: hard branch reuses handoff.md (its C5 HARD section), no required new ref file.
+grep -q "if (verdict === 'hard') return" "$JS" || fail "refDoc has no hard branch"
+pass "refDoc has a hard branch (reuses handoff.md C5)"

@@ -10,6 +10,34 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [x] HARD-execute verdict + tested Fable-probe cache helper for the autonomous pool [HARD — strong model] (done 2026-06-15, reviewer) <!-- id:da26 -->
+  - **Why HARD**: touches the dispatch contract in relay-loop.js (a new verdict class
+    with an apex-only gate that must never leak HARD work onto the Sonnet execute tier),
+    and the steady-state scheduling invariant. Wrong gating dispatches a doomed strong
+    unit on Fable, or — worse — runs unbounded HARD work on Sonnet.
+  - **Acceptance**: relay-loop.js gains a `hard` verdict (in DISCOVER_SCHEMA's enum +
+    an `openHard` count). The classifier emits `hard` when a repo has NO unaudited
+    commits, NO open `[ROUTINE]`, but ≥1 open `[HARD` item (precedence
+    review > execute > hard > handoff > idle). `PRIORITY = { execute:0, review:1, hard:2,
+    handoff:3 }`. A `hard` unit is DISPATCHED only when `STRONG_MODEL === 'claude-opus-4-8'`
+    (apex); on Fable / the `-d` defer path it is left for Fable handoff-C5/review-step6 and
+    surfaced in RELAY_STATUS Queued. NEVER on the Sonnet execute tier. The hard child works
+    ONE bounded `[HARD]` item under handoff-C5 "only-if-small-enough" discipline, ticks the
+    box only if genuinely green, and returns the standard report. Integration uses a
+    `strong-execute (<model>, fable-standin, relay-loop)` checkpoint label. `scripts/probe-fable.sh`
+    manages the front door's 2 h Fable-probe cache (`check` → fresh-available/fresh-unavailable/
+    stale/absent; `set <true|false> [ts]`), hermetically testable (PROBE_CACHE override, no model).
+    SKILL.md documents the `hard` verdict + references the helper in step 0.
+  - **Tests**: `tests/test_relay_loop_structure.sh` (`# roadmap:83c9` + da26 §18 checks:
+    enum, PRIORITY order, opus-only gate, Sonnet-never-HARD, strong-execute label, refDoc),
+    `tests/test_probe_fable.sh` (`# roadmap:da26`) — fresh-available/unavailable, stale (>2h),
+    absent, malformed, set-persistence, bad-arg.
+  - **Done-check**: `tests/run-tests.sh tests/test_probe_fable.sh tests/test_relay_loop_structure.sh`
+    then full `make test` after ticking.
+  - **Context**: TODO id:da26 (c) — ratified 2026-06-15 (user): accept Opus doing `[HARD]`
+    work while Fable is out. Built on the Opus-apex pivot (f64c28b). Reuses handoff.md C5,
+    `worktreePathFor`/`branchFor`, and the existing `standInSuffix` logic.
+
 - [x] Add a batched `say` subcommand to broker-curl.sh and route broker-mode.md through it [ROUTINE] <!-- id:3b02 -->
   - **Acceptance**: `broker-curl.sh <port> <session> say` reads plain-text lines from
     stdin and POSTs **one `/event` per line** (per-line painting in the renderer must
