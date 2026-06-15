@@ -40,7 +40,11 @@ fresh pre-allocated token ONLY for newly-discovered work.** TODO/meeting is the 
 ledger ("why"); ROADMAP is the execution queue ("now") — the same token spanning both
 is the intended shape, and lets `orphan-scan.sh --cross-ledger` keep their checkbox
 states consistent. Minting a duplicate id for already-tracked work is the anti-pattern
-the guard exists to catch. Add/refresh the single TODO.md summary line. Commit
+the guard exists to catch. **Unqualified TODO items** (added by `/meeting` or manual
+edits with no `[ROUTINE]`/`[HARD]` tag and no acceptance/tests) are prime promotion
+candidates — size and tag execution-ready ones into ROADMAP here (reuse their id), and
+leave genuinely design-judgment ones as TODO/`/meeting` candidates (same triage as
+review §5b). Add/refresh the single TODO.md summary line. Commit
 `relay(handoff): C2 roadmap`.
 
 **C3 — spec-as-tests.** For every `[ROUTINE]` item, write the FAILING tests now and
