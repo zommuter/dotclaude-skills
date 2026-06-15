@@ -233,3 +233,7 @@ HARD id:401c strong-model audit run 5 (window 1748..HEAD): clean — two pool-cr
 ## 2026-06-15 21:29 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Review of 7456e1f (gather-human-backlog paused filter): gaming-scan clean, suite 50/50 green, filter verified, pointer v4 current, routine_open=0
+
+## 2026-06-15 21:37 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 6 (window relay-ckpt-20260615-1937..HEAD): clean — only first-seen code is the 2-line gather-human-backlog.sh `paused` filter (7456e1f); no code/security/coherence defects. Forward-robustness gap fixed inline: the new sweep-skip filter shipped untested → added a non-vacuous regression guard (repoD paused fixture) to test_relay_human.sh. Suite 50/0. Item stays open (recurring by design).

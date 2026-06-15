@@ -62,7 +62,7 @@ pass "human.md states the conservative downgrade-a→b rule"
 
 STORE="$(mktemp -d)"
 trap 'rm -rf "$STORE"' EXIT
-mkdir -p "$STORE/src/repoA" "$STORE/src/repoB" "$STORE/cfg"
+mkdir -p "$STORE/src/repoA" "$STORE/src/repoB" "$STORE/src/repoD" "$STORE/cfg"
 
 cat > "$STORE/src/repoA/REVIEW_ME.md" <<'EOF'
 # Human review queue
@@ -82,6 +82,13 @@ cat > "$STORE/src/repoB/ROADMAP.md" <<'EOF'
 - [ ] Run the full BDD journey on real hardware @manual <!-- id:bbbb -->
 EOF
 
+# repoD is own but paused = true (on-hiatus): it has an open box that MUST NOT
+# be swept. Guards the gather-human-backlog.sh paused-filter (commit 7456e1f).
+cat > "$STORE/src/repoD/REVIEW_ME.md" <<'EOF'
+# Human review queue
+- [ ] paused.py::test_hiatus — should NOT be swept while repo is paused
+EOF
+
 # repoB is excluded? No — both own. A third clone repo must be skipped.
 cat > "$STORE/cfg/relay.toml" <<'EOF'
 [repos.repoA]
@@ -92,6 +99,10 @@ classification = "own"
 
 [repos.repoC]
 classification = "clone"
+
+[repos.repoD]
+classification = "own"
+paused = true
 EOF
 
 OUT="$(SRC_DIR="$STORE/src" RELAY_TOML="$STORE/cfg/relay.toml" bash "$GATHER")"
@@ -135,6 +146,11 @@ pass "gather covers multiple own repos"
 # clone repo (repoC) is skipped — it has no files, but assert it never appears.
 grep -q '^repoC' <<<"$OUT" && fail "clone repo repoC must be skipped"
 pass "gather skips non-own (clone) repos"
+
+# paused own repo (repoD) is skipped in the all-repos sweep even though it has an
+# open box — regression guard for the relay.toml `paused = true` filter (7456e1f).
+grep -q '^repoD' <<<"$OUT" && fail "paused own repo repoD must be skipped in sweep"
+pass "gather skips paused (on-hiatus) own repos in the sweep"
 
 # Named-repo invocation resolves the same paths.
 OUT2="$(SRC_DIR="$STORE/src" RELAY_TOML="$STORE/cfg/relay.toml" bash "$GATHER" repoA)"
