@@ -164,4 +164,24 @@ if "$SH" 2>/dev/null; then
 fi
 pass "(e) no-args exits non-zero (usage error)"
 
+# ──────────────────────────────────────────────────────────────────────────────
+# id:dfaf — review.md §2 delegate rewrite: static-grep checks
+# review.md must reference gaming-scan.sh and must NOT contain the old inlined
+# one-liners (--diff-filter=D as a shell command, inlined xfail/skip grep).
+# ──────────────────────────────────────────────────────────────────────────────
+REVIEW_MD="$SRC_DIR/relay/references/review.md"
+[[ -f "$REVIEW_MD" ]] || fail "dfaf: relay/references/review.md not found"
+
+grep -q "gaming-scan.sh" "$REVIEW_MD" \
+  || fail "dfaf: review.md §2 does not reference gaming-scan.sh (single source of truth)"
+pass "dfaf: review.md §2 references gaming-scan.sh"
+
+# The old inlined --diff-filter=D bash command must be gone from §2.
+# The review.md §1 uses git log (fine), but §2 must no longer inline the
+# git diff --diff-filter=D shell snippet — that command now lives only in gaming-scan.sh.
+if grep -n -- "--diff-filter=D" "$REVIEW_MD" | grep -v "gaming-scan.sh"; then
+  fail "dfaf: review.md still contains inlined --diff-filter=D one-liner (move it to gaming-scan.sh)"
+fi
+pass "dfaf: review.md §2 does not inline --diff-filter=D (delegated to gaming-scan.sh)"
+
 echo "ALL PASS"

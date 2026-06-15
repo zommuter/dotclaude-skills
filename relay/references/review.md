@@ -20,39 +20,58 @@ have worked manually between turns.
 ## 2. Test-integrity audit
 
 A formerly-red test that is now green is only valid if the IMPLEMENTATION changed to
-satisfy the ORIGINAL test. Check, in order:
+satisfy the ORIGINAL test.
 
-1. **Deleted tests** — any test file removed since the checkpoint is an automatic flag:
-   ```bash
-   git diff "$LAST"..HEAD --diff-filter=D --name-only -- '<test-dirs>'
-   ```
-2. **Weakened tests** — diff every changed test file and flag: removed `assert`/
-   expectation lines without an equivalent addition; added `skip`/`xfail`/`todo`/
-   `.only`/`@pytest.mark.skip`; loosened tolerances, timeouts, or comparison operators;
-   expected values rewritten to match whatever the code now returns (hardcoded actuals).
-3. **Resurrection check** — for each formerly-red, now-green test that was MODIFIED,
+### 2a. Mechanical pass — run `gaming-scan.sh` first (id:fa05)
+
+```bash
+~/.claude/skills/relay/scripts/gaming-scan.sh "$(pwd)" "$LAST"
+```
+
+`gaming-scan.sh` covers the three cheap deterministic checks:
+
+- **Deleted test files** — `DELETED_TEST:<path>` for any test file removed since `$LAST`.
+- **Added skip/xfail/`.only`/`@pytest.mark.skip`** — `ADDED_SKIP:<path>:<line>`.
+- **Removed assert/expectation lines** (net removal) — `REMOVED_ASSERT:<path>:<counts>`.
+
+Any output from this pass is an automatic flag. Surface every `DELETED_TEST` /
+`ADDED_SKIP` / `REMOVED_ASSERT` line in `gaming_flags` in the return report.
+These three checks are the single source of truth for mechanical gaming detection —
+do not re-implement them inline.
+
+### 2b. Judgment-residue checks (prose only — bash cannot do these)
+
+1. **Resurrection check** — for each formerly-red, now-green test that was MODIFIED,
    run its ORIGINAL version against the NEW implementation; it must pass:
    ```bash
    git show "$LAST":path/to/test_x.py > /tmp/orig_test_x.py
    # run /tmp/orig_test_x.py against the current working tree
    ```
    If the original test now fails, the executor changed the spec, not the behaviour.
-4. **Fixture special-casing** — grep the implementation diff for literals that appear
-   only in test fixtures (the code branching on the exact test inputs).
-5. **Green regression-guards** (handoff C3 D1, meeting 2026-06-13-1751) — a test that was
+   **Negative control**: a legitimate resurrection changes only the INPUT line (not
+   the assertion) — e.g. the id:3b02 case where only the input to broker-say was
+   corrected and all `assert`/`expect` lines remained intact. Only flag if the
+   ASSERTION logic changed.
+
+2. **Fixture special-casing** — grep the implementation diff for literals that appear
+   only in test fixtures (the code branching on the exact test inputs). This is
+   model-judgment; no mechanical bash check can reliably detect it.
+
+3. **Green regression-guards** (handoff C3 D1, meeting 2026-06-13-1751) — a test that was
    GREEN since the handoff (pinning already-built behavior) is legitimate ONLY if it is
    marked a regression-guard AND has a REVIEW_ME "is this correct or a frozen bug?" entry.
    FLAG an unmarked green test that silently pins behavior with no such REVIEW_ME — it may
    be freezing a bug (e.g. rawrora's axis-swap/sign). Do not treat "passes today" as
    self-justifying.
-6. **`unverified` / skipped tests are NOT passes** (handoff C3 D2) — a test tagged
+
+4. **`unverified` / skipped tests are NOT passes** (handoff C3 D2) — a test tagged
    `# unverified — run in <env>` or one that SKIPS (missing toolchain/fixture: Android SDK,
    game-ROM, etc.) must NOT be counted as green. If the diff closes a `[ROUTINE]` item on
    the strength of a skipped/uncompiled/unverified test, FLAG it and keep the item open
    until the test actually runs green in the required env. A skip is not a pass.
 
-Anything flagged here is surfaced prominently in the return report and the roadmap item
-is reopened.
+Anything flagged here (from either the mechanical pass or the judgment residue) is
+surfaced prominently in the return report and the roadmap item is reopened.
 
 ## 3. BDD suites
 

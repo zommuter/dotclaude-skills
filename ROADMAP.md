@@ -727,7 +727,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     - removed `assert`/expectation lines without an equivalent addition in test files
   - **Acceptance**: `tests/test_gaming_scan.sh` (roadmap:fa05) — crafted minimal git repos/diffs: (a) deleted test file → flag emitted; (b) added `@pytest.mark.skip` → flag; (c) removed `assert` line → flag; (d) clean diff (e.g. implementation file only changed) → SILENT. At least one negative control (a legitimate green diff that must NOT flag, modelled on the id:3b02 resurrection case from RELAY_LOG: only input line changed, assertions intact). `make test` green.
 
-- [ ] [ROUTINE] `review.md` §2 delegate rewrite — single source of truth <!-- id:dfaf -->
+- [x] [ROUTINE] `review.md` §2 delegate rewrite — single source of truth (done 2026-06-15) <!-- id:dfaf -->
   - **Source**: id:2909 meeting 2026-06-15 (`docs/meeting-notes/2026-06-15-1610-adversarial-review-anti-gaming.md`), Piece 2 / D3. **Depends on id:fa05 shipping first** (script must exist before prose delegates to it).
   - **Spec**: rewrite `relay/references/review.md` §2 so it: (a) invokes `gaming-scan.sh <repo-root> $LAST` as the mechanical pass and surfaces its output; (b) retains prose ONLY for the judgment-residue checks (resurrection-check + fixture-special-casing); (c) removes the inlined `--diff-filter=D` / `skip`/`xfail` grep one-liners from prose (they now live in the script). Single source of truth: script owns mechanical, prose owns judgment.
   - **Acceptance**: static-grep test (`tests/test_gaming_scan.sh` or a sibling) asserts `review.md` references `gaming-scan.sh` and does NOT contain the old literal one-liners (`--diff-filter=D`, `xfail`, `skip` inline in §2). `make test` green.
