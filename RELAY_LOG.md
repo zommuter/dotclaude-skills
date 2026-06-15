@@ -147,3 +147,7 @@ review 20260614-0942: id:5902 two-switch verified genuinely green (gate STRONG_M
 ## 2026-06-15 09:48 — strong-execute (claude-opus-4-8, fable-standin, manual HARD)
 
 da26 HARD-execute verdict (Opus-apex, gated, Sonnet-never) + tested probe-fable.sh; 23/23 green
+
+## 2026-06-15 10:09 — strong-execute (claude-opus-4-8, fable-standin, D8 design)
+
+D8 workflow-extraction analysis (id:6ba4): no Workflow for /meeting; dedupe contract prose → id:962a/3103
