@@ -10,6 +10,44 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] [ROUTINE] Resolver pushes unblocked work to the pool via inject.sh (low-latency REVIEW_ME pickup) <!-- id:fb75 -->
+  - **Context**: 2026-06-15 user observation — a parallel `/relay human` session resolved most
+    REVIEW_ME boxes, but the running pool only reacts at its next discovery **round boundary**
+    (after the current wave integrates), so a resolution that unblocks pool work waits minutes.
+    The inject path already exists (id:baf1: `inject.sh add/take`, `inject.d/` inbox, injected
+    units outrank every verdict class + skip the quota gate). Push beats watch here: the resolver
+    knows *exactly* what it unblocked, so it should hand that item to the pool directly rather
+    than have the pool (or an inotify watcher) re-derive it. (inotify rejected — the pool is a
+    deterministic Workflow that can't consume an inotify event mid-run; a watcher→inject bridge
+    is strictly more than calling inject.sh at resolution time, and fires on every blind tick.)
+  - **Spec / red test**: `tests/test_relay_resolution_inject.sh` (`# roadmap:fb75`). It asserts
+    `references/human.md` §5 write-back: (1) calls `inject.sh add`, (2) conditioned on the
+    resolution UNBLOCKING pool work (not every tick), (3) passes `--item <id>` (targets the
+    unblocked item, not a blind repo re-classify), (4) REUSES the existing id (single-id-two-views,
+    no duplicate mint).
+  - **Acceptance**: edit `references/human.md` §5 (and note the same step for the `/meeting`
+    REVIEW_ME write-back, id:15d5) so that after a clean lease-held write-back that ticks a box
+    unblocking a gated/blocked ROADMAP item, the resolver runs
+    `~/.claude/skills/relay/scripts/inject.sh add <repo> --item <id> --verdict execute` (only when
+    it unblocks work). Then `make test` green (fb75 ticked). No relay-loop.js change — this is the
+    resolver contract only; the within-round-latency lever is id:6e9d.
+
+- [ ] [HARD — strong model, DEFERRED: measure-first] Within-round inject.d poll (lane re-checks between units) <!-- id:6e9d -->
+  - **Context**: the id:baf1 deferred follow-up, now demand-noted (2026-06-15). Even with id:fb75
+    pushing the unblocked item, pickup still waits for the **next round's** discovery `inject.sh
+    take`. A lane re-checking `inject.d` BETWEEN units (not just at round start) would drop latency
+    to ~one unit duration. relay-loop.js change to the dispatch loop (a verdict-order concern →
+    HARD).
+  - **Why DEFERRED (measure-first, per the "observe before preventing" heuristic)**: don't build
+    the within-round poll until id:fb75 is live AND the round-boundary latency is *measured* still
+    painful. Round latency is already bounded by wave duration (minutes); a mid-wave poll adds
+    loop complexity for a gain that may not matter once fb75 prioritizes the item. Gate to open:
+    fb75 shipped + a recorded instance of round-boundary latency actually blocking the human.
+  - **Acceptance (when un-gated)**: relay-loop.js lanes call `inject.sh take` (or a non-consuming
+    `peek`+claim) between units within a round and splice injected units into the current wave;
+    hermetic test with a seeded `inject.d` shard asserting mid-wave pickup. Until then: leave open,
+    do NOT implement.
+
 - [ ] relay-loop.js must auto-reap stale worktrees from dead runs (not treat them as in-flight) <!-- id:3ac8 -->
   - **Context**: observed 2026-06-15 — two crashed morning runs (`relay-…-1104-hard`,
     `relay-…-1152-hard`) left 17 worktrees on disk under `~/.cache/fables-turn/worktrees/`
