@@ -38,9 +38,9 @@ fables-executor_LOCAL :=
 fables-turn_FILES := SKILL.md \
                      references/handoff.md references/review.md \
                      references/conventions.md references/templates.md \
-                     scripts/discover-repos.sh scripts/ckpt-tag.sh
-fables-turn_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh
-fables-turn_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh
+                     scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh
+fables-turn_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh
+fables-turn_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh
 fables-turn_LOCAL :=
 
 projects_FILES := SKILL.md

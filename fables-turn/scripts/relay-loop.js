@@ -2,7 +2,7 @@ export const meta = {
   name: 'relay-loop',
   description: 'Priority-mixed 5-wide autonomous relay pool — serialized integrator, quota-guarded, STRONG_TIER-aware',
   phases: [
-    { title: 'Discover', detail: 'classify confirmed repos into execute/review/handoff/idle units' },
+    { title: 'Discover', detail: 'classify confirmed repos into execute/review/hard/handoff/idle units' },
     { title: 'Dispatch', detail: '5-wide pool: execute slots first, backfill with review/handoff' },
     { title: 'Integrate', detail: 'serialized merge → ckpt-tag → push per completed unit' },
   ],
@@ -54,8 +54,11 @@ const POOL_WIDTH = A.POOL_WIDTH || 5
 // Agent-count seatbelt for one run (quota-stop.sh hard-caps at 200 independently).
 const MAX_UNITS = A.MAX_UNITS || 20
 // D3 policy invariant: Sonnet execute fills slots first; unreviewed-executor review
-// ranks above fresh handoff (keeps the anti-gaming window short). Lower = sooner.
-const PRIORITY = { execute: 0, review: 1, handoff: 2 }
+// ranks above fresh strong work (keeps the anti-gaming window short). Lower = sooner.
+// hard (id:da26): Opus-apex HARD-execute, ranked AFTER execute and review but BEFORE
+// handoff — review still beats a fresh strong-execute (preserves the D3 anti-gaming
+// window), and a HARD item with a worked roadmap is more actionable than a fresh handoff.
+const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3 }
 
 // True when THIS session's strong tier is real Fable (not an Opus substitute). Gates
 // the standin re-review preference so an Opus run never re-reviews its own standin work.
@@ -177,7 +180,7 @@ const DISCOVER_SCHEMA = {
         properties: {
           repo: { type: 'string' },
           path: { type: 'string' },
-          verdict: { enum: ['execute', 'review', 'handoff', 'idle'] },
+          verdict: { enum: ['execute', 'review', 'hard', 'handoff', 'idle'] },
           reason: { type: 'string' },
           lastCkpt: { type: 'string' },
           income: { type: 'boolean' },
@@ -185,6 +188,12 @@ const DISCOVER_SCHEMA = {
           // INDEPENDENT of verdict — lets --fable-down demote a review repo that
           // also has open executor work instead of deferring it wholesale.
           hasRoutine: { type: 'boolean' },
+          // openHard: count of unticked "- [ ]" items tagged "[HARD" (HARD — strong
+          // model). Drives the "hard" verdict (id:da26): a repo with no unaudited
+          // commits and no open [ROUTINE] but >=1 open [HARD] item is classified hard
+          // so an Opus-apex child can work one bounded HARD item — the ROUTINE-drained,
+          // Fable-out steady state where ~46 [HARD] items would otherwise stall.
+          openHard: { type: 'number' },
           // standin: latest fable-ckpt-* tag message contains the literal `fable-standin`
           // token — the repo's last relay checkpoint was Opus standing in for Fable, so
           // it still needs an independent Fable re-review. Drives the standInRank tiebreaker.
@@ -287,8 +296,11 @@ relay.toml block. For each repo, classify into exactly one verdict:
 
 - "review": commits exist after the last fable-ckpt-* tag (run: git -C <path> tag -l 'fable-ckpt-*' | sort | tail -1, then git -C <path> log <tag>..HEAD --oneline). Unaudited work always wins over other verdicts.
 - "execute": no unaudited commits, and ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE].
+- "hard": no unaudited commits, NO open [ROUTINE] item, but ROADMAP.md has >=1 unticked "- [ ]" item tagged [HARD (i.e. [HARD — strong model]). This is the ROUTINE-drained steady state where HARD work would otherwise stall.
 - "handoff": no unaudited commits, and ROADMAP.md is missing/has no roadmap marker, OR every item is ticked while untracked new work exists.
 - "idle": none of the above.
+
+Order of precedence (apply the FIRST that matches): review > execute(routine) > hard > handoff > idle.
 
 A repo with a DIRTY main working tree (git -C <path> status --porcelain non-empty, ignoring entries already declared acceptable in relay.toml comments) is NOT dispatched: put it in "surfaced" with the reason instead of "units". Repos with no fable-ckpt-* tag and no handoff_date are handoff candidates, not review.
 ${INTERACTIVE ? 'Interactive run: include marginal/ambiguous repos in "surfaced" with a one-line question each.' : 'Unattended run: never include questions; surface ambiguous repos with a factual reason only.'}
@@ -299,6 +311,7 @@ Also produce:
 - lastCkpt per repo (the tag name, or "" if none)
 - income per repo: true iff the repo's relay.toml block has income = true
 - hasRoutine per repo: true iff ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE], INDEPENDENT of the verdict. A repo classified "review" (unaudited commits) that ALSO has open [ROUTINE] work must report hasRoutine=true — this lets the --fable-down path keep executors busy on routine work in repos whose review must wait for the next strong turn.
+- openHard per repo: the COUNT of unticked "- [ ]" items tagged [HARD (i.e. [HARD — strong model]) in ROADMAP.md, INDEPENDENT of the verdict. 0 when none. The supervisor uses it to surface the HARD backlog and (on an apex Opus session) to size the hard verdict.
 - standin per repo: true iff the repo's LATEST fable-ckpt-* tag message contains the literal token "fable-standin". Detect: T=$(git -C <path> tag -l 'fable-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no fable-ckpt tag.
 
 Return every own repo exactly once across units (verdict idle included) and surfaced.`,
@@ -340,6 +353,28 @@ let actionable = discovery.units
     ((b.income ? 1 : 0) - (a.income ? 1 : 0)) ||
     (standInRank(a) - standInRank(b))
   )
+
+// HARD-execute gate (id:da26): a "hard" unit dispatches an Opus-apex child to work ONE
+// bounded [HARD] item. It is ONLY dispatched when STRONG_MODEL === 'claude-opus-4-8'
+// (the apex tier). When the strong tier is Fable (or the -d defer path with no Opus
+// substitute), HARD work stays for Fable handoff-C5 / review-step-6 as today — NEVER
+// dispatched on the Sonnet execute tier. Non-apex hard units are pulled out of the
+// dispatch queue and surfaced as Queued with a clear reason (next apex turn picks them up).
+let hardDeferred = []
+if (STRONG_MODEL !== 'claude-opus-4-8') {
+  const kept = []
+  for (const u of actionable) {
+    if (u.verdict === 'hard') {
+      hardDeferred.push(u)
+    } else {
+      kept.push(u)
+    }
+  }
+  actionable = kept
+  if (hardDeferred.length) {
+    log(`relay-loop: HARD-execute requires apex Opus (STRONG_MODEL=${STRONG_MODEL}) — deferring ${hardDeferred.length} hard unit(s) for Fable handoff-C5/review-step6: ${hardDeferred.map(u => u.repo).join(', ')}`)
+  }
+}
 
 // --fable-down / -d DEFER path: gated on STRONG_MODEL === 'claude-fable-5', i.e. -d with
 // NO Opus substitute. The strong model is genuinely unavailable, so review/handoff units
@@ -389,6 +424,7 @@ state.runId = state.runId || discovery.runId
 state.ts = discovery.ts
 state.queued = [
   ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
+  ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: HARD-execute needs apex Opus; STRONG_MODEL=${STRONG_MODEL} — left for Fable handoff-C5/review-step6)` })),
   ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
 ]
 state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
@@ -415,6 +451,9 @@ let roundCapHit = false   // per-round MAX_UNITS cap; distinct from quotaStopped
 function refDoc(verdict) {
   if (verdict === 'review') return '~/.claude/skills/fables-turn/references/review.md'
   if (verdict === 'handoff') return '~/.claude/skills/fables-turn/references/handoff.md'
+  // hard (id:da26): reuse handoff.md's C5 "HARD item" section — its red-green-refactor +
+  // "only if small enough to finish safely" rule is exactly the HARD-execute discipline.
+  if (verdict === 'hard') return '~/.claude/skills/fables-turn/references/handoff.md (its C5 HARD-item section)'
   return '~/.claude/skills/fables-executor/SKILL.md'
 }
 
@@ -434,6 +473,7 @@ Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. La
 
 Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/fables-turn/references/conventions.md for environment facts and relay invariants before starting.
 ${unit.verdict === 'execute' ? 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. Stop at a natural boundary; never start an item you cannot finish.' : ''}
+${unit.verdict === 'hard' ? 'You are an Opus-apex HARD-execute child (id:da26). Pick the TOP open "- [ ]" item tagged [HARD — strong model] in ROADMAP.md and SIZE it first. Model your discipline on handoff.md C5 "only if small enough to finish safely": only implement the item if you can finish it cleanly and green within this turn — full red-green-refactor, verify-before-merge. If it is too large, contains nested/multi-session scope, or you cannot make the test suite green safely, do NOT half-do it: set contract_met=false and explain the sizing in handback (the item stays open for a manual/next-turn strong session). When you DO finish: tick the item\'s checkbox ONLY if the work is genuinely green (all tests pass — never tick to manufacture a pass), append its done-note, commit in the worktree, and make the full test suite green. Work ONE bounded HARD item only — never start a second.' : ''}
 ${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
 ${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Single-id-two-views (D2): when you promote a ROADMAP item for work TODO.md already tracks under an <!-- id:XXXX -->, REUSE that token; mint a fresh one via ~/.claude/skills/meeting/append.sh new-ids N ' + unit.path + ' ONLY for genuinely new work — NEVER invent tokens, and never duplicate-id already-tracked work. When you close a ROADMAP item whose id also lives in TODO.md, tick the TODO line too. Reverse-handoff (review.md §5b): qualify+size any unqualified TODO/ROADMAP items added by /meeting or manual edits since the last checkpoint (mini-handoff) — reuse their id. After re-deriving the roadmap, set routine_open = the number of OPEN (unticked) [ROUTINE] items remaining — the supervisor uses it to re-enqueue an execute unit this same pool.' : ''}
 
@@ -508,9 +548,15 @@ async function integrate(unit, report) {
     return
   }
   const standInSuffix = (unit.verdict !== 'execute' && STRONG_MODEL === 'claude-opus-4-8') ? ', fable-standin' : ''
+  // hard (id:da26): Opus-apex strong-execute of one [HARD] item. Distinct checkpoint
+  // label from review/handoff (which use "reviewer (...)") so the relay log reads as
+  // strong-execute work; it still carries fable-standin (apex Opus work invites an
+  // optional Fable recheck) via the shared standInSuffix.
   const label = unit.verdict === 'execute'
     ? 'executor (sonnet, relay-loop)'
-    : `reviewer (${STRONG_MODEL}${standInSuffix}, relay-loop)`
+    : unit.verdict === 'hard'
+      ? `strong-execute (${STRONG_MODEL}${standInSuffix}, relay-loop)`
+      : `reviewer (${STRONG_MODEL}${standInSuffix}, relay-loop)`
   const result = await agent(
     `You are the serialized integrator of the fables-turn relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
 
