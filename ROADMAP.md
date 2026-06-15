@@ -10,9 +10,36 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-<!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — id:7b7a / id:8d52 /
-     id:d748 share one dispatch gate + one lock-with-TTL machinery; decide together (one
-     /meeting) so the three don't grow incompatible mechanisms. Origin: 2026-06-15 chat. -->
+<!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — KEYSTONE id:8ac5
+     (claim/assignment primitive) unifies id:7b7a (lease = enforcement), id:8d52 (intensive =
+     resource claim), id:d748 (meeting respects claims). One dispatch gate + one lock-with-TTL
+     machinery; decide together (one /meeting). Origin: 2026-06-15 chat. -->
+
+- [ ] Task-claim primitive — relay sessions "claim" roadmap items (PM-board style) [HARD — decision gate] <!-- id:8ac5 -->
+  - **Context**: 2026-06-15 user idea — like a PM tool assigns an issue to an individual, a relay
+    SESSION claims a roadmap item (or a resource) so others see it's owned and don't double-work it.
+    This is the UNIFYING primitive the cluster was circling: id:7b7a's per-repo lease becomes the
+    *enforcement* of a claim (merge-collision safety), id:8d52's `[INTENSIVE]` is a claim on a
+    *resource* (`local-llm`) not an item, and id:d748's "holdable meeting" is `/meeting` respecting
+    (and able to take) claims. The human (/relay human), the pool, executor sessions, and /meeting
+    all read/write the SAME claim records.
+  - **Maps onto single-id-two-views (D2)**: the `<!-- id:XXXX -->` token is the join key. Today
+    TODO = "why" (design) and ROADMAP = "now" (queue). A claim adds a THIRD view — "who/owned-by" —
+    keyed by the same id ("single-id-three-views"). ROADMAP stays the source of truth for WHAT; the
+    claim registry is the source of truth for WHO/NOW.
+  - **Open design questions (for the cluster /meeting)**: (1) WHERE claims live — in the ledger item
+    itself (visible, git-tracked, but write-contended + churny) vs a dedicated flock'd registry
+    (`~/.config/fables-turn/claims.toml` or per-id files; fast, but a second surface to reconcile) vs
+    relay.toml. Leaning: dedicated registry + a read-only VIEW surfaced in RELAY_STATUS.md (or a
+    `/relay board`) for PM-board visibility WITHOUT write-contending the ledger. (2) Claim granularity
+    — item-level vs repo-level: item-level gives more parallelism BUT two items in one repo still merge
+    into ONE main checkout, so a claim does NOT remove the need for per-repo integration serialization
+    (id:7b7a) or disjoint-paths (existing guardrail). Claim = assignment/visibility; lease = merge
+    safety — complementary layers, not a replacement. (3) Claim lifecycle — claim → heartbeat → release/
+    expire (TTL), so an OOM-killed session's stale claim is reclaimable (memory `oom-local-model-session-kills`).
+  - **Acceptance**: a claim record `{id, repo, runId/session, mode, claimed_at, heartbeat, status}`
+    written via a flock'd helper; discovery/dispatch skips live-claimed ids and reclaims expired ones;
+    claims surfaced read-only in RELAY_STATUS.md; covered by the bash suite. Co-decide with id:7b7a/8d52/d748.
 
 - [ ] Cross-session relay dispatch safety: per-repo lease + single-writer shared state [HARD — decision gate] <!-- id:7b7a -->
   - **Context**: 2026-06-15 — "what happens if I run a 2nd `/relay` session while the pool is
