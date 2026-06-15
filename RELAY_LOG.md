@@ -151,3 +151,7 @@ da26 HARD-execute verdict (Opus-apex, gated, Sonnet-never) + tested probe-fable.
 ## 2026-06-15 10:09 — strong-execute (claude-opus-4-8, fable-standin, D8 design)
 
 D8 workflow-extraction analysis (id:6ba4): no Workflow for /meeting; dedupe contract prose → id:962a/3103
+
+## 2026-06-15 10:13 — strong-execute (claude-opus-4-8, fable-standin, manual HARD)
+
+/fables-turn human mode (id:72cc/2892): cross-repo human-backlog triage + gather-human-backlog.sh + references/human.md; 24/24 green
