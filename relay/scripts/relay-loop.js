@@ -194,9 +194,17 @@ const DISCOVER_SCHEMA = {
           // so an Opus-apex child can work one bounded HARD item — the ROUTINE-drained,
           // Fable-out steady state where ~46 [HARD] items would otherwise stall.
           openHard: { type: 'number' },
-          // standin: latest fable-ckpt-* tag message contains the literal `fable-standin`
-          // token — the repo's last relay checkpoint was Opus standing in for Fable, so
-          // it still needs an independent Fable re-review. Drives the standInRank tiebreaker.
+          // strongRecheckPending: true iff relay.toml [repos.<name>] has a last_strong_ckpt
+          // set with fable_rechecked = false (or absent/empty). This is the DURABLE,
+          // model-tracked Fable-bonus-recheck queue (id:e030): it survives a later executor
+          // checkpoint that masks the latest-tag `fable-standin` signal, so a pending optional
+          // Fable recheck stays visible. Consumed by the id:9821 elevation below (Fable session).
+          strongRecheckPending: { type: 'boolean' },
+          // standin: latest relay checkpoint tag message (match BOTH fable-ckpt-* AND
+          // relay-ckpt-* prefixes — repos may still carry an old fable-ckpt-*) contains the
+          // literal `fable-standin` token — the repo's last relay checkpoint was Opus
+          // standing in for Fable, so it still needs an independent Fable re-review.
+          // Drives the standInRank tiebreaker.
           standin: { type: 'boolean' },
         },
       },
@@ -294,7 +302,7 @@ Read ~/.config/fables-turn/relay.toml. Consider ONLY repos with classification =
 Repo path default: ~/src/<name>; honor any "# path:" comment override in the repo's
 relay.toml block. For each repo, classify into exactly one verdict:
 
-- "review": commits exist after the last fable-ckpt-* tag (run: git -C <path> tag -l 'fable-ckpt-*' | sort | tail -1, then git -C <path> log <tag>..HEAD --oneline). Unaudited work always wins over other verdicts.
+- "review": commits exist after the last relay checkpoint tag (run: git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1 — match BOTH prefixes; old fable-ckpt-* tags are historical and repos may still carry one until their next checkpoint — then git -C <path> log <tag>..HEAD --oneline). Unaudited work always wins over other verdicts.
 - "execute": no unaudited commits, and ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE].
 - "hard": no unaudited commits, NO open [ROUTINE] item, but ROADMAP.md has >=1 unticked "- [ ]" item tagged [HARD (i.e. [HARD — strong model]). This is the ROUTINE-drained steady state where HARD work would otherwise stall.
 - "handoff": no unaudited commits, and ROADMAP.md is missing/has no roadmap marker, OR every item is ticked while untracked new work exists.
@@ -302,7 +310,7 @@ relay.toml block. For each repo, classify into exactly one verdict:
 
 Order of precedence (apply the FIRST that matches): review > execute(routine) > hard > handoff > idle.
 
-A repo with a DIRTY main working tree (git -C <path> status --porcelain non-empty, ignoring entries already declared acceptable in relay.toml comments) is NOT dispatched: put it in "surfaced" with the reason instead of "units". Repos with no fable-ckpt-* tag and no handoff_date are handoff candidates, not review.
+A repo with a DIRTY main working tree (git -C <path> status --porcelain non-empty, ignoring entries already declared acceptable in relay.toml comments) is NOT dispatched: put it in "surfaced" with the reason instead of "units". Repos with no relay checkpoint tag (neither fable-ckpt-* nor relay-ckpt-*) and no handoff_date are handoff candidates, not review.
 ${INTERACTIVE ? 'Interactive run: include marginal/ambiguous repos in "surfaced" with a one-line question each.' : 'Unattended run: never include questions; surface ambiguous repos with a factual reason only.'}
 
 Also produce:
@@ -312,7 +320,8 @@ Also produce:
 - income per repo: true iff the repo's relay.toml block has income = true
 - hasRoutine per repo: true iff ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE], INDEPENDENT of the verdict. A repo classified "review" (unaudited commits) that ALSO has open [ROUTINE] work must report hasRoutine=true — this lets the --fable-down path keep executors busy on routine work in repos whose review must wait for the next strong turn.
 - openHard per repo: the COUNT of unticked "- [ ]" items tagged [HARD (i.e. [HARD — strong model]) in ROADMAP.md, INDEPENDENT of the verdict. 0 when none. The supervisor uses it to surface the HARD backlog and (on an apex Opus session) to size the hard verdict.
-- standin per repo: true iff the repo's LATEST fable-ckpt-* tag message contains the literal token "fable-standin". Detect: T=$(git -C <path> tag -l 'fable-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no fable-ckpt tag.
+- strongRecheckPending per repo: true iff the relay.toml [repos.<name>] block has a non-empty last_strong_ckpt AND fable_rechecked is false (or absent/empty). This is the DURABLE, model-tracked Fable-bonus-recheck queue (id:e030): a strong (Opus) review/handoff/hard checkpoint that has not yet had its optional Fable recheck. It SURVIVES a later executor (sonnet) checkpoint that overwrites last_ckpt and masks the latest-tag fable-standin signal — so prefer this field over the tag grep when deciding optional-recheck candidacy. Report false when last_strong_ckpt is absent/empty or fable_rechecked is true (or a date).
+- standin per repo: true iff the repo's LATEST relay checkpoint tag message contains the literal token "fable-standin". Detect (match BOTH prefixes — the latest tag may be fable-ckpt-* or relay-ckpt-*): T=$(git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no checkpoint tag.
 
 Return every own repo exactly once across units (verdict idle included) and surfaced.`,
   { label: 'discover', phase: 'Discover', schema: DISCOVER_SCHEMA }
@@ -331,16 +340,27 @@ if (!discovery) {
 // already classified review (genuine unaudited commits) or handoff (need fresh strong
 // work anyway) are left as-is. Dormant on Opus and --fable-down sessions
 // (SESSION_IS_FABLE false), so Opus never re-reviews its own standin work.
+// strongRecheckPending (id:e030) is the DURABLE, model-tracked signal: a strong Opus
+// checkpoint whose optional Fable recheck has not yet happened (relay.toml
+// last_strong_ckpt set + fable_rechecked=false). Unlike u.standin (the latest-TAG grep),
+// it survives a later executor checkpoint that masks the tag — so a masked pending recheck
+// still elevates. Either signal qualifies a repo as an optional-recheck candidate; both
+// remain OPTIONAL/non-gating (Opus-apex @fable-optional-recheck) — they only re-route an
+// otherwise execute/idle repo to a Fable review, never block or defer real work.
 if (SESSION_IS_FABLE && !FABLE_DOWN) {
   let elevated = 0
   for (const u of discovery.units) {
-    if (u.standin && (u.verdict === 'execute' || u.verdict === 'idle')) {
-      u.reason = `standin re-review (latest fable-ckpt carries fable-standin — Opus stood in for Fable; independent audit pending). Prior verdict: ${u.verdict}. ${u.reason || ''}`.trim()
+    const pending = u.standin || u.strongRecheckPending
+    if (pending && (u.verdict === 'execute' || u.verdict === 'idle')) {
+      const src = u.strongRecheckPending
+        ? 'relay.toml last_strong_ckpt has fable_rechecked=false (durable, survives executor-checkpoint masking, id:e030)'
+        : 'latest relay-ckpt carries fable-standin'
+      u.reason = `optional Fable recheck (${src} — Opus stood in for Fable; independent audit pending). Prior verdict: ${u.verdict}. ${u.reason || ''}`.trim()
       u.verdict = 'review'
       elevated++
     }
   }
-  if (elevated) log(`relay-loop: elevated ${elevated} standin repo(s) to review for independent Fable re-audit (id:9821)`)
+  if (elevated) log(`relay-loop: elevated ${elevated} repo(s) to review for optional Fable re-audit (id:9821 + durable queue id:e030)`)
 }
 
 // Sort: verdict class first (D3 invariant), then income repos win slot contention
@@ -548,6 +568,16 @@ async function integrate(unit, report) {
     return
   }
   const standInSuffix = (unit.verdict !== 'execute' && STRONG_MODEL === 'claude-opus-4-8') ? ', fable-standin' : ''
+  // A STRONG unit (review/handoff/hard — anything but the sonnet execute tier) checkpoints
+  // a strong-model decision. We persist a durable, model-tracked Fable-bonus-recheck queue
+  // entry into relay.toml (last_strong_ckpt/strong_model/fable_rechecked) so a LATER executor
+  // checkpoint that overwrites last_ckpt does NOT mask the pending optional Fable recheck
+  // (the masking bug id:e030). Executor (sonnet) checkpoints must never clear it.
+  const isStrong = unit.verdict !== 'execute'
+  // A real-Fable REVIEW unit IS the optional recheck: when this session's strong tier is
+  // genuine Fable and it reviews a repo, mark the durable queue rechecked rather than
+  // resetting it (id:e030 consume side; keeps @fable-optional-recheck idempotent).
+  const isFableRecheck = SESSION_IS_FABLE && unit.verdict === 'review'
   // hard (id:da26): Opus-apex strong-execute of one [HARD] item. Distinct checkpoint
   // label from review/handoff (which use "reviewer (...)") so the relay log reads as
   // strong-execute work; it still carries fable-standin (apex Opus work invites an
@@ -569,7 +599,9 @@ async function integrate(unit, report) {
    pushStatus = "pushed" on success, otherwise the error summary.
 5. git -C ${unit.path} worktree remove --force ${report.worktree} && git -C ${unit.path} branch -d ${report.branch}
    (--force is required and safe here: the merge+tag+push above already integrated the committed branch work, so the only thing --force discards is incidental untracked build artifacts the child left behind, e.g. a uv.lock from running tests. Without --force, worktree remove fails on any untracked file and the worktree+branch silently orphan in ~/.cache/fables-turn/worktrees/ — id:d187.)
-6. Update ~/.config/fables-turn/relay.toml for [repos.${unit.repo}]: set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.
+6. Update ~/.config/fables-turn/relay.toml for [repos.${unit.repo}]: set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.${isStrong ? `
+6b. STRONG checkpoint — this is a ${unit.verdict} unit produced by the strong model (${STRONG_MODEL}). ${isFableRecheck ? `This session's strong tier is REAL Fable, and this is a review — it IS the optional Fable recheck (id:e030 consume side). Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = "<today's date, ISO>" (the recheck just happened — mark it done, do NOT set false).` : `Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = false (an Opus-standin/strong checkpoint that still invites an optional Fable recheck).`} These keys survive a LATER executor (sonnet) checkpoint that overwrites last_ckpt — so the pending optional Fable recheck stays visible even when masked. Write all three even if they already exist (overwrite). Change ONLY this repo's block.` : `
+6b. EXECUTOR checkpoint — this is an execute unit (sonnet). Do NOT touch last_strong_ckpt, strong_model, or fable_rechecked: an executor checkpoint must never clear the pending Fable-bonus-recheck queue (that is exactly the masking bug id:e030 fixes). Leave those keys untouched.`}
 7. Return merged=true, ckptTag, pushStatus, ts (current ISO timestamp).
 
 Never push any other repo, never force-push, never resolve conflicts yourself.`,
