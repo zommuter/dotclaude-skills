@@ -38,7 +38,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Done-check**: `tests/run-tests.sh tests/test_relay_quota_stop_reason.sh` then full `make test`
     after ticking.
 
-- [ ] [ROUTINE] Harden relay-state-write.sh toml-set against awk -v / regex-key input (F1/F2) <!-- id:c8db -->
+- [x] [ROUTINE] Harden relay-state-write.sh toml-set against awk -v / regex-key input (F1/F2) (done 2026-06-15) <!-- id:c8db -->
   - **Source**: id:401c strong-model audit 2026-06-15 (`docs/meeting-notes/2026-06-15-1520-strong-model-audit.md`),
     findings F1 + F2. Re-filed after the audit's own commit was discarded (stale base) — see that note's provenance header.
   - **F1**: `toml-set` passes the value via `awk -v val="$value"`, and awk's `-v` processes
