@@ -183,3 +183,7 @@ review: audited 16 commits / 9 closed items (dispatch-safety cluster + 0902 inte
 ## 2026-06-15 15:59 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified fb75/6e9d/3ac8 (relay-loop inject+stale-reap ships) genuine — 43 tests green, no gaming, ledger consistent, contract v4 current
+
+## 2026-06-15 16:23 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified id:8c35 doc-only ledger commit genuine (no code/test churn, contract v4 current, ledger consistent); mini-handoff'd its missing red spec test — 43 green + 1 expected-red
