@@ -1,4 +1,15 @@
 #!/bin/bash
+# Claude Code statusline — quota/cost/model/host/dir. Reads the session JSON on stdin.
+#
+# Portability (verified self-contained — needs NO shell-rc / .bashrc / .zshrc env vars):
+#   - derives USER/HOST itself (whoami / hostname -s); caches in /tmp (auto-created)
+#   - reads the OAuth token from ~/.claude/.credentials.json (a SECRET — intentionally not
+#     in this repo; Claude Code creates it on `claude login`). Absent → usage panel degrades
+#     gracefully (stale/0), the rest still renders.
+#   - requires these CLI tools on PATH: jq, bc, sha1sum, curl, coreutils stat/date (GNU -c/%s),
+#     sed, tail. Install those on a fresh machine; everything else is in this file.
+# So `make install-statusline` + a logged-in Claude Code is all a new machine needs.
+
 # Read JSON input from stdin
 input=$(cat)
 
