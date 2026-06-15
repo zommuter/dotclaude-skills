@@ -719,7 +719,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     all strong work"; STRONG_TIER already chose the strong model, so the two compose. Opus
     model ID `claude-opus-4-8`; Fable-class match `claude-fable-5`.
 
-- [ ] [ROUTINE] `gaming-scan.sh` — mechanical gaming detector extracted from `review.md` §2 <!-- id:fa05 -->
+- [x] [ROUTINE] `gaming-scan.sh` — mechanical gaming detector extracted from `review.md` §2 (done 2026-06-15) <!-- id:fa05 -->
   - **Source**: id:2909 meeting 2026-06-15 (`docs/meeting-notes/2026-06-15-1610-adversarial-review-anti-gaming.md`), Piece 1 / D2-D3.
   - **Spec**: `relay/scripts/gaming-scan.sh`, `set -euo pipefail`, args `<repo-root> <since-tag>`. Emits one parseable flag line per mechanical detection:
     - deleted test file: `git diff "$since"..HEAD --diff-filter=D --name-only -- '<test-dirs>'`
