@@ -32,4 +32,14 @@ grep -qE 'does NOT re-derive|bookkeeping only' "$SKILL" \
 # Surface-only discipline: never auto-dispatch the REVIEW_ME candidate.
 grep -qE 'never auto-dispatch|Surface-only' "$SKILL" || fail "REVIEW_ME surface not marked surface-only"
 
+# Dispatch grounding: picking the candidate must run a meeting GROUNDED in the boxes,
+# treating each open box as an agenda item with a confirm/correct decision — not an
+# open-ended topic.
+grep -q 'REVIEW_ME backlog candidate (D5' "$SKILL" || fail "no grounded REVIEW_ME dispatch in Class 3"
+grep -qiE 'each open .*box as one agenda item|box.*as one agenda item' "$SKILL" \
+  || fail "dispatch does not treat boxes as agenda items"
+grep -qiE 'confirm.*tick the box|tick the box.*or.*correct' "$SKILL" \
+  || fail "dispatch missing the confirm/correct decision shape"
+grep -q 'step 2e' "$SKILL" || fail "dispatch does not connect to the step 2e write-back"
+
 echo ok
