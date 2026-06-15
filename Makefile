@@ -61,7 +61,7 @@ projects_LOCAL :=
 SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
-.PHONY: help install install-hooks install-statusline status-statusline uninstall-statusline \
+.PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
         install-allowlist print-allowlist uninstall status test \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
@@ -76,7 +76,8 @@ help:
 	@echo "  install              install all skills, hooks, and allowlist entries"
 	@echo "  install-<skill>      install one skill"
 	@echo "  install-hooks        install hooks (+ statusline) only"
-	@echo "  install-statusline   install the quota/cost/model statusbar only"
+	@echo "  install-statusline   install the quota/cost/model statusbar only (checks CLI deps)"
+	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
@@ -127,6 +128,12 @@ install-statusline:
 	@echo "→ installing statusline"
 	@mkdir -p $(HOME)/.claude
 	@ln -sf $(SRC_DIR)/statusline/statusline-command.sh $(HOME)/.claude/statusline-command.sh
+	@bash $(SRC_DIR)/statusline/check-deps.sh   # WARN on optional deps; ERROR (non-zero) on a missing CRITICAL dep
+
+# Standalone dependency check (also run by install-statusline): WARN on optional deps that
+# degrade a feature, ERROR on a missing CRITICAL dep (jq) without which the statusbar is dead.
+check-statusline-deps:
+	@bash $(SRC_DIR)/statusline/check-deps.sh
 
 status-statusline:
 	@echo "statusline:"
