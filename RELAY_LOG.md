@@ -201,3 +201,7 @@ Worked all 5 open [ROUTINE] items in one session:
 - id:dfaf — rewrote review.md §2 to delegate mechanical checks to gaming-scan.sh; §2a runs script, §2b retains only resurrection-check + fixture-special-casing judgment prose; --diff-filter=D removed from inline prose.
 - id:3826 — added logGamingFlags() to relay-loop.js integrate(): fire-and-forget Haiku agent appends JSON line to ~/.claude/logs/relay-gaming-flags.log per review integration; DEFERRED-FLEET SEAM comment at call site (id:2909 D1).
 Friction: none — all items self-contained and well-scoped. Full suite: 48 passed, 0 failed.
+
+## 2026-06-15 17:31 — executor (sonnet, relay-loop)
+
+executor: close all 5 open [ROUTINE] items — quota-stop reason (8c35), toml-set hardening (c8db), gaming-scan.sh (fa05), review.md §2 delegate (dfaf), gaming-flag rate logger (3826)
