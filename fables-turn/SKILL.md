@@ -18,6 +18,7 @@ Invocation:
 /fables-turn --fable-down                 # long form of -d
 /fables-turn handoff [repo-list | --all]
 /fables-turn review  [repo-list | --all]
+/fables-turn human   [repo-list | --all]   # interactive: cross-repo human-backlog triage
 ```
 
 Default `--all` means "confirmed OWN repos, by neediness, in waves of ≤5, until quota
@@ -155,6 +156,40 @@ integration invariants.
   roadmap → C3 red tests → C4 BDD → C5 optional HARD).
 - **Review** — see `references/review.md` (per-repo child: diff since last ckpt →
   test-integrity audit → BDD → spec-drift → re-derive roadmap → optional HARD).
+- **Human** — see `references/human.md` (cross-repo human-backlog triage; the human
+  is the relay's 3rd actor). See `## Human mode` below.
+
+## Human mode
+
+`/fables-turn human [repo-list | --all]` is the cross-repo HUMAN-BACKLOG triage — the
+human as the relay's **third actor** (execute = Sonnet, review/hard = Opus apex,
+**human = you**). It is an **interactive strong-turn PROCEDURE**, NOT an autonomous Workflow:
+it uses `AskUserQuestion` (which Workflows cannot call), so the apex model
+drives it directly — mirroring how `handoff`/`review` are reference-doc procedures the
+strong turn runs (it may delegate the read-only gather and per-repo apply to sub-agents).
+It **generalizes the planned `review_me` mode**: instead of one repo's queue, it sweeps
+every `classification = "own"` repo's human-backlog in one turn.
+
+What it does (full procedure in `references/human.md`):
+
+1. **Scope** — relay.toml `own` repos only (honor `# path:`); skip clone/excluded/needs_review.
+2. **Collect** — `scripts/gather-human-backlog.sh` emits a TSV of every open `REVIEW_ME.md`
+   `- [ ]` box plus open `@manual` BDD scenarios (REVIEW_ME `@manual` + ROADMAP `@manual`).
+3. **Classify each box into 3 tiers** by answerability/runnability:
+   - **(a) AUTO-ANSWERABLE** — unambiguous from code/tests/spec; the apex model verifies,
+     ticks with a re-checkable rationale, and flows back to ROADMAP/TODO under the **same
+     id** (single-id-two-views, flock'd `meeting/md-merge.py`).
+   - **(b) BATCH-DECIDABLE** — quick human yes/no, presented in small multiple-choice
+     `AskUserQuestion` batches (≤3–4 per call, ONE `questions` array) with REAL per-item
+     context (read the box + cited code so options aren't one-liners).
+   - **(c) CHEWY** — genuine design judgment, routed OUT to `/meeting --cross` (box left open).
+4. **`@manual`/scenario-run boxes are NEVER auto-ticked** — a human must RUN them; surface
+   them as a "you run these" checklist.
+
+Discipline: clean-tree only; commit per-repo **in the main checkout** (the per-repo
+`/meeting` REVIEW_ME write-back path, id:15d5), not a worktree merge. An auto-answer is a
+CLAIM the next `review` re-checks (anti-gaming, conservative — **when unsure, downgrade
+a→b**). **Opus is apex**: auto-answers are final, never "pending Fable".
 
 ## Shared resources
 
@@ -165,6 +200,8 @@ integration invariants.
 - `references/templates.md` — ROADMAP.md / RELAY_LOG.md / REVIEW_ME.md templates.
 - `scripts/discover-repos.sh` — read-only ownership classifier (TSV).
 - `scripts/ckpt-tag.sh` — atomic RELAY_LOG.md append + annotated `fable-ckpt-*` tag.
+- `scripts/gather-human-backlog.sh` — read-only cross-repo collector for `human` mode
+  (open REVIEW_ME boxes + `@manual` scenarios as TSV; flags `@manual`).
 
 ## State: `~/.config/fables-turn/relay.toml`
 
