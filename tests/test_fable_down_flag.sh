@@ -74,14 +74,14 @@ pass "SKILL.md documents --fable-down and -d in invocation block"
 grep -q "fable-down.*-d\|-d.*fable-down" "$SKILL" || fail "SKILL.md knobs table missing --fable-down / -d row"
 pass "SKILL.md knobs table documents --fable-down / -d"
 
-# SKILL.md: Opus self-guard with 10s window
-grep -q "sleep 10" "$SKILL" || fail "SKILL.md does not document the Opus self-guard (sleep 10)"
-pass "SKILL.md documents Opus self-guard (sleep 10)"
+# SKILL.md: 2026-06-15 pivot — the Opus self-guard is REPLACED by a Fable-availability
+# probe (Opus is the apex tier; no warning, no sleep when running on Opus).
+grep -qi "probe" "$SKILL" || fail "SKILL.md does not document the Fable-availability probe (replaces the old self-guard)"
+pass "SKILL.md documents the Fable-availability probe"
 
-# SKILL.md: guard is suppressed when -d is passed
-grep -qi "suppress\|skip.*guard\|guard.*skip\|no.*warning\|pass.*-d.*skip\|-d.*suppress\|suppresses.*guard\|guard.*-d" "$SKILL" \
-  || fail "SKILL.md does not document that -d suppresses the Opus self-guard"
-pass "SKILL.md documents -d suppresses Opus self-guard"
+# SKILL.md: Opus is the apex tier (Fable is the bonus); no self-guard warning
+grep -qi "apex" "$SKILL" || fail "SKILL.md does not document Opus as the apex tier"
+pass "SKILL.md documents Opus as the apex tier"
 
 # SKILL.md: args.fableDown threaded into Workflow launch
 grep -q "args.fableDown" "$SKILL" || fail "SKILL.md does not document threading args.fableDown to the Workflow"
