@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roadmap:230f — autonomous relay front door: /fables-turn no-keyword default mode
+# roadmap:230f — autonomous relay front door: /relay no-keyword default mode
 #
 # The front door is a prose skill (SKILL.md drives the orchestrator turn), so —
 # like tests/test_fables_executor.sh — this is a static contract check on the
@@ -9,8 +9,8 @@
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SKILL="$SRC_DIR/fables-turn/SKILL.md"
-JS="$SRC_DIR/fables-turn/scripts/relay-loop.js"
+SKILL="$SRC_DIR/relay/SKILL.md"
+JS="$SRC_DIR/relay/scripts/relay-loop.js"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
@@ -22,9 +22,9 @@ pass "SKILL.md exists"
 pass "relay-loop.js exists"
 
 # (1) No-keyword invocation is documented as the autonomous default mode.
-grep -qE '^/fables-turn[[:space:]]*(#.*)?$' "$SKILL" \
-  || fail "SKILL.md invocation block has no bare no-keyword /fables-turn line"
-pass "SKILL.md documents bare /fables-turn invocation"
+grep -qE '^/relay[[:space:]]*(#.*)?$' "$SKILL" \
+  || fail "SKILL.md invocation block has no bare no-keyword /relay line"
+pass "SKILL.md documents bare /relay invocation"
 
 grep -qi "autonomous" "$SKILL" || fail "SKILL.md does not describe the autonomous default mode"
 pass "SKILL.md describes autonomous default mode"
@@ -68,8 +68,8 @@ fi
 pass "relay-loop.js contains no AskUserQuestion call"
 
 # (3) Existing keyword modes remain documented and unchanged.
-grep -q "/fables-turn handoff" "$SKILL" || fail "SKILL.md lost the handoff keyword mode"
+grep -q "/relay handoff" "$SKILL" || fail "SKILL.md lost the handoff keyword mode"
 pass "SKILL.md keeps handoff keyword mode"
 
-grep -q "/fables-turn review" "$SKILL" || fail "SKILL.md lost the review keyword mode"
+grep -q "/relay review" "$SKILL" || fail "SKILL.md lost the review keyword mode"
 pass "SKILL.md keeps review keyword mode"

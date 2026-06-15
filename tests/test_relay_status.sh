@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-JS="$SRC_DIR/fables-turn/scripts/relay-loop.js"
+JS="$SRC_DIR/relay/scripts/relay-loop.js"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }

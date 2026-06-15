@@ -1,8 +1,8 @@
-# fables-turn shared conventions
+# relay shared conventions
 
 Two audiences: the **environment facts** below inform every agent prompt; the
-**executor contract** lives in the `fables-executor` skill (`fables-executor/SKILL.md`
-in dotclaude-skills). Handoff/review embed a thin versioned pointer into managed repos
+**executor contract** lives at `relay/references/executor-contract.md` (loaded by
+`/relay executor`). Handoff/review embed a thin versioned pointer into managed repos
 rather than copying the full block — see §Executor-contract pointer below.
 
 ## Environment facts (inject into every child-agent prompt)
@@ -37,22 +37,28 @@ rather than copying the full block — see §Executor-contract pointer below.
 
 ## Executor-contract pointer
 
-The full executor contract (5 rules + ROADMAP/RELAY_LOG format conventions) lives in
-the `fables-executor` skill at `dotclaude-skills/fables-executor/SKILL.md`. The
-canonical version marker is `<!-- fables-executor contract vN -->` on the
+The full executor contract (5 rules + ROADMAP/RELAY_LOG format conventions) lives at
+`dotclaude-skills/relay/references/executor-contract.md` (loaded by `/relay executor`).
+The canonical version marker is `<!-- relay-executor contract vN -->` on the
 `## Executor contract` heading inside that file.
 
 **Handoff C1** writes the following thin pointer into the managed repo's `CLAUDE.md`
 (as its own `## Relay contract` section), replacing any older verbatim block:
 
 ```markdown
-## Relay contract <!-- fables-executor contract v2 -->
+## Relay contract <!-- relay-executor contract v3 -->
 
-This repo is managed by a reviewer/executor relay. Load the `fables-executor` skill
-(`/fables-executor`) before working on any item, then follow its rules exactly.
+This repo is managed by a reviewer/executor relay. Load `/relay executor` before
+working on any item, then follow its rules exactly.
 ```
 
-**Review step 4** checks whether the pointer's `vN` matches the current skill version.
-If stale (pointer vN < skill vN), refresh the pointer line to carry the current vN.
-The pointer body text ("Load the `fables-executor` skill …") is stable and does not
-change with version bumps.
+**Review step 4** checks whether the pointer's `vN` matches the current contract version.
+If stale (pointer vN < contract vN), refresh the pointer line to carry the current vN.
+The pointer body text ("Load `/relay executor` …") is stable and does not change with
+version bumps.
+
+> Migration note: the rename from `fables-executor` to `relay` bumped the marker to v3.
+> Pointers still carrying `<!-- fables-executor contract v2 -->` in external managed
+> repos are **stale-but-handled** — each auto-migrates the next time that repo is
+> reviewed (review §4 sees v2 < v3 and rewrites the whole pointer line to the v3 form
+> above, including the new `/relay executor` body). Do NOT sweep external repos by hand.
