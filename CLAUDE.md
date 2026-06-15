@@ -55,6 +55,14 @@ install IS the published version (per-file symlinks, see Layout).
   `meeting/append.sh new-id` (or `new-ids N <root>`) — **never invent tokens**.
   `meeting/orphan-scan.sh` correlates meeting-note items against the TODO ledger by
   exact token match.
+- **Single-id-two-views (relay ↔ meeting).** TODO.md is the design ledger ("why");
+  ROADMAP.md is the relay's execution queue ("now"). When the relay promotes work
+  TODO already tracks (handoff C2 / review step 5), it **reuses the existing TODO id**,
+  never mints a duplicate — the same token spans both ledgers. `orphan-scan.sh
+  --cross-ledger` flags any id whose checkbox state disagrees across the two (e.g.
+  closed in ROADMAP, still open in TODO). TODO/ROADMAP/REVIEW_ME are shared, non-union
+  write surfaces between `/meeting` and the relay worktree merge — keep writes
+  line-scoped. See `docs/meeting-notes/2026-06-15-0715-meeting-fables-interaction.md`.
 - **Registry appends go through `append.sh`.** Never Edit/Write
   `discoveries.md`/`personas.md`/the shared inbox directly — `append.sh` is the
   allowlisted, flock-guarded path.

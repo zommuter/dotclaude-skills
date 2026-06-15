@@ -176,3 +176,12 @@ Model IDs: `fable` → `claude-fable-5`, `opus` → `claude-opus-4-8`.
 - Parallelism only across repos, or within a repo on disjoint paths.
 - Pilot a handful of income-relevant repos before any `--all` run — templates and the
   executor contract will need revision after first contact with real executor sessions.
+- **Shared ledgers with `/meeting` (single-id-two-views, D2).** `TODO.md`, `ROADMAP.md`,
+  and `REVIEW_ME.md` are written by BOTH the relay (in worktrees, `--no-ff` merged) and
+  `/meeting` / manual edits (in the main checkout). None are `merge=union` — checkbox
+  toggles `[ ]`↔`[x]` cannot union — so a concurrent meeting + pool can conflict at
+  integration. Keep ledger writes line-scoped (flock'd `meeting/md-merge.py`); git
+  surfaces the conflict (not silent); `orphan-scan.sh --cross-ledger` catches residual
+  checkbox drift. Promotion REUSES the existing TODO id (handoff C2 / review step 5) —
+  never mint a duplicate for already-tracked work. `RELAY_LOG.md` stays `merge=union`
+  (append-only).

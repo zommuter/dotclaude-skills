@@ -76,6 +76,13 @@ the review turn should absorb.
 ## 5. Re-derive ROADMAP.md
 
 - Close items whose tests are genuinely green; update the TODO.md summary count.
+- **Single-id-two-views (D2):** when you add or promote a ROADMAP item for work the
+  repo's `TODO.md` already tracks under an `<!-- id:XXXX -->`, REUSE that token — mint a
+  fresh one (`append.sh new-ids N <root>`) ONLY for genuinely new work this re-derivation
+  surfaced. A duplicate id for already-tracked work is undetectable by orphan-scan (two
+  ids look like two items); reusing the token is what lets `orphan-scan.sh --cross-ledger`
+  catch a "closed in ROADMAP, left open in TODO" divergence. When you close a ROADMAP item
+  whose token also lives in `TODO.md`, tick the TODO line too (consistent checkbox state).
 - Re-scope items that proved underspecified.
 - Promote/demote `[HARD]` ↔ `[ROUTINE]` based on what executors actually struggled
   with — read commit messages (`friction:` lines) and RELAY_LOG.md entries.
