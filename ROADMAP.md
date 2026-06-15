@@ -584,6 +584,12 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       fixed inline** — id:414a was still marked `GATED` on id:fa05+id:dfaf, both now shipped;
       updated the gate line to CLEARED so a future strong session isn't misled into skipping it.
       See `docs/meeting-notes/2026-06-15-1759-strong-model-audit.md`.
+    - Run 5 (2026-06-15-1937): `relay-ckpt-20260615-1748`..HEAD (~270 lines / 10 files; code:
+      relay-loop.js ×2 + 2 tests) — **clean**: no code/security defects, no inline fix needed.
+      Verified the two pool-crash fixes (failed-shard surfacing via order-preserving `chunks[i]`;
+      removal of `new Date()`/`process.env` forbidden in the Workflow sandbox) correct with genuine
+      regression guards, and the cross-ledger state coherent (0 open ROUTINE / 3 open HARD; d5e0
+      summary agrees). See `docs/meeting-notes/2026-06-15-1937-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
