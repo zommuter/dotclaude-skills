@@ -15,8 +15,9 @@ executor task queue; `TODO.md` for the broader work inventory.
 make help               # list targets
 make install            # symlink all skills + hooks into ~/.claude, merge allowlist
 make install-<skill>    # one skill (meeting, meeting-cross, git-diary-workflow, todo-update, relay, projects; deprecated aliases: fables-turn, fables-executor)
-make install-hooks      # hooks + statusline only
-make status             # show symlink state for all skills
+make install-hooks      # hooks (+ statusline) only
+make install-statusline # the quota/cost/model statusbar only (symlinks statusline/ into ~/.claude)
+make status             # show symlink state for all skills + statusline
 make print-allowlist    # read-only preview of settings.json Bash allowlist entries
 make install-allowlist  # idempotent merge into ~/.claude/settings.json (backup → .bak)
 make test               # run the full test suite (tests/run-tests.sh)
