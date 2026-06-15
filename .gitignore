@@ -2,3 +2,8 @@
 meeting/*.lock
 *.lock
 docs/meeting-notes/persona-state.yml
+
+# Deprecated relay aliases — untracked upstream (renamed to /relay + /relay executor) but kept
+# locally as a fat-finger redirect. Delete the two dirs to drop the redirect entirely.
+/fables-turn/
+/fables-executor/

@@ -14,7 +14,7 @@ executor task queue; `TODO.md` for the broader work inventory.
 ```bash
 make help               # list targets
 make install            # symlink all skills + hooks into ~/.claude, merge allowlist
-make install-<skill>    # one skill (meeting, meeting-cross, git-diary-workflow, todo-update, relay, projects; deprecated aliases: fables-turn, fables-executor)
+make install-<skill>    # one skill (meeting, meeting-cross, git-diary-workflow, todo-update, relay, projects)
 make install-hooks      # hooks (+ statusline) only
 make install-statusline # the quota/cost/model statusbar only (symlinks statusline/ into ~/.claude)
 make status             # show symlink state for all skills + statusline
@@ -39,7 +39,7 @@ install IS the published version (per-file symlinks, see Layout).
 | `meeting-cross/` | Deprecated alias skill → `/meeting --cross` (deletion gated, TODO id:4f5f) |
 | `projects/` | Project-dashboard skill (SKILL.md only) |
 | `relay/` | The reviewer/executor relay skill itself (this contract comes from there). `references/executor-contract.md` is the versioned executor contract loaded by `/relay executor`; the `## Relay contract` pointer below must match its `vN` marker |
-| `fables-turn/`, `fables-executor/` | Deprecated alias stubs (SKILL.md only) → `/relay` and `/relay executor`; removed once invocations/cron/pointers migrate |
+| ~~`fables-turn/`, `fables-executor/`~~ | Deprecated alias stubs → `/relay` + `/relay executor`. **Untracked 2026-06-15** (`git rm --cached`; migrated, no remaining cron/invocations) — `.gitignore`'d, kept locally only as a fat-finger redirect, no longer installed by `make`. Delete the dirs to drop the redirect. |
 | `hooks/` | Stop/Notification hook scripts; settings.json snippets in `hooks/README.md` |
 | `statusline/` | `statusline-command.sh` — quota/cost/model statusline (reads JSON on stdin) |
 | `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt`; `ctx-budget.sh` (advisory SKILL.md token-budget audit) |
