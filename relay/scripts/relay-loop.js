@@ -881,7 +881,7 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     // DEFERRED-FLEET SEAM: to escalate, spawn parallel() refuters over gaming_flags[] or
     // verified_green[] here; see id:2909 meeting 2026-06-15 D1 for the evidence gate.
     if (unit.verdict === 'review' && report) {
-      logGamingFlags(unit.repo, state.runId, report)
+      logGamingFlags(unit.repo, state.runId, report, result.ts || state.ts)
     }
   } else {
     state.blocked.push({ repo: unit.repo, reason: (result && result.reason) || 'integration failed', worktreePath: report.worktree })
@@ -894,11 +894,14 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
 // The log line is JSON: {repo, runId, ts, closed_ids, gaming_flags, reopened, verified_green}.
 // Creates the log file if absent (the agent uses >> which creates on first write).
 // The Workflow JS cannot write files directly; we spawn a minimal Haiku agent.
-function logGamingFlags(repo, runId, report) {
+function logGamingFlags(repo, runId, report, ts) {
+  // ts is passed in (integrate result.ts / round state.ts) — the Workflow runtime FORBIDS
+  // new Date()/Date.now() (ShimDate throws to keep runs deterministic; a bare new Date() here
+  // synchronously crashed the whole pool 2026-06-15). Never reintroduce a Date call in this file.
   const entry = {
     repo,
     runId,
-    ts: new Date().toISOString(),
+    ts: ts || '',
     closed_ids: (report.verified_green || []).concat(report.reopened || []),
     gaming_flags: report.gaming_flags || [],
     reopened: report.reopened || [],
