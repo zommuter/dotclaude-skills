@@ -10,59 +10,17 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-<!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — KEYSTONE id:8ac5
-     (claim/assignment primitive) unifies id:7b7a (lease = enforcement), id:8d52 (intensive =
-     resource claim), id:d748 (meeting respects claims). One dispatch gate + one lock-with-TTL
-     machinery; decide together (one /meeting). Origin: 2026-06-15 chat. -->
+<!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — RATIFIED 2026-06-15
+     (meeting docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md). The claim
+     primitive + per-repo lease REUSE existing TODO id:ebfb (claim/reservation umbrella: worktree-
+     aware discovery + single-writer relay.toml/RELAY_STATUS + per-shard claim registry) and id:3558
+     (flock'd-merge = repo-lease enforcement). id:7b7a & id:8ac5 RETIRED as duplicates. Kept new:
+     id:8d52 ([INTENSIVE], rescoped to claim-on-resource + run-alone), id:d748 (/meeting hold),
+     id:baf1 (on-demand task injection). Build cheapest-first; dry-stall deferred+observe. -->
 
-- [ ] Task-claim primitive — relay sessions "claim" roadmap items (PM-board style) [HARD — decision gate] <!-- id:8ac5 -->
-  - **Context**: 2026-06-15 user idea — like a PM tool assigns an issue to an individual, a relay
-    SESSION claims a roadmap item (or a resource) so others see it's owned and don't double-work it.
-    This is the UNIFYING primitive the cluster was circling: id:7b7a's per-repo lease becomes the
-    *enforcement* of a claim (merge-collision safety), id:8d52's `[INTENSIVE]` is a claim on a
-    *resource* (`local-llm`) not an item, and id:d748's "holdable meeting" is `/meeting` respecting
-    (and able to take) claims. The human (/relay human), the pool, executor sessions, and /meeting
-    all read/write the SAME claim records.
-  - **Maps onto single-id-two-views (D2)**: the `<!-- id:XXXX -->` token is the join key. Today
-    TODO = "why" (design) and ROADMAP = "now" (queue). A claim adds a THIRD view — "who/owned-by" —
-    keyed by the same id ("single-id-three-views"). ROADMAP stays the source of truth for WHAT; the
-    claim registry is the source of truth for WHO/NOW.
-  - **Open design questions (for the cluster /meeting)**: (1) WHERE claims live — in the ledger item
-    itself (visible, git-tracked, but write-contended + churny) vs a dedicated flock'd registry
-    (`~/.config/fables-turn/claims.toml` or per-id files; fast, but a second surface to reconcile) vs
-    relay.toml. Leaning: dedicated registry + a read-only VIEW surfaced in RELAY_STATUS.md (or a
-    `/relay board`) for PM-board visibility WITHOUT write-contending the ledger. (2) Claim granularity
-    — item-level vs repo-level: item-level gives more parallelism BUT two items in one repo still merge
-    into ONE main checkout, so a claim does NOT remove the need for per-repo integration serialization
-    (id:7b7a) or disjoint-paths (existing guardrail). Claim = assignment/visibility; lease = merge
-    safety — complementary layers, not a replacement. (3) Claim lifecycle — claim → heartbeat → release/
-    expire (TTL), so an OOM-killed session's stale claim is reclaimable (memory `oom-local-model-session-kills`).
-  - **Acceptance**: a claim record `{id, repo, runId/session, mode, claimed_at, heartbeat, status}`
-    written via a flock'd helper; discovery/dispatch skips live-claimed ids and reclaims expired ones;
-    claims surfaced read-only in RELAY_STATUS.md; covered by the bash suite. Co-decide with id:7b7a/8d52/d748.
+- [x] Task-claim primitive — RETIRED 2026-06-15: duplicate of TODO id:ebfb. The PM-board "claim" framing + per-shard registry (`~/.config/fables-turn/claims/<key>.json`) + item-keyed/repo-enforced design is ratified in `docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md` and tracked under id:ebfb (claim/reservation) + id:3558 (flock'd-merge = repo-lease). <!-- id:8ac5 -->
 
-- [ ] Cross-session relay dispatch safety: per-repo lease + single-writer shared state [HARD — decision gate] <!-- id:7b7a -->
-  - **Context**: 2026-06-15 — "what happens if I run a 2nd `/relay` session while the pool is
-    live?" Today: NOTHING prevents same-repo overlap. relay-loop.js has no run-lock/lease/flock;
-    discovery is not worktree-aware (won't skip a repo another run already has a child in);
-    `relay.toml` + `RELAY_STATUS.md` are written by a plain agent with no flock (whole-file
-    clobber / dropped per-repo fields). Worktree DIRS are safe (run-id keyed) and the PUSH is
-    flock-guarded (`git-lock-push.sh`), but two children can `merge --no-ff` into one main
-    checkout (status→merge→tag→push not atomic across sessions). Same family as TODO id:3558
-    (independent-session flock'd merge-to-canonical) + memories `parallel-session-state-coordination`,
-    `d5-worktree-per-session`, `oom-local-model-session-kills` (held worktree = in-flight signal).
-  - **Why decision-gate**: changes the D5/D6 invariant ("one integration per remote", see id:bc9d)
-    and the cross-session contract; lock TTL/heartbeat policy and who-yields trade-offs are
-    non-obvious and hard to reverse. Decide in the cluster /meeting.
-  - **Acceptance (sequence cheapest-first)**: (1) worktree-aware discovery — skip any repo with a
-    FRESH foreign-runId worktree under `~/.cache/fables-turn/worktrees/<repo>/` (near-free, kills
-    the worst case); (2) flock'd single-writer for `relay.toml` (field-scoped read-modify-write)
-    and `RELAY_STATUS.md` (per-runId section or merge, not clobber) — reuse the append.sh/md-merge.py
-    fd8/9 pattern; (3) formal per-repo flock'd lease (`~/.cache/fables-turn/leases/<repo>.lock`,
-    `{runId,pid,mode,heartbeat}` + TTL so an OOM-killed session's lease expires); (4) `/relay executor`
-    acquires the repo lease at start (refuse/warn if a live pool holds it) — ideally worktree-isolated
-    per D5.6/id:3558. Each step independently testable in the bash suite.
-  - **Reuse**: link/co-resolve TODO id:3558 (single-id-two-views — same token spans both ledgers).
+- [x] Cross-session relay dispatch safety — RETIRED 2026-06-15: duplicate of TODO id:ebfb + id:3558. Worktree-aware discovery, single-writer relay.toml/RELAY_STATUS, claim registry → id:ebfb; per-repo lease enforcement → id:3558. Ratified design: `docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md`. <!-- id:7b7a -->
 
 - [ ] `[INTENSIVE — <resource>]` tag: gate local-LLM/heavy work behind explicit permission [HARD — decision gate] <!-- id:8d52 -->
   - **Context**: 2026-06-15 user request. Local-LLM tasks (ai-codebench benchmarks, zkm embedding
@@ -84,8 +42,11 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     (4) Tagging: strong children tag per criteria in `conventions.md` (cite OOM + TTFT), PLUS a coarse
     per-repo default `[repos.ai-codebench] intensive = true` / `[repos.zkm] intensive = true` as a
     safety net; item-level tags override.
-  - **Why decision-gate**: run-alone vs reduced-width, budget semantics, and resource taxonomy are
-    judgment calls; pairs with the id:7b7a lock machinery. Decide in the cluster /meeting.
+  - **RATIFIED 2026-06-15** (meeting 2026-06-15-1216): `[INTENSIVE — <resource>]` is a **claim on a
+    resource key** (`~/.config/fables-turn/claims/resource:local-llm.json`), exclusive; while held
+    collapse `POOL_WIDTH→1` (RUN ALONE — the OOM fix); never auto-dispatched without `--allow-intensive`
+    / `--afk`. Reuses the id:ebfb claim machinery — NOT a separate `resources/*.lock` semaphore (the
+    earlier acceptance text above is superseded by this). Build step 5 of the cluster sequence.
 
 - [ ] `/meeting` ↔ relay-loop mutual hold (holdable meeting while a pool is live) [HARD — decision gate] <!-- id:d748 -->
   - **Context**: 2026-06-15 user request. `/meeting` writes the shared ledgers (TODO/ROADMAP/REVIEW_ME)
@@ -98,8 +59,9 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     yields a short window to an interactive meeting, or (c) both coordinate via the same per-repo lease
     keyed on dotclaude-skills. Likely reuses id:7b7a's lease + single-writer helper rather than a
     separate mechanism. Must keep meeting's read/think phase unblocked (only the WRITE-BACK holds).
-  - **Why decision-gate / reuse**: this is the id:7b7a lease applied to the `/meeting` actor — co-decide
-    in the cluster /meeting; don't build a parallel lock.
+  - **RATIFIED 2026-06-15** (meeting 2026-06-15-1216): `/meeting` is a **consumer of the id:ebfb claim
+    registry** — it holds (or takes) the dotclaude-skills claim for its ledger WRITE-BACK only; read/think
+    phase stays unblocked. Build step 6 (last). Reuses the claim machinery; no parallel lock.
 
 - [x] Relay integrator bottleneck — per-repo serialization, cross-repo concurrency (done 2026-06-15, reviewer) <!-- id:bc9d -->
   - **Context**: 2026-06-15 — investigating "the pool only runs ~1-wide". Work agents
@@ -125,6 +87,28 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Follow-up (deferred, not blocking)**: integration agent could be Haiku and/or BATCH several
     repos per call to further cut the ~1–2 min/repo agent overhead — left for a later pass; the
     per-repo concurrency above is the primary throughput lever.
+
+- [ ] On-demand high-priority executor-task injection into the running pool [ROUTINE] <!-- id:baf1 -->
+  - **Context**: 2026-06-15 user request — "inject this executor task next with highest priority."
+    A live control-plane: drop a task and the running pool picks it up ahead of its normal
+    verdict-class schedule (execute→review→hard→handoff, id:da26) on the next round.
+  - **Design (rides the cluster registry pattern, id:ebfb)**: an **injection inbox** the pool
+    polls at each round's discovery — per-shard files `~/.config/fables-turn/inject.d/<token>.json`,
+    each one unit spec `{repo, item_id?, verdict (default execute/sonnet), prompt?, requested_at}`.
+    A flock'd allowlisted helper `inject.sh <repo> [--item id] [--verdict execute] [--prompt ...]`
+    writes the shard (so a human/other session enqueues without hand-editing JSON). Discovery reads
+    inject.d at round start, converts each to a unit, and the scheduler places injected units at the
+    FRONT of the queue (ahead of the class order). **Consume-once**: dispatched → shard moved to
+    `inject.done/` (reuse the claim machinery so it isn't re-injected every round). Surface injected
+    units in RELAY_STATUS.
+  - **Open (minor, decide at build)**: latency = next round-boundary (MVP) vs within-round (a lane
+    re-checks inject.d between units); injectable verdicts (execute-only vs any); always-top vs a
+    priority field. Does NOT need a full /meeting — it's a contained extension of the ratified
+    registry pattern (`docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md`).
+  - **Why ROUTINE-with-care**: additive, but it touches the dispatch/PRIORITY ordering — reviewer
+    should confirm an injected unit never starves the D3 review-after-execute invariant.
+  - **Tests**: `tests/test_relay_inject.sh` — inject.sh writes a valid shard; discovery prepends it;
+    consumed shard moves to inject.done and isn't re-dispatched. Hermetic.
 
 - [ ] Contract tests for relay install-completeness + quota-stop invocation [ROUTINE] <!-- id:5f09 -->
   - **Context**: On 2026-06-15 the default `/relay` autonomous pool was non-functional and
