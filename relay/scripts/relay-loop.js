@@ -269,13 +269,21 @@ const INTEGRATE_SCHEMA = {
   },
 }
 
-// ── Serialized integrator (D5/D6: one integration at a time, never two concurrent
-// pushes; intentionally NOT parallel() — a promise chain is the serializer) ──
-
-let integrationChain = Promise.resolve()
-function enqueueIntegration(fn) {
-  const run = integrationChain.then(fn, fn)
-  integrationChain = run.then(() => {}, () => {})
+// ── Per-repo serialized integrator (D5/D6 restated, id:bc9d: never two concurrent pushes
+// to the SAME remote — but DISTINCT repos have DISTINCT remotes and do not conflict, so
+// their integrations run concurrently; only same-repo integrations serialize, preserving
+// review→execute re-chain ordering into the same main checkout). A single GLOBAL chain made
+// every repo's ~1–2 min Sonnet integrate agent wait behind every other's, so checkpoints
+// landed serially no matter how wide the dispatch — the pool LOOKED 1-wide even though the
+// work agents ran concurrently. Each repo gets its own tail promise; cross-repo integration
+// is parallel (git-lock-push.sh still flocks per-repo for the residual same-remote case).
+// Intentionally NOT a parallel() over the integration step — a per-repo promise chain is the
+// serializer, so same-repo merges into one main checkout never race. ──
+const integrationChains = new Map()   // repo name -> tail promise
+function enqueueIntegration(repo, fn) {
+  const prev = integrationChains.get(repo) || Promise.resolve()
+  const run = prev.then(fn, fn)
+  integrationChains.set(repo, run.then(() => {}, () => {}))
   return run
 }
 
@@ -688,7 +696,7 @@ async function runUnit(unit) {
   }
   // Integration debt is enqueued, not awaited here: the dispatch slot frees up
   // immediately while the serialized chain works through merges one at a time.
-  debts.push(enqueueIntegration(() => integrate(unit, report)))
+  debts.push(enqueueIntegration(unit.repo, () => integrate(unit, report)))
 }
 
 await parallel(
@@ -715,7 +723,7 @@ await parallel(
 // have returned; now drain ALL integration debt before returning — an unmerged
 // worktree is the worst thing to abandon.
 await Promise.all(debts)
-await integrationChain
+await Promise.all([...integrationChains.values()])
 
 state.queued = state.queued.concat(queue.map(u => ({ repo: u.repo, verdict: `${u.verdict} (not dispatched)` })))
 await writeRelayStatus(state)
