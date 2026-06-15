@@ -84,12 +84,15 @@ D1/D2):
    work, id:da26), then repos
    flagged `income = true` in relay.toml win slot contention within a class
    (user directive 2026-06-12), then a *slight* `fable-standin` tiebreaker
-   (user directive 2026-06-13): repos whose latest `fable-ckpt-*` was produced by
-   Opus are marked `fable-standin`. Under the Opus-apex model these are **complete**
-   work (Opus decided), so the marker only flags an *available optional Fable recheck*:
-   on a Fable session with spare capacity they may be re-reviewed as a free second
-   opinion (`@fable-optional-recheck`, id:9821), sorted **last** (real work first); on
-   Opus/executor/handoff work they carry no special weight. It never excludes, never
+   (user directive 2026-06-13): repos whose latest checkpoint (`relay-ckpt-*` or the
+   historical `fable-ckpt-*`) was produced by Opus are marked `fable-standin`. Under the
+   Opus-apex model these are **complete** work (Opus decided), so the marker only flags an
+   *available optional Fable recheck*: on a Fable session with spare capacity they may be
+   re-reviewed as a free second opinion (`@fable-optional-recheck`, id:9821), sorted
+   **last** (real work first); on Opus/executor/handoff work they carry no special weight.
+   The pending recheck is ALSO tracked durably in relay.toml
+   (`last_strong_ckpt`/`fable_rechecked`, id:e030) so it survives a later executor
+   checkpoint masking the latest-tag signal — see State below. It never excludes, never
    gates, and never marks work "pending" — an absent Fable simply means the optional
    recheck never runs.
    **HARD-execute verdict (`hard`, id:da26).** When a repo has no unaudited commits and
@@ -207,7 +210,8 @@ a→b**). **Opus is apex**: auto-answers are final, never "pending Fable".
   block embedded into every generated CLAUDE.md.
 - `references/templates.md` — ROADMAP.md / RELAY_LOG.md / REVIEW_ME.md templates.
 - `scripts/discover-repos.sh` — read-only ownership classifier (TSV).
-- `scripts/ckpt-tag.sh` — atomic RELAY_LOG.md append + annotated `fable-ckpt-*` tag.
+- `scripts/ckpt-tag.sh` — atomic RELAY_LOG.md append + annotated `relay-ckpt-*` tag
+  (older `fable-ckpt-*` tags are historical and never rewritten; readers match both prefixes).
 - `scripts/gather-human-backlog.sh` — read-only cross-repo collector for `human` mode
   (open REVIEW_ME boxes + `@manual` scenarios as TSV; flags `@manual`).
 
@@ -219,12 +223,23 @@ classification = "own"          # own | clone | excluded (user-confirmed, sticky
 confirmed      = "YYYY-MM-DD"
 status         = "pending"      # pending | handed-off | active | paused | blocked-dirty
 handoff_date   = ""
-last_ckpt      = ""
+last_ckpt      = ""             # newest checkpoint tag (relay-ckpt-* or legacy fable-ckpt-*)
 last_review    = ""
+# Durable, model-tracked Fable-bonus-recheck queue (id:e030). Written by the integrator
+# on a STRONG (review/handoff/hard) checkpoint; an executor (sonnet) checkpoint NEVER
+# clears these, so a pending optional Fable recheck survives a later executor checkpoint
+# masking last_ckpt. A non-empty last_strong_ckpt with fable_rechecked = false is an
+# OPTIONAL recheck candidate (non-gating @fable-optional-recheck — never blocks work).
+last_strong_ckpt = ""           # tag of the last strong-model checkpoint
+strong_model     = ""           # e.g. "claude-opus-4-8" — the producing strong model
+fable_rechecked  = false        # false until a real Fable session rechecks, then its ISO date
 ```
 
-Tag/dirty facts are re-derivable from git; this file is the confirmation registry and
-wave scheduler. The orchestrator is its only writer (after user confirmation).
+Tag/dirty facts are re-derivable from git; this file is the confirmation registry, wave
+scheduler, and durable Fable-bonus-recheck queue. The orchestrator is its only writer
+(after user confirmation). The latest-checkpoint lookup matches BOTH `relay-ckpt-*` and
+the historical `fable-ckpt-*` prefix:
+`git tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`.
 
 ## Configuration knobs
 

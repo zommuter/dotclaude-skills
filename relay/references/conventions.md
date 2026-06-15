@@ -30,8 +30,32 @@ rather than copying the full block — see §Executor-contract pointer below.
   `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only`. Children NEVER push.
 - Children do not run git-diary-workflow or todo-update; they return a
   `diary_fragment` and the orchestrator batches.
-- Every touched repo ends the turn with a `fable-ckpt-YYYYMMDD-HHMM` annotated tag and
-  a RELAY_LOG.md paragraph (both via `scripts/ckpt-tag.sh`).
+- Every touched repo ends the turn with a `relay-ckpt-YYYYMMDD-HHMM` annotated tag and
+  a RELAY_LOG.md paragraph (both via `scripts/ckpt-tag.sh`). Older `fable-ckpt-*` tags are
+  historical and are NEVER rewritten; every reader that finds the latest checkpoint or its
+  commit range matches BOTH prefixes:
+  `git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`. The annotation
+  label still records the producing model + role (e.g. `reviewer (claude-opus-4-8,
+  fable-standin, relay-loop)`) — that model-in-label is the historical record.
+
+## Durable Fable-bonus-recheck queue (relay.toml, id:e030)
+
+When a STRONG unit (review / handoff / hard, i.e. `STRONG_MODEL=claude-opus-4-8`)
+checkpoints a repo, the integrator records a model-tracked entry in
+`~/.config/fables-turn/relay.toml` under `[repos.<name>]`:
+
+- `last_strong_ckpt` — the strong checkpoint's tag name.
+- `strong_model` — the model that produced it (e.g. `claude-opus-4-8`).
+- `fable_rechecked` — `false` until a real Fable session rechecks the repo, then its
+  ISO date.
+
+These three keys SURVIVE a later executor (sonnet) checkpoint that overwrites
+`last_ckpt` — fixing the masking bug (id:e030) where a fresh executor checkpoint hid the
+latest-tag `fable-standin` signal and the pending optional Fable recheck became invisible.
+An executor checkpoint MUST NOT clear them. A repo with a non-empty `last_strong_ckpt`
+and `fable_rechecked = false` is an **optional** Fable-recheck candidate — non-gating,
+never blocks work (Opus decisions are final; `@fable-optional-recheck` is a free second
+opinion only).
 - Cross-repo action items discovered mid-work go to the shared inbox
   (`~/.claude/skills/meeting/append.sh -t inbox`), never into another repo's TODO.md.
 
