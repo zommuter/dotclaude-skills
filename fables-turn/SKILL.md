@@ -34,10 +34,15 @@ D1/D2):
    *if it returns* — never a required gate (user directive 2026-06-15: "treat Opus as the
    apex tier, Fable as a bonus re-review"). Do NOT warn when running on Opus — it is the
    intended tier; there is no self-guard and no `sleep`. Select the strong tier:
-   - Read `~/.config/fables-turn/fable-probe.json` (`{available: bool, checked: ISO-ts}`).
-     If absent or `checked` is older than **2 h**, PROBE once: spawn ONE tiny agent pinned
-     to `model: claude-fable-5` with a trivial prompt. It returns → `available=true`; a
-     "Fable unavailable" / model error → `available=false`. Write the cache either way.
+   - Manage the cache `~/.config/fables-turn/fable-probe.json`
+     (`{available: bool, checked: ISO-ts}`) through `scripts/probe-fable.sh` — the tested
+     helper that owns the read + 2 h staleness check (the helper NEVER spawns the model;
+     the actual agent-probe stays here in the front door). Run
+     `scripts/probe-fable.sh check`: `fresh-available` / `fresh-unavailable` (exit 0) →
+     use the cached decision, skip the probe; `stale` / `absent` (exit 1) → PROBE once:
+     spawn ONE tiny agent pinned to `model: claude-fable-5` with a trivial prompt (it
+     returns → available; a "Fable unavailable" / model error → unavailable), then record
+     it with `scripts/probe-fable.sh set <true|false>` (the helper stamps the ISO timestamp).
    - **Default assumption: Fable is unavailable** → `STRONG_TIER=opus`, proceed with Opus
      as apex. **Nothing depends on Fable.** The only ways to use Fable: the probe says
      available, OR the user explicitly passes `--strong-tier fable` / says "Fable is
@@ -65,7 +70,9 @@ D1/D2):
    ending only on the quota cap, two consecutive empty discoveries (backlog drained), or
    the `MAX_ROUNDS` seatbelt. The front door launches it ONCE; it is not relaunched
    per-wave. Scheduling order: verdict class
-   first (execute → review → handoff, the D3 anti-gaming invariant), then repos
+   first (execute → review → **hard** → handoff, the D3 anti-gaming invariant — note
+   `hard` ranks after review so unaudited work is always reviewed before fresh strong
+   work, id:da26), then repos
    flagged `income = true` in relay.toml win slot contention within a class
    (user directive 2026-06-12), then a *slight* `fable-standin` tiebreaker
    (user directive 2026-06-13): repos whose latest `fable-ckpt-*` was produced by
@@ -76,6 +83,21 @@ D1/D2):
    Opus/executor/handoff work they carry no special weight. It never excludes, never
    gates, and never marks work "pending" — an absent Fable simply means the optional
    recheck never runs.
+   **HARD-execute verdict (`hard`, id:da26).** When a repo has no unaudited commits and
+   no open `[ROUTINE]` work but ≥1 open `[HARD — strong model]` item, the classifier
+   emits a `hard` unit. It dispatches an Opus-apex child that works ONE bounded `[HARD]`
+   item in its worktree under full verify-before-merge discipline — modelled on the
+   handoff C5 "only if small enough to finish safely" rule (the child sizes the item,
+   implements only if it finishes green, ticks the box only if genuinely green, else
+   hands back). This is the steady-state path now that `[ROUTINE]` is drained and every
+   repo carries a ROADMAP (so `handoff`/opportunistic C5 never fire) — without it the
+   ~46 open `[HARD]` items would stall while Fable is out. **Gate: `hard` is dispatched
+   ONLY when `STRONG_TIER=opus` (`STRONG_MODEL=claude-opus-4-8`, the apex tier) — never
+   on the Sonnet execute tier, and not when the strong tier is Fable or under the
+   `-d` defer path** (there it stays for Fable handoff-C5 / review-step-6 as today, and
+   surfaces in `RELAY_STATUS.md` Queued with a clear reason). It carries `fable-standin`
+   (apex Opus work invites an optional Fable recheck) and uses a `strong-execute (...)`
+   checkpoint label.
 4. **Exit summary.** After the Workflow completes, the front door prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).
