@@ -37,7 +37,7 @@ cat > "$fix/TODO.archive.md" <<'EOF'
 - [x] archived task <!-- id:bbbb -->
 EOF
 cat > "$fix/ROADMAP.md" <<'EOF'
-# Roadmap <!-- fables-turn roadmap v1 -->
+# Roadmap <!-- relay roadmap v1 -->
 - [ ] roadmap-only item [ROUTINE] <!-- id:dddd -->
 EOF
 cat > "$fix/docs/meeting-notes/2026-06-12-0000-fixture.md" <<'EOF'

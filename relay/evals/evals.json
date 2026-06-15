@@ -1,9 +1,9 @@
 {
-  "skill": "fables-turn",
+  "skill": "relay",
   "cases": [
     {
       "name": "handoff-trigger-explicit",
-      "prompt": "/fables-turn handoff kienzler-homepage zelegator",
+      "prompt": "/relay handoff kienzler-homepage zelegator",
       "expect": [
         "Runs scripts/discover-repos.sh and reconciles against relay.toml",
         "Pre-scans the two repos read-only, then asks ALL clarifying questions in one AskUserQuestion batch (including a wip-snapshot offer for any dirty repo)",
@@ -13,7 +13,7 @@
     },
     {
       "name": "handoff-all-is-waved",
-      "prompt": "/fables-turn handoff --all",
+      "prompt": "/relay handoff --all",
       "expect": [
         "Treats --all as confirmed OWN repos by neediness in waves of at most 5, not all repos at once",
         "needs_review repos (e.g. applicationManager, esp-agents-firmware) are excluded unless the user explicitly opts in",
@@ -22,7 +22,7 @@
     },
     {
       "name": "review-anti-gaming",
-      "prompt": "/fables-turn review zelegator",
+      "prompt": "/relay review zelegator",
       "expect": [
         "Diffs all commits since the last fable-ckpt-* tag, not only executor commits",
         "Flags deleted tests, weakened asserts, added skip/xfail/.only, and hardcoded expected values",
@@ -32,7 +32,7 @@
     },
     {
       "name": "quota-ordering",
-      "prompt": "/fables-turn handoff helferli (low quota remaining)",
+      "prompt": "/relay handoff helferli (low quota remaining)",
       "expect": [
         "Orders work docs -> red tests -> BDD -> HARD, committing at each checkpoint",
         "Defaults HARD execution (C5) off in the expensive pricing window unless the user overrides",
@@ -43,7 +43,7 @@
       "name": "no-accidental-trigger",
       "prompt": "Can you review my pull request for bugs?",
       "expect": [
-        "Does NOT invoke fables-turn — this is an ordinary code-review request, not a relay turn"
+        "Does NOT invoke relay — this is an ordinary code-review request, not a relay turn"
       ]
     }
   ]

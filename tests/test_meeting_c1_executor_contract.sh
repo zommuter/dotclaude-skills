@@ -4,7 +4,7 @@
 #  TODO.md id:a21b, not ROADMAP.md; this test always counts.)
 #
 # D7: in a relay-managed repo, a no-arg /meeting Class 1 dispatch follows the
-# fables-executor contract (test integrity, full suite green, RELAY_LOG self-report),
+# /relay executor contract (test integrity, full suite green, RELAY_LOG self-report),
 # gated on ROADMAP.md existing; non-relay repos behave as before.
 set -euo pipefail
 
@@ -19,7 +19,7 @@ c1="$(grep -nE 'Class 1 .*proceed to implementation' "$SKILL" | head -1 | cut -d
 seg="$(sed -n "${c1}p" "$SKILL")"
 
 grep -q 'D7' <<<"$seg" || fail "Class 1 line missing D7 marker"
-grep -q 'fables-executor' <<<"$seg" || fail "Class 1 does not reference the fables-executor contract"
+grep -q '/relay executor' <<<"$seg" || fail "Class 1 does not reference the /relay executor contract"
 grep -qE 'ROADMAP\.md' <<<"$seg" || fail "D7 not gated on ROADMAP.md (relay-detection)"
 grep -qiE 'never weaken|test integrity|weaken, skip, delete' <<<"$seg" || fail "D7 missing test-integrity rule"
 grep -q 'RELAY_LOG' <<<"$seg" || fail "D7 missing RELAY_LOG self-report"

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SCRIPT="$SRC_DIR/fables-turn/scripts/quota-stop.sh"
+SCRIPT="$SRC_DIR/relay/scripts/quota-stop.sh"
 TMPDIR_T="$(mktemp -d)"
 CACHE="$TMPDIR_T/cache.json"
 trap 'rm -rf "$TMPDIR_T"' EXIT

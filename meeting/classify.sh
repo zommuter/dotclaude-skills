@@ -4,7 +4,7 @@
 # Usage: classify.sh [project-root]   — defaults to git toplevel
 # Output: TSV lines:  CLASS  ID  SUMMARY(≤80char)  NOTE-LINK  GATE
 #   CLASS: C1 (link+Decisions), C2 (link-no-Decisions or keyword hint), C3 (no link),
-#          RELAY (the fables-turn ROADMAP mirror line — executor work, never
+#          RELAY (the relay ROADMAP mirror line — executor work, never
 #          meeting-worthy; /meeting dispatch must skip it)
 #   GATE:  GATED if body contains gate/condition/blocked vocabulary; empty otherwise
 #          Advisory only — never reclassifies or skips; model judges satisfaction.
