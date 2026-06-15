@@ -40,6 +40,8 @@ with open(sys.argv[1], "rb") as f:
 for name, entry in data.get("repos", {}).items():
     if entry.get("classification") != "own":
         continue
+    if entry.get("paused"):          # on-hiatus repos are skipped in relay sweeps
+        continue
     path = entry.get("path") or os.path.join(src, name)
     print(f"{name}\t{path}")
 ' "$RELAY_TOML"
