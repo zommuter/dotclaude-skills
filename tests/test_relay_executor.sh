@@ -63,11 +63,21 @@ grep -q 'fables-turn contract v' "$SRC_DIR/relay/references/conventions.md" \
   && fail "conventions.md still contains old 'fables-turn contract v' marker" || true
 pass "conventions.md has no old fables-turn contract marker"
 
-# 8. fables-executor survives only as a deprecated alias stub that forwards to /relay executor.
-ALIAS="$SRC_DIR/fables-executor/SKILL.md"
-[[ -f "$ALIAS" ]] || fail "fables-executor alias stub missing"
-grep -qi 'deprecated' "$ALIAS" || fail "fables-executor alias stub does not say DEPRECATED"
-grep -q '/relay executor' "$ALIAS" || fail "fables-executor alias stub does not forward to /relay executor"
-pass "fables-executor is a deprecated alias forwarding to /relay executor"
+# 8. fables-executor has been fully retired: the deprecated alias stub was untracked
+# (commit 608800b — git rm --cached, .gitignore'd, removed from the Makefile SKILLS list)
+# now that no cron/scheduled job or invocation references the old name. It must NOT be a
+# tracked source file (a fresh clone / CI checkout has no fables-executor/ dir). A local
+# untracked redirect dir may still exist for fat-finger convenience, so assert on git's
+# tracked set, not the filesystem.
+if git -C "$SRC_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+  git -C "$SRC_DIR" ls-files --error-unmatch fables-executor/SKILL.md >/dev/null 2>&1 \
+    && fail "fables-executor/SKILL.md is still TRACKED — it was retired and untracked in 608800b" || true
+  pass "fables-executor alias stub is untracked (skill fully retired to /relay executor)"
+else
+  # Not a git checkout (e.g. tarball) — fall back to absence on disk.
+  [[ -f "$SRC_DIR/fables-executor/SKILL.md" ]] \
+    && fail "fables-executor/SKILL.md present in a non-git checkout — should be retired" || true
+  pass "fables-executor alias stub absent (skill fully retired to /relay executor)"
+fi
 
 echo "ALL PASS"

@@ -571,6 +571,14 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Context**: run after each significant batch of Sonnet executor work or design changes.
     First run: covers all work since `fable-ckpt-20260612-1328`. Subsequent runs: diff
     against the most recent `fable-ckpt-*` tag (same window as review mode step 2).
+  - **Run log** (recurring item — stays open by design):
+    - Run 1 (2026-06-12-1811): `fable-ckpt-20260612-1328`..HEAD — see meeting note.
+    - Run 2 (2026-06-15-1520): `fable-ckpt-20260612-1827`..HEAD (relay scripts surface) — F1/F2 → id:c8db.
+    - Run 3 (2026-06-15-1745): `relay-ckpt-20260615-1559`..HEAD — **2 defects fixed inline**:
+      `test_relay_executor.sh` asserted a stub commit 608800b removed (suite was 1-red on
+      arrival, now 48/0); id:3826 gaming-flag logger was a dead feed (review dispatch prompt
+      never requested its fields) — fixed + regression-guard added. See
+      `docs/meeting-notes/2026-06-15-1745-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
