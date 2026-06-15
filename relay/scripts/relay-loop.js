@@ -527,16 +527,30 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
   // into the single discovery object the rest of runRound consumes (byte-identical shape).
   const units = [], surfaced = [], skipped = [...(prelude.skippedConfig || [])]
   let shardOk = false
-  for (const r of shardResults) {
-    if (!r) continue
+  shardResults.forEach((r, i) => {
+    if (!r) {
+      // Network-resilience: a discover shard that died (transient API / connection drop, AFTER
+      // the harness's own retries) must NOT silently drop its repos — SURFACE them so the gap is
+      // visible, not invisible. They are re-classified next round (fresh discovery), so a blip
+      // costs one round, never a silently-skipped repo. (chunks[i] aligns with shardResults[i].)
+      const lost = chunks[i] || []
+      log(`relay-loop: discover-shard ${i} failed (network/API) — surfacing ${lost.length} unclassified repo(s)`)
+      for (const repo of lost) {
+        surfaced.push({ repo: repo.repo, reason: 'discover shard failed (transient API/network drop) — not classified this round; retried next round' })
+      }
+      return
+    }
     shardOk = true
     units.push(...(r.units || []))
     surfaced.push(...(r.surfaced || []))
     skipped.push(...(r.skipped || []))
-  }
+  })
   units.push(...(prelude.injectedUnits || []))
+  // shardOk = at least one shard succeeded → build discovery (failed shards' repos are surfaced).
+  // All shards failed (total network outage) → discovery stays null → the round fails gracefully
+  // and the outer loop stops after completed rounds (resumable via Workflow resumeFromRunId).
   if (shardOk) discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
-  else log('relay-loop: all discovery shards failed this round')
+  else log('relay-loop: all discovery shards failed this round (network outage?) — round fails, completed work preserved')
 }
 
 if (!discovery) {

@@ -47,4 +47,9 @@ grep -q "id:9ed4" "$JS" || fail "no id:9ed4 marker"
 # (6) failure handling preserved: prelude/all-shards failure → discovery stays null → round fails.
 grep -q "prelude/shards failed" "$JS" || fail "no prelude/shard failure path feeding the !discovery guard"
 
-pass "discovery is sharded: once-only prelude (take/peek), parallel shard classifiers, merged object (9ed4)"
+# (7) network resilience: a FAILED shard SURFACES its repos (chunks[i]) rather than silently
+#     dropping them — a transient API/connection drop must be visible, not invisible.
+grep -q "discover shard failed (transient" "$JS" || fail "a failed shard does not surface its repos (silent drop on network blip)"
+grep -q 'chunks\[i\]' "$JS" || fail "failed-shard surfacing does not map shard index to repos (chunks[i])"
+
+pass "discovery is sharded with failed-shard surfacing (9ed4 + network-resilience)"
