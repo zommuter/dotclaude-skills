@@ -22,10 +22,16 @@ head -1 "$CONTRACT" | grep -q '^---$' \
   && fail "executor-contract.md still has skill frontmatter (should be a lean reference)" || true
 pass "executor-contract.md has no skill frontmatter"
 
-# 3. Contract marker present, bumped to v3 (the rename bump that triggers pointer refresh).
-grep -q 'relay-executor contract v3' "$CONTRACT" \
-  || fail "executor-contract.md missing '<!-- relay-executor contract v3 -->' marker"
-pass "contract marker present (v3)"
+# 3. Contract marker present, bumped to v4 (the id:ebfb cross-session-lease rule-0 bump).
+grep -q 'relay-executor contract v4' "$CONTRACT" \
+  || fail "executor-contract.md missing '<!-- relay-executor contract v4 -->' marker"
+pass "contract marker present (v4)"
+
+# 3b. Rule 0 (id:ebfb): executor acquires the cross-session repo lease before working.
+grep -qi 'Cross-session lease' "$CONTRACT" || fail "executor contract missing the cross-session lease rule (id:ebfb)"
+grep -q 'claim.sh acquire' "$CONTRACT" || fail "executor contract rule 0 does not acquire the lease (claim.sh acquire)"
+grep -q 'claim.sh release' "$CONTRACT" || fail "executor contract rule 0 does not release the lease at session end"
+pass "executor honors the cross-session lease (rule 0, id:ebfb)"
 
 # 4. SKILL.md handles the `executor` arg by pointing at the lean reference (not the orchestrator).
 SKILL="$SRC_DIR/relay/SKILL.md"

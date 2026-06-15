@@ -38,6 +38,39 @@ rather than copying the full block — see §Executor-contract pointer below.
   label still records the producing model + role (e.g. `reviewer (claude-opus-4-8,
   fable-standin, relay-loop)`) — that model-in-label is the historical record.
 
+## Tagging `[INTENSIVE — <resource>]` (id:8d52)
+
+`[INTENSIVE — <resource>]` is a **resource modifier**, orthogonal to the verdict tag —
+NOT a replacement for `[ROUTINE]`/`[HARD]`. Like the two-part HARD tags it names the
+resource so the dispatch gate knows what's contended. A ROADMAP item carries both:
+
+```markdown
+- [ ] Re-run the embedding index [ROUTINE] [INTENSIVE — local-llm]
+```
+
+**When a strong child (handoff/review) should tag an item `[INTENSIVE — local-llm]`** —
+when the item's work would:
+- (a) load a local GGUF / large model into RAM/VRAM (e.g. via llama-server / llama-swap /
+  ollama),
+- (b) run benchmarks or evals against a local model endpoint,
+- (c) do a large embedding/index rebuild over a corpus, or
+- (d) otherwise carry a known OOM or long-cold-start risk.
+
+Rationale: on 2026-06-12 a Gemma 26B run in ai-codebench **OOM-killed all 6 concurrent
+sessions** (swap was raised 16→32 GB afterward), and local models have a ~57s cold TTFT.
+These loads must never overlap and must never sneak into a parallel wave.
+
+**Consequence of the tag** (so taggers understand the cost): the unit is **never
+auto-run**. It needs `--allow-intensive` / `--afk`, runs **serially-alone** (the pool
+collapses to width 1 while it holds the resource), and holds an **exclusive
+`resource:<name>` claim** (cross-run). Without the flag it is surfaced as skipped in
+`RELAY_STATUS.md`.
+
+**Per-repo default.** A repo whose work is *uniformly* intensive (e.g. ai-codebench, the
+zkm index) can instead carry a coarse default `intensive = "local-llm"` (or `= true`) in
+its `[repos.<name>]` block in `~/.config/fables-turn/relay.toml`; item-level tags
+override the repo default.
+
 ## Durable Fable-bonus-recheck queue (relay.toml, id:e030)
 
 When a STRONG unit (review / handoff / hard, i.e. `STRONG_MODEL=claude-opus-4-8`)
@@ -70,7 +103,7 @@ The canonical version marker is `<!-- relay-executor contract vN -->` on the
 (as its own `## Relay contract` section), replacing any older verbatim block:
 
 ```markdown
-## Relay contract <!-- relay-executor contract v3 -->
+## Relay contract <!-- relay-executor contract v4 -->
 
 This repo is managed by a reviewer/executor relay. Load `/relay executor` before
 working on any item, then follow its rules exactly.

@@ -36,13 +36,14 @@ relay_FILES := SKILL.md \
                references/executor-contract.md \
                scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh \
-               scripts/relay-loop.js scripts/inject.sh scripts/claim.sh
+               scripts/relay-loop.js scripts/inject.sh scripts/claim.sh \
+               scripts/sync-origin.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
-               scripts/claim.sh
+               scripts/claim.sh scripts/sync-origin.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
-               scripts/claim.sh
+               scripts/claim.sh scripts/sync-origin.sh
 relay_LOCAL :=
 
 # Deprecation alias stubs (renamed → relay). Thin SKILL.md only; removed once

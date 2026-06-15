@@ -4,11 +4,18 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v3 -->
+## Executor contract <!-- relay-executor contract v4 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
 
+0. **Cross-session lease (id:ebfb)**: BEFORE any work, acquire this repo's relay lease so you
+   never collide with a running pool or another executor on the same repo —
+   `~/.claude/skills/relay/scripts/claim.sh acquire "$(basename "$(git rev-parse --show-toplevel)")" --run "executor-$CLAUDE_SESSION_ID" --mode execute`.
+   If it exits non-zero, a live relay run already holds this repo: STOP — do not work it (tell the
+   user a pool or another session holds it). When your session ends, release it:
+   `claim.sh release "$(basename "$(git rev-parse --show-toplevel)")" --run "executor-$CLAUDE_SESSION_ID"`
+   (or let it auto-expire via the claim's mtime+TTL).
 1. **Scope**: work only `[ROUTINE]` items from ROADMAP.md, one item per session.
    Never start `[HARD]` items — they are reserved for the reviewer model.
 2. **Definition of done**: the item's previously-failing tests pass, a refactor

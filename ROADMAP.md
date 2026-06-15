@@ -10,7 +10,12 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] Relay must sync local↔origin before working a repo (stale-clone / divergence guard) [ROUTINE] <!-- id:c3f7 -->
+- [x] Relay must sync local↔origin before working a repo (stale-clone / divergence guard) (done 2026-06-15) <!-- id:c3f7 -->
+  - **Done 2026-06-15**: discovery SYNC-WITH-ORIGIN guard (fetch + ahead/behind; diverged→surface,
+    behind-only→ff) in relay-loop.js; `relay/scripts/sync-origin.sh` testable helper (exit 0 ok/ff/
+    no-upstream, 2 behind, 3 diverged) with a hermetic functional 2-clone test
+    `tests/test_relay_sync_origin.sh`; integrator belt-and-suspenders calls sync-origin.sh and aborts
+    on a diverged base (`tests/test_relay_discovery_guards.sh`). The ai-codebench incident cannot recur.
   - **Context**: 2026-06-15 near-catastrophe. The pool worked ai-codebench on a LOCAL clone that
     had been ~1 month behind origin (stale since 2026-05-13, missing 106 commits incl. the live
     GPU session done on zomni). Discovery classifies purely from LOCAL git state and never fetches,
@@ -42,9 +47,17 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     <runId>` FIRST (refused → stop + "claimed by another relay run" handback); the integrator
     `claim.sh release <repo> --run <runId>` run-scoped; `writeRelayStatus` projects live claims via
     `claim.sh peek` into a `## Claims (live)` section — `tests/test_relay_claim_wiring.sh`.
-  - **Remaining (item stays open)**: `/relay executor` honoring the repo lease (executor-contract
-    version bump). Then the sibling cluster items `[INTENSIVE]` (id:8d52) + `/meeting` hold (id:d748).
-  - **Done-check**: tick when `/relay executor` also honors the lease; full `make test` green.
+  - **Also done 2026-06-15**: (4) `/relay executor` honors the lease — executor-contract **v4** rule 0
+    (`claim.sh acquire/release`, markers synced across executor-contract.md / CLAUDE.md / conventions.md,
+    `tests/test_relay_executor.sh`). Sibling cluster items `[INTENSIVE]` (id:8d52) + `/meeting` hold
+    (id:d748) shipped.
+  - **Remaining (item stays open)**: cluster **step 2 — flock'd single-writer for `relay.toml` +
+    `RELAY_STATUS.md`** was NOT implemented. The claim lease *mitigates* it (only the lease-holder writes
+    a repo's relay.toml block, so per-repo blocks don't collide across runs), but RELAY_STATUS is still a
+    per-run whole-file write (clobber if two runs share the path) and relay.toml writes aren't flock'd.
+    Build: field-scoped flock'd relay.toml writes + per-runId RELAY_STATUS sections (append.sh/md-merge.py
+    pattern). Lower urgency now that the lease serializes per-repo work.
+  - **Done-check**: tick when step 2 (flock'd single-writer state) lands; full `make test` green.
 
 <!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — RATIFIED 2026-06-15
      (meeting docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md). The claim
@@ -58,7 +71,14 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 - [x] Cross-session relay dispatch safety — RETIRED 2026-06-15: duplicate of TODO id:ebfb + id:3558. Worktree-aware discovery, single-writer relay.toml/RELAY_STATUS, claim registry → id:ebfb; per-repo lease enforcement → id:3558. Ratified design: `docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md`. <!-- id:7b7a -->
 
-- [ ] `[INTENSIVE — <resource>]` tag: gate local-LLM/heavy work behind explicit permission [HARD — decision gate] <!-- id:8d52 -->
+- [x] `[INTENSIVE — <resource>]` tag: gate local-LLM/heavy work behind explicit permission (done 2026-06-15) <!-- id:8d52 -->
+  - **Done 2026-06-15**: mechanism (discovery parse + never-auto-dispatch gate + `--allow-intensive`/
+    `--afk` + serial run-alone + exclusive `resource:<name>` claim — `tests/test_relay_intensive.sh`)
+    AND the tagging-criteria doc in `references/conventions.md` (when strong children tag
+    `[INTENSIVE — local-llm]`, citing the OOM + TTFT — `tests/test_relay_intensive_criteria.sh`).
+    Operational note: seed the coarse per-repo `intensive = "local-llm"` default into ai-codebench /
+    zkm relay.toml blocks when convenient (skipped here — relay.toml was under concurrent write; the
+    mechanism reads the flag if present, item-level tags override).
   - **Context**: 2026-06-15 user request. Local-LLM tasks (ai-codebench benchmarks, zkm embedding
     index) hammer GPU/RAM — memory `oom-local-model-session-kills`: Gemma 26B killed all 6 sessions;
     ~57s cold TTFT (cf id:642f). Run-1 already handed these back ad hoc ("hardware-gated for an
