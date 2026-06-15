@@ -68,7 +68,8 @@ projects_LOCAL :=
 SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
-.PHONY: help install install-hooks install-allowlist print-allowlist uninstall status test \
+.PHONY: help install install-hooks install-statusline status-statusline uninstall-statusline \
+        install-allowlist print-allowlist uninstall status test \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -81,7 +82,8 @@ help:
 	@echo "Targets:"
 	@echo "  install              install all skills, hooks, and allowlist entries"
 	@echo "  install-<skill>      install one skill"
-	@echo "  install-hooks        install hooks only"
+	@echo "  install-hooks        install hooks (+ statusline) only"
+	@echo "  install-statusline   install the quota/cost/model statusbar only"
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
@@ -118,17 +120,38 @@ install-allowlist:
 		--extra-file $(ALLOWLIST_EXTRA) \
 		$(ALLOWLIST_SCRIPTS)
 
-install-hooks:
+install-hooks: install-statusline
 	@echo "→ installing hooks"
 	@mkdir -p $(HOOKS_DIR)
 	@ln -sf $(SRC_DIR)/hooks/meeting-cost-logger.sh $(HOOKS_DIR)/meeting-cost-logger.sh
 	@ln -sf $(SRC_DIR)/hooks/parallel-edit-detector.py $(HOOKS_DIR)/parallel-edit-detector.py
 	@ln -sf $(SRC_DIR)/hooks/notify-hook.linux-x11.sh $(HOME)/.claude/notify-hook.sh
+
+# statusline is a first-class target (mirrors install-<skill>): the quota/cost/model statusbar
+# lives in this repo (statusline/) and is symlinked into ~/.claude. install-hooks depends on it
+# for back-compat ("hooks + statusline"), but it can be installed/checked/removed on its own.
+install-statusline:
+	@echo "→ installing statusline"
+	@mkdir -p $(HOME)/.claude
 	@ln -sf $(SRC_DIR)/statusline/statusline-command.sh $(HOME)/.claude/statusline-command.sh
 
-uninstall: $(addprefix uninstall-,$(SKILLS))
+status-statusline:
+	@echo "statusline:"
+	@if [ -L $(HOME)/.claude/statusline-command.sh ]; then \
+		echo "  ok  statusline-command.sh -> $$(readlink $(HOME)/.claude/statusline-command.sh)"; \
+	elif [ -e $(HOME)/.claude/statusline-command.sh ]; then \
+		echo "  --  statusline-command.sh (exists, not a symlink)"; \
+	else \
+		echo "  !!  statusline-command.sh (not installed)"; \
+	fi
 
-status: $(addprefix status-,$(SKILLS))
+uninstall-statusline:
+	@echo "→ removing statusline symlink"
+	@[ -L $(HOME)/.claude/statusline-command.sh ] && rm $(HOME)/.claude/statusline-command.sh || true
+
+uninstall: $(addprefix uninstall-,$(SKILLS)) uninstall-statusline
+
+status: $(addprefix status-,$(SKILLS)) status-statusline
 
 define SKILL_RULES
 
