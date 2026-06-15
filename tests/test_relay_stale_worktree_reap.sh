@@ -21,7 +21,9 @@ grep -q "claim.sh peek" "$JS" || fail "discovery guard does not consult claim.sh
 
 # (2) the id:3ac8 marker + the 'no fresh claim → stale' reasoning is present.
 grep -q "id:3ac8" "$JS" || fail "no id:3ac8 marker in the discovery guard"
-grep -Eqi "NO fresh claim|no claim" "$JS" || fail "guard does not key the stale case on the absence of a fresh claim"
+# id:9ed4 reworded "has NO fresh claim" → "is NOT in the live-claim set" (the prelude passes the
+# set rather than each shard running claim.sh peek) — same absence-of-fresh-claim keying.
+grep -Eqi "NO fresh claim|no claim|NOT in the live-claim" "$JS" || fail "guard does not key the stale case on the absence of a fresh claim"
 
 # (3) empty stale worktree (ancestor of main) is REAPED and the repo classified normally.
 grep -q "merge-base --is-ancestor" "$JS" || fail "guard does not test ancestor-of-main (empty) before reaping"
