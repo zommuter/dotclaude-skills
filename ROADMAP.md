@@ -10,6 +10,31 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [x] `/fables-turn human` mode — cross-repo human-backlog triage (the human as 3rd actor) [ROUTINE] (done 2026-06-15, reviewer) <!-- id:2892 -->
+  - **Acceptance**: `fables-turn/SKILL.md` documents a `human` mode — the invocation
+    block carries `/fables-turn human [repo-list | --all]`, a `## Human mode` section
+    describes the 3-tier triage and points at `references/human.md`, frames Opus as apex,
+    and notes it generalizes the planned `review_me`. `references/human.md` exists and
+    specifies the 3 tiers (AUTO-ANSWERABLE / BATCH-DECIDABLE / CHEWY), the
+    `@manual`-never-auto-tick rule, and the tier-C → `/meeting --cross` routing.
+    `scripts/gather-human-backlog.sh` is a read-only helper (`set -euo pipefail`, optional
+    repo args, hermetic via `SRC_DIR`/`RELAY_TOML` overrides) that scans relay.toml `own`
+    repos' `REVIEW_ME.md` for open `- [ ]` boxes and emits a TSV
+    (`repo path kind box_summary`, `kind=review_me|manual`), flagging `@manual` boxes
+    (REVIEW_ME and ROADMAP) as `kind=manual`; closed `- [x]` boxes are never emitted. The
+    helper joins the Makefile `fables-turn` FILES/EXEC/ALLOW.
+  - **Tests**: `tests/test_fables_human.sh` (`# roadmap:2892`) — SKILL.md documents the
+    mode + invocation; references/human.md exists and specifies the 3 tiers +
+    @manual-never-auto-tick + tier-C→/meeting --cross; gather-human-backlog.sh emits the
+    TSV and flags @manual (hermetic fixture).
+  - **Done-check**: `tests/run-tests.sh tests/test_fables_human.sh` then full `make test`
+    after ticking.
+  - **Context**: TODO id:72cc — codifies a hand-run procedure. Interactive strong-turn
+    PROCEDURE (uses AskUserQuestion, so NOT a Workflow); mirrors handoff.md/review.md as
+    reference-doc procedures. Per-repo commit in the main checkout (the /meeting REVIEW_ME
+    write-back path, id:15d5), not a worktree merge. Opus is apex; an auto-answer is a
+    CLAIM the next review re-checks (anti-gaming, downgrade a→b when unsure).
+
 - [x] HARD-execute verdict + tested Fable-probe cache helper for the autonomous pool [HARD — strong model] (done 2026-06-15, reviewer) <!-- id:da26 -->
   - **Why HARD**: touches the dispatch contract in relay-loop.js (a new verdict class
     with an apex-only gate that must never leak HARD work onto the Sonnet execute tier),
