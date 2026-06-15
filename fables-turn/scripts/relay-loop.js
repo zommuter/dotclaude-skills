@@ -16,11 +16,13 @@ const A = (typeof args === 'string')
   ? (() => { try { return JSON.parse(args) } catch (_) { return {} } })()
   : (args || {})
 
-// STRONG_TIER: model override for review and handoff agents.
+// STRONG_TIER: apex model for review and handoff agents.
 // Execute agents (Sonnet) never receive this override — only review and handoff agents do.
-// Values: 'fable' (default) | 'opus'
+// Values: 'opus' (DEFAULT — Opus is the apex tier; user directive 2026-06-15) | 'fable'.
+// Fable is an optional bonus, selected only when the front-door step-0 probe (or an explicit
+// --strong-tier fable override) confirms it's available; otherwise the default 'opus' stands.
 // Passed via args.STRONG_TIER from the front-door SKILL.md (set by STRONG_TIER env var or --strong-tier flag).
-const STRONG_TIER = A.STRONG_TIER || 'fable'
+const STRONG_TIER = A.STRONG_TIER || 'opus'
 const STRONG_MODEL = STRONG_TIER === 'opus' ? 'claude-opus-4-8' : 'claude-fable-5'
 
 // RELAY_STATUS_PATH: output file for cross-repo rollup. Overridable for testing.

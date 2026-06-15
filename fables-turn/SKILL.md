@@ -29,14 +29,24 @@ Invoking `/fables-turn` with no keyword starts the autonomous priority-mixed poo
 (meeting note `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md`,
 D1/D2):
 
-0. **Self-model guard (Opus only, no `-d`).** Read the current session model from the
-   environment block. If the model is `claude-opus-*` **and** `--fable-down`/`-d` was
-   NOT passed, print:
-   > ⚠️  Running `/fables-turn` on Opus (not Fable). Press Ctrl-C within 10 s to abort
-   > if this was accidental. Pass `-d` if Fable is intentionally unavailable.
-   Then run: `sleep 10`
-   If `-d` is set (knowingly on Opus during a Fable outage), skip the guard silently.
-   Sonnet, Haiku, and Fable proceed immediately with no warning.
+0. **Fable-availability probe + apex-tier selection (Opus is APEX; Fable is a bonus).**
+   Opus is the apex decision tier. Fable is treated as an OPTIONAL bonus second-opinion
+   *if it returns* — never a required gate (user directive 2026-06-15: "treat Opus as the
+   apex tier, Fable as a bonus re-review"). Do NOT warn when running on Opus — it is the
+   intended tier; there is no self-guard and no `sleep`. Select the strong tier:
+   - Read `~/.config/fables-turn/fable-probe.json` (`{available: bool, checked: ISO-ts}`).
+     If absent or `checked` is older than **2 h**, PROBE once: spawn ONE tiny agent pinned
+     to `model: claude-fable-5` with a trivial prompt. It returns → `available=true`; a
+     "Fable unavailable" / model error → `available=false`. Write the cache either way.
+   - **Default assumption: Fable is unavailable** → `STRONG_TIER=opus`, proceed with Opus
+     as apex. **Nothing depends on Fable.** The only ways to use Fable: the probe says
+     available, OR the user explicitly passes `--strong-tier fable` / says "Fable is
+     available" (an override that wins even over a failing probe).
+   - `-d`/`--fable-down` forces Fable-down *without probing* (this is just the default
+     posture made explicit; on the now-default `STRONG_TIER=opus` it is a no-op).
+   - When Fable IS available it is used ONLY as an optional bonus recheck of
+     `fable-standin` checkpoints (see scheduling). Opus decisions remain **final** — they
+     are never "pending Fable", so the roadmap never looks half-complete while Fable is out.
 1. **Non-interactive by default.** The front door operates ONLY on relay.toml
    `classification = "own"` confirmed repos. New, dirty, or `needs_review` repos are
    *surfaced* in `RELAY_STATUS.md` (Queued/Blocked sections) — never asked about
@@ -59,10 +69,13 @@ D1/D2):
    flagged `income = true` in relay.toml win slot contention within a class
    (user directive 2026-06-12), then a *slight* `fable-standin` tiebreaker
    (user directive 2026-06-13): repos whose latest `fable-ckpt-*` was produced by
-   Opus standing in for Fable are sorted **last among executor/handoff work** (prefer
-   Fable-vetted, provisional specs deferred) but **first within review on a Fable
-   session** (deliver the pending independent re-review, id:9821). It never excludes —
-   standin repos are always still dispatched.
+   Opus are marked `fable-standin`. Under the Opus-apex model these are **complete**
+   work (Opus decided), so the marker only flags an *available optional Fable recheck*:
+   on a Fable session with spare capacity they may be re-reviewed as a free second
+   opinion (`@fable-optional-recheck`, id:9821), sorted **last** (real work first); on
+   Opus/executor/handoff work they carry no special weight. It never excludes, never
+   gates, and never marks work "pending" — an absent Fable simply means the optional
+   recheck never runs.
 4. **Exit summary.** After the Workflow completes, the front door prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).
@@ -150,8 +163,9 @@ wave scheduler. The orchestrator is its only writer (after user confirmation).
 
 | Env var / flag | Values | Default | Effect |
 |---|---|---|---|
-| `STRONG_TIER` | `fable` \| `opus` | `fable` | Model used for review and handoff agents in the autonomous pool. Execute (Sonnet) agents are never affected. |
-| `--fable-down` / `-d` | flag | off | Asserts the **Fable strong tier is unavailable** this run (one axis). Composes with `STRONG_TIER`: with `fable` (default, no substitute) → **defer** strong work, executor-only — execute (Sonnet) units run normally, a `review` repo that **also** has open `[ROUTINE]` work is **demoted to execute** so the pool stays busy (the next Fable turn reviews the full range), and handoff units plus routine-less review units are deferred and surface in RELAY_STATUS Queued. With `STRONG_TIER=opus` → **substitute** Opus for the strong tier: review/handoff units dispatch **normally on Opus** (marked `fable-standin`), nothing is deferred/demoted. Suppresses the Opus self-guard. Passed as `args.fableDown = true` to the Workflow. |
+| `STRONG_TIER` | `fable` \| `opus` | `opus` | Apex model for review/handoff/HARD-execute agents. **Default `opus`** — Opus is the apex tier; Fable is an optional bonus (user directive 2026-06-15). Execute (Sonnet) agents are never affected. Set/keep `fable` only when the step-0 probe **or** you explicitly confirm Fable is available. |
+| `--strong-tier fable` / "Fable is available" | flag/override | off | The ONLY way to use Fable: asserts Fable is up, overriding even a failing step-0 probe. Use when you know Fable works despite a probe error. Without it the default stays `opus`. |
+| `--fable-down` / `-d` | flag | off (probe decides) | Forces Fable-down *without* probing. On the now-default `STRONG_TIER=opus` it is a **no-op** (Opus is already apex). Only meaningful with an explicit `STRONG_TIER=fable`, where it triggers the legacy defer/demote (executor-only) path. Passed as `args.fableDown = true`. |
 | `--interactive` | flag | off | Re-enables the one-batch `AskUserQuestion` confirmations before launch; passed to the Workflow as `args.interactive`. Default mode is unattended. |
 | `RELAY_QUOTA_THRESHOLD` | 0–1 fraction | `0.90` | Quota stop threshold used by `scripts/quota-stop.sh` (cache `.utilization` is 0–100 percent; converted internally). |
 | `RELAY_QUOTA_THRESHOLD_<BUCKET>` | 0–1 fraction | (general threshold) | Per-bucket override of `RELAY_QUOTA_THRESHOLD` for one cache bucket only, e.g. `RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50` or `RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET=0.50`. Caps a long-window bucket tighter than the 5h bucket ("use most of the 5h window but never exceed 50% of 7d/Sonnet"); buckets without an override keep the general threshold, so behaviour is unchanged unless set. |
