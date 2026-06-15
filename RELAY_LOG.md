@@ -225,3 +225,7 @@ review relay-20260615-193130-2122 (window relay-ckpt-20260615-1920..a8fe504, 1 c
 ## 2026-06-15 19:37 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:3826 process.env.HOME sandbox fix genuine (resurrection check green, spec only strengthened); suite 50/50, routine_open=0
+
+## 2026-06-15 19:49 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 5 (window 1748..HEAD): clean — two pool-crash fixes verified correct, cross-ledger coherent; suite 50/0
