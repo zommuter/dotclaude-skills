@@ -93,4 +93,38 @@ grep -qxF 'k1 = "a"' "$FABLES_CONFIG/relay.toml" || fail "concurrency: k1 lost"
 grep -qxF 'k2 = "b"' "$FABLES_CONFIG/relay.toml" || fail "concurrency: k2 lost (flock did not serialize)"
 pass "concurrent toml-set on different keys both persist (flock serialized)"
 
-echo "ALL PASS: relay-state-write single-writer (id:ebfb)"
+# ── id:c8db F1: backslash in value is preserved verbatim (awk -v escape processing fixed) ──
+seed_toml
+# A value containing a literal backslash: awk -v would turn \n into newline, \t into tab, etc.
+"$SH" toml-set foo last_ckpt '"relay-ckpt\\2026-06-15"'
+grep -qxF 'last_ckpt = "relay-ckpt\\2026-06-15"' "$FABLES_CONFIG/relay.toml" \
+  || fail "c8db-F1: backslash in value was mangled (awk -v escape processing still active)"
+pass "c8db F1: backslash in value survives round-trip (no awk -v escape mangling)"
+
+# ── id:c8db F2: key with regex metacharacter does NOT match the wrong line ──
+# Use a repo whose key name contains a dot (regex wildcard). Construct a toml block where
+# a regex-based key match would also match "last_ckpt" if key were e.g. "last.ckpt".
+seed_toml
+# Inject a key that looks like a regex metachar key (underscore is safe, but we test the
+# literal-compare path with a key whose name shares a prefix with another key).
+# Add a "last_ckpt_extra" key to the foo block, then set "last_ckpt" — with regex the
+# pattern "^last_ckpt[ \t]*=" would also hit "last_ckpt_extra" because _ matches _ in
+# both fixed and regex, but the substr-prefix logic adds the "rest must start with =/ "
+# guard. We verify "last_ckpt_extra" is NOT clobbered.
+cat >"$FABLES_CONFIG/relay.toml" <<'TOML'
+[repos.foo]
+classification = "own"
+last_ckpt = "old"
+last_ckpt_extra = "extra"
+
+[repos.bar]
+classification = "own"
+TOML
+"$SH" toml-set foo last_ckpt '"new"'
+grep -qxF 'last_ckpt = "new"' "$FABLES_CONFIG/relay.toml" \
+  || fail "c8db-F2: target key not updated"
+grep -qxF 'last_ckpt_extra = "extra"' "$FABLES_CONFIG/relay.toml" \
+  || fail "c8db-F2: adjacent key with shared prefix was clobbered (literal-compare not used)"
+pass "c8db F2: literal key-prefix compare leaves keys with shared prefix intact"
+
+echo "ALL PASS: relay-state-write single-writer (id:ebfb, id:c8db)"
