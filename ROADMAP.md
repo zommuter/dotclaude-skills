@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] Surface the REAL quota-stop reason in RELAY_STATUS + workflow log (visual feedback) <!-- id:8c35 -->
+- [x] [ROUTINE] Surface the REAL quota-stop reason in RELAY_STATUS + workflow log (visual feedback) (done 2026-06-15) <!-- id:8c35 -->
   - **Context**: 2026-06-15 — the relaunched pool (run relay-20260615-155151) reported
     `quotaStopped:true` and a big queued-not-dispatched backlog, but it had NOT hit any quota
     bucket (5h 43% / 7d 55% / Sonnet 81% remaining, all far from the 90%-used threshold). The
