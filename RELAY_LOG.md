@@ -217,3 +217,7 @@ HARD id:401c strong-model audit run 4 (window 1748..HEAD): clean, 1 coherence dr
 ## 2026-06-15 19:20 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 191123: 3 commits clean (no gaming); 2 relay-loop.js fixes verified green by additive tests; D2 cross-ledger reconciled (tick fa05/dfaf/3826 in TODO, refresh d5e0 8→3 open all HARD); routine_open=0
+
+## 2026-06-15 19:31 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review relay-20260615-193130-2122 (window relay-ckpt-20260615-1920..a8fe504, 1 commit): defect-fix verified genuine — logGamingFlags() (id:3826) process.env.HOME sandbox violation removed (literal ~ path, agent-expanded like writeRelayStatus id:c34a). Resurrection check PASSED: original Date-only guard test runs green against the new implementation, so the impl genuinely dropped the forbidden API. The test edit only STRENGTHENED the spec (Date-only → Date/process/require/fs/Math.random backstop pattern). gaming-scan.sh flagged REMOVED_ASSERT (removed=2,added=1) on the test — resolved as a false-positive artifact (id:3b02-style negative control): the single-line grep was split into PATTERN= + hits= and two message strings reworded; matching logic broadened, no assertion weakened. Suite 50/50 green. No TODO/ROADMAP additions in window → no reverse-handoff. Contract pointer v4 current. routine_open=0.
