@@ -159,3 +159,7 @@ D8 workflow-extraction analysis (id:6ba4): no Workflow for /meeting; dedupe cont
 ## 2026-06-15 10:45 — strong-execute (claude-opus-4-8, fable-standin, manual HARD)
 
 rename fables-* → relay + merge executor as /relay executor (id:1cb4); contract v3, aliases, idempotent install fix; 24/24 green
+
+## 2026-06-15 10:56 — strong-execute (claude-opus-4-8, fable-standin, manual HARD)
+
+relay-ckpt-* tag prefix + dual-prefix matching + model-tracked Fable-bonus queue (id:96a8/e030); 25/25 green
