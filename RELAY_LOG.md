@@ -209,3 +209,7 @@ executor: close all 5 open [ROUTINE] items — quota-stop reason (8c35), toml-se
 ## 2026-06-15 17:48 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 HARD id:401c strong-model audit run 3 (window 1559..HEAD): 2 defects fixed inline — test_relay_executor.sh broken by stub-untrack (suite 1-red→48/0), gaming-flag logger dead feed (review prompt never requested its fields); regression guard added
+
+## 2026-06-15 18:01 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 4 (window 1748..HEAD): clean, 1 coherence drift fixed inline (id:414a stale GATED marker); suite 49 green
