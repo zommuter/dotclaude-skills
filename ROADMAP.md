@@ -25,9 +25,10 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     — needs manual reconcile", never commit on top. Dirty tree still blocks as today. The integrator
     must also never create a checkpoint/commit on a base behind origin. Hermetic test with two scratch
     clones (behind→ff; diverged→surface).
-  - **Pairs with**: server-side hardening — set `receive.denyNonFastForwards=true` + `receive.denyDeletes=true`
-    on fievel's bare repos (globally: `git config --global receive.denyNonFastForwards true`) so a
-    force/purge push is impossible at the server (gerrit is overkill for a Pi). Ops task, tracked here.
+  - **Pairs with**: server-side hardening — **APPLIED 2026-06-15**: `git config --global
+    receive.denyNonFastForwards true` + `receive.denyDeletes true` on fievel, so any force/purge push is
+    now server-rejected. A controlled-override path (for the user's occasional legitimate force-push) is
+    tracked as TODO id:de51 (gerrit is overkill for a Pi).
 
 <!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — RATIFIED 2026-06-15
      (meeting docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md). The claim
