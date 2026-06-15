@@ -53,7 +53,7 @@ search_roots() {
   if [[ -n "${RELAY_WF_SEARCH_ROOT:-}" ]]; then
     printf '%s\n' "${RELAY_WF_SEARCH_ROOT//:/$'\n'}"
   else
-    printf '%s\n' "$HOME"/.claude/projects/*/subagents/workflows
+    printf '%s\n' "$HOME"/.claude/projects/*/*/subagents/workflows
   fi
 }
 

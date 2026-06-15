@@ -38,15 +38,17 @@ relay_FILES := SKILL.md \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh \
                scripts/relay-loop.js scripts/inject.sh scripts/claim.sh \
                scripts/sync-origin.sh scripts/force-push.sh scripts/relay-state-write.sh \
-               scripts/gaming-scan.sh scripts/profile-run.sh
+               scripts/gaming-scan.sh scripts/profile-run.sh scripts/profile-runs-batch.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/sync-origin.sh scripts/force-push.sh \
-               scripts/relay-state-write.sh scripts/gaming-scan.sh scripts/profile-run.sh
+               scripts/relay-state-write.sh scripts/gaming-scan.sh scripts/profile-run.sh \
+               scripts/profile-runs-batch.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/sync-origin.sh scripts/force-push.sh \
-               scripts/relay-state-write.sh scripts/gaming-scan.sh scripts/profile-run.sh
+               scripts/relay-state-write.sh scripts/gaming-scan.sh scripts/profile-run.sh \
+               scripts/profile-runs-batch.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
