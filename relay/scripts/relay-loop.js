@@ -269,6 +269,40 @@ const DISCOVER_SCHEMA = {
   },
 }
 
+// id:9ed4 — parallel-shard discovery splits the single discover agent into a once-only
+// PRELUDE (runId, the CONSUMING inject.sh take, claim.sh peek, the own-repo list + non-own
+// skipped rollup) and N SHARD classifiers run in parallel. PRELUDE_SCHEMA / SHARD_SCHEMA
+// reuse DISCOVER_SCHEMA's exact unit/surfaced/skipped item shapes so the merged object is
+// byte-identical to what the single agent used to return.
+const PRELUDE_SCHEMA = {
+  type: 'object',
+  required: ['runId', 'ts', 'repos'],
+  properties: {
+    runId: { type: 'string' },
+    ts: { type: 'string' },
+    repos: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['repo', 'path'],
+        properties: { repo: { type: 'string' }, path: { type: 'string' }, income: { type: 'boolean' } },
+      },
+    },
+    liveClaimRepos: { type: 'array', items: { type: 'string' } },
+    injectedUnits: DISCOVER_SCHEMA.properties.units,
+    skippedConfig: DISCOVER_SCHEMA.properties.skipped,
+  },
+}
+const SHARD_SCHEMA = {
+  type: 'object',
+  required: ['units', 'surfaced'],
+  properties: {
+    units: DISCOVER_SCHEMA.properties.units,
+    surfaced: DISCOVER_SCHEMA.properties.surfaced,
+    skipped: DISCOVER_SCHEMA.properties.skipped,
+  },
+}
+
 const QUOTA_SCHEMA = {
   type: 'object',
   required: ['exitCode'],
@@ -369,18 +403,40 @@ const QUOTA_CHECK_EVERY = A.QUOTA_CHECK_EVERY || POOL_WIDTH
 let quotaChecks = 0
 let lastQuotaOk = true
 const MAX_ROUNDS = A.MAX_ROUNDS || 30
+// id:9ed4 — how many parallel discovery-shard classifiers to fan out per round. The own-repo
+// list is round-robin chunked across this many agents (capped at repo count). The Workflow
+// harness caps concurrent agents at min(16, cores-2), so shards above that just queue.
+const DISCOVER_SHARDS = A.DISCOVER_SHARDS || 6
 
 async function runRound() {
 // ── Phase 1: Discover ──
 
 phase('Discover')
 
-const discovery = await agent(
-  `You are the discovery/classifier step of the relay autonomous pool.
+// id:9ed4 — PRELUDE: once-only global work (runId, the CONSUMING inject.sh take, claim.sh
+// peek, the own-repo list + non-own skipped rollup). Then fan out parallel SHARD classifiers.
+const prelude = await agent(
+  `You are the PRELUDE of the relay discovery step. Do ONLY the once-only global work; do NOT classify repos.
+1. runId: generate ONCE via the shell: relay-$(date +%Y%m%d-%H%M%S)-$RANDOM (seconds + random suffix; MUST be unique per pool run — two concurrent pools must never share one because the cross-session lease and the worktree guard both key on it, id:0902).
+2. ts: current ISO 8601 timestamp.
+3. repos: read ~/.config/fables-turn/relay.toml; for EVERY block with classification = "own" emit {repo, path (default ~/src/<name>, or the "# path:" comment override), income (true iff income = true)}.
+4. skippedConfig (id:be62): for every block whose classification is NOT "own" emit {repo, reason: "excluded-by-config (<classification>)"}. The shards never see non-own repos.
+5. liveClaimRepos: run ~/.claude/skills/relay/scripts/claim.sh peek once — it prints every LIVE cross-session claim as one JSON per line ({key,repo,runId,...}); return the SET of distinct "repo" values. [] if none.
+6. injectedUnits (id:baf1): run ~/.claude/skills/relay/scripts/inject.sh take EXACTLY ONCE — it atomically emits AND CONSUMES pending user-injected units, one JSON per line {token, repo, verdict, item, prompt, requested_at}. For EACH, emit one unit: {injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>, path:(resolve ~/src/<repo> or the "# path:" override), reason:"user-injected high-priority task", inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false, hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"", intensive:""}. [] if take emits nothing. NEVER run take more than once (it consumes).`,
+  { label: 'discover-prelude', phase: 'Discover', schema: PRELUDE_SCHEMA, model: 'sonnet' }
+)
 
-Read ~/.config/fables-turn/relay.toml. Consider ONLY repos with classification = "own".
-Repo path default: ~/src/<name>; honor any "# path:" comment override in the repo's
-relay.toml block. For each repo, classify into exactly one verdict:
+let discovery = null
+if (prelude && Array.isArray(prelude.repos)) {
+  const ownRepos = prelude.repos
+  const SHARDS = Math.max(1, Math.min(DISCOVER_SHARDS, ownRepos.length))
+  // round-robin chunk so shards are balanced regardless of repo order
+  const chunks = Array.from({ length: SHARDS }, (_, s) => ownRepos.filter((_, idx) => idx % SHARDS === s)).filter(c => c.length)
+  const liveClaims = JSON.stringify(prelude.liveClaimRepos || [])
+  const shardPrompt = (chunk) => `You are a discovery SHARD classifier for the relay autonomous pool. Classify EXACTLY the own repos in this list (each exactly once, no others) — process each independently:
+${JSON.stringify(chunk)}
+This run's runId is "${prelude.runId}". Repos with a fresh cross-session claim (treat as in-flight elsewhere) are: ${liveClaims}.
+Each repo's path and income are given in the list above; use them. For each repo, classify into exactly one verdict:
 
 - "review": commits exist after the last relay checkpoint tag (run: git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1 — match BOTH prefixes; old fable-ckpt-* tags are historical and repos may still carry one until their next checkpoint — then git -C <path> log <tag>..HEAD --oneline). Unaudited work always wins over other verdicts.
 - "execute": no unaudited commits, and ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE].
@@ -399,16 +455,15 @@ SYNC-WITH-ORIGIN GUARD (id:c3f7 — never commit on a base behind origin; a 2026
 - BEHIND-ONLY (ahead==0 AND behind>0) AND the main tree is clean: fast-forward FIRST — git -C <path> merge --ff-only $U — then classify the now-up-to-date repo normally.
 - Otherwise (ahead-only, or in sync): proceed normally.
 
-WORKTREE-AWARE / CLAIMED-ELSEWHERE GUARD (id:ebfb step 1 — don't double-work a repo another relay run/session holds; a held worktree is the durable in-flight signal). FIRST run ~/.claude/skills/relay/scripts/claim.sh peek once — it prints every LIVE (fresh) cross-session claim, one JSON per line ({key,repo,runId,...}); collect the set of repos with a fresh claim. Before classifying a repo, check: ls -d ~/.cache/fables-turn/worktrees/<repo>/* 2>/dev/null. For any worktree directory whose basename does NOT start with this run's runId:
-  - If the repo HAS a fresh claim (from claim.sh peek) → it is genuinely in-flight under a LIVE run/session: put it in "surfaced" with reason "in-flight elsewhere (worktree <basename>) — claimed by another relay run (id:ebfb)" and do NOT classify it.
-  - If the repo has NO fresh claim → the worktree is a STALE leftover from a DEAD run (a live run always holds a claim before creating its worktree), so the bare existence of the directory must NOT block this repo (id:3ac8 — stale worktrees were falsely starving the pool). Reconcile it: resolve the worktree branch as relay/<basename>, then run git -C <repo canonical path> merge-base --is-ancestor <worktree HEAD> <repo default branch e.g. main>.
+WORKTREE-AWARE / CLAIMED-ELSEWHERE GUARD (id:ebfb step 1 — don't double-work a repo another relay run/session holds; a held worktree is the durable in-flight signal). Use the live-claim repo set given above (do NOT run claim.sh peek yourself — the prelude already did, once). Before classifying a repo, check: ls -d ~/.cache/fables-turn/worktrees/<repo>/* 2>/dev/null. For any worktree directory whose basename does NOT start with this run's runId:
+  - If the repo IS in the live-claim set → it is genuinely in-flight under a LIVE run/session: put it in "surfaced" with reason "in-flight elsewhere (worktree <basename>) — claimed by another relay run (id:ebfb)" and do NOT classify it.
+  - If the repo is NOT in the live-claim set → the worktree is a STALE leftover from a DEAD run (a live run always holds a claim before creating its worktree), so the bare existence of the directory must NOT block this repo (id:3ac8 — stale worktrees were falsely starving the pool). Reconcile it: resolve the worktree branch as relay/<basename>, then run git -C <repo canonical path> merge-base --is-ancestor <worktree HEAD> <repo default branch e.g. main>.
       • EMPTY (HEAD is an ancestor of main → no unmerged work): REAP it — git -C <repo path> worktree remove --force ~/.cache/fables-turn/worktrees/<repo>/<basename> && git -C <repo path> branch -D relay/<basename> — then classify the repo NORMALLY this round (it is now free). This is safe: an ancestor-of-main branch has nothing to lose.
       • COMMITS AHEAD (NOT an ancestor of main → carries unmerged work): do NOT reap (never delete unmerged commits) and do NOT classify; put it in "surfaced" with reason "stale worktree from a dead run with <N> unmerged commit(s) — needs manual integration (id:3ac8); basename=<basename>". The orchestrator/human integrates or discards it.
 ${INTERACTIVE ? 'Interactive run: include marginal/ambiguous repos in "surfaced" with a one-line question each.' : 'Unattended run: never include questions; surface ambiguous repos with a factual reason only.'}
 
-Also produce:
-- runId: a PER-RUN UNIQUE id — generate it ONCE with the shell as: relay-$(date +%Y%m%d-%H%M%S)-$RANDOM (seconds + a random suffix). It MUST be unique per pool run: two concurrent pools must NEVER share a runId, because the cross-session lease's same-run re-entrancy AND the worktree-aware discovery guard both key on runId — a shared (e.g. minute-granular) runId would make two pools see each other as "the same run" and double-work a repo (id:0902 follow-up). Do NOT use a minute-granular id.
-- ts: current ISO 8601 timestamp
+Per-repo fields to set on each unit you emit:
+- path and income: copy them verbatim from the repo's entry in the input list above.
 - lastCkpt per repo (the tag name, or "" if none)
 - income per repo: true iff the repo's relay.toml block has income = true
 - hasRoutine per repo: true iff ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE], INDEPENDENT of the verdict. A repo classified "review" (unaudited commits) that ALSO has open [ROUTINE] work must report hasRoutine=true — this lets the --fable-down path keep executors busy on routine work in repos whose review must wait for the next strong turn.
@@ -417,16 +472,32 @@ Also produce:
 - standin per repo: true iff the repo's LATEST relay checkpoint tag message contains the literal token "fable-standin". Detect (match BOTH prefixes — the latest tag may be fable-ckpt-* or relay-ckpt-*): T=$(git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no checkpoint tag.
 - intensive per repo (id:8d52): a resource name STRING (e.g. "local-llm") iff this repo's next unit of work is resource-heavy — set it when EITHER (a) the repo's relay.toml block has intensive = "<resource>" (or intensive = true → use "local-llm"), OR (b) the top open "- [ ]" item the unit would work in ROADMAP.md carries an "[INTENSIVE — <resource>]" modifier (parse the resource between "— " and "]"). Otherwise leave it "" (empty). These units are NEVER auto-dispatched (OOM risk) — they are gated behind --allow-intensive.
 
-INJECTED HIGH-PRIORITY UNITS (id:baf1): also run \`~/.claude/skills/relay/scripts/inject.sh take\`. It emits zero or more pending user-injected units as compact JSON lines (and atomically consumes them, so they are NOT re-listed next round): {token, repo, verdict, item, prompt, requested_at}. For EACH such line, add ONE extra unit to "units" with: injected=true, inject_token=<token>, verdict=<its verdict, default "execute">, repo=<its repo>, path=<resolve like any own repo: ~/src/<repo> or the "# path:" override>, reason="user-injected high-priority task", inject_item=<item or "">, inject_prompt=<prompt or "">, and income/standin/hasRoutine/openHard/strongRecheckPending=false, lastCkpt="". These are IN ADDITION to (not instead of) the repo's normal classification — a repo may appear both as its classified unit and as an injected unit. If \`inject.sh take\` emits nothing, add no injected units.
+(Injected high-priority units (id:baf1) are handled ONCE by the PRELUDE via inject.sh take — NOT here. You only classify the own repos given to you.)
 
-SKIPPED ROLLUP (id:be62): also populate "skipped" — repos NOT worked this round for a benign reason, so the user sees what the pool ignores and why: (a) every relay.toml repo whose classification is NOT "own" (clone / excluded / needs_review) → {repo, reason: "excluded-by-config (<classification>)"}; (b) every OWN repo you classified "idle" → {repo, reason: "idle — in sync, no open work"}. This is distinct from "surfaced" (which is needs-attention: dirty / diverged / claimed-elsewhere). Dirty/diverged/claimed repos go in "surfaced", NOT "skipped".
+SKIPPED ROLLUP (id:be62): populate "skipped" with every repo from YOUR list that you classified "idle" → {repo, reason: "idle — in sync, no open work"}. (Non-own/excluded repos are the prelude's job — not yours.) This is distinct from "surfaced" (needs-attention: dirty / diverged / claimed-elsewhere / stale-worktree).
 
-Return every own repo exactly once across NON-INJECTED units (verdict idle included) and surfaced; injected units are extra.`,
-  { label: 'discover', phase: 'Discover', schema: DISCOVER_SCHEMA }
-)
+Return {units, surfaced, skipped} covering EXACTLY the repos in your list — each appears exactly once across units (verdict "idle" included) and surfaced; an idle repo ALSO gets a "skipped" entry.`
+  const shardResults = await parallel(chunks.map((chunk) => () =>
+    agent(shardPrompt(chunk), { label: `discover-shard:${chunk.length}`, phase: 'Discover', schema: SHARD_SCHEMA })
+  ))
+  // Merge the shard classifications + the prelude's injected units + non-own skipped rollup
+  // into the single discovery object the rest of runRound consumes (byte-identical shape).
+  const units = [], surfaced = [], skipped = [...(prelude.skippedConfig || [])]
+  let shardOk = false
+  for (const r of shardResults) {
+    if (!r) continue
+    shardOk = true
+    units.push(...(r.units || []))
+    surfaced.push(...(r.surfaced || []))
+    skipped.push(...(r.skipped || []))
+  }
+  units.push(...(prelude.injectedUnits || []))
+  if (shardOk) discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
+  else log('relay-loop: all discovery shards failed this round')
+}
 
 if (!discovery) {
-  log('relay-loop: discovery agent failed this round')
+  log('relay-loop: discovery prelude/shards failed this round')
   return { failed: true }
 }
 
