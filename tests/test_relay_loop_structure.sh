@@ -170,3 +170,19 @@ pass "hard unit checkpoint label is strong-execute (model, fable-standin, relay-
 # refDoc: hard branch reuses handoff.md (its C5 HARD section), no required new ref file.
 grep -q "if (verdict === 'hard') return" "$JS" || fail "refDoc has no hard branch"
 pass "refDoc has a hard branch (reuses handoff.md C5)"
+
+# ── (19) Gaming-flag logger feed is alive (id:3826 audit finding 2026-06-15) ────────
+# logGamingFlags() reads report.gaming_flags / verified_green / reopened, but a review
+# child only returns a field if the DISPATCH PROMPT (unitPrompt) asks for it. The prompt
+# must request all three for review units, or the logger silently records empty arrays
+# forever (dead telemetry — the base-rate signal id:2909 mandated). Guard the contract↔
+# consumer link so this contradiction can't reappear.
+for field in gaming_flags verified_green reopened; do
+  grep -q "$field: report.$field" "$JS" \
+    || fail "logGamingFlags does not read report.$field (logger/consumer drift)"
+  grep -q "$field" "$JS" || fail "$field never mentioned in relay-loop.js"
+done
+# The review-unit return contract in unitPrompt must name all three (so the child returns them).
+awk "/Return: contract_met/ && /verified_green/ && /gaming_flags/ && /reopened/ {found=1} END{exit found?0:1}" "$JS" \
+  || fail "review-unit return contract (unitPrompt) does not request verified_green/gaming_flags/reopened — logGamingFlags would log empty arrays (id:3826 dead-feed)"
+pass "review return contract feeds the gaming-flag logger (verified_green/gaming_flags/reopened requested)"
