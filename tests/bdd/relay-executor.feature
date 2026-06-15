@@ -1,6 +1,7 @@
 # Surface: Claude Code executor session driven by CLAUDE.md §Relay contract.
 # @manual — exercised by real executor sessions; the reviewer audits the results
-# (test-file diffs against the last fable-ckpt-* tag) on the next review turn.
+# (test-file diffs against the last relay checkpoint tag — relay-ckpt-* or the historical
+# fable-ckpt-*) on the next review turn.
 
 Feature: Executor session works a ROADMAP item
   As a cheap executor session
@@ -26,5 +27,5 @@ Feature: Executor session works a ROADMAP item
   @manual
   Scenario: Gamed test is caught on review
     Given an executor weakened or deleted an assertion to go green
-    When the reviewer diffs test files against the last fable-ckpt-* tag and re-runs the originals
+    When the reviewer diffs test files against the last relay checkpoint tag (relay-ckpt-* or legacy fable-ckpt-*) and re-runs the originals
     Then the original test fails, the item is reopened, and the weakening is reverted

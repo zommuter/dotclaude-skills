@@ -105,10 +105,13 @@ grep -q 'if (SESSION_IS_FABLE && !FABLE_DOWN) {' "$JS" \
   && ok "standin→review elevation gated on Fable session, not fable-down" \
   || fail "standin elevation missing SESSION_IS_FABLE && !FABLE_DOWN gate"
 
-# 17. elevation promotes execute/idle standin repos to review
-grep -q "u.standin && (u.verdict === 'execute' || u.verdict === 'idle')" "$JS" \
+# 17. elevation promotes execute/idle pending-recheck repos to review. The pending
+#     signal is now the UNION of the latest-tag standin grep (u.standin) and the durable
+#     relay.toml queue (u.strongRecheckPending, id:e030 — survives executor masking).
+grep -q "u.standin || u.strongRecheckPending" "$JS" \
+  && grep -q "pending && (u.verdict === 'execute' || u.verdict === 'idle')" "$JS" \
   && grep -q "u.verdict = 'review'" "$JS" \
-  && ok "standin elevation promotes execute/idle standin repos to review" \
+  && ok "elevation promotes execute/idle pending-recheck repos (standin OR durable queue) to review" \
   || fail "standin elevation does not promote execute/idle repos to review"
 
 # ---- summary ----
