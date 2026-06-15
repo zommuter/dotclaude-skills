@@ -1,8 +1,9 @@
-# The fables relay — user guide
+# The relay — user guide
 
-What the `fables-turn` / `fables-executor` skill pair actually does, what the
-artifacts in your repos mean, and what *you* are expected to do between turns.
-(The skills' own SKILL.md / references/ files are internal procedure docs for
+What the `relay` skill (modes `handoff` / `review` / `human` plus the `executor`
+contract; renamed from the old `fables-turn` / `fables-executor` pair) actually does,
+what the artifacts in your repos mean, and what *you* are expected to do between turns.
+(The skill's own SKILL.md / references/ files are internal procedure docs for
 the models; this page is for the human.)
 
 ## The idea in one paragraph
@@ -19,13 +20,13 @@ last checkpoint and re-runs the *original* test versions against the new code.
 
 | Command | What it does | When you run it |
 |---|---|---|
-| `/fables-turn` | **Autonomous pool** (unattended). Classifies every confirmed repo into execute / review / handoff, dispatches up to 5 units in parallel (Sonnet executors first, strong-tier review/handoff backfill, income-flagged repos win ties), integrates and pushes serially, stops on quota. | The default. Kick it off when you want the fleet to make progress without you. |
-| `/fables-turn handoff [repos]` | Prepares repos for executors: writes/refreshes docs (C1), roadmap with sized `[ROUTINE]`/`[HARD]` items (C2), red tests as the spec (C3), BDD scenarios (C4), optionally executes the top `[HARD]` item (C5). | Once per repo to onboard it; again when a repo's roadmap is exhausted. |
-| `/fables-turn review [repos]` | Audits everything since the last checkpoint: test-integrity (deleted/weakened/rewritten tests, fixture special-casing), spec drift, then re-derives the roadmap and optionally executes a `[HARD]` item. | After executor sessions worked a repo, or any time you want an anti-gaming sweep. The autonomous pool schedules these automatically. |
+| `/relay` | **Autonomous pool** (unattended). Classifies every confirmed repo into execute / review / handoff, dispatches up to 5 units in parallel (Sonnet executors first, strong-tier review/handoff backfill, income-flagged repos win ties), integrates and pushes serially, stops on quota. | The default. Kick it off when you want the fleet to make progress without you. |
+| `/relay handoff [repos]` | Prepares repos for executors: writes/refreshes docs (C1), roadmap with sized `[ROUTINE]`/`[HARD]` items (C2), red tests as the spec (C3), BDD scenarios (C4), optionally executes the top `[HARD]` item (C5). | Once per repo to onboard it; again when a repo's roadmap is exhausted. |
+| `/relay review [repos]` | Audits everything since the last checkpoint: test-integrity (deleted/weakened/rewritten tests, fixture special-casing), spec drift, then re-derives the roadmap and optionally executes a `[HARD]` item. | After executor sessions worked a repo, or any time you want an anti-gaming sweep. The autonomous pool schedules these automatically. |
 
 A plain Sonnet session working inside a managed repo is an **executor**: the
 repo's `CLAUDE.md` carries a `## Relay contract` pointer telling it to load
-`/fables-executor` and follow the five contract rules (ROUTINE items only,
+`/relay executor` and follow the five contract rules (ROUTINE items only,
 red-test definition of done, never touch test expectations, self-report to
 RELAY_LOG.md, hygiene).
 
@@ -96,7 +97,7 @@ RELAY_LOG.md, hygiene).
   review was judged cheaper than a staging-branch process; the scheduler
   guarantees unreviewed executor work is the top-priority strong unit.
 
-See `fables-turn/SKILL.md` for orchestrator internals,
-`fables-executor/SKILL.md` for the executor contract, and
+See `relay/SKILL.md` for orchestrator internals,
+`relay/references/executor-contract.md` for the executor contract, and
 `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md` for the
 design decisions behind the autonomous pool.

@@ -7,7 +7,7 @@
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SCRIPT="$SRC_DIR/fables-turn/scripts/probe-fable.sh"
+SCRIPT="$SRC_DIR/relay/scripts/probe-fable.sh"
 TMPDIR_T="$(mktemp -d)"
 export PROBE_CACHE="$TMPDIR_T/fable-probe.json"
 trap 'rm -rf "$TMPDIR_T"' EXIT

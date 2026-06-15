@@ -5,8 +5,8 @@
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-JS="$SRC_DIR/fables-turn/scripts/relay-loop.js"
-SKILL="$SRC_DIR/fables-turn/SKILL.md"
+JS="$SRC_DIR/relay/scripts/relay-loop.js"
+SKILL="$SRC_DIR/relay/SKILL.md"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
@@ -67,7 +67,7 @@ pass "no AskUserQuestion call"
 
 # SKILL.md: documents --fable-down and -d
 grep -q -- "--fable-down" "$SKILL" || fail "SKILL.md does not document --fable-down flag"
-grep -qE '^\s*/fables-turn -d' "$SKILL" || fail "SKILL.md invocation block missing /fables-turn -d line"
+grep -qE '^\s*/relay -d' "$SKILL" || fail "SKILL.md invocation block missing /relay -d line"
 pass "SKILL.md documents --fable-down and -d in invocation block"
 
 # SKILL.md: flag is in the configuration knobs table

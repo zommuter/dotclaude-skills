@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ckpt-tag.sh — atomic fables-turn checkpoint: RELAY_LOG.md entry + annotated tag.
+# ckpt-tag.sh — atomic relay checkpoint: RELAY_LOG.md entry + annotated tag.
 #
 # Usage:
 #   ckpt-tag.sh <repo-path> -m "summary paragraph" [-l "reviewer (fable)"]

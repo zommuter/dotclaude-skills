@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# probe-fable.sh — Fable-availability probe CACHE manager for the fables-turn front door (id:da26).
+# probe-fable.sh — Fable-availability probe CACHE manager for the relay front door (id:da26).
 #
 # The ACTUAL probe (spawning a tiny claude-fable-5 agent) stays in the front door
 # (SKILL.md step 0). This helper ONLY manages the on-disk cache + 2h staleness: it

@@ -62,9 +62,13 @@ the return report) for the human rather than attempting to automate them.
 Does the implementation still match `ARCHITECTURE.md` rationale (new dependencies,
 restructurings, abandoned decisions)? Update the doc to reflect reality, or flag the
 conflict if the drift looks unintended. Also check the `## Relay contract` pointer in
-`CLAUDE.md`: if the `<!-- fables-executor contract vN -->` version number is older than
-the canonical marker in `dotclaude-skills/fables-executor/SKILL.md`, refresh the pointer
-line (update `vN` only — the two-line pointer body is stable and does not change).
+`CLAUDE.md`: if the `<!-- relay-executor contract vN -->` version number is older than
+the canonical marker in `dotclaude-skills/relay/references/executor-contract.md`,
+refresh the **whole pointer line** to the current vN form (from conventions.md
+§Executor-contract pointer). A pointer still carrying the pre-rename
+`<!-- fables-executor contract v2 -->` marker is the stale case this rewrites to v3 —
+replacing both the marker and the body (old `Load the fables-executor skill` →
+new `Load /relay executor`).
 
 **User-facing docs are drift surface too** (added 2026-06-12, user directive): check
 that `README.md` (feature/skill/usage tables, install instructions) and any user-facing
