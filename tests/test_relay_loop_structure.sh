@@ -78,9 +78,12 @@ pass "tier-aware quota-stop gate present"
 grep -qi "drain" "$JS" || fail "no graceful-drain handling"
 pass "graceful drain present"
 
-# (9) RELAY_STATUS writer is actually invoked, not just defined (id:80e2 wiring)
-grep -q "await writeRelayStatus(" "$JS" || fail "writeRelayStatus is defined but never awaited"
-pass "writeRelayStatus invoked"
+# (9) RELAY_STATUS writer is actually invoked, not just defined (id:80e2 wiring). Since id:cb50
+# the write is OFF the critical path: call sites schedule it (scheduleStatusWrite) and the
+# scheduler invokes writeRelayStatus on the serialized tail (see test_relay_status_offcrit.sh).
+grep -q "scheduleStatusWrite(state)" "$JS" || fail "RELAY_STATUS writer is never invoked (no scheduleStatusWrite call)"
+grep -q "writeRelayStatus(snap" "$JS" || fail "scheduleStatusWrite does not invoke writeRelayStatus on the tail"
+pass "writeRelayStatus invoked off-critical-path via scheduleStatusWrite (id:80e2 + id:cb50)"
 
 # (10) Structured output: child reports and classifier use schemas (no text parsing)
 grep -q "schema:" "$JS" || fail "no schema-typed agent() calls (structured output required)"

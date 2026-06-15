@@ -187,6 +187,29 @@ ${content}`,
   )
 }
 
+// id:cb50 — keep the Haiku RELAY_STATUS write OFF the pool's critical path. It is purely a
+// visibility side-effect, but it was `await`ed between discover→dispatch and at round end, so
+// the next discover/dispatch blocked on it. scheduleStatusWrite snapshots the content NOW
+// (state is mutated across rounds, so a queued write must not read it later) and queues the
+// write on a single serialized tail (concurrent writes never clobber). The pool proceeds
+// immediately; the run flushes the tail once at the end so the final status is durable.
+let statusTail = Promise.resolve()
+function snapshotState(s) {
+  return {
+    runId: s.runId, ts: s.ts,
+    inFlight: [...(s.inFlight || [])], completed: [...(s.completed || [])],
+    queued: [...(s.queued || [])], blocked: [...(s.blocked || [])],
+    skipped: [...(s.skipped || [])], quota: [...(s.quota || [])], reviewMe: [...(s.reviewMe || [])],
+  }
+}
+function scheduleStatusWrite(state, statusPath) {
+  const snap = snapshotState(state)
+  statusTail = statusTail
+    .then(() => writeRelayStatus(snap, statusPath))
+    .catch((err) => log(`relay-loop: RELAY_STATUS write failed (non-fatal): ${err}`))
+  return statusTail
+}
+
 // ── Schemas (agents return validated objects, never free text) ──
 
 const DISCOVER_SCHEMA = {
@@ -641,7 +664,7 @@ state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, w
 state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason }))   // id:be62
 
 log(`relay-loop: ${actionable.length} actionable units (${discovery.units.length} own repos, ${discovery.surfaced.length} surfaced)`)
-await writeRelayStatus(state)
+scheduleStatusWrite(state)
 
 // No actionable units this round (incl. --fable-down with no executor work) → a dry
 // round; the outer loop counts consecutive dry rounds toward "backlog drained".
@@ -756,13 +779,13 @@ async function integrate(unit, report) {
       reason: `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are preserved in the worktree — re-run /relay to resume (handoff continues from the last checkpoint).`,
       worktreePath: worktreePathFor(unit),
     })
-    await writeRelayStatus(state)
+    scheduleStatusWrite(state)
     return
   }
   if (!report.contract_met) {
     // HANDBACK: not merged; worktree held on disk for a human/strong turn.
     state.blocked.push({ repo: unit.repo, reason: report.handback || 'contract_met=false', worktreePath: report.worktree })
-    await writeRelayStatus(state)
+    scheduleStatusWrite(state)
     return
   }
   const standInSuffix = (unit.verdict !== 'execute' && STRONG_MODEL === 'claude-opus-4-8') ? ', fable-standin' : ''
@@ -816,7 +839,7 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
   } else {
     state.blocked.push({ repo: unit.repo, reason: (result && result.reason) || 'integration failed', worktreePath: report.worktree })
   }
-  await writeRelayStatus(state)
+  scheduleStatusWrite(state)
 }
 
 async function runUnit(unit) {
@@ -957,7 +980,7 @@ for (const unit of intensiveUnits) {
 }
 
 state.queued = state.queued.concat(queue.map(u => ({ repo: u.repo, verdict: `${u.verdict} (not dispatched)` })))
-await writeRelayStatus(state)
+scheduleStatusWrite(state)
 return { actionable: actionable.length + intensiveRan }
 }
 // ── end runRound ──
@@ -972,6 +995,7 @@ while (!quotaStopped && round < MAX_ROUNDS) {
   const r = await runRound()
   if (r.failed) {
     if (round === 1) {
+      await statusTail  // id:cb50 — flush any queued status write before the early return
       return { error: 'discovery failed', runId: state.runId, statusPath: RELAY_STATUS_PATH, completed: state.completed, handbacks: [], queuedRemaining: state.queued, quotaStopped }
     }
     log('relay-loop: discovery failed mid-run — stopping after completed rounds')
@@ -986,6 +1010,7 @@ while (!quotaStopped && round < MAX_ROUNDS) {
   }
 }
 
+await statusTail  // id:cb50 — flush the queued (off-critical-path) RELAY_STATUS writes so the final state is durable before the run returns
 const handbacks = state.blocked.filter(b => b.worktreePath && b.worktreePath !== '-')
 log(`relay-loop: done — ${round} round(s), ${state.completed.length} integrated, ${handbacks.length} HANDBACKs, quotaStopped=${quotaStopped}`)
 
