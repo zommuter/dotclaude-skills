@@ -118,7 +118,7 @@ Plain-bash harness, zero dependencies beyond `bash`/`python3`/`jq`/`make`:
 - Tests must be hermetic: work in `mktemp -d`, override `HOME`/`DEST_DIR`/roots via
   args or env, never touch `~/.claude` or the network.
 
-## Relay contract <!-- relay-executor contract v3 -->
+## Relay contract <!-- relay-executor contract v4 -->
 
 This repo is managed by a reviewer/executor relay. Load `/relay executor` before
 working on any item, then follow its rules exactly.

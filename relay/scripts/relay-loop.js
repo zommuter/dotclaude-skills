@@ -674,6 +674,7 @@ async function integrate(unit, report) {
 
 0. Release this repo's cross-session lease (id:ebfb) — the child's work is done; do this FIRST so it runs whether the merge below succeeds or aborts: ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}  (run-scoped — a no-op if this run does not hold it).${unit.intensive ? ` Also release the exclusive resource lease (id:8d52): ~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}.` : ''}
 1. Verify the main checkout working tree is clean (git -C ${unit.path} status --porcelain). If dirty, abort: return merged=false with reason.
+1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; the discovery step already fast-forwarded behind-only repos.)
 2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
    On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
 3. ~/.claude/skills/relay/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}" -l "${label}"

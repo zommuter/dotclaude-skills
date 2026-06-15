@@ -23,6 +23,12 @@ grep -qi "diverged from origin" "$JS" || fail "sync guard does not surface a div
 grep -q -- "merge --ff-only" "$JS" || fail "sync guard does not fast-forward a behind-only repo"
 pass "sync-with-origin guard: fetch + ahead/behind + diverged-surface + ff-only (id:c3f7)"
 
+# Integrator belt-and-suspenders (id:c3f7): the serialized integrator re-checks via the
+# testable sync-origin.sh helper and aborts before checkpointing on a diverged base.
+grep -q "sync-origin.sh" "$JS" || fail "integrator does not belt-and-suspenders via sync-origin.sh"
+grep -q "base diverged from origin" "$JS" || fail "integrator does not abort on a diverged base"
+pass "integrator belt-and-suspenders via sync-origin.sh (id:c3f7)"
+
 # ── Worktree-aware / claimed-elsewhere guard (id:ebfb step 1) ──
 grep -q "WORKTREE-AWARE" "$JS" || fail "discovery prompt missing the worktree-aware guard"
 grep -q "cache/fables-turn/worktrees" "$JS" || fail "worktree guard does not inspect the worktree dir"
