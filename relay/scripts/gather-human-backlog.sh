@@ -65,10 +65,38 @@ emit_boxes() {
   done < <(grep -nE '^[[:space:]]*- \[ \] ' "$file" 2>/dev/null | sed -E 's/^[0-9]+://')
 }
 
+# --- warn on nested worktrees (the "wrong checkout" trap) --------------------
+# A linked git worktree nested INSIDE the repo path means the relay may be reading
+# a stale top-level checkout while the live branch lives in a sub-worktree (this
+# bit /relay human on ai-codebench 2026-06-15). Warn to stderr so the human can
+# fix the layout; never corrupts the TSV on stdout.
+warn_nested_worktrees() {
+  local name="$1" path="$2"
+  git -C "$path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  local main_wt nested
+  main_wt="$(git -C "$path" rev-parse --show-toplevel 2>/dev/null)"
+  [[ -n "$main_wt" ]] || return 0
+  # worktrees whose path is strictly under main_wt/ are nested inside the checkout —
+  # the "stale tree" smell. EXCLUDE harness/internal worktrees under .claude/ or .git/
+  # (those are ephemeral sandboxes, not a layout problem). `|| true` guards grep's
+  # exit-1-on-no-match against `set -e`.
+  nested="$(git -C "$path" worktree list --porcelain 2>/dev/null \
+    | sed -n 's/^worktree //p' \
+    | { grep -vxF "$main_wt" || true; } \
+    | { grep -F "$main_wt/" || true; } \
+    | { grep -vE '/\.(claude|git)/' || true; } \
+    | tr '\n' ' ')"
+  if [[ -n "$nested" ]]; then
+    printf 'WARN: %s has nested worktree(s) inside its checkout: %s— relay may be reading a STALE tree; relocate worktrees out of the checkout.\n' \
+      "$name" "$nested" >&2
+  fi
+}
+
 # --- scan one repo -----------------------------------------------------------
 scan_repo() {
   local name="$1" path="$2"
   [[ -d "$path" ]] || return 0
+  warn_nested_worktrees "$name" "$path"
   # REVIEW_ME.md: every open box (default kind review_me; @manual upgrades to manual).
   emit_boxes "$name" "$path" "$path/REVIEW_ME.md" review_me
   # ROADMAP.md: only open boxes tagged @manual need a human to RUN them.
