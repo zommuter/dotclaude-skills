@@ -579,6 +579,11 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       arrival, now 48/0); id:3826 gaming-flag logger was a dead feed (review dispatch prompt
       never requested its fields) — fixed + regression-guard added. See
       `docs/meeting-notes/2026-06-15-1745-strong-model-audit.md`.
+    - Run 4 (2026-06-15-1759): `relay-ckpt-20260615-1748`..HEAD (1 commit: `bf70a52`
+      statusline/check-deps.sh) — **clean**: no code/security defects. One **coherence drift
+      fixed inline** — id:414a was still marked `GATED` on id:fa05+id:dfaf, both now shipped;
+      updated the gate line to CLEARED so a future strong session isn't misled into skipping it.
+      See `docs/meeting-notes/2026-06-15-1759-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
@@ -750,7 +755,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Why HARD**: fixtures are prepared mini git repos containing *intentionally crafted gamed diffs* for the judgment checks (resurrection-check, fixture-special-casing) that gaming-scan.sh deliberately does NOT cover mechanically. The harness spawns one review-style agent per fixture and asserts the `gaming_flags` contract — the design of convincing-but-detectable fixtures requires strong-model craft.
   - **Spec**: `tests/gaming-canary/` directory: (a) at least one resurrection-rewrite fixture (an executor rewrote a test's `assert` to match whatever the code returns); (b) at least one fixture-special-casing fixture (code branches on exact test-input literals); (c) at least one **negative control** (a legitimate green resurrection where only the test INPUT changed and assertions stayed intact — must NOT flag). `tests/gaming-canary/run.sh` feeds each fixture diff to a compact review-procedure prompt and checks `gaming_flags`/absence. `Makefile` target `gaming-canary` invokes `run.sh`.
   - **Acceptance**: `make gaming-canary` executes: positive fixtures yield non-empty `gaming_flags`; negative control yields empty `gaming_flags`. The harness itself must not be flaky on identical inputs. Keep each fixture minimal (≤20 lines of diff) so the judgment is unambiguous.
-  - **GATED**: implement id:fa05 + id:dfaf first so the review procedure the harness invokes already delegates to `gaming-scan.sh`.
+  - **Gate CLEARED 2026-06-15** (audit run 4): id:fa05 (gaming-scan.sh) and id:dfaf (review.md §2 delegate) both shipped — `review.md` now references `gaming-scan.sh` (3×) and the script exists, so the review procedure this harness invokes already delegates mechanical checks. The item is dispatchable; it is HARD because crafting convincing-but-detectable fixtures needs strong-model judgment, not because of an unmet dependency.
 
 - [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
