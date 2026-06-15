@@ -2,7 +2,7 @@ SRC_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEST_DIR := $(HOME)/.claude/skills
 export DEST_DIR
 
-SKILLS := meeting meeting-cross git-diary-workflow todo-update relay projects fables-turn fables-executor
+SKILLS := meeting meeting-cross git-diary-workflow todo-update relay projects
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
@@ -48,17 +48,9 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/relay-state-write.sh
 relay_LOCAL :=
 
-# Deprecation alias stubs (renamed → relay). Thin SKILL.md only; removed once
-# in-flight invocations/cron/pointers have migrated.
-fables-turn_FILES := SKILL.md
-fables-turn_EXEC  :=
-fables-turn_ALLOW :=
-fables-turn_LOCAL :=
-
-fables-executor_FILES := SKILL.md
-fables-executor_EXEC  :=
-fables-executor_ALLOW :=
-fables-executor_LOCAL :=
+# NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
+# repo 2026-06-15 (migrated to /relay; no remaining cron/invocations). Their dirs are
+# .gitignore'd and kept locally only as a fat-finger redirect — no longer installed by make.
 
 projects_FILES := SKILL.md
 projects_EXEC  :=

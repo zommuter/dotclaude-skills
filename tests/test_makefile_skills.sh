@@ -51,14 +51,17 @@ make -C "$ROOT" -s DEST_DIR="$DEST" uninstall-relay
 grep -qE 'relay_ALLOW.*(ckpt-tag|discover-repos)' "$ROOT/Makefile" \
   || { echo "relay scripts missing from allowlist generation"; exit 1; }
 
-# Deprecated alias stubs still install (so in-flight invocations/cron/pointers survive)
+# Deprecated alias stubs (fables-turn / fables-executor) were untracked + removed from the
+# Makefile 2026-06-15 (migrated to /relay; no remaining cron/invocations). They must NOT be
+# SKILLS members anymore — no install/status/uninstall target.
 for alias in fables-turn fables-executor; do
-  make -C "$ROOT" -s DEST_DIR="$DEST" install-$alias \
-    || { echo "make install-$alias (deprecated alias) failed or target missing"; exit 1; }
-  [[ -L "$DEST/$alias/SKILL.md" && -e "$DEST/$alias/SKILL.md" ]] \
-    || { echo "alias $alias/SKILL.md not symlinked"; exit 1; }
-  grep -qi 'deprecated' "$ROOT/$alias/SKILL.md" \
-    || { echo "alias $alias/SKILL.md does not say DEPRECATED"; exit 1; }
+  grep -qE "^SKILLS .*\b$alias\b" "$ROOT/Makefile" \
+    && { echo "deprecated alias $alias is still in SKILLS (should be removed)"; exit 1; }
+done
+
+# statusline is a first-class target (install/status/uninstall-statusline), not buried in install-hooks
+for t in install-statusline status-statusline uninstall-statusline; do
+  grep -qE "^$t:" "$ROOT/Makefile" || { echo "Makefile missing first-class target $t"; exit 1; }
 done
 
 echo ok
