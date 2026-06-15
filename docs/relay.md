@@ -97,6 +97,29 @@ RELAY_LOG.md, hygiene).
   review was judged cheaper than a staging-branch process; the scheduler
   guarantees unreviewed executor work is the top-priority strong unit.
 
+### Deliberate force-push (controlled)
+
+Force-pushes and ref deletions are **server-blocked by default**: the fievel git
+server runs with `receive.denyNonFastForwards=true` and `receive.denyDeletes=true`
+(set globally 2026-06-15), so any accidental or automated force/purge push is rejected
+at the server. This is deliberate — the relay pool must never be able to rewrite
+published history.
+
+When *you* (a human) genuinely need to force-push one repo, use the controlled path:
+
+```bash
+FORCE_PUSH_CONFIRM=1 relay/scripts/force-push.sh <repo-path> [<refspec>]
+```
+
+It (1) refuses entirely unless `FORCE_PUSH_CONFIRM=1` is set — so it can never run
+unattended; (2) resolves the repo's push remote/host and the one bare repo on the
+server; (3) briefly lifts `receive.denyNonFastForwards` for **that one bare repo only**
+(never `--global`); (4) pushes with `--force-with-lease` (not a bare `--force`, so a
+remote that moved since your last fetch aborts the push); and (5) **always re-arms**
+the guard afterward via an EXIT trap, even if the push fails or is interrupted. If it
+can't resolve the bare repo path, it aborts without touching server config. Steps are
+printed and logged to `~/.claude/logs/relay-force-push.log`.
+
 See `relay/SKILL.md` for orchestrator internals,
 `relay/references/executor-contract.md` for the executor contract, and
 `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md` for the
