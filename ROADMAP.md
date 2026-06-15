@@ -36,11 +36,15 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Shipped 2026-06-15**: (1) discovery WORKTREE-AWARE (skip a foreign-runId worktree → surfaced) +
     SYNC-WITH-ORIGIN guard (id:c3f7) in relay-loop.js — `tests/test_relay_discovery_guards.sh`;
     (2) `relay/scripts/claim.sh` — per-shard flock'd registry (`acquire`/`release`/`peek`/`reap`,
-    mtime+TTL, resource-key safe) — `tests/test_relay_claim.sh`, registered in the Makefile.
-  - **Remaining (item stays open)**: wire claim acquire/release into the dispatch + integration path;
-    RELAY_STATUS `peek` projection of live claims; `/relay executor` honoring the repo lease. Then the
-    sibling cluster items `[INTENSIVE]` (id:8d52) + `/meeting` hold (id:d748).
-  - **Done-check**: tick only when a claim is actually consulted in the dispatch path; full `make test` green.
+    mtime+TTL, resource-key safe; **same-run re-entrant**, **run-scoped release**) —
+    `tests/test_relay_claim.sh`, registered in the Makefile;
+    (3) **claim wired into the dispatch path (step 4)** — work children `claim.sh acquire <repo> --run
+    <runId>` FIRST (refused → stop + "claimed by another relay run" handback); the integrator
+    `claim.sh release <repo> --run <runId>` run-scoped; `writeRelayStatus` projects live claims via
+    `claim.sh peek` into a `## Claims (live)` section — `tests/test_relay_claim_wiring.sh`.
+  - **Remaining (item stays open)**: `/relay executor` honoring the repo lease (executor-contract
+    version bump). Then the sibling cluster items `[INTENSIVE]` (id:8d52) + `/meeting` hold (id:d748).
+  - **Done-check**: tick when `/relay executor` also honors the lease; full `make test` green.
 
 <!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — RATIFIED 2026-06-15
      (meeting docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md). The claim

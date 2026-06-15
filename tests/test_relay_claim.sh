@@ -76,4 +76,10 @@ mk_count="$(grep -c "scripts/claim.sh" "$SRC_DIR/Makefile" || true)"
 [[ "$mk_count" -ge 3 ]] || fail "Makefile must register claim.sh in relay_FILES/_EXEC/_ALLOW (3x); got $mk_count"
 pass "Makefile registers claim.sh in relay_FILES/_EXEC/_ALLOW"
 
+# ── Same-run re-entrancy (the review→execute re-chain must not self-block; step 4) ──
+"$SH" acquire reentrant-repo --run RUN-A >/dev/null || fail "first acquire (run A) should succeed"
+"$SH" acquire reentrant-repo --run RUN-A >/dev/null || fail "same-run re-acquire (run A) should succeed (re-entrant)"
+if "$SH" acquire reentrant-repo --run RUN-B 2>/dev/null; then fail "different-run acquire (run B) must be REFUSED while run A holds a fresh claim"; fi
+pass "claim re-entrant for same runId, refused for a different runId"
+
 echo "ALL PASS: per-shard claim registry (id:ebfb)"
