@@ -8,6 +8,10 @@
 #          meeting-worthy; /meeting dispatch must skip it)
 #   GATE:  GATED if body contains gate/condition/blocked vocabulary; empty otherwise
 #          Advisory only — never reclassifies or skips; model judges satisfaction.
+#   [HARD] floor (D4, meeting note 2026-06-15-0715-meeting-fables-interaction.md):
+#          a TODO item tagged [HARD] needs a strong-model design session — it is
+#          FLOORED to C3 (never C1/C2), so /meeting dispatch never proposes inline
+#          impl on a weak/post-plan tier. The [HARD] tag stays visible in SUMMARY.
 
 set -euo pipefail
 
@@ -64,6 +68,12 @@ while IFS= read -r line; do
     gate=""
     printf '%s' "$body" | grep -qiE 'gated?|gate:|reopen (gate|trigger)|condition-triggered|blocked on' \
         && gate="GATED" || true
+
+    # [HARD] floor (D4): a [HARD]-tagged TODO item is strong-model design work — floor
+    # to C3 regardless of link/keywords, so dispatch never proposes inline C1/C2 impl.
+    if printf '%s' "$body" | grep -qE '\[HARD\]|\[HARD '; then
+        class="C3"
+    fi
 
     printf '%s\t%s\t%s\t%s\t%s\n' "$class" "$id" "$summary" "$note_link" "$gate"
 done < "$TODO"
