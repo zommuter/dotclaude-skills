@@ -21,6 +21,10 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     `references/human.md` §5 acquires the lease before each per-repo REVIEW_ME/ledger write-back and
     DEFERS on refusal (mirrors `/meeting` id:d748), releasing after. `tests/test_relay_interactive_claim.sh`.
     Every relay actor — pool, executor, meeting, and the interactive modes — now respects one lease.
+  - **Concurrent-pool fix (same commit)**: the discovery runId was minute-granular
+    (`relay-YYYYMMDD-HHMM`) — two no-args/`--all` pools started in the same minute shared a runId, so
+    the lease's same-run re-entrancy AND the worktree-aware guard both false-passed → double-work. runId
+    is now per-run unique (`relay-$(date +%Y%m%d-%H%M%S)-$RANDOM`), so two concurrent pools never collide.
 
 - [x] Relay must sync local↔origin before working a repo (stale-clone / divergence guard) (done 2026-06-15) <!-- id:c3f7 -->
   - **Done 2026-06-15**: discovery SYNC-WITH-ORIGIN guard (fetch + ahead/behind; diverged→surface,

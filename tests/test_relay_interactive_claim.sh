@@ -33,4 +33,12 @@ grep -q "DEFER" "$HUMAN" || fail "human mode does not DEFER write-back when the 
 grep -q "claim.sh release <repo> --run human-" "$HUMAN" || fail "human mode does not release the lease after write-back"
 pass "human mode holds the lease for its per-repo write-back, defers on refusal (id:0902)"
 
-echo "ALL PASS: interactive relay modes are claim-aware (id:0902)"
+# (4) runId is UNIQUE per run (seconds + random), not minute-granular — otherwise two
+# concurrent pools share a runId and the lease re-entrancy + worktree guard both false-pass,
+# letting them double-work a repo.
+JS="$SRC_DIR/relay/scripts/relay-loop.js"
+grep -q '%H%M%S' "$JS" || fail "discovery runId is not second-granular (%H%M%S) — concurrent pools could share a minute-granular runId"
+grep -q '\$RANDOM' "$JS" || fail "discovery runId has no random suffix — two pools in the same second could still collide"
+pass "discovery runId is unique per run (seconds + \$RANDOM) — concurrent pools never share one"
+
+echo "ALL PASS: interactive relay modes are claim-aware + runId unique per run (id:0902)"
