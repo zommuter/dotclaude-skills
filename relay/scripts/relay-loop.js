@@ -872,10 +872,48 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     if (report.review_me_count) {
       state.reviewMe.push({ repo: unit.repo, count: report.review_me_count, path: `${unit.path}/REVIEW_ME.md` })
     }
+    // id:3826 — gaming-flag rate logger: append one JSON line per review integration to
+    // ~/.claude/logs/relay-gaming-flags.log. Records closed-item ids, flags, reopened, and
+    // verified_green for cross-repo aggregate telemetry. NOT per-repo findings (those live
+    // in RELAY_LOG/REVIEW_ME already) — this is the base-rate signal Riku mandated so
+    // "if flags start firing" can be measured, not just noticed.
+    //
+    // DEFERRED-FLEET SEAM: to escalate, spawn parallel() refuters over gaming_flags[] or
+    // verified_green[] here; see id:2909 meeting 2026-06-15 D1 for the evidence gate.
+    if (unit.verdict === 'review' && report) {
+      logGamingFlags(unit.repo, state.runId, report)
+    }
   } else {
     state.blocked.push({ repo: unit.repo, reason: (result && result.reason) || 'integration failed', worktreePath: report.worktree })
   }
   scheduleStatusWrite(state)
+}
+
+// id:3826 — Append a gaming-flags telemetry line to relay-gaming-flags.log.
+// Called (non-blocking, fire-and-forget) after a REVIEW unit integrates successfully.
+// The log line is JSON: {repo, runId, ts, closed_ids, gaming_flags, reopened, verified_green}.
+// Creates the log file if absent (the agent uses >> which creates on first write).
+// The Workflow JS cannot write files directly; we spawn a minimal Haiku agent.
+function logGamingFlags(repo, runId, report) {
+  const entry = {
+    repo,
+    runId,
+    ts: new Date().toISOString(),
+    closed_ids: (report.verified_green || []).concat(report.reopened || []),
+    gaming_flags: report.gaming_flags || [],
+    reopened: report.reopened || [],
+    verified_green: report.verified_green || [],
+  }
+  const json = JSON.stringify(entry)
+  const logPath = `${process.env.HOME || '~'}/.claude/logs/relay-gaming-flags.log`
+  // Spawn a tiny agent (fire-and-forget, not awaited — log failure is non-fatal).
+  agent(
+    `Append the following JSON line to the gaming-flags log (create if absent, append only).
+Log path: "${logPath}"
+Command: mkdir -p "$(dirname "${logPath}")" && printf '%s\\n' '${json.replace(/'/g, "'\\''")}' >> "${logPath}"
+Run that command verbatim and confirm it succeeded.`,
+    { label: `gaming-log:${repo}`, phase: 'Integrate', model: 'haiku' }
+  ).catch(err => log(`relay-loop: gaming-flags log write failed (non-fatal): ${err}`))
 }
 
 async function runUnit(unit) {
