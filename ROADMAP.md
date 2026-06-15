@@ -10,6 +10,70 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — id:7b7a / id:8d52 /
+     id:d748 share one dispatch gate + one lock-with-TTL machinery; decide together (one
+     /meeting) so the three don't grow incompatible mechanisms. Origin: 2026-06-15 chat. -->
+
+- [ ] Cross-session relay dispatch safety: per-repo lease + single-writer shared state [HARD — decision gate] <!-- id:7b7a -->
+  - **Context**: 2026-06-15 — "what happens if I run a 2nd `/relay` session while the pool is
+    live?" Today: NOTHING prevents same-repo overlap. relay-loop.js has no run-lock/lease/flock;
+    discovery is not worktree-aware (won't skip a repo another run already has a child in);
+    `relay.toml` + `RELAY_STATUS.md` are written by a plain agent with no flock (whole-file
+    clobber / dropped per-repo fields). Worktree DIRS are safe (run-id keyed) and the PUSH is
+    flock-guarded (`git-lock-push.sh`), but two children can `merge --no-ff` into one main
+    checkout (status→merge→tag→push not atomic across sessions). Same family as TODO id:3558
+    (independent-session flock'd merge-to-canonical) + memories `parallel-session-state-coordination`,
+    `d5-worktree-per-session`, `oom-local-model-session-kills` (held worktree = in-flight signal).
+  - **Why decision-gate**: changes the D5/D6 invariant ("one integration per remote", see id:bc9d)
+    and the cross-session contract; lock TTL/heartbeat policy and who-yields trade-offs are
+    non-obvious and hard to reverse. Decide in the cluster /meeting.
+  - **Acceptance (sequence cheapest-first)**: (1) worktree-aware discovery — skip any repo with a
+    FRESH foreign-runId worktree under `~/.cache/fables-turn/worktrees/<repo>/` (near-free, kills
+    the worst case); (2) flock'd single-writer for `relay.toml` (field-scoped read-modify-write)
+    and `RELAY_STATUS.md` (per-runId section or merge, not clobber) — reuse the append.sh/md-merge.py
+    fd8/9 pattern; (3) formal per-repo flock'd lease (`~/.cache/fables-turn/leases/<repo>.lock`,
+    `{runId,pid,mode,heartbeat}` + TTL so an OOM-killed session's lease expires); (4) `/relay executor`
+    acquires the repo lease at start (refuse/warn if a live pool holds it) — ideally worktree-isolated
+    per D5.6/id:3558. Each step independently testable in the bash suite.
+  - **Reuse**: link/co-resolve TODO id:3558 (single-id-two-views — same token spans both ledgers).
+
+- [ ] `[INTENSIVE — <resource>]` tag: gate local-LLM/heavy work behind explicit permission [HARD — decision gate] <!-- id:8d52 -->
+  - **Context**: 2026-06-15 user request. Local-LLM tasks (ai-codebench benchmarks, zkm embedding
+    index) hammer GPU/RAM — memory `oom-local-model-session-kills`: Gemma 26B killed all 6 sessions;
+    ~57s cold TTFT (cf id:642f). Run-1 already handed these back ad hoc ("hardware-gated for an
+    unattended relay turn… never an unattended relay child" — zelegator id:462c, linguistic-unversals
+    id:3071). This makes it a first-class, deterministic tag instead of per-child judgment.
+  - **Shape**: a resource modifier ORTHOGONAL to the verdict axis (NOT a replacement for
+    `[ROUTINE]`/`[HARD]`), two-part like the HARD tags so the gate knows which resource:
+    `[ROUTINE] [INTENSIVE — local-llm]`, `[HARD — strong model] [INTENSIVE — local-llm]`.
+  - **Acceptance**: (1) discovery parses the modifier; an `[INTENSIVE]` unit is NEVER auto-dispatched
+    by the default unattended pool — surfaced in RELAY_STATUS "Queued — needs explicit permission"
+    (extends `feedback-relay-unattended-default`: never run resource-doomed work unasked). (2) Global
+    resource semaphore `~/.cache/fables-turn/resources/<resource>.lock` — at most one local-llm task
+    at a time; conservative default = it RUNS ALONE (pool pauses new dispatch / forces POOL_WIDTH=1
+    while held) — this is the actual OOM fix. (3) Opt-in to run them: `/relay --allow-intensive`
+    (flag) and an **AFK mode** `/relay --afk [duration]` ("I'm away, do something useful" — drains
+    light work, then chews intensive items one-at-a-time within a time/quota budget, reports back).
+    (4) Tagging: strong children tag per criteria in `conventions.md` (cite OOM + TTFT), PLUS a coarse
+    per-repo default `[repos.ai-codebench] intensive = true` / `[repos.zkm] intensive = true` as a
+    safety net; item-level tags override.
+  - **Why decision-gate**: run-alone vs reduced-width, budget semantics, and resource taxonomy are
+    judgment calls; pairs with the id:7b7a lock machinery. Decide in the cluster /meeting.
+
+- [ ] `/meeting` ↔ relay-loop mutual hold (holdable meeting while a pool is live) [HARD — decision gate] <!-- id:d748 -->
+  - **Context**: 2026-06-15 user request. `/meeting` writes the shared ledgers (TODO/ROADMAP/REVIEW_ME)
+    in the MAIN checkout while the relay pool merges worktree branches into the same files (D2
+    single-id-two-views; CLAUDE.md already notes md-merge.py + `orphan-scan.sh --cross-ledger` for
+    residual drift). A meeting started mid-pool can collide at integration. Need a mutual-hold so the
+    two actors don't write the shared ledgers concurrently.
+  - **Acceptance (design)**: decide the yield direction — (a) `/meeting` detects a live pool (lease/
+    runlock from id:7b7a) and HOLDS/queues its ledger writes until a safe point, or (b) the pool
+    yields a short window to an interactive meeting, or (c) both coordinate via the same per-repo lease
+    keyed on dotclaude-skills. Likely reuses id:7b7a's lease + single-writer helper rather than a
+    separate mechanism. Must keep meeting's read/think phase unblocked (only the WRITE-BACK holds).
+  - **Why decision-gate / reuse**: this is the id:7b7a lease applied to the `/meeting` actor — co-decide
+    in the cluster /meeting; don't build a parallel lock.
+
 - [x] Relay integrator bottleneck — per-repo serialization, cross-repo concurrency (done 2026-06-15, reviewer) <!-- id:bc9d -->
   - **Context**: 2026-06-15 — investigating "the pool only runs ~1-wide". Work agents
     (review/execute/hard) DO run concurrently (harness cap `min(16, cores-2)`; I/O-bound API
