@@ -241,3 +241,7 @@ HARD id:401c strong-model audit run 6 (window relay-ckpt-20260615-1937..HEAD): c
 ## 2026-06-15 21:47 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 HARD id:401c strong-model audit run 7 (window relay-ckpt-20260615-2129..HEAD): clean — only first-seen code is the `warn_nested_worktrees` stale-checkout guard in gather-human-backlog.sh (83d8614); no code/security/coherence defects (`set -e`-safe grep guards, `-F` trailing-slash prefix match, stdout/stderr split all verified correct). Forward-robustness gap fixed inline (same class as run 6): the new warning shipped untested → added a non-vacuous regression guard (test_relay_human.sh section 4: real-git nested-worktree fixture + clean-repo negative control + stdout-clean assertion). Suite 50/0. Item stays open (recurring by design). Note: this branch also carries the un-integrated run-6 commit b6b086d (ahead of main).
+
+## 2026-06-15 21:50 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 7 (window 2129..HEAD): clean — nested-worktree guard 83d8614 audited, no defects; untested-warning gap fixed inline (test_relay_human.sh §4). Suite 50/0.
