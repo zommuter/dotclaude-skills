@@ -10,6 +10,25 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] Relay must sync local↔origin before working a repo (stale-clone / divergence guard) [ROUTINE] <!-- id:c3f7 -->
+  - **Context**: 2026-06-15 near-catastrophe. The pool worked ai-codebench on a LOCAL clone that
+    had been ~1 month behind origin (stale since 2026-05-13, missing 106 commits incl. the live
+    GPU session done on zomni). Discovery classifies purely from LOCAL git state and never fetches,
+    so for DAYS the pool built a doomed parallel relay timeline (9+ checkpoints) on the stale base
+    that could never push (`--ff-only` correctly refused) — wasted work + divergence. A force-push
+    "fix" would have destroyed the 106 origin commits. Fixed manually (reset local→origin, purged
+    9 dangling stale-timeline tags, corrected relay.toml last_ckpt).
+  - **Acceptance**: discovery (or a pre-dispatch step) runs `git -C <path> fetch origin` and compares
+    local main to `origin/main`: (a) up-to-date → proceed; (b) behind & clean & no local-unique
+    commits → fast-forward, then classify; (c) DIVERGED (local-unique AND origin-unique commits) →
+    do NOT work it — surface in RELAY_STATUS "Blocked: <repo> diverged from origin (local N / origin M)
+    — needs manual reconcile", never commit on top. Dirty tree still blocks as today. The integrator
+    must also never create a checkpoint/commit on a base behind origin. Hermetic test with two scratch
+    clones (behind→ff; diverged→surface).
+  - **Pairs with**: server-side hardening — set `receive.denyNonFastForwards=true` + `receive.denyDeletes=true`
+    on fievel's bare repos (globally: `git config --global receive.denyNonFastForwards true`) so a
+    force/purge push is impossible at the server (gerrit is overkill for a Pi). Ops task, tracked here.
+
 <!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — RATIFIED 2026-06-15
      (meeting docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md). The claim
      primitive + per-repo lease REUSE existing TODO id:ebfb (claim/reservation umbrella: worktree-
