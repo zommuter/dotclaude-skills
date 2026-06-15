@@ -34,7 +34,13 @@ step 4 audits them as drift surface from then on). Commit
 **C2 — roadmap.** Write `ROADMAP.md` from the template: items sized for one Sonnet
 session, each self-contained with acceptance criteria and an explicit done-check
 command. Tag each `[ROUTINE]` (executor) or `[HARD — strong model]`. Assign one
-pre-allocated `id:XXXX` per item. Add/refresh the single TODO.md summary line. Commit
+`id:XXXX` per item — **single-id-two-views (D2): if a roadmap item promotes work the
+repo's `TODO.md` already tracks under an `<!-- id:XXXX -->`, REUSE that token; mint a
+fresh pre-allocated token ONLY for newly-discovered work.** TODO/meeting is the design
+ledger ("why"); ROADMAP is the execution queue ("now") — the same token spanning both
+is the intended shape, and lets `orphan-scan.sh --cross-ledger` keep their checkbox
+states consistent. Minting a duplicate id for already-tracked work is the anti-pattern
+the guard exists to catch. Add/refresh the single TODO.md summary line. Commit
 `relay(handoff): C2 roadmap`.
 
 **C3 — spec-as-tests.** For every `[ROUTINE]` item, write the FAILING tests now and
