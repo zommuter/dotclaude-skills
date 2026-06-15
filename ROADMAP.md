@@ -10,6 +10,26 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] [ROUTINE] Surface the REAL quota-stop reason in RELAY_STATUS + workflow log (visual feedback) <!-- id:8c35 -->
+  - **Context**: 2026-06-15 — the relaunched pool (run relay-20260615-155151) reported
+    `quotaStopped:true` and a big queued-not-dispatched backlog, but it had NOT hit any quota
+    bucket (5h 43% / 7d 55% / Sonnet 81% remaining, all far from the 90%-used threshold). The
+    real cause, only found by grepping the workflow log, was `quota-stop: cache stale (1404s >
+    600s limit) and self-refresh unavailable/failed` — the conservative stale-cache-can't-refresh
+    seatbelt (the `/api/oauth/usage` endpoint 429s aggressively). A refresh-failure stop and a
+    real-exhaustion stop are reported IDENTICALLY ("quotaStopped"), making the stop opaque.
+  - **Why**: user directive 2026-06-15 — "really needs more visual feedback". An operator should
+    see WHY the pool stopped without grepping transcripts.
+  - **Acceptance**: relay-loop.js's quotaGate captures the quota-stop verdict CATEGORY and detail
+    (real exhaustion: which bucket + headroom%, vs stale-cache/refresh-failure vs seatbelt/budget)
+    and (a) `log()`s it as the drain reason, and (b) writes it into RELAY_STATUS.md (e.g. a
+    `## Stop reason` line or annotating the existing `## Quota remaining` section). The returned
+    run result distinguishes `stopReason: "quota-exhausted:<bucket>" | "quota-stale-cache" |
+    "budget" | "drained" | "max-rounds"`. quota-stop.sh already returns exit 2 for
+    uncertain/stale vs exit 1 for at/above-threshold — surface that distinction instead of
+    collapsing both to "quotaStopped". Hermetic test asserting the stale-cache path yields the
+    stale-cache reason, not a bucket-exhaustion reason.
+
 - [ ] [ROUTINE] Harden relay-state-write.sh toml-set against awk -v / regex-key input (F1/F2) <!-- id:c8db -->
   - **Source**: id:401c strong-model audit 2026-06-15 (`docs/meeting-notes/2026-06-15-1520-strong-model-audit.md`),
     findings F1 + F2. Re-filed after the audit's own commit was discarded (stale base) — see that note's provenance header.
