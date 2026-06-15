@@ -143,3 +143,7 @@ review 20260613-2304: 3 docs/TODO commits (id:60e1 done, BDD-automation + REVIEW
 ## 2026-06-14 09:56 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260614-0942: id:5902 two-switch verified genuinely green (gate STRONG_MODEL==='claude-fable-5', new static test, no gaming), 17/17 tests green, fixed fables-relay.md -d knob drift, contract v2 in sync, routine_open=0
+
+## 2026-06-15 09:48 — strong-execute (claude-opus-4-8, fable-standin, manual HARD)
+
+da26 HARD-execute verdict (Opus-apex, gated, Sonnet-never) + tested probe-fable.sh; 23/23 green
