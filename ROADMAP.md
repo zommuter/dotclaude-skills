@@ -83,6 +83,16 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     collapse `POOL_WIDTH→1` (RUN ALONE — the OOM fix); never auto-dispatched without `--allow-intensive`
     / `--afk`. Reuses the id:ebfb claim machinery — NOT a separate `resources/*.lock` semaphore (the
     earlier acceptance text above is superseded by this). Build step 5 of the cluster sequence.
+  - **Shipped 2026-06-15 (mechanism)**: relay-loop.js — discovery reports `intensive` (resource
+    string) from the `[INTENSIVE — <resource>]` item modifier OR a relay.toml `intensive` flag;
+    `--allow-intensive`/`--afk` gate (`args.allowIntensive`, SKILL.md knobs); intensive units are
+    PARTITIONED out of the parallel wave (never auto-run — surfaced "needs --allow-intensive") and,
+    when allowed, run in a SERIAL run-alone phase after the wave, each holding an exclusive
+    `resource:<name>` claim (acquire in unitPrompt, release in integrator). `tests/test_relay_intensive.sh`.
+  - **Remaining (item stays open)**: the tagging *criteria* doc — `references/conventions.md` /
+    handoff.md guidance for strong children on WHEN to tag an item `[INTENSIVE — local-llm]`
+    (cite the OOM + ~57s TTFT facts) — plus seeding the coarse per-repo `intensive` defaults in
+    relay.toml for ai-codebench / zkm.
 
 - [ ] `/meeting` ↔ relay-loop mutual hold (holdable meeting while a pool is live) [HARD — decision gate] <!-- id:d748 -->
   - **Context**: 2026-06-15 user request. `/meeting` writes the shared ledgers (TODO/ROADMAP/REVIEW_ME)

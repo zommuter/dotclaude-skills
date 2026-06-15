@@ -72,7 +72,8 @@ D1/D2):
 3. **Workflow launch.** The front door invokes the `relay/scripts/relay-loop.js`
    Workflow script (id:83c9), passing `args.STRONG_TIER`, `args.interactive`,
    `args.fableDown` (true when `--fable-down`/`-d` is set), `args.POOL_WIDTH`
-   (when overridden via `POOL_WIDTH` env var / `--pool-width` flag), and
+   (when overridden via `POOL_WIDTH` env var / `--pool-width` flag),
+   `args.allowIntensive` (true when `--allow-intensive` or `--afk` is set — id:8d52), and
    `args.RELAY_STATUS_PATH` (when overridden). The Workflow owns the pool, the serialized integrator, the
    quota guards, **and the self-feeding loop** — it re-discovers after each dispatch wave
    so executes→reviews→executes cycle inside a SINGLE invocation (`runRound()` in a `while`),
@@ -249,6 +250,7 @@ the historical `fable-ckpt-*` prefix:
 | `--strong-tier fable` / "Fable is available" | flag/override | off | The ONLY way to use Fable: asserts Fable is up, overriding even a failing step-0 probe. Use when you know Fable works despite a probe error. Without it the default stays `opus`. |
 | `--fable-down` / `-d` | flag | off (probe decides) | Forces Fable-down *without* probing. On the now-default `STRONG_TIER=opus` it is a **no-op** (Opus is already apex). Only meaningful with an explicit `STRONG_TIER=fable`, where it triggers the legacy defer/demote (executor-only) path. Passed as `args.fableDown = true`. |
 | `--interactive` | flag | off | Re-enables the one-batch `AskUserQuestion` confirmations before launch; passed to the Workflow as `args.interactive`. Default mode is unattended. |
+| `--allow-intensive` / `--afk` | flag | off | Opt in to `[INTENSIVE — <resource>]` work (id:8d52). By default such resource-heavy units (local-LLM benchmarks, big index rebuilds — the OOM risk) are NEVER auto-dispatched: they're surfaced as skipped in `RELAY_STATUS.md`. With this flag they run **serially-alone** after each round's normal parallel wave, each holding an exclusive `resource:<name>` claim (cross-run). `--afk` ("I'm away, do something useful") is an alias. Passed as `args.allowIntensive = true`. |
 | `RELAY_QUOTA_THRESHOLD` | 0–1 fraction | `0.90` | Quota stop threshold used by `scripts/quota-stop.sh` (cache `.utilization` is 0–100 percent; converted internally). |
 | `RELAY_QUOTA_THRESHOLD_<BUCKET>` | 0–1 fraction | (general threshold) | Per-bucket override of `RELAY_QUOTA_THRESHOLD` for one cache bucket only, e.g. `RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50` or `RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET=0.50`. Caps a long-window bucket tighter than the 5h bucket ("use most of the 5h window but never exceed 50% of 7d/Sonnet"); buckets without an override keep the general threshold, so behaviour is unchanged unless set. |
 | `POOL_WIDTH` | integer | `5` | Number of distinct repos dispatched in parallel (one unit per repo). Passed as `args.POOL_WIDTH`. NOTE: the Workflow harness independently caps concurrent agents at `min(16, cpu_cores-2)`, so values above that ceiling just queue — no benefit. |
