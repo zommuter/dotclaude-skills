@@ -171,3 +171,7 @@ Verified 5481502 install-manifest+quota-stop fix (genuine: quota-stop.sh exits 2
 ## 2026-06-15 11:19 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified 5481502 install-manifest+quota-stop fix (genuine); 25/25 green; re-derived ROADMAP, refreshed stale TODO mirror 1→3
+
+## 2026-06-15 11:59 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 20260615-1152: verified id:bc9d (per-repo integrator) + 82a2dda (quota throttle) genuine; suite 26 green; 1 open [ROUTINE] (5f09)
