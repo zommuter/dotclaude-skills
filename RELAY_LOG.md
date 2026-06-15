@@ -205,3 +205,7 @@ Friction: none — all items self-contained and well-scoped. Full suite: 48 pass
 ## 2026-06-15 17:31 — executor (sonnet, relay-loop)
 
 executor: close all 5 open [ROUTINE] items — quota-stop reason (8c35), toml-set hardening (c8db), gaming-scan.sh (fa05), review.md §2 delegate (dfaf), gaming-flag rate logger (3826)
+
+## 2026-06-15 17:48 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 3 (window 1559..HEAD): 2 defects fixed inline — test_relay_executor.sh broken by stub-untrack (suite 1-red→48/0), gaming-flag logger dead feed (review prompt never requested its fields); regression guard added
