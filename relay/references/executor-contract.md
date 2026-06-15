@@ -14,8 +14,9 @@ you were told you are the reviewer) follow these rules:
 2. **Definition of done**: the item's previously-failing tests pass, a refactor
    pass is done, and the FULL test suite is green. Nothing else counts.
 3. **Test integrity**: never weaken, delete, skip, or rewrite a test to make it
-   pass. The reviewer diffs all test files against the last `fable-ckpt-*` tag
-   and re-runs the original test versions; gamed tests will be found and the
+   pass. The reviewer diffs all test files against the last relay checkpoint tag
+   (`relay-ckpt-*`, or a historical `fable-ckpt-*`) and re-runs the original test
+   versions; gamed tests will be found and the
    item reopened. If a test looks wrong or the spec seems ambiguous: STOP,
    append `BLOCKED: <item-id> <reason>` to RELAY_LOG.md, and pick another item.
 4. **Self-report**: if the session did substantive work or hit a blocker,
