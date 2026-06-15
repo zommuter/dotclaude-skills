@@ -179,3 +179,7 @@ review 20260615-1152: verified id:bc9d (per-repo integrator) + 82a2dda (quota th
 ## 2026-06-15 14:59 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: audited 16 commits / 9 closed items (dispatch-safety cluster + 0902 interactive-claim) — all genuinely green, no gaming flags, suite 40-green, 2 open [HARD] items remain
+
+## 2026-06-15 15:59 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified fb75/6e9d/3ac8 (relay-loop inject+stale-reap ships) genuine — 43 tests green, no gaming, ledger consistent, contract v4 current
