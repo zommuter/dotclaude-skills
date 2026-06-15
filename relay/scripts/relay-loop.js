@@ -533,7 +533,7 @@ async function quotaGate(tier) {
     .map(k => `${k}=${A[k]}`)
   const thresholdEnv = envPairs.length ? envPairs.join(' ') + ' ' : ''
   const v = await agent(
-    `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} ${unitsDispatched} 0
+    `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${unitsDispatched} --wall 0
 Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.`,
     { label: `quota:${tier}`, phase: 'Dispatch', schema: QUOTA_SCHEMA, model: 'haiku' }
   )
