@@ -88,7 +88,16 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     repos per call to further cut the ~1–2 min/repo agent overhead — left for a later pass; the
     per-repo concurrency above is the primary throughput lever.
 
-- [ ] On-demand high-priority executor-task injection into the running pool [ROUTINE] <!-- id:baf1 -->
+- [x] On-demand high-priority executor-task injection into the running pool [ROUTINE] (done 2026-06-15) <!-- id:baf1 -->
+  - **Shipped 2026-06-15**: `relay/scripts/inject.sh` (`add`/`peek`/`take`, flock'd per-shard
+    inbox `~/.config/fables-turn/inject.d/`, consumed → `inject.done/`). relay-loop.js discovery
+    runs `inject.sh take`; injected units carry `injected:true` + `inject_token`/`inject_item`/
+    `inject_prompt`, sort AHEAD of every verdict class (both the normal and `--fable-down`
+    schedulers), and SKIP the quota gate (explicit user request). Makefile + allowlist registered
+    (id:5f09 lesson). `tests/test_relay_inject.sh` (`# roadmap:baf1`) green. Usage:
+    `inject.sh add <repo> [--item <id>] [--verdict execute] [--prompt "…"]` — picked up next round.
+  - **Deferred follow-ups (not blocking)**: RELAY_STATUS `peek` projection of pending injections;
+    within-round latency (a lane re-checking `inject.d` between units — MVP is next-round-boundary).
   - **Context**: 2026-06-15 user request — "inject this executor task next with highest priority."
     A live control-plane: drop a task and the running pool picks it up ahead of its normal
     verdict-class schedule (execute→review→hard→handoff, id:da26) on the next round.

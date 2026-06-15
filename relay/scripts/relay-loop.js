@@ -206,6 +206,14 @@ const DISCOVER_SCHEMA = {
           // standing in for Fable, so it still needs an independent Fable re-review.
           // Drives the standInRank tiebreaker.
           standin: { type: 'boolean' },
+          // injected (id:baf1): this unit came from the user-driven injection inbox
+          // (`inject.sh take`), NOT from repo classification. Injected units sort AHEAD of
+          // every verdict class and skip the quota gate (an explicit user request). The
+          // shard was already consumed by `take`, so it is not re-listed next round.
+          injected: { type: 'boolean' },
+          inject_token: { type: 'string' },   // the consumed shard token (for logging/trace)
+          inject_prompt: { type: 'string' },  // optional freeform instruction for the child
+          inject_item: { type: 'string' },    // optional specific ROADMAP id to work
         },
       },
     },
@@ -343,7 +351,9 @@ Also produce:
 - strongRecheckPending per repo: true iff the relay.toml [repos.<name>] block has a non-empty last_strong_ckpt AND fable_rechecked is false (or absent/empty). This is the DURABLE, model-tracked Fable-bonus-recheck queue (id:e030): a strong (Opus) review/handoff/hard checkpoint that has not yet had its optional Fable recheck. It SURVIVES a later executor (sonnet) checkpoint that overwrites last_ckpt and masks the latest-tag fable-standin signal — so prefer this field over the tag grep when deciding optional-recheck candidacy. Report false when last_strong_ckpt is absent/empty or fable_rechecked is true (or a date).
 - standin per repo: true iff the repo's LATEST relay checkpoint tag message contains the literal token "fable-standin". Detect (match BOTH prefixes — the latest tag may be fable-ckpt-* or relay-ckpt-*): T=$(git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no checkpoint tag.
 
-Return every own repo exactly once across units (verdict idle included) and surfaced.`,
+INJECTED HIGH-PRIORITY UNITS (id:baf1): also run \`~/.claude/skills/relay/scripts/inject.sh take\`. It emits zero or more pending user-injected units as compact JSON lines (and atomically consumes them, so they are NOT re-listed next round): {token, repo, verdict, item, prompt, requested_at}. For EACH such line, add ONE extra unit to "units" with: injected=true, inject_token=<token>, verdict=<its verdict, default "execute">, repo=<its repo>, path=<resolve like any own repo: ~/src/<repo> or the "# path:" override>, reason="user-injected high-priority task", inject_item=<item or "">, inject_prompt=<prompt or "">, and income/standin/hasRoutine/openHard/strongRecheckPending=false, lastCkpt="". These are IN ADDITION to (not instead of) the repo's normal classification — a repo may appear both as its classified unit and as an injected unit. If \`inject.sh take\` emits nothing, add no injected units.
+
+Return every own repo exactly once across NON-INJECTED units (verdict idle included) and surfaced; injected units are extra.`,
   { label: 'discover', phase: 'Discover', schema: DISCOVER_SCHEMA }
 )
 
@@ -386,9 +396,12 @@ if (SESSION_IS_FABLE && !FABLE_DOWN) {
 // Sort: verdict class first (D3 invariant), then income repos win slot contention
 // within a class (user directive 2026-06-12: prefer income-relevant tasks), then the
 // fable-standin tiebreaker (user directive 2026-06-13; see standInRank above).
+// Injected units (id:baf1) outrank everything — they are explicit, high-priority user
+// requests; only then verdict class (D3), income, fable-standin.
 let actionable = discovery.units
   .filter(u => u.verdict !== 'idle')
   .sort((a, b) =>
+    ((b.injected ? 1 : 0) - (a.injected ? 1 : 0)) ||
     (PRIORITY[a.verdict] - PRIORITY[b.verdict]) ||
     ((b.income ? 1 : 0) - (a.income ? 1 : 0)) ||
     (standInRank(a) - standInRank(b))
@@ -445,9 +458,10 @@ if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') {
       fableDownDeferred.push(u)
     }
   }
-  // All-execute now, so PRIORITY ties; income repos win slot contention, then the
-  // fable-standin tiebreaker prefers Fable-vetted roadmaps (standInRank: execute → non-standin first).
+  // All-execute now, so PRIORITY ties; injected units (id:baf1) still outrank, then income
+  // repos win slot contention, then the fable-standin tiebreaker prefers Fable-vetted roadmaps.
   actionable = kept.concat(demoted).sort((a, b) =>
+    ((b.injected ? 1 : 0) - (a.injected ? 1 : 0)) ||
     ((b.income ? 1 : 0) - (a.income ? 1 : 0)) ||
     (standInRank(a) - standInRank(b))
   )
@@ -511,7 +525,7 @@ function unitPrompt(unit) {
 Create your worktree first: git -C ${unit.path} worktree add ${wt} -b ${branch} HEAD
 Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. Last checkpoint tag: ${unit.lastCkpt || '(none)'}.
 
-Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/relay/references/conventions.md for environment facts and relay invariants before starting.
+${unit.injected ? 'This is a USER-INJECTED high-priority task (id:baf1). ' + (unit.inject_item ? 'Work specifically the ROADMAP.md item tagged <!-- id:' + unit.inject_item + ' -->. ' : '') + (unit.inject_prompt ? 'User instruction: ' + unit.inject_prompt + ' ' : '') + 'Otherwise follow the verdict procedure below.\n' : ''}Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/relay/references/conventions.md for environment facts and relay invariants before starting.
 ${unit.verdict === 'execute' ? 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. Stop at a natural boundary; never start an item you cannot finish.' : ''}
 ${unit.verdict === 'hard' ? 'You are an Opus-apex HARD-execute child (id:da26). Pick the TOP open "- [ ]" item tagged [HARD — strong model] in ROADMAP.md and SIZE it first. Model your discipline on handoff.md C5 "only if small enough to finish safely": only implement the item if you can finish it cleanly and green within this turn — full red-green-refactor, verify-before-merge. If it is too large, contains nested/multi-session scope, or you cannot make the test suite green safely, do NOT half-do it: set contract_met=false and explain the sizing in handback (the item stays open for a manual/next-turn strong session). When you DO finish: tick the item\'s checkbox ONLY if the work is genuinely green (all tests pass — never tick to manufacture a pass), append its done-note, commit in the worktree, and make the full test suite green. Work ONE bounded HARD item only — never start a second.' : ''}
 ${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
@@ -646,7 +660,10 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
 
 async function runUnit(unit) {
   const tier = unit.verdict === 'execute' ? 'sonnet' : 'strong'
-  if (!(await quotaGate(tier))) {
+  // Injected units (id:baf1) skip the quota gate — an explicit user request runs even near
+  // the cap. They were already consumed by `inject.sh take`, so deferring them would lose
+  // the injection; honoring it is the whole point of "inject this next, highest priority".
+  if (!unit.injected && !(await quotaGate(tier))) {
     state.queued.push({ repo: unit.repo, verdict: `${unit.verdict} (quota-deferred)` })
     return
   }
