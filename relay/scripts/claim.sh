@@ -73,10 +73,16 @@ case "$cmd" in
     exec 9>"$LOCK"
     flock -w 30 9 || { echo "claim.sh acquire: lock timeout" >&2; exit 1; }
     if is_fresh "$shard"; then
-      jq -c '.' "$shard" >&2 2>/dev/null || cat "$shard" >&2
-      flock -u 9 || true
-      log "acquire REFUSED key=$key (held)"
-      exit 1
+      # Re-entrant per run: a fresh claim held by the SAME runId is re-acquirable (the run
+      # already owns the repo — e.g. the review→execute re-chain) and the write below
+      # refreshes its mtime (heartbeat). A fresh claim held by a DIFFERENT run is REFUSED.
+      holder_run="$(jq -r '.runId // ""' "$shard" 2>/dev/null)"
+      if [ -z "$run" ] || [ "$holder_run" != "$run" ]; then
+        jq -c '.' "$shard" >&2 2>/dev/null || cat "$shard" >&2
+        flock -u 9 || true
+        log "acquire REFUSED key=$key (held by run=$holder_run, requester=$run)"
+        exit 1
+      fi
     fi
     ts="$(date '+%Y-%m-%dT%H:%M:%S%z')"
     tmp="$CLAIMS/.$sk.tmp"
@@ -93,13 +99,28 @@ case "$cmd" in
   release)
     key="${1:-}"; shift || true
     [ -n "$key" ] || { echo "claim.sh release: <key> required" >&2; exit 2; }
+    run=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --run) run="${2:-}"; shift 2 ;;
+        *) echo "claim.sh release: unknown arg '$1'" >&2; exit 2 ;;
+      esac
+    done
     sk="$(safekey "$key")"
     shard="$CLAIMS/$sk.json"
     exec 9>"$LOCK"
     flock -w 30 9 || { echo "claim.sh release: lock timeout" >&2; exit 1; }
     if [ -f "$shard" ]; then
-      mv "$shard" "$DONE/$sk.json"
-      log "release key=$key"
+      # Run-scoped: with --run, only release a claim THIS run holds — so a
+      # "claimed-elsewhere" handback can safely call release without deleting the
+      # other run's claim. Without --run, force-release (admin/cleanup).
+      holder_run="$(jq -r '.runId // ""' "$shard" 2>/dev/null)"
+      if [ -z "$run" ] || [ "$holder_run" = "$run" ]; then
+        mv "$shard" "$DONE/$sk.json"
+        log "release key=$key run=$run"
+      else
+        log "release SKIPPED key=$key (held by run=$holder_run, requester=$run)"
+      fi
     fi
     flock -u 9 || true
     ;;
