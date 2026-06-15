@@ -10,6 +10,27 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] relay-loop.js must auto-reap stale worktrees from dead runs (not treat them as in-flight) <!-- id:3ac8 -->
+  - **Context**: observed 2026-06-15 — two crashed morning runs (`relay-…-1104-hard`,
+    `relay-…-1152-hard`) left 17 worktrees on disk under `~/.cache/fables-turn/worktrees/`
+    with NO live `claim.sh` shard. Discovery's worktree-aware guard (id:c3f7) treats a
+    worktree directory's mere existence as "in-flight elsewhere — claimed by another relay
+    run", so a later pool falsely SKIPPED 14 repos (all the HARD-eligible ones) and starved
+    itself. `claim.sh` explicitly defers this case: "handback nuance for stale-with-live-worktree
+    is the relay-loop's job, not this." The loop isn't doing it.
+  - **Why HARD**: must distinguish a *dead-run* stale worktree (no live claim + claim/worktree
+    mtime past TTL) from a genuinely live foreign-runId worktree, AND must NOT blind-prune — a
+    worktree can hold an unmerged handback commit (RELAY_LOG/REVIEW_ME notes; 2 of the 17 did).
+    Reconcile-then-reap: integrate any commits ahead of main (ff/union path) before removing.
+  - **Acceptance**: relay-loop.js discovery, before classifying a repo "in-flight elsewhere",
+    checks for a FRESH `claim.sh` shard; if none and the worktree branch is `--is-ancestor` of
+    main (empty), prunes it + deletes the branch; if it carries commits ahead, surfaces it as a
+    HANDBACK needing integration (never silently dropped). Hermetic test in `tests/` with a
+    seeded stale worktree + empty claim registry asserting the repo is freed, not skipped.
+  - **Manual cleanup already done 2026-06-15** (this is the durable fix): the 17 worktrees were
+    hand-reaped, the 2 handback commits (rawrora id:9029 REVIEW_ME box, zkm-notmuch id:f103 log)
+    ff-merged to main and pushed first.
+
 - [x] Interactive relay modes (handoff/review/human) are claim-aware (done 2026-06-15) <!-- id:0902 -->
   - **Context**: post-cluster gap — the autonomous pool (id:ebfb), `/relay executor` (contract v4),
     and `/meeting` (id:d748) took the cross-session lease, but the INTERACTIVE orchestrator modes
