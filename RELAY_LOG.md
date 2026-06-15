@@ -187,3 +187,7 @@ review: verified fb75/6e9d/3ac8 (relay-loop inject+stale-reap ships) genuine —
 ## 2026-06-15 16:23 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:8c35 doc-only ledger commit genuine (no code/test churn, contract v4 current, ledger consistent); mini-handoff'd its missing red spec test — 43 green + 1 expected-red
+
+## 2026-06-15 17:12 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Reviewed cb50/53f7/9ed4/2909 — all verified-green (no gaming); doc'd DISCOVER_SHARDS knob, refreshed open-item count 4→8, 45 tests green
