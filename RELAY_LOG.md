@@ -167,3 +167,7 @@ relay-ckpt-* tag prefix + dual-prefix matching + model-tracked Fable-bonus queue
 ## 2026-06-15 11:04 — review (claude-opus-4-8, fable-standin, relay-loop)
 
 Verified 5481502 install-manifest+quota-stop fix (genuine: quota-stop.sh exits 2 on bare positionals; all 6 relay/scripts now in Makefile manifest); 25/25 green, no deleted/weakened tests in window. Noted id:5f09 (new) is an open [ROUTINE] shipped WITHOUT its red spec test — left open, routine_open=1 for execute chaining. Refreshed stale TODO relay-mirror (id:d5e0): 1→3 open ROADMAP items. Pointer v3=canonical, no spec drift.
+
+## 2026-06-15 11:19 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified 5481502 install-manifest+quota-stop fix (genuine); 25/25 green; re-derived ROADMAP, refreshed stale TODO mirror 1→3
