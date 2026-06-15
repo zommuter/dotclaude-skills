@@ -191,3 +191,13 @@ review: verified id:8c35 doc-only ledger commit genuine (no code/test churn, con
 ## 2026-06-15 17:12 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Reviewed cb50/53f7/9ed4/2909 — all verified-green (no gaming); doc'd DISCOVER_SHARDS knob, refreshed open-item count 4→8, 45 tests green
+
+## 2026-06-15 — executor (sonnet)
+
+Worked all 5 open [ROUTINE] items in one session:
+- id:8c35 — surfaced REAL quota-stop reason: quotaGate now distinguishes exit 2 (stale-cache) vs exit 1 (real exhaustion) and surfaces stopReason in log(), run result, and RELAY_STATUS.md "## Stop reason" section.
+- id:c8db — hardened relay-state-write.sh toml-set: value via ENVIRON (no awk -v escape mangling), key by literal substr-prefix compare (no regex metachar risk). New edge-case tests added.
+- id:fa05 — created relay/scripts/gaming-scan.sh (mechanical gaming detector): DELETED_TEST / ADDED_SKIP / REMOVED_ASSERT flags from git diff; Makefile registered; hermetic tests with negative control (id:3b02 model case).
+- id:dfaf — rewrote review.md §2 to delegate mechanical checks to gaming-scan.sh; §2a runs script, §2b retains only resurrection-check + fixture-special-casing judgment prose; --diff-filter=D removed from inline prose.
+- id:3826 — added logGamingFlags() to relay-loop.js integrate(): fire-and-forget Haiku agent appends JSON line to ~/.claude/logs/relay-gaming-flags.log per review integration; DEFERRED-FLEET SEAM comment at call site (id:2909 D1).
+Friction: none — all items self-contained and well-scoped. Full suite: 48 passed, 0 failed.
