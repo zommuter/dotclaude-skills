@@ -94,7 +94,13 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     (cite the OOM + ~57s TTFT facts) — plus seeding the coarse per-repo `intensive` defaults in
     relay.toml for ai-codebench / zkm.
 
-- [ ] `/meeting` ↔ relay-loop mutual hold (holdable meeting while a pool is live) [HARD — decision gate] <!-- id:d748 -->
+- [x] `/meeting` ↔ relay-loop mutual hold (holdable meeting while a pool is live) (done 2026-06-15) <!-- id:d748 -->
+  - **Shipped 2026-06-15**: `meeting/SKILL.md` step 2a "Relay-pool claim hold" — before the 2b/2e
+    shared-ledger write-back (relay-managed repos only), `/meeting` acquires the repo claim
+    (`claim.sh acquire <repo> --run meeting-<session> --mode meeting`), does the write + releases;
+    on refusal (a live pool holds it) it DEFERS the write-back (the meeting note already records the
+    decisions) and never forces a write under a live pool claim. Read/think + the note are never
+    blocked. `tests/test_meeting_claim_hold.sh` (`# roadmap:d748`). Reuses the id:ebfb claim registry.
   - **Context**: 2026-06-15 user request. `/meeting` writes the shared ledgers (TODO/ROADMAP/REVIEW_ME)
     in the MAIN checkout while the relay pool merges worktree branches into the same files (D2
     single-id-two-views; CLAUDE.md already notes md-merge.py + `orphan-scan.sh --cross-ledger` for
