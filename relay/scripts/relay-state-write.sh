@@ -52,12 +52,18 @@ case "$cmd" in
     fi
 
     tmp="$(mktemp "$BASE/.relay.toml.XXXXXX")"
-    # awk: track when inside [repos.<repo>]; replace `^<key>[ \t]*=`; on leaving the block
-    # (next `^[` header) or EOF, emit the new key line if not yet set. Only <key> is used in
-    # a regex (simple identifier); repo/key/value passed via -v (no shell injection).
-    awk -v hdr="$header" -v key="$key" -v val="$value" '
-      BEGIN { inblk=0; done=0; kre="^" key "[ \t]*=" }
-      # A new bracket header line.
+    # id:c8db — F1: pass value via ENVIRON (not awk -v) to avoid C-escape processing of
+    # backslashes; F2: match key by literal prefix compare (substr + fixed-width) not regex,
+    # so a key containing regex metacharacters never matches the wrong line.
+    # Both hdr and key are still passed via -v (they are identifiers, not user data; no
+    # backslash risk; regex is only used for hdr which is a safe `[repos.X]` literal).
+    TOML_VAL="$value" awk -v hdr="$header" -v key="$key" '
+      BEGIN {
+        inblk=0; done=0
+        val = ENVIRON["TOML_VAL"]
+        klen = length(key)
+      }
+      # A new bracket header line: exact-string match for the target header.
       /^\[/ {
         if (inblk && !done) { print key " = " val; done=1 }
         inblk = ($0 == hdr) ? 1 : 0
@@ -65,7 +71,12 @@ case "$cmd" in
         next
       }
       {
-        if (inblk && $0 ~ kre) { print key " = " val; done=1; next }
+        # id:c8db F2 — literal key-prefix match: substr(line, 1, klen) == key and
+        # the next char is space, tab, or "=" (covers "key =" and "key=").
+        if (inblk && !done && substr($0, 1, klen) == key) {
+          rest = substr($0, klen + 1)
+          if (rest ~ /^[ \t]*=/) { print key " = " val; done=1; next }
+        }
         print
       }
       END { if (inblk && !done) { print key " = " val } }
