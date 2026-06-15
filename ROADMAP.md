@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] Resolver pushes unblocked work to the pool via inject.sh (low-latency REVIEW_ME pickup) <!-- id:fb75 -->
+- [x] [ROUTINE] Resolver pushes unblocked work to the pool via inject.sh (low-latency REVIEW_ME pickup) (done 2026-06-15) <!-- id:fb75 -->
   - **Context**: 2026-06-15 user observation — a parallel `/relay human` session resolved most
     REVIEW_ME boxes, but the running pool only reacts at its next discovery **round boundary**
     (after the current wave integrates), so a resolution that unblocks pool work waits minutes.
@@ -32,23 +32,44 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     it unblocks work). Then `make test` green (fb75 ticked). No relay-loop.js change — this is the
     resolver contract only; the within-round-latency lever is id:6e9d.
 
-- [ ] [HARD — strong model, DEFERRED: measure-first] Within-round inject.d poll (lane re-checks between units) <!-- id:6e9d -->
-  - **Context**: the id:baf1 deferred follow-up, now demand-noted (2026-06-15). Even with id:fb75
-    pushing the unblocked item, pickup still waits for the **next round's** discovery `inject.sh
-    take`. A lane re-checking `inject.d` BETWEEN units (not just at round start) would drop latency
-    to ~one unit duration. relay-loop.js change to the dispatch loop (a verdict-order concern →
-    HARD).
-  - **Why DEFERRED (measure-first, per the "observe before preventing" heuristic)**: don't build
-    the within-round poll until id:fb75 is live AND the round-boundary latency is *measured* still
-    painful. Round latency is already bounded by wave duration (minutes); a mid-wave poll adds
-    loop complexity for a gain that may not matter once fb75 prioritizes the item. Gate to open:
-    fb75 shipped + a recorded instance of round-boundary latency actually blocking the human.
-  - **Acceptance (when un-gated)**: relay-loop.js lanes call `inject.sh take` (or a non-consuming
-    `peek`+claim) between units within a round and splice injected units into the current wave;
-    hermetic test with a seeded `inject.d` shard asserting mid-wave pickup. Until then: leave open,
-    do NOT implement.
+- [x] [HARD — strong model] Freed lane pulls injections mid-round (free-slot immediacy, no round-boundary wait) (done 2026-06-15) <!-- id:6e9d -->
+  - **Context (corrected 2026-06-15)**: the dispatch core is ALREADY a free-slot worker pool —
+    `parallel()` spawns POOL_WIDTH lanes each looping `queue.shift()`, and there is precedent for
+    pushing onto the LIVE queue mid-round (the review→execute re-enqueue at ~L782). The real gap:
+    injections enter the queue ONLY at round-start discovery (`inject.sh take` runs inside the
+    discovery agent). A lane that empties `queue` then EXITS (its `while (queue.length)` condition),
+    so a freed slot idles until the round ends — and the round ends only when the SLOWEST current
+    unit finishes. So a mid-round injection waits for unrelated long units (user report 2026-06-15:
+    "injection should trigger when a slot is free, not wait for irrelevant tasks").
+  - **Key constraint**: the Workflow script CANNOT run shell itself — `inject.sh take` only runs
+    inside an `agent()`. So a lane cannot poll `inject.d` directly; it must spawn a tiny take-agent.
+  - **Design (poll-once-on-drain, the cheap Pareto fix)**: when a lane finds `queue` empty (would
+    otherwise exit), it spawns a small `inject.sh take` agent (resolves repo path via relay.toml
+    `# path:`, returns injected unit objects). If it yields units → push onto the live `queue` +
+    continue (the freed lane runs them immediately). If empty → the lane exits as today. So an
+    injection is caught the moment the NEXT lane frees with the queue drained — for a cycling
+    multi-unit pool that is ~one short-unit latency, vs. today's "wait for the whole round + integ
+    drain + re-discovery". It does NOT preempt a running agent (impossible).
+  - **Known residual (explicitly out of scope, by design)**: if ALL lanes are simultaneously busy
+    on long units (e.g. end-of-backlog lone long tail), freed lanes have already exited, so the
+    injection is caught only when that tail unit finishes → the round ends → the outer loop
+    re-discovers (sub-second) and `take`s it. Fully closing that needs a poll-WHILE-busy lane, which
+    taxes EVERY round's tail with repeated take-agents whether or not an injection ever arrives — a
+    bad default (most rounds have no injection). Not taken; the poll-once fix is a strict
+    Pareto-improvement (never worse than today, usually much better) without that standing cost.
+  - **Races handled**: two lanes draining together both spawn take-agents — `inject.sh take` is
+    atomic/flock'd, so each shard goes to exactly one lane (the other gets empty → exits; no loss).
+    No busy-spin: a lane spawns the take-agent only when it would otherwise EXIT (queue empty), not
+    every iteration. MAX_UNITS/quota gates still bound dispatch.
+  - **Spec / red test**: `tests/test_relay_midround_inject.sh` (`# roadmap:6e9d`). Static-structural
+    (matching test_relay_loop_structure.sh): assert relay-loop.js has a mid-round injection pickup
+    (a take-agent spawned from the lane drain path, carrying `id:6e9d`), distinct from the
+    discovery-time take. RED until implemented.
+  - **No longer deferred**: user directive 2026-06-15 — free-slot immediacy is the wanted behavior,
+    not a measure-first nicety. Complements id:fb75 (resolver pushes) — fb75 enqueues the unblocked
+    item, 6e9d makes a free slot pull it without round-boundary latency.
 
-- [ ] relay-loop.js must auto-reap stale worktrees from dead runs (not treat them as in-flight) <!-- id:3ac8 -->
+- [x] relay-loop.js must auto-reap stale worktrees from dead runs (not treat them as in-flight) (done 2026-06-15) <!-- id:3ac8 -->
   - **Context**: observed 2026-06-15 — two crashed morning runs (`relay-…-1104-hard`,
     `relay-…-1152-hard`) left 17 worktrees on disk under `~/.cache/fables-turn/worktrees/`
     with NO live `claim.sh` shard. Discovery's worktree-aware guard (id:c3f7) treats a

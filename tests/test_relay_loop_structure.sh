@@ -121,7 +121,12 @@ pass "drained-termination (2 empty discoveries) present"
 
 # (17) Per-round cap ≠ run-ending stop: MAX_UNITS sets roundCapHit, not quotaStopped
 grep -q "roundCapHit = true" "$JS" || fail "MAX_UNITS does not use a per-round flag"
-grep -q "while (queue.length && !quotaStopped && !roundCapHit)" "$JS" || fail "lane loop missing roundCapHit guard"
+# The lane loop guards on quotaStopped + roundCapHit. Since id:6e9d the queue.length check
+# moved INSIDE the loop (a drained lane polls injections before breaking — see
+# test_relay_midround_inject.sh), so the while-condition is now (!quotaStopped && !roundCapHit)
+# with an `if (!queue.length)` drain/poll/break inside.
+grep -q "while (!quotaStopped && !roundCapHit)" "$JS" || fail "lane loop missing quotaStopped/roundCapHit guard"
+grep -q "if (!queue.length)" "$JS" || fail "lane loop missing queue-drain branch (id:6e9d injection poll)"
 # state + quotaStopped must be module-level accumulators (declared before runRound), not reset per round
 grep -q "^let quotaStopped = false" "$JS" || fail "quotaStopped not a cross-round accumulator"
 pass "per-round cap distinct from run-ending quotaStopped"
