@@ -288,6 +288,18 @@ function enqueueIntegration(fn) {
 // are local to runRound and reset each round.
 const state = { runId: '', ts: '', inFlight: [], completed: [], queued: [], blocked: [], quota: [], reviewMe: [] }
 let quotaStopped = false
+// Quota-check throttle (efficiency): spawning a Haiku quota agent before EVERY unit
+// saturated the harness concurrency cap (min(16, cores-2)) with throwaway checks,
+// starving the work lanes — with POOL_WIDTH lanes the effective WORK parallelism
+// collapsed toward ~1 instead of POOL_WIDTH (one quota + one work agent per lane = 2×
+// the slots, plus the serialized integrate agent). Re-run the real quota agent only every
+// QUOTA_CHECK_EVERY dispatches and reuse the last verdict in between (Workflow scripts
+// can't use Date.now() for a time TTL, so throttle by dispatch count). Mid-round
+// exhaustion is still caught within QUOTA_CHECK_EVERY units; the sticky quotaStopped flag
+// hard-stops instantly once any check trips.
+const QUOTA_CHECK_EVERY = A.QUOTA_CHECK_EVERY || POOL_WIDTH
+let quotaChecks = 0
+let lastQuotaOk = true
 const MAX_ROUNDS = A.MAX_ROUNDS || 30
 
 async function runRound() {
@@ -523,6 +535,11 @@ Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one lin
 
 async function quotaGate(tier) {
   if (quotaStopped) return false
+  // Throttle (see QUOTA_CHECK_EVERY above): only every Nth call actually spawns the check
+  // agent; the rest reuse the last verdict. quotaChecks++ is synchronous (no await before
+  // it), so concurrent lanes see the updated counter and only ONE lane per window spawns
+  // an agent — freeing the other slots for real work.
+  if (quotaChecks++ % QUOTA_CHECK_EVERY !== 0) return lastQuotaOk
   // Forward quota-policy knobs from args into the quota-stop env so a self-looping run
   // self-enforces the cap with no orchestrator between rounds. RELAY_QUOTA_DECAY_7D gives
   // the time-decaying 7d/Sonnet cap (e.g. "0.70:0.10"); per-bucket/general thresholds
