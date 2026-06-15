@@ -54,3 +54,7 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - ⚙️ **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration, TSV contract design for skill-called scripts. Extended 2026-06-11 (dotclaude-skills/classify-gate-text-check): framed advisory-only constraint as collapsing downside of dumb detection; cited orphan-scan ADVISORY as the pattern precedent.
 
 - ⚙️ **Sage** — skill-runtime lens; Claude Code skill mechanics, frontmatter, tool integration, TSV contract design, opencode command/tool/agent primitives. Extended 2026-06-11 (meeting-rpg/opencode-multi-tool-port): mapped Claude Code ↔ opencode primitive parity for meeting skill port.
+
+- 🧪 **Mara** — meta-learning / learned-optimizer lens (L2O, MAML/hypernetworks, ES/PES, meta-gradient stability & truncation/chaos failure modes, coordinate-sharing). Introduced 2026-06-15 (leAIrn2learn/leairn2learn-learning-how-to-learn).
+
+- 🧠 **Dax** — RL / neuromodulation / Hebbian-hormone lens (scalar-reward credit assignment & variance, three-factor rules, eligibility traces, backpropamine, online learning, async-SGD teacher-staleness). Introduced 2026-06-15 (leAIrn2learn/leairn2learn-learning-how-to-learn).
