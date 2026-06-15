@@ -10,8 +10,10 @@
 #      executor ever touches the log).
 #   2. Append `## YYYY-MM-DD HH:MM — <label>` + the summary to RELAY_LOG.md.
 #   3. Commit ONLY those two paths (safe in a dirty tree).
-#   4. Annotated tag fable-ckpt-YYYYMMDD-HHMM on that commit, summary as tag
+#   4. Annotated tag relay-ckpt-YYYYMMDD-HHMM on that commit, summary as tag
 #      message; same-minute collision appends -2, -3, ...
+#      (Old `fable-ckpt-*` tags are historical and are NEVER rewritten; readers
+#      match both prefixes — see relay-loop.js dual-prefix detection.)
 # Prints the tag name on stdout. Pushing is the caller's job (git-lock-push.sh).
 set -euo pipefail
 
@@ -56,10 +58,10 @@ stamp_human="$(date '+%Y-%m-%d %H:%M')"
       -- RELAY_LOG.md .gitattributes
   fi
 
-  tag="fable-ckpt-$stamp_min"
+  tag="relay-ckpt-$stamp_min"
   n=2
   while git -C "$repo" rev-parse -q --verify "refs/tags/$tag" >/dev/null; do
-    tag="fable-ckpt-$stamp_min-$n"
+    tag="relay-ckpt-$stamp_min-$n"
     (( n++ ))
   done
   git -C "$repo" tag -a "$tag" -m "$summary

@@ -8,7 +8,9 @@ green by genuine implementation, not by weakening the spec.
 ## 1. Establish the diff window
 
 ```bash
-LAST=$(git tag -l 'fable-ckpt-*' | sort | tail -1)
+# Match BOTH checkpoint prefixes: relay-ckpt-* (current) and fable-ckpt-* (historical;
+# a repo may still carry one as its latest tag until its next checkpoint).
+LAST=$(git tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1)
 git log --stat "$LAST"..HEAD
 ```
 

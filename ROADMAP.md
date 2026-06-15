@@ -10,6 +10,25 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [x] De-fable checkpoint tags + durable model-tracked Fable-bonus-recheck queue [HARD — strong model] (done 2026-06-15, reviewer; merges id:e030) <!-- id:96a8 -->
+  - **Acceptance**: `relay/scripts/ckpt-tag.sh` emits `relay-ckpt-YYYYMMDD-HHMM` annotated
+    tags (not `fable-ckpt-*`); the RELAY_LOG.md append + the model+role annotation label are
+    unchanged; existing `fable-ckpt-*` tags are never rewritten. `relay/scripts/relay-loop.js`
+    finds the latest checkpoint / commit range / standin by matching BOTH prefixes
+    (`git tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`), so a repo whose `last_ckpt`
+    is still `fable-ckpt-*` keeps working across the boundary. `integrate()` writes a durable,
+    model-tracked Fable-bonus-recheck queue into relay.toml on a STRONG (review/handoff/hard)
+    checkpoint — `last_strong_ckpt`, `strong_model`, `fable_rechecked` — which an executor
+    (sonnet) checkpoint never clears (masking fix, id:e030); the id:9821 elevation consults
+    `strongRecheckPending` (un-rechecked strong ckpt) as an OPTIONAL, non-gating recheck
+    candidate. The three relay.toml fields are documented in `relay/SKILL.md` (State) and
+    `relay/references/conventions.md`.
+  - **Tests**: `tests/test_relay_tag_scheme.sh` (`# roadmap:96a8`) — ckpt-tag.sh emits a
+    `relay-ckpt-*` tag (hermetic run), label/RELAY_LOG unchanged; relay-loop.js dual-prefix
+    matching + the three relay.toml fields + the strongRecheckPending consume wiring; docs
+    mention the fields.
+  - **Done-check**: `tests/run-tests.sh tests/test_relay_tag_scheme.sh` then full `make test`.
+
 - [x] `/fables-turn human` mode — cross-repo human-backlog triage (the human as 3rd actor) [ROUTINE] (done 2026-06-15, reviewer) <!-- id:2892 -->
   - **Acceptance**: `fables-turn/SKILL.md` documents a `human` mode — the invocation
     block carries `/fables-turn human [repo-list | --all]`, a `## Human mode` section
