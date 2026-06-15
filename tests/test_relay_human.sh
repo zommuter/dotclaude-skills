@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roadmap:2892 — /fables-turn human mode: cross-repo human-backlog triage.
+# roadmap:2892 — /relay human mode: cross-repo human-backlog triage.
 #
 # Two parts: (1) static contract checks on SKILL.md + references/human.md (the
 # mode is a prose-driven strong-turn procedure, like the front-door/review docs);
@@ -8,9 +8,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SKILL="$ROOT/fables-turn/SKILL.md"
-HUMAN="$ROOT/fables-turn/references/human.md"
-GATHER="$ROOT/fables-turn/scripts/gather-human-backlog.sh"
+SKILL="$ROOT/relay/SKILL.md"
+HUMAN="$ROOT/relay/references/human.md"
+GATHER="$ROOT/relay/scripts/gather-human-backlog.sh"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
@@ -18,9 +18,9 @@ fail() { echo "FAIL: $*"; exit 1; }
 # --- (1) SKILL.md documents the human mode + invocation ----------------------
 [[ -f "$SKILL" ]] || fail "SKILL.md not found at $SKILL"
 
-grep -qE '^/fables-turn human ' "$SKILL" \
-  || fail "SKILL.md invocation block has no '/fables-turn human' line"
-pass "SKILL.md documents /fables-turn human invocation"
+grep -qE '^/relay human ' "$SKILL" \
+  || fail "SKILL.md invocation block has no '/relay human' line"
+pass "SKILL.md documents /relay human invocation"
 
 grep -qE '^## Human mode' "$SKILL" || fail "SKILL.md has no '## Human mode' section"
 pass "SKILL.md has a Human mode section"

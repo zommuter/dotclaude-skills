@@ -13,7 +13,7 @@
 #   -m          Commit message — requires -f
 #   --ff-only   Use fast-forward-only reconcile instead of rebase; fails loud on divergence.
 #               Use this when the local branch has annotated tags or --no-ff merges that must
-#               not be rewritten (e.g. fables-turn relay integration branch).
+#               not be rewritten (e.g. the relay integration branch).
 
 set -euo pipefail
 

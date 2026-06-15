@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gather-human-backlog.sh — collect open human-triage backlog across relay.toml
-# `classification = "own"` repos for /fables-turn human. Read-only.
+# `classification = "own"` repos for /relay human. Read-only.
 #
 # Usage:
 #   gather-human-backlog.sh                — all confirmed own repos in relay.toml

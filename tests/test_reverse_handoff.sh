@@ -10,9 +10,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REVIEW="$ROOT/fables-turn/references/review.md"
-HANDOFF="$ROOT/fables-turn/references/handoff.md"
-LOOP="$ROOT/fables-turn/scripts/relay-loop.js"
+REVIEW="$ROOT/relay/references/review.md"
+HANDOFF="$ROOT/relay/references/handoff.md"
+LOOP="$ROOT/relay/scripts/relay-loop.js"
 
 fail() { echo "FAIL: $1"; exit 1; }
 

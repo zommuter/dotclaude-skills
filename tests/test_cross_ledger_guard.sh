@@ -30,7 +30,7 @@ cat > "$fix/TODO.archive.md" <<'EOF'
 - [x] archived, also done in roadmap <!-- id:6666 -->
 EOF
 cat > "$fix/ROADMAP.md" <<'EOF'
-# Roadmap <!-- fables-turn roadmap v1 -->
+# Roadmap <!-- relay roadmap v1 -->
 - [x] open in todo, closed in roadmap [ROUTINE] <!-- id:1111 -->
 - [ ] open in both ledgers [ROUTINE] <!-- id:2222 -->
 - [x] done in both ledgers [ROUTINE] <!-- id:3333 -->

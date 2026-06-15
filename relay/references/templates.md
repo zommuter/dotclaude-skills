@@ -1,4 +1,4 @@
-# fables-turn artifact templates
+# relay artifact templates
 
 Three fenced templates. Handoff children instantiate them at repo root; review
 children update them in place. Placeholders in `<angle brackets>`.
@@ -6,7 +6,7 @@ children update them in place. Placeholders in `<angle brackets>`.
 ## ROADMAP.md
 
 ```markdown
-# Roadmap <!-- fables-turn roadmap v1 -->
+# Roadmap <!-- relay roadmap v1 -->
 
 Executor-facing task spec. Each item is sized for ONE Sonnet session. Items are
 the single source of truth — TODO.md carries only a summary line. Executors tick

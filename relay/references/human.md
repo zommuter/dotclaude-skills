@@ -1,7 +1,7 @@
 # Human mode — cross-repo HUMAN-BACKLOG triage procedure
 
 The relay has three actors: **execute** (Sonnet executor sessions), **review/hard**
-(the strong apex model, Opus), and **human** (you). `/fables-turn human` is the
+(the strong apex model, Opus), and **human** (you). `/relay human` is the
 procedure for the third actor: it drains the cross-repo human-backlog — the open
 `REVIEW_ME.md` judgment calls and the `@manual` scenarios a human must RUN — by
 sorting each item into what the strong model can answer on its own, what is a quick
@@ -21,8 +21,8 @@ queue, it sweeps every own repo's human-backlog in one turn.
 Operate ONLY on `~/.config/fables-turn/relay.toml` `classification = "own"` repos
 (skip `clone`/`excluded`/`needs_review`). Honor each repo's `path =` override
 (the `# path:` convention) — never assume `~/src/<name>`. With no argument, scope is
-all confirmed own repos; `/fables-turn human <repo-list>` narrows to the named repos;
-`/fables-turn human --all` is the explicit full sweep.
+all confirmed own repos; `/relay human <repo-list>` narrows to the named repos;
+`/relay human --all` is the explicit full sweep.
 
 ## 2. Collect the backlog
 

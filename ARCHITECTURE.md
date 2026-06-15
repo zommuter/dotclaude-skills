@@ -129,13 +129,17 @@ into enforcement without logged evidence. `tools/ctx-budget.sh` follows the same
 philosophy: advisory TSV scan of every SKILL.md against a 2k-token gate
 (`CTX_BUDGET_GATE` override), always exit 0 — a logger, not a blocker.
 
-## 10. Relay (fables-turn) self-hosted
+## 10. Relay (relay skill) self-hosted
 
-The relay skill that manages this repo lives in this repo (`fables-turn/`).
-Worktrees go under `~/.cache/fables-turn/worktrees/<repo>/` — outside the repo
-tree so `git status` stays clean. Checkpoint tags `fable-ckpt-*` + RELAY_LOG.md
-entries are written atomically by `fables-turn/scripts/ckpt-tag.sh`; children
-never push (one push per repo per turn via `git-lock-push.sh`).
+The relay skill that manages this repo lives in this repo (`relay/`; renamed from
+`fables-turn` per TODO id:1cb4 — Opus is the apex tier, Fable an optional bonus, so
+"fables" was a misnomer; "relay" matches relay.toml / RELAY_LOG.md / relay-loop.js /
+RELAY_STATUS.md). `fables-turn` / `fables-executor` survive as deprecated alias stubs.
+Worktrees go under `~/.cache/fables-turn/worktrees/<repo>/` (a runtime-state path kept
+as-is so in-flight worktrees aren't orphaned) — outside the repo tree so `git status`
+stays clean. Checkpoint tags `fable-ckpt-*` + RELAY_LOG.md entries are written
+atomically by `relay/scripts/ckpt-tag.sh`; children never push (one push per repo per
+turn via `git-lock-push.sh`).
 
 The integration push uses `git-lock-push.sh --ff-only` (+ `--follow-tags`,
 always on): rebase would rewrite the `--no-ff` merge topology and orphan the
@@ -145,8 +149,8 @@ is unchanged. (`docs/meeting-notes/2026-06-12-1342-fables-turn-integration-defec
 
 Since 2026-06-12 the relay is growing an autonomous default mode (meeting note
 `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md`, D1–D6):
-bare `/fables-turn` is a thin non-interactive front door over a Workflow script
-(`fables-turn/scripts/relay-loop.js` — priority-mixed ≤5-wide pool, serialized
+bare `/relay` is a thin non-interactive front door over a Workflow script
+(`relay/scripts/relay-loop.js` — priority-mixed ≤5-wide pool, serialized
 integrator, full pool logic pending id:83c9). Supporting pieces:
 `scripts/quota-stop.sh` (tier-aware stop gate over the statusline's
 `/tmp/claude-usage-cache.json`; cache `.utilization` is 0–100 *percent*,
@@ -157,9 +161,10 @@ agent (Workflow JS has no fs access). Push policy stays push-to-main with
 retrospective review; unreviewed executor work is always the top-priority
 strong unit.
 
-The executor contract itself is a versioned skill (`fables-executor/SKILL.md`,
-marker `<!-- fables-executor contract vN -->`); managed repos carry only a
-2-line pointer in their CLAUDE.md whose vN must match — a full move into the
-trigger-gated skill would lose the passively-loaded anti-gaming guarantee
-(Shape B). Version consistency is test-enforced (`tests/test_fables_executor.sh`).
+The executor contract itself is a versioned, lean reference
+(`relay/references/executor-contract.md`, marker `<!-- relay-executor contract vN -->`,
+loaded by `/relay executor`); it is kept deliberately separate from the orchestrator
+SKILL.md so a cheap Sonnet executor session loads only the contract, not the whole
+orchestrator. Managed repos carry only a 2-line pointer in their CLAUDE.md whose vN
+must match. Version consistency is test-enforced (`tests/test_relay_executor.sh`).
 (`docs/meeting-notes/2026-06-12-1404-fables-executor-skill.md`)

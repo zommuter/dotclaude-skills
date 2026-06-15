@@ -12,7 +12,7 @@ fail(){ echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 # ---- relay-loop.js checks ----
 
-JS="$ROOT/fables-turn/scripts/relay-loop.js"
+JS="$ROOT/relay/scripts/relay-loop.js"
 
 # 1. fable-standin token appears in the JS source
 grep -q 'fable-standin' "$JS" \
@@ -42,7 +42,7 @@ grep -q 'STRONG_MODEL.*relay-loop\|STRONG_MODEL.*fable-standin' "$JS" \
 
 # ---- ckpt-tag.sh checks ----
 
-CKPT="$ROOT/fables-turn/scripts/ckpt-tag.sh"
+CKPT="$ROOT/relay/scripts/ckpt-tag.sh"
 
 # 6. ckpt-tag.sh carries $label into the tag message
 grep -q 'tag -a.*-m.*label\|-m.*summary.*label\|-m.*\$summary' "$CKPT" \

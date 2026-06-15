@@ -2,7 +2,7 @@ SRC_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEST_DIR := $(HOME)/.claude/skills
 export DEST_DIR
 
-SKILLS := meeting meeting-cross git-diary-workflow todo-update fables-executor fables-turn projects
+SKILLS := meeting meeting-cross git-diary-workflow todo-update relay projects fables-turn fables-executor
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
@@ -30,21 +30,29 @@ todo-update_EXEC  := archive-done.sh
 todo-update_ALLOW := archive-done.sh
 todo-update_LOCAL :=
 
+relay_FILES := SKILL.md \
+               references/handoff.md references/review.md references/human.md \
+               references/conventions.md references/templates.md \
+               references/executor-contract.md \
+               scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
+               scripts/gather-human-backlog.sh
+relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
+               scripts/gather-human-backlog.sh
+relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
+               scripts/gather-human-backlog.sh
+relay_LOCAL :=
+
+# Deprecation alias stubs (renamed → relay). Thin SKILL.md only; removed once
+# in-flight invocations/cron/pointers have migrated.
+fables-turn_FILES := SKILL.md
+fables-turn_EXEC  :=
+fables-turn_ALLOW :=
+fables-turn_LOCAL :=
+
 fables-executor_FILES := SKILL.md
 fables-executor_EXEC  :=
 fables-executor_ALLOW :=
 fables-executor_LOCAL :=
-
-fables-turn_FILES := SKILL.md \
-                     references/handoff.md references/review.md references/human.md \
-                     references/conventions.md references/templates.md \
-                     scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
-                     scripts/gather-human-backlog.sh
-fables-turn_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
-                     scripts/gather-human-backlog.sh
-fables-turn_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
-                     scripts/gather-human-backlog.sh
-fables-turn_LOCAL :=
 
 projects_FILES := SKILL.md
 projects_EXEC  :=

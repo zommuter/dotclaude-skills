@@ -1,83 +1,22 @@
 ---
 name: fables-executor
-description: Load the relay executor contract for this session. Invoke at the start of any executor session working under the fables-turn relay. Trigger on "fables-executor", "relay executor", "load executor contract", "I am an executor". Keywords: relay, executor, contract, ROADMAP, RELAY_LOG, fables-turn, checkpoint.
+description: Deprecated alias — use /relay executor instead. The lean executor contract was merged into the relay skill and now loads via /relay executor.
 ---
 
-## Executor contract <!-- fables-executor contract v2 -->
+# fables-executor — deprecated alias
 
-This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
-you were told you are the reviewer) follow these rules:
+**DEPRECATED: renamed + merged.** Use `/relay executor` instead. The 5-rule executor
+contract was merged into the `relay` skill and now lives at
+`~/.claude/skills/relay/references/executor-contract.md` (loaded by `/relay executor`).
+This alias exists only so in-flight executor sessions and old `## Relay contract`
+pointers (`<!-- fables-executor contract v2 -->`) don't break during the transition.
 
-1. **Scope**: work only `[ROUTINE]` items from ROADMAP.md, one item per session.
-   Never start `[HARD]` items — they are reserved for the reviewer model.
-2. **Definition of done**: the item's previously-failing tests pass, a refactor
-   pass is done, and the FULL test suite is green. Nothing else counts.
-3. **Test integrity**: never weaken, delete, skip, or rewrite a test to make it
-   pass. The reviewer diffs all test files against the last `fable-ckpt-*` tag
-   and re-runs the original test versions; gamed tests will be found and the
-   item reopened. If a test looks wrong or the spec seems ambiguous: STOP,
-   append `BLOCKED: <item-id> <reason>` to RELAY_LOG.md, and pick another item.
-4. **Self-report**: if the session did substantive work or hit a blocker,
-   append one paragraph to RELAY_LOG.md — what was done, friction
-   encountered, anything surprising — and COMMIT that append before the
-   session ends (fold it into the final work commit or its own
-   `chore(relay): session log` commit; never leave RELAY_LOG.md dirty).
-   A session with nothing to report — e.g. the ROUTINE queue is empty —
-   appends NOTHING and leaves the working tree untouched: an uncommitted
-   "no work done" note is noise the reviewer has to clean up, not signal.
-   If an item was mis-sized (too big/small for one session), add a
-   `friction: <item-id> <note>` line to the relevant commit message.
-5. **Hygiene**: commit early and often with conventional messages; never force-push;
-   never edit ROADMAP.md item definitions (tick checkboxes only); pamac not pacman;
-   uv for Python.
+If you are an executor session: load `/relay executor` (i.e. read
+`~/.claude/skills/relay/references/executor-contract.md`) and follow its rules exactly.
 
-## ROADMAP item format (reference)
+The contract version was bumped to `<!-- relay-executor contract v3 -->` by the rename.
+Stale v2 pointers in managed repos auto-migrate the next time each repo is reviewed.
+See TODO id:1cb4 for the rename rationale.
 
-Each ROADMAP.md item you pick has this shape:
-
-```
-- [ ] <title> [ROUTINE] <!-- id:XXXX -->
-  - **Acceptance**: what "done" means (observable behaviour, not process).
-  - **Tests**: `tests/test_<name>.sh` (`# roadmap:XXXX`) (currently RED)
-  - **Done-check**: `tests/run-tests.sh tests/test_<name>.sh` then full `make test` after ticking
-  - **Context**: key files, related TODO ids, scope guards.
-```
-
-Tick the checkbox (`- [x]`) only after the done-check passes. Never edit the
-Acceptance / Tests / Done-check / Context fields.
-
-## RELAY_LOG.md conventions
-
-Append to `RELAY_LOG.md` (append-only, `merge=union` in `.gitattributes`).
-Every append is COMMITTED in the same session (rule 4); append only when
-there is something substantive to record — work done, a BLOCKED item, or a
-surprise. No-op sessions write nothing:
-
-- **Self-report entry** (end of every working session, rule 4 above; same
-  heading format ckpt-tag.sh and all existing entries use):
-  ```
-  ## YYYY-MM-DD — executor (<model-tier>)
-
-  Worked id:XXXX — <what was done>.
-  Friction: <any sizing or ambiguity notes, or "none">.
-  ```
-- **Blocked item** (instead of guessing or gaming, rule 3):
-  ```
-  BLOCKED: <item-id> <one-sentence reason>
-  ```
-- **Commit-message friction line** (for mis-sized items):
-  ```
-  friction: <item-id> <note>
-  ```
-
-## Maintenance
-
-**Bump the version number** (v1 → v2, etc.) **only** when a rule or artifact
-format above changes in a way an in-flight executor session must know about.
-Typo fixes and clarifications that don't change behaviour do **not** bump.
-
-After bumping: update the `## Relay contract <!-- fables-executor contract vN -->`
-pointer in the managed repo's `CLAUDE.md` to match.
-
-For the human-facing picture of the whole relay (modes, artifacts, what the
-user does between turns), see `docs/fables-relay.md` in dotclaude-skills.
+**Removal trigger:** delete this alias (dir + symlink) once invocations/cron/pointers
+have migrated to `/relay executor`.

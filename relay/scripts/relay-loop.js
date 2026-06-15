@@ -288,7 +288,7 @@ async function runRound() {
 phase('Discover')
 
 const discovery = await agent(
-  `You are the discovery/classifier step of the fables-turn autonomous relay pool.
+  `You are the discovery/classifier step of the relay autonomous pool.
 
 Read ~/.config/fables-turn/relay.toml. Consider ONLY repos with classification = "own".
 Repo path default: ~/src/<name>; honor any "# path:" comment override in the repo's
@@ -449,12 +449,12 @@ let unitsDispatched = 0
 let roundCapHit = false   // per-round MAX_UNITS cap; distinct from quotaStopped (run-ending)
 
 function refDoc(verdict) {
-  if (verdict === 'review') return '~/.claude/skills/fables-turn/references/review.md'
-  if (verdict === 'handoff') return '~/.claude/skills/fables-turn/references/handoff.md'
+  if (verdict === 'review') return '~/.claude/skills/relay/references/review.md'
+  if (verdict === 'handoff') return '~/.claude/skills/relay/references/handoff.md'
   // hard (id:da26): reuse handoff.md's C5 "HARD item" section — its red-green-refactor +
   // "only if small enough to finish safely" rule is exactly the HARD-execute discipline.
-  if (verdict === 'hard') return '~/.claude/skills/fables-turn/references/handoff.md (its C5 HARD-item section)'
-  return '~/.claude/skills/fables-executor/SKILL.md'
+  if (verdict === 'hard') return '~/.claude/skills/relay/references/handoff.md (its C5 HARD-item section)'
+  return '~/.claude/skills/relay/references/executor-contract.md'
 }
 
 // Deterministic worktree path + branch for a unit — the child creates them, and the
@@ -466,12 +466,12 @@ const branchFor = (unit) => `relay/${state.runId}-${unit.verdict}`
 function unitPrompt(unit) {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
-  return `You are a fables-turn ${unit.verdict.toUpperCase()} child for the repo ${unit.repo} (main checkout: ${unit.path}).
+  return `You are a relay ${unit.verdict.toUpperCase()} child for the repo ${unit.repo} (main checkout: ${unit.path}).
 
 Create your worktree first: git -C ${unit.path} worktree add ${wt} -b ${branch} HEAD
 Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. Last checkpoint tag: ${unit.lastCkpt || '(none)'}.
 
-Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/fables-turn/references/conventions.md for environment facts and relay invariants before starting.
+Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/relay/references/conventions.md for environment facts and relay invariants before starting.
 ${unit.verdict === 'execute' ? 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. Stop at a natural boundary; never start an item you cannot finish.' : ''}
 ${unit.verdict === 'hard' ? 'You are an Opus-apex HARD-execute child (id:da26). Pick the TOP open "- [ ]" item tagged [HARD — strong model] in ROADMAP.md and SIZE it first. Model your discipline on handoff.md C5 "only if small enough to finish safely": only implement the item if you can finish it cleanly and green within this turn — full red-green-refactor, verify-before-merge. If it is too large, contains nested/multi-session scope, or you cannot make the test suite green safely, do NOT half-do it: set contract_met=false and explain the sizing in handback (the item stays open for a manual/next-turn strong session). When you DO finish: tick the item\'s checkbox ONLY if the work is genuinely green (all tests pass — never tick to manufacture a pass), append its done-note, commit in the worktree, and make the full test suite green. Work ONE bounded HARD item only — never start a second.' : ''}
 ${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
@@ -490,11 +490,11 @@ Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one lin
 function resumePrompt(unit) {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
-  return `You are RESUMING an interrupted fables-turn HANDOFF for repo ${unit.repo} (main checkout: ${unit.path}). A prior child was killed (API error / timeout) mid-handoff.
+  return `You are RESUMING an interrupted relay HANDOFF for repo ${unit.repo} (main checkout: ${unit.path}). A prior child was killed (API error / timeout) mid-handoff.
 
 The worktree may already exist at ${wt} on branch ${branch} with some checkpoints committed.
 1. If that worktree does NOT exist or has NO committed "relay(handoff): C*" commits, there is nothing to resume: return contract_met=false, handback="no resumable checkpoints — fresh handoff needed", branch="${branch}", worktree="${wt}". Do not create anything.
-2. Otherwise work EXCLUSIVELY in that worktree. Read its committed ROADMAP.md / docs to see which checkpoints (C1 docs, C2 roadmap, C3 red tests, C4 bdd, C5 hard) are already done (git -C ${wt} log --oneline), then CONTINUE from the next stage to completion per ~/.claude/skills/fables-turn/references/handoff.md. Use ONLY the id tokens already in the committed ROADMAP.md; never invent tokens. Commit after EACH stage (so another failure loses at most one stage). C5 only if the top HARD item is small enough to finish safely.
+2. Otherwise work EXCLUSIVELY in that worktree. Read its committed ROADMAP.md / docs to see which checkpoints (C1 docs, C2 roadmap, C3 red tests, C4 bdd, C5 hard) are already done (git -C ${wt} log --oneline), then CONTINUE from the next stage to completion per ~/.claude/skills/relay/references/handoff.md. Use ONLY the id tokens already in the committed ROADMAP.md; never invent tokens. Commit after EACH stage (so another failure loses at most one stage). C5 only if the top HARD item is small enough to finish safely.
 
 Hard rules: NEVER push; NEVER tag; NEVER run git-diary-workflow/todo-update; never prompt the user. You are Opus standing in for Fable — flag judgment calls in REVIEW_ME.md.
 
@@ -513,7 +513,7 @@ async function quotaGate(tier) {
     .map(k => `${k}=${A[k]}`)
   const thresholdEnv = envPairs.length ? envPairs.join(' ') + ' ' : ''
   const v = await agent(
-    `Run this command and report the result: ${thresholdEnv}~/.claude/skills/fables-turn/scripts/quota-stop.sh --tier ${tier} ${unitsDispatched} 0
+    `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} ${unitsDispatched} 0
 Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.`,
     { label: `quota:${tier}`, phase: 'Dispatch', schema: QUOTA_SCHEMA, model: 'haiku' }
   )
@@ -535,7 +535,7 @@ async function integrate(unit, report) {
     // manual/next-turn resume (handoff: re-dispatch reads them; see handoff.md §Resuming).
     state.blocked.push({
       repo: unit.repo,
-      reason: `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are preserved in the worktree — re-run /fables-turn to resume (handoff continues from the last checkpoint).`,
+      reason: `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are preserved in the worktree — re-run /relay to resume (handoff continues from the last checkpoint).`,
       worktreePath: worktreePathFor(unit),
     })
     await writeRelayStatus(state)
@@ -558,12 +558,12 @@ async function integrate(unit, report) {
       ? `strong-execute (${STRONG_MODEL}${standInSuffix}, relay-loop)`
       : `reviewer (${STRONG_MODEL}${standInSuffix}, relay-loop)`
   const result = await agent(
-    `You are the serialized integrator of the fables-turn relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
+    `You are the serialized integrator of the relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
 
 1. Verify the main checkout working tree is clean (git -C ${unit.path} status --porcelain). If dirty, abort: return merged=false with reason.
 2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
    On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
-3. ~/.claude/skills/fables-turn/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}" -l "${label}"
+3. ~/.claude/skills/relay/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}" -l "${label}"
    It prints the new tag name — capture it as ckptTag.
 4. ~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only ${unit.path}
    pushStatus = "pushed" on success, otherwise the error summary.

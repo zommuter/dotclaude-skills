@@ -6,8 +6,8 @@
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-JS="$SRC_DIR/fables-turn/scripts/relay-loop.js"
-SKILL="$SRC_DIR/fables-turn/SKILL.md"
+JS="$SRC_DIR/relay/scripts/relay-loop.js"
+SKILL="$SRC_DIR/relay/SKILL.md"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
@@ -39,6 +39,6 @@ grep -qi "substitute" "$SKILL" \
 pass "SKILL.md documents -d × STRONG_TIER substitute composition"
 
 # SKILL.md: usage example for the combined -d --strong-tier opus invocation.
-grep -qE '/fables-turn -d --strong-tier opus' "$SKILL" \
-  || fail "SKILL.md missing '/fables-turn -d --strong-tier opus' usage example"
-pass "SKILL.md shows '/fables-turn -d --strong-tier opus' usage example"
+grep -qE '/relay -d --strong-tier opus' "$SKILL" \
+  || fail "SKILL.md missing '/relay -d --strong-tier opus' usage example"
+pass "SKILL.md shows '/relay -d --strong-tier opus' usage example"

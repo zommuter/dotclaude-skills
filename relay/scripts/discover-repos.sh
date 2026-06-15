@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# discover-repos.sh — classify ~/src git repos for the fables-turn relay. Read-only.
+# discover-repos.sh — classify ~/src git repos for the relay. Read-only.
 #
 # Usage:
 #   discover-repos.sh                — all git repos under $SRC_DIR

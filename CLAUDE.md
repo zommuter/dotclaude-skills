@@ -6,15 +6,15 @@ See `ARCHITECTURE.md` for design decisions and rationale; `ROADMAP.md` for the
 executor task queue; `TODO.md` for the broader work inventory.
 
 > Maintenance note: the `## Relay contract` pointer below is auto-refreshed by
-> fables-turn review mode when its version marker goes stale (version lives in
-> `fables-executor/SKILL.md`). Everything else in this file is hand-maintained.
+> relay review mode when its version marker goes stale (version lives in
+> `relay/references/executor-contract.md`). Everything else in this file is hand-maintained.
 
 ## Commands
 
 ```bash
 make help               # list targets
 make install            # symlink all skills + hooks into ~/.claude, merge allowlist
-make install-<skill>    # one skill (meeting, meeting-cross, git-diary-workflow, todo-update, fables-executor, fables-turn, projects)
+make install-<skill>    # one skill (meeting, meeting-cross, git-diary-workflow, todo-update, relay, projects; deprecated aliases: fables-turn, fables-executor)
 make install-hooks      # hooks + statusline only
 make status             # show symlink state for all skills
 make print-allowlist    # read-only preview of settings.json Bash allowlist entries
@@ -37,8 +37,8 @@ install IS the published version (per-file symlinks, see Layout).
 | `todo-update/` | TODO.md maintenance skill; `archive-done.sh` moves `[x]` items to `TODO.archive.md` and prunes empty sections |
 | `meeting-cross/` | Deprecated alias skill → `/meeting --cross` (deletion gated, TODO id:4f5f) |
 | `projects/` | Project-dashboard skill (SKILL.md only) |
-| `fables-turn/` | The reviewer/executor relay skill itself (this contract comes from there) |
-| `fables-executor/` | Versioned executor-contract skill (SKILL.md only); the `## Relay contract` pointer below must match its `vN` marker |
+| `relay/` | The reviewer/executor relay skill itself (this contract comes from there). `references/executor-contract.md` is the versioned executor contract loaded by `/relay executor`; the `## Relay contract` pointer below must match its `vN` marker |
+| `fables-turn/`, `fables-executor/` | Deprecated alias stubs (SKILL.md only) → `/relay` and `/relay executor`; removed once invocations/cron/pointers migrate |
 | `hooks/` | Stop/Notification hook scripts; settings.json snippets in `hooks/README.md` |
 | `statusline/` | `statusline-command.sh` — quota/cost/model statusline (reads JSON on stdin) |
 | `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt`; `ctx-budget.sh` (advisory SKILL.md token-budget audit) |
@@ -118,7 +118,7 @@ Plain-bash harness, zero dependencies beyond `bash`/`python3`/`jq`/`make`:
 - Tests must be hermetic: work in `mktemp -d`, override `HOME`/`DEST_DIR`/roots via
   args or env, never touch `~/.claude` or the network.
 
-## Relay contract <!-- fables-executor contract v2 -->
+## Relay contract <!-- relay-executor contract v3 -->
 
-This repo is managed by a reviewer/executor relay. Load the `fables-executor` skill
-(`/fables-executor`) before working on any item, then follow its rules exactly.
+This repo is managed by a reviewer/executor relay. Load `/relay executor` before
+working on any item, then follow its rules exactly.
