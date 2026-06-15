@@ -95,6 +95,35 @@ the review turn should absorb.
   finish (it's per-repo, not per-item) — so `routine_open` is "is there executor work
   left," not "how many turns." A review still follows each execute batch (D3 anti-gaming).
 
+## 5b. Qualify unqualified ledger additions (reverse-handoff, D6)
+
+Between relay turns a human or a `/meeting` session adds items directly to `TODO.md`
+(or `ROADMAP.md`) — often **ledger-neutral**: no `[ROUTINE]`/`[HARD]` qualifier, no
+acceptance criteria, no spec test. `/meeting` writes design-ledger items this way **by
+design** (it owns the "why", the relay owns difficulty). Find them and finish the
+handoff the meeting deliberately left open:
+
+```bash
+git diff "$LAST"..HEAD -- TODO.md ROADMAP.md   # new '- [ ]' lines added this window
+```
+
+For each newly-added open item:
+- **Execution-ready work** (a concrete change with an observable done-state) → do a
+  **mini-handoff**: promote it to `ROADMAP.md` with a `[ROUTINE]`/`[HARD]` tag,
+  acceptance criteria, a done-check, and (for `[ROUTINE]`) a red spec test — **REUSING
+  its existing TODO `<!-- id:XXXX -->`** (single-id-two-views, D2; never mint a duplicate).
+- **Design-judgment work** (ambiguous scope, two plausible approaches) → leave it as a
+  TODO/`REVIEW_ME` item and note it as a `/meeting` candidate; do NOT force it into
+  ROADMAP.
+- **Deferred / gated** items (explicit reopen-gate with unmet conditions, activation
+  date in the future, or a `[HARD]` design task) → **skip**; they are not yet executor
+  work.
+
+Record each qualification in the diff window's `RELAY_LOG.md` paragraph (which item,
+what tag/size you gave it). This is the symmetric half of single-id-two-views: handoff
+C2 promotes TODO→ROADMAP at handoff time; this step catches what `/meeting`/manual edits
+added *after* handoff.
+
 ## 6. Spend remaining budget
 
 If quota remains, execute the globally top `[HARD]` item (orchestrator decides which
