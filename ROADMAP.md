@@ -29,6 +29,14 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     uncertain/stale vs exit 1 for at/above-threshold — surface that distinction instead of
     collapsing both to "quotaStopped". Hermetic test asserting the stale-cache path yields the
     stale-cache reason, not a bucket-exhaustion reason.
+  - **Spec / red test**: `tests/test_relay_quota_stop_reason.sh` (`# roadmap:8c35`) — static-structural
+    (matching `test_relay_loop_structure.sh`): asserts quotaGate branches on quota-stop.sh exit 2
+    (stale-cache) vs exit 1 (exhaustion) instead of collapsing both to `quotaStopped`; a `stopReason`
+    field is captured in the run result with the category vocabulary (`quota-stale-cache`,
+    `quota-exhausted:<bucket>`); the drain-reason `log()` names the category; and RELAY_STATUS
+    surfaces the stop reason alongside the existing `## Quota remaining` section. RED until implemented.
+  - **Done-check**: `tests/run-tests.sh tests/test_relay_quota_stop_reason.sh` then full `make test`
+    after ticking.
 
 - [ ] [ROUTINE] Harden relay-state-write.sh toml-set against awk -v / regex-key input (F1/F2) <!-- id:c8db -->
   - **Source**: id:401c strong-model audit 2026-06-15 (`docs/meeting-notes/2026-06-15-1520-strong-model-audit.md`),
