@@ -339,6 +339,15 @@ relay.toml block. For each repo, classify into exactly one verdict:
 Order of precedence (apply the FIRST that matches): review > execute(routine) > hard > handoff > idle.
 
 A repo with a DIRTY main working tree (git -C <path> status --porcelain non-empty, ignoring entries already declared acceptable in relay.toml comments) is NOT dispatched: put it in "surfaced" with the reason instead of "units". Repos with no relay checkpoint tag (neither fable-ckpt-* nor relay-ckpt-*) and no handoff_date are handoff candidates, not review.
+
+SYNC-WITH-ORIGIN GUARD (id:c3f7 — never commit on a base behind origin; a 2026-06-15 incident built a doomed parallel relay timeline on a clone ~1 month behind origin, and a force-push "fix" would have destroyed 106 commits). BEFORE classifying each repo, sync it with its upstream:
+- Run: git -C <path> fetch origin -q   (ignore fetch errors — offline/missing remote — and fall through to local-only classification).
+- U = output of: git -C <path> rev-parse --abbrev-ref @{upstream}   (if empty, skip this guard for that repo). Then read "ahead behind" from: git -C <path> rev-list --left-right --count HEAD...$U  (first number = ahead = local-only commits; second = behind = origin-only commits).
+- DIVERGED (ahead>0 AND behind>0): do NOT classify or work it. Put it in "surfaced" with reason "diverged from origin (local <ahead> / origin <behind>) — needs manual reconcile (id:c3f7)". Never dispatch or commit on a diverged repo.
+- BEHIND-ONLY (ahead==0 AND behind>0) AND the main tree is clean: fast-forward FIRST — git -C <path> merge --ff-only $U — then classify the now-up-to-date repo normally.
+- Otherwise (ahead-only, or in sync): proceed normally.
+
+WORKTREE-AWARE / CLAIMED-ELSEWHERE GUARD (id:ebfb step 1 — don't double-work a repo another relay run/session holds; a held worktree is the durable in-flight signal). Before classifying a repo, check: ls -d ~/.cache/fables-turn/worktrees/<repo>/* 2>/dev/null. If any worktree directory exists whose basename does NOT start with this run's runId, the repo is in-flight under another relay run/session — put it in "surfaced" with reason "in-flight elsewhere (worktree <basename>) — claimed by another relay run (id:ebfb)" instead of classifying it.
 ${INTERACTIVE ? 'Interactive run: include marginal/ambiguous repos in "surfaced" with a one-line question each.' : 'Unattended run: never include questions; surface ambiguous repos with a factual reason only.'}
 
 Also produce:

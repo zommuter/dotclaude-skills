@@ -30,6 +30,18 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     now server-rejected. A controlled-override path (for the user's occasional legitimate force-push) is
     tracked as TODO id:de51 (gerrit is overkill for a Pi).
 
+- [ ] Relay claim-registry + cross-session discovery guards (cluster steps 1–3) [ROUTINE] <!-- id:ebfb -->
+  - ROADMAP execution view of TODO id:ebfb (single-id-two-views). Ratified design:
+    `docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md`.
+  - **Shipped 2026-06-15**: (1) discovery WORKTREE-AWARE (skip a foreign-runId worktree → surfaced) +
+    SYNC-WITH-ORIGIN guard (id:c3f7) in relay-loop.js — `tests/test_relay_discovery_guards.sh`;
+    (2) `relay/scripts/claim.sh` — per-shard flock'd registry (`acquire`/`release`/`peek`/`reap`,
+    mtime+TTL, resource-key safe) — `tests/test_relay_claim.sh`, registered in the Makefile.
+  - **Remaining (item stays open)**: wire claim acquire/release into the dispatch + integration path;
+    RELAY_STATUS `peek` projection of live claims; `/relay executor` honoring the repo lease. Then the
+    sibling cluster items `[INTENSIVE]` (id:8d52) + `/meeting` hold (id:d748).
+  - **Done-check**: tick only when a claim is actually consulted in the dispatch path; full `make test` green.
+
 <!-- DESIGN CLUSTER: "safe concurrent + resource-aware relay dispatch" — RATIFIED 2026-06-15
      (meeting docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md). The claim
      primitive + per-repo lease REUSE existing TODO id:ebfb (claim/reservation umbrella: worktree-
