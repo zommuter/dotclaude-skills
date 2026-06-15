@@ -125,6 +125,20 @@ clean acquire, do the per-repo write-back, then release run-scoped:
 `claim.sh release <repo> --run human-$CLAUDE_SESSION_ID`. This is the same hold `/meeting`
 uses (id:d748) — so `/relay human --all` never collides with a running pool on a shared ledger.
 
+**Push unblocked work to the running pool, low-latency (id:fb75).** When a resolved box
+**unblocks** a gated/blocked ROADMAP item (e.g. ticking a decision-gate box opens a
+`[HARD]`/`[ROUTINE]` item that was waiting on it), don't make the pool wait until its next
+discovery re-derives the dependency. After the clean lease-held write-back, hand the
+now-unblocked item straight to the pool:
+`~/.claude/skills/relay/scripts/inject.sh add <repo> --item <id> --verdict execute`
+(reuse the **same id** the unblocked item already carries — single-id-two-views, never mint
+a fresh token for already-tracked work). Do this **only when the resolution actually
+unblocks pool work** — a plain bookkeeping tick that frees nothing needs no injection (a
+blind inject on every toggle just churns discovery). A live pool then pulls the injected
+unit ahead of its normal verdict-class schedule (id:baf1), and with id:6e9d a freed lane
+picks it up mid-round without waiting for the round boundary. The `/meeting` REVIEW_ME
+write-back (id:15d5) does the same on resolution that unblocks work.
+
 ## 6. Anti-gaming and the apex framing
 
 - Every tier-(a) auto-answer is a re-checkable CLAIM, not a closed question — the next

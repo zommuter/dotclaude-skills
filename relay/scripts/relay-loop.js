@@ -318,6 +318,17 @@ const INTEGRATE_SCHEMA = {
   },
 }
 
+// id:6e9d — schema for the mid-round `inject.sh take` agent (takeInjections). Units are
+// loosely typed (the agent echoes resolved injected units); the dispatch path tolerates the
+// same fields the discovery agent's injected units carry.
+const INJECT_TAKE_SCHEMA = {
+  type: 'object',
+  required: ['units'],
+  properties: {
+    units: { type: 'array', items: { type: 'object' } },
+  },
+}
+
 // ── Per-repo serialized integrator (D5/D6 restated, id:bc9d: never two concurrent pushes
 // to the SAME remote — but DISTINCT repos have DISTINCT remotes and do not conflict, so
 // their integrations run concurrently; only same-repo integrations serialize, preserving
@@ -388,7 +399,11 @@ SYNC-WITH-ORIGIN GUARD (id:c3f7 — never commit on a base behind origin; a 2026
 - BEHIND-ONLY (ahead==0 AND behind>0) AND the main tree is clean: fast-forward FIRST — git -C <path> merge --ff-only $U — then classify the now-up-to-date repo normally.
 - Otherwise (ahead-only, or in sync): proceed normally.
 
-WORKTREE-AWARE / CLAIMED-ELSEWHERE GUARD (id:ebfb step 1 — don't double-work a repo another relay run/session holds; a held worktree is the durable in-flight signal). Before classifying a repo, check: ls -d ~/.cache/fables-turn/worktrees/<repo>/* 2>/dev/null. If any worktree directory exists whose basename does NOT start with this run's runId, the repo is in-flight under another relay run/session — put it in "surfaced" with reason "in-flight elsewhere (worktree <basename>) — claimed by another relay run (id:ebfb)" instead of classifying it.
+WORKTREE-AWARE / CLAIMED-ELSEWHERE GUARD (id:ebfb step 1 — don't double-work a repo another relay run/session holds; a held worktree is the durable in-flight signal). FIRST run ~/.claude/skills/relay/scripts/claim.sh peek once — it prints every LIVE (fresh) cross-session claim, one JSON per line ({key,repo,runId,...}); collect the set of repos with a fresh claim. Before classifying a repo, check: ls -d ~/.cache/fables-turn/worktrees/<repo>/* 2>/dev/null. For any worktree directory whose basename does NOT start with this run's runId:
+  - If the repo HAS a fresh claim (from claim.sh peek) → it is genuinely in-flight under a LIVE run/session: put it in "surfaced" with reason "in-flight elsewhere (worktree <basename>) — claimed by another relay run (id:ebfb)" and do NOT classify it.
+  - If the repo has NO fresh claim → the worktree is a STALE leftover from a DEAD run (a live run always holds a claim before creating its worktree), so the bare existence of the directory must NOT block this repo (id:3ac8 — stale worktrees were falsely starving the pool). Reconcile it: resolve the worktree branch as relay/<basename>, then run git -C <repo canonical path> merge-base --is-ancestor <worktree HEAD> <repo default branch e.g. main>.
+      • EMPTY (HEAD is an ancestor of main → no unmerged work): REAP it — git -C <repo path> worktree remove --force ~/.cache/fables-turn/worktrees/<repo>/<basename> && git -C <repo path> branch -D relay/<basename> — then classify the repo NORMALLY this round (it is now free). This is safe: an ancestor-of-main branch has nothing to lose.
+      • COMMITS AHEAD (NOT an ancestor of main → carries unmerged work): do NOT reap (never delete unmerged commits) and do NOT classify; put it in "surfaced" with reason "stale worktree from a dead run with <N> unmerged commit(s) — needs manual integration (id:3ac8); basename=<basename>". The orchestrator/human integrates or discards it.
 ${INTERACTIVE ? 'Interactive run: include marginal/ambiguous repos in "surfaced" with a one-line question each.' : 'Unattended run: never include questions; surface ambiguous repos with a factual reason only.'}
 
 Also produce:
@@ -791,9 +806,34 @@ async function runUnit(unit) {
   debts.push(enqueueIntegration(unit.repo, () => integrate(unit, report)))
 }
 
+// id:6e9d — a freed lane pulls any pending injections mid-round (poll-once-on-drain) so an
+// injected unit runs as soon as a slot frees with the queue empty, instead of idling until
+// the round boundary. The Workflow script can't run shell, so a tiny agent runs `inject.sh
+// take` (atomic/flock'd → each shard goes to exactly one lane). NO busy-spin: a lane only
+// polls when it would otherwise EXIT (queue drained). Known residual: if ALL lanes are busy
+// on long units the injection is caught at the imminent round boundary instead (see ROADMAP
+// id:6e9d "Known residual"). A unit-shaped injected object so the normal dispatch path runs it.
+async function takeInjections() {
+  if (quotaStopped || roundCapHit || unitsDispatched >= MAX_UNITS) return []
+  const res = await agent(
+    `Run exactly this one command and nothing else: ~/.claude/skills/relay/scripts/inject.sh take
+It atomically emits AND consumes pending user-injected relay units, one compact JSON per line:
+{token, repo, verdict, item, prompt, requested_at}. For EACH emitted line, resolve the repo's
+canonical path (default ~/src/<repo>, OR the "# path:" override in that repo's block in
+~/.config/fables-turn/relay.toml) and return one unit object with these exact fields:
+{ injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>,
+path:<resolved absolute path>, reason:"user-injected high-priority task (mid-round, id:6e9d)",
+inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false,
+hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"" }.
+If inject.sh take emits NOTHING, return units:[]. Do not invent units; only echo what take emitted.`,
+    { label: 'inject-take', phase: 'Dispatch', schema: INJECT_TAKE_SCHEMA, model: 'sonnet' }
+  )
+  return (res && Array.isArray(res.units)) ? res.units : []
+}
+
 await parallel(
   Array.from({ length: Math.min(POOL_WIDTH, queue.length) }, () => async () => {
-    while (queue.length && !quotaStopped && !roundCapHit) {
+    while (!quotaStopped && !roundCapHit) {
       if (unitsDispatched >= MAX_UNITS) {
         log(`relay-loop: MAX_UNITS per-round cap (${MAX_UNITS}) reached — draining this round`)
         roundCapHit = true
@@ -803,6 +843,16 @@ await parallel(
         log('relay-loop: token budget nearly exhausted — draining')
         quotaStopped = true
         break
+      }
+      if (!queue.length) {
+        // queue drained — before idling this lane, pull any mid-round injections (id:6e9d).
+        const injected = await takeInjections()
+        if (injected.length) {
+          queue.push(...injected)
+          log(`relay-loop: mid-round inject pickup — ${injected.length} unit(s): ${injected.map(u => u.repo).join(', ')} (id:6e9d)`)
+          continue
+        }
+        break  // nothing queued and no pending injection → this lane is done
       }
       const unit = queue.shift()
       state.queued = state.queued.filter(q => q.repo !== unit.repo)
