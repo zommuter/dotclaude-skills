@@ -626,6 +626,16 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       the segment reduce (cosmetic), and code-only sub-ids 15bd/cd19/03a5/219b (inline
       provenance for tracked parents, not ledger tokens). Cross-ledger coherent (0 ROUTINE /
       3 HARD, d5e0 agrees). Suite 53/0. See `docs/meeting-notes/2026-06-16-0928-strong-model-audit.md`.
+    - Run 10 (2026-06-16-1247): `95d3d07..HEAD` (first-seen code since Run 9; ~944 lines /
+      16 files: orphan-reconcile D1/D2/D3 + relay-econ.py + archive-done multiline +
+      gather-human-backlog gated-HARD sweep) — **1 defect fixed inline**: `relay-reconcile.sh`
+      `--integrate`/`--discard` with no branch arg died on a `set -e` `shift 2` count error
+      BEFORE the friendly `<branch> required` guard; fixed to `shift; shift || true` + a
+      non-vacuous behavioural regression guard in `test_relay_reconcile_mode.sh` (proven it
+      fails on the reverted form). One **doc nit fixed inline** (relay-econ.py header field
+      names). One **LOW accepted** (gather-human-backlog `awk -v`, id:c8db class). No security
+      defects; cross-ledger coherent (0 ROUTINE / 3 HARD, d5e0 agrees). Suite 58/0. See
+      `docs/meeting-notes/2026-06-16-1247-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires

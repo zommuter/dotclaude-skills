@@ -55,8 +55,8 @@ target=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --list)      action="list"; shift ;;
-    --integrate) action="integrate"; target="${2:-}"; shift 2 ;;
-    --discard)   action="discard";   target="${2:-}"; shift 2 ;;
+    --integrate) action="integrate"; target="${2:-}"; shift; shift || true ;;
+    --discard)   action="discard";   target="${2:-}"; shift; shift || true ;;
     -h|--help)   sed -n '2,32p' "$0"; exit 0 ;;
     --*)         echo "relay-reconcile.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)           repo="$1"; shift ;;

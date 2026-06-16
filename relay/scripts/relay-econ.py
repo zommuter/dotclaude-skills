@@ -2,7 +2,7 @@
 # relay-econ.py — relay-loop ECONOMICS: cost ($, cache-accurate) and TIME (standalone +
 # parallelity-weighted) per work category, by model, and bucketed daily / hourly-of-day.
 # Built on top of profile-run.sh --json (id:08a3) — reuses its per-agent `records`
-# (phase, model, start/end, tokens_in/out, cache_read/cache_create).
+# (phase, model, start/end, tokens_in/out, tokens_cache_read/tokens_cache_create).
 #
 # Three lenses on the same runs:
 #   • COST   — USD at list rates, cache-accurate: in @full, cache_read @0.1x, cache_create
