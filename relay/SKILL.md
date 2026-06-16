@@ -115,6 +115,19 @@ D1/D2):
 4. **Exit summary.** After the Workflow completes, the front door prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).
+   **Unattended-resilience nudge.** A single `/relay` run is resumable but NOT
+   self-restarting — an API outage can trip a stop path (total discovery failure on
+   round ≥2, or a quota-gate agent death) and end the run early; it will not resume
+   until re-invoked. So as the LAST line of the exit summary, run
+   `~/.claude/skills/relay/scripts/loop-hint.sh` and, if it prints anything, relay
+   that line verbatim to the user (it suggests `/loop 20m /relay --afk` for
+   outage-resilient unattended operation). The helper SELF-SUPPRESSES when a recent
+   prior run makes it look like we are already inside a `/loop` (time-since-last-run
+   heuristic — manual and loop-driven `/relay` are otherwise indistinguishable), so
+   it does not nag on every loop tick. It never fails the turn (always exits 0); if
+   it prints nothing, print nothing. Do NOT bake a self-chained wakeup into the front
+   door — that is the fragile kind a well-timed outage breaks (user decision
+   2026-06-16); the nudge toward an independent fixed-interval `/loop` is intentional.
 
 `--interactive` re-enables the orchestrator's one-batch `AskUserQuestion`
 confirmations (invariant 2 below: new-repo confirms, dirty-repo snapshot offers)
