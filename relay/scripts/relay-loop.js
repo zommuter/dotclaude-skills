@@ -28,6 +28,22 @@ const STRONG_MODEL = STRONG_TIER === 'opus' ? 'claude-opus-4-8' : 'claude-fable-
 // RELAY_STATUS_PATH: output file for cross-repo rollup. Overridable for testing.
 const RELAY_STATUS_PATH = A.RELAY_STATUS_PATH || '~/.config/fables-turn/RELAY_STATUS.md'
 
+// RELAY_EVENTS_PATH (id:c8b6): append-only JSONL history substrate behind the
+// RELAY_STATUS.md snapshot. Each dispatch/integrate/handback pushes one line; the
+// off-critical-path status writer flushes the batch via relay-state-write.sh event-append.
+// `tail -f` it for a live event feed (the snapshot file is rewritten each round, so
+// `tail -f` on RELAY_STATUS.md misbehaves — use `tail -F` there, but this file truly appends).
+const RELAY_EVENTS_PATH = A.RELAY_EVENTS_PATH || '~/.config/fables-turn/relay-events.jsonl'
+
+// pendingEvents: accumulated, un-flushed event lines (JSON strings). pushEvent stamps each
+// with the latest bash-produced state.ts (the Workflow runtime FORBIDS Date.now()/new Date()),
+// so ordering rides on discovery/integrate timestamps. snapshotState drains this via splice()
+// at schedule time, so a flushed batch is never re-emitted (no duplication across rounds).
+let pendingEvents = []
+function pushEvent(kind, fields) {
+  pendingEvents.push(JSON.stringify({ ts: state.ts || '', runId: state.runId || '', kind, ...fields }))
+}
+
 // INTERACTIVE: pass-through of the front door's --interactive flag (default false).
 // The Workflow itself NEVER prompts the user (unattended invariant, meeting D2 —
 // enforced by tests/test_fables_front_door.sh grepping this file for the question tool);
@@ -141,8 +157,22 @@ function buildRelayStatus(state) {
   // id:8c35 — stop-reason line alongside Quota remaining so the operator sees WHY the run stopped
   const stopReasonLine = buildStopReasonLine(state.stopReason || null)
 
+  // id:c8b6 — Run progress: at-a-glance counters so the snapshot conveys momentum, not just
+  // the current frame. round/totalDispatched are run-totals; the rest are live tallies.
+  const progress = [
+    `- round=${state.round || 0}`,
+    `- dispatched=${state.totalDispatched || 0} (total work units this run)`,
+    `- in-flight=${(state.inFlight || []).length}`,
+    `- completed=${(state.completed || []).length}`,
+    `- blocked=${(state.blocked || []).length}`,
+    `- queued=${(state.queued || []).length}`,
+  ].join('\n')
+
   return [
     header,
+    '',
+    '## Run progress',
+    progress,
     '',
     '## In-flight',
     inFlight,
@@ -178,7 +208,10 @@ async function writeRelayStatus(state, statusPath) {
   const inFlightCount = (state.inFlight || []).length
   const completedCount = (state.completed || []).length
   const blockedCount = (state.blocked || []).length
-  log(`RELAY_STATUS updated: in-flight=${inFlightCount} completed=${completedCount} blocked=${blockedCount} → ${path}`)
+  // id:c8b6 — event batch drained into this snapshot (may be empty) + the append-only target.
+  const events = state.events || []
+  const eventsBlock = events.join('\n')
+  log(`RELAY_STATUS updated: in-flight=${inFlightCount} completed=${completedCount} blocked=${blockedCount} events=${events.length} → ${path}`)
   await agent(
     `Write the following content verbatim to RELAY_STATUS.md. The target path is "${path}".
 
@@ -193,7 +226,19 @@ CRITICAL (id:c34a): NEVER create a file or directory whose name literally contai
 
 LIVE CLAIMS (id:ebfb): before writing, run ~/.claude/skills/relay/scripts/claim.sh peek — it prints zero or more live cross-session claims, one compact JSON per line ({key,repo,runId,mode,item,...}). APPEND to the Content below a final section exactly:
 ## Claims (live)
-with one "- <repo>  mode=<mode>  run=<runId>" line per claim (use item if repo is empty), or "_(none)_" if peek prints nothing. Then write the combined text (the Content verbatim followed by this Claims section).
+with one "- <repo>  mode=<mode>  run=<runId>" line per claim (use item if repo is empty), or "_(none)_" if peek prints nothing.
+
+BURNUP (id:c8b6): run this to get a burnup summary for this run (stdout may be EMPTY if <2 quota samples exist yet — that's fine):
+  ~/.claude/skills/relay/scripts/relay-burn.sh report --run ${state.runId || ''} 2>/dev/null
+APPEND to the Content a section exactly:
+## Burnup this run
+followed by a fenced code block (\`\`\`) containing that stdout verbatim, or the single line "_(insufficient samples yet)_" if it was empty. Then write the combined text (Content + Claims + Burnup) to the status file.
+
+EVENT LOG (id:c8b6): ${events.length ? `AFTER writing the status file, append ${events.length} event line(s) to the append-only JSONL. Resolve the path and pipe the lines through event-append (it flock-appends; never hand-edit the file):
+  evt=$(python3 -c "import os;print(os.path.expanduser('${RELAY_EVENTS_PATH}'))")
+  ~/.claude/skills/relay/scripts/relay-state-write.sh event-append "$evt" <<'RELAY_EVENTS_EOF'
+${eventsBlock}
+RELAY_EVENTS_EOF` : 'no new events in this batch — skip the event-append step.'}
 
 Content:
 ${content}`,
@@ -215,6 +260,8 @@ function snapshotState(s) {
     queued: [...(s.queued || [])], blocked: [...(s.blocked || [])],
     skipped: [...(s.skipped || [])], quota: [...(s.quota || [])], reviewMe: [...(s.reviewMe || [])],
     stopReason,  // id:8c35 — capture module-level stopReason at snapshot time
+    round, totalDispatched,            // id:c8b6 — run-progress counters at snapshot time
+    events: pendingEvents.splice(0),   // id:c8b6 — DRAIN pending events into this batch (never re-emitted)
   }
 }
 function scheduleStatusWrite(state, statusPath) {
@@ -428,6 +475,11 @@ function enqueueIntegration(repo, fn) {
 // are local to runRound and reset each round.
 const state = { runId: '', ts: '', inFlight: [], completed: [], queued: [], blocked: [], skipped: [], quota: [], reviewMe: [] }
 let quotaStopped = false
+// Run-progress accumulators (id:c8b6), declared here (not at the bottom loop) so snapshotState
+// can read them with no temporal-dead-zone risk. round = re-discover→dispatch→drain iterations;
+// totalDispatched = work units dispatched across ALL rounds (unitsDispatched resets per round).
+let round = 0
+let totalDispatched = 0
 // id:8c35 — machine-readable stop reason: null | "quota-stale-cache" |
 // "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds"
 // Populated by quotaGate on any stop so operators (and RELAY_STATUS) see WHY,
@@ -452,6 +504,11 @@ const MAX_ROUNDS = A.MAX_ROUNDS || 30
 const DISCOVER_SHARDS = A.DISCOVER_SHARDS || 6
 
 async function runRound() {
+// id:2d20 — productivity baseline: completions integrated BEFORE this round. The outer loop's
+// drain detector keys on `produced` (completions THIS round), not units dispatched — a round
+// that only hands back gated/too-large HARD units produces 0 and counts as dry, so the loop
+// drains instead of re-dispatching the same un-doable items for MAX_ROUNDS.
+const completedBefore = state.completed.length
 // ── Phase 1: Discover ──
 
 phase('Discover')
@@ -483,7 +540,14 @@ Each repo's path and income are given in the list above; use them. For each repo
 
 - "review": commits exist after the last relay checkpoint tag (run: git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1 — match BOTH prefixes; old fable-ckpt-* tags are historical and repos may still carry one until their next checkpoint — then git -C <path> log <tag>..HEAD --oneline). Unaudited work always wins over other verdicts.
 - "execute": no unaudited commits, and ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE].
-- "hard": no unaudited commits, NO open [ROUTINE] item, but ROADMAP.md has >=1 unticked "- [ ]" item tagged [HARD (i.e. [HARD — strong model]). This is the ROUTINE-drained steady state where HARD work would otherwise stall.
+- "hard": no unaudited commits, NO open [ROUTINE] item, but ROADMAP.md has >=1 unticked "- [ ]" EXECUTABLE [HARD — strong model] item (see the EXECUTABLE-HARD test below). This is the ROUTINE-drained steady state where HARD work would otherwise stall.
+
+EXECUTABLE-HARD test (id:2d20 — never dispatch an un-doable HARD item; a relay child can only refuse it, and re-dispatching it every round is pure waste). An unticked "- [ ]" [HARD item counts as EXECUTABLE only if a strong child could plausibly finish it green in one turn. It is NON-executable (GATED) — EXCLUDE it from the hard verdict and from openHard — when ANY of:
+  • it is tagged "[HARD — decision gate]" (vs "[HARD — strong model]");
+  • it sits under a "## Gated" / "do not start" / "deferred" ROADMAP section, or its acceptance text says to wait for a gate ("re-scope when the gate opens", "no code before ratification", "blocked on …");
+  • its acceptance criteria require a /meeting or recorded design decision FIRST (e.g. "hold a scoping meeting", "design recorded in docs/meeting-notes/ … then implement");
+  • it is explicitly multi-session or cross-repo in scope (cannot be finished+verified from this one repo's worktree).
+A repo whose ONLY open [HARD items are all GATED is NOT "hard": put it in "surfaced" with reason "HARD backlog is gated — needs a /meeting to unblock/re-scope (items: <ids>); not dispatched (id:2d20)". This moves the gate-detection to cheap discovery instead of spawning an Opus hard child every round to re-derive the same handback.
 - "handoff": no unaudited commits, and ROADMAP.md is missing/has no roadmap marker, OR every item is ticked while untracked new work exists.
 - "idle": none of the above.
 
@@ -510,7 +574,7 @@ Per-repo fields to set on each unit you emit:
 - lastCkpt per repo (the tag name, or "" if none)
 - income per repo: true iff the repo's relay.toml block has income = true
 - hasRoutine per repo: true iff ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE], INDEPENDENT of the verdict. A repo classified "review" (unaudited commits) that ALSO has open [ROUTINE] work must report hasRoutine=true — this lets the --fable-down path keep executors busy on routine work in repos whose review must wait for the next strong turn.
-- openHard per repo: the COUNT of unticked "- [ ]" items tagged [HARD (i.e. [HARD — strong model]) in ROADMAP.md, INDEPENDENT of the verdict. 0 when none. The supervisor uses it to surface the HARD backlog and (on an apex Opus session) to size the hard verdict.
+- openHard per repo: the COUNT of unticked "- [ ]" EXECUTABLE [HARD — strong model] items in ROADMAP.md (apply the EXECUTABLE-HARD test above — do NOT count GATED/decision-gate/deferred/multi-session items), INDEPENDENT of the verdict. 0 when none (incl. when every open HARD item is gated). The supervisor uses it to surface the HARD backlog and (on an apex Opus session) to size the hard verdict.
 - strongRecheckPending per repo: true iff the relay.toml [repos.<name>] block has a non-empty last_strong_ckpt AND fable_rechecked is false (or absent/empty). This is the DURABLE, model-tracked Fable-bonus-recheck queue (id:e030): a strong (Opus) review/handoff/hard checkpoint that has not yet had its optional Fable recheck. It SURVIVES a later executor (sonnet) checkpoint that overwrites last_ckpt and masks the latest-tag fable-standin signal — so prefer this field over the tag grep when deciding optional-recheck candidacy. Report false when last_strong_ckpt is absent/empty or fable_rechecked is true (or a date).
 - standin per repo: true iff the repo's LATEST relay checkpoint tag message contains the literal token "fable-standin". Detect (match BOTH prefixes — the latest tag may be fable-ckpt-* or relay-ckpt-*): T=$(git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no checkpoint tag.
 - intensive per repo (id:8d52): a resource name STRING (e.g. "local-llm") iff this repo's next unit of work is resource-heavy — set it when EITHER (a) the repo's relay.toml block has intensive = "<resource>" (or intensive = true → use "local-llm"), OR (b) the top open "- [ ]" item the unit would work in ROADMAP.md carries an "[INTENSIVE — <resource>]" modifier (parse the resource between "— " and "]"). Otherwise leave it "" (empty). These units are NEVER auto-dispatched (OOM risk) — they are gated behind --allow-intensive.
@@ -704,7 +768,7 @@ scheduleStatusWrite(state)
 // round; the outer loop counts consecutive dry rounds toward "backlog drained".
 if (actionable.length === 0 && intensiveUnits.length === 0) {
   if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') log('relay-loop: --fable-down — no executor work this round, strong work deferred')
-  return { actionable: 0 }
+  return { actionable: 0, produced: 0 }
 }
 
 // ── Phase 2+3: Dispatch pool + serialized integration ──
@@ -883,6 +947,7 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
   if (result && result.merged) {
     if (result.ts) state.ts = result.ts
     state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?' })
+    pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?' })  // id:c8b6
     if (report.review_me_count) {
       state.reviewMe.push({ repo: unit.repo, count: report.review_me_count, path: `${unit.path}/REVIEW_ME.md` })
     }
@@ -898,7 +963,9 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
       logGamingFlags(unit.repo, state.runId, report, result.ts || state.ts)
     }
   } else {
-    state.blocked.push({ repo: unit.repo, reason: (result && result.reason) || 'integration failed', worktreePath: report.worktree })
+    const reason = (result && result.reason) || 'integration failed'
+    state.blocked.push({ repo: unit.repo, reason, worktreePath: report.worktree })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })  // id:c8b6
   }
   scheduleStatusWrite(state)
 }
@@ -946,7 +1013,9 @@ async function runUnit(unit) {
     return
   }
   unitsDispatched++
+  totalDispatched++
   state.inFlight.push({ repo: unit.repo, mode: unit.verdict, agentId: `unit-${unitsDispatched}` })
+  pushEvent('dispatch', { repo: unit.repo, mode: unit.verdict, tier, round })  // id:c8b6
   log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})`)
   // Tier dispatch (D4): review/handoff get the STRONG_TIER model. Execute agents are
   // pinned to Sonnet; STRONG_TIER applies no model override to them.
@@ -1075,7 +1144,10 @@ for (const unit of intensiveUnits) {
 
 state.queued = state.queued.concat(queue.map(u => ({ repo: u.repo, verdict: `${u.verdict} (not dispatched)` })))
 scheduleStatusWrite(state)
-return { actionable: actionable.length + intensiveRan }
+// id:2d20 — `produced` = checkpoints integrated THIS round (the only real progress signal).
+// A round that dispatched units which ALL handed back produces 0 → the outer loop counts it dry.
+const produced = state.completed.length - completedBefore
+return { actionable: actionable.length + intensiveRan, produced }
 }
 // ── end runRound ──
 
@@ -1083,7 +1155,6 @@ return { actionable: actionable.length + intensiveRan }
 // Repeat runRound (fresh discovery each round) until the quota cap stops the run, two
 // consecutive rounds find no actionable work (backlog drained), or MAX_ROUNDS trips.
 let dry = 0
-let round = 0
 while (!quotaStopped && round < MAX_ROUNDS) {
   round++
   const r = await runRound()
@@ -1095,10 +1166,16 @@ while (!quotaStopped && round < MAX_ROUNDS) {
     log('relay-loop: discovery failed mid-run — stopping after completed rounds')
     break
   }
-  if (r.actionable === 0) {
+  // id:2d20 — a round is "dry" when it integrated NO checkpoint (produced === 0), not merely
+  // when it dispatched nothing. An all-handback round (only gated/too-large HARD units, which
+  // correctly refuse to half-do the work) makes no progress, so it counts toward drain — the
+  // loop stops after 2 such rounds instead of re-dispatching the same un-doable items every
+  // round to the MAX_ROUNDS seatbelt.
+  if ((r.produced || 0) === 0) {
     dry++
-    log(`relay-loop: round ${round} — no actionable work (dry ${dry}/2)`)
-    if (dry >= 2) { log('relay-loop: backlog drained (2 consecutive empty discoveries) — done'); break }
+    const why = r.actionable === 0 ? 'no actionable units' : `${r.actionable} dispatched but 0 integrated (all handed back)`
+    log(`relay-loop: round ${round} — no progress: ${why} (dry ${dry}/2)`)
+    if (dry >= 2) { log('relay-loop: backlog drained (2 consecutive no-progress rounds) — done'); break }
   } else {
     dry = 0
   }
