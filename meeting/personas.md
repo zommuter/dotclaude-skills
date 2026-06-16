@@ -58,3 +58,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🧪 **Mara** — meta-learning / learned-optimizer lens (L2O, MAML/hypernetworks, ES/PES, meta-gradient stability & truncation/chaos failure modes, coordinate-sharing). Introduced 2026-06-15 (leAIrn2learn/leairn2learn-learning-how-to-learn).
 
 - 🧠 **Dax** — RL / neuromodulation / Hebbian-hormone lens (scalar-reward credit assignment & variance, three-factor rules, eligibility traces, backpropamine, online learning, async-SGD teacher-staleness). Introduced 2026-06-15 (leAIrn2learn/leairn2learn-learning-how-to-learn).
+
+- 🎛️ **Orla** — multi-agent orchestration lens; fan-out topology, model-tier cost/capability economics, worktree-per-agent isolation, verification-before-merge gating, relay-fleet neediness triage. Introduced 2026-06-04 (dotclaude-skills/subagent-parallel-class1); extended 2026-06-16 (project_manager/proj-relay-integration): framed the relay cockpit as a pre-spend triage tool and dissolved the 'rows of dashes' concern by pointing to ROADMAP.md-gating as self-scoping.
