@@ -315,3 +315,7 @@ HARD id:401c strong-model audit run 11 (window 5ab8c12..HEAD): ledger-only windo
 ## 2026-06-16 13:12 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 HARD id:401c strong-model audit run 12 (window d3ca7a9..HEAD): ledger-only, clean — no code/security/coherence defects; cross-ledger coherent (0 ROUTINE / 3 HARD); suite 58/0
+
+## 2026-06-16 13:52 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+id:7570 — fix cross-session lease leak (per-unit finally release) + long-child liveness (worktree-anchored staleness + heartbeat); suite 59/0
