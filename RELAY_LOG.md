@@ -265,3 +265,7 @@ Reverse-handoff (§5b) — 3 new open TODO items added this window, all DESIGN-J
 ## 2026-06-16 06:43 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 2150..be6b98b clean: profiler batch + Haiku-claim findings verified (id:a59e, id:08a3), gaming-scan zero flags, suite 52/0, routine_open=0
+
+## 2026-06-16 06:53 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 8 (window 2150..HEAD): profiler batch clean, search-root glob comment drift fixed inline, suite 52/0
