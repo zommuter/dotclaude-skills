@@ -27,6 +27,22 @@ pass "relay-loop.js has In-flight section"
 grep -q "## Completed this run" "$JS" || fail "relay-loop.js missing '## Completed this run' section"
 pass "relay-loop.js has Completed this run section"
 
+# id:c8b6 — Run progress section (round/dispatched/in-flight/completed/blocked counters)
+grep -q "## Run progress" "$JS" || fail "relay-loop.js missing '## Run progress' section"
+pass "relay-loop.js has Run progress section"
+
+# id:c8b6 — status writer instructs the agent to append a Burnup section from relay-burn.sh
+grep -q "## Burnup this run" "$JS" || fail "relay-loop.js missing '## Burnup this run' section"
+grep -q "relay-burn.sh report" "$JS" || fail "relay-loop.js status writer does not invoke relay-burn.sh report"
+pass "relay-loop.js status writer appends a Burnup section via relay-burn.sh"
+
+# id:c8b6 — append-only event log: path const + flush via event-append + pushEvent emit sites
+grep -q "RELAY_EVENTS_PATH" "$JS" || fail "relay-loop.js missing RELAY_EVENTS_PATH"
+grep -q "event-append" "$JS" || fail "relay-loop.js status writer does not flush events via event-append"
+grep -q "pushEvent('dispatch'" "$JS" || fail "relay-loop.js missing pushEvent('dispatch') at dispatch site"
+grep -q "pushEvent('integrate'" "$JS" || fail "relay-loop.js missing pushEvent('integrate') at integrate site"
+pass "relay-loop.js emits append-only events (dispatch/integrate) flushed via event-append"
+
 grep -q "## Queued" "$JS" || fail "relay-loop.js missing '## Queued' section"
 pass "relay-loop.js has Queued section"
 

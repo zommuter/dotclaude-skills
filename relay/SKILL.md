@@ -254,6 +254,20 @@ verdict-class order.
   (older `fable-ckpt-*` tags are historical and never rewritten; readers match both prefixes).
 - `scripts/gather-human-backlog.sh` — read-only cross-repo collector for `human` mode
   (open REVIEW_ME boxes + `@manual` scenarios as TSV; flags `@manual`).
+- `scripts/relay-burn.sh` — quota burnup time-series (id:219b). `sample` appends one
+  point (utilization buckets + `extra_usage.used_credits` USD) to
+  `~/.config/fables-turn/quota-samples.jsonl`; `report [--since|--run|--json]` segments at
+  resets and prints `$/h`, `$/day` and per-bucket `%/h` projected to reset — the data for
+  evaluating Max x20/x5/Pro tiers. Sampling is wired into `quota-stop.sh` (gated on
+  `RELAY_RUN_ID`, best-effort/non-fatal), so every quota gate during a run leaves a sample.
+- **Observability artifacts** (id:c8b6): `RELAY_STATUS.md` now carries a `## Run progress`
+  counter block and a `## Burnup this run` section (filled from `relay-burn.sh report`); the
+  append-only `~/.config/fables-turn/relay-events.jsonl` records one line per
+  dispatch/integrate/handback (flushed off-critical-path via `relay-state-write.sh
+  event-append`) — `tail -f` it for a live event feed (the snapshot file is rewritten each
+  round, so use `tail -F` there). The Claude Code statusline shows a live `🔁<round> ✓<done>
+  ⚙<in-flight> Δ$<burn>/h` segment whenever `RELAY_STATUS.md` was touched in the last
+  `RELAY_ACTIVE_SECS` (default 600).
 
 ## State: `~/.config/fables-turn/relay.toml`
 
@@ -297,6 +311,9 @@ the historical `fable-ckpt-*` prefix:
 | `MAX_ROUNDS` | integer | `30` | Self-feeding-loop seatbelt: max re-discover→dispatch→drain rounds in one `relay-loop.js` invocation before it returns regardless. The loop normally ends earlier on the quota cap or two consecutive empty discoveries (backlog drained). Passed as `args.MAX_ROUNDS`. |
 | `DISCOVER_SHARDS` | integer | `6` | Number of parallel discovery-shard classifiers fanned out per round (id:9ed4). A once-only prelude does the global work (runId, the consuming `inject.sh take`, `claim.sh peek`, the own-repo list + non-own skipped rollup); the own repos are round-robin chunked across this many shard agents that classify in parallel, then merged into the same discovery object. Capped at the repo count; the Workflow harness's `min(16, cpu_cores-2)` agent ceiling still applies, so shards above it just queue. Passed as `args.DISCOVER_SHARDS`. |
 | `RELAY_STATUS_PATH` | path | `~/.config/fables-turn/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |
+| `RELAY_EVENTS_PATH` | path | `~/.config/fables-turn/relay-events.jsonl` | Append-only event-log JSONL (id:c8b6): one line per dispatch/integrate/handback, flushed off-critical-path. Passed as `args.RELAY_EVENTS_PATH`. |
+| `RELAY_QUOTA_SAMPLES` | path | `~/.config/fables-turn/quota-samples.jsonl` | Where `relay-burn.sh` appends/reads burnup samples (id:219b). Override for testing. |
+| `RELAY_ACTIVE_SECS` | integer | `600` | Statusline relay segment (id:15bd) shows only when `RELAY_STATUS.md` was touched within this many seconds; otherwise hidden. |
 
 Usage:
 ```bash

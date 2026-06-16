@@ -28,6 +28,22 @@ const STRONG_MODEL = STRONG_TIER === 'opus' ? 'claude-opus-4-8' : 'claude-fable-
 // RELAY_STATUS_PATH: output file for cross-repo rollup. Overridable for testing.
 const RELAY_STATUS_PATH = A.RELAY_STATUS_PATH || '~/.config/fables-turn/RELAY_STATUS.md'
 
+// RELAY_EVENTS_PATH (id:c8b6): append-only JSONL history substrate behind the
+// RELAY_STATUS.md snapshot. Each dispatch/integrate/handback pushes one line; the
+// off-critical-path status writer flushes the batch via relay-state-write.sh event-append.
+// `tail -f` it for a live event feed (the snapshot file is rewritten each round, so
+// `tail -f` on RELAY_STATUS.md misbehaves — use `tail -F` there, but this file truly appends).
+const RELAY_EVENTS_PATH = A.RELAY_EVENTS_PATH || '~/.config/fables-turn/relay-events.jsonl'
+
+// pendingEvents: accumulated, un-flushed event lines (JSON strings). pushEvent stamps each
+// with the latest bash-produced state.ts (the Workflow runtime FORBIDS Date.now()/new Date()),
+// so ordering rides on discovery/integrate timestamps. snapshotState drains this via splice()
+// at schedule time, so a flushed batch is never re-emitted (no duplication across rounds).
+let pendingEvents = []
+function pushEvent(kind, fields) {
+  pendingEvents.push(JSON.stringify({ ts: state.ts || '', runId: state.runId || '', kind, ...fields }))
+}
+
 // INTERACTIVE: pass-through of the front door's --interactive flag (default false).
 // The Workflow itself NEVER prompts the user (unattended invariant, meeting D2 —
 // enforced by tests/test_fables_front_door.sh grepping this file for the question tool);
@@ -141,8 +157,22 @@ function buildRelayStatus(state) {
   // id:8c35 — stop-reason line alongside Quota remaining so the operator sees WHY the run stopped
   const stopReasonLine = buildStopReasonLine(state.stopReason || null)
 
+  // id:c8b6 — Run progress: at-a-glance counters so the snapshot conveys momentum, not just
+  // the current frame. round/totalDispatched are run-totals; the rest are live tallies.
+  const progress = [
+    `- round=${state.round || 0}`,
+    `- dispatched=${state.totalDispatched || 0} (total work units this run)`,
+    `- in-flight=${(state.inFlight || []).length}`,
+    `- completed=${(state.completed || []).length}`,
+    `- blocked=${(state.blocked || []).length}`,
+    `- queued=${(state.queued || []).length}`,
+  ].join('\n')
+
   return [
     header,
+    '',
+    '## Run progress',
+    progress,
     '',
     '## In-flight',
     inFlight,
@@ -178,7 +208,10 @@ async function writeRelayStatus(state, statusPath) {
   const inFlightCount = (state.inFlight || []).length
   const completedCount = (state.completed || []).length
   const blockedCount = (state.blocked || []).length
-  log(`RELAY_STATUS updated: in-flight=${inFlightCount} completed=${completedCount} blocked=${blockedCount} → ${path}`)
+  // id:c8b6 — event batch drained into this snapshot (may be empty) + the append-only target.
+  const events = state.events || []
+  const eventsBlock = events.join('\n')
+  log(`RELAY_STATUS updated: in-flight=${inFlightCount} completed=${completedCount} blocked=${blockedCount} events=${events.length} → ${path}`)
   await agent(
     `Write the following content verbatim to RELAY_STATUS.md. The target path is "${path}".
 
@@ -193,7 +226,19 @@ CRITICAL (id:c34a): NEVER create a file or directory whose name literally contai
 
 LIVE CLAIMS (id:ebfb): before writing, run ~/.claude/skills/relay/scripts/claim.sh peek — it prints zero or more live cross-session claims, one compact JSON per line ({key,repo,runId,mode,item,...}). APPEND to the Content below a final section exactly:
 ## Claims (live)
-with one "- <repo>  mode=<mode>  run=<runId>" line per claim (use item if repo is empty), or "_(none)_" if peek prints nothing. Then write the combined text (the Content verbatim followed by this Claims section).
+with one "- <repo>  mode=<mode>  run=<runId>" line per claim (use item if repo is empty), or "_(none)_" if peek prints nothing.
+
+BURNUP (id:c8b6): run this to get a burnup summary for this run (stdout may be EMPTY if <2 quota samples exist yet — that's fine):
+  ~/.claude/skills/relay/scripts/relay-burn.sh report --run ${state.runId || ''} 2>/dev/null
+APPEND to the Content a section exactly:
+## Burnup this run
+followed by a fenced code block (\`\`\`) containing that stdout verbatim, or the single line "_(insufficient samples yet)_" if it was empty. Then write the combined text (Content + Claims + Burnup) to the status file.
+
+EVENT LOG (id:c8b6): ${events.length ? `AFTER writing the status file, append ${events.length} event line(s) to the append-only JSONL. Resolve the path and pipe the lines through event-append (it flock-appends; never hand-edit the file):
+  evt=$(python3 -c "import os;print(os.path.expanduser('${RELAY_EVENTS_PATH}'))")
+  ~/.claude/skills/relay/scripts/relay-state-write.sh event-append "$evt" <<'RELAY_EVENTS_EOF'
+${eventsBlock}
+RELAY_EVENTS_EOF` : 'no new events in this batch — skip the event-append step.'}
 
 Content:
 ${content}`,
@@ -215,6 +260,8 @@ function snapshotState(s) {
     queued: [...(s.queued || [])], blocked: [...(s.blocked || [])],
     skipped: [...(s.skipped || [])], quota: [...(s.quota || [])], reviewMe: [...(s.reviewMe || [])],
     stopReason,  // id:8c35 — capture module-level stopReason at snapshot time
+    round, totalDispatched,            // id:c8b6 — run-progress counters at snapshot time
+    events: pendingEvents.splice(0),   // id:c8b6 — DRAIN pending events into this batch (never re-emitted)
   }
 }
 function scheduleStatusWrite(state, statusPath) {
@@ -428,6 +475,11 @@ function enqueueIntegration(repo, fn) {
 // are local to runRound and reset each round.
 const state = { runId: '', ts: '', inFlight: [], completed: [], queued: [], blocked: [], skipped: [], quota: [], reviewMe: [] }
 let quotaStopped = false
+// Run-progress accumulators (id:c8b6), declared here (not at the bottom loop) so snapshotState
+// can read them with no temporal-dead-zone risk. round = re-discover→dispatch→drain iterations;
+// totalDispatched = work units dispatched across ALL rounds (unitsDispatched resets per round).
+let round = 0
+let totalDispatched = 0
 // id:8c35 — machine-readable stop reason: null | "quota-stale-cache" |
 // "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds"
 // Populated by quotaGate on any stop so operators (and RELAY_STATUS) see WHY,
@@ -883,6 +935,7 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
   if (result && result.merged) {
     if (result.ts) state.ts = result.ts
     state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?' })
+    pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?' })  // id:c8b6
     if (report.review_me_count) {
       state.reviewMe.push({ repo: unit.repo, count: report.review_me_count, path: `${unit.path}/REVIEW_ME.md` })
     }
@@ -898,7 +951,9 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
       logGamingFlags(unit.repo, state.runId, report, result.ts || state.ts)
     }
   } else {
-    state.blocked.push({ repo: unit.repo, reason: (result && result.reason) || 'integration failed', worktreePath: report.worktree })
+    const reason = (result && result.reason) || 'integration failed'
+    state.blocked.push({ repo: unit.repo, reason, worktreePath: report.worktree })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })  // id:c8b6
   }
   scheduleStatusWrite(state)
 }
@@ -946,7 +1001,9 @@ async function runUnit(unit) {
     return
   }
   unitsDispatched++
+  totalDispatched++
   state.inFlight.push({ repo: unit.repo, mode: unit.verdict, agentId: `unit-${unitsDispatched}` })
+  pushEvent('dispatch', { repo: unit.repo, mode: unit.verdict, tier, round })  // id:c8b6
   log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})`)
   // Tier dispatch (D4): review/handoff get the STRONG_TIER model. Execute agents are
   // pinned to Sonnet; STRONG_TIER applies no model override to them.
@@ -1083,7 +1140,6 @@ return { actionable: actionable.length + intensiveRan }
 // Repeat runRound (fresh discovery each round) until the quota cap stops the run, two
 // consecutive rounds find no actionable work (backlog drained), or MAX_ROUNDS trips.
 let dry = 0
-let round = 0
 while (!quotaStopped && round < MAX_ROUNDS) {
   round++
   const r = await runRound()
