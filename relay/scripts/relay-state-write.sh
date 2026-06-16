@@ -18,13 +18,16 @@
 #       mkdir -p the dir, write a temp file in the same dir, mv over the target.
 #   event-append <abs-path>   (id:03a5)
 #       Read one-or-more newline-delimited JSON event lines from STDIN and APPEND them to
-#       the append-only <abs-path> JSONL under the SAME flock (concurrent relay runs never
-#       interleave a partial line). <abs-path> must start with '/' (id:c34a). Blank lines
-#       are dropped. This is the durable history substrate behind RELAY_STATUS.md's
+#       the append-only <abs-path> JSONL, serialized by flock on the TARGET FILE itself (not
+#       the shared $LOCK — appends to distinct event logs need not block unrelated toml/status
+#       writes; flock'ing the append target still serializes concurrent appenders so two relay
+#       runs never interleave a partial line). <abs-path> must start with '/' (id:c34a). Blank
+#       lines are dropped. This is the durable history substrate behind RELAY_STATUS.md's
 #       snapshot — `tail -f` it for a live event feed.
 #
 # Paths: base = $FABLES_CONFIG (default ~/.config/fables-turn), lock = $BASE/.state-write.lock
-# (flock fd 9, -w 30). Override $FABLES_CONFIG for hermetic tests.
+# (toml-set/status-write: flock fd 9, -w 30; event-append flocks its target file instead).
+# Override $FABLES_CONFIG for hermetic tests.
 set -euo pipefail
 
 BASE="${FABLES_CONFIG:-$HOME/.config/fables-turn}"
@@ -135,7 +138,7 @@ case "$cmd" in
     ;;
 
   ""|-h|--help|help)
-    sed -n '2,26p' "$0"
+    sed -n '2,30p' "$0"
     ;;
 
   *)
