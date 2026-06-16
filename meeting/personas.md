@@ -70,3 +70,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🔬 **Greta** — proof-engineering / formal-methods lens; what is mechanizable in a proof assistant, axiom hygiene (assume vs. prove), and the model-vs-deployed-artifact fidelity gap. Introduced 2026-06-16 (zkWhale/lean4-zk-formal-proofs).
 
 - 🛠️ **Sven** — systemd --user units, .path/.timer edge-trigger semantics, keyring preconditions under the user session manager, oneshot restart behaviour. Introduced 2026-06-16 (zkm-whatsapp/w10-auto-decryption-install-readiness).
+
+- 🔧 **Quinn** — inference-server internals lens; llama.cpp/llama-server mmap/warmup/mlock mechanics, KV-cache, cold-start latency decomposition (llama_load_s vs first_byte_s), /health poll patterns. Introduced 2026-06-16 (zelegator/fievel-cold-start-mitigation).
