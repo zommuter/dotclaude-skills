@@ -68,7 +68,7 @@ SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
-        install-allowlist print-allowlist uninstall status test gaming-canary \
+        install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test gaming-canary \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -86,6 +86,8 @@ help:
 	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
+	@echo "  install-relay-env    merge relay env policy (quota decay) into settings.json (idempotent)"
+	@echo "  print-relay-env      preview the relay env policy entries (read-only)"
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
 	@echo "  status               show symlink state for all skills"
@@ -96,7 +98,20 @@ help:
 	@echo ""
 	@echo "Install location: $$DEST_DIR  (override: make DEST_DIR=/path install)"
 
-install: $(addprefix install-,$(SKILLS)) install-hooks install-allowlist
+install: $(addprefix install-,$(SKILLS)) install-hooks install-allowlist install-relay-env
+
+# Relay fleet env policy → settings.json (idempotent, like install-allowlist). settings.json
+# is PER-MACHINE (not synced — each machine's ~/.claude is its own branch), so this SHARED repo
+# is the source of truth and `make install` applies it on each machine. RELAY_QUOTA_DECAY_7D
+# = strict-proportional time-decaying 7d quota cap (front-load early, taper to ~8% near reset),
+# so a self-looping --afk pool can't blow the weekly budget on day 1 (user policy 2026-06-16).
+RELAY_ENV_DEFAULTS := RELAY_QUOTA_DECAY_7D=0.30:0.08
+
+install-relay-env:
+	@python3 $(SRC_DIR)/tools/settings-env.py --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS)
+
+print-relay-env:
+	@python3 $(SRC_DIR)/tools/settings-env.py --mode print --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS)
 
 test:
 	@bash $(SRC_DIR)/tests/run-tests.sh
