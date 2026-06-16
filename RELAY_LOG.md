@@ -295,3 +295,7 @@ the /meeting-leaves-impl-uncommitted/unticked pattern).
 ## 2026-06-16 11:57 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 2026-06-16: 14 commits since relay-ckpt-20260616-1022 verified genuinely green (689c/3313/1f53 orphan-reconcile + archive-done multiline + relay-econ), no gaming flags; cross-ledger synced (ticked TODO 3313/1f53); routine_open=0
+
+## 2026-06-16 12:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: audited doc-only commit 67fc66a (TODO id:872e bisect-skip meeting-candidate); gaming-scan clean, suite 58/0, no ROADMAP delta, routine_open=0
