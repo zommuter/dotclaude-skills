@@ -206,3 +206,12 @@ grep -q "HARD backlog is gated" "$JS" \
 grep -q "do NOT count GATED/decision-gate" "$JS" \
   || fail "id:2d20: openHard count not narrowed to executable items"
 pass "id:2d20: classifier excludes gated HARD items (surfaced for /meeting, not dispatched)"
+
+# id:8b1f — a SIZE-OUT/gated refusal must leave the worktree CLEAN (no commit), else the
+# handback-note commit strands forever (the integrator never merges a handback). The hard
+# unitPrompt must say so explicitly so children stop committing RELAY_LOG handback notes.
+grep -q "SIZE-OUT / GATED refusal" "$JS" \
+  || fail "id:8b1f: hard unitPrompt does not instruct a clean (no-commit) worktree on a size-out refusal"
+grep -q "integrator never merges a handback" "$JS" \
+  || fail "id:8b1f: hard unitPrompt does not explain WHY a refusal commit strands (orphan worktree)"
+pass "id:8b1f: size-out handback leaves a clean (auto-reapable) worktree — no stranded commit"

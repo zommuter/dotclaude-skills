@@ -83,9 +83,18 @@ among defensible ones) goes into `REVIEW_ME.md` for the human's 15-min/repo budg
 Commit `relay(handoff): C4 bdd`.
 
 **C5 — HARD item (only if budgeted).** Execute the top `[HARD]` item full
-red-green-refactor. If cut off mid-item, write a `HANDBACK:` paragraph to RELAY_LOG.md
-describing the exact state and the worktree branch so any session can resume it.
-Commit `relay(handoff): C5 <id>` (or a partial commit + handback).
+red-green-refactor. If cut off **mid-item with real work already committed**, write a
+`HANDBACK:` paragraph to RELAY_LOG.md describing the exact state and the worktree branch
+so any session can resume it. Commit `relay(handoff): C5 <id>` (or a partial commit + handback).
+
+**SIZE-OUT vs CUTOFF (id:8b1f).** The RELAY_LOG `HANDBACK:` commit above is ONLY for a
+genuine mid-item CUTOFF where you ALREADY committed real work and need resume provenance.
+If instead you SIZE OUT the item BEFORE starting (too large / gated / multi-session /
+can't make it green) and make no real code change, leave the worktree COMPLETELY CLEAN:
+make NO commit, do NOT touch RELAY_LOG.md / ROADMAP.md / REVIEW_ME.md — put the rationale
+ONLY in the returned `handback` field. The integrator never merges a handback, so a commit
+made on a pre-start refusal strands forever as an orphan worktree (id:a4e9); a clean
+worktree is auto-reaped (id:3ac8).
 
 ## Return contract
 
