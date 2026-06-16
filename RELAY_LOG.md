@@ -291,3 +291,7 @@ box was left unticked. Verified the done-check (targeted test PASS, full make te
 2 expected-red = 3313/1f53) and ticked the box, closing D1 and unblocking D2/D3.
 Friction: none — straight verify-and-tick of already-landed work (relates to id:a6cb,
 the /meeting-leaves-impl-uncommitted/unticked pattern).
+
+## 2026-06-16 11:57 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 2026-06-16: 14 commits since relay-ckpt-20260616-1022 verified genuinely green (689c/3313/1f53 orphan-reconcile + archive-done multiline + relay-econ), no gaming flags; cross-ledger synced (ticked TODO 3313/1f53); routine_open=0
