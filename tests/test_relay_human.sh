@@ -90,9 +90,10 @@ cat > "$STORE/src/repoB/ROADMAP.md" <<'EOF'
 EOF
 
 # repoA also has a ROADMAP exercising the gated-HARD sweep (id:f6c9):
-#   - a [HARD — decision gate] item  → gated_hard (decision-gate)
-#   - an item under a "## Gated" section → gated_hard (gated-section)
-#   - an executable [HARD — strong model] item → NOT emitted (negative control)
+#   - a [HARD — decision gate] item  → gated_hard (decision-gate reason)
+#   - an item under a "## Gated" section → gated_hard (gated-section reason)
+#   - a plain [HARD — strong model] item → gated_hard (generic "verify
+#     executability" reason; every open [HARD] is surfaced now, see a8c361e)
 #   - a closed [x] gated item → NOT emitted
 cat > "$STORE/src/repoA/ROADMAP.md" <<'EOF'
 ## Executable work
@@ -173,10 +174,13 @@ grep -qP '^repoA\t.*\tgated_hard\t.*once the gate opens.*— gated: under a gate
   || fail "item under ## Gated section not emitted as gated_hard"
 pass "gather emits item under a ## Gated section as kind=gated_hard"
 
-# executable [HARD — strong model] item (not gated) is NOT emitted (negative control).
-grep -q 'Refactor the parser core' <<<"$OUT" \
-  && fail "executable [HARD — strong model] item leaked into gated_hard output"
-pass "gather does NOT emit executable [HARD — strong model] items (negative control)"
+# plain [HARD — strong model] item (no textual gate) is now ALSO emitted as
+# gated_hard with the generic "verify executability" reason — every open [HARD]
+# item is a strong-model-or-human decision by definition (a8c361e fixed the
+# under-surfacing where /relay human showed almost nothing).
+grep -qP '^repoA\t.*\tgated_hard\t.*Refactor the parser core.*— gated: open \[HARD\] item' <<<"$OUT" \
+  || fail "plain [HARD — strong model] item not emitted as gated_hard with generic reason"
+pass "gather emits plain [HARD — strong model] items as gated_hard (generic verify-executability reason)"
 
 # closed [x] gated item is NOT emitted.
 grep -q 'Already-resolved gate' <<<"$OUT" \

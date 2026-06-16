@@ -38,19 +38,24 @@ It emits a TSV `repo  path  kind  box_summary` covering:
 - every OPEN `- [ ]` box in each repo's `REVIEW_ME.md` (`kind = review_me`), AND
 - open `@manual` boxes — REVIEW_ME `@manual` lines AND `ROADMAP.md` items tagged
   `@manual`/BDD that need a human to RUN them (`kind = manual`), AND
-- open `ROADMAP.md` items the relay pool classifies NON-executable **GATED HARD**
-  per the `id:2d20` EXECUTABLE-HARD test (`kind = gated_hard`) — re-derived from
-  ROADMAP, not read from a possibly-stale live `RELAY_STATUS.md` (id:f6c9). These
-  are the pool's "HARD backlog is gated — needs a /meeting" Blocked entries; without
-  this they were written to `RELAY_STATUS.md` but shown to the human NOWHERE
-  actionable, so they silently stalled. The collector re-derives the two
-  purely-textual gates (a `[HARD — decision gate]` tag, or membership in a
-  `## Gated`/`do not start`/`deferred` section) — the deterministic, false-positive-free
-  subset of the EXECUTABLE-HARD test; the acceptance-text gates ("blocked on …",
-  "hold a scoping meeting first", multi-session) are exactly what tier-(c) routes to a
-  `/meeting`, so they are not guessed statically. Each `gated_hard` `box_summary`
-  carries the item text plus ` — gated: <why>` reusing the classifier's reason
-  vocabulary.
+- EVERY open `- [ ]` `[HARD]` `ROADMAP.md` item (`kind = gated_hard`) — re-derived from
+  ROADMAP, not read from a possibly-stale live `RELAY_STATUS.md` (id:f6c9). A `[HARD]`
+  item IS a strong-model-or-human decision by definition, so the whole HARD backlog is
+  surfaced to human triage. These are the pool's "HARD backlog is gated — needs a
+  /meeting" Blocked entries; without this they were written to `RELAY_STATUS.md` but
+  shown to the human NOWHERE actionable, so they silently stalled. An earlier version
+  emitted only the two purely-textual gates (a `[HARD — decision gate]` tag, or
+  membership in a `## Gated`/`do not start`/`deferred` section) and dropped everything
+  else as "executable HARD" — but real repos gate semantically (`DECISION GATE:` as a
+  line *prefix*; plain `[HARD — strong model]` gated by sub-bullet acceptance text;
+  inline `BLOCKED`/`do not start`/`NOT yet executor work` markers), so the collector
+  returned almost nothing while `RELAY_STATUS.md` listed 20+ blocked repos. Over-surfacing
+  to human triage is safe (the human reads + routes; tier-(a/b/c) downgrades when unsure),
+  whereas under-surfacing hid the whole backlog (a8c361e). No model is available in the
+  collector, so the `box_summary` carries the item text plus ` — gated: <why>` where
+  `<why>` is refined from whatever textual marker is present (decision-gate / gated-section
+  / blocked-or-do-not-start) else a generic "strong-model or human decision (verify
+  executability)".
 
 Closed `- [x]` boxes are never collected. The collector never spawns a model and never
 writes — it is purely the read side. For each `kind = review_me` box, before deciding,
