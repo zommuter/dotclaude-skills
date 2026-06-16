@@ -335,3 +335,7 @@ hard: 414a Tier B model gaming-canary harness (tests/gaming-canary/ + make gamin
 ## 2026-06-16 19:06 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review since relay-ckpt-20260616-1746: id:10c0 (doc-only) clean, promoted to ROADMAP as gated HARD; 60 tests green, 0 open ROUTINE
+
+## 2026-06-16 20:34 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: audit a8c361e (id:f6c9) — fixed stale RED negative-control test + human.md doc drift from the full-HARD-backlog behavior change; suite 60-green
