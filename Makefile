@@ -67,7 +67,7 @@ SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
-        install-allowlist print-allowlist uninstall status test \
+        install-allowlist print-allowlist uninstall status test gaming-canary \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -89,6 +89,7 @@ help:
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
 	@echo "  status               show symlink state for all skills"
 	@echo "  test                 run the test suite (tests/run-tests.sh)"
+	@echo "  gaming-canary        Tier B model anti-gaming canary harness (on-demand; costs tokens)"
 	@echo ""
 	@echo "Skills: $(SKILLS)"
 	@echo ""
@@ -98,6 +99,13 @@ install: $(addprefix install-,$(SKILLS)) install-hooks install-allowlist
 
 test:
 	@bash $(SRC_DIR)/tests/run-tests.sh
+
+# Tier B model canary harness (id:414a) — on-demand, costs tokens, NOT in `make test`.
+# Verifies the review procedure's JUDGMENT anti-gaming checks (resurrection-rewrite,
+# fixture-special-casing) fire, with a negative control. Override the agent with
+# CANARY_AGENT=... for a token-free plumbing smoke test (see tests/gaming-canary/README.md).
+gaming-canary:
+	@bash $(SRC_DIR)/tests/gaming-canary/run.sh
 
 ALLOWLIST_EXTRA := $(SRC_DIR)/tools/allow-extra.txt
 
