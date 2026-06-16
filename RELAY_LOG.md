@@ -281,3 +281,13 @@ HARD id:401c strong-model audit run 9 (window 0653..HEAD): observability/drain/q
 ## 2026-06-16 10:22 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review dotclaude-skills @relay-ckpt-20260616-0959: 2 ledger-only commits, gaming-scan clean, no green-by-weakening; reverse-handoff promoted orphan-reconcile D1/D2/D3 (689c/3313/1f53) to ROADMAP [ROUTINE] + 3 red specs; suite 53/0/3xred
+
+## 2026-06-16 — executor (claude-opus-4-8)
+
+Worked id:689c — a parallel session had committed the orphan-park impl (relay-loop.js
+discovery PARKs commit-bearing stale worktrees into relay/orphan/* + removes the dir,
+commit 796e275) and the red spec test_relay_orphan_park.sh now passes, but the ROADMAP
+box was left unticked. Verified the done-check (targeted test PASS, full make test 55/0,
+2 expected-red = 3313/1f53) and ticked the box, closing D1 and unblocking D2/D3.
+Friction: none — straight verify-and-tick of already-landed work (relates to id:a6cb,
+the /meeting-leaves-impl-uncommitted/unticked pattern).
