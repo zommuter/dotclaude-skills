@@ -61,25 +61,70 @@ lines   = todo_path.read_text().splitlines(keepends=True)
 keep    = []
 to_arch = {}  # ym -> [line_without_newline]
 
-date_re = re.compile(r' on (\d{4}-\d{2}-\d{2})\.?\s*$')
+date_re   = re.compile(r' on (\d{4}-\d{2}-\d{2})\.?\s*$')
+bullet_re = re.compile(r'^(\s*)- \[[ x]\]')
 
-for line in lines:
+def bullet_indent(line):
+    """Indent width of a `- [ ]`/`- [x]` bullet marker, or None if not a bullet."""
+    m = bullet_re.match(line)
+    return len(m.group(1)) if m else None
+
+def is_continuation(line, base_indent):
+    """A line belongs to the bullet at `base_indent` if it is more-indented than
+    the marker and is not itself a new bullet at the same-or-lesser indent.
+    Blank lines do NOT terminate the unit (they may sit between wrapped lines /
+    sub-bullets); a following non-continuation line will end it."""
+    if line.strip() == '':
+        return True
+    bi = bullet_indent(line)
+    if bi is not None:
+        # A nested bullet (more-indented marker) is part of this unit;
+        # a sibling/outer bullet is not.
+        return bi > base_indent
+    # Non-bullet text: continuation iff indented past the marker.
+    return (len(line) - len(line.lstrip())) > base_indent
+
+i = 0
+n = len(lines)
+while i < n:
+    line = lines[i]
+    archived = False
     if do_archive and re.match(r'^\s*- \[x\]', line):
+        base = bullet_indent(line)
+        # Gather any indented continuation lines (sub-bullets / wrapped prose)
+        # so the bullet moves as one unit.
+        unit = [line]
+        j = i + 1
+        while j < n and is_continuation(lines[j], base):
+            unit.append(lines[j])
+            j += 1
+        # Trailing blank lines belong to the document gap, not the bullet.
+        while len(unit) > 1 and unit[-1].strip() == '':
+            j -= 1
+            unit.pop()
+
+        ym = None
         if line.rstrip('\n').strip() in prior_done:
-            to_arch.setdefault(today_ym, []).append(line.rstrip('\n'))
-            continue
-        m = date_re.search(line)
-        if m:
-            try:
-                d = date.fromisoformat(m.group(1))
-            except ValueError:
-                keep.append(line)
-                continue
-            if d <= cutoff:
-                ym = d.strftime('%Y-%m')
-                to_arch.setdefault(ym, []).append(line.rstrip('\n'))
-                continue
-    keep.append(line)
+            ym = today_ym
+        else:
+            m = date_re.search(line)
+            if m:
+                try:
+                    d = date.fromisoformat(m.group(1))
+                    if d <= cutoff:
+                        ym = d.strftime('%Y-%m')
+                except ValueError:
+                    ym = None
+
+        if ym is not None:
+            for u in unit:
+                to_arch.setdefault(ym, []).append(u.rstrip('\n'))
+            i = j
+            archived = True
+
+    if not archived:
+        keep.append(line)
+        i += 1
 
 if to_arch:
     if not archive_path.exists():
