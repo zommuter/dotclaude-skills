@@ -350,6 +350,33 @@ if [ -n "$TRANSCRIPT" ] && LAST=$(stat -c %Y "$TRANSCRIPT" 2>/dev/null); then
     fi
 fi
 
+# ── Relay pool indicator (id:15bd) ──────────────────────────────────────────
+# When an autonomous relay pool is active (RELAY_STATUS.md touched recently), show a
+# compact live segment: 🔁<round> ✓<completed> ⚙<in-flight> [Δ$<burn>/h]. Purely additive
+# and gated on recent mtime, so sessions with no relay activity render exactly as before.
+# Counts come from the "## Run progress" counters (new format) with a fallback to counting
+# section bullets (pre-Run-progress runs); burn is grepped from the "## Burnup this run"
+# section so the statusline spawns no subprocess.
+RELAY_PART=""
+RELAY_STATUS_FILE="${RELAY_STATUS_PATH:-$HOME/.config/fables-turn/RELAY_STATUS.md}"
+RELAY_ACTIVE_SECS="${RELAY_ACTIVE_SECS:-600}"
+if [ -f "$RELAY_STATUS_FILE" ]; then
+    RS_AGE=$((NOW - $(stat -c %Y "$RELAY_STATUS_FILE" 2>/dev/null || echo 0)))
+    if [ "$RS_AGE" -lt "$RELAY_ACTIVE_SECS" ]; then
+        R_ROUND=$(grep -oP '^- round=\K[0-9]+' "$RELAY_STATUS_FILE" 2>/dev/null | head -1)
+        R_DONE=$(grep -oP '^- completed=\K[0-9]+' "$RELAY_STATUS_FILE" 2>/dev/null | head -1)
+        R_FLIGHT=$(grep -oP '^- in-flight=\K[0-9]+' "$RELAY_STATUS_FILE" 2>/dev/null | head -1)
+        # Fallbacks for the pre-Run-progress format: count bullets under each section.
+        [ -z "$R_FLIGHT" ] && R_FLIGHT=$(awk '/^## In-flight/{f=1;next} /^## /{f=0} f&&/^- /{c++} END{print c+0}' "$RELAY_STATUS_FILE" 2>/dev/null)
+        [ -z "$R_DONE" ]   && R_DONE=$(awk '/^## Completed this run/{f=1;next} /^## /{f=0} f&&/^- /{c++} END{print c+0}' "$RELAY_STATUS_FILE" 2>/dev/null)
+        R_BURN=$(grep -oP '\(\$\K[0-9.]+/h' "$RELAY_STATUS_FILE" 2>/dev/null | head -1)
+        RELAY_SEG="🔁${R_ROUND:-?} ✓${R_DONE:-0} ⚙${R_FLIGHT:-0}"
+        [ -n "$R_BURN" ] && RELAY_SEG="${RELAY_SEG} Δ\$${R_BURN}"
+        # Cyan when fresh (<2 min, actively writing), dim cyan when going stale.
+        if [ "$RS_AGE" -lt 120 ]; then RELAY_PART=" \e[0;36m${RELAY_SEG}\e[0;39;49m"; else RELAY_PART=" \e[2;36m${RELAY_SEG}\e[0;39;49m"; fi
+    fi
+fi
+
 # ── Quota pricing-tier indicator ────────────────────────────────────────────
 # Anthropic publishes no exact off-peak figures and exposes no API field for the
 # current tier, so this is computed from a community-reported schedule:
@@ -385,4 +412,4 @@ KV_PART=""
 [ -n "$KV_DISPLAY" ] && KV_PART=" ${CL_KV}${KV_DISPLAY}${CL_D}"
 
 # Print status line with colors
-echo -e "${MODEL_EMOJI} ${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN}${SONNET_PART} ${COST_DISPLAY} ${PRICING_EMOJI}${PRICING_STALE} ${CL_AGE}${AGE_DISPLAY}${CL_D}${KV_PART}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"
+echo -e "${MODEL_EMOJI} ${CL_MODEL}${MODEL_DISPLAY}${CL_D} ${CL_CONTEXT}${CONTEXT_DISPLAY}${CL_D} 5h:${CL_SESSION}${SESSION_DISPLAY}${CL_D}→${SESSION_COOLDOWN} 7d:${CL_WEEKLY}${WEEKLY_DISPLAY}${CL_D}→${WEEKLY_COOLDOWN}${SONNET_PART} ${COST_DISPLAY} ${PRICING_EMOJI}${PRICING_STALE} ${CL_AGE}${AGE_DISPLAY}${CL_D}${KV_PART}${RELAY_PART}\n${CL_USER}${USER}@${CL_HOST}${HOST}${CL_HSTUSR}:${CL_DIR}${CURRENT_DIR}${CL_GIT}${GIT_INFO}${CL_D}"

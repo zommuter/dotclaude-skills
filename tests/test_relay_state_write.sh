@@ -127,4 +127,26 @@ grep -qxF 'last_ckpt_extra = "extra"' "$FABLES_CONFIG/relay.toml" \
   || fail "c8db-F2: adjacent key with shared prefix was clobbered (literal-compare not used)"
 pass "c8db F2: literal key-prefix compare leaves keys with shared prefix intact"
 
-echo "ALL PASS: relay-state-write single-writer (id:ebfb, id:c8db)"
+# ── event-append (id:03a5): append-only JSONL history substrate ───────────────
+EV="$FABLES_CONFIG/relay-events.jsonl"
+rm -f "$EV"
+printf '{"kind":"dispatch","repo":"a"}\n{"kind":"integrate","repo":"a"}\n' | "$SH" event-append "$EV"
+printf '\n{"kind":"skip","repo":"b"}\n\n'                                   | "$SH" event-append "$EV"  # blank lines dropped
+n=$(wc -l < "$EV")
+[[ "$n" -eq 3 ]] || fail "event-append: expected 3 lines (blanks dropped), got $n"
+grep -qxF '{"kind":"dispatch","repo":"a"}' "$EV" || fail "event-append: first line missing"
+grep -qxF '{"kind":"skip","repo":"b"}'     "$EV" || fail "event-append: second-call line missing"
+pass "event-append: appends across calls, drops blank lines"
+
+# relative path is rejected (id:c34a — never a ~/$HOME literal)
+echo '{}' | "$SH" event-append "relative/path.jsonl" && rc=0 || rc=$?
+[[ "$rc" -eq 1 ]] || fail "event-append: relative path should exit 1 (got $rc)"
+pass "event-append: rejects non-absolute path"
+
+# empty stdin is a no-op (exit 0, file unchanged)
+before=$(wc -l < "$EV")
+printf '' | "$SH" event-append "$EV"
+[[ "$(wc -l < "$EV")" -eq "$before" ]] || fail "event-append: empty stdin should not append"
+pass "event-append: empty stdin is a no-op"
+
+echo "ALL PASS: relay-state-write single-writer (id:ebfb, id:c8db, id:03a5)"

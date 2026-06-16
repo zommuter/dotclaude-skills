@@ -16,6 +16,12 @@
 #       Read full file CONTENT from STDIN and write it to <abs-path> atomically under the
 #       SAME flock. <abs-path> must start with '/' (id:c34a: never a ~/$HOME/${...} literal).
 #       mkdir -p the dir, write a temp file in the same dir, mv over the target.
+#   event-append <abs-path>   (id:03a5)
+#       Read one-or-more newline-delimited JSON event lines from STDIN and APPEND them to
+#       the append-only <abs-path> JSONL under the SAME flock (concurrent relay runs never
+#       interleave a partial line). <abs-path> must start with '/' (id:c34a). Blank lines
+#       are dropped. This is the durable history substrate behind RELAY_STATUS.md's
+#       snapshot — `tail -f` it for a live event feed.
 #
 # Paths: base = $FABLES_CONFIG (default ~/.config/fables-turn), lock = $BASE/.state-write.lock
 # (flock fd 9, -w 30). Override $FABLES_CONFIG for hermetic tests.
@@ -107,12 +113,33 @@ case "$cmd" in
     log "status-write target=$target"
     ;;
 
+  event-append)
+    target="${1:-}"
+    [ -n "$target" ] || { echo "relay-state-write.sh event-append: <abs-path> required" >&2; exit 2; }
+    case "$target" in
+      /*) ;;
+      *) echo "relay-state-write.sh event-append: path must be absolute (got '$target')" >&2; exit 1 ;;
+    esac
+
+    # Read all of STDIN first (so the flock is held only for the actual append), drop blanks.
+    payload="$(grep -v '^[[:space:]]*$' || true)"
+    [ -n "$payload" ] || { log "event-append target=$target (no lines)"; exit 0; }
+
+    dir="$(dirname "$target")"
+    mkdir -p "$dir"
+    exec 9>>"$target"
+    flock -w 30 9 || { echo "relay-state-write.sh event-append: lock timeout" >&2; exit 1; }
+    printf '%s\n' "$payload" >&9
+    flock -u 9 || true
+    log "event-append target=$target lines=$(printf '%s\n' "$payload" | wc -l)"
+    ;;
+
   ""|-h|--help|help)
-    sed -n '2,20p' "$0"
+    sed -n '2,26p' "$0"
     ;;
 
   *)
-    echo "relay-state-write.sh: unknown subcommand '$cmd' (use toml-set|status-write)" >&2
+    echo "relay-state-write.sh: unknown subcommand '$cmd' (use toml-set|status-write|event-append)" >&2
     exit 2
     ;;
 esac
