@@ -64,3 +64,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🎛️ **Orla** — multi-agent orchestration lens; fan-out topology, model-tier cost/capability economics, worktree-per-agent isolation, verification-before-merge gating, relay-fleet neediness triage. Introduced 2026-06-04 (dotclaude-skills/subagent-parallel-class1); extended 2026-06-16 (project_manager/proj-relay-integration): framed the relay cockpit as a pre-spend triage tool and dissolved the 'rows of dashes' concern by pointing to ROADMAP.md-gating as self-scoping.
 
 - 🔎 **Dex** — compiler/static-analysis diagnostics lens; undefined-vs-unused-vs-declared-free distinction, declaration scoping, reaching-definitions, diagnostic severity (ERROR/WARN). Introduced 2026-06-16 (mathematical-writing/dangling-symbol-staleness).
+
+- 📈 **Milo** — quant-trading lens: backtest methodology, overfitting, transaction costs, statistical significance, exposure-adjustment. Insists objectives be operationalized so 'maximize money' doesn't become 'maximize activity'. Introduced 2026-06-12 (trAIdBTC/kickoff), registry 2026-06-16.
