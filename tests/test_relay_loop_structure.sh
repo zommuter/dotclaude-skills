@@ -215,3 +215,13 @@ grep -q "SIZE-OUT / GATED refusal" "$JS" \
 grep -q "integrator never merges a handback" "$JS" \
   || fail "id:8b1f: hard unitPrompt does not explain WHY a refusal commit strands (orphan worktree)"
 pass "id:8b1f: size-out handback leaves a clean (auto-reapable) worktree — no stranded commit"
+
+# id:4267 — the quota-stop agent-count seatbelt (quota-stop.sh hard-caps at --agents >= 200,
+# a runaway-spawn guard spanning the WHOLE self-feeding run) must be fed the RUN-TOTAL count
+# (totalDispatched), NOT the per-round unitsDispatched (which resets to 0 each round → with
+# MAX_UNITS=20 it never reaches 200, so the seatbelt could never fire across a multi-round run).
+grep -qF -- '--agents ${totalDispatched}' "$JS" \
+  || fail "id:4267: quota gate does not pass the run-total agent count (--agents \${totalDispatched})"
+grep -qF -- '--agents ${unitsDispatched}' "$JS" \
+  && fail "id:4267: quota gate still passes the per-round unitsDispatched (resets each round → 200-agent seatbelt never fires)"
+pass "id:4267: quota agent-count seatbelt fed the run-total (totalDispatched), not per-round count"
