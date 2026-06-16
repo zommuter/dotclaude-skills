@@ -339,3 +339,7 @@ review since relay-ckpt-20260616-1746: id:10c0 (doc-only) clean, promoted to ROA
 ## 2026-06-16 20:34 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: audit a8c361e (id:f6c9) — fixed stale RED negative-control test + human.md doc drift from the full-HARD-backlog behavior change; suite 60-green
+
+## 2026-06-16 19:57 — reviewer (claude-opus-4-8)
+
+review since relay-ckpt-20260616-2034 (2 commits: 3048a09 /loop nudge; 8dcc5f8 Sven persona). gaming-scan clean (no DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT). loop-hint.sh behaviour verified by hand (first-run prints, within-GAP suppresses, >GAP re-prints, custom GAP honoured; always exit 0). Sven persona addition is well-formed per personas.md format. **Regression caught & fixed:** 3048a09 added relay/scripts/loop-hint.sh + SKILL wiring but omitted it from the Makefile install manifest — test_relay_install_manifest.sh (green at the baseline checkpoint) went red; registered scripts/loop-hint.sh in relay_FILES/_EXEC/_ALLOW (commit 3c0438a). Full suite now 60 passed, 0 failed, 0 expected-red. No ROADMAP/TODO ledger changes this window; 0 open [ROUTINE] after re-derivation; no reverse-handoff items to qualify. Contract pointer at v4 (current). 0 REVIEW_ME.
