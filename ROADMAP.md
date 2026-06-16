@@ -615,6 +615,17 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       profile-run.sh (empty-list loop + unused `at_cap_intervals`) flagged + explicitly
       accepted (no behavioural effect). Cross-ledger coherent (0 ROUTINE / 3 HARD, d5e0
       agrees). Suite 52/0. See `docs/meeting-notes/2026-06-16-0650-strong-model-audit.md`.
+    - Run 9 (2026-06-16-0928): `relay-ckpt-20260616-0653..HEAD` (~586 lines / 14 files;
+      observability id:c8b6 + drain/gated-HARD id:2d20 + quota-seatbelt id:4267 + new
+      relay-burn.sh id:219b) — **clean**: no code/security defects. One doc/impl discrepancy
+      **fixed inline** — `relay-state-write.sh` event-append header claimed "SAME flock" but
+      correctly flocks the target events file (not the shared $LOCK); corrected the comment +
+      Paths note + `--help` range. Three findings **accepted** w/ rationale: relay-burn.sh
+      `date -d "$reset"` awk-shellout injection seam (LOW — `resets_at` is provider-controlled
+      API data; filed as forward-robustness TODO id:287b), a dead tautology sub-condition in
+      the segment reduce (cosmetic), and code-only sub-ids 15bd/cd19/03a5/219b (inline
+      provenance for tracked parents, not ledger tokens). Cross-ledger coherent (0 ROUTINE /
+      3 HARD, d5e0 agrees). Suite 53/0. See `docs/meeting-notes/2026-06-16-0928-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
