@@ -319,3 +319,7 @@ HARD id:401c strong-model audit run 12 (window d3ca7a9..HEAD): ledger-only, clea
 ## 2026-06-16 13:52 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 id:7570 — fix cross-session lease leak (per-unit finally release) + long-child liveness (worktree-anchored staleness + heartbeat); suite 59/0
+
+## 2026-06-16 15:14 — reviewer (claude-opus-4-8)
+
+review 2026-06-16: 3 commits since relay-ckpt-20260616-1352 (Della + Orla persona appends, archive-done maintenance) — no code/test/spec changes; gaming-scan clean; suite 59/0/0; routine_open=0; relay-executor contract pointer v4 == canonical (no drift)
