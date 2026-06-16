@@ -805,7 +805,7 @@ function unitPrompt(unit) {
   const branch = branchFor(unit)
   return `You are a relay ${unit.verdict.toUpperCase()} child for the repo ${unit.repo} (main checkout: ${unit.path}).
 
-FIRST acquire the cross-session repo lease (id:ebfb): run ~/.claude/skills/relay/scripts/claim.sh acquire ${unit.repo} --run ${state.runId} --mode ${unit.verdict}. If it exits NON-ZERO, another live relay run/session already holds this repo — STOP IMMEDIATELY: do NOT create a worktree, do NOT do any work, and return contract_met=false with handback="claimed by another relay run (cross-session lease id:ebfb): " plus the holder JSON it printed to stderr. The supervisor releases the lease at integration, so do not release it yourself. Only if acquire SUCCEEDS, continue:
+FIRST acquire the cross-session repo lease (id:ebfb): run ~/.claude/skills/relay/scripts/claim.sh acquire ${unit.repo} --run ${state.runId} --mode ${unit.verdict} --worktree ${wt}. (The --worktree anchors id:7570 long-child liveness: a claim whose worktree has commits beyond main stays held past the TTL, so a >30-min child isn't stolen mid-work.) If it exits NON-ZERO, another live relay run/session already holds this repo — STOP IMMEDIATELY: do NOT create a worktree, do NOT do any work, and return contract_met=false with handback="claimed by another relay run (cross-session lease id:ebfb): " plus the holder JSON it printed to stderr. The supervisor releases the lease at integration, so do not release it yourself. Only if acquire SUCCEEDS, continue:
 ${unit.intensive ? '\nThis is an [INTENSIVE — ' + unit.intensive + '] unit (id:8d52): ALSO acquire the exclusive RESOURCE lease before any heavy work — ~/.claude/skills/relay/scripts/claim.sh acquire resource:' + unit.intensive + ' --run ' + state.runId + ' --mode intensive. If it exits non-zero (another relay run is using ' + unit.intensive + '), STOP: return contract_met=false, handback="resource ' + unit.intensive + ' busy (another relay run)". The supervisor releases it at integration.\n' : ''}
 Create your worktree first: git -C ${unit.path} worktree add ${wt} -b ${branch} HEAD
 Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. Last checkpoint tag: ${unit.lastCkpt || '(none)'}.
@@ -1015,6 +1015,30 @@ Confirm it succeeded.`,
   ).catch(err => log(`relay-loop: gaming-flags log write failed (non-fatal): ${err}`))
 }
 
+// id:7570 — per-unit FINALLY lease release. The cross-session repo lease (id:ebfb) — and
+// any exclusive resource lease (id:8d52) — were released ONLY inside the integrator agent
+// (integrate() step 0). But a child that returns null / throws / hands back never reaches
+// the integrator's release branch (integrate() early-returns on !report and !contract_met,
+// and a thrown child never produces a report at all), so the lease LEAKED for the full
+// 1800s TTL — needlessly blocking other sessions (observed live 2026-06-16, run -29307).
+// This releases the repo lease (run-scoped → no-op if this run doesn't hold it, and
+// idempotent vs. the integrator's later release of a merged unit) after the child SETTLES
+// with ANY outcome. The Workflow sandbox has no shell/fs, so a tiny Haiku agent runs
+// claim.sh release; failure is non-fatal (the TTL is the backstop, not the primary path).
+// NEVER call it when this run is about to RE-CHAIN the same repo (a review→execute re-enqueue
+// re-acquires the same lease re-entrantly): releasing in that window would open a steal gap
+// for another run between this release and the re-chain's re-acquire — so the caller guards.
+async function releaseLease(unit) {
+  const resourceRelease = unit.intensive
+    ? ` && ~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}`
+    : ''
+  await agent(
+    `Run exactly this command and report whether it exited 0 (the relay child for ${unit.repo} has settled; free its cross-session lease so other sessions aren't blocked for the TTL): ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}${resourceRelease}
+This is run-scoped (a no-op if this run no longer holds the claim) and idempotent. Report the exit code.`,
+    { label: `release:${unit.repo}`, phase: 'Dispatch', model: 'haiku' }
+  ).catch(err => log(`relay-loop: per-unit lease release failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
+}
+
 async function runUnit(unit) {
   const tier = unit.verdict === 'execute' ? 'sonnet' : 'strong'
   // Injected units (id:baf1) skip the quota gate — an explicit user request runs even near
@@ -1061,6 +1085,7 @@ async function runUnit(unit) {
   // never lost even as the last unit). Only reviews chain — an execute never re-enqueues,
   // so there's no intra-pool ping-pong; the execute's own commits are reviewed next pool.
   // MAX_UNITS / quotaStopped still gate actual dispatch in the lane loop.
+  let rechainedSameRepo = false
   if (unit.verdict === 'review' && report && report.contract_met &&
       (report.routine_open || 0) > 0 && !quotaStopped && !unit.rechained) {
     queue.push({
@@ -1068,8 +1093,16 @@ async function runUnit(unit) {
       reason: `post-review re-enqueue: ${report.routine_open} open [ROUTINE] item(s)`,
       lastCkpt: unit.lastCkpt, income: unit.income, rechained: true,
     })
+    rechainedSameRepo = true
     log(`relay-loop: review→execute re-enqueue ${unit.repo} (${report.routine_open} open [ROUTINE])`)
   }
+  // id:7570 — per-unit FINALLY release: the child has settled (merged / handback / null /
+  // error). Free the lease NOW so a leaked claim can't block other sessions until the TTL.
+  // EXCEPTION: when this run just re-chained the SAME repo (review→execute above), keep the
+  // lease — the re-chained execute will re-acquire it re-entrantly, and releasing in the gap
+  // would let another run steal the repo. The integrator's step-0 release stays idempotent
+  // for the merged case (run-scoped no-op once already released here).
+  if (!rechainedSameRepo) await releaseLease(unit)
   // Integration debt is enqueued, not awaited here: the dispatch slot frees up
   // immediately while the serialized chain works through merges one at a time.
   debts.push(enqueueIntegration(unit.repo, () => integrate(unit, report)))
