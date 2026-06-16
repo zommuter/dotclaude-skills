@@ -303,3 +303,7 @@ review: audited doc-only commit 67fc66a (TODO id:872e bisect-skip meeting-candid
 ## 2026-06-16 12:38 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 relay/human id:f6c9 — /relay human now surfaces pool's gated-HARD 'needs a /meeting' backlog (gather-human-backlog kind=gated_hard re-derived from ROADMAP); 58/0 green
+
+## 2026-06-16 12:50 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 10 (window 95d3d07..HEAD): orphan-reconcile/relay-econ/archive-multiline/gated-HARD-sweep clean; fixed relay-reconcile.sh missing-arg shift-2 set-e bug inline (+regression guard), doc nit; suite 58/0
