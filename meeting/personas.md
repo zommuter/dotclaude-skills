@@ -59,4 +59,6 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 
 - 🧠 **Dax** — RL / neuromodulation / Hebbian-hormone lens (scalar-reward credit assignment & variance, three-factor rules, eligibility traces, backpropamine, online learning, async-SGD teacher-staleness). Introduced 2026-06-15 (leAIrn2learn/leairn2learn-learning-how-to-learn).
 
+- 📐 **Della** — computational-geometry & raster↔vector fidelity lens; marching-squares/iso-extraction fidelity, polygon-clipping degeneracies, Douglas–Peucker error bounds, Minkowski/capsule-union robustness, self-intersection & fold handling. Introduced 2026-06-16 (isochrone/ratify-per-edge-time-producer-contract).
+
 - 🎛️ **Orla** — multi-agent orchestration lens; fan-out topology, model-tier cost/capability economics, worktree-per-agent isolation, verification-before-merge gating, relay-fleet neediness triage. Introduced 2026-06-04 (dotclaude-skills/subagent-parallel-class1); extended 2026-06-16 (project_manager/proj-relay-integration): framed the relay cockpit as a pre-spend triage tool and dissolved the 'rows of dashes' concern by pointing to ROADMAP.md-gating as self-scoping.
