@@ -806,3 +806,60 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Acceptance**: see TODO id:3346. **GATED — do not start**: gate is "opencode
     port validated (proves broker contract is stable) + ≥1 meeting with ctx > 200k".
     Listed here for visibility only; remains parked in TODO.md until the gate fires.
+
+## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
+
+Decomposition of the orphan-reconcile design. **Sequence: D1 → D2/D3** (D2's reconcile
+mode and D3's binding both operate on the `relay/orphan/*` namespace D1 creates). D4
+(id:a692, note-only forward-flag) and D6 (id:122f, fsck ADVISORY follow-on, gated "ships
+after D1–D3") stay in TODO.md — not executor work yet.
+
+- [ ] [ROUTINE] D1 — park unmerged orphans on discovery <!-- id:689c -->
+  - **Source**: `docs/meeting-notes/2026-06-16-0938-relay-orphan-reconcile.md` D1; TODO id:689c.
+  - **Context**: today the commits-ahead branch of discovery (`relay/scripts/relay-loop.js`
+    ~:569, the id:3ac8 path tested by `test_relay_stale_worktree_reap.sh`) only SURFACES a
+    commit-bearing stale worktree as "needs manual integration" and leaves the directory in
+    place, so the `ls worktrees/` scan re-surfaces it every round forever.
+  - **Spec**: change that path to PARK the orphan instead of re-surfacing: `git worktree remove
+    --force <dir>` (stops the re-surface) then `git branch -m relay/<runId>-<v>
+    relay/orphan/<runId>-<v>` (the stranded commit stays reachable on the canonical
+    `relay/orphan/*` ref — NOT deleted, NOT auto-integrated). Emit ONE summary line, not a
+    per-round handback. No `--no-ff` merge in this path (parking is not integration).
+  - **Acceptance**: `tests/test_relay_orphan_park.sh` (roadmap:689c, RED until implemented) —
+    asserts the discovery prompt carries the `id:689c` marker, parks into `relay/orphan/*` via
+    `git branch -m`, removes the worktree dir, and describes parking (not the old surface-only
+    handback). Behaviourally: a seeded stale worktree + 1 commit → dir gone, `relay/orphan/<…>`
+    ref present carrying the commit, one summary line, idempotent across two discoveries.
+  - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_relay_orphan_park.sh`,
+    then full `make test` green.
+
+- [ ] [ROUTINE] D2 — scripted `/relay reconcile` mode (human-invoked) <!-- id:3313 -->
+  - **Source**: meeting 2026-06-16-0938 D2; TODO id:3313. **Sequence: after D1 (id:689c).**
+  - **Spec**: a human-invoked reconcile path (script `relay/scripts/relay-reconcile.sh` or a
+    documented mode in the relay skill) that enumerates `relay/orphan/*` across managed repos and,
+    per branch, offers {integrate | discard | leave}. Integrate MUST reuse the existing
+    verify-clean-main → `git merge --no-ff` → `ckpt-tag.sh` → `git-lock-push.sh --ff-only` path
+    (no CAS plumbing — `--no-ff` preserves 3-way conflict surfacing; reusing ckpt-tag + --ff-only
+    stops a human skipping the checkpoint tag or racing the live pool's push). Discard is
+    `git branch -D`. NEVER auto-triggered by the pool.
+  - **Acceptance**: `tests/test_relay_reconcile_mode.sh` (roadmap:3313, RED until implemented) —
+    the reconcile entrypoint carries `id:3313`, enumerates `relay/orphan/*`, integrates via
+    `merge --no-ff` + `ckpt-tag` + `--ff-only`, and offers a discard path. Behaviourally:
+    integrate → `relay-ckpt-*` tag + pushed `--no-ff` merge; discard → ref gone; conflicting
+    orphan → left + surfaced, never half-merged.
+  - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_relay_reconcile_mode.sh`,
+    then full `make test` green.
+
+- [ ] [ROUTINE] D3 — suppress-redispatch of items with parked partial work <!-- id:1f53 -->
+  - **Source**: meeting 2026-06-16-0938 D3; TODO id:1f53. **Sequence: after D1 (id:689c).**
+  - **Spec**: at discovery, bind each `relay/orphan/*` branch back to its ROADMAP item via
+    `git show --stat` on the parked commit; if that item is still OPEN, suppress a fresh dispatch
+    (don't repeat the expensive session in vain) and surface ONE line carrying a best-effort
+    `relay-burn.sh --run <runId>` cost hint. A CLOSED-item orphan does NOT suppress. Ambiguous
+    binding → default to suppress. No new manifest — the `relay/orphan/*` refs ARE the registry.
+  - **Acceptance**: `tests/test_relay_orphan_suppress_redispatch.sh` (roadmap:1f53, RED until
+    implemented) — discovery carries `id:1f53`, binds via `git show --stat`, suppresses
+    re-dispatch of still-open items, and surfaces a `relay-burn` cost hint. Behaviourally:
+    open-item orphan NOT dispatched + IS surfaced; closed-item orphan does not suppress.
+  - **Done-check**: tick this box, then
+    `tests/run-tests.sh tests/test_relay_orphan_suppress_redispatch.sh`, then full `make test` green.
