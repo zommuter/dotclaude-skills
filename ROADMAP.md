@@ -605,6 +605,16 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       real-git nested-worktree fixture + clean-repo negative control + stdout-clean
       assertion) to `test_relay_human.sh`. Suite 50/0. See
       `docs/meeting-notes/2026-06-15-2147-strong-model-audit.md`.
+    - Run 8 (2026-06-16-0650): `relay-ckpt-20260615-2150..HEAD` (first-seen code: the
+      profiler batch — `profile-run.sh` + `profile-runs-batch.sh` + their tests, id:a59e/
+      id:08a3, ~615 lines) — **clean**: no code/security defects (pure-read, stdlib-only,
+      `grep -- "$ARG"` option-safe, no injection/traversal/secrets). One coherence drift
+      **fixed inline** — both scripts' header comments documented a one-wildcard search root
+      (`projects/*/subagents/workflows`) while the code+real layout use two
+      (`projects/*/*/...`); updated the comments to match. One cosmetic dead-code residue in
+      profile-run.sh (empty-list loop + unused `at_cap_intervals`) flagged + explicitly
+      accepted (no behavioural effect). Cross-ledger coherent (0 ROUTINE / 3 HARD, d5e0
+      agrees). Suite 52/0. See `docs/meeting-notes/2026-06-16-0650-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
