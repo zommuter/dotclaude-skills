@@ -347,3 +347,7 @@ review since relay-ckpt-20260616-2034 (2 commits: 3048a09 /loop nudge; 8dcc5f8 S
 ## 2026-06-16 22:04 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review since relay-ckpt-20260616-2034: gaming-scan clean, loop-hint.sh verified; fixed install-manifest regression (loop-hint.sh unregistered) — suite 60/0
+
+## 2026-06-16 22:41 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review since relay-ckpt-20260616-2204: Quinn persona append (doc-only) clean; gaming-scan clean, suite 60/0, 0 open ROUTINE
