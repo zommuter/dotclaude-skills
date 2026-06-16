@@ -833,7 +833,7 @@ after D1–D3") stay in TODO.md — not executor work yet.
   - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_relay_orphan_park.sh`,
     then full `make test` green.
 
-- [ ] [ROUTINE] D2 — scripted `/relay reconcile` mode (human-invoked) <!-- id:3313 -->
+- [x] [ROUTINE] D2 — scripted `/relay reconcile` mode (human-invoked) (done 2026-06-16) <!-- id:3313 -->
   - **Source**: meeting 2026-06-16-0938 D2; TODO id:3313. **Sequence: after D1 (id:689c).**
   - **Spec**: a human-invoked reconcile path (script `relay/scripts/relay-reconcile.sh` or a
     documented mode in the relay skill) that enumerates `relay/orphan/*` across managed repos and,
