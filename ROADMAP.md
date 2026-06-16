@@ -850,7 +850,7 @@ after D1–D3") stay in TODO.md — not executor work yet.
   - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_relay_reconcile_mode.sh`,
     then full `make test` green.
 
-- [ ] [ROUTINE] D3 — suppress-redispatch of items with parked partial work <!-- id:1f53 -->
+- [x] [ROUTINE] D3 — suppress-redispatch of items with parked partial work (done 2026-06-16) <!-- id:1f53 -->
   - **Source**: meeting 2026-06-16-0938 D3; TODO id:1f53. **Sequence: after D1 (id:689c).**
   - **Spec**: at discovery, bind each `relay/orphan/*` branch back to its ROADMAP item via
     `git show --stat` on the parked commit; if that item is still OPEN, suppress a fresh dispatch
