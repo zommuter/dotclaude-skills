@@ -260,6 +260,15 @@ verdict-class order.
   resets and prints `$/h`, `$/day` and per-bucket `%/h` projected to reset — the data for
   evaluating Max x20/x5/Pro tiers. Sampling is wired into `quota-stop.sh` (gated on
   `RELAY_RUN_ID`, best-effort/non-fatal), so every quota gate during a run leaves a sample.
+- `scripts/relay-econ.py` — relay-loop ECONOMICS (id:08a3) on `profile-run.sh --json`'s
+  per-agent `records`. Three lenses over all retained runs (or `--limit N`): **cost** (USD,
+  cache-accurate — `tokens_in` @full, `cache_read` @0.1×, `cache_create` @1.25×, `out` @rate,
+  per the agent's actual model), **time standalone** (Σ durations), and **time
+  parallelity-weighted** (per-category UNION of `[start,end]` = wall-clock the category was
+  active; `Σdur/wall` = mean concurrency it ran at). Categorized (work/status/scaffold/poll),
+  by model, daily + hourly-of-day; `--json` for the raw object. Finding (36 runs): ~71% of
+  *cost* is Opus work, but status+scaffold are a bigger share of *wall-clock* than of cost
+  (low concurrency → on the critical path).
 - **Observability artifacts** (id:c8b6): `RELAY_STATUS.md` now carries a `## Run progress`
   counter block and a `## Burnup this run` section (filled from `relay-burn.sh report`); the
   append-only `~/.config/fables-turn/relay-events.jsonl` records one line per
