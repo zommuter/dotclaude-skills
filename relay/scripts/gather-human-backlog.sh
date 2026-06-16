@@ -36,22 +36,55 @@ SRC_DIR="${SRC_DIR:-$HOME/src}"
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/fables-turn/relay.toml}"
 
 # --- own repos from relay.toml: lines of "<name>\t<path>" -------------------
-# Honors `classification = "own"` and an optional per-repo `path =` override
-# (the `# path:` convention recorded as a real TOML key).
+# Honors `classification = "own"` and a per-repo path override.
+#
+# Path override resolution (in priority order):
+#   1. a real `path = "..."` TOML key, if present;
+#   2. the `# path: <p>` COMMENT convention — IN PRACTICE every override in
+#      relay.toml is written this way (e.g. `# path: ~/src/zkm/plugins/zkm-scan`),
+#      and tomllib strips comments, so a tomllib-only reader silently fell back to
+#      ~/src/<name> for ALL of them. That mis-resolved the zkm-* plugin repos
+#      (real path ~/src/zkm/plugins/<name>) to a non-existent ~/src/<name>, so the
+#      whole zkm-* family vanished from /relay human. We re-parse the raw lines to
+#      recover the comment form;
+#   3. else the default $SRC_DIR/<name>.
+# `~`/`$HOME` in either form is expanded.
 own_repos() {
   [[ -f "$RELAY_TOML" ]] || return 0
   SRC_DIR="$SRC_DIR" python3 -c '
-import os, sys, tomllib
+import os, re, sys, tomllib
 src = os.environ["SRC_DIR"]
-with open(sys.argv[1], "rb") as f:
+toml_path = sys.argv[1]
+with open(toml_path, "rb") as f:
     data = tomllib.load(f)
+
+# Recover the `# path:` COMMENT override per repo (tomllib drops comments).
+# Track the current [repos.<name>] section header and the first `# path:` in it.
+comment_path = {}
+cur = None
+sect_re = re.compile(r"^\s*\[repos\.([^\]]+)\]\s*$")
+path_re = re.compile(r"^\s*#\s*path:\s*(.+?)\s*$")
+with open(toml_path, encoding="utf-8") as f:
+    for line in f:
+        m = sect_re.match(line)
+        if m:
+            cur = m.group(1)
+            continue
+        if cur:
+            pm = path_re.match(line)
+            if pm and cur not in comment_path:
+                comment_path[cur] = pm.group(1)
+
+def expand(p):
+    return os.path.expanduser(os.path.expandvars(p))
+
 for name, entry in data.get("repos", {}).items():
     if entry.get("classification") != "own":
         continue
     if entry.get("paused"):          # on-hiatus repos are skipped in relay sweeps
         continue
-    path = entry.get("path") or os.path.join(src, name)
-    print(f"{name}\t{path}")
+    path = entry.get("path") or comment_path.get(name) or os.path.join(src, name)
+    print(f"{name}\t{expand(path)}")
 ' "$RELAY_TOML"
 }
 
@@ -169,12 +202,13 @@ emit_gated_hard() {
 # --- scan one repo -----------------------------------------------------------
 scan_repo() {
   local name="$1" path="$2"
-  # relay.toml is shared across machines: an `own` repo may be checked out on a
-  # DIFFERENT host (recent checkpoint tags, status=active) yet absent here. You
-  # cannot human-triage files you don't have, so skip it — but say so on stderr,
-  # else the human wonders why a RELAY_STATUS-blocked repo never appears.
+  # Path didn't resolve to a real directory (after the path-override resolution in
+  # own_repos). Usually a stale/missing override or a not-yet-cloned repo — you
+  # cannot human-triage files you don't have, so skip it, but say so on stderr,
+  # else the human wonders why a RELAY_STATUS-blocked repo never appears. (If this
+  # fires for a repo you DO have, its `# path:`/`path =` in relay.toml is wrong.)
   if [[ ! -d "$path" ]]; then
-    printf 'NOTE: %s absent on this host (%s) — checked out on another machine; not triageable here.\n' \
+    printf 'NOTE: %s path not found (%s) — not a local checkout; skipped. Check its path override in relay.toml.\n' \
       "$name" "$path" >&2
     return 0
   fi
