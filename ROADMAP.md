@@ -847,6 +847,19 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     port validated (proves broker contract is stable) + ≥1 meeting with ctx > 200k".
     Listed here for visibility only; remains parked in TODO.md until the gate fires.
 
+- [ ] Rename relay state dirs `~/.{config,cache}/fables-turn` → relay naming [HARD — strong model] <!-- id:10c0 -->
+  - **Why HARD**: not the mechanical sed (33 `fables-turn` refs across 13 executable
+    files + ~25 docs) but the LIVE-migration / back-compat design call. These are live
+    dirs an in-flight pool reads/writes (relay.toml registry, RELAY_STATUS.md,
+    relay-events.jsonl, quota-samples.jsonl, fable-probe.json, worktrees/) — needs a
+    one-time `mv` + back-compat (symlink-old→new or fallback-read) so a running pool /
+    cross-session lease isn't broken mid-migration.
+  - **Acceptance**: see TODO id:10c0. **GATED — do not start**: constraint (c) "run only
+    when NO relay pool is active". Constraint (a): git tags `fable-ckpt-*` are deliberately
+    HISTORICAL — scope is the cache/config DIRECTORIES only, never the tags. Listed here
+    for visibility; remains parked in TODO.md until the design call (migration + back-compat
+    shape) is made.
+
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
 Decomposition of the orphan-reconcile design. **Sequence: D1 → D2/D3** (D2's reconcile
