@@ -9,18 +9,26 @@
 # (handback nuance for stale-with-live-worktree is the relay-loop's job, not this).
 #
 # Subcommands:
-#   acquire <key> [--repo R] [--run RUNID] [--mode M] [--item ID]
-#       Under flock: if claims/<safekey>.json exists AND is FRESH (mtime within TTL),
-#       print the holder JSON to stderr and exit 1 (already claimed). Otherwise (absent
-#       or stale) write the shard and exit 0, printing the safekey on stdout.
+#   acquire <key> [--repo R] [--run RUNID] [--mode M] [--item ID] [--worktree WT]
+#       Under flock: if claims/<safekey>.json exists AND is LIVE (fresh mtime within TTL,
+#       OR id:7570 a long child whose held --worktree has commits beyond main), print the
+#       holder JSON to stderr and exit 1 (already claimed). Otherwise (absent/stale/dead)
+#       write the shard and exit 0, printing the safekey on stdout. --worktree records the
+#       child's worktree so liveness can outlive the TTL for a genuinely-working long child.
 #   release <key>
 #       Under flock: move claims/<safekey>.json → claims.done/ if present. Idempotent
 #       (exit 0 even when absent).
+#   heartbeat <key> [--run RUNID]
+#       id:7570 — refresh a held claim's mtime (run-scoped: only if THIS run holds it, or
+#       unscoped). Keeps a legitimately-long child (>TTL) from losing its lease mid-work.
+#       Idempotent; exit 0 even when the claim is absent (nothing to refresh).
 #   peek
-#       Non-consuming: emit each FRESH claim as one compact JSON line (stale skipped).
+#       Non-consuming: emit each LIVE claim as one compact JSON line (dead/stale skipped).
 #   reap
-#       Under flock: move every STALE (mtime older than TTL) shard → claims.done/.
-#       Print "reaped N" to stderr.
+#       Under flock: move every DEAD (stale mtime AND no working worktree) shard →
+#       claims.done/. A stale claim whose worktree still has commits beyond main is LIVE
+#       (id:7570 long-child signal, the converse of id:3ac8) and is NOT reaped. Print
+#       "reaped N" to stderr.
 #
 # Paths: base = $CLAIM_BASE (default ~/.config/fables-turn). Claims = $base/claims,
 # consumed = $base/claims.done, lock = $base/.claim.lock. TTL = $CLAIM_TTL seconds
@@ -52,19 +60,53 @@ is_fresh() {
   [ $((now - mt)) -lt "$TTL" ]
 }
 
+# worktree_working <file>: id:7570 — true if the claim records a --worktree that EXISTS and
+# carries commits beyond its repo's main (HEAD is NOT an ancestor of / equal to main). This
+# is the converse of the id:3ac8 staleness signal: there, a stale claim whose worktree HEAD
+# == main is DEAD; here, a stale claim whose worktree HEAD has DIVERGED from main is a
+# legitimately-long LIVE child still doing work, so its lease must survive past the TTL even
+# without a heartbeat. A claim with no worktree field, a missing worktree, or HEAD==main → false.
+worktree_working() {
+  local f="$1" wt head mainref
+  wt="$(jq -r '.worktree // ""' "$f" 2>/dev/null)" || wt=""
+  [ -n "$wt" ] || return 1
+  # tilde-expand a leading ~ (claims may store the path with ~ from the JS side).
+  case "$wt" in "~"/*) wt="$HOME/${wt#'~'/}" ;; "~") wt="$HOME" ;; esac
+  [ -d "$wt" ] || return 1
+  head="$(git -C "$wt" rev-parse --verify -q HEAD 2>/dev/null)" || return 1
+  [ -n "$head" ] || return 1
+  # main may be 'main' or 'master'; pick whichever resolves.
+  mainref="$(git -C "$wt" rev-parse --verify -q main 2>/dev/null \
+            || git -C "$wt" rev-parse --verify -q master 2>/dev/null)" || mainref=""
+  [ -n "$mainref" ] || return 1
+  # HEAD is an ancestor of (or equal to) main → no work beyond main → NOT working.
+  git -C "$wt" merge-base --is-ancestor "$head" "$mainref" 2>/dev/null && return 1
+  return 0
+}
+
+# is_live <file>: a claim is live if its mtime is fresh OR (id:7570) its worktree is still
+# working. This is the single liveness predicate peek/reap/acquire share.
+is_live() {
+  local f="$1"
+  [ -f "$f" ] || return 1
+  is_fresh "$f" && return 0
+  worktree_working "$f"
+}
+
 cmd="${1:-}"; shift || true
 
 case "$cmd" in
   acquire)
     key="${1:-}"; shift || true
     [ -n "$key" ] || { echo "claim.sh acquire: <key> required" >&2; exit 2; }
-    repo=""; run=""; mode=""; item=""
+    repo=""; run=""; mode=""; item=""; worktree=""
     while [ $# -gt 0 ]; do
       case "$1" in
-        --repo) repo="${2:-}"; shift 2 ;;
-        --run)  run="${2:-}";  shift 2 ;;
-        --mode) mode="${2:-}"; shift 2 ;;
-        --item) item="${2:-}"; shift 2 ;;
+        --repo)     repo="${2:-}";     shift 2 ;;
+        --run)      run="${2:-}";      shift 2 ;;
+        --mode)     mode="${2:-}";     shift 2 ;;
+        --item)     item="${2:-}";     shift 2 ;;
+        --worktree) worktree="${2:-}"; shift 2 ;;
         *) echo "claim.sh acquire: unknown arg '$1'" >&2; exit 2 ;;
       esac
     done
@@ -72,10 +114,12 @@ case "$cmd" in
     shard="$CLAIMS/$sk.json"
     exec 9>"$LOCK"
     flock -w 30 9 || { echo "claim.sh acquire: lock timeout" >&2; exit 1; }
-    if is_fresh "$shard"; then
-      # Re-entrant per run: a fresh claim held by the SAME runId is re-acquirable (the run
+    if is_live "$shard"; then
+      # Re-entrant per run: a live claim held by the SAME runId is re-acquirable (the run
       # already owns the repo — e.g. the review→execute re-chain) and the write below
-      # refreshes its mtime (heartbeat). A fresh claim held by a DIFFERENT run is REFUSED.
+      # refreshes its mtime (heartbeat). A live claim held by a DIFFERENT run is REFUSED.
+      # "Live" (id:7570) = fresh mtime OR a working held worktree, so a long child can't be
+      # stolen mid-work just because its TTL elapsed.
       holder_run="$(jq -r '.runId // ""' "$shard" 2>/dev/null)"
       if [ -z "$run" ] || [ "$holder_run" != "$run" ]; then
         jq -c '.' "$shard" >&2 2>/dev/null || cat "$shard" >&2
@@ -86,9 +130,15 @@ case "$cmd" in
     fi
     ts="$(date '+%Y-%m-%dT%H:%M:%S%z')"
     tmp="$CLAIMS/.$sk.tmp"
+    # id:7570 — preserve an existing worktree field on a re-entrant refresh when this call
+    # didn't pass one, so a heartbeat-via-acquire doesn't drop the long-child liveness anchor.
+    if [ -z "$worktree" ] && [ -f "$shard" ]; then
+      worktree="$(jq -r '.worktree // ""' "$shard" 2>/dev/null)" || worktree=""
+    fi
     jq -n --arg key "$key" --arg repo "$repo" --arg run "$run" \
           --arg pid "$$" --arg mode "$mode" --arg item "$item" --arg ts "$ts" \
-      '{key:$key, repo:$repo, runId:$run, pid:$pid, mode:$mode, item:$item, claimed_at:$ts}' \
+          --arg worktree "$worktree" \
+      '{key:$key, repo:$repo, runId:$run, pid:$pid, mode:$mode, item:$item, worktree:$worktree, claimed_at:$ts}' \
       >"$tmp"
     mv "$tmp" "$shard"
     flock -u 9 || true
@@ -125,12 +175,41 @@ case "$cmd" in
     flock -u 9 || true
     ;;
 
+  heartbeat)
+    # id:7570 — refresh a held claim's mtime so a legitimately-long child (>TTL) keeps its
+    # lease. Run-scoped with --run (only refresh a claim THIS run holds); unscoped touches
+    # any present claim. Idempotent: exit 0 even when the claim is absent.
+    key="${1:-}"; shift || true
+    [ -n "$key" ] || { echo "claim.sh heartbeat: <key> required" >&2; exit 2; }
+    run=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --run) run="${2:-}"; shift 2 ;;
+        *) echo "claim.sh heartbeat: unknown arg '$1'" >&2; exit 2 ;;
+      esac
+    done
+    sk="$(safekey "$key")"
+    shard="$CLAIMS/$sk.json"
+    exec 9>"$LOCK"
+    flock -w 30 9 || { echo "claim.sh heartbeat: lock timeout" >&2; exit 1; }
+    if [ -f "$shard" ]; then
+      holder_run="$(jq -r '.runId // ""' "$shard" 2>/dev/null)"
+      if [ -z "$run" ] || [ "$holder_run" = "$run" ]; then
+        touch "$shard"
+        log "heartbeat key=$key run=$run"
+      else
+        log "heartbeat SKIPPED key=$key (held by run=$holder_run, requester=$run)"
+      fi
+    fi
+    flock -u 9 || true
+    ;;
+
   peek)
-    # Non-consuming: emit each FRESH claim as compact JSON; skip stale.
+    # Non-consuming: emit each LIVE claim as compact JSON; skip dead (id:7570 is_live).
     shopt -s nullglob
     for f in $(printf '%s\n' "$CLAIMS"/*.json | sort); do
       [ -f "$f" ] || continue
-      is_fresh "$f" || continue
+      is_live "$f" || continue
       jq -c '.' "$f" 2>/dev/null || true
     done
     ;;
@@ -142,7 +221,9 @@ case "$cmd" in
     n=0
     for f in $(printf '%s\n' "$CLAIMS"/*.json | sort); do
       [ -f "$f" ] || continue
-      is_fresh "$f" && continue
+      # id:7570 — only reap a DEAD claim (stale mtime AND no working worktree). A stale
+      # claim whose worktree still has commits beyond main is a live long child; keep it.
+      is_live "$f" && continue
       mv "$f" "$DONE/$(basename "$f")"
       n=$((n+1))
     done
@@ -152,11 +233,11 @@ case "$cmd" in
     ;;
 
   ""|-h|--help|help)
-    sed -n '2,28p' "$0"
+    sed -n '2,38p' "$0"
     ;;
 
   *)
-    echo "claim.sh: unknown subcommand '$cmd' (use acquire|release|peek|reap)" >&2
+    echo "claim.sh: unknown subcommand '$cmd' (use acquire|release|heartbeat|peek|reap)" >&2
     exit 2
     ;;
 esac
