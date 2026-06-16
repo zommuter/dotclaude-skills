@@ -851,8 +851,15 @@ async function quotaGate(tier) {
     .filter(k => A[k] !== undefined && A[k] !== null && A[k] !== '')
     .map(k => `${k}=${A[k]}`)
   const thresholdEnv = envPairs.length ? envPairs.join(' ') + ' ' : ''
+  // id:4267 — pass the RUN-TOTAL agent count, not the per-round count. quota-stop.sh hard-
+  // caps at --agents >= 200 (a runaway-spawn seatbelt spanning the WHOLE self-feeding run), but
+  // unitsDispatched resets to 0 each round (let unitsDispatched = 0 in runRound), so with
+  // MAX_UNITS=20 it never exceeds 20 and the 200-agent seatbelt could NEVER fire across a
+  // multi-round run — a 30-round run could spawn hundreds of agents unchecked. totalDispatched
+  // is the across-all-rounds accumulator and is the value the seatbelt is meant to gate on.
+  // (Same per-round-vs-run-total accounting family as id:2d20's drain fix.)
   const v = await agent(
-    `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${unitsDispatched} --wall 0
+    `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
 Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.`,
     { label: `quota:${tier}`, phase: 'Dispatch', schema: QUOTA_SCHEMA, model: 'haiku' }
   )
