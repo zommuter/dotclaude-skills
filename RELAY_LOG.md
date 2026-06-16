@@ -331,3 +331,7 @@ review: audit since relay-ckpt-20260616-1514 (2 doc-only persona registrations D
 ## 2026-06-16 17:46 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 hard: 414a Tier B model gaming-canary harness (tests/gaming-canary/ + make gaming-canary), green
+
+## 2026-06-16 19:06 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review since relay-ckpt-20260616-1746: id:10c0 (doc-only) clean, promoted to ROADMAP as gated HARD; 60 tests green, 0 open ROUTINE
