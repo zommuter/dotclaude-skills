@@ -307,3 +307,7 @@ relay/human id:f6c9 — /relay human now surfaces pool's gated-HARD 'needs a /me
 ## 2026-06-16 12:50 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 HARD id:401c strong-model audit run 10 (window 95d3d07..HEAD): orphan-reconcile/relay-econ/archive-multiline/gated-HARD-sweep clean; fixed relay-reconcile.sh missing-arg shift-2 set-e bug inline (+regression guard), doc nit; suite 58/0
+
+## 2026-06-16 13:02 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:401c strong-model audit run 11 (window 5ab8c12..HEAD): ledger-only window (TODO id:0547 + RELAY_LOG ckpt), clean — no code/security/coherence defects; verified id:0547 race diagnosis against relay-loop.js; suite 58/0
