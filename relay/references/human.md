@@ -37,7 +37,20 @@ It emits a TSV `repo  path  kind  box_summary` covering:
 
 - every OPEN `- [ ]` box in each repo's `REVIEW_ME.md` (`kind = review_me`), AND
 - open `@manual` boxes — REVIEW_ME `@manual` lines AND `ROADMAP.md` items tagged
-  `@manual`/BDD that need a human to RUN them (`kind = manual`).
+  `@manual`/BDD that need a human to RUN them (`kind = manual`), AND
+- open `ROADMAP.md` items the relay pool classifies NON-executable **GATED HARD**
+  per the `id:2d20` EXECUTABLE-HARD test (`kind = gated_hard`) — re-derived from
+  ROADMAP, not read from a possibly-stale live `RELAY_STATUS.md` (id:f6c9). These
+  are the pool's "HARD backlog is gated — needs a /meeting" Blocked entries; without
+  this they were written to `RELAY_STATUS.md` but shown to the human NOWHERE
+  actionable, so they silently stalled. The collector re-derives the two
+  purely-textual gates (a `[HARD — decision gate]` tag, or membership in a
+  `## Gated`/`do not start`/`deferred` section) — the deterministic, false-positive-free
+  subset of the EXECUTABLE-HARD test; the acceptance-text gates ("blocked on …",
+  "hold a scoping meeting first", multi-session) are exactly what tier-(c) routes to a
+  `/meeting`, so they are not guessed statically. Each `gated_hard` `box_summary`
+  carries the item text plus ` — gated: <why>` reusing the classifier's reason
+  vocabulary.
 
 Closed `- [x]` boxes are never collected. The collector never spawns a model and never
 writes — it is purely the read side. For each `kind = review_me` box, before deciding,
@@ -92,6 +105,18 @@ yes/no. Route it to a cross-project meeting:
   item, grounded in its text + cited code, per the meeting REVIEW_ME-backlog dispatch
   shape, id:15d5),
 - leave the box OPEN; note in the turn summary that it was routed to `/meeting --cross`.
+
+**`kind = gated_hard` boxes are tier-(c) by construction (id:f6c9).** Every
+`gated_hard` row the collector emits is, by definition, a `[HARD]` ROADMAP item the
+relay pool cannot dispatch because it needs a `/meeting` to unblock or re-scope — it
+is the pool's own "needs a /meeting" backlog re-derived from ROADMAP. Present these as
+a distinct tier-(c) **"needs a /meeting" checklist**, separate from the REVIEW_ME
+verdict tiers (a)/(b): one line per item — `repo · item id · one-line why-gated`
+(the `— gated: <why>` already in `box_summary`) — routed to `/meeting --cross` with the
+box left OPEN. NEVER auto-tick a `gated_hard` box (it has no defensible auto-answer; a
+human meeting must resolve the gate). A `gated_hard` row is the read-side mirror of the
+pool's `RELAY_STATUS.md` → Blocked entry, so the human sees the pool's gated-HARD
+stall in the SAME place they triage REVIEW_ME — not only by reading RELAY_STATUS.
 
 ## 4. `@manual` / scenario-run boxes — NEVER auto-tick
 
@@ -155,7 +180,9 @@ write-back (id:15d5) does the same on resolution that unblocks work.
 End the turn with, per repo touched:
 - tier-(a) boxes auto-answered (id + one-line rationale each),
 - tier-(b) human decisions captured (the AskUserQuestion answers applied),
-- tier-(c) boxes routed to `/meeting --cross`,
+- tier-(c) boxes routed to `/meeting --cross` — including the **gated-HARD "needs a
+  /meeting" checklist** (`kind = gated_hard`: repo · item id · why-gated), the pool's
+  Blocked backlog surfaced here so it stops silently stalling (id:f6c9),
 - the **"you run these"** `@manual` checklist (these stay open),
 - any dirty repos skipped.
 
