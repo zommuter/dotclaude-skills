@@ -10,6 +10,23 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] DECISION GATE: Distributed relay orchestrator — multi-machine, dynamic membership [HARD — strong model] <!-- id:de4e -->
+  - **Needs a `/meeting` (do NOT execute / auto-dispatch).** Design-gate: choose the
+    coordination substrate before any code. Captured 2026-06-16 from a working session.
+  - **Why**: leases (`claim.sh`) + `relay.toml` are flock-on-local-dir → single-host
+    only, so concurrent `/relay` on zomni+fievel has NO cross-machine mutual exclusion
+    (both fully work the same repo; slower one's `--ff-only` push strands). Also lifts
+    the `min(16, cores-2)` per-workflow local-parallelism ceiling by spreading across
+    machines.
+  - **Seed brief** (start the meeting here): `docs/meeting-notes/2026-06-16-2257-distributed-relay-orchestrator-SEED.md`.
+  - **Lead candidate**: git-remote-as-control-plane (CAS ref-locks) — leaderless,
+    quorum-free, survives "any combination of PCs (un)available" (k3s/etcd's quorum is
+    the WRONG model for intermittent home PCs). Evolve `claim.sh`'s backend, not a
+    green-field orchestrator. pixel/Termux = cloud-AI HARD/review worker (API-bound),
+    excluded only from `[INTENSIVE]` local-compute units.
+  - **Related**: id:ebfb / id:0902 (current single-host claim registry),
+    `docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md`.
+
 - [x] [ROUTINE] Surface the REAL quota-stop reason in RELAY_STATUS + workflow log (visual feedback) (done 2026-06-15) <!-- id:8c35 -->
   - **Context**: 2026-06-15 — the relaunched pool (run relay-20260615-155151) reported
     `quotaStopped:true` and a big queued-not-dispatched backlog, but it had NOT hit any quota
