@@ -327,3 +327,7 @@ review 2026-06-16: 3 commits since relay-ckpt-20260616-1352 (Della + Orla person
 ## 2026-06-16 16:20 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: audit since relay-ckpt-20260616-1514 (2 doc-only persona registrations Dex+Milo — clean, no gaming, 0 open ROUTINE)
+
+## 2026-06-16 17:46 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+hard: 414a Tier B model gaming-canary harness (tests/gaming-canary/ + make gaming-canary), green
