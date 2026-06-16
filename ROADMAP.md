@@ -814,7 +814,7 @@ mode and D3's binding both operate on the `relay/orphan/*` namespace D1 creates)
 (id:a692, note-only forward-flag) and D6 (id:122f, fsck ADVISORY follow-on, gated "ships
 after D1–D3") stay in TODO.md — not executor work yet.
 
-- [ ] [ROUTINE] D1 — park unmerged orphans on discovery <!-- id:689c -->
+- [x] [ROUTINE] D1 — park unmerged orphans on discovery (done 2026-06-16) <!-- id:689c -->
   - **Source**: `docs/meeting-notes/2026-06-16-0938-relay-orphan-reconcile.md` D1; TODO id:689c.
   - **Context**: today the commits-ahead branch of discovery (`relay/scripts/relay-loop.js`
     ~:569, the id:3ac8 path tested by `test_relay_stale_worktree_reap.sh`) only SURFACES a
