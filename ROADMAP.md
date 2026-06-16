@@ -644,6 +644,14 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       same-run re-entrant lease — all accurate; sound entry, no contradiction). Cross-ledger
       coherent (0 ROUTINE / 3 HARD, d5e0 agrees). Suite 58/0 (audit-only, no test changes).
       See `docs/meeting-notes/2026-06-16-1222-strong-model-audit.md`.
+    - Run 12 (2026-06-16-1122): `d3ca7a9..HEAD` (first-seen since Run 11, EXCLUDING Run
+      11's own already-audited merge `5914c72`) — **clean**: window was LEDGER-ONLY (sole
+      first-seen change = the Run 11 checkpoint paragraph in RELAY_LOG.md +4; zero
+      code/scripts/python — `git diff --name-only -- '*.sh' '*.py' '*.js'` empty). No code
+      to review, no security surface, no new design decision/gate. Cross-ledger coherent
+      (0 ROUTINE / 3 HARD; all three HARD ids `[ ]` in both ROADMAP+TODO, d5e0 agrees).
+      Suite 58/0 (audit-only, no test changes). See
+      `docs/meeting-notes/2026-06-16-1122-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
