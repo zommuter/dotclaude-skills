@@ -504,6 +504,11 @@ const MAX_ROUNDS = A.MAX_ROUNDS || 30
 const DISCOVER_SHARDS = A.DISCOVER_SHARDS || 6
 
 async function runRound() {
+// id:2d20 — productivity baseline: completions integrated BEFORE this round. The outer loop's
+// drain detector keys on `produced` (completions THIS round), not units dispatched — a round
+// that only hands back gated/too-large HARD units produces 0 and counts as dry, so the loop
+// drains instead of re-dispatching the same un-doable items for MAX_ROUNDS.
+const completedBefore = state.completed.length
 // ── Phase 1: Discover ──
 
 phase('Discover')
@@ -535,7 +540,14 @@ Each repo's path and income are given in the list above; use them. For each repo
 
 - "review": commits exist after the last relay checkpoint tag (run: git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1 — match BOTH prefixes; old fable-ckpt-* tags are historical and repos may still carry one until their next checkpoint — then git -C <path> log <tag>..HEAD --oneline). Unaudited work always wins over other verdicts.
 - "execute": no unaudited commits, and ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE].
-- "hard": no unaudited commits, NO open [ROUTINE] item, but ROADMAP.md has >=1 unticked "- [ ]" item tagged [HARD (i.e. [HARD — strong model]). This is the ROUTINE-drained steady state where HARD work would otherwise stall.
+- "hard": no unaudited commits, NO open [ROUTINE] item, but ROADMAP.md has >=1 unticked "- [ ]" EXECUTABLE [HARD — strong model] item (see the EXECUTABLE-HARD test below). This is the ROUTINE-drained steady state where HARD work would otherwise stall.
+
+EXECUTABLE-HARD test (id:2d20 — never dispatch an un-doable HARD item; a relay child can only refuse it, and re-dispatching it every round is pure waste). An unticked "- [ ]" [HARD item counts as EXECUTABLE only if a strong child could plausibly finish it green in one turn. It is NON-executable (GATED) — EXCLUDE it from the hard verdict and from openHard — when ANY of:
+  • it is tagged "[HARD — decision gate]" (vs "[HARD — strong model]");
+  • it sits under a "## Gated" / "do not start" / "deferred" ROADMAP section, or its acceptance text says to wait for a gate ("re-scope when the gate opens", "no code before ratification", "blocked on …");
+  • its acceptance criteria require a /meeting or recorded design decision FIRST (e.g. "hold a scoping meeting", "design recorded in docs/meeting-notes/ … then implement");
+  • it is explicitly multi-session or cross-repo in scope (cannot be finished+verified from this one repo's worktree).
+A repo whose ONLY open [HARD items are all GATED is NOT "hard": put it in "surfaced" with reason "HARD backlog is gated — needs a /meeting to unblock/re-scope (items: <ids>); not dispatched (id:2d20)". This moves the gate-detection to cheap discovery instead of spawning an Opus hard child every round to re-derive the same handback.
 - "handoff": no unaudited commits, and ROADMAP.md is missing/has no roadmap marker, OR every item is ticked while untracked new work exists.
 - "idle": none of the above.
 
@@ -562,7 +574,7 @@ Per-repo fields to set on each unit you emit:
 - lastCkpt per repo (the tag name, or "" if none)
 - income per repo: true iff the repo's relay.toml block has income = true
 - hasRoutine per repo: true iff ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE], INDEPENDENT of the verdict. A repo classified "review" (unaudited commits) that ALSO has open [ROUTINE] work must report hasRoutine=true — this lets the --fable-down path keep executors busy on routine work in repos whose review must wait for the next strong turn.
-- openHard per repo: the COUNT of unticked "- [ ]" items tagged [HARD (i.e. [HARD — strong model]) in ROADMAP.md, INDEPENDENT of the verdict. 0 when none. The supervisor uses it to surface the HARD backlog and (on an apex Opus session) to size the hard verdict.
+- openHard per repo: the COUNT of unticked "- [ ]" EXECUTABLE [HARD — strong model] items in ROADMAP.md (apply the EXECUTABLE-HARD test above — do NOT count GATED/decision-gate/deferred/multi-session items), INDEPENDENT of the verdict. 0 when none (incl. when every open HARD item is gated). The supervisor uses it to surface the HARD backlog and (on an apex Opus session) to size the hard verdict.
 - strongRecheckPending per repo: true iff the relay.toml [repos.<name>] block has a non-empty last_strong_ckpt AND fable_rechecked is false (or absent/empty). This is the DURABLE, model-tracked Fable-bonus-recheck queue (id:e030): a strong (Opus) review/handoff/hard checkpoint that has not yet had its optional Fable recheck. It SURVIVES a later executor (sonnet) checkpoint that overwrites last_ckpt and masks the latest-tag fable-standin signal — so prefer this field over the tag grep when deciding optional-recheck candidacy. Report false when last_strong_ckpt is absent/empty or fable_rechecked is true (or a date).
 - standin per repo: true iff the repo's LATEST relay checkpoint tag message contains the literal token "fable-standin". Detect (match BOTH prefixes — the latest tag may be fable-ckpt-* or relay-ckpt-*): T=$(git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1); then git -C <path> tag -l --format='%(contents)' "$T" | grep -q fable-standin && true || false. This means the last relay checkpoint was produced by Opus standing in for Fable (Fable outage), so the repo still needs an independent Fable re-review and its specs are provisional. Report false when there is no checkpoint tag.
 - intensive per repo (id:8d52): a resource name STRING (e.g. "local-llm") iff this repo's next unit of work is resource-heavy — set it when EITHER (a) the repo's relay.toml block has intensive = "<resource>" (or intensive = true → use "local-llm"), OR (b) the top open "- [ ]" item the unit would work in ROADMAP.md carries an "[INTENSIVE — <resource>]" modifier (parse the resource between "— " and "]"). Otherwise leave it "" (empty). These units are NEVER auto-dispatched (OOM risk) — they are gated behind --allow-intensive.
@@ -756,7 +768,7 @@ scheduleStatusWrite(state)
 // round; the outer loop counts consecutive dry rounds toward "backlog drained".
 if (actionable.length === 0 && intensiveUnits.length === 0) {
   if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') log('relay-loop: --fable-down — no executor work this round, strong work deferred')
-  return { actionable: 0 }
+  return { actionable: 0, produced: 0 }
 }
 
 // ── Phase 2+3: Dispatch pool + serialized integration ──
@@ -1132,7 +1144,10 @@ for (const unit of intensiveUnits) {
 
 state.queued = state.queued.concat(queue.map(u => ({ repo: u.repo, verdict: `${u.verdict} (not dispatched)` })))
 scheduleStatusWrite(state)
-return { actionable: actionable.length + intensiveRan }
+// id:2d20 — `produced` = checkpoints integrated THIS round (the only real progress signal).
+// A round that dispatched units which ALL handed back produces 0 → the outer loop counts it dry.
+const produced = state.completed.length - completedBefore
+return { actionable: actionable.length + intensiveRan, produced }
 }
 // ── end runRound ──
 
@@ -1151,10 +1166,16 @@ while (!quotaStopped && round < MAX_ROUNDS) {
     log('relay-loop: discovery failed mid-run — stopping after completed rounds')
     break
   }
-  if (r.actionable === 0) {
+  // id:2d20 — a round is "dry" when it integrated NO checkpoint (produced === 0), not merely
+  // when it dispatched nothing. An all-handback round (only gated/too-large HARD units, which
+  // correctly refuse to half-do the work) makes no progress, so it counts toward drain — the
+  // loop stops after 2 such rounds instead of re-dispatching the same un-doable items every
+  // round to the MAX_ROUNDS seatbelt.
+  if ((r.produced || 0) === 0) {
     dry++
-    log(`relay-loop: round ${round} — no actionable work (dry ${dry}/2)`)
-    if (dry >= 2) { log('relay-loop: backlog drained (2 consecutive empty discoveries) — done'); break }
+    const why = r.actionable === 0 ? 'no actionable units' : `${r.actionable} dispatched but 0 integrated (all handed back)`
+    log(`relay-loop: round ${round} — no progress: ${why} (dry ${dry}/2)`)
+    if (dry >= 2) { log('relay-loop: backlog drained (2 consecutive no-progress rounds) — done'); break }
   } else {
     dry = 0
   }
