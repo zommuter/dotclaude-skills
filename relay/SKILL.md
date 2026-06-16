@@ -217,6 +217,29 @@ Discipline: clean-tree only; commit per-repo **in the main checkout** (the per-r
 CLAIM the next `review` re-checks (anti-gaming, conservative — **when unsure, downgrade
 a→b**). **Opus is apex**: auto-answers are final, never "pending Fable".
 
+## Reconcile mode
+
+`/relay reconcile [repo]` is the **human-invoked** disposal of parked orphan branches —
+the consume side of D1's orphan-park (id:689c). When a dead/orphaned relay run leaves
+unmerged commits, D1 renames its branch into `relay/orphan/*` (commit reachable on the ref,
+worktree dir removed) and surfaces it. Reconcile lets a human dispose those parked branches.
+**NEVER auto-triggered by the pool** — it is a deliberate, per-branch decision.
+
+Run `scripts/relay-reconcile.sh [repo]` (defaults to the cwd repo). With no flag it
+**lists** every `relay/orphan/*` branch with its parked commit; then per branch choose:
+
+- **integrate** — `relay-reconcile.sh --integrate <branch>`. Reuses the **same**
+  serialized-integrator recipe the live pool uses, so a human can't skip the checkpoint
+  tag or race the pool's push: verify clean main + `sync-origin.sh` → `git merge --no-ff`
+  (preserves 3-way conflict surfacing; **no CAS plumbing**) → `ckpt-tag.sh` (atomic
+  RELAY_LOG + `relay-ckpt-*` tag) → `git-lock-push.sh --ff-only` → `git branch -D` the
+  consumed ref. A merge **conflict** is `git merge --abort`ed and the branch is **left +
+  surfaced**, never half-merged.
+- **discard** — `relay-reconcile.sh --discard <branch>` → `git branch -D` (drop the work).
+- **leave** — do nothing; the `relay/orphan/*` ref stays for a later pass.
+
+`<branch>` may be given with or without the `relay/orphan/` prefix. `id:3313`.
+
 ## Next mode
 
 `/relay next` is a quick auto-router: it inspects the CURRENT repo's state and acts,
