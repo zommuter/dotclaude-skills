@@ -13,14 +13,14 @@
 #   review_me  — an open `- [ ]` box in the repo's REVIEW_ME.md
 #   manual     — an open `- [ ]` box tagged `@manual` (REVIEW_ME.md or ROADMAP.md);
 #                a human must RUN it, so it is NEVER auto-tickable (surface only).
-#   gated_hard — an open `- [ ]` ROADMAP item the relay pool classifies NON-executable
-#                GATED per the id:2d20 EXECUTABLE-HARD test (a `[HARD — decision gate]`
-#                item, or one under a "## Gated"/"do not start"/"deferred" section).
-#                The pool writes these to RELAY_STATUS.md → Blocked as "needs a
-#                /meeting" but /relay human never showed them (id:f6c9). Re-derived
-#                here from ROADMAP (freshness-safe even when no pool is live), routed
-#                as tier-(c) CHEWY → `/meeting --cross`. box_summary embeds the
-#                why-gated reason after the item text (` — gated: <reason>`).
+#   gated_hard — EVERY open `- [ ]` `[HARD]` ROADMAP item (a strong-model-or-human
+#                decision by definition). The pool writes its non-executable HARD
+#                backlog to RELAY_STATUS.md → Blocked as "needs a /meeting"; this
+#                collector re-derives the full HARD set from ROADMAP (freshness-safe
+#                even when no pool is live), routed as tier-(c) CHEWY → `/meeting
+#                --cross`. box_summary embeds a refined why-reason after the item
+#                text (` — gated: <reason>`). Earlier this emitted only two textual
+#                gates and hid the rest — see the emit_gated_hard header (id:f6c9).
 #
 # box_summary is the box text with the leading `- [ ] ` stripped and whitespace
 # collapsed (TSV-safe: tabs/newlines become spaces). Closed `- [x]` boxes are
@@ -107,17 +107,26 @@ warn_nested_worktrees() {
 # freshness-safe even when no pool is live (a stale RELAY_STATUS could lie); the
 # pool and this collector apply the SAME textual EXECUTABLE-HARD test, so they agree.
 #
-# A model is NOT available here, so we detect only the two PURELY-TEXTUAL gates of
-# the id:2d20 EXECUTABLE-HARD test (the deterministic, false-positive-free ones):
-#   • the item is tagged "[HARD — decision gate]" (vs "[HARD — strong model]"), OR
-#   • it sits under a "## Gated" / "do not start" / "deferred" ROADMAP section.
-# The acceptance-text gates ("blocked on …", "hold a scoping meeting first",
-# multi-session/cross-repo) need semantic judgment — that is exactly the /meeting
-# the tier-(c) route hands them to; we do not guess them statically.
+# COMPLETENESS over false-negatives (fix for "/relay human showed nothing"): a
+# `[HARD]` item is BY DEFINITION a strong-model-or-human decision, so EVERY open
+# `[HARD]` ROADMAP item is surfaced to human triage. The earlier version emitted
+# only the two purely-textual gates ("decision gate" INSIDE the bracket, or a
+# "## Gated" section heading) and dropped everything else as "executable HARD" —
+# but real repos gate semantically (DECISION GATE: as a line *prefix*; plain
+# `[HARD — strong model]` gated by sub-bullet acceptance text; inline BLOCKED /
+# "do not start" / "NOT yet executor work" markers), so the collector returned
+# almost nothing while RELAY_STATUS listed 20+ blocked repos. Over-surfacing to
+# the human triage sweep is safe (the human reads + routes, and tier-(a/b/c)
+# downgrades when unsure); under-surfacing hid the entire HARD backlog.
 #
-# Emits kind=gated_hard, box_summary = "<item text> — gated: <why>", where <why>
-# reuses the classifier's reason vocabulary so the human reads the same wording the
-# pool logged. Only OPEN "- [ ]" items are emitted; "- [x]" never.
+# A model is NOT available here, so the WHY-reason is refined from textual markers
+# when present (decision-gate / gated-section / blocked-or-do-not-start), else a
+# generic "strong-model or human decision (verify executability)". An item the
+# pool would dispatch via its `hard` verdict may also appear here between pool
+# runs; that is acceptable — the human routes it to /relay rather than /meeting.
+#
+# Emits kind=gated_hard, box_summary = "<item text> — gated: <why>". Only OPEN
+# "- [ ]" items are emitted; "- [x]" never.
 # $1 repo name, $2 repo path.
 emit_gated_hard() {
   local name="$1" path="$2" roadmap="$path/ROADMAP.md"
@@ -133,13 +142,19 @@ emit_gated_hard() {
       line = $0
       is_hard = (line ~ /\[HARD/)
       if (!is_hard) next
-      decision_gate = (line ~ /\[HARD[^]]*decision gate/)
-      if (!decision_gate && !gated_section) next   # executable HARD — not ours
-      # Build the why-gated reason (matches the id:2d20 classifier vocabulary).
+      # Every open [HARD] item is a strong-model-or-human decision → surfaced.
+      # Refine the WHY-reason from whatever marker is present (case-insensitive).
+      low = tolower(line)
+      decision_gate  = (low ~ /decision gate/)
+      blocked_marker = (low ~ /blocked/ || low ~ /do not start/ || low ~ /not yet executor work/ || low ~ /forward-flag/)
       if (decision_gate)
         why = "decision-gate HARD — needs a /meeting to resolve (id:2d20)"
-      else
+      else if (gated_section)
         why = "under a gated/deferred ROADMAP section — needs a /meeting to unblock/re-scope (id:2d20)"
+      else if (blocked_marker)
+        why = "marked blocked / do-not-start — needs a /meeting to unblock/re-scope (id:2d20)"
+      else
+        why = "open [HARD] item — strong-model or human decision (verify executability) (id:2d20)"
       # Strip "- [ ] " prefix and collapse whitespace (TSV-safe).
       summary = line
       sub(/^[[:space:]]*- \[ \] /, "", summary)
@@ -154,7 +169,15 @@ emit_gated_hard() {
 # --- scan one repo -----------------------------------------------------------
 scan_repo() {
   local name="$1" path="$2"
-  [[ -d "$path" ]] || return 0
+  # relay.toml is shared across machines: an `own` repo may be checked out on a
+  # DIFFERENT host (recent checkpoint tags, status=active) yet absent here. You
+  # cannot human-triage files you don't have, so skip it — but say so on stderr,
+  # else the human wonders why a RELAY_STATUS-blocked repo never appears.
+  if [[ ! -d "$path" ]]; then
+    printf 'NOTE: %s absent on this host (%s) — checked out on another machine; not triageable here.\n' \
+      "$name" "$path" >&2
+    return 0
+  fi
   warn_nested_worktrees "$name" "$path"
   # GATED [HARD] ROADMAP items: the pool's "needs a /meeting" backlog (id:f6c9).
   emit_gated_hard "$name" "$path"
