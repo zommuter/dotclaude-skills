@@ -66,3 +66,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🔎 **Dex** — compiler/static-analysis diagnostics lens; undefined-vs-unused-vs-declared-free distinction, declaration scoping, reaching-definitions, diagnostic severity (ERROR/WARN). Introduced 2026-06-16 (mathematical-writing/dangling-symbol-staleness).
 
 - 📈 **Milo** — quant-trading lens: backtest methodology, overfitting, transaction costs, statistical significance, exposure-adjustment. Insists objectives be operationalized so 'maximize money' doesn't become 'maximize activity'. Introduced 2026-06-12 (trAIdBTC/kickoff), registry 2026-06-16.
+
+- 🔬 **Greta** — proof-engineering / formal-methods lens; what is mechanizable in a proof assistant, axiom hygiene (assume vs. prove), and the model-vs-deployed-artifact fidelity gap. Introduced 2026-06-16 (zkWhale/lean4-zk-formal-proofs).
