@@ -225,3 +225,38 @@ grep -qF -- '--agents ${totalDispatched}' "$JS" \
 grep -qF -- '--agents ${unitsDispatched}' "$JS" \
   && fail "id:4267: quota gate still passes the per-round unitsDispatched (resets each round → 200-agent seatbelt never fires)"
 pass "id:4267: quota agent-count seatbelt fed the run-total (totalDispatched), not per-round count"
+
+# id:7570 — the cross-session lease must be released in a per-unit FINALLY path that runs
+# after the child settles with ANY outcome (merged/handback/null/error), NOT only inside the
+# integrator agent. Before this fix, a child that returned null/threw/handed back never reached
+# the integrator's step-0 release, so the lease leaked for the full 1800s TTL (observed live
+# 2026-06-16). Assert a releaseLease() helper exists, runUnit calls it after the child settles,
+# and it carries the id:7570 marker so the rationale can't be silently dropped.
+grep -q "async function releaseLease" "$JS" \
+  || fail "id:7570: no releaseLease() helper — lease release is still coupled to the integrator only"
+grep -q "id:7570" "$JS" \
+  || fail "id:7570: no id:7570 marker in relay-loop.js (per-unit finally-release rationale missing)"
+grep -q "claim.sh release \${unit.repo} --run \${state.runId}" "$JS" \
+  || fail "id:7570: releaseLease does not run-scope release the repo lease"
+# runUnit must invoke the finally release after the child settles (not only the integrator).
+grep -q "releaseLease(unit)" "$JS" \
+  || fail "id:7570: runUnit never calls releaseLease(unit) — leaked-lease fix not wired"
+# Steal-window guard: a same-repo review→execute re-chain must NOT release in the gap before
+# the re-chain re-acquires (the re-entrant claim window).
+grep -q "rechainedSameRepo" "$JS" \
+  || fail "id:7570: no re-chain guard — releasing before a same-repo re-acquire opens a steal window"
+grep -q "if (!rechainedSameRepo) await releaseLease(unit)" "$JS" \
+  || fail "id:7570: finally-release not guarded by the re-chain flag (steal-window risk)"
+pass "id:7570: per-unit finally release (run-scoped, re-chain-guarded) frees a leaked lease"
+
+# id:7570 — the integrator's step-0 release stays (idempotent vs. the per-unit release) so a
+# merged unit still releases even if the per-unit path somehow didn't (defense in depth).
+grep -q "Release this repo's cross-session lease" "$JS" \
+  || fail "id:7570: integrator step-0 lease release was removed (must stay idempotent)"
+pass "id:7570: integrator step-0 release retained (idempotent, defense-in-depth)"
+
+# id:7570 — long-child liveness: the work child anchors its claim to the held worktree so a
+# >TTL child isn't stolen mid-work (claim.sh worktree-anchored staleness, converse of id:3ac8).
+grep -qF -- 'claim.sh acquire ${unit.repo} --run ${state.runId} --mode ${unit.verdict} --worktree' "$JS" \
+  || fail "id:7570: unitPrompt does not pass --worktree to the acquire (long-child liveness anchor missing)"
+pass "id:7570: work child anchors its lease to the worktree (long child keeps its lease)"
