@@ -85,6 +85,17 @@ if [[ "$AGE" -gt "$STALE_SECS" ]]; then
   echo "quota-stop: self-refreshed stale cache" >&2
 fi
 
+# Burnup sampling (id:cd19): persist a time-series sample to the quota-samples JSONL so
+# relay-burn.sh report can answer "$/hour, %/hour, how much did this run burn?" — the data
+# for evaluating Max x20/x5/Pro tiers. quota-stop already reads+refreshes the cache on every
+# gate check, so this is the natural emit point. Best-effort & non-fatal: a sampling failure
+# must NEVER change the quota decision. Gated on RELAY_RUN_ID so it fires only inside a real
+# relay run (ties each sample to its run for per-run attribution, and keeps quota-stop's own
+# tests hermetic — they never set RELAY_RUN_ID, so nothing is written under ~/.config).
+if [[ -n "${RELAY_RUN_ID:-}" ]]; then
+  USAGE_CACHE="$USAGE_CACHE" "$(dirname "$0")/relay-burn.sh" sample 2>/dev/null || true
+fi
+
 # Time-decaying cap for the 7-day buckets (autonomous relay, user directive 2026-06-13):
 # when RELAY_QUOTA_DECAY_7D is set as "START:END" fractions, the seven_day and
 # seven_day_sonnet thresholds linearly interpolate from START (at the rolling 7-day
