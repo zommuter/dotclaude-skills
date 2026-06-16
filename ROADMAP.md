@@ -10,6 +10,20 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] On 2026-06-17: investigate suspected Opus quality degradation (evening 2026-06-16) [HARD — strong model] <!-- id:dba3 -->
+  - **Human/judgment investigation (do NOT auto-execute).** User flagged that Opus output
+    seemed degraded the evening of 2026-06-16. Full evidence + hypotheses are in the memory
+    `~/.claude/projects/-home-tobias-src-project-manager/memory/opus-quality-degradation-20260616.md`.
+  - **Evidence:** (1) toesnail privacy scrub left a *lightweight* checkpoint tag after a history
+    rewrite (sloppy tag handling); (2) an Opus session misdiagnosed `~/src/zkm/plugins/zkm-*`
+    as "on another machine"; (3) over-engineered the `~/.claude` branch-split (2 user
+    corrections); (4) weaker statistics output vs the prior day.
+  - **Hypotheses to test:** model-serving regression **vs.** long-session context degradation
+    (the 2026-06-16 evening session ran very long) — check whether errors cluster in
+    late/long-context turns; diff today's vs yesterday's `relay-econ.py`/output artifacts;
+    check Anthropic status/model version for the window. If real, it affects relay
+    executor/review quality fleet-wide (cross-ref id:c3a6).
+
 - [ ] ⭐ HIGH PRIORITY: cut relay status/overhead cost (~35% of spend, low-concurrency, on the critical path) [HARD — strong model] <!-- id:c3a6 -->
   - **Evidence** (`relay-econ.py`, 2026-06-16, 5 runs / $633): `status` category = **$220.90 (34.9%)** of cost at only **2.2× mean concurrency** (serial-ish, on the critical path); `work` is $384.84 (60.7%). Model split: opus **78.2%**, sonnet 17%, haiku 4.5%. So a third of spend is overhead, not repo work.
   - **Prime suspect (quick win):** `discover-shard` agents in `relay/scripts/relay-loop.js:593` **omit `model:`**, so they inherit the *session* model — **Opus** when the pool is launched from an Opus session — and discovery **re-runs every round** (DISCOVER_SHARDS=6 × up to MAX_ROUNDS=30). The sibling `discover-prelude` (line 526) doing the same classification IS pinned to `model:'sonnet'`. Pin the shards to sonnet (or haiku) → likely large saving for zero quality loss. Verify the category mapping first (shards are phase `Discover`, not necessarily the econ `status` bucket — re-profile to attribute).
