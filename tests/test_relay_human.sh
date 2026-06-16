@@ -53,6 +53,13 @@ pass "human.md specifies @manual-never-auto-tick"
 grep -q '/meeting --cross' "$HUMAN" || fail "human.md does not route tier-C to /meeting --cross"
 pass "human.md routes tier-C → /meeting --cross"
 
+# --- (2b) human.md specifies the gated-HARD sweep (id:f6c9) -------------------
+grep -qi 'gated_hard' "$HUMAN" || fail "human.md does not name the gated_hard kind (id:f6c9)"
+grep -qi 'needs a /meeting' "$HUMAN" || fail "human.md missing the gated-HARD 'needs a /meeting' framing"
+grep -qi 're-deriv' "$HUMAN" || fail "human.md does not state gated_hard is re-derived from ROADMAP"
+grep -qi 'id:f6c9' "$HUMAN" || fail "human.md does not cite id:f6c9 for the gated-HARD sweep"
+pass "human.md specifies the gated-HARD (kind=gated_hard) tier-(c) sweep (id:f6c9)"
+
 grep -qiE 'downgrade a.*b|downgrade.*to .b.' "$HUMAN" \
   || fail "human.md missing the conservative downgrade-a→b anti-gaming rule"
 pass "human.md states the conservative downgrade-a→b rule"
@@ -80,6 +87,23 @@ cat > "$STORE/src/repoB/ROADMAP.md" <<'EOF'
 ## Items
 - [ ] Routine thing [ROUTINE] <!-- id:aaaa -->
 - [ ] Run the full BDD journey on real hardware @manual <!-- id:bbbb -->
+EOF
+
+# repoA also has a ROADMAP exercising the gated-HARD sweep (id:f6c9):
+#   - a [HARD — decision gate] item  → gated_hard (decision-gate)
+#   - an item under a "## Gated" section → gated_hard (gated-section)
+#   - an executable [HARD — strong model] item → NOT emitted (negative control)
+#   - a closed [x] gated item → NOT emitted
+cat > "$STORE/src/repoA/ROADMAP.md" <<'EOF'
+## Executable work
+- [ ] [HARD — strong model] Refactor the parser core <!-- id:e0e0 -->
+- [x] [HARD — decision gate] Already-resolved gate <!-- id:dead -->
+
+## Open decision gates
+- [ ] [HARD — decision gate] Pick the on-disk format: msgpack vs json <!-- id:9999 -->
+
+## Gated
+- [ ] [HARD — strong model] Build the thing once the gate opens <!-- id:8888 -->
 EOF
 
 # repoD is own but paused = true (on-hiatus): it has an open box that MUST NOT
@@ -134,9 +158,30 @@ grep -qP '^repoB\t.*\tmanual\t.*real hardware' <<<"$OUT" \
   || fail "@manual ROADMAP box not flagged kind=manual"
 pass "gather flags @manual ROADMAP box as kind=manual"
 
-# Non-@manual ROADMAP item is NOT collected (only review_me + @manual).
+# Non-@manual ROADMAP item is NOT collected (only review_me + @manual + gated_hard).
 grep -q 'Routine thing' <<<"$OUT" && fail "plain ROADMAP routine item leaked into output"
 pass "gather ignores non-@manual ROADMAP items"
+
+# --- gated-HARD sweep (id:f6c9): kind=gated_hard from ROADMAP -----------------
+# decision-gate item is emitted as gated_hard, with the why-gated reason embedded.
+grep -qP '^repoA\t.*\tgated_hard\t.*msgpack vs json.*— gated: decision-gate' <<<"$OUT" \
+  || fail "decision-gate [HARD] item not emitted as gated_hard with reason"
+pass "gather emits [HARD — decision gate] item as kind=gated_hard with why-gated reason"
+
+# item under a ## Gated section is emitted as gated_hard (gated-section reason).
+grep -qP '^repoA\t.*\tgated_hard\t.*once the gate opens.*— gated: under a gated' <<<"$OUT" \
+  || fail "item under ## Gated section not emitted as gated_hard"
+pass "gather emits item under a ## Gated section as kind=gated_hard"
+
+# executable [HARD — strong model] item (not gated) is NOT emitted (negative control).
+grep -q 'Refactor the parser core' <<<"$OUT" \
+  && fail "executable [HARD — strong model] item leaked into gated_hard output"
+pass "gather does NOT emit executable [HARD — strong model] items (negative control)"
+
+# closed [x] gated item is NOT emitted.
+grep -q 'Already-resolved gate' <<<"$OUT" \
+  && fail "closed [x] gated item leaked into output"
+pass "gather skips closed [x] gated-HARD items"
 
 # repoB review_me box present (named-repo + all-repo paths both covered).
 grep -qP '^repoB\t.*\treview_me\t.*test_auth' <<<"$OUT" \

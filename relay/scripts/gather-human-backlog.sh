@@ -10,9 +10,17 @@
 #   repo  path  kind  box_summary
 #
 # kind:
-#   review_me — an open `- [ ]` box in the repo's REVIEW_ME.md
-#   manual    — an open `- [ ]` box tagged `@manual` (REVIEW_ME.md or ROADMAP.md);
-#               a human must RUN it, so it is NEVER auto-tickable (surface only).
+#   review_me  — an open `- [ ]` box in the repo's REVIEW_ME.md
+#   manual     — an open `- [ ]` box tagged `@manual` (REVIEW_ME.md or ROADMAP.md);
+#                a human must RUN it, so it is NEVER auto-tickable (surface only).
+#   gated_hard — an open `- [ ]` ROADMAP item the relay pool classifies NON-executable
+#                GATED per the id:2d20 EXECUTABLE-HARD test (a `[HARD — decision gate]`
+#                item, or one under a "## Gated"/"do not start"/"deferred" section).
+#                The pool writes these to RELAY_STATUS.md → Blocked as "needs a
+#                /meeting" but /relay human never showed them (id:f6c9). Re-derived
+#                here from ROADMAP (freshness-safe even when no pool is live), routed
+#                as tier-(c) CHEWY → `/meeting --cross`. box_summary embeds the
+#                why-gated reason after the item text (` — gated: <reason>`).
 #
 # box_summary is the box text with the leading `- [ ] ` stripped and whitespace
 # collapsed (TSV-safe: tabs/newlines become spaces). Closed `- [x]` boxes are
@@ -92,11 +100,64 @@ warn_nested_worktrees() {
   fi
 }
 
+# --- emit GATED HARD ROADMAP items (id:f6c9) ---------------------------------
+# Re-derive (NOT read live RELAY_STATUS.md) the pool's NON-executable GATED [HARD]
+# backlog from ROADMAP.md, so /relay human surfaces the same "needs a /meeting"
+# items the pool writes to RELAY_STATUS → Blocked (id:2d20). Re-derivation is
+# freshness-safe even when no pool is live (a stale RELAY_STATUS could lie); the
+# pool and this collector apply the SAME textual EXECUTABLE-HARD test, so they agree.
+#
+# A model is NOT available here, so we detect only the two PURELY-TEXTUAL gates of
+# the id:2d20 EXECUTABLE-HARD test (the deterministic, false-positive-free ones):
+#   • the item is tagged "[HARD — decision gate]" (vs "[HARD — strong model]"), OR
+#   • it sits under a "## Gated" / "do not start" / "deferred" ROADMAP section.
+# The acceptance-text gates ("blocked on …", "hold a scoping meeting first",
+# multi-session/cross-repo) need semantic judgment — that is exactly the /meeting
+# the tier-(c) route hands them to; we do not guess them statically.
+#
+# Emits kind=gated_hard, box_summary = "<item text> — gated: <why>", where <why>
+# reuses the classifier's reason vocabulary so the human reads the same wording the
+# pool logged. Only OPEN "- [ ]" items are emitted; "- [x]" never.
+# $1 repo name, $2 repo path.
+emit_gated_hard() {
+  local name="$1" path="$2" roadmap="$path/ROADMAP.md"
+  [[ -f "$roadmap" ]] || return 0
+  awk -v name="$name" -v path="$path" '
+    # Track whether the current section heading marks a gated region.
+    /^#{1,6}[[:space:]]/ {
+      h = tolower($0)
+      gated_section = (h ~ /gated/ || h ~ /do not start/ || h ~ /deferred/) ? 1 : 0
+    }
+    # Open top-level checkbox items only (sub-bullets are continuation prose).
+    /^[[:space:]]*- \[ \] / {
+      line = $0
+      is_hard = (line ~ /\[HARD/)
+      if (!is_hard) next
+      decision_gate = (line ~ /\[HARD[^]]*decision gate/)
+      if (!decision_gate && !gated_section) next   # executable HARD — not ours
+      # Build the why-gated reason (matches the id:2d20 classifier vocabulary).
+      if (decision_gate)
+        why = "decision-gate HARD — needs a /meeting to resolve (id:2d20)"
+      else
+        why = "under a gated/deferred ROADMAP section — needs a /meeting to unblock/re-scope (id:2d20)"
+      # Strip "- [ ] " prefix and collapse whitespace (TSV-safe).
+      summary = line
+      sub(/^[[:space:]]*- \[ \] /, "", summary)
+      gsub(/[\t]/, " ", summary)
+      gsub(/[[:space:]]+/, " ", summary)
+      sub(/^ /, "", summary); sub(/ $/, "", summary)
+      printf "%s\t%s\t%s\t%s — gated: %s\n", name, path, "gated_hard", summary, why
+    }
+  ' "$roadmap"
+}
+
 # --- scan one repo -----------------------------------------------------------
 scan_repo() {
   local name="$1" path="$2"
   [[ -d "$path" ]] || return 0
   warn_nested_worktrees "$name" "$path"
+  # GATED [HARD] ROADMAP items: the pool's "needs a /meeting" backlog (id:f6c9).
+  emit_gated_hard "$name" "$path"
   # REVIEW_ME.md: every open box (default kind review_me; @manual upgrades to manual).
   emit_boxes "$name" "$path" "$path/REVIEW_ME.md" review_me
   # ROADMAP.md: only open boxes tagged @manual need a human to RUN them.
