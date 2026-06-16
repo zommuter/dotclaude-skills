@@ -636,6 +636,14 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       names). One **LOW accepted** (gather-human-backlog `awk -v`, id:c8db class). No security
       defects; cross-ledger coherent (0 ROUTINE / 3 HARD, d5e0 agrees). Suite 58/0. See
       `docs/meeting-notes/2026-06-16-1247-strong-model-audit.md`.
+    - Run 11 (2026-06-16-1222): `5ab8c12..HEAD` (first-seen since Run 10, EXCLUDING Run 10's
+      own already-audited merge d36208a) — **clean**: window was LEDGER-ONLY (TODO id:0547
+      +1, RELAY_LOG ckpt +4; zero code/scripts/python). No code to review, no security
+      surface. Coherence pass verified TODO id:0547's injected-unit-vs-discovery-unit race
+      diagnosis against relay-loop.js (L71 invariant, L617 un-deduped injection merge, L808
+      same-run re-entrant lease — all accurate; sound entry, no contradiction). Cross-ledger
+      coherent (0 ROUTINE / 3 HARD, d5e0 agrees). Suite 58/0 (audit-only, no test changes).
+      See `docs/meeting-notes/2026-06-16-1222-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
