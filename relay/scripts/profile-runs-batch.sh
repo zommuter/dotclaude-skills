@@ -14,7 +14,7 @@
 #   --limit N   profile only the N most-recent relay runs (default: all retained)
 #   --json      emit the aggregate as JSON (default: human-readable report)
 #   --cap N     concurrency cap passed through to profile-run.sh (default: auto)
-#   search-root override search roots (default: ~/.claude/projects/*/subagents/workflows)
+#   search-root override search roots (default: ~/.claude/projects/*/*/subagents/workflows)
 #
 # Stdlib-only (bash + python3), pure read. RELAY_WF_SEARCH_ROOT also honored.
 set -euo pipefail
