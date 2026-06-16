@@ -22,7 +22,7 @@
 #   • any other string treated as a runId substring             → journals grepped for it
 #
 # Search roots: $RELAY_WF_SEARCH_ROOT (colon-separated, for tests) else
-#   ~/.claude/projects/*/subagents/workflows
+#   ~/.claude/projects/*/*/subagents/workflows
 #
 # Stdlib-only (bash + python3); no deps, no network. Logs nothing — pure read.
 set -euo pipefail
