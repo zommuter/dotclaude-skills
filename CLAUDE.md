@@ -101,6 +101,14 @@ install IS the published version (per-file symlinks, see Layout).
 - **archive-done.sh** only archives `[x]` items that were already done in the prior
   commit, or are ≥30 days old by trailing "on YYYY-MM-DD" date; section pruning
   protects `Done`/`Current` headings.
+- **relay discovery is signature-cached** (id:c3a6): `discover-sig.sh` hashes a SUPERSET
+  of every input the classifier shard reads; `relay-loop.js` reuses last round's verdict
+  when a repo's sig is unchanged, so an LLM shard fires only on churn. It is **fail-open** —
+  an empty/sentinel sig (or a cache miss) always re-classifies; the cache is never a
+  correctness authority. If you add a NEW signal to the shard prompt, add it to
+  `discover-sig.sh`'s blob too, or its verdict can go stale (under-invalidation is the only
+  hazard — over-hashing merely wastes a re-classify). The `discover-shard` agent is pinned
+  `model: 'sonnet'` (it used to inherit the Opus session model — the 35%-overhead leak).
 
 ## Testing
 
