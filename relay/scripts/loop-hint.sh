@@ -20,7 +20,7 @@
 # Never fails the caller: all state writes are best-effort, exit is always 0.
 set -uo pipefail
 
-STATE_DIR="${RELAY_STATE_DIR:-$HOME/.config/fables-turn}"
+STATE_DIR="${RELAY_STATE_DIR:-$HOME/.config/relay}"
 STAMP="$STATE_DIR/.relay-last-run"
 GAP="${RELAY_LOOP_HINT_GAP:-2700}"   # seconds; <= GAP looks loop-driven → suppress
                                      # default 2700s (45m) > a typical 20-30m loop tick

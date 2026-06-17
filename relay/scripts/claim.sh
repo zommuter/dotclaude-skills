@@ -30,13 +30,13 @@
 #       (id:7570 long-child signal, the converse of id:3ac8) and is NOT reaped. Print
 #       "reaped N" to stderr.
 #
-# Paths: base = $CLAIM_BASE (default ~/.config/fables-turn). Claims = $base/claims,
+# Paths: base = $CLAIM_BASE (default ~/.config/relay). Claims = $base/claims,
 # consumed = $base/claims.done, lock = $base/.claim.lock. TTL = $CLAIM_TTL seconds
 # (default 1800). The <safekey> replaces '/' and ':' with '_' (original key kept in
 # the JSON). Override $CLAIM_BASE for hermetic tests.
 set -euo pipefail
 
-CLAIM_BASE="${CLAIM_BASE:-$HOME/.config/fables-turn}"
+CLAIM_BASE="${CLAIM_BASE:-$HOME/.config/relay}"
 CLAIMS="$CLAIM_BASE/claims"
 DONE="$CLAIM_BASE/claims.done"
 LOCK="$CLAIM_BASE/.claim.lock"

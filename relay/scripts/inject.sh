@@ -15,11 +15,11 @@
 #       Atomically emit AND consume each pending injection (one JSON per line), moving its
 #       shard to inject.done/. Used by the pool's discovery step. flock-guarded.
 #
-# Paths: base = $INJECT_BASE (default ~/.config/fables-turn). Inbox = $base/inject.d,
+# Paths: base = $INJECT_BASE (default ~/.config/relay). Inbox = $base/inject.d,
 # consumed = $base/inject.done, lock = $base/.inject.lock. Override $INJECT_BASE for tests.
 set -euo pipefail
 
-INJECT_BASE="${INJECT_BASE:-$HOME/.config/fables-turn}"
+INJECT_BASE="${INJECT_BASE:-$HOME/.config/relay}"
 INBOX="$INJECT_BASE/inject.d"
 DONE="$INJECT_BASE/inject.done"
 LOCK="$INJECT_BASE/.inject.lock"

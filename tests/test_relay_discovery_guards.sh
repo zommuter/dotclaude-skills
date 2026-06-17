@@ -31,7 +31,7 @@ pass "integrator belt-and-suspenders via sync-origin.sh (id:c3f7)"
 
 # ── Worktree-aware / claimed-elsewhere guard (id:ebfb step 1) ──
 grep -q "WORKTREE-AWARE" "$JS" || fail "discovery prompt missing the worktree-aware guard"
-grep -q "cache/fables-turn/worktrees" "$JS" || fail "worktree guard does not inspect the worktree dir"
+grep -q "cache/relay/worktrees" "$JS" || fail "worktree guard does not inspect the worktree dir"
 grep -qi "in-flight elsewhere" "$JS" || fail "worktree guard does not surface a foreign in-flight worktree"
 grep -q "does NOT start with this run's runId" "$JS" || fail "worktree guard does not key on foreign runId"
 pass "worktree-aware guard: foreign-runId worktree → surfaced in-flight (id:ebfb)"

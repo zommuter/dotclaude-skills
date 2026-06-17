@@ -903,7 +903,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     port validated (proves broker contract is stable) + ≥1 meeting with ctx > 200k".
     Listed here for visibility only; remains parked in TODO.md until the gate fires.
 
-- [ ] Rename relay state dirs `~/.{config,cache}/fables-turn` → relay naming [HARD — strong model] <!-- id:10c0 -->
+- [x] Rename relay state dirs `~/.{config,cache}/fables-turn` → relay naming [HARD — strong model] (done 2026-06-17) <!-- id:10c0 -->
   - **Why HARD**: not the mechanical sed (33 `fables-turn` refs across 13 executable
     files + ~25 docs) but the LIVE-migration / back-compat design call. These are live
     dirs an in-flight pool reads/writes (relay.toml registry, RELAY_STATUS.md,
@@ -935,6 +935,20 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     refuses while a pool looks active. Run only when no pool is active (the script's own
     precondition enforces this). HARD retained for the live-migration care, but the design
     call is made — dispatchable as an Opus hard-execute unit.
+  - **Done 2026-06-17** (Opus hard-execute): `relay/scripts/migrate-state-dirs.sh` ships —
+    idle-precondition guard (refuses while RELAY_STATUS.md is fresh within
+    `RELAY_ACTIVE_SECS` OR `claim.sh peek` shows a live holder), then `mkdir -p
+    ~/.config/relay ~/.cache/relay` → `mv` contents (skip-existing for resumability) →
+    replace each old dir with a permanent `old→new` symlink (the back-compat net).
+    Idempotent: once old is a symlink, a re-run is a no-op. The env-var defaults in the 11
+    accessor scripts + `relay-loop.js`'s `RELAY_STATUS_PATH`/`RELAY_EVENTS_PATH` constants,
+    `worktreePathFor`, and its prompt-text `~/.cache/relay/worktrees` /
+    `~/.config/relay/relay.toml` references now read the canonical `relay` path; the
+    fables-turn symlink covers any straggler. Git tags untouched (constraint a). Test:
+    `tests/test_relay_migrate_state_dirs.sh` (roadmap:10c0) — guard-refuses (forced +
+    fresh-status), migrate-moves-and-symlinks, idempotent re-run, and a no-legacy-default
+    grep over the 11 scripts. `test_relay_status.sh` / `test_relay_discovery_guards.sh`
+    path assertions updated to the new name. `make test` green.
 
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
