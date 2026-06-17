@@ -78,3 +78,7 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🔬 **Lennart** — formal-methods / Lean4 + Mathlib proof ergonomics; sorry-driven and blackbox proof structuring; what symbolic/implementation/type-level tiers (SymPy/Nagini-CrossHair/Lean4) can each discharge; elaboration/kernel latency. Introduced 2026-06-15 (mathematical-writing/kickoff); re-onboarded 2026-06-17 (mathematical-writing/lean-smoke-slice).
 
 - 🔭 **Otto** — observability/measurement-without-perturbation lens; MITM-proxy mechanics, ground-truth source identification, zero-perturbation instrumentation, three-axis session-transcript decomposition (context-depth / elapsed-wall-time / idle-gap) for discriminating long-context fatigue from wall-duration effects. Extended 2026-06-17 (dotclaude-skills/opus-degradation-investigation).
+
+- ⚖️ **Cleo** — data-acquisition legality / platform-ToS / third-party-privacy lens; single-subject vs bulk risk gradient, network-specific TOS analysis, two-limb automated-access analysis (API-key limb vs explicit-permission limb in Consumer Terms §3), live-fetch-not-from-memory ToS reading pattern. Extended 2026-06-17 (dotclaude-skills/model-probe-tos-and-band).
+
+- 📊 **Lexi** — Lean Six Sigma / DMAIC / SPC lens; Measurement System Analysis, control charts, pre-registration discipline (commit the formula not the number), small-n caveat (n=5 σ is garbage — start with a wide robust band), c-chart for pass/fail counts, individuals chart for throughput. Extended 2026-06-17 (dotclaude-skills/model-probe-tos-and-band).
