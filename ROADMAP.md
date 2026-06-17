@@ -708,6 +708,20 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       findings explicitly accepted (awk -v repo-name = id:c8db-class zero-risk; review-range
       covered by HEAD+tag hashing; probe's no-`--model` = D6 observe-don't-assert by design). Run
       via `/relay . --afk` (Opus hard-execute). See `docs/meeting-notes/2026-06-17-1102-strong-model-audit.md`.
+    - Run 14 (2026-06-17, via /relay human Pareto pick): `relay-ckpt-20260617-1326..HEAD` — first-seen
+      code = the id:bbd2 `migrate-state-dirs.sh` rewrite (166L) + `test_migrate_state_dirs.sh` (new).
+      Ran as a 3-pass adversarial audit (correctness / security / design-coherence) of THIS session's
+      own work. **4 real defects fixed inline** (audit caught them in freshly-written code): (1) HIGH —
+      jsonl merge `cat src dest | awk` fused two records into one corrupt line when src lacked a trailing
+      newline (silent log loss); fixed with `awk 1 … | awk 'NF && !seen'` + a no-trailing-newline test.
+      Verified the LIVE `relay-events.jsonl` was NOT corrupted (the appender always terminates lines → 0
+      fused / 358 valid). (2) MED — dir-union swallowed a partial `cp` failure then `rm -rf`'d src → lost
+      un-copied children; now drops src only on cp success, else refuses. (3) MED — idle guard failed OPEN
+      on `claim.sh`/`stat` errors and peeked one base; now fails CLOSED and peeks both old+new. (4) MED —
+      `ASSUME_IDLE` bypass now warns loudly on stderr. Test grew 9→12 cases (added no-trailing-newline,
+      NEW-newer snapshot, type-mismatch refusal). Design/spec claims all independently re-verified TRUE
+      (symlinks, 358 events, 48 gather). 1 LOW tracked: id:16e9 (pre-existing flaky `test_relay_claim_liveness.sh`,
+      roadmap:7570 — unrelated to this change). Suite 66/66.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
