@@ -90,3 +90,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - ⚡ **Lana** — Lightning/L2-payments lens; LN invoice/LSP/custodial-vs-self-custody, Cashu mints, on-chain↔LN settlement latency, payment-rail trust assumptions (receiving is node-bound → cloud control-plane). Introduced 2026-06-17 (zkWhale/matt-donation-funnel-decisions).
 
 - ⛓️ **Tycho** — Bitcoin signature-construction lens; BIP-322 to_spend/to_sign, BIP-341/BIP-143 sighash, what wallets actually sign. Re-onboarded 2026-06-17 (zkWhale/interactive-freshness-v1-scope): noted that since challenge_digest is a circuit public input, V1 interactive freshness is host-side only (zero circuit change); confirmed freshness is a property of the verification session, not the artifact.
+
+- 🌐 **Polly** — PWA/web-delivery lens: theme persistence in service workers and CSS, SPA routing topology, build-mode vs runtime feature delivery, headless-test topology for PWA features. Introduced 2026-06-17 (zkWhale/dark-light-theme-moodboard-emoji-demo).
