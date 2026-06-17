@@ -358,7 +358,7 @@ fi
 # section bullets (pre-Run-progress runs); burn is grepped from the "## Burnup this run"
 # section so the statusline spawns no subprocess.
 RELAY_PART=""
-RELAY_STATUS_FILE="${RELAY_STATUS_PATH:-$HOME/.config/fables-turn/RELAY_STATUS.md}"
+RELAY_STATUS_FILE="${RELAY_STATUS_PATH:-$HOME/.config/relay/RELAY_STATUS.md}"
 RELAY_ACTIVE_SECS="${RELAY_ACTIVE_SECS:-600}"
 if [ -f "$RELAY_STATUS_FILE" ]; then
     RS_AGE=$((NOW - $(stat -c %Y "$RELAY_STATUS_FILE" 2>/dev/null || echo 0)))

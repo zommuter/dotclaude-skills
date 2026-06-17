@@ -22,13 +22,13 @@
 #       each bucket's reset. --since filters by sample time; --run by runId; --json emits
 #       the computed object instead of the human table.
 #
-# Paths: $RELAY_QUOTA_SAMPLES (default ~/.config/fables-turn/quota-samples.jsonl),
+# Paths: $RELAY_QUOTA_SAMPLES (default ~/.config/relay/quota-samples.jsonl),
 #        $USAGE_CACHE (default /tmp/claude-usage-cache.json — same file the statusline
 #        and quota-stop.sh use). Append is serialized under a flock so concurrent
 #        relay runs never interleave a line.
 set -euo pipefail
 
-SAMPLES="${RELAY_QUOTA_SAMPLES:-$HOME/.config/fables-turn/quota-samples.jsonl}"
+SAMPLES="${RELAY_QUOTA_SAMPLES:-$HOME/.config/relay/quota-samples.jsonl}"
 USAGE_CACHE="${USAGE_CACHE:-/tmp/claude-usage-cache.json}"
 RUN_ID="${RELAY_RUN_ID:-}"
 

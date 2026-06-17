@@ -72,6 +72,6 @@ grep -q "write-relay-status\|write.*relay.*status\|relay.*status.*write" "$JS" \
   || fail "relay-loop.js missing agent call for writing RELAY_STATUS.md"
 pass "relay-loop.js uses agent call to write RELAY_STATUS.md"
 
-# Default path includes ~/.config/fables-turn
-grep -q "\.config/fables-turn" "$JS" || fail "relay-loop.js missing default ~/.config/fables-turn path"
-pass "relay-loop.js references default ~/.config/fables-turn path"
+# Default path includes the canonical ~/.config/relay (renamed from fables-turn, id:10c0)
+grep -q "\.config/relay" "$JS" || fail "relay-loop.js missing default ~/.config/relay path"
+pass "relay-loop.js references default ~/.config/relay path"

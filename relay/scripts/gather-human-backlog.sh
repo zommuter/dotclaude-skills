@@ -33,7 +33,7 @@
 set -euo pipefail
 
 SRC_DIR="${SRC_DIR:-$HOME/src}"
-RELAY_TOML="${RELAY_TOML:-$HOME/.config/fables-turn/relay.toml}"
+RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
 
 # --- own repos from relay.toml: lines of "<name>\t<path>" -------------------
 # Honors `classification = "own"` and a per-repo path override.
