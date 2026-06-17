@@ -37,3 +37,13 @@
 - [x] CLAUDE.md §Gotchas: discovery-is-signature-cached note (add-new-signal-to-sig warning). <!-- id:c3a6 -->
 - [ ] Confirm D1 attribution on a real pool run: before/after `relay-econ.py`; report which cost bucket actually moved. <!-- id:9cb1 -->
 - [ ] Integrator frequency (not tier): investigate batching / skipping no-op integrates (109 serialized/day, `relay-loop.js:455`). <!-- id:c563 -->
+
+## Follow-up 2026-06-17 — forward items worked via worktree executor agents
+
+Dispatched two isolated-worktree Sonnet executors against the forward items; both work integrated single-owner after fact-checking.
+
+### id:9cb1 — attribution RESOLVED (live $ confirmation still pending)
+The `discover-shard`/`discover-prelude` agents carry `phase: 'Discover'` (relay-loop.js:537,627); `profile-run.sh:140` maps that to `"discover"`; `relay-econ.py` `PHASE_CAT` (line 36) maps `"discover"` → **`scaffold`**, NOT `status`. So the headline 34.9% `status` overhead was the `RELAY_STATUS`/rollup write agents (a separate lever — cf. id:1a75), not the shards. The shard pin's saving will show as a collapsed Opus share in the **`scaffold`** column. Post-run check: `python3 relay/scripts/relay-econ.py --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print("scaffold $",d["cost"]["scaffold"],"| by_model:",d["cost_by_model"])'`. No post-fix pool-run data exists yet — id:9cb1 stays open for the live before/after.
+
+### id:c563 — "skip no-op integrates" lever DOES NOT EXIST; only batching remains
+`integrate()` already early-returns to `state.blocked` BEFORE the Sonnet agent (relay-loop.js:940 `!report`, 953 `!report.contract_met`; agent at 979), so the integrator agent spawns ONLY when `contract_met===true`. Event-log evidence (relay-events.jsonl, 2026-06-16): **168 dispatches → 119 genuine merges + 8 conflict-handbacks (Sonnet ran, merge conflicted) + 41 silent early-returns (no Sonnet)** — 100% of spawned integrators had real work; none wasteful. Conflict detection requires attempting the merge, so there is no safe pre-merge skip. Locked in by `tests/test_relay_integrator_noop_guard.sh` (`roadmap:c563`, structural). **Batching design (NOT implemented — high blast-radius):** the only remaining lever is collapsing N per-repo serialized `--no-ff` merges into fewer integrator invocations. Risks: the merge-to-canonical path is the single-owner-merge safety locus (D5/D6 "never two children pushing the same remote"); batching must preserve per-repo serialization and conflict isolation (one repo's conflict must not poison a batch). Stays a deferred design session — id:c563 open, narrowed to batching only.
