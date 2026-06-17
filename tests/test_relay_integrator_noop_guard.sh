@@ -4,7 +4,9 @@
 # (contract_met=true) always reach the Sonnet agent. Static structural checks only —
 # live integration throughput is out of scope per task scope (high blast-radius guard).
 #
-# Finding from id:c563 investigation (2026-06-17):
+# Findings from id:c563 investigation + meeting 2026-06-17-0812:
+#
+#   PART 1 — "skip no-op integrates" lever does NOT exist:
 #   - integrate() has TWO early-return guards before the agent() call (lines 940-958)
 #   - !report → pushes to state.blocked, returns without spawning any LLM agent
 #   - !report.contract_met → pushes to state.blocked, returns without spawning any LLM agent
@@ -14,8 +16,27 @@
 #     i.e. conflict at merge step) + 41 silent early-returns (null/contract_met=false, no Sonnet)
 #   - No wasteful Sonnet agents: 100% of spawned integrators had work to attempt
 #   - No safe skip exists: conflict detection requires attempting the merge (no prior knowledge)
-# Verdict: REPORT ONLY — no safe change implemented; all 127/168 Sonnet integrators were
-# genuine merge attempts. The remaining 41 were already correctly early-returned.
+#   Verdict (part 1): CLOSED — lever does not exist. 127/168 Sonnet integrators were genuine;
+#   41 were already correctly early-returned without spawning an agent.
+#
+#   PART 2 — batching is infeasible (sequential cross-round dependency):
+#   - Per-repo integrations are one-per-round; each branch is built on the prior round's ckpt.
+#   - Empirical span (2026-06-16): up to 8 integrations for one repo in one run, spanning
+#     a median ~100 min (max 3.5 h) — one per round, NOT co-ready in the same wave.
+#   - Intra-repo batching: impossible — later work physically descends from earlier checkpoints.
+#   - Cross-repo batching: the only co-ready window (repos A/B/C/D finishing the same wave),
+#     but would reverse the line-465 parallel-per-repo design (serialized integrator made "the
+#     pool LOOK 1-wide") and worsen conflict recovery (failure atom becomes a wave, not a repo)
+#     to save *sonnet* tokens — and the integrator is a rounding error vs Opus ($1317/76% of
+#     spend). Safety locus: the integrator is the single-owner-merge-to-canonical locus (D5/D6).
+#   - Re-open trigger: only if a future change makes multiple same-repo units co-ready in one
+#     wave (e.g. injections id:fb75/6e9d dispatching several same-repo executes simultaneously).
+#     Today discovery picks one verdict per repo per round, so this cannot occur.
+#   Verdict (part 2): CLOSED — no viable batching lever. Cross-repo parallel design (line 465)
+#   must be preserved.
+#
+# Combined verdict: id:c563 CLOSED. All levers exhausted. See meeting note:
+#   docs/meeting-notes/2026-06-17-0812-relay-integrator-batching-close.md
 
 set -euo pipefail
 
@@ -131,16 +152,32 @@ grep -q "const reason = (result && result.reason) || 'integration failed'" "$JS"
   || fail "post-integrator merged=false handback path missing"
 pass "post-Sonnet merged=false handback path present (unavoidable merge-conflict case)"
 
-# ── (7) Batching (id:c563 forward scope) is NOT implemented ───────────────────
-# The design note recommends batching as a future item (high blast-radius). Assert
-# the enqueueIntegration function still serializes per-repo (one-at-a-time) and
-# does NOT batch multiple units before invoking the integrator.
+# ── (7) Batching is NOT implemented ──────────────────────────────────────────
+# id:c563 closed 2026-06-17: batching is infeasible (sequential cross-round dependency)
+# and cross-repo batching would reverse the line-465 parallel-per-repo latency fix.
+# Assert enqueueIntegration still serializes per-repo (one-at-a-time) and no batch
+# variant exists.
 grep -q "function enqueueIntegration(repo, fn)" "$JS" \
-  || fail "enqueueIntegration signature changed — check if batching was accidentally introduced"
-# No batchIntegrate or similar function should be present yet
+  || fail "enqueueIntegration signature changed — verify batching was not accidentally introduced"
 if grep -qE "function batchIntegrat|batchIntegration" "$JS"; then
-  fail "batching logic found in relay-loop.js — it was NOT supposed to be implemented (high blast-radius)"
+  fail "batching logic found in relay-loop.js — cross-repo batching reverses line-465 parallel design (id:c563 closed)"
 fi
-pass "batching NOT implemented — enqueueIntegration still serializes one unit at a time (correct)"
+pass "batching NOT implemented — enqueueIntegration still serializes one unit at a time per repo (correct)"
 
-echo "ALL PASS: integrator no-op guard (id:c563 investigation)"
+# ── (8) Cross-repo parallel-per-repo design preserved (id:c563 D2 — do NOT collapse) ─
+# The integrationChains Map keys separate promise chains per repo; cross-repo integration
+# is intentionally parallel (comment at line 465: "serialized integrator made the pool
+# LOOK 1-wide"). This must not be collapsed into a single serialized chain or a multi-repo
+# batch agent. Check that the Map and the parallel design are still present.
+grep -q "const integrationChains = new Map()" "$JS" \
+  || fail "integrationChains Map not found — cross-repo parallel design may have been removed (id:c563 D2)"
+# The Map must be keyed by repo name (not a single shared queue)
+grep -q "integrationChains.get(repo)" "$JS" \
+  || fail "integrationChains not keyed per repo — parallel isolation may be broken (id:c563 D2)"
+# No single global integration queue replacing the per-repo chains
+if grep -qE "globalIntegrationQueue|singleIntegrationChain|integrationQueue" "$JS"; then
+  fail "global integration queue found — would serialize cross-repo integrations (id:c563 D2: must stay parallel per repo)"
+fi
+pass "cross-repo parallel-per-repo design intact — integrationChains keyed per repo (id:c563 D2)"
+
+echo "ALL PASS: integrator no-op guard + parallel-design invariant (id:c563 closed)"
