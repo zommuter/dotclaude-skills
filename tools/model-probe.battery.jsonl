@@ -1,0 +1,16 @@
+{"type":"meta","version":"1","description":"Model quality probe battery v1 — timeless deterministic items, golden-regex graded"}
+{"id":"p001","prompt":"What is 7 multiplied by 8? Answer with only the number.","golden_regex":"\\b56\\b"}
+{"id":"p002","prompt":"What is the next prime number after 13? Answer with only the number.","golden_regex":"\\b17\\b"}
+{"id":"p003","prompt":"Reverse the string 'hello'. Answer with only the reversed string, nothing else.","golden_regex":"olleh"}
+{"id":"p004","prompt":"Is 144 a perfect square? Answer with only 'yes' or 'no'.","golden_regex":"(?i)\\byes\\b"}
+{"id":"p005","prompt":"What is 2 to the power of 10? Answer with only the number.","golden_regex":"\\b1024\\b"}
+{"id":"p006","prompt":"How many vowels are in the word 'education'? Answer with only the number.","golden_regex":"\\b5\\b"}
+{"id":"p007","prompt":"Convert 0 degrees Celsius to Fahrenheit. Answer with only the number.","golden_regex":"\\b32\\b"}
+{"id":"p008","prompt":"What is the square root of 169? Answer with only the number.","golden_regex":"\\b13\\b"}
+{"id":"p009","prompt":"What is 100 divided by 4? Answer with only the number.","golden_regex":"\\b25\\b"}
+{"id":"p010","prompt":"How many letters are in the word 'algorithm'? Answer with only the number.","golden_regex":"\\b9\\b"}
+{"id":"p011","prompt":"What is the ASCII code of the uppercase letter A? Answer with only the number.","golden_regex":"\\b65\\b"}
+{"id":"p012","prompt":"What is 17 mod 5? Answer with only the number.","golden_regex":"\\b2\\b"}
+{"id":"p013","prompt":"What is the 8th number in the Fibonacci sequence starting 1, 1, 2, 3, 5, 8, 13, ...? Answer with only the number.","golden_regex":"\\b21\\b"}
+{"id":"p014","prompt":"How many edges does a cube have? Answer with only the number.","golden_regex":"\\b12\\b"}
+{"id":"p015","prompt":"What is 1000 in Roman numerals? Answer with only the Roman numeral.","golden_regex":"\\bM\\b"}
