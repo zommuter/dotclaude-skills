@@ -903,7 +903,10 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     port validated (proves broker contract is stable) + ≥1 meeting with ctx > 200k".
     Listed here for visibility only; remains parked in TODO.md until the gate fires.
 
-- [x] Rename relay state dirs `~/.{config,cache}/fables-turn` → relay naming [HARD — strong model] (done 2026-06-17) <!-- id:10c0 -->
+- [x] Rename relay state dirs `~/.{config,cache}/fables-turn` → relay naming [HARD — strong model] (done 2026-06-17; code-rename only — the data migration was left half-done, see id:bbd2 for the proper completion) <!-- id:10c0 -->
+- [x] Complete the id:10c0 state-dir migration properly + fix the split-brain regression [HARD — strong model] (done 2026-06-17, TDD) <!-- id:bbd2 -->
+  - **What broke**: code defaulted to `~/.config/relay` but `relay.toml` was still at `~/.config/fables-turn` and both dirs were real (no symlink) → `gather-human-backlog.sh` silently returned an empty `/relay human` backlog. `migrate-state-dirs.sh` existed but was buggy (skip-on-collision → never symlinked) and never installed/run.
+  - **Fix**: rewrote `migrate-state-dirs.sh` to reconcile collisions (merge `*.jsonl` union, union dirs, newest-mtime snapshot, drop `*.lock`), env-overridable for hermetic tests, exit 3 on idle-guard refusal. Spec'd by `tests/test_migrate_state_dirs.sh` (9 cases). Ran for real: old dirs → symlinks→`relay`, events merged 347+12→358 (no loss), gather returns 48 on default path. `make install-relay` linked it. Suite 66/66.
   - **Why HARD**: not the mechanical sed (33 `fables-turn` refs across 13 executable
     files + ~25 docs) but the LIVE-migration / back-compat design call. These are live
     dirs an in-flight pool reads/writes (relay.toml registry, RELAY_STATUS.md,
