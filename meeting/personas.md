@@ -86,3 +86,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🌐 **Edda** — Cloudflare edge / DNS / tunnel-topology lens; cert tiers (universal vs ACM), orange-cloud port restrictions, wildcard namespace ownership, tunnel-ingress routing. Introduced 2026-06-17 (zomni/zomni-local-port-routing-scheme).
 
 - 🛡️ **Fenn** — host-firewall / attack-surface lens: default-deny vs denylist, fail-safe-off-LAN, SSH-lockout avoidance, per-network trust (home vs public WLAN), listening-port inventory as the design input. Introduced 2026-06-17 (zomni/zomni-firewall-public-wlan-hardening).
+
+- ⚡ **Lana** — Lightning/L2-payments lens; LN invoice/LSP/custodial-vs-self-custody, Cashu mints, on-chain↔LN settlement latency, payment-rail trust assumptions (receiving is node-bound → cloud control-plane). Introduced 2026-06-17 (zkWhale/matt-donation-funnel-decisions).
