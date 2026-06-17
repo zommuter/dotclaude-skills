@@ -899,11 +899,31 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     relay-events.jsonl, quota-samples.jsonl, fable-probe.json, worktrees/) — needs a
     one-time `mv` + back-compat (symlink-old→new or fallback-read) so a running pool /
     cross-session lease isn't broken mid-migration.
-  - **Acceptance**: see TODO id:10c0. **GATED — do not start**: constraint (c) "run only
-    when NO relay pool is active". Constraint (a): git tags `fable-ckpt-*` are deliberately
-    HISTORICAL — scope is the cache/config DIRECTORIES only, never the tags. Listed here
-    for visibility; remains parked in TODO.md until the design call (migration + back-compat
-    shape) is made.
+  - **Back-compat design call — RESOLVED 2026-06-17 (Opus apex, via `/relay human`):**
+    **symlink-old→new + run-when-idle, symlink kept permanently as the safety net.**
+    Migration script `relay/scripts/migrate-state-dirs.sh` does, in order: (1) PRECONDITION
+    — refuse unless no relay pool is active (no fresh `RELAY_STATUS.md` touch within
+    `RELAY_ACTIVE_SECS`, and `claim.sh` registry shows no live holder); (2) `mkdir -p
+    ~/.config/relay ~/.cache/relay`; (3) `mv` the contents over; (4) replace each old dir
+    with a symlink `~/.config/fables-turn → ~/.config/relay`, `~/.cache/fables-turn →
+    ~/.cache/relay`. The symlink is the load-bearing back-compat net: any straggler
+    process, cross-session lease, un-updated ref, or older checkout still resolves the old
+    path correctly, so there is NO window where old-path access fails (the only
+    non-atomic gap is between mv and symlink — sub-second, and the idle precondition
+    covers it). Rejected alternatives: dual-read fallback in code (churns every accessor,
+    no upside over a symlink) and hard cutover with no net (re-introduces the
+    in-flight-breakage risk the symlink eliminates). Keep the symlink indefinitely — it is
+    cheap and is the only thing protecting a pool that started before the migration.
+  - **Acceptance** (now UNGATED — bounded hard-execute): (1) `migrate-state-dirs.sh` exists
+    with the idle-precondition guard and is idempotent (re-run is a no-op once symlinks
+    exist); (2) the 33 `fables-turn` refs across the 13 executable files are updated to the
+    new canonical `relay` path in the same change (the symlink covers anything missed, but
+    new code reads the new name); (3) git tags `fable-ckpt-*` are NOT touched (constraint
+    a — scope is the cache/config DIRECTORIES only; the dual-prefix reader already handles
+    tag history); (4) `make test` green; (5) a test asserts the migration's idle-guard
+    refuses while a pool looks active. Run only when no pool is active (the script's own
+    precondition enforces this). HARD retained for the live-migration care, but the design
+    call is made — dispatchable as an Opus hard-execute unit.
 
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
