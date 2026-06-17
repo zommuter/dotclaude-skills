@@ -371,3 +371,7 @@ Review of 2-commit window since relay-ckpt-20260617-1043 (a4cc91b archive chore 
 ## 2026-06-17 11:08 — strong-execute (claude-opus-4-8)
 
 strong-execute id:401c Run 13 strong-model audit (Opus apex, via /relay . --afk). Window = new code since last audit 2026-06-16-1247 (discover-sig.sh, relay-loop.js cache diff, model-probe.sh, settings-env.py, battery). 3 passes, CLEAN — 0 inline fixes, make test 64/0/0. 2 LOW findings tracked (id:4348 discover-sig upstream-no-fetch under-invalidation; id:b9b5 model-probe echo→printf), 3 accepted. Corrected last turn's id:401c mislabel (it's the recurring audit; toml-set was id:c8db done). id:401c recurring → stays open.
+
+## 2026-06-17 11:56 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Review clean: 2 append-only persona additions (Fenn, Lana) verified; suite 64/0 green, no gaming, 0 open ROUTINE
