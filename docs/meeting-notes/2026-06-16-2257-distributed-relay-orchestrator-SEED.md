@@ -1,9 +1,16 @@
 # SEED — Distributed relay orchestrator (multi-machine, dynamic membership)
 
-> **Status: SEED, not a decision.** This is a pre-meeting design brief to give a
-> future `/meeting` a strong starting point. Tracked as ROADMAP id:de4e
-> (`[HARD — strong model]`, decision-gate → `/meeting`). Captured 2026-06-16 from a
-> working session; do NOT implement before the meeting ratifies a substrate.
+> **Status: SEED — MEETING HELD 2026-06-17, premise REJECTED. Do NOT build now.**
+> This was a pre-meeting design brief. The meeting
+> (`docs/meeting-notes/2026-06-17-0953-k3s-parallelity-coordination-design.md`, D1)
+> **rejected this seed's core recommendation** — GitHub-as-control-plane / ref-CAS is a
+> NO-GO (serverless is the point; a GitHub coordination dependency violates it). If a
+> distributed orchestrator is *ever* built, the substrate is **peer rendezvous +
+> degrade-to-solo + optimistic merge-backstop** (NOT pessimistic ref-CAS); see D1.
+> id:de4e stays a SEED and is **deferred** — zomni alone saturates the quota share, so
+> cross-machine throughput is moot. Tracked as ROADMAP id:de4e (`[HARD — strong
+> model]`). **Read the sections below as the rejected candidate, not a plan** — every
+> ref-CAS / `git push --force-with-lease` mechanism here is explicitly off the table.
 
 ## Problem
 
