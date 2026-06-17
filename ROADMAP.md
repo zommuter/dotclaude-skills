@@ -953,3 +953,38 @@ after D1–D3") stay in TODO.md — not executor work yet.
     open-item orphan NOT dispatched + IS surfaced; closed-item orphan does not suppress.
   - **Done-check**: tick this box, then
     `tests/run-tests.sh tests/test_relay_orphan_suppress_redispatch.sh`, then full `make test` green.
+
+## Model probe (id:dba3 deliverable)
+
+Sub-items of the `[HARD — strong model]` umbrella id:dba3. Design fully settled in
+`docs/meeting-notes/2026-06-17-0836-opus-degradation-investigation.md` (D2/D5/D6) and
+`docs/meeting-notes/2026-06-17-0905-model-probe-tos-and-band.md` (D1/D2). Promoted to
+ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `[HARD]`.
+
+- [x] Build `tools/model-probe.sh` + `tools/model-probe.battery.jsonl` + log schema [ROUTINE] (done 2026-06-17) <!-- id:c345 -->
+  - **Acceptance**: `tools/model-probe.sh grade`, `battery-version`, and the JSONL log all
+    work offline (no model call). `model-probe.sh grade <regex> <output>` exits 0 on match,
+    1 on mismatch. `model-probe.sh battery-version` prints the battery's `version` field.
+    In mock mode (`PROBE_MOCK_RESPONSE` set), a run over a tiny battery writes a complete,
+    valid-JSON log line with all D2+D1 fields. Real mode (`claude -p` as probe OS user with
+    empty `~/.claude`) is wired but gated on the probe OS user (id:d0c0) — seeding is id:23e9.
+  - **Tests**: `tests/test_model_probe.sh` (`# roadmap:040a` — 040a tests the 040a contract,
+    which covers c345's offline surface) (currently RED until 040a is ticked).
+  - **Done-check**: `tests/run-tests.sh tests/test_model_probe.sh` then full `make test` after
+    ticking both id:c345 and id:040a.
+  - **Context**: D2 log schema fields: `{ts, battery_version, model, item_id, pass, latency_s,
+    out_tokens, tok_per_s, model_id_str, fingerprint, cli_version, quota_tier, os_user,
+    config_hash}`. Invocation: shape A = `claude -p` as dedicated probe OS user (id:d0c0);
+    shape B = `claude --bare -p` + `ANTHROPIC_API_KEY` (latent fallback). Scope guards: no
+    LLM-judge, no dashboard, no scheduler; no seeding (id:23e9); no `useradd` (id:d0c0).
+
+- [x] Write `tests/test_model_probe.sh` — hermetic offline contract tests [ROUTINE] (done 2026-06-17) <!-- id:040a -->
+  - **Acceptance**: hermetic, `mktemp -d`, no network, no `~/.claude` touch. Covers:
+    (1) `grade` subcommand pass/fail; (2) log format — all D2+D1 fields present in mock-mode
+    run; (3) battery-version propagated from fixture battery into log line; (4) empty-config
+    assertion — `PROBE_HOME` pointing to a dir with a `CLAUDE.md` causes non-zero exit.
+  - **Tests**: `tests/test_model_probe.sh` (`# roadmap:040a`) (currently RED).
+  - **Done-check**: `tests/run-tests.sh tests/test_model_probe.sh` then full `make test` after
+    ticking both id:040a and id:c345.
+  - **Context**: resolves id:6ffe (the placeholder for adding `# roadmap:` linkage once the
+    ROADMAP item is open). Both c345 and 040a must be ticked together — the test covers both.

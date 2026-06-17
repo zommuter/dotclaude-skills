@@ -82,3 +82,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - ⚖️ **Cleo** — data-acquisition legality / platform-ToS / third-party-privacy lens; single-subject vs bulk risk gradient, network-specific TOS analysis, two-limb automated-access analysis (API-key limb vs explicit-permission limb in Consumer Terms §3), live-fetch-not-from-memory ToS reading pattern. Extended 2026-06-17 (dotclaude-skills/model-probe-tos-and-band).
 
 - 📊 **Lexi** — Lean Six Sigma / DMAIC / SPC lens; Measurement System Analysis, control charts, pre-registration discipline (commit the formula not the number), small-n caveat (n=5 σ is garbage — start with a wide robust band), c-chart for pass/fail counts, individuals chart for throughput. Extended 2026-06-17 (dotclaude-skills/model-probe-tos-and-band).
+
+- 🌐 **Edda** — Cloudflare edge / DNS / tunnel-topology lens; cert tiers (universal vs ACM), orange-cloud port restrictions, wildcard namespace ownership, tunnel-ingress routing. Introduced 2026-06-17 (zomni/zomni-local-port-routing-scheme).
