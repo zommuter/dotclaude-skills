@@ -379,3 +379,7 @@ Review clean: 2 append-only persona additions (Fenn, Lana) verified; suite 64/0 
 ## 2026-06-17 13:26 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 id:10c0 done: rename relay state dirs fables-turn→relay (migrate-state-dirs.sh + 14 file path updates); make test green (65)
+
+## 2026-06-17 15:45 — reviewer (claude-opus-4-8)
+
+id:401c Run 14: adversarial audit of id:bbd2 migration — 4 defects fixed inline (HIGH jsonl trailing-newline fusion + 3 MED), test 9→12, suite 66/66; id:16e9 flaky test tracked
