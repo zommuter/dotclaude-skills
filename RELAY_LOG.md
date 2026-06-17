@@ -359,3 +359,7 @@ Worked id:9cb1 — attribution analysis for discover-shard econ bucket. Code tra
 ## 2026-06-17 — executor (sonnet)
 
 Worked id:c345 + id:040a — build the standing model-probe deliverable (sub-items of [HARD] id:dba3). Promoted both to ROADMAP.md as [ROUTINE] items (single-id-two-views; design fully settled by two meetings today). Wrote `tests/test_model_probe.sh` RED first (4 offline contracts: grade pass/fail, log-field validation in mock mode, battery-version propagation, dirty-probe-home refusal), then implemented `tools/model-probe.sh` (grade/battery-version offline subcommands; run mode with PROBE_MOCK_RESPONSE/PROBE_LOG_PATH/PROBE_HOME overrides; config-clean assertion; 15-item `tools/model-probe.battery.jsonl`; shape A probe-user invocation + latent shape B). Both boxes ticked; id:6ffe closed. Suite 64/0. Seeding (id:23e9) left open — gated on probe OS user (id:d0c0). Friction: none — spec was complete from the meetings.
+
+## 2026-06-17 10:43 — reviewer (claude-opus-4-8)
+
+Review of 18-commit window since relay-ckpt-20260616-2241 (today's /meeting design-ledger + relay feature commits). gaming-scan clean (0 flags); make test 64/0/0 (new test files green); contract pointer v4 current. Closed id:0b11 (annotated distributed-orchestrator SEED note with 2026-06-17 D1 ruling — ref-CAS rejected). D2 lease cluster (c144/148b/debf/179e) qualified as load-bearing-coupled → dedicated bundled handoff, not independent ROUTINE. Spec-drift fix: model-probe.sh+battery, settings-env.py added to CLAUDE.md tools/ row. routine_open=0.
