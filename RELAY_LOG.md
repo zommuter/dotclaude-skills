@@ -363,3 +363,7 @@ Worked id:c345 + id:040a — build the standing model-probe deliverable (sub-ite
 ## 2026-06-17 10:43 — reviewer (claude-opus-4-8)
 
 Review of 18-commit window since relay-ckpt-20260616-2241 (today's /meeting design-ledger + relay feature commits). gaming-scan clean (0 flags); make test 64/0/0 (new test files green); contract pointer v4 current. Closed id:0b11 (annotated distributed-orchestrator SEED note with 2026-06-17 D1 ruling — ref-CAS rejected). D2 lease cluster (c144/148b/debf/179e) qualified as load-bearing-coupled → dedicated bundled handoff, not independent ROUTINE. Spec-drift fix: model-probe.sh+battery, settings-env.py added to CLAUDE.md tools/ row. routine_open=0.
+
+## 2026-06-17 10:56 — reviewer (claude-opus-4-8)
+
+Review of 2-commit window since relay-ckpt-20260617-1043 (a4cc91b archive chore + 1679960 /relay human triage write-back). Ledger/doc-only — no code or test changes; gaming-scan clean; make test 64/0/0. Confirmed last turn's id:10c0 ungating is sound (symlink-old→new + run-when-idle design coherent, acceptance concrete). routine_open=0. Repo now carries 2 open [HARD] hard-execute units ready for the default pool: id:401c (toml-set hardening) + id:10c0 (state-dir rename).
