@@ -72,3 +72,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🛠️ **Sven** — systemd --user units, .path/.timer edge-trigger semantics, keyring preconditions under the user session manager, oneshot restart behaviour. Introduced 2026-06-16 (zkm-whatsapp/w10-auto-decryption-install-readiness).
 
 - 🔧 **Quinn** — inference-server internals lens; llama.cpp/llama-server mmap/warmup/mlock mechanics, KV-cache, cold-start latency decomposition (llama_load_s vs first_byte_s), /health poll patterns. Introduced 2026-06-16 (zelegator/fievel-cold-start-mitigation).
+
+- 📊 **Cal** — probability-calibration / uncertainty-quantification lens; reliability curves, Beta-Binomial small-sample intervals, isotonic vs Platt, self-anchored-prior traps, calibrate-the-measurement-device framing. Introduced 2026-06-17 (chidiai/calibrated-credibility-decision-log).
