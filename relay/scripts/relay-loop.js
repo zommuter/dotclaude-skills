@@ -376,6 +376,16 @@ const PRELUDE_SCHEMA = {
     liveClaimRepos: { type: 'array', items: { type: 'string' } },
     injectedUnits: DISCOVER_SCHEMA.properties.units,
     skippedConfig: DISCOVER_SCHEMA.properties.skipped,
+    // id:c3a6 — per-repo SUPERSET signature from discover-sig.sh; runRound reuses a cached verdict
+    // for any repo whose signature is unchanged round-to-round (content-addressed discovery cache).
+    signatures: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['repo', 'sig'],
+        properties: { repo: { type: 'string' }, sig: { type: 'string' } },
+      },
+    },
   },
 }
 const SHARD_SCHEMA = {
@@ -522,16 +532,37 @@ const prelude = await agent(
 3. repos: read ~/.config/fables-turn/relay.toml; for EVERY block with classification = "own" emit {repo, path (default ~/src/<name>, or the "# path:" comment override), income (true iff income = true)}.
 4. skippedConfig (id:be62): for every block whose classification is NOT "own" emit {repo, reason: "excluded-by-config (<classification>)"}. The shards never see non-own repos.
 5. liveClaimRepos: run ~/.claude/skills/relay/scripts/claim.sh peek once — it prints every LIVE cross-session claim as one JSON per line ({key,repo,runId,...}); return the SET of distinct "repo" values. [] if none.
-6. injectedUnits (id:baf1): run ~/.claude/skills/relay/scripts/inject.sh take EXACTLY ONCE — it atomically emits AND CONSUMES pending user-injected units, one JSON per line {token, repo, verdict, item, prompt, requested_at}. For EACH, emit one unit: {injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>, path:(resolve ~/src/<repo> or the "# path:" override), reason:"user-injected high-priority task", inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false, hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"", intensive:""}. [] if take emits nothing. NEVER run take more than once (it consumes).`,
+6. injectedUnits (id:baf1): run ~/.claude/skills/relay/scripts/inject.sh take EXACTLY ONCE — it atomically emits AND CONSUMES pending user-injected units, one JSON per line {token, repo, verdict, item, prompt, requested_at}. For EACH, emit one unit: {injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>, path:(resolve ~/src/<repo> or the "# path:" override), reason:"user-injected high-priority task", inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false, hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"", intensive:""}. [] if take emits nothing. NEVER run take more than once (it consumes).
+7. signatures (id:c3a6 — discovery cache): compute a per-repo SUPERSET signature so the supervisor can skip re-classifying (an LLM shard) a repo whose observable state is unchanged since last round. Build ONE JSON object {"repos":[{"repo":<repo>,"path":<path>} for EVERY own repo from step 3],"liveClaims":<the liveClaimRepos array from step 5>} and pipe it on stdin to ~/.claude/skills/relay/scripts/discover-sig.sh. The script emits one JSON line per repo {"repo":<repo>,"sig":<sha256-hex or "">} — return them verbatim as "signatures". An EMPTY sig is a fail-open sentinel (the script could not read the repo): pass it through unchanged, do NOT invent a hash. Do this ONCE for all own repos; do NOT classify here. ([] only if there are zero own repos.)`,
   { label: 'discover-prelude', phase: 'Discover', schema: PRELUDE_SCHEMA, model: 'sonnet' }
 )
 
 let discovery = null
 if (prelude && Array.isArray(prelude.repos)) {
   const ownRepos = prelude.repos
-  const SHARDS = Math.max(1, Math.min(DISCOVER_SHARDS, ownRepos.length))
-  // round-robin chunk so shards are balanced regardless of repo order
-  const chunks = Array.from({ length: SHARDS }, (_, s) => ownRepos.filter((_, idx) => idx % SHARDS === s)).filter(c => c.length)
+  // ── Content-addressed discovery cache (id:c3a6) ──
+  // The classifier shards used to re-run fresh EVERY round, re-classifying repos whose observable
+  // state hadn't changed — the bulk of the on-critical-path "status" overhead. Reuse last round's
+  // verdict for any repo whose SUPERSET signature (discover-sig.sh, returned by the prelude as
+  // `signatures`) is byte-identical to the cached one; only changed/new/fail-open repos pay for an
+  // LLM shard. FAIL-OPEN: a missing/empty (sentinel) sig, or a repo absent from the cache, is
+  // treated as CHANGED → re-classified. Over-invalidation is safe; the cache is never a correctness
+  // authority. In-pool transitions are already handled by review→execute chaining, so this only
+  // affects how often we re-derive a repo's verdict, not whether fresh work is seen.
+  state.discoverCache = state.discoverCache || {}
+  const sigByRepo = {}
+  for (const s of (prelude.signatures || [])) if (s && s.repo) sigByRepo[s.repo] = s.sig || ''
+  const changed = [], reusedUnits = []
+  for (const r of ownRepos) {
+    const sig = sigByRepo[r.repo] || ''           // '' = fail-open sentinel → always re-classify
+    const cached = state.discoverCache[r.repo]
+    if (sig && cached && cached.sig === sig && cached.unit) reusedUnits.push(cached.unit)
+    else changed.push(r)
+  }
+  if (reusedUnits.length) log(`relay-loop: discovery cache reused ${reusedUnits.length}/${ownRepos.length} verdict(s) (id:c3a6); re-classifying ${changed.length}`)
+  const SHARDS = Math.max(1, Math.min(DISCOVER_SHARDS, changed.length || 1))
+  // round-robin chunk so shards are balanced regardless of repo order; only CHANGED repos are sharded
+  const chunks = Array.from({ length: SHARDS }, (_, s) => changed.filter((_, idx) => idx % SHARDS === s)).filter(c => c.length)
   const liveClaims = JSON.stringify(prelude.liveClaimRepos || [])
   const shardPrompt = (chunk) => `You are a discovery SHARD classifier for the relay autonomous pool. Classify EXACTLY the own repos in this list (each exactly once, no others) — process each independently:
 ${JSON.stringify(chunk)}
@@ -589,13 +620,18 @@ Per-repo fields to set on each unit you emit:
 SKIPPED ROLLUP (id:be62): populate "skipped" with every repo from YOUR list that you classified "idle" → {repo, reason: "idle — in sync, no open work"}. (Non-own/excluded repos are the prelude's job — not yours.) This is distinct from "surfaced" (needs-attention: dirty / diverged / claimed-elsewhere / stale-worktree).
 
 Return {units, surfaced, skipped} covering EXACTLY the repos in your list — each appears exactly once across units (verdict "idle" included) and surfaced; an idle repo ALSO gets a "skipped" entry.`
-  const shardResults = await parallel(chunks.map((chunk) => () =>
-    agent(shardPrompt(chunk), { label: `discover-shard:${chunk.length}`, phase: 'Discover', schema: SHARD_SCHEMA })
-  ))
-  // Merge the shard classifications + the prelude's injected units + non-own skipped rollup
-  // into the single discovery object the rest of runRound consumes (byte-identical shape).
+  // Only CHANGED repos pay for an LLM shard (id:c3a6); a round where every repo is cached runs
+  // zero shards and is still a valid round (shardOk seeded true below).
+  const shardResults = changed.length
+    ? await parallel(chunks.map((chunk) => () =>
+        agent(shardPrompt(chunk), { label: `discover-shard:${chunk.length}`, phase: 'Discover', schema: SHARD_SCHEMA, model: 'sonnet' })
+      ))
+    : []
+  // Merge the shard classifications + the cached (reused) verdicts + the prelude's injected units +
+  // non-own skipped rollup into the single discovery object the rest of runRound consumes
+  // (byte-identical shape).
   const units = [], surfaced = [], skipped = [...(prelude.skippedConfig || [])]
-  let shardOk = false
+  let shardOk = changed.length === 0  // all repos served from cache → valid round, zero shards (id:c3a6)
   shardResults.forEach((r, i) => {
     if (!r) {
       // Network-resilience: a discover shard that died (transient API / connection drop, AFTER
@@ -614,6 +650,12 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
     surfaced.push(...(r.surfaced || []))
     skipped.push(...(r.skipped || []))
   })
+  // id:c3a6 — cache the FRESHLY-classified units keyed by this round's signature, THEN fold in the
+  // reused (cached) verdicts. Reused units already sit in the cache under the same sig, so only fresh
+  // ones are written. Surfaced / idle-without-unit repos are NOT cached → they re-classify next round
+  // (safe over-invalidation). Injected units are never cached (consumed each round by inject.sh take).
+  for (const u of units) { const sig = sigByRepo[u.repo]; if (sig) state.discoverCache[u.repo] = { sig, unit: u } }
+  units.push(...reusedUnits)
   units.push(...(prelude.injectedUnits || []))
   // shardOk = at least one shard succeeded → build discovery (failed shards' repos are surfaced).
   // All shards failed (total network outage) → discovery stays null → the round fails gracefully
