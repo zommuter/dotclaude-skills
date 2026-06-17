@@ -367,3 +367,7 @@ Review of 18-commit window since relay-ckpt-20260616-2241 (today's /meeting desi
 ## 2026-06-17 10:56 — reviewer (claude-opus-4-8)
 
 Review of 2-commit window since relay-ckpt-20260617-1043 (a4cc91b archive chore + 1679960 /relay human triage write-back). Ledger/doc-only — no code or test changes; gaming-scan clean; make test 64/0/0. Confirmed last turn's id:10c0 ungating is sound (symlink-old→new + run-when-idle design coherent, acceptance concrete). routine_open=0. Repo now carries 2 open [HARD] hard-execute units ready for the default pool: id:401c (toml-set hardening) + id:10c0 (state-dir rename).
+
+## 2026-06-17 11:08 — strong-execute (claude-opus-4-8)
+
+strong-execute id:401c Run 13 strong-model audit (Opus apex, via /relay . --afk). Window = new code since last audit 2026-06-16-1247 (discover-sig.sh, relay-loop.js cache diff, model-probe.sh, settings-env.py, battery). 3 passes, CLEAN — 0 inline fixes, make test 64/0/0. 2 LOW findings tracked (id:4348 discover-sig upstream-no-fetch under-invalidation; id:b9b5 model-probe echo→printf), 3 accepted. Corrected last turn's id:401c mislabel (it's the recurring audit; toml-set was id:c8db done). id:401c recurring → stays open.
