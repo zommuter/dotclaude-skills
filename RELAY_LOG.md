@@ -351,3 +351,7 @@ review since relay-ckpt-20260616-2034: gaming-scan clean, loop-hint.sh verified;
 ## 2026-06-16 22:41 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review since relay-ckpt-20260616-2204: Quinn persona append (doc-only) clean; gaming-scan clean, suite 60/0, 0 open ROUTINE
+
+## 2026-06-17 — executor (sonnet)
+
+Worked id:9cb1 — attribution analysis for discover-shard econ bucket. Code trace: relay-loop.js:537/627 pass `phase:'Discover'`; profile-run.sh:140 heuristic maps to `"discover"`; relay-econ.py:36 `PHASE_CAT` maps `"discover"` → **`"scaffold"`** bucket (not `"status"`). Updated ROADMAP.md and TODO.md id:9cb1 lines with the resolved attribution and the exact post-run verification command. No post-fix pool-run data exists yet; id:9cb1 left open. No code changes to relay-econ.py (additive --phase view assessed as unnecessary given documented command suffices). suite 62/0. Friction: none — pure code-read + ledger update, correctly scoped.
