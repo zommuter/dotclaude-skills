@@ -375,3 +375,7 @@ strong-execute id:401c Run 13 strong-model audit (Opus apex, via /relay . --afk)
 ## 2026-06-17 11:56 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Review clean: 2 append-only persona additions (Fenn, Lana) verified; suite 64/0 green, no gaming, 0 open ROUTINE
+
+## 2026-06-17 13:26 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+id:10c0 done: rename relay state dirs fables-turn→relay (migrate-state-dirs.sh + 14 file path updates); make test green (65)
