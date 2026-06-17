@@ -79,16 +79,21 @@ pool_active() {
     fi
   fi
 
-  # (b) live claim registry.
-  local claim_sh claim_base live
+  # (b) live claim registry. FAIL CLOSED (assume active) if the tool errors — the
+  # guard is the only gate before destructive mv/rm, so an unreadable registry must
+  # not be mistaken for "no holders" (audit id:401c MED). Peek BOTH bases (a pool that
+  # already migrated to NEW holds claims under NEW even while OLD still exists).
+  local claim_sh bases b out rc
   claim_sh="$SCRIPT_DIR/claim.sh"
   if [ -x "$claim_sh" ]; then
-    claim_base="${CLAIM_BASE:-}"
-    if [ -z "$claim_base" ]; then
-      if [ -e "$CONFIG_OLD/claims" ] || [ -d "$CONFIG_OLD" ]; then claim_base="$CONFIG_OLD"; else claim_base="$CONFIG_NEW"; fi
-    fi
-    live="$(CLAIM_BASE="$claim_base" "$claim_sh" peek 2>/dev/null | grep -c . || true)"
-    if [ "${live:-0}" -gt 0 ]; then log "guard: claim.sh peek shows $live live holder(s)"; return 0; fi
+    if [ -n "${CLAIM_BASE:-}" ]; then bases="$CLAIM_BASE"; else bases="$CONFIG_OLD $CONFIG_NEW"; fi
+    for b in $bases; do
+      out="$(CLAIM_BASE="$b" "$claim_sh" peek 2>/dev/null)"; rc=$?
+      if [ "$rc" -ne 0 ]; then
+        log "guard: claim.sh peek errored (rc=$rc, base=$b) — failing CLOSED (assume active)"; return 0
+      fi
+      if [ -n "$out" ]; then log "guard: live holder(s) at $b — pool active"; return 0; fi
+    done
   fi
   return 1
 }
@@ -108,18 +113,29 @@ reconcile_entry() {
   fi
 
   if [ -d "$src" ] && [ -d "$dest" ]; then
-    # union: copy OLD children that don't already exist in NEW, then drop OLD.
-    cp -an "$src/." "$dest/" 2>/dev/null || cp -rn "$src/." "$dest/" 2>/dev/null || true
-    rm -rf "$src"; log "union dir: $base"; return 0
+    # union: copy OLD children that don't already exist in NEW, then drop OLD —
+    # but ONLY drop OLD if the copy fully SUCCEEDED. A swallowed partial cp (ENOSPC,
+    # I/O error, unreadable child) followed by an unconditional rm -rf would silently
+    # lose the un-copied children (audit id:401c MED). cp -n skipping is not an error.
+    if cp -an "$src/." "$dest/" || cp -rn "$src/." "$dest/"; then
+      rm -rf "$src"; log "union dir: $base"; return 0
+    fi
+    log "WARN: dir-union copy failed for $base — leaving src in place, NOT dropping"; return 1
   fi
 
   if [ -f "$src" ]; then
     case "$base" in
       *.jsonl)
         # append-only log → union of lines (stable, deduped). No history lost.
+        # `awk 1` re-emits each input with a trailing ORS, so a src file missing its
+        # final newline cannot fuse its last record onto dest's first (audit id:401c
+        # HIGH — `cat` would have concatenated them into one corrupt line).
         local tmp; tmp="$(mktemp)"
-        cat "$src" "$dest" | awk '!seen[$0]++' > "$tmp"
-        mv "$tmp" "$dest"; rm -f "$src"; log "merge jsonl: $base"; return 0 ;;
+        if awk 1 "$src" "$dest" | awk 'NF && !seen[$0]++' > "$tmp"; then
+          chmod --reference="$dest" "$tmp" 2>/dev/null || true   # preserve dest perms (don't force 0600)
+          mv "$tmp" "$dest"; rm -f "$src"; log "merge jsonl: $base"; return 0
+        fi
+        rm -f "$tmp"; log "WARN: jsonl merge failed for $base — leaving src in place"; return 1 ;;
       *)
         # snapshot / other file → newest mtime wins.
         if [ "$src" -nt "$dest" ]; then mv -f "$src" "$dest"; log "newer wins (old): $base"
@@ -163,7 +179,13 @@ migrate_dir() {
 }
 
 main() {
-  if [ "$ASSUME_IDLE" != "1" ] && pool_active; then
+  if [ "$ASSUME_IDLE" = "1" ]; then
+    # Loud stderr warning (not just the file log): this bypass is read from the ambient
+    # env and is meant for hermetic tests — a stale exported var must not silently
+    # disable the only live-pool protection on a real run (audit id:401c MED).
+    echo "migrate-state-dirs.sh: WARNING — idle guard BYPASSED (RELAY_MIGRATE_ASSUME_IDLE/MIGRATE_SKIP_GUARD=1). Intended for tests only." >&2
+    log "guard BYPASSED via ASSUME_IDLE"
+  elif pool_active; then
     echo "migrate-state-dirs.sh: a relay pool looks active — refusing to migrate. Re-run when idle." >&2
     log "REFUSED: pool active"; exit 3
   fi

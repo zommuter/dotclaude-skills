@@ -121,4 +121,38 @@ run
 [[ -f "$CACHE_NEW/worktrees/repoX/file" ]] || fail "t9: cache worktree content not migrated"
 pass "cache dir migrated + symlinked like config"
 
+# ── 10. jsonl merge where SRC lacks a trailing newline → no record fusion/loss ──
+# (audit id:401c HIGH: `cat src dest` would fuse src's last line onto dest's first.)
+setup t10
+printf '{"e":1}\n{"e":2}' > "$CFG_OLD/relay-events.jsonl"   # NO trailing newline
+printf '{"e":3}\n{"e":4}\n' > "$CFG_NEW/relay-events.jsonl"
+run
+for e in 1 2 3 4; do
+  grep -qx "{\"e\":$e}" "$CFG_NEW/relay-events.jsonl" || fail "t10: record {\"e\":$e} missing/fused (no-trailing-newline src)"
+done
+[[ "$(wc -l < "$CFG_NEW/relay-events.jsonl")" -eq 4 ]] || fail "t10: expected exactly 4 lines, got $(wc -l < "$CFG_NEW/relay-events.jsonl")"
+pass "jsonl merge: src without trailing newline → no fusion, all records intact"
+
+# ── 11. snapshot in BOTH, NEW newer → NEW kept (the other half of newest-wins) ──
+setup t11
+printf 'OLD-status\n' > "$CFG_OLD/RELAY_STATUS.md"
+printf 'NEW-status\n' > "$CFG_NEW/RELAY_STATUS.md"
+touch -d '2020-01-01' "$CFG_OLD/RELAY_STATUS.md"   # OLD older
+touch -d '2020-06-01' "$CFG_NEW/RELAY_STATUS.md"   # NEW newer → should win
+run
+grep -q 'NEW-status' "$CFG_NEW/RELAY_STATUS.md" || fail "t11: newer (new) snapshot should have been kept"
+pass "snapshot file: NEW newer → NEW kept"
+
+# ── 12. type mismatch (OLD entry is a dir, NEW same name is a file) → exit 1, no mutation ──
+setup t12
+mkdir -p "$CFG_OLD/relay.toml"                      # dir in OLD
+printf 'x\n' > "$CFG_OLD/relay.toml/inner"
+printf 'file\n' > "$CFG_NEW/relay.toml"             # file in NEW (same name)
+rc=0
+run || rc=$?
+[[ "$rc" -ne 0 ]] || fail "t12: type-mismatch should make migration exit non-zero (got 0)"
+[[ -d "$CFG_OLD" && ! -L "$CFG_OLD" ]] || fail "t12: OLD must NOT be symlinked on unresolved mismatch"
+[[ -f "$CFG_OLD/relay.toml/inner" ]] || fail "t12: OLD data must be left intact on mismatch"
+pass "type mismatch: refuses (exit≠0), leaves OLD intact, does not symlink"
+
 echo "ALL PASS (test_migrate_state_dirs.sh)"
