@@ -10,19 +10,12 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] On 2026-06-17: investigate suspected Opus quality degradation (evening 2026-06-16) [HARD — strong model] <!-- id:dba3 -->
-  - **Human/judgment investigation (do NOT auto-execute).** User flagged that Opus output
-    seemed degraded the evening of 2026-06-16. Full evidence + hypotheses are in the memory
-    `~/.claude/projects/-home-tobias-src-project-manager/memory/opus-quality-degradation-20260616.md`.
-  - **Evidence:** (1) toesnail privacy scrub left a *lightweight* checkpoint tag after a history
-    rewrite (sloppy tag handling); (2) an Opus session misdiagnosed `~/src/zkm/plugins/zkm-*`
-    as "on another machine"; (3) over-engineered the `~/.claude` branch-split (2 user
-    corrections); (4) weaker statistics output vs the prior day.
-  - **Hypotheses to test:** model-serving regression **vs.** long-session context degradation
-    (the 2026-06-16 evening session ran very long) — check whether errors cluster in
-    late/long-context turns; diff today's vs yesterday's `relay-econ.py`/output artifacts;
-    check Anthropic status/model version for the window. If real, it affects relay
-    executor/review quality fleet-wide (cross-ref id:c3a6).
+- [ ] Opus quality-degradation investigation + standing model-probe deliverable [HARD — strong model] <!-- id:dba3 -->
+  - **Meeting held 2026-06-17** (`docs/meeting-notes/2026-06-17-0836-opus-degradation-investigation.md`). **Investigation expected inconclusive** (n=4 anecdotes, n=1 sessions, no prior baseline — self-anchored prior). Real deliverable = the standing probe. Close this item once id:2d01+c345+040a+23e9 land and the baseline is seeded.
+  - **Evidence source:** memory `opus-quality-degradation-20260616.md`; 4 incidents from session `bf9dd9e5` (1213 lines / 2.4M tokens — very long; confound). Key hypotheses: long-context fatigue vs wall-clock duration (idle-gap / KV-cache rot) vs model-serving regression.
+  - **Investigation steps (id:903a, e3c0, 241c):** three-axis turn-cluster (`context_depth`, `elapsed_wall_time`, `idle_gap_before_error`) on `bf9dd9e5` + yesterday's last `/relay` session; cold fixed-prompt probe re-posing incidents #2/#3; Anthropic status/version check.
+  - **Durable deliverable (id:2d01, c345, 040a, 23e9, 6ffe):** `tools/model-probe.sh` + versioned `tools/model-probe.battery.jsonl` (~15–20 timeless items) + append-only log capturing resolved model-id-str + frontend metadata + tok_per_s; three-tier (Opus + Sonnet + Haiku); pre-registered acceptance band; 2-consecutive-miss alarm. Invocation path GATED on ToS pre-check (id:2d01). Cadence = on-demand seed now, cron deferred.
+  - **Detection rule:** flag only on **2 consecutive** out-of-band runs; tokens/sec is the weak silent-swap hedge (silent same-label swap near-unprovable without baseline; the probe is what makes the NEXT suspicion answerable).
 
 - [x] ⭐ HIGH PRIORITY: cut relay status/overhead cost (~35% of spend, low-concurrency, on the critical path) [HARD — strong model] <!-- id:c3a6 -->
   - **DONE 2026-06-17** (Opus `/meeting`, `docs/meeting-notes/2026-06-17-0721-relay-status-overhead-cost.md`). Two changes, both in `relay/scripts/relay-loop.js` + new `relay/scripts/discover-sig.sh`; `make test` green (62), TDD `tests/test_discover_sig.sh` + `tests/test_discover_cache.sh`.

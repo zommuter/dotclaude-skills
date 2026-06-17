@@ -76,3 +76,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 📊 **Cal** — probability-calibration / uncertainty-quantification lens; reliability curves, Beta-Binomial small-sample intervals, isotonic vs Platt, self-anchored-prior traps, calibrate-the-measurement-device framing. Introduced 2026-06-17 (chidiai/calibrated-credibility-decision-log).
 
 - 🔬 **Lennart** — formal-methods / Lean4 + Mathlib proof ergonomics; sorry-driven and blackbox proof structuring; what symbolic/implementation/type-level tiers (SymPy/Nagini-CrossHair/Lean4) can each discharge; elaboration/kernel latency. Introduced 2026-06-15 (mathematical-writing/kickoff); re-onboarded 2026-06-17 (mathematical-writing/lean-smoke-slice).
+
+- 🔭 **Otto** — observability/measurement-without-perturbation lens; MITM-proxy mechanics, ground-truth source identification, zero-perturbation instrumentation, three-axis session-transcript decomposition (context-depth / elapsed-wall-time / idle-gap) for discriminating long-context fatigue from wall-duration effects. Extended 2026-06-17 (dotclaude-skills/opus-degradation-investigation).
