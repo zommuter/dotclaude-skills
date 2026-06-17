@@ -84,3 +84,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 📊 **Lexi** — Lean Six Sigma / DMAIC / SPC lens; Measurement System Analysis, control charts, pre-registration discipline (commit the formula not the number), small-n caveat (n=5 σ is garbage — start with a wide robust band), c-chart for pass/fail counts, individuals chart for throughput. Extended 2026-06-17 (dotclaude-skills/model-probe-tos-and-band).
 
 - 🌐 **Edda** — Cloudflare edge / DNS / tunnel-topology lens; cert tiers (universal vs ACM), orange-cloud port restrictions, wildcard namespace ownership, tunnel-ingress routing. Introduced 2026-06-17 (zomni/zomni-local-port-routing-scheme).
+
+- 🛡️ **Fenn** — host-firewall / attack-surface lens: default-deny vs denylist, fail-safe-off-LAN, SSH-lockout avoidance, per-network trust (home vs public WLAN), listening-port inventory as the design input. Introduced 2026-06-17 (zomni/zomni-firewall-public-wlan-hardening).
