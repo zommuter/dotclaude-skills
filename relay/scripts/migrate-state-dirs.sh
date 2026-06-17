@@ -11,53 +11,60 @@
 # pool looks active, and (b) leave a permanent symlink old→new so any straggler
 # process, cross-session lease, un-updated ref, or older checkout still resolves
 # the OLD path. The symlink is the load-bearing back-compat net (design call
-# RESOLVED 2026-06-17 via /relay human — see ROADMAP id:10c0): there is no window
-# where old-path access fails (the only non-atomic gap is between `mv` and the
-# symlink — sub-second, and the idle precondition covers it).
+# RESOLVED 2026-06-17 via /relay human — see ROADMAP id:10c0).
+#
+# RECONCILE, don't skip (id:bbd2). An earlier version skipped any name already
+# present in NEW and then refused to symlink because OLD wasn't empty — which is
+# exactly how the dirs went split-brain (a rename merged mid-flight left relay.toml
+# in OLD and a divergent relay-events.jsonl in both). So on a collision we MERGE
+# rather than strand:
+#   • append-only logs (*.jsonl)  → union of lines (dedup, stable order); no log lost
+#   • directories (claims/, claims.done/, inject.*/, worktrees/, …) → union children
+#     (NEW wins on a name collision; OLD-only children are moved in)
+#   • snapshots / other files (relay.toml, RELAY_STATUS.md, fable-probe.json, …)
+#     → newest mtime wins
+#   • lock files (*.lock) → dropped (ephemeral; never migrated)
+# After reconciliation OLD is empty, so it is replaced by a symlink → NEW.
 #
 # Idempotent: once each old dir is a symlink to its new dir, a re-run is a no-op.
 #
-# Order per dir:
-#   1. PRECONDITION: refuse unless no relay pool is active
-#      (no fresh RELAY_STATUS.md touch within RELAY_ACTIVE_SECS AND claim.sh peek
-#       shows no live holder).
-#   2. mkdir -p the new dir.
-#   3. mv the OLD dir's contents into the new dir (skip names that already exist
-#      in new — a partial prior run is resumable).
-#   4. replace the now-empty old dir with a symlink old→new.
-#
 # Overrides (for hermetic tests):
-#   HOME                 root for ~/.config and ~/.cache
-#   RELAY_ACTIVE_SECS    staleness window for the RELAY_STATUS.md touch (default 1800)
-#   RELAY_STATUS_PATH    path checked for freshness (default ~/.config/<old>/RELAY_STATUS.md,
-#                        falling back to the new path if old is already a symlink)
-#   CLAIM_BASE           passed through to claim.sh peek (default ~/.config/<old or new>)
-#   MIGRATE_SKIP_GUARD   if "1", skip the idle precondition (tests of the mv/symlink path)
-#   MIGRATE_FORCE_ACTIVE if "1", force the guard to treat the pool as active (refuse) —
-#                        used by tests to assert the guard refuses; never set in prod.
+#   HOME                       root for ~/.config and ~/.cache (default paths below)
+#   RELAY_CFG_OLD/NEW          explicit config old/new dir (overrides HOME-derived)
+#   RELAY_CACHE_OLD/NEW        explicit cache  old/new dir
+#   RELAY_ACTIVE_SECS          staleness window for the RELAY_STATUS.md touch (default 1800)
+#   RELAY_STATUS_PATH          path checked for pool freshness
+#   CLAIM_BASE                 passed through to claim.sh peek
+#   RELAY_MIGRATE_ASSUME_IDLE  "1" → skip the idle precondition (test the mv/symlink path)
+#                              (alias: MIGRATE_SKIP_GUARD)
+#   RELAY_MIGRATE_ASSUME_BUSY  "1" → force the guard to treat the pool as active (refuse)
+#                              (alias: MIGRATE_FORCE_ACTIVE)
+#
+# Exit codes: 0 success/no-op · 3 refused (pool active) · 1 unexpected error.
 set -euo pipefail
 
 OLD_NAME="fables-turn"
 NEW_NAME="relay"
-CONFIG_OLD="$HOME/.config/$OLD_NAME"
-CONFIG_NEW="$HOME/.config/$NEW_NAME"
-CACHE_OLD="$HOME/.cache/$OLD_NAME"
-CACHE_NEW="$HOME/.cache/$NEW_NAME"
+CONFIG_OLD="${RELAY_CFG_OLD:-$HOME/.config/$OLD_NAME}"
+CONFIG_NEW="${RELAY_CFG_NEW:-$HOME/.config/$NEW_NAME}"
+CACHE_OLD="${RELAY_CACHE_OLD:-$HOME/.cache/$OLD_NAME}"
+CACHE_NEW="${RELAY_CACHE_NEW:-$HOME/.cache/$NEW_NAME}"
 
 RELAY_ACTIVE_SECS="${RELAY_ACTIVE_SECS:-1800}"
 LOG="${MIGRATE_LOG:-$HOME/.claude/logs/relay-migrate.log}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-mkdir -p "$(dirname "$LOG")"
+ASSUME_IDLE="${RELAY_MIGRATE_ASSUME_IDLE:-${MIGRATE_SKIP_GUARD:-0}}"
+ASSUME_BUSY="${RELAY_MIGRATE_ASSUME_BUSY:-${MIGRATE_FORCE_ACTIVE:-0}}"
+
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s migrate-state-dirs.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
 # pool_active: true (exit 0) if a relay pool looks active right now.
-#   (a) RELAY_STATUS.md touched within RELAY_ACTIVE_SECS, OR
-#   (b) claim.sh peek emits at least one live claim line.
 pool_active() {
-  [ "${MIGRATE_FORCE_ACTIVE:-0}" = "1" ] && return 0
+  [ "$ASSUME_BUSY" = "1" ] && { log "guard: ASSUME_BUSY"; return 0; }
 
-  # (a) RELAY_STATUS.md freshness — check the configured path, else the old, else the new.
+  # (a) RELAY_STATUS.md freshness — configured path, else old, else new.
   local status_file now mt age
   status_file="${RELAY_STATUS_PATH:-}"
   if [ -z "$status_file" ]; then
@@ -66,82 +73,99 @@ pool_active() {
     fi
   fi
   if [ -n "$status_file" ] && [ -e "$status_file" ]; then
-    now="$(date +%s)"
-    mt="$(stat -c %Y "$status_file" 2>/dev/null || echo 0)"
-    age=$((now - mt))
+    now="$(date +%s)"; mt="$(stat -c %Y "$status_file" 2>/dev/null || echo 0)"; age=$((now - mt))
     if [ "$age" -lt "$RELAY_ACTIVE_SECS" ]; then
-      log "guard: RELAY_STATUS.md fresh (${age}s < ${RELAY_ACTIVE_SECS}s) — pool looks active"
-      return 0
+      log "guard: RELAY_STATUS.md fresh (${age}s < ${RELAY_ACTIVE_SECS}s) — pool looks active"; return 0
     fi
   fi
 
-  # (b) live claim registry — point claim.sh at whichever base resolves.
-  local claim_sh claim_base
+  # (b) live claim registry.
+  local claim_sh claim_base live
   claim_sh="$SCRIPT_DIR/claim.sh"
   if [ -x "$claim_sh" ]; then
     claim_base="${CLAIM_BASE:-}"
     if [ -z "$claim_base" ]; then
-      if [ -e "$CONFIG_OLD/claims" ] || [ -e "$CONFIG_OLD" ]; then claim_base="$CONFIG_OLD"
-      else claim_base="$CONFIG_NEW"; fi
+      if [ -e "$CONFIG_OLD/claims" ] || [ -d "$CONFIG_OLD" ]; then claim_base="$CONFIG_OLD"; else claim_base="$CONFIG_NEW"; fi
     fi
-    local live
     live="$(CLAIM_BASE="$claim_base" "$claim_sh" peek 2>/dev/null | grep -c . || true)"
-    if [ "${live:-0}" -gt 0 ]; then
-      log "guard: claim.sh peek shows $live live holder(s) — pool looks active"
-      return 0
-    fi
+    if [ "${live:-0}" -gt 0 ]; then log "guard: claim.sh peek shows $live live holder(s)"; return 0; fi
   fi
-
   return 1
 }
 
-# migrate_dir <old> <new>: idempotent mv + symlink. No-op if old is already a symlink.
-migrate_dir() {
-  local old="$1" new="$2"
+# reconcile_entry <src-entry> <dest>: merge one OLD entry into NEW per policy.
+reconcile_entry() {
+  local src="$1" dest="$2" base
+  base="$(basename "$src")"
 
-  # Already migrated: old is a symlink (idempotent no-op).
-  if [ -L "$old" ]; then
-    log "no-op: $old is already a symlink → $(readlink "$old")"
-    return 0
+  # Lock files are ephemeral — never migrate them.
+  case "$base" in
+    *.lock) rm -rf "$src"; log "drop lock: $base"; return 0 ;;
+  esac
+
+  if [ ! -e "$dest" ] && [ ! -L "$dest" ]; then
+    mv "$src" "$dest"; return 0
   fi
+
+  if [ -d "$src" ] && [ -d "$dest" ]; then
+    # union: copy OLD children that don't already exist in NEW, then drop OLD.
+    cp -an "$src/." "$dest/" 2>/dev/null || cp -rn "$src/." "$dest/" 2>/dev/null || true
+    rm -rf "$src"; log "union dir: $base"; return 0
+  fi
+
+  if [ -f "$src" ]; then
+    case "$base" in
+      *.jsonl)
+        # append-only log → union of lines (stable, deduped). No history lost.
+        local tmp; tmp="$(mktemp)"
+        cat "$src" "$dest" | awk '!seen[$0]++' > "$tmp"
+        mv "$tmp" "$dest"; rm -f "$src"; log "merge jsonl: $base"; return 0 ;;
+      *)
+        # snapshot / other file → newest mtime wins.
+        if [ "$src" -nt "$dest" ]; then mv -f "$src" "$dest"; log "newer wins (old): $base"
+        else rm -f "$src"; log "keep newer (new): $base"; fi
+        return 0 ;;
+    esac
+  fi
+
+  # type mismatch or other oddity — leave OLD's copy aside rather than destroy it.
+  log "WARN: unhandled entry type for $base (src=$src dest=$dest) — leaving in place"
+  return 1
+}
+
+# migrate_dir <old> <new>: idempotent reconcile + symlink. No-op if old is a symlink.
+migrate_dir() {
+  local old="$1" new="$2" rc=0
+
+  if [ -L "$old" ]; then log "no-op: $old already a symlink → $(readlink "$old")"; return 0; fi
 
   mkdir -p "$new"
 
-  # Move contents of old → new (only if old exists as a real dir).
   if [ -d "$old" ]; then
-    # Move each entry (including dotfiles), skipping any that already exist in new
-    # so a partial prior run is resumable.
-    local entry base
+    local entry
     shopt -s dotglob nullglob
     for entry in "$old"/*; do
-      base="$(basename "$entry")"
-      if [ -e "$new/$base" ] || [ -L "$new/$base" ]; then
-        log "skip existing in new: $base"
-        continue
-      fi
-      mv "$entry" "$new/$base"
+      reconcile_entry "$entry" "$new/$(basename "$entry")" || rc=1
     done
     shopt -u dotglob nullglob
-    # Remove the now-(should-be-)empty old dir; refuse loudly if not empty.
     if ! rmdir "$old" 2>/dev/null; then
-      log "WARN: $old not empty after mv — leaving in place, NOT symlinking"
-      echo "migrate-state-dirs.sh: $old not empty after migration; resolve manually" >&2
-      return 1
+      # Everything reconcilable was reconciled; any residue is unexpected.
+      if [ "$rc" -ne 0 ] || [ -n "$(ls -A "$old" 2>/dev/null)" ]; then
+        echo "migrate-state-dirs.sh: $old not empty after reconciliation; resolve manually" >&2
+        log "WARN: $old not empty — NOT symlinking"; return 1
+      fi
+      rmdir "$old"
     fi
   fi
 
-  # Replace old with a permanent symlink → new (the back-compat net).
   ln -s "$new" "$old"
   log "migrated: $old → symlink to $new"
 }
 
 main() {
-  if [ "${MIGRATE_SKIP_GUARD:-0}" != "1" ]; then
-    if pool_active; then
-      echo "migrate-state-dirs.sh: a relay pool looks active — refusing to migrate. Re-run when idle." >&2
-      log "REFUSED: pool active"
-      exit 1
-    fi
+  if [ "$ASSUME_IDLE" != "1" ] && pool_active; then
+    echo "migrate-state-dirs.sh: a relay pool looks active — refusing to migrate. Re-run when idle." >&2
+    log "REFUSED: pool active"; exit 3
   fi
 
   migrate_dir "$CONFIG_OLD" "$CONFIG_NEW"
