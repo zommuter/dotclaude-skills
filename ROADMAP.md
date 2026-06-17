@@ -39,11 +39,19 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     the `min(16, cores-2)` per-workflow local-parallelism ceiling by spreading across
     machines.
   - **Seed brief** (start the meeting here): `docs/meeting-notes/2026-06-16-2257-distributed-relay-orchestrator-SEED.md`.
-  - **Lead candidate**: git-remote-as-control-plane (CAS ref-locks) — leaderless,
-    quorum-free, survives "any combination of PCs (un)available" (k3s/etcd's quorum is
-    the WRONG model for intermittent home PCs). Evolve `claim.sh`'s backend, not a
-    green-field orchestrator. pixel/Termux = cloud-AI HARD/review worker (API-bound),
-    excluded only from `[INTENSIVE]` local-compute units.
+  - **⚠️ MEETING HELD 2026-06-17 — D1 constraints (reframed premise, do NOT build now):**
+    - **GitHub-as-control-plane / ref-CAS REJECTED.** Serverless is the point; GitHub
+      coordination dependency is a no-go.
+    - **If ever built:** peer rendezvous (zomni ↔ fievel try to talk directly); if
+      unreachable → degrade-to-solo (each assumes it is alone, no quorum). Rare
+      split-brain (low-likelihood if both online but cloudflare tunnel fails) caught
+      after the fact by `md-merge.py` line-scoped writes + `--ff-only` reject +
+      `orphan-scan --cross-ledger`. Optimistic concurrency + merge backstop, NOT CAS.
+    - **Deferred reason:** zomni alone exhausted the 7-day→daily quota share 2026-06-16;
+      cross-machine throughput is moot until quota economics change.
+    - See `docs/meeting-notes/2026-06-17-0953-k3s-parallelity-coordination-design.md`.
+  - **Lead candidate**: ~~git-remote-as-control-plane (CAS ref-locks)~~ **REJECTED** —
+    see D1 above. Future candidate: direct peer rendezvous + degrade-to-solo.
   - **Related**: id:ebfb / id:0902 (current single-host claim registry),
     `docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md`.
 
