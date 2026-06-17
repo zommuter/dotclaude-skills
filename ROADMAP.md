@@ -697,6 +697,17 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       (0 ROUTINE / 3 HARD; all three HARD ids `[ ]` in both ROADMAP+TODO, d5e0 agrees).
       Suite 58/0 (audit-only, no test changes). See
       `docs/meeting-notes/2026-06-16-1122-strong-model-audit.md`.
+    - Run 13 (2026-06-17-1102): first-seen code since the last audit (`2026-06-16-1247`) —
+      5 files: `discover-sig.sh` (88L), `relay-loop.js` diff (id:c3a6 cache integration, ~52L),
+      `model-probe.sh` (241L), `settings-env.py` (90L), `model-probe.battery.jsonl`. **Clean —
+      no inline fixes** (code clean to a high bar): discovery cache correctly hashes a superset
+      of the 9 shard inputs, fail-open sound throughout; settings-env.py idempotent/non-clobbering;
+      battery JSONL valid, no secrets. **2 LOW findings tracked**: id:4348 (discover-sig.sh
+      `upstream` read without fetch → bounded origin-behind under-invalidation — needs a measured
+      fetch-vs-accept decision) + id:b9b5 (model-probe.sh grade `echo`→`printf` robustness). 3
+      findings explicitly accepted (awk -v repo-name = id:c8db-class zero-risk; review-range
+      covered by HEAD+tag hashing; probe's no-`--model` = D6 observe-don't-assert by design). Run
+      via `/relay . --afk` (Opus hard-execute). See `docs/meeting-notes/2026-06-17-1102-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
