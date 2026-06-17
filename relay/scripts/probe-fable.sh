@@ -25,10 +25,10 @@
 #       tests can pin staleness deterministically; it falls back to `date -Iseconds`.
 #
 # Env:
-#   PROBE_CACHE   cache path, default ~/.config/fables-turn/fable-probe.json (override for tests)
+#   PROBE_CACHE   cache path, default ~/.config/relay/fable-probe.json (override for tests)
 set -euo pipefail
 
-PROBE_CACHE="${PROBE_CACHE:-$HOME/.config/fables-turn/fable-probe.json}"
+PROBE_CACHE="${PROBE_CACHE:-$HOME/.config/relay/fable-probe.json}"
 STALE_SECS=7200   # 2 hours
 
 usage() {

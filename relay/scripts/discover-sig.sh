@@ -17,12 +17,12 @@
 #      emits one JSON line per repo on stdout: {"repo":"name","sig":"<sha256-hex or empty>"}
 #
 # Env overrides (for hermetic tests; default to the live relay locations):
-#   RELAY_TOML           default ~/.config/fables-turn/relay.toml   (per-repo block: income/intensive/path)
-#   RELAY_WORKTREE_BASE  default ~/.cache/fables-turn/worktrees      (stale/claimed-elsewhere worktree dirs)
+#   RELAY_TOML           default ~/.config/relay/relay.toml   (per-repo block: income/intensive/path)
+#   RELAY_WORKTREE_BASE  default ~/.cache/relay/worktrees      (stale/claimed-elsewhere worktree dirs)
 set -euo pipefail
 
-RELAY_TOML="${RELAY_TOML:-$HOME/.config/fables-turn/relay.toml}"
-RELAY_WORKTREE_BASE="${RELAY_WORKTREE_BASE:-$HOME/.cache/fables-turn/worktrees}"
+RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
+RELAY_WORKTREE_BASE="${RELAY_WORKTREE_BASE:-$HOME/.cache/relay/worktrees}"
 LOG="${HOME}/.claude/logs/relay-discover-sig.log"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 

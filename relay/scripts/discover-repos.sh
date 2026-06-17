@@ -26,7 +26,7 @@ set -euo pipefail
 
 SRC_DIR="${SRC_DIR:-$HOME/src}"
 STATE_JSON="${STATE_JSON:-$HOME/.cache/project_manager/state.json}"
-RELAY_TOML="${RELAY_TOML:-$HOME/.config/fables-turn/relay.toml}"
+RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
 
 # Authors that count as "the user" for the no-remote heuristic.
 OWN_AUTHOR_RE='^(Zommuter|Tobias Kienzler|Claude([ -].*)?)$'

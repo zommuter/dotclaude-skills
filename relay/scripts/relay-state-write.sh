@@ -25,12 +25,12 @@
 #       lines are dropped. This is the durable history substrate behind RELAY_STATUS.md's
 #       snapshot — `tail -f` it for a live event feed.
 #
-# Paths: base = $FABLES_CONFIG (default ~/.config/fables-turn), lock = $BASE/.state-write.lock
+# Paths: base = $FABLES_CONFIG (default ~/.config/relay), lock = $BASE/.state-write.lock
 # (toml-set/status-write: flock fd 9, -w 30; event-append flocks its target file instead).
 # Override $FABLES_CONFIG for hermetic tests.
 set -euo pipefail
 
-BASE="${FABLES_CONFIG:-$HOME/.config/fables-turn}"
+BASE="${FABLES_CONFIG:-$HOME/.config/relay}"
 TOML="$BASE/relay.toml"
 LOCK="$BASE/.state-write.lock"
 LOG="${RELAY_STATE_WRITE_LOG:-$HOME/.claude/logs/relay-state-write.log}"
