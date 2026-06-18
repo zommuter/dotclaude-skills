@@ -1087,3 +1087,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
     ticking both id:040a and id:c345.
   - **Context**: resolves id:6ffe (the placeholder for adding `# roadmap:` linkage once the
     ROADMAP item is open). Both c345 and 040a must be ticked together — the test covers both.
+
+<!-- Direction: autonomous relay orchestration vision -->
