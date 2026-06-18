@@ -391,3 +391,18 @@ review since relay-ckpt-20260617-1545 (24 commits; ~4 feature, rest TODO/meeting
 ## 2026-06-18 11:01 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review since relay-ckpt-20260617-1545: id:11ad/0d31/c855/3ea3 verified genuinely green (gaming-scan clean, suite 71/0/0), ROADMAP re-derived (0 routine, 4 gated hard), no reopens
+
+## 2026-06-18 14:12 — reviewer (claude-opus-4-8, relay-loop)
+
+review since relay-ckpt-20260618-1101 (6 commits): docs/todo-only window — no code or test
+changes. gaming-scan.sh clean; full suite 71 pass / 0 fail / 0 expected-red. §5b reverse-handoff:
+6 new TODO items added by /meeting --cross + manual edits (f1a7 [MEETING] retrospective; 354f
+/relay inject front-door; 6366 dirty-check artifact guard; 1ffc income non-binary schema; 7ace
+gate-resolution detection; fc04 triage tail) — all carry genuine design ambiguity (explicit
+"decide the schema / fix directions / needs a meeting"), so left as design-judgment/deferred TODO
+items, NO mini-handoff promotion (none are execution-ready ROUTINE). Closed id:9c92 inline: relabeled
+ROADMAP id:de4e heading "DECISION GATE → DEFERRED (decided 2026-06-17)" (the meeting was already held;
+old heading contradicted the resolved block) and ticked the TODO line. ROADMAP open = 4 [HARD] (dba3,
+de4e now DEFERRED-labeled, 401c, 3346), ZERO open [ROUTINE]. Contract pointer v4 == canonical v4 (no
+drift). Orphan note honored: id:401c re-dispatch suppressed pending orphan reconciliation (id:1f53;
+relay/orphan/relay-20260616-112222-* refs from dead run).
