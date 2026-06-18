@@ -113,6 +113,19 @@ if git ls-remote --exit-code "$remote_name" "refs/heads/$remote_branch" >/dev/nu
       exit 0  # non-fatal — work is committed
     fi
   else
+    # id:aa93 — `git pull --rebase --autostash` would autostash-RESET a foreign-dirty tree
+    # (a human / parallel session's uncommitted edit) outside any lock the editor respects,
+    # and a stash that fails to re-apply after the rebase is silent data loss. In legacy mode
+    # (no manifest) the caller has NOT committed anything here, so any dirty entry is foreign:
+    # refuse the autostash path and leave the work committed-locally-not-pushed (non-fatal,
+    # same as a flock timeout). Manifest mode just committed the listed paths, so a residual
+    # dirty tree there is also foreign — same refusal.
+    if [[ -n "$(git status --porcelain)" ]]; then
+      echo "WARNING: working tree is dirty (a concurrent edit?); refusing to autostash-rebase to avoid data loss (id:aa93)." >&2
+      echo "Commit or move the changes, then run 'git push' manually." >&2
+      exec 8>&-
+      exit 0  # non-fatal — work is committed
+    fi
     git pull --rebase --autostash $target
   fi
 fi
