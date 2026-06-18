@@ -435,3 +435,7 @@ id:b841: relay-loop.js ignored a nested `args.quotaThresholds` map (envPairs onl
 id:2425: the exit-1 stopReason culprit finder used `pctRemaining<=10` (the 90%-cap assumption), so a decayed/overridden threshold crossing below 90% fell through to `quota-exhausted:unknown`. Extended QUOTA_SCHEMA with a `crossedBucket` field; updated the quota-gate agent prompt to capture and return the bucket name from quota-stop.sh stderr. On exit-1 relay-loop now uses `v.crossedBucket` as primary attribution; the `<=10` finder demoted to a documented last-resort fallback. Test `test_relay_stop_reason.sh` (roadmap:2425) now passes.
 
 Full suite: 73/0/0ER (was 71/0/2-EXPECTED-RED on arrival). Friction: none.
+
+## 2026-06-18 16:35 — executor (sonnet, relay-loop)
+
+executor: fix quota-gate bugs id:b841 (nested quotaThresholds silently dropped) + id:2425 (stopReason quota-exhausted:unknown on decayed-threshold crossings); suite 73/0/0ER
