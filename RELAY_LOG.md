@@ -447,3 +447,7 @@ deterministic clean-tree gate stops integrator data loss (id:aa93)
 ## 2026-06-18 17:20 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 id:aa93 already implemented+merged in prior turn; verified genuinely green (test_integrator_foreign_dirty.sh + full suite 74/0/0ER) — no new work, worktree clean
+
+## 2026-06-18 19:00 — reviewer (claude-opus-4-8)
+
+Review relay-ckpt-20260618-1720..HEAD (4 commits, docs-only: insights-triage meeting + TODO archive/cross-ledger sync). gaming-scan clean; tests 74/0/0; contract pointer v4 matches canonical; orphan-scan --cross-ledger clean (confirms the aa93/b841/2425/10c0 sync commits resolved drift). Step 5b: 6 new insights-meeting TODO items (f082/35fe/ef77/11c6/b67e/e79b) all correctly design-ledger — owner-gated curated rules or [HARD]/design-judgment, none execution-ready for a [ROUTINE] mini-handoff. routine_open=0, 4 open [HARD]. No reopens, no spec drift.
