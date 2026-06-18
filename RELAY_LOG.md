@@ -426,3 +426,12 @@ review 20260618-1616: id:612f shard no-hunting guard verified clean (gaming-scan
 ## 2026-06-18 16:30 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260618-1616: id:612f shard no-hunting guard verified clean (gaming-scan clean, suite 71/0/2-red, JS valid); ledgers consistent; routine_open=2
+## 2026-06-18 — executor (claude-sonnet-4-6)
+
+Worked id:b841 + id:2425 — two quota-gate bug fixes, both ROUTINE.
+
+id:b841: relay-loop.js ignored a nested `args.quotaThresholds` map (envPairs only reads flat `RELAY_QUOTA_THRESHOLD_*` keys). Added a fold loop in the args-normalization block: each nested entry is promoted to the flat key unless the flat key is already set (flat wins). Documented the nested arg shape in SKILL.md config-knobs table. Test `test_relay_quota_args.sh` (roadmap:b841) now passes.
+
+id:2425: the exit-1 stopReason culprit finder used `pctRemaining<=10` (the 90%-cap assumption), so a decayed/overridden threshold crossing below 90% fell through to `quota-exhausted:unknown`. Extended QUOTA_SCHEMA with a `crossedBucket` field; updated the quota-gate agent prompt to capture and return the bucket name from quota-stop.sh stderr. On exit-1 relay-loop now uses `v.crossedBucket` as primary attribution; the `<=10` finder demoted to a documented last-resort fallback. Test `test_relay_stop_reason.sh` (roadmap:2425) now passes.
+
+Full suite: 73/0/0ER (was 71/0/2-EXPECTED-RED on arrival). Friction: none.
