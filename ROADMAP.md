@@ -10,6 +10,16 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] [ROUTINE] Normalize nested quota-threshold args in relay-loop.js so a per-bucket override isn't silently dropped <!-- id:b841 -->
+  - **Bug (observed 2026-06-18):** the front door / caller passed quota caps as a nested `args.quotaThresholds = {SEVEN_DAY: 0.70, SEVEN_DAY_SONNET: 0.70}` object, but `relay-loop.js` only forwards FLAT keys (`A['RELAY_QUOTA_THRESHOLD_SEVEN_DAY']`, `..._SONNET`) into the gate env (lines ~901–904). The nested object was never read, so a user directive "raise 7d cap to 70%" silently had ZERO effect across two runs — the standing `RELAY_QUOTA_DECAY_7D` cap governed instead.
+  - **Fix:** in the args-normalization block (near `const A =`, the same place `fableDown` is normalized), accept a nested `quotaThresholds` map and fold each entry into the corresponding flat `RELAY_QUOTA_THRESHOLD_<BUCKET>` key (flat key still wins if both present). Explicit per-bucket threshold beats the decay (quota-stop.sh §117), so this restores the user's ability to override.
+  - **Also:** the SKILL.md front door should translate a "7d cap = X%" phrase into BOTH flat keys (`RELAY_QUOTA_THRESHOLD_SEVEN_DAY` + `_SONNET`), since executor/review children run on the Sonnet bucket. Document the arg shape in the config-knobs table.
+  - **Acceptance:** a `tests/test_relay_quota_args.sh` (`# roadmap:b841`) asserting a nested `quotaThresholds` arg produces the same forwarded env as the flat keys. RED until implemented.
+- [ ] [ROUTINE] Fix relay quota stop-reason bucket attribution (`quota-exhausted:unknown` mislabel) <!-- id:2425 -->
+  - **Bug (observed 2026-06-18):** when the gate stops, `relay-loop.js` (~line 936) names the culprit with a hardcoded `(v.buckets||[]).find(b => b.pctRemaining <= 10)` — the old 90%-cap assumption. A stop triggered by a *decayed* or *overridden* threshold below 90% utilization (e.g. `seven_day_sonnet=34% >= 0.3353`) matches no bucket → falls through to `quota-exhausted:unknown`, making real stops look mysterious.
+  - **Fix:** have the quota agent / `quota-stop.sh` return the bucket that actually crossed its (possibly decayed/overridden) threshold plus the threshold value, and use THAT for `stopReason` (`quota-exhausted:<bucket>`), instead of the ≤10%-remaining heuristic. Keep the heuristic only as a last-resort fallback.
+  - **Acceptance:** a `tests/test_relay_stop_reason.sh` (`# roadmap:2425`) feeding a below-90% decayed-threshold crossing and asserting `stopReason` names the crossed bucket, not `unknown`. RED until implemented.
+
 - [ ] Opus quality-degradation investigation + standing model-probe deliverable [HARD — strong model] <!-- id:dba3 -->
   - **Meeting held 2026-06-17** (`docs/meeting-notes/2026-06-17-0836-opus-degradation-investigation.md`). **Investigation expected inconclusive** (n=4 anecdotes, n=1 sessions, no prior baseline — self-anchored prior). Real deliverable = the standing probe. Close this item once id:2d01+c345+040a+23e9 land and the baseline is seeded.
   - **Evidence source:** memory `opus-quality-degradation-20260616.md`; 4 incidents from session `bf9dd9e5` (1213 lines / 2.4M tokens — very long; confound). Key hypotheses: long-context fatigue vs wall-clock duration (idle-gap / KV-cache rot) vs model-serving regression.
