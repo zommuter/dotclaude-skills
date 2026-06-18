@@ -136,7 +136,11 @@ with open(os.path.join(WFDIR, "journal.jsonl"), encoding="utf-8") as fh:
 # prompt text. Order matters: most-specific first.
 PHASE_RULES = [
     ("quota",    ("quota-stop", "quota_stop", "--tier strong", "--tier sonnet")),
-    ("status",   ("relay_status", "relay status.md", "write_status", "cross-repo rollup", "rollup")),
+    # NOTE: do NOT add a bare "rollup" needle here — discover-shard prompts contain a
+    # "SKIPPED ROLLUP" instruction (id:be62) and would be misclassified as status,
+    # hiding the bulk of discovery cost in the status bucket (found 2026-06-18 while
+    # resolving id:9cb1; the writeRelayStatus agent matches via "relay_status").
+    ("status",   ("relay_status", "relay status.md", "write_status")),
     ("discover", ("discover-prelude", "discover-repos", "discover_repos", "classify the", "classification =", "discovery shard", "verdict for each repo")),
     ("integrate",("--no-ff merge", "integrate", "ckpt-tag", "git-lock-push")),
     ("hard",     ("[hard", "hard — strong", "hard execute", "strong-execute")),

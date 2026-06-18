@@ -68,3 +68,24 @@
 - [ ] **Annotate id:9cb1** (ROADMAP.md) — its post-c3a6 re-measure is the gate for L1/L2/L4 and scopes L3 (prelude downgrade/thin). Reuse existing id:9cb1.
 - [ ] **Re-point id:e905** (TODO.md) — proxy spike trigger = chidiAI model-degradation test; measurement-only, not a token reducer.
 - → routed to chidiai inbox: relay proxy spike (dotclaude-skills id:e905) is gated on / can ride chidiAI's model-degradation test harness; record the link in chidiAI's TODO. See `docs/meeting-notes/2026-06-18-0727-relay-skeleton-token-reduction.md`. <!-- routed:fc0b -->
+
+## Post-measurement addendum (2026-06-18, Opus apex `/relay --afk`)
+
+The id:9cb1 gate is **resolved** — but measuring it surfaced a measurement bug that
+reorders the levers this meeting set:
+
+- **c3a6 confirmed:** discover-shards PRE-pin = $342.84 (100% Opus, n=438) → POST-pin =
+  $80.62 (100% sonnet, $0 Opus, n=60). The Opus leak is gone.
+- **Instrument bug found+fixed:** `profile-run.sh` misfiled ~94% of discovery cost into
+  the `status` bucket (the `status` rule's bare `rollup` needle matched the shard
+  prompt's `SKIPPED ROLLUP` line, id:be62, before the `discover` rule). Fixed; regression
+  test `tests/test_profile_run_shard_classify.sh`. **Every relay-econ before/after number
+  taken before this fix understated scaffold and overstated status.**
+- **Corrected post-pin attribution:** discover = **$86/run (47.6%) — the #1 line, all
+  sonnet**; `status` is its true $5.90 (haiku glue only).
+- **Lever re-ordering:** scaffold is NOT negligible (it's dominant), so the program is
+  justified — but **L2 (push-seed cache, cut shard re-fires) is the lead lever**, not L1.
+  L1 as originally scoped (wrap the *haiku* glue agents = $5.90) is low-ROI; the high-ROI
+  "thin the prompt" target is the *sonnet shard/prelude prompt* (relay-loop.js:567-626,
+  overlaps L3) — and that touches classifier judgment, so it needs the canary/before-after,
+  it is NOT "zero behavior change." L4 stays lowest (rides real work-phase cost).
