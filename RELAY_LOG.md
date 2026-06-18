@@ -443,3 +443,7 @@ executor: fix quota-gate bugs id:b841 (nested quotaThresholds silently dropped) 
 ## 2026-06-18 16:56 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 deterministic clean-tree gate stops integrator data loss (id:aa93)
+
+## 2026-06-18 17:20 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+id:aa93 already implemented+merged in prior turn; verified genuinely green (test_integrator_foreign_dirty.sh + full suite 74/0/0ER) — no new work, worktree clean
