@@ -39,6 +39,17 @@ Invoking `/relay` with no keyword starts the autonomous priority-mixed pool
 (meeting note `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md`,
 D1/D2):
 
+0a. **Unattended-resilience nudge — FIRST, before any work (user directive 2026-06-18).**
+    The very first action of a default/`--afk` run is to surface the `/loop` nudge, NOT
+    bury it in the exit summary: a user who typed `/relay --afk` is signalling they are
+    walking away, so the "wrap it in a fixed-interval loop for outage resilience" hint is
+    only useful *up front* (after a long run + diary it is too late to act on). Run
+    `~/.claude/skills/relay/scripts/loop-hint.sh` as the FIRST line of output and, if it
+    prints anything, relay that line verbatim before starting the probe. It still
+    self-suppresses when it detects we are already inside a `/loop` (so loop ticks don't
+    re-nag) and never fails the turn (exits 0; prints nothing → print nothing). The exit
+    summary no longer repeats it (see step 4).
+
 0. **Fable-availability probe + apex-tier selection (Opus is APEX; Fable is a bonus).**
    Opus is the apex decision tier. Fable is treated as an OPTIONAL bonus second-opinion
    *if it returns* — never a required gate (user directive 2026-06-15: "treat Opus as the
@@ -115,19 +126,14 @@ D1/D2):
 4. **Exit summary.** After the Workflow completes, the front door prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).
-   **Unattended-resilience nudge.** A single `/relay` run is resumable but NOT
-   self-restarting — an API outage can trip a stop path (total discovery failure on
-   round ≥2, or a quota-gate agent death) and end the run early; it will not resume
-   until re-invoked. So as the LAST line of the exit summary, run
-   `~/.claude/skills/relay/scripts/loop-hint.sh` and, if it prints anything, relay
-   that line verbatim to the user (it suggests `/loop 20m /relay --afk` for
-   outage-resilient unattended operation). The helper SELF-SUPPRESSES when a recent
-   prior run makes it look like we are already inside a `/loop` (time-since-last-run
-   heuristic — manual and loop-driven `/relay` are otherwise indistinguishable), so
-   it does not nag on every loop tick. It never fails the turn (always exits 0); if
-   it prints nothing, print nothing. Do NOT bake a self-chained wakeup into the front
-   door — that is the fragile kind a well-timed outage breaks (user decision
-   2026-06-16); the nudge toward an independent fixed-interval `/loop` is intentional.
+   **Unattended-resilience nudge moved to step 0a** (user directive 2026-06-18): a
+   single `/relay` run is resumable but NOT self-restarting — an API outage can trip a
+   stop path (total discovery failure on round ≥2, or a quota-gate agent death) and end
+   the run early — so the `/loop` nudge is surfaced FIRST (step 0a), where the user can
+   still act on it, NOT here after a long run + diary. Do NOT also print it in the exit
+   summary (it was already shown). Do NOT bake a self-chained wakeup into the front door
+   — that is the fragile kind a well-timed outage breaks (user decision 2026-06-16); the
+   nudge toward an independent fixed-interval `/loop` is intentional.
 
 `--interactive` re-enables the orchestrator's one-batch `AskUserQuestion`
 confirmations (invariant 2 below: new-repo confirms, dirty-repo snapshot offers)
