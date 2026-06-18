@@ -71,7 +71,7 @@ SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
-        install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test gaming-canary \
+        install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test gaming-canary shard-canary \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -96,6 +96,7 @@ help:
 	@echo "  status               show symlink state for all skills"
 	@echo "  test                 run the test suite (tests/run-tests.sh)"
 	@echo "  gaming-canary        Tier B model anti-gaming canary harness (on-demand; costs tokens)"
+	@echo "  shard-canary         discover-shard classifier behavior canary (on-demand; costs tokens)"
 	@echo ""
 	@echo "Skills: $(SKILLS)"
 	@echo ""
@@ -125,6 +126,12 @@ test:
 # CANARY_AGENT=... for a token-free plumbing smoke test (see tests/gaming-canary/README.md).
 gaming-canary:
 	@bash $(SRC_DIR)/tests/gaming-canary/run.sh
+
+# id:3ea3 — discover-shard classifier behavior canary. On-demand (spawns a real
+# classifier agent, costs tokens); use it to prove a thinned shard prompt preserves
+# verdicts. Plumbing is guarded zero-token by tests/test_shard_canary.sh.
+shard-canary:
+	@bash $(SRC_DIR)/tests/shard-canary/run.sh
 
 ALLOWLIST_EXTRA := $(SRC_DIR)/tools/allow-extra.txt
 

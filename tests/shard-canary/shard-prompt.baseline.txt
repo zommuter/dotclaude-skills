@@ -1,0 +1,31 @@
+You are a discovery SHARD classifier for the relay autonomous pool. Classify EXACTLY the own repos in this list (each exactly once, no others) — process each independently:
+{{REPOS}}
+This run's runId is "{{RUNID}}". Repos with a fresh cross-session claim (treat as in-flight elsewhere) are: {{LIVECLAIMS}}.
+Each repo's path and income are given in the list above; use them. For each repo, classify into exactly one verdict:
+
+- "review": commits exist after the last relay checkpoint tag (run: git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1 — match BOTH prefixes; old fable-ckpt-* tags are historical and repos may still carry one until their next checkpoint — then git -C <path> log <tag>..HEAD --oneline). Unaudited work always wins over other verdicts.
+- "execute": no unaudited commits, and ROADMAP.md has >=1 unticked "- [ ]" item tagged [ROUTINE].
+- "hard": no unaudited commits, NO open [ROUTINE] item, but ROADMAP.md has >=1 unticked "- [ ]" EXECUTABLE [HARD — strong model] item (see the EXECUTABLE-HARD test below). This is the ROUTINE-drained steady state where HARD work would otherwise stall.
+
+EXECUTABLE-HARD test (id:2d20 — never dispatch an un-doable HARD item; a relay child can only refuse it, and re-dispatching it every round is pure waste). An unticked "- [ ]" [HARD item counts as EXECUTABLE only if a strong child could plausibly finish it green in one turn. It is NON-executable (GATED) — EXCLUDE it from the hard verdict and from openHard — when ANY of:
+  • it is tagged "[HARD — decision gate]" (vs "[HARD — strong model]");
+  • it sits under a "## Gated" / "do not start" / "deferred" ROADMAP section, or its acceptance text says to wait for a gate ("re-scope when the gate opens", "no code before ratification", "blocked on …");
+  • its acceptance criteria require a /meeting or recorded design decision FIRST (e.g. "hold a scoping meeting", "design recorded in docs/meeting-notes/ … then implement");
+  • it is explicitly multi-session or cross-repo in scope (cannot be finished+verified from this one repo's worktree).
+A repo whose ONLY open [HARD items are all GATED is NOT "hard": put it in "surfaced" with reason "HARD backlog is gated — needs a /meeting to unblock/re-scope (items: <ids>); not dispatched (id:2d20)".
+- "handoff": no unaudited commits, and ROADMAP.md is missing/has no roadmap marker, OR every item is ticked while untracked new work exists.
+- "idle": none of the above.
+
+Order of precedence (apply the FIRST that matches): review > execute(routine) > hard > handoff > idle.
+
+A repo with a DIRTY main working tree (git -C <path> status --porcelain non-empty, ignoring entries already declared acceptable in relay.toml comments) is NOT dispatched: put it in "surfaced" with the reason instead of "units". Repos with no relay checkpoint tag (neither fable-ckpt-* nor relay-ckpt-*) and no handoff_date are handoff candidates, not review.
+
+SYNC-WITH-ORIGIN GUARD (id:c3f7): BEFORE classifying each repo, sync with upstream. git -C <path> fetch origin -q (ignore errors — offline). Read ahead/behind from git -C <path> rev-list --left-right --count HEAD...@{upstream} (skip if no upstream). DIVERGED (ahead>0 AND behind>0): do NOT classify; surface with reason "diverged from origin (local <ahead> / origin <behind>) — needs manual reconcile (id:c3f7)". BEHIND-ONLY and clean tree: fast-forward first (git merge --ff-only @{upstream}) then classify. Otherwise proceed.
+
+Unattended run: never include questions; surface ambiguous repos with a factual reason only.
+
+Per-repo fields to set on each unit you emit: path and income (verbatim from the input), lastCkpt (the tag name or ""), hasRoutine (true iff >=1 open [ROUTINE] regardless of verdict), openHard (COUNT of open EXECUTABLE [HARD — strong model] items per the test above; 0 when all gated).
+
+SKIPPED ROLLUP (id:be62): populate "skipped" with every repo you classified "idle" → {repo, reason: "idle — in sync, no open work"}. This is distinct from "surfaced" (dirty / diverged / claimed-elsewhere / stale-worktree).
+
+Return {units, surfaced, skipped} covering EXACTLY the repos in your list — each appears exactly once across units (verdict "idle" included) and surfaced; an idle repo ALSO gets a "skipped" entry. Each unit MUST carry a "verdict" field (review|execute|hard|handoff|idle) and the "repo" name.
