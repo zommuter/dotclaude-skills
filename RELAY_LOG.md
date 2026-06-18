@@ -410,3 +410,7 @@ relay/orphan/relay-20260616-112222-* refs from dead run).
 ## 2026-06-18 14:21 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260618-1412: docs-only window (6 commits), suite 71/0, closed id:9c92 de4e relabel, 0 open ROUTINE
+
+## 2026-06-18 15:54 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 20260618-1554: single commit 2cca947 (ledger-only; ROADMAP+TODO additions for quota bugs A/B). gaming-scan clean (no DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT); suite 71/0 baseline. Both new items are reverse-handoff §5b reverse-qualifications: filed [ROUTINE] with RED-test acceptance but the spec tests were missing — completed the mini-handoff by writing tests/test_relay_quota_args.sh (# roadmap:b841) and tests/test_relay_stop_reason.sh (# roadmap:2425), both static-structural per test_relay_loop_structure.sh, both verified RED against current code and reported EXPECTED-RED by the suite (b841/2425 checkboxes unticked). Reused existing TODO ids (single-id-two-views D2; no mint). Verified both bug diagnoses against actual code: b841 envPairs forwards only flat keys (~L901–904, nested args.quotaThresholds never read); 2425 exit-1 culprit finder hardcodes pctRemaining<=10 (~L935) → below-90% decayed/overridden crossing falls through to :unknown. Contract pointer v4 == canonical v4 (no drift). No code/ARCHITECTURE/README touched in-window. routine_open=2.
