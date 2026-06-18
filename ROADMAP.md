@@ -30,9 +30,12 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Goal:** reduce overhead $ without losing work throughput. Measure before/after with `relay-econ.py`. Quick-win (shard model pin) is executor-sized; the broader "what else can downgrade safely" needs judgment → kept [HARD].
   - **Note:** `relay-burn.sh report` currently has **no samples** (`quota-samples.jsonl` empty) — the $/h-to-reset projection is blind until quota-gate sampling accumulates ≥2 points during a run; worth checking the sampler is actually firing (id:219b).
 
-- [ ] DECISION GATE: Distributed relay orchestrator — multi-machine, dynamic membership [HARD — strong model] <!-- id:de4e -->
-  - **Needs a `/meeting` (do NOT execute / auto-dispatch).** Design-gate: choose the
-    coordination substrate before any code. Captured 2026-06-16 from a working session.
+- [ ] DEFERRED (decided 2026-06-17): Distributed relay orchestrator — multi-machine, dynamic membership [HARD — strong model] <!-- id:de4e -->
+  - **Meeting HELD 2026-06-17 — decided DEFERRED on quota economics (do NOT execute, no
+    further `/meeting` owed).** Design-gate originally: choose the coordination substrate
+    before any code. Captured 2026-06-16 from a working session; the gate was resolved by
+    the 2026-06-17 meeting (see D1 below). Relabel per id:9c92 (review 2026-06-18) — the
+    old "DECISION GATE / needs a /meeting" heading contradicted the resolved block below.
   - **Why**: leases (`claim.sh`) + `relay.toml` are flock-on-local-dir → single-host
     only, so concurrent `/relay` on zomni+fievel has NO cross-machine mutual exclusion
     (both fully work the same repo; slower one's `--ff-only` push strands). Also lifts
