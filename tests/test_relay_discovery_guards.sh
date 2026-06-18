@@ -8,6 +8,7 @@ set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 JS="$SRC_DIR/relay/scripts/relay-loop.js"
+GATHER="$SRC_DIR/relay/scripts/gather-repo-state.sh"   # id:11ad — the per-repo git gather moved here
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
@@ -16,12 +17,17 @@ fail() { echo "FAIL: $*"; exit 1; }
 command -v node >/dev/null && { node --check "$JS" || fail "relay-loop.js is not valid JS"; pass "relay-loop.js parses"; }
 
 # ── Sync-with-origin guard (id:c3f7) ──
+# id:11ad: the per-repo git operations (fetch + ahead/behind compute) moved into
+# gather-repo-state.sh; the prompt now reads the upstream_ahead_behind field and keeps the
+# DECISION logic (diverged-surface + behind-only ff) inline. Assert both halves.
+[[ -x "$GATHER" ]] || fail "gather-repo-state.sh not found"
 grep -q "SYNC-WITH-ORIGIN GUARD" "$JS" || fail "discovery prompt missing the sync-with-origin guard"
-grep -q "fetch origin" "$JS" || fail "sync guard does not fetch origin before classifying"
-grep -q "rev-list --left-right --count" "$JS" || fail "sync guard does not compute ahead/behind"
+grep -q "fetch origin" "$GATHER" || fail "gather-repo-state.sh does not fetch origin before gathering"
+grep -q "rev-list --left-right --count" "$GATHER" || fail "gather-repo-state.sh does not compute ahead/behind"
+grep -q "upstream_ahead_behind" "$JS" || fail "sync guard does not read upstream_ahead_behind from gather"
 grep -qi "diverged from origin" "$JS" || fail "sync guard does not surface a diverged repo"
 grep -q -- "merge --ff-only" "$JS" || fail "sync guard does not fast-forward a behind-only repo"
-pass "sync-with-origin guard: fetch + ahead/behind + diverged-surface + ff-only (id:c3f7)"
+pass "sync-with-origin guard: fetch+ahead/behind in gather, diverged-surface+ff-only in prompt (id:c3f7/11ad)"
 
 # Integrator belt-and-suspenders (id:c3f7): the serialized integrator re-checks via the
 # testable sync-origin.sh helper and aborts before checkpointing on a diverged base.
