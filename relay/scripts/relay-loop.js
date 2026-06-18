@@ -68,6 +68,21 @@ const ALLOW_INTENSIVE = !!A.allowIntensive || !!A.afk
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
 const FABLE_DOWN = !!A.fableDown
 
+// id:b841 — normalize a nested quotaThresholds map into flat RELAY_QUOTA_THRESHOLD_<BUCKET>
+// keys so a user "raise 7d cap to 70%" directive actually takes effect.
+// The front door may pass args.quotaThresholds = { SEVEN_DAY: 0.70, SEVEN_DAY_SONNET: 0.70 }
+// (nested object form) while envPairs only reads the flat A.RELAY_QUOTA_THRESHOLD_* keys.
+// Fold each nested entry into the flat key now — flat key wins if both present (explicit
+// per-bucket override beats the nested default and beats the decay).
+if (A.quotaThresholds && typeof A.quotaThresholds === 'object') {
+  for (const [bucket, val] of Object.entries(A.quotaThresholds)) {
+    const flatKey = `RELAY_QUOTA_THRESHOLD_${bucket}`
+    if (A[flatKey] === undefined) {
+      A[flatKey] = val
+    }
+  }
+}
+
 // D3: pool of distinct repos, one unit per repo. Default 5; override via args.POOL_WIDTH.
 // NOTE: the Workflow harness independently caps concurrent agents at min(16, cpu_cores-2),
 // so a POOL_WIDTH above that ceiling just queues — no benefit (e.g. 6 on an 8-core box).
@@ -389,6 +404,10 @@ const QUOTA_SCHEMA = {
   required: ['exitCode'],
   properties: {
     exitCode: { type: 'number' },
+    // id:2425 — crossed bucket: on exit 1 (real exhaustion) the agent reports which bucket
+    // crossed its (possibly decayed/overridden) threshold, so relay-loop can name the culprit
+    // without falling back to the stale <=10% heuristic. Empty/absent means no agent-side info.
+    crossedBucket: { type: 'string' },
     buckets: {
       type: 'array',
       items: {
@@ -914,7 +933,8 @@ async function quotaGate(tier) {
   // (Same per-round-vs-run-total accounting family as id:2d20's drain fix.)
   const v = await agent(
     `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
-Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.`,
+Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.
+On exit 1 (real exhaustion), also return crossedBucket: the name of the bucket that quota-stop.sh logged as crossing its threshold (the script logs "quota-stop: <bucket>=<val>% >= threshold <t>" to stderr — capture that bucket name, e.g. "seven_day_sonnet"). Leave crossedBucket absent or empty if exit code is not 1.`,
     { label: `quota:${tier}`, phase: 'Dispatch', schema: QUOTA_SCHEMA, model: 'haiku' }
   )
   if (v && v.buckets && v.buckets.length) state.quota = v.buckets
@@ -933,9 +953,12 @@ Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/
       stopReason = 'quota-stale-cache'
       log(`relay-loop: quota gate STOP — reason=${stopReason} (cache stale or refresh unavailable; tier=${tier}) — draining in-flight units and integration debt`)
     } else {
-      // exit 1: real exhaustion; pick the first over-threshold bucket when available
-      const exhaustedBucket = (v.buckets || []).find(b => b.pctRemaining <= 10)
-      stopReason = exhaustedBucket ? `quota-exhausted:${exhaustedBucket.bucket}` : 'quota-exhausted:unknown'
+      // exit 1: real exhaustion — id:2425: use the agent-returned crossedBucket first, so a
+      // decayed/overridden threshold below 90% utilization names the real culprit, not :unknown.
+      // Last-resort fallback: the old pctRemaining<=10 heuristic (catches the >=90% case when
+      // the agent didn't report crossedBucket — defense in depth, never the primary path).
+      const fallbackBucket = (v.buckets || []).find(b => b.pctRemaining <= 10)  // last-resort fallback
+      stopReason = `quota-exhausted:${v.crossedBucket || (fallbackBucket && fallbackBucket.bucket) || 'unknown'}`
       log(`relay-loop: quota gate STOP — reason=${stopReason} (tier=${tier}) — draining in-flight units and integration debt`)
     }
     return false
