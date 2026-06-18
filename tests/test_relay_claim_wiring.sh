@@ -27,15 +27,20 @@ grep -q 'claim.sh release ${unit.repo} --run ${state.runId}' "$JS" \
   || fail "integrator does not release the lease run-scoped (claim.sh release <repo> --run <runId>)"
 pass "integrator releases the lease run-scoped (id:ebfb)"
 
-# (3) RELAY_STATUS projects live claims via peek.
-grep -q "claim.sh peek" "$JS" || fail "writeRelayStatus does not project live claims via claim.sh peek"
-grep -q "Claims (live)" "$JS" || fail "RELAY_STATUS has no '## Claims (live)' projection section"
-pass "RELAY_STATUS projects live claims via peek (id:ebfb)"
+# (3) RELAY_STATUS projects live claims via peek. The claims peek + "## Claims (live)" render
+#     moved into relay-status-publish.sh (skeleton L1 thin-glue, id:0d31); the JS delegates to it.
+PUB="$SRC_DIR/relay/scripts/relay-status-publish.sh"
+[[ -f "$PUB" ]] || fail "relay-status-publish.sh not found"
+grep -q "relay-status-publish.sh" "$JS" || fail "writeRelayStatus does not delegate to relay-status-publish.sh"
+grep -q "claim.sh" "$PUB" && grep -q "peek" "$PUB" || fail "relay-status-publish.sh does not project live claims via claim.sh peek"
+grep -q "Claims (live)" "$PUB" || fail "relay-status-publish.sh has no '## Claims (live)' projection section"
+pass "RELAY_STATUS projects live claims via peek, in relay-status-publish.sh (id:ebfb/0d31)"
 
 # (4) Flock'd single-writer for shared state (id:ebfb step 2): integrator writes relay.toml
-# via relay-state-write.sh toml-set; writeRelayStatus writes RELAY_STATUS via status-write.
+# via relay-state-write.sh toml-set (in the JS); the status writer writes RELAY_STATUS via
+# status-write inside relay-status-publish.sh.
 grep -q "relay-state-write.sh toml-set" "$JS" || fail "integrator does not write relay.toml via the flock'd toml-set helper"
-grep -q "relay-state-write.sh status-write" "$JS" || fail "writeRelayStatus does not write via the flock'd status-write helper"
+grep -q "relay-state-write.sh" "$PUB" && grep -q "status-write" "$PUB" || fail "relay-status-publish.sh does not write via the flock'd status-write helper"
 pass "shared state written via the flock'd single-writer (id:ebfb step 2)"
 
 # (5) Skipped rollup (id:be62): discovery reports skipped; RELAY_STATUS has the section.

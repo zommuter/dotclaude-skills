@@ -212,36 +212,22 @@ async function writeRelayStatus(state, statusPath) {
   const events = state.events || []
   const eventsBlock = events.join('\n')
   log(`RELAY_STATUS updated: in-flight=${inFlightCount} completed=${completedCount} blocked=${blockedCount} events=${events.length} → ${path}`)
+  // id:0d31 (skeleton L1 thin-glue) — ALL the deterministic work (path resolve + c34a guard,
+  // claims peek → "## Claims (live)", relay-burn → "## Burnup this run", atomic flock'd write,
+  // event-append) now lives in relay-status-publish.sh. The haiku agent's whole job collapses
+  // to piping one blob to one command — short + precise, so a weak model can't drift off-target
+  // (formatting claims-JSON into markdown by hand was the drift risk). The content (and, when
+  // present, the event lines after a sentinel) ride stdin via a quoted heredoc so they transit
+  // verbatim without expansion.
+  const stdinPayload = events.length ? `${content}\n===RELAY-EVENTS===\n${eventsBlock}` : content
   await agent(
-    `Write the following content verbatim to RELAY_STATUS.md. The target path is "${path}".
+    `Run EXACTLY this one command and nothing else — no path math, no formatting, no extra files. Pipe the payload below to it verbatim via the quoted heredoc (the script resolves the path, renders the Claims + Burnup sections, writes atomically, and appends any events itself):
 
-FIRST resolve it to a real absolute path with the shell, e.g.
-  target=$(python3 -c "import os;print(os.path.expanduser('${path}'))")
-then write the combined content to "$target" ATOMICALLY via the flock'd single-writer (id:ebfb
-step 2), which serializes concurrent runs + does mkdir -p + temp + atomic mv:
-  printf '%s' "$CONTENT" | ~/.claude/skills/relay/scripts/relay-state-write.sh status-write "$target"
-(the helper also re-checks the path is absolute and refuses a literal ~ / \${HOME} target).
+~/.claude/skills/relay/scripts/relay-status-publish.sh --path '${path}' --run '${state.runId || ''}' --events-path '${RELAY_EVENTS_PATH}' <<'RELAY_STATUS_EOF'
+${stdinPayload}
+RELAY_STATUS_EOF
 
-CRITICAL (id:c34a): NEVER create a file or directory whose name literally contains "$HOME", "\${HOME}", "~", or a leading "$" — that means expansion failed and leaks a junk dir into the cwd. The final resolved path MUST begin with "/". If you cannot resolve an absolute path beginning with "/", abort WITHOUT writing anything. Do not truncate or reformat.
-
-LIVE CLAIMS (id:ebfb): before writing, run ~/.claude/skills/relay/scripts/claim.sh peek — it prints zero or more live cross-session claims, one compact JSON per line ({key,repo,runId,mode,item,...}). APPEND to the Content below a final section exactly:
-## Claims (live)
-with one "- <repo>  mode=<mode>  run=<runId>" line per claim (use item if repo is empty), or "_(none)_" if peek prints nothing.
-
-BURNUP (id:c8b6): run this to get a burnup summary for this run (stdout may be EMPTY if <2 quota samples exist yet — that's fine):
-  ~/.claude/skills/relay/scripts/relay-burn.sh report --run ${state.runId || ''} 2>/dev/null
-APPEND to the Content a section exactly:
-## Burnup this run
-followed by a fenced code block (\`\`\`) containing that stdout verbatim, or the single line "_(insufficient samples yet)_" if it was empty. Then write the combined text (Content + Claims + Burnup) to the status file.
-
-EVENT LOG (id:c8b6): ${events.length ? `AFTER writing the status file, append ${events.length} event line(s) to the append-only JSONL. Resolve the path and pipe the lines through event-append (it flock-appends; never hand-edit the file):
-  evt=$(python3 -c "import os;print(os.path.expanduser('${RELAY_EVENTS_PATH}'))")
-  ~/.claude/skills/relay/scripts/relay-state-write.sh event-append "$evt" <<'RELAY_EVENTS_EOF'
-${eventsBlock}
-RELAY_EVENTS_EOF` : 'no new events in this batch — skip the event-append step.'}
-
-Content:
-${content}`,
+Report the script's final line. If it exits non-zero, report its stderr; do not retry or write any file yourself.`,
     { label: 'write-relay-status', phase: 'Integrate', model: 'haiku' }
   )
 }
