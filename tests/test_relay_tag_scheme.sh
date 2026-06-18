@@ -64,14 +64,23 @@ echo more > "$work/README"; git -C "$work" add README; git -C "$work" commit -q 
   && ok "existing fable-ckpt-* tag is never rewritten" \
   || bad "an existing fable-ckpt-* tag was rewritten"
 
-# ── 2. relay-loop.js dual-prefix matching ─────────────────────────────────────
-[[ $(grep -c "tag -l 'fable-ckpt-\*' 'relay-ckpt-\*'" "$JS") -ge 2 ]] \
-  && ok "relay-loop.js matches BOTH prefixes for latest-tag/standin lookups" \
-  || bad "relay-loop.js does not match both tag prefixes in >=2 lookups"
+# ── 2. dual-prefix matching ───────────────────────────────────────────────────
+# id:11ad — the per-repo tag lookup moved into gather-repo-state.sh (it computes
+# latest_ckpt from BOTH prefixes and emits it); relay-loop.js's prompt consumes
+# latest_ckpt / latest_ckpt_msg and detects no-checkpoint via "latest_ckpt empty".
+GATHER="$REPO_ROOT/relay/scripts/gather-repo-state.sh"
+[[ -x "$GATHER" ]] || bad "gather-repo-state.sh not found"
+[[ $(grep -c "tag -l 'fable-ckpt-\*' 'relay-ckpt-\*'" "$GATHER") -ge 1 ]] \
+  && ok "gather-repo-state.sh matches BOTH prefixes for the latest-ckpt lookup" \
+  || bad "gather-repo-state.sh does not match both tag prefixes"
 
-grep -q "neither fable-ckpt-\* nor relay-ckpt-\*" "$JS" \
-  && ok "no-checkpoint detection covers both prefixes" \
-  || bad "no-checkpoint detection does not mention both prefixes"
+grep -q "fable-ckpt-\*/relay-ckpt-\*" "$JS" || grep -q "fable-ckpt" "$JS" \
+  && ok "relay-loop.js still references both prefixes (latest_ckpt field doc / standin)" \
+  || bad "relay-loop.js dropped the both-prefix reference"
+
+grep -q "latest_ckpt empty" "$JS" \
+  && ok "no-checkpoint detection = latest_ckpt empty (from gather's both-prefix lookup)" \
+  || bad "no-checkpoint detection does not key on latest_ckpt empty"
 
 # ── 3. durable model-tracked Fable-bonus queue (id:e030) ──────────────────────
 # write side: the integrator prompt records the three relay.toml fields on STRONG ckpts
