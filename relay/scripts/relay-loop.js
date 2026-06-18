@@ -444,6 +444,13 @@ const INTEGRATE_SCHEMA = {
     pushStatus: { type: 'string' },
     ts: { type: 'string' },
     reason: { type: 'string' },
+    // L2 push-seed (id:c855): the integrator recomputes the just-worked repo's discovery
+    // signature (discover-sig.sh) AFTER merge+tag+push+toml+worktree-removal, plus cheap
+    // open-work counts, so integrate() can seed state.discoverCache and next round's prelude
+    // sig matches → cache HIT → no re-classifying shard for a repo only the pool touched.
+    postSig: { type: 'string' },       // recomputed discover-sig for this repo ("" = fail-open)
+    openRoutine: { type: 'number' },   // unticked "- [ ]" [ROUTINE] items in ROADMAP.md post-merge
+    openHard: { type: 'number' },      // unticked "- [ ]" [HARD items in ROADMAP.md post-merge (any HARD)
   },
 }
 
@@ -552,14 +559,21 @@ if (prelude && Array.isArray(prelude.repos)) {
   state.discoverCache = state.discoverCache || {}
   const sigByRepo = {}
   for (const s of (prelude.signatures || [])) if (s && s.repo) sigByRepo[s.repo] = s.sig || ''
-  const changed = [], reusedUnits = []
+  const changed = [], reusedUnits = [], reusedIdle = []
   for (const r of ownRepos) {
     const sig = sigByRepo[r.repo] || ''           // '' = fail-open sentinel → always re-classify
     const cached = state.discoverCache[r.repo]
-    if (sig && cached && cached.sig === sig && cached.unit) reusedUnits.push(cached.unit)
-    else changed.push(r)
+    if (sig && cached && cached.sig === sig) {
+      // Cache HIT. A dispatchable verdict (id:c3a6) → reuse the unit. A push-seeded 'idle'
+      // entry (id:c855 L2 — a repo the pool drained to zero open work last round) → no shard
+      // and NOT dispatched; it only contributes a 'skipped' rollup line. Any other cached
+      // shape (defensive) → re-classify.
+      if (cached.unit) reusedUnits.push(cached.unit)
+      else if (cached.idle) reusedIdle.push({ repo: r.repo, reason: cached.reason || 'idle — drained (cached post-integrate, id:c855)' })
+      else changed.push(r)
+    } else changed.push(r)
   }
-  if (reusedUnits.length) log(`relay-loop: discovery cache reused ${reusedUnits.length}/${ownRepos.length} verdict(s) (id:c3a6); re-classifying ${changed.length}`)
+  if (reusedUnits.length || reusedIdle.length) log(`relay-loop: discovery cache reused ${reusedUnits.length} verdict(s) + ${reusedIdle.length} idle (id:c3a6/c855) of ${ownRepos.length}; re-classifying ${changed.length}`)
   const SHARDS = Math.max(1, Math.min(DISCOVER_SHARDS, changed.length || 1))
   // round-robin chunk so shards are balanced regardless of repo order; only CHANGED repos are sharded
   const chunks = Array.from({ length: SHARDS }, (_, s) => changed.filter((_, idx) => idx % SHARDS === s)).filter(c => c.length)
@@ -630,7 +644,7 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
   // Merge the shard classifications + the cached (reused) verdicts + the prelude's injected units +
   // non-own skipped rollup into the single discovery object the rest of runRound consumes
   // (byte-identical shape).
-  const units = [], surfaced = [], skipped = [...(prelude.skippedConfig || [])]
+  const units = [], surfaced = [], skipped = [...(prelude.skippedConfig || []), ...reusedIdle]
   let shardOk = changed.length === 0  // all repos served from cache → valid round, zero shards (id:c3a6)
   shardResults.forEach((r, i) => {
     if (!r) {
@@ -993,7 +1007,13 @@ async function integrate(unit, report) {
 6. Update ~/.config/relay/relay.toml for [repos.${unit.repo}] via the flock'd single-writer (id:ebfb step 2) — for EACH field run \`~/.claude/skills/relay/scripts/relay-state-write.sh toml-set ${unit.repo} <key> <value>\` (value VERBATIM: quote strings e.g. '"<tag>"', bare for bool e.g. false; NEVER hand-edit relay.toml): set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.${isStrong ? `
 6b. STRONG checkpoint — this is a ${unit.verdict} unit produced by the strong model (${STRONG_MODEL}). ${isFableRecheck ? `This session's strong tier is REAL Fable, and this is a review — it IS the optional Fable recheck (id:e030 consume side). Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = "<today's date, ISO>" (the recheck just happened — mark it done, do NOT set false).` : `Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = false (an Opus-standin/strong checkpoint that still invites an optional Fable recheck).`} These keys survive a LATER executor (sonnet) checkpoint that overwrites last_ckpt — so the pending optional Fable recheck stays visible even when masked. Write all three via the same flock'd relay-state-write.sh toml-set helper (overwrite if present; fable_rechecked is a BARE value: false, or '"<ISO date>"' when rechecked). Change ONLY this repo's block.` : `
 6b. EXECUTOR checkpoint — this is an execute unit (sonnet). Do NOT touch last_strong_ckpt, strong_model, or fable_rechecked: an executor checkpoint must never clear the pending Fable-bonus-recheck queue (that is exactly the masking bug id:e030 fixes). Leave those keys untouched.`}
-7. Return merged=true, ckptTag, pushStatus, ts (current ISO timestamp).
+7. L2 push-seed inputs (id:c855) — compute these LAST, AFTER steps 1-6 so they reflect the fully-settled post-integrate state on main (the toml block, removed worktree dir, and pushed HEAD all feed the signature):
+   a. postSig — recompute this repo's discovery signature so next round's prelude can match it: echo the one-repo object and pipe it to discover-sig.sh, then read the "sig" field:
+        printf '%s' '{"repos":[{"repo":"${unit.repo}","path":"${unit.path}"}],"liveClaims":[]}' | ~/.claude/skills/relay/scripts/discover-sig.sh
+      It prints one JSON line {"repo":...,"sig":"<hex or empty>"}. Set postSig = that sig verbatim (may be "" — a fail-open sentinel; pass it through, do NOT invent a hash).
+   b. openRoutine — count of unticked routine items: git -C ${unit.path} grep -c -E '^- \\[ \\].*\\[ROUTINE\\]' HEAD -- ROADMAP.md 2>/dev/null (0 if the file/marker is absent; a plain count, not a list).
+   c. openHard — count of unticked HARD items: git -C ${unit.path} grep -c -E '^- \\[ \\].*\\[HARD' HEAD -- ROADMAP.md 2>/dev/null (0 if absent). Count ALL [HARD items (gated or not) — the supervisor only push-seeds 'idle' when BOTH counts are 0, so over-counting here is safe (it just declines to cache).
+8. Return merged=true, ckptTag, pushStatus, ts (current ISO timestamp), postSig, openRoutine, openHard.
 
 Never push any other repo, never force-push, never resolve conflicts yourself.`,
     { label: `integrate:${unit.repo}`, phase: 'Integrate', schema: INTEGRATE_SCHEMA, model: 'sonnet' }
@@ -1002,6 +1022,24 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     if (result.ts) state.ts = result.ts
     state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?' })
     pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?' })  // id:c8b6
+    // L2 push-seed the discovery cache (id:c855): a just-integrated repo's sig CHANGES (new
+    // ckpt tag + RELAY_LOG/ROADMAP), so without this the next round re-classifies (an LLM
+    // shard — the dominant discover cost, id:9cb1) the exact repo the pool just finished.
+    // The integrator recomputed the post-merge sig + open-work counts; seed an 'idle' cache
+    // entry ONLY when the repo is PROVABLY drained (zero open [ROUTINE] AND zero open [HARD]
+    // — no EXECUTABLE-HARD judgment needed, so no under-dispatch risk). Any open work, or a
+    // missing/empty (fail-open) sig → DELETE the entry so the repo re-classifies next round.
+    // FAIL-OPEN preserved: the seeded sig only HITS when next round's prelude recomputes a
+    // byte-identical sig (no external change since integrate); any human commit / origin
+    // advance / ROADMAP edit changes the sig → MISS → re-classify. Under-invalidation (a
+    // stale 'idle' masking real work) is the one hazard we refuse — hence drained-only + the
+    // sig gate. An idle entry skips the shard AND is not dispatched (it carries no unit).
+    state.discoverCache = state.discoverCache || {}
+    if (result.postSig && (result.openRoutine || 0) === 0 && (result.openHard || 0) === 0) {
+      state.discoverCache[unit.repo] = { sig: result.postSig, idle: true, reason: 'idle — drained, cached post-integrate (id:c855)' }
+    } else {
+      delete state.discoverCache[unit.repo]
+    }
     if (report.review_me_count) {
       state.reviewMe.push({ repo: unit.repo, count: report.review_me_count, path: `${unit.path}/REVIEW_ME.md` })
     }
