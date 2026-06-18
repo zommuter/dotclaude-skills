@@ -439,3 +439,7 @@ Full suite: 73/0/0ER (was 71/0/2-EXPECTED-RED on arrival). Friction: none.
 ## 2026-06-18 16:35 — executor (sonnet, relay-loop)
 
 executor: fix quota-gate bugs id:b841 (nested quotaThresholds silently dropped) + id:2425 (stopReason quota-exhausted:unknown on decayed-threshold crossings); suite 73/0/0ER
+
+## 2026-06-18 16:56 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+deterministic clean-tree gate stops integrator data loss (id:aa93)
