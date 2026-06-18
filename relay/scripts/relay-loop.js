@@ -68,6 +68,21 @@ const ALLOW_INTENSIVE = !!A.allowIntensive || !!A.afk
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
 const FABLE_DOWN = !!A.fableDown
 
+// id:b841 — normalize a nested quotaThresholds map into flat RELAY_QUOTA_THRESHOLD_<BUCKET>
+// keys so a user "raise 7d cap to 70%" directive actually takes effect.
+// The front door may pass args.quotaThresholds = { SEVEN_DAY: 0.70, SEVEN_DAY_SONNET: 0.70 }
+// (nested object form) while envPairs only reads the flat A.RELAY_QUOTA_THRESHOLD_* keys.
+// Fold each nested entry into the flat key now — flat key wins if both present (explicit
+// per-bucket override beats the nested default and beats the decay).
+if (A.quotaThresholds && typeof A.quotaThresholds === 'object') {
+  for (const [bucket, val] of Object.entries(A.quotaThresholds)) {
+    const flatKey = `RELAY_QUOTA_THRESHOLD_${bucket}`
+    if (A[flatKey] === undefined) {
+      A[flatKey] = val
+    }
+  }
+}
+
 // D3: pool of distinct repos, one unit per repo. Default 5; override via args.POOL_WIDTH.
 // NOTE: the Workflow harness independently caps concurrent agents at min(16, cpu_cores-2),
 // so a POOL_WIDTH above that ceiling just queues — no benefit (e.g. 6 on an 8-core box).
