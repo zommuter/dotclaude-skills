@@ -77,6 +77,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
         install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test gaming-canary shard-canary \
+        install-quota-timer status-quota-timer uninstall-quota-timer \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -91,6 +92,7 @@ help:
 	@echo "  install-<skill>      install one skill"
 	@echo "  install-hooks        install hooks (+ statusline) only"
 	@echo "  install-statusline   install the quota/cost/model statusbar only (checks CLI deps)"
+	@echo "  install-quota-timer  install the 15-min usage-quota sampler systemd user timer"
 	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
@@ -192,6 +194,34 @@ status-statusline:
 uninstall-statusline:
 	@echo "→ removing statusline symlink"
 	@[ -L $(HOME)/.claude/statusline-command.sh ] && rm $(HOME)/.claude/statusline-command.sh || true
+
+# Quota sampler: a systemd USER timer (15 min) that records Claude usage-limit
+# utilization into a git-versioned JSONL, so an idle quota spike (cf. 2026-06-18) is
+# captured for forensics/visualization. Units are symlinked from this repo into
+# ~/.config/systemd/user/ (mem-logger pattern); the data lands in ~/src/claude-diary/quota/.
+SYSTEMD_USER := $(HOME)/.config/systemd/user
+install-quota-timer:
+	@echo "→ installing quota-sample timer"
+	@mkdir -p $(SYSTEMD_USER)
+	@ln -sf $(SRC_DIR)/tools/quota-sample.service $(SYSTEMD_USER)/quota-sample.service
+	@ln -sf $(SRC_DIR)/tools/quota-sample.timer   $(SYSTEMD_USER)/quota-sample.timer
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now quota-sample.timer
+	@echo "  enabled. next runs: systemctl --user list-timers quota-sample.timer"
+
+status-quota-timer:
+	@echo "quota-sample.timer:"
+	@if [ -L $(SYSTEMD_USER)/quota-sample.timer ]; then \
+		systemctl --user is-active quota-sample.timer >/dev/null 2>&1 \
+			&& echo "  ok  active -> $$(readlink $(SYSTEMD_USER)/quota-sample.timer)" \
+			|| echo "  --  installed but not active (systemctl --user enable --now quota-sample.timer)"; \
+	else echo "  !!  not installed (make install-quota-timer)"; fi
+
+uninstall-quota-timer:
+	@echo "→ removing quota-sample timer"
+	@systemctl --user disable --now quota-sample.timer 2>/dev/null || true
+	@rm -f $(SYSTEMD_USER)/quota-sample.timer $(SYSTEMD_USER)/quota-sample.service
+	@systemctl --user daemon-reload 2>/dev/null || true
 
 uninstall: $(addprefix uninstall-,$(SKILLS)) uninstall-statusline
 
