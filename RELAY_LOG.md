@@ -491,3 +491,7 @@ relay(401c Run 15): strong-model audit 61020a0..HEAD — clean (L1/L2 skeleton +
 ## 2026-06-19 20:17 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 relay(401c Run 16): strong-model audit 36fb824..HEAD — clean (ledger-only window), suite 76/0
+
+## 2026-06-19 20:26 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(401c Run 17): strong-model audit 250613f..HEAD — clean ledger-only window, 1 coherence drift fixed inline (d5e0 stale open-HARD set), suite 76/0
