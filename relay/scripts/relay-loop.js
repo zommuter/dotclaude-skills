@@ -437,6 +437,23 @@ const REPORT_SCHEMA = {
     // >0 ⟹ the supervisor re-enqueues an execute unit for this repo in the SAME pool
     // (review→execute chaining) instead of waiting for the next pool's discovery.
     routine_open: { type: 'number' },
+    // --- durable handback follow-up (id:3801) -------------------------------------
+    // On a handback (contract_met=false), the child classifies WHY so the integrator
+    // can durably record it in ROADMAP.md (handback-followup.py) instead of letting the
+    // judgment evaporate into RELAY_STATUS and re-dispatching the same un-doable item.
+    handback_item: { type: 'string' },  // the 4-hex id the handback concerns
+    route: { type: 'string' },          // decision-gate | hard-split | human | none
+    gate_reason: { type: 'string' },    // ONE short line for the inline ROADMAP gate note
+    proposed_split: {                   // hard-split only: seams to mint as pickable units
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' }, id: { type: 'string' },
+          tier: { type: 'string' }, dep: { type: 'string' },
+        },
+      },
+    },
   },
 }
 
@@ -886,7 +903,9 @@ ${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including
 
 Hard rules: commit in the worktree as you go; NEVER push; NEVER tag; NEVER run git-diary-workflow or todo-update; never prompt the user. If you cannot meet the contract, set contract_met=false and explain in handback.
 
-Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none), routine_open (review units: open [ROUTINE] count after re-derivation; 0 for handoff/execute).${unit.verdict === 'review' ? ' ALSO (review units only, id:3826 — feeds the gaming-flag rate logger; see review.md §6 return schema): verified_green (array of ROADMAP ids you confirmed genuinely green this review, [] if none), gaming_flags (array of "<id>: <reason>" strings for every DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT or judgment flag you raised, [] if none), reopened (array of ROADMAP ids you reopened, [] if none).' : ''}`
+Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none), routine_open (review units: open [ROUTINE] count after re-derivation; 0 for handoff/execute).${unit.verdict === 'review' ? ' ALSO (review units only, id:3826 — feeds the gaming-flag rate logger; see review.md §6 return schema): verified_green (array of ROADMAP ids you confirmed genuinely green this review, [] if none), gaming_flags (array of "<id>: <reason>" strings for every DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT or judgment flag you raised, [] if none), reopened (array of ROADMAP ids you reopened, [] if none).' : ''}
+
+ON A HANDBACK (contract_met=false), ALSO classify it so the integrator records it DURABLY in ROADMAP.md and the pool stops re-dispatching the same un-doable item (id:3801): set handback_item (the 4-hex ROADMAP id you handed back, e.g. the [HARD] item you sized out), and route = one of "decision-gate" (needs a /meeting design decision before anyone can build it), "hard-split" (too large for one turn but decomposable into smaller pickable seams), "human" (needs a manual human action / /relay human), or "none" (transient/other failure — no durable action). Set gate_reason to ONE short line for the inline ROADMAP note. For route="hard-split" ONLY, set proposed_split = an ordered array of seam units [{title, tier:"HARD"|"ROUTINE", dep:"<4-hex id of the seam this one depends on, omit if independent>", id:"<reuse an existing 4-hex token if the seam already has one in the ROADMAP/meeting-note, else OMIT to let the integrator mint one>"}]. On a clean success, omit these (route defaults to none).`
 }
 
 // Auto-resume after an API-error / terminal child failure (handoff only — its
@@ -983,6 +1002,10 @@ async function integrate(unit, report) {
   if (!report.contract_met) {
     // HANDBACK: not merged; worktree held on disk for a human/strong turn.
     state.blocked.push({ repo: unit.repo, reason: report.handback || 'contract_met=false', worktreePath: report.worktree })
+    // id:3801 — durably record the handback in ROADMAP.md (auto-gate / auto-split) so the
+    // child's judgment doesn't evaporate into RELAY_STATUS and the pool stops re-dispatching
+    // the same un-doable item. Fire-and-forget, non-fatal (like logGamingFlags).
+    durableHandbackFollowup(unit, report)
     scheduleStatusWrite(state)
     return
   }
@@ -1076,6 +1099,30 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })  // id:c8b6
   }
   scheduleStatusWrite(state)
+}
+
+// id:3801 — Durable handback follow-up. When a child hands back (contract_met=false) with a
+// classified route, durably record it in the repo's MAIN-checkout ROADMAP.md so the pool stops
+// re-dispatching an un-doable item: decision-gate/human → re-tag the parent to the
+// classifier-excluded "[HARD — decision gate]"; hard-split → gate the parent + append the
+// proposed seams as pickable units. The Workflow sandbox has NO shell/fs (process.* / new Date()
+// crash the pool — id 2026-06-15), so a tiny Haiku agent runs handback-followup.py, which owns
+// all idempotency + the flock'd md-merge write + the --ff-only commit/push. Fire-and-forget,
+// non-fatal (a follow-up failure must never crash the integrator); the item simply stays
+// surfaced in RELAY_STATUS as before. The gate is a CLAIM the next review re-checks (anti-gaming).
+function durableHandbackFollowup(unit, report) {
+  const route = report.route
+  if (!route || route === 'none' || !report.handback_item) return  // nothing durable to do
+  const esc = s => String(s == null ? '' : s).replace(/'/g, "'\\''")
+  const splitJson = JSON.stringify(Array.isArray(report.proposed_split) ? report.proposed_split : [])
+  // Short, single-line gate note (never inline the verbose handback into a ROADMAP line).
+  const gateReason = (report.gate_reason || String(report.handback || '').slice(0, 200)).replace(/\s+/g, ' ').trim()
+  agent(
+    `Run exactly this command and report whether it exited 0 (durable handback follow-up for ${unit.repo}, id:3801 — records the handback in ROADMAP.md so the pool stops re-dispatching an un-doable item; the script owns idempotency + commit/push):
+python3 ~/.claude/skills/relay/scripts/handback-followup.py '${esc(unit.path)}' --parent-id '${esc(report.handback_item)}' --route '${esc(route)}' --gate-reason '${esc(gateReason)}' --split-json '${esc(splitJson)}' --run-id '${esc(state.runId)}'
+Report the exit code.`,
+    { label: `handback-followup:${unit.repo}`, phase: 'Integrate', model: 'haiku' }
+  ).catch(err => log(`relay-loop: durable handback follow-up failed for ${unit.repo} (non-fatal): ${err}`))
 }
 
 // id:3826 — Append a gaming-flags telemetry line to relay-gaming-flags.log.

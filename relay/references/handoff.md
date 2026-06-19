@@ -115,6 +115,27 @@ Return a structured report — do NOT push, do NOT run git-diary-workflow or tod
 }
 ```
 
+**On a handback (`contract_met: false`), ALSO classify it (id:3801)** so the integrator records
+it durably in ROADMAP.md (`handback-followup.py`) and the pool stops re-dispatching the same
+un-doable item. Add:
+
+```json
+{
+  "handback_item": "<4-hex id the handback concerns, e.g. the [HARD] item you sized out>",
+  "route": "decision-gate | hard-split | human | none",
+  "gate_reason": "<ONE short line for the inline ROADMAP gate note>",
+  "proposed_split": [
+    {"title": "<seam>", "tier": "HARD|ROUTINE", "dep": "<id it depends on, omit if independent>",
+     "id": "<reuse an existing token if the seam already has one, else OMIT to mint>"}
+  ]
+}
+```
+
+- `decision-gate` — needs a `/meeting` design decision first → parent re-tagged `[HARD — decision gate]`.
+- `hard-split` — too large but decomposable → parent gated + `proposed_split` seams minted as pickable units.
+- `human` — needs a manual human action / `/relay human`.
+- `none` (or omit) — transient/other failure, no durable action.
+
 `contract_met` is false if checkpoints are out of order (e.g. C3 without C1/C2) or a
 required artifact is missing; the orchestrator holds such a worktree for inspection
 rather than merging it.
