@@ -479,3 +479,7 @@ review relay-ckpt-20260619-1807..HEAD (2 commits: 42ac0a3 strengthen TODO id:380
 ## 2026-06-19 19:24 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260619-1807..HEAD: 2 docs/ledger commits (id:3801 evidence, id:401c audit-note salvage) verified clean; gaming-scan no output, suite 75/0/0; routine_open=0
+
+## 2026-06-19 19:53 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Reviewed id:3801 (durable handback follow-up) — genuinely green: hermetic test w/ idempotency, suite 76/0, no gaming, routine_open=0
