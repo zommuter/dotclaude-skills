@@ -28,7 +28,8 @@
 #   QUOTA_DATA_REL        data path within that repo   (default quota/quota-samples.jsonl)
 #   QUOTA_CACHE           shared statusline cache      (default /tmp/claude-usage-cache.json)
 #   QUOTA_FRESH_SECS      reuse cache if younger       (default 300)
-#   QUOTA_COMMIT_INTERVAL min secs between git commits (default 3600; 0 = commit every run)
+#   QUOTA_COMMIT_INTERVAL min secs between git commits (default 0 = commit every run;
+#                         set e.g. 3600 to coarsen to hourly snapshots)
 #   QUOTA_NO_COMMIT=1     append only, never touch git (tests/dry-run)
 #   QUOTA_CREDENTIALS     OAuth creds json             (default ~/.claude/.credentials.json)
 set -euo pipefail
@@ -38,7 +39,7 @@ DATA_REL="${QUOTA_DATA_REL:-quota/quota-samples.jsonl}"
 DATA_FILE="$DIARY_DIR/$DATA_REL"
 CACHE="${QUOTA_CACHE:-/tmp/claude-usage-cache.json}"
 FRESH_SECS="${QUOTA_FRESH_SECS:-300}"
-COMMIT_INTERVAL="${QUOTA_COMMIT_INTERVAL:-3600}"
+COMMIT_INTERVAL="${QUOTA_COMMIT_INTERVAL:-0}"
 CREDS="${QUOTA_CREDENTIALS:-$HOME/.claude/.credentials.json}"
 
 # Shared with the statusline — DO NOT rename (cooperation depends on identical paths).
