@@ -511,3 +511,7 @@ relay(401c Run 20): strong-model audit f24b99e..HEAD — clean ledger-only windo
 ## 2026-06-19 22:30 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 relay(review): relay-ckpt-20260619-2058..HEAD — 2 commits, both TODO.md-only (id:daf0 screenshots/README refresh, id:81cb statusline per-session ctx/cost/quota state file). gaming-scan clean (no code/test churn); suite 76/0. Contract pointer v4 == canonical v4, no drift. §5b reverse-handoff: both new open TODO items are design-judgment work (each carries open "Design qs (a)-(d)" — medium/path/schema decisions, no single observable done-state) → left as TODO /meeting candidates, NOT promoted to ROADMAP, ids preserved. ROADMAP open = 4 [HARD] (dba3/de4e/401c/3346), routine_open=0.
+
+## 2026-06-19 22:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: ledger-only window (id:daf0/id:81cb TODO adds), gaming-scan clean, suite 76/0, contract v4 current, 0 routine open
