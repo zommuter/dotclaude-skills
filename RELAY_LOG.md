@@ -483,3 +483,7 @@ review 20260619-1807..HEAD: 2 docs/ledger commits (id:3801 evidence, id:401c aud
 ## 2026-06-19 19:53 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Reviewed id:3801 (durable handback follow-up) — genuinely green: hermetic test w/ idempotency, suite 76/0, no gaming, routine_open=0
+
+## 2026-06-19 20:08 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(401c Run 15): strong-model audit 61020a0..HEAD — clean (L1/L2 skeleton + data-loss batch), 1 LOW flake tracked id:05e8, suite 76/0
