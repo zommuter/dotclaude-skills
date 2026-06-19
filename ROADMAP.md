@@ -766,6 +766,16 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       run, green in isolation + on re-run — pre-existing fetch/push timing flake, id:16e9 class,
       NOT new /tmp contention; both tests isolate via mktemp). Suite 76/0 on a clean run. See
       `docs/meeting-notes/2026-06-19-2005-strong-model-audit.md`.
+    - Run 16 (2026-06-19-2015): first-seen change since Run 15's own audit commit `36fb824`
+      (`36fb824..HEAD`) — **clean: LEDGER-ONLY window**. Sole first-seen change = the Run 15
+      strong-execute checkpoint paragraph in RELAY_LOG.md (+4 lines); `git diff --name-only
+      36fb824..HEAD -- '*.sh' '*.py' '*.js'` is EMPTY. No code to review, no security surface,
+      no new design decision/gate. The RELAY_LOG paragraph is internally consistent (audit
+      verdict + suite count + tracked-flake id) — no contradiction. Cross-ledger coherent
+      (0 open ROUTINE / 3 HARD — dba3/401c/3346; the 4th `[ ]` HARD line is the DEFERRED
+      design entry de4e, not executable; d5e0 agrees). Both pre-existing tracked flakes
+      (id:16e9, id:05e8) did NOT recur. Suite 76/0 (audit-only, no test changes). See
+      `docs/meeting-notes/2026-06-19-2015-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
