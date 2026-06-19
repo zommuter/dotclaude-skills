@@ -818,6 +818,22 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       3 executable HARD — dba3/401c/3346; de4e DEFERRED non-executable; all three open in both
       ROADMAP+TODO; d5e0 summary agrees, Run 17's drift fix holds). Both tracked flakes (id:16e9,
       id:05e8) did NOT recur. Suite 76/0. See `docs/meeting-notes/2026-06-19-2118-strong-model-audit.md`.
+    - Run 21 (2026-06-19-2155): first-seen change since Run 20's own audit commit `39592e8`
+      (`39592e8..HEAD`) — **LEDGER-ONLY window** (Runs 11/12/16/17/18/19/20 class). First-seen
+      changes = the Run 20 strong-execute + review checkpoint paragraphs in RELAY_LOG.md and two
+      newly-minted TODO design items (id:81cb statusline per-session ctx state file; id:daf0
+      screenshots + README refresh) under a new `## docs & presentation` header; `git diff
+      --name-only 39592e8..HEAD -- '*.sh' '*.py' '*.js'` is EMPTY. No code to review, no security
+      surface (the two specs are purely-local additive sketches; id:daf0 itself flags the
+      capture-privacy hazard for the build pass). Both new items internally sound (id:81cb's
+      `.session_id`/`$CLAUDE_SESSION_ID` key both sides agree on is correct — statusline parses only
+      `.transcript_path` today; id:daf0's README-vs-SKILL.md boundary consistent). **One coherence
+      drift fixed inline (Run 4/8/17 class)** — the TODO id:401c MIRROR line still read "Latest ✓
+      Run 19"; Run 20 had since run (ledger-only); refreshed it to Run 21. Cross-ledger coherent
+      (0 open ROUTINE / 3 executable HARD — dba3/401c/3346; de4e DEFERRED non-executable; all three
+      open in both ROADMAP+TODO; d5e0 summary agrees, Run 17's drift fix holds). id:16e9 did NOT
+      recur; id:05e8 flaked once (75/1) then green in isolation + full-suite rerun (76/0), exactly
+      as id:05e8 predicts. Suite 76/0 on rerun. See `docs/meeting-notes/2026-06-19-2155-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
