@@ -1,0 +1,9 @@
+[Unit]
+Description=Sample Claude usage quota into a git-versioned JSONL time series
+Documentation=file:%h/src/dotclaude-skills/tools/quota-sample.sh
+# Cooperative with the statusline's /tmp/claude-usage-* cache — see the script header.
+
+[Service]
+Type=oneshot
+ExecStart=%h/src/dotclaude-skills/tools/quota-sample.sh
+Nice=10

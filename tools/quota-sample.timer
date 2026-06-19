@@ -1,0 +1,15 @@
+[Unit]
+Description=Sample Claude usage quota every 15 min (idle-spike forensics)
+
+[Timer]
+# Fire shortly after login, then every 15 minutes. The sampler is cooperative
+# (reuses the statusline's warm cache during active sessions; fetches itself only
+# when idle), so the cadence does not contend with the statusline's API budget.
+OnStartupSec=2min
+OnUnitActiveSec=15min
+# Don't pile up missed runs after suspend/resume; one catch-up is plenty.
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
