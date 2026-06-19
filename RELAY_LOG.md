@@ -487,3 +487,7 @@ Reviewed id:3801 (durable handback follow-up) — genuinely green: hermetic test
 ## 2026-06-19 20:08 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 relay(401c Run 15): strong-model audit 61020a0..HEAD — clean (L1/L2 skeleton + data-loss batch), 1 LOW flake tracked id:05e8, suite 76/0
+
+## 2026-06-19 20:17 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(401c Run 16): strong-model audit 36fb824..HEAD — clean (ledger-only window), suite 76/0
