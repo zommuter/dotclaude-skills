@@ -751,6 +751,21 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       NEW-newer snapshot, type-mismatch refusal). Design/spec claims all independently re-verified TRUE
       (symlinks, 358 events, 48 gather). 1 LOW tracked: id:16e9 (pre-existing flaky `test_relay_claim_liveness.sh`,
       roadmap:7570 — unrelated to this change). Suite 66/66.
+    - Run 15 (2026-06-19-2005): first-seen code since Run 14's own audit commit `61020a0`
+      (`61020a0..HEAD`, ~1.9 kLOC / 9 prod files) — the L1/L2 token-skeleton + data-loss-fix
+      batch (ids aa93 clean-tree-gate + git-lock-push autostash-refuse, 11ad gather-repo-state,
+      0d31 relay-status-publish, c855 push-seed cache, 3801 handback-followup.py, b841 nested
+      quotaThresholds fold, 2425 crossedBucket). **Clean** — no inline code/security fix needed.
+      Verified: gather-repo-state.sh builds JSON via env vars (no injection), discover-sig.sh ⟷
+      gather-repo-state.sh hash the SAME superset (no stale-verdict hazard for the c3a6/c855
+      caches), push-seed seeds `idle` only at provably-drained 0/0 (no under-dispatch), handback
+      follow-up POSIX-escapes every shell arg + fire-and-forget, git-lock-push/clean-tree-gate
+      both refuse to force-clean a foreign-dirty tree, profile-run.sh rollup-needle removed.
+      shard-canary corpus is the correct behavior-preservation net for the 11ad refactor.
+      1 LOW tracked: id:05e8 (`test_git_lock_push_slash_branch.sh` flaked on the first full-suite
+      run, green in isolation + on re-run — pre-existing fetch/push timing flake, id:16e9 class,
+      NOT new /tmp contention; both tests isolate via mktemp). Suite 76/0 on a clean run. See
+      `docs/meeting-notes/2026-06-19-2005-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
