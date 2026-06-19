@@ -471,3 +471,7 @@ review relay-ckpt-20260619-1715..HEAD (1 commit: 3af0630 quota-sample QUOTA_COMM
 ## 2026-06-19 18:07 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: quota-sample QUOTA_COMMIT_INTERVAL default flip (id:d267) verified genuinely green — gaming-scan clean, 75/75, stale header comment fixed inline; routine_open=0
+
+## 2026-06-19 19:15 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review relay-ckpt-20260619-1807..HEAD (2 commits: 42ac0a3 strengthen TODO id:3801 with leAIrn2learn d61a 4th-handback evidence; 20ece4f preserve run-13 strong-model audit note from parked orphan, reconcile id:401c). Both pure docs/ledger — no code or test surface. Test-integrity audit clean: gaming-scan.sh no output (no DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT); full suite 75/0/0. id:3801 re-write REUSES its own token (single-id-two-views honored — no duplicate minted); the salvaged meeting note is a net-add docs file. Step 5b: the only new open `- [ ]` line is the re-written id:3801 (existing design/[MEETING] candidate), so nothing unqualified to reverse-handoff. Contract pointer v4 == canonical v4 (no drift). No reopens, no gaming flags, no roadmap delta; routine_open=0, 4 open [HARD] (dba3/de4e/401c/3346).
