@@ -19,8 +19,8 @@
 # Every sample carries source ("fetch"|"cache") + cache_age_s + stale, so a piggybacked
 # stale reading is never mistaken for a fresh fetch.
 #
-# Append every run; commit+push to the diary repo on a coarser cadence
-# (QUOTA_COMMIT_INTERVAL, default hourly) via git-lock-push.sh manifest mode — staging
+# Append every run; commit+push to the diary repo (QUOTA_COMMIT_INTERVAL, default every
+# run; set >0 to coarsen) via git-lock-push.sh manifest mode — staging
 # ONLY the data file, race-free against git-diary-workflow.
 #
 # Env overrides (all optional; defaults are the live config):
