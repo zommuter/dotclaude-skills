@@ -1,5 +1,17 @@
 # TODO
 
+## privacy & security
+
+- [ ] **[HIGH PRIORITY — SECURITY] Privacy scan before every GitHub (public-remote) push — globally** — `dotclaude-skills` is PUBLIC; personal identity leaks slip in via docs/scripts. Build a **pre-push privacy gate that runs globally** (every repo, before any push to a PUBLIC remote): a `pre-push` git hook installed via global `core.hooksPath` (or wired into `git-diary-workflow/git-lock-push.sh` before the `git push`), that scans the about-to-be-pushed diff for leak patterns and BLOCKS (loud, overridable) when the remote host is public (e.g. `github.com`) — lenient/skip for private remotes (`fievel`). Patterns: emails, `/home/<user>` absolute paths, machine hostnames, real-name strings, `accessToken`/`api[_-]?key`/`-----BEGIN`/`password=` secrets, session UUIDs. Must be **allowlist-aware** (some matches are intentional/functional — see below) and scan the **diff/new content**, not the whole tree, so it isn't noisy. Pair with a global `~/.claude/CLAUDE.md` rule ("before pushing to a public remote, the privacy gate must pass"). Mechanism lives in `dotclaude-skills/hooks/` + installed globally.
+  **First targets to triage (found by the 2026-06-19 scan of this repo):**
+  - **Real name `Tobias Kienzler`** hardcoded in `relay/scripts/discover-repos.sh` (`OWN_AUTHOR_RE`) — this is FUNCTIONAL (matches the git author to classify "own" repos), so the fix is to **externalize it** to a local/env/`.gitignored` config, NOT delete it (deleting breaks ownership detection).
+  - **`@kienzler.dev` domain** in `git-diary-workflow/SKILL.md` Co-Authored-By template (also note: the actual commit *trailers* in git history embed `real-session-uuid@kienzler.dev` — that's history, a separate scrub question).
+  - **`/home/tobias`** in 7 tracked files (username leak + portability bug in scripts → use `$HOME`/`~`; `relay-loop.js:612` is example-text inside a prompt, lower risk).
+  - **Machine names** `zomni`/`cartmanjaro`/`fievel`/`pixel` across many `docs/meeting-notes/` + `TODO.md`.
+  - **Private project portfolio** (`zkWhale`/`trAIdBTC`/`helferli`/`kienzler-homepage`/`puzzle-pwa`/…) exposed via the published `TODO.md` + meeting-notes — DECIDE: intentional (the public decision log) vs. alias/scrub. Income/business detail (Bitcoin donation funnel, deadlines) lives here too.
+  - **No hardcoded secrets/tokens found** — all `accessToken`/`api-key` references are code reading the un-committed `~/.claude/.credentials.json` (✓ correct).
+  Decide scope: ship the gate first (mechanism), then triage the findings (the name-externalization is the only behavioural one). <!-- id:ebd0 -->
+
 ## Relay
 
 - [ ] **relay front-door autonomous-pool singleton guard** — before launching the no-arg autonomous pool Workflow, acquire a `pool:autonomous` claim via the existing `claim.sh` (id:ebfb); if a claim is already live, refuse and name the holder (peek). Directed/scoped/`--afk` runs are EXEMPT — this guards only duplicate concurrent no-arg pools; legitimate multi-clauding (54 overlap events, 16% of messages) must be unaffected. Touches relay/SKILL.md front-door step + claim.sh (no new machinery, compose existing). Relates id:1968; does not block on it. Out of scope: blocking any directed/parallel run or building a new lockfile. Source: 2026-06-18 /insights report + meeting id:f1a7; see docs/meeting-notes/2026-06-18-1829-insights-findings-triage.md. <!-- id:11c6 -->
