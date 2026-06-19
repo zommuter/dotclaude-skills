@@ -467,3 +467,7 @@ review: quota-sampler window (id:d267) verified genuinely green — gaming-scan 
 ## 2026-06-19 16:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review relay-ckpt-20260619-1715..HEAD (1 commit: 3af0630 quota-sample QUOTA_COMMIT_INTERVAL default 3600->0, id:d267). Test-integrity audit clean: gaming-scan.sh no output; full suite 75/0/0; test_quota_sample.sh passes isolated and does not pin the old default (hermetic via QUOTA_NO_COMMIT). The 3-line change (one env default + its doc) is a faithful bugfix to the shipped sampler — the hourly gate was hiding commits behind sub-60-min timer firings. Spec-drift fix inline: the same commit left the WHY-block header (line 23) still saying "default hourly", contradicting the corrected env-doc; aligned it (commit de75d72). Step 5b: no new TODO/ROADMAP items in the window — nothing to qualify; id:d267 stays open by its own "re-evaluate after >=1 spike/week" gate. Contract pointer v4 == canonical v4. No reopens, no roadmap delta; routine_open=0, 4 open [HARD].
+
+## 2026-06-19 18:07 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: quota-sample QUOTA_COMMIT_INTERVAL default flip (id:d267) verified genuinely green — gaming-scan clean, 75/75, stale header comment fixed inline; routine_open=0
