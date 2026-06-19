@@ -809,6 +809,15 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       DEFERRED non-executable; all three open in both ROADMAP+TODO; d5e0 summary agrees,
       Run 17's drift fix holds). Both tracked flakes (id:16e9, id:05e8) did NOT recur.
       Suite 76/0. See `docs/meeting-notes/2026-06-19-2117-strong-model-audit.md`.
+    - Run 20 (2026-06-19-2118): first-seen change since Run 19's own audit commit `f24b99e`
+      (`f24b99e..HEAD`) — **LEDGER-ONLY window** (Runs 11/12/16/17/18/19 class). Sole first-seen
+      change = the Run 19 strong-execute checkpoint paragraph in RELAY_LOG.md (+4 lines); `git diff
+      --name-only f24b99e..HEAD -- '*.sh' '*.py' '*.js'` is EMPTY. No code to review, no security
+      surface, no new design decision/gate. The RELAY_LOG paragraph is internally consistent
+      (verdict + no-inline-fix note + suite count 76/0). Cross-ledger coherent (0 open ROUTINE /
+      3 executable HARD — dba3/401c/3346; de4e DEFERRED non-executable; all three open in both
+      ROADMAP+TODO; d5e0 summary agrees, Run 17's drift fix holds). Both tracked flakes (id:16e9,
+      id:05e8) did NOT recur. Suite 76/0. See `docs/meeting-notes/2026-06-19-2118-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
