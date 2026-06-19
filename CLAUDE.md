@@ -42,7 +42,7 @@ install IS the published version (per-file symlinks, see Layout).
 | ~~`fables-turn/`, `fables-executor/`~~ | **Removed 2026-06-15** — deprecated alias stubs → `/relay` + `/relay executor`. Migrated (no remaining cron/invocations); untracked, deleted locally, and the `~/.claude/skills` symlinks uninstalled. The 3 `fables-*` meeting-notes stay as history. `.gitignore` still blocks accidental re-add. |
 | `hooks/` | Stop/Notification hook scripts; settings.json snippets in `hooks/README.md` |
 | `statusline/` | `statusline-command.sh` — quota/cost/model statusline (reads JSON on stdin) |
-| `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt`; `ctx-budget.sh` (advisory SKILL.md token-budget audit); `settings-env.py` (settings.json env-block applier, used by `make install-relay-env`); `model-probe.sh` + `model-probe.battery.jsonl` (standing model-quality probe, id:dba3) |
+| `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt`; `ctx-budget.sh` (advisory SKILL.md token-budget audit); `settings-env.py` (settings.json env-block applier, used by `make install-relay-env`); `model-probe.sh` + `model-probe.battery.jsonl` (standing model-quality probe, id:dba3); `quota-sample.sh` + `quota-sample.{service,timer}` + `quota-report.py` (idle-resilient usage-quota sampler → git-versioned JSONL in `~/src/claude-diary/quota/`, `make install-quota-timer`, id:d267) |
 | `tests/` | Plain-bash test suite (see Testing) |
 | `docs/meeting-notes/` | Design-meeting records — the project's decision log; cited from TODO items |
 
