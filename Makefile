@@ -42,7 +42,8 @@ relay_FILES := SKILL.md \
                scripts/gaming-scan.sh scripts/profile-run.sh scripts/profile-runs-batch.sh \
                scripts/relay-burn.sh scripts/relay-econ.py scripts/relay-reconcile.sh \
                scripts/loop-hint.sh scripts/discover-sig.sh scripts/migrate-state-dirs.sh \
-               scripts/relay-status-publish.sh scripts/gather-repo-state.sh
+               scripts/relay-status-publish.sh scripts/gather-repo-state.sh \
+               scripts/handback-followup.py
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \

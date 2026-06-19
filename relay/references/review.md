@@ -173,4 +173,10 @@ handoff C5.
 }
 ```
 
+**On a handback (`contract_met: false`), ALSO classify it (id:3801)** — `handback_item` (the
+4-hex id), `route` (`decision-gate` | `hard-split` | `human` | `none`), `gate_reason` (one short
+line), and for `hard-split` a `proposed_split` array of seam units `{title, tier, dep?, id?}`.
+The integrator's `handback-followup.py` then durably gates/splits the parent in ROADMAP.md so the
+pool stops re-dispatching it. See handoff.md "Return contract" for the field shapes.
+
 Do NOT push; the orchestrator merges, runs ckpt-tag.sh, and pushes once per repo.
