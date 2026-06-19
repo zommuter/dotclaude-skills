@@ -455,3 +455,7 @@ Review relay-ckpt-20260618-1720..HEAD (4 commits, docs-only: insights-triage mee
 ## 2026-06-19 16:21 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: docs-only window (2 persona appends Della+Reni) verified clean — 74/74 tests green, no gaming flags, no roadmap delta
+
+## 2026-06-19 16:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review relay-ckpt-20260619-1621..HEAD (3 commits: quota-sampler tool 27f06ab + 2 TODO records). Test-integrity audit clean: gaming-scan.sh no output (no deleted tests / added skips / removed asserts); full suite 75/0/0; new tests/test_quota_sample.sh genuine (hermetic fixture, real assertions on sampler row capture + reporter jump-detection/reset-segmentation) and passes isolated. No formerly-red tests in window (new feature, not a red-spec close). Contract pointer v4 == canonical v4 (no drift). Step 5b reverse-handoff: id:d267 (quota sampler — already SHIPPED+tested+installed; "let it run, re-evaluate after ≥1 spike/week" → deferred/gated, skip) and id:3b18 (git-lock-push manifest silent-noop snag — multiple fix candidates a/b/c/d + open root-cause, relates id:aa93/3558 → design-judgment, leave as TODO /meeting candidate). Neither is a [ROUTINE] mini-handoff. Spec-drift fix: added quota-sample.* to CLAUDE.md tools/ row. No roadmap delta; routine_open=0, 4 open [HARD].
