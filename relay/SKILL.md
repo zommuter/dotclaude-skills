@@ -244,6 +244,13 @@ unmerged commits, D1 renames its branch into `relay/orphan/*` (commit reachable 
 worktree dir removed) and surfaces it. Reconcile lets a human dispose those parked branches.
 **NEVER auto-triggered by the pool** — it is a deliberate, per-branch decision.
 
+**Cross-repo sweep (canonical — use this first):** `relay-reconcile.sh --all` enumerates
+all relay.toml `classification = "own"` repos (honoring `# path:` overrides, `RELAY_TOML`,
+`SRC_DIR`) and lists every `relay/orphan/*` branch across all of them. An unreadable or
+missing repo path is SURFACED on stderr — never silently swallowed as "no orphans". Do NOT
+hand-roll a per-repo `git for-each-ref … 2>/dev/null` sweep; that is the exact false-clean
+bug (id:4e14). `--all` is list-only; combining it with `--integrate`/`--discard` is rejected.
+
 Run `scripts/relay-reconcile.sh [repo]` (defaults to the cwd repo). With no flag it
 **lists** every `relay/orphan/*` branch with its parked commit; then per branch choose:
 
@@ -257,7 +264,7 @@ Run `scripts/relay-reconcile.sh [repo]` (defaults to the cwd repo). With no flag
 - **discard** — `relay-reconcile.sh --discard <branch>` → `git branch -D` (drop the work).
 - **leave** — do nothing; the `relay/orphan/*` ref stays for a later pass.
 
-`<branch>` may be given with or without the `relay/orphan/` prefix. `id:3313`.
+`<branch>` may be given with or without the `relay/orphan/` prefix. `id:3313`, `id:4e14`.
 
 ## Next mode
 
