@@ -568,3 +568,7 @@ relay(401c Run 29): strong-model audit 8016dfa..HEAD — clean ledger-only windo
 
 Worked id:4e14 — added `--all` to relay-reconcile.sh: enumerates relay.toml `own` repos via a copied `own_repos()` parser (same logic as gather-human-backlog.sh), lists each repo's `relay/orphan/*` branches with repo name on each line, surfaces unreadable/missing paths on stderr (never swallows), rejects `--all --integrate`/`--all --discard` with exit 2. SKILL.md reconcile section updated with canonical cross-repo sweep command and anti-hand-roll guard. Suite: 77/0/0.
 Friction: none — test was a clean spec, `own_repos()` copy was straightforward.
+
+## 2026-06-21 23:04 — reviewer (claude-opus-4-8)
+
+Opus review (/relay review --all): 13-commit window. gaming-scan clean; suite 78p/0f/0xred. Genuine code verified: check-no-silent-swallow.sh (id:4347 mechanization guard) with an 86-line test asserting violation-count/annotation-clears/empty-reason-still-fails/enforce-baseline; relay-reconcile.sh --all (id:4e14) with a test asserting --all flag + no-silent-swallow on an unreadable repo. /meeting design-ledger (415b decomposition, Priya persona, 78ff explicit HARD-lane, d9b0/2840) + git-lock-push/quota-sample askpass+CF-browser hardening audited clean (docs/scripts, no test drift). Cross-ledger consistent.
