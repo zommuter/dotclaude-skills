@@ -20,12 +20,12 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Acceptance:** a new `tests/test_hard_lane_buckets.sh` (`# roadmap:78ff`): a ROADMAP fixture with one item per lane + one untagged asserts gather-human-backlog emits the right `bucket` per item AND exits nonzero (loud) on the untagged one; the lane vocabulary doc exists; cross-check that the marker set matches project_manager's (id:b466). RED until implemented.
   - **Coupling:** ships its vocabulary doc BEFORE or WITH project_manager id:b466 (shared contract; keep them in sync). Relates id:3801/da26/8d52/9c92/415b.
 
-- [ ] [ROUTINE] Harden the flaky `test_relay_claim_liveness.sh` (hermeticity under parallel run) <!-- id:6b91 -->
+- [x] [ROUTINE] Harden the flaky `test_relay_claim_liveness.sh` (hermeticity under parallel run) (done 2026-06-21, executor) <!-- id:6b91 -->
   - **Bug (observed 2026-06-21, /relay human):** `tests/test_relay_claim_liveness.sh` (roadmap:7570) flakes ~1/run under the **parallel** `tests/run-tests.sh` (1 fail), but passes on re-run and is green in isolation. It claims hermetic (`CLAIM_BASE` in a tmpdir) yet shows cross-test interference under concurrency. The feature (worktree-anchored claim liveness) is genuinely green — this is a TEST hermeticity defect, not a regression. Decision: harden, don't accept-as-known-flaky (a flaky test erodes the suite's signal).
   - **Fix:** identify the actual shared surface first (a default `claim.sh` registry path? a fixed `/tmp` lock the tmpdir `CLAIM_BASE` doesn't cover?), then give the test a fully private claim root per test process and/or serialize the claim tests if they share state the runner can't isolate.
   - **Acceptance:** `test_relay_claim_liveness.sh` passes across ≥20 consecutive full **parallel** `tests/run-tests.sh` runs (no intermittent fail); the leaking shared surface is documented in the fix commit.
 
-- [ ] [ROUTINE] Mechanize the TODO↔ROADMAP seam (promotion-tracking + derived count) <!-- id:d9b0 -->
+- [x] [ROUTINE] Mechanize the TODO↔ROADMAP seam (promotion-tracking + derived count) (done 2026-06-21, executor) <!-- id:d9b0 -->
   - **Design + rationale: TODO id:d9b0** (single-id-two-views). The split stays (TODO=why, ROADMAP=now); mechanize the hand-done SYNC. Three gaps that bit 2026-06-21:
     1. **Promotion-tracking:** add a check (extend `meeting/orphan-scan.sh` or `todo-update/`) that flags a TODO item carrying an executable lane (`[ROUTINE]`/`[HARD — pool]`) whose `id:` has NO twin in that repo's ROADMAP → "un-promoted, pool-invisible" (id:78ff was filed TODO-only and the pool couldn't see it).
     2. **Derived count:** the `Relay: N open ROADMAP items` TODO summary (id:d5e0 here, id:d1dc in project_manager) is hand-maintained prose the id:401c audit keeps re-fixing — `proj`/`scan.py` already compute it. Derive it (a generator/check) or drop the prose line and point at `proj relay`.

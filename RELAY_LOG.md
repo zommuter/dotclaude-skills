@@ -576,3 +576,9 @@ Opus review (/relay review --all): 13-commit window. gaming-scan clean; suite 78
 ## 2026-06-21 23:22 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 reviewer (claude-opus-4-8): verified 1 doc-only commit (d9b0 3rd-seam-gap), suite 78 green, no gaming, 2 open ROUTINE
+
+## 2026-06-21 — executor (claude-sonnet-4-6)
+
+Worked id:6b91 — hardened test_relay_claim_liveness.sh: identified the shared surface as CLAIM_TTL=1 causing a timing-sensitive window on a loaded machine between the heartbeat refresh and the subsequent acquire check (>1s elapsed → claim appeared stale again, steal succeeded). Fixed by changing CLAIM_TTL from 1 to 3600; all stale-state is forced via `touch -d '1 hour ago'` so natural aging never triggers. Documented the fix and the absence of a fixed /tmp lock. Verified 0 liveness-test flakes across 20 parallel full-suite runs.
+Worked id:d9b0 — mechanized the TODO↔ROADMAP seam: (1) added `--promotion` (`-p`) mode to orphan-scan.sh that flags open TODO items with [ROUTINE]/[HARD — pool] lane tags absent from ROADMAP (pool-invisible un-promoted items); (2) extended `--cross-ledger` to honor `<!-- xledger-ok: <reason> -->` annotations on scope-split lines (intentional divergences no longer alarm-fatigue); (3) wrote tests/test_ledger_seam.sh (# roadmap:d9b0) covering all three acceptance criteria including derived-count assertion (fixture has no hand-maintained count line).
+Friction: none — both items were well-specified with clear acceptance criteria; the cross-ledger xledger-ok needed care with bash associative arrays to track annotation per-id.
