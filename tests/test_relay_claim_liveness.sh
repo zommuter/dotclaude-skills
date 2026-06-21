@@ -8,6 +8,15 @@
 #     and a different run's acquire is refused; whereas a stale claim with HEAD==main (or no
 #     worktree) is DEAD — reapable and re-acquirable.
 # Hermetic: CLAIM_BASE in a tmpdir, real git repos in a tmpdir, no network/~.
+#
+# Hermeticity note (id:6b91 fix): all staleness is forced via `touch -d '1 hour ago'` —
+# we never rely on natural mtime aging. CLAIM_TTL is set to 3600 (1 hour) to prevent a
+# timing window on a loaded system: with TTL=1 a heartbeat-then-acquire sequence taking
+# >1 s on a loaded machine caused the freshly-heartbeated claim to appear stale again,
+# letting a steal succeed (the shared surface under parallel test-suite runs). TTL=3600
+# eliminates this window; the `touch` commands still exercise the stale-and-dead path
+# deterministically. No fixed /tmp path is used — every shared surface is private to
+# this test's $CLAIM_BASE tmpdir.
 
 set -euo pipefail
 
@@ -39,7 +48,10 @@ git init -q -b main "$idle_wt"
 ( cd "$idle_wt" && echo base > a && git add a && git commit -qm base )
 
 # ── heartbeat keeps a >TTL claim alive ──────────────────────────────────────────────
-export CLAIM_TTL=1
+# Use a large TTL (1 hour) — all stale-state is forced via `touch -d '1 hour ago'`, so
+# natural aging never triggers. TTL=1 caused timing-sensitive flakes under parallel load
+# (id:6b91): heartbeat refreshes at T=0 but acquire runs at T>1s on a busy machine.
+export CLAIM_TTL=3600
 sk="$("$SH" acquire hb-repo --repo hb-repo --run RUN-HB --mode hard)"
 shard="$CLAIM_BASE/claims/$sk.json"
 touch -d '1 hour ago' "$shard"          # age it past TTL → would be stale
