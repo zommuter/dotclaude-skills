@@ -875,6 +875,22 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       dba3/401c/3346; de4e DEFERRED non-executable; all three open in both ROADMAP+TODO; d5e0
       summary agrees, Run 17's drift fix holds). Both tracked flakes (id:16e9, id:05e8) did NOT
       recur. Suite 76/0 on a clean run. See `docs/meeting-notes/2026-06-21-1626-strong-model-audit.md`.
+    - Run 25 (2026-06-21-1842): first-seen change since Run 24's own audit merge `99a1f2e`
+      (`99a1f2e..HEAD`) — **LEDGER-ONLY window** (Runs 11/12/16–24 class). First-seen = three
+      RELAY_LOG checkpoint paragraphs + a real ROADMAP design-state change (`01e54c4`): id:dba3
+      auto-gated `[HARD — strong model]` → `[HARD — decision gate]` route:human. `git diff
+      --name-only 99a1f2e..HEAD -- '*.sh' '*.py' '*.js'` is EMPTY → no code/security surface.
+      gaming-scan clean (no DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT). **Design coherence: the
+      id:dba3 gate change verified COHERENT** — closure genuinely needs the claude-probe OS user
+      (id:d0c0, useradd/sudo — forbidden for an unattended relay child) + real Opus/Sonnet/Haiku
+      token runs, so route:human is correct (consistent with the id:dba3 body, the open id:23e9
+      seeding gate, and project memory; the gate will fire for a human, not silently — no
+      can-never-fire gate). **One coherence drift fixed inline (Run 4/8/17/21/22/23/24 class)** —
+      the TODO id:401c MIRROR line still read "Latest ✓ Run 24"; refreshed to Run 25. Cross-ledger
+      coherent (0 open ROUTINE / 3 open HARD — dba3 now decision-gated, 401c, 3346 gated; de4e
+      DEFERRED non-executable; d5e0 summary agrees, Run 17's drift fix holds). Both tracked flakes
+      (id:16e9, id:05e8) did NOT recur. Suite 76/0 on a clean run. See
+      `docs/meeting-notes/2026-06-21-1842-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
