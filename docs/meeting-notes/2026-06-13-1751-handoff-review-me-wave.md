@@ -32,7 +32,7 @@
 - **rawrora axis-swap (4ad2) + sign-convention (98a0)** stand as D1 regression-guards; the *behavior* correctness (device sensor↔display orientation, offset sign) is the user's to confirm on-device at leisure — flagged, not silently blessed.
 
 ## Action items
-- [ ] handoff.md C3: regression-guard posture (D1) — **done in-session** (this commit). <!-- id:9297 -->
-- [ ] handoff.md C3: env-gated `unverified` posture (D2) — **done in-session** (this commit). <!-- id:e986 -->
+- [x] handoff.md C3: regression-guard posture (D1) — **done in-session** (this commit). Closed-state confirmed 2026-06-21 (orphan-scan cleanup, mechanization-audit session). <!-- id:9297 -->
+- [x] handoff.md C3: env-gated `unverified` posture (D2) — **done in-session** (this commit). Closed-state confirmed 2026-06-21 (orphan-scan cleanup, mechanization-audit session). <!-- id:e986 -->
 - [ ] Apply the D3 batch-accept REVIEW_ME confirmations + D5 stays-HARD notes across romtrans, claude-organizer, collaib, rawrora, zomAI, recurheb (tick boxes + decision note per this meeting); also mirror D1/D2 into `references/review.md` so the test-integrity audit treats green-guards and unverified-env tests correctly. <!-- id:3114 -->
 - [ ] romtrans `_rebuild_bytes`: skip/over_budget multi-segment messages instead of proportional guess-splice (D4); add a roadmap id in-repo. → routed to romtrans inbox <!-- routed:6da4 -->
