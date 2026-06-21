@@ -10,7 +10,8 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [HARD — pool] Explicit `[HARD]` lane tags + bucket the human-backlog HARD surface <!-- id:78ff -->
+- [x] [HARD — pool] Explicit `[HARD]` lane tags + bucket the human-backlog HARD surface (done 2026-06-22, relay HARD child — relay/bash half) <!-- id:78ff -->
+  - **Done 2026-06-22** (relay HARD child, id:da26): shipped the relay/bash half. (1) Lane vocabulary doc `relay/references/hard-lanes.md` — the single shared contract both `gather-human-backlog.sh` (id:78ff) and project_manager `scan.py` (id:b466) read: `[HARD — pool|meeting|hands]` lanes + `[HARD — decision gate]`/`🚧 route:meeting|human|decision-gate` as meeting-lane aliases (id:3801); `[INTENSIVE]` is the orthogonal resource axis, not a lane. (2) `gather-human-backlog.sh`: replaced `emit_gated_hard` (single `gated_hard` lump) with `emit_hard_lanes` — READS the explicit lane tag → emits per-lane kind `hard_pool`/`hard_meeting`/`hard_hands`; an open `[HARD]` with NO recognized lane prints a stderr `ERROR:` and forces a NONZERO exit (id:415b grammar-tightening-with-loud-rejection, never silently default). (3) `references/human.md` §2/§3/return-summary: the three buckets are now distinct call-to-actions (pool→FYI/`--afk`, meeting→`/meeting`, hands→"you run these"), not one /meeting firehose. (4) Back-filled THIS repo's bare `[HARD — strong model]` items: de4e→meeting, 401c→pool, 3346→meeting; dba3 left as its machine-managed `[HARD — decision gate]` alias. Acceptance test `tests/test_hard_lane_buckets.sh` (roadmap:78ff) green. **Residual (not this worktree's scope):** cross-repo back-fill of OTHER confirmed-own repos' bare `[HARD — strong model]` tags — a relay child works ONE repo's worktree; the per-repo lane back-fill belongs to each repo's next handoff/review or a `/relay human` sweep (the collector now LOUD-rejects any un-back-filled untagged HARD, so the gap is self-surfacing). project_manager id:b466 (Python half) consumes this same `hard-lanes.md` contract.
   - **Design + rationale: TODO id:78ff** (single-id-two-views — the "why" lives there). DECISION 2026-06-21 (user "obviously explicit"): every open `[HARD]` ROADMAP item declares a lane in its bracket tag — `[HARD — pool]` (this `--afk` pool runs it via the `hard` verdict, id:da26), `[HARD — meeting]` (≡ `[HARD — decision gate]`/`🚧 route:…`, id:3801 → `/meeting`), `[HARD — hands]` (hardware/sudo/secret/on-device/rehearsal → "you run these"). `[INTENSIVE — <resource>]` (id:8d52) is an ORTHOGONAL resource axis, not a lane.
   - **Scope (this is the relay/bash half; `proj relay` half = project_manager id:b466):**
     1. Document the lane vocabulary ONCE in `relay/references/` (the single source both tools read).
@@ -84,7 +85,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Goal:** reduce overhead $ without losing work throughput. Measure before/after with `relay-econ.py`. Quick-win (shard model pin) is executor-sized; the broader "what else can downgrade safely" needs judgment → kept [HARD].
   - **Note:** `relay-burn.sh report` currently has **no samples** (`quota-samples.jsonl` empty) — the $/h-to-reset projection is blind until quota-gate sampling accumulates ≥2 points during a run; worth checking the sampler is actually firing (id:219b).
 
-- [ ] DEFERRED (decided 2026-06-17): Distributed relay orchestrator — multi-machine, dynamic membership [HARD — strong model] <!-- id:de4e -->
+- [ ] DEFERRED (decided 2026-06-17): Distributed relay orchestrator — multi-machine, dynamic membership [HARD — meeting] <!-- id:de4e -->
   - **Meeting HELD 2026-06-17 — decided DEFERRED on quota economics (do NOT execute, no
     further `/meeting` owed).** Design-gate originally: choose the coordination substrate
     before any code. Captured 2026-06-16 from a working session; the gate was resolved by
@@ -652,7 +653,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     TODO id:fba6. The skill body + all reference-file edits may already exist from the
     review turn that wrote this item — verify before re-implementing.
 
-- [ ] Strong-model audit: code review, security, and design coherence [HARD — strong model] <!-- id:401c -->
+- [ ] Strong-model audit: code review, security, and design coherence [HARD — pool] <!-- id:401c -->
   - **Why HARD**: requires adversarial judgment — finding subtle bugs, security issues,
     and internal contradictions in design docs that a weaker model would miss or dismiss.
     Also requires holding the full design history in mind to spot feasibility gaps.
@@ -1158,7 +1159,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Acceptance**: `make gaming-canary` executes: positive fixtures yield non-empty `gaming_flags`; negative control yields empty `gaming_flags`. The harness itself must not be flaky on identical inputs. Keep each fixture minimal (≤20 lines of diff) so the judgment is unambiguous.
   - **Gate CLEARED 2026-06-15** (audit run 4): id:fa05 (gaming-scan.sh) and id:dfaf (review.md §2 delegate) both shipped — `review.md` now references `gaming-scan.sh` (3×) and the script exists, so the review procedure this harness invokes already delegates mechanical checks. The item is dispatchable; it is HARD because crafting convincing-but-detectable fixtures needs strong-model judgment, not because of an unmet dependency.
 
-- [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — strong model] <!-- id:3346 -->
+- [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — meeting] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,
     decision routing, and note-writing; wrong cut loses the user's live view.
