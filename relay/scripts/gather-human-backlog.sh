@@ -13,14 +13,27 @@
 #   review_me  — an open `- [ ]` box in the repo's REVIEW_ME.md
 #   manual     — an open `- [ ]` box tagged `@manual` (REVIEW_ME.md or ROADMAP.md);
 #                a human must RUN it, so it is NEVER auto-tickable (surface only).
-#   gated_hard — EVERY open `- [ ]` `[HARD]` ROADMAP item (a strong-model-or-human
-#                decision by definition). The pool writes its non-executable HARD
-#                backlog to RELAY_STATUS.md → Blocked as "needs a /meeting"; this
-#                collector re-derives the full HARD set from ROADMAP (freshness-safe
-#                even when no pool is live), routed as tier-(c) CHEWY → `/meeting
-#                --cross`. box_summary embeds a refined why-reason after the item
-#                text (` — gated: <reason>`). Earlier this emitted only two textual
-#                gates and hid the rest — see the emit_gated_hard header (id:f6c9).
+#   hard_pool    \  an open `- [ ]` `[HARD]` ROADMAP item, bucketed by its EXPLICIT
+#   hard_meeting  > lane tag (id:78ff). The lane is READ from the bracket tag, never
+#   hard_hands   /  inferred (decision 2026-06-21 "obviously explicit"). The lane
+#                vocabulary is the shared contract in relay/references/hard-lanes.md:
+#                  [HARD — pool]                → hard_pool    (/relay --afk pool runs it)
+#                  [HARD — meeting]             → hard_meeting (/meeting decides it)
+#                  [HARD — decision gate] / 🚧 route:meeting|human|decision-gate
+#                                               → hard_meeting (auto-gate alias, id:3801)
+#                  [HARD — hands]               → hard_hands   ("you run these")
+#                A `[HARD]` with NO recognized lane is the `untagged` ERROR (below),
+#                NOT silently bucketed. Replaces the old single `gated_hard` lump that
+#                routed every HARD item to /meeting (id:f6c9 over-correction) — the
+#                pool-executable majority now bucket as hard_pool. Only OPEN `- [ ]`
+#                items; `- [x]` never. box_summary keeps a ` — gated: <reason>` suffix
+#                for meeting/hands lanes (pool items carry ` — pool: <why>`).
+#
+# untagged HARD = LOUD REJECT (id:415b grammar-tightening-with-loud-rejection): an
+# open `[HARD]` item carrying no recognized lane prints an `ERROR:` line to stderr
+# (repo, item id, the offending text) and forces the script to EXIT NONZERO at the
+# end of the run. A missing lane is a contract gap to fix at the source, never a
+# silent default disposition.
 #
 # box_summary is the box text with the leading `- [ ] ` stripped and whitespace
 # collapsed (TSV-safe: tabs/newlines become spaces). Closed `- [x]` boxes are
@@ -34,6 +47,12 @@ set -euo pipefail
 
 SRC_DIR="${SRC_DIR:-$HOME/src}"
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
+
+# Set to 1 by emit_hard_lanes() when an open [HARD] item carries no recognized lane
+# tag. A nonzero value forces a LOUD nonzero exit at the end of the run (id:78ff /
+# id:415b) — an untagged HARD item is a contract gap to fix at the source, never a
+# silent default disposition.
+UNTAGGED_FOUND=0
 
 # --- own repos from relay.toml: lines of "<name>\t<path>" -------------------
 # Honors `classification = "own"` and a per-repo path override.
@@ -133,69 +152,86 @@ warn_nested_worktrees() {
   fi
 }
 
-# --- emit GATED HARD ROADMAP items (id:f6c9) ---------------------------------
-# Re-derive (NOT read live RELAY_STATUS.md) the pool's NON-executable GATED [HARD]
-# backlog from ROADMAP.md, so /relay human surfaces the same "needs a /meeting"
-# items the pool writes to RELAY_STATUS → Blocked (id:2d20). Re-derivation is
-# freshness-safe even when no pool is live (a stale RELAY_STATUS could lie); the
-# pool and this collector apply the SAME textual EXECUTABLE-HARD test, so they agree.
+# --- emit HARD ROADMAP items, bucketed by EXPLICIT lane tag (id:78ff) ---------
+# Re-derive (NOT read live RELAY_STATUS.md) every open `[HARD]` ROADMAP item and
+# bucket it by its EXPLICIT lane tag. The lane is READ from the bracket tag, never
+# inferred (decision 2026-06-21 "obviously explicit") — the shared lane vocabulary
+# is the contract in relay/references/hard-lanes.md, parsed identically by
+# project_manager's scan.py (id:b466). Re-derivation from ROADMAP is freshness-safe
+# even when no pool is live (a stale RELAY_STATUS could lie).
 #
-# COMPLETENESS over false-negatives (fix for "/relay human showed nothing"): a
-# `[HARD]` item is BY DEFINITION a strong-model-or-human decision, so EVERY open
-# `[HARD]` ROADMAP item is surfaced to human triage. The earlier version emitted
-# only the two purely-textual gates ("decision gate" INSIDE the bracket, or a
-# "## Gated" section heading) and dropped everything else as "executable HARD" —
-# but real repos gate semantically (DECISION GATE: as a line *prefix*; plain
-# `[HARD — strong model]` gated by sub-bullet acceptance text; inline BLOCKED /
-# "do not start" / "NOT yet executor work" markers), so the collector returned
-# almost nothing while RELAY_STATUS listed 20+ blocked repos. Over-surfacing to
-# the human triage sweep is safe (the human reads + routes, and tier-(a/b/c)
-# downgrades when unsure); under-surfacing hid the entire HARD backlog.
+# WHY explicit lanes replaced the old single `gated_hard` lump (id:f6c9 → id:78ff):
+# the prior version routed EVERY open `[HARD]` item to "needs a /meeting", so ~40
+# pool-executable HARD items read as 40 meetings. The pool-executable majority now
+# bucket as hard_pool (the `/relay --afk` `hard` verdict runs them, id:da26) and only
+# genuine decision/hands work surfaces to human triage.
 #
-# A model is NOT available here, so the WHY-reason is refined from textual markers
-# when present (decision-gate / gated-section / blocked-or-do-not-start), else a
-# generic "strong-model or human decision (verify executability)". An item the
-# pool would dispatch via its `hard` verdict may also appear here between pool
-# runs; that is acceptable — the human routes it to /relay rather than /meeting.
+# Buckets (kind), by the recognized lane tag:
+#   [HARD — pool]                                            → hard_pool
+#   [HARD — meeting]                                         → hard_meeting
+#   [HARD — decision gate] / 🚧 route:meeting|human|decision-gate
+#                                                            → hard_meeting (alias, id:3801)
+#   [HARD — hands]                                           → hard_hands
+#   [HARD] with NO recognized lane                           → untagged (LOUD reject)
 #
-# Emits kind=gated_hard, box_summary = "<item text> — gated: <why>". Only OPEN
-# "- [ ]" items are emitted; "- [x]" never.
-# $1 repo name, $2 repo path.
-emit_gated_hard() {
+# An `untagged` open `[HARD]` item is a CONTRACT GAP: it prints an `ERROR:` line to
+# stderr and makes the awk exit with status 3, which scan_repo turns into a global
+# UNTAGGED_FOUND=1 → the whole run exits nonzero (id:415b: never silently default a
+# disposition). Recognized items emit kind + ` — <bucket>: <why>` on box_summary.
+# Only OPEN `- [ ]` items; `- [x]` never.
+# $1 repo name, $2 repo path.  Returns nonzero (3) if any untagged HARD item seen.
+emit_hard_lanes() {
   local name="$1" path="$2" roadmap="$path/ROADMAP.md"
   [[ -f "$roadmap" ]] || return 0
   awk -v name="$name" -v path="$path" '
-    # Track whether the current section heading marks a gated region.
-    /^#{1,6}[[:space:]]/ {
-      h = tolower($0)
-      gated_section = (h ~ /gated/ || h ~ /do not start/ || h ~ /deferred/) ? 1 : 0
-    }
     # Open top-level checkbox items only (sub-bullets are continuation prose).
     /^[[:space:]]*- \[ \] / {
       line = $0
-      is_hard = (line ~ /\[HARD/)
-      if (!is_hard) next
-      # Every open [HARD] item is a strong-model-or-human decision → surfaced.
-      # Refine the WHY-reason from whatever marker is present (case-insensitive).
+      if (line !~ /\[HARD/) next
       low = tolower(line)
-      decision_gate  = (low ~ /decision gate/)
-      blocked_marker = (low ~ /blocked/ || low ~ /do not start/ || low ~ /not yet executor work/ || low ~ /forward-flag/)
-      if (decision_gate)
-        why = "decision-gate HARD — needs a /meeting to resolve (id:2d20)"
-      else if (gated_section)
-        why = "under a gated/deferred ROADMAP section — needs a /meeting to unblock/re-scope (id:2d20)"
-      else if (blocked_marker)
-        why = "marked blocked / do-not-start — needs a /meeting to unblock/re-scope (id:2d20)"
-      else
-        why = "open [HARD] item — strong-model or human decision (verify executability) (id:2d20)"
+
+      # Read the EXPLICIT lane from the bracket tag (never inferred). Em-dash "—"
+      # or a plain "-" between HARD and the lane word are both accepted; surrounding
+      # whitespace is flexible. Recognized auto-gate aliases map to the meeting lane.
+      kind = ""; bucket = ""
+      if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*pool[[:space:]]*\]/) {
+        kind = "hard_pool"; bucket = "pool"
+      } else if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/ \
+                 || low ~ /\[hard[[:space:]]*[—-][[:space:]]*decision gate[[:space:]]*\]/ \
+                 || low ~ /route:(meeting|human|decision-gate)/) {
+        kind = "hard_meeting"; bucket = "meeting"
+      } else if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*hands[[:space:]]*\]/) {
+        kind = "hard_hands"; bucket = "hands"
+      } else {
+        kind = "untagged"; bucket = "untagged"
+      }
+
       # Strip "- [ ] " prefix and collapse whitespace (TSV-safe).
       summary = line
       sub(/^[[:space:]]*- \[ \] /, "", summary)
       gsub(/[\t]/, " ", summary)
       gsub(/[[:space:]]+/, " ", summary)
       sub(/^ /, "", summary); sub(/ $/, "", summary)
-      printf "%s\t%s\t%s\t%s — gated: %s\n", name, path, "gated_hard", summary, why
+
+      if (bucket == "untagged") {
+        # LOUD reject: stderr ERROR + force nonzero exit (id:415b).
+        printf "ERROR: %s: open [HARD] item carries NO recognized lane tag " \
+               "([HARD — pool|meeting|hands]) — add one (see relay/references/hard-lanes.md): %s\n", \
+               name, summary > "/dev/stderr"
+        saw_untagged = 1
+        next
+      }
+
+      if (bucket == "pool")
+        why = "pool-executable HARD — the /relay --afk pool runs it (hard verdict, id:da26)"
+      else if (bucket == "meeting")
+        why = "decision HARD — needs a /meeting to resolve/re-scope (id:3801)"
+      else
+        why = "hands HARD — hardware/sudo/secret/on-device; you run this (id:78ff)"
+
+      printf "%s\t%s\t%s\t%s — %s: %s\n", name, path, kind, summary, bucket, why
     }
+    END { if (saw_untagged) exit 3 }
   ' "$roadmap"
 }
 
@@ -213,8 +249,16 @@ scan_repo() {
     return 0
   fi
   warn_nested_worktrees "$name" "$path"
-  # GATED [HARD] ROADMAP items: the pool's "needs a /meeting" backlog (id:f6c9).
-  emit_gated_hard "$name" "$path"
+  # Open [HARD] ROADMAP items, bucketed by explicit lane tag (id:78ff). A nonzero
+  # return (status 3) means an untagged HARD item was seen — record it for the LOUD
+  # nonzero exit at end of run; `|| rc=$?` keeps `set -e` from aborting mid-scan.
+  local rc=0
+  emit_hard_lanes "$name" "$path" || rc=$?
+  if (( rc == 3 )); then
+    UNTAGGED_FOUND=1
+  elif (( rc != 0 )); then
+    return "$rc"
+  fi
   # REVIEW_ME.md: every open box (default kind review_me; @manual upgrades to manual).
   emit_boxes "$name" "$path" "$path/REVIEW_ME.md" review_me
   # ROADMAP.md: only open boxes tagged @manual need a human to RUN them.
@@ -242,4 +286,12 @@ else
   while IFS=$'\t' read -r name path; do
     [[ -n "$name" ]] && scan_repo "$name" "$path"
   done < <(own_repos)
+fi
+
+# LOUD nonzero exit if any open [HARD] item carried no recognized lane tag (id:78ff /
+# id:415b). The per-item ERROR lines already went to stderr; this makes the gap fatal
+# so the contract violation is fixed at the source, never silently bucketed.
+if (( UNTAGGED_FOUND )); then
+  printf 'ERROR: one or more open [HARD] items carry no recognized lane tag — see the ERROR lines above and relay/references/hard-lanes.md. Exiting nonzero.\n' >&2
+  exit 1
 fi

@@ -53,12 +53,18 @@ pass "human.md specifies @manual-never-auto-tick"
 grep -q '/meeting --cross' "$HUMAN" || fail "human.md does not route tier-C to /meeting --cross"
 pass "human.md routes tier-C → /meeting --cross"
 
-# --- (2b) human.md specifies the gated-HARD sweep (id:f6c9) -------------------
-grep -qi 'gated_hard' "$HUMAN" || fail "human.md does not name the gated_hard kind (id:f6c9)"
-grep -qi 'needs a /meeting' "$HUMAN" || fail "human.md missing the gated-HARD 'needs a /meeting' framing"
-grep -qi 're-deriv' "$HUMAN" || fail "human.md does not state gated_hard is re-derived from ROADMAP"
-grep -qi 'id:f6c9' "$HUMAN" || fail "human.md does not cite id:f6c9 for the gated-HARD sweep"
-pass "human.md specifies the gated-HARD (kind=gated_hard) tier-(c) sweep (id:f6c9)"
+# --- (2b) human.md specifies the explicit HARD-lane buckets (id:78ff) ---------
+# Supersedes the old single `gated_hard` lump (id:f6c9): every open [HARD] item now
+# buckets by its EXPLICIT lane tag into hard_pool/hard_meeting/hard_hands, and human.md
+# routes each bucket to a DISTINCT disposition (pool→FYI, meeting→/meeting, hands→run).
+grep -qi 'hard_pool' "$HUMAN" || fail "human.md does not name the hard_pool kind (id:78ff)"
+grep -qi 'hard_meeting' "$HUMAN" || fail "human.md does not name the hard_meeting kind (id:78ff)"
+grep -qi 'hard_hands' "$HUMAN" || fail "human.md does not name the hard_hands kind (id:78ff)"
+grep -qi 'needs a /meeting' "$HUMAN" || fail "human.md missing the hard_meeting 'needs a /meeting' framing"
+grep -qi 're-deriv' "$HUMAN" || fail "human.md does not state HARD lanes are re-derived from ROADMAP"
+grep -qi 'id:78ff' "$HUMAN" || fail "human.md does not cite id:78ff for the explicit HARD-lane buckets"
+grep -qi 'hard-lanes.md' "$HUMAN" || fail "human.md does not point at the shared lane vocabulary doc"
+pass "human.md specifies the explicit HARD-lane buckets (hard_pool/hard_meeting/hard_hands, id:78ff)"
 
 grep -qiE 'downgrade a.*b|downgrade.*to .b.' "$HUMAN" \
   || fail "human.md missing the conservative downgrade-a→b anti-gaming rule"
@@ -89,22 +95,28 @@ cat > "$STORE/src/repoB/ROADMAP.md" <<'EOF'
 - [ ] Run the full BDD journey on real hardware @manual <!-- id:bbbb -->
 EOF
 
-# repoA also has a ROADMAP exercising the gated-HARD sweep (id:f6c9):
-#   - a [HARD — decision gate] item  → gated_hard (decision-gate reason)
-#   - an item under a "## Gated" section → gated_hard (gated-section reason)
-#   - a plain [HARD — strong model] item → gated_hard (generic "verify
-#     executability" reason; every open [HARD] is surfaced now, see a8c361e)
-#   - a closed [x] gated item → NOT emitted
+# repoA also has a ROADMAP exercising the explicit HARD-lane buckets (id:78ff,
+# supersedes the gated_hard lump of id:f6c9). Every open [HARD] item carries an
+# EXPLICIT lane tag the collector READS (never infers):
+#   - [HARD — pool]            → kind=hard_pool   (the /relay --afk pool runs it)
+#   - [HARD — meeting]         → kind=hard_meeting (/meeting decides it)
+#   - [HARD — decision gate]   → kind=hard_meeting (auto-gate alias, id:3801)
+#   - [HARD — hands]           → kind=hard_hands  ("you run these")
+#   - a closed [x] item        → NOT emitted
+# (the untagged-[HARD] LOUD reject is covered by test_hard_lane_buckets.sh.)
 cat > "$STORE/src/repoA/ROADMAP.md" <<'EOF'
 ## Executable work
-- [ ] [HARD — strong model] Refactor the parser core <!-- id:e0e0 -->
+- [ ] [HARD — pool] Refactor the parser core <!-- id:e0e0 -->
 - [x] [HARD — decision gate] Already-resolved gate <!-- id:dead -->
 
 ## Open decision gates
 - [ ] [HARD — decision gate] Pick the on-disk format: msgpack vs json <!-- id:9999 -->
 
+## Hands-on
+- [ ] [HARD — hands] Flash the firmware on the device <!-- id:7e7e -->
+
 ## Gated
-- [ ] [HARD — strong model] Build the thing once the gate opens <!-- id:8888 -->
+- [ ] [HARD — meeting] Build the thing once the gate opens <!-- id:8888 -->
 EOF
 
 # repoD is own but paused = true (on-hiatus): it has an open box that MUST NOT
@@ -159,33 +171,35 @@ grep -qP '^repoB\t.*\tmanual\t.*real hardware' <<<"$OUT" \
   || fail "@manual ROADMAP box not flagged kind=manual"
 pass "gather flags @manual ROADMAP box as kind=manual"
 
-# Non-@manual ROADMAP item is NOT collected (only review_me + @manual + gated_hard).
+# Non-@manual ROADMAP item is NOT collected (only review_me + @manual + HARD lanes).
 grep -q 'Routine thing' <<<"$OUT" && fail "plain ROADMAP routine item leaked into output"
 pass "gather ignores non-@manual ROADMAP items"
 
-# --- gated-HARD sweep (id:f6c9): kind=gated_hard from ROADMAP -----------------
-# decision-gate item is emitted as gated_hard, with the why-gated reason embedded.
-grep -qP '^repoA\t.*\tgated_hard\t.*msgpack vs json.*— gated: decision-gate' <<<"$OUT" \
-  || fail "decision-gate [HARD] item not emitted as gated_hard with reason"
-pass "gather emits [HARD — decision gate] item as kind=gated_hard with why-gated reason"
+# --- explicit HARD-lane buckets (id:78ff): kind=hard_pool/hard_meeting/hard_hands ---
+# [HARD — pool] item buckets as hard_pool (the /relay --afk pool runs it).
+grep -qP '^repoA\t.*\thard_pool\t.*Refactor the parser core.*— pool:' <<<"$OUT" \
+  || fail "[HARD — pool] item not emitted as kind=hard_pool"
+pass "gather buckets [HARD — pool] item as kind=hard_pool"
 
-# item under a ## Gated section is emitted as gated_hard (gated-section reason).
-grep -qP '^repoA\t.*\tgated_hard\t.*once the gate opens.*— gated: under a gated' <<<"$OUT" \
-  || fail "item under ## Gated section not emitted as gated_hard"
-pass "gather emits item under a ## Gated section as kind=gated_hard"
+# [HARD — decision gate] alias buckets as hard_meeting.
+grep -qP '^repoA\t.*\thard_meeting\t.*msgpack vs json.*— meeting:' <<<"$OUT" \
+  || fail "[HARD — decision gate] alias not bucketed as hard_meeting"
+pass "gather buckets [HARD — decision gate] alias as kind=hard_meeting"
 
-# plain [HARD — strong model] item (no textual gate) is now ALSO emitted as
-# gated_hard with the generic "verify executability" reason — every open [HARD]
-# item is a strong-model-or-human decision by definition (a8c361e fixed the
-# under-surfacing where /relay human showed almost nothing).
-grep -qP '^repoA\t.*\tgated_hard\t.*Refactor the parser core.*— gated: open \[HARD\] item' <<<"$OUT" \
-  || fail "plain [HARD — strong model] item not emitted as gated_hard with generic reason"
-pass "gather emits plain [HARD — strong model] items as gated_hard (generic verify-executability reason)"
+# [HARD — meeting] item buckets as hard_meeting.
+grep -qP '^repoA\t.*\thard_meeting\t.*once the gate opens.*— meeting:' <<<"$OUT" \
+  || fail "[HARD — meeting] item not bucketed as hard_meeting"
+pass "gather buckets [HARD — meeting] item as kind=hard_meeting"
 
-# closed [x] gated item is NOT emitted.
+# [HARD — hands] item buckets as hard_hands (NOT a meeting, NOT the pool).
+grep -qP '^repoA\t.*\thard_hands\t.*Flash the firmware.*— hands:' <<<"$OUT" \
+  || fail "[HARD — hands] item not bucketed as hard_hands"
+pass "gather buckets [HARD — hands] item as kind=hard_hands"
+
+# closed [x] HARD item is NOT emitted.
 grep -q 'Already-resolved gate' <<<"$OUT" \
-  && fail "closed [x] gated item leaked into output"
-pass "gather skips closed [x] gated-HARD items"
+  && fail "closed [x] HARD item leaked into output"
+pass "gather skips closed [x] HARD items"
 
 # repoB review_me box present (named-repo + all-repo paths both covered).
 grep -qP '^repoB\t.*\treview_me\t.*test_auth' <<<"$OUT" \
