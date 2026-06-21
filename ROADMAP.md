@@ -834,6 +834,23 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       open in both ROADMAP+TODO; d5e0 summary agrees, Run 17's drift fix holds). id:16e9 did NOT
       recur; id:05e8 flaked once (75/1) then green in isolation + full-suite rerun (76/0), exactly
       as id:05e8 predicts. Suite 76/0 on rerun. See `docs/meeting-notes/2026-06-19-2155-strong-model-audit.md`.
+    - Run 22 (2026-06-21-1656): first-seen change since Run 21's own audit commit `b0b4076`
+      (`b0b4076..HEAD`) — **LEDGER-ONLY window** (Runs 11/12/16/17/18/19/20 class).
+      First-seen changes = Run 21's strong-execute checkpoint + the two 2026-06-21 review
+      checkpoint paragraphs in RELAY_LOG.md, a REVIEW_ME box (flaky-claim-liveness note),
+      two new TODO design items (id:ebd0 [HIGH PRIORITY — SECURITY] global pre-push privacy
+      gate; id:d2cd [HIGH PRIORITY] lock-hygiene umbrella), the id:ebd0 privacy sanitization,
+      and an archived done entry; `git diff --name-only b0b4076..HEAD -- '*.sh' '*.py' '*.js'`
+      is EMPTY. No code to review, no security surface. gaming-scan clean (no DELETED_TEST/
+      ADDED_SKIP/REMOVED_ASSERT). **One coherence drift fixed inline (Run 4/8/17/21 class)** —
+      the TODO id:401c MIRROR line still read "Latest ✓ Run 21"; refreshed to Run 22. Design
+      coherence verified on both new items: id:d2cd's 5 cited sub-ids (3b18/6366/bae5/d187/
+      3558) all exist in the ledgers and the umbrella framing is sound; id:ebd0's sanitization
+      (e886e6f) correctly moved leak specifics to private memory (no-leak-specifics directive).
+      Cross-ledger coherent (0 open ROUTINE / 3 executable HARD — dba3/401c/3346; de4e DEFERRED
+      non-executable; d5e0 summary agrees, Run 17's drift fix holds). Both tracked flakes
+      (id:16e9, id:05e8) did NOT recur. Suite 76/0 on a clean run. See
+      `docs/meeting-notes/2026-06-21-1656-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
