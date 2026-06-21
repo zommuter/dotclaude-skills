@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # orphan-scan.sh — sibling to append.sh, cost-of.sh
-# Usage: orphan-scan.sh [--reverse|-r | --cross-ledger|-x] [<root-dir>]
+# Usage: orphan-scan.sh [--reverse|-r | --cross-ledger|-x | --promotion|-p] [<root-dir>]
 # Forward (default): scans <root>/docs/meeting-notes/*.md for ID-bearing unchecked action items
 #   whose <!-- id:XXXX --> token is absent from the union of TODO.md + TODO.archive.md + ROADMAP.md.
 # Reverse (--reverse): finds ID-bearing checked ([x]) or inline lines absent from the TODO union
@@ -12,6 +12,13 @@
 #   ROADMAP but left open in TODO (or vice versa). A duplicate id with matching state is
 #   the intended single-id-two-views shape and is NOT flagged; a duplicate is only
 #   detectable once promotion reuses the id, so this guard also enforces that contract.
+#   Scope-split false-positives can be suppressed with <!-- xledger-ok: <reason> --> on
+#   the open-side line (id:d9b0) — a divergence annotated with xledger-ok is intentional
+#   and not flagged; an unannotated divergence still is.
+# Promotion (--promotion): id:d9b0 — scans TODO.md (and archive) for OPEN items carrying
+#   an executable lane tag ([ROUTINE] or [HARD — pool]) whose <!-- id:XXXX --> token has
+#   NO twin in ROADMAP.md. An un-promoted item is "pool-invisible": the relay can't see it.
+#   Prints one line per un-promoted item; exits 0 regardless (caller decides severity).
 # Un-IDed lines are skipped (clean cutover; legacy notes stay frozen).
 # Prints candidate lines to stdout; writes one log line to ~/.claude/logs/meeting-orphan-scan.log.
 set -euo pipefail
@@ -22,6 +29,9 @@ if [[ "${1:-}" == "--reverse" || "${1:-}" == "-r" ]]; then
   shift
 elif [[ "${1:-}" == "--cross-ledger" || "${1:-}" == "-x" ]]; then
   mode="cross-ledger"
+  shift
+elif [[ "${1:-}" == "--promotion" || "${1:-}" == "-p" ]]; then
+  mode="promotion"
   shift
 fi
 
@@ -44,29 +54,53 @@ if [[ "$mode" == "cross-ledger" ]]; then
   # Build token→state maps for the TODO union and for ROADMAP separately, then
   # flag tokens present in both whose checkbox state disagrees. A line may carry
   # multiple <!-- id:XXXX --> tokens (all share that line's state).
-  declare -A todo_state roadmap_state
+  # id:d9b0: a line annotated with <!-- xledger-ok: <reason> --> is an intentional
+  # scope-split (e.g. closed ROADMAP decision + open TODO action with different scope).
+  # Such lines are NOT flagged; an empty reason "<!-- xledger-ok: -->" still suppresses.
+  declare -A todo_state roadmap_state todo_xledger_ok
   while IFS= read -r l; do
     st=' '; [[ "$l" == "- [x] "* || "$l" == "- [X] "* ]] && st='x'
+    xok=''; [[ "$l" == *"<!-- xledger-ok:"* ]] && xok='1'
     while read -r tk; do
       [[ -z "$tk" ]] && continue
       todo_state["$tk"]="$st"
+      [[ -n "$xok" ]] && todo_xledger_ok["$tk"]='1' || true
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
   done < <(grep -hE '^- \[[ xX]\] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
   while IFS= read -r l; do
     st=' '; [[ "$l" == "- [x] "* || "$l" == "- [X] "* ]] && st='x'
+    xok=''; [[ "$l" == *"<!-- xledger-ok:"* ]] && xok='1'
     while read -r tk; do
       [[ -z "$tk" ]] && continue
       roadmap_state["$tk"]="$st"
+      [[ -n "$xok" ]] && todo_xledger_ok["$tk"]='1' || true
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
   done < <(grep -hE '^- \[[ xX]\] ' "$ROOT/ROADMAP.md" 2>/dev/null || true)
   for tk in "${!todo_state[@]}"; do
     [[ -n "${roadmap_state[$tk]:-}" ]] || continue
     id_lines=$((id_lines+1))
     if [[ "${todo_state[$tk]}" != "${roadmap_state[$tk]}" ]]; then
+      # Suppress intentional scope-splits annotated with xledger-ok (id:d9b0).
+      [[ -n "${todo_xledger_ok[$tk]:-}" ]] && continue
       candidates=$((candidates+1))
       output_lines+=("id:$tk — TODO:[${todo_state[$tk]}] ROADMAP:[${roadmap_state[$tk]}] (checkbox state disagrees across ledgers)")
     fi
   done
+elif [[ "$mode" == "promotion" ]]; then
+  # id:d9b0 — flag open TODO items with an executable lane tag ([ROUTINE] or [HARD — pool])
+  # that have no twin id:XXXX in ROADMAP.md. Such items are "un-promoted, pool-invisible".
+  roadmap_content="$(cat "$ROOT/ROADMAP.md" 2>/dev/null || true)"
+  while IFS= read -r l; do
+    # Executable lane tag: [ROUTINE] or [HARD — pool]
+    echo "$l" | grep -qE '\[ROUTINE\]|\[HARD — pool\]' || continue
+    token="$(echo "$l" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)"
+    [[ -z "$token" ]] && continue
+    id_lines=$((id_lines+1))
+    if ! grep -qF "id:$token" <<<"$roadmap_content"; then
+      candidates=$((candidates+1))
+      output_lines+=("un-promoted id:$token — $l")
+    fi
+  done < <(grep -hE '^- \[ \] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
 else
 for f in $(ls -r1 "$NOTES_DIR"/*.md 2>/dev/null); do
   [[ -f "$f" ]] || continue
