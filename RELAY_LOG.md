@@ -586,3 +586,7 @@ Friction: none — both items were well-specified with clear acceptance criteria
 ## 2026-06-21 23:49 — executor (sonnet, relay-loop)
 
 Closed 2 open [ROUTINE] items: id:6b91 (hardened test_relay_claim_liveness.sh — CLAIM_TTL=1 timing race fixed with TTL=3600; verified 0 flakes across 20 parallel runs) and id:d9b0 (orphan-scan.sh --promotion + xledger-ok cross-ledger suppression + test_ledger_seam.sh; suite 78→79p/0f/0xred)
+
+## 2026-06-22 01:12 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(hard): id:78ff explicit [HARD] lane tags (pool/meeting/hands) + bucketed human-backlog collector with loud untagged-reject; suite 80/0
