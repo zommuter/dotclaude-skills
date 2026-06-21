@@ -40,10 +40,9 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   so `/meeting` no-arg dispatch never proposes a meeting on executor work;
   alternative (classify it C3 like any line) rejected as recurring noise.
 
-- [ ] tests/test_relay_claim_liveness.sh (roadmap:7570, closed) — flakes
-  intermittently under the **parallel** `tests/run-tests.sh` run (1 fail), but
-  passes 76/0 on re-run and green in isolation. The test claims hermetic
-  (`CLAIM_BASE` in a tmpdir) yet shows cross-test interference under concurrency.
-  Worth a hardening pass (isolate CLAIM_BASE per-test / serialize claim tests),
-  or accept as known-flaky? Feature behavior (worktree-anchored liveness) is
-  genuinely green — not a regression. (reviewer 2026-06-21)
+- [x] **DECIDED 2026-06-21 (/relay human): HARDEN, don't accept** — a flaky test degrades the
+  suite's signal; filed id:6b91 [ROUTINE] (isolate `CLAIM_BASE` per-test / serialize the claim
+  tests). tests/test_relay_claim_liveness.sh (roadmap:7570, closed) flakes intermittently under
+  the **parallel** `tests/run-tests.sh` run (1 fail), passes 76/0 on re-run and green in isolation.
+  Feature behavior (worktree-anchored liveness) is genuinely green — not a regression; the defect
+  is test hermeticity under concurrency. (reviewer 2026-06-21)
