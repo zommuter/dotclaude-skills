@@ -543,3 +543,7 @@ relay(401c Run 24): strong-model audit b2db0bc..HEAD — clean ledger-only windo
 ## 2026-06-21 18:42 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260621-1835: ledger-only window (1 commit, ROADMAP gate residue id:dba3); gaming-scan clean, suite 76/0, contract v4 current, cross-ledger coherent (0 ROUTINE / 3 HARD open)
+
+## 2026-06-21 18:51 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(401c Run 25): strong-model audit 99a1f2e..HEAD — clean ledger-only window, dba3 gate coherent, mirror-line drift fix, suite 76/0
