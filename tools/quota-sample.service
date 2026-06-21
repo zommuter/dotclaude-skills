@@ -7,3 +7,9 @@ Documentation=file:%h/src/dotclaude-skills/tools/quota-sample.sh
 Type=oneshot
 ExecStart=%h/src/dotclaude-skills/tools/quota-sample.sh
 Nice=10
+# Force gcr socket — overrides any clobbered SSH_AUTH_SOCK in the user env.
+# (%t expands to /run/user/UID at unit-load time.)
+Environment=SSH_AUTH_SOCK=%t/gcr/ssh
+# Never open a browser for Cloudflare Access auth when cloudflared falls back
+# due to mDNS misfiring at boot. Commits stay local and retry next tick.
+Environment=DISPLAY=

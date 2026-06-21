@@ -17,6 +17,11 @@
 
 set -euo pipefail
 
+# Never let git or ssh open an interactive prompt (askpass / browser / credential helper).
+# Automated callers (systemd timers) rely on this; interactive callers have a loaded
+# agent already. GIT_SSH_COMMAND is set again per-push below for BatchMode.
+export GIT_TERMINAL_PROMPT=0
+
 branch=""
 manifest_file=""
 commit_msg=""
@@ -130,16 +135,26 @@ if git ls-remote --exit-code "$remote_name" "refs/heads/$remote_branch" >/dev/nu
   fi
 fi
 
+# Never invoke askpass or open a browser for SSH auth — if the agent has no key
+# loaded, commit stays local and retries on the next tick (same as flock timeout).
+if ! ssh-add -l >/dev/null 2>&1; then
+  echo "WARNING: no SSH key loaded in agent; commit is local, will push on next run." >&2
+  exec 8>&-
+  exit 0
+fi
+
 # push to all remotes (skip guard pushurls); set upstream on first push
 # --follow-tags: push annotated, reachable tags alongside the branch (checkpoint + version tags)
+# GIT_SSH_COMMAND: BatchMode=yes prevents any interactive auth prompt; ConnectTimeout avoids
+# hanging on a tunnelled fallback (cloudflared access ssh) when the LAN detection misfires.
 current_branch="$(git rev-parse --abbrev-ref HEAD)"
 for remote in $(git remote); do
   pushurl=$(git remote get-url --push "$remote")
   [ "$pushurl" = "no_push" ] && continue
   if git ls-remote --exit-code "$remote" "refs/heads/$current_branch" >/dev/null 2>&1; then
-    git push --follow-tags "$remote"
+    GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10" git push --follow-tags "$remote"
   else
-    git push --follow-tags --set-upstream "$remote" "$current_branch"
+    GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10" git push --follow-tags --set-upstream "$remote" "$current_branch"
   fi
 done
 
