@@ -930,6 +930,19 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       non-executable; all three open in both ROADMAP+TODO; d5e0 summary agrees, Run 17's
       drift fix holds). Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 76/0 on
       a clean run. See `docs/meeting-notes/2026-06-21-1919-strong-model-audit.md`.
+    - Run 29 (2026-06-21-1935): first-seen change since Run 28's own audit merge `8016dfa`
+      (`8016dfa..HEAD`) — **LEDGER-ONLY window** (Runs 11/12/16–28 class). Sole first-seen
+      change = the Run 28 strong-execute checkpoint paragraph in RELAY_LOG.md (+4 lines);
+      `git diff --name-only 8016dfa..HEAD -- '*.sh' '*.py' '*.js'` is EMPTY. No code to
+      review, no security surface, no new design decision/gate. gaming-scan clean (no
+      DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT). The RELAY_LOG paragraph is internally
+      consistent (Run 28 verdict + mirror-line drift fix + suite 76/0). **One coherence
+      drift fixed inline (Run 4/8/17/21/22/23/24/25/26/27/28 class)** — the TODO id:401c
+      MIRROR line still read "Latest ✓ Run 28"; refreshed to Run 29. Cross-ledger coherent
+      (0 open ROUTINE / 3 executable HARD — dba3 decision-gated / 401c / 3346; de4e DEFERRED
+      non-executable; all three open in both ROADMAP+TODO; d5e0 summary agrees, Run 17's
+      drift fix holds). Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 76/0 on
+      a clean run. See `docs/meeting-notes/2026-06-21-1935-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
