@@ -972,6 +972,30 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       non-executable; all three open in both ROADMAP+TODO; d5e0 summary agrees, Run 17's
       drift fix holds). Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 76/0 on
       a clean run. See `docs/meeting-notes/2026-06-21-1935-strong-model-audit.md`.
+    - Run 30 (2026-06-22-0140): first-seen change since Run 29's own audit merge `422e95d`
+      (`422e95d..HEAD`) — **SUBSTANTIVE CODE window** (breaks the Runs 11/12/16–29
+      ledger-only streak): ~831 insertions / 11 code files. Production: gather-human-backlog.sh
+      `emit_gated_hard`→`emit_hard_lanes` (id:78ff explicit `[HARD — pool|meeting|hands]`
+      lane tags, untagged=LOUD nonzero reject id:415b); relay-reconcile.sh `--all` cross-repo
+      orphan list (unreadable repo SURFACED not swallowed — the id:4e14 anti-pattern avoided);
+      orphan-scan.sh `--promotion` + `xledger-ok` (id:d9b0 seam tooling); git-lock-push.sh
+      `GIT_TERMINAL_PROMPT=0` + `ssh-add -l` precheck + BatchMode push; new
+      tools/check-no-silent-swallow.sh swallow-ban guard (id:4347, advisory→`--enforce`).
+      **CLEAN — no code/security defects** across all 3 passes: lane awk regex verified
+      against the live 4 open HARD items (all classify right; `[—-]` backwards-range is a
+      benign gawk literal set); rc-plumbing survives `set -e`; no injection (relay.toml
+      trusted, fixed grep patterns, quoted `git -C`); git-lock-push HARDENS auth. Design
+      coherent: id:78ff contract consistent across hard-lanes.md/collector/human.md/test;
+      `route:human`→meeting bucket (not hands) **explicitly accepted** (auto-gate emits a
+      coarse human-route; fine pool/meeting/hands is a human hand-tag job); swallow-ban
+      ships ADVISORY (231 un-annotated swallows in 51 scripts = exactly why not yet
+      enforcing). gaming-scan clean. **One coherence drift fixed inline (Run 4/8/17/21–29
+      class)** — TODO id:401c MIRROR line still read "Latest ✓ Run 29"; refreshed to Run 30
+      (d5e0 itself NOT stale this run). Cross-ledger coherent (0 open ROUTINE / 3 executable
+      HARD — dba3 decision-gated / 401c / 3346; de4e DEFERRED non-executable; all three open
+      in both ROADMAP+TODO; d5e0 agrees). Both tracked flakes (id:16e9, id:05e8) did NOT
+      recur (id:6b91's CLAIM_TTL fix hardens the id:16e9 class). Suite 80/0 on a clean run.
+      See `docs/meeting-notes/2026-06-22-0140-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
