@@ -38,24 +38,32 @@ It emits a TSV `repo  path  kind  box_summary` covering:
 - every OPEN `- [ ]` box in each repo's `REVIEW_ME.md` (`kind = review_me`), AND
 - open `@manual` boxes — REVIEW_ME `@manual` lines AND `ROADMAP.md` items tagged
   `@manual`/BDD that need a human to RUN them (`kind = manual`), AND
-- EVERY open `- [ ]` `[HARD]` `ROADMAP.md` item (`kind = gated_hard`) — re-derived from
-  ROADMAP, not read from a possibly-stale live `RELAY_STATUS.md` (id:f6c9). A `[HARD]`
-  item IS a strong-model-or-human decision by definition, so the whole HARD backlog is
-  surfaced to human triage. These are the pool's "HARD backlog is gated — needs a
-  /meeting" Blocked entries; without this they were written to `RELAY_STATUS.md` but
-  shown to the human NOWHERE actionable, so they silently stalled. An earlier version
-  emitted only the two purely-textual gates (a `[HARD — decision gate]` tag, or
-  membership in a `## Gated`/`do not start`/`deferred` section) and dropped everything
-  else as "executable HARD" — but real repos gate semantically (`DECISION GATE:` as a
-  line *prefix*; plain `[HARD — strong model]` gated by sub-bullet acceptance text;
-  inline `BLOCKED`/`do not start`/`NOT yet executor work` markers), so the collector
-  returned almost nothing while `RELAY_STATUS.md` listed 20+ blocked repos. Over-surfacing
-  to human triage is safe (the human reads + routes; tier-(a/b/c) downgrades when unsure),
-  whereas under-surfacing hid the whole backlog (a8c361e). No model is available in the
-  collector, so the `box_summary` carries the item text plus ` — gated: <why>` where
-  `<why>` is refined from whatever textual marker is present (decision-gate / gated-section
-  / blocked-or-do-not-start) else a generic "strong-model or human decision (verify
-  executability)".
+- every open `- [ ]` `[HARD]` `ROADMAP.md` item, bucketed by its EXPLICIT lane tag
+  (id:78ff) into one of three kinds — **`hard_pool` / `hard_meeting` / `hard_hands`** —
+  re-derived from ROADMAP, not a possibly-stale live `RELAY_STATUS.md`. The lane is
+  READ from the bracket tag, never inferred (decision 2026-06-21 "obviously explicit");
+  the shared lane vocabulary is **`relay/references/hard-lanes.md`**, parsed identically
+  by `project_manager`'s `scan.py` (id:b466 — keep the two in sync). The buckets:
+  - **`hard_pool`** (`[HARD — pool]`) — bounded, unattended-safe apex work the
+    `/relay --afk` pool already runs via its `hard` verdict (id:da26). **NOT a human
+    action** — surface it as FYI, do not route it to a meeting.
+  - **`hard_meeting`** (`[HARD — meeting]`, plus the auto-gate aliases
+    `[HARD — decision gate]` and `🚧 route:meeting|human|decision-gate`, id:3801) —
+    needs a `/meeting` design decision before anyone can build it. This is the tier-(c)
+    "needs a /meeting" backlog.
+  - **`hard_hands`** (`[HARD — hands]`) — hardware/sudo/secret/on-device/rehearsal: the
+    human runs it. Belongs on the "you run these" checklist (§4), NOT a meeting.
+
+  This REPLACES the old single `gated_hard` lump (id:f6c9), which routed EVERY open
+  `[HARD]` item to "needs a /meeting" — so ~40 pool-executable HARD items read as 40
+  meetings. The pool-executable majority now bucket as `hard_pool` and only genuine
+  decision/hands work reaches human triage. The collector spawns no model: each
+  recognized row's `box_summary` carries the item text plus ` — <bucket>: <why>`.
+- **`untagged` is a HARD ERROR, not a kind.** An open `[HARD]` item with no recognized
+  lane tag makes the collector print an `ERROR:` line to stderr (repo + item) and **exit
+  nonzero** (id:415b grammar-tightening-with-loud-rejection). If `/relay human` sees a
+  nonzero gather exit, the FIRST fix is to add the missing lane tag to the offending
+  ROADMAP item(s) at the source — never silently default a disposition.
 
 Closed `- [x]` boxes are never collected. The collector never spawns a model and never
 writes — it is purely the read side. For each `kind = review_me` box, before deciding,
@@ -111,17 +119,29 @@ yes/no. Route it to a cross-project meeting:
   shape, id:15d5),
 - leave the box OPEN; note in the turn summary that it was routed to `/meeting --cross`.
 
-**`kind = gated_hard` boxes are tier-(c) by construction (id:f6c9).** Every
-`gated_hard` row the collector emits is, by definition, a `[HARD]` ROADMAP item the
-relay pool cannot dispatch because it needs a `/meeting` to unblock or re-scope — it
-is the pool's own "needs a /meeting" backlog re-derived from ROADMAP. Present these as
-a distinct tier-(c) **"needs a /meeting" checklist**, separate from the REVIEW_ME
-verdict tiers (a)/(b): one line per item — `repo · item id · one-line why-gated`
-(the `— gated: <why>` already in `box_summary`) — routed to `/meeting --cross` with the
-box left OPEN. NEVER auto-tick a `gated_hard` box (it has no defensible auto-answer; a
-human meeting must resolve the gate). A `gated_hard` row is the read-side mirror of the
-pool's `RELAY_STATUS.md` → Blocked entry, so the human sees the pool's gated-HARD
-stall in the SAME place they triage REVIEW_ME — not only by reading RELAY_STATUS.
+**The three HARD-lane kinds map to distinct dispositions (id:78ff) — do NOT lump
+them.** The collector has already READ each item's explicit lane, so route by `kind`:
+
+- **`hard_meeting` boxes ARE tier-(c) by construction.** Each is a `[HARD]` item that
+  needs a `/meeting` to resolve or re-scope. Present them as a distinct tier-(c)
+  **"needs a /meeting" checklist**, separate from the REVIEW_ME verdict tiers (a)/(b):
+  one line per item — `repo · item id · one-line why` (the ` — meeting: <why>` already
+  in `box_summary`) — routed to `/meeting --cross` with the box left OPEN. NEVER
+  auto-tick one (a human meeting must resolve the gate).
+- **`hard_hands` boxes go on the "you run these" checklist (§4), NOT a meeting.** They
+  need a human to physically run something (hardware/sudo/secret/on-device); a meeting
+  cannot discharge them. Leave OPEN; surface in the §4 manual checklist.
+- **`hard_pool` boxes are NOT a human action.** They are pool-executable apex work the
+  `/relay --afk` pool already runs via its `hard` verdict (id:da26). Do NOT route them
+  to a meeting and do NOT put them on the "you run these" list — surface them only as a
+  short FYI ("N pool-executable HARD items waiting on the next `/relay --afk` run") so
+  the human can kick a pool if none is live. This is the whole point of id:78ff: the
+  pool-executable majority no longer masquerades as a meeting backlog.
+
+Without explicit lanes, every one of these was a single `gated_hard` row routed to
+"needs a /meeting" (id:f6c9), drowning the real meeting backlog (~40 HARD ≈ 40
+meetings). All three kinds are still re-derived from ROADMAP (freshness-safe), so the
+human sees the pool's HARD backlog in the SAME place they triage REVIEW_ME.
 
 ## 4. `@manual` / scenario-run boxes — NEVER auto-tick
 
@@ -185,11 +205,15 @@ write-back (id:15d5) does the same on resolution that unblocks work.
 End the turn with, per repo touched:
 - tier-(a) boxes auto-answered (id + one-line rationale each),
 - tier-(b) human decisions captured (the AskUserQuestion answers applied),
-- tier-(c) boxes routed to `/meeting --cross` — including the **gated-HARD "needs a
-  /meeting" checklist** (`kind = gated_hard`: repo · item id · why-gated), the pool's
-  Blocked backlog surfaced here so it stops silently stalling (id:f6c9),
-- the **"you run these"** `@manual` checklist (these stay open),
-- any dirty repos skipped.
+- tier-(c) boxes routed to `/meeting --cross` — including the **`hard_meeting` "needs a
+  /meeting" checklist** (repo · item id · why), surfaced here so the pool's decision
+  backlog stops silently stalling (id:78ff),
+- the **"you run these"** checklist (open `@manual` boxes AND `hard_hands` items),
+- a short **`hard_pool` FYI** line (count of pool-executable HARD items waiting on the
+  next `/relay --afk` run — NOT a human action, just so the human can kick a pool),
+- any dirty repos skipped,
+- if the gather exited NONZERO: the **untagged-`[HARD]` ERROR** — list the offending
+  repo/item and the missing lane tag to add (id:415b: fix at the source).
 
 Lead the summary with what the human can now observe (closed REVIEW_ME boxes, the
 manual checklist to run), not counts.

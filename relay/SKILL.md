@@ -219,7 +219,11 @@ What it does (full procedure in `references/human.md`):
 
 1. **Scope** — relay.toml `own` repos only (honor `# path:`); skip clone/excluded/needs_review.
 2. **Collect** — `scripts/gather-human-backlog.sh` emits a TSV of every open `REVIEW_ME.md`
-   `- [ ]` box plus open `@manual` BDD scenarios (REVIEW_ME `@manual` + ROADMAP `@manual`).
+   `- [ ]` box, open `@manual` BDD scenarios (REVIEW_ME `@manual` + ROADMAP `@manual`), and
+   every open `[HARD]` ROADMAP item bucketed by its EXPLICIT lane tag (id:78ff) into
+   `hard_pool` / `hard_meeting` / `hard_hands` (vocabulary: `references/hard-lanes.md`). An
+   open `[HARD]` with no recognized lane is a LOUD reject (stderr ERROR + nonzero exit) —
+   add the lane tag at the source.
 3. **Classify each box into 3 tiers** by answerability/runnability:
    - **(a) AUTO-ANSWERABLE** — unambiguous from code/tests/spec; the apex model verifies,
      ticks with a re-checkable rationale, and flows back to ROADMAP/TODO under the **same
