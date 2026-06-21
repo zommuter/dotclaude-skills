@@ -98,3 +98,7 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 📐 **Della** — computational-geometry & raster↔vector fidelity lens; marching-squares/iso-extraction fidelity, polygon-clipping degeneracies, Douglas–Peucker error bounds, Minkowski/capsule-union robustness, self-intersection & fold handling, AABB label-collision geometry. Introduced 2026-06-16 (isochrone/ratify-per-edge-time-producer-contract); extended 2026-06-18 (isochrone/osm-overlay-stage-c-decompose): applied AABB overlap + greedy cull framing to label-collision geometry, including measureText stub test idiom.
 
 - 🧮 **Reni** — multi-writer set merge / ref-counted retraction / provenance-ledger lens; CRDT-ish "observed set per producer", attribution-aware removal, idempotence-by-construction, lock discipline. Introduced 2026-06-18 (zkm/f103-tag-removal-core-semantic).
+
+- 🕵️ **Priya** — private-information-retrieval / anonymity-set lens; PIR/ORAM practicality on a browser client, what leaks from CDN range/range-request access patterns, k-anonymity bucket sizing over a public dataset, two-anonymity-set separation (proof-set vs retrieval-set). Introduced 2026-06-21 (zkWhale/ring-coverage-investigation).
+
+- 🎙️ **Aria** — speech-pipeline engineering lens; ASR backend selection (whisper.cpp /inference vs OpenAI-compatible vs audio-LLM), codec decode + ffmpeg resampling (8→16 kHz), VAD/noise gating, sha256-keyed transcription caching, segment-vs-word timestamps, diarisation. Introduced 2026-06-21 (zkm/zkm-stt-scope).
