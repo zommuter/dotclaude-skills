@@ -21,11 +21,18 @@
 #
 # Usage:
 #   relay-reconcile.sh [REPO_PATH] [--list] [--integrate BRANCH] [--discard BRANCH]
+#   relay-reconcile.sh --all
 #
 #   (no flag)            List the parked relay/orphan/* branches in REPO_PATH (a synonym
 #                        for --list); each line shows the branch and its parked commit.
 #                        With no orphans, prints "no parked orphans" and exits 0.
 #   --list               Same as no flag: enumerate relay/orphan/* and exit.
+#   --all                Cross-repo list: enumerate all relay.toml `classification = "own"`
+#                        repos (honoring `# path:` override, RELAY_TOML, SRC_DIR) and run
+#                        the LIST action across all of them. An unreadable/missing repo path
+#                        is SURFACED on stderr (never silently swallowed as "no orphans").
+#                        --all is list-only; combining it with --integrate or --discard is
+#                        an error (exit 2).
 #   --integrate BRANCH   Integrate one parked branch via the merge --no-ff → ckpt-tag →
 #                        --ff-only push recipe above. A merge conflict leaves the branch
 #                        intact (ref untouched) and surfaces the conflict on stderr.
@@ -45,23 +52,110 @@ LOG="${RECONCILE_LOG:-$HOME/.claude/logs/relay-reconcile.log}"
 
 ORPHAN_NS="relay/orphan/"
 
+# relay.toml location — same default as gather-human-backlog.sh and discover-repos.sh.
+SRC_DIR="${SRC_DIR:-$HOME/src}"
+RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
+
 mkdir -p "$(dirname "$LOG")"
 log() { printf '%s relay-reconcile.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
+
+# --- own repos from relay.toml (copied from gather-human-backlog.sh) ----------
+# Honors `classification = "own"`, `# path:` comment overrides, and the
+# `paused` flag. Outputs lines of "<name>\t<path>".
+own_repos() {
+  [[ -f "$RELAY_TOML" ]] || return 0
+  SRC_DIR="$SRC_DIR" python3 -c '
+import os, re, sys, tomllib
+src = os.environ["SRC_DIR"]
+toml_path = sys.argv[1]
+with open(toml_path, "rb") as f:
+    data = tomllib.load(f)
+
+# Recover the `# path:` COMMENT override per repo (tomllib drops comments).
+comment_path = {}
+cur = None
+sect_re = re.compile(r"^\s*\[repos\.([^\]]+)\]\s*$")
+path_re  = re.compile(r"^\s*#\s*path:\s*(.+?)\s*$")
+with open(toml_path, encoding="utf-8") as f:
+    for line in f:
+        m = sect_re.match(line)
+        if m:
+            cur = m.group(1)
+            continue
+        if cur:
+            pm = path_re.match(line)
+            if pm and cur not in comment_path:
+                comment_path[cur] = pm.group(1)
+
+def expand(p):
+    return os.path.expanduser(os.path.expandvars(p))
+
+for name, entry in data.get("repos", {}).items():
+    if entry.get("classification") != "own":
+        continue
+    if entry.get("paused"):
+        continue
+    path = entry.get("path") or comment_path.get(name) or os.path.join(src, name)
+    print(f"{name}\t{expand(path)}")
+' "$RELAY_TOML"
+}
 
 # --- parse args -------------------------------------------------------------
 repo=""
 action="list"
 target=""
+all_repos=0
 while [ $# -gt 0 ]; do
   case "$1" in
+    --all)       all_repos=1; shift ;;
     --list)      action="list"; shift ;;
     --integrate) action="integrate"; target="${2:-}"; shift; shift || true ;;
     --discard)   action="discard";   target="${2:-}"; shift; shift || true ;;
-    -h|--help)   sed -n '2,32p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,47p' "$0"; exit 0 ;;
     --*)         echo "relay-reconcile.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)           repo="$1"; shift ;;
   esac
 done
+
+# --all + --integrate/--discard is nonsensical: reject clearly.
+if [[ $all_repos -eq 1 && "$action" != "list" ]]; then
+  printf 'relay-reconcile.sh: --all is list-only; --integrate and --discard operate on a single repo.\nUsage: relay-reconcile.sh --all\n       relay-reconcile.sh [REPO_PATH] --integrate|--discard BRANCH\n' >&2
+  exit 2
+fi
+
+# --all: cross-repo list — enumerate own repos from relay.toml and list each.
+if [[ $all_repos -eq 1 ]]; then
+  total_orphans=0
+  while IFS=$'\t' read -r rname rpath; do
+    [[ -n "$rname" ]] || continue
+    if [[ ! -d "$rpath" ]]; then
+      printf 'NOTE: %s path not found (%s) — not a local checkout; skipped.\n' "$rname" "$rpath" >&2
+      continue
+    fi
+    # Surface git errors (unreadable repo): do NOT use 2>/dev/null.
+    if ! git -C "$rpath" rev-parse --git-dir >/dev/null 2>&1; then
+      printf 'ERROR: %s (%s) is not a readable git repo — check the path override in relay.toml.\n' "$rname" "$rpath" >&2
+      continue
+    fi
+    branches="$(git -C "$rpath" for-each-ref --format='%(refname:short)' "refs/heads/$ORPHAN_NS")"
+    if [[ -z "$branches" ]]; then
+      log "--all list repo=$rname orphans=0"
+      continue
+    fi
+    n=0
+    while IFS= read -r br; do
+      [[ -n "$br" ]] || continue
+      sha="$(git -C "$rpath" rev-parse --short "$br" 2>/dev/null || echo '???????')"
+      subj="$(git -C "$rpath" log -1 --format='%s' "$br" 2>/dev/null || true)"
+      printf '%s\t%s\t%s\t%s\n' "$rname" "$br" "$sha" "$subj"
+      n=$((n+1))
+    done <<<"$branches"
+    total_orphans=$((total_orphans+n))
+    log "--all list repo=$rname orphans=$n"
+  done < <(own_repos)
+  echo "$total_orphans parked orphan(s) across all own repos"
+  exit 0
+fi
 
 repo="${repo:-$(git rev-parse --show-toplevel)}"
 git -C "$repo" rev-parse --git-dir >/dev/null

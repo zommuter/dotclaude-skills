@@ -563,3 +563,8 @@ relay(401c Run 28): strong-model audit 8b82136..HEAD — clean ledger-only windo
 ## 2026-06-21 19:32 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 relay(401c Run 29): strong-model audit 8016dfa..HEAD — clean ledger-only window, mirror-line drift fix, suite 76/0
+
+## 2026-06-21 — executor (sonnet)
+
+Worked id:4e14 — added `--all` to relay-reconcile.sh: enumerates relay.toml `own` repos via a copied `own_repos()` parser (same logic as gather-human-backlog.sh), lists each repo's `relay/orphan/*` branches with repo name on each line, surfaces unreadable/missing paths on stderr (never swallows), rejects `--all --integrate`/`--all --discard` with exit 2. SKILL.md reconcile section updated with canonical cross-repo sweep command and anti-hand-roll guard. Suite: 77/0/0.
+Friction: none — test was a clean spec, `own_repos()` copy was straightforward.
