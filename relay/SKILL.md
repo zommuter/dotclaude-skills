@@ -39,16 +39,20 @@ Invoking `/relay` with no keyword starts the autonomous priority-mixed pool
 (meeting note `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md`,
 D1/D2):
 
-0a. **Unattended-resilience nudge — FIRST, before any work (user directive 2026-06-18).**
+0a. **Early-exit retry nudge — FIRST, before any work (user directive 2026-06-18; corrected id:bde8).**
     The very first action of a default/`--afk` run is to surface the `/loop` nudge, NOT
     bury it in the exit summary: a user who typed `/relay --afk` is signalling they are
-    walking away, so the "wrap it in a fixed-interval loop for outage resilience" hint is
-    only useful *up front* (after a long run + diary it is too late to act on). Run
-    `~/.claude/skills/relay/scripts/loop-hint.sh` as the FIRST line of output and, if it
-    prints anything, relay that line verbatim before starting the probe. It still
-    self-suppresses when it detects we are already inside a `/loop` (so loop ticks don't
-    re-nag) and never fails the turn (exits 0; prints nothing → print nothing). The exit
-    summary no longer repeats it (see step 4).
+    walking away, so the hint is only useful *up front* (after a long run + diary it is
+    too late to act on). Run `~/.claude/skills/relay/scripts/loop-hint.sh` as the FIRST
+    line of output and, if it prints anything, relay that output verbatim before starting
+    the probe. It still self-suppresses when it detects we are already inside a `/loop`
+    (so loop ticks don't re-nag) and never fails the turn (exits 0; prints nothing → print
+    nothing). The exit summary no longer repeats it (see step 4).
+    **Scope correction (id:bde8, 2026-06-22):** `/loop` runs within the same Claude session
+    — it is resilient only to relay's own early-exit (quota/seatbelt) within a live session;
+    it dies with the session if the session is killed or the process crashes. Do NOT imply
+    `/loop` gives session-kill or outage protection — that is a separate watchdog concern
+    (id:98f0). The nudge (loop-hint.sh) reflects this corrected scope.
 
 0. **Fable-availability probe + apex-tier selection (Opus is APEX; Fable is a bonus).**
    Opus is the apex decision tier. Fable is treated as an OPTIONAL bonus second-opinion
@@ -126,14 +130,14 @@ D1/D2):
 4. **Exit summary.** After the Workflow completes, the front door prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).
-   **Unattended-resilience nudge moved to step 0a** (user directive 2026-06-18): a
-   single `/relay` run is resumable but NOT self-restarting — an API outage can trip a
-   stop path (total discovery failure on round ≥2, or a quota-gate agent death) and end
-   the run early — so the `/loop` nudge is surfaced FIRST (step 0a), where the user can
-   still act on it, NOT here after a long run + diary. Do NOT also print it in the exit
-   summary (it was already shown). Do NOT bake a self-chained wakeup into the front door
-   — that is the fragile kind a well-timed outage breaks (user decision 2026-06-16); the
-   nudge toward an independent fixed-interval `/loop` is intentional.
+   **Early-exit retry nudge moved to step 0a** (user directive 2026-06-18; corrected
+   id:bde8): a single `/relay` run is resumable but NOT self-restarting — a quota/seatbelt
+   early-exit ends the run; `/loop` retries within the live session. Surfaced FIRST (step
+   0a), where the user can still act on it, NOT here after a long run + diary. Do NOT also
+   print it in the exit summary (it was already shown). Do NOT bake a self-chained wakeup
+   into the front door — that is the fragile kind a well-timed outage breaks (user
+   decision 2026-06-16). Note: `/loop` dies WITH the session on a session kill (id:bde8
+   scope correction) — for watchdog/outage-death handling see id:98f0.
 
 `--interactive` re-enables the orchestrator's one-batch `AskUserQuestion`
 confirmations (invariant 2 below: new-repo confirms, dirty-repo snapshot offers)
