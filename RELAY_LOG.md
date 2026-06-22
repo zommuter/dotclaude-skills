@@ -642,3 +642,7 @@ relay review relay-ckpt-20260622-0749..HEAD — LEDGER-ONLY, CLEAN by vacuity, i
 
 Worked id:6b67 — shipped `relay/scripts/roadmap-archive.sh`: moves done `[x]` top-level items (plus all indented continuation lines as one block) from ROADMAP.md into ROADMAP.archive.md, with the conservative prior-commit/≥30-day-aged gate, flock guard, idempotency, and no section pruning. Added `tests/test_roadmap_archive.sh` (9 cases covering multi-line capture, open-item + header preservation, prior-commit gate positive/negative, aged-date gate positive/negative, idempotency, token preservation, empty-header retention). Registered in Makefile relay_FILES/_EXEC/_ALLOW. Full suite: 81 passed, 0 failed.
 Friction: none.
+
+## 2026-06-22 09:42 — executor (sonnet, relay-loop)
+
+id:6b67 [ROUTINE] — shipped relay/scripts/roadmap-archive.sh + tests/test_roadmap_archive.sh (9 cases), Makefile registration; suite 81/0
