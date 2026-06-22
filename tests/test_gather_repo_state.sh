@@ -68,5 +68,25 @@ rm="$(field roadmap <<<"$j")"
   && ok "hard-gated roadmap keeps all OPEN items + their text" || bad "hard-gated roadmap dropped an open item"
 grep -q '## Gated' <<<"$rm" && ok "trimmed roadmap keeps section headers (gated-section detection)" || bad "trimmed roadmap lost a ## header"
 
+# (8) FAIL-OPEN on a trimmer crash (id:401c Run 40) — if the roadmap trimmer ever errors, the
+# roadmap field must fall back to the FULL ROADMAP, NEVER silently empty. An empty roadmap would
+# misclassify the repo as "handoff" (relay-loop.js ~L630 "roadmap missing") and re-do C1/C2.
+# Force the crash by shadowing `python3` with a stub that always exits non-zero, scoped to ONLY
+# the gather call (so the test's own field() python3 is unaffected).
+STUB="$TMP/stubbin"; mkdir -p "$STUB"
+# The trimmer is the ONLY python3 invocation that runs with ROADMAP_PATH in its env (emit()'s
+# JSON builder does not). Fail just that one so emit() still produces valid JSON to read.
+REAL_PY3="$(command -v python3)"
+{ printf '#!/bin/sh\n'; printf 'if [ -n "$ROADMAP_PATH" ]; then exit 7; fi\n'; printf 'exec %s "$@"\n' "$REAL_PY3"; } > "$STUB/python3"
+chmod +x "$STUB/python3"
+r8="$TMP/idle/canary-idle"   # reuse the idle fixture (built in test 2): all [x] done items
+# gather with the trimmer's python3 forced to fail; emit()'s python3 + the test's field() unaffected.
+j8="$(RELAY_TOML="$TMP/no-toml" RELAY_WORKTREE_BASE="$TMP/idle/wt" PATH="$STUB:$PATH" \
+        "$GATHER" --repo canary-idle --path "$r8" --runid test 2>/dev/null)"; rc8=$?
+rm8="$(jq -r '.roadmap' <<<"$j8" 2>/dev/null || true)"
+[[ $rc8 -eq 0 ]] && ok "gather still exits 0 when the trimmer crashes" || bad "gather non-zero on trimmer crash (rc=$rc8)"
+grep -q 'shipped' <<<"$rm8" && ok "trimmer crash → FULL ROADMAP fallback (done text present, NOT empty)" \
+  || bad "trimmer crash produced empty/trimmed roadmap (fail-open broken, id:401c Run 40)"
+
 echo "test_gather_repo_state: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]]

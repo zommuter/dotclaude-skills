@@ -109,6 +109,10 @@ block="$(toml_block)"
 # a child. The shard classifies from open items + section headers (the EXECUTABLE-HARD test needs
 # section context); done prose is dead weight. discover-sig.sh still hashes the FULL ROADMAP — a
 # safe SUPERSET (over-hash = a harmless re-classify; never under-invalidates).
+# FAIL-OPEN: if the trimmer ever errors, fall back to the FULL ROADMAP (cat) rather than empty
+# — an empty roadmap would silently misclassify the repo as handoff (line ~630 "roadmap missing")
+# and re-do expensive C1/C2. A bloated-but-correct roadmap beats a silent empty one
+# (feedback-mechanize-no-swallow-stderr).
 roadmap="$(ROADMAP_PATH="$path/ROADMAP.md" python3 -c '
 import os, re, sys
 try:
@@ -135,7 +139,7 @@ if dropped:
     if s and not s.endswith("\n"): s += "\n"
     s += "<!-- relay-discovery-view: %d done [x] item(s) omitted; full history in ROADMAP.md -->\n" % dropped
 sys.stdout.write(s)
-' 2>/dev/null || true)"
+' 2>/dev/null || cat "$path/ROADMAP.md" 2>/dev/null || true)"
 
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap"
