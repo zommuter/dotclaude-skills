@@ -1249,6 +1249,20 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       3346 [meeting] / dba3 [decision-gate] / e149/7809/98f0/0994 [hands]; de4e DEFERRED
       non-executable; all open in both ROADMAP+TODO). Both tracked flakes (id:16e9, id:05e8) did
       NOT recur. Suite 82/0 on a clean run. See `docs/meeting-notes/2026-06-22-1818-strong-model-audit.md`.
+    - Run 43 (2026-06-22-1827): first-seen change since Run 42's own audit commit `a56bed7`
+      (`a56bed7..HEAD`, HEAD = `relay-ckpt-20260622-1827` / `9db884a`) — **LEDGER-ONLY window**
+      (Runs 11/12/16/17/18/19/20/21/22/40/41/42 class). `git diff --name-only a56bed7..HEAD -- '*.sh'
+      '*.py' '*.js'` is EMPTY. Sole first-seen change = the 4-line Run 42 strong-execute checkpoint
+      paragraph in RELAY_LOG.md (`9db884a`). No code to review, no security surface
+      (`gaming-scan.sh . a56bed7` exit 0). Pass-3 design-coherence: the checkpoint paragraph
+      accurately mirrors Run 42 (LEDGER-ONLY, CLEAN by vacuity, suite 82/0); no item opened/closed
+      this window. **One coherence drift fixed inline (recurring mirror class, Run 4/8/17/40/41/42)**
+      — the TODO id:401c MIRROR line read "Latest ✓ Run 42"; refreshed to Run 43. The d5e0 count
+      line needed NO change (already 7 open HARD / 0 ROUTINE).
+      Cross-ledger coherent (0 open ROUTINE / 7 open executable-or-gated HARD — 401c [pool] /
+      3346 [meeting] / dba3 [decision-gate] / e149/7809/98f0/0994 [hands]; de4e DEFERRED
+      non-executable; all open in both ROADMAP+TODO). Both tracked flakes (id:16e9, id:05e8) did
+      NOT recur. Suite 82/0 on a clean run. See `docs/meeting-notes/2026-06-22-1827-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
