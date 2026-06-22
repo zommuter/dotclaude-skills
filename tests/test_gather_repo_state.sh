@@ -54,5 +54,19 @@ j="$("$GATHER" --repo nope --path "$TMP/not-a-repo" --runid test)"; rc=$?
 j="$(gather review)"
 [[ "$(field has_upstream <<<"$j")" == "False" ]] && ok "no-remote repo → has_upstream=false" || bad "has_upstream wrong"
 
+# (7) roadmap trimmed to OPEN items for discovery (id:93cc) — a large ROADMAP's done [x]
+# blocks overflow/bloat the shard; the shard only needs open items + structure. Done blocks
+# dropped (with a non-silent omission note), open blocks + preamble kept.
+j="$(gather idle)"   # idle fixture = all [x] done
+rm="$(field roadmap <<<"$j")"
+grep -q 'shipped' <<<"$rm" && bad "idle roadmap still carries done-item text (not trimmed, id:93cc)" || ok "idle roadmap drops done [x] item blocks (id:93cc)"
+grep -q 'ROADMAP' <<<"$rm" && ok "idle roadmap keeps the preamble/marker after trim" || bad "idle roadmap lost its preamble"
+grep -q 'omitted' <<<"$rm" && ok "trimmed roadmap notes the omission (no silent truncation)" || bad "trimmed roadmap missing omission note"
+j="$(gather hard-gated)"   # hard-gated fixture = all [ ] open
+rm="$(field roadmap <<<"$j")"
+{ grep -q 'build the index' <<<"$rm" && grep -q 'choose the storage backend' <<<"$rm"; } \
+  && ok "hard-gated roadmap keeps all OPEN items + their text" || bad "hard-gated roadmap dropped an open item"
+grep -q '## Gated' <<<"$rm" && ok "trimmed roadmap keeps section headers (gated-section detection)" || bad "trimmed roadmap lost a ## header"
+
 echo "test_gather_repo_state: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]]
