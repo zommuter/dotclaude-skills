@@ -104,3 +104,7 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🎙️ **Aria** — speech-pipeline engineering lens; ASR backend selection (whisper.cpp /inference vs OpenAI-compatible vs audio-LLM), codec decode + ffmpeg resampling (8→16 kHz), VAD/noise gating, sha256-keyed transcription caching, segment-vs-word timestamps, diarisation. Introduced 2026-06-21 (zkm/zkm-stt-scope).
 
 - 🔐 **Crys** — backup-crypto / KDF / keyring lens; SQLCipher DB keys, scrypt-derived backup passwords, OS-keyring (libsecret/KWallet) unwrap, the fetch-vs-parse decryption boundary (decrypt = out-of-band fetch step, plugin parses plaintext). Introduced 2026-06-22 (zkm/messenger-plugins-telegram-signal-threema).
+
+- 📐 **Theo** — computational-geometry / lattices & honeycombs lens; space-filling polyhedra, Voronoi/BCC addressing, polytope subdivision (octant cuts via mirror planes), cross-section tilings (4.8.8 truncated-square), anisotropic neighbour metrics. Introduced 2026-06-22 (truncocraft/octant-split-foundation).
+
+- 🧊 **Vox** — WebGL/three.js voxel-rendering lens; InstancedMesh vs per-block Mesh vs chunk greedy-mesh, draw-call budgeting, raycaster faceIndex→source-face mapping, BufferGeometry winding/normals, face culling. Introduced 2026-06-22 (truncocraft/octant-split-foundation).
