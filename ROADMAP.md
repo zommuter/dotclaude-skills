@@ -1187,6 +1187,31 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       all five open in both ROADMAP+TODO; d5e0 agrees, no count drift this run). Both tracked
       flakes (id:16e9, id:05e8) did NOT recur. Suite 81/0 on a clean run. See
       `docs/meeting-notes/2026-06-22-1004-strong-model-audit.md`.
+    - Run 40 (2026-06-22-1601): first **CODE** window since Run 39's LEDGER-ONLY runs —
+      `3600642..HEAD` (HEAD = `relay-ckpt-20260622-1715` / `10d837e`), ~251 lines / 12 files.
+      First-seen code: the id:93cc ROADMAP discovery-trimmer in `gather-repo-state.sh`, the
+      id:7d1e per-verdict progress buckets in `relay-loop.js`, and the id:bde8 loop-hint
+      resilience-wording correction (`loop-hint.sh` + SKILL.md), plus the id:98f0/7809
+      outage-resilience meeting note. **1 forward-robustness defect fixed inline** — the id:93cc
+      trimmer's `python3 … 2>/dev/null || true` failed CLOSED to an EMPTY roadmap on a trimmer
+      crash → would silently misclassify the repo as `handoff` (relay-loop.js ~L630 "roadmap
+      missing") and re-do C1/C2; changed to fail-OPEN `|| cat "$path/ROADMAP.md"` + a non-vacuous
+      regression guard in `test_gather_repo_state.sh` (proven RED on the reverted `|| true` form).
+      Pass-1 otherwise clean (trimmer block-parsing correct; per-verdict buckets pure display
+      grouping, zero behavioural change, consistent with the pre-existing Integrate bucket).
+      Pass-2 security clean (`gaming-scan.sh . 3600642` exit 0; no injection — trimmer reads a
+      quoted env path, JS changes are literals). Pass-3 design-coherence: loop-hint correction
+      matches memory `babysitter-durable-cron-no-op`; verified the meeting note's claimed
+      `[HARD — meeting]→[HARD — hands]` retag of 7809/98f0 landed in ROADMAP and that new items
+      e149/0994 are wired. **2 coherence drifts fixed inline (recurring d5e0/mirror class)** —
+      (a) the d5e0 count line read "5 open ROADMAP items" with 7809/98f0 mislabelled
+      `[HARD — meeting]`; corrected to 7 open HARD with e149/0994 added + the lane fix; (b) the
+      TODO id:401c MIRROR line read "Latest ✓ Run 39"; refreshed to Run 40. Cross-ledger coherent
+      (0 open ROUTINE / 7 open HARD — 401c [pool] / 3346 [meeting] / dba3 [decision-gate] /
+      e149/7809/98f0/0994 [hands]; de4e DEFERRED non-executable; all open in both ROADMAP+TODO).
+      Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 82/0 test-files on a clean run
+      (the new regression guard is an assertion inside test_gather_repo_state.sh, 17→18 cases).
+      See `docs/meeting-notes/2026-06-22-1601-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
