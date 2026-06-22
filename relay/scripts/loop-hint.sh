@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# loop-hint.sh — best-effort "wrap this in /loop for unattended resilience" reminder
-# for the /relay front door (default autonomous pool mode).
+# loop-hint.sh — best-effort "/loop for early-exit retry" reminder for the /relay
+# front door (default autonomous pool mode).
 #
-# Prints a one-line tip to stdout ONLY when this run looks like a STANDALONE manual
+# Prints a tip to stdout ONLY when this run looks like a STANDALONE manual
 # invocation; stays SILENT when a recent prior run suggests we are already inside a
 # /loop (back-to-back ticks). Detection is purely time-since-last-run: a manual
 # `/relay --afk` and a loop-driven one are otherwise indistinguishable (identical
@@ -10,12 +10,18 @@
 #   gap since last run <= GAP  → looks like a loop tick → SUPPRESS (print nothing)
 #   gap > GAP (or first run)   → looks standalone        → print the tip
 #
-# Rationale for the tip: a single `/relay` invocation is resumable but NOT self-
-# restarting — an API outage that trips a stop path (total discovery failure on
-# round>=2, or a quota-gate agent death) ends the run early and it will NOT resume
-# until re-invoked. A FIXED-INTERVAL `/loop` re-fires on independent ticks, so a
-# missed tick during an outage is recovered by the next one (a self-chained wakeup
-# would instead break permanently if the outage hit its reschedule moment).
+# IMPORTANT — what /loop does and does NOT do:
+#   /loop (and an in-session cron) runs within the SAME Claude session. It dies with
+#   the session if the session is killed, the process crashes, or an API outage ends
+#   the process. It is NOT a watchdog and does NOT give outage/session-kill resilience.
+#
+#   What /loop IS good for: relay's own early-exit paths (quota/seatbelt) that stop
+#   the relay script but leave the Claude session alive. Within a live session, a
+#   fixed-interval /loop re-fires on each tick and resumes from the preserved
+#   worktrees/checkpoints — useful for catching quota-stop early exits.
+#
+#   For true outage-resilience (session kill / process death), a separate watchdog is
+#   needed (id:98f0); see docs/meeting-notes/2026-06-22-1546-relay-outage-resilience.md.
 #
 # Never fails the caller: all state writes are best-effort, exit is always 0.
 set -uo pipefail
@@ -41,11 +47,11 @@ if [[ -n "$prev" && "$prev" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ ]]; then
 fi
 
 cat <<'TIP'
-💡 Going to be away a while? A single /relay run is resumable but not self-restarting —
-   an API outage can stop it early and it won't resume on its own. For unattended
-   multi-hour resilience, wrap it in a fixed-interval loop:
+💡 A single /relay run stops on an early-exit (quota/seatbelt) and won't resume on its
+   own. Within a live session, a fixed-interval loop retries those early exits:
        /loop 20m /relay --afk
-   Independent ticks: each resumes from preserved worktrees/checkpoints, and a tick
-   missed during an outage is recovered by the next one.
+   Each tick resumes from preserved worktrees/checkpoints.
+   Scope: /loop stays within the same session — if the session is killed (API outage,
+   process death), /loop dies with it. Watchdog for that case: id:98f0.
 TIP
 exit 0
