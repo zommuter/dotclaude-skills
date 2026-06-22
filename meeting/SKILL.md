@@ -110,7 +110,21 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    - Acquire: `~/.claude/skills/relay/scripts/claim.sh acquire <root-basename> --run meeting-<captured session id> --mode meeting`.
    - **Succeeds** → do the 2b/2e ledger writes, then release: `~/.claude/skills/relay/scripts/claim.sh release <root-basename> --run meeting-<captured session id>`.
    - **Refused** (a live relay run holds the repo — `claim.sh peek` names the holder) → HOLD: wait ~30–60s and retry once or twice; if still held, **DEFER** the ledger write-back. The meeting note already records every decision + action item durably, so surface to the user: "ledger write-back deferred — relay pool holds `<repo>`; decisions are in `<note path>`; re-apply via `/todo-update` (or re-run this step) once the pool is idle." Never force a shared-ledger write under a live pool claim.
+     - **Deferred write-back breadcrumb (id:2c42):** on a final deferral (all retries exhausted, pool still holds the claim), persist a generic replayable payload to `<root>/.meeting-deferred-writeback.json`:
+       ```json
+       {"target_file": "<root>/TODO.md", "helper": "md-merge.py", "payload": "<the md-merge JSON payload string>"}
+       ```
+       Then append a timestamped event line to `~/.claude/logs/meeting-deferred-writeback.log`:
+       ```
+       YYYY-MM-DD HH:MM  deferred  <root-basename>  <note-relpath>
+       ```
+       The `target_file` / `helper` / `payload` fields are generic so a second defer site can extend them in future; today's sole wired-in site is this step-2a `<root>` ledger write-back (NOT `~/.claude` shared files — those are flock-safe and never pool-deferred). The drop file is gitignored (`<root>/.meeting-deferred-writeback.json`); the log lives outside the repo (no commit needed).
    - Skip entirely in non-relay repos (no ROADMAP.md — no pool to collide with).
+2a-replay. **Pending deferred write-back replay (id:2c42 — setup phase, relay-managed repos only).** At the START of the `/meeting` setup (immediately after step 1 finds `<root>` and before any reads that depend on ledger state), check for a pending deferred write-back drop file at `<root>/.meeting-deferred-writeback.json`. If it exists, replay it under a fresh claim:
+   1. Attempt: `~/.claude/skills/relay/scripts/claim.sh acquire <root-basename> --run meeting-replay-<captured session id> --mode meeting`.
+   2. **Acquired** → apply the pending payload via the named `helper` (`md-merge.py update-ids --file <target_file>` or `append.sh`, as recorded) with the stored `payload`; on success, delete `<root>/.meeting-deferred-writeback.json` and log a `replayed` line to `~/.claude/logs/meeting-deferred-writeback.log`; release the claim.
+   3. **Refused** (pool still holds the claim — the pool is still running) → re-defer: leave the drop file in place, log a `re-deferred` line, and proceed with the meeting as normal. Nothing is applied while the pool still holds the claim (only apply under a fresh claim, never force it).
+   4. No drop file → proceed silently (no-op).
 2b. **Mirror action items to TODO.md**: add every `## Action items` entry that will outlive this session to `<root>/TODO.md` (create a new section if needed; write only to `<root>/TODO.md` — never to a parent-path file). Each entry must cite the meeting-note path. **For each item, mint a unique ID via `~/.claude/skills/meeting/append.sh new-id` and embed it as `<!-- id:XXXX -->` at the end of the line in the meeting note AND in the TODO.md entry** (same token in both). The first invocation of this session that creates meeting-note items should call `append.sh new-id` once per item before writing. In-session ad-hoc items skip ID minting — they never reach TODO. Purpose: orphan-scan uses this `<!-- id:XXXX -->` for exact correlation; un-IDed lines are skipped (clean cutover). Class 2 planning records skip this step — their action items are resolved in-session by implementation. **When closing an existing TODO item** (marking it `[x]` by ID), use the flock'd merge helper to avoid cross-session clobbering:
    ```bash
    ~/.claude/skills/meeting/md-merge.py update-ids --file <root>/TODO.md <<'JSON'
