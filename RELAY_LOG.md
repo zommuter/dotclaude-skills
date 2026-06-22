@@ -702,3 +702,7 @@ relay(401c Run 43): strong-model audit a56bed7..HEAD — LEDGER-ONLY, CLEAN by v
 ## 2026-06-22 20:27 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 6273a33: id:e107 @manual/human-only [ROUTINE] execute-verdict guard verified genuinely green — gaming-scan clean, suite 82/0, no drift, 0 open ROUTINE
+
+## 2026-06-22 21:37 — strong-execute (claude-opus-4-8, id:bae5)
+
+uv.lock-only relay exemption (id:bae5) + intensity-profiling TODO (id:c7b6). Authored+verified this Opus turn: gather emits lock_only_unaudited/dirty_lock_only, discovery exempts them; test suite 82/0 green.
