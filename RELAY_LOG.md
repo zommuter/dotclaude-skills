@@ -718,3 +718,7 @@ review (claude-opus-4-8, fable-standin, relay-loop): relay-ckpt-20260622-2137..H
 ## 2026-06-22 20:20 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review relay-ckpt-20260622-2145..HEAD (1 commit, 797d221): meeting(af04) commit — meeting note `2026-06-22-2139-meeting-worktree-writeback.md` + 2 new TODO items (id:2c42, id:6f61). NO code/test files touched; gaming-scan.sh clean (0 DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT); full suite 82/0. ids genuine (each appears once in TODO, none in ROADMAP/archive — no duplicates), cross-ledger orphan-scan clean. Contract pointer CLAUDE.md v4 = canonical (no drift). Reverse-handoff (§5b): **id:2c42** is execution-ready (concrete `meeting/SKILL.md` step-2a breadcrumb+replay change with an observable done-state + test contract) → mini-handoff: promoted to ROADMAP as `[ROUTINE]` reusing its id, wrote red spec `tests/test_meeting_deferred_writeback.sh` (`# roadmap:2c42`, EXPECTED-RED). **id:6f61** is explicitly deferred/folded into the lock-hygiene umbrella id:d2cd (meeting D3b "Out of scope: building it this session") → SKIPPED per §5b (deferred/gated). routine_open=1.
+
+## 2026-06-22 22:07 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review relay-ckpt-20260622-2145..HEAD (meeting af04, ledger-only): gaming-scan 0, suite 82/0, mini-handoff id:2c42→ROADMAP [ROUTINE]+red spec, id:6f61 skipped (folded into d2cd), routine_open=1
