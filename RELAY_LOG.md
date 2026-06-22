@@ -658,3 +658,7 @@ relay(401c Run 38): strong-model audit 8258aa3..HEAD — LEDGER-ONLY, CLEAN by v
 ## 2026-06-22 10:14 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 relay(401c Run 39): strong-model audit 0174a69..HEAD — LEDGER-ONLY, CLEAN by vacuity, no drift, mirror->Run39, suite 81/0
+
+## 2026-06-22 16:30 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+relay review relay-ckpt-20260622-1014..HEAD — strong-model/meeting window CLEAN (gaming-scan clean, gather-trim id:93cc genuine red→green, no drift); §5b mini-handoff red spec for id:bde8; suite 81/0/1-expected-red
