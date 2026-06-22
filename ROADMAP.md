@@ -1142,6 +1142,26 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       ROADMAP+TODO; d5e0 agrees, no count drift this run). Both tracked flakes (id:16e9, id:05e8)
       did NOT recur. Suite 81/0 on a clean run. See
       `docs/meeting-notes/2026-06-22-0942-strong-model-audit.md`.
+    - Run 38 (2026-06-22-0953): first-seen change since Run 37's own audit merge `8258aa3`
+      (`8258aa3..HEAD`, HEAD = checkpoint `relay-ckpt-20260622-0953` / `9ec0b6b`) —
+      **clean: LEDGER-ONLY window** (Run 11/12/16/17/31/32/33/35/36 class). Sole first-seen
+      change = the Run 37 strong-execute checkpoint paragraph in RELAY_LOG.md (+4 lines);
+      `git diff --stat` = `RELAY_LOG.md | 4 ++++` and `git diff --name-only 8258aa3..HEAD --
+      '*.sh' '*.py' '*.js'` is EMPTY. No code to review (Pass 1 CLEAN by vacuity), no security
+      surface (Pass 2 CLEAN by vacuity; `gaming-scan.sh "$repo" 8258aa3` exit 0, no output),
+      no new design decision/gate (Pass 3 — the Run 37 checkpoint paragraph is internally
+      consistent with the Run 37 run-log entry + meeting note: same window `b93f024..HEAD`,
+      same id:6b67 subject, same suite 81/0; no contradiction). **Pre-existing accepted (out
+      of window)** — `orphan-scan --cross-ledger` flags id:78ff/id:d9b0 as TODO:[ ]/ROADMAP:[x];
+      both predate this window and are the intended single-id-two-views shape (already accepted
+      Run 37). **1 coherence drift fixed inline (recurring Run 4/8/17/35/36/37 mirror class)** —
+      the TODO id:401c MIRROR line still read "Latest ✓ Run 37"; refreshed to Run 38 (d5e0 count
+      line NOT stale this run — already 5 open HARD / 0 ROUTINE, no items opened/closed). Cross-ledger
+      coherent (0 open ROUTINE / 5 executable HARD — 401c [pool] / 3346 [meeting] / dba3
+      [decision-gate] / 7809 [meeting] / 98f0 [meeting]; de4e DEFERRED non-executable; all five
+      open in both ROADMAP+TODO; d5e0 agrees, no count drift this run). Both tracked flakes
+      (id:16e9, id:05e8) did NOT recur. Suite 81/0 on a clean run. See
+      `docs/meeting-notes/2026-06-22-0953-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
