@@ -662,3 +662,7 @@ relay(401c Run 39): strong-model audit 0174a69..HEAD — LEDGER-ONLY, CLEAN by v
 ## 2026-06-22 16:30 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 relay review relay-ckpt-20260622-1014..HEAD — strong-model/meeting window CLEAN (gaming-scan clean, gather-trim id:93cc genuine red→green, no drift); §5b mini-handoff red spec for id:bde8; suite 81/0/1-expected-red
+
+## 2026-06-22 17:10 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review relay-ckpt-20260622-1630..6851d4e CLEAN: suite 81/0, gaming-scan clean, xledger exit 0, recorded id:7d1e closed; routine_open=1
