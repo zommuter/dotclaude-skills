@@ -674,3 +674,7 @@ Friction: none — test was already written and precisely specified the two corr
 ## 2026-06-22 17:15 — executor (sonnet, relay-loop)
 
 fix(relay): correct loop-hint scope — /loop dies with the session (id:bde8); full suite 82/0/0
+
+## 2026-06-22 17:31 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(401c Run 40): strong-model audit 3600642..HEAD — CODE window, fixed id:93cc trimmer fail-closed→fail-open + regression guard + 2 ledger coherence drifts; suite 82/0
