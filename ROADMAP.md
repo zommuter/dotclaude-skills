@@ -10,6 +10,8 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [x] [ROUTINE] relay-loop progress buckets — split the crowded `Dispatch` /workflows group into per-verdict phases (Execute/Review/Hard/Handoff) + a `Support` bucket for non-work agents (quota gate, lease release, inject-take) (done 2026-06-22, user request; display-only, zero behavioural change; `tests/test_relay_loop_structure.sh` locks the routing) <!-- id:7d1e -->
+
 - [x] [ROUTINE] Relay ROADMAP archiver — `relay/scripts/roadmap-archive.sh` moves done `[x]` items out of the live ROADMAP <!-- id:6b67 -->
   - **Why**: a large ROADMAP overflows the executor-contract prompt → "Prompt is too long" blocks ALL execute/INTENSIVE dispatch on that repo (id:93cc, hit live 2026-06-22 on ai-codebench's ~400-line ROADMAP). Keep the live ROADMAP to OPEN items by archiving completed ones, mirroring how `todo-update/archive-done.sh` keeps TODO.md small.
   - **Acceptance**:
