@@ -727,3 +727,7 @@ review relay-ckpt-20260622-2145..HEAD (meeting af04, ledger-only): gaming-scan 0
 
 Worked id:2c42 — implemented `/meeting` deferred ledger write-back (breadcrumb + replay-on-next-invocation + log). Extended `meeting/SKILL.md` step 2a: on a final deferral, persists a generic `{target_file, helper, payload}` JSON to `<root>/.meeting-deferred-writeback.json` + appends to `~/.claude/logs/meeting-deferred-writeback.log`. Added a step 2a-replay setup-phase check in `/meeting` that applies pending payloads under a fresh claim, clears the drop file, or re-defers if pool still holds the claim. Added a matching Step 0 replay check in `todo-update/SKILL.md`. Gitignored the drop file. Also ticked TODO/ROADMAP id:2c42 (single-id-two-views) and added af04 cross-link on id:3558 (worktree-per-meeting rejected, id:3558 orthogonal). All 83 tests pass.
 Friction: none — worktree was behind main (reviewer mini-handoff added the red spec); merged before starting.
+
+## 2026-06-22 22:15 — executor (sonnet, relay-loop)
+
+executor: implement id:2c42 — /meeting deferred ledger write-back (breadcrumb + replay + log); 83/0 tests
