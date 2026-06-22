@@ -678,3 +678,7 @@ fix(relay): correct loop-hint scope — /loop dies with the session (id:bde8); f
 ## 2026-06-22 17:31 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 relay(401c Run 40): strong-model audit 3600642..HEAD — CODE window, fixed id:93cc trimmer fail-closed→fail-open + regression guard + 2 ledger coherence drifts; suite 82/0
+
+## 2026-06-22 17:57 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review e06088f (ledger-only Agent-SDK billing-deferral note): CLEAN by vacuity, gaming-scan 0, suite 82/0, id:00a5 new token valid, fixed cross-ledger bde8 TODO[ ]/ROADMAP[x] divergence, routine_open=0
