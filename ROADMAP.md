@@ -1213,6 +1213,28 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 82/0 test-files on a clean run
       (the new regression guard is an assertion inside test_gather_repo_state.sh, 17→18 cases).
       See `docs/meeting-notes/2026-06-22-1601-strong-model-audit.md`.
+    - Run 41 (2026-06-22-1757): first-seen change since Run 40's own audit merge `f3c26f8`
+      (`f3c26f8..HEAD`, HEAD = `relay-ckpt-20260622-1757` / `4574c3b`) — **LEDGER-ONLY window**
+      (Runs 11/12/16/17/18/19/20/21/22/40 class). `git diff --name-only f3c26f8..HEAD -- '*.sh'
+      '*.py' '*.js'` is EMPTY — the only code in the raw `10d837e..HEAD` range
+      (`gather-repo-state.sh` + `test_gather_repo_state.sh`, `c941c4e`) is Run 40's OWN
+      already-audited id:93cc fail-open fix, out of this window. First-seen changes: Run 40's
+      strong-execute+review checkpoint paragraphs in RELAY_LOG.md; the Agent-SDK / `claude -p`
+      subscription-billing DEFERRAL note (`e06088f` — new TODO `[MEETING]` id:00a5 multi-perspective
+      applications eval + a dba3 "Billing path REAFFIRMED" addendum + a 98f0 billing parenthetical);
+      and the review tick of TODO id:bde8 `[ ]`→`[x]` (`561c3fa`, cross-ledger D2 fix). No code to
+      review, no security surface (`gaming-scan.sh . f3c26f8` exit 0). Pass-3 design-coherence:
+      id:00a5 is internally sound (single TODO-only token, meeting-lane → correctly NOT promoted to
+      ROADMAP; cross-refs id:2d01/98f0/dba3/hermes-deferral-contract all resolve), the billing notes
+      across dba3/98f0/00a5/memory `anthropic-agent-sdk-billing-deferred` are mutually consistent (no
+      contradiction with id:2d01's path-A rationale), and bde8 is now canonically `[x]` in both
+      ledgers. **One coherence drift fixed inline (recurring mirror class, Run 4/8/17/21/40)** — the
+      TODO id:401c MIRROR line read "Latest ✓ Run 40"; refreshed to Run 41. The d5e0 count line needed
+      NO change (already 7 open HARD / 0 ROUTINE; no items opened/closed this window). Cross-ledger
+      coherent (0 open ROUTINE / 7 open executable-or-gated HARD — 401c [pool] / 3346 [meeting] / dba3
+      [decision-gate] / e149/7809/98f0/0994 [hands]; de4e DEFERRED non-executable; all open in both
+      ROADMAP+TODO). Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 82/0 on a clean run.
+      See `docs/meeting-notes/2026-06-22-1757-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
