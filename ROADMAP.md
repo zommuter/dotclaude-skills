@@ -1109,6 +1109,39 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       non-executable; all five open in both ROADMAP+TODO; d5e0 agrees, no count drift this
       run). Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 80/0 on a clean run.
       See `docs/meeting-notes/2026-06-22-0737-strong-model-audit.md`.
+    - Run 37 (2026-06-22-0942): first-seen change since Run 36's own audit merge `b93f024`
+      (`b93f024..HEAD`, HEAD = checkpoint `relay-ckpt-20260622-0942` / `183a272`) —
+      **SUBSTANTIVE CODE window** (breaks the Run 31/32/33/35/36 ledger-only streak): 403
+      insertions / 6 files. First-seen code = the new `relay/scripts/roadmap-archive.sh`
+      (id:6b67 [ROUTINE], Relay ROADMAP archiver, 167 L, shipped by a Sonnet executor in
+      `f6f594b`) + `tests/test_roadmap_archive.sh` (201 L, 9 hermetic cases, `# roadmap:6b67`)
+      + Makefile registration (relay_FILES/EXEC/ALLOW). **CLEAN — no code/security defects**
+      across all 3 passes: trap-ordering sound (last EXIT trap cleans both temp+lock, no leak);
+      conservative prior-commit/≥30d gate correct — a working-tree-only tick is NEVER archived
+      (verified T3 positive / T4 negative); multi-line block capture + `<!-- id:XXXX -->` token
+      preservation + no-section-pruning (deliberate divergence from archive-done.sh, ROADMAP
+      headers are structural) all verified; quoted `<<'PYEOF'` heredoc with argv-passed inputs
+      = no injection, no path traversal beyond the repo, stdlib-only Python, no secrets/network,
+      lock covered by the `*.lock` gitignore. gaming-scan clean (test file wholly NEW — additions
+      only, no deleted asserts / added skips / removed checks). Design coherent: id:93cc→id:6b67
+      single-id-two-views chain sound (93cc = TODO "Prompt is too long" meta-issue, 6b67 =
+      fix-direction (b) archiver promoted to ROADMAP; no duplicate-id mint; test maps its item;
+      ticked `[x]` ⇒ suite green = DoD). **1 LOW accepted** — `trap 'rm "$LOCK_FILE"'` removes a
+      flock'd lock file (unlink-race vs the canonical append.sh/git-lock-push.sh persistent-lock
+      pattern); theoretical only — script is `-n` non-blocking (concurrent run cleanly skips),
+      has NO automated caller today, rare+idempotent+single-writer; documented future-fix trigger
+      (drop the rm if an automated caller is added). **Pre-existing accepted (out of window)** —
+      `orphan-scan --cross-ledger` flags id:78ff/id:d9b0 as TODO:[ ]/ROADMAP:[x]; both predate
+      this window and are the intended single-id-two-views shape (ROADMAP execution unit closed,
+      broader TODO design-ledger umbrella stays open) — not drift from this window. **1 coherence
+      drift fixed inline (recurring Run 4/8/17/35/36 mirror class)** — the TODO id:401c MIRROR
+      line still read "Latest ✓ Run 36"; refreshed to Run 37 (d5e0 count line NOT stale this run
+      — already 5 open HARD / 0 ROUTINE after id:6b67 closed). Cross-ledger coherent (0 open
+      ROUTINE / 5 executable HARD — 401c [pool] / 3346 [meeting] / dba3 [decision-gate] / 7809
+      [meeting] / 98f0 [meeting]; de4e DEFERRED non-executable; all five open in both
+      ROADMAP+TODO; d5e0 agrees, no count drift this run). Both tracked flakes (id:16e9, id:05e8)
+      did NOT recur. Suite 81/0 on a clean run. See
+      `docs/meeting-notes/2026-06-22-0942-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
