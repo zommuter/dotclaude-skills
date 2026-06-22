@@ -33,6 +33,15 @@ grep -qE "phase: 'Dispatch'" "$JS" \
   && fail "id:7d1e: no agent should still use the monolithic 'Dispatch' phase"
 pass "id:7d1e: per-verdict + Support progress buckets wired"
 
+# (1c) id:e107 — executor-actionable guard: a [ROUTINE] item that is @manual/human-only must
+# be excluded from the execute verdict, so a repo whose only open [ROUTINE] items are all
+# @manual does NOT get an executor dispatched every round (the no-op checkpoint thrash loop).
+grep -q "EXECUTOR-ACTIONABLE" "$JS" \
+  || fail "id:e107: discovery prompt missing the EXECUTOR-ACTIONABLE (@manual/human-only) guard"
+grep -q "id:e107" "$JS" \
+  || fail "id:e107: guard not tagged with its id in the discovery prompt"
+pass "id:e107: @manual/human-only [ROUTINE] excluded from the execute verdict"
+
 # (2) Unattended invariant: the Workflow never prompts
 if grep -q "AskUserQuestion" "$JS"; then
   fail "relay-loop.js must never call AskUserQuestion (unattended Workflow, D2)"
