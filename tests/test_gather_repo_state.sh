@@ -88,5 +88,44 @@ rm8="$(jq -r '.roadmap' <<<"$j8" 2>/dev/null || true)"
 grep -q 'shipped' <<<"$rm8" && ok "trimmer crash → FULL ROADMAP fallback (done text present, NOT empty)" \
   || bad "trimmer crash produced empty/trimmed roadmap (fail-open broken, id:401c Run 40)"
 
+# (9) id:bae5 — uv.lock-only exemptions. Build repos inline (no fixture) exercising the
+# lock_only_unaudited / dirty_lock_only booleans the discovery exemptions read.
+mklockrepo() {  # mklockrepo <dir> → committed repo with a ckpt tag at HEAD, clean
+  local r="$1"; mkdir -p "$r"; git -C "$r" init -q
+  git -C "$r" config user.email t@t; git -C "$r" config user.name t
+  printf 'version="0.14.0"\n' > "$r/uv.lock"; echo code > "$r/app.py"
+  git -C "$r" add -A; git -C "$r" commit -qm init
+  git -C "$r" tag -a relay-ckpt-20260101-0000 -m base
+}
+lgather() { RELAY_TOML="$TMP/no-toml" RELAY_WORKTREE_BASE="$TMP/wt-lock" \
+  "$GATHER" --repo "canary-lock" --path "$1" --runid test; }
+
+# 9a: unaudited commit touching ONLY uv.lock → lock_only_unaudited=True, dirty_lock_only=False.
+r9="$TMP/lockonly"; mklockrepo "$r9"
+printf 'version="0.16.0"\n' > "$r9/uv.lock"; git -C "$r9" add uv.lock; git -C "$r9" commit -qm "chore: relock"
+j="$(lgather "$r9")"
+[[ "$(field lock_only_unaudited <<<"$j")" == "True" ]] && ok "lock-only unaudited commit → lock_only_unaudited=True (review-exempt)" || bad "lock_only_unaudited not True"
+[[ "$(field dirty_lock_only <<<"$j")" == "False" ]] && ok "lock-only committed → not dirty" || bad "dirty_lock_only wrong on clean tree"
+
+# 9b: unaudited commit touching uv.lock AND a code file → NOT exempt (conservative guard).
+r9b="$TMP/lockplus"; mklockrepo "$r9b"
+printf 'version="0.16.0"\n' > "$r9b/uv.lock"; echo more >> "$r9b/app.py"
+git -C "$r9b" add -A; git -C "$r9b" commit -qm "feat + relock"
+j="$(lgather "$r9b")"
+[[ "$(field lock_only_unaudited <<<"$j")" == "False" ]] && ok "uv.lock + code commit → lock_only_unaudited=False (real review)" || bad "lock_only_unaudited leaked True with a code change"
+
+# 9c: dirty tree with ONLY uv.lock modified → dirty_lock_only=True.
+r9c="$TMP/dirtylock"; mklockrepo "$r9c"
+printf 'version="0.16.0"\n' > "$r9c/uv.lock"   # left uncommitted
+j="$(lgather "$r9c")"
+[[ "$(field dirty <<<"$j")" == "True" ]] && ok "dirty-lock tree is dirty" || bad "dirty-lock not dirty"
+[[ "$(field dirty_lock_only <<<"$j")" == "True" ]] && ok "uv.lock-only dirty → dirty_lock_only=True (dispatchable)" || bad "dirty_lock_only not True"
+
+# 9d: dirty tree with uv.lock AND another file → dirty_lock_only=False (conservative).
+r9d="$TMP/dirtyplus"; mklockrepo "$r9d"
+printf 'version="0.16.0"\n' > "$r9d/uv.lock"; echo x >> "$r9d/app.py"   # both uncommitted
+j="$(lgather "$r9d")"
+[[ "$(field dirty_lock_only <<<"$j")" == "False" ]] && ok "uv.lock + other dirty → dirty_lock_only=False (still blocks)" || bad "dirty_lock_only leaked True with a non-lock dirty path"
+
 echo "test_gather_repo_state: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]]

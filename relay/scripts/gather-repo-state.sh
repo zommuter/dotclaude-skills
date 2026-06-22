@@ -48,7 +48,8 @@ emit() {  # emit the JSON object from env vars (safe encoding of arbitrary multi
   IS_GIT="$1" HEAD_SHA="${2:-}" LATEST_CKPT="${3:-}" LATEST_CKPT_MSG="${4:-}" \
   COMMITS_SINCE="${5:-}" DIRTY="${6:-false}" PORCELAIN="${7:-}" UPSTREAM="${8:-}" \
   HAS_UPSTREAM="${9:-false}" WORKTREES="${10:-}" ORPHANS="${11:-}" TOML="${12:-}" \
-  ROADMAP="${13:-}" REPO="$repo" RPATH="$path" RUNID="$runid" \
+  ROADMAP="${13:-}" LOCK_ONLY_UNAUDITED="${14:-false}" DIRTY_LOCK_ONLY="${15:-false}" \
+  REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
 def b(v): return v == "true"
@@ -61,6 +62,12 @@ o = {
   "commits_since_ckpt": os.environ.get("COMMITS_SINCE",""),
   "dirty": b(os.environ.get("DIRTY","false")),
   "porcelain": os.environ.get("PORCELAIN",""),
+  # id:bae5 — audit/dispatch exemptions for a mechanical uv.lock-only diff (the zkm
+  # cascade): lock_only_unaudited = there ARE unaudited commits since the ckpt and
+  # they touch ONLY uv.lock (→ not a real review); dirty_lock_only = the working
+  # tree is dirty with ONLY uv.lock modified (→ still dispatchable; child relocks).
+  "lock_only_unaudited": b(os.environ.get("LOCK_ONLY_UNAUDITED","false")),
+  "dirty_lock_only": b(os.environ.get("DIRTY_LOCK_ONLY","false")),
   "upstream_ahead_behind": os.environ.get("UPSTREAM",""),
   "has_upstream": b(os.environ.get("HAS_UPSTREAM","false")),
   "worktrees": os.environ.get("WORKTREES",""),
@@ -94,6 +101,24 @@ else
 fi
 porcelain="$(git -C "$path" status --porcelain 2>/dev/null || true)"
 [[ -n "$porcelain" ]] && dirty=true || dirty=false
+
+# id:bae5 — uv.lock-only exemptions (the zkm cascade). Conservative: only the
+# unambiguous root "uv.lock" path is exempt; any other changed/dirty path defeats it.
+# lock_only_unaudited: there ARE unaudited commits since the ckpt AND every file they
+# touch is uv.lock (a mechanical cascade relock — audit-exempt, not a real review).
+lock_only_unaudited=false
+if [[ -n "$latest" && -n "$commits_since" ]]; then
+  unaudited_files="$(git -C "$path" diff --name-only "$latest"..HEAD 2>/dev/null || true)"
+  unaudited_nonlock="$(printf '%s\n' "$unaudited_files" | grep -v '^[[:space:]]*$' | grep -vx 'uv.lock' || true)"
+  [[ -n "$unaudited_files" && -z "$unaudited_nonlock" ]] && lock_only_unaudited=true
+fi
+# dirty_lock_only: the working tree is dirty with ONLY uv.lock modified (still
+# dispatchable — the executor child regenerates+commits it in its worktree).
+dirty_lock_only=false
+if [[ "$dirty" == true ]]; then
+  dirty_nonlock="$(printf '%s\n' "$porcelain" | grep -v '^[[:space:]]*$' | awk '{print $NF}' | grep -vx 'uv.lock' || true)"
+  [[ -z "$dirty_nonlock" ]] && dirty_lock_only=true
+fi
 # upstream ahead/behind (tab-separated "ahead<TAB>behind"); has_upstream=false when none.
 if git -C "$path" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
   has_upstream=true
@@ -142,4 +167,5 @@ sys.stdout.write(s)
 ' 2>/dev/null || cat "$path/ROADMAP.md" 2>/dev/null || true)"
 
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
-     "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap"
+     "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap" \
+     "$lock_only_unaudited" "$dirty_lock_only"
