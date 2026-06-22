@@ -3,8 +3,12 @@ export const meta = {
   description: 'Priority-mixed 5-wide autonomous relay pool — serialized integrator, quota-guarded, STRONG_TIER-aware',
   phases: [
     { title: 'Discover', detail: 'classify confirmed repos into execute/review/hard/handoff/idle units' },
-    { title: 'Dispatch', detail: '5-wide pool: execute slots first, backfill with review/handoff' },
+    { title: 'Execute', detail: '[ROUTINE] executor units (Sonnet)' },
+    { title: 'Review', detail: 'audit unaudited commits + re-derive roadmap (apex)' },
+    { title: 'Hard', detail: '[HARD — pool] apex execution of one bounded item' },
+    { title: 'Handoff', detail: 'docs → roadmap → red tests → BDD handoff (apex)' },
     { title: 'Integrate', detail: 'serialized merge → ckpt-tag → push per completed unit' },
+    { title: 'Support', detail: 'quota gate · lease release · injection take' },
   ],
 }
 
@@ -863,7 +867,15 @@ if (actionable.length === 0 && intensiveUnits.length === 0) {
 
 // ── Phase 2+3: Dispatch pool + serialized integration ──
 
-phase('Dispatch')
+// id:7d1e — finer-grained progress buckets (user request 2026-06-22): instead of dumping
+// every dispatch-time agent into one crowded "Dispatch" group, route each WORK unit to a
+// per-verdict phase (Execute/Review/Hard/Handoff) and shunt the non-work support agents
+// (quota gate, per-unit lease release, injection take) into a "Support" bucket. Purely a
+// display grouping — zero behavioural change. The serialized merge stays under "Integrate".
+const PHASE_BY_VERDICT = { execute: 'Execute', review: 'Review', hard: 'Hard', handoff: 'Handoff' }
+const unitPhase = (v) => PHASE_BY_VERDICT[v] || 'Execute'
+
+phase('Execute')
 
 const queue = [...actionable]
 const debts = []
@@ -954,7 +966,7 @@ async function quotaGate(tier) {
     `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
 Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.
 On exit 1 (real exhaustion), also return crossedBucket: the name of the bucket that quota-stop.sh logged as crossing its threshold (the script logs "quota-stop: <bucket>=<val>% >= threshold <t>" to stderr — capture that bucket name, e.g. "seven_day_sonnet"). Leave crossedBucket absent or empty if exit code is not 1.`,
-    { label: `quota:${tier}`, phase: 'Dispatch', schema: QUOTA_SCHEMA, model: 'haiku' }
+    { label: `quota:${tier}`, phase: 'Support', schema: QUOTA_SCHEMA, model: 'haiku' }
   )
   if (v && v.buckets && v.buckets.length) state.quota = v.buckets
   // id:8c35 — distinguish exit codes instead of collapsing both to quotaStopped:
@@ -1178,7 +1190,7 @@ async function releaseLease(unit) {
   await agent(
     `Run exactly this command and report whether it exited 0 (the relay child for ${unit.repo} has settled; free its cross-session lease so other sessions aren't blocked for the TTL): ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}${resourceRelease}
 This is run-scoped (a no-op if this run no longer holds the claim) and idempotent. Report the exit code.`,
-    { label: `release:${unit.repo}`, phase: 'Dispatch', model: 'haiku' }
+    { label: `release:${unit.repo}`, phase: 'Support', model: 'haiku' }
   ).catch(err => log(`relay-loop: per-unit lease release failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
 }
 
@@ -1198,7 +1210,7 @@ async function runUnit(unit) {
   log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})`)
   // Tier dispatch (D4): review/handoff get the STRONG_TIER model. Execute agents are
   // pinned to Sonnet; STRONG_TIER applies no model override to them.
-  const opts = { label: `${unit.verdict}:${unit.repo}`, phase: 'Dispatch', schema: REPORT_SCHEMA }
+  const opts = { label: `${unit.verdict}:${unit.repo}`, phase: unitPhase(unit.verdict), schema: REPORT_SCHEMA }
   if (unit.verdict === 'execute') opts.model = 'sonnet'
   else opts.model = STRONG_MODEL
   // API-error failsafe: agent() can throw or return null on a terminal API error after
@@ -1271,7 +1283,7 @@ path:<resolved absolute path>, reason:"user-injected high-priority task (mid-rou
 inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false,
 hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"" }.
 If inject.sh take emits NOTHING, return units:[]. Do not invent units; only echo what take emitted.`,
-    { label: 'inject-take', phase: 'Dispatch', schema: INJECT_TAKE_SCHEMA, model: 'sonnet' }
+    { label: 'inject-take', phase: 'Support', schema: INJECT_TAKE_SCHEMA, model: 'sonnet' }
   )
   return (res && Array.isArray(res.units)) ? res.units : []
 }
