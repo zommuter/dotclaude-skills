@@ -13,6 +13,21 @@ After every prompt where substantive work was done — always run alongside `git
 
 > **Scope discipline:** The CWD `TODO.md` is the *sole* authority for this invocation. Do **not** read or write any other `TODO.md` — not the parent repo's, not a sibling worktree's, not one textually referenced from within this file (e.g. `> Subset of ../../TODO.md`). An empty `## Current` section, or one where all items are checked, is a valid terminal state — report done and stop; do not look elsewhere for "real" work. The create-if-missing path below applies only to the CWD file; never seed it from a parent-path TODO.md.
 
+### Step 0: Replay any pending `/meeting` deferred write-back (id:2c42)
+
+Before reading or updating `TODO.md`, check whether the project root has a pending deferred write-back from a prior `/meeting` session:
+
+```bash
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
+DEFERRED="$ROOT/.meeting-deferred-writeback.json"
+```
+
+If `$DEFERRED` exists:
+1. Attempt a fresh claim: `~/.claude/skills/relay/scripts/claim.sh acquire "$(basename "$ROOT")" --run todo-update-replay-<session-id> --mode meeting`.
+2. **Acquired** → read the drop file, apply the recorded `helper` + `payload` to `target_file`; delete `$DEFERRED`; append a `replayed` line to `~/.claude/logs/meeting-deferred-writeback.log`; release the claim.
+3. **Refused** (pool still holds the claim) → re-defer: leave `$DEFERRED` in place, log a `re-deferred` line, and proceed with the normal TODO update. Nothing is applied while the pool still holds the claim.
+4. No drop file → proceed silently (no-op).
+
 ### Step 1: Ensure TODO.md exists
 
 If `PROGRESS.md` exists but `TODO.md` does not:
