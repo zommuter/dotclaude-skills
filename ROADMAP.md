@@ -1077,6 +1077,28 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       MIRROR line still read "Latest ✓ Run 34"; refreshed to Run 35. Both tracked flakes
       (id:16e9, id:05e8) did NOT recur. Suite 80/0 on a clean run. See
       `docs/meeting-notes/2026-06-22-0722-strong-model-audit.md`.
+    - Run 36 (2026-06-22-0737): first-seen change since Run 35's own merge `69c0bc5`
+      (`69c0bc5..HEAD`, HEAD = checkpoint `relay-ckpt-20260622-0737` / `c0dece8`) —
+      **LEDGER-ONLY window**: `git diff --name-only 69c0bc5..HEAD -- '*.sh' '*.py' '*.js'`
+      is EMPTY (window = the new id:f576 TUI ghost-fragment TODO meta-issue `c54c96e`, the
+      `-0730` review(relay) LEDGER-ONLY commit+merge `852c58a`/`4f2200d`, plus the
+      `-0730`/`-0737` RELAY_LOG checkpoint paragraphs). No code to review, no security
+      surface. gaming-scan clean (no DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT; no test files
+      changed). **Design-coherence pass (substantive):** the new id:f576 entry
+      (Claude Code TUI ghost workflow-progress/statusline fragments after exiting
+      `/workflows`) is internally consistent and well-formed — correctly classified
+      cosmetic (Ctrl+L/SIGWINCH clears it), plausible render-race root cause, routed as an
+      external/harness meta-issue with NO executable lane tag → correctly TODO-only (not
+      promoted to ROADMAP, not in the d5e0 count); `#1 upgrade past v2.1.181` is sound (box
+      runs 2.1.177); `disableWorkflows: true` correctly flagged UNSUITABLE here (relay pool
+      depends on the Workflow tool) — no contradiction. RELAY_LOG checkpoint paragraphs
+      internally consistent. **1 coherence drift fixed inline** (recurring Run 4/8/17/35
+      mirror class) — the TODO id:401c MIRROR line still read "Latest ✓ Run 35"; refreshed
+      to Run 36. Cross-ledger coherent (0 open ROUTINE / 5 executable HARD — 401c [pool] /
+      3346 [meeting] / dba3 [decision-gate] / 7809 [meeting] / 98f0 [meeting]; de4e DEFERRED
+      non-executable; all five open in both ROADMAP+TODO; d5e0 agrees, no count drift this
+      run). Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 80/0 on a clean run.
+      See `docs/meeting-notes/2026-06-22-0737-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
