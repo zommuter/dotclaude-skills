@@ -104,7 +104,38 @@ fi
 worktrees="$(ls -1 "$RELAY_WORKTREE_BASE/$repo" 2>/dev/null | sort || true)"
 orphans="$(git -C "$path" for-each-ref --format='%(refname:short) %(objectname)' refs/heads/relay/orphan/ 2>/dev/null || true)"
 block="$(toml_block)"
-roadmap="$(cat "$path/ROADMAP.md" 2>/dev/null || true)"
+# roadmap: emit OPEN items + structure ONLY (id:93cc) — drop done [x] item-blocks so a large
+# ROADMAP's done-item history doesn't bloat the discovery shard's context (id:11ad) or overflow
+# a child. The shard classifies from open items + section headers (the EXECUTABLE-HARD test needs
+# section context); done prose is dead weight. discover-sig.sh still hashes the FULL ROADMAP — a
+# safe SUPERSET (over-hash = a harmless re-classify; never under-invalidates).
+roadmap="$(ROADMAP_PATH="$path/ROADMAP.md" python3 -c '
+import os, re, sys
+try:
+    lines = open(os.environ["ROADMAP_PATH"], encoding="utf-8").read().splitlines(keepends=True)
+except OSError:
+    sys.exit(0)
+item = re.compile(r"^- \[([ xX])\] ")
+out, dropped, i, n = [], 0, 0, len(lines)
+while i < n:
+    m = item.match(lines[i])
+    if m:
+        blk = [lines[i]]; j = i + 1
+        while j < n and not item.match(lines[j]) and not lines[j].startswith("## "):
+            blk.append(lines[j]); j += 1
+        if m.group(1).lower() == "x":
+            dropped += 1
+        else:
+            out.extend(blk)
+        i = j
+    else:
+        out.append(lines[i]); i += 1
+s = "".join(out)
+if dropped:
+    if s and not s.endswith("\n"): s += "\n"
+    s += "<!-- relay-discovery-view: %d done [x] item(s) omitted; full history in ROADMAP.md -->\n" % dropped
+sys.stdout.write(s)
+' 2>/dev/null || true)"
 
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap"
