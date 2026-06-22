@@ -650,3 +650,7 @@ id:6b67 [ROUTINE] — shipped relay/scripts/roadmap-archive.sh + tests/test_road
 ## 2026-06-22 09:53 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 relay(401c Run 37): strong-model audit b93f024..HEAD — SUBSTANTIVE CODE (roadmap-archive.sh id:6b67), CLEAN all 3 passes, 1 LOW accepted, 1 mirror refresh, suite 81/0
+
+## 2026-06-22 10:04 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(401c Run 38): strong-model audit 8258aa3..HEAD — LEDGER-ONLY, CLEAN by vacuity, no drift, mirror→Run38, suite 81/0
