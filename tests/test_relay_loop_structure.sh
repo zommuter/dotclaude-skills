@@ -21,6 +21,18 @@ grep -q "name: 'relay-loop'" "$JS" || fail "meta block missing name: 'relay-loop
 grep -q "phases:" "$JS" || fail "meta block missing phases"
 pass "meta block present with name and phases"
 
+# (1b) id:7d1e — finer-grained progress buckets: work units route to per-verdict phases
+# (Execute/Review/Hard/Handoff) instead of one crowded "Dispatch" group; support agents
+# (quota/release/inject) go to "Support". Lock the routing so it can't silently collapse back.
+grep -q "phase: unitPhase(unit.verdict)" "$JS" \
+  || fail "id:7d1e: work unit agent must route to a per-verdict phase (phase: unitPhase(unit.verdict))"
+for p in Execute Review Hard Handoff Support; do
+  grep -qE "title: '$p'" "$JS" || fail "id:7d1e: meta.phases missing the '$p' bucket"
+done
+grep -qE "phase: 'Dispatch'" "$JS" \
+  && fail "id:7d1e: no agent should still use the monolithic 'Dispatch' phase"
+pass "id:7d1e: per-verdict + Support progress buckets wired"
+
 # (2) Unattended invariant: the Workflow never prompts
 if grep -q "AskUserQuestion" "$JS"; then
   fail "relay-loop.js must never call AskUserQuestion (unattended Workflow, D2)"
