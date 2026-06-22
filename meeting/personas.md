@@ -102,3 +102,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🕵️ **Priya** — private-information-retrieval / anonymity-set lens; PIR/ORAM practicality on a browser client, what leaks from CDN range/range-request access patterns, k-anonymity bucket sizing over a public dataset, two-anonymity-set separation (proof-set vs retrieval-set). Introduced 2026-06-21 (zkWhale/ring-coverage-investigation).
 
 - 🎙️ **Aria** — speech-pipeline engineering lens; ASR backend selection (whisper.cpp /inference vs OpenAI-compatible vs audio-LLM), codec decode + ffmpeg resampling (8→16 kHz), VAD/noise gating, sha256-keyed transcription caching, segment-vs-word timestamps, diarisation. Introduced 2026-06-21 (zkm/zkm-stt-scope).
+
+- 🔐 **Crys** — backup-crypto / KDF / keyring lens; SQLCipher DB keys, scrypt-derived backup passwords, OS-keyring (libsecret/KWallet) unwrap, the fetch-vs-parse decryption boundary (decrypt = out-of-band fetch step, plugin parses plaintext). Introduced 2026-06-22 (zkm/messenger-plugins-telegram-signal-threema).
