@@ -646,3 +646,7 @@ Friction: none.
 ## 2026-06-22 09:42 — executor (sonnet, relay-loop)
 
 id:6b67 [ROUTINE] — shipped relay/scripts/roadmap-archive.sh + tests/test_roadmap_archive.sh (9 cases), Makefile registration; suite 81/0
+
+## 2026-06-22 09:53 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(401c Run 37): strong-model audit b93f024..HEAD — SUBSTANTIVE CODE (roadmap-archive.sh id:6b67), CLEAN all 3 passes, 1 LOW accepted, 1 mirror refresh, suite 81/0
