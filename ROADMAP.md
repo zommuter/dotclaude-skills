@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] Relay ROADMAP archiver — `relay/scripts/roadmap-archive.sh` moves done `[x]` items out of the live ROADMAP <!-- id:6b67 -->
+- [x] [ROUTINE] Relay ROADMAP archiver — `relay/scripts/roadmap-archive.sh` moves done `[x]` items out of the live ROADMAP <!-- id:6b67 -->
   - **Why**: a large ROADMAP overflows the executor-contract prompt → "Prompt is too long" blocks ALL execute/INTENSIVE dispatch on that repo (id:93cc, hit live 2026-06-22 on ai-codebench's ~400-line ROADMAP). Keep the live ROADMAP to OPEN items by archiving completed ones, mirroring how `todo-update/archive-done.sh` keeps TODO.md small.
   - **Acceptance**:
     - New `relay/scripts/roadmap-archive.sh [repo-root]` (defaults to `git rev-parse --show-toplevel`); `set -euo pipefail`; short stdout, details to `~/.claude/logs/`.
