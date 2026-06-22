@@ -1036,6 +1036,32 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       HARD — dba3 decision-gated / 401c / 3346; de4e DEFERRED non-executable; all three open in
       both ROADMAP+TODO; d5e0 agrees). Both tracked flakes (id:16e9, id:05e8) did NOT recur.
       Suite 80/0 on a clean run. See `docs/meeting-notes/2026-06-22-0317-strong-model-audit.md`.
+    - Run 34 (2026-06-22-0712): first-seen change since Run 33's own audit merge `62b58fa`
+      (`62b58fa..HEAD`, HEAD = checkpoint `relay-ckpt-20260622-0712` / `c95852b`) —
+      **LEDGER-ONLY window**: `git diff --name-only 62b58fa..HEAD -- '*.sh' '*.py' '*.js'`
+      is EMPTY (the window = two TODO+ROADMAP design-analysis commits, `ca1e5f1` id:7809 +
+      `31d854b` id:98f0, plus the Run 33 RELAY_LOG checkpoint paragraph). No code to review,
+      no security surface. gaming-scan clean (no DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT).
+      **Design-coherence pass (substantive this run, unlike the pure-vacuity LEDGER runs):**
+      the two NEW `[HARD — meeting]` items are internally consistent and well-formed —
+      id:7809 (auto-reconcile-on-restart: a `.relayactive`/heartbeat marker + a TIERED
+      safe-vs-judgment orphan classifier — auto-integrate clean/green/ledger-only, SURFACE
+      BLOCKED/partial/red; the zkm-stt fixture case is cited as live evidence the judgment
+      tier is justified; relates 689c/3313/4e14/0902/98f0/194e — no contradiction) and
+      id:98f0 (outage-resilient LOCAL loop: the user-corrected three-way bind — cloud
+      `/schedule` survives an outage but can't reach local `~/src`/worktrees/fievel; the only
+      local-reaching fit, an OS systemd timer running `claude -p "/relay --afk"`, hits the
+      headless permission wall the user won't bypass with `--dangerously-skip-permissions`;
+      options a–f well-formed, ties to id:2d01 dedicated-OS-user path — coherent). Both
+      correctly routed `[HARD — meeting]` per id:78ff lanes and mirrored single-id-two-views
+      into ROADMAP. **2 coherence drifts fixed inline** (the recurring Run 4/8/17 class): the
+      TODO d5e0 summary still read "3 open ROADMAP items, all HARD" but the window added two
+      open HARD (7809/98f0) → corrected to 5; the id:401c MIRROR line still read "Latest ✓
+      Run 33" → refreshed to Run 34. Cross-ledger coherent after fix (0 open ROUTINE / 5
+      executable HARD — 401c [pool] / 3346 / dba3 [decision-gate] / 7809 / 98f0; de4e DEFERRED
+      non-executable; all five open in both ROADMAP+TODO; d5e0 agrees). Both tracked flakes
+      (id:16e9, id:05e8) did NOT recur. Suite 80/0 on a clean run. See
+      `docs/meeting-notes/2026-06-22-0712-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
