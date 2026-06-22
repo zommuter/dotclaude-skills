@@ -666,3 +666,7 @@ relay review relay-ckpt-20260622-1014..HEAD — strong-model/meeting window CLEA
 ## 2026-06-22 17:10 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review relay-ckpt-20260622-1630..6851d4e CLEAN: suite 81/0, gaming-scan clean, xledger exit 0, recorded id:7d1e closed; routine_open=1
+## 2026-06-22 — executor (claude-sonnet-4-6)
+
+Worked id:bde8 — corrected the misleading loop-hint.sh "unattended resilience" nudge and SKILL.md step 0a. The pre-fix TIP promised "/loop gives outage/session-kill resilience" and "a tick missed during an outage is recovered by the next one" — both false when the session itself is killed. Fixed loop-hint.sh to state: /loop is useful for relay's own early-exit (quota/seatbelt) within a live session; if the session is killed, /loop dies with it. Updated SKILL.md step 0a + step 4 references with the corrected scope and pointer to id:98f0 for watchdog concerns. ROADMAP:bde8 ticked; test_loop_hint_resilience_wording.sh green; full suite 82/0/0.
+Friction: none — test was already written and precisely specified the two correctness properties needed; straightforward wording fix.
