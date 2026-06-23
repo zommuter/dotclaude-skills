@@ -49,6 +49,7 @@ emit() {  # emit the JSON object from env vars (safe encoding of arbitrary multi
   COMMITS_SINCE="${5:-}" DIRTY="${6:-false}" PORCELAIN="${7:-}" UPSTREAM="${8:-}" \
   HAS_UPSTREAM="${9:-false}" WORKTREES="${10:-}" ORPHANS="${11:-}" TOML="${12:-}" \
   ROADMAP="${13:-}" LOCK_ONLY_UNAUDITED="${14:-false}" DIRTY_LOCK_ONLY="${15:-false}" \
+  IS_FINISHED="${16:-false}" \
   REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
@@ -74,6 +75,11 @@ o = {
   "orphan_refs": os.environ.get("ORPHANS",""),
   "toml_block": os.environ.get("TOML",""),
   "roadmap": os.environ.get("ROADMAP",""),
+  # id:000d — deterministic finished-repo guard: true iff the roadmap is present/non-empty
+  # AND has ZERO open "- [ ]" items AND commits_since_ckpt is empty AND the tree is clean
+  # (dirty_lock_only counts as clean — lock-only dirty is still dispatchable, id:bae5).
+  # A repo with NO roadmap stays false (genuine first handoff candidate, not a finished repo).
+  "is_finished": b(os.environ.get("IS_FINISHED","false")),
 }
 print(json.dumps(o))
 '
@@ -166,6 +172,21 @@ if dropped:
 sys.stdout.write(s)
 ' 2>/dev/null || cat "$path/ROADMAP.md" 2>/dev/null || true)"
 
+# id:000d — deterministic is_finished guard: true iff roadmap is present/non-empty AND has
+# ZERO open "- [ ]" items AND no unaudited commits AND tree is clean (lock-only dirty exempt).
+# A repo with no ROADMAP.md stays false (genuine first handoff, not a finished repo).
+is_finished=false
+if [[ -f "$path/ROADMAP.md" && -n "$roadmap" ]]; then
+  open_items="$(printf '%s\n' "$roadmap" | grep -cP '^- \[ \] ' 2>/dev/null || true)"
+  # clean = not dirty, OR lock-only dirty (lock-only dirty is still dispatchable, id:bae5)
+  clean_for_finished=false
+  [[ "$dirty" == false ]] && clean_for_finished=true
+  [[ "$dirty_lock_only" == true ]] && clean_for_finished=true
+  if [[ "$open_items" -eq 0 && -z "$commits_since" && "$clean_for_finished" == true ]]; then
+    is_finished=true
+  fi
+fi
+
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap" \
-     "$lock_only_unaudited" "$dirty_lock_only"
+     "$lock_only_unaudited" "$dirty_lock_only" "$is_finished"
