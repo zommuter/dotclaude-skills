@@ -782,3 +782,7 @@ relay(401c Run 45): strong-model audit 0e60f1f..HEAD REAL CODE (000d/1d64/3c0f/6
 ## 2026-06-23 10:19 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 id:401c Run 46 strong-model audit (LEDGER-ONLY/clean-by-vacuity); 1 inline coherence fix (xledger-ok on id:3c0f/69ef scope-split); suite 87/0 +1 expected-red
+
+## 2026-06-23 12:00 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Run 47 review: audit relay-ckpt-20260623-1019..HEAD clean LEDGER-ONLY (gaming-scan vacuous, 87/0 +2 expected-red); reverse-handoff promoted id:ad74 INTENSIVE-emit fix to ROADMAP [ROUTINE] + red spec
