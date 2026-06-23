@@ -1329,6 +1329,38 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       e149/7809/98f0/0994 [hands]; de4e DEFERRED non-executable; all open in both ROADMAP+TODO).
       Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 83/0 on a clean run. See
       `docs/meeting-notes/2026-06-23-0701-strong-model-audit.md`.
+    - Run 45 (2026-06-23-0939): first-seen code since Run 44's own audit commit `0e60f1f`
+      (`0e60f1f..HEAD`, HEAD = `relay-ckpt-20260623-0923` / `6dbecf9`) — **REAL CODE window**:
+      id:000d deterministic `is_finished` guard (gather-repo-state.sh + relay-loop.js),
+      id:1d64 margin-aware quota-stop staleness, id:3c0f `[HARD — pool]` token sync,
+      id:69ef install-manifest completeness guard; id:09a3 (`roadmap-lint.sh`) shipped only
+      its RED spec `tests/test_roadmap_lint.sh` (script not yet written) — correctly
+      EXPECTED-RED, item still open. **1 HIGH defect FIXED INLINE (id:000d):** the JS-side
+      `is_finished` demote guard was DEAD code — `DISCOVER_SCHEMA.units[]` did not declare
+      `is_finished` and the shard-prompt per-repo-fields list never instructed copying it, so
+      the deterministic value computed by gather-repo-state.sh never reached the unit object
+      (the JS reads `u.is_finished`, which was always `undefined`). The only live path was the
+      non-deterministic LLM shard-prompt instruction — exactly the path id:000d's backstop
+      existed to correct; the pre-existing structural test passed because it grepped the guard
+      TEXT, not its behaviour. Fixed: declared the schema property, added an explicit "COPY
+      is_finished verbatim" prompt line, and added two non-vacuous assertions to
+      `test_relay_loop_structure.sh` (schema declares it + prompt instructs the copy) that fail
+      on the pre-fix form. Pass-1 otherwise CLEAN: id:1d64 moved `decay_threshold`/`bucket_threshold`
+      earlier so they're defined before the new stale-margin block calls them (correct ordering),
+      margin math + missing-bucket→exit2 sound; id:3c0f/69ef pure literal/positive-grammar checks.
+      Pass-2: no new injection/traversal/secrets (`awk -v` + `${!envname}` read fixed-domain
+      provider/bucket inputs; is_finished block pure-read). Pass-3: the guard now closes its own
+      loop (deterministic value → unit → JS backstop), demote-only invariant intact, no
+      contradiction with the bae5 lock-only-dirty exemption. `gaming-scan.sh . d068334` exit 0.
+      **Mirror drift fixed inline (Run 4/8/17/… class)** — TODO id:401c MIRROR line read "Latest
+      ✓ Run 44"; refreshed to Run 45. Cross-ledger coherent (0 open ROUTINE after 000d/1d64/3c0f/69ef
+      closed this window; open executable-or-gated HARD: 09a3 [pool] / 3346 [meeting] / dba3
+      [decision-gate] / e149/7809/98f0/0994 [hands]; de4e DEFERRED non-executable; the d5e0 prose
+      enumeration is slated for dissolution under id:1de1/659c and still predates id:09a3 — left
+      as-is, not re-enumerated, since 09a3's re-dispatch is suppressed and the count authority is
+      moving to the id:2840 index). Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite
+      87/0 + 1 EXPECTED-RED (id:09a3) on a clean run. See
+      `docs/meeting-notes/2026-06-23-0939-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires

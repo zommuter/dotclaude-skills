@@ -332,6 +332,14 @@ const DISCOVER_SCHEMA = {
           // or the repo's relay.toml block has intensive = "<resource>" / intensive = true
           // (→ "local-llm"). Empty/absent for normal units. Drives the never-auto-dispatch gate.
           intensive: { type: 'string' },
+          // is_finished (id:000d): the DETERMINISTIC finished-repo flag computed by
+          // gather-repo-state.sh (roadmap present/non-empty + 0 open "- [ ]" items +
+          // commits_since_ckpt empty + clean/lock-only-dirty tree). The shard MUST copy it
+          // verbatim from the gather JSON onto the unit — the JS-side demote guard below
+          // reads u.is_finished to correct a shard that mis-classifies a finished repo as
+          // execute/hard/handoff (id:401c Run 45 fix: the guard was dead because the value
+          // never reached the unit object). false when no roadmap.
+          is_finished: { type: 'boolean' },
         },
       },
     },
@@ -664,6 +672,7 @@ Per-repo fields to set on each unit you emit:
 - strongRecheckPending per repo: true iff toml_block has a non-empty last_strong_ckpt AND fable_rechecked is false (or absent/empty). This is the DURABLE, model-tracked Fable-bonus-recheck queue (id:e030): a strong (Opus) review/handoff/hard checkpoint that has not yet had its optional Fable recheck. It SURVIVES a later executor (sonnet) checkpoint that overwrites last_ckpt and masks the latest-tag fable-standin signal — so prefer this field over the tag grep when deciding optional-recheck candidacy. Report false when last_strong_ckpt is absent/empty or fable_rechecked is true (or a date).
 - standin per repo: true iff latest_ckpt_msg contains the literal token "fable-standin" (the last relay checkpoint was produced by Opus standing in for Fable, so the repo still needs an independent Fable re-review and its specs are provisional). Report false when latest_ckpt is empty.
 - intensive per repo (id:8d52): a resource name STRING (e.g. "local-llm") iff this repo's next unit of work is resource-heavy — set it when EITHER (a) toml_block has intensive = "<resource>" (or intensive = true → use "local-llm"), OR (b) the top open "- [ ]" item the unit would work in roadmap carries an "[INTENSIVE — <resource>]" modifier (parse the resource between "— " and "]"). Otherwise leave it "" (empty). These units are NEVER auto-dispatched (OOM risk) — they are gated behind --allow-intensive.
+- is_finished per repo (id:000d): COPY the gather JSON's is_finished boolean VERBATIM onto the unit (do NOT recompute it — it is the deterministic finished-repo flag). The JS-side demote guard reads this field to correct a shard that over-classified a finished repo as execute/hard/handoff, so it MUST be present on every unit. Report false if the gather JSON omits it.
 
 (Injected high-priority units (id:baf1) are handled ONCE by the PRELUDE via inject.sh take — NOT here. You only classify the own repos given to you.)
 
