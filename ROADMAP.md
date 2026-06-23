@@ -1656,6 +1656,20 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       `"$PWD" 9330f72` exit 0; suite 89/0/0. Tracked flakes 16e9/05e8 did NOT recur. Mirror:
       TODO id:401c line refreshed Run 65→Run 66. See
       `docs/meeting-notes/2026-06-23-1724h-strong-model-audit.md`.
+    - Run 67 (2026-06-23-2145): window = since Run 66's audit commit `a689119`
+      (`a689119..HEAD`, HEAD `5e1a216`) — **clean: LEDGER-ONLY window** (Run 11/12/16/17/46/49–66
+      class). `git diff --name-only a689119..HEAD` = RELAY_LOG.md only (Run 66's own checkpoint
+      paragraph, +4 lines); `*.sh`/`*.py`/`*.js` diff EMPTY. Commits = `b8cda3c` (Run 66 merge),
+      `5e1a216` (checkpoint 20260623-2140 = Run 66's own record). No code → no Pass-1/Pass-2 surface
+      (clean by vacuity); no new TODO/ROADMAP design item, gate, or contract change → no Pass-3
+      artifact (Run 66's own RELAY_LOG paragraph is internally consistent: its verdict + cited checks
+      match this run's re-verification). Cross-ledger coherent (0 open ROUTINE / 7 open
+      executable-or-gated HARD — 401c [pool] / 3346 [meeting] / dba3 [decision-gate] / e149 / 7809 /
+      98f0 / 0994 [hands]; de4e DEFERRED non-executable; 401c/3346/dba3 open in both ROADMAP+TODO;
+      d5e0 agrees). orphan-scan --cross-ledger exit 0; roadmap-lint.sh exit 0; gaming-scan
+      `"$PWD" a689119` exit 0; suite 89/0/0. Tracked flakes 16e9/05e8 did NOT recur. Mirror:
+      TODO id:401c line refreshed Run 66→Run 67. See
+      `docs/meeting-notes/2026-06-23-2145-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
