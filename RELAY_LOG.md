@@ -757,3 +757,7 @@ feat(relay): id:69ef — add references/hard-lanes.md to relay_FILES install man
 ## 2026-06-23 08:45 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: gaming-scan clean, 84/0 tests; reconciled id:1d64 TODO twin (D2 cross-ledger close); 3 new meeting items well-qualified
+
+## 2026-06-23 08:48 — executor (sonnet, relay-loop)
+
+feat(relay-loop): sync hard-lane token to canonical [HARD — pool] (id:3c0f) — 5 sites updated in relay-loop.js; tests/test_relay_loop_hard_token.sh GREEN; full suite 86 passed / 0 failed
