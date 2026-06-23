@@ -1471,6 +1471,24 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       roadmap-lint.sh exit 0; gaming-scan `"$PWD" 8052b4f` exit 0; suite 89/0/0. Tracked flakes
       16e9/05e8 did NOT recur. Mirror: TODO id:401c line refreshed Run 52→Run 53. See
       `docs/meeting-notes/2026-06-23-1724d-strong-model-audit.md`.
+    - Run 54 (2026-06-23-1909): first-seen change since Run 53's own audit merge `e905c84`
+      (`e905c84..HEAD`) — **clean: LEDGER-ONLY window** (Run 11/12/16/17/46/49/50/51/52/53 class).
+      Window = two RELAY_LOG checkpoint paragraphs (Run 53 strong-execute 18:38 + reviewer
+      doc-only 18:51, +8) AND one in-place TODO edit to id:9000 (the UPDATE 2026-06-23
+      incident-resolved urgency-reframe, ±1); `git diff --name-only e905c84..HEAD -- '*.sh'
+      '*.py' '*.js'` is EMPTY. No code to review, no security surface. Coherence pass on the
+      sole new design artifact (id:9000 reframe): correctly narrows scope from "prevent
+      corruption" (now redundant) to "avoid wasted stale-base work + surface intent" because
+      the cited backstop **id:aa93** (dirty-main-checkout guard, ROADMAP `[x]` shipped
+      2026-06-18 — clean-tree-gate.sh in integrate step 1) RESOLVES and supports the claim;
+      observe-first gate STRENGTHENED ("the backstop held"), every original cross-ref
+      preserved + resolves, lane tag unchanged — sound entry, no defect. Cross-ledger
+      coherent (0 open ROUTINE / 7 open executable-or-gated HARD — 401c [pool] / 3346 [meeting]
+      / dba3 [decision-gate] / e149 / 7809 / 98f0 / 0994 [hands]; de4e DEFERRED non-executable;
+      all open in both ROADMAP+TODO; d5e0 agrees). orphan-scan --cross-ledger exit 0;
+      roadmap-lint.sh exit 0; gaming-scan `"$PWD" e905c84` exit 0; suite 89/0/0. Tracked flakes
+      16e9/05e8 did NOT recur. Mirror: TODO id:401c line refreshed Run 53→Run 54. See
+      `docs/meeting-notes/2026-06-23-1909-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
