@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # roadmap:8d52 — [INTENSIVE — <resource>] gating in relay-loop.js (cluster step 5).
 # Resource-heavy units (local-LLM benchmarks, big index rebuilds — the OOM risk that killed
-# 6 sessions) are NEVER auto-dispatched; with --allow-intensive/--afk they run SERIALLY-ALONE
-# after the normal wave, holding an exclusive resource:<name> claim. Static checks (live
-# dispatch is the id:1ad7 pilot).
+# 6 sessions) are NEVER auto-dispatched; with --intensive (synonym --allow-intensive) they run
+# SERIALLY-ALONE after the normal wave, holding an exclusive resource:<name> claim. A bare --afk
+# does NOT enable them (id:052c — --afk stays non-intensive). Static checks (live dispatch = id:1ad7).
 
 set -euo pipefail
 
@@ -16,10 +16,12 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
 command -v node >/dev/null && { node --check "$JS" || fail "relay-loop.js is not valid JS"; }
 
-# (1) Opt-in flag: --allow-intensive / --afk.
-grep -q "const ALLOW_INTENSIVE = !!A.allowIntensive || !!A.afk" "$JS" \
-  || fail "ALLOW_INTENSIVE not derived from args.allowIntensive / args.afk"
-pass "opt-in gate ALLOW_INTENSIVE (--allow-intensive / --afk)"
+# (1) Opt-in flag: --intensive / --allow-intensive ONLY — id:052c decoupled --afk from intensive.
+grep -q "const ALLOW_INTENSIVE = !!A.allowIntensive$" "$JS" \
+  || fail "ALLOW_INTENSIVE should be derived from args.allowIntensive ALONE (id:052c)"
+grep -q "const ALLOW_INTENSIVE = .*A.afk" "$JS" \
+  && fail "ALLOW_INTENSIVE must NOT reference A.afk — a bare --afk no longer enables intensive (id:052c)"
+pass "opt-in gate ALLOW_INTENSIVE = args.allowIntensive alone; --afk decoupled (id:052c)"
 
 # (2) Discovery parses the tag (schema + prompt).
 grep -qE "intensive: \{ type: 'string' \}" "$JS" || fail "DISCOVER_SCHEMA missing the 'intensive' field"
@@ -31,7 +33,7 @@ grep -q "intensiveUnits" "$JS" || fail "no intensiveUnits partition"
 grep -q "intensiveDeferred" "$JS" || fail "no intensiveDeferred (skipped) partition"
 grep -q "ALLOW_INTENSIVE ? intensiveUnits : intensiveDeferred" "$JS" \
   || fail "intensive units are not gated on ALLOW_INTENSIVE at partition time"
-grep -qi "needs --allow-intensive" "$JS" || fail "skipped intensive units not surfaced with the reason"
+grep -qi "needs --intensive" "$JS" || fail "skipped intensive units not surfaced with the reason"
 pass "intensive units partitioned out + surfaced when not allowed (never auto-run)"
 
 # (4) Serial run-alone phase AFTER the wave drains (two heavy loads never overlap).

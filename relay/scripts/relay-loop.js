@@ -53,11 +53,16 @@ function pushEvent(kind, fields) {
 // enforced by tests/test_fables_front_door.sh grepping this file for the question tool);
 // when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
 const INTERACTIVE = !!A.interactive
-// [INTENSIVE] gate (id:8d52): resource-heavy units (local-LLM benchmarks, big index rebuilds —
-// the OOM risk that killed 6 sessions) are NEVER auto-dispatched. --allow-intensive / --afk
-// opt in; then they run SERIALLY-ALONE after the normal parallel wave, holding an exclusive
-// resource claim (resource:<name>). --afk is the "I'm away, do something useful" alias.
-const ALLOW_INTENSIVE = !!A.allowIntensive || !!A.afk
+// [INTENSIVE] gate (id:8d52; semantics revised id:052c): resource-heavy units (local-LLM
+// benchmarks, big index rebuilds — the OOM risk that killed 6 sessions) are NEVER auto-dispatched
+// by default. ONLY --intensive (synonym: --allow-intensive) opts in; then they run SERIALLY-ALONE
+// after the normal parallel wave, holding an exclusive resource claim (resource:<name>).
+// --afk ("I'm away, do something useful") NO LONGER implies intensive (id:052c) — auto-running
+// OOM-risky work *because* the user stepped away is backwards; --afk stays SAFE / non-intensive.
+// Conversely --intensive IMPLIES --afk (a front-door concern: it is inherently an away-run). So
+// the in-loop gate is args.allowIntensive ALONE — the front door sets it ONLY for --intensive /
+// --allow-intensive, never for a bare --afk.
+const ALLOW_INTENSIVE = !!A.allowIntensive
 
 // FABLE_DOWN: set by --fable-down / -d front-door flag. It asserts ONE axis only — "the
 // Fable strong tier is unavailable this run" — and composes with STRONG_TIER (which axis
@@ -1030,8 +1035,9 @@ if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') {
 }
 
 // [INTENSIVE] partition (id:8d52): pull resource-heavy units OUT of the parallel wave — they
-// are never auto-run (OOM risk). With --allow-intensive/--afk they run serially-alone AFTER
-// the wave (intensiveUnits); otherwise they are surfaced as skipped (intensiveDeferred).
+// are never auto-run (OOM risk). With --intensive (id:052c; synonym --allow-intensive) they run
+// serially-alone AFTER the wave (intensiveUnits); otherwise they are surfaced as skipped
+// (intensiveDeferred). A bare --afk does NOT enable them (id:052c — --afk stays non-intensive).
 let intensiveUnits = []
 let intensiveDeferred = []
 {
@@ -1042,8 +1048,8 @@ let intensiveDeferred = []
   }
   actionable = normal
 }
-if (intensiveUnits.length) log(`relay-loop: --allow-intensive — ${intensiveUnits.length} [INTENSIVE] unit(s) will run SERIALLY-ALONE after the wave: ${intensiveUnits.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
-if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTENSIVE] unit(s) NOT dispatched — need --allow-intensive/--afk: ${intensiveDeferred.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
+if (intensiveUnits.length) log(`relay-loop: --intensive — ${intensiveUnits.length} [INTENSIVE] unit(s) will run SERIALLY-ALONE after the wave: ${intensiveUnits.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
+if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTENSIVE] unit(s) NOT dispatched — need --intensive (a bare --afk no longer enables them, id:052c): ${intensiveDeferred.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
 
 // Refresh the cross-round accumulator's per-round views (completed/reviewMe persist).
 state.runId = state.runId || discovery.runId
@@ -1052,7 +1058,7 @@ state.queued = [
   ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
   ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: HARD-execute needs apex Opus; STRONG_MODEL=${STRONG_MODEL} — left for Fable handoff-C5/review-step6)` })),
   ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
-  ...intensiveDeferred.map(u => ({ repo: u.repo, verdict: `intensive:${u.intensive} (skipped — needs --allow-intensive/--afk; never auto-run, OOM risk id:8d52)` })),
+  ...intensiveDeferred.map(u => ({ repo: u.repo, verdict: `intensive:${u.intensive} (skipped — needs --intensive; a bare --afk no longer enables it, id:052c; never auto-run, OOM risk id:8d52)` })),
 ]
 state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
 state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason }))   // id:be62
