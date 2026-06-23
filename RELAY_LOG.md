@@ -770,3 +770,7 @@ Friction: none.
 ## 2026-06-23 09:12 — executor (sonnet, relay-loop)
 
 feat(relay): id:000d — deterministic is_finished guard (anti-false-handoff); 87/0 tests
+
+## 2026-06-23 09:23 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: audited 1 commit (id:0907 TODO design-ledger add); suite 87/0 + 1 expected-red; no gaming, no drift; routine_open=0
