@@ -735,3 +735,8 @@ executor: implement id:2c42 — /meeting deferred ledger write-back (breadcrumb 
 ## 2026-06-23 07:33 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 relay(401c Run 44): strong-model audit c66c6f4..HEAD — REAL CODE window (bae5/e107/2c42), CLEAN, gaming-scan 0, suite 83/0, mirror->Run44
+
+## 2026-06-23 — executor (sonnet)
+
+Worked id:1d64 — margin-aware quota-stop staleness. Replaced the unconditional `exit 2` in the stale-path post-refresh-failure branch with a per-bucket margin check: if every tier-relevant bucket's last-known util < (bucket_threshold×100 − MARGIN), proceed on the stale-but-safe cache (fall through to check_key); otherwise keep exit 2. MARGIN=RELAY_QUOTA_STALE_MARGIN, default 30. Moved decay_threshold/bucket_threshold definitions before the stale block (required so they're callable from the margin check — no behaviour change to those functions). Updated test_quota_stop.sh's stale+no-creds case (util=50% is now stale-but-safe under margin=30, so expected exit changed 2→0). Suite: 84 passed, 0 failed, 3 expected-red.
+Friction: none.

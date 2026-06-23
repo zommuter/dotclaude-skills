@@ -44,11 +44,12 @@ run_expect "missing cache → exit 2" 2 --tier sonnet
 
 make_cache 50 50 50
 touch -d "11 minutes ago" "$CACHE"
-# USAGE_CREDS=/dev/null ⟹ no token ⟹ self-refresh is skipped, so a stale cache still
-# stops (exit 2). (With a real token, quota-stop self-refreshes from /api/oauth/usage
-# rather than false-stopping a healthy unattended background pool — see quota-stop.sh.)
+# USAGE_CREDS=/dev/null ⟹ no token ⟹ self-refresh is skipped. With the margin-aware
+# staleness check (id:1d64, default MARGIN=30), util=50% < 90%*100-30=60 → stale-but-SAFE
+# → exit 0 (falls through to the normal check_key loop). For a near-threshold stale cache
+# that should still stop, see test_quota_stop_stale_margin.sh test-2.
 USAGE_CREDS=/dev/null USAGE_CACHE="$CACHE" "$SCRIPT" --tier sonnet && rc=0 || rc=$?
-if [[ "$rc" -eq 2 ]]; then pass "stale cache (>10 min) + no creds → exit 2"; else fail "stale+no-creds expected exit 2, got $rc"; fi
+if [[ "$rc" -eq 0 ]]; then pass "stale cache (>10 min) + no creds + low util → stale-but-safe exit 0 (id:1d64)"; else fail "stale+no-creds+low-util expected exit 0 (stale-but-safe), got $rc"; fi
 # Restore fresh mtime for subsequent tests
 touch "$CACHE"
 
