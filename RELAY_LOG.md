@@ -795,3 +795,7 @@ Friction: none — well-specified item with clear symmetric pattern from id:000d
 ## 2026-06-23 12:20 — executor (sonnet, relay-loop)
 
 feat(relay): id:ad74 INTENSIVE-emit fix — shard + JS backstop so open [INTENSIVE] items never classify idle
+
+## 2026-06-23 15:37 — reconcile (human)
+
+reconcile integrate: relay(hard): implement id:09a3 — roadmap-lint.sh grammar validator
