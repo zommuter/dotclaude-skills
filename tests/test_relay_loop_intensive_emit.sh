@@ -35,6 +35,29 @@ grep -q "top_intensive: { type: 'string' }" "$JS" \
 grep -qiE "INTENSIVE.*promote|promote.*intensive" "$JS" \
   || fail "id:ad74: no JS-side [INTENSIVE] promote backstop block in relay-loop.js"
 
+# (2c) The backstop must FLIP an idle unit's verdict to a dispatch verdict — not merely patch
+#      its .intensive field. An idle unit is filtered out by `actionable = units.filter(u =>
+#      u.verdict !== 'idle')` BEFORE the INTENSIVE partition runs, so patching .intensive on a
+#      still-idle unit is a NO-OP (the unit never reaches the partition). The backstop block must
+#      contain a `verdict = 'execute'` reassignment for the idle case. (Audit 2026-06-23 found the
+#      original backstop only patched .intensive — the symmetric twin of the id:401c-Run-45 dead
+#      is_finished-guard bug — so the symmetric PROMOTE counterpart was a no-op for its own purpose.)
+# Window = the backstop block (from its header comment to the INTENSIVE-partition comment that
+# follows it). Captured into a variable first — a `awk … | grep -q` pipeline trips SIGPIPE under
+# `set -o pipefail` (grep -q closes the pipe early → awk dies → pipeline non-zero), a false FAIL.
+backstop_block="$(awk '/id:ad74 — JS-side INTENSIVE promote backstop/{f=1} /\[INTENSIVE\] partition .id:8d52/{f=0} f' "$JS")"
+
+printf '%s' "$backstop_block" | grep -qE "verdict = 'execute'" \
+  || fail "id:ad74: promote backstop does not flip an idle unit's verdict to 'execute' — patching .intensive alone is a no-op (idle units are filtered out before the INTENSIVE partition)"
+
+# (2d) The backstop must NOT treat skipped-rollup entries as a top_intensive SOURCE — skipped items
+#      carry only {repo, reason} (no top_intensive), so any `skipped` lookup that gates on
+#      `top_intensive && !unit` is provably-dead code. The live source is the paired emitted unit.
+if printf '%s' "$backstop_block" | grep -qE "top_intensive && !u\b"; then
+  fail "id:ad74: promote backstop still gates on a skipped-entry source (top_intensive && !u) — dead branch (skipped items carry no top_intensive)"
+fi
+ok "id:ad74: promote backstop flips idle→dispatch verdict and has no dead skipped-source branch"
+
 # (3) gather-repo-state.sh emits top_intensive (resource of the top open [INTENSIVE — <res>]
 #     item, "" when none) — the deterministic source the schema carries.
 grep -q "top_intensive" "$GATHER" \

@@ -758,46 +758,34 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
   }
   // id:ad74 — JS-side INTENSIVE promote backstop (symmetric PROMOTE counterpart to id:000d DEMOTE).
   // After all shard results are merged, a repo whose gathered state shows an open [INTENSIVE — <res>]
-  // item (top_intensive non-empty) MUST NOT remain idle/skipped with no unit entry. If the shard
-  // classified it idle/skipped, PROMOTE it to a units entry with intensive set so the existing
-  // INTENSIVE partition (ALLOW_INTENSIVE ? intensiveUnits : intensiveDeferred) handles dispatch.
-  // PROMOTE-ONLY guard: may only move a repo toward a dispatch verdict, never demote.
+  // item (top_intensive non-empty) MUST NOT remain idle. The shard contract guarantees every repo
+  // it classified "idle" ALSO appears as an emitted UNIT (verdict:'idle') — not only in the skipped
+  // rollup — and the shard copies top_intensive verbatim onto every unit it emits. So the recoverable
+  // case is "an emitted unit with top_intensive set"; we operate on units only. (A skipped-rollup
+  // entry carries just {repo, reason} — no top_intensive — so it is NOT a recoverable source here;
+  // its paired unit is. Treating skipped entries as a source was a dead branch: top_intensive was
+  // always '' when the unit was absent, the symmetric twin of the id:401c-Run-45 dead-guard bug.)
+  //
+  // For each unit with top_intensive set: (1) copy it to .intensive (the field the INTENSIVE
+  // partition at line ~935 reads), AND (2) if the shard parked the unit as verdict:'idle', PROMOTE
+  // it to 'execute' — otherwise the `verdict !== 'idle'` filter (the `actionable` build below) drops
+  // it BEFORE the intensive partition ever sees it, so merely patching .intensive on an idle unit is
+  // a no-op. The INTENSIVE partition then gates real dispatch behind --allow-intensive
+  // (ALLOW_INTENSIVE ? intensiveUnits : intensiveDeferred) — exactly as a shard-emitted intensive
+  // unit would be. PROMOTE-ONLY: only moves idle→execute, never demotes a higher verdict.
   // Injected units are exempt (explicit user injection is already the highest priority).
   {
-    const repoToUnit = new Map(units.map(u => [u.repo, u]))
     const promotedIntensive = []
-    // Build a map of repo→top_intensive from shard results (units include top_intensive from gather JSON).
-    // Also check skipped repos (idle verdict) that have top_intensive set.
-    const allClassified = [...units, ...skipped.map(s => ({ ...s, _skippedOnly: true }))]
-    for (const entry of allClassified) {
-      // Find the original unit if it was classified; for skipped-only entries we need the gather data.
-      // The shard copies top_intensive verbatim from the gather JSON onto each unit it emits.
-      const u = repoToUnit.get(entry.repo)
-      const top_intensive = u ? (u.top_intensive || '') : ''
-      if (top_intensive && !u) {
-        // Repo is skipped (idle) but has top_intensive — should have been emitted as a unit.
-        // Promote it: remove from skipped, add as a unit with intensive set.
-        const idx = skipped.findIndex(s => s.repo === entry.repo)
-        if (idx !== -1) {
-          const s = skipped.splice(idx, 1)[0]
-          const promoted = {
-            repo: s.repo,
-            path: entry.path || s.repo,  // best-effort path
-            verdict: 'execute',
-            reason: `promoted by INTENSIVE-emit backstop (id:ad74): open [INTENSIVE — ${top_intensive}] item found but shard classified idle — intensive dispatch gated behind --allow-intensive`,
-            intensive: top_intensive,
-            top_intensive,
-          }
-          units.push(promoted)
-          promotedIntensive.push(promoted.repo)
-        }
-      }
-    }
-    // Also check units already emitted: if top_intensive is set but intensive is not, copy it.
     for (const u of units) {
-      if (u.top_intensive && !u.intensive) {
-        u.intensive = u.top_intensive
-        promotedIntensive.push(`${u.repo}(intensive-field-patched)`)
+      const top_intensive = u.top_intensive || ''
+      if (!top_intensive || u.injected) continue
+      if (!u.intensive) u.intensive = top_intensive
+      if (u.verdict === 'idle') {
+        u.verdict = 'execute'
+        u.reason = `promoted by INTENSIVE-emit backstop (id:ad74): open [INTENSIVE — ${top_intensive}] item found but shard classified idle — intensive dispatch gated behind --allow-intensive. ${u.reason || ''}`.trim()
+        promotedIntensive.push(`${u.repo}(idle→execute,${top_intensive})`)
+      } else {
+        promotedIntensive.push(`${u.repo}(intensive-field-patched,${top_intensive})`)
       }
     }
     if (promotedIntensive.length) {
