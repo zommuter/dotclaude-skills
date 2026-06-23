@@ -1489,6 +1489,27 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       roadmap-lint.sh exit 0; gaming-scan `"$PWD" e905c84` exit 0; suite 89/0/0. Tracked flakes
       16e9/05e8 did NOT recur. Mirror: TODO id:401c line refreshed Run 53→Run 54. See
       `docs/meeting-notes/2026-06-23-1909-strong-model-audit.md`.
+    - Run 55 (2026-06-23-1724e): window = since Run 54's audit merge `2cd8d6e`
+      (`2cd8d6e..HEAD`) — **clean: LEDGER-ONLY window** (Run 11/12/16/17/46/49/50/51/52/53/54
+      class). `git diff --name-only 2cd8d6e..HEAD` = only RELAY_LOG.md + TODO.md;
+      `*.sh`/`*.py`/`*.js` diff EMPTY. Window = three RELAY_LOG checkpoint paragraphs
+      (8e041af reviewer 18:51, 92addcb strong-execute 19:13 = Run 54's own ckpt, 4ee6ffd
+      reviewer 19:40) AND one `todo(meeting)` commit (8679992) minting two new
+      design-deferred TODO items. No code → no Pass-1/Pass-2 surface (clean by vacuity).
+      Pass-3 coherence on the sole new design artifact: id:74c7 (`/meeting --cross` inline
+      path skips canonical persona-load setup) + id:d23f (same inline path skips the
+      EnterPlanMode→ExitPlanMode approval gate) — both minted, sharply scoped to an
+      explicit a-vs-b decision (re-dispatch-always vs carry-scaffolding), correctly
+      cross-referenced (id:1d01 distinguished, id:d44d, id:a6cb, each other), cite the
+      source zkm meeting note, and correctly TODO-parked (design judgment needed, not
+      ROADMAP-promotable). id:d23f correctly carves out the by-design Class-3
+      decisions→ledger deferral as NOT-the-bug. No contradiction, no dead gate, no defect.
+      Cross-ledger coherent (0 open ROUTINE / 7 open executable-or-gated HARD — 401c [pool]
+      / 3346 [meeting] / dba3 [decision-gate] / e149 / 7809 / 98f0 / 0994 [hands]; de4e
+      DEFERRED non-executable; 401c/3346/dba3 open in both ROADMAP+TODO; d5e0 agrees).
+      orphan-scan --cross-ledger exit 0; roadmap-lint.sh exit 0; gaming-scan `"$PWD" 2cd8d6e`
+      exit 0; suite 89/0/0. Tracked flakes 16e9/05e8 did NOT recur. Mirror: TODO id:401c
+      line refreshed Run 54→Run 55. See `docs/meeting-notes/2026-06-23-1724e-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
