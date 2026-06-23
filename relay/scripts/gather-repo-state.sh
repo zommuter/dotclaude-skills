@@ -50,6 +50,7 @@ emit() {  # emit the JSON object from env vars (safe encoding of arbitrary multi
   HAS_UPSTREAM="${9:-false}" WORKTREES="${10:-}" ORPHANS="${11:-}" TOML="${12:-}" \
   ROADMAP="${13:-}" LOCK_ONLY_UNAUDITED="${14:-false}" DIRTY_LOCK_ONLY="${15:-false}" \
   IS_FINISHED="${16:-false}" TOP_INTENSIVE="${17:-}" \
+  SUBSTANTIVE_UNAUDITED="${18:-true}" WORK_SIG="${19:-}" \
   REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
@@ -85,6 +86,19 @@ o = {
   # The JS-side INTENSIVE promote backstop uses this to self-correct a shard that
   # classifies a repo idle/skipped despite having an open [INTENSIVE] item.
   "top_intensive": os.environ.get("TOP_INTENSIVE",""),
+  # id:365b — relay anti-spin primitive. substantive_unaudited (FAIL-OPEN default true):
+  # false iff every commit since the audit ref (relay.toml last_strong_ckpt, else the latest
+  # ckpt tag) is a `relay:/fable: checkpoint` commit or touches ONLY uv.lock — i.e. there is
+  # NOTHING NEW for the recurring strong-model audit (id:401c) to review. Stays true when the
+  # ref cannot be resolved (never wrongly skip a real audit). The shard recurring-audit gate
+  # (mechanism 1) reads it to demote a marked recurring audit with nothing to audit.
+  "substantive_unaudited": b(os.environ.get("SUBSTANTIVE_UNAUDITED","true")),
+  # work_sig: a signature STABLE across the pool OWN `relay: checkpoint` churn but changing
+  # when an open item closes or a substantive commit lands. The JS-side re-dispatch circuit
+  # breaker (mechanism 2) keys on it: a (repo,verdict) re-dispatched with an unchanged work_sig
+  # has no new work → suppress after >3×. "" when uncomputable (the breaker treats "" as a
+  # fresh signature each round = fail-open, never falsely suppresses real work).
+  "work_sig": os.environ.get("WORK_SIG",""),
 }
 print(json.dumps(o))
 '
@@ -201,6 +215,46 @@ if [[ -n "$roadmap" ]]; then
   top_intensive="$(printf '%s\n' "$roadmap" | grep -m1 -oP '^- \[ \].*?\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
 fi
 
+# id:365b — relay anti-spin primitive (shared by both mechanisms). The recurring strong-model
+# audit (id:401c) never closes by design; once a repo drains all other work it re-fires every
+# round and audits only its OWN previous `relay: checkpoint` commit ("clean by vacuity"),
+# burning the apex tier for zero output. Compute against the AUDIT WINDOW REF:
+# relay.toml's last_strong_ckpt for this repo (the strong-audit watermark), falling back to
+# the latest ckpt tag ($latest) when unset. FAIL-OPEN: stay true unless we can PROVE there is
+# nothing new — a real audit must never be wrongly skipped.
+audit_ref="$(printf '%s\n' "$block" | sed -n 's/^[[:space:]]*last_strong_ckpt[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' | head -n1)"
+[[ -z "$audit_ref" ]] && audit_ref="$latest"
+substantive_unaudited=true       # FAIL-OPEN default
+nonckpt_shas=""                  # sorted non-checkpoint commit shas since the audit ref (for work_sig)
+if [[ -n "$audit_ref" ]] && git -C "$path" rev-parse --verify -q "$audit_ref" >/dev/null 2>&1; then
+  # List commits since the ref; drop the pool's own checkpoint commits by subject.
+  audit_log="$(git -C "$path" log "$audit_ref"..HEAD --pretty='%H %s' 2>/dev/null || true)"
+  nonckpt_shas="$(printf '%s\n' "$audit_log" | grep -v '^[[:space:]]*$' \
+                   | grep -vE ' (relay|fable): checkpoint' | awk '{print $1}' | sort || true)"
+  if [[ -z "$nonckpt_shas" ]]; then
+    # Only checkpoint commits (or none) since the ref → nothing substantive to audit.
+    substantive_unaudited=false
+  else
+    # Of the non-checkpoint commits, is ANY one not a pure uv.lock-only relock? (reuse id:bae5)
+    has_substantive=false
+    while IFS= read -r sha; do
+      [[ -z "$sha" ]] && continue
+      files="$(git -C "$path" show --name-only --pretty=format: "$sha" 2>/dev/null | grep -v '^[[:space:]]*$' || true)"
+      nonlock="$(printf '%s\n' "$files" | grep -vx 'uv.lock' || true)"
+      [[ -n "$nonlock" ]] && { has_substantive=true; break; }
+    done <<< "$nonckpt_shas"
+    [[ "$has_substantive" == true ]] && substantive_unaudited=true || substantive_unaudited=false
+  fi
+fi
+# work_sig: STABLE across a `relay: checkpoint` commit, but changes when an item closes or a
+# substantive commit lands. Hash the sorted-unique OPEN item id tokens + substantive_unaudited
+# + the sorted non-checkpoint commit shas since the audit ref. (Checkpoint commits are excluded
+# from nonckpt_shas, so the pool's own churn does not perturb the signature.)
+open_ids="$(printf '%s\n' "$roadmap" | grep -oP '^- \[ \].*<!-- id:\K[0-9a-f]{4}' 2>/dev/null | sort -u || true)"
+work_sig="$(printf '%s\n%s\n%s\n' "$open_ids" "$substantive_unaudited" "$nonckpt_shas" \
+              | sha256sum | cut -c1-16)"
+
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap" \
-     "$lock_only_unaudited" "$dirty_lock_only" "$is_finished" "$top_intensive"
+     "$lock_only_unaudited" "$dirty_lock_only" "$is_finished" "$top_intensive" \
+     "$substantive_unaudited" "$work_sig"
