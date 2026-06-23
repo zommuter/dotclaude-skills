@@ -347,6 +347,18 @@ const DISCOVER_SCHEMA = {
           // idle/skipped despite having open [INTENSIVE] work. MUST be "" (not absent)
           // when no open [INTENSIVE] item exists.
           top_intensive: { type: 'string' },
+          // substantive_unaudited (id:365b): the DETERMINISTIC anti-spin flag computed by
+          // gather-repo-state.sh — false iff there is NOTHING NEW for a recurring strong-model
+          // audit (id:401c) to review since the audit ref (only `relay:/fable: checkpoint` /
+          // uv.lock-only commits). The shard's recurring-audit gate (mechanism 1) reads it to
+          // demote a `relay:recurring-audit`-marked HARD item with nothing to audit. FAIL-OPEN
+          // true when uncomputable. Copy verbatim from the gather JSON onto every unit.
+          substantive_unaudited: { type: 'boolean' },
+          // work_sig (id:365b): a signature STABLE across the pool's own `relay: checkpoint`
+          // churn but changing when an item closes or a substantive commit lands. The JS-side
+          // re-dispatch circuit breaker (mechanism 2) keys on it. Copy verbatim from the gather
+          // JSON onto every unit; "" when uncomputable (the breaker treats "" as fail-open).
+          work_sig: { type: 'string' },
         },
       },
     },
@@ -538,6 +550,13 @@ let quotaStopped = false
 // totalDispatched = work units dispatched across ALL rounds (unitsDispatched resets per round).
 let round = 0
 let totalDispatched = 0
+// id:365b — re-dispatch circuit breaker state. PERSISTS across rounds within this single
+// pool invocation (a module-level object, like the discoverCache). Keyed `${repo}:${verdict}`
+// → {sig, count}: how many times that (repo,verdict) has been dispatched this run with the
+// SAME work_sig (a sig stable across the pool's own `relay: checkpoint` churn). A DETERMINISTIC
+// backstop catching ANY spin even if the discover-shard's principled recurring-audit gate
+// (mechanism 1) slips — see the inline breaker in the discovery guards block.
+const redispatchGuard = {}
 // id:8c35 — machine-readable stop reason: null | "quota-stale-cache" |
 // "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds"
 // Populated by quotaGate on any stop so operators (and RELAY_STATUS) see WHY,
@@ -627,7 +646,7 @@ Each repo's path and income are given in the list above; use them.
 DATA (id:11ad — do NOT run git per repo yourself for the common case; ~17 inline git calls/repo blew up shard turn count → ~1.9M cache_read/shard). For EACH repo, run this ONE command FIRST and classify from its JSON:
   ~/.claude/skills/relay/scripts/gather-repo-state.sh --repo <repo> --path <path> --runid ${prelude.runId}
 It already ran \`git fetch origin\` and returns ONE JSON object:
-  {is_git, head, latest_ckpt (newest fable-ckpt-*/relay-ckpt-* tag or ""), latest_ckpt_msg (its annotation), commits_since_ckpt (oneline log since latest_ckpt, or recent log if none), dirty, porcelain, upstream_ahead_behind ("<ahead>\\t<behind>"), has_upstream, worktrees (basenames under ~/.cache/relay/worktrees/<repo>), orphan_refs (relay/orphan/* refs+shas), toml_block (this repo's relay.toml block), roadmap (ROADMAP.md contents), lock_only_unaudited (bool — there ARE unaudited commits since the ckpt and they ALL touch only uv.lock), dirty_lock_only (bool — the working tree is dirty with ONLY uv.lock modified), is_finished (bool — deterministic finished-repo guard, id:000d: roadmap present/non-empty AND 0 open "- [ ]" items AND commits_since_ckpt empty AND tree clean/lock-only-dirty; false when no roadmap), top_intensive (string — resource of the top open [INTENSIVE — <res>] item, "" when none, id:ad74)}
+  {is_git, head, latest_ckpt (newest fable-ckpt-*/relay-ckpt-* tag or ""), latest_ckpt_msg (its annotation), commits_since_ckpt (oneline log since latest_ckpt, or recent log if none), dirty, porcelain, upstream_ahead_behind ("<ahead>\\t<behind>"), has_upstream, worktrees (basenames under ~/.cache/relay/worktrees/<repo>), orphan_refs (relay/orphan/* refs+shas), toml_block (this repo's relay.toml block), roadmap (ROADMAP.md contents), lock_only_unaudited (bool — there ARE unaudited commits since the ckpt and they ALL touch only uv.lock), dirty_lock_only (bool — the working tree is dirty with ONLY uv.lock modified), is_finished (bool — deterministic finished-repo guard, id:000d: roadmap present/non-empty AND 0 open "- [ ]" items AND commits_since_ckpt empty AND tree clean/lock-only-dirty; false when no roadmap), top_intensive (string — resource of the top open [INTENSIVE — <res>] item, "" when none, id:ad74), substantive_unaudited (bool — id:365b anti-spin: false iff there is NOTHING NEW for a recurring strong-model audit to review since the audit ref, i.e. every commit since it is a relay:/fable: checkpoint or uv.lock-only; FAIL-OPEN true when uncomputable), work_sig (string — id:365b: a signature STABLE across the pool's own checkpoint churn, used by the JS re-dispatch circuit breaker)}
 NO-FILESYSTEM-HUNTING GUARD (id:612f — a confused shard hitting a repo with parked orphan_refs ran \`find /home/tobias -name relay.toml\` across ALL of $HOME, cat-ed session transcripts, and hand-parsed ROADMAPs: 36 tool calls vs the ~9 of a lean shard, stalling the whole barrier round to its pace). EVERYTHING you need is already in the gather JSON — do NOT re-derive it from the filesystem: \`toml_block\` IS this repo's relay.toml block (never read ~/.config/relay/relay.toml, never \`find\` for it); \`roadmap\` IS its ROADMAP.md (never cat it); \`orphan_refs\` already lists the parked refs+shas. NEVER run \`find\` over $HOME or any broad tree, NEVER cat session/transcript files, NEVER search for state the JSON already holds. For the orphan cost-hint runId, PARSE it from the orphan ref basename itself (it embeds the originating runId, e.g. relay/orphan/relay-<runId>-<...>) — do NOT search for it. The ONLY git you may run per repo is the bounded set the orphan/worktree/sync guards below explicitly name (\`git show --stat <orphan-ref>\`, \`merge --ff-only\`, \`worktree remove\`, \`branch -m/-D\`). If a field is genuinely missing from the JSON, SURFACE the repo with a one-line reason — never go hunting.
 
 If is_git is false → surface the repo with reason "not a git work tree". Otherwise classify into exactly one verdict from these fields:
@@ -642,6 +661,7 @@ EXECUTABLE-HARD test (id:2d20 — never dispatch an un-doable HARD item; a relay
   • it sits under a "## Gated" / "do not start" / "deferred" ROADMAP section, or its acceptance text says to wait for a gate ("re-scope when the gate opens", "no code before ratification", "blocked on …");
   • its acceptance criteria require a /meeting or recorded design decision FIRST (e.g. "hold a scoping meeting", "design recorded in docs/meeting-notes/ … then implement");
   • it is explicitly multi-session or cross-repo in scope (cannot be finished+verified from this one repo's worktree).
+RECURRING-AUDIT GATE (id:365b — never re-dispatch a recurring audit that has nothing new to review; the strong-model audit id:401c never closes by design, so once a repo drains all other work it re-fires every round and audits only its OWN previous \`relay: checkpoint\` commit = "clean by vacuity", burning the apex tier for zero output). An open \`[HARD — pool]\` item carrying the \`<!-- relay:recurring-audit -->\` marker is EXECUTABLE ONLY WHEN the gather JSON's \`substantive_unaudited\` is true. When \`substantive_unaudited\` is false the audit has nothing new to review → treat the marked item as NON-executable (EXCLUDE it from the hard verdict and from openHard, exactly like a GATED item). If it is the repo's ONLY open executable item, do NOT classify the repo "hard": put it in "surfaced" with reason "recurring audit idle — no substantive commits to audit since last strong checkpoint (id:365b)".
 A repo whose ONLY open [HARD items are all GATED is NOT "hard": put it in "surfaced" with reason "HARD backlog is gated — needs a /meeting to unblock/re-scope (items: <ids>); not dispatched (id:2d20)". This moves the gate-detection to cheap discovery instead of spawning an Opus hard child every round to re-derive the same handback.
 - "handoff": commits_since_ckpt is empty, and roadmap is missing/has no roadmap marker, OR every item is ticked while untracked new work exists.
 - "idle": none of the above.
@@ -683,6 +703,8 @@ Per-repo fields to set on each unit you emit:
 - intensive per repo (id:8d52): a resource name STRING (e.g. "local-llm") iff this repo's next unit of work is resource-heavy — set it when EITHER (a) toml_block has intensive = "<resource>" (or intensive = true → use "local-llm"), OR (b) the top open "- [ ]" item the unit would work in roadmap carries an "[INTENSIVE — <resource>]" modifier (parse the resource between "— " and "]"). Otherwise leave it "" (empty). These units are NEVER auto-dispatched (OOM risk) — they are gated behind --allow-intensive.
 - is_finished per repo (id:000d): COPY the gather JSON's is_finished boolean VERBATIM onto the unit (do NOT recompute it — it is the deterministic finished-repo flag). The JS-side demote guard reads this field to correct a shard that over-classified a finished repo as execute/hard/handoff, so it MUST be present on every unit. Report false if the gather JSON omits it.
 - top_intensive per repo (id:ad74): COPY the gather JSON's top_intensive string VERBATIM onto the unit (do NOT recompute it). The JS-side INTENSIVE promote backstop reads this field to self-correct a shard that classified a repo idle/skipped despite having open [INTENSIVE] work. Report "" if the gather JSON omits it.
+- substantive_unaudited per repo (id:365b): COPY the gather JSON's substantive_unaudited boolean VERBATIM onto every unit you emit (do NOT recompute it). It drives the recurring-audit gate above; report true if the gather JSON omits it (fail-open).
+- work_sig per repo (id:365b): COPY the gather JSON's work_sig string VERBATIM onto every unit you emit (do NOT recompute it). The JS-side re-dispatch circuit breaker keys on it. Report "" if the gather JSON omits it.
 
 (Injected high-priority units (id:baf1) are handled ONCE by the PRELUDE via inject.sh take — NOT here. You only classify the own repos given to you.)
 
@@ -790,6 +812,40 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
     }
     if (promotedIntensive.length) {
       log(`relay-loop: id:ad74 INTENSIVE promote backstop — ${promotedIntensive.length} repo(s) corrected: ${promotedIntensive.join(', ')}`)
+    }
+  }
+  // id:365b — re-dispatch circuit breaker (mechanism 2, deterministic JS backstop). Runs AFTER
+  // the id:000d finished-demote + id:ad74 INTENSIVE-promote backstops and BEFORE units are
+  // sorted/dispatched. The principled fix is mechanism 1 (the shard's recurring-audit gate);
+  // this catches ANY dispatch spin even if the shard slips. For each non-injected unit, key on
+  // `${repo}:${verdict}`: if the persistent counter's stored work_sig matches this unit's
+  // work_sig (a sig STABLE across the pool's own `relay: checkpoint` churn, so unchanged means
+  // "no substantive change since last dispatch") increment its count, else (re)seed at 1. A
+  // unit may dispatch on counts 1,2,3 and is SUPPRESSED once count would reach 4 ("not more
+  // than thrice") — removed from dispatch and surfaced. A work_sig change resets the counter.
+  // Injected units (id:baf1) are EXEMPT (an explicit user request is never auto-suppressed).
+  // NOTE: this inline copy MUST stay byte-equivalent to redispatch-guard.mjs (the unit-tested
+  // pure helper — the Workflow sandbox cannot import it). A structural test pins the wiring.
+  {
+    const keptCB = [], suppressedCB = []
+    for (const u of units) {
+      if (u.injected) { keptCB.push(u); continue }
+      const key = `${u.repo}:${u.verdict}`
+      const sig = u.work_sig || ''
+      const prev = redispatchGuard[key]
+      if (prev && prev.sig === sig) prev.count++
+      else redispatchGuard[key] = { sig, count: 1 }
+      if (redispatchGuard[key].count > 3) {
+        suppressedCB.push(u)
+        surfaced.push({ repo: u.repo, reason: `circuit breaker (id:365b): ${u.repo} ${u.verdict} dispatched >3× this run with no substantive change (work_sig unchanged) — skipping until new work or a human intervenes; cost hint: relay-burn.sh --run ${prelude.runId}` })
+      } else {
+        keptCB.push(u)
+      }
+    }
+    if (suppressedCB.length) {
+      log(`relay-loop: id:365b re-dispatch circuit breaker — ${suppressedCB.length} unit(s) suppressed (>3× this run, work_sig unchanged): ${suppressedCB.map(u => `${u.repo}(${u.verdict})`).join(', ')}`)
+      units.length = 0
+      units.push(...keptCB)
     }
   }
   if (shardOk) discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
