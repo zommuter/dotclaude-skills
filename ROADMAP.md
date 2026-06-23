@@ -1384,6 +1384,27 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       divergence). gaming-scan `"$PWD" d342839` exit 0; suite 87/0 + 1 EXPECTED-RED (id:09a3).
       Mirror: TODO id:401c line refreshed Run 45→Run 46. See
       `docs/meeting-notes/2026-06-23-0945-strong-model-audit.md`.
+    - Run 48 (2026-06-23-1730): first-seen code since Run 46's own audit commit `993d905`
+      (merge `80a8441..HEAD`) — **REAL CODE** (Run 47 review shipped id:ad74 + id:09a3 in
+      this window, never strong-audited). **1 HIGH defect fixed inline**: the id:ad74
+      JS-side INTENSIVE promote backstop in relay-loop.js was a NO-OP — the exact symmetric
+      twin of the id:401c Run 45 dead-guard bug, in the very feature meant to be the PROMOTE
+      counterpart of that DEMOTE guard. Branch 1 (skipped→unit) was provably-dead code
+      (`top_intensive && !u` unreachable; skipped rollup items carry no `top_intensive`);
+      branch 2 patched an idle unit's `.intensive` but never flipped `verdict` off `'idle'`,
+      so `actionable = units.filter(u => u.verdict !== 'idle')` dropped it BEFORE the
+      INTENSIVE partition — silent drop, not even surfaced as deferred. Rewrote to operate
+      on emitted units only and FLIP idle→execute (survives the filter → intensive partition
+      → `ALLOW_INTENSIVE ? intensiveUnits : intensiveDeferred`); dropped the dead branch.
+      Added non-vacuous static guards (2c)/(2d) to `test_relay_loop_intensive_emit.sh`
+      (verified: both FAIL against pre-fix JS, pass against fix). roadmap-lint.sh (id:09a3)
+      + gather `top_intensive` field clean; lint correctly wired into review §5 + human. 1
+      coherence ACCEPTED (c3a6 cache: `top_intensive` is a pure fn of the already-hashed
+      ROADMAP blob → no sig change). Cross-ledger drift fixed inline (id:ad74 TODO:[ ] vs
+      ROADMAP:[x] — build now genuinely complete post-fix → ticked the TODO twin). gaming-scan
+      `"$PWD" 80a8441` exit 0; suite 89/0/0. Mirror: TODO id:401c refreshed Run 46→Run 48
+      (Run 47 was the review that shipped this window, not an audit run). See
+      `docs/meeting-notes/2026-06-23-1730-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
