@@ -1361,6 +1361,20 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       moving to the id:2840 index). Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite
       87/0 + 1 EXPECTED-RED (id:09a3) on a clean run. See
       `docs/meeting-notes/2026-06-23-0939-strong-model-audit.md`.
+    - Run 46 (2026-06-23-0945): `d342839..HEAD` (window start = Run 45's audit-note
+      commit) — **LEDGER-ONLY, CLEAN by vacuity**. Only commits: `b2b6ee9` (the `--no-ff`
+      merge LANDING Run 45's already-audited work — not re-audited) + `1d4b9cb` (checkpoint,
+      RELAY_LOG +4). `git diff d342839..HEAD` excluding RELAY_LOG/relay.toml is EMPTY → no
+      first-seen code (passes 1+2 N/A). **One coherence finding, fixed inline:**
+      `orphan-scan --cross-ledger` flagged id:3c0f/69ef (TODO:[ ] vs ROADMAP:[x]) — a
+      scope-split FALSE-POSITIVE (id:d9b0 §3 class): both builds genuinely closed in
+      ROADMAP/Run 45; their tokens appear in TODO only inside the still-open umbrella
+      line-34 ("lane-token drift + grammar lint", pending id:09a3). Added the
+      `<!-- xledger-ok: ... -->` annotation id:d9b0 built for exactly this → cross-ledger
+      now exits clean. id:09a3 NOT annotated (still open in ROADMAP too, parked orphan, no
+      divergence). gaming-scan `"$PWD" d342839` exit 0; suite 87/0 + 1 EXPECTED-RED (id:09a3).
+      Mirror: TODO id:401c line refreshed Run 45→Run 46. See
+      `docs/meeting-notes/2026-06-23-0945-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
