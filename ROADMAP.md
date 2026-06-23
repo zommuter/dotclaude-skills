@@ -1273,6 +1273,31 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       3346 [meeting] / dba3 [decision-gate] / e149/7809/98f0/0994 [hands]; de4e DEFERRED
       non-executable; all open in both ROADMAP+TODO). Both tracked flakes (id:16e9, id:05e8) did
       NOT recur. Suite 82/0 on a clean run. See `docs/meeting-notes/2026-06-22-1827-strong-model-audit.md`.
+    - Run 44 (2026-06-23-0701): first-seen code since Run 43's own audit commit `c66c6f4`
+      (`c66c6f4..HEAD`, HEAD = `relay-ckpt-20260622-2215` / `e5962f3`) — **REAL CODE window**
+      (not LEDGER-ONLY): id:bae5 uv.lock-cascade exemptions (`gather-repo-state.sh`
+      `lock_only_unaudited`/`dirty_lock_only` + relay-loop.js review/dirty exemptions),
+      id:e107 EXECUTOR-ACTIONABLE @manual/human-only guard (relay-loop.js), id:2c42 deferred
+      ledger write-back (meeting/SKILL.md + todo-update/SKILL.md + .gitignore + red→green spec).
+      **CLEAN — no inline code/security fix.** Pass-1: bae5's lock booleans diff the SAME
+      `latest..HEAD` range as `commits_since` (can't disagree with the review verdict), use a
+      fixed-string whole-line `grep -vx 'uv.lock'` (root-only, conservative), all new pipelines
+      `set -e`-safe (`|| true` + `[[ ]]`); `$NF` porcelain extraction correct for modify/rename;
+      e107 mirrors the EXECUTABLE-HARD gate pattern (id:2d20) — no-op-execute thrash rationale
+      sound. Pass-2: gather additions pure-read (no eval/injection/secrets); bae5 dirty-lock
+      auto-commit is a bounded named git op on a trusted relay.toml path; id:2c42 replay applies
+      only under a FRESH claim via allowlisted flock'd helpers. Pass-3: bae5/e107 slot cleanly
+      into the documented precedence (no never-firing gate, no contradiction); id:2c42 matches
+      its acceptance verbatim (generic breadcrumb wired only at step 2a, replay in both /meeting
+      + /todo-update, gitignore entry); af04 note records the worktree-per-/meeting rejection.
+      `gaming-scan.sh . c66c6f4` exit 0. **One coherence drift fixed inline (recurring mirror
+      class, Run 4/8/17/40/41/42/43)** — the TODO id:401c MIRROR line read "Latest ✓ Run 43";
+      refreshed to Run 44. The d5e0 count line needed NO change (already 7 open HARD / 0 ROUTINE;
+      the id:2c42 ROUTINE item closed this window). Cross-ledger coherent (0 open ROUTINE / 7 open
+      executable-or-gated HARD — 401c [pool] / 3346 [meeting] / dba3 [decision-gate] /
+      e149/7809/98f0/0994 [hands]; de4e DEFERRED non-executable; all open in both ROADMAP+TODO).
+      Both tracked flakes (id:16e9, id:05e8) did NOT recur. Suite 83/0 on a clean run. See
+      `docs/meeting-notes/2026-06-23-0701-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
