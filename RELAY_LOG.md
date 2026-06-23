@@ -786,3 +786,8 @@ id:401c Run 46 strong-model audit (LEDGER-ONLY/clean-by-vacuity); 1 inline coher
 ## 2026-06-23 12:00 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Run 47 review: audit relay-ckpt-20260623-1019..HEAD clean LEDGER-ONLY (gaming-scan vacuous, 87/0 +2 expected-red); reverse-handoff promoted id:ad74 INTENSIVE-emit fix to ROADMAP [ROUTINE] + red spec
+
+## 2026-06-23 — executor (claude-sonnet-4-6)
+
+Worked id:ad74 — implemented the INTENSIVE-emit fix (two-part symmetric PROMOTE counterpart to id:000d DEMOTE guard). (1) `gather-repo-state.sh`: added `top_intensive` field (grep for the resource of the top open `[INTENSIVE — <res>]` item, "" when none), passed through the 17th positional `emit()` arg and emitted in the JSON output. (2) `relay-loop.js` DISCOVER_SCHEMA: added `top_intensive: { type: 'string' }` unit property. (3) shard prompt: added INTENSIVE-EMIT-GUARD rule (id:ad74 marker) — instructs the shard that an open [INTENSIVE] item is always work/never idle. (4) per-repo fields section: added `top_intensive` copy instruction. (5) JS-side INTENSIVE promote backstop block (after id:000d demote guard): promotes any repo that is idle/skipped with top_intensive set to a `units` entry with `intensive` set, self-correcting a shard that ignores the instruction.
+Friction: none — well-specified item with clear symmetric pattern from id:000d. Suite 88/0 +1 expected-red.

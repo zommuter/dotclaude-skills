@@ -340,6 +340,13 @@ const DISCOVER_SCHEMA = {
           // execute/hard/handoff (id:401c Run 45 fix: the guard was dead because the value
           // never reached the unit object). false when no roadmap.
           is_finished: { type: 'boolean' },
+          // top_intensive (id:ad74): the resource name of the top open "- [ ]" item
+          // carrying an "[INTENSIVE — <resource>]" modifier, "" when none. Computed
+          // deterministically by gather-repo-state.sh. The JS-side INTENSIVE promote
+          // backstop reads this field to self-correct a shard that classified a repo
+          // idle/skipped despite having open [INTENSIVE] work. MUST be "" (not absent)
+          // when no open [INTENSIVE] item exists.
+          top_intensive: { type: 'string' },
         },
       },
     },
@@ -620,7 +627,7 @@ Each repo's path and income are given in the list above; use them.
 DATA (id:11ad — do NOT run git per repo yourself for the common case; ~17 inline git calls/repo blew up shard turn count → ~1.9M cache_read/shard). For EACH repo, run this ONE command FIRST and classify from its JSON:
   ~/.claude/skills/relay/scripts/gather-repo-state.sh --repo <repo> --path <path> --runid ${prelude.runId}
 It already ran \`git fetch origin\` and returns ONE JSON object:
-  {is_git, head, latest_ckpt (newest fable-ckpt-*/relay-ckpt-* tag or ""), latest_ckpt_msg (its annotation), commits_since_ckpt (oneline log since latest_ckpt, or recent log if none), dirty, porcelain, upstream_ahead_behind ("<ahead>\\t<behind>"), has_upstream, worktrees (basenames under ~/.cache/relay/worktrees/<repo>), orphan_refs (relay/orphan/* refs+shas), toml_block (this repo's relay.toml block), roadmap (ROADMAP.md contents), lock_only_unaudited (bool — there ARE unaudited commits since the ckpt and they ALL touch only uv.lock), dirty_lock_only (bool — the working tree is dirty with ONLY uv.lock modified), is_finished (bool — deterministic finished-repo guard, id:000d: roadmap present/non-empty AND 0 open "- [ ]" items AND commits_since_ckpt empty AND tree clean/lock-only-dirty; false when no roadmap)}
+  {is_git, head, latest_ckpt (newest fable-ckpt-*/relay-ckpt-* tag or ""), latest_ckpt_msg (its annotation), commits_since_ckpt (oneline log since latest_ckpt, or recent log if none), dirty, porcelain, upstream_ahead_behind ("<ahead>\\t<behind>"), has_upstream, worktrees (basenames under ~/.cache/relay/worktrees/<repo>), orphan_refs (relay/orphan/* refs+shas), toml_block (this repo's relay.toml block), roadmap (ROADMAP.md contents), lock_only_unaudited (bool — there ARE unaudited commits since the ckpt and they ALL touch only uv.lock), dirty_lock_only (bool — the working tree is dirty with ONLY uv.lock modified), is_finished (bool — deterministic finished-repo guard, id:000d: roadmap present/non-empty AND 0 open "- [ ]" items AND commits_since_ckpt empty AND tree clean/lock-only-dirty; false when no roadmap), top_intensive (string — resource of the top open [INTENSIVE — <res>] item, "" when none, id:ad74)}
 NO-FILESYSTEM-HUNTING GUARD (id:612f — a confused shard hitting a repo with parked orphan_refs ran \`find /home/tobias -name relay.toml\` across ALL of $HOME, cat-ed session transcripts, and hand-parsed ROADMAPs: 36 tool calls vs the ~9 of a lean shard, stalling the whole barrier round to its pace). EVERYTHING you need is already in the gather JSON — do NOT re-derive it from the filesystem: \`toml_block\` IS this repo's relay.toml block (never read ~/.config/relay/relay.toml, never \`find\` for it); \`roadmap\` IS its ROADMAP.md (never cat it); \`orphan_refs\` already lists the parked refs+shas. NEVER run \`find\` over $HOME or any broad tree, NEVER cat session/transcript files, NEVER search for state the JSON already holds. For the orphan cost-hint runId, PARSE it from the orphan ref basename itself (it embeds the originating runId, e.g. relay/orphan/relay-<runId>-<...>) — do NOT search for it. The ONLY git you may run per repo is the bounded set the orphan/worktree/sync guards below explicitly name (\`git show --stat <orphan-ref>\`, \`merge --ff-only\`, \`worktree remove\`, \`branch -m/-D\`). If a field is genuinely missing from the JSON, SURFACE the repo with a one-line reason — never go hunting.
 
 If is_git is false → surface the repo with reason "not a git work tree". Otherwise classify into exactly one verdict from these fields:
@@ -640,6 +647,8 @@ A repo whose ONLY open [HARD items are all GATED is NOT "hard": put it in "surfa
 - "idle": none of the above.
 
 IS-FINISHED DEMOTE GUARD (id:000d — anti-false-handoff; a finished repo MUST NOT be dispatched as execute/hard/handoff): BEFORE applying the order of precedence below, check is_finished. If is_finished is true the repo is already provably done (0 open items, clean, no unaudited commits) — skip every dispatch verdict and put it in "surfaced" with reason "finished repo (0 open items, clean, no unaudited commits) — not dispatched (anti-false-handoff guard id:000d)". This is a DEMOTE-ONLY guard: it can only push a repo toward idle/surfaced, never toward a higher-priority verdict. "review" is unaffected (review requires commits_since_ckpt non-empty, which makes is_finished false anyway — the guard only fires on clean/drained repos the LLM shard might otherwise over-classify as "handoff"). Note: relay-loop.js also enforces this guard JS-side after shard results are merged, so a shard that ignores the instruction will still be corrected.
+
+INTENSIVE-EMIT-GUARD (id:ad74 — SYMMETRIC PROMOTE counterpart to the id:000d DEMOTE guard): an open \`- [ ]\` item carrying an \`[INTENSIVE — <resource>]\` modifier is ALWAYS executor-eligible WORK — the repo MUST emit a \`units\` entry with \`intensive\` set (parse the resource per the id:8d52 rule, or from the gather JSON's \`top_intensive\` field). A repo with an open [INTENSIVE] item MUST NOT be classified \`idle\` or put in \`skipped\` on the strength of any repo-local "no executor-eligible work" convention prose (that prose was written for remote executors with no GPU access — it must never override the shard's emit). The auto-run-vs-defer decision stays with relay-loop.js (the existing INTENSIVE partition gates dispatch behind \`--allow-intensive\`); the shard's job is ONLY to emit the unit. Note: relay-loop.js also enforces this guard JS-side after shard results are merged, so a shard that ignores this instruction will still be self-corrected.
 
 Order of precedence (apply the FIRST that matches): review > execute(routine) > hard > handoff > idle.
 
@@ -673,6 +682,7 @@ Per-repo fields to set on each unit you emit:
 - standin per repo: true iff latest_ckpt_msg contains the literal token "fable-standin" (the last relay checkpoint was produced by Opus standing in for Fable, so the repo still needs an independent Fable re-review and its specs are provisional). Report false when latest_ckpt is empty.
 - intensive per repo (id:8d52): a resource name STRING (e.g. "local-llm") iff this repo's next unit of work is resource-heavy — set it when EITHER (a) toml_block has intensive = "<resource>" (or intensive = true → use "local-llm"), OR (b) the top open "- [ ]" item the unit would work in roadmap carries an "[INTENSIVE — <resource>]" modifier (parse the resource between "— " and "]"). Otherwise leave it "" (empty). These units are NEVER auto-dispatched (OOM risk) — they are gated behind --allow-intensive.
 - is_finished per repo (id:000d): COPY the gather JSON's is_finished boolean VERBATIM onto the unit (do NOT recompute it — it is the deterministic finished-repo flag). The JS-side demote guard reads this field to correct a shard that over-classified a finished repo as execute/hard/handoff, so it MUST be present on every unit. Report false if the gather JSON omits it.
+- top_intensive per repo (id:ad74): COPY the gather JSON's top_intensive string VERBATIM onto the unit (do NOT recompute it). The JS-side INTENSIVE promote backstop reads this field to self-correct a shard that classified a repo idle/skipped despite having open [INTENSIVE] work. Report "" if the gather JSON omits it.
 
 (Injected high-priority units (id:baf1) are handled ONCE by the PRELUDE via inject.sh take — NOT here. You only classify the own repos given to you.)
 
@@ -744,6 +754,54 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
       }
       units.length = 0
       units.push(...kept)
+    }
+  }
+  // id:ad74 — JS-side INTENSIVE promote backstop (symmetric PROMOTE counterpart to id:000d DEMOTE).
+  // After all shard results are merged, a repo whose gathered state shows an open [INTENSIVE — <res>]
+  // item (top_intensive non-empty) MUST NOT remain idle/skipped with no unit entry. If the shard
+  // classified it idle/skipped, PROMOTE it to a units entry with intensive set so the existing
+  // INTENSIVE partition (ALLOW_INTENSIVE ? intensiveUnits : intensiveDeferred) handles dispatch.
+  // PROMOTE-ONLY guard: may only move a repo toward a dispatch verdict, never demote.
+  // Injected units are exempt (explicit user injection is already the highest priority).
+  {
+    const repoToUnit = new Map(units.map(u => [u.repo, u]))
+    const promotedIntensive = []
+    // Build a map of repo→top_intensive from shard results (units include top_intensive from gather JSON).
+    // Also check skipped repos (idle verdict) that have top_intensive set.
+    const allClassified = [...units, ...skipped.map(s => ({ ...s, _skippedOnly: true }))]
+    for (const entry of allClassified) {
+      // Find the original unit if it was classified; for skipped-only entries we need the gather data.
+      // The shard copies top_intensive verbatim from the gather JSON onto each unit it emits.
+      const u = repoToUnit.get(entry.repo)
+      const top_intensive = u ? (u.top_intensive || '') : ''
+      if (top_intensive && !u) {
+        // Repo is skipped (idle) but has top_intensive — should have been emitted as a unit.
+        // Promote it: remove from skipped, add as a unit with intensive set.
+        const idx = skipped.findIndex(s => s.repo === entry.repo)
+        if (idx !== -1) {
+          const s = skipped.splice(idx, 1)[0]
+          const promoted = {
+            repo: s.repo,
+            path: entry.path || s.repo,  // best-effort path
+            verdict: 'execute',
+            reason: `promoted by INTENSIVE-emit backstop (id:ad74): open [INTENSIVE — ${top_intensive}] item found but shard classified idle — intensive dispatch gated behind --allow-intensive`,
+            intensive: top_intensive,
+            top_intensive,
+          }
+          units.push(promoted)
+          promotedIntensive.push(promoted.repo)
+        }
+      }
+    }
+    // Also check units already emitted: if top_intensive is set but intensive is not, copy it.
+    for (const u of units) {
+      if (u.top_intensive && !u.intensive) {
+        u.intensive = u.top_intensive
+        promotedIntensive.push(`${u.repo}(intensive-field-patched)`)
+      }
+    }
+    if (promotedIntensive.length) {
+      log(`relay-loop: id:ad74 INTENSIVE promote backstop — ${promotedIntensive.length} repo(s) corrected: ${promotedIntensive.join(', ')}`)
     }
   }
   if (shardOk) discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
