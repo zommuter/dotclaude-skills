@@ -72,6 +72,31 @@ const ALLOW_INTENSIVE = !!A.allowIntensive || !!A.afk
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
 const FABLE_DOWN = !!A.fableDown
 
+// id:d530 — first-class per-RUN --priority / --exclude pool args (no relay.toml write; the
+// registry stays untouched). The front door maps the natural-language forms the user types
+// ("priority on X", "exclude Y") onto args.priorityRepos / args.excludeRepos. Both arrive as
+// a string ("a,b") or an array; normalize to a clean array of repo names (fail-safe: empty
+// arg ⇒ no change = today's behaviour).
+//   • EXCLUDE: those repos are DROPPED from the own-repo list BEFORE sharding (no shard sees
+//     them, no unit is emitted), each added to the skipped rollup as "excluded for this run
+//     (--exclude)". An exclude name that is not a confirmed own repo is a LOUD reject (surfaced).
+//   • PRIORITY: a per-run ORDERING bump ONLY (priorityRank in the unit sort comparators) — it
+//     reorders a repo's NATURALLY-DISCOVERED unit, never creates/injects one, so it can never
+//     double-dispatch the way inject.sh-as-priority did (the id:d530 finding). Above income,
+//     below injected-precedence + the D3 verdict-class order — NEVER a verdict override.
+// These helpers are byte-identical to relay/scripts/pool-args.mjs (the unit-tested pure copy;
+// the Workflow sandbox cannot import it). A structural test pins the wiring — keep them in sync.
+function normalizeRepoArg(val) {
+  if (!val) return []
+  const parts = Array.isArray(val) ? val : String(val).split(/[\s,]+/)
+  return parts.map(s => String(s).trim()).filter(Boolean)
+}
+const EXCLUDE_REPOS = normalizeRepoArg(A.excludeRepos)
+const PRIORITY_REPOS = normalizeRepoArg(A.priorityRepos)
+function priorityRank(unit, prioritySet) {
+  return (prioritySet && prioritySet.has(unit.repo)) ? 0 : 1
+}
+
 // id:b841 — normalize a nested quotaThresholds map into flat RELAY_QUOTA_THRESHOLD_<BUCKET>
 // keys so a user "raise 7d cap to 70%" directive actually takes effect.
 // The front door may pass args.quotaThresholds = { SEVEN_DAY: 0.70, SEVEN_DAY_SONNET: 0.70 }
@@ -605,8 +630,37 @@ const prelude = await agent(
 )
 
 let discovery = null
+// id:d530 — the --priority within-class ordering set, populated from the confirmed-own
+// priority names below; read by the unit sort comparators (priorityRank). Empty when no
+// --priority arg ⇒ no ordering change (fail-safe).
+let prioritySet = new Set()
 if (prelude && Array.isArray(prelude.repos)) {
-  const ownRepos = prelude.repos
+  // id:d530 — per-run --exclude / --priority. EXCLUDE drops repos from the own-repo list
+  // BEFORE sharding (no shard sees them, no unit is emitted); each confirmed-own excluded repo
+  // contributes a benign "excluded for this run (--exclude)" skipped line; an exclude name that
+  // is NOT a confirmed own repo is a LOUD reject surfaced below. PRIORITY validates names the
+  // same way (unknown → surfaced) and seeds the prioritySet the sort comparators read. NO
+  // relay.toml write — the registry is untouched. This inline block is byte-identical to
+  // pool-args.mjs::applyExcludeFilter + validatePriorityNames (unit-tested pure copies).
+  const allOwnRepos = prelude.repos
+  const ownNames = new Set(allOwnRepos.map(r => r.repo))
+  const excludeSkipped = [], poolArgSurfaced = []
+  const excludeSet = new Set(EXCLUDE_REPOS)
+  for (const name of EXCLUDE_REPOS) {
+    if (!ownNames.has(name)) poolArgSurfaced.push({ repo: name, reason: `--exclude: unknown/unconfirmed repo '${name}' — ignored (not a confirmed own repo; registry untouched, id:d530)` })
+  }
+  for (const name of PRIORITY_REPOS) {
+    if (ownNames.has(name)) prioritySet.add(name)
+    else poolArgSurfaced.push({ repo: name, reason: `--priority: unknown/unconfirmed repo '${name}' — ignored (not a confirmed own repo; registry untouched, id:d530)` })
+  }
+  const ownRepos = []
+  for (const r of allOwnRepos) {
+    if (excludeSet.has(r.repo)) excludeSkipped.push({ repo: r.repo, reason: 'excluded for this run (--exclude)' })
+    else ownRepos.push(r)
+  }
+  if (excludeSkipped.length) log(`relay-loop: id:d530 --exclude — dropped ${excludeSkipped.length} repo(s) from this run (registry untouched): ${excludeSkipped.map(r => r.repo).join(', ')}`)
+  if (prioritySet.size) log(`relay-loop: id:d530 --priority — within-class ordering bump for: ${[...prioritySet].join(', ')}`)
+  if (poolArgSurfaced.length) log(`relay-loop: id:d530 pool-arg LOUD reject — ${poolArgSurfaced.length} unknown/unconfirmed name(s): ${poolArgSurfaced.map(s => s.repo).join(', ')}`)
   // ── Content-addressed discovery cache (id:c3a6) ──
   // The classifier shards used to re-run fresh EVERY round, re-classifying repos whose observable
   // state hadn't changed — the bulk of the on-critical-path "status" overhead. Reuse last round's
@@ -721,7 +775,9 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
   // Merge the shard classifications + the cached (reused) verdicts + the prelude's injected units +
   // non-own skipped rollup into the single discovery object the rest of runRound consumes
   // (byte-identical shape).
-  const units = [], surfaced = [], skipped = [...(prelude.skippedConfig || []), ...reusedIdle]
+  // id:d530 — seed skipped with the --exclude rollup lines and surfaced with the pool-arg
+  // LOUD-reject lines (unknown --exclude/--priority names), alongside the existing config/idle rollups.
+  const units = [], surfaced = [...poolArgSurfaced], skipped = [...(prelude.skippedConfig || []), ...reusedIdle, ...excludeSkipped]
   let shardOk = changed.length === 0  // all repos served from cache → valid round, zero shards (id:c3a6)
   shardResults.forEach((r, i) => {
     if (!r) {
@@ -888,16 +944,19 @@ if (SESSION_IS_FABLE && !FABLE_DOWN) {
   if (elevated) log(`relay-loop: elevated ${elevated} repo(s) to review for optional Fable re-audit (id:9821 + durable queue id:e030)`)
 }
 
-// Sort: verdict class first (D3 invariant), then income repos win slot contention
-// within a class (user directive 2026-06-12: prefer income-relevant tasks), then the
-// fable-standin tiebreaker (user directive 2026-06-13; see standInRank above).
-// Injected units (id:baf1) outrank everything — they are explicit, high-priority user
-// requests; only then verdict class (D3), income, fable-standin.
+// Sort: verdict class first (D3 invariant), then the per-run --priority bump (id:d530:
+// a priority repo's NATURALLY-discovered unit ranks ahead WITHIN its verdict class), then
+// income repos win slot contention within a class (user directive 2026-06-12: prefer
+// income-relevant tasks), then the fable-standin tiebreaker (user directive 2026-06-13;
+// see standInRank above). Injected units (id:baf1) outrank everything — they are explicit,
+// high-priority user requests; --priority is below injected-precedence + the D3 verdict-class
+// order (NEVER a verdict override), above income.
 let actionable = discovery.units
   .filter(u => u.verdict !== 'idle')
   .sort((a, b) =>
     ((b.injected ? 1 : 0) - (a.injected ? 1 : 0)) ||
     (PRIORITY[a.verdict] - PRIORITY[b.verdict]) ||
+    (priorityRank(a, prioritySet) - priorityRank(b, prioritySet)) ||
     ((b.income ? 1 : 0) - (a.income ? 1 : 0)) ||
     (standInRank(a) - standInRank(b))
   )
@@ -953,10 +1012,12 @@ if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') {
       fableDownDeferred.push(u)
     }
   }
-  // All-execute now, so PRIORITY ties; injected units (id:baf1) still outrank, then income
-  // repos win slot contention, then the fable-standin tiebreaker prefers Fable-vetted roadmaps.
+  // All-execute now, so PRIORITY ties; injected units (id:baf1) still outrank, then the per-run
+  // --priority bump (id:d530), then income repos win slot contention, then the fable-standin
+  // tiebreaker prefers Fable-vetted roadmaps.
   actionable = kept.concat(demoted).sort((a, b) =>
     ((b.injected ? 1 : 0) - (a.injected ? 1 : 0)) ||
+    (priorityRank(a, prioritySet) - priorityRank(b, prioritySet)) ||
     ((b.income ? 1 : 0) - (a.income ? 1 : 0)) ||
     (standInRank(a) - standInRank(b))
   )
