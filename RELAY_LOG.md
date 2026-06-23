@@ -761,3 +761,8 @@ review: gaming-scan clean, 84/0 tests; reconciled id:1d64 TODO twin (D2 cross-le
 ## 2026-06-23 08:48 — executor (sonnet, relay-loop)
 
 feat(relay-loop): sync hard-lane token to canonical [HARD — pool] (id:3c0f) — 5 sites updated in relay-loop.js; tests/test_relay_loop_hard_token.sh GREEN; full suite 86 passed / 0 failed
+
+## 2026-06-23 — executor (sonnet, relay-loop)
+
+Worked id:000d — deterministic is_finished guard. Added `is_finished` bool to gather-repo-state.sh (arg 16 through the emit() positional→env→JSON path): true when roadmap present/non-empty + 0 open "- [ ]" items + commits_since_ckpt empty + clean tree (dirty_lock_only exempt, id:bae5). Added JS-side demote guard in relay-loop.js: after all shard results are merged, units with is_finished=true and verdict in {execute,hard,handoff} are demoted to surfaced with the canonical "finished repo … anti-false-handoff guard id:000d" reason; review unaffected; injected units exempt. Shard prompt updated with IS-FINISHED DEMOTE GUARD instruction. Structural assertions added to test_relay_loop_structure.sh. test_gather_is_finished.sh: 5/5 green. Full suite: 87 passed, 0 failed, 1 expected-red (id:09a3, unrelated, still open).
+Friction: none.
