@@ -774,3 +774,7 @@ feat(relay): id:000d — deterministic is_finished guard (anti-false-handoff); 8
 ## 2026-06-23 09:23 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: audited 1 commit (id:0907 TODO design-ledger add); suite 87/0 + 1 expected-red; no gaming, no drift; routine_open=0
+
+## 2026-06-23 09:44 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+relay(401c Run 45): strong-model audit 0e60f1f..HEAD REAL CODE (000d/1d64/3c0f/69ef) — 1 HIGH inline fix (dead is_finished guard), 87/0 +1 expected-red
