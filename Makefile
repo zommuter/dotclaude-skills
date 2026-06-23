@@ -44,7 +44,7 @@ relay_FILES := SKILL.md \
                scripts/loop-hint.sh scripts/discover-sig.sh scripts/migrate-state-dirs.sh \
                scripts/relay-status-publish.sh scripts/gather-repo-state.sh \
                scripts/handback-followup.py scripts/roadmap-archive.sh \
-               scripts/roadmap-lint.sh scripts/redispatch-guard.mjs
+               scripts/roadmap-lint.sh scripts/redispatch-guard.mjs scripts/pool-args.mjs
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
