@@ -210,9 +210,23 @@ fi
 # carrying an "[INTENSIVE — <resource>]" modifier, "" when none.
 # The JS-side INTENSIVE promote backstop reads this to correct a shard that idles a repo
 # despite having an open [INTENSIVE] item (the symmetric PROMOTE counterpart to id:000d).
+#
+# id:a707 — but [INTENSIVE] is an ORTHOGONAL resource axis (id:78ff): an item can be
+# [ROUTINE]/[HARD — pool] (executor-actionable, just resource-heavy → auto-dispatch serially
+# under --afk) OR human-gated ([HARD — hands]/[HARD — meeting]/[HARD — decision gate]/@manual)
+# AND resource-heavy. A human-gated [INTENSIVE] item is HUMAN work that merely happens to load
+# a model — it must NOT be auto-dispatched even under --afk/--allow-intensive (observed
+# 2026-06-23: a zomni [HARD — hands] [INTENSIVE — local-llm] item was dispatched and could not
+# complete — needs live GPU/sudo). So top_intensive is the resource of the top open [INTENSIVE]
+# item that is NOT human-gated; human-gated intensive items stay "" here and surface for the
+# human via the normal gated-HARD / @manual path. FAIL-SAFE: when unsure (no lane tag), the item
+# is NOT treated as human-gated (it still emits — under-suppression beats wrongly hiding work).
 top_intensive=""
 if [[ -n "$roadmap" ]]; then
-  top_intensive="$(printf '%s\n' "$roadmap" | grep -m1 -oP '^- \[ \].*?\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
+  top_intensive="$(printf '%s\n' "$roadmap" \
+    | grep -P '^- \[ \].*\[INTENSIVE — ' 2>/dev/null \
+    | grep -vP '\[HARD — (hands|meeting|decision gate)\]|@manual' \
+    | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
 fi
 
 # id:365b — relay anti-spin primitive (shared by both mechanisms). The recurring strong-model
