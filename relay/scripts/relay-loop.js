@@ -612,7 +612,7 @@ Each repo's path and income are given in the list above; use them.
 DATA (id:11ad — do NOT run git per repo yourself for the common case; ~17 inline git calls/repo blew up shard turn count → ~1.9M cache_read/shard). For EACH repo, run this ONE command FIRST and classify from its JSON:
   ~/.claude/skills/relay/scripts/gather-repo-state.sh --repo <repo> --path <path> --runid ${prelude.runId}
 It already ran \`git fetch origin\` and returns ONE JSON object:
-  {is_git, head, latest_ckpt (newest fable-ckpt-*/relay-ckpt-* tag or ""), latest_ckpt_msg (its annotation), commits_since_ckpt (oneline log since latest_ckpt, or recent log if none), dirty, porcelain, upstream_ahead_behind ("<ahead>\\t<behind>"), has_upstream, worktrees (basenames under ~/.cache/relay/worktrees/<repo>), orphan_refs (relay/orphan/* refs+shas), toml_block (this repo's relay.toml block), roadmap (ROADMAP.md contents), lock_only_unaudited (bool — there ARE unaudited commits since the ckpt and they ALL touch only uv.lock), dirty_lock_only (bool — the working tree is dirty with ONLY uv.lock modified)}
+  {is_git, head, latest_ckpt (newest fable-ckpt-*/relay-ckpt-* tag or ""), latest_ckpt_msg (its annotation), commits_since_ckpt (oneline log since latest_ckpt, or recent log if none), dirty, porcelain, upstream_ahead_behind ("<ahead>\\t<behind>"), has_upstream, worktrees (basenames under ~/.cache/relay/worktrees/<repo>), orphan_refs (relay/orphan/* refs+shas), toml_block (this repo's relay.toml block), roadmap (ROADMAP.md contents), lock_only_unaudited (bool — there ARE unaudited commits since the ckpt and they ALL touch only uv.lock), dirty_lock_only (bool — the working tree is dirty with ONLY uv.lock modified), is_finished (bool — deterministic finished-repo guard, id:000d: roadmap present/non-empty AND 0 open "- [ ]" items AND commits_since_ckpt empty AND tree clean/lock-only-dirty; false when no roadmap)}
 NO-FILESYSTEM-HUNTING GUARD (id:612f — a confused shard hitting a repo with parked orphan_refs ran \`find /home/tobias -name relay.toml\` across ALL of $HOME, cat-ed session transcripts, and hand-parsed ROADMAPs: 36 tool calls vs the ~9 of a lean shard, stalling the whole barrier round to its pace). EVERYTHING you need is already in the gather JSON — do NOT re-derive it from the filesystem: \`toml_block\` IS this repo's relay.toml block (never read ~/.config/relay/relay.toml, never \`find\` for it); \`roadmap\` IS its ROADMAP.md (never cat it); \`orphan_refs\` already lists the parked refs+shas. NEVER run \`find\` over $HOME or any broad tree, NEVER cat session/transcript files, NEVER search for state the JSON already holds. For the orphan cost-hint runId, PARSE it from the orphan ref basename itself (it embeds the originating runId, e.g. relay/orphan/relay-<runId>-<...>) — do NOT search for it. The ONLY git you may run per repo is the bounded set the orphan/worktree/sync guards below explicitly name (\`git show --stat <orphan-ref>\`, \`merge --ff-only\`, \`worktree remove\`, \`branch -m/-D\`). If a field is genuinely missing from the JSON, SURFACE the repo with a one-line reason — never go hunting.
 
 If is_git is false → surface the repo with reason "not a git work tree". Otherwise classify into exactly one verdict from these fields:
@@ -630,6 +630,8 @@ EXECUTABLE-HARD test (id:2d20 — never dispatch an un-doable HARD item; a relay
 A repo whose ONLY open [HARD items are all GATED is NOT "hard": put it in "surfaced" with reason "HARD backlog is gated — needs a /meeting to unblock/re-scope (items: <ids>); not dispatched (id:2d20)". This moves the gate-detection to cheap discovery instead of spawning an Opus hard child every round to re-derive the same handback.
 - "handoff": commits_since_ckpt is empty, and roadmap is missing/has no roadmap marker, OR every item is ticked while untracked new work exists.
 - "idle": none of the above.
+
+IS-FINISHED DEMOTE GUARD (id:000d — anti-false-handoff; a finished repo MUST NOT be dispatched as execute/hard/handoff): BEFORE applying the order of precedence below, check is_finished. If is_finished is true the repo is already provably done (0 open items, clean, no unaudited commits) — skip every dispatch verdict and put it in "surfaced" with reason "finished repo (0 open items, clean, no unaudited commits) — not dispatched (anti-false-handoff guard id:000d)". This is a DEMOTE-ONLY guard: it can only push a repo toward idle/surfaced, never toward a higher-priority verdict. "review" is unaffected (review requires commits_since_ckpt non-empty, which makes is_finished false anyway — the guard only fires on clean/drained repos the LLM shard might otherwise over-classify as "handoff"). Note: relay-loop.js also enforces this guard JS-side after shard results are merged, so a shard that ignores the instruction will still be corrected.
 
 Order of precedence (apply the FIRST that matches): review > execute(routine) > hard > handoff > idle.
 
@@ -708,6 +710,33 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
   // shardOk = at least one shard succeeded → build discovery (failed shards' repos are surfaced).
   // All shards failed (total network outage) → discovery stays null → the round fails gracefully
   // and the outer loop stops after completed rounds (resumable via Workflow resumeFromRunId).
+  // id:000d — JS-side is_finished demote guard (anti-false-handoff). Runs after ALL shard
+  // results are merged so it catches any shard that emitted execute/hard/handoff for a
+  // provably-finished repo. is_finished is computed deterministically by gather-repo-state.sh
+  // (roadmap present/non-empty + 0 open "- [ ]" items + commits_since_ckpt empty + clean tree).
+  // DEMOTE-ONLY: a finished repo is removed from units and pushed to surfaced with a fixed reason.
+  // review is unaffected (review requires commits_since_ckpt non-empty → is_finished false anyway).
+  // Injected units (id:baf1) are exempt from demotion — an explicit user injection overrides
+  // the finished-repo heuristic (the user may have targeted a specific task to finish).
+  {
+    const FINISHED_DEMOTE_VERDICTS = new Set(['execute', 'hard', 'handoff'])
+    const kept = [], demotedFinished = []
+    for (const u of units) {
+      if (!u.injected && u.is_finished && FINISHED_DEMOTE_VERDICTS.has(u.verdict)) {
+        demotedFinished.push(u)
+      } else {
+        kept.push(u)
+      }
+    }
+    if (demotedFinished.length) {
+      log(`relay-loop: id:000d finished-repo demote — ${demotedFinished.length} unit(s) removed from dispatch (execute/hard/handoff on finished repos): ${demotedFinished.map(u => u.repo).join(', ')}`)
+      for (const u of demotedFinished) {
+        surfaced.push({ repo: u.repo, reason: 'finished repo (0 open items, clean, no unaudited commits) — not dispatched (anti-false-handoff guard id:000d)' })
+      }
+      units.length = 0
+      units.push(...kept)
+    }
+  }
   if (shardOk) discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
   else log('relay-loop: all discovery shards failed this round (network outage?) — round fails, completed work preserved')
 }

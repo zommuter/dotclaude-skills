@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] Deterministic `is_finished` guard — stop the classifier false-dispatching handoff/hard on finished repos <!-- id:000d -->
+- [x] [ROUTINE] Deterministic `is_finished` guard — stop the classifier false-dispatching handoff/hard on finished repos <!-- id:000d -->
   - **Why** (incident 2026-06-23, run relay-20260623-083216): with the quota false-stop fixed (id:1d64) the pool ran longer and reached the lowest-priority `handoff` tier, where the LLM shard emitted `handoff`/`hard` verdicts for FINISHED repos (recurheb/echoAI/collaib — ROADMAP all `[x]`, 0 open items, clean tree, no unaudited commits). Children correctly no-op + auto-reap, but each burns a strong/opus dispatch; left unchecked it churns across rounds. **CONFIRMED not a discover-sig bug** (it hashes full ROADMAP content — checkbox flips invalidate correctly) and not a gather-state bug (it strips done `[x]` blocks). The shard over-applies `handoff` (whose definition requires "untracked new work exists") to a repo that should classify `idle`. Mechanize the judgment (id:415b: guard arguable LLM judgment with a deterministic check).
   - **Acceptance**:
     1. `relay/scripts/gather-repo-state.sh` emits a new bool field **`is_finished`** = `roadmap` is present/non-empty AND has ZERO open `- [ ]` items (after the existing open-item trim) AND `commits_since_ckpt` is empty AND `dirty` is false (the existing `dirty_lock_only` exemption still counts as not-finished-blocking → treat lock-only dirty as clean for this flag). A repo with NO roadmap stays `is_finished=false` (genuine first `handoff`). Add it through the existing `emit()` positional→env→JSON path.
