@@ -799,3 +799,7 @@ feat(relay): id:ad74 INTENSIVE-emit fix — shard + JS backstop so open [INTENSI
 ## 2026-06-23 15:37 — reconcile (human)
 
 reconcile integrate: relay(hard): implement id:09a3 — roadmap-lint.sh grammar validator
+
+## 2026-06-23 17:41 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+401c Run 48 strong-model audit (80a8441..HEAD REAL CODE): 1 HIGH inline fix — id:ad74 JS INTENSIVE promote backstop was a no-op (idle units never reached dispatch); flipped idle→execute + non-vacuous guards; suite 89/0/0
