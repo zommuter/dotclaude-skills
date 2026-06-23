@@ -49,7 +49,7 @@ emit() {  # emit the JSON object from env vars (safe encoding of arbitrary multi
   COMMITS_SINCE="${5:-}" DIRTY="${6:-false}" PORCELAIN="${7:-}" UPSTREAM="${8:-}" \
   HAS_UPSTREAM="${9:-false}" WORKTREES="${10:-}" ORPHANS="${11:-}" TOML="${12:-}" \
   ROADMAP="${13:-}" LOCK_ONLY_UNAUDITED="${14:-false}" DIRTY_LOCK_ONLY="${15:-false}" \
-  IS_FINISHED="${16:-false}" \
+  IS_FINISHED="${16:-false}" TOP_INTENSIVE="${17:-}" \
   REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
@@ -80,6 +80,11 @@ o = {
   # (dirty_lock_only counts as clean — lock-only dirty is still dispatchable, id:bae5).
   # A repo with NO roadmap stays false (genuine first handoff candidate, not a finished repo).
   "is_finished": b(os.environ.get("IS_FINISHED","false")),
+  # id:ad74 — deterministic intensive-item field: the resource name of the top open
+  # "- [ ]" item carrying an "[INTENSIVE — <resource>]" modifier, "" when none.
+  # The JS-side INTENSIVE promote backstop uses this to self-correct a shard that
+  # classifies a repo idle/skipped despite having an open [INTENSIVE] item.
+  "top_intensive": os.environ.get("TOP_INTENSIVE",""),
 }
 print(json.dumps(o))
 '
@@ -187,6 +192,15 @@ if [[ -f "$path/ROADMAP.md" && -n "$roadmap" ]]; then
   fi
 fi
 
+# id:ad74 — deterministic top_intensive field: resource of the top open "- [ ]" item
+# carrying an "[INTENSIVE — <resource>]" modifier, "" when none.
+# The JS-side INTENSIVE promote backstop reads this to correct a shard that idles a repo
+# despite having an open [INTENSIVE] item (the symmetric PROMOTE counterpart to id:000d).
+top_intensive=""
+if [[ -n "$roadmap" ]]; then
+  top_intensive="$(printf '%s\n' "$roadmap" | grep -m1 -oP '^- \[ \].*?\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
+fi
+
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap" \
-     "$lock_only_unaudited" "$dirty_lock_only" "$is_finished"
+     "$lock_only_unaudited" "$dirty_lock_only" "$is_finished" "$top_intensive"
