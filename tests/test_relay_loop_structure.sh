@@ -301,4 +301,12 @@ grep -q "anti-false-handoff guard id:000d" "$JS" \
 # The guard must be demote-only: review verdict must NOT be in the demoted set.
 grep -qF "new Set(['execute', 'hard', 'handoff'])" "$JS" \
   || fail "id:000d: FINISHED_DEMOTE_VERDICTS must be exactly {execute, hard, handoff} — review is unaffected"
-pass "id:000d: is_finished demote guard present in shard prompt + JS-side, demote-only, review unaffected"
+# id:401c Run 45 — the JS-side guard reads u.is_finished, so the value must actually REACH
+# the unit: (a) the DISCOVER_SCHEMA must declare is_finished as a unit property (else the
+# validated unit drops it), and (b) the shard prompt must instruct copying it verbatim.
+# Without BOTH, u.is_finished is always undefined and the deterministic backstop is DEAD code.
+grep -q "is_finished: { type: 'boolean' }" "$JS" \
+  || fail "id:401c: DISCOVER_SCHEMA does not declare unit.is_finished — the JS-side guard's u.is_finished is always undefined (dead guard)"
+grep -q "is_finished per repo" "$JS" \
+  || fail "id:401c: shard prompt does not instruct copying is_finished onto the unit — the deterministic value never reaches the JS guard"
+pass "id:000d/401c: is_finished demote guard present + the deterministic value actually reaches the unit (schema + prompt)"
