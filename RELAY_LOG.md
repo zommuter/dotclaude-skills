@@ -749,3 +749,7 @@ id:1d64 margin-aware quota-stop staleness — proceed on stale-but-safe cache (e
 
 Worked id:69ef — added `references/hard-lanes.md` to the `relay_FILES` manifest in the Makefile so `make install-relay` symlinks it. Test `tests/test_relay_refs_install_complete.sh` turned GREEN; full suite 85 passed / 0 failed / 2 expected-red.
 Friction: none.
+
+## 2026-06-23 08:42 — executor (sonnet, relay-loop)
+
+feat(relay): id:69ef — add references/hard-lanes.md to relay_FILES install manifest; 85/0 tests
