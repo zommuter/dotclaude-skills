@@ -281,3 +281,24 @@ pass "id:7570: integrator step-0 release retained (idempotent, defense-in-depth)
 grep -qF -- 'claim.sh acquire ${unit.repo} --run ${state.runId} --mode ${unit.verdict} --worktree' "$JS" \
   || fail "id:7570: unitPrompt does not pass --worktree to the acquire (long-child liveness anchor missing)"
 pass "id:7570: work child anchors its lease to the worktree (long child keeps its lease)"
+
+# id:000d — deterministic is_finished demote guard (anti-false-handoff).
+# When is_finished is true the repo is NEVER dispatched as execute/hard/handoff — it goes
+# to surfaced. This prevents the pool from burning strong/opus dispatches on already-finished
+# repos (incident 2026-06-23: recurheb/echoAI/collaib all-ticked ROADMAPs still got handoff).
+grep -q "id:000d" "$JS" \
+  || fail "id:000d: no id:000d marker in relay-loop.js (is_finished guard rationale missing)"
+grep -q "IS-FINISHED DEMOTE GUARD" "$JS" \
+  || fail "id:000d: shard prompt missing the IS-FINISHED DEMOTE GUARD instruction"
+grep -q "is_finished demote" "$JS" \
+  || fail "id:000d: no JS-side is_finished demote block in relay-loop.js"
+grep -q "FINISHED_DEMOTE_VERDICTS" "$JS" \
+  || fail "id:000d: JS-side demote guard does not define FINISHED_DEMOTE_VERDICTS set"
+grep -q "finished repo (0 open items, clean, no unaudited commits)" "$JS" \
+  || fail "id:000d: demoted unit does not carry the canonical finished-repo surfaced reason"
+grep -q "anti-false-handoff guard id:000d" "$JS" \
+  || fail "id:000d: surfaced reason does not cite the guard id (id:000d)"
+# The guard must be demote-only: review verdict must NOT be in the demoted set.
+grep -qF "new Set(['execute', 'hard', 'handoff'])" "$JS" \
+  || fail "id:000d: FINISHED_DEMOTE_VERDICTS must be exactly {execute, hard, handoff} — review is unaffected"
+pass "id:000d: is_finished demote guard present in shard prompt + JS-side, demote-only, review unaffected"
