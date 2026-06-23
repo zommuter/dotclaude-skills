@@ -33,6 +33,16 @@ scripts/gather-human-backlog.sh                 # all own repos
 scripts/gather-human-backlog.sh repoA repoB     # named repos
 ```
 
+**Grammar-lint each own repo's ROADMAP alongside the gather (id:09a3).** Run
+`scripts/roadmap-lint.sh <repo-root>` across the same own repos — a POSITIVE-grammar
+validator that LOUD-rejects ANY open `- [ ]` item not matching the proper syntax (a
+recognized `[ROUTINE]`/`[HARD — pool|meeting|hands|decision gate]` lane from
+`hard-lanes.md` PLUS a 4-hex `id:` token; gated/deferred/icebox/archive sections are
+exempt). This widens the net beyond the gather's untagged-`[HARD]` check: it also catches
+an open item with NO class tag at all (invisible to BOTH the loop AND triage) and
+malformed/unknown lanes. A nonzero lint exit means a ROADMAP item needs a lane/id assigned
+at the source — surface it on the "you fix these at source" list (do NOT auto-rewrite).
+
 It emits a TSV `repo  path  kind  box_summary` covering:
 
 - every OPEN `- [ ]` box in each repo's `REVIEW_ME.md` (`kind = review_me`), AND
