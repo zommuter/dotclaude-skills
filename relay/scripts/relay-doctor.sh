@@ -105,9 +105,11 @@ for name, entry in data.get("repos", {}).items():
 # --- parse args ----------------------------------------------------------------
 scope="cwd"
 repo_arg=""
+strict=0   # id:a883 — opt-in strict mode: exits nonzero when any issue is found
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all)     scope="all"; shift ;;
+    --strict)  strict=1; shift ;;   # id:a883 — nonzero exit when issues found
     -h|--help) sed -n '2,52p' "$0"; exit 0 ;;
     --*)       echo "relay-doctor.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)
@@ -242,6 +244,81 @@ refs_install_check() {
   log "refs-install missing=$missing"
 }
 
+# --- check 5: quota-config sanity (id:a883) ------------------------------------
+# Validates RELAY_QUOTA_DECAY_7D direction (START < END) and quota threshold bounds
+# (0 < threshold ≤ 1). Reads from $RELAY_QUOTA_DECAY_7D env var (same as relay-loop.js).
+# Report-only by default; contributes to issues_total so --strict can gate on it.
+quota_config_check() {
+  echo "=== quota-config sanity (id:a883) ==="
+  local q_issues=0
+
+  # RELAY_QUOTA_DECAY_7D: must be START:END with START < END (spend-conserving-then-use-it-up).
+  local decay="${RELAY_QUOTA_DECAY_7D:-}"
+  if [[ -n "$decay" ]]; then
+    local start end
+    if [[ "$decay" =~ ^([0-9]*\.?[0-9]+):([0-9]*\.?[0-9]+)$ ]]; then
+      start="${BASH_REMATCH[1]}"
+      end="${BASH_REMATCH[2]}"
+      # python3 for reliable float comparison (bash only does integers)
+      local cmp
+      cmp="$(python3 -c "
+s, e = float('$start'), float('$end')
+if s >= e:
+    print('BAD')
+elif not (0 < s <= 1 and 0 < e <= 1):
+    print('OOB')
+else:
+    print('OK')
+" 2>/dev/null || echo 'ERR')"
+      case "$cmp" in
+        BAD)
+          printf 'WARN: RELAY_QUOTA_DECAY_7D=%s has START(%.2f) >= END(%.2f) — backward direction.\n' \
+            "$decay" "$start" "$end"
+          printf '      Weekly quota is USE-IT-OR-LOSE-IT: START < END conserves early then spends down.\n'
+          printf '      A START >= END schedule false-stops a healthy run near reset (observed 2026-06-22).\n'
+          q_issues=$((q_issues + 1)) ;;
+        OOB)
+          printf 'WARN: RELAY_QUOTA_DECAY_7D=%s — START or END out of (0,1] range (got %s:%s).\n' \
+            "$decay" "$start" "$end"
+          q_issues=$((q_issues + 1)) ;;
+        OK)  echo "RELAY_QUOTA_DECAY_7D=$decay — direction OK (START<END, both in (0,1])" ;;
+        *)   printf 'WARN: could not parse RELAY_QUOTA_DECAY_7D=%s\n' "$decay"
+             q_issues=$((q_issues + 1)) ;;
+      esac
+    else
+      printf 'WARN: RELAY_QUOTA_DECAY_7D=%s does not match START:END format (e.g. 0.30:0.90).\n' "$decay"
+      q_issues=$((q_issues + 1))
+    fi
+  else
+    echo "RELAY_QUOTA_DECAY_7D not set (no time-decay applied; pool uses flat RELAY_QUOTA_THRESHOLD)"
+  fi
+
+  # RELAY_QUOTA_THRESHOLD: if set, must be in (0, 1].
+  local thresh="${RELAY_QUOTA_THRESHOLD:-}"
+  if [[ -n "$thresh" ]]; then
+    local ok
+    ok="$(python3 -c "
+t = float('$thresh')
+print('OK' if 0 < t <= 1 else 'OOB')
+" 2>/dev/null || echo 'ERR')"
+    if [[ "$ok" == "OK" ]]; then
+      echo "RELAY_QUOTA_THRESHOLD=$thresh — in bounds (0,1]"
+    else
+      printf 'WARN: RELAY_QUOTA_THRESHOLD=%s out of (0,1] range.\n' "$thresh"
+      q_issues=$((q_issues + 1))
+    fi
+  fi
+
+  if [[ "$q_issues" -gt 0 ]]; then
+    issues_total=$((issues_total + q_issues))
+    echo "$q_issues quota-config issue(s) found"
+  else
+    [[ -n "$decay" || -n "$thresh" ]] && echo "quota-config OK" || true
+  fi
+  echo
+  log "quota-config issues=$q_issues"
+}
+
 # --- check 4: parked orphan sweep (cross-repo) ---------------------------------
 parked_orphans_check() {
   echo "=== parked orphan branches (relay-reconcile.sh --all) ==="
@@ -311,6 +388,7 @@ esac
 # --- cross-repo / once-only checks ---------------------------------------------
 refs_install_check
 parked_orphans_check
+quota_config_check   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + threshold bounds)
 
 # --- coverage honesty (D4, meeting 2026-06-24): never look falsely-green ---------
 # LIST the checks that are designed but NOT yet wired, so this report's coverage is
@@ -318,13 +396,17 @@ parked_orphans_check
 echo "=== checks NOT yet wired (coverage gaps, by design) ==="
 echo "- claim/lease staleness — gated on the id:e149 heartbeat (no liveness field yet)"
 echo "- discover-sig / discovery-cache health — id:c3a6 internals, not yet surfaced"
-echo "- quota-config sanity (RELAY_QUOTA_DECAY_7D direction, threshold bounds) — folding in via id:a883"
 echo
 
 # --- summary -------------------------------------------------------------------
 echo "=== summary ==="
 echo "total issues surfaced: $issues_total (across $repos_with_issues repo(s) with per-repo findings)"
-echo "REPORT-ONLY: relay-doctor exits 0 regardless of findings (the fail-loud-vs-report-only"
-echo "policy is the deferred [HARD — meeting] part of id:0907 — not decided here)."
-log "summary issues=$issues_total repos_with_issues=$repos_with_issues scope=$scope"
-exit 0
+if [[ "$strict" -eq 0 ]]; then
+  echo "REPORT-ONLY: relay-doctor exits 0 regardless of findings (use --strict for a nonzero-on-issues gate; id:a883)."
+  log "summary issues=$issues_total repos_with_issues=$repos_with_issues scope=$scope strict=0"
+  exit 0
+else
+  echo "--strict mode (id:a883): exits nonzero when any issue is found."
+  log "summary issues=$issues_total repos_with_issues=$repos_with_issues scope=$scope strict=1"
+  [[ "$issues_total" -eq 0 ]] && exit 0 || exit 1
+fi
