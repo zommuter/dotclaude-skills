@@ -410,6 +410,16 @@ const DISCOVER_SCHEMA = {
           // re-dispatch circuit breaker (mechanism 2) keys on it. Copy verbatim from the gather
           // JSON onto every unit; "" when uncomputable (the breaker treats "" as fail-open).
           work_sig: { type: 'string' },
+          // open_hard_pool (id:9973): the DETERMINISTIC count of open "- [ ]" ROADMAP items
+          // tagged EXACTLY "[HARD — pool]" (the only pool-dispatchable HARD lane per
+          // relay/references/hard-lanes.md — [HARD — meeting]/[HARD — decision gate]/[HARD —
+          // hands] are NOT). Recurring-audit-marked items with nothing new to audit are
+          // excluded (reuses substantive_unaudited, id:365b). Computed by gather-repo-state.sh;
+          // copy verbatim from the gather JSON onto every unit. The JS-side demote-guard below
+          // reads u.open_hard_pool to demote a `hard` verdict on a repo with NO open pool-lane
+          // HARD item (the shard's `hard` judgment is non-deterministic — observed 2026-06-24
+          // dispatching repos whose only open HARD item was [HARD — decision gate]). 0 when none.
+          open_hard_pool: { type: 'number' },
         },
       },
     },
@@ -750,7 +760,7 @@ Each repo's path and income are given in the list above; use them.
 DATA (id:11ad — do NOT run git per repo yourself for the common case; ~17 inline git calls/repo blew up shard turn count → ~1.9M cache_read/shard). For EACH repo, run this ONE command FIRST and classify from its JSON:
   ~/.claude/skills/relay/scripts/gather-repo-state.sh --repo <repo> --path <path> --runid ${prelude.runId}
 It already ran \`git fetch origin\` and returns ONE JSON object:
-  {is_git, head, latest_ckpt (newest fable-ckpt-*/relay-ckpt-* tag or ""), latest_ckpt_msg (its annotation), commits_since_ckpt (oneline log since latest_ckpt, or recent log if none), dirty, porcelain, upstream_ahead_behind ("<ahead>\\t<behind>"), has_upstream, worktrees (basenames under ~/.cache/relay/worktrees/<repo>), orphan_refs (relay/orphan/* refs+shas), toml_block (this repo's relay.toml block), roadmap (ROADMAP.md contents), lock_only_unaudited (bool — there ARE unaudited commits since the ckpt and they ALL touch only uv.lock), dirty_lock_only (bool — the working tree is dirty with ONLY uv.lock modified), is_finished (bool — deterministic finished-repo guard, id:000d: roadmap present/non-empty AND 0 open "- [ ]" items AND commits_since_ckpt empty AND tree clean/lock-only-dirty; false when no roadmap), top_intensive (string — resource of the top open [INTENSIVE — <res>] item, "" when none, id:ad74), substantive_unaudited (bool — id:365b anti-spin: false iff there is NOTHING NEW for a recurring strong-model audit to review since the audit ref, i.e. every commit since it is a relay:/fable: checkpoint or uv.lock-only; FAIL-OPEN true when uncomputable), work_sig (string — id:365b: a signature STABLE across the pool's own checkpoint churn, used by the JS re-dispatch circuit breaker)}
+  {is_git, head, latest_ckpt (newest fable-ckpt-*/relay-ckpt-* tag or ""), latest_ckpt_msg (its annotation), commits_since_ckpt (oneline log since latest_ckpt, or recent log if none), dirty, porcelain, upstream_ahead_behind ("<ahead>\\t<behind>"), has_upstream, worktrees (basenames under ~/.cache/relay/worktrees/<repo>), orphan_refs (relay/orphan/* refs+shas), toml_block (this repo's relay.toml block), roadmap (ROADMAP.md contents), lock_only_unaudited (bool — there ARE unaudited commits since the ckpt and they ALL touch only uv.lock), dirty_lock_only (bool — the working tree is dirty with ONLY uv.lock modified), is_finished (bool — deterministic finished-repo guard, id:000d: roadmap present/non-empty AND 0 open "- [ ]" items AND commits_since_ckpt empty AND tree clean/lock-only-dirty; false when no roadmap), top_intensive (string — resource of the top open [INTENSIVE — <res>] item, "" when none, id:ad74), substantive_unaudited (bool — id:365b anti-spin: false iff there is NOTHING NEW for a recurring strong-model audit to review since the audit ref, i.e. every commit since it is a relay:/fable: checkpoint or uv.lock-only; FAIL-OPEN true when uncomputable), work_sig (string — id:365b: a signature STABLE across the pool's own checkpoint churn, used by the JS re-dispatch circuit breaker), open_hard_pool (number — id:9973: count of open "- [ ]" items tagged EXACTLY [HARD — pool], the only pool-dispatchable HARD lane; recurring-audit items with nothing to audit excluded; the JS-side demote-guard demotes a `hard` verdict on a repo with open_hard_pool==0)}
 NO-FILESYSTEM-HUNTING GUARD (id:612f — a confused shard hitting a repo with parked orphan_refs ran \`find /home/tobias -name relay.toml\` across ALL of $HOME, cat-ed session transcripts, and hand-parsed ROADMAPs: 36 tool calls vs the ~9 of a lean shard, stalling the whole barrier round to its pace). EVERYTHING you need is already in the gather JSON — do NOT re-derive it from the filesystem: \`toml_block\` IS this repo's relay.toml block (never read ~/.config/relay/relay.toml, never \`find\` for it); \`roadmap\` IS its ROADMAP.md (never cat it); \`orphan_refs\` already lists the parked refs+shas. NEVER run \`find\` over $HOME or any broad tree, NEVER cat session/transcript files, NEVER search for state the JSON already holds. For the orphan cost-hint runId, PARSE it from the orphan ref basename itself (it embeds the originating runId, e.g. relay/orphan/relay-<runId>-<...>) — do NOT search for it. The ONLY git you may run per repo is the bounded set the orphan/worktree/sync guards below explicitly name (\`git show --stat <orphan-ref>\`, \`merge --ff-only\`, \`worktree remove\`, \`branch -m/-D\`). If a field is genuinely missing from the JSON, SURFACE the repo with a one-line reason — never go hunting.
 
 If is_git is false → surface the repo with reason "not a git work tree". Otherwise classify into exactly one verdict from these fields:
@@ -809,6 +819,7 @@ Per-repo fields to set on each unit you emit:
 - top_intensive per repo (id:ad74): COPY the gather JSON's top_intensive string VERBATIM onto the unit (do NOT recompute it). The JS-side INTENSIVE promote backstop reads this field to self-correct a shard that classified a repo idle/skipped despite having open [INTENSIVE] work. Report "" if the gather JSON omits it.
 - substantive_unaudited per repo (id:365b): COPY the gather JSON's substantive_unaudited boolean VERBATIM onto every unit you emit (do NOT recompute it). It drives the recurring-audit gate above; report true if the gather JSON omits it (fail-open).
 - work_sig per repo (id:365b): COPY the gather JSON's work_sig string VERBATIM onto every unit you emit (do NOT recompute it). The JS-side re-dispatch circuit breaker keys on it. Report "" if the gather JSON omits it.
+- open_hard_pool per repo (id:9973): COPY the gather JSON's open_hard_pool number VERBATIM onto every unit you emit (do NOT recompute it — it is the deterministic count of open [HARD — pool] items, the only pool-dispatchable HARD lane). The JS-side HARD-pool demote guard reads it to demote a `hard` verdict on a repo with NO open [HARD — pool] item (only meeting/hands/decision-gate lanes). Report 0 if the gather JSON omits it.
 
 (Injected high-priority units (id:baf1) are handled ONCE by the PRELUDE via inject.sh take — NOT here. You only classify the own repos given to you.)
 
@@ -879,6 +890,36 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
       log(`relay-loop: id:000d finished-repo demote — ${demotedFinished.length} unit(s) removed from dispatch (execute/hard/handoff on finished repos): ${demotedFinished.map(u => u.repo).join(', ')}`)
       for (const u of demotedFinished) {
         surfaced.push({ repo: u.repo, reason: 'finished repo (0 open items, clean, no unaudited commits) — not dispatched (anti-false-handoff guard id:000d)' })
+      }
+      units.length = 0
+      units.push(...kept)
+    }
+  }
+  // id:9973 — JS-side HARD-pool demote guard (deterministic, mirrors the id:000d pattern).
+  // Runs after ALL shard results are merged so it catches any shard that emitted a `hard`
+  // verdict for a repo with NO open executable [HARD — pool] item. Only [HARD — pool] items
+  // are pool-dispatchable (relay/references/hard-lanes.md); [HARD — meeting]/[HARD — decision
+  // gate]/[HARD — hands] are NOT — but the LLM shard's `hard` judgment is non-deterministic and
+  // has wrongly dispatched repos whose only open HARD item was [HARD — decision gate], handing
+  // them back as pre-start size-outs (burning Opus; observed 2026-06-24). open_hard_pool is
+  // computed deterministically by gather-repo-state.sh (count of open [HARD — pool] items, minus
+  // any recurring-audit item with nothing to audit). DEMOTE-ONLY: a `hard` unit on a repo with
+  // open_hard_pool == 0 is removed from units and pushed to surfaced — it can only push toward
+  // surfaced, never toward a higher verdict. Injected units (id:baf1) are exempt. Only the
+  // `hard` verdict is touched; review/execute/handoff are unaffected.
+  {
+    const kept = [], demotedHard = []
+    for (const u of units) {
+      if (!u.injected && u.verdict === 'hard' && (u.open_hard_pool || 0) === 0) {
+        demotedHard.push(u)
+      } else {
+        kept.push(u)
+      }
+    }
+    if (demotedHard.length) {
+      log(`relay-loop: id:9973 HARD-pool demote — ${demotedHard.length} unit(s) removed from dispatch (hard verdict, no open [HARD — pool] item): ${demotedHard.map(u => u.repo).join(', ')}`)
+      for (const u of demotedHard) {
+        surfaced.push({ repo: u.repo, reason: 'HARD backlog is gated — no open [HARD — pool] item (only meeting/hands/decision-gate lanes); not dispatched (deterministic demote-guard id:9973)' })
       }
       units.length = 0
       units.push(...kept)
