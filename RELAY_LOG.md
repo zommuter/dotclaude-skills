@@ -891,3 +891,7 @@ review: audited 1 doc-only commit (8679992, new TODO id:74c7/d23f) — clean, su
 ## 2026-06-24 11:52 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified 4 relay self-items genuinely green (d530/052c/a707/365b), gaming-scan clean, suite 93/0/0, no drift; 0 open ROUTINE
+
+## 2026-06-24 12:44 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified id:c012 (/relay graceful stop) genuinely green — real red→green spec, clean gaming-scan, suite 94/0, ledgers consistent; 0 open ROUTINE
