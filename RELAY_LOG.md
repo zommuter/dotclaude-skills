@@ -924,3 +924,7 @@ Friction: none — all 3 items were cleanly bounded and testable within one sess
 ## 2026-06-24 17:42 — executor (sonnet, relay-loop)
 
 executor: worked all 3 open [ROUTINE] items (id:9221, id:3eb5, id:a883); 99 tests pass
+
+## 2026-06-24 17:46 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+id:71f2: lexer-aware workflow template-literal lint (lint-workflow-templates.mjs) + test, full suite green
