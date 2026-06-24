@@ -155,6 +155,19 @@ no REVIEW_ME boxes are added.
   pool's discovery). Note: one execute turn works AS MANY open `[ROUTINE]` items as it can
   finish (it's per-repo, not per-item) — so `routine_open` is "is there executor work
   left," not "how many turns." A review still follows each execute batch (D3 anti-gaming).
+- **Commit each main-checkout ledger edit ATOMICALLY (id:2147).** Every ROADMAP/TODO
+  re-derivation, lane back-fill, gate annotation, or REVIEW_ME box you write here lands in
+  the repo's **main checkout** (id:15d5, NOT a worktree). A modified-but-uncommitted ledger
+  is dirty residue that trips the dirty-guard (id:aa93) so every later pool run DEFERS the
+  repo — a self-perpetuating backlog. After your ledger edits, commit them per-repo with the
+  scoped, flock'd helper (it stages ONLY the named files — never `git add -A` — and never
+  stashes/resets a foreign-dirty tree):
+  ```bash
+  ~/.claude/skills/relay/scripts/commit-ledger.sh "$(pwd)" \
+    -m "roadmap: re-derive + gate (id:3801, id:2147)" ROADMAP.md TODO.md REVIEW_ME.md
+  ```
+  It is a clean no-op when a named file has no change, so listing all three is safe. Do this
+  before the return so an interruption can never leave a dirty-uncommitted ledger behind.
 
 ## 5b. Qualify unqualified ledger additions (reverse-handoff, D6)
 
