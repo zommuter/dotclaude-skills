@@ -936,3 +936,7 @@ review: verified id:71f2 twin-tick genuine; closed 3 cross-ledger drifts (3eb5/a
 ## 2026-06-24 20:58 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:2147 [HARD — pool] gate-detection-atomic-commit spec + TODO twin genuine (ledger-only, reused token); gaming-scan/roadmap-lint/relay-doctor clean; suite 100/0
+
+## 2026-06-24 21:20 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:a643 [HARD — pool] standalone-GPU resource-claim ledger addition verified clean (no code/test changes); suite 100 green, no flags
