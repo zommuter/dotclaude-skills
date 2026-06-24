@@ -77,6 +77,25 @@ const ALLOW_INTENSIVE = !!A.allowIntensive
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
 const FABLE_DOWN = !!A.fableDown
 
+// id:c012 — graceful (patient) operator stop. THREE entry points, all converging on
+// stopReason="user-stop" + a clean drain (the prior round's wave + integration debt are
+// already drained by runRound before the next round's discovery runs, so a stop between
+// rounds abandons nothing — it just declines to re-discover/dispatch a new wave):
+//   • STOP sentinel (live pool): a file at STOP_PATH the discover-prelude checks each round
+//     (the Workflow script has NO filesystem access — only agents run shell, so the prelude
+//     owns the read/decrement/consume and returns `stopRequested`). Sentinel CONTENT = integer
+//     "rounds remaining before stop" (empty / non-numeric / <=0 ⇒ stop at the NEXT round
+//     boundary). `/relay stop` writes an empty file (stop now); `/relay stop --after N` writes
+//     N (drain N more rounds, then stop). The prelude decrements N→N-1 each round and consumes
+//     (rm) the sentinel when it fires, so a stale sentinel can never wedge the next pool.
+//   • --once (launch flag): dispatch exactly ONE round, then stop. Pure JS round cap.
+//   • --after N (launch flag): dispatch N rounds, then stop. Pure JS round cap (--once = N:1).
+// Distinct from quota-stop (involuntary) — this is the voluntary, operator-initiated wind-down.
+const STOP_PATH = A.STOP_PATH || '~/.config/relay/STOP'
+// Launch-time round cap (0 = off). --once is sugar for --after 1. The outer loop breaks with
+// stopReason="user-stop" once `round` reaches this cap.
+const STOP_AFTER_ROUNDS = A.once ? 1 : (Number.isInteger(A.stopAfter) && A.stopAfter > 0 ? A.stopAfter : 0)
+
 // id:d530 — first-class per-RUN --priority / --exclude pool args (no relay.toml write; the
 // registry stays untouched). The front door maps the natural-language forms the user types
 // ("priority on X", "exclude Y") onto args.priorityRepos / args.excludeRepos. Both arrive as
@@ -165,6 +184,8 @@ log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOW
 // stopReason at status-write time, so writeRelayStatus must pass it in via state).
 function buildStopReasonLine(sr) {
   if (!sr) return '_(none — run still active or drained cleanly)_'
+  // id:c012 — operator-initiated graceful stop (STOP sentinel or --once/--after cap).
+  if (sr === 'user-stop') return '**user-stop** — operator graceful stop (STOP sentinel or --once/--after); in-flight wave + integration debt were drained, no new wave dispatched'
   return `**${sr}**`
 }
 
@@ -436,6 +457,8 @@ const PRELUDE_SCHEMA = {
       },
     },
     liveClaimRepos: { type: 'array', items: { type: 'string' } },
+    // id:c012 — true when the operator STOP sentinel fired this round (drain + stop, no new wave).
+    stopRequested: { type: 'boolean' },
     injectedUnits: DISCOVER_SCHEMA.properties.units,
     skippedConfig: DISCOVER_SCHEMA.properties.skipped,
     // id:c3a6 — per-repo SUPERSET signature from discover-sig.sh; runRound reuses a cached verdict
@@ -588,9 +611,9 @@ let totalDispatched = 0
 // (mechanism 1) slips — see the inline breaker in the discovery guards block.
 const redispatchGuard = {}
 // id:8c35 — machine-readable stop reason: null | "quota-stale-cache" |
-// "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds"
-// Populated by quotaGate on any stop so operators (and RELAY_STATUS) see WHY,
-// not just "quotaStopped=true".
+// "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
+// Populated by quotaGate on any stop (and by the id:c012 graceful-stop paths) so operators
+// (and RELAY_STATUS) see WHY, not just "quotaStopped=true".
 let stopReason = null
 // Quota-check throttle (efficiency): spawning a Haiku quota agent before EVERY unit
 // saturated the harness concurrency cap (min(16, cores-2)) with throwaway checks,
@@ -630,9 +653,22 @@ const prelude = await agent(
 4. skippedConfig (id:be62): for every block whose classification is NOT "own" emit {repo, reason: "excluded-by-config (<classification>)"}. The shards never see non-own repos.
 5. liveClaimRepos: run ~/.claude/skills/relay/scripts/claim.sh peek once — it prints every LIVE cross-session claim as one JSON per line ({key,repo,runId,...}); return the SET of distinct "repo" values. [] if none.
 6. injectedUnits (id:baf1): run ~/.claude/skills/relay/scripts/inject.sh take EXACTLY ONCE — it atomically emits AND CONSUMES pending user-injected units, one JSON per line {token, repo, verdict, item, prompt, requested_at}. For EACH, emit one unit: {injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>, path:(resolve ~/src/<repo> or the "# path:" override), reason:"user-injected high-priority task", inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false, hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"", intensive:""}. [] if take emits nothing. NEVER run take more than once (it consumes).
-7. signatures (id:c3a6 — discovery cache): compute a per-repo SUPERSET signature so the supervisor can skip re-classifying (an LLM shard) a repo whose observable state is unchanged since last round. Build ONE JSON object {"repos":[{"repo":<repo>,"path":<path>} for EVERY own repo from step 3],"liveClaims":<the liveClaimRepos array from step 5>} and pipe it on stdin to ~/.claude/skills/relay/scripts/discover-sig.sh. The script emits one JSON line per repo {"repo":<repo>,"sig":<sha256-hex or "">} — return them verbatim as "signatures". An EMPTY sig is a fail-open sentinel (the script could not read the repo): pass it through unchanged, do NOT invent a hash. Do this ONCE for all own repos; do NOT classify here. ([] only if there are zero own repos.)`,
+7. signatures (id:c3a6 — discovery cache): compute a per-repo SUPERSET signature so the supervisor can skip re-classifying (an LLM shard) a repo whose observable state is unchanged since last round. Build ONE JSON object {"repos":[{"repo":<repo>,"path":<path>} for EVERY own repo from step 3],"liveClaims":<the liveClaimRepos array from step 5>} and pipe it on stdin to ~/.claude/skills/relay/scripts/discover-sig.sh. The script emits one JSON line per repo {"repo":<repo>,"sig":<sha256-hex or "">} — return them verbatim as "signatures". An EMPTY sig is a fail-open sentinel (the script could not read the repo): pass it through unchanged, do NOT invent a hash. Do this ONCE for all own repos; do NOT classify here. ([] only if there are zero own repos.)
+8. stopRequested (id:c012 — operator graceful-stop sentinel): check the file ${STOP_PATH} (expand a leading ~ to $HOME). If it does NOT exist, return stopRequested:false. If it EXISTS, read its trimmed content C: (a) if C is a positive integer N>=1 (the "drain N more rounds" countdown from \`/relay stop --after N\`), this round PROCEEDS — write N-1 back into the file (printf '%s' "$((N-1))" > the file) and return stopRequested:false; (b) otherwise (C is empty, non-numeric, "0", or negative — the plain \`/relay stop\` "stop now" signal), CONSUME the sentinel (rm -f the file) and return stopRequested:true. This is the ONLY actor that writes/removes the sentinel; never run more than once per round.`,
   { label: 'discover-prelude', phase: 'Discover', schema: PRELUDE_SCHEMA, model: 'sonnet' }
 )
+
+// id:c012 — operator graceful-stop sentinel fired this round. The PRIOR round's wave +
+// integration debt were already drained by runRound before this discovery ran, so there is
+// nothing in flight to abandon: short-circuit BEFORE sharding/dispatch (drop any queued units,
+// do NOT re-discover a new wave), set the machine-readable stop reason, and let the outer loop
+// break. FAIL-SAFE: only a literal stopRequested===true triggers it (a dead prelude / absent
+// field is falsy ⇒ normal run), so a flaky sentinel read can never wedge the pool.
+if (prelude && prelude.stopRequested === true) {
+  stopReason = 'user-stop'
+  log('relay-loop: STOP sentinel — operator graceful stop; draining (prior wave already integrated), not dispatching a new wave')
+  return { actionable: 0, produced: 0, userStop: true }
+}
 
 let discovery = null
 // id:d530 — the --priority within-class ordering set, populated from the confirmed-own
@@ -1574,6 +1610,16 @@ while (!quotaStopped && round < MAX_ROUNDS) {
     log('relay-loop: discovery failed mid-run — stopping after completed rounds')
     break
   }
+  // id:c012 — operator STOP sentinel fired inside this round's prelude: stopReason is already
+  // set to "user-stop"; the round drained without dispatching. Break the outer loop cleanly.
+  if (r.userStop) { log(`relay-loop: graceful stop after round ${round} (operator STOP sentinel)`); break }
+  // id:c012 — launch-time round cap (--once = 1 round; --after N = N rounds). The cap counts
+  // COMPLETED rounds; once `round` reaches it, wind down voluntarily (drain already done above).
+  if (STOP_AFTER_ROUNDS > 0 && round >= STOP_AFTER_ROUNDS) {
+    stopReason = 'user-stop'
+    log(`relay-loop: graceful stop — launch round cap reached (${round}/${STOP_AFTER_ROUNDS}, --once/--after)`)
+    break
+  }
   // id:2d20 — a round is "dry" when it integrated NO checkpoint (produced === 0), not merely
   // when it dispatched nothing. An all-handback round (only gated/too-large HARD units, which
   // correctly refuse to half-do the work) makes no progress, so it counts toward drain — the
@@ -1600,6 +1646,6 @@ return {
   handbacks,
   queuedRemaining: state.queued,
   quotaStopped,
-  stopReason,  // id:8c35 — category: null | "quota-stale-cache" | "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds"
+  stopReason,  // id:8c35 — category: null | "quota-stale-cache" | "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
   rounds: round,
 }

@@ -21,6 +21,8 @@ Invocation:
 /relay next                          # auto-router: inspect the cwd repo's state and act (executor/review/human)
 /relay human   [repo-list | --all]   # interactive: cross-repo human-backlog triage
 /relay executor                      # load the lean executor contract (cheap Sonnet sessions)
+/relay stop [--after N | --now]      # graceful drain-then-end of a RUNNING pool (id:c012)
+/relay --once                        # launch: dispatch one round, then stop (id:c012)
 ```
 
 ## `executor` arg (lean executor contract)
@@ -304,6 +306,46 @@ work, and the next `review` re-checks it (anti-gaming). If multiple routes apply
 the earliest in the list (execute → review → human), mirroring the default pool's
 verdict-class order.
 
+## Stop mode
+
+`/relay stop` is the **voluntary, operator-initiated** graceful wind-down of a *running*
+autonomous pool (id:c012) — distinct from the *involuntary* quota-stop and from a hard
+`TaskStop`. It exists because the self-feeding loop otherwise ends only on quota cap, two
+dry discoveries (backlog drained), or the `MAX_ROUNDS` seatbelt; before this there was no
+way to say "finish what you're doing and stop" without `TaskStop` killing in-flight
+children mid-task and parking their worktrees as `relay/orphan/*`.
+
+**How it works.** The pool's `discover-prelude` (which runs shell at the top of every
+round) checks a **STOP sentinel file** — `~/.config/relay/STOP` by default (override via
+`RELAY_STOP_PATH` / `args.STOP_PATH`). The sentinel's CONTENT is an integer "rounds
+remaining before stop":
+
+- **`/relay stop`** — write an EMPTY file (e.g. `: > ~/.config/relay/STOP`). At the next
+  round boundary the prelude sees it, **consumes** it (`rm`), and the loop drains the
+  already-dispatched wave + integration debt, **drops queued-but-not-dispatched units, does
+  NOT re-discover/dispatch a new wave**, and returns cleanly with `stopReason: "user-stop"`.
+  Nothing is abandoned — the prior round's integration was already drained before the stop
+  is observed.
+- **`/relay stop --after N`** — write `N` to the file (`printf '%s' N > ~/.config/relay/STOP`).
+  The prelude decrements `N→N-1` each round and fires the stop when it reaches 0, i.e. the
+  pool drains `N` more rounds then winds down.
+- **`/relay stop --now`** — the impatient path: this is just the hard `TaskStop` of the
+  running Workflow (orchestrator calls `TaskStop`), accepting that in-flight children are
+  killed and their worktrees park as `relay/orphan/*` (recover via `/relay reconcile`). Use
+  only when you won't wait for the current wave to finish.
+
+The sentinel is **self-consuming and fail-safe**: only a literal `stopRequested===true` from
+the prelude triggers the stop, so a flaky read can never wedge the pool, and a fired sentinel
+is removed so it can't silently stop the *next* pool. To cancel a pending `/relay stop`
+before it fires, just `rm ~/.config/relay/STOP`.
+
+**Launch-time variants** (no running pool — set a cap when you start one):
+
+- **`/relay --once`** — dispatch exactly ONE round, then stop (`args.once`, `stopReason:
+  "user-stop"`). Useful for a single supervised wave.
+- **`/relay --after N`** — dispatch `N` rounds, then stop (`args.stopAfter = N`; `--once` is
+  sugar for `--after 1`). A pure-JS round cap in the outer loop, independent of the sentinel.
+
 ## Shared resources
 
 - `docs/relay.md` (repo root) — user-facing guide: what a relay turn does
@@ -383,6 +425,9 @@ the historical `fable-ckpt-*` prefix:
 | `--exclude` `<repo\|repo,repo>` | repo list | (none) | **Per-run exclusion, scoped to THIS run — NEVER writes relay.toml** (avoids the destructive `classification = own→excluded` registry mutation that survives a session-kill = silent permanent exclusion). Excluded repos are DROPPED from the own-repo list **before sharding** (no shard ever sees them, no unit is emitted); each is surfaced in `RELAY_STATUS.md` Skipped as `excluded for this run (--exclude)`. An unknown/unconfirmed repo name is a **LOUD reject** (surfaced, never silently dropped). The front door maps the natural-language form ("exclude Y") onto `args.excludeRepos`. |
 | `RELAY_QUOTA_DECAY_7D` | `START:END` fractions | (unset) | Time-decaying cap for the 7-day + 7-day-Sonnet buckets: the threshold linearly interpolates from `START` at the rolling 7-day window's open to `END` at its reset (e.g. `0.30:0.90` → ~0.82 at 6/7 elapsed). **Direction matters — weekly quota is use-it-or-lose-it (unused 7-day allowance is forfeit at reset), so the cap should RISE toward reset (`START < END`): conserve early (don't blow the week on day 1), then spend down the about-to-reset budget.** A `START > END` (spend-early / back-off-late) schedule is almost always wrong — it false-stops a healthy low-utilization run right before reset (observed 2026-06-22: `0.40:0.18` stopped at 24% 7d-util with ~22 h to reset, leaving 76% to be forfeit). Recomputed each gate check from `seven_day.resets_at`. 5h bucket unaffected (it is the real short-term burst guard). Forwarded into the quota-gate via args. |
 | `MAX_ROUNDS` | integer | `30` | Self-feeding-loop seatbelt: max re-discover→dispatch→drain rounds in one `relay-loop.js` invocation before it returns regardless. The loop normally ends earlier on the quota cap or two consecutive empty discoveries (backlog drained). Passed as `args.MAX_ROUNDS`. |
+| `RELAY_STOP_PATH` / `--stop-path` | path | `~/.config/relay/STOP` | id:c012 — the graceful-stop **STOP sentinel** the `discover-prelude` checks each round. Content = integer "rounds remaining before stop" (empty/≤0 = stop at next round boundary; the prelude consumes+removes it on firing → `stopReason: "user-stop"`). Written by `/relay stop` (empty) / `/relay stop --after N` (N). Passed as `args.STOP_PATH`. See **Stop mode**. |
+| `--once` | flag | off | id:c012 — launch-time round cap: dispatch exactly ONE round, then stop with `stopReason: "user-stop"`. Sugar for `--after 1`. Passed as `args.once = true`. |
+| `--after N` | integer | (none) | id:c012 — launch-time round cap: dispatch `N` rounds, then stop with `stopReason: "user-stop"`. Pure-JS outer-loop cap, independent of the STOP sentinel. Passed as `args.stopAfter = N`. |
 | `DISCOVER_SHARDS` | integer | `6` | Number of parallel discovery-shard classifiers fanned out per round (id:9ed4). A once-only prelude does the global work (runId, the consuming `inject.sh take`, `claim.sh peek`, the own-repo list + non-own skipped rollup); the own repos are round-robin chunked across this many shard agents that classify in parallel, then merged into the same discovery object. Capped at the repo count; the Workflow harness's `min(16, cpu_cores-2)` agent ceiling still applies, so shards above it just queue. Passed as `args.DISCOVER_SHARDS`. |
 | `RELAY_STATUS_PATH` | path | `~/.config/fables-turn/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |
 | `RELAY_EVENTS_PATH` | path | `~/.config/fables-turn/relay-events.jsonl` | Append-only event-log JSONL (id:c8b6): one line per dispatch/integrate/handback, flushed off-critical-path. Passed as `args.RELAY_EVENTS_PATH`. |
