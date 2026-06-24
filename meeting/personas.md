@@ -110,3 +110,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🧊 **Vox** — WebGL/three.js voxel-rendering lens; InstancedMesh vs per-block Mesh vs chunk greedy-mesh, draw-call budgeting, raycaster faceIndex→source-face mapping, BufferGeometry winding/normals, face culling. Introduced 2026-06-22 (truncocraft/octant-split-foundation).
 
 - 🛡️ **Bastian** — web-exposure / deploy-boundary threat lens; what's reachable over :80, safe-vs-unsafe default for a new file (copy-allowlist vs path-whitelist), .git exposure, served-tree vs working-tree. Introduced 2026-06-23 (kienzler-homepage/data-boundary-audit).
+
+- 🪟 **Winkler** — X11/EWMH window-management lens; multi-monitor reflow semantics, CRTC-removal eviction, devilspie2/xfwm4-rule limits, wmctrl/xdotool gravity + _NET_FRAME_EXTENTS quirks, autorandr postswitch hooks, maximized-window move semantics. Introduced 2026-06-23 (zomni/window-placement-dock-undock).
