@@ -98,6 +98,33 @@ mode, knob, or artifact that the README doesn't mention is spec drift, same as a
 ARCHITECTURE.md. Fix small gaps inline; queue a roadmap item for rewrites bigger than
 the review turn should absorb.
 
+## 4b. Relay-health check (id:3eb5) — surface findings to REVIEW_ME, never a hard block
+
+Run `relay-doctor.sh` on the cwd repo and include any findings in the REVIEW_ME
+items for this review pass. This is **report-only** — findings are surfaced, they
+NEVER block the review or cause the return contract to carry `contract_met: false`.
+The goal is to catch latent relay-plumbing defects the executor wouldn't surface.
+
+```bash
+~/.claude/skills/relay/scripts/relay-doctor.sh "$(pwd)"
+# or, if running from the worktree:
+relay/scripts/relay-doctor.sh "$(pwd)"
+```
+
+For each issue reported by relay-doctor (cross-ledger drift, ROADMAP grammar
+violations, missing reference-doc installs, parked orphan branches):
+
+- **Cross-ledger drift** (`orphan-scan --cross-ledger` findings): add a REVIEW_ME box
+  `[ ] id:XXXX — TODO:[…] ROADMAP:[…] checkbox drift` (one box per token).
+- **ROADMAP grammar violations** (`roadmap-lint` findings): add a REVIEW_ME box
+  `[ ] ROADMAP item id:XXXX — <lane/grammar issue>` and note it for the ROADMAP
+  re-derivation in step 5 (roadmap-lint already runs there; use its output for both).
+- **Other findings** (refs-install gap, parked orphans): add a single REVIEW_ME box
+  naming the finding; the specific resolution is the human's call.
+
+If relay-doctor finds ZERO issues, note "relay-doctor: clean" in the session log;
+no REVIEW_ME boxes are added.
+
 ## 5. Re-derive ROADMAP.md
 
 - **Grammar-lint the open items first (id:09a3).** Run
