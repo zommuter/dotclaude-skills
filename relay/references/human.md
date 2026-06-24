@@ -175,6 +175,21 @@ so a concurrent pool/meeting surfaces a git conflict rather than silently losing
 toggle. One commit per repo touched; do NOT push, tag, or run git-diary-workflow /
 todo-update (the orchestrator/global obligation owns those).
 
+**Commit each repo's ledger edit ATOMICALLY, never leave it dirty-uncommitted (id:2147).**
+`md-merge.py` writes the ledger but does NOT commit — and an interrupted `/relay human` run
+(mid-run API error, session kill) that wrote a lane back-fill / gate annotation / tick but
+never reached a commit leaves dirty residue in the main checkout, which trips the dirty-guard
+(id:aa93) so every later pool run DEFERS that repo forever. Immediately after each repo's
+`md-merge.py` ledger writes, commit them with the scoped, flock'd helper (stages ONLY the
+named files — never `git add -A` — and never stashes/resets a foreign-dirty tree):
+```bash
+~/.claude/skills/relay/scripts/commit-ledger.sh <repo> \
+  -m "relay human: ledger flow-back (id:3801, id:2147)" ROADMAP.md TODO.md REVIEW_ME.md
+```
+It is a clean no-op for any named file that didn't change, so listing all three is safe.
+Commit-only (no push, per the contract above); committing locally is what clears the
+dirty-guard for the next pool run.
+
 **Cross-session lease (id:0902).** Before a repo's write-back, acquire its lease:
 `~/.claude/skills/relay/scripts/claim.sh acquire <repo> --run human-$CLAUDE_SESSION_ID --mode human`.
 If REFUSED (a live autonomous pool, `/relay review|handoff`, `/relay executor`, or `/meeting`
