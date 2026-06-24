@@ -57,9 +57,9 @@ pass "prelude prompt checks the STOP sentinel via \${STOP_PATH}"
 #     (fail-safe: a dead/absent prelude must NOT trigger a stop).
 grep -qE "prelude\.stopRequested === true" "$JS" \
   || fail "runRound does not strictly check prelude.stopRequested === true (fail-safe required, id:c012)"
-awk '/prelude\.stopRequested === true/{w=6} w-->0{ if(/user-stop/)sr=1; if(/userStop/)us=1 } END{exit (sr&&us)?0:1}' "$JS" \
-  || fail "the stopRequested branch must set stopReason='user-stop' AND return a userStop marker (id:c012)"
-pass "runRound short-circuits on stopRequested with user-stop + userStop marker"
+awk '/prelude\.stopRequested === true/{w=18} w-->0{ if(/user-stop/)sr=1; if(/userStop/)us=1; if(/scheduleStatusWrite/)sw=1 } END{exit (sr&&us&&sw)?0:1}' "$JS" \
+  || fail "the stopRequested branch must set stopReason='user-stop', return a userStop marker, AND scheduleStatusWrite before returning so RELAY_STATUS shows user-stop (not stale '(none)') — observed 2026-06-24 (id:c012)"
+pass "runRound short-circuits on stopRequested with user-stop + userStop marker + status write"
 
 # (5) Outer loop honors BOTH the userStop marker (sentinel) and the launch-time round cap.
 grep -qE "r\.userStop" "$JS" \
