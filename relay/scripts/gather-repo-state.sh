@@ -51,6 +51,7 @@ emit() {  # emit the JSON object from env vars (safe encoding of arbitrary multi
   ROADMAP="${13:-}" LOCK_ONLY_UNAUDITED="${14:-false}" DIRTY_LOCK_ONLY="${15:-false}" \
   IS_FINISHED="${16:-false}" TOP_INTENSIVE="${17:-}" \
   SUBSTANTIVE_UNAUDITED="${18:-true}" WORK_SIG="${19:-}" \
+  OPEN_HARD_POOL="${20:-0}" \
   REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
@@ -99,6 +100,16 @@ o = {
   # has no new work → suppress after >3×. "" when uncomputable (the breaker treats "" as a
   # fresh signature each round = fail-open, never falsely suppresses real work).
   "work_sig": os.environ.get("WORK_SIG",""),
+  # id:9973 — deterministic demote-guard input: the count of OPEN "- [ ]" ROADMAP items
+  # whose lane tag is EXACTLY "[HARD — pool]" (the ONLY pool-dispatchable HARD lane per
+  # relay/references/hard-lanes.md — [HARD — meeting]/[HARD — decision gate]/[HARD — hands]
+  # are NOT). A recurring-audit-marked [HARD — pool] item with nothing new to audit
+  # (substantive_unaudited == false, reusing the id:365b logic) does NOT count — it is not
+  # an executable pool item this round. The JS-side demote-guard (id:9973) reads this: a
+  # `hard` verdict on a repo with open_hard_pool == 0 is demoted to surfaced, since the
+  # LLM shard `hard` judgment is non-deterministic and has wrongly dispatched repos whose
+  # only open HARD item was [HARD — decision gate] (observed 2026-06-24).
+  "open_hard_pool": int(os.environ.get("OPEN_HARD_POOL","0") or 0),
 }
 print(json.dumps(o))
 '
@@ -268,7 +279,31 @@ open_ids="$(printf '%s\n' "$roadmap" | grep -oP '^- \[ \].*<!-- id:\K[0-9a-f]{4}
 work_sig="$(printf '%s\n%s\n%s\n' "$open_ids" "$substantive_unaudited" "$nonckpt_shas" \
               | sha256sum | cut -c1-16)"
 
+# id:9973 — deterministic open_hard_pool count: open "- [ ]" items tagged EXACTLY
+# "[HARD — pool]" (the only pool-dispatchable HARD lane, per hard-lanes.md). A
+# recurring-audit-marked [HARD — pool] item (carrying <!-- relay:recurring-audit -->)
+# does NOT count when substantive_unaudited is false — it has nothing new to audit this
+# round and is therefore NOT an executable pool item (reuse the id:365b logic, same as
+# the shard's recurring-audit gate). The JS-side demote-guard (id:9973) reads this to
+# demote a `hard` verdict on a repo with open_hard_pool == 0.
+open_hard_pool=0
+if [[ -n "$roadmap" ]]; then
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    case "$line" in
+      *'- [ ]'*'[HARD — pool]'*)
+        # A recurring-audit item with nothing new to audit must NOT count.
+        if printf '%s' "$line" | grep -q 'relay:recurring-audit' \
+           && [[ "$substantive_unaudited" == false ]]; then
+          continue
+        fi
+        open_hard_pool=$((open_hard_pool + 1))
+        ;;
+    esac
+  done < <(printf '%s\n' "$roadmap" | grep -F -- '[HARD — pool]' | grep -F -- '- [ ]')
+fi
+
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap" \
      "$lock_only_unaudited" "$dirty_lock_only" "$is_finished" "$top_intensive" \
-     "$substantive_unaudited" "$work_sig"
+     "$substantive_unaudited" "$work_sig" "$open_hard_pool"
