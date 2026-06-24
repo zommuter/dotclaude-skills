@@ -932,3 +932,7 @@ id:71f2: lexer-aware workflow template-literal lint (lint-workflow-templates.mjs
 ## 2026-06-24 18:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:71f2 twin-tick genuine; closed 3 cross-ledger drifts (3eb5/a883/9221) by ticking TODO twins; suite 100/0, lint clean
+
+## 2026-06-24 20:58 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified id:2147 [HARD — pool] gate-detection-atomic-commit spec + TODO twin genuine (ledger-only, reused token); gaming-scan/roadmap-lint/relay-doctor clean; suite 100/0
