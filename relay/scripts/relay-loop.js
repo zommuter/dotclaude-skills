@@ -667,6 +667,15 @@ const prelude = await agent(
 if (prelude && prelude.stopRequested === true) {
   stopReason = 'user-stop'
   log('relay-loop: STOP sentinel — operator graceful stop; draining (prior wave already integrated), not dispatching a new wave')
+  // Persist the user-stop into RELAY_STATUS before short-circuiting: the normal end-of-round
+  // status write (~L1357) is skipped on this early return, so without this the "Stop reason"
+  // section would stay stale ("(none — drained cleanly)") even though the run returns
+  // stopReason="user-stop". snapshotState captures the module-level stopReason; the outer
+  // loop's `await statusTail` flushes this queued write. Set the fresh prelude timestamp/runId
+  // so the header isn't stale (discovery isn't built on this path).
+  state.runId = state.runId || prelude.runId
+  if (prelude.ts) state.ts = prelude.ts
+  scheduleStatusWrite(state)
   return { actionable: 0, produced: 0, userStop: true }
 }
 
