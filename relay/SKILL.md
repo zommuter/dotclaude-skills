@@ -20,6 +20,7 @@ Invocation:
 /relay review  [repo-list | --all]   # default: cwd repo only; --all (or a repo-list) = cross-repo sweep
 /relay next                          # auto-router: inspect the cwd repo's state and act (executor/review/human)
 /relay human   [repo-list | --all]   # interactive: cross-repo human-backlog triage
+/relay health  [repo | --all]        # relay-machinery health report (id:3eb5): runs relay-doctor.sh
 /relay executor                      # load the lean executor contract (cheap Sonnet sessions)
 /relay stop [--after N | --now]      # graceful drain-then-end of a RUNNING pool (id:c012)
 /relay --once                        # launch: dispatch one round, then stop (id:c012)
@@ -34,6 +35,28 @@ and follow its rules exactly; ignore everything below (orchestrator-only).
 
 Default `--all` means "confirmed OWN repos, by neediness, in waves of ≤5, until quota
 says stop" — resumable across turns via the state file, never all 36 at once.
+
+## `health` arg (relay-machinery health report) <!-- id:3eb5 -->
+
+`/relay health [<repo-dir> | --all]` runs `relay/scripts/relay-doctor.sh` and prints
+the report-only relay-health summary to the screen.
+
+- **No arg**: health-checks the cwd repo.
+- **`<repo-dir>`**: health-checks that specific repo path.
+- **`--all`**: health-checks every `classification = "own"` repo from `relay.toml`.
+
+The report collates: cross-ledger TODO↔ROADMAP checkbox drift (`orphan-scan.sh
+--cross-ledger`), ROADMAP grammar/lane violations (`roadmap-lint.sh`), reference-doc
+install completeness (id:69ef), and parked orphan branches (`relay-reconcile.sh
+--all`). It always exits 0 (report-only by default — pass `--strict` to relay-doctor
+directly for a nonzero-on-issues gate; see id:a883). Use this for ad-hoc diagnostics;
+the same checks also run as a `/relay review` sub-step.
+
+```bash
+/relay health           # cwd repo
+/relay health --all     # all own repos
+~/.claude/skills/relay/scripts/relay-doctor.sh [<repo>|--all] [--strict]  # direct
+```
 
 ## Default mode: autonomous pool
 
