@@ -63,7 +63,12 @@ if [[ "$mode" == "cross-ledger" ]]; then
     xok=''; [[ "$l" == *"<!-- xledger-ok:"* ]] && xok='1'
     while read -r tk; do
       [[ -z "$tk" ]] && continue
-      todo_state["$tk"]="$st"
+      # First-wins: the FIRST occurrence of a token is the authoritative (active)
+      # state. TODO.md is processed before TODO.archive.md (grep -h file order), so
+      # the active TODO.md entry wins over a reused/recycled id in TODO.archive.md.
+      # This prevents a recycled archive id from overwriting the current open-item
+      # state and producing a false-positive drift report (id:9221 fix).
+      [[ -n "${todo_state[$tk]+x}" ]] || todo_state["$tk"]="$st"
       [[ -n "$xok" ]] && todo_xledger_ok["$tk"]='1' || true
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
   done < <(grep -hE '^- \[[ xX]\] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
@@ -72,7 +77,8 @@ if [[ "$mode" == "cross-ledger" ]]; then
     xok=''; [[ "$l" == *"<!-- xledger-ok:"* ]] && xok='1'
     while read -r tk; do
       [[ -z "$tk" ]] && continue
-      roadmap_state["$tk"]="$st"
+      # First-wins: same rationale as the TODO loop above (id:9221).
+      [[ -n "${roadmap_state[$tk]+x}" ]] || roadmap_state["$tk"]="$st"
       [[ -n "$xok" ]] && todo_xledger_ok["$tk"]='1' || true
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
   done < <(grep -hE '^- \[[ xX]\] ' "$ROOT/ROADMAP.md" 2>/dev/null || true)
