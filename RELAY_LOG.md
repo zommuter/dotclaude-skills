@@ -903,3 +903,20 @@ execute: shipped the deterministic demote-guard for a `hard` verdict on a repo w
 ## 2026-06-24 17:25 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified c012/9973/9bec closures genuine, suite 96/0/0, gaming/lint/cross-ledger clean; 3 open [ROUTINE]
+
+## 2026-06-24 — executor (claude-sonnet-4-6)
+
+Worked id:9221, id:3eb5, id:a883 — all 3 open [ROUTINE] items:
+  id:9221: Fixed orphan-scan.sh --cross-ledger false-positive (archived/recycled id
+    overwriting active TODO.md state). Applied first-wins semantics when building
+    todo_state and roadmap_state maps — active file (TODO.md, processed first via
+    grep -h) wins over archive. New hermetic test covers both the reused-archive scenario
+    (a) and the prose-on-sibling-lines scenario (b), plus verifies genuine drift still caught.
+  id:3eb5: relay-doctor front-door wiring — added `/relay health` to SKILL.md invocation
+    block + a `## health arg` section documenting relay-doctor.sh; added step 4b to
+    relay/references/review.md routing findings to REVIEW_ME (report-only, never a block).
+  id:a883: relay-doctor --strict + quota-config sanity — added --strict flag (exits
+    nonzero when issues_total>0); new quota_config_check() validates RELAY_QUOTA_DECAY_7D
+    direction (START<END) and RELAY_QUOTA_THRESHOLD bounds; removed quota-config from the
+    "not-yet-wired" list (now wired). Full suite: 99 passed / 0 failed / 0 expected-red.
+Friction: none — all 3 items were cleanly bounded and testable within one session.
