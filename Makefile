@@ -47,7 +47,8 @@ relay_FILES := SKILL.md \
                scripts/handback-followup.py scripts/roadmap-archive.sh \
                scripts/roadmap-lint.sh scripts/redispatch-guard.mjs scripts/pool-args.mjs \
                scripts/relay-doctor.sh scripts/lint-workflow-templates.mjs \
-               scripts/commit-ledger.sh scripts/acquire-resource.sh
+               scripts/commit-ledger.sh scripts/acquire-resource.sh \
+               scripts/unpromoted-scan.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -59,7 +60,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/gather-repo-state.sh scripts/roadmap-archive.sh \
                scripts/roadmap-lint.sh scripts/relay-doctor.sh \
                scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
-               scripts/acquire-resource.sh
+               scripts/acquire-resource.sh scripts/unpromoted-scan.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -71,7 +72,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/gather-repo-state.sh scripts/roadmap-archive.sh \
                scripts/roadmap-lint.sh scripts/relay-doctor.sh \
                scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
-               scripts/acquire-resource.sh
+               scripts/acquire-resource.sh scripts/unpromoted-scan.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this

@@ -317,6 +317,19 @@ modes. Decide ONE route and take it:
 2. **Else, unaudited commits since the last relay checkpoint tag** (`git tag -l
    'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`, then commits after it) → run
    **`/relay review`** on this cwd repo (the per-repo default). Autonomous — do NOT ask.
+2a. **Else, a DRAINED ROADMAP that still has open TODO backlog** — when `ROADMAP.md` has
+   **no open `- [ ]` items** (routes 1–2 found nothing), do NOT conclude "drained": run
+   `relay/scripts/unpromoted-scan.sh` (id:2dea) and check the open `TODO.md` backlog.
+   Promoting TODO→ROADMAP is exactly handoff C2's job (the 2026-06-25 truncocraft miss: a
+   fully-`[x]` ROADMAP hid five open TODO items, so the repo read as drained for days). If
+   the scan reports any item → route to **`/relay handoff`** on this repo (promote the
+   backlog), NOT "human/idle". The scan is **lane-tag-agnostic** and labels each item:
+   `promote` (executable lane already tagged → directly promotable), `surface` (untagged /
+   `[HARD — meeting]` → handoff C2 lane-triages it, **never auto-promote with a guessed
+   lane**), `untracked` (an open checkbox with no `<!-- id -->` — the favicon-class gap;
+   mint an id via `append.sh new-id` first). NOTE: when ROADMAP still has open items the
+   un-promoted list is normal design-ledger backlog, not a routing signal — this route
+   fires only on a genuinely drained ROADMAP.
 3. **Else, a judgment box truly needing a human** — open `REVIEW_ME.md` `- [ ]` boxes,
    open `@manual` scenarios, or genuinely-chewy design — → route to **`human`** (the
    cross-repo human-backlog triage) or **`/meeting`**. This is the ONLY route that
@@ -326,8 +339,8 @@ Optimize for the fastest human-or-not call: do the autonomous executor/review wo
 **without asking**; only stop for the human when a judgment box genuinely requires it.
 **When unsure, prefer acting over asking** — a borderline-routine item runs as executor
 work, and the next `review` re-checks it (anti-gaming). If multiple routes apply, take
-the earliest in the list (execute → review → human), mirroring the default pool's
-verdict-class order.
+the earliest in the list (execute → review → handoff-promote → human), mirroring the
+default pool's verdict-class order.
 
 ## Stop mode
 

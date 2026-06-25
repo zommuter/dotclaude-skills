@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] Un-promoted TODO backlog is invisible to relay routing — detect + surface (don't report "drained") <!-- id:2dea -->
+- [x] [ROUTINE] Un-promoted TODO backlog is invisible to relay routing — detect + surface (don't report "drained") <!-- id:2dea -->
   - **Why** (LIVE evidence 2026-06-25, truncocraft): `/relay next`/`review`/handoff decide "is there work?" from OPEN ROADMAP items + unaudited commits ONLY. truncocraft's ROADMAP was fully `[x]`-closed while `TODO.md` held FIVE open executable items (`b1e4` removal ghost, `a7d2`/`c3f7` HARD-pool, `a03c` HARD-meeting, plus the favicon redo) — so every prior `/relay` run read the repo as DRAINED and the apex turn even reported "handoff would be a no-op." The whole job of handoff C2 is to PROMOTE TODO→ROADMAP, but nothing detects the un-promoted backlog, so it sat idle for days. This is the **second instance** (id:78ff was the first: a `[HARD — pool]` filed TODO-only the pool couldn't see).
   - **Gap vs the existing d9b0 promotion-tracking note** (ROADMAP.md line ~142, under the *closed* `d9b0`): that check only flags a TODO item *already carrying* an executable lane (`[ROUTINE]`/`[HARD — pool]`) whose `id:` lacks a ROADMAP twin. truncocraft's stranded items carried **NO lane tag at all** in TODO (raw backlog prose) → they slip past that check entirely. d9b0 was ticked `[x]` but this sub-point never actually shipped as a routing-visible signal. Re-open it here with the broader, evidenced scope.
   - **Acceptance**:
