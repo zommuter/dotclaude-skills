@@ -1,0 +1,67 @@
+# `resource:<name>` claim vocabulary — the shared serialization key (id:a643)
+
+**Single source of truth** for the `resource:<name>` claim keys that let the relay's
+`--intensive` scheduler serialize against contended physical resources. Two actors
+ACQUIRE the same key and therefore collide on it:
+
+- the relay pool's **intensive child** — `relay-loop.js` (~L1200) dispatches a unit
+  carrying an `[INTENSIVE — <resource>]` lane modifier (id:8d52) and does
+  `claim.sh acquire resource:<resource> --mode intensive`, stopping (handback) if busy;
+- a **standalone intensive job** running OUTSIDE the relay (e.g.
+  `~/.claude/logs/ai-codebench-drain.sh`'s detached `llama-server -ngl 99`), which now
+  acquires the SAME key for its lifetime via `relay/scripts/acquire-resource.sh`.
+
+Because both sides key on the identical `resource:<name>` string, a held claim by
+either side makes the other's `claim.sh acquire` exit non-zero — so two heavy loads
+can never run concurrently and OOM-kill each other ([[oom-local-model-session-kills]],
+the 2026-06-12 Gemma-26B 6-session kill).
+
+## The contract: the resource token is the `[INTENSIVE — <resource>]` token
+
+The `<resource>` in a `resource:<resource>` claim key MUST be byte-identical to the
+`<resource>` an item's `[INTENSIVE — <resource>]` lane tag carries (id:8d52,
+`hard-lanes.md` §"The orthogonal resource axis"). That is the whole mechanism: the
+relay derives its claim key from the item's tag, and a standalone job names the same
+token, so the two keys are the same string and the claim collides.
+
+| Resource token | What it serializes | Used by |
+|---|---|---|
+| `local-llm` | a single local GGUF / llama-server / llama-swap / ollama model load (the default `intensive = "local-llm"` repo coarse tag) | the relay intensive child; `ai-codebench-drain.sh` (and any future local-model drain) |
+| `gpu` | exclusive GPU use when the contention is the device itself rather than a specific model runtime | GPU-bound standalone jobs + any `[INTENSIVE — gpu]` item |
+
+The set is intentionally small — add a token here ONLY when a real second consumer
+needs to collide on it, and tag the corresponding ROADMAP items `[INTENSIVE — <token>]`
+with the same spelling. A typo'd token is NOT an error the tools can catch (the keys
+simply don't collide and the serialization silently fails) — so the spelling
+discipline lives here, in one doc both sides read.
+
+## Standalone-job wrapper: `acquire-resource.sh`
+
+A standalone intensive job composes the EXISTING `claim.sh` (id:ebfb) — it builds NO
+new lock:
+
+```bash
+# wrap a command for its whole lifetime (acquire → run → always-release on exit):
+relay/scripts/acquire-resource.sh local-llm --run drain-$$ -- ./ai-codebench-drain.sh
+
+# or manage the lifetime yourself (a long detached job):
+relay/scripts/acquire-resource.sh local-llm --acquire --run drain-$$   # exit 1 if busy
+#   …do the heavy work…
+relay/scripts/acquire-resource.sh local-llm --release --run drain-$$   # idempotent
+```
+
+Crash-safety: the claim's mtime-TTL + recorded PID (claim.sh §staleness) means a job
+that dies without releasing has its claim auto-expire on the next relay reap — a dead
+drain NEVER wedges the relay. Conversely, while the job is genuinely live the claim is
+fresh (the wrapper does not heartbeat a long bare-`--acquire` job, so a job expected to
+run past the TTL should either use the wrapped form, which keeps the process alive
+under the trap, or refresh via `claim.sh heartbeat resource:<name> --run <run>`).
+
+## Wiring the actual drain (out of THIS repo)
+
+`~/.claude/logs/ai-codebench-drain.sh` lives OUTSIDE this repo (it is a local,
+un-versioned operator script), so the drain's own one-line wrap — prefixing its
+`for` loop body / its invocation with `acquire-resource.sh local-llm --run drain-$$ --`
+— is applied where that file lives, not here. This repo ships the reusable primitive +
+vocabulary + the collision test; the per-job wrap is a one-liner the operator adds at
+the drain's home. (A relay child cannot commit a file outside its repo worktree.)
