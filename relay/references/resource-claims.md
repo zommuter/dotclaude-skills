@@ -35,6 +35,18 @@ with the same spelling. A typo'd token is NOT an error the tools can catch (the 
 simply don't collide and the serialization silently fails) — so the spelling
 discipline lives here, in one doc both sides read.
 
+**The token set is open-ended — non-LLM resources are valid too.** `[INTENSIVE]` is an
+orthogonal *resource* axis (id:8d52), not LLM-specific: any contended physical resource a
+unit should run alone against may name a token. Two such bespoke tokens are already in use
+(both currently on closed `mathematical-writing` items, so dormant): `lean` (a real
+`lake env lean` round-trip on a ~7 GB CoW Mathlib fixture — long cold start, large
+disk/RAM) and `xvfb-electron` (a headless VS Code/Electron host under a virtual
+framebuffer). These have NO standalone (outside-relay) consumer today, so they only ever
+serialize one relay intensive unit against another — but if such an item reopens, spell the
+token exactly as listed here so the keys collide. (Historical note: the original Lean item
+spelled it `xvfb/electron`; prefer the slash-free `xvfb-electron` going forward so the
+safekey is unambiguous.)
+
 ## Standalone-job wrapper: `acquire-resource.sh`
 
 A standalone intensive job composes the EXISTING `claim.sh` (id:ebfb) — it builds NO
