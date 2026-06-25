@@ -392,6 +392,29 @@ print('OK' if 0 < t <= 1 else 'OOB')
   log "quota-config issues=$q_issues"
 }
 
+# --- check 8: inbox routed dead-letters (id:678e slice 1, cross-repo once-only) ---
+# Reports routed inbox items whose target repo never ingested them + non-conforming
+# inbox entries. REPORT-ONLY (never writes — slice-2 auto-write is gated). Cross-repo
+# irrelevant to a single scanned repo, so it runs ONCE regardless of scope.
+routed_deadletter_check() {
+  echo "=== inbox routed dead-letters (scan-routed.sh, id:678e) ==="
+  local sr="$SCRIPTS_DIR/scan-routed.sh"
+  if [[ -x "$sr" ]]; then
+    local out
+    out="$(RELAY_TOML="$RELAY_TOML" SRC_DIR="$SRC_DIR" bash "$sr" 2>>"$LOG" || true)"
+    # The scan prints its own sections; surface its DEAD-LETTER/UNRESOLVED lines + count.
+    if [[ -n "$out" ]]; then
+      printf '%s\n' "$out" | grep -E '^(DEAD-LETTER|UNRESOLVED|NON-CONFORMING|missing-id|orphan|clean|scan-routed:)' || printf '%s\n' "$out"
+      local n; n="$(printf '%s\n' "$out" | grep -cE '^(DEAD-LETTER|UNRESOLVED)' || true)"
+      [[ "$n" -gt 0 ]] && issues_total=$((issues_total + n)) || true
+      log "routed-deadletters n=${n:-0}"
+    fi
+  else
+    echo "SKIP — scan-routed.sh not found at $sr (or no inbox)" >&2
+  fi
+  echo
+}
+
 # --- check 4: parked orphan sweep (cross-repo) ---------------------------------
 parked_orphans_check() {
   echo "=== parked orphan branches (relay-reconcile.sh --all) ==="
@@ -461,6 +484,7 @@ esac
 # --- cross-repo / once-only checks ---------------------------------------------
 refs_install_check
 parked_orphans_check
+routed_deadletter_check   # id:678e slice 1 — inbox routed dead-letters (report-only)
 quota_config_check   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + threshold bounds)
 
 # --- coverage honesty (D4, meeting 2026-06-24): never look falsely-green ---------
