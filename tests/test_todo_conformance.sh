@@ -122,4 +122,23 @@ for ref in review human handoff; do
 done
 pass "review/human/handoff references all surface the conformance check"
 
+# (g) c095 heading-as-item: a `## [LANE] … <!-- id -->` heading owns the item; its
+#     `- [ ] Open` / `- [x] Done` status sub-lines must NOT be flagged missing-id, and
+#     --fix must NOT mint an id onto a status marker.
+cat > "$WORK/heading.md" <<'EOF'
+# TODO
+
+## [ROUTINE] A heading-as-item that owns its lane+id <!-- id:9abc -->
+- [ ] Open
+- [x] earlier status
+EOF
+hbefore="$(cat "$WORK/heading.md")"
+out="$("$SH" "$WORK/heading.md" 2>/dev/null)"
+[[ -z "$(grep -vE '^\s*$' <<<"$out")" ]] || fail "(g) heading-as-item status sub-lines wrongly flagged:
+$out"
+"$SH" --fix "$WORK/heading.md" >/dev/null 2>&1 || fail "(g) --fix exited nonzero"
+[[ "$(cat "$WORK/heading.md")" == "$hbefore" ]] || fail "(g) --fix wrongly minted an id onto a heading-item status sub-line:
+$(cat "$WORK/heading.md")"
+pass "(g) c095 heading-as-item status sub-lines not flagged / not auto-fixed"
+
 echo "ALL PASS: id:3441 TODO/inbox conformance grammar + safe auto-fix + wiring"

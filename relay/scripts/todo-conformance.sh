@@ -105,19 +105,39 @@ findings=0 fixed=0
 out_lines=()
 declare -a fix_lines=()   # 1-based line numbers needing a minted id
 
-lineno=0
-while IFS= read -r line || [[ -n "$line" ]]; do
-  lineno=$((lineno+1))
-  if [[ "$inbox" -eq 1 ]]; then
-    cls="$(classify_inbox "$line")"
-  else
-    cls="$(classify_todo "$line")"
-  fi
-  [[ -z "$cls" ]] && continue
-  findings=$((findings+1))
-  out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
-  [[ "$cls" == "missing-id" && "$fix" -eq 1 ]] && fix_lines+=("$lineno")
-done < "$path"
+# scan_path: walk $path, populate out_lines[] / findings / fix_lines[]. Tracks the
+# heading-as-item state (id:c095) so a `- [ ]/[x]` status sub-line under a
+# `## [LANE] … <!-- id -->` heading-item is NOT flagged/auto-fixed (the heading owns
+# the id). `$1`=collect-fix (1 → record missing-id line numbers for --fix).
+scan_path() {
+  local collect_fix="$1" line cls lineno=0 heading_is_item=0
+  findings=0; out_lines=(); fix_lines=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    lineno=$((lineno+1))
+    if [[ "$inbox" -eq 0 ]]; then
+      if [[ "$line" =~ ^#{1,6}[[:space:]] ]]; then
+        # A section heading that carries an id token (or a [ROUTINE]/[HARD lane] tag)
+        # IS a heading-as-item; a plain `## Current` heading is not.
+        if grep -qP '<!-- id:[0-9a-f]{4}[-a-z0-9]* -->' <<<"$line" \
+           || [[ "$line" == *'[ROUTINE]'* || "$line" == *'[HARD'* ]]; then
+          heading_is_item=1
+        else
+          heading_is_item=0
+        fi
+      elif [[ "$heading_is_item" -eq 1 && "$line" =~ ^-\ \[[\ xX]\]\  ]]; then
+        continue   # status sub-line of a heading-as-item — not a separate item
+      fi
+    fi
+    if [[ "$inbox" -eq 1 ]]; then cls="$(classify_inbox "$line")"; else cls="$(classify_todo "$line")"; fi
+    [[ -z "$cls" ]] && continue
+    findings=$((findings+1))
+    out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
+    [[ "$cls" == "missing-id" && "$collect_fix" -eq 1 ]] && fix_lines+=("$lineno")
+  done < "$path"
+  return 0   # the while's EOF-exit status (1) must not become scan_path's return (set -e)
+}
+
+scan_path "$fix"
 
 # --- AUTO-FIX: append a minted id to each well-formed open item missing one --------------
 # Only the missing-id class (never orphan). flock the file; mint via append.sh new-id.
@@ -153,16 +173,7 @@ if [[ "$findings" -gt 0 ]]; then
   # Re-derive the post-fix surface: missing-id lines that were just fixed are no longer
   # reported (so a --fix run shows only what remains for a human).
   if [[ "$fix" -eq 1 && "$fixed" -gt 0 ]]; then
-    out_lines=()
-    findings=0
-    lineno=0
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      lineno=$((lineno+1))
-      if [[ "$inbox" -eq 1 ]]; then cls="$(classify_inbox "$line")"; else cls="$(classify_todo "$line")"; fi
-      [[ -z "$cls" ]] && continue
-      findings=$((findings+1))
-      out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
-    done < "$path"
+    scan_path 0   # re-derive the post-fix surface (fixed missing-id lines now have ids)
     echo "todo-conformance: auto-fixed $fixed missing-id item(s) in $path" >&2
   fi
   [[ "${#out_lines[@]}" -gt 0 ]] && printf '%s\n' "${out_lines[@]}"

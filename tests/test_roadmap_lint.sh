@@ -97,4 +97,46 @@ set -e
 [[ "$rc_ok" -eq 0 ]] || fail "lint should exit zero on a fully conforming ROADMAP"
 pass "lint is a clean zero-exit no-op on a conforming ROADMAP"
 
-echo "ALL PASS: roadmap grammar lint (roadmap:09a3)"
+# --- c095: heading-as-item convention (collaib-shaped) -----------------------
+# A `## [LANE] Title <!-- id -->` heading IS the work item; its `- [ ] Open` /
+# `- [x] Done` status sub-lines are NOT separate items and must NOT be flagged.
+hi="$tmp/heading_item.md"
+cat > "$hi" <<'EOF'
+# Roadmap
+
+## Items
+
+## [ROUTINE] A heading-as-item that owns its lane+id <!-- id:abcd -->
+- [ ] Open
+- [x] earlier status
+
+## [HARD — pool] Another heading-item <!-- id:bcde -->
+- [ ] Open
+EOF
+set +e
+"$LINT" "$hi" >/dev/null 2>&1
+rc_hi=$?
+set -e
+[[ "$rc_hi" -eq 0 ]] || fail "c095: heading-as-item status sub-lines must NOT be flagged (got nonzero)"
+pass "c095: heading-as-item (`## [LANE] … <!-- id -->`) status sub-lines are not flagged"
+
+# But a heading-as-item MISSING its id is still a violation (nothing hides).
+hbad="$tmp/heading_item_noid.md"
+cat > "$hbad" <<'EOF'
+# Roadmap
+
+## Items
+
+## [ROUTINE] A heading-item with NO id token
+- [ ] Open
+EOF
+set +e
+out_hbad="$("$LINT" "$hbad" 2>&1)"
+rc_hbad=$?
+set -e
+[[ "$rc_hbad" -ne 0 ]] || fail "c095: a heading-as-item missing its id must be flagged"
+grep -qi 'heading-as-item MISSING its id' <<<"$out_hbad" || fail "c095: missing-id heading-item not reported with the right reason:
+$out_hbad"
+pass "c095: a heading-as-item missing its id IS flagged (positive grammar preserved)"
+
+echo "ALL PASS: roadmap grammar lint (roadmap:09a3) + heading-as-item (id:c095)"

@@ -102,14 +102,31 @@ is_exempt_heading() {
 violations=0
 report=""
 in_exempt_section=0
+heading_is_item=0
 
 while IFS= read -r line; do
   # Track the active/exempt section from headings.
   if [[ "$line" =~ ^##+[[:space:]] ]]; then
     if is_exempt_heading "$line"; then
-      in_exempt_section=1
+      in_exempt_section=1; heading_is_item=0
     else
       in_exempt_section=0
+      # Heading-as-item (id:c095): a `## [LANE] Title <!-- id -->` heading IS the work
+      # item — it owns the lane+id, and its child `- [ ]`/`- [x]` lines are STATUS
+      # markers, not separate items (collaib's convention). Recognize it by a class tag
+      # in the heading; its `- [ ]` children are then skipped below. The heading itself
+      # must still carry an id (positive grammar — a heading-item missing its id is a
+      # violation, so nothing hides).
+      if [[ "$line" =~ $class_re ]]; then
+        heading_is_item=1
+        if ! [[ "$line" =~ $id_re ]]; then
+          violations=$((violations + 1))
+          report+="  - [<no id>] heading-as-item MISSING its id token"$'\n'
+          report+="      ${line}"$'\n'
+        fi
+      else
+        heading_is_item=0
+      fi
     fi
     continue
   fi
@@ -117,6 +134,10 @@ while IFS= read -r line; do
   # Only TOP-LEVEL open checkbox items (`- [ ] …`, no leading indent) are linted.
   # Closed `- [x]` and indented continuation lines are skipped.
   [[ "$line" =~ ^-[[:space:]]\[[[:space:]]\][[:space:]] ]] || continue
+
+  # Status sub-line of a heading-as-item (id:c095) — the heading already owns the
+  # lane+id, so its bare `- [ ] Open` / `- [x] Done` status marker is not a violation.
+  [[ "$heading_is_item" -eq 1 ]] && continue
 
   # Section-exempt items are explicitly parked → never linted.
   [[ "$in_exempt_section" -eq 1 ]] && continue
