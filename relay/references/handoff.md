@@ -32,7 +32,16 @@ user-facing docs are part of the docs checkpoint, not an afterthought (review
 step 4 audits them as drift surface from then on). Commit
 `relay(handoff): C1 docs`.
 
-**C2 — roadmap.** Write `ROADMAP.md` from the template: items sized for one Sonnet
+**C2 — roadmap.** C2's FIRST check is the open `TODO.md` backlog, **not** the
+ROADMAP open-count: **"ROADMAP closed" ≠ "nothing to hand off"** (id:2dea, the
+2026-06-25 truncocraft miss — a fully-`[x]` ROADMAP hid five open TODO items and the
+repo read as "drained" for days). Run `relay/scripts/unpromoted-scan.sh <repo>` to list
+every open TODO id with no ROADMAP twin **regardless of lane tag** (the gap that bit
+truncocraft: its items were untagged, so the lane-gated `orphan-scan.sh --promotion`
+missed them). `promote`-disposition items get sized into ROADMAP here; `surface` ones
+get lane-triaged below — never auto-promote an untagged item with a guessed lane.
+
+Write `ROADMAP.md` from the template: items sized for one Sonnet
 session, each self-contained with acceptance criteria and an explicit done-check
 command. Tag each `[ROUTINE]` (executor) or `[HARD — strong model]`. Assign one
 `id:XXXX` per item — **single-id-two-views (D2): if a roadmap item promotes work the

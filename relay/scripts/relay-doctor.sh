@@ -30,6 +30,10 @@
 #                              every open `- [ ]` item that is not [ROUTINE] or a
 #                              recognized [HARD — <lane>] (i.e. not dispatchable AND not
 #                              explicitly surfaced); its findings ARE the coverage report.
+#   6. un-promoted backlog   — relay/scripts/unpromoted-scan.sh (per-repo, id:2dea):
+#                              open TODO.md ids with no ROADMAP twin, lane-tag-AGNOSTIC,
+#                              so a closed-ROADMAP/open-TODO repo reads "needs handoff",
+#                              not "drained" (the truncocraft miss).
 #
 # Usage:
 #   relay-doctor.sh [SCOPE]
@@ -47,6 +51,7 @@ set -euo pipefail
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROADMAP_LINT="$SCRIPTS_DIR/roadmap-lint.sh"
 RECONCILE="$SCRIPTS_DIR/relay-reconcile.sh"
+UNPROMOTED_SCAN="$SCRIPTS_DIR/unpromoted-scan.sh"      # id:2dea — lane-tag-agnostic un-promoted backlog
 REPO_ROOT="$(cd "$SCRIPTS_DIR/../.." && pwd)"          # dotclaude-skills repo root
 ORPHAN_SCAN="$REPO_ROOT/meeting/orphan-scan.sh"
 # Allow an override so the orphan-scan path resolves when installed via symlink too.
@@ -182,6 +187,44 @@ check_repo() {
     fi
   else
     echo "SKIP — roadmap-lint.sh not found at $ROADMAP_LINT" >&2
+  fi
+
+  # --- check 6: un-promoted TODO backlog (id:2dea) ----------------------------
+  # LANE-TAG-AGNOSTIC: open TODO.md ids with no ROADMAP twin. A closed-ROADMAP /
+  # open-TODO repo surfaces "N un-promoted — needs a handoff pass" INSTEAD of reading
+  # as "drained". The truncocraft miss (2026-06-25, 2nd instance of id:78ff).
+  echo "--- un-promoted TODO backlog (unpromoted-scan.sh, id:2dea) ---"
+  if [[ -x "$UNPROMOTED_SCAN" ]]; then
+    local up
+    up="$(bash "$UNPROMOTED_SCAN" "$path" 2>>"$LOG" || true)"
+    up="$(printf '%s' "$up" | grep -vE '^[[:space:]]*$' || true)"
+    if [[ -n "$up" ]]; then
+      local nprom nsurf nuntr ntot ropen
+      nprom="$(printf '%s\n' "$up" | grep -cP '\tpromote\t' || true)"
+      nsurf="$(printf '%s\n' "$up" | grep -cP '\tsurface\t' || true)"
+      nuntr="$(printf '%s\n' "$up" | grep -cP '\tuntracked\t' || true)"
+      ntot=$((nprom + nsurf + nuntr))
+      # The truncocraft signal is DRAINED-ROADMAP + open-TODO, NOT raw un-promoted count:
+      # in a design-ledger repo most TODO items are deliberately never promoted, so an
+      # open ROADMAP means the un-promoted list is informational backlog, not drift.
+      ropen="$(grep -cE '^- \[[ ]\] ' "$path/ROADMAP.md" 2>/dev/null || true)"
+      ropen="${ropen:-0}"
+      if [[ "$ropen" -eq 0 ]]; then
+        # DRAINED ROADMAP but open TODO — the repo is NOT drained; it needs a handoff pass.
+        printf '%s\n' "$up"
+        printf 'ROADMAP is DRAINED (0 open items) but TODO has %s un-promoted item(s) — repo is NOT drained, needs a HANDOFF pass (%s promote, %s surface, %s untracked/no-id).\n' \
+          "$ntot" "$nprom" "$nsurf" "$nuntr"
+        repo_issues=$((repo_issues + ntot))
+      else
+        # Active design ledger: list is informational; run unpromoted-scan.sh for it.
+        printf 'ROADMAP has %s open item(s); %s open TODO item(s) lack a ROADMAP twin (%s promote, %s surface, %s untracked) — informational handoff-C2 backlog, NOT counted as drift. Run unpromoted-scan.sh %s for the list.\n' \
+          "$ropen" "$ntot" "$nprom" "$nsurf" "$nuntr" "$path"
+      fi
+    else
+      echo "clean (every open TODO id has a ROADMAP twin)"
+    fi
+  else
+    echo "SKIP — unpromoted-scan.sh not found at $UNPROMOTED_SCAN" >&2
   fi
 
   if [[ "$repo_issues" -gt 0 ]]; then
