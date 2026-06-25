@@ -21,14 +21,18 @@
 #       Acquire `resource:<resource>` (mode=intensive), run <command>, then ALWAYS
 #       release on exit (success, failure, or signal). If the resource is already
 #       held by a live claim, exit 1 WITHOUT running the command (the relay-blind
-#       double-load is exactly what we refuse). --run defaults to `standalone-<pid>`;
-#       the claim's mtime-TTL + PID covers a crash (a dead job's claim auto-expires
-#       per claim.sh's staleness reap — it never wedges the relay).
+#       double-load is exactly what we refuse). --run defaults to `standalone-<pid>`.
+#       The claim anchors its liveness on this wrapper's own PID (id:1b11), so a job
+#       that runs PAST the claim mtime-TTL is NOT reaped mid-run — yet a crashed job's
+#       claim auto-expires the instant its PID dies (it never wedges the relay).
 #
-#   acquire-resource.sh <resource> --acquire [--run RUNID]
+#   acquire-resource.sh <resource> --acquire [--run RUNID] [--pid PID]
 #       Bare acquire (no wrapped command) for a job that manages its own lifetime —
 #       prints the safekey on stdout, exit 0; exit 1 if busy. Pair with a matching
 #       `claim.sh release resource:<resource> --run <runid>` (or --release below).
+#       --pid PID (id:1b11) ADOPTS an ALREADY-RUNNING job: the claim stays live while
+#       that PID lives (past the TTL), then auto-expires when it dies. This is how you
+#       make a drain that is ALREADY running visible to the relay after the fact.
 #   acquire-resource.sh <resource> --release [--run RUNID]
 #       Bare release (run-scoped). Idempotent.
 #
@@ -56,12 +60,14 @@ esac
 key="resource:$resource"
 run=""
 mode="cmd"   # cmd | acquire | release
+pidarg=""    # id:1b11 — explicit PID to anchor the claim's liveness on
 
 # Parse leading flags up to an optional `--`, then the wrapped command.
 cmd=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --run)     run="${2:-}"; shift 2 ;;
+    --pid)     pidarg="${2:-}"; shift 2 ;;
     --acquire) mode="acquire"; shift ;;
     --release) mode="release"; shift ;;
     --) shift; cmd=("$@"); break ;;
@@ -72,6 +78,18 @@ done
 
 [ -n "$run" ] || run="standalone-$$"
 
+# id:1b11 — the live_pid the claim anchors on (so a >TTL job isn't reaped mid-run):
+#   --pid PID  → adopt an ALREADY-RUNNING job (e.g. a drain whose PID you looked up);
+#   cmd form   → default to THIS wrapper's own $$ (it stays alive for the command's whole
+#                lifetime under the trap), so wrapped long jobs are durable with no heartbeat;
+#   bare --acquire with no --pid → none (falls back to mtime-TTL + manual heartbeat/release).
+case "$mode" in
+  cmd)     live_pid="${pidarg:-$$}" ;;
+  acquire) live_pid="$pidarg" ;;
+  *)       live_pid="" ;;
+esac
+pidopt=(); [ -n "$live_pid" ] && pidopt=(--pid "$live_pid")
+
 case "$mode" in
   release)
     "$CLAIM" release "$key" --run "$run"
@@ -79,23 +97,23 @@ case "$mode" in
     exit 0
     ;;
   acquire)
-    if ! "$CLAIM" acquire "$key" --run "$run" --mode intensive >/dev/null; then
+    if ! "$CLAIM" acquire "$key" --run "$run" --mode intensive "${pidopt[@]}" >/dev/null; then
       echo "acquire-resource.sh: $key is BUSY (held by another job/relay run) — not acquiring" >&2
       log "acquire REFUSED $key run=$run (busy)"
       exit 1
     fi
-    log "acquire $key run=$run"
-    "$CLAIM" acquire "$key" --run "$run" --mode intensive  # re-print safekey on stdout (re-entrant)
+    log "acquire $key run=$run live_pid=${live_pid:-none}"
+    "$CLAIM" acquire "$key" --run "$run" --mode intensive "${pidopt[@]}"  # re-print safekey on stdout (re-entrant)
     exit 0
     ;;
   cmd)
     [ "${#cmd[@]}" -gt 0 ] || { echo "acquire-resource.sh: a <command> (or --acquire/--release) is required" >&2; exit 2; }
-    if ! "$CLAIM" acquire "$key" --run "$run" --mode intensive >/dev/null; then
+    if ! "$CLAIM" acquire "$key" --run "$run" --mode intensive "${pidopt[@]}" >/dev/null; then
       echo "acquire-resource.sh: $key is BUSY (held by another job/relay run) — refusing to run a SECOND intensive load" >&2
       log "wrap REFUSED $key run=$run (busy)"
       exit 1
     fi
-    log "wrap acquire $key run=$run cmd=${cmd[*]}"
+    log "wrap acquire $key run=$run live_pid=${live_pid:-none} cmd=${cmd[*]}"
     # ALWAYS release on exit — success, failure, or signal (run-scoped, idempotent).
     trap '"$CLAIM" release "$key" --run "$run" >/dev/null 2>&1 || true; log "wrap release $key run='"$run"'"' EXIT INT TERM
     "${cmd[@]}"

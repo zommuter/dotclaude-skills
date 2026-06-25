@@ -9,12 +9,15 @@
 # (handback nuance for stale-with-live-worktree is the relay-loop's job, not this).
 #
 # Subcommands:
-#   acquire <key> [--repo R] [--run RUNID] [--mode M] [--item ID] [--worktree WT]
+#   acquire <key> [--repo R] [--run RUNID] [--mode M] [--item ID] [--worktree WT] [--pid PID]
 #       Under flock: if claims/<safekey>.json exists AND is LIVE (fresh mtime within TTL,
-#       OR id:7570 a long child whose held --worktree has commits beyond main), print the
-#       holder JSON to stderr and exit 1 (already claimed). Otherwise (absent/stale/dead)
-#       write the shard and exit 0, printing the safekey on stdout. --worktree records the
-#       child's worktree so liveness can outlive the TTL for a genuinely-working long child.
+#       OR id:7570 a long child whose held --worktree has commits beyond main, OR id:1b11 a
+#       recorded --pid that is still alive), print the holder JSON to stderr and exit 1
+#       (already claimed). Otherwise (absent/stale/dead) write the shard and exit 0, printing
+#       the safekey on stdout. --worktree records the child's worktree so liveness can outlive
+#       the TTL for a genuinely-working long child. --pid (id:1b11) anchors liveness to a
+#       standalone long job with NO worktree (e.g. a multi-hour local-LLM drain): the claim
+#       stays live while that PID lives and auto-expires when it dies.
 #   release <key>
 #       Under flock: move claims/<safekey>.json → claims.done/ if present. Idempotent
 #       (exit 0 even when absent).
@@ -84,13 +87,32 @@ worktree_working() {
   return 0
 }
 
+# pid_alive <file>: id:1b11 — true if the claim records a numeric live_pid that is still a
+# live process (kill -0). Lets a STANDALONE long-running job that has NO worktree to anchor
+# on (e.g. a multi-hour local-LLM drain adopted via acquire-resource.sh --pid) keep its
+# lease past the mtime TTL for as long as the process actually lives, then auto-expire the
+# instant it dies. Keyed on the DEDICATED live_pid field (NOT the incidental .pid = claim.sh's
+# own $$), so a claim only opts into PID-anchored liveness when an explicit --pid was passed —
+# existing callers (no --pid → no live_pid) are wholly unaffected, no PID-reuse exposure.
+# CAVEAT: PID reuse — a recycled live_pid reads as alive; this only ever EXTENDS a claim's
+# life (conservative/safe: at worst the relay defers an intensive unit it needn't have).
+pid_alive() {
+  local f="$1" pid
+  pid="$(jq -r '.live_pid // ""' "$f" 2>/dev/null)" || pid=""
+  [ -n "$pid" ] || return 1
+  case "$pid" in *[!0-9]*) return 1 ;; esac   # numeric only
+  kill -0 "$pid" 2>/dev/null
+}
+
 # is_live <file>: a claim is live if its mtime is fresh OR (id:7570) its worktree is still
-# working. This is the single liveness predicate peek/reap/acquire share.
+# working OR (id:1b11) its recorded live_pid is still alive. Single liveness predicate
+# peek/reap/acquire share.
 is_live() {
   local f="$1"
   [ -f "$f" ] || return 1
   is_fresh "$f" && return 0
-  worktree_working "$f"
+  worktree_working "$f" && return 0
+  pid_alive "$f"
 }
 
 cmd="${1:-}"; shift || true
@@ -99,7 +121,7 @@ case "$cmd" in
   acquire)
     key="${1:-}"; shift || true
     [ -n "$key" ] || { echo "claim.sh acquire: <key> required" >&2; exit 2; }
-    repo=""; run=""; mode=""; item=""; worktree=""
+    repo=""; run=""; mode=""; item=""; worktree=""; live_pid=""
     while [ $# -gt 0 ]; do
       case "$1" in
         --repo)     repo="${2:-}";     shift 2 ;;
@@ -107,6 +129,7 @@ case "$cmd" in
         --mode)     mode="${2:-}";     shift 2 ;;
         --item)     item="${2:-}";     shift 2 ;;
         --worktree) worktree="${2:-}"; shift 2 ;;
+        --pid)      live_pid="${2:-}"; shift 2 ;;   # id:1b11 — PID to anchor liveness on (a standalone long job with no worktree)
         *) echo "claim.sh acquire: unknown arg '$1'" >&2; exit 2 ;;
       esac
     done
@@ -135,10 +158,15 @@ case "$cmd" in
     if [ -z "$worktree" ] && [ -f "$shard" ]; then
       worktree="$(jq -r '.worktree // ""' "$shard" 2>/dev/null)" || worktree=""
     fi
+    # id:1b11 — preserve an existing live_pid on a re-entrant refresh when this call didn't
+    # pass --pid, so a heartbeat-via-acquire doesn't drop the standalone-job liveness anchor.
+    if [ -z "$live_pid" ] && [ -f "$shard" ]; then
+      live_pid="$(jq -r '.live_pid // ""' "$shard" 2>/dev/null)" || live_pid=""
+    fi
     jq -n --arg key "$key" --arg repo "$repo" --arg run "$run" \
           --arg pid "$$" --arg mode "$mode" --arg item "$item" --arg ts "$ts" \
-          --arg worktree "$worktree" \
-      '{key:$key, repo:$repo, runId:$run, pid:$pid, mode:$mode, item:$item, worktree:$worktree, claimed_at:$ts}' \
+          --arg worktree "$worktree" --arg live_pid "$live_pid" \
+      '{key:$key, repo:$repo, runId:$run, pid:$pid, mode:$mode, item:$item, worktree:$worktree, live_pid:$live_pid, claimed_at:$ts}' \
       >"$tmp"
     mv "$tmp" "$shard"
     flock -u 9 || true
