@@ -53,6 +53,7 @@ cat > "$FIX/TODO.md" <<'EOF'
 - [ ] (d) plain routine, never promoted [ROUTINE] <!-- id:dddd -->
 - [x] (e) closed in TODO — not open, must be ignored <!-- id:eeee -->
 - [ ] (f) favicon-class: an open checkbox item with NO id token at all
+- [ ] (g) a deliberate forward-flag note, marked exempt <!-- lint-ok: forward-flag note -->
 EOF
 git -C "$FIX" add -A; git -C "$FIX" commit -qm init
 
@@ -91,6 +92,12 @@ pass "(e) closed [x] TODO line ignored"
 grep -qP '\t----\tuntracked\t.*favicon-class' <<<"$out" || fail "(f) id-less open checkbox not reported as untracked:
 $out"
 pass "(f) open checkbox with no id token → reported (untracked, id column ----)"
+
+# (g) a lint-ok-annotated open checkbox is a deliberate non-item → NEVER reported (not even
+#     as untracked), consistent with todo-conformance.sh's exempt().
+grep -qi 'forward-flag note' <<<"$out" && fail "(g) lint-ok-marked line wrongly reported as un-promoted:
+$out"
+pass "(g) lint-ok-marked open checkbox is exempt (not reported)"
 
 # (2) TSV shape: <repo>\t<id>\t<disposition>\t<title>, repo column is the fixture name.
 fixbase="$(basename "$FIX")"

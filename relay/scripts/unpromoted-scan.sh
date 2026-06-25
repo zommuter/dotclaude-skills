@@ -125,6 +125,11 @@ scan_repo() {
 
   local repo_findings=0 line token disposition title
   while IFS= read -r line; do
+    # Exempt intentional non-items (consistent with todo-conformance.sh's exempt()): a line
+    # marked <!-- lint-ok: … --> or an intentional cross-repo pointer <!-- ref:XXXX --> is a
+    # deliberate non-task, not un-promoted work — never report it (incl. as `untracked`).
+    [[ "$line" == *"<!-- lint-ok:"* ]] && continue
+    grep -qP '<!-- ref:[0-9a-f]{4} -->' <<<"$line" && continue
     token="$(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$line" | head -1 || true)"
     if [[ -z "$token" ]]; then
       # No id token → cannot be correlated to ROADMAP at all (the favicon-class blind
