@@ -141,4 +141,35 @@ $out"
 $(cat "$WORK/heading.md")"
 pass "(g) c095 heading-as-item status sub-lines not flagged / not auto-fixed"
 
+# (h) A SECTION heading that carries an id for batch-tracking but NO lane tag
+#     (`## [HUMAN] … <!-- id:1ef9 -->`) is NOT a heading-as-item — its children are REAL
+#     items that must still be linted (the zomni regression: an id-bearing section
+#     wrongly hid 9 real items).
+cat > "$WORK/section_id.md" <<'EOF'
+# TODO
+
+## [HUMAN] — privileged steps (run as one batch) <!-- id:1ef9 -->
+- [ ] a real item with no id tag
+- [ ] another real item [ROUTINE] <!-- id:7777 -->
+EOF
+out="$("$SH" "$WORK/section_id.md" 2>/dev/null)"
+grep -qP '^missing-id\t.*a real item with no id tag' <<<"$out" \
+  || fail "(h) an id-bearing SECTION heading wrongly hid its real child items:
+$out"
+pass "(h) id-bearing section heading (no lane) does NOT hide real child items"
+
+# (i) An item with a NON-canonical inline id (`(id:560c)`) must NOT be auto-minted a second
+#     id by --fix (that would create a duplicate); --fix leaves it untouched + warns.
+cat > "$WORK/inline_id.md" <<'EOF'
+# TODO
+
+## Current
+- [ ] **caddy receiver (id:560c)** — deferred, needs sudo
+EOF
+ibefore="$(cat "$WORK/inline_id.md")"
+"$SH" --fix "$WORK/inline_id.md" >/dev/null 2>&1 || fail "(i) --fix exited nonzero"
+[[ "$(cat "$WORK/inline_id.md")" == "$ibefore" ]] || fail "(i) --fix double-minted an id onto an inline-id item:
+$(cat "$WORK/inline_id.md")"
+pass "(i) inline-id item is NOT double-minted by --fix (duplicate-id guard)"
+
 echo "ALL PASS: id:3441 TODO/inbox conformance grammar + safe auto-fix + wiring"
