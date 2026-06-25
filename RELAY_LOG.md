@@ -944,3 +944,7 @@ review: id:a643 [HARD — pool] standalone-GPU resource-claim ledger addition ve
 ## 2026-06-24 21:52 — reviewer (claude-opus-4-8)
 
 Recover stranded id:2147 implementation (commit-ledger.sh + review/human §5 wiring + test) that the pool's hard child built but the dirty-guard deferred at integration (my concurrent id:a643 edit made main dirty). Verified 101/101 green. Superseded gate-detection decomposition (fce2/6910/1339) stashed, not landed.
+
+## 2026-06-25 11:23 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: empty diff window since relay-ckpt-20260624-2152 (only the checkpoint RELAY_LOG paragraph); 101/101 green, roadmap-lint+relay-doctor clean, no flags, 0 open ROUTINE
