@@ -8,6 +8,9 @@
 # of the dotclaude-skills TODO found a bare `placeholder` line and a checkbox-less pointer
 # bullet that NO tool saw — exactly the silent backlog this closes.
 #
+# This script DETECTS (classes: missing-id / orphan). To RESOLVE a finding, apply the
+# owner-approved policies P1–P4 in relay/references/todo-conversion-policies.md.
+#
 # THE TODO GRAMMAR — a top-level (NON-indented) non-blank line is CONFORMING iff it is:
 #   • a markdown header            `^#{1,6} …`
 #   • an HTML-comment-only line    `^<!-- … -->$`

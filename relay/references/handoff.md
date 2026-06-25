@@ -46,8 +46,11 @@ Relocate every `orphan` prose line to its proper home: design rationale/intros �
 `docs/` or `ARCHITECTURE.md`; relay handoff/review log paragraphs → `RELAY_LOG.md`;
 a real task hiding in prose → a proper `- [ ]` item (reuse/mint its id); genuine cruft →
 delete. `<!-- lint-ok: <reason> -->` is reserved for a deliberate non-item marker (e.g. a
-cross-repo `<!-- ref:XXXX -->` pointer), NOT a license to keep prose in TODO.md. NEVER
-block on this — auto-fix what is safe, relocate/surface the rest. Then run
+cross-repo `<!-- ref:XXXX -->` pointer), NOT a license to keep prose in TODO.md. **Resolve
+each finding by the owner-approved policies in `references/todo-conversion-policies.md`**
+(P1 non-canonical ids / P2 stale-dup / P3 relocate-by-type / P4 status-as-task; flag genuine
+task/identity ambiguity to REVIEW_ME, never guess). NEVER block on this — auto-fix what is
+safe, relocate/surface the rest. Then run
 `relay/scripts/unpromoted-scan.sh <repo>` to list
 every open TODO id with no ROADMAP twin **regardless of lane tag** (the gap that bit
 truncocraft: its items were untagged, so the lane-gated `orphan-scan.sh --promotion`

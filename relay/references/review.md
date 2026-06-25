@@ -125,11 +125,12 @@ violations, missing reference-doc installs, parked orphan branches):
   that is not a header, an HTML comment, or a well-formed id'd checkbox item — work that
   would otherwise hide from routing. **AUTO-FIX the safe class, surface the rest, NEVER
   block** (user directive 2026-06-25): run `todo-conformance.sh --fix "$(pwd)/TODO.md"`
-  to mint+append ids onto well-formed open items missing one (the `missing-id` class), and
-  add ONE REVIEW_ME box per remaining `orphan` line (`[ ] TODO:NN non-conforming — <text>:
-  convert to a `- [ ]` item, delete, or annotate `<!-- lint-ok: <reason> -->``). The
-  `--fix` edit is committed with the step-5 ledger commit. Do NOT auto-convert orphan prose
-  to tasks — intent is unknowable; that is the human's call.
+  to mint+append ids onto well-formed open items missing one (the `missing-id` class), then
+  resolve each remaining `orphan`/`missing-id` by the owner-approved policies in
+  `references/todo-conversion-policies.md` (P1–P4). Add ONE REVIEW_ME box per finding you
+  cannot resolve without guessing intent (genuine task-existence / same-or-sibling-id
+  ambiguity) — never fabricate a task or auto-pick a canonical id. The `--fix` + safe
+  policy edits commit with the step-5 ledger commit.
 
 If relay-doctor finds ZERO issues, note "relay-doctor: clean" in the session log;
 no REVIEW_ME boxes are added.
