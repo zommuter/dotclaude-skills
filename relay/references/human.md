@@ -43,6 +43,20 @@ an open item with NO class tag at all (invisible to BOTH the loop AND triage) an
 malformed/unknown lanes. A nonzero lint exit means a ROADMAP item needs a lane/id assigned
 at the source — surface it on the "you fix these at source" list (do NOT auto-rewrite).
 
+**TODO grammar-lint each own repo too (id:3441).** Run `scripts/todo-conformance.sh --fix
+<repo>/TODO.md` across the same repos — the TODO-side sibling of roadmap-lint. It AUTO-FIXES
+the safe class (an open checkbox item missing an id → mints+appends one) and SURFACES every
+`orphan` line (bare prose, a checkbox-less bullet — work that hides from routing) on the
+"you fix these at source" list; never auto-convert prose to a task. **NEVER blocks.**
+
+**Surface the shared inbox's non-conforming entries + dead-letters (id:678e/id:3947).** Run
+`scripts/todo-conformance.sh --inbox <inbox-path>` on the shared inbox (path INJECTED, not
+hardcoded — the public scripts must not embed the local file) and list its `orphan` prose
+blocks plus any `routed:` item whose target repo lacks the id, so the inbox can't silently
+strand cross-project work. Respect `--exclude`/`relay.toml paused` for the target set. (The
+full AUTO-RECONCILE — auto-filing routed items into their target repos on cross-repo
+activity — is the gated id:678e build; here it is surfaced for the human.)
+
 It emits a TSV `repo  path  kind  box_summary` covering:
 
 - every OPEN `- [ ]` box in each repo's `REVIEW_ME.md` (`kind = review_me`), AND

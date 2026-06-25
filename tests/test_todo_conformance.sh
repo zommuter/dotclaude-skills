@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# roadmap:3441 — todo-conformance.sh: a POSITIVE grammar for TODO.md / the shared inbox
+# (sibling of roadmap-lint.sh) so NO work hides in a malformed ledger line. Reports every
+# non-conforming entry; `--fix` AUTO-FIXES only the unambiguously-safe class (an open
+# checkbox item missing an id → mint+append) and NEVER fabricates a task from prose.
+#
+# RED until the script + wiring land. Hermetic: tmp fixtures, no ~/.claude, no network.
+
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SH="$ROOT/relay/scripts/todo-conformance.sh"
+
+pass() { echo "PASS: $*"; }
+fail() { echo "FAIL: $*"; exit 1; }
+
+[[ -f "$SH" ]] || fail "todo-conformance.sh not found at $SH"
+[[ -x "$SH" ]] || fail "todo-conformance.sh not executable"
+bash -n "$SH" || fail "todo-conformance.sh fails bash -n"
+pass "todo-conformance.sh exists, executable, parses"
+
+# (0) Misuse: an unknown flag exits nonzero (loud reject).
+rc=0; "$SH" --definitely-not-a-flag >/dev/null 2>&1 || rc=$?
+[[ "$rc" -ne 0 ]] || fail "unknown flag must exit nonzero (misuse reject); got 0"
+pass "unknown flag exits nonzero (misuse reject)"
+
+WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+
+# (a) A clean TODO → no findings, exit 0.
+cat > "$WORK/clean.md" <<'EOF'
+# TODO
+
+## Current
+- [ ] a well-formed open item [ROUTINE] <!-- id:aaaa -->
+- [x] a done item <!-- id:bbbb -->
+  - an indented continuation line (never linted)
+<!-- a bare html comment line -->
+
+## Done
+EOF
+rc=0; out="$("$SH" "$WORK/clean.md" 2>/dev/null)" || rc=$?
+[[ "$rc" -eq 0 ]] || fail "clean TODO must exit 0; got $rc"
+[[ -z "$(grep -vE '^\s*$' <<<"$out")" ]] || fail "clean TODO must report nothing; got:
+$out"
+pass "(a) clean TODO → no findings, exit 0"
+
+# (b) An open item missing an id → missing-id; --fix mints+appends → re-lint clean.
+cat > "$WORK/missing.md" <<'EOF'
+# TODO
+
+## Current
+- [ ] this open item has no id tag
+EOF
+out="$("$SH" "$WORK/missing.md" 2>/dev/null)"
+grep -qP '^missing-id\t' <<<"$out" || fail "(b) open item with no id not classed missing-id:
+$out"
+pass "(b) open item missing id → missing-id"
+"$SH" --fix "$WORK/missing.md" >/dev/null 2>&1 || fail "(b) --fix exited nonzero"
+grep -qP '^- \[ \] this open item has no id tag <!-- id:[0-9a-f]{4} -->$' "$WORK/missing.md" \
+  || fail "(b) --fix did not append a minted id:
+$(cat "$WORK/missing.md")"
+post="$("$SH" "$WORK/missing.md" 2>/dev/null)"
+[[ -z "$(grep -vE '^\s*$' <<<"$post")" ]] || fail "(b) post-fix re-lint not clean:
+$post"
+pass "(b) --fix mints+appends an id → re-lint clean"
+
+# (c) A bare prose line + a checkbox-less bullet → orphan; --fix MUST leave them untouched.
+cat > "$WORK/orphan.md" <<'EOF'
+# TODO
+
+## Current
+placeholder
+- a bullet with no checkbox
+- [ ] a real item [ROUTINE] <!-- id:cccc -->
+EOF
+before="$(cat "$WORK/orphan.md")"
+out="$("$SH" "$WORK/orphan.md" 2>/dev/null)"
+[[ "$(grep -cP '^orphan\t' <<<"$out")" -eq 2 ]] || fail "(c) expected 2 orphan findings; got:
+$out"
+"$SH" --fix "$WORK/orphan.md" >/dev/null 2>&1 || fail "(c) --fix exited nonzero"
+[[ "$(cat "$WORK/orphan.md")" == "$before" ]] || fail "(c) --fix must NOT touch orphan lines (no fabricated tasks):
+$(cat "$WORK/orphan.md")"
+pass "(c) bare prose + checkbox-less bullet → orphan; --fix leaves them untouched"
+
+# (d) lint-ok / ref: pointer lines are exempt (never flagged).
+cat > "$WORK/exempt.md" <<'EOF'
+# TODO
+
+## Current
+- a deliberate pointer, not a task <!-- ref:abcd -->
+some intentional note line <!-- lint-ok: kept on purpose -->
+- [ ] a real item [ROUTINE] <!-- id:dddd -->
+EOF
+out="$("$SH" "$WORK/exempt.md" 2>/dev/null)"
+[[ -z "$(grep -vE '^\s*$' <<<"$out")" ]] || fail "(d) lint-ok/ref lines must be exempt; got:
+$out"
+pass "(d) lint-ok + ref: pointer lines are exempt"
+
+# (e) --inbox grammar: a token-less prose block is flagged; a conforming routed line passes.
+cat > "$WORK/inbox.md" <<'EOF'
+# Cross-project TODO inbox
+- [ ] [dotclaude-skills] a conforming routed item (from x, y) <!-- routed:1f5e -->
+zkm core: a prose block with no checkbox and no routed token
+EOF
+out="$("$SH" --inbox "$WORK/inbox.md" 2>/dev/null)"
+grep -q 'zkm core: a prose block' <<<"$out" || fail "(e) --inbox did not flag the token-less prose block:
+$out"
+grep -q 'routed:1f5e' <<<"$out" && fail "(e) --inbox wrongly flagged a conforming routed line:
+$out"
+pass "(e) --inbox flags token-less prose, passes conforming routed lines"
+
+# (f) report-only by default; --strict turns findings into a nonzero exit.
+rc=0; "$SH" --strict "$WORK/orphan.md" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -ne 0 ]] || fail "(f) --strict must exit nonzero when findings exist; got 0"
+pass "(f) --strict exits nonzero on findings (report-only stays exit 0)"
+
+# --- wiring: surfaced in the human-facing relay modes + relay-doctor (never blocks) ----
+grep -q 'todo-conformance.sh' "$ROOT/relay/scripts/relay-doctor.sh" || fail "relay-doctor.sh does not invoke todo-conformance.sh"
+pass "relay-doctor.sh wires in todo-conformance.sh"
+for ref in review human handoff; do
+  grep -qiE 'conformance|non-conforming' "$ROOT/relay/references/$ref.md" \
+    || fail "relay/references/$ref.md does not mention the conformance check"
+done
+pass "review/human/handoff references all surface the conformance check"
+
+echo "ALL PASS: id:3441 TODO/inbox conformance grammar + safe auto-fix + wiring"

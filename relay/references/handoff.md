@@ -35,7 +35,13 @@ step 4 audits them as drift surface from then on). Commit
 **C2 — roadmap.** C2's FIRST check is the open `TODO.md` backlog, **not** the
 ROADMAP open-count: **"ROADMAP closed" ≠ "nothing to hand off"** (id:2dea, the
 2026-06-25 truncocraft miss — a fully-`[x]` ROADMAP hid five open TODO items and the
-repo read as "drained" for days). Run `relay/scripts/unpromoted-scan.sh <repo>` to list
+repo read as "drained" for days). First, make the backlog WELL-FORMED so none of it hides: run
+`relay/scripts/todo-conformance.sh --fix <repo>/TODO.md` (id:3441) — it mints+appends an id
+onto every well-formed open item missing one (`missing-id`) and SURFACES (never rewrites)
+any `orphan` line (bare prose, a checkbox-less bullet); convert/annotate those by hand
+before promoting (a `<!-- lint-ok: <reason> -->` marks an intentional non-task). NEVER
+block on this — auto-fix what is safe, surface the rest. Then run
+`relay/scripts/unpromoted-scan.sh <repo>` to list
 every open TODO id with no ROADMAP twin **regardless of lane tag** (the gap that bit
 truncocraft: its items were untagged, so the lane-gated `orphan-scan.sh --promotion`
 missed them). `promote`-disposition items get sized into ROADMAP here; `surface` ones
