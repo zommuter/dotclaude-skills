@@ -116,10 +116,14 @@ scan_path() {
     lineno=$((lineno+1))
     if [[ "$inbox" -eq 0 ]]; then
       if [[ "$line" =~ ^#{1,6}[[:space:]] ]]; then
-        # A section heading that carries an id token (or a [ROUTINE]/[HARD lane] tag)
-        # IS a heading-as-item; a plain `## Current` heading is not.
-        if grep -qP '<!-- id:[0-9a-f]{4}[-a-z0-9]* -->' <<<"$line" \
-           || [[ "$line" == *'[ROUTINE]'* || "$line" == *'[HARD'* ]]; then
+        # Heading-as-item (id:c095) is signalled by a relay LANE tag in the heading
+        # (`## [ROUTINE] …` / `## [HARD — pool] …`) — the heading IS an executable item
+        # whose `- [ ]/[x]` children are status markers. A plain section heading
+        # (`## Current`, `## [HUMAN] … <!-- id:1ef9 -->`) is NOT a heading-as-item even
+        # if it carries an id for batch-tracking — its children are REAL items that must
+        # be linted. So detect on the LANE tag ONLY (matches roadmap-lint), never on a
+        # bare id token (the id-token branch wrongly hid real items under id'd sections).
+        if [[ "$line" == *'[ROUTINE]'* || "$line" == *'[HARD —'* || "$line" == *'[HARD-'* ]]; then
           heading_is_item=1
         else
           heading_is_item=0
@@ -146,15 +150,23 @@ if [[ "$fix" -eq 1 && "${#fix_lines[@]}" -gt 0 ]]; then
   exec 9>"$lock"
   if flock -w 30 9; then
     for ln in "${fix_lines[@]}"; do
+      # Re-read the line under the lock (line numbers are stable — no prior edit reflows).
+      cur="$(sed -n "${ln}p" "$path")"
+      # Idempotency: already has a canonical token → nothing to do.
+      id_tag_present "$cur" && continue
+      # SAFETY: if the line carries a NON-canonical inline id (`(id:560c)` / bare `id:560c`,
+      # as some repos use), do NOT mint — that would create a DUPLICATE id. Surface it for a
+      # human/handoff to MIGRATE the notation to `<!-- id:XXXX -->` (reusing the same token).
+      if grep -qP '\bid:[0-9a-f]{4}\b' <<<"$cur"; then
+        echo "todo-conformance.sh: line $ln has a non-canonical inline id — NOT auto-minted (migrate to <!-- id:XXXX --> by hand to avoid a duplicate id)" >&2
+        log "skip-inline-id line=$ln file=$path"
+        continue
+      fi
       tok="$(bash "$APPEND_SH" new-id 2>>"$LOG" | grep -oP '^[0-9a-f]{4}$' | head -1 || true)"
       if [[ -z "$tok" ]]; then
         echo "todo-conformance.sh: could not mint an id for line $ln (append.sh new-id failed)" >&2
         continue
       fi
-      # Append the token to the END of that exact line (idempotent: skip if it already has one).
-      # Use a line-scoped sed keyed on the line number (safe: file re-read under the lock).
-      cur="$(sed -n "${ln}p" "$path")"
-      if id_tag_present "$cur"; then continue; fi
       esc_tok="$tok"
       sed -i "${ln}s|[[:space:]]*\$| <!-- id:${esc_tok} -->|" "$path"
       fixed=$((fixed+1))
