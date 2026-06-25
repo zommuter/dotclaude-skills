@@ -121,6 +121,15 @@ violations, missing reference-doc installs, parked orphan branches):
   re-derivation in step 5 (roadmap-lint already runs there; use its output for both).
 - **Other findings** (refs-install gap, parked orphans): add a single REVIEW_ME box
   naming the finding; the specific resolution is the human's call.
+- **TODO grammar non-conformance** (`todo-conformance.sh` findings, id:3441): a TODO line
+  that is not a header, an HTML comment, or a well-formed id'd checkbox item — work that
+  would otherwise hide from routing. **AUTO-FIX the safe class, surface the rest, NEVER
+  block** (user directive 2026-06-25): run `todo-conformance.sh --fix "$(pwd)/TODO.md"`
+  to mint+append ids onto well-formed open items missing one (the `missing-id` class), and
+  add ONE REVIEW_ME box per remaining `orphan` line (`[ ] TODO:NN non-conforming — <text>:
+  convert to a `- [ ]` item, delete, or annotate `<!-- lint-ok: <reason> -->``). The
+  `--fix` edit is committed with the step-5 ledger commit. Do NOT auto-convert orphan prose
+  to tasks — intent is unknowable; that is the human's call.
 
 If relay-doctor finds ZERO issues, note "relay-doctor: clean" in the session log;
 no REVIEW_ME boxes are added.

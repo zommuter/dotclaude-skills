@@ -52,6 +52,7 @@ SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROADMAP_LINT="$SCRIPTS_DIR/roadmap-lint.sh"
 RECONCILE="$SCRIPTS_DIR/relay-reconcile.sh"
 UNPROMOTED_SCAN="$SCRIPTS_DIR/unpromoted-scan.sh"      # id:2dea — lane-tag-agnostic un-promoted backlog
+TODO_CONFORMANCE="$SCRIPTS_DIR/todo-conformance.sh"    # id:3441 — TODO grammar (no work hides in a malformed line)
 REPO_ROOT="$(cd "$SCRIPTS_DIR/../.." && pwd)"          # dotclaude-skills repo root
 ORPHAN_SCAN="$REPO_ROOT/meeting/orphan-scan.sh"
 # Allow an override so the orphan-scan path resolves when installed via symlink too.
@@ -225,6 +226,35 @@ check_repo() {
     fi
   else
     echo "SKIP — unpromoted-scan.sh not found at $UNPROMOTED_SCAN" >&2
+  fi
+
+  # --- check 7: TODO grammar conformance (id:3441) ----------------------------
+  # Surfaces every non-conforming TODO.md line (bare prose, checkbox-less bullet,
+  # open item missing an id) so no work hides in a malformed line. REPORT-ONLY here
+  # (never blocks); `todo-conformance.sh --fix` (run by review/handoff) auto-fixes the
+  # safe missing-id class. orphan lines are surfaced for a human, never fabricated.
+  echo "--- TODO grammar conformance (todo-conformance.sh, id:3441) ---"
+  if [[ -x "$TODO_CONFORMANCE" ]]; then
+    if [[ -f "$path/TODO.md" ]]; then
+      local tc
+      tc="$(bash "$TODO_CONFORMANCE" "$path/TODO.md" 2>>"$LOG" || true)"
+      tc="$(printf '%s' "$tc" | grep -vE '^[[:space:]]*$' || true)"
+      if [[ -n "$tc" ]]; then
+        local nmiss norph
+        nmiss="$(printf '%s\n' "$tc" | grep -cP '^missing-id\t' || true)"
+        norph="$(printf '%s\n' "$tc" | grep -cP '^orphan\t' || true)"
+        printf '%s\n' "$tc"
+        printf '%s non-conforming TODO line(s): %s missing-id (auto-fixable via --fix), %s orphan (surface — fix or annotate <!-- lint-ok -->)\n' \
+          "$((nmiss + norph))" "$nmiss" "$norph"
+        repo_issues=$((repo_issues + nmiss + norph))
+      else
+        echo "clean (every TODO line is a header, comment, or well-formed id'd item)"
+      fi
+    else
+      echo "no TODO.md — nothing to grammar-check"
+    fi
+  else
+    echo "SKIP — todo-conformance.sh not found at $TODO_CONFORMANCE" >&2
   fi
 
   if [[ "$repo_issues" -gt 0 ]]; then
