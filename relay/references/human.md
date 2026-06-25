@@ -46,8 +46,9 @@ at the source — surface it on the "you fix these at source" list (do NOT auto-
 **TODO grammar-lint each own repo too (id:3441).** Run `scripts/todo-conformance.sh --fix
 <repo>/TODO.md` across the same repos — the TODO-side sibling of roadmap-lint. It AUTO-FIXES
 the safe class (an open checkbox item missing an id → mints+appends one) and SURFACES every
-`orphan` line (bare prose, a checkbox-less bullet — work that hides from routing) on the
-"you fix these at source" list; never auto-convert prose to a task. **NEVER blocks.**
+`orphan` line on the "you fix these at source" list; resolve them by the owner-approved
+policies in `references/todo-conversion-policies.md` (P1–P4) — surface, never auto-convert
+prose to a task on a guess. **NEVER blocks.**
 
 **Surface the shared inbox's non-conforming entries + dead-letters (id:678e slice 1).** Run
 `scripts/scan-routed.sh` (`RELAY_INBOX` default `~/.claude/todo-inbox.md`, override per the

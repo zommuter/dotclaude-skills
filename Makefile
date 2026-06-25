@@ -34,7 +34,7 @@ relay_FILES := SKILL.md \
                references/handoff.md references/review.md references/human.md \
                references/conventions.md references/templates.md \
                references/executor-contract.md references/hard-lanes.md \
-               references/resource-claims.md \
+               references/resource-claims.md references/todo-conversion-policies.md \
                scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh \
                scripts/relay-loop.js scripts/inject.sh scripts/claim.sh \
