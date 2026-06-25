@@ -956,3 +956,7 @@ id:a643 — standalone intensive jobs acquire a relay resource:<name> claim (acq
 ## 2026-06-25 14:36 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:1b11 PID-anchored claim liveness verified genuinely green (103-test suite, gaming-scan/roadmap-lint/relay-doctor clean); no drift, no reopens, routine_open=0
+
+## 2026-06-25 15:24 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:20bd doc-only commit verified (--quota-7d/--quota-5h knobs accurately ride b841 plumbing); suite 103/0, roadmap-lint + relay-doctor clean, 0 open ROUTINE
