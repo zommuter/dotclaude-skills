@@ -49,13 +49,15 @@ the safe class (an open checkbox item missing an id → mints+appends one) and S
 `orphan` line (bare prose, a checkbox-less bullet — work that hides from routing) on the
 "you fix these at source" list; never auto-convert prose to a task. **NEVER blocks.**
 
-**Surface the shared inbox's non-conforming entries + dead-letters (id:678e/id:3947).** Run
-`scripts/todo-conformance.sh --inbox <inbox-path>` on the shared inbox (path INJECTED, not
-hardcoded — the public scripts must not embed the local file) and list its `orphan` prose
-blocks plus any `routed:` item whose target repo lacks the id, so the inbox can't silently
-strand cross-project work. Respect `--exclude`/`relay.toml paused` for the target set. (The
-full AUTO-RECONCILE — auto-filing routed items into their target repos on cross-repo
-activity — is the gated id:678e build; here it is surfaced for the human.)
+**Surface the shared inbox's non-conforming entries + dead-letters (id:678e slice 1).** Run
+`scripts/scan-routed.sh` (`RELAY_INBOX` default `~/.claude/todo-inbox.md`, override per the
+config-path convention — the public script never embeds inbox *contents*). It reports each
+`DEAD-LETTER` (a conforming `routed:` item whose `[target]` repo never ingested it),
+`UNRESOLVED` target, and `NON-CONFORMING` prose block (the latter via `todo-conformance.sh
+--inbox`), each with a ready-to-run file command — so the inbox can't silently strand
+cross-project work. Respect `--exclude`/`relay.toml paused` for the target set. **Report-only
+— it NEVER writes.** The gated AUTO-FILE half (auto-filing class-A routed items into their
+target repos) is slice 2 of id:678e; until it lands, run the surfaced command by hand.
 
 It emits a TSV `repo  path  kind  box_summary` covering:
 
