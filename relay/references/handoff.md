@@ -38,9 +38,16 @@ ROADMAP open-count: **"ROADMAP closed" ≠ "nothing to hand off"** (id:2dea, the
 repo read as "drained" for days). First, make the backlog WELL-FORMED so none of it hides: run
 `relay/scripts/todo-conformance.sh --fix <repo>/TODO.md` (id:3441) — it mints+appends an id
 onto every well-formed open item missing one (`missing-id`) and SURFACES (never rewrites)
-any `orphan` line (bare prose, a checkbox-less bullet); convert/annotate those by hand
-before promoting (a `<!-- lint-ok: <reason> -->` marks an intentional non-task). NEVER
-block on this — auto-fix what is safe, surface the rest. Then run
+any `orphan` line; resolve those by hand before promoting. **A handed-off `TODO.md` is
+ITEMS-ONLY — no prose** (user directive 2026-06-25): it carries headers (`## Current` /
+`## Done`), well-formed `- [ ]/[x] … <!-- id -->` items, and `## [LANE] Title <!-- id -->`
+heading-as-items with their `- [ ] Open`/`- [x] Done` status sub-lines — nothing else.
+Relocate every `orphan` prose line to its proper home: design rationale/intros →
+`docs/` or `ARCHITECTURE.md`; relay handoff/review log paragraphs → `RELAY_LOG.md`;
+a real task hiding in prose → a proper `- [ ]` item (reuse/mint its id); genuine cruft →
+delete. `<!-- lint-ok: <reason> -->` is reserved for a deliberate non-item marker (e.g. a
+cross-repo `<!-- ref:XXXX -->` pointer), NOT a license to keep prose in TODO.md. NEVER
+block on this — auto-fix what is safe, relocate/surface the rest. Then run
 `relay/scripts/unpromoted-scan.sh <repo>` to list
 every open TODO id with no ROADMAP twin **regardless of lane tag** (the gap that bit
 truncocraft: its items were untagged, so the lane-gated `orphan-scan.sh --promotion`
