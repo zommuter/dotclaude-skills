@@ -649,6 +649,15 @@ async function runRound() {
 // that only hands back gated/too-large HARD units produces 0 and counts as dry, so the loop
 // drains instead of re-dispatching the same un-doable items for MAX_ROUNDS.
 const completedBefore = state.completed.length
+// id:5c00 — quota PRE-GATE: check quota BEFORE the discover-prelude + DISCOVER_SHARDS fan-out.
+// A round that immediately quota-stops wastes N shard agents if the gate fires post-sharding.
+// (Incident 2026-06-25, run relay-20260625-225111: 5 shards ~94k tokens spent before stop.)
+// Uses the existing quotaGate() / last-known cache (no extra API refresh before round 1 shards).
+if (!await quotaGate('sonnet')) {
+  // quotaStopped was set to true by quotaGate; outer loop exits after this round.
+  log('relay-loop: id:5c00 quota PRE-GATE fired — skipping discovery fan-out (quota at threshold before round start)')
+  return { actionable: 0, produced: 0 }
+}
 // ── Phase 1: Discover ──
 
 phase('Discover')
