@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v4 -->
+## Executor contract <!-- relay-executor contract v5 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -20,6 +20,17 @@ you were told you are the reviewer) follow these rules:
    Never start `[HARD]` items — they are reserved for the reviewer model.
 2. **Definition of done**: the item's previously-failing tests pass, a refactor
    pass is done, and the FULL test suite is green. Nothing else counts.
+   - **Host gate (multi-host config monorepos only, id:43b9)**: if the item carries a
+     `[host:<name>]` tag (e.g. `[host:zomni]`/`[host:fievel]`; absent ⇒ `host:any` ⇒ this
+     gate is a no-op, which is every ordinary single-host repo), run
+     `~/.claude/skills/relay/scripts/host-gate.sh '<the item line>'` BEFORE you verify.
+     On exit 3 (host mismatch) you CANNOT establish the definition-of-done here — the item's
+     `make install`/tests are HOST-BOUND (you cannot validate another machine's apt path,
+     udev rule, etc. on this host). **DEFER**: append `DEFERRED: <item-id> needs host:<X>
+     (on <this-host>)` to RELAY_LOG.md, leave the checkbox UNticked, and pick another item.
+     Do NOT run install/tests on the wrong host. EDITING the files is host-agnostic and fine;
+     only the verification is gated. (Documented future option, NOT built: ssh-to-host
+     verification — for now defer is the safe default.)
 3. **Test integrity**: never weaken, delete, skip, or rewrite a test to make it
    pass. The reviewer diffs all test files against the last relay checkpoint tag
    (`relay-ckpt-*`, or a historical `fable-ckpt-*`) and re-runs the original test
@@ -45,12 +56,15 @@ you were told you are the reviewer) follow these rules:
 Each ROADMAP.md item you pick has this shape:
 
 ```
-- [ ] <title> [ROUTINE] <!-- id:XXXX -->
+- [ ] <title> [ROUTINE] [host:<name>] <!-- id:XXXX -->
   - **Acceptance**: what "done" means (observable behaviour, not process).
   - **Tests**: `tests/test_<name>.sh` (`# roadmap:XXXX`) (currently RED)
   - **Done-check**: `tests/run-tests.sh tests/test_<name>.sh` then full `make test` after ticking
   - **Context**: key files, related TODO ids, scope guards.
 ```
+
+The `[host:<name>]` modifier is OPTIONAL (multi-host config monorepos only) — see rule 2's
+host gate. Absent ⇒ `host:any` ⇒ verifiable on any host.
 
 Tick the checkbox (`- [x]`) only after the done-check passes. Never edit the
 Acceptance / Tests / Done-check / Context fields.

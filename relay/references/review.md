@@ -73,6 +73,24 @@ do not re-implement them inline.
 Anything flagged here (from either the mechanical pass or the judgment residue) is
 surfaced prominently in the return report and the roadmap item is reopened.
 
+### 2c. Host-bound verification gate (multi-host config monorepos, id:43b9)
+
+If a reviewed item carries a `[host:<name>]` tag (e.g. `[host:zomni]`/`[host:fievel]`;
+absent ⇒ `host:any` ⇒ skip this gate — every ordinary single-host repo), its
+definition-of-done (`make install`/tests) is HOST-BOUND and can only be validated on the
+matching machine. Run the gate before crediting its verification:
+
+```bash
+~/.claude/skills/relay/scripts/host-gate.sh '<the ROADMAP item line>'
+```
+
+On exit 3 (the review host does not match the item's `[host:<X>]`), treat its host-bound
+tests exactly like an `unverified`/skipped test (§2.4): you CANNOT count them green here.
+Keep the item OPEN with a `needs host:<X>` note, surface it in REVIEW_ME, and never set
+`contract_met: true` on the strength of host-bound verification that did not run on this
+host. (Editing the files is host-agnostic and reviewed normally — only the install/test
+verification is gated. ssh-to-host re-run is a documented future option, not built.)
+
 ## 3. BDD suites
 
 Run the BDD suites. For `@manual` scenarios, emit the checklist into REVIEW_ME.md (or

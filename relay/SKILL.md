@@ -36,6 +36,17 @@ and follow its rules exactly; ignore everything below (orchestrator-only).
 Default `--all` means "confirmed OWN repos, by neediness, in waves of ≤5, until quota
 says stop" — resumable across turns via the state file, never all 36 at once.
 
+**Host-aware verification (id:43b9, multi-host config monorepos).** A ROADMAP item may
+carry an optional `[host:<name>]` tag (`[host:zomni]`/`[host:fievel]`/`[host:any]`; untagged
+⇒ `host:any`). *Editing* a config file is host-agnostic — any host writes it. But the
+definition-of-done (`make install`/tests) is HOST-BOUND: you cannot validate fievel's apt
+path or zomni's udev rule on the wrong machine. So both the executor done-check (contract
+rule 2) and the reviewer re-derivation (review §2c) consult `scripts/host-gate.sh '<item
+line>'` before verifying — exit 0 ⇒ proceed, exit 3 ⇒ **DEFER** the item with a `needs
+host:<X>` note rather than run install/tests on the wrong host (the conservative default).
+ssh-to-host verification is a documented FUTURE option, not built. Ordinary single-host
+repos carry no tag, so the gate is a no-op for them.
+
 ## `health` arg (relay-machinery health report) <!-- id:3eb5 -->
 
 `/relay health [<repo-dir> | --all]` runs `relay/scripts/relay-doctor.sh` and prints
