@@ -112,3 +112,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🛡️ **Bastian** — web-exposure / deploy-boundary threat lens; what's reachable over :80, safe-vs-unsafe default for a new file (copy-allowlist vs path-whitelist), .git exposure, served-tree vs working-tree. Introduced 2026-06-23 (kienzler-homepage/data-boundary-audit).
 
 - 🪟 **Winkler** — X11/EWMH window-management lens; multi-monitor reflow semantics, CRTC-removal eviction, devilspie2/xfwm4-rule limits, wmctrl/xdotool gravity + _NET_FRAME_EXTENTS quirks, autorandr postswitch hooks, maximized-window move semantics. Introduced 2026-06-23 (zomni/window-placement-dock-undock).
+
+- 🛰️ **Hank** — host-fleet config-management lens; dotfiles/config topology, branch-per-host anti-pattern, hostname-dispatch, shared-module extraction (N=2 gate), NixOS/ansible/chezmoi patterns, system-vs-home tree separation. Introduced 2026-06-26 (zomni/consolidate-device-repos-monorepo).
