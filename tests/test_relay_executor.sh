@@ -22,10 +22,10 @@ head -1 "$CONTRACT" | grep -q '^---$' \
   && fail "executor-contract.md still has skill frontmatter (should be a lean reference)" || true
 pass "executor-contract.md has no skill frontmatter"
 
-# 3. Contract marker present, bumped to v4 (the id:ebfb cross-session-lease rule-0 bump).
-grep -q 'relay-executor contract v4' "$CONTRACT" \
-  || fail "executor-contract.md missing '<!-- relay-executor contract v4 -->' marker"
-pass "contract marker present (v4)"
+# 3. Contract marker present, bumped to v5 (the id:43b9 host-aware verification gate bump).
+grep -q 'relay-executor contract v5' "$CONTRACT" \
+  || fail "executor-contract.md missing '<!-- relay-executor contract v5 -->' marker"
+pass "contract marker present (v5)"
 
 # 3b. Rule 0 (id:ebfb): executor acquires the cross-session repo lease before working.
 grep -qi 'Cross-session lease' "$CONTRACT" || fail "executor contract missing the cross-session lease rule (id:ebfb)"

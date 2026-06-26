@@ -103,7 +103,7 @@ The canonical version marker is `<!-- relay-executor contract vN -->` on the
 (as its own `## Relay contract` section), replacing any older verbatim block:
 
 ```markdown
-## Relay contract <!-- relay-executor contract v4 -->
+## Relay contract <!-- relay-executor contract v5 -->
 
 This repo is managed by a reviewer/executor relay. Load `/relay executor` before
 working on any item, then follow its rules exactly.
