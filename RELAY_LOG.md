@@ -973,3 +973,7 @@ Friction: none — straightforward; the pre-existing `quotaGate()` function reus
 ## 2026-06-26 10:32 — executor (sonnet, relay-loop)
 
 feat(relay): id:5c00 quota PRE-GATE before discovery fan-out — quotaGate('sonnet') at top of runRound() prevents N shard agents wasting tokens on a quota-stop round; test_relay_loop_structure.sh extended with ordering assertions; suite 107/0 green
+
+## 2026-06-26 10:48 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+id:401c strong-model audit Run 68 — first non-ledger window since Run 48 (3-day engine batch, ~4091 lines/35 files) clean code+security; fixed id:5c00 TODO/ROADMAP cross-ledger drift inline
