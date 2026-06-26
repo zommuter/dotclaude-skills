@@ -310,3 +310,24 @@ grep -q "is_finished: { type: 'boolean' }" "$JS" \
 grep -q "is_finished per repo" "$JS" \
   || fail "id:401c: shard prompt does not instruct copying is_finished onto the unit — the deterministic value never reaches the JS guard"
 pass "id:000d/401c: is_finished demote guard present + the deterministic value actually reaches the unit (schema + prompt)"
+
+# id:5c00 — quota PRE-GATE before the per-round discovery fan-out
+# (Incident 2026-06-25: 5 shard agents ~94k tokens spent before the quota-stop gate fired post-sharding)
+grep -q "id:5c00" "$JS" \
+  || fail "id:5c00: no PRE-GATE marker in relay-loop.js"
+grep -q "quota PRE-GATE" "$JS" \
+  || fail "id:5c00: quota PRE-GATE comment missing in relay-loop.js"
+# Assert ordering: the PRE-GATE (id:5c00) appears BEFORE 'discover-prelude' in runRound()
+python3 - "$JS" <<'PYEOF'
+import sys
+js = open(sys.argv[1]).read()
+rr = js.find('async function runRound()')
+if rr < 0: sys.exit('no runRound() found')
+body = js[rr:]
+gate = body.find('id:5c00')
+prelude = body.find("'discover-prelude'")
+if gate < 0: sys.exit('no id:5c00 marker inside runRound()')
+if prelude < 0: sys.exit("no 'discover-prelude' inside runRound()")
+if gate > prelude: sys.exit('id:5c00 PRE-GATE appears AFTER discover-prelude in runRound — ordering wrong (shard agents still fire before quota check)')
+PYEOF
+pass "id:5c00: quota PRE-GATE precedes discover-prelude in runRound (no wasted shard agents on a quota-stop round)"
