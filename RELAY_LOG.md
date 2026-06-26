@@ -964,3 +964,8 @@ review: id:20bd doc-only commit verified (--quota-7d/--quota-5h knobs accurately
 ## 2026-06-26 10:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: 13 commits since 1524 verified clean (id:2dea/3441/c095 green, gaming-scan clean, suite 107 green); ledgers conformant, id:5c00 open
+
+## 2026-06-26 — executor (sonnet)
+
+Worked id:5c00 — added a quota PRE-GATE at the top of `runRound()` in `relay-loop.js`, before the discover-prelude and DISCOVER_SHARDS fan-out. The gate calls the existing `quotaGate('sonnet')` and returns `{ actionable: 0, produced: 0 }` early if quota is at threshold, preventing N shard agents from spending tokens on a round that will immediately stop. Extended `tests/test_relay_loop_structure.sh` with ordering assertions (python3 confirms `id:5c00` marker precedes `'discover-prelude'` inside `runRound()`). Suite 107/0 green.
+Friction: none — straightforward; the pre-existing `quotaGate()` function reused directly.
