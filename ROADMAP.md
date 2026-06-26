@@ -1766,6 +1766,30 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       `"$PWD" a689119` exit 0; suite 89/0/0. Tracked flakes 16e9/05e8 did NOT recur. Mirror:
       TODO id:401c line refreshed Run 66→Run 67. See
       `docs/meeting-notes/2026-06-23-2145-strong-model-audit.md`.
+    - Run 68 (2026-06-26-0926): window = `5e1a216..HEAD` (HEAD `8d8d40b`), since Run 67 —
+      **first NON-ledger window since Run 48** (`substantive_unaudited=true`): ~4091/-50 across
+      35 files (14 scripts + 21 tests), three days of relay-engine work (id:5c00 quota pre-gate,
+      c012 graceful-stop, d530 --priority/--exclude, 9973 HARD-pool demote-guard, 365b
+      recurring-audit gate + circuit breaker, a707 human-gated INTENSIVE carve-out, 1b11 PID
+      claim, 9221 orphan first-wins, c095 heading-as-item, a643 resource claim, 2147 atomic
+      ledger commit, 71f2 workflow-template lint, 3441 todo-conformance, 678e scan-routed,
+      2dea unpromoted-scan, relay-doctor). **Pass-1 code review CLEAN** (no correctness defects —
+      verified commit-ledger scoped-add+escape-reject, todo-conformance stable-lineno --fix +
+      duplicate-mint guard, gather substantive_unaudited fail-open + deterministic work_sig,
+      relay-loop demote/breaker/pre-gate all demote-only+injected-exempt, the
+      lint-workflow-templates single-pass lexer). **Pass-2 security CLEAN** (sed/jq/path/PID
+      surfaces: 4-hex id validation before sed, realpath `../*|/*` reject, `jq -n --arg`,
+      numeric-only `kill -0` with documented conservative PID-reuse caveat). **Pass-3: 1
+      cross-ledger drift FIXED INLINE** — id:5c00 was `[x]` in ROADMAP but `[ ]` in TODO (work
+      genuinely done+merged → ROADMAP authoritative); ticked the TODO twin, orphan-scan
+      --cross-ledger now exit 0. todo-conversion-policies.md v1 + the 9973/365b/a707/000d guard
+      lattice internally coherent. **Accepted (not a defect):** gaming-scan
+      `ADDED_SKIP:test_relay_doctor_wiring.sh:60` = benign false-positive (the regex
+      `report.only` substring tripped the heuristic on a real report-only assertion).
+      roadmap-lint exit 0; todo-conformance exit 0; gaming-scan `"$PWD" 5e1a216` exit 0;
+      suite 106/1/0 — the 1 failure is the KNOWN flaky `test_resource_claim_pid.sh` (id:ab5c),
+      passed 3/3 in isolation → effectively 107 green. Mirror: TODO id:401c line refreshed
+      Run 67→Run 68. See `docs/meeting-notes/2026-06-26-0926-strong-model-audit.md`.
 
 - [x] Autonomous relay front-door: `/fables-turn` no-keyword default mode [HARD — strong model] (done 2026-06-12, reviewer) <!-- id:230f -->
   - **Why HARD**: redesigns the fables-turn SKILL.md trigger surface and dispatch logic; requires
