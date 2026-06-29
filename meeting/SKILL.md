@@ -16,6 +16,13 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    Store the results as literals — use them for the meeting-note filename, header lines, and in-transcript human attribution. Do not re-expand these in Write calls; embed the captured values directly.
 **Cross-project mode:** if the skill argument is exactly `--cross` (literal token, nothing else), read `~/.claude/skills/meeting/cross-mode.md` and follow it for the entire session. The metadata captured in step 2 is available to cross-mode.md for the routing-trail note. Skip steps 2b onward — cross-mode.md owns the full cross flow. Stop reading this document.
 
+2-setup-claim. **Advisory claim at setup (relay-managed repos only, `<root>/ROADMAP.md` exists).** For relay-managed repos, `/meeting` acquires ONE advisory repo claim at SETUP — early in setup, immediately after root resolution and metadata capture — so the relay pool (which already honors claims via `claim.sh peek`) skips the repo for the meeting's duration:
+   - **Acquire**: `~/.claude/skills/relay/scripts/claim.sh acquire <root-basename> --run meeting-<captured session id> --mode meeting`.
+   - **On an EXISTING claim at setup** (a live pool or another session already holds the repo): inform the user — "`<repo>` is already claimed by a running relay session — proceeding as a non-conflicting session (the decide/design phase needs no claim; ledger write-backs proceed via peek-and-warn + flock + atomic commit per id:c144/148b)." Then proceed. Do NOT abort. This is NOT worktree-per-meeting (rejected af04).
+   - **Released at the END of the meeting on ALL exit paths**: `~/.claude/skills/relay/scripts/claim.sh release <root-basename> --run meeting-<captured session id>`. The claim's mtime+TTL is the backstop if a release path is missed.
+   - **This setup claim REPLACES any per-write-back acquire** (do NOT re-introduce a second acquire at step 2a — id:c144 already removed that). The 2b/2e ledger write-backs run under the ONE held claim + flock + atomic commit (id:c144/148b). The id:2c42 deferred-writeback is the flock-timeout fallback only — NOT a pool-lease deferral.
+   - Non-relay repos (no `<root>/ROADMAP.md`) behave exactly as before: no advisory claim is acquired or released.
+
 2b. **Git hygiene check** (run after metadata, before loading anything else):
    - Run `git status --short` (one Bash call). If empty → proceed silently.
    - If dirty → run `git log -1 --format="%cr|%s"` (one Bash call) to get last commit age and subject.
