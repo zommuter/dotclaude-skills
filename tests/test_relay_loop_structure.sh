@@ -208,15 +208,18 @@ awk "/Return: contract_met/ && /verified_green/ && /gaming_flags/ && /reopened/ 
   || fail "review-unit return contract (unitPrompt) does not request verified_green/gaming_flags/reopened — logGamingFlags would log empty arrays (id:3826 dead-feed)"
 pass "review return contract feeds the gaming-flag logger (verified_green/gaming_flags/reopened requested)"
 
-# id:2d20 — drain keys on `produced` (checkpoints integrated this round), not units dispatched,
-# so an all-handback round counts as no-progress and the loop drains instead of spinning to MAX_ROUNDS.
+# id:2d20 + id:d58f — drain keys on per-round SUBSTANTIVE progress (id:d58f tightened id:2d20's
+# `produced`-based check): `produced` is still computed from completions this round, but the
+# drain detector now keys on `substantive` (execute/hard/handoff checkpoints + reviews that
+# reopened/surfaced-routine/flagged) so an all-handback round AND a confirming-only-review round
+# both count as no-progress and the loop drains instead of spinning to MAX_ROUNDS.
 grep -q "const produced = state.completed.length - completedBefore" "$JS" \
   || fail "id:2d20: runRound does not compute `produced` from completions this round"
 grep -q "completedBefore = state.completed.length" "$JS" \
   || fail "id:2d20: missing completedBefore baseline at runRound start"
-grep -q "(r.produced || 0) === 0" "$JS" \
-  || fail "id:2d20: outer loop drain check does not key on r.produced"
-pass "id:2d20: drain keys on per-round completions (produced), not units dispatched"
+grep -q "(r.substantive || 0) === 0" "$JS" \
+  || fail "id:2d20+d58f: outer loop drain check does not key on r.substantive (the id:d58f refinement of the produced check)"
+pass "id:2d20+d58f: drain keys on per-round SUBSTANTIVE progress (not just any checkpoint)"
 
 # id:2d20 — discovery classifier excludes GATED HARD items from the hard verdict + openHard,
 # so already-known-gated repos are surfaced (needs /meeting), not re-dispatched every round.
