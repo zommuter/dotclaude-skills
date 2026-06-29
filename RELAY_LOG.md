@@ -1005,3 +1005,7 @@ review: id:678e slice-2 VERIFIED honest (gaming-clean, red spec byte-identical, 
 ## 2026-06-29 13:09 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified outage-resilience cluster green (e149/7809/98f0/0994); suite 112/0, gaming-scan clean, 0 open ROUTINE
+
+## 2026-06-29 13:40 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: docs-only deletion verified clean (gaming-scan clean, 112 tests green, lint+doctor clean); 0 open ROUTINE
