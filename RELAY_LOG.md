@@ -985,3 +985,7 @@ review: diff window = 2 user TODO-bookkeeping commits (archive id:5c00, add inve
 ## 2026-06-29 10:44 — reviewer (claude-opus-4-8)
 
 review: clean (id:43b9 host-gate verified; suite 108/0 green; pruned 9 resolved REVIEW_ME; surfaced 2 inbox dead-letters)
+
+## 2026-06-29 11:49 — reviewer (claude-opus-4-8)
+
+handoff C3: red spec id:678e slice-2 scan-routed --apply (5 cases, EXPECTED-RED)
