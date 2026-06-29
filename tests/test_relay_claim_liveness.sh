@@ -17,6 +17,13 @@
 # eliminates this window; the `touch` commands still exercise the stale-and-dead path
 # deterministically. No fixed /tmp path is used — every shared surface is private to
 # this test's $CLAIM_BASE tmpdir.
+#
+# Structural-determinism note (id:16e9 fix): the "wrong-run heartbeat is a no-op" assertion
+# no longer compares mtime to an absolute wall-clock timestamp (`$((now - mt)) -ge 2`).
+# That comparison was theoretically clock-sensitive — if the system clock moved or stat/date
+# returned inconsistent values it could yield a spurious fail. Replaced with a before/after
+# snapshot (`mt_before` vs `mt_after`): if the wrong-run heartbeat left the mtime unchanged,
+# the two values are identical regardless of what the clock says. Completely timing-free.
 
 set -euo pipefail
 
@@ -47,6 +54,17 @@ idle_wt="$WORK/idle"
 git init -q -b main "$idle_wt"
 ( cd "$idle_wt" && echo base > a && git add a && git commit -qm base )
 
+# Verify git repos are valid before the main tests — fail fast with a clear message
+# rather than a confusing "steal succeeded" later (worktree_working returns false on git error).
+git -C "$working_wt" rev-parse HEAD >/dev/null 2>&1 \
+  || fail "working_wt setup failed: HEAD not resolvable (git error at repo init time)"
+git -C "$working_wt" merge-base --is-ancestor HEAD main 2>/dev/null \
+  && fail "working_wt setup wrong: HEAD should NOT be ancestor of main (relay/feat must be ahead)"
+git -C "$idle_wt" rev-parse HEAD >/dev/null 2>&1 \
+  || fail "idle_wt setup failed: HEAD not resolvable"
+git -C "$idle_wt" merge-base --is-ancestor HEAD main 2>/dev/null \
+  || fail "idle_wt setup wrong: HEAD should be ancestor of main (HEAD==main, no extra commits)"
+
 # ── heartbeat keeps a >TTL claim alive ──────────────────────────────────────────────
 # Use a large TTL (1 hour) — all stale-state is forced via `touch -d '1 hour ago'`, so
 # natural aging never triggers. TTL=1 caused timing-sensitive flakes under parallel load
@@ -64,9 +82,11 @@ pass "heartbeat refreshes a held claim's mtime (long child keeps its lease) (id:
 
 # heartbeat is run-scoped: a different run cannot refresh someone else's claim mtime.
 touch -d '1 hour ago' "$shard"
+mt_before="$(stat -c %Y "$shard")"        # snapshot mtime before the no-op heartbeat
 "$SH" heartbeat hb-repo --run RUN-WRONG   # wrong run → no-op (should not touch)
-mt="$(stat -c %Y "$shard")"; now="$(date +%s)"
-[[ $((now - mt)) -ge 2 ]] || fail "heartbeat with a wrong --run wrongly refreshed the claim"
+mt_after="$(stat -c %Y "$shard")"
+# mtime must be UNCHANGED — no absolute clock comparison (timing-independent assertion)
+[[ "$mt_before" -eq "$mt_after" ]] || fail "heartbeat with a wrong --run wrongly refreshed the claim"
 # and heartbeat of an absent claim is a no-op exit 0.
 "$SH" heartbeat no-such-repo --run RUN-HB || fail "heartbeat of an absent claim should exit 0"
 pass "heartbeat is run-scoped and idempotent on an absent claim (id:7570)"
