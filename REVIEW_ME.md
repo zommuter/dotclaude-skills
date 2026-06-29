@@ -3,46 +3,20 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
-> All 8 boxes below confirmed by user on 2026-06-12 — prune at next review turn.
+(All prior boxes — the 8 confirmed 2026-06-12 + the 2026-06-21 flaky-test decision —
+were resolved and pruned by the 2026-06-29 review turn.)
 
-- [x] tests/test_broker_say.sh::say batching (roadmap:3b02) — TODO offered three
-  options (allowlist, batching, /dev/null wrapper); the test encodes option (b)
-  as a `say` subcommand that batches at the *Bash-tool-call* level but still
-  POSTs one HTTP /event per line, so renderer per-line painting and TTFL
-  granularity survive. Options (a)/(c) are deliberately not implemented.
-- [x] tests/test_statusline_tokens.sh::format (roadmap:2520) — token total is
-  embedded in the context segment as `58%(115k)` with humanizing rules
-  115000→`115k`, 9500→`9.5k`, 730→`730`; alternative (own segment, raw digits)
-  rejected to keep line length stable.
-- [x] tests/test_ctx_budget.sh::advisory exit (roadmap:32d6) — ctx-budget.sh
-  always exits 0 (WARN lines only), per the "observe before preventing"
-  heuristic; if you want it as a CI gate it needs a `--strict` flag instead.
-  Gate fixed at 2000 tokens ≈ bytes/4, matching the cost-of.sh convention.
-- [x] tests/test_makefile_skills.sh::nested paths (roadmap:1ec1) — fables-turn
-  keeps its `references/` + `scripts/` subdirectories under
-  ~/.claude/skills/fables-turn/ (SKILL_RULES learns mkdir-dirname) rather than
-  flattening file names; `projects` is promoted to a first-class SKILLS member.
-- [x] tests/test_fable_caveat.sh::placement (roadmap:44ba) — the test requires
-  the Fable note *inside* the γ-branch section (adjacent to the table), and
-  accepts either a footnote marker or a blockquote; prose elsewhere in the file
-  does not satisfy it.
-- [x] tests/run-tests.sh::expected-red semantics (infrastructure) — failing
-  tests whose roadmap checkbox is unticked do NOT fail the suite; ticking the
-  box arms them. This reconciles "red tests are the spec" with the contract's
-  "full suite green" definition of done. Confirm you're happy that `make test`
-  is green on a repo full of open items.
-- [x] tests/test_id_ecosystem.sh::ledger set (roadmap:de9c) — the id-token
-  ledger now includes ROADMAP.md but deliberately NOT RELAY_LOG.md or
-  REVIEW_ME.md (they only ever cite existing tokens, never originate them);
-  `# roadmap:XXXX` test comments don't match the `id:XXXX` pattern by design.
-- [x] tests/test_id_ecosystem.sh::classify RELAY class (roadmap:de9c) — the
-  TODO.md mirror line `Relay: N open ROADMAP items` gets its own `RELAY` class
-  so `/meeting` no-arg dispatch never proposes a meeting on executor work;
-  alternative (classify it C3 like any line) rejected as recurring noise.
-
-- [x] **DECIDED 2026-06-21 (/relay human): HARDEN, don't accept** — a flaky test degrades the
-  suite's signal; filed id:6b91 [ROUTINE] (isolate `CLAIM_BASE` per-test / serialize the claim
-  tests). tests/test_relay_claim_liveness.sh (roadmap:7570, closed) flakes intermittently under
-  the **parallel** `tests/run-tests.sh` run (1 fail), passes 76/0 on re-run and green in isolation.
-  Feature behavior (worktree-anchored liveness) is genuinely green — not a regression; the defect
-  is test hermeticity under concurrency. (reviewer 2026-06-21)
+- [ ] inbox dead-letter routed:6976 → [dotclaude-skills] (surfaced by relay-doctor scan-routed,
+  report-only): "git-lock-push dirty-tree guard refinement — ignore untracked runtime files
+  (plans/, session-env/) + harness-owned tracked state (history.jsonl, .last-cleanup, sessions/)
+  in the aa93 porcelain check so ~/.claude pushes through when only junk is dirty; design together
+  with id:3558 worktree-per-session in one focused session — refuse only on genuine tracked-content
+  WIP." Class-B design prose (surface-only per id:678e). Decide: ingest into TODO.md (mint id via
+  `append.sh new-id`) or resolve the routed entry as obsolete.
+- [ ] inbox dead-letter routed:4097 → [dotclaude-skills] (surfaced by relay-doctor scan-routed,
+  report-only): "/meeting EnterPlanMode (skill step 3) propagates session-wide plan-mode to live
+  BACKGROUND agents — they get forced read-only and stall asking 'shall I proceed?' instead of
+  executing (observed: a relay executor mid-run during a meeting). Fix: detect live background
+  agents (TaskList) before EnterPlanMode and warn/skip, OR accumulate the meeting transcript
+  without a session-wide plan-mode." Class-B design prose (surface-only per id:678e). Decide:
+  ingest into TODO.md or resolve as obsolete.
