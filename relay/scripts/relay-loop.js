@@ -643,6 +643,43 @@ const MAX_ROUNDS = A.MAX_ROUNDS || 30
 // harness caps concurrent agents at min(16, cores-2), so shards above that just queue.
 const DISCOVER_SHARDS = A.DISCOVER_SHARDS || 6
 
+// id:d58f — fleet-quiescence drain. BYTE-IDENTICAL inline copies of relay/scripts/drain.mjs
+// (the Workflow sandbox cannot `import`; the .mjs is the canonical, unit-tested source — keep
+// in sync). See drain.mjs for the full rationale: a CONFIRMING-only review (verified-green,
+// reopened/added nothing) must NOT count as progress, else the loop spins on an already-drained
+// fleet re-reviewing a concurrently-churning repo instead of winding down.
+function unitIsSubstantive(verdict, report) {
+  if (verdict === 'execute' || verdict === 'hard' || verdict === 'handoff') return true
+  if (verdict === 'review') {
+    if (!report) return false
+    const reopened = Array.isArray(report.reopened) ? report.reopened.length : 0
+    const gaming = Array.isArray(report.gaming_flags) ? report.gaming_flags.length : 0
+    const routineOpen = Number(report.routine_open) || 0
+    return reopened > 0 || gaming > 0 || routineOpen > 0
+  }
+  return true
+}
+function classifyDrainBacklog(blocked) {
+  const buckets = { finished: [], gated: [], circuitBroken: [], dirty: [], other: [] }
+  for (const b of (blocked || [])) {
+    const repo = b && b.repo ? b.repo : '?'
+    const reason = (b && b.reason) ? String(b.reason) : ''
+    if (/finished repo|anti-false-handoff|0 open items/i.test(reason)) buckets.finished.push(repo)
+    else if (/HARD backlog|\[HARD —|no open \[HARD — pool\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
+    else if (/circuit breaker/i.test(reason)) buckets.circuitBroken.push(repo)
+    else if (/dirty main tree|dirty/i.test(reason)) buckets.dirty.push(repo)
+    else buckets.other.push(repo)
+  }
+  const parts = []
+  if (buckets.finished.length)     parts.push(`${buckets.finished.length} finished`)
+  if (buckets.gated.length)        parts.push(`${buckets.gated.length} gated (→ /relay human or /meeting: ${buckets.gated.join(', ')})`)
+  if (buckets.circuitBroken.length) parts.push(`${buckets.circuitBroken.length} circuit-broken`)
+  if (buckets.dirty.length)        parts.push(`${buckets.dirty.length} dirty`)
+  if (buckets.other.length)        parts.push(`${buckets.other.length} other`)
+  const summary = parts.length ? parts.join(' · ') : 'no blocked repos'
+  return { ...buckets, summary }
+}
+
 async function runRound() {
 // id:2d20 — productivity baseline: completions integrated BEFORE this round. The outer loop's
 // drain detector keys on `produced` (completions THIS round), not units dispatched — a round
@@ -1383,7 +1420,7 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
   )
   if (result && result.merged) {
     if (result.ts) state.ts = result.ts
-    state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?' })
+    state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?', substantive: unitIsSubstantive(unit.verdict, report) })
     pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?' })  // id:c8b6
     // L2 push-seed the discovery cache (id:c855): a just-integrated repo's sig CHANGES (new
     // ckpt tag + RELAY_LOG/ROADMAP), so without this the next round re-classifies (an LLM
@@ -1661,7 +1698,12 @@ scheduleStatusWrite(state)
 // id:2d20 — `produced` = checkpoints integrated THIS round (the only real progress signal).
 // A round that dispatched units which ALL handed back produces 0 → the outer loop counts it dry.
 const produced = state.completed.length - completedBefore
-return { actionable: actionable.length + intensiveRan, produced }
+// id:d58f — substantive = NEW completions this round that made real backlog progress
+// (execute/hard/handoff checkpoints + reviews that reopened/surfaced-routine/flagged). A
+// confirming-only review is produced-but-not-substantive; the drain detector keys on this so a
+// quiescent fleet (only re-confirming reviews) winds down instead of spinning to MAX_ROUNDS.
+const substantive = state.completed.slice(completedBefore).filter(c => c.substantive).length
+return { actionable: actionable.length + intensiveRan, produced, substantive }
 }
 // ── end runRound ──
 
@@ -1737,16 +1779,27 @@ while (!quotaStopped && round < MAX_ROUNDS) {
     log(`relay-loop: graceful stop — launch round cap reached (${round}/${STOP_AFTER_ROUNDS}, --once/--after)`)
     break
   }
-  // id:2d20 — a round is "dry" when it integrated NO checkpoint (produced === 0), not merely
-  // when it dispatched nothing. An all-handback round (only gated/too-large HARD units, which
-  // correctly refuse to half-do the work) makes no progress, so it counts toward drain — the
-  // loop stops after 2 such rounds instead of re-dispatching the same un-doable items every
-  // round to the MAX_ROUNDS seatbelt.
-  if ((r.produced || 0) === 0) {
+  // id:2d20 + id:d58f — a round makes no progress when it produced nothing SUBSTANTIVE, not
+  // merely when it integrated nothing. id:2d20 counted any integrated checkpoint as progress;
+  // id:d58f tightens that: a CONFIRMING-only review (verified-green, reopened/added nothing) is
+  // produced-but-not-substantive, so a fleet whose only remaining activity is re-confirming
+  // already-reviewed repos (notably a concurrently-churning cwd repo) counts as dry and winds
+  // down after 2 such rounds instead of spinning to the MAX_ROUNDS seatbelt. An all-handback
+  // round (gated/too-large HARD) and a dispatched-but-confirming-only round both count here.
+  if ((r.substantive || 0) === 0) {
     dry++
-    const why = r.actionable === 0 ? 'no actionable units' : `${r.actionable} dispatched but 0 integrated (all handed back)`
-    log(`relay-loop: round ${round} — no progress: ${why} (dry ${dry}/2)`)
-    if (dry >= 2) { log('relay-loop: backlog drained (2 consecutive no-progress rounds) — done'); break }
+    const why = r.actionable === 0
+      ? 'no actionable units'
+      : ((r.produced || 0) > 0
+          ? `${r.actionable} dispatched, ${r.produced} integrated but none substantive (confirming-only reviews)`
+          : `${r.actionable} dispatched but 0 integrated (all handed back)`)
+    log(`relay-loop: round ${round} — no substantive progress: ${why} (dry ${dry}/2)`)
+    if (dry >= 2) {
+      const drain = classifyDrainBacklog(state.blocked)
+      log(`relay-loop: backlog drained (2 consecutive no-substantive-progress rounds) — done. Remaining: ${drain.summary}`)
+      if (drain.gated.length) log(`relay-loop: ${drain.gated.length} repo(s) have gated [HARD] work the pool cannot auto-do — take them to /relay human --all or /meeting --cross.`)
+      break
+    }
   } else {
     dry = 0
   }
