@@ -997,3 +997,7 @@ Worked id:678e — implemented `scan-routed.sh --apply` (slice-2): added `--appl
 ## 2026-06-29 12:00 — executor (claude-sonnet-4-6)
 
 executor: id:678e slice-2 scan-routed.sh --apply implemented (5 cases green, suite 109/0); ticked pending review
+
+## 2026-06-29 12:04 — reviewer (claude-opus-4-8)
+
+review: id:678e slice-2 VERIFIED honest (gaming-clean, red spec byte-identical, suite 109/0); item closed, routine_open=0
