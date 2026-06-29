@@ -1,14 +1,24 @@
 export const meta = {
   name: 'relay-loop',
   description: 'Priority-mixed 5-wide autonomous relay pool — serialized integrator, quota-guarded, STRONG_TIER-aware',
+  // id:7c10 — finer-grained progress buckets so the /workflows pane's per-phase counts are
+  // meaningful. The two former floods are split out (discover-shards → Classify; the
+  // write-relay-status snapshot writer → Status) and the Support/Integrate catch-alls are
+  // broken into single-purpose buckets (Quota / Leases / Logging). Purely a DISPLAY grouping —
+  // zero behavioural change (the id:7d1e precedent).
   phases: [
-    { title: 'Discover', detail: 'classify confirmed repos into execute/review/hard/handoff/idle units' },
+    { title: 'Discover', detail: 'once-only prelude: runId · inject-take · claim-peek · sigs · stop-sentinel' },
+    { title: 'Classify', detail: 'parallel discover-shard classifiers (one per repo chunk)' },
     { title: 'Execute', detail: '[ROUTINE] executor units (Sonnet)' },
     { title: 'Review', detail: 'audit unaudited commits + re-derive roadmap (apex)' },
     { title: 'Hard', detail: '[HARD — pool] apex execution of one bounded item' },
     { title: 'Handoff', detail: 'docs → roadmap → red tests → BDD handoff (apex)' },
     { title: 'Integrate', detail: 'serialized merge → ckpt-tag → push per completed unit' },
-    { title: 'Support', detail: 'quota gate · lease release · injection take' },
+    { title: 'Status', detail: 'off-critical-path RELAY_STATUS.md snapshot writes' },
+    { title: 'Logging', detail: 'gaming-flag log · handback-followup routing' },
+    { title: 'Quota', detail: 'per-tier quota gate checks' },
+    { title: 'Leases', detail: 'per-unit cross-session lease release' },
+    { title: 'Support', detail: 'injection take · run-heartbeat · auto-reconcile-on-restart' },
   ],
 }
 
@@ -298,7 +308,7 @@ ${stdinPayload}
 RELAY_STATUS_EOF
 
 Report the script's final line. If it exits non-zero, report its stderr; do not retry or write any file yourself.`,
-    { label: 'write-relay-status', phase: 'Integrate', model: 'haiku' }
+    { label: 'write-relay-status', phase: 'Status', model: 'haiku' }
   )
 }
 
@@ -876,7 +886,7 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
   // zero shards and is still a valid round (shardOk seeded true below).
   const shardResults = changed.length
     ? await parallel(chunks.map((chunk) => () =>
-        agent(shardPrompt(chunk), { label: `discover-shard:${chunk.length}`, phase: 'Discover', schema: SHARD_SCHEMA, model: 'sonnet' })
+        agent(shardPrompt(chunk), { label: `discover-shard:${chunk.length}`, phase: 'Classify', schema: SHARD_SCHEMA, model: 'sonnet' })
       ))
     : []
   // Merge the shard classifications + the cached (reused) verdicts + the prelude's injected units +
@@ -1315,7 +1325,7 @@ async function quotaGate(tier) {
     `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
 Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.
 On exit 1 (real exhaustion), also return crossedBucket: the name of the bucket that quota-stop.sh logged as crossing its threshold (the script logs "quota-stop: <bucket>=<val>% >= threshold <t>" to stderr — capture that bucket name, e.g. "seven_day_sonnet"). Leave crossedBucket absent or empty if exit code is not 1.`,
-    { label: `quota:${tier}`, phase: 'Support', schema: QUOTA_SCHEMA, model: 'haiku' }
+    { label: `quota:${tier}`, phase: 'Quota', schema: QUOTA_SCHEMA, model: 'haiku' }
   )
   if (v && v.buckets && v.buckets.length) state.quota = v.buckets
   // id:8c35 — distinguish exit codes instead of collapsing both to quotaStopped:
@@ -1482,7 +1492,7 @@ function durableHandbackFollowup(unit, report) {
     `Run exactly this command and report whether it exited 0 (durable handback follow-up for ${unit.repo}, id:3801 — records the handback in ROADMAP.md so the pool stops re-dispatching an un-doable item; the script owns idempotency + commit/push):
 python3 ~/.claude/skills/relay/scripts/handback-followup.py '${esc(unit.path)}' --parent-id '${esc(report.handback_item)}' --route '${esc(route)}' --gate-reason '${esc(gateReason)}' --split-json '${esc(splitJson)}' --run-id '${esc(state.runId)}'
 Report the exit code.`,
-    { label: `handback-followup:${unit.repo}`, phase: 'Integrate', model: 'haiku' }
+    { label: `handback-followup:${unit.repo}`, phase: 'Logging', model: 'haiku' }
   ).catch(err => log(`relay-loop: durable handback follow-up failed for ${unit.repo} (non-fatal): ${err}`))
 }
 
@@ -1515,7 +1525,7 @@ function logGamingFlags(repo, runId, report, ts) {
 FIRST resolve the path with the shell (the JS cannot): log=$(python3 -c "import os;print(os.path.expanduser('${logPath}'))")
 Then run: mkdir -p "$(dirname "$log")" && printf '%s\\n' '${json.replace(/'/g, "'\\''")}' >> "$log"
 Confirm it succeeded.`,
-    { label: `gaming-log:${repo}`, phase: 'Integrate', model: 'haiku' }
+    { label: `gaming-log:${repo}`, phase: 'Logging', model: 'haiku' }
   ).catch(err => log(`relay-loop: gaming-flags log write failed (non-fatal): ${err}`))
 }
 
@@ -1541,7 +1551,7 @@ async function releaseLease(unit) {
   ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}${resourceRelease}
   ~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}
 The release is run-scoped (a no-op if this run no longer holds the claim) and idempotent; the beat is best-effort. Report the exit codes.`,
-    { label: `release:${unit.repo}`, phase: 'Support', model: 'haiku' }
+    { label: `release:${unit.repo}`, phase: 'Leases', model: 'haiku' }
   ).catch(err => log(`relay-loop: per-unit lease release/beat failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
 }
 
