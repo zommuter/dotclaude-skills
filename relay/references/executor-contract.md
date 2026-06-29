@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v5 -->
+## Executor contract <!-- relay-executor contract v6 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -31,6 +31,32 @@ you were told you are the reviewer) follow these rules:
      Do NOT run install/tests on the wrong host. EDITING the files is host-agnostic and fine;
      only the verification is gated. (Documented future option, NOT built: ssh-to-host
      verification — for now defer is the safe default.)
+2b. **Size-out (ROUTINE items)**: if you pick a `[ROUTINE]` item and determine it is
+    too large to land green in one session AND you cannot partially advance it to a
+    committable sub-seam, you MUST NOT silently leave it open. Soft notes (`friction:`
+    commit line, `BLOCKED:` RELAY_LOG line) are **not sufficient** — the integrator's
+    durable handback follow-up (`handback-followup.py`, id:3801) reads ONLY the
+    structured return fields, never the soft notes, so a soft-only size-out leaves the
+    item a plain open `[ROUTINE]` and the next discovery round re-dispatches the same
+    un-doable item to another executor (the re-dispatch spin).
+
+    **Required action**: return a structured handback:
+    - `contract_met=false`
+    - `handback_item` = the 4-hex id of the sized-out item
+    - `route` = `"hard-split"` (item is too large but decomposable into smaller seams;
+      populate `proposed_split` with an ordered seam array) **or** `"decision-gate"`
+      (needs a design decision before it can be built) **or** `"human"` (needs a
+      manual human action)
+    - `gate_reason` = one short line for the inline ROADMAP note
+
+    Exactly like the `[HARD]` size-out discipline (id:8b1f): leave the worktree
+    **completely clean** — make NO commit; write the rationale ONLY in the `handback`
+    field, not in RELAY_LOG.md / ROADMAP.md / REVIEW_ME.md. A clean worktree is
+    auto-reaped; any commit on a refusal strands as an orphan worktree.
+
+    The id:3801 gate then re-tags the `[ROUTINE]` parent to `[HARD — decision gate]`
+    (or applies the appropriate split/human follow-up), stopping the re-dispatch spin.
+
 3. **Test integrity**: never weaken, delete, skip, or rewrite a test to make it
    pass. The reviewer diffs all test files against the last relay checkpoint tag
    (`relay-ckpt-*`, or a historical `fable-ckpt-*`) and re-runs the original test
