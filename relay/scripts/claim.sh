@@ -121,14 +121,36 @@ pid_alive() {
   kill -0 "$pid" 2>/dev/null
 }
 
-# is_live <file>: a claim is live if its mtime is fresh OR (id:7570) its worktree is still
-# working OR (id:1b11) its recorded live_pid is still alive. Single liveness predicate
-# peek/reap/acquire share.
+# heartbeat_alive_for_run <runId>: id:33d3 — true if heartbeat.sh reports the run as
+# "alive". Fail-safe: any error (heartbeat.sh not found, bad output, absent marker) →
+# return 1 (NOT alive), so the worktree clause falls back to mtime-TTL (the safe/D2
+# direction). Never introduces a new TTL knob — heartbeat.sh's own HEARTBEAT_TTL governs.
+heartbeat_alive_for_run() {
+  local run="$1"
+  [ -n "$run" ] || return 1
+  local hb_script status
+  hb_script="$(dirname "$0")/heartbeat.sh"
+  [ -x "$hb_script" ] || return 1
+  status="$("$hb_script" status "$run" 2>/dev/null || true)"
+  [ "$status" = "alive" ]
+}
+
+# is_live <file>: a claim is live if its mtime is fresh OR (id:7570, id:33d3) its worktree
+# is still working AND the claim's run heartbeat is alive, OR (id:1b11) its recorded
+# live_pid is still alive. The worktree clause (id:7570) is gated on the run heartbeat
+# (id:33d3): committed git objects persist after the owning process dies, so the worktree
+# alone is not a liveness signal — only a FRESH heartbeat backing it extends the lease past
+# mtime-TTL. Dead/absent heartbeat → worktree clause does not extend liveness; the claim
+# falls back to the ordinary mtime-TTL (D2). Single liveness predicate peek/reap/acquire share.
 is_live() {
   local f="$1"
   [ -f "$f" ] || return 1
   is_fresh "$f" && return 0
-  worktree_working "$f" && return 0
+  if worktree_working "$f"; then
+    local run_id
+    run_id="$(jq -r '.runId // ""' "$f" 2>/dev/null)" || run_id=""
+    heartbeat_alive_for_run "$run_id" && return 0
+  fi
   pid_alive "$f"
 }
 
