@@ -1,0 +1,16 @@
+[Unit]
+Description=Check every 15 min whether a local relay loop died without a clean stop (notify only)
+
+[Timer]
+# Fire shortly after login, then every 15 minutes. Detection latency is at most the
+# run-heartbeat TTL (default 1800s / 30 min — a relay round must beat within it) plus one
+# timer interval; 15 min keeps the notify prompt timely without polling churn (it is a cheap
+# read of local heartbeat files, no network).
+OnStartupSec=3min
+OnUnitActiveSec=15min
+# Don't pile up missed runs after suspend/resume; one catch-up is plenty.
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

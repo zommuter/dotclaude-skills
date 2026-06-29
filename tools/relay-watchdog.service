@@ -1,0 +1,13 @@
+[Unit]
+Description=Relay outage watchdog — notify (no claude -p) when a local relay loop died without a clean stop
+Documentation=file:%h/src/dotclaude-skills/tools/relay-watchdog.sh
+# Detects a dead loop via the shared run-heartbeat (id:e149); pure detect+notify (id:98f0).
+
+[Service]
+Type=oneshot
+ExecStart=%h/src/dotclaude-skills/tools/relay-watchdog.sh
+Nice=10
+# notify-send needs the graphical session bus; import it at install time with
+#   systemctl --user import-environment DISPLAY DBUS_SESSION_BUS_ADDRESS
+# (the Makefile install target does this). For true off-host push (phone), set
+# RELAY_WATCHDOG_NOTIFY_CMD to an ntfy/equivalent command instead.
