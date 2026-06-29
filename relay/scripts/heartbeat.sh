@@ -49,14 +49,18 @@
 #
 # Paths: base = $HEARTBEAT_BASE (default ~/.config/relay/heartbeats), consumed =
 # $HEARTBEAT_BASE/../heartbeats.done, lock = $HEARTBEAT_BASE/../.heartbeat.lock.
-# TTL = $HEARTBEAT_TTL seconds (default 1800, matching CLAIM_TTL). The <safeRunId>
-# replaces '/' and ':' with '_'. Override $HEARTBEAT_BASE for hermetic tests.
+# TTL = $HEARTBEAT_TTL seconds (default 3600). The loop beats once per round (post-discovery)
+# AND once per settled unit (integrator), so a healthy pool refreshes every few minutes; the TTL
+# only has to exceed the LONGEST plausible quiet stretch (a long single child with no
+# integration). 3600s (1h) clears a slow multi-wave round without false-flagging a live pool as
+# dead — the false-positive a too-tight 1800s default produced (a ~40-min round read "dead",
+# 2026-06-29). The <safeRunId> replaces '/' and ':' with '_'. Override $HEARTBEAT_BASE for tests.
 set -euo pipefail
 
 HEARTBEAT_BASE="${HEARTBEAT_BASE:-$HOME/.config/relay/heartbeats}"
 DONE="$(dirname "$HEARTBEAT_BASE")/heartbeats.done"
 LOCK="$(dirname "$HEARTBEAT_BASE")/.heartbeat.lock"
-TTL="${HEARTBEAT_TTL:-1800}"
+TTL="${HEARTBEAT_TTL:-3600}"
 LOG="${HEARTBEAT_LOG:-$HOME/.claude/logs/relay-heartbeat.log}"
 
 mkdir -p "$HEARTBEAT_BASE" "$DONE" "$(dirname "$LOG")"
@@ -197,7 +201,7 @@ case "$cmd" in
     ;;
 
   ""|-h|--help|help)
-    sed -n '2,63p' "$0"
+    sed -n '2,56p' "$0"
     ;;
 
   *)

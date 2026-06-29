@@ -673,8 +673,7 @@ const prelude = await agent(
 5. liveClaimRepos: run ~/.claude/skills/relay/scripts/claim.sh peek once — it prints every LIVE cross-session claim as one JSON per line ({key,repo,runId,...}); return the SET of distinct "repo" values. [] if none.
 6. injectedUnits (id:baf1): run ~/.claude/skills/relay/scripts/inject.sh take EXACTLY ONCE — it atomically emits AND CONSUMES pending user-injected units, one JSON per line {token, repo, verdict, item, prompt, requested_at}. For EACH, emit one unit: {injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>, path:(resolve ~/src/<repo> or the "# path:" override), reason:"user-injected high-priority task", inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false, hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"", intensive:""}. [] if take emits nothing. NEVER run take more than once (it consumes).
 7. signatures (id:c3a6 — discovery cache): compute a per-repo SUPERSET signature so the supervisor can skip re-classifying (an LLM shard) a repo whose observable state is unchanged since last round. Build ONE JSON object {"repos":[{"repo":<repo>,"path":<path>} for EVERY own repo from step 3],"liveClaims":<the liveClaimRepos array from step 5>} and pipe it on stdin to ~/.claude/skills/relay/scripts/discover-sig.sh. The script emits one JSON line per repo {"repo":<repo>,"sig":<sha256-hex or "">} — return them verbatim as "signatures". An EMPTY sig is a fail-open sentinel (the script could not read the repo): pass it through unchanged, do NOT invent a hash. Do this ONCE for all own repos; do NOT classify here. ([] only if there are zero own repos.)
-8. stopRequested (id:c012 — operator graceful-stop sentinel): check the file ${STOP_PATH} (expand a leading ~ to $HOME). If it does NOT exist, return stopRequested:false. If it EXISTS, read its trimmed content C: (a) if C is a positive integer N>=1 (the "drain N more rounds" countdown from \`/relay stop --after N\`), this round PROCEEDS — write N-1 back into the file (printf '%s' "$((N-1))" > the file) and return stopRequested:false; (b) otherwise (C is empty, non-numeric, "0", or negative — the plain \`/relay stop\` "stop now" signal), CONSUME the sentinel (rm -f the file) and return stopRequested:true. This is the ONLY actor that writes/removes the sentinel; never run more than once per round.
-9. heartbeat (id:e149 — run-liveness marker for the outage watchdog (id:98f0) + auto-reconcile-on-restart (id:7809)): using the runId from step 1, run ONCE: ~/.claude/skills/relay/scripts/heartbeat.sh beat <runId>. This refreshes the run's liveness marker; running it every round keeps the marker fresh while the loop lives. A clean shutdown later calls \`heartbeat.sh stop\`, so ONLY a DIED run leaves a stale (past-TTL) marker for the watchdog/auto-reconcile to act on. Best-effort: if it errors, do NOT fail the prelude — just note it.`,
+8. stopRequested (id:c012 — operator graceful-stop sentinel): check the file ${STOP_PATH} (expand a leading ~ to $HOME). If it does NOT exist, return stopRequested:false. If it EXISTS, read its trimmed content C: (a) if C is a positive integer N>=1 (the "drain N more rounds" countdown from \`/relay stop --after N\`), this round PROCEEDS — write N-1 back into the file (printf '%s' "$((N-1))" > the file) and return stopRequested:false; (b) otherwise (C is empty, non-numeric, "0", or negative — the plain \`/relay stop\` "stop now" signal), CONSUME the sentinel (rm -f the file) and return stopRequested:true. This is the ONLY actor that writes/removes the sentinel; never run more than once per round.`,
   { label: 'discover-prelude', phase: 'Discover', schema: PRELUDE_SCHEMA, model: 'sonnet' }
 )
 
@@ -1150,6 +1149,15 @@ if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTE
 // Refresh the cross-round accumulator's per-round views (completed/reviewMe persist).
 state.runId = state.runId || discovery.runId
 state.ts = discovery.ts
+
+// id:e149 — beat the STABLE run-heartbeat (state.runId, fixed at round 1) every round. This
+// MUST use state.runId, not the prelude's per-round freshly-generated runId: the prelude
+// regenerates `relay-<ts>-<rand>` each round, so beating that would create a NEW marker each
+// round and never refresh the prior one — leaving stale orphan markers that falsely read
+// "dead" to the watchdog (id:98f0) while the pool is alive. The integrator also beats per
+// settled unit (intra-round freshness), so the marker stays fresh whenever the pool does
+// anything; only a genuinely dead loop lets it age past TTL. Best-effort.
+await beatHeartbeat()
 state.queued = [
   ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
   ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: HARD-execute needs apex Opus; STRONG_MODEL=${STRONG_MODEL} — left for Fable handoff-C5/review-step6)` })),
@@ -1492,10 +1500,12 @@ async function releaseLease(unit) {
     ? ` && ~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}`
     : ''
   await agent(
-    `Run exactly this command and report whether it exited 0 (the relay child for ${unit.repo} has settled; free its cross-session lease so other sessions aren't blocked for the TTL): ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}${resourceRelease}
-This is run-scoped (a no-op if this run no longer holds the claim) and idempotent. Report the exit code.`,
+    `Run exactly these two commands and report whether they exited 0 (the relay child for ${unit.repo} has settled; free its cross-session lease so other sessions aren't blocked for the TTL, and refresh the run-liveness heartbeat — id:e149 — so the outage watchdog knows the pool made progress this unit):
+  ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}${resourceRelease}
+  ~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}
+The release is run-scoped (a no-op if this run no longer holds the claim) and idempotent; the beat is best-effort. Report the exit codes.`,
     { label: `release:${unit.repo}`, phase: 'Support', model: 'haiku' }
-  ).catch(err => log(`relay-loop: per-unit lease release failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
+  ).catch(err => log(`relay-loop: per-unit lease release/beat failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
 }
 
 async function runUnit(unit) {
@@ -1660,6 +1670,16 @@ return { actionable: actionable.length + intensiveRan, produced }
 // death. Called on every exit path. Best-effort — the TTL backstop + the conservative
 // reconcile classifier mean a missed stop only ever causes a benign false "dead" (a watchdog
 // nudge + a no-op safe-reconcile pass), never data loss. No-op before a runId exists.
+async function beatHeartbeat() {
+  if (!state.runId) return
+  try {
+    await agent(
+      `Run exactly this command and report whether it exited 0 (refresh the relay run-liveness heartbeat so the outage watchdog/auto-reconcile know this pool is alive): ~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}`,
+      { label: 'heartbeat-beat', phase: 'Support' }
+    )
+  } catch (_) { /* non-fatal — TTL backstop */ }
+}
+
 async function stopHeartbeat() {
   if (!state.runId) return
   try {
