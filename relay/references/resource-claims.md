@@ -1,3 +1,33 @@
+# Relay claim invariants
+
+## The `hard` lease guards CODE/WORKTREE integration ONLY (id:179e)
+
+Meeting D2 (`docs/meeting-notes/2026-06-17-0953-k3s-parallelity-coordination-design.md`)
+narrowed the relay's repo lease. The **single source of truth** for the split:
+
+- **HARD lease** = a per-repo `claim.sh acquire <repo> --mode <execute|review|hard|handoff|intensive>`.
+  It serializes the actors that build code in a worktree and **integrate** it into the
+  repo's main checkout. Two of those must never run on the same repo concurrently — that
+  is the whole job of the lease.
+- **LEDGER-ONLY writes** (`TODO.md` / `ROADMAP.md` / `REVIEW_ME.md`, written via
+  `meeting/md-merge.py` or `relay/scripts/commit-ledger.sh`) are **NOT** protected by the
+  hard lease. `/meeting` step 2a (id:c144) and `/relay human` (`human.md` §5) do **not**
+  acquire it for a ledger write-back; they **peek-and-warn, then proceed**. A ledger write
+  is made safe instead by three layers:
+  1. the per-file **flock** in `md-merge.py` / `commit-ledger.sh` (atomic write),
+  2. the **atomic scoped commit** (id:148b / id:2147 — stages only the named file, never
+     `git add -A`; the integrator likewise never `git add -A`, id:debf), and
+  3. the post-hoc **`meeting/orphan-scan.sh --cross-ledger`** divergence backstop.
+
+**Why:** acquiring the hard lease for a ledger write over-blocks it for the full duration
+of a multi-repo pool run (the `routed:da2f` incident) — id:c144 removed that over-blocking.
+The bilateral advisory claim the pool would *honor* for ledger writes is the separate,
+observe-first **id:9000** follow-up; today the peek is read-only awareness, not a gate.
+
+This invariant is mirrored in the `relay/scripts/claim.sh` header (the mechanism's SSOT).
+
+---
+
 # `resource:<name>` claim vocabulary — the shared serialization key (id:a643)
 
 **Single source of truth** for the `resource:<name>` claim keys that let the relay's

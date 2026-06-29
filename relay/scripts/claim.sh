@@ -8,6 +8,23 @@
 # refused). Staleness = claim-file mtime + TTL; a flock'd reap drops stale shards
 # (handback nuance for stale-with-live-worktree is the relay-loop's job, not this).
 #
+# SCOPE INVARIANT — the `hard` lease guards CODE/WORKTREE integration ONLY (id:179e,
+# meeting D2 `docs/meeting-notes/2026-06-17-0953-k3s-parallelity-coordination-design.md`):
+#   - A repo `acquire <repo> --mode <execute|review|hard|handoff|intensive>` is the HARD
+#     lease: it serializes the actors that build code in a worktree and integrate (merge)
+#     it into the repo's main checkout. Two of those must never run on the same repo at once.
+#   - LEDGER-ONLY writes (TODO.md / ROADMAP.md / REVIEW_ME.md via meeting/md-merge.py or
+#     relay/scripts/commit-ledger.sh) are NOT protected by this lease. `/meeting` step 2a
+#     (id:c144) and `/relay human` (human.md §5) do NOT acquire it for a ledger write-back —
+#     they PEEK-AND-WARN, then proceed. A ledger write is made safe instead by three layers:
+#       (1) the per-file flock in md-merge.py / commit-ledger.sh (atomic write),
+#       (2) the atomic scoped commit (id:148b / id:2147 — never `git add -A`, id:debf), and
+#       (3) the `meeting/orphan-scan.sh --cross-ledger` post-hoc divergence backstop.
+#   Acquiring the hard lease for a ledger write over-blocks it for the full duration of a
+#   multi-repo pool run (the routed:da2f incident) — which is exactly what id:c144 removed.
+#   (The bilateral advisory claim the pool would *honor* for ledger writes is the separate,
+#   observe-first id:9000 follow-up; today peek is read-only awareness, not a gate.)
+#
 # Subcommands:
 #   acquire <key> [--repo R] [--run RUNID] [--mode M] [--item ID] [--worktree WT] [--pid PID]
 #       Under flock: if claims/<safekey>.json exists AND is LIVE (fresh mtime within TTL,
@@ -261,7 +278,7 @@ case "$cmd" in
     ;;
 
   ""|-h|--help|help)
-    sed -n '2,38p' "$0"
+    sed -n '2,56p' "$0"
     ;;
 
   *)

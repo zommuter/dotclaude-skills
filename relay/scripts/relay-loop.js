@@ -1440,6 +1440,8 @@ async function integrate(unit, report) {
    c. openHard — count of unticked HARD items: git -C ${unit.path} grep -c -E '^- \\[ \\].*\\[HARD' HEAD -- ROADMAP.md 2>/dev/null (0 if absent). Count ALL [HARD items (gated or not) — the supervisor only push-seeds 'idle' when BOTH counts are 0, so over-counting here is safe (it just declines to cache).
 8. Return merged=true, ckptTag, pushStatus, ts (current ISO timestamp), postSig, openRoutine, openHard.
 
+SCOPED-STAGING INVARIANT (id:debf — never scoop a concurrent ledger edit). You integrate the child's work EXCLUSIVELY via the committed-branch \`git merge --no-ff\` in step 2 — that brings in ONLY the commits already on \`${report.branch}\`. You must NEVER stage the main checkout broadly: do NOT run \`git add -A\`, \`git add .\`, \`git add -u\`, or \`git add --all\` anywhere. A \`/meeting\` or \`/relay human\` session may be writing a ledger file (TODO/ROADMAP/REVIEW_ME) in the main checkout concurrently (those writes are flock-protected, NOT lease-protected — id:c144); a broad \`git add\` would capture that uncommitted foreign edit into this pool checkpoint commit (the scoop window, id:3558). The step-1 clean-tree gate already DEFERS on any foreign-dirty tree; the merge stages nothing from the working tree, so a concurrent ledger edit is never scooped. If you ever need to stage a specific file (e.g. the id:bae5 uv.lock relock), stage it by exact path (\`git add -- <path>\`), never broadly.
+
 Never push any other repo, never force-push, never resolve conflicts yourself.`,
     { label: `integrate:${unit.repo}`, phase: 'Integrate', schema: INTEGRATE_SCHEMA, model: 'sonnet' }
   )
