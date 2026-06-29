@@ -12,6 +12,18 @@ LOCK_PUSH="$REPO_ROOT/git-diary-workflow/git-lock-push.sh"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
+# Structural fix for id:05e8 flakiness: git-lock-push.sh guards the push with
+# `ssh-add -l` — if the SSH agent has no key loaded (CI, expired agent, parallel
+# suite run), it exits 0 without pushing and the push assertion fails.
+# The remote here is a local file:// bare repo that needs NO SSH.  Inject a fake
+# ssh-add that always exits 0 ("agent has keys") so the test never depends on the
+# real SSH agent state.
+fakebin="$tmpdir/bin"
+mkdir -p "$fakebin"
+printf '#!/bin/sh\nexec true\n' > "$fakebin/ssh-add"
+chmod +x "$fakebin/ssh-add"
+export PATH="$fakebin:$PATH"
+
 bare="$tmpdir/remote.git"
 work="$tmpdir/work"
 other="$tmpdir/other"
