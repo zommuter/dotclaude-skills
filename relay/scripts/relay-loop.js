@@ -673,7 +673,8 @@ const prelude = await agent(
 5. liveClaimRepos: run ~/.claude/skills/relay/scripts/claim.sh peek once — it prints every LIVE cross-session claim as one JSON per line ({key,repo,runId,...}); return the SET of distinct "repo" values. [] if none.
 6. injectedUnits (id:baf1): run ~/.claude/skills/relay/scripts/inject.sh take EXACTLY ONCE — it atomically emits AND CONSUMES pending user-injected units, one JSON per line {token, repo, verdict, item, prompt, requested_at}. For EACH, emit one unit: {injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>, path:(resolve ~/src/<repo> or the "# path:" override), reason:"user-injected high-priority task", inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false, hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"", intensive:""}. [] if take emits nothing. NEVER run take more than once (it consumes).
 7. signatures (id:c3a6 — discovery cache): compute a per-repo SUPERSET signature so the supervisor can skip re-classifying (an LLM shard) a repo whose observable state is unchanged since last round. Build ONE JSON object {"repos":[{"repo":<repo>,"path":<path>} for EVERY own repo from step 3],"liveClaims":<the liveClaimRepos array from step 5>} and pipe it on stdin to ~/.claude/skills/relay/scripts/discover-sig.sh. The script emits one JSON line per repo {"repo":<repo>,"sig":<sha256-hex or "">} — return them verbatim as "signatures". An EMPTY sig is a fail-open sentinel (the script could not read the repo): pass it through unchanged, do NOT invent a hash. Do this ONCE for all own repos; do NOT classify here. ([] only if there are zero own repos.)
-8. stopRequested (id:c012 — operator graceful-stop sentinel): check the file ${STOP_PATH} (expand a leading ~ to $HOME). If it does NOT exist, return stopRequested:false. If it EXISTS, read its trimmed content C: (a) if C is a positive integer N>=1 (the "drain N more rounds" countdown from \`/relay stop --after N\`), this round PROCEEDS — write N-1 back into the file (printf '%s' "$((N-1))" > the file) and return stopRequested:false; (b) otherwise (C is empty, non-numeric, "0", or negative — the plain \`/relay stop\` "stop now" signal), CONSUME the sentinel (rm -f the file) and return stopRequested:true. This is the ONLY actor that writes/removes the sentinel; never run more than once per round.`,
+8. stopRequested (id:c012 — operator graceful-stop sentinel): check the file ${STOP_PATH} (expand a leading ~ to $HOME). If it does NOT exist, return stopRequested:false. If it EXISTS, read its trimmed content C: (a) if C is a positive integer N>=1 (the "drain N more rounds" countdown from \`/relay stop --after N\`), this round PROCEEDS — write N-1 back into the file (printf '%s' "$((N-1))" > the file) and return stopRequested:false; (b) otherwise (C is empty, non-numeric, "0", or negative — the plain \`/relay stop\` "stop now" signal), CONSUME the sentinel (rm -f the file) and return stopRequested:true. This is the ONLY actor that writes/removes the sentinel; never run more than once per round.
+9. heartbeat (id:e149 — run-liveness marker for the outage watchdog (id:98f0) + auto-reconcile-on-restart (id:7809)): using the runId from step 1, run ONCE: ~/.claude/skills/relay/scripts/heartbeat.sh beat <runId>. This refreshes the run's liveness marker; running it every round keeps the marker fresh while the loop lives. A clean shutdown later calls \`heartbeat.sh stop\`, so ONLY a DIED run leaves a stale (past-TTL) marker for the watchdog/auto-reconcile to act on. Best-effort: if it errors, do NOT fail the prelude — just note it.`,
   { label: 'discover-prelude', phase: 'Discover', schema: PRELUDE_SCHEMA, model: 'sonnet' }
 )
 
@@ -1654,6 +1655,42 @@ return { actionable: actionable.length + intensiveRan, produced }
 }
 // ── end runRound ──
 
+// stopHeartbeat (id:e149): release this run's liveness marker on a CLEAN shutdown so the
+// outage watchdog (id:98f0) + auto-reconcile (id:7809) never treat a deliberate end as a
+// death. Called on every exit path. Best-effort — the TTL backstop + the conservative
+// reconcile classifier mean a missed stop only ever causes a benign false "dead" (a watchdog
+// nudge + a no-op safe-reconcile pass), never data loss. No-op before a runId exists.
+async function stopHeartbeat() {
+  if (!state.runId) return
+  try {
+    await agent(
+      `Run exactly this command and report whether it exited 0 (clean relay-loop shutdown — release the run heartbeat so the watchdog/auto-reconcile don't read this clean stop as a death): ~/.claude/skills/relay/scripts/heartbeat.sh stop ${state.runId}`,
+      { label: 'heartbeat-stop', phase: 'Support' }
+    )
+  } catch (_) { /* non-fatal */ }
+}
+
+// ── Auto-reconcile-on-restart (id:7809) ──
+// If a PRIOR relay run DIED without a clean stop (a stale run-heartbeat, id:e149), dispose its
+// SAFE (ledger-only, clean, non-diverged) parked orphans automatically and SURFACE the
+// judgment ones into REVIEW_ME.md — BEFORE starting fresh work, so a restart neither
+// double-works nor skips a dead run's leftovers. The classifier is conservative (never a
+// weaker bar than a human /relay review). Runs ONCE at startup, gated on a stale heartbeat so a
+// clean start does nothing; this run hasn't beaten its own marker yet (first beat is in round-1
+// prelude), so dead-runs reports only PRIOR runs. Best-effort — the human /relay reconcile is
+// always the backstop, so a failure here never blocks the pool.
+try {
+  await agent(
+    `Auto-reconcile-on-restart check (relay id:7809), unattended — NEVER prompt. Run exactly:
+  ~/.claude/skills/relay/scripts/heartbeat.sh dead-runs
+If it prints NOTHING, no prior relay run died — do nothing else and report "no dead run, skipped". If it prints one or more JSON lines (a prior run died without a clean heartbeat stop), then run BOTH of these in order and report their output verbatim:
+  ~/.claude/skills/relay/scripts/relay-reconcile.sh --all --auto
+  ~/.claude/skills/relay/scripts/heartbeat.sh reap
+(The first auto-integrates only ledger-only/clean orphans and surfaces everything else into REVIEW_ME.md; the second archives the now-handled dead run-markers so the watchdog (id:98f0) does not re-notify and the next start does not re-reconcile them.) Take NO other action.`,
+    { label: 'auto-reconcile-restart', phase: 'Support' }
+  )
+} catch (_) { /* non-fatal: the human /relay reconcile is always available */ }
+
 // ── Outer self-feeding loop ──
 // Repeat runRound (fresh discovery each round) until the quota cap stops the run, two
 // consecutive rounds find no actionable work (backlog drained), or MAX_ROUNDS trips.
@@ -1664,6 +1701,7 @@ while (!quotaStopped && round < MAX_ROUNDS) {
   if (r.failed) {
     if (round === 1) {
       await statusTail  // id:cb50 — flush any queued status write before the early return
+      await stopHeartbeat()  // id:e149 — round-1 discovery failed but the prelude may have beaten; release it
       return { error: 'discovery failed', runId: state.runId, statusPath: RELAY_STATUS_PATH, completed: state.completed, handbacks: [], queuedRemaining: state.queued, quotaStopped, stopReason }
     }
     log('relay-loop: discovery failed mid-run — stopping after completed rounds')
@@ -1695,6 +1733,7 @@ while (!quotaStopped && round < MAX_ROUNDS) {
 }
 
 await statusTail  // id:cb50 — flush the queued (off-critical-path) RELAY_STATUS writes so the final state is durable before the run returns
+await stopHeartbeat()  // id:e149 — clean shutdown: release the run-liveness marker (no stale marker ⇒ no false watchdog/reconcile trigger)
 const handbacks = state.blocked.filter(b => b.worktreePath && b.worktreePath !== '-')
 log(`relay-loop: done — ${round} round(s), ${state.completed.length} integrated, ${handbacks.length} HANDBACKs, quotaStopped=${quotaStopped}`)
 

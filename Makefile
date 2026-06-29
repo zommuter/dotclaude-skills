@@ -38,6 +38,7 @@ relay_FILES := SKILL.md \
                scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh \
                scripts/relay-loop.js scripts/inject.sh scripts/claim.sh \
+               scripts/heartbeat.sh \
                scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/force-push.sh \
                scripts/relay-state-write.sh \
                scripts/gaming-scan.sh scripts/profile-run.sh scripts/profile-runs-batch.sh \
@@ -52,7 +53,7 @@ relay_FILES := SKILL.md \
                scripts/scan-routed.sh scripts/host-gate.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
-               scripts/claim.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
+               scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
                scripts/force-push.sh \
                scripts/relay-state-write.sh scripts/gaming-scan.sh scripts/profile-run.sh \
                scripts/profile-runs-batch.sh scripts/relay-burn.sh scripts/relay-econ.py \
@@ -66,7 +67,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/host-gate.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
-               scripts/claim.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
+               scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
                scripts/force-push.sh \
                scripts/relay-state-write.sh scripts/gaming-scan.sh scripts/profile-run.sh \
                scripts/profile-runs-batch.sh scripts/relay-burn.sh scripts/relay-econ.py \
@@ -95,6 +96,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
         install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test gaming-canary shard-canary \
         install-quota-timer status-quota-timer uninstall-quota-timer \
+        install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -110,6 +112,7 @@ help:
 	@echo "  install-hooks        install hooks (+ statusline) only"
 	@echo "  install-statusline   install the quota/cost/model statusbar only (checks CLI deps)"
 	@echo "  install-quota-timer  install the 15-min usage-quota sampler systemd user timer"
+	@echo "  install-relay-watchdog install the relay outage watchdog systemd user timer (notify on a dead loop)"
 	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
@@ -238,6 +241,34 @@ uninstall-quota-timer:
 	@echo "→ removing quota-sample timer"
 	@systemctl --user disable --now quota-sample.timer 2>/dev/null || true
 	@rm -f $(SYSTEMD_USER)/quota-sample.timer $(SYSTEMD_USER)/quota-sample.service
+	@systemctl --user daemon-reload 2>/dev/null || true
+
+# Relay outage watchdog (id:98f0) — same --user-timer pattern. Detects a dead relay loop via the
+# shared run-heartbeat (id:e149) and NOTIFIES (no claude -p, no permission wall). import-environment
+# makes the graphical session bus available so notify-send works; for off-host push instead, set
+# RELAY_WATCHDOG_NOTIFY_CMD in the unit's environment.
+install-relay-watchdog:
+	@echo "→ installing relay-watchdog timer"
+	@mkdir -p $(SYSTEMD_USER)
+	@ln -sf $(SRC_DIR)/tools/relay-watchdog.service $(SYSTEMD_USER)/relay-watchdog.service
+	@ln -sf $(SRC_DIR)/tools/relay-watchdog.timer   $(SYSTEMD_USER)/relay-watchdog.timer
+	@systemctl --user import-environment DISPLAY DBUS_SESSION_BUS_ADDRESS 2>/dev/null || true
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now relay-watchdog.timer
+	@echo "  enabled. next runs: systemctl --user list-timers relay-watchdog.timer"
+
+status-relay-watchdog:
+	@echo "relay-watchdog.timer:"
+	@if [ -L $(SYSTEMD_USER)/relay-watchdog.timer ]; then \
+		systemctl --user is-active relay-watchdog.timer >/dev/null 2>&1 \
+			&& echo "  ok  active -> $$(readlink $(SYSTEMD_USER)/relay-watchdog.timer)" \
+			|| echo "  --  installed but not active (systemctl --user enable --now relay-watchdog.timer)"; \
+	else echo "  !!  not installed (make install-relay-watchdog)"; fi
+
+uninstall-relay-watchdog:
+	@echo "→ removing relay-watchdog timer"
+	@systemctl --user disable --now relay-watchdog.timer 2>/dev/null || true
+	@rm -f $(SYSTEMD_USER)/relay-watchdog.timer $(SYSTEMD_USER)/relay-watchdog.service
 	@systemctl --user daemon-reload 2>/dev/null || true
 
 uninstall: $(addprefix uninstall-,$(SKILLS)) uninstall-statusline
