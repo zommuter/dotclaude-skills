@@ -993,3 +993,7 @@ handoff C3: red spec id:678e slice-2 scan-routed --apply (5 cases, EXPECTED-RED)
 ## 2026-06-29 — executor (sonnet)
 
 Worked id:678e — implemented `scan-routed.sh --apply` (slice-2): added `--apply` and `--dry-run` flags; a `resolve_target()` helper that resolves `[target]` by relay.toml first (incl. `# path:` polyrepo override) then by `$SRC_DIR/<name>` existence on disk (so an own repo without a relay.toml block still resolves); idempotency guard (grep target TODO for `routed:XXXX` before writing); `claim.sh peek` skip for live pool worktrees; flock'd write via `md-merge.py`; commit via `commit-ledger.sh`; best-effort `append.sh inbox-done`; `--dry-run` prints the inspectable plan without writing. All 5 red-spec cases (polyrepo→central TODO, non-relay-own→its TODO, nonexistent→UNRESOLVED, idempotent re-run=no-op, dry-run=no write+diff) now green. Full suite 109/0. Friction: none — spec was precise and self-contained; the existing slice-1 code was a clean base for the extension.
+
+## 2026-06-29 12:00 — executor (claude-sonnet-4-6)
+
+executor: id:678e slice-2 scan-routed.sh --apply implemented (5 cases green, suite 109/0); ticked pending review
