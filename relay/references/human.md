@@ -207,15 +207,24 @@ It is a clean no-op for any named file that didn't change, so listing all three 
 Commit-only (no push, per the contract above); committing locally is what clears the
 dirty-guard for the next pool run.
 
-**Cross-session lease (id:0902).** Before a repo's write-back, acquire its lease:
-`~/.claude/skills/relay/scripts/claim.sh acquire <repo> --run human-$CLAUDE_SESSION_ID --mode human`.
-If REFUSED (a live autonomous pool, `/relay review|handoff`, `/relay executor`, or `/meeting`
-holds the repo), **DEFER** that repo's write-back — surface it in the turn summary ("ledger
-write-back deferred — <repo> claimed by another relay run; re-run once idle") and leave its
-boxes unticked (your auto-answers are re-checkable CLAIMs anyway, so nothing is lost). On a
-clean acquire, do the per-repo write-back, then release run-scoped:
-`claim.sh release <repo> --run human-$CLAUDE_SESSION_ID`. This is the same hold `/meeting`
-uses (id:d748) — so `/relay human --all` never collides with a running pool on a shared ledger.
+**Peek-and-warn, not lease-gated (id:c144 — supersedes the id:0902 DEFER for ledger writes).**
+A `/relay human` write-back is a **ledger-only** edit (line-scoped ticks + flow-back), so per
+meeting D2 (`docs/meeting-notes/2026-06-17-0953-k3s-parallelity-coordination-design.md`) it is
+**not** gated by the relay `hard` lease — that lease guards CODE/WORKTREE integration only. The
+write is already safe under a live pool via three layers: the per-file flock (`md-merge.py`), the
+atomic scoped commit (`commit-ledger.sh`, id:2147/id:148b), and the `orphan-scan.sh
+--cross-ledger` backstop. So a repo's write-back does **not** `claim.sh acquire` and does **not**
+DEFER on a held lease. Instead **peek and warn, then proceed**:
+`~/.claude/skills/relay/scripts/claim.sh peek | grep <repo>` — if a live relay run holds the
+repo, WARN in the turn summary ("relay pool live on <repo> — proceeding with the flock-protected,
+atomically-committed ledger write; the hard lease guards code integration only, not ledger
+writes, id:c144; cross-check `orphan-scan.sh --cross-ledger <repo>` after the pool drains"), then
+do the write-back. (Peek is advisory awareness only; the bilateral advisory-claim the pool
+*honors* is the separate observe-first id:9000 follow-up.) The CODE children in
+`/relay handoff|review` STILL acquire the lease before fan-out (SKILL.md invariant 4) — only
+ledger-only write-backs are exempt. Fallback: if `commit-ledger.sh` cannot acquire its flock
+within the timeout (rare contention, not a pool deferral), surface the repo and re-run once idle
+— your auto-answers are re-checkable CLAIMs, so nothing is lost.
 
 **Push unblocked work to the running pool, low-latency (id:fb75).** When a resolved box
 **unblocks** a gated/blocked ROADMAP item (e.g. ticking a decision-gate box opens a

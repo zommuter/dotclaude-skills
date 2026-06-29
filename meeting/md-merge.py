@@ -15,19 +15,31 @@ Usage:
     python3 md-merge.py update-sections --file <path>
     stdin: {"sections": [{"heading": "## Trait name", "content": "full replacement text incl heading"}]}
 
+    # Optionally commit the file atomically under the same flock (id:148b):
+    python3 md-merge.py update-ids --file <path> --commit "<commit message>"
+
 Both subcommands:
 - Acquire an exclusive flock on <path>.lock before reading/writing.
 - Re-read the file under lock (picks up concurrent writes since delta was prepared).
 - Write back atomically via tmp+rename.
 - IDs / headings not found are appended at end of file.
+- With --commit MSG (id:148b): while STILL holding the flock, commit just this file
+  (scoped `git add -- <file>` + `git commit -- <file>`, never `git add -A`, never
+  stash/reset — mirrors relay/scripts/commit-ledger.sh id:2147). Closes the scoop
+  window: no modified-but-uncommitted ledger is left in the main checkout. Opt-in,
+  idempotent (clean no-op when unchanged), and non-fatal on any git error (the write
+  already succeeded).
 
 Contract: two sessions editing different items/sections both survive;
 same-item serializes with last-under-lock winning without clobbering others.
 """
+from __future__ import annotations
+
 import argparse
 import fcntl
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -38,7 +50,61 @@ def _atomic_write(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
-def update_ids(file_path: Path, updates: list) -> None:
+def _commit_ledger(file_path: Path, msg: str) -> None:
+    """Scoped, idempotent commit of JUST <file_path> in its repo's main checkout.
+
+    Closes the scoop window (id:148b): without this the ledger is written but left
+    modified-but-uncommitted, a window in which a relay integrator could scoop it (now
+    also guarded by id:debf) or an interrupted run could strand dirty residue that trips
+    the dirty-guard (id:aa93). Called WHILE the caller still holds the <file>.lock flock,
+    so the write+commit pair is atomic w.r.t. other md-merge writers of the same file.
+
+    Discipline mirrors relay/scripts/commit-ledger.sh (id:2147) — the load-bearing rules:
+      - Stages ONLY this one file (`git add -- <file>`), NEVER `git add -A` (id:debf) —
+        a concurrent edit to an UNRELATED file is left untouched.
+      - NEVER `git stash` / `git checkout --` / `git reset` / `git clean` — it only ADDs
+        and COMMITs the named file; foreign-dirty paths are never disturbed (id:aa93).
+      - COMMIT-ONLY: never pushes (push is the caller's separate, later concern).
+      - Clean no-op: if the named file has no staged change, makes NO commit (idempotent).
+    Non-fatal: any git failure (not a repo, index lock, etc.) prints a warning to stderr
+    and returns — the atomic write already succeeded, so the ledger edit is never lost.
+    """
+    file_path = file_path.resolve()
+
+    def _git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ['git', '-C', str(file_path.parent), *args],
+            capture_output=True, text=True,
+        )
+
+    top = _git('rev-parse', '--show-toplevel')
+    if top.returncode != 0:
+        print(f'md-merge: --commit skipped — {file_path} is not in a git repo '
+              '(write succeeded, left uncommitted)', file=sys.stderr)
+        return
+    repo = Path(top.stdout.strip())
+    try:
+        rel = str(file_path.relative_to(repo))
+    except ValueError:
+        rel = str(file_path)
+
+    add = _git('add', '--', rel)
+    if add.returncode != 0:
+        print(f'md-merge: --commit skipped — git add failed for {rel}: '
+              f'{add.stderr.strip()} (write succeeded, left uncommitted)', file=sys.stderr)
+        return
+
+    # Clean no-op if nothing staged for this file (idempotent).
+    if _git('diff', '--cached', '--quiet', '--', rel).returncode == 0:
+        return
+
+    commit = _git('commit', '-m', msg, '--', rel)
+    if commit.returncode != 0:
+        print(f'md-merge: --commit failed for {rel}: {commit.stderr.strip()} '
+              '(write succeeded, left uncommitted)', file=sys.stderr)
+
+
+def update_ids(file_path: Path, updates: list, commit_msg: str | None = None) -> None:
     """Replace lines containing <!-- id:XXXX --> with new text, under flock."""
     lock_path = file_path.with_suffix(file_path.suffix + '.lock')
     id_map = {u['id']: u['line'].rstrip('\n') for u in updates}
@@ -65,11 +131,14 @@ def update_ids(file_path: Path, updates: list) -> None:
                     result.append(new_line + '\n')
 
             _atomic_write(file_path, ''.join(result))
+            # id:148b — atomic write+commit under the SAME flock (scoop-window close).
+            if commit_msg is not None:
+                _commit_ledger(file_path, commit_msg)
     finally:
         lock_path.unlink(missing_ok=True)
 
 
-def update_sections(file_path: Path, sections: list) -> None:
+def update_sections(file_path: Path, sections: list, commit_msg: str | None = None) -> None:
     """Replace ## section blocks by heading, under flock."""
     lock_path = file_path.with_suffix(file_path.suffix + '.lock')
     # Normalise: heading key stripped, content ends with exactly one newline
@@ -117,6 +186,9 @@ def update_sections(file_path: Path, sections: list) -> None:
                     result.append('\n' + new_content)
 
             _atomic_write(file_path, ''.join(result))
+            # id:148b — atomic write+commit under the SAME flock (scoop-window close).
+            if commit_msg is not None:
+                _commit_ledger(file_path, commit_msg)
     finally:
         lock_path.unlink(missing_ok=True)
 
@@ -127,9 +199,16 @@ def main() -> None:
 
     p_ids = sub.add_parser('update-ids', help='Replace lines by <!-- id:XXXX --> (for TODO.md)')
     p_ids.add_argument('--file', required=True, help='Path to the markdown file')
+    p_ids.add_argument('--commit', metavar='MSG',
+                       help='id:148b — after the write, commit JUST this file under the same '
+                            'flock with MSG (scoped `git add -- <file>`, never `git add -A`). '
+                            'Opt-in; idempotent (clean no-op if unchanged); non-fatal on git error.')
 
     p_sec = sub.add_parser('update-sections', help='Replace ## section blocks by heading (for user-profile.md)')
     p_sec.add_argument('--file', required=True, help='Path to the markdown file')
+    p_sec.add_argument('--commit', metavar='MSG',
+                       help='id:148b — after the write, commit JUST this file under the same flock '
+                            'with MSG (scoped add). Opt-in; idempotent; non-fatal on git error.')
 
     args = parser.parse_args()
 
@@ -140,9 +219,9 @@ def main() -> None:
         sys.exit(1)
 
     if args.cmd == 'update-ids':
-        update_ids(Path(args.file), delta.get('updates', []))
+        update_ids(Path(args.file), delta.get('updates', []), getattr(args, 'commit', None))
     elif args.cmd == 'update-sections':
-        update_sections(Path(args.file), delta.get('sections', []))
+        update_sections(Path(args.file), delta.get('sections', []), getattr(args, 'commit', None))
     else:
         parser.print_help()
         sys.exit(1)

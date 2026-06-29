@@ -27,11 +27,19 @@ pass "handoff/review acquire the lease before fan-out, skip on refusal (id:0902)
 grep -q "claim.sh release <repo> --run relay-" "$SKILL" || fail "SKILL orchestrator does not release the lease at integration"
 pass "handoff/review release the lease run-scoped at integration (id:0902)"
 
-# (3) human mode: acquire the lease before per-repo write-back, DEFER on refusal, release.
-grep -q "claim.sh acquire <repo> --run human-" "$HUMAN" || fail "human mode does not acquire the repo lease before write-back"
-grep -q "DEFER" "$HUMAN" || fail "human mode does not DEFER write-back when the repo is claimed"
-grep -q "claim.sh release <repo> --run human-" "$HUMAN" || fail "human mode does not release the lease after write-back"
-pass "human mode holds the lease for its per-repo write-back, defers on refusal (id:0902)"
+# (3) human mode LEDGER write-back is now peek-and-warn, NOT lease-gated (TODO id:c144 supersedes
+#     the id:0902 DEFER for ledger-only writes). The hard lease guards code/worktree only; a
+#     ledger write is safe under a live pool via flock + atomic commit + cross-ledger backstop.
+grep -qi "peek-and-warn, not lease-gated (id:c144" "$HUMAN" \
+  || fail "human mode ledger write-back is not the id:c144 peek-and-warn (supersedes 0902 DEFER)"
+grep -q "claim.sh peek" "$HUMAN" || fail "human mode does not peek for a live pool holder"
+grep -qi "guards CODE/WORKTREE integration only" "$HUMAN" \
+  || fail "human mode does not state the hard lease guards code/worktree only (ledger writes exempt)"
+# The ledger write-back must no longer acquire the lease as a blocking gate.
+if grep -q "claim.sh acquire <repo> --run human-" "$HUMAN"; then
+  fail "human mode still acquires the lease as a blocking gate for the ledger write (c144 removes this)"
+fi
+pass "human mode ledger write-back peeks-and-warns then proceeds (id:c144), not lease-deferred"
 
 # (4) runId is UNIQUE per run (seconds + random), not minute-granular — otherwise two
 # concurrent pools share a runId and the lease re-entrancy + worktree guard both false-pass,

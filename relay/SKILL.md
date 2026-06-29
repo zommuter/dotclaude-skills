@@ -121,6 +121,26 @@ D1/D2):
    `own` repos, the front door prints a short notice (pointing at
    `/relay handoff` to confirm a first wave) and exits cleanly without
    invoking the Workflow.
+2b. **Autonomous-pool singleton guard (id:11c6 — bare no-arg `/relay` only).** Immediately
+   before launching the Workflow, and ONLY for a bare no-arg autonomous run, acquire a
+   process-wide singleton claim via the EXISTING `claim.sh` (compose — no new lockfile
+   machinery):
+   - `~/.claude/skills/relay/scripts/claim.sh acquire pool:autonomous --run relay-pool-$CLAUDE_SESSION_ID --mode autonomous`.
+   - **Refused** (a 2nd autonomous pool is already live — `claim.sh peek` names the holder
+     run) → do NOT launch a duplicate: print "autonomous pool already running (held by
+     `<holder>`); not launching a duplicate — run a directed/parallel session instead
+     (`/relay <repos>`, `--priority`, `--exclude`, or `--afk`), or `/relay stop` the live
+     one" and exit cleanly (no Workflow launch).
+   - **Acquired** → proceed to launch (step 3); release run-scoped when the Workflow returns
+     (step 4): `claim.sh release pool:autonomous --run relay-pool-$CLAUDE_SESSION_ID`. The
+     claim's mtime-TTL auto-expires a crashed pool's claim, so the guard never wedges a
+     future run (fail-open).
+   - **EXEMPT — never guarded** (legitimate multi-clauding must be unaffected — 54 overlap
+     events, 16% of messages): any **directed** keyword mode (`handoff`/`review`/`human`/
+     `next`/`executor`/`stop`), any **scoped** run (`--priority`/`--exclude` or an explicit
+     repo-list), and **`--afk`** runs. These do NOT acquire `pool:autonomous` and run freely
+     in parallel. The guard refuses ONLY a second bare-`/relay` autonomous pool. Out of
+     scope (id:11c6): blocking any directed/parallel run; any new lockfile.
 3. **Workflow launch.** The front door invokes the `relay/scripts/relay-loop.js`
    Workflow script (id:83c9), passing `args.STRONG_TIER`, `args.interactive`,
    `args.fableDown` (true when `--fable-down`/`-d` is set), `args.POOL_WIDTH`
@@ -168,7 +188,10 @@ D1/D2):
    surfaces in `RELAY_STATUS.md` Queued with a clear reason). It carries `fable-standin`
    (apex Opus work invites an optional Fable recheck) and uses a `strong-execute (...)`
    checkpoint label.
-4. **Exit summary.** After the Workflow completes, the front door prints the
+4. **Exit summary.** After the Workflow completes, the front door releases the
+   autonomous-pool singleton claim run-scoped (id:11c6 — only if it was a bare no-arg run
+   that acquired it in step 2b): `claim.sh release pool:autonomous --run
+   relay-pool-$CLAUDE_SESSION_ID` (run-scoped → a no-op if not held). Then it prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).
    **Early-exit retry nudge moved to step 0a** (user directive 2026-06-18; corrected
