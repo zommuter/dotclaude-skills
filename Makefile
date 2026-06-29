@@ -8,11 +8,14 @@ HOOKS_DIR := $(HOME)/.claude/hooks
 
 meeting_FILES := SKILL.md format.md personas.md broker-mode.md cross-mode.md append.sh cost-of.sh \
                  find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh \
+                 memory-append.sh
 meeting_EXEC  := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh \
+                 memory-append.sh
 meeting_ALLOW := append.sh cost-of.sh find-todos.sh orphan-scan.sh broker-curl.sh profile-active.sh \
-                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh
+                 persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh \
+                 memory-append.sh
 meeting_LOCAL := discoveries.md user-profile.md
 
 meeting-cross_FILES := SKILL.md
@@ -185,6 +188,7 @@ install-hooks: install-statusline
 	@mkdir -p $(HOOKS_DIR)
 	@ln -sf $(SRC_DIR)/hooks/meeting-cost-logger.sh $(HOOKS_DIR)/meeting-cost-logger.sh
 	@ln -sf $(SRC_DIR)/hooks/parallel-edit-detector.py $(HOOKS_DIR)/parallel-edit-detector.py
+	@ln -sf $(SRC_DIR)/hooks/pathspec-drop-guard.py $(HOOKS_DIR)/pathspec-drop-guard.py
 	@ln -sf $(SRC_DIR)/hooks/notify-hook.linux-x11.sh $(HOME)/.claude/notify-hook.sh
 
 # statusline is a first-class target (mirrors install-<skill>): the quota/cost/model statusbar
