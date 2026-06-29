@@ -184,7 +184,7 @@ log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOW
 // buildRelayStatus — generate RELAY_STATUS.md content from a run-state snapshot.
 // state shape:
 //   { runId, ts, inFlight: [{repo, mode, agentId}],
-//     completed: [{repo, mode, ckptTag, pushStatus}],
+//     completed: [{repo, mode, ckptTag, pushStatus, workedIds}],  // workedIds id:de69
 //     queued:    [{repo, verdict}],
 //     blocked:   [{repo, reason, worktreePath}],
 //     quota:     [{bucket, pctRemaining, resetTime}],
@@ -207,7 +207,7 @@ function buildRelayStatus(state) {
     : '_(none)_'
 
   const completed = state.completed && state.completed.length
-    ? state.completed.map(r => `- ${r.repo}  mode=${r.mode}  ckpt=${r.ckptTag}  push=${r.pushStatus}`).join('\n')
+    ? state.completed.map(r => `- ${r.repo}  mode=${r.mode}  ckpt=${r.ckptTag}  push=${r.pushStatus}${(r.workedIds && r.workedIds.length) ? `  ids=${r.workedIds.join(',')}` : ''}`).join('\n')  // ids id:de69
     : '_(none)_'
 
   const queued = state.queued && state.queued.length
@@ -541,6 +541,12 @@ const REPORT_SCHEMA = {
     // >0 ⟹ the supervisor re-enqueues an execute unit for this repo in the SAME pool
     // (review→execute chaining) instead of waiting for the next pool's discovery.
     routine_open: { type: 'number' },
+    // worked_ids (id:de69): the ROADMAP/TODO 4-hex id(s) this unit actually worked — closed,
+    // created, or promoted (review: the ids verified-green or reopened). The supervisor
+    // propagates these into RELAY_STATUS "Completed this run", the integrate event, and the
+    // checkpoint message, so a finished unit is traceable to its item even though plain
+    // execute/review pick the item INSIDE the child (the id isn't known at dispatch). [] if none.
+    worked_ids: { type: 'array', items: { type: 'string' } },
     // --- durable handback follow-up (id:3801) -------------------------------------
     // On a handback (contract_met=false), the child classifies WHY so the integrator
     // can durably record it in ROADMAP.md (handback-followup.py) instead of letting the
@@ -1274,7 +1280,7 @@ ${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including
 
 Hard rules: commit in the worktree as you go; NEVER push; NEVER tag; NEVER run git-diary-workflow or todo-update; never prompt the user. If you cannot meet the contract, set contract_met=false and explain in handback.
 
-Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none), routine_open (review units: open [ROUTINE] count after re-derivation; 0 for handoff/execute).${unit.verdict === 'review' ? ' ALSO (review units only, id:3826 — feeds the gaming-flag rate logger; see review.md §6 return schema): verified_green (array of ROADMAP ids you confirmed genuinely green this review, [] if none), gaming_flags (array of "<id>: <reason>" strings for every DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT or judgment flag you raised, [] if none), reopened (array of ROADMAP ids you reopened, [] if none).' : ''}
+Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none), routine_open (review units: open [ROUTINE] count after re-derivation; 0 for handoff/execute), worked_ids (id:de69 — array of the ROADMAP/TODO 4-hex id(s) you actually worked this unit: for execute, the item id(s) you closed/advanced; for hard, the single [HARD] item id you executed; for handoff, the id(s) you promoted/created; for review, the ids you verified-green or reopened; [] if none — these are the tokens in the commits/ROADMAP you touched, NOT invented).${unit.verdict === 'review' ? ' ALSO (review units only, id:3826 — feeds the gaming-flag rate logger; see review.md §6 return schema): verified_green (array of ROADMAP ids you confirmed genuinely green this review, [] if none), gaming_flags (array of "<id>: <reason>" strings for every DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT or judgment flag you raised, [] if none), reopened (array of ROADMAP ids you reopened, [] if none).' : ''}
 
 ON A HANDBACK (contract_met=false), ALSO classify it so the integrator records it DURABLY in ROADMAP.md and the pool stops re-dispatching the same un-doable item (id:3801): set handback_item (the 4-hex ROADMAP id you handed back, e.g. the [HARD] item you sized out), and route = one of "decision-gate" (needs a /meeting design decision before anyone can build it), "hard-split" (too large for one turn but decomposable into smaller pickable seams), "human" (needs a manual human action / /relay human), or "none" (transient/other failure — no durable action). Set gate_reason to ONE short line for the inline ROADMAP note. For route="hard-split" ONLY, set proposed_split = an ordered array of seam units [{title, tier:"HARD"|"ROUTINE", dep:"<4-hex id of the seam this one depends on, omit if independent>", id:"<reuse an existing 4-hex token if the seam already has one in the ROADMAP/meeting-note, else OMIT to let the integrator mint one>"}]. On a clean success, omit these (route defaults to none).`
 }
@@ -1295,7 +1301,7 @@ The worktree may already exist at ${wt} on branch ${branch} with some checkpoint
 
 Hard rules: NEVER push; NEVER tag; NEVER run git-diary-workflow/todo-update; never prompt the user. You are Opus standing in for Fable — flag judgment calls in REVIEW_ME.md.
 
-Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line), review_me_count, diary_fragment, handback ("" if none).`
+Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line), review_me_count, diary_fragment, handback ("" if none), worked_ids (id:de69 — array of the ROADMAP id(s) you promoted/created this resume, [] if none).`
 }
 
 async function quotaGate(tier) {
@@ -1400,6 +1406,15 @@ async function integrate(unit, report) {
     : unit.verdict === 'hard'
       ? `strong-execute (${STRONG_MODEL}${standInSuffix}, relay-loop)`
       : `reviewer (${STRONG_MODEL}${standInSuffix}, relay-loop)`
+  // id:de69 — the item id(s) this unit worked, for the durable record (checkpoint message +
+  // RELAY_STATUS + integrate event). Prefer the child's explicit report.worked_ids; fall back to
+  // a review's verified_green∪reopened, then to a known dispatch-time id (injected/hard item).
+  let workedIds = Array.isArray(report.worked_ids) ? report.worked_ids.filter(Boolean) : []
+  if (!workedIds.length && unit.verdict === 'review') {
+    workedIds = [...new Set([...(report.verified_green || []), ...(report.reopened || [])])].filter(Boolean)
+  }
+  if (!workedIds.length && (unit.inject_item || unit.item)) workedIds = [unit.inject_item || unit.item]
+  const idSuffix = workedIds.length ? ` [id:${workedIds.join(',')}]` : ''
   const result = await agent(
     `You are the serialized integrator of the relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
 
@@ -1408,8 +1423,8 @@ async function integrate(unit, report) {
 1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; the discovery step already fast-forwarded behind-only repos.)
 2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
    On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
-3. ~/.claude/skills/relay/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}" -l "${label}"
-   It prints the new tag name — capture it as ckptTag.
+3. ~/.claude/skills/relay/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}${idSuffix}" -l "${label}"
+   It prints the new tag name — capture it as ckptTag. (The trailing [id:…] tags the durable RELAY_LOG checkpoint with the worked item id(s), id:de69.)
 4. ~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only ${unit.path}
    pushStatus = "pushed" on success, otherwise the error summary.
 5. git -C ${unit.path} worktree remove --force ${report.worktree} && git -C ${unit.path} branch -d ${report.branch}
@@ -1430,8 +1445,8 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
   )
   if (result && result.merged) {
     if (result.ts) state.ts = result.ts
-    state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?', substantive: unitIsSubstantive(unit.verdict, report) })
-    pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?' })  // id:c8b6
+    state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?', substantive: unitIsSubstantive(unit.verdict, report), workedIds })  // workedIds id:de69
+    pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?', ids: workedIds })  // id:c8b6 + worked ids id:de69
     // L2 push-seed the discovery cache (id:c855): a just-integrated repo's sig CHANGES (new
     // ckpt tag + RELAY_LOG/ROADMAP), so without this the next round re-classifies (an LLM
     // shard — the dominant discover cost, id:9cb1) the exact repo the pool just finished.
@@ -1571,7 +1586,12 @@ async function runUnit(unit) {
   log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})`)
   // Tier dispatch (D4): review/handoff get the STRONG_TIER model. Execute agents are
   // pinned to Sonnet; STRONG_TIER applies no model override to them.
-  const opts = { label: `${unit.verdict}:${unit.repo}`, phase: unitPhase(unit.verdict), schema: REPORT_SCHEMA }
+  // id:de69 (a) — if the worked item id is ALREADY known at dispatch (an injected unit's
+  // --item, or a hard unit whose classifier surfaced the bounded item), append it to the
+  // /workflows label so the live pane reads `execute:zkm-stt id:09a3`. plain execute/review
+  // pick the item inside the child, so their id is filled in post-run via report.worked_ids.
+  const knownItem = unit.inject_item || unit.item || ''
+  const opts = { label: `${unit.verdict}:${unit.repo}${knownItem ? ` id:${knownItem}` : ''}`, phase: unitPhase(unit.verdict), schema: REPORT_SCHEMA }
   if (unit.verdict === 'execute') opts.model = 'sonnet'
   else opts.model = STRONG_MODEL
   // API-error failsafe: agent() can throw or return null on a terminal API error after
