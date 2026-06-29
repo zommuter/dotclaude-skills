@@ -18,6 +18,12 @@ Registration snippets are in the `settings.json` section below. Deeper documenta
 **Purpose:** Reads the session transcript, extracts `Edit`/`Write` tool calls, and checks whether any committed files contain changes not explained by those calls. Appends suspects to `~/.claude/logs/parallel-edit-suspects.log`; writes a `review-due.flag` at 50 entries.  
 **Prerequisites:** Python 3, `git`, `~/.claude/` must be a git repo
 
+### `pathspec-drop-guard.py`
+
+**Event:** PreToolUse (Bash)  
+**Purpose:** Blocks a `git commit` call when the command includes explicit file-path arguments and at least one of those arguments does NOT match any currently staged file. Catches pathspec typos (e.g. `git commit foo.p` instead of `git commit foo.py`) and forgotten `git add` cases. Silent on ordinary partial-staging / diary-style commits — a commit that names only staged files is never blocked. Tracks TODO id:b67e.  
+**Prerequisites:** Python 3, `git`
+
 ### `notify-hook.linux-x11.sh`
 
 **Event:** Notification  
@@ -61,9 +67,17 @@ Add to `~/.claude/settings.json` (or merge into the existing `hooks` object):
           {"type": "command", "command": "jq -r '.session_id' | xargs -I{} touch /tmp/claude-resume-{}"}
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {"type": "command", "command": "python3 ~/.claude/hooks/pathspec-drop-guard.py"}
+        ]
+      }
     ]
   }
 }
 ```
 
-`SessionStart` and `PostToolUse` are inline commands (no script files in this repo). `Stop` and `Notification` reference the installed scripts.
+`SessionStart` and `PostToolUse` are inline commands (no script files in this repo). `Stop` and `Notification` reference the installed scripts. `PreToolUse` references `pathspec-drop-guard.py` which only blocks on a confirmed pathspec drop; all other Bash calls pass through silently.
