@@ -44,9 +44,11 @@ assert s["repos"] == 1, f"expected 1 own repo, got {s}"
 assert s["crashes"] == 0, f"classifier crashed in backtest: {o}"
 foo = [r for r in o["rows"] if r["repo"] == "foo"][0]
 assert foo["verdict"] == "execute", f"foo (open [ROUTINE]) must classify execute, got {foo}"
-assert foo["last"] == "review", f"last-dispatch must be review, got {foo}"
-assert foo["note"] == "diverged", f"execute vs review must be 'diverged', got {foo}"
+assert foo["last_mode"] == "review", f"last-dispatch must be review, got {foo}"
+# pre-f896 event (no sig field) → note is EXPECTED (state-drift bucket), not 'diverged' literal
+assert foo["note"] == "EXPECTED", f"pre-f896 event with no sig must bucket EXPECTED, got {foo}"
 assert s["diverged"] == 1 and s["agree"] == 0, f"summary counts wrong: {s}"
+assert s["expected"] == 1 and s["red"] == 0, f"bucket counts wrong: {s}"
 print("backtest-verdict assertions OK")
 PYEOF
 
