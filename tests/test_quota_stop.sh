@@ -40,7 +40,31 @@ JSON
 # ── Missing / stale cache ──────────────────────────────────────────────────────
 
 rm -f "$CACHE"
-run_expect "missing cache → exit 2" 2 --tier sonnet
+# id:82e3 — the missing-cache path now attempts a self-refresh curl FIRST (a sandboxed
+# Workflow's private /tmp makes the host cache read as MISSING). A tokenless USAGE_CREDS
+# skips the refresh (hermetic), so it still falls to extrapolate_or_stop → exit 2.
+USAGE_CREDS=/dev/null USAGE_CACHE="$CACHE" "$SCRIPT" --tier sonnet && rc=0 || rc=$?
+if [[ "$rc" -eq 2 ]]; then pass "missing cache + no creds → exit 2 (extrapolation fallback, id:82e3)"; else fail "missing cache (tokenless) expected exit 2, got $rc"; fi
+
+# id:82e3 — missing cache + token → self-refresh via curl (MOCKED, hermetic) → fresh low-util
+# cache → PROCEED (exit 0). This is the sandbox unblock: quota-stop fetches its own usage
+# instead of dead-ending when the host cache is invisible in the Workflow's private /tmp.
+MOCKBIN="$TMPDIR_T/bin"; mkdir -p "$MOCKBIN"
+cat > "$MOCKBIN/curl" <<'SH'
+#!/usr/bin/env bash
+out=""; while [[ $# -gt 0 ]]; do [[ "$1" == "-o" ]] && { out="$2"; shift; }; shift; done
+[[ -n "$out" ]] && cat > "$out" <<'JSON'
+{ "five_hour": {"utilization": 5, "resets_at": ""}, "seven_day": {"utilization": 10, "resets_at": ""}, "seven_day_sonnet": {"utilization": 10, "resets_at": ""} }
+JSON
+exit 0
+SH
+chmod +x "$MOCKBIN/curl"
+CREDS_T="$TMPDIR_T/creds.json"; echo '{"claudeAiOauth":{"accessToken":"test-token"}}' > "$CREDS_T"
+rm -f "$CACHE"
+PATH="$MOCKBIN:$PATH" USAGE_CREDS="$CREDS_T" USAGE_CACHE="$CACHE" "$SCRIPT" --tier sonnet && rc=0 || rc=$?
+if [[ "$rc" -eq 0 ]]; then pass "missing cache + token → self-refresh (mock curl) → low util → proceed (id:82e3)"; else fail "missing-cache self-refresh expected exit 0, got $rc"; fi
+[[ -s "$CACHE" ]] && pass "self-refresh wrote the cache (id:82e3)" || fail "self-refresh did not write the cache"
+rm -f "$CACHE"
 
 make_cache 50 50 50
 touch -d "11 minutes ago" "$CACHE"
