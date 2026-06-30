@@ -1053,3 +1053,7 @@ execute: id:297b — extended `relay/scripts/roadmap-lint.sh` with case-c (tag/p
 ## 2026-06-30 16:26 — reviewer (claude-opus-4-8)
 
 execute: id:85df classify-verdict.sh + id:297b roadmap-lint case c/d — both green (Sonnet executors, reviewed)
+
+## 2026-06-30 16:40 — executor (claude-sonnet-4-6)
+
+execute: id:3f0f classify-repo.sh — implemented `relay/scripts/classify-repo.sh`, the DP1 assembly wrapper that productizes the 2026-06-30 dogfood prototype. The script accepts `--repo <name> --path <abs>`, runs `gather-repo-state.sh` for base JSON, derives `hasRoutine`/`roadmap_open`/`roadmap_actionable_open` from `<path>/ROADMAP.md` (excluding human-gated lines), runs `unpromoted-scan.sh <path>` and folds promote/surface counts into `unpromoted`, then pipes the assembled JSON to `classify-verdict.sh`. Side-effect-free (verified by test fixture git-status check). Registered in Makefile `relay_FILES`/`relay_EXEC`/`relay_ALLOW`. `tests/test_classify_repo.sh` GREEN; full suite 129 passed 0 failed 0 expected-red. ROADMAP id:3f0f ticked.

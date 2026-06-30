@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] `classify-repo.sh` — DP1 assembly wrapper: gather → derive → fold unpromoted-scan → classify-verdict, end-to-end per repo <!-- id:3f0f -->
+- [x] [ROUTINE] `classify-repo.sh` — DP1 assembly wrapper: gather → derive → fold unpromoted-scan → classify-verdict, end-to-end per repo <!-- id:3f0f -->
   - **Why** (dogfood finding 2026-06-30, id:4d8e / id:5f93): `classify-verdict.sh` (id:85df) is a pure function with NO producer for its full input — the live dogfood proved `gather-repo-state.sh` does not emit `hasRoutine`/`roadmap_actionable_open` and there is no wrapper folding in `unpromoted-scan`. This wrapper is what makes the classifier usable end-to-end and is the prerequisite for the real backtest (id:5f93) and the cutover. Productizes the throwaway prototype `scratchpad/backtest_dogfood.py`.
   - **Acceptance**:
     1. `relay/scripts/classify-repo.sh --repo <name> --path <abs>` emits ONE `{verdict,reason,evidence,ambiguous}` JSON on stdout, assembling: `gather-repo-state.sh` + DERIVED `hasRoutine`/`roadmap_open`/`roadmap_actionable_open` from `<path>/ROADMAP.md` (actionable = open `[ROUTINE]`/`[HARD — pool]` and NOT human-gated `[HARD — hands|meeting|decision gate]`/`@manual`) + FOLDED `unpromoted-scan.sh` `{promote,surface}` counts → piped to `classify-verdict.sh`.
