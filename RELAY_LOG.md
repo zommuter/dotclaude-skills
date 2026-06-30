@@ -1038,3 +1038,7 @@ fix(ckpt-tag): degrade gracefully when .gitattributes is unaddable (id:a7a3) —
 ## 2026-06-30 12:49 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: 3 TODO-only ledger commits since ckpt-1225 (ids ebd0/a17a/2a3d/80b8/0ee6) — gaming-scan + roadmap-lint + relay-doctor all clean; new items correctly [HARD — meeting] in TODO, no ROADMAP promotion; routine_open=0 [id:ebd0,a17a,2a3d,80b8,0ee6]
+
+## 2026-06-30 16:13 — reviewer (claude-opus-4-8)
+
+handoff: promote id:4d8e foundation — classify-verdict.sh (85df) + roadmap-lint case c/d (297b) as [ROUTINE] with RED specs
