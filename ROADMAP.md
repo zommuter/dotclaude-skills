@@ -10,6 +10,13 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] [ROUTINE] `classify-repo.sh` — DP1 assembly wrapper: gather → derive → fold unpromoted-scan → classify-verdict, end-to-end per repo <!-- id:3f0f -->
+  - **Why** (dogfood finding 2026-06-30, id:4d8e / id:5f93): `classify-verdict.sh` (id:85df) is a pure function with NO producer for its full input — the live dogfood proved `gather-repo-state.sh` does not emit `hasRoutine`/`roadmap_actionable_open` and there is no wrapper folding in `unpromoted-scan`. This wrapper is what makes the classifier usable end-to-end and is the prerequisite for the real backtest (id:5f93) and the cutover. Productizes the throwaway prototype `scratchpad/backtest_dogfood.py`.
+  - **Acceptance**:
+    1. `relay/scripts/classify-repo.sh --repo <name> --path <abs>` emits ONE `{verdict,reason,evidence,ambiguous}` JSON on stdout, assembling: `gather-repo-state.sh` + DERIVED `hasRoutine`/`roadmap_open`/`roadmap_actionable_open` from `<path>/ROADMAP.md` (actionable = open `[ROUTINE]`/`[HARD — pool]` and NOT human-gated `[HARD — hands|meeting|decision gate]`/`@manual`) + FOLDED `unpromoted-scan.sh` `{promote,surface}` counts → piped to `classify-verdict.sh`.
+    2. SIDE-EFFECT-FREE: runs the read-only helpers, mutates nothing (no commit, no ledger write, no tag). Registered in the Makefile `relay_FILES`/`_EXEC`/`_ALLOW`.
+    3. End-to-end verdicts correct: open `[ROUTINE]` → `execute`; drained-`@manual`-only ROADMAP + untagged TODO backlog (surface) with HEAD audited → `handoff` (the case-b/h fix); finished ROADMAP + nothing unpromoted → `idle`.
+  - **Tests**: `tests/test_classify_repo.sh` (`# roadmap:3f0f`) — hermetic mktemp git-repo fixtures run through the whole chain (integration tier, DP3). RED until the wrapper lands.
 - [x] [ROUTINE] `classify-verdict.sh` — deterministic verdict classifier, the PRIMARY discovery verdict source (replaces the LLM shard) <!-- id:85df -->
   - **Why** (meeting 2026-06-30-1523 `docs/meeting-notes/2026-06-30-1523-relay-loop-mechanical-classifier.md`, umbrella id:4d8e DP1): relay discovery currently lets an LLM `discover-shard` own the primary verdict by trusting tag/gate/lane states that don't match the ledger — one `/relay --afk` run surfaced 8 false verdicts, all "the shard trusted a state the deterministic layer would have caught." `gather-repo-state.sh` (id:11ad) already computes the deciding fields and `relay-loop.js:397–429` already has JS backstops; this item consolidates that into ONE tested pure function so the common path is mechanical (DP1 "Replace": the shard fires ONLY on `AMBIGUOUS`).
   - **Acceptance**:
