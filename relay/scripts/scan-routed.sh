@@ -204,8 +204,16 @@ while IFS= read -r line; do
     findings=$((findings+1)); dead=$((dead+1)); continue
   fi
 
-  # Twin = the token (routed: or id:) appears in the target's TODO or ROADMAP.
-  if grep -qsF "$tok" "$tpath/TODO.md" "$tpath/ROADMAP.md" 2>/dev/null; then
+  # Twin = the token appears in the target's TODO or ROADMAP as a `routed:`/`id:`
+  # MARKER — anchored, NOT a bare-substring grep. A bare `grep -F "$tok"` (the
+  # original) false-matches the HHMM field of meeting-note filename timestamps
+  # (`YYYY-MM-DD-HHMM-…`) and any hash/id/number containing those 4 hex chars, so
+  # a routed token like `1328`/`0928` reads as "already ingested" when it is not —
+  # a SILENT false-clean that under-reports dead letters (observed 2026-06-30:
+  # routed:0928 absent in dotclaude-skills, routed:1328 absent in zkm, both masked
+  # by meeting-note timestamps). Require the `routed:`/`id:` prefix + a trailing
+  # token boundary so only a real twin marker counts.
+  if grep -qsE -- "(routed|id):$tok([^0-9a-f]|\$)" "$tpath/TODO.md" "$tpath/ROADMAP.md" 2>/dev/null; then
     continue   # already ingested — not a dead letter
   fi
 
