@@ -7,11 +7,28 @@
 # Exit codes:
 #   0 = below threshold (safe to continue)
 #   1 = at/above threshold, or seatbelt triggered (stop)
-#   2 = stale/missing cache or missing/invalid key (uncertain, stop)
+#   2 = stale/missing cache with NO usable burn sample to extrapolate from, or missing/
+#       invalid key (uncertain, fail-safe stop) — relay-loop reason "quota-cache-unreadable"
+#   3 = cache unreadable but the recent burn-rate series EXTRAPOLATES to at/above threshold
+#       (id:0175 / routed:82e3) — relay-loop reason "quota-extrapolated-stop"
+#
+# Background/Workflow gap (id:0175, routed:82e3): when relay-loop runs as a sandboxed
+# background Workflow, the default USAGE_CACHE under /tmp is invisible (separate /tmp
+# namespace) → the cache reads as missing → the gate used to blind-stop on round 1 before
+# any threshold compare, killing the whole unattended-pool use case. Fix: on an unreadable
+# cache (and only inside a real run, i.e. RELAY_RUN_ID set), instead of a blind stop we
+# extrapolate current utilization from relay-burn.sh's recent sample series and compare THAT
+# to the same per-bucket thresholds. Guarded: only on a recent-enough last sample, biased
+# upward by a safety margin, distinct stop reason, loud stderr logging. No usable recent
+# sample ⟹ the existing fail-safe stop (exit 2) is preserved.
 #
 # Env:
 #   RELAY_QUOTA_THRESHOLD  threshold fraction, default 0.90 (= 90%)
 #   USAGE_CACHE            path to cache JSON, default /tmp/claude-usage-cache.json
+#   RELAY_QUOTA_SAMPLES    burn-sample JSONL, default ~/.config/relay/quota-samples.jsonl
+#   RELAY_QUOTA_EXTRAP_MARGIN    upward bias (points on 0-100) for the extrapolated estimate,
+#                                default 5 (stop if estimate + margin >= threshold*100)
+#   RELAY_QUOTA_EXTRAP_RECENCY   max age (s) of the last burn sample to trust it, default 7200 (2h)
 #
 # Scale note: the live cache (written by statusline/statusline-command.sh from
 # /api/oauth/usage) stores `.utilization` as a 0-100 PERCENT (e.g. 37.0 = 37%).
@@ -27,6 +44,9 @@ USAGE_CACHE="${USAGE_CACHE:-/tmp/claude-usage-cache.json}"
 # Credentials for the self-refresh below. Tests point this at a tokenless path to keep
 # the stale-cache path hermetic (no network).
 USAGE_CREDS="${USAGE_CREDS:-$HOME/.claude/.credentials.json}"
+RELAY_QUOTA_SAMPLES="${RELAY_QUOTA_SAMPLES:-$HOME/.config/relay/quota-samples.jsonl}"
+EXTRAP_MARGIN="${RELAY_QUOTA_EXTRAP_MARGIN:-5}"
+EXTRAP_RECENCY_SECS="${RELAY_QUOTA_EXTRAP_RECENCY:-7200}"
 STALE_SECS=600
 # Margin for stale-but-safe check (points on 0-100 scale): if every checked bucket's
 # last-known util is below (bucket_threshold × 100 − MARGIN), proceed on the stale cache.
@@ -79,10 +99,94 @@ bucket_threshold() {
   printf '%s' "$THRESHOLD"
 }
 
+# Buckets checked for a tier (shared by the stale-margin, extrapolation, and check_key paths).
+tier_buckets() {
+  case "$TIER" in
+    sonnet) printf '%s' "seven_day_sonnet five_hour seven_day" ;;
+    strong) printf '%s' "five_hour seven_day" ;;
+    *)      printf '%s' "" ;;
+  esac
+}
+
+# extrapolate_or_stop WHY — invoked instead of a blind exit 2 when the cache is unreadable
+# (missing, or stale + unrefreshable + within-margin). id:0175 / routed:82e3.
+#
+# Gated on RELAY_RUN_ID: only inside a real relay run do we reach for the burn series — this
+# keeps quota-stop's own unit tests hermetic (they never set RELAY_RUN_ID, so the historical
+# blind exit 2 is preserved) and prevents reading a developer's real ~/.config samples.
+#
+# Decision: read relay-burn.sh's recent sample series, derive per-bucket last-known util +
+# average burn rate (%/h) over the latest segment, project to now, bias UPWARD by a safety
+# margin, and compare to the SAME per-bucket thresholds the normal path uses.
+#   - No usable series (need >=2 samples), unparseable/old last sample, or a bucket absent
+#     from the samples ⟹ keep the fail-safe STOP (exit 2, reason quota-cache-unreadable).
+#   - Any bucket whose biased estimate reaches threshold ⟹ STOP (exit 3, reason
+#     quota-extrapolated-stop) — distinct from a genuine real-cache exhaustion (exit 1).
+#   - All buckets safely under ⟹ PROCEED (exit 0).
+extrapolate_or_stop() {
+  local why="$1"
+  if [[ -z "${RELAY_RUN_ID:-}" ]]; then
+    echo "quota-stop: cache unreadable ($why); no RELAY_RUN_ID (not a live run) → fail-safe STOP. REASON=quota-cache-unreadable" >&2
+    exit 2
+  fi
+
+  local burn ok
+  burn=$(RELAY_QUOTA_SAMPLES="$RELAY_QUOTA_SAMPLES" USAGE_CACHE="$USAGE_CACHE" \
+         "$(dirname "$0")/relay-burn.sh" report --json 2>/dev/null) || burn=""
+  ok=$(jq -r '.ok // false' <<<"$burn" 2>/dev/null || echo false)
+  if [[ "$ok" != "true" ]]; then
+    echo "quota-stop: cache unreadable ($why) and no usable burn series (need >=2 recent samples in $RELAY_QUOTA_SAMPLES) → fail-safe STOP. REASON=quota-cache-unreadable" >&2
+    exit 2
+  fi
+
+  local last_ts last_epoch now age seg_h since_h
+  last_ts=$(jq -r '.to_ts // empty' <<<"$burn")
+  last_epoch=$(date -d "$last_ts" +%s 2>/dev/null || echo 0)
+  now=$(date +%s)
+  if [[ "$last_epoch" -le 0 ]]; then
+    echo "quota-stop: cache unreadable ($why); burn sample timestamp unparseable ('$last_ts') → fail-safe STOP. REASON=quota-cache-unreadable" >&2
+    exit 2
+  fi
+  age=$(( now - last_epoch ))
+  # Recency guard: never extrapolate from a stale sample. Older than the recency bound ⟹ stop.
+  if [[ "$age" -gt "$EXTRAP_RECENCY_SECS" ]]; then
+    echo "quota-stop: cache unreadable ($why); last burn sample too old (${age}s > ${EXTRAP_RECENCY_SECS}s recency bound) → fail-safe STOP. REASON=quota-cache-unreadable" >&2
+    exit 2
+  fi
+  seg_h=$(jq -r '.elapsed_h // 0' <<<"$burn")
+  since_h=$(awk -v a="$age" 'BEGIN { printf "%.6f", a/3600 }')
+
+  local b last delta t est rate stop_bucket="" stop_est="" stop_t=""
+  for b in $(tier_buckets); do
+    last=$(jq -r --arg k "$b" '.buckets[] | select(.name==$k) | .to // empty' <<<"$burn")
+    delta=$(jq -r --arg k "$b" '.buckets[] | select(.name==$k) | .delta // empty' <<<"$burn")
+    if [[ -z "$last" || -z "$delta" ]]; then
+      echo "quota-stop: cache unreadable ($why); bucket '$b' absent from burn samples → fail-safe STOP. REASON=quota-cache-unreadable" >&2
+      exit 2
+    fi
+    t="$(bucket_threshold "$b")"
+    # rate %/h over the latest segment (negative ⟹ a reset crept in; clamp to 0 = conservative).
+    # estimate = last + since_h*rate; stop if estimate + MARGIN >= threshold*100 (upward bias).
+    read -r est rate <<<"$(awk -v last="$last" -v d="$delta" -v segh="$seg_h" -v es="$since_h" \
+      'BEGIN { r=(segh>0)? d/segh : 0; if(r<0)r=0; printf "%.3f %.4f", last+es*r, r }')"
+    if awk -v e="$est" -v t="$t" -v m="$EXTRAP_MARGIN" 'BEGIN { exit (e + m >= t*100) ? 0 : 1 }'; then
+      stop_bucket="$b"; stop_est="$est"; stop_t="$t"
+      echo "quota-stop: EXTRAPOLATION STOP — bucket=$b last=${last}% rate=${rate}%/h since=${since_h}h (seg=${seg_h}h) est=${est}% +margin${EXTRAP_MARGIN} >= threshold $(awk -v t="$t" 'BEGIN{printf "%.1f", t*100}')% (tier=$TIER, cache unreadable: $why). REASON=quota-extrapolated-stop bucket=$b" >&2
+      break
+    fi
+    echo "quota-stop: extrapolation OK — bucket=$b last=${last}% rate=${rate}%/h since=${since_h}h est=${est}% (+margin${EXTRAP_MARGIN}) < threshold $(awk -v t="$t" 'BEGIN{printf "%.1f", t*100}')%" >&2
+  done
+  if [[ -n "$stop_bucket" ]]; then
+    exit 3
+  fi
+  echo "quota-stop: extrapolation under threshold for all $TIER buckets (last sample ${age}s old) → PROCEED on burn-rate estimate (cache unreadable: $why). REASON=quota-extrapolated-proceed" >&2
+  exit 0
+}
+
 # Cache presence
 if [[ ! -f "$USAGE_CACHE" ]]; then
   echo "quota-stop: cache missing: $USAGE_CACHE" >&2
-  exit 2
+  extrapolate_or_stop "cache missing: $USAGE_CACHE"
 fi
 
 # Cache freshness (mtime > 10 min → uncertain)
@@ -141,7 +245,7 @@ if [[ "$AGE" -gt "$STALE_SECS" ]]; then
       # fall through to the normal check_key loop below
     else
       echo "quota-stop: cache stale (${AGE}s > ${STALE_SECS}s limit) and self-refresh unavailable/failed" >&2
-      exit 2
+      extrapolate_or_stop "cache stale ${AGE}s, self-refresh failed, within margin"
     fi
   else
     echo "quota-stop: self-refreshed stale cache" >&2
