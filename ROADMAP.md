@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] `ckpt-tag.sh` must degrade gracefully when `.gitattributes` is unaddable — a repo that can't track the `merge=union` attr must still get its checkpoint <!-- id:a7a3 -->
+- [x] [ROUTINE] `ckpt-tag.sh` must degrade gracefully when `.gitattributes` is unaddable — a repo that can't track the `merge=union` attr must still get its checkpoint <!-- id:a7a3 -->
   - **Why** (observed 2026-06-30 reviewing `kienzler-homepage`; reverse-handoff of TODO id:a7a3): the repo's `.gitignore` carried a `.*` dotfile catch-all that swallowed `.gitattributes`, so ckpt-tag's `git add -- RELAY_LOG.md .gitattributes` (`relay/scripts/ckpt-tag.sh:55`) exited non-zero and — under `set -euo pipefail` — aborted the WHOLE checkpoint inside the flock: no commit, no tag, and `RELAY_LOG.md` left STAGED as dirty residue. The `RELAY_LOG.md merge=union` attribute is a nicety (it only matters for parallel-relay merge conflicts), NOT essential to a checkpoint; a repo that cannot add it must still get its `RELAY_LOG.md` entry + tag. Manual workaround used that day: `git commit RELAY_LOG.md` + `git tag -a`, plus a `!.gitattributes` negation in kienzler's `.gitignore` — but ckpt-tag itself must not hard-fail.
   - **Acceptance**:
     1. When `.gitattributes` cannot be staged (ignored by `.gitignore`, or any `git add -- .gitattributes` failure), ckpt-tag.sh WARNs to stderr and PROCEEDS — it still commits `RELAY_LOG.md` and produces the annotated `relay-ckpt-*` tag. It exits 0.
