@@ -157,7 +157,9 @@ const MAX_UNITS = A.MAX_UNITS || 20
 // hard (id:da26): Opus-apex HARD-execute, ranked AFTER execute and review but BEFORE
 // handoff — review still beats a fresh strong-execute (preserves the D3 anti-gaming
 // window), and a HARD item with a worked roadmap is more actionable than a fresh handoff.
-const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3 }
+// human (id:5eb3): surface-only verdict (promote==0 ∧ surface>0), rank 5 — lowest priority
+// among non-idle verdicts; never dispatched as an executor child (mechanical filing only).
+const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3, human: 5 }
 
 // True when THIS session's strong tier is real Fable (not an Opus substitute). Gates
 // the standin re-review preference so an Opus run never re-reviews its own standin work.
@@ -354,7 +356,7 @@ const DISCOVER_SCHEMA = {
         properties: {
           repo: { type: 'string' },
           path: { type: 'string' },
-          verdict: { enum: ['execute', 'review', 'hard', 'handoff', 'idle'] },
+          verdict: { enum: ['execute', 'review', 'hard', 'handoff', 'human', 'idle'] },
           reason: { type: 'string' },
           lastCkpt: { type: 'string' },
           income: { type: 'boolean' },
@@ -1200,6 +1202,33 @@ let intensiveDeferred = []
 if (intensiveUnits.length) log(`relay-loop: --intensive — ${intensiveUnits.length} [INTENSIVE] unit(s) will run SERIALLY-ALONE after the wave: ${intensiveUnits.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
 if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTENSIVE] unit(s) NOT dispatched — need --intensive (a bare --afk no longer enables them, id:052c): ${intensiveDeferred.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
 
+// id:5eb3 — human-verdict mechanical surface-filer: extract `human` units (promote==0 ∧ surface>0)
+// from the dispatch queue and call file-surface-decisions.sh for each. No apex dispatch is ever
+// spawned for a human unit — mechanical filing only. LOUD: each filing is logged and counted;
+// never a silent no-op (anti-gaming invariant, id:47f1). Items with an existing OPEN decision-queue
+// record are skipped idempotently by the script; the anti-gaming loop stops once all items are filed.
+{
+  const nonHuman = []
+  const humanUnits = []
+  for (const u of actionable) {
+    if (u.verdict === 'human') humanUnits.push(u)
+    else nonHuman.push(u)
+  }
+  actionable = nonHuman
+  if (humanUnits.length) {
+    log(`relay-loop: id:5eb3 — ${humanUnits.length} human-verdict unit(s) (surface-only backlog): filing to decision-queue mechanically: ${humanUnits.map(u => u.repo).join(', ')}`)
+    // Fire all human-verdict filings concurrently (each is an independent repo, no cross-dep).
+    await Promise.all(humanUnits.map(u =>
+      agent(
+        `Run EXACTLY this one command for the surface-only TODO backlog of repo ${u.repo} and report its stdout verbatim (it files each surface item to the decision-queue so the relay loop stops re-firing on them, id:5eb3/id:47f1):
+~/.claude/skills/relay/scripts/file-surface-decisions.sh '${u.path}'
+Report the single output line. If it exits non-zero, report the error; do not retry.`,
+        { label: `file-surface:${u.repo}`, phase: 'Support', model: 'haiku' }
+      ).catch(err => log(`relay-loop: id:5eb3 file-surface-decisions for ${u.repo} failed (non-fatal): ${err}`))
+    ))
+  }
+}
+
 // Refresh the cross-round accumulator's per-round views (completed/reviewMe persist).
 state.runId = state.runId || discovery.runId
 state.ts = discovery.ts
@@ -1217,6 +1246,9 @@ state.queued = [
   ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: HARD-execute needs apex Opus; STRONG_MODEL=${STRONG_MODEL} — left for Fable handoff-C5/review-step6)` })),
   ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
   ...intensiveDeferred.map(u => ({ repo: u.repo, verdict: `intensive:${u.intensive} (skipped — needs --intensive; a bare --afk no longer enables it, id:052c; never auto-run, OOM risk id:8d52)` })),
+  // human-verdict repos are not queued (they were handled by the surface-filer above); they
+  // surface in RELAY_STATUS skipped as "human (surface-only: filing dispatched)" so the operator
+  // can see them without confusing them with dispatchable queued work.
 ]
 state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
 state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason }))   // id:be62
@@ -1590,6 +1622,24 @@ async function runUnit(unit) {
   // the injection; honoring it is the whole point of "inject this next, highest priority".
   if (!unit.injected && !(await quotaGate(tier))) {
     state.queued.push({ repo: unit.repo, verdict: `${unit.verdict} (quota-deferred)` })
+    return
+  }
+  // id:5ac6 — fail-closed INTENSIVE pre-dispatch assertion: if a unit carries an `intensive`
+  // flag (set by classify-verdict.sh / shard from gather's top_intensive) AND ALLOW_INTENSIVE
+  // is false, NEVER spawn the child — skip loudly instead (the OOM-kill invariant).
+  // The INTENSIVE partition above (id:8d52) already routes intensive units to intensiveUnits or
+  // intensiveDeferred; this assertion is a final-layer backstop for any unit that reaches
+  // runUnit() with intensive set despite the partition (e.g. a mid-round injected unit with
+  // intensive set, or a future code path that bypasses the partition). Fail-closed: it is
+  // better to loudly skip a unit than to silently OOM-dispatch (id:oom-local-model-session-kills).
+  if (unit.intensive && !ALLOW_INTENSIVE) {
+    log(`relay-loop: id:5ac6 INTENSIVE fail-closed — unit ${unit.repo}(${unit.verdict}, intensive=${unit.intensive}) reached runUnit without --allow-intensive; SKIP + surface LOUDLY. This is a dispatch invariant violation (the INTENSIVE partition should have caught this). Use --intensive to enable.`)
+    state.blocked.push({
+      repo: unit.repo,
+      reason: `INTENSIVE fail-closed (id:5ac6): unit carries intensive=${unit.intensive} but ALLOW_INTENSIVE=false — skipped to prevent OOM dispatch; use --intensive to enable`,
+      worktreePath: '-',
+    })
+    scheduleStatusWrite(state)
     return
   }
   unitsDispatched++
