@@ -3,7 +3,7 @@
 #
 # Pure function: reads ONE gather-repo-state JSON object (with `unpromoted` summary
 # folded in) on stdin → emits ONE JSON object on stdout:
-#   {verdict, reason, evidence, ambiguous, priority_rank}
+#   {verdict, reason, evidence, ambiguous, priority_rank, intensive}
 # where verdict ∈ {blocked, execute, review, hard, handoff, human, idle, AMBIGUOUS}.
 #
 # Priority order (rank 0 = highest, never dispatched):
@@ -11,8 +11,8 @@
 #   1: execute  — open [ROUTINE] ROADMAP items
 #   2: review   — substantive unaudited commits
 #   3: hard     — open [HARD — pool] items (open_hard_pool >= 1)
-#   4: handoff  — unpromoted TODO backlog (promote > 0 OR surface > 0)
-#   5: human    — human-lane-only, no executor path (reserved)
+#   4: handoff  — promotable TODO backlog (promote > 0)
+#   5: human    — surface-only backlog (promote == 0, surface > 0); no apex dispatch (id:5eb3)
 #   6: idle     — nothing actionable
 #
 # SIDE-EFFECT-FREE: no git, no filesystem writes, no ledger mutation, no lease/dispatch.
@@ -40,6 +40,10 @@ promote               = int(unpromoted.get("promote", 0))
 surface               = int(unpromoted.get("surface", 0))
 is_finished           = bool(data.get("is_finished", False))
 roadmap_actionable    = int(data.get("roadmap_actionable_open", 0))
+# id:5ac6 — INTENSIVE flag: copy top_intensive from gather VERBATIM (string, always present, "" when none).
+# It is an orthogonal resource axis, never a verdict value. INVARIANT: intensive!="" => verdict in {execute,hard}
+# (enforced by gather excluding human-gated items from top_intensive, id:a707).
+top_intensive         = str(data.get("top_intensive", "") or "")
 
 # Verdict-parity guards (id:e424): a dirty or diverged main tree is NEVER dispatched — it
 # surfaces as `blocked` (distinct from idle = clean+no-work). Outranks every D3 verdict.
@@ -97,17 +101,31 @@ elif open_hard_pool >= 1:
     ).format(open_hard_pool)
     evidence.append({"field": "open_hard_pool", "value": open_hard_pool, "source": "gather-repo-state"})
 
-elif promote > 0 or surface > 0:
-    # Covers both case (b) — drained @manual-only ROADMAP with a real TODO backlog —
-    # and case (h) — is_finished=true but unpromoted-scan reports backlog.
-    # This MUST beat idle/human even when roadmap_actionable_open == 0 or is_finished.
+elif promote > 0:
+    # Case (b) split 1/2 (id:5eb3): promotable backlog → full handoff (Opus apex promotion work).
+    # Covers: drained @manual-only ROADMAP + promotable TODO items (case b); is_finished=true
+    # with promote items (case h). promote>0 ALWAYS beats surface-only, never silenced as idle.
     verdict       = "handoff"
     priority_rank = 4
     reason        = (
-        "Unpromoted TODO backlog: {} promote, {} surface -- "
+        "Promotable TODO backlog: {} promote, {} surface -- "
         "handoff needed to populate ROADMAP from TODO backlog"
     ).format(promote, surface)
     evidence.append({"field": "unpromoted.promote", "value": promote,  "source": "unpromoted-scan"})
+    evidence.append({"field": "unpromoted.surface", "value": surface,  "source": "unpromoted-scan"})
+
+elif surface > 0:
+    # Case (b) split 2/2 (id:5eb3): surface-only backlog (promote==0 ∧ surface>0) → human.
+    # No promotable work for Opus to act on; mechanical filing only (no apex dispatch).
+    # The relay-loop wires file-surface-decisions.sh at the human verdict to file each
+    # surface item to the decision-queue, preserving the anti-gaming invariant (loud, never idle).
+    verdict       = "human"
+    priority_rank = 5
+    reason        = (
+        "Surface-only TODO backlog: {} surface item(s), 0 promotable -- "
+        "lane-triage filing needed; no apex dispatch (id:5eb3)"
+    ).format(surface)
+    evidence.append({"field": "unpromoted.promote", "value": 0,       "source": "unpromoted-scan"})
     evidence.append({"field": "unpromoted.surface", "value": surface,  "source": "unpromoted-scan"})
 
 else:
@@ -128,6 +146,11 @@ result = {
     "evidence":      evidence,
     "ambiguous":     False,
     "priority_rank": priority_rank,
+    # id:5ac6 — INTENSIVE flag: verbatim copy of gather top_intensive, ONLY when the verdict
+    # is executor-dispatchable (execute/hard). For all other verdicts (review/handoff/human/
+    # idle/blocked) the flag is "" — the invariant intensive!="" => verdict in {execute,hard}
+    # must hold so a regression of the dispatch partition cannot OOM-dispatch intensive work.
+    "intensive":     top_intensive if verdict in ("execute", "hard") else "",
 }
 
 print(json.dumps(result))

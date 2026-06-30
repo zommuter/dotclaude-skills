@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [HARD — pool] `classify-verdict.sh` case-b split → `human` + mechanical surface-filer (meeting 2026-06-30-2238) <!-- id:5eb3 -->
+- [x] [HARD — pool] `classify-verdict.sh` case-b split → `human` + mechanical surface-filer (meeting 2026-06-30-2238) <!-- id:5eb3 -->
   - **Why** (meeting `docs/meeting-notes/2026-06-30-2238-classifier-flip-prereqs-intensive-casebt.md`): `classify-verdict.sh:100` fires `handoff` on `promote>0 OR surface>0`. id:47f1 already broke the case-g loop (surface items file to the decision-queue once, then drop out), so this is a COST-TIER fix, not a correctness fix: a `promote==0 ∧ surface>0` repo has nothing an Opus `handoff` can promote — its only action is mechanical `decision-queue.sh add` per surface item. Burning the apex turn on filing-only is the over-tier the mechanize-first heuristic dissolves.
   - **Acceptance**:
     1. `classify-verdict.sh` splits the old case-b three ways: `promote>0 → handoff`; `promote==0 ∧ surface>0 → human` (priority_rank 5); `promote==0 ∧ surface==0 → idle` (unchanged). The `human` verdict must NOT outrank execute/review/hard (D3 order intact).
@@ -18,7 +18,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     3. **RECONCILE**: the existing `tests/test_classify_verdict.sh:41` case (b) (roadmap:85df, TICKED) asserts surface-only → `handoff`; flip it to `human`. Full suite green requires it.
   - **Tests**: `tests/test_classify_verdict_humanlane.sh` (`# roadmap:5eb3`) — verdict-level three-way split (RED until landed) + a new hermetic filer test asserting N decision-queue records are written for a surface-only repo (no silent no-op). Plus the flipped case (b) in `test_classify_verdict.sh`.
 
-- [ ] [HARD — pool] INTENSIVE verdict-layer fail-safe: `intensive` flag + invariant + fail-closed dispatch assertion (SAFETY; meeting 2026-06-30-2238) <!-- id:5ac6 -->
+- [x] [HARD — pool] INTENSIVE verdict-layer fail-safe: `intensive` flag + invariant + fail-closed dispatch assertion (SAFETY; meeting 2026-06-30-2238) <!-- id:5ac6 -->
   - **Why** (same meeting; SAFETY): `classify-verdict.sh` reads no intensive field, so `[HARD — pool] [INTENSIVE]` classifies as plain `hard` and `[ROUTINE] [INTENSIVE]` as plain `execute` — indistinguishable. The ONLY dispatch guard is loop-level `relay-loop.js` `ALLOW_INTENSIVE`, a single point of failure: a regression spawns an executor/apex child on resource-heavy work → stall or the [[oom-local-model-session-kills]] OOM-crash (Gemma-26B killed all 6 sessions).
   - **Acceptance**:
     1. `classify-verdict.sh` copies gather's `top_intensive` VERBATIM to an `intensive:"<resource>"` field beside an UNCHANGED `verdict` (a FLAG, never a new verdict value — `[INTENSIVE]` is an orthogonal resource axis operative only on dispatchable lanes; human-gated exclusion is inherited free because `top_intensive` is "" for human-gated items, id:a707). The field is always present (string, "" when none).

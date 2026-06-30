@@ -73,27 +73,22 @@ leave genuinely design-judgment ones as TODO/`/meeting` candidates (same triage 
 review §5b). Add/refresh the single TODO.md summary line. Commit
 `relay(handoff): C2 roadmap`.
 
-**Surface lane-triage — the "below" for `surface` items (id:47f1, case-g loop-breaker).**
+**Surface lane-triage — the "below" for `surface` items (id:47f1, id:5eb3).**
 `surface`-disposition items (untagged / `[HARD — meeting|hands]`) are NOT auto-promotable —
-they need a *lane decision* a handoff cannot make. The failure this fixes (truncocraft
-case-g, 2026-06-30): handoff "lane-triaged" them by silently doing nothing, so `unpromoted-scan`
-re-counted them every round and the classifier re-emitted `handoff` forever (a no-op loop).
-**Do not swallow them — FILE each surface item to the durable decision-queue** so the human
-lane-triages it out-of-band and the loop stops re-firing:
+they need a *lane decision* a handoff cannot make. As of id:5eb3 (meeting 2026-06-30-2238),
+**surface-filing is NO LONGER the handoff's responsibility.** The case-b split changed the
+classifier so a repo with `promote==0 ∧ surface>0` emits verdict `human` (not `handoff`) —
+no Opus apex is dispatched at all. The relay-loop's `human`-verdict handler calls the
+mechanical `file-surface-decisions.sh` script, which files each item to the decision-queue,
+preserving the anti-gaming invariant (loud, tested, never silent idle). The `--source-id`
+load-bearing exclusion (id:47f1) is unchanged: `unpromoted-scan.sh` excludes tokens with
+OPEN records, so a filed item drops out of the scan and the `human` verdict stops re-firing
+once all surface items are filed.
 
-```bash
-relay/scripts/decision-queue.sh add --repo <name> --kind lane-triage \
-  --question "Assign a lane to TODO id:<token>: <title>" \
-  --source-id <token>
-```
-
-The `--source-id <token>` is load-bearing: `unpromoted-scan.sh` excludes a token with an
-OPEN queue record (id:47f1), so a filed item drops out of fresh backlog and `handoff` stops
-re-firing on it; once the human `resolve`s the record (assigns a lane), the item resurfaces
-for promotion. File one record per surface item (idempotent in practice — a token already
-filed is already excluded, so a re-run that re-derives the same surface set sees it gone).
-**A handoff that ends with surface items neither promoted nor filed is the case-g no-op —
-the run is NOT complete.**
+**A handoff C2 encountering surface items should promote-disposition items only; surface-
+disposition items are left for the `human`-verdict mechanical filer — do NOT file them
+manually in a handoff child.** The handoff child's obligation is complete once `promote`
+items are handled and the ROADMAP is updated.
 
 **Author-then-run split for scriptable `[HARD — hands]` items (id:e175, meeting 2026-06-30).**
 A hands item is often *(an authorable artifact) + (a thin on-device run)* — e.g. write a
