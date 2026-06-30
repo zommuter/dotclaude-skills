@@ -47,15 +47,15 @@ RELAY_LOG.md, hygiene).
 - **`fable-ckpt-YYYYMMDD-HHMM` tags** — annotated checkpoint tags marking each
   integrated relay turn. The diff window between the last tag and HEAD is what
   the next review audits. Don't delete them.
-- **`~/.config/fables-turn/relay.toml`** — the confirmation registry and
+- **`~/.config/relay/relay.toml`** — the confirmation registry and
   scheduler state: which repos are confirmed `own`, their status, last
   checkpoint/review dates, and the `income = true` flags that get scheduling
   priority. Only the orchestrator writes it (after your confirmation).
-- **`~/.config/fables-turn/RELAY_STATUS.md`** — live cross-repo rollup during
+- **`~/.config/relay/RELAY_STATUS.md`** — live cross-repo rollup during
   autonomous runs: in-flight units, completed integrations with their tags,
   queued/blocked repos, quota remaining, open REVIEW_ME counts. Overwritten on
   every integration; read-only for humans.
-- **Worktrees under `~/.cache/fables-turn/worktrees/<repo>/`** — children work
+- **Worktrees under `~/.cache/relay/worktrees/<repo>/`** — children work
   in isolation and never push. A worktree that is still there after a turn is a
   **HANDBACK**: work that failed its contract and was deliberately *not* merged.
   It survives on disk with its branch; the turn summary / RELAY_STATUS tells
@@ -80,7 +80,7 @@ RELAY_LOG.md, hygiene).
 | `--interactive` | off | Re-enables the one-batch confirmation questions before an autonomous run. |
 | `--fable-down` / `-d` | off | Asserts the Fable strong tier is unavailable this run (one axis); composes with `STRONG_TIER`. With `STRONG_TIER=fable` (default, no substitute): defer strong work, run executors only — a `review` repo that also has open `[ROUTINE]` work is demoted to execute so the pool stays busy; handoff units and review-only repos are deferred and surface in RELAY_STATUS Queued. With `STRONG_TIER=opus` (`-d --strong-tier opus`): substitute Opus for the unavailable Fable — review/handoff dispatch normally on Opus (marked `fable-standin`), nothing is deferred/demoted. |
 | `RELAY_QUOTA_THRESHOLD` | `0.90` | Utilization fraction at which dispatch stops (in-flight work still drains and integrates). |
-| `RELAY_STATUS_PATH` | `~/.config/fables-turn/RELAY_STATUS.md` | Rollup location override (mostly for testing). |
+| `RELAY_STATUS_PATH` | `~/.config/relay/RELAY_STATUS.md` | Rollup location override (mostly for testing). |
 | `income = true` (relay.toml) | — | Marks a repo income-relevant; such repos win dispatch-slot contention within their class. |
 
 ## Safety properties worth knowing

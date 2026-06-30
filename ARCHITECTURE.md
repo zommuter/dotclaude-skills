@@ -135,7 +135,7 @@ The relay skill that manages this repo lives in this repo (`relay/`; renamed fro
 `fables-turn` per TODO id:1cb4 — Opus is the apex tier, Fable an optional bonus, so
 "fables" was a misnomer; "relay" matches relay.toml / RELAY_LOG.md / relay-loop.js /
 RELAY_STATUS.md). `fables-turn` / `fables-executor` survive as deprecated alias stubs.
-Worktrees go under `~/.cache/fables-turn/worktrees/<repo>/` (a runtime-state path kept
+Worktrees go under `~/.cache/relay/worktrees/<repo>/` (a runtime-state path kept
 as-is so in-flight worktrees aren't orphaned) — outside the repo tree so `git status`
 stays clean. Checkpoint tags `fable-ckpt-*` + RELAY_LOG.md entries are written
 atomically by `relay/scripts/ckpt-tag.sh`; children never push (one push per repo per

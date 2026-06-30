@@ -68,14 +68,14 @@ collapses to width 1 while it holds the resource), and holds an **exclusive
 
 **Per-repo default.** A repo whose work is *uniformly* intensive (e.g. ai-codebench, the
 zkm index) can instead carry a coarse default `intensive = "local-llm"` (or `= true`) in
-its `[repos.<name>]` block in `~/.config/fables-turn/relay.toml`; item-level tags
+its `[repos.<name>]` block in `~/.config/relay/relay.toml`; item-level tags
 override the repo default.
 
 ## Durable Fable-bonus-recheck queue (relay.toml, id:e030)
 
 When a STRONG unit (review / handoff / hard, i.e. `STRONG_MODEL=claude-opus-4-8`)
 checkpoints a repo, the integrator records a model-tracked entry in
-`~/.config/fables-turn/relay.toml` under `[repos.<name>]`:
+`~/.config/relay/relay.toml` under `[repos.<name>]`:
 
 - `last_strong_ckpt` — the strong checkpoint's tag name.
 - `strong_model` — the model that produced it (e.g. `claude-opus-4-8`).
