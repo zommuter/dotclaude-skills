@@ -110,6 +110,28 @@ inbox="${inbox:-$INBOX_DEFAULT}"
 [[ -f "$inbox" ]] || { echo "scan-routed.sh: inbox not found: $inbox" >&2; exit 2; }
 [[ -r "$inbox" ]] || { echo "scan-routed.sh: inbox not readable: $inbox" >&2; exit 2; }
 
+# --- registry-parse gate (loud-fail, never silent) -----------------------------
+# A malformed relay.toml (e.g. a duplicate key from a concurrent writer) makes the
+# strict tomllib parser throw, so own_repos() below would emit NOTHING — leaving the
+# own-repo map empty and EVERY routed target falsely reported UNRESOLVED. That silent
+# degradation hid a real corruption (dotclaude-skills id:2945, 2026-06-30). Fail loudly.
+if [[ -f "$RELAY_TOML" ]]; then
+  if ! perr="$(python3 - "$RELAY_TOML" <<'PY' 2>&1
+import sys, tomllib
+try:
+    with open(sys.argv[1], "rb") as f:
+        tomllib.load(f)
+except Exception as e:
+    print(f"{type(e).__name__}: {e}"); sys.exit(2)
+PY
+  )"; then
+    echo "scan-routed.sh: ERROR — relay.toml does not parse ($RELAY_TOML): $perr" >&2
+    echo "  → the own-repo map would be EMPTY, so every routed target would falsely report" >&2
+    echo "    UNRESOLVED. Fix the TOML (commonly a duplicate key) and re-run." >&2
+    exit 2
+  fi
+fi
+
 # --- build the own-repo name→path map ------------------------------------------
 declare -A repo_path=()
 while IFS=$'\t' read -r rname rpath; do
