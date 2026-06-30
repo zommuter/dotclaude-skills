@@ -1042,3 +1042,7 @@ review: 3 TODO-only ledger commits since ckpt-1225 (ids ebd0/a17a/2a3d/80b8/0ee6
 ## 2026-06-30 16:13 — reviewer (claude-opus-4-8)
 
 handoff: promote id:4d8e foundation — classify-verdict.sh (85df) + roadmap-lint case c/d (297b) as [ROUTINE] with RED specs
+
+## 2026-06-30 — executor (claude-sonnet-4-6)
+
+execute: id:297b — extended `relay/scripts/roadmap-lint.sh` with case-c (tag/prose lane disagreement: detect >1 recognised lane bracket on a single item line, emit stderr ERROR matching `tag.*prose|prose.*lane|disagree`) and case-d (free-typed [INTENSIVE]: INTENSIVE only valid with [HARD — pool], any other lane emits stderr ERROR matching `intensive`). Both checks run inside the existing scan loop after `has_class=1` is confirmed; case-c counts recognised lane brackets with `grep -qF` per lane string from `hard_lanes`; case-d greps for `\[INTENSIVE — [^]]+\]` then checks for `[HARD — pool]` absence. No false positives on conforming fixtures; `test_roadmap_lint_tagprose.sh` GREEN, `test_roadmap_lint.sh` GREEN, full suite 127 passed 0 failed 1 expected-red (id:85df, pre-existing). ROADMAP id:297b ticked.
