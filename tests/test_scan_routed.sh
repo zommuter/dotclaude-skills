@@ -38,6 +38,12 @@ mk_repo repoA '# TODO
 - [ ] already filed here <!-- routed:1111 -->'
 # repoB lacks routed:2222 → dead letter.
 mk_repo repoB '# TODO'
+# repoD: the token 1648 appears ONLY as the HHMM field of a meeting-note timestamp
+# (no routed:1648 / id:1648 twin) → must STILL be a dead letter. Guards the bare-token
+# substring false-match (regression 2026-06-30: routed:0928/1328 read as clean because
+# their 4 chars matched meeting-note filename timestamps).
+mk_repo repoD '# TODO
+- [ ] see docs/meeting-notes/2026-06-30-1648-foo.md for context <!-- id:abcd -->'
 
 cat > "$FIX/relay.toml" <<EOF
 [repos.repoA]
@@ -46,6 +52,9 @@ path = "$FIX/repoA"
 [repos.repoB]
 classification = "own"
 path = "$FIX/repoB"
+[repos.repoD]
+classification = "own"
+path = "$FIX/repoD"
 EOF
 
 cat > "$FIX/inbox.md" <<'EOF'
@@ -53,6 +62,7 @@ cat > "$FIX/inbox.md" <<'EOF'
 - [ ] [repoA] already filed (from src, note.md) <!-- routed:1111 -->
 - [ ] [repoB] stranded dead letter (from src, note.md) <!-- routed:2222 -->
 - [ ] [repoC] targets an unknown repo (from src, note.md) <!-- routed:3333 -->
+- [ ] [repoD] timestamp-masked dead letter (from src, note.md) <!-- routed:1648 -->
 zkm core: a token-less prose block with no checkbox and no routed token
 EOF
 
@@ -98,6 +108,14 @@ pass "(6) --exclude <repo> drops that target"
 grep -qE 'append\.sh|md-merge|inbox-done' <<<"$out" || fail "(7) no ready-to-run command surfaced for dead letters:
 $out"
 pass "(7) dead-letter output includes an actionable command"
+
+# (8) REGRESSION: routed:1648 is absent as a real twin in repoD (only as a meeting-note
+#     timestamp substring) → must be flagged DEAD-LETTER, not silently swallowed as clean.
+grep -qi 'routed:1648' <<<"$out" || fail "(8) timestamp-masked dead-letter routed:1648 not reported (bare-token substring false-match regression):
+$out"
+grep -q 'repoD' <<<"$out" || fail "(8) dead-letter routed:1648 does not name target repoD:
+$out"
+pass "(8) bare-token substring false-match guarded (meeting-note timestamp ≠ twin)"
 
 # --- wiring -------------------------------------------------------------------
 grep -q 'scan-routed.sh' "$ROOT/relay/scripts/relay-doctor.sh" || fail "relay-doctor.sh does not invoke scan-routed.sh"
