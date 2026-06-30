@@ -52,10 +52,14 @@ stamp_human="$(date '+%Y-%m-%d %H:%M')"
   fi
   printf '\n## %s — %s\n\n%s\n' "$stamp_human" "$label" "$summary" >> "$log"
 
-  git -C "$repo" add -- RELAY_LOG.md .gitattributes
+  # Stage .gitattributes tolerantly: warn on failure (e.g. swallowed by .gitignore)
+  # but do NOT abort — the merge=union attr is a nicety, not essential to a checkpoint.
+  if ! git -C "$repo" add -- .gitattributes 2>/dev/null; then
+    echo "ckpt-tag.sh: WARNING: .gitattributes could not be staged (ignored?); skipping attr — checkpoint will proceed without it" >&2
+  fi
+  git -C "$repo" add -- RELAY_LOG.md
   if ! git -C "$repo" diff --cached --quiet; then
-    git -C "$repo" commit -q -m "relay: checkpoint $stamp_min ($label)" \
-      -- RELAY_LOG.md .gitattributes
+    git -C "$repo" commit -q -m "relay: checkpoint $stamp_min ($label)"
   fi
 
   tag="relay-ckpt-$stamp_min"
