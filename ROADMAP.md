@@ -26,7 +26,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     3. Add a FAIL-CLOSED pre-dispatch assertion in `relay-loop.js`: never spawn an executor/apex child on a unit with `intensive` set unless `ALLOW_INTENSIVE` — skip + surface loudly, never OOM-dispatch (third defense-in-depth layer; keep the existing partition + `resource:` claim).
   - **Tests**: `tests/test_classify_verdict_intensive.sh` (`# roadmap:5ac6`) — flag presence + verbatim copy + the verdict-coupling invariant (RED until landed). Extend `tests/test_relay_loop_intensive_emit.sh` (or a sibling) for the JS-side fail-closed assertion.
 
-- [ ] [ROUTINE] roadmap-lint case (d): realign INTENSIVE to operative-only-on-dispatchable-lanes (meeting 2026-06-30-2238) <!-- id:9062 -->
+- [x] [ROUTINE] roadmap-lint case (d): realign INTENSIVE to operative-only-on-dispatchable-lanes (meeting 2026-06-30-2238) <!-- id:9062 -->
   - **Why** (same meeting; resolves the LIVE it-infra id:9321 false-positive surfaced by a parallel `/relay human` session): `roadmap-lint.sh:80` (comment "orthogonal, may co-occur") contradicts `:170` case (d) ("INTENSIVE valid ONLY on `[HARD — pool]`"), which also wrongly rejects `[ROUTINE] [INTENSIVE]`. gather's `top_intensive` is the operative source of truth (ROUTINE + HARD — pool; human-gated excluded).
   - **Acceptance**:
     1. `roadmap-lint.sh` case (d): ACCEPT `[INTENSIVE]` on `[ROUTINE]` or `[HARD — pool]` (operative); ACCEPT on human lanes (`hands`/`meeting`/`decision gate`/`@manual`) as advisory — NO violation; REJECT only `[INTENSIVE]` with no recognised lane (lane-less / underivable).
