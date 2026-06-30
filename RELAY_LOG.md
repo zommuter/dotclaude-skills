@@ -1030,3 +1030,7 @@ review 20260630: c6c8/a7a3 doc-only (no gaming); reverse-handoff id:a7a3 → ROA
 
 Worked id:a7a3 — fixed `ckpt-tag.sh` to degrade gracefully when `.gitattributes` is unaddable (e.g. repo `.gitignore` `.*` catch-all swallows it). Now stages `.gitattributes` tolerantly (warns to stderr on failure, does not abort), then always stages `RELAY_LOG.md` and commits. All 4 test assertions in `test_ckpt_gitattributes_degrade.sh` green; full suite 126/0 green.
 Friction: none.
+
+## 2026-06-30 12:25 — executor (sonnet, relay-loop)
+
+fix(ckpt-tag): degrade gracefully when .gitattributes is unaddable (id:a7a3) — tolerant git add + warn, always commits RELAY_LOG.md + tag; suite 126/0 green [id:a7a3]
