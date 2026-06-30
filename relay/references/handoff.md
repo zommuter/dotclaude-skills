@@ -73,6 +73,21 @@ leave genuinely design-judgment ones as TODO/`/meeting` candidates (same triage 
 review §5b). Add/refresh the single TODO.md summary line. Commit
 `relay(handoff): C2 roadmap`.
 
+**Author-then-run split for scriptable `[HARD — hands]` items (id:e175, meeting 2026-06-30).**
+A hands item is often *(an authorable artifact) + (a thin on-device run)* — e.g. write a
+systemd `.service`/`.path`/`.timer` (in-repo, authorable) then `systemctl --user` enable
++ observe it fire (on-device). When the authoring half is genuinely buildable in a
+worktree, **split it into two existing-lane items, do NOT leave the whole thing `hands`:**
+a `[HARD — pool]` "author script/config X" item the `--afk` pool builds unattended (the
+`hard` verdict, id:da26), plus a `[HARD — hands]` "run X on device" item gated `(DEP:
+<author-id>)`. Reuse the parent's id for one half and mint one fresh id for the other; keep
+them DEP-linked so the dependency is explicit. **The split is authoring JUDGMENT, not a
+mechanical transform** — only split when the author half is really worktree-buildable
+(counter-example: an item whose only steps are an *outside-the-repo* config edit + an
+`ssh <host> chmod` is wholly hands — both halves are unreachable from a worktree). Relay
+NEVER auto-executes the device/sudo run; `/relay human` only PRINTS the command (see
+human.md §4). A detector that merely FLAGS splittable candidates is deferred (observe-first).
+
 **C3 — spec-as-tests.** For every `[ROUTINE]` item, write the FAILING tests now and
 verify each is actually red (run them). Map each test to its item with a
 `# roadmap:XXXX` comment. The suite is the spec — an executor is done when it goes

@@ -219,6 +219,16 @@ integration invariants.
    against `~/.config/fables-turn/relay.toml`. Present only NEW or changed repos for
    confirm/prune; persist confirmations. `needs_review` repos (mixed-remote forks, dirty
    clones) are never auto-included — they require an explicit user call.
+   **Reconcile the shared inbox on every `--all` run (id:1d3f, meeting 2026-06-30).** When
+   the scope is cross-repo (`--all` / no explicit repo-list — `human`/`review`/`handoff`
+   AND the bare autonomous pool), run the inbox dead-letter auto-filer ONCE, BEFORE triage:
+   `scripts/scan-routed.sh --apply --exclude truncocraft` plus one `--exclude <repo>` per
+   repo in this run's `--exclude` set (always include `truncocraft`, the hard-exclude;
+   `scan-routed.sh` already skips `paused` repos). It is idempotent (greps `routed:XXXX`
+   first), class-A only (conforming token + repo resolves on disk → INBOUND stub written +
+   committed + `inbox-done`); class-B prose stays surfaced-only (the id:678e slice-2 gate).
+   Surface what was auto-filed in `RELAY_STATUS.md` / the turn summary. A directed
+   single-repo / non-`--all` run does NOT touch the global inbox (skip this sub-step).
 2. **Cheap pre-scan, then ONE question batch.** Spawn ≤5 lightweight read-only Explore
    agents (README + tree + `git log` skim, no worktrees) to collect per-repo clarifying
    questions and a dirty assessment. Ask the user EVERYTHING in one `AskUserQuestion`

@@ -158,6 +158,15 @@ them.** The collector has already READ each item's explicit lane, so route by `k
 - **`hard_hands` boxes go on the "you run these" checklist (§4), NOT a meeting.** They
   need a human to physically run something (hardware/sudo/secret/on-device); a meeting
   cannot discharge them. Leave OPEN; surface in the §4 manual checklist.
+  **Author-then-run split (id:e175):** before surfacing a hands item, judge whether it is
+  *(an authorable artifact) + (a thin on-device run)* — e.g. write systemd units in-repo,
+  then `systemctl --user` enable + observe. When the authoring half is genuinely
+  worktree-buildable, propose the SPLIT (handoff.md C2): a `[HARD — pool]` "author X" item
+  the `--afk` pool builds unattended + a `[HARD — hands]` "run X" residue gated `(DEP:
+  <author-id>)`, so only the irreducible on-device run stays hands. It is authoring
+  judgment — only split when the author half is really buildable (an outside-repo config
+  edit + `ssh <host> chmod` is wholly hands). Relay NEVER auto-runs the device command;
+  surface the split as a proposal, leave the box OPEN.
 - **`hard_pool` boxes are NOT a human action.** They are pool-executable apex work the
   `/relay --afk` pool already runs via its `hard` verdict (id:da26). Do NOT route them
   to a meeting and do NOT put them on the "you run these" list — surface them only as a
@@ -180,6 +189,22 @@ turn summary: repo, the scenario, and what running it proves. The human runs it 
 turns and ticks it themselves (or files a follow-up if it fails). This is the same
 discipline as review.md §3 (emit `@manual` checklists rather than automate them),
 applied across all own repos.
+
+**Verbose "you run these" — verbatim steps + clickable refs (id:45c6, meeting 2026-06-30).**
+The "you run these" checklist (BOTH `hard_hands` and `manual` items) is the one tier a
+human acts on directly, often in 2–5 minutes — so make it *runnable*, not a one-line title.
+For each item, EXPAND it into the concrete recorded steps/commands, pulled **VERBATIM** from
+the ROADMAP item body / REVIEW_ME box (read the cited file to get them):
+- Pull literal commands exactly as written (e.g. `ssh fievel chmod -R a-w <path>/zomAI.git`)
+  and the done-check. **Never fabricate a procedure** the item does not record — a wrong
+  `sudo` line is worse than none.
+- Soft-cap each item at ~5–8 lines. When the item is longer (a wall-of-text like
+  `ai-codebench` id:244b), DON'T dump it — emit a **`<file>:<line>` reference in the
+  editor-jump format** (e.g. `it-infra/ROADMAP.md:112`) so the human's terminal/VSCode jumps
+  straight to the line, plus the one or two key commands.
+- When an item records NO steps, stay terse and give the `<file>:<line>` pointer only.
+This verbosity is **scoped to the "you run these" list ONLY** — the `hard_meeting` "needs a
+/meeting" checklist and the `hard_pool` FYI stay one line each (§3).
 
 ## 5. Commit discipline
 
@@ -259,7 +284,9 @@ End the turn with, per repo touched:
 - tier-(c) boxes routed to `/meeting --cross` — including the **`hard_meeting` "needs a
   /meeting" checklist** (repo · item id · why), surfaced here so the pool's decision
   backlog stops silently stalling (id:78ff),
-- the **"you run these"** checklist (open `@manual` boxes AND `hard_hands` items),
+- the **"you run these"** checklist (open `@manual` boxes AND `hard_hands` items) —
+  **verbose** per §4: verbatim recorded steps/commands, with a `<file>:<line>` editor-jump
+  ref when an item is too long (id:45c6),
 - a short **`hard_pool` FYI** line (count of pool-executable HARD items waiting on the
   next `/relay --afk` run — NOT a human action, just so the human can kick a pool),
 - any dirty repos skipped,
