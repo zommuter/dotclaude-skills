@@ -26,15 +26,18 @@ grep -qE "exitCode === 2|exitCode == 2|exit.?2" "$JS" \
 pass "quotaGate distinguishes exit 2 (stale-cache) from exit 1 (exhaustion)"
 
 # (2) A machine-readable stopReason is captured and returned in the run result, with the
-# acceptance's category vocabulary (quota-exhausted:<bucket> | quota-stale-cache | budget |
-# drained | max-rounds).
+# acceptance's category vocabulary. id:0175 / routed:82e3 renamed the refresh-failure category
+# to 'quota-cache-unreadable' (an infra cache-read failure must never masquerade as a genuine
+# quota event) and added 'quota-extrapolated-stop' (burn-rate extrapolation crossed threshold).
 grep -q "stopReason" "$JS" || fail "run result does not carry a stopReason field"
 pass "stopReason captured"
-grep -q "quota-stale-cache" "$JS" \
-  || fail "stopReason vocabulary missing 'quota-stale-cache' (the refresh-failure category)"
+grep -q "quota-cache-unreadable" "$JS" \
+  || fail "stopReason vocabulary missing 'quota-cache-unreadable' (the cache-read-failure category)"
+grep -q "quota-extrapolated-stop" "$JS" \
+  || fail "stopReason vocabulary missing 'quota-extrapolated-stop' (burn-rate extrapolation over threshold)"
 grep -qE "quota-exhausted" "$JS" \
   || fail "stopReason vocabulary missing 'quota-exhausted:<bucket>' (real-exhaustion category)"
-pass "stopReason vocabulary includes quota-stale-cache and quota-exhausted:<bucket>"
+pass "stopReason vocabulary includes quota-cache-unreadable, quota-extrapolated-stop, and quota-exhausted:<bucket>"
 
 # (3) The drain-reason log() line names the category, not just a generic STOP — an operator
 # must read WHY from the log without grepping quota-stop.sh's own stderr.
