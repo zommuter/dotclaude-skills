@@ -40,17 +40,23 @@ base_json="$("$GATHER" --repo "$repo" --path "$path")"
 # Step 2: run unpromoted-scan.sh (read-only; suppress log stderr so hermetic tests stay quiet)
 scan_tsv="$("$SCAN" "$path" 2>/dev/null || true)"
 
-# Step 3 + 4: derive ROADMAP fields, fold unpromoted counts, pipe to classifier
-# Export vars so python3 subprocess can read them via os.environ.
-export CLASSIFY_PATH="$path" BASE_JSON="$base_json" SCAN_TSV="$scan_tsv"
+# Step 3 + 4: derive ROADMAP fields, fold unpromoted counts, pipe to classifier.
+# Pass the (potentially large) gather JSON + scan TSV via TEMP FILES, never env/argv: a single
+# env string over MAX_ARG_STRLEN (128KB) breaks execve of python3 AND the classifier (see
+# tests/test_classify_repo_large.sh — dotclaude-skills' ~130KB unpromoted-scan TSV). Paths stay tiny.
+blobdir="$(mktemp -d)"
+trap 'rm -rf "$blobdir"' EXIT
+printf '%s' "$base_json" > "$blobdir/base.json"
+printf '%s' "$scan_tsv"  > "$blobdir/scan.tsv"
+export CLASSIFY_PATH="$path" BASE_FILE="$blobdir/base.json" SCAN_FILE="$blobdir/scan.tsv"
 python3 - <<'PYEOF' | "$CLASSIFY"
 import json, os, re, sys
 
 HUMAN_GATES = ("[HARD — hands]", "[HARD — meeting]", "[HARD — decision gate]")
 
 path     = os.environ["CLASSIFY_PATH"]
-base_json = os.environ["BASE_JSON"]
-scan_tsv  = os.environ["SCAN_TSV"]
+with open(os.environ["BASE_FILE"]) as _f: base_json = _f.read()
+with open(os.environ["SCAN_FILE"]) as _f: scan_tsv  = _f.read()
 
 # --- Step 2: derive ROADMAP fields ----------------------------------------
 rm = os.path.join(path, "ROADMAP.md")
