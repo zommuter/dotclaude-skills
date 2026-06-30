@@ -237,8 +237,18 @@ integration invariants.
 3. **Allocate id tokens.** For each repo, pre-allocate roadmap tokens:
    `~/.claude/skills/meeting/append.sh new-ids <N> <repo-root>`.
 4. **Spawn waves of ≤5 children** via plain Agent-tool fan-out (one repo per child),
-   each in its own worktree under `~/.cache/relay/worktrees/<repo>/` (outside the
-   repo tree, so it never pollutes status). Pass the child the relevant reference doc
+   each in its own worktree under `~/.cache/relay/worktrees/<repo>/<runId>-<verdict>`
+   (outside the repo tree, so it never pollutes status) — the child CREATES it with an
+   explicit `git -C <repo> worktree add ~/.cache/relay/worktrees/<repo>/<runId>-<verdict>`
+   that names the TARGET `<repo>`. **Do NOT use the Agent tool's `isolation: worktree`
+   parameter for a relay child (id:c6c8): it is CWD-repo-relative — it worktrees the
+   session's *current* repo, not `<repo>`, so a cross-repo child silently gets an isolated
+   worktree of the WRONG repo and ends up editing the target's MAIN checkout unisolated
+   (observed 2026-06-30: a jobAI executor dispatched with `isolation: worktree` from a
+   dotclaude-skills cwd committed straight to jobAI's real `main`). Use the explicit relay
+   worktree above; or — for a review/ledger-only pass — work the target's main checkout
+   directly under the held lease (the id:15d5 review pattern, since ledger writes land in
+   the main checkout anyway).** Pass the child the relevant reference doc
    (`references/handoff.md` or `references/review.md`), `references/conventions.md`, its
    tokens, and whether C5/step-6 HARD work is budgeted this turn. Children commit in
    their worktree and return the structured report — they NEVER push and NEVER run
