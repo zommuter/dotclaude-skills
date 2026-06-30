@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] `gather-human-backlog.sh` — anchor the HARD-lane parse to the item's OWN bracket tag, ignoring a pool-lane token mentioned only in body prose <!-- id:1bbd -->
+- [x] [ROUTINE] `gather-human-backlog.sh` — anchor the HARD-lane parse to the item's OWN bracket tag, ignoring a pool-lane token mentioned only in body prose <!-- id:1bbd --> done 2026-06-30 (executor): `emit_hard_lanes()` in `gather-human-backlog.sh` now strips backtick-quoted strings from the line before lane detection, so a prose mention like `` `[HARD — pool]` `` cannot shadow the item OWN bracket tag. `tests/test_gather_lane_anchor.sh` (roadmap:1bbd) green; `test_hard_lane_buckets.sh` unregressed; suite 135 green.
   - **Why** (inbox routed:6645 from it-infra relay HARD child relay-20260630-131714-19334): `emit_hard_lanes()` reads the lane by whole-line substring match with the **pool branch checked FIRST** (`gather-human-backlog.sh:197`), so any `[HARD — hands]`/`[HARD — meeting]` item whose body prose quotes the literal `` `[HARD — pool]` `` (e.g. a re-lane-criterion sentence) mis-buckets as `hard_pool`. Caused it-infra `open_hard_pool=2` false-positive → a wasted Opus HARD dispatch (it-infra ids 9321/c5e9 are genuinely `[HARD — hands]`). Confirmed reproduced this review.
   - **Acceptance**:
     1. The lane is read from the item's OWN bracket tag (the `[HARD — <lane>]` immediately after the title), not from a `[HARD — pool]` string anywhere on the line. Fix per the report: anchor the lane regex to the tag after the title, OR test hands/meeting before pool, OR strip prose past the title's lane tag.
