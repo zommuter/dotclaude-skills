@@ -1066,3 +1066,7 @@ execute: id:3f0f classify-repo.sh — implemented `relay/scripts/classify-repo.s
 ## 2026-06-30 16:51 — reviewer (claude-opus-4-8)
 
 execute+review: id:3f0f classify-repo.sh wrapper (green) + execve-overflow fix on large repos
+
+## 2026-06-30 17:08 — reviewer (claude-opus-4-8)
+
+execute: id:07be gather-repo-state execve overflow fix + id:5f93 backtest-verdict.py pre-flip gate
