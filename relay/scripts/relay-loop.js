@@ -189,7 +189,7 @@ log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOW
 //     blocked:   [{repo, reason, worktreePath}],
 //     quota:     [{bucket, pctRemaining, resetTime}],
 //     reviewMe:  [{repo, count, path}],
-//     stopReason: string|null }  // id:8c35 — category of the stop (quota-stale-cache, quota-exhausted:<bucket>, etc.)
+//     stopReason: string|null }  // id:8c35 — category of the stop (quota-cache-unreadable, quota-extrapolated-stop, quota-exhausted:<bucket>, etc.)
 // id:8c35 — build the stop-reason line for RELAY_STATUS (called with the module-level
 // stopReason at status-write time, so writeRelayStatus must pass it in via state).
 function buildStopReasonLine(sr) {
@@ -636,8 +636,9 @@ let totalDispatched = 0
 // backstop catching ANY spin even if the discover-shard's principled recurring-audit gate
 // (mechanism 1) slips — see the inline breaker in the discovery guards block.
 const redispatchGuard = {}
-// id:8c35 — machine-readable stop reason: null | "quota-stale-cache" |
-// "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
+// id:8c35 — machine-readable stop reason: null | "quota-cache-unreadable" |
+// "quota-extrapolated-stop[:<bucket>]" (id:0175/82e3) | "quota-exhausted:<bucket>" |
+// "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
 // Populated by quotaGate on any stop (and by the id:c012 graceful-stop paths) so operators
 // (and RELAY_STATUS) see WHY, not just "quotaStopped=true".
 let stopReason = null
@@ -1329,25 +1330,35 @@ async function quotaGate(tier) {
   // (Same per-round-vs-run-total accounting family as id:2d20's drain fix.)
   const v = await agent(
     `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
-Return exitCode (0 = proceed, 1 = stop, 2 = uncertain/stale-cache) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.
-On exit 1 (real exhaustion), also return crossedBucket: the name of the bucket that quota-stop.sh logged as crossing its threshold (the script logs "quota-stop: <bucket>=<val>% >= threshold <t>" to stderr — capture that bucket name, e.g. "seven_day_sonnet"). Leave crossedBucket absent or empty if exit code is not 1.`,
+Return exitCode (0 = proceed, 1 = real-cache exhaustion, 2 = cache unreadable with no usable burn sample, 3 = cache unreadable but burn-rate EXTRAPOLATES to over threshold) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.
+On exit 1 OR exit 3 (a bucket crossed), also return crossedBucket: the bucket the script logged as crossing its threshold. The script logs either "quota-stop: <bucket>=<val>% >= threshold <t>" (exit 1) or "REASON=quota-extrapolated-stop bucket=<bucket>" (exit 3) to stderr — capture that bucket name, e.g. "seven_day_sonnet". Leave crossedBucket absent or empty otherwise.`,
     { label: `quota:${tier}`, phase: 'Quota', schema: QUOTA_SCHEMA, model: 'haiku' }
   )
   if (v && v.buckets && v.buckets.length) state.quota = v.buckets
   // id:8c35 — distinguish exit codes instead of collapsing both to quotaStopped:
   //   exit 0 → proceed
   //   exit 1 → real threshold exhaustion (a specific bucket hit the cap)
-  //   exit 2 → uncertain/stale-cache: can't verify, conservative STOP
+  //   exit 2 → cache unreadable, NO usable burn sample to extrapolate → conservative STOP
+  //   exit 3 → cache unreadable but the recent burn-rate series extrapolates to over
+  //            threshold (id:0175 / routed:82e3) → STOP (distinct from a genuine exhaustion)
   //   agent death / missing → fail-safe STOP
   if (!v || v.exitCode !== 0) {
     quotaStopped = true
     // Derive the human-readable + machine-readable stop category:
     if (!v) {
-      stopReason = 'quota-stale-cache'  // agent death treated as stale/uncertain
-      log(`relay-loop: quota gate STOP — reason=quota-stale-cache (agent failed; tier=${tier}) — draining in-flight units and integration debt`)
+      stopReason = 'quota-cache-unreadable'  // agent death treated as cache-unreadable/uncertain
+      log(`relay-loop: quota gate STOP — reason=quota-cache-unreadable (agent failed; tier=${tier}) — draining in-flight units and integration debt`)
     } else if (v.exitCode === 2) {
-      stopReason = 'quota-stale-cache'
-      log(`relay-loop: quota gate STOP — reason=${stopReason} (cache stale or refresh unavailable; tier=${tier}) — draining in-flight units and integration debt`)
+      // id:0175 / routed:82e3 — infra cache-read failure with no usable burn sample. Distinct
+      // from a genuine quota event so it never masquerades as exhaustion in the surfaced status.
+      stopReason = 'quota-cache-unreadable'
+      log(`relay-loop: quota gate STOP — reason=${stopReason} (cache unreadable, no usable burn sample to extrapolate; tier=${tier}) — draining in-flight units and integration debt`)
+    } else if (v.exitCode === 3) {
+      // id:0175 / routed:82e3 — cache unreadable, but the burn-rate extrapolation crossed the
+      // threshold. A real (estimated) over-spend signal, kept distinct from both the genuine
+      // real-cache exhaustion (exit 1) and the can't-tell cache-unreadable case (exit 2).
+      stopReason = `quota-extrapolated-stop${v.crossedBucket ? ':' + v.crossedBucket : ''}`
+      log(`relay-loop: quota gate STOP — reason=${stopReason} (cache unreadable; burn-rate extrapolation over threshold; tier=${tier}) — draining in-flight units and integration debt`)
     } else {
       // exit 1: real exhaustion — id:2425: use the agent-returned crossedBucket first, so a
       // decayed/overridden threshold below 90% utilization names the real culprit, not :unknown.
@@ -1849,6 +1860,6 @@ return {
   handbacks,
   queuedRemaining: state.queued,
   quotaStopped,
-  stopReason,  // id:8c35 — category: null | "quota-stale-cache" | "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
+  stopReason,  // id:8c35 — category: null | "quota-cache-unreadable" | "quota-extrapolated-stop[:<bucket>]" (id:0175/82e3) | "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
   rounds: round,
 }
