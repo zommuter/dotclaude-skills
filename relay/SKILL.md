@@ -191,7 +191,10 @@ D1/D2):
 4. **Exit summary.** After the Workflow completes, the front door releases the
    autonomous-pool singleton claim run-scoped (id:11c6 — only if it was a bare no-arg run
    that acquired it in step 2b): `claim.sh release pool:autonomous --run
-   relay-pool-$CLAUDE_SESSION_ID` (run-scoped → a no-op if not held). Then it prints the
+   relay-pool-$CLAUDE_SESSION_ID` (run-scoped → a no-op if not held). Then it runs
+   `relay/scripts/backtest-verdict.py --append-log` (post-drain, id:1324 — appends one
+   summary JSON line to `~/.config/relay/shadow-log.jsonl` so the id:9d2b accumulation
+   gate accrues mechanically; report-only, exit 0). Then it prints the
    `RELAY_STATUS.md` path and the HANDBACK count, then ends the turn (plus the
    global git-diary-workflow/todo-update obligation).
    **Early-exit retry nudge moved to step 0a** (user directive 2026-06-18; corrected
