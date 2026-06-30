@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] `classify-verdict.sh` — deterministic verdict classifier, the PRIMARY discovery verdict source (replaces the LLM shard) <!-- id:85df -->
+- [x] [ROUTINE] `classify-verdict.sh` — deterministic verdict classifier, the PRIMARY discovery verdict source (replaces the LLM shard) <!-- id:85df -->
   - **Why** (meeting 2026-06-30-1523 `docs/meeting-notes/2026-06-30-1523-relay-loop-mechanical-classifier.md`, umbrella id:4d8e DP1): relay discovery currently lets an LLM `discover-shard` own the primary verdict by trusting tag/gate/lane states that don't match the ledger — one `/relay --afk` run surfaced 8 false verdicts, all "the shard trusted a state the deterministic layer would have caught." `gather-repo-state.sh` (id:11ad) already computes the deciding fields and `relay-loop.js:397–429` already has JS backstops; this item consolidates that into ONE tested pure function so the common path is mechanical (DP1 "Replace": the shard fires ONLY on `AMBIGUOUS`).
   - **Acceptance**:
     1. `relay/scripts/classify-verdict.sh` reads a gather-repo-state JSON object on stdin (with an `unpromoted` summary `{promote,surface}` folded in) and emits ONE JSON object `{verdict, reason, evidence[], ambiguous}` on stdout. `verdict ∈ {execute, review, hard, handoff, human, idle, AMBIGUOUS}`; `evidence` is a list of `{field,value,source}` pointers; `ambiguous` is a bool (`AMBIGUOUS` is the ONLY verdict that routes to the LLM — DP2).

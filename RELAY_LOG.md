@@ -1042,3 +1042,7 @@ review: 3 TODO-only ledger commits since ckpt-1225 (ids ebd0/a17a/2a3d/80b8/0ee6
 ## 2026-06-30 16:13 — reviewer (claude-opus-4-8)
 
 handoff: promote id:4d8e foundation — classify-verdict.sh (85df) + roadmap-lint case c/d (297b) as [ROUTINE] with RED specs
+
+## 2026-06-30 16:18 — executor (claude-sonnet-4-6)
+
+execute: id:85df classify-verdict.sh — implemented relay/scripts/classify-verdict.sh as a pure-function bash+python3 script (no heredoc stdin conflict: captures stdin via `cat` then pipes to `python3 -c`); D3 priority cascade: execute→review→hard→handoff→idle; handoff fires on any unpromoted.promote>0 OR surface>0, beating idle/human even when is_finished=true or roadmap_actionable_open=0 (the case b/h fix). Also registered the script in Makefile relay_FILES/relay_EXEC/relay_ALLOW to satisfy the install-manifest test. Full suite: 127 passed, 0 failed, 1 expected-red (test_roadmap_lint_tagprose.sh/297b, pre-existing).
