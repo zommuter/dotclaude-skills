@@ -95,7 +95,7 @@ D1/D2):
    *if it returns* — never a required gate (user directive 2026-06-15: "treat Opus as the
    apex tier, Fable as a bonus re-review"). Do NOT warn when running on Opus — it is the
    intended tier; there is no self-guard and no `sleep`. Select the strong tier:
-   - Manage the cache `~/.config/fables-turn/fable-probe.json`
+   - Manage the cache `~/.config/relay/fable-probe.json`
      (`{available: bool, checked: ISO-ts}`) through `scripts/probe-fable.sh` — the tested
      helper that owns the read + 2 h staleness check (the helper NEVER spawns the model;
      the actual agent-probe stays here in the front door). Run
@@ -216,7 +216,7 @@ integration invariants.
 ## Orchestrator invariants (never skip)
 
 1. **Discover + reconcile.** Run `scripts/discover-repos.sh [repos…]`. Reconcile its TSV
-   against `~/.config/fables-turn/relay.toml`. Present only NEW or changed repos for
+   against `~/.config/relay/relay.toml`. Present only NEW or changed repos for
    confirm/prune; persist confirmations. `needs_review` repos (mixed-remote forks, dirty
    clones) are never auto-included — they require an explicit user call.
    **Reconcile the shared inbox on every `--all` run (id:1d3f, meeting 2026-06-30).** When
@@ -237,7 +237,7 @@ integration invariants.
 3. **Allocate id tokens.** For each repo, pre-allocate roadmap tokens:
    `~/.claude/skills/meeting/append.sh new-ids <N> <repo-root>`.
 4. **Spawn waves of ≤5 children** via plain Agent-tool fan-out (one repo per child),
-   each in its own worktree under `~/.cache/fables-turn/worktrees/<repo>/` (outside the
+   each in its own worktree under `~/.cache/relay/worktrees/<repo>/` (outside the
    repo tree, so it never pollutes status). Pass the child the relevant reference doc
    (`references/handoff.md` or `references/review.md`), `references/conventions.md`, its
    tokens, and whether C5/step-6 HARD work is budgeted this turn. Children commit in
@@ -440,7 +440,7 @@ before it fires, just `rm ~/.config/relay/STOP`.
   (open REVIEW_ME boxes + `@manual` scenarios as TSV; flags `@manual`).
 - `scripts/relay-burn.sh` — quota burnup time-series (id:219b). `sample` appends one
   point (utilization buckets + `extra_usage.used_credits` USD) to
-  `~/.config/fables-turn/quota-samples.jsonl`; `report [--since|--run|--json]` segments at
+  `~/.config/relay/quota-samples.jsonl`; `report [--since|--run|--json]` segments at
   resets and prints `$/h`, `$/day` and per-bucket `%/h` projected to reset — the data for
   evaluating Max x20/x5/Pro tiers. Sampling is wired into `quota-stop.sh` (gated on
   `RELAY_RUN_ID`, best-effort/non-fatal), so every quota gate during a run leaves a sample.
@@ -455,14 +455,14 @@ before it fires, just `rm ~/.config/relay/STOP`.
   (low concurrency → on the critical path).
 - **Observability artifacts** (id:c8b6): `RELAY_STATUS.md` now carries a `## Run progress`
   counter block and a `## Burnup this run` section (filled from `relay-burn.sh report`); the
-  append-only `~/.config/fables-turn/relay-events.jsonl` records one line per
+  append-only `~/.config/relay/relay-events.jsonl` records one line per
   dispatch/integrate/handback (flushed off-critical-path via `relay-state-write.sh
   event-append`) — `tail -f` it for a live event feed (the snapshot file is rewritten each
   round, so use `tail -F` there). The Claude Code statusline shows a live `🔁<round> ✓<done>
   ⚙<in-flight> Δ$<burn>/h` segment whenever `RELAY_STATUS.md` was touched in the last
   `RELAY_ACTIVE_SECS` (default 600).
 
-## State: `~/.config/fables-turn/relay.toml`
+## State: `~/.config/relay/relay.toml`
 
 ```toml
 [repos.<name>]
@@ -510,9 +510,9 @@ the historical `fable-ckpt-*` prefix:
 | `--once` | flag | off | id:c012 — launch-time round cap: dispatch exactly ONE round, then stop with `stopReason: "user-stop"`. Sugar for `--after 1`. Passed as `args.once = true`. |
 | `--after N` | integer | (none) | id:c012 — launch-time round cap: dispatch `N` rounds, then stop with `stopReason: "user-stop"`. Pure-JS outer-loop cap, independent of the STOP sentinel. Passed as `args.stopAfter = N`. |
 | `DISCOVER_SHARDS` | integer | `6` | Number of parallel discovery-shard classifiers fanned out per round (id:9ed4). A once-only prelude does the global work (runId, the consuming `inject.sh take`, `claim.sh peek`, the own-repo list + non-own skipped rollup); the own repos are round-robin chunked across this many shard agents that classify in parallel, then merged into the same discovery object. Capped at the repo count; the Workflow harness's `min(16, cpu_cores-2)` agent ceiling still applies, so shards above it just queue. Passed as `args.DISCOVER_SHARDS`. |
-| `RELAY_STATUS_PATH` | path | `~/.config/fables-turn/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |
-| `RELAY_EVENTS_PATH` | path | `~/.config/fables-turn/relay-events.jsonl` | Append-only event-log JSONL (id:c8b6): one line per dispatch/integrate/handback, flushed off-critical-path. Passed as `args.RELAY_EVENTS_PATH`. |
-| `RELAY_QUOTA_SAMPLES` | path | `~/.config/fables-turn/quota-samples.jsonl` | Where `relay-burn.sh` appends/reads burnup samples (id:219b). Override for testing. |
+| `RELAY_STATUS_PATH` | path | `~/.config/relay/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |
+| `RELAY_EVENTS_PATH` | path | `~/.config/relay/relay-events.jsonl` | Append-only event-log JSONL (id:c8b6): one line per dispatch/integrate/handback, flushed off-critical-path. Passed as `args.RELAY_EVENTS_PATH`. |
+| `RELAY_QUOTA_SAMPLES` | path | `~/.config/relay/quota-samples.jsonl` | Where `relay-burn.sh` appends/reads burnup samples (id:219b). Override for testing. |
 | `RELAY_ACTIVE_SECS` | integer | `600` | Statusline relay segment (id:15bd) shows only when `RELAY_STATUS.md` was touched within this many seconds; otherwise hidden. |
 
 Usage:

@@ -18,7 +18,7 @@ queue, it sweeps every own repo's human-backlog in one turn.
 
 ## 1. Scope
 
-Operate ONLY on `~/.config/fables-turn/relay.toml` `classification = "own"` repos
+Operate ONLY on `~/.config/relay/relay.toml` `classification = "own"` repos
 (skip `clone`/`excluded`/`needs_review`). Honor each repo's `path =` override
 (the `# path:` convention) — never assume `~/src/<name>`. With no argument, scope is
 all confirmed own repos; `/relay human <repo-list>` narrows to the named repos;

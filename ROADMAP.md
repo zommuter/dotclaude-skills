@@ -241,7 +241,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 - [x] [ROUTINE] Add `--all` to relay-reconcile.sh so `/relay reconcile --all` is a tested code path (done 2026-06-21, executor) <!-- id:4e14 -->
   - **Bug (observed 2026-06-21):** `relay-reconcile.sh` only operates on ONE repo (cwd or arg). `/relay reconcile --all` has no script support, so the strong turn improvised a cross-repo sweep with `git for-each-ref … 2>/dev/null`. Run in the sandbox (where `git -C <repo outside cwd>` fails), the `2>/dev/null` swallowed every error and the run reported "0 parked orphans / clean" — a FALSE negative — while `proj relay` correctly showed parked `relay/orphan/*` branches in isochrone, project_manager, and zkm-pdf. Swallowing git stderr + a directory-exists check that still passed = silent miscount as "no orphans". Root lesson: a cross-repo sweep belongs in a deterministic script, not improvised per-turn.
   - **Fix:** add a first-class `--all` flag to `relay-reconcile.sh` that enumerates relay.toml `classification = "own"` repos (honoring the `# path:` override + `RELAY_TOML`/`SRC_DIR`, exactly as `gather-human-backlog.sh`'s `own_repos()` does — reuse/copy that parser, do not re-roll it) and runs the LIST action across all of them, aggregating output. It must **NEVER** silently swallow a git read failure: an unreadable/missing repo path is SURFACED on stderr (a NOTE/ERROR line), never counted as "no orphans". `--all` is list-only (multi-repo); `--integrate`/`--discard` stay per-branch single-repo (a combination like `--all --integrate` should be rejected, not guessed).
-  - **Also:** the relay SKILL.md reconcile section should document that `reconcile --all` is the cross-repo list (one canonical command), so no future turn hand-rolls a sweep. Note the relay.toml path discrepancy to verify while here: `gather-human-backlog.sh` defaults `RELAY_TOML` to `~/.config/relay/relay.toml` but the live file is `~/.config/fables-turn/relay.toml` — resolve to whatever the rest of the relay scripts actually use (don't break the existing default; just make `--all` read the same file the pool reads).
+  - **Also:** the relay SKILL.md reconcile section should document that `reconcile --all` is the cross-repo list (one canonical command), so no future turn hand-rolls a sweep. Note the relay.toml path discrepancy to verify while here: `gather-human-backlog.sh` defaults `RELAY_TOML` to `~/.config/relay/relay.toml` but the live file is `~/.config/relay/relay.toml` — resolve to whatever the rest of the relay scripts actually use (don't break the existing default; just make `--all` read the same file the pool reads).
   - **Acceptance:** `tests/test_relay_reconcile_all.sh` (`# roadmap:4e14`) — temp RELAY_TOML + temp git repos; asserts `--all` lists a parked orphan and names its repo, skips non-own repos, does NOT spuriously attribute an orphan to a clean repo, and (the core guard) SURFACES an unreadable repo path instead of swallowing it. RED until implemented.
 
 - [x] [HARD — strong model] Integrator can DESTROY uncommitted edits in a repo's main checkout (data loss) (done 2026-06-18, strong-execute) <!-- id:aa93 -->
@@ -552,7 +552,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Acceptance**: (1) discovery parses the modifier; an `[INTENSIVE]` unit is NEVER auto-dispatched
     by the default unattended pool — surfaced in RELAY_STATUS "Queued — needs explicit permission"
     (extends `feedback-relay-unattended-default`: never run resource-doomed work unasked). (2) Global
-    resource semaphore `~/.cache/fables-turn/resources/<resource>.lock` — at most one local-llm task
+    resource semaphore `~/.cache/relay/resources/<resource>.lock` — at most one local-llm task
     at a time; conservative default = it RUNS ALONE (pool pauses new dispatch / forces POOL_WIDTH=1
     while held) — this is the actual OOM fix. (3) Opt-in to run them: `/relay --allow-intensive`
     (flag) and an **AFK mode** `/relay --afk [duration]` ("I'm away, do something useful" — drains
@@ -561,7 +561,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     per-repo default `[repos.ai-codebench] intensive = true` / `[repos.zkm] intensive = true` as a
     safety net; item-level tags override.
   - **RATIFIED 2026-06-15** (meeting 2026-06-15-1216): `[INTENSIVE — <resource>]` is a **claim on a
-    resource key** (`~/.config/fables-turn/claims/resource:local-llm.json`), exclusive; while held
+    resource key** (`~/.config/relay/claims/resource:local-llm.json`), exclusive; while held
     collapse `POOL_WIDTH→1` (RUN ALONE — the OOM fix); never auto-dispatched without `--allow-intensive`
     / `--afk`. Reuses the id:ebfb claim machinery — NOT a separate `resources/*.lock` semaphore (the
     earlier acceptance text above is superseded by this). Build step 5 of the cluster sequence.
@@ -624,7 +624,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 - [x] On-demand high-priority executor-task injection into the running pool [ROUTINE] (done 2026-06-15) <!-- id:baf1 -->
   - **Shipped 2026-06-15**: `relay/scripts/inject.sh` (`add`/`peek`/`take`, flock'd per-shard
-    inbox `~/.config/fables-turn/inject.d/`, consumed → `inject.done/`). relay-loop.js discovery
+    inbox `~/.config/relay/inject.d/`, consumed → `inject.done/`). relay-loop.js discovery
     runs `inject.sh take`; injected units carry `injected:true` + `inject_token`/`inject_item`/
     `inject_prompt`, sort AHEAD of every verdict class (both the normal and `--fable-down`
     schedulers), and SKIP the quota gate (explicit user request). Makefile + allowlist registered
@@ -636,7 +636,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     A live control-plane: drop a task and the running pool picks it up ahead of its normal
     verdict-class schedule (execute→review→hard→handoff, id:da26) on the next round.
   - **Design (rides the cluster registry pattern, id:ebfb)**: an **injection inbox** the pool
-    polls at each round's discovery — per-shard files `~/.config/fables-turn/inject.d/<token>.json`,
+    polls at each round's discovery — per-shard files `~/.config/relay/inject.d/<token>.json`,
     each one unit spec `{repo, item_id?, verdict (default execute/sonnet), prompt?, requested_at}`.
     A flock'd allowlisted helper `inject.sh <repo> [--item id] [--verdict execute] [--prompt ...]`
     writes the shard (so a human/other session enqueues without hand-editing JSON). Discovery reads
@@ -1924,7 +1924,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     Workflow agent() `model:` override is a first-class field — no wrapper needed.
 
 - [x] `RELAY_STATUS.md` cross-repo rollup writer [ROUTINE] <!-- id:80e2 -->
-  - **Acceptance**: relay-loop.js writes/rewrites `~/.config/fables-turn/RELAY_STATUS.md` (or a path
+  - **Acceptance**: relay-loop.js writes/rewrites `~/.config/relay/RELAY_STATUS.md` (or a path
     configurable via `RELAY_STATUS_PATH` env var) on every integration and every phase transition.
     Template sections: `## In-flight` (repo, mode, agent-id), `## Completed this run` (repo, mode,
     ckpt-tag, push status), `## Queued` (repo, classifier verdict), `## Blocked / HANDBACKs` (repo,

@@ -193,7 +193,7 @@ don't restart: a fresh handoff would redo the expensive early work (C1 docs / C2
   is recorded as a **recoverable handback** in `RELAY_STATUS.md` with the real worktree
   path (never orphaned with `-`).
 - **Manual / next turn**: point an Opus handoff child at the existing worktree
-  (`~/.cache/fables-turn/worktrees/<repo>/<runId>-handoff`), tell it C1..Cn are committed,
+  (`~/.cache/relay/worktrees/<repo>/<runId>-handoff`), tell it C1..Cn are committed,
   and have it continue from C(n+1) using ONLY the id tokens already in the committed
   `ROADMAP.md`. Then integrate normally (merge → ckpt-tag → push → prune).
 
