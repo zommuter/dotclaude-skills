@@ -1090,3 +1090,7 @@ review: ledger reframes verified green (gaming-scan clean); promoted id:1bbd RED
 
 Worked id:1bbd — fixed `emit_hard_lanes()` in `gather-human-backlog.sh` to strip backtick-quoted strings from the line before lane detection. The bug: pool branch was checked first on the whole line, so a `[HARD — hands]` item whose prose quoted `` `[HARD — pool]` `` mis-bucketed as `hard_pool`. Fix adds a single `gsub(/`[^`]*`/, "", clean)` step that strips backtick spans from a scratch copy; lane detection runs on `clean` while the original `line` is preserved for the summary output. `tests/test_gather_lane_anchor.sh` (roadmap:1bbd) green; `test_hard_lane_buckets.sh` unregressed; suite 135 green.
 Friction: none (one-liner fix; apostrophe-in-single-quoted-awk caught immediately on first test run).
+
+## 2026-06-30 18:37 — executor (sonnet, relay-loop)
+
+fix(relay): id:1bbd anchor emit_hard_lanes() to item OWN bracket tag — strip backtick prose before lane detection; suite 135 green [id:1bbd]
