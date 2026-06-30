@@ -50,6 +50,34 @@ intensive item is `[HARD — pool] [INTENSIVE — local-llm]`. The resource axis
 *scheduling* (run-serially-alone, exclusive `resource:` claim); the lane governs
 *disposition* (who acts on it). Never use `[INTENSIVE — ...]` in place of a lane tag.
 
+### Lane criterion for an INTENSIVE item: `pool` vs `hands` (id:db39, meeting 2026-06-30)
+
+"Intensive" is about compute weight, NOT who acts — an `[INTENSIVE]` item is NOT
+automatically `hands`. Lane it `[HARD — pool]` (so the `--intensive` pool runs it
+serially-alone via the `hard` verdict, id:da26) **iff ALL FIVE** hold; otherwise keep
+it `hands` (or `meeting` when (e) is the failure):
+
+- **(a) Automatable done-check** — verifiable by a script/test, no human observation
+  (a screenshot, an "is this honest" eyeball). *Fail → hands.*
+- **(b) No irreversible destructive side-effect** without a confirm — a `rm`/overwrite of
+  artifacts a worktree child would run unattended. *Fail → hands.*
+- **(c) No live secret / sudo / physical device / network credential** a worktree child
+  cannot reach. *Fail → hands.*
+- **(d) `scripts/host-gate.sh` satisfiable** on the pool host (host-bound work carries the
+  matching `[host:<name>]` tag, id:43b9). *Fail → hands until run on the right host.*
+- **(e) No open design/judgment sub-step** ("decide X", "post-gate decisions"). *Fail →
+  `meeting`.*
+
+Worked verdicts (the policy is only as good as its calls):
+- `ai-codebench` id:244b (benchmark drain, idempotent `--resume`, dashboard done-check,
+  zomni-bound) → passes a–e → **`[HARD — pool] [INTENSIVE — local-llm] [host:zomni]`**.
+- `it-infra` id:c5e9 (unused-GGUF `rm`) → fails (b) → **stays hands**.
+- `it-infra` id:fd30 (`--reasoning off` *post-gate decisions*) → fails (e) → **stays hands**.
+- `it-infra` id:9321 (XPU seed-hunt, live GPU+sudo+LLM-stack) → fails (c) → **stays hands**.
+
+This criterion does NOT add a marker — it only governs which existing lane an INTENSIVE
+item carries — so `tests/test_hard_lane_buckets.sh` (marker-set cross-check) is unaffected.
+
 ## Canonical marker set (the contract both consumers parse)
 
 ```
