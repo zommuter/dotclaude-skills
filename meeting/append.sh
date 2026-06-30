@@ -5,7 +5,7 @@
 #   append.sh -t {discoveries|personas|inbox} -e "line text"
 #   append.sh -t {discoveries|personas|inbox} -f entry.txt
 #   echo "line" | append.sh -t {discoveries|personas|inbox}
-#   append.sh inbox-done <4-hex-token>   — mark a routed inbox item as adopted
+#   append.sh inbox-done <4-hex-token>   — REMOVE a routed inbox item once adopted
 #   append.sh new-id [<root>] | new-ids N [<root>]  — mint collision-free token(s)
 #   append.sh scan-ids [<root>]          — list every existing token (sorted unique)
 #
@@ -15,14 +15,21 @@ set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# inbox-done <token>: flip "- [ ]" → "- [x]" on the line containing routed:<token>.
-# No-op exit 0 if the token is not found or the line is already checked.
+# inbox-done <token>: DELETE the routed checkbox line containing routed:<token>
+# (vanish-on-resolve, user decision 2026-06-30). The inbox is a LOCAL-ONLY transient
+# routing queue; the durable record is the `routed:<token>` breadcrumb in the TARGET
+# repo's committed TODO/ROADMAP, so once adopted the inbox copy is pure redundancy —
+# keeping a "- [x]" log only bloats the file (and was the source of the bare-token
+# substring false-match in scan-routed). No-op exit 0 if the token is not found.
 if [[ "${1:-}" == "inbox-done" ]]; then
   token="${2:-}"
   if [[ -z "$token" ]]; then
     echo "Usage: $0 inbox-done <4-hex-token>" >&2; exit 1
   fi
-  inbox="$HOME/.claude/todo-inbox.md"
+  # Honor RELAY_INBOX injection (the inbox path is local-only; never hardcode it as the
+  # sole path — same convention scan-routed.sh uses, and required for hermetic tests now
+  # that inbox-done is destructive).
+  inbox="${RELAY_INBOX:-$HOME/.claude/todo-inbox.md}"
   [[ -f "$inbox" ]] || exit 0
   (
     flock -x 9
@@ -31,11 +38,10 @@ import sys, pathlib
 path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
 lines = path.read_text().splitlines(keepends=True)
 needle = f"routed:{token}"
-new_lines = []
-for line in lines:
-    if needle in line and line.lstrip().startswith("- [ ]"):
-        line = line.replace("- [ ]", "- [x]", 1)
-    new_lines.append(line)
+# Vanish: drop the routed checkbox line entirely (any "- [ ]" / "- [x]" carrying the
+# token). Non-checkbox prose mentioning the token is left untouched.
+new_lines = [l for l in lines
+             if not (needle in l and l.lstrip().startswith("- ["))]
 path.write_text("".join(new_lines))
 PYEOF
   ) 9>"${inbox}.lock"

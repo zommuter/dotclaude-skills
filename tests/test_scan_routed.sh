@@ -74,10 +74,13 @@ rc=0; out="$(run)" || rc=$?
 $out"
 pass "report-only (exit 0 with findings)"
 
-# (2) routed:1111 has a twin in repoA → NOT a dead letter.
-grep -q 'routed:1111' <<<"$out" && fail "(2) routed:1111 has a twin but was flagged:
+# (2) routed:1111 has a twin in repoA → NOT a dead letter, but surfaced as RESOLVABLE
+#     (vanish-on-resolve 2026-06-30: an already-landed item is drainable, not silent).
+grep -qE 'DEAD-LETTER.*routed:1111' <<<"$out" && fail "(2) twinned routed:1111 wrongly flagged DEAD-LETTER:
 $out"
-pass "(2) twinned routed item → not flagged"
+grep -qE 'RESOLVABLE.*routed:1111' <<<"$out" || fail "(2) twinned routed:1111 not surfaced as RESOLVABLE:
+$out"
+pass "(2) twinned routed item → RESOLVABLE (not dead-letter)"
 
 # (3) routed:2222 absent from repoB → DEAD-LETTER, with a ready-to-run/actionable hint.
 grep -qi 'routed:2222' <<<"$out" || fail "(3) dead-letter routed:2222 not reported:

@@ -150,4 +150,34 @@ $dry"
 rm -rf "$FIX2"
 pass "(5) --apply --dry-run writes nothing and prints the plan/diff"
 
-echo "ALL PASS: id:678e slice-2 scan-routed.sh --apply (5 cases)"
+# (6) twinned-open item: the target ALREADY carries the routed token → --apply RESOLVES
+#     it (vanish-on-resolve, user 2026-06-30), draining the inbox line and NOT duplicating
+#     the target twin. This is the close-the-loop drain for items that landed but were
+#     never inbox-done'd. Requires inbox-done to honor RELAY_INBOX (hermetic).
+FIX3="$(mktemp -d)"; SRC3="$FIX3/src"; mkdir -p "$SRC3"
+mk_repo "$SRC3/twinrepo" '# TODO
+- [ ] native item already carrying the token <!-- routed:eeee -->'
+cat > "$FIX3/relay.toml" <<EOF
+[repos.twinrepo]
+classification = "own"
+path = "$SRC3/twinrepo"
+EOF
+cat > "$FIX3/inbox.md" <<'EOF'
+# Cross-project TODO inbox
+- [ ] [twinrepo] already landed in target (from meeting, note.md) <!-- routed:eeee -->
+EOF
+res="$(SRC_DIR="$SRC3" RELAY_TOML="$FIX3/relay.toml" RELAY_INBOX="$FIX3/inbox.md" \
+       STATE_JSON="$FIX3/no-such-state.json" CLAIM_BASE="$FIX/claims" \
+       SCAN_ROUTED_LOG="$FIX3/scan.log" "$SH" --apply 2>/dev/null || true)"
+grep -qiE 'RESOLVED.*routed:eeee' <<<"$res" \
+  || fail "(6) twinned routed:eeee not reported RESOLVED on --apply:
+$res"
+grep -q 'routed:eeee' "$FIX3/inbox.md" \
+  && fail "(6) twinned routed:eeee not drained from the inbox (vanish-on-resolve):
+$(cat "$FIX3/inbox.md")"
+n6="$(grep -c 'routed:eeee' "$SRC3/twinrepo/TODO.md" || true)"
+[[ "$n6" -eq 1 ]] || fail "(6) target twin duplicated/removed: routed:eeee appears $n6 time(s) (want 1)"
+rm -rf "$FIX3"
+pass "(6) twinned-open item → RESOLVED + drained from inbox, target twin untouched"
+
+echo "ALL PASS: id:678e slice-2 scan-routed.sh --apply (6 cases)"

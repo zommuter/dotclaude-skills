@@ -179,7 +179,13 @@ else
   echo "=== routed dead-letters (target repo never ingested the item) ==="
 fi
 dead=0
-while IFS= read -r line; do
+resolved=0
+# Read the inbox into memory BEFORE looping: in --apply mode we call `inbox-done`
+# (which now DELETES lines, vanish-on-resolve), and a `done < "$inbox"` live-fd loop
+# would have its read offset corrupted by the file shrinking mid-iteration — skipping
+# later items. Iterating an in-memory snapshot decouples iteration from mutation.
+mapfile -t _inbox_lines < "$inbox"
+for line in "${_inbox_lines[@]}"; do
   # OPEN conforming routed item only: `- [ ] [target] … <!-- routed:XXXX -->`
   [[ "$line" =~ ^-\ \[\ \]\ \[ ]] || continue
   tok="$(grep -oP '(?<=<!-- routed:)[0-9a-f]{4}(?= -->)' <<<"$line" | head -1 || true)"
@@ -214,7 +220,19 @@ while IFS= read -r line; do
   # by meeting-note timestamps). Require the `routed:`/`id:` prefix + a trailing
   # token boundary so only a real twin marker counts.
   if grep -qsE -- "(routed|id):$tok([^0-9a-f]|\$)" "$tpath/TODO.md" "$tpath/ROADMAP.md" 2>/dev/null; then
-    continue   # already ingested — not a dead letter
+    # Twin present → the item already LANDED in its target. Under vanish-on-resolve
+    # (user decision 2026-06-30) an OPEN inbox line for an already-landed item is just
+    # un-drained residue: close the loop and remove it. --apply deletes it now; report
+    # mode surfaces it as RESOLVABLE so the drain is visible (NOT a dead letter).
+    if [[ "$APPLY" -eq 1 ]]; then
+      "$APPEND_SH" inbox-done "$tok" 2>/dev/null || true
+      echo "RESOLVED routed:$tok → [$target] (twin present in $tpath; removed from inbox)"
+      log "resolved-twinned routed=$tok target=$target path=$tpath"
+    else
+      echo "RESOLVABLE routed:$tok → [$target] (already landed in $tpath; run --apply to drain from inbox)"
+    fi
+    resolved=$((resolved+1))
+    continue
   fi
 
   if [[ "$APPLY" -eq 0 ]]; then
@@ -280,17 +298,18 @@ while IFS= read -r line; do
       "$APPEND_SH" inbox-done "$tok" 2>/dev/null || true
     fi
   fi
-done < "$inbox"
-[[ "$dead" -eq 0 ]] && echo "clean (every routed inbox item has a twin in its target repo)"
+done
+[[ "$dead" -eq 0 && "$resolved" -eq 0 ]] && echo "clean (no dead letters; nothing to drain)"
+[[ "$dead" -eq 0 && "$resolved" -gt 0 ]] && echo "no dead letters ($resolved already-landed item(s) drained/drainable)"
 echo
 
 echo "=== summary ==="
 if [[ "$APPLY" -eq 1 && "$DRY_RUN" -eq 1 ]]; then
-  echo "scan-routed: $findings finding(s) — $dead routed dead-letter/unresolved. APPLY DRY-RUN: no writes performed."
+  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved, $resolved twinned-resolvable. APPLY DRY-RUN: no writes performed."
 elif [[ "$APPLY" -eq 1 ]]; then
-  echo "scan-routed: $findings finding(s) — $dead routed dead-letter/unresolved. APPLY: class-A stubs written; class-B prose is surface-only."
+  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved (class-A stubs written), $resolved twinned item(s) drained from inbox (vanish-on-resolve)."
 else
-  echo "scan-routed: $findings finding(s) — $dead routed dead-letter/unresolved. REPORT-ONLY (slice-2 auto-write available via --apply, id:678e); class-B prose is surface-only."
+  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved, $resolved twinned-resolvable. REPORT-ONLY (run --apply to write stubs + drain twinned items, id:678e)."
 fi
-log "inbox=$inbox findings=$findings dead=$dead apply=$APPLY dry_run=$DRY_RUN"
+log "inbox=$inbox findings=$findings dead=$dead resolved=$resolved apply=$APPLY dry_run=$DRY_RUN"
 exit 0
