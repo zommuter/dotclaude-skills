@@ -1078,3 +1078,7 @@ execute: id:de31 decision-queue.sh — durable file-backed human-decision-reques
 ## 2026-06-30 17:21 — reviewer (claude-opus-4-8)
 
 execute: id:de31 decision-queue.sh — durable human-decision queue (DP4)
+
+## 2026-06-30 17:25 — reviewer (claude-opus-4-8)
+
+execute: id:e424 classify-verdict verdict-parity (blocked for dirty/diverged) — flip step a
