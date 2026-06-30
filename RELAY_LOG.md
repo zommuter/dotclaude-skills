@@ -1074,3 +1074,7 @@ execute: id:07be gather-repo-state execve overflow fix + id:5f93 backtest-verdic
 ## 2026-06-30 17:12 — executor (claude-sonnet-4-6)
 
 execute: id:de31 decision-queue.sh — durable file-backed human-decision-request queue. Implemented add/list/resolve subcommands with flock'd JSON append/rewrite; python3-safe JSON building; RELAY_DECISION_QUEUE env-overridable; registered in Makefile relay_FILES/EXEC/ALLOW. All 133 tests green.
+
+## 2026-06-30 17:21 — reviewer (claude-opus-4-8)
+
+execute: id:de31 decision-queue.sh — durable human-decision queue (DP4)
