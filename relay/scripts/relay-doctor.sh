@@ -434,6 +434,41 @@ parked_orphans_check() {
   echo
 }
 
+# --- registry parse check (loud-fail; id:2945, 2026-06-30) ---------------------
+# A malformed relay.toml (e.g. a duplicate key from a concurrent writer) makes the
+# strict tomllib parser throw, so EVERY own_repos() enumeration silently returns an
+# empty set (0 own repos) — the health report then looks falsely clean while scan-routed
+# mis-reports every routed target as UNRESOLVED. The health tool is exactly where a
+# corrupt registry must surface, so validate it parses and surface a LOUD issue if not.
+registry_parse_check() {
+  echo "=== relay.toml registry parse (id:2945) ==="
+  if [[ ! -f "$RELAY_TOML" ]]; then
+    echo "relay.toml not found at $RELAY_TOML — no own-repo registry (skip)"
+    echo
+    return 0
+  fi
+  local perr
+  if perr="$(python3 - "$RELAY_TOML" <<'PY' 2>&1
+import sys, tomllib
+try:
+    with open(sys.argv[1], "rb") as f:
+        tomllib.load(f)
+except Exception as e:
+    print(f"{type(e).__name__}: {e}"); sys.exit(2)
+PY
+  )"; then
+    echo "relay.toml parses OK ($RELAY_TOML)"
+  else
+    echo "ISSUE — relay.toml does NOT parse ($RELAY_TOML): $perr"
+    echo "  → every own_repos() enumeration silently returns EMPTY (0 own repos); scan-routed"
+    echo "    then mis-reports every routed target as UNRESOLVED, and the pool sees no own repos."
+    echo "    Fix the TOML (commonly a duplicate key) and re-run. (This corruption hid 8 phantom"
+    echo "    UNRESOLVED on 2026-06-30 — id:2945.)"
+    issues_total=$((issues_total + 1))
+  fi
+  echo
+}
+
 # --- header --------------------------------------------------------------------
 echo "relay-doctor — relay-machinery health report (REPORT-ONLY; cheap-first-slice of id:0907, id:9bec)"
 echo "Scope: $scope    (report-only: issues are surfaced, NEVER cause a nonzero exit — only misuse does)"
@@ -482,6 +517,7 @@ case "$scope" in
 esac
 
 # --- cross-repo / once-only checks ---------------------------------------------
+registry_parse_check   # id:2945 — loud-fail if relay.toml is corrupt (else everything silently empty)
 refs_install_check
 parked_orphans_check
 routed_deadletter_check   # id:678e slice 1 — inbox routed dead-letters (report-only)
