@@ -116,3 +116,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🛰️ **Hank** — host-fleet config-management lens; dotfiles/config topology, branch-per-host anti-pattern, hostname-dispatch, shared-module extraction (N=2 gate), NixOS/ansible/chezmoi patterns, system-vs-home tree separation. Introduced 2026-06-26 (zomni/consolidate-device-repos-monorepo).
 
 - 💰 **Marisa** — game-monetisation & distribution economics lens; app-store (TWA/Capacitor, Apple 4.2, 15-30% cut) vs web-direct (merchant-of-record, VAT/sales-tax, ~85-97% kept), one-time-unlock vs subscription fit, entitlement-backend cost as the real monetisation precondition. Introduced 2026-06-29 (truncocraft/pwa-platform-commercialisation).
+
+- 🔬 **Quill** — peer-reviewer / typologist lens: will this survive ACL/EMNLP review, is the claim defensible against reviewer-2, typological validity and confound-honesty. Introduced 2026-06-30 (linguistic-unversals/confound-control-sequencing).
