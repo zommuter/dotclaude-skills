@@ -10,6 +10,13 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] [ROUTINE] `gather-repo-state.sh` — fix the env-var `execve` overflow on a >128KB ROADMAP <!-- id:07be -->
+  - **Why** (found 2026-06-30 dogfooding id:3f0f): `emit()` hands large field values (the ROADMAP content + porcelain/toml/worktrees) to `python3` via ENV VARS; a single env string over `MAX_ARG_STRLEN` (128KB) breaks `execve` ("Argument list too long"). Real repos survive today because the emitted `roadmap` field is a ~94KB subset — but dotclaude-skills is already at 94KB and growing, and crossing 128KB crashes gather AND the whole `classify-repo.sh` chain. Same class as the id:3f0f wrapper fix (which used temp files).
+  - **Acceptance**:
+    1. `gather-repo-state.sh` no longer passes large field values to `python3` via env/argv — use a temp file or stdin so no single string can exceed `MAX_ARG_STRLEN`. The wrapper/caller path then works on a repo with a >128KB ROADMAP.
+    2. Output is **byte-identical** to today on all existing inputs (the field set, ordering, and encoding are unchanged). Every existing gather/discovery test stays green (`test_discover_sig.sh`, `test_relay_discovery_guards.sh`, `test_relay_discover_shard.sh`, `test_classify_repo*.sh`, …).
+    3. The temp file (if used) is cleaned up; gather stays side-effect-free outside its own scratch.
+  - **Tests**: `tests/test_gather_repo_state_large.sh` (`# roadmap:07be`) — a fixture repo with a >128KB ROADMAP; gather must emit valid JSON (not crash). RED until the fix lands.
 - [x] [ROUTINE] `classify-repo.sh` — DP1 assembly wrapper: gather → derive → fold unpromoted-scan → classify-verdict, end-to-end per repo <!-- id:3f0f -->
   - **Why** (dogfood finding 2026-06-30, id:4d8e / id:5f93): `classify-verdict.sh` (id:85df) is a pure function with NO producer for its full input — the live dogfood proved `gather-repo-state.sh` does not emit `hasRoutine`/`roadmap_actionable_open` and there is no wrapper folding in `unpromoted-scan`. This wrapper is what makes the classifier usable end-to-end and is the prerequisite for the real backtest (id:5f93) and the cutover. Productizes the throwaway prototype `scratchpad/backtest_dogfood.py`.
   - **Acceptance**:
