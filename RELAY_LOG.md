@@ -1070,3 +1070,7 @@ execute+review: id:3f0f classify-repo.sh wrapper (green) + execve-overflow fix o
 ## 2026-06-30 17:08 — reviewer (claude-opus-4-8)
 
 execute: id:07be gather-repo-state execve overflow fix + id:5f93 backtest-verdict.py pre-flip gate
+
+## 2026-06-30 17:12 — executor (claude-sonnet-4-6)
+
+execute: id:de31 decision-queue.sh — durable file-backed human-decision-request queue. Implemented add/list/resolve subcommands with flock'd JSON append/rewrite; python3-safe JSON building; RELAY_DECISION_QUEUE env-overridable; registered in Makefile relay_FILES/EXEC/ALLOW. All 133 tests green.

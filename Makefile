@@ -54,7 +54,8 @@ relay_FILES := SKILL.md \
                scripts/commit-ledger.sh scripts/acquire-resource.sh \
                scripts/unpromoted-scan.sh scripts/todo-conformance.sh \
                scripts/scan-routed.sh scripts/host-gate.sh \
-               scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py
+               scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py \
+               scripts/decision-queue.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -68,7 +69,8 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh \
-               scripts/host-gate.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py
+               scripts/host-gate.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py \
+               scripts/decision-queue.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -82,7 +84,8 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh \
-               scripts/host-gate.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py
+               scripts/host-gate.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py \
+               scripts/decision-queue.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
