@@ -168,3 +168,21 @@ SKILL.md so a cheap Sonnet executor session loads only the contract, not the who
 orchestrator. Managed repos carry only a 2-line pointer in their CLAUDE.md whose vN
 must match. Version consistency is test-enforced (`tests/test_relay_executor.sh`).
 (`docs/meeting-notes/2026-06-12-1404-fables-executor-skill.md`)
+
+**Discovery is moving off LLM judgment onto a deterministic classifier** (meeting
+`docs/meeting-notes/2026-06-30-1523-relay-loop-mechanical-classifier.md`, umbrella TODO
+id:4d8e). One `/relay --afk` run produced 8 false verdicts, all the same shape — the LLM
+`discover-shard` trusted a tag/gate/lane state that didn't match the ledger. The fix
+(DP1) inverts authority: a pure-function `relay/scripts/classify-verdict.sh` (id:85df)
+becomes the PRIMARY verdict source — gather-repo-state JSON in → `{verdict, reason,
+evidence[], ambiguous}` out — and the shard fires ONLY when the classifier emits
+`AMBIGUOUS`. The deterministic substrate already exists (`gather-repo-state.sh` computes
+the fields; `relay-loop.js:397–429` backstops override the shard from them); this
+consolidates it so ~95% of discovery is mechanical. Rejected alternative: keeping the
+shard as primary with the classifier merely "auditing" it — that re-introduces the
+per-change LLM cost and the exact trust-a-state failure being removed. The LLM surface
+shrinks to two narrow places (verdict-level `AMBIGUOUS`; resolution-level lane-triage of
+untagged surfaced items), and each LLM resolution feeds back as a new mechanical
+rule/fixture. Cutover is gated on a backtest against logged past verdicts
+(`~/.config/relay/relay-events.jsonl`) + a forward shadow run before the authority flip.
+Open executor items: id:85df (classifier), id:297b (roadmap-lint case c/d loud-fail).
