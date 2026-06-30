@@ -150,6 +150,34 @@ while IFS= read -r line; do
   has_id=0
   [[ "$line" =~ $id_re ]] && has_id=1
 
+  # --- semantic checks (case c / case d) — only when a recognised class tag is present -----
+  if [[ "$has_class" -eq 1 ]]; then
+    # Case (c): tag/prose lane DISAGREEMENT — an item must carry exactly ONE recognised
+    # lane bracket; if the prose also mentions a different lane bracket the tag is stale
+    # (the tag is authority; the disagreement is a loud error, never a silent no-op).
+    _lc=0; _lf=()
+    echo "$line" | grep -qF '[ROUTINE]' && { _lc=$((_lc+1)); _lf+=('[ROUTINE]'); }
+    while IFS= read -r _hl; do
+      [[ -z "$_hl" ]] && continue
+      echo "$line" | grep -qF "$_hl" && { _lc=$((_lc+1)); _lf+=("$_hl"); }
+    done <<< "$hard_lanes"
+    if [[ "$_lc" -gt 1 ]]; then
+      violations=$((violations + 1))
+      echo "roadmap-lint: ERROR — tag/prose lane conflict: item prose disagrees with tag lane (multiple lane brackets found: ${_lf[*]})" >&2
+      echo "  $line" >&2
+    fi
+
+    # Case (d): free-typed [INTENSIVE] — INTENSIVE is valid ONLY on a [HARD — pool] item
+    # (derivability criterion id:db39); pairing it with any other lane is a loud error.
+    if echo "$line" | grep -qE '\[INTENSIVE — [^]]+\]'; then
+      if ! echo "$line" | grep -qF '[HARD — pool]'; then
+        violations=$((violations + 1))
+        echo "roadmap-lint: ERROR — [INTENSIVE — ...] free-typed on a non-pool item; INTENSIVE must be derivable ([HARD — pool] required, per id:db39)" >&2
+        echo "  $line" >&2
+      fi
+    fi
+  fi
+
   [[ "$has_class" -eq 1 && "$has_id" -eq 1 ]] && continue
 
   # Build the violation report line.
