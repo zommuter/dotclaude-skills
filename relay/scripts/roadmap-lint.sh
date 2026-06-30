@@ -77,8 +77,10 @@ lane_alt="$(printf '%s\n' "$hard_lanes" \
   | paste -sd'|' -)"
 
 # A recognized class/lane tag: [ROUTINE] OR [HARD — <recognized lane>].
-# (The [INTENSIVE — …] modifier is orthogonal and may co-occur; we only require ONE
-#  recognized class/lane tag to be present.)
+# The [INTENSIVE — …] modifier is orthogonal and may co-occur on ANY recognised lane —
+# operative on dispatchable lanes (ROUTINE/pool), advisory-inert on human lanes
+# (hands/meeting/decision gate). A lane-less INTENSIVE item has no recognized class tag
+# and is therefore caught by the missing-class-tag grammar below (id:9062).
 class_re="\[ROUTINE\]|\[HARD — (${lane_alt})\]"
 
 # A 4-hex id token, the canonical `<!-- id:XXXX -->` or a bare `id:XXXX`.
@@ -167,15 +169,14 @@ while IFS= read -r line; do
       echo "  $line" >&2
     fi
 
-    # Case (d): free-typed [INTENSIVE] — INTENSIVE is valid ONLY on a [HARD — pool] item
-    # (derivability criterion id:db39); pairing it with any other lane is a loud error.
-    if echo "$line" | grep -qE '\[INTENSIVE — [^]]+\]'; then
-      if ! echo "$line" | grep -qF '[HARD — pool]'; then
-        violations=$((violations + 1))
-        echo "roadmap-lint: ERROR — [INTENSIVE — ...] free-typed on a non-pool item; INTENSIVE must be derivable ([HARD — pool] required, per id:db39)" >&2
-        echo "  $line" >&2
-      fi
-    fi
+    # Case (d): [INTENSIVE — <resource>] on any recognised lane — ACCEPTED (id:9062,
+    # meeting 2026-06-30-2238). INTENSIVE is operative on relay-dispatchable lanes
+    # ([ROUTINE], [HARD — pool]) and advisory-inert on human lanes (hands/meeting/
+    # decision gate/@manual). The dispatch hazard is already neutralised by gather's
+    # top_intensive exclusion (id:a707), so a lint loud-reject is redundant AND wrong.
+    # A lane-less [INTENSIVE] item (no recognised class tag) is already rejected by
+    # the has_class=0 path above — no further check needed here.
+    # (Supersedes the former id:db39 pool-only restriction.)
   fi
 
   [[ "$has_class" -eq 1 && "$has_id" -eq 1 ]] && continue

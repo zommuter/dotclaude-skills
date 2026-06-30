@@ -1,5 +1,9 @@
 # Relay log <!-- merge=union; append-only — never edit or reorder past entries -->
 
+## 2026-06-30 — executor (Sonnet) id:9062
+
+Worked id:9062 — roadmap-lint case (d) realigned to the operative-vs-advisory INTENSIVE doctrine (meeting 2026-06-30-2238). Removed the pool-only restriction from `relay/scripts/roadmap-lint.sh` (old: reject INTENSIVE unless `[HARD — pool]`; new: accept INTENSIVE on any recognised lane, reject only on lane-less items via the existing missing-class-tag grammar). Updated the `class_re` comment to reference id:9062. Restated the operative-vs-advisory doctrine in `relay/references/hard-lanes.md` under a new "Operative vs advisory" subsection. Reconciled `tests/test_roadmap_lint_tagprose.sh` case (d): repointed from `[HARD — meeting] [INTENSIVE]` (now accepted as advisory) to a genuinely lane-less `[INTENSIVE]` item — exercises the same reject path via the grammar's missing-class-tag check rather than an INTENSIVE-specific check. All 142 tests pass, 2 expected-red (id:5eb3/id:5ac6, unrelated open items). `roadmap-lint.sh ROADMAP.md` exits 0. Reconcile choice: repointed-to-laneless.
+
 ## 2026-06-30 — executor (Sonnet)
 
 Worked id:07be — fixed the `execve` overflow in `gather-repo-state.sh`'s `emit()` function. The old code set ~20 env vars (including the full ROADMAP content) on the `python3` command line; a ROADMAP larger than `MAX_ARG_STRLEN` (128KB) caused "Argument list too long". Fix mirrors the classify-repo.sh (id:3f0f) pattern: write all field values via `printf '%s'` to per-key files under `mktemp -d`, pass only the tmpdir path as `EMIT_DIR` to python, and have python read values with `open()`. The trap uses `trap "rm -rf '$_blobdir'" EXIT` (definition-time expansion) so `set -u` does not fire when it runs after the function returns. Output verified byte-identical against the old version on `~/src/zelegator`. Full suite 131 pass / 0 fail / 0 expected-red.
