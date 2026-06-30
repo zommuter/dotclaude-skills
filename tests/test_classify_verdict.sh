@@ -34,12 +34,13 @@ a='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":fa
 ha='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"top_intensive":"","roadmap_open":1,"roadmap_actionable_open":1,"unpromoted":{"promote":0,"surface":0}}'
 [[ "$(verdict_of "$ha")" == "hard" ]] || { echo "case a inverse: open_hard_pool>=1 must be hard"; exit 1; }
 
-# --- Case (b) id:9014 — effectively-drained ROADMAP ---------------------------------------
+# --- Case (b) id:9014 — effectively-drained ROADMAP (id:5eb3 reconcile) ------------------
 # ROADMAP open count is 1, but its only open item is @manual/human-lane (roadmap_actionable_open=0),
-# while unpromoted-scan reports a real TODO backlog. Must route to `handoff` (promote/surface the
-# backlog), NEVER "human"/"idle" that hides the backlog.
+# while unpromoted-scan reports SURFACE-ONLY backlog (promote==0). Since id:5eb3, the split
+# is: promote>0 → handoff; promote==0 ∧ surface>0 → human (NOT handoff — no apex dispatch
+# for surface-only filing; the loop wires file-surface-decisions.sh at the human verdict).
 b='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":0,"top_intensive":"","roadmap_open":1,"roadmap_actionable_open":0,"unpromoted":{"promote":0,"surface":35}}'
-[[ "$(verdict_of "$b")" == "handoff" ]] || { echo "case b: drained(@manual-only)+surface backlog must be handoff"; exit 1; }
+[[ "$(verdict_of "$b")" == "human" ]] || { echo "case b: drained(@manual-only)+surface-only backlog must be human (id:5eb3 split)"; exit 1; }
 
 # --- Case (h) zelegator — "finished" must consult the scan ---------------------------------
 # is_finished=true (0-open ROADMAP, clean, no unaudited) BUT unpromoted-scan reports promote/surface
@@ -59,15 +60,16 @@ ru='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":t
 ex='{"repo":"x","is_finished":false,"hasRoutine":true,"substantive_unaudited":true,"open_hard_pool":1,"top_intensive":"","roadmap_open":3,"roadmap_actionable_open":3,"unpromoted":{"promote":0,"surface":0}}'
 [[ "$(verdict_of "$ex")" == "execute" ]] || { echo "D3: open routine work must be execute"; exit 1; }
 
-# --- Output contract: valid JSON carrying all four keys + a D3 priority-class rank ---------
+# --- Output contract: valid JSON carrying all five keys + a D3 priority-class rank ---------
 out="$("$CV" <<<"$f")"
 python3 -c '
 import sys,json
 o=json.load(sys.stdin)
-for k in ("verdict","reason","evidence","ambiguous"):
+for k in ("verdict","reason","evidence","ambiguous","intensive"):
     assert k in o, f"missing key {k}: {o}"
 assert isinstance(o["evidence"], list), "evidence must be a list of pointers"
 assert isinstance(o["ambiguous"], bool), "ambiguous must be a bool"
-' <<<"$out" || { echo "contract: must emit {verdict,reason,evidence[],ambiguous}"; exit 1; }
+assert isinstance(o["intensive"], str), "intensive must be a string"
+' <<<"$out" || { echo "contract: must emit {verdict,reason,evidence[],ambiguous,intensive}"; exit 1; }
 
 echo "PASS test_classify_verdict"
