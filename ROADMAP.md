@@ -32,6 +32,32 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 - [x] [ROUTINE] `backtest-verdict.py` — pre-flip validation gate (replay classify-repo vs last-dispatch verdicts) <!-- id:5f93 --> done 2026-06-30 (strong turn): productized the dogfood prototype into `relay/scripts/backtest-verdict.py` (report-only, exit 0 like relay-doctor; `--json`); calls `classify-repo.sh` per own repo, compares to the most-recent `relay-events.jsonl` dispatch verdict. Gate run: **0 crashes / 49 repos** (the hard gate); diverged=40 but all explainable (state evolved since last dispatch — repos dispatched execute/review now show review from the resulting unaudited commits, or handoff once drained-with-backlog: the case-b/h fix). FIDELITY: live-state comparison, not full git-reconstruction — the classifier's input depends on ephemeral state (substantive_unaudited / worktrees / claims) that is NOT git-recoverable (the meeting's own partial-fidelity flag), so live + forward-shadow (id:9d2b) are the practical gate. `tests/test_backtest_verdict.sh` (`# roadmap:5f93`) green.
 
+- [x] [ROUTINE] Record discover-sig on dispatch event (f896) <!-- id:f896 --> done 2026-06-30 (executor): two additive lines in `relay-loop.js` — (1) unit cache loop stamps `u.sig = sigByRepo[u.repo] || ''` on every fresh unit; (2) `pushEvent('dispatch', …)` now includes `sig: unit.sig || ''`. Purely additive; no verdict authority / shard / reconciliation changes. Template-literal lint stays clean. `tests/test_dispatch_event_sig.sh` (`# roadmap:f896`) green; suite 139 green.
+  - **Why** (id:9d2b / id:4d8e): `relay-events.jsonl` dispatch records carried only `{repo,mode,tier,round}` — no input hash — so `backtest-verdict.py` compared current-state classification to a STALE last-dispatch verdict, producing structural divergence (agree=5/50 even on a clean tree). Recording the discover-sig at dispatch lets the backtest replay on the exact input the shard saw, making divergence bucketing (id:e8ea) sound.
+  - **Acceptance**:
+    1. `relay-loop.js` unit cache loop sets `u.sig = sigByRepo[u.repo] || ''` on every freshly classified unit.
+    2. `pushEvent('dispatch', …)` includes `sig: unit.sig || ''` — fail-open (absent/empty sig → empty string sentinel).
+    3. Purely additive: no change to verdict authority, shard, or reconciliation (id:a0b6 scope).
+    4. `tests/test_workflow_template_lint.sh` stays green (template-literal hazard guard).
+  - **Tests**: `tests/test_dispatch_event_sig.sh` (`# roadmap:f896`) — static source-shape assertions on relay-loop.js (grep + linter). RED until the edit lands.
+
+- [x] [ROUTINE] Auto-bucket backtest divergences: state-drift vs true-disagreement (e8ea) <!-- id:e8ea --> done 2026-06-30 (executor): `backtest-verdict.py` now reads the `sig` field from each dispatch event; for each diverged row, recomputes the current discover-sig via `discover-sig.sh` and buckets: same-dispatch-sig AND same-current-sig → `RED` (real disagreement); absent/changed sig → `EXPECTED` (state-drift/pre-f896 event). RED and EXPECTED counts added to summary and `--json` output. Fail-open: empty current-sig → EXPECTED, never crash. Summary line now reads `agree=N diverged=N red=N expected=N`. `tests/test_backtest_bucketing.sh` (`# roadmap:e8ea`) green; suite 139 green.
+  - **Why** (id:9d2b / id:4d8e): with f896's captured sig, diverged rows can be labelled mechanically — shrinking the human triage from ~43 rows/run to the handful of RED rows. Turns the id:9d2b gate from manual eyeballing into a mechanical pass/fail.
+  - **Acceptance**:
+    1. `backtest-verdict.py`: for each diverged row, reads `sig` from the dispatch event; calls `discover-sig.sh` for the current sig; same-sig-different-verdict → `RED`; changed/absent-sig → `EXPECTED`. Agree rows stay `agree`.
+    2. `--json` summary includes `red` and `expected` counts. Plain output summary line shows both.
+    3. Fail-open: if current-sig computation fails → EXPECTED, exit 0 (never crash).
+    4. Pre-f896 events (no sig field) → EXPECTED (backward compatible).
+  - **Tests**: `tests/test_backtest_bucketing.sh` (`# roadmap:e8ea`) — four cases: same-sig→RED, different-sig→EXPECTED, no-sig→EXPECTED, agree→agree. Hermetic fixture with real discover-sig.sh call.
+
+- [x] [ROUTINE] Persist + auto-run the shadow accumulation log (1324) <!-- id:1324 --> done 2026-06-30 (executor): `backtest-verdict.py --append-log [<path>]` (env `RELAY_SHADOW_LOG`, default `~/.config/relay/shadow-log.jsonl`) appends one JSON line `{agree,diverged,red,expected,new,crashes,distribution,timestamp}` per run. Wired in `relay/SKILL.md` step 4: the front door runs `backtest-verdict.py --append-log` post-drain so id:9d2b accrues mechanically. `tests/test_backtest_append_log.sh` (`# roadmap:1324`) green; suite 139 green.
+  - **Why** (id:9d2b): `backtest-verdict.py` was stdout-only — no place for the gate to accrue. The front door runs it automatically at end of every `/relay` run so the accumulation gate fills without human remembering.
+  - **Acceptance**:
+    1. `--append-log [<path>]`: appends ONE JSON line with keys `{agree,diverged,red,expected,new,crashes,distribution,timestamp}` to the log path; report-only, exit 0.
+    2. `RELAY_SHADOW_LOG` env override controls the default path (hermetic tests).
+    3. `relay/SKILL.md` step 4 (Exit summary) documents the front door running `backtest-verdict.py --append-log` post-drain.
+  - **Tests**: `tests/test_backtest_append_log.sh` (`# roadmap:1324`) — append writes parseable JSON with expected keys; two appends yield two lines; explicit path argument; combined with `--json`. Hermetic.
+
 - [x] [ROUTINE] `gather-repo-state.sh` — fix the env-var `execve` overflow on a >128KB ROADMAP <!-- id:07be -->
   - **Why** (found 2026-06-30 dogfooding id:3f0f): `emit()` hands large field values (the ROADMAP content + porcelain/toml/worktrees) to `python3` via ENV VARS; a single env string over `MAX_ARG_STRLEN` (128KB) breaks `execve` ("Argument list too long"). Real repos survive today because the emitted `roadmap` field is a ~94KB subset — but dotclaude-skills is already at 94KB and growing, and crossing 128KB crashes gather AND the whole `classify-repo.sh` chain. Same class as the id:3f0f wrapper fix (which used temp files).
   - **Acceptance**:

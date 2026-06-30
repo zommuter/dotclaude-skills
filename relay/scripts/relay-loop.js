@@ -925,7 +925,7 @@ Return {units, surfaced, skipped} covering EXACTLY the repos in your list — ea
   // reused (cached) verdicts. Reused units already sit in the cache under the same sig, so only fresh
   // ones are written. Surfaced / idle-without-unit repos are NOT cached → they re-classify next round
   // (safe over-invalidation). Injected units are never cached (consumed each round by inject.sh take).
-  for (const u of units) { const sig = sigByRepo[u.repo]; if (sig) state.discoverCache[u.repo] = { sig, unit: u } }
+  for (const u of units) { const sig = sigByRepo[u.repo] || ''; u.sig = sig; if (sig) state.discoverCache[u.repo] = { sig, unit: u } }
   units.push(...reusedUnits)
   units.push(...(prelude.injectedUnits || []))
   // shardOk = at least one shard succeeded → build discovery (failed shards' repos are surfaced).
@@ -1595,7 +1595,7 @@ async function runUnit(unit) {
   unitsDispatched++
   totalDispatched++
   state.inFlight.push({ repo: unit.repo, mode: unit.verdict, agentId: `unit-${unitsDispatched}` })
-  pushEvent('dispatch', { repo: unit.repo, mode: unit.verdict, tier, round })  // id:c8b6
+  pushEvent('dispatch', { repo: unit.repo, mode: unit.verdict, tier, round, sig: unit.sig || '' })  // id:c8b6
   log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})`)
   // Tier dispatch (D4): review/handoff get the STRONG_TIER model. Execute agents are
   // pinned to Sonnet; STRONG_TIER applies no model override to them.
