@@ -10,6 +10,15 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] [ROUTINE] `decision-queue.sh` — durable file-backed human-decision-request queue (C7, DP4) <!-- id:de31 -->
+  - **Why** (meeting 2026-06-30-1523 DP4): when the loop hits a resolution it can't mechanically close (a forced lane-triage of N surface items, a "close 244b or drain?" call), it must APPEND a decision request to a durable store and keep working — never silently no-op (cases g/h). This is the "one home" (the substrate); the transport (broker vs FIFO vs file-tail) is the deferred sibling id:b444.
+  - **Acceptance**:
+    1. `relay/scripts/decision-queue.sh add --repo <r> --kind <k> --question <q> [--option <o>]… [--evidence <e>]` mints a decision id, appends ONE JSON record `{id,repo,kind,question,options[],evidence,requested_at,status:"open"}` to `$RELAY_DECISION_QUEUE` (default `~/.config/relay/decision-queue.jsonl`), and prints the id. Append-only; flock'd (mirror `append.sh`/`commit-ledger.sh`).
+    2. `decision-queue.sh list [--repo <r>]` prints the OPEN records (default open-only); `--all` includes resolved.
+    3. `decision-queue.sh resolve <id> --answer <a>` sets `status:"resolved"`, `answer`, `resolved_at` on that record (rewrite under flock); resolved records drop out of the default `list`.
+    4. Side-effect-free beyond the queue file; the queue path is env-overridable (hermetic tests).
+  - **Tests**: `tests/test_decision_queue.sh` (`# roadmap:de31`) — add → list → second add (append) → resolve → open-list excludes resolved. RED until the helper lands.
+
 - [x] [ROUTINE] `backtest-verdict.py` — pre-flip validation gate (replay classify-repo vs last-dispatch verdicts) <!-- id:5f93 --> done 2026-06-30 (strong turn): productized the dogfood prototype into `relay/scripts/backtest-verdict.py` (report-only, exit 0 like relay-doctor; `--json`); calls `classify-repo.sh` per own repo, compares to the most-recent `relay-events.jsonl` dispatch verdict. Gate run: **0 crashes / 49 repos** (the hard gate); diverged=40 but all explainable (state evolved since last dispatch — repos dispatched execute/review now show review from the resulting unaudited commits, or handoff once drained-with-backlog: the case-b/h fix). FIDELITY: live-state comparison, not full git-reconstruction — the classifier's input depends on ephemeral state (substantive_unaudited / worktrees / claims) that is NOT git-recoverable (the meeting's own partial-fidelity flag), so live + forward-shadow (id:9d2b) are the practical gate. `tests/test_backtest_verdict.sh` (`# roadmap:5f93`) green.
 
 - [x] [ROUTINE] `gather-repo-state.sh` — fix the env-var `execve` overflow on a >128KB ROADMAP <!-- id:07be -->
