@@ -38,8 +38,9 @@ GIT_COMMITTER_DATE="2026-06-10T10:00:00Z" \
   git -C "$R" commit -qm "initial" --date="2026-06-10T10:00:00Z"
 C1="$(git -C "$R" rev-parse HEAD)"
 
-# Checkpoint tag at C1
-git -C "$R" tag -a "relay-ckpt-20260610-1000" -m "relay: checkpoint" "$C1"
+# Checkpoint tag at C1 (GIT_COMMITTER_DATE sets the tagger date for annotated tags)
+GIT_COMMITTER_DATE="2026-06-10T10:00:00Z" \
+  git -C "$R" tag -a "relay-ckpt-20260610-1000" -m "relay: checkpoint" "$C1"
 
 # Commit 2 (C2): add ROADMAP with open [ROUTINE] item → classify = execute
 cat > "$R/ROADMAP.md" <<'EOF'
@@ -65,7 +66,8 @@ GIT_COMMITTER_DATE="2026-06-20T14:00:00Z" \
 C3="$(git -C "$R" rev-parse HEAD)"
 
 # Checkpoint tag at C3 so there is no unaudited work after C3
-git -C "$R" tag -a "relay-ckpt-20260620-1400" -m "relay: checkpoint" "$C3"
+GIT_COMMITTER_DATE="2026-06-20T14:00:00Z" \
+  git -C "$R" tag -a "relay-ckpt-20260620-1400" -m "relay: checkpoint" "$C3"
 
 # ── relay.toml pointing at myrepo ────────────────────────────────────────────
 cat > "$RELAY_TOML" <<'EOF'
