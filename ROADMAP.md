@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] `decision-queue.sh` — durable file-backed human-decision-request queue (C7, DP4) <!-- id:de31 -->
+- [x] [ROUTINE] `decision-queue.sh` — durable file-backed human-decision-request queue (C7, DP4) <!-- id:de31 --> done 2026-06-30 (executor): implemented `relay/scripts/decision-queue.sh` with add/list/resolve subcommands; flock'd on `<queue>.lock`; JSON built via python3; `RELAY_DECISION_QUEUE` env-overridable; registered in Makefile relay_FILES/EXEC/ALLOW.
   - **Why** (meeting 2026-06-30-1523 DP4): when the loop hits a resolution it can't mechanically close (a forced lane-triage of N surface items, a "close 244b or drain?" call), it must APPEND a decision request to a durable store and keep working — never silently no-op (cases g/h). This is the "one home" (the substrate); the transport (broker vs FIFO vs file-tail) is the deferred sibling id:b444.
   - **Acceptance**:
     1. `relay/scripts/decision-queue.sh add --repo <r> --kind <k> --question <q> [--option <o>]… [--evidence <e>]` mints a decision id, appends ONE JSON record `{id,repo,kind,question,options[],evidence,requested_at,status:"open"}` to `$RELAY_DECISION_QUEUE` (default `~/.config/relay/decision-queue.jsonl`), and prints the id. Append-only; flock'd (mirror `append.sh`/`commit-ledger.sh`).
