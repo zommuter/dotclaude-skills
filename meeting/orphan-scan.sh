@@ -44,7 +44,19 @@ limit="${ORPHAN_SCAN_LIMIT:-10}"
 start_ms=$(date +%s%3N)
 # Union ledger: TODO + archive + relay ROADMAP (a note item mirrored to
 # ROADMAP.md instead of TODO.md is not an orphan).
-todo="$(cat "$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md" 2>/dev/null || true)"
+# Plugin-aware union (zkm B-topology, meeting 2026-06-30 D2): in a polyrepo whose
+# plugins own their own TODO.md (each `plugins/*/`), a root meeting note can cite an
+# id that now lives in a plugin's ledger, not central. Include those ledgers so the
+# "tracked anywhere?" scans (forward + reverse) don't false-flag relocated ids. Only
+# the union blob is plugin-aware; cross-ledger/promotion build their own intra-ledger
+# maps and stay per-(plugin-or-root) by design. No-op for plugins-less repos.
+ledger_files=("$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md")
+if [[ -d "$ROOT/plugins" ]]; then
+  for p in "$ROOT"/plugins/*/; do
+    ledger_files+=("$p/TODO.md" "$p/TODO.archive.md" "$p/ROADMAP.md")
+  done
+fi
+todo="$(cat "${ledger_files[@]}" 2>/dev/null || true)"
 notes=0
 id_lines=0
 candidates=0
