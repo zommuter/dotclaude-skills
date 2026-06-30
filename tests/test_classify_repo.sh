@@ -48,10 +48,12 @@ printf '# TODO\n## Current\n' > "$R1/TODO.md"
 commit_repo "$R1"
 [[ "$(verdict_of "$R1")" == "execute" ]] || { echo "execute: open [ROUTINE] must classify execute, got $(verdict_of "$R1")"; exit 1; }
 
-# --- handoff: drained (only @manual/human-lane open) + untagged TODO backlog (surface) -------
-# The case-b/h fix end-to-end: must be handoff, NOT idle/human. HEAD tagged audited so there
-# are no unaudited commits (else it would be review).
-R2="$tmp/r_handoff"; mkrepo "$R2"
+# --- human: drained (only @manual/human-lane open) + untagged TODO backlog (surface) --------
+# The id:5eb3 case-b split end-to-end: promote==0 ∧ surface>0 → human (NOT handoff).
+# The surface-only backlog needs lane-triage filing by file-surface-decisions.sh, not an
+# Opus apex handoff. HEAD tagged audited so there are no unaudited commits (else it
+# would be review). Previously asserted "handoff" before id:5eb3 (authorized update).
+R2="$tmp/r_human"; mkrepo "$R2"
 cat > "$R2/ROADMAP.md" <<'EOF'
 # Roadmap
 ## Items
@@ -63,7 +65,7 @@ cat > "$R2/TODO.md" <<'EOF'
 - [ ] untagged design backlog item <!-- id:3333 -->
 EOF
 commit_repo "$R2"; ckpt_head "$R2"
-[[ "$(verdict_of "$R2")" == "handoff" ]] || { echo "handoff: drained-@manual + surface backlog must be handoff, got $(verdict_of "$R2")"; exit 1; }
+[[ "$(verdict_of "$R2")" == "human" ]] || { echo "human: drained-@manual + surface-only backlog must be human (id:5eb3 split), got $(verdict_of "$R2")"; exit 1; }
 
 # --- idle: finished ROADMAP, no unpromoted backlog ------------------------------------------
 R3="$tmp/r_idle"; mkrepo "$R3"
