@@ -183,10 +183,44 @@ extrapolate_or_stop() {
   exit 0
 }
 
-# Cache presence
+# refresh_cache — fetch a fresh usage cache from /api/oauth/usage (the endpoint the
+# statusline polls), flock'd so concurrent gates don't stampede the token's ~5-req limit.
+# Returns 0 if USAGE_CACHE exists afterwards, 1 otherwise. Tokenless USAGE_CREDS ⟹ skip
+# (hermetic in tests). id:82e3: a sandboxed Workflow has a PRIVATE /tmp, so the statusline's
+# host cache is invisible (reads as MISSING); fetching our own copy makes quota-stop
+# self-sufficient in ANY namespace (USAGE_CREDS is a HOME path, always sandbox-visible).
+refresh_cache() {
+  local TOK
+  TOK=$(jq -r '.claudeAiOauth.accessToken // empty' "$USAGE_CREDS" 2>/dev/null || true)
+  [[ -z "$TOK" ]] && return 1
+  (
+    flock -x -w 10 8 || exit 1
+    local M2; M2=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
+    if [[ $(( $(date +%s) - M2 )) -gt 60 ]]; then   # someone else may have just refreshed
+      if curl -sf --max-time 8 -o "$USAGE_CACHE.qs.tmp" \
+           -H "Authorization: Bearer $TOK" -H "anthropic-beta: oauth-2025-04-20" \
+           "https://api.anthropic.com/api/oauth/usage" 2>/dev/null && [[ -s "$USAGE_CACHE.qs.tmp" ]]; then
+        mv "$USAGE_CACHE.qs.tmp" "$USAGE_CACHE"
+      else
+        rm -f "$USAGE_CACHE.qs.tmp"
+      fi
+    fi
+  ) 8>"${USAGE_CACHE}.qs.lock"
+  [[ -f "$USAGE_CACHE" ]]
+}
+
+# Cache presence. id:82e3 — a sandboxed Workflow's private /tmp makes the host cache read
+# as MISSING; self-refresh our own copy (token is a HOME path, sandbox-visible) before
+# falling back to the burn-series extrapolation. Foreground/host runs are unaffected (the
+# statusline keeps the cache fresh, so this branch is only hit when it's genuinely absent).
 if [[ ! -f "$USAGE_CACHE" ]]; then
-  echo "quota-stop: cache missing: $USAGE_CACHE" >&2
-  extrapolate_or_stop "cache missing: $USAGE_CACHE"
+  echo "quota-stop: cache missing: $USAGE_CACHE — attempting self-refresh (id:82e3)" >&2
+  if refresh_cache && [[ -f "$USAGE_CACHE" ]]; then
+    echo "quota-stop: self-refreshed missing cache (id:82e3 sandbox unblock)" >&2
+  else
+    echo "quota-stop: cache missing and self-refresh unavailable/failed" >&2
+    extrapolate_or_stop "cache missing: $USAGE_CACHE"
+  fi
 fi
 
 # Cache freshness (mtime > 10 min → uncertain)
@@ -199,24 +233,9 @@ if [[ "$AGE" -gt "$STALE_SECS" ]]; then
   # it ourselves from the same /api/oauth/usage endpoint the statusline uses, under a flock
   # so concurrent quota-gates don't stampede the token's ~5-req limit. If refresh fails,
   # stay conservative and stop (exit 2). USAGE_CREDS tokenless ⟹ skip (hermetic in tests).
-  TOK=$(jq -r '.claudeAiOauth.accessToken // empty' "$USAGE_CREDS" 2>/dev/null || true)
-  if [[ -n "$TOK" ]]; then
-    (
-      flock -x -w 10 8 || exit 1
-      M2=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
-      if [[ $(( $(date +%s) - M2 )) -gt 60 ]]; then   # someone else may have just refreshed
-        if curl -sf --max-time 8 -o "$USAGE_CACHE.qs.tmp" \
-             -H "Authorization: Bearer $TOK" -H "anthropic-beta: oauth-2025-04-20" \
-             "https://api.anthropic.com/api/oauth/usage" 2>/dev/null && [[ -s "$USAGE_CACHE.qs.tmp" ]]; then
-          mv "$USAGE_CACHE.qs.tmp" "$USAGE_CACHE"
-        else
-          rm -f "$USAGE_CACHE.qs.tmp"
-        fi
-      fi
-    ) 8>"${USAGE_CACHE}.qs.lock"
-    MTIME=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
-    AGE=$(( $(date +%s) - MTIME ))
-  fi
+  refresh_cache || true   # id:82e3 — shared helper (same curl, now also on the missing path)
+  MTIME=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
+  AGE=$(( $(date +%s) - MTIME ))
   if [[ "$AGE" -gt "$STALE_SECS" ]]; then
     # Margin-aware staleness (id:1d64): a stale reading is only dangerous if we might have
     # CROSSED the threshold since it was taken. Check every bucket for this tier: if each one
