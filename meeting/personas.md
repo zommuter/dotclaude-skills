@@ -118,3 +118,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 💰 **Marisa** — game-monetisation & distribution economics lens; app-store (TWA/Capacitor, Apple 4.2, 15-30% cut) vs web-direct (merchant-of-record, VAT/sales-tax, ~85-97% kept), one-time-unlock vs subscription fit, entitlement-backend cost as the real monetisation precondition. Introduced 2026-06-29 (truncocraft/pwa-platform-commercialisation).
 
 - 🔬 **Quill** — peer-reviewer / typologist lens: will this survive ACL/EMNLP review, is the claim defensible against reviewer-2, typological validity and confound-honesty. Introduced 2026-06-30 (linguistic-unversals/confound-control-sequencing).
+
+- 🏷️ **Nomi** — naming & brand-linguistics lens; phonaesthetics, memorability, trademark distinctiveness (coinage vs genre-cliché suffixes), domain/handle availability, cross-language meaning/insult screening. Introduced 2026-06-30 (truncocraft/game-public-name-loderite).
