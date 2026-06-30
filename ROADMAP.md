@@ -1882,6 +1882,27 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       `"$PWD" a689119` exit 0; suite 89/0/0. Tracked flakes 16e9/05e8 did NOT recur. Mirror:
       TODO id:401c line refreshed Run 66→Run 67. See
       `docs/meeting-notes/2026-06-23-2145-strong-model-audit.md`.
+    - Run 69 (2026-06-30-1855): window = `8d8d40b..HEAD` (HEAD `7527cb1`), since Run 68 —
+      133 commits / ~6007 insertions across 88 files; substantive engine surface ~21
+      scripts+code files + tests (`substantive_unaudited=true`). Four days of mechanical-classifier
+      (id:4d8e) + outage-resilience build: NEW classify-verdict.sh (85df), classify-repo.sh (3f0f),
+      backtest-verdict.py (5f93), decision-queue.sh (de31), drain.mjs (d58f), heartbeat.sh (e149),
+      host-gate.sh (43b9), memory-append.sh (6f61), pathspec-drop-guard.py (b67e), relay-watchdog
+      (98f0); MODIFIED relay-loop.js (drain/heartbeat/phase-buckets/worked_ids/quota-extrapolation),
+      gather-repo-state.sh + classify-repo.sh execve-overflow temp-file fix (07be/3f0f), claim.sh
+      heartbeat-gated liveness (33d3), scan-routed --apply (678e), ckpt-tag graceful degrade (a7a3).
+      **Pass-1 code review CLEAN** + **Pass-2 security CLEAN** (no correctness/injection defects —
+      verified classify-verdict pure-stdin parity-guards, execve temp-file fixes, heartbeat
+      ts+TTL, claim fail-safe heartbeat gate, decision-queue set-e-safe resolve, drain.mjs
+      byte-identical inline copy, scan-routed idempotent flock'd write, per-round heartbeat keyed on
+      stable state.runId). **Pass-3: 2 ledger drifts FIXED INLINE** — (1) id:1bbd `[x]` ROADMAP /
+      `[ ]` TODO (lane-anchor fix shipped+merged → ROADMAP authoritative; ticked the TODO twin);
+      (2) d5e0 count prose listed the shipped e149/7809/98f0/0994 [HARD — hands] batch as open —
+      re-derived to 3 open executable-or-gated (401c [pool] / 3346 [meeting] / dba3 [decision-gate];
+      de4e [meeting] DEFERRED). orphan-scan --cross-ledger now 0; roadmap-lint 0; gaming-scan
+      `"$PWD" 8d8d40b` 0; todo-conformance 0; suite 135/0/0. 3 accepted-not-defect items (scan-routed
+      inbox-done swallow + new-id fallback, pathspec-guard conservative-block). See
+      `docs/meeting-notes/2026-06-30-1855-strong-model-audit.md`.
     - Run 68 (2026-06-26-0926): window = `5e1a216..HEAD` (HEAD `8d8d40b`), since Run 67 —
       **first NON-ledger window since Run 48** (`substantive_unaudited=true`): ~4091/-50 across
       35 files (14 scripts + 21 tests), three days of relay-engine work (id:5c00 quota pre-gate,
