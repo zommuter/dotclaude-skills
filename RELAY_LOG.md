@@ -1021,3 +1021,7 @@ review: qualified id:d58f [HARD — meeting] (reverse-handoff §5b); audit clean
 ## 2026-06-30 11:27 — reviewer (claude-opus-4-8)
 
 review: relay-ckpt-20260629-1409..HEAD (39 commits incl. d097 zkm-B-topology, orphan-scan plugin-aware, 82e3 quota-extrapolation merge). make test 125/0 green; gaming-scan clean; 82e3+orphan-scan tests verified legitimate; 6 closures green (33d3/08c0/672b/d58f/7c10/de69); roadmap-lint/cross-ledger clean; contract pointer v6. routine_open=0.
+
+## 2026-06-30 12:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review 20260630: c6c8/a7a3 doc-only (no gaming); reverse-handoff id:a7a3 → ROADMAP [ROUTINE] + red spec; suite 125/0, lint+doctor clean, contract v6 current [id:a7a3,c6c8]
