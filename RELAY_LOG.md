@@ -1109,3 +1109,7 @@ id:9062 roadmap-lint INTENSIVE-lane realign (operative-only-on-dispatchable-lane
 ## 2026-06-30 — executor (claude-sonnet-4-6, relay-loop)
 
 id:5eb3 + id:5ac6 SHIPPED — implement the two classifier-flip prerequisites from meeting 2026-06-30-2238. (1) id:5eb3 case-b split: `classify-verdict.sh` now emits `human` (rank 5) instead of `handoff` for `promote==0 ∧ surface>0`; new `relay/scripts/file-surface-decisions.sh` does mechanical decision-queue filing when the loop sees `human`; `handoff.md` updated to remove the case-g filing obligation; `relay-loop.js` wired with human-verdict partition (extracts human units, calls file-surface-decisions.sh via haiku agents). (2) id:5ac6 INTENSIVE flag: `classify-verdict.sh` copies `top_intensive` verbatim to `intensive` field (string, always present) when verdict ∈ {execute,hard}, "" otherwise — enforcing the invariant `intensive!="" ⇒ verdict∈{execute,hard}`; fail-closed pre-dispatch assertion added to `runUnit` in `relay-loop.js` (skips+surfaces loudly if intensive unit reaches dispatch without ALLOW_INTENSIVE). Authorized reconciles: `test_classify_verdict.sh` case-b, `test_classify_repo.sh` handoff→human, `test_relay_loop_structure.sh` DISCOVER_SCHEMA enum + PRIORITY. Suite 144 passed / 0 failed / 1 expected-red (id:9062 open). [id:5eb3,id:5ac6]
+
+## 2026-06-30 23:41 — reviewer (claude-opus-4-8)
+
+id:5eb3 case-b→human + mechanical surface-filer; id:5ac6 INTENSIVE flag+invariant+fail-closed dispatch guard (SAFETY)
