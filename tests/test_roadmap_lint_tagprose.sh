@@ -32,17 +32,24 @@ fi
 grep -qiE 'tag.*prose|prose.*lane|disagree|contradic|conflict' "$tmp/err_c" \
   || { echo "case c: stderr must name the tag/prose disagreement (got: $(cat "$tmp/err_c"))"; exit 1; }
 
-# --- Case (d) free-typed INTENSIVE → loud ERROR -------------------------------------------
+# --- Case (d) lane-less INTENSIVE → loud ERROR -----------------------------------------------
+# RECONCILE (id:9062, meeting 2026-06-30-2238): the old case-d example used
+# [HARD — meeting] [INTENSIVE], which is now ACCEPTED as advisory on human lanes.
+# Repointed to a genuinely LANE-LESS [INTENSIVE] (no [ROUTINE]/[HARD] tag), which still
+# exercises the real reject path: the item has no recognised class tag, so the
+# missing-class-tag grammar fires — not a case-d intensive-specific check. The
+# reject message names the missing lane, not INTENSIVE specifically.
 cat > "$tmp/roadmap_d.md" <<'EOF'
 # Roadmap
 ## Items
-- [ ] [HARD — meeting] [INTENSIVE — local-llm] decide whether to rm the stale GGUF cache <!-- id:2222 -->
+- [ ] [INTENSIVE — local-llm] do something GPU-heavy with no lane tag at all <!-- id:2222 -->
 EOF
-if "$LINT" "$tmp/roadmap_d.md" 2>"$tmp/err_d"; then
-  echo "case d: free-typed [INTENSIVE] on a non-derivable item must ERROR (nonzero exit)"; exit 1
-fi
-grep -qiE 'intensive' "$tmp/err_d" \
-  || { echo "case d: stderr must name the INTENSIVE violation (got: $(cat "$tmp/err_d"))"; exit 1; }
+"$LINT" "$tmp/roadmap_d.md" > "$tmp/out_d" 2>"$tmp/err_d" && {
+  echo "case d: lane-less [INTENSIVE] (no recognised class tag) must ERROR (nonzero exit)"; exit 1
+}
+# The missing-class-tag violation goes to stdout (via the report buffer); grep stdout.
+grep -qiE 'class|lane|tag|recognized' "$tmp/out_d" \
+  || { echo "case d: stdout must describe missing class/lane tag (got: $(cat "$tmp/out_d"))"; exit 1; }
 
 # --- No false positives: a clean ROADMAP still lints OK -----------------------------------
 cat > "$tmp/roadmap_ok.md" <<'EOF'

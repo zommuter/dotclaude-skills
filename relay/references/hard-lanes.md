@@ -50,6 +50,18 @@ intensive item is `[HARD — pool] [INTENSIVE — local-llm]`. The resource axis
 *scheduling* (run-serially-alone, exclusive `resource:` claim); the lane governs
 *disposition* (who acts on it). Never use `[INTENSIVE — ...]` in place of a lane tag.
 
+### Operative vs advisory (id:9062, meeting 2026-06-30-2238)
+
+`[INTENSIVE]` is **operative** (serial-alone scheduling, exclusive `resource:` claim,
+`--intensive` gate, classifier flag) **only on relay-dispatchable lanes** (`[ROUTINE]`,
+`[HARD — pool]`). On human lanes (`hands`, `meeting`, `decision gate`, `@manual`) it is
+an **advisory OOM note** — mechanically inert, NOT a violation. Not "amplification of
+HARD" (routine-intensive is operative). The dispatch hazard is neutralised by
+`gather-repo-state.sh`'s `top_intensive` exclusion (id:a707), which already keeps human
+lanes out of the intensive pool regardless of their tag. `roadmap-lint.sh` therefore
+accepts `[INTENSIVE]` on any recognised lane; only a lane-less `[INTENSIVE]` (no class
+tag at all) is a grammar error.
+
 ### Lane criterion for an INTENSIVE item: `pool` vs `hands` (id:db39, meeting 2026-06-30)
 
 "Intensive" is about compute weight, NOT who acts — an `[INTENSIVE]` item is NOT
