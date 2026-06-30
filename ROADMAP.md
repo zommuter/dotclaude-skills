@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] `gather-repo-state.sh` — fix the env-var `execve` overflow on a >128KB ROADMAP <!-- id:07be -->
+- [x] [ROUTINE] `gather-repo-state.sh` — fix the env-var `execve` overflow on a >128KB ROADMAP <!-- id:07be -->
   - **Why** (found 2026-06-30 dogfooding id:3f0f): `emit()` hands large field values (the ROADMAP content + porcelain/toml/worktrees) to `python3` via ENV VARS; a single env string over `MAX_ARG_STRLEN` (128KB) breaks `execve` ("Argument list too long"). Real repos survive today because the emitted `roadmap` field is a ~94KB subset — but dotclaude-skills is already at 94KB and growing, and crossing 128KB crashes gather AND the whole `classify-repo.sh` chain. Same class as the id:3f0f wrapper fix (which used temp files).
   - **Acceptance**:
     1. `gather-repo-state.sh` no longer passes large field values to `python3` via env/argv — use a temp file or stdin so no single string can exceed `MAX_ARG_STRLEN`. The wrapper/caller path then works on a repo with a >128KB ROADMAP.
