@@ -1082,3 +1082,8 @@ execute: id:de31 decision-queue.sh — durable human-decision queue (DP4)
 ## 2026-06-30 17:25 — reviewer (claude-opus-4-8)
 
 execute: id:e424 classify-verdict verdict-parity (blocked for dirty/diverged) — flip step a
+
+## 2026-06-30 — executor (Sonnet)
+
+Worked id:1bbd — fixed `emit_hard_lanes()` in `gather-human-backlog.sh` to strip backtick-quoted strings from the line before lane detection. The bug: pool branch was checked first on the whole line, so a `[HARD — hands]` item whose prose quoted `` `[HARD — pool]` `` mis-bucketed as `hard_pool`. Fix adds a single `gsub(/`[^`]*`/, "", clean)` step that strips backtick spans from a scratch copy; lane detection runs on `clean` while the original `line` is preserved for the summary output. `tests/test_gather_lane_anchor.sh` (roadmap:1bbd) green; `test_hard_lane_buckets.sh` unregressed; suite 135 green.
+Friction: none (one-liner fix; apostrophe-in-single-quoted-awk caught immediately on first test run).

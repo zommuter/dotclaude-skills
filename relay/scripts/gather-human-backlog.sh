@@ -188,7 +188,14 @@ emit_hard_lanes() {
     /^[[:space:]]*- \[ \] / {
       line = $0
       if (line !~ /\[HARD/) next
-      low = tolower(line)
+
+      # Strip backtick-quoted strings before lane detection so a prose mention like
+      # `[HARD — pool]` in the item body cannot shadow the item OWN bracket tag
+      # (id:1bbd: pool branch was checked first, causing [HARD — hands] items with
+      # a `[HARD — pool]` prose mention to mis-bucket as hard_pool).
+      clean = line
+      gsub(/`[^`]*`/, "", clean)
+      low = tolower(clean)
 
       # Read the EXPLICIT lane from the bracket tag (never inferred). Em-dash "—"
       # or a plain "-" between HARD and the lane word are both accepted; surrounding
