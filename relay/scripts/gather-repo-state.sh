@@ -44,62 +44,90 @@ toml_block() {
   ' "$RELAY_TOML" 2>/dev/null || true
 }
 
-emit() {  # emit the JSON object from env vars (safe encoding of arbitrary multi-line content)
-  IS_GIT="$1" HEAD_SHA="${2:-}" LATEST_CKPT="${3:-}" LATEST_CKPT_MSG="${4:-}" \
-  COMMITS_SINCE="${5:-}" DIRTY="${6:-false}" PORCELAIN="${7:-}" UPSTREAM="${8:-}" \
-  HAS_UPSTREAM="${9:-false}" WORKTREES="${10:-}" ORPHANS="${11:-}" TOML="${12:-}" \
-  ROADMAP="${13:-}" LOCK_ONLY_UNAUDITED="${14:-false}" DIRTY_LOCK_ONLY="${15:-false}" \
-  IS_FINISHED="${16:-false}" TOP_INTENSIVE="${17:-}" \
-  SUBSTANTIVE_UNAUDITED="${18:-true}" WORK_SIG="${19:-}" \
-  OPEN_HARD_POOL="${20:-0}" \
-  REPO="$repo" RPATH="$path" RUNID="$runid" \
+emit() {  # emit the JSON object via temp files (avoids execve overflow on large blobs, id:07be)
+  # Pass field VALUES to python via a temp directory — NOT via env vars or argv. A single env
+  # string over MAX_ARG_STRLEN (128KB) breaks execve with "Argument list too long" on a repo
+  # with a large ROADMAP (same class as the id:3f0f fix in classify-repo.sh). Pattern: write
+  # each value with printf '%s' into its own file; pass only the tmpdir path to python.
+  _blobdir="$(mktemp -d)"
+  # Expand $_blobdir NOW (at definition time) so the trap fires correctly when the shell
+  # exits after the function has returned and the local scope is gone (set -u safe).
+  # shellcheck disable=SC2064
+  trap "rm -rf '$_blobdir'" EXIT
+  printf '%s' "${1}"      > "$_blobdir/IS_GIT"
+  printf '%s' "${2:-}"    > "$_blobdir/HEAD_SHA"
+  printf '%s' "${3:-}"    > "$_blobdir/LATEST_CKPT"
+  printf '%s' "${4:-}"    > "$_blobdir/LATEST_CKPT_MSG"
+  printf '%s' "${5:-}"    > "$_blobdir/COMMITS_SINCE"
+  printf '%s' "${6:-false}" > "$_blobdir/DIRTY"
+  printf '%s' "${7:-}"    > "$_blobdir/PORCELAIN"
+  printf '%s' "${8:-}"    > "$_blobdir/UPSTREAM"
+  printf '%s' "${9:-false}" > "$_blobdir/HAS_UPSTREAM"
+  printf '%s' "${10:-}"   > "$_blobdir/WORKTREES"
+  printf '%s' "${11:-}"   > "$_blobdir/ORPHANS"
+  printf '%s' "${12:-}"   > "$_blobdir/TOML"
+  printf '%s' "${13:-}"   > "$_blobdir/ROADMAP"
+  printf '%s' "${14:-false}" > "$_blobdir/LOCK_ONLY_UNAUDITED"
+  printf '%s' "${15:-false}" > "$_blobdir/DIRTY_LOCK_ONLY"
+  printf '%s' "${16:-false}" > "$_blobdir/IS_FINISHED"
+  printf '%s' "${17:-}"   > "$_blobdir/TOP_INTENSIVE"
+  printf '%s' "${18:-true}" > "$_blobdir/SUBSTANTIVE_UNAUDITED"
+  printf '%s' "${19:-}"   > "$_blobdir/WORK_SIG"
+  printf '%s' "${20:-0}"  > "$_blobdir/OPEN_HARD_POOL"
+  EMIT_DIR="$_blobdir" REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
+d = os.environ["EMIT_DIR"]
+def r(k):
+    try:
+        with open(d + "/" + k) as f: return f.read()
+    except OSError:
+        return ""
 def b(v): return v == "true"
 o = {
   "repo": os.environ["REPO"], "path": os.environ["RPATH"], "runid": os.environ.get("RUNID",""),
-  "is_git": b(os.environ["IS_GIT"]),
-  "head": os.environ.get("HEAD_SHA",""),
-  "latest_ckpt": os.environ.get("LATEST_CKPT",""),
-  "latest_ckpt_msg": os.environ.get("LATEST_CKPT_MSG",""),
-  "commits_since_ckpt": os.environ.get("COMMITS_SINCE",""),
-  "dirty": b(os.environ.get("DIRTY","false")),
-  "porcelain": os.environ.get("PORCELAIN",""),
+  "is_git": b(r("IS_GIT")),
+  "head": r("HEAD_SHA"),
+  "latest_ckpt": r("LATEST_CKPT"),
+  "latest_ckpt_msg": r("LATEST_CKPT_MSG"),
+  "commits_since_ckpt": r("COMMITS_SINCE"),
+  "dirty": b(r("DIRTY")),
+  "porcelain": r("PORCELAIN"),
   # id:bae5 — audit/dispatch exemptions for a mechanical uv.lock-only diff (the zkm
   # cascade): lock_only_unaudited = there ARE unaudited commits since the ckpt and
   # they touch ONLY uv.lock (→ not a real review); dirty_lock_only = the working
   # tree is dirty with ONLY uv.lock modified (→ still dispatchable; child relocks).
-  "lock_only_unaudited": b(os.environ.get("LOCK_ONLY_UNAUDITED","false")),
-  "dirty_lock_only": b(os.environ.get("DIRTY_LOCK_ONLY","false")),
-  "upstream_ahead_behind": os.environ.get("UPSTREAM",""),
-  "has_upstream": b(os.environ.get("HAS_UPSTREAM","false")),
-  "worktrees": os.environ.get("WORKTREES",""),
-  "orphan_refs": os.environ.get("ORPHANS",""),
-  "toml_block": os.environ.get("TOML",""),
-  "roadmap": os.environ.get("ROADMAP",""),
+  "lock_only_unaudited": b(r("LOCK_ONLY_UNAUDITED")),
+  "dirty_lock_only": b(r("DIRTY_LOCK_ONLY")),
+  "upstream_ahead_behind": r("UPSTREAM"),
+  "has_upstream": b(r("HAS_UPSTREAM")),
+  "worktrees": r("WORKTREES"),
+  "orphan_refs": r("ORPHANS"),
+  "toml_block": r("TOML"),
+  "roadmap": r("ROADMAP"),
   # id:000d — deterministic finished-repo guard: true iff the roadmap is present/non-empty
   # AND has ZERO open "- [ ]" items AND commits_since_ckpt is empty AND the tree is clean
   # (dirty_lock_only counts as clean — lock-only dirty is still dispatchable, id:bae5).
   # A repo with NO roadmap stays false (genuine first handoff candidate, not a finished repo).
-  "is_finished": b(os.environ.get("IS_FINISHED","false")),
+  "is_finished": b(r("IS_FINISHED")),
   # id:ad74 — deterministic intensive-item field: the resource name of the top open
   # "- [ ]" item carrying an "[INTENSIVE — <resource>]" modifier, "" when none.
   # The JS-side INTENSIVE promote backstop uses this to self-correct a shard that
   # classifies a repo idle/skipped despite having an open [INTENSIVE] item.
-  "top_intensive": os.environ.get("TOP_INTENSIVE",""),
+  "top_intensive": r("TOP_INTENSIVE"),
   # id:365b — relay anti-spin primitive. substantive_unaudited (FAIL-OPEN default true):
   # false iff every commit since the audit ref (relay.toml last_strong_ckpt, else the latest
   # ckpt tag) is a `relay:/fable: checkpoint` commit or touches ONLY uv.lock — i.e. there is
   # NOTHING NEW for the recurring strong-model audit (id:401c) to review. Stays true when the
   # ref cannot be resolved (never wrongly skip a real audit). The shard recurring-audit gate
   # (mechanism 1) reads it to demote a marked recurring audit with nothing to audit.
-  "substantive_unaudited": b(os.environ.get("SUBSTANTIVE_UNAUDITED","true")),
+  "substantive_unaudited": b(r("SUBSTANTIVE_UNAUDITED")),
   # work_sig: a signature STABLE across the pool OWN `relay: checkpoint` churn but changing
   # when an open item closes or a substantive commit lands. The JS-side re-dispatch circuit
   # breaker (mechanism 2) keys on it: a (repo,verdict) re-dispatched with an unchanged work_sig
   # has no new work → suppress after >3×. "" when uncomputable (the breaker treats "" as a
   # fresh signature each round = fail-open, never falsely suppresses real work).
-  "work_sig": os.environ.get("WORK_SIG",""),
+  "work_sig": r("WORK_SIG"),
   # id:9973 — deterministic demote-guard input: the count of OPEN "- [ ]" ROADMAP items
   # whose lane tag is EXACTLY "[HARD — pool]" (the ONLY pool-dispatchable HARD lane per
   # relay/references/hard-lanes.md — [HARD — meeting]/[HARD — decision gate]/[HARD — hands]
@@ -109,7 +137,7 @@ o = {
   # `hard` verdict on a repo with open_hard_pool == 0 is demoted to surfaced, since the
   # LLM shard `hard` judgment is non-deterministic and has wrongly dispatched repos whose
   # only open HARD item was [HARD — decision gate] (observed 2026-06-24).
-  "open_hard_pool": int(os.environ.get("OPEN_HARD_POOL","0") or 0),
+  "open_hard_pool": int(r("OPEN_HARD_POOL") or 0),
 }
 print(json.dumps(o))
 '

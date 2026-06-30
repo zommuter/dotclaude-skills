@@ -1,5 +1,10 @@
 # Relay log <!-- merge=union; append-only — never edit or reorder past entries -->
 
+## 2026-06-30 — executor (Sonnet)
+
+Worked id:07be — fixed the `execve` overflow in `gather-repo-state.sh`'s `emit()` function. The old code set ~20 env vars (including the full ROADMAP content) on the `python3` command line; a ROADMAP larger than `MAX_ARG_STRLEN` (128KB) caused "Argument list too long". Fix mirrors the classify-repo.sh (id:3f0f) pattern: write all field values via `printf '%s'` to per-key files under `mktemp -d`, pass only the tmpdir path as `EMIT_DIR` to python, and have python read values with `open()`. The trap uses `trap "rm -rf '$_blobdir'" EXIT` (definition-time expansion) so `set -u` does not fire when it runs after the function returns. Output verified byte-identical against the old version on `~/src/zelegator`. Full suite 131 pass / 0 fail / 0 expected-red.
+Friction: one iteration to fix `set -u` interaction with `local` + deferred trap expansion.
+
 ## 2026-06-12 13:28 — reviewer (claude-fable-5)
 
 Handoff pilot C1-C5: fresh CLAUDE.md (relay contract v1) + ARCHITECTURE.md; ROADMAP.md with 5 ROUTINE (3b02, 44ba, 1ec1, 32d6, 2520) + 2 HARD (de9c done, 3346 gated); zero-dep test harness with 5 verified-red specs; 3 @manual BDD features; HARD de9c executed: append.sh scan-ids + ROADMAP token ledger, orphan-scan union-read, classify RELAY class. 8 REVIEW_ME entries.
