@@ -1025,3 +1025,8 @@ review: relay-ckpt-20260629-1409..HEAD (39 commits incl. d097 zkm-B-topology, or
 ## 2026-06-30 12:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review 20260630: c6c8/a7a3 doc-only (no gaming); reverse-handoff id:a7a3 → ROADMAP [ROUTINE] + red spec; suite 125/0, lint+doctor clean, contract v6 current [id:a7a3,c6c8]
+
+## 2026-06-30 — executor (claude-sonnet-4-6)
+
+Worked id:a7a3 — fixed `ckpt-tag.sh` to degrade gracefully when `.gitattributes` is unaddable (e.g. repo `.gitignore` `.*` catch-all swallows it). Now stages `.gitattributes` tolerantly (warns to stderr on failure, does not abort), then always stages `RELAY_LOG.md` and commits. All 4 test assertions in `test_ckpt_gitattributes_degrade.sh` green; full suite 126/0 green.
+Friction: none.
