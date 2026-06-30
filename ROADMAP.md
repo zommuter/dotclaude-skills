@@ -10,6 +10,8 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [x] [ROUTINE] `classify-verdict.sh` verdict-PARITY — `blocked` for dirty/diverged (flip step a, id:a0b6) <!-- id:e424 --> done 2026-06-30 (strong turn): added a rank-0 `blocked` verdict so the classifier reaches the shard's dispatch-or-not parity — DIVERGED (has_upstream ∧ ahead>0 ∧ behind>0) and DIRTY non-lock-only → `blocked` (surface, never dispatch), outranking every D3 verdict. NOT blocked: uv.lock-only dirty (id:bae5 exemption) and behind-only (shard ff-merges first). classify-verdict-ONLY change (classify-repo already passes the full gather JSON through). `tests/test_classify_verdict_parity.sh` (`# roadmap:e424`) green; existing classifier tests unregressed; suite 134 green. Remaining for the flip: the relay-loop.js swap (step b) — keeps the side-effecting reconciliation guards shard-side.
+
 - [x] [ROUTINE] `decision-queue.sh` — durable file-backed human-decision-request queue (C7, DP4) <!-- id:de31 --> done 2026-06-30 (executor): implemented `relay/scripts/decision-queue.sh` with add/list/resolve subcommands; flock'd on `<queue>.lock`; JSON built via python3; `RELAY_DECISION_QUEUE` env-overridable; registered in Makefile relay_FILES/EXEC/ALLOW.
   - **Why** (meeting 2026-06-30-1523 DP4): when the loop hits a resolution it can't mechanically close (a forced lane-triage of N surface items, a "close 244b or drain?" call), it must APPEND a decision request to a durable store and keep working — never silently no-op (cases g/h). This is the "one home" (the substrate); the transport (broker vs FIFO vs file-tail) is the deferred sibling id:b444.
   - **Acceptance**:
