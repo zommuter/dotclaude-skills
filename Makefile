@@ -55,6 +55,7 @@ relay_FILES := SKILL.md \
                scripts/unpromoted-scan.sh scripts/todo-conformance.sh \
                scripts/scan-routed.sh scripts/host-gate.sh \
                scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py \
+               scripts/backtest-historical.py \
                scripts/decision-queue.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
@@ -70,6 +71,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh \
                scripts/host-gate.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py \
+               scripts/backtest-historical.py \
                scripts/decision-queue.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
@@ -85,6 +87,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh \
                scripts/host-gate.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/backtest-verdict.py \
+               scripts/backtest-historical.py \
                scripts/decision-queue.sh
 relay_LOCAL :=
 
