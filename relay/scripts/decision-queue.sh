@@ -2,9 +2,10 @@
 # decision-queue.sh — durable file-backed human-decision-request queue (id:de31)
 #
 # Subcommands:
-#   add --repo <r> --kind <k> --question <q> [--option <o>]... [--evidence <e>]
+#   add --repo <r> --kind <k> --question <q> [--option <o>]... [--evidence <e>] [--source-id <id>]
 #     Mint a unique decision id, append ONE JSON record to $RELAY_DECISION_QUEUE,
-#     print the id to stdout.
+#     print the id to stdout. --source-id records the originating ledger token (e.g. a
+#     TODO `id:XXXX`) so consumers (unpromoted-scan) can exclude a filed item.
 #   list [--repo <r>] [--all]
 #     Print matching records ONE JSON per line. Default: open only. --all: include resolved.
 #   resolve <id> --answer <a>
@@ -49,15 +50,17 @@ case "$cmd" in
     kind=""
     question=""
     evidence=""
+    source_id=""
     options=()
 
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --repo)     shift; repo="${1:-}"     ;;
-        --kind)     shift; kind="${1:-}"     ;;
-        --question) shift; question="${1:-}" ;;
-        --option)   shift; options+=("${1:-}") ;;
-        --evidence) shift; evidence="${1:-}" ;;
+        --repo)      shift; repo="${1:-}"     ;;
+        --kind)      shift; kind="${1:-}"     ;;
+        --question)  shift; question="${1:-}" ;;
+        --option)    shift; options+=("${1:-}") ;;
+        --evidence)  shift; evidence="${1:-}" ;;
+        --source-id) shift; source_id="${1:-}" ;;
         *) die "unknown flag: $1" ;;
       esac
       shift || true
@@ -72,12 +75,12 @@ case "$cmd" in
 
     # Build JSON safely with python3 — never string-concat (questions/evidence
     # can contain quotes, apostrophes, arbitrary text)
-    record="$(python3 - "$id" "$repo" "$kind" "$question" "$evidence" "$requested_at" "${options[@]+"${options[@]}"}" <<'PYEOF'
+    record="$(python3 - "$id" "$repo" "$kind" "$question" "$evidence" "$source_id" "$requested_at" "${options[@]+"${options[@]}"}" <<'PYEOF'
 import json, sys
 args = sys.argv[1:]
-id_, repo, kind, question, evidence = args[0], args[1], args[2], args[3], args[4]
-requested_at = args[5]
-options = args[6:]
+id_, repo, kind, question, evidence, source_id = args[0:6]
+requested_at = args[6]
+options = args[7:]
 rec = {
     "id": id_,
     "repo": repo,
@@ -85,6 +88,10 @@ rec = {
     "question": question,
     "options": list(options),
     "evidence": evidence,
+    # source_id: the originating ledger token (e.g. a TODO `id:XXXX`) this decision
+    # is about. Lets unpromoted-scan exclude a filed surface item from fresh backlog
+    # so `handoff` stops re-firing on it (case-g loop-breaker, id:47f1). "" when N/A.
+    "source_id": source_id,
     "requested_at": requested_at,
     "status": "open",
 }

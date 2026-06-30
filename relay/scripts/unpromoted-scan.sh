@@ -54,6 +54,10 @@ set -euo pipefail
 LOG="${UNPROMOTED_SCAN_LOG:-$HOME/.claude/logs/unpromoted-scan.log}"
 SRC_DIR="${SRC_DIR:-$HOME/src}"
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
+# Sibling decision-queue helper (id:47f1 case-g exclusion). Resolves alongside this
+# script whether run via the canonical path or the ~/.claude/skills symlink (both dirs
+# carry the sibling). Fail-open if absent.
+DQ="$(dirname "${BASH_SOURCE[0]}")/decision-queue.sh"
 
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s unpromoted-scan.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
@@ -123,6 +127,29 @@ scan_repo() {
   local roadmap_content=""
   [[ -f "$roadmap" ]] && roadmap_content="$(cat "$roadmap")" || true
 
+  # case-g loop-breaker (id:47f1): a surface item already filed to the decision-queue
+  # for OPEN human lane-triage is no longer fresh un-promoted backlog — exclude it so
+  # `handoff` stops re-firing on it every round. `decision-queue.sh list` emits open
+  # records only; we collect their `source_id` tokens. Fail-open: a missing helper or
+  # empty queue simply excludes nothing (never a false-clean — the scan still reports).
+  local filed_ids=" "
+  if [[ -x "$DQ" ]]; then
+    filed_ids="$($DQ list --repo "$name" 2>/dev/null | python3 -c '
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        sid = json.loads(line).get("source_id", "")
+    except json.JSONDecodeError:
+        continue
+    if sid:
+        print(sid)
+' | tr "\n" " " || true)"
+    filed_ids=" $filed_ids "
+  fi
+
   local repo_findings=0 line token disposition title
   while IFS= read -r line; do
     # Exempt intentional non-items (consistent with todo-conformance.sh's exempt()): a line
@@ -143,6 +170,8 @@ scan_repo() {
     fi
     # Twin = the id appears anywhere in ROADMAP.md (same correlation as --promotion).
     grep -qF "id:$token" <<<"$roadmap_content" && continue
+    # Already filed for OPEN human lane-triage → not fresh backlog (case-g, id:47f1).
+    [[ "$filed_ids" == *" $token "* ]] && { log "repo=$name filed=$token"; continue; }
 
     # Disposition: an executable lane tag means directly handoff-promotable; anything
     # else (untagged, [HARD — meeting]/[HARD — hands], blocked) SURFACES for triage.

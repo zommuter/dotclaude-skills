@@ -73,6 +73,28 @@ leave genuinely design-judgment ones as TODO/`/meeting` candidates (same triage 
 review §5b). Add/refresh the single TODO.md summary line. Commit
 `relay(handoff): C2 roadmap`.
 
+**Surface lane-triage — the "below" for `surface` items (id:47f1, case-g loop-breaker).**
+`surface`-disposition items (untagged / `[HARD — meeting|hands]`) are NOT auto-promotable —
+they need a *lane decision* a handoff cannot make. The failure this fixes (truncocraft
+case-g, 2026-06-30): handoff "lane-triaged" them by silently doing nothing, so `unpromoted-scan`
+re-counted them every round and the classifier re-emitted `handoff` forever (a no-op loop).
+**Do not swallow them — FILE each surface item to the durable decision-queue** so the human
+lane-triages it out-of-band and the loop stops re-firing:
+
+```bash
+relay/scripts/decision-queue.sh add --repo <name> --kind lane-triage \
+  --question "Assign a lane to TODO id:<token>: <title>" \
+  --source-id <token>
+```
+
+The `--source-id <token>` is load-bearing: `unpromoted-scan.sh` excludes a token with an
+OPEN queue record (id:47f1), so a filed item drops out of fresh backlog and `handoff` stops
+re-firing on it; once the human `resolve`s the record (assigns a lane), the item resurfaces
+for promotion. File one record per surface item (idempotent in practice — a token already
+filed is already excluded, so a re-run that re-derives the same surface set sees it gone).
+**A handoff that ends with surface items neither promoted nor filed is the case-g no-op —
+the run is NOT complete.**
+
 **Author-then-run split for scriptable `[HARD — hands]` items (id:e175, meeting 2026-06-30).**
 A hands item is often *(an authorable artifact) + (a thin on-device run)* — e.g. write a
 systemd `.service`/`.path`/`.timer` (in-repo, authorable) then `systemctl --user` enable
