@@ -1113,3 +1113,7 @@ id:5eb3 + id:5ac6 SHIPPED — implement the two classifier-flip prerequisites fr
 ## 2026-06-30 23:41 — reviewer (claude-opus-4-8)
 
 id:5eb3 case-b→human + mechanical surface-filer; id:5ac6 INTENSIVE flag+invariant+fail-closed dispatch guard (SAFETY)
+
+## 2026-07-01 14:48 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified id:0175 (routed:82e3) quota-gate fixes genuine — credential egress removed, --once stopReason guarded, seven_day_sonnet optional; 146 tests green, gaming-scan clean [id:0175]
