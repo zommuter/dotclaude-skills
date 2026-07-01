@@ -158,13 +158,18 @@ run_expect_env "per-bucket: SEVEN_DAY_SONNET=0.50, sonnet=55% → exit 1" 1 "REL
 make_cache 85 55 55
 run_expect "per-bucket: no override → default 0.90 unchanged (55% all pass) → exit 0" 0 --tier strong
 
-# ── Self-refresh of a stale cache (unattended background pools) ────────────────
-# Static guard: the stale path attempts an /api/oauth/usage refresh (under flock) before
-# giving up, and is gated on a token from USAGE_CREDS (so tests stay hermetic).
-grep -q 'api/oauth/usage' "$SCRIPT" || fail "quota-stop.sh stale path does not self-refresh from /api/oauth/usage"
-grep -q 'USAGE_CREDS' "$SCRIPT" || fail "quota-stop.sh self-refresh not gated on USAGE_CREDS token"
-grep -q 'flock -x -w 10 8' "$SCRIPT" || fail "quota-stop.sh self-refresh not serialized under flock"
-pass "stale-cache self-refresh present (flock'd, USAGE_CREDS-gated)"
+# ── No pool-side credential/API access (id:0175 / routed:82e3) ─────────────────
+# Regression guard (inverts the old "self-refresh present" assertion): this gate runs inside
+# the auto-mode relay pool, where reading the OAuth token + curling /api/oauth/usage is a
+# credential-egress shape the permission classifier denies → the agent dies → the pool
+# false-stops on round 1. The pool-side gate must therefore NEVER touch the token or hit the
+# API; the foreground statusline is the sole token owner. A stale cache is resolved by the
+# stale-but-safe margin check + burn-rate extrapolation (no network, no credential).
+grep -q 'api/oauth/usage'      "$SCRIPT" && fail "quota-stop.sh must not call /api/oauth/usage (credential egress; statusline owns refresh)"
+grep -q 'accessToken'          "$SCRIPT" && fail "quota-stop.sh must not read the OAuth accessToken"
+grep -q 'Authorization: Bearer' "$SCRIPT" && fail "quota-stop.sh must not send a Bearer token"
+grep -q 'USAGE_CREDS'          "$SCRIPT" && fail "quota-stop.sh must not reference USAGE_CREDS (no pool-side credential path)"
+pass "no pool-side credential/API access (statusline is sole token owner)"
 
 # ── Time-decaying 7-day cap (RELAY_QUOTA_DECAY_7D, autonomous relay) ───────────
 # Cache with a seven_day.resets_at; cap interpolates 0.70 (window open) → 0.10 (reset).
