@@ -1149,3 +1149,7 @@ fix(id:4da4): classify execute-precision — actionable-routine gate + primary-l
 ## 2026-07-01 23:17 — reviewer (claude-fable-5)
 
 Fable catch-up review 2110..9f32043: 4 substantive commits clean (ed2e/2ec4/4da4-pt2), anomalies root-caused → 8e3e/0a3b/6e02
+
+## 2026-07-01 23:19 — reviewer (claude-fable-5)
+
+meeting-skill deep audit: 8 findings (3 MED b767/123d/e32a), concurrency+allowlist CLEAN; 0a3b one-time correction ticked
