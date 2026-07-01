@@ -1121,3 +1121,7 @@ review: verified id:0175 (routed:82e3) quota-gate fixes genuine — credential e
 ## 2026-07-01 16:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified backtest expected-policy-delta bucket (candidate-worse 0/762, 0 crashes) + id:9d2b triage note genuinely green; 1 ADDED_SKIP flag adjudicated legitimate; suite 147 green [id:0e57,9d2b]
+
+## 2026-07-01 19:27 — reviewer (claude-opus-4-8, handoff)
+
+handoff: staged id:5987 [ROUTINE] reconcile-repo.sh with a behavioral RED spec (test_reconcile_repo.sh, 5 real-fixture scenarios) — the side-effecting git island of the a0b6 classifier-flip step (b). Executor picks up 5987 next; a0b6 engine swap stays supervised (gated on 5987 green).
