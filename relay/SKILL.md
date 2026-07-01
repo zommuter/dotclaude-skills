@@ -267,7 +267,13 @@ integration invariants.
    worktree branch into the integration branch → `scripts/ckpt-tag.sh <repo-path> -m
    "<summary>" -l "reviewer (<model>)"` → ONE push via
    `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only` → `git worktree prune` →
-   update relay.toml (`status`, `last_ckpt`/`last_review`). A child that fails
+   update relay.toml. `ckpt-tag.sh` itself now syncs `last_ckpt` (and, for a strong-model
+   label, `last_strong_ckpt`/`strong_model`) via the flock'd `relay-state-write.sh` (id:0a3b
+   — before this, supervised-session checkpoints left the watermark stale and the pool
+   re-dispatched duplicate strong reviews, 2026-07-01); you still set the fields it does NOT
+   own — `status`, `last_review`/`handoff_date`, `fable_rechecked` — via
+   `~/.claude/skills/relay/scripts/relay-state-write.sh toml-set <repo> <key> <value>`
+   (NEVER hand-edit relay.toml). A child that fails
    `contract_met` is NOT merged; its worktree is held and listed as a HANDBACK.
    **Release the lease (id:0902)** run-scoped when done with the repo — whether merged OR
    handed back: `~/.claude/skills/relay/scripts/claim.sh release <repo> --run relay-<mode>-$CLAUDE_SESSION_ID`

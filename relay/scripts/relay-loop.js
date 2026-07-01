@@ -1403,9 +1403,21 @@ async function integrate(unit, report) {
   // id:de69 — the item id(s) this unit worked, for the durable record (checkpoint message +
   // RELAY_STATUS + integrate event). Prefer the child's explicit report.worked_ids; fall back to
   // a review's verified_green∪reopened, then to a known dispatch-time id (injected/hard item).
-  let workedIds = Array.isArray(report.worked_ids) ? report.worked_ids.filter(Boolean) : []
+  // Children sometimes return a JSON-STRING ("[]", or '["ab12"]') where the report schema
+  // expects an array; spreading a string iterates its CHARACTERS, which wrote ids:["[","]"]
+  // into integrate events (observed 4× in run relay-20260701-202806-14640). Coerce: array →
+  // itself; a string that parses to a JSON array → that array; anything else → [] (loud "?"
+  // is worse than empty here — the id suffix is telemetry, never authority).
+  const asIdArray = (v) => {
+    if (Array.isArray(v)) return v.filter(Boolean).map(String)
+    if (typeof v === 'string') {
+      try { const p = JSON.parse(v); return Array.isArray(p) ? p.filter(Boolean).map(String) : [] } catch { return [] }
+    }
+    return []
+  }
+  let workedIds = asIdArray(report.worked_ids)
   if (!workedIds.length && unit.verdict === 'review') {
-    workedIds = [...new Set([...(report.verified_green || []), ...(report.reopened || [])])].filter(Boolean)
+    workedIds = [...new Set([...asIdArray(report.verified_green), ...asIdArray(report.reopened)])]
   }
   if (!workedIds.length && (unit.inject_item || unit.item)) workedIds = [unit.inject_item || unit.item]
   const idSuffix = workedIds.length ? ` [id:${workedIds.join(',')}]` : ''
@@ -1417,12 +1429,15 @@ async function integrate(unit, report) {
 1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; the discovery step already fast-forwarded behind-only repos.)
 2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
    On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
+   "Already up to date" (id:8e3e — a ZERO-COMMIT ${unit.verdict} branch, tip already an ancestor of main): the child audited its window and had nothing to change. That IS a completed unit, NOT a "duplicate dispatch" — do NOT return merged=false (a handback here leaves the audited window UNCLOSED, so discovery re-dispatches the same strong review every round; observed 3× on 2026-07-01). Capture reviewedTip = git -C ${unit.path} rev-parse ${report.branch}, then proceed to step 3 WITH the extra flag \`-c <reviewedTip>\` so the checkpoint tag anchors on the commit the child actually audited — NEVER on current main HEAD, which may contain commits that landed after dispatch and were NOT audited.
 3. ~/.claude/skills/relay/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}${idSuffix}" -l "${label}"
+   (Append \`-c <reviewedTip>\` per step 2 iff the merge said "Already up to date".)
    It prints the new tag name — capture it as ckptTag. (The trailing [id:…] tags the durable RELAY_LOG checkpoint with the worked item id(s), id:de69.)
 4. ~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only ${unit.path}
    pushStatus = "pushed" on success, otherwise the error summary.
 5. git -C ${unit.path} worktree remove --force ${report.worktree} && git -C ${unit.path} branch -d ${report.branch}
    (--force is required and safe here: the merge+tag+push above already integrated the committed branch work, so the only thing --force discards is incidental untracked build artifacts the child left behind, e.g. a uv.lock from running tests. Without --force, worktree remove fails on any untracked file and the worktree+branch silently orphan in ~/.cache/relay/worktrees/ — id:d187.)
+   DESTRUCTIVE-CLEANUP SCOPE (id:6e02): you may remove ONLY the two artifacts named above — ${report.worktree} and ${report.branch}, this unit's own. NEVER delete, prune, or "tidy up" any OTHER relay/* branch or worktree, no matter how redundant it looks: a zero-commit branch whose tip is an ancestor of main is NOT proof of an already-integrated leftover — it is exactly what a LIVE parallel child's freshly-created worktree looks like, and the repo lease was already released in step 0 so a foreign child may legitimately hold one (on 2026-07-01 an integrator swept a parallel review child's branch+worktree mid-run on this inference). The same scope applies on EVERY abort/handback path: return merged=false and leave ALL worktrees and branches on disk — including this unit's own.
 6. Update ~/.config/relay/relay.toml for [repos.${unit.repo}] via the flock'd single-writer (id:ebfb step 2) — for EACH field run \`~/.claude/skills/relay/scripts/relay-state-write.sh toml-set ${unit.repo} <key> <value>\` (value VERBATIM: quote strings e.g. '"<tag>"', bare for bool e.g. false; NEVER hand-edit relay.toml): set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.${isStrong ? `
 6b. STRONG checkpoint — this is a ${unit.verdict} unit produced by the strong model (${STRONG_MODEL}). ${isFableRecheck ? `This session's strong tier is REAL Fable, and this is a review — it IS the optional Fable recheck (id:e030 consume side). Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = "<today's date, ISO>" (the recheck just happened — mark it done, do NOT set false).` : `Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = false (an Opus-standin/strong checkpoint that still invites an optional Fable recheck).`} These keys survive a LATER executor (sonnet) checkpoint that overwrites last_ckpt — so the pending optional Fable recheck stays visible even when masked. Write all three via the same flock'd relay-state-write.sh toml-set helper (overwrite if present; fable_rechecked is a BARE value: false, or '"<ISO date>"' when rechecked). Change ONLY this repo's block.` : `
 6b. EXECUTOR checkpoint — this is an execute unit (sonnet). Do NOT touch last_strong_ckpt, strong_model, or fable_rechecked: an executor checkpoint must never clear the pending Fable-bonus-recheck queue (that is exactly the masking bug id:e030 fixes). Leave those keys untouched.`}

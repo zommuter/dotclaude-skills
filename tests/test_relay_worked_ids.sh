@@ -34,9 +34,15 @@ grep -q "worked_ids: { type: 'array'" "$JS" || bad "(b) REPORT_SCHEMA missing wo
 ok "(b) REPORT_SCHEMA + child return instructions include worked_ids"
 
 # (b) integrator computes workedIds with fallbacks (explicit → review verified/reopened → dispatch id).
-grep -q "let workedIds = Array.isArray(report.worked_ids)" "$JS" || bad "(b) integrator does not read report.worked_ids"
-grep -qF 'workedIds = [...new Set([...(report.verified_green || []), ...(report.reopened || [])])]' "$JS" \
+# (Reconciled 2026-07-01 with the asIdArray coercion fix: children sometimes returned a
+# JSON-STRING where the schema expects an array — spreading a string iterates characters and
+# wrote ids:["[","]"] into integrate events, run relay-20260701-202806-14640. Same resolution
+# order: explicit worked_ids → review verified_green∪reopened → dispatch-time id.)
+grep -q "let workedIds = asIdArray(report.worked_ids)" "$JS" || bad "(b) integrator does not read report.worked_ids"
+grep -qF 'workedIds = [...new Set([...asIdArray(report.verified_green), ...asIdArray(report.reopened)])]' "$JS" \
   || bad "(b) no review verified-green∪reopened fallback for worked_ids"
+grep -q "const asIdArray = (v) => {" "$JS" && grep -q "return Array.isArray(p) ? p.filter(Boolean).map(String) : \[\]" "$JS" \
+  || bad "(b) missing asIdArray string-coercion guard (ids:[\"[\",\"]\"] regression)"
 grep -q "const idSuffix = workedIds.length ?" "$JS" || bad "(b) no idSuffix built for the checkpoint message"
 ok "(b) integrator resolves workedIds (explicit → review verified/reopened → dispatch-time id)"
 
