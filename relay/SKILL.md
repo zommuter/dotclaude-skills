@@ -375,13 +375,20 @@ repo by default** (`git rev-parse --show-toplevel`, consistent with the `review`
 flip above) and does NOT define new work — it reuses the existing executor/review/human
 modes. Decide ONE route and take it:
 
-1. **Open `[ROUTINE]` items in `ROADMAP.md`** → run as **`/relay executor`** (load the lean
-   executor contract, work the routine items). Autonomous — do NOT ask.
+1. **Open executor-ACTIONABLE `[ROUTINE]` items in `ROADMAP.md`** → run as **`/relay
+   executor`** (load the lean executor contract, work the routine items). Autonomous — do
+   NOT ask. "Executor-actionable" is the `actionable_routine_open` predicate from
+   `classify-repo.sh` (the single source — do not re-derive it): primary-lane `[ROUTINE]`,
+   NOT `@manual`/human-gated, NOT `🚧`/`BLOCKED on`-gated. An `@manual`-only or blocked
+   `[ROUTINE]` set does NOT take this route (id:9014).
 2. **Else, unaudited commits since the last relay checkpoint tag** (`git tag -l
    'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`, then commits after it) → run
    **`/relay review`** on this cwd repo (the per-repo default). Autonomous — do NOT ask.
-2a. **Else, a DRAINED ROADMAP that still has open TODO backlog** — when `ROADMAP.md` has
-   **no open `- [ ]` items** (routes 1–2 found nothing), do NOT conclude "drained": run
+2a. **Else, an EFFECTIVELY-DRAINED ROADMAP that still has open TODO backlog** — when
+   `ROADMAP.md` has **no executor-actionable open `- [ ]` item** — zero open boxes OR only
+   `@manual`/human-lane/`🚧`-blocked boxes remain (**effectively drained**, id:9014; the
+   `roadmap_actionable_open == 0` predicate from `classify-repo.sh`) — do NOT conclude
+   "drained / needs human": run
    `relay/scripts/unpromoted-scan.sh` (id:2dea) and check the open `TODO.md` backlog.
    Promoting TODO→ROADMAP is exactly handoff C2's job (the 2026-06-25 truncocraft miss: a
    fully-`[x]` ROADMAP hid five open TODO items, so the repo read as drained for days). If
@@ -390,9 +397,9 @@ modes. Decide ONE route and take it:
    `promote` (executable lane already tagged → directly promotable), `surface` (untagged /
    `[HARD — meeting]` → handoff C2 lane-triages it, **never auto-promote with a guessed
    lane**), `untracked` (an open checkbox with no `<!-- id -->` — the favicon-class gap;
-   mint an id via `append.sh new-id` first). NOTE: when ROADMAP still has open items the
-   un-promoted list is normal design-ledger backlog, not a routing signal — this route
-   fires only on a genuinely drained ROADMAP.
+   mint an id via `append.sh new-id` first). NOTE: when ROADMAP still has executor-actionable
+   open items the un-promoted list is normal design-ledger backlog, not a routing signal —
+   this route fires only on a genuinely (effectively-)drained ROADMAP.
 3. **Else, a judgment box truly needing a human** — open `REVIEW_ME.md` `- [ ]` boxes,
    open `@manual` scenarios, or genuinely-chewy design — → route to **`human`** (the
    cross-repo human-backlog triage) or **`/meeting`**. This is the ONLY route that

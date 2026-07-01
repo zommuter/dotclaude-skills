@@ -16,13 +16,19 @@ fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -x "$SH" ]] || fail "relay-doctor.sh not executable"
 
-FIX="$(mktemp -d)"; TOML="$(mktemp)"; STUB="$(mktemp)"; UNIT="$(mktemp)"
-trap 'rm -rf "$FIX" "$TOML" "$STUB" "$UNIT"' EXIT
+FIX="$(mktemp -d)"; TOML="$(mktemp)"; STUB="$(mktemp)"; UNIT="$(mktemp)"; INBOX="$(mktemp)"
+trap 'rm -rf "$FIX" "$TOML" "$STUB" "$UNIT" "$INBOX"' EXIT
 git -C "$FIX" init -q
 git -C "$FIX" config user.email t@e.st; git -C "$FIX" config user.name t
 printf '# Roadmap\n\n## Items\n' > "$FIX/ROADMAP.md"; printf '# TODO\n' > "$FIX/TODO.md"
 git -C "$FIX" add -A; git -C "$FIX" commit -qm init
 printf '' > "$TOML"; export RELAY_TOML="$TOML"
+# Hermeticity (defect fix 2026-07-02, no roadmap item): relay-doctor's inbox dead-letter
+# section (scan-routed.sh) defaults to the REAL ~/.claude/todo-inbox.md; with the empty
+# fixture RELAY_TOML its routed targets can never resolve, so any real inbox traffic made
+# case (3)'s strict-clean assertion fail (observed: 4 UNRESOLVED → --strict exit 1).
+# Point it at an empty inbox so the only issues the doctor can see come from the fixture.
+printf '' > "$INBOX"; export RELAY_INBOX="$INBOX"
 
 # Stub classify-repo: ignore args, emit the crafted unit JSON in $UNIT (its --emit unit output).
 cat > "$STUB" <<STUBEOF
