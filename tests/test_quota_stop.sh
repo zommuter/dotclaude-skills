@@ -53,10 +53,23 @@ if [[ "$rc" -eq 0 ]]; then pass "stale cache (>10 min) + no creds + low util →
 # Restore fresh mtime for subsequent tests
 touch "$CACHE"
 
-# ── Missing key in JSON ────────────────────────────────────────────────────────
-
+# ── Absent per-model weekly sub-bucket (id:0175 / routed:82e3) ─────────────────
+# As of 2026-06-30 the usage API stopped exposing per-model weekly sub-limits: seven_day_sonnet
+# (and seven_day_opus, etc.) are null; only the consolidated weekly_all / seven_day bucket
+# remains. An absent seven_day_sonnet therefore means "no such limit" — the general seven_day
+# bucket governs — NOT a corrupt cache. The sonnet tier must skip the absent sub-bucket and
+# gate on seven_day + five_hour, exactly as it did when both are low here.
 echo '{ "five_hour": { "utilization": 50 }, "seven_day": { "utilization": 50 } }' > "$CACHE"
-run_expect "missing seven_day_sonnet key (sonnet tier) → exit 2" 2 --tier sonnet
+run_expect "absent seven_day_sonnet + low seven_day/five_hour (sonnet) → skip → exit 0" 0 --tier sonnet
+
+# Fail-safe preserved: seven_day is a REQUIRED bucket, so its absence still stops (exit 2).
+echo '{ "five_hour": { "utilization": 50 }, "seven_day_sonnet": { "utilization": 50 } }' > "$CACHE"
+run_expect "absent seven_day (required) → still fail-safe exit 2" 2 --tier sonnet
+
+# The general bucket still gates when the sub-bucket is absent: seven_day at/above threshold
+# stops even though seven_day_sonnet is missing.
+echo '{ "five_hour": { "utilization": 50 }, "seven_day": { "utilization": 95 } }' > "$CACHE"
+run_expect "absent seven_day_sonnet but seven_day 95% ≥ 90% → exit 1" 1 --tier sonnet
 
 echo '{ "five_hour": { "utilization": 50 }, "seven_day": { "utilization": 50 }, "seven_day_sonnet": { "utilization": 50 } }' > "$CACHE"
 
