@@ -36,6 +36,35 @@ TODO id:319b / id:8567) — were resolved and pruned; latest prune by the
   STALE VALUES THEMSELVES still need a one-time correction in ~/.config/relay/relay.toml
   (orchestrator's file — this review did not edit it): last_ckpt should be the latest
   real tag once this review is checkpointed.
+- [ ] id:dff8 — JUDGMENT in the red spec (2026-07-02 handoff): the git-lock-push id:aa93
+  dirty-guard fix is specced as "UNTRACKED-only porcelain → proceed; ANY tracked
+  modification → keep refusing" (rationale: `--autostash` never stashes untracked paths,
+  so they carry no stash-reapply data-loss risk; a rebase that would overwrite one aborts
+  loudly on its own). Consequence: `~/.claude`'s TRACKED runtime churn (`.last-cleanup`,
+  `history.jsonl`) will STILL refuse — that residual half is claude-diary's gitignore
+  decision (TODO dff8 option (a)), deliberately out of scope here. Confirm the split.
+- [ ] id:482d — JUDGMENT (2026-07-02 handoff): the STOP-sentinel item was downgraded to
+  OBSERVE ("reproduce the timing in a fixture before building anything"), but the spec
+  mechanizes instead: prelude step 8's check/countdown/consume becomes ONE atomic
+  `stop-sentinel.sh` call + a timestamped consume log. Rationale: the delay class IS the
+  LLM performing the `rm` at an uncontrolled point in its turn — one script call
+  dissolves the variance structurally (prefer dissolving over observing a hazard we
+  already understand), and the consume log still delivers the observe-instrumentation.
+  Confirm mechanize-over-observe was the right call.
+- [ ] id:fb7f — JUDGMENT (2026-07-02 handoff): the `unpromoted-scan primary_lane` fix
+  fixtures require an item with NO genuine lane tag to read `surface` even when BARE
+  (un-backtick'd) `[ROUTINE]` appears mid-body (the b8ae case). The suggested mechanism
+  ("tag must sit immediately after the bold-title close, first-tag fallback for non-bold
+  items") is ONE defensible interpretation — the fixtures are the contract, the mechanism
+  is the executor's choice. Sanity-check the fixtures don't over-constrain (e.g. a
+  legitimate tag placed after a long un-bolded title).
+- [ ] handoff 2026-07-02 lane-triage + one evidence-based close — confirm: (a) scan-mislabeled
+  untagged items lane-tagged in TODO.md: 33c2 (owner-ratification contract change), a505
+  (auth-queue design qs), 7b23 (gated /batch audit), d0da (tag-taxonomy, sequenced after
+  72cc/962a) → `[HARD — meeting]`; b8ae (verify review→execute chaining = observe the next
+  qualifying pool run) → `[HARD — hands]`. (b) id:22ef closed as overtaken-by-events with
+  evidence (LLM discovery shard deleted by a0b6; residual discovery agents pinned haiku at
+  relay-loop.js:733/849) — reopen if you think a residual "pin it cheap" half survives.
 - [ ] id:6e02 — LIVE-worktree sweep incident (2026-07-01 ~22:56): this review's own
   explicitly-created worktree + branch were deleted ~1 min after creation, mid-test-run,
   WHILE ~/.config/relay/claims/dotclaude-skills.json held a live claim (22:55:01). The
