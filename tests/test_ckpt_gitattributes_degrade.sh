@@ -33,7 +33,7 @@ git -C "$work" commit -q -m init
 
 # ckpt-tag.sh must NOT abort just because .gitattributes can't be staged.
 set +e
-tag="$("$CKPT" "$work" -m "degrade summary paragraph" -l "reviewer (test)" 2>"$tmpdir/err")"
+tag="$(FABLES_CONFIG="$tmpdir/cfg" "$CKPT" "$work" -m "degrade summary paragraph" -l "reviewer (test)" 2>"$tmpdir/err")"   # FABLES_CONFIG: keep the id:0a3b toml-sync away from the real ~/.config/relay
 rc=$?
 set -e
 
