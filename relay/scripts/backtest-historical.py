@@ -43,12 +43,18 @@ whether the classifier diverges from the shard. Divergence where the shard was
 WRONG is the CORRECT outcome (classifier-better). The headline quality signal is
 'candidate-classifier-worse' count (target: 0).
 
-THREE DIVERGE BUCKETS (non-agree rows):
+FOUR DIVERGE BUCKETS (non-agree rows):
   1. reconstruction-gap     — a signal we provably failed to reconstruct
                               (legacy-lane-vocab, tag-date unavailable, etc.)
-  2. classifier-better      — classifier found higher-priority work than the shard
+  2. expected-policy-delta  — the classifier's LOWER-priority verdict is the correct
+                              deterministic output of a decided mechanical policy rule
+                              (id:4d8e cluster) the LLM shard never implemented; keyed to
+                              the reconstructed precondition, so a script bug that emits a
+                              verdict WITHOUT its precondition stays candidate-worse. See
+                              match_policy_delta(). Triaged 2026-07-01 (DP7 flip gate).
+  3. classifier-better      — classifier found higher-priority work than the shard
                               (shard missed it; divergence is correct behaviour)
-  3. candidate-classifier-worse — classifier missed higher-priority work;
+  4. candidate-classifier-worse — classifier missed higher-priority work;
                               LOUDLY flagged — these are the only rows that matter
 
 Usage:
@@ -434,11 +440,38 @@ def run_classify_verdict(state_dict):
 # Category derivation — 3 buckets
 # ---------------------------------------------------------------------------
 
-def derive_category(verdict, event_mode, reconstruction_gap_flags):
-    """Derive diverge category from verdict, event_mode, and gap flags.
+# Decided mechanical policy rules the LLM shard never implemented (id:4d8e cluster). When the
+# classifier's LOWER-priority verdict is the CORRECT deterministic output of one of these rules
+# for the reconstructed PRECONDITION, the divergence from the shard is an intended policy delta
+# — not a regression. Triaged 2026-07-01 over the 109 candidate-worse rows: all resolved to one
+# of these four (docs/meeting-notes/2026-06-30-1523 DP7 flip gate). Keyed to the precondition on
+# purpose: a script bug that emits the verdict WITHOUT its precondition (e.g. 'human' while
+# promote>0) does NOT match here and stays candidate-classifier-worse (LOUD) — the quality
+# signal is preserved for genuine bugs; only "the mechanical rule fired correctly" is whitelisted.
+def match_policy_delta(verdict, st):
+    """Name the decided policy rule that explains this diverge, or None. `st` is the row's
+    reconstructed state dict."""
+    up = st.get("unpromoted", {})
+    promote = up.get("promote", 0)
+    surface = up.get("surface", 0)
+    if verdict == "human" and promote == 0 and surface > 0:
+        return "id:5eb3 surface-only→human"          # promote==0 ∧ surface>0: mechanical file, no apex dispatch
+    if verdict == "handoff" and promote > 0:
+        return "promote>0→handoff"                    # drained ROADMAP + promotable TODO backlog → populate via handoff
+    if verdict == "review" and st.get("substantive_unaudited"):
+        return "D3 substantive-unaudited→review"      # audit unaudited commits before fresh execution
+    if verdict == "hard" and st.get("open_hard_pool", 0) > 0:
+        return "open_hard_pool→hard"                  # open [HARD — pool] work, nothing higher pending
+    return None
+
+
+def derive_category(verdict, event_mode, reconstruction_gap_flags, reconstructed):
+    """Derive diverge category from verdict, event_mode, gap flags, and reconstructed state.
 
     Returns one of:
       'reconstruction-gap'         — a provable reconstruction failure explains the diverge
+      'expected-policy-delta'      — classifier's lower-priority verdict is the correct output
+                                     of a decided mechanical policy rule the shard never had
       'classifier-better'          — classifier found higher-priority work (shard was wrong)
       'candidate-classifier-worse' — classifier may have missed higher-priority work (LOUD)
       'unknown'                    — equal rank or unmapped mode/verdict
@@ -461,6 +494,10 @@ def derive_category(verdict, event_mode, reconstruction_gap_flags):
         # If reconstruction gaps could explain the miss → gap
         if reconstruction_gap_flags:
             return "reconstruction-gap"
+        # If a decided mechanical policy rule (that the shard predated) explains the
+        # lower-priority verdict for this reconstructed precondition → intended delta
+        if match_policy_delta(verdict, reconstructed):
+            return "expected-policy-delta"
         return "candidate-classifier-worse"
 
     if v_rank < m_rank:
@@ -615,6 +652,15 @@ def main():
         if all_empty and VERDICT_RANK.get(mode, 99) < VERDICT_RANK.get("idle", 6):
             gap_flags.append("all-fields-empty")
 
+        recon = {
+            "hasRoutine":              has_routine,
+            "substantive_unaudited":   sub_unaudited,
+            "open_hard_pool":          open_hard_pool,
+            "roadmap_actionable_open": roadmap_actionable_open,
+            "unpromoted":              {"promote": promote, "surface": surface},
+        }
+
+        policy_delta_rule = None
         if verdict == mode:
             agree += 1
             agree_by_mode[mode] += 1
@@ -623,7 +669,9 @@ def main():
         else:
             diverge += 1
             note = "diverge"
-            category = derive_category(verdict, mode, gap_flags)
+            category = derive_category(verdict, mode, gap_flags, recon)
+            if category == "expected-policy-delta":
+                policy_delta_rule = match_policy_delta(verdict, recon)
             cat_counts[category] += 1
 
         rows.append({
@@ -634,14 +682,9 @@ def main():
             "note":                   note,
             "classifier_reason":      reason,
             "classifier_evidence":    evidence,
-            "reconstructed": {
-                "hasRoutine":              has_routine,
-                "substantive_unaudited":   sub_unaudited,
-                "open_hard_pool":          open_hard_pool,
-                "roadmap_actionable_open": roadmap_actionable_open,
-                "unpromoted":              {"promote": promote, "surface": surface},
-            },
+            "reconstructed":            recon,
             "category":                 category,
+            "policy_delta_rule":        policy_delta_rule,
             "reconstruction_gap_flags": gap_flags,
         })
 
@@ -672,10 +715,14 @@ def main():
         "mode":                      "historical",
         "diverge_categories": {
             "candidate_classifier_worse": cat_counts.get("candidate-classifier-worse", 0),
+            "expected_policy_delta":      cat_counts.get("expected-policy-delta", 0),
             "reconstruction_gap":         cat_counts.get("reconstruction-gap", 0),
             "classifier_better":          cat_counts.get("classifier-better", 0),
             "unknown":                    cat_counts.get("unknown", 0),
         },
+        "policy_delta_rules": dict(collections.Counter(
+            r["policy_delta_rule"] for r in rows if r.get("policy_delta_rule")
+        ).most_common()),
         "matches_shard_NOT_a_goal":  agree,
         "distribution_verdict":      dict(dist_v.most_common()),
         "distribution_event_mode":   dict(dist_m.most_common()),
@@ -696,6 +743,7 @@ def main():
     total = len(rows)
     dc = summary["diverge_categories"]
     ccw = dc["candidate_classifier_worse"]
+    epd = dc["expected_policy_delta"]
     gap = dc["reconstruction_gap"]
     better = dc["classifier_better"]
     unk = dc["unknown"]
@@ -706,10 +754,16 @@ def main():
 
     print("── DIVERGE CATEGORIES ─────────────────────────────────────────────────────")
     print(f"  candidate-classifier-worse : {ccw:4d}  ← QUALITY SIGNAL (target: 0)")
+    print(f"  expected-policy-delta      : {epd:4d}  (decided rule the shard predated; intended)")
     print(f"  reconstruction-gap         : {gap:4d}  (provable reconstruction failure)")
     print(f"  classifier-better          : {better:4d}  (shard was wrong; correct outcome)")
     print(f"  unknown                    : {unk:4d}")
     print(f"  matches-shard (NOT a goal) : {agree:4d}  [of {total} processed events]\n")
+    if summary["policy_delta_rules"]:
+        print("── EXPECTED-POLICY-DELTA by rule ──────────────────────────────────────────")
+        for rule, cnt in summary["policy_delta_rules"].items():
+            print(f"  {cnt:4d}  {rule}")
+        print()
 
     if ccw_rows:
         print("── CANDIDATE-CLASSIFIER-WORSE ROWS (investigate these) ────────────────────")
