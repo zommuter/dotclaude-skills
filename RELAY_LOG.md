@@ -1157,3 +1157,7 @@ meeting-skill deep audit: 8 findings (3 MED b767/123d/e32a), concurrency+allowli
 ## 2026-07-01 23:39 — reviewer (claude-fable-5)
 
 relay bugfix batch: 8e3e ckpt-at-reviewed-tip + 6e02 cleanup scoping + 0a3b toml sync + stale-watermark anchor; suite 158/0/0; POOL-SAFE restored
+
+## 2026-07-01 23:50 — reviewer (claude-fable-5, relay-loop)
+
+review: clean 2-commit ledger-only window (id:482d observe-downgrade + 3 archive moves); suite 158/0/0, gaming-scan + relay-doctor + lint all clean; 0 open ROUTINE [id:482d]
