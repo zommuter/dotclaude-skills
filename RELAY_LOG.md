@@ -1145,3 +1145,7 @@ FLIP COMPLETE (id:a0b6 / id:4d8e): the LLM discovery shard is replaced by the me
 ## 2026-07-01 21:10 — reviewer (claude-opus-4-8, integrate)
 
 fix(id:4da4): classify execute-precision — actionable-routine gate + primary-lane anchoring + blocked-dep exclusion. Resolves all 3 /relay --once mis-fires (yinyang-puzzle @manual→human, leAIrn2learn prose-[ROUTINE]-on-[HARD-pool]→hard, zkm-threema BLOCKED-on-dep→human). classify-verdict gates execute on actionable_routine_open (back-compat -1 fallback); primary-lane = first lane-tag beats fragile backtick-strip. Suite 151/0. State-machine investigation stays open (id:4da4).
+
+## 2026-07-01 23:17 — reviewer (claude-fable-5)
+
+Fable catch-up review 2110..9f32043: 4 substantive commits clean (ed2e/2ec4/4da4-pt2), anomalies root-caused → 8e3e/0a3b/6e02
