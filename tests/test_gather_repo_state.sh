@@ -106,6 +106,11 @@ printf 'version="0.16.0"\n' > "$r9/uv.lock"; git -C "$r9" add uv.lock; git -C "$
 j="$(lgather "$r9")"
 [[ "$(field lock_only_unaudited <<<"$j")" == "True" ]] && ok "lock-only unaudited commit → lock_only_unaudited=True (review-exempt)" || bad "lock_only_unaudited not True"
 [[ "$(field dirty_lock_only <<<"$j")" == "False" ]] && ok "lock-only committed → not dirty" || bad "dirty_lock_only wrong on clean tree"
+# id:a0b6 verdict-parity coupling: the lock-only exemption reaches classify-verdict via
+# substantive_unaudited (the field the review branch keys on), NOT lock_only_unaudited (which
+# classify-verdict never reads). Assert the coupling so the flip's verdict authority keeps its
+# review-exemption for a pure relock: lock-only unaudited ⟹ substantive_unaudited=False ⟹ NOT review.
+[[ "$(field substantive_unaudited <<<"$j")" == "False" ]] && ok "lock-only unaudited → substantive_unaudited=False (classify-verdict → not review; a0b6 parity)" || bad "substantive_unaudited leaked True on a pure relock — classify-verdict would wrongly review"
 
 # 9b: unaudited commit touching uv.lock AND a code file → NOT exempt (conservative guard).
 r9b="$TMP/lockplus"; mklockrepo "$r9b"
@@ -113,6 +118,8 @@ printf 'version="0.16.0"\n' > "$r9b/uv.lock"; echo more >> "$r9b/app.py"
 git -C "$r9b" add -A; git -C "$r9b" commit -qm "feat + relock"
 j="$(lgather "$r9b")"
 [[ "$(field lock_only_unaudited <<<"$j")" == "False" ]] && ok "uv.lock + code commit → lock_only_unaudited=False (real review)" || bad "lock_only_unaudited leaked True with a code change"
+# a0b6 parity (the other side): a uv.lock+code commit IS substantive → classify-verdict → review.
+[[ "$(field substantive_unaudited <<<"$j")" == "True" ]] && ok "uv.lock + code unaudited → substantive_unaudited=True (classify-verdict → review; a0b6 parity)" || bad "substantive_unaudited=False hid a real code change from review"
 
 # 9c: dirty tree with ONLY uv.lock modified → dirty_lock_only=True.
 r9c="$TMP/dirtylock"; mklockrepo "$r9c"
