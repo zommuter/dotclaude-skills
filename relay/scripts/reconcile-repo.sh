@@ -12,7 +12,7 @@
 #
 # Emits ONE JSON object on stdout:
 #   {"repo":"<name>","actions":[{"kind":"<k>","detail":"<...>"}],"surfaced":[{"repo","reason"}]}
-#   kind ∈ {ff-merge, diverged-surface, lock-commit, reap, park}
+#   kind ∈ {ff-merge, diverged-surface, lock-commit, reap, park, suppress}
 #
 # Env overrides (hermetic tests):
 #   RELAY_WORKTREE_BASE  default ~/.cache/relay/worktrees
@@ -66,12 +66,26 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
   fi
 
   # --- LOCK (id:bae5) --------------------------------------------------------
+  # Commit an in-place uv.lock relock when EVERY dirty path is a uv.lock (basename), covering
+  # the zkm cascade's nested plugins/*/uv.lock — not just a root uv.lock. Any non-lock dirty
+  # path leaves the tree for classify to `block`.
   porcelain="$(git -C "$path" status --porcelain)"
   if [[ -n "$porcelain" ]]; then
-    if [[ "$porcelain" == " M uv.lock" || "$porcelain" == "M  uv.lock" || "$porcelain" == "MM uv.lock" ]]; then
-      git -C "$path" add uv.lock
+    all_lock=true
+    lock_paths=()
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      p="${line:3}"                      # strip the "XY " porcelain status prefix
+      if [[ "$(basename "$p")" == "uv.lock" ]]; then
+        lock_paths+=("$p")
+      else
+        all_lock=false; break
+      fi
+    done <<< "$porcelain"
+    if [[ "$all_lock" == true && ${#lock_paths[@]} -gt 0 ]]; then
+      git -C "$path" add -- "${lock_paths[@]}"
       git -C "$path" commit -q -m "chore: refresh uv.lock — cascade relock (id:bae5)"
-      add_action "lock-commit" "committed uv.lock relock in place"
+      add_action "lock-commit" "committed uv.lock relock in place (${#lock_paths[@]} lock file(s))"
     fi
   fi
 
@@ -106,6 +120,34 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       fi
     done < <(ls -1 "$wtdir" 2>/dev/null || true)
   fi
+
+  # --- ORPHAN SUPPRESS-REDISPATCH (id:1f53) ----------------------------------
+  # Once D1 parks partial work into relay/orphan/*, do NOT re-dispatch the item's expensive
+  # session. Bind each parked orphan back to its ROADMAP item via `git show --stat` on the
+  # parked commit; if that item is still OPEN (or the binding is ambiguous), SURFACE a one-line
+  # relay-burn cost hint (which makes discover-repo.sh skip classify → no fresh dispatch). A
+  # CLOSED-item orphan does NOT suppress (stale leftover — let it classify; /relay reconcile prunes).
+  roadmap="$path/ROADMAP.md"
+  while IFS= read -r oref; do
+    [[ -n "$oref" ]] || continue
+    oid="$(git -C "$path" show --stat "$oref" 2>/dev/null | grep -oE 'id:[0-9a-f]{4}' | head -1 | sed 's/id://' || true)"
+    suppress=false; why=""
+    if [[ -n "$oid" && -f "$roadmap" ]]; then
+      if grep -qE "^[[:space:]]*- \[ \].*id:$oid" "$roadmap"; then
+        suppress=true; why="parked partial work for id:$oid still OPEN"
+      elif grep -qE "^[[:space:]]*- \[x\].*id:$oid" "$roadmap"; then
+        suppress=false   # closed → stale orphan, do not suppress
+      else
+        suppress=true; why="parked partial work for id:$oid (item not in ROADMAP — ambiguous)"
+      fi
+    else
+      suppress=true; why="parked partial work on $oref (no id binding — ambiguous)"
+    fi
+    if [[ "$suppress" == true ]]; then
+      add_action "suppress" "$why"
+      add_surfaced "suppressed re-dispatch: $why on $oref — manual /relay reconcile; cost hint: relay-burn.sh --run ${runid:-<runId>}"
+    fi
+  done < <(git -C "$path" for-each-ref --format='%(refname:short)' refs/heads/relay/orphan/ 2>/dev/null || true)
 fi
 
 ACTIONS_FILE="$actions_file" SURFACED_FILE="$surfaced_file" REPO="$repo" python3 - <<'PYEOF'

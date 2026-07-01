@@ -23,14 +23,16 @@ grep -q "DISCOVER_SHARDS" "$JS" || fail "no DISCOVER_SHARDS knob"
 # (2) a discover-prelude agent does the once-only global work.
 grep -q "label: 'discover-prelude'" "$JS" || fail "no discover-prelude agent"
 
-# (3) the CONSUMING inject.sh take + claim.sh peek run in the PRELUDE, and the SHARD prompt
-#     explicitly DELEGATES them to the prelude (running take per shard would lose/duplicate units;
-#     running peek per shard would N× the cost). Check the delegation wording, not a global count
-#     (inject.sh take legitimately also appears in 6e9d's mid-round takeInjections + comments).
+# (3) the CONSUMING inject.sh take + claim.sh peek run in the PRELUDE. The per-repo classifier
+#     is now the MECHANICAL discover-run runner (id:a0b6 flip), which does not judge or peek
+#     itself at all: it invokes discover-repo.sh --repo once per repo and its NO-FILESYSTEM-
+#     HUNTING GUARD explicitly restricts it to running ONLY that one script — so it structurally
+#     cannot re-run claim.sh peek or inject.sh take (delegation by omission + an explicit guard,
+#     replacing the old shard prompt's "do NOT run claim.sh peek yourself" wording).
 grep -q "inject.sh take EXACTLY ONCE" "$JS" || fail "prelude does not run inject.sh take exactly once"
 grep -q "claim.sh peek once" "$JS" || fail "prelude does not run claim.sh peek once"
-grep -q "do NOT run claim.sh peek yourself" "$JS" || fail "shard does not delegate claim.sh peek to the prelude"
-grep -q "handled ONCE by the PRELUDE via inject.sh take" "$JS" || fail "shard does not delegate inject.sh take to the prelude"
+grep -q "discover-repo.sh --repo" "$JS" || fail "runner does not invoke discover-repo.sh --repo per repo"
+grep -q "NO-FILESYSTEM-HUNTING GUARD" "$JS" || fail "runner prompt does not restrict itself to ONLY discover-repo.sh (would re-run peek/take itself)"
 
 # (4) shards fan out in PARALLEL over round-robin chunks, with a per-shard schema.
 grep -q "discover-shard" "$JS" || fail "no discover-shard classifiers"

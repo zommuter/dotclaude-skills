@@ -115,8 +115,10 @@ grep -q "id:9973" "$JS" \
   || bad "id:9973: no id:9973 marker in relay-loop.js (HARD-pool demote-guard rationale missing)"
 grep -q "open_hard_pool: { type: 'number' }" "$JS" \
   || bad "id:9973: DISCOVER_SCHEMA does not declare unit.open_hard_pool — the JS guard's u.open_hard_pool is always undefined (dead guard)"
-grep -q "open_hard_pool per repo" "$JS" \
-  || bad "id:9973: shard prompt does not instruct copying open_hard_pool onto the unit — the value never reaches the JS guard"
+# The old shard prompt's "copy open_hard_pool per repo" instruction was mechanized:
+# classify-repo.sh's --emit unit mode now copies it onto the unit verbatim.
+grep -q '"open_hard_pool": open_hard_pool,' "$SRC_DIR/relay/scripts/classify-repo.sh" \
+  || bad "id:9973: classify-repo.sh does not copy open_hard_pool onto the unit — the value never reaches the JS guard"
 grep -q "HARD-pool demote" "$JS" \
   || bad "id:9973: no JS-side HARD-pool demote block in relay-loop.js"
 # The guard fires only on the `hard` verdict with open_hard_pool==0.

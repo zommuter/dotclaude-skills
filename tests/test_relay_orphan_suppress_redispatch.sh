@@ -5,32 +5,32 @@
 # OPEN, NOT dispatch a fresh expensive session for it — instead surface ONE line with a best-effort
 # `relay-burn.sh --run <runId>` cost hint. A CLOSED-item orphan does NOT suppress. Ambiguous
 # binding defaults to suppress (a glance is cheaper than repeating an expensive session). No new
-# manifest — the relay/orphan/* refs ARE the registry. Static-structural checks on relay-loop.js.
+# manifest — the relay/orphan/* refs ARE the registry. Static-structural checks: this D3 logic
+# was mechanized out of the old discovery prompt into reconcile-repo.sh (id:a0b6 flip).
 
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-JS="$SRC_DIR/relay/scripts/relay-loop.js"
+JS="$SRC_DIR/relay/scripts/reconcile-repo.sh"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
-[[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+[[ -f "$JS" ]] || fail "reconcile-repo.sh not found at $JS"
 
 # (1) the D3 marker is present.
-grep -q "id:1f53" "$JS" || fail "no id:1f53 (D3 suppress-redispatch) marker in relay-loop.js"
+grep -q "id:1f53" "$JS" || fail "no id:1f53 (D3 suppress-redispatch) marker in reconcile-repo.sh"
 
 # (2) discovery binds a parked orphan back to its ROADMAP item via git show --stat.
 grep -Eq "show --stat" "$JS" \
-  || fail "discovery does not bind a parked orphan to its ROADMAP item via 'git show --stat'"
+  || fail "reconcile-repo.sh does not bind a parked orphan to its ROADMAP item via 'git show --stat'"
 
 # (3) a still-OPEN bound item suppresses fresh dispatch (don't repeat the expensive session).
 grep -Eqi "suppress" "$JS" \
-  || fail "discovery does not suppress fresh dispatch of an item with parked partial work"
+  || fail "reconcile-repo.sh does not suppress fresh dispatch of an item with parked partial work"
 
 # (4) the surfaced line carries a best-effort relay-burn cost hint.
 grep -Eq "relay-burn" "$JS" \
   || fail "suppressed orphan is surfaced without a relay-burn cost hint"
 
-pass "discovery binds parked orphan→item, suppresses re-dispatch of still-open items, surfaces relay-burn cost hint (1f53)"
+pass "reconcile-repo.sh binds parked orphan→item, suppresses re-dispatch of still-open items, surfaces relay-burn cost hint (1f53)"

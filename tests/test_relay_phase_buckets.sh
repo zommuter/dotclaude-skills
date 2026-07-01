@@ -22,10 +22,11 @@ for title in Discover Classify Execute Review Hard Handoff Integrate Status Logg
 done
 ok "meta.phases declares all 12 single-purpose buckets (incl. Classify/Status/Logging/Quota/Leases)"
 
-# The two former floods are split OUT of Discover/Integrate.
-grep -q "label: \`discover-shard:\${chunk.length}\`, phase: 'Classify'" "$JS" \
-  || bad "discover-shards not moved to the Classify bucket (still in Discover?)"
-ok "discover-shards → Classify (split from the prelude's Discover bucket)"
+# The two former floods are split OUT of Discover/Integrate. discover-shard was replaced by
+# the mechanical discover-run runner, which keeps the same Classify bucket.
+grep -q "label: \`discover-run:\${chunk.length}\`, phase: 'Classify'" "$JS" \
+  || bad "discover-run not in the Classify bucket (still in Discover?)"
+ok "discover-run → Classify (split from the prelude's Discover bucket)"
 
 grep -q "label: 'write-relay-status', phase: 'Status'" "$JS" \
   || bad "write-relay-status not moved to the Status bucket (still flooding Integrate?)"

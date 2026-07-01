@@ -106,6 +106,18 @@ json_has_action() { # <json> <kind>
   pass "(3) uv.lock-only dirty is committed in place (id:bae5)"
 }
 
+# (3c) NESTED uv.lock-only dirty → committed too (id:bae5 zkm cascade shape: plugins/*/uv.lock).
+{
+  work="$(make_repo)"
+  mkdir -p "$work/plugins/zkm-x"
+  echo "lock v1" > "$work/plugins/zkm-x/uv.lock"; git -C "$work" add -A; git -C "$work" commit -qm "add nested lock"
+  echo "lock v2 relock" > "$work/plugins/zkm-x/uv.lock"   # dirty: only a NESTED uv.lock
+  out="$("$RECONCILE" --repo nestedlock --path "$work" --runid thisrun --live-claims "")"
+  [[ -z "$(git -C "$work" status --porcelain)" ]] || fail "(3c) nested uv.lock: tree still dirty (guard missed plugins/*/uv.lock): $(git -C "$work" status --porcelain)"
+  json_has_action "$out" lock-commit || fail "(3c) nested uv.lock: no lock-commit action: $out"
+  pass "(3c) nested plugins/*/uv.lock-only dirty is committed in place (id:bae5 cascade)"
+}
+
 # (3b) DIRTY non-lock → reconcile must NOT commit (that becomes classify's `blocked`).
 {
   work="$(make_repo)"
@@ -169,6 +181,41 @@ json_has_action() { # <json> <kind>
   ! json_has_action "$out" reap || fail "(6) live-claim: wrongly reaped a live-claimed repo"
   ! json_has_action "$out" park || fail "(6) live-claim: wrongly parked a live-claimed repo"
   pass "(6) live-claimed foreign worktree is left in-flight, not reaped/parked (id:ebfb)"
+}
+
+# ===========================================================================
+# (7) ORPHAN SUPPRESS-REDISPATCH (id:1f53): a parked relay/orphan/* ref bound to a still-OPEN
+#     ROADMAP item surfaces a suppress hint (→ discover-repo skips classify); a CLOSED item does not.
+# ===========================================================================
+{
+  work="$(make_repo)"
+  printf '# Roadmap\n## Items\n- [ ] [ROUTINE] half-done thing <!-- id:aaaa -->\n' > "$work/ROADMAP.md"
+  git -C "$work" add -A; git -C "$work" commit -qm "add roadmap"
+  # a parked orphan branch whose commit references id:aaaa
+  git -C "$work" branch "relay/orphan/deadrun-hard" HEAD
+  echo partial > "$work/partial.txt"; git -C "$work" add partial.txt
+  git -C "$work" commit -qm "wip for id:aaaa" >/dev/null
+  git -C "$work" branch -f "relay/orphan/deadrun-hard" HEAD
+  git -C "$work" reset -q --hard HEAD~1   # main drops the wip; it lives only on the orphan ref
+  out="$("$RECONCILE" --repo suppR --path "$work" --runid myrun123 --live-claims "")"
+  json_has_action "$out" suppress || fail "(7) open-item parked orphan: no suppress action: $out"
+  printf '%s' "$out" | python3 -c 'import sys,json;s=json.load(sys.stdin).get("surfaced",[]);sys.exit(0 if any("relay-burn.sh --run myrun123" in x.get("reason","") for x in s) else 1)' \
+    || fail "(7) suppress surfaced line missing the relay-burn cost hint with the runid: $out"
+  pass "(7) parked orphan bound to an OPEN item suppresses re-dispatch with a relay-burn hint (id:1f53)"
+}
+
+# (7b) CLOSED bound item → NO suppress (stale orphan; let it classify).
+{
+  work="$(make_repo)"
+  printf '# Roadmap\n## Items\n- [x] [ROUTINE] finished thing <!-- id:bbbb -->\n' > "$work/ROADMAP.md"
+  git -C "$work" add -A; git -C "$work" commit -qm "add roadmap"
+  git -C "$work" branch "relay/orphan/deadrun-x" HEAD
+  echo partial > "$work/p.txt"; git -C "$work" add p.txt; git -C "$work" commit -qm "wip for id:bbbb" >/dev/null
+  git -C "$work" branch -f "relay/orphan/deadrun-x" HEAD
+  git -C "$work" reset -q --hard HEAD~1
+  out="$("$RECONCILE" --repo noSuppR --path "$work" --runid myrun --live-claims "")"
+  ! json_has_action "$out" suppress || fail "(7b) closed-item parked orphan wrongly suppressed: $out"
+  pass "(7b) parked orphan bound to a CLOSED item does NOT suppress (id:1f53)"
 }
 
 echo "ALL PASS: reconcile-repo.sh behavioral spec (id:5987)"

@@ -78,9 +78,12 @@ grep -q "fable-ckpt-\*/relay-ckpt-\*" "$JS" || grep -q "fable-ckpt" "$JS" \
   && ok "relay-loop.js still references both prefixes (latest_ckpt field doc / standin)" \
   || bad "relay-loop.js dropped the both-prefix reference"
 
-grep -q "latest_ckpt empty" "$JS" \
-  && ok "no-checkpoint detection = latest_ckpt empty (from gather's both-prefix lookup)" \
-  || bad "no-checkpoint detection does not key on latest_ckpt empty"
+# The old LLM prompt's "no-checkpoint detection = latest_ckpt empty" was mechanized:
+# gather-repo-state.sh keys the equivalent "genuine first handoff" case on the ABSENCE of a
+# ROADMAP.md (no prior /relay handoff has run yet), feeding classify-verdict.sh's handoff verdict.
+grep -q "genuine first handoff" "$GATHER" \
+  && ok "no-checkpoint detection = no ROADMAP.md -> genuine first handoff (gather-repo-state.sh)" \
+  || bad "no-checkpoint detection does not key on the absence of a ROADMAP.md (first handoff)"
 
 # ── 3. durable model-tracked Fable-bonus queue (id:e030) ──────────────────────
 # write side: the integrator prompt records the three relay.toml fields on STRONG ckpts
@@ -98,11 +101,13 @@ grep -q 'must never clear' "$JS" \
   && ok "executor (sonnet) checkpoint explicitly must not clear the queue" \
   || bad "no executor-must-not-clear guard in the integrator prompt"
 
-# discovery schema + prompt expose strongRecheckPending
+# discovery schema (relay-loop.js) + the mechanical unit-assembler (classify-repo.sh, which
+# derives strongRecheckPending from relay.toml's last_strong_ckpt/fable_rechecked, replacing
+# the old classifier prompt's "strongRecheckPending per repo" instruction) both expose it.
 grep -q "strongRecheckPending: { type: 'boolean' }" "$JS" \
-  && grep -q 'strongRecheckPending per repo' "$JS" \
-  && ok "DISCOVER_SCHEMA + classifier prompt cover strongRecheckPending" \
-  || bad "strongRecheckPending missing from schema or prompt"
+  && grep -q 'strong_recheck_pending = bool(last_strong_ckpt) and not fable_rechecked' "$REPO_ROOT/relay/scripts/classify-repo.sh" \
+  && ok "DISCOVER_SCHEMA + classify-repo.sh cover strongRecheckPending" \
+  || bad "strongRecheckPending missing from schema or classify-repo.sh"
 
 # consume side: elevation considers the durable signal, not only the latest tag
 grep -q 'u.standin || u.strongRecheckPending' "$JS" \
