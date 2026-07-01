@@ -81,3 +81,11 @@ TODO id:319b / id:8567) — were resolved and pruned; latest prune by the
   Cleanup is now scoped to own-runId artifacts only (relay-loop.js, merged 2026-07-01); the
   remaining DESIGN CALL — destructive cleanup under-the-lease vs release-first (id:ebfb
   ordering) — is TODO id:6613 [HARD — meeting]. Box stays open only for that meeting call.
+- [ ] relay-doctor finding (2026-07-02 Fable recheck review): inbox dead-letter
+  `routed:d51c → [zomni]` — the target names the MACHINE zomni, not a repo, so
+  `scan-routed.sh` can never resolve it ("no repo named 'zomni' found on disk").
+  The item ("remove `cp -i` alias from zsh config on zomni") is machine-config /
+  human-action work: either re-target it to the repo that owns zomni shell config
+  (it-infra?) or resolve it by hand and `append.sh inbox-done d51c`. Human's call —
+  report-only here. (Also: 3 twinned-resolvable inbox items are drainable via
+  `scan-routed.sh --apply`, id:678e.)
