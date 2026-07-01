@@ -1117,3 +1117,7 @@ id:5eb3 case-b→human + mechanical surface-filer; id:5ac6 INTENSIVE flag+invari
 ## 2026-07-01 14:48 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:0175 (routed:82e3) quota-gate fixes genuine — credential egress removed, --once stopReason guarded, seven_day_sonnet optional; 146 tests green, gaming-scan clean [id:0175]
+
+## 2026-07-01 16:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified backtest expected-policy-delta bucket (candidate-worse 0/762, 0 crashes) + id:9d2b triage note genuinely green; 1 ADDED_SKIP flag adjudicated legitimate; suite 147 green [id:0e57,9d2b]
