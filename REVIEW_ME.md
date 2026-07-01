@@ -17,7 +17,11 @@ TODO id:319b / id:8567) — were resolved and pruned; latest prune by the
   re-dispatches a strong review. Promoted as ROADMAP id:8e3e [HARD — pool] (checkpoint
   the reviewed TIP, not main HEAD). Confirm the fix direction — esp. that an empty
   review should checkpoint at the branch tip rather than hand back.
-- [ ] id:0a3b — relay.toml [repos.dotclaude-skills] last_ckpt/last_strong_ckpt stuck at
+- [x] id:0a3b — DONE (one-time correction) 2026-07-01: orchestrator set last_ckpt/last_strong_ckpt
+  to relay-ckpt-20260701-2317 (this review's checkpoint), strong_model=claude-fable-5,
+  fable_rechecked=2026-07-01, with a dated comment in relay.toml. The DURABLE fix (ckpt-tag.sh
+  syncing relay.toml) remains open as ROADMAP id:0a3b [ROUTINE] + red spec. Original finding:
+  relay.toml [repos.dotclaude-skills] last_ckpt/last_strong_ckpt stuck at
   relay-ckpt-20260701-1635 while tags 1948/2019/2110 exist: those three checkpoints were
   minted by supervised sessions via ckpt-tag.sh, which never writes relay.toml (only the
   pool integrator does, relay-loop.js:1426). Verified benign for discovery (gather reads
