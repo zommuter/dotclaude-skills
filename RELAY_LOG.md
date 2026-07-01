@@ -1129,3 +1129,7 @@ handoff: staged id:5987 [ROUTINE] reconcile-repo.sh with a behavioral RED spec (
 ## 2026-07-01 19:33 — reviewer (claude-opus-4-8, integrate)
 
 executor(id:5987) + reviewer integrate: reconcile-repo.sh built green (test_reconcile_repo.sh 7/7, suite 148/0), the side-effecting git island of the a0b6 flip step (b). Reviewer verified genuine implementation + independently re-ran the suite. Noted nested-uv.lock fidelity gap → folded into a0b6 acceptance. Remaining for the flip: the full-unit assembler + relay-loop.js runner swap (a0b6, supervised).
+
+## 2026-07-01 19:42 — reviewer (claude-opus-4-8, integrate)
+
+executor(id:3d61) + reviewer integrate: classify-repo.sh --emit unit full-unit assembler green (5/5, suite 149/0). Second a0b6 flip-step-(b) component. Remaining: discover-repo.sh (64b4, per-repo composition) then the relay-loop.js runner swap (a0b6, supervised).
