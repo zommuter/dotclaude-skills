@@ -1671,14 +1671,15 @@ async function takeInjections() {
     `Run exactly this one command and nothing else: ~/.claude/skills/relay/scripts/inject.sh take
 It atomically emits AND consumes pending user-injected relay units, one compact JSON per line:
 {token, repo, verdict, item, prompt, requested_at}. For EACH emitted line, resolve the repo's
-canonical path (default ~/src/<repo>, OR the "# path:" override in that repo's block in
-~/.config/relay/relay.toml) and return one unit object with these exact fields:
+canonical ABSOLUTE path (default $HOME/src/<repo>, OR the "# path:" override in that repo's block in
+~/.config/relay/relay.toml — expand a leading ~ to $HOME, NEVER emit a literal ~) and return one
+unit object with these exact fields:
 { injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>,
 path:<resolved absolute path>, reason:"user-injected high-priority task (mid-round, id:6e9d)",
 inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false,
 hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"" }.
 If inject.sh take emits NOTHING, return units:[]. Do not invent units; only echo what take emitted.`,
-    { label: 'inject-take', phase: 'Support', schema: INJECT_TAKE_SCHEMA, model: 'sonnet' }
+    { label: 'inject-take', phase: 'Support', schema: INJECT_TAKE_SCHEMA, model: 'haiku' }
   )
   return (res && Array.isArray(res.units)) ? res.units : []
 }
@@ -1761,7 +1762,7 @@ async function beatHeartbeat() {
   try {
     await agent(
       `Run exactly this command and report whether it exited 0 (refresh the relay run-liveness heartbeat so the outage watchdog/auto-reconcile know this pool is alive): ~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}`,
-      { label: 'heartbeat-beat', phase: 'Support' }
+      { label: 'heartbeat-beat', phase: 'Support', model: 'haiku' }
     )
   } catch (_) { /* non-fatal — TTL backstop */ }
 }
@@ -1771,7 +1772,7 @@ async function stopHeartbeat() {
   try {
     await agent(
       `Run exactly this command and report whether it exited 0 (clean relay-loop shutdown — release the run heartbeat so the watchdog/auto-reconcile don't read this clean stop as a death): ~/.claude/skills/relay/scripts/heartbeat.sh stop ${state.runId}`,
-      { label: 'heartbeat-stop', phase: 'Support' }
+      { label: 'heartbeat-stop', phase: 'Support', model: 'haiku' }
     )
   } catch (_) { /* non-fatal */ }
 }
@@ -1793,7 +1794,7 @@ If it prints NOTHING, no prior relay run died — do nothing else and report "no
   ~/.claude/skills/relay/scripts/relay-reconcile.sh --all --auto
   ~/.claude/skills/relay/scripts/heartbeat.sh reap
 (The first auto-integrates only ledger-only/clean orphans and surfaces everything else into REVIEW_ME.md; the second archives the now-handled dead run-markers so the watchdog (id:98f0) does not re-notify and the next start does not re-reconcile them.) Take NO other action.`,
-    { label: 'auto-reconcile-restart', phase: 'Support' }
+    { label: 'auto-reconcile-restart', phase: 'Support', model: 'haiku' }
   )
 } catch (_) { /* non-fatal: the human /relay reconcile is always available */ }
 
