@@ -1169,3 +1169,7 @@ handoff C2-C5: promoted 8 TODO items to ROADMAP (4 ROUTINE dff8/482d/fb7f/a42e +
 ## 2026-07-02 01:38 — reviewer (claude-fable-5, relay-loop)
 
 Fable recheck of ckpt-20260702-0119: handoff window audited clean (9014 genuine, 4 red specs valid, gaming-scan clean, ledgers/lint consistent); dispatch itself exposed id:6856 — relay-loop.js queues a bogus Fable-rechecks-Fable unit after a Fable HANDOFF (isFableRecheck verdict-conjunct) with a hardcoded "Opus stood in" reason — filed [ROUTINE]+red spec; suite 159/0/5-expected-red [id:9014,6856]
+## 2026-07-02 — executor (sonnet)
+
+Worked id:a42e — gated `classify-repo.sh`'s `standin` derivation on the id:e030 `fable_rechecked` watermark (`standin = ("fable-standin" in ckpt_msg) and not fable_rechecked`), so a genuine Fable-recheck annotation that merely mentions the standin review it audited no longer re-elevates an already-rechecked repo idle→review on every pool round; updated the stale literal-string drift-guard in `test_fable_standin_marker.sh` to match. Ticked ROADMAP+TODO twins. Full suite 160/0/3-expected-red.
+Friction: none.
