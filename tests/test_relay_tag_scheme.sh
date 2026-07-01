@@ -21,6 +21,7 @@ bad()  { echo "  FAIL: $1"; fail=$((fail+1)); }
 # ── 1. ckpt-tag.sh emits relay-ckpt-* (hermetic) ──────────────────────────────
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
+export FABLES_CONFIG="$tmpdir/cfg"   # keep the id:0a3b toml-sync away from the real ~/.config/relay
 work="$tmpdir/work"
 git init -q "$work"
 git -C "$work" config user.email "test@test"
