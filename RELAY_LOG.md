@@ -1153,3 +1153,7 @@ Fable catch-up review 2110..9f32043: 4 substantive commits clean (ed2e/2ec4/4da4
 ## 2026-07-01 23:19 — reviewer (claude-fable-5)
 
 meeting-skill deep audit: 8 findings (3 MED b767/123d/e32a), concurrency+allowlist CLEAN; 0a3b one-time correction ticked
+
+## 2026-07-01 23:39 — reviewer (claude-fable-5)
+
+relay bugfix batch: 8e3e ckpt-at-reviewed-tip + 6e02 cleanup scoping + 0a3b toml sync + stale-watermark anchor; suite 158/0/0; POOL-SAFE restored
