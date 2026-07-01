@@ -82,8 +82,50 @@ EOF
 commit_repo "$R3"; ckpt_head "$R3"
 [[ "$(verdict_of "$R3")" == "idle" ]] || { echo "idle: finished + nothing unpromoted must be idle, got $(verdict_of "$R3")"; exit 1; }
 
+# --- id:4da4 execute-precision (1): @manual-only [ROUTINE] must NOT classify execute --------
+# yinyang-puzzle (/relay --once 2026-07-01): all open [ROUTINE] were @manual → the executor
+# sized them out and handed back. The execute gate must key on ACTIONABLE [ROUTINE] (open,
+# tag-anchored, @manual/human-gated EXCLUDED), not bare has_routine.
+R4="$tmp/r_manual"; mkrepo "$R4"
+cat > "$R4/ROADMAP.md" <<'EOF'
+# Roadmap
+## Items
+- [ ] [ROUTINE] @manual eyeball the ghost preview via npm run dev <!-- id:6666 -->
+EOF
+printf '# TODO\n## Current\n' > "$R4/TODO.md"
+commit_repo "$R4"; ckpt_head "$R4"
+[[ "$(verdict_of "$R4")" != "execute" ]] || { echo "id:4da4: @manual-only [ROUTINE] must NOT be execute, got execute"; exit 1; }
+
+# --- id:4da4 execute-precision (2): [ROUTINE] in a [HARD — pool] item's inline history -------
+# leAIrn2learn (/relay --once 2026-07-01): "[ROUTINE]" matched inside id:c3f5's post-id history
+# text → phantom execute. Anchor lane/type tags to the item TITLE (before <!-- id -->), backticks
+# stripped, so a real [HARD — pool] item classifies hard — never execute on a prose mention.
+R5="$tmp/r_prose"; mkrepo "$R5"
+cat > "$R5/ROADMAP.md" <<'EOF'
+# Roadmap
+## Items
+- [ ] [HARD — pool] real strong-model work <!-- id:7777 --> note: this superseded an earlier [ROUTINE] sub-step
+EOF
+printf '# TODO\n## Current\n' > "$R5/TODO.md"
+commit_repo "$R5"; ckpt_head "$R5"
+[[ "$(verdict_of "$R5")" != "execute" ]] || { echo "id:4da4: prose-[ROUTINE] inside a [HARD — pool] item must NOT be execute (tag-anchor), got execute"; exit 1; }
+[[ "$(verdict_of "$R5")" == "hard" ]] || { echo "id:4da4: the real [HARD — pool] item should classify hard, got $(verdict_of "$R5")"; exit 1; }
+
+# --- id:4da4 execute-precision (3): a [ROUTINE] item marked BLOCKED-on-dep is NOT actionable -
+# zkm-threema id:180b (/relay --once 2026-07-01): "[ROUTINE] (BLOCKED on id:7364)" dispatched
+# execute → the executor could only no-op (empty handback). A declared dependency block excludes.
+R6="$tmp/r_blocked"; mkrepo "$R6"
+cat > "$R6/ROADMAP.md" <<'EOF'
+# Roadmap
+## Items
+- [ ] Implement convert() end-to-end [ROUTINE] (BLOCKED on id:7364) <!-- id:8888 -->
+EOF
+printf '# TODO\n## Current\n' > "$R6/TODO.md"
+commit_repo "$R6"; ckpt_head "$R6"
+[[ "$(verdict_of "$R6")" != "execute" ]] || { echo "id:4da4: a BLOCKED-on-dependency [ROUTINE] item must NOT be execute, got execute"; exit 1; }
+
 # --- side-effect-free: running the wrapper leaves each fixture's git tree clean -------------
-for r in "$R1" "$R2" "$R3"; do
+for r in "$R1" "$R2" "$R3" "$R4" "$R5" "$R6"; do
   [[ -z "$(git -C "$r" status --porcelain)" ]] || { echo "wrapper must be side-effect-free; $r dirtied"; exit 1; }
 done
 

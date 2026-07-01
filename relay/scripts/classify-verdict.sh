@@ -40,6 +40,14 @@ promote               = int(unpromoted.get("promote", 0))
 surface               = int(unpromoted.get("surface", 0))
 is_finished           = bool(data.get("is_finished", False))
 roadmap_actionable    = int(data.get("roadmap_actionable_open", 0))
+# id:4da4 — the EXECUTE gate keys on ACTIONABLE [ROUTINE] work only (open, tag-anchored,
+# @manual/human-gated EXCLUDED), NOT bare has_routine — else an @manual-only [ROUTINE] repo
+# mis-fires execute and the executor sizes it out (yinyang-puzzle, /relay --once 2026-07-01).
+# BACK-COMPAT: a caller predating the field (e.g. a historical backtest reconstruction) omits
+# it → sentinel -1 → fall back to has_routine so its behaviour is unchanged.
+actionable_routine    = int(data.get("actionable_routine_open", -1))
+if actionable_routine < 0:
+    actionable_routine = 1 if has_routine else 0
 # id:5ac6 — INTENSIVE flag: copy top_intensive from gather VERBATIM (string, always present, "" when none).
 # It is an orthogonal resource axis, never a verdict value. INVARIANT: intensive!="" => verdict in {execute,hard}
 # (enforced by gather excluding human-gated items from top_intensive, id:a707).
@@ -80,11 +88,11 @@ elif dirty_block:
     evidence.append({"field": "dirty", "value": True, "source": "gather-repo-state"})
 
 # D3 priority cascade — each branch appends its driving evidence pointers
-elif has_routine:
+elif actionable_routine > 0:
     verdict       = "execute"
     priority_rank = 1
-    reason        = "Open [ROUTINE] ROADMAP items present — executor can act immediately"
-    evidence.append({"field": "hasRoutine", "value": True, "source": "gather-repo-state"})
+    reason        = "Open executor-actionable [ROUTINE] ROADMAP items present — executor can act immediately"
+    evidence.append({"field": "actionable_routine_open", "value": actionable_routine, "source": "classify-repo"})
 
 elif substantive_unaudited:
     verdict       = "review"

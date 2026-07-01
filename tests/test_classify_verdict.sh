@@ -52,6 +52,18 @@ h='{"repo":"x","is_finished":true,"hasRoutine":false,"substantive_unaudited":fal
 f='{"repo":"x","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":0,"top_intensive":"","roadmap_open":0,"roadmap_actionable_open":0,"unpromoted":{"promote":0,"surface":0}}'
 [[ "$(verdict_of "$f")" == "idle" ]] || { echo "truly finished (scan clean) must be idle"; exit 1; }
 
+# --- id:4da4 execute-precision — gate on actionable_routine_open, not bare has_routine -----
+# @manual-only [ROUTINE] (has_routine true, but the tag-anchored @manual-excluded count is 0)
+# must NOT be execute — else the executor sizes it out (yinyang-puzzle, /relay --once 2026-07-01).
+em='{"repo":"x","is_finished":false,"hasRoutine":true,"actionable_routine_open":0,"substantive_unaudited":false,"open_hard_pool":0,"top_intensive":"","roadmap_open":1,"roadmap_actionable_open":0,"unpromoted":{"promote":0,"surface":0}}'
+[[ "$(verdict_of "$em")" != "execute" ]] || { echo "id:4da4: has_routine=true but actionable_routine_open=0 must NOT be execute"; exit 1; }
+# a genuine open actionable [ROUTINE] item → execute
+ea='{"repo":"x","is_finished":false,"hasRoutine":true,"actionable_routine_open":1,"substantive_unaudited":false,"open_hard_pool":0,"top_intensive":"","roadmap_open":1,"roadmap_actionable_open":1,"unpromoted":{"promote":0,"surface":0}}'
+[[ "$(verdict_of "$ea")" == "execute" ]] || { echo "id:4da4: actionable_routine_open>=1 must be execute"; exit 1; }
+# BACK-COMPAT: a caller that omits actionable_routine_open falls back to has_routine (unchanged)
+eb='{"repo":"x","is_finished":false,"hasRoutine":true,"substantive_unaudited":false,"open_hard_pool":0,"top_intensive":"","roadmap_open":1,"roadmap_actionable_open":1,"unpromoted":{"promote":0,"surface":0}}'
+[[ "$(verdict_of "$eb")" == "execute" ]] || { echo "id:4da4 back-compat: has_routine=true with no actionable_routine_open must still be execute"; exit 1; }
+
 # D3 verdict-class order: unaudited work outranks fresh hard work (review before hard).
 ru='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":true,"open_hard_pool":1,"top_intensive":"","roadmap_open":1,"roadmap_actionable_open":1,"unpromoted":{"promote":0,"surface":0}}'
 [[ "$(verdict_of "$ru")" == "review" ]] || { echo "D3: unaudited commits must outrank hard (review first)"; exit 1; }
