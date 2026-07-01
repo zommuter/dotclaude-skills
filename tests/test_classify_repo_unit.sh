@@ -77,10 +77,10 @@ pass "(1) default classify-repo.sh output is unchanged (evidence+ambiguous+verdi
 unit="$("$CR" --emit unit --repo repo_a --path "$R")"
 for k in repo path verdict reason lastCkpt income hasRoutine openHard standin \
          is_finished top_intensive substantive_unaudited work_sig open_hard_pool \
-         strongRecheckPending intensive; do
+         strongRecheckPending intensive actionable_routine_open; do
   printf '%s' "$unit" | has_key "$k" || fail "(2) --emit unit missing required field: $k (unit=$unit)"
 done
-pass "(2) --emit unit emits every DISCOVER_SCHEMA unit field"
+pass "(2) --emit unit emits every DISCOVER_SCHEMA unit field (+ actionable_routine_open, id:188c)"
 
 # === (3) field derivations ================================================================
 [[ "$(printf '%s' "$unit" | field repo)"    == "repo_a" ]] || fail "(3) repo != repo_a"
@@ -90,6 +90,10 @@ pass "(2) --emit unit emits every DISCOVER_SCHEMA unit field"
 [[ "$(printf '%s' "$unit" | field income)" == "True" ]]    || fail "(3) income not derived true from relay.toml"
 [[ "$(printf '%s' "$unit" | field standin)" == "True" ]]   || fail "(3) standin not derived from fable-standin ckpt msg"
 [[ "$(printf '%s' "$unit" | field hasRoutine)" == "True" ]] || fail "(3) hasRoutine not true (open [ROUTINE] present)"
+# id:188c — actionable_routine_open exposed for relay-doctor check 10 (I2). verdict=execute
+# gates on it (classify-verdict.sh:91), so a verdict=execute unit MUST carry a positive count.
+aro="$(printf '%s' "$unit" | field actionable_routine_open)"
+[[ "$aro" =~ ^[0-9]+$ && "$aro" -gt 0 ]] || fail "(3) actionable_routine_open not a positive count for an execute repo (got '$aro')"
 [[ "$(printf '%s' "$unit" | field strongRecheckPending)" == "True" ]] || fail "(3) strongRecheckPending not derived (last_strong_ckpt set, fable_rechecked=false)"
 # verdict parity with the default classify-verdict output
 [[ "$(printf '%s' "$unit" | field verdict)" == "$(printf '%s' "$def_out" | field verdict)" ]] || fail "(3) --emit unit verdict disagrees with default classify-verdict verdict"

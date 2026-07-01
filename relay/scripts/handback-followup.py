@@ -168,40 +168,43 @@ def main():
         print("no changes needed (fully idempotent)")
         return 0
 
-    # Apply via the flock'd, atomic md-merge (replaces matched id lines; appends new ids).
-    merge = sh(
-        [sys.executable, os.path.join(SKILLS, "meeting", "md-merge.py"),
-         "update-ids", "--file", roadmap],
-        input=json.dumps({"updates": updates}),
-    )
+    do_commit = not (a.no_commit or os.environ.get("HANDBACK_NO_COMMIT") == "1")
+    msg = (f"roadmap: durable handback follow-up for id:{a.parent_id} "
+           f"(route={a.route}, id:3801)"
+           + (f"\n\nrun={a.run_id}" if a.run_id else ""))
+
+    # id:e5e9 (seed invalid-state i; relay-doctor check 9 / invariant I1) — write AND commit
+    # ATOMICALLY under md-merge's flock (the id:148b/id:2147 pattern) when committing, so a death
+    # between the write and the commit can never strand a dirty ROADMAP.md on the main checkout.
+    # PREVIOUSLY this was TWO steps — md-merge write-only, THEN git-lock-push manifest commit —
+    # with a stranding window between them (the loderite id:3801 residue that motivated id:4da4).
+    # In no-commit mode, write only (the deliberate dry path).
+    merge_cmd = [sys.executable, os.path.join(SKILLS, "meeting", "md-merge.py"),
+                 "update-ids", "--file", roadmap]
+    if do_commit:
+        merge_cmd += ["--commit", msg]
+    merge = sh(merge_cmd, input=json.dumps({"updates": updates}))
     if merge.returncode != 0:
         print(f"md-merge failed: {merge.stderr}", file=sys.stderr)
         return 1
-    print(f"id:{a.parent_id} route={a.route}: {len(updates)} ROADMAP line(s) written")
+    print(f"id:{a.parent_id} route={a.route}: {len(updates)} ROADMAP line(s) written"
+          + (" + committed" if do_commit else ""))
 
-    if a.no_commit or os.environ.get("HANDBACK_NO_COMMIT") == "1":
+    if not do_commit:
         return 0
 
-    # Commit + push ONLY ROADMAP.md via the shared --ff-only manifest path (id:15d5).
-    manifest = roadmap + ".handback-manifest"
-    rel = os.path.relpath(roadmap, repo)
-    with open(manifest, "w") as f:
-        f.write(rel + "\n")
-    try:
-        msg = (f"roadmap: durable handback follow-up for id:{a.parent_id} "
-               f"(route={a.route}, id:3801)"
-               + (f"\n\nrun={a.run_id}" if a.run_id else ""))
-        gp = sh([os.path.expanduser("~/.claude/skills/git-diary-workflow/git-lock-push.sh"),
-                 repo, "-f", manifest, "-m", msg, "--ff-only"])
-        sys.stdout.write(gp.stdout)
-        if gp.returncode != 0:
-            print(f"git-lock-push non-zero (committed-locally/non-fatal): {gp.stderr}",
-                  file=sys.stderr)
-    finally:
-        try:
-            os.unlink(manifest)
-        except OSError:
-            pass
+    # The ROADMAP.md change is ALREADY committed (atomically, above) — only the pull+push needs
+    # serialization now. git-lock-push LEGACY mode (no -f/-m) pushes the already-committed HEAD
+    # (--ff-only for the tag/merge-safe integration branch). A push failure here is NON-FATAL:
+    # the commit is safe locally (no residue), the next push catches it up. The push-script path
+    # honors HANDBACK_GIT_LOCK_PUSH so a hermetic death-simulation test can stub it (id:e5e9).
+    push_sh = os.environ.get("HANDBACK_GIT_LOCK_PUSH") or os.path.expanduser(
+        "~/.claude/skills/git-diary-workflow/git-lock-push.sh")
+    gp = sh([push_sh, repo, "--ff-only"])
+    sys.stdout.write(gp.stdout)
+    if gp.returncode != 0:
+        print(f"git-lock-push non-zero (committed-locally/non-fatal): {gp.stderr}",
+              file=sys.stderr)
     return 0
 
 

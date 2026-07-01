@@ -53,6 +53,13 @@ ROADMAP_LINT="$SCRIPTS_DIR/roadmap-lint.sh"
 RECONCILE="$SCRIPTS_DIR/relay-reconcile.sh"
 UNPROMOTED_SCAN="$SCRIPTS_DIR/unpromoted-scan.sh"      # id:2dea — lane-tag-agnostic un-promoted backlog
 TODO_CONFORMANCE="$SCRIPTS_DIR/todo-conformance.sh"    # id:3441 — TODO grammar (no work hides in a malformed line)
+CLEAN_TREE_GATE="$SCRIPTS_DIR/clean-tree-gate.sh"      # id:8018 — main-checkout residue detector (invariant I1/I7)
+CLASSIFY_REPO="$SCRIPTS_DIR/classify-repo.sh"          # id:188c — verdict-invariant replay (invariant I2/I4)
+# Overrides so a hermetic test can substitute a stub emitting a crafted unit (the I2/I4
+# invariants are maintained by construction in the real pipeline, so a violation can only be
+# produced via a stub — same override idiom as RELAY_DOCTOR_ORPHAN_SCAN above).
+CLASSIFY_REPO="${RELAY_DOCTOR_CLASSIFY_REPO:-$CLASSIFY_REPO}"
+CLEAN_TREE_GATE="${RELAY_DOCTOR_CLEAN_TREE_GATE:-$CLEAN_TREE_GATE}"
 REPO_ROOT="$(cd "$SCRIPTS_DIR/../.." && pwd)"          # dotclaude-skills repo root
 ORPHAN_SCAN="$REPO_ROOT/meeting/orphan-scan.sh"
 # Allow an override so the orphan-scan path resolves when installed via symlink too.
@@ -255,6 +262,105 @@ check_repo() {
     fi
   else
     echo "SKIP — todo-conformance.sh not found at $TODO_CONFORMANCE" >&2
+  fi
+
+  # --- check 9: main-checkout residue (invariant I1/I7, id:8018) ---------------
+  # Seed invalid-state (i): a gate-detection/handback path can strand an uncommitted ledger
+  # edit on the main checkout (loderite id:3801 residue). Reuse clean-tree-gate.sh (the
+  # deterministic porcelain observer, id:aa93) — a dirty entry is foreign residue UNLESS it is
+  # lock-only (a benign uv.lock/*.lock relock the pool commits in place, id:bae5). Report-only.
+  echo "--- main-checkout residue (clean-tree-gate.sh, I1/I7, id:8018) ---"
+  if [[ -x "$CLEAN_TREE_GATE" ]]; then
+    local ctg rc9
+    ctg="$(bash "$CLEAN_TREE_GATE" "$path" 2>>"$LOG")" && rc9=0 || rc9=$?
+    if [[ "$rc9" -eq 0 ]]; then
+      echo "clean (main checkout has no uncommitted residue)"
+    else
+      # clean-tree-gate printed "dirty <N>" then the offending porcelain lines (each "  XY path").
+      # Keep only NON-lock entries: lock-only dirty is the pool's own benign in-place relock.
+      local resid
+      resid="$(printf '%s\n' "$ctg" | grep -E '^  ' | while IFS= read -r ln; do
+        p="${ln##*[[:space:]]}"
+        case "$(basename "$p")" in
+          *.lock|package-lock.json|pnpm-lock.yaml|yarn.lock) ;;
+          *) printf '%s\n' "$ln" ;;
+        esac
+      done)"
+      if [[ -n "$resid" ]]; then
+        local n9; n9="$(printf '%s\n' "$resid" | grep -cE '^  ' || true)"
+        printf 'RESIDUE — %s uncommitted non-lock entry(ies) on the main checkout (foreign/stranded ledger edit — invariant I1/I7):\n' "$n9"
+        printf '%s\n' "$resid"
+        repo_issues=$((repo_issues + n9))
+      else
+        echo "clean (dirty-lock-only — benign in-place relock, not residue)"
+      fi
+    fi
+  else
+    echo "SKIP — clean-tree-gate.sh not found at $CLEAN_TREE_GATE" >&2
+  fi
+
+  # --- check 10: verdict-invariant replay (invariant I2/I4, id:188c) -----------
+  # Seed invalid-state (ii): `execute` on a repo with no executor-actionable work. Replay
+  # classify-repo.sh --emit unit (side-effect-free) and cross-check the verdict (classify-
+  # verdict.sh) against the derived count (classify-repo.sh) — two DIFFERENT scripts, so this
+  # catches the part-1 gate-wiring bug class. COVERAGE (honest): guards verdict↔derivation
+  # CONSISTENCY, not derivation CORRECTNESS (a bug shared by both is out of reach — the
+  # relay-events.jsonl real-dispatched-verdict read is the noted future upgrade).
+  echo "--- verdict-invariant replay (classify-repo.sh --emit unit, I2/I4, id:188c) ---"
+  if [[ -x "$CLASSIFY_REPO" ]]; then
+    local unit rc10
+    unit="$(RELAY_TOML="$RELAY_TOML" bash "$CLASSIFY_REPO" --emit unit --repo "$name" --path "$path" 2>>"$LOG")" && rc10=0 || rc10=$?
+    if [[ "$rc10" -ne 0 || -z "$unit" ]]; then
+      echo "SKIP — classify-repo.sh --emit unit did not emit a unit (see $LOG)" >&2
+    else
+      local v10
+      v10="$(printf '%s' "$unit" | python3 -c '
+import sys, json
+u = json.load(sys.stdin)
+verdict = u.get("verdict", "")
+intensive = u.get("intensive", "") or ""
+aro = u.get("actionable_routine_open", 0) or 0
+issues = []
+if verdict == "execute" and aro <= 0:
+    issues.append("I2 VIOLATED: verdict=execute but actionable_routine_open=" + str(aro) + " (execute-on-no-work; classify-verdict.sh gates execute on it)")
+if intensive and verdict not in ("execute", "hard"):
+    issues.append("I4 VIOLATED: intensive=" + repr(intensive) + " but verdict=" + repr(verdict) + " (INTENSIVE operative only on dispatchable lanes; id:5ac6)")
+disp = intensive if intensive else "-"
+print("\n".join(issues) if issues else "OK verdict=" + verdict + " actionable_routine_open=" + str(aro) + " intensive=" + disp)
+' 2>>"$LOG" || echo "ERR — could not parse unit")"
+      if printf '%s' "$v10" | grep -q 'VIOLATED'; then
+        printf '%s\n' "$v10"
+        local n10; n10="$(printf '%s\n' "$v10" | grep -c 'VIOLATED' || true)"
+        repo_issues=$((repo_issues + n10))
+      else
+        printf '%s (guards consistency, not derivation-correctness)\n' "$v10"
+      fi
+    fi
+  else
+    echo "SKIP — classify-repo.sh not found at $CLASSIFY_REPO" >&2
+  fi
+
+  # --- check 11: last_ckpt tag existence (invariant I8, id:333c) ---------------
+  # The integrator writes each own repo's last_ckpt (relay-loop.js:1426); a failed push /
+  # aborted tag can desync it. A dangling last_ckpt is an invalid state rev-parse catches.
+  echo "--- last_ckpt tag existence (invariant I8, id:333c) ---"
+  local lckpt
+  lckpt="$(python3 - "$RELAY_TOML" "$name" <<'PY' 2>>"$LOG" || true
+import sys, tomllib
+try:
+    d = tomllib.load(open(sys.argv[1], "rb"))
+except Exception:
+    sys.exit(0)
+print(d.get("repos", {}).get(sys.argv[2], {}).get("last_ckpt", "") or "")
+PY
+)"
+  if [[ -z "$lckpt" ]]; then
+    echo "clean (no last_ckpt recorded — not yet checkpointed)"
+  elif git -C "$path" rev-parse --verify -q "refs/tags/$lckpt" >/dev/null 2>&1; then
+    echo "clean (last_ckpt $lckpt resolves to a tag)"
+  else
+    printf 'DANGLING — relay.toml last_ckpt=%s names a tag that does NOT exist in %s (invariant I8; a failed push / aborted tag desynced it).\n' "$lckpt" "$name"
+    repo_issues=$((repo_issues + 1))
   fi
 
   if [[ "$repo_issues" -gt 0 ]]; then
@@ -527,7 +633,8 @@ quota_config_check   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + t
 # LIST the checks that are designed but NOT yet wired, so this report's coverage is
 # explicit. Adding a check here without wiring it is the only failure mode that matters.
 echo "=== checks NOT yet wired (coverage gaps, by design) ==="
-echo "- claim/lease staleness — gated on the id:e149 heartbeat (no liveness field yet)"
+echo "- claim/lease staleness — invariant I5 (no worktree without a live claim/orphan ref); gated on the id:e149 heartbeat (no liveness field yet)"
+echo "- decision-queue vs closed-id consistency — invariant I9 (no decision-queue entry for an already-[x] id); gated on the id:b444 decision-queue schema"
 echo "- discover-sig / discovery-cache health — id:c3a6 internals, not yet surfaced"
 echo
 
