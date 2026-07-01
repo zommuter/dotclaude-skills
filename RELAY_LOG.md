@@ -1125,3 +1125,7 @@ review: verified backtest expected-policy-delta bucket (candidate-worse 0/762, 0
 ## 2026-07-01 19:27 — reviewer (claude-opus-4-8, handoff)
 
 handoff: staged id:5987 [ROUTINE] reconcile-repo.sh with a behavioral RED spec (test_reconcile_repo.sh, 5 real-fixture scenarios) — the side-effecting git island of the a0b6 classifier-flip step (b). Executor picks up 5987 next; a0b6 engine swap stays supervised (gated on 5987 green).
+
+## 2026-07-01 19:33 — reviewer (claude-opus-4-8, integrate)
+
+executor(id:5987) + reviewer integrate: reconcile-repo.sh built green (test_reconcile_repo.sh 7/7, suite 148/0), the side-effecting git island of the a0b6 flip step (b). Reviewer verified genuine implementation + independently re-ran the suite. Noted nested-uv.lock fidelity gap → folded into a0b6 acceptance. Remaining for the flip: the full-unit assembler + relay-loop.js runner swap (a0b6, supervised).
