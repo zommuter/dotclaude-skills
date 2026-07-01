@@ -1173,3 +1173,7 @@ Fable recheck of ckpt-20260702-0119: handoff window audited clean (9014 genuine,
 
 Worked id:a42e — gated `classify-repo.sh`'s `standin` derivation on the id:e030 `fable_rechecked` watermark (`standin = ("fable-standin" in ckpt_msg) and not fable_rechecked`), so a genuine Fable-recheck annotation that merely mentions the standin review it audited no longer re-elevates an already-rechecked repo idle→review on every pool round; updated the stale literal-string drift-guard in `test_fable_standin_marker.sh` to match. Ticked ROADMAP+TODO twins. Full suite 160/0/3-expected-red.
 Friction: none.
+
+## 2026-07-02 01:44 — executor (sonnet, relay-loop)
+
+id:a42e — gated classify-repo.sh's standin flag on the id:e030 fable_rechecked watermark, stopping the perpetual idle-to-review re-dispatch on every Fable pool round [id:a42e]
