@@ -213,7 +213,10 @@ if [[ "$AGE" -gt "$STALE_SECS" ]]; then
   for _b in $_stale_buckets; do
     _u=$(jq -r ".${_b}.utilization // empty" "$USAGE_CACHE" 2>/dev/null)
     if [[ -z "$_u" ]]; then
-      _stale_safe=0; break  # missing bucket → unsafe
+      # An absent per-model weekly sub-bucket (id:0175) means "no such limit", not a corrupt
+      # cache — skip it; the general seven_day bucket in this same list still gates.
+      if [[ "$_b" == "seven_day_sonnet" ]]; then continue; fi
+      _stale_safe=0; break  # missing required bucket → unsafe
     fi
     _t="$(bucket_threshold "$_b")"
     # safe if util < threshold*100 − MARGIN
@@ -241,12 +244,21 @@ if [[ -n "${RELAY_RUN_ID:-}" ]]; then
   USAGE_CACHE="$USAGE_CACHE" "$(dirname "$0")/relay-burn.sh" sample 2>/dev/null || true
 fi
 
-# check_key KEY — exit 1 if at/above that bucket's threshold; exit 2 if key missing; else returns
+# check_key KEY [optional] — exit 1 if at/above that bucket's threshold; else returns.
+# A missing key normally exits 2 (unreadable cache → fail-safe stop). With the 2nd arg
+# "optional" (id:0175 / routed:82e3), a missing key is instead SKIPPED: as of 2026-06-30 the
+# usage API stopped exposing per-model weekly sub-limits (seven_day_sonnet et al. are null;
+# only the consolidated weekly_all / seven_day bucket remains), so an absent model sub-bucket
+# means "no such limit" — the general seven_day bucket governs — not a corrupt cache.
 check_key() {
-  local key="$1"
+  local key="$1" optional="${2:-}"
   local val t
   val=$(jq -r ".${key}.utilization // empty" "$USAGE_CACHE" 2>/dev/null)
   if [[ -z "$val" ]]; then
+    if [[ "$optional" == "optional" ]]; then
+      echo "quota-stop: key '$key' absent (no such limit) — skipping, general buckets govern" >&2
+      return 0
+    fi
     echo "quota-stop: key '$key' missing in cache" >&2
     exit 2
   fi
@@ -260,7 +272,7 @@ check_key() {
 
 case "$TIER" in
   sonnet)
-    check_key seven_day_sonnet
+    check_key seven_day_sonnet optional
     check_key five_hour
     check_key seven_day
     ;;
