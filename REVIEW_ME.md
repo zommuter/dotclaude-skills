@@ -8,7 +8,13 @@ and the two 2026-06-29 inbox dead-letters routed:6976/routed:4097 (ingested →
 TODO id:319b / id:8567) — were resolved and pruned; latest prune by the
 2026-07-01 fable catch-up review.)
 
-- [ ] id:8e3e — integrator "Duplicate dispatch" mislabel on a ZERO-COMMIT review branch
+- [x] id:8e3e — CONFIRMED + IMPLEMENTED 2026-07-01 (Fable orchestrator): fix direction
+  independently re-derived by the bugfix child and implemented same night — relay-loop.js
+  "Already up to date" ⇒ checkpoint at reviewed tip via new `ckpt-tag.sh -c`, never handback;
+  suite 158 green (test_ckpt_tag_commit_target.sh). Empty review = free confirmation that the
+  window is clean; it MUST close the window. Re-checkable: next zero-commit review should
+  produce a ckpt, not a handback. Original finding: integrator "Duplicate dispatch" mislabel
+  on a ZERO-COMMIT review branch
   (2026-07-01 20:36, run relay-20260701-202806-14640): the review child branched at the
   TRUE then-HEAD (33169ee, verified against commit timestamps — NOT a stale-state read),
   made zero commits (clean window), main advanced meanwhile (65ce4ea, an interactive
@@ -39,3 +45,10 @@ TODO id:319b / id:8567) — were resolved and pruned; latest prune by the
   as an integrated leftover. Filed as TODO id:6e02 [HARD — meeting] (sweeps must honor
   claims; child setup should marker-commit first). Orchestrator: please confirm/deny
   running a worktree cleanup at ~22:56 so the finding pins the actual actor.
+  ORCHESTRATOR ANSWER 2026-07-01: NOT the orchestrator (this session ran no cleanup at
+  22:5x). Actor pinned by the bugfix child: run relay-20260701-225242-28925's dotclaude-skills
+  integrator (dispatched 22:52:45, lease-refused handback ~22:56) applied its "tip-is-ancestor
+  ⟹ integrated leftover" cleanup to a branch it didn't create, AFTER releasing the lease.
+  Cleanup is now scoped to own-runId artifacts only (relay-loop.js, merged 2026-07-01); the
+  remaining DESIGN CALL — destructive cleanup under-the-lease vs release-first (id:ebfb
+  ordering) — is TODO id:6613 [HARD — meeting]. Box stays open only for that meeting call.
