@@ -10,6 +10,26 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+- [ ] [ROUTINE] `reconcile-repo.sh` — bounded side-effecting git reconciliation, split out of the LLM shard (flip step b, id:a0b6; meeting 2026-07-01-1904) <!-- id:5987 -->
+  - **Why** (meeting `docs/meeting-notes/2026-07-01-1904-a0b6-step-b-engine-swap.md`, A1): the flip swaps the LLM discovery shard for the side-effect-free `classify-verdict`, but the shard ALSO does side-effecting git the classifier can never hold. `relay-loop.js` is a Workflow script (no subprocess) so this must be a script an agent runs. The dangerous op (orphan reap-vs-park `merge-base --is-ancestor` → force `worktree remove`) is exactly what needs a hermetic RED test — testability, not reuse, justifies the split.
+  - **Acceptance**:
+    1. `relay/scripts/reconcile-repo.sh --repo <name> --path <abs>` performs ONLY the bounded side-effecting git ops transcribed from `relay-loop.js:854-870`: behind-origin `merge --ff-only` (then leave state for a fresh gather), DIVERGED → no-op surface (never commit), stale-worktree reap (`worktree remove --force` + `branch -D`) when HEAD is an ancestor of main, orphan-park (`branch -m … relay/orphan/*` + `worktree remove --force`) when it carries unmerged commits, and the id:bae5 in-place `uv.lock` commit when `dirty_lock_only`. No verdict/classification logic (that stays `classify-repo.sh`). Registered in Makefile relay_FILES/EXEC/ALLOW.
+    2. Emits a small JSON summary of what it reconciled (for the runner to fold into `surfaced`); deterministic reap-vs-park decision; no `find`/broad-tree hunting (id:612f).
+    3. Runner contract: an agent runs `reconcile-repo.sh` THEN `classify-repo.sh` per repo — the two stay separate so `classify-repo.sh` remains hermetically testable in isolation.
+  - **Tests**: `tests/test_reconcile_repo.sh` (`# roadmap:5987`) — hermetic mktemp git fixtures seeded from the REAL id:689c/3ac8/1f53/c3f7/bae5 states (behind-only ff, diverged block, stale-reap, orphan-park, uv.lock-only dirty). RED until it lands.
+
+- [ ] [HARD — pool] a0b6 remainder — the confined `relay-loop.js` verdict-source swap (flip step b; meeting 2026-07-01-1904) <!-- id:a0b6 -->
+  - **GATED on id:5987 green** (the runner has nothing to call until `reconcile-repo.sh` exists). Careful supervised engine work — the engine crashed the pool 3× on the template-literal-lint hazard; NOT a tail-of-session edit.
+  - **Why** (same meeting, A3): DP1 (2026-06-30-1523) ratified Replace — classifier primary, LLM shard fires only on AMBIGUOUS. Step (a) reached verdict parity (id:e424); this is the engine edit that makes `classify-verdict` the primary verdict source.
+  - **Acceptance**:
+    1. Replace `shardPrompt` builder + the `agent(shardPrompt(chunk), …)` call (`relay-loop.js:820-900`) with a runner-agent prompt: per repo run `reconcile-repo.sh` then `classify-repo.sh`, return the SAME `SHARD_SCHEMA` `{units,surfaced,skipped}`. LLM judgment only on an `AMBIGUOUS` verdict. Reuse the id:612f NO-FILESYSTEM-HUNTING guard verbatim.
+    2. HARD swap — old `shardPrompt` DELETED (not commented). Edit confined to `:820-900`; the downstream merge/backstop code (`:906-1063`) and `SHARD_SCHEMA` UNCHANGED. The four JS-side backstops (id:000d/9973/ad74/365b) stay (A2). Rollback = `git revert` of this commit; NO runtime fallback flag.
+    3. `tests/test_workflow_template_lint.sh` extended for the new prompt + a new `tests/test_relay_runner_swap.sh` structure test (runner call feeds the same schema the merge code reads) both green; `make test` fully green with THIS box ticked; one `/relay --once` smoke run on the drained portfolio (0 crashes, byte-compatible discovery, verdicts match the historical backtest) as the acceptance gate.
+  - **Out of scope**: b444 lane-triage broker, inotify (id:0ee6), continuous dispatch (id:80b8), unpromoted-scan promote/surface semantics, and deleting any backstop (id:b50e).
+
+- [ ] [HARD — decision gate] Delete the id:000d/9973/ad74 JS-side backstops once the AMBIGUOUS→LLM path is proven constrained (flip follow-on; meeting 2026-07-01-1904) <!-- id:b50e -->
+  - 🚧 GATED — not dispatchable now. After the flip (id:a0b6), 000d finished-demote / 9973 hard-pool-demote / ad74 INTENSIVE-promote only guard the residual `AMBIGUOUS`→LLM surface. When that surface is proven constrained (or itself removed), the three become vestigial and should be deleted (constraint-archaeology). **id:365b circuit breaker STAYS** — it is cross-round loop state the per-repo classifier cannot implement. Do NOT start before a0b6 ships + the AMBIGUOUS path is characterized.
+
 - [x] [HARD — pool] `classify-verdict.sh` case-b split → `human` + mechanical surface-filer (meeting 2026-06-30-2238) <!-- id:5eb3 -->
   - **Why** (meeting `docs/meeting-notes/2026-06-30-2238-classifier-flip-prereqs-intensive-casebt.md`): `classify-verdict.sh:100` fires `handoff` on `promote>0 OR surface>0`. id:47f1 already broke the case-g loop (surface items file to the decision-queue once, then drop out), so this is a COST-TIER fix, not a correctness fix: a `promote==0 ∧ surface>0` repo has nothing an Opus `handoff` can promote — its only action is mechanical `decision-queue.sh add` per surface item. Burning the apex turn on filing-only is the over-tier the mechanize-first heuristic dissolves.
   - **Acceptance**:
