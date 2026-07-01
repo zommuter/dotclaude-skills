@@ -1133,3 +1133,7 @@ executor(id:5987) + reviewer integrate: reconcile-repo.sh built green (test_reco
 ## 2026-07-01 19:42 — reviewer (claude-opus-4-8, integrate)
 
 executor(id:3d61) + reviewer integrate: classify-repo.sh --emit unit full-unit assembler green (5/5, suite 149/0). Second a0b6 flip-step-(b) component. Remaining: discover-repo.sh (64b4, per-repo composition) then the relay-loop.js runner swap (a0b6, supervised).
+
+## 2026-07-01 19:48 — reviewer (claude-opus-4-8, integrate)
+
+executor(id:64b4) + reviewer integrate: discover-repo.sh per-repo composition green (5/5, suite 150/0). The full mechanical discovery path is now tested (reconcile 5987 + assembler 3d61 + composition 64b4). Only the confined relay-loop.js runner swap (a0b6) + nested-lock fix remain — supervised.
