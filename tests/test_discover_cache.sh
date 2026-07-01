@@ -18,12 +18,18 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
 node --check "$JS" || fail "relay-loop.js fails node --check"
 
-# (D1) the discover-run agent (the mechanical runner that replaced the old discover-shard LLM
-#      prompt) is pinned to sonnet (was inheriting the session model = Opus).
-#      Anchor to the runner line specifically: the runnerPrompt agent call carries model: 'sonnet'.
-grep -Eq "label: \`discover-run.*model: 'sonnet'" "$JS" \
-  || grep -Pzoq "discover-run[^\n]*\n?[^\n]*model: 'sonnet'" "$JS" \
-  || fail "discover-run agent is not pinned to model: 'sonnet' (D1 tier leak)"
+# (D1) the two discovery agents (discover-prelude + the discover-run mechanical runner that
+#      replaced the old discover-shard LLM prompt) must be EXPLICITLY pinned to a fixed cheap
+#      tier — never inheriting the session model (Opus) = the 35% tier-leak. Post-a0b6 both are
+#      PURE TRANSPORT (prelude relays relay.toml/claims/sigs; runner shells discover-repo.sh per
+#      repo, zero reasoning), so the floor dropped sonnet→haiku (id:2ec4, both pilot-validated
+#      2026-07-01: discover-run 3 tool calls; prelude 50/50 non-empty sigs w/ absolute paths).
+grep -Eq "label: \`discover-run.*model: 'haiku'" "$JS" \
+  || grep -Pzoq "discover-run[^\n]*\n?[^\n]*model: 'haiku'" "$JS" \
+  || fail "discover-run agent is not pinned to model: 'haiku' (D1 tier leak / stale pin)"
+grep -Eq "label: 'discover-prelude'.*model: 'haiku'" "$JS" \
+  || grep -Pzoq "discover-prelude[^\n]*\n?[^\n]*model: 'haiku'" "$JS" \
+  || fail "discover-prelude agent is not pinned to model: 'haiku' (D1 tier leak / stale pin)"
 
 # (D3a) PRELUDE_SCHEMA carries a signatures field (per-repo {repo, sig}).
 grep -q "signatures" "$JS" || fail "PRELUDE_SCHEMA / prelude has no signatures field"
@@ -48,4 +54,4 @@ grep -Eiq "fail.?open|sentinel|empty sig" "$JS" || fail "no fail-open handling f
 grep -q "runId: prelude.runId" "$JS" || fail "merged discovery dropped the prelude runId (shape drift)"
 grep -q "id:c3a6" "$JS" || fail "no id:c3a6 marker tying this wiring to the roadmap item"
 
-pass "discovery is signature-cached: shards fire only on churn, sonnet-pinned, fail-open (c3a6)"
+pass "discovery is signature-cached: shards fire only on churn, haiku-pinned, fail-open (c3a6 + id:2ec4 tier flip)"
