@@ -18,11 +18,12 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
 node --check "$JS" || fail "relay-loop.js fails node --check"
 
-# (D1) the discover-shard agent is pinned to sonnet (was inheriting the session model = Opus).
-#      Anchor to the shard line specifically: the shardPrompt agent call carries model: 'sonnet'.
-grep -Eq "label: \`discover-shard.*model: 'sonnet'" "$JS" \
-  || grep -Pzoq "discover-shard[^\n]*\n?[^\n]*model: 'sonnet'" "$JS" \
-  || fail "discover-shard agent is not pinned to model: 'sonnet' (D1 tier leak)"
+# (D1) the discover-run agent (the mechanical runner that replaced the old discover-shard LLM
+#      prompt) is pinned to sonnet (was inheriting the session model = Opus).
+#      Anchor to the runner line specifically: the runnerPrompt agent call carries model: 'sonnet'.
+grep -Eq "label: \`discover-run.*model: 'sonnet'" "$JS" \
+  || grep -Pzoq "discover-run[^\n]*\n?[^\n]*model: 'sonnet'" "$JS" \
+  || fail "discover-run agent is not pinned to model: 'sonnet' (D1 tier leak)"
 
 # (D3a) PRELUDE_SCHEMA carries a signatures field (per-repo {repo, sig}).
 grep -q "signatures" "$JS" || fail "PRELUDE_SCHEMA / prelude has no signatures field"

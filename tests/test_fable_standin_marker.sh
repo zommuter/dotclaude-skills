@@ -86,11 +86,13 @@ grep -q 'return u.standin ? 1 : 0' "$JS" \
   && ok "both scheduler sort sites apply standInRank" \
   || fail "standInRank not wired into both sort sites"
 
-# 14. DISCOVER_SCHEMA declares the standin property and classifier prompt detects it
+# 14. DISCOVER_SCHEMA declares the standin property (relay-loop.js) and the mechanical
+#     classify-repo.sh (--emit unit mode) derives it (the old classifier-prompt detection
+#     was mechanized into a deterministic "fable-standin in ckpt_msg" check).
 grep -q 'standin: { type: .boolean. }' "$JS" \
-  && grep -q 'standin per repo' "$JS" \
-  && ok "discovery schema + classifier prompt cover standin" \
-  || fail "discovery schema or classifier prompt missing standin"
+  && grep -q 'standin = "fable-standin" in ckpt_msg' "$ROOT/relay/scripts/classify-repo.sh" \
+  && ok "discovery schema + classify-repo.sh cover standin" \
+  || fail "discovery schema or classify-repo.sh missing standin"
 
 # 15. tiebreaker is never a filter (slight-preference invariant): standInRank must not
 #     appear inside a .filter predicate

@@ -36,11 +36,14 @@ pass "id:7d1e: per-verdict + Support progress buckets wired"
 # (1c) id:e107 — executor-actionable guard: a [ROUTINE] item that is @manual/human-only must
 # be excluded from the execute verdict, so a repo whose only open [ROUTINE] items are all
 # @manual does NOT get an executor dispatched every round (the no-op checkpoint thrash loop).
-grep -q "EXECUTOR-ACTIONABLE" "$JS" \
-  || fail "id:e107: discovery prompt missing the EXECUTOR-ACTIONABLE (@manual/human-only) guard"
-grep -q "id:e107" "$JS" \
-  || fail "id:e107: guard not tagged with its id in the discovery prompt"
-pass "id:e107: @manual/human-only [ROUTINE] excluded from the execute verdict"
+# The old LLM discovery prompt's guard was mechanized into classify-repo.sh's --emit unit mode.
+CLASSIFY="$SRC_DIR/relay/scripts/classify-repo.sh"
+[[ -f "$CLASSIFY" ]] || fail "classify-repo.sh not found at $CLASSIFY"
+grep -q "@manual" "$CLASSIFY" \
+  || fail "id:e107: classify-repo.sh missing the @manual human-only exclusion"
+grep -q "HUMAN_GATES" "$CLASSIFY" \
+  || fail "id:e107: classify-repo.sh missing the HUMAN_GATES human-only exclusion set"
+pass "id:e107: @manual/human-only [ROUTINE] excluded from the execute verdict (classify-repo.sh)"
 
 # (2) Unattended invariant: the Workflow never prompts
 if grep -q "AskUserQuestion" "$JS"; then
@@ -224,12 +227,17 @@ pass "id:2d20+d58f: drain keys on per-round SUBSTANTIVE progress (not just any c
 
 # id:2d20 — discovery classifier excludes GATED HARD items from the hard verdict + openHard,
 # so already-known-gated repos are surfaced (needs /meeting), not re-dispatched every round.
-grep -q "EXECUTABLE-HARD test" "$JS" \
-  || fail "id:2d20: classifier prompt missing the EXECUTABLE-HARD test (gated-item exclusion)"
+# The gated-item exclusion + openHard narrowing were mechanized into gather-repo-state.sh's
+# id:9973 open_hard_pool count (exact "[HARD — pool]" tag match, excludes meeting/hands/
+# decision-gate); the surfaced needs-/meeting reason stays in relay-loop.js's demote guard.
+GATHER="$SRC_DIR/relay/scripts/gather-repo-state.sh"
+[[ -f "$GATHER" ]] || fail "gather-repo-state.sh not found at $GATHER"
+grep -q "EXECUTABLE-HARD test" "$GATHER" \
+  || fail "id:2d20: gather-repo-state.sh missing the EXECUTABLE-HARD test rationale (gated-item exclusion)"
 grep -q "HARD backlog is gated" "$JS" \
   || fail "id:2d20: classifier does not surface all-gated-HARD repos with a needs-/meeting reason"
-grep -q "do NOT count GATED/decision-gate" "$JS" \
-  || fail "id:2d20: openHard count not narrowed to executable items"
+grep -q "tagged EXACTLY" "$GATHER" \
+  || fail "id:2d20: openHard count not narrowed to executable items (exact [HARD — pool] tag match)"
 pass "id:2d20: classifier excludes gated HARD items (surfaced for /meeting, not dispatched)"
 
 # id:8b1f — a SIZE-OUT/gated refusal must leave the worktree CLEAN (no commit), else the
@@ -292,8 +300,10 @@ pass "id:7570: work child anchors its lease to the worktree (long child keeps it
 # repos (incident 2026-06-23: recurheb/echoAI/collaib all-ticked ROADMAPs still got handoff).
 grep -q "id:000d" "$JS" \
   || fail "id:000d: no id:000d marker in relay-loop.js (is_finished guard rationale missing)"
-grep -q "IS-FINISHED DEMOTE GUARD" "$JS" \
-  || fail "id:000d: shard prompt missing the IS-FINISHED DEMOTE GUARD instruction"
+# The old shard-prompt instruction was mechanized: gather-repo-state.sh now computes
+# is_finished deterministically (no LLM judgment needed).
+grep -q "id:000d — deterministic is_finished guard" "$SRC_DIR/relay/scripts/gather-repo-state.sh" \
+  || fail "id:000d: gather-repo-state.sh missing the deterministic is_finished guard"
 grep -q "is_finished demote" "$JS" \
   || fail "id:000d: no JS-side is_finished demote block in relay-loop.js"
 grep -q "FINISHED_DEMOTE_VERDICTS" "$JS" \
@@ -307,13 +317,14 @@ grep -qF "new Set(['execute', 'hard', 'handoff'])" "$JS" \
   || fail "id:000d: FINISHED_DEMOTE_VERDICTS must be exactly {execute, hard, handoff} — review is unaffected"
 # id:401c Run 45 — the JS-side guard reads u.is_finished, so the value must actually REACH
 # the unit: (a) the DISCOVER_SCHEMA must declare is_finished as a unit property (else the
-# validated unit drops it), and (b) the shard prompt must instruct copying it verbatim.
-# Without BOTH, u.is_finished is always undefined and the deterministic backstop is DEAD code.
+# validated unit drops it), and (b) classify-repo.sh's --emit unit mode must copy it verbatim
+# from gather (the old shard-prompt instruction was mechanized). Without BOTH, u.is_finished
+# is always undefined and the deterministic backstop is DEAD code.
 grep -q "is_finished: { type: 'boolean' }" "$JS" \
   || fail "id:401c: DISCOVER_SCHEMA does not declare unit.is_finished — the JS-side guard's u.is_finished is always undefined (dead guard)"
-grep -q "is_finished per repo" "$JS" \
-  || fail "id:401c: shard prompt does not instruct copying is_finished onto the unit — the deterministic value never reaches the JS guard"
-pass "id:000d/401c: is_finished demote guard present + the deterministic value actually reaches the unit (schema + prompt)"
+grep -q '"is_finished": bool(base.get("is_finished"' "$SRC_DIR/relay/scripts/classify-repo.sh" \
+  || fail "id:401c: classify-repo.sh does not copy is_finished onto the unit — the deterministic value never reaches the JS guard"
+pass "id:000d/401c: is_finished demote guard present + the deterministic value actually reaches the unit (schema + classify-repo.sh)"
 
 # id:5c00 — quota PRE-GATE before the per-round discovery fan-out
 # (Incident 2026-06-25: 5 shard agents ~94k tokens spent before the quota-stop gate fired post-sharding)

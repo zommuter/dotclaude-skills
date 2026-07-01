@@ -32,7 +32,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     2. Only reconcile's bounded git ops mutate; the routing + classify are read-only.
   - **Tests**: `tests/test_discover_repo.sh` (`# roadmap:64b4`) — hermetic fixtures for all 5 routing branches (execute / diverged-surface-once / idle+skipped / dirty-blocked / uv.lock-relock→execute). RED until `discover-repo.sh` lands.
 
-- [ ] [HARD — pool] a0b6 remainder — the confined `relay-loop.js` verdict-source swap (flip step b; meeting 2026-07-01-1904) <!-- id:a0b6 -->
+- [x] [HARD — pool] a0b6 remainder — the confined `relay-loop.js` verdict-source swap (flip step b; meeting 2026-07-01-1904) <!-- id:a0b6 --> done 2026-07-01 (supervised): shardPrompt (74-line LLM classifier) DELETED, replaced by a mechanical runner calling discover-repo.sh per repo; node --check + template-lint clean; nested-uv.lock fidelity + id:1f53 suppress-redispatch reimplemented in reconcile-repo.sh (found via failing structure tests); 11 structure tests repointed to the new script homes; suite 151/0. The LLM discovery shard is GONE — discovery is now fully deterministic (reconcile+classify+route), LLM confined to the dormant AMBIGUOUS surface.
   - **GATED on id:5987 (done ✓) + id:3d61 (done ✓) + id:64b4 green** (the runner invokes `discover-repo.sh`, which composes reconcile + classify --emit unit). Careful supervised engine work — the engine crashed the pool 3× on the template-literal-lint hazard; NOT a tail-of-session edit.
   - **Why** (same meeting, A3): DP1 (2026-06-30-1523) ratified Replace — classifier primary, LLM shard fires only on AMBIGUOUS. Step (a) reached verdict parity (id:e424); this is the engine edit that makes `classify-verdict` the primary verdict source.
   - **Acceptance**:
