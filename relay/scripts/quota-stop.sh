@@ -30,8 +30,8 @@
 #                                default 5 (stop if estimate + margin >= threshold*100)
 #   RELAY_QUOTA_EXTRAP_RECENCY   max age (s) of the last burn sample to trust it, default 7200 (2h)
 #
-# Scale note: the live cache (written by statusline/statusline-command.sh from
-# /api/oauth/usage) stores `.utilization` as a 0-100 PERCENT (e.g. 37.0 = 37%).
+# Scale note: the live cache (written by statusline/statusline-command.sh, the sole owner
+# of the usage API + OAuth token) stores `.utilization` as a 0-100 PERCENT (e.g. 37.0 = 37%).
 # RELAY_QUOTA_THRESHOLD stays a 0-1 fraction for ergonomic overrides; the
 # comparison converts internally (val >= threshold*100).
 set -euo pipefail
@@ -41,9 +41,6 @@ AGENTS=0
 WALL=0
 THRESHOLD="${RELAY_QUOTA_THRESHOLD:-0.90}"
 USAGE_CACHE="${USAGE_CACHE:-/tmp/claude-usage-cache.json}"
-# Credentials for the self-refresh below. Tests point this at a tokenless path to keep
-# the stale-cache path hermetic (no network).
-USAGE_CREDS="${USAGE_CREDS:-$HOME/.claude/.credentials.json}"
 RELAY_QUOTA_SAMPLES="${RELAY_QUOTA_SAMPLES:-$HOME/.config/relay/quota-samples.jsonl}"
 EXTRAP_MARGIN="${RELAY_QUOTA_EXTRAP_MARGIN:-5}"
 EXTRAP_RECENCY_SECS="${RELAY_QUOTA_EXTRAP_RECENCY:-7200}"
@@ -194,61 +191,42 @@ NOW=$(date +%s)
 MTIME=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null) || { echo "quota-stop: cannot stat $USAGE_CACHE" >&2; exit 2; }
 AGE=$(( NOW - MTIME ))
 if [[ "$AGE" -gt "$STALE_SECS" ]]; then
-  # Self-refresh: in unattended background pool runs there's no statusline render to keep
-  # the cache fresh, so it goes stale mid-run and we'd false-stop a healthy pool. Refresh
-  # it ourselves from the same /api/oauth/usage endpoint the statusline uses, under a flock
-  # so concurrent quota-gates don't stampede the token's ~5-req limit. If refresh fails,
-  # stay conservative and stop (exit 2). USAGE_CREDS tokenless ⟹ skip (hermetic in tests).
-  TOK=$(jq -r '.claudeAiOauth.accessToken // empty' "$USAGE_CREDS" 2>/dev/null || true)
-  if [[ -n "$TOK" ]]; then
-    (
-      flock -x -w 10 8 || exit 1
-      M2=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
-      if [[ $(( $(date +%s) - M2 )) -gt 60 ]]; then   # someone else may have just refreshed
-        if curl -sf --max-time 8 -o "$USAGE_CACHE.qs.tmp" \
-             -H "Authorization: Bearer $TOK" -H "anthropic-beta: oauth-2025-04-20" \
-             "https://api.anthropic.com/api/oauth/usage" 2>/dev/null && [[ -s "$USAGE_CACHE.qs.tmp" ]]; then
-          mv "$USAGE_CACHE.qs.tmp" "$USAGE_CACHE"
-        else
-          rm -f "$USAGE_CACHE.qs.tmp"
-        fi
-      fi
-    ) 8>"${USAGE_CACHE}.qs.lock"
-    MTIME=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
-    AGE=$(( $(date +%s) - MTIME ))
-  fi
-  if [[ "$AGE" -gt "$STALE_SECS" ]]; then
-    # Margin-aware staleness (id:1d64): a stale reading is only dangerous if we might have
-    # CROSSED the threshold since it was taken. Check every bucket for this tier: if each one
-    # is below (bucket_threshold × 100 − MARGIN), the headroom is large enough that we
-    # proceed on the stale-but-safe last known values and let check_key do the real gate.
-    # A MISSING bucket → treat as unsafe → keep exit 2.
-    case "$TIER" in
-      sonnet) _stale_buckets="seven_day_sonnet five_hour seven_day" ;;
-      strong) _stale_buckets="five_hour seven_day" ;;
-      *)      _stale_buckets="" ;;
-    esac
-    _stale_safe=1  # assume safe until proven otherwise
-    for _b in $_stale_buckets; do
-      _u=$(jq -r ".${_b}.utilization // empty" "$USAGE_CACHE" 2>/dev/null)
-      if [[ -z "$_u" ]]; then
-        _stale_safe=0; break  # missing bucket → unsafe
-      fi
-      _t="$(bucket_threshold "$_b")"
-      # safe if util < threshold*100 − MARGIN
-      if ! awk -v u="$_u" -v t="$_t" -v m="$MARGIN" 'BEGIN { exit (u < t*100 - m) ? 0 : 1 }'; then
-        _stale_safe=0; break  # within margin of threshold → unsafe
-      fi
-    done
-    if [[ "$_stale_safe" -eq 1 ]]; then
-      echo "quota-stop: proceeding on stale-but-safe cache (margin ${MARGIN})" >&2
-      # fall through to the normal check_key loop below
-    else
-      echo "quota-stop: cache stale (${AGE}s > ${STALE_SECS}s limit) and self-refresh unavailable/failed" >&2
-      extrapolate_or_stop "cache stale ${AGE}s, self-refresh failed, within margin"
+  # No self-refresh here (id:0175 / routed:82e3). This gate runs inside the auto-mode relay
+  # pool, where reading the OAuth token and curling the usage endpoint is a credential-egress
+  # shape the permission classifier denies — the agent then dies and the pool false-stops on
+  # round 1. So the pool-side gate NEVER touches the token: the foreground statusline (a
+  # user-approved context) is the sole token owner and cache refresher. A stale cache is
+  # resolved without any network/credential access — by the stale-but-safe margin check
+  # below, falling through to burn-rate extrapolation (relay-burn.sh, reads ~/.config
+  # samples only). If neither can vouch for headroom, we stay conservative and stop.
+  # Margin-aware staleness (id:1d64): a stale reading is only dangerous if we might have
+  # CROSSED the threshold since it was taken. Check every bucket for this tier: if each one
+  # is below (bucket_threshold × 100 − MARGIN), the headroom is large enough that we
+  # proceed on the stale-but-safe last known values and let check_key do the real gate.
+  # A MISSING bucket → treat as unsafe → keep exit 2.
+  case "$TIER" in
+    sonnet) _stale_buckets="seven_day_sonnet five_hour seven_day" ;;
+    strong) _stale_buckets="five_hour seven_day" ;;
+    *)      _stale_buckets="" ;;
+  esac
+  _stale_safe=1  # assume safe until proven otherwise
+  for _b in $_stale_buckets; do
+    _u=$(jq -r ".${_b}.utilization // empty" "$USAGE_CACHE" 2>/dev/null)
+    if [[ -z "$_u" ]]; then
+      _stale_safe=0; break  # missing bucket → unsafe
     fi
+    _t="$(bucket_threshold "$_b")"
+    # safe if util < threshold*100 − MARGIN
+    if ! awk -v u="$_u" -v t="$_t" -v m="$MARGIN" 'BEGIN { exit (u < t*100 - m) ? 0 : 1 }'; then
+      _stale_safe=0; break  # within margin of threshold → unsafe
+    fi
+  done
+  if [[ "$_stale_safe" -eq 1 ]]; then
+    echo "quota-stop: proceeding on stale-but-safe cache (margin ${MARGIN})" >&2
+    # fall through to the normal check_key loop below
   else
-    echo "quota-stop: self-refreshed stale cache" >&2
+    echo "quota-stop: cache stale (${AGE}s > ${STALE_SECS}s limit), no pool-side refresh — extrapolating" >&2
+    extrapolate_or_stop "cache stale ${AGE}s, within margin"
   fi
 fi
 

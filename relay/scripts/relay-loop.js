@@ -1868,7 +1868,9 @@ while (!quotaStopped && round < MAX_ROUNDS) {
   // id:c012 — launch-time round cap (--once = 1 round; --after N = N rounds). The cap counts
   // COMPLETED rounds; once `round` reaches it, wind down voluntarily (drain already done above).
   if (STOP_AFTER_ROUNDS > 0 && round >= STOP_AFTER_ROUNDS) {
-    stopReason = 'user-stop'
+    // id:0175 — don't mask a REAL stop reason set earlier in this same round (e.g. a quota
+    // gate that fired in the prelude): only claim 'user-stop' when nothing else stopped us.
+    if (!stopReason) stopReason = 'user-stop'
     log(`relay-loop: graceful stop — launch round cap reached (${round}/${STOP_AFTER_ROUNDS}, --once/--after)`)
     break
   }
