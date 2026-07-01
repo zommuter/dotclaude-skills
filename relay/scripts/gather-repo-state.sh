@@ -277,6 +277,30 @@ fi
 # nothing new — a real audit must never be wrongly skipped.
 audit_ref="$(printf '%s\n' "$block" | sed -n 's/^[[:space:]]*last_strong_ckpt[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' | head -n1)"
 [[ -z "$audit_ref" ]] && audit_ref="$latest"
+# Stale-watermark guard (2026-07-01 duplicate-dispatch incident, run relay-20260701-202806-14640):
+# relay.toml's last_strong_ckpt can LAG the real newest strong checkpoint when an out-of-pool
+# session mints ckpt tags without syncing relay.toml (tags 1927..2110 vs watermark 1635 → the
+# pool re-dispatched duplicate strong reviews of an already-audited window every round). The
+# tags themselves carry the role: ckpt-tag.sh appends the label as the LAST line of the tag
+# annotation — "reviewer (...)" / "strong-execute (...)" are strong audits, "executor (...)"
+# is not (an executor checkpoint must never advance the strong-audit anchor, id:e030 direction).
+# Anchor on the newest strong-labeled tag when it is newer than the toml watermark (tag names
+# embed date-minute, so the existing `sort` lexicographic order IS chronological order).
+# FAIL-OPEN preserved: an unlabeled/legacy tag never matches → audit stays true; the unset-
+# watermark $latest fallback above is unchanged (newest_strong can never sort after $latest).
+newest_strong=""
+if [[ -n "$tags" ]]; then
+  while IFS= read -r t; do
+    [[ -z "$t" ]] && continue
+    lbl="$(git -C "$path" tag -l --format='%(contents)' "$t" 2>/dev/null | awk 'NF{l=$0} END{print l}')"
+    case "$lbl" in
+      reviewer*|strong-execute*) newest_strong="$t"; break ;;
+    esac
+  done < <(printf '%s\n' "$tags" | tac)
+fi
+if [[ -n "$audit_ref" && -n "$newest_strong" ]] && [[ "$newest_strong" > "$audit_ref" ]]; then
+  audit_ref="$newest_strong"
+fi
 substantive_unaudited=true       # FAIL-OPEN default
 nonckpt_shas=""                  # sorted non-checkpoint commit shas since the audit ref (for work_sig)
 if [[ -n "$audit_ref" ]] && git -C "$path" rev-parse --verify -q "$audit_ref" >/dev/null 2>&1; then
