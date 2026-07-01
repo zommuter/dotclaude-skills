@@ -54,6 +54,9 @@ python3 - <<'PYEOF' > "$blobdir/assembled.json"
 import json, os, re, sys
 
 HUMAN_GATES = ("[HARD — hands]", "[HARD — meeting]", "[HARD — decision gate]")
+# id:4da4 — recognized lane tags, in no particular order; the item's lane is whichever
+# appears FIRST on the line (see the primary-lane parse below).
+LANE_TAGS = ("[ROUTINE]", "[HARD — pool]") + HUMAN_GATES
 
 path     = os.environ["CLASSIFY_PATH"]
 with open(os.environ["BASE_FILE"]) as _f: base_json = _f.read()
@@ -64,6 +67,7 @@ rm = os.path.join(path, "ROADMAP.md")
 has_routine = False
 roadmap_open = 0
 roadmap_actionable_open = 0
+actionable_routine_open = 0
 
 if os.path.isfile(rm):
     with open(rm, errors="replace") as f:
@@ -71,11 +75,32 @@ if os.path.isfile(rm):
             if not re.match(r"\s*- \[ \] ", ln):
                 continue
             roadmap_open += 1
-            is_routine = "[ROUTINE]" in ln
-            is_pool    = "[HARD — pool]" in ln
-            is_human   = any(h in ln for h in HUMAN_GATES) or "@manual" in ln
+            # id:4da4 — PRIMARY-LANE anchoring: an item's lane is the FIRST recognized lane-tag
+            # on the line. Lane tags cluster right after the title; any bracket-token further
+            # right is prose/history and must NOT set the lane. This is robust where a
+            # title-scope + backtick-strip is not: leAIrn2learn id:c3f5 is a [HARD — pool] item
+            # (tag at char 85) with a backtick'd `[ROUTINE]` 1600 chars into its handback history
+            # (char 1640) — 16 desynced backticks let the strip miss it, so it mis-fired execute
+            # (/relay --once 2026-07-01). Taking the FIRST lane-tag makes it correctly `hard`.
+            _found = [(ln.find(t), t) for t in LANE_TAGS if ln.find(t) >= 0]
+            primary = min(_found)[1] if _found else ""
+            is_routine = primary == "[ROUTINE]"
+            is_pool    = primary == "[HARD — pool]"
+            # @manual excludes conservatively (a rare prose mention only ever UNDER-dispatches,
+            # never mis-dispatches — the safe direction for the executor gate).
+            is_human   = primary in HUMAN_GATES or "@manual" in ln
             if is_routine:
                 has_routine = True
+                # id:4da4 — a [ROUTINE] item that declares a dependency BLOCK / gate is NOT
+                # executor-actionable — the executor can only no-op it (zkm-threema id:180b
+                # "[ROUTINE] (BLOCKED on id:7364)" was dispatched execute → empty handback,
+                # /relay --once 2026-07-01). Conservative markers only under-dispatch (safe).
+                blocked = ("🚧" in ln) or ("BLOCKED on" in ln) or ("blocked on" in ln)
+                # id:4da4 — actionable_routine = open [ROUTINE], primary-lane, NOT @manual/human-gated,
+                # NOT dependency-blocked. This (not bare has_routine) is what the execute verdict
+                # gates on, else an @manual-only or blocked [ROUTINE] repo mis-fires execute.
+                if not is_human and not blocked:
+                    actionable_routine_open += 1
             if (is_routine or is_pool) and not is_human:
                 roadmap_actionable_open += 1
 
@@ -95,6 +120,7 @@ base = json.loads(base_json)
 base["hasRoutine"]              = has_routine
 base["roadmap_open"]            = roadmap_open
 base["roadmap_actionable_open"] = roadmap_actionable_open
+base["actionable_routine_open"] = actionable_routine_open
 base["unpromoted"]              = {"promote": promote, "surface": surface}
 
 print(json.dumps(base))
