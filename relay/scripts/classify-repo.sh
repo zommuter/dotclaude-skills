@@ -150,7 +150,6 @@ toml_block = base.get("toml_block", "") or ""
 ckpt_msg   = base.get("latest_ckpt_msg", "") or ""
 
 income = bool(re.search(r'(?m)^\s*income\s*=\s*true\s*$', toml_block))
-standin = "fable-standin" in ckpt_msg
 
 m = re.search(r'(?m)^\s*last_strong_ckpt\s*=\s*"([^"]*)"\s*$', toml_block)
 last_strong_ckpt = m.group(1) if m else ""
@@ -158,6 +157,13 @@ fr = re.search(r'(?m)^\s*fable_rechecked\s*=\s*(\S+)\s*$', toml_block)
 fable_rechecked_val = fr.group(1).strip('"') if fr else ""
 fable_rechecked = fable_rechecked_val not in ("", "false", "False")
 strong_recheck_pending = bool(last_strong_ckpt) and not fable_rechecked
+
+# id:a42e: a checkpoint annotation that merely MENTIONS "fable-standin" (e.g. a
+# genuine Fable recheck describing the standin review it audited) must not
+# re-trigger standin once the durable id:e030 watermark shows the recheck was
+# already consumed — otherwise relay-loop.js's `standin || strongRecheckPending`
+# elevation re-dispatches an idle→review on every Fable pool round.
+standin = ("fable-standin" in ckpt_msg) and not fable_rechecked
 
 open_hard_pool = base.get("open_hard_pool", 0) or 0
 

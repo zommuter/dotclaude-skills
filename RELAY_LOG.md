@@ -1165,3 +1165,8 @@ review: clean 2-commit ledger-only window (id:482d observe-downgrade + 3 archive
 ## 2026-07-02 01:19 — reviewer (claude-fable-5, relay-loop)
 
 handoff C2-C5: promoted 8 TODO items to ROADMAP (4 ROUTINE dff8/482d/fb7f/a42e + 3 HARD-pool 7633/25aa/f032 + gated 659c), executed 9014 (route-2a effectively-drained predicate) at C5, wrote 4 red specs + 4 REVIEW_ME boxes, ingested 3 inbound dead-letters, lane-tagged 5 scan-mislabeled items, closed 22ef (overtaken), repaired fused 77f3/01fa line + misfiled ##Done EOF-appends; suite 159/0/4-expected-red [id:dff8,482d,fb7f,9014,7633,659c,a42e,25aa,f032,22ef]
+
+## 2026-07-02 — executor (sonnet)
+
+Worked id:a42e — gated `classify-repo.sh`'s `standin` derivation on the id:e030 `fable_rechecked` watermark (`standin = ("fable-standin" in ckpt_msg) and not fable_rechecked`), so a genuine Fable-recheck annotation that merely mentions the standin review it audited no longer re-elevates an already-rechecked repo idle→review on every pool round; updated the stale literal-string drift-guard in `test_fable_standin_marker.sh` to match. Ticked ROADMAP+TODO twins. Full suite 160/0/3-expected-red.
+Friction: none.

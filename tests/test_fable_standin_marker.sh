@@ -88,9 +88,11 @@ grep -q 'return u.standin ? 1 : 0' "$JS" \
 
 # 14. DISCOVER_SCHEMA declares the standin property (relay-loop.js) and the mechanical
 #     classify-repo.sh (--emit unit mode) derives it (the old classifier-prompt detection
-#     was mechanized into a deterministic "fable-standin in ckpt_msg" check).
+#     was mechanized into a deterministic "fable-standin in ckpt_msg" check, now also gated
+#     on the id:e030 fable_rechecked watermark per id:a42e — see
+#     test_classify_repo_standin_gate.sh for the behavioral spec of that gate).
 grep -q 'standin: { type: .boolean. }' "$JS" \
-  && grep -q 'standin = "fable-standin" in ckpt_msg' "$ROOT/relay/scripts/classify-repo.sh" \
+  && grep -q 'standin = ("fable-standin" in ckpt_msg) and not fable_rechecked' "$ROOT/relay/scripts/classify-repo.sh" \
   && ok "discovery schema + classify-repo.sh cover standin" \
   || fail "discovery schema or classify-repo.sh missing standin"
 
