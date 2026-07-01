@@ -178,6 +178,11 @@ unit = {
     "work_sig": base.get("work_sig", "") or "",
     "open_hard_pool": open_hard_pool,
     "strongRecheckPending": strong_recheck_pending,
+    # id:188c (relay-doctor check 10 / invariant I2) — expose the derived executor-actionable
+    # [ROUTINE] count so the invalid-state detector can cross-check `verdict==execute ⟹
+    # actionable_routine_open>0` (classify-verdict.sh:91 gates execute on it). Extra field is
+    # schema-safe (DISCOVER_SCHEMA units allow additional properties); consumers ignore it.
+    "actionable_routine_open": base.get("actionable_routine_open", 0),
 }
 print(json.dumps(unit))
 PYEOF
