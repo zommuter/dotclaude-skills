@@ -45,7 +45,7 @@ mktoml() {  # mktoml <file> <repo-name> [watermark] — minimal relay.toml block
   {
     printf '[repos.%s]\n' "$name"
     printf 'classification = "own"\n'
-    [[ -n "$wm" ]] && printf 'last_strong_ckpt = "%s"\n' "$wm"
+    if [[ -n "$wm" ]]; then printf 'last_strong_ckpt = "%s"\n' "$wm"; fi
   } > "$f"
 }
 
