@@ -1141,3 +1141,7 @@ executor(id:64b4) + reviewer integrate: discover-repo.sh per-repo composition gr
 ## 2026-07-01 20:19 — reviewer (claude-opus-4-8, integrate)
 
 FLIP COMPLETE (id:a0b6 / id:4d8e): the LLM discovery shard is replaced by the mechanical runner (reconcile-repo.sh + classify-repo.sh --emit unit + discover-repo.sh, all deterministic + tested). Suite 151/0, node-check + template-lint clean. Live smoke: discover-repo.sh on 6 real own repos (dotclaude-skills/zkWhale/zelegator/helferli/meeting-rpg/zkm) → 0 crashes, valid full units, coherent verdicts (review/handoff/human), via both canonical and the runner's ~/.claude path (symlinks installed via make install-relay). LLM confined to the dormant AMBIGUOUS surface. Backstops kept (A2); deletion gated id:b50e.
+
+## 2026-07-01 21:10 — reviewer (claude-opus-4-8, integrate)
+
+fix(id:4da4): classify execute-precision — actionable-routine gate + primary-lane anchoring + blocked-dep exclusion. Resolves all 3 /relay --once mis-fires (yinyang-puzzle @manual→human, leAIrn2learn prose-[ROUTINE]-on-[HARD-pool]→hard, zkm-threema BLOCKED-on-dep→human). classify-verdict gates execute on actionable_routine_open (back-compat -1 fallback); primary-lane = first lane-tag beats fragile backtick-strip. Suite 151/0. State-machine investigation stays open (id:4da4).
