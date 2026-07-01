@@ -1161,3 +1161,7 @@ relay bugfix batch: 8e3e ckpt-at-reviewed-tip + 6e02 cleanup scoping + 0a3b toml
 ## 2026-07-01 23:50 — reviewer (claude-fable-5, relay-loop)
 
 review: clean 2-commit ledger-only window (id:482d observe-downgrade + 3 archive moves); suite 158/0/0, gaming-scan + relay-doctor + lint all clean; 0 open ROUTINE [id:482d]
+
+## 2026-07-02 01:19 — reviewer (claude-fable-5, relay-loop)
+
+handoff C2-C5: promoted 8 TODO items to ROADMAP (4 ROUTINE dff8/482d/fb7f/a42e + 3 HARD-pool 7633/25aa/f032 + gated 659c), executed 9014 (route-2a effectively-drained predicate) at C5, wrote 4 red specs + 4 REVIEW_ME boxes, ingested 3 inbound dead-letters, lane-tagged 5 scan-mislabeled items, closed 22ef (overtaken), repaired fused 77f3/01fa line + misfiled ##Done EOF-appends; suite 159/0/4-expected-red [id:dff8,482d,fb7f,9014,7633,659c,a42e,25aa,f032,22ef]
