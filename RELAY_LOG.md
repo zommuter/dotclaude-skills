@@ -1165,3 +1165,7 @@ review: clean 2-commit ledger-only window (id:482d observe-downgrade + 3 archive
 ## 2026-07-02 01:19 — reviewer (claude-fable-5, relay-loop)
 
 handoff C2-C5: promoted 8 TODO items to ROADMAP (4 ROUTINE dff8/482d/fb7f/a42e + 3 HARD-pool 7633/25aa/f032 + gated 659c), executed 9014 (route-2a effectively-drained predicate) at C5, wrote 4 red specs + 4 REVIEW_ME boxes, ingested 3 inbound dead-letters, lane-tagged 5 scan-mislabeled items, closed 22ef (overtaken), repaired fused 77f3/01fa line + misfiled ##Done EOF-appends; suite 159/0/4-expected-red [id:dff8,482d,fb7f,9014,7633,659c,a42e,25aa,f032,22ef]
+
+## 2026-07-02 01:38 — reviewer (claude-fable-5, relay-loop)
+
+Fable recheck of ckpt-20260702-0119: handoff window audited clean (9014 genuine, 4 red specs valid, gaming-scan clean, ledgers/lint consistent); dispatch itself exposed id:6856 — relay-loop.js queues a bogus Fable-rechecks-Fable unit after a Fable HANDOFF (isFableRecheck verdict-conjunct) with a hardcoded "Opus stood in" reason — filed [ROUTINE]+red spec; suite 159/0/5-expected-red [id:9014,6856]
