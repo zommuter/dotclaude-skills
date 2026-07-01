@@ -62,6 +62,24 @@ DQ="$(dirname "${BASH_SOURCE[0]}")/decision-queue.sh"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s unpromoted-scan.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
+# primary_lane <line> — echo the FIRST recognized lane-tag on the line (by byte position),
+# or nothing if none. Mirrors classify-repo.sh's id:4da4 primary-lane parse: a lane tag
+# clusters right after the title; any bracket-token further right is prose/history and must
+# NOT set the lane. Used for the promote-vs-surface disposition (id:ed2e).
+primary_lane() {
+  local line="$1" tag prefix pos best_pos=-1 best_tag=""
+  for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"; do
+    case "$line" in
+      *"$tag"*)
+        prefix="${line%%"$tag"*}"; pos=${#prefix}
+        if [[ "$best_pos" -lt 0 || "$pos" -lt "$best_pos" ]]; then
+          best_pos=$pos; best_tag="$tag"
+        fi ;;
+    esac
+  done
+  printf '%s' "$best_tag"
+}
+
 # --- own repos from relay.toml (same parser as relay-doctor.sh) -----------------
 own_repos() {
   [[ -f "$RELAY_TOML" ]] || return 0
@@ -157,6 +175,13 @@ for line in sys.stdin:
     # deliberate non-task, not un-promoted work — never report it (incl. as `untracked`).
     [[ "$line" == *"<!-- lint-ok:"* ]] && continue
     grep -qP '<!-- ref:[0-9a-f]{4} -->' <<<"$line" && continue
+    # Relay status-summary line (`- [ ] Relay: …`): the relay's own roll-up, regenerated
+    # every review — never a promotable/backlog task. Its `[ROUTINE]`/`[HARD — pool]` tokens
+    # are ALWAYS prose (a closed-item tally), so a substring match mis-labels it `promote`
+    # → a wasteful handoff dispatch (id:ed2e — hit zkm-eml id:e662, zkm-claude-ai id:815c).
+    # Mechanically exempt it here, which also removes the need for a hand-added lint-ok marker
+    # on these lines (cf. meeting-rpg id:070c). Same prose-false-match family as id:4da4.
+    grep -qE '^- \[ \] Relay: ' <<<"$line" && continue
     token="$(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$line" | head -1 || true)"
     if [[ -z "$token" ]]; then
       # No id token → cannot be correlated to ROADMAP at all (the favicon-class blind
@@ -175,7 +200,11 @@ for line in sys.stdin:
 
     # Disposition: an executable lane tag means directly handoff-promotable; anything
     # else (untagged, [HARD — meeting]/[HARD — hands], blocked) SURFACES for triage.
-    if grep -qE '\[ROUTINE\]|\[HARD — pool\]' <<<"$line"; then
+    # id:ed2e / id:4da4 — PRIMARY-LANE anchoring: the item's lane is the FIRST recognized
+    # lane-tag on the line, NOT any substring match. A bare `grep [ROUTINE]` mis-promotes a
+    # human-gated item that merely MENTIONS an executable lane later in its prose/history
+    # (e.g. a `[HARD — meeting]` item whose body says "supersedes an earlier [ROUTINE] plan").
+    if [[ "$(primary_lane "$line")" =~ ^(\[ROUTINE\]|\[HARD\ —\ pool\])$ ]]; then
       disposition="promote"
     else
       disposition="surface"
