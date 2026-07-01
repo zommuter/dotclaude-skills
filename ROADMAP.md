@@ -10,7 +10,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
-- [ ] [ROUTINE] `reconcile-repo.sh` — bounded side-effecting git reconciliation, split out of the LLM shard (flip step b, id:a0b6; meeting 2026-07-01-1904) <!-- id:5987 -->
+- [x] [ROUTINE] `reconcile-repo.sh` — bounded side-effecting git reconciliation, split out of the LLM shard (flip step b, id:a0b6; meeting 2026-07-01-1904) <!-- id:5987 --> done 2026-07-01 (executor): implemented + registered in Makefile, tests/test_reconcile_repo.sh 7/7 PASS
   - **Why** (meeting `docs/meeting-notes/2026-07-01-1904-a0b6-step-b-engine-swap.md`, A1): the flip swaps the LLM discovery shard for the side-effect-free `classify-verdict`, but the shard ALSO does side-effecting git the classifier can never hold. `relay-loop.js` is a Workflow script (no subprocess) so this must be a script an agent runs. The dangerous op (orphan reap-vs-park `merge-base --is-ancestor` → force `worktree remove`) is exactly what needs a hermetic RED test — testability, not reuse, justifies the split.
   - **Acceptance**:
     1. `relay/scripts/reconcile-repo.sh --repo <name> --path <abs>` performs ONLY the bounded side-effecting git ops transcribed from `relay-loop.js:854-870`: behind-origin `merge --ff-only` (then leave state for a fresh gather), DIVERGED → no-op surface (never commit), stale-worktree reap (`worktree remove --force` + `branch -D`) when HEAD is an ancestor of main, orphan-park (`branch -m … relay/orphan/*` + `worktree remove --force`) when it carries unmerged commits, and the id:bae5 in-place `uv.lock` commit when `dirty_lock_only`. No verdict/classification logic (that stays `classify-repo.sh`). Registered in Makefile relay_FILES/EXEC/ALLOW.
