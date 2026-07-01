@@ -58,6 +58,9 @@ shopt -s nullglob
 checked=0
 for f in "$SCRIPTS_DIR"/*; do
   name="$(basename "$f")"
+  # Skip Python bytecode caches: never an install/symlink target, and they materialize
+  # whenever a test or run imports a relay python module (e.g. backtest-historical.py).
+  [[ "$name" == "__pycache__" || "$name" == *.pyc ]] && continue
   tok="scripts/$name"
   checked=$((checked + 1))
 

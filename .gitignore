@@ -8,3 +8,5 @@ docs/meeting-notes/persona-state.yml
 # Ignored to block accidental re-add.
 /fables-turn/
 /fables-executor/
+__pycache__/
+*.pyc
