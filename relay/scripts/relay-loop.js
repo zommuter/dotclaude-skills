@@ -74,6 +74,13 @@ const INTERACTIVE = !!A.interactive
 // --allow-intensive, never for a bare --afk.
 const ALLOW_INTENSIVE = !!A.allowIntensive
 
+// TODO (id:e407 follow-up, NOT required for that item's green): supersede this binary
+// gate with the graded permitted-intensity window (relay/scripts/relay-intensity.sh
+// `permits <est_wall> <resource>`). Deferred here deliberately — the meeting note flags
+// this specific engine edit as RISKY/crash-prone (the a0b6 template-literal-lint hazard
+// class); it needs its own `node --check` + `lint-workflow-templates.mjs` + structure-test
+// pass, not a same-session drive-by. See docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md decision 4.
+
 // FABLE_DOWN: set by --fable-down / -d front-door flag. It asserts ONE axis only — "the
 // Fable strong tier is unavailable this run" — and composes with STRONG_TIER (which axis
 // chooses WHICH strong model the review/handoff agents use):
