@@ -1492,3 +1492,44 @@ the ~30 lane-asserting tests, or close the dual-vocab window (B2c) — out of sc
 id:8111 (multi-part item, orchestrator ticks after all three sub-parts land). Friction: none —
 the sub-check text in ROADMAP.md named the exact functions/anchors to touch. Do NOT push —
 integrator merges.
+
+## 2026-07-02 — REVIEW of wave-2b (B2a parsers+refs, B2b relay-loop.js) + id:8111 re-scope
+
+Adversarial relay review (Opus apex) of the `8ad343b..HEAD` migration window. **Verdict:
+both units GENUINE.** Dual-accept was verified BOTH directions (the load-bearing claim):
+- **B2a — GENUINE.** Directly proved new-vocab handling in all three parsers with ad-hoc
+  fixtures (not just the passing old-vocab suite): `gather-repo-state.sh::roadmap_primary_lane`
+  normalizes bare `[HARD]`→`[HARD — pool]`, `[INPUT — meeting]`→`[HARD — meeting]`,
+  `[INPUT — decision]`→`[HARD — decision gate]`, `[INPUT — access]`→`[HARD — hands]` (8/8
+  cases incl. old-vocab pass-through + no-false-match); replicated `classify-repo.sh`'s
+  `LANE_TAGS`/`HUMAN_GATES` parse — bare `[HARD]`→pool, `[INPUT — access/meeting/decision]`→
+  human-gate, and confirmed bare `[HARD]` does NOT shadow `[HARD — pool]` (exact-substring,
+  `[HARD — pool]` contains `[HARD —` never `[HARD]`). `open_hard_pool` counter (line 383) keys
+  off the normalized lane, so a bare-`[HARD]`-only repo IS counted (demote-guard safe).
+- **B2b — GENUINE.** `node --check` + `lint-workflow-templates.mjs` + `test_relay_loop_structure.sh`
+  all green. The ONLY executable change is a pure widening of the diagnostic `classifyDrainBacklog`
+  bucket regex (old alternatives preserved verbatim, `\[HARD\]`/`\[INPUT —`/`no open \[HARD\]`
+  added) — a display categorization, NOT a dispatch decision. The numeric `open_hard_pool`
+  demote-guard (line 944, `(u.open_hard_pool||0)===0`) is tag-agnostic and UNTOUCHED. Everything
+  else in the diff is comment/detail-string prose.
+- **Tests not gamed.** `git diff 8ad343b..HEAD -- tests/` is EMPTY — no test touched in the
+  window; `test_lane_vocab_migration.sh` existed at 8ad343b (added at handoff b6c87ff) and is
+  now green by implementation. No assertion weakened.
+- **INTERACTIVE var — LEFT IN (not removed).** The harness flagged it dead, but it is
+  load-bearing: `tests/test_relay_front_door.sh:60` greps relay-loop.js for
+  `!!A\.interactive|args\.interactive` and line 65 (`const INTERACTIVE = !!A.interactive`) is
+  the SOLE match. Removing it would break that assertion. The lint flag is a false positive.
+
+**Bookkeeping (the honest re-scope):** id:8111's original text covered readers+refs+engine AND
+(ledger conversion + ~30-test migration + window-CLOSE). Only B2a/B2b shipped. RE-SCOPED
+id:8111 to "lane-readers + references + engine dual-accept migration" and TICKED it (genuinely
+done + verified). SPLIT the unshipped B2c tail into new **id:7df1** ("close the dual-vocab
+window — convert this-repo ledgers + migrate ~30 tests + flip old-vocab→lint ERROR"), left
+UNTICKED and GATED on M3 (id:3ef7) AND cross-repo re-tag (other own repos + `project_manager`
+scan.py id:b466 must speak new vocab first — closing early breaks repos still on `[HARD — *]`).
+Sharpened **M3 (id:3ef7)** per the owner's human-lanes-closed amendment: its per-`[HARD — hands]`
+judgment now LEADS with "BDD-automate? (why isn't this a test?)" before any `[INPUT]`/
+`[MECHANICAL]` placement; human lanes closed to {meeting,decision,access}; `[INPUT — unspecific]`
+= undecidable-only catch-all; NO `[INPUT — run]` lane. Cross-ledger D2 consistent (8111 `[x]`
+both ledgers, 7df1 `[ ]` both). `roadmap-lint.sh ROADMAP.md` exit 0; full suite 173 passed / 0
+failed / 2 expected-red. **Overall: PASS.** Do NOT push — integrator merges.
