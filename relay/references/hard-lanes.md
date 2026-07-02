@@ -102,6 +102,18 @@ it `hands` (or `meeting` when (e) is the failure):
 - **(e) No open design/judgment sub-step** ("decide X", "post-gate decisions"). *Fail →
   `meeting`.*
 
+**Needs an LLM? branch (id:2313, meeting amendment 2026-07-02).** An item that passes
+a–e is not automatically `[HARD — pool]` — first ask whether the run itself needs an
+LLM session at all:
+- **Compute-only, no-LLM, no human judgment** (a benchmark battery, a training/eval
+  run, a `model-probe.sh`-style pilot) that passes a–e ⇒ **`[MECHANICAL]`** — daemon-run
+  (A3, id:b3d0), not pool-dispatched. This is the producer instruction handoff.md C2
+  follows (id:9c88) when it recognizes compute-only work.
+- **Needs an LLM session** (code review, judgment, an interactive turn) and passes a–e
+  ⇒ `[ROUTINE]`/`[HARD — pool]` as before.
+- **Fails a–e** (needs a human's hands/eyes/credential) ⇒ stays `[HARD — hands]` (or
+  `meeting` when (e) is the failure) — unchanged.
+
 Worked verdicts (the policy is only as good as its calls):
 - `ai-codebench` id:244b (benchmark drain, idempotent `--resume`, dashboard done-check,
   zomni-bound) → passes a–e → **`[HARD — pool] [INTENSIVE — local-llm] [host:zomni]`**.

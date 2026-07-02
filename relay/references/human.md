@@ -158,15 +158,22 @@ them.** The collector has already READ each item's explicit lane, so route by `k
 - **`hard_hands` boxes go on the "you run these" checklist (§4), NOT a meeting.** They
   need a human to physically run something (hardware/sudo/secret/on-device); a meeting
   cannot discharge them. Leave OPEN; surface in the §4 manual checklist.
+  **`[MECHANICAL]` is EXCLUDED from this checklist (id:2313, meeting amendment
+  2026-07-02).** `[MECHANICAL]` is daemon-run (A3, id:b3d0), not human-run — it never
+  belongs on "you run these" even though it shares the "no LLM session" shape with
+  `hard_hands`. `gather-human-backlog.sh` already keeps it out of the human buckets in
+  code (slice-A A1); this is the doctrine note so a human collector never hand-adds one.
   **Author-then-run split (id:e175):** before surfacing a hands item, judge whether it is
   *(an authorable artifact) + (a thin on-device run)* — e.g. write systemd units in-repo,
   then `systemctl --user` enable + observe. When the authoring half is genuinely
   worktree-buildable, propose the SPLIT (handoff.md C2): a `[HARD — pool]` "author X" item
-  the `--afk` pool builds unattended + a `[HARD — hands]` "run X" residue gated `(DEP:
-  <author-id>)`, so only the irreducible on-device run stays hands. It is authoring
-  judgment — only split when the author half is really buildable (an outside-repo config
-  edit + `ssh <host> chmod` is wholly hands). Relay NEVER auto-runs the device command;
-  surface the split as a proposal, leave the box OPEN.
+  the `--afk` pool builds unattended + a run residue gated `(DEP: <author-id>)`. The run
+  residue is `[HARD — hands]` only if it genuinely needs a human (device/sudo/physical/
+  credential) — if it is daemon-runnable instead, it is `[MECHANICAL]` and does NOT
+  appear on this checklist (hard-lanes.md's "needs an LLM?" branch, id:2313). It is
+  authoring judgment — only split when the author half is really buildable (an
+  outside-repo config edit + `ssh <host> chmod` is wholly hands). Relay NEVER auto-runs
+  the device command; surface the split as a proposal, leave the box OPEN.
 - **`hard_pool` boxes are NOT a human action.** They are pool-executable apex work the
   `/relay --afk` pool already runs via its `hard` verdict (id:da26). Do NOT route them
   to a meeting and do NOT put them on the "you run these" list — surface them only as a
