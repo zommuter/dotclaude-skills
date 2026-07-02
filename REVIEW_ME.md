@@ -77,19 +77,23 @@ latest prune by the 2026-07-02 review.)
   `~/src/claude-diary/docs/2026-07-02-human-sprint-8020.md`. Next `/relay human` should
   present it as the "you run these" checklist and tick items THERE; close this box when
   that doc is fully worked or superseded.
-- [ ] Capability-taxonomy slice-A handoff (2026-07-02, meeting 2026-07-02-1924) — three
-  executor judgment calls the RED specs deliberately did NOT pin, flagged for the 15-min
-  review budget:
-  (1) **A4 (id:e407) resource→tier mapping** — `test_permitted_intensity.sh` pins only the
-  MONOTONIC property (a `--heavy` window permits `local-llm`, a `--light` window refuses it).
-  WHICH resource names count "heavy" vs "light" (gpu/local-llm heavy; cpu light; where does
-  ram/net sit?) is the executor's mapping choice. Confirm the chosen mapping is sane.
-  (2) **A1 (id:7616) `mechanical` verdict priority rank** — the spec pins only that
-  `mechanical` fires for a MECHANICAL-only repo and that an actionable `[ROUTINE]` still wins;
-  its rank RELATIVE to `human`/`surface` (does compute-only work outrank a surface-only backlog
-  or sit just above idle?) is unpinned. Confirm the chosen rank matches "pool-inert, daemon
-  consumes".
-  (3) **A5 (id:68dc) default thresholds** — `RESOURCE_PROBE_LOAD_MAX` / `RESOURCE_PROBE_RAM_MIN_MB`
-  defaults are host-tuning judgments (the test overrides them); confirm the shipped defaults suit
-  zomni. Also confirm the `gpu`-absent path stays a graceful `available:false` (never a fatal
-  crash) on a real host, not just the env-stubbed test.
+- [x] Capability-taxonomy slice-A handoff (2026-07-02, meeting 2026-07-02-1924) — three
+  executor judgment calls RESOLVED at the 2026-07-02 review (all three confirmed sane;
+  the four slice-A implementations verified GENUINE, not gamed — tests byte-identical to
+  their ced7343 RED versions, impl scripts all absent at RED):
+  (1) **A4 (id:e407) resource→tier mapping** — CONFIRMED. `HEAVY_RESOURCES=(gpu local-llm
+  local-model llama)`, everything else (cpu/ram/net/disk) light. The heavy set is exactly the
+  OOM-risky GPU/local-model class the meeting cited (the workloads that killed six sessions);
+  ram sits "light" in the *permit-window* tier while still hardware-gated live by
+  `resource-probe.sh` (`RESOURCE_PROBE_RAM_MIN_MB`) — the two gates are orthogonal, so a big
+  RAM job is not under-guarded. Mapping is sane.
+  (2) **A1 (id:7616) `mechanical` verdict priority rank** — CONFIRMED rank 6 (just above idle
+  7, below human 5). Correct: mechanical is pool-inert (non-dispatchable, like human/idle), so
+  a surface-only backlog (human, rank 5) rightly out-prioritizes "noting daemon work exists".
+  `intensive` stays `""` on it (id:5ac6 invariant `intensive!="" => verdict in {execute,hard}`
+  intact). Matches "pool-inert, daemon consumes". No external consumer pins numeric rank 6/7.
+  (3) **A5 (id:68dc) default thresholds** — CONFIRMED on the real zomni host (this review ran
+  there): `nvidia-smi` is ABSENT → `resource-probe.sh gpu` degrades gracefully to
+  `available:false` + a stated reason, exit 1, NO crash (not just the env-stubbed test path).
+  `ram` default 2048MB → available (10163MB free); `LOAD_MAX` default = nproc = 8 is sane for
+  the 8-core host. All host-tuning defaults are conservative and env-overridable.
