@@ -2442,7 +2442,7 @@ id reuses its open TODO.md twin under the `[UMBRELLA]`.
     `open_mechanical` field it must read; the minimal `open_mechanical` wiring in gather is
     part of this item. Do NOT build A3's daemon. Cross-ref B1/B2 (rename, gated).
 
-- [ ] A2 — recipe manifest schema + drop-dir contract + `recipe-validate.sh` [ROUTINE] <!-- id:64d3 -->
+- [x] A2 — recipe manifest schema + drop-dir contract + `recipe-validate.sh` [ROUTINE] <!-- id:64d3 -->
   - **Why** (meeting 2026-07-02-1924 decision 3; TODO id:64d3): the mechanical-run daemon
     (A3, gated) consumes relay-authored recipes from a drop-dir. This item pins the recipe
     JSON schema, the `{pending,running,done}/` lifecycle-dir contract, and a LOUD validator
