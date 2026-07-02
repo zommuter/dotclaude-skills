@@ -62,12 +62,31 @@ DQ="$(dirname "${BASH_SOURCE[0]}")/decision-queue.sh"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s unpromoted-scan.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
-# primary_lane <line> — echo the FIRST recognized lane-tag on the line (by byte position),
-# or nothing if none. Mirrors classify-repo.sh's id:4da4 primary-lane parse: a lane tag
-# clusters right after the title; any bracket-token further right is prose/history and must
-# NOT set the lane. Used for the promote-vs-surface disposition (id:ed2e).
+# primary_lane <line> — echo the item's genuine lane tag, or nothing if it has none.
+# Mirrors classify-repo.sh's id:4da4 primary-lane parse: a lane tag clusters right after
+# the title; any bracket-token further right is prose/history and must NOT set the lane.
+# Used for the promote-vs-surface disposition (id:ed2e).
+#
+# id:fb7f — bold-titled items (the TODO.md convention, `- [ ] **title** [TAG] ...`) anchor
+# STRICTLY: the tag must sit immediately after the title's closing `**` (+ optional
+# whitespace), or the item has NO genuine lane (return empty → surface). A bare leftmost-tag
+# scan mislabeled bold-titled items whose ONLY bracket-tag mention was prose deep in the body
+# (backtick'd or bare) as `promote` — 33c2/a505/7b23/b8ae, 2026-07-02. Non-bold items (no
+# `**title**`) fall back to the leftmost-tag-anywhere scan (ROADMAP.md's own convention puts
+# the tag right after the checkbox, before any title text, so "leftmost" is already correct
+# there and TODO.md's non-bold prose-summary items carry no genuine tag either way).
 primary_lane() {
-  local line="$1" tag prefix pos best_pos=-1 best_tag=""
+  local line="$1" tag prefix pos best_pos=-1 best_tag="" rest=""
+  if [[ "$line" =~ ^-\ \[\ \]\ \*\*[^*]*\*\*[[:space:]]*(.*)$ ]]; then
+    rest="${BASH_REMATCH[1]}"
+    for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"; do
+      case "$rest" in
+        "$tag"*) printf '%s' "$tag"; return ;;
+      esac
+    done
+    printf ''
+    return
+  fi
   for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"; do
     case "$line" in
       *"$tag"*)
