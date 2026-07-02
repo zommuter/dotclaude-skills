@@ -11,8 +11,16 @@
 #   1. `decision-queue.sh add --source-id <token>` records the originating TODO id.
 #   2. `unpromoted-scan.sh` EXCLUDES a token that has an OPEN decision-queue record for
 #      that repo → a filed surface item stops counting as fresh backlog → loop broken.
-# A RESOLVED record does NOT exclude (the human assigned a lane → the item must resurface
-# so handoff promotes it).
+# RESOLVED-record semantics (REFINED 2026-07-02, answer-then-re-ask fix): the resolution
+# flow's contract is that a lane answer is WRITTEN ONTO THE LINE (the 2026-07-02 apex DQ
+# drain did exactly this). Therefore:
+#   • resolved + line gained an executable lane tag → `promote` (the tag wins; the
+#     resolved record never suppresses it);
+#   • resolved + line gained a human lane tag       → `laned` (visible, verdict-neutral,
+#     never re-filed);
+#   • resolved + line STILL UNTAGGED (parked / not-an-item answers) → EXCLUDED — the old
+#     "resolved must resurface" rule made the filer re-ask an already-answered question
+#     every human-verdict round (queue oscillation).
 #
 # RED until decision-queue.sh learns --source-id and unpromoted-scan.sh consults the queue.
 set -euo pipefail
@@ -61,8 +69,16 @@ for l in sys.stdin:
 [[ "$(disp_of bbbb)" == "surface" ]]  || { echo "(2) unfiled bbbb must still be surface"; exit 1; }
 [[ "$(disp_of cccc)" == "promote" ]]  || { echo "(2) cccc must still be promote"; exit 1; }
 
-# --- (3) a RESOLVED record does NOT exclude — the item must resurface for promotion ---------
-"$DQ" resolve "$dqid" --answer "lane: [ROUTINE]" >/dev/null
-[[ "$(disp_of aaaa)" == "surface" ]] || { echo "(3) resolved record must NOT exclude — aaaa resurfaces"; exit 1; }
+# --- (3) resolved + STILL-UNTAGGED line is EXCLUDED (parked/not-an-item answers) ------------
+"$DQ" resolve "$dqid" --answer "parked — reopen when gate X lifts" >/dev/null
+[[ -z "$(disp_of aaaa)" ]] || { echo "(3) resolved+untagged aaaa must be excluded (no re-ask oscillation)"; exit 1; }
+
+# --- (4) resolved + line gained an EXECUTABLE lane tag → promote (tag wins over record) -----
+sed -i 's/^- \[ \] untagged surface item one/- [ ] [ROUTINE] untagged surface item one/' "$REPO/TODO.md"
+[[ "$(disp_of aaaa)" == "promote" ]] || { echo "(4) resolved+[ROUTINE]-tagged aaaa must promote"; exit 1; }
+
+# --- (5) a HUMAN lane tag → `laned` (verdict-neutral, never surface, never filed) -----------
+sed -i 's/^- \[ \] untagged surface item two/- [ ] [HARD — meeting] untagged surface item two/' "$REPO/TODO.md"
+[[ "$(disp_of bbbb)" == "laned" ]] || { echo "(5) [HARD — meeting]-tagged bbbb must be laned, got '$(disp_of bbbb)'"; exit 1; }
 
 echo "PASS test_unpromoted_decision_queue_exclusion"

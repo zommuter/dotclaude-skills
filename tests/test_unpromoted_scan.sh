@@ -7,7 +7,9 @@
 # RED until the scanner + wiring land. Hermetic: a fixture repo with
 #   (a) closed ROADMAP + an open UNTAGGED TODO id with no twin → reported (surface)
 #   (b) an open TODO id WITH a ROADMAP twin → clean (not reported)
-#   (c) a meeting-lane / blocked TODO with no twin → reported as surface (not auto-promote)
+#   (c) a meeting-lane / blocked TODO with no twin → reported as `laned` (lane already
+#       decided on the line — verdict-neutral, never auto-promoted, never re-filed;
+#       REFINED 2026-07-02 from `surface`, the answer-then-re-ask fix)
 #   (d) an open [ROUTINE] TODO id with no twin → reported as promote
 # plus: a bad flag is a loud nonzero reject (misuse), and a clean repo exits 0.
 
@@ -74,11 +76,12 @@ grep -qP '\tbbbb\t' <<<"$out" && fail "(b) id bbbb has a ROADMAP twin but was re
 $out"
 pass "(b) TODO id WITH a ROADMAP twin → clean (not reported)"
 
-# (c) meeting-lane, no twin → reported as surface (NOT promote).
-grep -qP '\tcccc\tsurface\t' <<<"$out" || fail "(c) meeting-lane id cccc not reported as surface (must not auto-promote):
+# (c) meeting-lane, no twin → reported as `laned` (NOT promote, NOT surface — 2026-07-02
+# answer-then-re-ask fix: the lane is decided on the line; verdict-neutral, never re-filed).
+grep -qP '\tcccc\tlaned\t' <<<"$out" || fail "(c) meeting-lane id cccc not reported as laned (must not auto-promote):
 $out"
 grep -qP '\tcccc\tpromote\t' <<<"$out" && fail "(c) meeting-lane id cccc must NOT be promote (no guessed-lane auto-promote)"
-pass "(c) meeting-lane/blocked TODO → reported as surface, not auto-promote"
+pass "(c) meeting-lane/blocked TODO → reported as laned, not auto-promote"
 
 # (d) executable [ROUTINE] lane, no twin → reported as promote.
 grep -qP '\tdddd\tpromote\t' <<<"$out" || fail "(d) [ROUTINE] id dddd not reported as promote:
@@ -112,12 +115,13 @@ $out"
 pass "(h) relay status-summary line exempt (prose [ROUTINE]/[HARD — pool] not promoted)"
 
 # (i) id:ed2e / id:4da4 — PRIMARY-LANE anchoring: a [HARD — meeting] item whose prose later
-#     mentions [ROUTINE] must surface (first lane-tag wins), NOT promote on the substring.
+#     mentions [ROUTINE] must stay non-promote (first lane-tag wins → laned), NOT
+#     promote on the substring.
 grep -qP '\t9999\tpromote\t' <<<"$out" && fail "(i) [HARD — meeting] id 9999 mis-promoted on a prose [ROUTINE] token (primary-lane anchoring missing, id:4da4):
 $out"
-grep -qP '\t9999\tsurface\t' <<<"$out" || fail "(i) [HARD — meeting] id 9999 not reported as surface:
+grep -qP '\t9999\tlaned\t' <<<"$out" || fail "(i) [HARD — meeting] id 9999 not reported as laned:
 $out"
-pass "(i) primary-lane anchoring: prose [ROUTINE] in a [HARD — meeting] item → surface, not promote"
+pass "(i) primary-lane anchoring: prose [ROUTINE] in a [HARD — meeting] item → laned, not promote"
 
 # (2) TSV shape: <repo>\t<id>\t<disposition>\t<title>, repo column is the fixture name.
 fixbase="$(basename "$FIX")"

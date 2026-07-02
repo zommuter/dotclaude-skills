@@ -21,9 +21,16 @@
 #   <repo>\t<id>\t<disposition>\t<title>
 #     disposition = promote   → line carries an executable lane ([ROUTINE]/[HARD — pool]);
 #                               directly handoff-promotable.
-#                 = surface   → untagged, [HARD — meeting]/[HARD — hands], or otherwise
-#                               ambiguous → SURFACE for strong-turn triage, never
-#                               auto-promote (acceptance #3).
+#                 = surface   → untagged / ambiguous → SURFACE for strong-turn triage,
+#                               never auto-promote (acceptance #3). NOT emitted for a
+#                               line whose lane question was already RESOLVED in the
+#                               decision-queue (parked/not-an-item — 2026-07-02 fix).
+#                 = laned     → carries a recognized HUMAN lane ([HARD — meeting]/
+#                               [HARD — hands]/[HARD — decision gate]) as its PRIMARY
+#                               tag: lane already decided — reported for visibility,
+#                               verdict-neutral (classify counts only promote/surface),
+#                               never filed to the decision-queue (2026-07-02 fix for
+#                               the answer-then-re-ask loop).
 #                 = untracked → an open `- [ ]` item with NO `<!-- id:XXXX -->` token
 #                               (id column is `----`). Cannot be correlated to ROADMAP at
 #                               all — the favicon-class blind spot from the truncocraft
@@ -169,7 +176,13 @@ scan_repo() {
   # `handoff` stops re-firing on it every round. `decision-queue.sh list` emits open
   # records only; we collect their `source_id` tokens. Fail-open: a missing helper or
   # empty queue simply excludes nothing (never a false-clean — the scan still reports).
-  local filed_ids=" "
+  #
+  # RESOLVED records matter too (2026-07-02 answer-then-re-ask fix): an UNTAGGED item
+  # whose lane question was already RESOLVED in the queue (parked / not-an-item) must
+  # not re-surface — otherwise the next human-verdict round re-files it and the queue
+  # oscillates. Resolved ids are collected separately: they suppress `surface` for
+  # untagged lines ONLY; a line that gained an executable lane tag still promotes.
+  local filed_ids=" " resolved_ids=" "
   if [[ -x "$DQ" ]]; then
     filed_ids="$($DQ list --repo "$name" 2>/dev/null | python3 -c '
 import sys, json
@@ -185,6 +198,20 @@ for line in sys.stdin:
         print(sid)
 ' | tr "\n" " " || true)"
     filed_ids=" $filed_ids "
+    resolved_ids="$($DQ list --repo "$name" --all 2>/dev/null | python3 -c '
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        rec = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if rec.get("status") == "resolved" and rec.get("source_id"):
+        print(rec["source_id"])
+' | tr "\n" " " || true)"
+    resolved_ids=" $resolved_ids "
   fi
 
   local repo_findings=0 line token disposition title
@@ -217,14 +244,26 @@ for line in sys.stdin:
     # Already filed for OPEN human lane-triage → not fresh backlog (case-g, id:47f1).
     [[ "$filed_ids" == *" $token "* ]] && { log "repo=$name filed=$token"; continue; }
 
-    # Disposition: an executable lane tag means directly handoff-promotable; anything
-    # else (untagged, [HARD — meeting]/[HARD — hands], blocked) SURFACES for triage.
+    # Disposition: an executable lane tag means directly handoff-promotable; a recognized
+    # HUMAN lane tag ([HARD — meeting]/[HARD — hands]/[HARD — decision gate]) means the
+    # lane question is ANSWERED on the line itself → `laned` (reported for visibility,
+    # verdict-neutral, never filed to the decision-queue — filing a lane-triage request
+    # for an already-laned line is the answer-then-re-ask loop, 2026-07-02 fix); anything
+    # untagged SURFACES for triage — unless its lane question was already resolved in the
+    # decision-queue (parked / not-an-item), in which case it is skipped.
     # id:ed2e / id:4da4 — PRIMARY-LANE anchoring: the item's lane is the FIRST recognized
     # lane-tag on the line, NOT any substring match. A bare `grep [ROUTINE]` mis-promotes a
     # human-gated item that merely MENTIONS an executable lane later in its prose/history
     # (e.g. a `[HARD — meeting]` item whose body says "supersedes an earlier [ROUTINE] plan").
-    if [[ "$(primary_lane "$line")" =~ ^(\[ROUTINE\]|\[HARD\ —\ pool\])$ ]]; then
+    local lane
+    lane="$(primary_lane "$line")"
+    if [[ "$lane" =~ ^(\[ROUTINE\]|\[HARD\ —\ pool\])$ ]]; then
       disposition="promote"
+    elif [[ -n "$lane" ]]; then
+      disposition="laned"
+    elif [[ "$resolved_ids" == *" $token "* ]]; then
+      log "repo=$name resolved=$token (lane question answered in decision-queue; not re-surfaced)"
+      continue
     else
       disposition="surface"
     fi
