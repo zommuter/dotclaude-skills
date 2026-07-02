@@ -1225,3 +1225,7 @@ review 0443..HEAD: window = 2 inbox ingests only (no executor work; gaming-scan 
 ## 2026-07-02 08:23 — executor (sonnet, relay-loop)
 
 No-op: ROADMAP.md has 0 open [ROUTINE] items (the dispatch reason was stale — the prior review merge commit 2e58337 already ticked fb7f+6856 and states "0 open ROUTINE"); worktree left clean, no commit made.
+
+## 2026-07-02 20:33 — executor (sonnet)
+
+Worked id:68dc (A5) — built `relay/scripts/resource-probe.sh`: check-and-defer live-availability probe for the mechanical-run daemon's auto-launch gate (gpu via env-overridable nvidia-smi with graceful missing-binary degrade; ram via /proc/meminfo MemAvailable; cpu via /proc/loadavg vs nproc; local-llm claim-only), every resource first consulting `claim.sh peek` for a live `resource:<res>` claim (check-and-defer, never preempt) before any hardware read. Registered the script 3x in the relay Makefile block, documented the two-gate (permit-window + live-availability) launch condition in `relay/references/hard-lanes.md`, and ticked ROADMAP `<!-- id:68dc -->` via `md-merge.py update-ids`. `tests/test_resource_probe.sh` green; full suite 165 passed / 0 failed / 5 expected-red (all pre-existing open items, unaffected). Friction: none.
