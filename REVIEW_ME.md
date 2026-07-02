@@ -77,3 +77,19 @@ latest prune by the 2026-07-02 review.)
   `~/src/claude-diary/docs/2026-07-02-human-sprint-8020.md`. Next `/relay human` should
   present it as the "you run these" checklist and tick items THERE; close this box when
   that doc is fully worked or superseded.
+- [ ] Capability-taxonomy slice-A handoff (2026-07-02, meeting 2026-07-02-1924) — three
+  executor judgment calls the RED specs deliberately did NOT pin, flagged for the 15-min
+  review budget:
+  (1) **A4 (id:e407) resource→tier mapping** — `test_permitted_intensity.sh` pins only the
+  MONOTONIC property (a `--heavy` window permits `local-llm`, a `--light` window refuses it).
+  WHICH resource names count "heavy" vs "light" (gpu/local-llm heavy; cpu light; where does
+  ram/net sit?) is the executor's mapping choice. Confirm the chosen mapping is sane.
+  (2) **A1 (id:7616) `mechanical` verdict priority rank** — the spec pins only that
+  `mechanical` fires for a MECHANICAL-only repo and that an actionable `[ROUTINE]` still wins;
+  its rank RELATIVE to `human`/`surface` (does compute-only work outrank a surface-only backlog
+  or sit just above idle?) is unpinned. Confirm the chosen rank matches "pool-inert, daemon
+  consumes".
+  (3) **A5 (id:68dc) default thresholds** — `RESOURCE_PROBE_LOAD_MAX` / `RESOURCE_PROBE_RAM_MIN_MB`
+  defaults are host-tuning judgments (the test overrides them); confirm the shipped defaults suit
+  zomni. Also confirm the `gpu`-absent path stays a graceful `available:false` (never a fatal
+  crash) on a real host, not just the env-stubbed test.
