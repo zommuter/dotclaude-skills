@@ -1433,3 +1433,37 @@ id:14d0, id:5884 — unrelated open items). Friction: none — the ROADMAP item'
 pointed at the exact `class_re`/case-c line ranges to extend, and the hard-lanes.md doc-driven
 extraction pattern generalized cleanly to the new `[INPUT — …]` vocabulary. Do NOT push —
 integrator merges.
+
+## 2026-07-02 — executor (Sonnet) id:8111 B2a
+
+Worked id:8111 B2a — flipped the lane-PARSERS + reference prose to EMIT/EXPECT the new
+capability-keyed vocabulary while keeping the dual-vocab window OPEN (old venue-keyed
+spellings still accepted). (1) `gather-human-backlog.sh::emit_hard_lanes`: the line-selection
+guard now also matches `[INPUT — <lane>]` (previously only `/\[HARD/`, so an `[INPUT — …]`
+item was silently skipped, never even reaching the untagged check); the bucket `if/else` chain
+now recognizes bare `[HARD]` → `hard_pool`, `[INPUT — meeting]`/`[INPUT — decision]` →
+`hard_meeting`, `[INPUT — access]` → `hard_hands`, checked AFTER the old dash-lane branches so
+an old-vocab tag (`[HARD — pool]` etc.) is never mis-caught by the new bare-`[HARD]` branch.
+Updated the file-header and function-header comment blocks + the untagged ERROR message to
+describe both vocabularies. (2) `classify-repo.sh`: extended `HUMAN_GATES` with the three
+`[INPUT — …]` spellings and `LANE_TAGS` with bare `[HARD]` (an exact-substring match — never
+false-matches inside `[HARD — pool]`/`[HARD — hands]`, which always carry `[HARD —`, never the
+literal `[HARD]`); `is_pool` now checks `primary in ("[HARD — pool]", "[HARD]")`. (3)
+`gather-repo-state.sh::roadmap_primary_lane`: extended the tag list the same way, then
+normalizes any matched new-vocab tag to its old-vocab equivalent before returning, so the
+downstream `open_hard_pool` anchor (and any future caller) keeps comparing against one
+canonical string. (4) Reference prose (`human.md`, `review.md`, `conventions.md`,
+`handoff.md`): re-worded the normative lane-vocabulary passages to present the new vocab as
+canonical with the old spelling noted as "still accepted during the dual-vocab migration
+window" — meaning unchanged, no lane's disposition changed. `tests/test_lane_vocab_migration.sh`
+(the RED spec) now passes both assertions (no LOUD-reject on a new-vocab ROADMAP; correct
+hard_pool/hard_meeting/hard_hands bucketing). Manually verified `gather-repo-state.sh` +
+`classify-repo.sh --emit unit` against an ad-hoc new-vocab fixture repo: `open_hard_pool=1` for
+a bare-`[HARD]` item, `actionable_routine_open=0` (correctly excludes the `[INPUT — meeting]`
+human-gate item). Full suite: 173 passed / 0 failed / 2 expected-red (id:14d0, id:5884 —
+unrelated open items; all ~30 old-vocab lane tests still pass unchanged, confirming dual-accept
+is intact). Did NOT touch `relay-loop.js` (B2b), convert any ROADMAP/TODO item tags, migrate
+the ~30 lane-asserting tests, or close the dual-vocab window (B2c) — out of scope. Did NOT tick
+id:8111 (multi-part item, orchestrator ticks after all three sub-parts land). Friction: none —
+the sub-check text in ROADMAP.md named the exact functions/anchors to touch. Do NOT push —
+integrator merges.

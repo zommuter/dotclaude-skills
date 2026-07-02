@@ -59,7 +59,8 @@ get lane-triaged below — never auto-promote an untagged item with a guessed la
 
 Write `ROADMAP.md` from the template: items sized for one Sonnet
 session, each self-contained with acceptance criteria and an explicit done-check
-command. Tag each `[ROUTINE]` (executor) or `[HARD — strong model]`. Assign one
+command. Tag each `[ROUTINE]` (executor) or `[HARD]` (strong model; old vocab:
+`[HARD — pool]` during the dual-vocab migration window). Assign one
 `id:XXXX` per item — **single-id-two-views (D2): if a roadmap item promotes work the
 repo's `TODO.md` already tracks under an `<!-- id:XXXX -->`, REUSE that token; mint a
 fresh pre-allocated token ONLY for newly-discovered work.** TODO/meeting is the design
@@ -77,7 +78,7 @@ review §5b). Add/refresh the single TODO.md summary line. Commit
 2026-07-02).** When an item is compute-only / no-LLM / benchmark-or-pilot work (a
 `model-probe.sh`-style battery, a `leAIrn2learn`/pytorch training or eval run — no
 judgment call, nothing an LLM session needs to watch or decide), do **not** tag it
-`[ROUTINE]`/`[HARD — *]`. Tag it `[MECHANICAL]` instead (composing
+`[ROUTINE]`/`[HARD]` (or the old `[HARD — *]` spelling). Tag it `[MECHANICAL]` instead (composing
 `[INTENSIVE — <res>]` when the run is resource-heavy), and **author the A2 recipe**
 for it: write a recipe JSON following the `recipe-manifest.md` schema (id:64d3) —
 `{id,repo,cmd,host,est_wall,resource,acceptance_artifact}` — into
@@ -87,7 +88,8 @@ tagging `[MECHANICAL]` alone routes the item to the pool-inert `mechanical` verd
 but nothing ever runs it.
 
 **Surface lane-triage — the "below" for `surface` items (id:47f1, id:5eb3).**
-`surface`-disposition items (untagged / `[HARD — meeting|hands]`) are NOT auto-promotable —
+`surface`-disposition items (untagged / `[INPUT — meeting|access]` — old vocab:
+`[HARD — meeting|hands]`) are NOT auto-promotable —
 they need a *lane decision* a handoff cannot make. As of id:5eb3 (meeting 2026-06-30-2238),
 **surface-filing is NO LONGER the handoff's responsibility.** The case-b split changed the
 classifier so a repo with `promote==0 ∧ surface>0` emits verdict `human` (not `handoff`) —
@@ -103,29 +105,31 @@ disposition items are left for the `human`-verdict mechanical filer — do NOT f
 manually in a handoff child.** The handoff child's obligation is complete once `promote`
 items are handled and the ROADMAP is updated.
 
-**Author-then-run split for scriptable `[HARD — hands]` items (id:e175, meeting 2026-06-30;
-`[MECHANICAL]` routing added id:2313, meeting amendment 2026-07-02).**
+**Author-then-run split for scriptable `[INPUT — access]` items (old vocab:
+`[HARD — hands]`; id:e175, meeting 2026-06-30; `[MECHANICAL]` routing added id:2313,
+meeting amendment 2026-07-02).**
 A hands item is often *(an authorable artifact) + (a thin on-device run)* — e.g. write a
 systemd `.service`/`.path`/`.timer` (in-repo, authorable) then `systemctl --user` enable
 + observe it fire (on-device). When the authoring half is genuinely buildable in a
 worktree, **split it into two existing-lane items, do NOT leave the whole thing `hands`:**
-a `[HARD — pool]` "author script/config X" item the `--afk` pool builds unattended (the
-`hard` verdict, id:da26), plus a **run** residue. The run residue is **NOT automatically
-`[HARD — hands]`** — apply the "needs an LLM?" branch (hard-lanes.md's 5-criterion
-re-lane, id:2313): if the run itself is daemon-runnable (no human eyes/hands actually
-required — a script the mechanical-run daemon, A3, can execute unattended), tag it
-`[MECHANICAL]` (and author its A2 recipe per the C2 producer instruction above) instead
-of `[HARD — hands]`. Only genuinely-human runs — one that needs a physical device,
-`sudo`, a live credential, or a human's on-the-spot judgment call — stay `[HARD — hands]`
-gated `(DEP: <author-id>)`. Reuse the parent's id for one half and mint one fresh id for
-the other; keep them DEP-linked so the dependency is explicit. **The split is authoring
-JUDGMENT, not a mechanical transform** — only split when the author half is really
-worktree-buildable (counter-example: an item whose only steps are an *outside-the-repo*
-config edit + an `ssh <host> chmod` is wholly hands — both halves are unreachable from a
-worktree). Relay NEVER auto-executes the device/sudo run; `/relay human` only PRINTS the
-command (see human.md §4) for the `[HARD — hands]` residue — a `[MECHANICAL]` residue is
-daemon-run, not human-run, and is excluded from that checklist. A detector that merely
-FLAGS splittable candidates is deferred (observe-first).
+a `[HARD]` (old: `[HARD — pool]`) "author script/config X" item the `--afk` pool builds
+unattended (the `hard` verdict, id:da26), plus a **run** residue. The run residue is
+**NOT automatically `[INPUT — access]`** — apply the "needs an LLM?" branch
+(hard-lanes.md's 5-criterion re-lane, id:2313): if the run itself is daemon-runnable (no
+human eyes/hands actually required — a script the mechanical-run daemon, A3, can execute
+unattended), tag it `[MECHANICAL]` (and author its A2 recipe per the C2 producer
+instruction above) instead of `[INPUT — access]`. Only genuinely-human runs — one that
+needs a physical device, `sudo`, a live credential, or a human's on-the-spot judgment
+call — stay `[INPUT — access]` (old: `[HARD — hands]`) gated `(DEP: <author-id>)`. Reuse
+the parent's id for one half and mint one fresh id for the other; keep them DEP-linked
+so the dependency is explicit. **The split is authoring JUDGMENT, not a mechanical
+transform** — only split when the author half is really worktree-buildable
+(counter-example: an item whose only steps are an *outside-the-repo* config edit + an
+`ssh <host> chmod` is wholly hands — both halves are unreachable from a worktree). Relay
+NEVER auto-executes the device/sudo run; `/relay human` only PRINTS the command (see
+human.md §4) for the `[INPUT — access]` residue — a `[MECHANICAL]` residue is daemon-run,
+not human-run, and is excluded from that checklist. A detector that merely FLAGS
+splittable candidates is deferred (observe-first).
 
 **C3 — spec-as-tests.** For every `[ROUTINE]` item, write the FAILING tests now and
 verify each is actually red (run them). Map each test to its item with a
@@ -210,7 +214,10 @@ un-doable item. Add:
 }
 ```
 
-- `decision-gate` — needs a `/meeting` design decision first → parent re-tagged `[HARD — decision gate]`.
+- `decision-gate` — needs a `/meeting` design decision first → parent re-tagged
+  `[HARD — decision gate]` (the auto-gate machinery's emitted tag; new-vocab readers
+  recognize it as equivalent to `[INPUT — decision]`, per hard-lanes.md's rename
+  mapping — the emitter itself is out of scope here, id:8111 B2b).
 - `hard-split` — too large but decomposable → parent gated + `proposed_split` seams minted as pickable units.
 - `human` — needs a manual human action / `/relay human`.
 - `none` (or omit) — transient/other failure, no durable action.
