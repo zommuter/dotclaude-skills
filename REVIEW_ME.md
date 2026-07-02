@@ -3,6 +3,22 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+- [ ] **A3 (id:b3d0) mechanical-daemon does NOT host-gate — latent safety gap (wave-2a review 2026-07-02).**
+  The recipe schema's `host` field is documented as "which host the recipe is bound to
+  (mirrors the `[host:<name>]` ROADMAP tag)" (recipe-manifest.md:51) and `recipe-validate.sh`
+  REQUIRES it non-empty — i.e. every recipe names a target host. But `mechanical-daemon.sh`
+  reads `est_wall`/`resource`/`cmd`/`artifact` and **never reads `.host` nor compares it to
+  `$(uname -n)`**, so it would auto-EXECUTE a recipe bound to a *different* host. Today the
+  drop-dir (`~/.config/relay/recipes/pending/`) is per-host so a mismatched recipe can only
+  arrive by mistaken copy or a future shared-transport (de31/b444) — hence not a live bug —
+  but the review contract's own §2c host-gate treats a host mismatch as *unrunnable*, and the
+  daemon auto-runs shell commands, so this reads as an accidental gap, not a deliberate
+  narrowing (no comment says "host is advisory / drop-dir is per-host"). The test never
+  exercises it (`write_recipe` always sets `host=$(uname -n)`). **Decision for the human:** add
+  a one-line host-gate (skip+defer, or reject, a recipe whose `host` ≠ this host) OR record the
+  "per-host drop-dir ⇒ host advisory" rationale in the daemon + recipe-manifest. Filed as a
+  follow-on, NOT reopening b3d0 (its tested contract + meeting decision-3 launch-gate all hold).
+
 (All prior boxes — the 8 confirmed 2026-06-12, the 2026-06-21 flaky-test decision,
 the two 2026-06-29 inbox dead-letters routed:6976/routed:4097 (ingested →
 TODO id:319b / id:8567), and the two 2026-07-01 boxes id:8e3e (zero-commit
