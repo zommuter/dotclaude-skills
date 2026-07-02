@@ -121,12 +121,21 @@ if git ls-remote --exit-code "$remote_name" "refs/heads/$remote_branch" >/dev/nu
     # id:aa93 — `git pull --rebase --autostash` would autostash-RESET a foreign-dirty tree
     # (a human / parallel session's uncommitted edit) outside any lock the editor respects,
     # and a stash that fails to re-apply after the rebase is silent data loss. In legacy mode
-    # (no manifest) the caller has NOT committed anything here, so any dirty entry is foreign:
-    # refuse the autostash path and leave the work committed-locally-not-pushed (non-fatal,
-    # same as a flock timeout). Manifest mode just committed the listed paths, so a residual
-    # dirty tree there is also foreign — same refusal.
-    if [[ -n "$(git status --porcelain)" ]]; then
-      echo "WARNING: working tree is dirty (a concurrent edit?); refusing to autostash-rebase to avoid data loss (id:aa93)." >&2
+    # (no manifest) the caller has NOT committed anything here, so any TRACKED dirty entry is
+    # foreign: refuse the autostash path and leave the work committed-locally-not-pushed
+    # (non-fatal, same as a flock timeout). Manifest mode just committed the listed paths, so a
+    # residual tracked-dirty tree there is also foreign — same refusal.
+    #
+    # id:dff8 — untracked-only churn (porcelain lines all `?? `) carries none of that risk:
+    # `--autostash` only stashes TRACKED changes, so untracked files are never touched by the
+    # stash/reapply path, and a rebase that would clobber an untracked file aborts loudly on its
+    # own (safe-and-loud). Repos with perpetual untracked runtime churn (e.g. `~/.claude`'s
+    # `plans/`, `session-env/`, `sessions/`, `tasks/`) would otherwise refuse every push. So:
+    # untracked-only → proceed with the autostash-rebase; any tracked modified/staged/renamed
+    # entry → still refuse (the id:aa93 data-loss guard is unchanged for tracked dirt).
+    porcelain="$(git status --porcelain)"
+    if [[ -n "$porcelain" ]] && grep -qv '^?? ' <<<"$porcelain"; then
+      echo "WARNING: working tree has uncommitted tracked changes; not autostash-rebasing (id:aa93)." >&2
       echo "Commit or move the changes, then run 'git push' manually." >&2
       exec 8>&-
       exit 0  # non-fatal — work is committed
