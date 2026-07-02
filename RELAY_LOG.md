@@ -1433,3 +1433,29 @@ id:14d0, id:5884 — unrelated open items). Friction: none — the ROADMAP item'
 pointed at the exact `class_re`/case-c line ranges to extend, and the hard-lanes.md doc-driven
 extraction pattern generalized cleanly to the new `[INPUT — …]` vocabulary. Do NOT push —
 integrator merges.
+
+## 2026-07-02 — executor (Sonnet) id:8111 B2b
+
+Worked id:8111 B2b — dual-vocab lane recognition in `relay/scripts/relay-loop.js` (the
+crash-prone engine half of the vocabulary migration). Widened `classifyDrainBacklog`'s
+gated-bucket regex from `/HARD backlog|\[HARD —|no open \[HARD — pool\]|.../i` to also
+match `\[HARD\]` (bare new-vocab tag) and `\[INPUT —` (the three `[INPUT — meeting|
+decision|access]` human-gate tags), so a surfaced/blocked reason mentioning the new
+vocabulary still buckets correctly instead of falling into `other`. Updated the
+DISCOVER_SCHEMA `openHard`/`open_hard_pool` field comments and the demote-guard's
+block comment (id:9973) to name both the legacy `[HARD — pool]` spelling and the new
+bare `[HARD]`/`[INPUT — …]` equivalents (comments only — confirmed and left the
+`open_hard_pool` numeric demote-guard logic itself untouched, per the item's explicit
+"tag-agnostic, do not touch" note). Updated the `Hard` stage's display `detail` string
+(meta.phases) to mention both spellings. Left the `open_hard_pool`-computing regex
+inside gather-repo-state.sh (B2a scope) and the LLM-shard prompt text alone —
+out of B2b's file scope. Engine-edit safety: `node --check relay/scripts/relay-loop.js`
+clean, `lint-workflow-templates.mjs` clean (1 workflow script), `test_relay_loop_structure.sh`
+all green, full suite 172 passed / 0 failed / 3 expected-red (unrelated open items:
+id:8111 itself via test_lane_vocab_migration.sh which targets B2a's gather-human-backlog.sh
+not this file, plus id:14d0/id:5884). Friction: none — the ROADMAP item's B2b bullet named
+the exact function (`unitIsSubstantive`/`classifyDrainBacklog`) and regex to widen, and
+`test_lane_vocab_migration.sh` explicitly documents B2b as "verify-on-implementation" via
+the ~30 lane tests once they're migrated in B2c, not directly re-encoded here — so this
+slice's own done-check is the four engine-safety commands plus the unchanged full suite
+staying green. Do NOT push — integrator merges.
