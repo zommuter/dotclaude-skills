@@ -351,7 +351,14 @@ work_sig="$(printf '%s\n%s\n%s\n' "$open_ids" "$substantive_unaudited" "$nonckpt
 roadmap_primary_lane() {
   local line="$1" clean tag prefix pos best_pos=-1 best_tag=""
   clean="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"
-  for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"; do
+  # Dual-vocab window (id:4f02/id:8111 B2a, OPEN): the OLD venue-keyed "[HARD — <lane>]"
+  # spelling and the NEW capability-keyed bare "[HARD]"/"[INPUT — <lane>]" spelling are
+  # both recognized, then normalized to the same tag string below so every caller
+  # (the open_hard_pool anchor) keeps comparing against one canonical value. "[HARD]"
+  # is an EXACT substring match — it never false-matches inside "[HARD — pool]"/
+  # "[HARD — hands]"/etc. (those contain "[HARD —", never the literal "[HARD]").
+  for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]" \
+             "[HARD]" "[INPUT — access]" "[INPUT — meeting]" "[INPUT — decision]"; do
     case "$clean" in
       *"$tag"*)
         prefix="${clean%%"$tag"*}"; pos=${#prefix}
@@ -360,6 +367,12 @@ roadmap_primary_lane() {
         fi ;;
     esac
   done
+  case "$best_tag" in
+    "[HARD]")              best_tag="[HARD — pool]" ;;
+    "[INPUT — meeting]")   best_tag="[HARD — meeting]" ;;
+    "[INPUT — decision]")  best_tag="[HARD — decision gate]" ;;
+    "[INPUT — access]")    best_tag="[HARD — hands]" ;;
+  esac
   printf '%s' "$best_tag"
 }
 

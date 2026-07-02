@@ -41,7 +41,8 @@ rather than copying the full block — see §Executor-contract pointer below.
 ## Tagging `[INTENSIVE — <resource>]` (id:8d52)
 
 `[INTENSIVE — <resource>]` is a **resource modifier**, orthogonal to the verdict tag —
-NOT a replacement for `[ROUTINE]`/`[HARD]`. Like the two-part HARD tags it names the
+NOT a replacement for `[ROUTINE]`/`[HARD]` (or, during the dual-vocab migration
+window, the old `[HARD — <lane>]` spelling). Like the capability lane tags it names the
 resource so the dispatch gate knows what's contended. A ROADMAP item carries both:
 
 ```markdown
