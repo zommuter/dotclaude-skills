@@ -57,7 +57,8 @@ relay_FILES := SKILL.md \
                scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/discover-repo.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
-               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh
+               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
+               scripts/relay-intensity.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -74,7 +75,8 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/host-gate.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/discover-repo.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
-               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh
+               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
+               scripts/relay-intensity.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -91,7 +93,8 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/host-gate.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/discover-repo.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
-               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh
+               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
+               scripts/relay-intensity.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this

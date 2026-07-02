@@ -2474,7 +2474,7 @@ id reuses its open TODO.md twin under the `[UMBRELLA]`.
     idiom (`tests/test_resource_claim.sh` steps 6–7). Schema fields come from the meeting note
     decision 3. Do NOT build the daemon (A3) or wire `inject.sh`.
 
-- [ ] A4 — `permitted-intensity.json` + `relay-intensity.sh` graded-window CLI [ROUTINE] <!-- id:e407 -->
+- [x] A4 — `permitted-intensity.json` + `relay-intensity.sh` graded-window CLI [ROUTINE] <!-- id:e407 -->
   - **Why** (meeting 2026-07-02-1924 decision 4; TODO id:e407): the binary `ALLOW_INTENSIVE`
     gate is all-or-nothing. Replace it (conceptually) with a GRADED, time-boxed permit — "tea"
     (15m/light) vs "lunch" (2h/heavy) — so a human can authorize a bounded intensive window
