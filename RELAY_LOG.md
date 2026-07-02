@@ -1392,3 +1392,17 @@ ROADMAP.md` exit 0 (clean). Makefile install-/status-/uninstall-mechanical-daemo
 ## 2026-07-02 — executor (Sonnet)
 
 Worked id:9cfa — mechanical-daemon.sh now enforces the recipe `host` binding before running (the wave-2a review finding). Added a host gate as step 2 of the tick loop, BEFORE the intensity/resource launch gate: reads the recipe's `.host` field and calls `host-gate.sh "[host:$host]"` (REUSED as-is, synthesizing the `[host:<name>]` tag text it already parses, rather than a raw `uname -n` compare — host-gate.sh's own `RELAY_HOSTNAME` override also gave the new test a clean way to inject a hermetic 'current host' without depending on the real machine's hostname). On mismatch (exit 3) the recipe is left untouched in pending/ (check-and-defer, same discipline as the intensity/resource gates) with a `DEFERRED ... reason=host-mismatch` log line; on match it proceeds to the existing gates unchanged. TDD: extended `tests/test_mechanical_daemon.sh` with case (4) foreign-host recipe (confirmed RED — stayed pending, no host check existed) and case (5) matching-host recipe (guards against the fix over-blocking); both green after the change, and the three pre-existing cases (permitted / resource-claimed / est_wall-too-big) still pass unmodified. Ticked TODO id:9cfa (checkbox-only, full line preserved via md-merge.py). Full suite: 171 passed / 0 failed / 2 expected-red (unrelated). Friction: none.
+
+## 2026-07-02 — handoff (Opus) — wave 2b prep (lane-vocabulary RENAME)
+
+Prepared wave 2b of the capability-keyed lane taxonomy (meeting 2026-07-02-1924, decisions
+1+2): the `[HARD — <suffix>]`→two-axis-vocabulary rename. Un-gated B1 (id:4f02, safety-net
+converter + dual-vocab lint) and B2 (id:8111, the migration) — dep A1 (id:7616) is landed
+`[x]`. B1 promoted to an ACTIVE `## … wave 2b` section (dispatchable now); B2 kept under a
+`### GATED — B2 (DEP: 4f02)` sub-heading (roadmap-lint-exempt, non-dispatchable until B1
+lands). RED specs: `tests/test_lane_convert.sh` (B1 — dual-vocab lint dual-accepts old+new;
+`lane-convert.sh` exact mappings incl. hands→`[INPUT — access]` DEFAULT + MECHANICAL-candidate
+FLAG-not-convert) and `tests/test_lane_vocab_migration.sh` (B2 — readers bucket the new vocab).
+Both verified RED. Scope LOCKED to THIS repo's contract + lane-readers + tests + this repo's
+own ROADMAP/TODO tags; cross-repo item re-tagging is the SEPARATE gated migration the
+dual-vocab window enables. Do NOT push — integrator merges.
