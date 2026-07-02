@@ -186,3 +186,19 @@ untagged surfaced items), and each LLM resolution feeds back as a new mechanical
 rule/fixture. Cutover is gated on a backtest against logged past verdicts
 (`~/.config/relay/relay-events.jsonl`) + a forward shadow run before the authority flip.
 Open executor items: id:85df (classifier), id:297b (roadmap-lint case c/d loud-fail).
+
+**Capability-keyed lane taxonomy + mechanical-run daemon — slice A handed off**
+(meeting `docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`,
+umbrella TODO id + children A1–A5/B1–B2). The lane vocabulary is being re-based on
+*required capability* (two orthogonal axes: capability `[ROUTINE]`/`[HARD]`/`[INPUT —
+{meeting,decision,access}]`/`[MECHANICAL]` × resource `[INTENSIVE — <res>]`) rather than
+dispatch venue, and a new `[MECHANICAL]` tier lets a host `--user` daemon run
+pure-compute work (local-LLM benchmarks, pytorch) while an LLM session reviews the
+result. The build is deliberately sliced: **slice A is additive** (touches no existing
+tag) and is what this handoff prepares as executor-ready ROADMAP items — A1 `[MECHANICAL]`
+tag + `mechanical` verdict (id:7616), A2 recipe manifest + drop-dir (id:64d3), A4
+graded permitted-intensity superseding binary `ALLOW_INTENSIVE` (id:e407), A5
+`resource-probe.sh` check-and-defer (id:68dc); the daemon (id:b3d0) and the slice-B
+rename (id:4f02/id:8111, gated on `[MECHANICAL]` existing) are tracked but GATED. See the
+meeting note for the ratified decisions and rejected alternatives (flag-day rename;
+auto-scanning ROADMAP for arbitrary INTENSIVE items; active gamemode-suspend).
