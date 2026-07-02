@@ -7,13 +7,16 @@
 # where verdict ∈ {blocked, execute, review, hard, handoff, human, idle, AMBIGUOUS}.
 #
 # Priority order (rank 0 = highest, never dispatched):
-#   0: blocked  — dirty (non-lock-only) or diverged main tree; surface, do NOT dispatch (id:e424 parity)
-#   1: execute  — open [ROUTINE] ROADMAP items
-#   2: review   — substantive unaudited commits
-#   3: hard     — open [HARD — pool] items (open_hard_pool >= 1)
-#   4: handoff  — promotable TODO backlog (promote > 0)
-#   5: human    — surface-only backlog (promote == 0, surface > 0); no apex dispatch (id:5eb3)
-#   6: idle     — nothing actionable
+#   0: blocked     — dirty (non-lock-only) or diverged main tree; surface, do NOT dispatch (id:e424 parity)
+#   1: execute     — open [ROUTINE] ROADMAP items
+#   2: review      — substantive unaudited commits
+#   3: hard        — open [HARD — pool] items (open_hard_pool >= 1)
+#   4: handoff     — promotable TODO backlog (promote > 0)
+#   5: human       — surface-only backlog (promote == 0, surface > 0); no apex dispatch (id:5eb3)
+#   6: mechanical  — open [MECHANICAL] ROADMAP items (open_mechanical >= 1), nothing higher-
+#                    priority; POOL-INERT (id:7616) — a host daemon dispatches it (A3, gated),
+#                    never the LLM pool. intensive stays "" (id:5ac6 invariant untouched).
+#   7: idle        — nothing actionable
 #
 # SIDE-EFFECT-FREE: no git, no filesystem writes, no ledger mutation, no lease/dispatch.
 # The `AMBIGUOUS` verdict is reserved for states the mechanical rules cannot decide;
@@ -48,6 +51,10 @@ roadmap_actionable    = int(data.get("roadmap_actionable_open", 0))
 actionable_routine    = int(data.get("actionable_routine_open", -1))
 if actionable_routine < 0:
     actionable_routine = 1 if has_routine else 0
+# id:7616 — [MECHANICAL] capability tier: pure-compute open items no LLM/human runs (a
+# host daemon dispatches them, A3 gated). Absent on any caller that predates the field
+# (sentinel default 0) — back-compat, no behaviour change for existing callers.
+open_mechanical       = int(data.get("open_mechanical", 0))
 # id:5ac6 — INTENSIVE flag: copy top_intensive from gather VERBATIM (string, always present, "" when none).
 # It is an orthogonal resource axis, never a verdict value. INVARIANT: intensive!="" => verdict in {execute,hard}
 # (enforced by gather excluding human-gated items from top_intensive, id:a707).
@@ -136,12 +143,25 @@ elif surface > 0:
     evidence.append({"field": "unpromoted.promote", "value": 0,       "source": "unpromoted-scan"})
     evidence.append({"field": "unpromoted.surface", "value": surface,  "source": "unpromoted-scan"})
 
+elif open_mechanical >= 1:
+    # id:7616 — MECHANICAL-only backlog: pure-compute open items, nothing higher-priority
+    # (no actionable routine / unaudited / hard-pool / promote / surface). POOL-INERT — a
+    # host daemon dispatches this (A3, gated), never the LLM pool; intensive stays "" (the
+    # id:5ac6 invariant intensive!="" => verdict in {execute,hard} holds unchanged).
+    verdict       = "mechanical"
+    priority_rank = 6
+    reason        = (
+        "Open [MECHANICAL] ROADMAP items: {} -- pure-compute work for a host daemon "
+        "(A3, gated), not the LLM pool -- pool-inert"
+    ).format(open_mechanical)
+    evidence.append({"field": "open_mechanical", "value": open_mechanical, "source": "gather-repo-state"})
+
 else:
     # Nothing in any D3 class — repository is idle.
     # (is_finished is a contributing signal, not the sole gate; the unpromoted check above
     # is the definitive "finished" predicate — if we reach here, both are clean.)
     verdict       = "idle"
-    priority_rank = 6
+    priority_rank = 7
     reason        = "No actionable work found in any D3 priority class; backlog scan clean"
     evidence.append({"field": "is_finished",             "value": is_finished,      "source": "gather-repo-state"})
     evidence.append({"field": "unpromoted.promote",      "value": 0,                "source": "unpromoted-scan"})
