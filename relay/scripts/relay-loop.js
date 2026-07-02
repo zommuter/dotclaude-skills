@@ -11,7 +11,7 @@ export const meta = {
     { title: 'Classify', detail: 'parallel discover-shard classifiers (one per repo chunk)' },
     { title: 'Execute', detail: '[ROUTINE] executor units (Sonnet)' },
     { title: 'Review', detail: 'audit unaudited commits + re-derive roadmap (apex)' },
-    { title: 'Hard', detail: '[HARD — pool] apex execution of one bounded item' },
+    { title: 'Hard', detail: '[HARD] (formerly [HARD — pool]) apex execution of one bounded item' },
     { title: 'Handoff', detail: 'docs → roadmap → red tests → BDD handoff (apex)' },
     { title: 'Integrate', detail: 'serialized merge → ckpt-tag → push per completed unit' },
     { title: 'Status', detail: 'off-critical-path RELAY_STATUS.md snapshot writes' },
@@ -371,7 +371,9 @@ const DISCOVER_SCHEMA = {
           // INDEPENDENT of verdict — lets --fable-down demote a review repo that
           // also has open executor work instead of deferring it wholesale.
           hasRoutine: { type: 'boolean' },
-          // openHard: count of unticked "- [ ]" items tagged "[HARD" (HARD — pool).
+          // openHard: count of unticked "- [ ]" items tagged "[HARD" — matches both the
+          // legacy "[HARD — pool]" spelling and the new bare "[HARD]" capability tag
+          // (id:4f02/id:8111 dual-vocab migration window; relay/references/hard-lanes.md).
           // Drives the "hard" verdict (id:da26): a repo with no unaudited
           // commits and no open [ROUTINE] but >=1 open [HARD] item is classified hard
           // so an Opus-apex child can work one bounded HARD item — the ROUTINE-drained,
@@ -430,14 +432,18 @@ const DISCOVER_SCHEMA = {
           // JSON onto every unit; "" when uncomputable (the breaker treats "" as fail-open).
           work_sig: { type: 'string' },
           // open_hard_pool (id:9973): the DETERMINISTIC count of open "- [ ]" ROADMAP items
-          // tagged EXACTLY "[HARD — pool]" (the only pool-dispatchable HARD lane per
+          // tagged EXACTLY "[HARD — pool]" OR (id:4f02/id:8111 dual-vocab window) the new bare
+          // "[HARD]" capability tag — the only pool-dispatchable HARD lane per
           // relay/references/hard-lanes.md — [HARD — meeting]/[HARD — decision gate]/[HARD —
-          // hands] are NOT). Recurring-audit-marked items with nothing new to audit are
-          // excluded (reuses substantive_unaudited, id:365b). Computed by gather-repo-state.sh;
-          // copy verbatim from the gather JSON onto every unit. The JS-side demote-guard below
-          // reads u.open_hard_pool to demote a \`hard\` verdict on a repo with NO open pool-lane
-          // HARD item (the shard's `hard` judgment is non-deterministic — observed 2026-06-24
-          // dispatching repos whose only open HARD item was [HARD — decision gate]). 0 when none.
+          // hands] (nor their new-vocab equivalents [INPUT — meeting]/[INPUT — decision]/
+          // [INPUT — access]) are NOT. Recurring-audit-marked items with nothing new to audit are
+          // excluded (reuses substantive_unaudited, id:365b). Computed by gather-repo-state.sh
+          // (B2a; this field is tag-agnostic here — a numeric count, no regex change needed in
+          // this file); copy verbatim from the gather JSON onto every unit. The JS-side
+          // demote-guard below reads u.open_hard_pool to demote a \`hard\` verdict on a repo with
+          // NO open pool-lane HARD item (the shard's `hard` judgment is non-deterministic —
+          // observed 2026-06-24 dispatching repos whose only open HARD item was
+          // [HARD — decision gate]). 0 when none.
           open_hard_pool: { type: 'number' },
         },
       },
@@ -691,7 +697,7 @@ function classifyDrainBacklog(blocked) {
     const repo = b && b.repo ? b.repo : '?'
     const reason = (b && b.reason) ? String(b.reason) : ''
     if (/finished repo|anti-false-handoff|0 open items/i.test(reason)) buckets.finished.push(repo)
-    else if (/HARD backlog|\[HARD —|no open \[HARD — pool\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
+    else if (/HARD backlog|\[HARD —|\[HARD\]|\[INPUT —|no open \[HARD — pool\]|no open \[HARD\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
     else if (/circuit breaker/i.test(reason)) buckets.circuitBroken.push(repo)
     else if (/dirty main tree|dirty/i.test(reason)) buckets.dirty.push(repo)
     else buckets.other.push(repo)
@@ -920,10 +926,12 @@ Return {units, surfaced, skipped} = the CONCATENATION across every repo in your 
   }
   // id:9973 — JS-side HARD-pool demote guard (deterministic, mirrors the id:000d pattern).
   // Runs after ALL shard results are merged so it catches any shard that emitted a `hard`
-  // verdict for a repo with NO open executable [HARD — pool] item. Only [HARD — pool] items
+  // verdict for a repo with NO open executable [HARD — pool] item (or, id:4f02/id:8111
+  // dual-vocab window, the new bare [HARD] tag). Only [HARD — pool]/bare-[HARD] items
   // are pool-dispatchable (relay/references/hard-lanes.md); [HARD — meeting]/[HARD — decision
-  // gate]/[HARD — hands] are NOT — but the LLM shard's `hard` judgment is non-deterministic and
-  // has wrongly dispatched repos whose only open HARD item was [HARD — decision gate], handing
+  // gate]/[HARD — hands] (and their new-vocab equivalents [INPUT — meeting]/[INPUT —
+  // decision]/[INPUT — access]) are NOT — but the LLM shard's `hard` judgment is
+  // non-deterministic and has wrongly dispatched repos whose only open HARD item was [HARD — decision gate], handing
   // them back as pre-start size-outs (burning Opus; observed 2026-06-24). open_hard_pool is
   // computed deterministically by gather-repo-state.sh (count of open [HARD — pool] items, minus
   // any recurring-audit item with nothing to audit). DEMOTE-ONLY: a `hard` unit on a repo with
