@@ -6,11 +6,17 @@
 # For each recipe JSON in pending/:
 #   1. VALIDATE (recipe-validate.sh). Invalid recipes are NEVER silently dropped — moved to
 #      rejected/ with a loud sibling .error file and a log line (no-silent-swallow, id:4347).
-#   2. CHECK the launch gate: `relay-intensity.sh permits <est_wall> <resource>` AND
+#   2. HOST GATE (id:9cfa): a recipe's `host` field binds it to a specific machine (mirrors the
+#      `[host:<name>]` ROADMAP tag). REUSES `host-gate.sh` (never a raw uname compare) by
+#      synthesizing the `[host:<name>]` tag text it expects. CHECK-AND-DEFER: on a host
+#      mismatch (exit 3) the recipe is left untouched in pending/ — another host's daemon
+#      owns it — and the reason is logged. This is a SAFETY gate, not a launch-capacity gate:
+#      it runs before the intensity/resource checks below.
+#   3. CHECK the launch gate: `relay-intensity.sh permits <est_wall> <resource>` AND
 #      `resource-probe.sh <resource>` must BOTH succeed. CHECK-AND-DEFER, never preempt: if
 #      either denies, the recipe is left in pending/ untouched (no artifact, no inject) and
 #      the reason is logged. There is no third state — a denied recipe is retried next tick.
-#   3. On PERMIT: move pending → running, run `cmd` (which writes acceptance_artifact), move
+#   4. On PERMIT: move pending → running, run `cmd` (which writes acceptance_artifact), move
 #      running → done, and drop a review-request via `inject.sh add` so the pool reviews the
 #      artifact. A `cmd` that fails still lands in done/ (with a sibling .error file) rather
 #      than running/ — the daemon must never leave a permanently-"running" ghost — but does
@@ -23,6 +29,9 @@
 #   RELAY_INTENSITY_FILE, CLAIM_BASE, CLAIM_LOG, INJECT_BASE, INJECT_LOG
 #                       threaded straight to relay-intensity.sh / resource-probe.sh (via
 #                       claim.sh) / inject.sh — this script never reads their state directly.
+#   RELAY_HOSTNAME      threaded straight to host-gate.sh (its own override) — the "current
+#                       host" for the host-binding gate; hermetic tests set this rather than
+#                       depending on the real machine's hostname.
 #
 # Registry invariant (recipe-manifest.md): recipes are WHITELISTED/relay-authored only. This
 # daemon NEVER scans ROADMAP.md/TODO.md to invent a recipe — it only ever consumes files
@@ -31,6 +40,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATE="$ROOT/recipe-validate.sh"
+HOSTGATE="$ROOT/host-gate.sh"
 INTENSITY="$ROOT/relay-intensity.sh"
 PROBE="$ROOT/resource-probe.sh"
 INJECT="$ROOT/inject.sh"
@@ -68,11 +78,21 @@ cmd_run() {
     id="$(jq -r '.id' "$f")"
     repo="$(jq -r '.repo' "$f")"
     cmd_str="$(jq -r '.cmd' "$f")"
+    host="$(jq -r '.host' "$f")"
     est_wall="$(jq -r '.est_wall' "$f")"
     resource="$(jq -r '.resource' "$f")"
     artifact="$(jq -r '.acceptance_artifact' "$f")"
 
-    # (2) launch gate — check-and-defer, never preempt. Either denial leaves the recipe
+    # (2) host-binding gate (id:9cfa) — check-and-defer, never preempt. REUSE host-gate.sh
+    # (never a raw uname compare) by synthesizing the `[host:<name>]` tag text it expects.
+    # A mismatch (exit 3) means another host's daemon owns this recipe: leave it in pending/.
+    if ! "$HOSTGATE" "[host:$host]" >/dev/null 2>&1; then
+      log "DEFERRED $base id=$id repo=$repo reason=host-mismatch recipe-host=$host"
+      deferred=$((deferred + 1))
+      continue
+    fi
+
+    # (3) launch gate — check-and-defer, never preempt. Either denial leaves the recipe
     # untouched in pending/ for the next tick to retry.
     if ! "$INTENSITY" permits "$est_wall" "$resource" >/dev/null 2>&1; then
       log "DEFERRED $base id=$id repo=$repo reason=intensity-permit-denied est_wall=$est_wall resource=$resource"
@@ -85,7 +105,7 @@ cmd_run() {
       continue
     fi
 
-    # (3) permitted — pending -> running -> done, then inject a review-request.
+    # (4) permitted — pending -> running -> done, then inject a review-request.
     mv "$f" "$RUNNING/$base"
     if bash -c "$cmd_str"; then
       mv "$RUNNING/$base" "$DONE/$base"
