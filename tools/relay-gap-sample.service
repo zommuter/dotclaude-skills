@@ -1,0 +1,11 @@
+[Unit]
+Description=Sample relay discovery verdicts between runs (between-runs churn evidence logger)
+Documentation=file:%h/src/dotclaude-skills/tools/relay-gap-sample.sh
+# Observe-before-preventing: this ONLY logs verdict changes + pool liveness to a JSONL
+# time series; it never dispatches, never writes a repo. The discovery→OS-layer meeting
+# (pre-meeting brief 2026-07-02) is gated on the evidence this collects.
+
+[Service]
+Type=oneshot
+ExecStart=%h/src/dotclaude-skills/tools/relay-gap-sample.sh
+Nice=10
