@@ -2405,7 +2405,7 @@ substrate, and the check-and-defer resource arbitration, WITHOUT renaming any ex
 (the `[HARD — *]`→new-vocab rename is slice B, GATED below). Single-id-two-views (D2): every
 id reuses its open TODO.md twin under the `[UMBRELLA]`.
 
-- [ ] A1 — `[MECHANICAL]` capability tag + `mechanical` verdict [ROUTINE] <!-- id:7616 -->
+- [x] A1 — `[MECHANICAL]` capability tag + `mechanical` verdict [ROUTINE] <!-- id:7616 -->
   - **Why** (meeting 2026-07-02-1924 decision 1; TODO id:7616): the taxonomy needs a
     fourth capability tier for pure-compute work no LLM or human runs — local-LLM
     benchmarks, pytorch, pilots — dispatched to a host daemon (A3, gated) while an LLM

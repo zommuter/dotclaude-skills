@@ -42,6 +42,28 @@ untagged. Do not mass-rewrite an auto-emitted `[HARD — decision gate]` tag to
 `[HARD — meeting]` by hand: that tag is machine-managed and the two spellings are
 equivalent in this contract.
 
+## The `[MECHANICAL]` capability tier (id:7616, meeting 2026-07-02-1924 decision 1)
+
+A FOURTH capability tag, additive alongside `[ROUTINE]` and the `[HARD — *]` lanes:
+pure-compute work no LLM or human runs at all — local-LLM benchmarks, pytorch pilots,
+any artifact a host daemon can produce unattended. An LLM session only REVIEWS the
+resulting artifact; it never runs the compute itself.
+
+| Property | Value |
+|---|---|
+| Class tag | `[MECHANICAL]` (standalone, or composed with `[INTENSIVE — <resource>]`) |
+| Who runs it | a **host daemon / CLI** (A3, gated — not built by this item) |
+| Pool disposition | **pool-inert** — the classifier's `mechanical` verdict is never dispatched by the `/relay --afk` pool (same non-dispatch treatment as a human verdict) |
+| Human disposition | **human-inert too** — `gather-human-backlog.sh` keeps a `[MECHANICAL]` item out of every human-triage bucket (hard_pool/hard_meeting/hard_hands/manual/review_me); it is neither pool work nor human-triage backlog |
+| `[INTENSIVE — <resource>]` | **composes** — an `[INTENSIVE]` resource-axis modifier may co-occur, e.g. `[MECHANICAL] [INTENSIVE — local-llm]`; the resource axis stays orthogonal, same as on any other lane |
+| Two-lane conflict | `[MECHANICAL]` is itself a capability lane — combining it with a `[HARD — *]` lane on the same item (e.g. `[MECHANICAL] [HARD — pool]`) is a tag/prose lane conflict, rejected by `roadmap-lint.sh` exactly like two `[HARD — *]` tags would be |
+| Classifier verdict | `mechanical` (`relay/scripts/classify-verdict.sh`) — fires when `open_mechanical >= 1` and nothing higher-priority is present (no actionable `[ROUTINE]` / unaudited commits / `[HARD — pool]` / promotable or surface TODO backlog); `intensive` stays `""` on it (id:5ac6 invariant `intensive!="" => verdict in {execute,hard}` holds unchanged) |
+
+This item (id:7616, slice A) adds ONLY the tag + verdict plumbing — it does NOT build
+the daemon consumer (that is A3, gated). The slice-B `[HARD — *]` → two-axis-vocabulary
+rename (gated, B1/B2) is where `[MECHANICAL]` folds into the renamed lane vocabulary
+alongside the resource axis; until then it stands as its own additive capability tier.
+
 ## The orthogonal resource axis (NOT a lane)
 
 `[INTENSIVE — <resource>]` (id:8d52) is an ORTHOGONAL resource modifier, not a lane.
