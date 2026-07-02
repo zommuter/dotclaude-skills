@@ -49,15 +49,16 @@ reset_dirs() {
   mkdir -p "$PENDING" "$RUNNING" "$DONE" "$INJECT_BASE"
 }
 
-# write_recipe <name> <est_wall> <artifact_path>: author a valid recipe into pending/ whose
-# cmd writes the artifact. resource=cpu, host=this host so any host-gate passes.
+# write_recipe <name> <est_wall> <artifact_path> [host]: author a valid recipe into pending/
+# whose cmd writes the artifact. resource=cpu, host defaults to this host so any host-gate
+# passes; pass an explicit 4th arg to author a recipe bound to a DIFFERENT host.
 write_recipe() {
-  local name="$1" est_wall="$2" artifact="$3"
+  local name="$1" est_wall="$2" artifact="$3" host="${4:-$(uname -n)}"
   jq -n \
      --arg id "$name" \
      --arg repo "demo-repo" \
      --arg cmd "echo done > '$artifact'" \
-     --arg host "$(uname -n)" \
+     --arg host "$host" \
      --argjson est_wall "$est_wall" \
      --arg resource "cpu" \
      --arg acceptance_artifact "$artifact" \
@@ -108,5 +109,32 @@ write_recipe run-toobig 9000 "$art3"          # est_wall 9000 >> 100 → permits
 [[ "$(count "$PENDING")" -ge 1 ]] || fail "(3) an over-window recipe must stay in pending/"
 [[ "$(inject_count)" -eq 0 ]] || fail "(3) an over-window recipe must not inject a review-request"
 pass "(3) a recipe whose est_wall exceeds the permit window is deferred"
+
+# --- (4) FOREIGN host binding -> check-and-defer: NOT run (id:9cfa) ------------------------
+# RELAY_HOSTNAME (host-gate.sh's own hermetic override) stands in for "the current host" so
+# this test never depends on the real machine's hostname.
+reset_dirs
+"$INTENSITY" --for 2h --heavy >/dev/null
+art4="$TMP/out4.txt"
+write_recipe run-foreign-host 60 "$art4" "host-elsewhere"
+RELAY_HOSTNAME="host-here" "$DAEMON" run >/dev/null 2>&1 || true   # a deferral is not an error
+
+[[ ! -f "$art4" ]] || fail "(4) a recipe bound to a DIFFERENT host must be DEFERRED, not run (artifact was written)"
+[[ "$(count "$PENDING")" -ge 1 ]] || fail "(4) a foreign-host recipe must stay in pending/ (another host's daemon owns it)"
+[[ "$(count "$DONE")" -eq 0 ]] || fail "(4) a foreign-host recipe must not reach done/"
+[[ "$(inject_count)" -eq 0 ]] || fail "(4) a foreign-host recipe must not inject a review-request"
+pass "(4) a recipe bound to a different host is deferred, not run (host binding enforced)"
+
+# --- (5) MATCHING host binding -> still runs normally (host-gate must not over-block) -------
+reset_dirs
+"$INTENSITY" --for 2h --heavy >/dev/null
+art5="$TMP/out5.txt"
+write_recipe run-same-host 60 "$art5" "host-here"
+RELAY_HOSTNAME="host-here" "$DAEMON" run >/dev/null 2>&1 || fail "(5) daemon tick failed on a matching-host recipe"
+
+[[ -f "$art5" ]] || fail "(5) a same-host recipe's acceptance_artifact was not written ($art5)"
+[[ "$(count "$DONE")" -ge 1 ]] || fail "(5) a same-host recipe was not moved to done/ after a successful run"
+[[ "$(inject_count)" -ge 1 ]] || fail "(5) a same-host recipe should still inject a review-request"
+pass "(5) a recipe bound to the current host runs normally (host-gate does not over-block)"
 
 echo "ALL PASS: mechanical-run daemon lifecycle + check-and-defer gate (id:b3d0)"
