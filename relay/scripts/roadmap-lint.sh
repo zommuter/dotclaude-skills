@@ -76,14 +76,37 @@ lane_alt="$(printf '%s\n' "$hard_lanes" \
   | sed -E 's/^\[HARD — (.*)\]$/\1/' \
   | paste -sd'|' -)"
 
-# A recognized class/lane tag: [ROUTINE] OR [HARD — <recognized lane>] OR the
-# [MECHANICAL] capability tag (id:7616 — pure-compute work no LLM/human runs; a
-# daemon dispatches it, an LLM session reviews the artifact; A3 gated).
+# --- DUAL-VOCAB WINDOW (id:4f02, meeting 2026-07-02-1924 decision 2) -----------
+# The target capability-keyed vocabulary (`[HARD]` bare + `[INPUT — meeting|decision|
+# access]`) is ALSO read from hard-lanes.md's north-star section, so both spellings
+# stay ERROR-free during the migration window without a second hardcoded copy here.
+# Extract every `[INPUT — <kind>]` marker from the doc → an alternation of
+# recognized INPUT kinds.
+input_lanes=""
+if [[ -f "$lanes_doc" ]]; then
+  input_lanes="$(grep -oE '\[INPUT — [a-z]+\]' "$lanes_doc" | sort -u || true)"
+fi
+if [[ -z "$input_lanes" ]]; then
+  echo "roadmap-lint: WARNING — could not read INPUT lanes from $lanes_doc; using built-in fallback set" >&2
+  input_lanes=$'[INPUT — meeting]\n[INPUT — decision]\n[INPUT — access]'
+fi
+input_alt="$(printf '%s\n' "$input_lanes" \
+  | sed -E 's/^\[INPUT — (.*)\]$/\1/' \
+  | paste -sd'|' -)"
+
+# A recognized class/lane tag: [ROUTINE] OR the [MECHANICAL] capability tag (id:7616 —
+# pure-compute work no LLM/human runs; a daemon dispatches it, an LLM session reviews
+# the artifact; A3 gated) OR a recognized lane in EITHER vocabulary during the dual-vocab
+# window (id:4f02): the OLD venue-keyed `[HARD — <lane>]` spelling, or the NEW
+# capability-keyed spelling — bare `[HARD]` or `[INPUT — <kind>]`. Neither vocabulary is
+# a violation while the window is open; the window closes (old → ERROR) at the tail of
+# B2 (id:8111), not here.
 # The [INTENSIVE — …] modifier is orthogonal and may co-occur on ANY recognised lane —
-# operative on dispatchable lanes (ROUTINE/pool/MECHANICAL), advisory-inert on human
-# lanes (hands/meeting/decision gate). A lane-less INTENSIVE item has no recognized
-# class tag and is therefore caught by the missing-class-tag grammar below (id:9062).
-class_re="\[ROUTINE\]|\[MECHANICAL\]|\[HARD — (${lane_alt})\]"
+# operative on dispatchable lanes (ROUTINE/pool/HARD/MECHANICAL), advisory-inert on human
+# lanes (hands/meeting/decision gate/INPUT — *). A lane-less INTENSIVE item has no
+# recognized class tag and is therefore caught by the missing-class-tag grammar below
+# (id:9062).
+class_re="\[ROUTINE\]|\[MECHANICAL\]|\[HARD\]|\[HARD — (${lane_alt})\]|\[INPUT — (${input_alt})\]"
 
 # A 4-hex id token, the canonical `<!-- id:XXXX -->` or a bare `id:XXXX`.
 id_re='id:[0-9a-fA-F]{4}'
@@ -165,10 +188,19 @@ while IFS= read -r line; do
     _lc=0; _lf=()
     echo "$line" | grep -qF '[ROUTINE]' && { _lc=$((_lc+1)); _lf+=('[ROUTINE]'); }
     echo "$line" | grep -qF '[MECHANICAL]' && { _lc=$((_lc+1)); _lf+=('[MECHANICAL]'); }
+    # Bare new-vocab [HARD] (id:4f02) — counted separately from the old `[HARD — *]`
+    # spellings below so an item carrying BOTH (e.g. `[HARD — pool]` + `[HARD]`) is
+    # correctly flagged as a two-lane conflict, never silently merged into one.
+    echo "$line" | grep -qF '[HARD]' && { _lc=$((_lc+1)); _lf+=('[HARD]'); }
     while IFS= read -r _hl; do
       [[ -z "$_hl" ]] && continue
       echo "$line" | grep -qF "$_hl" && { _lc=$((_lc+1)); _lf+=("$_hl"); }
     done <<< "$hard_lanes"
+    # New-vocab [INPUT — <kind>] lanes (id:4f02 dual-vocab window) count the same way.
+    while IFS= read -r _il; do
+      [[ -z "$_il" ]] && continue
+      echo "$line" | grep -qF "$_il" && { _lc=$((_lc+1)); _lf+=("$_il"); }
+    done <<< "$input_lanes"
     if [[ "$_lc" -gt 1 ]]; then
       violations=$((violations + 1))
       echo "roadmap-lint: ERROR — tag/prose lane conflict: item prose disagrees with tag lane (multiple lane brackets found: ${_lf[*]})" >&2
@@ -195,7 +227,7 @@ while IFS= read -r line; do
     idtoken="${BASH_REMATCH[1]}"
   fi
   reasons=()
-  [[ "$has_class" -eq 0 ]] && reasons+=("NO recognized class/lane tag ([ROUTINE] or [HARD — ${lane_alt}])")
+  [[ "$has_class" -eq 0 ]] && reasons+=("NO recognized class/lane tag ([ROUTINE] / [HARD] / [HARD — ${lane_alt}] / [INPUT — ${input_alt}] / [MECHANICAL])")
   [[ "$has_id" -eq 0 ]] && reasons+=("MISSING its id token")
   reason_str="$(IFS='; '; echo "${reasons[*]}")"
   handle="${idtoken:-<no id>}"
@@ -215,7 +247,7 @@ mkdir -p "$(dirname "$log")" 2>/dev/null || true
 if [[ "$violations" -gt 0 ]]; then
   echo "roadmap-lint: $violations open ROADMAP item(s) violate the grammar in $roadmap"
   printf '%s' "$report"
-  echo "Fix at source: assign a recognized lane tag ([ROUTINE] / [HARD — ${lane_alt}]) and a 4-hex id: token, or park the item under a gated/deferred heading."
+  echo "Fix at source: assign a recognized lane tag ([ROUTINE] / [HARD] / [HARD — ${lane_alt}] / [INPUT — ${input_alt}] / [MECHANICAL]) and a 4-hex id: token, or park the item under a gated/deferred heading."
   exit 1
 fi
 

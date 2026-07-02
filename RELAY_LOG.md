@@ -1406,3 +1406,30 @@ FLAG-not-convert) and `tests/test_lane_vocab_migration.sh` (B2 — readers bucke
 Both verified RED. Scope LOCKED to THIS repo's contract + lane-readers + tests + this repo's
 own ROADMAP/TODO tags; cross-repo item re-tagging is the SEPARATE gated migration the
 dual-vocab window enables. Do NOT push — integrator merges.
+
+## 2026-07-02 — executor (Sonnet)
+
+Worked id:4f02 (B1 — SAFETY-NET-FIRST half of the wave-2b lane-vocabulary rename). Three
+deliverables landed: (1) `relay/references/hard-lanes.md` gained a "North star —
+capability-keyed vocabulary" section: the ratified two-axis table, the three unambiguous
+1:1 rename rows, the `[HARD — hands]` four-candidate fan-out table (per the "no auto-default"
+amendment), and an explicit "dual-vocab migration window OPEN" statement — the old lane table
+stays untouched above it. (2) `relay/scripts/roadmap-lint.sh`'s `class_re` now dual-accepts
+BOTH vocabularies: added an `input_lanes` extraction (mirrors the existing `hard_lanes`
+extraction, `grep -oE '\[INPUT — [a-z]+\]'` over hard-lanes.md — no second hardcoded copy) plus
+a literal bare `[HARD]` alternative; the case-c two-lane conflict counter was extended with the
+same two additions so an item carrying both an old lane and its new rename (e.g.
+`[HARD — pool]` + `[HARD]`) is still correctly flagged as a conflict. Confirmed bare `[HARD]`
+cannot false-match inside `[HARD — pool]` (the em-dash+space always intervenes). (3) new
+`relay/scripts/lane-convert.sh <ledger-file>` (`--in-place` optional, for B2c): a pure text
+transform doing only the three unambiguous renames; every `[HARD — hands]` line is left
+byte-for-byte unchanged and flagged on stderr naming all four candidate destinations
+(`[MECHANICAL]`/`[INPUT — access]`/`[INPUT — decision]`/`[INPUT — meeting]`) plus file:line+id —
+it never auto-substitutes any lane onto a hands line. Registered in all three Makefile relay
+lists (`relay_FILES`/`relay_EXEC`/`relay_ALLOW`, id:69ef pattern). `tests/test_lane_convert.sh`
+now passes all four cases (a/b/c/d). Ticked ROADMAP id:4f02 via `md-merge.py update-ids`. Full
+suite: 172 passed / 0 failed / 3 expected-red (id:8111 B2 — correctly still gated on this item;
+id:14d0, id:5884 — unrelated open items). Friction: none — the ROADMAP item's Context section
+pointed at the exact `class_re`/case-c line ranges to extend, and the hard-lanes.md doc-driven
+extraction pattern generalized cleanly to the new `[INPUT — …]` vocabulary. Do NOT push —
+integrator merges.
