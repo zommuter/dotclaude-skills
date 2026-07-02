@@ -2645,31 +2645,151 @@ CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`) — the two-axis rename 
     `CLAIM_BASE` (no second lock). Check-and-defer ONLY — never suspend/kill a claim holder
     (active-suspend is routed:f506, out of scope).
 
-### GATED — slice B rename (dep-blocked, NOT dispatchable)
+## Capability-keyed lane taxonomy — wave 2b (lane-vocabulary RENAME)
 
-Parked under a GATED heading (roadmap-lint-exempt) until their deps land. Each carries its
-`(DEP: …)` inline; do NOT dispatch until the dep item is ticked.
+Wave 2b executes the `[HARD — <suffix>]` → two-axis-vocabulary RENAME ratified in the meeting
+(`docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`, decisions
+1+2). **This is the meeting's flagged BLAST-RADIUS step** — the lane vocabulary was hardened
+four days ago across ~30 lane-asserting tests + the crash-prone `relay-loop.js` engine, so the
+rename is deliberately staged **additive-then-flip** with a deterministic converter and a
+DUAL-VOCABULARY lint window (both old and new accepted ERROR-free for one window). NEVER a
+flag-day (Riku). Dep A1 (id:7616, `[MECHANICAL]` tag) is landed `[x]`, so B1 is now UN-GATED
+and dispatchable; B2 stays gated on B1 (below). Single-id-two-views (D2): both ids reuse their
+open TODO.md twin.
 
-- [ ] B1 — target taxonomy → `hard-lanes.md` north star + `[HARD — *]`→new-vocab converter + dual-vocab lint window [HARD — pool] 🚧 GATED (DEP: 7616) <!-- id:4f02 -->
-  - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:4f02): slice B re-bases the lane
-    vocabulary on required capability. Write the ratified two-axis taxonomy into hard-lanes.md
-    as the north star, ship a DETERMINISTIC converter (`[HARD — pool]`→`[HARD]`,
-    `[HARD — meeting]`→`[INPUT — meeting]`, `[HARD — decision gate]`→`[INPUT — decision]`,
-    `[HARD — hands]`→`[INPUT — access]` OR `[MECHANICAL]` per-item), and open a dual-vocabulary
-    lint window (both old and new accepted ERROR-free for one window, then old-vocab → lint
-    ERROR). NEVER a flag-day (Riku: vocabulary hardened across ~15 tests + the crash-prone
-    engine).
-  - **Blocked on**: `[MECHANICAL]` existing (7616) — the converter's `[HARD — hands]`→
-    `[MECHANICAL]` target must be a recognized tag first.
+**Target taxonomy (decision 1).** Two orthogonal axes — **capability**: `[ROUTINE]` (executor
+LLM) · `[HARD]` (strong LLM) · `[INPUT — {meeting,decision,access}]` (human ± LLM; sub-type =
+effort) · `[MECHANICAL]` (compute only) — × **resource** (orthogonal): `[INTENSIVE — <res>]`.
+The MAPPING: the THREE UNAMBIGUOUS 1:1 renames the converter AUTO-APPLIES — `[HARD — pool]`→`[HARD]`,
+`[HARD — meeting]`→`[INPUT — meeting]`, `[HARD — decision gate]`→`[INPUT — decision]`. `[HARD — hands]`
+is DELIBERATELY NOT auto-converted: "hardware/sudo/secret/on-device/rehearsal" fragments across FOUR
+destinations — `[MECHANICAL]` (a daemon can run it) · `[INPUT — access]` (human provides a
+credential/key/physical access) · `[INPUT — decision]` (human must ratify, e.g. it-infra fd30
+post-gate decisions) · `[INPUT — meeting]` (human+LLM design judgment, e.g. a rehearsal whose
+outcome needs interpretation) — so the converter FLAGS every `[HARD — hands]` item for per-item
+human judgment (those four candidates) and converts it to NONE of them (no default). Aligns with M3
+(id:3ef7) + the conformance-sweep detector-surfaces/human-decides rule. `[ROUTINE]` / `[MECHANICAL]`
+/ `[INTENSIVE — <res>]` are UNCHANGED. **SCOPE (owner-locked):** this wave
+migrates THIS repo's contract + lane-readers + tests + THIS repo's own ROADMAP/TODO item tags
+only. Cross-repo item re-tagging in OTHER repos is a SEPARATE gated migration — the dual-vocab
+window is exactly what lets those migrate later.
 
-- [ ] B2 — migrate all lane-readers + tests to the new vocabulary [HARD — pool] 🚧 GATED (DEP: 7616 + 4f02) <!-- id:8111 -->
-  - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:8111): flip every lane-reader
-    (`gather-human-backlog.sh`, `roadmap-lint.sh`, `classify-verdict.sh`, `relay-loop.js`,
-    `references/*`) and their tests onto the new vocabulary, and fan `[HARD — hands]` out to
-    `[INPUT — access]` (needs a human's hands) vs `[MECHANICAL]` (compute-only) per-item — the
-    unfinished "shrink the hands queue to the irreducible" business.
-  - **Blocked on**: the converter + dual-vocab window (4f02), which is blocked on the tag
-    existing (7616).
+- [ ] B1 — target taxonomy → `hard-lanes.md` north star + `lane-convert.sh` converter + dual-vocab lint window [HARD — pool] <!-- id:4f02 -->
+  - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:4f02): the SAFETY-NET-FIRST half of
+    the rename. Before any reader flips (B2), ship (i) the north-star vocabulary in
+    `hard-lanes.md` as a BOTH-VOCAB table, (ii) a `roadmap-lint.sh` that DUAL-ACCEPTS old and
+    new vocab (neither an ERROR during the window), and (iii) a DETERMINISTIC converter that
+    performs the unambiguous renames and FLAGS (never auto-converts) the one ambiguous case
+    (`[HARD — hands]`→`[MECHANICAL]` candidate). This item OPENS the dual-vocab window; the
+    eventual old-vocab→ERROR FLIP that CLOSES it is deliberately NOT here (it is the tail of
+    B2, after every reader + this repo's ledgers are migrated).
+  - **Acceptance**:
+    1. **North-star write** — `relay/references/hard-lanes.md` documents the ratified two-axis
+       taxonomy as the north star, with a BOTH-VOCAB mapping table (old `[HARD — *]` spelling →
+       new capability tag). The three unambiguous rows are 1:1 (`[HARD — pool]`→`[HARD]`,
+       `[HARD — meeting]`→`[INPUT — meeting]`, `[HARD — decision gate]`→`[INPUT — decision]`); the
+       `[HARD — hands]` row shows its FOUR candidate destinations `{[MECHANICAL] | [INPUT — access]
+       | [INPUT — decision] | [INPUT — meeting]}` (per-item human judgment, NOT a single target).
+       State explicitly that the dual-vocab window is OPEN (both spellings accepted ERROR-free) and
+       that the old→ERROR flip lands at the end of B2. Keep the existing `[MECHANICAL]` +
+       `[INTENSIVE]` sections coherent with the new axes.
+    2. **`roadmap-lint.sh` DUAL-ACCEPTS** — extend the recognized `class_re` so BOTH the old
+       lanes (`[HARD — pool|meeting|hands|decision gate]`) AND the new vocab (bare `[HARD]`,
+       `[INPUT — meeting]`, `[INPUT — decision]`, `[INPUT — access]`; `[MECHANICAL]` already
+       accepted) are ERROR-free class tags. Neither vocabulary is a violation during the window.
+       The lane set is READ from `hard-lanes.md` (single source) — extend the extraction to pick
+       up the new `[HARD]`/`[INPUT — …]` forms, do NOT hardcode a second copy. GOTCHA: bare
+       `[HARD]` is NOT a substring of `[HARD — pool]` (the em-dash + space intervene), so a
+       naive `[HARD]` match will not false-fire on old-vocab items — but the case-c two-lane
+       conflict counter must not double-count an item that (correctly) carries exactly one new
+       OR one old lane. An item carrying an old lane AND its new rename simultaneously (e.g.
+       `[HARD — pool]` + `[HARD]`) SHOULD still be a case-c conflict (never both).
+    3. **`relay/scripts/lane-convert.sh <ledger-file>`** — a deterministic TEXT transform (not a
+       lane-parser) over a ROADMAP/TODO file. AUTO-APPLY the THREE UNAMBIGUOUS 1:1 renames on the
+       exact bracket strings ONLY: `[HARD — pool]`→`[HARD]`, `[HARD — meeting]`→`[INPUT — meeting]`,
+       `[HARD — decision gate]`→`[INPUT — decision]`. **`[HARD — hands]` is NEVER auto-converted**
+       (it fragments four ways — see the section intro): LEAVE the line UNCHANGED and SURFACE it on
+       STDERR as a needs-judgment flag naming its FOUR candidate destinations (`[MECHANICAL]`,
+       `[INPUT — access]`, `[INPUT — decision]`, `[INPUT — meeting]`) + the item's file:line + id,
+       deferring the decision to M3 (id:3ef7) / human. The converter emits NO default for hands.
+       `[ROUTINE]` / `[MECHANICAL]` / `[INTENSIVE — <res>]` and the `🚧 route:*` auto-gate aliases
+       pass through UNCHANGED. IDEMPOTENT — re-running on already-converted output is a no-op (a
+       still-present `[HARD — hands]` re-flags but is not rewritten, so the text is stable). Default
+       is stdout (or `--in-place`); the test fixture is the contract.
+    4. **Makefile registration** — `lane-convert.sh` in `relay_FILES`/`relay_EXEC`/`relay_ALLOW`
+       (3×, id:69ef install-completeness).
+    5. Do NOT flip any reader (that is B2) and do NOT run the converter on this repo's ledgers
+       yet (also B2). B1 is the additive safety net ONLY.
+  - **Tests**: `tests/test_lane_convert.sh` (`# roadmap:4f02`) — hermetic tmp fixtures:
+    (a) `roadmap-lint.sh` exits 0 on a ROADMAP whose items use the NEW vocab (bare `[HARD]`,
+    `[INPUT — meeting|decision|access]`) AND on one using the OLD vocab (dual-accept); an item
+    with two lanes (old + its new rename on one line) still exits nonzero (case-c conflict);
+    (b) `lane-convert.sh` on a fixture AUTO-APPLIES the three unambiguous renames exactly
+    (`[HARD — pool]`→`[HARD]`, `[HARD — meeting]`→`[INPUT — meeting]`,
+    `[HARD — decision gate]`→`[INPUT — decision]`); (c) EVERY `[HARD — hands]` item (plain AND
+    `[INTENSIVE]`-composed) is LEFT UNCHANGED in stdout and SURFACED on STDERR naming all four
+    candidate destinations — never auto-`[INPUT — kind]` and never auto-`[MECHANICAL]`; (d)
+    `[ROUTINE]` / `[MECHANICAL]` / `[INTENSIVE — res]` lines are untouched, and a second pass is a
+    no-op (idempotent). RED until B1 lands.
+  - **Context**: `roadmap-lint.sh` class_re + hard-lanes-extraction (L54–86) + case-c counter
+    (L165–176); the new-vocab north-star lives in `hard-lanes.md`. The converter is a NEW
+    sibling script — mirror the `host-gate.sh`/`recipe-validate.sh` script+Makefile idiom. The
+    `[HARD — hands]` fan-out is inherently a per-item JUDGMENT (four destinations) — the converter
+    only SURFACES it (detector-surfaces/human-decides, M3 id:3ef7); the fixtures pin the
+    never-auto-default + four-candidate-flag invariant.
+
+### GATED — B2 migration (DEP: 4f02, NOT dispatchable until B1 lands)
+
+Parked under a GATED heading (roadmap-lint-exempt, non-dispatchable) until B1 (id:4f02) ships
+the converter + dual-vocab window. This is a LARGE migration — its acceptance DECOMPOSES into
+three separable sub-checks (B2a readers+references / B2b relay-loop.js / B2c this-repo
+ledgers+tests) that MAY be dispatched as separate executors (see the handoff report's split
+recommendation). Do NOT dispatch until 4f02 is ticked.
+
+- [ ] B2 — migrate all lane-READERS + references + this-repo ledgers/tests to the new vocabulary [HARD — pool] 🚧 GATED (DEP: 4f02) <!-- id:8111 -->
+  - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:8111): with B1's converter + dual-vocab
+    window in place, flip every lane-READER and reference to EMIT/EXPECT the new vocabulary
+    (still ACCEPTING old via B1's window), run the converter on THIS repo's own ledgers, migrate
+    the lane-asserting tests, and — as the FINAL step — CLOSE the dual-vocab window (old-vocab →
+    lint ERROR). Resolves each surfaced `[HARD — hands]` item into its per-item destination among
+    the FOUR candidates (`[MECHANICAL]` / `[INPUT — access]` / `[INPUT — decision]` /
+    `[INPUT — meeting]`) — the unfinished "shrink the hands queue to the irreducible" business
+    (the converter only FLAGS these; the human/M3 decides each).
+  - **Acceptance** (three separable sub-checks — dispatchable as one executor or three):
+    - **B2a — readers + references.** Flip the tag-PARSERS and prose to the new vocab (dual-accept):
+      1. `gather-human-backlog.sh::emit_hard_lanes` buckets new vocab: bare `[HARD]`→`hard_pool`,
+         `[INPUT — meeting]`/`[INPUT — decision]`→`hard_meeting`, `[INPUT — access]`→`hard_hands`;
+         old spellings still accepted during the window. (Today an `[INPUT — …]` line is silently
+         skipped — it does not even match `/\[HARD/`.)
+      2. `classify-repo.sh` `LANE_TAGS`/`HUMAN_GATES` + primary-lane parse + `gather-repo-state.sh`
+         `open_hard_pool` anchor recognize the new vocab (bare `[HARD]` counts as pool; `[INPUT — …]`
+         are human-gates, excluded from actionable/pool counts).
+      3. References `human.md`, `review.md`, `conventions.md`, `handoff.md` re-worded to the new
+         vocabulary (old spellings noted as recognized aliases during the window).
+    - **B2b — `relay-loop.js` (the crash-prone engine).** Update the verdict-schema enum comments
+      and any HARD-string regexes (`unitIsSubstantive` reason regex `/\[HARD —|no open \[HARD — pool\]/`,
+      the row-detail strings) to also match the new vocab. The numeric `open_hard_pool` demote-guard
+      is tag-agnostic (unaffected). **ENGINE-EDIT CAUTION:** `node --check` + `lint-workflow-templates.mjs`
+      + `test_relay_loop_structure.sh` must pass (the a0b6 template-literal-lint hazard crashed the
+      pool 3×) — do this early-session, NOT tail-of-session.
+    - **B2c — this-repo ledgers + tests + window close.** Run `lane-convert.sh --in-place` on THIS
+      repo's `ROADMAP.md` + `TODO.md` (own tags only; the converter auto-renames pool/meeting/
+      decision-gate and FLAGS each `[HARD — hands]` — resolve those per-item into one of the four
+      candidates by M3/human judgment, never a blanket default). Migrate the ~30 lane-asserting `tests/test_*.sh`
+      (see the handoff report list) + `test_hard_lane_buckets.sh` marker-set cross-check to the new
+      vocab. As the FINAL step, CLOSE the dual-vocab window: `roadmap-lint.sh` + `gather-human-backlog.sh`
+      make an OLD-vocab lane an ERROR (the additive window ends once every own surface is migrated).
+  - **Done-check**: `make test` fully green with every lane-asserting test on the new vocab;
+    `roadmap-lint.sh ROADMAP.md` exit 0; `node --check relay/scripts/relay-loop.js` +
+    `lint-workflow-templates.mjs` clean; `gather-human-backlog.sh` buckets this repo's migrated
+    ROADMAP correctly.
+  - **Tests**: `tests/test_lane_vocab_migration.sh` (`# roadmap:8111`) — the verifiable RED slice:
+    `gather-human-backlog.sh` buckets a repo whose ROADMAP uses the NEW vocab (bare `[HARD]`→a
+    `hard_pool` line; `[INPUT — meeting]`→a `hard_meeting` line; `[INPUT — access]`→a `hard_hands`
+    line) — today the `[HARD]`-only item LOUD-rejects as untagged and the `[INPUT — …]` items emit
+    nothing, so this is genuinely RED. The relay-loop.js regex + classify-repo parse flips are
+    VERIFY-ON-IMPLEMENTATION (asserted by the migrated existing tests once they carry the new vocab).
+  - **Blocked on**: 4f02 (the converter + dual-vocab window B1 opens).
 
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
