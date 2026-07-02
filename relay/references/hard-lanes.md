@@ -124,6 +124,64 @@ Worked verdicts (the policy is only as good as its calls):
 This criterion does NOT add a marker — it only governs which existing lane an INTENSIVE
 item carries — so `tests/test_hard_lane_buckets.sh` (marker-set cross-check) is unaffected.
 
+## North star — capability-keyed vocabulary (id:4f02, meeting 2026-07-02-1924 decision 1)
+
+**Ratified target vocabulary.** Two orthogonal axes, replacing the venue-keyed
+`[HARD — <lane>]` spelling above: the **capability** axis says *what kind of actor
+the item requires*, not *which queue it sits in* — dispatch venue is DERIVED from the
+capability tag, never spelled into it.
+
+| Capability tag | Meaning | Touches an LLM? |
+|---|---|---|
+| `[ROUTINE]` | executor-tier LLM (cheap Sonnet) | yes |
+| `[HARD]` | strong/apex LLM, unattended-safe | yes |
+| `[INPUT — meeting]` | human design judgment (`/meeting`) | yes (meeting session) |
+| `[INPUT — decision]` | human decides, no design session needed (auto-gate) | no |
+| `[INPUT — access]` | human credential/hardware/physical action | no |
+| `[MECHANICAL]` | pure compute, no LLM or human runs it (a host daemon does) | no |
+
+The orthogonal **resource** axis is unchanged: `[INTENSIVE — <resource>]` composes
+with any capability tag (operative on `[ROUTINE]`/`[HARD]`/`[MECHANICAL]`,
+advisory-inert on the `[INPUT — …]` human lanes) — see "The orthogonal resource axis"
+above, which stays coherent under the rename.
+
+### Rename mapping (old → new)
+
+The three UNAMBIGUOUS 1:1 renames (auto-converted by `relay/scripts/lane-convert.sh`,
+id:4f02):
+
+| Old (`[HARD — *]`) | New | Ambiguity |
+|---|---|---|
+| `[HARD — pool]` | `[HARD]` | none — 1:1 |
+| `[HARD — meeting]` | `[INPUT — meeting]` | none — 1:1 |
+| `[HARD — decision gate]` | `[INPUT — decision]` | none — 1:1 (covers the `🚧 route:decision-gate` auto-gate alias too) |
+
+`[HARD — hands]` has **NO single auto-default** (amendment 2026-07-02, correcting
+decision 1's original coarse `[INPUT — access]` mapping). It fragments across
+**FOUR** candidate destinations by **per-item human judgment** — the converter never
+guesses which:
+
+| Candidate destination | When |
+|---|---|
+| `[MECHANICAL]` | the run itself needs no LLM/human — a daemon can execute it (id:2313's "needs an LLM?" branch) |
+| `[INPUT — access]` | needs a live credential / physical hardware / on-device action, no open judgment call |
+| `[INPUT — decision]` | needs a human decision but not a design session (e.g. it-infra fd30 "post-gate decisions") |
+| `[INPUT — meeting]` | needs actual design judgment / interpretation (e.g. a rehearsal needing interpretation) |
+
+`relay/scripts/lane-convert.sh` therefore LEAVES every `[HARD — hands]` item
+UNCHANGED and FLAGS it on stderr naming all four candidates — resolving each one is
+per-item judgment work (M3, id:3ef7 / B2), not a mechanical rewrite.
+
+### Dual-vocab migration window (OPEN as of id:4f02; still open)
+
+Both spellings — the old `[HARD — pool|meeting|hands|decision gate]` venue-keyed
+lanes documented above, AND the new capability-keyed vocabulary in this section — are
+**ERROR-free** in `roadmap-lint.sh` during the window. An item carrying BOTH an old
+lane and its new rename simultaneously (e.g. `[HARD — pool]` + `[HARD]` on one line)
+is still a case-c tag/prose conflict (never both). The window CLOSES (old-vocab →
+lint ERROR) only at the tail of B2 (id:8111), after every reader and this repo's own
+ledgers/tests are migrated — that flip is deliberately NOT part of this item.
+
 ## Canonical marker set (the contract both consumers parse)
 
 ```
