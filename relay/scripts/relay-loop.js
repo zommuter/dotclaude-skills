@@ -1043,7 +1043,7 @@ if (SESSION_IS_FABLE && !FABLE_DOWN) {
       const src = u.strongRecheckPending
         ? 'relay.toml last_strong_ckpt has fable_rechecked=false (durable, survives executor-checkpoint masking, id:e030)'
         : 'latest relay-ckpt carries fable-standin'
-      u.reason = `optional Fable recheck (${src} — Opus stood in for Fable; independent audit pending). Prior verdict: ${u.verdict}. ${u.reason || ''}`.trim()
+      u.reason = `optional Fable recheck (${src} — strong checkpoint pending independent Fable audit). Prior verdict: ${u.verdict}. ${u.reason || ''}`.trim()
       u.verdict = 'review'
       elevated++
     }
@@ -1387,10 +1387,13 @@ async function integrate(unit, report) {
   // checkpoint that overwrites last_ckpt does NOT mask the pending optional Fable recheck
   // (the masking bug id:e030). Executor (sonnet) checkpoints must never clear it.
   const isStrong = unit.verdict !== 'execute'
-  // A real-Fable REVIEW unit IS the optional recheck: when this session's strong tier is
-  // genuine Fable and it reviews a repo, mark the durable queue rechecked rather than
-  // resetting it (id:e030 consume side; keeps @fable-optional-recheck idempotent).
-  const isFableRecheck = SESSION_IS_FABLE && unit.verdict === 'review'
+  // ANY strong unit (review/handoff/hard) produced while this session's strong tier is
+  // genuine Fable IS a self-produced strong checkpoint with nothing pending: mark the
+  // durable queue rechecked rather than queuing a bogus Fable-rechecks-Fable review next
+  // round (id:6856 — a Fable HANDOFF previously fell to the else branch and recorded
+  // fable_rechecked = false, unlike a Fable review). id:e030 consume side; keeps
+  // @fable-optional-recheck idempotent regardless of which strong verdict produced it.
+  const isFableRecheck = SESSION_IS_FABLE
   // hard (id:da26): Opus-apex strong-execute of one [HARD] item. Distinct checkpoint
   // label from review/handoff (which use "reviewer (...)") so the relay log reads as
   // strong-execute work; it still carries fable-standin (apex Opus work invites an
@@ -1439,7 +1442,7 @@ async function integrate(unit, report) {
    (--force is required and safe here: the merge+tag+push above already integrated the committed branch work, so the only thing --force discards is incidental untracked build artifacts the child left behind, e.g. a uv.lock from running tests. Without --force, worktree remove fails on any untracked file and the worktree+branch silently orphan in ~/.cache/relay/worktrees/ — id:d187.)
    DESTRUCTIVE-CLEANUP SCOPE (id:6e02): you may remove ONLY the two artifacts named above — ${report.worktree} and ${report.branch}, this unit's own. NEVER delete, prune, or "tidy up" any OTHER relay/* branch or worktree, no matter how redundant it looks: a zero-commit branch whose tip is an ancestor of main is NOT proof of an already-integrated leftover — it is exactly what a LIVE parallel child's freshly-created worktree looks like, and the repo lease was already released in step 0 so a foreign child may legitimately hold one (on 2026-07-01 an integrator swept a parallel review child's branch+worktree mid-run on this inference). The same scope applies on EVERY abort/handback path: return merged=false and leave ALL worktrees and branches on disk — including this unit's own.
 6. Update ~/.config/relay/relay.toml for [repos.${unit.repo}] via the flock'd single-writer (id:ebfb step 2) — for EACH field run \`~/.claude/skills/relay/scripts/relay-state-write.sh toml-set ${unit.repo} <key> <value>\` (value VERBATIM: quote strings e.g. '"<tag>"', bare for bool e.g. false; NEVER hand-edit relay.toml): set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.${isStrong ? `
-6b. STRONG checkpoint — this is a ${unit.verdict} unit produced by the strong model (${STRONG_MODEL}). ${isFableRecheck ? `This session's strong tier is REAL Fable, and this is a review — it IS the optional Fable recheck (id:e030 consume side). Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = "<today's date, ISO>" (the recheck just happened — mark it done, do NOT set false).` : `Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = false (an Opus-standin/strong checkpoint that still invites an optional Fable recheck).`} These keys survive a LATER executor (sonnet) checkpoint that overwrites last_ckpt — so the pending optional Fable recheck stays visible even when masked. Write all three via the same flock'd relay-state-write.sh toml-set helper (overwrite if present; fable_rechecked is a BARE value: false, or '"<ISO date>"' when rechecked). Change ONLY this repo's block.` : `
+6b. STRONG checkpoint — this is a ${unit.verdict} unit produced by the strong model (${STRONG_MODEL}). ${isFableRecheck ? `This session's strong tier is REAL Fable, so this self-produced strong checkpoint (${unit.verdict}) has nothing pending — it IS (or satisfies) the optional Fable recheck (id:e030 consume side). Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = "<today's date, ISO>" (the recheck just happened — mark it done, do NOT set false).` : `Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = false (an Opus-standin/strong checkpoint that still invites an optional Fable recheck).`} These keys survive a LATER executor (sonnet) checkpoint that overwrites last_ckpt — so the pending optional Fable recheck stays visible even when masked. Write all three via the same flock'd relay-state-write.sh toml-set helper (overwrite if present; fable_rechecked is a BARE value: false, or '"<ISO date>"' when rechecked). Change ONLY this repo's block.` : `
 6b. EXECUTOR checkpoint — this is an execute unit (sonnet). Do NOT touch last_strong_ckpt, strong_model, or fable_rechecked: an executor checkpoint must never clear the pending Fable-bonus-recheck queue (that is exactly the masking bug id:e030 fixes). Leave those keys untouched.`}
 7. L2 push-seed inputs (id:c855) — compute these LAST, AFTER steps 1-6 so they reflect the fully-settled post-integrate state on main (the toml block, removed worktree dir, and pushed HEAD all feed the signature):
    a. postSig — recompute this repo's discovery signature so next round's prelude can match it: echo the one-repo object and pipe it to discover-sig.sh, then read the "sig" field:
