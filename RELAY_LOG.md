@@ -1225,3 +1225,8 @@ review 0443..HEAD: window = 2 inbox ingests only (no executor work; gaming-scan 
 ## 2026-07-02 08:23 — executor (sonnet, relay-loop)
 
 No-op: ROADMAP.md has 0 open [ROUTINE] items (the dispatch reason was stale — the prior review merge commit 2e58337 already ticked fb7f+6856 and states "0 open ROUTINE"); worktree left clean, no commit made.
+
+## 2026-07-02 — executor (sonnet)
+
+Worked id:e407 — built the graded permitted-intensity slice (A4): `relay/scripts/relay-intensity.sh` CLI (`--for <dur> --light|--heavy`, `--afk` conservative default, `--intensive`/`--allow-intensive` back-compat permissive window, `--clear`, `--status`, `permits <est_wall> <resource>` predicate) writing/reading `$RELAY_INTENSITY_FILE` (default `~/.config/relay/permitted-intensity.json`) `{max_wall_seconds,resource_ceiling,expires_at}`; resource->tier mapping (light/heavy, ordered) is a hardcoded `HEAVY_RESOURCES` list (gpu/local-llm/local-model/llama), executor judgment per the item's Context note. Registered the script in the Makefile's relay_FILES/relay_EXEC/relay_ALLOW (mirrors acquire-resource.sh). `tests/test_permitted_intensity.sh` 7/7 green (was RED); full suite 165 passed, 0 failed, 5 expected-red. Deliberately did NOT wire `relay-loop.js`'s `ALLOW_INTENSIVE` gate to the new predicate — the item explicitly flags that engine edit as RISKY (a0b6 template-literal-lint hazard class) and defers it; left a clearly-marked `TODO (id:e407 follow-up)` comment at the `ALLOW_INTENSIVE` definition (~line 75) pointing at `relay-intensity.sh permits` and the meeting note, verified with `node --check`.
+Friction: none.
