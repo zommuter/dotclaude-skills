@@ -2557,7 +2557,7 @@ their deps (A1 id:7616, A2 id:64d3, A4 id:e407, A5 id:68dc) are all landed `[x]`
 CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`) — the two-axis rename is wave 2b
 (B1/B2, GATED below), NOT here.
 
-- [ ] M1 — handoff.md C2 PRODUCES the MECHANICAL tag + authors the recipe [ROUTINE] <!-- id:9c88 -->
+- [x] M1 — handoff.md C2 PRODUCES the MECHANICAL tag + authors the recipe [ROUTINE] <!-- id:9c88 -->
   - **Why** (meeting amendment 2026-07-02, M1; TODO id:9c88): the missing PRODUCER link. A1
     taught the classifier to recognize `[MECHANICAL]`→`mechanical`, but `handoff.md` C2 still
     only ever tags `[ROUTINE]`/`[HARD — *]` — so the tag is routed but never produced and
@@ -2583,7 +2583,7 @@ CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`) — the two-axis rename 
     tagging paragraph ~L60–73). Pairs with A3 (the daemon that consumes the authored recipe).
     Do NOT touch any script.
 
-- [ ] M2 — re-lane DOCTRINE routes compute-only work to MECHANICAL (fix the wrong-to-hands producer sites) [HARD — pool] <!-- id:2313 -->
+- [x] M2 — re-lane DOCTRINE routes compute-only work to MECHANICAL (fix the wrong-to-hands producer sites) [HARD — pool] <!-- id:2313 -->
   - **Why** (meeting amendment 2026-07-02, M2; TODO id:2313): three CONTRACT doc sites still
     route scriptable / no-human / no-LLM "run X" work to `[HARD — hands]` (the human), even
     though `[MECHANICAL]` now exists and a daemon (A3) can run it. `gather-human-backlog.sh`
