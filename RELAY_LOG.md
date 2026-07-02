@@ -1233,3 +1233,21 @@ Worked id:68dc (A5) — built `relay/scripts/resource-probe.sh`: check-and-defer
 
 Worked id:e407 — built the graded permitted-intensity slice (A4): `relay/scripts/relay-intensity.sh` CLI (`--for <dur> --light|--heavy`, `--afk` conservative default, `--intensive`/`--allow-intensive` back-compat permissive window, `--clear`, `--status`, `permits <est_wall> <resource>` predicate) writing/reading `$RELAY_INTENSITY_FILE` (default `~/.config/relay/permitted-intensity.json`) `{max_wall_seconds,resource_ceiling,expires_at}`; resource->tier mapping (light/heavy, ordered) is a hardcoded `HEAVY_RESOURCES` list (gpu/local-llm/local-model/llama), executor judgment per the item's Context note. Registered the script in the Makefile's relay_FILES/relay_EXEC/relay_ALLOW (mirrors acquire-resource.sh). `tests/test_permitted_intensity.sh` 7/7 green (was RED); full suite 165 passed, 0 failed, 5 expected-red. Deliberately did NOT wire `relay-loop.js`'s `ALLOW_INTENSIVE` gate to the new predicate — the item explicitly flags that engine edit as RISKY (a0b6 template-literal-lint hazard class) and defers it; left a clearly-marked `TODO (id:e407 follow-up)` comment at the `ALLOW_INTENSIVE` definition (~line 75) pointing at `relay-intensity.sh permits` and the meeting note, verified with `node --check`.
 Friction: none.
+## 2026-07-02 — executor (sonnet)
+
+Worked id:64d3 — built A2 of the mechanical-run daemon prep (meeting 2026-07-02-1924
+decision 3): `relay/scripts/recipe-validate.sh` validates one recipe JSON against the
+7-field schema `{id,repo,cmd,host,est_wall,resource,acceptance_artifact}` (python3
+stdlib `json` for parsing, never string munging) — silent exit 0 on a well-formed
+recipe, LOUD `ERROR: <field> ...` on stderr + nonzero exit on the first missing/wrong-
+typed field or a non-positive/non-integer `est_wall`; and
+`relay/references/recipe-manifest.md` documents the `{pending,running,done}/` drop-dir
+lifecycle, the schema, and — the load-bearing part — that recipes are WHITELISTED /
+relay-authored only and the daemon (A3, gated, not built here) must NEVER auto-scan
+ROADMAP.md to invent them. Registered the script 3x (relay_FILES/EXEC/ALLOW) and the
+doc 1x (relay_FILES) in the Makefile per id:69ef install-completeness. Ticked ROADMAP
+id:64d3 via `md-merge.py update-ids`. `tests/test_recipe_manifest.sh` 5/5 green (was
+RED); full suite 165 passed, 0 failed, 5 expected-red (other open items).
+Friction: none — the RED spec's field-injection helper (Python json load/pop/dump)
+made the exact rejection contract unambiguous, including the bool-is-not-int and
+float-est_wall edge cases.
