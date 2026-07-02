@@ -91,7 +91,15 @@ S="$(changed "$S" "relay.toml block edit")"
 # 2i in-liveClaims flag (GLOBAL claim.sh peek state, not the repo's own files)
 SN="$(sig_of '["widget"]')"
 [[ "$SN" != "$S" ]] || fail "signature did NOT change when repo entered liveClaims (claimed-elsewhere verdict would go stale)"
-pass "superset covers HEAD, tags, tag-message, ROADMAP, porcelain, worktree, orphan-ref, relay.toml, liveClaims"
+# 2j decision-queue records (OUTSIDE the repo; classifier depends on them via
+# unpromoted-scan case-g + resolved-record exclusion — 2026-07-02 fix): filing an entry
+# must invalidate; resolving it must invalidate again.
+export RELAY_DECISION_QUEUE="$TMP/dq.jsonl"
+DQID="$("$(dirname "$SIG")/decision-queue.sh" add --repo widget --kind lane-triage --question "Assign a lane to TODO id:abcd: x" --source-id abcd)"
+S="$(changed "$S" "decision-queue entry filed")"
+"$(dirname "$SIG")/decision-queue.sh" resolve "$DQID" --answer "parked" >/dev/null
+S="$(changed "$S" "decision-queue entry resolved")"
+pass "superset covers HEAD, tags, tag-message, ROADMAP, porcelain, worktree, orphan-ref, relay.toml, liveClaims, decision-queue"
 
 # (3) Fail-open — a non-git path yields an empty sentinel sig (exit 0), so the caller re-classifies.
 OUT="$(printf '{"repos":[{"repo":"ghost","path":"%s/nope"}],"liveClaims":[]}\n' "$TMP" | "$SIG")" \

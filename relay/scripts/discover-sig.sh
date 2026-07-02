@@ -49,7 +49,7 @@ repo_sig() {
     printf ''
     return 0
   fi
-  local head tags latest tagmsg porcelain upstream worktrees orphans block roadmap
+  local head tags latest tagmsg porcelain upstream worktrees orphans block roadmap dq
   head="$(git -C "$path" rev-parse HEAD 2>/dev/null || true)"
   tags="$(git -C "$path" tag -l 'fable-ckpt-*' 'relay-ckpt-*' 2>/dev/null | sort || true)"
   latest="$(printf '%s' "$tags" | tail -n1)"
@@ -61,6 +61,12 @@ repo_sig() {
   orphans="$(git -C "$path" for-each-ref --format='%(refname:short) %(objectname)' refs/heads/relay/orphan/ 2>/dev/null || true)"
   block="$(toml_block "$repo")"
   roadmap="$(cat "$path/ROADMAP.md" 2>/dev/null || true)"
+  # Decision-queue records for this repo (open AND resolved): the classifier's verdict
+  # depends on them via unpromoted-scan's case-g exclusion (id:47f1) + the resolved-record
+  # exclusion (2026-07-02 answer-then-re-ask fix) — the queue lives OUTSIDE the repo, so no
+  # git-derived section covers it. Filing or resolving an entry must invalidate the sig.
+  # Fail-open: missing helper / empty queue → empty section (over-hashing is the safe side).
+  dq="$("$(dirname "${BASH_SOURCE[0]}")/decision-queue.sh" list --repo "$repo" --all 2>/dev/null || true)"
   # Labeled, NUL-free sections so distinct inputs cannot collide into the same blob.
   {
     printf '== head ==\n%s\n'      "$head"
@@ -72,6 +78,7 @@ repo_sig() {
     printf '== orphans ==\n%s\n'   "$orphans"
     printf '== toml ==\n%s\n'      "$block"
     printf '== roadmap ==\n%s\n'   "$roadmap"
+    printf '== dq ==\n%s\n'        "$dq"
     printf '== inlive ==\n%s\n'    "$inlive"
   } | sha256sum | cut -d' ' -f1 | tr -d '\n'
 }
