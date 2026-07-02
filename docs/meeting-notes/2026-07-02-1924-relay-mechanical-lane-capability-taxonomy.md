@@ -59,3 +59,9 @@ The flip is **DONE**. `a0b6` shipped 2026-07-01 (supervised): the 74-line LLM `s
 - → routed to it-infra inbox: gamemode active-suspend integration for the daemon (gated cross-repo enhancement; SIGSTOP-safety per-competitor judgment). <!-- routed:f506 -->
 - [ ] **Annotate id:2ec4** — this host daemon is the answer to "where does mechanical execution live" (outside the Workflow); the deferred in-Workflow mechanical tier stays parked. (in-session note, no new id)
 - [ ] **Relate id:65f9** — daemon proves the off-Workflow mechanical-run pattern (de-risks moving discovery) but does NOT subsume it. (in-session note, no new id)
+
+## Amendment 2026-07-02 (post-build — the `[MECHANICAL]` producer gap)
+Slice-A A1 shipped the CONSUMER half only: the classifier now RECOGNIZES `[MECHANICAL]` and emits the pool-inert `mechanical` verdict, but no relay layer PRODUCES the tag and nothing RUNS it. Filed three producer follow-ons (join wave 2 with A3/B1/B2):
+- **M1 (id:9c88)** — `handoff.md` C2 must recognize compute-only/no-LLM/benchmark work and tag `[MECHANICAL]` + author the A2 recipe (the missing producer link; pairs with A3).
+- **M2 (id:2313)** — the "`[HARD — hands]` wrongly" contract sites: `hard-lanes.md` re-lane 5-criterion, `handoff.md`/`human.md` author-then-run split still route daemon-runnable "run" work to `[HARD — hands]` (human). Add a "needs an LLM?" branch → compute-only+passes-a–e ⇒ `[MECHANICAL]`; exclude `[MECHANICAL]` from `human.md`'s "you run these". Orthogonal to B2 (rename) — must survive it.
+- **M3 (id:3ef7)** — detector-surfaces + per-repo re-lane of EXISTING `[HARD — hands]` items that are actually daemon-runnable (conformance-sweep: surface-don't-auto-fix). No dotclaude-skills-local candidates; real ones live in benchmark/pilot repos.
