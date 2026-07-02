@@ -59,7 +59,7 @@ relay_FILES := SKILL.md \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -77,7 +77,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -95,7 +95,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
@@ -114,6 +114,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test gaming-canary shard-canary \
         install-quota-timer status-quota-timer uninstall-quota-timer \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
+        install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -130,6 +131,7 @@ help:
 	@echo "  install-statusline   install the quota/cost/model statusbar only (checks CLI deps)"
 	@echo "  install-quota-timer  install the 15-min usage-quota sampler systemd user timer"
 	@echo "  install-relay-watchdog install the relay outage watchdog systemd user timer (notify on a dead loop)"
+	@echo "  install-mechanical-daemon install the mechanical-run daemon systemd user path+service unit (id:b3d0)"
 	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
@@ -287,6 +289,33 @@ uninstall-relay-watchdog:
 	@echo "→ removing relay-watchdog timer"
 	@systemctl --user disable --now relay-watchdog.timer 2>/dev/null || true
 	@rm -f $(SYSTEMD_USER)/relay-watchdog.timer $(SYSTEMD_USER)/relay-watchdog.service
+	@systemctl --user daemon-reload 2>/dev/null || true
+
+# Mechanical-run daemon (id:b3d0) — same --user-unit pattern, but a .path unit (not a
+# .timer): the oneshot service fires on writes to the recipe pending/ drop-dir instead of
+# polling. Runs relay-authored recipes OUTSIDE the Workflow (pure mechanical script -> no
+# permission wall). See relay/scripts/mechanical-daemon.sh + recipe-manifest.md.
+install-mechanical-daemon:
+	@echo "→ installing mechanical-daemon path+service unit"
+	@mkdir -p $(SYSTEMD_USER) $(HOME)/.config/relay/recipes/pending $(HOME)/.config/relay/recipes/running $(HOME)/.config/relay/recipes/done
+	@ln -sf $(SRC_DIR)/tools/mechanical-daemon.path    $(SYSTEMD_USER)/mechanical-daemon.path
+	@ln -sf $(SRC_DIR)/tools/mechanical-daemon.service  $(SYSTEMD_USER)/mechanical-daemon.service
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now mechanical-daemon.path
+	@echo "  enabled. status: systemctl --user status mechanical-daemon.path"
+
+status-mechanical-daemon:
+	@echo "mechanical-daemon.path:"
+	@if [ -L $(SYSTEMD_USER)/mechanical-daemon.path ]; then \
+		systemctl --user is-active mechanical-daemon.path >/dev/null 2>&1 \
+			&& echo "  ok  active -> $$(readlink $(SYSTEMD_USER)/mechanical-daemon.path)" \
+			|| echo "  --  installed but not active (systemctl --user enable --now mechanical-daemon.path)"; \
+	else echo "  !!  not installed (make install-mechanical-daemon)"; fi
+
+uninstall-mechanical-daemon:
+	@echo "→ removing mechanical-daemon path+service unit"
+	@systemctl --user disable --now mechanical-daemon.path 2>/dev/null || true
+	@rm -f $(SYSTEMD_USER)/mechanical-daemon.path $(SYSTEMD_USER)/mechanical-daemon.service
 	@systemctl --user daemon-reload 2>/dev/null || true
 
 uninstall: $(addprefix uninstall-,$(SKILLS)) uninstall-statusline
