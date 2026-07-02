@@ -70,3 +70,10 @@ latest prune by the 2026-07-02 review.)
   (it-infra?) or resolve it by hand and `append.sh inbox-done d51c`. Human's call —
   report-only here. (Also: 3 twinned-resolvable inbox items are drainable via
   `scan-routed.sh --apply`, id:678e.)
+- [ ] Human-sprint 80/20 checklist (2026-07-02 Fable consulting session): pre-triaged
+  tier-1 (minutes-each) + tier-2 (session-each) [HARD — hands] tasks across the fleet,
+  ranked by unlock-per-minute — lanes already decided, context linked per item. Lives in
+  the PRIVATE diary repo (fleet enumeration must not land in this public file):
+  `~/src/claude-diary/docs/2026-07-02-human-sprint-8020.md`. Next `/relay human` should
+  present it as the "you run these" checklist and tick items THERE; close this box when
+  that doc is fully worked or superseded.
