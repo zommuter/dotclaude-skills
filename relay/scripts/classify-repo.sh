@@ -53,10 +53,20 @@ export CLASSIFY_PATH="$path" BASE_FILE="$blobdir/base.json" SCAN_FILE="$blobdir/
 python3 - <<'PYEOF' > "$blobdir/assembled.json"
 import json, os, re, sys
 
-HUMAN_GATES = ("[HARD — hands]", "[HARD — meeting]", "[HARD — decision gate]")
+# Dual-vocab window (id:4f02/id:8111 B2a, OPEN): both the OLD venue-keyed
+# `[HARD — <lane>]` spelling and the NEW capability-keyed `[INPUT — <lane>]` spelling
+# are recognized as human gates, equivalently. `[HARD]`/`[HARD — pool]` are equivalent
+# pool tags (see LANE_TAGS/is_pool below).
+HUMAN_GATES = (
+    "[HARD — hands]", "[HARD — meeting]", "[HARD — decision gate]",
+    "[INPUT — meeting]", "[INPUT — decision]", "[INPUT — access]",
+)
 # id:4da4 — recognized lane tags, in no particular order; the item's lane is whichever
-# appears FIRST on the line (see the primary-lane parse below).
-LANE_TAGS = ("[ROUTINE]", "[HARD — pool]") + HUMAN_GATES
+# appears FIRST on the line (see the primary-lane parse below). "[HARD]" (bare, no
+# dash-lane) is the new-vocab rename of "[HARD — pool]" — an EXACT-substring match, so
+# it never false-matches inside "[HARD — pool]"/"[HARD — hands]"/etc. (those contain
+# "[HARD —", never the literal "[HARD]").
+LANE_TAGS = ("[ROUTINE]", "[HARD — pool]", "[HARD]") + HUMAN_GATES
 
 path     = os.environ["CLASSIFY_PATH"]
 with open(os.environ["BASE_FILE"]) as _f: base_json = _f.read()
@@ -92,7 +102,7 @@ if os.path.isfile(rm):
             _found = [(ln.find(t), t) for t in LANE_TAGS if ln.find(t) >= 0]
             primary = min(_found)[1] if _found else ""
             is_routine = primary == "[ROUTINE]"
-            is_pool    = primary == "[HARD — pool]"
+            is_pool    = primary in ("[HARD — pool]", "[HARD]")
             # @manual excludes conservatively (a rare prose mention only ever UNDER-dispatches,
             # never mis-dispatches — the safe direction for the executor gate).
             is_human   = primary in HUMAN_GATES or "@manual" in ln

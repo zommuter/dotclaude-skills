@@ -13,26 +13,33 @@
 #   review_me  — an open `- [ ]` box in the repo's REVIEW_ME.md
 #   manual     — an open `- [ ]` box tagged `@manual` (REVIEW_ME.md or ROADMAP.md);
 #                a human must RUN it, so it is NEVER auto-tickable (surface only).
-#   hard_pool    \  an open `- [ ]` `[HARD]` ROADMAP item, bucketed by its EXPLICIT
-#   hard_meeting  > lane tag (id:78ff). The lane is READ from the bracket tag, never
-#   hard_hands   /  inferred (decision 2026-06-21 "obviously explicit"). The lane
-#                vocabulary is the shared contract in relay/references/hard-lanes.md:
-#                  [HARD — pool]                → hard_pool    (/relay --afk pool runs it)
-#                  [HARD — meeting]             → hard_meeting (/meeting decides it)
+#   hard_pool    \  an open `- [ ]` `[HARD]`/`[INPUT — …]` ROADMAP item, bucketed by
+#   hard_meeting  > its EXPLICIT lane tag (id:78ff). The lane is READ from the bracket
+#   hard_hands   /  tag, never inferred (decision 2026-06-21 "obviously explicit"). The
+#                lane vocabulary is the shared contract in relay/references/hard-lanes.md.
+#                CANONICAL (new, capability-keyed, id:4f02 north star):
+#                  [HARD]  (bare, no dash-lane) → hard_pool    (/relay --afk pool runs it)
+#                  [INPUT — meeting]            → hard_meeting (/meeting decides it)
+#                  [INPUT — decision]           → hard_meeting (human decides, no meeting)
+#                  [INPUT — access]             → hard_hands   ("you run these")
+#                ACCEPTED (old, venue-keyed — dual-vocab migration window, still OPEN):
+#                  [HARD — pool]                → hard_pool
+#                  [HARD — meeting]             → hard_meeting
 #                  [HARD — decision gate] / 🚧 route:meeting|human|decision-gate
 #                                               → hard_meeting (auto-gate alias, id:3801)
-#                  [HARD — hands]               → hard_hands   ("you run these")
-#                A `[HARD]` with NO recognized lane is the `untagged` ERROR (below),
-#                NOT silently bucketed. Replaces the old single `gated_hard` lump that
-#                routed every HARD item to /meeting (id:f6c9 over-correction) — the
-#                pool-executable majority now bucket as hard_pool. Only OPEN `- [ ]`
-#                items; `- [x]` never. box_summary keeps a ` — gated: <reason>` suffix
-#                for meeting/hands lanes (pool items carry ` — pool: <why>`).
+#                  [HARD — hands]               → hard_hands
+#                A `[HARD]`/`[INPUT — …]` item matching NEITHER form above is the
+#                `untagged` ERROR (below), NOT silently bucketed. Replaces the old single
+#                `gated_hard` lump that routed every HARD item to /meeting (id:f6c9
+#                over-correction) — the pool-executable majority now bucket as hard_pool.
+#                Only OPEN `- [ ]` items; `- [x]` never. box_summary keeps a
+#                ` — gated: <reason>` suffix for meeting/hands lanes (pool items carry
+#                ` — pool: <why>`).
 #
 # untagged HARD = LOUD REJECT (id:415b grammar-tightening-with-loud-rejection): an
-# open `[HARD]` item carrying no recognized lane prints an `ERROR:` line to stderr
-# (repo, item id, the offending text) and forces the script to EXIT NONZERO at the
-# end of the run. A missing lane is a contract gap to fix at the source, never a
+# open `[HARD]`/`[INPUT — …]` item carrying no recognized lane prints an `ERROR:` line
+# to stderr (repo, item id, the offending text) and forces the script to EXIT NONZERO
+# at the end of the run. A missing lane is a contract gap to fix at the source, never a
 # silent default disposition.
 #
 # box_summary is the box text with the leading `- [ ] ` stripped and whitespace
@@ -166,16 +173,22 @@ warn_nested_worktrees() {
 # bucket as hard_pool (the `/relay --afk` `hard` verdict runs them, id:da26) and only
 # genuine decision/hands work surfaces to human triage.
 #
-# Buckets (kind), by the recognized lane tag:
-#   [HARD — pool]                                            → hard_pool
-#   [HARD — meeting]                                         → hard_meeting
+# Buckets (kind), by the recognized lane tag. CANONICAL (new, capability-keyed,
+# id:4f02) first; ACCEPTED (old, venue-keyed, dual-vocab migration window still OPEN)
+# after:
+#   [HARD]  (bare)                                           → hard_pool
+#   [INPUT — meeting] / [INPUT — decision]                   → hard_meeting
+#   [INPUT — access]                                         → hard_hands
+#   [HARD — pool]                                            → hard_pool     (old, accepted)
+#   [HARD — meeting]                                         → hard_meeting  (old, accepted)
 #   [HARD — decision gate] / 🚧 route:meeting|human|decision-gate
-#                                                            → hard_meeting (alias, id:3801)
-#   [HARD — hands]                                           → hard_hands
-#   [HARD] with NO recognized lane                           → untagged (LOUD reject)
+#                                                            → hard_meeting  (old, accepted; alias, id:3801)
+#   [HARD — hands]                                           → hard_hands    (old, accepted)
+#   [HARD]/[INPUT — …] matching NEITHER form above           → untagged (LOUD reject)
 #
-# An `untagged` open `[HARD]` item is a CONTRACT GAP: it prints an `ERROR:` line to
-# stderr and makes the awk exit with status 3, which scan_repo turns into a global
+# An `untagged` open `[HARD]`/`[INPUT — …]` item is a CONTRACT GAP: it prints an
+# `ERROR:` line to stderr and makes the awk exit with status 3, which scan_repo turns
+# into a global
 # UNTAGGED_FOUND=1 → the whole run exits nonzero (id:415b: never silently default a
 # disposition). Recognized items emit kind + ` — <bucket>: <why>` on box_summary.
 # Only OPEN `- [ ]` items; `- [x]` never.
@@ -187,7 +200,10 @@ emit_hard_lanes() {
     # Open top-level checkbox items only (sub-bullets are continuation prose).
     /^[[:space:]]*- \[ \] / {
       line = $0
-      if (line !~ /\[HARD/) next
+      # Dual-vocab window (id:4f02/id:8111 B2a, OPEN): both the old venue-keyed
+      # [HARD — <lane>] spelling AND the new capability-keyed [HARD]/[INPUT — <lane>]
+      # spelling are recognized here. Skip lines carrying neither marker family.
+      if (line !~ /\[HARD/ && line !~ /\[INPUT[[:space:]]*[—-]/) next
 
       # Strip backtick-quoted strings before lane detection so a prose mention like
       # `[HARD — pool]` in the item body cannot shadow the item OWN bracket tag
@@ -200,6 +216,13 @@ emit_hard_lanes() {
       # Read the EXPLICIT lane from the bracket tag (never inferred). Em-dash "—"
       # or a plain "-" between HARD and the lane word are both accepted; surrounding
       # whitespace is flexible. Recognized auto-gate aliases map to the meeting lane.
+      #
+      # OLD vocab (venue-keyed, still accepted during the dual-vocab migration
+      # window, id:4f02/id:8111) is checked FIRST — a dash-lane tag ([HARD — pool],
+      # [HARD — meeting], etc.) always wins over the bare-[HARD] new-vocab branch.
+      # NEW vocab (capability-keyed, id:4f02 north star): bare [HARD] (no dash-lane)
+      # is the renamed [HARD — pool]; [INPUT — meeting]/[INPUT — decision] are both
+      # the meeting lane; [INPUT — access] is the hands lane.
       kind = ""; bucket = ""
       if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*pool[[:space:]]*\]/) {
         kind = "hard_pool"; bucket = "pool"
@@ -209,6 +232,13 @@ emit_hard_lanes() {
         kind = "hard_meeting"; bucket = "meeting"
       } else if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*hands[[:space:]]*\]/) {
         kind = "hard_hands"; bucket = "hands"
+      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/ \
+                 || low ~ /\[input[[:space:]]*[—-][[:space:]]*decision[[:space:]]*\]/) {
+        kind = "hard_meeting"; bucket = "meeting"
+      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*access[[:space:]]*\]/) {
+        kind = "hard_hands"; bucket = "hands"
+      } else if (low ~ /\[hard[[:space:]]*\]/) {
+        kind = "hard_pool"; bucket = "pool"
       } else {
         kind = "untagged"; bucket = "untagged"
       }
@@ -222,8 +252,9 @@ emit_hard_lanes() {
 
       if (bucket == "untagged") {
         # LOUD reject: stderr ERROR + force nonzero exit (id:415b).
-        printf "ERROR: %s: open [HARD] item carries NO recognized lane tag " \
-               "([HARD — pool|meeting|hands]) — add one (see relay/references/hard-lanes.md): %s\n", \
+        printf "ERROR: %s: open [HARD]/[INPUT — …] item carries NO recognized lane " \
+               "tag ([HARD]/[INPUT — meeting|decision|access], or the old " \
+               "[HARD — pool|meeting|hands]) — add one (see relay/references/hard-lanes.md): %s\n", \
                name, summary > "/dev/stderr"
         saw_untagged = 1
         next

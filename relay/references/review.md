@@ -158,8 +158,10 @@ no REVIEW_ME boxes are added.
 - **Grammar-lint the open items first (id:09a3).** Run
   `scripts/roadmap-lint.sh` on the cwd repo's `ROADMAP.md` — a POSITIVE-grammar
   validator that LOUD-rejects ANY open `- [ ]` item not matching the proper syntax
-  (a recognized `[ROUTINE]`/`[HARD — pool|meeting|hands|decision gate]` lane tag from
-  `hard-lanes.md` PLUS a 4-hex `id:` token; items under a gated/deferred/icebox/archive
+  (a recognized `[ROUTINE]`/`[HARD]`/`[INPUT — meeting|decision|access]` lane tag — or,
+  during the dual-vocab migration window, the old `[HARD — pool|meeting|hands|decision
+  gate]` spelling — from `hard-lanes.md` PLUS a 4-hex `id:` token; items under a
+  gated/deferred/icebox/archive
   heading are exempt). It catches deviations `gather` is blind to — an open item with NO
   class tag at all, or a malformed/unknown lane. It does NOT auto-rewrite; surface any
   violations in the return report so the strong/human turn assigns the lane at the source
