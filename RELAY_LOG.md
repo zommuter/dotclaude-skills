@@ -1301,3 +1301,28 @@ daemon-runnable no-LLM work to `[HARD — hands]`; A3 (id:b3d0, `[HARD — pool]
 un-gated (deps 64d3/e407/68dc met) — the mechanical-run daemon. Slice-B rename
 (B1 id:4f02 / B2 id:8111) and M3 (id:3ef7 existing-item re-lane audit) stay GATED.
 Uses the CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`); the rename is wave 2b.
+
+## 2026-07-02 — executor (Sonnet)
+
+Worked id:9c88 (M1) + id:2313 (M2) — both CONTRACT-PROSE-only, no script changes, one
+executor session since they share the same three docs. M1: taught `handoff.md`'s C2
+checkpoint to PRODUCE `[MECHANICAL]` for compute-only/no-LLM/benchmark-or-pilot work
+(instead of always `[ROUTINE]`/`[HARD — *]`) and to author the A2 recipe (id:64d3
+schema) into `~/.config/relay/recipes/pending/` — the missing producer link to the A3
+daemon. M2: added the "needs an LLM?" branch to all three sites that were still routing
+daemon-runnable "run X" work to `[HARD — hands]` — `hard-lanes.md`'s 5-criterion re-lane
+(compute-only+passes-a–e ⇒ `[MECHANICAL]`; LLM-needed+passes-a–e ⇒
+`[ROUTINE]`/`[HARD — pool]`; fails-a–e ⇒ unchanged `hands`/`meeting`), `handoff.md`'s
+author-then-run split (the run residue is `[MECHANICAL]` unless it genuinely needs a
+human — device/sudo/physical/credential), and `human.md`'s `hard_hands` triage bullet
+(explicitly excludes `[MECHANICAL]` from the "you run these" checklist, noting
+`gather-human-backlog.sh` already keeps it out in code per slice-A A1). Did a
+consistency re-read across all three docs after editing: the compute-only/LLM-needed/
+fails-criteria trichotomy is stated identically (cross-referencing id:9c88/id:2313) in
+each, no contradictions. Both structural tests
+(`test_handoff_produces_mechanical.sh`, `test_mechanical_relane_doctrine.sh`) went
+green; ticked both ROADMAP checkboxes via `md-merge.py update-ids`. Full suite:
+170 passed, 0 failed, 3 expected-red (unrelated open items 5884/b3d0/14d0 — b3d0 is A3,
+correctly still open, unaffected by this doc-only change).
+Friction: none — the two specs and the meeting-note amendment fully constrained the
+prose; no ambiguity encountered.
