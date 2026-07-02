@@ -1204,3 +1204,8 @@ Friction: none — the RED test spec (`tests/test_gather_pool_count_anchor.sh`) 
 ## 2026-07-02 03:13 — executor (sonnet, relay-loop)
 
 Closed [ROUTINE] id:fb7f: lane-anchored gather-repo-state.sh open_hard_pool and unpromoted-scan.sh primary_lane to exclude prose-only lane-tag mentions; suite 163/163 green. [id:fb7f]
+
+## 2026-07-02 — executor (sonnet)
+
+Worked id:6856 — dropped the `verdict === 'review'` conjunct from `isFableRecheck` in `relay-loop.js` so a strong checkpoint produced by REAL Fable (handoff/review/hard) always consumes the durable id:e030 recheck watermark instead of only doing so for review units; replaced the hardcoded "Opus stood in for Fable" elevation-reason literal with neutral wording. `tests/test_fable_recheck_write_side.sh` 4/4 green (was RED); `node --check` + `lint-workflow-templates.mjs` + `test_fable_standin_marker.sh` + `test_relay_loop_structure.sh` all green; full suite 164 passed, 0 failed.
+Friction: none.
