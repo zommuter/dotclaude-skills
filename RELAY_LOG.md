@@ -1217,3 +1217,7 @@ id:6856 fixed — relay-loop.js isFableRecheck no longer restricted to review ve
 ## 2026-07-02 04:43 — reviewer (claude-fable-5, relay-loop)
 
 review 0138..0327: 5 executor units (a42e/dff8/482d/fb7f/6856) verified genuine — red specs green unmodified, gaming-scan clean, suite 164/0/0; ticked fb7f+6856 TODO twins (cross-ledger drift) + SKILL.md stop-sentinel doc gap; 0 open ROUTINE [id:a42e,dff8,482d,fb7f,6856]
+
+## 2026-07-02 08:22 — reviewer (claude-fable-5, relay-loop)
+
+review 0443..HEAD: window = 2 inbox ingests only (no executor work; gaming-scan clean, suite 164/0/0); both stubs misfiled under ## Done → relocated + new [ROUTINE] id:14d0 (scan-routed EOF-append fix, red spec); reverse-handoff promoted id:5884 [ROUTINE] (model-aware strongRecheckPending read gate, routed:1c2b, red spec); routed:20b2/id:962d folded into id:25aa as 2nd -c-anchor occurrence; REVIEW_ME pruned 8e3e/0a3b + surfaced routed:d51c dead-letter; 11 open / 2 ROUTINE [id:5884,14d0,25aa,962d]
