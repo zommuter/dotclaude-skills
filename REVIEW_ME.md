@@ -17,14 +17,14 @@ latest prune by the 2026-07-02 review.)
   `[repos.zomni]` block, no `# path:` override). Human call: it's a 1-minute shell-config
   edit — do it by hand and `append.sh inbox-done d51c`, or retarget the line to a repo
   that owns machine config.
-- [ ] id:dff8 — JUDGMENT in the red spec (2026-07-02 handoff): the git-lock-push id:aa93
+- [x] id:dff8 — JUDGMENT in the red spec (2026-07-02 handoff): the git-lock-push id:aa93 — confirmed: untracked-only-proceed matches --autostash semantics (untracked never stashed; overwrite aborts loudly); tracked-churn residual stays claude-diary's TODO dff8 option (a) (relay human 2026-07-02)
   dirty-guard fix is specced as "UNTRACKED-only porcelain → proceed; ANY tracked
   modification → keep refusing" (rationale: `--autostash` never stashes untracked paths,
   so they carry no stash-reapply data-loss risk; a rebase that would overwrite one aborts
   loudly on its own). Consequence: `~/.claude`'s TRACKED runtime churn (`.last-cleanup`,
   `history.jsonl`) will STILL refuse — that residual half is claude-diary's gitignore
   decision (TODO dff8 option (a)), deliberately out of scope here. Confirm the split.
-- [ ] id:482d — JUDGMENT (2026-07-02 handoff): the STOP-sentinel item was downgraded to
+- [x] id:482d — JUDGMENT (2026-07-02 handoff): the STOP-sentinel item was downgraded to — confirmed: mechanize-over-observe was right — atomic stop-sentinel.sh dissolves the understood timing-variance class and its timestamped consume log delivers the OBSERVE half (relay human 2026-07-02)
   OBSERVE ("reproduce the timing in a fixture before building anything"), but the spec
   mechanizes instead: prelude step 8's check/countdown/consume becomes ONE atomic
   `stop-sentinel.sh` call + a timestamped consume log. Rationale: the delay class IS the
@@ -32,14 +32,14 @@ latest prune by the 2026-07-02 review.)
   dissolves the variance structurally (prefer dissolving over observing a hazard we
   already understand), and the consume log still delivers the observe-instrumentation.
   Confirm mechanize-over-observe was the right call.
-- [ ] id:fb7f — JUDGMENT (2026-07-02 handoff): the `unpromoted-scan primary_lane` fix
+- [x] id:fb7f — JUDGMENT (2026-07-02 handoff): the `unpromoted-scan primary_lane` fix — confirmed: fixtures pin only unambiguous cases; non-bold/late-tag path stays unpinned (first-tag fallback); residual mislabels degrade to conservative surface (relay human 2026-07-02)
   fixtures require an item with NO genuine lane tag to read `surface` even when BARE
   (un-backtick'd) `[ROUTINE]` appears mid-body (the b8ae case). The suggested mechanism
   ("tag must sit immediately after the bold-title close, first-tag fallback for non-bold
   items") is ONE defensible interpretation — the fixtures are the contract, the mechanism
   is the executor's choice. Sanity-check the fixtures don't over-constrain (e.g. a
   legitimate tag placed after a long un-bolded title).
-- [ ] handoff 2026-07-02 lane-triage + one evidence-based close — confirm: (a) scan-mislabeled
+- [x] handoff 2026-07-02 lane-triage + one evidence-based close — confirm: (a) scan-mislabeled — confirmed: all 5 lane tags verified consistent with item bodies; 22ef close re-verified (shard deleted by a0b6; relay-loop.js:733/849 pinned haiku) (relay human 2026-07-02)
   untagged items lane-tagged in TODO.md: 33c2 (owner-ratification contract change), a505
   (auth-queue design qs), 7b23 (gated /batch audit), d0da (tag-taxonomy, sequenced after
   72cc/962a) → `[HARD — meeting]`; b8ae (verify review→execute chaining = observe the next
