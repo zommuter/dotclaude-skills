@@ -10,7 +10,7 @@ checkpoint fix confirmed+implemented) / id:0a3b (relay.toml one-time correction
 done; durable fix stays open as ROADMAP id:0a3b) — were resolved and pruned;
 latest prune by the 2026-07-02 review.)
 
-- [ ] id:d51c — inbox dead-letter (relay-doctor/scan-routed finding, 2026-07-02 review):
+- [x] id:d51c — inbox dead-letter (relay-doctor/scan-routed finding, 2026-07-02 review): — OWNER DECISION: unalias cp added to ~/.zshrc (2026-07-02); it-infra twin id:9e82 closed as done (relay human 2026-07-02)
   `~/.claude/todo-inbox.md:8` carries `routed:d51c → [zomni]` ("Remove `cp -i` alias from
   zsh config on zomni (or switch to bash)", from claude-organizer), but "zomni" is a
   MACHINE (this laptop), not a repo on disk — scan-routed can never resolve it (no
@@ -62,7 +62,7 @@ latest prune by the 2026-07-02 review.)
   Cleanup is now scoped to own-runId artifacts only (relay-loop.js, merged 2026-07-01); the
   remaining DESIGN CALL — destructive cleanup under-the-lease vs release-first (id:ebfb
   ordering) — is TODO id:6613 [HARD — meeting]. Box stays open only for that meeting call.
-- [ ] relay-doctor finding (2026-07-02 Fable recheck review): inbox dead-letter
+- [x] relay-doctor finding (2026-07-02 Fable recheck review): inbox dead-letter — OWNER DECISION: same as REVIEW_ME:13 — unalias done, it-infra 9e82 closed; duplicate collapses at next reviewer prune (relay human 2026-07-02)
   `routed:d51c → [zomni]` — the target names the MACHINE zomni, not a repo, so
   `scan-routed.sh` can never resolve it ("no repo named 'zomni' found on disk").
   The item ("remove `cp -i` alias from zsh config on zomni") is machine-config /
