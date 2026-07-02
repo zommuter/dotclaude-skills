@@ -1209,3 +1209,7 @@ Closed [ROUTINE] id:fb7f: lane-anchored gather-repo-state.sh open_hard_pool and 
 
 Worked id:6856 — dropped the `verdict === 'review'` conjunct from `isFableRecheck` in `relay-loop.js` so a strong checkpoint produced by REAL Fable (handoff/review/hard) always consumes the durable id:e030 recheck watermark instead of only doing so for review units; replaced the hardcoded "Opus stood in for Fable" elevation-reason literal with neutral wording. `tests/test_fable_recheck_write_side.sh` 4/4 green (was RED); `node --check` + `lint-workflow-templates.mjs` + `test_fable_standin_marker.sh` + `test_relay_loop_structure.sh` all green; full suite 164 passed, 0 failed.
 Friction: none.
+
+## 2026-07-02 03:27 — executor (sonnet, relay-loop)
+
+id:6856 fixed — relay-loop.js isFableRecheck no longer restricted to review verdicts; elevation reason no longer hardcodes "Opus stood in for Fable"; full suite 164/0/0 green. [id:6856]
