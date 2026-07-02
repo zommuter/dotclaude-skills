@@ -2514,7 +2514,7 @@ id reuses its open TODO.md twin under the `[UMBRELLA]`.
     a `--heavy` window and fails a `--light` one); REVIEW_ME records the mapping call. Parse
     `--for` as `<N>m`/`<N>h`/`<N>s`. Do NOT touch relay-loop.js for green (§5).
 
-- [ ] A5 — `resource-probe.sh` check-and-defer arbitration [ROUTINE] <!-- id:68dc -->
+- [x] A5 — `resource-probe.sh` check-and-defer arbitration [ROUTINE] <!-- id:68dc -->
   - **Why** (meeting 2026-07-02-1924 decision 4; TODO id:68dc): auto-launch of an intensive
     mechanical run needs a LIVE-availability probe on top of the permit window (A4) — measured
     VRAM/RAM/load AND no competing `resource:<res>` claim. **Check-and-defer, NEVER preempt**
