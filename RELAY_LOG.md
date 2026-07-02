@@ -1346,3 +1346,45 @@ install. Registered `scripts/mechanical-daemon.sh` in the Makefile `relay_FILES`
 169 passed / 0 failed / 4 expected-red (unrelated open items 5884/9c88/2313/14d0).
 Friction: none — the three slice-A helpers (recipe-validate.sh, relay-intensity.sh,
 resource-probe.sh) and inject.sh/claim.sh composed cleanly with no interface surprises.
+
+## 2026-07-02 — review: wave-2a `[MECHANICAL]` end-to-end (M1/M2/A3) — Opus reviewer
+
+Adversarial review of the three items that make `[MECHANICAL]` end-to-end (diff window
+d94248f..HEAD). **Verdict: PASS — all three GENUINE.** The three spec tests
+(test_handoff_produces_mechanical / test_mechanical_relane_doctrine / test_mechanical_daemon)
+are **byte-identical to their RED versions at f0ddadd** (`git diff f0ddadd..HEAD -- tests/`
+empty) — the executor changed the implementation, never loosened a spec.
+
+- **M1 (id:9c88) GENUINE** — handoff.md C2 gained a real producer paragraph: recognize
+  compute-only / no-LLM / benchmark-or-pilot work → tag `[MECHANICAL]` (composing
+  `[INTENSIVE — <res>]`) AND author the A2 recipe (`recipe-manifest.md` schema, id:64d3) into
+  `~/.config/relay/recipes/pending/`, with the producer-link rationale ("tagging alone routes
+  to the pool-inert verdict but nothing runs it"). Structural test is C2-anchored (§3 asserts
+  the token lives at/after the `**C2 — roadmap.**` marker) — not keyword-bait; the doctrine is
+  actually, coherently stated.
+- **M2 (id:2313) GENUINE** — the "needs an LLM?" branch landed coherently at all THREE sites,
+  same rule everywhere: passes-a–e + compute-only/no-LLM ⇒ `[MECHANICAL]` (daemon); passes-a–e
+  + needs-LLM ⇒ `[ROUTINE]`/`[HARD — pool]`; fails-a–e (human hands/eyes/credential) ⇒ stays
+  `[HARD — hands]`. hard-lanes.md new branch + worked verdicts UNCHANGED (c5e9 fails-(b), 9321
+  live-GPU+sudo fails-(c) both still **stay hands**), handoff.md author-then-run split routes
+  the daemon-runnable run-residue to `[MECHANICAL]`, human.md §4 EXCLUDES `[MECHANICAL]` from
+  "you run these". No contradiction across the three docs; genuinely-human hands work preserved.
+- **A3 (id:b3d0) GENUINE (with one host-gate REVIEW_ME).** Per-conjunct done-claim (id:369c)
+  verified clause-by-clause against mechanical-daemon.sh: (a) validates via recipe-validate.sh
+  before anything; (b) check-and-defer — a denied intensity-permit OR unavailable
+  resource-probe leaves the recipe untouched in pending/ (`continue`, no move, no artifact, no
+  inject, no preempt/kill); (c) invalid recipe is NOT silently dropped (→ rejected/ + sibling
+  `.error` + loud log + stderr, id:4347); (d) on permit pending→running→done + `cmd` writes the
+  artifact + inject.sh review-request; (e) whitelist invariant — loops ONLY over pending/*.json,
+  never scans ROADMAP/TODO. A cmd-failure lands in done/ + `.error` with no inject (no
+  running/ ghost) — documented + reasonable. **Finding:** the daemon never host-gates — reads
+  `est_wall`/`resource`/`cmd`/`artifact` but not `.host`, despite recipe-validate requiring a
+  non-empty host and recipe-manifest binding it to `[host:<name>]`. Not a live bug (per-host
+  drop-dir) but a latent auto-execute safety gap → REVIEW_ME box filed; does NOT reopen b3d0.
+
+Cross-ledger (D2): 9c88/2313/b3d0 were `[x]` in ROADMAP but `[ ]` in TODO — ticked all three
+in TODO.md via md-merge.py update-ids (checkbox-only flip, full line preserved). Full suite:
+**171 passed / 0 failed / 2 expected-red** (unrelated open 14d0 + one other). `roadmap-lint.sh
+ROADMAP.md` exit 0 (clean). Makefile install-/status-/uninstall-mechanical-daemon +
+`.path`/`.service` units reviewed — `.path` uses `PathModified` (re-arms per write, correct vs
+`DirectoryNotEmpty`), oneshot service `Nice=10`. Do NOT push — integrator merges.
