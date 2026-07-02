@@ -443,7 +443,10 @@ remaining before stop":
 The sentinel is **self-consuming and fail-safe**: only a literal `stopRequested===true` from
 the prelude triggers the stop, so a flaky read can never wedge the pool, and a fired sentinel
 is removed so it can't silently stop the *next* pool. To cancel a pending `/relay stop`
-before it fires, just `rm ~/.config/relay/STOP`.
+before it fires, just `rm ~/.config/relay/STOP`. The check/countdown/consume step is one
+atomic call to `relay/scripts/stop-sentinel.sh` (id:482d); every consume appends an
+ISO-timestamped line to `~/.claude/logs/relay-stop-sentinel.log` (override via
+`RELAY_STOP_SENTINEL_LOG`), so a delayed-consumption report has a real timeline.
 
 **Launch-time variants** (no running pool — set a cap when you start one):
 
