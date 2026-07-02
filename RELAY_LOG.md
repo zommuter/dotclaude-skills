@@ -1191,3 +1191,7 @@ executor: closed [ROUTINE] id:dff8 — git-lock-push.sh dirty-guard now tolerate
 
 Worked id:482d — collapsed the discover-prelude's STOP-sentinel check/countdown/consume (previously prose instruction 8, timing-variance-prone) into one atomic `relay/scripts/stop-sentinel.sh check --path <file>` call; prelude step 8 now delegates verbatim. On consume it appends an ISO-8601-timestamped line to a log (`RELAY_STOP_SENTINEL_LOG`, default `~/.claude/logs/relay-stop-sentinel.log`) for the OBSERVE-instrumentation half. Registered in Makefile relay_FILES/EXEC/ALLOW. `node --check` + `lint-workflow-templates.mjs` + `test_relay_loop_structure.sh` all green on the prompt-string edit. Ticked ROADMAP+TODO twins. Full suite 162/0/2-expected-red.
 Friction: none — the RED test spec (`tests/test_stop_sentinel_consume.sh`) was already written by the handoff, matched the implementation with no changes needed.
+
+## 2026-07-02 02:30 — executor (sonnet, relay-loop)
+
+executor: closed [ROUTINE] id:482d — STOP-sentinel check/countdown/consume collapsed into one atomic stop-sentinel.sh call + timestamped consume log; suite 162/0/2-expected-red [id:482d]
