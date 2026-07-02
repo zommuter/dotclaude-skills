@@ -106,3 +106,21 @@ item carries — so `tests/test_hard_lane_buckets.sh` (marker-set cross-check) i
 `untagged` is a HARD ERROR, not a default: a `[HARD]` item with no recognized lane
 makes `gather-human-backlog.sh` print a loud `ERROR:` line to stderr and exit nonzero
 so the gap is fixed at the source, never silently bucketed.
+
+## Live-availability gate for `[INTENSIVE]` auto-launch (id:68dc, A5)
+
+The mechanical-run daemon (`[HARD — pool]` A3, gated on 68dc + others) does not launch
+an `[INTENSIVE — <resource>]` recipe on the permitted-intensity window (A4) alone. Two
+conditions must BOTH hold:
+
+1. **Permitted-intensity window** (A4) — `relay intensity` graded window
+   (`~/.config/relay/permitted-intensity.json`): `est_wall ≤ max_wall_seconds ∧
+   resource ≤ resource_ceiling ∧ now < expires_at`.
+2. **Live availability** — `relay/scripts/resource-probe.sh <resource>` (gpu/ram/cpu
+   measured headroom, `local-llm` claim-only) AND no live `resource:<res>` claim held
+   in the shared `claim.sh` registry (the same registry `[INTENSIVE]` scheduling already
+   uses — see `resource-claims.md`). **Check-and-defer, never preempt**: a busy resource
+   just defers the launch to the next daemon tick, it never suspends or kills a holder.
+
+Both gates are advisory reads with no side effects — the daemon composes them at launch
+time, it does not hold or extend any claim itself until it actually starts a recipe.
