@@ -2674,7 +2674,7 @@ migrates THIS repo's contract + lane-readers + tests + THIS repo's own ROADMAP/T
 only. Cross-repo item re-tagging in OTHER repos is a SEPARATE gated migration — the dual-vocab
 window is exactly what lets those migrate later.
 
-- [ ] B1 — target taxonomy → `hard-lanes.md` north star + `lane-convert.sh` converter + dual-vocab lint window [HARD — pool] <!-- id:4f02 -->
+- [x] B1 — target taxonomy → `hard-lanes.md` north star + `lane-convert.sh` converter + dual-vocab lint window [HARD — pool] <!-- id:4f02 -->
   - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:4f02): the SAFETY-NET-FIRST half of
     the rename. Before any reader flips (B2), ship (i) the north-star vocabulary in
     `hard-lanes.md` as a BOTH-VOCAB table, (ii) a `roadmap-lint.sh` that DUAL-ACCEPTS old and
