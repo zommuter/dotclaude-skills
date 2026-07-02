@@ -331,28 +331,53 @@ open_ids="$(printf '%s\n' "$roadmap" | grep -oP '^- \[ \].*<!-- id:\K[0-9a-f]{4}
 work_sig="$(printf '%s\n%s\n%s\n' "$open_ids" "$substantive_unaudited" "$nonckpt_shas" \
               | sha256sum | cut -c1-16)"
 
-# id:9973 — deterministic open_hard_pool count: open "- [ ]" items tagged EXACTLY
-# "[HARD — pool]" (the only pool-dispatchable HARD lane, per hard-lanes.md). A
-# recurring-audit-marked [HARD — pool] item (carrying <!-- relay:recurring-audit -->)
-# does NOT count when substantive_unaudited is false — it has nothing new to audit this
-# round and is therefore NOT an executable pool item (reuse the id:365b logic, same as
-# the shard's recurring-audit gate). The JS-side demote-guard (id:9973) reads this to
-# demote a `hard` verdict on a repo with open_hard_pool == 0.
+# id:9973 — deterministic open_hard_pool count: open "- [ ]" items whose PRIMARY lane
+# (id:4da4 first-tag parse, mirroring classify-repo.sh:85) is tagged EXACTLY
+# "[HARD — pool]" (the only pool-dispatchable HARD lane, per hard-lanes.md). Plain whole-line substring
+# matching over-counted: an open item whose PROSE quotes `[HARD — pool]` (e.g. a
+# hands/meeting item's re-lane criteria) is not a genuine pool tag (id:fb7f, it-infra
+# phantom `hard` 2026-06-30). A recurring-audit-marked [HARD — pool] item (carrying
+# <!-- relay:recurring-audit -->) does NOT count when substantive_unaudited is false —
+# it has nothing new to audit this round and is therefore NOT an executable pool item
+# (reuse the id:365b logic, same as the shard's recurring-audit gate). Also mirrors the
+# conservative gate exclusion (classify-repo.sh:98): a 🚧/BLOCKED-on pool item is not
+# executor-actionable this round either (under-dispatch-safe). The JS-side demote-guard
+# (id:9973) reads this to demote a `hard` verdict on a repo with open_hard_pool == 0.
+#
+# roadmap_primary_lane <line> — leftmost recognized lane-tag by byte position, AFTER
+# stripping backtick-quoted spans (id:1bbd) so a prose mention wrapped in backticks
+# (e.g. "...whose re-lane criterion quotes `[HARD — pool]`...") cannot out-rank the
+# item's own bare tag.
+roadmap_primary_lane() {
+  local line="$1" clean tag prefix pos best_pos=-1 best_tag=""
+  clean="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"
+  for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"; do
+    case "$clean" in
+      *"$tag"*)
+        prefix="${clean%%"$tag"*}"; pos=${#prefix}
+        if [[ "$best_pos" -lt 0 || "$pos" -lt "$best_pos" ]]; then
+          best_pos=$pos; best_tag="$tag"
+        fi ;;
+    esac
+  done
+  printf '%s' "$best_tag"
+}
+
 open_hard_pool=0
 if [[ -n "$roadmap" ]]; then
   while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*-\ \[\ \]\  ]] || continue
+    [[ "$(roadmap_primary_lane "$line")" == "[HARD — pool]" ]] || continue
     case "$line" in
-      *'- [ ]'*'[HARD — pool]'*)
-        # A recurring-audit item with nothing new to audit must NOT count.
-        if printf '%s' "$line" | grep -q 'relay:recurring-audit' \
-           && [[ "$substantive_unaudited" == false ]]; then
-          continue
-        fi
-        open_hard_pool=$((open_hard_pool + 1))
-        ;;
+      *'🚧'*|*'BLOCKED on'*|*'blocked on'*) continue ;;
     esac
-  done < <(printf '%s\n' "$roadmap" | grep -F -- '[HARD — pool]' | grep -F -- '- [ ]')
+    # A recurring-audit item with nothing new to audit must NOT count.
+    if printf '%s' "$line" | grep -q 'relay:recurring-audit' \
+       && [[ "$substantive_unaudited" == false ]]; then
+      continue
+    fi
+    open_hard_pool=$((open_hard_pool + 1))
+  done < <(printf '%s\n' "$roadmap")
 fi
 
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
