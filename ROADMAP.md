@@ -2396,6 +2396,196 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     grep over the 11 scripts. `test_relay_status.sh` / `test_relay_discovery_guards.sh`
     path assertions updated to the new name. `make test` green.
 
+## Capability-keyed lane taxonomy — slice A (meeting 2026-07-02-1924)
+
+Slice A of the capability-keyed lane taxonomy + mechanical-run daemon
+(`docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`).
+**Additive only** — introduces the `[MECHANICAL]` capability tier, its recipe/permit/probe
+substrate, and the check-and-defer resource arbitration, WITHOUT renaming any existing lane
+(the `[HARD — *]`→new-vocab rename is slice B, GATED below). Single-id-two-views (D2): every
+id reuses its open TODO.md twin under the `[UMBRELLA]`.
+
+- [ ] A1 — `[MECHANICAL]` capability tag + `mechanical` verdict [ROUTINE] <!-- id:7616 -->
+  - **Why** (meeting 2026-07-02-1924 decision 1; TODO id:7616): the taxonomy needs a
+    fourth capability tier for pure-compute work no LLM or human runs — local-LLM
+    benchmarks, pytorch, pilots — dispatched to a host daemon (A3, gated) while an LLM
+    session reviews the artifact. This item adds ONLY the tag + verdict plumbing so the
+    tier is recognized additively; it does NOT build the daemon consumer.
+  - **Acceptance**:
+    1. `relay/scripts/roadmap-lint.sh` ACCEPTS `[MECHANICAL]` as a recognized class tag —
+       standalone (`- [ ] title [MECHANICAL] <!-- id -->`) and composed with the orthogonal
+       resource modifier (`[MECHANICAL] [INTENSIVE — local-llm]`). A `[MECHANICAL]`+`[INTENSIVE]`
+       item is grammar-clean; a `[MECHANICAL]`+`[HARD — pool]` item is a tag/prose lane
+       conflict (case c) exactly as two hard lanes would be (MECHANICAL is a capability lane,
+       INTENSIVE is not).
+    2. `relay/scripts/gather-human-backlog.sh` keeps a `[MECHANICAL]` item OUT of every human
+       lane bucket — a repo whose only open item is `[MECHANICAL]` (no `[HARD]`) emits NO
+       hard_pool/hard_meeting/hard_hands/manual/review_me line and does NOT trip the untagged
+       LOUD-reject (exit 0, empty).
+    3. `relay/scripts/classify-verdict.sh` emits a NEW `mechanical` verdict for a
+       MECHANICAL-only repo: given gather JSON with `open_mechanical >= 1` and nothing
+       higher-priority (no actionable routine / unaudited / hard-pool / promote / surface),
+       `verdict == "mechanical"`. It is POOL-INERT — never `execute`/`hard`; the `intensive`
+       field stays `""` on it (the id:5ac6 invariant `intensive!="" ⇒ verdict∈{execute,hard}`
+       holds unchanged). A higher-priority class (open `[ROUTINE]`, etc.) still outranks it.
+    4. Document the `[MECHANICAL]` capability + `mechanical` verdict in
+       `relay/references/hard-lanes.md` (as an additive capability tier alongside the resource
+       axis, noting the slice-B rename is where it folds into the two-axis vocabulary).
+  - **Tests**: `tests/test_mechanical_tag.sh` (`# roadmap:7616`) — hermetic fixtures: (a)
+    roadmap-lint accepts `[MECHANICAL]` standalone + `[MECHANICAL] [INTENSIVE — local-llm]`,
+    rejects `[MECHANICAL] [HARD — pool]` conflict; (b) gather-human-backlog emits nothing for
+    a MECHANICAL-only repo; (c) classify-verdict emits `verdict==mechanical` (intensive="") for
+    `open_mechanical>=1` and `execute` still wins when a routine item co-exists; (d) hard-lanes.md
+    names `[MECHANICAL]`. RED until landed.
+  - **Context**: `roadmap-lint.sh` class_re + case-c lane count; `gather-human-backlog.sh`
+    emit_hard_lanes (only touches `[HARD` lines); `classify-verdict.sh` priority cascade + the
+    `open_mechanical` field it must read; the minimal `open_mechanical` wiring in gather is
+    part of this item. Do NOT build A3's daemon. Cross-ref B1/B2 (rename, gated).
+
+- [ ] A2 — recipe manifest schema + drop-dir contract + `recipe-validate.sh` [ROUTINE] <!-- id:64d3 -->
+  - **Why** (meeting 2026-07-02-1924 decision 3; TODO id:64d3): the mechanical-run daemon
+    (A3, gated) consumes relay-authored recipes from a drop-dir. This item pins the recipe
+    JSON schema, the `{pending,running,done}/` lifecycle-dir contract, and a LOUD validator
+    so a malformed recipe never reaches the daemon. WHITELISTED — recipes are relay-authored
+    only, NEVER auto-scanned from ROADMAP (the registry is the gate, not a tag; devil's-
+    advocate Riku's constraint).
+  - **Acceptance**:
+    1. A reference doc (`relay/references/recipe-manifest.md`) specifies: the drop-dir
+       `~/.config/relay/recipes/{pending,running,done}/` lifecycle (relay authors into
+       `pending/`; daemon moves `pending → running → done`); and the recipe JSON schema
+       `{id, repo, cmd, host, est_wall, resource, acceptance_artifact}` with each field's type
+       (`id`/`repo`/`cmd`/`host`/`resource`/`acceptance_artifact` strings, `est_wall` a
+       positive integer seconds). States explicitly: whitelisted / relay-authored / never
+       auto-scanned from ROADMAP.
+    2. `relay/scripts/recipe-validate.sh <recipe.json>` validates one recipe against the
+       schema: exit 0 + silent on a well-formed recipe; exit NONZERO with a LOUD `ERROR:`
+       stderr line naming the FIRST offending field on ANY missing key, wrong type, or
+       empty/ non-positive `est_wall`. No silent coercion.
+    3. Config-dir path is env-overridable (`RELAY_RECIPE_DIR`, default
+       `~/.config/relay/recipes`) for hermetic testing.
+    4. `recipe-validate.sh` registered in the Makefile `relay_FILES`/`relay_EXEC`/`relay_ALLOW`
+       (3×) and the doc in `relay_FILES` (id:69ef install-completeness).
+  - **Tests**: `tests/test_recipe_manifest.sh` (`# roadmap:64d3`) — hermetic tmpdir: a
+    complete valid recipe passes (exit 0); each of the 7 fields removed in turn → nonzero +
+    `ERROR:` naming that field; a non-integer / zero / negative `est_wall` → nonzero; the doc
+    exists and names the drop-dir + all 7 fields + "whitelisted"/"never auto-scanned"; Makefile
+    registers the script 3× and the doc. RED until landed.
+  - **Context**: mirror `acquire-resource.sh`/`resource-claims.md` for the script+doc+Makefile
+    idiom (`tests/test_resource_claim.sh` steps 6–7). Schema fields come from the meeting note
+    decision 3. Do NOT build the daemon (A3) or wire `inject.sh`.
+
+- [ ] A4 — `permitted-intensity.json` + `relay-intensity.sh` graded-window CLI [ROUTINE] <!-- id:e407 -->
+  - **Why** (meeting 2026-07-02-1924 decision 4; TODO id:e407): the binary `ALLOW_INTENSIVE`
+    gate is all-or-nothing. Replace it (conceptually) with a GRADED, time-boxed permit — "tea"
+    (15m/light) vs "lunch" (2h/heavy) — so a human can authorize a bounded intensive window
+    that auto-expires. The relay-loop.js engine wiring is RISKY (crash-prone template-literal
+    lint, the a0b6 hazard class) and is a FOLLOW-UP note below, NOT required for this item's
+    green — the executor-buildable slice is the config file + CLI + predicate with a hermetic
+    test.
+  - **Acceptance**:
+    1. `~/.config/relay/permitted-intensity.json = {max_wall_seconds, resource_ceiling,
+       expires_at}` is the on-disk permit; path env-overridable via `RELAY_INTENSITY_FILE`.
+    2. `relay/scripts/relay-intensity.sh` CLI writes/reads it:
+       - `--for 15m --light` (tea) and `--for 2h --heavy` (lunch) write a permit with the
+         parsed wall-seconds + tier + an `expires_at` = now + the `--for` duration;
+       - `--afk` writes the CONSERVATIVE default (a minimal short window that does NOT permit a
+         heavy resource — bare `--afk` is NOT full intensive, preserving the old binary
+         semantics);
+       - `--clear` removes the permit; `--status` prints the current permit (or "none").
+    3. `relay-intensity.sh permits <est_wall> <resource>` is the predicate: exit 0 IFF
+       `est_wall <= max_wall_seconds` AND the resource fits the ceiling AND `now < expires_at`;
+       exit nonzero otherwise (no permit / expired / over-window / over-ceiling). Absent or
+       expired permit → nonzero (conservative — deny by default).
+    4. Back-compat: a `--intensive` flag writes a permissive window (superseding binary
+       `ALLOW_INTENSIVE`); bare `--afk` stays conservative (§2). Document the supersession.
+    5. FOLLOW-UP (NOT required for green, note only): `relay-loop.js` reading the permit in
+       place of the binary `ALLOW_INTENSIVE` gate is a separate engine edit (`node --check` +
+       `lint-workflow-templates.mjs` + structure tests) — do it early-session if attempted,
+       else leave as a tracked follow-up.
+  - **Tests**: `tests/test_permitted_intensity.sh` (`# roadmap:e407`) — hermetic
+    `RELAY_INTENSITY_FILE` override: no permit → `permits 60 cpu` nonzero; `--for 2h --heavy`
+    → `permits 3600 local-llm` exit 0; over-window (`permits 9000 local-llm`) nonzero; a
+    `--light`/`--for 15m` window does NOT permit a heavy resource (`permits 60 local-llm`
+    nonzero) but permits a light one within window; an expired `expires_at` (write then
+    hand-edit / `--for 0`) → nonzero; `--clear` → nonzero; `--status` prints the window; bare
+    `--afk` refuses a heavy job. RED until landed.
+  - **Context**: the resource→tier mapping (which resource names count "heavy") is the
+    executor's judgment — the test pins only the monotonic property (a heavy resource passes
+    a `--heavy` window and fails a `--light` one); REVIEW_ME records the mapping call. Parse
+    `--for` as `<N>m`/`<N>h`/`<N>s`. Do NOT touch relay-loop.js for green (§5).
+
+- [ ] A5 — `resource-probe.sh` check-and-defer arbitration [ROUTINE] <!-- id:68dc -->
+  - **Why** (meeting 2026-07-02-1924 decision 4; TODO id:68dc): auto-launch of an intensive
+    mechanical run needs a LIVE-availability probe on top of the permit window (A4) — measured
+    VRAM/RAM/load AND no competing `resource:<res>` claim. **Check-and-defer, NEVER preempt**
+    (Riku: suspending an in-flight embed-rebuild can corrupt the index; active-suspend is a
+    gated cross-repo enhancement, routed:f506, out of scope here).
+  - **Acceptance**:
+    1. `relay/scripts/resource-probe.sh <resource>` probes availability of a named resource:
+       `gpu` via nvidia-smi when present, else a GRACEFUL "unavailable" with a stated reason
+       (never a crash / non-zero from a missing binary being fatal); `ram` via `/proc/meminfo`;
+       `cpu` via loadavg (`/proc/loadavg`); `local-llm` = claim-only (no hardware metric —
+       availability is purely "no competing claim").
+    2. It ALSO reads `claim.sh peek` (sharing `CLAIM_BASE`) and reports NOT available when a
+       LIVE `resource:<res>` claim is held — check-and-defer, never preempt.
+    3. Thresholds are env-overridable (e.g. `RESOURCE_PROBE_RAM_MIN_MB`,
+       `RESOURCE_PROBE_LOAD_MAX`); the nvidia-smi binary is env-overridable
+       (`RESOURCE_PROBE_NVIDIA_SMI`, default `nvidia-smi`) so the probe is testable without a
+       real GPU.
+    4. Emits ONE JSON object `{resource, available, reason, ...metrics}` on stdout and an exit
+       code: 0 when available, nonzero when not.
+  - **Tests**: `tests/test_resource_probe.sh` (`# roadmap:68dc`) — hermetic `CLAIM_BASE`
+    (mktemp): `cpu` with a generous `RESOURCE_PROBE_LOAD_MAX` and no claim → `available:true`,
+    exit 0; then `claim.sh acquire resource:cpu` → probe reports `available:false` + nonzero
+    (check-and-defer); `gpu` with `RESOURCE_PROBE_NVIDIA_SMI` pointed at a nonexistent binary →
+    graceful `available:false` with a reason, no crash; `ram` output is valid JSON with an
+    `available` boolean; a low RAM threshold override flips availability deterministically. RED
+    until landed.
+  - **Context**: compose `claim.sh peek` (reads `CLAIM_BASE`, safekey `resource_<res>`, JSON
+    `.key=="resource:<res>"`) — do NOT add a second lock/registry. Never preempt/kill a holder.
+    Register in Makefile 3×. Pairs with A4 (permit window) as the two launch conditions.
+
+### GATED — slice A daemon + slice B rename (dep-blocked, NOT dispatchable)
+
+Parked under a GATED heading (roadmap-lint-exempt) until their deps land. Each carries its
+`(DEP: …)` inline; do NOT dispatch until the dep item is ticked.
+
+- [ ] A3 — mechanical-run daemon [HARD — pool] 🚧 GATED (DEP: 64d3 + e407 + 68dc) <!-- id:b3d0 -->
+  - **Why** (meeting 2026-07-02-1924 decision 3; TODO id:b3d0): the host `--user` `.path`-unit
+    that runs pending recipes → artifact → `inject.sh` review, OUTSIDE the Workflow (pure
+    mechanical → no permission wall; sidesteps the babysitter/outage problem). Model-probe
+    topology (`tools/model-probe.{sh,service,timer}` + `tools/quota-sample.*` are the three
+    existing instances of the systemd-`--user` → mechanical-script → git-JSONL → LLM-reviews
+    pattern).
+  - **Blocked on**: the recipe schema/validator (64d3), the permit window (e407), and the
+    resource probe (68dc) — the daemon reads all three at launch (`est_wall≤window ∧
+    resource≤ceiling ∧ now<expires_at` AND `resource-probe.sh` free).
+  - **Sketch**: `.path` unit watches `~/.config/relay/recipes/pending/`; a oneshot service
+    validates (`recipe-validate.sh`), checks A4 permit + A5 probe, moves `pending→running`,
+    runs `cmd`, writes `acceptance_artifact`, moves `running→done`, drops a review-request via
+    `inject.sh`. `make install-mechanical-daemon`. Check-and-defer only (never preempt).
+
+- [ ] B1 — target taxonomy → `hard-lanes.md` north star + `[HARD — *]`→new-vocab converter + dual-vocab lint window [HARD — pool] 🚧 GATED (DEP: 7616) <!-- id:4f02 -->
+  - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:4f02): slice B re-bases the lane
+    vocabulary on required capability. Write the ratified two-axis taxonomy into hard-lanes.md
+    as the north star, ship a DETERMINISTIC converter (`[HARD — pool]`→`[HARD]`,
+    `[HARD — meeting]`→`[INPUT — meeting]`, `[HARD — decision gate]`→`[INPUT — decision]`,
+    `[HARD — hands]`→`[INPUT — access]` OR `[MECHANICAL]` per-item), and open a dual-vocabulary
+    lint window (both old and new accepted ERROR-free for one window, then old-vocab → lint
+    ERROR). NEVER a flag-day (Riku: vocabulary hardened across ~15 tests + the crash-prone
+    engine).
+  - **Blocked on**: `[MECHANICAL]` existing (7616) — the converter's `[HARD — hands]`→
+    `[MECHANICAL]` target must be a recognized tag first.
+
+- [ ] B2 — migrate all lane-readers + tests to the new vocabulary [HARD — pool] 🚧 GATED (DEP: 7616 + 4f02) <!-- id:8111 -->
+  - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:8111): flip every lane-reader
+    (`gather-human-backlog.sh`, `roadmap-lint.sh`, `classify-verdict.sh`, `relay-loop.js`,
+    `references/*`) and their tests onto the new vocabulary, and fan `[HARD — hands]` out to
+    `[INPUT — access]` (needs a human's hands) vs `[MECHANICAL]` (compute-only) per-item — the
+    unfinished "shrink the hands queue to the irreducible" business.
+  - **Blocked on**: the converter + dual-vocab window (4f02), which is blocked on the tag
+    existing (7616).
+
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
 Decomposition of the orphan-reconcile design. **Sequence: D1 → D2/D3** (D2's reconcile
