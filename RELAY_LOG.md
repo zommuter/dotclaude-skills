@@ -1182,3 +1182,7 @@ id:a42e — gated classify-repo.sh's standin flag on the id:e030 fable_rechecked
 
 Worked id:dff8 — `git-lock-push.sh` id:aa93 dirty-guard now classifies the pull-path porcelain: untracked-only churn (every line `?? `) proceeds with the autostash-rebase (untouched by `--autostash`, which only stashes tracked changes), while any tracked modified/staged/renamed entry still refuses (the id:aa93 data-loss guard is unchanged for tracked dirt). Reworded the refusal to state facts ("working tree has uncommitted tracked changes; not autostash-rebasing (id:aa93)") instead of the unverified "(a concurrent edit?)" causal guess. Used the RED spec `tests/test_git_lock_push_dirty_guard.sh` already written by the handoff — no test changes needed, only the script fix. Ticked ROADMAP+TODO twins. Full suite 161/0/3-expected-red.
 Friction: none.
+
+## 2026-07-02 02:08 — executor (sonnet, relay-loop)
+
+executor: closed [ROUTINE] id:dff8 — git-lock-push.sh dirty-guard now tolerates untracked-only churn and drops the "concurrent edit" causal guess; suite 161/0/3-expected-red [id:dff8]
