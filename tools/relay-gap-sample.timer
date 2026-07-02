@@ -1,0 +1,14 @@
+[Unit]
+Description=Run relay-gap-sample every 15 min (between-runs churn evidence)
+
+[Timer]
+# Same cadence + posture as quota-sample.timer: fire shortly after login, then every
+# 15 minutes. Pure local git reads + bash classify — no network, no LLM, no contention.
+OnStartupSec=3min
+OnUnitActiveSec=15min
+# Don't pile up missed runs after suspend/resume; the next tick re-samples everything anyway.
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
