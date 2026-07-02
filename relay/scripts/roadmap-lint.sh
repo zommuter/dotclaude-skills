@@ -76,12 +76,14 @@ lane_alt="$(printf '%s\n' "$hard_lanes" \
   | sed -E 's/^\[HARD — (.*)\]$/\1/' \
   | paste -sd'|' -)"
 
-# A recognized class/lane tag: [ROUTINE] OR [HARD — <recognized lane>].
+# A recognized class/lane tag: [ROUTINE] OR [HARD — <recognized lane>] OR the
+# [MECHANICAL] capability tag (id:7616 — pure-compute work no LLM/human runs; a
+# daemon dispatches it, an LLM session reviews the artifact; A3 gated).
 # The [INTENSIVE — …] modifier is orthogonal and may co-occur on ANY recognised lane —
-# operative on dispatchable lanes (ROUTINE/pool), advisory-inert on human lanes
-# (hands/meeting/decision gate). A lane-less INTENSIVE item has no recognized class tag
-# and is therefore caught by the missing-class-tag grammar below (id:9062).
-class_re="\[ROUTINE\]|\[HARD — (${lane_alt})\]"
+# operative on dispatchable lanes (ROUTINE/pool/MECHANICAL), advisory-inert on human
+# lanes (hands/meeting/decision gate). A lane-less INTENSIVE item has no recognized
+# class tag and is therefore caught by the missing-class-tag grammar below (id:9062).
+class_re="\[ROUTINE\]|\[MECHANICAL\]|\[HARD — (${lane_alt})\]"
 
 # A 4-hex id token, the canonical `<!-- id:XXXX -->` or a bare `id:XXXX`.
 id_re='id:[0-9a-fA-F]{4}'
@@ -157,8 +159,12 @@ while IFS= read -r line; do
     # Case (c): tag/prose lane DISAGREEMENT — an item must carry exactly ONE recognised
     # lane bracket; if the prose also mentions a different lane bracket the tag is stale
     # (the tag is authority; the disagreement is a loud error, never a silent no-op).
+    # [MECHANICAL] is a CAPABILITY lane in this count too (id:7616) — a
+    # [MECHANICAL] + [HARD — pool] item carries two capability lanes on one item,
+    # exactly like two [HARD — *] tags would, and is rejected here.
     _lc=0; _lf=()
     echo "$line" | grep -qF '[ROUTINE]' && { _lc=$((_lc+1)); _lf+=('[ROUTINE]'); }
+    echo "$line" | grep -qF '[MECHANICAL]' && { _lc=$((_lc+1)); _lf+=('[MECHANICAL]'); }
     while IFS= read -r _hl; do
       [[ -z "$_hl" ]] && continue
       echo "$line" | grep -qF "$_hl" && { _lc=$((_lc+1)); _lf+=("$_hl"); }
