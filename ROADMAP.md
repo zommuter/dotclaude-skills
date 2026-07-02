@@ -2746,16 +2746,20 @@ three separable sub-checks (B2a readers+references / B2b relay-loop.js / B2c thi
 ledgers+tests) that MAY be dispatched as separate executors (see the handoff report's split
 recommendation). Do NOT dispatch until 4f02 is ticked.
 
-- [ ] B2 — migrate all lane-READERS + references + this-repo ledgers/tests to the new vocabulary [HARD — pool] 🚧 GATED (DEP: 4f02) <!-- id:8111 -->
+- [x] B2 — lane-READERS + references + engine (relay-loop.js) dual-accept the new vocabulary [HARD] <!-- id:8111 -->
+  - **RE-SCOPED + verified 2026-07-02 (relay review, wave-2b).** The shipped B2a (parsers+refs)
+    + B2b (relay-loop.js engine) dual-accept slice is genuinely DONE and verified both directions
+    (old-vocab still buckets/dispatches everywhere; new vocab buckets/classifies correctly; no
+    test gamed; suite green). The remaining B2c work — CONVERT this repo's own ledgers, MIGRATE
+    the ~30 lane-asserting tests, and CLOSE the dual-vocab window (old-vocab → lint ERROR) — was
+    split out to id:7df1 (GATED), because the window cannot close while M3 (id:3ef7) and the
+    cross-repo `[HARD — hands]`/scan.py (id:b466) surfaces are still on old vocab. This item is
+    the reader+reference+engine dual-accept migration ONLY.
   - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:8111): with B1's converter + dual-vocab
     window in place, flip every lane-READER and reference to EMIT/EXPECT the new vocabulary
-    (still ACCEPTING old via B1's window), run the converter on THIS repo's own ledgers, migrate
-    the lane-asserting tests, and — as the FINAL step — CLOSE the dual-vocab window (old-vocab →
-    lint ERROR). Resolves each surfaced `[HARD — hands]` item into its per-item destination among
-    the FOUR candidates (`[MECHANICAL]` / `[INPUT — access]` / `[INPUT — decision]` /
-    `[INPUT — meeting]`) — the unfinished "shrink the hands queue to the irreducible" business
-    (the converter only FLAGS these; the human/M3 decides each).
-  - **Acceptance** (three separable sub-checks — dispatchable as one executor or three):
+    (still ACCEPTING old via B1's window). `[HARD — hands]` items are only FLAGGED, never
+    auto-converted (the FOUR-candidate fan-out is per-item judgment, deferred to M3/7df1).
+  - **Acceptance (shipped — B2a + B2b):**
     - **B2a — readers + references.** Flip the tag-PARSERS and prose to the new vocab (dual-accept):
       1. `gather-human-backlog.sh::emit_hard_lanes` buckets new vocab: bare `[HARD]`→`hard_pool`,
          `[INPUT — meeting]`/`[INPUT — decision]`→`hard_meeting`, `[INPUT — access]`→`hard_hands`;
@@ -2772,24 +2776,38 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
       is tag-agnostic (unaffected). **ENGINE-EDIT CAUTION:** `node --check` + `lint-workflow-templates.mjs`
       + `test_relay_loop_structure.sh` must pass (the a0b6 template-literal-lint hazard crashed the
       pool 3×) — do this early-session, NOT tail-of-session.
-    - **B2c — this-repo ledgers + tests + window close.** Run `lane-convert.sh --in-place` on THIS
-      repo's `ROADMAP.md` + `TODO.md` (own tags only; the converter auto-renames pool/meeting/
-      decision-gate and FLAGS each `[HARD — hands]` — resolve those per-item into one of the four
-      candidates by M3/human judgment, never a blanket default). Migrate the ~30 lane-asserting `tests/test_*.sh`
-      (see the handoff report list) + `test_hard_lane_buckets.sh` marker-set cross-check to the new
-      vocab. As the FINAL step, CLOSE the dual-vocab window: `roadmap-lint.sh` + `gather-human-backlog.sh`
-      make an OLD-vocab lane an ERROR (the additive window ends once every own surface is migrated).
-  - **Done-check**: `make test` fully green with every lane-asserting test on the new vocab;
-    `roadmap-lint.sh ROADMAP.md` exit 0; `node --check relay/scripts/relay-loop.js` +
-    `lint-workflow-templates.mjs` clean; `gather-human-backlog.sh` buckets this repo's migrated
-    ROADMAP correctly.
-  - **Tests**: `tests/test_lane_vocab_migration.sh` (`# roadmap:8111`) — the verifiable RED slice:
+    - **B2c — this-repo ledgers + tests + window close.** ➡️ SPLIT OUT to id:7df1 (GATED) — NOT
+      part of this item's done-state. See the finalizer item below.
+  - **Done-check (met 2026-07-02)**: `node --check relay/scripts/relay-loop.js` +
+    `lint-workflow-templates.mjs` clean; `test_relay_loop_structure.sh` green;
+    `tests/test_lane_vocab_migration.sh` green; full suite `tests/run-tests.sh` 0 failed;
+    dual-accept proven both directions for `gather-human-backlog.sh` / `classify-repo.sh` /
+    `gather-repo-state.sh` / `relay-loop.js`.
+  - **Tests**: `tests/test_lane_vocab_migration.sh` (`# roadmap:8111`) — the verifiable slice:
     `gather-human-backlog.sh` buckets a repo whose ROADMAP uses the NEW vocab (bare `[HARD]`→a
     `hard_pool` line; `[INPUT — meeting]`→a `hard_meeting` line; `[INPUT — access]`→a `hard_hands`
-    line) — today the `[HARD]`-only item LOUD-rejects as untagged and the `[INPUT — …]` items emit
-    nothing, so this is genuinely RED. The relay-loop.js regex + classify-repo parse flips are
-    VERIFY-ON-IMPLEMENTATION (asserted by the migrated existing tests once they carry the new vocab).
-  - **Blocked on**: 4f02 (the converter + dual-vocab window B1 opens).
+    line). GREEN as of B2a. The relay-loop.js regex + classify-repo parse flips are verified by
+    review spot-checks + the ~30 old-vocab tests still passing (dual-accept).
+
+- [ ] B2c-finalizer — CLOSE the dual-vocab window: convert this-repo ledgers + migrate ~30 lane tests + flip old-vocab→lint ERROR [INPUT — decision] 🚧 GATED (DEP: 3ef7 + cross-repo re-tag) <!-- id:7df1 -->
+  - **Why**: B2 (id:8111) landed reader+reference+engine DUAL-ACCEPT — old and new vocab both
+    ERROR-free. The window must stay OPEN until every OTHER surface is on the new vocab, then close
+    in one deliberate flip. This is the tail the meeting deliberately deferred.
+  - **Acceptance**:
+    1. `lane-convert.sh --in-place` on THIS repo's `ROADMAP.md` + `TODO.md` (own tags only; the
+       converter auto-renames pool/meeting/decision-gate and FLAGS each `[HARD — hands]` — resolve
+       those per-item into one of the four candidates by M3/human judgment, never a blanket default).
+    2. Migrate the ~30 lane-asserting `tests/test_*.sh` + `test_hard_lane_buckets.sh` marker-set
+       cross-check to the new vocab.
+    3. FINAL step — CLOSE the window: `roadmap-lint.sh` + `gather-human-backlog.sh` make an OLD-vocab
+       lane a hard ERROR (drop the dual-accept branches; delete the "window OPEN" prose in
+       hard-lanes.md/human.md/review.md/handoff.md/conventions.md).
+  - **Done-check**: `make test` fully green with every lane-asserting test on the new vocab AND an
+    old-vocab `[HARD — pool]` fixture now LINT-REJECTED (a new red-then-green window-closed test).
+  - **Blocked on**: 3ef7 (M3 per-item `[HARD — hands]` re-lane must resolve this repo's hands items
+    first) AND the cross-repo re-tag (other own repos + `project_manager`'s `scan.py`, id:b466, must
+    speak new vocab — the window can't close while any consumer is old-vocab-only). Closing early
+    would break every repo still on `[HARD — *]`.
 
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
