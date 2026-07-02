@@ -2609,7 +2609,7 @@ CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`) — the two-axis rename 
     (`gather-human-backlog.sh` only inspects `[HARD` lines) — this is the doctrine that keeps
     producers from emitting `[HARD — hands]` for daemon-runnable work in the first place.
 
-- [ ] A3 — mechanical-run daemon [HARD — pool] <!-- id:b3d0 -->
+- [x] A3 — mechanical-run daemon [HARD — pool] <!-- id:b3d0 -->
   - **Why** (meeting 2026-07-02-1924 decision 3; TODO id:b3d0): the host `--user` `.path`-unit
     that runs pending recipes → artifact → `inject.sh` review, OUTSIDE the Workflow (pure
     mechanical → no permission wall; sidesteps the babysitter/outage problem). Model-probe

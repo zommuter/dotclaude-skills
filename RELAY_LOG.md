@@ -1301,3 +1301,26 @@ daemon-runnable no-LLM work to `[HARD — hands]`; A3 (id:b3d0, `[HARD — pool]
 un-gated (deps 64d3/e407/68dc met) — the mechanical-run daemon. Slice-B rename
 (B1 id:4f02 / B2 id:8111) and M3 (id:3ef7 existing-item re-lane audit) stay GATED.
 Uses the CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`); the rename is wave 2b.
+
+## 2026-07-02 — executor (Sonnet)
+
+Worked id:b3d0 (A3, mechanical-run daemon) — built `relay/scripts/mechanical-daemon.sh`,
+the one-tick processor over the `~/.config/relay/recipes/{pending,running,done}/` drop-dir
+gated on it in wave-2a. For each recipe in `pending/`: validates via `recipe-validate.sh`
+(a malformed recipe is moved to a new `rejected/` dir with a loud sibling `.error` file and a
+log line — never a silent drop, id:4347); checks the launch gate
+(`relay-intensity.sh permits <est_wall> <resource>` AND `resource-probe.sh <resource>`, both
+must pass); on permit moves `pending→running`, runs `cmd`, moves `running→done`, and drops a
+review-request via `inject.sh add --verdict review`. Denial on EITHER gate check leaves the
+recipe untouched in `pending/` for the next tick — check-and-defer, never preempt, matching
+`resource-probe.sh`'s own doctrine; a failed `cmd` still lands in `done/` (with a `.error`
+file) rather than a permanent `running/` ghost, but does not inject a review. Added the
+`tools/mechanical-daemon.{path,service}` systemd `--user` unit pair (model-probe/quota-sample
+topology: a `.path` unit watching `pending/` triggers a oneshot tick, no polling) and
+`make install-mechanical-daemon`/`status-`/`uninstall-` targets creating the drop-dir on
+install. Registered `scripts/mechanical-daemon.sh` in the Makefile `relay_FILES`/`_EXEC`/
+`_ALLOW` (id:69ef install-completeness — `test_relay_install_manifest.sh` confirms all 51
+`relay/scripts/*` present). Ticked ROADMAP id:b3d0 `[x]` via md-merge.py update-ids. Suite:
+169 passed / 0 failed / 4 expected-red (unrelated open items 5884/9c88/2313/14d0).
+Friction: none — the three slice-A helpers (recipe-validate.sh, relay-intensity.sh,
+resource-probe.sh) and inject.sh/claim.sh composed cleanly with no interface surprises.

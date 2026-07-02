@@ -1,0 +1,8 @@
+[Unit]
+Description=Run one mechanical-run daemon tick over the relay recipe drop-dir
+Documentation=file:%h/src/dotclaude-skills/relay/scripts/mechanical-daemon.sh
+
+[Service]
+Type=oneshot
+ExecStart=%h/src/dotclaude-skills/relay/scripts/mechanical-daemon.sh run
+Nice=10

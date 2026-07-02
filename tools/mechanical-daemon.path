@@ -1,0 +1,13 @@
+[Unit]
+Description=Watch the relay recipe pending/ drop-dir and trigger a mechanical-daemon tick
+Documentation=file:%h/src/dotclaude-skills/relay/scripts/mechanical-daemon.sh
+
+[Path]
+# Fires whenever a recipe JSON lands in (or is removed from) pending/ — a relay reviewer
+# session is the only writer (recipe-manifest.md whitelist invariant). PathModified re-arms
+# on every subsequent write, unlike DirectoryNotEmpty's single empty->non-empty transition.
+PathModified=%h/.config/relay/recipes/pending
+Unit=mechanical-daemon.service
+
+[Install]
+WantedBy=paths.target
