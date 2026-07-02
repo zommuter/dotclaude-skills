@@ -1177,3 +1177,8 @@ Friction: none.
 ## 2026-07-02 01:44 — executor (sonnet, relay-loop)
 
 id:a42e — gated classify-repo.sh's standin flag on the id:e030 fable_rechecked watermark, stopping the perpetual idle-to-review re-dispatch on every Fable pool round [id:a42e]
+
+## 2026-07-02 — executor (sonnet)
+
+Worked id:dff8 — `git-lock-push.sh` id:aa93 dirty-guard now classifies the pull-path porcelain: untracked-only churn (every line `?? `) proceeds with the autostash-rebase (untouched by `--autostash`, which only stashes tracked changes), while any tracked modified/staged/renamed entry still refuses (the id:aa93 data-loss guard is unchanged for tracked dirt). Reworded the refusal to state facts ("working tree has uncommitted tracked changes; not autostash-rebasing (id:aa93)") instead of the unverified "(a concurrent edit?)" causal guess. Used the RED spec `tests/test_git_lock_push_dirty_guard.sh` already written by the handoff — no test changes needed, only the script fix. Ticked ROADMAP+TODO twins. Full suite 161/0/3-expected-red.
+Friction: none.
