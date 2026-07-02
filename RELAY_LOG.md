@@ -1251,3 +1251,26 @@ RED); full suite 165 passed, 0 failed, 5 expected-red (other open items).
 Friction: none — the RED spec's field-injection helper (Python json load/pop/dump)
 made the exact rejection contract unambiguous, including the bool-is-not-int and
 float-est_wall edge cases.
+## 2026-07-02 — executor (sonnet)
+
+Worked id:7616 (A1) — added the `[MECHANICAL]` capability tag + pool-inert `mechanical`
+verdict per the 2026-07-02-1924 meeting's slice-A plumbing-only scope. `roadmap-lint.sh`
+now recognizes `[MECHANICAL]` as a class tag (standalone or composed with
+`[INTENSIVE — <resource>]`) and treats it as a capability lane in the tag/prose
+lane-count check, so `[MECHANICAL]` + `[HARD — pool]` on one item correctly trips the
+two-lane conflict. `gather-human-backlog.sh` needed NO change — it only ever inspects
+lines containing `[HARD`, so a MECHANICAL-only repo was already silently excluded from
+every human-triage bucket; the RED test for (b) passed unmodified against the untouched
+script. `classify-verdict.sh` gained a new `open_mechanical` input field and a `mechanical`
+verdict branch (priority_rank 6, inserted between `human` and `idle`, which shifted from
+rank 6 to rank 7 — no consumer pins the numeric rank, checked via grep first) that fires
+only when nothing higher-priority is present; `intensive` stays `""` on it, preserving the
+id:5ac6 invariant. Wired minimal producer plumbing in `classify-repo.sh`'s ROADMAP parse
+(counts `[MECHANICAL]` lines into `open_mechanical`, folded into both the classifier input
+and the `--emit unit` passthrough) — no daemon consumer built (A3 stays gated).
+Documented the tier in `hard-lanes.md` (properties table: daemon-run, pool-inert,
+human-inert, INTENSIVE composes, two-lane conflict with `[HARD — *]`, verdict `mechanical`).
+`tests/test_mechanical_tag.sh` 6/6 green; ticked ROADMAP id:7616 via `md-merge.py
+update-ids`; full suite 165 passed, 0 failed, 5 expected-red (unrelated open items).
+Friction: none — (b)'s RED assertion turned out to already hold against the unmodified
+script, confirmed by re-running the test before touching gather-human-backlog.sh at all.

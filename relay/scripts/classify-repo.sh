@@ -68,6 +68,7 @@ has_routine = False
 roadmap_open = 0
 roadmap_actionable_open = 0
 actionable_routine_open = 0
+open_mechanical = 0
 
 if os.path.isfile(rm):
     with open(rm, errors="replace") as f:
@@ -75,6 +76,12 @@ if os.path.isfile(rm):
             if not re.match(r"\s*- \[ \] ", ln):
                 continue
             roadmap_open += 1
+            # id:7616 — [MECHANICAL] capability tier: minimal producer wiring only (no
+            # human/pool exclusion needed — the tag itself IS pool-inert/human-inert by
+            # definition, unlike [ROUTINE]/[HARD — pool] which need the @manual/blocked
+            # carve-outs above). Counted independently of the primary-lane derivation below.
+            if "[MECHANICAL]" in ln:
+                open_mechanical += 1
             # id:4da4 — PRIMARY-LANE anchoring: an item's lane is the FIRST recognized lane-tag
             # on the line. Lane tags cluster right after the title; any bracket-token further
             # right is prose/history and must NOT set the lane. This is robust where a
@@ -121,6 +128,7 @@ base["hasRoutine"]              = has_routine
 base["roadmap_open"]            = roadmap_open
 base["roadmap_actionable_open"] = roadmap_actionable_open
 base["actionable_routine_open"] = actionable_routine_open
+base["open_mechanical"]         = open_mechanical
 base["unpromoted"]              = {"promote": promote, "surface": surface}
 
 print(json.dumps(base))
@@ -189,6 +197,10 @@ unit = {
     # actionable_routine_open>0` (classify-verdict.sh:91 gates execute on it). Extra field is
     # schema-safe (DISCOVER_SCHEMA units allow additional properties); consumers ignore it.
     "actionable_routine_open": base.get("actionable_routine_open", 0),
+    # id:7616 — [MECHANICAL] capability tier: schema-safe extra field (additional
+    # properties allowed), same treatment as actionable_routine_open above. No daemon
+    # consumer reads this yet (A3, gated) — it is passthrough plumbing only.
+    "open_mechanical": base.get("open_mechanical", 0),
 }
 print(json.dumps(unit))
 PYEOF
