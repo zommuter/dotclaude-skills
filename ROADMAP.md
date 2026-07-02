@@ -2545,25 +2545,110 @@ id reuses its open TODO.md twin under the `[UMBRELLA]`.
     `.key=="resource:<res>"`) — do NOT add a second lock/registry. Never preempt/kill a holder.
     Register in Makefile 3×. Pairs with A4 (permit window) as the two launch conditions.
 
-### GATED — slice A daemon + slice B rename (dep-blocked, NOT dispatchable)
+## Capability-keyed lane taxonomy — wave 2a (MECHANICAL end-to-end)
 
-Parked under a GATED heading (roadmap-lint-exempt) until their deps land. Each carries its
-`(DEP: …)` inline; do NOT dispatch until the dep item is ticked.
+Wave 2a makes the `[MECHANICAL]` tag END-TO-END: slice A shipped the CONSUMER half only
+(the classifier RECOGNIZES `[MECHANICAL]`→the pool-inert `mechanical` verdict), but no
+relay layer PRODUCES the tag and nothing RUNS it. Source of truth: the
+`## Amendment 2026-07-02 (post-build — the `[MECHANICAL]` producer gap)` section of
+`docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`. These
+three items (single-id-two-views D2 — each reuses its open TODO.md twin) are UN-GATED —
+their deps (A1 id:7616, A2 id:64d3, A4 id:e407, A5 id:68dc) are all landed `[x]`. Uses the
+CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`) — the two-axis rename is wave 2b
+(B1/B2, GATED below), NOT here.
 
-- [ ] A3 — mechanical-run daemon [HARD — pool] 🚧 GATED (DEP: 64d3 + e407 + 68dc) <!-- id:b3d0 -->
+- [ ] M1 — handoff.md C2 PRODUCES the MECHANICAL tag + authors the recipe [ROUTINE] <!-- id:9c88 -->
+  - **Why** (meeting amendment 2026-07-02, M1; TODO id:9c88): the missing PRODUCER link. A1
+    taught the classifier to recognize `[MECHANICAL]`→`mechanical`, but `handoff.md` C2 still
+    only ever tags `[ROUTINE]`/`[HARD — *]` — so the tag is routed but never produced and
+    nothing feeds the daemon (A3). Teach C2 to recognize compute-only / no-LLM /
+    benchmark-or-pilot work (leAIrn2learn, pytorch, model-probe-style batteries) and (i) TAG
+    it `[MECHANICAL]` (composing `[INTENSIVE — <res>]` when heavy) and (ii) AUTHOR the A2
+    recipe (the `relay/references/recipe-manifest.md` schema, id:64d3 —
+    `{id,repo,cmd,host,est_wall,resource,acceptance_artifact}`) into
+    `~/.config/relay/recipes/pending/`. This is a CONTRACT-PROSE change to `handoff.md`; no
+    script logic changes.
+  - **Acceptance**:
+    1. `handoff.md`'s C2 checkpoint documents recognizing compute-only / no-LLM /
+       benchmark-or-pilot work as `[MECHANICAL]` (alongside the existing `[ROUTINE]` /
+       `[HARD — *]` tagging), naming the concept.
+    2. C2 documents AUTHORING an A2 recipe into `~/.config/relay/recipes/pending/` for such an
+       item, referencing the `recipe-manifest.md` schema (id:64d3) — the producer link to the
+       A3 daemon.
+  - **Tests**: `tests/test_handoff_produces_mechanical.sh` (`# roadmap:9c88`) — a STRUCTURAL
+    grep-style test (like `tests/test_hard_lane_buckets.sh`) asserting `handoff.md` C2 carries
+    the `[MECHANICAL]`-tagging instruction AND the recipe-authoring instruction (the pending/
+    drop-dir + recipe-manifest reference). RED until the prose lands.
+  - **Context**: prose only, in `relay/references/handoff.md` §C2 (roadmap checkpoint, the
+    tagging paragraph ~L60–73). Pairs with A3 (the daemon that consumes the authored recipe).
+    Do NOT touch any script.
+
+- [ ] M2 — re-lane DOCTRINE routes compute-only work to MECHANICAL (fix the wrong-to-hands producer sites) [HARD — pool] <!-- id:2313 -->
+  - **Why** (meeting amendment 2026-07-02, M2; TODO id:2313): three CONTRACT doc sites still
+    route scriptable / no-human / no-LLM "run X" work to `[HARD — hands]` (the human), even
+    though `[MECHANICAL]` now exists and a daemon (A3) can run it. `gather-human-backlog.sh`
+    already excludes `[MECHANICAL]` from human buckets in CODE (slice-A A1); M2 is the
+    DOC/doctrine layer that TEACHES the strong turn to produce `[MECHANICAL]` instead of
+    mis-laning to hands. ORTHOGONAL to B2 (the vocabulary rename) — a routing change that must
+    survive B2.
+  - **Acceptance** (all three doc sites carry the new routing):
+    1. `hard-lanes.md` 5-criterion re-lane policy (~L88–101) gains a "needs an LLM?" branch:
+       compute-only + passes a–e ⇒ `[MECHANICAL]` (daemon); LLM + passes a–e ⇒
+       `[ROUTINE]`/`[HARD — pool]`; fails a–e (needs a human) ⇒ `[HARD — hands]`.
+    2. `handoff.md` author-then-run split (~L93–106) routes the daemon-runnable "run X" residue
+       to `[MECHANICAL]`, keeping only genuinely-human runs (device/sudo/physical/credential)
+       as `[HARD — hands]`.
+    3. `human.md` (the "you run these" checklist, ~L158–168/194/287) EXCLUDES `[MECHANICAL]`
+       from the human "you run these" list — it is daemon-run, not human-run.
+  - **Tests**: `tests/test_mechanical_relane_doctrine.sh` (`# roadmap:2313`) — a STRUCTURAL
+    grep test asserting all THREE doc sites (`hard-lanes.md`, `handoff.md`, `human.md`) name
+    `[MECHANICAL]` in their re-lane / author-then-run / you-run-these routing. RED until the
+    prose lands.
+  - **Context**: prose only, across `relay/references/{hard-lanes.md,handoff.md,human.md}`.
+    Do NOT rename any existing lane (that is B2). The CODE-layer exclusion already exists
+    (`gather-human-backlog.sh` only inspects `[HARD` lines) — this is the doctrine that keeps
+    producers from emitting `[HARD — hands]` for daemon-runnable work in the first place.
+
+- [ ] A3 — mechanical-run daemon [HARD — pool] <!-- id:b3d0 -->
   - **Why** (meeting 2026-07-02-1924 decision 3; TODO id:b3d0): the host `--user` `.path`-unit
     that runs pending recipes → artifact → `inject.sh` review, OUTSIDE the Workflow (pure
     mechanical → no permission wall; sidesteps the babysitter/outage problem). Model-probe
-    topology (`tools/model-probe.{sh,service,timer}` + `tools/quota-sample.*` are the three
-    existing instances of the systemd-`--user` → mechanical-script → git-JSONL → LLM-reviews
-    pattern).
-  - **Blocked on**: the recipe schema/validator (64d3), the permit window (e407), and the
-    resource probe (68dc) — the daemon reads all three at launch (`est_wall≤window ∧
-    resource≤ceiling ∧ now<expires_at` AND `resource-probe.sh` free).
-  - **Sketch**: `.path` unit watches `~/.config/relay/recipes/pending/`; a oneshot service
-    validates (`recipe-validate.sh`), checks A4 permit + A5 probe, moves `pending→running`,
-    runs `cmd`, writes `acceptance_artifact`, moves `running→done`, drops a review-request via
-    `inject.sh`. `make install-mechanical-daemon`. Check-and-defer only (never preempt).
+    topology (`tools/quota-sample.*` + `tools/relay-watchdog.*` are the existing instances of
+    the systemd-`--user` → mechanical-script → git-JSONL/notify pattern). UN-GATED: deps
+    64d3 + e407 + 68dc all landed.
+  - **Acceptance**:
+    1. `relay/scripts/mechanical-daemon.sh` performs ONE processing tick (a subcommand, e.g.
+       `run`/`tick`) over the recipe drop-dir: for each recipe in `pending/`, VALIDATE it
+       (`recipe-validate.sh`); check the launch gate — `relay-intensity.sh permits <est_wall>
+       <resource>` AND `resource-probe.sh <resource>` both succeed; if permitted, move
+       `pending → running`, run `cmd` (which writes the `acceptance_artifact`), move
+       `running → done`, and drop a review-request via `inject.sh add`. If NOT permitted
+       (resource claimed OR est_wall over the window OR resource unavailable) the recipe is
+       DEFERRED — left in `pending/`, NOT run, no artifact, no inject (check-and-defer, never
+       preempt).
+    2. Dirs are env-overridable for hermeticity: `RELAY_RECIPE_DIR` (default
+       `~/.config/relay/recipes`, holds `pending/running/done`), `RELAY_INTENSITY_FILE`,
+       `CLAIM_BASE`, `INJECT_BASE` — all threaded to the sibling scripts.
+    3. A systemd `--user` `.path` unit watches `~/.config/relay/recipes/pending/` and triggers
+       a oneshot service that runs the tick (`tools/` topology, alongside quota-sample /
+       relay-watchdog units). `make install-mechanical-daemon` installs+enables them.
+    4. `mechanical-daemon.sh` registered in the Makefile `relay_FILES`/`relay_EXEC`/`relay_ALLOW`
+       (id:69ef install-completeness).
+  - **Tests**: `tests/test_mechanical_daemon.sh` (`# roadmap:b3d0`) — REAL hermetic tests
+    (mktemp `RELAY_RECIPE_DIR`/`CLAIM_BASE`/`INJECT_BASE`/`RELAY_INTENSITY_FILE`): (1) a valid
+    recipe whose gate PERMITS runs — recipe moves `pending→running→done`, its
+    `acceptance_artifact` is written, and an inject unit appears; (2) a recipe whose resource
+    is CLAIMED is DEFERRED — stays in `pending/`, no artifact, no inject; (3) a recipe whose
+    `est_wall` EXCEEDS the permit window is DEFERRED likewise. RED until the daemon lands.
+  - **Context**: reads all three slice-A helpers at launch (`recipe-validate.sh`,
+    `relay-intensity.sh permits`, `resource-probe.sh`); shares the ONE `claim.sh` registry via
+    `CLAIM_BASE` (no second lock). Check-and-defer ONLY — never suspend/kill a claim holder
+    (active-suspend is routed:f506, out of scope).
+
+### GATED — slice B rename (dep-blocked, NOT dispatchable)
+
+Parked under a GATED heading (roadmap-lint-exempt) until their deps land. Each carries its
+`(DEP: …)` inline; do NOT dispatch until the dep item is ticked.
 
 - [ ] B1 — target taxonomy → `hard-lanes.md` north star + `[HARD — *]`→new-vocab converter + dual-vocab lint window [HARD — pool] 🚧 GATED (DEP: 7616) <!-- id:4f02 -->
   - **Why** (meeting 2026-07-02-1924 decision 2; TODO id:4f02): slice B re-bases the lane

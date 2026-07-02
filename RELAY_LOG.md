@@ -1284,3 +1284,20 @@ Per-conjunct verification: (A1 id:7616) classify-verdict emits `mechanical` at p
 A4's deferred relay-loop.js `ALLOW_INTENSIVE`→`permits` wiring is RECORDED durably (not a silent gap): a clearly-marked `TODO (id:e407 follow-up)` comment at the ALLOW_INTENSIVE definition (~line 75) pointing at `relay-intensity.sh permits` + the meeting note (RISKY a0b6 template-literal-lint hazard class, deferred deliberately), plus the note in TODO.md id:e407 and the executor's RELAY_LOG entry.
 
 Ledger actions: ticked TODO.md ids 7616/64d3/e407/68dc `[x]` (single-id-two-views D2 sync — were `[ ]` in TODO while `[x]` in ROADMAP) via md-merge.py update-ids, reusing the same ids. Resolved+closed the slice-A REVIEW_ME box (three executor judgment calls — resource→tier mapping, mechanical rank, probe thresholds — all confirmed sane; #3 verified on the real host). Suite: 168 passed / 0 failed / 2 expected-red (unrelated open items 14d0 + one other). `roadmap-lint.sh ROADMAP.md` exit 0. verified_green: 7616, 64d3, e407, 68dc. gaming_flags: none. reopened: none.
+
+## 2026-07-02 — handoff (wave 2a — `[MECHANICAL]` end-to-end)
+
+Prepared wave-2a of the capability-keyed-taxonomy build: make the `[MECHANICAL]` tag
+END-TO-END (produced + run), building on slice-A which shipped only the CONSUMER half
+(the classifier recognizes `[MECHANICAL]`→`mechanical` but no layer PRODUCES it and
+nothing RUNS it). Source of truth: the `## Amendment 2026-07-02 (post-build — the
+`[MECHANICAL]` producer gap)` section of
+`docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`.
+Promoted three items to ROADMAP (single-id-two-views, reusing the TODO ids): M1
+(id:9c88, `[ROUTINE]`) teach `handoff.md` C2 to PRODUCE the tag + author the recipe;
+M2 (id:2313, `[HARD — pool]`) fix the three producer sites (`hard-lanes.md` re-lane,
+`handoff.md` author-then-run split, `human.md` "you run these") that still route
+daemon-runnable no-LLM work to `[HARD — hands]`; A3 (id:b3d0, `[HARD — pool]`)
+un-gated (deps 64d3/e407/68dc met) — the mechanical-run daemon. Slice-B rename
+(B1 id:4f02 / B2 id:8111) and M3 (id:3ef7 existing-item re-lane audit) stay GATED.
+Uses the CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`); the rename is wave 2b.
