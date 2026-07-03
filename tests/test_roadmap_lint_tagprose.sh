@@ -20,11 +20,15 @@ LINT="$ROOT/relay/scripts/roadmap-lint.sh"
 [[ -x "$LINT" ]] || { echo "roadmap-lint.sh not found/executable (RED): $LINT"; exit 1; }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 
-# --- Case (c) tag/prose disagreement → loud ERROR -----------------------------------------
+# --- Case (c) two-BARE-tag lane conflict → loud ERROR -------------------------------------
+# repointed 2026-07-03 (id:9078, owner-signed-off): case-c now counts only bare lanes; the
+# old backtick'd-mention fixture is the compliant c3f5 shape, no longer a conflict.
+# Repointed to a GENUINE two-BARE-tag conflict (two un-backtick'd lane tags on one line) so
+# the test still verifies real double-tag detection — the mechanically-detectable kind.
 cat > "$tmp/roadmap_c.md" <<'EOF'
 # Roadmap
 ## Items
-- [ ] [HARD — decision gate] benchmark thing — actually re-laned to `[HARD — pool]`, runs under --intensive now <!-- id:1111 -->
+- [ ] [HARD — pool] [ROUTINE] benchmark thing carrying two bare lane tags at once <!-- id:1111 -->
 EOF
 if "$LINT" "$tmp/roadmap_c.md" 2>"$tmp/err_c"; then
   echo "case c: tag/prose lane disagreement must ERROR (nonzero exit)"; exit 1
