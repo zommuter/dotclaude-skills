@@ -226,21 +226,26 @@ while IFS= read -r line; do
     # [MECHANICAL] is a CAPABILITY lane in this count too (id:7616) — a
     # [MECHANICAL] + [HARD — pool] item carries two capability lanes on one item,
     # exactly like two [HARD — *] tags would, and is rejected here.
+    # Only BARE (non-backtick'd) lane tags count (id:9078) — a lane tag mentioned
+    # inside a backtick-quoted span (e.g. documenting `[HARD]` as an example) is
+    # prose, not a second live lane on the item, and must not inflate the count.
+    # Mirrors first_lane_tag's strip=1 idiom (id:1bbd/ad8a).
+    _bare="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"
     _lc=0; _lf=()
-    echo "$line" | grep -qF '[ROUTINE]' && { _lc=$((_lc+1)); _lf+=('[ROUTINE]'); }
-    echo "$line" | grep -qF '[MECHANICAL]' && { _lc=$((_lc+1)); _lf+=('[MECHANICAL]'); }
+    echo "$_bare" | grep -qF '[ROUTINE]' && { _lc=$((_lc+1)); _lf+=('[ROUTINE]'); }
+    echo "$_bare" | grep -qF '[MECHANICAL]' && { _lc=$((_lc+1)); _lf+=('[MECHANICAL]'); }
     # Bare new-vocab [HARD] (id:4f02) — counted separately from the old `[HARD — *]`
     # spellings below so an item carrying BOTH (e.g. `[HARD — pool]` + `[HARD]`) is
     # correctly flagged as a two-lane conflict, never silently merged into one.
-    echo "$line" | grep -qF '[HARD]' && { _lc=$((_lc+1)); _lf+=('[HARD]'); }
+    echo "$_bare" | grep -qF '[HARD]' && { _lc=$((_lc+1)); _lf+=('[HARD]'); }
     while IFS= read -r _hl; do
       [[ -z "$_hl" ]] && continue
-      echo "$line" | grep -qF "$_hl" && { _lc=$((_lc+1)); _lf+=("$_hl"); }
+      echo "$_bare" | grep -qF "$_hl" && { _lc=$((_lc+1)); _lf+=("$_hl"); }
     done <<< "$hard_lanes"
     # New-vocab [INPUT — <kind>] lanes (id:4f02 dual-vocab window) count the same way.
     while IFS= read -r _il; do
       [[ -z "$_il" ]] && continue
-      echo "$line" | grep -qF "$_il" && { _lc=$((_lc+1)); _lf+=("$_il"); }
+      echo "$_bare" | grep -qF "$_il" && { _lc=$((_lc+1)); _lf+=("$_il"); }
     done <<< "$input_lanes"
     if [[ "$_lc" -gt 1 ]]; then
       violations=$((violations + 1))
