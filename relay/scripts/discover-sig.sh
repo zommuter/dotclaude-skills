@@ -61,6 +61,48 @@ repo_sig() {
   orphans="$(git -C "$path" for-each-ref --format='%(refname:short) %(objectname)' refs/heads/relay/orphan/ 2>/dev/null || true)"
   block="$(toml_block "$repo")"
   roadmap="$(cat "$path/ROADMAP.md" 2>/dev/null || true)"
+  # substantive_unaudited (id:e833 — 2a fix): mirrors gather-repo-state.sh's id:365b
+  # computation so the sig captures the AUDIT TARGET (which commit the audit ref
+  # resolves to), not just the tag NAME/message. A force-retagged ckpt (same name,
+  # same annotation, different target commit — e.g. the audit anchor advancing from
+  # execute-state to review-state) previously left `tags`/`tagmsg` byte-identical,
+  # so the sig silently missed a real state change (the execute→review sig-collision
+  # gap, id:3134/e833). Recomputing the same substantive-work verdict here closes it
+  # at the source: every discover-sig consumer benefits, no second policy list to
+  # keep in sync with classify-verdict.sh. FAIL-OPEN default true preserved.
+  newest_strong=""
+  if [[ -n "$tags" ]]; then
+    while IFS= read -r t; do
+      [[ -z "$t" ]] && continue
+      lbl="$(git -C "$path" tag -l --format='%(contents)' "$t" 2>/dev/null | awk 'NF{l=$0} END{print l}')"
+      case "$lbl" in
+        reviewer*|strong-execute*) newest_strong="$t"; break ;;
+      esac
+    done < <(printf '%s\n' "$tags" | tac)
+  fi
+  audit_ref="$(printf '%s\n' "$block" | sed -n 's/^[[:space:]]*last_strong_ckpt[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' | head -n1)"
+  [[ -z "$audit_ref" ]] && audit_ref="$latest"
+  if [[ -n "$audit_ref" && -n "$newest_strong" ]] && [[ "$newest_strong" > "$audit_ref" ]]; then
+    audit_ref="$newest_strong"
+  fi
+  substantive_unaudited=true
+  if [[ -n "$audit_ref" ]] && git -C "$path" rev-parse --verify -q "$audit_ref" >/dev/null 2>&1; then
+    audit_log="$(git -C "$path" log "$audit_ref"..HEAD --pretty='%H %s' 2>/dev/null || true)"
+    nonckpt_shas="$(printf '%s\n' "$audit_log" | grep -v '^[[:space:]]*$' \
+                     | grep -vE ' (relay|fable): checkpoint' | awk '{print $1}' | sort || true)"
+    if [[ -z "$nonckpt_shas" ]]; then
+      substantive_unaudited=false
+    else
+      has_substantive=false
+      while IFS= read -r sha; do
+        [[ -z "$sha" ]] && continue
+        files="$(git -C "$path" show --name-only --pretty=format: "$sha" 2>/dev/null | grep -v '^[[:space:]]*$' || true)"
+        nonlock="$(printf '%s\n' "$files" | grep -vx 'uv.lock' || true)"
+        [[ -n "$nonlock" ]] && { has_substantive=true; break; }
+      done <<< "$nonckpt_shas"
+      [[ "$has_substantive" == true ]] && substantive_unaudited=true || substantive_unaudited=false
+    fi
+  fi
   # Decision-queue records for this repo (open AND resolved): the classifier's verdict
   # depends on them via unpromoted-scan's case-g exclusion (id:47f1) + the resolved-record
   # exclusion (2026-07-02 answer-then-re-ask fix) — the queue lives OUTSIDE the repo, so no
@@ -80,6 +122,7 @@ repo_sig() {
     printf '== roadmap ==\n%s\n'   "$roadmap"
     printf '== dq ==\n%s\n'        "$dq"
     printf '== inlive ==\n%s\n'    "$inlive"
+    printf '== substantive_unaudited ==\n%s\n' "$substantive_unaudited"
   } | sha256sum | cut -d' ' -f1 | tr -d '\n'
 }
 
