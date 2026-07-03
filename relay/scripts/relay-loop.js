@@ -67,11 +67,6 @@ function emitBackstopFire(backstopId, repo, verdict) {
   pushEvent('backstop', { backstop: backstopId, repo, verdict })
 }
 
-// INTERACTIVE: pass-through of the front door's --interactive flag (default false).
-// The Workflow itself NEVER prompts the user (unattended invariant, meeting D2 —
-// enforced by tests/test_fables_front_door.sh grepping this file for the question tool);
-// when true, dispatch may surface choices in RELAY_STATUS.md instead of silently skipping.
-const INTERACTIVE = !!A.interactive
 // [INTENSIVE] gate (id:8d52; semantics revised id:052c): resource-heavy units (local-LLM
 // benchmarks, big index rebuilds — the OOM risk that killed 6 sessions) are NEVER auto-dispatched
 // by default. ONLY --intensive (synonym: --allow-intensive) opts in; then they run SERIALLY-ALONE
