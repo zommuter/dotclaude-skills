@@ -1552,3 +1552,25 @@ no-over-correction guard) — no additional whitespace-boundary regex was needed
 `tests/test_mechanical_lane_anchor.sh` is now GREEN, id:0d58 ticked in ROADMAP.md, and the full
 suite is 174 passed / 0 failed / 2 expected-red (unrelated open items). **Overall: PASS.** Do
 NOT push — parent session handles it.
+
+## relay(execute): id:fd37 — [MECHANICAL] recipe explicit-success-marker doctrine (2026-07-03)
+
+Implemented the two enforcement surfaces the RED spec (`tests/test_recipe_success_marker.sh`)
+pinned. (1) DOC: `relay/references/recipe-manifest.md` gained a new "Explicit success/failure
+marker (acceptance_artifact) — id:fd37" section documenting the requirement (a `cmd` that
+redirects into `acceptance_artifact` must append an explicit terminal marker AND preserve the
+real exit code) plus the canonical verbatim pattern `cd <repo> && { <realcmd> > "$ART" 2>&1;
+rc=$?; echo "MARKER exit=$rc finished=$(date -Is)" >> "$ART"; exit $rc; }`. (2) CODE:
+`relay/scripts/recipe-validate.sh` grew a conservative advisory check (python3 stdlib, run only
+after the existing 7-field schema hard-fail passes) that emits a `WARNING:` on stderr — still
+exit 0 — iff `cmd` contains the `acceptance_artifact` value alongside a redirect (`>`) and
+carries no `exit=`/`exit $?`-style marker token; a cmd already carrying the canonical `exit=$rc`
+pattern draws no warning, so no false positive on a correct recipe. Also updated the producer
+site per the item's stated scope: `relay/references/handoff.md`'s C2 `[MECHANICAL]`-tagging
+paragraph now tells the recipe author to include the `exit=$rc` marker when the `cmd` redirects
+into `acceptance_artifact`, pointing at `recipe-manifest.md` for the pattern and noting
+`recipe-validate.sh`'s non-fatal warning. `tests/test_recipe_success_marker.sh` is GREEN (all
+three assertions a/b/c), id:fd37 ticked in both ROADMAP.md and its TODO.md twin (`md-merge.py
+update-ids`, flock'd), and the full suite is 175 passed / 0 failed / 2 expected-red (unrelated
+open items: id:14d0 stub-placement spec). **Overall: PASS.** Do NOT push — parent session
+handles it.

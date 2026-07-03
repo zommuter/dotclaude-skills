@@ -86,6 +86,37 @@ Built with `python3` stdlib `json` for parsing/typing (never fragile string mung
 the CLAUDE.md JSON gotcha), wrapped in `set -euo pipefail` bash per the repo's script
 convention.
 
+## Explicit success/failure marker (acceptance_artifact) — id:fd37
+
+A `[MECHANICAL]` recipe's `cmd` must never leave the `acceptance_artifact` EMPTY on
+success. Several common tools (e.g. `tsc`/`pnpm typecheck`) are silent-on-clean — a
+plain `cmd` like `pnpm -s typecheck > "$ART" 2>&1` writes nothing to `$ART` when the
+run is clean, and an empty artifact is an ambiguous acceptance signal: a reviewer
+cannot tell "ran clean" from "never ran / redirect failed". The daemon's own
+success/fail branch is exit-code driven and already correct; this doctrine is purely
+about the artifact a human or reviewer inspects afterward.
+
+**Requirement:** every recipe `cmd` that redirects into its `acceptance_artifact` must
+append an EXPLICIT terminal marker AND preserve the real exit code, so the daemon's
+exit-code branch keeps working. The canonical safe pattern (recipe authors should copy
+this verbatim, substituting `<repo>`/`<realcmd>`):
+
+```bash
+cd <repo> && { <realcmd> > "$ART" 2>&1; rc=$?; echo "MARKER exit=$rc finished=$(date -Is)" >> "$ART"; exit $rc; }
+```
+
+This captures the command's real exit status in `rc`, appends an explicit
+`exit=$rc` marker line to the `acceptance_artifact` unconditionally (so the artifact
+is never empty, success or failure), and re-exits with the preserved `rc` so anything
+branching on exit code (the daemon's `.error`-sibling logic) is unaffected.
+
+`relay/scripts/recipe-validate.sh` enforces this as an ADVISORY (non-fatal) check: a
+recipe whose `cmd` redirects into `acceptance_artifact` with no `exit=`/`exit $?`-style
+marker draws a `WARNING:` on stderr but still exits 0 — the 7-field schema hard-fail
+above is unchanged and takes priority. The validator can't parse arbitrary shell, so the
+check is deliberately conservative (it only flags the specific footgun above, and never
+flags a cmd already carrying the canonical `exit=$rc` marker).
+
 ## Context / non-goals
 
 - Mirrors the `acquire-resource.sh` / `resource-claims.md` script+doc idiom already
