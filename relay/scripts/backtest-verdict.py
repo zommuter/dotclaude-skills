@@ -131,7 +131,7 @@ def main():
             log_path = argv[idx + 1]
 
     last = last_dispatch()
-    rows, crashes = [], []
+    rows, crashes, red_rows = [], [], []
     dist = collections.Counter()
     agree = disagree = newrepo = red = expected = 0
     for name, path in own_repos():
@@ -160,6 +160,14 @@ def main():
                     if cur_sig and dispatch_sig == cur_sig:
                         # Input unchanged but verdicts differ → real disagreement
                         red += 1; status = "RED"
+                        # id:e833 — persist the attributable row so a disputed RED never
+                        # has to be reconstructed from relay-events.jsonl (id:3134's gap).
+                        red_rows.append({
+                            "repo": name,
+                            "dispatch_verdict": prev_mode,
+                            "classifier_verdict": verdict,
+                            "sig": dispatch_sig,
+                        })
                     else:
                         # Input changed or current-sig unknown → state drift
                         expected += 1; status = "EXPECTED"
@@ -178,6 +186,8 @@ def main():
     if do_append_log:
         os.makedirs(os.path.dirname(os.path.abspath(log_path)), exist_ok=True)
         entry = dict(summary)
+        # id:e833 — attributable per-repo RED rows, one per RED bucket, len == entry["red"].
+        entry["red_rows"] = red_rows
         entry["timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         with open(log_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
