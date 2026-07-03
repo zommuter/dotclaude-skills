@@ -58,6 +58,15 @@ function pushEvent(kind, fields) {
   pendingEvents.push(JSON.stringify({ ts: state.ts || '', runId: state.runId || '', kind, ...fields }))
 }
 
+// id:854c — shared emitter for the three JS-side dispatch backstops (id:000d/9973/ad74).
+// Each backstop previously only log()d its fire to sandbox stdout, leaving b50e's
+// GO-criterion (a) — evidence of how often they actually fire — unmeasured. Reuses the
+// existing durable pushEvent sink (pendingEvents -> snapshotState -> relay-events.jsonl);
+// no new file write, no fs/net/shell, no process.env/Date.now().
+function emitBackstopFire(backstopId, repo, verdict) {
+  pushEvent('backstop', { backstop: backstopId, repo, verdict })
+}
+
 // INTERACTIVE: pass-through of the front door's --interactive flag (default false).
 // The Workflow itself NEVER prompts the user (unattended invariant, meeting D2 —
 // enforced by tests/test_fables_front_door.sh grepping this file for the question tool);
@@ -919,6 +928,7 @@ Return {units, surfaced, skipped} = the CONCATENATION across every repo in your 
       log(`relay-loop: id:000d finished-repo demote — ${demotedFinished.length} unit(s) removed from dispatch (execute/hard/handoff on finished repos): ${demotedFinished.map(u => u.repo).join(', ')}`)
       for (const u of demotedFinished) {
         surfaced.push({ repo: u.repo, reason: 'finished repo (0 open items, clean, no unaudited commits) — not dispatched (anti-false-handoff guard id:000d)' })
+        emitBackstopFire('000d', u.repo, u.verdict)
       }
       units.length = 0
       units.push(...kept)
@@ -951,6 +961,7 @@ Return {units, surfaced, skipped} = the CONCATENATION across every repo in your 
       log(`relay-loop: id:9973 HARD-pool demote — ${demotedHard.length} unit(s) removed from dispatch (hard verdict, no open [HARD — pool] item): ${demotedHard.map(u => u.repo).join(', ')}`)
       for (const u of demotedHard) {
         surfaced.push({ repo: u.repo, reason: 'HARD backlog is gated — no open [HARD — pool] item (only meeting/hands/decision-gate lanes); not dispatched (deterministic demote-guard id:9973)' })
+        emitBackstopFire('9973', u.repo, u.verdict)
       }
       units.length = 0
       units.push(...kept)
@@ -984,6 +995,7 @@ Return {units, surfaced, skipped} = the CONCATENATION across every repo in your 
         u.verdict = 'execute'
         u.reason = `promoted by INTENSIVE-emit backstop (id:ad74): open [INTENSIVE — ${top_intensive}] item found but shard classified idle — intensive dispatch gated behind --allow-intensive. ${u.reason || ''}`.trim()
         promotedIntensive.push(`${u.repo}(idle→execute,${top_intensive})`)
+        emitBackstopFire('ad74', u.repo, u.verdict)
       } else {
         promotedIntensive.push(`${u.repo}(intensive-field-patched,${top_intensive})`)
       }
