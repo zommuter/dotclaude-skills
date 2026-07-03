@@ -2809,6 +2809,28 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     speak new vocab — the window can't close while any consumer is old-vocab-only). Closing early
     would break every repo still on `[HARD — *]`.
 
+## [MECHANICAL] lane-anchor hotfix (relay handoff 2026-07-03)
+
+- [ ] classify-repo.sh open_mechanical must be LANE-ANCHORED, not a bare substring [ROUTINE] <!-- id:0d58 -->
+  - **Why** (TODO id:0d58): `classify-repo.sh` has two disagreeing tag readers on an open
+    `- [ ]` ROADMAP line. The primary-lane derivation (~line 102, id:4da4) is positionally
+    ANCHORED — the FIRST recognized `LANE_TAGS` token wins; backtick/prose mentions further
+    right are ignored. But the `open_mechanical` counter (~line 93, `if "[MECHANICAL]" in ln`)
+    is a BARE SUBSTRING test outside that anchoring — `[MECHANICAL]` is not in `LANE_TAGS`. So an
+    open item whose REAL lane is `[HARD — pool]`/`[ROUTINE]` but that merely mentions a
+    backtick'd `` `[MECHANICAL]` `` on the same line falsely increments `open_mechanical`, which
+    drives the priority-6 `mechanical` verdict (classify-verdict.sh:146, `open_mechanical >= 1`)
+    and can mis-fire it on a repo that has no genuine mechanical work.
+  - **How**: make the `open_mechanical` count LANE-ANCHORED the same way the primary-lane parse
+    is — only a line whose PRIMARY lane is `[MECHANICAL]` counts (e.g. add `[MECHANICAL]` to
+    `LANE_TAGS` and gate the increment on `primary == "[MECHANICAL]"`). Do NOT touch
+    classify-verdict.sh's priority cascade; the false positive is purely the count.
+  - **Acceptance**: `tests/test_mechanical_lane_anchor.sh` (`# roadmap:0d58`, RED until fixed)
+    goes GREEN: (1) a `[ROUTINE] @manual` / `[HARD — pool]` open item mentioning a backtick'd
+    `` `[MECHANICAL]` `` does NOT count in `open_mechanical` (via `--emit unit`) and does NOT
+    yield the `mechanical` verdict; (2) a GENUINE `[MECHANICAL]`-primary item STILL counts and
+    STILL classifies `mechanical` (no over-correction to zero). `make test` fully green.
+
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
 Decomposition of the orphan-reconcile design. **Sequence: D1 → D2/D3** (D2's reconcile
