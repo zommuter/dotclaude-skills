@@ -1533,3 +1533,22 @@ judgment now LEADS with "BDD-automate? (why isn't this a test?)" before any `[IN
 = undecidable-only catch-all; NO `[INPUT — run]` lane. Cross-ledger D2 consistent (8111 `[x]`
 both ledgers, 7df1 `[ ]` both). `roadmap-lint.sh ROADMAP.md` exit 0; full suite 173 passed / 0
 failed / 2 expected-red. **Overall: PASS.** Do NOT push — integrator merges.
+
+## relay(execute): id:0d58 — anchor open_mechanical to primary lane (2026-07-03)
+
+Fixed the `[MECHANICAL]` lane-anchoring bug in `relay/scripts/classify-repo.sh` (id:0d58).
+`open_mechanical` was a bare-substring test (`if "[MECHANICAL]" in ln`) independent of the
+id:4da4 primary-lane derivation, so a backtick'd `` `[MECHANICAL]` `` mention on a
+differently-laned open item (e.g. `[ROUTINE] @manual ... `[MECHANICAL]` runner note` or
+`[HARD — pool] ... superseded a `[MECHANICAL]` sub-step`) falsely inflated the count and could
+mis-fire the priority-6 `mechanical` verdict. Fix: added `[MECHANICAL]` to `LANE_TAGS` so it
+flows through the SAME positional `primary = min(_found)[1]` derivation as every other lane,
+derived `is_mechanical = (primary == "[MECHANICAL]")`, and deleted the standalone bare-substring
+counter — `primary` is now the sole lane reader, so no future tag can bypass anchoring.
+`classify-verdict.sh`'s priority cascade was untouched per the reviewer's caveat (the bug was
+purely the count). The anchoring alone satisfied all three RED fixtures (false-positive on
+`[ROUTINE]`-mention, false-positive on `[HARD — pool]`-mention, and the genuine-`[MECHANICAL]`
+no-over-correction guard) — no additional whitespace-boundary regex was needed.
+`tests/test_mechanical_lane_anchor.sh` is now GREEN, id:0d58 ticked in ROADMAP.md, and the full
+suite is 174 passed / 0 failed / 2 expected-red (unrelated open items). **Overall: PASS.** Do
+NOT push — parent session handles it.
