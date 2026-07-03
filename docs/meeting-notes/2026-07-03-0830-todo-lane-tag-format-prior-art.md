@@ -1,0 +1,52 @@
+# 2026-07-03 — TODO/lane-tag format: harden the parser vs adopt prior art
+
+**Started:** 2026-07-03 08:30
+**Session:** 37471f95-5936-4c3a-be5a-90e25272b8c7
+**Attendees:** 🏗️ Archie (architect), 😈 Riku (devil's advocate — sunk cost/blast radius), ✂️ Petra (productivity/minimalism), 🎛️ Orla (multi-agent orchestration — parser's mechanized consumer), ⚙️ Sage (skill-runtime / format & parsing lens)
+**Topic:** The `[MECHANICAL]` classifier false-positive → harden the homegrown bracket format in place, or migrate to a prior-art tag syntax (todo.txt-style whitespace-delimited sigils / frontmatter), avoiding NIH + sunk-cost.
+
+## Prior art surfaced (web research, owner-requested)
+- **todo.txt** (Gina Trapani open standard, github.com/todotxt/todo.txt): `@context` = single space + `@` + non-whitespace; `+project` = space + `+`; `key:value` = both non-whitespace, no colon. Tags are **whitespace-delimited by spec** — the exact "surrounded by whitespace" property the homegrown `[LANE]` bracket lacks. One line per task; `x` prefix + dates for completion.
+- **YAML/TOML frontmatter**: per-*file* structured metadata. Fits one-task-per-file (the memory dir already does this); poor fit for many-tasks-per-ledger with multi-line bodies (ROADMAP).
+
+## Root cause (verified this session)
+`relay/scripts/classify-repo.sh` has TWO tag readers that disagree:
+- L102 lane derivation is positionally anchored (id:4da4): FIRST recognized `LANE_TAGS` token wins; prose/backtick mentions further right ignored. Built after leAIrn2learn c3f5 (backtick'd `[ROUTINE]` 1600 chars into handback history mis-fired execute).
+- L93 `if "[MECHANICAL]" in ln:` is a bare substring test — NOT in `LANE_TAGS`, does NOT participate in anchoring. `open_mechanical>=1` drives the priority-6 `mechanical` verdict (classify-verdict.sh L146).
+- **Latent-not-live today**: no open ROADMAP checkbox line carries a backtick'd `[MECHANICAL]`; Why-bodies aren't `- [ ]` lines so aren't scanned. So the answer to "can the classifier cope with meta-TODOs that mention tags in backticks?" is: **yes for the standard lanes (anchored), no for `[MECHANICAL]` (bypasses anchoring)** — hence this meeting.
+
+## Discussion
+
+### Item 1 — immediate fix
+🏗️ Archie: two tag readers disagree; the newest tag bypassed the very anchoring built after c3f5. Fix is precise.
+⚙️ Sage: the deeper lesson is the owner's — "only tags surrounded by whitespace." todo.txt codifies exactly that ("preceded by a single space"). A bracket token can sit adjacent to prose punctuation; a space-delimited token can't hide inside a word. But the *minimal* correctness fix doesn't need a sigil change — it needs `[MECHANICAL]` to join the anchored derivation.
+✂️ Petra: minimal = add `[MECHANICAL]` to `LANE_TAGS`, derive `is_mechanical = (primary == "[MECHANICAL]")`, delete the L93 substring counter. ~3 lines; inherits anchoring free. RED test: a `[HARD — pool]` item with a backtick'd `[MECHANICAL]` in its body must NOT emit the mechanical verdict.
+🎛️ Orla: blast radius today is a *wasted* verdict, not a wrong execution — the daemon only runs whitelisted relay-authored recipes, never scrapes ROADMAP, so a false `mechanical` verdict finds no recipe and no-ops. Worth fixing anyway: it masks the true verdict (a repo with real ROUTINE work mislabeled mechanical-only would skip dispatch).
+😈 Riku: fix the *class*, not instance N. Make the anchored derivation the SOLE lane reader so the next tag added physically can't skip it — don't just add MECHANICAL to a tuple and leave the second reader alive.
+
+### Item 2 — prior art vs harden-in-place
+🏗️ Archie: the recurring bug class = "a machine tag in a syntax that also occurs in prose." Brackets are everywhere in Markdown. todo.txt's real lesson isn't "adopt our format" — it's "your tag SIGIL is the problem; use a reserved space-delimited one." Two orthogonal questions: change the sigil? adopt the whole container?
+⚙️ Sage: container is decided against — full todo.txt is one-line-per-task; ROADMAP items carry multi-line Why/GATED/Out-of-scope bodies, and todo.txt isn't Markdown (lose GitHub `- [ ]` rendering + the invisible `<!-- id:XXXX -->`; todo.txt `id:X` is visible noise). Frontmatter is per-file → fits the memory dir, not many-tasks-per-ledger. So the container stays Markdown checklists; only the tag sigil is live.
+✂️ Petra: a sigil swap = migrate ~15 tests + both ledgers + every own-repo + project_manager scan.py — the SAME blast radius as the rename we're mid-window on (7df1), for a latent-not-live bug. Whitespace-anchoring gets 95% of the robustness for 2% of the cost. YAGNI until anchoring demonstrably fails.
+😈 Riku: sunk-cost cuts both ways. B2c (7df1) is ALREADY rewriting every lane tag. The cheapest moment in history to change a sigil is while your hands are already on every tag. Anchor-now + sigil-later = touch every tag twice. The real trap isn't "we built brackets," it's "we'll migrate twice because we flinched." Decide the endgame sigil now even if rollout is staged.
+🎛️ Orla: the mechanized consumer (id:4d8e "shrink the LLM surface") wants the tag unambiguously regex-extractable with no LLM fallback. `@lane`/`key:value` gives that *lexically* (one grammar, whitespace-delimited). Brackets+anchoring gives it *positionally* (first-token rule enforced by lint, not guaranteed by the grammar). Lexical > positional — but only marginally over a well-linted positional rule.
+
+### Item 3 — sequencing vs 7df1
+😈 Riku: if endgame is harden-in-place, sequencing is trivial. If endgame is sigil, the only sane path is fold-into-7df1 — the dual-vocab window (lane-convert.sh + dual-accept lint) IS the migration machinery. Extend lane-convert.sh to rewrite the sigil, run once, close window once. A second independent migration later is the anti-pattern.
+✂️ Petra: but 7df1 is GATED on M3 + every other own-repo + scan.py speaking new vocab. Folding a sigil grammar into it couples two hard things and widens an already-wide gate. Ship the parser fix now regardless; make the sigil a SEPARATE future decision with its own evidence gate.
+🎛️ Orla: (A)-now is on the path to (B), not a detour — you can't converge on `@lane` until you first know where the lane token *is* (anchoring) and lint that it's there (tag-first). So the fix is a prerequisite for the sigil migration either way — never throwaway.
+
+## Amendment — owner surfaced "tag truly first"
+Owner question at D1: *"why even `fix …` before the tag at all? require it truly first — even easier to parse."* Correct: today's convention is `- [ ] <title/desc> [LANE] … <!-- id -->` (tag near the END), which is exactly WHY the anchoring machinery (id:4da4 `min()` over `LANE_TAGS`) has to exist — the tag has no fixed position. If the capability tag were the **first non-whitespace token after the checkbox** (`- [ ] [ROUTINE] fix classifier … <!-- id -->`), parsing collapses to a single fixed-offset read (`^- \[[ x]\] (\[[^\]]+\]|@\S+)`) — no anchoring, no whitespace-heuristic, no lint-enforced convention, because the grammar itself pins it.
+BUT moving every existing item's tag to first position is a cross-ledger + cross-repo migration — the SAME blast-radius class as the sigil swap, and it interacts with the sigil choice (if we adopt `@routine`, first-position `@routine` is the natural landing). So **tag-position-first becomes candidate (C) in the endgame spike**, not part of the hotfix. The hotfix stays format-agnostic (works with tag-anywhere via anchoring) and is not blocked on the position decision.
+
+## Decisions
+1. **Ship the parser-hardening hotfix this session (format-agnostic).** Fold `[MECHANICAL]` into `LANE_TAGS` so it rides the id:4da4 anchored `primary`-tag derivation; delete the L93 bare-substring counter so the anchored derivation is the SOLE lane reader (Riku: next tag can't skip it); whitespace-delimit the token match (Sage/owner: a tag must be bounded by whitespace/line-edge, so a backtick-adjacent `[MECHANICAL]` in prose can't match). Works with the current tag-anywhere convention — no ledger churn.
+2. **Fix scope = parser hardening only; NO tag-first lint yet.** A "tag must be first" lint would pre-empt the spike's candidate (C); defer all lint/convention enforcement until the spike picks the endgame.
+3. **Endgame format = deferred to a design spike (not decided now).** Spike compares (A) harden brackets in place + lint tag-first-among-trailing, (B) todo.txt-style whitespace-delimited `@sigil`/`key:value`, (C) tag-truly-first position. Axes: blast radius, GitHub `- [ ]` rendering, invisible-id preservation, dual-vocab lint, `lane-convert.sh` extension, interaction with the in-flight 7df1 window. SHOULD resolve before 7df1 closes so a format change can fold into that window (touch-once, Riku); if (A) it's independent.
+4. **Dispatch follows /relay rules — background, reviewer/executor separated.** RED spec authored in the BACKGROUND by a strong-model handoff agent (owner ask), NOT by the executor (the split exists precisely so the executor can't author its own acceptance test — anti-gaming). Then a background Sonnet executor implements to green per the /relay executor contract (DoD: RED passes + refactor pass + full `make test` green + `RELAY_LOG.md` self-report; never weaken/skip/rewrite a test).
+
+## Action items
+- [ ] **Hotfix — anchor `[MECHANICAL]` into the sole whitespace-delimited lane reader in `classify-repo.sh`** (add to `LANE_TAGS`, derive `is_mechanical` from `primary`, delete L93 substring counter, whitespace-token match). RED spec `tests/test_mechanical_lane_anchor.sh`: a `[HARD — pool]` item with a backtick'd `[MECHANICAL]` in its body must NOT increment `open_mechanical` / emit the `mechanical` verdict. Dispatch: background relay handoff (RED) → background Sonnet executor. [ROUTINE] <!-- id:0d58 -->
+- [ ] **Design spike — machine-tag format endgame (A harden / B `@sigil` / C tag-first-position)** framed by the todo.txt + frontmatter prior art; output an A/B/C decision with blast-radius + rendering + 7df1-fold analysis; resolve before the 7df1 dual-vocab window closes. [HARD — meeting] <!-- id:d259 -->
+- Relate to id:7df1 (B2c-finalizer dual-vocab window): if the spike picks (B) or (C), fold the syntax change into `lane-convert.sh` and close the window ONCE; if (A), independent. (in-session note)
