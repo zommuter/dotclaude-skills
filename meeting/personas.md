@@ -122,3 +122,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🏷️ **Nomi** — naming & brand-linguistics lens; phonaesthetics, memorability, trademark distinctiveness (coinage vs genre-cliché suffixes), domain/handle availability, cross-language meaning/insult screening. Introduced 2026-06-30 (truncocraft/game-public-name-loderite).
 
 - 🏔️ **Terra** — procedural terrain / landscape synthesis lens; midpoint displacement, value-noise, PCHIP silhouettes, deterministic pinned-seed (value-axis-anchored) roughness, honest data→terrain mapping (amplitude bounded by interpolation uncertainty). Introduced 2026-07-02 (whalemountain/whalemountain-wealth-mountainscape-design).
+
+- 💼 **Bruno** — Swiss self-employment / social-insurance & RAV lens; AHV/IV/ALV, Zwischenverdienst declaration mechanics (hours↔income coupling), Schenkung/Zuwendung vs earned income, in-kind benefit valuation, Handelsregister threshold, Sallis/payroll-umbrella vs selbständig registration. Introduced 2026-07-03 (kienzler-homepage/zkwhale-financials-settlement-scrutiny).
