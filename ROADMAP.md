@@ -2833,7 +2833,7 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
 
 ## [MECHANICAL] recipe explicit-success-marker doctrine (relay handoff 2026-07-03)
 
-- [ ] `[MECHANICAL]` recipes must write an EXPLICIT success/failure marker into the acceptance_artifact [ROUTINE] <!-- id:fd37 -->
+- [x] `[MECHANICAL]` recipes must write an EXPLICIT success/failure marker into the acceptance_artifact [ROUTINE] <!-- id:fd37 -->
   - **Why** (TODO id:fd37, pilot finding — mechanical-daemon's first real firing on zkWhale
     id:0a7b, 2026-07-03): a recipe whose `cmd` is e.g. `pnpm -s typecheck` writes an EMPTY
     `acceptance_artifact` on success (tsc is silent-on-clean). An empty artifact is an

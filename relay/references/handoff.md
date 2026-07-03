@@ -85,7 +85,11 @@ for it: write a recipe JSON following the `recipe-manifest.md` schema (id:64d3) 
 `~/.config/relay/recipes/pending/`. This is the producer link the mechanical-run
 daemon (A3, id:b3d0) consumes: without an authored recipe in `recipes/pending/`,
 tagging `[MECHANICAL]` alone routes the item to the pool-inert `mechanical` verdict
-but nothing ever runs it.
+but nothing ever runs it. **Explicit success marker (id:fd37):** if the recipe's
+`cmd` redirects into its `acceptance_artifact`, append the canonical
+`exit=$rc` marker pattern documented in `recipe-manifest.md` — a silent-on-clean
+tool (e.g. `tsc`) otherwise leaves an ambiguous EMPTY artifact on success;
+`recipe-validate.sh` warns (non-fatally) when a recipe omits it.
 
 **Surface lane-triage — the "below" for `surface` items (id:47f1, id:5eb3).**
 `surface`-disposition items (untagged / `[INPUT — meeting|access]` — old vocab:

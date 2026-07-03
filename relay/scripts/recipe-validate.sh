@@ -92,4 +92,37 @@ if [ -n "$bad_field" ]; then
   exit 1
 fi
 
+# Advisory (non-fatal) explicit-success-marker check (id:fd37). A [MECHANICAL] recipe's
+# `cmd` that redirects into its own acceptance_artifact but never appends an explicit
+# terminal marker leaves an EMPTY artifact on a silent-on-clean tool (e.g. `tsc`) —
+# indistinguishable from "never ran". This is advisory ONLY: it never fails the schema
+# check above, it only warns on stderr so a relay reviewer can fix the recipe before it
+# reaches the daemon. Deliberately conservative — we can't parse arbitrary shell, so we
+# only warn when the cmd both (1) redirects into the acceptance_artifact and (2) carries
+# no exit-preserving marker token (`exit=...` / `exit $?`); see recipe-manifest.md for the
+# canonical safe pattern this check is nudging recipes toward.
+marker_warning="$(python3 - "$path" <<'PY'
+import json, re, sys
+
+path = sys.argv[1]
+with open(path) as fh:
+    data = json.load(fh)
+
+cmd = data.get("cmd", "")
+artifact = data.get("acceptance_artifact", "")
+
+redirects_to_artifact = bool(artifact) and artifact in cmd and ">" in cmd
+has_marker = bool(re.search(r'exit=\$?\{?\w*\}?|exit\s+\$\?', cmd))
+
+if redirects_to_artifact and not has_marker:
+    print("WARNING: cmd redirects into acceptance_artifact but has no explicit "
+          "exit-preserving marker (e.g. 'exit=$rc') — a silent-on-clean tool "
+          "would leave an ambiguous EMPTY artifact; see recipe-manifest.md")
+PY
+)"
+
+if [ -n "$marker_warning" ]; then
+  echo "$marker_warning" >&2
+fi
+
 exit 0
