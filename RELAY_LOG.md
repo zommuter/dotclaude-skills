@@ -1574,3 +1574,35 @@ three assertions a/b/c), id:fd37 ticked in both ROADMAP.md and its TODO.md twin 
 update-ids`, flock'd), and the full suite is 175 passed / 0 failed / 2 expected-red (unrelated
 open items: id:14d0 stub-placement spec). **Overall: PASS.** Do NOT push — parent session
 handles it.
+
+## 2026-07-03 — executor (Sonnet) id:ad8a
+
+Worked id:ad8a — added the tag-first-among-trailing lint to `relay/scripts/roadmap-lint.sh`
+(the "A" floor of the d259 A→C decision). New `first_lane_tag <line> <strip>` helper mirrors
+`classify-repo.sh`'s raw `min()` scan (strip=0) and `gather-repo-state.sh::roadmap_primary_lane`'s
+backtick-stripped scan (strip=1, id:1bbd) over the same full lane-tag set ([ROUTINE]/[MECHANICAL]/
+[HARD]/hard_lanes/input_lanes). Inside the existing `has_class` block, computes `raw_first` and
+`genuine_first` and emits a `WARN` (report-only, exit 0 — no `violations` increment) when they
+diverge, naming the ordering ("tag-first-among-trailing … precedes the genuine lane tag …
+raw-first=… genuine-first=…") so it stays grep-separable from case-c's "conflict/multiple lane
+brackets" wording. `tests/test_roadmap_lint_tag_first.sh` (`# roadmap:ad8a`) is GREEN on all three
+fixtures (a: prose-before-genuine flagged; b: plain tag-first not flagged; c: genuine-first with a
+later backtick'd mention not flagged).
+
+Case-c backtick-awareness: the handoff/TODO note recommended also stripping backticks before
+counting case-c's lane brackets, so the c3f5-compliant shape (genuine tag first, backtick'd
+mention later) stops false-positiving as a "conflict". Verified this is NOT safe to add: stripping
+backticks collapses `tests/test_roadmap_lint_tagprose.sh`'s own case-c fixture (`[HARD — decision
+gate] … actually re-laned to `[HARD — pool]``) to a single bracket too, silencing the genuine
+tag/prose ERROR that test requires — both fixtures are structurally identical (genuine tag first,
+a *different* tag later in backticks); only the prose semantics differ, which bracket-counting
+can't distinguish. Per the reviewer's explicit escape hatch, left case-c's counting untouched
+rather than weaken/break `test_roadmap_lint_tagprose.sh`. The c3f5 shape still trips case-c's OLD
+"conflict" message as a known, harmless, pre-existing false-positive (different message string,
+doesn't collide with the new tag-first diagnostic, outside this test's assertions) — noted in
+ROADMAP.md under id:ad8a for a possible future follow-up (likely resolved for good once id:7df1/
+d259-C's structural reorder deletes this anchoring reimplementation entirely).
+
+id:ad8a ticked in both ROADMAP.md and its TODO.md twin (`md-merge.py update-ids`, flock'd). Full
+suite: 176 passed / 0 failed / 2 expected-red (unrelated open items: id:14d0 stub-placement spec,
+id:5884 Fable model gate). **Overall: PASS.** Do NOT push — parent session handles it.

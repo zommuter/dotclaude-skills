@@ -108,6 +108,47 @@ input_alt="$(printf '%s\n' "$input_lanes" \
 # (id:9062).
 class_re="\[ROUTINE\]|\[MECHANICAL\]|\[HARD\]|\[HARD — (${lane_alt})\]|\[INPUT — (${input_alt})\]"
 
+# --- TAG-FIRST-AMONG-TRAILING lint (id:ad8a) -----------------------------------
+# INVARIANT (id:4da4/id:0d58 PRIMARY-LANE anchoring): an item's genuine capability
+# lane is the FIRST recognized lane-tag on the line. classify-repo.sh's LANE_TAGS
+# `min()` anchors on the RAW first-position lane-tag (no backtick strip);
+# gather-repo-state.sh's roadmap_primary_lane (id:1bbd) anchors on the first
+# lane-tag AFTER stripping backtick-quoted spans. These two readers silently
+# split-brain when a prose/backtick'd lane bracket precedes the genuine tag —
+# classify-repo mis-anchors on the prose one while gather anchors on the genuine
+# one. WARN (report-only) surfaces the disagreement without blocking the loop,
+# per "observe before preventing" and because the id:4f02/8111 dual-vocab window
+# actively churns lane-tag spellings.
+all_lane_tags=("[ROUTINE]" "[MECHANICAL]" "[HARD]")
+while IFS= read -r _hl; do
+  [[ -n "$_hl" ]] && all_lane_tags+=("$_hl")
+done <<< "$hard_lanes"
+while IFS= read -r _il; do
+  [[ -n "$_il" ]] && all_lane_tags+=("$_il")
+done <<< "$input_lanes"
+
+# first_lane_tag <line> <strip:0|1> — leftmost recognized lane-tag by byte
+# position; strip=1 removes backtick-quoted spans first (mirrors id:1bbd),
+# strip=0 leaves them (mirrors classify-repo.sh's raw min() scan).
+first_lane_tag() {
+  local line="$1" strip="$2" search tag prefix pos best_pos=-1 best_tag=""
+  if [[ "$strip" -eq 1 ]]; then
+    search="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"
+  else
+    search="$line"
+  fi
+  for tag in "${all_lane_tags[@]}"; do
+    case "$search" in
+      *"$tag"*)
+        prefix="${search%%"$tag"*}"; pos=${#prefix}
+        if [[ "$best_pos" -lt 0 || "$pos" -lt "$best_pos" ]]; then
+          best_pos=$pos; best_tag="$tag"
+        fi ;;
+    esac
+  done
+  printf '%s' "$best_tag"
+}
+
 # A 4-hex id token, the canonical `<!-- id:XXXX -->` or a bare `id:XXXX`.
 id_re='id:[0-9a-fA-F]{4}'
 
@@ -215,6 +256,19 @@ while IFS= read -r line; do
     # A lane-less [INTENSIVE] item (no recognised class tag) is already rejected by
     # the has_class=0 path above — no further check needed here.
     # (Supersedes the former id:db39 pool-only restriction.)
+
+    # Case (tag-first, id:ad8a): the genuine (backtick-stripped) primary lane must
+    # be the RAW first-position lane-tag too, else classify-repo.sh (no strip) and
+    # gather-repo-state.sh (strip) silently anchor on different lanes. WARN only —
+    # report-only, never increments `violations` / the nonzero exit. Wording must
+    # name the ORDERING (first/precede/anchor) so it stays grep-separable from the
+    # case-c "conflict"/"multiple lane brackets" message above (id:297b).
+    _raw_first="$(first_lane_tag "$line" 0)"
+    _genuine_first="$(first_lane_tag "$line" 1)"
+    if [[ -n "$_genuine_first" && "$_raw_first" != "$_genuine_first" ]]; then
+      echo "roadmap-lint: WARN — tag-first-among-trailing: a prose/backtick'd lane bracket precedes the genuine lane tag, so classify-repo's raw anchor disagrees with gather's primary-lane anchor (raw-first='${_raw_first}' genuine-first='${_genuine_first}')" >&2
+      echo "  $line" >&2
+    fi
   fi
 
   [[ "$has_class" -eq 1 && "$has_id" -eq 1 ]] && continue
