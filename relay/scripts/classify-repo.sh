@@ -66,7 +66,10 @@ HUMAN_GATES = (
 # dash-lane) is the new-vocab rename of "[HARD — pool]" — an EXACT-substring match, so
 # it never false-matches inside "[HARD — pool]"/"[HARD — hands]"/etc. (those contain
 # "[HARD —", never the literal "[HARD]").
-LANE_TAGS = ("[ROUTINE]", "[HARD — pool]", "[HARD]") + HUMAN_GATES
+# id:0d58 — "[MECHANICAL]" joins LANE_TAGS so it is anchored through the SAME
+# positional primary-lane derivation as every other lane, rather than read by its own
+# bare-substring test (see the id:0d58 note at the open_mechanical counter below).
+LANE_TAGS = ("[ROUTINE]", "[HARD — pool]", "[HARD]", "[MECHANICAL]") + HUMAN_GATES
 
 path     = os.environ["CLASSIFY_PATH"]
 with open(os.environ["BASE_FILE"]) as _f: base_json = _f.read()
@@ -86,12 +89,6 @@ if os.path.isfile(rm):
             if not re.match(r"\s*- \[ \] ", ln):
                 continue
             roadmap_open += 1
-            # id:7616 — [MECHANICAL] capability tier: minimal producer wiring only (no
-            # human/pool exclusion needed — the tag itself IS pool-inert/human-inert by
-            # definition, unlike [ROUTINE]/[HARD — pool] which need the @manual/blocked
-            # carve-outs above). Counted independently of the primary-lane derivation below.
-            if "[MECHANICAL]" in ln:
-                open_mechanical += 1
             # id:4da4 — PRIMARY-LANE anchoring: an item's lane is the FIRST recognized lane-tag
             # on the line. Lane tags cluster right after the title; any bracket-token further
             # right is prose/history and must NOT set the lane. This is robust where a
@@ -101,8 +98,19 @@ if os.path.isfile(rm):
             # (/relay --once 2026-07-01). Taking the FIRST lane-tag makes it correctly `hard`.
             _found = [(ln.find(t), t) for t in LANE_TAGS if ln.find(t) >= 0]
             primary = min(_found)[1] if _found else ""
-            is_routine = primary == "[ROUTINE]"
-            is_pool    = primary in ("[HARD — pool]", "[HARD]")
+            is_routine    = primary == "[ROUTINE]"
+            is_pool       = primary in ("[HARD — pool]", "[HARD]")
+            # id:0d58 — [MECHANICAL] capability tier: counted ONLY when it is the anchored
+            # primary lane (id:4da4), same as every other lane. A bare-substring test here
+            # let a backtick'd `[MECHANICAL]` mention on a differently-laned line (e.g. a
+            # [ROUTINE] or [HARD — pool] item) falsely inflate open_mechanical and mis-fire
+            # the priority-6 `mechanical` verdict; routing it through `primary` closes that
+            # (no human/pool exclusion needed beyond anchoring — the tag itself IS
+            # pool-inert/human-inert by definition, unlike [ROUTINE]/[HARD — pool] which need
+            # the @manual/blocked carve-outs below).
+            is_mechanical = primary == "[MECHANICAL]"
+            if is_mechanical:
+                open_mechanical += 1
             # @manual excludes conservatively (a rare prose mention only ever UNDER-dispatches,
             # never mis-dispatches — the safe direction for the executor gate).
             is_human   = primary in HUMAN_GATES or "@manual" in ln

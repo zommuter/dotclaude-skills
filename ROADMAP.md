@@ -2811,7 +2811,7 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
 
 ## [MECHANICAL] lane-anchor hotfix (relay handoff 2026-07-03)
 
-- [ ] classify-repo.sh open_mechanical must be LANE-ANCHORED, not a bare substring [ROUTINE] <!-- id:0d58 -->
+- [x] classify-repo.sh open_mechanical must be LANE-ANCHORED, not a bare substring [ROUTINE] <!-- id:0d58 -->
   - **Why** (TODO id:0d58): `classify-repo.sh` has two disagreeing tag readers on an open
     `- [ ]` ROADMAP line. The primary-lane derivation (~line 102, id:4da4) is positionally
     ANCHORED — the FIRST recognized `LANE_TAGS` token wins; backtick/prose mentions further
