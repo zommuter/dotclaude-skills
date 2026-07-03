@@ -2831,6 +2831,34 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     yield the `mechanical` verdict; (2) a GENUINE `[MECHANICAL]`-primary item STILL counts and
     STILL classifies `mechanical` (no over-correction to zero). `make test` fully green.
 
+## [MECHANICAL] recipe explicit-success-marker doctrine (relay handoff 2026-07-03)
+
+- [ ] `[MECHANICAL]` recipes must write an EXPLICIT success/failure marker into the acceptance_artifact [ROUTINE] <!-- id:fd37 -->
+  - **Why** (TODO id:fd37, pilot finding — mechanical-daemon's first real firing on zkWhale
+    id:0a7b, 2026-07-03): a recipe whose `cmd` is e.g. `pnpm -s typecheck` writes an EMPTY
+    `acceptance_artifact` on success (tsc is silent-on-clean). An empty artifact is an
+    ambiguous acceptance signal — indistinguishable from "never ran / redirect failed". The
+    daemon's own success/fail branch is ALREADY correct (exit-code driven: it writes a
+    `.error` sibling only when the cmd exits non-zero), so this is purely about the ARTIFACT
+    a reviewer inspects.
+  - **How**: `[MECHANICAL]` recipe `cmd`s must append an explicit terminal success/failure
+    marker to the acceptance_artifact AND preserve the real exit code so the daemon's branch
+    still fires. Canonical safe pattern (document verbatim as the reference):
+    `cd <repo> && { <realcmd> > "$ART" 2>&1; rc=$?; echo "MARKER exit=$rc finished=$(date -Is)" >> "$ART"; exit $rc; }`.
+    Two enforcement surfaces: (1) DOC — `references/recipe-manifest.md` documents the
+    explicit-marker + exit-preservation requirement in its schema/acceptance section, and the
+    M1 producer site (`handoff.md` C2 / `executor-contract.md`) instructs the recipe author to
+    include the marker. (2) OPTIONAL CODE — `recipe-validate.sh` emits a NON-FATAL advisory
+    (stderr WARNING, still exit 0) when a `cmd` redirects into the acceptance_artifact but
+    carries no explicit marker / exit-preservation. Keep validate's existing 7-field schema
+    hard-fail UNCHANGED — the marker check is advisory only (validate can't fully parse
+    arbitrary shell, so keep it a heuristic that won't over-flag a correct recipe).
+  - **Acceptance**: `tests/test_recipe_success_marker.sh` (`# roadmap:fd37`, RED until fixed)
+    goes GREEN: (a) `recipe-manifest.md` documents the explicit-marker + exit-preservation
+    doctrine; (b) `recipe-validate.sh` WARNs on stderr (exit still 0) for a redirect-without-
+    marker cmd; (c) NO warning for a cmd carrying the canonical `exit=$rc` marker (no false
+    positive). `make test` fully green.
+
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
 Decomposition of the orphan-reconcile design. **Sequence: D1 → D2/D3** (D2's reconcile
