@@ -2889,7 +2889,7 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
 
 ## [ROUTINE] case-c bare-only lane count (relay handoff 2026-07-03, owner-signed-off)
 
-- [ ] `roadmap-lint.sh` case-c must count only BARE (non-backtick'd) lane tags [ROUTINE] <!-- id:9078 -->
+- [x] `roadmap-lint.sh` case-c must count only BARE (non-backtick'd) lane tags [ROUTINE] <!-- id:9078 -->
   - **Why** (TODO id:9078, owner-signed-off option a): case-c (id:09a3) counts ALL lane
     brackets on an open `- [ ]` line, including backtick-QUOTED ones (`echo "$line" | grep -qF`
     on the raw line, ~lines 229-244). That FALSE-POSITIVES the compliant id:0d58/fb7f/c3f5

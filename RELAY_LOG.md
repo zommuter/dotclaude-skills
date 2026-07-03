@@ -1618,3 +1618,29 @@ d259-C's structural reorder deletes this anchoring reimplementation entirely).
 id:ad8a ticked in both ROADMAP.md and its TODO.md twin (`md-merge.py update-ids`, flock'd). Full
 suite: 176 passed / 0 failed / 2 expected-red (unrelated open items: id:14d0 stub-placement spec,
 id:5884 Fable model gate). **Overall: PASS.** Do NOT push — parent session handles it.
+
+## 2026-07-03 executor: id:9078 — case-c narrowed to BARE lane tags only
+
+RED test `tests/test_roadmap_lint_casec_backtick.sh` (`# roadmap:9078`) confirmed failing before
+the change. This closes the false-positive/sign-off note id:ad8a left behind: the owner signed
+off on option (a) — narrow case-c's lane count to lanes OUTSIDE backticks, and separately
+repoint `test_roadmap_lint_tagprose.sh`'s fixture to a genuine two-bare-tag conflict (done by the
+reviewer, not touched here).
+
+Code change in `relay/scripts/roadmap-lint.sh`'s case-c block (~lines 222-244): added
+`_bare="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"` — the exact backtick-strip idiom already
+used by `first_lane_tag`'s `strip=1` branch (id:1bbd/ad8a) — and switched every case-c
+`grep -qF '<tag>'` count from the raw `$line` to `$_bare`. The `_lc -gt 1` flag condition and the
+id:ad8a tag-first WARN / case-d / grammar clauses were left untouched, only the case-c comment
+was updated to describe the bare-only semantics. This is the mechanical dual to id:ad8a's earlier
+finding: back then, stripping backticks would have silently broken `test_roadmap_lint_tagprose.sh`
+because its fixture wasn't yet a genuine two-bare-tag conflict; now that the reviewer has
+repointed that fixture (owner sign-off), the strip is safe.
+
+Verified: `test_roadmap_lint_casec_backtick.sh` GREEN (compliant c3f5 shape — genuine bare tag +
+later backtick'd mention — no longer flagged; a genuine two-bare-tag conflict still is).
+`test_roadmap_lint_tagprose.sh` still GREEN (its repointed two-bare-tag fixture still flags).
+All 5 `test_roadmap_lint*.sh` files GREEN. id:9078 ticked in both ROADMAP.md and its TODO.md twin
+(`md-merge.py update-ids`, flock'd). Full suite: 179 passed / 0 failed / 2 expected-red (unrelated
+open items: id:14d0 stub-placement spec, id:5884 Fable model gate). **Overall: PASS.** Do NOT
+push — parent session handles it.
