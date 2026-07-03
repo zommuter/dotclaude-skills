@@ -2887,6 +2887,32 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     marker cmd; (c) NO warning for a cmd carrying the canonical `exit=$rc` marker (no false
     positive). `make test` fully green.
 
+## [ROUTINE] case-c bare-only lane count (relay handoff 2026-07-03, owner-signed-off)
+
+- [ ] `roadmap-lint.sh` case-c must count only BARE (non-backtick'd) lane tags [ROUTINE] <!-- id:9078 -->
+  - **Why** (TODO id:9078, owner-signed-off option a): case-c (id:09a3) counts ALL lane
+    brackets on an open `- [ ]` line, including backtick-QUOTED ones (`echo "$line" | grep -qF`
+    on the raw line, ~lines 229-244). That FALSE-POSITIVES the compliant id:0d58/fb7f/c3f5
+    shape — a genuine primary lane tag followed by a LATER backtick'd lane MENTION
+    (prose/history), e.g. `[HARD — pool] … see the old note `` `[ROUTINE]` `` …` — because the
+    quoted bracket is counted as a second lane and the item is loud-rejected as a "tag/prose
+    lane conflict". This is a real dispatch-blocking false positive on conforming items.
+  - **How**: narrow case-c to count only lane tags OUTSIDE backticks — before the lane count,
+    strip backtick-quoted spans, then flag the conflict IFF ≥2 BARE lane tags survive. REUSE
+    the existing backtick-strip helper already in this file: `first_lane_tag`'s `strip=1`
+    branch (id:1bbd/ad8a) does exactly `search="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"`.
+    Apply the same strip to the case-c line before the `grep -qF` lane counting (or count bare
+    tags via a stripped copy of `$line`). Do NOT change the id:ad8a tag-first WARN, case-d, or
+    the grammar clauses. This deliberately RETIRES case-c's unreliable "prose disagrees with
+    tag" intent (id:244b) — mechanically undetectable, and its harmful sub-case (a prose bracket
+    BEFORE the genuine tag) is already covered by the id:ad8a tag-first rule.
+  - **Acceptance**: `tests/test_roadmap_lint_casec_backtick.sh` (`# roadmap:9078`, RED until
+    fixed) goes GREEN: (a) the compliant c3f5 shape (genuine bare tag + LATER backtick'd
+    mention) PASSES lint (exit 0, no case-c conflict diagnostic); (b) a genuine TWO-BARE-tag
+    conflict (`[HARD — pool] [ROUTINE]`, both un-backtick'd) is STILL loud-rejected. The
+    repointed `tests/test_roadmap_lint_tagprose.sh` case-c fixture (now a genuine two-bare
+    conflict) STILL passes. `make test` fully green.
+
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
 Decomposition of the orphan-reconcile design. **Sequence: D1 → D2/D3** (D2's reconcile
