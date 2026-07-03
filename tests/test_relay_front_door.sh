@@ -50,16 +50,20 @@ pass "SKILL.md documents no-confirmed-repos clean exit"
 grep -qi "HANDBACK count" "$SKILL" || fail "SKILL.md does not document printing the HANDBACK count"
 pass "SKILL.md documents HANDBACK-count summary"
 
-# (2) --interactive flag: documented, re-enables AskUserQuestion, passed to Workflow args.
+# (2) --interactive flag: documented, re-enables the FRONT-DOOR AskUserQuestion only.
 grep -q -- "--interactive" "$SKILL" || fail "SKILL.md does not document the --interactive flag"
 pass "SKILL.md documents --interactive flag"
 
 grep -q "AskUserQuestion" "$SKILL" || fail "SKILL.md does not tie --interactive to AskUserQuestion"
 pass "SKILL.md ties --interactive to AskUserQuestion"
 
-grep -qE '!!A\.interactive|args\.interactive' "$JS" \
-  || fail "relay-loop.js does not receive the interactive flag via Workflow args"
-pass "relay-loop.js receives the interactive flag (A.interactive)"
+# a0b6 (the mechanical-discovery flip) DELETED the only Workflow-side consumer of
+# args.interactive (the LLM shard's question-phrasing). The Workflow must NOT re-acquire it:
+# --interactive semantics live entirely in the front door, BEFORE the Workflow launches.
+# (Was: asserted relay-loop.js receives the flag — repointed with the dead-flag removal, id:9078-adjacent INTERACTIVE cleanup.)
+grep -qE '!!A\.interactive|args\.interactive|\bINTERACTIVE\b' "$JS" \
+  && fail "relay-loop.js must NOT consume the interactive flag (a0b6 removed the consumer; --interactive is front-door-only)"
+pass "relay-loop.js does not consume the interactive flag (front-door-only, post-a0b6)"
 
 # The Workflow script itself never prompts (unattended-by-default invariant, D2).
 if grep -q "AskUserQuestion" "$JS"; then

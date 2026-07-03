@@ -208,9 +208,9 @@ D1/D2):
 
 `--interactive` re-enables the orchestrator's one-batch `AskUserQuestion`
 confirmations (invariant 2 below: new-repo confirms, dirty-repo snapshot offers)
-*before* the Workflow launches, and is passed through as `args.interactive` so the
-Workflow may surface choices instead of silently skipping; the Workflow script
-itself still never calls `AskUserQuestion`.
+*before* the Workflow launches. The Workflow script itself never calls
+`AskUserQuestion` and no longer consumes `args.interactive` — the mechanical
+discovery flip (id:a0b6) removed its only consumer.
 
 The existing `handoff` and `review` keyword modes are unchanged and fully
 compatible — the default mode is sugar over the same classifier, references, and
