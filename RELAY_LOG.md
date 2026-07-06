@@ -1732,3 +1732,18 @@ Worked id:abbd — implemented smart-quote in `relay/scripts/relay-state-write.s
 ## 2026-07-06 11:06 — reviewer (opus)
 
 Review+integrate (id:abbd): relay-state-write.sh toml-set now smart-quotes the value before the awk write — already-quoted/bare-bool/bare-number left verbatim, any other bare string (incl. hyphenated like handed-off) wrapped in double quotes → always valid TOML, idempotent, backward-compatible. Executor 6024908; RED test tests/test_relay_state_write_toml_quote.sh UNCHANGED (4/4); regression guard test_relay_state_write.sh 11/11 (no double-quoting existing callers); suite 183 passed / 0 failed / 0 expected-red.
+## 2026-07-06 — executor (opus HARD-pool)
+
+Worked id:f032 — rewrote `review.md` step 3 from a bare "BDD suites" note into a
+run-or-record-skip mandate for EVERY declared test tier (routed:49a0). Step 3 now
+requires the reviewer to (a) ENUMERATE the repo's declared tiers from its manifests
+(package.json scripts / Makefile targets / CI config), (b) RUN each or RECORD-THE-SKIP
+with the reason in both RELAY_LOG.md and the returned summary, and (c) NAME the tiers
+actually run in any green claim — banning bare "suites green" from a subset. Aligned
+with handoff C3 D2's `unverified` doctrine (§2.4, cited): a tier that did not run is
+not a pass. Motivated by isochrone's e2e tier sitting RED for 13 days across 5 reviews
+that logged "suites green" while running only unit tiers (playwright silently absent).
+Added tests/test_review_tier_enumeration.sh (# roadmap:f032) — a section-scoped WORDING
+drift-guard over step 3 asserting the enumerate/record-skip/name-tiers markers + the C3
+cross-reference. Friction: none; the mechanical-relane doctrine test was a clean style
+template for the section-region guard.
