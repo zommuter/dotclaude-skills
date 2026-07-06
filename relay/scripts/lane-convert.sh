@@ -165,9 +165,12 @@ reorder_rest() {
   fi
 
   local left="${rest:0:cluster_start}" right="${rest:cluster_end}"
-  # Trim trailing whitespace off left, leading whitespace off right.
+  # Trim trailing whitespace off left, leading whitespace off right. Strip via the
+  # [[:space:]] bracket-expression (NOT a literal ' '): a leading/trailing TAB
+  # satisfies the [[:space:]]* loop guard but `${var# }` would never consume it,
+  # spinning forever (audit Run 70). Match the guard and the strip on the same class.
   while [[ "$left" == *[[:space:]] ]]; do left="${left%[[:space:]]}"; done
-  while [[ "$right" == [[:space:]]* ]]; do right="${right# }"; done
+  while [[ "$right" == [[:space:]]* ]]; do right="${right#[[:space:]]}"; done
 
   local remainder="$left"
   if [[ -n "$left" && -n "$right" ]]; then

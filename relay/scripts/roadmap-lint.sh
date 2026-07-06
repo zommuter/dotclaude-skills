@@ -286,7 +286,10 @@ while IFS= read -r line; do
       _after_checkbox="${BASH_REMATCH[1]}"
       # Trim leading whitespace only (defensive; grammar already requires exactly
       # one space after the checkbox, but tolerate extra runs).
-      while [[ "$_after_checkbox" == [[:space:]]* ]]; do _after_checkbox="${_after_checkbox# }"; done
+      # Strip via [[:space:]] bracket-expression, NOT a literal ' ': a leading TAB
+      # satisfies the loop guard but `${var# }` would never consume it → infinite
+      # loop (audit Run 70). Guard and strip must match the same character class.
+      while [[ "$_after_checkbox" == [[:space:]]* ]]; do _after_checkbox="${_after_checkbox#[[:space:]]}"; done
       if [[ "$_after_checkbox" != "$_genuine_first"* ]]; then
         _tnf_id=""
         [[ "$line" =~ ($id_re) ]] && _tnf_id="${BASH_REMATCH[1]}"
