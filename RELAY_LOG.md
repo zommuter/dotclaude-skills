@@ -1724,3 +1724,19 @@ Review+integrate (id:4b37): lane-convert.sh gains a --reorder mode (composable w
 ## 2026-07-06 11:00 — reviewer (opus handoff)
 
 Handoff (id:abbd): promoted routed:dc81 inbound stub to ROADMAP [ROUTINE] + authored RED spec tests/test_relay_state_write_toml_quote.sh (relay-state-write toml-set must smart-quote bare string values → valid TOML, idempotent, backward-compatible). Anti-gaming split: spec only, not implemented. RED now; EXPECTED-RED in suite (182 passed / 0 failed / 1 expected-red). Ready for a Sonnet executor.
+
+## 2026-07-06 — executor (opus HARD-pool)
+
+Worked id:f032 — rewrote `review.md` step 3 from a bare "BDD suites" note into a
+run-or-record-skip mandate for EVERY declared test tier (routed:49a0). Step 3 now
+requires the reviewer to (a) ENUMERATE the repo's declared tiers from its manifests
+(package.json scripts / Makefile targets / CI config), (b) RUN each or RECORD-THE-SKIP
+with the reason in both RELAY_LOG.md and the returned summary, and (c) NAME the tiers
+actually run in any green claim — banning bare "suites green" from a subset. Aligned
+with handoff C3 D2's `unverified` doctrine (§2.4, cited): a tier that did not run is
+not a pass. Motivated by isochrone's e2e tier sitting RED for 13 days across 5 reviews
+that logged "suites green" while running only unit tiers (playwright silently absent).
+Added tests/test_review_tier_enumeration.sh (# roadmap:f032) — a section-scoped WORDING
+drift-guard over step 3 asserting the enumerate/record-skip/name-tiers markers + the C3
+cross-reference. Friction: none; the mechanical-relane doctrine test was a clean style
+template for the section-region guard.
