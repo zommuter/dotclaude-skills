@@ -1690,3 +1690,29 @@ Friction: none.
 ## 2026-07-06 10:49 — reviewer (opus)
 
 Review+integrate (id:14d0): meeting/md-merge.py update_ids now anchors brand-new (not-found) ids BEFORE the first archive-class heading (## Done/Archive/Icebox, case-insensitive), EOF append only as fallback — so scan-routed.sh --apply INBOUND stubs never misfile under ## Done. Superset fix at the shared write path; existing-id in-place replacement untouched; other consumers (handback-followup.py, test_md_merge_commit.sh) verified unaffected. Executor 2d3237d; RED test tests/test_scan_routed_stub_placement.sh UNCHANGED (not gamed); suite 181 passed / 0 failed / 1 expected-red.
+## 2026-07-06 — executor (sonnet)
+
+Worked id:4b37 — implemented `lane-convert.sh --reorder` (composable with `--in-place`) and
+`roadmap-lint.sh`'s TAG-NOT-FIRST WARN to make `tests/test_lane_reorder.sh` green without
+touching the RED spec. `--reorder` reuses hard-lanes.md's lane vocabulary (same extraction
+idiom as roadmap-lint.sh) to build the recognized tag set, masks backtick-quoted spans with
+same-length filler so tag-position search never matches a prose MENTION, finds the leftmost
+recognized bare tag via the same `first_lane_tag`-style leftmost-substring scan, then greedily
+absorbs an adjacent (whitespace-only-separated) `[INTENSIVE — <res>]` on either side into the
+cluster before lifting it after the checkbox and single-space-normalizing the gap. Only
+top-level `- [ ]`/`- [x]` lines are touched (matched via a bash regex capturing the checkbox
+prefix separately); anything not matching that shape (headings, prose, indented `**Why**`
+sub-bullets) passes through byte-for-byte. Idempotency (case c) fell out of the algorithm for
+free — no special-casing needed, since an already-first tag's cluster reconstructs to the
+identical string. `roadmap-lint.sh` gained a second, independent WARN block right after the
+existing id:ad8a split-brain check: it re-checks whether the genuine (backtick-stripped)
+primary lane tag is literally the first token after the checkbox (position, not just
+leftmost-among-trailing), emitting `TAG-NOT-FIRST` + the item's id on stderr, still exit 0.
+Ticked id:4b37 in ROADMAP.md. `bash tests/test_lane_reorder.sh`: all 6 cases PASS. Full suite:
+`make test` → 180 passed, 0 failed, 2 expected-red (id:14d0, id:5884 — both pre-existing,
+unrelated). Existing `test_lane_convert.sh` and all `test_roadmap_lint*.sh` files re-verified
+GREEN (no regressions to the rename-converter or the ad8a split-brain WARN). Friction: none —
+the existing arg-parsing in lane-convert.sh needed reshaping from a fixed `if first-arg ==
+--in-place` check to a small `while`-based flag loop to accept `--reorder`/`--in-place` in
+either order, but that's the only structural change to the pre-existing rename path (its logic
+is untouched, just gated behind the new loop). Do NOT push — parent session integrates.
