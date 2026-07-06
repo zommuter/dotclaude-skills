@@ -1747,3 +1747,7 @@ Added tests/test_review_tier_enumeration.sh (# roadmap:f032) — a section-scope
 drift-guard over step 3 asserting the enumerate/record-skip/name-tiers markers + the C3
 cross-reference. Friction: none; the mechanical-relane doctrine test was a clean style
 template for the section-region guard.
+
+## 2026-07-06 11:09 — reviewer (opus)
+
+Review+integrate (id:f032): review.md step 3 rewritten from bare 'BDD suites' to 'Test tiers — run-or-record-skip for EVERY declared tier' — (a) enumerate declared tiers from package.json/Makefile/CI manifests, (b) run each or RECORD-THE-SKIP with reason in RELAY_LOG + summary (silently-absent tier = unverified, keeps item OPEN), (c) name tiers actually run ('suites green' from a subset BANNED); cites handoff C3 §2.4 unverified doctrine + the isochrone 13-day-RED case. New section-scoped wording guard tests/test_review_tier_enumeration.sh (6 PASS). Opus f032; suite 184 passed / 0 failed / 0 expected-red.
