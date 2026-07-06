@@ -57,6 +57,28 @@ export function applyExcludeFilter(ownRepos, excludeRepos) {
   return { kept, skipped, surfaced }
 }
 
+// resolveScopeRepo(onlyRepo, ownRepos) — first-class SINGLE-REPO scope (id:7633). Resolve a
+// `--only <repo>` / bare-positional / `.`-resolved repo NAME against the canonical own-repo list
+// (ownRepos = the prelude's relay.toml read, honoring `# path:` — never a `~/src` glob). Returns
+// {scoped, surfaced}:
+//   - scoped:   the matched {repo, path, income} entry (the SOLE repo that enters the discover
+//               fan-out — the 40-repo universe classification is bypassed), or null.
+//   - surfaced: a LOUD-reject {repo, reason} when the name is NOT a confirmed own repo (never a
+//               silent guess — [[feedback-use-existing-tools-not-improvise]]), or null.
+// FAIL-SAFE: an empty/absent onlyRepo ⇒ {scoped:null, surfaced:null} = no scope = today's
+// behaviour (the whole own list is classified). The caller keys "single-repo mode" on a non-empty
+// onlyRepo, so a null scoped WITH a surfaced reject means "asked for a repo that isn't own".
+export function resolveScopeRepo(onlyRepo, ownRepos) {
+  const name = onlyRepo ? String(onlyRepo).trim() : ''
+  if (!name) return { scoped: null, surfaced: null }
+  const match = (ownRepos || []).find(r => r.repo === name)
+  if (match) return { scoped: match, surfaced: null }
+  return {
+    scoped: null,
+    surfaced: { repo: name, reason: `--only: '${name}' is not a confirmed own repo in relay.toml — refusing to guess a path (id:7633; canonical own set only, never a ~/src glob)` },
+  }
+}
+
 // priorityRank(unit, prioritySet) — within-class ordering key for the unit sort comparators.
 // Lower sorts sooner. A priority repo's unit ranks 0 (ahead), every other unit 1 (behind).
 // prioritySet is a Set of repo names. NEVER a verdict override — this value is only ever
