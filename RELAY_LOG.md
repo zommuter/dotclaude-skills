@@ -1670,3 +1670,19 @@ single added conjunct plus its parse. **Overall: PASS.**
 ## 2026-07-06 10:46 — reviewer (opus)
 
 Review+integrate (id:5884): classify-repo.sh strongRecheckPending is now model-aware — parses relay.toml strong_model, ANDs 'not fable-produced' (case-insensitive) into the pending conjunct so a Fable strong checkpoint never queues a Fable-rechecks-Fable review (routed:1c2b). Conservative default kept (absent strong_model → pending stays true). Executor bc5d8e6; RED test tests/test_classify_repo_fable_model_gate.sh UNCHANGED (verified not gamed); suite 180 passed / 0 failed / 2 expected-red.
+Worked id:14d0 — `scan-routed.sh --apply`'s stub write path (`md-merge.py update-ids`) previously
+appended every not-found id at EOF, so a `TODO.md` ending in a `## Done` section misfiled brand-new
+open `- [ ]` INBOUND stubs under Done (the 2026-07-02 review had to relocate two by hand). Fixed at
+the shared write path rather than the caller: `update_ids()` in `meeting/md-merge.py` now anchors
+any NOT-FOUND id immediately before the first archive-class heading (`## Done` / `## Archive` /
+`## Icebox`, case-insensitive) found in the file; EOF append remains the fallback only when no such
+heading exists. Existing-id replacements (the common case — closing an item in place) are completely
+untouched, still done in-place at the matched line's original position. Chose the shared md-merge.py
+fix over a scan-routed.sh-local anchor because it's the correct default for every update-ids caller
+that appends genuinely NEW ids (not just scan-routed) and the flock'd atomic write path stays
+exactly as it was — no raw append introduced. Verified `handback-followup.py` (ROADMAP.md,
+existing-id-only updates) and `test_md_merge_commit.sh` (existing-id-only fixtures) are unaffected —
+neither exercises the not-found/append branch. `tests/test_scan_routed_stub_placement.sh` 3/3 PASS
+(stub lands before Done; EOF fallback still works when no Done heading exists). Full suite: 180
+passed, 0 failed, 2 expected-red (unrelated open items). id:14d0 ticked in ROADMAP.md.
+Friction: none.
