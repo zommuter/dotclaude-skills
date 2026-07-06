@@ -1648,3 +1648,22 @@ push — parent session handles it.
 ## 2026-07-06 10:38 — reviewer (opus handoff)
 
 Handoff (id:4b37): authored RED spec tests/test_lane_reorder.sh for the tag-first reorder tool (lane-convert.sh --reorder) + roadmap-lint TAG-NOT-FIRST WARN — d259 endgame (C). Anti-gaming split: spec ONLY, not implemented. 6 adversarial cases (reorder-to-first, multi-tag+INTENSIVE cluster order-preserved, idempotent [ ]/[x]+second-pass, non-lane body bracket preserved, backtick-mention safety + non-checkbox untouched, TAG-NOT-FIRST report-only exit 0). RED now; EXPECTED-RED in suite (179 passed / 0 failed / 3 expected-red). Ready for a Sonnet executor: implement lane-convert.sh --reorder (+ --in-place composition) + the lint WARN to green per executor contract (never weaken/rewrite the test). Ungated; feeds id:7df1 (which then only runs the tool + flips lints to ERROR).
+
+## 2026-07-06 — executor (Sonnet)
+
+Worked id:14d0 — `scan-routed.sh --apply`'s stub write path (`md-merge.py update-ids`) previously
+appended every not-found id at EOF, so a `TODO.md` ending in a `## Done` section misfiled brand-new
+open `- [ ]` INBOUND stubs under Done (the 2026-07-02 review had to relocate two by hand). Fixed at
+the shared write path rather than the caller: `update_ids()` in `meeting/md-merge.py` now anchors
+any NOT-FOUND id immediately before the first archive-class heading (`## Done` / `## Archive` /
+`## Icebox`, case-insensitive) found in the file; EOF append remains the fallback only when no such
+heading exists. Existing-id replacements (the common case — closing an item in place) are completely
+untouched, still done in-place at the matched line's original position. Chose the shared md-merge.py
+fix over a scan-routed.sh-local anchor because it's the correct default for every update-ids caller
+that appends genuinely NEW ids (not just scan-routed) and the flock'd atomic write path stays
+exactly as it was — no raw append introduced. Verified `handback-followup.py` (ROADMAP.md,
+existing-id-only updates) and `test_md_merge_commit.sh` (existing-id-only fixtures) are unaffected —
+neither exercises the not-found/append branch. `tests/test_scan_routed_stub_placement.sh` 3/3 PASS
+(stub lands before Done; EOF fallback still works when no Done heading exists). Full suite: 180
+passed, 0 failed, 2 expected-red (unrelated open items). id:14d0 ticked in ROADMAP.md.
+Friction: none.

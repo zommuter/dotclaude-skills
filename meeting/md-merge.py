@@ -104,6 +104,20 @@ def _commit_ledger(file_path: Path, msg: str) -> None:
               '(write succeeded, left uncommitted)', file=sys.stderr)
 
 
+# id:14d0 — archive-class headings a brand-new (not-found) id must never land under.
+# A NEW item is open work; appending it at EOF misfiles it under a trailing Done/
+# Archive/Icebox section. Matched case-insensitively against `##`+ headings.
+_ARCHIVE_HEADING_RE = re.compile(r'^#{2,}\s+(done|archive|icebox)\b', re.IGNORECASE)
+
+
+def _first_archive_heading_index(result: list) -> int | None:
+    """Index into `result` of the first archive-class heading line, or None."""
+    for i, line in enumerate(result):
+        if _ARCHIVE_HEADING_RE.match(line.rstrip('\n')):
+            return i
+    return None
+
+
 def update_ids(file_path: Path, updates: list, commit_msg: str | None = None) -> None:
     """Replace lines containing <!-- id:XXXX --> with new text, under flock."""
     lock_path = file_path.with_suffix(file_path.suffix + '.lock')
@@ -126,9 +140,18 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None) ->
                 else:
                     result.append(line)
 
-            for item_id, new_line in id_map.items():
-                if item_id not in found:
-                    result.append(new_line + '\n')
+            new_lines = [new_line + '\n' for item_id, new_line in id_map.items()
+                         if item_id not in found]
+            if new_lines:
+                # id:14d0 — anchor brand-new ids BEFORE the first archive-class
+                # heading (Done/Archive/Icebox); EOF append is the fallback only
+                # when no such heading exists. Existing-id replacements above are
+                # untouched (in-place, position preserved).
+                anchor = _first_archive_heading_index(result)
+                if anchor is None:
+                    result.extend(new_lines)
+                else:
+                    result[anchor:anchor] = new_lines
 
             _atomic_write(file_path, ''.join(result))
             # id:148b — atomic write+commit under the SAME flock (scoop-window close).
