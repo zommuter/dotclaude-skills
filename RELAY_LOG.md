@@ -1666,3 +1666,7 @@ Opus strong_model → pending true regression guard; absent strong_model → pen
 default). Full suite: 180 passed / 0 failed / 2 expected-red (unrelated open items: id:14d0 stub
 placement, id:25aa ckpt-tag anchor). Friction: none — spec was unambiguous and the fix was a
 single added conjunct plus its parse. **Overall: PASS.**
+
+## 2026-07-06 10:46 — reviewer (opus)
+
+Review+integrate (id:5884): classify-repo.sh strongRecheckPending is now model-aware — parses relay.toml strong_model, ANDs 'not fable-produced' (case-insensitive) into the pending conjunct so a Fable strong checkpoint never queues a Fable-rechecks-Fable review (routed:1c2b). Conservative default kept (absent strong_model → pending stays true). Executor bc5d8e6; RED test tests/test_classify_repo_fable_model_gate.sh UNCHANGED (verified not gamed); suite 180 passed / 0 failed / 2 expected-red.
