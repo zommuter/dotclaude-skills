@@ -182,7 +182,17 @@ last_strong_ckpt = m.group(1) if m else ""
 fr = re.search(r'(?m)^\s*fable_rechecked\s*=\s*(\S+)\s*$', toml_block)
 fable_rechecked_val = fr.group(1).strip('"') if fr else ""
 fable_rechecked = fable_rechecked_val not in ("", "false", "False")
-strong_recheck_pending = bool(last_strong_ckpt) and not fable_rechecked
+# id:5884: strongRecheckPending is model-BLIND if it only checks
+# last_strong_ckpt/fable_rechecked — a relay.toml entry whose strong checkpoint
+# was ALREADY produced by a Fable model (strong_model contains "fable",
+# case-insensitive) would otherwise queue a same-tier Fable-rechecks-Fable
+# review (routed:1c2b). strong_model ABSENT/empty (legacy entry) keeps the
+# conservative default: pending stays true (unknown-model errs toward the
+# cheap optional recheck).
+sm = re.search(r'(?m)^\s*strong_model\s*=\s*"([^"]*)"\s*$', toml_block)
+strong_model = sm.group(1) if sm else ""
+strong_model_is_fable = "fable" in strong_model.lower()
+strong_recheck_pending = bool(last_strong_ckpt) and not fable_rechecked and not strong_model_is_fable
 
 # id:a42e: a checkpoint annotation that merely MENTIONS "fable-standin" (e.g. a
 # genuine Fable recheck describing the standin review it audited) must not
