@@ -1686,3 +1686,7 @@ neither exercises the not-found/append branch. `tests/test_scan_routed_stub_plac
 (stub lands before Done; EOF fallback still works when no Done heading exists). Full suite: 180
 passed, 0 failed, 2 expected-red (unrelated open items). id:14d0 ticked in ROADMAP.md.
 Friction: none.
+
+## 2026-07-06 10:49 — reviewer (opus)
+
+Review+integrate (id:14d0): meeting/md-merge.py update_ids now anchors brand-new (not-found) ids BEFORE the first archive-class heading (## Done/Archive/Icebox, case-insensitive), EOF append only as fallback — so scan-routed.sh --apply INBOUND stubs never misfile under ## Done. Superset fix at the shared write path; existing-id in-place replacement untouched; other consumers (handback-followup.py, test_md_merge_commit.sh) verified unaffected. Executor 2d3237d; RED test tests/test_scan_routed_stub_placement.sh UNCHANGED (not gamed); suite 181 passed / 0 failed / 1 expected-red.
