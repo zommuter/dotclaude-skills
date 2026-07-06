@@ -274,6 +274,26 @@ while IFS= read -r line; do
       echo "roadmap-lint: WARN — tag-first-among-trailing: a prose/backtick'd lane bracket precedes the genuine lane tag, so classify-repo's raw anchor disagrees with gather's primary-lane anchor (raw-first='${_raw_first}' genuine-first='${_genuine_first}')" >&2
       echo "  $line" >&2
     fi
+
+    # Case (TAG-NOT-FIRST, id:4b37, d259 endgame (C)): the genuine lane tag must be
+    # the FIRST non-whitespace token immediately after the checkbox, not merely the
+    # leftmost among trailing tags (that's ad8a's split-brain check above — this one
+    # fires on POSITION alone, even with zero backtick divergence, e.g. a title that
+    # precedes an already-anchored, unambiguous tag). WARN-only (report-only, exit 0)
+    # during the dual-vocab window — the flip to ERROR is 7df1's window-close step,
+    # once the ledger has actually been run through `lane-convert --reorder`.
+    if [[ -n "$_genuine_first" && "$line" =~ ^-\ \[\ \]\ (.*)$ ]]; then
+      _after_checkbox="${BASH_REMATCH[1]}"
+      # Trim leading whitespace only (defensive; grammar already requires exactly
+      # one space after the checkbox, but tolerate extra runs).
+      while [[ "$_after_checkbox" == [[:space:]]* ]]; do _after_checkbox="${_after_checkbox# }"; done
+      if [[ "$_after_checkbox" != "$_genuine_first"* ]]; then
+        _tnf_id=""
+        [[ "$line" =~ ($id_re) ]] && _tnf_id="${BASH_REMATCH[1]}"
+        echo "roadmap-lint: WARN — TAG-NOT-FIRST: the lane tag '${_genuine_first}' is not the first token after the checkbox on ${_tnf_id:-<no id>} (report-only during the dual-vocab window; run lane-convert --reorder to fix)" >&2
+        echo "  $line" >&2
+      fi
+    fi
   fi
 
   [[ "$has_class" -eq 1 && "$has_id" -eq 1 ]] && continue
