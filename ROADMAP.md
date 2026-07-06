@@ -2773,7 +2773,7 @@ window is exactly what lets those migrate later.
     only SURFACES it (detector-surfaces/human-decides, M3 id:3ef7); the fixtures pin the
     never-auto-default + four-candidate-flag invariant.
 
-- [ ] Tag-first reorder tool + tag-first lint (WARN) — the C-endgame capability, built ahead of 7df1's run [ROUTINE] <!-- id:4b37 -->
+- [x] Tag-first reorder tool + tag-first lint (WARN) — the C-endgame capability, built ahead of 7df1's run [ROUTINE] <!-- id:4b37 -->
   - **Why** (meeting 2026-07-06-0959, d259 RATIFIED endgame = (C) tag-truly-first bracketed position): the reorder tool + lint are PURE tooling with no cross-repo dependency, so they build now (ungated), decoupled from 7df1's gated *execution*. Building them here shrinks id:7df1 to "run the built tool + flip the lints to ERROR". (A)'s parser-hardening floor already shipped (id:0d58); the tag-first WARN *split-brain* floor shipped as id:ad8a — this is a DISTINCT check (below).
   - **How / spec** (D2 — ISOLATED, separately-tested; do NOT bolt onto lane-convert.sh's 1:1-rename flow):
     1. **Reorder mode** — `lane-convert.sh --reorder` (or a sibling `lane-reorder.sh`) that, on a `- [ ]`/`- [x]` line ONLY, moves the anchored primary lane token PLUS any adjacent orthogonal `[INTENSIVE — <res>]` (order preserved) to immediately after the checkbox, strips it from the old position, and leaves body brackets + the trailing `<!-- id:XXXX -->` untouched. IDEMPOTENT (already-first ⇒ no-op). Invoked in the SAME `--in-place` pass as the rename when 7df1 runs (touch-once), but its logic is a separate unit.
