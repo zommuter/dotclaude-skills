@@ -91,10 +91,33 @@ Keep the item OPEN with a `needs host:<X>` note, surface it in REVIEW_ME, and ne
 host. (Editing the files is host-agnostic and reviewed normally — only the install/test
 verification is gated. ssh-to-host re-run is a documented future option, not built.)
 
-## 3. BDD suites
+## 3. Test tiers — run-or-record-skip for EVERY declared tier (id:f032)
 
-Run the BDD suites. For `@manual` scenarios, emit the checklist into REVIEW_ME.md (or
-the return report) for the human rather than attempting to automate them.
+A green claim derived from a SUBSET of a repo's test tiers is the same class of defect
+as handoff C3 D2's `unverified` doctrine (§2.4): **a tier that did not run is not a
+pass.** (isochrone's e2e tier sat RED for 13 days across 5 reviews that logged "suites
+green" while running only the unit tiers — the worktrees lacked `node_modules` so
+Playwright was silently absent.) To make that impossible:
+
+- **(a) ENUMERATE the declared tiers.** Before running anything, list the repo's declared
+  test tiers from its own manifests — `package.json` `scripts` (e.g. `test:unit`,
+  `test:e2e`, `test:integration`), `Makefile` targets (`make test`, `make test-e2e`), and
+  CI config (`.github/workflows/*`, etc.). That enumerated set is the tier list you owe a
+  result for.
+- **(b) RUN each tier, or RECORD-THE-SKIP.** Run every enumerated tier. For any tier you
+  cannot run (missing toolchain/`node_modules`/fixture — exactly the §2.4 skip class),
+  record the skip explicitly with its reason in BOTH `RELAY_LOG.md` and the returned
+  summary — e.g. `SKIPPED-TIER: e2e — no node_modules in worktree (playwright absent)`.
+  A silently-absent tier is treated as `unverified`, NOT green: if a `[ROUTINE]`/`[HARD]`
+  item's done-check depends on a skipped tier, keep the item OPEN (same rule as §2.4).
+- **(c) NAME the tiers actually run in any green claim.** "suites green" / "tests green"
+  from a subset is BANNED wording. State which tiers ran green and which were skipped —
+  e.g. "unit + integration green; e2e SKIPPED (no node_modules)" — never a bare
+  suite-wide green that hides an unrun tier.
+
+**BDD suites** are one such tier. Run them; for `@manual` scenarios, emit the checklist
+into REVIEW_ME.md (or the return report) for the human rather than attempting to automate
+them. A skipped BDD/e2e tier is recorded per (b), never folded silently into a green claim.
 
 ## 4. Spec-drift audit
 
