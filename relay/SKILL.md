@@ -150,7 +150,11 @@ D1/D2):
    and `--intensive` implies `--afk`),
    `args.priorityRepos` / `args.excludeRepos` (per-run repo lists from `--priority` /
    `--exclude` — id:d530; the front door maps the natural-language forms the user types
-   ("priority on X", "exclude Y") onto these arrays), and
+   ("priority on X", "exclude Y") onto these arrays),
+   `args.onlyRepo` (id:7633 — a first-class SINGLE-REPO scope from a bare repo positional /
+   `.` / `--only <repo>`; the front door resolves a `.` to the cwd repo's basename
+   `basename "$(git rev-parse --show-toplevel)"` BEFORE launch, and passes the resolved NAME —
+   see **Single-repo scope** below), and
    `args.RELAY_STATUS_PATH` (when overridden). The Workflow owns the pool, the serialized integrator, the
    quota guards, **and the self-feeding loop** — it re-discovers after each dispatch wave
    so executes→reviews→executes cycle inside a SINGLE invocation (`runRound()` in a `while`),
@@ -412,6 +416,36 @@ work, and the next `review` re-checks it (anti-gaming). If multiple routes apply
 the earliest in the list (execute → review → handoff-promote → human), mirroring the
 default pool's verdict-class order.
 
+## Single-repo scope
+
+`/relay <repo>`, `/relay .` (the cwd repo), or `/relay --only <repo>` runs the **autonomous
+pool scoped to ONE repo** (id:7633). It is the SAME engine as the default pool — same verdict
+classes, same dispatch/integrate/review chain — merely narrowed at discovery: the front door
+passes `args.onlyRepo`, and `relay-loop.js` resolves it against the canonical `relay.toml` own
+set (honoring `# path:`), then feeds **only that repo** into the exclude filter + sig-cache +
+discover fan-out. The own-repo universe enumeration + the 40× `discover-repo.sh` classification
+are bypassed; only the one repo is classified (the per-repo path is reused, never forked). A name
+not confirmed `own` in `relay.toml` is a **LOUD reject** (surfaced in `RELAY_STATUS.md`, nothing
+dispatched) — never a `~/src`-glob guess. This is the first-class replacement for the old
+`--exclude`-every-other-repo workaround, which silently missed `# path:`-relocated repos.
+
+`--exclude` still filters the SAME canonical own set BEFORE any classification, and an unknown
+`--exclude`/`--priority` name still LOUD-rejects against the FULL own set, even under a
+single-repo scope (so `/relay zkm --exclude bogus` still surfaces `bogus`).
+
+**Scope vs. `next` (design decision, id:7633 acceptance #4): a bare `/relay .` does NOT route to
+`/relay next` semantics.** They are deliberately distinct verbs:
+- `/relay .` runs the **autonomous single-repo POOL** — unattended, no `AskUserQuestion`, it
+  dispatches the repo's naturally-discovered verdict-class work (execute/review/hard) exactly as
+  the fleet pool would, just for one repo. It never involves the human.
+- `/relay next` is the **interactive auto-router** that collapses the cwd repo to its ONE fastest
+  route and *can* stop for the human (`human`/`/meeting`), using `AskUserQuestion` — which a
+  Workflow cannot call. Conflating the two would either strip `next`'s human-routing (surprising
+  for a user who typed `next`) or inject `AskUserQuestion` into the unattended Workflow path
+  (impossible). Keeping them separate preserves least-surprise: `.` = "run the pool, but only
+  here"; `next` = "inspect here and pick the single fastest route, human included." The user
+  chooses the verb; the engine never silently swaps one for the other.
+
 ## Stop mode
 
 `/relay stop` is the **voluntary, operator-initiated** graceful wind-down of a *running*
@@ -533,6 +567,7 @@ the historical `fable-ckpt-*` prefix:
 | `POOL_WIDTH` | integer | `5` | Number of distinct repos dispatched in parallel (one unit per repo). Passed as `args.POOL_WIDTH`. NOTE: the Workflow harness independently caps concurrent agents at `min(16, cpu_cores-2)`, so values above that ceiling just queue — no benefit. |
 | `--priority` `<repo\|repo,repo>` | repo list | (none) | **Per-run ORDERING bump only (id:d530), scoped to THIS run — NEVER writes relay.toml.** Ranks a priority repo's NATURALLY-discovered unit ahead of non-priority units **within the same verdict class** (above `income`, but below injected-unit precedence and the D3 verdict-class order — never a verdict override). Unlike `inject.sh`-as-priority, it does NOT create or inject a unit — it only reorders the repo's own discovered unit, so it can never double-dispatch a repo. An unknown/unconfirmed repo name is a **LOUD reject** (surfaced in `RELAY_STATUS.md`, never silently dropped). The front door maps the natural-language form ("priority on X") onto `args.priorityRepos`. |
 | `--exclude` `<repo\|repo,repo>` | repo list | (none) | **Per-run exclusion, scoped to THIS run — NEVER writes relay.toml** (avoids the destructive `classification = own→excluded` registry mutation that survives a session-kill = silent permanent exclusion). Excluded repos are DROPPED from the own-repo list **before sharding** (no shard ever sees them, no unit is emitted); each is surfaced in `RELAY_STATUS.md` Skipped as `excluded for this run (--exclude)`. An unknown/unconfirmed repo name is a **LOUD reject** (surfaced, never silently dropped). The front door maps the natural-language form ("exclude Y") onto `args.excludeRepos`. |
+| `<repo>` / `.` / `--only <repo>` | repo name | (none) | **First-class SINGLE-REPO scope (id:7633).** `/relay zkm`, `/relay .` (cwd repo), or `--only zkm` classifies **ONLY** that repo — the own-repo universe enumeration + 40× discover fan-out is bypassed, but the SAME per-repo path (`discover-repo.sh` reconcile→classify→route) is reused for the one repo (never forked). The repo resolves against `relay.toml` (THE canonical own set, honoring `# path:`-relocated repos — never a `~/src` glob); a name not confirmed `own` there is a **LOUD reject** (surfaced, no dispatch), not a guess. This replaces the old `--exclude`-everything-else workaround (which silently missed `# path:` repos). The front door resolves a bare `.` to the cwd repo's basename before launch and passes the NAME as `args.onlyRepo`. See **Single-repo scope** below. |
 | `RELAY_QUOTA_DECAY_7D` | `START:END` fractions | (unset) | Time-decaying cap for the 7-day + 7-day-Sonnet buckets: the threshold linearly interpolates from `START` at the rolling 7-day window's open to `END` at its reset (e.g. `0.30:0.90` → ~0.82 at 6/7 elapsed). **Direction matters — weekly quota is use-it-or-lose-it (unused 7-day allowance is forfeit at reset), so the cap should RISE toward reset (`START < END`): conserve early (don't blow the week on day 1), then spend down the about-to-reset budget.** A `START > END` (spend-early / back-off-late) schedule is almost always wrong — it false-stops a healthy low-utilization run right before reset (observed 2026-06-22: `0.40:0.18` stopped at 24% 7d-util with ~22 h to reset, leaving 76% to be forfeit). Recomputed each gate check from `seven_day.resets_at`. 5h bucket unaffected (it is the real short-term burst guard). Forwarded into the quota-gate via args. |
 | `MAX_ROUNDS` | integer | `30` | Self-feeding-loop seatbelt: max re-discover→dispatch→drain rounds in one `relay-loop.js` invocation before it returns regardless. The loop normally ends earlier on the quota cap or two consecutive empty discoveries (backlog drained). Passed as `args.MAX_ROUNDS`. |
 | `RELAY_STOP_PATH` / `--stop-path` | path | `~/.config/relay/STOP` | id:c012 — the graceful-stop **STOP sentinel** the `discover-prelude` checks each round. Content = integer "rounds remaining before stop" (empty/≤0 = stop at next round boundary; the prelude consumes+removes it on firing → `stopReason: "user-stop"`). Written by `/relay stop` (empty) / `/relay stop --after N` (N). Passed as `args.STOP_PATH`. See **Stop mode**. |

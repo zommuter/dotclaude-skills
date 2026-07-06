@@ -142,6 +142,26 @@ function priorityRank(unit, prioritySet) {
   return (prioritySet && prioritySet.has(unit.repo)) ? 0 : 1
 }
 
+// id:7633 — first-class SINGLE-REPO scope. `/relay <repo>` / `/relay .` / `--only <repo>` map (at
+// the front door; `.` resolved to the cwd repo's basename there) onto A.onlyRepo. When set, ONLY
+// that repo enters the discover fan-out (the own-repo universe enumeration + 40× classification is
+// bypassed — the same per-repo path, discover-repo.sh, is REUSED for the one repo, never forked).
+// The repo resolves against the canonical own-repo list (relay.toml, honoring `# path:`); an
+// unconfirmed name is a LOUD reject, not a `~/src` guess. FAIL-SAFE: empty ⇒ today's whole-fleet
+// behaviour. Byte-identical to pool-args.mjs::resolveScopeRepo (the unit-tested pure copy — the
+// Workflow sandbox cannot import; a structural test pins the two in sync).
+const ONLY_REPO = A.onlyRepo ? String(A.onlyRepo).trim() : ''
+function resolveScopeRepo(onlyRepo, ownRepos) {
+  const name = onlyRepo ? String(onlyRepo).trim() : ''
+  if (!name) return { scoped: null, surfaced: null }
+  const match = (ownRepos || []).find(r => r.repo === name)
+  if (match) return { scoped: match, surfaced: null }
+  return {
+    scoped: null,
+    surfaced: { repo: name, reason: `--only: '${name}' is not a confirmed own repo in relay.toml — refusing to guess a path (id:7633; canonical own set only, never a ~/src glob)` },
+  }
+}
+
 // id:b841 — normalize a nested quotaThresholds map into flat RELAY_QUOTA_THRESHOLD_<BUCKET>
 // keys so a user "raise 7d cap to 70%" directive actually takes effect.
 // The front door may pass args.quotaThresholds = { SEVEN_DAY: 0.70, SEVEN_DAY_SONNET: 0.70 }
@@ -787,6 +807,26 @@ if (prelude && Array.isArray(prelude.repos)) {
   const allOwnRepos = prelude.repos
   const ownNames = new Set(allOwnRepos.map(r => r.repo))
   const excludeSkipped = [], poolArgSurfaced = []
+  // id:7633 — first-class single-repo scope. Resolve A.onlyRepo against the CANONICAL own-repo
+  // list (allOwnRepos = the prelude's relay.toml read, honoring `# path:`). A confirmed match
+  // narrows the list that enters the exclude filter + sig-cache + discover fan-out to that ONE
+  // repo, so the universe classification is bypassed (only one discover-repo.sh runs) while the
+  // per-repo path is reused unchanged. An unconfirmed name is a LOUD reject (surfaced; scoped list
+  // empty ⇒ no dispatch, no guess). Empty A.onlyRepo ⇒ scopedOwnRepos = the whole fleet (fail-safe,
+  // today's behaviour). --exclude / --priority names still validate against the FULL canonical set
+  // (ownNames above), so an unknown name loud-rejects even under a single-repo scope.
+  let scopedOwnRepos = allOwnRepos
+  if (ONLY_REPO) {
+    const { scoped, surfaced } = resolveScopeRepo(ONLY_REPO, allOwnRepos)
+    if (scoped) {
+      scopedOwnRepos = [scoped]
+      log(`relay-loop: id:7633 single-repo scope — classifying ONLY '${ONLY_REPO}' (own-repo enumeration + discover fan-out bypassed; canonical relay.toml resolution honoring # path:)`)
+    } else {
+      scopedOwnRepos = []
+      if (surfaced) poolArgSurfaced.push(surfaced)
+      log(`relay-loop: id:7633 single-repo scope LOUD reject — '${ONLY_REPO}' is not a confirmed own repo (registry untouched; no dispatch)`)
+    }
+  }
   const excludeSet = new Set(EXCLUDE_REPOS)
   for (const name of EXCLUDE_REPOS) {
     if (!ownNames.has(name)) poolArgSurfaced.push({ repo: name, reason: `--exclude: unknown/unconfirmed repo '${name}' — ignored (not a confirmed own repo; registry untouched, id:d530)` })
@@ -795,8 +835,10 @@ if (prelude && Array.isArray(prelude.repos)) {
     if (ownNames.has(name)) prioritySet.add(name)
     else poolArgSurfaced.push({ repo: name, reason: `--priority: unknown/unconfirmed repo '${name}' — ignored (not a confirmed own repo; registry untouched, id:d530)` })
   }
+  // id:d530/id:7633 — --exclude drops repos from the (possibly single-repo-scoped) own list
+  // BEFORE sharding: no shard/discover-repo.sh ever sees them, no unit is emitted.
   const ownRepos = []
-  for (const r of allOwnRepos) {
+  for (const r of scopedOwnRepos) {
     if (excludeSet.has(r.repo)) excludeSkipped.push({ repo: r.repo, reason: 'excluded for this run (--exclude)' })
     else ownRepos.push(r)
   }
