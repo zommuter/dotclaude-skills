@@ -1644,3 +1644,7 @@ All 5 `test_roadmap_lint*.sh` files GREEN. id:9078 ticked in both ROADMAP.md and
 (`md-merge.py update-ids`, flock'd). Full suite: 179 passed / 0 failed / 2 expected-red (unrelated
 open items: id:14d0 stub-placement spec, id:5884 Fable model gate). **Overall: PASS.** Do NOT
 push — parent session handles it.
+
+## 2026-07-06 10:38 — reviewer (opus handoff)
+
+Handoff (id:4b37): authored RED spec tests/test_lane_reorder.sh for the tag-first reorder tool (lane-convert.sh --reorder) + roadmap-lint TAG-NOT-FIRST WARN — d259 endgame (C). Anti-gaming split: spec ONLY, not implemented. 6 adversarial cases (reorder-to-first, multi-tag+INTENSIVE cluster order-preserved, idempotent [ ]/[x]+second-pass, non-lane body bracket preserved, backtick-mention safety + non-checkbox untouched, TAG-NOT-FIRST report-only exit 0). RED now; EXPECTED-RED in suite (179 passed / 0 failed / 3 expected-red). Ready for a Sonnet executor: implement lane-convert.sh --reorder (+ --in-place composition) + the lint WARN to green per executor contract (never weaken/rewrite the test). Ungated; feeds id:7df1 (which then only runs the tool + flips lints to ERROR).
