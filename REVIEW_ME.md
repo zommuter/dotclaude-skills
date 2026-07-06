@@ -3,6 +3,23 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+- [ ] **id:5dc3 roadmap-lint heading-as-item detector false-positives on descriptive `## [LANE]` section headers (audit Run 70, 2026-07-06).**
+  `roadmap-lint.sh` flags 3 "heading-as-item MISSING its id" violations on the 2026-07-03
+  relay-handoff SECTION headers `## [MECHANICAL] lane-anchor hotfix …`, `## [MECHANICAL] recipe
+  explicit-success-marker doctrine …`, `## [ROUTINE] case-c bare-only lane count …` (ROADMAP.md
+  ~L2861/2883/2911). These are NOT the id:c095 "heading-as-item" shape (a heading owning the
+  lane+id whose child `- [ ]` lines are BARE status markers) — each groups a SINGLE already-`[x]`
+  child that carries its OWN `[ROUTINE]` tag + `<!-- id:XXXX -->` (0d58/fd37/9078). The detector
+  treats ANY `## …[LANE]…` heading as a work-item heading, so a section title that merely contains
+  a lane-shaped bracket is demanded to carry an id it should not have (adding one would duplicate
+  the child's id, breaking single-id-two-views). **Decision for the human:** (a) refine c095
+  detection to only treat a `## [LANE]` heading as a heading-item when its children are BARE status
+  markers (no own class tag + id) — the robust fix, has its own test surface; OR (b) drop the
+  decorative `[MECHANICAL]`/`[ROUTINE]` bracket from these 3 handoff-section headers (loses the
+  at-a-glance lane, zero-risk); OR (c) archive the 3 completed sections. Report-only today
+  (relay-doctor/roadmap-lint both exit 0). NOT a session-batch defect — pre-existing c095 tension
+  surfaced by the in-window handoff headers.
+
 - [ ] **A3 (id:b3d0) mechanical-daemon does NOT host-gate — latent safety gap (wave-2a review 2026-07-02).**
   The recipe schema's `host` field is documented as "which host the recipe is bound to
   (mirrors the `[host:<name>]` ROADMAP tag)" (recipe-manifest.md:51) and `recipe-validate.sh`

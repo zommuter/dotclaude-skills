@@ -164,4 +164,21 @@ grep -qF 'TAG-NOT-FIRST' <<<"$lint_ok" \
   && fail "(f) a tag-first ledger must NOT emit a TAG-NOT-FIRST warning (false positive)"
 pass "(f) roadmap-lint TAG-NOT-FIRST WARN fires on position only, report-only (exit 0)"
 
+# --- (g) TAB whitespace at the lift/trim site must not hang (audit Run 70) ------
+# Regression: reorder_rest's right-trim and roadmap-lint's after-checkbox trim both
+# guarded on [[:space:]]* but stripped only a literal ' ', so a TAB satisfied the
+# loop guard forever without being consumed → infinite loop. A tab-bearing line must
+# process and terminate (bounded by `timeout`).
+g="$tmp/g.md"
+printf -- '- [ ] Title [ROUTINE]\t<!-- id:aa20 -->\n' >"$g"
+gout="$(timeout 10 "$CONV" --reorder "$g" 2>/dev/null)" \
+  || fail "(g) --reorder must terminate on a tab after the lane tag (no infinite loop)"
+grep -qF '[ROUTINE] Title' <<<"$gout" \
+  || fail "(g) reorder must still lift the tag when a tab trails it.\n  got: $gout"
+gl="$tmp/gl.md"
+printf -- '- [ ] \t[ROUTINE] Title <!-- id:aa21 -->\n' >"$gl"
+timeout 10 "$LINT" "$gl" >/dev/null 2>&1 \
+  || fail "(g) roadmap-lint must terminate on a tab after the checkbox (no infinite loop)"
+pass "(g) tab whitespace at the lift/trim site terminates (no infinite loop)"
+
 echo "ALL PASS: tag-first reorder tool + tag-first WARN lint (id:4b37)"
