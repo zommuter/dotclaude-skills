@@ -6,9 +6,14 @@
 # Subcommands:
 #   toml-set <repo> <key> <value-literal>
 #       Field-scoped, flock'd update of $BASE/relay.toml inside the [repos.<repo>] block:
-#       set `<key> = <value-literal>`. The value is written VERBATIM — the caller supplies
-#       quotes for strings (e.g. '"relay-ckpt-20260615-1200"') and bare for bool/number
-#       (e.g. false). If <key> already exists in the block its line is REPLACED; if absent
+#       set `<key> = <value-literal>`. The value is SMART-QUOTED (id:abbd) so a bare
+#       string can never produce invalid TOML: a value already wrapped in "..." is left
+#       verbatim; `true`/`false` are left verbatim (bare bool); a value matching
+#       `^-?[0-9]+(\.[0-9]+)?$` is left verbatim (bare number); anything else (including a
+#       hyphenated bare word like `handed-off`) is wrapped in double quotes. This is
+#       idempotent and backward-compatible with callers that already pass pre-quoted
+#       strings or bare bool/number literals. If <key> already exists in the block its
+#       line is REPLACED; if absent
 #       it is ADDED as the last line of the block (before the next [...] header or EOF).
 #       Every other byte is preserved. If relay.toml or the [repos.<repo>] block is missing,
 #       exit non-zero and do NOT create/clobber.
@@ -48,6 +53,21 @@ case "$cmd" in
     [ -n "$repo" ] && [ -n "$key" ] && [ $# -ge 3 ] || {
       echo "relay-state-write.sh toml-set: <repo> <key> <value-literal> required" >&2; exit 2; }
     [ -f "$TOML" ] || { echo "relay-state-write.sh toml-set: $TOML does not exist" >&2; exit 1; }
+
+    # id:abbd — smart-quote the value BEFORE it reaches awk, idempotently:
+    #   already "..."-wrapped -> verbatim; true/false -> verbatim (bare bool);
+    #   ^-?[0-9]+(\.[0-9]+)?$ -> verbatim (bare number); else wrap in double quotes.
+    case "$value" in
+      \"*\") ;;                 # already quoted -> verbatim
+      true|false) ;;             # bare bool -> verbatim
+      *)
+        if [[ "$value" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+          :                      # bare number -> verbatim
+        else
+          value="\"$value\""    # bare string -> quote it
+        fi
+        ;;
+    esac
 
     exec 9>"$LOCK"
     flock -w 30 9 || { echo "relay-state-write.sh toml-set: lock timeout" >&2; exit 1; }
