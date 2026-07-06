@@ -1720,3 +1720,7 @@ is untouched, just gated behind the new loop). Do NOT push — parent session in
 ## 2026-07-06 10:52 — reviewer (opus)
 
 Review+integrate (id:4b37): lane-convert.sh gains a --reorder mode (composable with --in-place) that masks backtick spans, finds the leftmost genuine bare lane tag, absorbs an adjacent [INTENSIVE — res] into the cluster, and lifts it to first-position after the checkbox with whitespace normalized (idempotent by reconstruction); existing rename logic untouched, arg parsing reshaped to a flag loop. roadmap-lint.sh gains an independent TAG-NOT-FIRST WARN (report-only, exit 0) firing on tag POSITION — distinct from ad8a's split-brain check; 5 informational warns on the current pre-migration ledger. Executor f851870; RED test tests/test_lane_reorder.sh UNCHANGED (6/6 cases, not gamed); suite 182 passed / 0 failed / 0 expected-red. d259-C endgame tool ready; feeds id:7df1 (run --in-place --reorder + flip lints to ERROR at window-close).
+
+## 2026-07-06 11:00 — reviewer (opus handoff)
+
+Handoff (id:abbd): promoted routed:dc81 inbound stub to ROADMAP [ROUTINE] + authored RED spec tests/test_relay_state_write_toml_quote.sh (relay-state-write toml-set must smart-quote bare string values → valid TOML, idempotent, backward-compatible). Anti-gaming split: spec only, not implemented. RED now; EXPECTED-RED in suite (182 passed / 0 failed / 1 expected-red). Ready for a Sonnet executor.
