@@ -1716,3 +1716,7 @@ the existing arg-parsing in lane-convert.sh needed reshaping from a fixed `if fi
 --in-place` check to a small `while`-based flag loop to accept `--reorder`/`--in-place` in
 either order, but that's the only structural change to the pre-existing rename path (its logic
 is untouched, just gated behind the new loop). Do NOT push — parent session integrates.
+
+## 2026-07-06 10:52 — reviewer (opus)
+
+Review+integrate (id:4b37): lane-convert.sh gains a --reorder mode (composable with --in-place) that masks backtick spans, finds the leftmost genuine bare lane tag, absorbs an adjacent [INTENSIVE — res] into the cluster, and lifts it to first-position after the checkbox with whitespace normalized (idempotent by reconstruction); existing rename logic untouched, arg parsing reshaped to a flag loop. roadmap-lint.sh gains an independent TAG-NOT-FIRST WARN (report-only, exit 0) firing on tag POSITION — distinct from ad8a's split-brain check; 5 informational warns on the current pre-migration ledger. Executor f851870; RED test tests/test_lane_reorder.sh UNCHANGED (6/6 cases, not gamed); suite 182 passed / 0 failed / 0 expected-red. d259-C endgame tool ready; feeds id:7df1 (run --in-place --reorder + flip lints to ERROR at window-close).
