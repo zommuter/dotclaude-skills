@@ -2773,6 +2773,14 @@ window is exactly what lets those migrate later.
     only SURFACES it (detector-surfaces/human-decides, M3 id:3ef7); the fixtures pin the
     never-auto-default + four-candidate-flag invariant.
 
+- [ ] Tag-first reorder tool + tag-first lint (WARN) — the C-endgame capability, built ahead of 7df1's run [ROUTINE] <!-- id:4b37 -->
+  - **Why** (meeting 2026-07-06-0959, d259 RATIFIED endgame = (C) tag-truly-first bracketed position): the reorder tool + lint are PURE tooling with no cross-repo dependency, so they build now (ungated), decoupled from 7df1's gated *execution*. Building them here shrinks id:7df1 to "run the built tool + flip the lints to ERROR". (A)'s parser-hardening floor already shipped (id:0d58); the tag-first WARN *split-brain* floor shipped as id:ad8a — this is a DISTINCT check (below).
+  - **How / spec** (D2 — ISOLATED, separately-tested; do NOT bolt onto lane-convert.sh's 1:1-rename flow):
+    1. **Reorder mode** — `lane-convert.sh --reorder` (or a sibling `lane-reorder.sh`) that, on a `- [ ]`/`- [x]` line ONLY, moves the anchored primary lane token PLUS any adjacent orthogonal `[INTENSIVE — <res>]` (order preserved) to immediately after the checkbox, strips it from the old position, and leaves body brackets + the trailing `<!-- id:XXXX -->` untouched. IDEMPOTENT (already-first ⇒ no-op). Invoked in the SAME `--in-place` pass as the rename when 7df1 runs (touch-once), but its logic is a separate unit.
+    2. **Tag-first lint (WARN)** — `roadmap-lint.sh` gains a "the lane tag is the FIRST non-whitespace token after the checkbox" check, emitted as WARN (report-only, exit 0) during the dual-vocab window. This is distinct from ad8a's raw-vs-backtick-stripped split-brain detector. It flips to ERROR only in 7df1's final window-close step (a hard ERROR now would false-fire on every not-yet-reordered old-vocab line).
+  - **Tests**: `tests/test_lane_reorder.sh` (`# roadmap:4b37`) — hermetic tmp fixtures, ADVERSARIAL: (a) `- [ ] **title** [ROUTINE] <!-- id -->` → `- [ ] [ROUTINE] **title** <!-- id -->`; (b) multi-tag `[MECHANICAL] [INTENSIVE — r5-jvm]` moves BOTH, order preserved; (c) a Why-body / non-checkbox line that merely mentions a backtick'd `[HARD — pool]` is UNCHANGED (not a checkbox line); (d) already-first line is a no-op (idempotent); (e) a prose `[bracket]` in an item's body is untouched. Plus a `roadmap-lint.sh` WARN-not-ERROR assertion for a tag-not-first line during the window. RED until built.
+  - **Context**: `relay/scripts/lane-convert.sh` (B1's converter, id:4f02) + `relay/scripts/roadmap-lint.sh` (ad8a WARN floor at the `first_lane_tag` helper). Makefile registration (relay_FILES/EXEC/ALLOW, id:69ef) if a sibling script. Dispatch: background relay handoff (RED) → Sonnet executor (anti-gaming split, per d259 decision 4). Feeds id:7df1 (which then only RUNS the tool + flips lints). Meeting: `docs/meeting-notes/2026-07-06-0959-machine-tag-format-endgame.md`.
+
 ### GATED — B2 migration (DEP: 4f02, NOT dispatchable until B1 lands)
 
 Parked under a GATED heading (roadmap-lint-exempt, non-dispatchable) until B1 (id:4f02) ships
@@ -2843,6 +2851,7 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     first) AND the cross-repo re-tag (other own repos + `project_manager`'s `scan.py`, id:b466, must
     speak new vocab — the window can't close while any consumer is old-vocab-only). Closing early
     would break every repo still on `[HARD — *]`.
+  - **d259 RATIFIED 2026-07-06 (meeting `docs/meeting-notes/2026-07-06-0959-machine-tag-format-endgame.md`):** endgame = (C) tag-first bracketed position (B rejected). The reorder tool (`lane-convert --reorder` isolated mode) + tag-first WARN lint are built AHEAD, ungated, as **id:4b37** — NOT authored inside this item. So this item's acceptance step 1 becomes: run the ALREADY-BUILT `lane-convert --in-place --reorder` (renames + reorders in one pass), and step 3's FINAL flip also flips 4b37's tag-first lint WARN→ERROR alongside old-vocab→ERROR (one window-close). Delete the 7 anchoring reimplementations in the step-2 reader migration.
 
 ## [MECHANICAL] lane-anchor hotfix (relay handoff 2026-07-03)
 
