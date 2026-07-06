@@ -1648,3 +1648,21 @@ push — parent session handles it.
 ## 2026-07-06 10:38 — reviewer (opus handoff)
 
 Handoff (id:4b37): authored RED spec tests/test_lane_reorder.sh for the tag-first reorder tool (lane-convert.sh --reorder) + roadmap-lint TAG-NOT-FIRST WARN — d259 endgame (C). Anti-gaming split: spec ONLY, not implemented. 6 adversarial cases (reorder-to-first, multi-tag+INTENSIVE cluster order-preserved, idempotent [ ]/[x]+second-pass, non-lane body bracket preserved, backtick-mention safety + non-checkbox untouched, TAG-NOT-FIRST report-only exit 0). RED now; EXPECTED-RED in suite (179 passed / 0 failed / 3 expected-red). Ready for a Sonnet executor: implement lane-convert.sh --reorder (+ --in-place composition) + the lint WARN to green per executor contract (never weaken/rewrite the test). Ungated; feeds id:7df1 (which then only runs the tool + flips lints to ERROR).
+
+## 2026-07-06 — executor (Sonnet)
+
+Worked id:5884 — `classify-repo.sh`'s `strongRecheckPending` derivation (the `--emit unit` Python
+block, ~line 180) was model-blind: it only checked `last_strong_ckpt` set + `fable_rechecked`
+false, so a relay.toml entry whose `strong_model` was ALREADY a Fable model (e.g. chidiai's
+`claude-fable-5` with a stale `fable_rechecked = false`) elevated a same-tier
+Fable-rechecks-Fable review (routed:1c2b). Added a third conjunct: parse `strong_model` from the
+toml block (regex mirroring the existing `last_strong_ckpt`/`fable_rechecked` parses), test for a
+case-insensitive `"fable"` substring, and AND its negation into `strong_recheck_pending`. When
+`strong_model` is absent/empty (legacy entry), the substring test is false, so behavior is
+unchanged (conservative default preserved per Acceptance #2). No changes to the `standin`
+derivation (id:a42e territory) or any JS-side elevation OR — read-side gate only, as scoped.
+`tests/test_classify_repo_fable_model_gate.sh` 3/3 PASS (fable strong_model → pending false;
+Opus strong_model → pending true regression guard; absent strong_model → pending true legacy
+default). Full suite: 180 passed / 0 failed / 2 expected-red (unrelated open items: id:14d0 stub
+placement, id:25aa ckpt-tag anchor). Friction: none — spec was unambiguous and the fix was a
+single added conjunct plus its parse. **Overall: PASS.**
