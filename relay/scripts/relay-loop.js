@@ -1893,8 +1893,8 @@ try {
   ~/.claude/skills/relay/scripts/heartbeat.sh dead-runs
 If it prints NOTHING, no prior relay run died — do nothing else and report "no dead run, skipped". If it prints one or more JSON lines (a prior run died without a clean heartbeat stop), then run BOTH of these in order and report their output verbatim:
   ~/.claude/skills/relay/scripts/relay-reconcile.sh --all --auto
-  ~/.claude/skills/relay/scripts/heartbeat.sh reap
-(The first auto-integrates only ledger-only/clean orphans and surfaces everything else into REVIEW_ME.md; the second archives the now-handled dead run-markers so the watchdog (id:98f0) does not re-notify and the next start does not re-reconcile them.) Take NO other action.`,
+  ~/.claude/skills/relay/scripts/heartbeat.sh reap --prefix 'relay-*'
+(The first auto-integrates only ledger-only/clean orphans and surfaces everything else into REVIEW_ME.md; the second archives the now-handled dead run-markers so the watchdog (id:98f0) does not re-notify and the next start does not re-reconcile them. The --prefix 'relay-*' is REQUIRED and must not be dropped — it scopes the reap to this dispatch loop's own runId namespace so it never archives the INDEPENDENT discovery-producer heartbeat marker, id:54fc, whose down-alarm is a separate liveness domain.) Take NO other action.`,
     { label: 'auto-reconcile-restart', phase: 'Support', model: 'haiku' }
   )
 } catch (_) { /* non-fatal: the human /relay reconcile is always available */ }

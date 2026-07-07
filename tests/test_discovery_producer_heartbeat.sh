@@ -118,4 +118,36 @@ bash "$WD" >/dev/null 2>&1
 [[ -s "$NOTIFS" ]] && fail "watchdog re-notified an already-known stale producer marker (spam)"
 pass "a known stale producer marker is not re-notified on later ticks (id:54fc)"
 
+# ── (d) cross-domain alarm suppression: a scoped dispatch-loop reap must NOT
+# archive the (still-stale) producer marker (strong-model audit run 70 finding 2).
+# reap uses heartbeat.sh's DEFAULT HEARTBEAT_TTL (3600s), not the watchdog's
+# separate RELAY_WATCHDOG_PRODUCER_TTL — so both markers must be backdated well
+# past 3600s to be "present-but-stale" from reap's point of view (matching the
+# real scenario: a restart happening well after an outage). Simulate a
+# dispatch-loop restart's auto-reconcile-on-restart reap, which relay-loop.js
+# now scopes with --prefix 'relay-*' (its own runId namespace) — the producer
+# marker's runId ("discovery-producer-test") must NOT match that glob, so it
+# must survive the reap untouched, while a genuine relay-* dispatch marker in
+# the same heartbeat dir DOES get archived.
+backdate() {
+  python3 - "$1" <<'PY'
+import json, sys, time
+p = sys.argv[1]
+d = json.load(open(p))
+d["heartbeat_ts"] = int(time.time()) - 999999
+json.dump(d, open(p, "w"))
+PY
+}
+pmf="$(marker_file)"
+[[ -f "$pmf" ]] || fail "setup: producer marker missing before scoped-reap check"
+backdate "$pmf"  # producer marker from parts (a)-(c) above, now backdated stale too
+"$HB" beat "relay-20260101-000000-1" >/dev/null
+backdate "$HEARTBEAT_BASE/relay-20260101-000000-1.json"
+reap_out="$("$HB" reap --prefix 'relay-*' 2>&1 >/dev/null)"
+[[ -f "$pmf" ]] || fail "scoped reap (--prefix 'relay-*') archived the discovery-producer marker — cross-domain alarm suppression regression"
+[[ -f "$HEARTBEAT_BASE/relay-20260101-000000-1.json" ]] && fail "scoped reap left a matching relay-* marker un-reaped"
+[[ -f "$tmp/heartbeats.done/relay-20260101-000000-1.json" ]] || fail "scoped reap did not archive the matching relay-* marker into heartbeats.done"
+echo "$reap_out" | grep -q "reaped 1" || fail "scoped reap should report exactly 1 reaped marker, got: $reap_out"
+pass "a --prefix 'relay-*' reap archives the dispatch-loop marker but leaves the discovery-producer marker intact (id:54fc / cross-domain suppression fix)"
+
 echo "ALL PASS: discovery-producer heartbeat + distinct watchdog domain (id:54fc)"
