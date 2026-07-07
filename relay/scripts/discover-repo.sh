@@ -7,12 +7,23 @@
 #
 # Usage: discover-repo.sh --repo <name> --path <abs> [--runid <id>]
 #                          [--live-claims <comma-list>] [--main-branch <name>]
+#                          [--no-reconcile]
 #
 # Emits ONE JSON object on stdout: {"units":[…0 or 1…],"surfaced":[…],"skipped":[…]}
 #
+# --no-reconcile (id:9d97 data-loss fix): SKIP reconcile-repo.sh entirely — run ONLY the
+#   side-effect-free classify path (classify-repo.sh --emit unit). Reconcile-repo.sh performs
+#   BOUNDED SIDE-EFFECTING git (fetch, ff-merge, uv.lock commit, and worktree reap/park =
+#   `git worktree remove --force` + branch rename). That reap/park is CORRECT and load-bearing
+#   for the LIVE dispatch loop (relay-loop.js), which protects in-flight worktrees by passing
+#   --live-claims + --runid. But a READ-ONLY *snapshot* producer (discover-repos-mechanical.sh,
+#   a 15-min timer) passes NO live-claims, so reconcile would treat every executor worktree as
+#   stale and destroy it. --no-reconcile lets that producer classify without mutating anything.
+#   The live loop NEVER passes this flag → its reconcile+reap behaviour is byte-for-byte unchanged.
+#
 # ROUTING:
-#   1. Run reconcile-repo.sh. If its surfaced array is non-empty → return it verbatim
-#      (units:[], skipped:[]) and STOP — do NOT classify, never double-surface.
+#   1. Unless --no-reconcile: run reconcile-repo.sh. If its surfaced array is non-empty → return
+#      it verbatim (units:[], skipped:[]) and STOP — do NOT classify, never double-surface.
 #   2. Else run classify-repo.sh --emit unit and route by unit.verdict:
 #        blocked    → surfaced += {repo,reason}; no unit
 #        AMBIGUOUS  → surfaced += {repo,reason: loud}; no unit (dormant hook, NO LLM call)
@@ -28,7 +39,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RECONCILE="$SCRIPT_DIR/reconcile-repo.sh"
 CLASSIFY="$SCRIPT_DIR/classify-repo.sh"
 
-repo="" path="" runid="" live_claims="" main_branch="main"
+repo="" path="" runid="" live_claims="" main_branch="main" no_reconcile=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) repo="$2"; shift 2 ;;
@@ -36,24 +47,30 @@ while [[ $# -gt 0 ]]; do
     --runid) runid="$2"; shift 2 ;;
     --live-claims) live_claims="$2"; shift 2 ;;
     --main-branch) main_branch="$2"; shift 2 ;;
+    --no-reconcile) no_reconcile=1; shift ;;
     *) echo "discover-repo.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 [[ -n "$repo" ]] || { echo "discover-repo.sh: --repo is required" >&2; exit 2; }
 [[ -n "$path" ]] || { echo "discover-repo.sh: --path is required" >&2; exit 2; }
 
-rec_json="$("$RECONCILE" --repo "$repo" --path "$path" --runid "$runid" \
-            --live-claims "$live_claims" --main-branch "$main_branch")"
+# Step 1 (SKIPPED under --no-reconcile — id:9d97): bounded side-effecting reconcile. The live
+# dispatch loop always runs this (its reap/park is load-bearing); the read-only snapshot
+# producer sets --no-reconcile so it never mutates a live executor's worktree.
+if [[ -z "$no_reconcile" ]]; then
+  rec_json="$("$RECONCILE" --repo "$repo" --path "$path" --runid "$runid" \
+              --live-claims "$live_claims" --main-branch "$main_branch")"
 
-rec_surfaced_count="$(printf '%s' "$rec_json" | python3 -c 'import sys,json; print(len(json.load(sys.stdin).get("surfaced", [])))')"
+  rec_surfaced_count="$(printf '%s' "$rec_json" | python3 -c 'import sys,json; print(len(json.load(sys.stdin).get("surfaced", [])))')"
 
-if [[ "$rec_surfaced_count" -gt 0 ]]; then
-  printf '%s' "$rec_json" | python3 -c '
+  if [[ "$rec_surfaced_count" -gt 0 ]]; then
+    printf '%s' "$rec_json" | python3 -c '
 import sys, json
 rec = json.load(sys.stdin)
 print(json.dumps({"units": [], "surfaced": rec.get("surfaced", []), "skipped": []}))
 '
-  exit 0
+    exit 0
+  fi
 fi
 
 unit_json="$("$CLASSIFY" --emit unit --repo "$repo" --path "$path")"
