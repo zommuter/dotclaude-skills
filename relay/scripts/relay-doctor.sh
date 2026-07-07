@@ -67,6 +67,10 @@ ORPHAN_SCAN="${RELAY_DOCTOR_ORPHAN_SCAN:-$ORPHAN_SCAN}"
 
 LOG="${RELAY_DOCTOR_LOG:-$HOME/.claude/logs/relay-doctor.log}"
 
+# recipe drop-dir — same env override as mechanical-daemon.sh / recipe-manifest.md, so a
+# hermetic test can point it at a mktemp -d root instead of the real ~/.config/relay/recipes.
+RELAY_RECIPE_DIR="${RELAY_RECIPE_DIR:-$HOME/.config/relay/recipes}"
+
 # relay.toml location — same default + env override as the sibling scripts.
 SRC_DIR="${SRC_DIR:-$HOME/src}"
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
@@ -361,6 +365,67 @@ PY
   else
     printf 'DANGLING — relay.toml last_ckpt=%s names a tag that does NOT exist in %s (invariant I8; a failed push / aborted tag desynced it).\n' "$lckpt" "$name"
     repo_issues=$((repo_issues + 1))
+  fi
+
+  # --- check 12: mechanical-orphan (id:1bd1) ----------------------------------
+  # handoff.md:77-92 names the failure mode: tagging an item `[MECHANICAL]` alone
+  # routes it to the pool-inert `mechanical` verdict, but WITHOUT an authored recipe
+  # in the drop-dir (recipe-manifest.md) nothing ever runs it — it sits silently
+  # forever. Detect: for every OPEN `- [ ]` ROADMAP item carrying `[MECHANICAL]`,
+  # pull its `<!-- id:XXXX -->` token and check whether ANY recipe JSON in
+  # pending/, running/, or done/ has a top-level `id` field matching it (the `id`
+  # field is the recipe schema's only explicit id-linkage, per recipe-manifest.md —
+  # NOT filename, which is unconstrained). A recipe already consumed and moved to
+  # done/ still counts (the item WAS fed); only "no recipe anywhere" is an orphan.
+  echo "--- mechanical-orphan (recipe drop-dir vs [MECHANICAL] ROADMAP items, id:1bd1) ---"
+  if [[ -f "$path/ROADMAP.md" ]]; then
+    local mech_orphans
+    mech_orphans="$(python3 - "$path/ROADMAP.md" "$RELAY_RECIPE_DIR" <<'PY' 2>>"$LOG" || true
+import glob, json, os, re, sys
+
+roadmap_path, recipe_dir = sys.argv[1], sys.argv[2]
+
+open_ids = []
+with open(roadmap_path, encoding="utf-8") as f:
+    for line in f:
+        # only top-level OPEN items, and only ones tagged [MECHANICAL]
+        if not re.match(r"^\s*-\s\[\s\]\s", line):
+            continue
+        if "[MECHANICAL]" not in line:
+            continue
+        m = re.search(r"<!--\s*id:([0-9a-fA-F]{4})\s*-->", line)
+        if m:
+            open_ids.append(m.group(1))
+
+fed_ids = set()
+for sub in ("pending", "running", "done"):
+    for fp in glob.glob(os.path.join(recipe_dir, sub, "*.json")):
+        try:
+            with open(fp, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        rid = data.get("id")
+        if isinstance(rid, str) and rid:
+            fed_ids.add(rid)
+
+for oid in open_ids:
+    if oid not in fed_ids:
+        print(oid)
+PY
+)"
+    if [[ -n "$mech_orphans" ]]; then
+      local moid
+      while IFS= read -r moid; do
+        [[ -n "$moid" ]] || continue
+        printf '⚠️ [MECHANICAL] item id:%s has no authored recipe in %s/{pending,running,done} — it will never run (author its A2 recipe per handoff.md).\n' "$moid" "$RELAY_RECIPE_DIR"
+        repo_issues=$((repo_issues + 1))
+      done <<<"$mech_orphans"
+    else
+      echo "clean (every open [MECHANICAL] item has an authored recipe somewhere in the drop-dir)"
+    fi
+  else
+    echo "no ROADMAP.md — nothing to check for mechanical-orphans"
   fi
 
   if [[ "$repo_issues" -gt 0 ]]; then
