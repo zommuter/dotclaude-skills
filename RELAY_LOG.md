@@ -2041,3 +2041,40 @@ scoped away from `relay/scripts/discover-repo.sh`, `reconcile-repo.sh`,
 Full suite: `make test` 192 passed / 0 failed / 0 expected-red. Friction: none — all 4
 fixes landed cleanly in one session, each independently verified red-then-green before
 being restored to the passing state.
+
+## 2026-07-07 — executor (sonnet)
+
+Worked id:e3ad — defense-in-depth CLASS fix for `reconcile-repo.sh`'s worktree
+reap/park logic: it now distinguishes THREE cases instead of two. Previously
+`--live-claims` defaulted to `""`, so a caller that PASSED `--live-claims ""`
+(explicit "nothing is live") and a caller that never passed `--live-claims` at
+all were indistinguishable — both hit the fail-OPEN reap path. Added
+`live_claims_provided` (set to 1 only inside the `--live-claims)` arg-parse
+branch, i.e. only when the flag is actually seen on argv) so the three cases
+are: (1) flag present with a value → reap repos not in the CSV (unchanged);
+(2) flag present but explicitly empty → reap permitted (unchanged, this is the
+legit "nothing live" case, e.g. `test_reconcile_repo.sh` case 4/5); (3) flag
+ABSENT entirely → REFUSE every reap/park in that repo, emit a loud
+`WARNING:` on stderr plus a `surfaced` JSON entry naming the missing
+`--live-claims` context, and leave the worktree/branch untouched. Verified the
+LIVE loop is unaffected: `relay-loop.js:914` always renders `--live-claims
+"${liveClaimsCsv}"` (a template literal, so the flag is present even when the
+CSV is empty) when it calls `discover-repo.sh`, which unconditionally forwards
+`--live-claims "$live_claims"` to `reconcile-repo.sh` — so the live dispatch
+path only ever hits case (1) or (2), never (3); this is purely an additive
+guard against a *future or alternate* caller that forgets the flag (exactly
+the class of bug the empty-CSV producer incident, logged above, was an
+instance of).
+
+New RED test `tests/test_reconcile_failclosed_reap.sh` (hermetic, no
+`# roadmap:` header — defect-fix hardening, not a queued ROADMAP item):
+(a) invoking with NO `--live-claims`/`--runid` at all → worktree dir and
+`relay/<bn>` branch both survive, no `reap`/`park` action in the JSON, and a
+stderr warning naming `--live-claims` is emitted — FAILED against the
+pre-fix code (worktree was force-removed) and PASSES after the fix; (b)
+invoking with explicit `--live-claims ""` → reap still happens (proves the
+guard didn't over-restrict the legitimate empty case); (c) invoking with
+`--live-claims "<repo>"` naming the repo → worktree survives, surfaced as
+in-flight-elsewhere (existing id:ebfb protection intact). All three pass; full
+`make test` is green (194 passed, 0 failed, 0 expected-red).
+Friction: none.
