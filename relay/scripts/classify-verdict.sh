@@ -84,7 +84,13 @@ if is_finished:
 # 2026-07-04 forward window). PROMOTE-ONLY: only nudges the D3 inputs so the existing cascade
 # reaches `execute`; never demotes a higher-priority verdict (execute/hard already fire first).
 # The formerly JS-only id:ad74 guard (relay-loop.js) stays as a belt-and-suspenders backstop.
-if top_intensive and actionable_routine == 0 and open_hard_pool == 0:
+# GUARD (fold (a)/(b) interaction, Fable-review finding 3): a finished repo (is_finished=true)
+# has no actionable work regardless of a stale/leftover top_intensive tag. Without
+# `not is_finished` here, fold (a) above zeroes actionable_routine/open_hard_pool for a
+# finished repo, then this fold would see top_intensive set + both counts 0 and PROMOTE,
+# resurrecting the exact state fold (a) just demoted (verdict=execute instead of the demoted
+# promote/surface/idle path). Fold (b) must never fire once is_finished has spoken.
+if top_intensive and actionable_routine == 0 and open_hard_pool == 0 and not is_finished:
     actionable_routine = 1
 
 # Verdict-parity guards (id:e424): a dirty or diverged main tree is NEVER dispatched — it

@@ -49,6 +49,19 @@ isochrone='{"repo":"isochrone","is_finished":false,"hasRoutine":false,"substanti
 [[ "$(field "$isochrone" verdict)"   == "execute" ]] || { echo "FAIL (b): undercounted INTENSIVE item must promote to execute (ad74 native fold)"; exit 1; }
 [[ "$(field "$isochrone" intensive)" == "r5-jvm"  ]] || { echo "FAIL (b): intensive flag must ride the promoted execute verdict"; exit 1; }
 
+# --- Condition (c): COMBINED fold (a)+(b) interaction (Fable-review finding 3) -----------
+# is_finished=true (fold (a) zeroes actionable_routine/open_hard_pool) AND top_intensive is
+# ALSO set with stale nonzero counts. Pre-fix, fold (b) then sees top_intensive set +
+# actionable_routine==0 + open_hard_pool==0 (post fold-(a) zeroing) and PROMOTES, resurrecting
+# verdict=execute -- exactly the state fold (a) just demoted. Post-fix (guarded with
+# `not is_finished`), fold (b) must never fire here; the cascade falls through to the
+# promote>0 -> handoff branch (the demoted path), never execute/hard.
+combined_finished_and_intensive='{"repo":"combo","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"actionable_routine_open":1,"top_intensive":"gpu","unpromoted":{"promote":2,"surface":0}}'
+vc="$(field "$combined_finished_and_intensive" verdict)"
+[[ "$vc" != "execute" && "$vc" != "hard" ]] || { echo "FAIL (c): is_finished=true + top_intensive must never resurrect verdict=$vc (fold (a)/(b) interaction)"; exit 1; }
+[[ "$vc" == "handoff" ]] || { echo "FAIL (c): combined fixture must fall through to handoff (promote>0), got $vc"; exit 1; }
+[[ "$(field "$combined_finished_and_intensive" intensive)" == "" ]] || { echo "FAIL (c): intensive flag must be empty for a non-execute/hard verdict"; exit 1; }
+
 # --- Regression: dirty/diverged parity guards (rank 0) still outrank BOTH native folds ----
 zelegator_dirty='{"repo":"zelegator","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"actionable_routine_open":1,"top_intensive":"","unpromoted":{"promote":2,"surface":0},"dirty":true,"dirty_lock_only":false}'
 [[ "$(field "$zelegator_dirty" verdict)" == "blocked" ]] || { echo "FAIL: dirty tree must still outrank the is_finished native fold"; exit 1; }
