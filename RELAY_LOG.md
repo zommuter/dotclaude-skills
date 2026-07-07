@@ -1962,3 +1962,58 @@ now has). Full suite: `make test` 191 passed / 0 failed / 0 expected-red (up fro
 Friction: none — relay-loop.js (the dispatch loop's own heartbeat.sh call sites) was
 deliberately left untouched per the task brief, to avoid a merge conflict with a parallel
 executor working that file.
+
+## 2026-07-07 — executor (sonnet)
+
+Worked 4 independent remediations from strong-model audit run 70 (findings 2/test-bug/3/4),
+scoped away from `relay/scripts/discover-repo.sh`, `reconcile-repo.sh`,
+`discover-repos-mechanical.sh` per the task brief (a parallel executor owned those).
+
+1. **Cross-domain alarm suppression (audit finding 2)**: `heartbeat.sh reap` archived
+   EVERY present-but-stale marker unscoped, including the fixed `discovery-producer`
+   runId (id:54fc) — so a dispatch-loop restart's auto-reconcile-on-restart
+   (`relay-loop.js:1896`) silently cleared the producer's own down-alarm on every
+   restart, even when the producer really was dead. Fixed by adding an optional
+   `reap [--prefix GLOB]` scope to `heartbeat.sh` (matches the marker's `runId` field
+   against a shell glob; omitted = old unscoped behavior, back-compat preserved) and
+   updating `relay-loop.js`'s auto-reconcile-on-restart call to pass
+   `--prefix 'relay-*'` (the dispatch loop's own runId namespace,
+   `relay-<ts>-<rand>`), so the discovery-producer marker is never swept by a
+   dispatch-loop restart. Extended `tests/test_discovery_producer_heartbeat.sh` with a
+   new case (d): backdates both a producer marker and a `relay-*` marker past the
+   default reap TTL, then asserts a `--prefix 'relay-*'` reap archives the `relay-*`
+   marker but leaves the producer marker untouched. Verified genuinely red against the
+   unscoped behavior (temporarily stripped the filter, confirmed FAIL) before
+   restoring the fix.
+2. **`test_classify_verdict_backstop.sh` fixture-key bug**: all 4 fixtures set
+   `roadmap_actionable_open` while `classify-verdict.sh:51` reads
+   `actionable_routine_open`, so the key was silently ignored (falls back to
+   `has_routine`) and the "STALE nonzero actionable_routine_open -> demote via
+   is_finished" scenario (id:c79e guard-a) was never actually exercised — the test
+   passed by fallback luck, not by testing the real guard. Fixed the fixture keys to
+   `actionable_routine_open`. Verified: temporarily disabled the `if is_finished:`
+   demote block in `classify-verdict.sh`, confirmed the test now correctly FAILs
+   (`FAIL (a): is_finished=true must never yield verdict=execute`), then restored it.
+3. **`orphan-scan.sh --shipped` gate-word substring false-positives (audit finding 3)**:
+   `completion_re`/`wait_re` matched as unanchored substrings, so "gated" fired inside
+   investi-gated/aggre-gated/dele-gated, "observe" inside observe-d, etc.,
+   misclassifying ordinary prose as EXTERNAL-WAIT/COMPLETION-pending. Anchored both
+   regexes with `\b(...)\b`. Added case 8 to `tests/test_orphan_scan_shipped.sh`: an
+   item containing "investigated" (false gate substring) with a green
+   roadmap-owned test must classify TICK-READY, not be suppressed. Verified red
+   against the unanchored regex (case8 disappeared, only unrelated cases printed),
+   then restored the fix.
+4. **`orphan-scan.sh --shipped` unbounded TICK-READY test execution (audit finding
+   4)**: the discovered test ran via plain `bash "$test_rel"` with no timeout, so a
+   hung/non-hermetic test could hang the advisory scan indefinitely. Wrapped in
+   `timeout "${ORPHAN_SCAN_TEST_TIMEOUT_S:-60}s" bash "$test_rel"` (overridable via
+   env, default 60s; a timeout is treated as non-green, same as a genuine failure —
+   never TICK-READY). Added case 9 to `tests/test_orphan_scan_shipped.sh`: a
+   `sleep 300` test with `ORPHAN_SCAN_TEST_TIMEOUT_S=2` must not be TICK-READY and the
+   whole scan must finish in well under 15s. Verified red (reverted the `timeout`
+   wrapper, script hung past an outer 15s bound and was killed, rc=124), then
+   restored the fix.
+
+Full suite: `make test` 192 passed / 0 failed / 0 expected-red. Friction: none — all 4
+fixes landed cleanly in one session, each independently verified red-then-green before
+being restored to the passing state.
