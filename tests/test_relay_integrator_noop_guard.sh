@@ -120,9 +120,18 @@ pass "early-return guards both push recoverable blocked entries to state.blocked
 # integrate() prevent agent spawn, but the queue entry is still created.
 # This is correct: the serialization chain must always advance its tail promise
 # so subsequent same-repo integrations don't stall behind a missing link.
-grep -qE "debts\.push\(enqueueIntegration\(unit\.repo,.*integrate\(unit, report\)\)\)" "$JS" \
+grep -qE "enqueueIntegration\(unit\.repo, \(\) => integrate\(unit, report\)\)" "$JS" \
   || fail "enqueueIntegration call wrapping integrate() not found in runUnit"
 pass "enqueueIntegration unconditionally wraps integrate() (chain always advances)"
+
+# ── (4b) CONTAINMENT (id:efaf): the enqueued promise pushed into `debts` MUST be .catch-wrapped
+# so a single integrate() throw becomes a per-unit handback, never a pool-wide crash via the
+# end-of-round `await Promise.all(debts)` (the 2026-07-07 `-c` incident stranded ~10 worktrees).
+grep -qE "enqueueIntegration\(unit\.repo, \(\) => integrate\(unit, report\)\)\.catch\(" "$JS" \
+  || fail "the debts-enqueued integrate() promise is NOT .catch-contained (id:efaf) — one integration failure can crash the whole pool"
+grep -q "integrator threw (contained id:efaf)" "$JS" \
+  || fail "containment .catch does not record a recoverable handback (must surface, not swallow)"
+pass "(4b) integrate() rejection is contained to a per-unit handback (id:efaf), never a pool crash"
 
 # ── (5) integrate() agent is only reached for contract_met=true ────────────────
 # No alternative agent() call in integrate() before the result variable.

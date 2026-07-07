@@ -86,6 +86,24 @@ echo "$out" | grep -qE 'member\.mjs:2:' \
 $out"
 pass "(2b) unescaped backtick + .member chain + reopening backtick (tagged-template desync) → nonzero, names the line"
 
+# (2c) The OPERATOR-glued inline span (the id:efaf `-c` crash, 2026-07-07): `(…) - c `…`` is
+#      valid subtraction — node --check + the Workflow parser pass, but `c` is undefined at
+#      runtime → "c is not defined" thrown out of integrate() → whole-pool crash. The `.member`
+#      rule did NOT catch this (`-` is neither a word char nor `.`); the generalized inline-span
+#      rule does. Same shape as `hard`/`.timer`: a short glued token bracketed by two backticks.
+cat > "$TMP/dashc.mjs" <<'EOF'
+export const meta = { name: 'dashc' }
+const prompt = `the checkpoint anchor (`-c` for step 3) is decided here`
+EOF
+if out="$(node "$LINT" "$TMP/dashc.mjs" 2>&1)"; then
+  fail "linter did NOT flag an operator-glued inline span (the -c crash class):
+$out"
+fi
+echo "$out" | grep -qE 'dashc\.mjs:2:' \
+  || fail "linter flagged the -c inline span but did not name the offending line:
+$out"
+pass "(2c) unescaped backtick + operator-glued token + reopening backtick (\`-c\` desync) → nonzero, names the line"
+
 # (3) Directory scan discovers workflow scripts via the `export const meta` marker and
 #     ignores a plain script with no marker.
 mkdir -p "$TMP/repo/relay/scripts"
