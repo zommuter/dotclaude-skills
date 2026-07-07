@@ -60,6 +60,33 @@ open_mechanical       = int(data.get("open_mechanical", 0))
 # (enforced by gather excluding human-gated items from top_intensive, id:a707).
 top_intensive         = str(data.get("top_intensive", "") or "")
 
+# id:c79e (a) — is_finished authority fold (native id:000d backstop): is_finished is an
+# INDEPENDENTLY-derived, holistic signal (gather-repo-state.sh: roadmap present/non-empty +
+# 0 open "- [ ]" items + no unaudited commits + clean/lock-only tree) — strictly stronger
+# than actionable_routine/open_hard_pool alone. A genuinely finished repo can never have
+# actionable execute/hard work, so is_finished overrides those two counts DEFENSIVELY: if an
+# upstream derivation bug lets actionable_routine/open_hard_pool disagree with is_finished
+# (the exact zelegator fire pattern in the 2026-07-04 forward window, TODO id:c79e), the
+# cascade below still falls through to the promote/surface/idle branches instead of wrongly
+# emitting execute/hard. DEMOTE-ONLY — never touches promote/surface/idle. The formerly
+# JS-only id:000d guard (relay-loop.js) stays as a belt-and-suspenders backstop; this makes
+# it fire 0x natively (id:c79e forward path, re-opens id:b50e deletion).
+if is_finished:
+    actionable_routine = 0
+    open_hard_pool      = 0
+
+# id:c79e (b) — top_intensive native promote (native id:ad74 backstop): gather-repo-state.sh
+# already excludes human-gated lanes from top_intensive (id:a707), so a non-empty
+# top_intensive is BY ITSELF sufficient evidence of an open, executor-actionable
+# [INTENSIVE — <res>] item — independent of whether actionable_routine/open_hard_pool already
+# reflect it. Promote natively when neither already covers it (defends against an upstream
+# count that undercounts a freshly re-laned tag, the exact isochrone fire pattern in the
+# 2026-07-04 forward window). PROMOTE-ONLY: only nudges the D3 inputs so the existing cascade
+# reaches `execute`; never demotes a higher-priority verdict (execute/hard already fire first).
+# The formerly JS-only id:ad74 guard (relay-loop.js) stays as a belt-and-suspenders backstop.
+if top_intensive and actionable_routine == 0 and open_hard_pool == 0:
+    actionable_routine = 1
+
 # Verdict-parity guards (id:e424): a dirty or diverged main tree is NEVER dispatched — it
 # surfaces as `blocked` (distinct from idle = clean+no-work). Outranks every D3 verdict.
 # All fields already arrive from gather via classify-repo (full gather JSON passthrough).
