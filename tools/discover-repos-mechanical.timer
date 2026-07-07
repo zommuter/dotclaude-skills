@@ -1,0 +1,15 @@
+[Unit]
+Description=Run the mechanical relay discovery producer every 15 min (id:9d97)
+
+[Timer]
+# Fire shortly after login, then every 15 minutes — the same cadence the Workflow's
+# discover-prelude round loop targets, so a fresh snapshot is always available for the
+# (gated, id:7402) executor prelude to consume once it's wired to read the queue.
+OnStartupSec=2min
+OnUnitActiveSec=15min
+# Don't pile up missed runs after suspend/resume; one catch-up is plenty.
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

@@ -1829,3 +1829,61 @@ Friction: none. One snag during the build — `${commit_msg:-merge: ... (flock'd
 
 Worked id:c79e — Port the 000d/ad74 per-round backstop logic into `classify-verdict.sh` (b50e forward path). Read relay-loop.js's three JS-side runtime guards (000d finished-repo demote, 9973 hard-pool demote, ad74 INTENSIVE promote) and gather-repo-state.sh's derivation of `is_finished`/`top_intensive`/`actionable_routine_open`/`open_hard_pool` to pin down exactly what the two proven-load-bearing fires (b50e's 2026-07-06 NO-GO: 000d ×9 / ad74 ×3 on run relay-20260704-173233-19787) actually guard: a stale/inconsistent `actionable_routine_open`/`open_hard_pool` count disagreeing with the independently-derived `is_finished` flag (zelegator), and an undercounted `top_intensive` that leaves an open `[INTENSIVE]` item unclassified as dispatchable (isochrone). Wrote RED test `tests/test_classify_verdict_backstop.sh` reproducing both fixture shapes plus a dirty-tree regression check, confirmed genuinely RED against the pre-fix script via `git stash`, then made `classify-verdict.sh` fold both natively: (a) `is_finished=true` now forces `actionable_routine`/`open_hard_pool` to 0 before the D3 cascade runs (DEMOTE-only — falls through to promote/surface/idle, never touches those branches); (b) a non-empty `top_intensive` with both counts still at 0 now promotes `actionable_routine` to 1 (PROMOTE-only — lets the existing cascade reach `execute` with the `intensive` field riding it). Per the task's explicit instruction and the b50e NO-GO doctrine, the JS-side id:000d/9973/ad74 runtime guards in relay-loop.js are UNCHANGED — kept as belt-and-suspenders; their deletion stays separately gated (re-opens id:b50e) on a forward window proving 0 fires with this native fold live. Ticked id:c79e `[x]` in both TODO.md and ROADMAP.md (single-id-two-views). Full suite: 188 passed / 0 failed / 0 expected-red (up from 187 — one new test file).
 Friction: id:c79e is tagged `[HARD — pool]`, normally reviewer-only per the executor contract's scope rule — proceeded anyway per this session's explicit task assignment (which already carried the RED-spec authoring + implementation instructions a `/relay handoff` would normally produce), same self-coordination read as the prior session's claim note.
+
+## 2026-07-07 — executor (sonnet) id:9d97
+
+Worked id:9d97 — built the mechanical discovery producer per the 2026-07-07 meeting decision
+D2 (docs/meeting-notes/2026-07-07-1228-relay-discovery-off-workflow.md): the Workflow's
+discover-run shard was a Haiku agent() whose only job is "exec discover-repo.sh + echo the
+JSON verbatim" — pure transport, but observed to mangle even that; the doctrine is "no LLM
+if mechanical can do as good or better." Built `relay/scripts/discover-repos-mechanical.sh`,
+which enumerates confirmed own repos from relay.toml via the SAME `own_repos()` parser
+already used by relay-doctor.sh/relay-reconcile.sh/gather-human-backlog.sh (honors `# path:`
+overrides + `paused`), execs `discover-repo.sh` (id:64b4) verbatim per repo — zero LLM, no
+`claude -p`, no `agent()` anywhere in the script — and assembles a schema-checked aggregate
+{schema_version, generated_at, run_id, repos[], units[], surfaced[], skipped[]} written
+atomically (tmp+mv) to both a timestamped `queue-<tag>.json` and a stable `latest.json`.
+
+Drop-dir decision: CHECKED whether the 2026-07-02 daemon topology (id:64d3/b3d0,
+`~/.config/relay/recipes/{pending,running,done}`) was buildable-into — it IS built
+(`mechanical-daemon.sh`, `recipe-validate.sh`), but its schema is a flat
+{id,repo,cmd,host,est_wall,resource,acceptance_artifact} object describing ONE EXECUTABLE
+command the daemon runs; a discovery snapshot is an ARRAY of per-repo classification
+verdicts to be READ, not executed — folding it into the recipe schema would be a category
+error, not reuse. Defined a NEW sibling drop-dir `~/.config/relay/discovery-queue/`
+(RELAY_DISCOVERY_QUEUE_DIR override for hermetic tests) and documented its schema in a new
+`relay/references/discovery-queue-manifest.md` mirroring recipe-manifest.md's structure,
+explicitly noting the non-reuse rationale so a future reader doesn't rediscover the same
+question. Noting the dependency per the task brief: id:7402 (wiring the executor prelude to
+actually consume this queue, and labeling the residual agent() bridge-read as the known-
+remaining LLM surface) and id:54fc (extending the run-heartbeat to this timer as a second
+liveness domain) are both still open, gated on this item, and were NOT built here.
+
+Shipped the `--user` systemd pair `tools/discover-repos-mechanical.{service,timer}` (mirrors
+quota-sample.sh's oneshot+timer pattern, 15-min cadence) and a `make install-discovery-timer`
+/`status-`/`uninstall-` target trio mirroring install-quota-timer/install-relay-watchdog.
+Per the task's conservative-AFK instruction, did NOT run `make install-discovery-timer`
+myself — the unit files + Makefile target are built and manually verified (`make help`
+lists the target; Makefile parses), but activation (`systemctl --user enable --now`) is left
+as a deliberate step for the user to run when ready.
+
+Test: `tests/test_discover_repos_mechanical.sh` (no `# roadmap:9d97` header — TODO.md has
+the id but no matching ROADMAP.md item, so expected-red semantics don't apply; failures
+always count). Two properties pinned: (1) schema validity — latest.json parses and matches
+the documented top-level shape across a 3-repo fixture set (execute/idle/dirty-blocked);
+(2) determinism parity — for each repo that reaches classification (r_exec, r_idle; r_dirty
+is routed to "surfaced" by discover-repo.sh's own reconcile step before any unit exists),
+the unit embedded in the aggregate is content-identical (json.dumps(sort_keys=True) equality)
+to a fresh direct discover-repo.sh call for the same repo/path/runid — this is the strongest
+meaningful form of "byte match" for an aggregated multi-repo file (literal byte-identity of
+the whole aggregate vs. a single-repo call's raw text isn't a coherent comparison once
+multiple repos' JSON is folded into one array). Both assertions pass. Manually smoke-tested
+the script end-to-end against a 2-repo fixture before writing the formal test.
+
+Ticked id:9d97 `[x]` in TODO.md with a shipped note recording the drop-dir decision and the
+built-not-enabled unit. Full suite: `make test` 190 passed / 0 failed / 0 expected-red (up
+from 188 — one new test file; test_resource_claim_pid.sh, flagged flaky in project memory,
+passed cleanly this run).
+Friction: none — the recipe-manifest-vs-discovery-queue schema mismatch was the one
+substantive judgment call (documented above and in discovery-queue-manifest.md's "why this
+is a NEW drop-dir" section) rather than a genuine blocker.

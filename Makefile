@@ -38,7 +38,7 @@ relay_FILES := SKILL.md \
                references/conventions.md references/templates.md \
                references/executor-contract.md references/hard-lanes.md \
                references/resource-claims.md references/todo-conversion-policies.md \
-               references/recipe-manifest.md \
+               references/recipe-manifest.md references/discovery-queue-manifest.md \
                scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh \
                scripts/relay-loop.js scripts/inject.sh scripts/claim.sh \
@@ -59,7 +59,7 @@ relay_FILES := SKILL.md \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh scripts/mechanical-daemon.sh
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -77,7 +77,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh scripts/mechanical-daemon.sh
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -95,7 +95,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh scripts/mechanical-daemon.sh
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
@@ -115,6 +115,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-quota-timer status-quota-timer uninstall-quota-timer \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
+        install-discovery-timer status-discovery-timer uninstall-discovery-timer \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
         $(addprefix status-,$(SKILLS))
@@ -132,6 +133,7 @@ help:
 	@echo "  install-quota-timer  install the 15-min usage-quota sampler systemd user timer"
 	@echo "  install-relay-watchdog install the relay outage watchdog systemd user timer (notify on a dead loop)"
 	@echo "  install-mechanical-daemon install the mechanical-run daemon systemd user path+service unit (id:b3d0)"
+	@echo "  install-discovery-timer install the mechanical discovery-producer systemd user timer (id:9d97)"
 	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
@@ -316,6 +318,32 @@ uninstall-mechanical-daemon:
 	@echo "→ removing mechanical-daemon path+service unit"
 	@systemctl --user disable --now mechanical-daemon.path 2>/dev/null || true
 	@rm -f $(SYSTEMD_USER)/mechanical-daemon.path $(SYSTEMD_USER)/mechanical-daemon.service
+	@systemctl --user daemon-reload 2>/dev/null || true
+
+# Mechanical discovery producer (id:9d97) — same --user-timer pattern as quota-sample:
+# runs discover-repos-mechanical.sh every 15 min, zero LLM, writing a schema-checked
+# snapshot into ~/.config/relay/discovery-queue/. See discovery-queue-manifest.md.
+install-discovery-timer:
+	@echo "→ installing discover-repos-mechanical timer"
+	@mkdir -p $(SYSTEMD_USER) $(HOME)/.config/relay/discovery-queue
+	@ln -sf $(SRC_DIR)/tools/discover-repos-mechanical.service $(SYSTEMD_USER)/discover-repos-mechanical.service
+	@ln -sf $(SRC_DIR)/tools/discover-repos-mechanical.timer   $(SYSTEMD_USER)/discover-repos-mechanical.timer
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now discover-repos-mechanical.timer
+	@echo "  enabled. next runs: systemctl --user list-timers discover-repos-mechanical.timer"
+
+status-discovery-timer:
+	@echo "discover-repos-mechanical.timer:"
+	@if [ -L $(SYSTEMD_USER)/discover-repos-mechanical.timer ]; then \
+		systemctl --user is-active discover-repos-mechanical.timer >/dev/null 2>&1 \
+			&& echo "  ok  active -> $$(readlink $(SYSTEMD_USER)/discover-repos-mechanical.timer)" \
+			|| echo "  --  installed but not active (systemctl --user enable --now discover-repos-mechanical.timer)"; \
+	else echo "  !!  not installed (make install-discovery-timer)"; fi
+
+uninstall-discovery-timer:
+	@echo "→ removing discover-repos-mechanical timer"
+	@systemctl --user disable --now discover-repos-mechanical.timer 2>/dev/null || true
+	@rm -f $(SYSTEMD_USER)/discover-repos-mechanical.timer $(SYSTEMD_USER)/discover-repos-mechanical.service
 	@systemctl --user daemon-reload 2>/dev/null || true
 
 uninstall: $(addprefix uninstall-,$(SKILLS)) uninstall-statusline
