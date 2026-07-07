@@ -55,7 +55,9 @@ re-classifies a verdict; it only enumerates repos and folds each call's output. 
 what makes **determinism parity** with the prior Haiku `discover-run` shard trivial:
 both call the exact same `discover-repo.sh` per repo, so the same repo state always
 yields the same verdict content regardless of which caller (mechanical script vs. the
-Haiku shard) ran it.
+Haiku shard) ran it. The producer adds `--no-reconcile` (read-only), which changes only
+whether reconcile's *side-effects* run — not the classify verdict content, since reconcile
+mutates + surfaces in-flight/orphan cases but never re-derives a repo's verdict.
 
 ## Producer: `relay/scripts/discover-repos-mechanical.sh`
 
@@ -66,8 +68,18 @@ relay/scripts/discover-repos-mechanical.sh [--runid <id>] [--live-claims <csv>] 
 - Enumerates CONFIRMED own repos from `relay.toml` (`classification = "own"`, honoring
   the `# path:` comment override and the `paused` flag — the same parser as
   `relay-doctor.sh`/`relay-reconcile.sh`/`gather-human-backlog.sh`).
-- For each repo, execs `discover-repo.sh` unmodified — **zero LLM, no `claude -p`,
-  no `agent()`** anywhere in this script.
+- For each repo, execs `discover-repo.sh --no-reconcile` — **zero LLM, no `claude -p`,
+  no `agent()`** anywhere in this script. `--no-reconcile` makes this a genuinely
+  **READ-ONLY snapshot** (id:9d97 data-loss fix): it takes only the side-effect-free
+  classify path and SKIPS `reconcile-repo.sh`'s bounded git side-effects (fetch, ff-merge,
+  `uv.lock` commit, and worktree **reap/park** = `git worktree remove --force` + branch
+  rename). A snapshot timer has no view of the live pool's in-flight worktrees and passes no
+  `--live-claims`, so without this flag reconcile would treat every live executor worktree as
+  stale and destroy it. The **LIVE dispatch loop** (`relay-loop.js`) NEVER passes
+  `--no-reconcile` — it still runs the full reconcile+reap at actual dispatch, byte-for-byte
+  unchanged — and it protects in-flight worktrees with `--live-claims` + `--runid`. The
+  producer's snapshot being based on un-fetched local state is fine: the live loop reconciles
+  when it truly dispatches.
 - Assembles the aggregate object above and **schema-checks it before the atomic
   write**: a sub-call producing non-JSON, a non-object JSON value, or a non-list
   `units`/`surfaced`/`skipped` field aborts the whole run with a LOUD `ERROR:` on
