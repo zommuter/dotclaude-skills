@@ -109,6 +109,21 @@ Once per session, run:
 
 This prunes empty (zero-task-line) non-protected sections unconditionally, and moves `[x]` entries dated ≥30 days ago to `TODO.archive.md` when the file has ≥50 lines. Undated entries are left in place.
 
+### Step 5: Surface stale-ledger drift (id:b3ee, advisory only)
+
+Once per session, run:
+
+```bash
+~/.claude/skills/meeting/orphan-scan.sh --shipped "$(git rev-parse --show-toplevel)"
+```
+
+This is **report-only** — it NEVER auto-ticks a checkbox. If it prints TICK-READY
+lines (open item + a green linked test + no gating lexeme), verify each one yourself
+(re-run its test) before moving it to `## Done` per Step 3's rules. If it prints
+GATE-STALE lines (open item whose gating prose — "pending"/"awaiting"/etc. — is
+≥14 days old), surface them to the user for a re-check rather than acting on them;
+do not tick or edit those items on the strength of this scan alone.
+
 ## Format Rules (Sonnet-friendly)
 
 - Flat list only — no nesting, no subtasks, no priority markers

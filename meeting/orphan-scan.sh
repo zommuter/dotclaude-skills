@@ -19,6 +19,16 @@
 #   an executable lane tag ([ROUTINE] or [HARD — pool]) whose <!-- id:XXXX --> token has
 #   NO twin in ROADMAP.md. An un-promoted item is "pool-invisible": the relay can't see it.
 #   Prints one line per un-promoted item; exits 0 regardless (caller decides severity).
+# Shipped (--shipped): id:b3ee — report-only reconciliation of stale-ledger drift (see
+#   docs/meeting-notes/2026-07-07-1138-stale-ledger-root-cause.md). Scans OPEN `- [ ]`
+#   items in TODO.md for two classes; NEVER auto-ticks anything, advisory text only:
+#   - TICK-READY: item has NO gating lexeme (case-insensitive
+#     REMAIN|pending|activation|observe|verify|awaiting|gated|re-evaluate|let it run) AND
+#     links a `tests/test_*.sh` (inline path in the line, or a test file carrying
+#     `# roadmap:<id>` for this item's token) that passes GREEN when run.
+#   - GATE-STALE: item DOES contain a gating lexeme AND its TODO.md line is >= 14 days
+#     old by `git blame` author-time (override via ORPHAN_SCAN_SHIPPED_AGE_DAYS) — the
+#     gating clause may have lapsed and deserves a human re-check.
 # Un-IDed lines are skipped (clean cutover; legacy notes stay frozen).
 # Prints candidate lines to stdout; writes one log line to ~/.claude/logs/meeting-orphan-scan.log.
 set -euo pipefail
@@ -32,6 +42,9 @@ elif [[ "${1:-}" == "--cross-ledger" || "${1:-}" == "-x" ]]; then
   shift
 elif [[ "${1:-}" == "--promotion" || "${1:-}" == "-p" ]]; then
   mode="promotion"
+  shift
+elif [[ "${1:-}" == "--shipped" || "${1:-}" == "-s" ]]; then
+  mode="shipped"
   shift
 fi
 
@@ -119,6 +132,40 @@ elif [[ "$mode" == "promotion" ]]; then
       output_lines+=("un-promoted id:$token — $l")
     fi
   done < <(grep -hE '^- \[ \] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
+elif [[ "$mode" == "shipped" ]]; then
+  # id:b3ee — stale-ledger reconciliation. Only TODO.md's OPEN items are in scope
+  # (already-[x] items are never candidates; ROADMAP/archive are out of scope by design).
+  gate_re='REMAIN|pending|activation|observe|verify|awaiting|gated|re-evaluate|let it run'
+  age_days_threshold="${ORPHAN_SCAN_SHIPPED_AGE_DAYS:-14}"
+  now_epoch=$(date +%s)
+  while IFS=: read -r lineno text; do
+    token=$(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)
+    [[ -z "$token" ]] && continue
+    id_lines=$((id_lines+1))
+    if echo "$text" | grep -qiE "$gate_re"; then
+      # GATE-STALE candidate: the gating clause may have lapsed — check line age.
+      commit_epoch=$(git -C "$ROOT" blame -L "${lineno},${lineno}" --porcelain -- TODO.md 2>/dev/null \
+        | grep -m1 '^author-time ' | awk '{print $2}' || true)
+      [[ -z "$commit_epoch" ]] && continue
+      age_days=$(( (now_epoch - commit_epoch) / 86400 ))
+      if (( age_days >= age_days_threshold )); then
+        candidates=$((candidates+1))
+        output_lines+=("id:$token — GATE-STALE (line age ${age_days}d >= ${age_days_threshold}d) — gating clause may have lapsed; re-check. $text")
+      fi
+    else
+      # TICK-READY candidate: needs a linked test that actually passes green.
+      test_rel=$(echo "$text" | grep -oE 'tests/test_[A-Za-z0-9_]+\.sh' | head -1 || true)
+      if [[ -z "$test_rel" ]]; then
+        match=$(grep -rlE "# roadmap:$token([^0-9a-f]|\$)" "$ROOT/tests" 2>/dev/null | head -1 || true)
+        [[ -n "$match" ]] && test_rel="${match#"$ROOT"/}"
+      fi
+      [[ -z "$test_rel" || ! -f "$ROOT/$test_rel" ]] && continue
+      if (cd "$ROOT" && bash "$test_rel") >/dev/null 2>&1; then
+        candidates=$((candidates+1))
+        output_lines+=("id:$token — TICK-READY (green: $test_rel, no gate) — ready to tick. $text")
+      fi
+    fi
+  done < <(grep -n '^- \[ \] ' "$ROOT/TODO.md" 2>/dev/null || true)
 else
 for f in $(ls -r1 "$NOTES_DIR"/*.md 2>/dev/null); do
   [[ -f "$f" ]] || continue
