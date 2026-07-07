@@ -21,14 +21,17 @@
 #   Prints one line per un-promoted item; exits 0 regardless (caller decides severity).
 # Shipped (--shipped): id:b3ee — report-only reconciliation of stale-ledger drift (see
 #   docs/meeting-notes/2026-07-07-1138-stale-ledger-root-cause.md). Scans OPEN `- [ ]`
-#   items in TODO.md for two classes; NEVER auto-ticks anything, advisory text only:
-#   - TICK-READY: item has NO gating lexeme (case-insensitive
-#     REMAIN|pending|activation|observe|verify|awaiting|gated|re-evaluate|let it run) AND
-#     links a `tests/test_*.sh` (inline path in the line, or a test file carrying
-#     `# roadmap:<id>` for this item's token) that passes GREEN when run.
-#   - GATE-STALE: item DOES contain a gating lexeme AND its TODO.md line is >= 14 days
-#     old by `git blame` author-time (override via ORPHAN_SCAN_SHIPPED_AGE_DAYS) — the
-#     gating clause may have lapsed and deserves a human re-check.
+#   items in TODO.md for two classes; NEVER auto-ticks anything, advisory text only.
+#   Gate words split into two disjoint classes (tuned 2026-07-07):
+#     COMPLETION-pending = REMAIN|pending|activation (work that finishes + clears silently)
+#     EXTERNAL-WAIT      = observe|verify|awaiting|gated|re-evaluate|let it run (legit-open)
+#   - TICK-READY: item has NEITHER gate class AND a test file carries `# roadmap:<token>`
+#     for this item (the intentional test-owns-item link — a bare inline path mention is
+#     NOT trusted, it over-fires on umbrella items) that passes GREEN when run.
+#   - GATE-STALE: item has a COMPLETION-pending word (and no EXTERNAL-WAIT word) AND its
+#     TODO.md line is >= 14 days old by `git blame` author-time (override via
+#     ORPHAN_SCAN_SHIPPED_AGE_DAYS) — the completion clause may have lapsed; re-check.
+#   - EXTERNAL-WAIT items are suppressed from BOTH classes (genuinely gated, don't nag).
 # Un-IDed lines are skipped (clean cutover; legacy notes stay frozen).
 # Prints candidate lines to stdout; writes one log line to ~/.claude/logs/meeting-orphan-scan.log.
 set -euo pipefail
@@ -135,15 +138,25 @@ elif [[ "$mode" == "promotion" ]]; then
 elif [[ "$mode" == "shipped" ]]; then
   # id:b3ee — stale-ledger reconciliation. Only TODO.md's OPEN items are in scope
   # (already-[x] items are never candidates; ROADMAP/archive are out of scope by design).
-  gate_re='REMAIN|pending|activation|observe|verify|awaiting|gated|re-evaluate|let it run'
+  # Two disjoint gate-word classes (tuned 2026-07-07 after dogfooding flagged ~50
+  # GATE-STALE hits — see the root-cause note's follow-up). A COMPLETION-pending
+  # clause describes remaining work that will finish and clear SILENTLY (the
+  # id:6f61/b67e silent-drift class) → worth an age-based re-check. An EXTERNAL-WAIT
+  # clause is legitimately open (external dep / observation window still running) →
+  # neither GATE-STALE (would nag forever) nor TICK-READY (it is genuinely gated).
+  completion_re='REMAIN|pending|activation'
+  wait_re='observe|verify|awaiting|gated|re-evaluate|let it run'
   age_days_threshold="${ORPHAN_SCAN_SHIPPED_AGE_DAYS:-14}"
   now_epoch=$(date +%s)
   while IFS=: read -r lineno text; do
     token=$(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)
     [[ -z "$token" ]] && continue
     id_lines=$((id_lines+1))
-    if echo "$text" | grep -qiE "$gate_re"; then
-      # GATE-STALE candidate: the gating clause may have lapsed — check line age.
+    if echo "$text" | grep -qiE "$wait_re"; then
+      # EXTERNAL-WAIT clause: legitimately open — suppress from both classes.
+      continue
+    elif echo "$text" | grep -qiE "$completion_re"; then
+      # GATE-STALE candidate: the completion clause may have lapsed — check line age.
       commit_epoch=$(git -C "$ROOT" blame -L "${lineno},${lineno}" --porcelain -- TODO.md 2>/dev/null \
         | grep -m1 '^author-time ' | awk '{print $2}' || true)
       [[ -z "$commit_epoch" ]] && continue
@@ -153,13 +166,15 @@ elif [[ "$mode" == "shipped" ]]; then
         output_lines+=("id:$token — GATE-STALE (line age ${age_days}d >= ${age_days_threshold}d) — gating clause may have lapsed; re-check. $text")
       fi
     else
-      # TICK-READY candidate: needs a linked test that actually passes green.
-      test_rel=$(echo "$text" | grep -oE 'tests/test_[A-Za-z0-9_]+\.sh' | head -1 || true)
-      if [[ -z "$test_rel" ]]; then
-        match=$(grep -rlE "# roadmap:$token([^0-9a-f]|\$)" "$ROOT/tests" 2>/dev/null | head -1 || true)
-        [[ -n "$match" ]] && test_rel="${match#"$ROOT"/}"
-      fi
-      [[ -z "$test_rel" || ! -f "$ROOT/$test_rel" ]] && continue
+      # TICK-READY candidate: needs a test that EXPLICITLY owns this item via a
+      # `# roadmap:<token>` header (the intentional test-owns-item signal). A bare
+      # inline `tests/test_*.sh` path mention is NOT trusted — a multi-part/umbrella
+      # item routinely cites a sub-part's test in prose, which produced false
+      # "ready to tick" hits on live items (id:401c/af30) when dogfooded 2026-07-07.
+      match=$(grep -rlE "# roadmap:$token([^0-9a-f]|\$)" "$ROOT/tests" 2>/dev/null | head -1 || true)
+      [[ -z "$match" ]] && continue
+      test_rel="${match#"$ROOT"/}"
+      [[ ! -f "$ROOT/$test_rel" ]] && continue
       if (cd "$ROOT" && bash "$test_rel") >/dev/null 2>&1; then
         candidates=$((candidates+1))
         output_lines+=("id:$token — TICK-READY (green: $test_rel, no gate) — ready to tick. $text")
