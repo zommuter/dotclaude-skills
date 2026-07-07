@@ -61,18 +61,43 @@ cat >> "$repo/TODO.md" <<'EOF'
 EOF
 commit_line 5 "case3: gated item, recent"
 
-# --- Case 1: no gating lexeme, green linked test -> TICK-READY ---
+# --- Case 6: EXTERNAL-WAIT word, aged >= 14 days -> STILL neither (2026-07-07 split) ---
+# A legitimately-gated item (observation window / external dep) must NOT surface as
+# GATE-STALE no matter how old — only COMPLETION-pending clauses do.
+cat >> "$repo/TODO.md" <<'EOF'
+- [ ] feature W: let it run, then observe adoption before deciding <!-- id:aaa6 -->
+EOF
+commit_line 40 "case6: external-wait item, old"
+
+# --- Case 1: no gating lexeme, green test that OWNS this item via `# roadmap:` -> TICK-READY ---
+# TICK-READY trusts only the `# roadmap:<token>` reverse-link, not a bare inline path
+# (the 2026-07-07 tightening — inline-path mentions produced umbrella false-positives).
 cat > "$repo/tests/test_aaa1.sh" <<'EOF'
 #!/usr/bin/env bash
+# roadmap:aaa1
 set -euo pipefail
 echo ok
 exit 0
 EOF
 chmod +x "$repo/tests/test_aaa1.sh"
 cat >> "$repo/TODO.md" <<'EOF'
-- [ ] feature X ships, see tests/test_aaa1.sh <!-- id:aaa1 -->
+- [ ] feature X ships fully <!-- id:aaa1 -->
 EOF
-commit_line 1 "case1: tick-ready item + green test"
+commit_line 1 "case1: tick-ready item + roadmap-linked green test"
+
+# --- Case 7: inline test path only (no `# roadmap:` owner) -> NOT TICK-READY ---
+# A partial/umbrella item that merely cites a sub-part's test must not be flagged ready.
+cat > "$repo/tests/test_aaa7.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+echo ok
+exit 0
+EOF
+chmod +x "$repo/tests/test_aaa7.sh"
+cat >> "$repo/TODO.md" <<'EOF'
+- [ ] umbrella: sub-part shipped, see tests/test_aaa7.sh; other parts open <!-- id:aaa7 -->
+EOF
+commit_line 1 "case7: inline-only path, not owned"
 
 out="$(HOME="$tmp" "$ORPHAN" --shipped "$repo")"
 
@@ -97,6 +122,16 @@ fi
 # Case 5: already closed -> never appears
 if grep -q 'id:aaa5' <<<"$out"; then
   echo "case5: id:aaa5 (already [x]) must NEVER appear"; echo "$out"; exit 1
+fi
+
+# Case 6: external-wait word + old -> must NOT appear (the 2026-07-07 lexeme split)
+if grep -q 'id:aaa6' <<<"$out"; then
+  echo "case6: id:aaa6 (external-wait, old) must NOT be GATE-STALE after the split"; echo "$out"; exit 1
+fi
+
+# Case 7: inline test path but no `# roadmap:` owner -> must NOT be TICK-READY
+if grep -q 'id:aaa7' <<<"$out"; then
+  echo "case7: id:aaa7 (inline-only path, unowned) must NOT be TICK-READY"; echo "$out"; exit 1
 fi
 
 # Report-only: the tool must not have touched TODO.md's checkboxes.
