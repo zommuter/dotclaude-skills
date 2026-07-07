@@ -1962,3 +1962,28 @@ now has). Full suite: `make test` 191 passed / 0 failed / 0 expected-red (up fro
 Friction: none — relay-loop.js (the dispatch loop's own heartbeat.sh call sites) was
 deliberately left untouched per the task brief, to avoid a merge conflict with a parallel
 executor working that file.
+
+## 2026-07-07 — executor (opus)
+
+Fixed a CONFIRMED DATA-LOSS bug in the mechanical discovery producer (audit finding against
+id:9d97). `discover-repos-mechanical.sh` is documented as a READ-ONLY verdict snapshot, but it
+called `discover-repo.sh` which composes `reconcile-repo.sh` — bounded SIDE-EFFECTING git
+(fetch, ff-merge, uv.lock commit, and worktree reap/park = `git worktree remove --force` +
+branch rename). The producer's systemd `.service` passes NEITHER `--live-claims` NOR `--runid`,
+so `live_claims=""` → every executor worktree looked stale → the 15-min timer would force-remove
+a LIVE executor's worktree (destroying uncommitted work) and rename its branch.
+
+Fix (audit option (a), classify-only): added an ADDITIVE `--no-reconcile` flag to
+`discover-repo.sh` that SKIPS `reconcile-repo.sh` entirely and runs only the side-effect-free
+classify path (`classify-repo.sh --emit unit`); the producer now passes `--no-reconcile`. The
+LIVE dispatch loop (`relay-loop.js:914`) NEVER sets the flag, so its reconcile+reap is
+byte-for-byte unchanged — it still protects in-flight worktrees via `--live-claims`/`--runid`
+and reconciles at actual dispatch. Updated `discovery-queue-manifest.md` + the producer header
+so "read-only snapshot" is now TRUE. New RED test `tests/test_discovery_producer_readonly.sh`
+builds a fixture repo with a pre-existing unmerged worktree+branch (mimicking a live executor)
+and asserts (a) worktree+branch survive, (b) HEAD/reflog/branch-tip unchanged (no
+fetch/ff-merge/commit), (c) a schema-valid snapshot is still emitted — it failed against the
+old code (worktree force-removed) and passes after the fix. Existing
+`test_discover_repos_mechanical.sh` still green (clean fixtures → reconcile was a no-op there
+anyway, units identical).
+Friction: none.
