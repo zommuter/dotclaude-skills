@@ -6,11 +6,19 @@
 # has been observed to mangle even that (2026-07-07 meeting doctrine: "no LLM if mechanical
 # can do as good or better", docs/meeting-notes/2026-07-07-1228-relay-discovery-off-workflow.md,
 # decision D2). This script performs the SAME exec-and-collect step as a `--user` systemd
-# TIMER, zero LLM, so the mangle-prone step never touches an LLM at all. It reuses
-# discover-repo.sh (id:64b4) VERBATIM per repo — determinism parity with the Haiku
-# discover-run shard is the whole point — and writes a schema-checked snapshot into a
-# drop-dir the (future, gated, id:7402) executor prelude will consume instead of
-# dispatching the Haiku discover-run shard.
+# TIMER, zero LLM, so the mangle-prone step never touches an LLM at all. It calls
+# discover-repo.sh (id:64b4) per repo with --no-reconcile — the READ-ONLY classify path — and
+# writes a schema-checked snapshot into a drop-dir the (future, gated, id:7402) executor prelude
+# will consume instead of dispatching the Haiku discover-run shard.
+#
+# READ-ONLY (id:9d97 data-loss fix): --no-reconcile SKIPS reconcile-repo.sh's bounded
+# SIDE-EFFECTS (fetch / ff-merge / uv.lock commit / worktree reap+park). A snapshot timer has
+# NO view of the live pool's in-flight worktrees; without this it would pass no --live-claims,
+# so reconcile would treat every executor worktree as stale and `git worktree remove --force`
+# it, destroying uncommitted work. The verdict CONTENT is unchanged (reconcile only mutates +
+# surfaces in-flight/orphan cases); the LIVE dispatch loop (relay-loop.js) still runs the full
+# reconcile+reap at actual dispatch, byte-for-byte unchanged. This snapshot being based on
+# un-fetched local state is FINE — the live loop reconciles when it really dispatches.
 #
 # Usage:
 #   discover-repos-mechanical.sh [--runid <id>] [--live-claims <csv>] [--main-branch <name>]
@@ -18,7 +26,7 @@
 # Enumerates CONFIRMED own repos from relay.toml (classification = "own", honoring the
 # `# path:` comment override and the `paused` flag — the SAME parser used by
 # relay-doctor.sh / relay-reconcile.sh / gather-human-backlog.sh; never a fresh ~/src glob,
-# id:7633), then for EACH repo execs discover-repo.sh unmodified and folds its
+# id:7633), then for EACH repo execs discover-repo.sh --no-reconcile (read-only classify path) and folds its
 # {units,surfaced,skipped} into ONE aggregate object:
 #
 #   {
@@ -176,8 +184,15 @@ print(json.dumps({"units": [], "surfaced": [{"repo": os.environ["REPO_ARG"], "re
     continue
   fi
 
+  # --no-reconcile (id:9d97 data-loss fix): this is a READ-ONLY verdict SNAPSHOT producer, so it
+  # must never trigger reconcile-repo.sh's bounded SIDE-EFFECTS (fetch / ff-merge / uv.lock commit /
+  # worktree reap+park). Passing NO --live-claims (this timer has no view of the live pool's
+  # in-flight worktrees) would otherwise make reconcile treat every executor worktree as stale and
+  # `git worktree remove --force` it — destroying uncommitted work. --no-reconcile takes the pure
+  # classify path only. The LIVE dispatch loop (relay-loop.js) NEVER sets this flag, so its
+  # reconcile+reap remains byte-for-byte unchanged; it reconciles at actual dispatch time instead.
   if out="$("$DISCOVER_REPO" --repo "$name" --path "$path" --runid "$runid" \
-            --live-claims "$live_claims" --main-branch "$main_branch" 2>>"$LOG")"; then
+            --live-claims "$live_claims" --main-branch "$main_branch" --no-reconcile 2>>"$LOG")"; then
     printf '%s\t%s\t%s\n' "$name" "$path" "$out" >> "$records_file"
   else
     rc=$?
