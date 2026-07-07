@@ -51,6 +51,10 @@ export SRC_DIR="$tmp/src"
 export RELAY_TOML="$tmp/relay.toml"
 export RELAY_DISCOVERY_QUEUE_DIR="$tmp/queue"
 export RELAY_WORKTREE_BASE="$tmp/wt"
+# id:54fc: the producer now beats a heartbeat marker (heartbeat.sh, id:e149) on success.
+# Redirect it into the tmpdir so this test never touches the real ~/.config/relay/heartbeats.
+export HEARTBEAT_BASE="$tmp/heartbeats"
+export HEARTBEAT_LOG=/dev/null
 mkdir -p "$SRC_DIR"
 
 # --- fixture repo 1: clean + open [ROUTINE] → execute unit -------------------------------

@@ -68,15 +68,26 @@
 #   RELAY_DISCOVERY_QUEUE_DIR  default ~/.config/relay/discovery-queue
 #   RELAY_WORKTREE_BASE        threaded straight to discover-repo.sh's sub-scripts, unchanged
 #                              (this script never reads worktree state itself)
+#
+# LIVENESS (id:54fc): on a successful write, this script beats its OWN heartbeat marker via
+# the shared heartbeat.sh (id:e149) mechanism — a SEPARATE domain from the dispatch loop's
+# per-round `relay-*` runIds, so the outage watchdog (id:98f0) can tell "the discovery
+# producer .timer died" apart from "the dispatch pool is just idle". Same marker
+# format/location (HEARTBEAT_BASE), distinct fixed runId (DISCOVERY_PRODUCER_RUN_ID,
+# default "discovery-producer" — MUST match relay-watchdog.sh's own default/override).
+# Beat failures are logged but NON-FATAL — a heartbeat hiccup must never fail the actual
+# discovery write.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISCOVER_REPO="$SCRIPT_DIR/discover-repo.sh"
+HEARTBEAT_SH="$SCRIPT_DIR/heartbeat.sh"
 
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
 SRC_DIR="${SRC_DIR:-$HOME/src}"
 QUEUE_DIR="${RELAY_DISCOVERY_QUEUE_DIR:-$HOME/.config/relay/discovery-queue}"
 LOG="${RELAY_DISCOVER_MECH_LOG:-$HOME/.claude/logs/discover-repos-mechanical.log}"
+PRODUCER_RUN_ID="${DISCOVERY_PRODUCER_RUN_ID:-discovery-producer}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s discover-repos-mechanical.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
@@ -247,4 +258,16 @@ printf '%s\n' "$aggregate" > "$tmp_latest"
 mv -f "$tmp_latest" "$QUEUE_DIR/latest.json"
 
 log "wrote $QUEUE_DIR/$snapshot_name + latest.json (repos=$n_repos)"
+
+# --- liveness beat (id:54fc) — non-fatal: a heartbeat hiccup never fails the write above --
+if [[ -x "$HEARTBEAT_SH" ]]; then
+  if "$HEARTBEAT_SH" beat "$PRODUCER_RUN_ID" >/dev/null 2>>"$LOG"; then
+    log "beat producer heartbeat runId=$PRODUCER_RUN_ID"
+  else
+    log "heartbeat beat FAILED for runId=$PRODUCER_RUN_ID (non-fatal)"
+  fi
+else
+  log "heartbeat.sh not found/executable at $HEARTBEAT_SH — producer liveness marker NOT written (non-fatal)"
+fi
+
 echo "discover-repos-mechanical.sh: wrote $QUEUE_DIR/$snapshot_name (repos=$n_repos)"
