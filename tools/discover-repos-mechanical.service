@@ -1,0 +1,12 @@
+[Unit]
+Description=Mechanical relay discovery producer — exec discover-repo.sh per confirmed own repo, zero LLM
+Documentation=file:%h/src/dotclaude-skills/relay/scripts/discover-repos-mechanical.sh
+# Replaces the mangle-prone Haiku "exec discover-repo.sh + echo the JSON" discover-run
+# shard (id:9d97, 2026-07-07 meeting: "no LLM if mechanical can do as good or better").
+# Writes a schema-checked snapshot into ~/.config/relay/discovery-queue/latest.json for
+# the (gated, id:7402) executor prelude to consume.
+
+[Service]
+Type=oneshot
+ExecStart=%h/src/dotclaude-skills/relay/scripts/discover-repos-mechanical.sh
+Nice=10
