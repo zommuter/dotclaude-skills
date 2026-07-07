@@ -19,12 +19,19 @@
 set -euo pipefail
 
 repo="" path="" runid="" live_claims="" main_branch="main"
+# live_claims_provided (id:e3ad fail-closed reap guard): distinguishes "--live-claims
+# flag never passed" (0, no caller safety context) from "--live-claims \"\"" (1, caller
+# explicitly checked and nothing is live) — a plain default of "" can't tell these apart,
+# and treating flag-ABSENT the same as explicit-empty is exactly the fail-OPEN bug an
+# audit found (a future/alternate caller that forgets the flag would silently reap live
+# worktrees). Set to 1 only when the --live-claims flag is actually seen on argv.
+live_claims_provided=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) repo="$2"; shift 2 ;;
     --path) path="$2"; shift 2 ;;
     --runid) runid="$2"; shift 2 ;;
-    --live-claims) live_claims="$2"; shift 2 ;;
+    --live-claims) live_claims="$2"; live_claims_provided=1; shift 2 ;;
     --main-branch) main_branch="$2"; shift 2 ;;
     *) echo "reconcile-repo.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -92,33 +99,50 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
   # --- WORKTREE reap/park (id:ebfb/3ac8/689c) --------------------------------
   wtdir="$WORKTREE_BASE/$repo"
   if [[ -d "$wtdir" ]]; then
-    IFS=',' read -r -a claims_arr <<< "$live_claims"
-    is_live_claimed=false
-    for c in "${claims_arr[@]:-}"; do
-      [[ -n "$c" && "$c" == "$repo" ]] && is_live_claimed=true
-    done
+    if [[ "$live_claims_provided" -eq 0 ]]; then
+      # --- FAIL-CLOSED GUARD (id:e3ad) --------------------------------------
+      # No --live-claims flag was passed at all: the caller supplied NO safety
+      # context, so we cannot tell live worktrees apart from stale ones. Refuse
+      # every destructive reap/park in this repo and surface loudly instead —
+      # this is strictly additive: the live loop (relay-loop.js -> discover-repo.sh)
+      # ALWAYS passes --live-claims (even "" when nothing is live), so it never
+      # hits this branch; only a caller that forgot the flag does.
+      while IFS= read -r bn; do
+        [[ -n "$bn" ]] || continue
+        [[ -n "$runid" && "$bn" == "$runid"* ]] && continue
+        msg="REFUSED reap/park of worktree $bn: --live-claims was not provided (no safety context) — fail-closed guard (id:e3ad)"
+        echo "reconcile-repo.sh: WARNING: $msg" >&2
+        add_surfaced "$msg"
+      done < <(ls -1 "$wtdir" 2>/dev/null || true)
+    else
+      IFS=',' read -r -a claims_arr <<< "$live_claims"
+      is_live_claimed=false
+      for c in "${claims_arr[@]:-}"; do
+        [[ -n "$c" && "$c" == "$repo" ]] && is_live_claimed=true
+      done
 
-    while IFS= read -r bn; do
-      [[ -n "$bn" ]] || continue
-      [[ -n "$runid" && "$bn" == "$runid"* ]] && continue
+      while IFS= read -r bn; do
+        [[ -n "$bn" ]] || continue
+        [[ -n "$runid" && "$bn" == "$runid"* ]] && continue
 
-      if [[ "$is_live_claimed" == true ]]; then
-        add_surfaced "in-flight elsewhere (worktree $bn) — claimed by another relay run (id:ebfb)"
-        continue
-      fi
+        if [[ "$is_live_claimed" == true ]]; then
+          add_surfaced "in-flight elsewhere (worktree $bn) — claimed by another relay run (id:ebfb)"
+          continue
+        fi
 
-      branch="relay/$bn"
-      if git -C "$path" merge-base --is-ancestor "$branch" "$main_branch" 2>/dev/null; then
-        git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
-        git -C "$path" branch -D "$branch" >/dev/null 2>&1 || true
-        add_action "reap" "reaped stale empty worktree $bn"
-      else
-        git -C "$path" branch -m "$branch" "relay/orphan/$bn" >/dev/null 2>&1 || true
-        git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
-        add_action "park" "parked stale worktree $bn to relay/orphan/$bn"
-        add_surfaced "parked orphan from a dead run — ref renamed to relay/orphan/$bn for manual /relay reconcile (id:689c)"
-      fi
-    done < <(ls -1 "$wtdir" 2>/dev/null || true)
+        branch="relay/$bn"
+        if git -C "$path" merge-base --is-ancestor "$branch" "$main_branch" 2>/dev/null; then
+          git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
+          git -C "$path" branch -D "$branch" >/dev/null 2>&1 || true
+          add_action "reap" "reaped stale empty worktree $bn"
+        else
+          git -C "$path" branch -m "$branch" "relay/orphan/$bn" >/dev/null 2>&1 || true
+          git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
+          add_action "park" "parked stale worktree $bn to relay/orphan/$bn"
+          add_surfaced "parked orphan from a dead run — ref renamed to relay/orphan/$bn for manual /relay reconcile (id:689c)"
+        fi
+      done < <(ls -1 "$wtdir" 2>/dev/null || true)
+    fi
   fi
 
   # --- ORPHAN SUPPRESS-REDISPATCH (id:1f53) ----------------------------------
