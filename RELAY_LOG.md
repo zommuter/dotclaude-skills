@@ -2078,3 +2078,40 @@ guard didn't over-restrict the legitimate empty case); (c) invoking with
 in-flight-elsewhere (existing id:ebfb protection intact). All three pass; full
 `make test` is green (194 passed, 0 failed, 0 expected-red).
 Friction: none.
+
+## 2026-07-07 — executor (sonnet)
+
+Worked id:1bd1 — added the LOUD, report-only `mechanical-orphan` check to
+`relay-doctor.sh` (a 12th check, `relay/scripts/relay-doctor.sh:377-437`, run
+inside `check_repo` right after the last_ckpt check). handoff.md:77-92 warns
+that tagging a ROADMAP item `[MECHANICAL]` routes it to the pool-inert
+`mechanical` verdict, but nothing runs it until an A2 recipe is authored into
+`~/.config/relay/recipes/pending/` — and there was no detector for the case
+where that authoring never happened (or the recipe was lost). The new check
+scans every OPEN `- [ ]` ROADMAP item tagged `[MECHANICAL]`, pulls its
+`<!-- id:XXXX -->` token, and cross-references it against the top-level `id`
+field of every recipe JSON in `$RELAY_RECIPE_DIR/{pending,running,done}/`
+(recipe-manifest.md's `id` field is the schema's only explicit id-linkage —
+NOT filename, which is unconstrained; a recipe already consumed into `done/`
+still counts as "fed"). An unfed item prints
+`⚠️ [MECHANICAL] item id:XXXX has no authored recipe in .../{pending,running,done} — it will never run (author its A2 recipe per handoff.md).`
+and increments `repo_issues`, so it participates in the existing report-only
+default / `--strict` escalation exactly like every other check — no new flag,
+no new exit-code path. `$RELAY_RECIPE_DIR` is honored (same env var
+`mechanical-daemon.sh` already reads) so the RED test is fully hermetic
+(mktemp -d recipe root, mktemp -d git repo, no `~/.config/relay`, no network).
+
+New RED test `tests/test_mechanical_orphan.sh` (`# roadmap:1bd1` — no such
+open ROADMAP item exists so the header is purely documentary; the test
+passes outright, so expected-red semantics never engage). Four fixture items:
+(a) open `[MECHANICAL]`, no recipe anywhere → reported; (b) open
+`[MECHANICAL]` with its recipe sitting in `done/` → not reported; (c) closed
+`[x]` `[MECHANICAL]`, no recipe → not reported; (d) open `[ROUTINE]` (not
+`[MECHANICAL]`), no recipe → not reported. Plus two cross-cutting assertions:
+report-only stays exit-0 despite the (a) finding, and `--strict` turns that
+same finding into a nonzero exit. Verified RED against the pre-change script
+(no `mechanical-orphan` section at all, so grep for it failed first), then
+GREEN after the implementation — all 6 assertions pass. Full `make test` is
+green (196 passed, 0 failed, 0 expected-red).
+Friction: none — recipe-manifest.md's `id` field was an unambiguous, already-
+documented linkage, no guessing required.
