@@ -887,12 +887,17 @@ if (prelude && Array.isArray(prelude.repos)) {
   const chunks = Array.from({ length: SHARDS }, (_, s) => changed.filter((_, idx) => idx % SHARDS === s)).filter(c => c.length)
   const liveClaimsCsv = (prelude.liveClaimRepos || []).join(',')
   // Mechanical discovery runner (id:a0b6 flip step b): the LLM classifier SHARD is REPLACED by
-  // a pure-transport runner that runs discover-repo.sh once per repo. discover-repo.sh (id:64b4)
-  // composes reconcile-repo.sh (side-effecting git, id:5987) + classify-repo.sh --emit unit
-  // (deterministic full-unit assembler, id:3d61) and routes per repo, so ALL verdict +
-  // reconciliation logic is now deterministic + tested (test_reconcile_repo.sh /
-  // test_classify_repo_unit.sh / test_discover_repo.sh). The runner emits NO judgment: it runs
-  // one script per repo and concatenates the JSON. classify-verdict never emits AMBIGUOUS today,
+  // a pure-transport runner. Two source shapes (see STEP 0 in the prompt): CASE B (no fresh
+  // queue) runs discover-repo.sh once per repo — the full live path; CASE A (fresh id:9d97
+  // queue) SPLITS the round — reconcile-repo.sh runs LIVE per repo for the side-effecting half
+  // and the deterministic CLASSIFY verdict is copied from the queue (id:9d97 data-loss fix,
+  // 2026-07-07 Fable second-opinion: the queue must NEVER substitute for the live reconcile
+  // side-effects). discover-repo.sh (id:64b4) composes reconcile-repo.sh (side-effecting git,
+  // id:5987) + classify-repo.sh --emit unit (deterministic full-unit assembler, id:3d61) and
+  // routes per repo, so ALL verdict + reconciliation logic is deterministic + tested
+  // (test_reconcile_repo.sh / test_classify_repo_unit.sh / test_discover_repo.sh). The runner
+  // emits NO judgment: it runs scripts per repo (+ a queue cat in CASE A) and concatenates the
+  // JSON. classify-verdict never emits AMBIGUOUS today,
   // so the big LLM shard prompt is DELETED (the dormant AMBIGUOUS path is surfaced loudly by
   // discover-repo.sh) — DP1 "classifier primary, no post-flip comparator" (meetings
   // 2026-06-30-1523 / 2026-07-01-1904). The four JS-side backstops below (id:000d/9973/ad74/365b)
@@ -904,22 +909,29 @@ ${JSON.stringify(chunk)}
 
 This run's runId is "${prelude.runId}". Repos currently held by a live relay run are: "${liveClaimsCsv}".
 
-STEP 0 — check for a FRESH mechanical discovery-queue snapshot (id:7402/D3, mechanical PRODUCER id:9d97 — prefer this over exec when available, it is a pure file-read of an already-computed, already-deterministic verdict, not a re-derivation): run
-  find ${DISCOVERY_QUEUE_LATEST} -newermt "@$(( $(date +%s) - ${DISCOVERY_QUEUE_FRESH_SECS} ))" 2>/dev/null
-If that command prints the path (file exists AND its mtime is within the last ${DISCOVERY_QUEUE_FRESH_SECS}s ⇒ FRESH): run
-  cat ${DISCOVERY_QUEUE_LATEST}
-ONCE, then for EACH repo in your list above, take that repo's entries straight out of the queue's top-level "units"/"surfaced"/"skipped" arrays by matching .repo == <repo name> — copy them VERBATIM, do not re-derive, re-run, or re-judge anything. THIS CAT-AND-COPY STEP IS THE RESIDUAL LLM SURFACE (id:7402/D3 — the known-remaining, irreducible-for-now LLM read; deferred+labeled, not eliminated; see relay/references/discovery-queue-manifest.md and the 2026-07-07 discovery-off-Workflow meeting note). It is a pure file-echo of an already-mechanical verdict, not a classification — far smaller mangle surface than running discover-repo.sh yourself, but still an LLM hop until the launch-wall (id:af30/id:2ec4) is resolved.
+STEP 0 — SPLIT each repo into a LIVE reconcile half (ALWAYS runs, every round) and a CLASSIFY half (from the mechanical queue when fresh, else live). WHY the split (id:9d97 data-loss fix, 2026-07-07 Fable second-opinion): the mechanical producer's reliability win is in the deterministic CLASSIFY verdict (the Haiku-mangle-prone "run classify + echo the verdict" step). The RECONCILE half is bounded SIDE-EFFECTING git — ff-merge behind-origin (id:c3f7), uv.lock cascade commit (id:bae5), worktree reap/park + orphan suppress-redispatch (id:1f53/ebfb), and live-claims filtering — that MUST run LIVE against real pool state every round; the read-only producer (--no-reconcile) never performed it, and the queue carries NO live-claims context and only mtime freshness. So NEVER take reconcile results from the queue: always run reconcile live, and take only the classify verdict from the queue.
 
-If the find command above prints NOTHING (queue missing or stale — e.g. the id:9d97 `.timer` is not installed/enabled, the default): FALL BACK to the live exec path, unchanged from before this queue existed. For EACH repo in the list above, run this ONE command (substitute its repo name and path from the entry):
+First check whether a FRESH mechanical discovery-queue snapshot exists (id:7402/D3, PRODUCER id:9d97): run
+  find ${DISCOVERY_QUEUE_LATEST} -newermt "@$(( $(date +%s) - ${DISCOVERY_QUEUE_FRESH_SECS} ))" 2>/dev/null
+
+CASE A — that command prints the path (file exists AND its mtime is within the last ${DISCOVERY_QUEUE_FRESH_SECS}s ⇒ FRESH queue): take the CLASSIFY verdict from the queue, but STILL reconcile LIVE. Run
+  cat ${DISCOVERY_QUEUE_LATEST}
+ONCE for the whole chunk. Then for EACH repo in your list above, run its LIVE reconcile — this ONE command (substitute its repo name and path from the entry):
+  ~/.claude/skills/relay/scripts/reconcile-repo.sh --repo <repo> --path <path> --runid ${prelude.runId} --live-claims "${liveClaimsCsv}" --main-branch main
+It emits ONE JSON object {"repo":...,"actions":[...],"surfaced":[...]} and performs the round's bounded side-effects for that repo. THEN route this repo, mirroring discover-repo.sh exactly:
+  • if reconcile's "surfaced" array is NON-EMPTY (in-flight elsewhere / parked orphan / diverged-from-origin) → emit {"units":[],"surfaced":<reconcile's surfaced array>,"skipped":[]} for this repo and STOP — do NOT take the queue's classify verdict (a surfaced repo is never classified).
+  • else (reconcile surfaced nothing) → take THIS repo's entries straight out of the queue's top-level "units"/"surfaced"/"skipped" arrays by matching .repo == <repo name>, copy them VERBATIM, do not re-derive, re-run, or re-judge anything. THIS CAT-AND-COPY OF THE CLASSIFY VERDICT IS THE RESIDUAL LLM SURFACE (id:7402/D3 — the known-remaining, irreducible-for-now LLM read; deferred+labeled, not eliminated; see relay/references/discovery-queue-manifest.md and the 2026-07-07 discovery-off-Workflow meeting note). It is a pure file-echo of an already-mechanical verdict, not a classification — far smaller mangle surface than classifying yourself, but still an LLM hop until the launch-wall (id:af30/id:2ec4) is resolved. If a repo is MISSING from the queue's arrays here, put it in "surfaced" with that reason — NEVER guess a verdict.
+
+CASE B — the find command prints NOTHING (queue missing or stale — e.g. the id:9d97 `.timer` is not installed/enabled, the shipped default): FALL BACK to the live exec path, unchanged from before this queue existed — discover-repo.sh does BOTH reconcile and classify live. For EACH repo in the list above, run this ONE command (substitute its repo name and path from the entry):
   ~/.claude/skills/relay/scripts/discover-repo.sh --repo <repo> --path <path> --runid ${prelude.runId} --live-claims "${liveClaimsCsv}" --main-branch main
 It emits ONE JSON object {"units":[...],"surfaced":[...],"skipped":[...]} for that repo — it does ALL reconciliation, classification, and routing internally. Collect all of them.
 
-NO-FILESYSTEM-HUNTING GUARD (id:612f): per repo, run ONLY the ONE command STEP 0 selected (the queue cat, done once for the whole chunk, or discover-repo.sh, once per repo) — never both, never anything else. Do NOT run git, gather-repo-state, classify-repo, find (beyond the STEP 0 freshness check), or read ROADMAP/relay.toml/transcripts — the selected source already has everything. If discover-repo.sh errors for a repo (fallback path), or a repo is missing from the queue (queue path), put that repo in "surfaced" with the reason — NEVER guess a verdict.
+NO-FILESYSTEM-HUNTING GUARD (id:612f): per repo, run ONLY the command(s) STEP 0 selected — CASE A: the queue cat (ONCE for the whole chunk) PLUS reconcile-repo.sh (ONCE per repo); CASE B: discover-repo.sh (ONCE per repo). Never mix the two cases, never anything else. Do NOT run git, gather-repo-state, classify-repo, find (beyond the STEP 0 freshness check), or read ROADMAP/relay.toml/transcripts — the selected source(s) already have everything. If discover-repo.sh errors for a repo (CASE B), or a repo is missing from the queue (CASE A else-branch), put that repo in "surfaced" with the reason — NEVER guess a verdict.
 
 Return {units, surfaced, skipped} = the CONCATENATION across every repo in your list (append each repo's three arrays). Each repo appears exactly once across units+surfaced; an idle repo appears in BOTH units and skipped.`
   // Only CHANGED repos pay for a runner agent (id:c3a6); a round where every repo is cached runs
   // zero runners and is still a valid round (shardOk seeded true below).
-  if (changed.length) log(`relay-loop: id:7402 discover-run agent() dispatch — prefers the id:9d97 mechanical queue (${DISCOVERY_QUEUE_LATEST}, fresh<${DISCOVERY_QUEUE_FRESH_SECS}s) when present, else falls back to the live discover-repo.sh exec path; EITHER WAY the agent() call itself is the residual LLM surface (D3, deferred+labeled, not eliminated — see relay/references/discovery-queue-manifest.md)`)
+  if (changed.length) log(`relay-loop: id:7402 discover-run agent() dispatch — RECONCILE runs LIVE every round (reconcile-repo.sh per repo: ff-merge/uv.lock/reap-park/live-claims side-effects); the CLASSIFY verdict comes from the id:9d97 mechanical queue (${DISCOVERY_QUEUE_LATEST}, fresh<${DISCOVERY_QUEUE_FRESH_SECS}s) when present, else the full live discover-repo.sh exec path; EITHER WAY the agent() call itself is the residual LLM surface (D3, deferred+labeled, not eliminated — see relay/references/discovery-queue-manifest.md)`)
   const shardResults = changed.length
     ? await parallel(chunks.map((chunk) => () =>
         agent(runnerPrompt(chunk), { label: `discover-run:${chunk.length}`, phase: 'Classify', schema: SHARD_SCHEMA, model: 'haiku' })
@@ -1510,7 +1522,7 @@ async function integrate(unit, report) {
 
 0. Release this repo's cross-session lease (id:ebfb) — the child's work is done; do this FIRST so it runs whether the merge below succeeds or aborts: ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}  (run-scoped — a no-op if this run does not hold it).${unit.intensive ? ` Also release the exclusive resource lease (id:8d52): ~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}.` : ''}
 1. DETERMINISTIC clean-tree gate (id:aa93 — a foreign-dirty main checkout was silently DESTROYED 3× on 2026-06-18 when an agent "cleaned" the tree to make room): run ~/.claude/skills/relay/scripts/clean-tree-gate.sh ${unit.path}. It prints "clean" and exits 0 ONLY if the tree carries no changes; otherwise it prints "dirty <N>" + the offending porcelain lines and exits NON-ZERO. On any non-zero exit, ABORT: return merged=false with reason "main checkout dirty — a concurrent edit is present; deferring to avoid data loss (id:aa93)" plus the gate's dirty output. The integrator works on the child's WORKTREE, never the main checkout, so ANY dirty entry here is a foreign/concurrent editor's work. You must NEVER run \`git stash\`, \`git checkout --\`, \`git reset --hard\`, or \`git clean\` on ${unit.path} to make room for the merge — do NOT force-clean a foreign-dirty tree; just DEFER it.
-1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; the discovery step already fast-forwarded behind-only repos.)
+1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; discovery's live reconcile-repo.sh already fast-forwarded behind-only repos — it runs every round on BOTH the fresh-queue and the live-exec discovery path, id:9d97/7402, so a behind-only repo is always ff-merged before dispatch.)
 2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
    On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
    The checkpoint tag's anchor (`-c` for step 3) is decided HERE by which of two cases the merge produced:
@@ -1890,11 +1902,11 @@ async function stopHeartbeat() {
 try {
   await agent(
     `Auto-reconcile-on-restart check (relay id:7809), unattended — NEVER prompt. Run exactly:
-  ~/.claude/skills/relay/scripts/heartbeat.sh dead-runs
-If it prints NOTHING, no prior relay run died — do nothing else and report "no dead run, skipped". If it prints one or more JSON lines (a prior run died without a clean heartbeat stop), then run BOTH of these in order and report their output verbatim:
+  ~/.claude/skills/relay/scripts/heartbeat.sh dead-runs --prefix 'relay-*'
+If it prints NOTHING, no prior DISPATCH-LOOP relay run died — do nothing else and report "no dead run, skipped". If it prints one or more JSON lines (a prior run died without a clean heartbeat stop), then run BOTH of these in order and report their output verbatim:
   ~/.claude/skills/relay/scripts/relay-reconcile.sh --all --auto
   ~/.claude/skills/relay/scripts/heartbeat.sh reap --prefix 'relay-*'
-(The first auto-integrates only ledger-only/clean orphans and surfaces everything else into REVIEW_ME.md; the second archives the now-handled dead run-markers so the watchdog (id:98f0) does not re-notify and the next start does not re-reconcile them. The --prefix 'relay-*' is REQUIRED and must not be dropped — it scopes the reap to this dispatch loop's own runId namespace so it never archives the INDEPENDENT discovery-producer heartbeat marker, id:54fc, whose down-alarm is a separate liveness domain.) Take NO other action.`,
+(The first auto-integrates only ledger-only/clean orphans and surfaces everything else into REVIEW_ME.md; the second archives the now-handled dead run-markers so the watchdog (id:98f0) does not re-notify and the next start does not re-reconcile them. The --prefix 'relay-*' is REQUIRED on BOTH the dead-runs detection AND the reap above and must not be dropped — it scopes both to this dispatch loop's own runId namespace so a dead INDEPENDENT discovery-producer heartbeat marker (id:54fc, a separate liveness domain that ages past heartbeat's 3600s default TTL) never falsely trips this per-restart --all reconcile nor gets archived by the reap. Un-scoped dead-runs would fire relay-reconcile --all --auto on EVERY restart while that producer marker is stale.) Take NO other action.`,
     { label: 'auto-reconcile-restart', phase: 'Support', model: 'haiku' }
   )
 } catch (_) { /* non-fatal: the human /relay reconcile is always available */ }

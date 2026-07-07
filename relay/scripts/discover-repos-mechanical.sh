@@ -15,10 +15,16 @@
 # SIDE-EFFECTS (fetch / ff-merge / uv.lock commit / worktree reap+park). A snapshot timer has
 # NO view of the live pool's in-flight worktrees; without this it would pass no --live-claims,
 # so reconcile would treat every executor worktree as stale and `git worktree remove --force`
-# it, destroying uncommitted work. The verdict CONTENT is unchanged (reconcile only mutates +
-# surfaces in-flight/orphan cases); the LIVE dispatch loop (relay-loop.js) still runs the full
-# reconcile+reap at actual dispatch, byte-for-byte unchanged. This snapshot being based on
-# un-fetched local state is FINE — the live loop reconciles when it really dispatches.
+# it, destroying uncommitted work. The CLASSIFY verdict CONTENT is unchanged (reconcile only
+# mutates + surfaces in-flight/orphan cases, never re-derives a verdict) — which is exactly why
+# this snapshot only ever feeds the live loop's CLASSIFY half. The LIVE dispatch loop
+# (relay-loop.js discover-run recipe, CASE A) ALWAYS runs reconcile-repo.sh LIVE per round
+# (with --live-claims + --runid) for the side-effecting reconcile half — ff-merge, uv.lock
+# cascade commit, worktree reap/park, live-claims filtering — and takes ONLY the deterministic
+# classify verdict from this snapshot when it is fresh (else it runs the full discover-repo.sh
+# live, CASE B). It NEVER consumes reconcile results from the queue. So this snapshot being based
+# on un-fetched, un-reconciled local state is FINE: the live loop reconciles on real pool state
+# when it actually dispatches; the queue only ever supplies the classify verdict.
 #
 # Usage:
 #   discover-repos-mechanical.sh [--runid <id>] [--live-claims <csv>] [--main-branch <name>]
@@ -189,8 +195,10 @@ print(json.dumps({"units": [], "surfaced": [{"repo": os.environ["REPO_ARG"], "re
   # worktree reap+park). Passing NO --live-claims (this timer has no view of the live pool's
   # in-flight worktrees) would otherwise make reconcile treat every executor worktree as stale and
   # `git worktree remove --force` it — destroying uncommitted work. --no-reconcile takes the pure
-  # classify path only. The LIVE dispatch loop (relay-loop.js) NEVER sets this flag, so its
-  # reconcile+reap remains byte-for-byte unchanged; it reconciles at actual dispatch time instead.
+  # classify path only. The LIVE dispatch loop (relay-loop.js) NEVER sets this flag AND never
+  # consumes reconcile results from this snapshot: it runs reconcile-repo.sh LIVE per round for the
+  # side-effecting half (reap/park/ff-merge/uv.lock/live-claims), taking only the classify verdict
+  # from the queue when fresh — so its reconcile side-effects run every round on real pool state.
   if out="$("$DISCOVER_REPO" --repo "$name" --path "$path" --runid "$runid" \
             --live-claims "$live_claims" --main-branch "$main_branch" --no-reconcile 2>>"$LOG")"; then
     printf '%s\t%s\t%s\n' "$name" "$path" "$out" >> "$records_file"
