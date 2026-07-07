@@ -189,6 +189,11 @@ no REVIEW_ME boxes are added.
   class tag at all, or a malformed/unknown lane. It does NOT auto-rewrite; surface any
   violations in the return report so the strong/human turn assigns the lane at the source
   (mirrors id:78ff's "back-fill belongs to each repo's next handoff/review/human").
+- **Reconcile stale-ledger drift (id:b3ee).** Run `meeting/orphan-scan.sh --shipped
+  "$(pwd)"` — report-only; TICK-READY items (green linked test, no gating lexeme) and
+  GATE-STALE items (gating lexeme, line >=14 days old) are advisory only, never
+  auto-ticked. Verify each TICK-READY hit yourself before ticking its TODO.md checkbox;
+  surface each GATE-STALE hit as a REVIEW_ME box for a human re-check of the lapsed clause.
 - Close items whose tests are genuinely green; update the TODO.md summary count.
 - **Single-id-two-views (D2):** when you add or promote a ROADMAP item for work the
   repo's `TODO.md` already tracks under an `<!-- id:XXXX -->`, REUSE that token — mint a
