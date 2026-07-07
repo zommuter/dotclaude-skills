@@ -58,12 +58,33 @@ const c = 'a `hard` backtick in a single-quoted string is fine'
 const d = "a `hard` backtick in a double-quoted string is fine"
 const e = `${json.replace(/'/g, "'")}`
 const f = `closes cleanly`
+const g = `text`.trim()
+const h = `text`.slice(0, 10).padEnd(3)
 EOF
 if ! out="$(node "$LINT" "$TMP/good.mjs" 2>&1)"; then
   fail "linter false-positived on an all-exempt fixture (should exit 0):
 $out"
 fi
-pass "(2) escaped + comment + string + regex-quote backticks → exit zero (no false positive)"
+pass "(2) escaped + comment + string + regex-quote + legit .method() close → exit zero (no false positive)"
+
+# (2b) The `.member` tagged-template desync (the id:5bac `.timer` crash, 2026-07-07): an
+#      unescaped backtick inside a template followed by a `.identifier` chain then ANOTHER
+#      backtick parses as a VALID tagged template `(…).member`…`` — node --check + the
+#      Workflow parser both pass, but `.member` is undefined at runtime → pool crash. This
+#      is the variant the original isWordChar(next)-only rule MISSED (next was `.`, not a
+#      word char), so a purpose-built guard reported the broken relay-loop.js CLEAN.
+cat > "$TMP/member.mjs" <<'EOF'
+export const meta = { name: 'member' }
+const prompt = `fall back when the id:9d97 `.timer` is not installed, the default`
+EOF
+if out="$(node "$LINT" "$TMP/member.mjs" 2>&1)"; then
+  fail "linter did NOT flag a `.member` tagged-template desync (the .timer crash class):
+$out"
+fi
+echo "$out" | grep -qE 'member\.mjs:2:' \
+  || fail "linter flagged the .member desync but did not name the offending line:
+$out"
+pass "(2b) unescaped backtick + .member chain + reopening backtick (tagged-template desync) → nonzero, names the line"
 
 # (3) Directory scan discovers workflow scripts via the `export const meta` marker and
 #     ignores a plain script with no marker.

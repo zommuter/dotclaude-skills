@@ -137,14 +137,28 @@ function lintSource(src) {
         }
         if (c === '`') {
           // An unescaped backtick in template content. In valid JS this CLOSES the
-          // literal. The id:71f2 bug is an UNINTENDED close: `…`word`…` — the backtick
-          // is glued to a following identifier char, the `` `hard`` desync signature.
-          // A legitimate close is never followed by a word char.
+          // literal. The id:71f2 bug is an UNINTENDED close with two desync signatures:
+          //
+          //  (a) `…`word`…`  — the backtick is glued to a following identifier char.
+          //      This is a PARSE error in the strict Workflow parser (the original 178b8db
+          //      `` `hard`` incident). Caught by isWordChar(next).
+          //
+          //  (b) `…`.member`…` — the backtick is followed by a `.identifier` chain that is
+          //      itself followed by ANOTHER backtick. That parses as a TAGGED TEMPLATE
+          //      `(…).member`…`` — VALID grammar, so `node --check` AND the Workflow parser
+          //      both pass, but `.member` is undefined at runtime → "undefined is not a
+          //      function", thrown synchronously → whole pool crash (the `.timer` incident,
+          //      2026-07-07, id:5bac). A LEGITIMATE method-call close (`\`text\`.trim()`) is
+          //      followed by `(`, never a backtick, so this does not false-positive on it.
           if (isWordChar(next)) {
             violations.push({ line, col, ctx: snippet(src, i) })
             // stay in tmpl so we keep scanning the rest of the (malformed) literal for
             // further violations rather than mis-tracking state from this point.
             i++; continue
+          }
+          if (next === '.' && isTaggedMemberClose(src, i, n)) {
+            violations.push({ line, col, ctx: snippet(src, i) })
+            i++; continue   // stay in tmpl (as above) to keep scanning
           }
           state = 'code'
           prevSig = '`'   // closed template = a value
@@ -156,6 +170,24 @@ function lintSource(src) {
     i++
   }
   return violations
+}
+
+// From a backtick at index `i` (whose next char is `.`), is the tail a tagged-template
+// desync `(…).ident(.ident)*`…` ? True iff a `.identifier` member chain is immediately
+// followed by another backtick (the reopened template that makes it a tagged call). A real
+// `.method()` close is followed by `(` and returns false, so legitimate `\`text\`.trim()`
+// chaining is never flagged.
+function isTaggedMemberClose(src, i, n) {
+  let j = i + 1
+  let sawMember = false
+  while (j < n && src[j] === '.') {
+    j++
+    const start = j
+    while (j < n && isWordChar(src[j])) j++
+    if (j === start) return false   // a bare `.` with no identifier → not a member chain
+    sawMember = true
+  }
+  return sawMember && src[j] === '`'
 }
 
 // A short single-line snippet around index i for the diagnostic.
