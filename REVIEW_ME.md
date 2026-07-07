@@ -130,3 +130,11 @@ latest prune by the 2026-07-02 review.)
   `available:false` + a stated reason, exit 1, NO crash (not just the env-stubbed test path).
   `ram` default 2048MB → available (10163MB free); `LOAD_MAX` default = nproc = 8 is sane for
   the 8-core host. All host-tuning defaults are conservative and env-overridable.
+- [ ] **id:758e purity-helper handoff (2026-07-07): NO contract-version bump for the new convention note.**
+  The RED spec (`tests/test_purity_helper.sh`) requires a `### Purity-test-as-contract`
+  note in `relay/references/executor-contract.md` but instructs the executor NOT to bump
+  the `v6` version marker — judgment: an additive test-authoring convention is a
+  "clarification that doesn't change behaviour" per §Maintenance (no in-flight executor
+  behaves differently mid-item), and a bump would churn every managed repo's CLAUDE.md
+  pointer. If you read the convention as a genuine new RULE (executors must now ship
+  purity tests with read-only components), overrule: bump v6→v7 + refresh the pointer.

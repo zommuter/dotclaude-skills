@@ -2115,3 +2115,28 @@ GREEN after the implementation — all 6 assertions pass. Full `make test` is
 green (196 passed, 0 failed, 0 expected-red).
 Friction: none — recipe-manifest.md's `id` field was an unambiguous, already-
 documented linkage, no guessing required.
+## 2026-07-07 — handoff (fable)
+
+Scoped Fable-tier handoff pass (RED specs only, no C1/C4): surveyed the open backlog
+via `unpromoted-scan.sh` (60 findings: 2 promote / 48 surface / 9 laned / 1 untracked)
++ the ROADMAP open set (6 items, all HARD/gated/human-lane — 0 open [ROUTINE]).
+Handed off the ENTIRE genuinely-executor-ready set, which is exactly 2 items:
+- id:758e purity-test-as-contract — RED `tests/test_purity_helper.sh` specs a shared
+  `tests/lib/assert-repo-unchanged.sh` (snapshot + byte-identical assert, loud stderr
+  drift) generalizing `test_discovery_producer_readonly.sh`, plus a documented
+  convention note in executor-contract.md (no-bump call boxed in REVIEW_ME).
+- id:bf7a relay-gap-sample hardening — `tests/test_gap_sample_install.sh`: the hermetic
+  behavior spec half (stubbed RELAY_SCRIPTS; change/tick/ERROR lines) PASSES today
+  (regression guard for the test-lessly shipped logger); the RED half is the missing
+  `make install-gap-sample`/`uninstall-gap-sample` targets + SKILL.md doc line.
+Deliberately NOT handed off: id:f599 (echo-runner adoption — [HARD — pool]
+measure-then-decide, an adopt-or-reject endpoint can't be a red test without
+pre-deciding it, and it edits relay-loop.js, the a0b6 template-lint hazard class);
+the 48 surface items (lane decisions belong to the human-verdict mechanical filer,
+id:5eb3); the 9 laned human/meeting items + the untracked [HARD — meeting] umbrella
+heading (meeting lane); all gated items. Honest read: the backlog is design-heavy and
+THIN on executor work — 2 real handoffs is the whole crop, not a shortfall.
+Stayed out of relay-doctor.sh / tests/test_mechanical_orphan.sh (parallel executor
+mid-flight). `make test`: 194 passed, 0 failed, 2 expected-red.
+Friction: unpromoted-scan's persisted-output truncation initially hid id:758e from the
+promote set — re-ran filtered; scan itself is correct.
