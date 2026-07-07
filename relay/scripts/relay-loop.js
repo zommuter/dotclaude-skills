@@ -1525,7 +1525,7 @@ async function integrate(unit, report) {
 1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; discovery's live reconcile-repo.sh already fast-forwarded behind-only repos — it runs every round on BOTH the fresh-queue and the live-exec discovery path, id:9d97/7402, so a behind-only repo is always ff-merged before dispatch.)
 2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
    On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
-   The checkpoint tag's anchor (`-c` for step 3) is decided HERE by which of two cases the merge produced:
+   The checkpoint tag's anchor (\`-c\` for step 3) is decided HERE by which of two cases the merge produced:
    • ZERO-COMMIT branch (id:8e3e — merge printed "Already up to date"; the branch tip is already an ancestor of main): the child audited its window and had nothing to change. That IS a completed unit, NOT a "duplicate dispatch" — do NOT return merged=false (a handback here leaves the audited window UNCLOSED, so discovery re-dispatches the same strong review every round; observed 3× on 2026-07-01). Capture reviewedTip = git -C ${unit.path} rev-parse ${report.branch}, then proceed to step 3 WITH the extra flag \`-c <reviewedTip>\` so the checkpoint tag anchors on the commit the child actually audited — NEVER on current main HEAD, which may contain commits that landed after dispatch and were NOT audited.
    • BRANCH WITH COMMITS (id:25aa — the merge actually created a \`--no-ff\` merge commit; the branch carried its own work, e.g. a REVIEW_ME prune + a RELAY_LOG commit): the run's OWN merged commits MUST fall INSIDE the audited window, so the checkpoint MUST anchor on the POST-MERGE tip. Do this by passing NO \`-c\` at step 3 (the default: ckpt-tag appends its RELAY_LOG commit on top of the just-created merge commit and tags THAT — the post-merge tip, which contains the merge). Do NOT carry over the zero-commit rule here: passing \`-c <reviewedTip>\` (the branch tip) when the branch carried commits anchors the tag BEHIND the merge, leaving the run's own merged commits permanently OUTSIDE the audited window — classify-repo then re-dispatches a "substantive unaudited commits" review forever (the id:25aa bug; the carries-commits COMPLEMENT of id:8e3e). The id:8e3e "NEVER tag main HEAD" caution applies ONLY to the zero-commit case (where main HEAD may hold unaudited post-dispatch commits); when the merge just happened, the post-merge tip IS the audited boundary.
 3. ~/.claude/skills/relay/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}${idSuffix}" -l "${label}"
@@ -1768,7 +1768,25 @@ async function runUnit(unit) {
   if (!rechainedSameRepo) await releaseLease(unit)
   // Integration debt is enqueued, not awaited here: the dispatch slot frees up
   // immediately while the serialized chain works through merges one at a time.
-  debts.push(enqueueIntegration(unit.repo, () => integrate(unit, report)))
+  // CONTAINMENT (id:efaf) — a single integration failure must NEVER crash the whole pool.
+  // integrate() has no try/catch around its `await agent(integrator, {schema: INTEGRATE_SCHEMA})`,
+  // so an integrator agent whose output fails schema validation after retries makes agent()
+  // throw → integrate() rejects. Without this .catch the raw rejecting promise lands in `debts`,
+  // and the end-of-round `await Promise.all(debts)` rejects → the ENTIRE workflow dies, STRANDING
+  // every other in-flight worktree (observed 2026-07-07: one integrate throw stranded ~10 units
+  // of a 27-min run — "Error at integrate", agents_error:0 because a schema-validation failure is
+  // not an agent runtime error). Contain per unit: record a RECOVERABLE handback (worktree held on
+  // disk for /relay reconcile) and surface it LOUDLY — never swallow (the error text rides the
+  // reason + event), never cascade. The per-repo integrationChains link is already error-isolated
+  // (enqueueIntegration line ~653); this closes the one un-contained path, the raw `debts` promise.
+  debts.push(
+    enqueueIntegration(unit.repo, () => integrate(unit, report)).catch((err) => {
+      const reason = `integrator threw (contained id:efaf): ${err && err.message ? err.message : String(err)} — worktree preserved; recover via /relay reconcile`
+      state.blocked.push({ repo: unit.repo, reason, worktreePath: (report && report.worktree) || worktreePathFor(unit) })
+      pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
+      scheduleStatusWrite(state)
+    })
+  )
 }
 
 // id:6e9d — a freed lane pulls any pending injections mid-round (poll-once-on-drain) so an
