@@ -1,5 +1,35 @@
 # Relay log <!-- merge=union; append-only — never edit or reorder past entries -->
 
+## 2026-07-07 — executor (Sonnet) id:b3ee
+
+Worked id:b3ee — extended the EXISTING `meeting/orphan-scan.sh` (no NIH) with a new
+`--shipped`/`-s` mode implementing the two D1/D2 report-only reconciliation classes from
+`docs/meeting-notes/2026-07-07-1138-stale-ledger-root-cause.md`: **TICK-READY** (an open
+`- [ ]` TODO.md item with NO gating lexeme AND a linked `tests/test_*.sh` — inline path in
+the line, or a test carrying `# roadmap:<id>` for the item's token — that actually runs
+GREEN) and **GATE-STALE** (an open item WITH a gating lexeme whose TODO.md line is >=14
+days old by `git blame` author-time, threshold overridable via
+`ORPHAN_SCAN_SHIPPED_AGE_DAYS`). Both classes are advisory text only — the mode NEVER
+touches a checkbox; verified this by asserting TODO.md's raw checkbox text is byte-identical
+before/after the scan in the new test. Wired into two consumers per D3: `/relay review`
+step 5 (`relay/references/review.md`, new bullet right after the roadmap-lint grammar
+bullet) instructs the reviewer to run `orphan-scan.sh --shipped` and manually verify each
+TICK-READY hit before ticking, surfacing GATE-STALE hits to REVIEW_ME; `todo-update/SKILL.md`
+gained a new Step 5 doing the equivalent for a normal session, same "advisory only, verify
+before acting" framing. New hermetic test `tests/test_orphan_scan_shipped.sh` builds a real
+git repo in `mktemp -d` with `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`-controlled commits so
+git-blame ages are deterministic, and covers exactly the 5 cases from the design note:
+(1) green-test + no-gate → TICK-READY, (2) gate-lexeme + 20-days-old line → GATE-STALE,
+(3) gate-lexeme + 5-days-old line → neither (observe-window correctly suppressed), (4)
+genuinely-open item with no linked test → neither, (5) an already-`[x]` item → never
+appears. No ROADMAP.md twin exists for id:b3ee, so the test file omits the `# roadmap:XXXX`
+header per the stated testing convention (comment explains why). Full suite: 189 passed, 0
+failed, 0 expected-red. Ticked id:b3ee `[x]` in TODO.md via `md-merge.py update-ids`
+(flock'd, per convention for `<!-- id:XXXX -->` lines).
+Friction: none — the design note's D1/D2/D3 decisions were unambiguous and orphan-scan.sh's
+existing mode-dispatch pattern (cross-ledger/promotion elif chain) was a clean template to
+extend.
+
 ## 2026-07-07 — executor (Sonnet) id:6f61
 
 Worked id:6f61 — closure-only verification, no new code. Confirmed all three shipped pieces are actually in place: (1) `meeting/memory-append.sh` exists as the flock'd helper; (2) `tests/test_memory_append.sh` (header "Tracks TODO id:6f61") exercises 20 concurrent appends against a shared `MEMORY.md` and asserts each of the 20 pointer lines lands exactly once (no lost update, no duplication); (3) the "REMAINING" global-adoption gap noted in the TODO item is closed — `~/.claude/CLAUDE.md`'s "Memory writes" section (line 117) instructs going through `~/.claude/skills/meeting/memory-append.sh "<MEMORY.md path>" "<pointer line>"` rather than a plain Write/Edit for the shared index append. No ROADMAP.md mirror of id:6f61 existed, so nothing to tick there. Ticked `- [x]` on the TODO.md id:6f61 line with a CLOSED-2026-07-07 note, preserving the full prior text. Full suite: 186 passed, 0 failed, 0 expected-red.
