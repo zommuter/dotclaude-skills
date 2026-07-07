@@ -45,4 +45,21 @@ grep -q "RESIDUAL LLM SURFACE" "$JS" || fail "recipe does not label the queue-re
 grep -q "id:7402/D3" "$JS" || fail "residual-read label does not point at the D3 deferral (id:7402)"
 grep -Eq "log\(\`relay-loop: id:7402 discover-run agent\(\) dispatch" "$JS" || fail "no round-log line surfacing the id:7402 residual-surface label"
 
-pass "discovery runner recipe consumes the id:9d97 mechanical queue when fresh, falls back to the live exec path when absent/stale, and labels the residual agent() read as the known-remaining LLM surface (id:7402/D3)"
+# (d) FINDING 1 (2026-07-07 Fable second-opinion): the FRESH-queue path must NOT drop the live
+#     reconcile side-effects. Before the fix the queue path only `cat latest.json` + copied the
+#     verdict, so reconcile-repo.sh (ff-merge / uv.lock commit / worktree reap-park / live-claims
+#     filtering) NEVER ran that round. The recipe must exec reconcile-repo.sh LIVE on the
+#     queue path too — only the CLASSIFY verdict comes from the queue.
+grep -q "reconcile-repo.sh --repo" "$JS" \
+  || fail "recipe never invokes reconcile-repo.sh — the fresh-queue path drops the live reconcile side-effects (FINDING 1 regression)"
+# the reconcile exec must be tied to the fresh-queue (CASE A) path, carrying --live-claims so
+# in-flight worktrees are protected (the queue itself carries no live-claims context).
+grep -Eq "reconcile-repo.sh --repo <repo> --path <path> --runid \\\$\{prelude.runId\} --live-claims" "$JS" \
+  || fail "reconcile-repo.sh on the queue path is not passed --runid/--live-claims (live-claims protection lost)"
+grep -q "STILL reconcile LIVE" "$JS" \
+  || fail "recipe does not state the queue path STILL reconciles live (verdict-from-queue, reconcile-live split)"
+# the round-log line must reflect that reconcile runs live every round (not 'prefer queue over exec').
+grep -q "RECONCILE runs LIVE every round" "$JS" \
+  || fail "round-log line does not surface that reconcile runs live every round on the queue path"
+
+pass "discovery runner recipe: queue path takes only the CLASSIFY verdict from the id:9d97 queue but STILL runs reconcile-repo.sh LIVE (with --live-claims) for the side-effecting half; falls back to the full live discover-repo.sh exec when the queue is absent/stale; residual agent() read labeled (id:7402/D3, FINDING 1 fix)"
