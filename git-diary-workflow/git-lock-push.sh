@@ -1,16 +1,31 @@
 #!/usr/bin/env bash
-# git-lock-push.sh — flock-serialized (stage+commit +) pull + push
+# git-lock-push.sh — flock-serialized (stage+commit / merge +) pull + push
 #
-# Two modes:
-#   Legacy mode (no -f/-m): Run AFTER git commit — the commit is local and safe;
-#     only the pull+push needs serialization.
+# Three modes:
+#   Legacy mode (no -f/-m/--merge-branch): Run AFTER git commit — the commit is
+#     local and safe; only the pull+push needs serialization.
 #   Manifest mode (-f <file> -m <msg>): stage+commit+pull+push inside flock
 #     Only the listed paths are staged (never git add -A).
+#   Merge-branch mode (--merge-branch <branch> [-m msg]): id:3558 — flock'd
+#     merge-to-canonical for an INDEPENDENT session that did its work in its own
+#     git worktree (own working tree, own commits on <branch>, sharing this
+#     repo's object store/refs). Under the same per-repo flock as the other
+#     modes: `git merge --no-ff <branch>` into the canonical checkout's current
+#     branch, then pull+push as usual. A real conflict ABORTS the merge and
+#     exits non-zero — NOT merged, NOT pushed, work stays on <branch> untouched
+#     (fail-loud, never silent-lose a side per D5.2's plumbing-CAS rejection).
+#     This is D5.6 (deferred until a 2nd cross-session race recurred — it did,
+#     see TODO id:3558): worktree-per-session isolates EDITING; this is the
+#     "merging back into shared canonical" half, kept small by reusing the
+#     existing flock + pull/push machinery rather than a bespoke merge daemon.
 #
-# Usage: git-lock-push.sh [REPO_PATH] [-b branch] [-f manifest-file] [-m msg] [--ff-only]
+# Usage: git-lock-push.sh [REPO_PATH] [-b branch] [-f manifest-file] [-m msg]
+#                          [--merge-branch branch] [--ff-only]
 #   -b          Branch to rebase against (default: detected from tracking branch)
 #   -f          Manifest file (one path per line) — requires -m
-#   -m          Commit message — requires -f
+#   -m          Commit message — requires -f, OR the commit message for --merge-branch
+#   --merge-branch  Branch to `--no-ff` merge into HEAD before pull+push (id:3558).
+#                   Mutually exclusive with -f/manifest mode.
 #   --ff-only   Use fast-forward-only reconcile instead of rebase; fails loud on divergence.
 #               Use this when the local branch has annotated tags or --no-ff merges that must
 #               not be rewritten (e.g. the relay integration branch).
@@ -25,12 +40,20 @@ export GIT_TERMINAL_PROMPT=0
 branch=""
 manifest_file=""
 commit_msg=""
+merge_branch=""
 ff_only=0
-# getopts does not handle long opts; strip --ff-only before the getopts loop
+# getopts does not handle long opts; strip --ff-only and --merge-branch <val>
+# before the getopts loop (the latter consumes the following arg as its value).
 args=()
+take_next_as_merge_branch=0
 for arg in "$@"; do
-  if [[ "$arg" == "--ff-only" ]]; then
+  if [[ "$take_next_as_merge_branch" -eq 1 ]]; then
+    merge_branch="$arg"
+    take_next_as_merge_branch=0
+  elif [[ "$arg" == "--ff-only" ]]; then
     ff_only=1
+  elif [[ "$arg" == "--merge-branch" ]]; then
+    take_next_as_merge_branch=1
   else
     args+=("$arg")
   fi
@@ -42,16 +65,19 @@ while getopts "b:f:m:" opt; do
     b) branch="$OPTARG" ;;
     f) manifest_file="$OPTARG" ;;
     m) commit_msg="$OPTARG" ;;
-    *) echo "Usage: $0 [REPO_PATH] [-b branch] [-f manifest-file] [-m msg] [--ff-only]" >&2; exit 1 ;;
+    *) echo "Usage: $0 [REPO_PATH] [-b branch] [-f manifest-file] [-m msg] [--merge-branch branch] [--ff-only]" >&2; exit 1 ;;
   esac
 done
 shift $((OPTIND - 1))
 
+if [[ -n "$manifest_file" && -n "$merge_branch" ]]; then
+  echo "ERROR: -f (manifest mode) and --merge-branch are mutually exclusive" >&2; exit 1
+fi
 if [[ -n "$manifest_file" && -z "$commit_msg" ]]; then
   echo "ERROR: -f requires -m (commit message)" >&2; exit 1
 fi
-if [[ -n "$commit_msg" && -z "$manifest_file" ]]; then
-  echo "ERROR: -m requires -f (manifest file)" >&2; exit 1
+if [[ -n "$commit_msg" && -z "$manifest_file" && -z "$merge_branch" ]]; then
+  echo "ERROR: -m requires -f (manifest file) or --merge-branch" >&2; exit 1
 fi
 
 if [[ -n "${1:-}" ]]; then
@@ -74,6 +100,21 @@ if ! flock -x -w 30 8; then
   echo "Run 'git push' manually or it will push next session." >&2
   exec 8>&-
   exit 0  # non-fatal — work is committed
+fi
+
+# Merge-branch mode (id:3558): --no-ff merge an independent session's worktree
+# branch into HEAD inside the lock. Fail-loud on conflict — abort the merge,
+# leave <branch> untouched, exit non-zero WITHOUT pulling/pushing (D5.2: a
+# real same-path conflict must be surfaced, never silently last-writer-wins).
+if [[ -n "$merge_branch" ]]; then
+  merge_msg="${commit_msg:-merge: $merge_branch (flock-serialized merge-to-canonical, id:3558)}"
+  if ! git merge --no-ff -q -m "$merge_msg" "$merge_branch"; then
+    git merge --abort >/dev/null 2>&1 || true
+    echo "ERROR: --no-ff merge of '$merge_branch' into $(git rev-parse --abbrev-ref HEAD) conflicted — NOT merged, NOT pushed (id:3558)." >&2
+    echo "Resolve manually: git merge --no-ff $merge_branch" >&2
+    exec 8>&-
+    exit 1
+  fi
 fi
 
 # Manifest mode: stage from manifest and commit inside the lock
