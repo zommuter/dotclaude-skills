@@ -75,11 +75,16 @@ relay/scripts/discover-repos-mechanical.sh [--runid <id>] [--live-claims <csv>] 
   `uv.lock` commit, and worktree **reap/park** = `git worktree remove --force` + branch
   rename). A snapshot timer has no view of the live pool's in-flight worktrees and passes no
   `--live-claims`, so without this flag reconcile would treat every live executor worktree as
-  stale and destroy it. The **LIVE dispatch loop** (`relay-loop.js`) NEVER passes
-  `--no-reconcile` — it still runs the full reconcile+reap at actual dispatch, byte-for-byte
-  unchanged — and it protects in-flight worktrees with `--live-claims` + `--runid`. The
-  producer's snapshot being based on un-fetched local state is fine: the live loop reconciles
-  when it truly dispatches.
+  stale and destroy it. The **LIVE dispatch loop** (`relay-loop.js`) NEVER consumes reconcile
+  results from this queue: it ALWAYS runs `reconcile-repo.sh` **LIVE per round** (with
+  `--live-claims` + `--runid`) for the side-effecting reconcile half — ff-merge behind-origin,
+  `uv.lock` cascade commit, worktree reap/park, live-claims filtering — and takes **only** the
+  deterministic CLASSIFY verdict from this queue when it is fresh (falling back to the full live
+  `discover-repo.sh` when the queue is missing/stale). See the discover-run recipe's STEP 0 in
+  `relay/scripts/relay-loop.js` (CASE A = live reconcile + queue classify; CASE B = full live
+  exec). The producer's snapshot being based on un-fetched, un-reconciled local state is fine:
+  the live loop reconciles on real pool state when it truly dispatches; the queue only ever
+  supplies the classify verdict.
 - Assembles the aggregate object above and **schema-checks it before the atomic
   write**: a sub-call producing non-JSON, a non-object JSON value, or a non-list
   `units`/`surfaced`/`skipped` field aborts the whole run with a LOUD `ERROR:` on

@@ -32,11 +32,21 @@
 #   status <runId>
 #       Print one word — alive | dead | absent — and set exit code 0 | 1 | 2.
 #       "dead" = a present marker whose heartbeat_ts is older than TTL.
-#   dead-runs
+#   dead-runs [--prefix GLOB]
 #       Emit one compact JSON line per PRESENT-but-STALE run marker
 #       ({runId,pid,started_at,heartbeat_ts,age_s}). This is the set a watchdog
 #       notifies on and a restarting loop auto-reconciles. Cleanly-stopped and
 #       still-alive runs are NOT emitted.
+#       --prefix GLOB scopes the sweep to markers whose `runId` field matches the shell glob
+#       (e.g. --prefix 'relay-*'), exactly like `reap --prefix`; non-matching stale markers are
+#       omitted. This keeps the DETECTION side namespace-scoped the same way the ARCHIVE side
+#       (reap) already is: the dispatch-loop consumers (relay-watchdog.sh domain 1, relay-loop.js
+#       auto-reconcile-on-restart) MUST pass --prefix 'relay-*' so the INDEPENDENT
+#       discovery-producer marker (fixed runId "discovery-producer", 2100s domain-2 TTL, id:54fc)
+#       — whose default 3600s heartbeat TTL ages it into "dead" for the dispatch domain — never
+#       trips a spurious dispatch-loop "Relay loop died" alarm or a per-restart --all reconcile
+#       (strong-model second-opinion review, 2026-07-07). Without --prefix, every present-but-stale
+#       marker is emitted (legacy default), matching reap's default.
 #   live-runs
 #       Emit one compact JSON line per ALIVE run marker (heartbeat within TTL).
 #   list
@@ -168,10 +178,25 @@ case "$cmd" in
     ;;
 
   dead-runs)
+    prefix=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --prefix) prefix="${2:-}"; shift 2 ;;
+        *) echo "heartbeat.sh dead-runs: unknown arg '$1'" >&2; exit 2 ;;
+      esac
+    done
     shopt -s nullglob
     for f in $(printf '%s\n' "$HEARTBEAT_BASE"/*.json | sort); do
       [ -f "$f" ] || continue
       is_alive "$f" && continue
+      if [ -n "$prefix" ]; then
+        runid="$(jq -r '.runId // empty' "$f" 2>/dev/null)" || runid=""
+        # shellcheck disable=SC2254 # intentional glob match against --prefix
+        case "$runid" in
+          $prefix) : ;;
+          *) continue ;;
+        esac
+      fi
       emit_with_state "$f" dead
     done
     ;;
@@ -225,7 +250,7 @@ case "$cmd" in
     ;;
 
   ""|-h|--help|help)
-    sed -n '2,56p' "$0"
+    sed -n '2,66p' "$0"
     ;;
 
   *)
