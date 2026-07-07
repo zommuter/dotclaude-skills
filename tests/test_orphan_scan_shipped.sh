@@ -99,7 +99,42 @@ cat >> "$repo/TODO.md" <<'EOF'
 EOF
 commit_line 1 "case7: inline-only path, not owned"
 
-out="$(HOME="$tmp" "$ORPHAN" --shipped "$repo")"
+# --- Case 8: "investigated" substring-contains-"gated" but is NOT a real gate word ---
+# (strong-model audit run 70 finding 3): a plain substring match on "gated" would wrongly
+# fire on investi-gated and suppress this as EXTERNAL-WAIT even though it has a green,
+# roadmap-owned test and no genuine gating clause — it must classify TICK-READY instead.
+cat > "$repo/tests/test_aaa8.sh" <<'EOF'
+#!/usr/bin/env bash
+# roadmap:aaa8
+set -euo pipefail
+echo ok
+exit 0
+EOF
+chmod +x "$repo/tests/test_aaa8.sh"
+cat >> "$repo/TODO.md" <<'EOF'
+- [ ] we investigated the root cause and shipped the fix <!-- id:aaa8 -->
+EOF
+commit_line 1 "case8: investigated (not a real gate word), tick-ready"
+
+# --- Case 9: a hanging/non-hermetic discovered test must be BOUNDED, not hang the scan ---
+# (strong-model audit run 70 finding 4): TICK-READY runs the discovered test with no
+# timeout. Use a short override (ORPHAN_SCAN_TEST_TIMEOUT_S) so this test file itself stays
+# fast, and assert the scan finishes promptly and does NOT claim TICK-READY for a test that
+# never exits.
+cat > "$repo/tests/test_aaa9.sh" <<'EOF'
+#!/usr/bin/env bash
+# roadmap:aaa9
+sleep 300
+EOF
+chmod +x "$repo/tests/test_aaa9.sh"
+cat >> "$repo/TODO.md" <<'EOF'
+- [ ] feature Q, hanging test <!-- id:aaa9 -->
+EOF
+commit_line 1 "case9: hanging test, must be bounded"
+
+start_s=$(date +%s)
+out="$(HOME="$tmp" ORPHAN_SCAN_TEST_TIMEOUT_S=2 timeout 30 "$ORPHAN" --shipped "$repo")"
+elapsed_s=$(( $(date +%s) - start_s ))
 
 # Case 1: TICK-READY
 grep -q 'id:aaa1' <<<"$out" || { echo "case1: id:aaa1 must appear"; echo "$out"; exit 1; }
@@ -132,6 +167,20 @@ fi
 # Case 7: inline test path but no `# roadmap:` owner -> must NOT be TICK-READY
 if grep -q 'id:aaa7' <<<"$out"; then
   echo "case7: id:aaa7 (inline-only path, unowned) must NOT be TICK-READY"; echo "$out"; exit 1
+fi
+
+# Case 8: "investigated" (substring-contains "gated") must NOT be treated as a gate word —
+# must classify TICK-READY, not be silently suppressed as EXTERNAL-WAIT.
+grep -q 'id:aaa8' <<<"$out" || { echo "case8: id:aaa8 (investigated, false gate substring) must appear"; echo "$out"; exit 1; }
+grep -q 'id:aaa8.*TICK-READY' <<<"$out" || { echo "case8: id:aaa8 must be TICK-READY (word-boundary gate-word fix)"; echo "$out"; exit 1; }
+
+# Case 9: hanging test must be bounded (2s timeout override) — scan must finish well under
+# the 300s sleep, and must NOT report id:aaa9 as TICK-READY (a timed-out test is non-green).
+if grep -q 'id:aaa9.*TICK-READY' <<<"$out"; then
+  echo "case9: id:aaa9 (hanging test) must NOT be TICK-READY"; echo "$out"; exit 1
+fi
+if [[ "$elapsed_s" -gt 15 ]]; then
+  echo "case9: scan took ${elapsed_s}s — the hanging test was not bounded by ORPHAN_SCAN_TEST_TIMEOUT_S"; exit 1
 fi
 
 # Report-only: the tool must not have touched TODO.md's checkboxes.
