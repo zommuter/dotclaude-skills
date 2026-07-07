@@ -148,6 +148,90 @@ else
   fail_msg "session-d branch was lost/deleted by the failed merge"
 fi
 
+# ── Test 3: --merge-branch without explicit --ff-only, remote-ahead — the
+#            merge commit must SURVIVE (not rebase-flattened away) and no
+#            force-push happens (Fable-review finding 4) ─────────────────────
+echo "Test 3: --merge-branch (no explicit --ff-only) on remote-ahead does not rebase-flatten the merge"
+
+# A third party pushes directly to the bare remote, advancing main WITHOUT
+# canon's knowledge -- this is the "remote is ahead" divergence scenario.
+third="$tmpdir/third"
+git clone -q "$bare" "$third"
+git -C "$third" config user.email "test@test"
+git -C "$third" config user.name "Test"
+echo "third-party-change" > "$third/third.txt"
+git -C "$third" add third.txt
+git -C "$third" commit -q -m "third party: advance main independently"
+git -C "$third" push -q origin main
+
+wtE="$tmpdir/wtE"
+git -C "$canon" worktree add -q -b session-e "$wtE" main
+echo "e" > "$wtE/file-e.txt"
+git -C "$wtE" add file-e.txt
+git -C "$wtE" commit -q -m "session E: add file-e"
+
+# canon's local main is now BEHIND the remote (third party pushed ahead of it),
+# and about to gain a --no-ff merge commit of session-e. Deliberately omit
+# --ff-only to prove --merge-branch mode implies it.
+before_head="$(git -C "$canon" rev-parse HEAD)"
+outE="$tmpdir/outE.log"
+rcE=0
+"$LOCK_PUSH" "$canon" --merge-branch session-e -m "merge session-e" >"$outE" 2>&1 || rcE=$?
+
+merge_commit="$(git -C "$canon" rev-parse HEAD)"
+parent_count="$(git -C "$canon" log -1 --format=%P "$merge_commit" | wc -w)"
+if [[ "$merge_commit" != "$before_head" && "$parent_count" -eq 2 ]]; then
+  ok "the --no-ff merge commit exists locally with 2 parents (not flattened away)"
+else
+  fail_msg "merge commit missing or not a 2-parent merge (merge_commit=$merge_commit parents=$parent_count); log=$(git -C "$canon" log --oneline -5)"
+fi
+
+if git -C "$canon" show "$merge_commit:file-e.txt" >/dev/null 2>&1; then
+  ok "session-e's file survives on canon's local main after the merge"
+else
+  fail_msg "session-e's file missing from canon's local main after the merge"
+fi
+
+remote_third="$(git -C "$bare" show main:third.txt 2>/dev/null || echo MISSING)"
+if [[ "$remote_third" == "third-party-change" ]]; then
+  ok "remote's third-party commit is untouched (no force-push clobbered it)"
+else
+  fail_msg "remote's third-party commit was overwritten/lost: $remote_third"
+fi
+
+remote_has_file_e="$(git -C "$bare" show main:file-e.txt 2>/dev/null || echo MISSING)"
+if [[ "$remote_has_file_e" == "MISSING" ]]; then
+  ok "session-e's merge was NOT pushed (remote diverged -> committed-locally-not-pushed, loud, per --ff-only fallback)"
+else
+  fail_msg "session-e's merge was pushed despite remote divergence: $remote_has_file_e"
+fi
+
+if [[ "$rcE" -eq 0 ]]; then
+  ok "the divergence fallback exits 0 (non-fatal — work is committed locally)"
+else
+  fail_msg "unexpected non-zero exit on divergence fallback: rcE=$rcE; out=$(cat "$outE")"
+fi
+
+# ── Test 4: --merge-branch with no following value must error loudly, never
+#            silently degrade to legacy mode ─────────────────────────────────
+echo "Test 4: --merge-branch with no value errors loudly (not silent legacy-mode degrade)"
+
+outF="$tmpdir/outF.log"
+rcF=0
+"$LOCK_PUSH" "$canon" --merge-branch >"$outF" 2>&1 || rcF=$?
+
+if [[ "$rcF" -ne 0 ]]; then
+  ok "--merge-branch with no value exits non-zero"
+else
+  fail_msg "--merge-branch with no value exited 0 (silently degraded to legacy mode)"
+fi
+
+if grep -qi "merge-branch" "$outF" && grep -qi "requires\|missing\|branch name" "$outF"; then
+  ok "--merge-branch with no value prints an explanatory error"
+else
+  fail_msg "--merge-branch with no value did not print an explanatory error; out=$(cat "$outF")"
+fi
+
 echo ""
 echo "Results: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]]
