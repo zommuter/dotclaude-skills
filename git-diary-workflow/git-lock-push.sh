@@ -58,6 +58,14 @@ for arg in "$@"; do
     args+=("$arg")
   fi
 done
+# id:c79e-sibling (Fable-review finding 4) — `--merge-branch` as the LAST arg leaves
+# take_next_as_merge_branch stuck at 1 and merge_branch empty; without this check that
+# silently degrades to legacy mode (no merge performed, no error) instead of failing loud
+# on a missing branch name.
+if [[ "$take_next_as_merge_branch" -eq 1 ]]; then
+  echo "ERROR: --merge-branch requires a branch name argument" >&2
+  exit 1
+fi
 set -- "${args[@]+"${args[@]}"}"
 
 while getopts "b:f:m:" opt; do
@@ -72,6 +80,16 @@ shift $((OPTIND - 1))
 
 if [[ -n "$manifest_file" && -n "$merge_branch" ]]; then
   echo "ERROR: -f (manifest mode) and --merge-branch are mutually exclusive" >&2; exit 1
+fi
+
+# Fable-review finding 4: --merge-branch mode IMPLIES --ff-only. A --no-ff merge commit
+# just created above is exactly the kind of topology `git pull --rebase` flattens (it
+# replays commits linearly, dropping the merge commit and its message, and re-plays any
+# conflicts the merge already resolved). --merge-branch mode always wants the
+# committed-locally-not-pushed-loud fallback on remote divergence, never a silent
+# rebase-flatten — so force ff_only regardless of whether the caller also passed --ff-only.
+if [[ -n "$merge_branch" ]]; then
+  ff_only=1
 fi
 if [[ -n "$manifest_file" && -z "$commit_msg" ]]; then
   echo "ERROR: -f requires -m (commit message)" >&2; exit 1
