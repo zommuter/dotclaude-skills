@@ -1887,3 +1887,41 @@ passed cleanly this run).
 Friction: none — the recipe-manifest-vs-discovery-queue schema mismatch was the one
 substantive judgment call (documented above and in discovery-queue-manifest.md's "why this
 is a NEW drop-dir" section) rather than a genuine blocker.
+
+## 2026-07-07 — executor (sonnet) id:7402
+
+Worked id:7402 (D3, gated on id:9d97 which had already landed) — wired the relay discovery
+runner's agent() recipe (relay-loop.js `runnerPrompt`, ~line 890) to prefer the id:9d97
+mechanical work-queue over the live discover-repo.sh exec. The Workflow sandbox has no
+fs/net/subprocess (id:2ec4), so "consume the queue" cannot be JS-side fs access — the ONLY
+lever is the recipe text the discover-run agent() call executes. Added STEP 0 to the recipe:
+run `find ~/.config/relay/discovery-queue/latest.json -newermt "@$(date +%s - 1200)"` (TTL =
+1200s = the id:9d97 .timer's 15min cadence + a 5min buffer for one slow/missed tick); if it
+prints the path (fresh), `cat` the queue once per chunk and copy each repo's
+units/surfaced/skipped verbatim out of it (no re-derivation) instead of running
+discover-repo.sh; if empty (missing/stale — the id:9d97 .timer ships DISABLED by default, so
+this is the out-of-the-box case), fall back to the pre-existing live discover-repo.sh exec
+path byte-for-byte unchanged. Confirmed non-breaking: with the timer off (the shipped
+default), the queue file never exists, so every live pool run today takes the same fallback
+branch it always has.
+
+Per D3 + no-silent-swallow: the queue-cat step is explicitly labeled "RESIDUAL LLM SURFACE
+(id:7402/D3)" inline in the recipe text (so the LLM running it sees the label, not just a
+code comment), and a `log()` line fires at dispatch time every round a runner agent is
+dispatched, surfacing the same "id:7402 discover-run agent() dispatch ... residual LLM
+surface" wording into the round log the operator can tail — it does not read as "fully
+mechanized," per the meeting note's D3/Orla concern.
+
+Test: `tests/test_discovery_queue_consume.sh` (no `# roadmap:7402` header — TODO-only item,
+no matching ROADMAP.md entry per D3's own gating note; failures always count). Structural
+(mirrors test_relay_discover_shard.sh's pattern — live discovery is unrunnable hermetically):
+asserts (a) the recipe references the queue dir + latest.json + a freshness/TTL check
+(newermt), (b) the live discover-repo.sh fallback path text is still present verbatim, (c) the
+residual-read label string + its id:7402/D3 pointer + the round-log line are all present.
+
+Ticked id:7402 `[x]` in TODO.md with a shipped note. Full suite: `make test` 191 passed / 0
+failed / 0 expected-red (up from 190 — one new test file).
+Friction: none — the design was already fully specified by the meeting note and the
+discovery-queue-manifest.md schema doc; the only judgment call was the TTL value (1200s),
+chosen conservatively (cadence+buffer) rather than measured, since id:9d97's timer isn't
+enabled anywhere yet to observe real producer latency.

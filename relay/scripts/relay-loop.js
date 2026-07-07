@@ -699,6 +699,16 @@ const MAX_ROUNDS = A.MAX_ROUNDS || 30
 // harness caps concurrent agents at min(16, cores-2), so shards above that just queue.
 const DISCOVER_SHARDS = A.DISCOVER_SHARDS || 6
 
+// id:7402 (D3) — the mechanical discovery-queue drop-dir the id:9d97 `.timer` producer writes
+// (relay/references/discovery-queue-manifest.md). FRESH_SECS = the producer's 15min cadence
+// (tools/discover-repos-mechanical.timer) + a 5min buffer, so one missed/slow tick is still
+// tolerated before falling back. The queue is ABSENT by default — the timer ships installed
+// but NOT auto-enabled (`make install-discovery-timer` is a deliberate manual step) — so out of
+// the box this is always a no-op and the runner takes the live discover-repo.sh exec path
+// unchanged (non-breaking by construction).
+const DISCOVERY_QUEUE_LATEST = A.discoveryQueueLatest || '~/.config/relay/discovery-queue/latest.json'
+const DISCOVERY_QUEUE_FRESH_SECS = A.discoveryQueueFreshSecs || 1200
+
 // id:d58f — fleet-quiescence drain. BYTE-IDENTICAL inline copies of relay/scripts/drain.mjs
 // (the Workflow sandbox cannot `import`; the .mjs is the canonical, unit-tested source — keep
 // in sync). See drain.mjs for the full rationale: a CONFIRMING-only review (verified-green,
@@ -887,22 +897,29 @@ if (prelude && Array.isArray(prelude.repos)) {
   // discover-repo.sh) — DP1 "classifier primary, no post-flip comparator" (meetings
   // 2026-06-30-1523 / 2026-07-01-1904). The four JS-side backstops below (id:000d/9973/ad74/365b)
   // stay as belt-and-suspenders (meeting A2); deletion is gated on id:b50e.
-  const runnerPrompt = (chunk) => `You are a MECHANICAL discovery runner for the relay pool. You do NOT classify or judge anything yourself — you run ONE script per repo and return its JSON verbatim.
+  const runnerPrompt = (chunk) => `You are a MECHANICAL discovery runner for the relay pool. You do NOT classify or judge anything yourself — you run ONE command per repo (either a cat or an exec, per the STEP 0 check below) and return its JSON verbatim.
 
 Process EXACTLY these own repos (each once, no others):
 ${JSON.stringify(chunk)}
 
 This run's runId is "${prelude.runId}". Repos currently held by a live relay run are: "${liveClaimsCsv}".
 
-For EACH repo in the list above, run this ONE command (substitute its repo name and path from the entry):
+STEP 0 — check for a FRESH mechanical discovery-queue snapshot (id:7402/D3, mechanical PRODUCER id:9d97 — prefer this over exec when available, it is a pure file-read of an already-computed, already-deterministic verdict, not a re-derivation): run
+  find ${DISCOVERY_QUEUE_LATEST} -newermt "@$(( $(date +%s) - ${DISCOVERY_QUEUE_FRESH_SECS} ))" 2>/dev/null
+If that command prints the path (file exists AND its mtime is within the last ${DISCOVERY_QUEUE_FRESH_SECS}s ⇒ FRESH): run
+  cat ${DISCOVERY_QUEUE_LATEST}
+ONCE, then for EACH repo in your list above, take that repo's entries straight out of the queue's top-level "units"/"surfaced"/"skipped" arrays by matching .repo == <repo name> — copy them VERBATIM, do not re-derive, re-run, or re-judge anything. THIS CAT-AND-COPY STEP IS THE RESIDUAL LLM SURFACE (id:7402/D3 — the known-remaining, irreducible-for-now LLM read; deferred+labeled, not eliminated; see relay/references/discovery-queue-manifest.md and the 2026-07-07 discovery-off-Workflow meeting note). It is a pure file-echo of an already-mechanical verdict, not a classification — far smaller mangle surface than running discover-repo.sh yourself, but still an LLM hop until the launch-wall (id:af30/id:2ec4) is resolved.
+
+If the find command above prints NOTHING (queue missing or stale — e.g. the id:9d97 `.timer` is not installed/enabled, the default): FALL BACK to the live exec path, unchanged from before this queue existed. For EACH repo in the list above, run this ONE command (substitute its repo name and path from the entry):
   ~/.claude/skills/relay/scripts/discover-repo.sh --repo <repo> --path <path> --runid ${prelude.runId} --live-claims "${liveClaimsCsv}" --main-branch main
 It emits ONE JSON object {"units":[...],"surfaced":[...],"skipped":[...]} for that repo — it does ALL reconciliation, classification, and routing internally. Collect all of them.
 
-NO-FILESYSTEM-HUNTING GUARD (id:612f): run ONLY discover-repo.sh, once per repo. Do NOT run git, gather-repo-state, classify-repo, find, cat, or read ROADMAP/relay.toml/transcripts — discover-repo.sh already has everything. If discover-repo.sh errors for a repo, put that repo in "surfaced" with the stderr/exit as the reason — NEVER guess a verdict.
+NO-FILESYSTEM-HUNTING GUARD (id:612f): per repo, run ONLY the ONE command STEP 0 selected (the queue cat, done once for the whole chunk, or discover-repo.sh, once per repo) — never both, never anything else. Do NOT run git, gather-repo-state, classify-repo, find (beyond the STEP 0 freshness check), or read ROADMAP/relay.toml/transcripts — the selected source already has everything. If discover-repo.sh errors for a repo (fallback path), or a repo is missing from the queue (queue path), put that repo in "surfaced" with the reason — NEVER guess a verdict.
 
 Return {units, surfaced, skipped} = the CONCATENATION across every repo in your list (append each repo's three arrays). Each repo appears exactly once across units+surfaced; an idle repo appears in BOTH units and skipped.`
   // Only CHANGED repos pay for a runner agent (id:c3a6); a round where every repo is cached runs
   // zero runners and is still a valid round (shardOk seeded true below).
+  if (changed.length) log(`relay-loop: id:7402 discover-run agent() dispatch — prefers the id:9d97 mechanical queue (${DISCOVERY_QUEUE_LATEST}, fresh<${DISCOVERY_QUEUE_FRESH_SECS}s) when present, else falls back to the live discover-repo.sh exec path; EITHER WAY the agent() call itself is the residual LLM surface (D3, deferred+labeled, not eliminated — see relay/references/discovery-queue-manifest.md)`)
   const shardResults = changed.length
     ? await parallel(chunks.map((chunk) => () =>
         agent(runnerPrompt(chunk), { label: `discover-run:${chunk.length}`, phase: 'Classify', schema: SHARD_SCHEMA, model: 'haiku' })
