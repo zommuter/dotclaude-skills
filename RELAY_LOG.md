@@ -2140,3 +2140,25 @@ Stayed out of relay-doctor.sh / tests/test_mechanical_orphan.sh (parallel execut
 mid-flight). `make test`: 194 passed, 0 failed, 2 expected-red.
 Friction: unpromoted-scan's persisted-output truncation initially hid id:758e from the
 promote set — re-ran filtered; scan itself is correct.
+
+## 2026-07-07 — executor (sonnet)
+
+Worked two CONFIRMED Fable-tier review findings (defect fixes, no roadmap id — both
+pre-existing scripts). Finding 3: `relay/scripts/classify-verdict.sh`'s id:c79e fold (b)
+(top_intensive native promote) could resurrect the exact state fold (a) (is_finished
+authority) just demoted — a finished repo with a stale top_intensive + stale nonzero
+counts would zero the counts (fold a) then fold (b) would see top_intensive set + zero
+counts and promote to verdict=execute. Fixed by guarding fold (b) with `and not
+is_finished`; added a COMBINED fixture to test_classify_verdict_backstop.sh that
+verified FAIL pre-fix (verdict resurrected to execute) and PASS post-fix (falls through
+to handoff). Finding 4: `git-diary-workflow/git-lock-push.sh`'s `--merge-branch` mode
+without an explicit `--ff-only` fell through to the rebase-pull path, which flattens the
+just-created `--no-ff` merge commit on remote divergence. Fixed by making
+`--merge-branch` mode imply `ff_only=1`, and by erroring loudly (instead of silently
+degrading to legacy mode) when `--merge-branch` is passed with no following branch-name
+value. Extended test_git_lock_push_merge_branch.sh with a remote-ahead scenario
+(confirmed the merge commit is now a surviving 2-parent commit, not pushed, no
+force-push) and a missing-value scenario (confirmed nonzero exit + error message);
+both new cases verified FAIL pre-fix / PASS post-fix. `make test`: 195 passed, 0 failed,
+2 expected-red (open, unrelated roadmap items).
+Friction: none.
