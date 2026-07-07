@@ -144,8 +144,13 @@ elif [[ "$mode" == "shipped" ]]; then
   # id:6f61/b67e silent-drift class) → worth an age-based re-check. An EXTERNAL-WAIT
   # clause is legitimately open (external dep / observation window still running) →
   # neither GATE-STALE (would nag forever) nor TICK-READY (it is genuinely gated).
-  completion_re='REMAIN|pending|activation'
-  wait_re='observe|verify|awaiting|gated|re-evaluate|let it run'
+  # Word-boundary anchored (strong-model audit run 70 finding 3): plain substring
+  # matching let e.g. "gated" fire inside investi-gated/aggre-gated/dele-gated,
+  # "observe" inside observe-d, "verify" inside verif-y-related prose, etc. —
+  # misclassifying ordinary words as a gate-word clause. \b(...)\b anchors each
+  # alternative to whole-word boundaries only.
+  completion_re='\b(REMAIN|pending|activation)\b'
+  wait_re='\b(observe|verify|awaiting|gated|re-evaluate|let it run)\b'
   age_days_threshold="${ORPHAN_SCAN_SHIPPED_AGE_DAYS:-14}"
   now_epoch=$(date +%s)
   while IFS=: read -r lineno text; do
@@ -175,7 +180,13 @@ elif [[ "$mode" == "shipped" ]]; then
       [[ -z "$match" ]] && continue
       test_rel="${match#"$ROOT"/}"
       [[ ! -f "$ROOT/$test_rel" ]] && continue
-      if (cd "$ROOT" && bash "$test_rel") >/dev/null 2>&1; then
+      # Bounded execution (strong-model audit run 70 finding 4): this is an ADVISORY
+      # scan, not the test harness — a non-hermetic or looping discovered test must
+      # never hang the scan. timeout_s overridable via ORPHAN_SCAN_TEST_TIMEOUT_S; a
+      # timed-out test is treated as non-green (no TICK-READY claim), matching a
+      # genuinely-failing test's outcome rather than hanging or erroring the scan.
+      timeout_s="${ORPHAN_SCAN_TEST_TIMEOUT_S:-60}"
+      if (cd "$ROOT" && timeout "${timeout_s}s" bash "$test_rel") >/dev/null 2>&1; then
         candidates=$((candidates+1))
         output_lines+=("id:$token — TICK-READY (green: $test_rel, no gate) — ready to tick. $text")
       fi

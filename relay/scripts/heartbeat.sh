@@ -41,11 +41,20 @@
 #       Emit one compact JSON line per ALIVE run marker (heartbeat within TTL).
 #   list
 #       Emit every present marker as JSON with an added "state" field.
-#   reap
+#   reap [--prefix GLOB]
 #       Archive every PRESENT-but-STALE (dead) marker → heartbeats.done (flock'd). Called by
 #       the loop's auto-reconcile-on-restart (id:7809) AFTER it has disposed a dead run's
 #       orphans, so the dead run is not re-reconciled or re-notified by the watchdog (id:98f0)
 #       forever. Prints "reaped N" to stderr. NEVER touches an alive marker.
+#       --prefix GLOB scopes the sweep to markers whose `runId` field matches the shell glob
+#       (e.g. --prefix 'relay-*'); non-matching markers are left untouched even if stale.
+#       Without --prefix, every present-but-stale marker is reaped (legacy default). The
+#       dispatch loop's auto-reconcile-on-restart call MUST pass --prefix 'relay-*' (its own
+#       runId namespace, `relay-<ts>-<rand>`) so a restart never reaps the INDEPENDENT
+#       discovery-producer marker (fixed runId "discovery-producer", id:54fc) — the two
+#       liveness domains are alarmed on separately by relay-watchdog.sh, and an unscoped reap
+#       would silently clear the producer's down-alarm on every dispatch-loop restart
+#       (cross-domain alarm suppression, strong-model audit run 70 finding 2).
 #
 # Paths: base = $HEARTBEAT_BASE (default ~/.config/relay/heartbeats), consumed =
 # $HEARTBEAT_BASE/../heartbeats.done, lock = $HEARTBEAT_BASE/../.heartbeat.lock.
@@ -185,6 +194,13 @@ case "$cmd" in
     ;;
 
   reap)
+    prefix=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --prefix) prefix="${2:-}"; shift 2 ;;
+        *) echo "heartbeat.sh reap: unknown arg '$1'" >&2; exit 2 ;;
+      esac
+    done
     exec 9>"$LOCK"
     flock -w 30 9 || { echo "heartbeat.sh reap: lock timeout" >&2; exit 1; }
     shopt -s nullglob
@@ -192,11 +208,19 @@ case "$cmd" in
     for f in $(printf '%s\n' "$HEARTBEAT_BASE"/*.json | sort); do
       [ -f "$f" ] || continue
       is_alive "$f" && continue
+      if [ -n "$prefix" ]; then
+        runid="$(jq -r '.runId // empty' "$f" 2>/dev/null)" || runid=""
+        # shellcheck disable=SC2254 # intentional glob match against --prefix
+        case "$runid" in
+          $prefix) : ;;
+          *) continue ;;
+        esac
+      fi
       mv "$f" "$DONE/$(basename "$f")"
       n=$((n+1))
     done
     flock -u 9 || true
-    [ "$n" -gt 0 ] && log "reap reaped=$n" || true
+    [ "$n" -gt 0 ] && log "reap reaped=$n prefix=${prefix:-<none>}" || true
     echo "reaped $n" >&2
     ;;
 

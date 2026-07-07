@@ -31,13 +31,13 @@ field() { "$CV" <<<"$1" | python3 -c "import sys,json;o=json.load(sys.stdin);pri
 # is_finished=true but open_hard_pool/actionable_routine_open are STALE (nonzero, disagreeing
 # with is_finished) AND there is promotable TODO backlog (case h). is_finished must win:
 # verdict must NOT be execute/hard; it must fall through to the promote>0 -> handoff branch.
-zelegator_stale_hard='{"repo":"zelegator","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"roadmap_actionable_open":1,"top_intensive":"","unpromoted":{"promote":2,"surface":0}}'
+zelegator_stale_hard='{"repo":"zelegator","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"actionable_routine_open":1,"top_intensive":"","unpromoted":{"promote":2,"surface":0}}'
 v="$(field "$zelegator_stale_hard" verdict)"
 [[ "$v" != "execute" && "$v" != "hard" ]] || { echo "FAIL (a): is_finished=true must never yield verdict=$v (000d native fold)"; exit 1; }
 [[ "$v" == "handoff" ]] || { echo "FAIL (a): is_finished=true + promotable backlog must fall through to handoff, got $v"; exit 1; }
 
 # Same repo shape but with ZERO promotable/surface backlog too -> must land idle, never execute/hard.
-zelegator_drained='{"repo":"zelegator","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"roadmap_actionable_open":1,"top_intensive":"","unpromoted":{"promote":0,"surface":0}}'
+zelegator_drained='{"repo":"zelegator","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"actionable_routine_open":1,"top_intensive":"","unpromoted":{"promote":0,"surface":0}}'
 v2="$(field "$zelegator_drained" verdict)"
 [[ "$v2" == "idle" ]] || { echo "FAIL (a): finished + drained backlog must be idle, got $v2"; exit 1; }
 
@@ -45,12 +45,12 @@ v2="$(field "$zelegator_drained" verdict)"
 # top_intensive is set (an open [INTENSIVE — r5-jvm] item exists, gather already excludes
 # human-gated lanes id:a707) but actionable_routine_open/open_hard_pool UNDERCOUNT it (both 0).
 # classify-verdict.sh must promote natively: verdict=execute AND intensive=r5-jvm (never idle).
-isochrone='{"repo":"isochrone","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":0,"roadmap_actionable_open":0,"top_intensive":"r5-jvm","unpromoted":{"promote":0,"surface":0}}'
+isochrone='{"repo":"isochrone","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":0,"actionable_routine_open":0,"top_intensive":"r5-jvm","unpromoted":{"promote":0,"surface":0}}'
 [[ "$(field "$isochrone" verdict)"   == "execute" ]] || { echo "FAIL (b): undercounted INTENSIVE item must promote to execute (ad74 native fold)"; exit 1; }
 [[ "$(field "$isochrone" intensive)" == "r5-jvm"  ]] || { echo "FAIL (b): intensive flag must ride the promoted execute verdict"; exit 1; }
 
 # --- Regression: dirty/diverged parity guards (rank 0) still outrank BOTH native folds ----
-zelegator_dirty='{"repo":"zelegator","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"roadmap_actionable_open":1,"top_intensive":"","unpromoted":{"promote":2,"surface":0},"dirty":true,"dirty_lock_only":false}'
+zelegator_dirty='{"repo":"zelegator","is_finished":true,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"actionable_routine_open":1,"top_intensive":"","unpromoted":{"promote":2,"surface":0},"dirty":true,"dirty_lock_only":false}'
 [[ "$(field "$zelegator_dirty" verdict)" == "blocked" ]] || { echo "FAIL: dirty tree must still outrank the is_finished native fold"; exit 1; }
 
 echo "PASS test_classify_verdict_backstop"
