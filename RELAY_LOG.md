@@ -1887,3 +1887,41 @@ passed cleanly this run).
 Friction: none — the recipe-manifest-vs-discovery-queue schema mismatch was the one
 substantive judgment call (documented above and in discovery-queue-manifest.md's "why this
 is a NEW drop-dir" section) rather than a genuine blocker.
+
+## 2026-07-07 — executor (opus)
+
+Worked id:54fc — extended the run-heartbeat (id:e149) to cover the mechanical discovery
+producer's `.timer` (id:9d97) as a SECOND, independent liveness domain, per the 2026-07-07
+meeting's Item 3 forward-flag (docs/meeting-notes/2026-07-07-1228-relay-discovery-off-workflow.md).
+`relay/scripts/discover-repos-mechanical.sh` now calls `heartbeat.sh beat` with a fixed
+runId (`discovery-producer`, override via `DISCOVERY_PRODUCER_RUN_ID`) after a successful
+write, reusing the exact same marker format/location (`HEARTBEAT_BASE`) as the dispatch
+loop's per-round `relay-*` runIds — beat failures are logged but non-fatal, never blocking
+the actual discovery write. `tools/relay-watchdog.sh` was restructured to check TWO domains
+per tick instead of early-exiting after the dispatch-loop check: the existing dispatch-loop
+dead-runs logic is unchanged in behavior, and a new second block checks the producer marker
+via `heartbeat.sh status <runId>` with its OWN TTL (`RELAY_WATCHDOG_PRODUCER_TTL`, default
+2100s = the timer's 15-min cadence ×2 + a missed-run buffer), its own de-dup state file
+(`$RELAY_WATCHDOG_STATE.producer`), and its own evidence-log domain tag
+(`domain:"discovery-producer"`), notifying "⚠️ Discovery producer stale/down" — a message
+distinct from the dispatch domain's "⚠️ Relay loop died" so an operator can tell "discovery
+is down" apart from "the pool is just idle / no work." Only a PRESENT-but-STALE producer
+marker triggers a report (mirrors dead-runs' own present-but-stale semantics); a marker that
+has never been beaten (producer never run yet) is silently not-reported, same as the
+dispatch domain's absent-marker handling. Purely observe/notify — no systemd unit installed
+or enabled (conservative AFK default), no repo/timer touched.
+
+New hermetic test `tests/test_discovery_producer_heartbeat.sh` (no `# roadmap:` header —
+id:54fc has no matching ROADMAP.md item) pins: (a) a successful producer run creates/beats
+its own heartbeat marker; (b) a marker aged past `RELAY_WATCHDOG_PRODUCER_TTL` makes the
+watchdog report the producer-down condition distinctly (asserts the message text AND that
+it does NOT bleed into the generic "Relay loop died" string, plus the evidence JSON's
+`domain` tag) with de-dup on a repeat tick; (c) a fresh marker produces no report. Also
+added `HEARTBEAT_BASE`/`HEARTBEAT_LOG` overrides to the existing
+`tests/test_discover_repos_mechanical.sh` fixture env — the new heartbeat-beat call would
+otherwise have written to the real `~/.config/relay/heartbeats` during that test, breaking
+hermeticity (not a test-integrity weakening, purely isolating a new side effect the producer
+now has). Full suite: `make test` 191 passed / 0 failed / 0 expected-red (up from 190).
+Friction: none — relay-loop.js (the dispatch loop's own heartbeat.sh call sites) was
+deliberately left untouched per the task brief, to avoid a merge conflict with a parallel
+executor working that file.
