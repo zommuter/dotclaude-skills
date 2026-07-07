@@ -2140,3 +2140,37 @@ Stayed out of relay-doctor.sh / tests/test_mechanical_orphan.sh (parallel execut
 mid-flight). `make test`: 194 passed, 0 failed, 2 expected-red.
 Friction: unpromoted-scan's persisted-output truncation initially hid id:758e from the
 promote set — re-ran filtered; scan itself is correct.
+
+## 2026-07-07 — executor (opus)
+
+Fixed two CONFIRMED HIGH findings from the Fable-tier second-opinion review of the
+mechanical discovery loop (id:9d97/7402/54fc).
+
+FINDING 1 (fresh-queue path dropped reconcile side-effects): the discover-run recipe's
+STEP 0, on a FRESH mechanical queue, only `cat latest.json` + copied the verdict and
+NEVER ran reconcile-repo.sh that round — so ff-merge (id:c3f7), uv.lock cascade commit
+(id:bae5), worktree reap/park + orphan suppress-redispatch (id:1f53/ebfb) and live-claims
+filtering silently stopped happening on the queue path. Chose the clean split (Fable's
+recommended shape, not the freshness-gate fallback): CASE A now runs reconcile-repo.sh
+LIVE per repo (with --live-claims + --runid) for the side-effecting half and takes ONLY
+the deterministic CLASSIFY verdict from the queue, mirroring discover-repo.sh's
+surfaced-non-empty→stop routing; CASE B (no fresh queue) is the unchanged full live
+discover-repo.sh exec. This also restores live-claims protection the queue never carried.
+Corrected the THREE false "still runs full reconcile byte-for-byte" contract texts
+(discover-repos-mechanical.sh header + inline dup, discovery-queue-manifest.md, and the
+relay-loop.js:1513 integrator "discovery already fast-forwarded" comment) to state the
+true reconcile-live/classify-from-queue split. Structural test: test_discovery_queue_consume.sh
+(d) asserts reconcile-repo.sh --repo is invoked with --live-claims on the queue path.
+
+FINDING 2 (dead-runs unscoped → spurious producer alarms): heartbeat.sh `dead-runs` swept
+HEARTBEAT_BASE with no namespace filter, so the discovery-producer marker (2100s domain-2
+TTL) aged past heartbeat's 3600s default and tripped domain-1 — a bogus "Relay loop died:
+discovery-producer" and a relay-reconcile --all --auto on EVERY restart. Gave dead-runs the
+same optional `--prefix GLOB` filter reap already has and passed `--prefix 'relay-*'` at both
+consumers (relay-watchdog.sh domain-1 + relay-loop.js:1893 auto-reconcile-on-restart).
+test_discovery_producer_heartbeat.sh (e) asserts an aged producer marker is absent from
+`dead-runs --prefix 'relay-*'` while domain-2 (`--prefix 'discovery-*'`) and the unscoped
+default still see it.
+
+`make test`: 195 passed, 0 failed, 2 expected-red.
+Friction: none.

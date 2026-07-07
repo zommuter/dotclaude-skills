@@ -97,9 +97,14 @@ notify() {  # <title> <body>
   command -v logger >/dev/null 2>&1 && logger -t relay-watchdog "$title — $body" || true
 }
 
-# ── Domain 1: dispatch loop (id:98f0, unchanged) ──────────────────────────────
+# ── Domain 1: dispatch loop (id:98f0) ─────────────────────────────────────────
 # Current dead run-ids (present-but-stale markers). dead-runs emits one JSON line per dead run.
-dead="$("$HB" dead-runs 2>>"$LOG" || true)"
+# --prefix 'relay-*' scopes this to the DISPATCH loop's own runId namespace (relay-<ts>-<rand>)
+# so the INDEPENDENT discovery-producer marker (fixed runId "discovery-producer", 2100s domain-2
+# TTL, id:54fc) — which ages into "dead" against heartbeat's default 3600s TTL — never trips a
+# spurious dispatch-loop "Relay loop died" alarm here. Domain 2 below alarms on the producer
+# distinctly (2026-07-07 strong-model review).
+dead="$("$HB" dead-runs --prefix 'relay-*' 2>>"$LOG" || true)"
 current_ids="$(printf '%s\n' "$dead" | jq -r 'select(.runId!=null and .runId!="")|.runId' 2>/dev/null | sort -u)"
 
 if [ -z "$current_ids" ]; then

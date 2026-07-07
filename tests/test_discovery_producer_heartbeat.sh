@@ -150,4 +150,36 @@ reap_out="$("$HB" reap --prefix 'relay-*' 2>&1 >/dev/null)"
 echo "$reap_out" | grep -q "reaped 1" || fail "scoped reap should report exactly 1 reaped marker, got: $reap_out"
 pass "a --prefix 'relay-*' reap archives the dispatch-loop marker but leaves the discovery-producer marker intact (id:54fc / cross-domain suppression fix)"
 
+# ── (e) cross-domain alarm suppression on the DETECTION side: an aged
+# discovery-producer marker must NOT appear in `dead-runs --prefix 'relay-*'`, so the
+# dispatch-loop consumers (relay-watchdog.sh domain 1, relay-loop.js auto-reconcile-on-restart)
+# stay quiet for it — while an unscoped `dead-runs` and the domain-2 `dead-runs --prefix
+# 'discovery-*'` still see it (2026-07-07 Fable second-opinion finding 2: reap gained --prefix
+# but dead-runs did not, so the producer marker still tripped domain-1 detection).
+# Rebuild a fresh, backdated-stale producer marker + a stale relay-* dispatch marker in a
+# clean heartbeat dir (parts (a)-(d) archived theirs into heartbeats.done).
+export HEARTBEAT_BASE2="$tmp/heartbeats2"
+mkdir -p "$HEARTBEAT_BASE2"
+HB_D() { HEARTBEAT_BASE="$HEARTBEAT_BASE2" "$HB" "$@"; }
+HB_D beat "$DISCOVERY_PRODUCER_RUN_ID" >/dev/null
+HB_D beat "relay-20260202-000000-9" >/dev/null
+backdate "$HEARTBEAT_BASE2/$(printf '%s' "$DISCOVERY_PRODUCER_RUN_ID" | tr '/:' '__').json"
+backdate "$HEARTBEAT_BASE2/relay-20260202-000000-9.json"
+
+scoped_dead="$(HEARTBEAT_BASE="$HEARTBEAT_BASE2" HEARTBEAT_TTL=3600 "$HB" dead-runs --prefix 'relay-*')"
+echo "$scoped_dead" | jq -e 'select(.runId=="'"$DISCOVERY_PRODUCER_RUN_ID"'")' >/dev/null 2>&1 \
+  && fail "dead-runs --prefix 'relay-*' leaked the discovery-producer marker into the dispatch domain"
+echo "$scoped_dead" | jq -e 'select(.runId=="relay-20260202-000000-9")' >/dev/null 2>&1 \
+  || fail "dead-runs --prefix 'relay-*' dropped the matching stale relay-* dispatch marker"
+pass "dead-runs --prefix 'relay-*' excludes the discovery-producer marker but keeps stale relay-* markers (id:54fc detection-side scoping)"
+
+# domain-2 still SEES the producer via its own prefix (and the unscoped default too).
+prod_dead="$(HEARTBEAT_BASE="$HEARTBEAT_BASE2" HEARTBEAT_TTL=3600 "$HB" dead-runs --prefix 'discovery-*')"
+echo "$prod_dead" | jq -e 'select(.runId=="'"$DISCOVERY_PRODUCER_RUN_ID"'")' >/dev/null 2>&1 \
+  || fail "dead-runs --prefix 'discovery-*' should still surface the stale producer marker (domain-2 must keep alarming)"
+unscoped_dead="$(HEARTBEAT_BASE="$HEARTBEAT_BASE2" HEARTBEAT_TTL=3600 "$HB" dead-runs)"
+echo "$unscoped_dead" | jq -e 'select(.runId=="'"$DISCOVERY_PRODUCER_RUN_ID"'")' >/dev/null 2>&1 \
+  || fail "unscoped dead-runs (legacy default) should still emit every stale marker incl. the producer"
+pass "domain-2 (--prefix 'discovery-*') and the legacy unscoped default still see the producer marker (id:54fc)"
+
 echo "ALL PASS: discovery-producer heartbeat + distinct watchdog domain (id:54fc)"
