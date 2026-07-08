@@ -65,6 +65,15 @@
 #       liveness domains are alarmed on separately by relay-watchdog.sh, and an unscoped reap
 #       would silently clear the producer's down-alarm on every dispatch-loop restart
 #       (cross-domain alarm suppression, strong-model audit run 70 finding 2).
+#   reap-run <runId>
+#       Archive THAT SPECIFIC run's marker (heartbeats/<safekey>.json → heartbeats.done/)
+#       REGARDLESS of staleness (id:7725) — the run is known dead by DIRECT OBSERVATION
+#       (a caught Workflow crash, an auto-reconcile-on-restart pass), so we must not wait
+#       for the conservative TTL to let `reap` sweep it. Idempotent (exit 0 when the marker
+#       is already absent, like `stop`). Logs a DISTINCT line
+#       (`reap-run run=<id> reason=observed-dead`) so it is separable from a clean `stop`.
+#       Scoped to the one named run; sibling markers are untouched. Complements — does not
+#       replace — the TTL `reap` backstop for a truly-unobserved death.
 #
 # Paths: base = $HEARTBEAT_BASE (default ~/.config/relay/heartbeats), consumed =
 # $HEARTBEAT_BASE/../heartbeats.done, lock = $HEARTBEAT_BASE/../.heartbeat.lock.
@@ -168,6 +177,17 @@ case "$cmd" in
     flock -u 9 || true
     ;;
 
+  reap-run)
+    run="${1:-}"; shift || true
+    [ -n "$run" ] || { echo "heartbeat.sh reap-run: <runId> required" >&2; exit 2; }
+    sk="$(safekey "$run")"
+    marker="$HEARTBEAT_BASE/$sk.json"
+    exec 9>"$LOCK"
+    flock -w 30 9 || { echo "heartbeat.sh reap-run: lock timeout" >&2; exit 1; }
+    [ -f "$marker" ] && { mv "$marker" "$DONE/$sk.json"; log "reap-run run=$run reason=observed-dead"; } || true
+    flock -u 9 || true
+    ;;
+
   status)
     run="${1:-}"; shift || true
     [ -n "$run" ] || { echo "heartbeat.sh status: <runId> required" >&2; exit 2; }
@@ -257,7 +277,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "heartbeat.sh: unknown subcommand '$cmd' (use beat|stop|status|dead-runs|live-runs|list|reap)" >&2
+    echo "heartbeat.sh: unknown subcommand '$cmd' (use beat|stop|status|dead-runs|live-runs|list|reap|reap-run)" >&2
     exit 2
     ;;
 esac
