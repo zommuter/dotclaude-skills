@@ -117,6 +117,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISCOVER_REPO="$SCRIPT_DIR/discover-repo.sh"
+DISCOVER_SIG="$SCRIPT_DIR/discover-sig.sh"
 HEARTBEAT_SH="$SCRIPT_DIR/heartbeat.sh"
 LIB_OWN_REPOS="$SCRIPT_DIR/lib-own-repos.sh"
 
@@ -174,7 +175,48 @@ if [[ "$own_repos_rc" -ne 0 ]]; then
   exit 1
 fi
 
-# One NDJSON record per repo: "<name>\t<path>\t<json-object-from-discover-repo.sh>"
+# --- content-address the queue (id:4860): stamp each repo's discover-sig.sh value ---------
+# For each confirmed own repo, compute its SUPERSET discovery signature (discover-sig.sh,
+# id:c3a6) and stamp it onto that repo's queue entries as `queue_sig`. The LIVE consumer
+# (relay-loop.js CASE A) copies a repo's classify verdict ONLY when this queue_sig is
+# byte-identical to the repo's LIVE sig the prelude computed that round — a pure string
+# equality that structurally dissolves the stale-verdict (executor committed AFTER this
+# snapshot) and went-dirty-after-snapshot gaps, and a JS-side assert re-checks it as a
+# mangle canary. discover-sig.sh's contract is respected verbatim: it needs ABSOLUTE paths
+# (id:2ec4 — own_repos() already emits expanded absolute paths) and is FAIL-OPEN (a git
+# error / non-repo path → empty "" sentinel sig). An empty sig is stamped AS-IS and simply
+# never matches the live sig → that repo always falls to the live discover-repo.sh path
+# (fail-safe, never a stale copy). We call discover-sig.sh ONCE for the whole own-repo set
+# (it reads one {repos,liveClaims} JSON on stdin and emits one {repo,sig} line per repo),
+# threading the SAME --live-claims this invocation was given so the `inlive` section of the
+# sig matches what the live loop computes for a claimed repo.
+declare -A SIG_BY_REPO
+if [[ -x "$DISCOVER_SIG" ]]; then
+  sig_input="$(LIVE_CLAIMS="$live_claims" python3 -c '
+import json, os, sys
+claims = [c for c in os.environ.get("LIVE_CLAIMS", "").split(",") if c]
+repos = []
+with open(sys.argv[1], encoding="utf-8") as fh:
+    for line in fh:
+        line = line.rstrip("\n")
+        if not line:
+            continue
+        name, path = line.split("\t", 1)
+        repos.append({"repo": name, "path": path})
+print(json.dumps({"repos": repos, "liveClaims": claims}))
+' "$own_repos_file")"
+  while IFS= read -r sigline; do
+    [[ -n "$sigline" ]] || continue
+    r="$(printf '%s' "$sigline" | jq -r '.repo // empty')"
+    s="$(printf '%s' "$sigline" | jq -r '.sig // ""')"
+    [[ -n "$r" ]] && SIG_BY_REPO["$r"]="$s"
+  done < <(printf '%s' "$sig_input" | "$DISCOVER_SIG" 2>>"$LOG" || true)
+  log "computed discover-sig for ${#SIG_BY_REPO[@]} repo(s) (id:4860 content-address)"
+else
+  log "discover-sig.sh not found/executable at $DISCOVER_SIG — queue_sig stamped empty for all repos (fail-open, always live path) (id:4860)"
+fi
+
+# One NDJSON record per repo: "<name>\t<path>\t<sig>\t<json-object-from-discover-repo.sh>"
 # where <json-object> is either discover-repo.sh's real output, or a synthesized
 # {"units":[],"surfaced":[{"repo","reason","producer_error":true}],"skipped":[]} for a repo
 # this script itself could not even hand to discover-repo.sh (missing path / not a git repo /
@@ -200,7 +242,7 @@ while IFS=$'\t' read -r name path; do
 import json, os
 print(json.dumps({"units": [], "surfaced": [{"repo": os.environ["REPO_ARG"], "reason": os.environ["REASON_ARG"], "producer_error": True}], "skipped": []}))
 ')"
-    printf '%s\t%s\t%s\n' "$name" "$path" "$out" >> "$records_file"
+    printf '%s\t%s\t%s\t%s\n' "$name" "$path" "${SIG_BY_REPO[$name]:-}" "$out" >> "$records_file"
     continue
   fi
 
@@ -215,7 +257,7 @@ print(json.dumps({"units": [], "surfaced": [{"repo": os.environ["REPO_ARG"], "re
   # from the queue when fresh — so its reconcile side-effects run every round on real pool state.
   if out="$("$DISCOVER_REPO" --repo "$name" --path "$path" --runid "$runid" \
             --live-claims "$live_claims" --main-branch "$main_branch" --no-reconcile 2>>"$LOG")"; then
-    printf '%s\t%s\t%s\n' "$name" "$path" "$out" >> "$records_file"
+    printf '%s\t%s\t%s\t%s\n' "$name" "$path" "${SIG_BY_REPO[$name]:-}" "$out" >> "$records_file"
   else
     rc=$?
     log "repo=$name discover-repo.sh FAILED rc=$rc"
@@ -224,7 +266,7 @@ print(json.dumps({"units": [], "surfaced": [{"repo": os.environ["REPO_ARG"], "re
 import json, os
 print(json.dumps({"units": [], "surfaced": [{"repo": os.environ["REPO_ARG"], "reason": os.environ["REASON_ARG"], "producer_error": True}], "skipped": []}))
 ')"
-    printf '%s\t%s\t%s\n' "$name" "$path" "$out" >> "$records_file"
+    printf '%s\t%s\t%s\t%s\n' "$name" "$path" "${SIG_BY_REPO[$name]:-}" "$out" >> "$records_file"
   fi
 done < "$own_repos_file"
 
@@ -259,7 +301,7 @@ with open(sys.argv[1], encoding="utf-8") as fh:
         line = line.rstrip("\n")
         if not line:
             continue
-        name, path, blob = line.split("\t", 2)
+        name, path, sig, blob = line.split("\t", 3)
         repos.append({"repo": name, "path": path})
 
         err = None
@@ -279,11 +321,21 @@ with open(sys.argv[1], encoding="utf-8") as fh:
 
         if err is not None:
             sys.stderr.write(f"WARN: repo {name}: {err} — isolating into surfaced; other repos unaffected\n")
-            surfaced.append({"repo": name, "reason": err, "producer_error": True})
+            # queue_sig on the synthesized producer_error entry too (id:4860) — consistent
+            # shape; an errored repo has an empty ("") fail-open sig anyway (never matches).
+            surfaced.append({"repo": name, "reason": err, "producer_error": True, "queue_sig": sig})
             continue
 
+        # id:4860 — content-address the queue: stamp the per-repo discover-sig.sh value onto
+        # every entry as queue_sig. The live consumer (relay-loop.js CASE A) copies a verdict
+        # only when queue_sig == the live sig; a JS-side assert re-checks it as a mangle
+        # canary. Fail-open: an empty sig is stamped as-is (never matches -> that repo always
+        # falls to the live discover-repo.sh path).
         for key, bucket in (("units", units), ("surfaced", surfaced), ("skipped", skipped)):
-            bucket.extend(obj.get(key, []))
+            for entry in obj.get(key, []):
+                if isinstance(entry, dict):
+                    entry["queue_sig"] = sig
+                bucket.append(entry)
 
 out = {
     "schema_version": 1,
