@@ -74,8 +74,10 @@ grep -q "queue_sig" "$JS" || fail "recipe/schema never references queue_sig (con
 grep -Eq "sig: sigByRepo\[r\.repo\]" "$JS" || fail "chunk does not carry each repo's live sig (sigByRepo) for the CASE A comparison"
 # CASE A gates the verbatim copy on a BYTE-IDENTICAL sig equality
 grep -q "BYTE-IDENTICAL to this repo's \"sig\"" "$JS" || fail "CASE A does not gate the copy on queue_sig == live sig (byte equality)"
-# missing/mismatched queue_sig → fall to the CASE B live path for THAT repo (not a stale copy)
-grep -Eq "queue_sig is MISSING or does NOT byte-match" "$JS" || fail "CASE A does not treat a missing/mismatched queue_sig as a fall-to-live-path case"
+# missing/EMPTY/mismatched queue_sig → fall to the CASE B live path for THAT repo (not a stale
+# copy). EMPTY is the discover-sig fail-open sentinel: it must never content-address, even when
+# the live sig is also empty ('' === '' is systemic sig breakage, not a match).
+grep -Eq "queue_sig is MISSING, EMPTY .*or does NOT byte-match" "$JS" || fail "CASE A does not treat a missing/EMPTY/mismatched queue_sig as a fall-to-live-path case"
 # the residual-read label is updated to say content-addressing SHRINKS the trust (mangle canary)
 grep -q "Content-addressing SHRINKS the trust" "$JS" || fail "residual LLM surface label not updated to note the content-address/mangle-canary shrink (D3 wording, id:4860)"
 
