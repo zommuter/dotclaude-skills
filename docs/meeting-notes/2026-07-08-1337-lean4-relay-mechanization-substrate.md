@@ -122,8 +122,9 @@ including the toesnail hedge ("at least Opus could handle, not sure if Sonnet tr
 correctly narrowed to a Sonnet-tier evidence bar in D5. Four findings extend D2/D3/D4/D5;
 constraints folded into the TODO twins (id:50c4/82c4/ba31/7746) in the same commit.
 
-- **F1 — the island-1 blocker is broader than its own rationale (D3) — PROPOSED
-  downgrade, needs user ratification.** D3's stated reason for "land id:4860/0fa0/1cb8 in
+- **F1 — the island-1 blocker is broader than its own rationale (D3) — proposed
+  downgrade, RATIFIED by user 2026-07-08 (follow-up turn):** 1cb8 is parallel de-risk
+  (before the FLIP at the latest), never a start gate; island 1 (id:82c4) is startable now. D3's stated reason for "land id:4860/0fa0/1cb8 in
   bash FIRST" is that the fixed bash becomes the parity oracle ("porting first would bake
   the bugs into the golden corpus"). Verified: **none of the three items touched the
   ported module.** `classify-verdict.sh` — the island-1 port target, pure JSON→JSON — was
