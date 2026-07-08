@@ -362,8 +362,8 @@ grep -Eq "sig: sigByRepo\[r\.repo\]" "$JS" \
 # (c) the canary DROPS + SURFACES a sig-mismatched queue unit (never dispatches on stale state).
 grep -q "discovery-queue sig canary" "$JS" \
   || fail "id:4860: no 'discovery-queue sig canary' log line"
-grep -q "u.queue_sig !== undefined && u.queue_sig !== (sigByRepo\[u.repo\] || '')" "$JS" \
-  || fail "id:4860: canary condition missing/incorrect — must drop only queue-sourced (queue_sig-bearing) units whose sig != live sig; CASE B/live units (no queue_sig) exempt"
+grep -q "u.queue_sig !== undefined && (u.queue_sig === '' || u.queue_sig !== (sigByRepo\[u.repo\] || ''))" "$JS" \
+  || fail "id:4860: canary condition missing/incorrect — must drop queue-sourced (queue_sig-bearing) units whose sig is EMPTY (fail-open sentinel; '' === '' must not pass) or != live sig; CASE B/live units (no queue_sig) exempt"
 grep -q "content-addressed mangle canary id:4860" "$JS" \
   || fail "id:4860: dropped unit does not carry the canonical sig-mismatch surfaced reason"
 # (d) the canary must run BEFORE the discoverCache write, so a stale verdict can never be cached
