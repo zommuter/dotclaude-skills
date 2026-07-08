@@ -38,7 +38,7 @@ EOF
 Co-Authored-By fields: **Model** from system context (e.g. `Claude Sonnet 4.6`); **Effort** = `low` (≤33), `mid` (34–66), `high` (≥67); **Session ID** = the captured UUID — never the literal `$CLAUDE_SESSION_ID`.
 
 ```bash
-# Push (parallel-safe: autostash + pull --rebase + push)
+# Push (parallel-safe: flock'd dirty-guard + pull --rebase + push)
 ~/.claude/skills/git-diary-workflow/git-lock-push.sh
 ```
 
@@ -87,7 +87,7 @@ If non-empty → **attribute each dirty file before committing**. The repo is si
 - **Yours** — you edited the file this session, either directly or through a symlink (e.g. `~/src/meeting-rpg/broker.py → ~/src/dotclaude-skills/meeting/broker.py`). Symlink edits are the reason this step exists: they never show up in the foreign project's git status, so check your session's Write/Edit targets against `realpath` into dotclaude-skills — **do not rely on the foreign repo's git status to surface them**.
 - **Not yours / can't attribute** — leave it uncommitted and mention it in the end-of-session summary; the owning session's workflow will commit it.
 
-**Known residual race**: attribution is file-granular. If two sessions edit the SAME file concurrently, staging "your" file scoops the other session's hunks, and git-lock-push's autostash pops over a moving tree. The real fix is worktree-per-session with a flock'd merge to canonical — see dotclaude-skills TODO id:3558 (build opened 2026-06-12). Until that lands: before committing a shared spec file (SKILL.md, format.md, personas.md), eyeball `git diff` for hunks you don't recognize and drop them from the commit.
+**Known residual race**: attribution is file-granular. If two sessions edit the SAME file concurrently, staging "your" file scoops the other session's hunks. (git-lock-push's `--autostash` was dropped 2026-07-08 — the id:aa93 guard refuses tracked-dirty trees, and a tracked edit landing in the check→pull race window now makes the rebase refuse loudly instead of being silently stashed and popped over a rewritten tree.) The real fix is worktree-per-session with a flock'd merge to canonical — see dotclaude-skills TODO id:3558 (build opened 2026-06-12). Until that lands: before committing a shared spec file (SKILL.md, format.md, personas.md), eyeball `git diff` for hunks you don't recognize and drop them from the commit.
 
 For YOUR files only: build a manifest and msg exactly as in Step 1b, using `~/src/dotclaude-skills/<file1>` paths and a dotclaude-skills description, then:
 

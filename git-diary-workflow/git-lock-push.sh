@@ -177,29 +177,50 @@ if git ls-remote --exit-code "$remote_name" "refs/heads/$remote_branch" >/dev/nu
       exit 0  # non-fatal — work is committed
     fi
   else
-    # id:aa93 — `git pull --rebase --autostash` would autostash-RESET a foreign-dirty tree
-    # (a human / parallel session's uncommitted edit) outside any lock the editor respects,
-    # and a stash that fails to re-apply after the rebase is silent data loss. In legacy mode
+    # id:aa93 — rebasing over a foreign-dirty tree (a human / parallel session's uncommitted
+    # edit, made outside any lock the editor respects) risks silent data loss. In legacy mode
     # (no manifest) the caller has NOT committed anything here, so any TRACKED dirty entry is
-    # foreign: refuse the autostash path and leave the work committed-locally-not-pushed
-    # (non-fatal, same as a flock timeout). Manifest mode just committed the listed paths, so a
-    # residual tracked-dirty tree there is also foreign — same refusal.
+    # foreign: refuse and leave the work committed-locally-not-pushed (non-fatal, same as a
+    # flock timeout). Manifest mode just committed the listed paths, so a residual
+    # tracked-dirty tree there is also foreign — same refusal.
     #
     # id:dff8 — untracked-only churn (porcelain lines all `?? `) carries none of that risk:
-    # `--autostash` only stashes TRACKED changes, so untracked files are never touched by the
-    # stash/reapply path, and a rebase that would clobber an untracked file aborts loudly on its
-    # own (safe-and-loud). Repos with perpetual untracked runtime churn (e.g. `~/.claude`'s
-    # `plans/`, `session-env/`, `sessions/`, `tasks/`) would otherwise refuse every push. So:
-    # untracked-only → proceed with the autostash-rebase; any tracked modified/staged/renamed
-    # entry → still refuse (the id:aa93 data-loss guard is unchanged for tracked dirt).
+    # a rebase never touches untracked paths, and one that would clobber an untracked file
+    # aborts loudly on its own (safe-and-loud). Repos with perpetual untracked runtime churn
+    # (e.g. `~/.claude`'s `plans/`, `session-env/`, `sessions/`, `tasks/`) would otherwise
+    # refuse every push. So: untracked-only → proceed with the rebase; any tracked
+    # modified/staged/renamed entry → still refuse (the id:aa93 data-loss guard is unchanged
+    # for tracked dirt).
     porcelain="$(git status --porcelain)"
     if [[ -n "$porcelain" ]] && grep -qv '^?? ' <<<"$porcelain"; then
-      echo "WARNING: working tree has uncommitted tracked changes; not autostash-rebasing (id:aa93)." >&2
+      echo "WARNING: working tree has uncommitted tracked changes; not rebasing (id:aa93)." >&2
       echo "Commit or move the changes, then run 'git push' manually." >&2
       exec 8>&-
       exit 0  # non-fatal — work is committed
     fi
-    git pull --rebase --autostash $target
+    # `--autostash` DROPPED (2026-07-08, user-ratified constraint archaeology): after the
+    # id:aa93 guard + id:dff8 carve-out it was dead code — every state the guard admits has
+    # no tracked dirt, and --autostash stashes only TRACKED changes. The single place it
+    # could still act is the check→pull race window (this flock serializes other
+    # git-lock-push callers, NOT a parallel session's editor dirtying a tracked file right
+    # here), and there it did the wrong thing silently: stash the foreign edit, rebase, pop
+    # over a rewritten tree — the id:aa93 hazard in miniature. Plain --rebase makes that
+    # race REFUSE loudly instead. Two failure modes, handled separately below:
+    #   refused-to-start (dirty tree, no rebase state) → warn + exit 0, same
+    #     committed-locally-not-pushed contract as the guard;
+    #   mid-rebase CONFLICT (rebase state left in the repo) → exit 1 LOUD, never exit-0
+    #     over a wedged tree — the caller's merge-conflict procedure owns it.
+    if ! git pull --rebase $target; then
+      if [[ -d "$(git rev-parse --git-path rebase-merge)" || -d "$(git rev-parse --git-path rebase-apply)" ]]; then
+        echo "ERROR: rebase conflicted mid-flight — repo left in rebase state; resolve or 'git rebase --abort', then push manually." >&2
+        exec 8>&-
+        exit 1
+      fi
+      echo "WARNING: rebase refused to start (tracked changes appeared between the dirty-check and the pull). Commit saved locally, not pushed (id:aa93 race backstop)." >&2
+      echo "Run 'git push' manually once the tree settles." >&2
+      exec 8>&-
+      exit 0  # non-fatal — work is committed
+    fi
   fi
 fi
 

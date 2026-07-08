@@ -89,13 +89,22 @@ done
 grep -q "id:aa93" "$JS" || fail "integrate step has no id:aa93 marker (deterministic-gate rationale missing)"
 pass "integrate step uses deterministic clean-tree-gate.sh and forbids force-cleaning (id:aa93)"
 
-# ── (E) git-lock-push.sh refuses a foreign-dirty tree on the autostash/rebase path ──
+# ── (E) git-lock-push.sh refuses a foreign-dirty tree on the rebase path ──
 [[ -f "$LOCKPUSH" ]] || fail "git-lock-push.sh not found at $LOCKPUSH"
-grep -q "id:aa93" "$LOCKPUSH" || fail "git-lock-push.sh has no id:aa93 guard against autostash-resetting a foreign-dirty tree"
-# The rebase path must guard dirtiness before reaching `git pull --rebase --autostash`.
-awk '/--rebase --autostash/{found=1} END{exit found?0:1}' "$LOCKPUSH" || fail "git-lock-push.sh no longer has the autostash rebase path (test stale)"
-grep -qE "status --porcelain" "$LOCKPUSH" || fail "git-lock-push.sh does not check the tree before the autostash path (id:aa93)"
-pass "git-lock-push.sh guards the autostash/rebase path against a foreign-dirty tree (id:aa93)"
+grep -q "id:aa93" "$LOCKPUSH" || fail "git-lock-push.sh has no id:aa93 guard against rebasing over a foreign-dirty tree"
+# The rebase path must guard dirtiness before reaching `git pull --rebase`, and the
+# `--autostash` flag must stay GONE (dropped 2026-07-08, user-ratified): after the id:aa93
+# guard + id:dff8 carve-out it was dead code everywhere except the check→pull race window,
+# where it silently stashed+popped a foreign tracked edit — the exact aa93 hazard. Plain
+# --rebase makes that race refuse loudly.
+awk '/git pull --rebase/{found=1} END{exit found?0:1}' "$LOCKPUSH" || fail "git-lock-push.sh no longer has the rebase pull path (test stale)"
+# Match the flag ON the pull command only — the script's comments may (and do) name it.
+! grep -qE "pull --rebase.*--autostash|--autostash.*pull --rebase" "$LOCKPUSH" || fail "git-lock-push.sh reintroduced --autostash on the pull (dropped 2026-07-08: silent foreign-stash in the check->pull race window, id:aa93)"
+grep -qE "status --porcelain" "$LOCKPUSH" || fail "git-lock-push.sh does not check the tree before the rebase path (id:aa93)"
+# Race backstop: a refused-to-start pull warns + exits 0; a mid-rebase conflict must exit 1
+# LOUD (never exit-0 over a wedged rebase state).
+grep -q "rebase-merge" "$LOCKPUSH" || fail "git-lock-push.sh rebase-failure wrap lacks the rebase-in-progress (conflict) loud-exit branch"
+pass "git-lock-push.sh guards the rebase path against a foreign-dirty tree, sans autostash (id:aa93)"
 
 # ── (F) Makefile registration (id:5f09 lesson) ──
 mk_count="$(grep -c "scripts/clean-tree-gate.sh" "$SRC_DIR/Makefile" || true)"

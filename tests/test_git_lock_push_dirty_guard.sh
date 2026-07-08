@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # roadmap:dff8 — git-lock-push.sh id:aa93 dirty-guard must tolerate UNTRACKED-ONLY
-# churn (proceed with the autostash-rebase + push) and keep refusing on TRACKED
+# churn (proceed with the rebase + push) and keep refusing on TRACKED
 # modifications — and its refusal message must state facts, not the "(a concurrent
 # edit?)" causal guess.
 #
 # WHY (TODO id:dff8, recurring on ~/.claude): the guard refuses on ANY porcelain
-# output, but `--autostash` only stashes TRACKED changes — untracked paths carry no
-# stash-reapply data-loss risk (a rebase that would overwrite an untracked file
-# aborts loudly on its own). ~/.claude's untracked runtime churn (plans/,
-# session-env/, sessions/, tasks/) therefore blocks every push for no safety gain.
+# output, but a rebase never touches untracked paths (one that would overwrite an
+# untracked file aborts loudly on its own) — so untracked churn carries no data-loss
+# risk. ~/.claude's untracked runtime churn (plans/, session-env/, sessions/,
+# tasks/) would otherwise block every push for no safety gain. (Historical note:
+# the rebase used `--autostash` when this spec was written; the flag was dropped
+# 2026-07-08 — dead code post-guard, and a silent-stash hazard in the
+# check→pull race window. Behavior specced here is unchanged by that drop.)
 #
 # RED until the fix lands. Hermetic: local bare remote, mktemp, no network
 # (idiom: test_git_lock_push_ff_only.sh).
@@ -68,7 +71,7 @@ else
 fi
 
 # ── Test 2: tracked modification → still refuses (data-loss guard kept) ──────
-echo "Test 2: tracked modification still refuses the autostash-rebase"
+echo "Test 2: tracked modification still refuses the rebase"
 echo "change2" > "$work/file2"
 git -C "$work" add file2
 git -C "$work" commit -q -m "more committed work"
