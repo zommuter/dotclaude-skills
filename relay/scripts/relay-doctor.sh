@@ -78,46 +78,15 @@ RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true   # best-effort: never fail on a log dir
 log() { printf '%s relay-doctor.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
-# --- own repos from relay.toml (same parser as relay-reconcile.sh) -------------
-# Honors `classification = "own"`, `# path:` comment overrides, the `paused` flag.
-# Outputs lines of "<name>\t<path>".
-own_repos() {
-  [[ -f "$RELAY_TOML" ]] || return 0
-  SRC_DIR="$SRC_DIR" python3 -c '
-import os, re, sys, tomllib
-src = os.environ["SRC_DIR"]
-toml_path = sys.argv[1]
-with open(toml_path, "rb") as f:
-    data = tomllib.load(f)
-
-# Recover the `# path:` COMMENT override per repo (tomllib drops comments).
-comment_path = {}
-cur = None
-sect_re = re.compile(r"^\s*\[repos\.([^\]]+)\]\s*$")
-path_re  = re.compile(r"^\s*#\s*path:\s*(.+?)\s*$")
-with open(toml_path, encoding="utf-8") as f:
-    for line in f:
-        m = sect_re.match(line)
-        if m:
-            cur = m.group(1)
-            continue
-        if cur:
-            pm = path_re.match(line)
-            if pm and cur not in comment_path:
-                comment_path[cur] = pm.group(1)
-
-def expand(p):
-    return os.path.expanduser(os.path.expandvars(p))
-
-for name, entry in data.get("repos", {}).items():
-    if entry.get("classification") != "own":
-        continue
-    if entry.get("paused"):
-        continue
-    path = entry.get("path") or comment_path.get(name) or os.path.join(src, name)
-    print(f"{name}\t{expand(path)}")
-' "$RELAY_TOML"
-}
+# --- own repos from relay.toml -------------------------------------------------
+# own_repos() (classification="own", `# path:` comment overrides, `paused` flag) is defined
+# in the SHARED lib-own-repos.sh (id:0fa0 finding e) — previously a verbatim copy lived here
+# AND in discover-repos-mechanical.sh (id:10a6 drift risk). Same function body, same
+# "<name>\t<path>" output — behavior here is unchanged. registry_parse_check() below already
+# gives this REPORT-ONLY tool its own loud-fail surface (id:2945) for a corrupt relay.toml, so
+# the --all loop further down keeps its existing `done < <(own_repos)` call as-is.
+# shellcheck source=lib-own-repos.sh
+source "$SCRIPTS_DIR/lib-own-repos.sh"
 
 # --- parse args ----------------------------------------------------------------
 scope="cwd"
