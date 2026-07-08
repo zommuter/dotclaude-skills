@@ -346,3 +346,36 @@ if prelude < 0: sys.exit("no 'discover-prelude' inside runRound()")
 if gate > prelude: sys.exit('id:5c00 PRE-GATE appears AFTER discover-prelude in runRound — ordering wrong (shard agents still fire before quota check)')
 PYEOF
 pass "id:5c00: quota PRE-GATE precedes discover-prelude in runRound (no wasted shard agents on a quota-stop round)"
+
+# id:4860 — discovery-queue verdict/state coherence: the CASE A queue copy is content-addressed
+# (queue_sig == live sig) with a JS-side mangle canary that DROPS+surfaces any sig-mismatched
+# queue-sourced unit and gates the discoverCache write on the match (fixes stale-cache poisoning).
+grep -q "id:4860" "$JS" \
+  || fail "id:4860: no id:4860 marker in relay-loop.js (discovery-queue sig canary missing)"
+# (a) the schema must declare unit.queue_sig, else the validated CASE A unit drops it and the
+#     canary's u.queue_sig is always undefined (dead guard, mirrors the id:401c is_finished lesson).
+grep -q "queue_sig: { type: 'string' }" "$JS" \
+  || fail "id:4860: DISCOVER_SCHEMA does not declare unit.queue_sig — the canary's u.queue_sig is always undefined (dead guard)"
+# (b) the chunk JSON carries each repo's LIVE sig so the runner can content-address the copy.
+grep -Eq "sig: sigByRepo\[r\.repo\]" "$JS" \
+  || fail "id:4860: chunk does not carry each repo's live sig (sigByRepo) — the runner can't compare queue_sig to the live sig"
+# (c) the canary DROPS + SURFACES a sig-mismatched queue unit (never dispatches on stale state).
+grep -q "discovery-queue sig canary" "$JS" \
+  || fail "id:4860: no 'discovery-queue sig canary' log line"
+grep -q "u.queue_sig !== undefined && u.queue_sig !== (sigByRepo\[u.repo\] || '')" "$JS" \
+  || fail "id:4860: canary condition missing/incorrect — must drop only queue-sourced (queue_sig-bearing) units whose sig != live sig; CASE B/live units (no queue_sig) exempt"
+grep -q "content-addressed mangle canary id:4860" "$JS" \
+  || fail "id:4860: dropped unit does not carry the canonical sig-mismatch surfaced reason"
+# (d) the canary must run BEFORE the discoverCache write, so a stale verdict can never be cached
+#     under the NEW live sig (the stale-cache-poisoning fix). Assert ordering in runRound().
+python3 - "$JS" <<'PYEOF'
+import sys
+js = open(sys.argv[1]).read()
+canary = js.find('id:4860 discovery-queue sig canary')
+# the discoverCache write for freshly-classified units (the id:c3a6 loop)
+cache = js.find('if (sig) state.discoverCache[u.repo] = { sig, unit: u }')
+if canary < 0: sys.exit('no id:4860 canary block found')
+if cache < 0: sys.exit('no discoverCache write loop found')
+if canary > cache: sys.exit('id:4860 sig canary appears AFTER the discoverCache write — a stale verdict could poison the cache before being dropped (ordering wrong)')
+PYEOF
+pass "id:4860: CASE A queue copy is content-addressed (queue_sig == live sig) with a JS mangle canary that drops+surfaces mismatches and gates the discoverCache write on the match"

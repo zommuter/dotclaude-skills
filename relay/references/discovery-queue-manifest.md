@@ -49,9 +49,41 @@ A single flat JSON object:
 | `surfaced` | array | concatenation of every per-repo call's `surfaced[]`, PLUS one synthesized `{"repo","reason","producer_error":true}` entry per repo the producer itself could not even get a usable verdict for — missing path / not a git repo, `discover-repo.sh` exiting nonzero, or `discover-repo.sh` exiting 0 with empty/non-JSON/malformed stdout (id:0fa0 finding b) — never silently dropped (no-silent-swallow, id:4347), and never aborts the OTHER repos' entries. The `producer_error` marker is what distinguishes these synthesized entries from a genuine surfaced verdict `discover-repo.sh` itself emitted (e.g. a dirty repo) |
 | `skipped` | array | concatenation of every per-repo call's `skipped[]` |
 
-Each `units`/`surfaced`/`skipped` entry is the untouched object `discover-repo.sh`
+### `queue_sig` — the content-address stamp (id:4860)
+
+Every `units`/`surfaced`/`skipped` entry additionally carries a **`queue_sig`** string:
+the per-repo SUPERSET signature `discover-sig.sh` (id:c3a6) computed for that repo when
+this snapshot was produced. It is the ONE field the producer adds on top of
+`discover-repo.sh`'s verdict content — everything else in the entry is untouched.
+
+| Field | Type | Notes |
+|---|---|---|
+| `queue_sig` | string | `discover-sig.sh`'s sha256-hex signature for this entry's repo at snapshot time, **or `""`** (the fail-open sentinel — an empty sig is stamped **as-is**, never a fabricated hash) |
+
+**Why it exists** (id:4860 — discovery-queue verdict/state coherence): the live consumer
+(`relay-loop.js` CASE A) copies a repo's classify verdict from this queue only when the
+snapshot is fresh by **file mtime**. mtime alone lets a *stale* verdict through — an
+executor commits at T, so the T−10min snapshot's `execute`/`idle` verdict is copied when
+the live state now demands `review`; a repo can also go dirty *after* the snapshot,
+bypassing the `blocked` guard. **Content-addressing closes both**: CASE A copies a repo's
+verdict ONLY when its `queue_sig` is **byte-identical** to that repo's **LIVE** sig (the
+prelude's `discover-sig.sh` value for that round) — a pure string equality, not judgment.
+On any mismatch (or a missing `queue_sig`) the runner falls to the CASE B live
+`discover-repo.sh` path for that repo. `relay-loop.js` then **re-asserts** the same
+equality JS-side (`u.queue_sig === sigByRepo[u.repo]`) as a **mangle canary**: a Haiku
+bridge-copy that dropped/garbled the sig (or any field) fails the assert, so the unit is
+**dropped and surfaced loudly**, never dispatched on stale/mangled state (costs one round).
+
+`queue_sig` respects `discover-sig.sh`'s **fail-open** contract verbatim: an empty
+sentinel sig (git error / non-repo path) is stamped as-is and simply never matches the live
+sig → that repo always takes the live path (fail-safe, never a stale copy). The producer
+passes the same `--live-claims` it was invoked with through to `discover-sig.sh` so the
+`inlive` section of the sig matches what the live loop computes for a claimed repo.
+
+Each `units`/`surfaced`/`skipped` entry is otherwise the untouched object `discover-repo.sh`
 (id:64b4) emitted for that repo — the producer never mutates, re-derives, or
-re-classifies a verdict; it only enumerates repos and folds each call's output. This is
+re-classifies a verdict; it only enumerates repos, folds each call's output, and adds the
+`queue_sig` stamp. This is
 what makes **determinism parity** with the prior Haiku `discover-run` shard trivial:
 both call the exact same `discover-repo.sh` per repo, so the same repo state always
 yields the same verdict content regardless of which caller (mechanical script vs. the
