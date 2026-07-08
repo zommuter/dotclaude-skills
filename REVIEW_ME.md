@@ -12,7 +12,9 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   source/worktree tree works (this review's doctor ran green from there). Not a code defect —
   a reinstall. This resolves inbox dead-letters `routed:ecee` + `routed:9571` (both are
   source-resolved: the lib is shipped and installer-listed). **Action:** run `make
-  install-relay` (or `make install`). on descriptive `## [LANE]` section headers (audit Run 70, 2026-07-06).**
+  install-relay` (or `make install`).
+
+- [ ] **`roadmap-lint` flags 3 heading-as-item MISSING-id violations on descriptive `## [LANE]` section headers (audit Run 70, 2026-07-06).**
   `roadmap-lint.sh` flags 3 "heading-as-item MISSING its id" violations on the 2026-07-03
   relay-handoff SECTION headers `## [MECHANICAL] lane-anchor hotfix …`, `## [MECHANICAL] recipe
   explicit-success-marker doctrine …`, `## [ROUTINE] case-c bare-only lane count …` (ROADMAP.md
