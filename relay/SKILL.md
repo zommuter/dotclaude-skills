@@ -21,6 +21,7 @@ Invocation:
 /relay next                          # auto-router: inspect the cwd repo's state and act (executor/review/human)
 /relay human   [repo-list | --all]   # interactive: cross-repo human-backlog triage
 /relay health  [repo | --all]        # relay-machinery health report (id:3eb5): runs relay-doctor.sh
+/relay inject  <repo> [--item ID] [--verdict execute|review|hard|handoff] [--prompt TEXT]  # enqueue a high-priority unit into the running pool (id:354f); no <repo> ⇒ list pending
 /relay executor                      # load the lean executor contract (cheap Sonnet sessions)
 /relay stop [--after N | --now]      # graceful drain-then-end of a RUNNING pool (id:c012)
 /relay --once                        # launch: dispatch one round, then stop (id:c012)
@@ -69,6 +70,41 @@ the same checks also run as a `/relay review` sub-step.
 ~/.claude/skills/relay/scripts/relay-doctor.sh [<repo>|--all] [--strict]  # direct
 ```
 
+## `inject` arg (enqueue a high-priority unit into the running pool) <!-- id:354f -->
+
+`/relay inject <repo> [--item ID] [--verdict execute|review|hard|handoff] [--prompt TEXT]`
+is the ergonomic front door over `relay/scripts/inject.sh add` (id:baf1) — it lets a user
+(or another session) enqueue a high-priority unit into the running autonomous pool without
+calling the script by hand. The pool's discovery prelude calls `inject.sh take` each round
+and dispatches an injected unit AHEAD of its normal verdict-class schedule
+(execute→review→hard→handoff).
+
+Front-door procedure:
+1. **Resolve `<repo>` against `relay.toml`** — THE canonical own set (honoring `# path:`
+   overrides / `RELAY_TOML`; never a `~/src` glob). A name **not confirmed `own`** there is a
+   **LOUD reject** (surface it, no enqueue) — never guess, never mint anything, never onboard.
+2. **Default `--verdict execute`** when omitted; validate it is one of
+   `execute|review|hard|handoff` (else LOUD reject — `inject.sh add` also enforces this). `--item`
+   (a specific ROADMAP id to work) and `--prompt` (freeform instruction for the child) are
+   optional pass-throughs.
+3. **Enqueue** by calling the script verbatim — **mint nothing here** (the token is the
+   script's): `~/.claude/skills/relay/scripts/inject.sh add <repo> [--item ID] [--verdict V] [--prompt TEXT]`.
+4. **Echo the printed token** and confirm it will be `take`n on the next discovery round:
+   "injected `<token>` (repo=`<repo>`, verdict=`<verdict>`) — the running pool consumes it next
+   discovery round, ahead of its verdict class; if no pool is live it waits in the inbox until
+   one starts." Injection does NOT itself launch a pool.
+
+**List pending (non-consuming):** `/relay inject` with no `<repo>` (or `/relay inject --list`)
+runs `~/.claude/skills/relay/scripts/inject.sh peek` and prints each pending injection (one
+compact JSON per line) — NON-consuming, safe to run anytime. The default-mode front door also
+surfaces any pending (not-yet-taken) injections in its launch notice / `RELAY_STATUS.md`, so an
+enqueue made while no pool is live is visible rather than silently waiting.
+
+Out of scope: writing `relay.toml` (inject never onboards/confirms a repo); consuming the inbox
+(`take` is the pool's job in the discovery prelude, never the front door's); priority
+REORDERING of a naturally-discovered unit (that is `--priority`, id:d530 — a different mechanism
+that creates no unit and can never double-dispatch).
+
 ## Default mode: autonomous pool
 
 Invoking `/relay` with no keyword starts the autonomous priority-mixed pool
@@ -116,7 +152,11 @@ D1/D2):
 1. **Non-interactive by default.** The front door operates ONLY on relay.toml
    `classification = "own"` confirmed repos. New, dirty, or `needs_review` repos are
    *surfaced* in `RELAY_STATUS.md` (Queued/Blocked sections) — never asked about
-   mid-run. No `AskUserQuestion` is issued anywhere in the default mode.
+   mid-run. No `AskUserQuestion` is issued anywhere in the default mode. **Pending
+   injections** (from `/relay inject`, id:354f) are likewise surfaced — the front door runs
+   `inject.sh peek` (non-consuming) at launch and lists any not-yet-taken units in the launch
+   notice / `RELAY_STATUS.md`, so an enqueue made while no pool was live is visible rather than
+   silently waiting for the next `inject.sh take`.
 2. **No confirmed repos → notice, no launch.** If relay.toml has zero confirmed
    `own` repos, the front door prints a short notice (pointing at
    `/relay handoff` to confirm a first wave) and exits cleanly without
