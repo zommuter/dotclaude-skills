@@ -83,3 +83,46 @@ Grounded: current units all `--user`+linger (`discover-repos-mechanical`, `mecha
 - [ ] Spec (do NOT build) the (C) `relay-pool` tier: `--system` unit + ssh-push repo-write model (D5) + file-based push creds; build gated on `af30` authorization. Record as an `af30` sub-note. (2026-07-08-1214 note) <!-- id:38bf -->
 - [ ] Record the **containment ≠ authorization** invariant against `af30`: the OS sandbox bounds blast radius only; the a–f persistence safeguards (scoped settings.json rule, wall-clock/agent budget, kill switch, loud per-relaunch surfacing, completion-verify) are NOT retired by the sandbox and gate the loop in every branch. (2026-07-08-1214 note) <!-- id:e2b1 -->
 - [ ] [TRIGGER-GATED] Evaluate the ssh-push boundary as a replacement for the general local worktree-merge integrator (not just (C)). No current consumer; trigger = (C) push-model piloted OR a second worktree↔sandbox write-tension incident. Note only for now. (2026-07-08-1214 note) <!-- id:d916 -->
+
+## Amendment 2 — post-meeting strong-model review (Fable 5, 2026-07-08, user-ratified fold-in)
+
+The meeting ran under Opus 4.8; this is the Fable second-opinion pass. **No decision is
+overturned** — D1–D5 stand. Three findings extend D2/D3 and bind as spec constraints on
+id:13ae / id:02c7 / id:8e7a / id:38bf (folded into the TODO twins in the same commit).
+
+- **F1 — `$HOME`-relative defaults silently fork shared state under the uid split (D1/D2).**
+  Every coordination path defaults against `$HOME`: `discover-repos-mechanical.sh:124-127`
+  (`RELAY_TOML`, `SRC_DIR`, `QUEUE_DIR`, `LOG`), `mechanical-daemon.sh:48,53`,
+  `heartbeat.sh:79` (`HEARTBEAT_BASE`), `claim.sh:59` (`CLAIM_BASE`). As `relay-ro`/`relay-svc`,
+  `$HOME` is the *service user's* home. relay.toml fails loud (id:0fa0 guard); queue /
+  heartbeats / claims are `mkdir -p`'d on first use → a missed env override doesn't error,
+  the producer goes green writing `/home/relay-ro/.config/relay/...` while the tobias-side
+  consumer + watchdog read the frozen old tree. Same class as the 2ec4 "absolute paths or the
+  sig-cache silently dies" gotcha. **Constraint (id:13ae/8e7a):** one shared `EnvironmentFile=`
+  enumerating EVERY override + a loud uid guard in the scripts (refuse `$HOME` defaults when
+  `EUID` is a `relay-*` user).
+- **F2 — D2's ACL matrix omits shared-write dirs Decision 1's own components need.**
+  The producer beats a heartbeat (`heartbeats/`, `heartbeat.sh:79`) that the watchdog and
+  `claim.sh` liveness gate read as tobias; the mechanical daemon takes resource claims
+  (`claims/`, `claims.done/`, shared `.claim.lock`, `claim.sh:59-60`) the interactive relay
+  must honor for `[INTENSIVE]` run-alone. As ratified, the producer's beat fails — and beat
+  failures are deliberately non-fatal (`discover-repos-mechanical.sh:114`) → watchdog reads a
+  permanently stale marker → false "dead" alarms. **Constraint (id:02c7):** matrix +=
+  `heartbeats/` (relay-ro + relay-svc rwx, tobias read) and `claims/`+`claims.done/`+
+  `.claim.lock` (relay-svc + tobias rwx; cross-uid `flock` needs write for both).
+  `permitted-intensity.json` reads stay free via 0644.
+- **F3 — `ReadOnlyPaths=%h/src` targets the wrong home (D3 sketch).** In a unit run by the
+  service user's `--user` manager, `%h` = `/home/relay-ro`. Must be literal `/home/tobias/src`.
+  Adjacent: from the sandbox's view `/home/tobias` is *another* user's home, so `ProtectHome=`
+  masks both the read tree and the writable queue — the workable recipe is `ProtectHome=` +
+  explicit `BindReadOnlyPaths=`/`ReadWritePaths=` carve-outs, verified by test, not directives
+  copied in. Precondition CONFIRMED on this host (the note asserted it unchecked):
+  unprivileged userns enabled + systemd 260 → mount-ns sandboxing works in user units.
+  DAC grounding re-verified accurate (`/home/tobias` 0711, `~/.config` + `~/.config/relay` 0755).
+- **Minor:** `/etc/systemd/user/` is read by EVERY user's manager (any user can start the
+  units under their own uid — enable per-user deliberately; a one-line uid assertion in each
+  daemon script is cheap belt-and-braces). (B) recipes run against repos read-only to
+  `relay-svc` — the recipe contract must declare a scratch/cwd (or the daemon clones), else
+  any in-tree write (build artifacts, `__pycache__`) fails. D5's "forced-command pins the key
+  to git ops on specific repos" needs an `SSH_ORIGINAL_COMMAND`-checking wrapper — bare
+  `git-shell` does no per-repo scoping (id:38bf spec line).
