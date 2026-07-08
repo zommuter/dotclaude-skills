@@ -85,9 +85,21 @@ roadmap_actionable_open = 0
 actionable_routine_open = 0
 open_mechanical = 0
 
+# id:356f — whole-section gating, mirroring roadmap-lint.sh's `is_exempt_heading`
+# (roadmap-lint.sh:158-167) EXACTLY: a `##`/`###` heading whose text matches
+# (case-insensitive) gated|deferred|done|icebox|archive|parked opens an exempt
+# section; any other `##`/`###` heading closes it. While in an exempt section, an
+# open [ROUTINE] line must not count toward actionable_routine_open / roadmap_actionable_open
+# / open_mechanical — parked is parked for all lanes.
+_EXEMPT_HEADING_RE = re.compile(r"(gated|deferred|done|icebox|archive|parked)", re.IGNORECASE)
+
 if os.path.isfile(rm):
+    in_exempt_section = False
     with open(rm, errors="replace") as f:
         for ln in f:
+            if re.match(r"##+\s", ln):
+                in_exempt_section = bool(_EXEMPT_HEADING_RE.search(ln))
+                continue
             if not re.match(r"\s*- \[ \] ", ln):
                 continue
             roadmap_open += 1
@@ -111,7 +123,7 @@ if os.path.isfile(rm):
             # pool-inert/human-inert by definition, unlike [ROUTINE]/[HARD — pool] which need
             # the @manual/blocked carve-outs below).
             is_mechanical = primary == "[MECHANICAL]"
-            if is_mechanical:
+            if is_mechanical and not in_exempt_section:
                 open_mechanical += 1
             # @manual excludes conservatively (a rare prose mention only ever UNDER-dispatches,
             # never mis-dispatches — the safe direction for the executor gate).
@@ -126,9 +138,9 @@ if os.path.isfile(rm):
                 # id:4da4 — actionable_routine = open [ROUTINE], primary-lane, NOT @manual/human-gated,
                 # NOT dependency-blocked. This (not bare has_routine) is what the execute verdict
                 # gates on, else an @manual-only or blocked [ROUTINE] repo mis-fires execute.
-                if not is_human and not blocked:
+                if not is_human and not blocked and not in_exempt_section:
                     actionable_routine_open += 1
-            if (is_routine or is_pool) and not is_human:
+            if (is_routine or is_pool) and not is_human and not in_exempt_section:
                 roadmap_actionable_open += 1
 
 # --- Step 3: fold unpromoted-scan TSV counts ------------------------------
