@@ -69,4 +69,23 @@ rc="$(USAGE_CACHE="$f" USAGE_CREDS="$CREDS" "$QS" --tier sonnet >/dev/null 2>&1;
 [[ "$rc" == "0" ]] || fail "fresh low-util cache must exit 0, got $rc"
 pass "fresh low-utilization cache exits 0 (happy path intact)"
 
-echo "ALL PASS: quota-stop margin-aware staleness (roadmap:1d64)"
+# 5. id:c5ba follow-up — TIGHT cap (0.35) must not INVERT the margin. A fixed 30-pt margin
+#    under a 0.35 cap demanded util<5% to proceed on a stale cache (35−30), so any real
+#    utilization false-stopped. effective_margin = min(30, 0.35*50=17.5) → safe if util<17.5.
+#    Stale cache at five=7 / seven_day=10 / sonnet=10 (all well under 17.5) → PROCEED (exit 0).
+c="$(mk_stale_cache 7 10 10)"
+rc="$(RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.35 RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET=0.35 \
+      USAGE_CACHE="$c" USAGE_CREDS="$CREDS" "$QS" --tier sonnet >/dev/null 2>&1; echo $?)"
+[[ "$rc" == "0" ]] || fail "(5) tight cap 0.35 + stale low util (10%) must PROCEED with capped margin (exit 0), got $rc"
+pass "(5) id:c5ba — tight 0.35 cap: capped effective margin (min(30,17.5)) lets stale low-util proceed (no inversion)"
+
+# 6. id:c5ba follow-up — the cap must stay conservative NEAR the threshold: tight 0.35 cap +
+#    stale seven_day=30% (within 17.5 of 35) → still uncertain STOP (exit 2). Proves the
+#    recalibration only removes the pathological inversion, it doesn't blanket-proceed.
+c="$(mk_stale_cache 7 30 10)"
+rc="$(RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.35 RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET=0.35 \
+      USAGE_CACHE="$c" USAGE_CREDS="$CREDS" "$QS" --tier sonnet >/dev/null 2>&1; echo $?)"
+[[ "$rc" == "2" ]] || fail "(6) tight cap 0.35 + stale near-cap util (30% vs 35) must stay conservative (exit 2), got $rc"
+pass "(6) id:c5ba — tight cap stays conservative near the threshold (30% vs 35% → exit 2)"
+
+echo "ALL PASS: quota-stop margin-aware staleness (roadmap:1d64 + id:c5ba margin recalibration)"

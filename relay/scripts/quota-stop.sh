@@ -229,8 +229,14 @@ if [[ "$AGE" -gt "$STALE_SECS" ]]; then
       _stale_safe=0; break  # missing required bucket → unsafe
     fi
     _t="$(bucket_threshold "$_b")"
-    # safe if util < threshold*100 − MARGIN
-    if ! awk -v u="$_u" -v t="$_t" -v m="$MARGIN" 'BEGIN { exit (u < t*100 - m) ? 0 : 1 }'; then
+    # safe if util < threshold*100 − effective_margin, where effective_margin = min(MARGIN,
+    # threshold*50) — i.e. the margin is capped at HALF the threshold so a TIGHT cap can't
+    # invert the check (id:c5ba follow-up: a fixed 30-pt margin under a 0.35 cap demanded
+    # util<5% to proceed on a stale cache → every real utilization fell to the extrapolation
+    # path). The cap leaves the default 0.90 cap unchanged: min(30, 45)=30. Near-cap stale
+    # readings still (correctly) route to extrapolation, which now functions (RELAY_RUN_ID
+    # wired through), rather than to the old blind stop.
+    if ! awk -v u="$_u" -v t="$_t" -v m="$MARGIN" 'BEGIN { em=(m < t*50) ? m : t*50; exit (u < t*100 - em) ? 0 : 1 }'; then
       _stale_safe=0; break  # within margin of threshold → unsafe
     fi
   done
