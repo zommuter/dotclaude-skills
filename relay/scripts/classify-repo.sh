@@ -10,7 +10,9 @@
 #   4. Merging into one JSON object and piping to classify-verdict.sh → emit its output.
 #
 # SIDE-EFFECT-FREE: reads state and runs the read-only helpers; never commits, writes a
-# ledger, or creates a tag.
+# ledger, or creates a tag. (Declared exception, id:82c4: when a relay-core shadow binary
+# is detected, one line is APPENDED to the shadow-parity log — an observability write
+# outside every repo, never a ledger/repo mutation. Binary absent → no write at all.)
 #
 # Env overrides (hermetic tests; forwarded to sub-helpers):
 #   RELAY_TOML           default ~/.config/relay/relay.toml
@@ -153,6 +155,59 @@ print(json.dumps(base))
 PYEOF
 
 "$CLASSIFY" < "$blobdir/assembled.json" > "$blobdir/verdict.json"
+
+# --- relay-core SHADOW (id:82c4 island-1 strangler; meeting id:23ab D3/a0b6) ------------
+# If a Lean `relay-core` binary is present, run it over the SAME assembled input in
+# SHADOW: the bash verdict.json above remains the ONLY authoritative output — the Lean
+# output is only COMPARED (canonicalized `jq -S -c .` on both sides, Amendment F2: key
+# order sorts, evidence-array order stays contractual) and the result appended to the
+# shadow-parity log. A MISMATCH is LOUD (stderr + log entry with both canonical forms)
+# but NEVER alters the authoritative output or this script's exit code; the FLIP
+# (100% corpus parity + N=5 clean shadow rounds) is a separate, gated step — nothing
+# reads the Lean output for decisions. Binary absent → this block is a no-op: zero
+# behavior change, zero new output, zero log writes.
+#
+# Detection order: RELAY_CORE_BIN env override wins when set — set-but-not-executable
+# DISABLES the shadow entirely (the hermetic-test kill switch: tests set
+# RELAY_CORE_BIN=/nonexistent so a later real install can never leak log writes into
+# them); else `relay-core` on PATH; else ~/.local/bin/relay-core.
+shadow_bin=""
+if [[ -n "${RELAY_CORE_BIN-}" ]]; then
+  if [[ -x "$RELAY_CORE_BIN" ]]; then shadow_bin="$RELAY_CORE_BIN"; fi
+elif command -v relay-core >/dev/null; then
+  shadow_bin="$(command -v relay-core)"
+elif [[ -x "$HOME/.local/bin/relay-core" ]]; then
+  shadow_bin="$HOME/.local/bin/relay-core"
+fi
+if [[ -n "$shadow_bin" ]]; then
+  shadow_log="${RELAY_CORE_SHADOW_LOG:-$HOME/.claude/logs/relay-core-shadow.jsonl}"
+  mkdir -p "$(dirname "$shadow_log")"
+  shadow_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  shadow_hash="$(sha256sum < "$blobdir/assembled.json" | cut -d' ' -f1)"
+  lean_raw=""
+  if ! lean_raw="$("$shadow_bin" < "$blobdir/assembled.json")"; then
+    # A nonzero Lean exit is itself shadow evidence: surfaced here (binary's own stderr
+    # passes through untouched) and recorded below as a MISMATCH via the INVALID-JSON
+    # marker. It never propagates — bash output stays authoritative.
+    echo "classify-repo: relay-core shadow binary exited nonzero (recording MISMATCH)" >&2
+  fi
+  bash_canon="$(jq -S -c . < "$blobdir/verdict.json")"
+  # jq stderr suppressed HERE ONLY because unparseable Lean output is an EXPECTED
+  # mismatch condition converted to the explicit INVALID-JSON marker below — a loud
+  # logged signal, not a swallowed failure. Empty output (e.g. a crashed binary) is
+  # the same condition: jq emits no value for no input, so map "" → INVALID-JSON.
+  if ! lean_canon="$(printf '%s' "$lean_raw" | jq -S -c . 2>/dev/null)" || [[ -z "$lean_canon" ]]; then
+    lean_canon="INVALID-JSON"
+  fi
+  if [[ "$lean_canon" == "$bash_canon" ]]; then
+    jq -cn --arg ts "$shadow_ts" --arg h "$shadow_hash" \
+      '{ts:$ts, input_hash:$h, result:"match"}' >> "$shadow_log"
+  else
+    echo "classify-repo: relay-core SHADOW MISMATCH (input sha256 $shadow_hash) — bash output stays authoritative; details in $shadow_log" >&2
+    jq -cn --arg ts "$shadow_ts" --arg h "$shadow_hash" --arg b "$bash_canon" --arg l "$lean_canon" \
+      '{ts:$ts, input_hash:$h, result:"MISMATCH", bash:$b, lean:$l}' >> "$shadow_log"
+  fi
+fi
 
 if [[ "$emit_mode" != "unit" ]]; then
   # Default mode: byte-unchanged classify-verdict output (regression guard).

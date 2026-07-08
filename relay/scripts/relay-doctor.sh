@@ -532,6 +532,43 @@ print('OK' if 0 < t <= 1 else 'OOB')
   log "quota-config issues=$q_issues"
 }
 
+# --- check 12: relay-core shadow live-path (id:82c4 island-1 strangler) ---------
+# Reports which classify path is live: legacy bash only, or bash + the Lean relay-core
+# binary running in SHADOW (bash stays the ONLY authoritative output either way — the
+# flip is gated on 100% corpus parity + N=5 clean shadow rounds, meeting id:23ab D3).
+# Reads the shadow-parity log classify-repo.sh appends to. Mismatches count as issues
+# (they block the flip gate) but stay report-only like every other check here.
+# Same detection order as classify-repo.sh: RELAY_CORE_BIN override (set-but-not-
+# executable disables), then PATH, then ~/.local/bin.
+relay_core_shadow_check() {
+  echo "=== relay-core shadow live-path (id:82c4) ==="
+  local bin="" rounds=0 mismatches=0
+  if [[ -n "${RELAY_CORE_BIN-}" ]]; then
+    if [[ -x "$RELAY_CORE_BIN" ]]; then bin="$RELAY_CORE_BIN"; fi
+  elif command -v relay-core >/dev/null; then
+    bin="$(command -v relay-core)"
+  elif [[ -x "$HOME/.local/bin/relay-core" ]]; then
+    bin="$HOME/.local/bin/relay-core"
+  fi
+  local slog="${RELAY_CORE_SHADOW_LOG:-$HOME/.claude/logs/relay-core-shadow.jsonl}"
+  if [[ -z "$bin" ]]; then
+    echo "mechanical core absent — legacy bash path"
+  else
+    if [[ -f "$slog" ]]; then
+      # grep -c exits 1 on zero matches; `|| true` keeps its "0" count output.
+      rounds="$(grep -c '"result"' "$slog" || true)"
+      mismatches="$(grep -c '"result":"MISMATCH"' "$slog" || true)"
+    fi
+    echo "relay-core shadow active: $rounds rounds, $mismatches mismatches ($bin; log: $slog)"
+    if [[ "$mismatches" -gt 0 ]]; then
+      echo "MISMATCHES present — bash stays authoritative; investigate before the flip (gate: 100% parity + N=5 clean rounds)"
+      issues_total=$((issues_total + mismatches))
+    fi
+  fi
+  echo
+  log "relay-core-shadow bin=${bin:-absent} rounds=$rounds mismatches=$mismatches"
+}
+
 # --- check 8: inbox routed dead-letters (id:678e slice 1, cross-repo once-only) ---
 # Reports routed inbox items whose target repo never ingested them + non-conforming
 # inbox entries. REPORT-ONLY (never writes — slice-2 auto-write is gated). Cross-repo
@@ -662,6 +699,7 @@ refs_install_check
 parked_orphans_check
 routed_deadletter_check   # id:678e slice 1 — inbox routed dead-letters (report-only)
 quota_config_check   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + threshold bounds)
+relay_core_shadow_check   # id:82c4 — which classify path is live (legacy bash vs relay-core shadow)
 
 # --- coverage honesty (D4, meeting 2026-06-24): never look falsely-green ---------
 # LIST the checks that are designed but NOT yet wired, so this report's coverage is
