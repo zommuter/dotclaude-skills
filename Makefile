@@ -114,6 +114,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
         install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test gaming-canary shard-canary \
         install-quota-timer status-quota-timer uninstall-quota-timer \
+        install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
         install-discovery-timer status-discovery-timer uninstall-discovery-timer \
@@ -132,6 +133,7 @@ help:
 	@echo "  install-hooks        install hooks (+ statusline) only"
 	@echo "  install-statusline   install the quota/cost/model statusbar only (checks CLI deps)"
 	@echo "  install-quota-timer  install the 15-min usage-quota sampler systemd user timer"
+	@echo "  install-gap-sample   install the between-runs relay-gap-sample systemd user timer (id:bf7a)"
 	@echo "  install-relay-watchdog install the relay outage watchdog systemd user timer (notify on a dead loop)"
 	@echo "  install-mechanical-daemon install the mechanical-run daemon systemd user path+service unit (id:b3d0)"
 	@echo "  install-discovery-timer install the mechanical discovery-producer systemd user timer (id:9d97)"
@@ -264,6 +266,32 @@ uninstall-quota-timer:
 	@echo "→ removing quota-sample timer"
 	@systemctl --user disable --now quota-sample.timer 2>/dev/null || true
 	@rm -f $(SYSTEMD_USER)/quota-sample.timer $(SYSTEMD_USER)/quota-sample.service
+	@systemctl --user daemon-reload 2>/dev/null || true
+
+# Between-runs churn evidence logger (id:bf7a) — same --user-timer pattern as quota-sample.
+# Samples repo-sig + classify verdict on a cadence so churn between relay-loop dispatches is
+# captured for forensics; JSONL lands wherever RELAY_GAP_SAMPLES points (see tools/relay-gap-sample.sh).
+install-gap-sample:
+	@echo "→ installing relay-gap-sample timer"
+	@mkdir -p $(SYSTEMD_USER)
+	@ln -sf $(SRC_DIR)/tools/relay-gap-sample.service $(SYSTEMD_USER)/relay-gap-sample.service
+	@ln -sf $(SRC_DIR)/tools/relay-gap-sample.timer   $(SYSTEMD_USER)/relay-gap-sample.timer
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now relay-gap-sample.timer
+	@echo "  enabled. next runs: systemctl --user list-timers relay-gap-sample.timer"
+
+status-gap-sample:
+	@echo "relay-gap-sample.timer:"
+	@if [ -L $(SYSTEMD_USER)/relay-gap-sample.timer ]; then \
+		systemctl --user is-active relay-gap-sample.timer >/dev/null 2>&1 \
+			&& echo "  ok  active -> $$(readlink $(SYSTEMD_USER)/relay-gap-sample.timer)" \
+			|| echo "  --  installed but not active (systemctl --user enable --now relay-gap-sample.timer)"; \
+	else echo "  !!  not installed (make install-gap-sample)"; fi
+
+uninstall-gap-sample:
+	@echo "→ removing relay-gap-sample timer"
+	@systemctl --user disable --now relay-gap-sample.timer 2>/dev/null || true
+	@rm -f $(SYSTEMD_USER)/relay-gap-sample.timer $(SYSTEMD_USER)/relay-gap-sample.service
 	@systemctl --user daemon-reload 2>/dev/null || true
 
 # Relay outage watchdog (id:98f0) — same --user-timer pattern. Detects a dead relay loop via the
