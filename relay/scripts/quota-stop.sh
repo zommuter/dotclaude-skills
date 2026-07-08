@@ -158,6 +158,16 @@ extrapolate_or_stop() {
     last=$(jq -r --arg k "$b" '.buckets[] | select(.name==$k) | .to // empty' <<<"$burn")
     delta=$(jq -r --arg k "$b" '.buckets[] | select(.name==$k) | .delta // empty' <<<"$burn")
     if [[ -z "$last" || -z "$delta" ]]; then
+      # An absent per-model weekly sub-bucket (id:c5ba/0175) means "no such limit", not a
+      # corrupt cache — skip it; the general seven_day bucket in this same tier list still
+      # gates. Mirrors the stale-margin path (the seven_day_sonnet `continue` above) and
+      # check_key's `optional`. Without this, a sonnet-tier extrapolation false-STOPs on the
+      # now-null seven_day_sonnet bucket (usage API dropped per-model weekly sub-limits
+      # 2026-06-30, routed:82e3) → spurious quota-cache-unreadable on round 1.
+      if [[ "$b" == "seven_day_sonnet" ]]; then
+        echo "quota-stop: extrapolation — bucket 'seven_day_sonnet' absent (no such limit) → skipping, seven_day governs" >&2
+        continue
+      fi
       echo "quota-stop: cache unreadable ($why); bucket '$b' absent from burn samples → fail-safe STOP. REASON=quota-cache-unreadable" >&2
       exit 2
     fi
