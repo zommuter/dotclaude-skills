@@ -2226,3 +2226,7 @@ Closed both open [ROUTINE] items: id:bf7a (relay-gap-sample Makefile install/sta
 ## 2026-07-08 17:03 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Verified id:bf7a + id:758e green (gaming-scan clean, suite 201/201); ticked TODO twins, upheld no-bump verdict [id:bf7a,758e]
+
+## 2026-07-08 17:19 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+handoff C2/C3: promoted id:356f (classify-repo gated-section actionable_routine_open fix) to ROADMAP + RED test [id:356f,4299]
