@@ -2256,3 +2256,8 @@ Friction: none on the shipped part; site (1) wiring deferred as described above 
 ## 2026-07-08 18:26 — executor (sonnet, relay-loop)
 
 Added heartbeat.sh reap-run subcommand + wired it into relay-loop.js auto-reconcile-on-restart (id:7725); full suite 203/0/1-expected-red [id:7725]
+
+## 2026-07-08 — executor (sonnet, relay-loop)
+
+Worked id:aec5 — authored `tests/fixtures/loop-round-exec-harness.mjs`, a full-round executable smoke harness that mirrors `discovery-exec-harness.mjs`'s stub-globals technique but drives one entire self-feeding-loop round (bounded via `args.once = true`) with a stubbed discovery seeding one unit of each pool-dispatchable non-hard verdict (execute/review/handoff). This reaches and evaluates every non-discovery inline prompt-builder template — the per-verdict unit dispatch (`execute:`/`review:`/`handoff:` labels), the quota gate (`quota:`), the serialized integrate (`integrate:`), the mid-round inject-take (`inject-take`), and the auto-reconcile-on-restart check (`auto-reconcile-restart`) — none of which the discovery-only harness exercises. Adjusted `tests/test_relay_loop_all_builders_exec.sh`'s builder-name list to the real `agent()` label prefixes per the item's own reconciliation note (labels are `${verdict}:${repo}` etc., not literal `execute-child`/`review-child`/`handoff-child`; the harness's stub maps them to the test's required builder names). No `hard` unit seeded — the item's acceptance list names only the 7 builders above, not a hard-child. Full `make test`: 204 passed, 0 failed, 0 expected-red.
+Friction: none.
