@@ -2235,3 +2235,7 @@ handoff C2/C3: promoted id:356f (classify-repo gated-section actionable_routine_
 
 Worked id:356f — added whole-section gating to classify-repo.sh's ROADMAP-derivation loop, mirroring roadmap-lint.sh's is_exempt_heading regex (gated|deferred|done|icebox|archive|parked, case-insensitive). While inside such a section, open [ROUTINE]/[HARD — pool]/[MECHANICAL] lines no longer increment actionable_routine_open / roadmap_actionable_open / open_mechanical (roadmap_open's raw total count is left untouched — the acceptance criteria only named the three actionable counters). tests/test_classify_repo_gated_section.sh (roadmap:356f) now green (8/8); full make test: 202 passed, 0 failed, 0 expected-red.
 Friction: none.
+
+## 2026-07-08 17:31 — executor (sonnet, relay-loop)
+
+Fixed classify-repo.sh to whole-section-gate actionable_routine_open/roadmap_actionable_open/open_mechanical, mirroring roadmap-lint.sh's is_exempt_heading (id:356f); full suite 202/0/0. [id:356f]
