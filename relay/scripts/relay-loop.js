@@ -469,6 +469,15 @@ const DISCOVER_SCHEMA = {
           // observed 2026-06-24 dispatching repos whose only open HARD item was
           // [HARD — decision gate]). 0 when none.
           open_hard_pool: { type: 'number' },
+          // queue_sig (id:4860): the discover-sig.sh SUPERSET signature the MECHANICAL
+          // discovery producer (discover-repos-mechanical.sh, id:9d97) stamped onto this
+          // entry in the discovery queue, present ONLY on units the runner copied from the
+          // queue (CASE A). The runner is instructed to copy a queue verdict ONLY when this
+          // queue_sig equals the repo's LIVE sig (from the prelude); the JS-side canary below
+          // re-asserts u.queue_sig === sigByRepo[u.repo] and DROPS+surfaces any mismatch
+          // (stale snapshot / went-dirty-after-snapshot / mangled bridge-copy). ABSENT on
+          // CASE B live units (computed live, exempt from the assert). "" = fail-open sentinel.
+          queue_sig: { type: 'string' },
         },
       },
     },
@@ -477,7 +486,9 @@ const DISCOVER_SCHEMA = {
       items: {
         type: 'object',
         required: ['repo', 'reason'],
-        properties: { repo: { type: 'string' }, reason: { type: 'string' } },
+        // queue_sig (id:4860): the producer stamps it on surfaced entries too; harmless
+        // pass-through here (a surfaced repo is never dispatched, so it needs no canary).
+        properties: { repo: { type: 'string' }, reason: { type: 'string' }, queue_sig: { type: 'string' } },
       },
     },
     // skipped (id:be62): repos NOT worked this round for a BENIGN reason — every relay.toml
@@ -490,7 +501,8 @@ const DISCOVER_SCHEMA = {
       items: {
         type: 'object',
         required: ['repo', 'reason'],
-        properties: { repo: { type: 'string' }, reason: { type: 'string' } },
+        // queue_sig (id:4860): producer-stamped on skipped entries too; harmless pass-through.
+        properties: { repo: { type: 'string' }, reason: { type: 'string' }, queue_sig: { type: 'string' } },
       },
     },
   },
@@ -883,8 +895,13 @@ if (prelude && Array.isArray(prelude.repos)) {
   }
   if (reusedUnits.length || reusedIdle.length) log(`relay-loop: discovery cache reused ${reusedUnits.length} verdict(s) + ${reusedIdle.length} idle (id:c3a6/c855) of ${ownRepos.length}; re-classifying ${changed.length}`)
   const SHARDS = Math.max(1, Math.min(DISCOVER_SHARDS, changed.length || 1))
-  // round-robin chunk so shards are balanced regardless of repo order; only CHANGED repos are sharded
-  const chunks = Array.from({ length: SHARDS }, (_, s) => changed.filter((_, idx) => idx % SHARDS === s)).filter(c => c.length)
+  // round-robin chunk so shards are balanced regardless of repo order; only CHANGED repos are sharded.
+  // id:4860 — carry each repo's LIVE sig (sigByRepo) into the chunk JSON so the runner can
+  // content-address the CASE A copy: it copies a repo's queue verdict ONLY when the queue
+  // entry's queue_sig byte-matches this live sig. A pure string equality, not judgment.
+  const chunks = Array.from({ length: SHARDS }, (_, s) =>
+    changed.filter((_, idx) => idx % SHARDS === s).map(r => ({ repo: r.repo, path: r.path, sig: sigByRepo[r.repo] || '' }))
+  ).filter(c => c.length)
   const liveClaimsCsv = (prelude.liveClaimRepos || []).join(',')
   // Mechanical discovery runner (id:a0b6 flip step b): the LLM classifier SHARD is REPLACED by
   // a pure-transport runner. Two source shapes (see STEP 0 in the prompt): CASE B (no fresh
@@ -920,18 +937,18 @@ ONCE for the whole chunk. Then for EACH repo in your list above, run its LIVE re
   ~/.claude/skills/relay/scripts/reconcile-repo.sh --repo <repo> --path <path> --runid ${prelude.runId} --live-claims "${liveClaimsCsv}" --main-branch main
 It emits ONE JSON object {"repo":...,"actions":[...],"surfaced":[...]} and performs the round's bounded side-effects for that repo. THEN route this repo, mirroring discover-repo.sh exactly:
   • if reconcile's "surfaced" array is NON-EMPTY (in-flight elsewhere / parked orphan / diverged-from-origin) → emit {"units":[],"surfaced":<reconcile's surfaced array>,"skipped":[]} for this repo and STOP — do NOT take the queue's classify verdict (a surfaced repo is never classified).
-  • else (reconcile surfaced nothing) → take THIS repo's entries straight out of the queue's top-level "units"/"surfaced"/"skipped" arrays by matching .repo == <repo name>, copy them VERBATIM, do not re-derive, re-run, or re-judge anything. THIS CAT-AND-COPY OF THE CLASSIFY VERDICT IS THE RESIDUAL LLM SURFACE (id:7402/D3 — the known-remaining, irreducible-for-now LLM read; deferred+labeled, not eliminated; see relay/references/discovery-queue-manifest.md and the 2026-07-07 discovery-off-Workflow meeting note). It is a pure file-echo of an already-mechanical verdict, not a classification — far smaller mangle surface than classifying yourself, but still an LLM hop until the launch-wall (id:af30/id:2ec4) is resolved. If a repo is MISSING from the queue's arrays here, put it in "surfaced" with that reason — NEVER guess a verdict.
+  • else (reconcile surfaced nothing) → CONTENT-ADDRESS the copy (id:4860). Find THIS repo's entries in the queue's top-level "units"/"surfaced"/"skipped" arrays by matching .repo == <repo name>. Each entry carries a "queue_sig" field (the sig the producer stamped). Each repo in the list above carries a "sig" field (its LIVE sig this round). COPY the queue entries VERBATIM ONLY IF the matched queue entry's "queue_sig" is BYTE-IDENTICAL to this repo's "sig" from your list — a pure string equality, NOT judgment (do not re-derive, re-run, or re-judge anything). If they MATCH, copy the entries verbatim. If the queue_sig is MISSING or does NOT byte-match the live sig (the repo's state changed after the snapshot, or the copy was mangled), DO NOT copy the stale verdict — instead run the CASE B live command for THAT repo only (~/.claude/skills/relay/scripts/discover-repo.sh --repo <repo> --path <path> --runid ${prelude.runId} --live-claims "${liveClaimsCsv}" --main-branch main) and use ITS output for this repo (a live unit carries no queue_sig). If a repo is MISSING from the queue's arrays entirely, likewise fall to that CASE B live command — NEVER guess a verdict. THIS SIG-GATED CAT-AND-COPY OF THE CLASSIFY VERDICT IS THE RESIDUAL LLM SURFACE (id:7402/D3 — the known-remaining, irreducible-for-now LLM read; deferred+labeled, not eliminated; see relay/references/discovery-queue-manifest.md and the 2026-07-07 discovery-off-Workflow meeting note). Content-addressing SHRINKS the trust in this residual read: it is a pure file-echo of an already-mechanical verdict gated on a byte-equal sig (a mechanical mangle canary the JS re-asserts) — far smaller surface than classifying yourself, but still an LLM hop until the launch-wall (id:af30/id:2ec4) is resolved.
 
 CASE B — the find command prints NOTHING (queue missing or stale — e.g. the id:9d97 \`.timer\` is not installed/enabled, the shipped default): FALL BACK to the live exec path, unchanged from before this queue existed — discover-repo.sh does BOTH reconcile and classify live. For EACH repo in the list above, run this ONE command (substitute its repo name and path from the entry):
   ~/.claude/skills/relay/scripts/discover-repo.sh --repo <repo> --path <path> --runid ${prelude.runId} --live-claims "${liveClaimsCsv}" --main-branch main
 It emits ONE JSON object {"units":[...],"surfaced":[...],"skipped":[...]} for that repo — it does ALL reconciliation, classification, and routing internally. Collect all of them.
 
-NO-FILESYSTEM-HUNTING GUARD (id:612f): per repo, run ONLY the command(s) STEP 0 selected — CASE A: the queue cat (ONCE for the whole chunk) PLUS reconcile-repo.sh (ONCE per repo); CASE B: discover-repo.sh (ONCE per repo). Never mix the two cases, never anything else. Do NOT run git, gather-repo-state, classify-repo, find (beyond the STEP 0 freshness check), or read ROADMAP/relay.toml/transcripts — the selected source(s) already have everything. If discover-repo.sh errors for a repo (CASE B), or a repo is missing from the queue (CASE A else-branch), put that repo in "surfaced" with the reason — NEVER guess a verdict.
+NO-FILESYSTEM-HUNTING GUARD (id:612f): per repo, run ONLY the command(s) STEP 0 selected — CASE A: the queue cat (ONCE for the whole chunk) PLUS reconcile-repo.sh (ONCE per repo), plus — ONLY for a repo whose queue_sig is missing/mismatched or that is absent from the queue (id:4860) — the ONE live discover-repo.sh fallback for THAT repo; CASE B: discover-repo.sh (ONCE per repo). Never anything else. Do NOT run git, gather-repo-state, classify-repo, find (beyond the STEP 0 freshness check), or read ROADMAP/relay.toml/transcripts — the selected source(s) already have everything. If discover-repo.sh errors for a repo, put that repo in "surfaced" with the reason — NEVER guess a verdict.
 
 Return {units, surfaced, skipped} = the CONCATENATION across every repo in your list (append each repo's three arrays). Each repo appears exactly once across units+surfaced; an idle repo appears in BOTH units and skipped.`
   // Only CHANGED repos pay for a runner agent (id:c3a6); a round where every repo is cached runs
   // zero runners and is still a valid round (shardOk seeded true below).
-  if (changed.length) log(`relay-loop: id:7402 discover-run agent() dispatch — RECONCILE runs LIVE every round (reconcile-repo.sh per repo: ff-merge/uv.lock/reap-park/live-claims side-effects); the CLASSIFY verdict comes from the id:9d97 mechanical queue (${DISCOVERY_QUEUE_LATEST}, fresh<${DISCOVERY_QUEUE_FRESH_SECS}s) when present, else the full live discover-repo.sh exec path; EITHER WAY the agent() call itself is the residual LLM surface (D3, deferred+labeled, not eliminated — see relay/references/discovery-queue-manifest.md)`)
+  if (changed.length) log(`relay-loop: id:7402 discover-run agent() dispatch — RECONCILE runs LIVE every round (reconcile-repo.sh per repo: ff-merge/uv.lock/reap-park/live-claims side-effects); the CLASSIFY verdict comes from the id:9d97 mechanical queue (${DISCOVERY_QUEUE_LATEST}, fresh<${DISCOVERY_QUEUE_FRESH_SECS}s) when present AND content-addressed (id:4860: copied only when the queue entry's queue_sig byte-matches the repo's live sig — else the live discover-repo.sh path for that repo), else the full live discover-repo.sh exec path; EITHER WAY the agent() call itself is the residual LLM surface (D3, deferred+labeled, not eliminated — see relay/references/discovery-queue-manifest.md), now with a JS-side queue_sig mangle canary`)
   const shardResults = changed.length
     ? await parallel(chunks.map((chunk) => () =>
         agent(runnerPrompt(chunk), { label: `discover-run:${chunk.length}`, phase: 'Classify', schema: SHARD_SCHEMA, model: 'haiku' })
@@ -962,10 +979,41 @@ Return {units, surfaced, skipped} = the CONCATENATION across every repo in your 
     surfaced.push(...(r.surfaced || []))
     skipped.push(...(r.skipped || []))
   })
+  // id:4860 — discovery-queue mangle canary (belt-and-suspenders for the content-addressed
+  // CASE A copy). The runner prompt is INSTRUCTED to copy a queue verdict only when the queue
+  // entry's queue_sig equals the repo's live sig — a pure string equality, not judgment. This
+  // JS assert re-checks it MECHANICALLY: any queue-sourced unit (one carrying a queue_sig)
+  // whose queue_sig does NOT byte-match this round's live sig (sigByRepo) is DROPPED from
+  // dispatch and SURFACED loudly — same pattern as the shard-failure surfacing above (costs one
+  // round, never dispatches on stale/mangled state). This structurally dissolves gap (1) the
+  // stale snapshot (an executor committed AFTER the T−Δ snapshot, so its execute/idle verdict
+  // outlived the live state that now demands review) and gap (2) went-dirty-after-snapshot, AND
+  // catches gap (3) a Haiku bridge-copy that mangled/dropped the sig (a fabricated-but-correct
+  // 64-hex sig is implausible). CASE B / live / reused / injected units carry NO queue_sig
+  // (computed live) and are EXEMPT. Only sig-matching (or exempt) units reach the discoverCache
+  // write below — that fixes the stale-cache-poisoning: a stale verdict can never be cached
+  // under the NEW live sig (it is dropped here first).
+  {
+    const kept = [], staleDropped = []
+    for (const u of units) {
+      if (u.queue_sig !== undefined && u.queue_sig !== (sigByRepo[u.repo] || '')) staleDropped.push(u)
+      else kept.push(u)
+    }
+    if (staleDropped.length) {
+      log(`relay-loop: id:4860 discovery-queue sig canary — dropped ${staleDropped.length} unit(s) whose queue_sig != live sig (stale snapshot / went-dirty-after-snapshot / mangled bridge-copy): ${staleDropped.map(u => u.repo).join(', ')}`)
+      for (const u of staleDropped) {
+        surfaced.push({ repo: u.repo, reason: `discovery-queue verdict dropped: queue_sig != live discover-sig (repo state changed after the snapshot, or the queue copy was mangled) — re-derived next round (content-addressed mangle canary id:4860)` })
+      }
+      units.length = 0
+      units.push(...kept)
+    }
+  }
   // id:c3a6 — cache the FRESHLY-classified units keyed by this round's signature, THEN fold in the
   // reused (cached) verdicts. Reused units already sit in the cache under the same sig, so only fresh
   // ones are written. Surfaced / idle-without-unit repos are NOT cached → they re-classify next round
   // (safe over-invalidation). Injected units are never cached (consumed each round by inject.sh take).
+  // id:4860 — only sig-matching (or CASE B live/exempt) units reach here; a stale queue verdict was
+  // dropped by the canary above, so it can never poison the cache under the NEW live sig.
   for (const u of units) { const sig = sigByRepo[u.repo] || ''; u.sig = sig; if (sig) state.discoverCache[u.repo] = { sig, unit: u } }
   units.push(...reusedUnits)
   units.push(...(prelude.injectedUnits || []))

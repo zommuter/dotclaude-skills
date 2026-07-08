@@ -62,4 +62,23 @@ grep -q "STILL reconcile LIVE" "$JS" \
 grep -q "RECONCILE runs LIVE every round" "$JS" \
   || fail "round-log line does not surface that reconcile runs live every round on the queue path"
 
+# (e) id:4860 CONTENT-ADDRESS — the CASE A copy is gated on queue_sig == live sig.
+#     The producer (discover-repos-mechanical.sh) stamps each queue entry with the repo's
+#     discover-sig.sh value (queue_sig); the runner copies a verdict ONLY when that byte-matches
+#     the repo's LIVE sig carried in the chunk. This structurally closes the stale-verdict
+#     (executor committed after the snapshot) + went-dirty-after-snapshot gaps that mtime alone
+#     let through. Structural pins on the recipe text (can't run the LLM hermetically):
+grep -q "id:4860" "$JS" || fail "no id:4860 marker (content-addressed CASE A copy)"
+grep -q "queue_sig" "$JS" || fail "recipe/schema never references queue_sig (content-address field)"
+# the chunk JSON carries each repo's LIVE sig so the runner can compare
+grep -Eq "sig: sigByRepo\[r\.repo\]" "$JS" || fail "chunk does not carry each repo's live sig (sigByRepo) for the CASE A comparison"
+# CASE A gates the verbatim copy on a BYTE-IDENTICAL sig equality
+grep -q "BYTE-IDENTICAL to this repo's \"sig\"" "$JS" || fail "CASE A does not gate the copy on queue_sig == live sig (byte equality)"
+# missing/mismatched queue_sig → fall to the CASE B live path for THAT repo (not a stale copy)
+grep -Eq "queue_sig is MISSING or does NOT byte-match" "$JS" || fail "CASE A does not treat a missing/mismatched queue_sig as a fall-to-live-path case"
+# the residual-read label is updated to say content-addressing SHRINKS the trust (mangle canary)
+grep -q "Content-addressing SHRINKS the trust" "$JS" || fail "residual LLM surface label not updated to note the content-address/mangle-canary shrink (D3 wording, id:4860)"
+
+pass "discovery runner recipe (id:4860): CASE A copies a queue verdict only when queue_sig byte-matches the repo's live sig (else the live path); chunk carries the live sig; residual-read label notes the mangle canary"
+
 pass "discovery runner recipe: queue path takes only the CLASSIFY verdict from the id:9d97 queue but STILL runs reconcile-repo.sh LIVE (with --live-claims) for the side-effecting half; falls back to the full live discover-repo.sh exec when the queue is absent/stale; residual agent() read labeled (id:7402/D3, FINDING 1 fix)"

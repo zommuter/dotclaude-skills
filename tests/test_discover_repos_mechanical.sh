@@ -167,6 +167,12 @@ with open(agg_path) as fh:
 agg_unit = next((u for u in agg["units"] if u["repo"] == name), None)
 assert agg_unit is not None, f"{name}: no unit found in aggregate"
 
+# id:4860 — the producer ADDS a queue_sig field to every entry (content-addressing); it is
+# NOT part of discover-repo.sh's verdict content, so strip it before the parity comparison.
+# Its presence + value are asserted separately below.
+assert "queue_sig" in agg_unit, f"{name}: aggregate unit missing the id:4860 queue_sig stamp"
+agg_unit = {k: v for k, v in agg_unit.items() if k != "queue_sig"}
+
 direct_obj = json.loads(direct_json)
 direct_units = direct_obj.get("units", [])
 assert direct_units, f"{name}: direct discover-repo.sh call produced no units"
@@ -182,6 +188,37 @@ PY
   [[ $? -eq 0 ]] || fail "(2) determinism parity failed for $name"
 done
 pass "(2) mechanical producer's per-repo units are content-identical to direct discover-repo.sh calls"
+
+# === (2b) id:4860 CONTENT-ADDRESS — every queue entry carries a queue_sig stamp ===========
+# The producer runs discover-sig.sh (id:c3a6) per repo and stamps the resulting SUPERSET
+# signature onto every units/surfaced/skipped entry as `queue_sig`. The live consumer
+# (relay-loop.js CASE A) copies a repo's verdict ONLY when this queue_sig byte-matches the
+# repo's LIVE sig — content-addressing that dissolves the stale-verdict / went-dirty gaps.
+# A live git repo's classify unit must carry a real 64-hex sha256; the value must be
+# byte-identical to a direct discover-sig.sh call (proving the producer stamps the SAME sig
+# the live prelude computes, so a matching-state repo actually copies).
+sig_direct="$(printf '{"repos":[{"repo":"r_exec","path":"%s"}],"liveClaims":[]}' "$R1" \
+              | "$ROOT/relay/scripts/discover-sig.sh" | python3 -c 'import json,sys; print(json.loads(sys.stdin.readline())["sig"])')"
+SIG_DIRECT="$sig_direct" python3 - "$RELAY_DISCOVERY_QUEUE_DIR/latest.json" <<'PY' || exit 1
+import json, os, re, sys
+data = json.load(open(sys.argv[1]))
+# EVERY entry across all three buckets carries a queue_sig string (id:4860).
+for bucket in ("units", "surfaced", "skipped"):
+    for e in data[bucket]:
+        assert isinstance(e, dict) and "queue_sig" in e, f"{bucket} entry missing queue_sig: {e}"
+        assert isinstance(e["queue_sig"], str), f"{bucket} entry queue_sig not a string: {e}"
+exec_unit = next(u for u in data["units"] if u["repo"] == "r_exec")
+assert re.fullmatch(r"[0-9a-f]{64}", exec_unit["queue_sig"]), \
+    f"r_exec queue_sig is not a sha256: {exec_unit['queue_sig']!r}"
+assert exec_unit["queue_sig"] == os.environ["SIG_DIRECT"], (
+    "r_exec queue_sig != a direct discover-sig.sh call — the producer must stamp the SAME sig "
+    "the live prelude computes, else a matching-state repo never copies\n"
+    f"  stamped: {exec_unit['queue_sig']}\n  direct:  {os.environ['SIG_DIRECT']}"
+)
+print("queue_sig content-address: OK")
+PY
+[[ $? -eq 0 ]] || fail "(2b) queue_sig stamping/content-address check failed"
+pass "(2b) every queue entry carries queue_sig; a live repo's = a direct discover-sig.sh call (id:4860)"
 
 echo "ALL PASS: discover-repos-mechanical.sh schema + determinism parity"
 
@@ -325,5 +362,22 @@ echo "$allerr_out"
 printf '%s\n' "$allerr_out" | grep -q 'heartbeat NOT beaten' \
   || fail "(5) expected a loud stderr line about the heartbeat not being beaten"
 pass "(5) all-repos-errored snapshot is written for transparency but does NOT beat the heartbeat"
+
+# id:4860 empty-sig-stamped-as-is: a missing-path repo is a discover-sig.sh fail-open case
+# (empty "" sentinel). The producer must stamp that empty sig AS-IS onto the synthesized
+# producer_error surfaced entry (never invent a hash) — an empty queue_sig can never match a
+# live sig, so the repo always falls to the live path (fail-safe).
+python3 - "$QUEUE_DIR_ALLERR/latest.json" <<'PY' || exit 1
+import json, sys
+data = json.load(open(sys.argv[1]))
+errs = [s for s in data["surfaced"] if s.get("producer_error")]
+assert errs, f"expected producer_error surfaced entries; got {data['surfaced']}"
+for e in errs:
+    assert "queue_sig" in e, f"producer_error entry missing queue_sig: {e}"
+    assert e["queue_sig"] == "", f"missing-path repo's queue_sig should be '' (fail-open), got {e['queue_sig']!r}"
+print("empty-sig stamped as-is: OK")
+PY
+[[ $? -eq 0 ]] || fail "(5b) empty-sig stamping check failed"
+pass "(5b) an empty (fail-open) discover-sig is stamped as-is on the producer_error entry (id:4860)"
 
 echo "ALL PASS: discover-repos-mechanical.sh id:0fa0 robustness (parse guard / garbage isolation / heartbeat-usable-output)"
