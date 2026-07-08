@@ -130,7 +130,7 @@ latest prune by the 2026-07-02 review.)
   `available:false` + a stated reason, exit 1, NO crash (not just the env-stubbed test path).
   `ram` default 2048MB → available (10163MB free); `LOAD_MAX` default = nproc = 8 is sane for
   the 8-core host. All host-tuning defaults are conservative and env-overridable.
-- [ ] **id:758e purity-helper handoff (2026-07-07): NO contract-version bump for the new convention note.**
+- [x] **id:758e purity-helper handoff (2026-07-07): NO contract-version bump for the new convention note.** — REVIEWER VERDICT (2026-07-08 review, id:758e closed): UPHOLD no-bump. The `### Purity-test-as-contract` note changes no artifact format an in-flight executor writes (ROADMAP/RELAY_LOG) nor any of the 5 core rules; it is a test-authoring convention triggered only when authoring a read-only component, and executors load `/relay executor` fresh each turn so they see it without a version signal. A v6→v7 bump would churn every managed repo's CLAUDE.md pointer for zero in-flight-behaviour delta. Contract stays v6; pointer unchanged.
   The RED spec (`tests/test_purity_helper.sh`) requires a `### Purity-test-as-contract`
   note in `relay/references/executor-contract.md` but instructs the executor NOT to bump
   the `v6` version marker — judgment: an additive test-authoring convention is a
