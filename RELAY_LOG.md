@@ -2265,3 +2265,7 @@ Friction: none.
 ## 2026-07-08 18:40 — executor (sonnet, relay-loop)
 
 Added tests/fixtures/loop-round-exec-harness.mjs — a full-round exec-smoke harness generalizing the discovery-only guard to every relay-loop.js prompt builder (execute/review/handoff dispatch, integrate, quota, inject-take, auto-reconcile); id:aec5 closed, full suite 204/0/0. [id:aec5]
+
+## 2026-07-08 19:25 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified id:c5ba quota-stop null-bucket+margin fix + id:7725/aec5 ticks genuine (additive tests, resurrection clean, 204/0/0); no gaming, no new ROUTINE [id:c5ba,7725,aec5]
