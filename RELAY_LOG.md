@@ -2218,3 +2218,7 @@ for the reviewer to overrule if warranted). `tests/test_purity_helper.sh`
 
 `make test`: 201 passed, 0 failed, 0 expected-red.
 Friction: none.
+
+## 2026-07-08 16:40 — executor (sonnet, relay-loop)
+
+Closed both open [ROUTINE] items: id:bf7a (relay-gap-sample Makefile install/status/uninstall targets + SKILL.md doc line) and id:758e (shared tests/lib/assert-repo-unchanged.sh purity-test helper + executor-contract.md convention note); full suite 201 passed, 0 failed, 0 expected-red. [id:bf7a,758e]
