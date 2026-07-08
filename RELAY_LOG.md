@@ -2239,3 +2239,7 @@ Friction: none.
 ## 2026-07-08 17:31 — executor (sonnet, relay-loop)
 
 Fixed classify-repo.sh to whole-section-gate actionable_routine_open/roadmap_actionable_open/open_mechanical, mirroring roadmap-lint.sh's is_exempt_heading (id:356f); full suite 202/0/0. [id:356f]
+
+## 2026-07-08 17:48 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Verified id:356f genuinely green (gaming-scan clean, RED spec unchanged since handoff & passing, suite 202/0/0); ticked TODO twin; surfaced installed-tree-stale REVIEW_ME box [id:356f]
