@@ -2243,3 +2243,7 @@ Fixed classify-repo.sh to whole-section-gate actionable_routine_open/roadmap_act
 ## 2026-07-08 17:48 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Verified id:356f genuinely green (gaming-scan clean, RED spec unchanged since handoff & passing, suite 202/0/0); ticked TODO twin; surfaced installed-tree-stale REVIEW_ME box [id:356f]
+
+## 2026-07-08 18:08 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Handoff C1-C4: promoted 3 TODO items to ROADMAP (7725/aec5 [ROUTINE]+red specs, f599 [HARD]); suite 202 pass / 2 expected-red [id:7725,aec5,f599]
