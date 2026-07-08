@@ -2269,3 +2269,7 @@ Added tests/fixtures/loop-round-exec-harness.mjs — a full-round exec-smoke har
 ## 2026-07-08 19:25 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:c5ba quota-stop null-bucket+margin fix + id:7725/aec5 ticks genuine (additive tests, resurrection clean, 204/0/0); no gaming, no new ROUTINE [id:c5ba,7725,aec5]
+
+## 2026-07-08 19:58 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Review since relay-ckpt-20260708-1925: window was bookkeeping-only; fixed in-window f599 tag/prose lane-conflict + repaired dangling REVIEW_ME box; suite 204/0/0, gaming-scan+orphan-scans clean. [id:f599]
