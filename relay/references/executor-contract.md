@@ -119,6 +119,19 @@ surprise. No-op sessions write nothing:
   friction: <item-id> <note>
   ```
 
+### Purity-test-as-contract
+
+Any component documented as **read-only / snapshot / pure** (e.g. a discovery producer,
+a classifier shard, a status reporter) MUST ship a purity test built on the shared
+helper `tests/lib/assert-repo-unchanged.sh`: PLANT a repo (a commit + a dirty/untracked
+file + a live worktree), run the component, and assert the repo state is byte-identical
+afterwards (`repo_state_snapshot` / `assert_repo_unchanged` — no commits, no ref moves,
+no worktree add/remove, HEAD/reflog/porcelain unchanged). This generalizes the pattern
+`tests/test_discovery_producer_readonly.sh` proved against a real near-miss (id:758e,
+2026-07-07): a component *labeled* read-only had an undetected side-effecting path, and
+without a purity test that label was unverified tribal knowledge. Write the purity test
+cheaply from the shared helper instead of hand-rolling a bespoke snapshot/diff each time.
+
 ## Maintenance
 
 **Bump the version number** (v1 → v2, etc.) **only** when a rule or artifact
