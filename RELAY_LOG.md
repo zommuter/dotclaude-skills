@@ -2194,3 +2194,27 @@ default still see it.
 
 `make test`: 195 passed, 0 failed, 2 expected-red.
 Friction: none.
+
+## 2026-07-08 — executor (sonnet)
+
+Worked id:bf7a and id:758e — both open [ROUTINE] items closed in one session.
+
+id:bf7a: added `install-gap-sample`/`status-gap-sample`/`uninstall-gap-sample` Makefile
+targets mirroring `install-quota-timer`'s systemd-user pattern exactly (symlink
+`tools/relay-gap-sample.{service,timer}` into `$(SYSTEMD_USER)`, daemon-reload,
+enable --now; uninstall disables + removes symlinks), plus a `tools/relay-gap-sample.sh`
+doc line in `relay/SKILL.md` §Shared resources. `tests/test_gap_sample_install.sh`
+(roadmap:bf7a) was already-passing on its behavior-spec half; the RED install-plumbing
+half now passes too.
+
+id:758e: added `tests/lib/assert-repo-unchanged.sh` (`repo_state_snapshot` +
+`assert_repo_unchanged`), generalizing the inline pattern
+`tests/test_discovery_producer_readonly.sh` proved against a real near-miss into a
+shared, sourceable helper. Documented the convention as a new
+`### Purity-test-as-contract` note in `relay/references/executor-contract.md`, additive
+only — did NOT bump the v6 contract marker per the item's explicit design (recorded here
+for the reviewer to overrule if warranted). `tests/test_purity_helper.sh`
+(roadmap:758e) green.
+
+`make test`: 201 passed, 0 failed, 0 expected-red.
+Friction: none.
