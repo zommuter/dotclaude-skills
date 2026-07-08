@@ -110,4 +110,31 @@ rc="$(RELAY_QUOTA_SAMPLES="$SAMPLES" USAGE_CACHE="$MISSING_CACHE" USAGE_CREDS="$
 [[ "$rc" == "2" ]] || { cat "$ERRFILE"; fail "no RELAY_RUN_ID must keep the blind fail-safe exit 2, got $rc"; }
 pass "(d) extrapolation gated on RELAY_RUN_ID — no live run keeps the conservative exit 2 (hermetic)"
 
-echo "ALL PASS: quota-stop extrapolation fallback (id:0175 / routed:82e3)"
+# ── (e) id:c5ba — seven_day_sonnet NULL in samples (API dropped per-model weekly sub-limits,
+#        routed:82e3): the extrapolation path must SKIP the absent sonnet bucket (not treat it
+#        as a corrupt cache) and let seven_day govern → recent + low burn PROCEEDS (exit 0).
+#        Before the fix this false-STOPped exit 2 ("bucket 'seven_day_sonnet' absent"). ──────
+: >"$SAMPLES"
+emit $((NOW-3900)) 10 30 null 1.0   # 65 min ago, no sonnet sub-limit
+emit $((NOW-300))  11 31 null 1.1   # 5 min ago — five_hour/seven_day low, far under 90%
+rc="$(run_extrap)"
+[[ "$rc" == "0" ]] || { cat "$ERRFILE"; fail "(e) null seven_day_sonnet + low burn must PROCEED (exit 0), got $rc"; }
+grep -q "bucket 'seven_day_sonnet' absent (no such limit) → skipping" "$ERRFILE" \
+  || fail "(e) must log the seven_day_sonnet skip, not a fail-safe stop; got: $(cat "$ERRFILE")"
+grep -q "REASON=quota-extrapolated-proceed" "$ERRFILE" \
+  || fail "(e) with sonnet skipped, seven_day governs → must proceed; got: $(cat "$ERRFILE")"
+pass "(e) id:c5ba — null seven_day_sonnet is SKIPPED in extrapolation, seven_day governs → proceeds (exit 0)"
+
+# ── (e2) id:c5ba — skipping the null sonnet bucket must NOT disable the real gate: null
+#        seven_day_sonnet but HIGH seven_day burn → still EXTRAPOLATED STOP (exit 3) on
+#        seven_day. Proves the skip is bucket-scoped, not a blanket "ignore weekly". ────────
+: >"$SAMPLES"
+emit $((NOW-3900)) 12 70 null 2.0   # 65 min ago
+emit $((NOW-300))  13 88 null 2.5   # 5 min ago — seven_day 70→88, ~18%/h → est ~89.5%+margin ≥ 90
+rc="$(run_extrap)"
+[[ "$rc" == "3" ]] || { cat "$ERRFILE"; fail "(e2) null sonnet + high seven_day must EXTRAPOLATE-STOP (exit 3), got $rc"; }
+grep -q "REASON=quota-extrapolated-stop bucket=seven_day" "$ERRFILE" \
+  || fail "(e2) real gate must still fire on seven_day when sonnet is skipped; got: $(cat "$ERRFILE")"
+pass "(e2) id:c5ba — sonnet-skip is bucket-scoped: high seven_day still triggers exit 3"
+
+echo "ALL PASS: quota-stop extrapolation fallback (id:0175 / routed:82e3 / id:c5ba)"
