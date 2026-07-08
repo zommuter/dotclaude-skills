@@ -3,7 +3,16 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
-- [ ] **id:5dc3 roadmap-lint heading-as-item detector false-positives on descriptive `## [LANE]` section headers (audit Run 70, 2026-07-06).**
+- [ ] **Installed `~/.claude/skills/relay/scripts/` is stale — re-run `make install-relay` (review 2026-07-08 1625).**
+  `relay/scripts/lib-own-repos.sh` was added this cycle and IS listed in the Makefile's
+  `relay_FILES` (Makefile:63), so the SOURCE is correct — but the installed tree has no
+  symlink for it, so the INSTALLED `relay-doctor.sh` aborts at line 89
+  (`source "$SCRIPTS_DIR/lib-own-repos.sh": No such file or directory`, exit 1) — `/relay
+  health` is broken for the live install until `make install-relay` re-runs. Running from the
+  source/worktree tree works (this review's doctor ran green from there). Not a code defect —
+  a reinstall. This resolves inbox dead-letters `routed:ecee` + `routed:9571` (both are
+  source-resolved: the lib is shipped and installer-listed). **Action:** run `make
+  install-relay` (or `make install`). on descriptive `## [LANE]` section headers (audit Run 70, 2026-07-06).**
   `roadmap-lint.sh` flags 3 "heading-as-item MISSING its id" violations on the 2026-07-03
   relay-handoff SECTION headers `## [MECHANICAL] lane-anchor hotfix …`, `## [MECHANICAL] recipe
   explicit-success-marker doctrine …`, `## [ROUTINE] case-c bare-only lane count …` (ROADMAP.md
