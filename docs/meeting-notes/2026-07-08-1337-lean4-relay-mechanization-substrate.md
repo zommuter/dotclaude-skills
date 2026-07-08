@@ -109,3 +109,66 @@ Load-bearing theorems: (1) `reap_fail_closed : claimContext = unknown → reapSe
 - [ ] **[GATED on island 1 shipped] Island 2** — reconcile PLANNER in Lean with `reap_fail_closed` + `reap_live_disjoint`(per-input) at rung one, reachable-state version staged rung two; axiom hygiene (`#print axioms` + lint `sorry`/`native_decide`/`axiom`); INTENSIVE-flag-by-lane-type unrepresentable. **This item IS the D1 substrate-revisit go/no-go** (Lean ergonomics held + triad Lean code-reuse named ⇒ proceed in Lean; else fork to Rust+Kani). (D1, D4) <!-- id:ba31 -->
 - [ ] Executor-lane: document the pinned-statement → ungameable-acceptance (`lake build` + `#print axioms` clean) delegation mechanism in the relay contract; keep islands apex-lane; flip proof-filling to Sonnet-executor lane only after a demonstrated **Sonnet-tier** near-`rfl` Lean proof (Opus-tier already shown via toesnail). (D5) <!-- id:7746 -->
 - [ ] → routed to **mathematical-writing** inbox: own the canonical triad `lean-toolchain` pin + add `docs/lean-toolchain-policy.md` (policy + bump-together cadence); triad repos carry a one-line pointer. <!-- routed:b8e5 -->
+
+## Amendment — post-meeting strong-model review (Fable 5, 2026-07-08)
+
+The meeting ran under Opus 4.8 (a Fable server-side safeguard false-positived on the
+`/meeting` invocation — [[fable-safeguard-false-positive-2026-07-08]]; three Fable
+background agents contributed diligence inline, but the persona synthesis + ratification
+turn was Opus). This is the Fable second-opinion pass over the ratified note, verified
+against the codebase and the session transcript. **No decision is overturned** — D1–D5
+stand. Transcript fidelity check: the note renders the user's answers faithfully,
+including the toesnail hedge ("at least Opus could handle, not sure if Sonnet tried"),
+correctly narrowed to a Sonnet-tier evidence bar in D5. Four findings extend D2/D3/D4/D5;
+constraints folded into the TODO twins (id:50c4/82c4/ba31/7746) in the same commit.
+
+- **F1 — the island-1 blocker is broader than its own rationale (D3) — PROPOSED
+  downgrade, needs user ratification.** D3's stated reason for "land id:4860/0fa0/1cb8 in
+  bash FIRST" is that the fixed bash becomes the parity oracle ("porting first would bake
+  the bugs into the golden corpus"). Verified: **none of the three items touched the
+  ported module.** `classify-verdict.sh` — the island-1 port target, pure JSON→JSON — was
+  last changed by the id:c79e/7616 work (7622c2d, 3231091, 1f66497); id:4860 fixed
+  producer `queue_sig` stamping + relay-loop.js CASE A copy logic, id:0fa0 fixed producer
+  robustness, id:1cb8 hardens `mechanical-daemon.sh` — all three live in components that
+  stay bash regardless of island 1, and none alters classify-verdict's input/output
+  contract or its fixture corpus. With 4860+0fa0 landed (archived 2026-07-08), the only
+  remaining hard blocker on id:82c4 is 1cb8 — a large `[HARD — pool]` daemon item whose
+  fixes cannot appear in the pilot's corpus. Riku's argument (1) (de-risk the live path
+  while Lean is weeks out) is a scheduling priority, not an oracle dependency. Proposal:
+  downgrade 1cb8 from blocked-on to "parallel de-risk, before the FLIP at the latest";
+  island 1 is otherwise startable now.
+- **F2 — "100% exact match" parity needs a pinned canonical JSON form (D3).**
+  `classify-verdict.sh:217` emits CPython `json.dumps` bytes: insertion-ordered keys,
+  `", "` separators, ASCII escapes. Lean's `Lean.Data.Json` objects serialize with their
+  own key ordering — a byte-diff harness false-fails on every output forever, and "make
+  Lean reproduce CPython serialization" is brittle wasted work. (The existing byte-parity
+  regression guard, `classify-repo.sh:158`, is bash-vs-bash and unaffected.) Constraint
+  (id:82c4): the flip gate compares **canonicalized** JSON — `jq -S -c .` on BOTH outputs;
+  "100% exact" = byte-equality of the canonical forms, with the `evidence` array ORDER
+  declared part of the contract (it is deterministic in bash).
+- **F3 — D5's "ungameable acceptance" has named gaming vectors; the gate needs a
+  diff-surface restriction + an attribute lint, not just `lake build` + `#print axioms`.**
+  (a) `@[implemented_by]`/`@[extern]` swap the **compiled** implementation away from the
+  proven definition — theorem still true, build green, axioms clean, the shipped binary
+  runs unproven native code; `#print axioms` cannot see attributes. (b) A proof-filling
+  executor can weaken a **definition the pinned statement references** (statement text
+  unchanged, proposition changed) — pinning the statement string is not pinning the
+  proposition. (c) `partial`/`unsafe` in helper defs dodge totality. Constraints
+  (id:7746 + id:ba31): the reviewer commits `theorem … := sorry`; executor acceptance =
+  the diff touches **only the `sorry` replacement** (mechanically checkable), which
+  structurally excludes (b)+(c); and the axiom-hygiene lint extends to `implemented_by`,
+  `extern`, `unsafe`, `partial` in the proven core (legitimate ONLY in the declared
+  effectful rind, reviewer-owned). With those two additions the ungameable claim holds.
+- **F4 — D2's drift guard is unimplementable as ratified: aae4 has no GitHub remote.**
+  Verified: mathematical-writing's only remote is a private SSH remote on fievel, and no
+  `lean-toolchain` file exists there yet (routed:b8e5 creates it). A public relay-core's
+  GH CI cannot fetch the canonical pin. Fix: the drift CHECK moves to where D2 already put
+  the WARN — **relay-doctor compares the two local checkouts** (`~/src/mathematical-writing/lean-toolchain`
+  vs relay-core's); relay-core CI asserts only internal consistency (its own
+  `lean-toolchain` vs what the lakefile expects). Constraint folded into id:50c4.
+- **Minor (id:50c4):** `lean_exe relay-core` — a hyphen is not a Lean identifier; use
+  `lean_exe «relay-core»` (or name it `relay_core` and rename the release artifact).
+  Static linking needs the static archives installed on the runner (libgmp; recent
+  toolchains also link libuv) — the ratified `ldd` verify is the catch if they're missing.
+  `batteries` is toolchain-coupled too: bump its lake pin in the same week-of-aae4-bump
+  cadence as the toolchain.
