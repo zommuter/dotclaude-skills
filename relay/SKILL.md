@@ -564,6 +564,12 @@ ISO-timestamped line to `~/.claude/logs/relay-stop-sentinel.log` (override via
   round, so use `tail -F` there). The Claude Code statusline shows a live `🔁<round> ✓<done>
   ⚙<in-flight> Δ$<burn>/h` segment whenever `RELAY_STATUS.md` was touched in the last
   `RELAY_ACTIVE_SECS` (default 600).
+- `tools/relay-gap-sample.sh` + `.service`/`.timer` (id:bf7a) — between-runs churn evidence
+  logger: samples each repo's discover-sig + live classify verdict on a systemd user timer
+  cadence, appending change/tick lines to `RELAY_GAP_SAMPLES` (JSONL, default under
+  `~/.config/relay/`) so churn between relay-loop dispatches is captured for forensics.
+  `make install-gap-sample` / `status-gap-sample` / `uninstall-gap-sample` manage the timer
+  (same systemd-user pattern as `install-quota-timer`).
 
 ## State: `~/.config/relay/relay.toml`
 
