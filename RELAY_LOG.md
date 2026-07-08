@@ -2230,3 +2230,8 @@ Verified id:bf7a + id:758e green (gaming-scan clean, suite 201/201); ticked TODO
 ## 2026-07-08 17:19 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 handoff C2/C3: promoted id:356f (classify-repo gated-section actionable_routine_open fix) to ROADMAP + RED test [id:356f,4299]
+
+## 2026-07-08 — executor (sonnet)
+
+Worked id:356f — added whole-section gating to classify-repo.sh's ROADMAP-derivation loop, mirroring roadmap-lint.sh's is_exempt_heading regex (gated|deferred|done|icebox|archive|parked, case-insensitive). While inside such a section, open [ROUTINE]/[HARD — pool]/[MECHANICAL] lines no longer increment actionable_routine_open / roadmap_actionable_open / open_mechanical (roadmap_open's raw total count is left untouched — the acceptance criteria only named the three actionable counters). tests/test_classify_repo_gated_section.sh (roadmap:356f) now green (8/8); full make test: 202 passed, 0 failed, 0 expected-red.
+Friction: none.
