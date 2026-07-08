@@ -194,7 +194,17 @@ D1/D2):
    `args.onlyRepo` (id:7633 — a first-class SINGLE-REPO scope from a bare repo positional /
    `.` / `--only <repo>`; the front door resolves a `.` to the cwd repo's basename
    `basename "$(git rev-parse --show-toplevel)"` BEFORE launch, and passes the resolved NAME —
-   see **Single-repo scope** below), and
+   see **Single-repo scope** below),
+   `args.RUN_ID` (id:c5ba follow-up — the front door MINTS the run id itself, in shell, BEFORE
+   launch: `relay-$(date +%Y%m%d-%H%M%S)-$RANDOM`, and passes it here. relay-loop.js seeds
+   `state.runId` from it so a valid `RELAY_RUN_ID` exists at the PRE-DISCOVERY round-1 quota gate
+   — the discovery prelude that used to mint it runs AFTER that gate, so without a front-door mint
+   `state.runId` was `''` at the first quota check, which disabled the extrapolation fallback +
+   burn-sampler (both gated on `RELAY_RUN_ID`) and blind-stopped any background run the moment its
+   `/tmp` cache went stale. Workflow scripts cannot call `date`/`$RANDOM` (both unavailable in the
+   sandbox), which is why the mint MUST happen in the front door, not the script. The prelude's
+   `state.runId || prelude.runId` keeps the front-door value; the uniqueness guarantee is
+   unchanged (date+`$RANDOM` is as unique as the prelude's own mint), and
    `args.RELAY_STATUS_PATH` (when overridden). The Workflow owns the pool, the serialized integrator, the
    quota guards, **and the self-feeding loop** — it re-discovers after each dispatch wave
    so executes→reviews→executes cycle inside a SINGLE invocation (`runRound()` in a `while`),

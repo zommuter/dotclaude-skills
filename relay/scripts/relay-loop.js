@@ -673,7 +673,14 @@ function enqueueIntegration(repo, fn) {
 // (drained), or (c) the MAX_ROUNDS seatbelt trips. `state` and `quotaStopped` persist
 // across rounds (accumulators); per-round vars (queue/debts/unitsDispatched/roundCapHit)
 // are local to runRound and reset each round.
-const state = { runId: '', ts: '', inFlight: [], completed: [], queued: [], blocked: [], skipped: [], quota: [], reviewMe: [] }
+// runId is seeded from the front-door-minted args.RUN_ID (relay-$(date)-$RANDOM) so a valid
+// RELAY_RUN_ID exists at the PRE-DISCOVERY round-1 quota gate (line ~771) — the discovery
+// prelude that used to mint it runs AFTER that gate, so without this seed state.runId was ''
+// at the first quota check, disabling the extrapolation fallback + burn-sampler (both gated on
+// RELAY_RUN_ID) and blind-stopping any background run the moment its /tmp cache went stale.
+// The prelude's `state.runId || prelude.runId` keeps this seeded value; absent an args.RUN_ID
+// (older front door) it falls back to the prelude-minted one as before.
+const state = { runId: (A.RUN_ID ? String(A.RUN_ID) : ''), ts: '', inFlight: [], completed: [], queued: [], blocked: [], skipped: [], quota: [], reviewMe: [] }
 let quotaStopped = false
 // Run-progress accumulators (id:c8b6), declared here (not at the bottom loop) so snapshotState
 // can read them with no temporal-dead-zone risk. round = re-discover→dispatch→drain iterations;
@@ -1448,6 +1455,11 @@ async function quotaGate(tier) {
     .filter(k => A[k] !== undefined && A[k] !== null && A[k] !== '')
     .map(k => `${k}=${A[k]}`)
   const thresholdEnv = envPairs.length ? envPairs.join(' ') + ' ' : ''
+  // Pass RELAY_RUN_ID so quota-stop.sh's extrapolation fallback + burn-sampler (both gated on
+  // it, id:0175) actually engage inside a live run. Without this the child shell had no
+  // RELAY_RUN_ID → extrapolate_or_stop blind-exited 2 on any stale cache and no burn sample was
+  // ever written (so there was never a series to extrapolate from — the circular dead-fallback).
+  const runIdEnv = state.runId ? `RELAY_RUN_ID=${state.runId} ` : ''
   // id:4267 — pass the RUN-TOTAL agent count, not the per-round count. quota-stop.sh hard-
   // caps at --agents >= 200 (a runaway-spawn seatbelt spanning the WHOLE self-feeding run), but
   // unitsDispatched resets to 0 each round (let unitsDispatched = 0 in runRound), so with
@@ -1456,7 +1468,7 @@ async function quotaGate(tier) {
   // is the across-all-rounds accumulator and is the value the seatbelt is meant to gate on.
   // (Same per-round-vs-run-total accounting family as id:2d20's drain fix.)
   const v = await agent(
-    `Run this command and report the result: ${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
+    `Run this command and report the result: ${runIdEnv}${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
 Return exitCode (0 = proceed, 1 = real-cache exhaustion, 2 = cache unreadable with no usable burn sample, 3 = cache unreadable but burn-rate EXTRAPOLATES to over threshold) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.
 On exit 1 OR exit 3 (a bucket crossed), also return crossedBucket: the bucket the script logged as crossing its threshold. The script logs either "quota-stop: <bucket>=<val>% >= threshold <t>" (exit 1) or "REASON=quota-extrapolated-stop bucket=<bucket>" (exit 3) to stderr — capture that bucket name, e.g. "seven_day_sonnet". Leave crossedBucket absent or empty otherwise.`,
     { label: `quota:${tier}`, phase: 'Quota', schema: QUOTA_SCHEMA, model: 'haiku' }
