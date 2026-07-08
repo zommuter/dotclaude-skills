@@ -46,7 +46,7 @@ A single flat JSON object:
 | `run_id` | string | the `--runid` the producer was invoked with, or `""` |
 | `repos` | array | `{"repo": "<name>", "path": "<abs>"}` — every confirmed own repo considered this round, in enumeration order |
 | `units` | array | concatenation, in repo-enumeration order, of every per-repo `discover-repo.sh` call's `units[]` (0 or 1 entries each — see `discover-repo.sh`'s own routing) |
-| `surfaced` | array | concatenation of every per-repo call's `surfaced[]`, PLUS one synthesized `{"repo","reason"}` entry per repo the producer itself could not even hand to `discover-repo.sh` (missing path / not a git repo / nonzero exit) — never silently dropped (no-silent-swallow, id:4347) |
+| `surfaced` | array | concatenation of every per-repo call's `surfaced[]`, PLUS one synthesized `{"repo","reason","producer_error":true}` entry per repo the producer itself could not even get a usable verdict for — missing path / not a git repo, `discover-repo.sh` exiting nonzero, or `discover-repo.sh` exiting 0 with empty/non-JSON/malformed stdout (id:0fa0 finding b) — never silently dropped (no-silent-swallow, id:4347), and never aborts the OTHER repos' entries. The `producer_error` marker is what distinguishes these synthesized entries from a genuine surfaced verdict `discover-repo.sh` itself emitted (e.g. a dirty repo) |
 | `skipped` | array | concatenation of every per-repo call's `skipped[]` |
 
 Each `units`/`surfaced`/`skipped` entry is the untouched object `discover-repo.sh`
@@ -66,8 +66,13 @@ relay/scripts/discover-repos-mechanical.sh [--runid <id>] [--live-claims <csv>] 
 ```
 
 - Enumerates CONFIRMED own repos from `relay.toml` (`classification = "own"`, honoring
-  the `# path:` comment override and the `paused` flag — the same parser as
-  `relay-doctor.sh`/`relay-reconcile.sh`/`gather-human-backlog.sh`).
+  the `# path:` comment override and the `paused` flag — the SHARED `own_repos()` parser
+  in `relay/scripts/lib-own-repos.sh`, sourced by this script AND `relay-doctor.sh`,
+  id:0fa0 finding e). A relay.toml that EXISTS but fails to parse (syntax error, duplicate
+  key) makes `own_repos()` return nonzero; this script checks that exit status explicitly
+  and, on failure, exits nonzero LOUDLY on stderr **before** writing any queue file and
+  **before** beating the heartbeat (id:0fa0 finding a) — mirrors `relay-doctor.sh`'s
+  `registry_parse_check` (id:2945).
 - For each repo, execs `discover-repo.sh --no-reconcile` — **zero LLM, no `claude -p`,
   no `agent()`** anywhere in this script. `--no-reconcile` makes this a genuinely
   **READ-ONLY snapshot** (id:9d97 data-loss fix): it takes only the side-effect-free
@@ -85,10 +90,19 @@ relay/scripts/discover-repos-mechanical.sh [--runid <id>] [--live-claims <csv>] 
   exec). The producer's snapshot being based on un-fetched, un-reconciled local state is fine:
   the live loop reconciles on real pool state when it truly dispatches; the queue only ever
   supplies the classify verdict.
-- Assembles the aggregate object above and **schema-checks it before the atomic
-  write**: a sub-call producing non-JSON, a non-object JSON value, or a non-list
-  `units`/`surfaced`/`skipped` field aborts the whole run with a LOUD `ERROR:` on
-  stderr and a nonzero exit — nothing is ever written to the drop-dir half-formed.
+- Assembles the aggregate object above. A per-repo blob that is non-JSON, a non-object
+  JSON value, or has a non-list `units`/`surfaced`/`skipped` field is isolated into
+  `surfaced` as a `producer_error` entry for THAT repo only (id:0fa0 finding b) — it
+  never aborts the other repos' already-collected verdicts. Only a genuine
+  ASSEMBLY-level failure (the records file itself unreadable) is a LOUD `ERROR:` on
+  stderr with a nonzero exit — nothing is ever written to the drop-dir half-formed.
+- **Heartbeat = usable output** (id:0fa0 finding c): the heartbeat is beaten only when
+  the written snapshot has at least one non-`producer_error` entry (any `units[]`
+  entry, or any `surfaced[]`/`skipped[]` entry that isn't `producer_error`-marked). If
+  every confirmed repo errored, the snapshot is still written (consumer transparency)
+  but the heartbeat beat is skipped and a loud stderr line is printed, so the outage
+  watchdog correctly reports the producer domain stale instead of reading "producing
+  garbage" as healthy.
 
 ## systemd `--user` unit
 
