@@ -31,6 +31,7 @@ import difflib
 import math
 import os
 import re
+import subprocess
 import sys
 
 INDEX_FILE = "MEMORY.md"
@@ -116,10 +117,16 @@ def _read_value(val, lines, i):
 
 
 def parse_frontmatter(path):
-    """Return a dict of frontmatter keys. Nested metadata keys are stored as
-    'metadata.<key>'. Returns {} if the file has no leading '---' block."""
+    """Return a dict of frontmatter keys parsed from a file on disk."""
     with open(path, encoding="utf-8") as f:
-        lines = f.read().split("\n")
+        text = f.read()
+    return parse_frontmatter_text(text)
+
+
+def parse_frontmatter_text(text):
+    """Return a dict of frontmatter keys. Nested metadata keys are stored as
+    'metadata.<key>'. Returns {} if the text has no leading '---' block."""
+    lines = text.split("\n")
     if not lines or lines[0].strip() != "---":
         return {}
     fm = {}
@@ -261,6 +268,94 @@ def render(entries, project):
     return body, arch
 
 
+# ── hook-text invariants (diff vs git HEAD, id:7d97) ─────────────────────────
+#
+# tools/memory-index.py --check proves only that the index is *derivable* from
+# the memory files; it says nothing about whether a hook's TEXT still means what
+# it did before. A bulk rewrite can preserve every id:/routed: token, wiki-link,
+# and entry count while silently stripping meaning (2026-07-10: an Opus
+# compaction agent stripped the `user:` prefix from 14/15 feedback-* hooks and
+# flattened emphasis in 62 more, while every mechanical invariant above still
+# held). This section diffs each entry's hook against the previous COMMITTED
+# state (`git show HEAD:<path>`) and flags two specific regressions. It is a
+# diff-vs-HEAD check, not a style rule, and is deliberately narrow: semantic
+# drift with every token intact is out of scope (an LLM-review residual).
+
+_EMPHASIS_RE = re.compile(r"\*\*[^*]+\*\*")
+_ALLCAPS_RE = re.compile(r"\b[A-Z]{2,}\b")
+
+
+def emphasis_tokens(text):
+    """Set of emphasis markers in a hook string: **bold** spans and ALL-CAPS
+    words. Used to detect a token present before and absent after."""
+    if not text:
+        return set()
+    return set(_EMPHASIS_RE.findall(text)) | set(_ALLCAPS_RE.findall(text))
+
+
+def git_head_text(memory_dir, filename):
+    """Return the git-HEAD content of memory_dir/filename as a string, or None
+    if it can't be determined (not a git repo, git missing, file has no HEAD
+    version — i.e. a brand-new memory — or any other git failure). Fail-open:
+    every failure mode here just means "no previous state to compare", never
+    a crash."""
+    path = os.path.join(memory_dir, filename)
+    try:
+        top = subprocess.run(
+            ["git", "-C", memory_dir, "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=10)
+        if top.returncode != 0:
+            return None
+        root = top.stdout.strip()
+        relpath = os.path.relpath(os.path.abspath(path), root).replace(os.sep, "/")
+        shown = subprocess.run(
+            ["git", "-C", root, "show", "HEAD:%s" % relpath],
+            capture_output=True, text=True, timeout=10)
+        if shown.returncode != 0:
+            return None
+        return shown.stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def hook_from_frontmatter_text(text):
+    """Same hook/description fallback build_entries() uses, applied to raw
+    frontmatter text (e.g. a git-HEAD blob) instead of an on-disk file."""
+    fm = parse_frontmatter_text(text)
+    hook = fm.get("hook")
+    if hook is None:
+        hook = fm.get("description")
+    return hook
+
+
+def check_hook_invariants(memory_dir, entries):
+    """Return a list of human-readable violation strings: entries whose hook
+    text regressed against the last COMMITTED state. Two invariants:
+      (a) hook began 'user:' in HEAD, no longer does — a directive read as a
+          plain observation.
+      (b) hook loses a **bold**/ALL-CAPS emphasis token present in HEAD.
+    A brand-new memory (no HEAD version) is never flagged (fail-open)."""
+    violations = []
+    for e in entries:
+        old_text = git_head_text(memory_dir, e.filename)
+        if old_text is None:
+            continue
+        old_hook = hook_from_frontmatter_text(old_text)
+        if old_hook is None:
+            continue
+        new_hook = e.hook
+        if old_hook.strip().startswith("user:") and not new_hook.strip().startswith("user:"):
+            violations.append(
+                "%s: hook lost the 'user:' prefix (was: %r, now: %r)"
+                % (e.filename, old_hook, new_hook))
+        lost = emphasis_tokens(old_hook) - emphasis_tokens(new_hook)
+        if lost:
+            violations.append(
+                "%s: hook lost emphasis token(s) %s (was: %r, now: %r)"
+                % (e.filename, sorted(lost), old_hook, new_hook))
+    return violations
+
+
 # ── I/O ──────────────────────────────────────────────────────────────────────
 
 def read_file(path):
@@ -344,6 +439,11 @@ def main(argv=None):
                 old.splitlines(keepends=True), new.splitlines(keepends=True),
                 fromfile="%s (on disk)" % label, tofile="%s (generated)" % label)
             sys.stdout.writelines(diff)
+
+    for violation in check_hook_invariants(memory_dir, entries):
+        drift = True
+        sys.stdout.write("ERROR: %s\n" % violation)
+
     return 1 if drift else 0
 
 

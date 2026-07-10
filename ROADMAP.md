@@ -2434,7 +2434,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Acceptance**: `make gaming-canary` executes: positive fixtures yield non-empty `gaming_flags`; negative control yields empty `gaming_flags`. The harness itself must not be flaky on identical inputs. Keep each fixture minimal (≤20 lines of diff) so the judgment is unambiguous.
   - **Gate CLEARED 2026-06-15** (audit run 4): id:fa05 (gaming-scan.sh) and id:dfaf (review.md §2 delegate) both shipped — `review.md` now references `gaming-scan.sh` (3×) and the script exists, so the review procedure this harness invokes already delegates mechanical checks. The item is dispatchable; it is HARD because crafting convincing-but-detectable fixtures needs strong-model judgment, not because of an unmet dependency.
 
-- [ ] [ROUTINE] memory-index lint: add `user:`-prefix + emphasis-preservation invariants to `--check` <!-- id:7d97 -->
+- [x] [ROUTINE] memory-index lint: add `user:`-prefix + emphasis-preservation invariants to `--check` <!-- id:7d97 -->
   - **Why now**: `tools/memory-index.py --check` currently proves only that the index is
     *derivable* from the memory files. It does NOT compare hook TEXT against the previous
     committed state, so a bulk rewrite can preserve every `id:`/`routed:` token,
