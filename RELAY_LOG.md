@@ -2297,3 +2297,8 @@ close id:5937 deny-tail probe (D4→branch 1, auto-mode approves all 12 op-class
 ## 2026-07-10 13:16 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Review since relay-ckpt-20260710-1236: window was a single clean TODO doc commit (id:d484, id:f3a0 filed); gaming-scan clean, suite 207/0/0, orphan/lint/doctor clean; reverse-handoff kept both new items as TODO design-judgment (no ROADMAP promotion). [id:d484,f3a0]
+
+## 2026-07-10 — executor (sonnet)
+
+Worked id:7d97 — added `user:`-prefix + emphasis-preservation invariants to `tools/memory-index.py --check` (diffs each entry's hook against `git show HEAD:<path>`; flags a dropped `user:` prefix or a lost `**bold**`/ALL-CAPS token, fail-open when there's no git history). Two new hermetic git-fixture tests (test12/13) cover both invariants plus the unchanged/brand-new non-flag cases. Suite 211/0/0.
+Friction: none.
