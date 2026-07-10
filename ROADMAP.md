@@ -10,6 +10,18 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- 2026-07-10 review §5b reverse-handoff (run relay-20260710-171033-12826): promoted the
+     manually-filed [ROUTINE] data-loss bug id:411d from TODO.md. Single-id-two-views (D2):
+     REUSES its open TODO.md twin. RED spec tests/test_inbox_done_anchor.sh (# roadmap:411d)
+     ships red; the fix (anchor the predicate on the item's OWN routed marker) turns it green. -->
+
+- [ ] [ROUTINE] `append.sh inbox-done XXXX` must delete ONLY the item whose OWN `routed:XXXX` marker matches — a prose cross-reference to that token in a sibling item is not the same item <!-- id:411d -->
+  - **Why** (TODO id:411d, found 2026-07-10 routing two chidiAI cases): `meeting/append.sh`'s inbox-done predicate is `needle in l and l.lstrip().startswith("- [")` with `needle = f"routed:{token}"` — a SUBSTRING test, not an anchor. An inbox item whose *prose* legitimately cites a sibling's token (e.g. "the contrast with `routed:4fa9` is the signal") is a checkbox line containing that needle, so resolving the sibling **silently deletes the citing item too**. inbox-done is destructive by design (vanish-on-resolve) and the inbox is local-only / never committed, so a wrongly-deleted item is **unrecoverable** — no git twin to restore from.
+  - **How / Design**: change the deletion predicate so it targets the line whose OWN routed marker is `routed:<token>`, not any line that merely mentions the token. Anchor on the marker form the inbox contract guarantees — CLAUDE.md specifies every inbox entry ends `<!-- routed:XXXX -->` — e.g. match a trailing `<!-- routed:{token} -->` (allowing optional whitespace), NOT a bare substring. A prose mention like `routed:4fa9` inside another item's text must NOT match. Keep the `- [` checkbox guard and the flock. Do NOT change the vanish-on-resolve semantics (the matched line is still DELETED, not marked `[x]`) — only tighten WHICH line matches. Preserve the `RELAY_INBOX` injection point (hermetic tests depend on it).
+  - **Acceptance**: `tests/test_inbox_done_anchor.sh` (`# roadmap:411d`) green — a two-item fixture inbox where item A (own marker `routed:1234`) cites `routed:4fa9` in its prose and item B (own marker `routed:4fa9`) is the target; `inbox-done 4fa9` deletes B and PRESERVES A.
+  - **Done-check**: `tests/run-tests.sh tests/test_inbox_done_anchor.sh` then full `make test` after ticking (RED until then).
+  - **Context**: `meeting/append.sh:24-52` (the inbox-done block + Python predicate), CLAUDE.md §Cross-project TODO inbox (the `<!-- routed:XXXX -->` line contract), TODO id:411d.
+
 <!-- 2026-07-08 handoff C2 (run relay-20260708-162516-22523, second pass): promoted the 3
      `promote`-disposition TODO items (unpromoted-scan: 3 promote / 154 surface). Single-id-two-
      views (D2): every id below REUSES its open TODO.md twin. 7725/aec5 = [ROUTINE] with RED specs
