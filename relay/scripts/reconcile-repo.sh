@@ -2,13 +2,23 @@
 # relay/scripts/reconcile-repo.sh — bounded side-effecting git reconciliation
 # split out of the LLM discovery shard (flip step b, id:a0b6).
 #
-# Usage: reconcile-repo.sh --repo <name> --path <abs> [--runid <id>]
+# Usage: reconcile-repo.sh [--dry-run] --repo <name> --path <abs> [--runid <id>]
 #                          [--live-claims <comma-list>] [--main-branch <name>]
 #
 # Performs ONLY the bounded git ops the shard prose describes
 # (relay-loop.js:854-870): SYNC-WITH-ORIGIN (id:c3f7), uv.lock cascade
 # commit (id:bae5), and WORKTREE-AWARE reap/park (id:ebfb/3ac8/689c).
 # NO classification (that stays classify-repo.sh / classify-verdict.sh).
+#
+# Architecture (id:77ce, parity oracle for relay-core ebdb-b): the body is
+# split into a pure PLAN phase (read-only git observations → an actions/
+# surfaced list, zero mutating git calls) and a thin APPLY phase (walks the
+# planned action list and performs the mutation for each kind). `--dry-run`
+# runs PLAN, emits the SAME JSON, and STOPS before APPLY — no git write
+# happens. Without `--dry-run`, PLAN -> APPLY -> emit (identical observable
+# behavior to the pre-split script). The `actions`/`surfaced` lists for a
+# given input state are IDENTICAL with and without `--dry-run` — that
+# identity is the parity oracle.
 #
 # Emits ONE JSON object on stdout:
 #   {"repo":"<name>","actions":[{"kind":"<k>","detail":"<...>"}],"surfaced":[{"repo","reason"}]}
@@ -18,21 +28,26 @@
 #   RELAY_WORKTREE_BASE  default ~/.cache/relay/worktrees
 set -euo pipefail
 
-repo="" path="" runid="" live_claims="" main_branch="main"
-# live_claims_provided (id:e3ad fail-closed reap guard): distinguishes "--live-claims
-# flag never passed" (0, no caller safety context) from "--live-claims \"\"" (1, caller
-# explicitly checked and nothing is live) — a plain default of "" can't tell these apart,
-# and treating flag-ABSENT the same as explicit-empty is exactly the fail-OPEN bug an
-# audit found (a future/alternate caller that forgets the flag would silently reap live
-# worktrees). Set to 1 only when the --live-claims flag is actually seen on argv.
-live_claims_provided=0
+repo="" path="" runid="" main_branch="main"
+# live_claims (id:e3ad fail-closed reap guard, tri-state sum type — id:77ce): bash has
+# no Option/sum type, so the three LiveClaims states are modelled as ONE sentinel-bearing
+# variable instead of the previous {live_claims_provided bool, live_claims string} PAIR
+# (that pair is exactly "the cost of modelling Option as a bool default", id:e3ad):
+#   __UNSET__  (default)        → Unknown:   flag never passed, no caller safety context
+#   ""         (--live-claims "") → Known-empty: caller checked, nothing is live
+#   "a,b"      (--live-claims "a,b") → Known:  caller's live-claimed repo set
+# Only the Unknown state fail-closed-refuses every destructive reap/park; the other two
+# states differ only in whether $repo appears in the (possibly empty) comma-list.
+live_claims="__UNSET__"
+dry_run=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) repo="$2"; shift 2 ;;
     --path) path="$2"; shift 2 ;;
     --runid) runid="$2"; shift 2 ;;
-    --live-claims) live_claims="$2"; live_claims_provided=1; shift 2 ;;
+    --live-claims) live_claims="$2"; shift 2 ;;
     --main-branch) main_branch="$2"; shift 2 ;;
+    --dry-run) dry_run=1; shift ;;
     *) echo "reconcile-repo.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -53,9 +68,18 @@ add_surfaced() { # <reason>
   printf '%s\n' "$1" >> "$surfaced_file"
 }
 
+# --- PLAN outputs consumed by APPLY (kept minimal: what to mutate, not why) -
+plan_ff_upstream=""            # non-empty ⇒ APPLY should `git merge --ff-only <upstream>`
+plan_lock_paths=()             # non-empty ⇒ APPLY should add+commit these uv.lock paths
+plan_reap=()                   # "<basename>:<branch>" entries ⇒ APPLY should reap
+plan_park=()                   # "<basename>:<branch>" entries ⇒ APPLY should park
+wtdir="$WORKTREE_BASE/$repo"
+
 if [[ -d "$path/.git" || -f "$path/.git" ]]; then
 
-  # --- SYNC (id:c3f7) -------------------------------------------------------
+  # ============================ PLAN (pure, read-only) ======================
+
+  # --- PLAN: SYNC (id:c3f7) --------------------------------------------------
   if git -C "$path" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
     git -C "$path" fetch origin >/dev/null 2>&1 || true
     upstream="$(git -C "$path" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')"
@@ -67,15 +91,18 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       add_action "diverged-surface" "local ahead $ahead / behind $behind vs origin"
       add_surfaced "diverged from origin (local $ahead / origin $behind) — needs manual reconcile (id:c3f7)"
     elif [[ "$ahead" -eq 0 && "$behind" -gt 0 && -z "$porcelain" ]]; then
-      git -C "$path" merge --ff-only "$upstream" >/dev/null 2>&1
       add_action "ff-merge" "fast-forwarded to $upstream"
+      plan_ff_upstream="$upstream"
     fi
   fi
 
-  # --- LOCK (id:bae5) --------------------------------------------------------
-  # Commit an in-place uv.lock relock when EVERY dirty path is a uv.lock (basename), covering
-  # the zkm cascade's nested plugins/*/uv.lock — not just a root uv.lock. Any non-lock dirty
-  # path leaves the tree for classify to `block`.
+  # --- PLAN: LOCK (id:bae5) --------------------------------------------------
+  # Plan an in-place uv.lock relock commit when EVERY dirty path is a uv.lock
+  # (basename), covering the zkm cascade's nested plugins/*/uv.lock — not just
+  # a root uv.lock. Any non-lock dirty path leaves the tree for classify to
+  # `block`. NOTE: `ff-merge` above only plans (does not perform) the merge,
+  # and only does so when the tree was already clean, so this porcelain read
+  # observes the same state PLAN or APPLY would act on.
   porcelain="$(git -C "$path" status --porcelain)"
   if [[ -n "$porcelain" ]]; then
     all_lock=true
@@ -90,16 +117,14 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       fi
     done <<< "$porcelain"
     if [[ "$all_lock" == true && ${#lock_paths[@]} -gt 0 ]]; then
-      git -C "$path" add -- "${lock_paths[@]}"
-      git -C "$path" commit -q -m "chore: refresh uv.lock — cascade relock (id:bae5)"
       add_action "lock-commit" "committed uv.lock relock in place (${#lock_paths[@]} lock file(s))"
+      plan_lock_paths=("${lock_paths[@]}")
     fi
   fi
 
-  # --- WORKTREE reap/park (id:ebfb/3ac8/689c) --------------------------------
-  wtdir="$WORKTREE_BASE/$repo"
+  # --- PLAN: WORKTREE reap/park (id:ebfb/3ac8/689c) --------------------------
   if [[ -d "$wtdir" ]]; then
-    if [[ "$live_claims_provided" -eq 0 ]]; then
+    if [[ "$live_claims" == "__UNSET__" ]]; then
       # --- FAIL-CLOSED GUARD (id:e3ad) --------------------------------------
       # No --live-claims flag was passed at all: the caller supplied NO safety
       # context, so we cannot tell live worktrees apart from stale ones. Refuse
@@ -132,20 +157,18 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
 
         branch="relay/$bn"
         if git -C "$path" merge-base --is-ancestor "$branch" "$main_branch" 2>/dev/null; then
-          git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
-          git -C "$path" branch -D "$branch" >/dev/null 2>&1 || true
           add_action "reap" "reaped stale empty worktree $bn"
+          plan_reap+=("$bn:$branch")
         else
-          git -C "$path" branch -m "$branch" "relay/orphan/$bn" >/dev/null 2>&1 || true
-          git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
           add_action "park" "parked stale worktree $bn to relay/orphan/$bn"
           add_surfaced "parked orphan from a dead run — ref renamed to relay/orphan/$bn for manual /relay reconcile (id:689c)"
+          plan_park+=("$bn:$branch")
         fi
       done < <(ls -1 "$wtdir" 2>/dev/null || true)
     fi
   fi
 
-  # --- ORPHAN SUPPRESS-REDISPATCH (id:1f53) ----------------------------------
+  # --- PLAN: ORPHAN SUPPRESS-REDISPATCH (id:1f53, read-only, no APPLY step) --
   # Once D1 parks partial work into relay/orphan/*, do NOT re-dispatch the item's expensive
   # session. Bind each parked orphan back to its ROADMAP item via `git show --stat` on the
   # parked commit; if that item is still OPEN (or the binding is ambiguous), SURFACE a one-line
@@ -172,6 +195,29 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       add_surfaced "suppressed re-dispatch: $why on $oref — manual /relay reconcile; cost hint: relay-burn.sh --run ${runid:-<runId>}"
     fi
   done < <(git -C "$path" for-each-ref --format='%(refname:short)' refs/heads/relay/orphan/ 2>/dev/null || true)
+
+  # ============================ APPLY (mutating) =============================
+  if [[ "$dry_run" -eq 0 ]]; then
+    if [[ -n "$plan_ff_upstream" ]]; then
+      git -C "$path" merge --ff-only "$plan_ff_upstream" >/dev/null 2>&1
+    fi
+    if [[ ${#plan_lock_paths[@]} -gt 0 ]]; then
+      git -C "$path" add -- "${plan_lock_paths[@]}"
+      git -C "$path" commit -q -m "chore: refresh uv.lock — cascade relock (id:bae5)"
+    fi
+    for entry in "${plan_reap[@]:-}"; do
+      [[ -n "$entry" ]] || continue
+      bn="${entry%%:*}"; branch="${entry#*:}"
+      git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
+      git -C "$path" branch -D "$branch" >/dev/null 2>&1 || true
+    done
+    for entry in "${plan_park[@]:-}"; do
+      [[ -n "$entry" ]] || continue
+      bn="${entry%%:*}"; branch="${entry#*:}"
+      git -C "$path" branch -m "$branch" "relay/orphan/$bn" >/dev/null 2>&1 || true
+      git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
+    done
+  fi
 fi
 
 ACTIONS_FILE="$actions_file" SURFACED_FILE="$surfaced_file" REPO="$repo" python3 - <<'PYEOF'
