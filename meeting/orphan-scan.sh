@@ -32,6 +32,26 @@
 #     TODO.md line is >= 14 days old by `git blame` author-time (override via
 #     ORPHAN_SCAN_SHIPPED_AGE_DAYS) — the completion clause may have lapsed; re-check.
 #   - EXTERNAL-WAIT items are suppressed from BOTH classes (genuinely gated, don't nag).
+#   Typed-edge closure (typed-ledger-edges meeting 2026-07-10, id:46f6): an item that
+#   carries a `<!-- children:a,b,c -->` and/or `<!-- gated-on:d,e -->` sibling marker
+#   (form C: sibling comments BEFORE the terminal `<!-- id:XXXX -->`) BYPASSES the
+#   wait_re/completion_re heuristic entirely and is decided by the typed predicate.
+#   Unmarked items keep the exact code path above (zero blast radius, A2 "dissolve don't
+#   guard"). Child/gate tokens resolve against TODO.md ∪ TODO.archive.md ONLY (ROADMAP.md
+#   drift belongs to --cross-ledger). "closed" ⇒ the resolving line is `- [x]` (mere
+#   membership in the archive is NOT closed — an archived parent can nest an open `- [ ]`
+#   sub-item). Typed classes:
+#     UMBRELLA-READY     — every child resolves AND all `[x]`. Reported (no `# roadmap:` test needed).
+#     UMBRELLA-OPEN      — every child resolves, ≥1 `[ ]`. Silent.
+#     UMBRELLA-CROSS-REPO— ≥1 child unresolved but prose names a CONFIRMED own repo (from
+#                          relay.toml via relay/scripts/lib-own-repos.sh — NEVER a ~/src glob;
+#                          zkm-ner lives at ~/src/zkm/plugins/zkm-ner). Advisory, exit 0.
+#     UMBRELLA-UNRESOLVED— ≥1 child unresolved, no own-repo evidence. LOUD; sets non-zero exit.
+#     GATE-READY         — every `gated-on:` token resolves AND all `[x]`. Advisory.
+#     GATE-BLOCKED       — ≥1 gate token open/unresolved. Silent.
+#     UNMARKED-GATE      — an UNMARKED line carries gate vocabulary (`gated on`/`blocked
+#                          until`/`blocked on`/`Gate:`). Advisory backstop (no-silent-swallow,
+#                          id:4347) — catches non-id gates, backfill misses, future items.
 # Un-IDed lines are skipped (clean cutover; legacy notes stay frozen).
 # Prints candidate lines to stdout; writes one log line to ~/.claude/logs/meeting-orphan-scan.log.
 set -euo pipefail
@@ -77,6 +97,7 @@ notes=0
 id_lines=0
 candidates=0
 output_lines=()
+unresolved_found=0  # shipped mode: set to 1 by any UMBRELLA-UNRESOLVED → non-zero exit
 
 if [[ "$mode" == "cross-ledger" ]]; then
   # Build token→state maps for the TODO union and for ROADMAP separately, then
@@ -153,10 +174,164 @@ elif [[ "$mode" == "shipped" ]]; then
   wait_re='\b(observe|verify|awaiting|gated|re-evaluate|let it run)\b'
   age_days_threshold="${ORPHAN_SCAN_SHIPPED_AGE_DAYS:-14}"
   now_epoch=$(date +%s)
+
+  # --- Typed-edge closure setup (id:46f6) --------------------------------------
+  # Local resolution map: token → checkbox state for every id-bearing line in
+  # TODO.md ∪ TODO.archive.md. A child/gate token "resolves" iff it is a key here;
+  # it is "closed" iff its state is 'x'. First-wins so an active TODO.md entry
+  # beats a recycled archive id (same rationale as the cross-ledger map, id:9221).
+  # ROADMAP.md is deliberately excluded (that drift belongs to --cross-ledger).
+  # (2>/dev/null: a missing TODO.archive.md is a normal state, not an error.)
+  declare -A local_state
+  while IFS= read -r l; do
+    st=' '; [[ "$l" == "- [x] "* || "$l" == "- [X] "* ]] && st='x'
+    while read -r tk; do
+      [[ -z "$tk" ]] && continue
+      [[ -n "${local_state[$tk]+x}" ]] || local_state["$tk"]="$st"
+    done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
+  done < <(grep -hE '^- \[[ xX]\] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
+
+  # Confirmed own-repo NAMES for the UMBRELLA-CROSS-REPO decision. These come from
+  # relay.toml via the shared, tested reader lib-own-repos.sh — NEVER a ~/src glob
+  # (correction 2026-07-10: zkm-ner lives at ~/src/zkm/plugins/zkm-ner, which a glob
+  # would miss → false UMBRELLA-UNRESOLVED + spurious non-zero exit). Resolve our own
+  # real path first so this works whether invoked from the repo or via the ~/.claude
+  # symlink. Fail LOUD if the reader is missing or relay.toml fails to parse — never
+  # silently fall back to a glob or downgrade every unresolved child (id:4347).
+  own_scan_self="$(readlink -f "${BASH_SOURCE[0]}")"
+  own_repos_lib="$(dirname "$own_scan_self")/../relay/scripts/lib-own-repos.sh"
+  if [[ ! -f "$own_repos_lib" ]]; then
+    echo "orphan-scan: FATAL — own-repo reader not found at $own_repos_lib; cannot classify cross-repo umbrellas (refusing to guess)" >&2
+    exit 3
+  fi
+  SRC_DIR="${SRC_DIR:-$HOME/src}"
+  RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
+  # shellcheck source=../relay/scripts/lib-own-repos.sh
+  source "$own_repos_lib"
+  # Capture to a variable and test $? — a bare `< <(own_repos)` process substitution
+  # would DISCARD the subshell exit status (the lib header warns about exactly this),
+  # so a corrupt relay.toml would look like an empty registry.
+  if ! own_repos_out="$(own_repos)"; then
+    echo "orphan-scan: FATAL — relay.toml failed to parse ($RELAY_TOML); cannot enumerate own repos (id:4347)" >&2
+    exit 3
+  fi
+  own_repo_names=()
+  while IFS=$'\t' read -r rname _rpath; do
+    [[ -z "$rname" ]] && continue
+    own_repo_names+=("$rname")
+  done <<<"$own_repos_out"
+  # ----------------------------------------------------------------------------
+
   while IFS=: read -r lineno text; do
     token=$(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)
     [[ -z "$token" ]] && continue
     id_lines=$((id_lines+1))
+
+    # Short stdout: emit the item's TITLE, never the whole line. Ledger items run to
+    # thousands of characters; echoing them verbatim turned a 0-byte report into 36 KB
+    # (the audit-pass ctx-bloat class this sibling-helper pattern exists to avoid).
+    # The full line stays in the file; the id: token is the handle for looking it up.
+    short_text() {
+      local t="$1" title
+      title=$(grep -oP '(?<=\*\*).*?(?=\*\*)' <<<"$t" | head -1 || true)
+      if [[ -z "$title" ]]; then
+        title=$(sed -E 's/^[[:space:]]*- \[[ x]\] //; s/<!--.*$//' <<<"$t")
+      fi
+      title=$(tr -s '[:space:]' ' ' <<<"$title")
+      title="${title#"${title%%[![:space:]]*}"}"
+      (( ${#title} > 110 )) && title="${title:0:107}..."
+      printf '%s' "$title"
+    }
+
+    # Typed-edge markers (form C: sibling comments before the terminal id comment).
+    children_csv=$(grep -oP '(?<=<!-- children:)[0-9a-f,]+(?= -->)' <<<"$text" || true)
+    gated_csv=$(grep -oP '(?<=<!-- gated-on:)[0-9a-f,]+(?= -->)' <<<"$text" || true)
+    has_typed=0
+    [[ -n "$children_csv" || -n "$gated_csv" ]] && has_typed=1
+
+    if [[ -n "$children_csv" ]]; then
+      # Umbrella predicate over the typed child edge set.
+      IFS=',' read -ra _kids <<<"$children_csv"
+      all_resolve=1; all_closed=1; dangling=()
+      for k in "${_kids[@]}"; do
+        if [[ -n "${local_state[$k]+x}" ]]; then
+          [[ "${local_state[$k]}" == "x" ]] || all_closed=0
+        else
+          all_resolve=0; all_closed=0; dangling+=("$k")
+        fi
+      done
+      if (( all_resolve )); then
+        if (( all_closed )); then
+          candidates=$((candidates+1))
+          output_lines+=("id:$token — UMBRELLA-READY (all children [x]) — ready to close. $(short_text "$text")")
+        fi
+        # else: UMBRELLA-OPEN — every child resolves, ≥1 still open. Silent.
+      else
+        # ≥1 unresolved child. Cross-repo iff the prose names a CONFIRMED own repo.
+        if (( ${#own_repo_names[@]} == 0 )); then
+          echo "orphan-scan: FATAL — id:$token has unresolved child token(s) [${dangling[*]}] but the own-repo registry is EMPTY ($RELAY_TOML); cannot distinguish cross-repo from unresolved (refusing to guess, id:4347)" >&2
+          exit 3
+        fi
+        # Collect the SET of confirmed own-repo names appearing on the line as
+        # EVIDENCE — do NOT pick one and attribute the child to it (correction
+        # 2026-07-10: nothing on the line connects a given child token to a given
+        # repo name, so naming "the" home repo fabricates a mapping; a line can name
+        # several own repos). Report all; let the human map child→repo.
+        sibs=()
+        for s in "${own_repo_names[@]}"; do
+          if grep -qw -- "$s" <<<"$text"; then sibs+=("$s"); fi
+        done
+        if (( ${#sibs[@]} > 0 )); then
+          candidates=$((candidates+1))
+          output_lines+=("id:$token — UMBRELLA-CROSS-REPO — unresolved child(ren): ${dangling[*]}; own-repo names present on line: ${sibs[*]} (evidence, not an attribution) — child(ren) likely tracked in another repo. $(short_text "$text")")
+        else
+          candidates=$((candidates+1))
+          unresolved_found=1
+          output_lines+=("id:$token — UMBRELLA-UNRESOLVED (dangling child token(s): ${dangling[*]}) — unresolvable locally and no own-repo evidence; marker may be stale. $(short_text "$text")")
+        fi
+      fi
+    fi
+
+    if [[ -n "$gated_csv" ]]; then
+      # Gate predicate over the typed gated-on edge set.
+      IFS=',' read -ra _gates <<<"$gated_csv"
+      g_all_resolve=1; g_all_closed=1
+      for g in "${_gates[@]}"; do
+        if [[ -n "${local_state[$g]+x}" ]]; then
+          [[ "${local_state[$g]}" == "x" ]] || g_all_closed=0
+        else
+          g_all_resolve=0; g_all_closed=0
+        fi
+      done
+      if (( g_all_resolve && g_all_closed )); then
+        candidates=$((candidates+1))
+        output_lines+=("id:$token — GATE-READY (all gates [x]) — unblocked now. $(short_text "$text")")
+      fi
+      # else: GATE-BLOCKED — ≥1 gate open or unresolved. Silent.
+    fi
+
+    if (( has_typed )); then
+      # A typed-marker item is decided ENTIRELY by the predicates above; it bypasses
+      # the gate-word heuristic and the UNMARKED-GATE backstop (A2 "dissolve don't
+      # guard"). This is why 65f9 reaches the umbrella branch despite a `gated` word
+      # quoted from a child clause — it is marked, not because a regex got smarter.
+      continue
+    fi
+
+    # UNMARKED-GATE backstop (no-silent-swallow, id:4347): an UNMARKED line bearing
+    # gate vocabulary cannot be concluded "ungated". Advisory only. This vocabulary is
+    # deliberately DISJOINT from wait_re's bare words — it matches only structured gate
+    # PHRASES (`gated on`, `blocked until/on`, `Gate:`) and the ledger's own gate
+    # markers `🚧 GATED …` / `GATED (DEP: …)` — so an unmarked bare-"gated"/"observe"
+    # item keeps its exact prior behaviour (falls through to the wait_re path below).
+    # The 🚧/DEP forms were added after the live ledger showed cross-repo gates (e.g.
+    # id:7df1, gate token in another repo, deliberately no local gated-on: edge) using
+    # `🚧 GATED (DEP: …)` rather than the "gated on" phrasing.
+    if grep -qiE '\bgated on\b|\bblocked until\b|\bblocked on\b|\bgate:|🚧[[:space:]]*gated\b|\bgated \(dep:' <<<"$text"; then
+      candidates=$((candidates+1))
+      output_lines+=("id:$token — UNMARKED-GATE (gate vocabulary present, no gated-on: marker) — add a typed gated-on: edge or confirm the gate. $(short_text "$text")")
+    fi
+
     if echo "$text" | grep -qiE "$wait_re"; then
       # EXTERNAL-WAIT clause: legitimately open — suppress from both classes.
       continue
@@ -168,7 +343,7 @@ elif [[ "$mode" == "shipped" ]]; then
       age_days=$(( (now_epoch - commit_epoch) / 86400 ))
       if (( age_days >= age_days_threshold )); then
         candidates=$((candidates+1))
-        output_lines+=("id:$token — GATE-STALE (line age ${age_days}d >= ${age_days_threshold}d) — gating clause may have lapsed; re-check. $text")
+        output_lines+=("id:$token — GATE-STALE (line age ${age_days}d >= ${age_days_threshold}d) — gating clause may have lapsed; re-check. $(short_text "$text")")
       fi
     else
       # TICK-READY candidate: needs a test that EXPLICITLY owns this item via a
@@ -188,7 +363,7 @@ elif [[ "$mode" == "shipped" ]]; then
       timeout_s="${ORPHAN_SCAN_TEST_TIMEOUT_S:-60}"
       if (cd "$ROOT" && timeout "${timeout_s}s" bash "$test_rel") >/dev/null 2>&1; then
         candidates=$((candidates+1))
-        output_lines+=("id:$token — TICK-READY (green: $test_rel, no gate) — ready to tick. $text")
+        output_lines+=("id:$token — TICK-READY (green: $test_rel, no gate) — ready to tick. $(short_text "$text")")
       fi
     fi
   done < <(grep -n '^- \[ \] ' "$ROOT/TODO.md" 2>/dev/null || true)
@@ -243,4 +418,12 @@ if [[ "$limit" -gt 0 && "$total" -gt "$limit" ]]; then
     "$suppressed" "$limit"
 else
   printf '%s\n' "${output_lines[@]:-}"
+fi
+
+# Shipped mode (id:46f6): any UMBRELLA-UNRESOLVED is a LOUD failure — an unresolvable
+# child token with no own-repo evidence means the umbrella can never read "ready" for a
+# possibly-wrong reason (fail-open silent swallow, id:4347). Exit non-zero so a caller
+# (or CI) surfaces it. All other classes are report-only and leave exit 0.
+if [[ "$mode" == "shipped" && "$unresolved_found" == 1 ]]; then
+  exit 1
 fi
