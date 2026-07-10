@@ -34,14 +34,19 @@ if [[ "${1:-}" == "inbox-done" ]]; then
   (
     flock -x 9
     python3 - "$inbox" "$token" <<'PYEOF'
-import sys, pathlib
+import re, sys, pathlib
 path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
 lines = path.read_text().splitlines(keepends=True)
-needle = f"routed:{token}"
-# Vanish: drop the routed checkbox line entirely (any "- [ ]" / "- [x]" carrying the
-# token). Non-checkbox prose mentioning the token is left untouched.
+# Anchor on the item's OWN trailing marker `<!-- routed:XXXX -->` (optional whitespace),
+# not a bare substring — a sibling item's prose may legitimately CITE this token (e.g.
+# "the contrast with routed:4fa9 is the signal") while its own marker is different. A
+# substring test would delete that citing item too; the inbox is local-only and
+# destructive (vanish-on-resolve), so a wrong match is unrecoverable (id:411d).
+own_marker = re.compile(r'<!--\s*routed:' + re.escape(token) + r'\s*-->\s*$')
+# Vanish: drop the routed checkbox line entirely (any "- [ ]" / "- [x]") whose OWN
+# marker matches. Non-checkbox prose / sibling citations are left untouched.
 new_lines = [l for l in lines
-             if not (needle in l and l.lstrip().startswith("- ["))]
+             if not (own_marker.search(l.rstrip('\n')) and l.lstrip().startswith("- ["))]
 path.write_text("".join(new_lines))
 PYEOF
   ) 9>"${inbox}.lock"
