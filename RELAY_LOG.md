@@ -2281,3 +2281,7 @@ Review since relay-ckpt-20260708-1958: bookkeeping-only window (5 inbox ingests 
 ## 2026-07-10 11:18 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 Front-door --quota-7d→SEVEN_DAY only; sampler records .limits[] weekly_scoped; filed id:c471 (quota-gate loud-surface) + id:3a46 (preflight-delegation meeting); suite 204/0/0 [id:c471,3a46]
+
+## 2026-07-10 11:46 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+mechanical verdict now representable + surfaced (never dispatchable), mirroring human; roadmap-lint clean; suite 205/0/0 (id:d310/baf1) [id:d310,baf1]
