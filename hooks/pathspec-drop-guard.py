@@ -22,6 +22,12 @@ Consequently:
   • 'git commit -m "msg" -- file.py' (file.py staged) → never blocked
   • 'git commit -m "msg" fle.py' (typo, not staged)  → BLOCKED
 
+A command containing a command substitution, heredoc, or process substitution is
+never blocked: shlex cannot tokenize those bodies faithfully, so the guard cannot
+tell a pathspec from a fragment of a commit message.  This deliberately exempts
+the 'git commit -m "$(cat <<EOF ...)"' diary pattern from the guard rather than
+risk rejecting a valid commit (routed:b213).
+
 Tracks TODO id:b67e.
 
 Output
@@ -31,10 +37,28 @@ Outputs a JSON object to stdout:
   to let it proceed.
 """
 import json
+import re
 import shlex
 import subprocess
 import sys
 from typing import Optional
+
+# Shell constructs whose bodies shlex cannot tokenize faithfully: it treats quotes
+# *inside* a command substitution or heredoc body as shell quotes, so a single
+# literal quote in a commit message silently re-brackets the rest of the command
+# and the message tail is mis-read as pathspec arguments.  Presence of any of
+# these means "cannot reliably parse" — extract_path_args returns None and the
+# caller does not block.  Over-broad by design: a false bail merely disables the
+# guard for that command, whereas a false block rejects a legitimate commit.
+_UNPARSEABLE_CONSTRUCT = re.compile(
+    r"""
+      \$\(        # command substitution  $( ... )
+    | `           # legacy command substitution
+    | <<          # heredoc / herestring
+    | <\(         # process substitution
+    """,
+    re.VERBOSE,
+)
 
 # git commit options (short or long form) that consume the NEXT token as their value.
 # Long-form '--opt=value' tokens are handled by the '=' check and never reach this set.
@@ -56,6 +80,9 @@ def extract_path_args(command: str) -> Optional[list[str]]:
 
     Returns an empty list when the commit has no explicit path args.
     """
+    if _UNPARSEABLE_CONSTRUCT.search(command):
+        return None  # Command substitution / heredoc — don't block
+
     try:
         tokens = shlex.split(command)
     except ValueError:

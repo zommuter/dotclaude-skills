@@ -9,7 +9,7 @@
 
 ## Agenda
 1. Substrate diligence — Lean 4 vs Rust, answered honestly (the gating question).
-2. Toolchain / install / triad coordination — elan/lake, shared pin with mathematical-writing (id:aae4), sibling `relay-core` repo + GH-release binaries, opt-in capability-detect.
+2. Toolchain / install / triad coordination — elan/lake, shared pin with mathematical-writing [E1], sibling `relay-core` repo + GH-release binaries, opt-in capability-detect.
 3. Pilot = classify-verdict port — island order + flip gates + prerequisite bash sequencing.
 4. Theorem-vs-types-only policy per module.
 5. Executor-lane economics — HARD-lane initially; does theorem-gated delegation flip that?
@@ -97,14 +97,14 @@ Load-bearing theorems: (1) `reap_fail_closed : claimContext = unknown → reapSe
 
 ## Decisions
 
-- **D1 — Substrate: Lean pilot, REVISITABLE.** The classify-verdict pilot runs in Lean (exercising toolchain/distribution/flip machinery cheaply). Lean-vs-Rust+Kani stays re-decidable at the **island-2 go/no-go**, judged on (i) whether Lean's systems ergonomics held up in the pilot and (ii) whether triad Lean *code*-reuse is a named consumer by then (toesnail's live Lean + the aae4-owned shared verification tier are the evidence). If either fails, island 2 forks to Rust+Kani/Creusot. *Out of scope:* a final all-triad substrate commitment now; the Fable Rust verdict is recorded as the honest counter-case, not adopted.
-- **D2 — Toolchain: adopt Fable's scheme as recommended.** elan everywhere (never system Lean); each repo has a `lean-toolchain` file, all pinned to **mathematical-writing/aae4's canonical (Mathlib-constrained) version**; relay-core lakefile has **zero `require mathlib`** (`batteries` ceiling); relay-core is a **sibling repo**, normal lake package (`lean_exe relay-core @[default_target]`), **vX.Y.Z bump-and-tag**, per-arch **GH-release binaries**; the toolkit **capability-detects on PATH → bash fallback**; CI builds linux-x86_64 on `ubuntu-22.04` + linux-aarch64 on `ubuntu-22.04-arm` (native, free), **static-link via `moreLinkArgs` + `ldd` verify**; 32-bit armv7 Pis take the bash fallback (documented); drift guard = relay-core CI fetches aae4's `lean-toolchain` and **warns LOUDLY via relay-doctor** (not hard-fail); other triad repos' CLAUDE.md carry a one-line *pointer*, never a copied version string. *Out of scope:* hard-fail drift; in-repo lake package forced on toolkit consumers.
+- **D1 — Substrate: Lean pilot, REVISITABLE.** The classify-verdict pilot runs in Lean (exercising toolchain/distribution/flip machinery cheaply). Lean-vs-Rust+Kani stays re-decidable at the **island-2 go/no-go**, judged on (i) whether Lean's systems ergonomics held up in the pilot and (ii) whether triad Lean *code*-reuse is a named consumer by then (toesnail's live Lean + the `mathematical-writing`-owned shared verification tier are the evidence [E1]). If either fails, island 2 forks to Rust+Kani/Creusot. *Out of scope:* a final all-triad substrate commitment now; the Fable Rust verdict is recorded as the honest counter-case, not adopted.
+- **D2 — Toolchain: adopt Fable's scheme as recommended.** elan everywhere (never system Lean); each repo has a `lean-toolchain` file, all pinned to **the `mathematical-writing` repo's canonical (Mathlib-constrained) `lean-toolchain`** [E1]; relay-core lakefile has **zero `require mathlib`** (`batteries` ceiling); relay-core is a **sibling repo**, normal lake package (`lean_exe relay-core @[default_target]`), **vX.Y.Z bump-and-tag**, per-arch **GH-release binaries**; the toolkit **capability-detects on PATH → bash fallback**; CI builds linux-x86_64 on `ubuntu-22.04` + linux-aarch64 on `ubuntu-22.04-arm` (native, free), **static-link via `moreLinkArgs` + `ldd` verify**; 32-bit armv7 Pis take the bash fallback (documented); drift guard = relay-core CI fetches that canonical `lean-toolchain` [E1] and **warns LOUDLY via relay-doctor** (not hard-fail) — *superseded by F4 below, which moves the fetch to a local compare*; other triad repos' CLAUDE.md carry a one-line *pointer*, never a copied version string. *Out of scope:* hard-fail drift; in-repo lake package forced on toolkit consumers.
 - **D3 — Pilot sequence + flip gates.** Land **id:4860/0fa0/1cb8 in bash FIRST** — they become the golden parity oracle (porting first would bake the bugs into the corpus). **Island 1 = classify-verdict** → **Island 2 = reconcile planner** (= the substrate-revisit gate). Reuse the **a0b6 flip machinery** (shadow behind the existing JSON contract → backtest parity → gated flip → bash fallback until flip). Flip gate = **100% exact backtest parity on the fixture corpus** (any diff blocks) **+ N=5 clean consecutive shadow rounds** before freezing bash. Pilot DoD = binary at exact parity + 5 clean rounds + capability-detect/bash-fallback wired + relay-doctor reports the live path. *Out of scope:* reconcile planner (island 2), a72c repo-split, "prove the relay."
 - **D4 — Theorem-vs-types policy (per-module).** classify-verdict, parsers, claim/lease = **types-only** (+ cheap `parse∘render=id` round-trip lemma; + cheap fail-closed-mtime lemma on claim/lease). Prefer **unrepresentable over proved** wherever types reach (index the INTENSIVE flag by lane type so "INTENSIVE on a human lane" is unconstructable). **reconcile planner = theorems:** `reap_fail_closed` (unknown ctx ⇒ ∅) + `reap_live_disjoint` **per-input** form at **rung one** (ship with island 2); the "every reachable state" version (needs the I1–I9 state machine formalized) is **staged rung two**, non-blocking. **Axiom hygiene mandatory:** `#print axioms` on every named theorem + lint out `sorry`/`native_decide`/stray `axiom`. Do **not** ship island 2 without `reap_fail_closed`. *Out of scope:* theorems on classify-verdict/parsers (types suffice); the reachable-state disjointness proof at rung one.
 - **D5 — Executor-lane economics: apex-initial, delegation gated (observe-first).** Islands 1 & 2 are **both apex/HARD-lane initially.** Document the mechanism — a reviewer-**pinned theorem statement + `sorry`** is an **ungameable RED spec** (`lake build` + `#print axioms` clean cannot be faked, unlike a weakenable test) — as the future delegation unlock. Flip **proof-filling** to a cheaper executor lane **per-theorem**, only after the types-only idiom is established AND the remaining evidence bar is met. **Evidence refinement (user):** Opus-tier executor Lean competence is already demonstrated (toesnail); the outstanding bar is narrowly a **Sonnet-tier** demonstration on a pinned near-`rfl` proof. Per-theorem difficulty decides the lane; never a blanket flip. *Out of scope:* delegating types-only ports to Sonnet now; building the tiered-review economics.
 
 ## Action items
-- [ ] Create sibling **`relay-core`** Lean repo: elan + `lean-toolchain` (follows aae4 canonical), zero-Mathlib lakefile (`batteries` OK), `lean_exe relay-core @[default_target]`, vX.Y.Z bump-and-tag, CI per-arch GH-release binaries (x86_64 `ubuntu-22.04` + aarch64 `ubuntu-22.04-arm`, static-link + `ldd` verify), capability-detect on PATH → bash fallback, relay-doctor "mechanical core absent — legacy bash path" line + LOUD toolchain-drift warn. (D2) <!-- id:50c4 -->
+- [ ] Create sibling **`relay-core`** Lean repo: elan + `lean-toolchain` (follows the `mathematical-writing` canonical pin [E1]), zero-Mathlib lakefile (`batteries` OK), `lean_exe relay-core @[default_target]`, vX.Y.Z bump-and-tag, CI per-arch GH-release binaries (x86_64 `ubuntu-22.04` + aarch64 `ubuntu-22.04-arm`, static-link + `ldd` verify), capability-detect on PATH → bash fallback, relay-doctor "mechanical core absent — legacy bash path" line + LOUD toolchain-drift warn. (D2) <!-- id:50c4 -->
 - [ ] **Island 1 pilot** — port `classify-verdict` to Lean behind the existing JSON contract using the a0b6 strangler; flip gate = 100% exact backtest parity on the golden fixture corpus + N=5 clean consecutive shadow rounds; DoD includes capability-detect/bash-fallback + relay-doctor live-path report. **Blocked-on:** id:4860/0fa0/1cb8 landing in bash first (golden oracle). (D3) <!-- id:82c4 -->
 - [ ] **[GATED on island 1 shipped] Island 2** — reconcile PLANNER in Lean with `reap_fail_closed` + `reap_live_disjoint`(per-input) at rung one, reachable-state version staged rung two; axiom hygiene (`#print axioms` + lint `sorry`/`native_decide`/`axiom`); INTENSIVE-flag-by-lane-type unrepresentable. **This item IS the D1 substrate-revisit go/no-go** (Lean ergonomics held + triad Lean code-reuse named ⇒ proceed in Lean; else fork to Rust+Kani). (D1, D4) <!-- id:ba31 -->
 - [ ] Executor-lane: document the pinned-statement → ungameable-acceptance (`lake build` + `#print axioms` clean) delegation mechanism in the relay contract; keep islands apex-lane; flip proof-filling to Sonnet-executor lane only after a demonstrated **Sonnet-tier** near-`rfl` Lean proof (Opus-tier already shown via toesnail). (D5) <!-- id:7746 -->
@@ -160,16 +160,56 @@ constraints folded into the TODO twins (id:50c4/82c4/ba31/7746) in the same comm
   structurally excludes (b)+(c); and the axiom-hygiene lint extends to `implemented_by`,
   `extern`, `unsafe`, `partial` in the proven core (legitimate ONLY in the declared
   effectful rind, reviewer-owned). With those two additions the ungameable claim holds.
-- **F4 — D2's drift guard is unimplementable as ratified: aae4 has no GitHub remote.**
-  Verified: mathematical-writing's only remote is a private SSH remote on fievel, and no
-  `lean-toolchain` file exists there yet (routed:b8e5 creates it). A public relay-core's
-  GH CI cannot fetch the canonical pin. Fix: the drift CHECK moves to where D2 already put
-  the WARN — **relay-doctor compares the two local checkouts** (`~/src/mathematical-writing/lean-toolchain`
-  vs relay-core's); relay-core CI asserts only internal consistency (its own
-  `lean-toolchain` vs what the lakefile expects). Constraint folded into id:50c4.
+- **F4 — D2's drift guard is unimplementable as ratified: `mathematical-writing` has no
+  GitHub remote** [E1]. Verified: mathematical-writing's only remote is a private SSH remote
+  on fievel, and — *as of the 2026-07-08 session* — no `lean-toolchain` file existed there
+  yet (routed:b8e5 creates it). A public relay-core's GH CI cannot fetch the canonical pin.
+  Fix: the drift CHECK moves to where D2 already put the WARN — **relay-doctor compares the
+  two local checkouts** (`~/src/mathematical-writing/lean-toolchain` vs relay-core's);
+  relay-core CI asserts only internal consistency (its own `lean-toolchain` vs what the
+  lakefile expects). Constraint folded into id:50c4.
+
+  **F4 amended 2026-07-10 [E2] — the named path now exists, and the pin is DERIVED, not
+  authored.** `mathematical-writing/lean-toolchain` was created and tracked on 2026-07-10
+  (mw commit `23a8c9f`, mw id:4695, per D3 of
+  `mathematical-writing/docs/meeting-notes/2026-07-10-1421-lean-toolchain-pin-ownership.md`).
+  It is a **generated artifact**: mw's `tests/lean_fixture/setup-fixture.sh` reflinks the
+  vendored Mathlib tree, reads `.lake/packages/mathlib/lean-toolchain` out of the *copied*
+  tree, and writes that value to both the fixture pin and the repo-root `lean-toolchain`
+  (the published derivation); `setup-fixture.sh --check` asserts cache == derivation. So the
+  canonical pin is **downstream of the vendored Mathlib rev** — it is never hand-edited, and
+  a bump propagates by re-deriving, not by editing a version string. The private-remote
+  premise **still holds** (origin is `fievel:src/mathematical-writing.git`), so F4's local-compare
+  fix stands unchanged; only its "file does not exist yet" clause is spent. relay-doctor's
+  compare is therefore implementable exactly as F4 specified: read both local files, LOUD warn
+  on drift, **skip (not fail) when mathematical-writing is absent**, never hard-fail.
 - **Minor (id:50c4):** `lean_exe relay-core` — a hyphen is not a Lean identifier; use
   `lean_exe «relay-core»` (or name it `relay_core` and rename the release artifact).
   Static linking needs the static archives installed on the runner (libgmp; recent
   toolchains also link libuv) — the ratified `ldd` verify is the catch if they're missing.
-  `batteries` is toolchain-coupled too: bump its lake pin in the same week-of-aae4-bump
-  cadence as the toolchain.
+  `batteries` is toolchain-coupled too: bump its lake pin in the same
+  week-of-`mathematical-writing`-bump cadence as the toolchain [E1].
+
+## Erratum (2026-07-10)
+
+- **[E1] `id:aae4` was mis-cited throughout this note as the owner of the canonical Lean
+  toolchain pin.** It is not. `id:aae4` is the **"inflownistration"** concept item
+  (general information-dependency propagation) tracked in `mathematical-writing/TODO.md`;
+  this repo carries it only as a `<!-- ref:aae4 -->` pointer in `TODO.md`. The referent the
+  personas actually meant is the **`mathematical-writing` repo itself** — the Mathlib-constrained
+  member of the triad, whose `lean-toolchain` is the canonical pin. Corrected above in **D2**,
+  **F4**, the **Minor** note, and action item `id:50c4`; the twins in this repo's `TODO.md`
+  (`id:50c4`, `id:82c4`) are corrected in the same commit. The **persona transcript above
+  (Fable's take, Sage, Petra) is left verbatim as historical record** — those speakers said
+  "aae4", and rewriting their words would be the drift this erratum exists to stop. Read every
+  "aae4" in the transcript as "the `mathematical-writing` repo". No decision changes: the pin
+  ownership, the bump cadence, and the drift-guard mechanism are all unaffected by the
+  correction — only the citation was wrong. (Routed in as `routed:1a98` from
+  `mathematical-writing/docs/meeting-notes/2026-07-10-1421-lean-toolchain-pin-ownership.md`.)
+- **[E2] F4's "no `lean-toolchain` file exists there yet" clause is spent** — see the F4
+  amendment above. The file now exists, is tracked, and is *derived* from the vendored Mathlib
+  rev. F4's *fix* (local compare in relay-doctor) is unchanged and is implemented under `id:50c4`.
+- **Open, NOT fixed here:** `routed:b8e5` is a **partial dead letter**. Its pin-file half landed
+  (mw commit `23a8c9f`), but `mathematical-writing/docs/lean-toolchain-policy.md` does not exist
+  and mw's `TODO.md` carries no `b8e5` twin — the exact failure class `id:3947` tracks. Left for
+  the owner of that repo; not actioned from here.

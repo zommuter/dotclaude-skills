@@ -569,6 +569,52 @@ relay_core_shadow_check() {
   log "relay-core-shadow bin=${bin:-absent} rounds=$rounds mismatches=$mismatches"
 }
 
+# --- check 13: local lean-toolchain drift (id:50c4 — F4) -------------------------
+# The triad's CANONICAL Lean pin is mathematical-writing's repo-root `lean-toolchain`
+# (a DERIVED artifact — its fixture setup writes the version out of the vendored Mathlib
+# tree). relay-core carries its own `lean-toolchain` that MUST track it. mathematical-
+# writing's only remote is a private SSH host, so a public CI can't fetch the pin; the
+# compare therefore runs LOCALLY here. SKIP-IF-ABSENT (either pin missing → informational,
+# no issue), OK when equal, LOUD warn + 1 issue when they diverge. Report-only like every
+# other check — never hard-fails. Paths honour env overrides for hermetic tests.
+lean_toolchain_drift_check() {
+  echo "=== lean-toolchain drift (mathematical-writing ↔ relay-core, id:50c4) ==="
+  local mw_pin rc_pin
+  mw_pin="${MW_LEAN_TOOLCHAIN:-$SRC_DIR/mathematical-writing/lean-toolchain}"
+  rc_pin="${RELAY_CORE_LEAN_TOOLCHAIN:-$SRC_DIR/relay-core/lean-toolchain}"
+
+  if [[ ! -r "$mw_pin" ]]; then
+    echo "canonical pin absent/unreadable ($mw_pin) — skipped (no triad pin to compare against)"
+    echo
+    log "lean-toolchain-drift skipped mw-pin-absent=$mw_pin"
+    return 0
+  fi
+  if [[ ! -r "$rc_pin" ]]; then
+    echo "relay-core pin absent/unreadable ($rc_pin) — skipped (relay-core is optional/local-only)"
+    echo
+    log "lean-toolchain-drift skipped rc-pin-absent=$rc_pin"
+    return 0
+  fi
+
+  # Trim leading/trailing whitespace + the trailing newline the files carry.
+  local mw_ver rc_ver
+  mw_ver="$(tr -d '[:space:]' < "$mw_pin")"
+  rc_ver="$(tr -d '[:space:]' < "$rc_pin")"
+
+  if [[ "$mw_ver" == "$rc_ver" ]]; then
+    echo "pins agree: $mw_ver (canonical $mw_pin == relay-core $rc_pin)"
+    log "lean-toolchain-drift ok version=$mw_ver"
+  else
+    echo "DRIFT — lean-toolchain pins DIVERGE:"
+    echo "  canonical (mathematical-writing): $mw_ver  ($mw_pin)"
+    echo "  relay-core:                       $rc_ver  ($rc_pin)"
+    echo "  → relay-core must track the canonical triad pin; re-sync before Lean work."
+    issues_total=$((issues_total + 1))
+    log "lean-toolchain-drift DRIFT mw=$mw_ver rc=$rc_ver"
+  fi
+  echo
+}
+
 # --- check 8: inbox routed dead-letters (id:678e slice 1, cross-repo once-only) ---
 # Reports routed inbox items whose target repo never ingested them + non-conforming
 # inbox entries. REPORT-ONLY (never writes — slice-2 auto-write is gated). Cross-repo
@@ -700,6 +746,7 @@ parked_orphans_check
 routed_deadletter_check   # id:678e slice 1 — inbox routed dead-letters (report-only)
 quota_config_check   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + threshold bounds)
 relay_core_shadow_check   # id:82c4 — which classify path is live (legacy bash vs relay-core shadow)
+lean_toolchain_drift_check   # id:50c4 — F4 local lean-toolchain drift compare
 
 # --- coverage honesty (D4, meeting 2026-06-24): never look falsely-green ---------
 # LIST the checks that are designed but NOT yet wired, so this report's coverage is
