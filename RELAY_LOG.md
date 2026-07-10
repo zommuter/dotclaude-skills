@@ -2327,3 +2327,22 @@ Verified id:411d genuinely green (inbox-done anchors on own routed marker, spec 
 ## 2026-07-10 19:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 handoff C1-C4: promoted id:77ce (reconcile-repo.sh pure planner + --dry-run parity oracle) with RED spec test_reconcile_planner.sh; suite 213/0/1-red [id:77ce]
+
+## 2026-07-10 — executor (Sonnet)
+
+Worked id:77ce — refactored `relay/scripts/reconcile-repo.sh` into a pure PLAN phase
+(read-only git observations → actions/surfaced lists, zero mutating git calls) + a thin
+APPLY phase (walks the planned action list and performs the mutation per kind: ff-merge,
+lock-commit, reap, park). Added `--dry-run`: runs PLAN, emits the same JSON, stops before
+APPLY. Also replaced the `live_claims_provided` bool + `live_claims` string pair with one
+sentinel-bearing tri-state variable (`__UNSET__`/`""`/`"a,b"`) per the id:e3ad design note
+(Option-as-bool-default cost). tests/test_reconcile_planner.sh (6 cases: dry-run-no-mutate
+for ff-merge/lock-commit/reap/park, parity oracle, fail-closed-preserved) now green;
+tests/test_reconcile_repo.sh (live behavior, id:5987) stays green — no regression. Full
+suite 214/0/0-red. Ticked id:77ce in both ROADMAP.md and its TODO.md twin (INBOUND
+routed:2f0c). Friction: the TODO.md deliverable list also named "git-free unit tests" for
+the decision core; PLAN still reads real git state via read-only calls (not a fully
+git-free decision function) — the git-fixture PLAN-only/dry-run tests shipped here are the
+unit-test-equivalent; a further decision-core extraction (feeding a synthesized observation
+record with no git repo at all) is left as a possible follow-up if relay-core's ebdb-b port
+needs it, since it wasn't in the item's Acceptance/Done-check.
