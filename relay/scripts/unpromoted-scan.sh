@@ -268,7 +268,7 @@ for line in sys.stdin:
       disposition="surface"
     fi
     # Title: the line's prose minus the leading "- [ ] " and the trailing id comment.
-    title="$(sed -E 's/^- \[ \] +//; s/[[:space:]]*<!-- id:[0-9a-f]{4} -->[[:space:]]*$//' <<<"$line")"
+    title="$(sed -E 's/^- \[ \] +//; s/[[:space:]]*<!-- (children|gated-on):[0-9a-f,]+ -->//g; s/[[:space:]]*<!-- id:[0-9a-f]{4} -->[[:space:]]*$//' <<<"$line")"
     printf '%s\t%s\t%s\t%s\n' "$name" "$token" "$disposition" "$title"
     repo_findings=$((repo_findings + 1))
   done < <(grep -E '^- \[ \] ' "$todo" 2>/dev/null || true)

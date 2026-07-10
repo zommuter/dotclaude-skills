@@ -69,6 +69,32 @@ if [[ "${1:-}" == "scan-ids" ]]; then
   exit 0
 fi
 
+# new-children: mint N collision-free child tokens for a parent SPLIT and, in the same
+# call, emit the parent's typed `children:` marker so the corpus stops accruing umbrella
+# blindspots (id:06e3, typed-ledger-edges 2026-07-10). Prints each child token one per
+# line (identical to new-ids), THEN a final line with the marker to attach at the
+# parent's terminal id comment — form C: `<!-- children:t1,t2,…,tN --> <!-- id:PARENT -->`.
+# Emit-only: writing the marker INTO TODO.md goes through md-merge.py (line-scoped, under
+# flock); append.sh never edits ledgers, so no flock is taken here (mint only reads).
+# Usage: append.sh new-children N [<root-dir>]
+if [[ "${1:-}" == "new-children" ]]; then
+  COUNT="${2:-1}"; ROOT="${3:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  existing=$(scan_ids "$ROOT")
+  emitted=0; toks=()
+  while (( emitted < COUNT )); do
+    token=$(python3 -c 'import secrets; print(secrets.token_hex(2))')
+    if ! grep -qF "id:$token" <<< "${existing}"; then
+      echo "$token"
+      toks+=("$token")
+      existing+=$'\nid:'"$token"  # guard against duplicates within this batch
+      (( ++emitted ))
+    fi
+  done
+  csv="$(IFS=,; echo "${toks[*]}")"
+  printf '<!-- children:%s -->\n' "$csv"
+  exit 0
+fi
+
 # new-id / new-ids: emit collision-free random 4-hex token(s) for meeting action items.
 # Usage: append.sh new-id  [<root-dir>]     — emit 1 token
 #        append.sh new-ids N [<root-dir>]   — emit N tokens, one per line (single scan)

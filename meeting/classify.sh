@@ -33,6 +33,7 @@ while IFS= read -r line; do
     # Strip leading "- [ ] " and trailing ID comment for body text
     body=$(printf '%s' "$line" \
         | sed 's/^[[:space:]]*- \[ \] //' \
+        | sed -E 's/ *<!-- (children|gated-on):[0-9a-f,]+ -->//g' \
         | sed 's/ *<!-- id:[a-f0-9]* -->//')
     summary=$(printf '%s' "$body" | cut -c1-80)
 
