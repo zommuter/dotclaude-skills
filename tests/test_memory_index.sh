@@ -249,4 +249,53 @@ grep -q "^- \[no-meta\](nometa.md) —" "$D/MEMORY.md" \
     || fail "test11d: file without a metadata block was not handled"
 pass "test11: title→name→stem resolution order (and no-metadata / trailing-space robustness)"
 
+# ── test 12: hook-text invariants vs git HEAD (id:7d97) ───────────────────────
+# Uses a real git repo fixture (memory-index.py diffs against `git show HEAD:`).
+D="$TMP/t12"; mkdir -p "$D"
+git -C "$D" init -q
+git -C "$D" -c user.email=test@example.com -c user.name=test commit -q --allow-empty -m init
+
+mkmem "$D" "pref.md"  "pref"  "" "user: never do X"
+mkmem "$D" "bold.md"  "bold"  "" "always run **make test** first"
+mkmem "$D" "caps.md"  "caps"  "" "NEVER skip the check"
+mkmem "$D" "fresh.md" "fresh" "" "brand new memory, no HEAD version"
+python3 "$TOOL" --dir "$D" --write --project t12
+git -C "$D" add -A
+git -C "$D" -c user.email=test@example.com -c user.name=test commit -q -m "seed t12 fixtures"
+
+# (a) 'user:' prefix stripped → flagged
+mkmem "$D" "pref.md" "pref" "" "never do X"
+# (b) bold emphasis token dropped → flagged
+mkmem "$D" "bold.md" "bold" "" "always run make test first"
+# (c) unrelated file re-written with the SAME hook text → must NOT be flagged
+mkmem "$D" "caps.md" "caps" "" "NEVER skip the check"
+# (d) brand-new memory added AFTER the commit (no HEAD version) → must NOT be flagged
+mkmem "$D" "new.md" "new" "" "user: totally new, never committed"
+python3 "$TOOL" --dir "$D" --write --project t12
+
+set +e
+OUT="$(python3 "$TOOL" --dir "$D" --check --project t12)"
+RC=$?
+set -e
+[[ $RC -ne 0 ]] || fail "test12: expected non-zero exit when a hook invariant regressed"
+echo "$OUT" | grep -q "pref.md.*user:" || fail "test12a: lost 'user:' prefix not flagged, got: $OUT"
+echo "$OUT" | grep -q "bold.md" || fail "test12b: lost emphasis token not flagged, got: $OUT"
+echo "$OUT" | grep -q "caps.md" && fail "test12c: unchanged hook (caps.md) was wrongly flagged, got: $OUT"
+echo "$OUT" | grep -q "new.md" && fail "test12d: brand-new memory (new.md) was wrongly flagged, got: $OUT"
+pass "test12: --check flags a stripped 'user:' prefix and a lost emphasis token vs git HEAD, and leaves unchanged/new entries alone"
+
+# ── test 13: clean (no invariant regressions) → --check exits 0 in a git repo ──
+D="$TMP/t13"; mkdir -p "$D"
+git -C "$D" init -q
+mkmem "$D" "same.md" "same" "" "user: keep this stable"
+python3 "$TOOL" --dir "$D" --write --project t13
+git -C "$D" add -A
+git -C "$D" -c user.email=test@example.com -c user.name=test commit -q -m "seed t13"
+set +e
+python3 "$TOOL" --dir "$D" --check --project t13 >/dev/null
+RC=$?
+set -e
+[[ $RC -eq 0 ]] || fail "test13: unchanged index in a git repo should still --check clean, got $RC"
+pass "test13: an unchanged index is a clean no-op for the hook-invariant check too"
+
 echo "ALL PASS"
