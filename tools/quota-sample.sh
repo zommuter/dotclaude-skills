@@ -124,7 +124,14 @@ LINE=$(jq -c \
     five_hour_resets_at:  (.five_hour.resets_at  // null),
     seven_day_resets_at:  (.seven_day.resets_at  // null),
     extra_credits_used:   (.extra_usage.used_credits // null),
-    extra_utilization:    (.extra_usage.utilization  // null)
+    extra_utilization:    (.extra_usage.utilization  // null),
+    # Per-model weekly sub-limits went null in the top-level buckets on 2026-06-30
+    # (usage-api-per-model-weekly-null-2026-06-30); they now live in .limits[] as
+    # weekly_scoped entries. Capture {model, percent, is_active} to observe whether one
+    # ever activates — nothing gates or renders on this yet (observe-before-preventing).
+    weekly_scoped: [ (.limits // [])[] | select(.kind == "weekly_scoped")
+                     | { model: (.scope.model // null), percent: (.percent // null),
+                         is_active: (if has("is_active") then .is_active else null end) } ]
   }' "$CACHE")
 
 # Atomic append under a local lock (concurrent timer/manual runs).

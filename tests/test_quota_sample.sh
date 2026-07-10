@@ -20,7 +20,13 @@ cat > "$CACHE" <<'JSON'
 {"five_hour":{"utilization":12.0,"resets_at":"2026-06-19T19:00:00+00:00"},
  "seven_day":{"utilization":60.0,"resets_at":"2026-06-23T12:00:00+00:00"},
  "seven_day_sonnet":{"utilization":40.0,"resets_at":"2026-06-23T12:00:00+00:00"},
- "extra_usage":{"used_credits":1.5,"utilization":7.0}}
+ "extra_usage":{"used_credits":1.5,"utilization":7.0},
+ "limits":[
+   {"kind":"session","group":"session","percent":6,"is_active":true,"scope":null},
+   {"kind":"weekly_all","group":"weekly","percent":2,"is_active":false,"scope":null},
+   {"kind":"weekly_scoped","group":"weekly","percent":0,"is_active":false,
+    "scope":{"model":{"id":null,"display_name":"Fable"},"surface":null}}
+ ]}
 JSON
 
 DATA="$TMP/diary/quota/quota-samples.jsonl"
@@ -38,6 +44,12 @@ check "$(printf '%s' "$row" | jq -r '.seven_day_sonnet')" "40.0" "sonnet capture
 check "$(printf '%s' "$row" | jq -r '.source')" "cache" "source=cache when reused"
 check "$(printf '%s' "$row" | jq -r '.extra_credits_used')" "1.5" "extra credits captured"
 check "$(printf '%s' "$row" | jq -r '.stale')" "false" "fresh cache not flagged stale"
+# .limits[] weekly_scoped entries are recorded {model, percent, is_active}; only the
+# weekly_scoped kind (not session/weekly_all) is captured (observe-before-preventing).
+check "$(printf '%s' "$row" | jq -r '.weekly_scoped | length')" "1" "one weekly_scoped entry captured"
+check "$(printf '%s' "$row" | jq -r '.weekly_scoped[0].model.display_name')" "Fable" "weekly_scoped model captured"
+check "$(printf '%s' "$row" | jq -r '.weekly_scoped[0].percent')" "0" "weekly_scoped percent captured"
+check "$(printf '%s' "$row" | jq -r '.weekly_scoped[0].is_active')" "false" "weekly_scoped is_active captured"
 
 echo "== reporter flags a >=15pp jump and ignores a reset drop =="
 # Synthetic series: 60 -> 95 (a +35pp spike), then a reset drop 95 -> 2 (must NOT flag).
