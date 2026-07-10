@@ -3,6 +3,18 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+- [ ] **Do NOT auto-close the inbox-rehaul umbrella id:9fdb just because its child id:411d shipped (review 2026-07-10 1710).**
+  `orphan-scan --shipped` now reports id:9fdb `UMBRELLA-READY (all children [x])` because its only
+  typed child edge is `<!-- children:411d -->` and I ticked id:411d this pass. But id:9fdb is a
+  `[HARD — meeting]` design decision — its body weighs multiple structural directions ("make manual
+  `inbox-done` refuse unless the target twin exists", back the inbox with an existing private git
+  repo, non-destructive move-to-archive resolve, a conformance rule) and explicitly says "Directions
+  to weigh (decide the ordering)… Evaluate FIRST." id:411d delivered only direction (d), the cheap
+  interim anchor guard, which the item itself flagged "do this regardless." The umbrella's real work
+  (dissolve-vs-guard, decide the ordering) is undischarged. **Action:** either narrow the
+  `children:` edge / re-scope id:9fdb so it no longer reads as ready, or run `/meeting` on it — but
+  do NOT tick it on the strength of the interim guard alone.
+
 - [ ] **Installed `~/.claude/skills/relay/scripts/` is stale — re-run `make install-relay` (review 2026-07-08 1625).**
   `relay/scripts/lib-own-repos.sh` was added this cycle and IS listed in the Makefile's
   `relay_FILES` (Makefile:63), so the SOURCE is correct — but the installed tree has no
