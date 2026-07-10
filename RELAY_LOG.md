@@ -2293,3 +2293,7 @@ baf1: kill human-backlog meeting overcount at source (human_decision bucket + re
 ## 2026-07-10 12:36 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 close id:5937 deny-tail probe (D4→branch 1, auto-mode approves all 12 op-classes) + land harness (deny-tail-probe.sh + ref doc) + security invariant id:453a (--disallowedTools not a boundary); suite 207/0 [id:5937,453a,e2b1,13ae]
+
+## 2026-07-10 13:16 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Review since relay-ckpt-20260710-1236: window was a single clean TODO doc commit (id:d484, id:f3a0 filed); gaming-scan clean, suite 207/0/0, orphan/lint/doctor clean; reverse-handoff kept both new items as TODO design-judgment (no ROADMAP promotion). [id:d484,f3a0]
