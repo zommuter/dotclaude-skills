@@ -2914,7 +2914,7 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     would break every repo still on `[HARD — *]`.
   - **d259 RATIFIED 2026-07-06 (meeting `docs/meeting-notes/2026-07-06-0959-machine-tag-format-endgame.md`):** endgame = (C) tag-first bracketed position (B rejected). The reorder tool (`lane-convert --reorder` isolated mode) + tag-first WARN lint are built AHEAD, ungated, as **id:4b37** — NOT authored inside this item. So this item's acceptance step 1 becomes: run the ALREADY-BUILT `lane-convert --in-place --reorder` (renames + reorders in one pass), and step 3's FINAL flip also flips 4b37's tag-first lint WARN→ERROR alongside old-vocab→ERROR (one window-close). Delete the 7 anchoring reimplementations in the step-2 reader migration.
 
-## [MECHANICAL] lane-anchor hotfix (relay handoff 2026-07-03)
+## lane-anchor hotfix (relay handoff 2026-07-03)
 
 - [x] classify-repo.sh open_mechanical must be LANE-ANCHORED, not a bare substring [ROUTINE] <!-- id:0d58 -->
   - **Why** (TODO id:0d58): `classify-repo.sh` has two disagreeing tag readers on an open
@@ -2936,7 +2936,7 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     yield the `mechanical` verdict; (2) a GENUINE `[MECHANICAL]`-primary item STILL counts and
     STILL classifies `mechanical` (no over-correction to zero). `make test` fully green.
 
-## [MECHANICAL] recipe explicit-success-marker doctrine (relay handoff 2026-07-03)
+## recipe explicit-success-marker doctrine (relay handoff 2026-07-03)
 
 - [x] `[MECHANICAL]` recipes must write an EXPLICIT success/failure marker into the acceptance_artifact [ROUTINE] <!-- id:fd37 -->
   - **Why** (TODO id:fd37, pilot finding — mechanical-daemon's first real firing on zkWhale
@@ -2964,7 +2964,7 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     marker cmd; (c) NO warning for a cmd carrying the canonical `exit=$rc` marker (no false
     positive). `make test` fully green.
 
-## [ROUTINE] case-c bare-only lane count (relay handoff 2026-07-03, owner-signed-off)
+## case-c bare-only lane count (relay handoff 2026-07-03, owner-signed-off)
 
 - [x] `roadmap-lint.sh` case-c must count only BARE (non-backtick'd) lane tags [ROUTINE] <!-- id:9078 -->
   - **Why** (TODO id:9078, owner-signed-off option a): case-c (id:09a3) counts ALL lane
@@ -2989,6 +2989,33 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     conflict (`[HARD — pool] [ROUTINE]`, both un-backtick'd) is STILL loud-rejected. The
     repointed `tests/test_roadmap_lint_tagprose.sh` case-c fixture (now a genuine two-bare
     conflict) STILL passes. `make test` fully green.
+
+## mechanical-lane representability fix (relay HARD, user-injected id:baf1, 2026-07-10)
+
+- [x] Make the 'mechanical' verdict REPRESENTABLE + SURFACED (never DISPATCHABLE), mirroring 'human' [ROUTINE] <!-- id:d310 -->
+  - **Why** (findings verified 2026-07-10 against live code + a running pool): `classify-verdict.sh`
+    emits `verdict=mechanical` (priority_rank 6) for a repo whose only remaining backlog is open
+    `[MECHANICAL]` items, but `relay-loop.js` OMITTED 'mechanical' from its shard verdict enum and
+    from `PRIORITY`. So the first repo whose only backlog was `[MECHANICAL]` produced a verdict its
+    own runner's structured output could not validate — and it sorted as `NaN`, silently dropped.
+    CRITICAL INVARIANT (classify-verdict.sh:180): mechanical work is POOL-INERT — a host daemon
+    dispatches it (A3, gated), NEVER the LLM pool. It must become REPRESENTABLE + SURFACED, never
+    DISPATCHABLE — exactly how 'human' is handled (present in enum + PRIORITY rank 5, absent from
+    `PHASE_BY_VERDICT`, never spawns an executor child).
+  - **Done** (2026-07-10): (1) added `'mechanical'` to the DISCOVER_SCHEMA verdict enum (reused by
+    SHARD_SCHEMA) so the shard output validates; (2) added `mechanical: 6` to `PRIORITY` (matches
+    classify-verdict's priority_rank) + a mechanical-surface partition that pulls mechanical units
+    out of `actionable` before dispatch and spreads them into `state.queued` (RELAY_STATUS Queued)
+    with a pool-inert / host-daemon reason — no agent is ever spawned (contrast 'human's file-surface
+    agent); (3) repaired the three `## [LANE] … (relay handoff 2026-07-03)` heading-as-item
+    roadmap-lint violations (dropped the lane tag from the section headers whose child items are
+    already `[x]`-tagged — the two `[MECHANICAL]` ones named in id:baf1 plus the sibling `[ROUTINE]`
+    one from the same batch, needed for lint to reach exit 0); (4) `tests/test_relay_mechanical_verdict.sh`
+    (`# roadmap:d310`) asserts the full round-trip: classify-verdict emits it, it validates against
+    the shard enum, ranks 6, is surfaced, and is NEVER dispatched (absent from `PHASE_BY_VERDICT`,
+    pulled from `actionable`, no agent). Updated `test_relay_loop_structure.sh`'s pinned enum +
+    PRIORITY assertions. NOT in scope: the verdict→recipe bridge (A3, deliberately gated → /meeting).
+    `make test` fully green; `roadmap-lint.sh` clean.
 
 ## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
 
