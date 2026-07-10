@@ -2346,3 +2346,7 @@ git-free decision function) — the git-fixture PLAN-only/dry-run tests shipped 
 unit-test-equivalent; a further decision-core extraction (feeding a synthesized observation
 record with no git repo at all) is left as a possible follow-up if relay-core's ebdb-b port
 needs it, since it wasn't in the item's Acceptance/Done-check.
+
+## 2026-07-10 19:52 — executor (sonnet, relay-loop)
+
+Split reconcile-repo.sh into pure PLAN + thin APPLY with --dry-run parity oracle (id:77ce); full suite 214/0/0-red [id:77ce]
