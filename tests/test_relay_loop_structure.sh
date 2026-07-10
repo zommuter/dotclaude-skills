@@ -162,15 +162,18 @@ pass "per-round cap distinct from run-ending quotaStopped"
 
 # 'hard' is in the DISCOVER_SCHEMA verdict enum, alongside an openHard count field.
 # id:5eb3: 'human' was added to the enum (surface-only verdict, rank 5).
-grep -qF "verdict: { enum: ['execute', 'review', 'hard', 'handoff', 'human', 'idle'] }" "$JS" \
-  || fail "DISCOVER_SCHEMA verdict enum missing 'hard' or 'human'"
+# id:7616: 'mechanical' was added to the enum (pool-inert MECHANICAL-only backlog, rank 6) so
+# classify-verdict.sh's mechanical verdict validates against the shard schema (round-trip).
+grep -qF "verdict: { enum: ['execute', 'review', 'hard', 'handoff', 'human', 'mechanical', 'idle'] }" "$JS" \
+  || fail "DISCOVER_SCHEMA verdict enum missing 'hard'/'human'/'mechanical'"
 grep -q "openHard:" "$JS" || fail "DISCOVER_SCHEMA missing openHard count"
 pass "hard verdict + openHard count in DISCOVER_SCHEMA"
 
-# PRIORITY ordering: execute < review < hard < handoff < human (id:5eb3: human=5)
-grep -qF "const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3, human: 5 }" "$JS" \
-  || fail "PRIORITY ordering not exactly execute:0 review:1 hard:2 handoff:3 human:5"
-pass "PRIORITY ranks hard after execute+review, before handoff; human lowest dispatchable"
+# PRIORITY ordering: execute < review < hard < handoff < human < mechanical
+# (id:5eb3: human=5; id:7616: mechanical=6, pool-inert, matches classify-verdict.sh priority_rank).
+grep -qF "const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3, human: 5, mechanical: 6 }" "$JS" \
+  || fail "PRIORITY ordering not exactly execute:0 review:1 hard:2 handoff:3 human:5 mechanical:6"
+pass "PRIORITY ranks hard after execute+review, before handoff; human < mechanical (pool-inert) lowest"
 
 # Opus-only gate: hard units are dropped/deferred unless STRONG_MODEL is apex Opus.
 grep -qF "if (STRONG_MODEL !== 'claude-opus-4-8') {" "$JS" \
