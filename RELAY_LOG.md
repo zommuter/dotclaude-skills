@@ -2277,3 +2277,7 @@ Review since relay-ckpt-20260708-1925: window was bookkeeping-only; fixed in-win
 ## 2026-07-10 11:11 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Review since relay-ckpt-20260708-1958: bookkeeping-only window (5 inbox ingests + fix closing id:83b7 +3 dups, filing id:9e06); verified lib-own-repos.sh symlink restores relay-doctor, suite 204/0/0, gaming-scan clean, orphan/cross-ledger clean. [id:83b7,5721,203a,b591,9e06,4958]
+
+## 2026-07-10 11:18 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+Front-door --quota-7d→SEVEN_DAY only; sampler records .limits[] weekly_scoped; filed id:c471 (quota-gate loud-surface) + id:3a46 (preflight-delegation meeting); suite 204/0/0 [id:c471,3a46]
