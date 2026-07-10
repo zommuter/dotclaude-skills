@@ -188,9 +188,13 @@ const MAX_UNITS = A.MAX_UNITS || 20
 // hard (id:da26): Opus-apex HARD-execute, ranked AFTER execute and review but BEFORE
 // handoff — review still beats a fresh strong-execute (preserves the D3 anti-gaming
 // window), and a HARD item with a worked roadmap is more actionable than a fresh handoff.
-// human (id:5eb3): surface-only verdict (promote==0 ∧ surface>0), rank 5 — lowest priority
-// among non-idle verdicts; never dispatched as an executor child (mechanical filing only).
-const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3, human: 5 }
+// human (id:5eb3): surface-only verdict (promote==0 ∧ surface>0), rank 5 — never dispatched
+// as an executor child (mechanical filing only).
+// mechanical (id:7616): MECHANICAL-only backlog (open [MECHANICAL] items, nothing higher),
+// rank 6 — POOL-INERT. A host daemon dispatches this (A3, gated), NEVER the LLM pool. Present
+// in the schema enum + here for a valid round-trip and to SURFACE it (RELAY_STATUS Queued),
+// but — exactly like `human` — it is ABSENT from PHASE_BY_VERDICT and never spawns a child.
+const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3, human: 5, mechanical: 6 }
 
 // True when THIS session's strong tier is real Fable (not an Opus substitute). Gates
 // the standin re-review preference so an Opus run never re-reviews its own standin work.
@@ -387,7 +391,10 @@ const DISCOVER_SCHEMA = {
         properties: {
           repo: { type: 'string' },
           path: { type: 'string' },
-          verdict: { enum: ['execute', 'review', 'hard', 'handoff', 'human', 'idle'] },
+          // 'mechanical' (id:7616) is a VALID verdict classify-verdict.sh emits (priority_rank 6)
+          // for a MECHANICAL-only backlog — it MUST be in the enum so the first such repo's shard
+          // output validates. It is POOL-INERT (pulled out before dispatch, surfaced not run).
+          verdict: { enum: ['execute', 'review', 'hard', 'handoff', 'human', 'mechanical', 'idle'] },
           reason: { type: 'string' },
           lastCkpt: { type: 'string' },
           income: { type: 'boolean' },
@@ -1331,6 +1338,27 @@ Report the single output line. If it exits non-zero, report the error; do not re
   }
 }
 
+// id:7616 — mechanical-verdict surface (POOL-INERT). A `mechanical` verdict (classify-verdict.sh
+// priority_rank 6) means the repo's only remaining backlog is open [MECHANICAL] items — pure-compute
+// work a HOST DAEMON dispatches (A3, gated), NEVER the LLM pool. Mirror the CONTRACT of the `human`
+// verdict EXACTLY: present in the schema enum + PRIORITY and SURFACED, but never dispatched as an
+// executor child and ABSENT from PHASE_BY_VERDICT. Pull mechanical units out of the dispatch queue
+// so no child is ever spawned, and surface them in RELAY_STATUS Queued with a clear pool-inert
+// reason so they are VISIBLE, not silently dropped. Unlike `human` there is not even a mechanical
+// filing agent — the host daemon (A3, gated) owns the actual dispatch; the pool only makes it seen.
+let mechanicalSurfaced = []
+{
+  const nonMechanical = []
+  for (const u of actionable) {
+    if (u.verdict === 'mechanical') mechanicalSurfaced.push(u)
+    else nonMechanical.push(u)
+  }
+  actionable = nonMechanical
+  if (mechanicalSurfaced.length) {
+    log(`relay-loop: id:7616 — ${mechanicalSurfaced.length} mechanical-verdict unit(s) (open [MECHANICAL] backlog): POOL-INERT — surfaced in RELAY_STATUS Queued, NEVER dispatched (host daemon A3, gated): ${mechanicalSurfaced.map(u => u.repo).join(', ')}`)
+  }
+}
+
 // Refresh the cross-round accumulator's per-round views (completed/reviewMe persist).
 state.runId = state.runId || discovery.runId
 state.ts = discovery.ts
@@ -1351,6 +1379,10 @@ state.queued = [
   // human-verdict repos are not queued (they were handled by the surface-filer above); they
   // surface in RELAY_STATUS skipped as "human (surface-only: filing dispatched)" so the operator
   // can see them without confusing them with dispatchable queued work.
+  // mechanical-verdict repos (id:7616): POOL-INERT — surfaced here in Queued (visible, never
+  // dispatched by the LLM pool; a host daemon dispatches them, A3, gated). Mirrors the `human`
+  // contract: pulled from `actionable` above, no child spawned, absent from PHASE_BY_VERDICT.
+  ...mechanicalSurfaced.map(u => ({ repo: u.repo, verdict: `mechanical (pool-inert: pure-compute work for the host daemon, A3-gated; never dispatched by the LLM pool)` })),
 ]
 state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
 state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason }))   // id:be62
