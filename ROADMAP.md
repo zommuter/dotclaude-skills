@@ -2434,6 +2434,26 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Acceptance**: `make gaming-canary` executes: positive fixtures yield non-empty `gaming_flags`; negative control yields empty `gaming_flags`. The harness itself must not be flaky on identical inputs. Keep each fixture minimal (≤20 lines of diff) so the judgment is unambiguous.
   - **Gate CLEARED 2026-06-15** (audit run 4): id:fa05 (gaming-scan.sh) and id:dfaf (review.md §2 delegate) both shipped — `review.md` now references `gaming-scan.sh` (3×) and the script exists, so the review procedure this harness invokes already delegates mechanical checks. The item is dispatchable; it is HARD because crafting convincing-but-detectable fixtures needs strong-model judgment, not because of an unmet dependency.
 
+- [ ] [ROUTINE] memory-index lint: add `user:`-prefix + emphasis-preservation invariants to `--check` <!-- id:7d97 -->
+  - **Why now**: `tools/memory-index.py --check` currently proves only that the index is
+    *derivable* from the memory files. It does NOT compare hook TEXT against the previous
+    committed state, so a bulk rewrite can preserve every `id:`/`routed:` token,
+    `[[wiki-link]]`, status lexeme, link target and entry count — and still silently change
+    meaning. That is not hypothetical: on 2026-07-10 an Opus compaction agent passed exactly
+    that invariant set while stripping the `user:` prefix from 14 of 15 `feedback-*` hooks
+    (`user: don't improvise` → `don't improvise`) and flattening emphasis in 62 more. The
+    prefix marks a hook as a directive from the user rather than an observation.
+  - **The before-state is free**: the memory dir lives in the `~/.claude/projects` git repo
+    with hourly auto-commits, so the check diffs the worktree against `git show HEAD:<path>`
+    — no snapshot plumbing.
+  - **Contract a test would verify**: `--check` exits non-zero and names the entry when (a) a
+    hook that began `user:` in HEAD no longer does; (b) a hook loses a `**bold**` / `ALL-CAPS`
+    emphasis token present in HEAD; (c) an unchanged index is a clean no-op; (d) a brand-new
+    memory (absent from HEAD) is NOT flagged. Keep it a diff-vs-HEAD check, not a style rule.
+  - **Out of scope**: the semantic-drift residual a lint cannot decide (a hook rewritten with
+    every token intact and different meaning). That stays an LLM-review job, fires only on
+    entries whose hook changed, and must fail loudly. Do NOT try to mechanize it.
+  - Parent `id:2e6d` (TODO). Not the settings.json wiring — that is the user's call, `[INPUT]`.
 - [ ] Sub-agent meeting simulation for main-ctx isolation [HARD — meeting] <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,
