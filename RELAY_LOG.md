@@ -2310,3 +2310,8 @@ id:7d97: memory-index --check now diffs each hook against git HEAD, flagging a d
 ## 2026-07-10 18:37 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Verified id:7d97 genuinely green (not gamed); promoted id:411d [ROUTINE] w/ red spec; closed id:46f6+id:06e3 as shipped; suite 212/0/1-expected-red [id:7d97,411d,46f6,06e3]
+
+## 2026-07-10 — executor (sonnet)
+
+Worked id:411d — anchored `append.sh inbox-done XXXX` on the item's OWN trailing `<!-- routed:XXXX -->` marker (regex, optional whitespace) instead of a bare substring test; a sibling item whose prose merely cites the token no longer gets deleted as collateral. `tests/test_inbox_done_anchor.sh` green; suite 213/0/0.
+Friction: none.
