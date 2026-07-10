@@ -2315,3 +2315,7 @@ Verified id:7d97 genuinely green (not gamed); promoted id:411d [ROUTINE] w/ red 
 
 Worked id:411d — anchored `append.sh inbox-done XXXX` on the item's OWN trailing `<!-- routed:XXXX -->` marker (regex, optional whitespace) instead of a bare substring test; a sibling item whose prose merely cites the token no longer gets deleted as collateral. `tests/test_inbox_done_anchor.sh` green; suite 213/0/0.
 Friction: none.
+
+## 2026-07-10 18:41 — executor (sonnet, relay-loop)
+
+Anchored append.sh inbox-done on the item's own trailing routed:XXXX marker instead of a substring match (id:411d); suite 213/0/0. [id:411d]
