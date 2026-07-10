@@ -2302,3 +2302,7 @@ Review since relay-ckpt-20260710-1236: window was a single clean TODO doc commit
 
 Worked id:7d97 — added `user:`-prefix + emphasis-preservation invariants to `tools/memory-index.py --check` (diffs each entry's hook against `git show HEAD:<path>`; flags a dropped `user:` prefix or a lost `**bold**`/ALL-CAPS token, fail-open when there's no git history). Two new hermetic git-fixture tests (test12/13) cover both invariants plus the unchanged/brand-new non-flag cases. Suite 211/0/0.
 Friction: none.
+
+## 2026-07-10 17:26 — executor (sonnet, relay-loop)
+
+id:7d97: memory-index --check now diffs each hook against git HEAD, flagging a dropped `user:` prefix or a lost **bold**/ALL-CAPS emphasis token; suite 211/0/0. [id:7d97]
