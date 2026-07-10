@@ -2289,3 +2289,7 @@ mechanical verdict now representable + surfaced (never dispatchable), mirroring 
 ## 2026-07-10 12:18 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 baf1: kill human-backlog meeting overcount at source (human_decision bucket + real-route trailer + roadmap-lint doctrine rules) & record 82c4 shadow flip-gate met; suite 207/0 [id:baf1,1f1c,80e0,8504,dafa,82c4]
+
+## 2026-07-10 12:36 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+close id:5937 deny-tail probe (D4→branch 1, auto-mode approves all 12 op-classes) + land harness (deny-tail-probe.sh + ref doc) + security invariant id:453a (--disallowedTools not a boundary); suite 207/0 [id:5937,453a,e2b1,13ae]
