@@ -2,10 +2,26 @@
 # roadmap-lint.sh — a GRAMMAR validator for OPEN ROADMAP items (id:09a3).
 #
 # Usage:
-#   roadmap-lint.sh [<roadmap-path> | <repo-root>]
+#   roadmap-lint.sh [--strict] [<roadmap-path> | <repo-root>]
 #     no arg          → lint <cwd repo>/ROADMAP.md (git rev-parse --show-toplevel)
 #     a *.md file     → lint that file directly
 #     a directory     → lint <dir>/ROADMAP.md
+#     --strict        → escalate the two DOCTRINE rules (DECOMPOSED-CONTAINER,
+#                       DECIDED-LEFT-OPEN, id:8504/dafa) from report-only WARN to hard
+#                       violations (nonzero exit). Without it those two rules are still
+#                       emitted LOUD to stderr but do not fail the run; the GRAMMAR
+#                       rules (class tag + id) always fail nonzero regardless.
+#
+# DOCTRINE rules (mechanize-first — each past LLM triage becomes a mechanical rule):
+#   3(a) DECOMPOSED-CONTAINER: an OPEN `- [ ]` item whose body says DECOMPOSED (its
+#        work was split into seams) must NOT carry a dispatchable/meeting lane — the
+#        seams are the work. Tick it (superseded-by-seams) or mark it `@container`
+#        (collectors exclude that marker). Fires LOUD; nonzero only under --strict.
+#   3(b) DECIDED-LEFT-OPEN: an OPEN `- [ ]` item whose body records a conclusion
+#        (DEFERRED / SUPERSEDED / "decided <YYYY-MM-DD>") is a decided item left open —
+#        close it or drop the marker. Fires LOUD; nonzero only under --strict.
+#   Both run only on OPEN items in ACTIVE sections (parked/exempt sections are skipped),
+#   and NEVER silently filter — the offending line always prints to stderr.
 #
 # WHY (audit 2026-06-23, user directive): rather than detecting a FIXED list of
 # specific known issues, the relay should reject ANYTHING that doesn't match the
@@ -38,8 +54,19 @@
 # handoff/review/human" precedent).
 set -euo pipefail
 
-# --- resolve the ROADMAP path -------------------------------------------------
-arg="${1:-}"
+# --- resolve args: an optional --strict flag + at most one path ---------------
+# --strict (id:8504/dafa) turns the two DOCTRINE rules below (DECOMPOSED-CONTAINER,
+# DECIDED-LEFT-OPEN) from report-only WARN into hard violations (nonzero exit). The
+# grammar rules (class tag + id) ALWAYS fail nonzero; --strict only escalates the two
+# doctrine rules, so the everyday lint stays green while they are still emitted LOUD.
+strict=0
+arg=""
+for a in "$@"; do
+  case "$a" in
+    --strict) strict=1 ;;
+    *) arg="$a" ;;
+  esac
+done
 if [[ -z "$arg" ]]; then
   root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   roadmap="$root/ROADMAP.md"
@@ -152,6 +179,17 @@ first_lane_tag() {
 # A 4-hex id token, the canonical `<!-- id:XXXX -->` or a bare `id:XXXX`.
 id_re='id:[0-9a-fA-F]{4}'
 
+# item_id <line> — the item's OWN canonical id. Prefers the `<!-- id:XXXX -->`
+# HTML-comment marker (the item's own token, conventionally trailing) over the first
+# bare `id:XXXX`, because a DECOMPOSED line lists its SEAM ids in the body BEFORE its
+# own trailing marker; a first-match grab would mis-name the parent by a seam id.
+item_id() {
+  local l="$1"
+  if [[ "$l" =~ \<!--[[:space:]]*id:([0-9a-fA-F]{4}) ]]; then printf 'id:%s' "${BASH_REMATCH[1]}"
+  elif [[ "$l" =~ id:([0-9a-fA-F]{4}) ]]; then printf 'id:%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
 # --- section gating -----------------------------------------------------------
 # An item is EXEMPT when its nearest preceding `## ` / `### ` heading names a parked
 # bucket. Match case-insensitively on the heading text.
@@ -217,6 +255,37 @@ while IFS= read -r line; do
   # Grammar clause 2: a 4-hex id token.
   has_id=0
   [[ "$line" =~ $id_re ]] && has_id=1
+
+  # --- DOCTRINE rules (mechanize-first: each past LLM triage → a mechanical rule) ---
+  # Both are LOUD (stderr) ALWAYS; they add to `violations` (nonzero exit) ONLY under
+  # --strict, never silently filter. They run on OPEN, ACTIVE-section items only
+  # (exempt sections already `continue`d above) — an item legitimately parked under a
+  # Deferred/Gated/Icebox heading does NOT fire.
+  _dr_label="WARN"; [[ "$strict" -eq 1 ]] && _dr_label="ERROR"
+
+  # Rule 3(a) DECOMPOSED-CONTAINER (id:8504): an OPEN item whose body says DECOMPOSED
+  # (its work was split into seams) must NOT carry a dispatchable/meeting lane — the
+  # seams are the work, the parent is just a container. It must be TICKED
+  # (superseded-by-seams) or carry an explicit `@container` marker that collectors
+  # exclude (gather-human-backlog.sh skips `@container`). A decomposed parent still
+  # wearing a live lane double-counts against its own seams.
+  if [[ "$line" == *DECOMPOSED* && "$has_class" -eq 1 && "$line" != *@container* ]]; then
+    _dc_id="$(item_id "$line")"
+    echo "roadmap-lint: ${_dr_label} — DECOMPOSED-CONTAINER: open item ${_dc_id:-<no id>} says DECOMPOSED (into seams) yet still carries a dispatchable/meeting lane — a decomposed parent is a CONTAINER, its seams are the work; tick it (superseded-by-seams) or add an @container marker (collectors exclude it)" >&2
+    echo "  $line" >&2
+    [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+  fi
+
+  # Rule 3(b) DECIDED-LEFT-OPEN (id:dafa): an OPEN item whose body records a
+  # conclusion (DEFERRED / SUPERSEDED / "decided <YYYY-MM-DD>") is a decided item
+  # left un-ticked. LOUD: close it (tick + done-note) or drop the marker.
+  decided_re='[Dd]ecided [0-9]{4}-[0-9]{2}-[0-9]{2}'
+  if [[ "$line" == *DEFERRED* || "$line" == *SUPERSEDED* || "$line" =~ $decided_re ]]; then
+    _do_id="$(item_id "$line")"
+    echo "roadmap-lint: ${_dr_label} — DECIDED-LEFT-OPEN: open item ${_do_id:-<no id>} carries a decided/deferred/superseded marker but is still open — close it (tick + done-note) or drop the marker" >&2
+    echo "  $line" >&2
+    [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+  fi
 
   # --- semantic checks (case c / case d) — only when a recognised class tag is present -----
   if [[ "$has_class" -eq 1 ]]; then
