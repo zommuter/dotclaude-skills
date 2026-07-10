@@ -223,6 +223,12 @@ un-doable item. Add:
   recognize it as equivalent to `[INPUT — decision]`, per hard-lanes.md's rename
   mapping — the emitter itself is out of scope here, id:8111 B2b).
 - `hard-split` — too large but decomposable → parent gated + `proposed_split` seams minted as pickable units.
+  **When you (or the integrator) actually record the split in ROADMAP.md as `DECOMPOSED
+  into seams id:X, id:Y`, TICK the parent in the SAME commit** (id:8504) — or mark it
+  `@container` (collectors exclude that marker). The seams are now the work; a DECOMPOSED
+  parent left OPEN and still carrying a dispatchable/meeting lane double-counts against
+  its own seams and re-surfaces as a phantom row. This is the authorship-side prevention
+  for `roadmap-lint.sh --strict`'s DECOMPOSED-CONTAINER rule (the lint is the backstop).
 - `human` — needs a manual human action / `/relay human`.
 - `none` (or omit) — transient/other failure, no durable action.
 

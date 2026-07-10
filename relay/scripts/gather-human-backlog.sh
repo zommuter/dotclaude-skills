@@ -13,15 +13,20 @@
 #   review_me  — an open `- [ ]` box in the repo's REVIEW_ME.md
 #   manual     — an open `- [ ]` box tagged `@manual` (REVIEW_ME.md or ROADMAP.md);
 #                a human must RUN it, so it is NEVER auto-tickable (surface only).
-#   hard_pool    \  an open `- [ ]` `[HARD]`/`[INPUT — …]` ROADMAP item, bucketed by
-#   hard_meeting  > its EXPLICIT lane tag (id:78ff). The lane is READ from the bracket
-#   hard_hands   /  tag, never inferred (decision 2026-06-21 "obviously explicit"). The
-#                lane vocabulary is the shared contract in relay/references/hard-lanes.md.
+#   hard_pool      \  an open `- [ ]` `[HARD]`/`[INPUT — …]` ROADMAP item, bucketed by
+#   hard_meeting    \ its EXPLICIT lane tag (id:78ff). The lane is READ from the bracket
+#   human_decision  > tag, never inferred (decision 2026-06-21 "obviously explicit"). The
+#   hard_hands     /  lane vocabulary is the shared contract in relay/references/hard-lanes.md.
 #                CANONICAL (new, capability-keyed, id:4f02 north star):
-#                  [HARD]  (bare, no dash-lane) → hard_pool    (/relay --afk pool runs it)
-#                  [INPUT — meeting]            → hard_meeting (/meeting decides it)
-#                  [INPUT — decision]           → hard_meeting (human decides, no meeting)
-#                  [INPUT — access]             → hard_hands   ("you run these")
+#                  [HARD]  (bare, no dash-lane) → hard_pool       (/relay --afk pool runs it)
+#                  [INPUT — meeting]            → hard_meeting     (/meeting decides it)
+#                  [INPUT — decision]           → human_decision   (human decides, NO meeting)
+#                  [INPUT — access]             → hard_hands       ("you run these")
+#                BUCKET vs ROUTE (id:1f1c): human_decision separates "a person decides
+#                this directly (/relay human)" from hard_meeting ("a person + a /meeting
+#                session"). A /meeting sweep reads ONLY the meeting bucket, so a
+#                human-decision row ([INPUT — decision], or a note routed `route:human`
+#                / "needs /relay human") never inflates the meeting overcount.
 #                ACCEPTED (old, venue-keyed — dual-vocab migration window, still OPEN):
 #                  [HARD — pool]                → hard_pool
 #                  [HARD — meeting]             → hard_meeting
@@ -177,13 +182,16 @@ warn_nested_worktrees() {
 # id:4f02) first; ACCEPTED (old, venue-keyed, dual-vocab migration window still OPEN)
 # after:
 #   [HARD]  (bare)                                           → hard_pool
-#   [INPUT — meeting] / [INPUT — decision]                   → hard_meeting
+#   [INPUT — meeting]                                        → hard_meeting
+#   [INPUT — decision]                                       → human_decision (id:1f1c)
 #   [INPUT — access]                                         → hard_hands
-#   [HARD — pool]                                            → hard_pool     (old, accepted)
-#   [HARD — meeting]                                         → hard_meeting  (old, accepted)
-#   [HARD — decision gate] / 🚧 route:meeting|human|decision-gate
-#                                                            → hard_meeting  (old, accepted; alias, id:3801)
-#   [HARD — hands]                                           → hard_hands    (old, accepted)
+#   [HARD — pool]                                            → hard_pool      (old, accepted)
+#   [HARD — meeting]                                         → hard_meeting   (old, accepted)
+#   [HARD — decision gate] / 🚧 route:meeting|decision-gate
+#                                                            → hard_meeting   (old, accepted; alias, id:3801)
+#   🚧 route:human / "needs /relay human"                    → human_decision (id:1f1c — human decides, NO meeting)
+#   [HARD — hands]                                           → hard_hands     (old, accepted)
+#   @container (on a DECOMPOSED parent)                      → SKIPPED (id:8504 — seams are the work)
 #   [HARD]/[INPUT — …] matching NEITHER form above           → untagged (LOUD reject)
 #
 # An `untagged` open `[HARD]`/`[INPUT — …]` item is a CONTRACT GAP: it prints an
@@ -205,6 +213,13 @@ emit_hard_lanes() {
       # spelling are recognized here. Skip lines carrying neither marker family.
       if (line !~ /\[HARD/ && line !~ /\[INPUT[[:space:]]*[—-]/) next
 
+      # CONTAINER exclusion (id:8504): a DECOMPOSED parent explicitly marked
+      # `@container` is not itself work — its seams are. Collectors skip it so a
+      # decomposed parent that still carries a lane tag does not surface as a
+      # phantom meeting/pool/hands row. (roadmap-lint.sh --strict enforces that a
+      # DECOMPOSED open item is either ticked or carries this marker.)
+      if (line ~ /@container/) next
+
       # Strip backtick-quoted strings before lane detection so a prose mention like
       # `[HARD — pool]` in the item body cannot shadow the item OWN bracket tag
       # (id:1bbd: pool branch was checked first, causing [HARD — hands] items with
@@ -223,18 +238,30 @@ emit_hard_lanes() {
       # NEW vocab (capability-keyed, id:4f02 north star): bare [HARD] (no dash-lane)
       # is the renamed [HARD — pool]; [INPUT — meeting]/[INPUT — decision] are both
       # the meeting lane; [INPUT — access] is the hands lane.
+      # BUCKET vs ROUTE (id:1f1c/80e0): a HUMAN-DECIDES item — `[INPUT — decision]`
+      # ("human decides, no meeting"), or an auto-gate note routed `route:human` /
+      # "needs /relay human" — gets its OWN `human_decision` bucket, distinct from the
+      # `hard_meeting` (a person + a /meeting session) bucket. A /meeting sweep reads
+      # only the meeting bucket, so a human-decision row no longer inflates the meeting
+      # count. The explicit venue lane tags ([HARD — meeting], [INPUT — meeting]) and
+      # the meeting-routed aliases (route:meeting|decision-gate, [HARD — decision gate])
+      # stay hard_meeting; only route:human / needs-/relay-human / [INPUT — decision]
+      # move to human_decision.
       kind = ""; bucket = ""
       if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*pool[[:space:]]*\]/) {
         kind = "hard_pool"; bucket = "pool"
       } else if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/ \
                  || low ~ /\[hard[[:space:]]*[—-][[:space:]]*decision gate[[:space:]]*\]/ \
-                 || low ~ /route:(meeting|human|decision-gate)/) {
+                 || low ~ /route:(meeting|decision-gate)/) {
         kind = "hard_meeting"; bucket = "meeting"
+      } else if (low ~ /route:human/ || low ~ /needs[[:space:]]+\/relay[[:space:]]+human/) {
+        kind = "human_decision"; bucket = "human-decision"
       } else if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*hands[[:space:]]*\]/) {
         kind = "hard_hands"; bucket = "hands"
-      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/ \
-                 || low ~ /\[input[[:space:]]*[—-][[:space:]]*decision[[:space:]]*\]/) {
+      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/) {
         kind = "hard_meeting"; bucket = "meeting"
+      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*decision[[:space:]]*\]/) {
+        kind = "human_decision"; bucket = "human-decision"
       } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*access[[:space:]]*\]/) {
         kind = "hard_hands"; bucket = "hands"
       } else if (low ~ /\[hard[[:space:]]*\]/) {
@@ -260,10 +287,16 @@ emit_hard_lanes() {
         next
       }
 
+      # Emit the REAL route of the row on box_summary (id:80e0) — never a blanket
+      # "needs a /meeting" on every row (that made the collector own output
+      # ungreppable: 100% of rows matched "needs a /meeting" by construction, so the
+      # backlog could not be measured from it). Each bucket states its actual route.
       if (bucket == "pool")
         why = "pool-executable HARD — the /relay --afk pool runs it (hard verdict, id:da26)"
       else if (bucket == "meeting")
-        why = "decision HARD — needs a /meeting to resolve/re-scope (id:3801)"
+        why = "meeting HARD — needs a /meeting to resolve/re-scope (id:3801)"
+      else if (bucket == "human-decision")
+        why = "human-decision — a person decides it directly (/relay human); NO meeting needed (id:1f1c)"
       else
         why = "hands HARD — hardware/sudo/secret/on-device; you run this (id:78ff)"
 

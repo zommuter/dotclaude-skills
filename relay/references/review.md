@@ -203,6 +203,14 @@ no REVIEW_ME boxes are added.
   catch a "closed in ROADMAP, left open in TODO" divergence. When you close a ROADMAP item
   whose token also lives in `TODO.md`, tick the TODO line too (consistent checkbox state).
 - Re-scope items that proved underspecified.
+- **DECOMPOSED-into-seams TICKS the parent in the SAME commit (id:8504).** When you
+  split an item into seams and write `DECOMPOSED into seams id:X, id:Y`, the parent is
+  now a CONTAINER — its seams are the work, not the parent. In that same commit either
+  **tick the parent** (`- [x]`, superseded-by-seams) or mark it `@container` (collectors
+  exclude that marker). A DECOMPOSED parent left OPEN and still wearing a dispatchable/
+  meeting lane double-counts against its own seams and re-surfaces as a phantom
+  meeting/pool row. `roadmap-lint.sh --strict` FAILS on this (DECOMPOSED-CONTAINER); the
+  authorship rule here is the prevention, the lint is the backstop.
 - Promote/demote `[HARD]` ↔ `[ROUTINE]` based on what executors actually struggled
   with — read commit messages (`friction:` lines) and RELAY_LOG.md entries.
 - Cross-repo follow-ups go to the shared inbox (`append.sh -t inbox`), never into
