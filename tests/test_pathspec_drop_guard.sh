@@ -118,4 +118,37 @@ OUT="$(run_guard "$REPO" "$NON_BASH")"
 [[ -z "$OUT" ]] || fail "test8: expected no output for non-Bash tool, got: $OUT"
 pass "test8: non-Bash tool not intercepted"
 
+# ── test 9: heredoc commit message containing double quotes is NOT blocked ───
+# Regression for routed:b213: shlex.split() on the raw command treated the literal
+# double quotes inside the heredoc body as shell quotes, re-bracketing the rest
+# of the message into bogus pathspec args, which wrongly blocked the commit.
+# A *multi-word* quoted phrase is required to reproduce: a single-word phrase
+# re-concatenates into one token and never surfaced the bug.
+MSG_CMD='git commit -m "$(cat <<'"'"'EOF'"'"'
+Correct the "canonical version" mis-citation.
+EOF
+)"'
+PAYLOAD="$(make_payload "$MSG_CMD")"
+OUT="$(run_guard "$REPO" "$PAYLOAD")"
+[[ -z "$OUT" ]] || fail "test9: heredoc message with double quotes must NOT block, got: $OUT"
+pass "test9: heredoc commit message with inner double quotes is not blocked"
+
+# ── test 10: heredoc message with a literal single quote is NOT blocked ──────
+MSG_CMD='git commit -m "$(cat <<'"'"'EOF'"'"'
+it'"'"'s a mis-citation, not a "load bearing claim"
+EOF
+)"'
+PAYLOAD="$(make_payload "$MSG_CMD")"
+OUT="$(run_guard "$REPO" "$PAYLOAD")"
+[[ -z "$OUT" ]] || fail "test10: heredoc message with single quote must NOT block, got: $OUT"
+pass "test10: heredoc commit message with inner single quote is not blocked"
+
+# ── test 11: the guard still blocks a real typo (no substitution present) ─────
+# Guards the fix against over-reach: bailing on '$('/heredoc must not disable
+# the plain-command path that id:b67e exists for.
+PAYLOAD="$(make_payload 'git commit -m "msg" diary.md diar.md')"
+OUT="$(run_guard "$REPO" "$PAYLOAD")"
+[[ -n "$OUT" ]] || fail "test11: plain typo must still block after the b213 fix"
+pass "test11: b213 bail does not disable the plain-command typo guard"
+
 echo "ALL PASS"
