@@ -2323,3 +2323,7 @@ Anchored append.sh inbox-done on the item's own trailing routed:XXXX marker inst
 ## 2026-07-10 19:18 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Verified id:411d genuinely green (inbox-done anchors on own routed marker, spec unchanged); ticked TODO twin (cross-ledger drift); flagged id:9fdb umbrella; suite 213/0/0. [id:411d]
+
+## 2026-07-10 19:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+handoff C1-C4: promoted id:77ce (reconcile-repo.sh pure planner + --dry-run parity oracle) with RED spec test_reconcile_planner.sh; suite 213/0/1-red [id:77ce]
