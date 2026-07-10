@@ -2306,3 +2306,7 @@ Friction: none.
 ## 2026-07-10 17:26 — executor (sonnet, relay-loop)
 
 id:7d97: memory-index --check now diffs each hook against git HEAD, flagging a dropped `user:` prefix or a lost **bold**/ALL-CAPS emphasis token; suite 211/0/0. [id:7d97]
+
+## 2026-07-10 18:37 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Verified id:7d97 genuinely green (not gamed); promoted id:411d [ROUTINE] w/ red spec; closed id:46f6+id:06e3 as shipped; suite 212/0/1-expected-red [id:7d97,411d,46f6,06e3]
