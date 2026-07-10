@@ -2285,3 +2285,7 @@ Front-door --quota-7d→SEVEN_DAY only; sampler records .limits[] weekly_scoped;
 ## 2026-07-10 11:46 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 mechanical verdict now representable + surfaced (never dispatchable), mirroring human; roadmap-lint clean; suite 205/0/0 (id:d310/baf1) [id:d310,baf1]
+
+## 2026-07-10 12:18 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+baf1: kill human-backlog meeting overcount at source (human_decision bucket + real-route trailer + roadmap-lint doctrine rules) & record 82c4 shadow flip-gate met; suite 207/0 [id:baf1,1f1c,80e0,8504,dafa,82c4]
