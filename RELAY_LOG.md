@@ -2376,3 +2376,19 @@ one. Full suite: 216 passed / 0 failed / 0 expected-red. Friction: none.
 ## 2026-07-11 13:34 — executor (sonnet, relay-loop)
 
 Closed id:26c2 (mechanical-daemon host-gate) — behavior was already shipped under id:9cfa; ticked ROADMAP+TODO, cross-referenced test, full suite 216/0/0-red. [id:26c2]
+
+## 2026-07-11 — executor (sonnet, relay-loop)
+
+Worked id:dfe4 — refined `roadmap-lint.sh`'s c095 heading-as-item detector: a
+`## …[LANE]…` heading is now treated as a heading-item requiring its OWN id only
+when its children (up to the next heading) are ALL bare status markers; if ANY
+child carries its own class tag + id, the heading is a descriptive SECTION title
+and is no longer flagged MISSING-id (fixes the 3 false positives at ROADMAP
+~L2861/2883/2911, children 0d58/fd37/9078). Implemented via a lookahead helper
+(`section_has_tagged_child`) after converting the main scan loop from a `read`
+pipe to an indexed array (`mapfile`) so it can peek forward. Added
+`tests/test_roadmap_lint_c095.sh` (# roadmap:dfe4) with 3 cases: (a) section
+header over a tagged+ided child NOT flagged, (b) genuine c095 shape (bare-marker
+children) still flagged MISSING-id, (b2) same shape with the heading's own id
+present stays clean. Ticked ROADMAP.md. Full suite: 217 passed / 0 failed / 0
+expected-red. Friction: none.
