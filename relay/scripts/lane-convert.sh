@@ -186,6 +186,36 @@ reorder_rest() {
   fi
 }
 
+# rename_rest <rest> — given the text AFTER the checkbox marker ("- [ ] "), apply
+# the rename to the GENUINE anchored PRIMARY lane tag ONLY (leftmost recognized
+# bare lane tag, ignoring backtick'd MENTIONS — same masking/anchoring idiom as
+# reorder_rest). Sets globals: RENAMED_REST (the possibly-rewritten text) and
+# HANDS_PRIMARY (1 iff the genuine primary tag is [HARD — hands], which is flagged
+# but never rewritten). Secondary / backtick'd lane mentions are left untouched.
+rename_rest() {
+  local rest="$1" masked
+  HANDS_PRIMARY=0
+  RENAMED_REST="$rest"
+  masked="$(mask_backticks "$rest")"
+  find_tag_pos "$masked" "${all_lane_tags[@]}"
+  local primary_pos="$TAG_POS" primary_tag="$TAG"
+  [[ "$primary_pos" -lt 0 ]] && return
+  if [[ "$primary_tag" == '[HARD — hands]' ]]; then
+    HANDS_PRIMARY=1
+    return
+  fi
+  local repl=""
+  case "$primary_tag" in
+    '[HARD — pool]')          repl='[HARD]' ;;
+    '[HARD — meeting]')       repl='[INPUT — meeting]' ;;
+    '[HARD — decision gate]') repl='[INPUT — decision]' ;;
+  esac
+  if [[ -n "$repl" ]]; then
+    local primary_end=$((primary_pos + ${#primary_tag}))
+    RENAMED_REST="${rest:0:primary_pos}${repl}${rest:primary_end}"
+  fi
+}
+
 if [[ "$reorder" -eq 1 ]]; then
   out=""
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -211,22 +241,27 @@ had_hands=0
 while IFS= read -r line || [[ -n "$line" ]]; do
   lineno=$((lineno + 1))
 
-  # [HARD — hands] is fan-out-ambiguous — NEVER auto-converted. Flag on stderr,
-  # leave the line byte-for-byte unchanged.
-  if [[ "$line" == *'[HARD — hands]'* ]]; then
-    had_hands=1
-    idtoken=""
-    if [[ "$line" =~ ($id_re) ]]; then
-      idtoken="${BASH_REMATCH[1]}"
+  # Only a `- [ ]`/`- [x]` CHECKBOX line carries a GENUINE lane tag. Non-checkbox
+  # lines (headings, `  - **Why**:` sub-bullets, prose) are NEVER rewritten and
+  # NEVER flagged — even if they quote a lane name. The rename/flag applies ONLY to
+  # the anchored primary lane tag (ignoring backtick'd mentions), matching --reorder.
+  if [[ "$line" =~ ^(-[[:space:]]\[[[:space:]xX]\][[:space:]]+)(.*)$ ]]; then
+    prefix="${BASH_REMATCH[1]}"
+    rest="${BASH_REMATCH[2]}"
+    rename_rest "$rest"
+    if [[ "$HANDS_PRIMARY" -eq 1 ]]; then
+      # [HARD — hands] is fan-out-ambiguous — NEVER auto-converted. Flag on stderr,
+      # leave the line byte-for-byte unchanged.
+      had_hands=1
+      idtoken=""
+      if [[ "$line" =~ ($id_re) ]]; then
+        idtoken="${BASH_REMATCH[1]}"
+      fi
+      echo "lane-convert: NEEDS JUDGMENT — $file:$lineno (${idtoken:-<no id>}) [HARD — hands] fragments across four candidates — pick ONE by per-item judgment:" >&2
+      echo "  [MECHANICAL] (a daemon can run it, no LLM/human) | [INPUT — access] (credential/hardware/physical) | [INPUT — decision] (human decides, no design session) | [INPUT — meeting] (needs design judgment)" >&2
+      echo "  $line" >&2
     fi
-    echo "lane-convert: NEEDS JUDGMENT — $file:$lineno (${idtoken:-<no id>}) [HARD — hands] fragments across four candidates — pick ONE by per-item judgment:" >&2
-    echo "  [MECHANICAL] (a daemon can run it, no LLM/human) | [INPUT — access] (credential/hardware/physical) | [INPUT — decision] (human decides, no design session) | [INPUT — meeting] (needs design judgment)" >&2
-    echo "  $line" >&2
-  else
-    # The three unambiguous 1:1 renames.
-    line="${line//\[HARD — pool\]/[HARD]}"
-    line="${line//\[HARD — meeting\]/[INPUT — meeting]}"
-    line="${line//\[HARD — decision gate\]/[INPUT — decision]}"
+    line="${prefix}${RENAMED_REST}"
   fi
 
   out+="${line}"$'\n'
