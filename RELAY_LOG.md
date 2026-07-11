@@ -2400,3 +2400,7 @@ Refined roadmap-lint.sh c095 heading-as-item detection to only require a heading
 ## 2026-07-11 14:31 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: window was one M3 relane commit (id:77f3/13ae HARD→INPUT, legit); reconciled id:dfe4 cross-ledger drift, surfaced de4e lint warning; 217/0/0 green [id:dfe4,de4e]
+
+## 2026-07-11 15:03 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+handoff C1-C4: promoted 6 [ROUTINE] TODO items to ROADMAP (f8df/34c7/431f/4245/1b1a/2b0b) with red-spec tests; C5 skipped (top HARD too large) [id:f8df,34c7,431f,4245,1b1a,2b0b]
