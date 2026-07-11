@@ -2392,3 +2392,7 @@ header over a tagged+ided child NOT flagged, (b) genuine c095 shape (bare-marker
 children) still flagged MISSING-id, (b2) same shape with the heading's own id
 present stays clean. Ticked ROADMAP.md. Full suite: 217 passed / 0 failed / 0
 expected-red. Friction: none.
+
+## 2026-07-11 14:01 — executor (sonnet, relay-loop)
+
+Refined roadmap-lint.sh c095 heading-as-item detection to only require a heading's own id when its children are bare status markers, fixing 3 false positives (id:dfe4); full suite 217/0/0-red. [id:dfe4]
