@@ -22,6 +22,7 @@
 #                  [INPUT — meeting]            → hard_meeting     (/meeting decides it)
 #                  [INPUT — decision]           → human_decision   (human decides, NO meeting)
 #                  [INPUT — access]             → hard_hands       ("you run these")
+#                  [INPUT — author]             → hard_hands       (human-expert-authored content, id:2b0b)
 #                BUCKET vs ROUTE (id:1f1c): human_decision separates "a person decides
 #                this directly (/relay human)" from hard_meeting ("a person + a /meeting
 #                session"). A /meeting sweep reads ONLY the meeting bucket, so a
@@ -185,6 +186,7 @@ warn_nested_worktrees() {
 #   [INPUT — meeting]                                        → hard_meeting
 #   [INPUT — decision]                                       → human_decision (id:1f1c)
 #   [INPUT — access]                                         → hard_hands
+#   [INPUT — author]                                         → hard_hands     (human-authored content, id:2b0b)
 #   [HARD — pool]                                            → hard_pool      (old, accepted)
 #   [HARD — meeting]                                         → hard_meeting   (old, accepted)
 #   [HARD — decision gate] / 🚧 route:meeting|decision-gate
@@ -264,6 +266,8 @@ emit_hard_lanes() {
         kind = "human_decision"; bucket = "human-decision"
       } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*access[[:space:]]*\]/) {
         kind = "hard_hands"; bucket = "hands"
+      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*author[[:space:]]*\]/) {
+        kind = "hard_hands"; bucket = "author"
       } else if (low ~ /\[hard[[:space:]]*\]/) {
         kind = "hard_pool"; bucket = "pool"
       } else {
@@ -280,7 +284,7 @@ emit_hard_lanes() {
       if (bucket == "untagged") {
         # LOUD reject: stderr ERROR + force nonzero exit (id:415b).
         printf "ERROR: %s: open [HARD]/[INPUT — …] item carries NO recognized lane " \
-               "tag ([HARD]/[INPUT — meeting|decision|access], or the old " \
+               "tag ([HARD]/[INPUT — meeting|decision|access|author], or the old " \
                "[HARD — pool|meeting|hands]) — add one (see relay/references/hard-lanes.md): %s\n", \
                name, summary > "/dev/stderr"
         saw_untagged = 1
@@ -297,6 +301,8 @@ emit_hard_lanes() {
         why = "meeting HARD — needs a /meeting to resolve/re-scope (id:3801)"
       else if (bucket == "human-decision")
         why = "human-decision — a person decides it directly (/relay human); NO meeting needed (id:1f1c)"
+      else if (bucket == "author")
+        why = "author HARD — human-expert-authored content/prose; you write this (id:2b0b)"
       else
         why = "hands HARD — hardware/sudo/secret/on-device; you run this (id:78ff)"
 
