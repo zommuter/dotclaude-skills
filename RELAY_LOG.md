@@ -2404,3 +2404,7 @@ review: window was one M3 relane commit (id:77f3/13ae HARD→INPUT, legit); reco
 ## 2026-07-11 15:03 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 handoff C1-C4: promoted 6 [ROUTINE] TODO items to ROADMAP (f8df/34c7/431f/4245/1b1a/2b0b) with red-spec tests; C5 skipped (top HARD too large) [id:f8df,34c7,431f,4245,1b1a,2b0b]
+
+## 2026-07-11 — executor (sonnet, relay-loop)
+
+Worked id:431f — widened `orphan-scan.sh --shipped`'s two col-0 anchors (the typed-edge `local_state` map's checkbox-state test and the closed/open scan grep) to `^\s*- \[ \] `/`^\s*- \[[xX]\] ` so INDENTED `  - [ ] … <!-- id:XXXX -->` sub-items are classified (UMBRELLA-READY etc.), matching pre-existing col-0 behaviour unchanged. `tests/test_orphan_scan_shipped_indent.sh` (# roadmap:431f) was already RED from handoff C2 and is now green. Ticked ROADMAP.md + TODO.md twin. Full suite: 218 passed / 0 failed / 5 expected-red (open roadmap items). Friction: none.

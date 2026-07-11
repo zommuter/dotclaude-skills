@@ -38,7 +38,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Done-check**: run the test then full `make test` after ticking (RED until then).
   - **Context**: `meeting/orphan-scan.sh` (`--cross-ledger` mode), `todo-update/archive-closed.sh` (the id-keyed check to converge on). COUPLED with id:431f (the col-0 anchor blindspot in `--shipped`) — same script family; coordinate the anchor helper if touching both.
 
-- [ ] [ROUTINE] `orphan-scan.sh --shipped`: widen the col-0 anchor so INDENTED sub-items are classified <!-- id:431f -->
+- [x] [ROUTINE] `orphan-scan.sh --shipped`: widen the col-0 anchor so INDENTED sub-items are classified <!-- id:431f -->
   - **Why** (TODO id:431f; found 2026-07-10 by the id:46f6 executor): the `--shipped` driver greps `^- \[ \] ` anchored at column 0, so 14 of 241 open id-bearing TODO items (6%) nested under a parent are never classified — not TICK-READY, not GATE-STALE, not the typed-edge umbrella/gate classes. Concretely inert: `gated-on:` markers on id:3c4c/eb92 and the UNMARKED-GATE expected on id:7df1.
   - **How / Design**: widen the anchor to `^\s*- \[ \] ` so indented `  - [ ]` items enter all `--shipped` classes; keep the col-0 behaviour otherwise unchanged. This is report-only (nothing auto-ticks); the change pulls 14 previously-unclassified items in at once — a measured, advisory burst, acceptable.
   - **Acceptance**: `tests/` (`test_orphan_scan_shipped_indent.sh`, `# roadmap:431f`) — an INDENTED `  - [ ]` item with a `children:` marker whose children are all `[x]` is reported UMBRELLA-READY; a pre-existing col-0 case is unchanged.

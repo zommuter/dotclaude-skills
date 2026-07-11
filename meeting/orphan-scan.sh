@@ -184,12 +184,12 @@ elif [[ "$mode" == "shipped" ]]; then
   # (2>/dev/null: a missing TODO.archive.md is a normal state, not an error.)
   declare -A local_state
   while IFS= read -r l; do
-    st=' '; [[ "$l" == "- [x] "* || "$l" == "- [X] "* ]] && st='x'
+    st=' '; [[ "$l" =~ ^[[:space:]]*-\ \[[xX]\]\  ]] && st='x'
     while read -r tk; do
       [[ -z "$tk" ]] && continue
       [[ -n "${local_state[$tk]+x}" ]] || local_state["$tk"]="$st"
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
-  done < <(grep -hE '^- \[[ xX]\] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
+  done < <(grep -hE '^\s*- \[[ xX]\] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
 
   # Confirmed own-repo NAMES for the UMBRELLA-CROSS-REPO decision. These come from
   # relay.toml via the shared, tested reader lib-own-repos.sh — NEVER a ~/src glob
@@ -366,7 +366,7 @@ elif [[ "$mode" == "shipped" ]]; then
         output_lines+=("id:$token — TICK-READY (green: $test_rel, no gate) — ready to tick. $(short_text "$text")")
       fi
     fi
-  done < <(grep -n '^- \[ \] ' "$ROOT/TODO.md" 2>/dev/null || true)
+  done < <(grep -nE '^\s*- \[ \] ' "$ROOT/TODO.md" 2>/dev/null || true)
 else
 for f in $(ls -r1 "$NOTES_DIR"/*.md 2>/dev/null); do
   [[ -f "$f" ]] || continue
