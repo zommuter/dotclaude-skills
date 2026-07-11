@@ -2408,3 +2408,7 @@ handoff C1-C4: promoted 6 [ROUTINE] TODO items to ROADMAP (f8df/34c7/431f/4245/1
 ## 2026-07-11 — executor (sonnet, relay-loop)
 
 Worked id:431f — widened `orphan-scan.sh --shipped`'s two col-0 anchors (the typed-edge `local_state` map's checkbox-state test and the closed/open scan grep) to `^\s*- \[ \] `/`^\s*- \[[xX]\] ` so INDENTED `  - [ ] … <!-- id:XXXX -->` sub-items are classified (UMBRELLA-READY etc.), matching pre-existing col-0 behaviour unchanged. `tests/test_orphan_scan_shipped_indent.sh` (# roadmap:431f) was already RED from handoff C2 and is now green. Ticked ROADMAP.md + TODO.md twin. Full suite: 218 passed / 0 failed / 5 expected-red (open roadmap items). Friction: none.
+
+## 2026-07-11 15:20 — executor (sonnet, relay-loop)
+
+Widened orphan-scan.sh --shipped's two col-0 checkbox anchors to classify INDENTED sub-items (id:431f); full suite 218/0/5-red. [id:431f]
