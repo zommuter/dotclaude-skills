@@ -24,7 +24,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
      — so neither is promoted; 2e6d's only remainder is the [INPUT — user] settings.json
      hook install. -->
 
-- [ ] [ROUTINE] `diary-append.sh`: keep the `-f` entry temp file until push SUCCEEDS + fix the multi-branch rebase race <!-- id:f8df -->
+- [x] [ROUTINE] `diary-append.sh`: keep the `-f` entry temp file until push SUCCEEDS + fix the multi-branch rebase race <!-- id:f8df -->
   - **Why** (TODO id:f8df; observed 2026-07-08): `diary-append.sh -f <entry>` raced a concurrent quota-sampler commit on the diary repo, died with `fatal: Cannot rebase onto multiple branches`, and had ALREADY consumed/deleted the `-f` temp entry file — the entry was silently lost (id:4347 silent-swallow class; recovered only because the invoking session still held the text).
   - **How / Design**: (a) delete the `-f` temp file ONLY AFTER commit+push succeeds — on any error, move it to a `.failed/` quarantine and print a LOUD stderr path (never silent unlink). (b) Find why the pull step hit "multiple branches" under concurrency (likely `git pull --rebase` with a multi-refspec fetch config or a missing explicit `origin <branch>` arg inside the flock) and pin the refspec / use explicit `origin <branch>` args. Keep the existing flock discipline.
   - **Acceptance**: a hermetic test (`tests/test_diary_append_entry_survival.sh`, `# roadmap:f8df`) that simulates a concurrent upstream commit landing between fetch and rebase, asserts the `-f` entry file SURVIVES the failed run (in `.failed/` with a loud path), and that a retry appends the entry EXACTLY once (no duplicate, no loss).
