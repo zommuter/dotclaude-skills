@@ -26,7 +26,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   source-resolved: the lib is shipped and installer-listed). **Action:** run `make
   install-relay` (or `make install`).
 
-- [ ] **`roadmap-lint` flags 3 heading-as-item MISSING-id violations on descriptive `## [LANE]` section headers (audit Run 70, 2026-07-06).**
+- [x] **`roadmap-lint` flags 3 heading-as-item MISSING-id violations on descriptive `## [LANE]` section headers (audit Run 70, 2026-07-06).** — OWNER DECISION: human 2026-07-11 (relay human): DECIDED refine c095 detection — only flag a `## [LANE]` heading when its children are bare status markers (no own tag+id); adding an id would duplicate the child's + break single-id-two-views. Impl filed as ROADMAP id:dfe4 ([ROUTINE] + RED test).
   `roadmap-lint.sh` flags 3 "heading-as-item MISSING its id" violations on the 2026-07-03
   relay-handoff SECTION headers `## [MECHANICAL] lane-anchor hotfix …`, `## [MECHANICAL] recipe
   explicit-success-marker doctrine …`, `## [ROUTINE] case-c bare-only lane count …` (ROADMAP.md
@@ -43,7 +43,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   (relay-doctor/roadmap-lint both exit 0). NOT a session-batch defect — pre-existing c095 tension
   surfaced by the in-window handoff headers.
 
-- [ ] **A3 (id:b3d0) mechanical-daemon does NOT host-gate — latent safety gap (wave-2a review 2026-07-02).**
+- [x] **A3 (id:b3d0) mechanical-daemon does NOT host-gate — latent safety gap (wave-2a review 2026-07-02).** — OWNER DECISION: human 2026-07-11 (relay human): DECIDED add the host-gate to mechanical-daemon.sh — skip+defer any recipe whose .host != uname -n (defense-in-depth vs mistaken copy / future shared-transport de31/b444). Impl filed as ROADMAP id:26c2 ([ROUTINE] + RED test).
   The recipe schema's `host` field is documented as "which host the recipe is bound to
   (mirrors the `[host:<name>]` ROADMAP tag)" (recipe-manifest.md:51) and `recipe-validate.sh`
   REQUIRES it non-empty — i.e. every recipe names a target host. But `mechanical-daemon.sh`
