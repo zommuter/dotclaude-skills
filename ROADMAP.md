@@ -45,7 +45,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Done-check**: run the test then full `make test` after ticking (RED until then).
   - **Context**: `meeting/orphan-scan.sh` (`--shipped` driver / anchor). Relates id:46f6 (typed edges), id:1b1a (md-merge fail-open), id:b3ee (original `--shipped` detector). COUPLED with id:34c7 (same anchor family) and id:4245 (which depends on `--shipped` seeing 7df1).
 
-- [ ] [ROUTINE] Surface the two deliberately-unmarked gate edges (`7df1`, `50c4`) as UNMARKED-GATE in `orphan-scan.sh --shipped` <!-- id:4245 -->
+- [x] [ROUTINE] Surface the two deliberately-unmarked gate edges (`7df1`, `50c4`) as UNMARKED-GATE in `orphan-scan.sh --shipped` <!-- id:4245 -->
   - **Why** (TODO id:4245; meeting 2026-07-10-1430): the typed-edge pass wrote 8 `children:` + 10 `gated-on:` markers, but left `7df1` and `50c4` UNMARKED on purpose — their gate tokens (`b466`, `508d`) live in project_manager / relay-core and do not resolve locally. They must surface as UNMARKED-GATE (resolved via the routed:/inbox machinery, not a local `gated-on:` edge), not silently vanish.
   - **How / Design**: give `orphan-scan.sh --shipped` an UNMARKED-GATE class that flags an open item whose known cross-repo gate token is unresolved-and-unmarked-locally, reporting `7df1` and `50c4`. Keep it report-only. NOTE: `7df1`'s TODO twin is indented, so this likely DEPENDS ON id:431f's anchor widening landing first (else 7df1 is invisible to `--shipped`).
   - **Acceptance**: `tests/` (`test_orphan_scan_unmarked_gate.sh`, `# roadmap:4245`) — a fixture with an open item carrying a cross-repo gate token but NO local `gated-on:` marker is reported UNMARKED-GATE; a locally-marked `gated-on:` item is NOT.
