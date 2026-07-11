@@ -194,12 +194,12 @@ list_orphans() {
   git -C "$repo" for-each-ref --format='%(refname:short)' "refs/heads/$ORPHAN_NS"
 }
 
-# main_ref <repo> — echo the resolvable trunk ref name ('main' or 'master').
+# main_ref <repo> — echo the repo's integration/trunk branch. Resolves from the checked-out
+# HEAD (the branch children fork from) via the single-source trunk-branch.sh, falling back to
+# main→master only on a detached HEAD. NOT hardcoded 'main' — a repo on e.g. claude/opusplan
+# (main frozen) must classify its orphans against the real trunk merge-base, not frozen main.
 main_ref() {
-  local r="$1"
-  git -C "$r" rev-parse --verify -q main   >/dev/null 2>&1 && { echo main;   return; }
-  git -C "$r" rev-parse --verify -q master >/dev/null 2>&1 && { echo master; return; }
-  echo main
+  "$SCRIPTS_DIR/trunk-branch.sh" "$1"
 }
 
 # integrate_branch <repo> <full-branch> — the SAME serialized-integrator recipe the live

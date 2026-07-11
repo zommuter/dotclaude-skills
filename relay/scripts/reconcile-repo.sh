@@ -28,7 +28,7 @@
 #   RELAY_WORKTREE_BASE  default ~/.cache/relay/worktrees
 set -euo pipefail
 
-repo="" path="" runid="" main_branch="main"
+repo="" path="" runid="" main_branch=""   # empty ⇒ resolve from HEAD via trunk-branch.sh
 # live_claims (id:e3ad fail-closed reap guard, tri-state sum type — id:77ce): bash has
 # no Option/sum type, so the three LiveClaims states are modelled as ONE sentinel-bearing
 # variable instead of the previous {live_claims_provided bool, live_claims string} PAIR
@@ -53,6 +53,14 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$repo" ]] || { echo "reconcile-repo.sh: --repo is required" >&2; exit 2; }
 [[ -n "$path" ]] || { echo "reconcile-repo.sh: --path is required" >&2; exit 2; }
+
+# Integration/trunk branch — the reap/park ancestry test (below) MUST compare against the
+# branch children actually fork from, not a hardcoded `main`. When --main-branch is absent
+# or empty, resolve it from the repo's checked-out HEAD via the single-source trunk-branch.sh
+# (a repo on `claude/opusplan` with `main` frozen would otherwise mis-park every worktree).
+if [[ -z "$main_branch" ]]; then
+  main_branch="$("$(dirname "$0")/trunk-branch.sh" "$path")"
+fi
 
 WORKTREE_BASE="${RELAY_WORKTREE_BASE:-$HOME/.cache/relay/worktrees}"
 
