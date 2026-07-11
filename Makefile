@@ -62,6 +62,7 @@ relay_FILES := SKILL.md \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
                scripts/deny-tail-probe.sh \
+               scripts/archive-closed.sh \
                scripts/lib-own-repos.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
@@ -81,7 +82,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
-               scripts/deny-tail-probe.sh
+               scripts/deny-tail-probe.sh scripts/archive-closed.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
@@ -100,7 +101,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
-               scripts/deny-tail-probe.sh
+               scripts/deny-tail-probe.sh scripts/archive-closed.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
