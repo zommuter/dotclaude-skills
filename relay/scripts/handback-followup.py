@@ -67,8 +67,11 @@ def gate_line(line, reason, route):
         new = TIER_RE.sub(GATE_TAG, line, count=1)
     else:
         new = re.sub(r"(- \[ \]\s*)", r"\1**" + GATE_TAG + "** ", line, count=1)
-    # insert the note just before the id comment so the token stays at end-of-line.
-    return re.sub(r"\s*(<!--\s*id:[0-9a-f]{4}\s*-->)\s*$", note + r" \1", new)
+    # insert the note right after the FIRST id comment (id:1b1a — the id comment is
+    # not always line-terminal, e.g. `<!-- id:78ff --> <!-- xledger-ok: ... -->`; a
+    # `$`-anchored match silently no-ops on those lines instead of gating them).
+    return re.sub(r"(<!--\s*id:[0-9a-f]{4}\s*-->)",
+                  lambda m: m.group(1) + note, new, count=1)
 
 
 def mint_id(repo_root):
@@ -181,6 +184,11 @@ def main():
     # In no-commit mode, write only (the deliberate dry path).
     merge_cmd = [sys.executable, os.path.join(SKILLS, "meeting", "md-merge.py"),
                  "update-ids", "--file", roadmap]
+    if a.route == "hard-split":
+        # id:1b1a — md-merge's update-ids now fails LOUD on an unmatched id by
+        # default; hard-split is the only route that mints genuinely NEW seam
+        # ids, so it alone opts in to the append behaviour.
+        merge_cmd += ["--allow-new"]
     if do_commit:
         merge_cmd += ["--commit", msg]
     merge = sh(merge_cmd, input=json.dumps({"updates": updates}))
