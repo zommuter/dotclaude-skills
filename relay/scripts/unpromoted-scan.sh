@@ -83,10 +83,29 @@ log() { printf '%s unpromoted-scan.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" 
 # the tag right after the checkbox, before any title text, so "leftmost" is already correct
 # there and TODO.md's non-bold prose-summary items carry no genuine tag either way).
 primary_lane() {
-  local line="$1" tag prefix pos best_pos=-1 best_tag="" rest=""
+  local line="$1" tag prefix pos best_pos=-1 best_tag="" rest="" lead_tag=""
+  # id:719a — recognized lane vocabulary spans BOTH the old venue-keyed spelling
+  # ([HARD — pool|hands|meeting|decision gate]) and the new capability-keyed spelling
+  # ([INPUT — meeting|access|decision], bare [HARD], [MECHANICAL]) during the dual-vocab
+  # window (id:7df1 gated). [HARD] alone is NOT executor-promotable (reserved for the
+  # strong reviewer, rule 1) — only [ROUTINE]/[HARD — pool] are; see disposition mapping
+  # below. All others are recognized-but-laned (lane question already answered).
+  local -a tags=(
+    "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"
+    "[INPUT — meeting]" "[INPUT — access]" "[INPUT — decision]" "[MECHANICAL]" "[HARD]"
+  )
+  # id:719a — tag-before-bold-title anchor: "- [ ] [TAG] **title** ..." (new-vocab items
+  # are conventionally tagged BEFORE the bold title, unlike old-vocab's after-title spot).
+  # A tag here wins over any prose token regardless of order.
+  if [[ "$line" =~ ^-\ \[\ \]\ (\[[^]]*\])\ \*\* ]]; then
+    lead_tag="${BASH_REMATCH[1]}"
+    for tag in "${tags[@]}"; do
+      [[ "$lead_tag" == "$tag" ]] && { printf '%s' "$tag"; return; }
+    done
+  fi
   if [[ "$line" =~ ^-\ \[\ \]\ \*\*[^*]*\*\*[[:space:]]*(.*)$ ]]; then
     rest="${BASH_REMATCH[1]}"
-    for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"; do
+    for tag in "${tags[@]}"; do
       case "$rest" in
         "$tag"*) printf '%s' "$tag"; return ;;
       esac
@@ -94,7 +113,7 @@ primary_lane() {
     printf ''
     return
   fi
-  for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"; do
+  for tag in "${tags[@]}"; do
     case "$line" in
       *"$tag"*)
         prefix="${line%%"$tag"*}"; pos=${#prefix}
