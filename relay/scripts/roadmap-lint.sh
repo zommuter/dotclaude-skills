@@ -210,7 +210,34 @@ report=""
 in_exempt_section=0
 heading_is_item=0
 
-while IFS= read -r line; do
+# Slurp into an array (not a `read` pipe) so the heading-as-item detector (id:c095)
+# can LOOK AHEAD at a heading's children before deciding whether the heading owns
+# the lane+id itself, or is merely a descriptive SECTION title (id:dfe4 refinement).
+mapfile -t _rl_lines < "$roadmap"
+
+# section_has_tagged_child <start-index> — TRUE (return 0) when the span from
+# <start-index> up to the NEXT `## ` heading (or EOF) contains at least one
+# top-level checkbox line (`- [ ]` OR `- [x]`) that carries its OWN class tag AND
+# its OWN id token on that SAME line. When true, the enclosing `## [LANE] …`
+# heading is a descriptive SECTION title over already-tagged+ided children, NOT a
+# heading-as-item — the child already satisfies the grammar on its own and the
+# heading itself is not required to carry an id (id:dfe4). Returns FALSE (1) only
+# when every child in the span is a BARE status marker (no own tag+id) — the
+# genuine c095 shape (heading owns the lane+id over bare markers).
+section_has_tagged_child() {
+  local start="$1" j _sl
+  for ((j = start; j < ${#_rl_lines[@]}; j++)); do
+    _sl="${_rl_lines[$j]}"
+    [[ "$_sl" =~ ^##+[[:space:]] ]] && return 1
+    if [[ "$_sl" =~ ^-[[:space:]]\[[[:space:]xX]\][[:space:]] ]]; then
+      [[ "$_sl" =~ $class_re && "$_sl" =~ $id_re ]] && return 0
+    fi
+  done
+  return 1
+}
+
+for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
+  line="${_rl_lines[$_rl_i]}"
   # Track the active/exempt section from headings.
   if [[ "$line" =~ ^##+[[:space:]] ]]; then
     if is_exempt_heading "$line"; then
@@ -222,8 +249,10 @@ while IFS= read -r line; do
       # markers, not separate items (collaib's convention). Recognize it by a class tag
       # in the heading; its `- [ ]` children are then skipped below. The heading itself
       # must still carry an id (positive grammar — a heading-item missing its id is a
-      # violation, so nothing hides).
-      if [[ "$line" =~ $class_re ]]; then
+      # violation, so nothing hides) — UNLESS the children themselves already carry
+      # their OWN class tag + id, in which case the heading is a descriptive SECTION
+      # title, not an item, and must NOT be flagged for a missing id (id:dfe4).
+      if [[ "$line" =~ $class_re ]] && ! section_has_tagged_child $((_rl_i + 1)); then
         heading_is_item=1
         if ! [[ "$line" =~ $id_re ]]; then
           violations=$((violations + 1))
@@ -384,7 +413,7 @@ while IFS= read -r line; do
   handle="${idtoken:-<no id>}"
   report+="  - [${handle}] ${reason_str}"$'\n'
   report+="      ${line}"$'\n'
-done < "$roadmap"
+done
 
 # --- log (best-effort) --------------------------------------------------------
 log="$HOME/.claude/logs/relay-roadmap-lint.log"
