@@ -2396,3 +2396,7 @@ expected-red. Friction: none.
 ## 2026-07-11 14:01 — executor (sonnet, relay-loop)
 
 Refined roadmap-lint.sh c095 heading-as-item detection to only require a heading's own id when its children are bare status markers, fixing 3 false positives (id:dfe4); full suite 217/0/0-red. [id:dfe4]
+
+## 2026-07-11 14:31 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: window was one M3 relane commit (id:77f3/13ae HARD→INPUT, legit); reconciled id:dfe4 cross-ledger drift, surfaced de4e lint warning; 217/0/0 green [id:dfe4,de4e]
