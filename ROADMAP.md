@@ -10,6 +10,62 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- 2026-07-11 handoff C2 (run relay-20260711-123559-15556): promoted the executor-ready
+     `[ROUTINE]` promote-disposition TODO items (unpromoted-scan: 16 promote / 3 laned / 183
+     surface). Single-id-two-views (D2): every id below REUSES its open TODO.md twin.
+     Promoted the 6 genuinely executor-ready [ROUTINE] items (clear code change + testable
+     acceptance). NOT promoted: the `[INPUT — meeting]`/`[INPUT — access]`-tagged "promote"
+     rows (77f3/4299/b444/33c2/a505/7b23/b8ae/d0da — a lane a handoff can't decide; surface
+     items are the mechanical `human`-verdict filer's job, handoff.md §surface); id:02c7
+     (POSIX ACLs) is access-gated on the still-unprovisioned relay-ro/relay-svc OS users
+     (id:13ae) so its "relay-ro CANNOT write" test is un-runnable — left for the access lane;
+     id:2e6d parent is largely SHIPPED and its child id:7d97 (user:-prefix + emphasis
+     invariants) was ALREADY SHIPPED (commit 6bc2817, test12/13 in test_memory_index.sh green)
+     — so neither is promoted; 2e6d's only remainder is the [INPUT — user] settings.json
+     hook install. -->
+
+- [ ] [ROUTINE] `diary-append.sh`: keep the `-f` entry temp file until push SUCCEEDS + fix the multi-branch rebase race <!-- id:f8df -->
+  - **Why** (TODO id:f8df; observed 2026-07-08): `diary-append.sh -f <entry>` raced a concurrent quota-sampler commit on the diary repo, died with `fatal: Cannot rebase onto multiple branches`, and had ALREADY consumed/deleted the `-f` temp entry file — the entry was silently lost (id:4347 silent-swallow class; recovered only because the invoking session still held the text).
+  - **How / Design**: (a) delete the `-f` temp file ONLY AFTER commit+push succeeds — on any error, move it to a `.failed/` quarantine and print a LOUD stderr path (never silent unlink). (b) Find why the pull step hit "multiple branches" under concurrency (likely `git pull --rebase` with a multi-refspec fetch config or a missing explicit `origin <branch>` arg inside the flock) and pin the refspec / use explicit `origin <branch>` args. Keep the existing flock discipline.
+  - **Acceptance**: a hermetic test (`tests/test_diary_append_entry_survival.sh`, `# roadmap:f8df`) that simulates a concurrent upstream commit landing between fetch and rebase, asserts the `-f` entry file SURVIVES the failed run (in `.failed/` with a loud path), and that a retry appends the entry EXACTLY once (no duplicate, no loss).
+  - **Done-check**: `tests/run-tests.sh tests/test_diary_append_entry_survival.sh` then full `make test` after ticking (RED until then).
+  - **Context**: `git-diary-workflow/diary-append.sh` (the `-f` consume path + the pull/rebase step under flock), TODO id:f8df.
+
+- [ ] [ROUTINE] Unify `orphan-scan.sh --cross-ledger` on an id-keyed, indent-agnostic twin-check (shared with `archive-closed.sh`) <!-- id:34c7 -->
+  - **Why** (TODO id:34c7; meeting 2026-07-11-1239 D1): `--cross-ledger` missed 6 real drift items (ROADMAP `[x]` / TODO `[ ]`) because their TODO twin is an INDENTED sub-item, while `archive-closed.sh`'s id-keyed check caught them — the two use different anchoring.
+  - **How / Design**: re-implement `--cross-ledger`'s twin match on an id-keyed, indent-agnostic basis (find the `<!-- id:XXXX -->` token anywhere on a checkbox line regardless of leading whitespace), matching `archive-closed.sh`'s approach so the two agree. Anchor on the id marker, not a column-0 `^- \[ \]` grep.
+  - **Acceptance**: `tests/` (`test_orphan_scan_cross_ledger_indent.sh` or extend the cross-ledger test, `# roadmap:34c7`) — a fixture where ROADMAP has an `[x]` item whose TODO twin is an INDENTED `  - [ ]` sub-item IS flagged as cross-ledger drift; a matching non-indented case still flags; an agreeing pair (both `[x]`) is not flagged.
+  - **Done-check**: run the test then full `make test` after ticking (RED until then).
+  - **Context**: `meeting/orphan-scan.sh` (`--cross-ledger` mode), `todo-update/archive-closed.sh` (the id-keyed check to converge on). COUPLED with id:431f (the col-0 anchor blindspot in `--shipped`) — same script family; coordinate the anchor helper if touching both.
+
+- [ ] [ROUTINE] `orphan-scan.sh --shipped`: widen the col-0 anchor so INDENTED sub-items are classified <!-- id:431f -->
+  - **Why** (TODO id:431f; found 2026-07-10 by the id:46f6 executor): the `--shipped` driver greps `^- \[ \] ` anchored at column 0, so 14 of 241 open id-bearing TODO items (6%) nested under a parent are never classified — not TICK-READY, not GATE-STALE, not the typed-edge umbrella/gate classes. Concretely inert: `gated-on:` markers on id:3c4c/eb92 and the UNMARKED-GATE expected on id:7df1.
+  - **How / Design**: widen the anchor to `^\s*- \[ \] ` so indented `  - [ ]` items enter all `--shipped` classes; keep the col-0 behaviour otherwise unchanged. This is report-only (nothing auto-ticks); the change pulls 14 previously-unclassified items in at once — a measured, advisory burst, acceptable.
+  - **Acceptance**: `tests/` (`test_orphan_scan_shipped_indent.sh`, `# roadmap:431f`) — an INDENTED `  - [ ]` item with a `children:` marker whose children are all `[x]` is reported UMBRELLA-READY; a pre-existing col-0 case is unchanged.
+  - **Done-check**: run the test then full `make test` after ticking (RED until then).
+  - **Context**: `meeting/orphan-scan.sh` (`--shipped` driver / anchor). Relates id:46f6 (typed edges), id:1b1a (md-merge fail-open), id:b3ee (original `--shipped` detector). COUPLED with id:34c7 (same anchor family) and id:4245 (which depends on `--shipped` seeing 7df1).
+
+- [ ] [ROUTINE] Surface the two deliberately-unmarked gate edges (`7df1`, `50c4`) as UNMARKED-GATE in `orphan-scan.sh --shipped` <!-- id:4245 -->
+  - **Why** (TODO id:4245; meeting 2026-07-10-1430): the typed-edge pass wrote 8 `children:` + 10 `gated-on:` markers, but left `7df1` and `50c4` UNMARKED on purpose — their gate tokens (`b466`, `508d`) live in project_manager / relay-core and do not resolve locally. They must surface as UNMARKED-GATE (resolved via the routed:/inbox machinery, not a local `gated-on:` edge), not silently vanish.
+  - **How / Design**: give `orphan-scan.sh --shipped` an UNMARKED-GATE class that flags an open item whose known cross-repo gate token is unresolved-and-unmarked-locally, reporting `7df1` and `50c4`. Keep it report-only. NOTE: `7df1`'s TODO twin is indented, so this likely DEPENDS ON id:431f's anchor widening landing first (else 7df1 is invisible to `--shipped`).
+  - **Acceptance**: `tests/` (`test_orphan_scan_unmarked_gate.sh`, `# roadmap:4245`) — a fixture with an open item carrying a cross-repo gate token but NO local `gated-on:` marker is reported UNMARKED-GATE; a locally-marked `gated-on:` item is NOT.
+  - **Done-check**: run the test then full `make test` after ticking (RED until then).
+  - **Context**: `meeting/orphan-scan.sh` (`--shipped`), `docs/meeting-notes/2026-07-10-1430-typed-ledger-edges-umbrella-closure.md`. DEP: id:431f (indented-item anchor) — pick 431f first.
+
+- [ ] [ROUTINE] `md-merge.py update-ids`: fail LOUD on an unmatched id; gate appends behind `--allow-new` <!-- id:1b1a -->
+  - **Why** (TODO id:1b1a, HIGH PRIORITY; found 2026-07-10): `md-merge.py:143-152` APPENDS an id not present in the file. Correct for NEW items, fail-OPEN for UPDATES — a caller intending to edit `id:abcd` who mistypes it gets a silent duplicate line, not an error. The whole point of routing writes through this helper is that it is the SAFE path.
+  - **How / Design**: make intent explicit — `update-ids` FAILS LOUDLY (non-zero + the named unmatched tokens on stderr, writing nothing) when an id is not found; appends require an opt-in flag (`--allow-new`, or a separate `add-items` subcommand) that preserves today's behaviour. Then verify the id-comment regex (`<!--\s*id:([0-9a-f]{4})\s*-->`, `md-merge.py:135`) is not the only reader assuming the comment terminates immediately after the hex — the item names ~10 readers; at minimum fix `handback-followup.py:71`'s `$`-anchored regex which already silently no-ops on `id:78ff` (its id comment is followed by an `xledger-ok:` annotation).
+  - **Acceptance**: `tests/` (`test_md_merge_update_ids_strict.sh`, `# roadmap:1b1a`) — `update-ids` with an unknown id exits non-zero and writes NOTHING; with `--allow-new` it appends as today; a companion assertion that `handback-followup` appends its note to a line whose id comment is non-terminal (`id:XXXX xledger-ok:…`).
+  - **Done-check**: run the test then full `make test` after ticking (RED until then).
+  - **Context**: `tools/md-merge.py` (`update-ids`, lines ~135/143-152), `relay/scripts/handback-followup.py:71` (`$`-anchored regex bug). Relates id:46f6 (typed-edge marker), id:ee62 (visible-vs-comment annotations), `docs/meeting-notes/2026-07-10-1430-typed-ledger-edges-umbrella-closure.md`.
+
+- [ ] [ROUTINE] Add a 5th capability lane `[INPUT — author]` (human-expert-authored content) to the lane contract (this-repo half) <!-- id:2b0b -->
+  - **Why** (TODO id:2b0b; user 2026-07-11, M3 lane-triage): the 4 capability lanes don't cover "a human expert AUTHORS content/prose" (not credential/hardware=access, not design-judgment=meeting, not a discrete decision, not compute=mechanical). Surfaced by toesnail id:e552 and linguistic-unversals id:d58f, which stay `[HARD — hands]` until this lands.
+  - **How / Design**: add `[INPUT — author]` to `relay/references/hard-lanes.md` (capability table + canonical marker set), and wire its two IN-REPO consumers — `relay/scripts/gather-human-backlog.sh` (id:78ff; bucket it onto the "you run these"/owner list, NOT a meeting) and `relay/scripts/roadmap-lint.sh` (recognition, so it isn't flagged as an unknown/untagged lane). Extend `tests/test_hard_lane_buckets.sh`'s marker-set cross-check.
+  - **Acceptance**: `tests/test_hard_lane_buckets.sh` (extend, `# roadmap:2b0b`) green — an `[INPUT — author]` item is bucketed onto the owner/author list (not meeting), `roadmap-lint.sh` does not flag it as untagged, and the marker set in `hard-lanes.md` includes it.
+  - **Done-check**: `tests/run-tests.sh tests/test_hard_lane_buckets.sh` then full `make test` after ticking (RED until then).
+  - **Context**: `relay/references/hard-lanes.md` (capability table + marker set), `relay/scripts/gather-human-backlog.sh`, `relay/scripts/roadmap-lint.sh`, `tests/test_hard_lane_buckets.sh`. CROSS-REPO coupling (out of this worktree's scope): project_manager `scan.py` (id:b466) reads the same `hard-lanes.md` contract and needs the matching lane added there — already tracked in TODO id:2b0b, not a new inbox item.
+
 <!-- 2026-07-11 relay human: filed the impl for two ratified REVIEW_ME decisions —
      id:dfe4 (refine c095 heading-as-item detection) + id:26c2 (mechanical-daemon host-gate).
      Both [ROUTINE] with RED specs; NOT reopening c095/b3d0 (their contracts hold). -->
