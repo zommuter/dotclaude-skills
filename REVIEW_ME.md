@@ -34,7 +34,20 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   source-resolved: the lib is shipped and installer-listed). **Action:** run `make
   install-relay` (or `make install`).
 
-- [x] **`roadmap-lint` flags 3 heading-as-item MISSING-id violations on descriptive `## [LANE]` section headers (audit Run 70, 2026-07-06).** — OWNER DECISION: human 2026-07-11 (relay human): DECIDED refine c095 detection — only flag a `## [LANE]` heading when its children are bare status markers (no own tag+id); adding an id would duplicate the child's + break single-id-two-views. Impl filed as ROADMAP id:dfe4 ([ROUTINE] + RED test).
+- [ ] **How should `--shipped` surface id:50c4, a deliberately-unmarked cross-repo gate with NO gate-word vocabulary? (handoff 2026-07-11, ROADMAP id:4245).**
+  ROADMAP id:4245 asks that BOTH id:7df1 and id:50c4 surface as `UNMARKED-GATE`. id:7df1 is
+  tractable — it carries `🚧 GATED (DEP: 3ef7 …)` gate vocabulary, so once id:431f widens the
+  indented-item anchor the existing UNMARKED-GATE backstop fires on it (this is what
+  `tests/test_orphan_scan_unmarked_gate.sh` asserts). **id:50c4 has NO gate-word vocabulary at
+  all** (its gate token `508d` lives in relay-core; the TODO line is plain "Create sibling
+  relay-core Lean repo …"), so nothing in the line signals a gate to the scanner — a purely
+  mechanical detector cannot know it is gated without SOME marker, yet the item's whole point is
+  that it is *deliberately unmarked* locally. **Decision for the human:** what is the intended
+  mechanism — (a) a lightweight local marker convention (e.g. a `<!-- xgate:508d@relay-core -->`
+  sibling comment the scanner reads, resolved via routed:/inbox), (b) driving it from the
+  `routed:`/inbox registry rather than the line, or (c) accept that a vocab-less cross-repo gate
+  is not `--shipped`'s job and narrow id:4245 to the 7df1-shaped (has-vocab) case only? The
+  executor test covers the 7df1 shape; the 50c4 shape is left for this decision. — OWNER DECISION: human 2026-07-11 (relay human): DECIDED refine c095 detection — only flag a `## [LANE]` heading when its children are bare status markers (no own tag+id); adding an id would duplicate the child's + break single-id-two-views. Impl filed as ROADMAP id:dfe4 ([ROUTINE] + RED test).
   `roadmap-lint.sh` flags 3 "heading-as-item MISSING its id" violations on the 2026-07-03
   relay-handoff SECTION headers `## [MECHANICAL] lane-anchor hotfix …`, `## [MECHANICAL] recipe
   explicit-success-marker doctrine …`, `## [ROUTINE] case-c bare-only lane count …` (ROADMAP.md
