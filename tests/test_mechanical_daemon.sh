@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # roadmap:b3d0 — A3: the mechanical-run daemon (one processing tick over the recipe drop-dir).
+# roadmap:26c2 — cases (4)/(5) below (foreign-host defer / matching-host permit) were
+# implemented and landed as id:9cfa (wave-2a review finding) before this ROADMAP item's
+# acceptance was formally ticked; the behavior and tests are identical, id:26c2 closes as
+# the same host-gate, no further code change needed.
 #
 # WHY (meeting 2026-07-02-1924 decision 3; TODO id:b3d0): the host `--user` `.path`-unit that
 # runs relay-authored recipes OUTSIDE the Workflow (pure mechanical → no permission wall).
