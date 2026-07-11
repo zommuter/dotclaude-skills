@@ -3,6 +3,14 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+- [ ] **`roadmap-lint` WARN: DECIDED-LEFT-OPEN on id:de4e (review 2026-07-11 1236).**
+  `- [ ] [INPUT — meeting] DEFERRED (decided 2026-06-17): Distributed relay orchestrator — multi-machine,
+  dynamic membership <!-- id:de4e -->` carries a decided/deferred marker but is still an open checkbox, so
+  `roadmap-lint.sh` warns every pass (exit 0, non-blocking). The item is a genuine long-horizon deferral,
+  not stalled work. **Decision for the human:** either **tick it** with a "DEFERRED — reopen if multi-machine
+  ever needed" done-note (closes the box; the deferral rationale stays in the line), OR drop the DEFERRED
+  marker and re-lane it as a live `[INPUT — meeting]` candidate. Pre-existing; not a session-batch defect.
+
 - [ ] **Do NOT auto-close the inbox-rehaul umbrella id:9fdb just because its child id:411d shipped (review 2026-07-10 1710).**
   `orphan-scan --shipped` now reports id:9fdb `UMBRELLA-READY (all children [x])` because its only
   typed child edge is `<!-- children:411d -->` and I ticked id:411d this pass. But id:9fdb is a
