@@ -2424,3 +2424,7 @@ Added the [INPUT — author] capability lane (id:2b0b): hard-lanes.md table entr
 ## 2026-07-11 — executor (sonnet, relay-loop)
 
 Worked id:34c7 — widened `orphan-scan.sh --cross-ledger`'s two column-0-anchored checkbox scans (`grep -hE '^- \[[ xX]\] '` over TODO.md/TODO.archive.md and ROADMAP.md) to `^\s*- \[[ xX]\] ` (indent-agnostic), matching the `--shipped` driver's pre-existing approach (id:431f), so a drift whose TODO twin is an INDENTED sub-item is now caught by its own checkbox state (not its parent umbrella's). `tests/test_orphan_scan_cross_ledger_indent.sh` (# roadmap:34c7, already RED from handoff C2) is now green. Ticked ROADMAP.md + TODO.md twin. Full suite: 220 passed / 0 failed / 3 expected-red (open roadmap items). Friction: none.
+
+## 2026-07-11 15:42 — executor (sonnet, relay-loop)
+
+Unified orphan-scan.sh --cross-ledger on an indent-agnostic checkbox anchor so indented TODO sub-item twins are caught (id:34c7); full suite 220/0/3-red. [id:34c7]
