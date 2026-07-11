@@ -2943,7 +2943,7 @@ recommendation). Do NOT dispatch until 4f02 is ticked.
     line). GREEN as of B2a. The relay-loop.js regex + classify-repo parse flips are verified by
     review spot-checks + the ~30 old-vocab tests still passing (dual-accept).
 
-- [ ] B2c-finalizer — CLOSE the dual-vocab window: convert this-repo ledgers + migrate ~30 lane tests + flip old-vocab→lint ERROR [INPUT — decision] 🚧 GATED (DEP: 3ef7 + cross-repo re-tag) <!-- id:7df1 -->
+- [ ] B2c-finalizer — CLOSE the dual-vocab window: convert this-repo ledgers + migrate ~30 lane tests + flip old-vocab→lint ERROR [INPUT — decision] 🚧 GATED (DEP: 3ef7 + cross-repo re-tag) — **human 2026-07-11 (relay human): keep OPEN, gate re-confirmed.** Blocker is the cross-repo re-tag, NOT tooling (lane-convert id:4b37 shipped): 27 own repos + project_manager scan.py still emit old vocab (71 live `[HARD — pool|meeting|hands|decision gate]` tags), so flipping old→ERROR now would break them. This is `[INPUT — decision]` = a deliberate coordinated migration the human triggers (each repo's next `/relay handoff` runs `lane-convert`, then this closes), never autonomous pool work. <!-- id:7df1 -->
   - **Why**: B2 (id:8111) landed reader+reference+engine DUAL-ACCEPT — old and new vocab both
     ERROR-free. The window must stay OPEN until every OTHER surface is on the new vocab, then close
     in one deliberate flip. This is the tail the meeting deliberately deferred.
