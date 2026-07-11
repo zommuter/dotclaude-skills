@@ -280,7 +280,7 @@ for line in "${_inbox_lines[@]}"; do
       # Write via md-merge.py (flock'd atomic append)
       jq -n --arg id "$new_id" --arg line "$stub" \
         '{"updates": [{"id": $id, "line": $line}]}' \
-        | python3 "$MD_MERGE" update-ids --file "$target_todo" \
+        | python3 "$MD_MERGE" update-ids --file "$target_todo" --allow-new \
         || { log "md-merge failed for $target routed=$tok (non-fatal)"; findings=$((findings+1)); dead=$((dead+1)); continue; }
 
       echo "APPLIED routed:$tok → [$target] @ $target_todo"
