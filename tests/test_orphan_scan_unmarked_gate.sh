@@ -29,7 +29,7 @@ cat > "$repo/TODO.md" <<'EOF'
 ## Current
 - [ ] a real parent line
   - [ ] finalizer, cross-repo gate token lives in another repo 🚧 GATED (DEP: 3ef7 + cross-repo re-tag) <!-- id:7df1 -->
-- [ ] a col-0 item with a local gated-on: marker MUST NOT be UNMARKED-GATE <!-- gated-on:c0de --> <!-- id:9999 -->
+- [ ] a col-0 item with a local gated-on: marker, properly typed-edge <!-- gated-on:c0de --> <!-- id:9999 -->
 - [x] the local gate token, closed <!-- id:c0de -->
 EOF
 git -C "$repo" add -A
