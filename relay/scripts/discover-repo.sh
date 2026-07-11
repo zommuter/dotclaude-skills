@@ -39,7 +39,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RECONCILE="$SCRIPT_DIR/reconcile-repo.sh"
 CLASSIFY="$SCRIPT_DIR/classify-repo.sh"
 
-repo="" path="" runid="" live_claims="" main_branch="main" no_reconcile=""
+repo="" path="" runid="" live_claims="" main_branch="" no_reconcile=""   # main_branch empty ⇒ reconcile-repo.sh resolves it from HEAD (trunk-branch.sh)
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) repo="$2"; shift 2 ;;
