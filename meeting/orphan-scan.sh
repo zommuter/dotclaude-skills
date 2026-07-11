@@ -108,7 +108,7 @@ if [[ "$mode" == "cross-ledger" ]]; then
   # Such lines are NOT flagged; an empty reason "<!-- xledger-ok: -->" still suppresses.
   declare -A todo_state roadmap_state todo_xledger_ok
   while IFS= read -r l; do
-    st=' '; [[ "$l" == "- [x] "* || "$l" == "- [X] "* ]] && st='x'
+    st=' '; [[ "$l" =~ ^[[:space:]]*-\ \[[xX]\]\  ]] && st='x'
     xok=''; [[ "$l" == *"<!-- xledger-ok:"* ]] && xok='1'
     while read -r tk; do
       [[ -z "$tk" ]] && continue
@@ -120,9 +120,9 @@ if [[ "$mode" == "cross-ledger" ]]; then
       [[ -n "${todo_state[$tk]+x}" ]] || todo_state["$tk"]="$st"
       [[ -n "$xok" ]] && todo_xledger_ok["$tk"]='1' || true
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
-  done < <(grep -hE '^- \[[ xX]\] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
+  done < <(grep -hE '^\s*- \[[ xX]\] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
   while IFS= read -r l; do
-    st=' '; [[ "$l" == "- [x] "* || "$l" == "- [X] "* ]] && st='x'
+    st=' '; [[ "$l" =~ ^[[:space:]]*-\ \[[xX]\]\  ]] && st='x'
     xok=''; [[ "$l" == *"<!-- xledger-ok:"* ]] && xok='1'
     while read -r tk; do
       [[ -z "$tk" ]] && continue
@@ -130,7 +130,7 @@ if [[ "$mode" == "cross-ledger" ]]; then
       [[ -n "${roadmap_state[$tk]+x}" ]] || roadmap_state["$tk"]="$st"
       [[ -n "$xok" ]] && todo_xledger_ok["$tk"]='1' || true
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
-  done < <(grep -hE '^- \[[ xX]\] ' "$ROOT/ROADMAP.md" 2>/dev/null || true)
+  done < <(grep -hE '^\s*- \[[ xX]\] ' "$ROOT/ROADMAP.md" 2>/dev/null || true)
   for tk in "${!todo_state[@]}"; do
     [[ -n "${roadmap_state[$tk]:-}" ]] || continue
     id_lines=$((id_lines+1))
