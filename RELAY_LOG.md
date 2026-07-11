@@ -2372,3 +2372,7 @@ ROUTINE item, `roadmap-lint.sh` c095 heading-as-item refinement) untouched this 
 its `tests/test_roadmap_lint_c095.sh` spec does not exist yet in this worktree, so it needs
 its own session to author the fixture + implementation rather than being folded into this
 one. Full suite: 216 passed / 0 failed / 0 expected-red. Friction: none.
+
+## 2026-07-11 13:34 — executor (sonnet, relay-loop)
+
+Closed id:26c2 (mechanical-daemon host-gate) — behavior was already shipped under id:9cfa; ticked ROADMAP+TODO, cross-referenced test, full suite 216/0/0-red. [id:26c2]
