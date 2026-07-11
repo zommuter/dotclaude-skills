@@ -2412,3 +2412,7 @@ Worked id:431f — widened `orphan-scan.sh --shipped`'s two col-0 anchors (the t
 ## 2026-07-11 15:20 — executor (sonnet, relay-loop)
 
 Widened orphan-scan.sh --shipped's two col-0 checkbox anchors to classify INDENTED sub-items (id:431f); full suite 218/0/5-red. [id:431f]
+
+## 2026-07-11 — executor (sonnet, relay-loop)
+
+Worked id:2b0b — added the 5th capability lane `[INPUT — author]` (human-expert-authored content) to `relay/references/hard-lanes.md`'s capability table, wired `relay/scripts/gather-human-backlog.sh` to bucket it onto `hard_hands` ("you write this", NOT untagged/meeting), and `roadmap-lint.sh` picked it up automatically since it reads the INPUT-lane marker set dynamically from `hard-lanes.md`. `tests/test_lane_input_author.sh` (# roadmap:2b0b, already RED from handoff) is now green; `tests/test_hard_lane_buckets.sh` unaffected/still green. Ticked ROADMAP.md's this-repo-half checkbox; left TODO.md's twin OPEN because it also covers the cross-repo `project_manager scan.py` half (id:b466, out of this worktree's scope, already flagged in the ROADMAP context note as tracked not duplicated). Full suite: 219 passed / 0 failed / 4 expected-red (open roadmap items). Friction: none.
