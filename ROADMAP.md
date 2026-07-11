@@ -31,7 +31,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Done-check**: `tests/run-tests.sh tests/test_diary_append_entry_survival.sh` then full `make test` after ticking (RED until then).
   - **Context**: `git-diary-workflow/diary-append.sh` (the `-f` consume path + the pull/rebase step under flock), TODO id:f8df.
 
-- [ ] [ROUTINE] Unify `orphan-scan.sh --cross-ledger` on an id-keyed, indent-agnostic twin-check (shared with `archive-closed.sh`) <!-- id:34c7 -->
+- [x] [ROUTINE] Unify `orphan-scan.sh --cross-ledger` on an id-keyed, indent-agnostic twin-check (shared with `archive-closed.sh`) <!-- id:34c7 -->
   - **Why** (TODO id:34c7; meeting 2026-07-11-1239 D1): `--cross-ledger` missed 6 real drift items (ROADMAP `[x]` / TODO `[ ]`) because their TODO twin is an INDENTED sub-item, while `archive-closed.sh`'s id-keyed check caught them — the two use different anchoring.
   - **How / Design**: re-implement `--cross-ledger`'s twin match on an id-keyed, indent-agnostic basis (find the `<!-- id:XXXX -->` token anywhere on a checkbox line regardless of leading whitespace), matching `archive-closed.sh`'s approach so the two agree. Anchor on the id marker, not a column-0 `^- \[ \]` grep.
   - **Acceptance**: `tests/` (`test_orphan_scan_cross_ledger_indent.sh` or extend the cross-ledger test, `# roadmap:34c7`) — a fixture where ROADMAP has an `[x]` item whose TODO twin is an INDENTED `  - [ ]` sub-item IS flagged as cross-ledger drift; a matching non-indented case still flags; an agreeing pair (both `[x]`) is not flagged.
