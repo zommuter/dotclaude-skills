@@ -118,8 +118,14 @@ def _first_archive_heading_index(result: list) -> int | None:
     return None
 
 
-def update_ids(file_path: Path, updates: list, commit_msg: str | None = None) -> None:
-    """Replace lines containing <!-- id:XXXX --> with new text, under flock."""
+def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
+               allow_new: bool = False) -> None:
+    """Replace lines containing <!-- id:XXXX --> with new text, under flock.
+
+    id:1b1a — an id NOT found in the file is a fail-LOUD error by default (a typo'd
+    UPDATE must never silently become a duplicate APPEND). Pass allow_new=True to
+    opt back into the append behaviour for genuinely new items.
+    """
     lock_path = file_path.with_suffix(file_path.suffix + '.lock')
     id_map = {u['id']: u['line'].rstrip('\n') for u in updates}
 
@@ -140,8 +146,19 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None) ->
                 else:
                     result.append(line)
 
-            new_lines = [new_line + '\n' for item_id, new_line in id_map.items()
-                         if item_id not in found]
+            unmatched = [item_id for item_id in id_map if item_id not in found]
+            if unmatched and not allow_new:
+                # Fail LOUD, write NOTHING (id:1b1a) — a mistyped id must never
+                # silently become a duplicate appended line.
+                print(
+                    'md-merge: update-ids: unmatched id(s) not found in '
+                    f'{file_path}: {", ".join(sorted(unmatched))} '
+                    '(pass --allow-new to append as new items)',
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            new_lines = [id_map[item_id] + '\n' for item_id in unmatched]
             if new_lines:
                 # id:14d0 — anchor brand-new ids BEFORE the first archive-class
                 # heading (Done/Archive/Icebox); EOF append is the fallback only
@@ -226,6 +243,9 @@ def main() -> None:
                        help='id:148b — after the write, commit JUST this file under the same '
                             'flock with MSG (scoped `git add -- <file>`, never `git add -A`). '
                             'Opt-in; idempotent (clean no-op if unchanged); non-fatal on git error.')
+    p_ids.add_argument('--allow-new', action='store_true',
+                       help='id:1b1a — opt in to appending ids not found in the file '
+                            '(default: an unmatched id fails LOUD and writes nothing).')
 
     p_sec = sub.add_parser('update-sections', help='Replace ## section blocks by heading (for user-profile.md)')
     p_sec.add_argument('--file', required=True, help='Path to the markdown file')
@@ -242,7 +262,8 @@ def main() -> None:
         sys.exit(1)
 
     if args.cmd == 'update-ids':
-        update_ids(Path(args.file), delta.get('updates', []), getattr(args, 'commit', None))
+        update_ids(Path(args.file), delta.get('updates', []), getattr(args, 'commit', None),
+                   getattr(args, 'allow_new', False))
     elif args.cmd == 'update-sections':
         update_sections(Path(args.file), delta.get('sections', []), getattr(args, 'commit', None))
     else:
