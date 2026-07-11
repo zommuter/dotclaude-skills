@@ -2354,3 +2354,21 @@ Split reconcile-repo.sh into pure PLAN + thin APPLY with --dry-run parity oracle
 ## 2026-07-10 20:05 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:77ce genuinely green (reconcile-repo.sh pure PLAN + thin APPLY, --dry-run parity oracle); suite 214/0/0; ledgers consistent, relay-doctor clean [id:77ce]
+
+## 2026-07-11 — executor (sonnet, relay-loop)
+
+Worked id:26c2 — investigated the ROADMAP `[ROUTINE]` item ("add a host-gate to
+mechanical-daemon.sh — skip+defer any recipe whose `.host` != `uname -n`") and found the
+identical behavior was already implemented and tested under id:9cfa (commit 97c322e,
+wave-2a review finding, prior to this ROADMAP item being filed as its formal follow-up):
+`mechanical-daemon.sh`'s step-2 host-binding gate reuses `host-gate.sh` (never a raw
+`uname -n` compare) and `tests/test_mechanical_daemon.sh` cases (4)/(5) already cover the
+exact foreign-host-defer / matching-host-permit acceptance criteria this item specifies.
+No code change was needed — the acceptance was already met. Added a `# roadmap:26c2`
+cross-reference comment to the test file (alongside its existing `# roadmap:b3d0` tag) so
+the discoverability convention holds, then ticked the checkbox in both ROADMAP.md and
+TODO.md (id:26c2 spans both ledgers per single-id-two-views). Left id:dfe4 (the other open
+ROUTINE item, `roadmap-lint.sh` c095 heading-as-item refinement) untouched this session —
+its `tests/test_roadmap_lint_c095.sh` spec does not exist yet in this worktree, so it needs
+its own session to author the fixture + implementation rather than being folded into this
+one. Full suite: 216 passed / 0 failed / 0 expected-red. Friction: none.
