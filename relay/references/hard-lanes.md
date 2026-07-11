@@ -138,6 +138,7 @@ capability tag, never spelled into it.
 | `[INPUT — meeting]` | human design judgment (`/meeting`) | yes (meeting session) |
 | `[INPUT — decision]` | human decides, no design session needed (auto-gate) | no |
 | `[INPUT — access]` | human credential/hardware/physical action | no |
+| `[INPUT — author]` | human-expert-authored content/prose (not a design decision, not credential/hardware) | no |
 | `[MECHANICAL]` | pure compute, no LLM or human runs it (a host daemon does) | no |
 
 The orthogonal **resource** axis is unchanged: `[INTENSIVE — <resource>]` composes
