@@ -2420,3 +2420,7 @@ Worked id:2b0b — added the 5th capability lane `[INPUT — author]` (human-exp
 ## 2026-07-11 15:30 — executor (sonnet, relay-loop)
 
 Added the [INPUT — author] capability lane (id:2b0b): hard-lanes.md table entry + gather-human-backlog.sh bucketing; test_lane_input_author.sh RED→green; full suite 219/0/4-red. [id:2b0b]
+
+## 2026-07-11 — executor (sonnet, relay-loop)
+
+Worked id:34c7 — widened `orphan-scan.sh --cross-ledger`'s two column-0-anchored checkbox scans (`grep -hE '^- \[[ xX]\] '` over TODO.md/TODO.archive.md and ROADMAP.md) to `^\s*- \[[ xX]\] ` (indent-agnostic), matching the `--shipped` driver's pre-existing approach (id:431f), so a drift whose TODO twin is an INDENTED sub-item is now caught by its own checkbox state (not its parent umbrella's). `tests/test_orphan_scan_cross_ledger_indent.sh` (# roadmap:34c7, already RED from handoff C2) is now green. Ticked ROADMAP.md + TODO.md twin. Full suite: 220 passed / 0 failed / 3 expected-red (open roadmap items). Friction: none.
