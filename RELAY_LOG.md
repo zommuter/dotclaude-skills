@@ -2496,3 +2496,7 @@ Worked id:0f7a — `archive-done.sh`: the empty-section pruner previously split 
 ## 2026-07-12 21:58 — executor (sonnet, relay-loop)
 
 executor: shipped id:0f7a (archive-done.sh: only ## headings are prune-segment boundaries, ### subsections count as parent body) [id:0f7a]
+
+## 2026-07-12 22:21 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:0f7a (archive-done nested-### fix) verified green; fixed 0f7a+8800 cross-ledger TODO drift; suite 229 pass [id:0f7a,8800]
