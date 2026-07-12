@@ -234,16 +234,38 @@ fi
 
 # push to all remotes (skip guard pushurls); set upstream on first push
 # --follow-tags: push annotated, reachable tags alongside the branch (checkpoint + version tags)
-# GIT_SSH_COMMAND: BatchMode=yes prevents any interactive auth prompt; ConnectTimeout avoids
-# hanging on a tunnelled fallback (cloudflared access ssh) when the LAN detection misfires.
+# GIT_SSH_COMMAND: BatchMode=yes prevents any interactive auth prompt; ConnectTimeout bounds the
+# TCP connect (a tunnelled cloudflared-access fallback when LAN detection misfires).
+#
+# Two complementary bounds on a stalled push (roadmap:3273 — ConnectTimeout bounds ONLY the
+# connect; an ESTABLISHED ssh whose network dies mid-transfer otherwise hangs forever while
+# HOLDING the flock, starving every other lock user — observed 2026-07-12, dock-ethernet flap):
+#   (a) ServerAliveInterval/CountMax — ssh itself tears down a dead ESTABLISHED connection
+#       after ~interval·countmax s of silence (belt);
+#   (b) a hard `timeout` around git push (suspenders), tunable via GIT_LOCK_PUSH_TIMEOUT for
+#       hermetic testing. On timeout: warn loud, release the flock, exit 0 — work stays
+#       committed locally and retries next run, same non-fatal contract as the flock-timeout
+#       and ff-only-divergence branches above.
+push_ssh="ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+push_timeout="${GIT_LOCK_PUSH_TIMEOUT:-120}"
 current_branch="$(git rev-parse --abbrev-ref HEAD)"
 for remote in $(git remote); do
   pushurl=$(git remote get-url --push "$remote")
   [ "$pushurl" = "no_push" ] && continue
   if git ls-remote --exit-code "$remote" "refs/heads/$current_branch" >/dev/null 2>&1; then
-    GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10" git push --follow-tags "$remote"
+    GIT_SSH_COMMAND="$push_ssh" timeout "$push_timeout" git push --follow-tags "$remote" || push_rc=$?
   else
-    GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10" git push --follow-tags --set-upstream "$remote" "$current_branch"
+    GIT_SSH_COMMAND="$push_ssh" timeout "$push_timeout" git push --follow-tags --set-upstream "$remote" "$current_branch" || push_rc=$?
+  fi
+  if [[ -n "${push_rc:-}" ]]; then
+    if [[ "$push_rc" -eq 124 ]]; then
+      echo "WARNING: push to '$remote' timed out after ${push_timeout}s (stalled ESTABLISHED ssh?). Commit saved locally, not pushed (roadmap:3273)." >&2
+      echo "Run 'git push' manually once the network settles, or it will push next run." >&2
+    else
+      echo "WARNING: push to '$remote' failed (rc=$push_rc). Commit saved locally, not pushed." >&2
+    fi
+    exec 8>&-
+    exit 0  # non-fatal — work is committed
   fi
 done
 
