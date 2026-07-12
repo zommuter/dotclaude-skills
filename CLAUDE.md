@@ -46,7 +46,7 @@ surface carries its own marker AND its own co-located bump discipline (change th
 
 | Surface | Marker | Why it needs one |
 |---|---|---|
-| `relay/references/executor-contract.md` | `<!-- relay-executor contract vN -->` (v6) | `/relay executor` + the `## Relay contract` pointer must agree on `vN`; bump discipline documented in-file |
+| `relay/references/executor-contract.md` | `contract vN` HTML-comment marker (currently v6) | `/relay executor` + the `## Relay contract` pointer must agree on `vN`; bump discipline documented in-file |
 | memory-index frontmatter format (id:2e6d) | *(unmarked — candidate)* | a hook regenerates `MEMORY.md` from it; a format change silently breaks the index |
 | `classify.sh` TSV column contract | *(unmarked — candidate)* | SKILL.md parses fixed columns |
 | allowlist generator's 8-entries-per-script expansion | *(unmarked — candidate)* | literal-match settings.json entries |
