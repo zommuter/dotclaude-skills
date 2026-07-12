@@ -149,14 +149,20 @@ HEADING_RE = re.compile(r'^(#{1,6})\s+(.+)')
 TASK_RE = re.compile(r'^\s*- \[[ x]\]')
 
 # Split into preamble + section segments.
-# 'pre' = content before the first ## heading; 'section' = a ##+ heading + its body.
+# 'pre' = content before the first ## heading; 'section' = a ## heading + its body.
+# Only LEVEL-2 (`##`) headings start a new prune-segment — a deeper heading
+# (`###`+) is kept as BODY of its enclosing `##` section rather than becoming
+# its own segment, so a `## section` whose tasks live entirely under a nested
+# `### subsection` is not mistaken for empty (id:0f7a). This means `###`+
+# headings are never independently empty-pruned; they live or die with their
+# parent `##` section.
 segments = []
 cur_type = 'pre'
 cur_lines = []
 
 for line in keep:
     m = HEADING_RE.match(line.rstrip('\n'))
-    if m and len(m.group(1)) >= 2:
+    if m and len(m.group(1)) == 2:
         segments.append((cur_type, cur_lines))
         cur_type = 'section'
         cur_lines = [line]
