@@ -29,6 +29,31 @@ tests/run-tests.sh tests/test_foo.sh     # one test file
 There is no build step, no version manifest, and no release process — the live
 install IS the published version (per-file symlinks, see Layout).
 
+## Versioning
+
+**By design, this repo has no repo-wide version** — no `VERSION` file, no `vX.Y.Z`
+tags (the 260+ tags are all `relay-ckpt-*`), no manifest. **Git is the version SSOT**
+(SHA + log + tag graph); a hand-maintained version number would just be a drift-prone
+cache of what git already derives. The global `~/.claude/CLAUDE.md` **Versioning** rule
+(bump-and-tag, bump-includes-lockfile, loose-0.x) is written for `pyproject.toml`-style
+repos and **does not apply here** — do not "helpfully" mint a `VERSION` file to satisfy it.
+Decided 2026-07-12 (`docs/meeting-notes/2026-07-12-1030-repo-self-governance-versioning-formal-docs.md`, id:8ef3).
+
+**Versions live only on _contract surfaces_** — the few places where a stale copy causes
+*silent* breakage, so a `vN` marker carries a real compatibility handshake. Each such
+surface carries its own marker AND its own co-located bump discipline (change the contract
+⇒ bump the marker ⇒ update any pointer). Current + candidate surfaces:
+
+| Surface | Marker | Why it needs one |
+|---|---|---|
+| `relay/references/executor-contract.md` | `<!-- relay-executor contract vN -->` (v6) | `/relay executor` + the `## Relay contract` pointer must agree on `vN`; bump discipline documented in-file |
+| memory-index frontmatter format (id:2e6d) | *(unmarked — candidate)* | a hook regenerates `MEMORY.md` from it; a format change silently breaks the index |
+| `classify.sh` TSV column contract | *(unmarked — candidate)* | SKILL.md parses fixed columns |
+| allowlist generator's 8-entries-per-script expansion | *(unmarked — candidate)* | literal-match settings.json entries |
+
+A public-repo `CHANGELOG.md` is **deferred** — trigger is the first external consumer who
+needs to pin a version for a reproducible install (none exists today; `git log` covers the rest).
+
 ## Layout
 
 | Path | What |
@@ -48,6 +73,12 @@ install IS the published version (per-file symlinks, see Layout).
 
 ## Conventions
 
+- **SOPs are co-located, not filed separately.** This repo's two de-facto Standard
+  Operating Procedures are `relay/references/executor-contract.md` (the executor SOP,
+  versioned `vN`) and `git-diary-workflow/SKILL.md` (the post-prompt commit+diary SOP).
+  They live next to the code they govern by design — there is **no `SOP/` or `adr/`
+  directory**, and decision supersession is tracked via typed ledger edges on the `id:`
+  ecosystem, not parallel ADR files (decided 2026-07-12, id:a6e1).
 - **Edit canonical paths.** Skills are installed as per-file symlinks
   `~/.claude/skills/<skill>/<f>` → this repo. Always edit files **here**
   (`~/src/dotclaude-skills/...`), never via the `~/.claude/skills/` symlink paths.
