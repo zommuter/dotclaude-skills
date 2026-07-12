@@ -2484,3 +2484,7 @@ review: verified id:3273+id:1b18 genuinely green (unchanged specs, red-vs-checkp
 ## 2026-07-12 21:20 — executor (sonnet)
 
 Worked id:8800 — `orphan-scan.sh`: added a `<!-- gate-prose-only -->` marker that bypasses ONLY the UNMARKED-GATE backstop (does not set has_typed, leaves typed-predicate/EXTERNAL-WAIT/GATE-STALE paths untouched). `tests/test_orphan_scan_gate_prose_only.sh` (roadmap:8800) goes green; `test_orphan_scan_unmarked_gate.sh` (id:4245) and `test_orphan_scan_shipped.sh` stay green. Full suite: 228 passed / 0 failed / 1 expected-red (id:0f7a, still open — untouched this session, one-item-per-session scope). Friction: none. Stopped here per the executor contract's one-[ROUTINE]-item-per-session rule; id:0f7a (archive-done.sh nested subsection pruning) remains open for the next session.
+
+## 2026-07-12 21:29 — executor (sonnet, relay-loop)
+
+executor: shipped id:8800 (orphan-scan.sh gate-prose-only marker bypasses UNMARKED-GATE backstop for confirmed external-prose gates) [id:8800]
