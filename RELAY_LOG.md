@@ -2480,3 +2480,7 @@ Worked the 2 open [ROUTINE] items surfaced by today's handoff (routed:8a55/5434)
 ## 2026-07-12 21:20 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:3273+id:1b18 genuinely green (unchanged specs, red-vs-checkpoint); reverse-handoff promoted id:8800+id:0f7a [ROUTINE] with RED specs [id:3273,1b18,8800,0f7a]
+
+## 2026-07-12 21:20 — executor (sonnet)
+
+Worked id:8800 — `orphan-scan.sh`: added a `<!-- gate-prose-only -->` marker that bypasses ONLY the UNMARKED-GATE backstop (does not set has_typed, leaves typed-predicate/EXTERNAL-WAIT/GATE-STALE paths untouched). `tests/test_orphan_scan_gate_prose_only.sh` (roadmap:8800) goes green; `test_orphan_scan_unmarked_gate.sh` (id:4245) and `test_orphan_scan_shipped.sh` stay green. Full suite: 228 passed / 0 failed / 1 expected-red (id:0f7a, still open — untouched this session, one-item-per-session scope). Friction: none. Stopped here per the executor contract's one-[ROUTINE]-item-per-session rule; id:0f7a (archive-done.sh nested subsection pruning) remains open for the next session.
