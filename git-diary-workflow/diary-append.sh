@@ -150,30 +150,68 @@ on_failure() {
   exit 1
 }
 
-# Replay any entries that were saved due to previous lock timeouts or failures
-for _pending in "$DIARY_DIR"/.diary-pending-* "$DIARY_DIR"/.failed/entry-*; do
-  [ -f "$_pending" ] || continue
-  cat "$_pending" >> "$DIARY_FILE"
-  rm -f "$_pending"
-done
-
+# Pull FIRST, on the still-clean tree, BEFORE replaying anything. Replaying a
+# quarantined entry appends to DIARY.md and thus DIRTIES the tree; if that ran
+# before the pull, `git pull --rebase` would refuse ("cannot pull with rebase:
+# You have unstaged changes") and strand the replayed text uncommitted forever
+# (deadlock observed 2026-07-12, roadmap:1b18). So: pull first, then replay +
+# the current entry ride the SAME commit below.
+#
 # Pin the explicit branch/refspec: a bare `git pull --rebase` can hit
 # "Cannot rebase onto multiple branches" under a fetch config with several
 # refspecs / no configured upstream when a concurrent commit races in
 # (observed 2026-07-08, id:f8df). Resolve the current branch and pull from
 # `origin <branch>` explicitly instead of relying on ambient tracking config.
 _branch="$(git symbolic-ref --short HEAD)"
-if ! git pull --rebase origin "$_branch"; then
-  on_failure
+# Only rebase onto the remote branch when it actually exists. On the very first
+# push of a new branch the remote ref is absent and `git pull --rebase origin
+# <branch>` fails with "couldn't find remote ref" — that is "nothing upstream
+# to rebase onto", not a real failure, so proceed straight to commit+push below
+# rather than quarantining a perfectly good entry. (>/dev/null drops ls-remote's
+# matched-ref stdout; we only consult its --exit-code status.)
+if git ls-remote --exit-code --heads origin "$_branch" >/dev/null; then
+  if ! git pull --rebase origin "$_branch"; then
+    on_failure
+  fi
 fi
+
+# Replay any entries saved by previous lock timeouts or failures, then append
+# the current entry — all into DIARY.md for a SINGLE commit. The quarantine
+# files are NOT removed yet: they're consumed (rm'd) only AFTER the commit
+# succeeds, so a failed commit leaves them on disk to be replayed next run
+# (exactly-once).
+_replayed=()
+for _pending in "$DIARY_DIR"/.diary-pending-* "$DIARY_DIR"/.failed/entry-*; do
+  [ -f "$_pending" ] || continue
+  cat "$_pending" >> "$DIARY_FILE"
+  _replayed+=("$_pending")
+done
 
 printf '\n%s\n%s\n' "$header" "$entry" >> "$DIARY_FILE"
 git add DIARY.md
 if ! git commit -m "$commit_msg"; then
+  # Restore DIARY.md to HEAD so the replayed+current text never strands as a
+  # dirty tree; the current entry is quarantined by on_failure and the replay
+  # files (untouched above) remain on disk for the next run.
+  git checkout HEAD -- DIARY.md || true
   on_failure
 fi
+
+# Commit succeeded: the replayed entries are now in committed history, so their
+# quarantine files are safe to consume (exactly-once).
+for _done in ${_replayed[@]+"${_replayed[@]}"}; do
+  rm -f "$_done"
+done
+
 if ! git push origin "$_branch"; then
-  on_failure
+  # The entries are already committed locally, so they are NOT lost — the next
+  # successful run pulls (rebasing this commit) and pushes it. Re-quarantining
+  # here would double-append, so we do not call on_failure; just fail loudly.
+  echo "ERROR: diary-append committed locally but push failed. The commit is safe" >&2
+  echo "and will be pushed on the next successful diary-append.sh run." >&2
+  [[ -n "$entry_file" ]] && rm -f "$entry_file"
+  exec 9>&- 2>/dev/null || true
+  exit 1
 fi
 
 # Success: the -f temp file (if any) is now safe to consume.
