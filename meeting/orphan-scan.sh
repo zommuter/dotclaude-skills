@@ -249,6 +249,17 @@ elif [[ "$mode" == "shipped" ]]; then
     has_typed=0
     [[ -n "$children_csv" || -n "$gated_csv" ]] && has_typed=1
 
+    # <!-- gate-prose-only --> marker (id:8800): records "this prose gate is
+    # confirmed; it intentionally has no typed edge" for gates whose blocking
+    # condition is external prose (an upstream vendor, a human decision) rather
+    # than a local TODO-id dependency. Bypasses ONLY the UNMARKED-GATE backstop
+    # below — it does NOT set has_typed, so it does not suppress/replace the
+    # typed-predicate branches (GATE-READY/GATE-BLOCKED/UMBRELLA-*) and does not
+    # touch the EXTERNAL-WAIT / GATE-STALE paths. Marked, not because a regex got
+    # smarter — a human confirmed this specific gate has no local id to point at.
+    gate_prose_only=0
+    grep -qF '<!-- gate-prose-only -->' <<<"$text" && gate_prose_only=1
+
     if [[ -n "$children_csv" ]]; then
       # Umbrella predicate over the typed child edge set.
       IFS=',' read -ra _kids <<<"$children_csv"
@@ -327,7 +338,7 @@ elif [[ "$mode" == "shipped" ]]; then
     # The 🚧/DEP forms were added after the live ledger showed cross-repo gates (e.g.
     # id:7df1, gate token in another repo, deliberately no local gated-on: edge) using
     # `🚧 GATED (DEP: …)` rather than the "gated on" phrasing.
-    if grep -qiE '\bgated on\b|\bblocked until\b|\bblocked on\b|\bgate:|🚧[[:space:]]*gated\b|\bgated \(dep:' <<<"$text"; then
+    if (( ! gate_prose_only )) && grep -qiE '\bgated on\b|\bblocked until\b|\bblocked on\b|\bgate:|🚧[[:space:]]*gated\b|\bgated \(dep:' <<<"$text"; then
       candidates=$((candidates+1))
       output_lines+=("id:$token — UNMARKED-GATE (gate vocabulary present, no gated-on: marker) — add a typed gated-on: edge or confirm the gate. $(short_text "$text")")
     fi
