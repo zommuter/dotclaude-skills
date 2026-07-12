@@ -2492,3 +2492,7 @@ executor: shipped id:8800 (orphan-scan.sh gate-prose-only marker bypasses UNMARK
 ## 2026-07-12 21:30 — executor (sonnet, relay-loop)
 
 Worked id:0f7a — `archive-done.sh`: the empty-section pruner previously split TODO.md into segments on ANY heading level >=2, so a `### subsection` started its own segment and left the enclosing `## section` looking empty (pruned) even when its tasks lived entirely under the subsection. Changed the segment split to break ONLY on level-2 `##` headings; deeper (`###`+) headings now stay in the parent section's body, so a nested-subsection's tasks count toward the parent's has_content check and the parent survives. `tests/test_archive_done_nested_subsection.sh` (roadmap:0f7a) goes green; `test_archive_done_multiline.sh`, `test_roadmap_archive.sh`, `test_archive_closed.sh` stay green. Full suite: 229 passed / 0 failed / 0 expected-red. Friction: none.
+
+## 2026-07-12 21:58 — executor (sonnet, relay-loop)
+
+executor: shipped id:0f7a (archive-done.sh: only ## headings are prune-segment boundaries, ### subsections count as parent body) [id:0f7a]
