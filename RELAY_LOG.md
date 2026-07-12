@@ -2468,3 +2468,7 @@ Fixed unpromoted-scan.sh primary_lane() to recognize new-vocab lane tags (id:719
 ## 2026-07-11 17:19 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Review clean: id:719a (unpromoted-scan primary_lane new-vocab recognition) verified genuine, suite 224/0/0, 0 open ROUTINE items remain [id:719a]
+
+## 2026-07-12 10:15 — reviewer (claude-opus-4-8)
+
+handoff: ingested routed:8a55 (id:3273 git-lock-push stall timeout) + routed:5434 (id:1b18 diary-append replay ordering) — 2 [ROUTINE] items + 2 RED specs; suite 225/0/2-red
