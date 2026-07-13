@@ -264,7 +264,7 @@ top_intensive=""
 if [[ -n "$roadmap" ]]; then
   top_intensive="$(printf '%s\n' "$roadmap" \
     | grep -P '^- \[ \].*\[INTENSIVE — ' 2>/dev/null \
-    | grep -vP '\[HARD — (hands|meeting|decision gate)\]|@manual' \
+    | grep -vP '\[HARD — (hands|meeting|decision gate)\]|@manual|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
     | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
 fi
 
