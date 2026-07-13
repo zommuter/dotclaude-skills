@@ -260,6 +260,17 @@ elif [[ "$mode" == "shipped" ]]; then
     gate_prose_only=0
     grep -qF '<!-- gate-prose-only -->' <<<"$text" && gate_prose_only=1
 
+    # <!-- xgate:TOKEN@repo --> marker (id:7f30): like gate-prose-only, records
+    # "this prose gate is confirmed" — but for a CROSS-REPO gate whose blocking
+    # token lives in ANOTHER repo, so there is no local id to point a `gated-on:`
+    # edge at. Parses loosely (4-hex token, `@`, repo name); a malformed marker
+    # simply doesn't match (no crash) and behaves as if absent. Bypasses ONLY
+    # the UNMARKED-GATE backstop below, exactly like gate-prose-only — does NOT
+    # set has_typed and does NOT suppress the typed-predicate branches or the
+    # EXTERNAL-WAIT / GATE-STALE paths.
+    xgate_marked=0
+    grep -qP '<!-- xgate:[0-9a-f]{4}@[A-Za-z0-9._-]+ -->' <<<"$text" && xgate_marked=1
+
     if [[ -n "$children_csv" ]]; then
       # Umbrella predicate over the typed child edge set.
       IFS=',' read -ra _kids <<<"$children_csv"
@@ -338,7 +349,7 @@ elif [[ "$mode" == "shipped" ]]; then
     # The 🚧/DEP forms were added after the live ledger showed cross-repo gates (e.g.
     # id:7df1, gate token in another repo, deliberately no local gated-on: edge) using
     # `🚧 GATED (DEP: …)` rather than the "gated on" phrasing.
-    if (( ! gate_prose_only )) && grep -qiE '\bgated on\b|\bblocked until\b|\bblocked on\b|\bgate:|🚧[[:space:]]*gated\b|\bgated \(dep:' <<<"$text"; then
+    if (( ! gate_prose_only )) && (( ! xgate_marked )) && grep -qiE '\bgated on\b|\bblocked until\b|\bblocked on\b|\bgate:|🚧[[:space:]]*gated\b|\bgated \(dep:' <<<"$text"; then
       candidates=$((candidates+1))
       output_lines+=("id:$token — UNMARKED-GATE (gate vocabulary present, no gated-on: marker) — add a typed gated-on: edge or confirm the gate. $(short_text "$text")")
     fi
