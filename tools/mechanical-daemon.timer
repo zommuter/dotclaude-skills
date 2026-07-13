@@ -1,0 +1,20 @@
+[Unit]
+Description=Periodically retry deferred relay recipes (id:8a6b clause d)
+Documentation=file:%h/src/dotclaude-skills/relay/scripts/mechanical-daemon.sh
+
+[Timer]
+# WHY (id:8a6b clause d): mechanical-daemon.path is PathModified-only — it fires a daemon tick
+# ONLY when pending/ changes. A recipe that check-and-defers once (a launch gate — host /
+# resource / intensity permit — failed at that instant) then sits in pending/ untouched and
+# NEVER re-evaluates on its own until pending/ is next written (observed 2026-07-13: the ac14
+# recipe deferred at the pre-fix tick and could not self-re-evaluate after the fix landed). This
+# low-cadence timer fires the SAME oneshot mechanical-daemon.service periodically so a deferred
+# recipe retries without a manual `touch`. It shares the service unit with the .path trigger.
+OnStartupSec=5min
+OnUnitActiveSec=30min
+# Don't pile up missed runs after suspend/resume; the next tick re-scans pending/ anyway.
+Persistent=false
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

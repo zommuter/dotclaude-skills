@@ -160,6 +160,15 @@ violations, missing reference-doc installs, parked orphan branches):
 - **ROADMAP grammar violations** (`roadmap-lint` findings): add a REVIEW_ME box
   `[ ] ROADMAP item id:XXXX — <lane/grammar issue>` and note it for the ROADMAP
   re-derivation in step 5 (roadmap-lint already runs there; use its output for both).
+- **Mechanical-orphan** (`check-12` / id:1bd1 — an open `[MECHANICAL]` item with no recipe in
+  the drop-dir): **AUTO-DRAFT it** so it stops silently rotting (id:8a6b — the resolution half of
+  the loud-detection). Run `~/.claude/skills/relay/scripts/mechanical-orphan-draft.sh "$(pwd)"`
+  (idempotent, WHITELIST-SAFE: it writes a `TODO:`-placeholder skeleton to `recipes/drafts/`,
+  which the daemon NEVER consumes — never to `pending/`). Then add ONE REVIEW_ME box per orphan
+  `[ ] [MECHANICAL] id:XXXX — recipe DRAFT auto-created in recipes/drafts/; fill its cmd/est_wall/
+  acceptance_artifact and promote drafts/ -> pending/ to launch`. Never fill the recipe or promote
+  it yourself — a human/Opus deliberately promotes it (the whitelist trust boundary). Orphans +
+  un-promoted drafts are ALSO surfaced automatically in RELAY_STATUS.md and `/relay human`.
 - **Other findings** (refs-install gap, parked orphans): add a single REVIEW_ME box
   naming the finding; the specific resolution is the human's call.
 - **TODO grammar non-conformance** (`todo-conformance.sh` findings, id:3441): a TODO line

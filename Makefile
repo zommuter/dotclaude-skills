@@ -61,6 +61,7 @@ relay_FILES := SKILL.md \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
+               scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh \
                scripts/archive-closed.sh \
                scripts/lib-own-repos.sh
@@ -82,6 +83,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
+               scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
@@ -101,6 +103,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
+               scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh
 relay_LOCAL :=
 
@@ -332,13 +335,15 @@ uninstall-relay-watchdog:
 # polling. Runs relay-authored recipes OUTSIDE the Workflow (pure mechanical script -> no
 # permission wall). See relay/scripts/mechanical-daemon.sh + recipe-manifest.md.
 install-mechanical-daemon:
-	@echo "→ installing mechanical-daemon path+service unit"
-	@mkdir -p $(SYSTEMD_USER) $(HOME)/.config/relay/recipes/pending $(HOME)/.config/relay/recipes/running $(HOME)/.config/relay/recipes/done
+	@echo "→ installing mechanical-daemon path+timer+service unit"
+	@mkdir -p $(SYSTEMD_USER) $(HOME)/.config/relay/recipes/pending $(HOME)/.config/relay/recipes/running $(HOME)/.config/relay/recipes/done $(HOME)/.config/relay/recipes/drafts
 	@ln -sf $(SRC_DIR)/tools/mechanical-daemon.path    $(SYSTEMD_USER)/mechanical-daemon.path
+	@ln -sf $(SRC_DIR)/tools/mechanical-daemon.timer   $(SYSTEMD_USER)/mechanical-daemon.timer
 	@ln -sf $(SRC_DIR)/tools/mechanical-daemon.service  $(SYSTEMD_USER)/mechanical-daemon.service
 	@systemctl --user daemon-reload
 	@systemctl --user enable --now mechanical-daemon.path
-	@echo "  enabled. status: systemctl --user status mechanical-daemon.path"
+	@systemctl --user enable --now mechanical-daemon.timer
+	@echo "  enabled (path trigger + id:8a6b retry timer). status: systemctl --user status mechanical-daemon.path mechanical-daemon.timer"
 
 status-mechanical-daemon:
 	@echo "mechanical-daemon.path:"
@@ -347,11 +352,18 @@ status-mechanical-daemon:
 			&& echo "  ok  active -> $$(readlink $(SYSTEMD_USER)/mechanical-daemon.path)" \
 			|| echo "  --  installed but not active (systemctl --user enable --now mechanical-daemon.path)"; \
 	else echo "  !!  not installed (make install-mechanical-daemon)"; fi
+	@echo "mechanical-daemon.timer (id:8a6b retry):"
+	@if [ -L $(SYSTEMD_USER)/mechanical-daemon.timer ]; then \
+		systemctl --user is-active mechanical-daemon.timer >/dev/null 2>&1 \
+			&& echo "  ok  active -> $$(readlink $(SYSTEMD_USER)/mechanical-daemon.timer)" \
+			|| echo "  --  installed but not active (systemctl --user enable --now mechanical-daemon.timer)"; \
+	else echo "  !!  not installed (make install-mechanical-daemon)"; fi
 
 uninstall-mechanical-daemon:
-	@echo "→ removing mechanical-daemon path+service unit"
+	@echo "→ removing mechanical-daemon path+timer+service unit"
 	@systemctl --user disable --now mechanical-daemon.path 2>/dev/null || true
-	@rm -f $(SYSTEMD_USER)/mechanical-daemon.path $(SYSTEMD_USER)/mechanical-daemon.service
+	@systemctl --user disable --now mechanical-daemon.timer 2>/dev/null || true
+	@rm -f $(SYSTEMD_USER)/mechanical-daemon.path $(SYSTEMD_USER)/mechanical-daemon.timer $(SYSTEMD_USER)/mechanical-daemon.service
 	@systemctl --user daemon-reload 2>/dev/null || true
 
 # Mechanical discovery producer (id:9d97) — same --user-timer pattern as quota-sample:

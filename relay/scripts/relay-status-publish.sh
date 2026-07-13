@@ -86,7 +86,25 @@ else
   burnup_section+=$'\n''_(insufficient samples yet)_'
 fi
 
-combined="${content}"$'\n\n'"${claims_section}"$'\n\n'"${burnup_section}"$'\n'
+# ── ## Mechanical orphans / drafts (id:8a6b) — LOUD-surface every open [MECHANICAL] item with
+# no recipe, and every un-promoted auto-drafted skeleton, so they never rot silently. Read-only
+# cross-repo scan; fail-open (empty section if the scanner is absent/errors). ──
+mech_section="## Mechanical orphans / drafts (id:8a6b)"
+mech_scan="$HERE/mechanical-orphan-scan.sh"
+mech_rendered=""
+if [[ -x "$mech_scan" ]]; then
+  mech_rendered="$("$mech_scan" 2>/dev/null | while IFS=$'\t' read -r mkind mid mrepo mhost mres mdetail; do
+    [[ -n "$mkind" ]] || continue
+    [[ "$mhost" == "-" ]] && mhost="?"; [[ "$mres" == "-" ]] && mres="?"
+    case "$mkind" in
+      orphan) printf -- '- ⚠️ ORPHAN  id:%s  repo=%s  host=%s  resource=%s  — no recipe anywhere; author one + promote drafts/ -> pending/ (it will never run)\n' "$mid" "$mrepo" "$mhost" "$mres" ;;
+      draft)  printf -- '- 📝 DRAFT   id:%s  repo=%s  host=%s  resource=%s  — un-promoted skeleton; fill TODOs + move drafts/ -> pending/ to launch\n' "$mid" "$mrepo" "$mhost" "$mres" ;;
+    esac
+  done || true)"
+fi
+mech_section+=$'\n'"${mech_rendered:-_(none)_}"
+
+combined="${content}"$'\n\n'"${claims_section}"$'\n\n'"${burnup_section}"$'\n\n'"${mech_section}"$'\n'
 
 # Atomic, flock'd single-writer (mkdir -p + temp + atomic mv + ~/$HOME refusal — id:ebfb step 2).
 printf '%s' "$combined" | "$STATE_WRITE" status-write "$target"
