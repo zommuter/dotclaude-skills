@@ -10,6 +10,24 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- 2026-07-13 review 5b mini-handoff: qualified two ledger-neutral TODO items the human
+     flow-back added (commit 0d1ac39). Both are execution-ready [ROUTINE] with RED specs,
+     reusing their TODO ids (single-id-two-views D2): id:1781, id:7f30. -->
+
+- [ ] [ROUTINE] `roadmap-lint.sh`: count only the LEADING contiguous lane-bracket run, ignore lane-bracket mentions in trailing audit-trail prose <!-- id:1781 -->
+  - **Why** (TODO id:1781, surfaced by leAIrn2learn id:c3f5): the case-c conflict check (`relay/scripts/roadmap-lint.sh` ~L322-350) counts EVERY non-backticked lane bracket on a line. An item whose HEAD tag is a correct single lane but whose BODY cites a prior `[HARD — …]`/`[ROUTINE]` transition in *non-backticked* audit-trail prose (e.g. "(was [HARD — pool] before, re-laned to [ROUTINE])") false-positives the "multiple lane brackets" LOUD-reject. The existing backtick-strip (~L328) only rescues brackets inside a backtick span, not bare audit prose.
+  - **How / Design**: the lane tag(s) are the CONTIGUOUS run of lane brackets at the very START of the item text (immediately after `- [ ] `). A lane bracket appearing AFTER any prose word is trailing audit-trail prose and must NOT count toward the conflict. Keep the genuine-conflict path: two contiguous LEADING lane tags (e.g. `[HARD — pool] [ROUTINE] …`) must still ERROR (do not weaken case-c / `test_roadmap_lint_tagprose.sh`). Preserve the backtick-strip and every other grammar check.
+  - **Acceptance**: `tests/test_roadmap_lint_trailing_lane_prose.sh` (`# roadmap:1781`, written RED by this review) goes green — a leading `[ROUTINE]` tag with a lane bracket in trailing prose PASSES; two contiguous leading tags still ERROR; a clean single-tag item still passes. Existing `tests/test_roadmap_lint_tagprose.sh`, `tests/test_roadmap_lint.sh`, `tests/test_roadmap_lint_tag_first.sh` MUST stay green.
+  - **Done-check**: `tests/run-tests.sh tests/test_roadmap_lint_trailing_lane_prose.sh tests/test_roadmap_lint_tagprose.sh` then full `make test` after ticking (RED until then).
+  - **Context**: `relay/scripts/roadmap-lint.sh` (bare-lane count + case-c conflict ~L322-350, backtick-strip ~L328). TODO id:1781.
+
+- [ ] [ROUTINE] `orphan-scan.sh --shipped`: add an `<!-- xgate:TOKEN@repo -->` marker that bypasses UNMARKED-GATE for a cross-repo gate whose blocking token lives in another repo <!-- id:7f30 -->
+  - **Why** (TODO id:7f30, resolving REVIEW_ME id:50c4 option a): a deliberately-unmarked CROSS-REPO gate (e.g. id:50c4 gated on 508d@relay-core) has NO local `gated-on:` edge to point at, so it re-fires UNMARKED-GATE on every `--shipped` scan. The generic `<!-- gate-prose-only -->` marker (id:8800) suppresses the re-fire but DISCARDS which external token/repo blocks it. A dedicated `xgate:TOKEN@repo` marker records that cross-repo dependency explicitly (parseable) while still shrinking the detector.
+  - **How / Design**: mirror the shipped `gate-prose-only` bypass (`meeting/orphan-scan.sh` ~L252-261, L341): detect an `<!-- xgate:TOKEN@repo -->` sibling comment and have it BYPASS the UNMARKED-GATE backstop the same way (guard on the `grep -qiE '…gated on…'` branch ~L341). Like `gate-prose-only`, it must NOT set `has_typed` and must NOT suppress the typed-predicate branches (GATE-READY/GATE-BLOCKED/UMBRELLA-*) or the EXTERNAL-WAIT / GATE-STALE paths. Parse `TOKEN@repo` shape loosely (4-hex token, `@`, repo name); a malformed marker should not crash the scan. Also add the marker to id:50c4's TODO line as the first real consumer.
+  - **Acceptance**: `tests/test_orphan_scan_xgate.sh` (`# roadmap:7f30`, written RED by this review) goes green — an item carrying `<!-- xgate:508d@relay-core -->` plus gate vocabulary does NOT surface as UNMARKED-GATE, while a control item with the same vocabulary and NO marker still does. Existing `tests/test_orphan_scan_gate_prose_only.sh` (id:8800), `tests/test_orphan_scan_unmarked_gate.sh` (id:4245), `tests/test_orphan_scan_shipped.sh` MUST stay green.
+  - **Done-check**: `tests/run-tests.sh tests/test_orphan_scan_xgate.sh tests/test_orphan_scan_gate_prose_only.sh tests/test_orphan_scan_unmarked_gate.sh` then full `make test` after ticking (RED until then).
+  - **Context**: `meeting/orphan-scan.sh` (`gate_prose_only` ~L252-261, UNMARKED-GATE backstop ~L332-344). TODO id:7f30; consumer TODO id:50c4.
+
 <!-- 2026-07-12 handoff C2 (focused inbox ingestion): promoted two inbox-routed items from
      today's it-infra zomni KVM/dock RCA (it-infra hosts/zomni/system/kvm-dock/INCIDENTS.md
      2026-07-12). Both are executor-ready [ROUTINE] with RED specs and are INBOUND stubs in
