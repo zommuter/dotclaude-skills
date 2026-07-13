@@ -13,6 +13,12 @@
 #   review_me  — an open `- [ ]` box in the repo's REVIEW_ME.md
 #   manual     — an open `- [ ]` box tagged `@manual` (REVIEW_ME.md or ROADMAP.md);
 #                a human must RUN it, so it is NEVER auto-tickable (surface only).
+#   mechanical_orphan — an open `[MECHANICAL]` ROADMAP item with NO recipe anywhere in the
+#                drop-dir (id:8a6b / id:1bd1): it will never run. Surface only — author a recipe
+#                (or run mechanical-orphan-draft.sh) and promote drafts/ -> pending/.
+#   mechanical_draft  — an auto-DRAFTED recipe skeleton (drafts/) awaiting an Opus/human to fill
+#                its TODO cmd/est_wall/acceptance_artifact and deliberately promote it to
+#                pending/ (id:8a6b). A draft is NEVER executed by the daemon. Surface only.
 #   hard_pool      \  an open `- [ ]` `[HARD]`/`[INPUT — …]` ROADMAP item, bucketed by
 #   hard_meeting    \ its EXPLICIT lane tag (id:78ff). The lane is READ from the bracket
 #   human_decision  > tag, never inferred (decision 2026-06-21 "obviously explicit"). The
@@ -60,6 +66,11 @@ set -euo pipefail
 
 SRC_DIR="${SRC_DIR:-$HOME/src}"
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
+# id:8a6b — mechanical-orphan / un-promoted-draft surfacer (sibling script). Surfaced kinds:
+#   mechanical_orphan — an open [MECHANICAL] item with no recipe anywhere → author a recipe.
+#   mechanical_draft  — an auto-drafted skeleton awaiting an Opus/human to fill + promote to pending/.
+# Both are surface-only (never auto-tickable), so /relay human shows them.
+MECH_SCAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mechanical-orphan-scan.sh"
 
 # Set to 1 by emit_hard_lanes() when an open [HARD] item carries no recognized lane
 # tag. A nonzero value forces a LOUD nonzero exit at the end of the run (id:78ff /
@@ -335,6 +346,22 @@ scan_repo() {
     UNTAGGED_FOUND=1
   elif (( rc != 0 )); then
     return "$rc"
+  fi
+  # id:8a6b — mechanical-orphan / un-promoted-draft rows for this repo (surface-only). Translate
+  # the scanner's `kind\tid\trepo\thost\tresource\tdetail` into a gather row with a clear summary.
+  if [[ -x "$MECH_SCAN" ]]; then
+    while IFS=$'\t' read -r mkind mid mrepo mhost mres mdetail; do
+      [[ -n "$mkind" ]] || continue
+      [[ "$mhost" == "-" ]] && mhost="?"; [[ "$mres" == "-" ]] && mres="?"
+      case "$mkind" in
+        orphan)
+          printf '%s\t%s\t%s\t%s\n' "$name" "$path" mechanical_orphan \
+            "[MECHANICAL] id:$mid has no recipe (host=${mhost:-?} resource=${mres:-?}) — author a recipe or run mechanical-orphan-draft.sh, then promote drafts/ -> pending/ (it will never run otherwise)" ;;
+        draft)
+          printf '%s\t%s\t%s\t%s\n' "$name" "$path" mechanical_draft \
+            "[MECHANICAL] id:$mid has an un-promoted DRAFT ($mdetail) — fill its TODO cmd/est_wall/acceptance_artifact and move drafts/ -> pending/ to launch (a draft is never executed)" ;;
+      esac
+    done < <("$MECH_SCAN" "$name=$path" 2>/dev/null)
   fi
   # REVIEW_ME.md: every open box (default kind review_me; @manual upgrades to manual).
   emit_boxes "$name" "$path" "$path/REVIEW_ME.md" review_me

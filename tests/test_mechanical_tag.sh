@@ -76,10 +76,20 @@ cat >"$tmp/relay.toml" <<'TOML'
 classification = "own"
 confirmed = "2026-01-01"
 TOML
-out="$(RELAY_TOML="$tmp/relay.toml" SRC_DIR="$tmp/src" bash "$GATHER" 2>"$tmp/err")" && rc=0 || rc=$?
+# No recipe dir here → the two MECHANICAL items are ORPHANS. Point RELAY_RECIPE_DIR at an empty
+# temp root so the id:8a6b orphan surfacer runs hermetically (never the real ~/.config/relay).
+out="$(RELAY_TOML="$tmp/relay.toml" SRC_DIR="$tmp/src" RELAY_RECIPE_DIR="$tmp/recipes" bash "$GATHER" 2>"$tmp/err")" && rc=0 || rc=$?
 [[ $rc -eq 0 ]] || fail "(b) MECHANICAL-only repo must NOT trip a LOUD reject (exit 0); got $rc, stderr: $(cat "$tmp/err")"
-[[ -z "$out" ]] || fail "(b) MECHANICAL-only repo must emit NO human-lane line; got: $out"
-pass "(b) gather-human-backlog keeps a MECHANICAL-only repo out of every human lane"
+# A MECHANICAL item must NEVER surface as a HARD / human-decision / manual / review lane — that
+# was the original bug this test guarded (mis-routing a pool-inert mechanical item to /meeting).
+printf '%s\n' "$out" | grep -qE $'\t(hard_pool|hard_meeting|hard_hands|human_decision|manual|review_me)\t' \
+  && fail "(b) MECHANICAL-only repo leaked into a HARD/human lane; got: $out" || true
+pass "(b) gather-human-backlog keeps a MECHANICAL-only repo out of every HARD/human lane"
+# id:8a6b: a MECHANICAL item with NO recipe MUST now surface as a mechanical_orphan so it can't
+# rot silently (the resolution loop's LOUD-surface clause). This is the intended new behavior.
+printf '%s\n' "$out" | grep -qE $'\tmechanical_orphan\t' \
+  || fail "(b') an un-recipe'd MECHANICAL item must surface as mechanical_orphan (id:8a6b); got: $out"
+pass "(b') gather-human-backlog surfaces an un-recipe'd MECHANICAL item as a mechanical_orphan (id:8a6b)"
 
 # --- (c) classify-verdict emits a pool-inert `mechanical` verdict -------------
 verdict() { "$CV" <<<"$1" | python3 -c "import sys,json;print(json.load(sys.stdin)['verdict'])"; }

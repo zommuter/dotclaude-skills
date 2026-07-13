@@ -26,8 +26,16 @@ Default location: `~/.config/relay/recipes/{pending,running,done}/` — i.e.
 hermetic testing — `recipe-validate.sh` itself doesn't touch the drop-dir, but any
 daemon/wrapper built on top of it must honor this override the same way).
 
-- **`pending/`** — a relay reviewer session authors a recipe JSON file here. This is
-  the ONLY directory anything outside the daemon ever writes to.
+- **`drafts/`** (id:8a6b) — auto-DRAFTED recipe SKELETONS land here, NOT in `pending/`. The
+  daemon NEVER reads `drafts/`, so a draft is non-executable by construction: an Opus reviewer /
+  human must fill its `TODO:` placeholders and deliberately MOVE `drafts/<id>.json → pending/` to
+  make it runnable. This is the resolution half of the mechanical-orphan loop (`relay-doctor`
+  check-12 / id:1bd1 detects the orphan; `mechanical-orphan-draft.sh` drafts the skeleton). The
+  skeleton's `est_wall` is a STRING placeholder, so `recipe-validate.sh` hard-rejects it even if
+  copied verbatim into `pending/` — the whitelist trust boundary is doubly preserved.
+- **`pending/`** — a relay reviewer session authors a recipe JSON file here (or promotes a
+  filled-in `drafts/` skeleton here). This is the ONLY directory anything outside the daemon
+  ever writes to, and the ONLY directory the daemon consumes.
 - **`running/`** — the (future) daemon moves a recipe here the instant it starts
   executing it, so a crash mid-run leaves an unambiguous "was running" marker instead
   of silently vanishing from `pending/`.
@@ -152,11 +160,23 @@ The three gates, in order, with the wall each caused on the ac14 first-run:
    wall size. Grant one by hand: `relay-intensity.sh --intensive` (heavy, 2h) or
    `relay-intensity.sh --for <dur> --heavy`; check with `--status`; clear with `--clear`.
 
-**Trigger + the no-retry gap (id:8a6b clause d).** The daemon is `.path`-triggered
-(`PathModified` on `pending/`) with NO retry timer. A recipe that check-and-defers once
-(a gate failed at that instant) will NOT re-evaluate on its own — it sits until `pending/`
-is next modified. To (re-)fire after clearing a gate: `touch
-~/.config/relay/recipes/pending/<recipe>.json` (or wait for the id:8a6b retry-timer once built).
+**Trigger + the retry timer (id:8a6b clause d — SHIPPED).** The daemon's `.path` unit
+(`PathModified` on `pending/`) only fires when `pending/` changes, so a recipe that
+check-and-defers once (a gate failed at that instant) would otherwise sit forever until
+`pending/` is next modified. A low-cadence `mechanical-daemon.timer` (`tools/mechanical-daemon.timer`,
+30 min, sharing the same `mechanical-daemon.service` oneshot) now fires a periodic tick so a
+deferred recipe retries on its own after a gate clears — no manual nudge. Install both together
+via `make install-mechanical-daemon` (path trigger + retry timer). To force an immediate re-fire
+you can still `touch ~/.config/relay/recipes/pending/<recipe>.json`.
+
+**Auto-draft + surfacing (id:8a6b clauses a+b — SHIPPED).** `mechanical-orphan-draft.sh` turns
+every `relay-doctor` check-12 orphan into a `drafts/<id>.json` skeleton (id/repo prefilled; host
+from `[host:<name>]`; resource from `[INTENSIVE — <res>]`; cmd/est_wall/acceptance_artifact as
+`TODO:` placeholders), idempotently. `mechanical-orphan-scan.sh` (read-only) is the shared
+collector. Both orphans and un-promoted drafts are LOUD-surfaced in `RELAY_STATUS.md` (the
+"## Mechanical orphans / drafts" section, rendered by `relay-status-publish.sh`) and in
+`gather-human-backlog.sh` (kinds `mechanical_orphan` / `mechanical_draft`), so `/relay human`
+shows them and they never rot silently.
 
 **On success:** the recipe moves `pending → running → done/`, its `acceptance_artifact` is
 written, and the daemon auto-injects a `review` unit (`inject.sh add <repo> --item <id>
