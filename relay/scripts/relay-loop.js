@@ -274,6 +274,13 @@ function buildRelayStatus(state) {
   // id:8c35 — stop-reason line alongside Quota remaining so the operator sees WHY the run stopped
   const stopReasonLine = buildStopReasonLine(state.stopReason || null)
 
+  // id:1432 — LOUD repeat-handback ALERTs: any repo+verdict that handed back >=2× this run.
+  // A repeating handback is a bug signal (a false/stale verdict looping, or an un-doable item
+  // the classifier keeps re-picking) — surface it so it is investigated, never silently looped.
+  const alerts = state.handbackAlertsList && state.handbackAlertsList.length
+    ? state.handbackAlertsList.map(a => `- ⚠️ ${a.repo}  verdict=${a.verdict}  handbacks=${a.count}  last="${a.lastReason}"`).join('\n')
+    : '_(none)_'
+
   // id:c8b6 — Run progress: at-a-glance counters so the snapshot conveys momentum, not just
   // the current frame. round/totalDispatched are run-totals; the rest are live tallies.
   const progress = [
@@ -302,6 +309,9 @@ function buildRelayStatus(state) {
     '',
     '## Blocked / HANDBACKs',
     blocked,
+    '',
+    '## Repeat-handback ALERTs (id:1432 — >=2× this run, a bug signal)',
+    alerts,
     '',
     '## Skipped (this round)',
     skipped,
@@ -363,6 +373,7 @@ function snapshotState(s) {
     queued: [...(s.queued || [])], blocked: [...(s.blocked || [])],
     skipped: [...(s.skipped || [])], quota: [...(s.quota || [])], reviewMe: [...(s.reviewMe || [])],
     stopReason,  // id:8c35 — capture module-level stopReason at snapshot time
+    handbackAlertsList: handbackAlerts(handbackTracker, 2),  // id:1432 — >=2× handback ALERTs
     round, totalDispatched,            // id:c8b6 — run-progress counters at snapshot time
     events: pendingEvents.splice(0),   // id:c8b6 — DRAIN pending events into this batch (never re-emitted)
   }
@@ -701,6 +712,55 @@ let totalDispatched = 0
 // backstop catching ANY spin even if the discover-shard's principled recurring-audit gate
 // (mechanism 1) slips — see the inline breaker in the discovery guards block.
 const redispatchGuard = {}
+// id:1432 — WHOLE-DISPATCH handback defense-in-depth (see handback-guard.mjs for the full
+// rationale + the unit-tested pure helpers; these inline copies MUST stay byte-equivalent —
+// the Workflow sandbox cannot import). Both objects PERSIST across rounds within this one pool
+// invocation, like redispatchGuard.
+//   noWorkNegCache: `${repo}:${verdict}` → {sig} — a route=none "no executor-actionable work"
+//     handback stamps the unit's work_sig; the same verdict is NOT re-dispatched until the
+//     work_sig genuinely changes (work_sig is stable across the pool's own checkpoint churn, so
+//     the empty-integrate checkpoint can't trivially clear it — the id:2ab2 loop the observed
+//     it-infra false-execute took).
+//   handbackTracker: `${repo}:${verdict}` → {repo, verdict, count, lastReason} — per-run handback
+//     counter; a repo+verdict at >=2 surfaces as a LOUD ALERT (a repeating handback is a bug signal).
+const noWorkNegCache = {}
+const handbackTracker = {}
+// id:1432 — inline copies of handback-guard.mjs (keep byte-equivalent; structural test pins it).
+function recordNoWorkHandback(negCache, repo, verdict, sig) {
+  negCache[`${repo}:${verdict}`] = { sig: sig || '' }
+}
+function applyNoWorkSuppression(units, negCache, runId) {
+  const kept = [], suppressed = []
+  for (const u of units) {
+    if (u.injected) { kept.push(u); continue }
+    const key = `${u.repo}:${u.verdict}`
+    const prev = negCache[key]
+    const sig = u.work_sig || ''
+    if (prev && prev.sig === sig) {
+      suppressed.push({
+        unit: u,
+        reason: `no-work handback suppression (id:1432): ${u.repo} ${u.verdict} handed back "no executor-actionable work" with work_sig unchanged — not re-dispatching this verdict until the repo's work_sig genuinely changes; cost hint: relay-burn.sh --run ${runId}`,
+      })
+    } else {
+      if (prev) delete negCache[key]
+      kept.push(u)
+    }
+  }
+  return { kept, suppressed }
+}
+function trackHandback(tracker, repo, verdict, reason) {
+  const key = `${repo}:${verdict}`
+  const e = tracker[key] || (tracker[key] = { repo, verdict, count: 0, lastReason: '' })
+  e.count++
+  e.lastReason = String(reason == null ? '' : reason).replace(/\s+/g, ' ').trim().slice(0, 200)
+  return e
+}
+function handbackAlerts(tracker, threshold = 2) {
+  return Object.values(tracker)
+    .filter(e => e.count >= threshold)
+    .sort((a, b) => b.count - a.count || a.repo.localeCompare(b.repo) || a.verdict.localeCompare(b.verdict))
+    .map(e => ({ repo: e.repo, verdict: e.verdict, count: e.count, lastReason: e.lastReason }))
+}
 // id:8c35 — machine-readable stop reason: null | "quota-cache-unreadable" |
 // "quota-extrapolated-stop[:<bucket>]" (id:0175/82e3) | "quota-exhausted:<bucket>" |
 // "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
@@ -1135,6 +1195,20 @@ Return {units, surfaced, skipped} = the CONCATENATION across every repo in your 
       log(`relay-loop: id:ad74 INTENSIVE promote backstop — ${promotedIntensive.length} repo(s) corrected: ${promotedIntensive.join(', ')}`)
     }
   }
+  // id:1432 — WHOLE-DISPATCH no-work suppression. Runs BEFORE the id:365b >3× circuit breaker:
+  // a repo+verdict that handed back "no executor-actionable work" (route=none) this run is not
+  // re-dispatched at all while its work_sig is unchanged, so a false/stale verdict is capped at
+  // its FIRST wasted child (the breaker's >3× is the coarser backstop for any other spin).
+  // Injected units are exempt. Suppressed units are surfaced (visible, not silently dropped).
+  {
+    const { kept, suppressed } = applyNoWorkSuppression(units, noWorkNegCache, prelude.runId)
+    if (suppressed.length) {
+      for (const s of suppressed) surfaced.push({ repo: s.unit.repo, reason: s.reason })
+      log(`relay-loop: id:1432 no-work handback suppression — ${suppressed.length} unit(s) not re-dispatched (route=none handback, work_sig unchanged): ${suppressed.map(s => `${s.unit.repo}(${s.unit.verdict})`).join(', ')}`)
+      units.length = 0
+      units.push(...kept)
+    }
+  }
   // id:365b — re-dispatch circuit breaker (mechanism 2, deterministic JS backstop). Runs AFTER
   // the id:000d finished-demote + id:ad74 INTENSIVE-promote backstops and BEFORE units are
   // sorted/dispatched. The principled fix is mechanism 1 (the shard's recurring-audit gate);
@@ -1560,7 +1634,21 @@ async function integrate(unit, report) {
   }
   if (!report.contract_met) {
     // HANDBACK: not merged; worktree held on disk for a human/strong turn.
-    state.blocked.push({ repo: unit.repo, reason: report.handback || 'contract_met=false', worktreePath: report.worktree })
+    const hbReason = report.handback || 'contract_met=false'
+    state.blocked.push({ repo: unit.repo, reason: hbReason, worktreePath: report.worktree })
+    // id:1432 (b) — loud repeat-tracking: count every child handback this run; a repo+verdict
+    // at >=2 surfaces as an ALERT in the exit summary + RELAY_STATUS (a repeating handback is a
+    // bug signal, not noise).
+    trackHandback(handbackTracker, unit.repo, unit.verdict, hbReason)
+    // id:1432 (a) — dispatch-level suppression: a WHOLE-DISPATCH "no executor-actionable work"
+    // handback (route missing/none — it produces no durable ROADMAP action from id:3801) stamps
+    // a negative cache keyed on the unit's work_sig, so discovery does NOT re-dispatch the same
+    // verdict until the work_sig genuinely changes. ITEM-level handbacks (route=decision-gate/
+    // hard-split/human, with handback_item) are gated durably by handback-followup.py instead —
+    // this is the defense-in-depth for the route=none case that path skips.
+    if (!report.route || report.route === 'none') {
+      recordNoWorkHandback(noWorkNegCache, unit.repo, unit.verdict, unit.work_sig || '')
+    }
     // id:3801 — durably record the handback in ROADMAP.md (auto-gate / auto-split) so the
     // child's judgment doesn't evaporate into RELAY_STATUS and the pool stops re-dispatching
     // the same un-doable item. Fire-and-forget, non-fatal (like logGamingFlags).
@@ -2085,13 +2173,20 @@ while (!quotaStopped && round < MAX_ROUNDS) {
 await statusTail  // id:cb50 — flush the queued (off-critical-path) RELAY_STATUS writes so the final state is durable before the run returns
 await stopHeartbeat()  // id:e149 — clean shutdown: release the run-liveness marker (no stale marker ⇒ no false watchdog/reconcile trigger)
 const handbacks = state.blocked.filter(b => b.worktreePath && b.worktreePath !== '-')
+// id:1432 — LOUD exit-summary surfacing: any repo+verdict that handed back >=2× this run is a
+// bug signal (a looping false/stale verdict). Log it prominently so an --afk operator sees it.
+const repeatHandbacks = handbackAlerts(handbackTracker, 2)
 log(`relay-loop: done — ${round} round(s), ${state.completed.length} integrated, ${handbacks.length} HANDBACKs, quotaStopped=${quotaStopped}`)
+if (repeatHandbacks.length) {
+  log(`relay-loop: id:1432 ⚠️ REPEAT-HANDBACK ALERT — ${repeatHandbacks.length} repo/verdict(s) handed back >=2× this run (bug signal, investigate): ${repeatHandbacks.map(a => `${a.repo}(${a.verdict})×${a.count}`).join(', ')}`)
+}
 
 return {
   runId: state.runId,
   statusPath: RELAY_STATUS_PATH,
   completed: state.completed,
   handbacks,
+  repeatHandbacks,  // id:1432 — [{repo, verdict, count, lastReason}] for >=2× handbacks this run
   queuedRemaining: state.queued,
   quotaStopped,
   stopReason,  // id:8c35 — category: null | "quota-cache-unreadable" | "quota-extrapolated-stop[:<bucket>]" (id:0175/82e3) | "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
