@@ -3,7 +3,7 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
-- [ ] **`roadmap-lint` WARN: DECIDED-LEFT-OPEN on id:de4e (review 2026-07-11 1236).**
+- [x] **`roadmap-lint` WARN: DECIDED-LEFT-OPEN on id:de4e (review 2026-07-11 1236).** — RESOLVED 2026-07-13 (relay human): owner chose "tick deferred" → id:de4e ticked `[x]` in ROADMAP with a DEFERRED-CLOSED note, so the recurring warn clears. Re-checkable: `roadmap-lint.sh` no longer flags de4e.
   `- [ ] [INPUT — meeting] DEFERRED (decided 2026-06-17): Distributed relay orchestrator — multi-machine,
   dynamic membership <!-- id:de4e -->` carries a decided/deferred marker but is still an open checkbox, so
   `roadmap-lint.sh` warns every pass (exit 0, non-blocking). The item is a genuine long-horizon deferral,
@@ -22,6 +22,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   (dissolve-vs-guard, decide the ordering) is undischarged. **Action:** either narrow the
   `children:` edge / re-scope id:9fdb so it no longer reads as ready, or run `/meeting` on it — but
   do NOT tick it on the strength of the interim guard alone.
+  **DECIDED 2026-07-13 (relay human): RUN /meeting** on id:9fdb to actually decide dissolve-vs-guard and the ordering. Box stays OPEN; routed to `/meeting --cross` (see the "needs a /meeting" checklist). The substantive design work is undischarged — no auto-close.
 
 - [x] **Installed `~/.claude/skills/relay/scripts/` is stale — re-run `make install-relay` (review 2026-07-08 1625).** — RESOLVED 2026-07-13 (relay human): `~/.claude/skills/relay/scripts/lib-own-repos.sh` symlink now present (created 2026-07-11 20:05, after this review) ⇒ `make install-relay` re-run; installed `relay-doctor.sh` source at line 89 resolves. Re-checkable: `ls -la ~/.claude/skills/relay/scripts/lib-own-repos.sh`.
   `relay/scripts/lib-own-repos.sh` was added this cycle and IS listed in the Makefile's
@@ -34,7 +35,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   source-resolved: the lib is shipped and installer-listed). **Action:** run `make
   install-relay` (or `make install`).
 
-- [ ] **How should `--shipped` surface id:50c4, a deliberately-unmarked cross-repo gate with NO gate-word vocabulary? (handoff 2026-07-11, ROADMAP id:4245).**
+- [x] **How should `--shipped` surface id:50c4, a deliberately-unmarked cross-repo gate with NO gate-word vocabulary? (handoff 2026-07-11, ROADMAP id:4245).** — DECIDED 2026-07-13 (relay human): option (a) LOCAL MARKER — adopt a lightweight `<!-- xgate:508d@relay-core -->` sibling-comment convention the scanner reads (resolved via routed:/inbox). Impl follow-up filed as id:7f30 (add the xgate marker to id:50c4's TODO line + teach orphan-scan `--shipped` to detect it). Re-checkable: id:7f30 lands the marker + scanner support.
   ROADMAP id:4245 asks that BOTH id:7df1 and id:50c4 surface as `UNMARKED-GATE`. id:7df1 is
   tractable — it carries `🚧 GATED (DEP: 3ef7 …)` gate vocabulary, so once id:431f widens the
   indented-item anchor the existing UNMARKED-GATE backstop fires on it (this is what
