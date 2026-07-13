@@ -32,9 +32,9 @@ CLAIM="$ROOT/scripts/claim.sh"
 
 resource="${1:-}"
 case "$resource" in
-  gpu|ram|cpu|local-llm) ;;
+  gpu|ram|cpu|local-llm|r5-jvm|lean|xvfb-electron) ;;
   *)
-    echo '{"resource":null,"available":false,"reason":"usage: resource-probe.sh <gpu|ram|cpu|local-llm>"}'
+    echo '{"resource":null,"available":false,"reason":"usage: resource-probe.sh <gpu|ram|cpu|local-llm|r5-jvm|lean|xvfb-electron|...> — claim-only bespoke tokens allowed, see resource-claims.md"}'
     exit 2
     ;;
 esac
@@ -53,9 +53,10 @@ if claim_held "$resource"; then
 fi
 
 case "$resource" in
-  local-llm)
-    # Claim-only: no competing claim (checked above) => available.
-    jq -n --arg resource "$resource" --arg reason "no competing resource:local-llm claim" \
+  local-llm|r5-jvm|lean|xvfb-electron)
+    # Claim-only (incl. bespoke open-ended tokens, see resource-claims.md): no hardware
+    # metric — no competing claim (checked above) => available.
+    jq -n --arg resource "$resource" --arg reason "no competing resource:$resource claim (claim-only token)" \
       '{resource:$resource, available:true, reason:$reason}'
     exit 0
     ;;
