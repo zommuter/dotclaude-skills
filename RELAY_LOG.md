@@ -2516,3 +2516,7 @@ Fixed roadmap-lint.sh case-c conflict check to count only the leading contiguous
 ## 2026-07-13 — executor (sonnet, relay-loop)
 
 Worked id:7f30 — added an `<!-- xgate:TOKEN@repo -->` sibling-comment marker to `meeting/orphan-scan.sh`, mirroring the shipped `gate-prose-only` (id:8800) bypass: it records a confirmed CROSS-REPO gate whose blocking token lives in another repo (no local `gated-on:` edge to point at) and bypasses ONLY the UNMARKED-GATE backstop, without setting `has_typed` or touching the typed-predicate/EXTERNAL-WAIT/GATE-STALE paths. Parses `TOKEN@repo` loosely via `grep -qP`; a malformed marker simply doesn't match (no crash). Added the marker to id:50c4's TODO line as the first real consumer (per the item's How/Design), and ticked its TODO checkbox alongside the ROADMAP item (single-id-two-views). `tests/test_orphan_scan_xgate.sh` (roadmap:7f30) goes green; `test_orphan_scan_gate_prose_only.sh` (id:8800) and `test_orphan_scan_unmarked_gate.sh` (id:4245) stay green. Full suite: 231 passed / 0 failed / 0 expected-red. Friction: none.
+
+## 2026-07-13 14:28 — executor (sonnet, relay-loop)
+
+Shipped id:7f30 — orphan-scan.sh xgate:TOKEN@repo marker bypasses UNMARKED-GATE for confirmed cross-repo gates; applied to id:50c4; full suite 231 passed / 0 failed. [id:7f30]
