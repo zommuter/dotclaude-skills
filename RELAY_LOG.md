@@ -2508,3 +2508,7 @@ review: window is human ledger edits (gaming-scan clean); mini-handoff promoted 
 ## 2026-07-13 — executor (sonnet, relay-loop)
 
 Worked id:1781 — `roadmap-lint.sh` case-c "multiple lane brackets" conflict check counted EVERY bare lane bracket anywhere on the line, so a correctly-tagged item whose body cited a prior lane transition in trailing audit-trail prose (e.g. "was [HARD — pool] before, re-laned to [ROUTINE]") false-positived the LOUD-reject. Added a `leading_lane_run()` helper that walks only the CONTIGUOUS run of recognized lane brackets immediately after `- [ ] `/`- [x] `, and pointed the case-c bare-tag scan at that leading run instead of the whole (backtick-stripped) line. Two genuinely contiguous LEADING tags (e.g. `[HARD — pool] [ROUTINE] …`) still ERROR; a clean single-tag item still passes. `tests/test_roadmap_lint_trailing_lane_prose.sh` (roadmap:1781) goes green; `test_roadmap_lint_tagprose.sh`, `test_roadmap_lint.sh`, `test_roadmap_lint_tag_first.sh` stay green. Full suite: 230 passed / 0 failed / 1 expected-red (id:7f30, the remaining open ROUTINE item from this mini-handoff). Friction: none.
+
+## 2026-07-13 14:00 — executor (sonnet, relay-loop)
+
+Fixed roadmap-lint.sh case-c conflict check to count only the leading contiguous lane-bracket run, ignoring lane brackets in trailing audit-trail prose (id:1781); full suite 230 passed / 0 failed / 1 expected-red. [id:1781]
