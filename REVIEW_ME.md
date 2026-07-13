@@ -23,7 +23,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   `children:` edge / re-scope id:9fdb so it no longer reads as ready, or run `/meeting` on it — but
   do NOT tick it on the strength of the interim guard alone.
 
-- [ ] **Installed `~/.claude/skills/relay/scripts/` is stale — re-run `make install-relay` (review 2026-07-08 1625).**
+- [x] **Installed `~/.claude/skills/relay/scripts/` is stale — re-run `make install-relay` (review 2026-07-08 1625).** — RESOLVED 2026-07-13 (relay human): `~/.claude/skills/relay/scripts/lib-own-repos.sh` symlink now present (created 2026-07-11 20:05, after this review) ⇒ `make install-relay` re-run; installed `relay-doctor.sh` source at line 89 resolves. Re-checkable: `ls -la ~/.claude/skills/relay/scripts/lib-own-repos.sh`.
   `relay/scripts/lib-own-repos.sh` was added this cycle and IS listed in the Makefile's
   `relay_FILES` (Makefile:63), so the SOURCE is correct — but the installed tree has no
   symlink for it, so the INSTALLED `relay-doctor.sh` aborts at line 89
