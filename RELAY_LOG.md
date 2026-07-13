@@ -2500,3 +2500,7 @@ executor: shipped id:0f7a (archive-done.sh: only ## headings are prune-segment b
 ## 2026-07-12 22:21 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:0f7a (archive-done nested-### fix) verified green; fixed 0f7a+8800 cross-ledger TODO drift; suite 229 pass [id:0f7a,8800]
+
+## 2026-07-13 13:27 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: window is human ledger edits (gaming-scan clean); mini-handoff promoted id:1781 + id:7f30 to [ROUTINE] with RED specs; suite 229 pass +2 expected-red; roadmap-lint/cross-ledger/relay-doctor clean [id:1781,7f30,3273,1b18,8800,0f7a]
