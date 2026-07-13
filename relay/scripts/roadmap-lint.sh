@@ -176,6 +176,36 @@ first_lane_tag() {
   printf '%s' "$best_tag"
 }
 
+# leading_lane_run <line> — the CONTIGUOUS run of recognized lane brackets at the
+# very start of the item text (immediately after `- [ ] `/`- [x] `). A lane bracket
+# appearing after any prose word is trailing audit-trail prose, not a live second
+# lane on the item (id:1781) — this helper isolates just the leading run so callers
+# can count/inspect lane tags WITHOUT trailing-prose mentions inflating the count.
+# Returns the matched tags space-joined (empty if the item opens with no lane tag).
+leading_lane_run() {
+  local line="$1" rest matched tag out=""
+  if [[ "$line" =~ ^-[[:space:]]\[[[:space:]xX]\][[:space:]]*(.*)$ ]]; then
+    rest="${BASH_REMATCH[1]}"
+  else
+    rest="$line"
+  fi
+  while :; do
+    # trim leading whitespace
+    while [[ "$rest" == [[:space:]]* ]]; do rest="${rest# }"; done
+    matched=0
+    for tag in "${all_lane_tags[@]}"; do
+      if [[ "$rest" == "$tag"* ]]; then
+        out+="$tag "
+        rest="${rest#"$tag"}"
+        matched=1
+        break
+      fi
+    done
+    [[ "$matched" -eq 1 ]] || break
+  done
+  printf '%s' "$out"
+}
+
 # A 4-hex id token, the canonical `<!-- id:XXXX -->` or a bare `id:XXXX`.
 id_re='id:[0-9a-fA-F]{4}'
 
@@ -328,7 +358,11 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
     # inside a backtick-quoted span (e.g. documenting `[HARD]` as an example) is
     # prose, not a second live lane on the item, and must not inflate the count.
     # Mirrors first_lane_tag's strip=1 idiom (id:1bbd/ad8a).
-    _bare="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"
+    # AND only the LEADING contiguous lane-bracket run counts (id:1781) — a lane
+    # bracket appearing after any prose word (e.g. audit-trail text like "(was
+    # [HARD — pool] before, re-laned to [ROUTINE])") is trailing prose, not a
+    # second live lane, and must not trip the conflict either.
+    _bare="$(leading_lane_run "$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')")"
     _lc=0; _lf=()
     echo "$_bare" | grep -qF '[ROUTINE]' && { _lc=$((_lc+1)); _lf+=('[ROUTINE]'); }
     echo "$_bare" | grep -qF '[MECHANICAL]' && { _lc=$((_lc+1)); _lf+=('[MECHANICAL]'); }

@@ -2504,3 +2504,7 @@ review: id:0f7a (archive-done nested-### fix) verified green; fixed 0f7a+8800 cr
 ## 2026-07-13 13:27 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: window is human ledger edits (gaming-scan clean); mini-handoff promoted id:1781 + id:7f30 to [ROUTINE] with RED specs; suite 229 pass +2 expected-red; roadmap-lint/cross-ledger/relay-doctor clean [id:1781,7f30,3273,1b18,8800,0f7a]
+
+## 2026-07-13 — executor (sonnet, relay-loop)
+
+Worked id:1781 — `roadmap-lint.sh` case-c "multiple lane brackets" conflict check counted EVERY bare lane bracket anywhere on the line, so a correctly-tagged item whose body cited a prior lane transition in trailing audit-trail prose (e.g. "was [HARD — pool] before, re-laned to [ROUTINE]") false-positived the LOUD-reject. Added a `leading_lane_run()` helper that walks only the CONTIGUOUS run of recognized lane brackets immediately after `- [ ] `/`- [x] `, and pointed the case-c bare-tag scan at that leading run instead of the whole (backtick-stripped) line. Two genuinely contiguous LEADING tags (e.g. `[HARD — pool] [ROUTINE] …`) still ERROR; a clean single-tag item still passes. `tests/test_roadmap_lint_trailing_lane_prose.sh` (roadmap:1781) goes green; `test_roadmap_lint_tagprose.sh`, `test_roadmap_lint.sh`, `test_roadmap_lint_tag_first.sh` stay green. Full suite: 230 passed / 0 failed / 1 expected-red (id:7f30, the remaining open ROUTINE item from this mini-handoff). Friction: none.
