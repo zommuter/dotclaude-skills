@@ -127,3 +127,38 @@ flags a cmd already carrying the canonical `exit=$rc` marker).
 - The `resource` field's value should match the shared `resource:<name>` vocabulary in
   `relay/references/resource-claims.md` when the recipe's command needs to serialize
   against a contended physical resource (local-llm, gpu, …).
+
+## Runbook — what makes a dropped recipe actually RUN (proven end-to-end 2026-07-13)
+
+The A3 daemon (`mechanical-daemon.sh` + `.path`/`.service`) is now BUILT and shipped
+(the non-goals above predate it). First real intensive run: isochrone id:ac14
+(zurich r5-jvm field-gen → `web/fields/zurich-transit.json`). Authoring a valid recipe
+into `pending/` is necessary but NOT sufficient — a dropped recipe passes THREE launch
+gates before it runs, and failing any one makes the daemon **check-and-defer** (leave it
+in `pending/`, log the reason to `~/.claude/logs/mechanical-daemon.log`, run nothing).
+The three gates, in order, with the wall each caused on the ac14 first-run:
+
+1. **HOST gate** — `host-gate.sh` must match the recipe's `host` to the current machine
+   (exit 3 → `host-mismatch`, left for another host's daemon). No wall for a same-host recipe.
+2. **RESOURCE gate** — `resource-probe.sh <resource>` must RECOGNIZE the token AND find no
+   competing `resource:<token>` claim. **Wall:** the probe only knew `gpu|ram|cpu|local-llm`;
+   a bespoke token (`r5-jvm`/`lean`/`xvfb-electron`) returned exit 2 → `resource-unavailable`
+   forever. Fixed 2026-07-13 (commit e980b07): bespoke tokens are now claim-only. If you add a
+   NEW `[INTENSIVE — <tok>]` token, add it to resource-probe.sh's allow-list too.
+3. **INTENSITY gate** — `relay-intensity.sh permits <est_wall> <resource>` needs an ACTIVE
+   permit window (`~/.config/relay/permitted-intensity.json`); a HEAVY resource needs a
+   `--heavy`/`--intensive` window (a `--light`/`--afk` window is not enough). **Wall:** with no
+   active `/relay --intensive` run, there is NO permit → `intensity-permit-denied` for ANY
+   wall size. Grant one by hand: `relay-intensity.sh --intensive` (heavy, 2h) or
+   `relay-intensity.sh --for <dur> --heavy`; check with `--status`; clear with `--clear`.
+
+**Trigger + the no-retry gap (id:8a6b clause d).** The daemon is `.path`-triggered
+(`PathModified` on `pending/`) with NO retry timer. A recipe that check-and-defers once
+(a gate failed at that instant) will NOT re-evaluate on its own — it sits until `pending/`
+is next modified. To (re-)fire after clearing a gate: `touch
+~/.config/relay/recipes/pending/<recipe>.json` (or wait for the id:8a6b retry-timer once built).
+
+**On success:** the recipe moves `pending → running → done/`, its `acceptance_artifact` is
+written, and the daemon auto-injects a `review` unit (`inject.sh add <repo> --item <id>
+--verdict review …`) so the next pool run verifies the artifact and can tick the ROADMAP item.
+A failing `cmd` still lands in `done/` (with a sibling `.error`) but injects NO review.
