@@ -2520,3 +2520,7 @@ Worked id:7f30 — added an `<!-- xgate:TOKEN@repo -->` sibling-comment marker t
 ## 2026-07-13 14:28 — executor (sonnet, relay-loop)
 
 Shipped id:7f30 — orphan-scan.sh xgate:TOKEN@repo marker bypasses UNMARKED-GATE for confirmed cross-repo gates; applied to id:50c4; full suite 231 passed / 0 failed. [id:7f30]
+
+## 2026-07-13 14:50 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified id:e3c0 gate annotation (only commit); gaming-scan clean, 231 tests pass, lint/doctor/cross-ledger clean, contract v6 current [id:e3c0]
