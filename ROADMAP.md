@@ -225,6 +225,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Related**: id:ebfb / id:0902 (current single-host claim registry),
     `docs/meeting-notes/2026-06-15-1216-relay-dispatch-safety-cluster.md`.
 
+- [ ] [HARD] Cold fixed-prompt probe: re-pose Opus-degradation incidents #2 (confident-wrong "zkm-* on another machine") and #3 (over-engineered ~/.claude branch-split) against fresh Opus; record pass/fail vs the recorded incident behaviour, finding written into `docs/meeting-notes/2026-06-17-0836-opus-degradation-investigation.md`. Promoted 2026-07-13 (user) from TODO id:e3c0 (single-id-two-views — same id spans both ledgers). **Why HARD**: requires apex judgment to assess whether fresh Opus reproduces the confident-wrong / over-engineering behaviour. Bounded: two fixed prompts, pass/fail each, one meeting-note write. <!-- id:e3c0 -->
 - [ ] [HARD] Strong-model audit: code review, security, and design coherence <!-- id:401c --> <!-- relay:recurring-audit -->
   - **Why HARD**: requires adversarial judgment — finding subtle bugs, security issues,
     and internal contradictions in design docs that a weaker model would miss or dismiss.
