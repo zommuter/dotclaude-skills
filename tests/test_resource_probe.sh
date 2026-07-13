@@ -72,4 +72,32 @@ hi="$(RESOURCE_PROBE_RAM_MIN_MB=999999999 "$SH" ram 2>/dev/null)" || true
 [[ "$(avail <<<"$hi")" == "false" ]] || fail "(5) ram must be unavailable with an impossibly-high min-MB threshold (got: $hi)"
 pass "(5) an env RAM threshold override flips availability deterministically"
 
+# --- (6) a bespoke claim-only token (r5-jvm) with no claim → available, exit 0 ---
+out="$("$SH" r5-jvm 2>/dev/null)" && rc=0 || rc=$?
+[[ "$(avail <<<"$out")" == "true" ]] || fail "(6) r5-jvm claim-only token with no claim must be available (got: $out)"
+[[ $rc -eq 0 ]] || fail "(6) an available claim-only bespoke token must exit 0 (got $rc)"
+pass "(6) bespoke claim-only token r5-jvm is available (exit 0) with no competing claim"
+
+# --- (7) a live resource:r5-jvm claim → check-and-defer: unavailable + nonzero ---
+"$CLAIM" acquire resource:r5-jvm --run other-RUN --mode intensive >/dev/null
+out="$("$SH" r5-jvm 2>/dev/null)" && rc=0 || rc=$?
+[[ "$(avail <<<"$out")" == "false" ]] || fail "(7) a held resource:r5-jvm claim must make r5-jvm unavailable (got: $out)"
+[[ $rc -ne 0 ]] || fail "(7) an unavailable bespoke token must exit nonzero"
+"$CLAIM" release resource:r5-jvm --run other-RUN
+pass "(7) a live resource:r5-jvm claim defers the probe (unavailable, never preempts)"
+
+# --- (8) the other bespoke tokens (lean, xvfb-electron) are recognized, not usage errors ---
+for tok in lean xvfb-electron; do
+  out="$("$SH" "$tok" 2>/dev/null)" && rc=0 || rc=$?
+  [[ "$(avail <<<"$out")" == "true" ]] || fail "(8) $tok claim-only token with no claim must be available (got: $out)"
+  [[ $rc -eq 0 ]] || fail "(8) $tok must exit 0 when available (got $rc)"
+done
+pass "(8) lean + xvfb-electron are recognized claim-only tokens (available with no claim)"
+
+# --- (9) an unknown token still rejects with a usage error + exit 2 ----------
+out="$("$SH" not-a-real-resource 2>/dev/null)" && rc=0 || rc=$?
+[[ "$(avail <<<"$out")" == "false" ]] || fail "(9) an unknown token must be unavailable (got: $out)"
+[[ $rc -eq 2 ]] || fail "(9) an unknown token must exit 2 (usage error), got $rc"
+pass "(9) an unknown resource token still rejects with a usage error (exit 2)"
+
 echo "ALL PASS: resource-probe check-and-defer (id:68dc)"
