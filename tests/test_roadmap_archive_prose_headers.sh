@@ -83,6 +83,12 @@ grep -q '## Items' "$roadB"                        || fail "B: protected ## Item
 # Non-protected transient header moved to archive, gone from ROADMAP.
 grep -q 'batch 2020-01-01' "$roadB"                && fail "B: emptied transient header left in ROADMAP.md"
 grep -q 'batch 2020-01-01' "$archB"                || fail "B: emptied transient header not moved to archive"
+# Grouping context preserved: the moved header must sit ADJACENT to (immediately
+# above) its item block in the archive, not dumped elsewhere in the file.
+hdr_ln=$(grep -n 'batch 2020-01-01' "$archB" | head -1 | cut -d: -f1)
+itm_ln=$(grep -n 'Only item under the transient header' "$archB" | head -1 | cut -d: -f1)
+[[ -n "$hdr_ln" && -n "$itm_ln" && "$itm_ln" -gt "$hdr_ln" && $((itm_ln - hdr_ln)) -le 2 ]] \
+  || fail "B: moved header not adjacent to its item in archive (grouping context lost: hdr@$hdr_ln item@$itm_ln)"
 # Already-empty-on-arrival header is left in place (nothing archived under it).
 grep -q '## Already empty on arrival' "$roadB"     || fail "B: already-empty header wrongly removed"
 grep -q 'Already empty on arrival' "$archB"        && fail "B: already-empty header wrongly moved to archive"
@@ -112,6 +118,11 @@ roadC="$rC/ROADMAP.md"; archC="$rC/ROADMAP.archive.md"
 grep -q '## Items' "$roadC"                 || fail "C: protected ## Items header wrongly moved"
 grep -q 'sprint 42' "$roadC"                && fail "C: emptied transient header left in ROADMAP.md (archive-closed.sh)"
 grep -q 'sprint 42' "$archC"                || fail "C: emptied transient header not moved to archive (archive-closed.sh)"
-pass "C: emptied transient header moves; protected header stays (archive-closed.sh)"
+# Grouping context preserved (archive-closed.sh): header adjacent to its item.
+hc=$(grep -n 'sprint 42' "$archC" | head -1 | cut -d: -f1)
+ic=$(grep -n 'the only, now-closed item' "$archC" | head -1 | cut -d: -f1)
+[[ -n "$hc" && -n "$ic" && "$ic" -gt "$hc" && $((ic - hc)) -le 2 ]] \
+  || fail "C: moved header not adjacent to its item in archive (grouping context lost: hdr@$hc item@$ic)"
+pass "C: emptied transient header moves adjacent to its item; protected header stays (archive-closed.sh)"
 
 echo "ok"
