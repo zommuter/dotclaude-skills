@@ -26,7 +26,7 @@ Run with `refresh` to re-scan all projects first:
 1. Check if `proj` is on PATH: run `which proj`. If not found, suggest `uv tool install --editable ~/src/project_manager`.
 2. If the argument is `refresh` (or `refresh --write`): run `proj refresh --write` and report how many projects were scanned.
 3. Otherwise: run `proj show` and present the output to the user.
-4. **Inbox surface**: grep `~/.claude/todo-inbox.md` for unchecked `- [ ]` lines; skip silently if the file is missing or has no unchecked lines. Group by `[<repo>]` tag and print:
+4. **Inbox surface**: grep the shared inbox (`$RELAY_INBOX` if set, else `~/.claude/projects/todo-inbox.md` — the git-tracked store, id:9fdb; legacy `~/.claude/todo-inbox.md` migrates there automatically on first use) for unchecked `- [ ]` lines; skip silently if the file is missing or has no unchecked lines. Group by `[<repo>]` tag and print:
    ```
    📥 Routed to you:
      dotclaude-skills (2): <first item description>; <second item description>

@@ -5,13 +5,24 @@
 # Output: TSV lines:  CLASS  ID  SUMMARY(≤80char)  NOTE-LINK  GATE
 #   CLASS: C1 (link+Decisions), C2 (link-no-Decisions or keyword hint), C3 (no link),
 #          RELAY (the relay ROADMAP mirror line — executor work, never
-#          meeting-worthy; /meeting dispatch must skip it)
-#   GATE:  GATED if body contains gate/condition/blocked vocabulary; empty otherwise
-#          Advisory only — never reclassifies or skips; model judges satisfaction.
-#   [HARD] floor (D4, meeting note 2026-06-15-0715-meeting-fables-interaction.md):
-#          a TODO item tagged [HARD] needs a strong-model design session — it is
-#          FLOORED to C3 (never C1/C2), so /meeting dispatch never proposes inline
-#          impl on a weak/post-plan tier. The [HARD] tag stays visible in SUMMARY.
+#          meeting-worthy; /meeting dispatch must skip it),
+#          POOL / HANDS (a [HARD] item whose lane is pool / hands — see [HARD] floor
+#          below; executor / human-manual work, NOT meeting-worthy — /meeting dispatch
+#          must skip both, exactly like RELAY).
+#   GATE:  GATED if body contains gate/condition/blocked vocabulary; empty otherwise.
+#          HARD-NOLANE if a [HARD] item declares no recognized lane (id:78ff: untagged
+#          [HARD] = LOUD reject — surface it, don't silently treat as meeting work).
+#          May combine, e.g. "GATED;HARD-NOLANE". Advisory; model judges satisfaction.
+#   [HARD] floor, LANE-AWARE (D4, meeting note 2026-06-15-0715-…; lane split id:78ff):
+#          a [HARD] item needs a strong tier, but WHICH surface depends on its lane
+#          tag `[HARD — pool|meeting|hands]`:
+#            [HARD — meeting] → C3   (a design session — the ONLY meeting-worthy lane)
+#            [HARD — pool]    → POOL  (relay-executor work — /meeting skips it)
+#            [HARD — hands]   → HANDS (human-manual work — /meeting skips it)
+#            [HARD] (no lane) → C3 + GATE=HARD-NOLANE (loud; needs a lane, id:78ff)
+#          This stops [HARD — pool]/[HARD — hands] items surfacing as meeting
+#          candidates (the /meeting over-claim: a pool-executable item was floored to
+#          C3 and recommended for a redundant design meeting). The tag stays in SUMMARY.
 
 set -euo pipefail
 
@@ -70,10 +81,29 @@ while IFS= read -r line; do
     printf '%s' "$body" | grep -qiE 'gated?|gate:|reopen (gate|trigger)|condition-triggered|blocked on' \
         && gate="GATED" || true
 
-    # [HARD] floor (D4): a [HARD]-tagged TODO item is strong-model design work — floor
-    # to C3 regardless of link/keywords, so dispatch never proposes inline C1/C2 impl.
-    if printf '%s' "$body" | grep -qE '\[HARD\]|\[HARD '; then
-        class="C3"
+    # [HARD] floor, LANE-AWARE (D4 + id:78ff): a [HARD] item is strong-tier work, but
+    # its lane decides the SURFACE. Only [HARD — meeting] is meeting-worthy; [HARD — pool]
+    # is relay-executor work and [HARD — hands] is human-manual work — both must be SKIPPED
+    # by /meeting (never proposed as a meeting/impl candidate). A bare [HARD] with no
+    # recognized lane is surfaced LOUDLY (HARD-NOLANE) rather than silently treated as a
+    # meeting. This override runs LAST so it wins over the link/keyword class above.
+    #
+    # ANCHORING (id:0d58/id:4da4): read the lane ONLY from the item's HEAD — the first 120
+    # chars of the body. A real lane tag sits at the very start (before / inside / just after
+    # the opening bold `**title**`); a `[HARD — pool]` cited in the PROSE of a long single-line
+    # item is hundreds of chars deep (observed ≥327 in the live corpus) and must NOT count —
+    # else an [INPUT — meeting] umbrella that merely discusses pool executors reads as POOL.
+    # The lane word must sit INSIDE the `[HARD …]` bracket (not a bare title word like a
+    # "MEETING:"-prefixed title), so route on the extracted tag, not a substring of the head.
+    lead=$(printf '%s' "$body" | cut -c1-120)
+    hard_tag=$(printf '%s' "$lead" | grep -oE '\[HARD[^]]*\]' | head -1 || true)
+    if [[ -n "$hard_tag" ]]; then
+        case "$hard_tag" in
+            *[Pp]ool*)    class="POOL" ;;
+            *[Hh]ands*)   class="HANDS" ;;
+            *[Mm]eeting*) class="C3" ;;
+            *)            class="C3"; gate="${gate:+${gate};}HARD-NOLANE" ;;
+        esac
     fi
 
     printf '%s\t%s\t%s\t%s\t%s\n' "$class" "$id" "$summary" "$note_link" "$gate"

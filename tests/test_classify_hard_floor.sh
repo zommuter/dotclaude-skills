@@ -3,10 +3,13 @@
 #  docs/meeting-notes/2026-06-15-0715-meeting-fables-interaction.md D4, tracked in
 #  TODO.md id:15e9, not ROADMAP.md; this test always counts.)
 #
-# classify.sh [HARD] floor (D4): a TODO item tagged [HARD] is strong-model design work
-# and must FLOOR to C3 — never C1/C2 — even when it carries a meeting-note link with a
-# ## Decisions section (which would otherwise make it C1). Non-[HARD] items are
-# unaffected. The relay RELAY mirror line still classifies RELAY.
+# classify.sh [HARD] floor (D4): a TODO item tagged [HARD] is strong-tier work and must
+# NOT classify C1/C2 on the strength of a linked ## Decisions section. As of the lane-aware
+# refinement (2026-07-14, id:78ff) the floor routes BY LANE — `[HARD — pool]`→POOL,
+# `[HARD — hands]`→HANDS, `[HARD — meeting]`→C3, bare `[HARD]`→C3+HARD-NOLANE. These
+# fixtures exercise the non-pool/non-hands cases (bare `[HARD]`, `[HARD — strong model]`),
+# which all floor to C3; the pool/hands routing is covered by test_classify_hard_lanes.sh.
+# Non-[HARD] items are unaffected. The relay RELAY mirror line still classifies RELAY.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

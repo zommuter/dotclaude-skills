@@ -52,7 +52,7 @@ policies in `references/todo-conversion-policies.md` (P1–P4) — surface, neve
 prose to a task on a guess. **NEVER blocks.**
 
 **Surface the shared inbox's non-conforming entries + dead-letters (id:678e slice 1).** Run
-`scripts/scan-routed.sh` (`RELAY_INBOX` default `~/.claude/todo-inbox.md`, override per the
+`scripts/scan-routed.sh` (`RELAY_INBOX` default `~/.claude/projects/todo-inbox.md`, override per the
 config-path convention — the public script never embeds inbox *contents*). It reports each
 `DEAD-LETTER` (a conforming `routed:` item whose `[target]` repo never ingested it),
 `UNRESOLVED` target, and `NON-CONFORMING` prose block (the latter via `todo-conformance.sh
