@@ -2532,3 +2532,7 @@ review: verified id:8a6b/1432/2ab2 genuinely green (gaming-scan clean, 234/0), l
 ## 2026-07-14 14:07 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:85df/297b done → ticked (classify-verdict.sh + roadmap-lint case-c); gaming-scan clean, 234/0, lint+cross-ledger clean, 0 open ROUTINE [id:85df,297b]
+
+## 2026-07-14 14:28 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+C2: promoted the @needs-auth co-meet cluster (id:a505, id:1750) from TODO backlog into ROADMAP as [HARD] pool items [id:a505,1750]
