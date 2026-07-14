@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v6 -->
+## Executor contract <!-- relay-executor contract v7 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -76,6 +76,19 @@ you were told you are the reviewer) follow these rules:
 5. **Hygiene**: commit early and often with conventional messages; never force-push;
    never edit ROADMAP.md item definitions (tick checkboxes only); pamac not pacman;
    uv for Python.
+6. **`@needs-auth` wall — record-and-continue, never strand (D3, id:a505)**: if you
+   hit an interactive-auth or human-held-secret wall you cannot clear unattended (sudo/
+   askpass, polkit/pamac, ssh/login, gpg/credential, browser-OAuth, a decryption
+   passphrase, a private export), do NOT fail the whole unit and do NOT `sudo`. RECORD a
+   conforming `@needs-auth` box in this repo's `REVIEW_ME.md` with all FOUR mandatory
+   fields — **what-secret · where-it-goes · exact-command · why** — then clean-continue
+   the SEPARABLE remainder of your unit (the work that does not depend on the secret).
+   **When separability is uncertain, default to a clean handback of the gated remainder**
+   (leave it for a human) rather than guessing. `@needs-auth` is the convention defined in
+   `relay/references/hard-lanes.md`; it is ORTHOGONAL to `@manual` (an item may carry both:
+   `@needs-auth` = a human must PROVIDE a secret; `@manual` = a human must RUN/verify). The
+   box is the durable record — the offline lister (`gather-human-backlog.sh`, id:1750)
+   surfaces it to the human; a stranded unit with no box is the failure this rule prevents.
 
 ## ROADMAP item format (reference)
 

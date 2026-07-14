@@ -23,6 +23,13 @@
 #   Both run only on OPEN items in ACTIVE sections (parked/exempt sections are skipped),
 #   and NEVER silently filter — the offending line always prints to stderr.
 #
+# RECOGNIZED non-lane markers (id:a505): `@container` (DECOMPOSED parent), `@manual`
+# (human must run/verify), and `@needs-auth` (blocked on a human-held secret /
+# interactive-auth wall — see relay/references/hard-lanes.md) are KNOWN markers,
+# orthogonal to the lane grammar. An item carrying `@needs-auth` alongside a valid lane
+# tag + id is well-formed — the marker is NEVER flagged as an unknown/untagged token.
+# (The AI-free lister that filters `@needs-auth` boxes is id:1750, not this validator.)
+#
 # WHY (audit 2026-06-23, user directive): rather than detecting a FIXED list of
 # specific known issues, the relay should reject ANYTHING that doesn't match the
 # proper open-item syntax — a POSITIVE grammar (extends id:415b
