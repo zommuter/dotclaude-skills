@@ -30,7 +30,17 @@ cat > "$INBOX" <<'EOF'
 - [ ] [chidiAI] offender case — model degradation repro (from meeting, note) <!-- routed:4fa9 -->
 EOF
 
-RELAY_INBOX="$INBOX" "$SH" inbox-done 4fa9 || fail "inbox-done exited nonzero"
+# The twin-check guard (id:9fdb) now REFUSES to delete unless the target repo already
+# carries the durable `routed:<token>` breadcrumb. Provide it: a fake chidiAI repo under
+# a temp SRC_DIR whose TODO.md contains routed:4fa9. Without this the anchored-delete
+# below would (correctly) be blocked by the guard, not by any anchoring regression.
+SRC="$TMP/src"; mkdir -p "$SRC/chidiAI"
+cat > "$SRC/chidiAI/TODO.md" <<'EOF'
+# TODO — chidiAI
+- [ ] [INBOUND routed:4fa9 from meeting] model degradation repro <!-- id:abcd -->
+EOF
+
+RELAY_INBOX="$INBOX" SRC_DIR="$SRC" "$SH" inbox-done 4fa9 || fail "inbox-done exited nonzero"
 
 # The resolved item (own marker routed:4fa9) must be gone.
 if grep -q 'routed:4fa9 -->' "$INBOX"; then

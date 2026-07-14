@@ -15,6 +15,80 @@ set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# resolve_inbox: emit the path to the cross-project inbox store.
+#   * RELAY_INBOX set non-empty  → use it VERBATIM, no migration (injected path is
+#     authoritative; hermetic tests rely on this).
+#   * else default = $HOME/.claude/projects/todo-inbox.md — the git-tracked private
+#     sessions worktree (free history/recovery, stays private). If the LEGACY path
+#     $HOME/.claude/todo-inbox.md exists and the new one does NOT, migrate once via `mv`
+#     under a dedicated flock, re-checking the condition INSIDE the lock (race-safe).
+#   Relocation decided 2026-07-11 (meeting D4, id:9fdb). RELAY_INBOX stays THE injection
+#   point — a public-repo script must never hardcode a private repo name.
+resolve_inbox() {
+  if [[ -n "${RELAY_INBOX:-}" ]]; then
+    printf '%s\n' "$RELAY_INBOX"
+    return 0
+  fi
+  local legacy="$HOME/.claude/todo-inbox.md"
+  local new="$HOME/.claude/projects/todo-inbox.md"
+  if [[ -f "$legacy" && ! -f "$new" ]]; then
+    mkdir -p "$HOME/.claude/projects"
+    (
+      flock -x 7
+      # Re-check inside the lock: a concurrent resolver may have migrated already.
+      if [[ -f "$legacy" && ! -f "$new" ]]; then
+        mv "$legacy" "$new"
+      fi
+    ) 7>"$HOME/.claude/projects/.todo-inbox-migrate.lock"
+  fi
+  printf '%s\n' "$new"
+}
+
+# resolve_target <name>: emit the on-disk path of a routed target repo.
+#   Resolution order mirrors scan-routed.sh resolve_target():
+#     1. RELAY_TOML `# path: <abspath>` comment under a `[repos.<name>]` block
+#     2. ${SRC_DIR:-$HOME/src}/<name>
+#   SRC_DIR and RELAY_TOML are injectable for hermetic tests. Exit 1 if unresolvable.
+resolve_target() {
+  local name="$1"
+  local src_dir="${SRC_DIR:-$HOME/src}"
+  local toml="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
+  if [[ -f "$toml" ]]; then
+    local p
+    p="$(python3 - "$toml" "$name" <<'PYEOF'
+import re, sys
+toml_path, want = sys.argv[1], sys.argv[2]
+cur = None
+sect_re = re.compile(r"^\s*\[repos\.([^\]]+)\]\s*$")
+path_re = re.compile(r"^\s*#\s*path:\s*(.+?)\s*$")
+found = ""
+with open(toml_path, encoding="utf-8") as f:
+    for line in f:
+        m = sect_re.match(line)
+        if m:
+            cur = m.group(1); continue
+        if cur == want:
+            pm = path_re.match(line)
+            if pm:
+                found = pm.group(1); break
+print(found)
+PYEOF
+)"
+    if [[ -n "$p" ]]; then
+      # expand ~ and env vars
+      p="${p/#\~/$HOME}"
+      printf '%s\n' "$p"
+      return 0
+    fi
+  fi
+  local maybe="$src_dir/$name"
+  if [[ -d "$maybe" ]]; then
+    printf '%s\n' "$maybe"
+    return 0
+  fi
+  return 1
+}
+
 # inbox-done <token>: DELETE the routed checkbox line containing routed:<token>
 # (vanish-on-resolve, user decision 2026-06-30). The inbox is a LOCAL-ONLY transient
 # routing queue; the durable record is the `routed:<token>` breadcrumb in the TARGET
@@ -26,11 +100,58 @@ if [[ "${1:-}" == "inbox-done" ]]; then
   if [[ -z "$token" ]]; then
     echo "Usage: $0 inbox-done <4-hex-token>" >&2; exit 1
   fi
-  # Honor RELAY_INBOX injection (the inbox path is local-only; never hardcode it as the
-  # sole path — same convention scan-routed.sh uses, and required for hermetic tests now
-  # that inbox-done is destructive).
-  inbox="${RELAY_INBOX:-$HOME/.claude/todo-inbox.md}"
+  # Honor RELAY_INBOX injection via resolve_inbox (default now the git-tracked private
+  # sessions worktree $HOME/.claude/projects/todo-inbox.md, id:9fdb). The inbox path is
+  # local-only; never hardcode a private repo name — same convention scan-routed.sh uses,
+  # and required for hermetic tests now that inbox-done is destructive.
+  inbox="$(resolve_inbox)"
   [[ -f "$inbox" ]] || exit 0
+
+  # --- twin-check guard (id:9fdb) ------------------------------------------------
+  # inbox-done is DESTRUCTIVE (vanish-on-resolve) against a LOCAL-ONLY store — a wrong
+  # delete is unrecoverable. Before deleting, verify the durable `routed:<token>` twin
+  # actually landed in the target repo's committed TODO/ROADMAP; REFUSE otherwise.
+  # Find the token's OWN inbox line (anchored on its trailing marker, NOT a substring —
+  # do not regress id:411d), extract its [<target>], resolve the repo, and require the
+  # literal `routed:<token>` in that repo's TODO.md OR ROADMAP.md.
+  own_line="$(python3 - "$inbox" "$token" <<'PYEOF'
+import re, sys, pathlib
+path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
+own_marker = re.compile(r'<!--\s*routed:' + re.escape(token) + r'\s*-->\s*$')
+for l in path.read_text().splitlines():
+    if own_marker.search(l.rstrip()) and l.lstrip().startswith("- ["):
+        print(l)
+        break
+PYEOF
+)"
+  if [[ -z "$own_line" ]]; then
+    # No inbox line owns this marker → nothing to delete (unchanged no-op contract).
+    exit 0
+  fi
+  # Extract the target repo name from the leading `[<target>]`.
+  target="$(printf '%s\n' "$own_line" | grep -oP '^\s*- \[[ x]\] \[\K[^\]]+' | head -1 || true)"
+  if [[ -z "$target" ]]; then
+    echo "inbox-done: REFUSING to delete routed:$token — could not parse the leading [<target>] from its inbox line:" >&2
+    echo "  $own_line" >&2
+    echo "  The inbox is local-only and this deletion is unrecoverable; fix the line or use scan-routed.sh --apply." >&2
+    exit 3
+  fi
+  tgt_path="$(resolve_target "$target" || true)"
+  twin_found=0
+  if [[ -n "$tgt_path" ]]; then
+    if grep -qsF "routed:$token" "$tgt_path/TODO.md" "$tgt_path/ROADMAP.md" 2>/dev/null; then
+      twin_found=1
+    fi
+  fi
+  if [[ "$twin_found" -ne 1 ]]; then
+    echo "inbox-done: REFUSING to delete routed:$token — its durable twin (\`routed:$token\`) was NOT found in [$target]'s TODO.md/ROADMAP.md${tgt_path:+ ($tgt_path)}." >&2
+    [[ -z "$tgt_path" ]] && echo "  (target repo '[$target]' could not be resolved on disk via RELAY_TOML # path: or \$SRC_DIR/$target)" >&2
+    echo "  This delete is DESTRUCTIVE and UNRECOVERABLE for the local-only inbox store." >&2
+    echo "  Safe path: run 'relay/scripts/scan-routed.sh --apply' (writes the twin, then resolves)," >&2
+    echo "  or verify+add the routed:$token breadcrumb to the target's TODO/ROADMAP manually first." >&2
+    exit 3
+  fi
+
   (
     flock -x 9
     python3 - "$inbox" "$token" <<'PYEOF'
@@ -138,7 +259,7 @@ done
 case "$target" in
   discoveries) dest="$SKILL_DIR/discoveries.md" ;;
   personas)    dest="$SKILL_DIR/personas.md" ;;
-  inbox)       dest="$HOME/.claude/todo-inbox.md" ;;
+  inbox)       dest="$(resolve_inbox)" ;;
   "")          echo "Error: -t is required" >&2; exit 1 ;;
   *)           echo "Error: -t must be 'discoveries', 'personas', or 'inbox'" >&2; exit 1 ;;
 esac

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scan-routed.sh — dead-letter detector + class-A auto-writer for the shared cross-project
-# inbox (`~/.claude/todo-inbox.md`). Slice 1 + Slice 2 of id:678e.
+# inbox (default `~/.claude/projects/todo-inbox.md`, id:9fdb). Slice 1 + Slice 2 of id:678e.
 # Slice 1 (SHIPPED): REPORT-ONLY dead-letter detection.
 # Slice 2 (id:678e): --apply mode — class-A idempotent INBOUND stub writer.
 #   Decided 2026-06-29 (`docs/meeting-notes/2026-06-29-1116-inbox-reconcile-slice2-gate-open.md`).
@@ -32,7 +32,7 @@
 #
 # Usage:
 #   scan-routed.sh [--apply [--dry-run]] [--exclude <repo>]… [<inbox-path>]
-#     <inbox-path> default = $RELAY_INBOX or ~/.claude/todo-inbox.md
+#     <inbox-path> default = $RELAY_INBOX or ~/.claude/projects/todo-inbox.md
 #     --apply           class-A auto-write (slice 2)
 #     --dry-run         with --apply: print plan, write nothing
 #     --exclude <repo>  drop that target repo from the dead-letter scan (repeatable)
@@ -49,7 +49,29 @@ APPEND_SH="$SKILL_ROOT/meeting/append.sh"
 LOG="${SCAN_ROUTED_LOG:-$HOME/.claude/logs/scan-routed.log}"
 SRC_DIR="${SRC_DIR:-$HOME/src}"
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
-INBOX_DEFAULT="${RELAY_INBOX:-$HOME/.claude/todo-inbox.md}"
+# resolve_inbox: RELAY_INBOX verbatim (no migration), else the git-tracked private
+# sessions worktree $HOME/.claude/projects/todo-inbox.md — migrating the legacy
+# $HOME/.claude/todo-inbox.md once, race-safe under a dedicated flock (id:9fdb). Mirrors
+# meeting/append.sh resolve_inbox() so both entry points agree on the store location.
+resolve_inbox() {
+  if [[ -n "${RELAY_INBOX:-}" ]]; then
+    printf '%s\n' "$RELAY_INBOX"
+    return 0
+  fi
+  local legacy="$HOME/.claude/todo-inbox.md"
+  local new="$HOME/.claude/projects/todo-inbox.md"
+  if [[ -f "$legacy" && ! -f "$new" ]]; then
+    mkdir -p "$HOME/.claude/projects"
+    (
+      flock -x 7
+      if [[ -f "$legacy" && ! -f "$new" ]]; then
+        mv "$legacy" "$new"
+      fi
+    ) 7>"$HOME/.claude/projects/.todo-inbox-migrate.lock"
+  fi
+  printf '%s\n' "$new"
+}
+INBOX_DEFAULT="$(resolve_inbox)"
 
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s scan-routed.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }

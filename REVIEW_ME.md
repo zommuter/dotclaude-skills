@@ -19,7 +19,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   ever needed" done-note (closes the box; the deferral rationale stays in the line), OR drop the DEFERRED
   marker and re-lane it as a live `[INPUT — meeting]` candidate. Pre-existing; not a session-batch defect.
 
-- [ ] **Do NOT auto-close the inbox-rehaul umbrella id:9fdb just because its child id:411d shipped (review 2026-07-10 1710).**
+- [x] **Do NOT auto-close the inbox-rehaul umbrella id:9fdb just because its child id:411d shipped (review 2026-07-10 1710).**
   `orphan-scan --shipped` now reports id:9fdb `UMBRELLA-READY (all children [x])` because its only
   typed child edge is `<!-- children:411d -->` and I ticked id:411d this pass. But id:9fdb is a
   `[HARD — meeting]` design decision — its body weighs multiple structural directions ("make manual
@@ -31,6 +31,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   `children:` edge / re-scope id:9fdb so it no longer reads as ready, or run `/meeting` on it — but
   do NOT tick it on the strength of the interim guard alone.
   **DECIDED 2026-07-13 (relay human): RUN /meeting** on id:9fdb to actually decide dissolve-vs-guard and the ordering. Box stays OPEN; routed to `/meeting --cross` (see the "needs a /meeting" checklist). The substantive design work is undischarged — no auto-close.
+  **RESOLVED 2026-07-14 (/meeting session): the 2026-07-13 "RUN /meeting" verdict was STALE.** The design meeting had in fact already been held — `docs/meeting-notes/2026-07-11-1239-ledger-hygiene-inbox-dashboard.md` D4 settled dissolve-vs-guard and the ordering ((b) git-relocate FIRST, then (a-guard) twin-check) — and on 2026-07-14 a relay-human re-lane demoted id:9fdb `[INPUT — meeting]→[HARD — pool]` precisely because the meeting was done. This box predated that re-lane by a day and was never pruned. A no-arg `/meeting` audit then re-recommended a meeting off this stale box (the over-claim); on reading the ratified source the redundancy was caught, and id:9fdb was IMPLEMENTED instead this session (relocation + twin-check, suite green). Root cause of the over-claim fixed under id:37ab (lane-aware classify.sh: `[HARD — pool]`→POOL, skipped from meeting buckets); the box-freshness-vs-ledger reconciliation residual is filed as id:2e5c.
 
 - [x] **Installed `~/.claude/skills/relay/scripts/` is stale — re-run `make install-relay` (review 2026-07-08 1625).** — RESOLVED 2026-07-13 (relay human): `~/.claude/skills/relay/scripts/lib-own-repos.sh` symlink now present (created 2026-07-11 20:05, after this review) ⇒ `make install-relay` re-run; installed `relay-doctor.sh` source at line 89 resolves. Re-checkable: `ls -la ~/.claude/skills/relay/scripts/lib-own-repos.sh`.
   `relay/scripts/lib-own-repos.sh` was added this cycle and IS listed in the Makefile's
