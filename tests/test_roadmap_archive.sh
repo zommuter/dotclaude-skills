@@ -190,10 +190,12 @@ grep -q '<!-- id:cccc -->' "$repo3/ROADMAP.archive.md" \
 pass "T8: id token preserved verbatim"
 
 # ─────────────────────────────────────────────────
-# Test 9: Empty headers are LEFT (no section pruning)
+# Test 9: Protected headers are LEFT even when emptied (id:546b)
 # ─────────────────────────────────────────────────
-# After archiving from repo3, check ## Items header is still present even if
-# all items under it moved to the archive.
+# ## Items is a PROTECTED heading name (Items/Current/Done/Backlog, case-insensitive)
+# so it stays even though all items under it moved to the archive this run.
+# Non-protected transient grouping headers DO move once emptied — see
+# tests/test_roadmap_archive_prose_headers.sh Case B for that behavior.
 grep -q '## Items' "$repo3/ROADMAP.md" \
     || fail "T9: ## Items header was pruned (must be left in place)"
 pass "T9: empty section headers left in ROADMAP.md (no pruning)"
