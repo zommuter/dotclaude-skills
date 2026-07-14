@@ -2528,3 +2528,7 @@ review: verified id:e3c0 gate annotation (only commit); gaming-scan clean, 231 t
 ## 2026-07-14 12:52 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:8a6b/1432/2ab2 genuinely green (gaming-scan clean, 234/0), lint+cross-ledger clean, 0 open ROUTINE; surfaced routed:6754 inbox dead-letter to REVIEW_ME [id:8a6b,1432,2ab2]
+
+## 2026-07-14 14:07 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified id:85df/297b done → ticked (classify-verdict.sh + roadmap-lint case-c); gaming-scan clean, 234/0, lint+cross-ledger clean, 0 open ROUTINE [id:85df,297b]
