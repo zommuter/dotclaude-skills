@@ -64,6 +64,44 @@ the daemon consumer (that is A3, gated). The slice-B `[HARD — *]` → two-axis
 rename (gated, B1/B2) is where `[MECHANICAL]` folds into the renamed lane vocabulary
 alongside the resource axis; until then it stands as its own additive capability tier.
 
+## The `@needs-auth` marker — human-held secret / interactive-auth wall (id:a505)
+
+`@needs-auth` is a **marker**, NOT a lane — it is orthogonal to the `[HARD — *]` /
+`[INPUT — *]` lanes AND to `@manual`. It records that a piece of work is blocked on a
+**human-held secret or an interactive-auth wall** a relay child cannot clear unattended.
+The definition is **broad**: any human-held secret OR interactive auth — sudo/askpass,
+polkit/pamac, ssh/login, gpg/credential, browser-OAuth, a decryption passphrase, a
+private export. (Decided in `/meeting` 2026-07-14-1135, D1/D2/D3.)
+
+**Orthogonal to `@manual`.** An item may carry BOTH: `@needs-auth` means a human must
+**provide a secret**; `@manual` means a human must **run/verify**. They are independent
+markers, not alternatives.
+
+**Carrier = a per-repo `REVIEW_ME.md` box (D2).** There is deliberately **NO** global
+`~/.config/relay/auth-queue.md` file — a single shared, unversioned, destructively-edited
+store repeats the id:9fdb hazard. The `@needs-auth` box lives in the affected repo's own
+`REVIEW_ME.md`, versioned with that repo.
+
+**Four MANDATORY fields per box.** A conforming `@needs-auth` box states, explicitly:
+
+| Field | What it records |
+|---|---|
+| **what-secret** | the exact secret/credential/auth needed (e.g. "the Signal linked-device QR", "sudo password on fievel") |
+| **where-it-goes** | where the secret is applied (env var, file path, login prompt, keyring) |
+| **exact-command** | the exact command a human runs to supply it / unblock the work |
+| **why** | why the work is blocked on it (what strands without it) |
+
+**Recognition (not the filter).** `relay/scripts/gather-human-backlog.sh` and
+`relay/scripts/roadmap-lint.sh` RECOGNIZE `@needs-auth` as a known marker — it is never
+flagged as an unknown/untagged token. The AI-free **offline lister** that filters and
+surfaces every `@needs-auth` box across own repos is a separate item (id:1750); this
+contract only fixes the marker's meaning and the four-field shape it must carry.
+
+**Executor-contract rule (D3, VERSIONED).** A child hitting a `@needs-auth` wall RECORDS
+a conforming box and clean-continues the separable remainder (defaulting to a clean
+handback when separability is uncertain), rather than stranding the unit — see rule 6 in
+`relay/references/executor-contract.md` (contract v7+).
+
 ## The orthogonal resource axis (NOT a lane)
 
 `[INTENSIVE — <resource>]` (id:8d52) is an ORTHOGONAL resource modifier, not a lane.
