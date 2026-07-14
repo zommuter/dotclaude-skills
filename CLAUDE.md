@@ -46,7 +46,7 @@ surface carries its own marker AND its own co-located bump discipline (change th
 
 | Surface | Marker | Why it needs one |
 |---|---|---|
-| `relay/references/executor-contract.md` | `contract vN` HTML-comment marker (currently v6) | `/relay executor` + the `## Relay contract` pointer must agree on `vN`; bump discipline documented in-file |
+| `relay/references/executor-contract.md` | `contract vN` HTML-comment marker (currently v7) | `/relay executor` + the `## Relay contract` pointer must agree on `vN`; bump discipline documented in-file |
 | memory-index frontmatter format (id:2e6d) | *(unmarked — candidate)* | a hook regenerates `MEMORY.md` from it; a format change silently breaks the index |
 | `classify.sh` TSV column contract | *(unmarked — candidate)* | SKILL.md parses fixed columns |
 | allowlist generator's 8-entries-per-script expansion | *(unmarked — candidate)* | literal-match settings.json entries |
@@ -158,7 +158,7 @@ Plain-bash harness, zero dependencies beyond `bash`/`python3`/`jq`/`make`:
 - Tests must be hermetic: work in `mktemp -d`, override `HOME`/`DEST_DIR`/roots via
   args or env, never touch `~/.claude` or the network.
 
-## Relay contract <!-- relay-executor contract v6 -->
+## Relay contract <!-- relay-executor contract v7 -->
 
 This repo is managed by a reviewer/executor relay. Load `/relay executor` before
 working on any item, then follow its rules exactly.

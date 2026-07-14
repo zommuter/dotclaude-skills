@@ -54,6 +54,15 @@
 # at the end of the run. A missing lane is a contract gap to fix at the source, never a
 # silent default disposition.
 #
+# RECOGNIZED markers (id:a505): besides `@manual` (a human must RUN a box) and
+# `@container` (a DECOMPOSED parent, excluded), `@needs-auth` is a KNOWN marker on a
+# REVIEW_ME.md box — it records work blocked on a human-held secret / interactive-auth
+# wall (the four-field convention in relay/references/hard-lanes.md). This collector
+# RECOGNIZES it (a `@needs-auth` box is never treated as an unknown token); it currently
+# surfaces such a box as an ordinary review_me row. The AI-free OFFLINE lister that
+# FILTERS `@needs-auth` boxes into a dedicated human-readable view is a separate item
+# (id:1750) — this contract (id:a505) only pins the marker as a recognized token.
+#
 # box_summary is the box text with the leading `- [ ] ` stripped and whitespace
 # collapsed (TSV-safe: tabs/newlines become spaces). Closed `- [x]` boxes are
 # never emitted. The script never writes state and never spawns a model — it is
