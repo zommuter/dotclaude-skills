@@ -156,91 +156,58 @@ review_blocks = parse_blocks(review_lines) if review_lines is not None else None
 todo_ids = id_state_map(todo_blocks) if todo_blocks is not None else {}
 road_ids = id_state_map(road_blocks) if road_blocks is not None else {}
 
-def plan(blocks, other_ids):
-    """Split blocks into (kept_lines, archived_blocks, skipped_ids, moved,
-    archived_count_by_heading). A top-level closed [x] block is archived unless
-    it carries an id whose cross-ledger twin (in `other_ids`) is still open ' '.
-    archived_count_by_heading maps the ORIGINAL start-line-index of the owning
-    heading (-1 = none) to how many items under it were archived this run —
-    used to decide which emptied headings should move into the archive too."""
-    # Heading start indices, in document order (original line indices).
-    heading_indices = [start for kind, payload, start in blocks
-                        if kind == 'other' and HEADING_RE.match(payload[0])]
-
-    kept = []
-    archived = []          # list of [lines]
-    skipped = []           # list of ids skipped for twin-open protection
-    moved = 0
-    archived_count_by_heading = {}
-    for kind, payload, start in blocks:
-        if kind != 'block':
-            kept.extend(payload)
-            continue
-        state, block = payload
-        if state != 'x':
-            kept.extend(block)
-            continue
-        tk = first_id(block)
-        if tk is not None and other_ids.get(tk) == ' ':
-            # Twin still open in the other ledger — MUST NOT archive.
-            skipped.append(tk)
-            kept.extend(block)
-            continue
-        archived.append(block)
-        moved += 1
-        slot = bisect.bisect_right(heading_indices, start) - 1
-        owning = heading_indices[slot] if slot >= 0 else -1
-        archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
-    return kept, archived, skipped, moved, archived_count_by_heading
-
 def strip_trailing_blanks(block):
     b = list(block)
     while len(b) > 1 and b[-1].strip() == '':
         b.pop()
     return b
 
-def plan_heading_moves(kept, archived_count_by_heading, orig_heading_indices):
-    """Identify non-protected headings in `kept` that this run emptied of all
-    top-level items. Returns (new_kept, heading_blocks)."""
-    keep_heading_positions = [idx for idx, l in enumerate(kept) if HEADING_RE.match(l)]
-    assert len(keep_heading_positions) == len(orig_heading_indices)
-
-    heading_blocks = []
-    remove_ranges = []
-    for slot, kpos in enumerate(keep_heading_positions):
-        orig_idx = orig_heading_indices[slot]
-        hline = kept[kpos]
-        if is_protected(hline):
+def plan(blocks, other_ids):
+    """Build an ordered `entries` list preserving document order, plus the
+    twin-skip set and per-owning-heading archived counts. Entry kinds:
+      ('kh', [line], orig_idx)      kept heading line
+      ('ko', [lines])               kept other content (prose/blank)
+      ('kb', [block_lines])         kept top-level bullet block (open or twin-skipped)
+      ('arch', [block_lines], owning_heading_orig_idx)   archived item block
+    A top-level closed [x] block is archived unless it carries an id whose
+    cross-ledger twin (in `other_ids`) is still open ' '."""
+    heading_indices = [start for kind, payload, start in blocks
+                        if kind == 'other' and HEADING_RE.match(payload[0])]
+    entries = []
+    skipped = []           # ids skipped for twin-open protection
+    moved = 0              # archived item count
+    archived_count_by_heading = {}
+    heading_line = {}      # orig idx -> heading line text
+    for kind, payload, start in blocks:
+        if kind != 'block':
+            line = payload[0]
+            if HEADING_RE.match(line):
+                entries.append(('kh', [line], start))
+                heading_line[start] = line
+            else:
+                entries.append(('ko', payload))
             continue
-        if archived_count_by_heading.get(orig_idx, 0) == 0:
-            continue  # nothing archived under it this run (incl. already-empty)
-        body_start = kpos + 1
-        body_end = keep_heading_positions[slot + 1] if slot + 1 < len(keep_heading_positions) else len(kept)
-        body = kept[body_start:body_end]
-        if any(TOPBULLET.match(l) for l in body):
-            continue  # items remain under this heading — leave it
-        block = strip_trailing_blanks([hline] + body)
-        heading_blocks.append(block)
-        remove_ranges.append((kpos, body_end))
-
-    if not remove_ranges:
-        return kept, heading_blocks
-
-    new_kept = []
-    ri, idx, kn = 0, 0, len(kept)
-    while idx < kn:
-        if ri < len(remove_ranges) and idx == remove_ranges[ri][0]:
-            idx = remove_ranges[ri][1]
-            ri += 1
+        state, block = payload
+        if state != 'x':
+            entries.append(('kb', block))
             continue
-        new_kept.append(kept[idx])
-        idx += 1
-    return new_kept, heading_blocks
+        tk = first_id(block)
+        if tk is not None and other_ids.get(tk) == ' ':
+            # Twin still open in the other ledger — MUST NOT archive.
+            skipped.append(tk)
+            entries.append(('kb', block))
+            continue
+        slot = bisect.bisect_right(heading_indices, start) - 1
+        owning = heading_indices[slot] if slot >= 0 else -1
+        entries.append(('arch', block, owning))
+        moved += 1
+        archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
+    return entries, skipped, moved, archived_count_by_heading, heading_indices, heading_line
 
 def apply_and_report(name, src_path, blocks, other_ids):
     if blocks is None:
         return
-    kept, archived, skipped, moved, archived_count_by_heading = plan(blocks, other_ids)
+    entries, skipped, moved, archived_count_by_heading, heading_indices, heading_line = plan(blocks, other_ids)
     arch_path = src_path.with_name(src_path.stem + '.archive.md')
 
     if dry_run:
@@ -257,28 +224,78 @@ def apply_and_report(name, src_path, blocks, other_ids):
                 print(f"archive-closed[{name}]: skipped id:{tk} (twin open)", file=sys.stderr)
         return
 
-    orig_heading_indices = [start for kind, payload, start in blocks
-                             if kind == 'other' and HEADING_RE.match(payload[0])]
-    kept, heading_blocks = plan_heading_moves(kept, archived_count_by_heading, orig_heading_indices)
+    # Which non-protected headings did this run EMPTY of all top-level items?
+    # A heading moves iff non-protected AND ≥1 item archived under it this run
+    # AND no top-level bullet survives under it (in the kept stream).
+    surviving_bullet = {}
+    cur_h = -1
+    for e in entries:
+        if e[0] == 'kh':
+            cur_h = e[2]
+        elif e[0] == 'kb':
+            surviving_bullet[cur_h] = True
+    moved_headings = set()
+    for H in heading_indices:
+        if is_protected(heading_line[H]):
+            continue
+        if archived_count_by_heading.get(H, 0) == 0:
+            continue  # nothing archived under it this run (incl. already-empty)
+        if surviving_bullet.get(H):
+            continue  # items remain under this heading — leave it
+        moved_headings.add(H)
 
-    # Append archived blocks under the archive header.
+    # Stream kept + archived content in ORIGINAL document order. A moved heading
+    # (and any residual section content beneath it) routes to the archive; its
+    # archived item blocks follow it there, keeping the heading adjacent to its
+    # items (grouping context preserved).
+    keep_out = []
+    arch_out = []
+    last_appended_heading = False
+    cur_moved = False
+    for e in entries:
+        if e[0] == 'kh':
+            line = e[1][0]
+            if e[2] in moved_headings:
+                arch_out.append('\n')
+                arch_out.append(line)
+                last_appended_heading = True
+                cur_moved = True
+            else:
+                keep_out.append(line)
+                cur_moved = False
+        elif e[0] in ('ko', 'kb'):
+            payload = e[1]
+            if cur_moved:
+                # residual section content under a moved heading → archive it,
+                # dropping pure-blank lines so the heading stays adjacent to its item.
+                for l in payload:
+                    if l.strip() != '':
+                        arch_out.append(l)
+            else:
+                keep_out.extend(payload)
+        else:  # ('arch', block, owning)
+            block = strip_trailing_blanks(e[1])
+            if last_appended_heading:
+                arch_out.extend(block)
+            else:
+                arch_out.append('\n')
+                arch_out.extend(block)
+            last_appended_heading = False
+
+    # Append archived content under the archive header.
     if arch_path.exists():
         existing = arch_path.read_text()
         if existing and not existing.endswith('\n'):
             existing += '\n'
     else:
         existing = f"# {src_path.stem} archive\n"
-    for block in archived:
-        for l in strip_trailing_blanks(block):
-            existing += l if l.endswith('\n') else l + '\n'
-    for block in heading_blocks:
-        for l in block:
-            existing += l if l.endswith('\n') else l + '\n'
+    for l in arch_out:
+        existing += l if l.endswith('\n') else l + '\n'
     arch_path.write_text(existing)
 
-    new_src = ''.join(kept).rstrip('\n') + '\n'
+    new_src = ''.join(keep_out).rstrip('\n') + '\n'
     src_path.write_text(new_src)
-    hn = len(heading_blocks)
+    hn = len(moved_headings)
     extra = f", moved {hn} emptied heading(s)" if hn else ""
     print(f"archive-closed[{name}]: archived {moved} item(s){extra} -> {arch_path.name}", file=sys.stderr)
     for tk in skipped:

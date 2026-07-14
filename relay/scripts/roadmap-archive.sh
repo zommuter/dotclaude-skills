@@ -116,13 +116,13 @@ def is_boundary(line):
 # Heading line indices in the ORIGINAL file, in document order.
 heading_indices = [idx for idx, l in enumerate(lines) if heading_re.match(l)]
 
-keep    = []
-to_arch = []  # list of [line, ...] blocks
-# archived item count, keyed by owning heading's ORIGINAL line index (-1 = no heading).
-archived_count_by_heading = {}
-
-i = 0
+# ── Pass 1: build an ordered list of entries, tagging each original line as
+#    kept-in-place or an archived item block. Entries preserve document order. ──
+# entry = ('keep', line, orig_idx) | ('arch', [block_lines], owning_heading_idx)
+entries = []
+archived_count_by_heading = {}   # owning heading orig idx (-1 = none) -> #items archived
 n = len(lines)
+i = 0
 while i < n:
     line = lines[i]
     if top_done_re.match(line):
@@ -153,85 +153,103 @@ while i < n:
                 pass
 
         if in_prior or aged_ok:
-            to_arch.append(unit)
             slot = bisect.bisect_right(heading_indices, i) - 1
             owning = heading_indices[slot] if slot >= 0 else -1
+            entries.append(('arch', unit, owning))
             archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
             i = j
         else:
             # Same-run tick — leave it in place.
-            keep.append(line)
+            entries.append(('keep', line, i))
             i += 1
     else:
-        keep.append(line)
+        entries.append(('keep', line, i))
         i += 1
 
-if not to_arch:
+if not archived_count_by_heading:
     print("roadmap-archive: nothing to archive.", file=sys.stderr)
     sys.exit(0)
 
-# ── Bug 2: move any non-protected heading that this run emptied of all
-#    top-level items into the archive alongside it. ──
-keep_heading_positions = [idx for idx, l in enumerate(keep) if heading_re.match(l)]
-assert len(keep_heading_positions) == len(heading_indices)
+# ── Pass 2: decide which non-protected headings this run EMPTIED (so they move
+#    into the archive with their block). A heading moves iff: non-protected AND
+#    ≥1 item under it was archived this run AND no top-level bullet survives
+#    under it (in the kept stream). ──
+surviving_bullet = {}   # heading orig idx -> True if a kept top-level bullet remains
+cur_h = -1
+for e in entries:
+    if e[0] == 'keep':
+        line = e[1]
+        if heading_re.match(line):
+            cur_h = e[2]
+        elif top_bullet_re.match(line):
+            surviving_bullet[cur_h] = True
 
-heading_blocks = []       # blocks to append to the archive, document order
-remove_ranges  = []        # (start, end) index ranges into `keep` to drop, ascending
-
-for slot, kpos in enumerate(keep_heading_positions):
-    orig_idx = heading_indices[slot]
-    hline = keep[kpos]
-    if is_protected(hline):
+moved = set()
+for H in heading_indices:
+    if is_protected(lines[H]):
         continue
-    if archived_count_by_heading.get(orig_idx, 0) == 0:
-        continue  # nothing archived under this heading this run (incl. already-empty)
-    body_start = kpos + 1
-    body_end = keep_heading_positions[slot + 1] if slot + 1 < len(keep_heading_positions) else len(keep)
-    body = keep[body_start:body_end]
-    if any(top_bullet_re.match(l) for l in body):
+    if archived_count_by_heading.get(H, 0) == 0:
+        continue  # nothing archived under it this run (incl. already-empty)
+    if surviving_bullet.get(H):
         continue  # items remain under this heading — do not move it
-    block = [hline] + body
-    while len(block) > 1 and block[-1].strip() == '':
-        block.pop()
-    heading_blocks.append(block)
-    remove_ranges.append((kpos, body_end))
+    moved.add(H)
 
-if remove_ranges:
-    new_keep = []
-    ri = 0
-    idx = 0
-    kn = len(keep)
-    while idx < kn:
-        if ri < len(remove_ranges) and idx == remove_ranges[ri][0]:
-            idx = remove_ranges[ri][1]
-            ri += 1
-            continue
-        new_keep.append(keep[idx])
-        idx += 1
-    keep = new_keep
+# ── Pass 3: stream keep-lines and archive-lines in ORIGINAL document order.
+#    A moved heading (and any residual section content beneath it) is routed to
+#    the archive; its archived item blocks follow it there, preserving grouping
+#    context (heading line then its items, adjacent). ──
+keep_out = []
+arch_out = []                 # list of lines
+last_appended_heading = False  # was the previous arch-append a moved-heading line?
+cur_moved = False              # are we currently under a moved heading?
+for e in entries:
+    if e[0] == 'keep':
+        line = e[1]
+        if heading_re.match(line):
+            if e[2] in moved:
+                arch_out.append('\n')     # blank separator before the group
+                arch_out.append(line)
+                last_appended_heading = True
+                cur_moved = True
+            else:
+                keep_out.append(line)
+                cur_moved = False
+        else:
+            if cur_moved:
+                # residual section content under a moved heading → archive it,
+                # but drop pure-blank residual so the heading stays adjacent to
+                # its item block.
+                if line.strip() != '':
+                    arch_out.append(line)
+            else:
+                keep_out.append(line)
+    else:  # ('arch', block, owning)
+        block = e[1]
+        if last_appended_heading:
+            # First item directly under a just-moved heading — no separator, so
+            # the heading and its item are adjacent in the archive.
+            arch_out.extend(block)
+        else:
+            arch_out.append('\n')
+            arch_out.extend(block)
+        last_appended_heading = False
 
-# Append archived blocks to ROADMAP.archive.md (create if absent).
+# Append archived content to ROADMAP.archive.md (create if absent).
 if not archive_path.exists():
     archive_path.write_text('# ROADMAP Archive\n')
 
 with archive_path.open('a') as af:
-    for block in to_arch:
-        af.write('\n')
-        for bl in block:
-            af.write(bl if bl.endswith('\n') else bl + '\n')
-    for block in heading_blocks:
-        af.write('\n')
-        for bl in block:
-            af.write(bl if bl.endswith('\n') else bl + '\n')
+    for bl in arch_out:
+        af.write(bl if bl.endswith('\n') else bl + '\n')
 
 # Write the surviving lines back to ROADMAP.md.
 # Preserve the original content exactly (no blank-line collapsing — ROADMAP
 # has structural gaps between items that must be preserved).
-roadmap_path.write_text(''.join(keep))
+roadmap_path.write_text(''.join(keep_out))
 
-archived_count = len(to_arch)
+archived_count = sum(archived_count_by_heading.values())
 noun = 'item' if archived_count == 1 else 'items'
-hn = len(heading_blocks)
+hn = len(moved)
 hnoun = 'heading' if hn == 1 else 'headings'
 extra = f", moved {hn} emptied {hnoun}" if hn else ""
 print(f"roadmap-archive: archived {archived_count} {noun}{extra} → {archive_path}", file=sys.stderr)
