@@ -2540,3 +2540,7 @@ C2: promoted the @needs-auth co-meet cluster (id:a505, id:1750) from TODO backlo
 ## 2026-07-14 14:50 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 a505: @needs-auth convention (4 fields, REVIEW_ME carrier) + executor-contract rule 6 record-and-continue, marker v6→v7 with CLAUDE.md pointer in lockstep; roadmap-lint/gather recognition; make test 235/0 [id:a505]
+
+## 2026-07-14 15:10 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+HARD id:1750 — offline AI-free @needs-auth lister (gather-human-backlog --needs-auth); full suite 236/0 green [id:1750]
