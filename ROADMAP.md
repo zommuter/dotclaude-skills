@@ -10,6 +10,97 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- 2026-07-14 handoff C2 (run relay-20260714-123104-912): promoted the two `promote`-
+     disposition TODO items (unpromoted-scan @ dotclaude-skills: 2 promote / 1 surface / 16
+     laned). Both are the `@needs-auth` co-meet cluster RESOLVED + re-laned `[INPUT — meeting]`
+     →`[HARD — pool]` by /meeting 2026-07-14-1135 (docs/meeting-notes/2026-07-14-1135-human-
+     manual-task-handling.md, D1–D4). Single-id-two-views (D2): id:a505, id:1750 REUSE their
+     open TODO.md twins. Both are `[HARD]` (strong-model: a505 is a VERSIONED executor-contract
+     change; 1750 is judgment-laden convention wiring) — left specced for the pool `hard`
+     verdict, NOT executed in C5 (contract-surface edits + cross-repo retro-tags exceed a safe
+     single-turn C5). a505 is the prerequisite (defines the convention 1750 consumes) so 1750
+     carries (DEP: a505). The 1 surface item (id:625a, INBOUND routed:a6be, gated on
+     project_manager id:0fc7) is the mechanical `human`-verdict filer's job, NOT promoted here. -->
+
+- [ ] [HARD] `@needs-auth` convention + executor-contract rule (D1/D2/D3) <!-- id:a505 -->
+  - **Why** (TODO id:a505; /meeting 2026-07-14-1135, D1/D2/D3): a relay child that hits an
+    interactive-auth / human-held-secret wall today STRANDS the rest of its unit mid-session
+    (the a505 filing failure). There is no convention for recording "this needs a human secret"
+    and no contract rule telling a child to record-and-continue. The meeting resolved this WITH
+    id:1750 as one design: a single `@needs-auth` marker is BOTH the class-(i) hands-lane reason
+    and the auth-queue membership predicate.
+  - **How / Design** (all in THIS repo — no cross-repo edits):
+    1. **Document the `@needs-auth` convention** in a reference doc — extend
+       `relay/references/hard-lanes.md` (capability/marker section) and/or
+       `relay/references/conventions.md`. Definition is **broad**: any human-held secret OR
+       interactive-auth (sudo/askpass, polkit/pamac, ssh/login, gpg/credential, browser-OAuth,
+       a decryption passphrase, a private export). It is **orthogonal to `@manual`** (an item
+       may carry both — `@needs-auth` = provide a secret; `@manual` = run/verify). The carrier
+       is a **per-repo `REVIEW_ME.md` box** (D2 — explicitly NO global `~/.config/relay/auth-
+       queue.md` file; that repeats the id:9fdb unversioned-destructive-store hazard). The
+       convention **MANDATES four fields** per box: what-secret · where-it-goes · exact-command
+       · why.
+    2. **Executor-contract rule (D3, VERSIONED):** add a rule to
+       `relay/references/executor-contract.md` — a child hitting an interactive-auth/secret wall
+       RECORDS a conforming `@needs-auth` REVIEW_ME box instead of failing the unit, then
+       clean-continues the separable remainder, **defaulting to clean-handback of the gated
+       remainder when separability is uncertain**. BUMP the contract marker
+       `<!-- relay-executor contract v6 -->` → v7 in executor-contract.md, AND update the
+       `## Relay contract <!-- relay-executor contract v6 -->` pointer in `CLAUDE.md` (line
+       ~161) to v7 in the SAME commit (co-located bump discipline, CLAUDE.md §Versioning).
+    3. **Recognition wiring:** `relay/scripts/gather-human-backlog.sh` and
+       `relay/scripts/roadmap-lint.sh` must RECOGNIZE `@needs-auth` (not flag it as an unknown
+       marker). (The lister/filter half is id:1750; here only ensure the marker is a known token.)
+  - **Acceptance**: a test (e.g. extend `tests/test_hard_lane_buckets.sh`, `# roadmap:a505`)
+    asserts: the `@needs-auth` convention doc lists the four mandatory fields; `roadmap-lint.sh`
+    does NOT flag an `@needs-auth`-marked item as unknown/untagged; the executor-contract marker
+    is v7 and the `CLAUDE.md` pointer matches v7 (no version skew). The D3 contract rule text is
+    present in executor-contract.md. NOTE: this is a `[HARD]` item — write the spec as part of
+    execution (no pre-written RED spec from handoff), and keep `make test` green after ticking.
+  - **Done-check**: `tests/run-tests.sh tests/test_hard_lane_buckets.sh` then full `make test`
+    after ticking; verify no contract-version skew (`grep -rn 'relay-executor contract v' CLAUDE.md relay/references/executor-contract.md` all agree).
+  - **Context**: `relay/references/hard-lanes.md`, `relay/references/conventions.md`,
+    `relay/references/executor-contract.md` (contract marker + pointer discipline ~L141),
+    `CLAUDE.md` (§Relay contract pointer ~L161, §Versioning contract-surface table),
+    `relay/scripts/gather-human-backlog.sh`, `relay/scripts/roadmap-lint.sh`. Meeting:
+    `docs/meeting-notes/2026-07-14-1135-human-manual-task-handling.md`. Co-meet with id:1750.
+
+- [ ] [HARD] Offline `@needs-auth` lister (extend `gather-human-backlog.sh`) + retro-tag the class-(i) backlog (DEP: a505) <!-- id:1750 -->
+  - **Why** (TODO id:1750; /meeting 2026-07-14-1135, D4): `/relay human` surfaces
+    human-gated work but costs a Claude session. The one genuine differentiator wanted here is
+    an **AI-free, offline** lister of every `@needs-auth` box across own repos — a plain bash
+    sweep the human runs with no network and no model. The class-(i) backlog is already real
+    (zkm-signal e588, zkm-threema 7364, zkm-chatgpt ad81, bahnbetAI c624, zkm 0b37), so the
+    lister earns its keep on day one once those boxes exist.
+  - **How / Design** (DEP: a505 — the `@needs-auth` convention + field contract must land first):
+    1. **Extend `relay/scripts/gather-human-backlog.sh`** (do NOT fork a new repo-walker —
+       reuse its existing own-repo enumeration + REVIEW_ME reader) with a `@needs-auth` filter
+       and a **plain, human-readable (non-TSV) output mode**: one line/block per box showing
+       repo · what-secret · where · exact-command. It must run **AI-free** (pure bash, no
+       `claude -p`, no network).
+    2. **Retro-tag the existing class-(i) backlog** with conforming `@needs-auth` REVIEW_ME
+       boxes (all four mandatory fields) so the lister has day-one content. **SCOPE BOUNDARY:**
+       the five targets (zkm-signal e588, zkm-threema 7364, zkm-chatgpt ad81, bahnbetAI c624,
+       zkm 0b37) live in OTHER repos — a relay child works ONE worktree, so those per-repo boxes
+       are NOT written from this worktree. File them as cross-repo inbox items
+       (`meeting/append.sh -t inbox`, one per target repo) during execution; only the
+       `gather-human-backlog.sh` change + a hermetic fixture live in THIS repo.
+    3. **v2 (interactive step-through + REVIEW_ME tick-back via flock'd `md-merge.py`) is
+       DEFERRED** — gated on v1 lister usage (observe-before-preventing). Do NOT build it now.
+  - **Acceptance**: a test (`tests/test_needs_auth_lister.sh`, `# roadmap:1750`) with a hermetic
+    fixture repo carrying a `@needs-auth` REVIEW_ME box asserts the lister prints that box with
+    ALL FOUR fields (what/where/command/why), runs with no network/AI, and the plain output mode
+    is non-TSV human-readable. Existing `gather-human-backlog.sh` tests
+    (`tests/test_hard_lane_buckets.sh` and any gather-human-backlog test) MUST stay green.
+  - **Done-check**: `tests/run-tests.sh tests/test_needs_auth_lister.sh tests/test_hard_lane_buckets.sh`
+    then full `make test` after ticking.
+  - **Context**: `relay/scripts/gather-human-backlog.sh` (own-repo enumeration + REVIEW_ME
+    reader), `relay/references/human.md` (`/relay human --all` aggregation). Cross-repo retro-tag
+    targets (inbox, out of this worktree's scope): zkm-signal/e588, zkm-threema/7364,
+    zkm-chatgpt/ad81, bahnbetAI/c624, zkm/0b37. Meeting:
+    `docs/meeting-notes/2026-07-14-1135-human-manual-task-handling.md`. DEP: id:a505 (convention).
+    v2 tick-back deferred under this id's acceptance.
+
 <!-- 2026-07-13 review 5b mini-handoff: qualified two ledger-neutral TODO items the human
      flow-back added (commit 0d1ac39). Both are execution-ready [ROUTINE] with RED specs,
      reusing their TODO ids (single-id-two-views D2): id:1781, id:7f30. -->
