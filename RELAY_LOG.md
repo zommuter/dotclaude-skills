@@ -2536,3 +2536,7 @@ review: verified id:85df/297b done → ticked (classify-verdict.sh + roadmap-lin
 ## 2026-07-14 14:28 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 C2: promoted the @needs-auth co-meet cluster (id:a505, id:1750) from TODO backlog into ROADMAP as [HARD] pool items [id:a505,1750]
+
+## 2026-07-14 14:50 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+a505: @needs-auth convention (4 fields, REVIEW_ME carrier) + executor-contract rule 6 record-and-continue, marker v6→v7 with CLAUDE.md pointer in lockstep; roadmap-lint/gather recognition; make test 235/0 [id:a505]
