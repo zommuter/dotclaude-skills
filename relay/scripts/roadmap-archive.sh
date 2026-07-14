@@ -7,13 +7,16 @@
 #   - Items whose first line carries a trailing "done YYYY-MM-DD[.]" that is ≥30 days old.
 # Items ticked only in the working tree (same-run) are NEVER archived.
 #
-# Moves each top-level "- [x] …" line PLUS all its indented continuation lines (the
-# block up to the next top-level bullet or ## heading) as one unit, preserving the
-# <!-- id:XXXX --> token and original text verbatim.
+# Moves each top-level "- [x] …" line PLUS its WHOLE block — every line up to the
+# next top-level bullet ("- [") or any heading (#..######) — as one unit, preserving
+# the <!-- id:XXXX --> token and original text verbatim. This also captures column-0
+# prose paragraphs and "> " blockquotes in the item's body (not just indented lines).
 #
-# NEVER touches open "- [ ]" items, "## " section headers, or the file preamble.
-# Headers that become empty are LEFT (no section pruning — ROADMAP headers are structural).
-# Idempotent; flock-guarded; re-running with nothing to archive is a clean no-op.
+# NEVER touches open "- [ ]" items or the file preamble. A grouping heading (##/###/…)
+# that this run EMPTIES of all top-level items is MOVED into the archive with it,
+# UNLESS it is protected: the H1 title, or a heading whose text is exactly one of
+# Items/Current/Done/Backlog (case-insensitive). A heading already empty on arrival
+# is left untouched. Idempotent; flock-guarded; nothing-to-archive is a clean no-op.
 
 set -euo pipefail
 
@@ -57,7 +60,7 @@ else
 fi
 
 python3 - "$ROADMAP_FILE" "$ARCHIVE_FILE" "$cutoff" "$PRIOR_DONE_FILE" <<'PYEOF'
-import sys, re
+import sys, re, bisect
 from pathlib import Path
 from datetime import date
 
@@ -81,38 +84,56 @@ top_done_re = re.compile(r'^- \[x\]')
 date_re     = re.compile(r'\bdone (\d{4}-\d{2}-\d{2})\.?', re.IGNORECASE)
 # Regex for any top-level bullet (open or done) — no leading whitespace, starts "- [".
 top_bullet_re = re.compile(r'^- \[')
-# Regex for a ## or deeper section heading.
+# Regex for a ## or deeper section heading (matches H1 too — H1 is protected separately).
 heading_re  = re.compile(r'^#{1,6}\s')
 
-def is_continuation(line):
-    """A line is a continuation of the preceding top-level bullet if:
-    - it is blank, OR
-    - it is indented (leading whitespace), AND not a new top-level bullet/heading.
-    """
-    if line.strip() == '':
+PROTECTED_TEXTS = {'items', 'current', 'done', 'backlog'}
+
+def heading_info(line):
+    """Return (level, text) for a heading line, text stripped of a trailing
+    HTML comment and surrounding whitespace. None if not a heading."""
+    m = re.match(r'^(#{1,6})\s+(.*)', line)
+    if not m:
+        return None
+    level = len(m.group(1))
+    text = m.group(2).rstrip('\n')
+    text = re.sub(r'<!--.*?-->\s*$', '', text).strip()
+    return level, text
+
+def is_protected(line):
+    info = heading_info(line)
+    if info is None:
+        return True  # be conservative — shouldn't happen for a heading_re match
+    level, text = info
+    if level == 1:
         return True
-    if top_bullet_re.match(line) or heading_re.match(line):
-        return False
-    # Any indented line is a continuation.
-    return line[0] == ' ' or line[0] == '\t'
+    return text.lower() in PROTECTED_TEXTS
+
+def is_boundary(line):
+    """A block ends at the next top-level bullet OR any heading."""
+    return top_bullet_re.match(line) is not None or heading_re.match(line) is not None
+
+# Heading line indices in the ORIGINAL file, in document order.
+heading_indices = [idx for idx, l in enumerate(lines) if heading_re.match(l)]
 
 keep    = []
 to_arch = []  # list of [line, ...] blocks
+# archived item count, keyed by owning heading's ORIGINAL line index (-1 = no heading).
+archived_count_by_heading = {}
 
 i = 0
 n = len(lines)
 while i < n:
     line = lines[i]
     if top_done_re.match(line):
-        # Gather the block: header + all continuation lines.
+        # Gather the block: header + everything up to the next boundary.
         unit = [line]
         j = i + 1
-        while j < n and is_continuation(lines[j]):
+        while j < n and not is_boundary(lines[j]):
             unit.append(lines[j])
             j += 1
         # Trim trailing blank lines from the block (they belong to the gap, not the item).
         while len(unit) > 1 and unit[-1].strip() == '':
-            j -= 1
             unit.pop()
 
         # Apply conservative gate:
@@ -133,6 +154,9 @@ while i < n:
 
         if in_prior or aged_ok:
             to_arch.append(unit)
+            slot = bisect.bisect_right(heading_indices, i) - 1
+            owning = heading_indices[slot] if slot >= 0 else -1
+            archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
             i = j
         else:
             # Same-run tick — leave it in place.
@@ -146,12 +170,56 @@ if not to_arch:
     print("roadmap-archive: nothing to archive.", file=sys.stderr)
     sys.exit(0)
 
+# ── Bug 2: move any non-protected heading that this run emptied of all
+#    top-level items into the archive alongside it. ──
+keep_heading_positions = [idx for idx, l in enumerate(keep) if heading_re.match(l)]
+assert len(keep_heading_positions) == len(heading_indices)
+
+heading_blocks = []       # blocks to append to the archive, document order
+remove_ranges  = []        # (start, end) index ranges into `keep` to drop, ascending
+
+for slot, kpos in enumerate(keep_heading_positions):
+    orig_idx = heading_indices[slot]
+    hline = keep[kpos]
+    if is_protected(hline):
+        continue
+    if archived_count_by_heading.get(orig_idx, 0) == 0:
+        continue  # nothing archived under this heading this run (incl. already-empty)
+    body_start = kpos + 1
+    body_end = keep_heading_positions[slot + 1] if slot + 1 < len(keep_heading_positions) else len(keep)
+    body = keep[body_start:body_end]
+    if any(top_bullet_re.match(l) for l in body):
+        continue  # items remain under this heading — do not move it
+    block = [hline] + body
+    while len(block) > 1 and block[-1].strip() == '':
+        block.pop()
+    heading_blocks.append(block)
+    remove_ranges.append((kpos, body_end))
+
+if remove_ranges:
+    new_keep = []
+    ri = 0
+    idx = 0
+    kn = len(keep)
+    while idx < kn:
+        if ri < len(remove_ranges) and idx == remove_ranges[ri][0]:
+            idx = remove_ranges[ri][1]
+            ri += 1
+            continue
+        new_keep.append(keep[idx])
+        idx += 1
+    keep = new_keep
+
 # Append archived blocks to ROADMAP.archive.md (create if absent).
 if not archive_path.exists():
     archive_path.write_text('# ROADMAP Archive\n')
 
 with archive_path.open('a') as af:
     for block in to_arch:
+        af.write('\n')
+        for bl in block:
+            af.write(bl if bl.endswith('\n') else bl + '\n')
+    for block in heading_blocks:
         af.write('\n')
         for bl in block:
             af.write(bl if bl.endswith('\n') else bl + '\n')
@@ -163,5 +231,8 @@ roadmap_path.write_text(''.join(keep))
 
 archived_count = len(to_arch)
 noun = 'item' if archived_count == 1 else 'items'
-print(f"roadmap-archive: archived {archived_count} {noun} → {archive_path}", file=sys.stderr)
+hn = len(heading_blocks)
+hnoun = 'heading' if hn == 1 else 'headings'
+extra = f", moved {hn} emptied {hnoun}" if hn else ""
+print(f"roadmap-archive: archived {archived_count} {noun}{extra} → {archive_path}", file=sys.stderr)
 PYEOF

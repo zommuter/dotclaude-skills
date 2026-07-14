@@ -1377,7 +1377,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     id:046a's job — this item only adds the REVIEW_ME *capability* to the archiver, which is
     independently testable. Reuses open TODO twin id:85d3 (single-id-two-views).
 
-- [ ] [ROUTINE] ROADMAP archiver: capture column-0 prose/blockquote + move emptied transient headers <!-- id:546b -->
+- [x] [ROUTINE] ROADMAP archiver: capture column-0 prose/blockquote + move emptied transient headers <!-- id:546b -->
   - **Bug 1 (prose/blockquote orphaning) — `relay/scripts/roadmap-archive.sh` only**: its
     `is_continuation()` treats a `[x]` item's body line as part of the block ONLY if the line
     is blank or indented, so a **column-0 prose paragraph or `>` blockquote** (common in
