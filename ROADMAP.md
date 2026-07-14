@@ -80,7 +80,23 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     `relay/scripts/gather-human-backlog.sh`, `relay/scripts/roadmap-lint.sh`. Meeting:
     `docs/meeting-notes/2026-07-14-1135-human-manual-task-handling.md`. Co-meet with id:1750.
 
-- [ ] [HARD] Offline `@needs-auth` lister (extend `gather-human-backlog.sh`) + retro-tag the class-(i) backlog (DEP: a505) <!-- id:1750 -->
+- [x] [HARD] Offline `@needs-auth` lister (extend `gather-human-backlog.sh`) + retro-tag the class-(i) backlog (DEP: a505) <!-- id:1750 -->
+  - **Done 2026-07-14** (relay HARD child, id:da26): shipped the v1 offline lister in THIS
+    repo. `gather-human-backlog.sh --needs-auth [repo...]` now filters every OPEN `@needs-auth`
+    REVIEW_ME box across own repos (reusing the existing `own_repos` enumeration + REVIEW_ME
+    reader, NOT a new walker) and prints a PLAIN, human-readable (NON-TSV) block per box:
+    `repo — title (id)` + the four mandatory fields (what-secret / where-it-goes /
+    exact-command / why), a missing field printed `(MISSING)` so a non-conforming box is LOUD.
+    The mode is pure bash+awk — AI-free / offline (no `claude -p`, no network), bypassing the
+    TSV collector + the HARD-lane untagged-exit path (focused human view, not the classifier
+    feed). Default TSV mode is UNCHANGED (a `@needs-auth` box still surfaces as an ordinary
+    review_me row per the a505 contract). Acceptance test `tests/test_needs_auth_lister.sh`
+    (roadmap:1750) green; existing `test_gather_human_decision.sh` / `test_hard_lane_buckets.sh`
+    / `test_needs_auth_convention.sh` / `test_relay_human.sh` all stay green. **Retro-tag
+    (step 2) — filed as cross-repo inbox items** (SCOPE BOUNDARY: those five boxes live in
+    OTHER repos, unreachable from this worktree): zkm-signal/e588, zkm-threema/7364,
+    zkm-chatgpt/ad81, bahnbetAI/c624, zkm/0b37. v2 (interactive step-through + tick-back) stays
+    DEFERRED (observe-before-preventing). Meeting: `docs/meeting-notes/2026-07-14-1135-human-manual-task-handling.md`.
   - **Why** (TODO id:1750; /meeting 2026-07-14-1135, D4): `/relay human` surfaces
     human-gated work but costs a Claude session. The one genuine differentiator wanted here is
     an **AI-free, offline** lister of every `@needs-auth` box across own repos — a plain bash
