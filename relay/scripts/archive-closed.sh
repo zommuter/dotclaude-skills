@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # archive-closed.sh — TWIN-SAFELY archive closed `- [x]` items from BOTH
-#   TODO.md and ROADMAP.md into their `*.archive.md` siblings.
+#   TODO.md and ROADMAP.md into their `*.archive.md` siblings. Also archives
+#   REVIEW_ME.md -> REVIEW_ME.archive.md as a third source; REVIEW_ME items are
+#   NOT cross-ledger twins, so REVIEW_ME archiving uses an empty twin map and is
+#   decided purely by the item's own [x]/[ ] state (no open-twin protection).
 #
 # Usage: archive-closed.sh [--dry-run] [<repo-root>]
 #   <repo-root> defaults to `git rev-parse --show-toplevel`.
@@ -111,12 +114,15 @@ def load(path):
 
 todo_path = root / 'TODO.md'
 road_path = root / 'ROADMAP.md'
+review_path = root / 'REVIEW_ME.md'
 
 todo_lines = load(todo_path)
 road_lines = load(road_path)
+review_lines = load(review_path)
 
 todo_blocks = parse_blocks(todo_lines) if todo_lines is not None else None
 road_blocks = parse_blocks(road_lines) if road_lines is not None else None
+review_blocks = parse_blocks(review_lines) if review_lines is not None else None
 
 # Cross-ledger twin state, computed from the ORIGINAL content of each ledger.
 todo_ids = id_state_map(todo_blocks) if todo_blocks is not None else {}
@@ -192,6 +198,10 @@ def apply_and_report(name, src_path, blocks, other_ids):
     for tk in skipped:
         print(f"archive-closed[{name}]: skipped id:{tk} (twin open)", file=sys.stderr)
 
-apply_and_report('TODO',    todo_path, todo_blocks, road_ids)
-apply_and_report('ROADMAP', road_path, road_blocks, todo_ids)
+apply_and_report('TODO',      todo_path,   todo_blocks,   road_ids)
+apply_and_report('ROADMAP',   road_path,   road_blocks,   todo_ids)
+# REVIEW_ME items are NOT cross-ledger twins — pass an empty id map so no twin
+# can ever block or skip an archive decision; archiving is based purely on the
+# item's own [x]/[ ] state.
+apply_and_report('REVIEW_ME', review_path, review_blocks, {})
 PYEOF

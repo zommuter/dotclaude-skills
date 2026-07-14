@@ -1353,7 +1353,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     port validated (proves broker contract is stable) + ≥1 meeting with ctx > 200k".
     Listed here for visibility only; remains parked in TODO.md until the gate fires.
 
-- [ ] [ROUTINE] REVIEW_ME.md archiver — extend `archive-closed.sh` to a 3rd ledger <!-- id:85d3 -->
+- [x] [ROUTINE] REVIEW_ME.md archiver — extend `archive-closed.sh` to a 3rd ledger <!-- id:85d3 -->
   - **What**: `relay/scripts/archive-closed.sh` today archives closed `- [x]` items from
     TODO.md + ROADMAP.md only. `REVIEW_ME.md` (the human review queue) accumulates closed
     `[x]` items with NO archiver (measured 2026-07-14: 15 closed / ~20 KB in this repo).
