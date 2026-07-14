@@ -5,8 +5,17 @@
 # Usage:
 #   gather-human-backlog.sh                — all confirmed own repos in relay.toml
 #   gather-human-backlog.sh repo [repo...] — only the named repos
+#   gather-human-backlog.sh --needs-auth [repo...]
+#                                          — OFFLINE @needs-auth lister (id:1750): a plain,
+#                                            human-readable (NON-TSV) view of every open
+#                                            `@needs-auth` REVIEW_ME box across own repos
+#                                            (or the named repos), one block per box showing
+#                                            repo · what-secret · where-it-goes · exact-command
+#                                            · why. AI-free / offline (pure bash+awk, no model,
+#                                            no network) — the whole point is a sweep the human
+#                                            runs with no `claude -p` and no connectivity.
 #
-# Output (TSV, one open box per line):
+# Output (TSV, one open box per line — DEFAULT mode; `--needs-auth` prints plain blocks):
 #   repo  path  kind  box_summary
 #
 # kind:
@@ -332,6 +341,96 @@ emit_hard_lanes() {
   ' "$roadmap"
 }
 
+# --- OFFLINE @needs-auth lister (id:1750) ------------------------------------
+# Filter every OPEN `@needs-auth` box out of a repo's REVIEW_ME.md and print it as a
+# plain, human-readable (NON-TSV) block: repo · what-secret · where-it-goes ·
+# exact-command · why (the FOUR mandatory fields the a505 convention mandates, in
+# relay/references/hard-lanes.md). AI-free / offline by construction — pure awk, no model,
+# no network. A conforming box is an open `- [ ]` line carrying `@needs-auth`, followed by
+# indented sub-bullets naming the four fields, e.g.:
+#
+#   - [ ] Link the Signal device @needs-auth <!-- id:e588 -->
+#     - what-secret: the Signal linked-device QR code
+#     - where-it-goes: scanned by signal-cli on zomni
+#     - exact-command: `signal-cli link -n relay`
+#     - why: zkm-signal ingest strands without a linked device
+#
+# Field names are matched leniently (`where` ≡ `where-it-goes`, `command` ≡
+# `exact-command`); a missing field prints `(MISSING)` so a non-conforming box is LOUD,
+# not silently dropped. Closed `- [x]` boxes are never listed. $1 repo name, $2 repo path.
+list_needs_auth_repo() {
+  local name="$1" path="$2" file="$path/REVIEW_ME.md"
+  [[ -f "$file" ]] || return 0
+  awk -v repo="$name" '
+    function trim(s){ sub(/^[[:space:]]+/,"",s); sub(/[[:space:]]+$/,"",s); return s }
+    function emit(){
+      if(active){
+        printf "\n%s — %s%s\n", repo, (title!=""?title:"(untitled)"), (id!=""?" ("id")":"")
+        printf "  what-secret:   %s\n", (ws!=""?ws:"(MISSING)")
+        printf "  where-it-goes: %s\n", (wg!=""?wg:"(MISSING)")
+        printf "  exact-command: %s\n", (ec!=""?ec:"(MISSING)")
+        printf "  why:           %s\n", (wy!=""?wy:"(MISSING)")
+        found=1
+      }
+      active=0; ws=""; wg=""; ec=""; wy=""; title=""; id=""
+    }
+    # A markdown heading ends any open box.
+    /^#/ { emit(); next }
+    # Any checkbox line is a box boundary; start capturing only OPEN `- [ ]` @needs-auth boxes.
+    /^[[:space:]]*- \[[ xX]\] / {
+      emit()
+      line=$0
+      if(line ~ /^[[:space:]]*- \[ \] / && line ~ /@needs-auth/){
+        active=1
+        t=line
+        sub(/^[[:space:]]*- \[ \] /,"",t)
+        gsub(/@needs-auth/,"",t)
+        if(match(t,/id:[0-9a-f]{4}/)) id=substr(t,RSTART,RLENGTH)
+        gsub(/<!--[^>]*-->/,"",t)
+        title=trim(t)
+      }
+      next
+    }
+    # Field sub-bullets inside an active box (strip indent + optional leading dash).
+    active {
+      f=$0
+      sub(/^[[:space:]]*(- )?[[:space:]]*/,"",f)
+      low=tolower(f)
+      if(low ~ /^what-secret[[:space:]]*:/)          { sub(/^[^:]*:[[:space:]]*/,"",f); ws=trim(f) }
+      else if(low ~ /^where(-it-goes)?[[:space:]]*:/) { sub(/^[^:]*:[[:space:]]*/,"",f); wg=trim(f) }
+      else if(low ~ /^(exact-command|command)[[:space:]]*:/) { sub(/^[^:]*:[[:space:]]*/,"",f); ec=trim(f) }
+      else if(low ~ /^why[[:space:]]*:/)              { sub(/^[^:]*:[[:space:]]*/,"",f); wy=trim(f) }
+    }
+    END { emit() }
+  ' "$file"
+}
+
+# --- dispatch the offline @needs-auth lister over own (or named) repos --------
+run_needs_auth_lister() {
+  printf '=== @needs-auth backlog (offline; AI-free) — human-held secrets / interactive-auth walls ===\n'
+  local any=0
+  if (( $# > 0 )); then
+    declare -A PATH_OF
+    while IFS=$'\t' read -r n p; do
+      [[ -n "$n" ]] && PATH_OF["$n"]="$p"
+    done < <(own_repos)
+    for name in "$@"; do
+      local out
+      out="$(list_needs_auth_repo "$name" "${PATH_OF[$name]:-$SRC_DIR/$name}")"
+      [[ -n "$out" ]] && { printf '%s\n' "$out"; any=1; }
+    done
+  else
+    while IFS=$'\t' read -r name path; do
+      [[ -n "$name" ]] || continue
+      [[ -d "$path" ]] || continue
+      local out
+      out="$(list_needs_auth_repo "$name" "$path")"
+      [[ -n "$out" ]] && { printf '%s\n' "$out"; any=1; }
+    done < <(own_repos)
+  fi
+  (( any )) || printf '\n(no open @needs-auth boxes found)\n'
+}
+
 # --- scan one repo -----------------------------------------------------------
 scan_repo() {
   local name="$1" path="$2"
@@ -386,6 +485,15 @@ scan_repo() {
 }
 
 # --- dispatch ----------------------------------------------------------------
+# `--needs-auth` (id:1750): OFFLINE, AI-free plain-text listing of every open @needs-auth
+# REVIEW_ME box; consumes the same own_repos enumeration but bypasses the TSV collector +
+# the HARD-lane untagged-exit path (this is a focused human view, not the classifier feed).
+if [[ "${1:-}" == "--needs-auth" ]]; then
+  shift
+  run_needs_auth_lister "$@"
+  exit 0
+fi
+
 if (( $# > 0 )); then
   # Named repos: resolve each against relay.toml's path override, else $SRC_DIR/<name>.
   declare -A PATH_OF
