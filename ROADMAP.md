@@ -1353,6 +1353,66 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
     port validated (proves broker contract is stable) + ≥1 meeting with ctx > 200k".
     Listed here for visibility only; remains parked in TODO.md until the gate fires.
 
+- [ ] [ROUTINE] REVIEW_ME.md archiver — extend `archive-closed.sh` to a 3rd ledger <!-- id:85d3 -->
+  - **What**: `relay/scripts/archive-closed.sh` today archives closed `- [x]` items from
+    TODO.md + ROADMAP.md only. `REVIEW_ME.md` (the human review queue) accumulates closed
+    `[x]` items with NO archiver (measured 2026-07-14: 15 closed / ~20 KB in this repo).
+    Add REVIEW_ME.md as a third source, draining its closed top-level `- [x]` blocks into a
+    `REVIEW_ME.archive.md` sibling.
+  - **Spec / how it differs from TODO/ROADMAP**: REVIEW_ME items are NOT cross-ledger
+    checkbox twins — a REVIEW_ME line often *references* an `id:` whose real ledger home is
+    TODO/ROADMAP, so the twin-safe open-twin protection does NOT apply: archive a REVIEW_ME
+    `[x]` block on its own state. Reuse the EXISTING block model (a top-level `- [x]` bullet
+    plus every following line until the next top-level bullet or heading — this already
+    captures column-0 prose + `>` blockquote correctly). NEVER move/prune the
+    `# Human review queue` H1 header or its `<!-- budget: … -->` marker. Idempotent; a
+    second run is a clean no-op. `--dry-run` reports the REVIEW_ME count alongside TODO/ROADMAP.
+  - **Acceptance**: `tests/test_review_me_archive.sh` (roadmap:85d3) is green — a fixture
+    REVIEW_ME.md with a closed `[x]` item (incl. a column-0 prose line + a `>` blockquote in
+    its body) and an open `[ ]` item → the closed block (with its prose/blockquote) moves to
+    `REVIEW_ME.archive.md`, the open item + the `# Human review queue` header + budget marker
+    stay, second run is a no-op.
+  - **Done-check**: tick this box, then `make test` fully green.
+  - **Note**: the periodic-trigger WIRING (systemd timer / `/relay review` sub-step) is
+    id:046a's job — this item only adds the REVIEW_ME *capability* to the archiver, which is
+    independently testable. Reuses open TODO twin id:85d3 (single-id-two-views).
+
+- [ ] [ROUTINE] ROADMAP archiver: capture column-0 prose/blockquote + move emptied transient headers <!-- id:546b -->
+  - **Bug 1 (prose/blockquote orphaning) — `relay/scripts/roadmap-archive.sh` only**: its
+    `is_continuation()` treats a `[x]` item's body line as part of the block ONLY if the line
+    is blank or indented, so a **column-0 prose paragraph or `>` blockquote** (common in
+    ROADMAP item bodies) is left stranded in ROADMAP.md when the `- [x]` header moves to the
+    archive — splitting the record across two files. Fix: adopt the SAME block boundary
+    `archive-closed.sh` already uses (a block runs until the next top-level `- [` bullet OR
+    any heading), so column-0 prose/blockquote is captured. `archive-closed.sh` does NOT have
+    this bug — do not regress it.
+  - **Bug 2 (emptied transient headers left behind) — BOTH `roadmap-archive.sh` AND
+    `archive-closed.sh`**: after every item under a `##`/`###` grouping heading is archived,
+    the emptied heading is left in ROADMAP.md as clutter. **DECIDED (user 2026-07-14): move an
+    emptied transient grouping header INTO the archive together with its block** (preserving
+    grouping context), NOT delete-in-place. **Protected — NEVER moved even when emptied**: the
+    H1 title line (`# …`) and the standing buckets whose heading text is exactly one of
+    `Items`, `Current`, `Done`, `Backlog` (case-insensitive, ignoring any trailing
+    `<!-- … -->`). Only move a header that (a) is non-protected AND (b) had ≥1 item archived
+    THIS run AND (c) now has zero remaining top-level items under it. A header that was ALREADY
+    empty on arrival (author placeholder) is left untouched. This REVERSES the prior
+    "headers structural — no pruning" stance (test T9), by explicit user directive.
+  - **Acceptance**: `tests/test_roadmap_archive.sh` updated + green:
+    (a) NEW case — a `[x]` item whose body has a column-0 prose line AND a `>` blockquote →
+    both move to the archive, nothing stranded in ROADMAP.md;
+    (b) new coverage in `tests/test_roadmap_archive_prose_headers.sh` — a non-protected
+    transient grouping header (e.g. `## batch 2020-01-01`) whose only item is archived → the
+    header moves to `ROADMAP.archive.md` and is gone from ROADMAP.md; a protected `## Items`
+    header whose only item is archived → STAYS in ROADMAP.md; an already-empty header on
+    arrival is left in place. NOTE: existing T9 in `tests/test_roadmap_archive.sh` asserts the
+    protected `## Items` header stays — it REMAINS GREEN under the new behavior (Items is
+    protected); only refresh its now-stale "no section pruning" rationale comment, do not delete it;
+    (c) same emptied-header-move behavior verified for `archive-closed.sh` (extend
+    `tests/test_archive_closed.sh` if present, else add coverage).
+  - **Done-check**: tick this box, then `make test` fully green.
+  - **Reuses** open TODO twin id:546b (single-id-two-views). Relates id:6b67 (built
+    roadmap-archive.sh), id:046a (archive-closed consolidation).
+
 ## Capability-keyed lane taxonomy — slice A (meeting 2026-07-02-1924)
 
 Slice A of the capability-keyed lane taxonomy + mechanical-run daemon
