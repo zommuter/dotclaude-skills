@@ -3,6 +3,14 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+- [ ] **Inbox dead-letter: `routed:6754 → [project-manager]` never routes — target-name mismatch (review 2026-07-14).**
+  `relay-doctor` / `scan-routed.sh` reports one UNRESOLVED routed item in the shared inbox
+  (`~/.claude/todo-inbox.md`, local-only): `routed:6754` targets `[project-manager]` but no repo of
+  that name exists on disk — the actual repo is **`project_manager`** (underscore, not hyphen). So the
+  item sits un-routable forever. **Decision for the human:** either fix the inbox line's target to
+  `[project_manager]` (then `scan-routed.sh --apply` drains it), or add a `# path:`/`[repos.project-manager]`
+  alias override if the hyphen spelling is intended elsewhere. Cheap one-line fix; report-only, non-blocking.
+
 - [x] **`roadmap-lint` WARN: DECIDED-LEFT-OPEN on id:de4e (review 2026-07-11 1236).** — RESOLVED 2026-07-13 (relay human): owner chose "tick deferred" → id:de4e ticked `[x]` in ROADMAP with a DEFERRED-CLOSED note, so the recurring warn clears. Re-checkable: `roadmap-lint.sh` no longer flags de4e.
   `- [ ] [INPUT — meeting] DEFERRED (decided 2026-06-17): Distributed relay orchestrator — multi-machine,
   dynamic membership <!-- id:de4e -->` carries a decided/deferred marker but is still an open checkbox, so
