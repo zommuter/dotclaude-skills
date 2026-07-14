@@ -22,7 +22,22 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
      carries (DEP: a505). The 1 surface item (id:625a, INBOUND routed:a6be, gated on
      project_manager id:0fc7) is the mechanical `human`-verdict filer's job, NOT promoted here. -->
 
-- [ ] [HARD] `@needs-auth` convention + executor-contract rule (D1/D2/D3) <!-- id:a505 -->
+- [x] [HARD] `@needs-auth` convention + executor-contract rule (D1/D2/D3) <!-- id:a505 -->
+  - **Done 2026-07-14** (relay HARD child, id:da26): shipped all of D1/D2/D3 in THIS repo.
+    (1) **Convention doc** — new `## The @needs-auth marker` section in
+    `relay/references/hard-lanes.md`: broad definition (any human-held secret / interactive
+    auth), orthogonal to `@manual`, carrier = a per-repo `REVIEW_ME.md` box (D2, explicitly NO
+    global auth-queue file — id:9fdb hazard), FOUR mandatory fields (what-secret · where-it-goes
+    · exact-command · why). (2) **Versioned contract rule (D3)** — added rule 6 (record-and-
+    continue, default clean-handback when separability uncertain) to
+    `relay/references/executor-contract.md` and BUMPED the marker v6→v7; updated the
+    `CLAUDE.md` `## Relay contract` pointer AND the §Versioning contract-surface table
+    ("currently v7") in the same commit (no version skew). (3) **Recognition wiring** —
+    `roadmap-lint.sh` + `gather-human-backlog.sh` document `@needs-auth` as a KNOWN marker
+    (never flagged unknown/untagged); the AI-free lister/filter is the co-meet item id:1750
+    (NOT built here). Acceptance test `tests/test_needs_auth_convention.sh` (roadmap:a505)
+    green; updated `tests/test_relay_executor.sh` v6→v7 version-consistency assertion in
+    lockstep. Meeting: `docs/meeting-notes/2026-07-14-1135-human-manual-task-handling.md`.
   - **Why** (TODO id:a505; /meeting 2026-07-14-1135, D1/D2/D3): a relay child that hits an
     interactive-auth / human-held-secret wall today STRANDS the rest of its unit mid-session
     (the a505 filing failure). There is no convention for recording "this needs a human secret"
