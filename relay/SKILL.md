@@ -305,7 +305,24 @@ integration invariants.
    dotclaude-skills cwd committed straight to jobAI's real `main`). Use the explicit relay
    worktree above; or — for a review/ledger-only pass — work the target's main checkout
    directly under the held lease (the id:15d5 review pattern, since ledger writes land in
-   the main checkout anyway).** Pass the child the relevant reference doc
+   the main checkout anyway).**
+   **Unisolated-edit hazard #2 — child ignores its own worktree (id:f682, observed 2026-07-14).**
+   Distinct from c6c8: the child DID create the explicit relay worktree correctly, but then wrote
+   all its edits to the TARGET's MAIN checkout instead (repo-root-relative paths / never `cd`-ing
+   in). Its worktree stays empty, so its `commit in worktree` is a no-op and its self-report is
+   wrong (a loderite R2 handoff wrote every RED-spec stub + test into `~/src/loderite` while its
+   worktree at `~/.cache/relay/worktrees/.../…-handoff` sat at the base commit, 0 commits ahead;
+   the agent then got confused that its tests "weren't collected" because it ran `npm test` in the
+   empty worktree). MITIGATIONS: (a) the child prompt MUST tell it to treat the worktree as its
+   working dir — ideally its literal FIRST action is to operate there (use the ABSOLUTE worktree
+   path in every Read/Write/Edit, or make the worktree its cwd) — never bare repo-root or
+   `<repo>/…` paths; (b) the integrator VERIFIES ISOLATION before integrating: `git -C <worktree>
+   log --oneline origin/main..HEAD` must be non-empty and `git -C <worktree> status` clean — if the
+   worktree is empty AND the main checkout is dirty with the child's work, isolation failed;
+   (c) RECOVERY when it happens: the work is usually sound, just mislocated — finish/commit it
+   directly in the MAIN checkout under the held lease (the same id:15d5 pattern) rather than
+   discard + re-run; salvaging beats restarting. Consider mechanizing (b) as a pre-integrate
+   isolation gate.** Pass the child the relevant reference doc
    (`references/handoff.md` or `references/review.md`), `references/conventions.md`, its
    tokens, and whether C5/step-6 HARD work is budgeted this turn. Children commit in
    their worktree and return the structured report — they NEVER push and NEVER run
