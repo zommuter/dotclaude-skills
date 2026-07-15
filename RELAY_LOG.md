@@ -2593,3 +2593,7 @@ pre-existing `test_relay_install_manifest.sh` caught the omission on first `make
 `tests/test_verify_isolation.sh` (roadmap:f682) green; full `make test` 244 passed / 0
 failed / 0 expected-red.
 Friction: none.
+
+## 2026-07-15 14:10 — executor (sonnet, relay-loop)
+
+id:f682 — implemented relay/scripts/verify-isolation.sh (pre-integrate isolation gate) + wired into SKILL.md invariant 5 and conventions.md; 244/0 tests green [id:f682]
