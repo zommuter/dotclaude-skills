@@ -2574,3 +2574,7 @@ id:b8c2 — fixed gather-human-backlog.sh unbound-variable crash in list_needs_a
 ## 2026-07-15 13:25 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:b8c2 genuinely green (unbound-var fix satisfies unchanged RED spec); 243 tests pass, relay-doctor clean, 0 open ROUTINE [id:b8c2]
+
+## 2026-07-15 13:52 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+handoff: promoted id:f682 (relay pre-integrate isolation gate) to ROADMAP [ROUTINE] with functional RED spec test_verify_isolation.sh [id:f682]
