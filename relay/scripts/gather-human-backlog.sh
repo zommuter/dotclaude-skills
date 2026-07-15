@@ -359,7 +359,8 @@ emit_hard_lanes() {
 # `exact-command`); a missing field prints `(MISSING)` so a non-conforming box is LOUD,
 # not silently dropped. Closed `- [x]` boxes are never listed. $1 repo name, $2 repo path.
 list_needs_auth_repo() {
-  local name="$1" path="$2" file="$path/REVIEW_ME.md"
+  local name="$1" path="$2"
+  local file="$path/REVIEW_ME.md"
   [[ -f "$file" ]] || return 0
   awk -v repo="$name" '
     function trim(s){ sub(/^[[:space:]]+/,"",s); sub(/[[:space:]]+$/,"",s); return s }

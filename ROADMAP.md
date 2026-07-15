@@ -17,7 +17,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
      follow-up work, not tracked in TODO); both routed: tokens carried on the line below so
      scan-routed --apply drains both inbox entries once this lands. -->
 
-- [ ] [ROUTINE] `gather-human-backlog.sh --needs-auth <repo>` crashes `path: unbound variable` — split the `local` in `list_needs_auth_repo` <!-- routed:2365 --> <!-- routed:8653 --> <!-- id:b8c2 -->
+- [x] [ROUTINE] `gather-human-backlog.sh --needs-auth <repo>` crashes `path: unbound variable` — split the `local` in `list_needs_auth_repo` <!-- routed:2365 --> <!-- routed:8653 --> <!-- id:b8c2 -->
   - **Why** (INBOUND routed:2365 + routed:8653; relay-doctor 2026-07-15): the offline lister's
     named-arg branch (`run_needs_auth_lister`, `for name in "$@"` → `list_needs_auth_repo "$name"
     "${PATH_OF[$name]:-$SRC_DIR/$name}"`) dies under `set -u` on EVERY explicit repo-name
