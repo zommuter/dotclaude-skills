@@ -15,6 +15,13 @@ it. The lesson: a reorder is not a restart, and destructive git/`rm` must never 
   command run with a `--force` flag.
 - **Destructive-but-not-`--force` git ops:** `git reset --hard`, `git restore <path>`,
   `git checkout -- <path>`, `git clean -f`/`-fd` — discard uncommitted work irrecoverably.
+  Also `git stash drop` / `git stash clear` — discard *stashed* work; the entry is only
+  reachable via the unreferenced reflog + `git fsck --unreachable` (practically lost), so
+  these belong in the same family. (`git stash push`/`save` — which *create* a recoverable
+  entry — and `git stash pop`/`apply` — which *restore* — are NOT destructive and are not
+  covered.) The omission was an inconsistency: `relay/scripts/clean-tree-gate.sh` already
+  names "git stash+drop" as one of the mechanisms that irrecoverably destroyed foreign work
+  (id:aa93), alongside `checkout --` / `reset --hard`, which were already listed here.
 
 ## How it behaves (by permission mode)
 
@@ -35,8 +42,14 @@ The rules are added to the per-machine `~/.claude/settings.json`:
   **semantic** protection (robust to flag-order / compound-command variations that pattern
   matching alone would miss).
 - `permissions.ask` — canonical Bash patterns (`rm -f *`, `git push --force*`,
-  `git reset --hard*`, `git restore *`, `git clean -f*`, …), a best-effort net for the
-  interactive modes.
+  `git reset --hard*`, `git restore *`, `git clean -f*`, `git stash drop*`,
+  `git stash clear*`, …), a best-effort net for the interactive modes.
+
+> These patterns live in each machine's `~/.claude/settings.json` and are applied by hand
+> today. Folding them (and the `git stash drop`/`clear` additions above) into an idempotent
+> `install-guardrails` `make` target is tracked as **id:98fc** — until it lands, add the
+> `git stash drop*` / `git stash clear*` `ask` patterns (and the matching `soft_deny` rule)
+> to a machine's settings by hand, mirroring the existing entries.
 
 ### Interplay with existing force-push handling
 

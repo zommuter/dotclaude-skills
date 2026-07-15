@@ -133,13 +133,13 @@ reconcile_entry() {
         local tmp; tmp="$(mktemp)"
         if awk 1 "$src" "$dest" | awk 'NF && !seen[$0]++' > "$tmp"; then
           chmod --reference="$dest" "$tmp" 2>/dev/null || true   # preserve dest perms (don't force 0600)
-          mv "$tmp" "$dest"; rm -f "$src"; log "merge jsonl: $base"; return 0
+          mv "$tmp" "$dest"; rm -- "$src"; log "merge jsonl: $base"; return 0
         fi
-        rm -f "$tmp"; log "WARN: jsonl merge failed for $base — leaving src in place"; return 1 ;;
+        rm -- "$tmp"; log "WARN: jsonl merge failed for $base — leaving src in place"; return 1 ;;
       *)
         # snapshot / other file → newest mtime wins.
         if [ "$src" -nt "$dest" ]; then mv -f "$src" "$dest"; log "newer wins (old): $base"
-        else rm -f "$src"; log "keep newer (new): $base"; fi
+        else rm -- "$src"; log "keep newer (new): $base"; fi
         return 0 ;;
     esac
   fi

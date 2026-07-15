@@ -67,7 +67,7 @@ WORKTREE_BASE="${RELAY_WORKTREE_BASE:-$HOME/.cache/relay/worktrees}"
 # actions/surfaced accumulated as TSV lines, folded into JSON by python3 at the end.
 actions_file="$(mktemp)"
 surfaced_file="$(mktemp)"
-trap 'rm -f "$actions_file" "$surfaced_file"' EXIT
+trap 'rm -- "$actions_file" "$surfaced_file"' EXIT   # both mktemp'd just above ⇒ known to exist; no -f needed
 
 add_action() { # <kind> <detail>
   printf '%s\t%s\n' "$1" "$2" >> "$actions_file"
@@ -213,17 +213,27 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       git -C "$path" add -- "${plan_lock_paths[@]}"
       git -C "$path" commit -q -m "chore: refresh uv.lock — cascade relock (id:bae5)"
     fi
+    # FORCE-FREE retirement (id:373e): all reap/park worktree+branch disposal goes through
+    # worktree-retire.sh — NO `git worktree remove --force`, NO `git branch -D`. The helper
+    # removes a CLEAN worktree (executor committed per contract; gitignored residue does not
+    # block) and either deletes a merged branch or PARKS an unmerged one to relay/orphan/<bn>.
+    # A dirty/unremovable worktree is SURFACED and LEFT on disk for a supervised reconcile —
+    # never force-cleaned. The helper logs+surfaces internally; APPLY must add nothing to the
+    # emitted actions/surfaced JSON (parity oracle id:77ce), so its output is discarded here.
+    RETIRE="$(dirname "$0")/worktree-retire.sh"
     for entry in "${plan_reap[@]:-}"; do
       [[ -n "$entry" ]] || continue
       bn="${entry%%:*}"; branch="${entry#*:}"
-      git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
-      git -C "$path" branch -D "$branch" >/dev/null 2>&1 || true
+      # Reap: PLAN proved the branch is an ancestor of main (merged) → --expect-merged so a
+      # `branch -d` refusal surfaces as an anomaly instead of a silent park.
+      "$RETIRE" "$path" "$wtdir/$bn" "$branch" --expect-merged >/dev/null 2>&1 || true  # swallow-ok: helper logs+surfaces to its own log; APPLY stays JSON-side-effect-free (id:77ce)
     done
     for entry in "${plan_park[@]:-}"; do
       [[ -n "$entry" ]] || continue
       bn="${entry%%:*}"; branch="${entry#*:}"
-      git -C "$path" branch -m "$branch" "relay/orphan/$bn" >/dev/null 2>&1 || true
-      git -C "$path" worktree remove --force "$wtdir/$bn" >/dev/null 2>&1 || true
+      # Park: PLAN found the branch unmerged → the helper removes the clean worktree then
+      # renames the unmerged branch to relay/orphan/<bn> (via `branch -d`-refusal fallthrough).
+      "$RETIRE" "$path" "$wtdir/$bn" "$branch" >/dev/null 2>&1 || true  # swallow-ok: see reap note (id:77ce)
     done
   fi
 fi

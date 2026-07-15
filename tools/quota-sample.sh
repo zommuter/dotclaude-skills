@@ -64,10 +64,10 @@ if [ "$age" -ge "$FRESH_SECS" ]; then
     backoff_last=${backoff_line##* }
     # Clear a dead lock (>30s), matching the statusline's own staleness rule.
     if [ -f "$USAGE_LOCK" ] && [ $(( NOW - $(stat -c %Y "$USAGE_LOCK" 2>/dev/null || echo 0) )) -ge 30 ]; then
-        rm -f "$USAGE_LOCK"
+        rm -- "$USAGE_LOCK"
     fi
     if [ "$NOW" -ge "$backoff_until" ] && (set -o noclobber; echo $$ > "$USAGE_LOCK") 2>/dev/null; then
-        trap 'rm -f "$USAGE_LOCK"' EXIT
+        trap '[ -e "$USAGE_LOCK" ] && rm -- "$USAGE_LOCK"' EXIT
         TOKEN=$(jq -r '.claudeAiOauth.accessToken' "$CREDS" 2>/dev/null || echo "")
         if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then
             code=$(curl -sf --max-time 4 -o "$CACHE.tmp" -w "%{http_code}" \
@@ -76,7 +76,7 @@ if [ "$age" -ge "$FRESH_SECS" ]; then
                 "https://api.anthropic.com/api/oauth/usage" 2>/dev/null || echo "000")
             if [ "$code" = "200" ] && [ -s "$CACHE.tmp" ]; then
                 mv "$CACHE.tmp" "$CACHE"
-                rm -f "$USAGE_BACKOFF"
+                if [ -e "$USAGE_BACKOFF" ]; then rm -- "$USAGE_BACKOFF"; fi
                 SOURCE="fetch"
                 # Keep the statusline's 2-sample extrapolation history warm too.
                 s=$(jq -r '.five_hour.utilization // 0' "$CACHE")
@@ -85,7 +85,7 @@ if [ "$age" -ge "$FRESH_SECS" ]; then
                 tail -2 "$USAGE_HISTORY" > "$USAGE_HISTORY.tmp" 2>/dev/null && mv "$USAGE_HISTORY.tmp" "$USAGE_HISTORY"
                 log "fetch ok code=200"
             else
-                rm -f "$CACHE.tmp"
+                if [ -e "$CACHE.tmp" ]; then rm -- "$CACHE.tmp"; fi
                 next=$(( backoff_last < 60 ? 60 : backoff_last * 2 ))
                 [ "$next" -gt 600 ] && next=600
                 echo "$(( NOW + next )) $next" > "$USAGE_BACKOFF"
@@ -94,7 +94,7 @@ if [ "$age" -ge "$FRESH_SECS" ]; then
         else
             log "no token in $CREDS (using cached, age=${age}s)"
         fi
-        rm -f "$USAGE_LOCK"; trap - EXIT
+        rm -- "$USAGE_LOCK"; trap - EXIT
     else
         log "backoff/lock active (using cached, age=${age}s)"
     fi

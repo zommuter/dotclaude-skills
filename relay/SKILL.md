@@ -418,10 +418,14 @@ Run `scripts/relay-reconcile.sh [repo]` (defaults to the cwd repo). With no flag
   serialized-integrator recipe the live pool uses, so a human can't skip the checkpoint
   tag or race the pool's push: verify clean main + `sync-origin.sh` → `git merge --no-ff`
   (preserves 3-way conflict surfacing; **no CAS plumbing**) → `ckpt-tag.sh` (atomic
-  RELAY_LOG + `relay-ckpt-*` tag) → `git-lock-push.sh --ff-only` → `git branch -D` the
-  consumed ref. A merge **conflict** is `git merge --abort`ed and the branch is **left +
-  surfaced**, never half-merged.
-- **discard** — `relay-reconcile.sh --discard <branch>` → `git branch -D` (drop the work).
+  RELAY_LOG + `relay-ckpt-*` tag) → `git-lock-push.sh --ff-only` → force-free `git branch -d`
+  the consumed (now-merged) ref (id:373e; a refusal is surfaced + left, never force-deleted).
+  A merge **conflict** is `git merge --abort`ed and the branch is **left + surfaced**, never
+  half-merged.
+- **discard** — `RELAY_DISCARD_CONFIRM=1 relay-reconcile.sh --discard <branch>` → `git branch
+  -D` (drop the work). The destructive force-delete is **gated behind the explicit
+  `RELAY_DISCARD_CONFIRM=1`** (force-push.sh model, id:373e); without it, discard refuses so
+  automation/accident can't destroy parked work.
 - **leave** — do nothing; the `relay/orphan/*` ref stays for a later pass.
 
 `<branch>` may be given with or without the `relay/orphan/` prefix. `id:3313`, `id:4e14`.

@@ -180,7 +180,7 @@ if [[ "$fix" -eq 1 && "${#fix_lines[@]}" -gt 0 ]]; then
     echo "todo-conformance.sh: could not acquire fix lock on $path within 30s" >&2
   fi
   exec 9>&-
-  rm -f "$lock" 2>/dev/null || true
+  [ -e "$lock" ] && rm -- "$lock"   # lock may already be gone (concurrent unlink); no force, no swallow
 fi
 
 # --- report -----------------------------------------------------------------------------

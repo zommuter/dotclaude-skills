@@ -40,13 +40,13 @@ if ! flock -n 9 2>/dev/null; then
     echo "roadmap-archive: another instance is running (lock held by $LOCK_FILE) — skipping." >&2
     exit 0
 fi
-trap 'rm -f "$LOCK_FILE"' EXIT
+trap 'rm -- "$LOCK_FILE"' EXIT   # created by `exec 9>` above ⇒ exists; no -f needed
 
 cutoff=$(date -d '30 days ago' '+%Y-%m-%d')
 
 # Get the set of lines that were already [x] in the PRIOR commit (HEAD).
 PRIOR_DONE_FILE=$(mktemp)
-trap 'rm -f "$PRIOR_DONE_FILE"; rm -f "$LOCK_FILE"' EXIT
+trap 'rm -- "$PRIOR_DONE_FILE"; rm -- "$LOCK_FILE"' EXIT   # both known to exist; no -f needed
 
 REPO_ABS=$(realpath "$REPO_ROOT")
 ROADMAP_ABS=$(realpath "$ROADMAP_FILE")

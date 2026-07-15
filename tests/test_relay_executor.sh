@@ -22,10 +22,13 @@ head -1 "$CONTRACT" | grep -q '^---$' \
   && fail "executor-contract.md still has skill frontmatter (should be a lean reference)" || true
 pass "executor-contract.md has no skill frontmatter"
 
-# 3. Contract marker present, bumped to v7 (the id:a505 @needs-auth record-and-continue rule).
-grep -q 'relay-executor contract v7' "$CONTRACT" \
-  || fail "executor-contract.md missing '<!-- relay-executor contract v7 -->' marker"
-pass "contract marker present (v7)"
+# 3. Contract marker present and >= v7 (v7 = id:a505 @needs-auth; v8 = id:373e clean-worktree
+#    exit gate). Exact value is checked for sync against CLAUDE.md in step 6; here we only
+#    require a well-formed marker at or past the v7 floor.
+marker_v="$(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT" | head -1 | grep -oE '[0-9]+')"
+[[ -n "$marker_v" ]] || fail "executor-contract.md missing a '<!-- relay-executor contract vN -->' marker"
+[[ "$marker_v" -ge 7 ]] || fail "executor-contract marker is v$marker_v, expected >= v7"
+pass "contract marker present (v$marker_v)"
 
 # 3b. Rule 0 (id:ebfb): executor acquires the cross-session repo lease before working.
 grep -qi 'Cross-session lease' "$CONTRACT" || fail "executor contract missing the cross-session lease rule (id:ebfb)"

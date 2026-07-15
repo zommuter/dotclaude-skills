@@ -109,7 +109,7 @@ current_ids="$(printf '%s\n' "$dead" | jq -r 'select(.runId!=null and .runId!=""
 
 if [ -z "$current_ids" ]; then
   # Nothing dead — clear the de-dup state so a future death notifies cleanly.
-  rm -f "$STATE" 2>/dev/null || true
+  if [ -e "$STATE" ]; then rm -- "$STATE"; fi
   log "tick: no dead runs (dispatch-loop domain)"
 else
   # NEW deaths = currently-dead ids not already notified. Rewrite the state to the CURRENT dead
@@ -149,7 +149,7 @@ producer_status="unknown"
 status_tmp="$(mktemp)"
 HEARTBEAT_TTL="$PRODUCER_TTL" "$HB" status "$PRODUCER_RUN_ID" >"$status_tmp" 2>>"$LOG" || true
 producer_status="$(cat "$status_tmp" 2>/dev/null || echo unknown)"
-rm -f "$status_tmp" 2>/dev/null || true
+rm -- "$status_tmp"
 
 if [ "$producer_status" = "dead" ]; then
   # Present-but-stale: the producer marker exists (heartbeat.sh distinguishes absent via rc=2 /
@@ -169,7 +169,7 @@ if [ "$producer_status" = "dead" ]; then
   fi
 else
   # Alive or absent — clear de-dup state so a FUTURE staleness notifies cleanly.
-  rm -f "$PRODUCER_STATE" 2>/dev/null || true
+  if [ -e "$PRODUCER_STATE" ]; then rm -- "$PRODUCER_STATE"; fi
   log "tick: discovery-producer domain status=${producer_status}"
 fi
 

@@ -267,7 +267,7 @@ esac
 if [[ -n "$entry_file" ]]; then
   entry_file="$(readlink -f "$entry_file")"
   entry="$(cat "$entry_file")"
-  rm -f "$entry_file"
+  rm -- "$entry_file"
 fi
 
 if [[ -z "$entry" ]]; then

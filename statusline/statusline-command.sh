@@ -76,13 +76,13 @@ BACKOFF_LAST=${BACKOFF_LINE##* }
 
 # Clean stale lockfile (>30s = probably dead process)
 if [ -f "$USAGE_LOCK" ] && [ $((NOW - $(stat -c %Y "$USAGE_LOCK" 2>/dev/null || echo 0))) -ge 30 ]; then
-    rm -f "$USAGE_LOCK"
+    rm -- "$USAGE_LOCK"
 fi
 
 if [ $CACHE_AGE -ge 60 ] && [ $NOW -ge $BACKOFF_UNTIL ]; then
     # Lockfile: prevent concurrent fetches from multiple sessions
     if (set -o noclobber; echo $$ > "$USAGE_LOCK") 2>/dev/null; then
-        trap "rm -f '$USAGE_LOCK'" EXIT
+        trap "[ -e '$USAGE_LOCK' ] && rm -- '$USAGE_LOCK'" EXIT
         TOKEN=$(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json" 2>/dev/null)
         if [ -n "$TOKEN" ]; then
             HTTP_CODE=$(curl -sf --max-time 2 -o "$USAGE_CACHE.tmp" -w "%{http_code}" \
@@ -93,21 +93,21 @@ if [ $CACHE_AGE -ge 60 ] && [ $NOW -ge $BACKOFF_UNTIL ]; then
                 mv "$USAGE_CACHE.tmp" "$USAGE_CACHE"
                 CACHE_MTIME=$NOW
                 CACHE_AGE=0
-                rm -f "$USAGE_BACKOFF"
+                [ -e "$USAGE_BACKOFF" ] && rm -- "$USAGE_BACKOFF"
                 # Record sample for burn rate extrapolation (keep last 2)
                 S=$(jq -r '.five_hour.utilization // 0' "$USAGE_CACHE")
                 W=$(jq -r '.seven_day.utilization // 0' "$USAGE_CACHE")
                 echo "$NOW $S $W" >> "$USAGE_HISTORY"
                 tail -2 "$USAGE_HISTORY" > "$USAGE_HISTORY.tmp" && mv "$USAGE_HISTORY.tmp" "$USAGE_HISTORY"
             else
-                rm -f "$USAGE_CACHE.tmp"
+                [ -e "$USAGE_CACHE.tmp" ] && rm -- "$USAGE_CACHE.tmp"
                 # Exponential backoff: 60s, 120s, 240s, max 600s
                 NEXT_WAIT=$(( BACKOFF_LAST < 60 ? 60 : BACKOFF_LAST * 2 ))
                 [ $NEXT_WAIT -gt 600 ] && NEXT_WAIT=600
                 echo "$((NOW + NEXT_WAIT)) $NEXT_WAIT" > "$USAGE_BACKOFF"
             fi
         fi
-        rm -f "$USAGE_LOCK"
+        rm -- "$USAGE_LOCK"
     fi
 fi
 SESSION_PCT=$(jq -r '.five_hour.utilization // 0' "$USAGE_CACHE" 2>/dev/null)

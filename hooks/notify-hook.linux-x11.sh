@@ -27,7 +27,7 @@ close_notification() {
 }
 
 if [ -n "$wid" ]; then
-    rm -f "$signal"
+    [ -e "$signal" ] && rm -- "$signal"
     tmpout=$(mktemp)
     notify-send --print-id -i "$icon" -t 30000 -A "focus=Focus Terminal" "$title" "$msg" >"$tmpout" &
     notif_pid=$!
@@ -47,7 +47,7 @@ if [ -n "$wid" ]; then
 
     wait "$notif_pid" 2>/dev/null || true
     action=$(sed -n '2p' "$tmpout")
-    rm -f "$tmpout"
+    rm -- "$tmpout"
     [ "$action" = "focus" ] && wmctrl -ia "$wid"
 else
     notify-send -i "$icon" -t 10000 "$title" "$msg"

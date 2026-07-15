@@ -94,7 +94,9 @@ write_permit() {
 }
 
 cmd_clear() {
-  rm -f "$STATE_FILE"
+  # idempotent: the state file may not exist (clearing when nothing is set). No force, no swallow.
+  [ -e "$STATE_FILE" ] && rm -- "$STATE_FILE"
+  return 0
 }
 
 cmd_status() {
