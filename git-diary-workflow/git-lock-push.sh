@@ -28,7 +28,10 @@
 #                   Mutually exclusive with -f/manifest mode.
 #   --ff-only   Use fast-forward-only reconcile instead of rebase; fails loud on divergence.
 #               Use this when the local branch has annotated tags or --no-ff merges that must
-#               not be rewritten (e.g. the relay integration branch).
+#               not be rewritten (e.g. the relay integration branch). Legacy/manifest mode now
+#               auto-detects merge topology in local-ahead (id:e4f5) and falls back to this
+#               same ff-only reconcile on its own when it finds one — --ff-only remains the
+#               explicit, caller-asserted form; pass it when you know in advance.
 
 set -euo pipefail
 
@@ -167,6 +170,24 @@ fi
 remote_name="${target%% *}"
 remote_branch="${target#* }"
 if git ls-remote --exit-code "$remote_name" "refs/heads/$remote_branch" >/dev/null 2>&1; then
+  # id:e4f5 — auto-guard: legacy/manifest mode's `git pull --rebase` is a no-op for
+  # linear local-ahead against an un-moved remote, but REWRITES (drops merge commits,
+  # replays their contents linearly) whenever local-ahead contains merge commits — the
+  # 2026-07-15 loderite incident: a reviewer's deliberate `--no-ff` integration merges
+  # got flattened because legacy mode was invoked instead of --ff-only/--merge-branch.
+  # Rather than trust every caller to remember the flag, detect the hazard directly:
+  # fetch the remote tip and count merge commits in local-ahead. If any exist, this run
+  # becomes ff-only even though the caller didn't ask — conservative under-action only
+  # (never flattens topology silently); a purely linear local-ahead is unaffected and
+  # takes the existing rebase path unchanged.
+  if [[ "$ff_only" -eq 0 ]]; then
+    git fetch -q "$remote_name" "$remote_branch"
+    merge_count="$(git rev-list --merges --count FETCH_HEAD..HEAD)"
+    if [[ "$merge_count" -gt 0 ]]; then
+      echo "NOTE: local-ahead contains $merge_count merge commit(s) — rebase would flatten them; using --ff-only reconcile (id:e4f5)." >&2
+      ff_only=1
+    fi
+  fi
   if [[ "$ff_only" -eq 1 ]]; then
     # --ff-only: no SHA rewrite — annotated tags and --no-ff merge topology survive.
     # On divergence, fail loud; work stays committed locally (non-fatal, same as flock-timeout).
