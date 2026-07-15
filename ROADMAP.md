@@ -10,6 +10,41 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- 2026-07-15 review mini-handoff (run relay-20260715-121544-12169): relay-doctor
+     surfaced two INBOUND inbox dead-letters (routed:2365 + routed:8653) reporting a real
+     crash in the shipped id:1750 offline @needs-auth lister. Reproduced + root-caused:
+     an executor-ready [ROUTINE] one-liner with a RED spec. Fresh id b8c2 (genuinely new
+     follow-up work, not tracked in TODO); both routed: tokens carried on the line below so
+     scan-routed --apply drains both inbox entries once this lands. -->
+
+- [ ] [ROUTINE] `gather-human-backlog.sh --needs-auth <repo>` crashes `path: unbound variable` — split the `local` in `list_needs_auth_repo` <!-- routed:2365 --> <!-- routed:8653 --> <!-- id:b8c2 -->
+  - **Why** (INBOUND routed:2365 + routed:8653; relay-doctor 2026-07-15): the offline lister's
+    named-arg branch (`run_needs_auth_lister`, `for name in "$@"` → `list_needs_auth_repo "$name"
+    "${PATH_OF[$name]:-$SRC_DIR/$name}"`) dies under `set -u` on EVERY explicit repo-name
+    invocation: `relay/scripts/gather-human-backlog.sh: line 362: path: unbound variable`. Root
+    cause: `list_needs_auth_repo` opens `local name="$1" path="$2" file="$path/REVIEW_ME.md"` —
+    bash expands all RHS words of one `local` command BEFORE any assignment takes effect, so
+    `$path` in the `file=` word resolves against the CALLER's scope. The default no-arg branch
+    survives by accident (its `while read … path` loop leaks a `path` into scope); the named-arg
+    branch (`for name in "$@"`) has no `path` in scope, so it crashes. Only the no-arg all-repos
+    form works today; `--needs-auth <repo>` (the per-repo view a human would reach for) is 100%
+    broken. routed:2365 additionally notes the plugin-path own-repos (e.g. zkm-signal at
+    `~/src/zkm/plugins/`) whose name isn't at `$SRC_DIR/<name>` — same crash, same fix.
+  - **How / Design**: split the single-line `local` so `path` is assigned before it is
+    referenced — e.g. `local name="$1" path="$2"` then a separate `local file="$path/REVIEW_ME.md"`.
+    That is the whole fix; do NOT touch the no-arg branch or the awk block. Verify the plugin-path
+    own-repos resolve via the `PATH_OF[$name]` lookup (from `own_repos`) rather than the
+    `$SRC_DIR/$name` fallback, so a repo whose name isn't a child of `$SRC_DIR` still lists.
+  - **Acceptance**: `tests/test_needs_auth_lister_named_repo.sh` (`# roadmap:b8c2`, written RED by
+    this review) goes green — `--needs-auth repoNA` (explicit repo-name arg) exits 0, prints the
+    repo's @needs-auth box with all four field values, and stderr carries no `unbound variable`.
+    Existing `tests/test_needs_auth_lister.sh` (id:1750, no-arg form) MUST stay green.
+  - **Done-check**: `tests/run-tests.sh tests/test_needs_auth_lister_named_repo.sh tests/test_needs_auth_lister.sh`
+    then full `make test` after ticking (RED until then).
+  - **Context**: `relay/scripts/gather-human-backlog.sh` (`list_needs_auth_repo` ~L361-362,
+    `run_needs_auth_lister` named-arg branch ~L417-420). Sibling: shipped id:1750 (the lister).
+    INBOUND routed:2365 + routed:8653.
+
 <!-- 2026-07-14 handoff C2 (run relay-20260714-123104-912): promoted the two `promote`-
      disposition TODO items (unpromoted-scan @ dotclaude-skills: 2 promote / 1 surface / 16
      laned). Both are the `@needs-auth` co-meet cluster RESOLVED + re-laned `[INPUT — meeting]`
