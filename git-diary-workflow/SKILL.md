@@ -42,6 +42,12 @@ Co-Authored-By fields: **Model** from system context (e.g. `Claude Sonnet 4.6`);
 ~/.claude/skills/git-diary-workflow/git-lock-push.sh
 ```
 
+If this session created `--no-ff` merges or annotated tags (e.g. a relay integration
+turn), pass `--ff-only` explicitly so `pull --rebase` doesn't flatten them. The script
+also auto-detects merge topology in local-ahead on its own and falls back to ff-only
+without the flag (id:e4f5) — but don't rely on the auto-guard as a substitute for
+passing it when you already know.
+
 ### Step 1b: Commit and push ~/.claude (when running from a foreign project)
 
 Skip this step when the cwd is `~/.claude` itself — Step 1 already handled that repo.
