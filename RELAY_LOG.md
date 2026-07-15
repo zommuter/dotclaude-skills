@@ -2552,3 +2552,17 @@ Worked id:e4f5 — user-mandated hardening of `git-lock-push.sh` after the loder
 ## 2026-07-15 12:44 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:85d3/546b/e4f5 green (REVIEW_ME+roadmap archivers, lockpush merge-topology guard); mini-handoff id:b8c2 (needs-auth lister named-repo crash) + RED spec; 242 tests green [id:85d3,546b,e4f5,b8c2]
+
+## 2026-07-15 — executor (Sonnet)
+
+Worked id:b8c2 — fixed `gather-human-backlog.sh: list_needs_auth_repo` crashing under
+`set -u` on every explicit `--needs-auth <repo>` invocation. Root cause: the single-line
+`local name="$1" path="$2" file="$path/REVIEW_ME.md"` expands all RHS words before any
+assignment takes effect, so `$path` in the `file=` word resolved against the caller's
+scope (unset there for the named-arg branch). Split into two `local` statements so
+`path` is assigned before `file` references it — matches the roadmap's prescribed fix
+exactly; no other lines touched. `tests/test_needs_auth_lister_named_repo.sh`
+(roadmap:b8c2) now green; `tests/test_needs_auth_lister.sh` (id:1750, no-arg form)
+stays green; full `make test` 243 passed / 0 failed / 0 expected-red.
+Friction: none — a one-line split, already-written RED spec covered both the crash fix
+and the plugin-path `PATH_OF` lookup (already correct pre-fix, unchanged). [id:b8c2]
