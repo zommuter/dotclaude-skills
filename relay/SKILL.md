@@ -317,7 +317,12 @@ integration invariants.
    this turn and surface it ("claimed by another relay run") — never spawn a colliding child.
    Only fan out children for repos whose lease you acquired.
 5. **Integrate per completed child as one uninterrupted block**, repos strictly
-   sequential: verify `contract_met` and checkpoint ordering → `--no-ff` merge the
+   sequential: verify `contract_met` and checkpoint ordering → **isolation gate (id:f682)**
+   `relay/scripts/verify-isolation.sh <worktree> [--base <ref>]` (mirrors
+   `clean-tree-gate.sh`; exit 2 = the child's worktree is empty or dirty — a likely
+   main-checkout write, NOT a normal merge conflict — ABORT the merge and defer; see
+   `references/conventions.md`'s recovery-doctrine paragraph for the salvage-under-lease
+   path before discarding) → `--no-ff` merge the
    worktree branch into the integration branch → `scripts/ckpt-tag.sh <repo-path> -m
    "<summary>" -l "reviewer (<model>)"` → ONE push via
    `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only` → `git worktree prune` →
