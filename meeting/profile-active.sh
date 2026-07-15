@@ -15,7 +15,7 @@ full_lines=$(wc -l < "$PROFILE")
 # Extract active blocks: file header (before first ##) + ## sections where
 # Pre-emption-eligible: yes AND (Confidence: med OR Confidence: high).
 _tmp=$(mktemp)
-trap 'rm -f "$_tmp"' EXIT
+trap 'rm -- "$_tmp"' EXIT
 
 awk '
     BEGIN { header=1; buf=""; hdr=""; eligible=0; conf_ok=0 }

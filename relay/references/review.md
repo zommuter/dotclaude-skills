@@ -70,6 +70,19 @@ do not re-implement them inline.
    the strength of a skipped/uncompiled/unverified test, FLAG it and keep the item open
    until the test actually runs green in the required env. A skip is not a pass.
 
+5. **Faked-clean-tree check (id:373e — the v8 clean-worktree exit gate)** — the executor
+   contract (rule 5b) requires the worktree to be CLEAN at exit, reached only by *committing*
+   real work or *gitignoring* genuine throwaway — NEVER by DISCARDING work (`git checkout --
+   <path>`, `git restore`, `git reset --hard`, `git clean`, or `git stash`/`git stash drop`).
+   Watch for a clean tree reached by *deletion* rather than *completion*: an item ticked done
+   whose acceptance behaviour is absent from the diff, a RELAY_LOG note mentioning a
+   stash/reset/checkout to "clean up" or "make room", or a feature that looks half-removed.
+   You already re-derive (§5) and re-run tests (§3) against the COMMITTED state, so a
+   reverted-away change surfaces here as a missing feature or a red original test — FLAG it
+   and reopen the item. (The integrator retires worktrees force-free per id:373e, so a
+   genuinely-dirty exit is *surfaced-and-left*, never silently discarded — an honest executor
+   hands the incomplete unit back rather than faking a clean tree.)
+
 Anything flagged here (from either the mechanical pass or the judgment residue) is
 surfaced prominently in the return report and the roadmap item is reopened.
 

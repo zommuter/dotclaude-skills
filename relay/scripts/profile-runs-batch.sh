@@ -78,7 +78,7 @@ for d in "${RUNS[@]}"; do
   i=$((i+1))
   args=( "$d" --json )
   [[ -n "$CAP" ]] && args+=( --cap "$CAP" )
-  if "$PROFILE" "${args[@]}" > "$TMP/run-$i.json" 2>/dev/null; then :; else rm -f "$TMP/run-$i.json"; fi
+  if "$PROFILE" "${args[@]}" > "$TMP/run-$i.json" 2>/dev/null; then :; else rm -- "$TMP/run-$i.json"; fi  # redirect created the file ⇒ exists; no -f needed
 done
 
 export BATCH_TMP="$TMP" BATCH_JSON="$JSON"

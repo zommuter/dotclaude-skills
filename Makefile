@@ -56,7 +56,7 @@ relay_FILES := SKILL.md \
                scripts/commit-ledger.sh scripts/acquire-resource.sh \
                scripts/unpromoted-scan.sh scripts/todo-conformance.sh \
                scripts/scan-routed.sh scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh \
-               scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
+               scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
@@ -78,7 +78,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh \
-               scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
+               scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
@@ -98,7 +98,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh \
-               scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
+               scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
@@ -120,7 +120,7 @@ SETTINGS_JSON    := $(HOME)/.claude/settings.json
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
-        install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test gaming-canary shard-canary \
+        install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test lint gaming-canary shard-canary \
         install-quota-timer status-quota-timer uninstall-quota-timer \
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
@@ -153,7 +153,8 @@ help:
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
 	@echo "  status               show symlink state for all skills"
-	@echo "  test                 run the test suite (tests/run-tests.sh)"
+	@echo "  test                 run the test suite (tests/run-tests.sh); runs lint first"
+	@echo "  lint                 enforce the no-bare-rm-f rule (tools/check-no-bare-rm-f.sh --enforce)"
 	@echo "  gaming-canary        Tier B model anti-gaming canary harness (on-demand; costs tokens)"
 	@echo "  shard-canary         discover-shard classifier behavior canary (on-demand; costs tokens)"
 	@echo ""
@@ -176,7 +177,10 @@ install-relay-env:
 print-relay-env:
 	@python3 $(SRC_DIR)/tools/settings-env.py --mode print --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS)
 
-test:
+lint:
+	@bash $(SRC_DIR)/tools/check-no-bare-rm-f.sh --enforce
+
+test: lint
 	@bash $(SRC_DIR)/tests/run-tests.sh
 
 # Tier B model canary harness (id:414a) — on-demand, costs tokens, NOT in `make test`.

@@ -75,7 +75,7 @@ EOF
 # Stage + commit + pull + push atomically inside the per-repo flock
 # NOTE: flags MUST precede REPO_PATH — getopts stops at the first non-flag arg
 ~/.claude/skills/git-diary-workflow/git-lock-push.sh -f "$manifest" -m "$msg" ~/.claude
-rm -f "$manifest"
+rm -- "$manifest"
 ```
 
 ### Step 1c: Commit and push ~/src/dotclaude-skills (when skill spec files change)
@@ -99,7 +99,7 @@ For YOUR files only: build a manifest and msg exactly as in Step 1b, using `~/sr
 
 ```bash
 ~/.claude/skills/git-diary-workflow/git-lock-push.sh -f "$manifest" -m "$msg" ~/src/dotclaude-skills
-rm -f "$manifest"
+rm -- "$manifest"
 ```
 
 ### Step 2: Append diary entry

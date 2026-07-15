@@ -15,8 +15,8 @@
 #                    on conflict: git merge --abort → LEFT + surfaced, never half-merged
 #                 3. ckpt-tag.sh <repo>           (atomic RELAY_LOG entry + relay-ckpt-* tag)
 #                 4. git-lock-push.sh --ff-only   (flock'd; --ff-only won't race the pool)
-#                 5. git branch -D <orphan>       (ref consumed once integrated+pushed)
-#   discard   — git branch -D <orphan>            (drop the parked work entirely)
+#                 5. git branch -d <orphan>       (force-free; ref is merged once integrated+pushed)
+#   discard   — git branch -D <orphan>            (drop the parked work; gated: RELAY_DISCARD_CONFIRM=1)
 #   leave     — do nothing, keep the ref for a later pass
 #
 # Usage:
@@ -44,7 +44,9 @@
 #   --integrate BRANCH   Integrate one parked branch via the merge --no-ff → ckpt-tag →
 #                        --ff-only push recipe above. A merge conflict leaves the branch
 #                        intact (ref untouched) and surfaces the conflict on stderr.
-#   --discard  BRANCH    Drop one parked branch (git branch -D).
+#   --discard  BRANCH    Drop one parked branch (destructive git branch -D). Gated behind
+#                        RELAY_DISCARD_CONFIRM=1 (force-push.sh model, id:373e) — refuses
+#                        without it so automation/accident can never destroy parked work.
 #
 #   BRANCH may be given with or without the `relay/orphan/` prefix.
 #
@@ -252,8 +254,13 @@ integrate_branch() {
     push_status="push-skipped (no git-lock-push.sh)"
   fi
 
-  # 5. ref consumed — the committed work is now on main, tagged and pushed.
-  git -C "$repo" branch -D "$br"
+  # 5. ref consumed — the committed work is now on main, tagged and pushed. The branch was
+  #    just --no-ff merged (step 2), so it IS merged: a FORCE-FREE `git branch -d` succeeds
+  #    (id:373e). A refusal is an anomaly — surface and LEAVE the ref, never force-delete.
+  if ! git -C "$repo" branch -d "$br"; then
+    echo "WARN: integrated $br but 'git branch -d' refused (unexpected — unmerged?); ref LEFT for manual review, NOT force-deleted" >&2
+    log "integrate branch-d REFUSED repo=$repo branch=$br (left, not forced)"
+  fi
 
   echo "integrated $br → $ckpt_tag ($push_status)"
   log "integrate OK repo=$repo branch=$br tag=$ckpt_tag push=$push_status"
@@ -387,10 +394,20 @@ case "$action" in
     br="$(normalize_branch "$target")"
     git -C "$repo" rev-parse -q --verify "refs/heads/$br" >/dev/null \
       || { echo "relay-reconcile.sh: no such parked branch '$br'" >&2; exit 2; }
-    # Discard the parked work entirely: git branch -D drops the ref.
+    # Discard = irrecoverably drop parked (usually UNMERGED) work, which requires the
+    # destructive `git branch -D`. Per the no-force policy (id:373e), this human-only path is
+    # gated behind an EXPLICIT confirmation — exactly the force-push.sh model — so automation
+    # or an accidental invocation REFUSES (exit 2) before destroying anything.
+    if [ "${RELAY_DISCARD_CONFIRM:-}" != "1" ]; then
+      echo "relay-reconcile.sh --discard: REFUSED — dropping '$br' force-deletes unmerged parked work (destructive, irreversible)." >&2
+      echo "  Re-run with: RELAY_DISCARD_CONFIRM=1 $0 $repo --discard $target" >&2
+      echo "  Or keep the work: '--integrate $target' merges it; or leave the ref parked." >&2
+      log "discard REFUSED (no RELAY_DISCARD_CONFIRM) repo=$repo branch=$br"
+      exit 2
+    fi
     git -C "$repo" branch -D "$br"
     echo "discarded $br"
-    log "discard repo=$repo branch=$br"
+    log "discard repo=$repo branch=$br (confirmed via RELAY_DISCARD_CONFIRM)"
     ;;
 
   integrate)

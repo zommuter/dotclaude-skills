@@ -126,7 +126,7 @@ if ! flock -x -w 30 9; then
   # The next diary-append.sh invocation will replay it inside the lock.
   pending="$DIARY_DIR/.diary-pending-$timestamp"
   printf '\n%s\n%s\n' "$header" "$entry" > "$pending"
-  [[ -n "$entry_file" ]] && rm -f "$entry_file"
+  [[ -n "$entry_file" && -e "$entry_file" ]] && rm -- "$entry_file"
   echo "WARNING: diary lock timeout after 30s. Entry saved to $pending" >&2
   exec 9>&-
   exit 0
@@ -143,7 +143,7 @@ on_failure() {
   mkdir -p "$DIARY_DIR/.failed"
   local dest="$DIARY_DIR/.failed/entry-$timestamp-$$"
   printf '\n%s\n%s\n' "$header" "$entry" > "$dest"
-  [[ -n "$entry_file" ]] && rm -f "$entry_file"
+  [[ -n "$entry_file" && -e "$entry_file" ]] && rm -- "$entry_file"
   echo "ERROR: diary-append failed (pull/commit/push). Entry quarantined at: $dest" >&2
   echo "It will be replayed automatically on the next successful diary-append.sh run." >&2
   exec 9>&- 2>/dev/null || true
@@ -200,7 +200,7 @@ fi
 # Commit succeeded: the replayed entries are now in committed history, so their
 # quarantine files are safe to consume (exactly-once).
 for _done in ${_replayed[@]+"${_replayed[@]}"}; do
-  rm -f "$_done"
+  rm -- "$_done"
 done
 
 if ! git push origin "$_branch"; then
@@ -209,12 +209,12 @@ if ! git push origin "$_branch"; then
   # here would double-append, so we do not call on_failure; just fail loudly.
   echo "ERROR: diary-append committed locally but push failed. The commit is safe" >&2
   echo "and will be pushed on the next successful diary-append.sh run." >&2
-  [[ -n "$entry_file" ]] && rm -f "$entry_file"
+  [[ -n "$entry_file" && -e "$entry_file" ]] && rm -- "$entry_file"
   exec 9>&- 2>/dev/null || true
   exit 1
 fi
 
-# Success: the -f temp file (if any) is now safe to consume.
-[[ -n "$entry_file" ]] && rm -f "$entry_file"
+# Success: the temp file (if any) is now safe to consume.
+[[ -n "$entry_file" && -e "$entry_file" ]] && rm -- "$entry_file"
 
 exec 9>&-

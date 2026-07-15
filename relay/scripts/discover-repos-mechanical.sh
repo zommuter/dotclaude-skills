@@ -169,7 +169,7 @@ own_repos_file="$(mktemp)"
 own_repos_rc=0
 own_repos > "$own_repos_file" 2>>"$LOG" || own_repos_rc=$?
 if [[ "$own_repos_rc" -ne 0 ]]; then
-  rm -f "$own_repos_file"
+  rm -- "$own_repos_file"   # mktemp'd above ⇒ exists; no -f needed
   echo "discover-repos-mechanical.sh: FAILED to parse relay.toml ($RELAY_TOML), rc=$own_repos_rc — own-repo enumeration aborted; NOTHING written, heartbeat NOT beaten. See $LOG." >&2
   log "own_repos() FAILED rc=$own_repos_rc — relay.toml parse error, aborting before any write (id:0fa0)"
   exit 1
@@ -228,7 +228,7 @@ records_file="$(mktemp)"
 # crash before mkdir -p "$QUEUE_DIR", or before any .tmp.$$.* was ever created); this trap
 # only prevents a crash BETWEEN the tmp-write and the mv (below) from littering QUEUE_DIR with
 # an orphaned .tmp.$$.* file (id:0fa0 minor finding).
-trap 'rm -f "$records_file" "$own_repos_file" "$QUEUE_DIR"/.tmp.$$.* 2>/dev/null || true' EXIT
+trap 'rm -f "$records_file" "$own_repos_file" "$QUEUE_DIR"/.tmp.$$.* 2>/dev/null || true' EXIT  # force-ok: the .tmp.$$.* glob may not expand and mktemp files may be gone on a crash — -f is ENOENT-tolerance here, not a destructive force
 
 n_repos=0
 while IFS=$'\t' read -r name path; do
@@ -270,7 +270,7 @@ print(json.dumps({"units": [], "surfaced": [{"repo": os.environ["REPO_ARG"], "re
   fi
 done < "$own_repos_file"
 
-rm -f "$own_repos_file"
+rm -- "$own_repos_file"   # mktemp'd above ⇒ exists; no -f needed
 
 log "enumerated $n_repos confirmed own repo(s) from $RELAY_TOML"
 

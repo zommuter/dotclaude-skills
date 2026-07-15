@@ -16,7 +16,7 @@
 # Semantics (VERBATIM prelude step 8):
 #   file absent                          -> {"stopRequested":false}
 #   trimmed content a positive integer N>=1 -> write N-1 back, {"stopRequested":false}
-#   anything else (empty/non-numeric/"0"/negative) -> rm -f the file, {"stopRequested":true}
+#   anything else (empty/non-numeric/"0"/negative) -> remove the file, {"stopRequested":true}
 #     and append ONE ISO-8601-timestamped line to the consume log.
 #
 # Env:
@@ -58,7 +58,8 @@ if [[ "$trimmed" =~ ^[0-9]+$ ]] && [[ "$trimmed" =~ ^[1-9] ]]; then
 fi
 
 # Anything else (empty / non-numeric / "0" / negative) -> consume + stop.
-rm -f "$path"
+# ($path exists here: the file-absent case returned {stopRequested:false} earlier.)
+rm -- "$path"
 mkdir -p "$(dirname "$log_path")"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "$ts consumed STOP sentinel path=$path content=\"$content\"" >> "$log_path"

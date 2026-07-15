@@ -30,7 +30,7 @@ cutoff=$(date -d '30 days ago' '+%Y-%m-%d')
 today_ym=$(date '+%Y-%m')
 
 PRIOR_DONE_FILE=$(mktemp)
-trap 'rm -f "$PRIOR_DONE_FILE"' EXIT
+trap 'rm -- "$PRIOR_DONE_FILE"' EXIT
 
 if [[ $do_archive -eq 1 ]]; then
     if REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then

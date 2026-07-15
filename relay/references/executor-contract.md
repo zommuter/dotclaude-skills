@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v7 -->
+## Executor contract <!-- relay-executor contract v8 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -76,6 +76,22 @@ you were told you are the reviewer) follow these rules:
 5. **Hygiene**: commit early and often with conventional messages; never force-push;
    never edit ROADMAP.md item definitions (tick checkboxes only); pamac not pacman;
    uv for Python.
+5b. **Clean-worktree exit gate (id:373e)**: leave your worktree CLEAN — at the end of the
+   unit `git status --porcelain` in your worktree must be EMPTY. Reach that state by SENSIBLE
+   means only: **commit** every piece of legitimate work (including a regenerated lockfile —
+   `uv.lock`/`package-lock.json` — per the bump-includes-lockfile rule), and **gitignore**
+   genuine throwaway (`__pycache__/`, `.pytest_cache/`, coverage/build outputs; gitignored
+   files do NOT block worktree removal). You MUST NOT reach a clean tree by DISCARDING work —
+   no `git checkout -- <path>`, `git restore`, `git reset --hard`, `git clean`, `git stash`
+   (and never `git stash drop`/`clear`). That is **gaming**: the reviewer re-derives the
+   roadmap and re-runs tests on the *committed* state (rule 3), so any change you reverted to
+   look clean resurfaces as a missing feature or a red test, and the item is reopened.
+   A tree still dirty at exit means the unit is INCOMPLETE → hand it back (structured handback
+   per 2b, or a clean size-out), do not paper over it. The integrator retires worktrees
+   **force-free** (`worktree-retire.sh`, id:373e): a dirty worktree is SURFACED and LEFT on
+   disk for a supervised reconcile — it is NEVER force-cleaned — so a dirty exit strands your
+   work visibly instead of getting silently discarded. Leaving the tree clean is therefore
+   YOUR responsibility, not the integrator's to force.
 6. **`@needs-auth` wall — record-and-continue, never strand (D3, id:a505)**: if you
    hit an interactive-auth or human-held-secret wall you cannot clear unattended (sudo/
    askpass, polkit/pamac, ssh/login, gpg/credential, browser-OAuth, a decryption

@@ -16,7 +16,8 @@
 #   (1) the convention doc (hard-lanes.md) defines `@needs-auth` and lists all FOUR
 #       mandatory fields (what-secret / where-it-goes / exact-command / why);
 #   (2) roadmap-lint.sh does NOT flag an `@needs-auth`-marked ROADMAP item (clean exit 0);
-#   (3) the executor-contract marker is v7 AND the CLAUDE.md pointer matches v7 (no skew);
+#   (3) the executor-contract marker is >= v7 (the version that introduced @needs-auth) AND
+#       the CLAUDE.md pointer matches it exactly (no version skew);
 #   (4) the D3 record-and-continue contract rule text is present in executor-contract.md.
 #
 # Hermetic: only reads in-repo docs + runs roadmap-lint on a temp ROADMAP.
@@ -69,11 +70,10 @@ set -e
 ! grep -qi 'unknown\|untagged\|NO recognized' "$tmp/lint_err" \
   || fail "roadmap-lint stderr treats @needs-auth as an unknown/untagged marker (err: $(cat "$tmp/lint_err"))"
 
-# --- (3) contract marker v7 AND CLAUDE.md pointer matches (no version skew) ----
+# --- (3) contract marker >= v7 (the @needs-auth floor) AND CLAUDE.md pointer matches (no skew)
 contract_v="$(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT" | head -1 | grep -oE 'v[0-9]+')"
 pointer_v="$(grep -oE 'relay-executor contract v[0-9]+' "$CLAUDE_MD"  | head -1 | grep -oE 'v[0-9]+')"
-[[ "$contract_v" == "v7" ]] || fail "executor-contract marker is '$contract_v', expected v7"
-[[ "$pointer_v"  == "v7" ]] || fail "CLAUDE.md pointer is '$pointer_v', expected v7"
+[[ "${contract_v#v}" -ge 7 ]] || fail "executor-contract marker is '$contract_v', expected >= v7 (the @needs-auth floor)"
 [[ "$contract_v" == "$pointer_v" ]] || fail "version skew: contract=$contract_v vs pointer=$pointer_v"
 
 # --- (4) the D3 record-and-continue contract rule text is present --------------
@@ -81,4 +81,4 @@ grep -qF '@needs-auth' "$CONTRACT" || fail "executor-contract.md is missing the 
 grep -qi 'record-and-continue\|record.*box.*continue\|RECORDS a conforming' "$CONTRACT" \
   || fail "executor-contract.md @needs-auth rule does not state record-and-continue"
 
-pass "@needs-auth convention (4 fields) + v7 contract rule (no skew) + roadmap-lint recognition (a505)"
+pass "@needs-auth convention (4 fields) + contract rule >=v7 (no skew) + roadmap-lint recognition (a505)"
