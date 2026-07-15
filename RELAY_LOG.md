@@ -2566,3 +2566,7 @@ exactly; no other lines touched. `tests/test_needs_auth_lister_named_repo.sh`
 stays green; full `make test` 243 passed / 0 failed / 0 expected-red.
 Friction: none — a one-line split, already-written RED spec covered both the crash fix
 and the plugin-path `PATH_OF` lookup (already correct pre-fix, unchanged). [id:b8c2]
+
+## 2026-07-15 12:58 — executor (sonnet, relay-loop)
+
+id:b8c2 — fixed gather-human-backlog.sh unbound-variable crash in list_needs_auth_repo (split local decl); 243 tests green [id:b8c2]
