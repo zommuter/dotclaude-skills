@@ -312,13 +312,26 @@ if [[ -n "$audit_ref" ]] && git -C "$path" rev-parse --verify -q "$audit_ref" >/
     # Only checkpoint commits (or none) since the ref → nothing substantive to audit.
     substantive_unaudited=false
   else
-    # Of the non-checkpoint commits, is ANY one not a pure uv.lock-only relock? (reuse id:bae5)
+    # Of the non-checkpoint commits, is ANY one substantive — i.e. not a pure uv.lock-only
+    # relock (id:bae5) and not a pure contract-pointer-refresh (id:373e follow-up)?
     has_substantive=false
     while IFS= read -r sha; do
       [[ -z "$sha" ]] && continue
       files="$(git -C "$path" show --name-only --pretty=format: "$sha" 2>/dev/null | grep -v '^[[:space:]]*$' || true)"
       nonlock="$(printf '%s\n' "$files" | grep -vx 'uv.lock' || true)"
-      [[ -n "$nonlock" ]] && { has_substantive=true; break; }
+      [[ -z "$nonlock" ]] && continue    # uv.lock-only relock — not substantive (id:bae5)
+      # Contract-pointer-refresh exemption: a commit whose ONLY changed content is the
+      # `relay-executor contract vN` pointer line is a pure META refresh (`relay review` §4
+      # bumps the marker when the executor contract version rises). A version bump must NOT,
+      # by itself, re-classify every managed repo as needing a fresh strong review — that was
+      # the observed waste (zkm-pdf, 2026-07-15). Detected by CONTENT, not commit subject, so
+      # it holds however the reviewer titles the commit.
+      content="$(git -C "$path" show --pretty=format: --unified=0 "$sha" 2>/dev/null \
+                 | grep -E '^[+-]' | grep -vE '^[+-]{3} ' || true)"   # actual +/- content lines
+      nonmeta="$(printf '%s\n' "$content" | grep -vE '^[[:space:]]*$' \
+                 | grep -vE 'relay-executor contract v[0-9]+' || true)"
+      [[ -z "$nonmeta" ]] && continue    # every changed line is the contract pointer — meta only
+      has_substantive=true; break
     done <<< "$nonckpt_shas"
     [[ "$has_substantive" == true ]] && substantive_unaudited=true || substantive_unaudited=false
   fi
