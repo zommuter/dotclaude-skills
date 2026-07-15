@@ -10,6 +10,54 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- 2026-07-15 handoff C2 (run relay-20260715-121544-12169): promoted the single
+     `promote`-disposition TODO item (unpromoted-scan @ dotclaude-skills: 1 promote / 28
+     laned; the 159 surface items are the mechanical `human`-verdict filer's job, NOT this
+     handoff's). id:f682 REUSES its open TODO.md twin (single-id-two-views D2). Scoped the
+     [ROUTINE] deliverable to the load-bearing mechanized integrator gate
+     `scripts/verify-isolation.sh` (recommended-fix part 2) with a functional RED spec;
+     parts 1 (child-spawn prompt boilerplate) + 3 (recovery doctrine) fold in as in-scope
+     doc edits. TODO.md summary line refreshed. C3 RED test written + verified red. -->
+
+- [ ] [ROUTINE] Relay pre-integrate isolation gate — `scripts/verify-isolation.sh <worktree>` so a child that wrote to the target's MAIN checkout instead of its worktree fails loud before merge <!-- id:f682 -->
+  - **Why** (observed 2026-07-14, loderite R2 consumer handoff): a spawned child correctly
+    ran `git worktree add …` but then wrote every edit to the target's MAIN checkout
+    (`~/src/loderite`, repo-root-relative paths / never `cd`-ing into the worktree). Its
+    worktree stayed EMPTY (0 commits ahead of base), so its "commit in worktree" was a no-op
+    and its self-report was wrong; the whole handoff's RED specs landed loose in the main
+    checkout, mixed with an unrelated in-flight edit, and had to be reconciled by hand.
+    DISTINCT from the c6c8 `isolation:worktree`-param hazard (there the worktree was never
+    created; here it was created but bypassed).
+  - **How / Design** (part 2 is the load-bearing mechanized fix; do all three):
+    (1) **PROMPT** — the child-spawn boilerplate (relay invariant-4 child instructions) must
+    force the worktree as working dir (absolute worktree path in every Read/Write/Edit, or
+    make it cwd) and explicitly forbid touching the main checkout. Fold this sentence into the
+    invariant-4 boilerplate text wherever the relay skill emits child prompts.
+    (2) **INTEGRATOR GATE (mechanize)** — new `relay/scripts/verify-isolation.sh <worktree>`
+    the integrator (invariant 5) runs BEFORE merging, mirroring `clean-tree-gate.sh` style
+    (`set -euo pipefail`, log to `~/.claude/logs/`, exit 0 = safe / exit 2 = isolation
+    failed, observe-only never mutate). It asserts the worktree branch has commits beyond its
+    base (`git -C <worktree> log --oneline <base>..HEAD` non-empty) AND `git -C <worktree>
+    status --porcelain` is clean; if the worktree is EMPTY it FAILS LOUD (exit 2, print the
+    reason) — do not merge an empty branch. Not-a-git-worktree / missing path → exit 2 with a
+    stderr message. Accept the base ref via `--base <ref>` (default `origin/main`, resolve to
+    the current default branch if origin/main is absent).
+    (3) **RECOVERY doctrine** — add a short paragraph to `relay/references/conventions.md` (or
+    the integrator step it documents): when isolation fails the work is usually sound but
+    mislocated — finish/commit it in the MAIN checkout under the held lease (the id:15d5
+    pattern); salvage beats discard+re-run.
+  - **Acceptance**: `tests/test_verify_isolation.sh` (`# roadmap:f682`, written RED by this
+    handoff) goes green — using real temp git repos + worktrees: (a) worktree with a commit
+    beyond base + clean tree → prints ok, exit 0; (b) EMPTY worktree (no commits beyond base)
+    → exit 2, stderr/stdout names the isolation failure; (c) worktree with commits but a dirty
+    tree → exit 2; (d) non-existent / non-git path → exit 2. Script never runs stash / reset /
+    checkout -- / clean (grep-assert it mutates nothing).
+  - **Done-check**: `tests/run-tests.sh tests/test_verify_isolation.sh` green after ticking,
+    then full `make test`.
+  - **Context**: model `relay/scripts/clean-tree-gate.sh` (same fail-safe/observe-only shape).
+    Relates c6c8 (sibling isolation hazard), 15d5 (main-checkout-under-lease recovery), d2cd
+    (lock/hazard umbrella), the invariant-4 worktree spawn step + invariant-5 integrate step.
+
 <!-- 2026-07-15 review mini-handoff (run relay-20260715-121544-12169): relay-doctor
      surfaced two INBOUND inbox dead-letters (routed:2365 + routed:8653) reporting a real
      crash in the shipped id:1750 offline @needs-auth lister. Reproduced + root-caused:
