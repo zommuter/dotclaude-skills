@@ -2578,3 +2578,18 @@ review: verified id:b8c2 genuinely green (unbound-var fix satisfies unchanged RE
 ## 2026-07-15 13:52 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 handoff: promoted id:f682 (relay pre-integrate isolation gate) to ROADMAP [ROUTINE] with functional RED spec test_verify_isolation.sh [id:f682]
+
+## 2026-07-15 — executor (sonnet, relay-loop)
+
+Worked id:f682 — implemented `relay/scripts/verify-isolation.sh` (part 2, the load-bearing
+mechanized integrator gate): observe-only, exit 0 when the worktree has commits beyond
+base + a clean tree, exit 2 (never mutates) on an empty worktree, a dirty tree, or a
+non-worktree path. Wired it into `relay/SKILL.md` invariant 5 (integrate step, called
+before the `--no-ff` merge) and added the "write only inside your worktree" boilerplate
+sentence + a recovery-doctrine paragraph (salvage-under-lease, id:15d5 pattern) to
+`relay/references/conventions.md` (parts 1 + 3 of the item's design). Registered the new
+script in the Makefile's `relay_FILES`/`relay_EXEC`/`relay_ALLOW` manifests — the
+pre-existing `test_relay_install_manifest.sh` caught the omission on first `make test`.
+`tests/test_verify_isolation.sh` (roadmap:f682) green; full `make test` 244 passed / 0
+failed / 0 expected-red.
+Friction: none.

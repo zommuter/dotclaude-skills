@@ -19,7 +19,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
      parts 1 (child-spawn prompt boilerplate) + 3 (recovery doctrine) fold in as in-scope
      doc edits. TODO.md summary line refreshed. C3 RED test written + verified red. -->
 
-- [ ] [ROUTINE] Relay pre-integrate isolation gate — `scripts/verify-isolation.sh <worktree>` so a child that wrote to the target's MAIN checkout instead of its worktree fails loud before merge <!-- id:f682 -->
+- [x] [ROUTINE] Relay pre-integrate isolation gate — `scripts/verify-isolation.sh <worktree>` so a child that wrote to the target's MAIN checkout instead of its worktree fails loud before merge <!-- id:f682 -->
   - **Why** (observed 2026-07-14, loderite R2 consumer handoff): a spawned child correctly
     ran `git worktree add …` but then wrote every edit to the target's MAIN checkout
     (`~/src/loderite`, repo-root-relative paths / never `cd`-ing into the worktree). Its
