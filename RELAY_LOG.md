@@ -2597,3 +2597,7 @@ Friction: none.
 ## 2026-07-15 14:10 — executor (sonnet, relay-loop)
 
 id:f682 — implemented relay/scripts/verify-isolation.sh (pre-integrate isolation gate) + wired into SKILL.md invariant 5 and conventions.md; 244/0 tests green [id:f682]
+
+## 2026-07-15 14:31 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: verified id:f682 genuinely green (verify-isolation.sh, unmodified RED spec, suite 244/0) + ticked TODO twin (cross-ledger sync) [id:f682]
