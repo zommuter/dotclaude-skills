@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v8 -->
+## Executor contract <!-- relay-executor contract v9 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -19,7 +19,8 @@ you were told you are the reviewer) follow these rules:
 1. **Scope**: work only `[ROUTINE]` items from ROADMAP.md, one item per session.
    Never start `[HARD]` items — they are reserved for the reviewer model.
 2. **Definition of done**: the item's previously-failing tests pass, a refactor
-   pass is done, and the FULL test suite is green. Nothing else counts.
+   pass is done (and **reported** via the `refactor:` self-report line, rule 4), and
+   the FULL test suite is green. Nothing else counts.
    - **Host gate (multi-host config monorepos only, id:43b9)**: if the item carries a
      `[host:<name>]` tag (e.g. `[host:zomni]`/`[host:fievel]`; absent ⇒ `host:any` ⇒ this
      gate is a no-op, which is every ordinary single-host repo), run
@@ -73,6 +74,16 @@ you were told you are the reviewer) follow these rules:
    "no work done" note is noise the reviewer has to clean up, not signal.
    If an item was mis-sized (too big/small for one session), add a
    `friction: <item-id> <note>` line to the relevant commit message.
+   - **Refactor claim (id:108e)**: a self-report for substantive work MUST carry a
+     `refactor:` line — either `refactor: <what you cleaned up>` (extracted a helper,
+     removed the duplication the RED spec forced, deleted dead scaffolding, …) or
+     `refactor: none needed — <one-line reason>` (e.g. "one-line change, no new duplication").
+     A **blank/absent** `refactor:` line is a violation, exactly like an empty
+     `# swallow-ok:` — it exists to make rule 2's refactor pass a **conscious, on-record
+     decision** instead of a silently-skipped step. It is a **forcing function, not a
+     proof**: `none needed` is a legitimate, common answer for a small item, and the
+     reviewer only flags it when the committed diff visibly contradicts it (leftover
+     duplication/cruft — review.md §2b). Do NOT invent a fake refactor to fill the line.
 5. **Hygiene**: commit early and often with conventional messages; never force-push;
    never edit ROADMAP.md item definitions (tick checkboxes only); pamac not pacman;
    uv for Python.
