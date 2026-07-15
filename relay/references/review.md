@@ -83,6 +83,18 @@ do not re-implement them inline.
    genuinely-dirty exit is *surfaced-and-left*, never silently discarded — an honest executor
    hands the incomplete unit back rather than faking a clean tree.)
 
+6. **Refactor claim vs diff (id:108e — the v9 `refactor:` self-report)** — the executor
+   contract (rule 4) requires a `refactor:` line in the RELAY_LOG self-report: what was
+   cleaned up, or `none needed — <reason>`. This is a **forcing function, not a proof** —
+   refactoring is behaviour-preserving, so it cannot be mechanically verified, and `none
+   needed` is a legitimate common answer for a small item. FLAG it ONLY when the committed
+   diff **visibly contradicts** the claim: `none needed` next to obvious leftover cruft —
+   dead code, duplicated blocks the acceptance implies unifying, un-removed RED-spec
+   scaffolding, a copy-paste of an existing helper. Do not demand refactoring where the
+   change was genuinely a clean one-liner. (Mechanizable later as a duplication/similarity
+   linter — dotclaude-skills id:2c94 — which would catch the *left-duplication* signal
+   deterministically; until then this is a judgment cross-check.)
+
 Anything flagged here (from either the mechanical pass or the judgment residue) is
 surfaced prominently in the return report and the roadmap item is reopened.
 

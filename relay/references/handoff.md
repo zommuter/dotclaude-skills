@@ -139,6 +139,11 @@ splittable candidates is deferred (observe-first).
 verify each is actually red (run them). Map each test to its item with a
 `# roadmap:XXXX` comment. The suite is the spec — an executor is done when it goes
 green plus a refactor pass, nothing else. Commit `relay(handoff): C3 red tests`.
+**Triangulate the spec (id:108e):** give each item enough DISTINCT cases that
+special-casing the exact inputs is harder than implementing the real behaviour — a
+lone example invites a hard-coded pass, several force generalization. This is the
+proactive complement to `review.md` §2b, which only catches fixture-special-casing
+after the fact.
 
 Two real-world C3 cases the strict "red = spec" rule doesn't cover (meeting
 `docs/meeting-notes/2026-06-13-1751-handoff-review-me-wave.md`, D1/D2):
