@@ -44,7 +44,7 @@ relay_FILES := SKILL.md \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh \
                scripts/relay-loop.js scripts/inject.sh scripts/claim.sh \
                scripts/heartbeat.sh \
-               scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/force-push.sh \
+               scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh scripts/force-push.sh \
                scripts/relay-state-write.sh \
                scripts/gaming-scan.sh scripts/profile-run.sh scripts/profile-runs-batch.sh \
                scripts/relay-burn.sh scripts/relay-econ.py scripts/relay-reconcile.sh \
@@ -67,7 +67,7 @@ relay_FILES := SKILL.md \
                scripts/lib-own-repos.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
-               scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
+               scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
                scripts/force-push.sh \
                scripts/relay-state-write.sh scripts/gaming-scan.sh scripts/profile-run.sh \
                scripts/profile-runs-batch.sh scripts/relay-burn.sh scripts/relay-econ.py \
@@ -87,7 +87,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/deny-tail-probe.sh scripts/archive-closed.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
-               scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh \
+               scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
                scripts/force-push.sh \
                scripts/relay-state-write.sh scripts/gaming-scan.sh scripts/profile-run.sh \
                scripts/profile-runs-batch.sh scripts/relay-burn.sh scripts/relay-econ.py \

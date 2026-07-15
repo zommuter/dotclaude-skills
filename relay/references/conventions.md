@@ -21,6 +21,14 @@ rather than copying the full block — see §Executor-contract pointer below.
   extending the Caddy whitelist — a deploy without the whitelist entry silently 404s.
 - **Sudo**: `SUDO_ASKPASS=/usr/lib/ssh/ssh-askpass sudo -A` (graphical prompt).
 - **Locale**: de_CH context, English for code/docs, ISO 8601 dates, 24-hour time, SI units.
+- **Worktree isolation (id:f682)**: your worktree is the ONLY place to write. Use the
+  absolute worktree path in every Read/Write/Edit call (or `cd` into it and stay there) —
+  never a repo-root-relative path that could resolve inside the target's MAIN checkout.
+  Touching the main checkout instead of your worktree is a real observed failure mode
+  (2026-07-14, loderite R2): the worktree stays EMPTY (0 commits ahead of base), the
+  "commit in worktree" self-report is silently wrong, and the integrator's
+  `verify-isolation.sh` gate (below) now catches it before merge — but the goal is to never
+  trigger that gate in the first place.
 
 ## Relay invariants (orchestrator + children)
 
@@ -37,6 +45,19 @@ rather than copying the full block — see §Executor-contract pointer below.
   `git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`. The annotation
   label still records the producing model + role (e.g. `reviewer (claude-opus-4-8,
   fable-standin, relay-loop)`) — that model-in-label is the historical record.
+- **Pre-integrate isolation gate (id:f682).** BEFORE merging a child's worktree branch,
+  the integrator runs `relay/scripts/verify-isolation.sh <worktree> [--base <ref>]`
+  (mirrors `clean-tree-gate.sh`'s observe-only/fail-safe shape): exit 0 = the worktree has
+  ≥1 commit beyond base and a clean tree, safe to merge; exit 2 = isolation failure (empty
+  worktree / dirty tree / not a worktree at all) — **abort the merge, do not force
+  anything**. **Recovery doctrine**: an isolation failure usually means the work itself is
+  sound but MISLOCATED (written to the main checkout instead of the worktree), not that
+  the work is bad — favor salvage over discard+re-run. Finish/commit the salvageable work
+  in the MAIN checkout under the repo's held relay lease (the id:15d5 pattern: `/relay
+  human`/review-style writes land directly in the main checkout under a lease, no worktree
+  merge needed), then re-check with `git status`/`git log` before proceeding. Only discard
+  and re-dispatch the unit if the mislocated changes are unrecoverable or entangled with
+  unrelated concurrent edits.
 
 ## Tagging `[INTENSIVE — <resource>]` (id:8d52)
 
