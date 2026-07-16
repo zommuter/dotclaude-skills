@@ -2605,3 +2605,37 @@ review: verified id:f682 genuinely green (verify-isolation.sh, unmodified RED sp
 ## 2026-07-16 12:34 — reviewer (claude-opus-4-8)
 
 id:7612 — wire the isolation gate into the integrator (step 1a) + main-HEAD discriminator resolving the id:8e3e ambiguity; f682's acceptance never asserted a call site [id:7612]
+
+## 2026-07-16 13:55 — reviewer (claude-opus-4-8, relay-loop)
+
+review: id:7612 VERIFIED genuinely green — the isolation gate is really wired (verify-isolation.sh
+called in relay-loop.js via the absolute path, before `merge --no-ff`, instructing ABORT), confirmed
+by mutation-testing 3 broken-gate variants, all still caught. gaming-scan clean; the window was
+ledger-only (no code/test files touched), so no resurrection/fixture/refactor residue to audit.
+Tiers (id:f032): the repo declares ONE tier — `make test` (no CI, no package.json). Ran green:
+248 passed / 0 failed / 2 expected-red. No tier skipped.
+
+id:b780 — FIXED a flake that was red-lighting the whole suite: tests/test_isolation_gate_wired.sh
+piped 91697 B of relay-loop.js into `grep -q` under `set -o pipefail`. The pipe buffer is 65536 B,
+so printf blocks mid-write while grep -q matches at byte 63529 and exits first; printf dies of
+SIGPIPE and pipefail promotes it to a failure EVEN THOUGH grep matched (rc=141, PIPESTATUS=[0]).
+Measured 1/25 idle, 22/40 under CPU load. Fix = herestrings + `grep -m1`; 0/60 after, spec intact
+per the mutation tests. Diagnosis requires real bash — the agent shell is zsh, where PIPESTATUS is
+empty and the race does not reproduce (that mis-shell cost several invalid "cannot reproduce" runs).
+
+§5b reverse-handoff — 4 unqualified TODO items arrived this window. PROMOTED 2 (ids REUSED, D2):
+id:1312 (unpromoted-scan bare-substring twin check) → [ROUTINE] + RED tests/test_unpromoted_scan_anchoring.sh;
+id:d515 (scan-routed apply header claims DRY-RUN) → [ROUTINE] + RED tests/test_scan_routed_apply_header.sh.
+Both specs verified red-for-the-right-reason with passing controls. NOT promoted: id:1f60 and
+id:2456 — each turns on owner judgment (what counts as a "delegated verdict"; a bar on skill-authored
+invariant prose), so they stay TODO-side /meeting candidates.
+
+Ingested inbox dead-letter routed:f1f5 → id:521f (roadmap-lint's unanchored first-match id_re) —
+same defect family as id:1312; flagged for a possible shared anchored-extraction helper (REVIEW_ME).
+DECLINED the orphan-scan --shipped TICK-READY hit on id:de31: its linked test declares a narrower
+scope than the item (record format only; C7 also needs the forced-resolution write + triage
+sub-agent), so a tick would freeze the harder half as done. Verified the 8eaa0c9 routed:6754 tick
+claim — genuinely drained from the inbox and present in project_manager/TODO.md.
+
+routine_open: 2 (id:1312, id:d515). Contract pointer v9 == canonical v9, no drift. relay-doctor:
+2 findings (the f1f5 dead-letter, now ingested; relay-core shadow 28351 rounds / 0 mismatches). [id:7612 id:b780 id:1312 id:d515 id:521f]
