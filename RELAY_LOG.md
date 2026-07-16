@@ -2643,3 +2643,19 @@ routine_open: 2 (id:1312, id:d515). Contract pointer v9 == canonical v9, no drif
 ## 2026-07-16 14:25 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:7612 verified genuinely green (mutation-tested); fixed a SIGPIPE flake red-lighting the whole suite (id:b780); promoted id:1312/id:d515 [ROUTINE] with RED specs; suite 248/0 + 2 expected-red [id:7612,b780,1312,d515,521f,de31]
+
+## 2026-07-16 — executor (claude-sonnet-5)
+
+Worked id:1312 and id:d515 — both open [ROUTINE] items from the previous review round.
+id:1312: anchored `unpromoted-scan.sh`'s twin check to an item's own trailing `- [ ]/- [x]
+... <!-- id:XXXX -->` checkbox-line marker instead of a bare `grep -qF "id:$token"` over the
+whole ROADMAP.md, which had been false-matching prose that merely mentions a token inside
+another item's explanatory text. id:d515: fixed `scan-routed.sh`'s APPLY-mode header, which
+used `${DRY_RUN:+...}` (expands on the non-empty default `DRY_RUN=0`) so every real --apply
+run mislabelled itself "(DRY-RUN)"; switched to a value-gated `$([[ "$DRY_RUN" -eq 1 ]] && ...)`.
+Both RED specs (tests/test_unpromoted_scan_anchoring.sh, tests/test_scan_routed_apply_header.sh)
+now pass; full suite green at 250/0/0. Both fixes were one-line changes with a scoped comment
+explaining the anchoring; no new duplication introduced.
+Friction: none.
+refactor: none needed — one-line fixes each, mirroring an anchoring pattern scan-routed.sh
+already used elsewhere; no new duplication to extract.

@@ -196,7 +196,7 @@ echo
 
 # --- pass 2: dead letters (+ optional --apply) ---------------------------------
 if [[ "$APPLY" -eq 1 ]]; then
-  echo "=== routed dead-letters — APPLY mode${DRY_RUN:+' (DRY-RUN)'} ==="
+  echo "=== routed dead-letters — APPLY mode$([[ "$DRY_RUN" -eq 1 ]] && echo ' (DRY-RUN)') ==="
 else
   echo "=== routed dead-letters (target repo never ingested the item) ==="
 fi
