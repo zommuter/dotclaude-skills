@@ -10,6 +10,79 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- 2026-07-16 handoff C2/C3 (interactive apex session, owner-directed): promoted TODO
+     id:7612 REUSING its TODO twin (single-id-two-views D2). Owner ratified the
+     main-HEAD-discriminator option over "wire for execute/hard only" and over routing to
+     /meeting. C3 RED spec written + verified red before dispatch. Scope note: this item
+     exists because id:f682's acceptance criteria tested only the SCRIPT's behaviour and
+     never asserted a CALL SITE — so the gate shipped, ticked green, and was never wired.
+     The acceptance below therefore asserts the wiring itself, not just the logic. -->
+
+- [ ] [ROUTINE] Wire the isolation gate into the integrator + make its signal unambiguous (main-HEAD discriminator) <!-- id:7612 -->
+  - **Why**: `verify-isolation.sh` (id:f682) exists, is tested, is installed, is allowlisted —
+    and `relay-loop.js` has **never called it** (`grep -c verify-isolation relay/scripts/relay-loop.js`
+    → **0**, verified 2026-07-16). Invariant 5 + `references/conventions.md` document it as the
+    pre-merge gate, so enforcement currently rests on an LLM following prose — the
+    mechanize-first anti-pattern. It guards a failure that has already happened twice: loderite
+    2026-07-14 (child ran `worktree add` then wrote every edit to the target's MAIN checkout)
+    and jobAI 2026-06-30 (id:c6c8, child committed straight to `main`).
+    `clean-tree-gate.sh` (step 1) catches only the UNCOMMITTED-to-main variant — it leaves main
+    clean-and-committed undetected, which is the exact loderite/jobAI shape.
+  - **BLOCKER this item must solve (verified 2026-07-16, do NOT skip)**: wiring the gate AS BUILT
+    would **regress id:8e3e**. The gate exits 2 on an empty worktree ("NO commits beyond base"),
+    but relay-loop.js step 2 explicitly treats a ZERO-COMMIT branch as a **legitimate completed
+    unit** — a review child that audited its window and correctly found nothing to change. A
+    handback there leaves the audited window unclosed and the pool re-dispatches the same review
+    every round (observed 3× on 2026-07-01). **"Worktree empty" is an AMBIGUOUS signal**: it is
+    the signature of BOTH a legitimate no-op review AND an isolation breach.
+  - **How / Design** (the discriminator needs NO new plumbing — do not thread state through the pool):
+    The breach signature is not "worktree empty" but "**worktree empty AND main advanced with
+    non-integrator commits**". Both facts are derivable from the repo + worktree the gate is
+    already handed, because the worktree branch was cut from main's HEAD at dispatch:
+    - `base = git merge-base <worktree-HEAD> <main-ref>` — this IS the dispatch-time main HEAD.
+    - `empty      := <worktree-HEAD> == base`   (branch carries no commits of its own)
+    - `main_moved := <main-ref-HEAD> != base`   (main advanced since dispatch)
+    Then:
+    - `empty && !main_moved` → **exit 0** (legitimate id:8e3e no-op review; today this wrongly exits 2).
+    - `empty &&  main_moved` → **exit 2** ONLY if the commits in `base..<main-ref>` include at
+      least one **non-merge** commit (a `--no-ff` integrator merge, or merges from another unit,
+      are NOT a breach). Name the offending commit(s) in the failure output.
+    - `!empty` → existing behaviour unchanged (clean tree → exit 0; dirty → exit 2).
+    **Known false-positive, accept + document (do NOT over-engineer):** a legitimate no-op review
+    that races a concurrent SUPERVISED direct-to-main commit (id:15d5) will read as `empty &&
+    main_moved` and exit 2. That is the CONSERVATIVE direction — it defers a no-op unit rather
+    than merging a possible breach — and it costs only a re-dispatch. Add a sentence to the
+    script header saying so. Do NOT add author/timestamp heuristics to chase it.
+    **Wiring**: add the call to the relay-loop.js integrator recipe as a new step between the
+    existing step 1 (clean-tree-gate) and step 1b (sync-origin), mirroring step 1's shape
+    EXACTLY: absolute `~/.claude/skills/relay/scripts/verify-isolation.sh` path (NEVER the
+    repo-relative form — it only resolves when cwd is dotclaude-skills), explicit "on non-zero
+    exit, ABORT: return merged=false with reason …". Keep `${report.worktree}` as the argument.
+  - **Also fix the docs** (they are the reason this was never caught): `relay/SKILL.md`
+    invariant 5 and `relay/references/conventions.md` both write the invocation repo-relative
+    (`relay/scripts/verify-isolation.sh`). Change both to the absolute `~/.claude/skills/...`
+    form used by every other integrator gate.
+  - **Acceptance**: `tests/test_isolation_gate_wired.sh` (`# roadmap:7612`, written RED by this
+    handoff) goes green. It asserts BOTH halves:
+    (a) **WIRING** — `relay/scripts/relay-loop.js` contains a `verify-isolation.sh` call using the
+        absolute `~/.claude/skills/` path, and the surrounding recipe text carries an ABORT
+        instruction. This is the assertion id:f682 lacked; without it the gate regresses to prose.
+    (b) **DISCRIMINATOR** (real temp repos + worktrees, hermetic): empty + main unmoved → exit 0;
+        empty + main advanced by a NON-MERGE commit → exit 2 naming the commit; empty + main
+        advanced only by a MERGE commit → exit 0; non-empty + clean → exit 0; non-empty + dirty
+        → exit 2.
+    (c) **No regression** — `tests/test_verify_isolation.sh` (id:f682's own suite) still passes,
+        EXCEPT its now-obsolete "empty → exit 2" case, which this item's design deliberately
+        supersedes: update that case to construct `empty && main_moved` so it still asserts a
+        breach. Do NOT delete the case.
+  - **Done-check**: `tests/run-tests.sh tests/test_isolation_gate_wired.sh` green after ticking,
+    then full `make test` green.
+  - **Context**: model the wiring on step 1's `clean-tree-gate.sh` text in
+    `relay/scripts/relay-loop.js` (~line 1707). The gate script is
+    `relay/scripts/verify-isolation.sh`. Relates id:f682 (the gate), id:8e3e (the zero-commit
+    legitimacy this must not regress), id:c6c8 + the loderite 2026-07-14 incident (the failures
+    it guards), id:15d5 (the supervised-write false-positive above), id:c5ed (install drift).
+
 <!-- 2026-07-15 handoff C2 (run relay-20260715-121544-12169): promoted the single
      `promote`-disposition TODO item (unpromoted-scan @ dotclaude-skills: 1 promote / 28
      laned; the 159 surface items are the mechanical `human`-verdict filer's job, NOT this
