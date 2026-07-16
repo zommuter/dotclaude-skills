@@ -2601,3 +2601,7 @@ id:f682 — implemented relay/scripts/verify-isolation.sh (pre-integrate isolati
 ## 2026-07-15 14:31 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: verified id:f682 genuinely green (verify-isolation.sh, unmodified RED spec, suite 244/0) + ticked TODO twin (cross-ledger sync) [id:f682]
+
+## 2026-07-16 12:34 — reviewer (claude-opus-4-8)
+
+id:7612 — wire the isolation gate into the integrator (step 1a) + main-HEAD discriminator resolving the id:8e3e ambiguity; f682's acceptance never asserted a call site [id:7612]
