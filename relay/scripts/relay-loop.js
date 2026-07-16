@@ -866,6 +866,15 @@ const prelude = await agent(
   { label: 'discover-prelude', phase: 'Discover', schema: PRELUDE_SCHEMA, model: 'haiku' }
 )
 
+// id:c5ba/id:a921 — canonicalize the run id ONCE, here: the earliest point it exists, and
+// BEFORE any consumer cites it. `||` preserves the front-door mint (A.RUN_ID) and, from round 2
+// on, round 1's value — prelude.runId is re-minted EVERY round, so anything naming a run must
+// read state.runId (the stable id the events log, RELAY_STATUS header, heartbeat and burn
+// sampler all write). Consumers that cited prelude.runId printed a run nothing ever wrote:
+// `relay-burn.sh --run <that id>` returned "0 samples" (id:a921). Guarded for a failed prelude
+// (the stop-sentinel branch below tolerates a falsy prelude).
+state.runId = state.runId || (prelude && prelude.runId) || ''
+
 // id:c012 — operator graceful-stop sentinel fired this round. The PRIOR round's wave +
 // integration debt were already drained by runRound before this discovery ran, so there is
 // nothing in flight to abandon: short-circuit BEFORE sharding/dispatch (drop any queued units,
@@ -879,9 +888,8 @@ if (prelude && prelude.stopRequested === true) {
   // status write (~L1357) is skipped on this early return, so without this the "Stop reason"
   // section would stay stale ("(none — drained cleanly)") even though the run returns
   // stopReason="user-stop". snapshotState captures the module-level stopReason; the outer
-  // loop's `await statusTail` flushes this queued write. Set the fresh prelude timestamp/runId
-  // so the header isn't stale (discovery isn't built on this path).
-  state.runId = state.runId || prelude.runId
+  // loop's `await statusTail` flushes this queued write. Set the fresh prelude timestamp so the
+  // header isn't stale (discovery isn't built on this path); runId is already canonicalized above.
   if (prelude.ts) state.ts = prelude.ts
   scheduleStatusWrite(state)
   return { actionable: 0, produced: 0, userStop: true }
@@ -1201,7 +1209,10 @@ Return {units, surfaced, skipped} = the CONCATENATION across every repo in your 
   // its FIRST wasted child (the breaker's >3× is the coarser backstop for any other spin).
   // Injected units are exempt. Suppressed units are surfaced (visible, not silently dropped).
   {
-    const { kept, suppressed } = applyNoWorkSuppression(units, noWorkNegCache, prelude.runId)
+    // id:a921 — cite the CANONICAL run id (state.runId, canonicalized at the prelude), not the
+    // per-round prelude mint: the reason carries a `relay-burn.sh --run <id>` cost hint, and
+    // prelude.runId names a run nothing ever wrote (0 samples).
+    const { kept, suppressed } = applyNoWorkSuppression(units, noWorkNegCache, state.runId)
     if (suppressed.length) {
       for (const s of suppressed) surfaced.push({ repo: s.unit.repo, reason: s.reason })
       log(`relay-loop: id:1432 no-work handback suppression — ${suppressed.length} unit(s) not re-dispatched (route=none handback, work_sig unchanged): ${suppressed.map(s => `${s.unit.repo}(${s.unit.verdict})`).join(', ')}`)
@@ -1209,40 +1220,14 @@ Return {units, surfaced, skipped} = the CONCATENATION across every repo in your 
       units.push(...kept)
     }
   }
-  // id:365b — re-dispatch circuit breaker (mechanism 2, deterministic JS backstop). Runs AFTER
-  // the id:000d finished-demote + id:ad74 INTENSIVE-promote backstops and BEFORE units are
-  // sorted/dispatched. The principled fix is mechanism 1 (the shard's recurring-audit gate);
-  // this catches ANY dispatch spin even if the shard slips. For each non-injected unit, key on
-  // `${repo}:${verdict}`: if the persistent counter's stored work_sig matches this unit's
-  // work_sig (a sig STABLE across the pool's own `relay: checkpoint` churn, so unchanged means
-  // "no substantive change since last dispatch") increment its count, else (re)seed at 1. A
-  // unit may dispatch on counts 1,2,3 and is SUPPRESSED once count would reach 4 ("not more
-  // than thrice") — removed from dispatch and surfaced. A work_sig change resets the counter.
-  // Injected units (id:baf1) are EXEMPT (an explicit user request is never auto-suppressed).
-  // NOTE: this inline copy MUST stay byte-equivalent to redispatch-guard.mjs (the unit-tested
-  // pure helper — the Workflow sandbox cannot import it). A structural test pins the wiring.
-  {
-    const keptCB = [], suppressedCB = []
-    for (const u of units) {
-      if (u.injected) { keptCB.push(u); continue }
-      const key = `${u.repo}:${u.verdict}`
-      const sig = u.work_sig || ''
-      const prev = redispatchGuard[key]
-      if (prev && prev.sig === sig) prev.count++
-      else redispatchGuard[key] = { sig, count: 1 }
-      if (redispatchGuard[key].count > 3) {
-        suppressedCB.push(u)
-        surfaced.push({ repo: u.repo, reason: `circuit breaker (id:365b): ${u.repo} ${u.verdict} dispatched >3× this run with no substantive change (work_sig unchanged) — skipping until new work or a human intervenes; cost hint: relay-burn.sh --run ${prelude.runId}` })
-      } else {
-        keptCB.push(u)
-      }
-    }
-    if (suppressedCB.length) {
-      log(`relay-loop: id:365b re-dispatch circuit breaker — ${suppressedCB.length} unit(s) suppressed (>3× this run, work_sig unchanged): ${suppressedCB.map(u => `${u.repo}(${u.verdict})`).join(', ')}`)
-      units.length = 0
-      units.push(...keptCB)
-    }
-  }
+  // id:365b — the re-dispatch circuit breaker USED to run here. MOVED (id:f980, shape A) down to
+  // just before the dispatch sort: it must run AFTER every verdict mutation (notably the
+  // id:9821/e030 Fable idle→review elevation) and over the idle-FILTERED set. Running it here was
+  // wrong twice: (1) it counted `${repo}:idle` keys for units the `verdict !== 'idle'` filter
+  // later dropped — surfacing phantom ">3× dispatched" reasons for repos dispatched ZERO times
+  // (run relay-20260716-125514-23493: 38 phantom entries buried 2 real handbacks); and (2) its
+  // splice could delete an idle unit the Fable elevation still needed, silently dropping the
+  // optional recheck after 3 rounds. See the breaker at its new home below.
   if (shardOk) discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
   else log('relay-loop: all discovery shards failed this round (network outage?) — round fails, completed work preserved')
 }
@@ -1290,8 +1275,53 @@ if (SESSION_IS_FABLE && !FABLE_DOWN) {
 // see standInRank above). Injected units (id:baf1) outrank everything — they are explicit,
 // high-priority user requests; --priority is below injected-precedence + the D3 verdict-class
 // order (NEVER a verdict override), above income.
-let actionable = discovery.units
-  .filter(u => u.verdict !== 'idle')
+// The DISPATCHABLE set: idle units never dispatch, so they are dropped BEFORE the id:365b
+// breaker sees them (id:f980). Filtering first — rather than special-casing `verdict==='idle'`
+// inside the guard — is what keeps the inline copy logic-equivalent to redispatch-guard.mjs:
+// the helper's semantics are untouched; only the set it is handed changes. The breaker then
+// counts exactly what dispatches, under the verdict key it actually dispatches as.
+const dispatchable = discovery.units.filter(u => u.verdict !== 'idle')
+
+// id:365b — re-dispatch circuit breaker (mechanism 2, deterministic JS backstop). Runs AFTER
+// the id:000d finished-demote, id:ad74 INTENSIVE-promote and id:9821/e030 Fable-elevation
+// verdict mutations, over the idle-filtered `dispatchable` set, and BEFORE the dispatch sort —
+// i.e. it is the LAST gate before dispatch, so what it counts is exactly what dispatches
+// (id:f980, shape A). The principled fix is mechanism 1 (the shard's recurring-audit gate);
+// this catches ANY dispatch spin even if the shard slips. For each non-injected unit, key on
+// `${repo}:${verdict}`: if the persistent counter's stored work_sig matches this unit's
+// work_sig (a sig STABLE across the pool's own `relay: checkpoint` churn, so unchanged means
+// "no substantive change since last dispatch") increment its count, else (re)seed at 1. A
+// unit may dispatch on counts 1,2,3 and is SUPPRESSED once count would reach 4 ("not more
+// than thrice") — removed from dispatch and surfaced. A work_sig change resets the counter.
+// Injected units (id:baf1) are EXEMPT (an explicit user request is never auto-suppressed).
+// A Fable-elevated unit (idle→review) is counted as `${repo}:review` — the verdict it
+// dispatches as — so the optional recheck is spin-protected like any other review.
+// NOTE: this inline copy MUST stay logic-equivalent to redispatch-guard.mjs (the unit-tested
+// pure helper — the Workflow sandbox cannot import it). A structural test pins the wiring.
+{
+  const keptCB = [], suppressedCB = []
+  for (const u of dispatchable) {
+    if (u.injected) { keptCB.push(u); continue }
+    const key = `${u.repo}:${u.verdict}`
+    const sig = u.work_sig || ''
+    const prev = redispatchGuard[key]
+    if (prev && prev.sig === sig) prev.count++
+    else redispatchGuard[key] = { sig, count: 1 }
+    if (redispatchGuard[key].count > 3) {
+      suppressedCB.push(u)
+      discovery.surfaced.push({ repo: u.repo, reason: `circuit breaker (id:365b): ${u.repo} ${u.verdict} dispatched >3× this run with no substantive change (work_sig unchanged) — skipping until new work or a human intervenes; cost hint: relay-burn.sh --run ${state.runId}` })
+    } else {
+      keptCB.push(u)
+    }
+  }
+  if (suppressedCB.length) {
+    log(`relay-loop: id:365b re-dispatch circuit breaker — ${suppressedCB.length} unit(s) suppressed (>3× this run, work_sig unchanged): ${suppressedCB.map(u => `${u.repo}(${u.verdict})`).join(', ')}`)
+    dispatchable.length = 0
+    dispatchable.push(...keptCB)
+  }
+}
+
+let actionable = dispatchable
   .sort((a, b) =>
     ((b.injected ? 1 : 0) - (a.injected ? 1 : 0)) ||
     (PRIORITY[a.verdict] - PRIORITY[b.verdict]) ||
@@ -1434,7 +1464,7 @@ let mechanicalSurfaced = []
 }
 
 // Refresh the cross-round accumulator's per-round views (completed/reviewMe persist).
-state.runId = state.runId || discovery.runId
+// (state.runId is canonicalized right after the !discovery guard above — id:a921.)
 state.ts = discovery.ts
 
 // id:e149 — beat the STABLE run-heartbeat (state.runId, fixed at round 1) every round. This
