@@ -2667,3 +2667,30 @@ Closed both open [ROUTINE] items: id:1312 (anchored unpromoted-scan.sh's twin ch
 ## 2026-07-16 14:48 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:1312 + id:d515 verified genuinely green (mutation-tested, specs untouched); synced TODO twins (cross-ledger drift, the only relay-doctor findings); promoted id:521f [ROUTINE] with RED spec — roadmap-lint's unanchored id grep both misattributes and false-negatives; suite 250/0 + 1 expected-red [id:1312,d515,521f]
+
+## 2026-07-16 — executor (claude-opus-4-8, interactive apex, owner-directed)
+
+Worked id:f980 + id:a921 — the id:365b circuit breaker counted units that never dispatch,
+and both inline suppression call sites cited a phantom runId.
+
+The brief's stated premise for id:f980 ("a unit still 'idle' at the breaker is
+non-dispatchable BY CONSTRUCTION") was FALSE and I stopped rather than fix blind: the
+id:9821/e030 Fable elevation runs AFTER the breaker and mutates idle→review, so on a
+Fable session (STRONG_TIER unset ⇒ SESSION_IS_FABLE, a normal config) an idle unit CAN
+dispatch. The narrow "skip idle in the guard" fix would have let elevated units dispatch
+un-breakered forever. The owner then ratified shape A (breaker last, after all verdict
+mutations, over the idle-filtered set), explicitly widening the change envelope.
+
+Two things the report did not contain, found while implementing:
+  1. id:1432's no-work suppression call site had the IDENTICAL phantom-runId defect.
+  2. state.runId's general-path assignment sat BELOW the dispatch sort (the L884 one is in
+     the user-stop early-return branch), so naively reading state.runId at the breaker would
+     have printed an EMPTY run id — worse than the phantom. Fixed by canonicalizing once at
+     the prelude, which made two later assignments redundant.
+
+Friction: relay-loop.js cannot be executed in-harness (Workflow module), so the pipeline
+ORDER is asserted structurally by line position — stated as an explicit coverage limit on
+id:f980 rather than papered over. The Fable-recheck-not-dropped case is pinned by that
+ordering assertion, not by an end-to-end run; staging a real Fable session is not possible
+here and I did not fake it. Also: my first worktree was reaped mid-session by force-free
+cleanup (empty branch, nothing lost); mitigation is an immediate anchoring commit.

@@ -10,6 +10,78 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+<!-- 2026-07-16 (interactive apex session, owner-directed). Both items below were VERIFIED
+     bugs found while reading run relay-20260716-125514-23493's event log, and both were
+     implemented in the same session under a RED-first spec. The owner explicitly ratified
+     "shape A" for id:f980 (move the breaker after all verdict mutations) over the narrower
+     "skip idle in the guard", accepting that on Fable sessions this STARTS counting elevated
+     review units — that is the intended behaviour, not a regression. Recorded here as the
+     execution twin of the TODO ids (single-id-two-views D2). -->
+
+- [x] [ROUTINE] id:365b circuit breaker must count only what actually dispatches <!-- id:f980 -->
+  - **Why**: the breaker ran BEFORE the `verdict !== 'idle'` filter, keying `${repo}:${verdict}`
+    over ALL units — so it counted `${repo}:idle` for units that never dispatch. Run
+    relay-20260716-125514-23493 dispatched 21 units across 12 repos, yet 7 repos with **zero**
+    `kind:"dispatch"` events were surfaced as circuit-breaker-blocked: 38 phantom entries that
+    buried 2 real handbacks. It also ran BEFORE the id:9821/e030 Fable elevation, whose
+    `units.length=0` splice could delete an idle unit the elevation still needed — silently
+    dropping the optional Fable recheck after 3 rounds (a third bug, dissolved structurally here).
+  - **Design (shape A, owner-ratified)**: the breaker is the LAST gate before dispatch. It now runs
+    after every verdict mutation (id:000d demote, id:ad74 INTENSIVE promote, id:9821/e030 Fable
+    elevation) and over the idle-filtered `dispatchable` set, so what it counts is exactly what
+    dispatches, under the verdict key it dispatches as. **Filtering before the guard** — rather
+    than special-casing `verdict==='idle'` inside it — is what keeps the inline copy
+    logic-equivalent to `redispatch-guard.mjs`: the helper's semantics are untouched, only the
+    set it is handed changes.
+  - **Acceptance**: `tests/test_redispatch_circuit_breaker.sh` (`# roadmap:365b`) green, including
+    the new structural ordering assertions (breaker line > Fable-elevation line; breaker line >
+    idle-filter line) and the regression guard (execute AND review units repeated >3× with an
+    unchanged work_sig are STILL suppressed — the breaker's real job survives the move).
+  - **Done-check**: `tests/run-tests.sh tests/test_redispatch_circuit_breaker.sh` green, then full
+    `tests/run-tests.sh` green. Verified 2026-07-16: 250 passed, 0 failed, 1 expected-red
+    (roadmap:521f, pre-existing/unrelated).
+  - **Context**: `relay/scripts/relay-loop.js` (breaker moved to just above the dispatch sort),
+    `relay/scripts/redispatch-guard.mjs` (pure helper, UNCHANGED). Relates id:365b (the breaker),
+    id:9821/id:e030 (the Fable elevation that made "idle is non-dispatchable" false), id:1432 (the
+    sibling no-work guard), id:a921 (the runId fix landed alongside).
+  - **Honest coverage limit**: the ORDER of the inline pipeline is asserted STRUCTURALLY (by line
+    position), not by execution — relay-loop.js is a Workflow module that cannot be imported or run
+    in-harness. The pure-helper tests cover the breaker's LOGIC; the greps cover only its
+    placement. The third bug (Fable recheck no longer droppable) is therefore pinned by the
+    ordering assertion — that the breaker can no longer splice a unit before the elevation reads
+    it — NOT by an end-to-end Fable-session run, which the harness cannot stage.
+
+- [x] [ROUTINE] Cost hints must cite the canonical state.runId, not the per-round prelude mint <!-- id:a921 -->
+  - **Why**: both inline suppression call sites interpolated `prelude.runId`, which is re-minted
+    EVERY round, while the events log, RELAY_STATUS header, heartbeat and burn sampler all write
+    `state.runId` (the id:c5ba front-door mint). The emitted hint therefore named a run nothing
+    ever wrote: `relay-burn.sh --run relay-20260716-143126-21466` → "have 0 samples", while the
+    real id returned 7.
+  - **Design**: canonicalize `state.runId` ONCE at the prelude — the earliest point it exists and
+    before any consumer cites it — and read `state.runId` at both call sites. **Non-obvious**: the
+    general-path assignment previously sat BELOW the dispatch sort (the `state.runId = state.runId
+    || prelude.runId` at ~L884 is inside the user-stop early-return branch, NOT the normal path),
+    so naively reading `state.runId` at the breaker would have printed an EMPTY run id — worse
+    than the phantom. Hoisting to the prelude fixes both sites and makes the two later assignments
+    redundant (removed).
+  - **Scope**: covers BOTH the id:365b breaker hint AND the id:1432 no-work suppression call site
+    (a sibling with the identical defect, found during this fix and folded in by owner ruling).
+    Both pure helpers (`redispatch-guard.mjs`, `handback-guard.mjs`) already took `runId` as a
+    param and are correct — signatures unchanged.
+  - **Acceptance**: `tests/test_redispatch_circuit_breaker.sh` asserts the helper honours the
+    caller-supplied runId, that the inline breaker hint reads `state.runId`, and that the id:1432
+    call site no longer passes `prelude.runId`.
+  - **Done-check**: `tests/run-tests.sh tests/test_redispatch_circuit_breaker.sh` green, then full
+    `tests/run-tests.sh` green. Verified 2026-07-16 (same run as id:f980 above).
+  - **Context**: `relay/scripts/relay-loop.js` L~876 (the single canonicalization), L~1214 (id:1432
+    call site), the id:365b breaker hint. Relates id:c5ba (front-door mint), id:e149 (the heartbeat
+    whose comment already warned prelude.runId is per-round).
+  - **Not fixed (deliberate, out of scope)**: the discover/reconcile shard prompts still pass
+    `--runid ${prelude.runId}` to `discover-repo.sh`/`reconcile-repo.sh`. Those hand a per-round
+    discovery identifier to a script rather than naming a run for the burn sampler, and on round 1
+    the two ids are identical. Changing them was not in the ruling and may be intentional — flagged
+    for the owner, not touched.
+
 <!-- 2026-07-16 handoff C2/C3 (interactive apex session, owner-directed): promoted TODO
      id:7612 REUSING its TODO twin (single-id-two-views D2). Owner ratified the
      main-HEAD-discriminator option over "wire for execute/hard only" and over routing to
