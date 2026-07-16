@@ -92,6 +92,48 @@ git -C "$REPO" show-ref --verify --quiet refs/heads/relay/a1 || fail "expect-mer
 printf '%s' "$out" | grep -q "retire-anomaly" || fail "expect-merged anomaly: must surface a retire-anomaly line"
 pass "--expect-merged + unmerged → loud anomaly, branch kept, exit 4 ($out)"
 
+# ── 6b. git-annex layout: worktree .git is a SYMLINK to the admin dir → still retires (id:de4a) ──
+# git-annex's smudge filter (filter.annex.process) rewrites a linked worktree's `.git` FILE
+# into a SYMLINK pointing at .git/worktrees/<bn>, so `git worktree remove` fails validation
+# permanently: "'<wt>/.git' is not a .git file, error code 10". Force does NOT help (validation
+# precedes it), so on an annex repo EVERY relay worktree leaked forever (observed: zkWhale, the
+# only annex repo among own repos, 3 dirs / 1.2G). We reproduce the layout directly rather than
+# depend on git-annex being installed: the symlink IS the whole trigger.
+mkwt x1
+admin="$REPO/.git/worktrees/x1"
+[[ -d "$admin" ]] || fail "annex-layout: precondition — admin dir $admin should exist"
+[[ -f "$WTBASE/x1/.git" ]] || fail "annex-layout: precondition — .git should start as a file"
+rm -- "$WTBASE/x1/.git"
+ln -s "$admin" "$WTBASE/x1/.git"
+[[ -L "$WTBASE/x1/.git" ]] || fail "annex-layout: precondition — .git should now be a symlink"
+# Sanity: confirm stock git really does refuse this (guards against the test passing vacuously).
+if git -C "$REPO" worktree remove "$WTBASE/x1" >/dev/null 2>&1; then
+  fail "annex-layout: precondition — stock 'git worktree remove' unexpectedly SUCCEEDED on a symlinked .git; the bug this covers no longer reproduces"
+fi
+set +e
+out="$("$SH" "$REPO" "$WTBASE/x1" "relay/x1" --expect-merged 2>&1)" ; rc=$?
+set -e
+[[ $rc -eq 0 ]] || fail "annex-layout: expected exit 0 (retired), got $rc — out: $out"
+[[ ! -e "$WTBASE/x1" ]] || fail "annex-layout: worktree dir should be gone"
+git -C "$REPO" show-ref --verify --quiet refs/heads/relay/x1 && fail "annex-layout: merged branch relay/x1 should be deleted"
+pass "annex layout (symlinked .git) → normalized + retired, not misreported as dirty ($out)"
+
+# ── 6c. a DIRTY annex-layout worktree is still surfaced-and-left (normalize ≠ force) ──
+# The normalization must not become a backdoor that removes work: dirt still wins.
+mkwt x2
+admin2="$REPO/.git/worktrees/x2"
+rm -- "$WTBASE/x2/.git"
+ln -s "$admin2" "$WTBASE/x2/.git"
+printf 'uncommitted\n' > "$WTBASE/x2/dirty.txt"
+set +e
+out="$("$SH" "$REPO" "$WTBASE/x2" "relay/x2" --expect-merged 2>&1)" ; rc=$?
+set -e
+[[ $rc -eq 3 ]] || fail "annex-layout dirty: expected exit 3 (surface+leave), got $rc — out: $out"
+[[ -e "$WTBASE/x2" ]] || fail "annex-layout dirty: worktree must be LEFT on disk"
+[[ -e "$WTBASE/x2/dirty.txt" ]] || fail "annex-layout dirty: uncommitted file must survive"
+git -C "$REPO" show-ref --verify --quiet refs/heads/relay/x2 || fail "annex-layout dirty: branch must be kept"
+pass "annex layout + dirty → surfaced and left, work intact ($out)"
+
 # ── 7. scope: retiring one worktree never touches a sibling ──
 mkwt s1
 mkwt s2

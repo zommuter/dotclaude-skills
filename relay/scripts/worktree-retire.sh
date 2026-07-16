@@ -67,6 +67,40 @@ fi
 bn="$(basename "$wt")"
 orphan_ref="relay/orphan/$bn"
 
+# ---- 0. git-annex layout normalization (id:de4a) ----------------------------
+# On a git-annex repo the smudge filter (filter.annex.process) rewrites a linked worktree's
+# `.git` FILE into a SYMLINK to the admin dir (so annexed relative symlinks
+# ../.git/annex/objects/... resolve inside the worktree). `git worktree remove` then fails
+# validation PERMANENTLY — "'<wt>/.git' is not a .git file, error code 10" — and --force does
+# NOT help, because validation precedes it. Result: on an annex repo every relay worktree
+# leaked forever (zkWhale: the only annex repo among own repos, 3 dirs / 1.2G, all clean+merged).
+#
+# We restore the standard `gitdir: <admin>` pointer that git itself writes. This is NOT a force
+# op and discards NOTHING: the admin dir, the index, and every file in the tree are untouched —
+# we rewrite only the pointer, converting an unremovable layout back into git's own supported
+# one. The dirty check below still runs afterwards and still wins, so this can never become a
+# backdoor that removes uncommitted work.
+#
+# GUARDED: we normalize ONLY when the symlink resolves to THIS repo's own admin dir for THIS
+# worktree. Anything else is surfaced untouched — we never rewrite a pointer we don't recognize.
+if [[ -L "$wt/.git" ]]; then
+  # --path-format=absolute: a bare --git-common-dir is repo-RELATIVE (".git"), which would
+  # make the comparison below compare against a nonsense path and always defer.
+  admin_expect="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)/worktrees/$bn"
+  admin_expect="$(readlink -f "$admin_expect" || printf '%s' "$admin_expect")"
+  admin_actual="$(readlink -f "$wt/.git" || true)"
+  if [[ -n "$admin_actual" && "$admin_actual" == "$admin_expect" && -d "$admin_actual" ]]; then
+    rm -- "$wt/.git"
+    printf 'gitdir: %s\n' "$admin_actual" > "$wt/.git"
+    log "normalized annex .git symlink -> gitdir file repo=$repo wt=$wt admin=$admin_actual"
+  else
+    msg="retire-deferred $bn: '$wt/.git' is a SYMLINK that does not resolve to this repo's own admin dir (expected '$admin_expect', got '${admin_actual:-<unresolvable>}') — LEFT untouched for a human. Not normalizing a pointer we do not recognize."
+    log "DEFER-UNRECOGNIZED-SYMLINK $msg"
+    echo "$msg"
+    exit 3
+  fi
+fi
+
 # ---- 1. worktree removal (never --force) -----------------------------------
 if [[ ! -e "$wt" ]]; then
   # Directory already gone (crash / manual rm). Clear the stale admin ref — non-destructive,
@@ -74,13 +108,17 @@ if [[ ! -e "$wt" ]]; then
   git -C "$repo" worktree prune >/dev/null 2>&1 || true  # swallow-ok: prune is idempotent; a missing/already-pruned entry is fine
   log "prune repo=$repo wt=$wt (dir absent)"
 else
-  if git -C "$repo" worktree remove "$wt" >/dev/null 2>&1; then
+  # Capture stderr: it is the ONLY thing that distinguishes a dirty tree (surface+leave is
+  # correct) from a structural failure (a permanent leak no amount of committing fixes). It
+  # was previously swallowed, so the annex case above masqueraded as "dirty" for weeks on a
+  # provably CLEAN tree, and the advice we printed ("commit real work") could never work.
+  if err="$(git -C "$repo" worktree remove "$wt" 2>&1)"; then
     log "removed repo=$repo wt=$wt"
   else
     # Dirty (non-ignored untracked or tracked-modified), locked, or otherwise unremovable.
     # Per the no-force policy: SURFACE and LEAVE. Do NOT touch the branch — worktree+branch
     # both stay on disk for a supervised reconcile. Nothing is discarded or forced.
-    msg="retire-deferred $bn: worktree dirty/unremovable — LEFT on disk for supervised reconcile (inspect: git -C $repo -C $wt status; then commit real work / gitignore throwaway, or remove by hand)"
+    msg="retire-deferred $bn: worktree unremovable — LEFT on disk for supervised reconcile. git said: ${err//$'\n'/ } (inspect: git -C $wt status; then commit real work / gitignore throwaway, or remove by hand)"
     log "DEFER $msg"
     echo "$msg"
     exit 3
