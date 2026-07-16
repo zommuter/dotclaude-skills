@@ -2639,3 +2639,7 @@ claim — genuinely drained from the inbox and present in project_manager/TODO.m
 
 routine_open: 2 (id:1312, id:d515). Contract pointer v9 == canonical v9, no drift. relay-doctor:
 2 findings (the f1f5 dead-letter, now ingested; relay-core shadow 28351 rounds / 0 mismatches). [id:7612 id:b780 id:1312 id:d515 id:521f]
+
+## 2026-07-16 14:25 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:7612 verified genuinely green (mutation-tested); fixed a SIGPIPE flake red-lighting the whole suite (id:b780); promoted id:1312/id:d515 [ROUTINE] with RED specs; suite 248/0 + 2 expected-red [id:7612,b780,1312,d515,521f,de31]
