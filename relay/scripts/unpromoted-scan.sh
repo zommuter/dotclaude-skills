@@ -258,8 +258,15 @@ for line in sys.stdin:
       repo_findings=$((repo_findings + 1))
       continue
     fi
-    # Twin = the id appears anywhere in ROADMAP.md (same correlation as --promotion).
-    grep -qF "id:$token" <<<"$roadmap_content" && continue
+    # Twin = the id has its OWN trailing marker on a ROADMAP checkbox line — ANCHORED,
+    # NOT a bare-substring grep over the whole file. A bare `grep -qF "id:$token"` (the
+    # original) false-matches ordinary explanatory PROSE that merely mentions a token
+    # ("...separate seam tracked as id:2b63") anywhere in another item's text, silently
+    # treating it as already-twinned and dropping it from the backlog scan (id:1312;
+    # observed 2026-07-16: `df4e` went laned → 0 rows this way). Require the token to
+    # end its OWN `- [ ]`/`- [x]` checkbox line as `<!-- id:XXXX -->`, mirroring the
+    # anchoring scan-routed.sh already applies to its twin check.
+    grep -qE "^- \\[[ x]\\].*<!-- id:${token} -->[[:space:]]*\$" <<<"$roadmap_content" && continue
     # Already filed for OPEN human lane-triage → not fresh backlog (case-g, id:47f1).
     [[ "$filed_ids" == *" $token "* ]] && { log "repo=$name filed=$token"; continue; }
 
