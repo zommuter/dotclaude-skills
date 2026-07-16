@@ -2659,3 +2659,7 @@ explaining the anchoring; no new duplication introduced.
 Friction: none.
 refactor: none needed — one-line fixes each, mirroring an anchoring pattern scan-routed.sh
 already used elsewhere; no new duplication to extract.
+
+## 2026-07-16 14:30 — executor (sonnet, relay-loop)
+
+Closed both open [ROUTINE] items: id:1312 (anchored unpromoted-scan.sh's twin check to an item's own trailing checkbox marker, no longer false-matching prose mentions) and id:d515 (fixed scan-routed.sh's APPLY-mode header mislabelling every real run as DRY-RUN); full suite green 250/0/0. [id:1312,d515]
