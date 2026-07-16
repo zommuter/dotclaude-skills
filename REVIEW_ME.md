@@ -192,3 +192,39 @@ latest prune by the 2026-07-02 review.)
   behaves differently mid-item), and a bump would churn every managed repo's CLAUDE.md
   pointer. If you read the convention as a genuine new RULE (executors must now ship
   purity tests with read-only components), overrule: bump v6→v7 + refresh the pointer.
+
+- [ ] **id:b780 — a review child FIXED a flaky test in-flight; confirm that was in scope.**
+  `tests/test_isolation_gate_wired.sh` intermittently failed (measured 1/25 idle, 22/40 under
+  CPU load) via a >64 KB `printf | grep -q` SIGPIPE race under `pipefail` — grep matched
+  (PIPESTATUS=[0]) but printf died 141 and pipefail promoted it to a failure. I fixed it here
+  rather than only filing it, because the flake red-lights `make test` — the definition-of-done
+  gate every execute unit depends on — and it indicts the id:7612 isolation gate, which is
+  exactly the wrong signal. Mutation-tested (3/3 broken-gate variants still caught) so the spec
+  is intact. **If you'd rather review children never touch non-ledger code, say so** and this
+  becomes a [ROUTINE] item instead; the fix + evidence are in the commit either way.
+- [ ] **id:521f / routed:f1f5 + id:1312 — same defect class, possibly one fix.** Both are
+  unanchored token greps over prose-bearing ledger lines (roadmap-lint's first-match `id_re`;
+  unpromoted-scan's bare `grep -qF`). `scan-routed.sh` already anchors correctly. This is the
+  4th instance of the family (with `inbox-done`'s substring match and md-merge's fail-open
+  append, id:1b1a). **Worth one shared anchored-extraction helper + its own test rather than a
+  third hand-rolled copy?** That's a design call, not a review verdict — hence a box, not a
+  ROADMAP decision. Related: the id:2c94 duplication linter would flag the copies mechanically.
+- [ ] **Repo-wide: is the `printf "$big" | grep -q` + `pipefail` pattern worth a lint?** id:b780
+  was one instance; 23 files pair `pipefail` with an early-exiting reader on a pipe. Only
+  payloads >64 KB (the pipe buffer) can bite, so today `relay-loop.js` (91 KB) is plausibly the
+  sole live case — I did NOT sweep or "fix" the others, per observe-before-preventing. Recorded
+  so the decision is yours: leave it, or add a check to `tools/` if it recurs. Note any such
+  lint must run under real `bash` — under `zsh` the race does not reproduce at all.
+- [ ] **id:de31 — `orphan-scan --shipped` says TICK-READY; I verified it and did NOT tick.**
+  The scan is right that `tests/test_decision_queue.sh` is green with no gating lexeme, but the
+  test's own header declares a NARROWER scope than the item: "In scope here: the record format
+  + the flock'd add/list/resolve helper." C7 (id:de31) additionally requires *the forced-
+  resolution WRITE at the lane-triage point (case g/h can never silently no-op)* and *the
+  conservative inline lane-triage sub-agent* — neither is exercised. Ticking on the green test
+  would freeze the item's harder half as "done". Recorded so the next review doesn't re-litigate
+  the same advisory hit. **The generalizable point**: TICK-READY correlates an item to a linked
+  test but cannot see that the test's declared scope is a SUBSET of the item's acceptance — so
+  a partially-specced item reads as shippable. That is inherent to the heuristic (it is advisory
+  by design, which is why §5 mandates this manual verify), but if this recurs it argues for
+  scope-declaring test headers being machine-read, or splitting C7's remaining halves into their
+  own ids. Your call — no ledger change made.
