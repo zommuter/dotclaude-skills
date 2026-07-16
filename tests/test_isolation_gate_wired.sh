@@ -35,27 +35,34 @@ export VERIFY_ISOLATION_LOG=/dev/null
 # Strip comment-only lines so a "we should call verify-isolation" note can never satisfy this.
 loop_code="$(grep -vE '^[[:space:]]*//' "$LOOP")"
 
-printf '%s\n' "$loop_code" | grep -q 'verify-isolation\.sh' \
+# NOTE (id:b780): feed $loop_code via herestring, NEVER `printf ... | grep`. relay-loop.js is
+# ~91 KB — larger than the 64 KB pipe buffer — so printf BLOCKS mid-write while an early-exiting
+# reader (`grep -q`, or a `| head -1`) can match at ~63 KB and exit first. printf then dies of
+# SIGPIPE (141) and `set -o pipefail` promotes that to a pipeline failure even though grep
+# matched (PIPESTATUS=[0]). That made this suite fail ~4% idle and ~55% under load — a spurious
+# red that indicts the gate rather than the test. A herestring has no early-exiting reader.
+# Same reason `grep -m1` replaces `| head -1` below.
+grep -q 'verify-isolation\.sh' <<< "$loop_code" \
   || fail "wiring: relay-loop.js never calls verify-isolation.sh — the gate is documented but not wired (the id:f682 gap this item closes)"
 pass "wiring: relay-loop.js references verify-isolation.sh"
 
 # Absolute installed path, like every other integrator gate. The repo-relative form
 # (relay/scripts/verify-isolation.sh) only resolves when cwd is dotclaude-skills itself, so
 # in any other target repo it would fail even when installed.
-printf '%s\n' "$loop_code" | grep -q '~/\.claude/skills/relay/scripts/verify-isolation\.sh' \
+grep -q '~/\.claude/skills/relay/scripts/verify-isolation\.sh' <<< "$loop_code" \
   || fail "wiring: verify-isolation.sh must be invoked via the absolute ~/.claude/skills/... path (the repo-relative form only resolves when cwd is dotclaude-skills)"
 pass "wiring: gate invoked via the absolute ~/.claude/skills/... path"
 
 # The call must carry an ABORT instruction, mirroring step 1's clean-tree-gate text.
 # Look at the recipe line containing the call.
-call_line="$(printf '%s\n' "$loop_code" | grep 'verify-isolation\.sh' | head -1)"
-printf '%s' "$call_line" | grep -qi 'ABORT' \
+call_line="$(grep -m1 'verify-isolation\.sh' <<< "$loop_code")"
+grep -qi 'ABORT' <<< "$call_line" \
   || fail "wiring: the verify-isolation.sh recipe step must instruct ABORT on non-zero exit (mirroring step 1 clean-tree-gate); got: ${call_line:0:160}"
 pass "wiring: recipe step instructs ABORT on non-zero exit"
 
 # It must gate the MERGE, i.e. appear before the merge --no-ff step in the recipe text.
-call_pos="$(printf '%s\n' "$loop_code" | grep -n 'verify-isolation\.sh' | head -1 | cut -d: -f1)"
-merge_pos="$(printf '%s\n' "$loop_code" | grep -n 'merge --no-ff' | head -1 | cut -d: -f1)"
+call_pos="$(grep -nm1 'verify-isolation\.sh' <<< "$loop_code" | cut -d: -f1)"
+merge_pos="$(grep -nm1 'merge --no-ff' <<< "$loop_code" | cut -d: -f1)"
 if [[ -n "$call_pos" && -n "$merge_pos" ]]; then
   [[ "$call_pos" -lt "$merge_pos" ]] \
     || fail "wiring: the gate must run BEFORE 'merge --no-ff' (call at line $call_pos, merge at $merge_pos) — a gate after the merge guards nothing"
