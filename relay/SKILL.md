@@ -318,7 +318,7 @@ integration invariants.
    Only fan out children for repos whose lease you acquired.
 5. **Integrate per completed child as one uninterrupted block**, repos strictly
    sequential: verify `contract_met` and checkpoint ordering → **isolation gate (id:f682)**
-   `relay/scripts/verify-isolation.sh <worktree> [--base <ref>]` (mirrors
+   `~/.claude/skills/relay/scripts/verify-isolation.sh <worktree> [--base <ref>]` (mirrors
    `clean-tree-gate.sh`; exit 2 = the child's worktree is empty or dirty — a likely
    main-checkout write, NOT a normal merge conflict — ABORT the merge and defer; see
    `references/conventions.md`'s recovery-doctrine paragraph for the salvage-under-lease
