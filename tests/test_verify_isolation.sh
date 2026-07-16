@@ -58,17 +58,27 @@ else
 fi
 
 # ─────────────────────────────────────────────────
-# (b) EMPTY worktree (no commits beyond base) → exit 2, names the isolation failure
+# (b) EMPTY worktree (no commits beyond base) AND main advanced by a NON-MERGE commit
+#     since dispatch → exit 2, names the isolation failure (id:7612 main-HEAD
+#     discriminator supersedes the old bare "empty → exit 2" case: an empty worktree
+#     whose main HEAD never moved is a legitimate id:8e3e no-op review, not a breach —
+#     see test_isolation_gate_wired.sh for that case).
 # ─────────────────────────────────────────────────
 make_repo_and_worktree b
+printf 'child wrote here instead\n' > "$REPO/leaked.txt"
+git -C "$REPO" add leaked.txt
+git -C "$REPO" commit -qm 'leaked: child committed straight to main'
+leak_sha="$(git -C "$REPO" rev-parse --short HEAD)"
 if out="$("$SCRIPT" "$WT" --base main 2>&1)"; then
-    fail "(b) empty worktree should exit 2, but exited 0: $out"
+    fail "(b) empty worktree + main advanced by non-merge commit should exit 2, but exited 0: $out"
 else
     rc=$?
-    [[ "$rc" -eq 2 ]] || fail "(b) empty worktree should exit 2, got $rc: $out"
+    [[ "$rc" -eq 2 ]] || fail "(b) empty worktree + main advanced by non-merge commit should exit 2, got $rc: $out"
     grep -qiE 'empty|isolation|no commit' <<<"$out" \
         || fail "(b) exit-2 output should name the empty/isolation failure, got: $out"
-    pass "(b) empty worktree → exit 2 + named failure"
+    grep -q "$leak_sha" <<<"$out" \
+        || fail "(b) exit-2 output should name the offending commit ($leak_sha), got: $out"
+    pass "(b) empty worktree + main advanced by non-merge commit → exit 2 + named failure + named commit"
 fi
 
 # ─────────────────────────────────────────────────
