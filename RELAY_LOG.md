@@ -2663,3 +2663,7 @@ already used elsewhere; no new duplication to extract.
 ## 2026-07-16 14:30 — executor (sonnet, relay-loop)
 
 Closed both open [ROUTINE] items: id:1312 (anchored unpromoted-scan.sh's twin check to an item's own trailing checkbox marker, no longer false-matching prose mentions) and id:d515 (fixed scan-routed.sh's APPLY-mode header mislabelling every real run as DRY-RUN); full suite green 250/0/0. [id:1312,d515]
+
+## 2026-07-16 14:48 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:1312 + id:d515 verified genuinely green (mutation-tested, specs untouched); synced TODO twins (cross-ledger drift, the only relay-doctor findings); promoted id:521f [ROUTINE] with RED spec — roadmap-lint's unanchored id grep both misattributes and false-negatives; suite 250/0 + 1 expected-red [id:1312,d515,521f]
