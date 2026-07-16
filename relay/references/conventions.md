@@ -46,7 +46,7 @@ rather than copying the full block — see §Executor-contract pointer below.
   label still records the producing model + role (e.g. `reviewer (claude-opus-4-8,
   fable-standin, relay-loop)`) — that model-in-label is the historical record.
 - **Pre-integrate isolation gate (id:f682).** BEFORE merging a child's worktree branch,
-  the integrator runs `relay/scripts/verify-isolation.sh <worktree> [--base <ref>]`
+  the integrator runs `~/.claude/skills/relay/scripts/verify-isolation.sh <worktree> [--base <ref>]`
   (mirrors `clean-tree-gate.sh`'s observe-only/fail-safe shape): exit 0 = the worktree has
   ≥1 commit beyond base and a clean tree, safe to merge; exit 2 = isolation failure (empty
   worktree / dirty tree / not a worktree at all) — **abort the merge, do not force

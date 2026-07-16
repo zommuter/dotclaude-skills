@@ -18,7 +18,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
      never asserted a CALL SITE — so the gate shipped, ticked green, and was never wired.
      The acceptance below therefore asserts the wiring itself, not just the logic. -->
 
-- [ ] [ROUTINE] Wire the isolation gate into the integrator + make its signal unambiguous (main-HEAD discriminator) <!-- id:7612 -->
+- [x] [ROUTINE] Wire the isolation gate into the integrator + make its signal unambiguous (main-HEAD discriminator) <!-- id:7612 -->
   - **Why**: `verify-isolation.sh` (id:f682) exists, is tested, is installed, is allowlisted —
     and `relay-loop.js` has **never called it** (`grep -c verify-isolation relay/scripts/relay-loop.js`
     → **0**, verified 2026-07-16). Invariant 5 + `references/conventions.md` document it as the
