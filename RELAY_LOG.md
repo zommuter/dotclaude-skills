@@ -2694,3 +2694,7 @@ id:f980 rather than papered over. The Fable-recheck-not-dropped case is pinned b
 ordering assertion, not by an end-to-end run; staging a real Fable session is not possible
 here and I did not fake it. Also: my first worktree was reaped mid-session by force-free
 cleanup (empty branch, nothing lost); mitigation is an immediate anchoring commit.
+
+## 2026-07-16 15:26 — reviewer (claude-opus-4-8)
+
+strong-execute: id:f980 (circuit breaker counts only what dispatches — shape A, owner-ratified) + id:a921 (canonical state.runId in both cost hints, incl. the id:1432 sibling). Killed 38 phantom blocked entries that buried 2 real handbacks. Two prescribed fixes were REJECTED by the executing agent as wrong (skip-idle would open a Fable spin hole; state.runId at the breaker would print empty) — both premises verified false and corrected. Suite 250/0/1 expected-red.
