@@ -3,7 +3,7 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
-- [ ] **Inbox dead-letter: `routed:6754 → [project-manager]` never routes — target-name mismatch (review 2026-07-14).**
+- [x] **Inbox dead-letter: `routed:6754 → [project-manager]` never routes — target-name mismatch (review 2026-07-14).** — RESOLVED (relay human 2026-07-16, auto-answered): the item both landed and drained; no owner decision is needed. Re-checkable evidence: (1) `grep -c 6754 ~/.claude/projects/todo-inbox.md` → **0** — the inbox line is gone (vanish-on-resolve); (2) `grep -c 'routed:6754' ~/src/project_manager/TODO.md` → **1** — the twin is present as `[INBOUND routed:6754 from it-infra]` under its own `id:2cc5`. So the hyphen/underscore mismatch this box reports is real but MOOT: the work reached the right repo and the queue is drained. Neither remedy the box offers (fix the inbox target / add a relay.toml alias) is needed. Note the box's own path is stale — the store moved to `~/.claude/projects/todo-inbox.md` per id:9fdb.
   `relay-doctor` / `scan-routed.sh` reports one UNRESOLVED routed item in the shared inbox
   (`~/.claude/todo-inbox.md`, local-only): `routed:6754` targets `[project-manager]` but no repo of
   that name exists on disk — the actual repo is **`project_manager`** (underscore, not hyphen). So the
