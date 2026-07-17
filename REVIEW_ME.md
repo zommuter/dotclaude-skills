@@ -3,6 +3,25 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+- [ ] **id:a286 — `make test` is RED: id:34c2's integration (febb0c3) introduced a bare `rm -f`
+  in `meeting/append.sh:384` that trips the repo's own `check-no-bare-rm-f.sh --enforce` lint
+  (baseline 0), so the `lint` tier of `make test` now FAILS for every consumer** (review
+  2026-07-17). The unit test tier is fully green (256 passed, 0 failed) — this is purely the
+  new lint violation. The line is `rm -f -- "$tmp_check"` where `tmp_check` is a known-present
+  `mktemp` file, so the CLAUDE.md destructive-op-hygiene fix is a one-liner: `rm -- "$tmp_check"`
+  (or annotate `# force-ok: <reason>`). Filed as ROADMAP `[ROUTINE]` id:a286 (this pass could
+  not fix it — the review's safety constraint bars touching `meeting/*.sh`). Root cause is a
+  spec/lint gap in the id:34c2 handoff: the RED spec did not gate on the lint tier passing.
+
+- [ ] **relay-doctor findings (review 2026-07-17, report-only, non-blocking).** Four are the
+  cross-ledger drift this review RESOLVED in-pass by ticking the TODO twins of the integrated
+  items (id:34c2, id:de36, id:1735, id:1102 — ROADMAP `[x]`, TODO was `[ ]`). Remaining, for a
+  human's call: (1) **one parked orphan branch** `relay/orphan/blind-e02a-spec` in the loderite
+  repo (a blind RED spec, `2c03545`) — cross-repo, not this repo's disposition; (2) **one inbox
+  report-only finding** — a `[lodelore]` ORIGIN-MYTH item (`orphan 132`) whose `routed:` marker
+  is a literal `$ID` placeholder, so it is not routable; a cross-project inbox line, not a
+  dead-letter here. Neither blocks. relay-doctor otherwise clean (roadmap-lint clean, TODO
+  conformance clean, main-checkout residue clean, last_ckpt resolves, no mechanical orphans).
 - [x] **Inbox dead-letter: `routed:6754 → [project-manager]` never routes — target-name mismatch (review 2026-07-14).** — RESOLVED (relay human 2026-07-16, auto-answered): the item both landed and drained; no owner decision is needed. Re-checkable evidence: (1) `grep -c 6754 ~/.claude/projects/todo-inbox.md` → **0** — the inbox line is gone (vanish-on-resolve); (2) `grep -c 'routed:6754' ~/src/project_manager/TODO.md` → **1** — the twin is present as `[INBOUND routed:6754 from it-infra]` under its own `id:2cc5`. So the hyphen/underscore mismatch this box reports is real but MOOT: the work reached the right repo and the queue is drained. Neither remedy the box offers (fix the inbox target / add a relay.toml alias) is needed. Note the box's own path is stale — the store moved to `~/.claude/projects/todo-inbox.md` per id:9fdb.
   `relay-doctor` / `scan-routed.sh` reports one UNRESOLVED routed item in the shared inbox
   (`~/.claude/todo-inbox.md`, local-only): `routed:6754` targets `[project-manager]` but no repo of

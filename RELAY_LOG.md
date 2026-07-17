@@ -2768,3 +2768,57 @@ refactor: factored the backslash-continued `relay_FILES := …` awk join (previo
 duplicated between check 4/id:69ef and its test) out into a shared `relay_files_manifest()`
 function that both `refs_install_check()` and the new `install_drift_check()` now call —
 one parser instead of a second/third copy, per the item's explicit reuse mandate.
+
+## 2026-07-17 — review (Opus apex) window relay-ckpt-20260716-1526..HEAD (32 commits)
+
+Ledger-only review pass on the MAIN checkout (id:15d5 pattern; no worktree, no claim.sh —
+orchestrator held the cross-session lease). Window was mostly chore(inbox) ingests +
+meeting/docs commits plus three relay-machinery integrates: id:34c2 (append.sh -t inbox
+write-path integrity), id:de36 (conformance lint at the /meeting inbox surface), id:1102
+(relay-doctor install-drift detection), and id:1735 (relay-loop handback-summary
+reconciliation).
+
+**Test-integrity (§2):** gaming-scan.sh clean (no DELETED_TEST / ADDED_SKIP /
+REMOVED_ASSERT). No gaming flags. Judgment-residue checks clean — the four integrated
+items' linked tests all pass against the committed tree
+(test_relay_loop_handback_summary, test_inbox_write_integrity,
+test_meeting_inbox_lint_surface, test_relay_install_drift_check,
+test_relay_loop_drain_vs_blocked).
+
+**Test tiers (§3):** enumerated from the Makefile — `lint` tier + `run-tests.sh` unit tier.
+- unit tier: GREEN — 256 passed, 0 failed, 0 expected-red.
+- lint tier: **RED** — `check-no-bare-rm-f.sh --enforce` fails on a NEW bare `rm -f -- "$tmp_check"`
+  at `meeting/append.sh:384`, introduced by febb0c3 (integrate id:34c2). `make test` aborts at
+  the lint tier before the unit suite. This review is code-safety-constrained (must not touch
+  `meeting/*.sh`), so RECORDED not fixed: filed ROADMAP `[ROUTINE]` id:a286 + TODO twin + a
+  REVIEW_ME box. One-line fix (`rm -- "$tmp_check"`, known-present mktemp file). Root cause is
+  an id:34c2 handoff spec/lint gap. NOTE: id:34c2's functional acceptance (validate/mint/echo)
+  IS met and its unit test is green — the lint regression is a separate defect, so 34c2 stays
+  closed and a286 carries the fix. (id:bbb2, filed this window, already tracks a second id:34c2
+  follow-up: the swallowed validator diagnostic in the dependency-absent case.)
+
+**Spec-drift (§4):** no README/ARCHITECTURE/CLAUDE.md drift found for the window's changes
+(inbox write-path + install-drift check are internal relay plumbing; CLAUDE.md already
+documents the id:1102 install-drift check and the id:e647/b8fa CHANGELOG amendment landed
+this window and matches). Relay-contract pointer marker v9 == executor-contract.md — current.
+
+**Relay-doctor (§4b):** 5 findings, all report-only. 4 = cross-ledger drift (id:34c2, id:de36,
+id:1735, id:1102 — ROADMAP `[x]`, TODO `[ ]`) — RESOLVED this pass by ticking the TODO twins
+after verifying each is genuinely green. Remaining surfaced to REVIEW_ME: 1 parked orphan
+branch in loderite (cross-repo, not this repo's disposition) + 1 report-only lodelore inbox
+line with a literal `$ID` routed marker (cross-project, not a dead-letter here).
+
+**ROADMAP re-derivation (§5):** roadmap-lint clean. orphan-scan --shipped: id:de31 TICK-READY
+but VERIFIED-and-NOT-ticked — its linked test covers a narrower scope than the item's acceptance
+(pre-existing REVIEW_ME box already records this); the rest are UNMARKED-GATE/UMBRELLA advisories,
+no action. **Re-laned id:4a46 `[ROUTINE]` -> `[INPUT — decision]`** (both ROADMAP + TODO twin): its
+body is "Decide whether the event log is meant to be complete… confirm the intended taxonomy
+rather than assume it" — a design-judgment decision, not clean executor-actionable routine; the
+emit-at-five-sites work is downstream of and gated on that decision. This is a lane correction,
+not a scope cut. After the re-lane the only open `[ROUTINE]` is the newly-filed id:a286 lint fix,
+so routine_open = 1.
+
+**Reverse-handoff (§5b):** 27 newly-added open `- [ ]` lines this window; the large majority are
+`/meeting`-authored design-ledger items (correctly ledger-neutral, `/meeting` owns the "why") or
+already-promoted twins (id:1102/1735/34c2/de36/dc5b/4a46/e647/b8fa). No un-promoted
+execution-ready item needed a mini-handoff beyond a286.
