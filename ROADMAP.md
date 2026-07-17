@@ -1915,3 +1915,48 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Honest coverage limit**: SKILL.md is prose the model follows, not code the harness executes, so the
     test can only assert the instruction is PRESENT and correctly formed — it cannot prove a live meeting
     obeys it. That is a real gap, not a passing grade; it is the same limit every SKILL.md step carries.
+
+## Install-drift detection (meeting-adjacent, 2026-07-17, id:1102)
+
+<!-- 2026-07-17. Filed by the apex session after VERIFYING and REPAIRING the live incident
+     (make install-relay; roadmap-lint.sh now exits 0). Two of the apex's own hypotheses were
+     FALSIFIED before this item was written — both recorded in TODO id:1102 rather than
+     deleted, because the wrong ones explain why the existing guards missed it. -->
+
+- [ ] [ROUTINE] relay-doctor must detect INSTALL DRIFT (manifest -> tree), not just manifest completeness <!-- id:1102 -->
+  - **Why**: `roadmap-lint.sh` sources `lib-anchored-id.sh`; the file was added to the repo 2026-07-17
+    10:51 AND correctly listed in `relay_FILES`, but `make install` was never re-run — so the live tree
+    had **62 of 64** declared scripts and the lint died with `No such file or directory` from the
+    installed path. It cost a loderite session a broken lint plus a false "relay-machinery bug"
+    diagnosis. `handback-summary.mjs` was the other drop. Already repaired in-session by
+    `make install-relay`; this item is the GUARD, not the repair.
+  - **The precise gap**: `relay-doctor.sh`'s existing check 4 (`reference-install completeness`,
+    id:69ef, ~line 416) verifies repo -> manifest — "is every `relay/references/*.md` DECLARED?".
+    It structurally cannot catch this: `lib-anchored-id.sh` WAS declared. The unchecked direction is
+    **manifest -> tree** — "is every DECLARED file actually INSTALLED?". id:69ef also covers only
+    `references/*.md`, never `scripts/*`. Both halves are this item.
+  - **Design**: extend `relay-doctor.sh` with an install-drift check tagged `id:1102`. Reuse the
+    existing `awk` manifest-join already in check 4 (do NOT write a second manifest parser — it is
+    the same `relay_FILES := …` block, and `tests/test_relay_refs_install_complete.sh` uses the same
+    awk; a third copy is exactly the drift this repo bans). For each manifested `scripts/*` and
+    `references/*` entry, assert presence under the install root. **The install root MUST be
+    injectable** (e.g. `$RELAY_INSTALL_ROOT`, defaulting to `~/.claude/skills`) — a hardcoded
+    `~/.claude` is untestable, since CLAUDE.md §Testing forbids a test touching the real install tree.
+  - **Mandatory carve-out**: `make status` legitimately reports `meeting-cross: SKILL.md (not
+    installed)` — that alias skill is DELIBERATELY uninstalled pending deletion (id:4f5f). A drift
+    check that counts it fires a false MISSING on every run and gets ignored. Make the exclusion
+    explicit and on-record.
+  - **Acceptance**: `tests/test_relay_install_drift_check.sh` (`# roadmap:1102`) green — RED spec
+    written by the handoff, NOT by you. Do not weaken, skip, or rewrite it.
+  - **Done-check**: tick this box, then `tests/run-tests.sh` fully green.
+  - **Context**: `relay/scripts/relay-doctor.sh` is the ONLY source file this item touches.
+    `make status` ALREADY detects this per-file (verified: it prints
+    `!! scripts/lib-anchored-id.sh (not installed)` against a simulated drop) — so **do not build a
+    new detector**; the item is that nothing routine INVOKES one. Same class as id:de36
+    (`todo-conformance.sh` flagged the acc7 line correctly; nothing ran it) and the same rule:
+    CLAUDE.md mechanize-first — *a loud detector whose invocation is optional is not a detector*.
+  - **Honest coverage limit**: this makes drift DETECTABLE on a `/relay health` run; it does not make
+    the tree self-heal, and nothing forces `/relay health` to run either — so the class is reduced,
+    not closed. An auto-install trigger (a hook or `.path` unit) would dissolve it structurally and is
+    deliberately OUT of scope here (CLAUDE.md observe-before-preventing: see whether the doctor check
+    actually fires before building self-healing machinery).
