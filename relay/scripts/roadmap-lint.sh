@@ -91,6 +91,9 @@ fi
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 lanes_doc="$script_dir/../references/hard-lanes.md"
 
+# shellcheck source=relay/scripts/lib-anchored-id.sh
+source "$script_dir/lib-anchored-id.sh"
+
 # Extract every `[HARD — <lane>]` marker from the canonical doc → an alternation
 # of recognized hard-lane suffixes. Falls back to the documented set if the doc is
 # somehow unreadable (fail-safe: never crash the lint on a missing doc, but log it).
@@ -213,18 +216,19 @@ leading_lane_run() {
   printf '%s' "$out"
 }
 
-# A 4-hex id token, the canonical `<!-- id:XXXX -->` or a bare `id:XXXX`.
-id_re='id:[0-9a-fA-F]{4}'
-
-# item_id <line> — the item's OWN canonical id. Prefers the `<!-- id:XXXX -->`
-# HTML-comment marker (the item's own token, conventionally trailing) over the first
-# bare `id:XXXX`, because a DECOMPOSED line lists its SEAM ids in the body BEFORE its
-# own trailing marker; a first-match grab would mis-name the parent by a seam id.
+# item_id <line> — the item's OWN canonical id. ANCHORED (id:521f) to the
+# `<!-- id:XXXX -->` HTML-comment marker via lib-anchored-id.sh's own_id_of_line —
+# a bare `id:XXXX` prose mention (a dep citation, a seam id in a DECOMPOSED body)
+# is NEVER used as the item's own id. Only when a line carries no HTML-comment
+# marker at all does this fall back to the first bare `id:XXXX` token, purely so a
+# malformed/legacy line still gets SOME display handle in a report line rather
+# than an unconditional `<no id>` — that fallback is never used to satisfy the
+# "has an id" grammar clause (see has_own_id_marker call sites below), only for
+# display.
 item_id() {
-  local l="$1"
-  if [[ "$l" =~ \<!--[[:space:]]*id:([0-9a-fA-F]{4}) ]]; then printf 'id:%s' "${BASH_REMATCH[1]}"
-  elif [[ "$l" =~ id:([0-9a-fA-F]{4}) ]]; then printf 'id:%s' "${BASH_REMATCH[1]}"
-  fi
+  local l="$1" tok
+  if tok="$(own_id_of_line "$l")"; then printf '%s' "$tok"; return; fi
+  if [[ "$l" =~ id:([0-9a-fA-F]{4}) ]]; then printf 'id:%s' "${BASH_REMATCH[1]}"; fi
 }
 
 # --- section gating -----------------------------------------------------------
@@ -267,7 +271,7 @@ section_has_tagged_child() {
     _sl="${_rl_lines[$j]}"
     [[ "$_sl" =~ ^##+[[:space:]] ]] && return 1
     if [[ "$_sl" =~ ^-[[:space:]]\[[[:space:]xX]\][[:space:]] ]]; then
-      [[ "$_sl" =~ $class_re && "$_sl" =~ $id_re ]] && return 0
+      [[ "$_sl" =~ $class_re ]] && has_own_id_marker "$_sl" && return 0
     fi
   done
   return 1
@@ -291,7 +295,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
       # title, not an item, and must NOT be flagged for a missing id (id:dfe4).
       if [[ "$line" =~ $class_re ]] && ! section_has_tagged_child $((_rl_i + 1)); then
         heading_is_item=1
-        if ! [[ "$line" =~ $id_re ]]; then
+        if ! has_own_id_marker "$line"; then
           violations=$((violations + 1))
           report+="  - [<no id>] heading-as-item MISSING its id token"$'\n'
           report+="      ${line}"$'\n'
@@ -318,9 +322,10 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   has_class=0
   [[ "$line" =~ $class_re ]] && has_class=1
 
-  # Grammar clause 2: a 4-hex id token.
+  # Grammar clause 2: the item's OWN `<!-- id:XXXX -->` marker (id:521f — anchored;
+  # a bare prose-cited `id:XXXX` elsewhere on the line does NOT satisfy this).
   has_id=0
-  [[ "$line" =~ $id_re ]] && has_id=1
+  has_own_id_marker "$line" && has_id=1
 
   # --- DOCTRINE rules (mechanize-first: each past LLM triage → a mechanical rule) ---
   # Both are LOUD (stderr) ALWAYS; they add to `violations` (nonzero exit) ONLY under
@@ -430,8 +435,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
       # loop (audit Run 70). Guard and strip must match the same character class.
       while [[ "$_after_checkbox" == [[:space:]]* ]]; do _after_checkbox="${_after_checkbox#[[:space:]]}"; done
       if [[ "$_after_checkbox" != "$_genuine_first"* ]]; then
-        _tnf_id=""
-        [[ "$line" =~ ($id_re) ]] && _tnf_id="${BASH_REMATCH[1]}"
+        _tnf_id="$(item_id "$line")"
         echo "roadmap-lint: WARN — TAG-NOT-FIRST: the lane tag '${_genuine_first}' is not the first token after the checkbox on ${_tnf_id:-<no id>} (report-only during the dual-vocab window; run lane-convert --reorder to fix)" >&2
         echo "  $line" >&2
       fi
@@ -442,11 +446,11 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
 
   # Build the violation report line.
   violations=$((violations + 1))
-  # Extract the id if present, for a stable handle in the report.
-  idtoken=""
-  if [[ "$line" =~ ($id_re) ]]; then
-    idtoken="${BASH_REMATCH[1]}"
-  fi
+  # Extract the id (anchored to the item's own marker; see item_id) for a stable
+  # handle in the report — id:521f: this used to be an unanchored first-match
+  # grab, which misattributed a violation to a CITED id when the line's own
+  # trailing marker came later on the line.
+  idtoken="$(item_id "$line")"
   reasons=()
   [[ "$has_class" -eq 0 ]] && reasons+=("NO recognized class/lane tag ([ROUTINE] / [HARD] / [HARD — ${lane_alt}] / [INPUT — ${input_alt}] / [MECHANICAL])")
   [[ "$has_id" -eq 0 ]] && reasons+=("MISSING its id token")
