@@ -1827,3 +1827,91 @@ Sub-items of the `[HARD — strong model]` umbrella id:dba3. Design fully settle
 `docs/meeting-notes/2026-06-17-0836-opus-degradation-investigation.md` (D2/D5/D6) and
 `docs/meeting-notes/2026-06-17-0905-model-probe-tos-and-band.md` (D1/D2). Promoted to
 ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `[HARD]`.
+
+## Inbox write-path integrity (meeting 2026-07-17-1450, id:34c2 / id:de36)
+
+<!-- 2026-07-17 (interactive apex meeting, owner-ratified D1-D4). Filed by the meeting, NOT
+     implemented by it: this repo is relay-managed and `routed:6fd5` (filed 6 min before the
+     meeting, from the owner's own complaint that day) proposes the orchestrator must not
+     implement in the foreground. D4 honors that shape without ratifying the open proposal.
+     The two items below have DISJOINT file targets (meeting/append.sh vs meeting/SKILL.md)
+     per routed:c28e, so the pool may run them concurrently. -->
+
+- [ ] [ROUTINE] append.sh inbox write-path integrity — validate, mint-inside, echo-what-was-written <!-- id:34c2 -->
+  - **Why**: `routed:acc7` was minted, reported as filed, and never written. The loderite hand-run ran
+    `ID=$(append.sh new-id); append.sh -t inbox -e "… <!-- routed:\$ID -->"; echo "filed routed:$ID"` —
+    `$ID` **escaped** in the payload, **unescaped** in the echo. Bash wrote the literal `$ID` to
+    `todo-inbox.md:143`; the echo said `acc7`. `loderite/TODO.md:40` (`id:0c54`) then cited a token
+    that existed nowhere. Root cause is not the escaping: `append.sh -t inbox` accepts arbitrary text,
+    validates nothing, and prints **nothing** on success (`meeting/append.sh:283-287`), so the caller
+    invents its own receipt from a variable with no causal link to the bytes on disk. Same defect class
+    as id:1735 (self-reported summaries) — and the item being filed was itself *about* that class.
+  - **Design (owner-ratified D2 + D3)**: three changes to `meeting/append.sh`, all scoped to `-t inbox`:
+    1. **(A) Validate on write.** Reject (non-zero, nothing appended) any `-t inbox` entry not matching
+       the conforming form: `^- \[[ x]\] \[[^]]+\] .* <!-- routed:[0-9a-f]{4} -->$`. A literal `$ID`
+       fails this. Error message must name the offending line and the expected form.
+    2. **(B) Mint inside append.** New form `append.sh -t inbox --route-to <target-repo> -e "<description>"`:
+       append.sh mints the token, builds the whole conforming line (`- [ ] [<target>] <description>
+       <!-- routed:XXXX -->`), appends it under the existing flock, and prints the token. The caller
+       never interpolates a token into a payload. Precedent: `new-children` (`append.sh:206-221`) already
+       emits its own marker rather than making the caller build it.
+    3. **Echo what was written.** `-t inbox` **always** prints the routed token actually written to disk —
+       for `--route-to`, the one it minted; for raw `-e`, the one **parsed back out of the appended line**.
+       stdout becomes ground truth, so `filed routed:$(append.sh …)` cannot lie.
+    Fold-in (D3): `--route-to`'s mint collision-checks the **routed** namespace — existing inbox
+    own-markers plus the target repo's `routed:` citations — not just `scan_ids <root>`'s `id:` tokens.
+    `scan_ids` (`append.sh:176-185`) greps `id:[0-9a-f]{4}` over `<root>` only; `routed:acc7` matches
+    neither the pattern nor the file set, so routed tokens are currently minted unchecked against the
+    namespace they land in. Reuse `resolve_inbox()` (`append.sh:27-45`) and `resolve_target()`
+    (`append.sh:47+`) — do NOT re-derive either path.
+    **Expose the collision set as a verb**: `append.sh scan-routed-tokens <target>` prints it (bare
+    4-hex, one per line, sorted unique — the same output contract as the existing `scan-ids` verb,
+    `append.sh:187-192`, which it mirrors). This is not decoration: the mint draws from
+    `secrets.token_hex(2)`, so "mint N times and assert it never picks the seeded token" passes
+    ~99.995% of the time whether or not the check exists. The verb is what makes the set
+    **deterministically assertable**, and the mint must then consult that same function — do not
+    compute the set twice.
+  - **Acceptance**: `tests/test_inbox_write_integrity.sh` (`# roadmap:34c2`) green — RED spec written by
+    the handoff, **not** by you. Do not weaken, skip, or rewrite it.
+  - **Done-check**: tick this box, then `tests/run-tests.sh` fully green.
+  - **Context**: `meeting/append.sh` (the only source file this item touches; `-t discoveries` /
+    `-t personas` paths must be left UNCHANGED — D2 explicitly scopes validation to `inbox`).
+    `relay/scripts/todo-conformance.sh` already encodes the conforming form — read it and reuse its
+    definition rather than inventing a second regex (CLAUDE.md: prefer existing tooling, no NIH).
+    Relates id:de36 (the lint-wiring sibling, disjoint file), id:1735, id:9fdb (inbox relocation),
+    id:411d (substring-match hazard — anchor on the trailing marker, never a bare token).
+  - **Honest coverage limit**: three gaps, named rather than papered over.
+    (1) Validation pins the *form* of a routed line, not its *truth* — a well-formed line naming the
+    wrong target repo still passes. The echo contract closes the reported-vs-written gap; it does not
+    make the description accurate.
+    (2) The collision-check is only tested at the *set* level (`scan-routed-tokens` returns the right
+    tokens) plus a 3-mint probe. That the mint CONSULTS the set is pinned by construction — one shared
+    function, asserted by the probe — not by an exhaustive proof; a mint that recomputed the set wrongly
+    could still pass. Injecting the RNG would close this and is deliberately NOT in scope.
+    (3) Nothing here stops a caller from ignoring stdout and echoing its own invented receipt. The echo
+    contract makes truth *available*; it cannot make a caller use it. Callers are the residual LLM
+    surface (CLAUDE.md mechanize-first: the loud-failure residual, named).
+
+- [ ] [ROUTINE] Conformance lint at the /meeting inbox surface <!-- id:de36 -->
+  - **Why**: `todo-conformance.sh --inbox` correctly flagged the broken acc7 line as `orphan` — the sole
+    non-conformer of 13 — but **nothing routine runs it**. It is reachable only via `scan-routed.sh`
+    (report-only, auto-write gated per id:678e) or a manual step in the global CLAUDE.md. The detector
+    existed and the defect still shipped: a loud detector whose invocation is optional is not a detector.
+    Once id:34c2 lands, the write path is guarded, but legacy entries and other `RELAY_INBOX` writers
+    remain unlinted.
+  - **Design**: `/meeting` SKILL.md step 7b already greps the inbox for `- [ ] [<repo>]` lines and
+    surfaces them. Extend that step to also run
+    `relay/scripts/todo-conformance.sh --inbox "$(inbox path)"` and display any non-conforming entries
+    under a distinct heading (e.g. `⚠ Inbox — non-conforming entries (todo-conformance.sh --inbox)`),
+    alongside the routed items. Surface-only, consistent with step 7b's existing read-only contract —
+    do NOT auto-fix, and do NOT block the meeting on a non-conformer.
+  - **Acceptance**: `tests/test_meeting_inbox_lint_surface.sh` (`# roadmap:de36`) green — RED spec written
+    by the handoff, not by you.
+  - **Done-check**: tick this box, then `tests/run-tests.sh` fully green.
+  - **Context**: `meeting/SKILL.md` step 7b (the only file this item touches — id:34c2 owns
+    `meeting/append.sh`; stay out of it so the two can run concurrently).
+    `relay/scripts/todo-conformance.sh` is the detector — invoke it, never reimplement it
+    (`scan-routed.sh:19` already records that no-reimplementation decision).
+  - **Honest coverage limit**: SKILL.md is prose the model follows, not code the harness executes, so the
+    test can only assert the instruction is PRESENT and correctly formed — it cannot prove a live meeting
+    obeys it. That is a real gap, not a passing grade; it is the same limit every SKILL.md step carries.
