@@ -251,8 +251,12 @@ function buildRelayStatus(state) {
     ? state.queued.map(r => `- ${r.repo}  verdict=${r.verdict}`).join('\n')
     : '_(none)_'
 
-  const blocked = state.blocked && state.blocked.length
-    ? state.blocked.map(r => `- ${r.repo}  reason=${r.reason}  worktree=${r.worktreePath}`).join('\n')
+  // id:1735 — "Blocked" now shows BOTH this round's surfaced/suppressed repos AND every
+  // still-outstanding real handback (the persistent accumulator) — previously the reassignment
+  // bug meant a handback from an earlier round silently vanished from this section too.
+  const blockedRows = [...(state.surfaced || []), ...(state.handbacks || [])]
+  const blocked = blockedRows.length
+    ? blockedRows.map(r => `- ${r.repo}  reason=${r.reason}  worktree=${r.worktreePath}`).join('\n')
     : '_(none)_'
 
   // Skipped (id:be62): every own repo NOT worked this round, with a one-word reason
@@ -288,7 +292,7 @@ function buildRelayStatus(state) {
     `- dispatched=${state.totalDispatched || 0} (total work units this run)`,
     `- in-flight=${(state.inFlight || []).length}`,
     `- completed=${(state.completed || []).length}`,
-    `- blocked=${(state.blocked || []).length}`,
+    `- blocked=${((state.surfaced || []).length + (state.handbacks || []).length)}`,
     `- queued=${(state.queued || []).length}`,
   ].join('\n')
 
@@ -334,7 +338,7 @@ async function writeRelayStatus(state, statusPath) {
   const path = statusPath || RELAY_STATUS_PATH
   const inFlightCount = (state.inFlight || []).length
   const completedCount = (state.completed || []).length
-  const blockedCount = (state.blocked || []).length
+  const blockedCount = (state.surfaced || []).length + (state.handbacks || []).length
   // id:c8b6 — event batch drained into this snapshot (may be empty) + the append-only target.
   const events = state.events || []
   const eventsBlock = events.join('\n')
@@ -698,7 +702,14 @@ function enqueueIntegration(repo, fn) {
 // RELAY_RUN_ID) and blind-stopping any background run the moment its /tmp cache went stale.
 // The prelude's `state.runId || prelude.runId` keeps this seeded value; absent an args.RUN_ID
 // (older front door) it falls back to the prelude-minted one as before.
-const state = { runId: (A.RUN_ID ? String(A.RUN_ID) : ''), ts: '', inFlight: [], completed: [], queued: [], blocked: [], skipped: [], quota: [], reviewMe: [] }
+// id:1735 — `blocked` used to be ONE array doing two incompatible jobs: reassigned wholesale
+// every round from discovery.surfaced (a per-round VIEW) while five handback sites pushed into
+// it as if it accumulated (a persistent LOG). A handback from round N was destroyed by round
+// N+1's reassignment, so the run's returned summary silently lost it. Split into two fields with
+// two different lifetimes: `surfaced` (per-round view, REASSIGNED every round — see ~line 1491,
+// that reassignment is correct and intentional) and `handbacks` (persistent accumulator, only
+// ever pushed to — see handback-summary.mjs for the pure logic + rationale).
+const state = { runId: (A.RUN_ID ? String(A.RUN_ID) : ''), ts: '', inFlight: [], completed: [], queued: [], surfaced: [], handbacks: [], skipped: [], quota: [], reviewMe: [] }
 let quotaStopped = false
 // Run-progress accumulators (id:c8b6), declared here (not at the bottom loop) so snapshotState
 // can read them with no temporal-dead-zone risk. round = re-discover→dispatch→drain iterations;
@@ -760,6 +771,28 @@ function handbackAlerts(tracker, threshold = 2) {
     .filter(e => e.count >= threshold)
     .sort((a, b) => b.count - a.count || a.repo.localeCompare(b.repo) || a.verdict.localeCompare(b.verdict))
     .map(e => ({ repo: e.repo, verdict: e.verdict, count: e.count, lastReason: e.lastReason }))
+}
+// id:1735 — persistent record of every `pushEvent('handback', …)` emitted this run (repo +
+// reason only — pendingEvents itself gets drained/flushed by snapshotState, so it cannot be
+// read back at end-of-run; this is a separate, NEVER-drained accumulator kept purely for the
+// invariant check below). Populated at the same call sites that call pushEvent('handback', …).
+const emittedHandbackEvents = []
+// id:1735 — inline copies of handback-summary.mjs (keep byte-equivalent; structural test pins
+// the wiring). See that file for full rationale.
+function buildSurfacedView(surfaced) {
+  return (surfaced || []).map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
+}
+function reconcileHandbacks(accumulator) {
+  return (accumulator || []).filter(b => b && b.worktreePath && b.worktreePath !== '-')
+}
+function assertHandbackInvariant(emittedEvents, accumulator) {
+  const acc = accumulator || []
+  const violations = []
+  for (const ev of (emittedEvents || [])) {
+    const found = acc.some(h => h && h.repo === ev.repo && h.reason === ev.reason)
+    if (!found) violations.push(ev)
+  }
+  return { ok: violations.length === 0, violations }
 }
 // id:8c35 — machine-readable stop reason: null | "quota-cache-unreadable" |
 // "quota-extrapolated-stop[:<bucket>]" (id:0175/82e3) | "quota-exhausted:<bucket>" |
@@ -1488,7 +1521,7 @@ state.queued = [
   // contract: pulled from `actionable` above, no child spawned, absent from PHASE_BY_VERDICT.
   ...mechanicalSurfaced.map(u => ({ repo: u.repo, verdict: `mechanical (pool-inert: pure-compute work for the host daemon, A3-gated; never dispatched by the LLM pool)` })),
 ]
-state.blocked = discovery.surfaced.map(s => ({ repo: s.repo, reason: s.reason, worktreePath: '-' }))
+state.surfaced = buildSurfacedView(discovery.surfaced)
 state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason }))   // id:be62
 
 log(`relay-loop: ${actionable.length} actionable units (${discovery.units.length} own repos, ${discovery.surfaced.length} surfaced)`)
@@ -1654,7 +1687,7 @@ async function integrate(unit, report) {
     // RECOVERABLE handback with the deterministic worktree path + resume hint, never an
     // orphan with worktreePath '-'. Any per-checkpoint commits survive on disk for a
     // manual/next-turn resume (handoff: re-dispatch reads them; see handoff.md §Resuming).
-    state.blocked.push({
+    state.handbacks.push({
       repo: unit.repo,
       reason: `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are preserved in the worktree — re-run /relay to resume (handoff continues from the last checkpoint).`,
       worktreePath: worktreePathFor(unit),
@@ -1665,7 +1698,7 @@ async function integrate(unit, report) {
   if (!report.contract_met) {
     // HANDBACK: not merged; worktree held on disk for a human/strong turn.
     const hbReason = report.handback || 'contract_met=false'
-    state.blocked.push({ repo: unit.repo, reason: hbReason, worktreePath: report.worktree })
+    state.handbacks.push({ repo: unit.repo, reason: hbReason, worktreePath: report.worktree })
     // id:1432 (b) — loud repeat-tracking: count every child handback this run; a repo+verdict
     // at >=2 surfaces as an ALERT in the exit summary + RELAY_STATUS (a repeating handback is a
     // bug signal, not noise).
@@ -1804,8 +1837,9 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     }
   } else {
     const reason = (result && result.reason) || 'integration failed'
-    state.blocked.push({ repo: unit.repo, reason, worktreePath: report.worktree })
+    state.handbacks.push({ repo: unit.repo, reason, worktreePath: report.worktree })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })  // id:c8b6
+    emittedHandbackEvents.push({ repo: unit.repo, reason })  // id:1735 — invariant backstop
   }
   scheduleStatusWrite(state)
 }
@@ -1912,7 +1946,7 @@ async function runUnit(unit) {
   // better to loudly skip a unit than to silently OOM-dispatch (id:oom-local-model-session-kills).
   if (unit.intensive && !ALLOW_INTENSIVE) {
     log(`relay-loop: id:5ac6 INTENSIVE fail-closed — unit ${unit.repo}(${unit.verdict}, intensive=${unit.intensive}) reached runUnit without --allow-intensive; SKIP + surface LOUDLY. This is a dispatch invariant violation (the INTENSIVE partition should have caught this). Use --intensive to enable.`)
-    state.blocked.push({
+    state.handbacks.push({
       repo: unit.repo,
       reason: `INTENSIVE fail-closed (id:5ac6): unit carries intensive=${unit.intensive} but ALLOW_INTENSIVE=false — skipped to prevent OOM dispatch; use --intensive to enable`,
       worktreePath: '-',
@@ -1996,8 +2030,9 @@ async function runUnit(unit) {
   debts.push(
     enqueueIntegration(unit.repo, () => integrate(unit, report)).catch((err) => {
       const reason = `integrator threw (contained id:efaf): ${err && err.message ? err.message : String(err)} — worktree preserved; recover via /relay reconcile`
-      state.blocked.push({ repo: unit.repo, reason, worktreePath: (report && report.worktree) || worktreePathFor(unit) })
+      state.handbacks.push({ repo: unit.repo, reason, worktreePath: (report && report.worktree) || worktreePathFor(unit) })
       pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
+      emittedHandbackEvents.push({ repo: unit.repo, reason })  // id:1735 — invariant backstop
       scheduleStatusWrite(state)
     })
   )
@@ -2191,7 +2226,7 @@ while (!quotaStopped && round < MAX_ROUNDS) {
           : `${r.actionable} dispatched but 0 integrated (all handed back)`)
     log(`relay-loop: round ${round} — no substantive progress: ${why} (dry ${dry}/2)`)
     if (dry >= 2) {
-      const drain = classifyDrainBacklog(state.blocked)
+      const drain = classifyDrainBacklog(state.surfaced)
       log(`relay-loop: backlog drained (2 consecutive no-substantive-progress rounds) — done. Remaining: ${drain.summary}`)
       if (drain.gated.length) log(`relay-loop: ${drain.gated.length} repo(s) have gated [HARD] work the pool cannot auto-do — take them to /relay human --all or /meeting --cross.`)
       break
@@ -2203,7 +2238,16 @@ while (!quotaStopped && round < MAX_ROUNDS) {
 
 await statusTail  // id:cb50 — flush the queued (off-critical-path) RELAY_STATUS writes so the final state is durable before the run returns
 await stopHeartbeat()  // id:e149 — clean shutdown: release the run-liveness marker (no stale marker ⇒ no false watchdog/reconcile trigger)
-const handbacks = state.blocked.filter(b => b.worktreePath && b.worktreePath !== '-')
+// id:1735 — the loud invariant backstop: every pushEvent('handback', …) emitted this run must
+// have a matching entry in the persistent state.handbacks accumulator. This is the assertion
+// that catches a regression of the original bug (a handback event recorded as having happened,
+// but the returned summary has no matching entry for it) — FAIL LOUDLY rather than silently
+// returning the (possibly incomplete) list.
+const handbackInvariant = assertHandbackInvariant(emittedHandbackEvents, state.handbacks)
+if (!handbackInvariant.ok) {
+  log(`relay-loop: INVARIANT VIOLATED (id:1735) — ${handbackInvariant.violations.length} handback event(s) emitted this run have NO corresponding entry in state.handbacks: ${JSON.stringify(handbackInvariant.violations)}`)
+}
+const handbacks = reconcileHandbacks(state.handbacks)
 // id:1432 — LOUD exit-summary surfacing: any repo+verdict that handed back >=2× this run is a
 // bug signal (a looping false/stale verdict). Log it prominently so an --afk operator sees it.
 const repeatHandbacks = handbackAlerts(handbackTracker, 2)
@@ -2217,6 +2261,7 @@ return {
   statusPath: RELAY_STATUS_PATH,
   completed: state.completed,
   handbacks,
+  handbackInvariantViolations: handbackInvariant.violations,  // id:1735 — [] unless the invariant tripped
   repeatHandbacks,  // id:1432 — [{repo, verdict, count, lastReason}] for >=2× handbacks this run
   queuedRemaining: state.queued,
   quotaStopped,

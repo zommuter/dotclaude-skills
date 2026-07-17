@@ -8,8 +8,8 @@
 #
 #   PART 1 — "skip no-op integrates" lever does NOT exist:
 #   - integrate() has TWO early-return guards before the agent() call (lines 940-958)
-#   - !report → pushes to state.blocked, returns without spawning any LLM agent
-#   - !report.contract_met → pushes to state.blocked, returns without spawning any LLM agent
+#   - !report → pushes to state.handbacks, returns without spawning any LLM agent
+#   - !report.contract_met → pushes to state.handbacks, returns without spawning any LLM agent
 #   - The Sonnet agent() call is only reachable when contract_met === true
 #   - Event-log evidence (relay-events.jsonl, 2026-06-16): 168 dispatches → 119 merges
 #     (integrate events, Sonnet ran + merged=true) + 8 handbacks (Sonnet ran + merged=false,
@@ -89,7 +89,7 @@ grep -qF "{ label: \`integrate:\${unit.repo}\`, phase: 'Integrate', schema: INTE
   || fail "integrate() Sonnet agent not pinned to model:'sonnet' (D2: must not downgrade)"
 pass "integrate() Sonnet agent pinned to model:'sonnet' (D2 invariant)"
 
-# ── (3) Early-return paths push to state.blocked (recoverable handback) ────────
+# ── (3) Early-return paths push to state.handbacks (recoverable handback) ────────
 # Both !report and !report.contract_met must push a blocked entry so the caller
 # surfaces the repo as a recoverable handback, not a silent loss.
 python3 - "$JS" <<'PYEOF'
@@ -105,14 +105,14 @@ null_guard_pos = body.find('if (!report) {')
 contract_guard_pos = body.find('if (!report.contract_met)')
 agent_pos = body.find('const result = await agent(')
 
-# Both blocks before the agent call should contain state.blocked.push
+# Both blocks before the agent call should contain state.handbacks.push
 pre_agent = body[:agent_pos]
-blocked_count = pre_agent.count('state.blocked.push(')
+blocked_count = pre_agent.count('state.handbacks.push(')
 if blocked_count < 2:
-    print(f"FAIL: expected ≥2 state.blocked.push() calls before the agent() call, found {blocked_count}"); sys.exit(1)
-print(f"PASS: {blocked_count} state.blocked.push() calls in early-return guards (both paths recorded)")
+    print(f"FAIL: expected ≥2 state.handbacks.push() calls before the agent() call, found {blocked_count}"); sys.exit(1)
+print(f"PASS: {blocked_count} state.handbacks.push() calls in early-return guards (both paths recorded)")
 PYEOF
-pass "early-return guards both push recoverable blocked entries to state.blocked"
+pass "early-return guards both push recoverable blocked entries to state.handbacks"
 
 # ── (4) enqueueIntegration always enqueues (even for non-merge outcomes) ───────
 # The enqueueIntegration call in runUnit is unconditional — it wraps the full
@@ -154,7 +154,7 @@ pass "no premature agent() call in integrate() before contract_met guard"
 
 # ── (6) Handback-from-Sonnet (merged=false) is correctly recorded ─────────────
 # When the Sonnet agent runs but returns merged=false (e.g. merge conflict), the
-# result is pushed to state.blocked with the reason. This path exists and must
+# result is pushed to state.handbacks with the reason. This path exists and must
 # remain (it's the post-integrator conflict path, unavoidable — the merge must be
 # attempted to detect conflicts).
 grep -q "const reason = (result && result.reason) || 'integration failed'" "$JS" \
