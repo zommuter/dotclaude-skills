@@ -88,7 +88,7 @@ grep -q "function unitIsSubstantive" "$JS" || bad "relay-loop.js missing the inl
 grep -q "function classifyDrainBacklog" "$JS" || bad "relay-loop.js missing the inline classifyDrainBacklog helper"
 grep -q "substantive: unitIsSubstantive(unit.verdict, report)" "$JS" || bad "relay-loop.js does not tag completions with substantive"
 grep -q "if ((r.substantive || 0) === 0)" "$JS" || bad "relay-loop.js dry-detector does not key on r.substantive (still on produced?)"
-grep -q "classifyDrainBacklog(state.blocked)" "$JS" || bad "relay-loop.js does not emit the wind-down backlog summary on drain"
+grep -q "classifyDrainBacklog(state.surfaced)" "$JS" || bad "relay-loop.js does not emit the wind-down backlog summary on drain"
 # regression guard: the dry detector must NOT have been left keyed on produced.
 grep -q "if ((r.produced || 0) === 0)" "$JS" && bad "relay-loop.js still has the old produced-based dry check (id:d58f not applied)" || ok "old produced-based dry check is gone (id:d58f applied)"
 
