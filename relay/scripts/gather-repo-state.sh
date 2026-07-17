@@ -312,25 +312,37 @@ if [[ -n "$audit_ref" ]] && git -C "$path" rev-parse --verify -q "$audit_ref" >/
     # Only checkpoint commits (or none) since the ref → nothing substantive to audit.
     substantive_unaudited=false
   else
-    # Of the non-checkpoint commits, is ANY one substantive — i.e. not a pure uv.lock-only
-    # relock (id:bae5) and not a pure contract-pointer-refresh (id:373e follow-up)?
+    # Of the non-checkpoint commits, is ANY one substantive — i.e. does it touch a path with a
+    # real audit surface (source/tests)? The "review" verdict exists to catch gamed test
+    # integrity, which requires source/test changes; a commit that touches ONLY lockfiles, the
+    # ledgers, docs/meeting-notes, or bumps a manifest version is audit-empty and must NOT spend
+    # a strong review turn. Observed 2026-07-17: a zkm v0.21.0 bump (pyproject+uv.lock), a
+    # toesnail TODO +1, chidiai docs/cases, mathematical-writing/zkWhale ledger+meeting-notes each
+    # burned an Opus review for zero audit work. id:2630 folds the uv.lock-only (id:bae5) and
+    # contract-pointer (id:fbbf) exemptions into one path+content non-auditable test, and extends
+    # them to the ledger/docs/version-bump classes (cf. id:0f1e ledger-only, id:cd6e scheduling
+    # side). FAIL-OPEN: any path NOT matched below is treated as AUDITABLE, and an unresolved
+    # audit_ref keeps substantive_unaudited=true (above) — a real audit is never wrongly skipped.
     has_substantive=false
     while IFS= read -r sha; do
       [[ -z "$sha" ]] && continue
       files="$(git -C "$path" show --name-only --pretty=format: "$sha" 2>/dev/null | grep -v '^[[:space:]]*$' || true)"
-      nonlock="$(printf '%s\n' "$files" | grep -vx 'uv.lock' || true)"
-      [[ -z "$nonlock" ]] && continue    # uv.lock-only relock — not substantive (id:bae5)
-      # Contract-pointer-refresh exemption: a commit whose ONLY changed content is the
-      # `relay-executor contract vN` pointer line is a pure META refresh (`relay review` §4
-      # bumps the marker when the executor contract version rises). A version bump must NOT,
-      # by itself, re-classify every managed repo as needing a fresh strong review — that was
-      # the observed waste (zkm-pdf, 2026-07-15). Detected by CONTENT, not commit subject, so
-      # it holds however the reviewer titles the commit.
-      content="$(git -C "$path" show --pretty=format: --unified=0 "$sha" 2>/dev/null \
-                 | grep -E '^[+-]' | grep -vE '^[+-]{3} ' || true)"   # actual +/- content lines
+      # Strip non-auditable-by-path files: lockfiles, the design/execution ledgers, and all docs
+      # (docs/** plus the root doc set). Whatever remains is a candidate audit surface.
+      auditable="$(printf '%s\n' "$files" | grep -vE \
+        '^(uv\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|poetry\.lock|Cargo\.lock)$|(^|/)(ROADMAP|TODO|TODO\.archive|REVIEW_ME|RELAY_LOG|CHANGELOG)\.md$|^docs/|^(README|ARCHITECTURE|CLAUDE)\.md$' \
+        || true)"
+      [[ -z "$auditable" ]] && continue    # only lockfile/ledger/docs paths — no audit surface (id:2630)
+      # Of the remaining auditable files, exempt a pure manifest version-bump or contract-pointer
+      # refresh. Content is scoped to the auditable files ONLY (via `-- $auditable`), so a
+      # docs-heavy commit's prose can never mask or defeat this check. The version pattern matches
+      # both TOML (`version = "…"`) and JSON (`"version": "…"`) manifest lines.
+      content="$(git -C "$path" show --pretty=format: --unified=0 "$sha" -- $auditable 2>/dev/null \
+                 | grep -E '^[+-]' | grep -vE '^[+-]{3} ' || true)"   # actual +/- content lines (auditable files only)
       nonmeta="$(printf '%s\n' "$content" | grep -vE '^[[:space:]]*$' \
-                 | grep -vE 'relay-executor contract v[0-9]+' || true)"
-      [[ -z "$nonmeta" ]] && continue    # every changed line is the contract pointer — meta only
+                 | grep -vE 'relay-executor contract v[0-9]+' \
+                 | grep -vE '^[+-][[:space:]]*"?version"?[[:space:]]*[:=]' || true)"
+      [[ -z "$nonmeta" ]] && continue    # remaining changes are version-bump / contract-pointer meta only (id:2630)
       has_substantive=true; break
     done <<< "$nonckpt_shas"
     [[ "$has_substantive" == true ]] && substantive_unaudited=true || substantive_unaudited=false
