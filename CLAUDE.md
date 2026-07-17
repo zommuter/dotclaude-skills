@@ -51,8 +51,25 @@ surface carries its own marker AND its own co-located bump discipline (change th
 | `classify.sh` TSV column contract | *(unmarked — candidate)* | SKILL.md parses fixed columns |
 | allowlist generator's 8-entries-per-script expansion | *(unmarked — candidate)* | literal-match settings.json entries |
 
-A public-repo `CHANGELOG.md` is **deferred** — trigger is the first external consumer who
-needs to pin a version for a reproducible install (none exists today; `git log` covers the rest).
+**A public-repo `CHANGELOG.md` is ADOPTED — this AMENDS the 2026-07-12 deferral (D3, meeting
+`docs/meeting-notes/2026-07-17-1541-semver-trigger-and-fleet-changelog.md`, id:b8fa).** The
+superseded text read: *"A public-repo `CHANGELOG.md` is deferred — trigger is the first external
+consumer who needs to pin a version for a reproducible install (none exists today; `git log`
+covers the rest)."* That trigger has **not** fired and is **not** the basis for the change —
+the amendment rests on a premise `8ef3` never weighed: it evaluated only *external* consumers
+and correctly found none, but this repo is consumed **internally**, through per-file symlinks,
+by every other repo's sessions. That is a different consumer class. Recorded as an **explicit
+amendment on an unconsidered premise**, not a reinterpretation of `8ef3`'s words (owner-ratified
+2026-07-17; the distinction is the CLAUDE.md "derived doc vs ratified source" rule).
+
+**`8ef3`'s no-version ruling STANDS, unamended** — still no repo-wide version, no `VERSION`
+file, no `v*` tags, git remains the version SSOT. This repo is version-less **and** has a
+CHANGELOG; the two are independent. Because it has no manifest, it has no bump to key entries
+off, so its changelog is **date-bucketed**, fired per relay integrate — whereas semver repos
+bucket by release (id:e647/b8fa, shipping together per D4). Entries are **derived** from
+existing relay state (`workedIds`, `relay-ckpt-*` tag messages, `RELAY_LOG.md`) and start from
+now — never backfilled, since per-close tags are unrecoverable after the 2026-07-16 batch.
+**Not yet built** — `id:b8fa` is the implementation.
 
 ## Layout
 
