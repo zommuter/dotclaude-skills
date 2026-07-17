@@ -62,6 +62,21 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    ```
    These are read-only; do not auto-write them into `<root>/TODO.md`. To adopt: add the item to `<root>/TODO.md` **keeping its `<!-- routed:XXXX -->` breadcrumb** (mint a fresh `<!-- id:YYYY -->` too if you want a local ledger id), then run `~/.claude/skills/meeting/append.sh inbox-done <routed-token>`. As of id:9fdb, `inbox-done` **REFUSES** (exit 3) unless the target repo's `TODO.md`/`ROADMAP.md` already carries the `routed:XXXX` twin — so preserve that breadcrumb, or let `relay/scripts/scan-routed.sh --apply` do the write-then-resolve automatically.
 
+   **Lint the inbox, not just grep it** (id:de36 — a grep-only surface missed the acc7
+   defect, a well-formed-looking `<!-- routed:$ID -->` line where `$ID` was a literal,
+   unexpanded shell variable): also run `relay/scripts/todo-conformance.sh --inbox
+   <the same resolved inbox path>` (the detector already used by `scan-routed.sh` — invoke
+   it, never reimplement its conforming-form regex). If it emits any findings, display them
+   as visible text, in a heading distinct from the routed-item list above:
+   ```
+   ⚠ Inbox — non-conforming entries (todo-conformance.sh --inbox)
+   <class>\t<lineno>\t<text> (one per finding, verbatim from the script's stdout)
+   ```
+   Surface-only, matching this step's existing read-only contract: display and move on —
+   never edit the inbox, never halt or gate the rest of the meeting on a finding. If the
+   lint emits nothing (clean inbox, or the inbox file does not exist), skip this block
+   silently.
+
 ## With a subject argument
 
 1. **Warrantability self-check** (see format spec). If the request looks like a bug fix, one-liner, or already-decided feature, respond "are you sure you want a meeting?" and briefly explain why it might be overkill — before running the agenda. If it clearly passes, note that and proceed.

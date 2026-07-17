@@ -1892,7 +1892,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
     contract makes truth *available*; it cannot make a caller use it. Callers are the residual LLM
     surface (CLAUDE.md mechanize-first: the loud-failure residual, named).
 
-- [ ] [ROUTINE] Conformance lint at the /meeting inbox surface <!-- id:de36 -->
+- [x] [ROUTINE] Conformance lint at the /meeting inbox surface <!-- id:de36 -->
   - **Why**: `todo-conformance.sh --inbox` correctly flagged the broken acc7 line as `orphan` — the sole
     non-conformer of 13 — but **nothing routine runs it**. It is reachable only via `scan-routed.sh`
     (report-only, auto-write gated per id:678e) or a manual step in the global CLAUDE.md. The detector
