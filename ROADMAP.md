@@ -1837,7 +1837,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
      The two items below have DISJOINT file targets (meeting/append.sh vs meeting/SKILL.md)
      per routed:c28e, so the pool may run them concurrently. -->
 
-- [ ] [ROUTINE] append.sh inbox write-path integrity — validate, mint-inside, echo-what-was-written <!-- id:34c2 -->
+- [x] [ROUTINE] append.sh inbox write-path integrity — validate, mint-inside, echo-what-was-written <!-- id:34c2 -->
   - **Why**: `routed:acc7` was minted, reported as filed, and never written. The loderite hand-run ran
     `ID=$(append.sh new-id); append.sh -t inbox -e "… <!-- routed:\$ID -->"; echo "filed routed:$ID"` —
     `$ID` **escaped** in the payload, **unescaped** in the echo. Bash wrote the literal `$ID` to

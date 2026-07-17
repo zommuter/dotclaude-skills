@@ -2704,3 +2704,34 @@ strong-execute: id:f980 (circuit breaker counts only what dispatches — shape A
 Worked id:521f — `roadmap-lint.sh` id extraction was an unanchored first-match `id_re='id:[0-9a-fA-F]{4}'` grep at 5 call sites (heading-as-item tagged-child check, heading missing-id check, the grammar's clause-2 has_id check, the TAG-NOT-FIRST warn's display id, and the violation-report idtoken). Fixed by anchoring all 5 to the canonical trailing `<!-- id:XXXX -->` HTML-comment marker via a new `own_id_of_line`/`has_own_id_marker` pair; `item_id()` now uses the anchored marker first, falling back to a bare `id:XXXX` grab ONLY for report-display convenience on a line with no marker at all (never to satisfy the has-id grammar clause). `tests/test_roadmap_lint_id_anchoring.sh` green (misattribution, false-negative, and no-false-positive-on-citation controls all pass); the real ROADMAP.md still lints clean (exit 0).
 Friction: none — item was well-scoped, no size-out needed.
 refactor: extracted the anchored-marker regex + extraction/boolean helpers into a new shared file `relay/scripts/lib-anchored-id.sh` (mirrors the existing `lib-own-repos.sh` pattern — sourced, not executed; registered in the Makefile's `relay_FILES`). Deliberately did NOT force `scan-routed.sh` / `unpromoted-scan.sh` (id:1312/d515, already closed+tested) onto the same helper: they solve a different shape — "does a SPECIFIC KNOWN token appear as some line's own marker" (whole-file/string presence check, one end-of-line-strict, one spanning two files with a `routed:`-or-`id:` prefix) — versus roadmap-lint's "extract the UNKNOWN owning id from THIS line, tolerant of trailing prose after the marker". Rewriting the other two into per-line loops for a stylistic 3-way unification would touch already-shipped, tested code for no behavioural gain; the rationale is recorded in `lib-anchored-id.sh`'s header comment so it isn't re-litigated. Full suite: 251 passed, 0 failed, 0 expected-red.
+
+## 2026-07-17 15:43 — executor (sonnet)
+
+Worked id:34c2 — `append.sh -t inbox` now (A) validates on write, (B) mints inside via
+`--route-to <target-repo> -e "<desc>"`, and (C) always echoes the routed token actually
+written, closing the acc7 phantom-append incident (a caller could previously report a
+token that was never on disk). (A) reuses `relay/scripts/todo-conformance.sh --inbox`'s
+existing `classify_inbox` grammar rather than re-deriving the conforming-form regex — the
+entry is written to a throwaway single-line temp file and run through the real classifier;
+an `orphan` verdict rejects (exit 1, nothing appended) with the offending line and the
+expected form. (B) mints via a new `scan_routed_tokens <target>` helper (also exposed as
+the `scan-routed-tokens` verb, mirroring `scan-ids`'s output contract) that unions the
+inbox's own `routed:` markers with the target repo's `routed:` citations across the same
+file set `scan_ids` already scans (`docs/meeting-notes`, `TODO.md`, `TODO.archive.md`,
+`ROADMAP.md`) via the existing `resolve_target()` — the mint loop re-rolls
+`secrets.token_hex(2)` until it draws a token outside that set, so the collision-check is
+the same function the `scan-routed-tokens` verb exposes, not a second copy. (C) parses the
+token back out of the line just appended (`grep -oP 'routed:\K[0-9a-f]{4}'`) rather than
+trusting any caller-side variable — stdout is now ground truth for what landed on disk.
+`-t discoveries`/`-t personas` are untouched (validation is gated on `target == inbox`
+only); `tests/test_inbox_write_integrity.sh` (RED spec, not written by me) is green
+unmodified, and the full suite is 254 passed, 0 failed, 1 expected-red (id:de36, my
+sibling's item, correctly still open).
+Friction: none of substance — the one design call was reuse-vs-reimplement for the
+conforming-form check; running the entry through the real `todo-conformance.sh --inbox`
+classifier (rather than copying its regex into append.sh) avoids a second definition of
+the inbox grammar drifting from the first.
+refactor: none needed — this item adds a new, previously-nonexistent write-path guard and
+two new verbs to `append.sh`; there was no existing `-t inbox` validation/echo logic to
+clean up, and the new code reuses `resolve_inbox()`/`resolve_target()`/`scan_ids`'s file-set
+convention rather than introducing a parallel implementation.

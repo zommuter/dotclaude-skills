@@ -5,9 +5,27 @@
 #   append.sh -t {discoveries|personas|inbox} -e "line text"
 #   append.sh -t {discoveries|personas|inbox} -f entry.txt
 #   echo "line" | append.sh -t {discoveries|personas|inbox}
+#   append.sh -t inbox --route-to <target-repo> -e "<description>"
+#                                         — mint the token INSIDE append.sh, build the
+#                                           conforming line, append it, print the token
+#                                           (id:34c2 — the caller never builds the marker
+#                                           itself, so a reported token is always the one
+#                                           actually written).
 #   append.sh inbox-done <4-hex-token>   — REMOVE a routed inbox item once adopted
 #   append.sh new-id [<root>] | new-ids N [<root>]  — mint collision-free token(s)
 #   append.sh scan-ids [<root>]          — list every existing token (sorted unique)
+#   append.sh scan-routed-tokens <target-repo>
+#                                         — list the routed-namespace collision set for
+#                                           <target-repo> (inbox own-markers + the target
+#                                           repo's `routed:` citations), bare 4-hex, one
+#                                           per line, sorted unique — mirrors scan-ids.
+#
+# `-t inbox` ALWAYS prints the routed token actually written to disk on success — for
+# `--route-to`, the one it minted; for the raw `-e`/`-f`/stdin form, the one parsed back
+# out of the appended line. It also VALIDATES: a non-conforming `-t inbox` entry (missing
+# the `- [ ]/[x] [<target>] … <!-- routed:XXXX -->` shape) is rejected (non-zero, nothing
+# appended) rather than silently written — see docs/meeting-notes/2026-07-17-1450-acc7-*.
+# `-t discoveries` / `-t personas` are UNCHANGED: free prose, no validation, no echo.
 #
 # No git operations — the caller (git-diary-workflow) commits the result.
 
@@ -195,6 +213,43 @@ if [[ "${1:-}" == "scan-ids" ]]; then
   exit 0
 fi
 
+# scan_routed_tokens <target-repo>: the ROUTED-namespace collision set for a --route-to
+# mint (id:34c2, D3 fold-in). scan_ids greps `id:[0-9a-f]{4}` over <root> only, so it
+# structurally cannot see `routed:XXXX` tokens — a mint that only consulted scan_ids would
+# be checking the wrong namespace. The set = this repo's own inbox markers (every `-t
+# inbox` entry already written) PLUS the target repo's `routed:` CITATIONS (the same file
+# set scan_ids scans, mirrored via resolve_target — never re-derive the path). Bare 4-hex,
+# one per line, sorted unique — same output contract as scan-ids.
+scan_routed_tokens() {
+  local name="$1" inbox tgt
+  inbox="$(resolve_inbox)"
+  {
+    if [[ -f "$inbox" ]]; then
+      grep -ho 'routed:[0-9a-f]\{4\}' "$inbox" 2>/dev/null || true
+    fi
+    # resolve_target may legitimately fail to resolve (unregistered/absent repo) — fall
+    # back to the inbox-only set rather than erroring, mirroring inbox-done's tgt_path
+    # handling above (append.sh:139-145).
+    tgt="$(resolve_target "$name" 2>/dev/null || true)"
+    if [[ -n "$tgt" ]]; then
+      grep -rho 'routed:[0-9a-f]\{4\}' \
+        "$tgt/docs/meeting-notes" \
+        "$tgt/TODO.md" \
+        "$tgt/TODO.archive.md" \
+        "$tgt/ROADMAP.md" 2>/dev/null || true
+    fi
+  } | sed 's/^routed://' | sort -u
+}
+
+# scan-routed-tokens: print the routed-namespace collision set for <target-repo>.
+# Usage: append.sh scan-routed-tokens <target-repo>
+if [[ "${1:-}" == "scan-routed-tokens" ]]; then
+  TARGET_NAME="${2:-}"
+  [[ -n "$TARGET_NAME" ]] || { echo "Usage: $0 scan-routed-tokens <target-repo>" >&2; exit 1; }
+  scan_routed_tokens "$TARGET_NAME"
+  exit 0
+fi
+
 # new-children: mint N collision-free child tokens for a parent SPLIT and, in the same
 # call, emit the parent's typed `children:` marker so the corpus stops accruing umbrella
 # blindspots (id:06e3, typed-ledger-edges 2026-07-10). Prints each child token one per
@@ -246,13 +301,17 @@ fi
 target=""
 entry=""
 entry_file=""
+route_to=""
 
-while getopts "t:e:f:" opt; do
-  case "$opt" in
-    t) target="$OPTARG" ;;
-    e) entry="$OPTARG" ;;
-    f) entry_file="$OPTARG" ;;
-    *) echo "Usage: $0 -t {discoveries|personas|inbox} [-e text | -f file]" >&2; exit 1 ;;
+# Manual parse (not getopts) so `-t inbox --route-to <repo> -e "<desc>"` (id:34c2, form B)
+# can sit alongside the original short flags without getopts' lack of long-option support.
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -t) target="${2:-}"; shift 2 ;;
+    -e) entry="${2:-}"; shift 2 ;;
+    -f) entry_file="${2:-}"; shift 2 ;;
+    --route-to) route_to="${2:-}"; shift 2 ;;
+    *) echo "Usage: $0 -t {discoveries|personas|inbox} [-e text | -f file] [--route-to <target-repo>]" >&2; exit 1 ;;
   esac
 done
 
@@ -263,6 +322,11 @@ case "$target" in
   "")          echo "Error: -t is required" >&2; exit 1 ;;
   *)           echo "Error: -t must be 'discoveries', 'personas', or 'inbox'" >&2; exit 1 ;;
 esac
+
+if [[ -n "$route_to" && "$target" != "inbox" ]]; then
+  echo "Error: --route-to is only valid with -t inbox" >&2
+  exit 1
+fi
 
 if [[ -n "$entry_file" ]]; then
   entry_file="$(readlink -f "$entry_file")"
@@ -279,9 +343,64 @@ if [[ -z "$entry" ]]; then
   exit 1
 fi
 
+# --- (B) mint-inside: `-t inbox --route-to <target-repo>` --------------------------------
+# append.sh mints the token itself and builds the WHOLE conforming line — the caller only
+# supplies the description, never the marker, so there is no interpolation step for a
+# caller to get wrong (the root cause of the acc7 incident). Collision-checked against the
+# ROUTED namespace (scan_routed_tokens), not scan_ids's `id:` namespace.
+if [[ -n "$route_to" ]]; then
+  if [[ "$entry" == *'<!-- routed:'*'-->'* ]]; then
+    echo "Error: --route-to builds the routed:XXXX marker itself — the description must not contain one:" >&2
+    echo "  $entry" >&2
+    exit 1
+  fi
+  existing_routed="$(scan_routed_tokens "$route_to")"
+  mint_token=""
+  while :; do
+    cand="$(python3 -c 'import secrets; print(secrets.token_hex(2))')"
+    if ! grep -qxF "$cand" <<<"$existing_routed"; then
+      mint_token="$cand"
+      break
+    fi
+  done
+  line="- [ ] [$route_to] $entry <!-- routed:$mint_token -->"
+  (
+    flock -x 9
+    printf '\n%s\n' "$line" >> "$dest"
+  ) 9>"${dest}.lock"
+  printf '%s\n' "$mint_token"
+  exit 0
+fi
+
+# --- (A) validate on write: `-t inbox`, raw -e/-f/stdin form ------------------------------
+# Reuse todo-conformance.sh's `--inbox` grammar (classify_inbox) rather than re-deriving the
+# conforming-form regex here (CLAUDE.md: no NIH) — run the entry through the SAME classifier
+# the repo's lint already uses, via a throwaway single-line file, and reject on "orphan".
+if [[ "$target" == "inbox" ]]; then
+  conf_sh="$(cd "$SKILL_DIR/.." && pwd)/relay/scripts/todo-conformance.sh"
+  tmp_check="$(mktemp)"
+  printf '%s\n' "$entry" > "$tmp_check"
+  conf_out="$("$conf_sh" --inbox "$tmp_check" 2>&1)"
+  rm -f -- "$tmp_check"
+  if grep -q $'^orphan\t' <<<"$conf_out"; then
+    echo "Error: -t inbox entry does not match the conforming inbox form and was NOT appended:" >&2
+    echo "  $entry" >&2
+    echo "Expected form: - [ ]/[x] [<target-repo>] <description> <!-- routed:XXXX -->" >&2
+    exit 1
+  fi
+fi
+
 # Always prepend a blank line — defensive against missing trailing newline
 # flock prevents concurrent calls from interleaving lines
 (
   flock -x 9
   printf '\n%s\n' "$entry" >> "$dest"
 ) 9>"${dest}.lock"
+
+# --- (C) echo what was written: `-t inbox`, raw -e/-f/stdin form --------------------------
+# stdout is the token PARSED BACK OUT of the line just appended — never the caller's own
+# variable — so `filed routed:$(append.sh …)` cannot lie about what landed on disk.
+if [[ "$target" == "inbox" ]]; then
+  written_token="$(grep -oP '<!--\s*routed:\K[0-9a-f]{4}(?=\s*-->)' <<<"$entry" | tail -1)"
+  [[ -n "$written_token" ]] && printf '%s\n' "$written_token"
+fi
