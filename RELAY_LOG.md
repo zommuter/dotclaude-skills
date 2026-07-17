@@ -2822,3 +2822,7 @@ so routine_open = 1.
 `/meeting`-authored design-ledger items (correctly ledger-neutral, `/meeting` owns the "why") or
 already-promoted twins (id:1102/1735/34c2/de36/dc5b/4a46/e647/b8fa). No un-promoted
 execution-ready item needed a mini-handoff beyond a286.
+
+## 2026-07-17 18:20 — reviewer (claude-opus-4-8)
+
+review + apex fixes: audited 32-commit window since relay-ckpt-20260716-1526 (gaming-scan clean); re-laned 4a46 [ROUTINE]->[INPUT decision]; ticked cross-ledger TODO twins (34c2/de36/1735/1102); fixed live make-test breakage (append.sh bare rm -f -> rm --, a286); shipped id:2630 — classifier no longer spends Opus reviews on non-auditable (ledger/docs/version-bump) diffs. make test 257 green.
