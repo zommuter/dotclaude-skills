@@ -381,7 +381,7 @@ if [[ "$target" == "inbox" ]]; then
   tmp_check="$(mktemp)"
   printf '%s\n' "$entry" > "$tmp_check"
   conf_out="$("$conf_sh" --inbox "$tmp_check" 2>&1)"
-  rm -f -- "$tmp_check"
+  rm -- "$tmp_check"
   if grep -q $'^orphan\t' <<<"$conf_out"; then
     echo "Error: -t inbox entry does not match the conforming inbox form and was NOT appended:" >&2
     echo "  $entry" >&2
