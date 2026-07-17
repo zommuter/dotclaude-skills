@@ -2740,3 +2740,31 @@ refactor: none needed — this item adds a new, previously-nonexistent write-pat
 two new verbs to `append.sh`; there was no existing `-t inbox` validation/echo logic to
 clean up, and the new code reuses `resolve_inbox()`/`resolve_target()`/`scan_ids`'s file-set
 convention rather than introducing a parallel implementation.
+
+id:1102 (2026-07-17, executor session): relay-doctor.sh now detects install DRIFT, the
+manifest -> tree direction id:69ef's reference-install check structurally could not catch
+(id:69ef only verifies repo -> manifest, i.e. "is every relay/references/*.md DECLARED?" —
+lib-anchored-id.sh WAS declared, so id:69ef stayed clean while the live tree had 62 of 64
+scripts). The new `install_drift_check()` (section `=== install-drift: manifest -> tree
+(id:1102) ===`) walks the SAME `relay_files_manifest()` join id:69ef already used (factored
+out of check 4 so both callers share one parser, per CLAUDE.md no-not-invented-here — this
+IS the refactor line, see below) and, for every `scripts/*`/`references/*` token, asserts
+`$RELAY_INSTALL_ROOT/relay/<token>` exists (default `~/.claude/skills`, overridable so
+`tests/test_relay_install_drift_check.sh` never touches the real install tree). Prints
+`MISSING: relay/<token> ...` per gap, a clean summary otherwise, and is wired into the
+cross-repo/once-only section right after `refs_install_check`. The meeting-cross/id:4f5f
+carve-out is satisfied structurally (this check reads only the relay skill's own
+relay_FILES manifest, so meeting-cross's deliberately-uninstalled SKILL.md is never in
+scope) and is recorded explicitly in a code comment so that reads as a decision, not an
+oversight. One knock-on fix: had to add a "no relay install found under
+$RELAY_INSTALL_ROOT/relay" SKIP guard, because `tests/test_relay_doctor_strict.sh` runs
+relay-doctor against a synthetic `$HOME` with no installed relay skill at all — without the
+guard every manifested file read as MISSING and `--strict` started failing that
+pre-existing test's "clean fixture" case (a bare-missing-root is a setup state, not drift,
+so it SKIPs rather than counting issues). Target spec
+`tests/test_relay_install_drift_check.sh` green; full suite green (256 passed, 0 failed, 0
+expected-red).
+refactor: factored the backslash-continued `relay_FILES := …` awk join (previously
+duplicated between check 4/id:69ef and its test) out into a shared `relay_files_manifest()`
+function that both `refs_install_check()` and the new `install_drift_check()` now call —
+one parser instead of a second/third copy, per the item's explicit reuse mandate.
