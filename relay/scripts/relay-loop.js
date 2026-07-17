@@ -845,11 +845,12 @@ function unitIsSubstantive(verdict, report) {
   return true
 }
 function classifyDrainBacklog(blocked) {
-  const buckets = { finished: [], gated: [], circuitBroken: [], dirty: [], other: [] }
+  const buckets = { finished: [], gated: [], suppressed: [], circuitBroken: [], dirty: [], other: [] }
   for (const b of (blocked || [])) {
     const repo = b && b.repo ? b.repo : '?'
     const reason = (b && b.reason) ? String(b.reason) : ''
     if (/finished repo|anti-false-handoff|0 open items/i.test(reason)) buckets.finished.push(repo)
+    else if (/suppressed re-dispatch/i.test(reason)) buckets.suppressed.push(repo)
     else if (/HARD backlog|\[HARD —|\[HARD\]|\[INPUT —|no open \[HARD — pool\]|no open \[HARD\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
     else if (/circuit breaker/i.test(reason)) buckets.circuitBroken.push(repo)
     else if (/dirty main tree|dirty/i.test(reason)) buckets.dirty.push(repo)
@@ -857,12 +858,20 @@ function classifyDrainBacklog(blocked) {
   }
   const parts = []
   if (buckets.finished.length)     parts.push(`${buckets.finished.length} finished`)
+  if (buckets.suppressed.length)   parts.push(`${buckets.suppressed.length} suppressed (→ /relay reconcile: ${buckets.suppressed.join(', ')})`)
   if (buckets.gated.length)        parts.push(`${buckets.gated.length} gated (→ /relay human or /meeting: ${buckets.gated.join(', ')})`)
   if (buckets.circuitBroken.length) parts.push(`${buckets.circuitBroken.length} circuit-broken`)
   if (buckets.dirty.length)        parts.push(`${buckets.dirty.length} dirty`)
   if (buckets.other.length)        parts.push(`${buckets.other.length} other`)
   const summary = parts.length ? parts.join(' · ') : 'no blocked repos'
   return { ...buckets, summary }
+}
+// id:4ca8 — inline copies of drain.mjs's isBlockedRound/isDryRound (keep byte-equivalent).
+function isBlockedRound(r) {
+  return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) > 0)
+}
+function isDryRound(r) {
+  return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0)
 }
 
 async function runRound() {
@@ -1531,7 +1540,9 @@ scheduleStatusWrite(state)
 // round; the outer loop counts consecutive dry rounds toward "backlog drained".
 if (actionable.length === 0 && intensiveUnits.length === 0) {
   if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') log('relay-loop: --fable-down — no executor work this round, strong work deferred')
-  return { actionable: 0, produced: 0 }
+  // id:4ca8 — plumb the surfaced count through so the outer loop can tell "no work" apart from
+  // "work exists but is BLOCKED" (suppressed/gated repos surfaced by discovery this round).
+  return { actionable: 0, produced: 0, surfaced: discovery.surfaced.length }
 }
 
 // ── Phase 2+3: Dispatch pool + serialized integration ──
@@ -2128,7 +2139,7 @@ const produced = state.completed.length - completedBefore
 // confirming-only review is produced-but-not-substantive; the drain detector keys on this so a
 // quiescent fleet (only re-confirming reviews) winds down instead of spinning to MAX_ROUNDS.
 const substantive = state.completed.slice(completedBefore).filter(c => c.substantive).length
-return { actionable: actionable.length + intensiveRan, produced, substantive }
+return { actionable: actionable.length + intensiveRan, produced, substantive, surfaced: discovery.surfaced.length }
 }
 // ── end runRound ──
 
@@ -2210,6 +2221,22 @@ while (!quotaStopped && round < MAX_ROUNDS) {
     log(`relay-loop: graceful stop — launch round cap reached (${round}/${STOP_AFTER_ROUNDS}, --once/--after)`)
     break
   }
+  // id:4ca8 — a round that produced nothing SUBSTANTIVE but SURFACED >=1 suppressed/gated repo
+  // is BLOCKED, not empty — id:1735's original "stale discovery snapshot" hypothesis for this
+  // symptom was FALSIFIED (discovery was fresh + correct); the real gap was that nothing
+  // distinguished "surfaced" from "genuinely nothing left" here. Stop DECISIVELY on the first
+  // such round (no need to wait for a 2nd confirming round — the surfaced count already tells
+  // us why) with a distinct stopReason, instead of silently drifting into the generic
+  // 2-dry-rounds "backlog drained" path below while real (blocked) work still sits in
+  // ROADMAP.md.
+  if (isBlockedRound(r)) {
+    const drain = classifyDrainBacklog(state.surfaced)
+    stopReason = 'blocked-pending-human'
+    log(`relay-loop: id:4ca8 stopping — round ${round} surfaced ${r.surfaced} blocked repo(s), 0 substantive progress: ${drain.summary}`)
+    if (drain.suppressed.length) log(`relay-loop: ${drain.suppressed.length} repo(s) have parked partial work suppressing re-dispatch — take them to /relay reconcile.`)
+    if (drain.gated.length) log(`relay-loop: ${drain.gated.length} repo(s) have gated [HARD] work the pool cannot auto-do — take them to /relay human --all or /meeting --cross.`)
+    break
+  }
   // id:2d20 + id:d58f — a round makes no progress when it produced nothing SUBSTANTIVE, not
   // merely when it integrated nothing. id:2d20 counted any integrated checkpoint as progress;
   // id:d58f tightens that: a CONFIRMING-only review (verified-green, reopened/added nothing) is
@@ -2217,7 +2244,10 @@ while (!quotaStopped && round < MAX_ROUNDS) {
   // already-reviewed repos (notably a concurrently-churning cwd repo) counts as dry and winds
   // down after 2 such rounds instead of spinning to the MAX_ROUNDS seatbelt. An all-handback
   // round (gated/too-large HARD) and a dispatched-but-confirming-only round both count here.
-  if ((r.substantive || 0) === 0) {
+  // id:4ca8 — now gated on isDryRound (substantive===0 AND surfaced===0): the isBlockedRound
+  // check above already intercepted (and broke on) any substantive===0-but-surfaced>0 round, so
+  // this branch is only ever reached when surfaced===0 too — a genuinely empty round.
+  if (isDryRound(r)) {
     dry++
     const why = r.actionable === 0
       ? 'no actionable units'
@@ -2227,6 +2257,7 @@ while (!quotaStopped && round < MAX_ROUNDS) {
     log(`relay-loop: round ${round} — no substantive progress: ${why} (dry ${dry}/2)`)
     if (dry >= 2) {
       const drain = classifyDrainBacklog(state.surfaced)
+      stopReason = stopReason || 'drained'  // id:4ca8 — always set, never left null on a drain exit
       log(`relay-loop: backlog drained (2 consecutive no-substantive-progress rounds) — done. Remaining: ${drain.summary}`)
       if (drain.gated.length) log(`relay-loop: ${drain.gated.length} repo(s) have gated [HARD] work the pool cannot auto-do — take them to /relay human --all or /meeting --cross.`)
       break

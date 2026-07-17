@@ -87,7 +87,12 @@ grep -q "id:d58f" "$JS" || bad "relay-loop.js: no id:d58f marker (drain wiring r
 grep -q "function unitIsSubstantive" "$JS" || bad "relay-loop.js missing the inline unitIsSubstantive helper"
 grep -q "function classifyDrainBacklog" "$JS" || bad "relay-loop.js missing the inline classifyDrainBacklog helper"
 grep -q "substantive: unitIsSubstantive(unit.verdict, report)" "$JS" || bad "relay-loop.js does not tag completions with substantive"
-grep -q "if ((r.substantive || 0) === 0)" "$JS" || bad "relay-loop.js dry-detector does not key on r.substantive (still on produced?)"
+# id:4ca8 (2026-07-17): the dry-detector was extracted into the isDryRound(r) pure predicate
+# (relay/scripts/drain.mjs) so it could also distinguish a genuinely-empty round from a
+# BLOCKED one (isBlockedRound) — see tests/test_relay_loop_drain_vs_blocked.sh for that spec.
+# The underlying key (substantive, not produced) is unchanged; only the call site's shape is.
+grep -q "if (isDryRound(r))" "$JS" || bad "relay-loop.js dry-detector is not gated on isDryRound(r)"
+grep -q "(r.substantive || 0) === 0 && (r.surfaced || 0) === 0" "$JS" || bad "relay-loop.js dry-detector does not key on r.substantive (still on produced?)"
 grep -q "classifyDrainBacklog(state.surfaced)" "$JS" || bad "relay-loop.js does not emit the wind-down backlog summary on drain"
 # regression guard: the dry detector must NOT have been left keyed on produced.
 grep -q "if ((r.produced || 0) === 0)" "$JS" && bad "relay-loop.js still has the old produced-based dry check (id:d58f not applied)" || ok "old produced-based dry check is gone (id:d58f applied)"

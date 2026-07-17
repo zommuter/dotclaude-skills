@@ -45,15 +45,21 @@ export function unitIsSubstantive(verdict, report) {
 
 // classifyDrainBacklog(blocked) — when the loop winds down, bucket the surfaced/blocked repos by
 // WHY they were not actionable, so the wind-down message tells the human what (if anything) is
-// left and where to take it. `blocked` is an array of {repo, reason} (state.blocked). Matching is
-// on the reason strings the discovery emits. Returns {finished, gated, circuitBroken, dirty,
-// other} arrays of repo names + a one-line `summary` string. Pure (no I/O).
+// left and where to take it. `blocked` is an array of {repo, reason} (state.surfaced, id:1735).
+// Matching is on the reason strings the discovery emits. Returns {finished, gated, suppressed,
+// circuitBroken, dirty, other} arrays of repo names + a one-line `summary` string. Pure (no I/O).
+//
+// The `suppressed` bucket (id:4ca8) matches reconcile-repo.sh's id:1f53 orphan
+// suppress-redispatch reason VERBATIM ("suppressed re-dispatch: …") — distinct from `gated`
+// (an [HARD]/[INPUT] backlog needing a human decision): a suppressed repo has PARKED PARTIAL
+// WORK on an orphan branch and needs `/relay reconcile`, not `/meeting`.
 export function classifyDrainBacklog(blocked) {
-  const buckets = { finished: [], gated: [], circuitBroken: [], dirty: [], other: [] }
+  const buckets = { finished: [], gated: [], suppressed: [], circuitBroken: [], dirty: [], other: [] }
   for (const b of (blocked || [])) {
     const repo = b && b.repo ? b.repo : '?'
     const reason = (b && b.reason) ? String(b.reason) : ''
     if (/finished repo|anti-false-handoff|0 open items/i.test(reason)) buckets.finished.push(repo)
+    else if (/suppressed re-dispatch/i.test(reason)) buckets.suppressed.push(repo)
     else if (/HARD backlog|\[HARD —|no open \[HARD — pool\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
     else if (/circuit breaker/i.test(reason)) buckets.circuitBroken.push(repo)
     else if (/dirty main tree|dirty/i.test(reason)) buckets.dirty.push(repo)
@@ -61,10 +67,30 @@ export function classifyDrainBacklog(blocked) {
   }
   const parts = []
   if (buckets.finished.length)     parts.push(`${buckets.finished.length} finished`)
+  if (buckets.suppressed.length)   parts.push(`${buckets.suppressed.length} suppressed (→ /relay reconcile: ${buckets.suppressed.join(', ')})`)
   if (buckets.gated.length)        parts.push(`${buckets.gated.length} gated (→ /relay human or /meeting: ${buckets.gated.join(', ')})`)
   if (buckets.circuitBroken.length) parts.push(`${buckets.circuitBroken.length} circuit-broken`)
   if (buckets.dirty.length)        parts.push(`${buckets.dirty.length} dirty`)
   if (buckets.other.length)        parts.push(`${buckets.other.length} other`)
   const summary = parts.length ? parts.join(' · ') : 'no blocked repos'
   return { ...buckets, summary }
+}
+
+// isBlockedRound(r) / isDryRound(r) (id:4ca8) — distinguishes a round that produced nothing
+// because there was genuinely NOTHING actionable left (drain-eligible) from a round that
+// produced nothing because the only remaining work is BLOCKED (suppressed/gated) and was
+// SURFACED this round. `r` is the object runRound() returns: {actionable, produced,
+// substantive, surfaced}. A blocked round must NOT be treated as "dry" for backlog-drain
+// purposes — draining after 2 such rounds would silently report "backlog drained" while real
+// (blocked) work still sits in ROADMAP.md. Observed 2026-07-17, run
+// relay-20260717-100452-13146: reconcile-repo.sh's id:1f53 suppression correctly surfaced
+// loderite (8 open [ROUTINE] items parked behind one orphan), and the loop drained anyway
+// because nothing distinguished "surfaced" from "genuinely nothing left" — the TODO id:1735's
+// original "stale discovery snapshot" hypothesis for this symptom was FALSIFIED; discovery was
+// fresh and correct, this classification gap is the real, distinct root.
+export function isBlockedRound(r) {
+  return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) > 0)
+}
+export function isDryRound(r) {
+  return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0)
 }
