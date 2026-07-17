@@ -2710,3 +2710,33 @@ refactor: extracted the anchored-marker regex + extraction/boolean helpers into 
 Worked id:de36 — extended `/meeting` step 7b (`meeting/SKILL.md`) so the inbox surface is LINTED, not just grepped. Added a paragraph directly after the existing routed-item-adoption prose, inside the 7b marker span: it runs `relay/scripts/todo-conformance.sh --inbox <resolved inbox path>` (the same detector `scan-routed.sh` already reuses — invoked, not reimplemented) and, if it emits findings, displays them under a distinct `⚠ Inbox — non-conforming entries (todo-conformance.sh --inbox)` heading, separate from the `📥 Inbox — items routed to this repo` block. Kept it surface-only per the test's forbidden-phrase check (no "auto-fix"/"automatically fix"/"block the meeting"/"abort the meeting" wording) and skip-silent on empty output. `tests/test_meeting_inbox_lint_surface.sh` green (8/8 assertions); full suite 254 passed, 0 failed, 1 expected-red (`test_inbox_write_integrity.sh`, my sibling's id:34c2, correctly still open).
 Friction: none of substance — first draft phrased the surface-only clause as "no auto-fix, and never block or abort the meeting", which literally contained the test's forbidden substring "abort the meeting" and failed one assertion; reworded to "display and move on ... never halt or gate the rest of the meeting" to convey the same contract without tripping the phrase-ban, then reran green. Did not touch `meeting/append.sh` (sibling's id:34c2 file) or the now-EXPECTED-RED test for it.
 refactor: none needed — the change is a same-shape prose extension of an existing step (matching its style: a fenced example block + a short surface-only reminder), not new code; there was no duplication or structural debt in `meeting/SKILL.md` step 7b to clean up, and the detector itself (`todo-conformance.sh`) was untouched (already correct, per the roadmap item's own framing — the defect was invocation, not detection).
+## 2026-07-17 15:43 — executor (sonnet)
+
+Worked id:34c2 — `append.sh -t inbox` now (A) validates on write, (B) mints inside via
+`--route-to <target-repo> -e "<desc>"`, and (C) always echoes the routed token actually
+written, closing the acc7 phantom-append incident (a caller could previously report a
+token that was never on disk). (A) reuses `relay/scripts/todo-conformance.sh --inbox`'s
+existing `classify_inbox` grammar rather than re-deriving the conforming-form regex — the
+entry is written to a throwaway single-line temp file and run through the real classifier;
+an `orphan` verdict rejects (exit 1, nothing appended) with the offending line and the
+expected form. (B) mints via a new `scan_routed_tokens <target>` helper (also exposed as
+the `scan-routed-tokens` verb, mirroring `scan-ids`'s output contract) that unions the
+inbox's own `routed:` markers with the target repo's `routed:` citations across the same
+file set `scan_ids` already scans (`docs/meeting-notes`, `TODO.md`, `TODO.archive.md`,
+`ROADMAP.md`) via the existing `resolve_target()` — the mint loop re-rolls
+`secrets.token_hex(2)` until it draws a token outside that set, so the collision-check is
+the same function the `scan-routed-tokens` verb exposes, not a second copy. (C) parses the
+token back out of the line just appended (`grep -oP 'routed:\K[0-9a-f]{4}'`) rather than
+trusting any caller-side variable — stdout is now ground truth for what landed on disk.
+`-t discoveries`/`-t personas` are untouched (validation is gated on `target == inbox`
+only); `tests/test_inbox_write_integrity.sh` (RED spec, not written by me) is green
+unmodified, and the full suite is 254 passed, 0 failed, 1 expected-red (id:de36, my
+sibling's item, correctly still open).
+Friction: none of substance — the one design call was reuse-vs-reimplement for the
+conforming-form check; running the entry through the real `todo-conformance.sh --inbox`
+classifier (rather than copying its regex into append.sh) avoids a second definition of
+the inbox grammar drifting from the first.
+refactor: none needed — this item adds a new, previously-nonexistent write-path guard and
+two new verbs to `append.sh`; there was no existing `-t inbox` validation/echo logic to
+clean up, and the new code reuses `resolve_inbox()`/`resolve_target()`/`scan_ids`'s file-set
+convention rather than introducing a parallel implementation.
