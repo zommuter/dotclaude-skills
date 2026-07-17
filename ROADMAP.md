@@ -1923,7 +1923,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
      FALSIFIED before this item was written — both recorded in TODO id:1102 rather than
      deleted, because the wrong ones explain why the existing guards missed it. -->
 
-- [ ] [ROUTINE] relay-doctor must detect INSTALL DRIFT (manifest -> tree), not just manifest completeness <!-- id:1102 -->
+- [x] [ROUTINE] relay-doctor must detect INSTALL DRIFT (manifest -> tree), not just manifest completeness <!-- id:1102 -->
   - **Why**: `roadmap-lint.sh` sources `lib-anchored-id.sh`; the file was added to the repo 2026-07-17
     10:51 AND correctly listed in `relay_FILES`, but `make install` was never re-run — so the live tree
     had **62 of 64** declared scripts and the lint died with `No such file or directory` from the

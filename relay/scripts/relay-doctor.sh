@@ -407,6 +407,27 @@ PY
   return 0
 }
 
+# --- shared manifest reader (id:1102 refactor) -----------------------------------
+# Joins the backslash-continued `relay_FILES := …` block in the Makefile into one
+# space-separated token string. Previously this awk existed independently in check 4
+# (refs_install_check, below) AND in tests/test_relay_refs_install_complete.sh — the
+# id:1102 install-drift check needs the SAME manifest, so rather than add a THIRD copy
+# (the exact drift class this repo bans, CLAUDE.md "no not-invented-here"), it is
+# factored out here and both callers use it.
+relay_files_manifest() {
+  local mk="$1"
+  awk '
+    /^relay_FILES[[:space:]]*:=/ { cap=1 }
+    cap {
+      line=$0
+      cont=(line ~ /\\[[:space:]]*$/)
+      sub(/\\[[:space:]]*$/, "", line)
+      printf "%s ", line
+      if (!cont) exit
+    }
+  ' "$mk"
+}
+
 # --- check 3: reference-install completeness (id:69ef mechanism) ----------------
 # This is a STATIC read of THIS repo's Makefile + relay/references; it is cross-repo
 # irrelevant (it audits the dotclaude-skills install manifest, not the scanned repo),
@@ -421,18 +442,8 @@ refs_install_check() {
     echo
     return 0
   fi
-  # Join the backslash-continued relay_FILES := … manifest (same awk as the id:69ef test).
   local manifest
-  manifest="$(awk '
-    /^relay_FILES[[:space:]]*:=/ { cap=1 }
-    cap {
-      line=$0
-      cont=(line ~ /\\[[:space:]]*$/)
-      sub(/\\[[:space:]]*$/, "", line)
-      printf "%s ", line
-      if (!cont) exit
-    }
-  ' "$mk")"
+  manifest="$(relay_files_manifest "$mk")"
   if [[ -z "$manifest" ]]; then
     echo "WARN — could not find a relay_FILES := manifest in $mk" >&2
     echo
@@ -455,6 +466,69 @@ refs_install_check() {
   fi
   echo
   log "refs-install missing=$missing"
+}
+
+# --- install-drift: manifest -> tree (id:1102) ----------------------------------
+# id:69ef (refs_install_check, above) verifies the OTHER direction — repo -> manifest
+# ("is every relay/references/*.md DECLARED in relay_FILES?") — and only for
+# references/*.md. It structurally could not have caught the 2026-07-17 incident:
+# lib-anchored-id.sh WAS declared in relay_FILES, but `make install` was never re-run,
+# so the LIVE tree had 62 of 64 declared scripts/references files. This check covers the
+# unchecked direction — manifest -> tree ("is every DECLARED scripts/* or references/*
+# entry actually INSTALLED?") — reusing the SAME relay_files_manifest() join as check 4
+# (no second parser). The install root is INJECTABLE via $RELAY_INSTALL_ROOT (defaulting
+# to the real ~/.claude/skills) precisely so a hermetic test can point it at a mktemp -d
+# tree instead of touching the real install (CLAUDE.md §Testing forbids that).
+#
+# CARVE-OUT (id:4f5f): meeting-cross's SKILL.md is DELIBERATELY left uninstalled pending
+# deletion of that deprecated alias skill — `make status` legitimately reports it missing.
+# This check reads ONLY the relay skill's own relay_FILES manifest (not meeting-cross's),
+# so meeting-cross entries are never in scope here and can never produce a false MISSING;
+# recorded explicitly so the exclusion reads as a decision, not an oversight.
+install_drift_check() {
+  echo "=== install-drift: manifest -> tree (id:1102) ==="
+  local install_root="${RELAY_INSTALL_ROOT:-$HOME/.claude/skills}"
+  local mk="$REPO_ROOT/Makefile"
+  if [[ ! -f "$mk" ]]; then
+    echo "SKIP — Makefile not found under $REPO_ROOT" >&2
+    echo
+    return 0
+  fi
+  if [[ ! -d "$install_root/relay" ]]; then
+    # No relay install at all under this root (e.g. a fresh/synthetic $HOME with nothing
+    # symlinked yet) — that is a setup state, not drift; nothing to compare against.
+    echo "SKIP — no relay install found under $install_root/relay (nothing to audit for drift)" >&2
+    echo
+    return 0
+  fi
+  local manifest
+  manifest="$(relay_files_manifest "$mk")"
+  if [[ -z "$manifest" ]]; then
+    echo "WARN — could not find a relay_FILES := manifest in $mk" >&2
+    echo
+    return 0
+  fi
+  local missing=0 tok
+  for tok in $manifest; do
+    case "$tok" in
+      scripts/*|references/*)
+        if [[ ! -e "$install_root/relay/$tok" ]]; then
+          printf 'MISSING: relay/%s is declared in relay_FILES but not installed under %s (install root: %s)\n' \
+            "$tok" "$install_root/relay" "$install_root"
+          missing=$((missing + 1))
+        fi
+        ;;
+      *) ;;  # SKILL.md and any non-scripts/non-references entry is out of scope here
+    esac
+  done
+  if [[ "$missing" -gt 0 ]]; then
+    issues_total=$((issues_total + missing))
+    echo "$missing declared relay scripts/*+references/* file(s) missing from the install tree ($install_root/relay)"
+  else
+    echo "clean (every manifested relay scripts/*+references/* entry is installed under $install_root/relay)"
+  fi
+  echo
+  log "install-drift missing=$missing root=$install_root"
 }
 
 # --- check 5: quota-config sanity (id:a883) ------------------------------------
@@ -742,6 +816,7 @@ esac
 # --- cross-repo / once-only checks ---------------------------------------------
 registry_parse_check   # id:2945 — loud-fail if relay.toml is corrupt (else everything silently empty)
 refs_install_check
+install_drift_check   # id:1102 — manifest -> tree (the direction id:69ef cannot catch)
 parked_orphans_check
 routed_deadletter_check   # id:678e slice 1 — inbox routed dead-letters (report-only)
 quota_config_check   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + threshold bounds)
