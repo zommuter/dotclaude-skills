@@ -378,6 +378,17 @@ fi
 # the repo's lint already uses, via a throwaway single-line file, and reject on "orphan".
 if [[ "$target" == "inbox" ]]; then
   conf_sh="$(cd "$SKILL_DIR/.." && pwd)/relay/scripts/todo-conformance.sh"
+  # id:bbb2 — fail LOUDLY when the relay skill's todo-conformance.sh is absent (meeting installed
+  # without a sibling relay/). Without this probe the command substitution below dies with a bare
+  # exit 127 and `set -e` DISCARDS its "No such file or directory" diagnostic (a silent swallow —
+  # banned by CLAUDE.md no-silent-swallow). Probe FIRST so the missing runtime dependency (the
+  # id:34c2 meeting→relay coupling) is named, and nothing is appended.
+  if [[ ! -x "$conf_sh" ]]; then
+    echo "Error: -t inbox validation requires the relay skill's todo-conformance.sh, which is missing or not executable:" >&2
+    echo "  $conf_sh" >&2
+    echo "Install the relay skill (e.g. 'make install-relay') so the inbox conforming-form check can run. NOTHING was appended (fail-closed — id:bbb2)." >&2
+    exit 3
+  fi
   tmp_check="$(mktemp)"
   printf '%s\n' "$entry" > "$tmp_check"
   conf_out="$("$conf_sh" --inbox "$tmp_check" 2>&1)"

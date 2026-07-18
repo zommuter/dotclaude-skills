@@ -163,4 +163,33 @@ grep -q 'free-prose finding' "$TMP/discoveries.md" \
   || fail "-t discoveries did not append the free-prose entry"
 pass "-t discoveries still accepts free prose (validator correctly scoped to inbox)"
 
+# --- (bbb2) dependency-absent case must fail LOUDLY, not swallow a bare exit 127 ----------
+# id:34c2's validator shells out to relay/scripts/todo-conformance.sh (good reuse). When the
+# meeting skill is installed WITHOUT a sibling relay/ (no todo-conformance.sh), the command
+# substitution used to die exit 127 and `set -e` DISCARDED its "No such file" diagnostic — a
+# silent swallow (id:bbb2). Contract: probe the dependency, fail non-zero naming it, append
+# NOTHING. Hermetic: run a COPY under $TMP/meeting so conf_sh resolves to an ABSENT
+# $TMP/relay/scripts/todo-conformance.sh (SKILL_DIR = the script's own dirname, append.sh:34).
+mkdir -p "$TMP/meeting"
+cp "$SH" "$TMP/meeting/append.sh"
+[[ -e "$TMP/relay/scripts/todo-conformance.sh" ]] \
+  && fail "(bbb2) test setup wrong — a todo-conformance.sh exists where absence is required"
+fresh_inbox
+before="$(cat "$INBOX")"
+dep_out="$(RELAY_INBOX="$INBOX" SRC_DIR="$SRC" "$TMP/meeting/append.sh" -t inbox \
+  -e '- [ ] [dotclaude-skills] dep-absent probe, otherwise conforming (from test, note) <!-- routed:feed -->' 2>&1)"
+dep_rc=$?
+[[ $dep_rc -ne 0 ]] \
+  || fail "(bbb2) -t inbox exited 0 with todo-conformance.sh ABSENT — the dependency probe is missing"
+pass "(bbb2) dependency-absent -t inbox failed non-zero (exit $dep_rc)"
+
+[[ "$(cat "$INBOX")" == "$before" ]] \
+  || fail "(bbb2) a dependency-absent failure still mutated the inbox — must append nothing (fail-closed)"
+pass "(bbb2) nothing appended on the dependency-absent failure"
+
+case "$dep_out" in
+  *todo-conformance*|*relay*|*install*) pass "(bbb2) error names the missing relay dependency (no silent swallow)" ;;
+  *) fail "(bbb2) failure must LOUDLY name the missing todo-conformance.sh/relay dependency; got: $dep_out" ;;
+esac
+
 echo "ALL PASS"
