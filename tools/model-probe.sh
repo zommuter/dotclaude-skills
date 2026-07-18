@@ -35,7 +35,7 @@ if [[ "${1:-}" == "grade" ]]; then
   shift
   [[ $# -ge 2 ]] || { echo "usage: model-probe.sh grade <golden_regex> <output>" >&2; exit 2; }
   regex="$1"; output="$2"
-  echo "$output" | grep -qP "$regex" && exit 0
+  printf '%s\n' "$output" | grep -qP "$regex" && exit 0
   exit 1
 fi
 
