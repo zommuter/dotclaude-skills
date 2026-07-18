@@ -2850,3 +2850,16 @@ C1: docs verified current (CLAUDE.md relay pointer v9 = canonical, README lists 
 ## 2026-07-18 21:04 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 handoff: promoted 4 ROUTINE items (e875/b9b5/ab5c/eb46) into ROADMAP (8→12 open), 2 red specs, suite 260/0 [id:e875,b9b5,ab5c,eb46]
+
+## 2026-07-18 — executor (Sonnet)
+
+Worked id:b9b5 — one-line fix in `tools/model-probe.sh` grade arm: `echo "$output"` →
+`printf '%s\n' "$output"` so an output that is exactly `-n`/`-e`/`-E`/`-ne` (or any
+literal starting with those tokens) is no longer swallowed by the bash `echo` builtin's
+flag interpretation. The existing RED spec `tests/test_model_probe_flag_robust.sh`
+(`# roadmap:b9b5`) confirmed RED before the change (all 5 cases failing) and GREEN
+after. Ticked the ROADMAP checkbox and ran the full suite: 261 passed, 0 failed, 1
+expected-red (an unrelated still-open item). No other files touched.
+Friction: none — item was exactly as scoped, a genuine one-line fix with its RED spec
+already authored by the reviewer.
+refactor: none needed — one-line builtin swap, no new duplication introduced.
