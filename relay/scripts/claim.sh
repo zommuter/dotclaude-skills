@@ -113,9 +113,22 @@ worktree_working() {
 # existing callers (no --pid → no live_pid) are wholly unaffected, no PID-reuse exposure.
 # CAVEAT: PID reuse — a recycled live_pid reads as alive; this only ever EXTENDS a claim's
 # life (conservative/safe: at worst the relay defers an intensive unit it needn't have).
+# id:ab5c — a full-suite run forks many concurrent jq/kill processes; under that load a
+# single `jq` invocation can transiently fail to even start (fork/EAGAIN, not a content
+# problem — the shard file itself is untouched and well-formed). The OLD code treated any
+# such read failure identically to "genuinely no live_pid" and returned dead, silently
+# stealing a claim whose process was actually alive (flaky ~50% of full-suite runs).
+# Retry the read a few times before concluding dead: a transient fork failure clears on
+# retry, while a real absence (`.live_pid` truly empty/null) still returns "" every time,
+# so the no-pid legacy path (test §3) is unaffected.
 pid_alive() {
-  local f="$1" pid
-  pid="$(jq -r '.live_pid // ""' "$f" 2>/dev/null)" || pid=""
+  local f="$1" pid rc attempt
+  for attempt in 1 2 3; do
+    pid="$(jq -r '.live_pid // ""' "$f" 2>/dev/null)"; rc=$?
+    [ "$rc" -eq 0 ] && break
+    [ "$attempt" -eq 3 ] && pid=""
+    sleep 0.05
+  done
   [ -n "$pid" ] || return 1
   case "$pid" in *[!0-9]*) return 1 ;; esac   # numeric only
   kill -0 "$pid" 2>/dev/null
