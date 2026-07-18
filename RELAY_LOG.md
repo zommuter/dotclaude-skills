@@ -2838,3 +2838,7 @@ Built the e647 reviewer-at-integrate SemVer bumper — the sibling of the b8fa d
 ## 2026-07-18 10:35 — e647 integration (opus apex review + merge)
 
 Reviewed + integrated the background-built id:e647 (branch worktree-agent-a30372f04107d8384, commit ae39461) into main via --no-ff merge (6c5f84f). Apex review APPROVED version-bump.sh (loose-0.x, anchored version-line rewrite, injectable lockfile regen, scoped clean-tree commit, annotated vX.Y.Z tag per finding b, zkm cascade via the repo's own relock-plugins.sh per finding c) + integrator step 2a (reviewer non-derivable bump judgement per D1, threads bumpVersion into the b8fa changelog --version). Accepted the agent's hermeticity fix to test_relay_doctor_verdict_invariant.sh (isolate RELAY_INSTALL_ROOT — correct scope hygiene, install-completeness has its own test). version-bump.sh symlinked into ~/.claude; agent worktree+branch retired. Full suite 260/0. e647 ticked done; b8fa mechanism complete (only per-semver-repo CHANGELOG bootstrap remains, operational).
+
+## 2026-07-18 20:32 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: 20-commit window since relay-ckpt-20260717-1820 verified green (gaming-scan clean, suite 260/0); ticked shipped id:bbb2; verified e647/b8fa/7d20/fc0f/af5a; routine_open=0 [id:bbb2,e647,b8fa,7d20,fc0f,af5a]
