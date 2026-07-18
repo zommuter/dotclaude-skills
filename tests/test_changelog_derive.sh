@@ -31,13 +31,30 @@ mkrepo() { # mkrepo <name> -> path (a git repo, no CHANGELOG.md yet)
   printf '%s' "$r"
 }
 
-# (1) OPT-IN gate (D4): no CHANGELOG.md -> NO-OP, exit 0, file NOT created.
-R1="$(mkrepo semver_norepo)"
-"$CL" "$R1" --summary "should be ignored" --version v0.4.0 >/dev/null 2>&1 \
-  || fail "(1) helper must exit 0 (no-op) when CHANGELOG.md is absent, not error"
-[[ ! -e "$R1/CHANGELOG.md" ]] \
-  || fail "(1) helper CREATED CHANGELOG.md — must be opt-in (no-op unless the file already exists)"
-pass "(1) opt-in gate: absent CHANGELOG.md -> no-op, no file created (D4 semver safety)"
+# (1) AUTO-ONBOARD on first release (id:7d20 option B): absent CHANGELOG.md + --version
+#     (a real bump happened) -> CREATE the release-bucketed file and record the entry. This
+#     retires the now-moot D4 opt-in gate FOR THE BUMP CASE ONLY (e647 shipped; the gate's
+#     "don't fire before e647" constraint has lapsed).
+R1="$(mkrepo semver_firstrelease)"
+"$CL" "$R1" --summary "First public release" --ids "aa11" --version v0.1.0 --date 2026-07-18 >/dev/null 2>&1 \
+  || fail "(1) helper must succeed (auto-onboard) when CHANGELOG.md is absent but --version is given"
+[[ -f "$R1/CHANGELOG.md" ]] \
+  || fail "(1) absent CHANGELOG.md + --version must AUTO-CREATE the file (7d20 B: first release self-onboards)"
+grep -qxF '## v0.1.0 — 2026-07-18' "$R1/CHANGELOG.md" \
+  || fail "(1) auto-created CHANGELOG.md missing the release bucket for the first release"
+grep -qF -- '- First public release (id:aa11)' "$R1/CHANGELOG.md" \
+  || fail "(1) auto-created CHANGELOG.md missing the first-release bullet"
+pass "(1) auto-onboard: absent + --version -> creates release-bucketed CHANGELOG.md (7d20 B)"
+
+# (1b) VERSION-LESS opt-in PRESERVED (D3): absent CHANGELOG.md + NO --version -> still a NO-OP,
+#      file NOT created. Manifest-less repos (e.g. dotclaude-skills) stay a DELIBERATE bootstrap;
+#      only a real release auto-onboards.
+R1b="$(mkrepo versionless_norepo)"
+"$CL" "$R1b" --summary "internal refactor, no release" --date 2026-07-18 >/dev/null 2>&1 \
+  || fail "(1b) helper must exit 0 (no-op) when CHANGELOG.md is absent and no --version"
+[[ ! -e "$R1b/CHANGELOG.md" ]] \
+  || fail "(1b) absent + NO --version must stay opt-in (no file) — version-less repos are never auto-created (D3)"
+pass "(1b) version-less opt-in preserved: absent + no --version -> no-op, no file (D3)"
 
 # (2) DATE bucket (D3): version-less call appends under a `## YYYY-MM-DD` header, no version.
 R2="$(mkrepo daterepo)"
