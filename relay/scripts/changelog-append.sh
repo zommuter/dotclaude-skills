@@ -43,14 +43,33 @@ done
 
 [[ -n "$summary" ]] || { echo "changelog-append.sh: empty --summary (a derived entry must carry the relay's own report.summary; refusing to fabricate)" >&2; exit 1; }
 
-cl="$repo/CHANGELOG.md"
-# OPT-IN gate: a repo without a CHANGELOG.md is not participating yet — logged no-op (D4).
-if [[ ! -f "$cl" ]]; then
-  echo "changelog-append.sh: note: $repo has no CHANGELOG.md — skipping (opt-in; bootstrap the file to enable)" >&2
-  exit 0
-fi
-
 [[ -n "$date" ]] || date="$(date +%F)"
+
+cl="$repo/CHANGELOG.md"
+# OPT-IN gate (id:b8fa) + AUTO-ONBOARD on first release (id:7d20 option B).
+# A repo without a CHANGELOG.md normally no-ops (opt-in). EXCEPTION: when --version is supplied
+# — a real release just bumped the manifest (id:e647) — auto-CREATE the release-bucketed file so
+# a semver repo's FIRST release self-onboards its changelog with no manual bootstrap. This
+# retires the D4 opt-in gate FOR THE BUMP CASE ONLY: D4's constraint ("don't fire before e647
+# ships") has lapsed now that e647 is live. A version-less close (no --version) KEEPS the opt-in
+# no-op — manifest-less repos (e.g. dotclaude-skills, D3) stay a deliberate bootstrap, never
+# auto-created on a mere non-release close.
+if [[ ! -f "$cl" ]]; then
+  if [[ -z "$version" ]]; then
+    echo "changelog-append.sh: note: $repo has no CHANGELOG.md — skipping (opt-in; bootstrap the file to enable)" >&2
+    exit 0
+  fi
+  cat > "$cl" <<'HDR'
+# Changelog
+
+<!-- DERIVED at relay integrate from existing relay state (report.summary + worked ids) by
+     relay/scripts/changelog-append.sh (id:b8fa). Newest release first; never hand-edit or
+     reorder past buckets. RELEASE-bucketed by version (## vX.Y.Z — DATE) — the reviewer's bump
+     at integrate (id:e647) supplies the version. Auto-onboarded on this repo's first release
+     (id:7d20). Started from now; history is NOT backfilled. -->
+HDR
+  echo "changelog-append.sh: note: $repo — auto-created CHANGELOG.md on first release ($version, id:7d20)" >&2
+fi
 
 if [[ -n "$version" ]]; then
   key="$version — $date"        # release bucket header text (after "## ")
