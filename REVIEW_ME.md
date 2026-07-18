@@ -247,3 +247,15 @@ latest prune by the 2026-07-02 review.)
   by design, which is why §5 mandates this manual verify), but if this recurs it argues for
   scope-declaring test headers being machine-read, or splitting C7's remaining halves into their
   own ids. Your call — no ledger change made.
+- [ ] **id:eb46 — promoted [ROUTINE], but its lane may need to flip to [INPUT — user].** The
+  handoff promoted the "relay children need a failing askpass (`SUDO_ASKPASS=/bin/false`) so a
+  sub-process `sudo` can't pop a GUI prompt" item as `[ROUTINE]` with a built-in BAILOUT GUARD:
+  if the ONLY reachable env-injection point turns out to be `~/.claude/settings.json` `env`, the
+  executor must STOP and re-lane `[INPUT — user]` rather than edit settings.json from a worktree
+  (that file is deliberately relay-untouched). The judgment call for the human/reviewer: is there
+  an in-repo/pool-launch injection point at all, or is this really a settings.json change (hence
+  `[INPUT — user]`, not executor-pool work)? `relay-loop.js` spawns children via the Workflow
+  `agent()` API with no reachable `process.env` inside the sandbox (L1907), so the env is set at
+  pool launch OUTSIDE the repo — which makes the settings.json outcome plausible. Recorded so the
+  next executor's bailout (or the reviewer's re-lane) isn't re-litigated. No fresh RED test (the
+  fix's location, not its logic, is the open question). <!-- roadmap:eb46 -->
