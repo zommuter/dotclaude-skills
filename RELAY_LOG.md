@@ -2863,3 +2863,7 @@ expected-red (an unrelated still-open item). No other files touched.
 Friction: none — item was exactly as scoped, a genuine one-line fix with its RED spec
 already authored by the reviewer.
 refactor: none needed — one-line builtin swap, no new duplication introduced.
+
+## 2026-07-18 21:15 — executor (sonnet, relay-loop)
+
+Closed id:b9b5 — model-probe.sh grade arm swapped echo for printf so a literal -n/-e/-E/-ne output no longer mismatches; RED spec confirmed red then green; full suite 261/0/1-expected-red. [id:b9b5]
