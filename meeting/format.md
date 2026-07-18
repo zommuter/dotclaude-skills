@@ -129,6 +129,15 @@ Read your own model identity from the environment block.
 
 The end-of-meeting `AskUserQuestion` prompts (steps 3–5) follow the same gate: on Fable, replace them with inline-prose numbered prompts; on all other harnesses, use `AskUserQuestion` as written.
 
+### Plan-mode gate (check once at meeting start — governs EVERY `EnterPlanMode`/`ExitPlanMode` in the skill, subject-mode + Class-2 + Class-3)
+
+Read your own model identity from the environment block (the same read as the harness-class gate). It decides whether the skill's `EnterPlanMode`/`ExitPlanMode` steps run **at all** (id:fc0f):
+
+- **Opus-class (`claude-opus-*`) or Fable-class (`claude-fable-*`) — SKIP plan mode.** Do NOT call `EnterPlanMode` or `ExitPlanMode`; run the meeting / planning in normal mode. Rationale: the session is already at the strong tier, so plan mode's only surviving live benefit — the `/opusplan` Sonnet→Opus tier switch — cannot apply here; and plan mode's read-only guard would block a session that holds **background executors** from integrating their branches (the 2026-07-17 cost). The discussion is emitted as visible chat (§Interactive mode) and the meeting note is the durable record, so the plan file adds nothing.
+- **Sonnet-class (`claude-sonnet-*`) or Haiku-class (`claude-haiku-*`) — USE plan mode** exactly as the SKILL.md steps specify. Under `/opusplan` this upgrades the design/discussion phase to Opus (the whole point of keeping it); under a plain Sonnet/Haiku session it is harmless and preserves the read-only guard.
+
+Read every SKILL.md `EnterPlanMode`/`ExitPlanMode` step as "…**if this gate says to**." A skipped `EnterPlanMode` means its paired `ExitPlanMode` is skipped too. When plan mode is skipped, the "no file edits / no implementation mid-meeting" constraints (SKILL.md §Constraints) still bind — as prose, exactly as they already do in every non-plan-mode part of the skill.
+
 ### Fable inline-prose protocol
 
 At each decision point:
