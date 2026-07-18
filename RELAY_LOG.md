@@ -2867,3 +2867,20 @@ refactor: none needed — one-line builtin swap, no new duplication introduced.
 ## 2026-07-18 21:15 — executor (sonnet, relay-loop)
 
 Closed id:b9b5 — model-probe.sh grade arm swapped echo for printf so a literal -n/-e/-E/-ne output no longer mismatches; RED spec confirmed red then green; full suite 261/0/1-expected-red. [id:b9b5]
+
+## 2026-07-18 — executor (sonnet)
+
+Worked id:e875 — `tools/memory-index.py` (`build_entries`, `hook_from_frontmatter_text`)
+now resolves `title:`/`hook:`/`description:` from `metadata.*` when the top-level key
+is absent, and emits a LOUD stderr warning naming the file when a hook is resolved only
+from `metadata.hook` (never a silent `description:` substitution). Step-1 culprit check:
+ruled out `memory-index.py --write` round-tripping as the re-nesting source — it never
+modifies memory `*.md` files (only the two index files; confirmed by re-running it over
+a top-level-only fixture and diffing byte-identical). The actual writer that re-nests
+(Write/Edit path, a frontmatter normalizer, or the backup commit) remains unconfirmed —
+out of scope to chase further this session, so the fix is the robust-regardless-of-culprit
+Step 2 the item calls for. RED spec `tests/test_memory_index_metadata_nesting.sh`
+(`# roadmap:e875`) confirmed failing (4/4 assertions) before the change, green after.
+Ticked the ROADMAP checkbox; full suite green: 262 passed, 0 failed, 0 expected-red.
+Friction: none.
+refactor: none needed — a two-line fallback + one warning print, no new duplication.
