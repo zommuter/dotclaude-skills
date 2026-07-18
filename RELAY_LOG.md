@@ -2826,3 +2826,7 @@ execution-ready item needed a mini-handoff beyond a286.
 ## 2026-07-17 18:20 — reviewer (claude-opus-4-8)
 
 review + apex fixes: audited 32-commit window since relay-ckpt-20260716-1526 (gaming-scan clean); re-laned 4a46 [ROUTINE]->[INPUT decision]; ticked cross-ledger TODO twins (34c2/de36/1735/1102); fixed live make-test breakage (append.sh bare rm -f -> rm --, a286); shipped id:2630 — classifier no longer spends Opus reviews on non-auditable (ledger/docs/version-bump) diffs. make test 257 green.
+
+## 2026-07-18 09:56 — /meeting Class-1 dispatch (opus, id:b8fa deriver)
+
+Built the b8fa CHANGELOG deriver: relay/scripts/changelog-append.sh derives a CHANGELOG.md entry at integrate from the integrator's own report.summary + worked ids (meeting D2 — no new per-item field). Date-bucketed for version-less repos (this repo, D3), --version release-bucketed for semver repos. Opt-in by construction (no-op unless CHANGELOG.md already exists) — the D4 safety that keeps it off semver repos until e647 bootstraps them. Wired into relay-loop.js integrate step 2b (scoped-add commit of CHANGELOG.md only, id:debf). Bootstrapped this repo's CHANGELOG.md (date-bucketed, from-now, no backfill). tests/test_changelog_derive.sh (8 cases) green; full suite 258/0. b8fa stays OPEN: e647 bump-trigger + semver-fleet rollout remain (D4 ships-together); owner sequencing decision pending.
