@@ -2888,3 +2888,8 @@ refactor: none needed — a two-line fallback + one warning print, no new duplic
 ## 2026-07-18 21:27 — executor (sonnet, relay-loop)
 
 memory-index.py resolves title:/hook:/description from metadata.* nesting + loud stderr warning (id:e875), full suite 262/0/0 [id:e875]
+
+## 2026-07-18 — executor (sonnet, relay-loop)
+
+Worked id:ab5c — fixed the flaky `test_resource_claim_pid.sh`: `claim.sh::pid_alive` swallowed any transient `jq` read failure (fork/EAGAIN under full-suite process load) as "no live_pid" -> dead, silently stealing a claim whose PID was actually alive. Added a 3x retry (50ms backoff) around the jq read; a genuine absent `.live_pid` still resolves empty on every attempt so the legacy no-`--pid` path is unaffected. Verified with 20 parallel stress runs of the isolated test (all green) plus a full `make test` (262 passed, 0 failed, 0 expected-red). Friction: none — root cause was already diagnosed precisely in the ROADMAP item text, the fix was a direct implementation of it.
+refactor: none needed — the fix is a targeted retry loop inside the existing pid_alive() with no new duplication; no unrelated cleanup was in scope for this item.
