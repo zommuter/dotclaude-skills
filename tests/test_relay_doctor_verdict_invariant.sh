@@ -16,8 +16,16 @@ fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -x "$SH" ]] || fail "relay-doctor.sh not executable"
 
-FIX="$(mktemp -d)"; TOML="$(mktemp)"; STUB="$(mktemp)"; UNIT="$(mktemp)"; INBOX="$(mktemp)"
-trap 'rm -rf "$FIX" "$TOML" "$STUB" "$UNIT" "$INBOX"' EXIT
+FIX="$(mktemp -d)"; TOML="$(mktemp)"; STUB="$(mktemp)"; UNIT="$(mktemp)"; INBOX="$(mktemp)"; INSTALL_ROOT="$(mktemp -d)"
+trap 'rm -rf "$FIX" "$TOML" "$STUB" "$UNIT" "$INBOX" "$INSTALL_ROOT"' EXIT
+# Hermeticity (same class as the RELAY_INBOX fix below, id:e647 2026-07-18): --strict aggregates
+# EVERY doctor check, including install-drift (id:1102), which defaults to the REAL ~/.claude/skills.
+# A relay script freshly added to the Makefile manifest but not yet `make install`ed (the normal
+# state until the integrator merges + reinstalls) shows up there as MISSING and made case (3)'s
+# strict-clean assertion fail. This test checks VERDICT INVARIANTS (I2/I4), not install drift — so
+# isolate it the way the doctor's own $RELAY_INSTALL_ROOT injection intends: point it at an empty
+# dir, where install-drift SKIPs (no relay install to audit). The invariant checks are unaffected.
+export RELAY_INSTALL_ROOT="$INSTALL_ROOT"
 git -C "$FIX" init -q
 git -C "$FIX" config user.email t@e.st; git -C "$FIX" config user.name t
 printf '# Roadmap\n\n## Items\n' > "$FIX/ROADMAP.md"; printf '# TODO\n' > "$FIX/TODO.md"
