@@ -231,12 +231,22 @@ def build_entries(memory_dir, errors):
     entries = []
     for fn in ordered:
         fm = parse_frontmatter(os.path.join(memory_dir, fn))
-        # Display title, most-specific first: title: → name: → filename stem.
+        # Display title, most-specific first: title: → metadata.title → name: →
+        # metadata.name → filename stem. A writer sometimes re-nests title:/hook:
+        # under a `metadata:` block (observed twice 2026-07-17, id:e875) — resolve
+        # from there too rather than silently falling back to the stem/description.
         # The stem only FILLS a missing field, never overrides an explicit one
         # (some names legitimately contain spaces).
-        name = fm.get("title") or fm.get("name") or os.path.splitext(fn)[0]
+        name = (fm.get("title") or fm.get("metadata.title")
+                or fm.get("name") or fm.get("metadata.name")
+                or os.path.splitext(fn)[0])
         hook = fm.get("hook")
-        desc = fm.get("description")
+        if hook is None and fm.get("metadata.hook") is not None:
+            hook = fm.get("metadata.hook")
+            print("WARNING: %s: `hook:` found only under `metadata:` — "
+                  "resolved from metadata.hook (fix: move it to top level)" % fn,
+                  file=sys.stderr)
+        desc = fm.get("description") or fm.get("metadata.description")
         if hook is None:
             hook = desc
         if hook is None:
@@ -322,9 +332,9 @@ def hook_from_frontmatter_text(text):
     """Same hook/description fallback build_entries() uses, applied to raw
     frontmatter text (e.g. a git-HEAD blob) instead of an on-disk file."""
     fm = parse_frontmatter_text(text)
-    hook = fm.get("hook")
+    hook = fm.get("hook") or fm.get("metadata.hook")
     if hook is None:
-        hook = fm.get("description")
+        hook = fm.get("description") or fm.get("metadata.description")
     return hook
 
 
