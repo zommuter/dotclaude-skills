@@ -2884,3 +2884,7 @@ Step 2 the item calls for. RED spec `tests/test_memory_index_metadata_nesting.sh
 Ticked the ROADMAP checkbox; full suite green: 262 passed, 0 failed, 0 expected-red.
 Friction: none.
 refactor: none needed — a two-line fallback + one warning print, no new duplication.
+
+## 2026-07-18 21:27 — executor (sonnet, relay-loop)
+
+memory-index.py resolves title:/hook:/description from metadata.* nesting + loud stderr warning (id:e875), full suite 262/0/0 [id:e875]
