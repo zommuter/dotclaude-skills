@@ -2893,3 +2893,7 @@ memory-index.py resolves title:/hook:/description from metadata.* nesting + loud
 
 Worked id:ab5c — fixed the flaky `test_resource_claim_pid.sh`: `claim.sh::pid_alive` swallowed any transient `jq` read failure (fork/EAGAIN under full-suite process load) as "no live_pid" -> dead, silently stealing a claim whose PID was actually alive. Added a 3x retry (50ms backoff) around the jq read; a genuine absent `.live_pid` still resolves empty on every attempt so the legacy no-`--pid` path is unaffected. Verified with 20 parallel stress runs of the isolated test (all green) plus a full `make test` (262 passed, 0 failed, 0 expected-red). Friction: none — root cause was already diagnosed precisely in the ROADMAP item text, the fix was a direct implementation of it.
 refactor: none needed — the fix is a targeted retry loop inside the existing pid_alive() with no new duplication; no unrelated cleanup was in scope for this item.
+
+## 2026-07-18 21:42 — executor (sonnet, relay-loop)
+
+Fixed flaky test_resource_claim_pid.sh (id:ab5c) — claim.sh's pid_alive() now retries the jq read 3x before concluding a PID-anchored claim is dead, eliminating the ~50%-flaky false-dead verdict under full-suite process load; full suite green 262/0/0. [id:ab5c]
