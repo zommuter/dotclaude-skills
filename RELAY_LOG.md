@@ -2974,3 +2974,7 @@ build id:176f — mechanical-dispatch gateway + hermetic test (relay-command all
 ## 2026-07-19 22:41 — reviewer (claude-opus-4-8)
 
 independent review: id:176f REOPENED — allowlist bypassable (3 confirmed holes); fix direction recorded; not wired in
+
+## 2026-07-19 23:11 — builder (claude-opus-4-8)
+
+id:176f allowlist hardening — identity-pin (realpath under canonical root), refuse process-substitution + redirection; 18 new refusal assertions (RED-before verified); suite 271/0/0; awaiting re-review
