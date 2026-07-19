@@ -2966,3 +2966,7 @@ drain round 1: execute id:4a46 — handback event log bidirectional invariant (e
 ## 2026-07-19 21:51 — reviewer (claude-opus-4-8, drain)
 
 drain round 2: independent review of window 2051..HEAD — CLEAN (id:4a46 genuinely green, no gaming, no reopen, no spec-drift; suite 270/0/0)
+
+## 2026-07-19 22:33 — builder (claude-opus-4-8)
+
+build id:176f — mechanical-dispatch gateway + hermetic test (relay-command allowlist, fail-open, 28 assertions incl. chained/substitution refusal); suite 271/0/0; awaiting independent review
