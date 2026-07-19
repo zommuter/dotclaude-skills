@@ -128,6 +128,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
+        install-relay-users install-relay-acls \
         install-discovery-timer status-discovery-timer uninstall-discovery-timer \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
@@ -179,6 +180,16 @@ install-relay-env:
 
 print-relay-env:
 	@python3 $(SRC_DIR)/tools/settings-env.py --mode print --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS)
+
+# id:13ae — provision the two mechanical-daemon service users (relay-ro, relay-svc).
+# Idempotent; uses sudo -A (set SUDO_ASKPASS). System-modifying (useradd/linger).
+install-relay-users:
+	@bash $(SRC_DIR)/relay/scripts/provision-relay-users.sh
+
+# id:02c7 — enforce the ~/.config/relay per-directory ACL write matrix. Runs as the
+# invoking user (setfacl on own paths, no sudo); requires the users to exist first.
+install-relay-acls:
+	@bash $(SRC_DIR)/relay/scripts/apply-relay-acls.sh
 
 lint:
 	@bash $(SRC_DIR)/tools/check-no-bare-rm-f.sh --enforce
