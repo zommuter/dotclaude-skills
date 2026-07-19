@@ -2942,3 +2942,7 @@ Fixed unpromoted-scan.sh twin-check end-of-line anchor so auto-GATED ROADMAP ite
 ## 2026-07-19 15:29 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Verified id:798d (unpromoted-scan gated-twin fix) genuinely green — real red→green, RED spec untouched, suite 266/0; reconciled 5 cross-ledger drift twins (e875/b9b5/ab5c/66d4/78df) [id:798d,e875,b9b5,ab5c,66d4,78df]
+
+## 2026-07-19 18:42 — handoff (claude-opus-4-8)
+
+handoff: promoted a17a (state-machine diagram set) to ROADMAP [HARD — pool] + authored the drift-guard RED spec (test_a17a_diagram_state_sync.sh, verified red). Diagram authoring left for pool. Suite 266/0/1-red.
