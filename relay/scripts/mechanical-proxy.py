@@ -1,0 +1,488 @@
+#!/usr/bin/env python3
+"""
+Mechanical-dispatch proxy — the "fake-Haiku" short-circuit (id:176f).
+
+A local plain-HTTP gateway on loopback (reached over plain http via
+ANTHROPIC_BASE_URL=http://127.0.0.1:PORT — a zelegator check confirmed the base-URL
+override is honoured over plain http; no inbound TLS handling, the real API's own
+TLS is used only on the outbound pass-through leg). It fronts ANTHROPIC_BASE_URL for
+BOTH relay execution substrates that share the host harness's single global
+ANTHROPIC_BASE_URL: the off-Workflow host driver (id:93fe) AND the in-Workflow pool
+itself (the Workflow's agent() traffic also transits that same global base URL). The
+pool is a prime consumer: a measured ~30-min pool spent only ~12 min on productive
+LLM work — the mechanical per-round hops are the waste this removes.
+It inspects each Messages-API request:
+
+  * model == "bash"  -> the explicit mechanical trigger (owner 2026-07-19). The
+      caller declares, by construction, that this "turn" is a single Bash step.
+      The proxy reads the shell command from the request (the echo-runner-shaped
+      user content), runs it locally, and builds a valid Anthropic Messages
+      response (SSE or non-streaming) whose assistant turn carries the command's
+      stdout verbatim. No request is made to the real upstream for this class.
+  * anything else    -> relayed to the real upstream unchanged (the e905
+      validated transport path — meeting/contrib/llm-proxy.py).
+
+Fail-open: if a request is not clearly a model=="bash" mechanical request (JSON
+parse error, missing/empty command, unexpected shape) it is relayed to the real
+model. The proxy never fabricates a turn it is unsure about — a false positive
+would fabricate an unreviewed "success" with zero reasoning, worse than an LLM
+mistake (id:176f risk #1). The explicit model=="bash" opt-in is what removes that
+risk: the caller, not a heuristic, declares mechanical-ness.
+
+ToS posture (one-line check, id:176f): for the intercepted class this proxy makes
+zero real model calls — it declines to send a request and answers locally. That is
+a materially different posture from vendor-substitution (routing a Claude request
+to a different vendor's inference), which is the reason the earlier llama-proxy was
+killed. Declining-to-send is not re-using someone else's inference; it sends nothing.
+
+Security:
+  * binds 127.0.0.1 only (never a routable interface)
+  * opt-in only: nothing uses it unless ANTHROPIC_BASE_URL points here; never a
+    global default path
+  * relayed requests are forwarded to the real upstream unaltered; the proxy adds
+    nothing and inspects nothing beyond the model field, and originates its own
+    upstream TLS
+  * the local subprocess runs with the driver's own privileges — front this proxy
+    only with a driver whose traffic you trust (the relay-svc / os-users tier is
+    the relevant containment; this proxy adds no sandbox of its own)
+
+Transport helpers (_stream_chunked / _stream_plain / hop-by-hop handling /
+TCP_NODELAY / Accept-Encoding strip) are adapted from the validated e905 spike
+(meeting/contrib/llm-proxy.py) — the unbuffered-SSE pass-through that a real Claude
+Code turn was confirmed to complete over.
+
+Usage:
+  python3 relay/scripts/mechanical-proxy.py
+  # then, for the off-Workflow driver:
+  ANTHROPIC_BASE_URL=http://127.0.0.1:61843 <driver that dispatches model:"bash" units>
+
+Env vars:
+  MECH_PROXY_PORT             (default 61843)      local bind port
+  MECH_PROXY_LOG              (default /tmp/mechanical-proxy.log)
+  MECH_PROXY_UPSTREAM_HOST    (default api.anthropic.com)
+  MECH_PROXY_UPSTREAM_PORT    (default 443)
+  MECH_PROXY_UPSTREAM_SCHEME  (default https; set http for a local mock upstream)
+  MECH_PROXY_SHELL            (default /bin/sh)    interpreter for the mechanical command
+  MECH_PROXY_TIMEOUT          (default 120)        seconds before a mechanical command is killed
+"""
+import http.client
+import json
+import os
+import re
+import secrets
+import shlex
+import socket
+import subprocess
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+PORT = int(os.environ.get("MECH_PROXY_PORT", 61843))
+LOG_FILE = os.environ.get("MECH_PROXY_LOG", "/tmp/mechanical-proxy.log")
+UPSTREAM_HOST = os.environ.get("MECH_PROXY_UPSTREAM_HOST", "api.anthropic.com")
+UPSTREAM_PORT = int(os.environ.get("MECH_PROXY_UPSTREAM_PORT", 443))
+UPSTREAM_SCHEME = os.environ.get("MECH_PROXY_UPSTREAM_SCHEME", "https")
+MECH_SHELL = os.environ.get("MECH_PROXY_SHELL", "/bin/sh")
+MECH_TIMEOUT = int(os.environ.get("MECH_PROXY_TIMEOUT", 120))
+
+# The explicit mechanical-dispatch trigger. The caller declares mechanical-ness by
+# passing this as the request's `model` — no detection heuristic, no fail-open guess.
+MECH_MODEL = "bash"
+
+# Hop-by-hop headers we must not forward (RFC 7230 §6.1) — from the e905 spike.
+_HOP_BY_HOP = frozenset([
+    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    "te", "trailers", "transfer-encoding", "upgrade",
+])
+
+_log_lock = threading.Lock()
+
+
+def _log(entry: dict):
+    line = json.dumps(entry)
+    with _log_lock:
+        with open(LOG_FILE, "a") as f:
+            f.write(line + "\n")
+    print(line, flush=True)
+
+
+# ── Mechanical interception ─────────────────────────────────────────────────
+def _last_user_text(obj: dict):
+    """Read the text of the last user message (the echo-runner-shaped command).
+
+    Content may be a bare string or a list of content blocks; concatenate text
+    blocks. Returns the stripped command, or None if none is extractable
+    (→ fail-open passthrough)."""
+    messages = obj.get("messages")
+    if not isinstance(messages, list):
+        return None
+    for msg in reversed(messages):
+        if not isinstance(msg, dict) or msg.get("role") != "user":
+            continue
+        content = msg.get("content")
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            parts = []
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    parts.append(block.get("text", ""))
+                elif isinstance(block, str):
+                    parts.append(block)
+            text = "\n".join(parts)
+        else:
+            return None
+        text = (text or "").strip()
+        return text or None
+    return None
+
+
+def _extract_mechanical_command(body: bytes):
+    """Return the shell command iff this is a clear model=="bash" mechanical request.
+
+    Returns None for every non-mechanical or ambiguous request — the fail-open
+    contract: parse error, wrong model, or no extractable command all relay to the
+    real upstream rather than fabricate a turn."""
+    try:
+        obj = json.loads(body)
+    except Exception:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    if obj.get("model") != MECH_MODEL:
+        return None
+    return _last_user_text(obj)
+
+
+# ── Relay-command allowlist ─────────────────────────────────────────────────
+# The only commands the gateway will run locally are the fixed set of relay
+# scaffolding scripts under relay/scripts/. This list is derived from the
+# mechanical command invocations in relay-loop.js (grep 'skills/relay/scripts/')
+# — the read/atomic-op scripts a mechanical (echo-runner / model:"bash") unit
+# actually calls. Extend it by adding a basename here; keep it auditable.
+ALLOWED_RELAY_SCRIPTS = frozenset([
+    "classify-repo.sh", "classify-verdict.sh",
+    "claim.sh", "inject.sh",
+    "discover-sig.sh", "discover-repo.sh", "discover-repos.sh",
+    "reconcile-repo.sh", "relay-reconcile.sh",
+    "stop-sentinel.sh", "file-surface-decisions.sh",
+    "relay-status-publish.sh", "relay-state-write.sh", "relay-intensity.sh",
+    "heartbeat.sh", "sync-origin.sh", "clean-tree-gate.sh",
+    "verify-isolation.sh", "gather-repo-state.sh",
+    "ckpt-tag.sh", "quota-stop.sh",
+])
+
+# Plumbing tokens permitted as a NON-leading pipeline stage (e.g. `echo {json} |
+# discover-sig.sh`). A command still has to contain at least one allowlisted relay
+# script; these alone are never enough to run locally.
+_SAFE_PLUMBING = frozenset(["echo", "printf", "cat", "true", "false", ":", "test", "["])
+
+# A relay-scripts path token: any leading directory, then relay/scripts/<name>.
+_RELAY_SCRIPT_RE = re.compile(r"(?:^|/)relay/scripts/([A-Za-z0-9._-]+)$")
+
+# Shell separators we split a command on to inspect each simple command in turn.
+_SEG_SPLIT_RE = re.compile(r"\|\||&&|[|;\n&]")
+
+
+def _segment_leader(segment: str):
+    """Return the leading executable token of one simple command, skipping leading
+    VAR=val assignments and an optional sh/bash '-c' interpreter wrapper. Returns
+    None if the segment can't be tokenised (→ treated as not-allowed → fail-open)."""
+    try:
+        toks = shlex.split(segment)
+    except ValueError:
+        return None
+    i = 0
+    while i < len(toks) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[i]):
+        i += 1  # skip environment assignments
+    if i < len(toks) and os.path.basename(toks[i]) in ("sh", "bash", "/bin/sh", "/bin/bash"):
+        i += 1
+        while i < len(toks) and toks[i].startswith("-"):  # skip -c and friends
+            i += 1
+    return toks[i] if i < len(toks) else None
+
+
+def _token_is_relay_script(tok: str):
+    """If `tok` is a relay/scripts/<name> path, return its basename, else None."""
+    m = _RELAY_SCRIPT_RE.search(tok)
+    return m.group(1) if m else None
+
+
+def _command_allowed(command: str) -> bool:
+    """True iff every simple command in `command` leads with either a safe plumbing
+    token or an allowlisted relay script, AND at least one is an allowlisted relay
+    script. Anything else — an unrecognised leading command, an unknown relay
+    script, an unparseable segment, or a command substitution — returns False, and
+    the caller then relays the request to the real model (fail-open)."""
+    if not command or not command.strip():
+        return False
+    # Command substitution is never part of a mechanical relay hop; refuse it so a
+    # nested command can't smuggle in around the per-segment leader check.
+    if "$(" in command or "`" in command:
+        return False
+    saw_relay_script = False
+    for segment in _SEG_SPLIT_RE.split(command):
+        if not segment.strip():
+            continue
+        leader = _segment_leader(segment)
+        if leader is None:
+            return False
+        name = _token_is_relay_script(leader)
+        if name is not None:
+            if name not in ALLOWED_RELAY_SCRIPTS:
+                return False  # a relay-scripts path that isn't on the allowlist
+            saw_relay_script = True
+        elif leader not in _SAFE_PLUMBING:
+            return False  # a leading command that is neither plumbing nor a relay script
+    return saw_relay_script
+
+
+def _mechanical_command(body: bytes):
+    """Combined gate: return the command to run locally iff the request is a clear
+    model=="bash" mechanical request AND its command is an allowlisted relay
+    invocation. Returns None otherwise (fail-open → relay to the real model)."""
+    command = _extract_mechanical_command(body)
+    if command is None or not _command_allowed(command):
+        return None
+    return command
+
+
+def _run_mechanical(command: str) -> str:
+    """Run the command locally and return the echo-runner-shaped payload.
+
+    Success  -> stdout verbatim.
+    Failure  -> 'MECH-ERROR exit=<code>' + newline + stderr verbatim (mirrors the
+                echo-runner agent contract exactly)."""
+    try:
+        proc = subprocess.run(
+            [MECH_SHELL, "-c", command],
+            capture_output=True, text=True, timeout=MECH_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return f"MECH-ERROR exit=124\ncommand timed out after {MECH_TIMEOUT}s"
+    if proc.returncode == 0:
+        return proc.stdout
+    return f"MECH-ERROR exit={proc.returncode}\n{proc.stderr}"
+
+
+# ── Synthetic Anthropic Messages responses ──────────────────────────────────
+def _sse_event(event_type: str, data: dict) -> bytes:
+    return (
+        f"event: {event_type}\r\n"
+        f"data: {json.dumps(data)}\r\n\r\n"
+    ).encode("utf-8")
+
+
+def _serve_mechanical_sse(handler, text: str, model: str):
+    """Emit a minimal but valid Messages streaming (SSE) turn carrying `text`."""
+    msg_id = "msg_mech_" + secrets.token_hex(12)
+    # A rough token estimate keeps the usage block plausible; it is display-only.
+    out_tokens = max(1, len(text) // 4)
+
+    handler.send_response(200)
+    handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
+    handler.send_header("Cache-Control", "no-cache")
+    handler.send_header("Connection", "keep-alive")
+    handler.end_headers()
+
+    def emit(event_type, data):
+        handler.wfile.write(_sse_event(event_type, data))
+        handler.wfile.flush()
+
+    emit("message_start", {
+        "type": "message_start",
+        "message": {
+            "id": msg_id, "type": "message", "role": "assistant",
+            "model": model, "content": [], "stop_reason": None,
+            "stop_sequence": None,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        },
+    })
+    emit("content_block_start", {
+        "type": "content_block_start", "index": 0,
+        "content_block": {"type": "text", "text": ""},
+    })
+    emit("content_block_delta", {
+        "type": "content_block_delta", "index": 0,
+        "delta": {"type": "text_delta", "text": text},
+    })
+    emit("content_block_stop", {"type": "content_block_stop", "index": 0})
+    emit("message_delta", {
+        "type": "message_delta",
+        "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+        "usage": {"output_tokens": out_tokens},
+    })
+    emit("message_stop", {"type": "message_stop"})
+
+
+def _serve_mechanical_json(handler, text: str, model: str):
+    """Emit a non-streaming Messages response carrying `text`."""
+    msg_id = "msg_mech_" + secrets.token_hex(12)
+    out_tokens = max(1, len(text) // 4)
+    payload = {
+        "id": msg_id, "type": "message", "role": "assistant", "model": model,
+        "content": [{"type": "text", "text": text}],
+        "stop_reason": "end_turn", "stop_sequence": None,
+        "usage": {"input_tokens": 1, "output_tokens": out_tokens},
+    }
+    blob = json.dumps(payload).encode("utf-8")
+    handler.send_response(200)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(blob)))
+    handler.end_headers()
+    handler.wfile.write(blob)
+    handler.wfile.flush()
+
+
+# ── Pass-through transport (adapted from the e905 spike) ─────────────────────
+def _stream_chunked(resp, wfile) -> bool:
+    """Manually decode a chunked response and forward decoded bytes to wfile.
+
+    fp.read1() on a live keep-alive socket never returns b"" — it blocks waiting
+    for the next response. We detect the terminating chunk (size == 0) ourselves.
+    """
+    fp = resp.fp
+    while True:
+        line = fp.readline(256)
+        if not line:
+            return False
+        try:
+            chunk_size = int(line.split(b";")[0].strip(), 16)
+        except ValueError:
+            return False
+        if chunk_size == 0:
+            while True:
+                trailer = fp.readline(256)
+                if trailer in (b"\r\n", b"\n", b""):
+                    break
+            return True
+        remaining = chunk_size
+        while remaining > 0:
+            try:
+                data = fp.read1(min(4096, remaining))
+            except AttributeError:
+                data = fp.read(min(256, remaining))
+            if not data:
+                return False
+            remaining -= len(data)
+            wfile.write(data)
+            wfile.flush()
+        fp.read(2)  # consume trailing \r\n after chunk body
+
+
+def _stream_plain(resp, wfile) -> bool:
+    """Forward a non-chunked response. Connection close signals end-of-body."""
+    fp = resp.fp
+    while True:
+        try:
+            data = fp.read1(4096)
+        except AttributeError:
+            data = fp.read(256)
+        if not data:
+            return True
+        wfile.write(data)
+        wfile.flush()
+
+
+class ProxyHandler(BaseHTTPRequestHandler):
+    def setup(self):
+        super().setup()
+        # TCP_NODELAY: send each SSE chunk immediately (Nagle + delayed-ACK on
+        # loopback would otherwise batch small writes and stall between events).
+        self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+    def log_message(self, format, *args): pass  # silence default access log  # noqa: A002
+
+    def _proxy(self):
+        req_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(req_length) if req_length else b""
+
+        # ── Interception: model=="bash" + allowlisted relay command ───────────
+        command = _mechanical_command(body)
+        if command is not None:
+            try:
+                obj = json.loads(body)
+            except Exception:
+                obj = {}
+            model = obj.get("model", MECH_MODEL)
+            wants_stream = bool(obj.get("stream")) or \
+                "text/event-stream" in self.headers.get("Accept", "")
+            output = _run_mechanical(command)
+            try:
+                if wants_stream:
+                    _serve_mechanical_sse(self, output, model)
+                else:
+                    _serve_mechanical_json(self, output, model)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            _log({
+                "event": "mechanical", "path": self.path,
+                "command": command, "stream": wants_stream,
+                "output_bytes": len(output.encode("utf-8")),
+                "upstream_hit": False,
+            })
+            return
+
+        # ── Fail-open pass-through to the real upstream (e905 path) ────────────
+        fwd_headers = {
+            k: v for k, v in self.headers.items()
+            if k.lower() not in _HOP_BY_HOP and k.lower() not in ("host", "accept-encoding")
+        }
+        if body:
+            fwd_headers["Content-Length"] = str(len(body))
+
+        try:
+            if UPSTREAM_SCHEME == "http":
+                conn = http.client.HTTPConnection(UPSTREAM_HOST, UPSTREAM_PORT, timeout=120)
+            else:
+                conn = http.client.HTTPSConnection(UPSTREAM_HOST, UPSTREAM_PORT, timeout=120)
+            conn.request(self.command, self.path, body=body or None, headers=fwd_headers)
+            resp = conn.getresponse()
+        except Exception as exc:
+            _log({"event": "upstream_error", "path": self.path, "error": str(exc)})
+            self.send_error(502, str(exc))
+            return
+
+        self.send_response(resp.status)
+        for k, v in resp.getheaders():
+            if k.lower() in _HOP_BY_HOP:
+                continue
+            self.send_header(k, v)
+        self.end_headers()
+
+        is_chunked = bool(resp.chunked)
+        try:
+            if is_chunked:
+                _stream_chunked(resp, self.wfile)
+            else:
+                _stream_plain(resp, self.wfile)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            conn.close()
+
+        _log({
+            "event": "passthrough", "method": self.command, "path": self.path,
+            "request_body_bytes": req_length, "response_status": resp.status,
+            "is_chunked": is_chunked, "upstream_hit": True,
+        })
+
+    do_GET = do_POST = do_PUT = do_DELETE = do_PATCH = _proxy
+
+
+def main():
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), ProxyHandler)
+    print(f"mechanical proxy on http://127.0.0.1:{PORT} "
+          f"→ {UPSTREAM_SCHEME}://{UPSTREAM_HOST}:{UPSTREAM_PORT}", flush=True)
+    print(f"  model=='{MECH_MODEL}' → run locally (zero upstream calls); else relay",
+          flush=True)
+    print(f"Log: {LOG_FILE}", flush=True)
+    print(f"To use: ANTHROPIC_BASE_URL=http://127.0.0.1:{PORT} <driver>", flush=True)
+    print("Ctrl-C to stop.", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down.", flush=True)
+
+
+if __name__ == "__main__":
+    main()
