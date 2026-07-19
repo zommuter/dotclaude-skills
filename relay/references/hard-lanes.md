@@ -102,6 +102,51 @@ a conforming box and clean-continues the separable remainder (defaulting to a cl
 handback when separability is uncertain), rather than stranding the unit — see rule 6 in
 `relay/references/executor-contract.md` (contract v7+).
 
+## The `@wire` marker — executor-verifiable-via-a-host/e2e-RED-spec (id:ac7f)
+
+`@wire` is a **marker**, NOT a lane — orthogonal to the `[HARD — *]` / `[INPUT — *]`
+lanes AND to `@manual`/`@needs-auth`, exactly like them. It records that a piece of work
+is **executor-verifiable via a host/e2e RED spec**: a strong (handoff) session can author
+a failing host/e2e test that pins the wiring, and a cheap executor can drive it green.
+(Decided in `/meeting` 2026-07-19-1152, D3/D4.)
+
+**Record it by the property, not by "UI wiring."** The name evokes UI wiring, but the
+definition is the *executor-verifiable-via-a-host/e2e-RED-spec* property — do NOT narrow
+it to front-end plumbing. Any two-phase feature whose executable phase a host/e2e RED
+spec can pin qualifies.
+
+**Why the marker exists (the mislabel bug it fixes).** Before `@wire`, a two-phase
+feature's executor-doable half was often tagged `@manual` — which `classify-repo.sh`
+*excludes* from `actionable_routine_open` (the safe under-dispatch direction for a true
+human-run item). So an executor-doable wiring item tagged `@manual` was silently
+excluded, the verdict cascade never reached `execute`, the repo read as no-actionable-work,
+and an agent then wrote "drained" as freehand prose. The mislabel was the whole bug.
+
+**Mechanical contract (D4).** An open `@wire` item on a **primary executor lane**
+(`[ROUTINE]` / `[HARD — pool]` / `[HARD]`), NOT human-gated / `@manual` / blocked /
+in an exempt section, **counts toward `actionable_routine_open`** in
+`relay/scripts/classify-repo.sh` — so `classify-verdict.sh`'s execute gate fires
+(`verdict=execute`). The identical item WITHOUT `@wire` stays plain pool-lane hard work
+(`verdict=hard`). `@manual` stays **excluded** (unchanged — the safe direction).
+
+**Two-linked-items split (D3).** A genuine two-phase feature is TWO linked items, never a
+mutable re-tag or a single-checkbox sub-state: a `@wire` executor item (backed by a
+handoff-authored host/e2e RED spec) **plus** a separate `@manual` human item
+`gated-on:` the wire item (the typed edge id:46f6). The executor physically cannot close
+the `@manual` box (`human.md §4` never-auto-tick). Use the split **only where both phases
+are real** — a pure-executor feature is one `@wire` item; a pure-hardware check is one
+`@manual` item.
+
+**`drained` = render-alias over `idle` (D1).** There is NO new classify-verdict enum. The
+word "drained" may appear ONLY as a *rendering* of `verdict=idle` (which, once the count
+change above lands, already implies zero open `@wire` half) — emitted solely by
+`relay/scripts/render-verdict.sh` (idle→"drained", every other verdict verbatim), quoted
+from the classifier, never authored freehand.
+
+**Recognition.** `@wire` is a known marker: `roadmap-lint.sh` / `gather-human-backlog.sh`
+never flag it as unknown/untagged; it is orthogonal to the lane, so it does not change
+which human-triage bucket (if any) an item lands in.
+
 ## The orthogonal resource axis (NOT a lane)
 
 `[INTENSIVE — <resource>]` (id:8d52) is an ORTHOGONAL resource modifier, not a lane.
