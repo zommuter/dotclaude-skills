@@ -1,0 +1,30 @@
+# 2026-07-19 — `drained` verdict + `@wire`/`@manual` grammar split (af48)
+
+**Started:** 2026-07-19 11:52
+**Session:** a44f59c6-4299-42c5-9b1c-44af75762b23
+**Attendees:** 🏗️ Archie (architect), 😈 Riku (devil's advocate), ✂️ Petra (productivity), ⚙️ Sage (skill-runtime / relay-contract & grammar mechanics), 🎛️ Orla (multi-agent orchestration / verification-gating)
+**Topic:** Design af48 — the `drained` machine-verdict + `@wire`/`@manual` grammar split, folding in executor-must-not-author-own-RED-test and the enumerate-every-consumer spec-completeness discipline.
+
+## Context / grounding
+- Keystone `[HARD — meeting]` from meeting `2026-07-19-1058` (af48), cited by chidiai `declared-drained` (High), `instructed-executors-author-own-RED` (High), `red-spec-verified-named-consumers` (Mod).
+- **The mechanical root cause (read from code):** `classify-verdict.sh` cascade is `blocked→execute→review→hard→handoff→human→idle` — **no `drained`**. `classify-repo.sh:130` sets `is_human = "@manual" in ln`, and `:142` only increments `actionable_routine_open` when NOT `@manual`. So an executor-doable wiring item tagged `@manual` is *silently excluded* from `actionable_routine_open` → the cascade never reaches `execute` → the repo reads as no-actionable-work → the agent writes "drained" as freehand prose. **The mislabel is the whole bug.**
+- `@manual` is already documented as *orthogonal* to lane tags (`hard-lanes.md:76`).
+
+## Discussion
+Full transcript in chat (Opus normal-mode). Personas converged that the `@wire` tag is the load-bearing fix and `drained` is a downstream reporting artifact, not a missing verdict.
+
+## Decisions
+- **D1 — `drained` = render-alias over `idle`, NOT a new verdict.** No new enum value in `classify-verdict.sh`. The word "drained" may only appear as a *rendering* of `verdict=idle` with zero open `@wire` half — quoted from the classifier, never authored freehand. Rationale: once `@wire` counts as actionable, an open wiring half already yields `execute` and a truly-empty repo already yields `idle`/`human`; a `drained` enum would near-duplicate `idle` (drift bait, Riku/Sage/Petra). **Out of scope:** adding a cascade value.
+- **D2 — Meeting scope = grammar + verdict + migration-approach + D4-*shape*.** D4's detailed detector mechanism may spin to a child if it balloons (Orla/Petra). **Out of scope:** writing the `@wire` regex, editing `classify-repo.sh`, building the D4 detector — all deferred to the child build items.
+- **D3 — Two-phase feature = two linked items (split), Option 1.** A `@wire` executor item (backed by a handoff-authored host/e2e RED spec) + a separate `@manual` human item `gated-on:` the wire item. No mutable re-tagging (Option 2 = the silent-no-op disease), no single-checkbox sub-state (Option 3, unrepresentable). Reuses the typed `gated-on:` edge (id:46f6); clean checkbox actor-semantics; executor physically cannot close the `@manual` box (`human.md §4` never-auto-tick). **The split is used only where both phases are real** (Petra's guard) — a pure-executor feature is one `@wire` item; a pure-hardware check is one `@manual` item.
+- **D4 — `@wire` = new orthogonal marker, RED-spec-backed.** Like `@manual`/`@needs-auth` (not a lane). Defined by the *executor-verifiable-via-a-host/e2e-RED-spec* property — **not** narrowly "UI wiring" (Sage's naming caution: record the def by the property so a future reader doesn't narrow it). Mechanical contract: an open `@wire` item on a primary lane **counts toward `actionable_routine_open`** in `classify-repo.sh`; `@manual` stays excluded (unchanged).
+- **D5 — Migration = flag-only detector (here) + route the re-label to loderite.** af48-in-dotclaude-skills owns the *mechanism* (grammar + `classify-repo` change + a detector that FLAGS `@manual` items looking executor-doable). The detector **fails toward `@manual`** (under-dispatch is safe per `classify-repo:128`; auto-converting could dispatch a hardware check to an executor — the unsafe direction) and **never auto-converts**. The ~103-occurrence re-label is **loderite's own ROADMAP** → routed to loderite as per-repo `/relay handoff` judgment ([[conformance-pilot]]: tooling=detector, conversion=judgment). **Out of scope:** any blanket `sed @manual→@wire`.
+- **D6 — D4 fold: contract rule now + provenance detector rides id:7a05.** Contract-text (`executor-contract.md`+`handoff.md`): executor-no-own-RED (strong side authors the RED spec; a directly-dispatched executor with no pre-existing RED spec triggers an *independent reviewer*, never self-verification), plus reviewer-read-only (a spawned reviewer is structurally read-only; finalization is the orchestrator's — `a-relay-review-sub-agent-scoped`). Interim **orchestrator-side loud "no-close-on-self-marked-verification" check** is the floor so it isn't prose-only (Riku). The **provenance detector** ("same actor authored the RED test AND made it green") is a **provenance check = the id:7a05 substrate**, so it rides 7a05 (gated), no new substrate. **Spec-completeness** (`red-spec-verified-named-consumers`) = a light handoff `grep -rl <artifact>` consumer-enumeration aid + the discipline that the RED spec names the consumers it covers (a listing aid, not a gate — you can't mechanically prove coverage).
+
+## Action items
+- [ ] C1 — `@wire` grammar + `classify-repo` count + `drained` render-alias `[HARD — pool]` (keystone) <!-- id:ac7f -->
+- [ ] C2 — flag-only `@manual`→`@wire` mislabel detector (fails toward `@manual`) `[HARD — pool]` <!-- id:bea2 -->
+- [ ] C3 — D4 contract rule + interim no-close-on-self-marked check; provenance detector gated on id:7a05 `[HARD — pool]` <!-- id:0c86 -->
+- [ ] C4 — spec-completeness handoff consumer-enumeration aid `[HARD — pool]` <!-- id:78df -->
+- [ ] loderite: re-label ~103 `@manual`→`@wire` mislabels (per-repo handoff, once the grammar lands) → routed to loderite inbox <!-- routed:8a51 -->
+- [ ] af48 stays open as design umbrella (children ac7f/bea2/0c86/78df); id:2b49 gated-on re-pointed to C1(ac7f)
