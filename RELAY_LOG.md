@@ -2934,3 +2934,7 @@ keep the ledgers in agreement.
 Friction: none — the RED spec was already authored by the handoff and the
 fix was a single-line regex change exactly as specified.
 refactor: none needed — one-line regex fix, no new duplication introduced.
+
+## 2026-07-19 15:08 — executor (sonnet, relay-loop)
+
+Fixed unpromoted-scan.sh twin-check end-of-line anchor so auto-GATED ROADMAP items (marker + trailing gate note) are recognized as twins instead of phantom-re-dispatching; id:798d closed, full suite 266/0. [id:798d]
