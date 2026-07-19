@@ -3,7 +3,7 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
-- [ ] **id:a286 — `make test` is RED: id:34c2's integration (febb0c3) introduced a bare `rm -f`
+- [x] **id:a286 — `make test` is RED: id:34c2's integration (febb0c3) introduced a bare `rm -f`
   in `meeting/append.sh:384` that trips the repo's own `check-no-bare-rm-f.sh --enforce` lint
   (baseline 0), so the `lint` tier of `make test` now FAILS for every consumer** (review
   2026-07-17). The unit test tier is fully green (256 passed, 0 failed) — this is purely the
@@ -12,6 +12,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   (or annotate `# force-ok: <reason>`). Filed as ROADMAP `[ROUTINE]` id:a286 (this pass could
   not fix it — the review's safety constraint bars touching `meeting/*.sh`). Root cause is a
   spec/lint gap in the id:34c2 handoff: the RED spec did not gate on the lint tier passing.
+  **RESOLVED 2026-07-19 (relay human, verified):** the bare `rm -f` is gone from `meeting/append.sh` (grep clean), `tools/check-no-bare-rm-f.sh --enforce` = 0 violations within baseline, full suite 262/0/3-xred green. The root-cause lesson (a RED spec not gating on the lint tier) is exactly what the freshly-prepared **id:66d4** tier-coverage checkpoint gate enforces.
 
 - [ ] **relay-doctor findings (review 2026-07-17, report-only, non-blocking).** Four are the
   cross-ledger drift this review RESOLVED in-pass by ticking the TODO twins of the integrated
@@ -45,7 +46,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   `~/src/claude-diary/docs/2026-07-02-human-sprint-8020.md`. Next `/relay human` should
   present it as the "you run these" checklist and tick items THERE; close this box when
   that doc is fully worked or superseded.
-- [ ] **id:b780 — a review child FIXED a flaky test in-flight; confirm that was in scope.**
+- [x] **id:b780 — a review child FIXED a flaky test in-flight; confirm that was in scope.**
   `tests/test_isolation_gate_wired.sh` intermittently failed (measured 1/25 idle, 22/40 under
   CPU load) via a >64 KB `printf | grep -q` SIGPIPE race under `pipefail` — grep matched
   (PIPESTATUS=[0]) but printf died 141 and pipefail promoted it to a failure. I fixed it here
@@ -54,13 +55,15 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   exactly the wrong signal. Mutation-tested (3/3 broken-gate variants still caught) so the spec
   is intact. **If you'd rather review children never touch non-ledger code, say so** and this
   becomes a [ROUTINE] item instead; the fix + evidence are in the commit either way.
-- [ ] **id:521f / routed:f1f5 + id:1312 — same defect class, possibly one fix.** Both are
+  **RULED 2026-07-19 (relay human): OUT OF SCOPE.** A review pass returns a verdict; it does not mutate non-ledger code — a verifier that can fix the artifact it verifies can launder its verdict (chidiai `a-relay-review-sub-agent-scoped`; reviewer-read-only, now load-bearing in id:0c86/077d). The already-committed fix STAYS (correct + mutation-tested), but going forward such a fix is a HANDBACK / separate execute unit, not a review action — enforced structurally via id:077d/0c86.
+- [x] **id:521f / routed:f1f5 + id:1312 — same defect class, possibly one fix.** Both are
   unanchored token greps over prose-bearing ledger lines (roadmap-lint's first-match `id_re`;
   unpromoted-scan's bare `grep -qF`). `scan-routed.sh` already anchors correctly. This is the
   4th instance of the family (with `inbox-done`'s substring match and md-merge's fail-open
   append, id:1b1a). **Worth one shared anchored-extraction helper + its own test rather than a
   third hand-rolled copy?** That's a design call, not a review verdict — hence a box, not a
   ROADMAP decision. Related: the id:2c94 duplication linter would flag the copies mechanically.
+  **DECIDED 2026-07-19 (relay human): BUILD one shared anchored-extraction helper + test** (dedup the 4th instance of the family; route roadmap-lint's first-match `id_re`, unpromoted-scan's `grep -qF`, and the copies through it — model it on `scan-routed.sh`, which already anchors correctly). Filed as `[ROUTINE]` id:3add.
 - [ ] **Repo-wide: is the `printf "$big" | grep -q` + `pipefail` pattern worth a lint?** id:b780
   was one instance; 23 files pair `pipefail` with an early-exiting reader on a pipe. Only
   payloads >64 KB (the pipe buffer) can bite, so today `relay-loop.js` (91 KB) is plausibly the
