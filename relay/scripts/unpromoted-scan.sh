@@ -264,9 +264,16 @@ for line in sys.stdin:
     # ("...separate seam tracked as id:2b63") anywhere in another item's text, silently
     # treating it as already-twinned and dropping it from the backlog scan (id:1312;
     # observed 2026-07-16: `df4e` went laned → 0 rows this way). Require the token to
-    # end its OWN `- [ ]`/`- [x]` checkbox line as `<!-- id:XXXX -->`, mirroring the
-    # anchoring scan-routed.sh already applies to its twin check.
-    grep -qE "^- \\[[ x]\\].*<!-- id:${token} -->[[:space:]]*\$" <<<"$roadmap_content" && continue
+    # appear as its OWN `- [ ]`/`- [x]` checkbox line's `<!-- id:XXXX -->` marker,
+    # mirroring the anchoring scan-routed.sh already applies to its twin check. NOT
+    # end-of-line-anchored (id:798d): handback-followup.py's gate_line (id:1b1a)
+    # deliberately inserts a trailing gate note AFTER the marker
+    # (`<!-- id:XXXX --> — 🚧 GATED (auto, id:3801; ...)`), so an end-anchored match
+    # missed every auto-GATED item and phantom-re-dispatched its TODO twin every round.
+    # The `<!-- id:XXXX -->` HTML-comment form is itself the anchor that still prevents
+    # the id:1312 bare-prose false-match — dropping only the `[[:space:]]*$` end-anchor
+    # does not reopen that hole.
+    grep -qE "^- \\[[ x]\\].*<!-- id:${token} -->" <<<"$roadmap_content" && continue
     # Already filed for OPEN human lane-triage → not fresh backlog (case-g, id:47f1).
     [[ "$filed_ids" == *" $token "* ]] && { log "repo=$name filed=$token"; continue; }
 
