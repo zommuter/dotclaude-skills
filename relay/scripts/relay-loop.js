@@ -787,10 +787,15 @@ function reconcileHandbacks(accumulator) {
 }
 function assertHandbackInvariant(emittedEvents, accumulator) {
   const acc = accumulator || []
+  const emitted = emittedEvents || []
   const violations = []
-  for (const ev of (emittedEvents || [])) {
+  for (const ev of emitted) {
     const found = acc.some(h => h && h.repo === ev.repo && h.reason === ev.reason)
-    if (!found) violations.push(ev)
+    if (!found) violations.push({ ...ev, direction: 'forward' })
+  }
+  for (const h of reconcileHandbacks(acc)) {
+    const found = emitted.some(ev => ev && ev.repo === h.repo && ev.reason === h.reason)
+    if (!found) violations.push({ ...h, direction: 'reverse' })
   }
   return { ok: violations.length === 0, violations }
 }
@@ -1698,11 +1703,14 @@ async function integrate(unit, report) {
     // RECOVERABLE handback with the deterministic worktree path + resume hint, never an
     // orphan with worktreePath '-'. Any per-checkpoint commits survive on disk for a
     // manual/next-turn resume (handoff: re-dispatch reads them; see handoff.md §Resuming).
+    const terminalFailReason = `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are preserved in the worktree — re-run /relay to resume (handoff continues from the last checkpoint).`
     state.handbacks.push({
       repo: unit.repo,
-      reason: `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are preserved in the worktree — re-run /relay to resume (handoff continues from the last checkpoint).`,
+      reason: terminalFailReason,
       worktreePath: worktreePathFor(unit),
     })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: terminalFailReason })
+    emittedHandbackEvents.push({ repo: unit.repo, reason: terminalFailReason })  // id:4a46 — invariant backstop
     scheduleStatusWrite(state)
     return
   }
@@ -1710,6 +1718,8 @@ async function integrate(unit, report) {
     // HANDBACK: not merged; worktree held on disk for a human/strong turn.
     const hbReason = report.handback || 'contract_met=false'
     state.handbacks.push({ repo: unit.repo, reason: hbReason, worktreePath: report.worktree })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: hbReason })
+    emittedHandbackEvents.push({ repo: unit.repo, reason: hbReason })  // id:4a46 — invariant backstop
     // id:1432 (b) — loud repeat-tracking: count every child handback this run; a repo+verdict
     // at >=2 surfaces as an ALERT in the exit summary + RELAY_STATUS (a repeating handback is a
     // bug signal, not noise).
@@ -2275,14 +2285,17 @@ while (!quotaStopped && round < MAX_ROUNDS) {
 
 await statusTail  // id:cb50 — flush the queued (off-critical-path) RELAY_STATUS writes so the final state is durable before the run returns
 await stopHeartbeat()  // id:e149 — clean shutdown: release the run-liveness marker (no stale marker ⇒ no false watchdog/reconcile trigger)
-// id:1735 — the loud invariant backstop: every pushEvent('handback', …) emitted this run must
-// have a matching entry in the persistent state.handbacks accumulator. This is the assertion
-// that catches a regression of the original bug (a handback event recorded as having happened,
-// but the returned summary has no matching entry for it) — FAIL LOUDLY rather than silently
-// returning the (possibly incomplete) list.
+// id:1735/id:4a46 — the loud invariant backstop: EQUALITY over the real-worktree subset. Every
+// pushEvent('handback', …) emitted this run must have a matching entry in the persistent
+// state.handbacks accumulator (forward — catches a regression of the original id:1735 bug: a
+// handback event recorded as having happened, but the returned summary has no matching entry
+// for it), AND every real-worktree accumulator entry must have a matching emitted event
+// (reverse — id:4a46 closes the under-reporting gap: a real handback happened but no event was
+// ever emitted for it). FAIL LOUDLY rather than silently returning the (possibly incomplete)
+// list.
 const handbackInvariant = assertHandbackInvariant(emittedHandbackEvents, state.handbacks)
 if (!handbackInvariant.ok) {
-  log(`relay-loop: INVARIANT VIOLATED (id:1735) — ${handbackInvariant.violations.length} handback event(s) emitted this run have NO corresponding entry in state.handbacks: ${JSON.stringify(handbackInvariant.violations)}`)
+  log(`relay-loop: INVARIANT VIOLATED (id:1735/id:4a46) — ${handbackInvariant.violations.length} handback event/accumulator mismatch(es) this run (forward: emitted with no accumulator entry; reverse: real handback with no emitted event): ${JSON.stringify(handbackInvariant.violations)}`)
 }
 const handbacks = reconcileHandbacks(state.handbacks)
 // id:1432 — LOUD exit-summary surfacing: any repo+verdict that handed back >=2× this run is a
