@@ -64,6 +64,7 @@ relay_FILES := SKILL.md \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh \
                scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
+               scripts/review-gate.sh \
                scripts/lib-own-repos.sh scripts/lib-anchored-id.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
@@ -84,7 +85,8 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
-               scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh
+               scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
+               scripts/review-gate.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
@@ -104,7 +106,8 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
-               scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh
+               scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
+               scripts/review-gate.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
