@@ -1,0 +1,100 @@
+%% relay-dispatch.mmd — id:a17a diagram (b), meeting mtg-1726 D1
+%% The relay dispatch state machine across ALL THREE execution substrates (mtg-1726
+%% correction: the relay is not one loop — it is LLM-Workflow-pool + mechanical-daemon
+%% + human, and the earlier mental model omitted the mechanical substrate entirely).
+%%
+%% Vocabulary in this file is DRIFT-GUARDED by tests/test_a17a_diagram_state_sync.sh:
+%%   * every verdict classify-verdict.sh can emit — execute, review, hard, handoff,
+%%     human, idle — must appear (derived from source, not hardcoded by the guard);
+%%   * every /relay invocation mode in relay/SKILL.md — handoff, review, next, human,
+%%     health, inject, executor, stop, reconcile — must appear;
+%%   * the mechanical and human substrates must both be represented.
+%% Reconciles with the id:4da4 pt2 matrix (invariants I1–I9,
+%% docs/meeting-notes/2026-07-01-2142-relay-state-machine-invalid-state-detector.md):
+%% the invariant checks live in relay-doctor.sh (subcommand: /relay health).
+flowchart TB
+    start(["/relay next — auto-route the current repo<br/>(entry points: handoff · review · next · human ·<br/>health · inject · executor · stop · reconcile ·<br/>single-repo /relay . [--drain])"])
+
+    %% ---------------- SUBSTRATE 1: LLM Workflow pool ----------------
+    subgraph pool["Substrate 1 — LLM Workflow pool (relay-loop.js, in-Workflow)"]
+        direction TB
+        discover["discover → reconcile-repo.sh +<br/>classify-repo.sh --emit unit<br/>(signature-cached; fail-open)"]
+        classify{{"classify-verdict.sh<br/>reads actionable_routine_open,<br/>open [HARD], REVIEW_ME, etc."}}
+        discover --> classify
+
+        classify -->|"actionable_routine_open == 0<br/>AND no HARD/handoff work"| idle(["verdict = idle<br/>(render-alias: &quot;drained&quot;)"])
+        classify -->|"actionable_routine_open &gt; 0 (I2)"| vexecute(["verdict = execute → Sonnet executor child"])
+        classify -->|"open [ROUTINE] work verified needed"| vreview(["verdict = review → Opus apex reviewer"])
+        classify -->|"open [HARD — pool] item"| vhard(["verdict = hard → Opus apex HARD-execute child"])
+        classify -->|"repo needs docs/RED-specs/roadmap"| vhandoff(["verdict = handoff → Opus apex handoff child"])
+
+        vexecute --> claim
+        vreview --> claim
+        vhard --> claim
+        vhandoff --> claim
+        claim["claim.sh acquire (cross-session lease id:ebfb)<br/>+ git worktree add (isolation, id:f682)"]
+        claim --> childwork["child works EXCLUSIVELY in worktree;<br/>commits as it goes; NEVER pushes/tags"]
+        childwork -->|"contract_met = true"| gate
+        childwork -->|"contract_met = false<br/>(size-out / gated / blocked)"| handback
+
+        gate{{"verify-isolation.sh + clean-tree-gate.sh<br/>(≥1 commit beyond base, clean tree)"}}
+        gate -->|pass| integrate
+        gate -->|fail| salvage["salvage in main checkout under lease<br/>(id:15d5) — do not force"]
+    end
+
+    %% ---------------- INTEGRATE + conditional version/changelog branch ----------------
+    subgraph integ["Integrator — ONE push per repo per round (git-lock-push --ff-only)"]
+        direction TB
+        integrate["integrate(): merge --no-ff → ckpt-tag.sh<br/>(relay-ckpt-YYYYMMDD-HHMM) → push"]
+        repoclass{{"repo class? (mtg-1726 D1 conditional branch)"}}
+        integrate --> repoclass
+        repoclass -->|"semver repo<br/>(pyproject.toml / manifest)"| semver["reviewer bumps vX.Y.Z at a user-observable<br/>close (judgment) → tag → CHANGELOG entry<br/>(release-bucketed) — id:e647/b8fa"]
+        repoclass -->|"versionless repo<br/>(this repo; git = SSOT, id:8ef3)"| verless["NO version / NO v* tag;<br/>date-bucketed CHANGELOG only — id:b8fa"]
+        semver --> checkpoint
+        verless --> checkpoint
+        checkpoint["RELAY_LOG.md paragraph + relay.toml last_ckpt<br/>(I8: last_ckpt names an existing tag)"]
+    end
+
+    integrate -. "gated: result.openRoutine &gt; 0" .-> loop
+
+    %% ---------------- Self-feeding loop + stop gates ----------------
+    stopgate{{"stop gates: quota-cache stop ·<br/>MAX_ROUNDS · /relay stop / --once ·<br/>heartbeat outage watchdog (id:98f0)"}}
+    checkpoint --> stopgate
+    stopgate -->|"budget left AND work remains"| loop(["self-feeding loop → re-discover next repo/round"])
+    stopgate -->|"quota exhausted / stopped / drained"| done(["loop idle → stop"])
+    loop --> discover
+
+    %% ---------------- SUBSTRATE 2: mechanical daemon ----------------
+    subgraph mech["Substrate 2 — mechanical daemon (systemd .timer, OUTSIDE the Workflow; id:2ec4)"]
+        direction TB
+        mtimer["mechanical-daemon.sh (no LLM)"]
+        mrecipe["[MECHANICAL] lane recipes:<br/>discover-repos-mechanical.sh · classify-verdict.sh ·<br/>mechanical-orphan-scan / draft.sh · recipe-validate.sh"]
+        mtimer --> mrecipe
+        mrecipe -. "writes ONLY under ~/.config/relay<br/>(read-only vs repo ledgers; not a 4th writer)" .-> mout["~/.config/relay artifacts (discovery queue, events)"]
+        mrecipe -. "peek-and-defer before writing<br/>a recipe artifact into a repo checkout (id:0534)" .-> claim
+    end
+    mout -. "queue read (residual agent hop, id:65f9)" .-> discover
+
+    %% ---------------- SUBSTRATE 3: human ----------------
+    subgraph humansub["Substrate 3 — human (interactive /relay human)"]
+        direction TB
+        hgather["gather-human-backlog.sh → tiers a/b/c"]
+        hbuckets["[INPUT — meeting|decision|access] · @manual ·<br/>[HARD — meeting] (→ /meeting) · [HARD — hands]<br/>(you run these) · REVIEW_ME judgment boxes"]
+        hgather --> hbuckets
+        hinject["/relay inject — hand a decided item back to the pool;<br/>/relay reconcile — consume orphan-park refs (registry)"]
+    end
+
+    %% cross-substrate routing of handbacks + health
+    handback["handback (contract_met=false) → integrator records<br/>durable ROADMAP note (id:3801): route = decision-gate |<br/>hard-split | human | none"]
+    handback -->|"route: hard-split"| discover
+    handback -->|"route: decision-gate / needs a /meeting"| hbuckets
+    handback -->|"route: human"| hbuckets
+    salvage --> checkpoint
+
+    hbuckets -->|"decided → re-lane to pool"| hinject
+    hinject --> discover
+
+    health(["/relay health — relay-doctor.sh checks<br/>(I1 main-clean · I2 execute⟹routine&gt;0 · I3 cross-ledger ·<br/>I4 intensive⟹execute|hard · I6 toml · I8 tag · report-only, D2)"])
+    health -.->|"observes, never blocks a round"| classify
+
+    start --> discover

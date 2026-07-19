@@ -1,0 +1,52 @@
+%% ledger-lifecycle.mmd — id:a17a diagram (a), meeting mtg-1726 D1
+%% The id/ledger lifecycle across the four shared surfaces (TODO.md, ROADMAP.md,
+%% REVIEW_ME.md, the cross-repo inbox), showing single-id-two-views (D2): one 4-hex
+%% id:XXXX token spans BOTH the design ledger (TODO, the "why") and the execution
+%% queue (ROADMAP, the "now"); the relay reuses the existing id when it promotes,
+%% never mints a duplicate.
+%%
+%% Sync note for the a17a drift-guard (tests/test_a17a_diagram_state_sync.sh): this
+%% diagram carries no machine-derived verdict/mode vocabulary — those live in
+%% relay-dispatch.mmd. The meeting-write seam is annotated "pending id:5a39" (the
+%% meeting-as-relay-producer reopen; when 5a39 lands, meeting writes route through a
+%% worktree the integrator merges, one-writer-to-main, and this seam is redrawn — the
+%% guard-test forces that redraw by existence).
+flowchart TD
+    mint(["append.sh new-id → mint id:XXXX<br/>(never invent tokens)"])
+
+    subgraph design["Design ledger — the &quot;why&quot;"]
+        TODO[["TODO.md<br/>work inventory + rationale"]]
+    end
+
+    subgraph exec["Execution queue — the &quot;now&quot;"]
+        ROADMAP[["ROADMAP.md<br/>executor task spec (RED-spec backed)"]]
+        REVIEW[["REVIEW_ME.md<br/>human-judgment boxes"]]
+    end
+
+    subgraph cross["Cross-repo routing"]
+        INBOX[["shared inbox<br/>~/.claude/projects/todo-inbox.md<br/>(routed:XXXX; git-tracked, never published)"]]
+    end
+
+    mint --> TODO
+    mint -. "routed item lands here first" .-> INBOX
+
+    %% single-id-two-views: promotion REUSES the id, does not duplicate it
+    TODO -->|"handoff C2 promote<br/>(reuse id, single-id-two-views D2)"| ROADMAP
+    ROADMAP ---|"orphan-scan --cross-ledger:<br/>checkbox state must agree (I3)"| TODO
+
+    %% executor / reviewer close the loop back into the design ledger
+    ROADMAP -->|"executor ticks [x] + done-note"| ROADMAP
+    ROADMAP -->|"review step 5:<br/>mirror close back (single-id)"| TODO
+
+    %% REVIEW_ME → synthetic meeting Class 3 (D5) and generation gate (D7/c17c)
+    REVIEW -->|"D5: synthetic Class 3 candidate<br/>(surface-only, judgment calls)"| MEET([/meeting classification])
+    ROADMAP -->|"review files judgment box<br/>(genuine judgment ONLY, D7/c17c gate)"| REVIEW
+
+    %% the meeting-write seam — the drift-prone one, pending 5a39 dissolution
+    MEET -. "meeting writes ledgers via<br/>peek-and-warn + flock + atomic commit<br/>(id:c144/148b) — PENDING id:5a39<br/>(meeting-as-relay-producer: one-writer-to-main)" .-> TODO
+    MEET -. "pending id:5a39" .-> ROADMAP
+    MEET -. "pending id:5a39" .-> REVIEW
+
+    %% inbox drains into the TARGET repo's ledger, then vanishes-on-resolve
+    INBOX -->|"inbox-done XXXX / scan-routed --apply<br/>(needs routed:XXXX twin in target)"| TODO
+    INBOX -. "durable record = routed:XXXX<br/>breadcrumb in TARGET, not the inbox" .-> ROADMAP
