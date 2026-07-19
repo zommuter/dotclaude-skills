@@ -2978,3 +2978,7 @@ independent review: id:176f REOPENED — allowlist bypassable (3 confirmed holes
 ## 2026-07-19 23:11 — builder (claude-opus-4-8)
 
 id:176f allowlist hardening — identity-pin (realpath under canonical root), refuse process-substitution + redirection; 18 new refusal assertions (RED-before verified); suite 271/0/0; awaiting re-review
+
+## 2026-07-19 23:19 — reviewer (claude-opus-4-8)
+
+independent re-review: id:176f allowlist fix SOUND (3 bypasses closed, no new holes, tests bite); SHIP; cross-filed
