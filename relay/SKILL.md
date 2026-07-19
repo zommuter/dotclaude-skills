@@ -505,6 +505,26 @@ single-repo scope (so `/relay zkm --exclude bogus` still surfaces `bogus`).
   here"; `next` = "inspect here and pick the single fastest route, human included." The user
   chooses the verb; the engine never silently swaps one for the other.
 
+## Drain mode
+
+`/relay . --drain` (id:93fe Phase 1) is the **single-repo drain loop**: keep running rounds
+on ONE repo (handoff→execute→review, one unit per round) until the backlog is **drained or
+fully human-blocked**. It is a **discoverability alias** — the single-repo pool (`/relay .`,
+id:7633) ALREADY does exactly this: the self-feeding loop's `isDryRound`→`drained`
+termination (K=2 consecutive no-substantive-progress rounds, keyed on the inlined `drain.mjs`
+substantive/dry/blocked classification, id:d58f/4ca8) and `isBlockedRound`→
+`blocked-pending-human` termination ARE the `--drain` contract (meeting
+`docs/meeting-notes/2026-07-19-2035-relay-drain-parallel-contract.md`, D2/D6). So **`--drain`
+is sugar, not a new engine** — the front door maps it onto `args.onlyRepo` (the cwd repo, or
+the named/`--only` repo) and launches the ordinary single-repo pool. Prefer `/relay .` if you
+already know it drains; `--drain` just names the intent.
+
+The remaining Phase-1 contract item — the **review-agent anti-spam brief** (D3: a reviewer may
+open a REVIEW_ME box only for genuine human-judgment, never to re-question already-decided
+design) — is owned by **id:c17c** (which names "the id:93fe review-agent brief") and is queued,
+NOT part of this alias. **`--parallel N` (Phase 2, id:ebbe)** is not yet built — see the flags
+table.
+
 ## Stop mode
 
 `/relay stop` is the **voluntary, operator-initiated** graceful wind-down of a *running*
@@ -638,6 +658,8 @@ the historical `fable-ckpt-*` prefix:
 | `RELAY_STOP_PATH` / `--stop-path` | path | `~/.config/relay/STOP` | id:c012 — the graceful-stop **STOP sentinel** the `discover-prelude` checks each round. Content = integer "rounds remaining before stop" (empty/≤0 = stop at next round boundary; the prelude consumes+removes it on firing → `stopReason: "user-stop"`). Written by `/relay stop` (empty) / `/relay stop --after N` (N). Passed as `args.STOP_PATH`. See **Stop mode**. |
 | `--once` | flag | off | id:c012 — launch-time round cap: dispatch exactly ONE round, then stop with `stopReason: "user-stop"`. Sugar for `--after 1`. Passed as `args.once = true`. |
 | `--after N` | integer | (none) | id:c012 — launch-time round cap: dispatch `N` rounds, then stop with `stopReason: "user-stop"`. Pure-JS outer-loop cap, independent of the STOP sentinel. Passed as `args.stopAfter = N`. |
+| `--drain` | flag | off | id:93fe Phase 1 — **single-repo drain, a discoverability ALIAS.** Resolves to the cwd repo (or the named/`--only` repo) and runs the single-repo pool, which ALREADY loops rounds until drained-or-human-blocked. **Not strictly needed: `/relay .` already drains** — the loop's `isDryRound`→`drained` (K=2 no-substantive-progress rounds via the inlined `drain.mjs`, id:d58f/4ca8) and `isBlockedRound`→`blocked-pending-human` termination is the whole `--drain` contract (meeting `2026-07-19-2035-relay-drain-parallel-contract.md`, D2/D6). `--drain` is the explicit verb for users who reach for it; the front door maps it onto `args.onlyRepo` (cwd) — no separate engine. |
+| `--parallel N` | integer | (none) | id:ebbe — **Phase 2 of `--drain`, NOT YET BUILT.** Would fan out N executors within a drain round (one-writer-to-main: executors→worktrees, single driver merges `--no-ff` serially; mechanical fail-closed disjoint-path greenlight — meeting D4/D5). Gated-on id:0534 (landed). Until built, the front door LOUD-surfaces "`--parallel` (id:ebbe) is not yet implemented — running single-executor drain" and proceeds as `--drain` (N=1). Route id:ebbe to `/relay handoff` to author the RED spec. |
 | `DISCOVER_SHARDS` | integer | `6` | Number of parallel discovery-shard classifiers fanned out per round (id:9ed4). A once-only prelude does the global work (runId, the consuming `inject.sh take`, `claim.sh peek`, the own-repo list + non-own skipped rollup); the own repos are round-robin chunked across this many shard agents that classify in parallel, then merged into the same discovery object. Capped at the repo count; the Workflow harness's `min(16, cpu_cores-2)` agent ceiling still applies, so shards above it just queue. Passed as `args.DISCOVER_SHARDS`. |
 | `RELAY_STATUS_PATH` | path | `~/.config/relay/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |
 | `RELAY_EVENTS_PATH` | path | `~/.config/relay/relay-events.jsonl` | Append-only event-log JSONL (id:c8b6): one line per dispatch/integrate/handback, flushed off-critical-path. Passed as `args.RELAY_EVENTS_PATH`. |
