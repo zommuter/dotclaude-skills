@@ -13,6 +13,7 @@
 - C5 66d4: shipped review-gate.sh tier-coverage checkpoint gate (mechanizes review.md §3), suite 264/0 green (id:66d4)
 - C5 78df: shipped consumer-enum.sh spec-completeness listing aid (grep-based artifact-reader enumeration), suite green (id:78df)
 - C2-C4: promoted id:798d (unpromoted-scan gated-twin fix) with verified RED spec; triaged 6 phantom/mis-classified promote items to REVIEW_ME (id:798d)
+- Fixed unpromoted-scan.sh twin-check end-of-line anchor so auto-GATED ROADMAP items (marker + trailing gate note) are recognized as twins instead of phantom-re-dispatching; id:798d closed, full suite 266/0. (id:798d)
 
 ## 2026-07-18
 
