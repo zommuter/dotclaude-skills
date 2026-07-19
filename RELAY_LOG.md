@@ -2958,3 +2958,7 @@ handoff (claude-opus-4-8): re-laned id:4a46 [INPUT — decision]→[ROUTINE] (ow
 ## 2026-07-19 20:51 — reviewer (claude-opus-4-8)
 
 hard-exec id:0534 (mechanical-daemon repo-lease peek-and-defer + RED test) reviewed clean; meeting id:93fe --drain contract phased into 93fe(Phase1)+ebbe(Phase2); os-users 13ae/02c7 provisioned
+
+## 2026-07-19 21:34 — executor (claude-sonnet-5, drain)
+
+drain round 1: execute id:4a46 — handback event log bidirectional invariant (equality over real-worktree subset) + 2 emit sites; reviewed inline (two-pole test, not gamed); suite 270/0/0
