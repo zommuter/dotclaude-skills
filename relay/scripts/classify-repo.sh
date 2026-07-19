@@ -128,16 +128,30 @@ if os.path.isfile(rm):
             # @manual excludes conservatively (a rare prose mention only ever UNDER-dispatches,
             # never mis-dispatches — the safe direction for the executor gate).
             is_human   = primary in HUMAN_GATES or "@manual" in ln
+            # id:4da4 — a [ROUTINE]/@wire item that declares a dependency BLOCK / gate is NOT
+            # executor-actionable — the executor can only no-op it (zkm-threema id:180b
+            # "[ROUTINE] (BLOCKED on id:7364)" was dispatched execute → empty handback,
+            # /relay --once 2026-07-01). Conservative markers only under-dispatch (safe).
+            blocked = ("🚧" in ln) or ("BLOCKED on" in ln) or ("blocked on" in ln)
+            # id:ac7f — @wire is an ORTHOGONAL marker (like @manual/@needs-auth, NOT a lane),
+            # defined by the executor-verifiable-via-a-host/e2e-RED-spec property (design
+            # 2026-07-19-1152 D4). An open @wire item on a PRIMARY EXECUTOR lane
+            # ([ROUTINE]/[HARD — pool]/[HARD]) counts toward actionable_routine_open, so the
+            # classify-verdict execute gate fires (verdict=execute) — the SAME lane WITHOUT
+            # @wire stays plain pool-lane hard work (verdict=hard). @manual stays EXCLUDED
+            # (is_human above), the safe under-dispatch direction that must never flip.
+            has_wire = "@wire" in ln
             if is_routine:
                 has_routine = True
-                # id:4da4 — a [ROUTINE] item that declares a dependency BLOCK / gate is NOT
-                # executor-actionable — the executor can only no-op it (zkm-threema id:180b
-                # "[ROUTINE] (BLOCKED on id:7364)" was dispatched execute → empty handback,
-                # /relay --once 2026-07-01). Conservative markers only under-dispatch (safe).
-                blocked = ("🚧" in ln) or ("BLOCKED on" in ln) or ("blocked on" in ln)
                 # id:4da4 — actionable_routine = open [ROUTINE], primary-lane, NOT @manual/human-gated,
                 # NOT dependency-blocked. This (not bare has_routine) is what the execute verdict
                 # gates on, else an @manual-only or blocked [ROUTINE] repo mis-fires execute.
+                if not is_human and not blocked and not in_exempt_section:
+                    actionable_routine_open += 1
+            elif has_wire and is_pool:
+                # id:ac7f — @wire on a pool lane ([HARD — pool]/[HARD]) is executor-actionable
+                # (a host/e2e RED spec makes it executor-verifiable); count it alongside
+                # [ROUTINE]. Same @manual/blocked/exempt carve-outs as the routine branch.
                 if not is_human and not blocked and not in_exempt_section:
                     actionable_routine_open += 1
             if (is_routine or is_pool) and not is_human and not in_exempt_section:
