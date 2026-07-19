@@ -2950,3 +2950,7 @@ handoff: promoted a17a (state-machine diagram set) to ROADMAP [HARD — pool] + 
 ## 2026-07-19 19:13 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 a17a: authored the /relay + /meeting state-machine diagram set (3 Mermaid diagrams) + drift guard-test green; full suite 267/0 [id:a17a]
+
+## 2026-07-19 19:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+handoff (claude-opus-4-8): re-laned id:4a46 [INPUT — decision]→[ROUTINE] (owner-resolved handback-log-completeness gate) + RED spec test_handback_invariant_equality.sh; suite 267/0/1-red [id:4a46]
