@@ -33,6 +33,13 @@ Rules baked into the format:
 - TODO.md mirror: exactly one line in the repo's TODO.md —
   `- [ ] Relay: N open ROADMAP items <!-- id:XXXX -->` (own token; update N on
   every roadmap change, tick when zero remain).
+- Orthogonal markers (NOT lanes) may co-occur on an item — `@manual` (human runs/verifies),
+  `@needs-auth` (human-held secret), `@wire` (executor-verifiable via a host/e2e RED spec).
+  An open `@wire` item on a primary executor lane (`[ROUTINE]`/`[HARD — pool]`/`[HARD]`)
+  counts as executor-actionable → `verdict=execute`; `@manual` stays excluded. A two-phase
+  feature is the D3 **two-linked-items split** (a `@wire` executor item + a separate
+  `@manual` human item `gated-on:` it), never a mutable re-tag. All markers are defined in
+  `relay/references/hard-lanes.md` (the grammar SSOT).
 
 ## RELAY_LOG.md
 
