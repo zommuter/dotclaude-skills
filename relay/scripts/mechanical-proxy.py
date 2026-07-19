@@ -84,6 +84,16 @@ UPSTREAM_SCHEME = os.environ.get("MECH_PROXY_UPSTREAM_SCHEME", "https")
 MECH_SHELL = os.environ.get("MECH_PROXY_SHELL", "/bin/sh")
 MECH_TIMEOUT = int(os.environ.get("MECH_PROXY_TIMEOUT", 120))
 
+# The ONE real directory an allowlisted relay script may live in. The gate pins a
+# candidate leader to this root by filesystem IDENTITY (realpath), never by
+# basename — so a look-alike path ending in `relay/scripts/<name>` under an
+# attacker-controlled directory (e.g. /tmp/x/relay/scripts/claim.sh) does NOT
+# match and is refused (→ fail-open passthrough). Defaults to the real per-file
+# symlink install; MECHANICAL_PROXY_RELAY_ROOT overrides it for hermetic tests.
+CANONICAL_RELAY_SCRIPTS_ROOT = os.path.realpath(os.path.expanduser(
+    os.environ.get("MECHANICAL_PROXY_RELAY_ROOT",
+                   "~/.claude/skills/relay/scripts")))
+
 # The explicit mechanical-dispatch trigger. The caller declares mechanical-ness by
 # passing this as the request's `model` — no detection heuristic, no fail-open guess.
 MECH_MODEL = "bash"
@@ -176,9 +186,6 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
 # script; these alone are never enough to run locally.
 _SAFE_PLUMBING = frozenset(["echo", "printf", "cat", "true", "false", ":", "test", "["])
 
-# A relay-scripts path token: any leading directory, then relay/scripts/<name>.
-_RELAY_SCRIPT_RE = re.compile(r"(?:^|/)relay/scripts/([A-Za-z0-9._-]+)$")
-
 # Shell separators we split a command on to inspect each simple command in turn.
 _SEG_SPLIT_RE = re.compile(r"\|\||&&|[|;\n&]")
 
@@ -202,9 +209,53 @@ def _segment_leader(segment: str):
 
 
 def _token_is_relay_script(tok: str):
-    """If `tok` is a relay/scripts/<name> path, return its basename, else None."""
-    m = _RELAY_SCRIPT_RE.search(tok)
-    return m.group(1) if m else None
+    """Return the basename iff `tok` resolves, by filesystem IDENTITY, to an
+    allowlisted script living DIRECTLY under the pinned canonical root — else None.
+
+    The old check matched any path *ending* in `relay/scripts/<allowlisted-name>`
+    by basename, so `sh /tmp/x/relay/scripts/claim.sh` ran an attacker's file. Now
+    the leader is realpath-resolved and required to equal
+    `realpath(CANONICAL_RELAY_SCRIPTS_ROOT/<name>)`. Both sides are realpath'd so
+    the per-file symlink install (~/.claude/skills/relay/scripts/foo.sh →
+    ~/src/dotclaude-skills/relay/scripts/foo.sh) still resolves to the same real
+    file, while a look-alike path under any other directory does not. The file
+    must also exist; a name not resolving here → None → not allowed → fail-open."""
+    if "/" not in tok:
+        return None  # bare name, never a path to a pinned script
+    real = os.path.realpath(os.path.expanduser(tok))
+    name = os.path.basename(real)
+    if name not in ALLOWED_RELAY_SCRIPTS:
+        return None
+    expected = os.path.realpath(os.path.join(CANONICAL_RELAY_SCRIPTS_ROOT, name))
+    if real != expected:
+        return None  # correct basename but NOT the pinned canonical file
+    if not os.path.isfile(real):
+        return None  # pinned path but no such file present
+    return name
+
+
+def _has_unquoted_redirection(command: str) -> bool:
+    """True if `command` carries an unquoted redirection operator (`>`, `<`, `>>`,
+    `2>`, `&>`, …). A mechanical relay hop never redirects; refusing here stops an
+    output-clobber such as `heartbeat.sh >> ~/.ssh/authorized_keys` from writing
+    the script's stdout to an attacker path. Quote-aware so a `<`/`>` byte inside a
+    quoted JSON argument is not mistaken for redirection (that case just fails open
+    anyway). Also catches the `<` of process substitution as a backstop."""
+    quote = None
+    i = 0
+    while i < len(command):
+        c = command[i]
+        if quote is not None:
+            if c == quote:
+                quote = None
+        elif c in ("'", '"'):
+            quote = c
+        elif c == "\\":
+            i += 1  # skip the escaped byte
+        elif c in ("<", ">"):
+            return True
+        i += 1
+    return False
 
 
 def _command_allowed(command: str) -> bool:
@@ -216,8 +267,14 @@ def _command_allowed(command: str) -> bool:
     if not command or not command.strip():
         return False
     # Command substitution is never part of a mechanical relay hop; refuse it so a
-    # nested command can't smuggle in around the per-segment leader check.
-    if "$(" in command or "`" in command:
+    # nested command can't smuggle in around the per-segment leader check. Process
+    # substitution `<(...)` / `>(...)` is the same hazard under bash (MECH_SHELL is
+    # bash on this host even as /bin/sh), so refuse those markers too.
+    if "$(" in command or "`" in command or "<(" in command or ">(" in command:
+        return False
+    # A mechanical hop also never redirects; any unquoted redirection operator
+    # (>, <, >>, 2>, &>) could clobber/read an attacker path, so refuse the command.
+    if _has_unquoted_redirection(command):
         return False
     saw_relay_script = False
     for segment in _SEG_SPLIT_RE.split(command):
