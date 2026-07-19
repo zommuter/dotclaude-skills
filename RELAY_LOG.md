@@ -2917,3 +2917,20 @@ C5 78df: shipped consumer-enum.sh spec-completeness listing aid (grep-based arti
 ## 2026-07-19 14:57 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 C2-C4: promoted id:798d (unpromoted-scan gated-twin fix) with verified RED spec; triaged 6 phantom/mis-classified promote items to REVIEW_ME [id:798d]
+
+## 2026-07-19 — executor (claude-sonnet-5)
+
+Worked id:798d — dropped the `[[:space:]]*$` end-of-line anchor from
+`unpromoted-scan.sh`'s twin-check regex (line ~269), so a ROADMAP marker
+followed by a trailing gate note (`<!-- id:XXXX --> — 🚧 GATED (auto, id:3801;
+...)`, the id:1b1a `gate_line` shape) is still recognized as a real twin
+instead of phantom-re-dispatching its TODO source every round. The
+`<!-- id:XXXX -->` HTML-comment anchor itself (unchanged) still prevents the
+id:1312 bare-prose false-match, so no regression there.
+`tests/test_unpromoted_scan_gated_twin.sh` (`# roadmap:798d`) EXPECTED-RED→PASS;
+`tests/test_unpromoted_scan_anchoring.sh` (id:1312 regression control) stays
+green; full suite 266/0. Ticked both the ROADMAP and TODO twin (id:798d) to
+keep the ledgers in agreement.
+Friction: none — the RED spec was already authored by the handoff and the
+fix was a single-line regex change exactly as specified.
+refactor: none needed — one-line regex fix, no new duplication introduced.
