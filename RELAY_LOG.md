@@ -2938,3 +2938,7 @@ refactor: none needed — one-line regex fix, no new duplication introduced.
 ## 2026-07-19 15:08 — executor (sonnet, relay-loop)
 
 Fixed unpromoted-scan.sh twin-check end-of-line anchor so auto-GATED ROADMAP items (marker + trailing gate note) are recognized as twins instead of phantom-re-dispatching; id:798d closed, full suite 266/0. [id:798d]
+
+## 2026-07-19 15:29 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Verified id:798d (unpromoted-scan gated-twin fix) genuinely green — real red→green, RED spec untouched, suite 266/0; reconciled 5 cross-ledger drift twins (e875/b9b5/ab5c/66d4/78df) [id:798d,e875,b9b5,ab5c,66d4,78df]
