@@ -1,0 +1,43 @@
+%% meeting-classification.mmd — id:a17a diagram (c), meeting mtg-1726 D1
+%% The /meeting classification tree: how an unchecked TODO item is bucketed into
+%% Class 1 / Class 2 / Class 3 and dispatched, with the broker (meeting-rpg) γ-branch
+%% as a CONDITIONAL sub-branch (not its own diagram — D1). Guarded by
+%% tests/test_a17a_diagram_state_sync.sh: this file must name C1, C2, C3, and broker.
+%%
+%% Seam with the relay (ledger-lifecycle.mmd + relay-dispatch.mmd): POOL/HANDS/RELAY
+%% lines are NOT meeting candidates — they are relay-executor / human-manual work,
+%% surfaced separately and nudged to /relay, never picked into the C1/C2/C3 buckets
+%% (the fix for the 2026-07-14 /meeting over-claim).
+flowchart TD
+    setup(["/meeting <subject> — SETUP<br/>advisory claim at setup (id:672b);<br/>peek-and-warn if pool live (id:c144)"])
+    setup --> port{{"broker port set? (setup step 7)"}}
+    port -->|yes| brokerprobe["re-probe broker /status before each prompt"]
+    port -->|no| noconv["AskUserQuestion fallback (subscribers = 0)"]
+
+    scan["orphan-scan.sh (+ --reverse, --cross-ledger in relay repos)<br/>+ REVIEW_ME surface (D5: synthetic Class 3)"]
+    setup --> scan
+    scan --> preclassify{{"classify.sh — TSV (CLASS, ID, SUMMARY, NOTE-LINK)<br/>+ model judgment"}}
+
+    %% the three classes
+    preclassify -->|"design note WITH Decisions section,<br/>coverage confirmed"| C1["Class 1 — impl-ready (C1)"]
+    preclassify -->|"link WITHOUT Decisions,<br/>or keyword hint / incomplete design"| C2["Class 2 — planning-worthy (C2)"]
+    preclassify -->|"no link / ambiguous scope /<br/>[HARD — meeting] / REVIEW_ME judgment"| C3["Class 3 — meeting-worthy (C3)"]
+    preclassify -.->|"POOL ([HARD — pool]) · HANDS ([HARD — hands]) ·<br/>RELAY (ROADMAP mirror) — NOT meeting-worthy"| notmeet["↪ surface separately;<br/>nudge /relay, never pick"]
+
+    %% dispatch per class
+    C1 --> C1do["implement in normal mode;<br/>in relay repos follow /relay executor contract (D7):<br/>previously-failing tests pass + refactor + full suite green"]
+    C2 --> C2do["plan-mode gate (Sonnet: EnterPlanMode/ExitPlanMode;<br/>Opus/Fable: normal-mode + closure gate) →<br/>Class 2 planning record"]
+    C3 --> C3do["persona-scrutinized design meeting →<br/>Decisions + Action items → write-back to ledgers<br/>(single-id-two-views; feeds ROADMAP/TODO/REVIEW_ME)"]
+
+    %% the broker γ-branch — conditional sub-branch over the end-of-meeting prompts
+    subgraph gbranch["broker γ-branch (steps 3–5, meeting-rpg) — CONDITIONAL sub-branch"]
+        direction TB
+        brokerprobe --> subq{{"subscribers &gt; 0?"}}
+        subq -->|yes| brokerroute["route end-of-meeting prompts through the broker<br/>(broker-mode.md; broker.py / broker-curl.sh)"]
+        subq -->|no| noconv
+    end
+
+    C3do -. "end-of-meeting prompts (memory/discovery/persona)<br/>route via broker when subscribed, else AskUserQuestion" .-> gbranch
+
+    %% relay-ready nudge seam (D4)
+    C3do -. "relay-ready nudge (D4): open [ROUTINE] items →<br/>surface &quot;run /relay review&quot; (never invoke inline)" .-> notmeet
