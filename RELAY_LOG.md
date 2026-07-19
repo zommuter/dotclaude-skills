@@ -2970,3 +2970,7 @@ drain round 2: independent review of window 2051..HEAD — CLEAN (id:4a46 genuin
 ## 2026-07-19 22:33 — builder (claude-opus-4-8)
 
 build id:176f — mechanical-dispatch gateway + hermetic test (relay-command allowlist, fail-open, 28 assertions incl. chained/substitution refusal); suite 271/0/0; awaiting independent review
+
+## 2026-07-19 22:41 — reviewer (claude-opus-4-8)
+
+independent review: id:176f REOPENED — allowlist bypassable (3 confirmed holes); fix direction recorded; not wired in
