@@ -34,20 +34,30 @@ export function reconcileHandbacks(accumulator) {
   return (accumulator || []).filter(b => b && b.worktreePath && b.worktreePath !== '-')
 }
 
-// assertHandbackInvariant — the loud backstop. Every `pushEvent('handback', …)` emitted this run
-// must have a corresponding entry in the persistent accumulator (same repo + reason). This is
-// ONE-DIRECTIONAL — accumulator entries ⊇ emitted events, never equality — because not every
-// accumulator push emits a matching event today (id:4a46 tracks that asymmetry as a separate,
-// optional audit). A violation here means an event was recorded as happening but the run's
-// summary has no matching entry for it: exactly the shape of the original id:1735 bug (or a new
-// variant of it). Returns {ok, violations} — the caller logs + surfaces `violations` rather than
-// silently returning the (possibly incomplete) list.
+// assertHandbackInvariant — the loud backstop. EQUALITY over the real-worktree subset (id:4a46):
+// every `pushEvent('handback', …)` emitted this run must have a corresponding entry in the
+// persistent accumulator (same repo + reason) — the FORWARD direction — AND every accumulator
+// entry with a REAL worktree (per `reconcileHandbacks`'s own `worktreePath && !== '-'` filter)
+// must have a corresponding emitted event (same repo + reason) — the REVERSE direction. The
+// `worktreePath:'-'` INTENSIVE fail-closed entries are excluded from the reverse check exactly
+// as `reconcileHandbacks` already excludes them from the summary — they are not handbacks in
+// the summary's sense. A forward violation means an event was recorded as happening but the
+// run's summary has no matching entry for it: exactly the shape of the original id:1735 bug. A
+// reverse violation means a real handback happened but no event was ever emitted for it: the
+// event log under-reporting id:4a46 closes. Returns {ok, violations} — each violation is tagged
+// `direction: 'forward'|'reverse'` so the caller's log names which direction tripped; the caller
+// logs + surfaces `violations` rather than silently returning the (possibly incomplete) list.
 export function assertHandbackInvariant(emittedEvents, accumulator) {
   const acc = accumulator || []
+  const emitted = emittedEvents || []
   const violations = []
-  for (const ev of (emittedEvents || [])) {
+  for (const ev of emitted) {
     const found = acc.some(h => h && h.repo === ev.repo && h.reason === ev.reason)
-    if (!found) violations.push(ev)
+    if (!found) violations.push({ ...ev, direction: 'forward' })
+  }
+  for (const h of reconcileHandbacks(acc)) {
+    const found = emitted.some(ev => ev && ev.repo === h.repo && ev.reason === h.reason)
+    if (!found) violations.push({ ...h, direction: 'reverse' })
   }
   return { ok: violations.length === 0, violations }
 }
