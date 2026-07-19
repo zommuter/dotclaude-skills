@@ -16,6 +16,12 @@
 #      `resource-probe.sh <resource>` must BOTH succeed. CHECK-AND-DEFER, never preempt: if
 #      either denies, the recipe is left in pending/ untouched (no artifact, no inject) and
 #      the reason is logged. There is no third state — a denied recipe is retried next tick.
+#   3b. REPO-LEASE GATE (id:0534, meeting mtg-1726 D5): a recipe's `cmd` writes its
+#      acceptance_artifact INTO the target repo's checkout. If that repo carries a LIVE hard
+#      lease (an executor/integrator merging its worktree into main), running now would dirty
+#      the tree mid-merge and stall the --drain driver. PEEK-AND-DEFER via `claim.sh peek`
+#      (non-consuming, LIVE-only): a leased target leaves the recipe in pending/ — symmetric
+#      with the host/intensity defers.
 #   4. On PERMIT: move pending → running, run `cmd` (which writes acceptance_artifact), move
 #      running → done, and drop a review-request via `inject.sh add` so the pool reviews the
 #      artifact. A `cmd` that fails still lands in done/ (with a sibling .error file) rather
@@ -44,6 +50,7 @@ HOSTGATE="$ROOT/host-gate.sh"
 INTENSITY="$ROOT/relay-intensity.sh"
 PROBE="$ROOT/resource-probe.sh"
 INJECT="$ROOT/inject.sh"
+CLAIM="$ROOT/claim.sh"
 
 RECIPE_DIR="${RELAY_RECIPE_DIR:-$HOME/.config/relay/recipes}"
 PENDING="$RECIPE_DIR/pending"
@@ -101,6 +108,24 @@ cmd_run() {
     fi
     if ! "$PROBE" "$resource" >/dev/null 2>&1; then
       log "DEFERRED $base id=$id repo=$repo reason=resource-unavailable resource=$resource"
+      deferred=$((deferred + 1))
+      continue
+    fi
+
+    # (3b) repo-lease gate (id:0534, meeting mtg-1726 D5, Fable-found) — PEEK-AND-DEFER, never
+    # preempt. The recipe's `cmd` typically does `cd <repo> && … > <artifact>`, writing the
+    # acceptance_artifact INTO the target repo's main checkout. If a relay executor/integrator
+    # holds a LIVE hard lease on that repo (it is building a worktree + merging into main),
+    # running the recipe now would dirty the tree mid-merge and STALL the driver's --drain
+    # (id:93fe; drain.mjs parks on dirty main). So if this recipe's target repo carries a live
+    # claim, leave the recipe in pending/ for a later tick — symmetric with the host/intensity
+    # defers above (cheap, non-consuming `claim.sh peek`). A repo hard lease records the repo
+    # NAME as its claim key (claim.sh SCOPE INVARIANT); also match a claim's `.repo` field.
+    # `peek` emits only LIVE claims, so a stale/dead lease never over-blocks.
+    if [ -n "$repo" ] && [ -n "$("$CLAIM" peek 2>/dev/null \
+         | jq -r --arg repo "$repo" 'select(.key == $repo or .repo == $repo) | .key' \
+         | head -1)" ]; then
+      log "DEFERRED $base id=$id repo=$repo reason=repo-leased"
       deferred=$((deferred + 1))
       continue
     fi
