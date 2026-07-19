@@ -33,3 +33,17 @@ Out of scope: implementing either phase now (both need handoff to author the RED
 
 - [ ] `id:93fe` re-scoped to **Phase 1 — `/relay . --drain` (N=1)**: loop `runRound()` on the id:7633 pool until drain.mjs reports K=2 dry rounds (or MAX_ROUNDS); bake the c17c anti-spam brief into the loop's review-agent prompt. `[HARD — pool]`, DECIDED, ships now (route to handoff to author the RED spec, cf 2d20). <!-- id:93fe -->
 - [ ] **Phase 2 — `/relay . --parallel N`**: fan out N executors within a drain round; one-writer-to-main (executors→worktrees, single driver merges `--no-ff` serially + ticks); mechanical fail-closed disjoint-path greenlight (D4). `[HARD — pool]`, gated-on `id:0534` (landed this session) + relates `id:5a39`, `id:93fe`, `id:dc5b`. Route to handoff to spec. <!-- id:ebbe -->
+
+## Amendment 2026-07-19 (owner, post-meeting) — supersedes D1
+
+**D1 (flags on the id:7633 Workflow pool) is amended.** Dogfooding `--drain` shipped it as
+a thin front-door alias to the single-repo *Workflow* pool; the owner then flagged that for
+ONE repo this still spins the Workflow harness + a once-only prelude agent + a discovery-runner
+agent per round — pure overhead, since `classify-repo.sh` resolves the verdict deterministically
+with zero agents (`ambiguous:false`). **New direction (owner-ratified):** the real `--drain` is
+an apex/host-driven **OFF-WORKFLOW** single-repo drain (driver calls `classify-repo.sh` directly
++ one agent per unit + integrate, no Workflow prelude/discovery), and **`/relay .` is reversed to
+MEAN this drain** — superseding id:7633 acceptance #4 ("/relay . = the single-repo Workflow
+pool"). The general enabler is a **fake-Haiku mechanical-dispatch proxy** (id:176f) so no
+deterministic step ever invokes a real model. Re-opened as id:93fe (off-Workflow driver) +
+id:176f (proxy). The shipped doc-alias + its guard test stay as harmless discoverability.
