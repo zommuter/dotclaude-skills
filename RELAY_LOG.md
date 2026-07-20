@@ -2994,3 +2994,7 @@ integrate id:be0e (roadmap-lint head-anchor) + id:050b (Makefile-tier fixture)
 ## 2026-07-20 14:28 — reviewer (claude-opus-4-8)
 
 integrate id:3add (shared anchored-token extraction primitives + test)
+
+## 2026-07-20 14:36 — reviewer (claude-opus-4-8)
+
+integrate id:ebd0 (privacy pre-push gate hook, warn+log mode)
