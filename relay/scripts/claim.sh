@@ -24,6 +24,19 @@
 #   multi-repo pool run (the routed:da2f incident) — which is exactly what id:c144 removed.
 #   (The bilateral advisory claim the pool would *honor* for ledger writes is the separate,
 #   observe-first id:9000 follow-up; today peek is read-only awareness, not a gate.)
+#   - **Meeting advisory claim lives on a DISTINCT key (id:0ee1, branch b, 2026-07-20 —
+#     routed:4361).** `/meeting`'s setup claim (meeting/SKILL.md step 2-setup-claim) acquires
+#     `meeting:<repo>`, NEVER the bare `<repo>` hard-lease key, so a live meeting can never
+#     hard-refuse a parallel executor's `acquire <repo> --mode execute` — the same-key
+#     conflation was the actual bug (a doc/code mismatch with this SCOPE INVARIANT). An
+#     `acquire <repo>` WARNs-and-proceeds on stderr when a live `meeting:<repo>` advisory
+#     claim exists, naming the meeting holder, but is never blocked by it. The
+#     two-real-hard-lease-acquires-refuse-each-other invariant on `<repo>` is UNCHANGED.
+#     **ASPIRATIONAL, NOT BUILT:** a real dispatch-time pool→meeting skip (the pool declining
+#     to even START work on a repo a meeting advisorily holds) is gated on id:9000 (bilateral
+#     advisory honor, held at observe-first) and may be dissolved entirely by id:5a39
+#     (meeting-as-relay-producer) — do not build it here; this WARN is the full extent of the
+#     fix.
 #
 # Subcommands:
 #   acquire <key> [--repo R] [--run RUNID] [--mode M] [--item ID] [--worktree WT] [--pid PID]
@@ -223,6 +236,22 @@ case "$cmd" in
     mv "$tmp" "$shard"
     flock -u 9 || true
     log "acquire key=$key repo=$repo run=$run mode=$mode item=$item"
+    # id:0ee1 (branch b) — WARN-and-proceed: a live meeting advisory claim on the DISTINCT
+    # key `meeting:<key>` never blocks this (hard-lease) acquire, but name it on stderr so an
+    # executor/manual drain proceeds WITH awareness rather than silently. Only checked when
+    # acquiring a non-meeting key (a meeting acquiring its own advisory key doesn't warn on
+    # itself).
+    case "$key" in
+      meeting:*) : ;;
+      *)
+        mshard="$CLAIMS/$(safekey "meeting:$key").json"
+        if is_live "$mshard"; then
+          mholder_run="$(jq -r '.runId // ""' "$mshard" 2>/dev/null)"
+          echo "claim.sh acquire: WARN — a live meeting advisory claim (meeting:$key, run=$mholder_run) is held; proceeding anyway (advisory-only, id:0ee1)" >&2
+          log "acquire WARN key=$key meeting advisory live (run=$mholder_run)"
+        fi
+        ;;
+    esac
     echo "$sk"
     ;;
 
