@@ -2990,3 +2990,7 @@ fix gather bugs fa5c + 306d (execute+review SHIP, suite 273/0)
 ## 2026-07-20 14:04 — reviewer (claude-opus-4-8)
 
 integrate id:be0e (roadmap-lint head-anchor) + id:050b (Makefile-tier fixture)
+
+## 2026-07-20 14:28 — reviewer (claude-opus-4-8)
+
+integrate id:3add (shared anchored-token extraction primitives + test)
