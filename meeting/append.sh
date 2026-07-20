@@ -118,6 +118,13 @@ if [[ "${1:-}" == "inbox-done" ]]; then
   if [[ -z "$token" ]]; then
     echo "Usage: $0 inbox-done <4-hex-token>" >&2; exit 1
   fi
+  # Sourced lazily (only for this destructive command, not at top-level import time) so
+  # a copy of this script run standalone for -t inbox/-t discoveries (no sibling
+  # relay/scripts/ tree, e.g. test_inbox_write_integrity.sh's $TMP/append.sh copy) never
+  # trips on a missing lib-anchored-id.sh. token_marker_in_files anchors the twin check
+  # (id:3743) — see lib-anchored-id.sh for the false-twin rationale.
+  # shellcheck source=../relay/scripts/lib-anchored-id.sh
+  source "$SKILL_DIR/../relay/scripts/lib-anchored-id.sh"
   # Honor RELAY_INBOX injection via resolve_inbox (default now the git-tracked private
   # sessions worktree $HOME/.claude/projects/todo-inbox.md, id:9fdb). The inbox path is
   # local-only; never hardcode a private repo name — same convention scan-routed.sh uses,
@@ -157,7 +164,7 @@ PYEOF
   tgt_path="$(resolve_target "$target" || true)"
   twin_found=0
   if [[ -n "$tgt_path" ]]; then
-    if grep -qsF "routed:$token" "$tgt_path/TODO.md" "$tgt_path/ROADMAP.md" 2>/dev/null; then
+    if token_marker_in_files "$token" "$tgt_path/TODO.md" "$tgt_path/ROADMAP.md"; then
       twin_found=1
     fi
   fi
