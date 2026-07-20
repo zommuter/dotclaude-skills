@@ -10,6 +10,65 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## Items
 
+## Handoff C2 reconcile (2026-07-20, id:2dea) — un-promoted TODO backlog surfaced
+
+> Attended `/relay handoff` on this repo. dotclaude-skills keeps its DESIGN ledger in
+> TODO.md **by intent** (ROADMAP = lean executor queue). So this is a VISIBILITY reconcile,
+> not a bulk promote: spec-ready executor bugs are promoted in full; decided-lane HUMAN
+> items get concise pointers for `/relay human` gather visibility (TODO.md stays the prose
+> SSOT); large mostly-done design entries and ambiguous/untagged backlog stay in TODO,
+> never lane-guessed. See the turn summary for what was intentionally left.
+
+### Executor-ready (promoted in full, reusing ids)
+
+- [ ] [ROUTINE] **`gather-human-backlog.sh` false-rejects a `[ROUTINE]` item that merely MENTIONS a backtick-quoted lane tag in prose** — the candidate-skip gate (`if (line !~ /\[HARD/ && line !~ /\[INPUT.../) next`) reads the RAW line, but lane-detection runs on the backtick-STRIPPED `clean` (the id:1bbd fix). So a `[ROUTINE]` item whose note contains a backtick-quoted ``[INPUT — decision]`` (e.g. id:4a46's "re-laned ``[INPUT — decision]``→``[ROUTINE]``" note) passes the raw candidate gate, then finds no lane in the stripped text → hits the untagged LOUD-reject + nonzero abort (the id:fa5c "aborts the whole scan on one bad tag" class). **Fix**: strip backticks BEFORE the candidate-skip gate (move the `gsub(/`[^`]*`/,"",clean)` above the `next`, or run the candidate check on `clean`). id:1bbd fixed lane-detection shadowing but left the candidate gate reading raw. **Acceptance**: a fixture `[ROUTINE]` item carrying a backtick-quoted `[INPUT — …]` prose mention is SKIPPED (not emitted, not rejected), and the scan exits 0. Discovered 2026-07-19 (relay human, dotclaude-skills). Relates id:fa5c, id:1bbd. <!-- id:306d -->
+- [ ] **[ROUTINE] `roadmap-lint.sh` should validate only the LEADING head lane tag, not every bracket in the line** (relay human ruling 2026-07-19, from leAIrn2learn id:c3f5) — the lint false-positives with "multiple lane brackets" whenever an item's audit-trail/decision-history mentions a bracketed lane tag in prose (e.g. `[INPUT — decision]→[ROUTINE]` re-lane notes — which THIS session's own re-lanes now add). The lane-grammar check must anchor to the FIRST bracket after the checkbox (the head lane tag) and ignore later bracket mentions in the body. Owner chose the tool-level fix over de-bracketing individual items, since it protects all future items citing a lane in prose. Add a RED test with a fixture item whose body contains a bracketed lane mention. Clears leAIrn2learn c3f5 (and prevents recurrence on the yinyang id:1357 / zkWhale retag notes this session added). <!-- id:be0e -->
+- [ ] **[ROUTINE] Pin a Makefile-tier fixture in `test_review_gate_tier_coverage.sh`** (relay human ruling 2026-07-19, follow-up to id:66d4) — the shipped `relay/scripts/review-gate.sh` already enumerates Makefile `test`-named targets alongside package.json `scripts`, but its RED spec `tests/test_review_gate_tier_coverage.sh` only proves the package.json+node_modules path, leaving the Makefile-tier code path unspecced. Add a fixture case: a repo whose declared tiers come from a `Makefile` (e.g. a `test:` / `test-e2e:` target), asserting the gate refuses when the entry omits a Makefile-declared tier and accepts when it covers it. Keep the existing package.json cases. Owner ruled the first cut needs both tier sources proven, not just one. <!-- id:050b -->
+- [ ] [ROUTINE] **Shared anchored-extraction helper + test** (relay human 2026-07-19, resolves REVIEW_ME id:521f/1312) — one anchored id/token extraction helper replacing the 4th-instance family of hand-rolled copies: roadmap-lint's first-match `id_re`, unpromoted-scan's bare `grep -qF`, `inbox-done`'s substring match, md-merge's fail-open append (id:1b1a). `relay/scripts/scan-routed.sh` already anchors correctly — model it. The id:2c94 duplication linter would flag the copies mechanically. <!-- id:3add -->
+
+### Pool-executable [HARD] — decided, needs per-item RED spec (route to handoff)
+
+- [ ] [HARD — pool] `/relay . --parallel N` — DECIDED; author RED spec, full context TODO.md <!-- id:ebbe -->
+- [ ] [HARD — pool] `/relay . --drain` — DECIDED; author RED spec, full context TODO.md <!-- id:93fe -->
+
+### Human-triage backlog — decided lane, TODO.md is SSOT (pointers for /relay human)
+
+- [ ] [INPUT — meeting] Use VISIBLE annotations, not HTML comments, for metadata that should render — see TODO.md <!-- id:ee62 -->
+- [ ] [INPUT — meeting] Mechanize the keystone-unblock triage as a `/relay human` view (gate-graph fan-out ranking) (us… — see TODO.md <!-- id:c3f6 -->
+- [ ] [INPUT — meeting] ONE meeting: "who may write the shared thing, and when" — see TODO.md <!-- id:fa1d -->
+- [ ] [HARD — meeting] Fake-Haiku mechanical-dispatch proxy — see TODO.md <!-- id:176f -->
+- [ ] [INPUT — meeting] Orchestrator-launched host `claude -p` on the local proxy gateway as the off-Workflow dispatch… — see TODO.md <!-- id:b3cc -->
+- [ ] [INPUT — meeting] Meeting-as-relay-producer: route `/meeting` ledger writes through a worktree the integrator mer… — see TODO.md <!-- id:5a39 -->
+- [ ] [INPUT — meeting] Full-loop relay REPLAY test — see TODO.md <!-- id:5bac -->
+- [ ] [INPUT — meeting] Integrator destructive-cleanup ordering: under-the-lease vs release-first (proposed by the 2026… — see TODO.md <!-- id:6613 -->
+- [ ] [INPUT — access] Post-Fable transition (after 2026-07-07) (user 2026-07-01): when the Fable window closes — see TODO.md <!-- id:77f3 -->
+- [ ] [INPUT — meeting] Human-action dashboard, mechanically refreshed by the relay loop, launchable WITHOUT LLM access… — see TODO.md <!-- id:51d8 -->
+- [ ] [INPUT — meeting] chidiai⇄relay calibration cross-pollination (scoping) — see TODO.md <!-- id:2653 -->
+- [ ] [INPUT — meeting] 5h session-limit overshoot: quota gate is round-boundary-only, an in-flight wave blows through… — see TODO.md <!-- id:68b1 -->
+- [ ] [INPUT — meeting] Capability-keyed lane taxonomy + mechanical-run daemon (meeting 2026-07-02-1924, `docs/meeting-… — see TODO.md <!-- id:4299 -->
+- [ ] [INPUT — meeting] A LIVE review child's worktree + branch were swept mid-run (2026-07-01 ~22:56) while the repo's… — see TODO.md <!-- id:6e02 -->
+- [ ] [INPUT — meeting] Move relay DISCOVERY off LLM-judgment onto a mechanical TDD red/green flow — see TODO.md <!-- id:4d8e -->
+- [ ] [INPUT — meeting] Broker-backed PARALLEL human-decision channel for the relay-loop (reuse meeting-rpg `broker.py`… — see TODO.md <!-- id:b444 -->
+- [ ] [INPUT — meeting] Continuous (streaming) dispatch — see TODO.md <!-- id:80b8 -->
+- [ ] [INPUT — meeting] Inter-session communication / coordination channel — see TODO.md <!-- id:9000 -->
+- [ ] [INPUT — meeting] Encode "ROUTINE requires the test to gate the REAL goal" in the executor scope guard — see TODO.md <!-- id:33c2 -->
+- [ ] [INPUT — meeting] Relay broker: stop spawning one agent per mechanical shell command (WALL-TIME driver) — see TODO.md <!-- id:3a1c -->
+- [ ] [INPUT — meeting] Audit `/batch` for parallel-processing applications — see TODO.md <!-- id:7b23 -->
+- [ ] [HARD — meeting] `drained` machine-verdict + `@wire`/`@manual` grammar split (folds in executor-no-own-RED + spe… — see TODO.md <!-- id:af48 -->
+- [ ] [HARD — meeting] Visible-half-is-primary handoff discipline <!-- gated-on:ac7f --> (meeting 2026-07-19-1058, fro… — see TODO.md <!-- id:2b49 -->
+- [ ] [HARD — meeting] Ledger-invariant enforcement substrate — see TODO.md <!-- id:7a05 -->
+- [ ] [HARD — meeting] Semver-bump enforcement + handoff bump-level annotation (meeting 2026-07-19-1212, user amendmen… — see TODO.md <!-- id:d1b2 -->
+- [ ] [INPUT — access] Review→execute chaining within a pool (lane-tagged 2026-07-02 handoff: remaining work = OBSERVE… — see TODO.md <!-- id:b8ae -->
+- [ ] [INPUT — meeting] ``/`[MEETING]` tag-taxonomy completion (user 2026-06-15) — see TODO.md <!-- id:d0da -->
+- [ ] [INPUT — access] Runtime write-matrix + heartbeat round-trip test for the relay-ro/relay-svc ACLs (id:02c7) — see TODO.md <!-- id:e8a3 -->
+- [ ] [INPUT — meeting] Write-scope the LLM tier by uid: separate OS users for the relay supervisor/reviewer vs. the ex… — see TODO.md <!-- id:d03d -->
+- [ ] [INPUT — meeting] Custom agent types (`.claude/agents/*.md`) per relay subcommand — see TODO.md <!-- id:931c -->
+- [ ] [INPUT — meeting] Design tier-robust gate-discipline mechanisms (for a Fable session to consider): the 2026-07-02… — see TODO.md <!-- id:abe7 -->
+- [ ] [HARD — meeting] Upgrade `consumer-enum.sh` from content-grep to real import/read-edge resolution (relay human r… — see TODO.md <!-- id:494f -->
+- [ ] [HARD — meeting] `/meeting --fabled` (or similar) — see TODO.md <!-- id:7e87 -->
+- [ ] [INPUT — meeting] A shared "reasoning-fallacy checkup" step for `/relay` and `/meeting` (user 2026-07-17: "add TO… — see TODO.md <!-- id:0e56 -->
+
+
 <!-- 2026-07-19 handoff C2 (run relay-handoff, this session): promoted the three ungated,
      handoff-ready af48/related [HARD — pool] children from TODO.md — single-id-two-views
      (D2): ac7f/78df reuse their TODO twins (children-of:af48), 66d4 reuses its TODO twin.
