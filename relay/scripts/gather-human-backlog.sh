@@ -103,7 +103,7 @@ UNTAGGED_FOUND=0
 # itself abort the scan: each repo's boxes are always fully emitted before the
 # block is printed. Never touched if no untagged item is seen.
 REJECT_LOG="$(mktemp)"
-trap 'rm -f "$REJECT_LOG"' EXIT
+trap 'rm -- "$REJECT_LOG"' EXIT
 
 # --- own repos from relay.toml: lines of "<name>\t<path>" -------------------
 # Honors `classification = "own"` and a per-repo path override.

@@ -38,6 +38,17 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 export HEARTBEAT_BASE="$TMP/hb"   # keep heartbeat side effects (id:f9d2) inside the sandbox
 export RELAY_EVENTS_PATH="$TMP/events.jsonl"
 
+# Fixed always-'ok' quota stub: this spec exercises stop semantics (drained/blocked/max-rounds),
+# NOT the live quota gate — pin DRAIN_QUOTA_CMD so the id:838d quota gate does not fire the real
+# quota-stop.sh at round 0 against the machine's /tmp/claude-usage-cache.json (id:5eb8 hermeticity
+# fix; mirrors tests/test_drain_driver_heartbeat.sh:44-52).
+cat > "$TMP/quota.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$TMP/quota.sh"
+export DRAIN_QUOTA_CMD="$TMP/quota.sh"
+
 # Round stub: emits scripted per-round JSON from a sequence file, one line per round.
 mk_round_stub() { # $1 = sequence file
   cat > "$TMP/round.sh" <<EOF
