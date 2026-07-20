@@ -799,6 +799,26 @@ function assertHandbackInvariant(emittedEvents, accumulator) {
   }
   return { ok: violations.length === 0, violations }
 }
+// id:dc5b — inline copy of round-plan.mjs enforceOneUnitPerRepo (keep byte-equivalent; the
+// Workflow sandbox cannot import, structural test pins the wiring). C2 one-unit-per-repo-per-
+// round: given the units the round would dispatch IN SCHEDULING ORDER, keep the FIRST unit per
+// repo (the higher verdict-class one) and DEFER every later same-repo unit — an execute+review
+// pair for one repo in one round collides on the non-union ROADMAP.md at integrate. See that
+// file for full rationale.
+function enforceOneUnitPerRepo(units) {
+  const seen = new Set()
+  const plan = []
+  const deferred = []
+  for (const u of units || []) {
+    if (u && seen.has(u.repo)) {
+      deferred.push(u)
+    } else {
+      if (u) seen.add(u.repo)
+      plan.push(u)
+    }
+  }
+  return { plan, deferred }
+}
 // id:8c35 — machine-readable stop reason: null | "quota-cache-unreadable" |
 // "quota-extrapolated-stop[:<bucket>]" (id:0175/82e3) | "quota-exhausted:<bucket>" |
 // "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
@@ -1510,6 +1530,23 @@ let mechanicalSurfaced = []
   }
 }
 
+// id:dc5b — C2 one-unit-per-repo-per-round: the LAST dispatch gate. `actionable` is now in
+// final scheduling order (verdict-class priority, then the id:d530/income/standin tiebreakers)
+// with all pool-inert verdicts (human/mechanical/intensive/hard-deferred) already pulled out.
+// enforceOneUnitPerRepo keeps the FIRST unit per repo — the higher verdict-class one wins the
+// slot — and DEFERS every later same-repo unit to the next round's fresh discovery (where the
+// survivor has already integrated and moved the non-union ROADMAP.md forward). Deferring here,
+// not dropping: the duplicates are surfaced LOUDLY in RELAY_STATUS Queued (never silently lost).
+let repoDeferred = []
+{
+  const { plan, deferred } = enforceOneUnitPerRepo(actionable)
+  actionable = plan
+  repoDeferred = deferred
+  if (repoDeferred.length) {
+    log(`relay-loop: id:dc5b one-unit-per-repo — deferring ${repoDeferred.length} duplicate same-repo unit(s) to the next round (first-in-scheduling-order wins the slot; the duplicate would collide on the non-union ROADMAP.md at integrate): ${repoDeferred.map(u => `${u.repo}(${u.verdict})`).join(', ')}`)
+  }
+}
+
 // Refresh the cross-round accumulator's per-round views (completed/reviewMe persist).
 // (state.runId is canonicalized right after the !discovery guard above — id:a921.)
 state.ts = discovery.ts
@@ -1534,6 +1571,9 @@ state.queued = [
   // dispatched by the LLM pool; a host daemon dispatches them, A3, gated). Mirrors the `human`
   // contract: pulled from `actionable` above, no child spawned, absent from PHASE_BY_VERDICT.
   ...mechanicalSurfaced.map(u => ({ repo: u.repo, verdict: `mechanical (pool-inert: pure-compute work for the host daemon, A3-gated; never dispatched by the LLM pool)` })),
+  // id:dc5b — same-repo duplicates deferred by the one-unit-per-repo gate: visible in Queued
+  // so the operator sees what was held for the next round (never silently dropped).
+  ...repoDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: id:dc5b one-unit-per-repo — another unit for this repo dispatched this round; re-discovered next round after it integrates)` })),
 ]
 state.surfaced = buildSurfacedView(discovery.surfaced)
 state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason }))   // id:be62
