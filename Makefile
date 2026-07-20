@@ -130,6 +130,8 @@ projects_ALLOW :=
 projects_LOCAL :=
 
 SETTINGS_JSON    := $(HOME)/.claude/settings.json
+CLAUDE_MD        := $(HOME)/.claude/CLAUDE.md
+PRIVACY_RULE_SRC := $(SRC_DIR)/hooks/privacy-gate.claude-rule.md
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
@@ -138,7 +140,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
-        install-relay-users install-relay-acls install-privacy-gate \
+        install-relay-users install-relay-acls install-privacy-gate install-privacy-claude-rule \
         install-discovery-timer status-discovery-timer uninstall-discovery-timer \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
@@ -163,6 +165,8 @@ help:
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
 	@echo "  install-relay-env    merge relay env policy (quota decay) into settings.json (idempotent)"
+	@echo "  install-privacy-gate install the global pre-push privacy gate (warn+LOG) + the CLAUDE.md rule"
+	@echo "  install-privacy-claude-rule  append the privacy-gate note to ~/.claude/CLAUDE.md (idempotent)"
 	@echo "  print-relay-env      preview the relay env policy entries (read-only)"
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
@@ -270,6 +274,22 @@ install-privacy-gate:
 	fi
 	@echo "  note: warn+LOG mode only (exit 0, never blocks). Populate the PRIVATE pattern file (id:7fff):"
 	@echo "        $${XDG_CONFIG_HOME:-$(HOME)/.config}/dotclaude-skills/privacy-patterns.txt"
+	@$(MAKE) --no-print-directory install-privacy-claude-rule
+
+# Append the privacy-gate note to the GLOBAL ~/.claude/CLAUDE.md, idempotently (guarded by the
+# marker on the snippet's first line). Reproducible source = hooks/privacy-gate.claude-rule.md,
+# so the rule survives a CLAUDE.md reset (mirrors install-allowlist's settings.json merge). The
+# snippet is PUBLIC-safe (no hostnames/personal paths); the personal specifics live only in the
+# private pattern file. Never rewrites CLAUDE.md — append-only.
+install-privacy-claude-rule:
+	@if [ ! -f "$(CLAUDE_MD)" ]; then \
+		echo "  !! $(CLAUDE_MD) not found — skipping CLAUDE.md rule (create it, then re-run)"; \
+	elif grep -qF "dotclaude-skills:privacy-gate-rule" "$(CLAUDE_MD)"; then \
+		echo "  ok  privacy-gate rule already present in $(CLAUDE_MD)"; \
+	else \
+		printf '\n' >> "$(CLAUDE_MD)"; cat "$(PRIVACY_RULE_SRC)" >> "$(CLAUDE_MD)"; \
+		echo "  ok  appended privacy-gate rule to $(CLAUDE_MD)"; \
+	fi
 
 # statusline is a first-class target (mirrors install-<skill>): the quota/cost/model statusbar
 # lives in this repo (statusline/) and is symlinked into ~/.claude. install-hooks depends on it
