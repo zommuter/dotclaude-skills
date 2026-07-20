@@ -78,3 +78,24 @@ One hook + its tests.
 - [ ] Forward-flag: when id:6c6e (askpass self-identify) is designed, reuse this
   session-identity capture shape rather than re-deriving it. (Recorded on 6c6e in this note; no
   separate id — resolved by 6c6e's own design session.)
+
+## Fable checkup (bonus re-review — advisory, NOT a gate)
+Ran an optional Fable-5 second-look over D1–D3 after ratification (manual stand-in for the
+unbuilt id:7e87 `--fabled` flow). Verdict: **CONCUR** — decisions stand, no re-meeting.
+Fable verified two premises empirically: `$CLAUDE_SESSION_ID` **is** inherited into a hook from
+a Claude-shell push; the log has no public-push path (`~/.claude/logs/` is gitignored, that
+repo's only remote is private LAN → the gate would skip it anyway). Executor-level hardenings it
+surfaced (folded into TODO id:61b5, owner may veto):
+- **Blob ordering:** put `repo` LAST (`sid=…;host=…;ppid=…;repo=…`) — it's the free-form path
+  (may contain `;`), so it belongs at the trailing position, exactly as `content` is trailing at
+  the column level. Refines D2's ratified `repo`-first order.
+- Sanitize the blob (`tr '\t\n' '  '`) so a path tab/newline can't shift/tear columns.
+- `set -uo pipefail` is live → `${CLAUDE_SESSION_ID:-}`, `${HOSTNAME:-}` (Termux lacks `hostname`),
+  `git rev-parse --show-toplevel 2>/dev/null || echo -`; test degrade with the var UNSET, not empty.
+- Flag df87 that the log is PRIVATE input (no-leak-public) before FP-calibration quotes lines.
+- Bonus: in a relay worktree `--show-toplevel` returns the worktree path → pool vs human pushes
+  distinguishable for free.
+
+**Process note:** `--fabled` is unbuilt (id:7e87) — the flag was silently swallowed into the
+subject rather than warned on. Filed as a bug (id:7681): unknown skill switches must warn, not
+become args (applies to `/relay` too).
