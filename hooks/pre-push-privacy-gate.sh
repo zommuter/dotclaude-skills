@@ -84,6 +84,40 @@ if [[ "$is_private" -eq 1 ]]; then
   exit 0
 fi
 
+# ── Relay-scoping: only scan repos in the relay OWN-repo set ($RELAY_TOML) ──
+# Keeps the GLOBAL core.hooksPath install convenient (one install, no per-repo onboarding,
+# trivial to widen later) while dissolving "the gate fires inside every throwaway/temp repo"
+# (e.g. hermetic test remotes polluting the log). RELAY_TOML is THE own-repo set — reuse
+# relay/scripts/lib-own-repos.sh (never re-derive from a ~/src glob). Set PRIVACY_GATE_ALL_REPOS=1
+# to scan EVERY repo (the future full-global posture).
+# FAIL-OPEN TO SCAN: only a PRESENT, PARSEABLE relay.toml that does NOT list this repo triggers
+# a skip. relay.toml absent/unparseable, unknown repo root, or a missing helper → SCAN (never skip
+# on uncertainty — the safe direction for a privacy gate).
+if [[ "${PRIVACY_GATE_ALL_REPOS:-}" != "1" ]]; then
+  repo_top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  RELAY_TOML="${PRIVACY_GATE_RELAY_TOML:-${RELAY_TOML:-${XDG_CONFIG_HOME:-$HOME/.config}/relay/relay.toml}}"
+  own_lib="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")/.." 2>/dev/null && pwd)/relay/scripts/lib-own-repos.sh"
+  if [[ -n "$repo_top" && -f "$RELAY_TOML" && -r "$own_lib" ]]; then
+    SRC_DIR="${SRC_DIR:-$HOME/src}"
+    own_out=""; own_rc=0
+    own_out="$(RELAY_TOML="$RELAY_TOML" SRC_DIR="$SRC_DIR"; source "$own_lib" && own_repos 2>/dev/null)" || own_rc=$?
+    if [[ "$own_rc" -eq 0 ]]; then           # parsed cleanly → membership is authoritative
+      member=0
+      while IFS=$'\t' read -r _name p; do
+        [[ -n "$p" ]] || continue
+        rp="$(readlink -f "$p" 2>/dev/null || echo "$p")"
+        [[ "$rp" == "$repo_top" ]] && { member=1; break; }
+      done <<< "$own_out"
+      if [[ "$member" -eq 0 ]]; then
+        notice "repo '$repo_top' is not in the relay own-repo set — skipping leak scan (PRIVACY_GATE_ALL_REPOS=1 to scan all)."
+        exit 0
+      fi
+    fi
+    # own_rc != 0 (relay.toml parse error) → fall through to SCAN (fail-open)
+  fi
+  # relay.toml absent / repo root unknown / helper unreadable → fall through to SCAN (fail-open)
+fi
+
 # ── Collect ADDED diff lines across every pushed ref (D3: added lines only) ──
 added_lines=""
 while read -r local_ref local_sha remote_ref remote_sha; do

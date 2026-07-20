@@ -56,6 +56,15 @@ allow: ZZALLOWED-[0-9]+
 private-host: fievel
 EOF
 
+# fixture relay.toml so the gate treats the throwaway $REPO as a relay-managed (own) repo and
+# SCANS it. The gate skips repos ABSENT from the relay own-repo set (relay-scoping, so the global
+# core.hooksPath install doesn't fire inside every throwaway/temp repo). Case (6) overrides this
+# with an empty relay.toml to exercise the skip; case (7) exercises the PRIVACY_GATE_ALL_REPOS
+# override. All invocations inherit PRIVACY_GATE_RELAY_TOML unless they set their own.
+RELAYTOML="$TMP/relay.toml"
+printf '[repos.testfix]\nclassification = "own"\npath = "%s"\n' "$REPO" > "$RELAYTOML"
+export PRIVACY_GATE_RELAY_TOML="$RELAYTOML"
+
 LOG="$TMP/gate.log"
 STDIN_LINE="refs/heads/main $SHA_B refs/heads/main $SHA_A"
 
@@ -130,6 +139,32 @@ grep -q 'ZZALLOWED-77' <<<"$out" \
 grep -qE '^install-privacy-gate:' "$SRC_DIR/Makefile" \
   && ok "ebd0: make install-privacy-gate target exists" \
   || bad "ebd0: no install-privacy-gate target in Makefile"
+
+# ── (6) relay-scoping: a repo ABSENT from relay.toml is SKIPPED (public remote + real leak) ──
+# This is what keeps the global core.hooksPath from firing inside throwaway/temp repos.
+: > "$LOG"
+EMPTYTOML="$TMP/relay-empty.toml"; printf '# no own repos\n' > "$EMPTYTOML"
+out="$( ( cd "$REPO" && printf '%s\n' "$STDIN_LINE" | \
+    PRIVACY_GATE_PATTERNS="$PAT" PRIVACY_GATE_LOG="$LOG" PRIVACY_GATE_RELAY_TOML="$EMPTYTOML" \
+    bash "$HOOK" origin 'git@github.com:acme/repo.git' ) 2>&1 )"; rc=$?
+[[ $rc -eq 0 ]] && ok "ebd0: non-relay repo exits 0" || bad "ebd0: non-relay repo exited $rc"
+grep -qiE 'not in the relay own-repo set|skipping leak scan' <<<"$out" \
+  && ok "ebd0: repo absent from relay.toml is SKIPPED (relay-scoping)" \
+  || bad "ebd0: non-relay repo was not skipped. Output: $out"
+grep -q 'ZZLEAKTOKEN-4242' <<<"$out" \
+  && bad "ebd0: non-relay repo was SCANNED (leak printed) — must skip" \
+  || ok "ebd0: non-relay repo prints no finding"
+[[ -s "$LOG" ]] && bad "ebd0: non-relay repo wrote to the log — must skip" \
+               || ok "ebd0: non-relay repo logged nothing"
+
+# ── (7) PRIVACY_GATE_ALL_REPOS=1 overrides relay-scoping → scans even a non-relay repo ──
+: > "$LOG"
+out="$( ( cd "$REPO" && printf '%s\n' "$STDIN_LINE" | \
+    PRIVACY_GATE_PATTERNS="$PAT" PRIVACY_GATE_LOG="$LOG" PRIVACY_GATE_RELAY_TOML="$EMPTYTOML" \
+    PRIVACY_GATE_ALL_REPOS=1 bash "$HOOK" origin 'git@github.com:acme/repo.git' ) 2>&1 )"
+grep -q 'ZZLEAKTOKEN-4242' <<<"$out" \
+  && ok "ebd0: PRIVACY_GATE_ALL_REPOS=1 scans a non-relay repo (override)" \
+  || bad "ebd0: ALL_REPOS override did not scan. Output: $out"
 
 echo "---- $pass ok, $fail bad ----"
 [[ "$fail" -eq 0 ]] || exit 1
