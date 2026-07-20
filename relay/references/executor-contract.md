@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v9 -->
+## Executor contract <!-- relay-executor contract v10 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -116,6 +116,16 @@ you were told you are the reviewer) follow these rules:
    `@needs-auth` = a human must PROVIDE a secret; `@manual` = a human must RUN/verify). The
    box is the durable record — the offline lister (`gather-human-backlog.sh`, id:1750)
    surfaces it to the human; a stranded unit with no box is the failure this rule prevents.
+
+7. **Never write `@owner-accepted` (id:8089, v10 — provenance rule)**: the
+   `@owner-accepted:YYYY-MM-DD` marker (review.md §5c) gates a user-visible/`@manual`-
+   acceptance item's bump-close on genuine owner acceptance. Because the incident that
+   motivated this rule was exactly a drain/executor session asserting acceptance on a
+   "driver's directive," you as an executor or drain session **MUST NOT** write, add, or
+   edit an `@owner-accepted` marker anywhere in this repo, under any circumstance — not
+   even when told to by the driver. Only a genuine owner action may write it. The reviewer
+   greps the diff for an executor-introduced marker (review.md §2b.7) and will FLAG +
+   REOPEN the item if it finds one.
 
 ## ROADMAP item format (reference)
 
