@@ -132,7 +132,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
-        install-relay-users install-relay-acls \
+        install-relay-users install-relay-acls install-privacy-gate \
         install-discovery-timer status-discovery-timer uninstall-discovery-timer \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
@@ -241,6 +241,28 @@ install-hooks: install-statusline
 	@ln -sf $(SRC_DIR)/hooks/parallel-edit-detector.py $(HOOKS_DIR)/parallel-edit-detector.py
 	@ln -sf $(SRC_DIR)/hooks/pathspec-drop-guard.py $(HOOKS_DIR)/pathspec-drop-guard.py
 	@ln -sf $(SRC_DIR)/hooks/notify-hook.linux-x11.sh $(HOME)/.claude/notify-hook.sh
+
+# Privacy pre-push gate (id:ebd0): wire the WARN+LOG leak scanner into git's GLOBAL
+# `core.hooksPath` so EVERY repo's push runs it (a raw `git push` or a background agent
+# bypasses git-lock-push.sh, so only core.hooksPath covers all pushes). We stage the hook
+# dir + symlink the script, then set core.hooksPath. Idempotent; refuses to clobber an
+# existing hooksPath pointing elsewhere. Reads its private pattern file from ~/.config
+# (see hooks/pre-push-privacy-gate.sh header + id:7fff). Same surface id:7a05 later adopts.
+GITHOOKS_DIR := $(HOME)/.config/git/hooks
+install-privacy-gate:
+	@echo "→ installing privacy pre-push gate (global core.hooksPath)"
+	@mkdir -p $(GITHOOKS_DIR)
+	@ln -sf $(SRC_DIR)/hooks/pre-push-privacy-gate.sh $(GITHOOKS_DIR)/pre-push
+	@existing=$$(git config --global --get core.hooksPath || true); \
+	if [ -n "$$existing" ] && [ "$$existing" != "$(GITHOOKS_DIR)" ]; then \
+		echo "  !! git core.hooksPath already set to '$$existing' — NOT overwriting."; \
+		echo "     Add a 'pre-push' entry there that runs $(GITHOOKS_DIR)/pre-push, or unset it first."; \
+	else \
+		git config --global core.hooksPath $(GITHOOKS_DIR); \
+		echo "  ok  core.hooksPath -> $(GITHOOKS_DIR) (pre-push -> pre-push-privacy-gate.sh)"; \
+	fi
+	@echo "  note: warn+LOG mode only (exit 0, never blocks). Populate the PRIVATE pattern file (id:7fff):"
+	@echo "        $${XDG_CONFIG_HOME:-$(HOME)/.config}/dotclaude-skills/privacy-patterns.txt"
 
 # statusline is a first-class target (mirrors install-<skill>): the quota/cost/model statusbar
 # lives in this repo (statusline/) and is symlinked into ~/.claude. install-hooks depends on it
