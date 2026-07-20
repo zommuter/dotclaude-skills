@@ -3022,3 +3022,14 @@ Review of relay-ckpt-20260720-1621..HEAD (commits 3473131 meeting + d8f9354 TODO
 ## 2026-07-20 20:36 — reviewer (claude-fable-5)
 
 handoff: promoted 0ee1 (lease scope branch b) / 65f5 (classifier not-ready hybrid) / 8089 (owner-accept bump gate, contract v10) per mtg 2026-07-20-1918, + 3743 anchored-caller migration, + dc5b one-unit-per-repo spec (round-plan.mjs). 5 RED specs authored, suite 284/0/5-expected-red.
+
+## 2026-07-20 21:15 — reviewer (claude-opus-4-8)
+
+Review of relay-ckpt-20260720-2036..HEAD — 5 executor units (0ee1/65f5/8089/dc5b/3743) merged by driver, all VERIFIED CLEAN. Mechanical passes: gaming-scan.sh exit 0 (no DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT); all 5 RED specs BYTE-UNCHANGED vs base (git diff empty); roadmap-lint exit 0; relay-doctor 0 per-repo findings; full suite 289 passed / 0 failed / 0 expected-red (both known flakes — test_git_lock_push_slash_branch id-order + test_resource_claim_pid id:ab5c — passed this run; note as test-isolation follow-up only). Contract pointer confirmed v10 in CLAUDE.md + executor-contract.md + review.md; the sole 'contract v9' hit is a historical meeting-note (2026-07-15, id:108e), NOT a stale pointer. Ticked ROADMAP + TODO twins for all 5 (single-id-two-views); dc5b closed on its worktree-verifiable part only (round-plan.mjs + inline copy + spec green), live pickup-in-all-lane-orderings deferred to next supervised pool run (id:2ec4 sandbox limit). CHANGELOG.md date-bucketed 2026-07-20 entry added (5 user-observable relay-behaviour closes). No REVIEW_ME boxes (owner standing order id:c17c; no new human-judgment question). No gaming found.
+
+Executor self-reports (paraphrased):
+- 0ee1: branch-b distinct-key meeting↔executor lease fix — claim.sh WARN-and-proceed (exit 0) on hard-lease key when meeting:<key> advisory live, never refuses; meeting acquires/releases meeting:<repo> + --repo; two-executors-refuse invariant preserved; pool→meeting skip doc-only/aspirational (gated id:9000/5a39, not built). refactor:none.
+- 65f5: 3-class hybrid (@owner-verify exclusion / typed gated-on: blocks only OPEN targets via shared id:46f6 engine / SURFACED→handoff); extracted shared lib-typed-edges.sh + resolve-gates.sh from orphan-scan.sh, orphan-scan refactored to consume it (behaviour-preserving, test_orphan_scan_edges green). refactor: the lib-typed-edges extraction.
+- 8089: review.md §5c fail-closed @owner-accepted gate (item-scoped exclusion) + §2b.7/2b.8 checks + contract v9→v10 provenance (forbids executor/drain writing the marker) + CLAUDE.md pointer → v10. refactor:none.
+- dc5b: round-plan.mjs enforceOneUnitPerRepo C2 invariant + byte-equivalent inline copy in relay-loop.js (node --check passes). refactor:none. Live-only pickup verification pending next supervised run.
+- 3743: inbox-done twin-check anchored on lib-anchored-id.sh token_marker_in_files (fixes substring false-twin against destructive inbox store); other callers behaviour-preserving. refactor:none.
