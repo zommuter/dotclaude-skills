@@ -57,7 +57,7 @@ BASE="$(git -C "$REPO" merge-base HEAD "$BRANCH" 2>/dev/null)" || {
   err "cannot compute merge-base of HEAD and $BRANCH"; exit 2; }
 
 TOUCHED_FILE="$(mktemp)"
-trap 'rm -f "$TOUCHED_FILE"' EXIT
+trap 'rm -- "$TOUCHED_FILE"' EXIT
 git -C "$REPO" diff --name-only "$BASE" "$BRANCH" > "$TOUCHED_FILE" || {
   err "cannot compute touched paths for $BRANCH"; exit 2; }
 
