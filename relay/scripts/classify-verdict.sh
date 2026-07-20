@@ -55,6 +55,12 @@ if actionable_routine < 0:
 # host daemon dispatches them, A3 gated). Absent on any caller that predates the field
 # (sentinel default 0) — back-compat, no behaviour change for existing callers.
 open_mechanical       = int(data.get("open_mechanical", 0))
+# id:65f5 — SURFACED/no-RED-spec count: open executor-lane items carrying `⚠ SURFACED`
+# (classify-repo excludes them from actionable_routine_open, so execute never fires for
+# them). A repo with such an item and no higher-priority work routes to `handoff` (author
+# the spec), never idle — the spec is missing, not the work. Absent on pre-field callers
+# (sentinel 0 → no behaviour change).
+surfaced_open         = int(data.get("surfaced_open", 0))
 # id:5ac6 — INTENSIVE flag: copy top_intensive from gather VERBATIM (string, always present, "" when none).
 # It is an orthogonal resource axis, never a verdict value. INVARIANT: intensive!="" => verdict in {execute,hard}
 # (enforced by gather excluding human-gated items from top_intensive, id:a707).
@@ -149,18 +155,22 @@ elif open_hard_pool >= 1:
     ).format(open_hard_pool)
     evidence.append({"field": "open_hard_pool", "value": open_hard_pool, "source": "gather-repo-state"})
 
-elif promote > 0:
+elif promote > 0 or surfaced_open > 0:
     # Case (b) split 1/2 (id:5eb3): promotable backlog → full handoff (Opus apex promotion work).
     # Covers: drained @manual-only ROADMAP + promotable TODO items (case b); is_finished=true
     # with promote items (case h). promote>0 ALWAYS beats surface-only, never silenced as idle.
+    # id:65f5 — a `⚠ SURFACED`/no-RED-spec item (surfaced_open>0) also routes here: the executor
+    # cannot act without a RED spec, so the repo needs a handoff pass to AUTHOR one — never
+    # `execute` (classify-repo already excluded it from actionable_routine_open) and never idle.
     verdict       = "handoff"
     priority_rank = 4
     reason        = (
-        "Promotable TODO backlog: {} promote, {} surface -- "
-        "handoff needed to populate ROADMAP from TODO backlog"
-    ).format(promote, surface)
-    evidence.append({"field": "unpromoted.promote", "value": promote,  "source": "unpromoted-scan"})
-    evidence.append({"field": "unpromoted.surface", "value": surface,  "source": "unpromoted-scan"})
+        "Promotable TODO backlog: {} promote, {} surface; {} SURFACED/no-RED-spec item(s) -- "
+        "handoff needed to populate ROADMAP / author the missing RED spec(s)"
+    ).format(promote, surface, surfaced_open)
+    evidence.append({"field": "unpromoted.promote", "value": promote,       "source": "unpromoted-scan"})
+    evidence.append({"field": "unpromoted.surface", "value": surface,       "source": "unpromoted-scan"})
+    evidence.append({"field": "surfaced_open",      "value": surfaced_open, "source": "classify-repo"})
 
 elif surface > 0:
     # Case (b) split 2/2 (id:5eb3): surface-only backlog (promote==0 ∧ surface>0) → human.

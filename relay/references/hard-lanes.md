@@ -147,6 +147,36 @@ from the classifier, never authored freehand.
 never flag it as unknown/untagged; it is orthogonal to the lane, so it does not change
 which human-triage bucket (if any) an item lands in.
 
+## Executor-readiness markers — `@owner-verify` / `@owner-accepted` / `@manual` (id:65f5)
+
+Three markers govern whether a piece of work is **executor-ready**. They are
+**markers, NOT lanes** (orthogonal to `[HARD — *]` / `[INPUT — *]` and to each other),
+documented side-by-side because they are easily confused — each says something different
+about *who* must act and *when* an executor may. (Meeting `docs/meeting-notes/2026-07-20-1918-relay-lease-scope-executor-readiness-bump-gate.md`, D2.)
+
+| Marker | What it marks | `actionable_routine_open` | Who may write it |
+|---|---|---|---|
+| `@manual` | a human must **run / verify** this item; an executor physically cannot close it | **EXCLUDED** (the safe under-dispatch direction — a rare prose mention only under-dispatches) | anyone |
+| `@owner-verify` | owner-on-device-pending — the change is built, but the **owner** must verify it on a real device before it counts as done | **EXCLUDED** — joins the conservative `is_human`-style path in `classify-repo.sh`; every exclusion emits a **LOUD** why-not-ready line on stderr naming the item id + marker (never a silent suppression) | anyone (it is a request for the owner, not an owner-only assertion) |
+| `@owner-accepted` | the **owner** has given the acceptance an executor/drain cannot self-grant — the greppable receipt that a user-visible/`@manual`-acceptance item may be bump-closed (id:8089, `@owner-accepted:YYYY-MM-DD`) | n/a (it is a *close*-gate marker, not a dispatch-gate marker) | **the owner ONLY** — an executor/drain session writing it is a gaming violation (executor-contract + review.md §2b gaming-check, id:8089) |
+
+**How to normalise an on-device smell.** An un-normalized "pending on-device", "needs a
+real device", "verify on the pixel" note is NOT mechanically detected (that is the
+id:4da4/0d58 prose-substring trap — "pending" is too common). When you SEE such a smell,
+normalise it **at the source** to a `@owner-verify` marker so the classifier excludes it
+deterministically. `classify-repo.sh` surfaces the residual smell it cannot normalise as a
+LOUD why-not-ready line — it never silently dispatches `execute` for it.
+
+**Relation to the typed `gated-on:` edge and `⚠ SURFACED` (also id:65f5).** These two are
+STRUCTURED (not marker prose) executor-readiness signals `classify-repo.sh` also honours:
+a `<!-- gated-on:XXXX -->` typed edge (the id:46f6 form-C grammar) blocks an item **iff**
+the target id's checkbox is still OPEN — resolved via the shared id:46f6 engine
+(`relay/scripts/lib-typed-edges.sh`, over `ROADMAP.md ∪ TODO.md ∪ TODO.archive.md`); a
+DONE/`[x]` target does **not** block, and a dangling/unresolvable target is LOUD on stderr
+but never a silent block. An open executor-lane item carrying `⚠ SURFACED` (no RED spec
+authored) is excluded from `actionable_routine_open` and routes the repo to verdict
+`handoff` (author the spec), never `execute`.
+
 ## The orthogonal resource axis (NOT a lane)
 
 `[INTENSIVE — <resource>]` (id:8d52) is an ORTHOGONAL resource modifier, not a lane.
