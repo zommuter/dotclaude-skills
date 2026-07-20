@@ -10,3 +10,6 @@ docs/meeting-notes/persona-state.yml
 /fables-executor/
 __pycache__/
 *.pyc
+
+# meeting persona-state event shards (local-only, folded into persona-state.yml)
+persona-events/
