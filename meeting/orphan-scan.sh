@@ -176,20 +176,21 @@ elif [[ "$mode" == "shipped" ]]; then
   now_epoch=$(date +%s)
 
   # --- Typed-edge closure setup (id:46f6) --------------------------------------
+  # The typed-edge resolution engine (state-map build + set predicate + anchored marker
+  # extractors) is the SHARED lib-typed-edges.sh (id:65f5 extracted it here so
+  # classify-repo.sh's gated-on gate reuses the SAME engine — one engine, two callers).
+  orphan_self="$(readlink -f "${BASH_SOURCE[0]}")"
+  # shellcheck source=../relay/scripts/lib-typed-edges.sh
+  source "$(dirname "$orphan_self")/../relay/scripts/lib-typed-edges.sh"
+
   # Local resolution map: token → checkbox state for every id-bearing line in
   # TODO.md ∪ TODO.archive.md. A child/gate token "resolves" iff it is a key here;
   # it is "closed" iff its state is 'x'. First-wins so an active TODO.md entry
   # beats a recycled archive id (same rationale as the cross-ledger map, id:9221).
   # ROADMAP.md is deliberately excluded (that drift belongs to --cross-ledger).
-  # (2>/dev/null: a missing TODO.archive.md is a normal state, not an error.)
+  # (a missing TODO.archive.md is a normal state, not an error — handled by the lib.)
   declare -A local_state
-  while IFS= read -r l; do
-    st=' '; [[ "$l" =~ ^[[:space:]]*-\ \[[xX]\]\  ]] && st='x'
-    while read -r tk; do
-      [[ -z "$tk" ]] && continue
-      [[ -n "${local_state[$tk]+x}" ]] || local_state["$tk"]="$st"
-    done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
-  done < <(grep -hE '^\s*- \[[ xX]\] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" 2>/dev/null || true)
+  typed_edges_build_state_map local_state "$ROOT/TODO.md" "$ROOT/TODO.archive.md"
 
   # Confirmed own-repo NAMES for the UMBRELLA-CROSS-REPO decision. These come from
   # relay.toml via the shared, tested reader lib-own-repos.sh — NEVER a ~/src glob
@@ -243,9 +244,10 @@ elif [[ "$mode" == "shipped" ]]; then
       printf '%s' "$title"
     }
 
-    # Typed-edge markers (form C: sibling comments before the terminal id comment).
-    children_csv=$(grep -oP '(?<=<!-- children:)[0-9a-f,]+(?= -->)' <<<"$text" || true)
-    gated_csv=$(grep -oP '(?<=<!-- gated-on:)[0-9a-f,]+(?= -->)' <<<"$text" || true)
+    # Typed-edge markers (form C: sibling comments before the terminal id comment) —
+    # anchored extraction via the shared engine (never a bare substring, id:4da4/0d58).
+    children_csv=$(typed_edges_children_of_line "$text")
+    gated_csv=$(typed_edges_gated_of_line "$text")
     has_typed=0
     [[ -n "$children_csv" || -n "$gated_csv" ]] && has_typed=1
 
@@ -272,16 +274,10 @@ elif [[ "$mode" == "shipped" ]]; then
     grep -qP '<!-- xgate:[0-9a-f]{4}@[A-Za-z0-9._-]+ -->' <<<"$text" && xgate_marked=1
 
     if [[ -n "$children_csv" ]]; then
-      # Umbrella predicate over the typed child edge set.
-      IFS=',' read -ra _kids <<<"$children_csv"
-      all_resolve=1; all_closed=1; dangling=()
-      for k in "${_kids[@]}"; do
-        if [[ -n "${local_state[$k]+x}" ]]; then
-          [[ "${local_state[$k]}" == "x" ]] || all_closed=0
-        else
-          all_resolve=0; all_closed=0; dangling+=("$k")
-        fi
-      done
+      # Umbrella predicate over the typed child edge set (shared engine, id:46f6).
+      read -r all_resolve all_closed _dangling_csv \
+        < <(typed_edges_resolve_set local_state "$children_csv")
+      IFS=',' read -ra dangling <<<"$_dangling_csv"
       if (( all_resolve )); then
         if (( all_closed )); then
           candidates=$((candidates+1))
@@ -315,16 +311,9 @@ elif [[ "$mode" == "shipped" ]]; then
     fi
 
     if [[ -n "$gated_csv" ]]; then
-      # Gate predicate over the typed gated-on edge set.
-      IFS=',' read -ra _gates <<<"$gated_csv"
-      g_all_resolve=1; g_all_closed=1
-      for g in "${_gates[@]}"; do
-        if [[ -n "${local_state[$g]+x}" ]]; then
-          [[ "${local_state[$g]}" == "x" ]] || g_all_closed=0
-        else
-          g_all_resolve=0; g_all_closed=0
-        fi
-      done
+      # Gate predicate over the typed gated-on edge set (shared engine, id:46f6).
+      read -r g_all_resolve g_all_closed _g_dangling_csv \
+        < <(typed_edges_resolve_set local_state "$gated_csv")
       if (( g_all_resolve && g_all_closed )); then
         candidates=$((candidates+1))
         output_lines+=("id:$token — GATE-READY (all gates [x]) — unblocked now. $(short_text "$text")")
