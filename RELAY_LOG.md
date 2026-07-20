@@ -3002,3 +3002,7 @@ integrate id:ebd0 (privacy pre-push gate hook, warn+log mode)
 ## 2026-07-20 15:09 — reviewer (claude-fable-5)
 
 handoff: decompose ebbe+93fe → 7 verifiable RED-spec sub-units (5367/cd7a/f9d2/838d/dd1e/2062/864e) + 2 sandbox-residue (23ff/7fae)
+
+## 2026-07-20 15:37 — reviewer (claude-opus-4-8)
+
+integrate 5367+864e+cd7a (drain/parallel verifiable units wave 1)
