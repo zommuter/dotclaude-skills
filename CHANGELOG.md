@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-07-20
+
+- relay behaviour: distinct-key meeting↔executor lease (claim.sh WARN-not-refuse, id:0ee1); classifier not-executor-ready 3-class hybrid — @owner-verify exclusion + typed gated-on: via shared id:46f6 engine (blocks only OPEN targets) + SURFACED→handoff, extracted shared lib-typed-edges.sh (id:65f5); user-visible-close bump gate — review.md §5c fail-closed @owner-accepted marker + executor-contract v10 provenance + CLAUDE.md pointer (id:8089); one-unit-per-repo-per-round C2 invariant via round-plan.mjs (id:dc5b, worktree part); inbox-done twin-check anchored on lib-anchored-id.sh (id:3743) (id:0ee1,65f5,8089,dc5b,3743)
+
 ## 2026-07-19
 
 - hard: closed ac7f (af48 KEYSTONE) — @wire grammar in hard-lanes.md, classify-repo @wire→actionable_routine_open count, new render-verdict.sh drained render-alias; suite 263/0 (id:ac7f)
