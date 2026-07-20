@@ -3010,3 +3010,7 @@ integrate 5367+864e+cd7a (drain/parallel verifiable units wave 1)
 ## 2026-07-20 16:01 — reviewer (claude-opus-4-8)
 
 integrate 2062+f9d2+838d+dd1e — all worktree-verifiable ebbe/93fe units complete
+
+## 2026-07-20 16:21 — reviewer (claude-opus-4-8)
+
+integrate 4e67 (gather TODO-aware) + 5eb8 (hermetic specs) — executable backlog drained
