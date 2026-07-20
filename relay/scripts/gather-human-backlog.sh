@@ -96,6 +96,15 @@ MECH_SCAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mechanical-orphan-scan.
 # silent default disposition.
 UNTAGGED_FOUND=0
 
+# id:fa5c: untagged-lane ERROR lines are collected here (one per offending item,
+# across ALL repos) and flushed as ONE distinct block at the very end of the run,
+# rather than printed immediately per-repo — so a human/CI reader sees every
+# reject together, and (more importantly) collecting-then-flushing can never
+# itself abort the scan: each repo's boxes are always fully emitted before the
+# block is printed. Never touched if no untagged item is seen.
+REJECT_LOG="$(mktemp)"
+trap 'rm -f "$REJECT_LOG"' EXIT
+
 # --- own repos from relay.toml: lines of "<name>\t<path>" -------------------
 # Honors `classification = "own"` and a per-repo path override.
 #
@@ -239,10 +248,27 @@ emit_hard_lanes() {
     # Open top-level checkbox items only (sub-bullets are continuation prose).
     /^[[:space:]]*- \[ \] / {
       line = $0
+      # Strip backtick-quoted strings BEFORE the candidate-skip gate (id:306d) so a
+      # non-HARD item (e.g. `[ROUTINE]`) whose prose merely MENTIONS a
+      # backtick-quoted lane tag (e.g. "re-laned `[INPUT — decision]`->`[ROUTINE]`")
+      # is not mistaken for a HARD/INPUT candidate at all. The candidate gate used
+      # to read the RAW line while lane-detection ran on the backtick-stripped
+      # `clean` (the id:1bbd fix) — a mismatch that let a prose-only mention pass
+      # the raw gate, then find no real lane tag in the stripped text and fall into
+      # the untagged LOUD-reject branch as a false positive. Also strips a prose
+      # mention of `[HARD — pool]` etc. so it cannot shadow the item OWN bracket
+      # tag (id:1bbd: pool branch was checked first, causing [HARD — hands] items
+      # with a `[HARD — pool]` prose mention to mis-bucket as hard_pool).
+      clean = line
+      gsub(/`[^`]*`/, "", clean)
+      low = tolower(clean)
+
       # Dual-vocab window (id:4f02/id:8111 B2a, OPEN): both the old venue-keyed
       # [HARD — <lane>] spelling AND the new capability-keyed [HARD]/[INPUT — <lane>]
-      # spelling are recognized here. Skip lines carrying neither marker family.
-      if (line !~ /\[HARD/ && line !~ /\[INPUT[[:space:]]*[—-]/) next
+      # spelling are recognized here. Skip lines carrying neither marker family —
+      # checked on the backtick-STRIPPED text (id:306d) so a bracket tag that only
+      # exists inside backtick-quoted prose does not count as a candidate.
+      if (clean !~ /\[HARD/ && clean !~ /\[INPUT[[:space:]]*[—-]/) next
 
       # CONTAINER exclusion (id:8504): a DECOMPOSED parent explicitly marked
       # `@container` is not itself work — its seams are. Collectors skip it so a
@@ -250,14 +276,6 @@ emit_hard_lanes() {
       # phantom meeting/pool/hands row. (roadmap-lint.sh --strict enforces that a
       # DECOMPOSED open item is either ticked or carries this marker.)
       if (line ~ /@container/) next
-
-      # Strip backtick-quoted strings before lane detection so a prose mention like
-      # `[HARD — pool]` in the item body cannot shadow the item OWN bracket tag
-      # (id:1bbd: pool branch was checked first, causing [HARD — hands] items with
-      # a `[HARD — pool]` prose mention to mis-bucket as hard_pool).
-      clean = line
-      gsub(/`[^`]*`/, "", clean)
-      low = tolower(clean)
 
       # Read the EXPLICIT lane from the bracket tag (never inferred). Em-dash "—"
       # or a plain "-" between HARD and the lane word are both accepted; surrounding
@@ -450,7 +468,7 @@ scan_repo() {
   # return (status 3) means an untagged HARD item was seen — record it for the LOUD
   # nonzero exit at end of run; `|| rc=$?` keeps `set -e` from aborting mid-scan.
   local rc=0
-  emit_hard_lanes "$name" "$path" || rc=$?
+  emit_hard_lanes "$name" "$path" 2>>"$REJECT_LOG" || rc=$?
   if (( rc == 3 )); then
     UNTAGGED_FOUND=1
   elif (( rc != 0 )); then
@@ -511,9 +529,15 @@ else
 fi
 
 # LOUD nonzero exit if any open [HARD] item carried no recognized lane tag (id:78ff /
-# id:415b). The per-item ERROR lines already went to stderr; this makes the gap fatal
-# so the contract violation is fixed at the source, never silently bucketed.
+# id:415b). Every repo's boxes were already fully emitted above (id:fa5c: a bad tag
+# in one repo must never truncate the rest of the cross-repo scan) — the collected
+# per-item ERROR lines are flushed here as ONE distinct end-of-run block so the gap
+# is fixed at the source, never silently bucketed, and never scattered/lost mid-scan.
 if (( UNTAGGED_FOUND )); then
-  printf 'ERROR: one or more open [HARD] items carry no recognized lane tag — see the ERROR lines above and relay/references/hard-lanes.md. Exiting nonzero.\n' >&2
+  {
+    printf '=== untagged [HARD]/[INPUT — …] lane rejects (id:fa5c/id:415b) ===\n'
+    cat "$REJECT_LOG"
+    printf 'ERROR: one or more open [HARD] items carry no recognized lane tag — see the block above and relay/references/hard-lanes.md. Exiting nonzero.\n'
+  } >&2
   exit 1
 fi
