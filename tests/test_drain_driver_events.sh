@@ -34,6 +34,16 @@ EOF
 chmod +x "$TMP/round.sh"
 export DRAIN_ROUND_CMD="$TMP/round.sh"
 
+# Fixed always-'ok' quota stub: this spec exercises event-line emission, not the live quota
+# gate — pin DRAIN_QUOTA_CMD so the test is deterministic regardless of the machine's real
+# /tmp/claude-usage-cache.json (id:5eb8 hermeticity fix).
+cat > "$TMP/quota.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$TMP/quota.sh"
+export DRAIN_QUOTA_CMD="$TMP/quota.sh"
+
 out="$(node "$DRIVER" --repo "$TMP" --max-rounds 5 2>"$TMP/err")"; rc=$?
 [[ $rc -eq 0 ]] || bad "driver should drain cleanly on dry rounds (rc=$rc, err: $(cat "$TMP/err"))"
 
