@@ -16,8 +16,8 @@ fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -x "$SH" ]] || fail "relay-doctor.sh not executable"
 
-FIX="$(mktemp -d)"; TOML="$(mktemp)"; STUB="$(mktemp)"; UNIT="$(mktemp)"; INBOX="$(mktemp)"; INSTALL_ROOT="$(mktemp -d)"
-trap 'rm -rf "$FIX" "$TOML" "$STUB" "$UNIT" "$INBOX" "$INSTALL_ROOT"' EXIT
+FIX="$(mktemp -d)"; TOML="$(mktemp)"; STUB="$(mktemp)"; UNIT="$(mktemp)"; INBOX="$(mktemp)"; INSTALL_ROOT="$(mktemp -d)"; SHADOW="$(mktemp)"
+trap 'rm -rf "$FIX" "$TOML" "$STUB" "$UNIT" "$INBOX" "$INSTALL_ROOT" "$SHADOW"' EXIT
 # Hermeticity (same class as the RELAY_INBOX fix below, id:e647 2026-07-18): --strict aggregates
 # EVERY doctor check, including install-drift (id:1102), which defaults to the REAL ~/.claude/skills.
 # A relay script freshly added to the Makefile manifest but not yet `make install`ed (the normal
@@ -37,6 +37,13 @@ printf '' > "$TOML"; export RELAY_TOML="$TOML"
 # case (3)'s strict-clean assertion fail (observed: 4 UNRESOLVED → --strict exit 1).
 # Point it at an empty inbox so the only issues the doctor can see come from the fixture.
 printf '' > "$INBOX"; export RELAY_INBOX="$INBOX"
+# Hermeticity (defect fix 2026-07-20, no roadmap item): relay-doctor's relay-core shadow
+# section (id:82c4, check 12) defaults to the REAL ~/.claude/logs/relay-core-shadow.jsonl,
+# which classify-repo.sh APPENDS live shadow-parity mismatches to during any session (incl. this
+# test's own sibling runs). Accumulated real mismatches made case (3)'s strict-clean assertion
+# fail. This test checks VERDICT INVARIANTS (I2/I4), not shadow parity — point it at an empty
+# shadow log (section then reports absent/clean, adds no issues), same isolation as RELAY_INBOX.
+printf '' > "$SHADOW"; export RELAY_CORE_SHADOW_LOG="$SHADOW"
 
 # Stub classify-repo: ignore args, emit the crafted unit JSON in $UNIT (its --emit unit output).
 cat > "$STUB" <<STUBEOF
