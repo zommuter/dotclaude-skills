@@ -428,12 +428,14 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
     # once the ledger has actually been run through `lane-convert --reorder`.
     if [[ -n "$_genuine_first" && "$line" =~ ^-\ \[\ \]\ (.*)$ ]]; then
       _after_checkbox="${BASH_REMATCH[1]}"
-      # Trim leading whitespace only (defensive; grammar already requires exactly
-      # one space after the checkbox, but tolerate extra runs).
-      # Strip via [[:space:]] bracket-expression, NOT a literal ' ': a leading TAB
+      # Trim leading whitespace AND markdown emphasis markers (*, _) directly
+      # wrapping the tag (id:be0e — `**[ROUTINE] Title**` must anchor on the
+      # BRACKET, not the literal first byte; a bold/italic wrapper touching the
+      # tag is formatting, not a title/prose token preceding it).
+      # Strip via a bracket-expression, NOT a literal ' ': a leading TAB
       # satisfies the loop guard but `${var# }` would never consume it → infinite
       # loop (audit Run 70). Guard and strip must match the same character class.
-      while [[ "$_after_checkbox" == [[:space:]]* ]]; do _after_checkbox="${_after_checkbox#[[:space:]]}"; done
+      while [[ "$_after_checkbox" == [[:space:]*_]* ]]; do _after_checkbox="${_after_checkbox:1}"; done
       if [[ "$_after_checkbox" != "$_genuine_first"* ]]; then
         _tnf_id="$(item_id "$line")"
         echo "roadmap-lint: WARN — TAG-NOT-FIRST: the lane tag '${_genuine_first}' is not the first token after the checkbox on ${_tnf_id:-<no id>} (report-only during the dual-vocab window; run lane-convert --reorder to fix)" >&2
