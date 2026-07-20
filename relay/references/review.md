@@ -95,6 +95,22 @@ do not re-implement them inline.
    linter — dotclaude-skills id:2c94 — which would catch the *left-duplication* signal
    deterministically; until then this is a judgment cross-check.)
 
+7. **Executor-introduced `@owner-accepted` (id:8089 provenance gaming-check)** — grep the
+   reviewed diff (`$LAST`..HEAD) for `@owner-accepted:` in any executor-attributed commit.
+   The marker is spoofable by the exact actor the incident implicated (a drain session
+   writing its own owner-accept), so the executor contract (v10) FORBIDS executors/drain
+   sessions from writing it. If the diff shows `@owner-accepted` introduced by an executor
+   commit rather than a genuine owner action: **flag it and reopen the item** — same
+   forcing-function shape as the §2b.6 `refactor:` check.
+
+8. **Real-entrypoint judgment cross-check (id:8089, 3b)** — for a closed item that adds a
+   new code path, ask: does the app's real entrypoint(s) (not a dev harness) call the new
+   path? Grep-assisted (e.g. trace imports/calls from `main.ts`/`editor.ts`-style
+   entrypoints, adjusted per-repo), but this is JUDGMENT, not a mechanical pass/fail —
+   indirection, re-exports, and dynamic dispatch make a naive grep unreliable both ways.
+   FLAG loudly (REVIEW_ME box) when the only wiring you can find is a dev harness or test
+   fixture mistaken for shipped — the incident this guards against.
+
 Anything flagged here (from either the mechanical pass or the judgment residue) is
 surfaced prominently in the return report and the roadmap item is reopened.
 
@@ -297,6 +313,42 @@ Record each qualification in the diff window's `RELAY_LOG.md` paragraph (which i
 what tag/size you gave it). This is the symmetric half of single-id-two-views: handoff
 C2 promotes TODO→ROADMAP at handoff time; this step catches what `/meeting`/manual edits
 added *after* handoff.
+
+## 5c. User-visible-close + bump gate (id:8089, routed:1c08b)
+
+**Incident:** a `@manual`-acceptance item ("NOT executor-closeable") was bump-closed on a
+"driver's directive" alone — nothing verified the owner actually accepted it. A driver's
+directive is INSUFFICIENT.
+
+**Fail-closed gate (3a):** a user-visible / `@manual`-acceptance item cannot be counted
+into the user-observable-close set that feeds `version-bump.sh` unless it carries an
+explicit, greppable, dated owner-accept marker:
+
+```
+@owner-accepted:YYYY-MM-DD
+```
+
+- **Marker present** → the item may be closed and folded into the user-observable-close
+  set for this integrate's bump decision.
+- **Marker absent** → the item stays OPEN. It is **excluded from the user-observable-close
+  set** feeding the bump — this is an item-scoped exclusion, **NOT a repo-wide bump
+  block**: other legitimate user-observable closes in the same integrate still bump
+  normally. Add a REVIEW_ME box: `[ ] id:XXXX — needs owner-accept (@owner-accepted:YYYY-MM-DD
+  marker absent; a driver's directive is not sufficient)`.
+
+**Provenance (who may write the marker):** the marker is spoofable by the exact actor
+that caused the incident, so **only a genuine owner action writes `@owner-accepted`** —
+executor and drain sessions are contractually forbidden from writing it (executor-contract
+v10). See §2b.7 above for the paired gaming-check on an executor-introduced marker.
+
+**Homing:** this review.md gate is the mechanism available NOW. A git-hook plugin into
+the shared 7a05/id:077d enforcement framework (catching a manual bump outside review — the
+incident's actual channel) is a **gated seam**, deliberately NOT built here — it awaits
+id:077d readiness (reconcile-before-greenfield: it becomes a plugin into that framework,
+never a fresh standalone hook).
+
+**Out of scope:** re-deriving "user-observable" in general — that stays reviewer judgment
+per D1/id:e647; a universal/mechanical entry-point resolver (see §2b.8 instead).
 
 ## 6. Spend remaining budget
 
