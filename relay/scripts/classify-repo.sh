@@ -24,6 +24,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GATHER="$SCRIPT_DIR/gather-repo-state.sh"
 SCAN="$SCRIPT_DIR/unpromoted-scan.sh"
 CLASSIFY="$SCRIPT_DIR/classify-verdict.sh"
+RESOLVE_GATES="$SCRIPT_DIR/resolve-gates.sh"
 
 repo="" path="" emit_mode=""
 while [[ $# -gt 0 ]]; do
@@ -43,6 +44,13 @@ base_json="$("$GATHER" --repo "$repo" --path "$path")"
 # Step 2: run unpromoted-scan.sh (read-only; suppress log stderr so hermetic tests stay quiet)
 scan_tsv="$("$SCAN" "$path" 2>/dev/null || true)"
 
+# Step 2b (id:65f5): resolve every typed `<!-- gated-on:... -->` edge on a ROADMAP item
+# against its target checkbox state via the SHARED id:46f6 engine (resolve-gates.sh →
+# lib-typed-edges.sh), NOT a bare substring read in the line loop below. Emits TSV rows
+# `<own-id>\t<block:0|1>\t<dangling-csv>` for edges that block or dangle; a clean edge
+# emits nothing. Read-only; its own stderr (a missing ROADMAP is normal) is suppressed.
+gates_tsv="$("$RESOLVE_GATES" "$path" 2>/dev/null || true)"
+
 # Step 3 + 4: derive ROADMAP fields, fold unpromoted counts, pipe to classifier.
 # Pass the (potentially large) gather JSON + scan TSV via TEMP FILES, never env/argv: a single
 # env string over MAX_ARG_STRLEN (128KB) breaks execve of python3 AND the classifier (see
@@ -51,7 +59,8 @@ blobdir="$(mktemp -d)"
 trap 'rm -rf "$blobdir"' EXIT
 printf '%s' "$base_json" > "$blobdir/base.json"
 printf '%s' "$scan_tsv"  > "$blobdir/scan.tsv"
-export CLASSIFY_PATH="$path" BASE_FILE="$blobdir/base.json" SCAN_FILE="$blobdir/scan.tsv"
+printf '%s' "$gates_tsv" > "$blobdir/gates.tsv"
+export CLASSIFY_PATH="$path" BASE_FILE="$blobdir/base.json" SCAN_FILE="$blobdir/scan.tsv" GATES_FILE="$blobdir/gates.tsv"
 python3 - <<'PYEOF' > "$blobdir/assembled.json"
 import json, os, re, sys
 
@@ -76,6 +85,28 @@ LANE_TAGS = ("[ROUTINE]", "[HARD — pool]", "[HARD]", "[MECHANICAL]") + HUMAN_G
 path     = os.environ["CLASSIFY_PATH"]
 with open(os.environ["BASE_FILE"]) as _f: base_json = _f.read()
 with open(os.environ["SCAN_FILE"]) as _f: scan_tsv  = _f.read()
+with open(os.environ["GATES_FILE"]) as _f: gates_tsv = _f.read()
+
+# id:65f5 Step 2b — fold the shared id:46f6 gate resolution (resolve-gates.sh) into two
+# per-item lookups keyed by the item's OWN id:
+#   gate_blocked_ids — own-ids whose typed gated-on: edge points at a still-OPEN target
+#                      (excluded from actionable_routine_open, the is_human-style path).
+#   gate_dangling    — own-id → dangling target token CSV (LOUD on stderr, never a block).
+gate_blocked_ids = set()
+gate_dangling    = {}
+for _row in gates_tsv.splitlines():
+    _c = _row.split("\t")
+    if len(_c) < 3:
+        continue
+    _oid, _block, _dang = _c[0], _c[1], _c[2]
+    if _block == "1":
+        gate_blocked_ids.add(_oid)
+    if _dang:
+        gate_dangling[_oid] = _dang
+
+# id:65f5 — LOUD why-not-ready surfaces collected during the ROADMAP loop, flushed to
+# stderr at the end (never a silent execute-suppression). Each names the item id + reason.
+why_not_ready = []
 
 # --- Step 2: derive ROADMAP fields ----------------------------------------
 rm = os.path.join(path, "ROADMAP.md")
@@ -84,6 +115,7 @@ roadmap_open = 0
 roadmap_actionable_open = 0
 actionable_routine_open = 0
 open_mechanical = 0
+surfaced_open = 0   # id:65f5 class 3: open executor-lane items carrying `⚠ SURFACED`
 
 # id:356f — whole-section gating, mirroring roadmap-lint.sh's `is_exempt_heading`
 # (roadmap-lint.sh:158-167) EXACTLY: a `##`/`###` heading whose text matches
@@ -125,14 +157,31 @@ if os.path.isfile(rm):
             is_mechanical = primary == "[MECHANICAL]"
             if is_mechanical and not in_exempt_section:
                 open_mechanical += 1
+            # id:65f5 — the item's OWN id (anchored trailing `<!-- id:XXXX -->`), the handle
+            # for the shared gate resolution + the LOUD why-not-ready surfaces below.
+            _oid_m  = re.search(r"<!--\s*id:([0-9a-fA-F]{4})\s*-->", ln)
+            own_id  = _oid_m.group(1) if _oid_m else ""
+            # id:65f5 class 1 — @owner-verify (owner-on-device-pending) joins the conservative
+            # is_human-style exclusion (under-dispatch-safe): excluded from actionable_routine_open,
+            # with a LOUD why-not-ready surface (never a silent suppression).
+            is_owner_verify = "@owner-verify" in ln
+            # id:65f5 class 2 — typed gated-on: edge points at a still-OPEN target (resolved via
+            # the shared id:46f6 engine in resolve-gates.sh, keyed by own id). A dangling target
+            # is surfaced LOUDLY below but does NOT block (never a silent forever-block).
+            gate_blocked = bool(own_id) and own_id in gate_blocked_ids
+            # id:65f5 class 3 — an open executor-lane item carrying `⚠ SURFACED` (no RED spec
+            # authored) must route the repo to `handoff`, never `execute`: excluded from
+            # actionable_routine_open AND counted into surfaced_open (fed to the handoff branch).
+            is_surfaced = "⚠ SURFACED" in ln
             # @manual excludes conservatively (a rare prose mention only ever UNDER-dispatches,
-            # never mis-dispatches — the safe direction for the executor gate).
-            is_human   = primary in HUMAN_GATES or "@manual" in ln
+            # never mis-dispatches — the safe direction for the executor gate). @owner-verify
+            # joins this same conservative path (meeting D2, 2026-07-20-1918).
+            is_human   = primary in HUMAN_GATES or "@manual" in ln or is_owner_verify
             # id:4da4 — a [ROUTINE]/@wire item that declares a dependency BLOCK / gate is NOT
             # executor-actionable — the executor can only no-op it (zkm-threema id:180b
             # "[ROUTINE] (BLOCKED on id:7364)" was dispatched execute → empty handback,
             # /relay --once 2026-07-01). Conservative markers only under-dispatch (safe).
-            blocked = ("🚧" in ln) or ("BLOCKED on" in ln) or ("blocked on" in ln)
+            blocked = ("🚧" in ln) or ("BLOCKED on" in ln) or ("blocked on" in ln) or gate_blocked
             # id:ac7f — @wire is an ORTHOGONAL marker (like @manual/@needs-auth, NOT a lane),
             # defined by the executor-verifiable-via-a-host/e2e-RED-spec property (design
             # 2026-07-19-1152 D4). An open @wire item on a PRIMARY EXECUTOR lane
@@ -146,14 +195,32 @@ if os.path.isfile(rm):
                 # id:4da4 — actionable_routine = open [ROUTINE], primary-lane, NOT @manual/human-gated,
                 # NOT dependency-blocked. This (not bare has_routine) is what the execute verdict
                 # gates on, else an @manual-only or blocked [ROUTINE] repo mis-fires execute.
-                if not is_human and not blocked and not in_exempt_section:
+                # id:65f5 — also excludes a `⚠ SURFACED` (no-RED-spec) item, which routes to
+                # handoff via surfaced_open below, never execute.
+                if not is_human and not blocked and not is_surfaced and not in_exempt_section:
                     actionable_routine_open += 1
+                if is_surfaced and not is_human and not in_exempt_section:
+                    surfaced_open += 1
             elif has_wire and is_pool:
                 # id:ac7f — @wire on a pool lane ([HARD — pool]/[HARD]) is executor-actionable
                 # (a host/e2e RED spec makes it executor-verifiable); count it alongside
-                # [ROUTINE]. Same @manual/blocked/exempt carve-outs as the routine branch.
-                if not is_human and not blocked and not in_exempt_section:
+                # [ROUTINE]. Same @manual/blocked/exempt carve-outs as the routine branch,
+                # plus the id:65f5 SURFACED carve-out.
+                if not is_human and not blocked and not is_surfaced and not in_exempt_section:
                     actionable_routine_open += 1
+                if is_surfaced and not is_human and not in_exempt_section:
+                    surfaced_open += 1
+            # id:65f5 — LOUD why-not-ready surfaces (collected, flushed to stderr after the loop).
+            # An excluded @owner-verify item and a dangling gated-on: target are surfaced by id +
+            # marker so the exclusion is never silent (mechanize-reliability: loud, not swallowed).
+            if is_owner_verify and not in_exempt_section:
+                why_not_ready.append(
+                    "id:{} not executor-ready — @owner-verify (owner-on-device-pending); "
+                    "excluded from actionable_routine_open".format(own_id or "?"))
+            if own_id and own_id in gate_dangling and not in_exempt_section:
+                why_not_ready.append(
+                    "id:{} gated-on: target(s) [{}] resolve NOWHERE (dangling) — not a block, "
+                    "but the marker may be stale; fix the edge".format(own_id, gate_dangling[own_id]))
             if (is_routine or is_pool) and not is_human and not in_exempt_section:
                 roadmap_actionable_open += 1
 
@@ -175,7 +242,13 @@ base["roadmap_open"]            = roadmap_open
 base["roadmap_actionable_open"] = roadmap_actionable_open
 base["actionable_routine_open"] = actionable_routine_open
 base["open_mechanical"]         = open_mechanical
+base["surfaced_open"]           = surfaced_open   # id:65f5 → classify-verdict handoff branch
 base["unpromoted"]              = {"promote": promote, "surface": surface}
+
+# id:65f5 — flush every collected why-not-ready line to stderr LOUDLY (the exclusions
+# above are never silent). stdout stays the pure JSON object the pipeline consumes.
+for _line in why_not_ready:
+    print("classify-repo: why-not-ready: " + _line, file=sys.stderr)
 
 print(json.dumps(base))
 PYEOF
