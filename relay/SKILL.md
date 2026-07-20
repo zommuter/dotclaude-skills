@@ -477,16 +477,22 @@ default pool's verdict-class order.
 
 ## Single-repo scope
 
-`/relay <repo>`, `/relay .` (the cwd repo), or `/relay --only <repo>` runs the **autonomous
-pool scoped to ONE repo** (id:7633). It is the SAME engine as the default pool — same verdict
-classes, same dispatch/integrate/review chain — merely narrowed at discovery: the front door
-passes `args.onlyRepo`, and `relay-loop.js` resolves it against the canonical `relay.toml` own
+`/relay <repo>` (named) and `/relay --only <repo>` run the **autonomous pool scoped to ONE
+repo** (id:7633). It is the SAME engine as the default pool — same verdict classes, same
+dispatch/integrate/review chain — merely narrowed at discovery: the front door passes
+`args.onlyRepo`, and `relay-loop.js` resolves it against the canonical `relay.toml` own
 set (honoring `# path:`), then feeds **only that repo** into the exclude filter + sig-cache +
 discover fan-out. The own-repo universe enumeration + the 40× `discover-repo.sh` classification
 are bypassed; only the one repo is classified (the per-repo path is reused, never forked). A name
 not confirmed `own` in `relay.toml` is a **LOUD reject** (surfaced in `RELAY_STATUS.md`, nothing
 dispatched) — never a `~/src`-glob guess. This is the first-class replacement for the old
 `--exclude`-every-other-repo workaround, which silently missed `# path:`-relocated repos.
+
+**Bare `/relay .` (the cwd repo, no other args) is the one exception — see Drain mode below.**
+The 2026-07-19 Amendment reverses id:7633 acceptance #4 ("`/relay .` = the autonomous
+single-repo Workflow pool") for the bare-dot form only: `/relay .` now means the
+**off-Workflow drain**, not this Workflow pool. `/relay <repo>` and `/relay --only <repo>`
+(named-repo forms) are unaffected and still resolve to the single-repo POOL described above.
 
 `--exclude` still filters the SAME canonical own set BEFORE any classification, and an unknown
 `--exclude`/`--priority` name still LOUD-rejects against the FULL own set, even under a
@@ -507,17 +513,33 @@ single-repo scope (so `/relay zkm --exclude bogus` still surfaces `bogus`).
 
 ## Drain mode
 
-`/relay . --drain` (id:93fe Phase 1) is the **single-repo drain loop**: keep running rounds
-on ONE repo (handoff→execute→review, one unit per round) until the backlog is **drained or
-fully human-blocked**. It is a **discoverability alias** — the single-repo pool (`/relay .`,
-id:7633) ALREADY does exactly this: the self-feeding loop's `isDryRound`→`drained`
-termination (K=2 consecutive no-substantive-progress rounds, keyed on the inlined `drain.mjs`
+**Bare `/relay .` = the off-Workflow drain (2026-07-19 Amendment, supersedes id:7633
+acceptance #4 — "a bare `/relay .` = the autonomous single-repo Workflow pool").**
+`classify-repo.sh` proved the per-repo classification is free and deterministic
+(`ambiguous:false`, zero agents), so spinning the full Workflow harness — a once-only
+prelude agent plus a discovery-runner agent **per round** — for ONE repo was the waste, not
+the classification logic. The owner ratified reversing the front door instead of keeping
+both meanings: `/relay .` now drives the lean **off-Workflow drain**, run by the apex
+session or the host `drain-driver.mjs` script (id:cd7a, a child of id:93fe, NOT a Workflow
+script) — it calls `classify-repo.sh` directly, dispatches ONE agent per unit in a worktree,
+integrates, re-classifies, and loops round by round — **no Workflow prelude/discovery
+agents** — until the backlog is **drained or fully human-blocked**: the `isDryRound`→
+`drained` (K=2 consecutive no-substantive-progress rounds, keyed on the inlined `drain.mjs`
 substantive/dry/blocked classification, id:d58f/4ca8) and `isBlockedRound`→
-`blocked-pending-human` termination ARE the `--drain` contract (meeting
-`docs/meeting-notes/2026-07-19-2035-relay-drain-parallel-contract.md`, D2/D6). So **`--drain`
-is sugar, not a new engine** — the front door maps it onto `args.onlyRepo` (the cwd repo, or
-the named/`--only` repo) and launches the ordinary single-repo pool. Prefer `/relay .` if you
-already know it drains; `--drain` just names the intent.
+`blocked-pending-human` termination ARE the drain contract (meeting
+`docs/meeting-notes/2026-07-19-2035-relay-drain-parallel-contract.md`, D2/D6).
+
+`/relay . --drain` (id:93fe Phase 1) names the exact same off-Workflow drain explicitly.
+**`--drain` stays a discoverability alias, not a new engine** — since a bare `/relay .`
+already drains, `--drain` is not strictly needed; it just names the intent for a user who
+reaches for the flag, or lets you request the drain on a named/`--only` repo
+(`/relay zkm --drain`) without relying on cwd. Prefer `/relay .` if you already know it
+drains; `--drain` is sugar for the same off-Workflow `drain-driver.mjs`.
+
+**Build status:** the driver core (id:cd7a) and its heartbeat/quota/event wiring
+(id:f9d2/838d/dd1e) are queued, worktree-verifiable children of id:93fe — this section
+documents the ratified front-door meaning those children implement, not a claim that the
+driver is already merged. Track their state in ROADMAP.md, not here.
 
 The remaining Phase-1 contract item — the **review-agent anti-spam brief** (D3: a reviewer may
 open a REVIEW_ME box only for genuine human-judgment, never to re-question already-decided
@@ -652,13 +674,13 @@ the historical `fable-ckpt-*` prefix:
 | `POOL_WIDTH` | integer | `5` | Number of distinct repos dispatched in parallel (one unit per repo). Passed as `args.POOL_WIDTH`. NOTE: the Workflow harness independently caps concurrent agents at `min(16, cpu_cores-2)`, so values above that ceiling just queue — no benefit. |
 | `--priority` `<repo\|repo,repo>` | repo list | (none) | **Per-run ORDERING bump only (id:d530), scoped to THIS run — NEVER writes relay.toml.** Ranks a priority repo's NATURALLY-discovered unit ahead of non-priority units **within the same verdict class** (above `income`, but below injected-unit precedence and the D3 verdict-class order — never a verdict override). Unlike `inject.sh`-as-priority, it does NOT create or inject a unit — it only reorders the repo's own discovered unit, so it can never double-dispatch a repo. An unknown/unconfirmed repo name is a **LOUD reject** (surfaced in `RELAY_STATUS.md`, never silently dropped). The front door maps the natural-language form ("priority on X") onto `args.priorityRepos`. |
 | `--exclude` `<repo\|repo,repo>` | repo list | (none) | **Per-run exclusion, scoped to THIS run — NEVER writes relay.toml** (avoids the destructive `classification = own→excluded` registry mutation that survives a session-kill = silent permanent exclusion). Excluded repos are DROPPED from the own-repo list **before sharding** (no shard ever sees them, no unit is emitted); each is surfaced in `RELAY_STATUS.md` Skipped as `excluded for this run (--exclude)`. An unknown/unconfirmed repo name is a **LOUD reject** (surfaced, never silently dropped). The front door maps the natural-language form ("exclude Y") onto `args.excludeRepos`. |
-| `<repo>` / `.` / `--only <repo>` | repo name | (none) | **First-class SINGLE-REPO scope (id:7633).** `/relay zkm`, `/relay .` (cwd repo), or `--only zkm` classifies **ONLY** that repo — the own-repo universe enumeration + 40× discover fan-out is bypassed, but the SAME per-repo path (`discover-repo.sh` reconcile→classify→route) is reused for the one repo (never forked). The repo resolves against `relay.toml` (THE canonical own set, honoring `# path:`-relocated repos — never a `~/src` glob); a name not confirmed `own` there is a **LOUD reject** (surfaced, no dispatch), not a guess. This replaces the old `--exclude`-everything-else workaround (which silently missed `# path:` repos). The front door resolves a bare `.` to the cwd repo's basename before launch and passes the NAME as `args.onlyRepo`. See **Single-repo scope** below. |
+| `<repo>` / `.` / `--only <repo>` | repo name | (none) | **First-class SINGLE-REPO scope (id:7633).** `/relay zkm` or `--only zkm` classifies **ONLY** that repo — the own-repo universe enumeration + 40× discover fan-out is bypassed, but the SAME per-repo path (`discover-repo.sh` reconcile→classify→route) is reused for the one repo (never forked). The repo resolves against `relay.toml` (THE canonical own set, honoring `# path:`-relocated repos — never a `~/src` glob); a name not confirmed `own` there is a **LOUD reject** (surfaced, no dispatch), not a guess. This replaces the old `--exclude`-everything-else workaround (which silently missed `# path:` repos). **Bare `/relay .` is the one exception** (2026-07-19 Amendment, supersedes id:7633 acceptance #4): it resolves to the cwd repo's basename but now means the **off-Workflow drain**, not this Workflow pool — see **Drain mode** below. See **Single-repo scope** below for the pool forms. |
 | `RELAY_QUOTA_DECAY_7D` | `START:END` fractions | (unset) | Time-decaying cap for the 7-day + 7-day-Sonnet buckets: the threshold linearly interpolates from `START` at the rolling 7-day window's open to `END` at its reset (e.g. `0.30:0.90` → ~0.82 at 6/7 elapsed). **Direction matters — weekly quota is use-it-or-lose-it (unused 7-day allowance is forfeit at reset), so the cap should RISE toward reset (`START < END`): conserve early (don't blow the week on day 1), then spend down the about-to-reset budget.** A `START > END` (spend-early / back-off-late) schedule is almost always wrong — it false-stops a healthy low-utilization run right before reset (observed 2026-06-22: `0.40:0.18` stopped at 24% 7d-util with ~22 h to reset, leaving 76% to be forfeit). Recomputed each gate check from `seven_day.resets_at`. 5h bucket unaffected (it is the real short-term burst guard). Forwarded into the quota-gate via args. |
 | `MAX_ROUNDS` | integer | `30` | Self-feeding-loop seatbelt: max re-discover→dispatch→drain rounds in one `relay-loop.js` invocation before it returns regardless. The loop normally ends earlier on the quota cap or two consecutive empty discoveries (backlog drained). Passed as `args.MAX_ROUNDS`. |
 | `RELAY_STOP_PATH` / `--stop-path` | path | `~/.config/relay/STOP` | id:c012 — the graceful-stop **STOP sentinel** the `discover-prelude` checks each round. Content = integer "rounds remaining before stop" (empty/≤0 = stop at next round boundary; the prelude consumes+removes it on firing → `stopReason: "user-stop"`). Written by `/relay stop` (empty) / `/relay stop --after N` (N). Passed as `args.STOP_PATH`. See **Stop mode**. |
 | `--once` | flag | off | id:c012 — launch-time round cap: dispatch exactly ONE round, then stop with `stopReason: "user-stop"`. Sugar for `--after 1`. Passed as `args.once = true`. |
 | `--after N` | integer | (none) | id:c012 — launch-time round cap: dispatch `N` rounds, then stop with `stopReason: "user-stop"`. Pure-JS outer-loop cap, independent of the STOP sentinel. Passed as `args.stopAfter = N`. |
-| `--drain` | flag | off | id:93fe Phase 1 — **single-repo drain, a discoverability ALIAS.** Resolves to the cwd repo (or the named/`--only` repo) and runs the single-repo pool, which ALREADY loops rounds until drained-or-human-blocked. **Not strictly needed: `/relay .` already drains** — the loop's `isDryRound`→`drained` (K=2 no-substantive-progress rounds via the inlined `drain.mjs`, id:d58f/4ca8) and `isBlockedRound`→`blocked-pending-human` termination is the whole `--drain` contract (meeting `2026-07-19-2035-relay-drain-parallel-contract.md`, D2/D6). `--drain` is the explicit verb for users who reach for it; the front door maps it onto `args.onlyRepo` (cwd) — no separate engine. |
+| `--drain` | flag | off | id:93fe Phase 1 — **single-repo off-Workflow drain, a discoverability ALIAS.** Resolves to the cwd repo (or the named/`--only` repo) and runs the lean **off-Workflow** drain via `drain-driver.mjs` (id:cd7a) — no Workflow prelude/discovery agents. **Not strictly needed: bare `/relay .` already drains** (2026-07-19 Amendment, supersedes id:7633 acceptance #4) — the driver's `isDryRound`→`drained` (K=2 no-substantive-progress rounds via the inlined `drain.mjs`, id:d58f/4ca8) and `isBlockedRound`→`blocked-pending-human` termination is the whole drain contract (meeting `2026-07-19-2035-relay-drain-parallel-contract.md`, D2/D6). `--drain` is the explicit verb for users who reach for it, or for requesting the drain on a named/`--only` repo — no separate engine. |
 | `--parallel N` | integer | (none) | id:ebbe — **Phase 2 of `--drain`, NOT YET BUILT.** Would fan out N executors within a drain round (one-writer-to-main: executors→worktrees, single driver merges `--no-ff` serially; mechanical fail-closed disjoint-path greenlight — meeting D4/D5). Gated-on id:0534 (landed). Until built, the front door LOUD-surfaces "`--parallel` (id:ebbe) is not yet implemented — running single-executor drain" and proceeds as `--drain` (N=1). Route id:ebbe to `/relay handoff` to author the RED spec. |
 | `DISCOVER_SHARDS` | integer | `6` | Number of parallel discovery-shard classifiers fanned out per round (id:9ed4). A once-only prelude does the global work (runId, the consuming `inject.sh take`, `claim.sh peek`, the own-repo list + non-own skipped rollup); the own repos are round-robin chunked across this many shard agents that classify in parallel, then merged into the same discovery object. Capped at the repo count; the Workflow harness's `min(16, cpu_cores-2)` agent ceiling still applies, so shards above it just queue. Passed as `args.DISCOVER_SHARDS`. |
 | `RELAY_STATUS_PATH` | path | `~/.config/relay/RELAY_STATUS.md` | Where the cross-repo rollup is written (override for testing). |
