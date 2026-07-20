@@ -59,4 +59,33 @@ D="$tmp/d"; mkfixture "$D"   # no node_modules → toolchain genuinely absent
 printf 'test: 12 passed\nSKIPPED-TIER: test:e2e — playwright not installed on host\n' > "$tmp/d_entry"
 "$RG" --repo "$D" --entry "$tmp/d_entry" || { echo "FAIL (d): SKIPPED-TIER with toolchain absent must be ACCEPTED (exit 0)"; exit 1; }
 
+# --- Makefile-tier fixture (id:050b) ------------------------------------------------------
+# A repo fixture declaring two test tiers via a Makefile: `test` and `test-e2e`.
+mkfixture_makefile() {  # mkfixture_makefile <dir>
+  local d="$1"; mkdir -p "$d"
+  cat > "$d/Makefile" <<'EOF'
+build:
+	go build ./...
+
+test:
+	go test ./...
+
+test-e2e:
+	go test -tags e2e ./...
+EOF
+}
+
+# --- (e) MAKEFILE: MISSING TIER → refuse --------------------------------------------------
+D="$tmp/e"; mkfixture_makefile "$D"
+printf 'test: 12 passed\n' > "$tmp/e_entry"     # covers `test`, omits `test-e2e`
+if "$RG" --repo "$D" --entry "$tmp/e_entry" 2>"$tmp/e_err"; then
+  echo "FAIL (e): entry missing the Makefile test-e2e tier must be REFUSED (nonzero), got exit 0"; exit 1
+fi
+grep -q 'test-e2e' "$tmp/e_err" || { echo "FAIL (e): refusal must name the uncovered Makefile tier (test-e2e) on stderr"; exit 1; }
+
+# --- (f) MAKEFILE: ALL TIERS REPORTED → accept ---------------------------------------------
+D="$tmp/f"; mkfixture_makefile "$D"
+printf 'test: 12 passed\ntest-e2e: 5 passed\n' > "$tmp/f_entry"
+"$RG" --repo "$D" --entry "$tmp/f_entry" || { echo "FAIL (f): entry covering every declared Makefile tier must be ACCEPTED (exit 0)"; exit 1; }
+
 echo "PASS: tier-coverage checkpoint gate (66d4)"
