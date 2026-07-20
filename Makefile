@@ -68,7 +68,7 @@ relay_FILES := SKILL.md \
                scripts/lib-own-repos.sh scripts/lib-anchored-id.sh \
                scripts/mechanical-proxy.py \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
-               scripts/disjoint-greenlight.sh
+               scripts/disjoint-greenlight.sh scripts/drain-integrate.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
@@ -91,7 +91,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
-               scripts/disjoint-greenlight.sh
+               scripts/disjoint-greenlight.sh scripts/drain-integrate.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
@@ -114,7 +114,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
-               scripts/disjoint-greenlight.sh
+               scripts/disjoint-greenlight.sh scripts/drain-integrate.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
