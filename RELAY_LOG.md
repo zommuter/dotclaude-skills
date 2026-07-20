@@ -2986,3 +2986,7 @@ independent re-review: id:176f allowlist fix SOUND (3 bypasses closed, no new ho
 ## 2026-07-20 13:17 — reviewer (claude-opus-4-8)
 
 fix gather bugs fa5c + 306d (execute+review SHIP, suite 273/0)
+
+## 2026-07-20 14:04 — reviewer (claude-opus-4-8)
+
+integrate id:be0e (roadmap-lint head-anchor) + id:050b (Makefile-tier fixture)
