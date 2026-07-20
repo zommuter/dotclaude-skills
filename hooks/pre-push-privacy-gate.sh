@@ -69,14 +69,14 @@ done < "$PATTERNS_FILE"
 # PRIVACY_GATE_PRIVATE_HOSTS add site-specific hosts (kept OUT of this public file).
 builtin_private='(^|@|//)(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)|\.local($|[:/])'
 is_private=0
-if [[ -n "$REMOTE_URL" ]] && grep -Eq "$builtin_private" <<<"$REMOTE_URL"; then
+if [[ -n "$REMOTE_URL" ]] && grep -Eq -e "$builtin_private" <<<"$REMOTE_URL"; then
   is_private=1
 fi
-if [[ -n "${PRIVACY_GATE_PRIVATE_HOSTS:-}" ]] && grep -Eq "$PRIVACY_GATE_PRIVATE_HOSTS" <<<"$REMOTE_URL"; then
+if [[ -n "${PRIVACY_GATE_PRIVATE_HOSTS:-}" ]] && grep -Eq -e "$PRIVACY_GATE_PRIVATE_HOSTS" <<<"$REMOTE_URL"; then
   is_private=1
 fi
 for re in "${priv_host_res[@]}"; do
-  [[ -n "$re" ]] && grep -Eq "$re" <<<"$REMOTE_URL" && is_private=1
+  [[ -n "$re" ]] && grep -Eq -e "$re" <<<"$REMOTE_URL" && is_private=1
 done
 
 if [[ "$is_private" -eq 1 ]]; then
@@ -116,11 +116,11 @@ while IFS=$'\t' read -r ref content; do
   # Allowlisted content is intentional/functional — suppress it.
   suppressed=0
   for a in "${allow_patterns[@]}"; do
-    [[ -n "$a" ]] && grep -Eq "$a" <<<"$content" && { suppressed=1; break; }
+    [[ -n "$a" ]] && grep -Eq -e "$a" <<<"$content" && { suppressed=1; break; }
   done
   [[ "$suppressed" -eq 1 ]] && continue
   for p in "${leak_patterns[@]}"; do
-    if grep -Eq "$p" <<<"$content"; then
+    if grep -Eq -e "$p" <<<"$content"; then
       findings+="${ref}"$'\t'"${p}"$'\t'"${content}"$'\n'
       break
     fi

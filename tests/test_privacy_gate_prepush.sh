@@ -40,7 +40,7 @@ printf 'clean first line\n' > "$REPO/file.txt"
 git -C "$REPO" add file.txt
 git -C "$REPO" commit -q -m base
 SHA_A="$(git -C "$REPO" rev-parse HEAD)"
-printf 'clean first line\nZZLEAKTOKEN-4242 seeded synthetic secret\n' > "$REPO/file.txt"
+printf 'clean first line\nZZLEAKTOKEN-4242 seeded synthetic secret\nkey: -----BEGIN FIXTURE KEY-----\n' > "$REPO/file.txt"
 git -C "$REPO" add file.txt
 git -C "$REPO" commit -q -m add-leak
 SHA_B="$(git -C "$REPO" rev-parse HEAD)"
@@ -51,6 +51,7 @@ PAT="$TMP/patterns.txt"
 cat > "$PAT" <<'EOF'
 # synthetic fixture — no real leak specifics
 ZZLEAKTOKEN-[0-9]+
+-----BEGIN [A-Z ]*KEY-----
 allow: ZZALLOWED-[0-9]+
 private-host: fievel
 EOF
@@ -75,6 +76,15 @@ grep -q 'ZZLEAKTOKEN-4242' <<<"$out" \
 [[ -f "$LOG" ]] && grep -q 'ZZLEAKTOKEN-4242' "$LOG" \
   && ok "ebd0: finding is LOGGED (ref+finding) on a public push" \
   || bad "ebd0: seeded pattern not appended to the log on a public push"
+# Regression: a leak pattern that STARTS WITH '-' (e.g. -----BEGIN … KEY-----) must be passed to
+# grep via -e, else grep parses it as an option ("unrecognized option") and the pattern silently
+# never matches — secret detection broken. Caught by a live push test 2026-07-20.
+grep -q 'BEGIN FIXTURE KEY' <<<"$out" \
+  && ok "ebd0: leading-dash pattern (-----BEGIN…KEY-----) matches (grep -e)" \
+  || bad "ebd0: leading-dash pattern did NOT match — grep likely parsed it as an option. Output: $out"
+grep -qiE 'unrecognized option|Usage: grep' <<<"$out" \
+  && bad "ebd0: grep emitted an option-parse error — a pattern reached grep without -e. Output: $out" \
+  || ok "ebd0: no grep option-parse error (all var patterns passed via -e)"
 
 # ── (2) PRIVATE remote (matches fixture private-host): scan SKIPPED, exit 0 ──
 : > "$LOG"
