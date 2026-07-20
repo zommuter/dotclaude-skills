@@ -241,10 +241,30 @@ warn_nested_worktrees() {
 # disposition). Recognized items emit kind + ` — <bucket>: <why>` on box_summary.
 # Only OPEN `- [ ]` items; `- [x]` never.
 # $1 repo name, $2 repo path.  Returns nonzero (3) if any untagged HARD item seen.
+#
+# id:4e67 — TODO.md human-lane scan + dedup. Extra optional args generalise this
+# helper so it can ALSO scan a repo's TODO.md for open human-lane items and emit them
+# alongside the ROADMAP output, deduped by id:
+#   $3 file       — file to scan (default $path/ROADMAP.md; scan_repo passes TODO.md)
+#   $4 todo_mode  — 1 to run in TODO mode (default 0 = ROADMAP mode)
+#   $5 seen_ids   — space-separated `id:XXXX` tokens already emitted from ROADMAP; a
+#                   TODO item whose id is in this set is skipped (dedup: an id in BOTH
+#                   ledgers is listed ONCE — the ROADMAP row wins).
+# In TODO mode the collector ONLY surfaces human-lane buckets (meeting/decision/access/
+# author — NOT the pool lane, which the pool runs unattended) and NEVER loud-rejects an
+# untagged item (TODO holds many non-lane items by design; an untagged reject there is
+# noise, not a contract gap — the LOUD reject stays a ROADMAP-only invariant).
 emit_hard_lanes() {
-  local name="$1" path="$2" roadmap="$path/ROADMAP.md"
-  [[ -f "$roadmap" ]] || return 0
-  awk -v name="$name" -v path="$path" '
+  local name="$1" path="$2"
+  local file="${3:-$path/ROADMAP.md}"
+  local todo_mode="${4:-0}"
+  local seen_ids="${5:-}"
+  [[ -f "$file" ]] || return 0
+  awk -v name="$name" -v path="$path" -v todo_mode="$todo_mode" -v seen_ids="$seen_ids" '
+    BEGIN {
+      n = split(seen_ids, _sa, " ")
+      for (i = 1; i <= n; i++) if (_sa[i] != "") seen[_sa[i]] = 1
+    }
     # Open top-level checkbox items only (sub-bullets are continuation prose).
     /^[[:space:]]*- \[ \] / {
       line = $0
@@ -321,6 +341,17 @@ emit_hard_lanes() {
         kind = "untagged"; bucket = "untagged"
       }
 
+      # id:4e67 — TODO-mode filtering + dedup. In TODO mode surface ONLY human-lane
+      # buckets (never the pool lane — the pool runs those unattended — and never the
+      # untagged LOUD reject, which stays a ROADMAP-only invariant), and skip any id
+      # already emitted from ROADMAP so an item in BOTH ledgers is listed exactly once.
+      if (todo_mode) {
+        if (bucket == "pool" || bucket == "untagged") next
+        itemid = ""
+        if (match(line, /id:[0-9a-f]{4}/)) itemid = substr(line, RSTART, RLENGTH)
+        if (itemid != "" && (itemid in seen)) next
+      }
+
       # Strip "- [ ] " prefix and collapse whitespace (TSV-safe).
       summary = line
       sub(/^[[:space:]]*- \[ \] /, "", summary)
@@ -356,7 +387,7 @@ emit_hard_lanes() {
       printf "%s\t%s\t%s\t%s — %s: %s\n", name, path, kind, summary, bucket, why
     }
     END { if (saw_untagged) exit 3 }
-  ' "$roadmap"
+  ' "$file"
 }
 
 # --- OFFLINE @needs-auth lister (id:1750) ------------------------------------
@@ -467,12 +498,22 @@ scan_repo() {
   # Open [HARD] ROADMAP items, bucketed by explicit lane tag (id:78ff). A nonzero
   # return (status 3) means an untagged HARD item was seen — record it for the LOUD
   # nonzero exit at end of run; `|| rc=$?` keeps `set -e` from aborting mid-scan.
-  local rc=0
-  emit_hard_lanes "$name" "$path" 2>>"$REJECT_LOG" || rc=$?
+  local rc=0 hard_out=""
+  hard_out="$(emit_hard_lanes "$name" "$path" 2>>"$REJECT_LOG")" || rc=$?
   if (( rc == 3 )); then
     UNTAGGED_FOUND=1
   elif (( rc != 0 )); then
     return "$rc"
+  fi
+  [[ -n "$hard_out" ]] && printf '%s\n' "$hard_out"
+  # id:4e67 — ALSO scan TODO.md for open human-lane items and emit them alongside the
+  # ROADMAP/REVIEW_ME output, deduped by id against the ROADMAP hard-lane rows just
+  # emitted (an id in BOTH ledgers is listed once). Closes the e9cd TODO-blindness gap:
+  # human-gated items living only in TODO were invisible to /relay human.
+  if [[ -f "$path/TODO.md" ]]; then
+    local seen_ids
+    seen_ids="$(printf '%s\n' "$hard_out" | grep -oE 'id:[0-9a-f]{4}' | sort -u | tr '\n' ' ')"
+    emit_hard_lanes "$name" "$path" "$path/TODO.md" 1 "$seen_ids"
   fi
   # id:8a6b — mechanical-orphan / un-promoted-draft rows for this repo (surface-only). Translate
   # the scanner's `kind\tid\trepo\thost\tresource\tdetail` into a gather row with a clear summary.
