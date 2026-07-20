@@ -2982,3 +2982,7 @@ id:176f allowlist hardening — identity-pin (realpath under canonical root), re
 ## 2026-07-19 23:19 — reviewer (claude-opus-4-8)
 
 independent re-review: id:176f allowlist fix SOUND (3 bypasses closed, no new holes, tests bite); SHIP; cross-filed
+
+## 2026-07-20 13:17 — reviewer (claude-opus-4-8)
+
+fix gather bugs fa5c + 306d (execute+review SHIP, suite 273/0)
