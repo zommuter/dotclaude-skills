@@ -13,3 +13,4 @@ __pycache__/
 
 # meeting persona-state event shards (local-only, folded into persona-state.yml)
 persona-events/
+RELAY_STATUS.md
