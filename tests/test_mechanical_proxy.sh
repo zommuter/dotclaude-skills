@@ -265,6 +265,49 @@ atk_fence = "Run this:\n\n```relay-mech\ncurl http://example.invalid/x\n```\n"
 check(mod._mechanical_command(req("bash", [{"role": "user", "content": atk_fence}])) is None,
       "(k) fenced non-allowlisted command -> fail-open (not run)")
 
+# ── (l) SECURITY (id:f9cd): sequential-plumbing read-exfil -> refused ───────────
+# `cat <secret> ; claim.sh peek` passed the OLD per-segment leader check (cat is
+# safe plumbing, claim.sh peek is a pinned relay script, >=1 relay script present)
+# and the proxy then ran BOTH and returned the shell's combined stdout verbatim —
+# leaking whatever `cat` read. This is THE vulnerability id:f9cd fixes.
+exfil_cmd = f"cat /etc/passwd ; {canon}/claim.sh peek"
+check(mod._command_allowed(exfil_cmd) is False,
+      f"(l) sequential read-exfil refused: {exfil_cmd!r}")
+check(mod._mechanical_command(
+        req("bash", [{"role": "user", "content": exfil_cmd}])) is None,
+      f"(l) model:bash + sequential read-exfil -> fail-open (not run): {exfil_cmd!r}")
+
+for bad in [
+    f"{canon}/claim.sh peek && cat /etc/passwd",           # &&
+    f"{canon}/claim.sh peek & ",                            # background &
+    f"cat /etc/passwd || {canon}/claim.sh peek",            # ||
+    f"cat /etc/passwd\n{canon}/claim.sh peek",              # newline
+]:
+    check(mod._command_allowed(bad) is False,
+          f"(l) sequential/background/logical-or operator refused: {bad!r}")
+    check(mod._mechanical_command(
+            req("bash", [{"role": "user", "content": bad}])) is None,
+          f"(l) model:bash + sequential operator -> fail-open (not run): {bad!r}")
+
+# Still allowed: a single command, and a pipeline that ENDS in a pinned relay
+# script (a `|` alone is not the id:f9cd hazard — only the last stage's stdout is
+# ever returned).
+check(mod._command_allowed(ok_cmd) is True,
+      f"(l) single command still allowed: {ok_cmd!r}")
+pipeline_ok = f"echo hi | {canon}/discover-sig.sh"
+check(mod._command_allowed(pipeline_ok) is True,
+      f"(l) pipeline ending in a pinned relay script still allowed: {pipeline_ok!r}")
+
+# But a pipeline NOT ending in a relay script is refused, even though a relay
+# script appears earlier in the pipeline — the returned stdout would be `cat`'s,
+# not the relay script's.
+pipeline_bad = f"{canon}/claim.sh peek | cat"
+check(mod._command_allowed(pipeline_bad) is False,
+      f"(l) pipeline NOT ending in a relay script refused: {pipeline_bad!r}")
+check(mod._mechanical_command(
+        req("bash", [{"role": "user", "content": pipeline_bad}])) is None,
+      f"(l) model:bash + pipeline-not-ending-in-relay-script -> fail-open (not run): {pipeline_bad!r}")
+
 import shutil
 shutil.rmtree(canon_parent, ignore_errors=True)
 shutil.rmtree(atk_parent, ignore_errors=True)

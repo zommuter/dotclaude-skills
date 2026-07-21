@@ -271,6 +271,38 @@ def _token_is_relay_script(tok: str):
     return name
 
 
+def _has_unquoted_sequence_operator(command: str) -> bool:
+    """True if `command` carries an unquoted sequential/background/logical-or
+    operator OUTSIDE quotes: `;`, a newline, `&` (catches both a background `&`
+    and `&&`), or `||`. These operators concatenate the STDOUT of independent
+    commands (id:f9cd) — `cat ~/.claude/.credentials.json ; claim.sh peek` passes
+    the old per-segment leader check (cat=plumbing, claim.sh=pinned relay, >=1
+    relay present) and the proxy then returns the credential file's contents
+    verbatim in the model:"bash" reply. A single `|` (pipeline) is NOT refused
+    here — only the LAST pipeline stage's stdout is ever returned, and
+    _command_allowed() separately requires that last stage to be a pinned relay
+    script. Quote-aware and modelled on _has_unquoted_redirection: a `;`/`&`/`|`
+    byte inside a quoted argument is not mistaken for an operator."""
+    quote = None
+    i = 0
+    n = len(command)
+    while i < n:
+        c = command[i]
+        if quote is not None:
+            if c == quote:
+                quote = None
+        elif c in ("'", '"'):
+            quote = c
+        elif c == "\\":
+            i += 1  # skip the escaped byte
+        elif c in (";", "\n", "&"):
+            return True
+        elif c == "|" and i + 1 < n and command[i + 1] == "|":
+            return True  # `||` — logical-or, not a single pipe
+        i += 1
+    return False
+
+
 def _has_unquoted_redirection(command: str) -> bool:
     """True if `command` carries an unquoted redirection operator (`>`, `<`, `>>`,
     `2>`, `&>`, …). A mechanical relay hop never redirects; refusing here stops an
@@ -296,12 +328,30 @@ def _has_unquoted_redirection(command: str) -> bool:
 
 
 def _command_allowed(command: str) -> bool:
-    """True iff every simple command in `command` leads with either a safe plumbing
-    token or an allowlisted relay script, AND at least one is an allowlisted relay
-    script. Anything else — an unrecognised leading command, an unknown relay
-    script, an unparseable segment, or a command substitution — returns False, and
-    the caller then relays the request to the real model (fail-open)."""
+    """True iff `command` is a SINGLE PIPELINE (no `;`/`&`/`&&`/`||`/newline —
+    see _has_unquoted_sequence_operator) whose stages each lead with either a safe
+    plumbing token or an allowlisted relay script, AND whose LAST stage leads with
+    an allowlisted relay script. Anything else — a sequential/background/logical-or
+    operator, an unrecognised leading command, an unknown relay script, an
+    unparseable segment, a command substitution, or a pipeline that doesn't END in
+    a pinned relay script — returns False, and the caller then relays the request
+    to the real model (fail-open).
+
+    The last-stage requirement is the id:f9cd hardening: the proxy always returns
+    only the FINAL pipeline stage's stdout (a shell pipeline's stdout is whatever
+    the last stage writes), so pinning the last stage to a relay script guarantees
+    the returned text is always that script's own output — never a plumbing
+    command (`cat`, `echo`, …) reading an arbitrary/secret file. Combined with the
+    sequence-operator refusal above (which would otherwise let independent
+    commands' stdouts be concatenated), a mechanical hop can never surface
+    anything but a pinned relay script's own stdout."""
     if not command or not command.strip():
+        return False
+    # Sequential/background/logical-or operators let independent commands' stdout
+    # be concatenated in the reply (the id:f9cd exfil: `cat <secret> ; claim.sh
+    # peek` — both leaders pass the per-segment check below in isolation). Refuse
+    # before any further parsing so nothing downstream can smuggle one back in.
+    if _has_unquoted_sequence_operator(command):
         return False
     # Command substitution is never part of a mechanical relay hop; refuse it so a
     # nested command can't smuggle in around the per-segment leader check. Process
@@ -313,10 +363,13 @@ def _command_allowed(command: str) -> bool:
     # (>, <, >>, 2>, &>) could clobber/read an attacker path, so refuse the command.
     if _has_unquoted_redirection(command):
         return False
+    segments = [seg for seg in _SEG_SPLIT_RE.split(command) if seg.strip()]
+    if not segments:
+        return False
     saw_relay_script = False
-    for segment in _SEG_SPLIT_RE.split(command):
-        if not segment.strip():
-            continue
+    last_is_relay_script = False
+    last_idx = len(segments) - 1
+    for idx, segment in enumerate(segments):
         leader = _segment_leader(segment)
         if leader is None:
             return False
@@ -325,9 +378,11 @@ def _command_allowed(command: str) -> bool:
             if name not in ALLOWED_RELAY_SCRIPTS:
                 return False  # a relay-scripts path that isn't on the allowlist
             saw_relay_script = True
+            if idx == last_idx:
+                last_is_relay_script = True
         elif leader not in _SAFE_PLUMBING:
             return False  # a leading command that is neither plumbing nor a relay script
-    return saw_relay_script
+    return saw_relay_script and last_is_relay_script
 
 
 def _mechanical_command(body: bytes):
