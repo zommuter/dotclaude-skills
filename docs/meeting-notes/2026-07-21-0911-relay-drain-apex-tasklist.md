@@ -1,5 +1,7 @@
 # 2026-07-21 — Apex-TaskList drain driver (`/relay . --drain`, id:2b23)
 
+> **⚠ SUPERSEDED 2026-07-21 (D1 only) — owner ratified CONSOLIDATE.** The D1 "coexist apex-driver" decision below is superseded: the Workflow pool + `mechanical-proxy.py` is now the **sole LLM-orchestration loop** (the queue lives in the Workflow's deterministic `pipeline()` control flow, satisfying `routed:436c`). PARKED: id:8ba1 (apex-TaskList driver), id:23d8 (cron-safety), id:b3cc (`claude -p` orchestrator). KEPT: id:9f1b (drain-stop CLI), id:2ca6 (3-ledger), `drain-driver.mjs` (frozen headless fallback). **Trigger:** the id:94b8 probe confirmed `model:"bash"` intercepts end-to-end (21:27, via a ```relay-mech fence), dissolving id:2ec4 ("Workflow can't dispatch mechanically") — exactly the contingency the id:8ba1 forward-flag pre-registered ("if 176f can front the Workflow host, prefer Workflow-native"). This is an APPENDED superseding note (decision-provenance); D1's text below stands as the record of what was decided at 09:11. See `RELAY_LOG.md` (2026-07-21) + `docs/meeting-notes/2026-07-21-1953-relay-model-mechanical-proxy-substrate.md` (D2 probe-gate).
+
 **Started:** 2026-07-21 09:11
 **Session:** 29344b4a-1fc4-42d4-953a-aee34701285a
 **Attendees:** 🏗️ Archie (architect), 😈 Riku (devil's advocate), ✂️ Petra (productivity), 🎛️ Orla (multi-agent orchestration, new), 🔩 Gil (git plumbing, new)
