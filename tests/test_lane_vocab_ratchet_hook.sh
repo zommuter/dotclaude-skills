@@ -49,7 +49,13 @@ export LANE_VOCAB_RELAY_TOML="$RELAYTOML"
 stage_and_run() { # <content>
   printf '%s' "$1" > "$REPO/ROADMAP.md"
   git -C "$REPO" add ROADMAP.md
-  ( cd "$REPO" && bash "$HOOK" ) 2>&1
+  # `|| true`: this helper's return status is only ever assigned via command
+  # substitution ("out=$(stage_and_run ...)"); under `set -e` a nonzero status there
+  # aborts the whole script (a plain assignment is NOT an exempted -e context — unlike
+  # `if`/`while`/`||`). run_rc already dodges this by wrapping in `echo $?`; mirror
+  # that here so a correctly-BLOCKING hook (rc=1, the case this helper exists to
+  # exercise) doesn't kill the test run before its assertion even executes.
+  ( cd "$REPO" && bash "$HOOK" ) 2>&1 || true
 }
 run_rc() { # <content>
   printf '%s' "$1" > "$REPO/ROADMAP.md"
