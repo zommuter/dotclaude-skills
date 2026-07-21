@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# roadmap:6176 — relay-loop.js must emit its proxy-eligible mechanical hops as
+# model:"bash" + a ```relay-mech fence, so mechanical-proxy.py (id:176f) intercepts
+# and runs them locally with ZERO upstream inference. Wiring child of id:176f.
+#
+# Static structure test (a grep/parse of relay-loop.js, like
+# tests/test_relay_loop_structure.sh) — NO live pool, NO network. It asserts the
+# EMITTER SHAPE only; whether model:"bash" actually reaches the proxy is a
+# runtime/deploy concern (ANTHROPIC_BASE_URL must point at the proxy) and is
+# deliberately OUT of scope here.
+#
+# SCOPE (the convertible set): only the hops whose command is a SINGLE allowlisted
+# relay-script pipeline the proxy's _command_allowed() accepts — no heredoc, no
+# `&&`/`;`, no `$(...)`, no `>>`, no python3. Those are:
+#   file-surface:  -> file-surface-decisions.sh
+#   quota:         -> quota-stop.sh
+#   inject-take    -> inject.sh take
+#   heartbeat-beat -> heartbeat.sh beat
+#   heartbeat-stop -> heartbeat.sh stop
+# The OTHER haiku hops are NOT proxy-eligible and MUST NOT be flipped: the
+# discover-prelude (multi-command + LLM JSON assembly) and the discover-run
+# classify shard (the id:7402 residual LLM read) stay model:'haiku'. This test
+# guards that boundary in BOTH directions.
+
+set -euo pipefail
+
+SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+JS="$SRC_DIR/relay/scripts/relay-loop.js"
+
+pass() { echo "PASS: $*"; }
+fail() { echo "FAIL: $*"; exit 1; }
+
+[[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
+pass "relay-loop.js exists"
+
+# (1) At least one ```relay-mech fenced block exists (the proxy's extraction anchor).
+grep -q '```relay-mech' "$JS" \
+  || fail "no relay-mech fenced block — proxy (mechanical-proxy.py) cannot extract any mechanical command"
+pass "at least one relay-mech fence present"
+
+# (2) At least 5 model:"bash" dispatches (one per convertible hop).
+bash_count=$(grep -Eo "model: *['\"]bash['\"]" "$JS" | wc -l)
+[[ "$bash_count" -ge 5 ]] \
+  || fail "expected >=5 model:\"bash\" dispatches (the 5 convertible mechanical hops); found $bash_count"
+pass "model:\"bash\" dispatched for the mechanical hops ($bash_count found)"
+
+# (3) Per-hop: each convertible hop's option object uses model:"bash", NOT model:'haiku'.
+# The label + model live on the same single-line option object for all five.
+check_hop_model_bash() {
+  local label_re="$1" human="$2"
+  local line
+  line=$(grep -nE "label: *[\`'\"]$label_re" "$JS" | grep "model:" || true)
+  [[ -n "$line" ]] || fail "$human: no single-line option object matching label '$label_re' with a model field"
+  if echo "$line" | grep -qE "model: *['\"]haiku['\"]"; then
+    fail "$human: hop still dispatched with model:'haiku' — must become model:\"bash\" (proxy-eligible mechanical hop)"
+  fi
+  echo "$line" | grep -qE "model: *['\"]bash['\"]" \
+    || fail "$human: hop's model is neither 'haiku' nor 'bash' — expected model:\"bash\""
+  pass "$human: dispatched with model:\"bash\" (not haiku)"
+}
+check_hop_model_bash "file-surface:" "file-surface hop"
+check_hop_model_bash "quota:"        "quota hop"
+check_hop_model_bash "inject-take'"  "inject-take hop"
+check_hop_model_bash "heartbeat-beat'" "heartbeat-beat hop"
+check_hop_model_bash "heartbeat-stop'" "heartbeat-stop hop"
+
+# (4) Each convertible hop's exact relay-script command sits INSIDE a ```relay-mech
+# fence (so the proxy's _MECH_FENCE_RE extracts it). This is the check that makes the
+# test non-trivial: flipping model without fencing the command, or fencing an empty
+# block, both fail here.
+python3 - "$JS" <<'PYEOF'
+import re, sys
+js = open(sys.argv[1]).read()
+fences = re.findall(r"```relay-mech[ \t]*\r?\n(.*?)\r?\n```", js, re.DOTALL | re.IGNORECASE)
+blob = "\n".join(fences)
+required = [
+    "file-surface-decisions.sh",
+    "quota-stop.sh",
+    "inject.sh take",
+    "heartbeat.sh beat",
+    "heartbeat.sh stop",
+]
+missing = [c for c in required if c not in blob]
+if not fences:
+    sys.exit("FAIL: no ```relay-mech fenced blocks found for command-content check")
+if missing:
+    sys.exit("FAIL: these mechanical commands are not inside any ```relay-mech fence: " + ", ".join(missing))
+print("PASS: all 5 convertible commands live inside a ```relay-mech fence")
+PYEOF
+
+# (5) Boundary guard — the NON-eligible LLM hops must STAY model:'haiku' (a lazy
+# executor must not flip the residual LLM read / prelude to bash). The classify
+# shard (label discover-run:) is the id:7402 residual LLM surface; the
+# discover-prelude assembles structured JSON from several commands (not a single
+# pipeline). Both are wrong to route through the mechanical proxy.
+for label in "discover-prelude'" "discover-run:"; do
+  line=$(grep -nE "label: *[\`']$label" "$JS" | grep "model:" || true)
+  [[ -n "$line" ]] || fail "boundary guard: could not locate the '$label' hop option object"
+  echo "$line" | grep -qE "model: *['\"]haiku['\"]" \
+    || fail "boundary guard: the LLM hop '$label' must STAY model:'haiku' (not proxy-eligible — do not convert)"
+done
+pass "boundary guard: discover-prelude + classify-shard stay model:'haiku' (LLM, not mechanical)"
+
+echo "ALL PASS"
