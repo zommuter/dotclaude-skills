@@ -1,0 +1,27 @@
+# known-flags-relay.tsv — manifest of /relay invocation flags (id:7681).
+# Columns: flag<TAB>takes_value(0|1). Read by validate-flags.sh; never hand-parsed
+# elsewhere. Keyword modes (handoff/review/next/human/health/executor/stop/inject)
+# are bare (non-dash) tokens and are out of scope for this dash-flag guard by design
+# (rule 3 of ROADMAP id:7681: keys ONLY on leading-dash tokens).
+#
+# Source of truth for content: ROADMAP.md id:7681 pinned interface + relay/SKILL.md
+# Invocation fence + ## Configuration knobs table (see validate-flags.sh --coverage).
+-d	0
+--fable-down	0
+--interactive	0
+--afk	0
+--intensive	0
+--allow-intensive	0
+--strong-tier	1
+--priority	1
+--exclude	1
+--only	1
+--quota-7d	1
+--quota-5h	1
+--pool-width	1
+--once	0
+--after	1
+--drain	0
+--parallel	1
+--stop-path	1
+--all	0
