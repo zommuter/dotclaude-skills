@@ -3076,3 +3076,23 @@ Point (2) above is now CLOSED by a live capture (owner ran a real proxied sessio
 So the ```relay-mech fence SURVIVES the real harness subagent wrapper, the extractor matched it, and the proxy short-circuited with ZERO upstream calls. `model:"bash"` works end-to-end against the live harness — not just a simulated wrapper. (`output_bytes:0` = `claim.sh peek` had no active claims, not a failure.)
 
 Consequence: the `model:"bash"` mechanical dispatch handle is proven viable. REMAINING for id:176f: (1) wire the EMITTER (relay-loop.js emits the ```relay-mech fence; convert echo-runner + the ~12 Haiku hops); (3) the 436c-vs-8ba1 consolidate/coexist owner call — now with a fully-validated mechanism behind it.
+## 2026-07-21 22:00 — executor (sonnet) id:f9cd
+
+Hardened `relay/scripts/mechanical-proxy.py` against the sequential-plumbing read-exfil TODO id:f9cd flagged: `_command_allowed()` split a compound command on `; | || && & \n` and required each SEGMENT's leader to be safe-plumbing or a pinned relay script (>=1 relay script present) — so `cat ~/.claude/.credentials.json ; <pinned>/claim.sh peek` passed (cat=plumbing, claim.sh=pinned relay, >=1 relay) and the proxy returned the concatenated stdout verbatim, leaking the 0600 credential file.
+
+Fix (two-part, `_command_allowed` only):
+1. New quote-aware `_has_unquoted_sequence_operator()` (modelled on the existing `_has_unquoted_redirection` scan) refuses any unquoted `;`, newline, `&` (catches `&&` and background `&`), or `||` OUTSIDE quotes — checked FIRST, before command-substitution/redirection checks. A single unquoted `|` is NOT refused here.
+2. The remaining pipe-only split now also requires the LAST stage's leader to be a pinned relay script (previously any stage sufficed) — so the returned stdout is always a relay script's own output, never an earlier plumbing stage's. `saw_relay_script and last_is_relay_script` gates the return.
+
+Verified against the real mechanical hops first: `grep -n "skills/relay/scripts/" relay/scripts/relay-loop.js` — every hop is either a single command or a `printf/echo {json} | <relay-script>` pipeline ending in the relay script; NONE use `;`/`&&`/`||`/`&`/newline. No real hop needed adapting.
+
+Tests added to `tests/test_mechanical_proxy.sh` (new block (l), matching existing `canon`/`ok_script`/`ok_cmd` fixture style, no existing assertion weakened):
+- `cat /etc/passwd ; {canon}/claim.sh peek` (THE exfil) -> `_command_allowed` False AND `_mechanical_command` None.
+- `{canon}/claim.sh peek && cat /etc/passwd`, `{canon}/claim.sh peek & `, `cat /etc/passwd || {canon}/claim.sh peek`, and a newline-joined variant -> all refused.
+- Still allowed: the existing `ok_cmd` (single command) and `echo hi | {canon}/discover-sig.sh` (pipeline ending in a pinned relay script).
+- Refused: `{canon}/claim.sh peek | cat` (pipeline NOT ending in a relay script) -> `_command_allowed` False and `_mechanical_command` None.
+
+`make test`: 292 passed, 0 failed, 0 expected-red — fully green, no deviation from the ROADMAP spec.
+
+Friction: none — the vulnerability description and fix shape were precise enough that the change was mechanical once the last-stage invariant was made explicit in code.
+refactor: none needed — the change extends the existing quote-aware-scan pattern (`_has_unquoted_redirection`) rather than introducing a new one; no pre-existing duplication to clean up.
