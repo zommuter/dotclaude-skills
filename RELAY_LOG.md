@@ -3096,3 +3096,15 @@ Tests added to `tests/test_mechanical_proxy.sh` (new block (l), matching existin
 
 Friction: none — the vulnerability description and fix shape were precise enough that the change was mechanical once the last-stage invariant was made explicit in code.
 refactor: none needed — the change extends the existing quote-aware-scan pattern (`_has_unquoted_redirection`) rather than introducing a new one; no pre-existing duplication to clean up.
+
+## 2026-07-21 21:38 — DECISION: consolidate to Workflow+proxy (owner-ratified) id:2b23/8ba1/176f
+
+Owner ratified **Option A — consolidate** for the `routed:436c`-vs-id:8ba1 reconcile the 1953 meeting (D2) gated on the probe. The id:94b8 probe CONFIRMED `model:"bash"` intercepts end-to-end (21:27), dissolving **id:2ec4** ("the Workflow sandbox can't do non-LLM mechanical dispatch") — the exact constraint the off-Workflow/apex line was built to dodge, and exactly the contingency the id:8ba1 forward-flag pre-registered.
+
+Decision: the **Workflow pool (relay-loop.js) + `mechanical-proxy.py` is the SOLE LLM-orchestration loop.** The queue lives in the Workflow's deterministic `pipeline()` control flow (outside any LLM context ⇒ satisfies routed:436c). This AMENDS the 2026-07-21 09:11 D1 "coexist" decision (superseded, not rewritten — decision-provenance; banner appended to the 0911 note).
+
+Disposition:
+- **PARK** id:8ba1 (apex-TaskList driver), id:23d8 (cron-safety — apex-specific), id:b3cc (`claude -p` orchestrator substrate — also the ToS-exposed path). Their apex-drain design questions id:2238 / id:ec6f / id:9f19 / id:de4b are **moot** under consolidation.
+- **KEEP** id:9f1b (stateless drain-stop CLI — substrate-neutral) + id:2ca6 (3-ledger drained — substrate-neutral); `drain-driver.mjs` stays FROZEN as the headless/cron fallback (not retired, not extended).
+
+NEXT (id:176f wiring, now unblocked): relay-loop.js emits the ```relay-mech fence around each mechanical hop and converts the `echo-runner` agent + the ~12 Haiku mechanical hops to `model:"bash"`. Ledger follow-up: checkbox-park id:23d8/b3cc + mark the moot INPUT children (a mechanical sweep; 2b23 parent + 8ba1 already marked here).
