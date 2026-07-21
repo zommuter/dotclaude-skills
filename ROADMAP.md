@@ -110,7 +110,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 - [ ] [INPUT — meeting] Use VISIBLE annotations, not HTML comments, for metadata that should render — see TODO.md <!-- id:ee62 -->
 - [ ] [INPUT — meeting] Mechanize the keystone-unblock triage as a `/relay human` view (gate-graph fan-out ranking) (us… — see TODO.md <!-- id:c3f6 -->
-- [ ] [INPUT — meeting] ONE meeting: "who may write the shared thing, and when" — see TODO.md <!-- id:fa1d -->
+- [x] [INPUT — meeting] ONE meeting: "who may write the shared thing, and when" — MEETING HELD 2026-07-21 (docs/meeting-notes/2026-07-21-1518-who-may-write-realremotes-uid-scoping.md); d03d pilot ratified → id:ca9e — see TODO.md <!-- id:fa1d -->
 - [ ] [HARD — meeting] Fake-Haiku mechanical-dispatch proxy — see TODO.md <!-- id:176f -->
 - [ ] [INPUT — meeting] Orchestrator-launched host `claude -p` on the local proxy gateway as the off-Workflow dispatch… — see TODO.md <!-- id:b3cc -->
 - [ ] [INPUT — meeting] Meeting-as-relay-producer: route `/meeting` ledger writes through a worktree the integrator mer… — see TODO.md <!-- id:5a39 -->
