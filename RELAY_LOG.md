@@ -3033,3 +3033,7 @@ Executor self-reports (paraphrased):
 - 8089: review.md §5c fail-closed @owner-accepted gate (item-scoped exclusion) + §2b.7/2b.8 checks + contract v9→v10 provenance (forbids executor/drain writing the marker) + CLAUDE.md pointer → v10. refactor:none.
 - dc5b: round-plan.mjs enforceOneUnitPerRepo C2 invariant + byte-equivalent inline copy in relay-loop.js (node --check passes). refactor:none. Live-only pickup verification pending next supervised run.
 - 3743: inbox-done twin-check anchored on lib-anchored-id.sh token_marker_in_files (fixes substring false-twin against destructive inbox store); other callers behaviour-preserving. refactor:none.
+
+## 2026-07-21 13:32 — reviewer (claude-opus-4-8)
+
+drain run-2 round-1 review (runId drain-62265d3-2404720): audited the unaudited CODE window since relay-ckpt-20260720-2115 — privacy-gate relay-scoping (74ee1f7, resolves a8da), grep -e leading-dash fix (e7d2c76, closes 7fff), reproducible CLAUDE.md rule (ef29234), memory-index-sync install fix (4048ffb). Verdict CLEAN: all sound, no gaming (owner-authored, tests extend existing roadmap:ebd0), suite 289/0 green, cross-ledger a8da/7fff consistent. 0 REVIEW_ME.
