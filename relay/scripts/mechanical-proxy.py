@@ -98,6 +98,12 @@ CANONICAL_RELAY_SCRIPTS_ROOT = os.path.realpath(os.path.expanduser(
 # passing this as the request's `model` — no detection heuristic, no fail-open guess.
 MECH_MODEL = "bash"
 
+# Opt-in shape-debug (id:94b8): when set, log the raw last-user text of a model=="bash"
+# request that FAILED the extract/allowlist gate, so the harness's REAL agent() wrapper can be
+# inspected in one capture run. OFF by default — it logs request content; enable only for a
+# deliberate capture (MECH_PROXY_DEBUG_SHAPE=1).
+DEBUG_SHAPE = bool(os.environ.get("MECH_PROXY_DEBUG_SHAPE"))
+
 # Hop-by-hop headers we must not forward (RFC 7230 §6.1) — from the e905 spike.
 _HOP_BY_HOP = frozenset([
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -509,6 +515,24 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 "upstream_hit": False,
             })
             return
+
+        # ── Shape-debug (id:94b8, opt-in): a model=="bash" request that fell open ──
+        # Capture the real agent() wrapper exactly when we need it — a fail-open on a
+        # model=="bash" body means the extractor could not pull an allowlisted command
+        # from whatever scaffolding the harness added. Log the raw last-user text (bounded)
+        # so the wrapper can be inspected in a single capture run. OFF unless DEBUG_SHAPE.
+        if DEBUG_SHAPE:
+            try:
+                _dbg = json.loads(body)
+            except Exception:
+                _dbg = None
+            if isinstance(_dbg, dict) and _dbg.get("model") == MECH_MODEL:
+                _raw = _last_user_text(_dbg) or ""
+                _log({
+                    "event": "shape-debug", "path": self.path,
+                    "last_user_text_len": len(_raw),
+                    "last_user_text_prefix": _raw[:1500],
+                })
 
         # ── Fail-open pass-through to the real upstream (e905 path) ────────────
         fwd_headers = {
