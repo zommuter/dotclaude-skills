@@ -3108,3 +3108,29 @@ Disposition:
 - **KEEP** id:9f1b (stateless drain-stop CLI — substrate-neutral) + id:2ca6 (3-ledger drained — substrate-neutral); `drain-driver.mjs` stays FROZEN as the headless/cron fallback (not retired, not extended).
 
 NEXT (id:176f wiring, now unblocked): relay-loop.js emits the ```relay-mech fence around each mechanical hop and converts the `echo-runner` agent + the ~12 Haiku mechanical hops to `model:"bash"`. Ledger follow-up: checkbox-park id:23d8/b3cc + mark the moot INPUT children (a mechanical sweep; 2b23 parent + 8ba1 already marked here).
+
+## 2026-07-21 — handoff id:6176 (opus)
+
+Consolidate follow-through: authored the RED contract for the id:176f EMITTER WIRING and finished the consolidate ledger sweep.
+
+**Ledger sweep (Task A) — checkbox-parked as SUPERSEDED (kept every `<!-- id -->`, cross-ledger clean):**
+- id:23d8 (cron-safety) — ROADMAP.md; it was already `[x]` (built + tested), so marked `[SUPERSEDED 2026-07-21 — consolidate; apex-drain retired, built-but-moot]` (NOT "NOT built" — it shipped). NB: the task brief said "in TODO.md"; it actually lives in ROADMAP.md and was already done.
+- id:b3cc (`claude -p` orchestrator substrate) — parked in BOTH TODO.md and ROADMAP.md (twins now agree; `orphan-scan.sh --cross-ledger` exit 0).
+- id:2238 / id:ec6f / id:9f19 / id:de4b (apex-drain design-Q INPUT items, TODO.md) — parked `apex-drain design-Q moot`.
+- KEPT untouched: id:9f1b, id:2ca6 (substrate-neutral).
+
+**RED contract (Task B) — id:6176, `[HARD — pool]`, wiring child of id:176f:**
+Test: `tests/test_relay_loop_mech_emitter.sh` (`# roadmap:6176`) — static grep/parse of relay-loop.js; RED now (zero ```relay-mech fences in the file today).
+
+The executor must convert these 5 PROXY-ELIGIBLE mechanical hops in `relay/scripts/relay-loop.js` from `model:'haiku'` to `agent('```relay-mech\n<cmd>\n```', {model:"bash", …})`:
+- `file-surface:` (~line 1506) → `file-surface-decisions.sh '<path>'`
+- `quota:` (~line 1699) → `quota-stop.sh --tier <t> --agents <n> --wall 0` (QUOTA_SCHEMA — consumer must parse raw JSON stdout)
+- `inject-take` (~line 2129) → `inject.sh take` (INJECT_TAKE_SCHEMA + post-processing must move off the hop)
+- `heartbeat-beat` (~line 2212) → `heartbeat.sh beat <runId>`
+- `heartbeat-stop` (~line 2222) → `heartbeat.sh stop <runId>`
+
+Of the "~12 Haiku hops" the 21:38 disposition named, only these 5 are single-allowlisted-relay-script pipelines the proxy's `_command_allowed()` accepts. The other 7 are NOT proxy-eligible and the test GUARDS them staying `model:'haiku'`: `discover-prelude` (~933, multi-cmd + LLM assembly), `discover-run:` classify shard (~1103, id:7402 residual LLM read), `write-relay-status` (~362, heredoc `<<`), `handback-followup` (~1934, `python3`), `gaming-log` (~1967, `$(...)`+`&&`+`>>`), `release:` (~1993, `claim.sh release && heartbeat.sh beat`), `auto-reconcile-restart` (~2248, multi-cmd + LLM). Splitting the multi-command hops into single-command mechanical hops is a possible FOLLOW-UP, not this unit.
+
+Acceptance (emitter shape only): each of the 5 hops carries `model:"bash"` (never haiku) with its exact command inside a ```relay-mech fence that `_MECH_FENCE_RE`/`_command_allowed` accept; the 2 boundary LLM hops stay haiku; `node --check` still parses. Runtime routing (`model:"bash"` short-circuits only when `ANTHROPIC_BASE_URL` → the proxy) is a deploy concern, deliberately OUT of the RED test.
+
+Classed `[HARD — pool]` (not [ROUTINE]): identifying the convertible subset requires reasoning about `_command_allowed`'s single-pipeline/no-redirection/allowlist constraints, and 2 of the 5 (quota, inject-take) need their schema-parsing/post-processing consumers rewired to read raw stdout — not a cheap-executor find-replace, and mis-converting the residual LLM read would be a correctness regression.
