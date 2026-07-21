@@ -576,27 +576,26 @@ const SHARD_SCHEMA = {
   },
 }
 
-const QUOTA_SCHEMA = {
-  type: 'object',
-  required: ['exitCode'],
-  properties: {
-    exitCode: { type: 'number' },
-    // id:2425 — crossed bucket: on exit 1 (real exhaustion) the agent reports which bucket
-    // crossed its (possibly decayed/overridden) threshold, so relay-loop can name the culprit
-    // without falling back to the stale <=10% heuristic. Empty/absent means no agent-side info.
-    crossedBucket: { type: 'string' },
-    buckets: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          bucket: { type: 'string' },
-          pctRemaining: { type: 'number' },
-          resetTime: { type: 'string' },
-        },
-      },
-    },
-  },
+// id:6176 — the quota hop is now a model:"bash" mechanical dispatch (was a QUOTA_SCHEMA-typed
+// haiku return). quota-stop.sh prints NOTHING to stdout on success and signals its verdict purely
+// via EXIT CODE, logging the crossed bucket to STDERR. mechanical-proxy.py therefore returns '' on
+// exit 0, or 'MECH-ERROR exit=<N>\n<stderr>' on any non-zero exit (see _run_mechanical). Parse that
+// raw shape back into the { exitCode, crossedBucket, buckets } object quotaGate() consumes.
+//   exitCode: 0 (proceed) / 1 (real-cache exhaustion) / 2 (cache unreadable, no burn sample) /
+//             3 (cache unreadable, burn-rate extrapolates over threshold).
+//   crossedBucket (id:2425): exit 1 stderr "quota-stop: <bucket>=<val>% >= threshold <t>";
+//             exit 3 stderr "REASON=quota-extrapolated-stop bucket=<bucket>". Empty otherwise.
+//   buckets: no longer available — quota-stop.sh emits no per-bucket JSON on stdout, so state.quota
+//            is simply not refreshed from this hop (crossedBucket now names the culprit directly).
+function parseQuotaMechResult(raw) {
+  const text = (raw == null) ? '' : String(raw)
+  const m = text.match(/^MECH-ERROR exit=(\d+)/)
+  if (!m) return { exitCode: 0, crossedBucket: '', buckets: [] }
+  const exitCode = Number(m[1])
+  const ex = text.match(/REASON=quota-extrapolated-stop\s+bucket=(\S+)/)   // exit 3
+  const th = text.match(/quota-stop:\s*([A-Za-z0-9_]+)=[\d.]+%\s*>=\s*threshold/)  // exit 1
+  const crossedBucket = ex ? ex[1] : (th ? th[1] : '')
+  return { exitCode, crossedBucket, buckets: [] }
 }
 
 const REPORT_SCHEMA = {
@@ -659,15 +658,49 @@ const INTEGRATE_SCHEMA = {
   },
 }
 
-// id:6e9d — schema for the mid-round `inject.sh take` agent (takeInjections). Units are
-// loosely typed (the agent echoes resolved injected units); the dispatch path tolerates the
-// same fields the discovery agent's injected units carry.
-const INJECT_TAKE_SCHEMA = {
-  type: 'object',
-  required: ['units'],
-  properties: {
-    units: { type: 'array', items: { type: 'object' } },
-  },
+// id:6176 — the mid-round `inject.sh take` hop (takeInjections) is now a model:"bash" mechanical
+// dispatch (was an INJECT_TAKE_SCHEMA-typed haiku return that ALSO resolved paths + shaped units).
+// The proxy returns inject.sh take's RAW STDOUT: one compact JSON per line
+// {token, repo, verdict, item, prompt, requested_at}, empty when nothing pending, or 'MECH-ERROR …'
+// if the script itself failed. parseInjectTake reconstructs the dispatch-ready unit objects in JS —
+// including the path-resolve the old prompt asked the LLM to do. The Workflow sandbox has NO
+// shell/$HOME/fs (process.env crashes the pool, id:2026-06-15), so the absolute path is resolved
+// from `ownRepos` (prelude.repos — this round's relay.toml read, honoring `# path:`); an injected
+// repo absent from that own-repo list cannot be path-resolved in-sandbox and is skipped LOUDLY,
+// never dispatched with a guessed path.
+function parseInjectTake(raw, ownRepos) {
+  const text = (raw == null) ? '' : String(raw)
+  if (!text.trim() || /^MECH-ERROR/.test(text)) return []
+  const units = []
+  for (const line of text.split('\n')) {
+    const s = line.trim()
+    if (!s) continue
+    let obj
+    try { obj = JSON.parse(s) } catch (_) { continue }  // tolerate stray non-JSON lines
+    if (!obj || !obj.repo) continue
+    const match = (ownRepos || []).find(r => r.repo === obj.repo)
+    if (!match || !match.path) {
+      log(`relay-loop: id:6176 inject-take — injected repo '${obj.repo}' not in this round's own-repo list (relay.toml); cannot resolve its path in the fs-less Workflow sandbox → skipping injected unit ${obj.token || ''}`)
+      continue
+    }
+    units.push({
+      injected: true,
+      inject_token: obj.token,
+      verdict: obj.verdict || 'execute',
+      repo: obj.repo,
+      path: match.path,
+      reason: 'user-injected high-priority task (mid-round, id:6e9d)',
+      inject_item: obj.item || '',
+      inject_prompt: obj.prompt || '',
+      income: false,
+      standin: false,
+      hasRoutine: false,
+      openHard: false,
+      strongRecheckPending: false,
+      lastCkpt: '',
+    })
+  }
+  return units
 }
 
 // ── Per-repo serialized integrator (D5/D6 restated, id:bc9d: never two concurrent pushes
@@ -1500,10 +1533,14 @@ if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTE
     // Fire all human-verdict filings concurrently (each is an independent repo, no cross-dep).
     await Promise.all(humanUnits.map(u =>
       agent(
-        `Run EXACTLY this one command for the surface-only TODO backlog of repo ${u.repo} and report its stdout verbatim (it files each surface item to the decision-queue so the relay loop stops re-firing on them, id:5eb3/id:47f1):
-~/.claude/skills/relay/scripts/file-surface-decisions.sh '${u.path}'
-Report the single output line. If it exits non-zero, report the error; do not retry.`,
-        { label: `file-surface:${u.repo}`, phase: 'Support', model: 'haiku' }
+        // id:6176 — mechanical hop (model:"bash"): the ```relay-mech fence carries the single
+        // allowlisted relay-script command; mechanical-proxy.py extracts it, runs it locally, and
+        // returns its stdout with ZERO upstream inference. Fire-and-forget (output only logged).
+        'Run EXACTLY this one command for the surface-only TODO backlog of repo ' + u.repo + ' and report its stdout verbatim (id:5eb3/id:47f1):\n' +
+        '```relay-mech\n' +
+        `~/.claude/skills/relay/scripts/file-surface-decisions.sh '${u.path}'` +
+        '\n```',
+        { label: `file-surface:${u.repo}`, phase: 'Support', model: 'bash' }
       ).catch(err => log(`relay-loop: id:5eb3 file-surface-decisions for ${u.repo} failed (non-fatal): ${err}`))
     ))
   }
@@ -1692,12 +1729,23 @@ async function quotaGate(tier) {
   // multi-round run — a 30-round run could spawn hundreds of agents unchecked. totalDispatched
   // is the across-all-rounds accumulator and is the value the seatbelt is meant to gate on.
   // (Same per-round-vs-run-total accounting family as id:2d20's drain fix.)
-  const v = await agent(
-    `Run this command and report the result: ${runIdEnv}${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
-Return exitCode (0 = proceed, 1 = real-cache exhaustion, 2 = cache unreadable with no usable burn sample, 3 = cache unreadable but burn-rate EXTRAPOLATES to over threshold) and, if /tmp/claude-usage-cache.json is readable, one bucket entry per quota bucket with pctRemaining (= 100 - utilization percent) and resetTime when present.
-On exit 1 OR exit 3 (a bucket crossed), also return crossedBucket: the bucket the script logged as crossing its threshold. The script logs either "quota-stop: <bucket>=<val>% >= threshold <t>" (exit 1) or "REASON=quota-extrapolated-stop bucket=<bucket>" (exit 3) to stderr — capture that bucket name, e.g. "seven_day_sonnet". Leave crossedBucket absent or empty otherwise.`,
-    { label: `quota:${tier}`, phase: 'Quota', schema: QUOTA_SCHEMA, model: 'haiku' }
+  // id:6176 — mechanical hop (model:"bash"): the ```relay-mech fence carries quota-stop.sh; the
+  // proxy runs it locally and returns its RAW STDOUT. quota-stop.sh conveys its verdict via EXIT
+  // CODE (0 proceed / 1 exhausted / 2 cache-unreadable / 3 extrapolated-stop) and logs the crossed
+  // bucket to STDERR — so mechanical-proxy.py returns '' on exit 0, or 'MECH-ERROR exit=<N>\n<stderr>'
+  // on any non-zero exit. parseQuotaMechResult reconstructs {exitCode, crossedBucket, buckets} from
+  // that raw shape (the consumer rewire off the old QUOTA_SCHEMA-typed return).
+  // The command sits on its own template-literal line ending exactly at `--wall 0` (the id:5f09
+  // install-manifest invocation contract: no bare positional after the three flags); the fence
+  // markers are escaped backticks so the literal command line stays clean for that grep.
+  const raw = await agent(
+    `Run this command and report its stdout verbatim (a quota threshold check; its exit code is the verdict):
+\`\`\`relay-mech
+${runIdEnv}${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
+\`\`\``,
+    { label: `quota:${tier}`, phase: 'Quota', model: 'bash' }
   )
+  const v = parseQuotaMechResult(raw)
   if (v && v.buckets && v.buckets.length) state.quota = v.buckets
   // id:8c35 — distinguish exit codes instead of collapsing both to quotaStopped:
   //   exit 0 → proceed
@@ -2114,21 +2162,20 @@ async function runUnit(unit) {
 // id:6e9d "Known residual"). A unit-shaped injected object so the normal dispatch path runs it.
 async function takeInjections() {
   if (quotaStopped || roundCapHit || unitsDispatched >= MAX_UNITS) return []
-  const res = await agent(
-    `Run exactly this one command and nothing else: ~/.claude/skills/relay/scripts/inject.sh take
-It atomically emits AND consumes pending user-injected relay units, one compact JSON per line:
-{token, repo, verdict, item, prompt, requested_at}. For EACH emitted line, resolve the repo's
-canonical ABSOLUTE path (default $HOME/src/<repo>, OR the "# path:" override in that repo's block in
-~/.config/relay/relay.toml — expand a leading ~ to $HOME, NEVER emit a literal ~) and return one
-unit object with these exact fields:
-{ injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>,
-path:<resolved absolute path>, reason:"user-injected high-priority task (mid-round, id:6e9d)",
-inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false,
-hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"" }.
-If inject.sh take emits NOTHING, return units:[]. Do not invent units; only echo what take emitted.`,
-    { label: 'inject-take', phase: 'Support', schema: INJECT_TAKE_SCHEMA, model: 'haiku' }
+  // id:6176 — mechanical hop (model:"bash"): the ```relay-mech fence carries `inject.sh take`; the
+  // proxy runs it locally and returns its RAW STDOUT (one compact JSON per line
+  // {token,repo,verdict,item,prompt,requested_at}; empty when nothing pending). The path-resolve +
+  // unit-shaping the old INJECT_TAKE_SCHEMA haiku agent did now lives in parseInjectTake (JS) — it
+  // resolves each injected repo's absolute path from prelude.repos (this round's relay.toml read,
+  // honoring `# path:`), since the fs-less Workflow sandbox cannot expand $HOME / read relay.toml.
+  const raw = await agent(
+    'Run exactly this one command and report its stdout verbatim (it atomically emits AND consumes pending user-injected relay units, one compact JSON per line):\n' +
+    '```relay-mech\n' +
+    '~/.claude/skills/relay/scripts/inject.sh take' +
+    '\n```',
+    { label: 'inject-take', phase: 'Support', model: 'bash' }
   )
-  return (res && Array.isArray(res.units)) ? res.units : []
+  return parseInjectTake(raw, prelude.repos)
 }
 
 await parallel(
@@ -2207,9 +2254,14 @@ return { actionable: actionable.length + intensiveRan, produced, substantive, su
 async function beatHeartbeat() {
   if (!state.runId) return
   try {
+    // id:6176 — mechanical hop (model:"bash"): fence carries `heartbeat.sh beat <runId>`; the proxy
+    // runs it locally (ZERO upstream inference). Fire-and-forget — return ignored, TTL backstop.
     await agent(
-      `Run exactly this command and report whether it exited 0 (refresh the relay run-liveness heartbeat so the outage watchdog/auto-reconcile know this pool is alive): ~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}`,
-      { label: 'heartbeat-beat', phase: 'Support', model: 'haiku' }
+      'Run exactly this command and report its stdout verbatim (refresh the relay run-liveness heartbeat so the outage watchdog/auto-reconcile know this pool is alive):\n' +
+      '```relay-mech\n' +
+      `~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}` +
+      '\n```',
+      { label: 'heartbeat-beat', phase: 'Support', model: 'bash' }
     )
   } catch (_) { /* non-fatal — TTL backstop */ }
 }
@@ -2217,9 +2269,14 @@ async function beatHeartbeat() {
 async function stopHeartbeat() {
   if (!state.runId) return
   try {
+    // id:6176 — mechanical hop (model:"bash"): fence carries `heartbeat.sh stop <runId>`; the proxy
+    // runs it locally (ZERO upstream inference). Fire-and-forget — return ignored.
     await agent(
-      `Run exactly this command and report whether it exited 0 (clean relay-loop shutdown — release the run heartbeat so the watchdog/auto-reconcile don't read this clean stop as a death): ~/.claude/skills/relay/scripts/heartbeat.sh stop ${state.runId}`,
-      { label: 'heartbeat-stop', phase: 'Support', model: 'haiku' }
+      'Run exactly this command and report its stdout verbatim (clean relay-loop shutdown — release the run heartbeat so the watchdog/auto-reconcile don\'t read this clean stop as a death):\n' +
+      '```relay-mech\n' +
+      `~/.claude/skills/relay/scripts/heartbeat.sh stop ${state.runId}` +
+      '\n```',
+      { label: 'heartbeat-stop', phase: 'Support', model: 'bash' }
     )
   } catch (_) { /* non-fatal */ }
 }
