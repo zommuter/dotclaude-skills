@@ -3068,3 +3068,11 @@ Diagnosed WHY (a) fell open (root cause, not "the proxy is pure passthrough"): `
 Fix: added `_command_from_wrapped()` — extracts the command from a ```relay-mech fenced block (robust to any surrounding wrapper), falling back to the bare-command shape; `_command_allowed()` still gates both paths. Establishes the emitter/consumer contract: a mechanical hop sends `model:"bash"` + the command inside a ```relay-mech fence. New tests (i) fenced command inside wrapper prose → extracted; (j) wrapper prose naming a relay path but NO fence → fail-open; (k) fenced non-allowlisted command → fail-open. Suite 292/0/0.
 
 REMAINS for id:176f/id:94b8: (1) wire the EMITTER — relay-loop.js (and any `claude -p` caller) must emit the ```relay-mech fence around the hop; (2) a real `agent()` round-trip that actually intercepts (this fix is validated against a SIMULATED wrapper, not a captured harness body — the true wrapper could place the task differently or not preserve the fence; one confirming capture closes that gap); (3) the 436c-vs-8ba1 consolidate/coexist owner call, still open.
+
+## 2026-07-21 21:27 — CONFIRMED model:"bash" end-to-end (claude-opus-4-8) id:94b8/id:176f
+
+Point (2) above is now CLOSED by a live capture (owner ran a real proxied session; I watched `/tmp/mechanical-proxy.log` with `MECH_PROXY_DEBUG_SHAPE=1`). A real Workflow `agent('```relay-mech\n~/.claude/skills/relay/scripts/claim.sh peek\n```', {model:"bash"})` produced:
+`{"event":"mechanical","path":"/v1/messages?beta=true","command":"~/.claude/skills/relay/scripts/claim.sh peek","stream":true,"output_bytes":0,"upstream_hit":false}`.
+So the ```relay-mech fence SURVIVES the real harness subagent wrapper, the extractor matched it, and the proxy short-circuited with ZERO upstream calls. `model:"bash"` works end-to-end against the live harness — not just a simulated wrapper. (`output_bytes:0` = `claim.sh peek` had no active claims, not a failure.)
+
+Consequence: the `model:"bash"` mechanical dispatch handle is proven viable. REMAINING for id:176f: (1) wire the EMITTER (relay-loop.js emits the ```relay-mech fence; convert echo-runner + the ~12 Haiku hops); (3) the 436c-vs-8ba1 consolidate/coexist owner call — now with a fully-validated mechanism behind it.
