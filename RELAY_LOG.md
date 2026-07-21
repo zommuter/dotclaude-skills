@@ -3140,3 +3140,58 @@ Classed `[HARD — pool]` (not [ROUTINE]): identifying the convertible subset re
 Worked id:6176 — converted all 5 proxy-eligible mechanical hops in `relay/scripts/relay-loop.js` from `model:'haiku'` to `model:"bash"`, each with its exact allowlisted relay-script command wrapped in a ```relay-mech fence: **file-surface** (`file-surface-decisions.sh '<path>'`), **quota** (`quota-stop.sh --tier <t> --agents <n> --wall 0`), **inject-take** (`inject.sh take`), **heartbeat-beat** and **heartbeat-stop** (`heartbeat.sh beat|stop <runId>`). The 7 non-eligible hops stay `model:'haiku'` (verified). Two CONSUMER REWIRES (the correctness risk the static test can't catch): **(1) quota** — dropped `QUOTA_SCHEMA` and added `parseQuotaMechResult(raw)`. quota-stop.sh prints NOTHING to stdout and signals its verdict purely via EXIT CODE (0/1/2/3), logging the crossed bucket to STDERR; `mechanical-proxy.py._run_mechanical` therefore returns `''` on exit 0 or `MECH-ERROR exit=<N>\n<stderr>` on non-zero. The parser reconstructs `{exitCode, crossedBucket, buckets:[]}` — `exitCode` from the `MECH-ERROR exit=<N>` prefix (empty stdout ⇒ 0/proceed), `crossedBucket` from the exit-1 stderr `quota-stop: <bucket>=<val>% >= threshold` or the exit-3 `REASON=quota-extrapolated-stop bucket=<bucket>`. `buckets` is now `[]` (quota-stop.sh emits no per-bucket JSON on stdout, so `state.quota` simply isn't refreshed from this hop; the exit-1 `fallbackBucket` path degrades to crossedBucket-or-`unknown`, which the parser now supplies directly). All downstream `v.exitCode`/`v.crossedBucket`/`v.buckets` accesses in `quotaGate()` work unchanged. **(2) inject-take** — dropped `INJECT_TAKE_SCHEMA` and added `parseInjectTake(raw, ownRepos)`. The old haiku prompt made the LLM both read `inject.sh take`'s JSON lines AND resolve each repo's absolute path (relay.toml / `# path:` / `$HOME/src/<repo>`) AND shape the unit object; with `model:"bash"` the return is `inject.sh take`'s raw stdout (compact JSON per line), so the path-resolve + shaping moved into JS. Because the Workflow sandbox has NO shell/`$HOME`/fs (process.env crashes the pool), the parser resolves each injected repo's absolute path from `prelude.repos` (this round's relay.toml read, honoring `# path:`) instead of `$HOME`-expansion; an injected repo absent from the own-repo list is skipped LOUDLY (logged) rather than dispatched with a guessed path. Both parsers unit-tested against the exact stdout shapes; all 5 emitted fences verified to pass the REAL `mechanical-proxy.py` `_MECH_FENCE_RE` + `_command_allowed` (extract=True, allowed=True, intercepted=True), including the env-var-prefixed quota command. `node --check` passes; `tests/test_relay_loop_structure.sh` and `tests/test_relay_install_manifest.sh` (id:5f09 quota invocation contract) stay green. Full suite (sequential `tests/run-tests.sh`): **292 passed, 0 failed, 1 expected-red** (this item's emitter test, box left unticked per below). `refactor: replaced the two now-unused JSON schemas (QUOTA_SCHEMA, INJECT_TAKE_SCHEMA) with the two focused stdout parsers, and moved the inject path-resolve/unit-shaping out of an LLM prompt into deterministic JS — the mechanical hops now carry zero schema/prompt surface.`
 
 BLOCKED (test defect, NOT gaming): `tests/test_relay_loop_mech_emitter.sh` **check (4)** is UNSATISFIABLE by any node-parseable emission and cannot go green — so the ROADMAP box stays UNTICKED (the emitter test is EXPECTED-RED; the feature itself is fully implemented and runtime-correct). check (4) reads the *source* and requires, via `re.findall(r"```relay-mech[ \t]*\r?\n(.*?)\r?\n```", js)`, a literal triple-backtick `` ```relay-mech `` immediately followed by a **real newline byte** in the source. In JS the only string form with embedded real newlines is a template literal — whose delimiter is the backtick, so a literal `` ``` `` inside it must be escaped (`\`\`\``), which then defeats check (1)'s `grep '```relay-mech'` (no literal triple-backtick present). The three forms are mutually exclusive: (a) `\n`-escape concatenation `'```relay-mech\n' + cmd + '\n```'` — the reviewer's OWN documented target shape (RELAY_LOG 21:38 / ROADMAP) — passes checks 1/2/3/5 + `node --check` but fails check 4 (source has the two-char `\n` escape, not a real newline); (b) escaped-backtick template literal with real newlines — fails checks 1 AND 4 (`\`\`\`` is not a literal triple-backtick); (c) unescaped real backticks in a template literal — passes checks 1/4 but is a hard `node --check` SyntaxError (fails the Done-check's own `node --check` gate). Proven empirically all three ways. The emitted fences ARE correct at runtime: `'```relay-mech\n<cmd>\n```'` produces the exact bytes `tests/test_mechanical_proxy.sh` (line 247) constructs and the proxy accepts. RECOMMENDED FIX (reviewer owns the test; I did not touch it): drop check (4) — checks 1 (fence present) + 2/3 (all 5 hops `model:"bash"`) + 5 (boundary hops stay haiku), plus `tests/test_mechanical_proxy.sh`'s proxy-acceptance contract, already pin the emitter shape — OR replace check (4) with a per-command substring assertion (each of the 5 relay-script commands appears within its `model:'bash'` + ```relay-mech hop) that tolerates the `\n`-escape source form. Implementation committed on this worktree branch for the reviewer to verify + retest after fixing check (4).
+
+## 2026-07-21 22:50 — review id:6176 (opus)
+
+VERDICT: **HOLDS** — ticked id:6176 in ROADMAP.md (no TODO twin exists; the only TODO
+mention of 6176 is prose inside the superseded id:f599 item). Full suite re-run
+sequentially (`tests/run-tests.sh`): **293 passed, 0 failed, 0 expected-red**.
+
+Verified:
+- **gaming-scan clean** (`gaming-scan.sh . relay-ckpt-20260721-1604` → no DELETED_TEST /
+  ADDED_SKIP / REMOVED_ASSERT). The executor commit (6def02d) touched ONLY relay-loop.js +
+  RELAY_LOG.md — NO test file; the apex test-fix (ab342c4) touched ONLY
+  test_relay_loop_mech_emitter.sh. Contract-honouring handback confirmed.
+- **Test genuinely RED against un-converted relay-loop.js** (git show 8089945: version):
+  0 ```relay-mech fences, 0 `model:"bash"`, 0 fence markers → fails at check (1). The new
+  check (4) requires ≥5 fence markers (literal or escaped-backtick form) — NOT trivially
+  satisfiable; un-converted code cannot pass it.
+- **check-(4) fix is legitimate, not a weakening.** Confirmed the ORIGINAL check (4) was
+  genuinely unsatisfiable by node-parseable JS: it required a literal ``` immediately
+  followed by a RAW newline byte in source, which is impossible — a literal ``` can only
+  live in a quoted string (where the newline is the two-char `\n` escape, not a raw byte)
+  or as escaped backticks in a template (no literal ```). It was mutually exclusive with
+  check (1). The replacement matches both real source forms (```-concatenation and
+  \`\`\`-template), stays non-trivial (≥5 markers + all convertible relay scripts present),
+  and the runtime fence shape stays pinned by test_mechanical_proxy.sh. Executor did NOT
+  touch the test (apex fixed it) — correct division.
+- **7 boundary LLM hops still `model:'haiku'`**: write-relay-status, discover-prelude,
+  discover-run classify shard, handback-followup, gaming-log, release, auto-reconcile-restart.
+- **quota consumer rewire (parseQuotaMechResult) correct** against quota-stop.sh's actual
+  exit/stderr contract (exit 0 proceed / 1 exhausted / 2 cache-unreadable / 3 extrapolated-
+  stop): exitCode from the `MECH-ERROR exit=<N>` prefix (empty stdout ⇒ 0), crossedBucket
+  from the exit-1 `quota-stop: <bucket>=<val>% >= threshold` and exit-3
+  `REASON=quota-extrapolated-stop bucket=<b>` stderr lines. Both regexes match the real
+  stderr. Gating (quotaStopped/stopReason) is driven by exitCode + crossedBucket, both
+  reconstructed correctly.
+- **quota-buckets judgment: NOT a regression.** `state.quota` is written ONLY by this hop
+  (grep-confirmed) and read ONLY at line 270-272 to render the "Quota remaining" section of
+  the RELAY_STATUS.md human snapshot — it now always shows `_(unknown)_`. It gates NOTHING.
+  The exit-1 `fallbackBucket` (buckets.find pctRemaining<=10) is dead, but the comment
+  already labelled it last-resort/defense-in-depth and crossedBucket now names the culprit
+  directly. A seatbelt exit-1 (agents>=200) yields crossedBucket='' → stopReason
+  "quota-exhausted:unknown" — pre-existing degraded behaviour, still STOPS correctly. Cosmetic
+  observability loss in RELAY_STATUS.md only, not a correctness REOPEN.
+- **inject-take rewire (parseInjectTake) correct**: resolves each injected repo's path from
+  prelude.repos (this round's relay.toml, honoring `# path:`); absent-repo skipped LOUDLY
+  (log line), never dispatched with a guessed path; the built unit object matches the old
+  INJECT_TAKE_SCHEMA unit fields exactly. Returns an array (consumer parity).
+- **All 5 fences parse as allowed** by `_command_allowed`: single pipeline, last stage a
+  pinned allowlisted relay script; env-var-prefixed quota command handled by
+  `_segment_leader`'s VAR=val skip; `--wall 0` is a bare flag arg, no redirection/`&&`/`$(`.
+- `node --check relay/scripts/relay-loop.js` OK.
+
+OPERATIONAL FOLLOW-UP (out of scope for this unit, flagged): the pool now REQUIRES the
+mechanical-proxy running AND `ANTHROPIC_BASE_URL` → the proxy at runtime for these 5 hops —
+without it, `model:"bash"` passes through and 404s (id:94b8). This is a deploy/runtime
+concern the static emitter test deliberately excludes.
