@@ -547,10 +547,9 @@ reaches for the flag, or lets you request the drain on a named/`--only` repo
 (`/relay zkm --drain`) without relying on cwd. Prefer `/relay .` if you already know it
 drains; `--drain` is sugar for the same off-Workflow `drain-driver.mjs`.
 
-**Build status:** the driver core (id:cd7a) and its heartbeat/quota/event wiring
-(id:f9d2/838d/dd1e) are queued, worktree-verifiable children of id:93fe — this section
-documents the ratified front-door meaning those children implement, not a claim that the
-driver is already merged. Track their state in ROADMAP.md, not here.
+**Build status:** this section documents the ratified front-door *meaning* the id:cd7a
+driver core and its heartbeat/quota/event wiring (id:f9d2/838d/dd1e) implement — NOT their
+build state (which rots if restated here). Track merge/wiring state in ROADMAP.md, not here.
 
 The remaining Phase-1 contract item — the **review-agent anti-spam brief** (D3: a reviewer may
 open a REVIEW_ME box only for genuine human-judgment, never to re-question already-decided
