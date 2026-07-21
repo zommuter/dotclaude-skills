@@ -3037,3 +3037,7 @@ Executor self-reports (paraphrased):
 ## 2026-07-21 13:32 — reviewer (claude-opus-4-8)
 
 drain run-2 round-1 review (runId drain-62265d3-2404720): audited the unaudited CODE window since relay-ckpt-20260720-2115 — privacy-gate relay-scoping (74ee1f7, resolves a8da), grep -e leading-dash fix (e7d2c76, closes 7fff), reproducible CLAUDE.md rule (ef29234), memory-index-sync install fix (4048ffb). Verdict CLEAN: all sound, no gaming (owner-authored, tests extend existing roadmap:ebd0), suite 289/0 green, cross-ledger a8da/7fff consistent. 0 REVIEW_ME.
+
+## 2026-07-21 14:07 — reviewer (claude-opus-4-8)
+
+drain run-2 round-4 review+integrate (runId drain-62265d3-2404720): id:23d8 drain-cron-guard.sh (cron-safety D6) + id:9ef7 pre-commit-lane-vocab.sh ratchet hook plus make install-lane-ratchet, both executed Sonnet in isolated HEAD-based worktrees, serial no-ff integrated. Review CLEAN: both sound vs handoff-authored RED specs (no self-authored-RED gaming); 9ef7 executor spec edit verified BENIGN (control-flow set-e fix, no assertion weakened, diff vs 71046ac); suite 291/0/0. Cross-ledger reconciled.
