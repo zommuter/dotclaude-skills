@@ -132,6 +132,7 @@ projects_LOCAL :=
 SETTINGS_JSON    := $(HOME)/.claude/settings.json
 CLAUDE_MD        := $(HOME)/.claude/CLAUDE.md
 PRIVACY_RULE_SRC := $(SRC_DIR)/hooks/privacy-gate.claude-rule.md
+LANE_VOCAB_RULE_SRC := $(SRC_DIR)/hooks/lane-vocab.claude-rule.md
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
@@ -141,6 +142,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
         install-relay-users install-relay-acls install-privacy-gate install-privacy-claude-rule \
+        install-lane-ratchet install-lane-ratchet-claude-rule \
         install-discovery-timer status-discovery-timer uninstall-discovery-timer \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
@@ -167,6 +169,8 @@ help:
 	@echo "  install-relay-env    merge relay env policy (quota decay) into settings.json (idempotent)"
 	@echo "  install-privacy-gate install the global pre-push privacy gate (warn+LOG) + the CLAUDE.md rule"
 	@echo "  install-privacy-claude-rule  append the privacy-gate note to ~/.claude/CLAUDE.md (idempotent)"
+	@echo "  install-lane-ratchet install the global pre-commit old-vocab lane-tag ratchet (HARD-DENY) + the CLAUDE.md rule"
+	@echo "  install-lane-ratchet-claude-rule  append the lane-vocab-ratchet note to ~/.claude/CLAUDE.md (idempotent)"
 	@echo "  print-relay-env      preview the relay env policy entries (read-only)"
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
@@ -289,6 +293,40 @@ install-privacy-claude-rule:
 	else \
 		printf '\n' >> "$(CLAUDE_MD)"; cat "$(PRIVACY_RULE_SRC)" >> "$(CLAUDE_MD)"; \
 		echo "  ok  appended privacy-gate rule to $(CLAUDE_MD)"; \
+	fi
+
+# Old-vocab lane-tag ratchet pre-commit hook (id:9ef7): wire hooks/pre-commit-lane-vocab.sh
+# into the SAME global `core.hooksPath` dir the privacy gate uses (GITHOOKS_DIR) — one
+# hooksPath, multiple hook-type symlinks, so this and install-privacy-gate compose
+# regardless of install order. Idempotent; refuses to clobber a foreign hooksPath (same
+# guard as install-privacy-gate). Owner chose HARD-DENY (unlike the privacy gate's
+# WARN+LOG) — `git commit --no-verify` is the escape hatch.
+install-lane-ratchet:
+	@echo "→ installing old-vocab lane-tag ratchet pre-commit hook (global core.hooksPath)"
+	@mkdir -p $(GITHOOKS_DIR)
+	@ln -sf $(SRC_DIR)/hooks/pre-commit-lane-vocab.sh $(GITHOOKS_DIR)/pre-commit
+	@existing=$$(git config --global --get core.hooksPath || true); \
+	if [ -n "$$existing" ] && [ "$$existing" != "$(GITHOOKS_DIR)" ]; then \
+		echo "  !! git core.hooksPath already set to '$$existing' — NOT overwriting."; \
+		echo "     Add a 'pre-commit' entry there that runs $(GITHOOKS_DIR)/pre-commit, or unset it first."; \
+	else \
+		git config --global core.hooksPath $(GITHOOKS_DIR); \
+		echo "  ok  core.hooksPath -> $(GITHOOKS_DIR) (pre-commit -> pre-commit-lane-vocab.sh)"; \
+	fi
+	@echo "  note: HARD-DENY mode — blocks a commit that ADDS an old-vocab [HARD — <lane>] tag."
+	@echo "        Self-gated to relay-onboarded (relay.toml own-set) repos; 'git commit --no-verify' escapes."
+	@$(MAKE) --no-print-directory install-lane-ratchet-claude-rule
+
+# Append the lane-vocab-ratchet note to the GLOBAL ~/.claude/CLAUDE.md, idempotently
+# (guarded by the marker on the snippet's first line) — mirrors install-privacy-claude-rule.
+install-lane-ratchet-claude-rule:
+	@if [ ! -f "$(CLAUDE_MD)" ]; then \
+		echo "  !! $(CLAUDE_MD) not found — skipping CLAUDE.md rule (create it, then re-run)"; \
+	elif grep -qF "dotclaude-skills:lane-vocab-ratchet-rule" "$(CLAUDE_MD)"; then \
+		echo "  ok  lane-vocab-ratchet rule already present in $(CLAUDE_MD)"; \
+	else \
+		printf '\n' >> "$(CLAUDE_MD)"; cat "$(LANE_VOCAB_RULE_SRC)" >> "$(CLAUDE_MD)"; \
+		echo "  ok  appended lane-vocab-ratchet rule to $(CLAUDE_MD)"; \
 	fi
 
 # statusline is a first-class target (mirrors install-<skill>): the quota/cost/model statusbar
