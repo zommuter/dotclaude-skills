@@ -146,6 +146,34 @@ def _last_user_text(obj: dict):
     return None
 
 
+# Mechanical-command envelope (id:94b8 probe, 2026-07-21): a REAL Workflow agent() wraps the
+# task in subagent scaffolding, so the raw last-user message is prose — not a bare command.
+# The old "the whole last-user message IS the command" assumption therefore fell open on every
+# real agent() call (the probe saw model=="bash" forwarded upstream → 404, never intercepted;
+# test_mechanical_proxy.sh passed only because it hand-fed a bare-command shape). The emitter
+# (relay-loop.js, deterministic) delimits the command in an explicit fenced block the proxy
+# extracts, robust to any surrounding wrapper:
+#     ```relay-mech
+#     <one allowlisted relay command or pipeline>
+#     ```
+# No fence → the whole text is treated as the command (the bare-command shape a direct caller
+# or the unit test sends). _command_allowed() still gates the result in BOTH cases, so wrapper
+# prose that merely mentions a relay path — but carries no fence — fails open (never run).
+_MECH_FENCE_RE = re.compile(r"```relay-mech[ \t]*\r?\n(.*?)\r?\n```", re.DOTALL | re.IGNORECASE)
+
+
+def _command_from_wrapped(text: str):
+    """Pull the mechanical command out of a (possibly wrapper-framed) user message.
+
+    Returns the body of the first ```relay-mech fenced block when present; otherwise
+    returns `text` unchanged (the bare-command shape). Never runs anything itself —
+    _command_allowed() remains the gate on whatever this returns."""
+    m = _MECH_FENCE_RE.search(text)
+    if m:
+        return m.group(1).strip() or None
+    return text
+
+
 def _extract_mechanical_command(body: bytes):
     """Return the shell command iff this is a clear model=="bash" mechanical request.
 
@@ -160,7 +188,10 @@ def _extract_mechanical_command(body: bytes):
         return None
     if obj.get("model") != MECH_MODEL:
         return None
-    return _last_user_text(obj)
+    text = _last_user_text(obj)
+    if text is None:
+        return None
+    return _command_from_wrapped(text)
 
 
 # ── Relay-command allowlist ─────────────────────────────────────────────────
