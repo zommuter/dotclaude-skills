@@ -111,6 +111,17 @@ Invoking `/relay` with no keyword starts the autonomous priority-mixed pool
 (meeting note `docs/meeting-notes/2026-06-12-2045-fables-relay-autonomous-pool.md`,
 D1/D2):
 
+0pre. **Arg-guard (id:7681) — before any other setup, including 0a.** Run
+    `~/.claude/skills/relay/scripts/validate-flags.sh relay -- <the raw invocation
+    args>`. Known flags/modes pass through silently. An unknown leading-dash token prints
+    a LOUD warning to stderr listing the known flags and is dropped (not folded into a
+    repo-list/subject argument) — display that warning, then proceed using the CLEANED
+    stdout as the effective args. A near-miss of a mode-changing flag (edit-distance <=2
+    of `--afk`/`-d`) instead ESCALATES (non-zero exit): surface it and confirm intent
+    (interactive) or treat the run as blocked and surface it in `RELAY_STATUS.md`
+    (unattended) rather than silently guessing. Skip this step only when re-entering from
+    a Workflow round (the front door already validated args once at launch).
+
 0a. **Early-exit retry nudge — FIRST, before any work (user directive 2026-06-18; corrected id:bde8).**
     The very first action of a default/`--afk` run is to surface the `/loop` nudge, NOT
     bury it in the exit summary: a user who typed `/relay --afk` is signalling they are

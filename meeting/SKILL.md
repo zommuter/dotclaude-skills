@@ -8,6 +8,16 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
 ## Setup (run at every invocation)
 
 1. **Find project root**: run `git rev-parse --show-toplevel`. If not in a git repo, use cwd. If `$MEETING_ROOT_OVERRIDE` is set, use that value as `<root>` instead (used by `/meeting-cross` to dispatch against a different project root without `cd`).
+1b. **Arg-guard (id:7681)**: before treating any leading-dash token in the invocation as
+   a switch, run `~/.claude/skills/relay/scripts/validate-flags.sh meeting -- <the raw
+   skill argument(s)>`. Known flags (`--cross`, `--fabled`) pass through silently. An
+   unknown leading-dash flag prints a LOUD warning to stderr listing the known flags and
+   is dropped (not folded into the subject) — display that warning to the user, then
+   proceed with the CLEANED stdout as the effective argument. A near-miss of a
+   mode-changing flag (edit-distance <=2 of `--cross`/`--fabled`) instead ESCALATES
+   (non-zero exit): surface it and confirm intent with the user (or, unattended, treat it
+   as the suspected flag named on stderr) rather than silently guessing. This guard exists
+   so a typo'd flag (e.g. `--cros`) never silently becomes literal meeting subject text.
 2. **Capture metadata**: run each of the following as a **separate Bash call** (one command per call — combined calls don't match the allowlist):
    - `echo "$CLAUDE_SESSION_ID"`
    - `date '+%Y-%m-%d %H:%M'`

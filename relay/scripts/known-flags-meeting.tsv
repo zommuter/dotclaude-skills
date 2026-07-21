@@ -1,0 +1,9 @@
+# known-flags-meeting.tsv — manifest of /meeting invocation flags (id:7681).
+# Columns: flag<TAB>takes_value(0|1). Read by validate-flags.sh; never hand-parsed
+# elsewhere.
+#
+# --cross: exact-whole-arg cross-project mode switch (meeting/SKILL.md step 1).
+# --fabled: id:7e87 closing-pass coupling — registered here so the guard never
+#   warns on it even before id:7e87 lands (gated-on: 7681).
+--cross	0
+--fabled	0
