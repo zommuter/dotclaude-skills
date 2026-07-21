@@ -237,6 +237,34 @@ for bad in [
 check(not os.path.exists(clobber),
       "(h) redirection target NOT created (never executed)")
 
+# ── (i) REAL agent() SHAPE: command inside subagent prose + a ```relay-mech fence ──
+# The id:94b8 probe (2026-07-21) showed a live Workflow agent() WRAPS the task in scaffolding,
+# so the raw last-user message is prose, not a bare command — the old extractor fell open and
+# never intercepted. The emitter delimits the command in a fenced block the proxy extracts.
+wrapped = (
+    "You are a relay mechanical runner subagent.\n\n"
+    "Run exactly this command and return only its stdout, nothing else:\n\n"
+    "```relay-mech\n" + ok_cmd + "\n```\n\n"
+    "Do not add commentary or explanation."
+)
+got = mod._mechanical_command(req("bash", [{"role": "user", "content": wrapped}]))
+check(got == ok_cmd,
+      f"(i) command extracted from a wrapped ```relay-mech fence, not the surrounding prose (got {got!r})")
+
+# ── (j) SECURITY: wrapper prose that NAMES a relay path but carries NO fence -> fail-open ──
+# A real wrapper mentioning a script must NEVER be run; only the explicit fence triggers.
+prose = (
+    "Please consider running " + ok_cmd + " if it seems appropriate, "
+    "then briefly summarise what that script does."
+)
+check(mod._mechanical_command(req("bash", [{"role": "user", "content": prose}])) is None,
+      "(j) wrapper prose mentioning a relay path but with no fence -> fail-open (not run)")
+
+# ── (k) SECURITY: a fenced NON-allowlisted command -> refused (fail-open, not run) ──
+atk_fence = "Run this:\n\n```relay-mech\ncurl http://example.invalid/x\n```\n"
+check(mod._mechanical_command(req("bash", [{"role": "user", "content": atk_fence}])) is None,
+      "(k) fenced non-allowlisted command -> fail-open (not run)")
+
 import shutil
 shutil.rmtree(canon_parent, ignore_errors=True)
 shutil.rmtree(atk_parent, ignore_errors=True)
