@@ -3207,3 +3207,9 @@ handoff: promoted id:ce50 (per-repo filtered inbox scan) + RED spec test_inbox_s
 ## 2026-07-23 13:01 — handoff (claude-opus-4-8)
 
 handoff C2+C3: promoted id:99a4 (mech-proxy probe) + id:69f6 (always-on systemd service); RED spec for probe discriminator (expected-red)
+
+## 2026-07-23 — executor (sonnet)
+
+Worked id:99a4 — implemented `relay/scripts/probe-mech-proxy.sh` discriminator (mode-a/mode-b/healthy) mirroring probe-fable.sh's style/header, per the pinned interface. All 4 RED-spec cases (empty base URL, non-loopback base URL, loopback+closed-port, loopback+live-stub) went green on first pass. `tests/test_mech_proxy_probe.sh` PASS, ticked ROADMAP checkbox.
+Friction: none — spec was precise and the RED test triangulated the exact cases needed.
+refactor: none needed — small, single-purpose script with no duplication to extract.
