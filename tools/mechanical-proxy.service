@@ -5,9 +5,15 @@ Documentation=file:%h/src/dotclaude-skills/relay/scripts/mechanical-proxy.py
 # locally; everything else is relayed unchanged to the real upstream. See the script's
 # own header for the fail-open contract. Restart=always makes it durable across crashes
 # so probe-mech-proxy.sh's mode-b (proxy down) case stays rare (id:99a4 pairs with this).
+# Type=notify + WatchdogSec=30 (id:4044) additionally catches a HUNG-but-listening
+# daemon (accepting connections but wedged) — Restart=always alone only recovers from
+# a crash/exit, not a live-but-stuck process. The script sends READY=1 right after the
+# socket binds and a WATCHDOG=1 heartbeat every ~10s (< WatchdogSec/2) from a daemon
+# thread; if that heartbeat stops, systemd kills and restarts the unit.
 
 [Service]
-Type=simple
+Type=notify
+WatchdogSec=30
 ExecStart=/usr/bin/env python3 %h/src/dotclaude-skills/relay/scripts/mechanical-proxy.py
 Restart=always
 RestartSec=5
