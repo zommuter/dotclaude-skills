@@ -3271,3 +3271,7 @@ was the install-manifest gate catching the missing registration on the first ful
 run, exactly as its own self-report (id:5f09) documents it should.
 refactor: none needed — new single-purpose script mirroring an existing convention
 (scan-routed.sh's `resolve_inbox`/anchoring pattern), no duplication introduced.
+
+## 2026-07-23 17:21 — reconcile (auto/human)
+
+reconcile integrate: relay: per-repo filtered inbox scan for repo-scoped runs (id:ce50)
