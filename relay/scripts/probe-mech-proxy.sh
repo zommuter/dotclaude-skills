@@ -53,7 +53,12 @@ case "$cmd" in
   discriminate)
     port="${MECH_PROXY_PORT:-61843}"
 
-    base_url="$ANTHROPIC_BASE_URL"
+    # ${VAR:-} (not plain "$VAR"): an UNSET ANTHROPIC_BASE_URL is semantically identical
+    # to empty (session not launched through the proxy) and must yield mode-a, but under
+    # `set -u` a plain expansion aborts with "unbound variable". The never-${VAR:-} rule is a
+    # Claude Bash-tool-call convention (permission-prompt avoidance) that does NOT apply
+    # inside an executed .sh — so tolerate unset here (REVIEW_ME id:99a4, review 2026-07-23).
+    base_url="${ANTHROPIC_BASE_URL:-}"
 
     if [[ -z "$base_url" ]]; then
       echo "mode-a"
