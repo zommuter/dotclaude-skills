@@ -47,6 +47,32 @@
 #   --discard  BRANCH    Drop one parked branch (destructive git branch -D). Gated behind
 #                        RELAY_DISCARD_CONFIRM=1 (force-push.sh model, id:373e) — refuses
 #                        without it so automation/accident can never destroy parked work.
+#   --auto-restart       id:c14d — the WHOLE relay-loop.js auto-reconcile-on-restart flow
+#                        (id:7809) as ONE mechanical hop (was a 3-step haiku prompt, moved to
+#                        model:"bash" now that it is a single allowlisted command). Faithfully
+#                        replicates the prior 3-step prose:
+#                          1. `heartbeat.sh dead-runs --prefix 'relay-*'` — if it prints
+#                             nothing, no prior DISPATCH-LOOP run died; print a one-line
+#                             summary and exit 0 (no other action).
+#                          2. Else run `relay-reconcile.sh --all --auto` (auto-integrates
+#                             ledger-only orphans, surfaces judgment ones into REVIEW_ME.md),
+#                             THEN for each DISTINCT runId printed by step 1, immediately
+#                             `heartbeat.sh reap-run '<that runId>'` (id:7725 observed-death
+#                             reap — archives that run's marker so the watchdog cannot
+#                             re-alarm on a crash already handled this restart).
+#                          3. Finally `heartbeat.sh reap --prefix 'relay-*'` (the pure TTL
+#                             backstop for any OTHER present-but-stale marker not in step 1's
+#                             list).
+#                        The `--prefix 'relay-*'` on BOTH step 1 and step 3 is REQUIRED and
+#                        preserved — it scopes both to this dispatch loop's own runId
+#                        namespace so a dead INDEPENDENT discovery-producer heartbeat marker
+#                        (id:54fc, a separate liveness domain with its own longer TTL) never
+#                        falsely trips the --all --auto reconcile nor gets archived by the
+#                        reap. Prints a real one-line summary to stdout (never empty — id:3557
+#                        made a genuinely-empty mechanical stdout stop mattering, but a
+#                        meaningful summary is still worth having). Best-effort: the human
+#                        `/relay reconcile` is always the backstop, so this never hard-fails
+#                        the caller.
 #
 #   BRANCH may be given with or without the `relay/orphan/` prefix.
 #
@@ -59,6 +85,7 @@ CKPT_TAG="$SCRIPTS_DIR/ckpt-tag.sh"
 SYNC_ORIGIN="$SCRIPTS_DIR/sync-origin.sh"
 COMMIT_LEDGER="$SCRIPTS_DIR/commit-ledger.sh"
 LOCK_PUSH="${RELAY_LOCK_PUSH:-$HOME/.claude/skills/git-diary-workflow/git-lock-push.sh}"
+HEARTBEAT="$SCRIPTS_DIR/heartbeat.sh"
 LOG="${RECONCILE_LOG:-$HOME/.claude/logs/relay-reconcile.log}"
 
 ORPHAN_NS="relay/orphan/"
@@ -126,9 +153,12 @@ while [ $# -gt 0 ]; do
     --all)       all_repos=1; shift ;;
     --list)      action="list"; shift ;;
     --auto)      action="auto"; shift ;;
+    --auto-restart) action="auto-restart"; shift ;;
     --integrate) action="integrate"; target="${2:-}"; shift; shift || true ;;
     --discard)   action="discard";   target="${2:-}"; shift; shift || true ;;
-    -h|--help)   sed -n '2,52p' "$0"; exit 0 ;;
+    # id:c14d — the range used to be hardcoded ('2,52p') and went stale the moment the header
+    # grew (the id:0fa0 heartbeat.sh lesson); compute it from `set -euo pipefail`'s line instead.
+    -h|--help)   sed -n "2,$(( $(grep -n '^set -euo pipefail' "$0" | head -1 | cut -d: -f1) - 1 ))p" "$0"; exit 0 ;;
     --*)         echo "relay-reconcile.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)           repo="$1"; shift ;;
   esac
@@ -176,8 +206,9 @@ if [[ $all_repos -eq 1 && "$action" == "list" ]]; then
   exit 0
 fi
 
-# Single-repo actions need a repo root; --all passes (handled below) do not.
-if [[ $all_repos -eq 0 ]]; then
+# Single-repo actions need a repo root; --all passes (handled below) and the global
+# --auto-restart (id:c14d, operates cross-repo via its own --all --auto call) do not.
+if [[ $all_repos -eq 0 && "$action" != "auto-restart" ]]; then
   repo="${repo:-$(git rev-parse --show-toplevel)}"
   git -C "$repo" rev-parse --git-dir >/dev/null
 fi
@@ -366,6 +397,35 @@ if [[ $all_repos -eq 1 && "$action" == "auto" ]]; then
     fi
     auto_one_repo "$rpath"
   done < <(own_repos)
+  exit 0
+fi
+
+# --auto-restart (id:c14d): the whole relay-loop.js auto-reconcile-on-restart flow as ONE
+# mechanical hop — see the header comment above for the exact 3-step contract this replicates.
+# Runs regardless of --all (it is inherently cross-repo via step 2's --all --auto).
+if [[ "$action" == "auto-restart" ]]; then
+  dead="$("$HEARTBEAT" dead-runs --prefix 'relay-*' || true)"
+  if [[ -z "$dead" ]]; then
+    echo "auto-restart: no dead run, skipped"
+    log "auto-restart no-dead-run"
+    exit 0
+  fi
+  # Step 2: auto-integrate/surface every own repo's parked orphans (id:7809).
+  "$0" --all --auto
+  # Distinct runIds from step 1's output, in first-seen order (a dead run may have left
+  # multiple markers is not expected, but de-dup defensively rather than reap the same
+  # runId twice).
+  runids="$(printf '%s\n' "$dead" | jq -r '.runId // empty' 2>/dev/null | awk '!seen[$0]++')"
+  reaped_runs=0
+  while IFS= read -r rid; do
+    [[ -n "$rid" ]] || continue
+    "$HEARTBEAT" reap-run "$rid"
+    reaped_runs=$((reaped_runs+1))
+  done <<<"$runids"
+  # Step 3: TTL backstop sweep for any OTHER present-but-stale marker not in step 1's list.
+  reap_out="$("$HEARTBEAT" reap --prefix 'relay-*' 2>&1 || true)"
+  echo "auto-restart: ${reaped_runs} dead run(s) observed-reaped; ${reap_out#reaped }"
+  log "auto-restart dead=$reaped_runs reap=\"$reap_out\""
   exit 0
 fi
 
