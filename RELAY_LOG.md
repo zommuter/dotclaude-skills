@@ -3363,3 +3363,7 @@ trunk-branch.sh + the relay-reconcile integrate recipe; no duplication introduce
 ## 2026-07-23 19:35 — reviewer (claude-opus-4-8)
 
 id:1048 landed — bounded auto-integrate primitive (auto-integrate-orphan.sh); wave-1 complete (bc49+dfb9+86a2+1048)
+
+## 2026-07-23 19:52 — reviewer (claude-opus-4-8)
+
+wave-1 DoD gate GREEN — fixed discover-prelude.sh rm -f lint violation; make test 302 pass
