@@ -77,6 +77,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(os.environ.get("MECH_PROXY_PORT", 61843))
+WATCHDOG_INTERVAL_SEC = float(os.environ.get("MECH_PROXY_WATCHDOG_INTERVAL", 10))
 LOG_FILE = os.environ.get("MECH_PROXY_LOG", "/tmp/mechanical-proxy.log")
 UPSTREAM_HOST = os.environ.get("MECH_PROXY_UPSTREAM_HOST", "api.anthropic.com")
 UPSTREAM_PORT = int(os.environ.get("MECH_PROXY_UPSTREAM_PORT", 443))
@@ -109,6 +110,58 @@ _HOP_BY_HOP = frozenset([
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
     "te", "trailers", "transfer-encoding", "upgrade",
 ])
+
+# ── systemd sd_notify (id:4044) ─────────────────────────────────────────────
+# Stdlib-only sd_notify: talk directly to $NOTIFY_SOCKET via a UNIX datagram
+# socket (no `python-systemd` dependency, which isn't a stdlib package). Guarded
+# on NOTIFY_SOCKET being set at all — when the daemon is NOT run under systemd
+# (standalone invocation, the test suite, a plain `python3 mechanical-proxy.py`)
+# NOTIFY_SOCKET is unset and every call below is a silent, side-effect-free
+# no-op, so behavior is unchanged from before this feature existed.
+def _sd_notify(state: str) -> None:
+    """Send one sd_notify datagram (e.g. 'READY=1', 'WATCHDOG=1') to the
+    systemd-provided notification socket. No-op if NOTIFY_SOCKET is unset, the
+    socket can't be reached, or the send fails for any reason — sd_notify is
+    fire-and-forget by design and must never crash or block the caller."""
+    addr = os.environ.get("NOTIFY_SOCKET")
+    if not addr:
+        return
+    # systemd's abstract-namespace convention: a leading '@' maps to a NUL byte.
+    if addr.startswith("@"):
+        addr = "\0" + addr[1:]
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        try:
+            sock.sendto(state.encode("utf-8"), addr)
+        finally:
+            sock.close()
+    except Exception:
+        pass  # sd_notify is best-effort; never let a notify failure affect the daemon
+
+
+def _sd_watchdog_loop(interval: float, stop_event: threading.Event) -> None:
+    """Daemon-thread loop: emit WATCHDOG=1 every `interval` seconds until
+    `stop_event` is set. No-op (never even sleeps meaningfully long) when
+    NOTIFY_SOCKET is unset — the caller only starts this thread when it is,
+    but _sd_notify's own guard makes the loop harmless either way."""
+    while not stop_event.wait(interval):
+        _sd_notify("WATCHDOG=1")
+
+
+def _start_sd_watchdog() -> None:
+    """Start the periodic WATCHDOG=1 heartbeat iff NOTIFY_SOCKET is set (i.e.
+    we are actually running under systemd with a watchdog configured). A
+    standalone run never starts this thread at all."""
+    if not os.environ.get("NOTIFY_SOCKET"):
+        return
+    thread = threading.Thread(
+        target=_sd_watchdog_loop,
+        args=(WATCHDOG_INTERVAL_SEC, threading.Event()),
+        daemon=True,
+        name="sd-watchdog",
+    )
+    thread.start()
+
 
 _log_lock = threading.Lock()
 
@@ -638,6 +691,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 def main():
     server = ThreadingHTTPServer(("127.0.0.1", PORT), ProxyHandler)
+    # The socket is bound and listening at this point (ThreadingHTTPServer's
+    # __init__ already called bind()+listen()) — tell systemd we're ready
+    # promptly, before serve_forever() blocks. No-op if NOTIFY_SOCKET is unset.
+    _sd_notify("READY=1")
+    _start_sd_watchdog()
     print(f"mechanical proxy on http://127.0.0.1:{PORT} "
           f"→ {UPSTREAM_SCHEME}://{UPSTREAM_HOST}:{UPSTREAM_PORT}", flush=True)
     print(f"  model=='{MECH_MODEL}' → run locally (zero upstream calls); else relay",
