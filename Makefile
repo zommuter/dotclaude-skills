@@ -456,8 +456,9 @@ install-mech-proxy:
 	@mkdir -p $(SYSTEMD_USER)
 	@ln -sf $(SRC_DIR)/tools/mechanical-proxy.service $(SYSTEMD_USER)/mechanical-proxy.service
 	@systemctl --user daemon-reload
-	@systemctl --user enable --now mechanical-proxy
-	@echo "  enabled. status: systemctl --user status mechanical-proxy"
+	@systemctl --user enable mechanical-proxy
+	@systemctl --user restart mechanical-proxy   # restart (not just enable --now): applies unit-file changes (WatchdogSec/Type=notify, id:4044) on REINSTALL — enable --now no-ops a running service
+	@echo "  enabled + restarted. status: systemctl --user status mechanical-proxy"
 
 status-mech-proxy:
 	@echo "mechanical-proxy.service:"
