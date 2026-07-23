@@ -263,6 +263,7 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
     "classify-repo.sh", "classify-verdict.sh",
     "claim.sh", "inject.sh",
     "discover-sig.sh", "discover-repo.sh", "discover-repos.sh",
+    "discover-chunk.sh",  # id:24ec — the mechanized discover-run SHARD wrapper (echo <chunk> | discover-chunk.sh)
     "reconcile-repo.sh", "relay-reconcile.sh",
     "stop-sentinel.sh", "file-surface-decisions.sh",
     "relay-status-publish.sh", "relay-state-write.sh", "relay-intensity.sh",
