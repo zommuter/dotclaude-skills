@@ -3228,3 +3228,7 @@ Reviewed relay-ckpt-20260723-1301..HEAD (5 commits: id:99a4 probe, id:69f6 servi
 - claude-relay launcher correct: probe called WITH loopback `ANTHROPIC_BASE_URL` set (else it'd always be mode-a); healthy branch sets the URL for the real `claude` launch; fallback runs `command claude` direct; plain `claude` never wrapped (opt-in guardrail id:e905); install marker-guarded, uninstall clean (+.bak).
 - Both ROADMAP checkboxes legitimately ticked; docs match what shipped.
 Surfaced 2 REVIEW_ME judgment boxes (no code changed): (1) id:99a4 probe ABORTS on an UNSET `ANTHROPIC_BASE_URL` under `set -u` — spec-mandated plain `"$VAR"` conflicts with the mode-a "unset≈empty" contract; sole caller unaffected (always sets it), but recommend `${VAR:-}` (the never-`${VAR:-}` convention is a Bash-tool-call rule, inapplicable inside a `.sh`). (2) id:69f6 no WatchdogSec (Restart=always only; hung daemon not caught) + TCP-connect-only liveness (within spec). Both for owner judgment.
+
+## 2026-07-23 13:37 — reviewer (claude-opus-4-8)
+
+review: mech-proxy probe (id:99a4) + always-on service (id:69f6) + claude-relay — CLEAN, no gaming; 2 REVIEW_ME judgment boxes (unset-var abort, WatchdogSec/liveness)
