@@ -317,7 +317,12 @@ integration invariants.
    first), class-A only (conforming token + repo resolves on disk → INBOUND stub written +
    committed + `inbox-done`); class-B prose stays surfaced-only (the id:678e slice-2 gate).
    Surface what was auto-filed in `RELAY_STATUS.md` / the turn summary. A directed
-   single-repo / non-`--all` run does NOT touch the global inbox (skip this sub-step).
+   single-repo / non-`--all` run does NOT run this `--all` auto-filer sub-step — but it
+   MUST still check the per-repo filtered inbox surface instead (id:ce50):
+   `scripts/inbox-scan-repo.sh <repo>`, once per repo in scope. That is a report-only
+   VISIBILITY check (never writes), distinct from the `--all` auto-filer above; it
+   surfaces any `[<repo>]`-targeted inbox item so a directed run no longer misses it
+   the way `/relay human .` did on chidiai 2026-07-20 (routed:4975).
 2. **Cheap pre-scan, then ONE question batch.** Spawn ≤5 lightweight read-only Explore
    agents (README + tree + `git log` skim, no worktrees) to collect per-repo clarifying
    questions and a dirty assessment. Ask the user EVERYTHING in one `AskUserQuestion`
