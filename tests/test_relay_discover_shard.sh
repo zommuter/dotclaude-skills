@@ -37,13 +37,27 @@ PRELUDE_SH="$SRC_DIR/relay/scripts/discover-prelude.sh"
 grep -q "discover-prelude.sh" "$JS" || fail "relay-loop.js no longer dispatches the mechanized discover-prelude.sh"
 [[ "$(grep -c '"\$INJECT_SH" take' "$PRELUDE_SH")" == "1" ]] || fail "discover-prelude.sh does not run inject.sh take EXACTLY once (CONSUMING)"
 grep -q '"\$CLAIM_SH" peek' "$PRELUDE_SH" || fail "discover-prelude.sh does not run claim.sh peek"
-grep -q "discover-repo.sh --repo" "$JS" || fail "runner does not invoke discover-repo.sh --repo per repo"
-grep -q "NO-FILESYSTEM-HUNTING GUARD" "$JS" || fail "runner prompt does not restrict itself to ONLY discover-repo.sh (would re-run peek/take itself)"
+#     id:24ec (2026-07-23): the discover-run SHARD is now ALSO mechanized — a model:'bash'
+#     dispatch of discover-chunk.sh — so the per-repo `discover-repo.sh --repo` LOOP + the
+#     NO-FILESYSTEM-HUNTING guarantee moved from the runner PROMPT in relay-loop.js INTO that
+#     wrapper (the SAME faithful-relocation as the prelude: coverage MOVED to the wrapper's own
+#     test, test_discover_chunk_mechanized_24ec.sh — never dropped). Assert them in their new home.
+CHUNK_SH="$SRC_DIR/relay/scripts/discover-chunk.sh"
+grep -q "discover-chunk.sh" "$JS" || fail "relay-loop.js no longer dispatches the mechanized discover-chunk.sh (id:24ec)"
+grep -Eq 'DISCOVER_REPO=.*discover-repo\.sh' "$CHUNK_SH" || fail "discover-chunk.sh does not reference discover-repo.sh"
+grep -q -- '--repo "$name" --path "$path"' "$CHUNK_SH" || fail "discover-chunk.sh does not invoke discover-repo.sh --repo/--path per repo"
+grep -q "NO-FILESYSTEM-HUNTING" "$CHUNK_SH" || fail "discover-chunk.sh does not carry the NO-FILESYSTEM-HUNTING guarantee"
 
-# (4) shards fan out in PARALLEL over round-robin chunks, with a per-shard schema.
+# (4) shards fan out in PARALLEL over round-robin chunks. Since id:24ec mechanized the shard to a
+#     model:'bash' dispatch of discover-chunk.sh (raw stdout, parsed by parseShard), SHARD_SCHEMA
+#     is no longer PASSED to agent() (mirroring id:86a2 dropping PRELUDE_SCHEMA from the prelude
+#     agent()); it is RETAINED as the documented output contract the wrapper must emit.
 grep -q "discover-shard" "$JS" || fail "no discover-shard classifiers"
 grep -Eq "await parallel\(chunks\.map" "$JS" || fail "shards are not fanned out via parallel(chunks.map(...))"
-grep -q "schema: SHARD_SCHEMA" "$JS" || fail "shard agents do not use SHARD_SCHEMA"
+grep -q "SHARD_SCHEMA" "$JS" || fail "SHARD_SCHEMA (the documented shard output contract) is gone"
+grep -Eq "label: [\`']discover-run:[^\"\`']*[\`'], phase: 'Classify', model: 'bash'" "$JS" \
+  || fail "the discover-run shard is not dispatched model:'bash' (id:24ec mechanization)"
+grep -q "parseShard" "$JS" || fail "the model:'bash' shard return is not parsed (parseShard, id:24ec)"
 
 # (5) the merge rebuilds the single discovery object: shard units/surfaced/skipped + the prelude's
 #     injectedUnits and non-own skippedConfig.

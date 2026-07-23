@@ -17,10 +17,15 @@
 #   inject-take    -> inject.sh take
 #   heartbeat-beat -> heartbeat.sh beat
 #   heartbeat-stop -> heartbeat.sh stop
-# The OTHER haiku hops are NOT proxy-eligible and MUST NOT be flipped: the
-# discover-prelude (multi-command + LLM JSON assembly) and the discover-run
-# classify shard (the id:7402 residual LLM read) stay model:'haiku'. This test
-# guards that boundary in BOTH directions.
+# The discovery hops were originally EXCLUDED from this set (multi-step per-repo loops), but
+# have since been mechanized into single fenced commands of their own: the discover-prelude ->
+# discover-prelude.sh (id:86a2) and the discover-run SHARD -> discover-chunk.sh (id:24ec), each a
+# model:'bash' dispatch. Their per-repo loops moved INTO those wrappers (asserted by their own
+# tests: test_prelude_mechanized_86a2.sh / test_discover_chunk_mechanized_24ec.sh), so they are
+# no longer "must-stay-haiku" here. The only residual LLM discovery read left is the CASE-A
+# content-address copy (id:7402), a gated follow-on (id:6eb3) not yet a model:'bash' hop. This
+# test guards the convertible-set boundary in BOTH directions AND (section 5) that the two
+# mechanized discovery hops are not silently re-pinned to haiku.
 
 set -euo pipefail
 
@@ -103,21 +108,35 @@ if missing:
 print(f"PASS: {len(markers)} relay-mech fence markers + all convertible relay commands present")
 PYEOF
 
-# (5) Boundary guard — the NON-eligible LLM hop must STAY model:'haiku' (a lazy
-# executor must not flip the residual LLM read to bash). The classify shard (label
-# discover-run:) is the id:7402 residual LLM surface — a sig-gated cat-and-copy of an
-# already-mechanical verdict, still an LLM hop until the id:24ec mechanization lands —
-# so it is wrong to route through the mechanical proxy today.
-# id:86a2 (2026-07-23): the discover-prelude is NO LONGER on this list — it was
-# owner-ratified as mechanizable (it never classifies; every step is already shell) and
-# is now a model:'bash' dispatch of discover-prelude.sh (its own boundary is asserted by
-# test_prelude_mechanized_86a2.sh + test_discover_cache.sh D1). Only discover-run remains.
-for label in "discover-run:"; do
+# (5) Boundary guard — the NON-eligible LLM hops must STAY model:'haiku' (a lazy executor
+# must not flip a residual LLM read to bash).
+# id:86a2 (2026-07-23): the discover-prelude was removed from this list — mechanized to a
+# model:'bash' dispatch of discover-prelude.sh (never classifies; every step is already shell).
+# id:24ec (2026-07-23): the discover-run SHARD is likewise NO LONGER on this list — it was
+# owner-ratified + mechanized (CASE B) into a deterministic model:'bash' dispatch of
+# discover-chunk.sh (per-repo reconcile+classify via discover-repo.sh, concatenated; no LLM
+# judgment — classify-verdict never emits AMBIGUOUS). Its boundary/parity is now asserted by
+# test_discover_chunk_mechanized_24ec.sh (the wrapper's own test), the faithful-relocation
+# pattern id:86a2 used for the prelude — coverage MOVED, not dropped. The CASE-A content-address
+# copy (the id:7402 residual LLM read) remains the gated follow-on id:6eb3; when it too becomes a
+# model:'bash' hop this guard's list may empty entirely.
+# The list is currently EMPTY (both discovery LLM hops are mechanized). If a future hop is a
+# genuine LLM read that must NOT be proxy-converted, add its label here.
+must_stay_haiku=()
+for label in "${must_stay_haiku[@]}"; do
   line=$(grep -nE "label: *[\`']$label" "$JS" | grep "model:" || true)
   [[ -n "$line" ]] || fail "boundary guard: could not locate the '$label' hop option object"
   echo "$line" | grep -qE "model: *['\"]haiku['\"]" \
     || fail "boundary guard: the LLM hop '$label' must STAY model:'haiku' (not proxy-eligible — do not convert)"
 done
-pass "boundary guard: classify-shard (discover-run) stays model:'haiku' (LLM, not mechanical); prelude is now bash per id:86a2"
+# Positive assertion that the relocation actually happened: discover-run is now model:'bash',
+# NOT a static model:'haiku' (guards against a silent regression that re-pins it to haiku).
+dr_line=$(grep -nE "label: *[\`']discover-run:" "$JS" | grep "model:" || true)
+[[ -n "$dr_line" ]] || fail "boundary guard: could not locate the discover-run hop option object"
+echo "$dr_line" | grep -qE "model: *['\"]haiku['\"]" \
+  && fail "boundary guard: discover-run is mechanized (id:24ec) — it must NOT be static model:'haiku' anymore"
+echo "$dr_line" | grep -qE "model: *['\"]bash['\"]" \
+  || fail "boundary guard: discover-run must dispatch model:'bash' (id:24ec mechanized shard)"
+pass "boundary guard: discover-prelude (id:86a2) + discover-run (id:24ec) are both mechanized to model:'bash'; no LLM discovery hop remains pinned haiku"
 
 echo "ALL PASS"
