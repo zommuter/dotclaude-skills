@@ -21,6 +21,14 @@
 #       is refused (bash on this host would otherwise honour it) and never executed.
 #   (h) REDIRECTION: >, >>, 2>, &> in an otherwise-allowlisted command is refused
 #       (a mechanical hop never redirects) and never executed.
+#   (m) id:3557: an allowlisted command that exits 0 with EMPTY (or whitespace-only)
+#       stdout returns the 'MECH-OK exit=0\n' sentinel, never a genuinely empty
+#       string — an empty string reads to the model:"bash" agent harness as an empty
+#       completion, which it treats as retryable and re-dispatches forever, wedging
+#       silent mechanical hops (quota-stop.sh proceed, heartbeat.sh beat, claim.sh
+#       release, inject.sh take with nothing pending). A command with real stdout is
+#       still returned UNCHANGED (hops that parse stdout — classify verdicts,
+#       inject-take JSON, discover output — must not be corrupted by the sentinel).
 # The positive case (a) exercises the REAL pinned-path identity check: the canonical
 # root is pointed (via MECHANICAL_PROXY_RELAY_ROOT) at a controlled temp dir, and a
 # real allowlisted-basename script is placed THERE. So (a) proves the pin admits the
@@ -307,6 +315,45 @@ check(mod._command_allowed(pipeline_bad) is False,
 check(mod._mechanical_command(
         req("bash", [{"role": "user", "content": pipeline_bad}])) is None,
       f"(l) model:bash + pipeline-not-ending-in-relay-script -> fail-open (not run): {pipeline_bad!r}")
+
+# ── (m) id:3557: empty-stdout exit-0 success -> MECH-OK sentinel; non-empty unchanged ──
+with open(ok_script, "w") as f:
+    f.write("#!/bin/sh\nexit 0\n")   # prints nothing
+empty_cmd = f"sh {ok_script}"
+out = mod._run_mechanical(empty_cmd)
+check(out == "MECH-OK exit=0\n",
+      f"(m) empty-stdout exit-0 success returns the MECH-OK sentinel (got {out!r})")
+
+with open(ok_script, "w") as f:
+    f.write("#!/bin/sh\nprintf '   \\n\\t \\n'\n")   # whitespace-only
+out = mod._run_mechanical(empty_cmd)
+check(out == "MECH-OK exit=0\n",
+      f"(m) whitespace-only-stdout exit-0 success also returns the MECH-OK sentinel (got {out!r})")
+
+with open(ok_script, "w") as f:
+    f.write("#!/bin/sh\nprintf %s MECHANICAL-STDOUT-9f3a\n")   # restore real stdout
+out = mod._run_mechanical(empty_cmd)
+check(out == "MECHANICAL-STDOUT-9f3a",
+      f"(m) non-empty stdout on exit-0 success is returned UNCHANGED, not the sentinel (got {out!r})")
+
+# The sentinel must also parse as a non-empty completion downstream (SSE synthesis
+# never rejects it; it produces real, non-empty content deltas like any other stdout).
+with open(ok_script, "w") as f:
+    f.write("#!/bin/sh\nexit 0\n")
+out = mod._run_mechanical(empty_cmd)
+sink2 = Sink()
+mod._serve_mechanical_sse(sink2, out, "bash")
+raw2 = bytes(sink2.buf).decode()
+text2 = "".join(
+    json.loads(l.strip()[5:].strip()).get("delta", {}).get("text", "")
+    for l in raw2.splitlines()
+    if l.strip().startswith("data:")
+    and json.loads(l.strip()[5:].strip()).get("type") == "content_block_delta"
+)
+check(text2 == "MECH-OK exit=0\n",
+      f"(m) SSE deltas carry the sentinel as real non-empty completion text (got {text2!r})")
+with open(ok_script, "w") as f:
+    f.write("#!/bin/sh\nprintf %s MECHANICAL-STDOUT-9f3a\n")   # restore for cleanliness
 
 import shutil
 shutil.rmtree(canon_parent, ignore_errors=True)

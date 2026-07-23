@@ -605,9 +605,14 @@ const SHARD_SCHEMA = {
 
 // id:6176 — the quota hop is now a model:"bash" mechanical dispatch (was a QUOTA_SCHEMA-typed
 // haiku return). quota-stop.sh prints NOTHING to stdout on success and signals its verdict purely
-// via EXIT CODE, logging the crossed bucket to STDERR. mechanical-proxy.py therefore returns '' on
-// exit 0, or 'MECH-ERROR exit=<N>\n<stderr>' on any non-zero exit (see _run_mechanical). Parse that
-// raw shape back into the { exitCode, crossedBucket, buckets } object quotaGate() consumes.
+// via EXIT CODE, logging the crossed bucket to STDERR. mechanical-proxy.py therefore returns the
+// 'MECH-OK exit=0\n' sentinel on exit 0 (id:3557 — a genuinely empty string wedges the model:"bash"
+// agent harness, which treats an empty completion as retryable and re-dispatches forever), or
+// 'MECH-ERROR exit=<N>\n<stderr>' on any non-zero exit (see _run_mechanical). Parse that raw shape
+// back into the { exitCode, crossedBucket, buckets } object quotaGate() consumes. VERIFIED
+// (id:3557 audit): parseQuotaMechResult's `/^MECH-ERROR exit=(\d+)/` regex does not match the
+// 'MECH-OK …' sentinel, so the `!m` branch (exitCode 0 / proceed) fires exactly as it did for the
+// old empty string — no logic change needed here.
 //   exitCode: 0 (proceed) / 1 (real-cache exhaustion) / 2 (cache unreadable, no burn sample) /
 //             3 (cache unreadable, burn-rate extrapolates over threshold).
 //   crossedBucket (id:2425): exit 1 stderr "quota-stop: <bucket>=<val>% >= threshold <t>";
@@ -697,7 +702,11 @@ const INTEGRATE_SCHEMA = {
 // never dispatched with a guessed path.
 function parseInjectTake(raw, ownRepos) {
   const text = (raw == null) ? '' : String(raw)
-  if (!text.trim() || /^MECH-ERROR/.test(text)) return []
+  // id:3557 — an empty take (nothing pending) now comes back as the 'MECH-OK exit=0' sentinel
+  // rather than a genuinely empty string (mechanical-proxy.py _run_mechanical); check for it
+  // explicitly so this never depends on the JSON.parse-per-line loop below happening to fail
+  // closed on the sentinel text.
+  if (!text.trim() || /^MECH-ERROR/.test(text) || /^MECH-OK\b/.test(text)) return []
   const units = []
   for (const line of text.split('\n')) {
     const s = line.trim()
@@ -1563,6 +1572,8 @@ if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTE
         // id:6176 — mechanical hop (model:"bash"): the ```relay-mech fence carries the single
         // allowlisted relay-script command; mechanical-proxy.py extracts it, runs it locally, and
         // returns its stdout with ZERO upstream inference. Fire-and-forget (output only logged).
+        // id:3557 audit: the resolved value is only passed to `log()` on catch, never parsed on
+        // success, so the MECH-OK sentinel on a silent success is harmless.
         'Run EXACTLY this one command for the surface-only TODO backlog of repo ' + u.repo + ' and report its stdout verbatim (id:5eb3/id:47f1):\n' +
         '```relay-mech\n' +
         `~/.claude/skills/relay/scripts/file-surface-decisions.sh '${u.path}'` +
@@ -2283,6 +2294,8 @@ async function beatHeartbeat() {
   try {
     // id:6176 — mechanical hop (model:"bash"): fence carries `heartbeat.sh beat <runId>`; the proxy
     // runs it locally (ZERO upstream inference). Fire-and-forget — return ignored, TTL backstop.
+    // id:3557 audit: the resolved value is discarded entirely here, so the MECH-OK sentinel on a
+    // silent success is harmless (no parsing of this hop's stdout exists).
     await agent(
       'Run exactly this command and report its stdout verbatim (refresh the relay run-liveness heartbeat so the outage watchdog/auto-reconcile know this pool is alive):\n' +
       '```relay-mech\n' +
@@ -2298,6 +2311,8 @@ async function stopHeartbeat() {
   try {
     // id:6176 — mechanical hop (model:"bash"): fence carries `heartbeat.sh stop <runId>`; the proxy
     // runs it locally (ZERO upstream inference). Fire-and-forget — return ignored.
+    // id:3557 audit: same as heartbeat-beat — the resolved value is discarded, so the MECH-OK
+    // sentinel on a silent success is harmless.
     await agent(
       'Run exactly this command and report its stdout verbatim (clean relay-loop shutdown — release the run heartbeat so the watchdog/auto-reconcile don\'t read this clean stop as a death):\n' +
       '```relay-mech\n' +
