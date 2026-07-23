@@ -38,25 +38,35 @@ grep -q '```relay-mech' "$JS" \
   || fail "no relay-mech fenced block — proxy (mechanical-proxy.py) cannot extract any mechanical command"
 pass "at least one relay-mech fence present"
 
-# (2) At least 5 model:"bash" dispatches (one per convertible hop).
-bash_count=$(grep -Eo "model: *['\"]bash['\"]" "$JS" | wc -l)
-[[ "$bash_count" -ge 5 ]] \
-  || fail "expected >=5 model:\"bash\" dispatches (the 5 convertible mechanical hops); found $bash_count"
-pass "model:\"bash\" dispatched for the mechanical hops ($bash_count found)"
+# (2) The 5 convertible hops now dispatch as `model: MECH_MODEL` — the id:4239 run-level flag
+# that DEFAULTS to 'bash' (proxy-eligible) and flips to 'haiku' ONLY on the mode-a preflight
+# (session not launched through the proxy). So the static assertion is >=5 `model: MECH_MODEL`
+# dispatches, plus the MECH_MODEL definition defaulting to 'bash' (checked in (2b)).
+mech_count=$(grep -Eo "model: *MECH_MODEL" "$JS" | wc -l)
+[[ "$mech_count" -ge 5 ]] \
+  || fail "expected >=5 'model: MECH_MODEL' dispatches (the 5 convertible mechanical hops); found $mech_count"
+pass "model: MECH_MODEL dispatched for the mechanical hops ($mech_count found)"
 
-# (3) Per-hop: each convertible hop's option object uses model:"bash", NOT model:'haiku'.
-# The label + model live on the same single-line option object for all five.
+# (2b) MECH_MODEL (id:4239) must be defined to DEFAULT to 'bash' and flip to 'haiku' only when
+# the preflight signalled 'fallback-haiku' — so an un-preflighted run keeps the proxy-eligible
+# model:"bash" contract (id:6176) unchanged, and the mode-a fallback is the ONLY haiku path.
+grep -qE "MECH_MODEL *= *MECH_FALLBACK *=== *'fallback-haiku' *\? *'haiku' *: *'bash'" "$JS" \
+  || fail "MECH_MODEL must be defined as: MECH_FALLBACK === 'fallback-haiku' ? 'haiku' : 'bash' (id:4239 run-level flag defaulting to bash)"
+pass "MECH_MODEL defaults to 'bash', flips to 'haiku' only on the mode-a preflight (id:4239)"
+
+# (3) Per-hop: each convertible hop's option object uses `model: MECH_MODEL`, NOT a static
+# model:'haiku'. The label + model live on the same single-line option object for all five.
 check_hop_model_bash() {
   local label_re="$1" human="$2"
   local line
   line=$(grep -nE "label: *[\`'\"]$label_re" "$JS" | grep "model:" || true)
   [[ -n "$line" ]] || fail "$human: no single-line option object matching label '$label_re' with a model field"
   if echo "$line" | grep -qE "model: *['\"]haiku['\"]"; then
-    fail "$human: hop still dispatched with model:'haiku' — must become model:\"bash\" (proxy-eligible mechanical hop)"
+    fail "$human: hop still dispatched with a STATIC model:'haiku' — must be model: MECH_MODEL (id:4239 proxy-eligible mechanical hop, bash-by-default)"
   fi
-  echo "$line" | grep -qE "model: *['\"]bash['\"]" \
-    || fail "$human: hop's model is neither 'haiku' nor 'bash' — expected model:\"bash\""
-  pass "$human: dispatched with model:\"bash\" (not haiku)"
+  echo "$line" | grep -qE "model: *MECH_MODEL" \
+    || fail "$human: hop's model is not MECH_MODEL — expected model: MECH_MODEL (id:4239, bash-by-default)"
+  pass "$human: dispatched with model: MECH_MODEL (bash-by-default, not static haiku)"
 }
 check_hop_model_bash "file-surface:" "file-surface hop"
 check_hop_model_bash "quota:"        "quota hop"
