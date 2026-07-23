@@ -21,10 +21,22 @@
 #   stale and destroy it. --no-reconcile lets that producer classify without mutating anything.
 #   The live loop NEVER passes this flag → its reconcile+reap behaviour is byte-for-byte unchanged.
 #
-# ROUTING:
-#   1. Unless --no-reconcile: run reconcile-repo.sh. If its surfaced array is non-empty → return
-#      it verbatim (units:[], skipped:[]) and STOP — do NOT classify, never double-surface.
-#   2. Else run classify-repo.sh --emit unit and route by unit.verdict:
+# ROUTING (id:bc49 — orphan-suppress is ITEM-scoped/ADDITIVE, not REPO-scoped):
+#   1. Unless --no-reconcile: run reconcile-repo.sh, then dispose its surfaced array by CLASS:
+#        • ONLY orphan-suppress entries (reason starts "suppressed re-dispatch:", id:1f53) →
+#          ADDITIVE: fall through to classify, emit the classify unit ALONGSIDE the suppress
+#          surface (an orphan's mere existence NEVER blocks a repo's independent progress —
+#          meeting 2026-07-23, D1). SAME-ITEM carve-out: if the classify unit is an execute
+#          unit and EVERY open executable [ROUTINE] item is bound to a suppressed orphan, do
+#          NOT emit a duplicate execute unit — reconcile-first (surface only, units:[]).
+#          ENFORCEMENT (A4-ii): inject an item-scoped "orphan-parked, reconcile-first, do NOT
+#          work id:X" note into the emitted unit.reason (the child prompt relays it).
+#        • ANY repo-level class (in-flight/claimed id:ebfb, diverged id:c3f7, e3ad fail-closed
+#          refusal, discover-error) → SUBSTITUTIVE: return surfaced verbatim (units:[],
+#          skipped:[]) and STOP — an executor dispatched into a repo another live run holds is
+#          the dc5b cross-run ledger collision. This is the pre-bc49 behaviour, preserved.
+#   2. Else (reconcile clean, or --no-reconcile) run classify-repo.sh --emit unit and route by
+#      unit.verdict:
 #        blocked    → surfaced += {repo,reason}; no unit
 #        AMBIGUOUS  → surfaced += {repo,reason: loud}; no unit (dormant hook, NO LLM call)
 #        idle       → units += unit; skipped += {repo,reason}
@@ -57,13 +69,29 @@ done
 # Step 1 (SKIPPED under --no-reconcile — id:9d97): bounded side-effecting reconcile. The live
 # dispatch loop always runs this (its reap/park is load-bearing); the read-only snapshot
 # producer sets --no-reconcile so it never mutates a live executor's worktree.
+rec_json=""
 if [[ -z "$no_reconcile" ]]; then
   rec_json="$("$RECONCILE" --repo "$repo" --path "$path" --runid "$runid" \
               --live-claims "$live_claims" --main-branch "$main_branch")"
 
-  rec_surfaced_count="$(printf '%s' "$rec_json" | python3 -c 'import sys,json; print(len(json.load(sys.stdin).get("surfaced", [])))')"
+  # Dispose reconcile's surfaced array by CLASS (id:bc49). A surfaced entry is orphan-suppress
+  # iff its reason starts with the "suppressed re-dispatch:" marker (reconcile-repo.sh:203, the
+  # ONLY producer of that prefix). If ANY surfaced entry is NOT orphan-suppress, the repo carries
+  # a repo-level block (in-flight/diverged/e3ad-refusal/discover-error) → SUBSTITUTIVE (units:[]).
+  # If surfaced is non-empty AND every entry is orphan-suppress → ADDITIVE (fall through to
+  # classify; the suppress entries are merged back in the final fold). Empty → normal classify.
+  rec_disposition="$(printf '%s' "$rec_json" | python3 -c '
+import sys, json
+surf = json.load(sys.stdin).get("surfaced", [])
+if not surf:
+    print("clean")
+elif all(s.get("reason", "").startswith("suppressed re-dispatch:") for s in surf):
+    print("additive")
+else:
+    print("substitutive")
+')"
 
-  if [[ "$rec_surfaced_count" -gt 0 ]]; then
+  if [[ "$rec_disposition" == "substitutive" ]]; then
     printf '%s' "$rec_json" | python3 -c '
 import sys, json
 rec = json.load(sys.stdin)
@@ -75,21 +103,72 @@ fi
 
 unit_json="$("$CLASSIFY" --emit unit --repo "$repo" --path "$path")"
 
-REPO_ARG="$repo" python3 -c '
-import json, os, sys
+# Final fold: route the classify verdict, then (id:bc49) merge any orphan-suppress surface
+# ADDITIVELY and apply the SAME-ITEM carve-out + item-scoped reconcile-first note. REC_JSON is
+# "" under --no-reconcile or when reconcile was clean → no suppress entries → identical to the
+# pre-bc49 routing.
+REPO_ARG="$repo" ROADMAP_PATH="$path/ROADMAP.md" REC_JSON="$rec_json" python3 -c '
+import json, os, re, sys
 
 repo = os.environ["REPO_ARG"]
+roadmap_path = os.environ["ROADMAP_PATH"]
+rec_raw = os.environ.get("REC_JSON", "")
 unit = json.load(sys.stdin)
 verdict = unit.get("verdict", "")
 
-if verdict == "blocked":
-    out = {"units": [], "surfaced": [{"repo": repo, "reason": unit.get("reason", "")}], "skipped": []}
-elif verdict == "AMBIGUOUS":
-    out = {"units": [], "surfaced": [{"repo": repo, "reason": "classifier returned AMBIGUOUS — needs LLM/human triage (loud, id:a0b6)"}], "skipped": []}
-elif verdict == "idle":
-    out = {"units": [unit], "surfaced": [], "skipped": [{"repo": repo, "reason": unit.get("reason", "")}]}
-else:
-    out = {"units": [unit], "surfaced": [], "skipped": []}
+# Collect orphan-suppress surface entries from reconcile (additive notifications) + their ids.
+suppress_surf = []
+suppressed_ids = set()
+if rec_raw:
+    try:
+        rec = json.loads(rec_raw)
+    except Exception:
+        rec = {}
+    for s in rec.get("surfaced", []):
+        reason = s.get("reason", "")
+        if reason.startswith("suppressed re-dispatch:"):
+            suppress_surf.append(s)
+            suppressed_ids.update(re.findall(r"id:([0-9a-f]{4})", reason))
 
-print(json.dumps(out))
+# Route the classify verdict (same shape/order as the pre-bc49 script).
+if verdict == "blocked":
+    units, surfaced, skipped = [], [{"repo": repo, "reason": unit.get("reason", "")}], []
+elif verdict == "AMBIGUOUS":
+    units, surfaced, skipped = [], [{"repo": repo, "reason": "classifier returned AMBIGUOUS — needs LLM/human triage (loud, id:a0b6)"}], []
+elif verdict == "idle":
+    units, surfaced, skipped = [unit], [], [{"repo": repo, "reason": unit.get("reason", "")}]
+else:
+    units, surfaced, skipped = [unit], [], []
+
+# Additive orphan-suppress handling (reached ONLY when reconcile surfaced solely orphan-suppress
+# entries, or none at all — the substitutive class already returned above).
+if suppress_surf:
+    if verdict == "execute" and units:
+        # SAME-ITEM carve-out (D1): collect open executable [ROUTINE] item ids; if EVERY one is
+        # bound to a suppressed orphan (none free), drop the duplicate execute unit (reconcile-
+        # first). Fail-open: if we parse no routine ids at all, keep the unit (never wrong-suppress).
+        routine_open = set()
+        try:
+            with open(roadmap_path) as f:
+                for line in f:
+                    if re.match(r"^\s*- \[ \]", line) and "[ROUTINE]" in line and "@manual" not in line:
+                        m = re.search(r"id:([0-9a-f]{4})", line)
+                        if m:
+                            routine_open.add(m.group(1))
+        except OSError:
+            pass
+        if routine_open and not (routine_open - suppressed_ids):
+            units = []   # same-item only → reconcile-first, no duplicate execute unit
+        else:
+            # ENFORCEMENT (A4-ii): inject the item-scoped reconcile-first note into unit.reason.
+            if suppressed_ids:
+                names = ", ".join("id:" + i for i in sorted(suppressed_ids))
+                note = "orphan-parked (%s) — reconcile-first, do NOT work %s" % (names, names)
+            else:
+                note = "orphan-parked (ambiguous binding) — reconcile-first"
+            base = unit.get("reason", "")
+            unit["reason"] = (base + " | " + note) if base else note
+    surfaced = surfaced + suppress_surf   # additive: surface the suppress alongside
+
+print(json.dumps({"units": units, "surfaced": surfaced, "skipped": skipped}))
 ' <<< "$unit_json"
