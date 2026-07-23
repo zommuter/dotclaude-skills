@@ -3195,3 +3195,7 @@ OPERATIONAL FOLLOW-UP (out of scope for this unit, flagged): the pool now REQUIR
 mechanical-proxy running AND `ANTHROPIC_BASE_URL` → the proxy at runtime for these 5 hops —
 without it, `model:"bash"` passes through and 404s (id:94b8). This is a deploy/runtime
 concern the static emitter test deliberately excludes.
+
+## 2026-07-23 11:20 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: suite 293/0 green; verified 6176/7681/f9cd genuine (no gaming); minted id:ce50 for routed:bdee; routine_open=0 [id:6176,7681,f9cd,ce50]
