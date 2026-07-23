@@ -3240,3 +3240,7 @@ id:4044 — sd_notify + WatchdogSec for mechanical-proxy; verified live (Watchdo
 ## 2026-07-23 14:11 — reviewer (claude-opus-4-8)
 
 id:4239 — front-door mechanical-tier preflight (mech-preflight.sh consumes id:99a4 probe; relay-loop.js MECH_MODEL run-flag: 5 hops fall to Haiku in mode-a). Apex review CLEAN; suite 296/0/1
+
+## 2026-07-23 15:11 — reviewer (claude-opus-4-8)
+
+mech-tier fixes: id:3557 MECH-OK sentinel (unwedge silent hops) + id:c14d reconcile-on-restart→model:bash + id:e9fa quota memo
