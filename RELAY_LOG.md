@@ -3339,3 +3339,7 @@ the real API. Per [[relay-model-proxy-probe-gated-substrate]] (id:a36e, model:ba
 errors this session) the pool now runs through the proxy, so this is moot in practice — but if the
 owner wants the mode-a fallback for the prelude too, the RED spec's literal-'bash' assertion and
 this dispatch would both move to `MECH_MODEL`. Surfaced, not decided.
+
+## 2026-07-23 19:32 — reviewer (claude-opus-4-8)
+
+id:86a2 landed — discover-prelude mechanized model:'haiku'→'bash' (discover-prelude.sh); tests faithfully relocated, verified non-gaming
