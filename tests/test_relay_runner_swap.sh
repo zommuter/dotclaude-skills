@@ -22,19 +22,34 @@ grep -q 'discovery SHARD classifier' "$JS" && fail "old LLM shardPrompt still pr
 grep -q 'const shardPrompt' "$JS" && fail "shardPrompt binding still present (must be DELETED)"
 pass "(1) old LLM shard prompt is deleted"
 
-# (2) The mechanical runner replaces it: a runnerPrompt that invokes discover-repo.sh per repo.
+# (2) The mechanical runner replaces it: a runnerPrompt that dispatches the per-repo discovery.
+#     id:24ec (2026-07-23): the runner is now MECHANIZED a second step — the per-repo
+#     discover-repo.sh LOOP moved OUT of the LLM prompt into a deterministic wrapper,
+#     discover-chunk.sh, dispatched via a single model:'bash' (```relay-mech) fence. runnerPrompt
+#     is RETAINED but now BUILDS that fence (echoes the chunk into discover-chunk.sh); the per-repo
+#     discover-repo.sh invocation lives in the wrapper. SAME faithful-relocation id:86a2 used for
+#     the prelude — coverage MOVED to discover-chunk.sh's own test
+#     (test_discover_chunk_mechanized_24ec.sh), never dropped.
+CHUNK_SH="$SRC_DIR/relay/scripts/discover-chunk.sh"
 grep -q 'const runnerPrompt' "$JS" || fail "runnerPrompt binding missing"
-grep -q 'discover-repo.sh --repo' "$JS" || fail "runner does not invoke discover-repo.sh per repo"
-pass "(2) mechanical runner invokes discover-repo.sh per repo"
+grep -q 'discover-chunk.sh' "$JS" || fail "runner does not dispatch the mechanized discover-chunk.sh (id:24ec)"
+grep -q -- '--repo "$name" --path "$path"' "$CHUNK_SH" || fail "discover-chunk.sh does not invoke discover-repo.sh per repo"
+pass "(2) mechanical runner dispatches discover-chunk.sh, which invokes discover-repo.sh per repo"
 
-# (3) The agent() call uses runnerPrompt + the UNCHANGED SHARD_SCHEMA (the merge code's contract).
+# (3) The agent() call uses runnerPrompt and dispatches model:'bash' (id:24ec — the shard is a
+#     mechanical hop, not an LLM agent). SHARD_SCHEMA is RETAINED as the documented output contract
+#     the merge code consumes, but — like id:86a2's PRELUDE_SCHEMA — is no longer PASSED to agent()
+#     (a model:'bash' hop returns raw stdout, parsed by parseShard).
 grep -Eq 'agent\(runnerPrompt\(chunk\)' "$JS" || fail "agent() call does not use runnerPrompt(chunk)"
-grep -q 'schema: SHARD_SCHEMA' "$JS" || fail "runner agent no longer feeds SHARD_SCHEMA (breaks the merge contract)"
-pass "(3) runner agent feeds the unchanged SHARD_SCHEMA"
+grep -Eq "label: [\`']discover-run:[^\"\`']*[\`'], phase: 'Classify', model: 'bash'" "$JS" \
+  || fail "the discover-run shard agent() is not dispatched model:'bash' (id:24ec)"
+grep -q 'SHARD_SCHEMA' "$JS" || fail "SHARD_SCHEMA (the merge code's documented contract) is gone"
+grep -q 'parseShard' "$JS" || fail "the model:'bash' shard return is not parsed (parseShard, id:24ec)"
+pass "(3) runner agent dispatches model:'bash', parsed by parseShard; SHARD_SCHEMA retained as contract"
 
-# (4) The NO-FILESYSTEM-HUNTING guard (id:612f) is carried into the runner prompt.
-grep -q 'NO-FILESYSTEM-HUNTING GUARD (id:612f)' "$JS" || fail "id:612f guard missing from the runner prompt"
-pass "(4) id:612f no-filesystem-hunting guard preserved"
+# (4) The NO-FILESYSTEM-HUNTING guard (id:612f) is carried into the wrapper (id:24ec relocation).
+grep -q 'NO-FILESYSTEM-HUNTING' "$CHUNK_SH" || fail "id:612f no-filesystem-hunting guard missing from discover-chunk.sh"
+pass "(4) id:612f no-filesystem-hunting guard preserved (relocated to discover-chunk.sh)"
 
 # (5) The four JS-side backstops (A2: kept this session) are INTACT — the merge/backstop code
 #     the runner feeds is unchanged.

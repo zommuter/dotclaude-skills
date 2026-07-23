@@ -56,7 +56,11 @@ globalThis.agent = async (prompt, opts = {}) => {
     throw new Error('simulated INTEGRATE_SCHEMA validation failure (harness)')
   }
   // Discovery runner: one execute unit on the first call, drained after → loop winds down.
-  if (p.includes('MECHANICAL discovery runner')) {
+  // id:24ec — the discover-run shard is now a model:'bash' discover-chunk.sh dispatch, so key on
+  // the stable LABEL (mirrors discovery-exec-harness / loop-round-exec-harness) rather than the
+  // prompt text, which changed from the old "MECHANICAL discovery runner" LLM prompt to a fenced
+  // one-command instruction. parseShard() accepts this returned object unchanged.
+  if ((opts.label || '').includes('discover-run')) {
     discoverCalls++
     if (discoverCalls === 1) {
       return { units: [{ repo: 'alpha', path: '/tmp/relay-harness/alpha', verdict: 'execute', is_finished: false, injected: false, income: false, sig: '' }], surfaced: [], skipped: [] }

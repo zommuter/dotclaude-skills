@@ -27,11 +27,14 @@ node --check "$JS" || fail "relay-loop.js fails node --check"
 #      id:86a2 (2026-07-23): the discover-prelude is now MECHANIZED one step further — a
 #      model:'bash' (```relay-mech) dispatch of discover-prelude.sh, no LLM at all (the prelude
 #      never classifies). So its explicit pin is now 'bash', not 'haiku'; the D1 invariant
-#      (explicit fixed cheap pin, NEVER inherits Opus) is preserved and strengthened. The
-#      discover-run half (id:24ec, still open) stays 'haiku' until its own mechanization lands.
-grep -Eq "label: \`discover-run.*model: 'haiku'" "$JS" \
-  || grep -Pzoq "discover-run[^\n]*\n?[^\n]*model: 'haiku'" "$JS" \
-  || fail "discover-run agent is not pinned to model: 'haiku' (D1 tier leak / stale pin)"
+#      (explicit fixed cheap pin, NEVER inherits Opus) is preserved and strengthened.
+#      id:24ec (2026-07-23): the discover-run half is now ALSO mechanized — a model:'bash'
+#      dispatch of discover-chunk.sh (CASE B: per-repo discover-repo.sh reconcile+classify,
+#      concatenated; no LLM). So its explicit pin flipped 'haiku' → 'bash'. The D1 invariant
+#      (explicit fixed cheap pin, NEVER inherits Opus) holds for BOTH discovery hops.
+grep -Eq "label: \`discover-run.*model: 'bash'" "$JS" \
+  || grep -Pzoq "discover-run[^\n]*\n?[^\n]*model: 'bash'" "$JS" \
+  || fail "discover-run agent is not pinned to model: 'bash' (id:24ec mechanized dispatch / stale pin / tier leak)"
 grep -Eq "label: 'discover-prelude'.*model: 'bash'" "$JS" \
   || grep -Pzoq "discover-prelude[^\n]*\n?[^\n]*model: 'bash'" "$JS" \
   || fail "discover-prelude agent is not pinned to model: 'bash' (id:86a2 mechanized dispatch / stale pin)"
@@ -59,4 +62,4 @@ grep -Eiq "fail.?open|sentinel|empty sig" "$JS" || fail "no fail-open handling f
 grep -q "runId: prelude.runId" "$JS" || fail "merged discovery dropped the prelude runId (shape drift)"
 grep -q "id:c3a6" "$JS" || fail "no id:c3a6 marker tying this wiring to the roadmap item"
 
-pass "discovery is signature-cached: shards fire only on churn, prelude bash-pinned (id:86a2) + run haiku-pinned, fail-open (c3a6 + id:2ec4 tier flip)"
+pass "discovery is signature-cached: shards fire only on churn, prelude bash-pinned (id:86a2) + run bash-pinned (id:24ec), fail-open (c3a6 + id:2ec4 tier flip)"
