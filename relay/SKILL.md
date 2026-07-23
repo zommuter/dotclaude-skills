@@ -160,6 +160,27 @@ D1/D2):
    - When Fable IS available it is used ONLY as an optional bonus recheck of
      `fable-standin` checkpoints (see scheduling). Opus decisions remain **final** — they
      are never "pending Fable", so the roadmap never looks half-complete while Fable is out.
+0b. **Mechanical-tier preflight (id:4239 — consumes the id:99a4 discriminator).** BEFORE
+   launching the Workflow, run the tested helper `scripts/mech-preflight.sh preflight` ONCE
+   (mirrors the step-0 Fable probe pattern: a tested helper the front-door prose calls). It runs
+   `scripts/probe-mech-proxy.sh discriminate` against the CURRENT `ANTHROPIC_BASE_URL` and emits
+   exactly one stdout token — relay ITS stderr warning verbatim to the operator, and thread the
+   token into the Workflow as `args.MECH_FALLBACK`:
+   - `fallback-haiku` (probe mode-a — the session was NOT launched through `mechanical-proxy.py`,
+     so `model:"bash"` would hit the real API and 404): pass `MECH_FALLBACK=fallback-haiku`. The
+     loop dispatches its ~12 `model:"bash"` mechanical hops (quota gates, inject-take, heartbeat,
+     file-surface) as `model:"haiku"` for this run — Haiku runs the fenced command directly (the
+     real API IS reachable). The helper's stderr names the exact relaunch env
+     (`ANTHROPIC_BASE_URL=http://127.0.0.1:61843`) — surface it so the operator can relaunch
+     through the proxy to use the mechanical tier natively.
+   - `abort` (probe mode-b — base URL is the proxy loopback form but the proxy is DOWN): the WHOLE
+     session is degraded (all `agent()` traffic transits the dead proxy; Haiku is equally
+     unreachable, so it is NEVER a Haiku-fallback case). Surface the loud warning; for an
+     unattended run, **proceed conservatively** (pass `MECH_FALLBACK=abort` — the loop keeps
+     `model:"bash"`, which fail-opens as before, and logs the degradation loudly rather than
+     hard-crashing) and recommend starting/restarting `mechanical-proxy.py` (id:69f6).
+   - `proceed` (probe healthy): the proxy is intercepting `model:"bash"` as designed — no warning,
+     pass nothing (or `MECH_FALLBACK=proceed`).
 1. **Non-interactive by default.** The front door operates ONLY on relay.toml
    `classification = "own"` confirmed repos. New, dirty, or `needs_review` repos are
    *surfaced* in `RELAY_STATUS.md` (Queued/Blocked sections) — never asked about

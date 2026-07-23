@@ -98,6 +98,25 @@ const ALLOW_INTENSIVE = !!A.allowIntensive
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
 const FABLE_DOWN = !!A.fableDown
 
+// MECH_FALLBACK (id:4239) — the front-door mechanical-tier preflight verdict, produced ONCE by
+// scripts/mech-preflight.sh (SKILL.md step 0) and threaded in as a single run-level flag. The
+// helper consumes the id:99a4 discriminator (probe-mech-proxy.sh) and emits one token:
+//   'fallback-haiku' — probe mode-a: the session was NOT launched through mechanical-proxy.py,
+//                      so model:"bash" would hit the real API and 404. The real API IS reachable
+//                      directly, so the ~12 mechanical hops (quota gates, inject-take, heartbeat,
+//                      file-surface) dispatch as model:"haiku" instead — Haiku genuinely runs the
+//                      fenced relay-mech command via its Bash tool (the pre-proxy echo-runner path).
+//   'abort'          — probe mode-b: base URL is the proxy loopback form but the proxy is DOWN.
+//                      ALL agent() traffic transits the dead proxy, so Haiku is EQUALLY unreachable
+//                      — NEVER a fallback. Surface loudly and keep model:"bash" (it will fail-open
+//                      as before); do NOT hard-crash the whole loop over a mechanical-tier hop.
+//   'proceed' / ''   — probe healthy (or no preflight ran): model:"bash" is proxy-intercepted as
+//                      designed. Default posture.
+// MECH_MODEL is the model string the mechanical hops actually use, decided ONCE here (never
+// per-hop probing).
+const MECH_FALLBACK = A.MECH_FALLBACK || ''
+const MECH_MODEL = MECH_FALLBACK === 'fallback-haiku' ? 'haiku' : 'bash'
+
 // id:c012 — graceful (patient) operator stop. THREE entry points, all converging on
 // stopReason="user-stop" + a clean drain (the prior round's wave + integration debt are
 // already drained by runRound before the next round's discovery runs, so a stop between
@@ -217,6 +236,14 @@ function standInRank(u) {
 }
 
 log(`relay-loop: STRONG_TIER=${STRONG_TIER} → model=${STRONG_MODEL}${FABLE_DOWN ? (STRONG_MODEL === 'claude-fable-5' ? ' (fable-down: Fable unavailable, no substitute → defer strong work, executor-only)' : ' (fable-down: Fable unavailable, STRONG_TIER=opus → substitute Opus for review+handoff, marked fable-standin)') : ''}`)
+
+// id:4239 — mechanical-tier preflight notice, logged ONCE. The loud operator warning already
+// went to the front-door session's stderr (mech-preflight.sh); this is the in-loop trace.
+if (MECH_FALLBACK === 'fallback-haiku') {
+  log('relay-loop: id:4239 mechanical-preflight = mode-a (proxy NOT in path) → dispatching the ~12 model:"bash" mechanical hops as model:"haiku" for this run (real API reachable directly). Relaunch with ANTHROPIC_BASE_URL=http://127.0.0.1:61843 to use the mechanical tier natively.')
+} else if (MECH_FALLBACK === 'abort') {
+  log('relay-loop: id:4239 mechanical-preflight = mode-b (proxy DOWN at base URL) → WHOLE SESSION DEGRADED; Haiku is equally unreachable through the dead proxy, so NO fallback. Mechanical hops keep model:"bash" and will fail-open. Start/restart mechanical-proxy.py.')
+}
 
 // buildRelayStatus — generate RELAY_STATUS.md content from a run-state snapshot.
 // state shape:
@@ -1540,7 +1567,7 @@ if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTE
         '```relay-mech\n' +
         `~/.claude/skills/relay/scripts/file-surface-decisions.sh '${u.path}'` +
         '\n```',
-        { label: `file-surface:${u.repo}`, phase: 'Support', model: 'bash' }
+        { label: `file-surface:${u.repo}`, phase: 'Support', model: MECH_MODEL }
       ).catch(err => log(`relay-loop: id:5eb3 file-surface-decisions for ${u.repo} failed (non-fatal): ${err}`))
     ))
   }
@@ -1743,7 +1770,7 @@ async function quotaGate(tier) {
 \`\`\`relay-mech
 ${runIdEnv}${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${tier} --agents ${totalDispatched} --wall 0
 \`\`\``,
-    { label: `quota:${tier}`, phase: 'Quota', model: 'bash' }
+    { label: `quota:${tier}`, phase: 'Quota', model: MECH_MODEL }
   )
   const v = parseQuotaMechResult(raw)
   if (v && v.buckets && v.buckets.length) state.quota = v.buckets
@@ -2173,7 +2200,7 @@ async function takeInjections() {
     '```relay-mech\n' +
     '~/.claude/skills/relay/scripts/inject.sh take' +
     '\n```',
-    { label: 'inject-take', phase: 'Support', model: 'bash' }
+    { label: 'inject-take', phase: 'Support', model: MECH_MODEL }
   )
   return parseInjectTake(raw, prelude.repos)
 }
@@ -2261,7 +2288,7 @@ async function beatHeartbeat() {
       '```relay-mech\n' +
       `~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}` +
       '\n```',
-      { label: 'heartbeat-beat', phase: 'Support', model: 'bash' }
+      { label: 'heartbeat-beat', phase: 'Support', model: MECH_MODEL }
     )
   } catch (_) { /* non-fatal — TTL backstop */ }
 }
@@ -2276,7 +2303,7 @@ async function stopHeartbeat() {
       '```relay-mech\n' +
       `~/.claude/skills/relay/scripts/heartbeat.sh stop ${state.runId}` +
       '\n```',
-      { label: 'heartbeat-stop', phase: 'Support', model: 'bash' }
+      { label: 'heartbeat-stop', phase: 'Support', model: MECH_MODEL }
     )
   } catch (_) { /* non-fatal */ }
 }
