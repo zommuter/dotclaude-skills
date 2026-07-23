@@ -145,6 +145,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
         install-mech-proxy status-mech-proxy uninstall-mech-proxy \
+        install-claude-relay status-claude-relay uninstall-claude-relay \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
         install-relay-users install-relay-acls install-privacy-gate install-privacy-claude-rule \
         install-lane-ratchet install-lane-ratchet-claude-rule \
@@ -167,6 +168,7 @@ help:
 	@echo "  install-gap-sample   install the between-runs relay-gap-sample systemd user timer (id:bf7a)"
 	@echo "  install-relay-watchdog install the relay outage watchdog systemd user timer (notify on a dead loop)"
 	@echo "  install-mech-proxy   install the always-on mechanical-proxy systemd user service (id:69f6)"
+	@echo "  install-claude-relay install the opt-in claude-relay launcher (proxy-when-healthy) into rc files (id:99a4)"
 	@echo "  install-mechanical-daemon install the mechanical-run daemon systemd user path+service unit (id:b3d0)"
 	@echo "  install-discovery-timer install the mechanical discovery-producer systemd user timer (id:9d97)"
 	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
@@ -470,6 +472,42 @@ uninstall-mech-proxy:
 	@systemctl --user disable --now mechanical-proxy 2>/dev/null || true
 	@rm -f $(SYSTEMD_USER)/mechanical-proxy.service
 	@systemctl --user daemon-reload 2>/dev/null || true
+
+# claude-relay launcher (id:69f6/id:99a4) — an OPT-IN shell function that launches Claude
+# THROUGH the mechanical-proxy only when probe-mech-proxy.sh reports healthy, else direct.
+# Unlike the systemd targets above this installs a marker-guarded `source` line into the
+# user's rc files (the canonical function lives in tools/claude-relay.sh); plain `claude`
+# stays direct, per the opt-in-only proxy guardrail (id:e905).
+install-claude-relay:
+	@echo "→ installing claude-relay launcher (rc source line)"
+	@for rc in $(HOME)/.zshrc $(HOME)/.bashrc; do \
+		[ -e "$$rc" ] || continue; \
+		if grep -q 'tools/claude-relay.sh' "$$rc"; then \
+			echo "  --  already sourced in $$rc"; \
+		else \
+			printf '\n# claude-relay launcher (dotclaude-skills id:69f6/id:99a4)\nsource %s/tools/claude-relay.sh\n' "$(SRC_DIR)" >> "$$rc"; \
+			echo "  ok  appended source line to $$rc"; \
+		fi; \
+	done
+	@echo "  reload: source ~/.zshrc (or open a new shell); then use: claude-relay"
+
+status-claude-relay:
+	@echo "claude-relay:"
+	@for rc in $(HOME)/.zshrc $(HOME)/.bashrc; do \
+		if [ -e "$$rc" ] && grep -q 'tools/claude-relay.sh' "$$rc"; then \
+			echo "  ok  sourced in $$rc"; \
+		else echo "  --  not sourced in $$rc (make install-claude-relay)"; fi; \
+	done
+
+uninstall-claude-relay:
+	@echo "→ removing claude-relay source line"
+	@for rc in $(HOME)/.zshrc $(HOME)/.bashrc; do \
+		[ -e "$$rc" ] || continue; \
+		if grep -q 'tools/claude-relay.sh' "$$rc"; then \
+			sed -i.claude-relay.bak '/claude-relay launcher (dotclaude-skills/d; \#tools/claude-relay.sh#d' "$$rc" \
+				&& echo "  ok  removed from $$rc (backup $$rc.claude-relay.bak)"; \
+		else echo "  --  not present in $$rc"; fi; \
+	done
 
 # Mechanical-run daemon (id:b3d0) — same --user-unit pattern, but a .path unit (not a
 # .timer): the oneshot service fires on writes to the recipe pending/ drop-dir instead of
