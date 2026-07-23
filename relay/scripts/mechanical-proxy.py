@@ -264,6 +264,7 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
     "claim.sh", "inject.sh",
     "discover-sig.sh", "discover-repo.sh", "discover-repos.sh",
     "discover-chunk.sh",  # id:24ec — the mechanized discover-run SHARD wrapper (echo <chunk> | discover-chunk.sh)
+    "discover-prelude.sh",  # id:86a2 — the mechanized discover-PRELUDE wrapper; missing here would 404 the prelude's model:'bash' dispatch (wave-1 gap caught by 24ec review)
     "reconcile-repo.sh", "relay-reconcile.sh",
     "stop-sentinel.sh", "file-surface-decisions.sh",
     "relay-status-publish.sh", "relay-state-write.sh", "relay-intensity.sh",
