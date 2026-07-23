@@ -29,8 +29,14 @@ grep -q "label: 'discover-prelude'" "$JS" || fail "no discover-prelude agent"
 #     HUNTING GUARD explicitly restricts it to running ONLY that one script — so it structurally
 #     cannot re-run claim.sh peek or inject.sh take (delegation by omission + an explicit guard,
 #     replacing the old shard prompt's "do NOT run claim.sh peek yourself" wording).
-grep -q "inject.sh take EXACTLY ONCE" "$JS" || fail "prelude does not run inject.sh take exactly once"
-grep -q "claim.sh peek once" "$JS" || fail "prelude does not run claim.sh peek once"
+#     id:86a2 (2026-07-23): the discover-prelude is now MECHANIZED — a model:'bash' dispatch of
+#     discover-prelude.sh — so the CONSUMING inject.sh take + the claim.sh peek moved from the
+#     prelude PROMPT into that wrapper. relay-loop.js dispatches it; assert the invocations in
+#     their new home (the wrapper), each run exactly once.
+PRELUDE_SH="$SRC_DIR/relay/scripts/discover-prelude.sh"
+grep -q "discover-prelude.sh" "$JS" || fail "relay-loop.js no longer dispatches the mechanized discover-prelude.sh"
+[[ "$(grep -c '"\$INJECT_SH" take' "$PRELUDE_SH")" == "1" ]] || fail "discover-prelude.sh does not run inject.sh take EXACTLY once (CONSUMING)"
+grep -q '"\$CLAIM_SH" peek' "$PRELUDE_SH" || fail "discover-prelude.sh does not run claim.sh peek"
 grep -q "discover-repo.sh --repo" "$JS" || fail "runner does not invoke discover-repo.sh --repo per repo"
 grep -q "NO-FILESYSTEM-HUNTING GUARD" "$JS" || fail "runner prompt does not restrict itself to ONLY discover-repo.sh (would re-run peek/take itself)"
 
