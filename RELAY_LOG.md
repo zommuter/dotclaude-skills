@@ -3283,3 +3283,20 @@ C3 RED specs: bc49 orphan-additive-surface (item-scoped per ratified principle) 
 ## 2026-07-23 18:42 — reviewer (claude-opus-4-8)
 
 --fabled amendment specs: bc49 surface-class table + cases A-E + unit.reason (A2/A3/A4); 1048 bounded auto-integrate RED spec; 86a2 prelude RED spec; both promoted [HARD-pool]
+
+## 2026-07-23 19:15 — executor (claude-opus-4-8)
+
+id:1048 — BOUNDED auto-integrate primitive `relay/scripts/auto-integrate-orphan.sh`.
+Auto-completes a parked orphan IFF ALL: COMPLETE (id-bound box `[x]`) + non-diverged
+(sync-origin.sh) + clean 3-way merge + full-suite GREEN (RELAY_SUITE_CMD, default `make
+test`) — merge+suite proven in a throwaway detached SCRATCH worktree so real main is
+untouched until proven safe. Success → merge --no-ff → ckpt-tag → --ff-only push (orphan
+ref LEFT as merged ancestor for a later force-free retire). Any failure (partial/conflict/
+red/diverged/dirty) → main UNCHANGED, orphan intact, surfaced for `/relay reconcile`. NO
+force / branch -D / reset --hard / clean (id:373e). Extends id:2370 (ledger-only) to
+code-bearing orphans; A1 amendment to a4e9-D1. Script-level only — NOT yet wired into
+relay-loop.js (separate follow-up). RED spec test_bounded_auto_integrate_1048.sh green
+(cases a/b1/b2); registered in Makefile relay_FILES/_EXEC/_ALLOW. Suite 299 passed,
+0 failed, 4 expected-red (bc49/86a2/24ec/dfb9 open).
+refactor: none — new single-purpose script reusing ckpt-tag.sh/sync-origin.sh/
+trunk-branch.sh + the relay-reconcile integrate recipe; no duplication introduced.
