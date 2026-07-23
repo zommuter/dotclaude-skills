@@ -3248,3 +3248,26 @@ mech-tier fixes: id:3557 MECH-OK sentinel (unwedge silent hops) + id:c14d reconc
 ## 2026-07-23 16:45 — handoff (claude-opus-4-8)
 
 handoff: promote id:dfb9 (speedtest, RED-specced) + id:24ec (discovery→bash, needs-RED) to ROADMAP
+## 2026-07-23 — executor (Sonnet)
+
+Worked id:ce50 — built `relay/scripts/inbox-scan-repo.sh`, a report-only per-repo
+FILTERED view of the shared cross-project inbox for repo-scoped relay runs (`/relay
+human .`, `/relay <repo>`, `/relay . --drain`, `/relay next`), which previously skipped
+the shared inbox entirely (SKILL.md invariant-1). It resolves `$RELAY_INBOX` (default
+`~/.claude/projects/todo-inbox.md`, no legacy-migration reimplementation — that stays
+scan-routed.sh's job), prints every OPEN `- [ ] [<repo>] …` line anchored on the target
+bracket (not a prose substring), treats a missing inbox as benign (exit 0, no output),
+and treats an unreadable inbox (e.g. a directory) as a loud nonzero failure. Wired the
+new script into `relay/references/human.md` §2 (repo-scoped complement to the `--all`
+`scan-routed.sh` reconcile) and `relay/SKILL.md` invariant-1 (the non-`--all` carve-out
+now names the filtered scan instead of silently skipping the inbox). Registered the new
+script in the Makefile's `relay_FILES`/`relay_EXEC`/`relay_ALLOW` manifests —
+`test_relay_install_manifest.sh` caught the omission on first `make test` and failed
+loudly as designed. `tests/test_inbox_scan_repo.sh` (`# roadmap:ce50`) goes RED→PASS
+(all 11 assertions); ticked the checkbox in both ROADMAP.md and its TODO.md twin
+(single-id-two-views). Full suite: 294 passed, 0 failed, 0 expected-red.
+Friction: none — the item was well-scoped by the reviewer's RED spec; the only surprise
+was the install-manifest gate catching the missing registration on the first full-suite
+run, exactly as its own self-report (id:5f09) documents it should.
+refactor: none needed — new single-purpose script mirroring an existing convention
+(scan-routed.sh's `resolve_inbox`/anchoring pattern), no duplication introduced.
