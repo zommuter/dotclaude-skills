@@ -3244,3 +3244,7 @@ id:4239 — front-door mechanical-tier preflight (mech-preflight.sh consumes id:
 ## 2026-07-23 15:11 — reviewer (claude-opus-4-8)
 
 mech-tier fixes: id:3557 MECH-OK sentinel (unwedge silent hops) + id:c14d reconcile-on-restart→model:bash + id:e9fa quota memo
+
+## 2026-07-23 16:45 — handoff (claude-opus-4-8)
+
+handoff: promote id:dfb9 (speedtest, RED-specced) + id:24ec (discovery→bash, needs-RED) to ROADMAP
