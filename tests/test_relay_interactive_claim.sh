@@ -44,9 +44,15 @@ pass "human mode ledger write-back peeks-and-warns then proceeds (id:c144), not 
 # (4) runId is UNIQUE per run (seconds + random), not minute-granular — otherwise two
 # concurrent pools share a runId and the lease re-entrancy + worktree guard both false-pass,
 # letting them double-work a repo.
+# id:86a2 (2026-07-23): runId generation moved from the discover-prelude PROMPT into the
+# mechanized wrapper discover-prelude.sh (a model:'bash' dispatch); relay-loop.js now DELEGATES
+# it. So assert the second-granular + $RANDOM invariant in the wrapper (its new home), and that
+# relay-loop.js dispatches the wrapper.
 JS="$SRC_DIR/relay/scripts/relay-loop.js"
-grep -q '%H%M%S' "$JS" || fail "discovery runId is not second-granular (%H%M%S) — concurrent pools could share a minute-granular runId"
-grep -q '\$RANDOM' "$JS" || fail "discovery runId has no random suffix — two pools in the same second could still collide"
-pass "discovery runId is unique per run (seconds + \$RANDOM) — concurrent pools never share one"
+PRELUDE_SH="$SRC_DIR/relay/scripts/discover-prelude.sh"
+grep -q 'discover-prelude.sh' "$JS" || fail "relay-loop.js no longer dispatches discover-prelude.sh (the mechanized prelude wrapper)"
+grep -q '%H%M%S' "$PRELUDE_SH" || fail "discovery runId is not second-granular (%H%M%S) in discover-prelude.sh — concurrent pools could share a minute-granular runId"
+grep -q '\$RANDOM' "$PRELUDE_SH" || fail "discovery runId has no random suffix in discover-prelude.sh — two pools in the same second could still collide"
+pass "discovery runId is unique per run (seconds + \$RANDOM, in mechanized discover-prelude.sh) — concurrent pools never share one"
 
 echo "ALL PASS: interactive relay modes are claim-aware + runId unique per run (id:0902)"

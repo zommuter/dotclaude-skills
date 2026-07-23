@@ -97,11 +97,16 @@ else
 fi
 
 # ── Test 5: prelude step 8 delegates to the script ────────────────────────────
-echo "Test 5: relay-loop.js prelude references stop-sentinel.sh"
-if grep -q 'stop-sentinel.sh' "$LOOP_JS"; then
-  ok "prelude step delegates sentinel handling to stop-sentinel.sh"
+# id:86a2 (2026-07-23): the discover-prelude is now MECHANIZED — a model:'bash' dispatch of
+# discover-prelude.sh — so step 8's stop-sentinel.sh invocation moved from the relay-loop.js
+# PROMPT into that wrapper. relay-loop.js delegates by dispatching discover-prelude.sh; assert
+# the sentinel invocation in its new home (the wrapper) AND that relay-loop.js dispatches it.
+PRELUDE_SH="$REPO_ROOT/relay/scripts/discover-prelude.sh"
+echo "Test 5: the mechanized prelude (discover-prelude.sh) invokes stop-sentinel.sh; relay-loop.js dispatches it"
+if grep -q 'discover-prelude.sh' "$LOOP_JS" && grep -q 'stop-sentinel.sh' "$PRELUDE_SH"; then
+  ok "prelude step delegates sentinel handling to stop-sentinel.sh (via the mechanized discover-prelude.sh dispatch)"
 else
-  fail_msg "relay-loop.js does not reference stop-sentinel.sh (step 8 still prose-only)"
+  fail_msg "the mechanized prelude does not delegate to stop-sentinel.sh (relay-loop.js must dispatch discover-prelude.sh, which must invoke stop-sentinel.sh)"
 fi
 
 echo ""

@@ -3296,3 +3296,46 @@ id:bc49 landed — orphan-suppress item-scoped/additive (dc5b-safe surface-class
 ## 2026-07-23 19:25 — reviewer (claude-opus-4-8)
 
 id:dfb9 landed — relay-spawn-bench.sh spawn-timing harness
+## 2026-07-23 19:27 — executor (Opus apex) id:86a2
+
+Worked id:86a2 — mechanized the discover-PRELUDE (`relay-loop.js` `label:'discover-prelude'`)
+from a `model:'haiku'` agent to a single `model:'bash'` (```relay-mech) dispatch of a NEW
+deterministic wrapper `relay/scripts/discover-prelude.sh`. The prelude never classifies and
+every step was already shell, so there was no LLM judgment to preserve. The wrapper composes
+the already-shell sub-steps — runId (`relay-$(date +%Y%m%d-%H%M%S)-$RANDOM`, second-granular +
+`$RANDOM` for cross-pool uniqueness), the CONSUMING `inject.sh take` (run EXACTLY once),
+`claim.sh peek`, own-repo enumeration via the SHARED `lib-own-repos.sh` (no NIH — reuses the
+canonical `# path:`/`paused`/abs-expansion parser, so path logic never drifts), a second
+relay.toml read layering on the `income` flag + the non-own/paused `skippedConfig` rollup,
+`discover-sig.sh` (fail-open empty sentinel passed through), and `stop-sentinel.sh check` — and
+emits the PRELUDE_SCHEMA object {runId, ts, repos, skippedConfig, liveClaimRepos, injectedUnits,
+signatures, stopRequested} on stdout. relay-loop.js flips to `model:'bash'` and parses the return
+via a new `parsePrelude()` that accepts BOTH the proxy's raw JSON string AND the exec harnesses'
+stubbed object; a genuine relay.toml parse error exits LOUDLY before any output (id:0fa0 finding
+a pattern). PRELUDE_SCHEMA is retained as the documented output contract. New script registered
+in the Makefile relay_FILES/_EXEC/_ALLOW manifest so `make install` symlinks + chmods + allowlists
+it. RED spec `tests/test_prelude_mechanized_86a2.sh` (`# roadmap:86a2`) all-green; both exec-smoke
+harnesses (discovery + full-round) pass; `node --check` clean.
+
+Friction: flipping the prelude to `model:'bash'` broke five previously-green cross-cutting tests
+that grep the relay-loop.js SOURCE for strings which had lived in the now-deleted prelude PROMPT
+(the runId `%H%M%S`/`$RANDOM` gen, `stop-sentinel.sh`, `inject.sh take`, `claim.sh peek`) and two
+that pinned the prelude's tier/boundary to `'haiku'`. These are RELOCATIONS, not weakenings: the
+invariants (second-granular unique runId; sentinel invoked; take-exactly-once; peek; explicit
+non-Opus pin) all still hold — now in `discover-prelude.sh`, which relay-loop.js delegates to — so
+each grep was retargeted to the wrapper (its new home) while still asserting relay-loop.js
+dispatches it. `test_relay_loop_mech_emitter.sh`'s boundary guard whose premise ("the prelude is
+wrong to route through the mechanical proxy") is exactly what id:86a2 owner-ratified was narrowed
+to `discover-run` only (the id:24ec residual LLM surface that genuinely stays haiku).
+
+refactor: none — new single-purpose wrapper mirroring the existing `discover-repos-mechanical.sh`
+convention (shared `lib-own-repos.sh`, atomic sub-step composition), no duplication introduced.
+
+DESIGN FLAG for the reviewer/owner: the wrapper is dispatched with a LITERAL `model:'bash'` (as
+the RED spec's structural assertion + the item title both pin), NOT the `MECH_MODEL` variable the
+other id:6176 mechanical hops use. `MECH_MODEL` degrades to `'haiku'` in the id:4239 mode-a
+fallback (proxy not in path); a literal `'bash'` does not, so under mode-a this one hop would hit
+the real API. Per [[relay-model-proxy-probe-gated-substrate]] (id:a36e, model:bash 12/12 agents 0
+errors this session) the pool now runs through the proxy, so this is moot in practice — but if the
+owner wants the mode-a fallback for the prelude too, the RED spec's literal-'bash' assertion and
+this dispatch would both move to `MECH_MODEL`. Surfaced, not decided.

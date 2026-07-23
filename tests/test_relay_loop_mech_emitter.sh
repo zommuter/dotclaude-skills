@@ -103,17 +103,21 @@ if missing:
 print(f"PASS: {len(markers)} relay-mech fence markers + all convertible relay commands present")
 PYEOF
 
-# (5) Boundary guard — the NON-eligible LLM hops must STAY model:'haiku' (a lazy
-# executor must not flip the residual LLM read / prelude to bash). The classify
-# shard (label discover-run:) is the id:7402 residual LLM surface; the
-# discover-prelude assembles structured JSON from several commands (not a single
-# pipeline). Both are wrong to route through the mechanical proxy.
-for label in "discover-prelude'" "discover-run:"; do
+# (5) Boundary guard — the NON-eligible LLM hop must STAY model:'haiku' (a lazy
+# executor must not flip the residual LLM read to bash). The classify shard (label
+# discover-run:) is the id:7402 residual LLM surface — a sig-gated cat-and-copy of an
+# already-mechanical verdict, still an LLM hop until the id:24ec mechanization lands —
+# so it is wrong to route through the mechanical proxy today.
+# id:86a2 (2026-07-23): the discover-prelude is NO LONGER on this list — it was
+# owner-ratified as mechanizable (it never classifies; every step is already shell) and
+# is now a model:'bash' dispatch of discover-prelude.sh (its own boundary is asserted by
+# test_prelude_mechanized_86a2.sh + test_discover_cache.sh D1). Only discover-run remains.
+for label in "discover-run:"; do
   line=$(grep -nE "label: *[\`']$label" "$JS" | grep "model:" || true)
   [[ -n "$line" ]] || fail "boundary guard: could not locate the '$label' hop option object"
   echo "$line" | grep -qE "model: *['\"]haiku['\"]" \
     || fail "boundary guard: the LLM hop '$label' must STAY model:'haiku' (not proxy-eligible — do not convert)"
 done
-pass "boundary guard: discover-prelude + classify-shard stay model:'haiku' (LLM, not mechanical)"
+pass "boundary guard: classify-shard (discover-run) stays model:'haiku' (LLM, not mechanical); prelude is now bash per id:86a2"
 
 echo "ALL PASS"
