@@ -3279,3 +3279,7 @@ reconcile integrate: relay: per-repo filtered inbox scan for repo-scoped runs (i
 ## 2026-07-23 17:47 — reviewer (claude-opus-4-8)
 
 C3 RED specs: bc49 orphan-additive-surface (item-scoped per ratified principle) + 24ec discover-chunk bash mechanization; 298 pass / 3 expected-red
+
+## 2026-07-23 18:42 — reviewer (claude-opus-4-8)
+
+--fabled amendment specs: bc49 surface-class table + cases A-E + unit.reason (A2/A3/A4); 1048 bounded auto-integrate RED spec; 86a2 prelude RED spec; both promoted [HARD-pool]
