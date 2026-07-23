@@ -451,7 +451,16 @@ def _mechanical_command(body: bytes):
 def _run_mechanical(command: str) -> str:
     """Run the command locally and return the echo-runner-shaped payload.
 
-    Success  -> stdout verbatim.
+    Success (non-empty stdout) -> stdout verbatim (UNCHANGED — hops that parse
+                stdout, e.g. classify verdicts, inject-take JSON, discover
+                output, must see exactly what the script printed).
+    Success (empty/whitespace-only stdout) -> the sentinel 'MECH-OK exit=0\\n'.
+                A real empty string here reads to the model:"bash" agent
+                harness as an empty completion, which it treats as a
+                retryable failure and re-dispatches forever — wedging silent
+                mechanical hops (quota-stop.sh proceed verdict, heartbeat.sh
+                beat, claim.sh release, inject.sh take with nothing pending).
+                id:3557, observed live 2026-07-23 (run relay-20260723-141926-10371).
     Failure  -> 'MECH-ERROR exit=<code>' + newline + stderr verbatim (mirrors the
                 echo-runner agent contract exactly)."""
     try:
@@ -462,6 +471,8 @@ def _run_mechanical(command: str) -> str:
     except subprocess.TimeoutExpired:
         return f"MECH-ERROR exit=124\ncommand timed out after {MECH_TIMEOUT}s"
     if proc.returncode == 0:
+        if proc.stdout.strip() == "":
+            return "MECH-OK exit=0\n"
         return proc.stdout
     return f"MECH-ERROR exit={proc.returncode}\n{proc.stderr}"
 

@@ -605,9 +605,14 @@ const SHARD_SCHEMA = {
 
 // id:6176 — the quota hop is now a model:"bash" mechanical dispatch (was a QUOTA_SCHEMA-typed
 // haiku return). quota-stop.sh prints NOTHING to stdout on success and signals its verdict purely
-// via EXIT CODE, logging the crossed bucket to STDERR. mechanical-proxy.py therefore returns '' on
-// exit 0, or 'MECH-ERROR exit=<N>\n<stderr>' on any non-zero exit (see _run_mechanical). Parse that
-// raw shape back into the { exitCode, crossedBucket, buckets } object quotaGate() consumes.
+// via EXIT CODE, logging the crossed bucket to STDERR. mechanical-proxy.py therefore returns the
+// 'MECH-OK exit=0\n' sentinel on exit 0 (id:3557 — a genuinely empty string wedges the model:"bash"
+// agent harness, which treats an empty completion as retryable and re-dispatches forever), or
+// 'MECH-ERROR exit=<N>\n<stderr>' on any non-zero exit (see _run_mechanical). Parse that raw shape
+// back into the { exitCode, crossedBucket, buckets } object quotaGate() consumes. VERIFIED
+// (id:3557 audit): parseQuotaMechResult's `/^MECH-ERROR exit=(\d+)/` regex does not match the
+// 'MECH-OK …' sentinel, so the `!m` branch (exitCode 0 / proceed) fires exactly as it did for the
+// old empty string — no logic change needed here.
 //   exitCode: 0 (proceed) / 1 (real-cache exhaustion) / 2 (cache unreadable, no burn sample) /
 //             3 (cache unreadable, burn-rate extrapolates over threshold).
 //   crossedBucket (id:2425): exit 1 stderr "quota-stop: <bucket>=<val>% >= threshold <t>";
@@ -697,7 +702,11 @@ const INTEGRATE_SCHEMA = {
 // never dispatched with a guessed path.
 function parseInjectTake(raw, ownRepos) {
   const text = (raw == null) ? '' : String(raw)
-  if (!text.trim() || /^MECH-ERROR/.test(text)) return []
+  // id:3557 — an empty take (nothing pending) now comes back as the 'MECH-OK exit=0' sentinel
+  // rather than a genuinely empty string (mechanical-proxy.py _run_mechanical); check for it
+  // explicitly so this never depends on the JSON.parse-per-line loop below happening to fail
+  // closed on the sentinel text.
+  if (!text.trim() || /^MECH-ERROR/.test(text) || /^MECH-OK\b/.test(text)) return []
   const units = []
   for (const line of text.split('\n')) {
     const s = line.trim()
@@ -897,6 +906,12 @@ let stopReason = null
 const QUOTA_CHECK_EVERY = A.QUOTA_CHECK_EVERY || POOL_WIDTH
 let quotaChecks = 0
 let lastQuotaOk = true
+// id:e9fa — per-round, per-tier quota-verdict memo. See quotaGateMemoized (below quotaGate)
+// for the full rationale — this const/object pair is declared here, alongside the sibling
+// QUOTA_CHECK_EVERY throttle they layer on top of, so both quota-dispatch-reduction
+// mechanisms are visible together.
+const QUOTA_MEMO_TTL_ROUNDS = 1
+const quotaMemo = {}  // tier -> { verdict: boolean, round: number }
 const MAX_ROUNDS = A.MAX_ROUNDS || 30
 // id:9ed4 — how many parallel discovery-shard classifiers to fan out per round. The own-repo
 // list is round-robin chunked across this many agents (capped at repo count). The Workflow
@@ -969,7 +984,7 @@ const completedBefore = state.completed.length
 // A round that immediately quota-stops wastes N shard agents if the gate fires post-sharding.
 // (Incident 2026-06-25, run relay-20260625-225111: 5 shards ~94k tokens spent before stop.)
 // Uses the existing quotaGate() / last-known cache (no extra API refresh before round 1 shards).
-if (!await quotaGate('sonnet')) {
+if (!await quotaGateMemoized('sonnet')) {
   // quotaStopped was set to true by quotaGate; outer loop exits after this round.
   log('relay-loop: id:5c00 quota PRE-GATE fired — skipping discovery fan-out (quota at threshold before round start)')
   return { actionable: 0, produced: 0 }
@@ -1563,6 +1578,8 @@ if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTE
         // id:6176 — mechanical hop (model:"bash"): the ```relay-mech fence carries the single
         // allowlisted relay-script command; mechanical-proxy.py extracts it, runs it locally, and
         // returns its stdout with ZERO upstream inference. Fire-and-forget (output only logged).
+        // id:3557 audit: the resolved value is only passed to `log()` on catch, never parsed on
+        // success, so the MECH-OK sentinel on a silent success is harmless.
         'Run EXACTLY this one command for the surface-only TODO backlog of repo ' + u.repo + ' and report its stdout verbatim (id:5eb3/id:47f1):\n' +
         '```relay-mech\n' +
         `~/.claude/skills/relay/scripts/file-surface-decisions.sh '${u.path}'` +
@@ -1810,6 +1827,42 @@ ${runIdEnv}${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${
     return false
   }
   return true
+}
+
+// id:e9fa — memo the quota verdict PER ROUND so runUnit doesn't issue its own mechanical
+// round-trip for every non-injected dispatch just to re-read a cache that barely changes
+// within one round (quotaGate is awaited BOTH pre-shard once/round at ~981 AND per-unit here
+// before every non-injected dispatch — N serialized mechanical round-trips/round for what is
+// usually the same answer). quotaGate() (above) stays the single AUTHORITATIVE check — both
+// call sites now go through THIS wrapper instead of calling quotaGate() directly, so the
+// pre-shard call (always the first of the round, hence always a memo MISS) refreshes the
+// memo as a side effect, and every runUnit call for the rest of that round reuses it with
+// NO further dispatch. quotaGate()'s own dispatch-count throttle (QUOTA_CHECK_EVERY,
+// lastQuotaOk) still sits underneath, unchanged — this is an ADDITIONAL layer, not a
+// replacement.
+//
+// A real wall-clock TTL (originally proposed as ~45s) is NOT implementable here: the
+// Workflow sandbox FORBIDS Date.now()/new Date() (ShimDate throws to keep runs
+// deterministic — see the QUOTA_CHECK_EVERY comment near QUOTA_MEMO_TTL_ROUNDS, and id:2031's
+// inline note for prior art hitting the same wall). The closest correctness-preserving proxy
+// this sandbox can actually observe is the ROUND boundary: `round` is a plain incrementing
+// counter (bumped once per runRound() call), not a clock read. This is coarser than a true
+// 45s TTL — a long round holds the memo the whole round; a short round refreshes sooner than
+// 45s would have — but it never weakens the hard-stop guarantee: `quotaStopped` is sticky and
+// checked FIRST on every call (memoized or not), so a tripped stop short-circuits instantly
+// regardless of memo state, and a real STOP verdict written into the memo is honored
+// immediately by every subsequent memoized caller in the same round.
+//
+// INTERIM STOPGAP, not the structural fix — the off-Workflow drain-driver (id:cd7a/65f9/2b23)
+// runs with real host-side clock access and should replace this round-keyed proxy with a
+// genuine time-based memo when it lands.
+async function quotaGateMemoized(tier) {
+  if (quotaStopped) return false
+  const memo = quotaMemo[tier]
+  if (memo && (round - memo.round) < QUOTA_MEMO_TTL_ROUNDS) return memo.verdict
+  const ok = await quotaGate(tier)
+  quotaMemo[tier] = { verdict: ok, round }
+  return ok
 }
 
 async function integrate(unit, report) {
@@ -2074,7 +2127,7 @@ async function runUnit(unit) {
   // Injected units (id:baf1) skip the quota gate — an explicit user request runs even near
   // the cap. They were already consumed by `inject.sh take`, so deferring them would lose
   // the injection; honoring it is the whole point of "inject this next, highest priority".
-  if (!unit.injected && !(await quotaGate(tier))) {
+  if (!unit.injected && !(await quotaGateMemoized(tier))) {
     state.queued.push({ repo: unit.repo, verdict: `${unit.verdict} (quota-deferred)` })
     return
   }
@@ -2283,6 +2336,8 @@ async function beatHeartbeat() {
   try {
     // id:6176 — mechanical hop (model:"bash"): fence carries `heartbeat.sh beat <runId>`; the proxy
     // runs it locally (ZERO upstream inference). Fire-and-forget — return ignored, TTL backstop.
+    // id:3557 audit: the resolved value is discarded entirely here, so the MECH-OK sentinel on a
+    // silent success is harmless (no parsing of this hop's stdout exists).
     await agent(
       'Run exactly this command and report its stdout verbatim (refresh the relay run-liveness heartbeat so the outage watchdog/auto-reconcile know this pool is alive):\n' +
       '```relay-mech\n' +
@@ -2298,6 +2353,8 @@ async function stopHeartbeat() {
   try {
     // id:6176 — mechanical hop (model:"bash"): fence carries `heartbeat.sh stop <runId>`; the proxy
     // runs it locally (ZERO upstream inference). Fire-and-forget — return ignored.
+    // id:3557 audit: same as heartbeat-beat — the resolved value is discarded, so the MECH-OK
+    // sentinel on a silent success is harmless.
     await agent(
       'Run exactly this command and report its stdout verbatim (clean relay-loop shutdown — release the run heartbeat so the watchdog/auto-reconcile don\'t read this clean stop as a death):\n' +
       '```relay-mech\n' +
@@ -2317,19 +2374,22 @@ async function stopHeartbeat() {
 // clean start does nothing; this run hasn't beaten its own marker yet (first beat is in round-1
 // prelude), so dead-runs reports only PRIOR runs. Best-effort — the human /relay reconcile is
 // always the backstop, so a failure here never blocks the pool.
+// id:c14d — this used to be a 3-step haiku prompt (the LLM issued each of dead-runs ->
+// --all --auto -> per-runId reap-run -> TTL reap in sequence, reading its own prior output
+// to drive the data-dependent next step). relay-reconcile.sh --auto-restart now wraps all
+// three steps into ONE allowlisted command (see its header comment for the exact contract
+// this replicates, including the REQUIRED --prefix 'relay-*' scoping), so this is a genuine
+// single-command model:"bash" mechanical dispatch like the other id:6176 hops. Because id:3557
+// landed first, a benign "no dead run" summary is never empty (the wrapper always prints a
+// real one-line summary) — but it wouldn't matter here either way, since the result is
+// discarded (fire-and-forget, `await` with no consumer of the return value).
 try {
   await agent(
-    `Auto-reconcile-on-restart check (relay id:7809), unattended — NEVER prompt. Run exactly:
-  ~/.claude/skills/relay/scripts/heartbeat.sh dead-runs --prefix 'relay-*'
-If it prints NOTHING, no prior DISPATCH-LOOP relay run died — do nothing else and report "no dead run, skipped". If it prints one or more JSON lines (a prior run died without a clean heartbeat stop), then:
-  1. Run: ~/.claude/skills/relay/scripts/relay-reconcile.sh --all --auto
-  2. THEN, for EACH distinct "runId" value printed by the dead-runs command above, immediately archive THAT SPECIFIC run's marker (id:7725 — observed-death reap, do not wait on the TTL-only sweep below):
-       ~/.claude/skills/relay/scripts/heartbeat.sh reap-run '<that runId>'
-  3. Finally run the TTL backstop sweep (catches any OTHER present-but-stale marker this restart did not individually observe/reconcile):
-       ~/.claude/skills/relay/scripts/heartbeat.sh reap --prefix 'relay-*'
-Report all three steps' output verbatim.
-(Step 1 auto-integrates only ledger-only/clean orphans and surfaces everything else into REVIEW_ME.md; step 2 immediately archives each JUST-reconciled dead run's own marker by exact runId so the watchdog (id:98f0) cannot re-alarm on a crash already handled this restart (id:7725 — the old design only relied on the stale-only sweep, which under-TTL markers slipped through, ~1h-late false alarm observed 2026-07-07); step 3 is the pure TTL backstop for a marker that was NOT in this restart's dead-runs list (impossible in practice, but keeps the two liveness paths independent). The --prefix 'relay-*' is REQUIRED on BOTH the dead-runs detection AND the reap in step 3 and must not be dropped — it scopes both to this dispatch loop's own runId namespace so a dead INDEPENDENT discovery-producer heartbeat marker (id:54fc, a separate liveness domain that ages past heartbeat's 3600s default TTL) never falsely trips this per-restart --all reconcile nor gets archived by the reap. Un-scoped dead-runs would fire relay-reconcile --all --auto on EVERY restart while that producer marker is stale.) Take NO other action.`,
-    { label: 'auto-reconcile-restart', phase: 'Support', model: 'haiku' }
+    'Run exactly this command and report its stdout verbatim (relay id:7809/id:c14d — auto-reconcile any prior DISPATCH-LOOP relay run that died without a clean heartbeat stop, before starting fresh work this restart):\n' +
+    '```relay-mech\n' +
+    "~/.claude/skills/relay/scripts/relay-reconcile.sh --auto-restart" +
+    '\n```',
+    { label: 'auto-reconcile-restart', phase: 'Support', model: MECH_MODEL }
   )
 } catch (_) { /* non-fatal: the human /relay reconcile is always available */ }
 
