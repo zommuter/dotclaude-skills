@@ -3232,3 +3232,7 @@ Surfaced 2 REVIEW_ME judgment boxes (no code changed): (1) id:99a4 probe ABORTS 
 ## 2026-07-23 13:37 — reviewer (claude-opus-4-8)
 
 review: mech-proxy probe (id:99a4) + always-on service (id:69f6) + claude-relay — CLEAN, no gaming; 2 REVIEW_ME judgment boxes (unset-var abort, WatchdogSec/liveness)
+
+## 2026-07-23 13:58 — reviewer (claude-opus-4-8)
+
+id:4044 — sd_notify + WatchdogSec for mechanical-proxy; verified live (WatchdogUSec=30s); install-target restart fix
