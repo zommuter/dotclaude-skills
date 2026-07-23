@@ -3203,3 +3203,7 @@ review: suite 293/0 green; verified 6176/7681/f9cd genuine (no gaming); minted i
 ## 2026-07-23 11:45 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 handoff: promoted id:ce50 (per-repo filtered inbox scan) + RED spec test_inbox_scan_repo.sh; suite 293/0/1-expected-red [id:ce50]
+
+## 2026-07-23 13:01 — handoff (claude-opus-4-8)
+
+handoff C2+C3: promoted id:99a4 (mech-proxy probe) + id:69f6 (always-on systemd service); RED spec for probe discriminator (expected-red)
