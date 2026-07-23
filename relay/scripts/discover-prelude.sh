@@ -74,7 +74,7 @@ runId="relay-$(date +%Y%m%d-%H%M%S)-$RANDOM"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 tmp_own="$(mktemp)"; tmp_claim="$(mktemp)"; tmp_inject="$(mktemp)"; tmp_sig="$(mktemp)"; tmp_stop="$(mktemp)"
-trap 'rm -f "$tmp_own" "$tmp_claim" "$tmp_inject" "$tmp_sig" "$tmp_stop" 2>/dev/null || true' EXIT
+trap 'rm -- "$tmp_own" "$tmp_claim" "$tmp_inject" "$tmp_sig" "$tmp_stop" 2>/dev/null || true' EXIT
 
 # --- step 3: confirmed own repos (CANONICAL parser; check exit status EXPLICITLY, id:0fa0 a) -
 # A bare `done < <(own_repos)` discards a subshell's exit status, so a relay.toml parse error
