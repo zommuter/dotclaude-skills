@@ -72,7 +72,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   sole live case — I did NOT sweep or "fix" the others, per observe-before-preventing. Recorded
   so the decision is yours: leave it, or add a check to `tools/` if it recurs. Note any such
   lint must run under real `bash` — under `zsh` the race does not reproduce at all.
-- [ ] **id:de31 — `orphan-scan --shipped` says TICK-READY; I verified it and did NOT tick.**
+- [x] **id:de31 — `orphan-scan --shipped` says TICK-READY; I verified it and did NOT tick.** — **RESOLVED 2026-07-23 (relay human, owner sign-off "split the unspecced halves into own ids"):** de31's ROADMAP item is already `[x]` (ROADMAP.archive.md), but its two under-verified halves are now carved into their own open TODO ids so nothing reads as done-that-isn't — **id:8cb8** (forced-resolution WRITE at lane-triage; case g/h can never silently no-op) and **id:dda6** (conservative inline lane-triage sub-agent). Each gets its own RED spec on the next `/relay handoff`. Box closed; the generalizable point below (TICK-READY can't see a test's scope is a subset of the item's acceptance) stands as a recorded observation.
   The scan is right that `tests/test_decision_queue.sh` is green with no gating lexeme, but the
   test's own header declares a NARROWER scope than the item: "In scope here: the record format
   + the flock'd add/list/resolve helper." C7 (id:de31) additionally requires *the forced-
