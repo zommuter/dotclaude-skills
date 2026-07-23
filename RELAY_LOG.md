@@ -3236,3 +3236,7 @@ review: mech-proxy probe (id:99a4) + always-on service (id:69f6) + claude-relay 
 ## 2026-07-23 13:58 — reviewer (claude-opus-4-8)
 
 id:4044 — sd_notify + WatchdogSec for mechanical-proxy; verified live (WatchdogUSec=30s); install-target restart fix
+
+## 2026-07-23 14:11 — reviewer (claude-opus-4-8)
+
+id:4239 — front-door mechanical-tier preflight (mech-preflight.sh consumes id:99a4 probe; relay-loop.js MECH_MODEL run-flag: 5 hops fall to Haiku in mode-a). Apex review CLEAN; suite 296/0/1
