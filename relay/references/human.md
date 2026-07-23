@@ -61,6 +61,25 @@ cross-project work. Respect `--exclude`/`relay.toml paused` for the target set. 
 — it NEVER writes.** The gated AUTO-FILE half (auto-filing class-A routed items into their
 target repos) is slice 2 of id:678e; until it lands, run the surfaced command by hand.
 
+**Repo-scoped runs: also check the inbox's per-repo filtered view (id:ce50).** A
+repo-scoped run (`/relay human .`, `/relay <repo>`, `/relay . --drain`, `/relay next`)
+does NOT run the `--all` `scan-routed.sh` reconcile above (SKILL.md invariant-1 skips the
+global inbox for non-`--all` runs) — so a `[<repo>]`-targeted inbox item is otherwise
+invisible to it (gap hit 2026-07-20: `/relay human .` on chidiai skipped the inbox while
+a `[chidiai]`-targeted item, routed:4975, sat unrouted). For the repo(s) in scope, run:
+
+```bash
+scripts/inbox-scan-repo.sh <repo>       # once per repo in scope
+```
+
+This is a report-only VISIBILITY surface, distinct from `scan-routed.sh`'s `--all`
+dead-letter RECONCILE above — it never writes, and a missing inbox is benign (exit 0,
+nothing surfaced). It prints every OPEN `- [ ] [<repo>] …` inbox line targeting that repo
+(anchored on the target bracket, not a prose substring); surface any hits alongside the
+rest of this repo's backlog for the human to route by hand (`append.sh inbox-done` once
+filed). `scan-routed.sh`'s `--all` reconcile stays the tool for the global sweep; this is
+the repo-scoped complement.
+
 It emits a TSV `repo  path  kind  box_summary` covering:
 
 - every OPEN `- [ ]` box in each repo's `REVIEW_ME.md` (`kind = review_me`), AND
