@@ -70,7 +70,8 @@ relay_FILES := SKILL.md \
                scripts/mechanical-proxy.py \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
-               scripts/validate-flags.sh scripts/known-flags-relay.tsv scripts/known-flags-meeting.tsv
+               scripts/validate-flags.sh scripts/known-flags-relay.tsv scripts/known-flags-meeting.tsv \
+               scripts/probe-mech-proxy.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
@@ -95,7 +96,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/resolve-gates.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
-               scripts/validate-flags.sh
+               scripts/validate-flags.sh scripts/probe-mech-proxy.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
@@ -120,7 +121,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/resolve-gates.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
-               scripts/validate-flags.sh
+               scripts/validate-flags.sh scripts/probe-mech-proxy.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
