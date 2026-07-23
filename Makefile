@@ -70,7 +70,8 @@ relay_FILES := SKILL.md \
                scripts/mechanical-proxy.py \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
-               scripts/validate-flags.sh scripts/known-flags-relay.tsv scripts/known-flags-meeting.tsv
+               scripts/validate-flags.sh scripts/known-flags-relay.tsv scripts/known-flags-meeting.tsv \
+               scripts/probe-mech-proxy.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
@@ -95,7 +96,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/resolve-gates.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
-               scripts/validate-flags.sh
+               scripts/validate-flags.sh scripts/probe-mech-proxy.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
@@ -120,7 +121,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/resolve-gates.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
-               scripts/validate-flags.sh
+               scripts/validate-flags.sh scripts/probe-mech-proxy.sh
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
@@ -143,6 +144,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-quota-timer status-quota-timer uninstall-quota-timer \
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
+        install-mech-proxy status-mech-proxy uninstall-mech-proxy \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
         install-relay-users install-relay-acls install-privacy-gate install-privacy-claude-rule \
         install-lane-ratchet install-lane-ratchet-claude-rule \
@@ -164,6 +166,7 @@ help:
 	@echo "  install-quota-timer  install the 15-min usage-quota sampler systemd user timer"
 	@echo "  install-gap-sample   install the between-runs relay-gap-sample systemd user timer (id:bf7a)"
 	@echo "  install-relay-watchdog install the relay outage watchdog systemd user timer (notify on a dead loop)"
+	@echo "  install-mech-proxy   install the always-on mechanical-proxy systemd user service (id:69f6)"
 	@echo "  install-mechanical-daemon install the mechanical-run daemon systemd user path+service unit (id:b3d0)"
 	@echo "  install-discovery-timer install the mechanical discovery-producer systemd user timer (id:9d97)"
 	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
@@ -440,6 +443,32 @@ uninstall-relay-watchdog:
 	@echo "→ removing relay-watchdog timer"
 	@systemctl --user disable --now relay-watchdog.timer 2>/dev/null || true
 	@rm -f $(SYSTEMD_USER)/relay-watchdog.timer $(SYSTEMD_USER)/relay-watchdog.service
+	@systemctl --user daemon-reload 2>/dev/null || true
+
+# Always-on mechanical-proxy (id:69f6) — same --user-unit pattern, but a plain long-running
+# service (Restart=always, no timer/path trigger — it's a daemon, not a periodic sampler).
+# Makes probe-mech-proxy.sh's (id:99a4) mode-b case rare by keeping the proxy up across
+# crashes/reboots. Binds 127.0.0.1 only — see relay/scripts/mechanical-proxy.py's own posture.
+install-mech-proxy:
+	@echo "→ installing mechanical-proxy service"
+	@mkdir -p $(SYSTEMD_USER)
+	@ln -sf $(SRC_DIR)/tools/mechanical-proxy.service $(SYSTEMD_USER)/mechanical-proxy.service
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now mechanical-proxy
+	@echo "  enabled. status: systemctl --user status mechanical-proxy"
+
+status-mech-proxy:
+	@echo "mechanical-proxy.service:"
+	@if [ -L $(SYSTEMD_USER)/mechanical-proxy.service ]; then \
+		systemctl --user is-active mechanical-proxy >/dev/null 2>&1 \
+			&& echo "  ok  active -> $$(readlink $(SYSTEMD_USER)/mechanical-proxy.service)" \
+			|| echo "  --  installed but not active (systemctl --user enable --now mechanical-proxy)"; \
+	else echo "  !!  not installed (make install-mech-proxy)"; fi
+
+uninstall-mech-proxy:
+	@echo "→ removing mechanical-proxy service"
+	@systemctl --user disable --now mechanical-proxy 2>/dev/null || true
+	@rm -f $(SYSTEMD_USER)/mechanical-proxy.service
 	@systemctl --user daemon-reload 2>/dev/null || true
 
 # Mechanical-run daemon (id:b3d0) — same --user-unit pattern, but a .path unit (not a

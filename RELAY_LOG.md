@@ -3207,3 +3207,15 @@ handoff: promoted id:ce50 (per-repo filtered inbox scan) + RED spec test_inbox_s
 ## 2026-07-23 13:01 — handoff (claude-opus-4-8)
 
 handoff C2+C3: promoted id:99a4 (mech-proxy probe) + id:69f6 (always-on systemd service); RED spec for probe discriminator (expected-red)
+
+## 2026-07-23 — executor (sonnet)
+
+Worked id:99a4 — implemented `relay/scripts/probe-mech-proxy.sh` discriminator (mode-a/mode-b/healthy) mirroring probe-fable.sh's style/header, per the pinned interface. All 4 RED-spec cases (empty base URL, non-loopback base URL, loopback+closed-port, loopback+live-stub) went green on first pass. `tests/test_mech_proxy_probe.sh` PASS, ticked ROADMAP checkbox.
+Friction: none — spec was precise and the RED test triangulated the exact cases needed.
+refactor: none needed — small, single-purpose script with no duplication to extract.
+
+## 2026-07-23 — executor (sonnet)
+
+Worked id:69f6 — authored `tools/mechanical-proxy.service` (systemd --user, Type=simple, Restart=always/RestartSec=5, WantedBy=default.target) and `make install-mech-proxy`/`status-mech-proxy`/`uninstall-mech-proxy` Makefile targets mirroring the `install-relay-watchdog` shape exactly (mkdir + symlink + daemon-reload + enable --now). Host-gate passes (host:zomni, this session runs on zomni). Ran `make install-mech-proxy` for real: `systemctl --user is-active mechanical-proxy` → `active`, confirmed via `systemctl --user status` showing the daemon listening on 127.0.0.1:61843 against the canonical `%h/src/dotclaude-skills/...` path.
+Friction: id:69f6 the unit symlink in `~/.config/systemd/user/mechanical-proxy.service` currently points at THIS worktree's copy of the .service file (Makefile's SRC_DIR resolves to cwd), not the canonical `~/src/dotclaude-skills` checkout — it will dangle once this worktree is retired. The daemon's own ExecStart path is worktree-independent (`%h/src/...` absolute), so the running process is unaffected, but re-running `make install-mech-proxy` from the main checkout after merge will re-point the symlink correctly. Flagging for the integrator rather than silently leaving it.
+refactor: none needed — new Makefile block copies the existing relay-watchdog pattern verbatim, no duplication introduced beyond what the precedent already has.
