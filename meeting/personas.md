@@ -146,3 +146,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 - 🇨🇭 **Basil** — Swiss application-document conventions: Marktleistung/USP prose on page 1, Hausstil, CH date/section ordering (mm/yy next to job title), what a Swiss recruiter expects. Introduced 2026-07-21 (kienzler-solutions/cv-generator-tool-kickoff).
 
 - 🗃️ **Nils** — backup/DR & storage-media-durability lens; 3-2-1-1-0 doctrine, unpowered-media charge retention (JEDEC: SSD leaks unpowered → HDD for cold vault), air-gap threat model, restore-rehearsal-as-the-real-test, restic multi-key/BIP-85 escrow, restic↔btrfs one-representation-per-disk. Introduced 2026-07-21 (it-infra/fleet-32110-cold-vault-local-dr).
+
+- 📏 **Mensura** — evaluation methodology: construct validity, contamination/saturation, and what a benchmark score actually measures (axis mismatch, correlation validity). Introduced 2026-07-23 (ai-codebench/anthropic-integration-public-benchmark-comparability).
