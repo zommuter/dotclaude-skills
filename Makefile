@@ -71,6 +71,7 @@ relay_FILES := SKILL.md \
                scripts/mechanical-proxy.py \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
+               scripts/auto-integrate-orphan.sh \
                scripts/validate-flags.sh scripts/known-flags-relay.tsv scripts/known-flags-meeting.tsv \
                scripts/probe-mech-proxy.sh scripts/mech-preflight.sh scripts/relay-spawn-bench.sh
 relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
@@ -97,6 +98,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/resolve-gates.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
+               scripts/auto-integrate-orphan.sh \
                scripts/validate-flags.sh scripts/probe-mech-proxy.sh scripts/mech-preflight.sh \
                scripts/relay-spawn-bench.sh
 relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
@@ -123,6 +125,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/resolve-gates.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
+               scripts/auto-integrate-orphan.sh \
                scripts/validate-flags.sh scripts/probe-mech-proxy.sh scripts/mech-preflight.sh \
                scripts/relay-spawn-bench.sh
 relay_LOCAL :=
