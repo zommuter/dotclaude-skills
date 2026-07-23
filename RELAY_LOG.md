@@ -3391,3 +3391,7 @@ stub keyed on label not the changed prompt text). make test 303 passed, 0 failed
 0 expected-red (lint gate included).
 refactor: none — discover-chunk.sh mirrors discover-repos-mechanical.sh's per-repo
 isolation/fold idiom; no logic duplicated (it composes discover-repo.sh).
+
+## 2026-07-23 20:34 — reviewer (claude-opus-4-8)
+
+id:24ec landed — discover-run shard mechanized model:'haiku'→'bash' (discover-chunk.sh); CASE-A residual eliminated; prelude allowlist gap fixed; make test 303/0/0
