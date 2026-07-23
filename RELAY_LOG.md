@@ -3275,3 +3275,7 @@ refactor: none needed — new single-purpose script mirroring an existing conven
 ## 2026-07-23 17:21 — reconcile (auto/human)
 
 reconcile integrate: relay: per-repo filtered inbox scan for repo-scoped runs (id:ce50)
+
+## 2026-07-23 17:47 — reviewer (claude-opus-4-8)
+
+C3 RED specs: bc49 orphan-additive-surface (item-scoped per ratified principle) + 24ec discover-chunk bash mechanization; 298 pass / 3 expected-red
