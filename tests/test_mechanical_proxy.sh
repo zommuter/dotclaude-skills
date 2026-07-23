@@ -145,6 +145,14 @@ check("text/event-stream" in sink.headers.get("Content-Type", ""),
 check(text == "MECHANICAL-STDOUT-9f3a",
       f"(a) SSE deltas reconstruct the stdout (got {text!r})")
 check('"end_turn"' in raw, "(a) stream ends with a clean end_turn stop")
+# id:a36e — the synthetic SSE response MUST terminate the HTTP connection (Connection: close
+# + close_connection=True), else the client's SSE reader never sees EOF after message_stop,
+# the agent() promise hangs, and the engine 180s-watchdog retries into the same hang (the
+# observed model:"bash" wedge). Regression guard for the transport-level fix.
+check(sink.headers.get("Connection") == "close",
+      f"(a) id:a36e — SSE sends 'Connection: close' to terminate the stream (got {sink.headers.get('Connection')!r})")
+check(getattr(sink, "close_connection", None) is True,
+      "(a) id:a36e — handler.close_connection forced True after message_stop (client gets EOF → promise resolves)")
 
 # ── (b) allowlisted relay command that fails -> MECH-ERROR exit=<n> + stderr ─
 with open(ok_script, "w") as f:

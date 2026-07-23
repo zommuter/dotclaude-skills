@@ -494,7 +494,16 @@ def _serve_mechanical_sse(handler, text: str, model: str):
     handler.send_response(200)
     handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
     handler.send_header("Cache-Control", "no-cache")
-    handler.send_header("Connection", "keep-alive")
+    # id:a36e — MUST close the connection after this synthetic stream. The server has no
+    # protocol_version override (defaults HTTP/1.0), and we send no Content-Length and no
+    # chunked terminator; if we kept the connection alive the client's SSE reader would
+    # block for more body AFTER message_stop, never see EOF, and its agent() promise would
+    # hang until the engine's 180s watchdog retried into the same hang (the observed wedge —
+    # exact-180s retries, message persisted but promise pending). `Connection: close` sets
+    # close_connection=True so BaseHTTPRequestHandler closes the socket → client sees EOF →
+    # promise resolves. The pass-through path already relies on this (it strips Connection as
+    # hop-by-hop → HTTP/1.0 default close), which is exactly why it never wedged.
+    handler.send_header("Connection", "close")
     handler.end_headers()
 
     def emit(event_type, data):
@@ -525,6 +534,9 @@ def _serve_mechanical_sse(handler, text: str, model: str):
         "usage": {"output_tokens": out_tokens},
     })
     emit("message_stop", {"type": "message_stop"})
+    # id:a36e — belt-and-suspenders: force the handler to close after this response even if
+    # a Python version parsed the Connection header differently. Without EOF the promise hangs.
+    handler.close_connection = True
 
 
 def _serve_mechanical_json(handler, text: str, model: str):
