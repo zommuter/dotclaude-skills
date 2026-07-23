@@ -61,7 +61,7 @@ relay_FILES := SKILL.md \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh \
                scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
@@ -90,7 +90,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh \
@@ -116,7 +116,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
-               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh \
+               scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh \

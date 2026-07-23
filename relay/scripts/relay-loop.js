@@ -565,6 +565,9 @@ const DISCOVER_SCHEMA = {
 // skipped rollup) and N SHARD classifiers run in parallel. PRELUDE_SCHEMA / SHARD_SCHEMA
 // reuse DISCOVER_SCHEMA's exact unit/surfaced/skipped item shapes so the merged object is
 // byte-identical to what the single agent used to return.
+// id:86a2 — PRELUDE_SCHEMA is no longer passed to agent() (the prelude is now a model:'bash'
+// dispatch of discover-prelude.sh, parsed by parsePrelude); it is RETAINED as the documented
+// output contract discover-prelude.sh must emit — the canonical shape the two views must agree on.
 const PRELUDE_SCHEMA = {
   type: 'object',
   required: ['runId', 'ts', 'repos'],
@@ -740,6 +743,25 @@ function parseInjectTake(raw, ownRepos) {
     })
   }
   return units
+}
+
+// id:86a2 — parse the model:'bash' discover-prelude return. discover-prelude.sh emits the
+// PRELUDE_SCHEMA object as ONE JSON line on stdout; the mechanical proxy returns that raw
+// string. The exec harnesses (discovery-exec-harness.mjs / loop-round-exec-harness.mjs) stub
+// agent() to return the OBJECT directly for the 'discover-prelude' label — so accept both.
+// FAIL-SAFE: a MECH-ERROR / empty (MECH-OK) / unparseable return is a falsy prelude, which the
+// `if (prelude && prelude.stopRequested === true)` and `if (prelude && Array.isArray(prelude.repos))`
+// guards downstream already tolerate (a dead prelude ⇒ a benign no-op round), exactly as the old
+// haiku prelude's failure mode was handled.
+function parsePrelude(raw) {
+  if (raw && typeof raw === 'object') return raw
+  const text = (raw == null) ? '' : String(raw)
+  if (!text.trim() || /^MECH-ERROR/.test(text) || /^MECH-OK\b/.test(text)) return null
+  try { return JSON.parse(text) } catch (_) {
+    const m = text.match(/\{[\s\S]*\}/)   // defensive: grab the first {...} block if wrapped in stray lines
+    if (m) { try { return JSON.parse(m[0]) } catch (_) { /* fall through */ } }
+    return null
+  }
 }
 
 // ── Per-repo serialized integrator (D5/D6 restated, id:bc9d: never two concurrent pushes
@@ -996,20 +1018,22 @@ if (!await quotaGateMemoized('sonnet')) {
 
 phase('Discover')
 
-// id:9ed4 — PRELUDE: once-only global work (runId, the CONSUMING inject.sh take, claim.sh
-// peek, the own-repo list + non-own skipped rollup). Then fan out parallel SHARD classifiers.
-const prelude = await agent(
-  `You are the PRELUDE of the relay discovery step. Do ONLY the once-only global work; do NOT classify repos.
-1. runId: generate ONCE via the shell: relay-$(date +%Y%m%d-%H%M%S)-$RANDOM (seconds + random suffix; MUST be unique per pool run — two concurrent pools must never share one because the cross-session lease and the worktree guard both key on it, id:0902).
-2. ts: current ISO 8601 timestamp.
-3. repos: read ~/.config/relay/relay.toml; for EVERY block with classification = "own" emit {repo, path (ABSOLUTE — expand a leading ~ to $HOME; default $HOME/src/<name>, or the "# path:" comment override with any leading ~ likewise expanded — NEVER emit a literal ~), income (true iff income = true)}.
-4. skippedConfig (id:be62): for every block whose classification is NOT "own" emit {repo, reason: "excluded-by-config (<classification>)"}. The shards never see non-own repos.
-5. liveClaimRepos: run ~/.claude/skills/relay/scripts/claim.sh peek once — it prints every LIVE cross-session claim as one JSON per line ({key,repo,runId,...}); return the SET of distinct "repo" values. [] if none.
-6. injectedUnits (id:baf1): run ~/.claude/skills/relay/scripts/inject.sh take EXACTLY ONCE — it atomically emits AND CONSUMES pending user-injected units, one JSON per line {token, repo, verdict, item, prompt, requested_at}. For EACH, emit one unit: {injected:true, inject_token:<token>, verdict:(<verdict> or "execute"), repo:<repo>, path:(resolve ~/src/<repo> or the "# path:" override), reason:"user-injected high-priority task", inject_item:(<item> or ""), inject_prompt:(<prompt> or ""), income:false, standin:false, hasRoutine:false, openHard:false, strongRecheckPending:false, lastCkpt:"", intensive:""}. [] if take emits nothing. NEVER run take more than once (it consumes).
-7. signatures (id:c3a6 — discovery cache): compute a per-repo SUPERSET signature so the supervisor can skip re-classifying (an LLM shard) a repo whose observable state is unchanged since last round. Build ONE JSON object {"repos":[{"repo":<repo>,"path":<path>} for EVERY own repo from step 3 — the ABSOLUTE paths, NOT a literal ~; discover-sig.sh stats each path and a literal ~ yields an empty fail-open sig that silently disables the cache],"liveClaims":<the liveClaimRepos array from step 5>} and pipe it on stdin to ~/.claude/skills/relay/scripts/discover-sig.sh. The script emits one JSON line per repo {"repo":<repo>,"sig":<sha256-hex or "">} — return them verbatim as "signatures". An EMPTY sig is a fail-open sentinel (the script could not read the repo): pass it through unchanged, do NOT invent a hash. Do this ONCE for all own repos; do NOT classify here. ([] only if there are zero own repos.)
-8. stopRequested (id:c012/id:482d — operator graceful-stop sentinel, mechanized): run ~/.claude/skills/relay/scripts/stop-sentinel.sh check --path ${STOP_PATH} (expand a leading ~ to $HOME) EXACTLY ONCE and return its JSON verbatim as stopRequested. The script atomically implements the check/countdown/consume semantics (absent → false; positive-integer countdown → decrement, false; anything else → consume + timestamped log line, true) in one call, so consumption can never lag behind the round it fires in. This is the ONLY actor that runs it; never run more than once per round.`,
-  { label: 'discover-prelude', phase: 'Discover', schema: PRELUDE_SCHEMA, model: 'haiku' }
+// id:9ed4/id:86a2 — PRELUDE: once-only global work (runId, the CONSUMING inject.sh take,
+// claim.sh peek, the own-repo list + non-own skipped rollup, discover-sig, the STOP sentinel).
+// MECHANIZED (id:86a2): the prelude never CLASSIFIES a repo and every step is already a shell
+// helper, so the whole thing is ONE deterministic model:'bash' (```relay-mech) dispatch of
+// discover-prelude.sh — no LLM judgment. discover-prelude.sh emits the PRELUDE_SCHEMA object on
+// stdout (byte-identical shape to the old haiku return); parsePrelude() below accepts both the
+// proxy's raw JSON string AND the exec harnesses' stubbed object. Then fan out parallel SHARD
+// classifiers. STOP_PATH is threaded unquoted so a leading ~ is tilde-expanded by the shell.
+const preludeRaw = await agent(
+  'Run exactly this one command and report its stdout verbatim — it is the deterministic discovery PRELUDE (runId, own-repo enumeration + non-own skipped rollup, live-claim peek, the CONSUMING inject.sh take, discover-sig, and the operator STOP-sentinel check), emitting one JSON object on stdout:\n' +
+  '```relay-mech\n' +
+  `STOP_PATH=${STOP_PATH} ~/.claude/skills/relay/scripts/discover-prelude.sh` +
+  '\n```',
+  { label: 'discover-prelude', phase: 'Discover', model: 'bash' }
 )
+const prelude = parsePrelude(preludeRaw)
 
 // id:c5ba/id:a921 — canonicalize the run id ONCE, here: the earliest point it exists, and
 // BEFORE any consumer cites it. `||` preserves the front-door mint (A.RUN_ID) and, from round 2
