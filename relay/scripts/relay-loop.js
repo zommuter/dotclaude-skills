@@ -906,6 +906,12 @@ let stopReason = null
 const QUOTA_CHECK_EVERY = A.QUOTA_CHECK_EVERY || POOL_WIDTH
 let quotaChecks = 0
 let lastQuotaOk = true
+// id:e9fa — per-round, per-tier quota-verdict memo. See quotaGateMemoized (below quotaGate)
+// for the full rationale — this const/object pair is declared here, alongside the sibling
+// QUOTA_CHECK_EVERY throttle they layer on top of, so both quota-dispatch-reduction
+// mechanisms are visible together.
+const QUOTA_MEMO_TTL_ROUNDS = 1
+const quotaMemo = {}  // tier -> { verdict: boolean, round: number }
 const MAX_ROUNDS = A.MAX_ROUNDS || 30
 // id:9ed4 — how many parallel discovery-shard classifiers to fan out per round. The own-repo
 // list is round-robin chunked across this many agents (capped at repo count). The Workflow
@@ -978,7 +984,7 @@ const completedBefore = state.completed.length
 // A round that immediately quota-stops wastes N shard agents if the gate fires post-sharding.
 // (Incident 2026-06-25, run relay-20260625-225111: 5 shards ~94k tokens spent before stop.)
 // Uses the existing quotaGate() / last-known cache (no extra API refresh before round 1 shards).
-if (!await quotaGate('sonnet')) {
+if (!await quotaGateMemoized('sonnet')) {
   // quotaStopped was set to true by quotaGate; outer loop exits after this round.
   log('relay-loop: id:5c00 quota PRE-GATE fired — skipping discovery fan-out (quota at threshold before round start)')
   return { actionable: 0, produced: 0 }
@@ -1823,6 +1829,42 @@ ${runIdEnv}${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${
   return true
 }
 
+// id:e9fa — memo the quota verdict PER ROUND so runUnit doesn't issue its own mechanical
+// round-trip for every non-injected dispatch just to re-read a cache that barely changes
+// within one round (quotaGate is awaited BOTH pre-shard once/round at ~981 AND per-unit here
+// before every non-injected dispatch — N serialized mechanical round-trips/round for what is
+// usually the same answer). quotaGate() (above) stays the single AUTHORITATIVE check — both
+// call sites now go through THIS wrapper instead of calling quotaGate() directly, so the
+// pre-shard call (always the first of the round, hence always a memo MISS) refreshes the
+// memo as a side effect, and every runUnit call for the rest of that round reuses it with
+// NO further dispatch. quotaGate()'s own dispatch-count throttle (QUOTA_CHECK_EVERY,
+// lastQuotaOk) still sits underneath, unchanged — this is an ADDITIONAL layer, not a
+// replacement.
+//
+// A real wall-clock TTL (originally proposed as ~45s) is NOT implementable here: the
+// Workflow sandbox FORBIDS Date.now()/new Date() (ShimDate throws to keep runs
+// deterministic — see the QUOTA_CHECK_EVERY comment near QUOTA_MEMO_TTL_ROUNDS, and id:2031's
+// inline note for prior art hitting the same wall). The closest correctness-preserving proxy
+// this sandbox can actually observe is the ROUND boundary: `round` is a plain incrementing
+// counter (bumped once per runRound() call), not a clock read. This is coarser than a true
+// 45s TTL — a long round holds the memo the whole round; a short round refreshes sooner than
+// 45s would have — but it never weakens the hard-stop guarantee: `quotaStopped` is sticky and
+// checked FIRST on every call (memoized or not), so a tripped stop short-circuits instantly
+// regardless of memo state, and a real STOP verdict written into the memo is honored
+// immediately by every subsequent memoized caller in the same round.
+//
+// INTERIM STOPGAP, not the structural fix — the off-Workflow drain-driver (id:cd7a/65f9/2b23)
+// runs with real host-side clock access and should replace this round-keyed proxy with a
+// genuine time-based memo when it lands.
+async function quotaGateMemoized(tier) {
+  if (quotaStopped) return false
+  const memo = quotaMemo[tier]
+  if (memo && (round - memo.round) < QUOTA_MEMO_TTL_ROUNDS) return memo.verdict
+  const ok = await quotaGate(tier)
+  quotaMemo[tier] = { verdict: ok, round }
+  return ok
+}
+
 async function integrate(unit, report) {
   if (!report) {
     // Child failed terminally (and auto-resume, for handoffs, didn't recover). Record a
@@ -2085,7 +2127,7 @@ async function runUnit(unit) {
   // Injected units (id:baf1) skip the quota gate — an explicit user request runs even near
   // the cap. They were already consumed by `inject.sh take`, so deferring them would lose
   // the injection; honoring it is the whole point of "inject this next, highest priority".
-  if (!unit.injected && !(await quotaGate(tier))) {
+  if (!unit.injected && !(await quotaGateMemoized(tier))) {
     state.queued.push({ repo: unit.repo, verdict: `${unit.verdict} (quota-deferred)` })
     return
   }
