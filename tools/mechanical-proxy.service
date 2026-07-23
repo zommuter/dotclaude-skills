@@ -1,0 +1,17 @@
+[Unit]
+Description=Mechanical-dispatch proxy — always-on local gateway that short-circuits model:"bash" turns (id:176f)
+Documentation=file:%h/src/dotclaude-skills/relay/scripts/mechanical-proxy.py
+# Binds 127.0.0.1:MECH_PROXY_PORT (default 61843) and intercepts model:"bash" traffic
+# locally; everything else is relayed unchanged to the real upstream. See the script's
+# own header for the fail-open contract. Restart=always makes it durable across crashes
+# so probe-mech-proxy.sh's mode-b (proxy down) case stays rare (id:99a4 pairs with this).
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env python3 %h/src/dotclaude-skills/relay/scripts/mechanical-proxy.py
+Restart=always
+RestartSec=5
+Nice=10
+
+[Install]
+WantedBy=default.target
