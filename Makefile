@@ -56,6 +56,7 @@ relay_FILES := SKILL.md \
                scripts/commit-ledger.sh scripts/acquire-resource.sh \
                scripts/unpromoted-scan.sh scripts/todo-conformance.sh \
                scripts/scan-routed.sh scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh \
+               scripts/inbox-scan-repo.sh \
                scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
@@ -83,7 +84,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/roadmap-lint.sh scripts/relay-doctor.sh \
                scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
-               scripts/todo-conformance.sh scripts/scan-routed.sh \
+               scripts/todo-conformance.sh scripts/scan-routed.sh scripts/inbox-scan-repo.sh \
                scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
@@ -108,7 +109,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/roadmap-lint.sh scripts/relay-doctor.sh \
                scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
-               scripts/todo-conformance.sh scripts/scan-routed.sh \
+               scripts/todo-conformance.sh scripts/scan-routed.sh scripts/inbox-scan-repo.sh \
                scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
