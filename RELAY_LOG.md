@@ -3292,3 +3292,7 @@ Friction: none — the classify unit carries no explicit selected-item id, so th
 ## 2026-07-23 19:24 — reviewer (claude-opus-4-8)
 
 id:bc49 landed — orphan-suppress item-scoped/additive (dc5b-safe surface-class table, cases A-E)
+
+## 2026-07-23 19:25 — reviewer (claude-opus-4-8)
+
+id:dfb9 landed — relay-spawn-bench.sh spawn-timing harness
