@@ -3367,3 +3367,27 @@ id:1048 landed — bounded auto-integrate primitive (auto-integrate-orphan.sh); 
 ## 2026-07-23 19:52 — reviewer (claude-opus-4-8)
 
 wave-1 DoD gate GREEN — fixed discover-prelude.sh rm -f lint violation; make test 302 pass
+
+## 2026-07-23 20:15 — executor (claude-opus-4-8) [1m]
+
+id:24ec landed — discover-run SHARD mechanized model:'haiku' → model:'bash'. New
+relay/scripts/discover-chunk.sh wraps the per-chunk loop: reads the chunk JSON on
+stdin, runs discover-repo.sh LIVE (reconcile+classify, NO --no-reconcile) per repo,
+concatenates {units,surfaced,skipped} (CASE B). Deterministic, no LLM. relay-loop.js
+discover-run flipped to a single ```relay-mech model:'bash' fence (echo <chunk> |
+discover-chunk.sh); parseShard() parses the raw return (mirrors parsePrelude).
+Registered in Makefile relay_FILES/_EXEC/_ALLOW + mechanical-proxy ALLOWED_RELAY_SCRIPTS.
+CASE-A queue content-address (the id:7402 residual LLM read) is ELIMINATED and DEFERRED
+to id:6eb3 (discover-chunk.sh reserves --queue-latest/--queue-fresh-secs; the id:4860
+canary + DISCOVERY_QUEUE_* constants + chunk live-sig are RETAINED as substrate).
+Reconcile now runs LIVE every round for every repo → FINDING-1 preserved by construction.
+Faithful structural relocations (each id:24ec-commented, coverage moved not dropped):
+test_relay_loop_mech_emitter (discover-run off must-stay-haiku), test_relay_discover_shard
++ test_relay_runner_swap (per-repo discover-repo.sh + NO-FILESYSTEM-HUNTING moved to the
+wrapper; schema no longer passed to agent(), retained as contract), test_discover_cache
+(discover-run pin haiku→bash), test_discovery_queue_consume (CASE-A recipe → CASE-B +
+FINDING-1-by-construction + id:6eb3 deferral), integrate-contain-harness (discover-run
+stub keyed on label not the changed prompt text). make test 303 passed, 0 failed,
+0 expected-red (lint gate included).
+refactor: none — discover-chunk.sh mirrors discover-repos-mechanical.sh's per-repo
+isolation/fold idiom; no logic duplicated (it composes discover-repo.sh).
