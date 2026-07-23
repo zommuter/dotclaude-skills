@@ -2332,19 +2332,22 @@ async function stopHeartbeat() {
 // clean start does nothing; this run hasn't beaten its own marker yet (first beat is in round-1
 // prelude), so dead-runs reports only PRIOR runs. Best-effort — the human /relay reconcile is
 // always the backstop, so a failure here never blocks the pool.
+// id:c14d — this used to be a 3-step haiku prompt (the LLM issued each of dead-runs ->
+// --all --auto -> per-runId reap-run -> TTL reap in sequence, reading its own prior output
+// to drive the data-dependent next step). relay-reconcile.sh --auto-restart now wraps all
+// three steps into ONE allowlisted command (see its header comment for the exact contract
+// this replicates, including the REQUIRED --prefix 'relay-*' scoping), so this is a genuine
+// single-command model:"bash" mechanical dispatch like the other id:6176 hops. Because id:3557
+// landed first, a benign "no dead run" summary is never empty (the wrapper always prints a
+// real one-line summary) — but it wouldn't matter here either way, since the result is
+// discarded (fire-and-forget, `await` with no consumer of the return value).
 try {
   await agent(
-    `Auto-reconcile-on-restart check (relay id:7809), unattended — NEVER prompt. Run exactly:
-  ~/.claude/skills/relay/scripts/heartbeat.sh dead-runs --prefix 'relay-*'
-If it prints NOTHING, no prior DISPATCH-LOOP relay run died — do nothing else and report "no dead run, skipped". If it prints one or more JSON lines (a prior run died without a clean heartbeat stop), then:
-  1. Run: ~/.claude/skills/relay/scripts/relay-reconcile.sh --all --auto
-  2. THEN, for EACH distinct "runId" value printed by the dead-runs command above, immediately archive THAT SPECIFIC run's marker (id:7725 — observed-death reap, do not wait on the TTL-only sweep below):
-       ~/.claude/skills/relay/scripts/heartbeat.sh reap-run '<that runId>'
-  3. Finally run the TTL backstop sweep (catches any OTHER present-but-stale marker this restart did not individually observe/reconcile):
-       ~/.claude/skills/relay/scripts/heartbeat.sh reap --prefix 'relay-*'
-Report all three steps' output verbatim.
-(Step 1 auto-integrates only ledger-only/clean orphans and surfaces everything else into REVIEW_ME.md; step 2 immediately archives each JUST-reconciled dead run's own marker by exact runId so the watchdog (id:98f0) cannot re-alarm on a crash already handled this restart (id:7725 — the old design only relied on the stale-only sweep, which under-TTL markers slipped through, ~1h-late false alarm observed 2026-07-07); step 3 is the pure TTL backstop for a marker that was NOT in this restart's dead-runs list (impossible in practice, but keeps the two liveness paths independent). The --prefix 'relay-*' is REQUIRED on BOTH the dead-runs detection AND the reap in step 3 and must not be dropped — it scopes both to this dispatch loop's own runId namespace so a dead INDEPENDENT discovery-producer heartbeat marker (id:54fc, a separate liveness domain that ages past heartbeat's 3600s default TTL) never falsely trips this per-restart --all reconcile nor gets archived by the reap. Un-scoped dead-runs would fire relay-reconcile --all --auto on EVERY restart while that producer marker is stale.) Take NO other action.`,
-    { label: 'auto-reconcile-restart', phase: 'Support', model: 'haiku' }
+    'Run exactly this command and report its stdout verbatim (relay id:7809/id:c14d — auto-reconcile any prior DISPATCH-LOOP relay run that died without a clean heartbeat stop, before starting fresh work this restart):\n' +
+    '```relay-mech\n' +
+    "~/.claude/skills/relay/scripts/relay-reconcile.sh --auto-restart" +
+    '\n```',
+    { label: 'auto-reconcile-restart', phase: 'Support', model: MECH_MODEL }
   )
 } catch (_) { /* non-fatal: the human /relay reconcile is always available */ }
 
