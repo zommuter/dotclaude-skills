@@ -1,0 +1,61 @@
+# state-claim-baseline.txt — committed fixture snapshot for the WARN→ERROR
+# boundary (id:cb3e, gated on id:5533's shared state-claim predicate shipping;
+# meeting 2026-07-24-0929, D3/A1).
+#
+# WHAT THIS IS: the set of ids that were ALREADY open and ALREADY tripping
+# lib-state-claim.sh's state_claim_violation() (direction i or ii) in
+# ROADMAP.md / TODO.md at rule-land time (2026-07-24, right after id:5533
+# shipped the predicate). roadmap-lint.sh and todo-conformance.sh both check
+# an offending item's id against this file (state_claim_in_baseline): a
+# BASELINED id stays WARN forever, even under --strict; an id NOT in this file
+# ("new") escalates to ERROR under --strict exactly as id:5533 already wired.
+#
+# WHY: id:5533 wired the DECIDED-LEFT-OPEN doctrine rule's severity to
+# WARN/--strict-ERROR uniformly. Flipping --strict on permanently (the eventual
+# goal) would otherwise instantly fail the build on this repo's existing,
+# already-tolerated population — this baseline is what makes that flip safe:
+# only a genuinely NEW violation trips ERROR.
+#
+# MEMBERSHIP IS BY ID ONLY, never by line text — a whole-line rewrite (the
+# mandated edit path for /meeting write-back, /relay human, and todo-update,
+# via meeting/md-merge.py) keeps the same id, so a baselined item stays
+# baselined even after its prose changes. This is the property that killed the
+# earlier git-blame / git-log-S dating approach (both refuted — they date the
+# last EDIT, not the item's creation, and md-merge's whole-line rewrite makes
+# every write-back look like a fresh edit).
+#
+# KNOWN WEAKNESS (documented, not guarded): a stale baseline silently
+# re-grandfathers — this file is a snapshot, not a live derivation, so an id
+# captured here stays WARN-forever even if its violation later changes shape or
+# a fresh one is reintroduced under the same id. There is no expiry and no
+# automatic refresh; regenerating this file is a deliberate, separate act.
+#
+# OUT OF SCOPE: git blame author-time and git log --reverse -S dating (both
+# refuted / O(items)-per-run) — see id:cb3e's ROADMAP context.
+#
+# Captured 2026-07-24 (relay-ckpt-20260724-1632 base) by scanning ROADMAP.md +
+# TODO.md for every open `- [ ]` line where state_claim_violation() fires,
+# regenerate with:
+#   awk-free one-liner: source relay/scripts/lib-state-claim.sh, iterate
+#   `- [ ] ` lines in ROADMAP.md/TODO.md, run state_claim_violation, extract
+#   each firing line's own <!-- id:XXXX --> token. (No standalone regen script
+#   exists yet — this is a hand-captured snapshot, per the item's scope.)
+0749
+176f
+1a1d
+1cb8
+2041
+2895
+2b23
+2ec4
+3536
+3bf3
+401c
+659c
+6b35
+8254
+93cc
+94b8
+d1fb
+e8a3
+f649

@@ -40,6 +40,9 @@ set -euo pipefail
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=relay/scripts/lib-state-claim.sh
 source "$SCRIPTS_DIR/lib-state-claim.sh"
+# WARN→ERROR boundary baseline (id:cb3e, gated on id:5533) — same shared snapshot
+# roadmap-lint.sh reads, so both linters agree on which ids are grandfathered.
+STATE_CLAIM_BASELINE="${STATE_CLAIM_BASELINE:-$SCRIPTS_DIR/../state-claim-baseline.txt}"
 # append.sh (the id mint) lives in meeting/ at the repo root; resolve via the scripts dir.
 APPEND_SH="${TODO_CONFORMANCE_APPEND:-$(cd "$SCRIPTS_DIR/../.." && pwd)/meeting/append.sh}"
 LOG="${TODO_CONFORMANCE_LOG:-$HOME/.claude/logs/todo-conformance.log}"
@@ -107,6 +110,12 @@ classify_inbox() {
 }
 
 findings=0 fixed=0
+# strict_findings (id:cb3e) — the WARN→ERROR boundary subset of findings: every
+# non-state-claim finding, PLUS state-claim findings whose id is NOT in the
+# checked-in baseline. `findings` still counts everything (drives reporting: a
+# baselined state-claim hit is always printed, never silently dropped); only
+# strict_findings drives the --strict nonzero exit below.
+strict_findings=0
 out_lines=()
 declare -a fix_lines=()   # 1-based line numbers needing a minted id
 
@@ -116,7 +125,7 @@ declare -a fix_lines=()   # 1-based line numbers needing a minted id
 # the id). `$1`=collect-fix (1 → record missing-id line numbers for --fix).
 scan_path() {
   local collect_fix="$1" line cls lineno=0 heading_is_item=0
-  findings=0; out_lines=(); fix_lines=()
+  findings=0; strict_findings=0; out_lines=(); fix_lines=()
   while IFS= read -r line || [[ -n "$line" ]]; do
     lineno=$((lineno+1))
     if [[ "$inbox" -eq 0 ]]; then
@@ -149,13 +158,21 @@ scan_path() {
     fi
     if [[ -z "$cls" && -z "$sc" ]]; then continue; fi
     if [[ -n "$cls" ]]; then
-      findings=$((findings+1))
+      findings=$((findings+1)); strict_findings=$((strict_findings+1))
       out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
       [[ "$cls" == "missing-id" && "$collect_fix" -eq 1 ]] && fix_lines+=("$lineno")
     fi
     if [[ -n "$sc" ]]; then
       findings=$((findings+1))
-      out_lines+=("$(printf 'decided-left-open\t%d\t%s' "$lineno" "$line")")
+      # WARN→ERROR boundary (id:cb3e): a baselined id never counts toward
+      # strict_findings — it is reported (below) but can never fail --strict.
+      _sc_id="$(grep -oP '<!--\s*id:\K[0-9a-f]{4}(?=[-a-z0-9]*\s*-->)' <<<"$line" | tail -1)"
+      if state_claim_in_baseline "$_sc_id" "$STATE_CLAIM_BASELINE"; then
+        out_lines+=("$(printf 'decided-left-open (baselined id:cb3e)\t%d\t%s' "$lineno" "$line")")
+      else
+        strict_findings=$((strict_findings+1))
+        out_lines+=("$(printf 'decided-left-open\t%d\t%s' "$lineno" "$line")")
+      fi
     fi
   done < "$path"
   return 0   # the while's EOF-exit status (1) must not become scan_path's return (set -e)
@@ -210,9 +227,9 @@ if [[ "$findings" -gt 0 ]]; then
   fi
   [[ "${#out_lines[@]}" -gt 0 ]] && printf '%s\n' "${out_lines[@]}"
 fi
-log "path=$path inbox=$inbox findings=$findings fixed=$fixed strict=$strict"
+log "path=$path inbox=$inbox findings=$findings strict_findings=$strict_findings fixed=$fixed strict=$strict"
 
-if [[ "$strict" -eq 1 && "$findings" -gt 0 ]]; then
+if [[ "$strict" -eq 1 && "$strict_findings" -gt 0 ]]; then
   exit 1
 fi
 exit 0

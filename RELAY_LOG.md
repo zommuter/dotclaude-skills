@@ -3462,3 +3462,8 @@ id:5533 shipped — shared two-directional state-claim contradiction predicate (
 ## 2026-07-24 16:49 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:8913 + id:5533 verified genuinely green (RED specs real, no gaming); ungated cb3e (dep shipped), filed id:78e1 (state-claim word-boundary FP), 3 REVIEW_ME boxes; suite 305/0/0 [id:8913,5533,cb3e,78e1]
+## 2026-07-24 — executor (sonnet)
+
+Worked id:cb3e — committed the WARN→ERROR boundary baseline (`relay/state-claim-baseline.txt`, 19 pre-existing DECIDED-LEFT-OPEN ids captured at rule-land time) and wired `state_claim_in_baseline` (lib-state-claim.sh) into both `roadmap-lint.sh` and `todo-conformance.sh`: a baselined id is always reported but never fails `--strict`; a non-baselined id still escalates to ERROR exactly as id:5533 wired. `tests/test_state_claim_baseline_cb3e.sh` covers the acceptance fixture (a wholesale md-merge.py line rewrite keeps the same id, so membership-by-id survives it) plus both linters' strict/non-strict paths. Ticked cb3e in both ROADMAP.md and TODO.md (single-id-two-views). Full suite 306/0/0 (one `test_statusline_tokens.sh` failure on the first run was transient/flaky — reran green in isolation, unrelated to this change).
+Friction: none — the implementation and RED spec were already present, uncommitted, in this worktree when the session started (apparently from an earlier interrupted run); this session verified, ticked the ledger, and committed.
+refactor: none needed — additive baseline-check function + two call sites following the existing `tools/check-no-bare-rm-f.sh` baseline pattern; no duplication introduced.
