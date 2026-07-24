@@ -3471,3 +3471,7 @@ refactor: none needed — additive baseline-check function + two call sites foll
 ## 2026-07-24 18:16 — recovery (claude-opus-4-8, manual cb3e salvage)
 
 Re-integrated id:cb3e (state-claim WARN->ERROR baseline: state-claim-baseline.txt + state_claim_in_baseline wired into roadmap-lint.sh & todo-conformance.sh + hermetic test_state_claim_baseline_cb3e.sh) salvaged from the relay-20260724-160054-19815 merge-race handback. The execute child implemented cb3e but its --no-ff merge collided with the concurrent review pass that had ungated the same ledger lines; the impl existed only on the parked branch. Resolved the ROADMAP/TODO conflict by keeping the review's ungated body, flipping to [x], dropping the stale gate markers, appending the DONE note. Full suite 306/0/0 green (earlier in-suite backtest_fidelity failure confirmed flake — passes in isolation and on clean rerun).
+
+## 2026-07-24 21:11 — handoff (claude-opus-4-8, c5ed chain)
+
+Handoff for id:c5ed (install-drift guard, routed:35eb 2nd instance): C3 authored RED spec tests/test_install_drift_guard.sh (4 hermetic assertions incl. the missing-source-target false-green case); C2 promoted c5ed to ROADMAP as [ROUTINE] with interface check-install-drift.sh --canonical <dir> --installed <dir>. Spec confirmed EXPECTED-RED (guard not yet implemented). Next: executor implements the guard green.
