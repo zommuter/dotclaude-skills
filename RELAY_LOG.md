@@ -3475,3 +3475,9 @@ Re-integrated id:cb3e (state-claim WARN->ERROR baseline: state-claim-baseline.tx
 ## 2026-07-24 21:11 — handoff (claude-opus-4-8, c5ed chain)
 
 Handoff for id:c5ed (install-drift guard, routed:35eb 2nd instance): C3 authored RED spec tests/test_install_drift_guard.sh (4 hermetic assertions incl. the missing-source-target false-green case); C2 promoted c5ed to ROADMAP as [ROUTINE] with interface check-install-drift.sh --canonical <dir> --installed <dir>. Spec confirmed EXPECTED-RED (guard not yet implemented). Next: executor implements the guard green.
+
+## 2026-07-24 — executor (claude-opus-4-8)
+
+Worked id:c5ed (routed:35eb) — implemented `relay/scripts/check-install-drift.sh --canonical <dir> --installed <dir>`. It enumerates every `<canonical>/*.sh`, asserts a same-named install entry (DIRECT drift), AND parses each script's `source`/`.` lines to follow every `.sh` sibling target, asserting it resolves in the install (SOURCE drift — the routed:35eb false-green where an installed script sources an uninstalled sibling and dies silently under `set -e`). Any drift → exit 1 naming each missing basename on stderr; full parity → exit 0. RED spec `tests/test_install_drift_guard.sh` passes (all 4 assertions incl. the source-only case that a blind canonical∖installed set-diff would miss). Wired the script into `relay_FILES`/`relay_EXEC`/`relay_ALLOW` (3 manifest entries, 8 allowlist entries confirmed via `make print-allowlist`). Ticked c5ed in both ROADMAP.md and TODO.md (single-id-two-views). Full suite 307/0/0.
+Friction: none.
+refactor: none needed — single self-contained new script following the existing consumer-enum.sh/roadmap-lint.sh arg-parse + read-only style; no duplication introduced.
