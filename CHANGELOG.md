@@ -11,6 +11,7 @@
 
 - id:8913 landed — settles:/decided-in: typed-edge grammar + orphan-scan --settled/--unbackrefed (new RED spec authored, both required must-not-fire fixtures verified against real repo ground truth); suite 304/0/0 (id:8913)
 - id:5533 shipped — shared two-directional state-claim contradiction predicate (lib-state-claim.sh) now backs both roadmap-lint.sh's DECIDED-LEFT-OPEN rule and a new todo-conformance.sh check; reverted the id:931c prose reword; suite 305/0/0. (id:5533)
+- review: id:8913 + id:5533 verified genuinely green (RED specs real, no gaming); ungated cb3e (dep shipped), filed id:78e1 (state-claim word-boundary FP), 3 REVIEW_ME boxes; suite 305/0/0 (id:8913,5533,cb3e,78e1)
 
 ## 2026-07-23
 
