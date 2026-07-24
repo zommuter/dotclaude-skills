@@ -3418,3 +3418,7 @@ extractor pattern verbatim.
 refactor: none needed — two small, self-contained new extractor functions plus two new mode
 branches following the exact structural pattern already used by the five existing orphan-scan
 directions (cross-ledger/promotion/shipped); no duplication introduced.
+
+## 2026-07-24 16:15 — executor (sonnet, relay-loop)
+
+id:8913 landed — settles:/decided-in: typed-edge grammar + orphan-scan --settled/--unbackrefed (new RED spec authored, both required must-not-fire fixtures verified against real repo ground truth); suite 304/0/0 [id:8913]
