@@ -21,6 +21,16 @@ typed_edges_gated_of_line()    { grep -oP '(?<=<!-- gated-on:)[0-9a-f,]+(?= -->)
 # An item's OWN id: the FIRST `<!-- id:XXXX -->` comment on the line (by convention only
 # the item's own trailing id is comment-wrapped; body-prose ids are bare).
 typed_edges_own_id_of_line()   { grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$1" | head -1 || true; }
+# id:8913 — settled-decision detection edges. Anchored ONLY: a bare `id:XXXX` mention
+# or a backticked bare token (`e647`) under a Decisions heading is NOT an edge (the
+# refuted D1(ii) bare-grep design, meeting 2026-07-24-0929) — these extractors only
+# ever match the comment-wrapped form, exactly like the extractors above.
+# `<!-- settles:XXXX -->` — authored on a meeting-note `## Decisions` bullet: this
+# decision settles ledger item XXXX.
+typed_edges_settles_of_line()    { grep -oP '(?<=<!-- settles:)[0-9a-f,]+(?= -->)' <<<"$1" || true; }
+# `<!-- decided-in:<note-relpath> -->` — authored on the ledger item itself: a backref
+# to the meeting note that decided it. The relpath has no spaces or `-->` by construction.
+typed_edges_decided_in_of_line() { grep -oP '(?<=<!-- decided-in:)[^[:space:]]+(?= -->)' <<<"$1" || true; }
 
 # --- token → checkbox-state resolution map ------------------------------------
 # typed_edges_build_state_map <assoc-array-name> <file>...
