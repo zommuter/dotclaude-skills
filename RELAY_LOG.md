@@ -3395,3 +3395,26 @@ isolation/fold idiom; no logic duplicated (it composes discover-repo.sh).
 ## 2026-07-23 20:34 — reviewer (claude-opus-4-8)
 
 id:24ec landed — discover-run shard mechanized model:'haiku'→'bash' (discover-chunk.sh); CASE-A residual eliminated; prelude allowlist gap fixed; make test 303/0/0
+
+## 2026-07-24 — executor (claude-sonnet-5)
+
+Worked id:8913 — extended id:46f6's typed-edge vocabulary with two anchored, comment-wrapped
+edges (`<!-- settles:XXXX -->`, `<!-- decided-in:<note-relpath> -->`) via new extractors in
+relay/scripts/lib-typed-edges.sh, and added two ADVISORY directions to meeting/orphan-scan.sh:
+`--settled` (reports a settles: edge whose target is still OPEN in the TODO∪TODO.archive∪ROADMAP
+ledger union) and `--unbackrefed` (reports OPEN `[* — meeting]`/`[INPUT — decision]` items with no
+decided-in: backref, presence-only per D1(i)). Wrote the RED spec tests/test_settled_edges_8913.sh
+(it did not yet exist) with hermetic mktemp fixtures reproducing both required must-not-fire cases
+from the ROADMAP acceptance: a bare `id:XXXX` mention under a Decisions heading (mirrors the real
+id:010c / 2026-07-23-2320 note) and a backticked bare token with no `id:` prefix (mirrors the real
+e647/b8fa 2026-07-17-1541 founding note) — both correctly produce zero `--settled` output by
+construction, since the extractors only ever match the comment-anchored form. Also spot-checked
+the real repo directly (`orphan-scan.sh --settled .`) to confirm id:010c/e647/b8fa do not appear
+in live output. Ticked id:8913 in both ROADMAP.md and its TODO.md twin (single-id-two-views).
+Full suite: 304/0/0 (up from 303, the one new test file).
+Friction: none — the item's acceptance criteria (must-not-fire fixtures) mapped directly onto the
+test; no ambiguity in the marker grammar since it reuses the existing lib-typed-edges.sh anchored
+extractor pattern verbatim.
+refactor: none needed — two small, self-contained new extractor functions plus two new mode
+branches following the exact structural pattern already used by the five existing orphan-scan
+directions (cross-ledger/promotion/shipped); no duplication introduced.
