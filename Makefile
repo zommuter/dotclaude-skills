@@ -65,7 +65,7 @@ relay_FILES := SKILL.md \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh \
                scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
-               scripts/review-gate.sh scripts/consumer-enum.sh \
+               scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
                scripts/lib-own-repos.sh scripts/lib-anchored-id.sh scripts/lib-typed-edges.sh scripts/lib-state-claim.sh \
                scripts/resolve-gates.sh \
                scripts/mechanical-proxy.py \
@@ -94,7 +94,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
-               scripts/review-gate.sh scripts/consumer-enum.sh \
+               scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
                scripts/resolve-gates.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
@@ -121,7 +121,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
-               scripts/review-gate.sh scripts/consumer-enum.sh \
+               scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
                scripts/resolve-gates.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
