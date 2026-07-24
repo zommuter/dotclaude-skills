@@ -84,3 +84,27 @@ state_claim_violation() {
   local IFS=,
   echo "${fired[*]}"
 }
+
+# state_claim_in_baseline <id> <baseline_file> — the WARN→ERROR boundary check
+# (id:cb3e, gated on id:5533 shipping). Return 0 iff <id> (a bare 4-hex token, no
+# `id:` prefix) appears as its own line in <baseline_file> (blank lines and `#`
+# comment lines are ignored); return 1 otherwise (including a missing/unreadable
+# file — fail OPEN to "not baselined", i.e. a missing baseline file makes every
+# violation a "new" one rather than silently grandfathering everything).
+#
+# Membership is by ID ONLY, never by line text — a whole-line rewrite (the
+# mandated edit path for `/meeting` write-back, `/relay human`, and `todo-update`,
+# via `meeting/md-merge.py`, which replaces WHOLE LINES by id token) keeps the
+# SAME id, so a baselined item stays correctly baselined even after its prose is
+# rewritten wholesale. This is precisely what killed the earlier `git blame`
+# author-time approach, which dates the last EDIT rather than the item's creation.
+#
+# KNOWN WEAKNESS: a stale baseline silently RE-GRANDFATHERS — an id captured here
+# stays WARN-forever even if its violation is later re-introduced or changes
+# shape. There is no expiry; regenerating the baseline is a deliberate, separate
+# act (never automatic), same disclosure as the file's own header.
+state_claim_in_baseline() {
+  local id="$1" file="$2"
+  [[ -n "$id" && -f "$file" ]] || return 1
+  grep -vE '^[[:space:]]*(#|$)' "$file" | grep -qxF "$id"
+}
