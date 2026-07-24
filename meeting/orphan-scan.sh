@@ -52,6 +52,24 @@
 #     UNMARKED-GATE      — an UNMARKED line carries gate vocabulary (`gated on`/`blocked
 #                          until`/`blocked on`/`Gate:`). Advisory backstop (no-silent-swallow,
 #                          id:4347) — catches non-id gates, backfill misses, future items.
+# Settled (--settled): id:8913 (meeting 2026-07-24-0929, parent id:968c) — a decision
+#   FILED as fixing a ledger item does not itself CLOSE that item; --settled reports any
+#   `<!-- settles:XXXX -->` edge (anchored, form C, authored on a meeting-note `##
+#   Decisions` bullet) whose target XXXX is still OPEN in the ledger union (TODO.md ∪
+#   TODO.archive.md ∪ ROADMAP.md, first-wins). ANCHORED ONLY: a bare `id:XXXX` mention or
+#   a backticked bare token under a Decisions heading is NOT an edge — the refuted D1(ii)
+#   bare-grep design scored zero on the founding e647/b8fa note (backticked bare tokens)
+#   and both over- and under-fired elsewhere. Silent when the token is dangling
+#   (unresolvable) or already `[x]` closed. Advisory, exit 0 always.
+# Unbackrefed (--unbackrefed): id:8913 companion direction — reports OPEN `[* — meeting]`
+#   / `[INPUT — decision]` ledger items (TODO.md ∪ TODO.archive.md ∪ ROADMAP.md) carrying
+#   NO `<!-- decided-in:<note-relpath> -->` backref. PRESENCE-only, never a date
+#   comparison (D1(i) was refuted as self-defeating: adding the backref is itself an
+#   edit, so no fixed point exists). Advisory, exit 0 always. Precedence: when both
+#   directions could apply to the same id, `--settled` wins (positive evidence beats a
+#   reported absence) — the two directions scan disjoint line sets in practice (settles:
+#   lives on note bullets, decided-in: on ledger items), so this matters only to a caller
+#   that merges both reports for the same id.
 # Un-IDed lines are skipped (clean cutover; legacy notes stay frozen).
 # Prints candidate lines to stdout; writes one log line to ~/.claude/logs/meeting-orphan-scan.log.
 set -euo pipefail
@@ -68,6 +86,12 @@ elif [[ "${1:-}" == "--promotion" || "${1:-}" == "-p" ]]; then
   shift
 elif [[ "${1:-}" == "--shipped" || "${1:-}" == "-s" ]]; then
   mode="shipped"
+  shift
+elif [[ "${1:-}" == "--settled" ]]; then
+  mode="settled"
+  shift
+elif [[ "${1:-}" == "--unbackrefed" ]]; then
+  mode="unbackrefed"
   shift
 fi
 
@@ -378,6 +402,54 @@ elif [[ "$mode" == "shipped" ]]; then
       fi
     fi
   done < <(grep -nE '^\s*- \[ \] ' "$ROOT/TODO.md" 2>/dev/null || true)
+elif [[ "$mode" == "settled" ]]; then
+  # id:8913 — settled-decision detection. Anchored ONLY (typed-edge engine, id:46f6):
+  # scan meeting notes for `<!-- settles:XXXX -->` edges and report any target still
+  # OPEN in the ledger union. A bare `id:XXXX` mention or backticked bare token is
+  # never matched — the extractor requires the comment-wrapped form.
+  orphan_self="$(readlink -f "${BASH_SOURCE[0]}")"
+  # shellcheck source=../relay/scripts/lib-typed-edges.sh
+  source "$(dirname "$orphan_self")/../relay/scripts/lib-typed-edges.sh"
+  declare -A ledger_state_map
+  typed_edges_build_state_map ledger_state_map "$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md"
+  for f in $(ls -r1 "$NOTES_DIR"/*.md 2>/dev/null); do
+    [[ -f "$f" ]] || continue
+    [[ "$(basename "$f")" == "meeting-style.md" ]] && continue
+    notes=$((notes+1))
+    while IFS=: read -r lineno text; do
+      settles_csv=$(typed_edges_settles_of_line "$text")
+      [[ -z "$settles_csv" ]] && continue
+      IFS=',' read -ra settles_toks <<<"$settles_csv"
+      for tok in "${settles_toks[@]}"; do
+        [[ -z "$tok" ]] && continue
+        id_lines=$((id_lines+1))
+        # Silent when dangling (unresolvable) or already [x] closed — only an
+        # anchored settles: edge pointing at a still-OPEN ledger item is reported.
+        [[ -n "${ledger_state_map[$tok]+x}" ]] || continue
+        [[ "${ledger_state_map[$tok]}" == "x" ]] && continue
+        candidates=$((candidates+1))
+        output_lines+=("id:$tok — SETTLED-BUT-OPEN (settles: edge in $(basename "$f"):$lineno) — decision recorded but ledger item still open.")
+      done
+    done < <(grep -n '<!-- settles:[0-9a-f,]\+ -->' "$f" || true)
+  done
+elif [[ "$mode" == "unbackrefed" ]]; then
+  # id:8913 companion — reports OPEN [* — meeting] / [INPUT — decision] ledger items
+  # with NO decided-in: backref (presence-only, never a date comparison).
+  orphan_self="$(readlink -f "${BASH_SOURCE[0]}")"
+  # shellcheck source=../relay/scripts/lib-typed-edges.sh
+  source "$(dirname "$orphan_self")/../relay/scripts/lib-typed-edges.sh"
+  while IFS=: read -r lineno text; do
+    # Lane-tag gate: `[* — meeting]` (any bracket ending "— meeting") or the exact
+    # `[INPUT — decision]` tag.
+    echo "$text" | grep -qE '\[[^]]*— meeting\]|\[INPUT — decision\]' || continue
+    token=$(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' | head -1 || true)
+    [[ -z "$token" ]] && continue
+    id_lines=$((id_lines+1))
+    decided_in=$(typed_edges_decided_in_of_line "$text")
+    [[ -n "$decided_in" ]] && continue
+    candidates=$((candidates+1))
+    output_lines+=("id:$token — UNBACKREFED (open, [* — meeting]/[INPUT — decision] tag, no decided-in: marker). $(sed -E 's/^[[:space:]]*- \[[ x]\] //; s/<!--.*$//' <<<"$text" | tr -s '[:space:]' ' ')")
+  done < <(grep -hnE '^\s*- \[ \] ' "$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md" 2>/dev/null || true)
 else
 for f in $(ls -r1 "$NOTES_DIR"/*.md 2>/dev/null); do
   [[ -f "$f" ]] || continue
