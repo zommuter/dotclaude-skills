@@ -96,6 +96,13 @@ source "$script_dir/lib-anchored-id.sh"
 # shellcheck source=relay/scripts/lib-state-claim.sh
 source "$script_dir/lib-state-claim.sh"
 
+# WARN→ERROR boundary baseline (id:cb3e, gated on id:5533): ids captured here at
+# rule-land time stay WARN even under --strict; a "new" id (absent from the
+# baseline) escalates to ERROR under --strict, same as every other doctrine rule.
+# Overridable for tests (STATE_CLAIM_BASELINE); default is the checked-in snapshot
+# sibling to this script.
+STATE_CLAIM_BASELINE="${STATE_CLAIM_BASELINE:-$script_dir/../state-claim-baseline.txt}"
+
 # Extract every `[HARD — <lane>]` marker from the canonical doc → an alternation
 # of recognized hard-lane suffixes. Falls back to the documented set if the doc is
 # somehow unreadable (fail-safe: never crash the lint on a missing doc, but log it).
@@ -359,15 +366,23 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # rule and todo-conformance.sh's twin check can never silently diverge.
   if state_claim_direction_i "$line"; then
     _do_id="$(item_id "$line")"
-    echo "roadmap-lint: ${_dr_label} — DECIDED-LEFT-OPEN: open item ${_do_id:-<no id>} carries a decided/deferred/superseded marker but is still open — close it (tick + done-note) or drop the marker" >&2
+    _dr_label_i="$_dr_label"
+    if state_claim_in_baseline "${_do_id#id:}" "$STATE_CLAIM_BASELINE"; then
+      _dr_label_i="WARN (baselined id:cb3e)"
+    fi
+    echo "roadmap-lint: ${_dr_label_i} — DECIDED-LEFT-OPEN: open item ${_do_id:-<no id>} carries a decided/deferred/superseded marker but is still open — close it (tick + done-note) or drop the marker" >&2
     echo "  $line" >&2
-    [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+    [[ "$strict" -eq 1 && "$_dr_label_i" != "WARN (baselined id:cb3e)" ]] && violations=$((violations + 1))
   fi
   if state_claim_direction_ii "$line"; then
     _do_id2="$(item_id "$line")"
-    echo "roadmap-lint: ${_dr_label} — DECIDED-LEFT-OPEN (comment-only close): open item ${_do_id2:-<no id>} carries a close ONLY in an HTML comment while the checkbox and visible text still say open — close it for real or drop the comment marker" >&2
+    _dr_label_ii="$_dr_label"
+    if state_claim_in_baseline "${_do_id2#id:}" "$STATE_CLAIM_BASELINE"; then
+      _dr_label_ii="WARN (baselined id:cb3e)"
+    fi
+    echo "roadmap-lint: ${_dr_label_ii} — DECIDED-LEFT-OPEN (comment-only close): open item ${_do_id2:-<no id>} carries a close ONLY in an HTML comment while the checkbox and visible text still say open — close it for real or drop the comment marker" >&2
     echo "  $line" >&2
-    [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+    [[ "$strict" -eq 1 && "$_dr_label_ii" != "WARN (baselined id:cb3e)" ]] && violations=$((violations + 1))
   fi
 
   # --- semantic checks (case c / case d) — only when a recognised class tag is present -----
