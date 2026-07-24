@@ -10,6 +10,7 @@
 ## 2026-07-24
 
 - id:8913 landed — settles:/decided-in: typed-edge grammar + orphan-scan --settled/--unbackrefed (new RED spec authored, both required must-not-fire fixtures verified against real repo ground truth); suite 304/0/0 (id:8913)
+- id:5533 shipped — shared two-directional state-claim contradiction predicate (lib-state-claim.sh) now backs both roadmap-lint.sh's DECIDED-LEFT-OPEN rule and a new todo-conformance.sh check; reverted the id:931c prose reword; suite 305/0/0. (id:5533)
 
 ## 2026-07-23
 
