@@ -93,6 +93,8 @@ lanes_doc="$script_dir/../references/hard-lanes.md"
 
 # shellcheck source=relay/scripts/lib-anchored-id.sh
 source "$script_dir/lib-anchored-id.sh"
+# shellcheck source=relay/scripts/lib-state-claim.sh
+source "$script_dir/lib-state-claim.sh"
 
 # Extract every `[HARD — <lane>]` marker from the canonical doc → an alternation
 # of recognized hard-lane suffixes. Falls back to the documented set if the doc is
@@ -347,13 +349,23 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
     [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
   fi
 
-  # Rule 3(b) DECIDED-LEFT-OPEN (id:dafa): an OPEN item whose body records a
-  # conclusion (DEFERRED / SUPERSEDED / "decided <YYYY-MM-DD>") is a decided item
-  # left un-ticked. LOUD: close it (tick + done-note) or drop the marker.
-  decided_re='[Dd]ecided [0-9]{4}-[0-9]{2}-[0-9]{2}'
-  if [[ "$line" == *DEFERRED* || "$line" == *SUPERSEDED* || "$line" =~ $decided_re ]]; then
+  # Rule 3(b) DECIDED-LEFT-OPEN (id:dafa, AMENDS by id:5533): an OPEN item whose
+  # body records a conclusion (RESOLVED / DECIDED <YYYY-MM-DD> / SUPERSEDED / DONE
+  # / CLOSED / DEFERRED) is a decided item left un-ticked — direction (i), unless
+  # the assertion is scoped to a DIFFERENT id ("id:XXXX is SUPERSEDED"). Direction
+  # (ii): the same conclusion recorded ONLY inside an HTML comment while the
+  # checkbox and visible text still say open (loderite id:0e99 via routed:fb6e).
+  # Both directions run through the shared engine (lib-state-claim.sh) so this
+  # rule and todo-conformance.sh's twin check can never silently diverge.
+  if state_claim_direction_i "$line"; then
     _do_id="$(item_id "$line")"
     echo "roadmap-lint: ${_dr_label} — DECIDED-LEFT-OPEN: open item ${_do_id:-<no id>} carries a decided/deferred/superseded marker but is still open — close it (tick + done-note) or drop the marker" >&2
+    echo "  $line" >&2
+    [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+  fi
+  if state_claim_direction_ii "$line"; then
+    _do_id2="$(item_id "$line")"
+    echo "roadmap-lint: ${_dr_label} — DECIDED-LEFT-OPEN (comment-only close): open item ${_do_id2:-<no id>} carries a close ONLY in an HTML comment while the checkbox and visible text still say open — close it for real or drop the comment marker" >&2
     echo "  $line" >&2
     [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
   fi

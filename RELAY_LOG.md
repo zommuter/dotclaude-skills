@@ -3422,3 +3422,35 @@ directions (cross-ledger/promotion/shipped); no duplication introduced.
 ## 2026-07-24 16:15 — executor (sonnet, relay-loop)
 
 id:8913 landed — settles:/decided-in: typed-edge grammar + orphan-scan --settled/--unbackrefed (new RED spec authored, both required must-not-fire fixtures verified against real repo ground truth); suite 304/0/0 [id:8913]
+
+## 2026-07-24 — executor (sonnet)
+
+Worked id:5533 — built the shared two-directional state-claim contradiction predicate
+(AMENDS id:dafa). New `relay/scripts/lib-state-claim.sh` (modelled on
+`lib-typed-edges.sh`'s "one engine, two callers" pattern): `state_claim_direction_i`
+(an OPEN item's VISIBLE text asserting a terminal state — RESOLVED/DECIDED
+<date>/SUPERSEDED/DONE/CLOSED/DEFERRED — about ITSELF, unless scoped to a different
+id via "id:XXXX is <word>") and `state_claim_direction_ii` (a close recorded ONLY in
+an HTML comment while the visible text + checkbox both stay open — the loderite
+id:0e99/routed:fb6e class). Wired both: `roadmap-lint.sh`'s DECIDED-LEFT-OPEN doctrine
+rule now calls the shared engine instead of its old bare-substring check (kept the
+exact WARN/ERROR message wording so `tests/test_roadmap_lint_doctrine.sh` stays green
+unchanged) and gained a second LOUD line for direction (ii); `todo-conformance.sh`
+gained a brand-new `decided-left-open` finding class using the identical engine. Wrote
+the RED spec `tests/test_contradiction_predicate_5533.sh` covering the three
+spec-mandated fixtures (scoped-passes / self-RESOLVED-fails / comment-only-close-fails)
+plus a cross-linter invariant loop asserting roadmap-lint.sh and todo-conformance.sh
+agree on every fixture line. Reverted the id:931c "obsoleted" prose reword
+(`ROADMAP.md:162`) back to "SUPERSEDED" — it now reads "id:f599 is SUPERSEDED by the
+model:\"bash\" proxy", which the new scoped-exception correctly treats as clean (it
+describes f599's fate, not 931c's). Registered the new lib file in the Makefile's
+`relay_FILES` manifest (it is source-only like its sibling libs, so no EXEC/ALLOW
+entry needed — `test_relay_install_manifest.sh` caught the initial omission).
+Ticked id:5533 in both ROADMAP.md and its TODO.md twin (single-id-two-views).
+Full suite: 305/0/0 (up from 304, the one new test file).
+Friction: none — the ROADMAP acceptance's three fixtures and the doctrine test's
+existing wording together fully pinned the design; the only surprise was the
+install-manifest gate catching the stray executable bit on the new lib file.
+refactor: extracted the old inline `decided_re`/DEFERRED/SUPERSEDED substring check
+out of roadmap-lint.sh into the shared lib rather than leaving a second hand-rolled
+copy in todo-conformance.sh — no duplication left behind.
