@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-07-24
+
+- id:8913 landed — settles:/decided-in: typed-edge grammar + orphan-scan --settled/--unbackrefed (new RED spec authored, both required must-not-fire fixtures verified against real repo ground truth); suite 304/0/0 (id:8913)
+
 ## 2026-07-23
 
 - review: suite 293/0 green; verified 6176/7681/f9cd genuine (no gaming); minted id:ce50 for routed:bdee; routine_open=0 (id:6176,7681,f9cd,ce50)
