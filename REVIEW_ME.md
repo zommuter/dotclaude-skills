@@ -16,7 +16,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   spec/lint gap in the id:34c2 handoff: the RED spec did not gate on the lint tier passing.
   **RESOLVED 2026-07-19 (relay human, verified):** the bare `rm -f` is gone from `meeting/append.sh` (grep clean), `tools/check-no-bare-rm-f.sh --enforce` = 0 violations within baseline, full suite 262/0/3-xred green. The root-cause lesson (a RED spec not gating on the lint tier) is exactly what the freshly-prepared **id:66d4** tier-coverage checkpoint gate enforces.
 
-- [ ] **relay-doctor findings (review 2026-07-17, report-only, non-blocking).** Four are the
+- [x] **relay-doctor findings (review 2026-07-17, report-only, non-blocking).** Four are the
   cross-ledger drift this review RESOLVED in-pass by ticking the TODO twins of the integrated
   items (id:34c2, id:de36, id:1735, id:1102 — ROADMAP `[x]`, TODO was `[ ]`). Remaining, for a
   human's call: (1) **one parked orphan branch** `relay/orphan/blind-e02a-spec` in the loderite
@@ -25,6 +25,13 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   is a literal `$ID` placeholder, so it is not routable; a cross-project inbox line, not a
   dead-letter here. Neither blocks. relay-doctor otherwise clean (roadmap-lint clean, TODO
   conformance clean, main-checkout residue clean, last_ckpt resolves, no mechanical orphans).
+  **RESOLVED 2026-07-24 (relay human, both findings verified GONE).** (1) The parked orphan is
+  gone: `relay-reconcile.sh --all` this session reported **0 parked orphans across all own
+  repos** (48 repos swept — 54 `own` minus 6 `paused`), and `git -C ~/src/loderite for-each-ref
+  refs/heads/relay/orphan/` is empty, so `relay/orphan/blind-e02a-spec` no longer exists.
+  (2) The literal `$ID` placeholder is gone from the shared inbox (`grep '$ID'` → no match);
+  the one remaining `[lodelore]` line now carries a proper `routed:33db` marker, so it is
+  routable. Nothing left for a human here.
 - [x] id:6e02 — LIVE-worktree sweep incident (2026-07-01 ~22:56): this review's own
   explicitly-created worktree + branch were deleted ~1 min after creation, mid-test-run,
   WHILE ~/.config/relay/claims/dotclaude-skills.json held a live claim (22:55:01). The
@@ -110,7 +117,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 - [x] **id:ac7f — handoff-authored interface for the `drained` render-alias.** The RED spec pins a NEW `relay/scripts/render-verdict.sh` (stdin classify-verdict JSON → label; `idle`→`drained`, else verbatim) as the D1 render-alias home. D1 mandates "render-alias, no new enum" but names no script — this interface is the handoff author's choice among defensibles (a separate script vs. a flag on an existing renderer vs. a reviewer-prose convention). Confirm the separate-script shape is what you want before the executor builds it. — **CONFIRMED 2026-07-19 (relay human): separate `render-verdict.sh` is the intended shape.** As-built matches; no change. <!-- roadmap:ac7f -->
 - [x] **id:66d4 — tier-enumeration + toolchain-marker heuristics chosen by the spec.** `test_review_gate_tier_coverage.sh` exercises ONE declared-tier source (package.json `scripts` keys containing "test") and ONE toolchain-presence marker (populated `<dir>/node_modules`). The item also names Makefile targets / CI config / `~/.cache/ms-playwright` — the executor may add them, but the spec only proves the package.json+node_modules path. Judgment: is that enough coverage for the gate's first cut, or must the RED spec also pin a Makefile-tier fixture? — **RULED 2026-07-19 (relay human): NOT enough — the RED spec MUST also pin a Makefile-tier fixture.** The shipped `review-gate.sh` already enumerates Makefile `test`-named targets, but the test only proves the package.json path, so that code path is unspecced. Follow-up filed → TODO id:050b (add a Makefile-tier fixture to the RED spec). <!-- roadmap:66d4 -->
 - [x] **id:78df — consumer-enum is a content-grep listing aid, not import-graph analysis.** `test_consumer_enum.sh` pins `consumer-enum.sh <artifact>` = "every file whose CONTENT references the token, .git excluded, exit 0 always". It does NOT resolve real import/read edges (a false positive on a mention-in-a-comment is accepted — it is a surfacing aid, per D6/id:78df "listing aid, not a gate"). Confirm the plain-grep semantics are the intended aid. — **RULED 2026-07-19 (relay human): NOT the intended endpoint — it should resolve real import/read edges, not text mentions.** The shipped content-grep aid stands as the first cut; the upgrade to import-graph analysis is filed as follow-up → TODO id:494f. <!-- roadmap:78df -->
-- [ ] **The "promote backlog" is mostly PHANTOM/mis-classified — only id:798d was a real promotion this handoff (run relay-20260719-132549-15264).** `unpromoted-scan.sh` reported 7 `promote` items; on inspection only **id:798d** was clean executor work (promoted with RED spec `tests/test_unpromoted_scan_gated_twin.sh`). The other 6 each carry a lane/scope/identity question a handoff must NOT resolve by guessing (owner-decision territory) — surfaced here, deliberately NOT re-laned or promoted:
+- [x] **The "promote backlog" is mostly PHANTOM/mis-classified — only id:798d was a real promotion this handoff (run relay-20260719-132549-15264).** `unpromoted-scan.sh` reported 7 `promote` items; on inspection only **id:798d** was clean executor work (promoted with RED spec `tests/test_unpromoted_scan_gated_twin.sh`). The other 6 each carry a lane/scope/identity question a handoff must NOT resolve by guessing (owner-decision territory) — surfaced here, deliberately NOT re-laned or promoted:
   - **id:659c, id:401c — 798d-bug PHANTOMS.** Both already have a ROADMAP twin, but their `<!-- id -->` marker is followed by a trailing gate/DONE note, so the end-of-line-strict twin check (the exact 798d bug) misses them and re-reports the TODO source as `promote`. **Shipping id:798d drains these two automatically** — no separate action.
   - **id:d5e0 — an audit-summary line, not a task.** It is the rolling "Relay: N open ROADMAP items" summary maintained by id:401c's audits; its removal is already owned by **id:1de1** ("drop the count prose once `proj relay`/the id:2840 index is the count authority") and id:4d8e case-(3) explicitly names it as a summary line the classifier should SKIP. It is mis-tagged `[ROUTINE]` → mis-classified `promote`. Do NOT promote; the real fix is the classifier skipping audit lines (id:4d8e) — deliberately retained until id:1de1 ships.
   - **id:2e6d — a mostly-SHIPPED umbrella.** Its core dissolution shipped 2026-07-10 (`tools/memory-index.py` now GENERATES the index; `--check` is the enforcing lint; `hooks/memory-index-sync.py` PostToolUse shipped). Residual = child **id:7d97** (add `user:`-prefix/emphasis invariants to `--check`) + a `[INPUT — user]` settings.json hook install. The umbrella is open+`[ROUTINE]` so it reads `promote`, but there is no fresh executor work in the parent itself — it should be `@container`/closed, a judgment for you.
@@ -119,6 +126,18 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   - **id:2d20 — targets sandbox-gated `relay-loop.js`.** "Pool busy-loops re-dispatching un-doable HARD units" is a `relay-loop.js` fix; that file runs only in the Workflow sandbox ([[sandbox-2ec4]] — no in-repo mechanical dispatch), so a RED spec cannot be verified from a worktree. Needs the sandbox-testability question answered before it is executor-promotable.
   **Net**: this repo's apparent promote backlog is an artifact of the id:798d bug (2 phantoms) + known classifier gaps (id:4d8e audit-line skip) + three mis-tagged/umbrella items — not undispatched executor work. Ship id:798d; then a human re-lane pass (or id:4d8e's classifier) should stop the pool re-dispatching handoffs here. No ledger re-lanes made (owner's call). <!-- handoff:relay-20260719-132549-15264 -->
   **PARTIAL RESOLUTION 2026-07-23 (relay human).** (1) **id:798d has SHIPPED** — verified `[x]` at `ROADMAP.md:212`, so the two phantoms **id:659c and id:401c are drained automatically**, exactly as predicted; no action. (2) **id:02c7 ruled** — keep `[ROUTINE]`, author-then-run split → id:c7c0 (see above). Box stays OPEN for the three still-unruled dispositions: **id:d5e0** (audit-summary line — retained until id:1de1 ships), **id:2e6d** (mostly-shipped umbrella — close/`@container` is a judgment), **id:2d20** (targets sandbox-gated `relay-loop.js` — needs the sandbox-testability question answered first). **id:3add** is separately superseded: `ROADMAP.md:94` id:3743 already migrates the hand-rolled extractors onto `lib-anchored-id.sh` and is `[x]`.
+  **CLOSED 2026-07-24 (relay human): all three remaining dispositions have landed since this box
+  was written — verified in the ledgers, no promote is warranted for any of them.**
+  (1) **id:d5e0** — archived `[x]` at `TODO.archive.md:456`, marked `[STALE — archived 2026-07-21
+  drain run-2: snapshot of since-shipped ids, superseded]`; the audit-summary line the box asked
+  about no longer exists, so the "retain until id:1de1 ships" holding pattern is discharged.
+  (2) **id:2e6d** — archived `[x] [ROUTINE] @container` at `TODO.archive.md:452` (DONE 2026-07-21
+  drain run-2, child id:7d97 shipped); the umbrella got exactly the `@container`-close the box
+  called a judgment for the owner. (3) **id:2d20** — now correctly lane-tagged `[INPUT — meeting]`
+  at `TODO.md:146`, i.e. sitting in the meeting backlog rather than reading as a `[ROUTINE]`
+  promote candidate; ROADMAP records the same disposition ("2d20 (decision-gated, meeting
+  id:719e)"). The sandbox-testability question the box wanted answered first is owned there.
+  The box's own question — "should any of these 6 be promoted?" — is now answered NO for all six.
 
 ## Relay execute→review — scope-change ratification (2026-07-20)
 
