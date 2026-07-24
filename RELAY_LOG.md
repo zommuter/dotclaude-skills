@@ -3454,3 +3454,7 @@ install-manifest gate catching the stray executable bit on the new lib file.
 refactor: extracted the old inline `decided_re`/DEFERRED/SUPERSEDED substring check
 out of roadmap-lint.sh into the shared lib rather than leaving a second hand-rolled
 copy in todo-conformance.sh — no duplication left behind.
+
+## 2026-07-24 16:32 — executor (sonnet, relay-loop)
+
+id:5533 shipped — shared two-directional state-claim contradiction predicate (lib-state-claim.sh) now backs both roadmap-lint.sh's DECIDED-LEFT-OPEN rule and a new todo-conformance.sh check; reverted the id:931c prose reword; suite 305/0/0. [id:5533]
