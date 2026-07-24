@@ -38,6 +38,8 @@
 set -euo pipefail
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=relay/scripts/lib-state-claim.sh
+source "$SCRIPTS_DIR/lib-state-claim.sh"
 # append.sh (the id mint) lives in meeting/ at the repo root; resolve via the scripts dir.
 APPEND_SH="${TODO_CONFORMANCE_APPEND:-$(cd "$SCRIPTS_DIR/../.." && pwd)/meeting/append.sh}"
 LOG="${TODO_CONFORMANCE_LOG:-$HOME/.claude/logs/todo-conformance.log}"
@@ -136,10 +138,25 @@ scan_path() {
       fi
     fi
     if [[ "$inbox" -eq 1 ]]; then cls="$(classify_inbox "$line")"; else cls="$(classify_todo "$line")"; fi
-    [[ -z "$cls" ]] && continue
-    findings=$((findings+1))
-    out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
-    [[ "$cls" == "missing-id" && "$collect_fix" -eq 1 ]] && fix_lines+=("$lineno")
+    # State-claim doctrine check (id:5533, AMENDS id:dafa): the SAME shared engine
+    # roadmap-lint.sh's DECIDED-LEFT-OPEN rule uses, so the two linters can never
+    # silently return different verdicts on identical line text. Runs on any OPEN
+    # `- [ ]` top-level item regardless of its missing-id/orphan/conforming class
+    # (a decided-but-open item can otherwise carry a perfectly well-formed id).
+    sc=""
+    if [[ "$inbox" -eq 0 && "$line" =~ ^-\ \[\ \]\  ]]; then
+      sc="$(state_claim_violation "$line")"
+    fi
+    if [[ -z "$cls" && -z "$sc" ]]; then continue; fi
+    if [[ -n "$cls" ]]; then
+      findings=$((findings+1))
+      out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
+      [[ "$cls" == "missing-id" && "$collect_fix" -eq 1 ]] && fix_lines+=("$lineno")
+    fi
+    if [[ -n "$sc" ]]; then
+      findings=$((findings+1))
+      out_lines+=("$(printf 'decided-left-open\t%d\t%s' "$lineno" "$line")")
+    fi
   done < "$path"
   return 0   # the while's EOF-exit status (1) must not become scan_path's return (set -e)
 }
