@@ -3517,3 +3517,7 @@ review (claude-opus-4-8): id:78e1 lib-state-claim word-boundary fix GENUINE GREE
 ## 2026-07-26 16:32 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 id:7e87 /meeting --fabled opt-in closing Fable-5 pass documented in SKILL.md + structural test; suite 309/0 [id:7e87]
+
+## 2026-07-26 20:20 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: window is meeting/persona/archive/inbox-ingest only - audit clean, no gaming, no ledger deltas, routine_open=0
