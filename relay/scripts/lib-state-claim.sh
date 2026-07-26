@@ -25,7 +25,27 @@
 #
 # Source it (`source lib-state-claim.sh`); it defines functions only, runs nothing.
 
-STATE_CLAIM_TERMINAL_RE='RESOLVED|SUPERSEDED|DONE|CLOSED|DEFERRED'
+# STATE_CLAIM_TERMINAL_WORDS — the bare alternation, no anchoring. Used ONLY where
+# the terminal word is already embedded in a larger "is <WORD>" match (the scoped-
+# strip substitution below) — there the preceding "is[[:space:]]+" already
+# consumes the separating whitespace, so a boundary group here would have nothing
+# left to match against (a boundary group is not zero-width except at true
+# start-of-string) and would silently fail to strip anything.
+STATE_CLAIM_TERMINAL_WORDS='RESOLVED|SUPERSEDED|DONE|CLOSED|DEFERRED'
+
+# STATE_CLAIM_TERMINAL_RE — word-boundary-anchored (id:78e1, fixes the
+# compound-word false-positive class): a bare `\b`/`\<...\>` boundary treats a
+# hyphen as "non-word", so it still fires inside a hyphenated compound like
+# "fail-CLOSED" (a design-property phrase, not a self-assertion of closure) —
+# the LIVE false positive on id:6b35's own visible prose ("fail-CLOSED is the
+# key property"). The boundary here is therefore explicitly NOT `\b`: it
+# requires start-of-string/end-of-string or a character that is neither alnum,
+# `_`, NOR `-` on both sides, so a hyphen-joined compound never counts as a
+# standalone terminal-word assertion. A plain space/punctuation-delimited
+# terminal word (" CLOSED ", "is DONE.") still fires as before. Used for direct
+# whole-string checks (a bare comment body, or the post-strip visible text) where
+# the terminal word is NOT already preceded by a consumed separator.
+STATE_CLAIM_TERMINAL_RE="(^|[^A-Za-z0-9_-])(${STATE_CLAIM_TERMINAL_WORDS})(\$|[^A-Za-z0-9_-])"
 STATE_CLAIM_DECIDED_RE='[Dd]ecided[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}'
 STATE_CLAIM_CLOSED_DATE_RE='closed[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}'
 
@@ -50,7 +70,7 @@ state_claim_comments() {
 state_claim_direction_i() {
   local line="$1" visible stripped
   visible="$(state_claim_visible_text "$line")"
-  stripped="$(sed -E "s/id:[0-9a-fA-F]{4}[[:space:]]+is[[:space:]]+(${STATE_CLAIM_TERMINAL_RE}|${STATE_CLAIM_DECIDED_RE})//g" <<<"$visible")"
+  stripped="$(sed -E "s/id:[0-9a-fA-F]{4}[[:space:]]+is[[:space:]]+(${STATE_CLAIM_TERMINAL_WORDS}|${STATE_CLAIM_DECIDED_RE})//g" <<<"$visible")"
   [[ "$stripped" =~ $STATE_CLAIM_TERMINAL_RE ]] && return 0
   [[ "$stripped" =~ $STATE_CLAIM_DECIDED_RE ]] && return 0
   return 1
