@@ -11,6 +11,7 @@
 
 - id:78e1 — word-boundary-anchored lib-state-claim.sh terminal-word regex (hyphen-excluded boundary), fixing the id:6b35 fail-CLOSED false positive; new RED spec + suite 308/0/0 (id:78e1)
 - review (claude-opus-4-8): id:78e1 lib-state-claim word-boundary fix GENUINE GREEN (RED spec non-tautological, id:6b35 live false-positive resolved, suite 308/0/0); id:27e3 reverse-handoff qualified (id:78e1,27e3)
+- id:7e87 /meeting --fabled opt-in closing Fable-5 pass documented in SKILL.md + structural test; suite 309/0 (id:7e87)
 
 ## 2026-07-24
 
