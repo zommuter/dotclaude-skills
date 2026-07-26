@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-07-26
+
+- id:78e1 — word-boundary-anchored lib-state-claim.sh terminal-word regex (hyphen-excluded boundary), fixing the id:6b35 fail-CLOSED false positive; new RED spec + suite 308/0/0 (id:78e1)
+
 ## 2026-07-24
 
 - id:8913 landed — settles:/decided-in: typed-edge grammar + orphan-scan --settled/--unbackrefed (new RED spec authored, both required must-not-fire fixtures verified against real repo ground truth); suite 304/0/0 (id:8913)
