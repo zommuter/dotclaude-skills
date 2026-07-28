@@ -668,9 +668,19 @@ const REPORT_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
+        // id:44a1 — a bare {title} seam renders as an un-workable one-liner (no
+        // Acceptance/Tests/Done-check clause, id:213a's lint flags it) and cannot
+        // point an executor at the file/function it concerns. acceptance/done_check/
+        // file are REQUIRED so handback-followup.py can render a real body instead of
+        // a title-only line; the emitter (handback-followup.py) enforces this at the
+        // schema boundary (rejects + writes nothing on a non-conforming split item).
+        required: ['title', 'acceptance', 'done_check', 'file'],
         properties: {
           title: { type: 'string' }, id: { type: 'string' },
           tier: { type: 'string' }, dep: { type: 'string' },
+          acceptance: { type: 'string' },   // observable "done" behaviour for this seam
+          done_check: { type: 'string' },   // exact command/test that proves the seam done
+          file: { type: 'string' },         // file(s)/function(s) this seam concerns
         },
       },
     },
@@ -1764,7 +1774,7 @@ Hard rules: commit in the worktree as you go; NEVER push; NEVER tag; NEVER run g
 
 Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none), routine_open (review units: open [ROUTINE] count after re-derivation; 0 for handoff/execute), worked_ids (id:de69 — array of the ROADMAP/TODO 4-hex id(s) you actually worked this unit: for execute, the item id(s) you closed/advanced; for hard, the single [HARD] item id you executed; for handoff, the id(s) you promoted/created; for review, the ids you verified-green or reopened; [] if none — these are the tokens in the commits/ROADMAP you touched, NOT invented).${unit.verdict === 'review' ? ' ALSO (review units only, id:3826 — feeds the gaming-flag rate logger; see review.md §6 return schema): verified_green (array of ROADMAP ids you confirmed genuinely green this review, [] if none), gaming_flags (array of "<id>: <reason>" strings for every DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT or judgment flag you raised, [] if none), reopened (array of ROADMAP ids you reopened, [] if none).' : ''}
 
-ON A HANDBACK (contract_met=false), ALSO classify it so the integrator records it DURABLY in ROADMAP.md and the pool stops re-dispatching the same un-doable item (id:3801): set handback_item (the 4-hex ROADMAP id you handed back, e.g. the [HARD] item you sized out), and route = one of "decision-gate" (needs a /meeting design decision before anyone can build it), "hard-split" (too large for one turn but decomposable into smaller pickable seams), "human" (needs a manual human action / /relay human), or "none" (transient/other failure — no durable action). Set gate_reason to ONE short line for the inline ROADMAP note. For route="hard-split" ONLY, set proposed_split = an ordered array of seam units [{title, tier:"HARD"|"ROUTINE", dep:"<4-hex id of the seam this one depends on, omit if independent>", id:"<reuse an existing 4-hex token if the seam already has one in the ROADMAP/meeting-note, else OMIT to let the integrator mint one>"}]. On a clean success, omit these (route defaults to none).`
+ON A HANDBACK (contract_met=false), ALSO classify it so the integrator records it DURABLY in ROADMAP.md and the pool stops re-dispatching the same un-doable item (id:3801): set handback_item (the 4-hex ROADMAP id you handed back, e.g. the [HARD] item you sized out), and route = one of "decision-gate" (needs a /meeting design decision before anyone can build it), "hard-split" (too large for one turn but decomposable into smaller pickable seams), "human" (needs a manual human action / /relay human), or "none" (transient/other failure — no durable action). Set gate_reason to ONE short line for the inline ROADMAP note. For route="hard-split" ONLY, set proposed_split = an ordered array of seam units [{title, tier:"HARD"|"ROUTINE", dep:"<4-hex id of the seam this one depends on, omit if independent>", id:"<reuse an existing 4-hex token if the seam already has one in the ROADMAP/meeting-note, else OMIT to let the integrator mint one>", acceptance:"<observable done-behaviour for THIS seam>", done_check:"<exact command/test that proves this seam done>", file:"<the file(s)/function(s) this seam concerns, so the executor goes straight to the work>"}] — acceptance/done_check/file are REQUIRED per seam (id:44a1); a seam missing any of them is rejected and written nowhere. On a clean success, omit these (route defaults to none).`
 }
 
 // Auto-resume after an API-error / terminal child failure (handoff only — its
