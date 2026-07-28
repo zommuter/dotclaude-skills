@@ -15,6 +15,7 @@
 - Audited handback-followup/gaming-log haiku hops (id:4f10): both verdict (iii), trapped-behind-payload same class as id:d4ca; recorded, not converted; suite 310/0. (id:4f10)
 - id:aa26 — retired the Fable-availability probe (probe-fable.sh + fable-probe.json cache), replaced with a plain config-read fable-config.sh; SKILL.md/meeting/SKILL.md/Makefile updated; suite 312/0 (id:aa26)
 - executor: id:6f1c — taught executor contract symbol-level exploration (Grep/Glob/LSP + no-redundant-reread rule), contract v10→v11, CLAUDE.md pointer refreshed, fixed a v10-hardcoded test broken by the bump; suite 313/0 (id:6f1c)
+- executor: id:213a — roadmap-lint.sh gains NO-ACCEPTANCE-NO-TWIN doctrine rule (WARN/--strict-ERROR) flagging open items with no Acceptance/Tests/Done-check clause and no TODO twin; fixed 5 unrelated test fixtures broken by the new rule's blast radius; suite 314/0 (id:213a)
 
 ## 2026-07-26
 
