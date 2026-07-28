@@ -41,6 +41,18 @@ LINT="$ROOT/relay/scripts/roadmap-lint.sh"
 [[ -x "$LINT" ]] || { echo "roadmap-lint.sh not found/executable (RED): $LINT"; exit 1; }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 
+# A sibling TODO.md twin (id:213a's separate NO-ACCEPTANCE-NO-TWIN doctrine rule)
+# for every id the fixtures below use — none carry an inline Acceptance/Tests/
+# Done-check clause, and this file's concern is the tag-first rule only, so the
+# twin keeps id:213a's rule (and its echoed line text, which happens to contain
+# the word "first") out of the captured output here.
+cat >"$tmp/TODO.md" <<'MD'
+# TODO
+- [ ] twin stub <!-- id:1111 -->
+- [ ] twin stub <!-- id:2222 -->
+- [ ] twin stub <!-- id:3333 -->
+MD
+
 # A tag-first-SPECIFIC diagnostic: names the ordering/anchoring, never just "conflict".
 # Deliberately disjoint from case-c's wording ("tag/prose lane conflict … multiple lane
 # brackets found") so this test isolates the NEW rule.
