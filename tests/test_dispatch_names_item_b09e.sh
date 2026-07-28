@@ -40,6 +40,7 @@ CLASSIFY="$ROOT/relay/scripts/classify-repo.sh"
 LOOP="$ROOT/relay/scripts/relay-loop.js"
 
 fail=0
+tmpdir="$(mktemp -d)"; trap 'rm -rf "$tmpdir"' EXIT
 note() { echo "FAIL: $*" >&2; fail=1; }
 command -v jq >/dev/null 2>&1 || { echo "SKIP: jq not available"; exit 0; }
 [[ -x "$CLASSIFY" ]] || { note "classify-repo.sh missing"; exit 1; }
@@ -147,6 +148,35 @@ before="$(git -C "$repo" status --porcelain)$(git -C "$repo" rev-parse HEAD)"
 RELAY_TOML="$tmp/none.toml" "$CLASSIFY" --repo fixture --path "$repo" >/dev/null 2>&1 || true
 after="$(git -C "$repo" status --porcelain)$(git -C "$repo" rev-parse HEAD)"
 [[ "$before" == "$after" ]] || note "(7) classify-repo.sh mutated the repo — it is declared SIDE-EFFECT-FREE"
+
+# ── (8) WIRING — the feature must actually be CALLED, not merely defined. ───────────
+# An independent reviewer PROVED the earlier assertions stayed green on a fully-unwired build:
+# reverting the dispatch template to the plural instruction while leaving executeNamedInstruction
+# defined-but-never-called still passed, because case (5) greps the whole file and the token
+# appears in comments. That is the banked [[relay-builtgreen-but-unreferenced]] class — built,
+# tested, green, and referenced by nothing. Pin the CALL SITE, not the token.
+tmpl="$(grep -n 'executeNamedInstruction(unit)' "$LOOP" | grep -v '^\s*//' || true)"
+[[ -n "$tmpl" ]] \
+  || note "(8) executeNamedInstruction is never CALLED — the naming feature is defined but unwired; the dispatch template still emits the plural instruction"
+
+# It must be called from the execute branch of the dispatch template, not some dead helper.
+awk "/verdict === 'execute'/{print}" "$LOOP" | grep -q 'executeNamedInstruction' \
+  || note "(8) executeNamedInstruction is not called from the execute-verdict dispatch line — naming cannot reach a child"
+
+# ── (9) ORPHAN-SUPPRESS must subtract — a named item must never be one the reason forbids. ──
+# discover-repo.sh appends "orphan-parked (id:X) — reconcile-first, do NOT work id:X" to
+# unit.reason; both strings reach the same child prompt. Naming a suppressed id imperatively
+# overrides the instruction beside it (benign pre-b09e, a live conflict after).
+awk '/^const namedItemsFor = /,/^\}/' "$LOOP" > "$tmpdir/picker.js"
+cat >> "$tmpdir/picker.js" <<'JS'
+const out = namedItemsFor({ actionable_routine_ids: ['aaa1','bbb2'], suppressed_item_ids: ['aaa1'] })
+if (out[0] === 'aaa1') { console.error('suppressed id aaa1 was NAMED'); process.exit(1) }
+if (out.join(',') !== 'bbb2') { console.error('unexpected: ' + out.join(',')); process.exit(1) }
+const up = namedItemsFor({ actionable_routine_ids: ['AAA1'], suppressed_item_ids: [] })
+if (up.join(',') !== 'aaa1') { console.error('uppercase-hex not normalised: ' + up.join(',')); process.exit(1) }
+JS
+node "$tmpdir/picker.js" 2>/dev/null \
+  || note "(9) namedItemsFor does not subtract unit.suppressed_item_ids (or does not case-normalise) — it can name an item the classifier told the child NOT to work"
 
 [[ $fail -eq 0 ]] || { echo "EXPECTED-RED: id:b09e not built yet" >&2; exit 1; }
 echo "ALL PASS: dispatch names the item; emitted ids match the predicate and the count (id:b09e)"
