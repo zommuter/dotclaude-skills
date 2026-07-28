@@ -91,5 +91,62 @@ if grep -q 'Work the open \[ROUTINE\] items in ROADMAP.md' "$LOOP"; then
     || note "(4) unitPrompt still tells the child to 'Work the open [ROUTINE] items in ROADMAP.md' (plural, unnamed) with no named-item branch for the execute verdict — this is the survey that kills children"
 fi
 
+# ---------------------------------------------------------------------------------------
+# ADDED CASES (build-time, 2026-07-28) — the four contract clauses above are necessary but
+# not sufficient: clause (4)'s second grep is already satisfied by the pre-existing
+# `unit.inject_item` (user-injection) branch, so it can pass while the CLASSIFIER's ids
+# still reach nothing. These pin the actual deliverable. Nothing above was weakened.
+# ---------------------------------------------------------------------------------------
+
+# (5) the naming must be WIRED TO THE CLASSIFIER, not only to user injection.
+grep -q 'actionable_routine_ids' "$LOOP" \
+  || note "(5) relay-loop.js never reads classify-repo.sh's actionable_routine_ids — the emitted ids reach no dispatch prompt, so the survey is not deleted"
+
+# (6) end-to-end render: an execute unit carrying classifier ids must produce a NAMED
+# instruction, and a unit carrying none must fail OPEN to the historical plural one.
+# The b09e helpers are extracted by their anchored source markers and evaluated directly.
+if command -v node >/dev/null 2>&1; then
+  node - "$LOOP" <<'JS' || note "(6) executeNamedInstruction() does not name the classifier-selected item (see node output above)"
+const fs = require('node:fs')
+const src = fs.readFileSync(process.argv[2], 'utf8')
+const start = src.indexOf('// id:b09e — NAME the item')
+const end   = src.indexOf('function unitPrompt(')
+if (start < 0 || end < 0 || end <= start) { console.error('cannot locate the id:b09e dispatch-naming block in relay-loop.js'); process.exit(1) }
+const block = src.slice(start, end)
+let fn
+try { fn = new Function(block + '\nreturn executeNamedInstruction')() } catch (e) { console.error('id:b09e block failed to evaluate: ' + e); process.exit(1) }
+const executeInstruction = fn
+
+const named = executeInstruction({ verdict: 'execute', actionable_routine_ids: ['aaa1', 'aaa2', 'aaa3', 'aaa4'] })
+let bad = 0
+const need = (cond, msg) => { if (!cond) { console.error('  ' + msg); bad = 1 } }
+need(/<!-- id:aaa1 -->/.test(named), 'named dispatch does not mention the selected item id:aaa1')
+need(!/Work the open \[ROUTINE\] items/.test(named), 'named dispatch still carries the plural "Work the open [ROUTINE] items" survey instruction')
+need(!/aaa4/.test(named), 'named dispatch leaks a 4th candidate — the candidate list must stay bounded')
+need(/id:08c0/.test(named), 'named dispatch dropped the SIZE-OUT rule (id:08c0)')
+
+// injection still outranks the classifier pick
+const inj = executeInstruction({ verdict: 'execute', inject_item: 'bbbb', actionable_routine_ids: ['aaa1'] })
+need(/<!-- id:bbbb -->/.test(inj), 'a user-injected --item must outrank the classifier pick')
+
+// fail-open: no ids at all -> '' so the caller uses the historical plural instruction inline
+const none = executeInstruction({ verdict: 'execute' })
+need(none === '', 'with no ids available the named branch must yield \'\' so dispatch falls OPEN to the historical plural instruction')
+
+// deterministic: same input -> same instruction
+need(executeInstruction({ verdict: 'execute', actionable_routine_ids: ['aaa1', 'aaa2'] })
+  === executeInstruction({ verdict: 'execute', actionable_routine_ids: ['aaa1', 'aaa2'] }), 'selection is not deterministic')
+
+process.exit(bad)
+JS
+fi
+
+# (7) the id-emitting path must stay SIDE-EFFECT-FREE: re-running classify-repo.sh must leave
+# the fixture repo byte-identical (no ledger write, no commit, no new file).
+before="$(git -C "$repo" status --porcelain)$(git -C "$repo" rev-parse HEAD)"
+RELAY_TOML="$tmp/none.toml" "$CLASSIFY" --repo fixture --path "$repo" >/dev/null 2>&1 || true
+after="$(git -C "$repo" status --porcelain)$(git -C "$repo" rev-parse HEAD)"
+[[ "$before" == "$after" ]] || note "(7) classify-repo.sh mutated the repo — it is declared SIDE-EFFECT-FREE"
+
 [[ $fail -eq 0 ]] || { echo "EXPECTED-RED: id:b09e not built yet" >&2; exit 1; }
 echo "ALL PASS: dispatch names the item; emitted ids match the predicate and the count (id:b09e)"
