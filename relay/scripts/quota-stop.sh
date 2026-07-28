@@ -42,6 +42,16 @@ WALL=0
 THRESHOLD="${RELAY_QUOTA_THRESHOLD:-0.90}"
 USAGE_CACHE="${USAGE_CACHE:-/tmp/claude-usage-cache.json}"
 RELAY_QUOTA_SAMPLES="${RELAY_QUOTA_SAMPLES:-$HOME/.config/relay/quota-samples.jsonl}"
+# Secondary burn-sample series for the extrapolation fallback (id:18e2). The PRIMARY series
+# above is written ONLY by this script during a live relay run (the `relay-burn.sh sample`
+# call below, gated on RELAY_RUN_ID) — so after a few hours with no relay run it is ALWAYS
+# older than EXTRAP_RECENCY_SECS. That made the rescue path unreachable exactly when it was
+# needed: stale /tmp cache + idle-stale primary series = guaranteed fail-safe STOP, and
+# nothing could refill the series because refilling requires a run that got past this gate.
+# The systemd sampler (tools/quota-sample.sh, id:d267) writes the SAME schema every 15 min
+# independent of relay activity, so it breaks the bootstrap deadlock. Same default-root
+# convention as diary-append.sh (DIARY_REPO_DIR); set empty to disable the fallback.
+RELAY_QUOTA_SAMPLES_FALLBACK="${RELAY_QUOTA_SAMPLES_FALLBACK-${DIARY_REPO_DIR:-$HOME/src/claude-diary}/quota/quota-samples.jsonl}"
 EXTRAP_MARGIN="${RELAY_QUOTA_EXTRAP_MARGIN:-5}"
 EXTRAP_RECENCY_SECS="${RELAY_QUOTA_EXTRAP_RECENCY:-7200}"
 STALE_SECS=600
@@ -127,28 +137,43 @@ extrapolate_or_stop() {
     exit 2
   fi
 
-  local burn ok
-  burn=$(RELAY_QUOTA_SAMPLES="$RELAY_QUOTA_SAMPLES" USAGE_CACHE="$USAGE_CACHE" \
-         "$(dirname "$0")/relay-burn.sh" report --json 2>/dev/null) || burn=""
-  ok=$(jq -r '.ok // false' <<<"$burn" 2>/dev/null || echo false)
-  if [[ "$ok" != "true" ]]; then
-    echo "quota-stop: cache unreadable ($why) and no usable burn series (need >=2 recent samples in $RELAY_QUOTA_SAMPLES) → fail-safe STOP. REASON=quota-cache-unreadable" >&2
-    exit 2
-  fi
-
-  local last_ts last_epoch now age seg_h since_h
-  last_ts=$(jq -r '.to_ts // empty' <<<"$burn")
-  last_epoch=$(date -d "$last_ts" +%s 2>/dev/null || echo 0)
+  # Try each candidate series in order, taking the first that is BOTH usable (>=2 samples)
+  # and within the recency bound. The recency check moved INTO the loop deliberately: a
+  # too-old primary must fall through to the fallback rather than stop outright (id:18e2).
+  local burn="" ok last_ts last_epoch now age seg_h since_h
+  local cand src="" why_primary=""
   now=$(date +%s)
-  if [[ "$last_epoch" -le 0 ]]; then
-    echo "quota-stop: cache unreadable ($why); burn sample timestamp unparseable ('$last_ts') → fail-safe STOP. REASON=quota-cache-unreadable" >&2
+  for cand in "$RELAY_QUOTA_SAMPLES" "$RELAY_QUOTA_SAMPLES_FALLBACK"; do
+    [[ -z "$cand" ]] && continue
+    [[ -n "$src" && "$cand" == "$RELAY_QUOTA_SAMPLES" ]] && continue
+    local try_burn try_ok try_ts try_epoch try_age
+    try_burn=$(RELAY_QUOTA_SAMPLES="$cand" USAGE_CACHE="$USAGE_CACHE" \
+               "$(dirname "$0")/relay-burn.sh" report --json 2>/dev/null) || try_burn=""
+    try_ok=$(jq -r '.ok // false' <<<"$try_burn" 2>/dev/null || echo false)
+    if [[ "$try_ok" != "true" ]]; then
+      why_primary+="[$cand: no usable series (need >=2 samples)] "
+      continue
+    fi
+    try_ts=$(jq -r '.to_ts // empty' <<<"$try_burn")
+    try_epoch=$(date -d "$try_ts" +%s 2>/dev/null || echo 0)
+    if [[ "$try_epoch" -le 0 ]]; then
+      why_primary+="[$cand: timestamp unparseable ('$try_ts')] "
+      continue
+    fi
+    try_age=$(( now - try_epoch ))
+    if [[ "$try_age" -gt "$EXTRAP_RECENCY_SECS" ]]; then
+      why_primary+="[$cand: last sample ${try_age}s > ${EXTRAP_RECENCY_SECS}s recency bound] "
+      continue
+    fi
+    burn="$try_burn"; age="$try_age"; src="$cand"
+    break
+  done
+  if [[ -z "$burn" ]]; then
+    echo "quota-stop: cache unreadable ($why) and no usable+recent burn series in any source: ${why_primary}→ fail-safe STOP. REASON=quota-cache-unreadable" >&2
     exit 2
   fi
-  age=$(( now - last_epoch ))
-  # Recency guard: never extrapolate from a stale sample. Older than the recency bound ⟹ stop.
-  if [[ "$age" -gt "$EXTRAP_RECENCY_SECS" ]]; then
-    echo "quota-stop: cache unreadable ($why); last burn sample too old (${age}s > ${EXTRAP_RECENCY_SECS}s recency bound) → fail-safe STOP. REASON=quota-cache-unreadable" >&2
-    exit 2
+  if [[ "$src" != "$RELAY_QUOTA_SAMPLES" ]]; then
+    echo "quota-stop: primary burn series unusable (${why_primary}) — extrapolating from FALLBACK series $src (last sample ${age}s old)" >&2
   fi
   seg_h=$(jq -r '.elapsed_h // 0' <<<"$burn")
   since_h=$(awk -v a="$age" 'BEGIN { printf "%.6f", a/3600 }')
