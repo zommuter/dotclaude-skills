@@ -137,32 +137,35 @@ D1/D2):
     `/loop` gives session-kill or outage protection — that is a separate watchdog concern
     (id:98f0). The nudge (loop-hint.sh) reflects this corrected scope.
 
-0. **Fable-availability probe + apex-tier selection (Opus is APEX; Fable is a bonus).**
+0. **Fable-availability config + apex-tier selection (Opus is APEX; Fable is a bonus).**
    Opus is the apex decision tier. Fable is treated as an OPTIONAL bonus second-opinion
-   *if it returns* — never a required gate (user directive 2026-06-15: "treat Opus as the
-   apex tier, Fable as a bonus re-review"). Do NOT warn when running on Opus — it is the
-   intended tier; there is no self-guard and no `sleep`. Select the strong tier:
-   - Manage the cache `~/.config/relay/fable-probe.json`
-     (`{available: bool, checked: ISO-ts}`) through `scripts/probe-fable.sh` — the tested
-     helper that owns the read + 2 h staleness check (the helper NEVER spawns the model;
-     the actual agent-probe stays here in the front door). Run
-     `scripts/probe-fable.sh check`: `fresh-available` / `fresh-unavailable` (exit 0) →
-     use the cached decision, skip the probe; `stale` / `absent` (exit 1) → PROBE once:
-     spawn ONE tiny agent pinned to `model: claude-fable-5` with a trivial prompt (it
-     returns → available; a "Fable unavailable" / model error → unavailable), then record
-     it with `scripts/probe-fable.sh set <true|false>` (the helper stamps the ISO timestamp).
-   - **Default assumption: Fable is unavailable** → `STRONG_TIER=opus`, proceed with Opus
-     as apex. **Nothing depends on Fable.** The only ways to use Fable: the probe says
-     available, OR the user explicitly passes `--strong-tier fable` / says "Fable is
-     available" (an override that wins even over a failing probe).
-   - `-d`/`--fable-down` forces Fable-down *without probing* (this is just the default
-     posture made explicit; on the now-default `STRONG_TIER=opus` it is a no-op).
-   - When Fable IS available it is used ONLY as an optional bonus recheck of
+   — never a required gate (user directive 2026-06-15: "treat Opus as the apex tier,
+   Fable as a bonus re-review"). Do NOT warn when running on Opus — it is the intended
+   tier; there is no self-guard and no `sleep`. **Fable is a fixed part of the Max
+   subscription (owner 2026-07-28) — there is no availability to PROBE any more.**
+   Retired 2026-07-28 (constraint archaeology, id:aa26): the old `scripts/probe-fable.sh`
+   cache manager, `~/.config/relay/fable-probe.json`, and the spawn-a-tiny-agent probe
+   procedure that used to live in this step. Select the strong tier:
+   - Run `scripts/fable-config.sh check` — a plain config read, NO cache, NO staleness
+     window, NO spawned agent. It prints `available` (exit 0) unless relay.toml declares
+     `[relay] fable_available = false`, in which case it prints `unavailable` (exit 1).
+   - **Default: Fable is available** (the Max default) → nothing to do here; Opus still
+     stays the default apex tier (see below) — availability alone does not select Fable.
+   - A user WITHOUT Fable access sets `[relay] fable_available = false` in relay.toml
+     once; every subsequent run treats Fable as unavailable without ever invoking it.
+   - `STRONG_TIER` stays `opus` by default regardless of availability — Opus is apex,
+     Fable is bonus-only (unchanged posture, ratified again 2026-07-28 id:698d). The only
+     ways to use Fable: `--strong-tier fable` / `STRONG_TIER=fable`, and only when
+     `fable-config.sh check` says `available`.
+   - `-d`/`--fable-down` forces Fable-down explicitly (the honest "my Fable is down"
+     escape hatch) — on the now-default `STRONG_TIER=opus` it is a no-op; it only bites
+     when combined with an explicit `STRONG_TIER=fable`.
+   - When Fable IS available and selected, it is used ONLY as an optional bonus recheck of
      `fable-standin` checkpoints (see scheduling). Opus decisions remain **final** — they
      are never "pending Fable", so the roadmap never looks half-complete while Fable is out.
 0b. **Mechanical-tier preflight (id:4239 — consumes the id:99a4 discriminator).** BEFORE
    launching the Workflow, run the tested helper `scripts/mech-preflight.sh preflight` ONCE
-   (mirrors the step-0 Fable probe pattern: a tested helper the front-door prose calls). It runs
+   (mirrors the step-0 Fable-config pattern: a tested helper the front-door prose calls). It runs
    `scripts/probe-mech-proxy.sh discriminate` against the CURRENT `ANTHROPIC_BASE_URL` and emits
    exactly one stdout token — relay ITS stderr warning verbatim to the operator, and thread the
    token into the Workflow as `args.MECH_FALLBACK`:
@@ -698,9 +701,9 @@ the historical `fable-ckpt-*` prefix:
 
 | Env var / flag | Values | Default | Effect |
 |---|---|---|---|
-| `STRONG_TIER` | `fable` \| `opus` | `opus` | Apex model for review/handoff/HARD-execute agents. **Default `opus`** — Opus is the apex tier; Fable is an optional bonus (user directive 2026-06-15). Execute (Sonnet) agents are never affected. Set/keep `fable` only when the step-0 probe **or** you explicitly confirm Fable is available. |
-| `--strong-tier fable` / "Fable is available" | flag/override | off | The ONLY way to use Fable: asserts Fable is up, overriding even a failing step-0 probe. Use when you know Fable works despite a probe error. Without it the default stays `opus`. |
-| `--fable-down` / `-d` | flag | off (probe decides) | Forces Fable-down *without* probing. On the now-default `STRONG_TIER=opus` it is a **no-op** (Opus is already apex). Only meaningful with an explicit `STRONG_TIER=fable`, where it triggers the legacy defer/demote (executor-only) path. Passed as `args.fableDown = true`. |
+| `STRONG_TIER` | `fable` \| `opus` | `opus` | Apex model for review/handoff/HARD-execute agents. **Default `opus`** — Opus is the apex tier; Fable is an optional bonus (user directive 2026-06-15; re-ratified 2026-07-28 id:698d — Fable becoming a permanent Max feature does NOT change this). Execute (Sonnet) agents are never affected. Set/keep `fable` only when `scripts/fable-config.sh check` says `available` (the Max default, unless relay.toml declares it unavailable) **or** you explicitly confirm Fable is available. |
+| `--strong-tier fable` / "Fable is available" | flag/override | off | The ONLY way to use Fable: asserts Fable is up. Use when you know Fable works despite `[relay] fable_available = false`. Without it the default stays `opus`. |
+| `--fable-down` / `-d` | flag | off (config decides) | Forces Fable-down explicitly, without consulting `fable-config.sh`. On the now-default `STRONG_TIER=opus` it is a **no-op** (Opus is already apex). Only meaningful with an explicit `STRONG_TIER=fable`, where it triggers the legacy defer/demote (executor-only) path. Passed as `args.fableDown = true`. |
 | `--interactive` | flag | off | Re-enables the one-batch `AskUserQuestion` confirmations before launch; passed to the Workflow as `args.interactive`. Default mode is unattended. |
 | `--afk` | flag | off | "I'm away, do something useful" — an unattended run (surfaces the `/loop` resilience nudge, step 0a). **Stays NON-intensive (id:052c):** it does NOT opt into `[INTENSIVE — <resource>]` work — auto-running OOM-risky local-LLM/big-index units *because* the user stepped away is backwards (the [[oom-local-model-session-kills]] hazard). A bare `--afk` runs the normal parallel pool only; intensive units stay surfaced-as-skipped. Does NOT set `args.allowIntensive`. |
 | `--intensive` / `--allow-intensive` | flag | off | Explicit opt-in to `[INTENSIVE — <resource>]` work (id:8d52; `--intensive` is the canonical name as of id:052c, `--allow-intensive` a synonym). By default such resource-heavy units (local-LLM benchmarks, big index rebuilds — the OOM risk) are NEVER auto-dispatched: they're surfaced as skipped in `RELAY_STATUS.md`. With this flag they run **serially-alone** after each round's normal parallel wave, each holding an exclusive `resource:<name>` claim (cross-run). **`--intensive` IMPLIES `--afk`** (id:052c — intensive work is inherently a long, away-run): a user need not pass both. Sets `args.allowIntensive = true`. |

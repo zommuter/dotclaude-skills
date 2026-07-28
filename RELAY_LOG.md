@@ -3598,3 +3598,25 @@ id:88f0 shared ledger-only-diff predicate + isolation-gate wiring (hand-integrat
 ## 2026-07-28 13:30 — reviewer (claude-opus-5, hand-built)
 
 id:9eb7 step 1: dispatch-prompt Skill countermand (~26.4k/dispatch); suite 312/0
+
+## 2026-07-28 — executor (sonnet)
+
+Worked id:aa26 — retired the Fable-availability PROBE (constraint archaeology: Fable is
+now a fixed part of the Max subscription, nothing left to probe). Deleted
+`relay/scripts/probe-fable.sh`, `tests/test_probe_fable.sh`, and (implicitly, no code
+ever wrote it in this worktree) the `~/.config/relay/fable-probe.json` cache path. New
+`relay/scripts/fable-config.sh check` reads relay.toml's `[relay] fable_available`
+(absent/true ⇒ available, false ⇒ unavailable) — no cache, no staleness window, no
+spawned agent. Rewrote SKILL.md step 0 + the Configuration-knobs table and
+`meeting/SKILL.md`'s `--fabled` closing-pass Availability step to call it instead of the
+retired probe procedure; updated `Makefile`'s `relay_FILES`/`relay_EXEC`/`relay_ALLOW`
+lists. Default posture is explicitly unchanged (Opus stays apex, `STRONG_TIER` still
+defaults `opus`) per the item's behaviour-preserving constraint — verified
+`test_strong_tier_knob.sh`/`test_fable_down_strong_tier.sh` needed no edits since neither
+referenced the probe. New `tests/test_fable_config_aa26.sh` (`# roadmap:aa26`) is green.
+Friction: the full-suite run surfaced one pre-existing consumer I'd missed —
+`tests/test_fabled_closing_pass.sh` grepped SKILL.md's closing-pass text for the literal
+string `probe-fable.sh`; updated it to expect `fable-config.sh` instead (same reuse
+assertion, new helper name). Full suite green after that fix: 312/0.
+refactor: none needed — a straight retire-and-replace of one small script/cache/prose
+block for another; no new duplication introduced.
