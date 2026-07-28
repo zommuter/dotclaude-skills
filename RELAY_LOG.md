@@ -3674,3 +3674,7 @@ transient flake on a re-run, test_relay_loop_all_builders_exec.sh, confirmed
 unrelated and non-reproducing on a clean re-run).
 refactor: none needed — new rule follows the existing doctrine-rule pattern
 (3a/3b) exactly; no duplication introduced.
+
+## 2026-07-28 14:24 — executor (sonnet, relay-loop)
+
+executor: id:213a — roadmap-lint.sh gains NO-ACCEPTANCE-NO-TWIN doctrine rule (WARN/--strict-ERROR) flagging open items with no Acceptance/Tests/Done-check clause and no TODO twin; fixed 5 unrelated test fixtures broken by the new rule's blast radius; suite 314/0 [id:213a]
