@@ -51,24 +51,29 @@ grep -qiE "driver'?s directive" "$REV" \
   || fail "(3a) review.md does not state that a driver's directive is INSUFFICIENT for owner acceptance"
 pass "(3a) review.md carries the fail-closed owner-accept gate (marker grammar, REVIEW_ME box, item-scoped exclusion, driver-insufficient)"
 
-# ── (3a-provenance) executor contract v10 forbids executor-written markers ────
-grep -q 'relay-executor contract v10' "$EC" \
-  || fail "(3a-prov) executor-contract.md marker is not bumped to v10 (contract-surface change requires the bump)"
+# ── (3a-provenance) executor contract >=v10 forbids executor-written markers ──
+# (>=10, not a hardcoded '=10': the marker legitimately advances on later contract-surface
+# changes — e.g. id:6f1c bumped v10->v11 — and this spec only needs to prove the v9->v10
+# @owner-accepted-forbidding bump landed and was never reverted, not pin an exact vN.)
+ec_v_num="$(grep -oE 'relay-executor contract v[0-9]+' "$EC" | head -1 | grep -oE '[0-9]+')"
+[[ -n "$ec_v_num" && "$ec_v_num" -ge 10 ]] \
+  || fail "(3a-prov) executor-contract.md marker is not bumped to >=v10 (contract-surface change requires the bump; found v${ec_v_num:-?})"
 grep -q '@owner-accepted' "$EC" \
   || fail "(3a-prov) executor-contract.md does not mention @owner-accepted at all"
 ec_rule="$(grep -n '@owner-accepted' "$EC" | head -5)"
 grep -iqE 'never|must not|forbid' <(grep -iA2 -B2 '@owner-accepted' "$EC") \
   || fail "(3a-prov) executor-contract.md does not FORBID executors/drain sessions writing @owner-accepted (found only: $ec_rule)"
-pass "(3a-prov) executor contract v10 forbids executor/drain-written @owner-accepted"
+pass "(3a-prov) executor contract v${ec_v_num} (>=v10) forbids executor/drain-written @owner-accepted"
 
 # ── (3a-provenance) CLAUDE.md pointer refreshed + marker-consistent ───────────
-grep -q '<!-- relay-executor contract v10 -->' "$CM" \
-  || fail "(3a-prov) CLAUDE.md '## Relay contract' pointer not refreshed to v10"
+cm_v_num="$(grep -oE 'relay-executor contract v[0-9]+' "$CM" | head -1 | grep -oE '[0-9]+')"
+[[ -n "$cm_v_num" && "$cm_v_num" -ge 10 ]] \
+  || fail "(3a-prov) CLAUDE.md '## Relay contract' pointer not refreshed to >=v10 (found v${cm_v_num:-?})"
 ec_v="$(grep -oE 'relay-executor contract v[0-9]+' "$EC" | head -1)"
 cm_v="$(grep -oE 'relay-executor contract v[0-9]+' "$CM" | head -1)"
 [[ -n "$ec_v" && "$ec_v" == "$cm_v" ]] \
   || fail "(3a-prov) contract version drift: executor-contract.md says '$ec_v' but CLAUDE.md pointer says '$cm_v'"
-pass "(3a-prov) CLAUDE.md pointer matches the v10 contract marker"
+pass "(3a-prov) CLAUDE.md pointer matches the v${cm_v_num} (>=v10) contract marker"
 
 # ── (3a-provenance + 3b) review.md §2b judgment-residue block ─────────────────
 sec2b="$(sed -n '/### 2b\./,/### 2c\./p' "$REV")"

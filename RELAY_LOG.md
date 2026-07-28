@@ -3624,3 +3624,25 @@ block for another; no new duplication introduced.
 ## 2026-07-28 13:46 — executor (sonnet, relay-loop)
 
 id:aa26 — retired the Fable-availability probe (probe-fable.sh + fable-probe.json cache), replaced with a plain config-read fable-config.sh; SKILL.md/meeting/SKILL.md/Makefile updated; suite 312/0 [id:aa26]
+
+## 2026-07-28 — executor (sonnet, relay-loop)
+
+Worked id:6f1c — taught the executor contract symbol-level exploration (new rule 5c in
+`relay/references/executor-contract.md`): prefer Grep/Glob/LSP over uncapped Read/`cat`
+to locate code by name/shape/symbol, and never re-read a file already held in this
+session's context without positive reason to believe its on-disk content changed.
+Dropped the bounded-survey half per the 2026-07-28 amendment on the item (id:b09e
+obsoletes it once dispatch names the item; writing prose for a phase that no longer
+exists would be wasted). Bumped the contract marker v10→v11 (rule content changed) and
+refreshed CLAUDE.md's `## Relay contract` pointer + the versioning-surfaces table row
+to match. New `tests/test_contract_mentions_symbol_tools_6f1c.sh` (`# roadmap:6f1c`)
+asserts the tool mentions, the re-read warning, and vN/pointer agreement.
+Friction: the version bump broke `tests/test_owner_accept_bump_gate.sh` (roadmap:8089,
+already `[x]`), which hardcoded a literal `contract v10` string as its provenance check
+for that item's own historical v9→v10 bump. Updated the two hardcoded assertions to
+`>=v10` (still proves the @owner-accepted-forbidding bump landed and was never reverted,
+without pinning an exact vN a later legitimate bump would break again) — not a
+weakening, the equality-based drift check between executor-contract.md and CLAUDE.md
+was already dynamic and untouched. Full suite green after that fix: 313/0.
+refactor: none needed — a scoped contract-text addition plus the one test-literal fix
+it forced; no new duplication introduced.
