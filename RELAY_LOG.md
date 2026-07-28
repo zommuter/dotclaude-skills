@@ -3727,3 +3727,7 @@ handoff C3: RED specs authored for b09e/33b2/3906/4df8, d6f0 widened per b874; s
 ## 2026-07-28 21:52 — reviewer (claude-opus-5, salvage)
 
 id:3906 salvaged from a dead child's unparked worktree and verified against its RED spec; suite 318/0/5-xred
+
+## 2026-07-28 22:53 — reviewer (claude-opus-5, supervised build+review)
+
+id:b09e dispatch names the item (builder + independent review, 2 HIGH findings fixed pre-merge); suite 320/0/4-xred
