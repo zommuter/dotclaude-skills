@@ -34,10 +34,12 @@ grep -qiE 'only.*--fabled|--fabled was passed|if `?--fabled`?|opt-in' <<<"$blk" 
   || fail "7e87: closing pass is not gated on --fabled being passed (must be opt-in, never default)"
 pass "7e87: closing pass is opt-in (only when --fabled passed)"
 
-# 2. availability via the tested probe helper (NIH: reuse probe-fable.sh, don't re-derive).
-grep -q 'probe-fable.sh' <<<"$blk" \
-  || fail "7e87: closing pass does not reuse probe-fable.sh for Fable availability (must not re-derive the probe)"
-pass "7e87: closing pass reuses probe-fable.sh for availability"
+# 2. availability via the tested config helper (NIH: reuse fable-config.sh, don't re-derive).
+# (id:aa26, 2026-07-28: probe-fable.sh retired — Fable is a fixed part of the Max
+# subscription, so there is nothing left to probe; fable-config.sh is its replacement.)
+grep -q 'fable-config.sh' <<<"$blk" \
+  || fail "7e87: closing pass does not reuse fable-config.sh for Fable availability (must not re-derive the check)"
+pass "7e87: closing pass reuses fable-config.sh for availability"
 
 # 3. LOUD degrade if Fable unavailable — the EXACT recorded string, and it goes in the note.
 grep -qF 'Fable unavailable — `--fabled` pass skipped' <<<"$blk" \

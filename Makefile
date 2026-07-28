@@ -40,7 +40,7 @@ relay_FILES := SKILL.md \
                references/resource-claims.md references/todo-conversion-policies.md \
                references/recipe-manifest.md references/discovery-queue-manifest.md \
                references/deny-tail-probe.md \
-               scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
+               scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh \
                scripts/relay-loop.js scripts/inject.sh scripts/claim.sh \
                scripts/heartbeat.sh \
@@ -75,7 +75,7 @@ relay_FILES := SKILL.md \
                scripts/auto-integrate-orphan.sh \
                scripts/validate-flags.sh scripts/known-flags-relay.tsv scripts/known-flags-meeting.tsv \
                scripts/probe-mech-proxy.sh scripts/mech-preflight.sh scripts/relay-spawn-bench.sh
-relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
+relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
                scripts/force-push.sh \
@@ -102,7 +102,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable
                scripts/auto-integrate-orphan.sh \
                scripts/validate-flags.sh scripts/probe-mech-proxy.sh scripts/mech-preflight.sh \
                scripts/relay-spawn-bench.sh
-relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/probe-fable.sh \
+relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
                scripts/force-push.sh \
