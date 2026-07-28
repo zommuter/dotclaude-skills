@@ -3715,3 +3715,7 @@ Closed id:e3b7 — null-report (context-death) handbacks now stamp the id:1432 n
 ## 2026-07-28 15:36 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Review clean: window = 1 id:61fa handback-followup ledger commit; gaming-scan clean, suite 317/0/0; reconciled 5 cross-ledger drifts, surfaced fable-config install gap; routine_open=0. [id:1af1,6f1c,77f3,213a,44a1,61fa]
+
+## 2026-07-28 21:06 — reviewer (claude-opus-5, hand-built)
+
+id:c919 work-creating handback excluded from dry-round (both substrates, sync-guarded); id:d6f0 RED spec authored for the drained-assertion class; id:98ea flake observed
