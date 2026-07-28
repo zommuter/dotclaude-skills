@@ -37,6 +37,25 @@ fail() { echo "FAIL: $*"; exit 1; }
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# A sibling TODO.md twin (id:213a's NO-ACCEPTANCE-NO-TWIN doctrine rule) for every
+# id used across this file's fixtures — none of them carry an inline Acceptance/
+# Tests/Done-check clause, and this file's own concern is the grammar rules (class
+# tag + id), not id:213a's separate WARN-only rule, so the twin keeps that rule
+# silent here.
+cat >"$tmp/TODO.md" <<'MD'
+# TODO
+- [ ] twin stub <!-- id:aaaa -->
+- [ ] twin stub <!-- id:bbbb -->
+- [ ] twin stub <!-- id:cccc -->
+- [ ] twin stub <!-- id:dddd -->
+- [ ] twin stub <!-- id:eeee -->
+- [ ] twin stub <!-- id:ffff -->
+- [ ] twin stub <!-- id:9999 -->
+- [ ] twin stub <!-- id:1111 -->
+- [ ] twin stub <!-- id:2222 -->
+- [ ] twin stub <!-- id:3333 -->
+MD
+
 # --- fixture with conforming + non-conforming items --------------------------
 bad="$tmp/ROADMAP.md"
 cat >"$bad" <<'EOF'

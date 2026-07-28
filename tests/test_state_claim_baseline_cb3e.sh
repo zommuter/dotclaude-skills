@@ -48,6 +48,18 @@ pass "both linters wire the baseline"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# A sibling TODO.md twin (id:213a's separate NO-ACCEPTANCE-NO-TWIN doctrine rule)
+# for both ids used below — neither carries an inline Acceptance/Tests/Done-check
+# clause, and this file's concern is the WARN→ERROR baseline boundary only, so the
+# twin keeps id:213a's rule from adding its own ERROR under --strict here (this
+# file is later overwritten with the todo-conformance fixture content below, by
+# which point the roadmap-lint fixtures R/R2 have already been exercised).
+cat >"$tmp/TODO.md" <<'MD'
+# TODO
+- [ ] twin stub <!-- id:b001 -->
+- [ ] twin stub <!-- id:b002 -->
+MD
+
 # --- fixture baseline: only id:b001 is "already open at rule-land time" ---------
 BL="$tmp/baseline.txt"
 cat >"$BL" <<'TXT'

@@ -28,6 +28,22 @@ fail() { echo "FAIL: $*"; exit 1; }
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# A sibling TODO.md twin (id:213a's separate NO-ACCEPTANCE-NO-TWIN doctrine rule)
+# for every id below — none carry an inline Acceptance/Tests/Done-check clause,
+# and this file's concern is 3(a)/3(b) only, so the twin keeps id:213a's rule
+# silent and out of the way here.
+cat >"$tmp/TODO.md" <<'MD'
+# TODO
+- [ ] twin stub <!-- id:c001 -->
+- [ ] twin stub <!-- id:c002 -->
+- [ ] twin stub <!-- id:c003 -->
+- [ ] twin stub <!-- id:c004 -->
+- [ ] twin stub <!-- id:c005 -->
+- [ ] twin stub <!-- id:c006 -->
+- [ ] twin stub <!-- id:c007 -->
+- [ ] twin stub <!-- id:c008 -->
+MD
+
 # Every item is grammar-valid (lane + id) so the ONLY thing under test is the two
 # doctrine rules, never a confounding grammar violation.
 R="$tmp/ROADMAP.md"
