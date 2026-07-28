@@ -539,6 +539,8 @@ const DISCOVER_SCHEMA = {
           // ABSENT/[] on older queue entries and injected units → fail-open to the old plural
           // instruction.
           actionable_routine_ids: { type: 'array', items: { type: 'string' } },
+          // id:b09e — orphan-suppressed ids the naming picker must subtract (discover-repo.sh).
+          suppressed_item_ids: { type: 'array', items: { type: 'string' } },
         },
       },
     },
@@ -1813,9 +1815,24 @@ const branchFor = (unit) => `relay/${state.runId}-${unit.verdict}`
 // FAIL-OPEN: no usable id (older queue entry, injected unit, id-less ROADMAP) ⇒ the historical
 // plural instruction is used unchanged, so this can only ever narrow the child's search, never
 // break dispatch.
-const namedItemsFor = (unit) =>
-  (Array.isArray(unit.actionable_routine_ids) ? unit.actionable_routine_ids : [])
-    .filter((x) => typeof x === 'string' && /^[0-9a-f]{4}$/.test(x))
+// id:b09e — SUBTRACT orphan-suppressed ids. discover-repo.sh appends "orphan-parked (id:X) —
+// reconcile-first, do NOT work id:X" to unit.reason AND publishes the set as
+// unit.suppressed_item_ids. Both strings land in the same child prompt, so naming a suppressed
+// item would imperatively override the very instruction next to it — benign before b09e (the
+// plural instruction left the child free to obey the reason), a live conflict after it.
+// Read the FIELD, never the prose. Case-normalised: classify-repo.sh accepts [0-9a-fA-F] while
+// this filter was lowercase-only, so an uppercase-hex id was counted but silently unnameable.
+const namedItemsFor = (unit) => {
+  const suppressed = new Set(
+    (Array.isArray(unit.suppressed_item_ids) ? unit.suppressed_item_ids : [])
+      .filter((x) => typeof x === 'string')
+      .map((x) => x.toLowerCase()),
+  )
+  return (Array.isArray(unit.actionable_routine_ids) ? unit.actionable_routine_ids : [])
+    .filter((x) => typeof x === 'string' && /^[0-9a-fA-F]{4}$/.test(x))
+    .map((x) => x.toLowerCase())
+    .filter((x) => !suppressed.has(x))
+}
 
 // Shared tail of the execute instruction — identical in the named and the fallback branch, so
 // the two can never drift on the SIZE-OUT contract.
