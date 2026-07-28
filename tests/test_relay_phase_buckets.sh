@@ -45,7 +45,10 @@ ok "Integrate holds only the merge; gaming-log + handback-followup → Logging"
 # Support catch-all is broken up: quota → Quota, release → Leases.
 grep -q "label: \`quota:\${tier}\`, phase: 'Quota'" "$JS" \
   || bad "quota gate not moved to the Quota bucket"
-grep -q "label: \`release:\${unit.repo}\`, phase: 'Leases'" "$JS" \
+# id:f7d3 split the single bundled release: dispatch into one model:'bash' fence per
+# command (claim/resource/heartbeat, built via a shared dispatch() helper); the
+# dispatch()'s own label template still tags phase: 'Leases'.
+grep -q "label: \`release:\${unit.repo}:\${label}\`, phase: 'Leases'" "$JS" \
   || bad "lease release not moved to the Leases bucket"
 ok "quota → Quota, release → Leases (Support catch-all de-cluttered)"
 
