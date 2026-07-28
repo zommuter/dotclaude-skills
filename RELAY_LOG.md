@@ -3692,3 +3692,18 @@ id:44a1 — id:3801's seam emitter now requires acceptance/done_check/file per h
 ## 2026-07-28 15:02 — reviewer (claude-opus-5, hand-built)
 
 id:1af1 phantom-park fix (tense + post-APPLY verify, parity-preserving); handoff: b09e->apex, e3b7 split from 61fa; suite 316/0
+
+## 2026-07-28 — executor (claude-sonnet-5)
+
+Worked id:e3b7 — added re-dispatch suppression on the null-report (context-death) handback
+path in relay-loop.js's integrate(): a child that fails terminally with NO report at all
+(API error / context death) now stamps the existing id:1432 noWorkNegCache
+(recordNoWorkHandback) exactly like the route=none contract_met=false path already did, so the
+discovery signature cache cannot re-dispatch the same repo straight back into the identical
+death next round. Reused the existing pure helper + negative-cache object and its existing
+RELAY_STATUS "Blocked" surfacing — no new machinery needed. RED spec
+tests/test_redispatch_suppression_e3b7.sh (roadmap:e3b7) added and ticked; full suite green
+(317 passed, 0 failed). Parent id:61fa (transcript-parsing half) stays open, BLOCKED on the
+Workflow-sandbox-has-no-fs-access architecture question.
+Friction: none — a small, well-scoped split-out item; the fix was a one-line addition reusing
+existing pure helpers, no new design needed.
