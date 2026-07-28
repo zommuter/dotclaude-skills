@@ -4,8 +4,10 @@
 # and IDEMPOTENCY (the pool re-runs handbacks — a second apply must be a no-op).
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HELPER="$HOME/.claude/skills/relay/scripts/handback-followup.py"
-[ -f "$HELPER" ] || HELPER="$ROOT/relay/scripts/handback-followup.py"
+# id:6f1c/f682 worktree isolation: always resolve THIS repo's own copy (never the
+# ~/.claude/skills install, a symlink to the MAIN checkout — testing that would
+# silently exercise stale code while this file is edited in a worktree, id:44a1).
+HELPER="$ROOT/relay/scripts/handback-followup.py"
 
 fail=0
 ok()   { echo "  ok  $1"; }
@@ -39,25 +41,31 @@ before="$(cat "$RM")"
 run --parent-id aaaa --route decision-gate --gate-reason "different reason now"
 if [ "$before" = "$(cat "$RM")" ]; then ok "re-apply changed nothing"; else bad "re-apply mutated the file"; fi
 
+SPLIT_JSON='[{"id":"1234","title":"Seam One pure hash","tier":"HARD","dep":"be4b","acceptance":"the hash helper is pure and unit-tested","done_check":"tests/run-tests.sh tests/test_seam_one.sh","file":"src/hash.js:pureHash()"},{"title":"Seam Two UI wiring","tier":"ROUTINE","acceptance":"the widget calls the hash helper on submit","done_check":"tests/run-tests.sh tests/test_seam_two.sh","file":"src/widget.js:onSubmit()"}]'
+
 echo "== hard-split gates the parent + appends pickable seams =="
 run --parent-id bbbb --route hard-split --gate-reason "6-session money path" \
-    --split-json '[{"id":"1234","title":"Seam One pure hash","tier":"HARD","dep":"be4b"},{"title":"Seam Two UI wiring","tier":"ROUTINE"}]'
+    --split-json "$SPLIT_JSON"
 bbbb_line() { grep -- '<!-- id:bbbb -->' "$RM"; }
 if bbbb_line | grep -qF '[HARD — decision gate]'; then ok "parent bbbb gated"; else bad "parent not gated"; fi
 if bbbb_line | grep -qF 'DECOMPOSED into seams'; then ok "parent marked DECOMPOSED"; else bad "parent not marked decomposed"; fi
 has "$RM" 'id:1234'               "explicit-id seam appended"
-seam1() { grep -- '<!-- id:1234 -->' "$RM"; }
+seam1() { grep -A3 -- '<!-- id:1234 -->' "$RM"; }
 if seam1 | grep -qF '[HARD — strong model]'; then ok "seam-one HARD tier"; else bad "seam-one tier wrong"; fi
 if seam1 | grep -qF '(after id:be4b)'; then ok "seam-one dependency noted"; else bad "seam-one dep missing"; fi
 if seam1 | grep -qF 'seam of id:bbbb'; then ok "seam-one parent marker"; else bad "seam-one parent marker missing"; fi
+if seam1 | grep -qF '**Acceptance**: the hash helper is pure and unit-tested'; then ok "seam-one acceptance rendered"; else bad "seam-one acceptance missing"; fi
+if seam1 | grep -qF '**Done-check**: tests/run-tests.sh tests/test_seam_one.sh'; then ok "seam-one done-check rendered"; else bad "seam-one done-check missing"; fi
+if seam1 | grep -qF '**Context**: src/hash.js:pureHash()'; then ok "seam-one file/function rendered"; else bad "seam-one file/function missing"; fi
 has "$RM" 'Seam Two UI wiring'    "id-less seam appended"
-seam2() { grep -- 'Seam Two UI wiring' "$RM"; }
+seam2() { grep -A3 -- 'Seam Two UI wiring' "$RM"; }
 if seam2 | grep -qF '[ROUTINE]'; then ok "seam-two ROUTINE tier"; else bad "seam-two tier wrong"; fi
 if seam2 | grep -qE 'id:[0-9a-f]{4}' && ! seam2 | grep -qF 'id:1234'; then ok "seam-two got a freshly minted id"; else bad "seam-two id not minted"; fi
+if seam2 | grep -qF '**Done-check**: tests/run-tests.sh tests/test_seam_two.sh'; then ok "seam-two done-check rendered"; else bad "seam-two done-check missing"; fi
 
 echo "== hard-split is idempotent (no duplicate seams on re-run) =="
 run --parent-id bbbb --route hard-split --gate-reason "6-session money path" \
-    --split-json '[{"id":"1234","title":"Seam One pure hash","tier":"HARD","dep":"be4b"},{"title":"Seam Two UI wiring","tier":"ROUTINE"}]'
+    --split-json "$SPLIT_JSON"
 cnt "$RM" '<!-- id:1234 -->'   1 "explicit-id seam not duplicated"
 cnt "$RM" 'Seam Two UI wiring' 1 "id-less seam not re-minted (title dedup)"
 cnt "$RM" 'DECOMPOSED into seams' 1 "parent not re-gated twice"

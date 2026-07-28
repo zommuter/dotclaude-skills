@@ -29,7 +29,10 @@ reversible (a human/meeting re-tags it back to [ROUTINE]/[HARD — strong model]
 Usage:
   handback-followup.py <repo-root> --parent-id XXXX --route <decision-gate|hard-split|human|none>
                        [--gate-reason TEXT] [--split-json '[{...}]'] [--run-id ID] [--no-commit]
-  --split-json items: [{"title": "...", "id": "be4b"?, "tier": "HARD"|"ROUTINE"?, "dep": "be4b"?}, ...]
+  --split-json items: [{"title": "...", "acceptance": "...", "done_check": "...",
+                        "file": "...", "id": "be4b"?, "tier": "HARD"|"ROUTINE"?, "dep": "be4b"?}, ...]
+                       acceptance/done_check/file are REQUIRED (id:44a1) — a seam missing
+                       any of them is rejected at this boundary and NOTHING is written.
 Env: HANDBACK_ROADMAP overrides <repo-root>/ROADMAP.md; HANDBACK_NO_COMMIT=1 == --no-commit (tests).
 """
 import argparse
@@ -82,6 +85,16 @@ def mint_id(repo_root):
     return tok
 
 
+SEAM_REQUIRED_FIELDS = ("acceptance", "done_check", "file")
+
+
+def seam_missing_fields(item):
+    """id:44a1 — the 3 fields a bare {title} seam cannot express: an observable
+    Acceptance, an exact Done-check, and the file/function it concerns. Returns the
+    list of missing/blank required field names (empty list == conforming)."""
+    return [f for f in SEAM_REQUIRED_FIELDS if not (item.get(f) or "").strip()]
+
+
 def seam_line(item, parent_id, repo_root, existing_ids, lines_text):
     tok = (item.get("id") or "").strip()
     title = item.get("title", "").strip() or "(untitled seam)"
@@ -101,7 +114,16 @@ def seam_line(item, parent_id, repo_root, existing_ids, lines_text):
     dep = (item.get("dep") or "").strip()
     dep_clause = f" (after id:{dep})" if dep else ""
     title = item.get("title", "").strip() or "(untitled seam)"
-    line = f"- [ ] {tag} {title}{dep_clause} — seam of id:{parent_id} (auto, id:3801) <!-- id:{tok} -->"
+    # id:44a1 — render the seam with a real Acceptance/Done-check/Context body, not a
+    # bare title-only line: (a) satisfies id:213a's NO-ACCEPTANCE-NO-TWIN lint clause
+    # without needing a TODO.md twin, and (b) points the executor straight at the file/
+    # function the seam concerns (owner requirement 2026-07-26).
+    line = (
+        f"- [ ] {tag} {title}{dep_clause} — seam of id:{parent_id} (auto, id:3801) <!-- id:{tok} -->\n"
+        f"  - **Acceptance**: {item['acceptance'].strip()}\n"
+        f"  - **Done-check**: {item['done_check'].strip()}\n"
+        f"  - **Context**: {item['file'].strip()}"
+    )
     return line, tok
 
 
@@ -153,6 +175,25 @@ def main():
         except json.JSONDecodeError as e:
             print(f"bad --split-json: {e}", file=sys.stderr)
             return 2
+
+        # id:44a1 — REJECT at the schema boundary, write NOTHING, if any seam is
+        # missing acceptance/done_check/file (a bare {title} seam is structurally
+        # un-workable — id:213a's lint would flag it, and it can't name the file/
+        # function an executor should touch). Same fail-LOUD-write-nothing shape as
+        # md-merge's id:1b1a unmatched-id guard: a partial write here would leave the
+        # ROADMAP half-decomposed (parent gated, some seams missing their body).
+        bad_seams = [
+            (i, item.get("title", "(untitled seam)"), seam_missing_fields(item))
+            for i, item in enumerate(split)
+        ]
+        bad_seams = [(i, t, m) for i, t, m in bad_seams if m]
+        if bad_seams:
+            for i, t, m in bad_seams:
+                print(f"--split-json[{i}] {t!r}: missing required field(s): "
+                      f"{', '.join(m)} (id:44a1 — acceptance/done_check/file are "
+                      "required per seam)", file=sys.stderr)
+            return 2
+
         seam_ids = []
         lines_text = "".join(lines)
         for item in split:
