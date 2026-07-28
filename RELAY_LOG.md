@@ -3541,3 +3541,9 @@ refactor: none needed — the change is a targeted loop restructure (index-based
 ## 2026-07-28 11:45 — executor (sonnet, relay-loop)
 
 Closed id:f475 (arg-guard): scope-flag near-miss escalation + drop-the-following-positional fix in validate-flags.sh, suite 309/0 [id:f475]
+
+## 2026-07-28 — executor (sonnet, relay-loop)
+
+Worked id:f7d3 — mechanized the `release:` hop in `relay/scripts/relay-loop.js`: `releaseLease()` used to fire one Haiku call over an `&&`-bundled prompt (`claim.sh release ... && [claim.sh release resource:... &&] heartbeat.sh beat ...`), which could never pass `mechanical-proxy.py`'s `_command_allowed()` as a single `model:'bash'` fence (it refuses any unquoted sequence operator). Split into a shared `dispatch()` helper issuing one `model:'bash'` fence per command (repo-claim release, the conditional intensive-resource release, heartbeat beat), each a clean single-stage pipeline ending in an already-allowlisted script; `.catch()` non-fatal semantics preserved per dispatch. `tests/test_release_hop_mechanical_f7d3.sh` (roadmap:f7d3) confirmed RED before the fix (label still `haiku`) and GREEN after; also drives `_command_allowed()` directly against each standalone fenced command string. `tests/test_relay_phase_buckets.sh` needed a matching update — its exact-string assertion targeted the old single `release:${unit.repo}` label; updated to the new `release:${unit.repo}:${label}` shape (still phase:'Leases'), not weakened. Full suite 310/0.
+Friction: none.
+refactor: none needed — the split is the item's own scope; no new duplication (dispatch() is itself the de-duplication of the three near-identical agent() calls).
