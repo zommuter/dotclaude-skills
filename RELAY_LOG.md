@@ -3620,3 +3620,7 @@ string `probe-fable.sh`; updated it to expect `fable-config.sh` instead (same re
 assertion, new helper name). Full suite green after that fix: 312/0.
 refactor: none needed — a straight retire-and-replace of one small script/cache/prose
 block for another; no new duplication introduced.
+
+## 2026-07-28 13:46 — executor (sonnet, relay-loop)
+
+id:aa26 — retired the Fable-availability probe (probe-fable.sh + fable-probe.json cache), replaced with a plain config-read fable-config.sh; SKILL.md/meeting/SKILL.md/Makefile updated; suite 312/0 [id:aa26]
