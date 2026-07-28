@@ -63,12 +63,19 @@ if (typeof m.finalDrainVerdict !== 'function') {
   console.error('MISSING: drain.mjs does not export finalDrainVerdict() — the id:d6f0 deliverable')
   process.exit(3)
 }
+// WIDENED by routed:b874: the assertion must cover EVERY terminal stopReason that claims no work
+// remains — not just 'drained'. id:c919 patched the DRY branch; isBlockedRound →
+// 'blocked-pending-human' was untouched and is what stopped an observed run with verdict:execute,
+// surfaced:[] and 4 actionable items. A per-branch patch leaves the next branch open.
 const cases = [
   // [name, input, wantDrained, wantReasonSubstring]
   ['clean drain',        { dryStreak: 2, actionableAfter: 0, probeOk: true  }, true,  'drained'],
   ['stuck not drained',  { dryStreak: 2, actionableAfter: 3, probeOk: true  }, false, 'stuck'],
   ['probe failed',       { dryStreak: 2, actionableAfter: 0, probeOk: false }, false, ''],
   ['streak not reached', { dryStreak: 1, actionableAfter: 0, probeOk: true  }, false, ''],
+  // the b874 cases — the BLOCKED branch must be gated by the same assertion
+  ['blocked+actionable', { blocked: true, actionableAfter: 4, probeOk: true }, false, 'stuck'],
+  ['blocked+none',       { blocked: true, actionableAfter: 0, probeOk: true }, true,  'blocked'],
 ]
 let bad = 0
 for (const [name, input, wantDrained, wantSub] of cases) {
