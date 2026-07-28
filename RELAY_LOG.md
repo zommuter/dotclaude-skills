@@ -3723,3 +3723,7 @@ id:c919 work-creating handback excluded from dry-round (both substrates, sync-gu
 ## 2026-07-28 21:28 — reviewer (claude-opus-5, handoff)
 
 handoff C3: RED specs authored for b09e/33b2/3906/4df8, d6f0 widened per b874; suite 318/0/6-xred
+
+## 2026-07-28 21:52 — reviewer (claude-opus-5, salvage)
+
+id:3906 salvaged from a dead child's unparked worktree and verified against its RED spec; suite 318/0/5-xred
