@@ -3590,3 +3590,7 @@ mismatch — fixed to non-executable).
 Friction: none — well-bounded once the fixture pattern in test_verify_isolation.sh was reused.
 refactor: none needed — new file + one narrow insertion into an existing branch, no duplication introduced.
 Worked id:88f0 — RED spec tests/test_ledger_only_diff_88f0.sh (roadmap:88f0), full suite 311/0.
+
+## 2026-07-28 12:55 — reviewer (claude-opus-5, hand-integrate)
+
+id:88f0 shared ledger-only-diff predicate + isolation-gate wiring (hand-integrated after a ROADMAP merge conflict caused by concurrent ledger writes); suite 311/0
