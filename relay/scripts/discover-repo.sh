@@ -168,6 +168,15 @@ if suppress_surf:
                 note = "orphan-parked (ambiguous binding) — reconcile-first"
             base = unit.get("reason", "")
             unit["reason"] = (base + " | " + note) if base else note
+            # id:b09e — the reason says "do NOT work <ids>", and since b09e the dispatch NAMES an
+            # item imperatively, so a suppressed id reaching the naming picker would actively
+            # override that instruction (pre-b09e the plural instruction left the child free to
+            # obey the reason). Publish the suppressed set as a FIELD so the relay-loop picker
+            # can subtract it — never parse it back out of the prose. Deliberately does NOT filter
+            # actionable_routine_ids itself: that list must keep matching actionable_routine_open
+            # (the id:b09e count<->list invariant); suppression is a DISPATCH concern, not a
+            # count concern.
+            unit["suppressed_item_ids"] = sorted(suppressed_ids)
     surfaced = surfaced + suppress_surf   # additive: surface the suppress alongside
 
 print(json.dumps({"units": units, "surfaced": surfaced, "skipped": skipped}))

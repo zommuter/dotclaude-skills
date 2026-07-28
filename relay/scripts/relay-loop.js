@@ -527,6 +527,20 @@ const DISCOVER_SCHEMA = {
           // (stale snapshot / went-dirty-after-snapshot / mangled bridge-copy). ABSENT on
           // CASE B live units (computed live, exempt from the assert). "" = fail-open sentinel.
           queue_sig: { type: 'string' },
+          // actionable_routine_ids (id:b09e): the 4-hex ROADMAP ids BEHIND actionable_routine_open,
+          // in ROADMAP file order, emitted by classify-repo.sh from the SAME per-line predicate
+          // that produces the count (len(ids) === actionable_routine_open, by construction — the
+          // count is derived as the list's length, so the two cannot drift). Gated (🚧) /
+          // @manual / human-lane / non-[ROUTINE] / closed items never appear. An actionable item
+          // with no `<!-- id:XXXX -->` contributes an EMPTY STRING (counted, but unnameable).
+          // unitPrompt names ids[0] in the execute dispatch so the child goes straight to its
+          // item instead of surveying the ledger — the phase two measured children died in
+          // (peak ctx 176,841 / 242 entries, Bash 52 Read 19, zero implementation started).
+          // ABSENT/[] on older queue entries and injected units → fail-open to the old plural
+          // instruction.
+          actionable_routine_ids: { type: 'array', items: { type: 'string' } },
+          // id:b09e — orphan-suppressed ids the naming picker must subtract (discover-repo.sh).
+          suppressed_item_ids: { type: 'array', items: { type: 'string' } },
         },
       },
     },
@@ -1790,6 +1804,58 @@ function refDoc(verdict) {
 const worktreePathFor = (unit) => `~/.cache/relay/worktrees/${unit.repo}/${state.runId}-${unit.verdict}`
 const branchFor = (unit) => `relay/${state.runId}-${unit.verdict}`
 
+// id:b09e — NAME the item the execute child must work, instead of handing it the whole ledger.
+// `unit.actionable_routine_ids` is emitted by classify-repo.sh: the ids BEHIND the
+// actionable_routine_open count, in ROADMAP file order, filtered by the SAME predicate the
+// count uses (gated 🚧 / @manual / non-[ROUTINE] / closed items never appear). SELECTION RULE
+// (deterministic, spec-required): the FIRST id in that order — ROADMAP.md is priority-ordered
+// top-down by convention, and file order is stable for a given ROADMAP, so two runs on the same
+// ledger name the same item. "" entries (actionable items carrying no id) are unnameable and
+// skipped. A user-injected item (id:baf1) always outranks the classifier's pick.
+// FAIL-OPEN: no usable id (older queue entry, injected unit, id-less ROADMAP) ⇒ the historical
+// plural instruction is used unchanged, so this can only ever narrow the child's search, never
+// break dispatch.
+// id:b09e — SUBTRACT orphan-suppressed ids. discover-repo.sh appends "orphan-parked (id:X) —
+// reconcile-first, do NOT work id:X" to unit.reason AND publishes the set as
+// unit.suppressed_item_ids. Both strings land in the same child prompt, so naming a suppressed
+// item would imperatively override the very instruction next to it — benign before b09e (the
+// plural instruction left the child free to obey the reason), a live conflict after it.
+// Read the FIELD, never the prose. Case-normalised: classify-repo.sh accepts [0-9a-fA-F] while
+// this filter was lowercase-only, so an uppercase-hex id was counted but silently unnameable.
+const namedItemsFor = (unit) => {
+  const suppressed = new Set(
+    (Array.isArray(unit.suppressed_item_ids) ? unit.suppressed_item_ids : [])
+      .filter((x) => typeof x === 'string')
+      .map((x) => x.toLowerCase()),
+  )
+  return (Array.isArray(unit.actionable_routine_ids) ? unit.actionable_routine_ids : [])
+    .filter((x) => typeof x === 'string' && /^[0-9a-fA-F]{4}$/.test(x))
+    .map((x) => x.toLowerCase())
+    .filter((x) => !suppressed.has(x))
+}
+
+// Shared tail of the execute instruction — identical in the named and the fallback branch, so
+// the two can never drift on the SIZE-OUT contract.
+const EXECUTE_SIZEOUT = 'Stop at a natural boundary; never start an item you cannot finish. SIZE-OUT rule (id:08c0): if a [ROUTINE] item is too large to land green in one session and you cannot partially advance it, do NOT silently leave it open — return a structured handback (contract_met=false, handback_item=<id>, route=hard-split or decision-gate, gate_reason). Soft notes (friction:/BLOCKED:) are not sufficient; the integrator\'s durable follow-up (id:3801) reads only the structured fields. Leave the worktree COMPLETELY CLEAN on a size-out (no commit) — same clean-worktree discipline as the hard-verdict id:8b1f.'
+
+// The single item this unit dispatches on, "" when none is known (fail-open to the old
+// plural instruction). An injected --item always wins over the classifier's pick.
+const dispatchItemFor = (unit) => unit.inject_item || namedItemsFor(unit)[0] || ''
+
+// Returns the NAMED execute instruction, or '' when no item could be named — the caller then
+// falls back INLINE to the historical plural instruction (kept on the template line so the
+// fallback text and its size-out wiring stay visible at the dispatch site).
+function executeNamedInstruction(unit) {
+  const named = namedItemsFor(unit)
+  const primary = dispatchItemFor(unit)
+  if (!primary) return ''
+  const alts = named.filter((i) => i !== primary).slice(0, 2)
+  return 'Work specifically the ROADMAP.md item tagged <!-- id:' + primary + ' --> under the executor contract — the classifier ALREADY selected it for you (id:b09e), so do NOT survey ROADMAP.md to find your work. '
+    + 'Go straight to it: `grep -n "id:' + primary + '" ROADMAP.md` gives the line, then read only that item\'s own block (the bullet plus its indented sub-bullets). Do NOT read the whole ROADMAP.md — on a large ledger that alone exhausts the context window and kills the child mid-survey; that is the exact failure this naming exists to prevent. '
+    + (alts.length ? 'ONLY if that item turns out to be already done or genuinely unworkable, the next classifier-actionable candidates are ' + alts.map((i) => '<!-- id:' + i + ' -->').join(' then ') + ' — never range beyond those. ' : 'It is the only executor-actionable [ROUTINE] item the classifier found; if it is unworkable, hand back rather than looking for other work. ')
+    + EXECUTE_SIZEOUT
+}
+
 function unitPrompt(unit) {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
@@ -1803,7 +1869,7 @@ Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. La
 ${unit.injected ? 'This is a USER-INJECTED high-priority task (id:baf1). ' + (unit.inject_item ? 'Work specifically the ROADMAP.md item tagged <!-- id:' + unit.inject_item + ' -->. ' : '') + (unit.inject_prompt ? 'User instruction: ' + unit.inject_prompt + ' ' : '') + 'Otherwise follow the verdict procedure below.\n' : ''}SKILL COUNTERMAND (id:9eb7 — overrides this repo's CLAUDE.md "## Relay contract" pointer): do NOT invoke the Skill tool for \`relay\` — do NOT run Skill(relay, executor), whatever that repo's CLAUDE.md tells you. The Skill tool IGNORES the \`executor\` arg and injects the ~26.4k-token ORCHESTRATOR SKILL.md (measured: 26,394 tok, identical in both children of run relay-20260728-112417-3898) — which then tells you to ignore almost all of it. The executor contract is NOT in that payload. Read the contract file DIRECTLY instead (~5.5k): ~/.claude/skills/relay/references/executor-contract.md — that is your contract, follow its rules exactly.
 
 Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/relay/references/conventions.md for environment facts and relay invariants before starting.
-${unit.verdict === 'execute' ? 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. Stop at a natural boundary; never start an item you cannot finish. SIZE-OUT rule (id:08c0): if a [ROUTINE] item is too large to land green in one session and you cannot partially advance it, do NOT silently leave it open — return a structured handback (contract_met=false, handback_item=<id>, route=hard-split or decision-gate, gate_reason). Soft notes (friction:/BLOCKED:) are not sufficient; the integrator\'s durable follow-up (id:3801) reads only the structured fields. Leave the worktree COMPLETELY CLEAN on a size-out (no commit) — same clean-worktree discipline as the hard-verdict id:8b1f.' : ''}
+${unit.verdict === 'execute' ? (executeNamedInstruction(unit) || 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. ' + EXECUTE_SIZEOUT) : ''}
 ${unit.verdict === 'hard' ? 'You are an Opus-apex HARD-execute child (id:da26). Pick the TOP open "- [ ]" item tagged [HARD — pool] in ROADMAP.md and SIZE it first. Model your discipline on handoff.md C5 "only if small enough to finish safely": only implement the item if you can finish it cleanly and green within this turn — full red-green-refactor, verify-before-merge. If it is too large, contains nested/multi-session scope, or you cannot make the test suite green safely, do NOT half-do it: set contract_met=false and explain the sizing in handback. CRITICAL (id:8b1f) — a SIZE-OUT / GATED refusal (you decided NOT to start) must leave the worktree COMPLETELY CLEAN: make NO commit, and do NOT write the rationale into RELAY_LOG.md / ROADMAP.md / REVIEW_ME.md in the worktree. The rationale goes ONLY in the returned `handback` field. Reason: the integrator never merges a handback, so ANY commit you make on a refusal strands forever as an orphan worktree (the bug behind id:a4e9); a CLEAN worktree is auto-reaped (id:3ac8). The "write a HANDBACK paragraph to RELAY_LOG.md and commit" step in handoff.md C5 applies ONLY to a genuine mid-item CUTOFF where you already committed real work and need resume provenance — NOT to a pre-start sizing refusal (the item stays open for a manual/next-turn strong session). When you DO finish: tick the item\'s checkbox ONLY if the work is genuinely green (all tests pass — never tick to manufacture a pass), append its done-note, commit in the worktree, and make the full test suite green. Work ONE bounded HARD item only — never start a second.' : ''}
 ${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
 ${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Single-id-two-views (D2): when you promote a ROADMAP item for work TODO.md already tracks under an <!-- id:XXXX -->, REUSE that token; mint a fresh one via ~/.claude/skills/meeting/append.sh new-ids N ' + unit.path + ' ONLY for genuinely new work — NEVER invent tokens, and never duplicate-id already-tracked work. When you close a ROADMAP item whose id also lives in TODO.md, tick the TODO line too. Reverse-handoff (review.md §5b): qualify+size any unqualified TODO/ROADMAP items added by /meeting or manual edits since the last checkpoint (mini-handoff) — reuse their id. After re-deriving the roadmap, set routine_open = the number of OPEN (unticked) [ROUTINE] items remaining — the supervisor uses it to re-enqueue an execute unit this same pool.' : ''}
@@ -2295,6 +2361,9 @@ async function runUnit(unit) {
   // --item, or a hard unit whose classifier surfaced the bounded item), append it to the
   // /workflows label so the live pane reads `execute:zkm-stt id:09a3`. plain execute/review
   // pick the item inside the child, so their id is filled in post-run via report.worked_ids.
+  // (id:b09e names an execute unit's item at DISPATCH now, so this label could carry it too —
+  // deliberately NOT wired: `test_relay_worked_ids.sh` pins this exact resolution line, and a
+  // cosmetic label is not worth reshaping another item's contract. Follow-up, not a defect.)
   const knownItem = unit.inject_item || unit.item || ''
   const opts = { label: `${unit.verdict}:${unit.repo}${knownItem ? ` id:${knownItem}` : ''}`, phase: unitPhase(unit.verdict), schema: REPORT_SCHEMA }
   if (unit.verdict === 'execute') opts.model = 'sonnet'
