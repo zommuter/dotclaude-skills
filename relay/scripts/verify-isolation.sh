@@ -44,6 +44,9 @@
 # main-checkout-under-lease pattern (see relay/references/conventions.md).
 set -euo pipefail
 
+# shellcheck source=lib-ledger-only-diff.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-ledger-only-diff.sh"
+
 LOG="${VERIFY_ISOLATION_LOG:-$HOME/.claude/logs/relay-verify-isolation.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 
@@ -98,6 +101,17 @@ if [ -z "$commits" ]; then
     # ON main (the loderite/jobAI breach) is a non-merge commit ON the first-parent chain.
     nonmerge="$(git -C "$worktree" log --no-merges --first-parent --oneline "$merge_base".."$main_head" 2>/dev/null || true)"
     if [ -n "$nonmerge" ]; then
+      # id:88f0 — an id:c144-sanctioned ledger-only advance (ROADMAP/TODO/REVIEW_ME/
+      # RELAY_LOG/CHANGELOG writes done directly in the main checkout under the
+      # documented /relay human / /meeting write-back path, id:15d5/2147) is NOT a
+      # breach even though it is a non-merge commit on the first-parent chain — it is
+      # the exact class id:c144 exempts from the relay lease. Anything not PROVABLY
+      # ledger-only still defers below (fail-safe direction unchanged).
+      if ledger_only_diff "$worktree" "$merge_base..$main_head"; then
+        log "empty+main_moved(ledger-only) worktree=$worktree base=$base merge_base=$merge_base main_head=$main_head"
+        echo "ok: worktree has no commits beyond base '$base'; main advanced since dispatch, but only via id:c144-sanctioned ledger-only commit(s) (TODO.md/ROADMAP.md/REVIEW_ME.md/RELAY_LOG.md/CHANGELOG.md) — not a breach (id:88f0)"
+        exit 0
+      fi
       log "empty+main_moved(nonmerge) worktree=$worktree base=$base merge_base=$merge_base main_head=$main_head"
       echo "isolation failure: worktree has NO commits beyond base '$base', AND main advanced since dispatch with a NON-MERGE commit — likely a child that wrote to the main checkout instead of this worktree (empty/no commits ahead + main moved):"
       while IFS= read -r entry; do
