@@ -1930,6 +1930,16 @@ async function integrate(unit, report) {
     })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: terminalFailReason })
     emittedHandbackEvents.push({ repo: unit.repo, reason: terminalFailReason })  // id:4a46 — invariant backstop
+    // id:e3b7 (in-sandbox half of id:61fa) — a null-report handback means the child died
+    // terminally (API error / context death) with NO report at all, which today produces NO
+    // durable ROADMAP action (unlike an item-level handback via handback-followup.py/id:3801).
+    // Without a stamp, the discovery signature cache can re-dispatch the SAME repo straight
+    // back into the identical death next round (observed: 2x same-day deaths on 2026-07-26).
+    // Reuse the SAME id:1432 negative cache + pure helper the route=none path already uses —
+    // applyNoWorkSuppression's existing pre-filter (and its existing RELAY_STATUS "Blocked"
+    // surfacing via `surfaced.push`) then suppresses the re-dispatch for free, clearing only
+    // when the repo's work_sig genuinely changes (e.g. its ROADMAP shrinks).
+    recordNoWorkHandback(noWorkNegCache, unit.repo, unit.verdict, unit.work_sig || '')
     scheduleStatusWrite(state)
     return
   }
