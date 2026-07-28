@@ -3569,3 +3569,7 @@ item's ROADMAP close note with the tested evidence, unblocked by the same id:a05
 decision as id:d4ca.
 Friction: none — bounded read-and-classify, no code changed, full suite reconfirmed green (310/0).
 refactor: none needed — no code changed, audit-only item.
+
+## 2026-07-28 12:14 — executor (sonnet, relay-loop)
+
+Audited handback-followup/gaming-log haiku hops (id:4f10): both verdict (iii), trapped-behind-payload same class as id:d4ca; recorded, not converted; suite 310/0. [id:4f10]
