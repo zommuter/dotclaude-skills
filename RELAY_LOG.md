@@ -3531,3 +3531,9 @@ Reverse-handoff (§5b): four open ledger lines added this window, none force-pro
 ## 2026-07-28 11:20 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:18e2 quota-gate deadlock fix verified GENUINE GREEN (no gaming, resurrection-check clean, suite 309/0); 7142/bf19 reverse-handoff left in TODO; routine_open=0 [id:18e2]
+
+## 2026-07-28 — executor (claude-sonnet-5)
+
+Worked id:f475 — arg-guard fix: `nearest_escalate_flag` in `relay/scripts/validate-flags.sh` now also near-miss-escalates `SCOPE_FLAGS` (`--exclude`/`--only`/`--priority`), with a length-scaled edit-distance threshold (min 2, else `len/2`) since `--except`→`--exclude` measures distance 4, not the 2 the item text first estimated. Separately (and independently of the widened escalation set), ANY dropped unknown flag now also drops a following non-dash token as its presumed value, so a dropped flag's value can never leak through as a bare positional that silently inverts the run's scope (the live `--except <repo>` → `--only <repo>` defect). `tests/test_unknown_switch_guard.sh` (roadmap:f475, extending the existing roadmap:7681 spec) gained 3 new cases; confirmed RED before the fix, GREEN after. Full suite 309/0.
+Friction: none — the item's own claimed edit-distance (2) for `--except`/`--exclude` was factually wrong (measured 4), which needed a length-scaled threshold rather than a flat bump, to avoid loosening the mode-flag near-miss window too.
+refactor: none needed — the change is a targeted loop restructure (index-based lookahead) plus a threshold formula tweak; no new duplication introduced.

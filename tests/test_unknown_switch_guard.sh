@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# roadmap:7681 — Unknown skill switches must WARN, not silently become subject/args.
+# roadmap:f475 — Arg-guard: dropping an unknown flag must not leak a bare
+# positional that inverts the run's scope (id:f475 additions below, §9-§10).
+# Original spec: roadmap:7681 — Unknown skill switches must WARN, not silently become subject/args.
 # RED spec (handoff C3) for the shared arg-guard: relay/scripts/validate-flags.sh
 # + per-skill known-flags manifests, wired into /meeting and /relay setup.
 #
@@ -160,6 +162,48 @@ grep -q "validate-flags.sh" "$MEETING_SKILL" \
 grep -q "validate-flags.sh" "$RELAY_SKILL" \
   && pass "relay/SKILL.md wires validate-flags.sh into setup" \
   || fail "relay/SKILL.md must call validate-flags.sh at setup"
+
+# --- 9. id:f475(a): a near-miss of a SCOPE-changing flag (--except ~ --exclude)
+# must ESCALATE, not silently drop-and-leave the value as a bare positional that
+# inverts the run's scope (`--only`-by-positional is a supported form — id:7633).
+run_vf relay --except loderite
+if [[ "$RC" -ne 0 && "$RC" -ne 127 ]]; then
+  pass "near-miss --except (~--exclude, scope-changing) escalates"
+else
+  fail "near-miss of a scope-changing flag must ESCALATE with a non-zero exit, got rc=$RC"
+fi
+if [[ "$ERR" == *"--exclude"* ]]; then
+  pass "near-miss escalation names the suspected scope-flag (--exclude) on stderr"
+else
+  fail "near-miss escalation must name the suspected scope-flag --exclude, got: $ERR"
+fi
+if [[ "$OUT" != *"loderite"* ]]; then
+  pass "escalation path does not leak 'loderite' into the cleaned args"
+else
+  fail "'loderite' must not survive as a bare positional on the escalation path, got: $OUT"
+fi
+
+# --- 10. id:f475(b): dropping a FAR (non-near-miss) unknown flag must also drop a
+# following non-dash token — it must NOT survive as a leaked bare positional.
+run_vf relay --qzqzqz loderite
+if [[ "$RC" -eq 0 ]]; then
+  pass "far unknown flag --qzqzqz still warns-and-drops (exit 0)"
+else
+  fail "far unknown flag must warn-and-drop (exit 0), got rc=$RC"
+fi
+if [[ "$OUT" != *"loderite"* ]]; then
+  pass "the token following a dropped far-unknown flag is also dropped, not leaked as a positional"
+else
+  fail "a token following a dropped unknown flag must not leak as a bare positional, got: $OUT"
+fi
+
+# --- 11. id:f475(c): a genuine bare positional (no preceding unknown flag) is untouched
+run_vf relay zkm
+if [[ "$RC" -eq 0 && "$OUT" == *"zkm"* && "$ERR" != *[Ww]arn* ]]; then
+  pass "a genuine bare positional (/relay zkm) passes through unchanged"
+else
+  fail "a genuine bare positional must pass through unchanged with no warning (rc=$RC out=$OUT err=$ERR)"
+fi
 
 # --- summary -------------------------------------------------------------------
 if [[ "$fails" -eq 0 ]]; then
