@@ -3551,3 +3551,21 @@ refactor: none needed — the split is the item's own scope; no new duplication 
 ## 2026-07-28 12:06 — executor (sonnet, relay-loop)
 
 Mechanized the release: hop (id:f7d3) — releaseLease() now issues one model:'bash' fence per command (claim/resource/heartbeat) instead of one Haiku call over an &&-bundled prompt that could never pass the mechanical-proxy's single-fence gate; suite 310/0. [id:f7d3]
+
+## 2026-07-28 — executor (sonnet)
+
+Worked id:4f10 — audited the two remaining `model:'haiku'` relay-loop hops (`handback-followup`,
+`gaming-log`) for mechanization, per the item's read-and-classify done-check. Verdict for both,
+tested live against the actual `_command_allowed()` predicate rather than theorised: (iii) —
+mechanism trapped behind a payload the gate refuses, same class as id:d4ca. `handback-followup`'s
+script body IS pure mechanism and (once direct-exec'd + allowlisted) passes the gate for a plain
+payload, but its `--gate-reason`/`--split-json` args carry a strong child's free-text prose that
+can carry backticks/`$(` — the quote-blind scan refuses those unconditionally even when safely
+single-quoted (confirmed live: adding a backtick flips `_command_allowed()` False). `gaming-log`
+is worse structurally (its authored command uses `&&`, `$(dirname …)`, and `>>` — no single
+pipeline ending in a pinned script exists for it today) and its JSON payload embeds `gaming_flags`,
+free reviewer prose per `relay/references/review.md:367`. Neither converted; both recorded in the
+item's ROADMAP close note with the tested evidence, unblocked by the same id:a05c stdin-channel
+decision as id:d4ca.
+Friction: none — bounded read-and-classify, no code changed, full suite reconfirmed green (310/0).
+refactor: none needed — no code changed, audit-only item.
