@@ -102,3 +102,48 @@ export function isBlockedRound(r) {
 export function isDryRound(r) {
   return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0 && (r.workCreated || 0) === 0)
 }
+
+// classifyRepeatHandbacks(handbacks) (id:3906) — distinguishes a genuine BUG SIGNAL (the SAME
+// item handed back repeatedly for the same/incoherent reason) from QUEUE EXHAUSTION (DIFFERENT
+// items, DIFFERENT children, each citing a legitimate size-out/gate reason). id:1432's
+// `handbackAlerts` fires on any repo+verdict handed back >=2x this run and always labels it
+// "a bug signal" — but on a loderite run that fired because three INDEPENDENT executors each
+// surveyed the whole ROADMAP and correctly judged every remaining item unsafe to land in one
+// session (route in {hard-split, decision-gate, human}), which is the pool correctly reporting
+// the cheap work is done, not a bug. The two states are operationally OPPOSITE: "bug signal"
+// says investigate the machinery; "queue exhausted" says bring a human or re-spec the items.
+//
+// `handbacks` is an array of {repo, handback_item, route, child, gate_reason} — the structured
+// fields id:3801 already made mandatory, so this is a classification over existing data, not
+// new instrumentation. An item repeated (>=2 records sharing the same handback_item) OR handed
+// back with a non-legitimate `route` (missing/none/anything outside the size-out/gate set) is a
+// BUG item; every other item is a legitimate size-out and counts toward queue exhaustion.
+// Returns {kind: 'bug-signal'|'queue-exhausted'|'mixed', bugItems, exhaustedItems} — `mixed`
+// when both kinds are present, so a real alert is never silently swallowed by an exhaustion
+// verdict (or vice versa). Pure (no I/O); relay-loop.js (Workflow sandbox, no `import`) carries
+// a BYTE-IDENTICAL inline copy — keep the two in sync (the isDryRound/isBlockedRound precedent).
+const REPEAT_HANDBACK_LEGIT_ROUTES = ['hard-split', 'decision-gate', 'human']
+export function classifyRepeatHandbacks(handbacks) {
+  const list = Array.isArray(handbacks) ? handbacks : []
+  const byItem = {}
+  for (const h of list) {
+    const item = (h && h.handback_item) ? String(h.handback_item) : ''
+    ;(byItem[item] || (byItem[item] = [])).push(h || {})
+  }
+  const bugItems = [], exhaustedItems = []
+  for (const item of Object.keys(byItem)) {
+    const entries = byItem[item]
+    const routes = [...new Set(entries.map(e => (e && e.route) ? String(e.route) : 'none'))]
+    const allLegit = routes.every(r => REPEAT_HANDBACK_LEGIT_ROUTES.includes(r))
+    const lastReason = (entries[entries.length - 1] || {}).gate_reason || ''
+    if (entries.length >= 2 || !allLegit) {
+      bugItems.push({ item, count: entries.length, routes, lastReason })
+    } else {
+      exhaustedItems.push({ item, count: entries.length, routes })
+    }
+  }
+  const kind = (bugItems.length && exhaustedItems.length) ? 'mixed'
+    : bugItems.length ? 'bug-signal'
+    : 'queue-exhausted'
+  return { kind, bugItems, exhaustedItems }
+}

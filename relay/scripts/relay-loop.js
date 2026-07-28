@@ -858,6 +858,11 @@ const redispatchGuard = {}
 //     counter; a repo+verdict at >=2 surfaces as a LOUD ALERT (a repeating handback is a bug signal).
 const noWorkNegCache = {}
 const handbackTracker = {}
+// id:3906 — per-run accumulator of the STRUCTURED handback fields (handback_item/route/
+// gate_reason, mandatory since id:3801) so the exit-summary alert can tell a genuine bug signal
+// (same item, repeatedly) from queue exhaustion (different items, each a legitimate size-out/
+// gate) instead of always calling every >=2x repeat "a bug signal". Fed to classifyRepeatHandbacks.
+const handbackClassifyLog = []
 // id:1432 — inline copies of handback-guard.mjs (keep byte-equivalent; structural test pins it).
 function recordNoWorkHandback(negCache, repo, verdict, sig) {
   negCache[`${repo}:${verdict}`] = { sig: sig || '' }
@@ -893,6 +898,32 @@ function handbackAlerts(tracker, threshold = 2) {
     .filter(e => e.count >= threshold)
     .sort((a, b) => b.count - a.count || a.repo.localeCompare(b.repo) || a.verdict.localeCompare(b.verdict))
     .map(e => ({ repo: e.repo, verdict: e.verdict, count: e.count, lastReason: e.lastReason }))
+}
+// id:3906 — inline copy of drain.mjs's classifyRepeatHandbacks (keep byte-identical).
+const REPEAT_HANDBACK_LEGIT_ROUTES = ['hard-split', 'decision-gate', 'human']
+function classifyRepeatHandbacks(handbacks) {
+  const list = Array.isArray(handbacks) ? handbacks : []
+  const byItem = {}
+  for (const h of list) {
+    const item = (h && h.handback_item) ? String(h.handback_item) : ''
+    ;(byItem[item] || (byItem[item] = [])).push(h || {})
+  }
+  const bugItems = [], exhaustedItems = []
+  for (const item of Object.keys(byItem)) {
+    const entries = byItem[item]
+    const routes = [...new Set(entries.map(e => (e && e.route) ? String(e.route) : 'none'))]
+    const allLegit = routes.every(r => REPEAT_HANDBACK_LEGIT_ROUTES.includes(r))
+    const lastReason = (entries[entries.length - 1] || {}).gate_reason || ''
+    if (entries.length >= 2 || !allLegit) {
+      bugItems.push({ item, count: entries.length, routes, lastReason })
+    } else {
+      exhaustedItems.push({ item, count: entries.length, routes })
+    }
+  }
+  const kind = (bugItems.length && exhaustedItems.length) ? 'mixed'
+    : bugItems.length ? 'bug-signal'
+    : 'queue-exhausted'
+  return { kind, bugItems, exhaustedItems }
 }
 // id:1735 — persistent record of every `pushEvent('handback', …)` emitted this run (repo +
 // reason only — pendingEvents itself gets drained/flushed by snapshotState, so it cannot be
@@ -1960,6 +1991,16 @@ async function integrate(unit, report) {
     // at >=2 surfaces as an ALERT in the exit summary + RELAY_STATUS (a repeating handback is a
     // bug signal, not noise).
     trackHandback(handbackTracker, unit.repo, unit.verdict, hbReason)
+    // id:3906 — record the STRUCTURED fields alongside the tracker's aggregate count, so the
+    // exit summary can classify a repeat as a bug signal vs. legitimate queue exhaustion instead
+    // of always alarming.
+    handbackClassifyLog.push({
+      repo: unit.repo,
+      handback_item: report.handback_item || '',
+      route: report.route || 'none',
+      child: `${unit.repo}:${unit.verdict}:${round}`,
+      gate_reason: report.gate_reason || '',
+    })
     // id:1432 (a) — dispatch-level suppression: a WHOLE-DISPATCH "no executor-actionable work"
     // handback (route missing/none — it produces no durable ROADMAP action from id:3801) stamps
     // a negative cache keyed on the unit's work_sig, so discovery does NOT re-dispatch the same
@@ -2578,12 +2619,20 @@ if (!handbackInvariant.ok) {
   log(`relay-loop: INVARIANT VIOLATED (id:1735/id:4a46) — ${handbackInvariant.violations.length} handback event/accumulator mismatch(es) this run (forward: emitted with no accumulator entry; reverse: real handback with no emitted event): ${JSON.stringify(handbackInvariant.violations)}`)
 }
 const handbacks = reconcileHandbacks(state.handbacks)
-// id:1432 — LOUD exit-summary surfacing: any repo+verdict that handed back >=2× this run is a
-// bug signal (a looping false/stale verdict). Log it prominently so an --afk operator sees it.
+// id:1432 — LOUD exit-summary surfacing: any repo+verdict that handed back >=2× this run gets
+// flagged. id:3906 — but NOT always as "a bug signal": classify first, since three independent
+// executors each correctly sizing-out a different item (route in {hard-split, decision-gate,
+// human}) is the pool reporting the cheap work is DONE, not a bug — the two readings are
+// operationally opposite and mislabelling sends the operator to debug a healthy pool.
 const repeatHandbacks = handbackAlerts(handbackTracker, 2)
+const repeatHandbackClassification = classifyRepeatHandbacks(handbackClassifyLog)
 log(`relay-loop: done — ${round} round(s), ${state.completed.length} integrated, ${handbacks.length} HANDBACKs, quotaStopped=${quotaStopped}`)
 if (repeatHandbacks.length) {
-  log(`relay-loop: id:1432 ⚠️ REPEAT-HANDBACK ALERT — ${repeatHandbacks.length} repo/verdict(s) handed back >=2× this run (bug signal, investigate): ${repeatHandbacks.map(a => `${a.repo}(${a.verdict})×${a.count}`).join(', ')}`)
+  const kind = repeatHandbackClassification.kind
+  const label = kind === 'bug-signal' ? 'BUG SIGNAL, investigate'
+    : kind === 'queue-exhausted' ? 'QUEUE EXHAUSTED — bring a human or re-spec the items, machinery is fine'
+    : 'MIXED — some items need a human/re-spec, at least one repeat is a real bug signal'
+  log(`relay-loop: id:3906/id:1432 ⚠️ REPEAT-HANDBACK ALERT (${label}) — ${repeatHandbacks.length} repo/verdict(s) handed back >=2× this run: ${repeatHandbacks.map(a => `${a.repo}(${a.verdict})×${a.count}`).join(', ')}`)
 }
 
 return {
@@ -2593,6 +2642,7 @@ return {
   handbacks,
   handbackInvariantViolations: handbackInvariant.violations,  // id:1735 — [] unless the invariant tripped
   repeatHandbacks,  // id:1432 — [{repo, verdict, count, lastReason}] for >=2× handbacks this run
+  repeatHandbackKind: repeatHandbacks.length ? repeatHandbackClassification.kind : null,  // id:3906 — 'bug-signal'|'queue-exhausted'|'mixed'|null
   queuedRemaining: state.queued,
   quotaStopped,
   stopReason,  // id:8c35 — category: null | "quota-cache-unreadable" | "quota-extrapolated-stop[:<bucket>]" (id:0175/82e3) | "quota-exhausted:<bucket>" | "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
