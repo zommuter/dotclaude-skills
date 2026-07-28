@@ -286,6 +286,50 @@ section_has_tagged_child() {
   return 1
 }
 
+# item_body_end <start-index> — index of the line AFTER the last body line for the
+# item beginning at <start-index> (its own top-level checkbox line): the next
+# top-level checkbox (`- [ ]`/`- [x]`) OR the next `## `/`### ` heading, whichever
+# comes first, or EOF (id:213a).
+item_body_end() {
+  local start="$1" k _bl
+  for ((k = start + 1; k < ${#_rl_lines[@]}; k++)); do
+    _bl="${_rl_lines[$k]}"
+    if [[ "$_bl" =~ ^##+[[:space:]] ]] || [[ "$_bl" =~ ^-[[:space:]]\[[[:space:]xX]\][[:space:]] ]]; then
+      printf '%d' "$k"; return
+    fi
+  done
+  printf '%d' "${#_rl_lines[@]}"
+}
+
+# item_has_body_clause <start-index> <end-index> — TRUE when the item's body (the
+# half-open span [start,end)) mentions an Acceptance/Tests/Done-check clause as a
+# bold heading. Tolerant of a QUALIFIER after the word before the closing `**`
+# (e.g. `**Done-check (when built)**`, the real shape of id:89bb/8a5c) — matches
+# on the bold-open + word, not the exact closing bold marker (id:213a).
+item_has_body_clause() {
+  local start="$1" end="$2" k _bl
+  for ((k = start; k < end; k++)); do
+    _bl="${_rl_lines[$k]}"
+    if [[ "$_bl" =~ \*\*(Acceptance|Tests|Done-check)[^*]*\*\* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# has_todo_twin <id-token> <roadmap-path> — TRUE when the item's own id token
+# (e.g. "id:XXXX") also appears anywhere in the sibling TODO.md or
+# TODO.archive.md (single-id-two-views: a mirrored design-ledger entry means the
+# item IS tracked even with no inline Acceptance/Tests/Done-check block, id:213a).
+has_todo_twin() {
+  local idtok="$1" roadmap_path="$2" dir
+  [[ -z "$idtok" ]] && return 1
+  dir="$(dirname "$roadmap_path")"
+  grep -qF -- "$idtok" "$dir/TODO.md" 2>/dev/null && return 0
+  grep -qF -- "$idtok" "$dir/TODO.archive.md" 2>/dev/null && return 0
+  return 1
+}
+
 for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   line="${_rl_lines[$_rl_i]}"
   # Track the active/exempt section from headings.
@@ -383,6 +427,24 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
     echo "roadmap-lint: ${_dr_label_ii} — DECIDED-LEFT-OPEN (comment-only close): open item ${_do_id2:-<no id>} carries a close ONLY in an HTML comment while the checkbox and visible text still say open — close it for real or drop the comment marker" >&2
     echo "  $line" >&2
     [[ "$strict" -eq 1 && "$_dr_label_ii" != "WARN (baselined id:cb3e)" ]] && violations=$((violations + 1))
+  fi
+
+  # Rule 3(c) NO-ACCEPTANCE-NO-TWIN (id:213a): an OPEN item with NO Acceptance/
+  # Tests/Done-check clause in its own body AND no mirrored twin in TODO.md /
+  # TODO.archive.md is structurally un-workable — nothing tells an executor what
+  # "done" means, and nothing else tracks it. ALL LANES (owner 2026-07-26: the
+  # twin-check alone discriminates on real data — 10 of 13 acceptance-less items
+  # examined were legit HARD items carrying a twin). WARN by default, ERROR under
+  # --strict — a past-triage pattern mechanized, same shape as 3(a)/3(b), not a
+  # positive-grammar clause that always fails.
+  _nc_end="$(item_body_end "$_rl_i")"
+  if ! item_has_body_clause $((_rl_i + 1)) "$_nc_end"; then
+    _nc_id="$(item_id "$line")"
+    if ! has_todo_twin "$_nc_id" "$roadmap"; then
+      echo "roadmap-lint: ${_dr_label} — NO-ACCEPTANCE-NO-TWIN: open item ${_nc_id:-<no id>} has no Acceptance/Tests/Done-check clause in its body and no TODO.md/TODO.archive.md twin — structurally un-workable (id:213a)" >&2
+      echo "  $line" >&2
+      [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+    fi
   fi
 
   # --- semantic checks (case c / case d) — only when a recognised class tag is present -----

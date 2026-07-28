@@ -3650,3 +3650,27 @@ it forced; no new duplication introduced.
 ## 2026-07-28 14:04 — executor (sonnet, relay-loop)
 
 executor: id:6f1c — taught executor contract symbol-level exploration (Grep/Glob/LSP + no-redundant-reread rule), contract v10→v11, CLAUDE.md pointer refreshed, fixed a v10-hardcoded test broken by the bump; suite 313/0 [id:6f1c]
+
+## 2026-07-28 — executor (sonnet)
+
+Worked id:213a — added the NO-ACCEPTANCE-NO-TWIN doctrine rule (3c) to
+roadmap-lint.sh: an OPEN item with no Acceptance/Tests/Done-check clause in its
+own body AND no TODO.md/TODO.archive.md twin is now flagged (WARN by default,
+ERROR under --strict, same shape as the existing 3(a)/3(b) doctrine rules). New
+helpers `item_body_end`/`item_has_body_clause`/`has_todo_twin`; the body-clause
+match is deliberately tolerant of a QUALIFIED heading (`**Done-check (when
+built)**`, the real id:89bb/8a5c shape) per the item's own false-positive guard.
+New RED spec `tests/test_roadmap_lint_acceptance_213a.sh` (roadmap:213a).
+Friction: the new rule's blast radius was much larger than the item anticipated
+— it fires on almost every minimal one-line ROADMAP fixture used elsewhere in
+this repo's OWN test suite (they lack body clauses and TODO twins by
+construction), breaking 5 unrelated roadmap-lint/state-claim tests
+(test_roadmap_lint.sh, test_roadmap_lint_doctrine.sh,
+test_roadmap_lint_tag_first.sh, test_state_claim_baseline_cb3e.sh,
+test_contradiction_predicate_5533.sh). Fixed by adding a sibling TODO.md twin
+stub to each affected fixture (satisfying the new rule without touching any
+existing assertion) rather than weakening a test. Full suite green: 314/0 (one
+transient flake on a re-run, test_relay_loop_all_builders_exec.sh, confirmed
+unrelated and non-reproducing on a clean re-run).
+refactor: none needed — new rule follows the existing doctrine-rule pattern
+(3a/3b) exactly; no duplication introduced.

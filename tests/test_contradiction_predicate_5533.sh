@@ -65,6 +65,20 @@ pass "a clean open item fires nothing"
 grep -q 'lib-state-claim.sh' "$LINT" || fail "roadmap-lint.sh does not source lib-state-claim.sh"
 pass "roadmap-lint.sh sources the shared engine"
 
+# A sibling TODO.md twin (id:213a's separate NO-ACCEPTANCE-NO-TWIN doctrine rule)
+# for the e00X ids below — none carry an inline Acceptance/Tests/Done-check
+# clause, and this file's concern is the state-claim predicate only, so the twin
+# keeps id:213a's rule out of the "must not fire" assertions here. Overwritten
+# below by the todo-conformance TODO fixture (same ids), after this lint check
+# has already run.
+cat >"$tmp/TODO.md" <<'MD'
+# TODO
+- [ ] twin stub <!-- id:e001 -->
+- [ ] twin stub <!-- id:e002 -->
+- [ ] twin stub <!-- id:e003 -->
+- [ ] twin stub <!-- id:e004 -->
+MD
+
 R="$tmp/ROADMAP.md"
 cat >"$R" <<'MD'
 # Roadmap
