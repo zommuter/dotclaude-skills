@@ -2148,17 +2148,31 @@ Confirm it succeeded.`,
 // NEVER call it when this run is about to RE-CHAIN the same repo (a review→execute re-enqueue
 // re-acquires the same lease re-entrantly): releasing in that window would open a steal gap
 // for another run between this release and the re-chain's re-acquire — so the caller guards.
+//
+// id:f7d3 — MECHANIZED: this used to be a single Haiku call running two (or three, with the
+// intensive branch) `&&`-joined commands. `mechanical-proxy.py`'s `_command_allowed()` refuses
+// any unquoted sequence operator (`;`, `&&`, newline — see `_has_unquoted_sequence_operator`),
+// so that bundled prompt could never pass the `model:'bash'` gate as one fence: a refused
+// command fails OPEN to the real model, and `"bash"` is not a real model (the id:6b35
+// fail-CLOSED hazard — this would 404 every release). Splitting into one dispatch per fenced
+// command (mirrors id:86a2/24ec's single-fence pattern) lets each pass the gate as-is:
+// `claim.sh` and `heartbeat.sh` are both already in `ALLOWED_RELAY_SCRIPTS`, and each fence here
+// is a clean single-stage pipeline leading with one of them. Each `.catch()` stays independently
+// non-fatal — a failed release/beat must never fail the unit; the claim TTL / next heartbeat
+// backstops it either way.
 async function releaseLease(unit) {
-  const resourceRelease = unit.intensive
-    ? ` && ~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}`
-    : ''
-  await agent(
-    `Run exactly these two commands and report whether they exited 0 (the relay child for ${unit.repo} has settled; free its cross-session lease so other sessions aren't blocked for the TTL, and refresh the run-liveness heartbeat — id:e149 — so the outage watchdog knows the pool made progress this unit):
-  ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}${resourceRelease}
-  ~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}
-The release is run-scoped (a no-op if this run no longer holds the claim) and idempotent; the beat is best-effort. Report the exit codes.`,
-    { label: `release:${unit.repo}`, phase: 'Leases', model: 'haiku' }
-  ).catch(err => log(`relay-loop: per-unit lease release/beat failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
+  const dispatch = (label, cmd) =>
+    agent(
+      `Run exactly this one command and report whether it exited 0:\n` +
+      '```relay-mech\n' + cmd + '\n```',
+      { label: `release:${unit.repo}:${label}`, phase: 'Leases', model: 'bash' }
+    ).catch(err => log(`relay-loop: per-unit ${label} failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
+
+  await dispatch('claim', `~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}`)
+  if (unit.intensive) {
+    await dispatch('resource', `~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}`)
+  }
+  await dispatch('heartbeat', `~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}`)
 }
 
 async function runUnit(unit) {
