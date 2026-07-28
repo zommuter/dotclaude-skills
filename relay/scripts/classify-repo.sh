@@ -7,7 +7,10 @@
 #   1. Running gather-repo-state.sh --repo --path   → base JSON fields
 #   2. Deriving hasRoutine / roadmap_open / roadmap_actionable_open from <path>/ROADMAP.md
 #   3. Running unpromoted-scan.sh <path>            → unpromoted {promote, surface} counts
-#   4. Merging into one JSON object and piping to classify-verdict.sh → emit its output.
+#   4. Merging into one JSON object and piping to classify-verdict.sh → emit its output,
+#      plus (id:b09e) the two ROADMAP-derived passthrough fields `actionable_routine_open`
+#      and `actionable_routine_ids` (the 4-hex ids BEHIND that count, in ROADMAP file order,
+#      "" for an actionable item that carries no id). len(ids) == count, by construction.
 #
 # SIDE-EFFECT-FREE: reads state and runs the read-only helpers; never commits, writes a
 # ledger, or creates a tag. (Declared exception, id:82c4: when a relay-core shadow binary
@@ -114,6 +117,14 @@ has_routine = False
 roadmap_open = 0
 roadmap_actionable_open = 0
 actionable_routine_open = 0
+# id:b09e — the QUALIFYING item ids, not just the count. The dispatch prompt names ONE item so
+# the executor child never has to survey the whole ROADMAP to find its own work (the phase two
+# measured children died in). Every append below is paired 1:1 with what used to be a
+# `actionable_routine_open += 1`, and the count is DERIVED as len(...) after the loop — so the
+# count and the id list are STRUCTURALLY incapable of drifting apart. An actionable item that
+# carries no `<!-- id:XXXX -->` contributes an EMPTY STRING placeholder: it still counts (the
+# counting semantics are byte-unchanged), it just cannot be named.
+actionable_routine_ids = []
 open_mechanical = 0
 surfaced_open = 0   # id:65f5 class 3: open executor-lane items carrying `⚠ SURFACED`
 
@@ -198,7 +209,7 @@ if os.path.isfile(rm):
                 # id:65f5 — also excludes a `⚠ SURFACED` (no-RED-spec) item, which routes to
                 # handoff via surfaced_open below, never execute.
                 if not is_human and not blocked and not is_surfaced and not in_exempt_section:
-                    actionable_routine_open += 1
+                    actionable_routine_ids.append(own_id)
                 if is_surfaced and not is_human and not in_exempt_section:
                     surfaced_open += 1
             elif has_wire and is_pool:
@@ -207,7 +218,7 @@ if os.path.isfile(rm):
                 # [ROUTINE]. Same @manual/blocked/exempt carve-outs as the routine branch,
                 # plus the id:65f5 SURFACED carve-out.
                 if not is_human and not blocked and not is_surfaced and not in_exempt_section:
-                    actionable_routine_open += 1
+                    actionable_routine_ids.append(own_id)
                 if is_surfaced and not is_human and not in_exempt_section:
                     surfaced_open += 1
             # id:65f5 — LOUD why-not-ready surfaces (collected, flushed to stderr after the loop).
@@ -223,6 +234,11 @@ if os.path.isfile(rm):
                     "but the marker may be stale; fix the edge".format(own_id, gate_dangling[own_id]))
             if (is_routine or is_pool) and not is_human and not in_exempt_section:
                 roadmap_actionable_open += 1
+
+# id:b09e — DERIVE the count from the id list so the two can never disagree (spec invariant 3:
+# len(actionable_routine_ids) == actionable_routine_open, always). This replaces the former
+# `actionable_routine_open += 1` counter; the accepted-item predicate above is untouched.
+actionable_routine_open = len(actionable_routine_ids)
 
 # --- Step 3: fold unpromoted-scan TSV counts ------------------------------
 promote = 0
@@ -241,6 +257,7 @@ base["hasRoutine"]              = has_routine
 base["roadmap_open"]            = roadmap_open
 base["roadmap_actionable_open"] = roadmap_actionable_open
 base["actionable_routine_open"] = actionable_routine_open
+base["actionable_routine_ids"]  = actionable_routine_ids   # id:b09e
 base["open_mechanical"]         = open_mechanical
 base["surfaced_open"]           = surfaced_open   # id:65f5 → classify-verdict handoff branch
 base["unpromoted"]              = {"promote": promote, "surface": surface}
@@ -309,8 +326,19 @@ if [[ -n "$shadow_bin" ]]; then
 fi
 
 if [[ "$emit_mode" != "unit" ]]; then
-  # Default mode: byte-unchanged classify-verdict output (regression guard).
-  cat "$blobdir/verdict.json"
+  # Default mode: the classify-verdict object PLUS the two id:b09e passthrough fields
+  # (`actionable_routine_open` + `actionable_routine_ids`) folded in at the top level.
+  #
+  # Why the fold happens HERE and not inside classify-verdict.sh: classify-verdict.sh is the
+  # surface the Lean `relay-core` strangler shadows byte-for-byte (id:82c4, the block above).
+  # The shadow compares `verdict.json` — the PURE verdict contract — so folding the ROADMAP-
+  # derived ids in AFTERWARDS leaves that parity surface untouched (a Lean binary that does not
+  # know the new fields still matches). The ids are a property of the ROADMAP parse this script
+  # owns, not of the verdict function. SIDE-EFFECT-FREE: a read + a jq merge, no writes.
+  jq -c --slurpfile a "$blobdir/assembled.json" \
+    '. + {actionable_routine_open: ($a[0].actionable_routine_open // 0),
+          actionable_routine_ids:  ($a[0].actionable_routine_ids  // [])}' \
+    "$blobdir/verdict.json"
   exit 0
 fi
 
@@ -379,6 +407,12 @@ unit = {
     # actionable_routine_open>0` (classify-verdict.sh:91 gates execute on it). Extra field is
     # schema-safe (DISCOVER_SCHEMA units allow additional properties); consumers ignore it.
     "actionable_routine_open": base.get("actionable_routine_open", 0),
+    # id:b09e — the ids BEHIND that count, in ROADMAP file order. relay-loop.js's unitPrompt
+    # names actionable_routine_ids[0] in the execute dispatch so the child goes straight to its
+    # item instead of surveying the ledger. Schema-safe extra field (additional properties
+    # allowed), same treatment as actionable_routine_open above. "" entries mark actionable
+    # items that carry no id (unnameable, but still counted).
+    "actionable_routine_ids": base.get("actionable_routine_ids", []),
     # id:7616 — [MECHANICAL] capability tier: schema-safe extra field (additional
     # properties allowed), same treatment as actionable_routine_open above. No daemon
     # consumer reads this yet (A3, gated) — it is passthrough plumbing only.
