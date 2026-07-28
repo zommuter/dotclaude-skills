@@ -3707,3 +3707,7 @@ tests/test_redispatch_suppression_e3b7.sh (roadmap:e3b7) added and ticked; full 
 Workflow-sandbox-has-no-fs-access architecture question.
 Friction: none — a small, well-scoped split-out item; the fix was a one-line addition reusing
 existing pure helpers, no new design needed.
+
+## 2026-07-28 15:18 — executor (sonnet, relay-loop)
+
+Closed id:e3b7 — null-report (context-death) handbacks now stamp the id:1432 noWorkNegCache too, so a dying repo can't re-dispatch straight back into the same death; RED spec added, full suite 317/0 green. [id:e3b7]
