@@ -18,6 +18,7 @@
 - executor: id:213a — roadmap-lint.sh gains NO-ACCEPTANCE-NO-TWIN doctrine rule (WARN/--strict-ERROR) flagging open items with no Acceptance/Tests/Done-check clause and no TODO twin; fixed 5 unrelated test fixtures broken by the new rule's blast radius; suite 314/0 (id:213a)
 - id:44a1 — id:3801's seam emitter now requires acceptance/done_check/file per hard-split seam, rendered as Acceptance/Done-check/Context sub-bullets; suite 315/0 (id:44a1)
 - Closed id:e3b7 — null-report (context-death) handbacks now stamp the id:1432 noWorkNegCache too, so a dying repo can't re-dispatch straight back into the same death; RED spec added, full suite 317/0 green. (id:e3b7)
+- Review clean: window = 1 id:61fa handback-followup ledger commit; gaming-scan clean, suite 317/0/0; reconciled 5 cross-ledger drifts, surfaced fable-config install gap; routine_open=0. (id:1af1,6f1c,77f3,213a,44a1,61fa)
 
 ## 2026-07-26
 
