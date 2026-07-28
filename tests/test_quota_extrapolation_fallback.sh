@@ -53,8 +53,13 @@ emit() {
 
 # run: cache MISSING, samples from $SAMPLES, live run (RELAY_RUN_ID set). Captures rc + stderr.
 ERRFILE="$tmp/err.txt"
+# RELAY_QUOTA_SAMPLES_FALLBACK is pinned EMPTY here (id:18e2): quota-stop.sh now falls
+# through to a secondary series when the primary is unusable/too old, and its default points
+# at the REAL systemd-sampler stream. Leaving it unset would make every case below read the
+# developer's live ~/src/claude-diary samples — non-hermetic, and (c2) would silently stop
+# testing the recency guard. Cases (f*) set it explicitly to exercise the fallback.
 run_extrap() {
-  RELAY_RUN_ID="test-run" RELAY_QUOTA_SAMPLES="$SAMPLES" \
+  RELAY_RUN_ID="test-run" RELAY_QUOTA_SAMPLES="$SAMPLES" RELAY_QUOTA_SAMPLES_FALLBACK="" \
     USAGE_CACHE="$MISSING_CACHE" USAGE_CREDS="$CREDS" \
     "$QS" --tier sonnet >/dev/null 2>"$ERRFILE"
   echo $?
@@ -137,4 +142,63 @@ grep -q "REASON=quota-extrapolated-stop bucket=seven_day" "$ERRFILE" \
   || fail "(e2) real gate must still fire on seven_day when sonnet is skipped; got: $(cat "$ERRFILE")"
 pass "(e2) id:c5ba — sonnet-skip is bucket-scoped: high seven_day still triggers exit 3"
 
-echo "ALL PASS: quota-stop extrapolation fallback (id:0175 / routed:82e3 / id:c5ba)"
+# ── (f) id:18e2 — BOOTSTRAP DEADLOCK: the primary series is written ONLY by a live relay run,
+#        so after a few idle hours it is ALWAYS past the recency bound. Combined with a stale
+#        /tmp cache that made the rescue path unreachable exactly when needed — and nothing
+#        could refill the primary, because refilling requires a run that got past this gate.
+#        Observed live 2026-07-28 (run relay-20260728-104330-9348): cache 2859s stale, last
+#        primary sample 138777s (38.5 h) old → exit 2, 0 units dispatched, 19 s wall.
+#        Fix: fall through to the SECONDARY series (systemd sampler, same schema, every 15 min
+#        regardless of relay activity). Here the primary is too old but the fallback is fresh.
+FALLBACK="$tmp/fallback.jsonl"
+run_extrap_fb() {
+  RELAY_RUN_ID="test-run" RELAY_QUOTA_SAMPLES="$SAMPLES" RELAY_QUOTA_SAMPLES_FALLBACK="$FALLBACK" \
+    USAGE_CACHE="$MISSING_CACHE" USAGE_CREDS="$CREDS" \
+    "$QS" --tier sonnet >/dev/null 2>"$ERRFILE"
+  echo $?
+}
+emit_to() { local f="$1"; shift; SAMPLES_SAVE="$SAMPLES"; SAMPLES="$f"; emit "$@"; SAMPLES="$SAMPLES_SAVE"; }
+
+: >"$SAMPLES"; : >"$FALLBACK"
+emit $((NOW-140000)) 10 30 40 1.0            # primary: 38.9 h ago — the live failure's shape
+emit $((NOW-138000)) 11 31 41 1.1            # primary: 38.3 h ago ⟹ past the 2h recency bound
+emit_to "$FALLBACK" $((NOW-3900)) 10 30 40 1.0   # fallback: 65 min ago
+emit_to "$FALLBACK" $((NOW-300))  11 31 41 1.1   # fallback: 5 min ago, low burn ⟹ under threshold
+rc="$(run_extrap_fb)"
+[[ "$rc" == "0" ]] || { cat "$ERRFILE"; fail "(f) stale primary + fresh fallback must PROCEED via fallback (exit 0), got $rc"; }
+grep -q "FALLBACK series" "$ERRFILE" \
+  || fail "(f) using the fallback must be logged loudly (never a silent source swap); got: $(cat "$ERRFILE")"
+grep -q "REASON=quota-extrapolated-proceed" "$ERRFILE" \
+  || fail "(f) fallback extrapolation must reach the normal proceed reason; got: $(cat "$ERRFILE")"
+pass "(f) id:18e2 — stale primary falls through to the fresh fallback series → proceeds (exit 0)"
+
+# ── (f2) the fallback must NOT weaken the gate: fresh fallback showing HIGH burn still STOPS
+#         (exit 3, the extrapolated-stop reason) — proving the fallback is a data SOURCE swap,
+#         not a bypass. Guards against "fix the deadlock by ignoring quota".
+: >"$SAMPLES"; : >"$FALLBACK"
+emit $((NOW-140000)) 10 30 40 1.0
+emit $((NOW-138000)) 11 31 41 1.1            # primary still too old
+emit_to "$FALLBACK" $((NOW-3900)) 12 33 70 2.0
+emit_to "$FALLBACK" $((NOW-300))  13 34 88 2.5   # fresh + high sonnet burn ⟹ must cross
+rc="$(run_extrap_fb)"
+[[ "$rc" == "3" ]] || { cat "$ERRFILE"; fail "(f2) fresh fallback with high burn must STOP (exit 3), got $rc"; }
+grep -q "REASON=quota-extrapolated-stop" "$ERRFILE" \
+  || fail "(f2) fallback must still be able to stop; got: $(cat "$ERRFILE")"
+pass "(f2) id:18e2 — the fallback is a source swap, not a bypass: high burn still stops (exit 3)"
+
+# ── (f3) BOTH series unusable → the fail-safe exit 2 still stands, and the log must name
+#         BOTH sources so the operator can see which inputs were missing (loud failure).
+: >"$SAMPLES"; : >"$FALLBACK"
+emit $((NOW-140000)) 10 30 40 1.0
+emit $((NOW-138000)) 11 31 41 1.1            # primary too old
+emit_to "$FALLBACK" $((NOW-140000)) 10 30 40 1.0
+emit_to "$FALLBACK" $((NOW-138000)) 11 31 41 1.1  # fallback ALSO too old
+rc="$(run_extrap_fb)"
+[[ "$rc" == "2" ]] || { cat "$ERRFILE"; fail "(f3) both series stale must fail-safe STOP (exit 2), got $rc"; }
+grep -q "REASON=quota-cache-unreadable" "$ERRFILE" \
+  || fail "(f3) both-stale stop must keep REASON=quota-cache-unreadable; got: $(cat "$ERRFILE")"
+grep -q "$SAMPLES" "$ERRFILE" && grep -q "$FALLBACK" "$ERRFILE" \
+  || fail "(f3) the stop must name BOTH attempted sources; got: $(cat "$ERRFILE")"
+pass "(f3) id:18e2 — both series unusable keeps the fail-safe exit 2 and names both sources"
+
+echo "ALL PASS: quota-stop extrapolation fallback (id:0175 / routed:82e3 / id:c5ba / id:18e2)"
