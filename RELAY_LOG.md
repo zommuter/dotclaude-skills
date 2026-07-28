@@ -3688,3 +3688,7 @@ refactor: none needed — the change is additive (new required schema fields + a
 ## 2026-07-28 14:39 — executor (sonnet, relay-loop)
 
 id:44a1 — id:3801's seam emitter now requires acceptance/done_check/file per hard-split seam, rendered as Acceptance/Done-check/Context sub-bullets; suite 315/0 [id:44a1]
+
+## 2026-07-28 15:02 — reviewer (claude-opus-5, hand-built)
+
+id:1af1 phantom-park fix (tense + post-APPLY verify, parity-preserving); handoff: b09e->apex, e3b7 split from 61fa; suite 316/0
