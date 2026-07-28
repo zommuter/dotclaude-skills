@@ -3573,3 +3573,20 @@ refactor: none needed — no code changed, audit-only item.
 ## 2026-07-28 12:14 — executor (sonnet, relay-loop)
 
 Audited handback-followup/gaming-log haiku hops (id:4f10): both verdict (iii), trapped-behind-payload same class as id:d4ca; recorded, not converted; suite 310/0. [id:4f10]
+
+## 2026-07-28 — executor (sonnet)
+
+Worked id:88f0 — built the shared ledger-only-diff predicate the isolation gate false-handback
+demanded. New `relay/scripts/lib-ledger-only-diff.sh` exposes `ledger_only_diff <repo>
+<rev-range>`, sourced into `verify-isolation.sh`'s empty-worktree+main-moved(nonmerge) branch: a
+range touching ONLY the sanctioned ledger set (TODO.md/ROADMAP.md/REVIEW_ME.md/RELAY_LOG.md/
+CHANGELOG.md) now exits 0 (id:c144-sanctioned, not a breach); anything else — including an empty
+range, which is never vacuously true — still defers exactly as before. Wired only the isolation-gate
+consumer per this item's scope; id:0f1e and routed:68d7 are separate items that will reuse the
+same function rather than hand-rolling a second copy. New lib registered in `relay_FILES` only
+(sourced, not directly invoked — matches lib-own-repos.sh/lib-typed-edges.sh/lib-state-claim.sh;
+initially chmod +x'd it and `test_relay_install_manifest.sh` correctly caught the relay_EXEC
+mismatch — fixed to non-executable).
+Friction: none — well-bounded once the fixture pattern in test_verify_isolation.sh was reused.
+refactor: none needed — new file + one narrow insertion into an existing branch, no duplication introduced.
+Worked id:88f0 — RED spec tests/test_ledger_only_diff_88f0.sh (roadmap:88f0), full suite 311/0.
