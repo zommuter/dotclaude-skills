@@ -14,6 +14,7 @@
 - Mechanized the release: hop (id:f7d3) — releaseLease() now issues one model:'bash' fence per command (claim/resource/heartbeat) instead of one Haiku call over an &&-bundled prompt that could never pass the mechanical-proxy's single-fence gate; suite 310/0. (id:f7d3)
 - Audited handback-followup/gaming-log haiku hops (id:4f10): both verdict (iii), trapped-behind-payload same class as id:d4ca; recorded, not converted; suite 310/0. (id:4f10)
 - id:aa26 — retired the Fable-availability probe (probe-fable.sh + fable-probe.json cache), replaced with a plain config-read fable-config.sh; SKILL.md/meeting/SKILL.md/Makefile updated; suite 312/0 (id:aa26)
+- executor: id:6f1c — taught executor contract symbol-level exploration (Grep/Glob/LSP + no-redundant-reread rule), contract v10→v11, CLAUDE.md pointer refreshed, fixed a v10-hardcoded test broken by the bump; suite 313/0 (id:6f1c)
 
 ## 2026-07-26
 
