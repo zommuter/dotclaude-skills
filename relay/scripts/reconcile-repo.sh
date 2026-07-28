@@ -169,7 +169,14 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
           plan_reap+=("$bn:$branch")
         else
           add_action "park" "parked stale worktree $bn to relay/orphan/$bn"
-          add_surfaced "parked orphan from a dead run — ref renamed to relay/orphan/$bn for manual /relay reconcile (id:689c)"
+          # id:1af1 — PLAN must not assert a COMPLETED rename. This line is emitted in the PLAN
+          # phase (before APPLY runs, and at all in --dry-run), so the old wording "ref renamed
+          # to relay/orphan/$bn" stated as fact something that had not happened and, if APPLY
+          # failed or never ran, never would — the 2026-07-28 phantom-park incident, where the
+          # surface named a ref that did not exist and idled the pool with 0 dispatched.
+          # Parity (id:77ce) forbids APPLY adding to this JSON, so the fix is tense, not timing:
+          # state the INTENT here; APPLY verifies the outcome on stderr/log (see the park loop).
+          add_surfaced "stale worktree $bn from a dead run — to be parked as relay/orphan/$bn for manual /relay reconcile (id:689c); verify the ref exists before acting on it"
           plan_park+=("$bn:$branch")
         fi
       done < <(ls -1 "$wtdir" 2>/dev/null || true)
@@ -234,6 +241,19 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       # Park: PLAN found the branch unmerged → the helper removes the clean worktree then
       # renames the unmerged branch to relay/orphan/<bn> (via `branch -d`-refusal fallthrough).
       "$RETIRE" "$path" "$wtdir/$bn" "$branch" >/dev/null 2>&1 || true  # swallow-ok: see reap note (id:77ce)
+      # id:1af1 — VERIFY the park actually happened. The `|| true` above is required by the
+      # parity oracle (APPLY must stay JSON-side-effect-free, id:77ce), but silently swallowing
+      # a failed rename is what let a PLAN-phase claim outlive the action it described: the
+      # surface named relay/orphan/<bn>, the ref never existed, and the pool idled
+      # `blocked-pending-human` with 0 dispatched (2026-07-28, run relay-20260728-111835-4075).
+      # Verification writes ONLY to stderr + the log — never to actions/surfaced — so parity is
+      # preserved while the failure stops being silent (no-silent-swallow, memory
+      # `no-swallow-stderr` / id:4347).
+      if ! git -C "$path" show-ref --verify --quiet "refs/heads/relay/orphan/$bn"; then
+        echo "reconcile-repo: PARK VERIFY FAILED — planned relay/orphan/$bn does NOT exist after APPLY (repo=$repo, worktree=$bn). The surfaced park line names a ref that is not there; do NOT treat it as a real orphan. Investigate worktree-retire.sh for this branch. (id:1af1)" >&2
+        printf '%s reconcile-repo park-verify-failed repo=%s branch=%s expected_ref=relay/orphan/%s\n' \
+          "$(date -Is)" "$repo" "$branch" "$bn" >> "${RECONCILE_LOG:-$HOME/.claude/logs/relay-reconcile.log}" 2>/dev/null || true
+      fi
     done
   fi
 fi
