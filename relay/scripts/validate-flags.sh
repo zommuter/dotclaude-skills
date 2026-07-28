@@ -35,6 +35,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Mode-changing flags a near-miss escalates toward (D2 — deliberately NOT every unknown).
 MODE_FLAGS=(--afk --cross --fabled -d)
+# Scope-changing flags (id:f475): dropping these silently can invert the run's
+# scope just as badly as a mode mis-route (e.g. `--except` typo'd for `--exclude`
+# leaves its value as a bare positional, which reads as `--only <repo>` — the
+# exact inverse of "every repo but this one"). A near-miss of one of these
+# escalates exactly like a MODE_FLAGS near-miss.
+SCOPE_FLAGS=(--exclude --only --priority)
+ESCALATE_FLAGS=("${MODE_FLAGS[@]}" "${SCOPE_FLAGS[@]}")
 
 usage() {
   echo "usage: validate-flags.sh <skill> -- <args...>" >&2
@@ -89,15 +96,23 @@ edit_distance() {
   echo "${prev[lb]}"
 }
 
-# nearest_mode_flag <token> — prints the nearest MODE_FLAGS entry if within
-# edit-distance <=2, else prints nothing.
-nearest_mode_flag() {
-  local tok="$1" best="" bestd=999 d f
-  for f in "${MODE_FLAGS[@]}"; do
+# nearest_escalate_flag <token> — prints the nearest ESCALATE_FLAGS entry (mode-
+# or scope-changing) if within its per-flag edit-distance threshold, else prints
+# nothing. Threshold scales with the candidate's length (min 2): a short flag
+# like `--afk` keeps the original tight <=2 near-miss window, while a longer
+# flag like `--exclude` allows a plausible whole-word misspelling (id:f475 —
+# `--except` for `--exclude` is edit-distance 4, not 2 as first estimated) without
+# opening the gate to unrelated far-off tokens (id:f475 test 6: --qqqqzzzz stays
+# well outside even the widened threshold for every candidate).
+nearest_escalate_flag() {
+  local tok="$1" best="" bestd=999 d f thresh
+  for f in "${ESCALATE_FLAGS[@]}"; do
     d=$(edit_distance "$tok" "$f")
-    if (( d < bestd )); then bestd=$d; best=$f; fi
+    thresh=$(( ${#f} / 2 ))
+    (( thresh < 2 )) && thresh=2
+    if (( d <= thresh && d < bestd )); then bestd=$d; best=$f; fi
   done
-  if (( bestd <= 2 )); then
+  if [[ -n "$best" ]]; then
     echo "$best"
   fi
 }
@@ -166,34 +181,53 @@ out=()
 skip_next_as_value=0
 escalated=0
 
-for tok in "$@"; do
+args=("$@")
+nargs=${#args[@]}
+i=0
+while (( i < nargs )); do
+  tok="${args[$i]}"
+
   if [[ "$skip_next_as_value" -eq 1 ]]; then
     out+=("$tok")
     skip_next_as_value=0
+    (( i++ ))
     continue
   fi
 
   if [[ "$tok" != -* ]]; then
     out+=("$tok")
+    (( i++ ))
     continue
   fi
 
   if [[ -n "${KNOWN_ARITY[$tok]+x}" ]]; then
     out+=("$tok")
     [[ "${KNOWN_ARITY[$tok]}" == "1" ]] && skip_next_as_value=1
+    (( i++ ))
     continue
   fi
 
   # unknown leading-dash token
-  suspect="$(nearest_mode_flag "$tok")"
+  suspect="$(nearest_escalate_flag "$tok")"
   if [[ -n "$suspect" ]]; then
-    echo "validate-flags.sh: '$tok' is a near-miss of the mode-changing flag '$suspect' for skill '$skill' — escalating instead of silently dropping. Confirm intent (did you mean '$suspect'?)." >&2
+    echo "validate-flags.sh: '$tok' is a near-miss of the mode/scope-changing flag '$suspect' for skill '$skill' — escalating instead of silently dropping. Confirm intent (did you mean '$suspect'?)." >&2
     escalated=1
     break
   fi
 
   echo "validate-flags.sh: unknown flag '$tok' for skill '$skill' — warning and dropping it, proceeding. Known flags: $(known_flags_list)" >&2
   # dropped: intentionally NOT appended to out, and NOT folded into subject text.
+  (( i++ ))
+
+  # id:f475: a dropped unknown flag's presumed VALUE must not leak through as a
+  # bare positional (that is how `--except <repo>` silently became `--only
+  # <repo>` — the exact inverse of the intended scope). If the next token does
+  # NOT itself start with `-`, it is the dropped flag's presumed value: drop it
+  # too, rather than emitting it as a standalone positional.
+  if (( i < nargs )) && [[ "${args[$i]}" != -* ]]; then
+    echo "validate-flags.sh: also dropping '${args[$i]}' — presumed value of the dropped unknown flag '$tok' (would otherwise leak as a bare positional and silently change scope)." >&2
+    (( i++ ))
+  fi
 done
 
 if [[ "$escalated" -eq 1 ]]; then
