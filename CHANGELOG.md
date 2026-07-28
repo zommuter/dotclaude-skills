@@ -13,6 +13,7 @@
 - Closed id:f475 (arg-guard): scope-flag near-miss escalation + drop-the-following-positional fix in validate-flags.sh, suite 309/0 (id:f475)
 - Mechanized the release: hop (id:f7d3) — releaseLease() now issues one model:'bash' fence per command (claim/resource/heartbeat) instead of one Haiku call over an &&-bundled prompt that could never pass the mechanical-proxy's single-fence gate; suite 310/0. (id:f7d3)
 - Audited handback-followup/gaming-log haiku hops (id:4f10): both verdict (iii), trapped-behind-payload same class as id:d4ca; recorded, not converted; suite 310/0. (id:4f10)
+- id:aa26 — retired the Fable-availability probe (probe-fable.sh + fable-probe.json cache), replaced with a plain config-read fable-config.sh; SKILL.md/meeting/SKILL.md/Makefile updated; suite 312/0 (id:aa26)
 
 ## 2026-07-26
 
