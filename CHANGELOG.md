@@ -10,6 +10,7 @@
 ## 2026-07-28
 
 - review: id:18e2 quota-gate deadlock fix verified GENUINE GREEN (no gaming, resurrection-check clean, suite 309/0); 7142/bf19 reverse-handoff left in TODO; routine_open=0 (id:18e2)
+- Closed id:f475 (arg-guard): scope-flag near-miss escalation + drop-the-following-positional fix in validate-flags.sh, suite 309/0 (id:f475)
 
 ## 2026-07-26
 
