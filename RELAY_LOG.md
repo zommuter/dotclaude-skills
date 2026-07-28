@@ -3646,3 +3646,7 @@ weakening, the equality-based drift check between executor-contract.md and CLAUD
 was already dynamic and untouched. Full suite green after that fix: 313/0.
 refactor: none needed — a scoped contract-text addition plus the one test-literal fix
 it forced; no new duplication introduced.
+
+## 2026-07-28 14:04 — executor (sonnet, relay-loop)
+
+executor: id:6f1c — taught executor contract symbol-level exploration (Grep/Glob/LSP + no-redundant-reread rule), contract v10→v11, CLAUDE.md pointer refreshed, fixed a v10-hardcoded test broken by the bump; suite 313/0 [id:6f1c]
