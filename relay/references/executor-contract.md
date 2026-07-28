@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v10 -->
+## Executor contract <!-- relay-executor contract v11 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -103,6 +103,21 @@ you were told you are the reviewer) follow these rules:
    disk for a supervised reconcile — it is NEVER force-cleaned — so a dirty exit strands your
    work visibly instead of getting silently discarded. Leaving the tree clean is therefore
    YOUR responsibility, not the integrator's to force.
+5c. **Symbol-level exploration — prefer Grep/Glob/LSP over uncapped Read (id:6f1c)**:
+   locate code by name or shape with **Grep**/**Glob** (find the file, the call site,
+   the definition) and by symbol with **LSP** (`documentSymbol`/`goToDefinition`/
+   `findReferences`/`hover` — enabled in this repo's `settings.json`) BEFORE reaching
+   for a full-file `Read` or an uncapped `cat`/`grep -rn` shell-out. A full `Read` costs
+   roughly 5-6x an `LSP documentSymbol` call on the same file (measured: ~3,500 tok vs
+   ~600 tok) — reserve it for when you actually need the file's full body, not to locate
+   something in it. **Never re-read a file already open in this session's context** — a
+   file you have already Read (in full or in part) is already in your context; re-Read
+   it only if you have positive reason to believe its on-disk content changed since your
+   last read (e.g. you just edited it, or another process could have). Needing to look at
+   it again with unchanged content is a signal to re-orient from what you already hold,
+   not to re-fetch it. (Measured cost of ignoring this: one dead child re-read the same
+   file five times across a session for ~28k tokens on that file alone, with zero Grep/
+   Glob/LSP calls anywhere in its history.)
 6. **`@needs-auth` wall — record-and-continue, never strand (D3, id:a505)**: if you
    hit an interactive-auth or human-held-secret wall you cannot clear unattended (sudo/
    askpass, polkit/pamac, ssh/login, gpg/credential, browser-OAuth, a decryption
