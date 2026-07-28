@@ -3594,3 +3594,7 @@ Worked id:88f0 — RED spec tests/test_ledger_only_diff_88f0.sh (roadmap:88f0), 
 ## 2026-07-28 12:55 — reviewer (claude-opus-5, hand-integrate)
 
 id:88f0 shared ledger-only-diff predicate + isolation-gate wiring (hand-integrated after a ROADMAP merge conflict caused by concurrent ledger writes); suite 311/0
+
+## 2026-07-28 13:30 — reviewer (claude-opus-5, hand-built)
+
+id:9eb7 step 1: dispatch-prompt Skill countermand (~26.4k/dispatch); suite 312/0
