@@ -1024,7 +1024,7 @@ function isBlockedRound(r) {
   return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) > 0)
 }
 function isDryRound(r) {
-  return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0)
+  return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0 && (r.workCreated || 0) === 0)
 }
 
 async function runRound() {
@@ -1033,6 +1033,13 @@ async function runRound() {
 // that only hands back gated/too-large HARD units produces 0 and counts as dry, so the loop
 // drains instead of re-dispatching the same un-doable items for MAX_ROUNDS.
 const completedBefore = state.completed.length
+// id:c919 — a round that only HANDS BACK can still CREATE work: a route:hard-split handback
+// with a non-empty proposed_split makes handback-followup.py write those seams into ROADMAP.md
+// as pickable [ROUTINE] units. Scoring such a round "dry" ended runs with stopReason:"drained"
+// while the backlog had just GROWN (loderite relay-20260728-155041-20282: 4 seams filed, loop
+// stopped, a fresh classify-repo.sh immediately reported verdict=execute). Track the round's
+// work-creating handbacks so isDryRound can exclude them.
+const handbacksBefore = state.handbacks.length
 // id:5c00 — quota PRE-GATE: check quota BEFORE the discover-prelude + DISCOVER_SHARDS fan-out.
 // A round that immediately quota-stops wastes N shard agents if the gate fires post-sharding.
 // (Incident 2026-06-25, run relay-20260625-225111: 5 shards ~94k tokens spent before stop.)
@@ -2093,7 +2100,19 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     }
   } else {
     const reason = (result && result.reason) || 'integration failed'
-    state.handbacks.push({ repo: unit.repo, reason, worktreePath: report.worktree })
+    // id:c919 — workCreated: did THIS handback cause new dispatchable work to be written?
+    // ONLY route:hard-split with a non-empty proposed_split does (handback-followup.py appends
+    // those seams as pickable units). route decision-gate/human do NOT — they re-tag the parent
+    // into a classifier-EXCLUDED lane, which REMOVES work rather than adding it; counting them
+    // would keep the loop spinning on a shrinking backlog. (This narrows routed:b945's proposed
+    // "{hard-split, decision-gate}" — decision-gate creates nothing.) Keyed on the emitted
+    // INTENT rather than the followup's actual write count because durableHandbackFollowup is
+    // fire-and-forget and reports nothing back; over-counting is the safe direction here and
+    // matches this file's own stated principle — under-draining merely runs an extra round,
+    // over-draining could strand work.
+    const hbSplit = report && Array.isArray(report.proposed_split) ? report.proposed_split.length : 0
+    const workCreated = report && report.route === 'hard-split' && hbSplit > 0
+    state.handbacks.push({ repo: unit.repo, reason, worktreePath: report.worktree, workCreated })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })  // id:c8b6
     emittedHandbackEvents.push({ repo: unit.repo, reason })  // id:1735 — invariant backstop
   }
@@ -2397,7 +2416,9 @@ const produced = state.completed.length - completedBefore
 // confirming-only review is produced-but-not-substantive; the drain detector keys on this so a
 // quiescent fleet (only re-confirming reviews) winds down instead of spinning to MAX_ROUNDS.
 const substantive = state.completed.slice(completedBefore).filter(c => c.substantive).length
-return { actionable: actionable.length + intensiveRan, produced, substantive, surfaced: discovery.surfaced.length }
+// id:c919 — hard-split handbacks THIS round whose seams were written as new pickable units.
+const workCreated = state.handbacks.slice(handbacksBefore).filter(h => h.workCreated).length
+return { actionable: actionable.length + intensiveRan, produced, substantive, workCreated, surfaced: discovery.surfaced.length }
 }
 // ── end runRound ──
 

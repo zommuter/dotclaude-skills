@@ -91,6 +91,14 @@ export function classifyDrainBacklog(blocked) {
 export function isBlockedRound(r) {
   return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) > 0)
 }
+// id:c919 — workCreated excludes a round that CREATED dispatchable work while integrating none.
+// A route:hard-split handback with a non-empty proposed_split makes handback-followup.py write
+// those seams into ROADMAP.md as pickable units, so the round GREW the backlog — but it scores
+// substantive===0 (unitIsSubstantive is only ever called for units that INTEGRATED) and
+// surfaced===0 (surfaced.push fires only on discovery paths, never on a handback). Without this
+// term two such rounds returned stopReason:"drained" while real work had just been filed, and a
+// fresh classify-repo.sh immediately after reported verdict=execute (loderite run
+// relay-20260728-155041-20282, rounds=11 — 4 seams filed in the last two rounds).
 export function isDryRound(r) {
-  return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0)
+  return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0 && (r.workCreated || 0) === 0)
 }
