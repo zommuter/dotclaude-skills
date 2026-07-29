@@ -3860,3 +3860,7 @@ Ticked id:89d6 in ROADMAP.md. Full suite green: 324 passed / 0 failed / 9 expect
 (unrelated open items).
 Friction: none — the RED spec (`tests/test_claim_release_run_sweep_89d6.sh`) pinned the
 contract precisely enough that the implementation needed no back-and-forth.
+
+## 2026-07-29 14:37 — executor (sonnet, relay-loop)
+
+id:89d6 — claim.sh gains a release --run <runId> sweep verb releasing every claim held by a run; suite 324/0/9-xred [id:89d6]
