@@ -2020,13 +2020,58 @@ async function quotaGateMemoized(tier) {
   return ok
 }
 
+// id:4df8 — force-free retirement of a CONTEXT-DEATH worktree (null-report handback), via the
+// SAME shared helper the integrator + reconcile-repo.sh already use (worktree-retire.sh,
+// id:373e) — reusing the existing D1 park/reap machinery rather than writing new disposal
+// logic. Factored OUT of integrate() as its own top-level function (mirrors releaseLease() /
+// beatHeartbeat() / stopHeartbeat() above) rather than an inline `await agent(...)` in
+// integrate()'s body: the id:c563 structural invariant (test_relay_integrator_noop_guard.sh)
+// asserts NO agent() call precedes the Sonnet integrator dispatch inside integrate() — that
+// invariant is about not wastefully spawning the EXPENSIVE Sonnet integrator on a no-op path,
+// and still holds (this dispatches a near-free MECHANICAL model:'bash'/MECH_MODEL hop, id:6176,
+// never Sonnet); keeping it a separate named call avoids re-litigating that invariant's exact
+// text-matching for an unrelated, cheap addition.
+// Without this, worktreePathFor(unit) is RUN-ID-SCOPED
+// (~/.cache/relay/worktrees/<repo>/<runId>-<verdict>) and a relaunch mints a NEW runId and never
+// looks there; worse, next round's reconcile-repo.sh reap/park (id:ebfb/3ac8/689c) might not even
+// run for this repo if the content-addressed discovery sig (id:c3a6) happens to hit the cache.
+// A worktree with committed work ends up a reachable relay/orphan/<bn> ref (id:a4e9 — refs ARE
+// the registry); a clean, commitless one is reaped with no ref (do not litter); a
+// dirty-but-uncommitted one is surfaced and left on disk (id:373e force-free discipline) —
+// worktree-retire.sh already implements all three outcomes, untouched here.
+async function retireDeadWorktree(unit) {
+  const wt = worktreePathFor(unit)
+  const branch = branchFor(unit)
+  try {
+    const r = await agent(
+      `Run exactly this one command and report its stdout verbatim (force-free retirement of a context-death worktree, id:4df8/373e — NEVER pass --force/-D yourself, this helper never does):\n` +
+      '```relay-mech\n' +
+      `~/.claude/skills/relay/scripts/worktree-retire.sh ${unit.path} ${wt} ${branch}` +
+      '\n```',
+      { label: `retire-death:${unit.repo}`, phase: 'Integrate', model: MECH_MODEL }
+    )
+    return (r && (r.stdout || r.output)) || ''
+  } catch (err) {
+    log(`relay-loop: id:4df8 context-death retire failed for ${unit.repo} (non-fatal — next round's reconcile-repo.sh remains a backstop, though its sig-cache may skip it): ${err}`)
+    return ''
+  }
+}
+
 async function integrate(unit, report) {
   if (!report) {
     // Child failed terminally (and auto-resume, for handoffs, didn't recover). Record a
     // RECOVERABLE handback with the deterministic worktree path + resume hint, never an
     // orphan with worktreePath '-'. Any per-checkpoint commits survive on disk for a
     // manual/next-turn resume (handoff: re-dispatch reads them; see handoff.md §Resuming).
-    const terminalFailReason = `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are preserved in the worktree — re-run /relay to resume (handoff continues from the last checkpoint).`
+    //
+    // id:4df8 — a null-report handback is a CONTEXT-DEATH: park/reap the worktree HERE (via
+    // retireDeadWorktree(), which reuses the D1 worktree-retire.sh / relay/orphan/* machinery)
+    // rather than leaving it to a relaunch that would never look at this run-id-scoped path.
+    const branch = branchFor(unit)
+    const bn = `${state.runId}-${unit.verdict}`
+    const orphanRef = `relay/orphan/${bn}`
+    const retireNote = await retireDeadWorktree(unit)
+    const terminalFailReason = `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are retired force-free (id:4df8/373e): if the worktree carried commits they are now parked as a reachable ${orphanRef} (verify: git -C ${unit.path} show-ref --verify refs/heads/${orphanRef}); if it was clean it was reaped; if it was dirty-but-uncommitted it is surfaced and left on disk at ${worktreePathFor(unit)} for a supervised reconcile. Do NOT rely on the run-id-scoped path ${worktreePathFor(unit)} alone — a relaunch never looks there.${retireNote ? ' retire-helper said: ' + retireNote : ''}`
     state.handbacks.push({
       repo: unit.repo,
       reason: terminalFailReason,
