@@ -3815,3 +3815,35 @@ id:a225 diagram edge-coverage guard: relay-dispatch.mmd edges now carry mechanic
 ## 2026-07-29 12:55 — reviewer (claude-opus-5, supervised salvage review)
 
 review+integrate: id:4df8 context-death worktree parking — salvaged from a context-death handback, test-integrity verified (spec unmodified since 40b0c09), suite 323/0/4; review finding recorded: the retire hop inherits the id:e62c harness-side-classifier exposure
+
+## 2026-07-29 13:5x — reviewer (claude-opus-5, handoff C2+C3, run relay-20260729-133054-23284)
+
+handoff (C2+C3 only, no C1/C5): promoted SIX open `TODO.md` items into `ROADMAP.md` under a new
+"Detector-fidelity cluster" section, REUSING each existing id (single-id-two-views D2; no tokens
+minted): **id:cbd2** relay-doctor's install-drift + reference-install checks silently SKIP when
+invoked through the installed symlink (`REPO_ROOT` is derived from an unresolved `${BASH_SOURCE[0]}`
+dirname); **id:9be0** `orphan-scan.sh` resolves `children:`/`gated-on:` tokens against
+`TODO.md ∪ TODO.archive.md` only, so a dependency on a ROADMAP-only relay seam is untypeable;
+**id:0af4** `md-merge.py update-ids` replaces a matched line with any payload, so a partial-line
+"append" wipes the item destructively at exit 0, and there is no append mode; **id:05b0**
+`gather-human-backlog.sh` buckets `manual` on a bare `@manual` substring at two call sites, so a
+design item ABOUT the tag lands on the "you run these" list; **id:f272** a DIRTY context-death
+worktree is surfaced-and-left rather than committed-and-parked onto its own relay-owned branch;
+**id:b460** `relay/references/review.md` has no OVER-REACH check — nothing catches an HONEST
+implementation that is a strict superset of what the ratified source authorized. Each entry carries
+Why / What-to-build / Acceptance / Tests / Done-check / Out-of-scope and the TODO evidence, mirroring
+the id:89d6 block. C3 authored six RED specs, each verified red against the real scripts and each
+triangulated so a hard-coded pass cannot satisfy it: `test_relay_doctor_invocation_path_cbd2.sh`
+(source-path vs staged-install-symlink verdict invariance, plus the unlocatable-manifest WARN),
+`test_orphan_scan_roadmap_seam_9be0.sh`, `test_md_merge_append_guard_0af4.sh`,
+`test_human_backlog_manual_anchor_05b0.sh`, `test_dirty_worktree_commit_park_f272.sh`,
+`test_review_overreach_check_b460.sh`. The cbd2 defect was re-verified live in this worktree before
+specing (same tree, same second: source path → `clean`, staged symlink path → `SKIP — Makefile not
+found`). No existing test was weakened, skipped or rewritten. Suite after C3: **321 passed / 2 failed
+/ 10 expected-red** — the +6 expected-red are the new specs (intended); the **2 failures are
+PRE-EXISTING and unrelated**: installing the global `core.hooksPath` lane-vocab pre-commit ratchet at
+13:24 (id:ad7c activation, after the 12:55 review's 323/0/4 baseline) now blocks the hermetic fixture
+commits in `test_backtest_fidelity.sh` and `test_lane_vocab_ratchet_hook.sh`, which deliberately
+commit old-vocab lane tags inside their own `mktemp -d` repos. Reproduced on the MAIN checkout with
+none of this handoff's changes applied. Not fixed here (touching shipped tests is outside a C2+C3
+scope) — filed as an open `REVIEW_ME.md` box with three candidate fix shapes for the owner.
