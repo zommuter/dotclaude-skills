@@ -260,11 +260,14 @@ fi
 # item that is NOT human-gated; human-gated intensive items stay "" here and surface for the
 # human via the normal gated-HARD / @manual path. FAIL-SAFE: when unsure (no lane tag), the item
 # is NOT treated as human-gated (it still emits — under-suppression beats wrongly hiding work).
+# id:0cf5 (routed:02d9) — @container joins the exclusion list: a DECOMPOSED parent is not work
+# (its seams are), so it must never be the resource-claiming top_intensive item. Mirrors
+# classify-repo.sh's is_human and gather-human-backlog.sh:298; the three must agree.
 top_intensive=""
 if [[ -n "$roadmap" ]]; then
   top_intensive="$(printf '%s\n' "$roadmap" \
     | grep -P '^- \[ \].*\[INTENSIVE — ' 2>/dev/null \
-    | grep -vP '\[HARD — (hands|meeting|decision gate)\]|@manual|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
+    | grep -vP '\[HARD — (hands|meeting|decision gate)\]|@manual|@container|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
     | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
 fi
 

@@ -2044,7 +2044,7 @@ One item, existing id reused (single-id-two-views D2 — no new token). The doct
 mark a DECOMPOSED parent `@container` because *"collectors exclude that marker"*. That is
 true of the two collectors that dispatch nothing and false of every collector that does.
 
-- [ ] [ROUTINE] **`@container` must exclude a line from the DISPATCH collectors, not just the lint/human ones** <!-- routed:02d9 --> <!-- id:0cf5 -->
+- [x] [ROUTINE] **`@container` must exclude a line from the DISPATCH collectors, not just the lint/human ones** <!-- routed:02d9 --> <!-- id:0cf5 -->
   - **Why**: `roadmap-lint.sh:396` (the check that *instructs* you to add the marker) and `gather-human-backlog.sh:298` (`if (line ~ /@container/) next`) honour `@container`. Three dispatch-side collectors do not:
     - `classify-repo.sh:190` — `is_human = primary in HUMAN_GATES or "@manual" in ln or is_owner_verify`. No `@container`, so an open `- [ ] [ROUTINE] … DECOMPOSED … @container` parent enters `actionable_routine_ids` and fires `verdict=execute` on a container whose seams are the real work. The `@wire`-on-pool-lane branch (`:215-223`) shares the same `is_human` predicate and the same gap.
     - `gather-repo-state.sh:267` — the `grep -vP '\[HARD — (hands|meeting|decision gate)\]|@manual|\[MECHANICAL\]|🚧|BLOCKED on|blocked on'` exclusion list omits it, so an `@container` `[INTENSIVE — …]` parent can surface as `top_intensive`.

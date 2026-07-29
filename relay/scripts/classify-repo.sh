@@ -187,7 +187,14 @@ if os.path.isfile(rm):
             # @manual excludes conservatively (a rare prose mention only ever UNDER-dispatches,
             # never mis-dispatches — the safe direction for the executor gate). @owner-verify
             # joins this same conservative path (meeting D2, 2026-07-20-1918).
-            is_human   = primary in HUMAN_GATES or "@manual" in ln or is_owner_verify
+            # id:0cf5 (routed:02d9) — @container joins them. handoff.md:233 / review.md:304 tell
+            # an author to mark a DECOMPOSED parent @container because "collectors exclude that
+            # marker"; roadmap-lint.sh:396 and gather-human-backlog.sh:298 did, this one did not,
+            # so an @container parent still fired verdict=execute on a container whose SEAMS are
+            # the work (loderite ids c19e/2b24, 2026-07-29). Same under-dispatch-safe direction
+            # as @manual: the marker can only REMOVE work from the dispatch set, never add it.
+            is_container = "@container" in ln
+            is_human   = primary in HUMAN_GATES or "@manual" in ln or is_owner_verify or is_container
             # id:4da4 — a [ROUTINE]/@wire item that declares a dependency BLOCK / gate is NOT
             # executor-actionable — the executor can only no-op it (zkm-threema id:180b
             # "[ROUTINE] (BLOCKED on id:7364)" was dispatched execute → empty handback,

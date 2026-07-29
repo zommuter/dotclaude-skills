@@ -147,11 +147,18 @@ if suppress_surf:
         # SAME-ITEM carve-out (D1): collect open executable [ROUTINE] item ids; if EVERY one is
         # bound to a suppressed orphan (none free), drop the duplicate execute unit (reconcile-
         # first). Fail-open: if we parse no routine ids at all, keep the unit (never wrong-suppress).
+        # id:0cf5 (routed:02d9) — @container is excluded alongside @manual, the THIRD copy of the
+        # predicate classify-repo.sh:is_human and gather-repo-state.sh:top_intensive also carry.
+        # Here the old behaviour was fail-OPEN (a stray @container id inflated routine_open, so
+        # `routine_open - suppressed_ids` stayed non-empty and the SAME-ITEM carve-out declined to
+        # drop a duplicate execute unit) — over-dispatch, not wrong-suppress. Fixed anyway: per the
+        # lib-state-claim.sh header rule, twin consumers of one predicate must return one answer.
+        # (NOTE: no apostrophes in this block — it lives inside a single-quoted `python3 -c '...'`.)
         routine_open = set()
         try:
             with open(roadmap_path) as f:
                 for line in f:
-                    if re.match(r"^\s*- \[ \]", line) and "[ROUTINE]" in line and "@manual" not in line:
+                    if re.match(r"^\s*- \[ \]", line) and "[ROUTINE]" in line and "@manual" not in line and "@container" not in line:
                         m = re.search(r"id:([0-9a-f]{4})", line)
                         if m:
                             routine_open.add(m.group(1))
