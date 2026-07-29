@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-07-30
+
+- `@container` now excludes a decomposed parent from the relay's DISPATCH collectors, not just the lint/human ones — an `@container` ROADMAP item no longer fires `verdict=execute` (classify-repo.sh), no longer surfaces as `top_intensive` (gather-repo-state.sh), and no longer inflates the SAME-ITEM orphan carve-out (discover-repo.sh). Makes handoff.md/review.md's "collectors exclude that marker" true as written. (id:0cf5)
+
 ## 2026-07-29
 
 - id:d6f0 — implemented finalDrainVerdict() in drain.mjs (drained/blocked-pending-human now self-verifying against actionability re-derivation, fail-closed on probe failure); RED spec now green; suite 321/0/6-xred. Live wiring at relay-loop.js's drain exit is NOT included (flagged in RELAY_LOG as needing design work — no test covers it). (id:d6f0)
