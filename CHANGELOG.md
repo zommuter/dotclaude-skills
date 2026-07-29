@@ -11,6 +11,7 @@
 
 - id:d6f0 — implemented finalDrainVerdict() in drain.mjs (drained/blocked-pending-human now self-verifying against actionability re-derivation, fail-closed on probe failure); RED spec now green; suite 321/0/6-xred. Live wiring at relay-loop.js's drain exit is NOT included (flagged in RELAY_LOG as needing design work — no test covers it). (id:d6f0)
 - id:98ea — fixed test_redispatch_suppression_e3b7.sh's structural extraction (awk terminator never matched relay-loop.js's 4-space return, silently captured 674/2600 lines); brace-depth extraction now; 10/10 standalone + full suite 321/0/6-xred. (id:98ea)
+- id:a225 diagram edge-coverage guard: relay-dispatch.mmd edges now carry mechanical enforced-by annotations, checked by new relay/scripts/diagram-edge-coverage.sh; suite 322/0/5-xred (id:a225)
 
 ## 2026-07-28
 
