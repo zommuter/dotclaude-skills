@@ -3864,3 +3864,19 @@ contract precisely enough that the implementation needed no back-and-forth.
 ## 2026-07-29 14:37 — executor (sonnet, relay-loop)
 
 id:89d6 — claim.sh gains a release --run <runId> sweep verb releasing every claim held by a run; suite 324/0/9-xred [id:89d6]
+
+## 2026-07-29 — executor (sonnet)
+
+Worked id:54be — front-door EXIT-ONLY teardown trap + mode-b `--afk` prose fix. Added an
+anchored `<!-- teardown-trap:start/end -->` region to `relay/SKILL.md` holding one fenced
+bash snippet (an `EXIT` trap owning exactly `heartbeat.sh stop` + the id:89d6
+`claim.sh release --run` sweep, neither `|| true` nor `2>/dev/null`), and rewrote step 0b's
+mode-b bullet so `abort` now means the front door refuses to launch (D1/D2), no longer
+"proceed conservatively". The RED spec `tests/test_front_door_exit_teardown_54be.sh` was
+already fully authored (six sections incl. behavioural harness against the real `claim.sh`)
+so this session only needed to make it green; id:89d6 (a dependency, sequence 89d6 → 54be)
+was already landed. Suite 325/0/8-xred.
+Friction: none — the RED spec's contract (anchored fence, two-action cap, EXIT-only,
+loud-failure) was precise enough to implement directly against it.
+refactor: none needed — the change is additive prose + one small fenced snippet; no
+duplication introduced.
