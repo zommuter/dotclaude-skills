@@ -15,6 +15,7 @@
 - id:89d6 — claim.sh gains a release --run <runId> sweep verb releasing every claim held by a run; suite 324/0/9-xred (id:89d6)
 - id:54be — front-door EXIT-ONLY teardown trap (heartbeat.sh stop + claim.sh release --run sweep) added to relay/SKILL.md + mode-b abort-means-abort prose fix; suite 325/0/8-xred (id:54be)
 - review: re-derive since ckpt-1437 (user-injected) — verified 89d6 green + resolved TODO↔ROADMAP drift, dropped discharged a225 gate on 5f31, closed RED-suite box (suite 324/0/9), surfaced 2 boxes (id:89d6,5f31)
+- id:b460 — added anchored §2d over-reach review check to relay/references/review.md (catches an honest implementation that is a strict superset of its ratified source, even with a green suite); suite 326/0/7-xred (id:b460)
 
 ## 2026-07-28
 
