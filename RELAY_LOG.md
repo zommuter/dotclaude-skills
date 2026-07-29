@@ -3731,3 +3731,30 @@ id:3906 salvaged from a dead child's unparked worktree and verified against its 
 ## 2026-07-28 22:53 — reviewer (claude-opus-5, supervised build+review)
 
 id:b09e dispatch names the item (builder + independent review, 2 HIGH findings fixed pre-merge); suite 320/0/4-xred
+
+## 2026-07-29 10:01 — handoff child (claude-opus-5, run relay-20260729-100152-27550)
+
+Narrow C2+C3 pass on the 2026-07-29 mechanical-hop-proxy-coupling meeting
+(`docs/meeting-notes/2026-07-29-0911-mechanical-hop-proxy-coupling.md`, parents id:6b35 +
+id:51f0). **C2:** promoted all 7 children into ROADMAP.md REUSING their TODO ids
+(single-id-two-views) with typed edges preserved — id:e62c `[HARD — pool]` (owner re-laned
+from the `[INPUT — access]` it was filed as; the TODO line was updated to match), id:89d6 /
+id:54be / id:c480 `[ROUTINE]`, and id:540f / id:c179 / id:554b `[ROUTINE]` carrying
+`🚧 GATED (DEP: …)` in the established shape. Also folded id:18ed into id:ba27 with the
+sharper "the gap is not detection, it is that nothing ACTS on the detection" framing and
+DELETED the id:18ed line (triple-duplicate of ba27 + a REVIEW_ME box), and ticked the
+REVIEW_ME `fable-config.sh` install-drift box after verifying the symlink now exists
+(`make install-relay`). **C3:** authored 3 RED specs, each verified red by running it —
+`tests/test_claim_release_run_sweep_89d6.sh` (sweep releases N keys, idempotent, never
+touches another run's key, 3 pre-existing release forms must not regress),
+`tests/test_front_door_exit_teardown_54be.sh` (an ANCHORED `<!-- teardown-trap:start/end -->`
+fence in SKILL.md that the test EXECUTES against the real claim.sh — returns/dies/loud-on-
+failure — chosen over a prose grep per the id:cdcf vacuous-guard lesson), and
+`tests/test_roadmap_scope_table_consistency_c480.sh` (which fails on the LIVE contradiction
+today and pins a both-directions, parsed-not-hardcoded lint rule). **No spec for id:e62c** —
+its question is about live-API/harness behaviour and no hermetic test can discriminate its
+two branches; a test that cannot fail on the real question is worse than none. Recorded
+instead: a LEAD found while reading the code — `mechanical-proxy.py:211` already banks the
+id:94b8 observation that `model=="bash"` forwarded upstream **404'd**, which disconfirms
+e62c's "unknown model maps to a real default" branch and points at a harness-side classifier.
+Suite 320 passed / 0 failed / 7 expected-red (4 pre-existing + the 3 new specs).
