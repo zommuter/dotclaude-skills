@@ -13,6 +13,7 @@
 - id:98ea — fixed test_redispatch_suppression_e3b7.sh's structural extraction (awk terminator never matched relay-loop.js's 4-space return, silently captured 674/2600 lines); brace-depth extraction now; 10/10 standalone + full suite 321/0/6-xred. (id:98ea)
 - id:a225 diagram edge-coverage guard: relay-dispatch.mmd edges now carry mechanical enforced-by annotations, checked by new relay/scripts/diagram-edge-coverage.sh; suite 322/0/5-xred (id:a225)
 - id:89d6 — claim.sh gains a release --run <runId> sweep verb releasing every claim held by a run; suite 324/0/9-xred (id:89d6)
+- id:54be — front-door EXIT-ONLY teardown trap (heartbeat.sh stop + claim.sh release --run sweep) added to relay/SKILL.md + mode-b abort-means-abort prose fix; suite 325/0/8-xred (id:54be)
 
 ## 2026-07-28
 
