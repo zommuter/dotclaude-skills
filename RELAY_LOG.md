@@ -3906,3 +3906,7 @@ the only iteration needed was making the new heading match the test's case-sensi
 `over-?reach` regex (lowercased "over-reach" in the heading text).
 refactor: none needed — this is a documentation-only addition to review.md, no code
 duplication introduced.
+
+## 2026-07-29 15:07 — executor (sonnet, relay-loop)
+
+id:b460 — added anchored §2d over-reach review check to relay/references/review.md (catches an honest implementation that is a strict superset of its ratified source, even with a green suite); suite 326/0/7-xred [id:b460]
