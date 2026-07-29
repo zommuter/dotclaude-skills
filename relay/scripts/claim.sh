@@ -48,9 +48,19 @@
 #       the TTL for a genuinely-working long child. --pid (id:1b11) anchors liveness to a
 #       standalone long job with NO worktree (e.g. a multi-hour local-LLM drain): the claim
 #       stays live while that PID lives and auto-expires when it dies.
-#   release <key>
+#   release <key> [--run RUNID]
 #       Under flock: move claims/<safekey>.json → claims.done/ if present. Idempotent
-#       (exit 0 even when absent).
+#       (exit 0 even when absent). With --run, only releases a claim THIS run holds
+#       (a "claimed-elsewhere" handback can safely no-op instead of stealing another
+#       run's claim); without --run, force-releases unconditionally (admin/cleanup).
+#   release --run RUNID
+#       id:89d6 — SWEEP form (no <key> positional): under flock, releases EVERY live
+#       claim shard whose .runId equals RUNID (moves each into claims.done/), never
+#       touching a shard held by a different run. Idempotent — sweeping an
+#       already-swept run, or a run holding nothing, is a clean no-op, exit 0. This is
+#       the exit-teardown counterpart to per-unit release (id:54be's front-door trap
+#       calls it) — it makes a blocked/failed per-unit release a latency cost on one
+#       key instead of a stranded lease until CLAIM_TTL.
 #   heartbeat <key> [--run RUNID]
 #       id:7570 — refresh a held claim's mtime (run-scoped: only if THIS run holds it, or
 #       unscoped). Keeps a legitimately-long child (>TTL) from losing its lease mid-work.
@@ -256,6 +266,31 @@ case "$cmd" in
     ;;
 
   release)
+    # id:89d6 — sweep form: 'release --run <runId>' with NO <key> positional. Detected
+    # by the arg immediately following the subcommand being '--run' (the ordinary
+    # single-key form always has the key first). Releases every shard whose .runId
+    # matches, run-scoped so a different run's claim is never touched.
+    if [ "${1:-}" = "--run" ]; then
+      shift
+      run="${1:-}"; shift || true
+      [ -n "$run" ] || { echo "claim.sh release: --run requires <runId>" >&2; exit 2; }
+      [ $# -eq 0 ] || { echo "claim.sh release: unknown arg '$1'" >&2; exit 2; }
+      exec 9>"$LOCK"
+      flock -w 30 9 || { echo "claim.sh release: lock timeout" >&2; exit 1; }
+      shopt -s nullglob
+      n=0
+      for f in $(printf '%s\n' "$CLAIMS"/*.json | sort); do
+        [ -f "$f" ] || continue
+        holder_run="$(jq -r '.runId // ""' "$f" 2>/dev/null)" || holder_run=""
+        if [ "$holder_run" = "$run" ]; then
+          mv "$f" "$DONE/$(basename "$f")"
+          n=$((n+1))
+        fi
+      done
+      flock -u 9 || true
+      log "release sweep run=$run released=$n"
+      exit 0
+    fi
     key="${1:-}"; shift || true
     [ -n "$key" ] || { echo "claim.sh release: <key> required" >&2; exit 2; }
     run=""
