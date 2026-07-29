@@ -3884,3 +3884,22 @@ duplication introduced.
 ## 2026-07-29 14:47 — executor (sonnet, relay-loop)
 
 id:54be — front-door EXIT-ONLY teardown trap (heartbeat.sh stop + claim.sh release --run sweep) added to relay/SKILL.md + mode-b abort-means-abort prose fix; suite 325/0/8-xred [id:54be]
+
+## 2026-07-29 — executor (sonnet)
+
+Worked id:b460 — added a new "over-reach" review step (§2d in
+relay/references/review.md) that catches an HONEST implementation that is a strict
+superset of what its cited ratified source authorized, even with a fully green suite.
+The step is delimited by an anchored `<!-- overreach-check:start -->` / `:end` fence
+(not prose, per the id:cdcf vacuous-guard precedent) and instructs the reviewer to
+locate the item's cited ratified source (often in another repo), re-read it directly,
+ask whether the diff's behaviour is a strict superset, flag+reopen on a superset finding
+regardless of test-suite colour, and treat "no cited source at all" as its own finding.
+Sequenced after §2b/§2c (presumes the executor was honest, established by the earlier
+checks) and before §3. tests/test_review_overreach_check_b460.sh (RED spec pre-authored
+by handoff C3, run relay-20260729-133054-23284) is now green; full suite 326/0/7-xred.
+Friction: none — the RED spec was thorough and the doc-only change slotted in cleanly;
+the only iteration needed was making the new heading match the test's case-sensitive
+`over-?reach` regex (lowercased "over-reach" in the heading text).
+refactor: none needed — this is a documentation-only addition to review.md, no code
+duplication introduced.
