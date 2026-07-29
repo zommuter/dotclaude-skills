@@ -132,6 +132,51 @@ Keep the item OPEN with a `needs host:<X>` note, surface it in REVIEW_ME, and ne
 host. (Editing the files is host-agnostic and reviewed normally — only the install/test
 verification is gated. ssh-to-host re-run is a documented future option, not built.)
 
+### 2d. over-reach check — did the diff do MORE than the ratified source authorized? (id:b460)
+
+<!-- overreach-check:start -->
+§2b's eight judgment-residue checks all presume the SPEC is correct and the executor
+might have CHEATED it; §4's spec-drift audit only reads repo-internal `ARCHITECTURE.md`/
+`README.md`. Neither catches an **HONEST** implementation that is a strict SUPERSET of
+what the ratified source actually authorized, even with a fully green suite — this check
+has **no cheating hypothesis**; it presumes good faith and asks a different question.
+This is the load-bearing case whenever the handoff authored the RED spec in the SAME
+relay lineage: then the reviewer is the ONLY independent check, and "tests pass" simply
+re-uses the handoff's own blind spot. It is the implementation-side twin of the global
+heuristic *"check a derived doc against its ratified source before letting a
+pre-registered rule fire"* (CLAUDE.md).
+
+Run this AFTER the §2b residue checks (it only makes sense once you have established the
+executor was honest — an honest implementation is the premise, not the conclusion, of
+this step).
+
+For every ROADMAP item this review closes:
+
+1. **Locate the item's CITED ratified source.** This is often a meeting note **in
+   another repo entirely** — do not assume it lives here.
+2. **Re-read that source directly**, not the ROADMAP restatement of it — the
+   restatement drifts toward whatever the restating author was already doing.
+3. **Ask explicitly: is the diff's behaviour a strict SUPERSET of what was
+   authorized?** — a generalization, a widened match, an allowlist quietly turned into
+   a wildcard. This SUPERSET question is the entire content of the check.
+4. **FLAG it and REOPEN the item when it is a superset — even with a fully GREEN
+   suite, and even when the executor acted in good faith.** The suite passing is
+   precisely the condition under which this defect goes unnoticed, so name it
+   explicitly rather than letting a green run stand in for scope-fidelity.
+5. **An item that cites NO ratified source at all is itself a finding** — surface it to
+   REVIEW_ME. Silently passing that case would reintroduce the silent-skip class
+   (the id:cbd2 "loud detection that checks nothing" shape) one level up.
+<!-- overreach-check:end -->
+
+**Example** (2026-07-29, it-infra id:3177): a RED spec's test 8 covered only a repo
+pushing nothing but `main`; the executor reasonably generalized to "any `refs/heads/*`
+!= main is a publication channel"; the suite went 8/8 green and review returned
+`substantive:false`. The loderite meeting D1 had ratified exactly ONE channel (an
+ff-only `stable` bookmark) — the generalization would have given every one of loderite's
+5 live `relay/exec-*` branches a worktree + a full `npm ci && build` on the Pi, the exact
+disk/CPU cost meeting D3 flagged. Caught only by a human re-read; fixed in it-infra
+`1cf9b8b` via a `PUBLICATION_CHANNELS` allowlist.
+
 ## 3. Test tiers — run-or-record-skip for EVERY declared tier (id:f032)
 
 A green claim derived from a SUBSET of a repo's test tiers is the same class of defect
