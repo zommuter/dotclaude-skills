@@ -3880,3 +3880,7 @@ Friction: none — the RED spec's contract (anchored fence, two-action cap, EXIT
 loud-failure) was precise enough to implement directly against it.
 refactor: none needed — the change is additive prose + one small fenced snippet; no
 duplication introduced.
+
+## 2026-07-29 14:47 — executor (sonnet, relay-loop)
+
+id:54be — front-door EXIT-ONLY teardown trap (heartbeat.sh stop + claim.sh release --run sweep) added to relay/SKILL.md + mode-b abort-means-abort prose fix; suite 325/0/8-xred [id:54be]
