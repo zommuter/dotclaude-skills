@@ -3762,3 +3762,29 @@ Suite 320 passed / 0 failed / 7 expected-red (4 pre-existing + the 3 new specs).
 ## 2026-07-29 10:38 — reviewer (claude-opus-5, supervised handoff)
 
 handoff: promoted the 7 mechanical-hop-proxy-coupling children (id:e62c [HARD — pool], id:89d6/54be/c480 [ROUTINE], id:540f/c179 gated on e62c, id:554b gated on 540f) + 3 RED specs; folded id:18ed into id:ba27; ticked the fable-config install-drift REVIEW_ME box
+
+## 2026-07-29 — executor (claude-sonnet-5)
+
+Worked id:d6f0 — implemented `finalDrainVerdict({dryStreak, actionableAfter, probeOk, blocked})` in
+`relay/scripts/drain.mjs`, the pure decision function the RED spec (`tests/test_drained_asserts_no_actionable_d6f0.sh`,
+`# roadmap:d6f0`) requires: clean drain (streak reached, nothing actionable, probe ok) → `drained`;
+actionable work found after re-derivation (dry OR blocked path) → `stopReason:"stuck-despite-actionable"`,
+never a false "no work remains"; a re-derivation that could not run/parse → fail-closed
+(`drain-probe-failed`), never treated as evidence of drained-ness; streak not yet reached → `not-yet-drained`.
+All 6 spec cases (including the b874 blocked-branch widening) pass; full suite 321/0/6-xred.
+Friction: the item's own prose describes a second deliverable — "wiring at the drain exit," i.e. actually
+calling this function from relay-loop.js's two exit points (isDryRound/isBlockedRound, ~line 2638/2656) with
+a real post-round actionability re-derivation via classify-repo.sh. That wiring is NOT done. It is a
+materially bigger, differently-shaped task than the pure predicate: relay-loop.js runs in a fs-less Workflow
+sandbox (per its own comments, "cannot import", "cannot expand $HOME / read relay.toml") — unlike
+isDryRound/isBlockedRound (id:4ca8), which only read fields already present on the round-result object,
+gating finalDrainVerdict needs a NEW re-derivation step (a synchronous or agent-dispatched classify-repo.sh
+call per in-scope repo, mid-loop, before the stop decision) that does not exist today and has no hermetic
+test covering it. I judged this outside safe routine-executor scope (no test can verify correctness of a
+live Workflow-sandbox agent-dispatch change, and a wrong wiring risks stalling or mis-stopping the whole
+autonomous pool) — recommend a follow-up item (design: how does the fs-less loop obtain a synchronous
+actionability re-derivation at a stop-decision point) before anyone attempts the wiring. Ticking id:d6f0 here
+reflects rule 2's test-authoritative definition of done (the RED spec is fully satisfied); the live-enforcement
+gap it was meant to close is only half-closed and should not be read as fully resolved in production.
+refactor: none needed — new pure function follows the existing isDryRound/classifyRepeatHandbacks pattern in
+the same file; no new duplication introduced.
