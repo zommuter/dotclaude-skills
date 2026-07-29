@@ -73,11 +73,29 @@ get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2-; }
 [[ "$(get changedsig_kept)" == "1" && "$(get changedsig_suppressed)" == "0" ]] && ok "work_sig genuinely changes ⇒ re-dispatch resumes" || bad "changed sig should clear suppression"
 
 # --- (2) Structural: relay-loop.js's null-report branch must stamp the negative cache ------
-# Extract the `if (!report) { ... return }` block bounded to the FIRST such block in
-# integrate() (the terminal-fail / context-death path) and assert it calls
-# recordNoWorkHandback — today it only pushes a handback and returns, silently skipping the
-# stamp that the contract_met=false/route=none sibling branch already does.
-NULL_REPORT_BLOCK="$(awk '/if \(!report\) \{/{flag=1} flag{print; if (/^  return$/) exit}' "$JS")"
+# Extract the `if (!report) { ... }` block bounded to the FIRST such block in integrate() (the
+# terminal-fail / context-death path) and assert it calls recordNoWorkHandback — today it only
+# pushes a handback and returns, silently skipping the stamp that the contract_met=false/
+# route=none sibling branch already does.
+#
+# id:98ea — extraction is by BRACE DEPTH, not by matching a hardcoded terminator line. The
+# prior `/^  return$/` terminator assumed a 2-space-indented bare `return` closes the block;
+# relay-loop.js actually 4-space-indents it (`    return`), so that terminator NEVER matched
+# and the "block" silently ran to EOF (674 of 2600 lines captured), making the structural
+# assertions below pass or fail on text far outside the intended branch — a latent false-pass/
+# false-fail generator independent of any timing flake. Brace counting is robust to
+# reindentation and doesn't encode an assumption about how the block happens to be formatted.
+NULL_REPORT_BLOCK="$(awk '
+  /if \(!report\) \{/ { flag=1; depth=0 }
+  flag {
+    print
+    line=$0
+    opens=gsub(/\{/,"{",line)
+    closes=gsub(/\}/,"}",line)
+    depth+=opens-closes
+    if (depth==0) exit
+  }
+' "$JS")"
 [[ -n "$NULL_REPORT_BLOCK" ]] || { echo "FAIL: could not locate the 'if (!report)' branch in $JS"; exit 1; }
 
 echo "$NULL_REPORT_BLOCK" | grep -q "recordNoWorkHandback(noWorkNegCache, unit.repo, unit.verdict" \
