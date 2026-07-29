@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-07-29
+
+- id:d6f0 — implemented finalDrainVerdict() in drain.mjs (drained/blocked-pending-human now self-verifying against actionability re-derivation, fail-closed on probe failure); RED spec now green; suite 321/0/6-xred. Live wiring at relay-loop.js's drain exit is NOT included (flagged in RELAY_LOG as needing design work — no test covers it). (id:d6f0)
+
 ## 2026-07-28
 
 - review: id:18e2 quota-gate deadlock fix verified GENUINE GREEN (no gaming, resurrection-check clean, suite 309/0); 7142/bf19 reverse-handoff left in TODO; routine_open=0 (id:18e2)
