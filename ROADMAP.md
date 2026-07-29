@@ -1867,7 +1867,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Done-check**: `tests/run-tests.sh tests/test_claim_release_run_sweep_89d6.sh` green, `tests/run-tests.sh tests/test_relay_claim.sh` still green (no regression to the existing verbs), then tick and run full `make test`.
   - **Out of scope**: calling the sweep from anywhere (that is id:54be); changing liveness/TTL semantics; a `peek --run` filter.
 
-- [ ] [ROUTINE] **Front door: EXIT-ONLY teardown trap + mode-b `--afk` prose fix** (D1-A) <!-- children-of:51f0 --> <!-- id:54be -->
+- [x] [ROUTINE] **Front door: EXIT-ONLY teardown trap + mode-b `--afk` prose fix** (D1-A) <!-- children-of:51f0 --> <!-- id:54be -->
   - **What to build**: in `relay/SKILL.md`'s front-door procedure, the shell that launches the Workflow installs a trap that owns **exactly two** teardown actions and nothing else:
     1. `heartbeat.sh stop <RUN_ID>`
     2. the id:89d6 sweep — `claim.sh release --run <RUN_ID>`
