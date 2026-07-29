@@ -103,6 +103,39 @@ export function isDryRound(r) {
   return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0 && (r.workCreated || 0) === 0)
 }
 
+// finalDrainVerdict({dryStreak, actionableAfter, probeOk, blocked}) (id:d6f0) — makes the
+// "no work remains" claim SELF-VERIFYING for every terminal stopReason, not just the dry-round
+// counter. `stopReason:"drained"` / `"blocked-pending-human"` are CLAIMS that nothing
+// dispatchable is left; nothing checked them before this. Three different unobserved
+// transitions have each produced a false or misread finish (id:c919 work-creating handback,
+// id:61fa null-report never stamps noWorkNegCache, id:3906 repeatHandbacks misreads exhaustion
+// as a bug) — patching instances leaves the next one undetected, so this closes the CLASS: a
+// post-hoc re-derivation of actionability (via classify-repo.sh, the single source — never
+// re-implement the predicate) gates BOTH the dry-streak path and the blocked path.
+//
+//   dryStreak       : number  — consecutive dry rounds seen so far (K=2 threshold, id:d58f/4ca8)
+//   blocked         : bool    — true when this exit is the isBlockedRound path
+//                                (blocked-pending-human), false/absent for the dry-streak path
+//   actionableAfter : number  — actionable units from the post-hoc re-derivation
+//   probeOk         : bool    — did the re-derivation actually run and parse?
+//
+// FAIL-CLOSED: a re-derivation that could not run/parse (probeOk===false) is NEVER evidence of
+// drained-ness — it returns drained:false with a distinct reason, same as "streak not reached".
+// Actionable work found after either exit MUST NOT return a "no work remains" verdict — it
+// returns a loud, distinct "stuck-despite-actionable" reason instead of silently finishing.
+const DRY_STREAK_K = 2
+export function finalDrainVerdict({ dryStreak, actionableAfter, probeOk, blocked } = {}) {
+  const after = Number(actionableAfter) || 0
+  if (!probeOk) return { drained: false, stopReason: 'drain-probe-failed' }
+  if (blocked) {
+    if (after > 0) return { drained: false, stopReason: 'stuck-despite-actionable' }
+    return { drained: true, stopReason: 'blocked-pending-human' }
+  }
+  if ((Number(dryStreak) || 0) < DRY_STREAK_K) return { drained: false, stopReason: 'not-yet-drained' }
+  if (after > 0) return { drained: false, stopReason: 'stuck-despite-actionable' }
+  return { drained: true, stopReason: 'drained' }
+}
+
 // classifyRepeatHandbacks(handbacks) (id:3906) — distinguishes a genuine BUG SIGNAL (the SAME
 // item handed back repeatedly for the same/incoherent reason) from QUEUE EXHAUSTION (DIFFERENT
 // items, DIFFERENT children, each citing a legitimate size-out/gate reason). id:1432's
