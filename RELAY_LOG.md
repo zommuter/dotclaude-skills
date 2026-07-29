@@ -3847,3 +3847,16 @@ commits in `test_backtest_fidelity.sh` and `test_lane_vocab_ratchet_hook.sh`, wh
 commit old-vocab lane tags inside their own `mktemp -d` repos. Reproduced on the MAIN checkout with
 none of this handoff's changes applied. Not fixed here (touching shipped tests is outside a C2+C3
 scope) — filed as an open `REVIEW_ME.md` box with three candidate fix shapes for the owner.
+
+## 2026-07-29 — executor (claude-sonnet-5)
+
+Worked id:89d6 — added `claim.sh release --run <runId>` sweep verb: with no `<key>`
+positional, releases every live claim shard whose `.runId` matches the given run,
+reusing the existing flock/safekey/DONE-move/log() path; run-scoped (never touches a
+different run's claim) and idempotent (already-swept or empty-run sweep is a clean
+no-op). The three pre-existing release forms (unscoped force-release, run-scoped
+single-key release, bare-usage exit-2) are unchanged and their tests still pass.
+Ticked id:89d6 in ROADMAP.md. Full suite green: 324 passed / 0 failed / 9 expected-red
+(unrelated open items).
+Friction: none — the RED spec (`tests/test_claim_release_run_sweep_89d6.sh`) pinned the
+contract precisely enough that the implementation needed no back-and-forth.
