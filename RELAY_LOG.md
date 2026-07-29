@@ -3811,3 +3811,7 @@ refactor: none needed — new standalone script, no existing duplication to extr
 ## 2026-07-29 12:15 — executor (sonnet, relay-loop)
 
 id:a225 diagram edge-coverage guard: relay-dispatch.mmd edges now carry mechanical enforced-by annotations, checked by new relay/scripts/diagram-edge-coverage.sh; suite 322/0/5-xred [id:a225]
+
+## 2026-07-29 12:55 — reviewer (claude-opus-5, supervised salvage review)
+
+review+integrate: id:4df8 context-death worktree parking — salvaged from a context-death handback, test-integrity verified (spec unmodified since 40b0c09), suite 323/0/4; review finding recorded: the retire hop inherits the id:e62c harness-side-classifier exposure
