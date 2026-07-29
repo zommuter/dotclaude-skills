@@ -21,25 +21,40 @@ flowchart TB
         discover["discover → reconcile-repo.sh +<br/>classify-repo.sh --emit unit<br/>(signature-cached; fail-open)"]
         classify{{"classify-verdict.sh<br/>reads actionable_routine_open,<br/>open [HARD], REVIEW_ME, etc."}}
         discover --> classify
+        %% enforced-by: test_relay_loop_discovery_exec.sh
 
         classify -->|"actionable_routine_open == 0<br/>AND no HARD/handoff work"| idle(["verdict = idle<br/>(render-alias: &quot;drained&quot;)"])
+        %% enforced-by: NONE — no test pins the idle-verdict branch specifically, only I2's positive case
         classify -->|"actionable_routine_open &gt; 0 (I2)"| vexecute(["verdict = execute → Sonnet executor child"])
+        %% enforced-by: test_relay_doctor_verdict_invariant.sh
         classify -->|"open [ROUTINE] work verified needed"| vreview(["verdict = review → Opus apex reviewer"])
+        %% enforced-by: test_classify_verdict.sh
         classify -->|"open [HARD — pool] item"| vhard(["verdict = hard → Opus apex HARD-execute child"])
+        %% enforced-by: test_classify_hard_floor.sh, test_classify_hard_lanes.sh
         classify -->|"repo needs docs/RED-specs/roadmap"| vhandoff(["verdict = handoff → Opus apex handoff child"])
+        %% enforced-by: NONE — no test pins the handoff-verdict branch of classify-verdict.sh directly
 
         vexecute --> claim
+        %% enforced-by: test_relay_claim_wiring.sh
         vreview --> claim
+        %% enforced-by: test_relay_claim_wiring.sh
         vhard --> claim
+        %% enforced-by: test_relay_claim_wiring.sh
         vhandoff --> claim
+        %% enforced-by: test_relay_claim_wiring.sh
         claim["claim.sh acquire (cross-session lease id:ebfb)<br/>+ git worktree add (isolation, id:f682)"]
         claim --> childwork["child works EXCLUSIVELY in worktree;<br/>commits as it goes; NEVER pushes/tags"]
+        %% enforced-by: NONE — no test pins claim-success flowing into worktree child-dispatch as a unit
         childwork -->|"contract_met = true"| gate
+        %% enforced-by: test_isolation_gate_wired.sh
         childwork -->|"contract_met = false<br/>(size-out / gated / blocked)"| handback
+        %% enforced-by: test_handback_guard.sh, test_handback_followup.sh
 
         gate{{"verify-isolation.sh + clean-tree-gate.sh<br/>(≥1 commit beyond base, clean tree)"}}
         gate -->|pass| integrate
+        %% enforced-by: test_isolation_gate_wired.sh
         gate -->|fail| salvage["salvage in main checkout under lease<br/>(id:15d5) — do not force"]
+        %% enforced-by: NONE — no test pins the gate-fail → salvage path (id:15d5 pattern is documented, not tested)
     end
 
     %% ---------------- INTEGRATE + conditional version/changelog branch ----------------
@@ -48,21 +63,31 @@ flowchart TB
         integrate["integrate(): merge --no-ff → ckpt-tag.sh<br/>(relay-ckpt-YYYYMMDD-HHMM) → push"]
         repoclass{{"repo class? (mtg-1726 D1 conditional branch)"}}
         integrate --> repoclass
+        %% enforced-by: NONE — no test pins integrate() flowing into the repo-class branch as a unit
         repoclass -->|"semver repo<br/>(pyproject.toml / manifest)"| semver["reviewer bumps vX.Y.Z at a user-observable<br/>close (judgment) → tag → CHANGELOG entry<br/>(release-bucketed) — id:e647/b8fa"]
+        %% enforced-by: test_version_bump.sh
         repoclass -->|"versionless repo<br/>(this repo; git = SSOT, id:8ef3)"| verless["NO version / NO v* tag;<br/>date-bucketed CHANGELOG only — id:b8fa"]
+        %% enforced-by: test_changelog_derive.sh
         semver --> checkpoint
+        %% enforced-by: NONE — no test pins the semver branch flowing into checkpoint as a unit
         verless --> checkpoint
+        %% enforced-by: NONE — no test pins the versionless branch flowing into checkpoint as a unit
         checkpoint["RELAY_LOG.md paragraph + relay.toml last_ckpt<br/>(I8: last_ckpt names an existing tag)"]
     end
 
     integrate -. "gated: result.openRoutine &gt; 0" .-> loop
+    %% enforced-by: NONE — no test pins integrate's openRoutine-gated loop re-entry directly
 
     %% ---------------- Self-feeding loop + stop gates ----------------
     stopgate{{"stop gates: quota-cache stop ·<br/>MAX_ROUNDS · /relay stop / --once ·<br/>heartbeat outage watchdog (id:98f0)"}}
     checkpoint --> stopgate
+    %% enforced-by: NONE — no test pins checkpoint flowing into the stop-gate check as a unit
     stopgate -->|"budget left AND work remains"| loop(["self-feeding loop → re-discover next repo/round"])
+    %% enforced-by: test_relay_quota_stop_reason.sh
     stopgate -->|"quota exhausted / stopped / drained"| done(["loop idle → stop"])
+    %% enforced-by: test_quota_stop.sh
     loop --> discover
+    %% enforced-by: NONE — no test pins the loop→discover re-entry edge directly
 
     %% ---------------- SUBSTRATE 2: mechanical daemon ----------------
     subgraph mech["Substrate 2 — mechanical daemon (systemd .timer, OUTSIDE the Workflow; id:2ec4)"]
@@ -70,10 +95,14 @@ flowchart TB
         mtimer["mechanical-daemon.sh (no LLM)"]
         mrecipe["[MECHANICAL] lane recipes:<br/>discover-repos-mechanical.sh · classify-verdict.sh ·<br/>mechanical-orphan-scan / draft.sh · recipe-validate.sh"]
         mtimer --> mrecipe
+        %% enforced-by: test_mechanical_daemon.sh
         mrecipe -. "writes ONLY under ~/.config/relay<br/>(read-only vs repo ledgers; not a 4th writer)" .-> mout["~/.config/relay artifacts (discovery queue, events)"]
+        %% enforced-by: NONE — no test pins the mrecipe-writes-only-under-config invariant directly
         mrecipe -. "peek-and-defer before writing<br/>a recipe artifact into a repo checkout (id:0534)" .-> claim
+        %% enforced-by: test_mechanical_relane_doctrine.sh
     end
     mout -. "queue read (residual agent hop, id:65f9)" .-> discover
+    %% enforced-by: test_discovery_queue_consume.sh
 
     %% ---------------- SUBSTRATE 3: human ----------------
     subgraph humansub["Substrate 3 — human (interactive /relay human)"]
@@ -81,20 +110,29 @@ flowchart TB
         hgather["gather-human-backlog.sh → tiers a/b/c"]
         hbuckets["[INPUT — meeting|decision|access] · @manual ·<br/>[HARD — meeting] (→ /meeting) · [HARD — hands]<br/>(you run these) · REVIEW_ME judgment boxes"]
         hgather --> hbuckets
+        %% enforced-by: test_gather_human_decision.sh, test_gather_todo_human_lanes.sh
         hinject["/relay inject — hand a decided item back to the pool;<br/>/relay reconcile — consume orphan-park refs (registry)"]
     end
 
     %% cross-substrate routing of handbacks + health
     handback["handback (contract_met=false) → integrator records<br/>durable ROADMAP note (id:3801): route = decision-gate |<br/>hard-split | human | none"]
     handback -->|"route: hard-split"| discover
+    %% enforced-by: test_dry_round_work_creating_handback_c919.sh
     handback -->|"route: decision-gate / needs a /meeting"| hbuckets
+    %% enforced-by: NONE — no test pins the decision-gate route flowing into the human bucket display
     handback -->|"route: human"| hbuckets
+    %% enforced-by: NONE — no test pins the human route flowing into the human bucket display
     salvage --> checkpoint
+    %% enforced-by: NONE — no test pins salvage flowing back into checkpoint as a unit
 
     hbuckets -->|"decided → re-lane to pool"| hinject
+    %% enforced-by: test_relay_inject.sh
     hinject --> discover
+    %% enforced-by: test_relay_midround_inject.sh
 
     health(["/relay health — relay-doctor.sh checks<br/>(I1 main-clean · I2 execute⟹routine&gt;0 · I3 cross-ledger ·<br/>I4 intensive⟹execute|hard · I6 toml · I8 tag · report-only, D2)"])
     health -.->|"observes, never blocks a round"| classify
+    %% enforced-by: test_relay_doctor.sh
 
     start --> discover
+    %% enforced-by: NONE — no test pins the entrypoint start→discover edge directly
