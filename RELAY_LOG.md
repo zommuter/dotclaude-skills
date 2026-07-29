@@ -3792,3 +3792,9 @@ the same file; no new duplication introduced.
 ## 2026-07-29 11:31 — executor (sonnet, relay-loop)
 
 id:d6f0 — implemented finalDrainVerdict() in drain.mjs (drained/blocked-pending-human now self-verifying against actionability re-derivation, fail-closed on probe failure); RED spec now green; suite 321/0/6-xred. Live wiring at relay-loop.js's drain exit is NOT included (flagged in RELAY_LOG as needing design work — no test covers it). [id:d6f0]
+
+## 2026-07-29 — executor (sonnet)
+
+Worked id:98ea — fixed the concrete defect the flake investigation found: `tests/test_redispatch_suppression_e3b7.sh`'s structural assertion extracted the `if (!report) { ... }` block with an awk terminator (`/^  return$/`) that never matched relay-loop.js's actual 4-space-indented `return`, so the "block" silently captured 674 of 2600 lines and the structural greps passed/failed on text far outside the intended branch — a latent false-pass/false-fail generator. Replaced with brace-depth counting (robust to reindentation, no hardcoded terminator assumption). Re-measured per the item's own instruction: 10/10 standalone runs pass (previously mixed 3/3 fail, 6/0, 5/1 in the same conditions); a clean sequential full suite is 321/0/6-xred with test_redispatch_suppression_e3b7.sh green. Two earlier apparent full-suite failures during this session (test_statusline_tokens.sh, then test_git_lock_push_slash_branch.sh) were self-inflicted: I had two `tests/run-tests.sh` invocations running concurrently while re-verifying, and a clean single sequential run afterward was fully green — recorded here so it isn't mistaken for a second flaky test.
+Friction: none.
+refactor: none needed — a one-line extraction-method swap inside an existing test, no new duplication introduced.
