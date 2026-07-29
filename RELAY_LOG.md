@@ -3910,3 +3910,7 @@ duplication introduced.
 ## 2026-07-29 15:07 — executor (sonnet, relay-loop)
 
 id:b460 — added anchored §2d over-reach review check to relay/references/review.md (catches an honest implementation that is a strict superset of its ratified source, even with a green suite); suite 326/0/7-xred [id:b460]
+
+## 2026-07-30 00:25 — reviewer (opus)
+
+id:0cf5 SHIP — @container now excludes a decomposed parent from all three relay DISPATCH collectors (classify-repo/gather-repo-state/discover-repo), making handoff.md/review.md's 'collectors exclude that marker' true as written; RED spec 3/4-red on base to 7/0; suite 327/0/7-xred
