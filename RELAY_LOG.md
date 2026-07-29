@@ -3884,3 +3884,7 @@ duplication introduced.
 ## 2026-07-29 14:47 — executor (sonnet, relay-loop)
 
 id:54be — front-door EXIT-ONLY teardown trap (heartbeat.sh stop + claim.sh release --run sweep) added to relay/SKILL.md + mode-b abort-means-abort prose fix; suite 325/0/8-xred [id:54be]
+
+## 2026-07-29 15:00 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: re-derive since ckpt-1437 (user-injected) — verified 89d6 green + resolved TODO↔ROADMAP drift, dropped discharged a225 gate on 5f31, closed RED-suite box (suite 324/0/9), surfaced 2 boxes [id:89d6,5f31]
