@@ -3758,3 +3758,7 @@ instead: a LEAD found while reading the code — `mechanical-proxy.py:211` alrea
 id:94b8 observation that `model=="bash"` forwarded upstream **404'd**, which disconfirms
 e62c's "unknown model maps to a real default" branch and points at a harness-side classifier.
 Suite 320 passed / 0 failed / 7 expected-red (4 pre-existing + the 3 new specs).
+
+## 2026-07-29 10:38 — reviewer (claude-opus-5, supervised handoff)
+
+handoff: promoted the 7 mechanical-hop-proxy-coupling children (id:e62c [HARD — pool], id:89d6/54be/c480 [ROUTINE], id:540f/c179 gated on e62c, id:554b gated on 540f) + 3 RED specs; folded id:18ed into id:ba27; ticked the fable-config install-drift REVIEW_ME box
