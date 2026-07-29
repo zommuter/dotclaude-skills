@@ -17,6 +17,18 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROADMAP="$ROOT/ROADMAP.md"
 
+# Hermeticity: tests build throwaway git fixture repos and `git commit`/`git init` into
+# them. This suite must be immune to the DEVELOPER's own global git config — in
+# particular a global `core.hooksPath` (e.g. this repo's own pre-commit-lane-vocab.sh /
+# pre-push-privacy-gate.sh, installed via `make install-lane-ratchet` /
+# `make install-privacy-gate`) must never fire inside a fixture repo just because the
+# fixture's relay.toml happens to list it as "own". Neutralize hooksPath for every git
+# invocation this test run spawns via the GIT_CONFIG_COUNT/KEY/VALUE env override
+# (git >= 2.31) — this overrides, never mutates, the developer's actual global config.
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=core.hooksPath
+export GIT_CONFIG_VALUE_0=/dev/null
+
 if [[ $# -gt 0 ]]; then
   files=("$@")
 else
