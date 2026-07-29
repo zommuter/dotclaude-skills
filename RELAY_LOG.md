@@ -3802,3 +3802,8 @@ refactor: none needed — a one-line extraction-method swap inside an existing t
 ## 2026-07-29 12:00 — executor (sonnet, relay-loop)
 
 id:98ea — fixed test_redispatch_suppression_e3b7.sh's structural extraction (awk terminator never matched relay-loop.js's 4-space return, silently captured 674/2600 lines); brace-depth extraction now; 10/10 standalone + full suite 321/0/6-xred. [id:98ea]
+
+## 2026-07-29 — executor (sonnet)
+
+Worked id:a225 — implemented the RED spec: relay/scripts/diagram-edge-coverage.sh mechanically parses mermaid transition edges (`-->`/`.->`) from a .mmd file and requires each to carry a `%% enforced-by: <test>` (or explicit `NONE — <reason>`) annotation on the following line, failing on silence — the exact gap that let the c919 handback-routing bug survive nine days while the diagram drew the correct edge. Annotated all 38 edges in docs/diagrams/relay-dispatch.mmd (23 real enforcing tests, 15 honest NONE backlog); the c919 regression anchor (`handback -->|"route: hard-split"| discover`) is enforced by test_dry_round_work_creating_handback_c919.sh per spec. Registered the new script in the Makefile's relay_FILES/_EXEC/_ALLOW (install-manifest test caught the initial omission). Friction: the checker's own multi-line stdout piped into `grep -q` under a caller's `set -o pipefail` triggered a false failure via SIGPIPE (grep closes early, checker's later writes get killed, pipeline reports 141 even though grep matched) — fixed with `trap '' PIPE` in the checker; flaky until that fix, deterministic after. Full suite: 322 passed, 0 failed, 5 expected-red.
+refactor: none needed — new standalone script, no existing duplication to extract.
