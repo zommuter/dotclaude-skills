@@ -3788,3 +3788,7 @@ reflects rule 2's test-authoritative definition of done (the RED spec is fully s
 gap it was meant to close is only half-closed and should not be read as fully resolved in production.
 refactor: none needed — new pure function follows the existing isDryRound/classifyRepeatHandbacks pattern in
 the same file; no new duplication introduced.
+
+## 2026-07-29 11:31 — executor (sonnet, relay-loop)
+
+id:d6f0 — implemented finalDrainVerdict() in drain.mjs (drained/blocked-pending-human now self-verifying against actionability re-derivation, fail-closed on probe failure); RED spec now green; suite 321/0/6-xred. Live wiring at relay-loop.js's drain exit is NOT included (flagged in RELAY_LOG as needing design work — no test covers it). [id:d6f0]
