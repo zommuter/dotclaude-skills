@@ -178,10 +178,13 @@ D1/D2):
      through the proxy to use the mechanical tier natively.
    - `abort` (probe mode-b — base URL is the proxy loopback form but the proxy is DOWN): the WHOLE
      session is degraded (all `agent()` traffic transits the dead proxy; Haiku is equally
-     unreachable, so it is NEVER a Haiku-fallback case). Surface the loud warning; for an
-     unattended run, **proceed conservatively** (pass `MECH_FALLBACK=abort` — the loop keeps
-     `model:"bash"`, which fail-opens as before, and logs the degradation loudly rather than
-     hard-crashing) and recommend starting/restarting `mechanical-proxy.py` (id:69f6).
+     unreachable, so it is NEVER a Haiku-fallback case). Surface the loud warning naming the
+     relaunch env, and **abort means abort**: the front door does NOT launch the Workflow —
+     this is now a launch REFUSAL (D1/D2, meeting `2026-07-29-0911`), not a proceed-anyway
+     path (the id:540f/id:c179 code half implements the refusal itself; this prose no longer
+     documents the old fail-open "keep `model:\"bash\"` and log loudly" behaviour it
+     contradicted). Recommend starting/restarting `mechanical-proxy.py` (id:69f6) and
+     relaunching once healthy.
    - `proceed` (probe healthy): the proxy is intercepting `model:"bash"` as designed — no warning,
      pass nothing (or `MECH_FALLBACK=proceed`).
 1. **Non-interactive by default.** The front door operates ONLY on relay.toml
@@ -277,6 +280,34 @@ D1/D2):
    surfaces in `RELAY_STATUS.md` Queued with a clear reason). It carries `fable-standin`
    (apex Opus work invites an optional Fable recheck) and uses a `strong-execute (...)`
    checkpoint label.
+3b. **Exit-only teardown trap (id:54be, D1-A/D3-A).** Immediately after minting `$RUN_ID`
+   and before invoking the Workflow, the front-door shell installs an `EXIT` trap owning
+   **exactly two** teardown actions and nothing else — `heartbeat.sh stop` (releases this
+   run's liveness marker) and the id:89d6 sweep `claim.sh release --run` (releases every
+   lease this run holds, repo- and run-scoped so it can never touch another run's claim).
+   Both fail LOUDLY to stderr — never `|| true`, never `2>/dev/null` ([[no-swallow-stderr]])
+   — a stderr line is the only signal left when the Workflow is SIGKILLed; there is no
+   writer left to append a `RELAY_STATUS.md` row. **EXIT-ONLY, not success-path**: the trap
+   fires whether the Workflow RETURNS or DIES (non-zero exit / signal), so a wedged or
+   killed round still tears down its lease and heartbeat. `beatHeartbeat`
+   (`relay-loop.js:1743`/`:2552`) and per-unit `releaseLease` (`:2415`) STAY in-Workflow and
+   are UNCHANGED by this trap — beat means "the loop made progress", and moving it to the
+   front door would beat through a wedged Workflow, blinding the id:98f0 outage watchdog
+   (`--fabled` F4); per-unit release stays a latency optimization, with this trap as its
+   exit-time backstop, not a replacement.
+
+<!-- teardown-trap:start -->
+```bash
+_relay_exit_teardown() {
+  local status=$?
+  ~/.claude/skills/relay/scripts/heartbeat.sh stop "$RUN_ID"
+  ~/.claude/skills/relay/scripts/claim.sh release --run "$RUN_ID"
+  return "$status"
+}
+trap _relay_exit_teardown EXIT
+```
+<!-- teardown-trap:end -->
+
 4. **Exit summary.** After the Workflow completes, the front door releases the
    autonomous-pool singleton claim run-scoped (id:11c6 — only if it was a bare no-arg run
    that acquired it in step 2b): `claim.sh release pool:autonomous --run
