@@ -3988,3 +3988,7 @@ controls and the three path-1/path-2 regression cases already pass, which bounds
 narrowing of path 3. Suite: **328 passed, 0 failed, 8 expected-red** (the new file is the 8th,
 correctly classified EXPECTED-RED because `roadmap:6b1c` is unticked). No RED specs were
 authored for the other 11 promoted items — this pass was scoped to C2.
+
+## 2026-07-30 18:57 — reviewer (opus)
+
+handoff C2/C3 integrated: 12 items promoted (existing ids reused), be40 lane-triaged, 6a0d ticked, RED spec for id:6b1c verified genuinely red; suite 328/0
