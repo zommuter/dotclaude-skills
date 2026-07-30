@@ -56,7 +56,19 @@ cat > "$TMP/TODO.md" <<'EOF'
 - [ ] [HARD — decision gate] **Old auto-gate alias** — routes to the meeting lane. <!-- id:4444 -->
 - [ ] [INPUT — nonsense] **Unrecognized lane** — must LOUD-reject. <!-- id:5555 -->
 - [ ] [ROUTINE] **A routine item** whose prose merely mentions a re-laned `[INPUT — access]` tag in backticks. <!-- id:6666 -->
+- [ ] [ROUTINE] **A plain routine item** — no link, no planning keyword. <!-- id:7777 -->
+- [ ] [ROUTINE] **A routine item we should evaluate and plan** — keyword-bait prose that used to force C2. <!-- id:aab1 -->
+- [ ] [ROUTINE] **A routine item with a designed note** docs/meeting-notes/2026-01-01-0000-x.md — link + Decisions, so it used to be C1. <!-- id:aab2 -->
+- [ ] [MECHANICAL] **A daemon-run item** — pure compute, no LLM. <!-- id:aab3 -->
+- [ ] [MECHANICAL] [INTENSIVE — local-llm] **A daemon item with a composed resource axis** — the INTENSIVE modifier must not shadow the lane. <!-- id:aab4 -->
+- [ ] [INPUT — meeting] **A meeting item whose long prose discusses moving work onto a [ROUTINE] executor lane and mentions [MECHANICAL] daemon runs**, repeatedly, hundreds of characters into this single line, so that a naive whole-line grep would mis-read its lane — this is the trap that overstated id:4e3b's own blast radius by ~50%% during its design, and the head-anchor is what prevents it. <!-- id:aab5 -->
 EOF
+
+# The C1 fixture above needs a linked note WITH a Decisions section, mirroring the
+# test_classify_hard_floor.sh fixture, so the [ROUTINE]-with-Decisions case is real.
+mkdir -p "$TMP/docs/meeting-notes"
+printf '# note\n\n## Decisions\n\n- D1: something was decided.\n' \
+  > "$TMP/docs/meeting-notes/2026-01-01-0000-x.md"
 
 out="$("$SH" "$TMP")"
 
@@ -115,5 +127,40 @@ c="$(cls 6666)"
 [[ "$c" != "HANDS" ]] || fail "backtick-quoted [INPUT — access] wrongly routed a [ROUTINE] item to HANDS (id:306d)"
 [[ "$(gate 6666)" != *HARD-NOLANE* ]] || fail "[ROUTINE] item wrongly flagged HARD-NOLANE from a backtick-quoted lane mention"
 pass "[ROUTINE] with backtick-quoted \`[INPUT — access]\` → not HANDS ('$c')"
+
+# --- id:4e3b: the other two capability lanes ------------------------------------
+# [ROUTINE] → EXEC unconditionally, and [MECHANICAL] → its own SURFACED class.
+[[ "$(cls 7777)" == "EXEC" ]] || fail "[ROUTINE] must be EXEC, got '$(cls 7777)'"
+[[ "$(gate 7777)" != *HARD-NOLANE* ]] || fail "[ROUTINE] must NOT be HARD-NOLANE — it IS a valid lane"
+pass "[ROUTINE] → EXEC (id:4e3b)"
+
+# Keyword bait ("evaluate", "plan") used to force C2 via the keyword hint.
+[[ "$(cls aab1)" == "EXEC" ]] || fail "[ROUTINE] with planning-keyword prose must still be EXEC, not C2, got '$(cls aab1)'"
+pass "[ROUTINE] + planning-keyword prose → EXEC (keyword hint no longer wins)"
+
+# THE LOAD-BEARING ONE: a [ROUTINE] item with a link + ## Decisions used to be C1, and
+# C1 means /meeting implements it INLINE. It must be EXEC — the pool is its home, and the
+# cheaper lane must not get more meeting access than bare [HARD] (which is POOL even when
+# impl-ready). Guards against a well-meaning "but it's ready, let /meeting do it" revert.
+[[ "$(cls aab2)" == "EXEC" ]] || fail "[ROUTINE] with link+Decisions must STILL be EXEC (never C1 — the inline-implement path is deliberately closed to it), got '$(cls aab2)'"
+pass "[ROUTINE] + link + ## Decisions → EXEC, NOT C1 (id:4e3b, the deliberate carve-out refusal)"
+
+[[ "$(cls aab3)" == "MECH" ]] || fail "[MECHANICAL] must be MECH, got '$(cls aab3)'"
+[[ "$(gate aab3)" != *HARD-NOLANE* ]] || fail "[MECHANICAL] must NOT be HARD-NOLANE — it IS a valid lane"
+pass "[MECHANICAL] → MECH (own class, surfaced — not folded into POOL)"
+
+# MECH must be DISTINCT from POOL: a [MECHANICAL] item is pool-inert AND human-inert with
+# no daemon built, so it needs its own visible class rather than being lumped with pool work.
+[[ "$(cls aab3)" != "POOL" ]] || fail "[MECHANICAL] must not collapse into POOL — it is daemon-run, not pool-dispatched"
+pass "MECH is a distinct class from POOL"
+
+# [INTENSIVE — <resource>] composes with a capability lane and must not shadow it.
+[[ "$(cls aab4)" == "MECH" ]] || fail "[MECHANICAL] with a composed [INTENSIVE — …] modifier must be MECH, got '$(cls aab4)'"
+pass "[MECHANICAL] [INTENSIVE — local-llm] → MECH (resource axis does not shadow the lane)"
+
+# ANCHORING for the new lanes — the trap that overstated id:4e3b's own blast radius.
+c="$(cls aab5)"
+[[ "$c" == "C3" ]] || fail "[INPUT — meeting] item whose PROSE mentions [ROUTINE]/[MECHANICAL] must stay C3, got '$c' (head-anchor regression)"
+pass "[INPUT — meeting] with deep-prose [ROUTINE]/[MECHANICAL] mentions → C3 (anchoring holds for the new lanes)"
 
 echo "ALL PASS"
