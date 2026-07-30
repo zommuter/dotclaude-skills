@@ -6,10 +6,13 @@
 #   CLASS: C1 (link+Decisions), C2 (link-no-Decisions or keyword hint), C3 (no link),
 #          RELAY (the relay ROADMAP mirror line — executor work, never
 #          meeting-worthy; /meeting dispatch must skip it),
-#          POOL / HANDS / HUMAN (a lane-tagged item whose lane is pool / hands-or-author
-#          / human-decision — see the lane floor below; executor, human-manual, and
-#          human-decides work respectively. NONE are meeting-worthy — /meeting dispatch
-#          must skip all three, exactly like RELAY).
+#          POOL / EXEC / MECH / HANDS / HUMAN (a lane-tagged item whose lane is
+#          apex-pool / executor / daemon / hands-or-author / human-decision — see the lane
+#          floor below. NONE are meeting-worthy — /meeting dispatch must skip all five,
+#          exactly like RELAY, and print them under its "not meeting-worthy" note. MECH in
+#          particular must be SURFACED, never silently dropped: a [MECHANICAL] item is both
+#          pool-inert and human-inert and its daemon is not built, so this printout is
+#          currently the only place a human sees it).
 #   GATE:  GATED if body contains gate/condition/blocked vocabulary; empty otherwise.
 #          HARD-NOLANE if a lane-bracketed item declares no recognized lane (id:78ff:
 #          untagged = LOUD reject — surface it, don't silently treat as meeting work).
@@ -25,7 +28,10 @@
 #            [INPUT — decision]     → HUMAN (human decides, NO meeting — id:1f1c)
 #            [INPUT — access]       → HANDS (human-manual work — /meeting skips it)
 #            [INPUT — author]       → HANDS (human-authored content, id:2b0b)
-#            [HARD]  (bare)         → POOL  (relay-executor work — /meeting skips it)
+#            [HARD]  (bare)         → POOL  (apex pool work, `hard` verdict — skipped)
+#            [ROUTINE]              → EXEC  (executor-tier work — skipped, id:4e3b;
+#                                            ALWAYS, even with link+## Decisions)
+#            [MECHANICAL]           → MECH  (daemon-run, no LLM — skipped but SURFACED)
 #            [HARD — meeting]       → C3    (old, accepted)
 #            [HARD — decision gate] → C3    (old, accepted; auto-gate alias id:3801)
 #            [HARD — pool]          → POOL  (old, accepted)
@@ -135,7 +141,7 @@ while IFS= read -r line; do
     # only inside backticks (e.g. a note "re-laned `[HARD — pool]`→`[ROUTINE]`") never
     # counts as this item's own lane.
     lead=$(printf '%s' "$body" | cut -c1-120 | sed -E 's/`[^`]*`//g')
-    lane_tag=$(printf '%s' "$lead" | grep -oE '\[(HARD|INPUT)[^]]*\]' | head -1 || true)
+    lane_tag=$(printf '%s' "$lead" | grep -oE '\[(HARD|INPUT|ROUTINE|MECHANICAL)[^]]*\]' | head -1 || true)
     # Normalize for matching: lowercase, collapse runs of whitespace.
     lane_norm=$(printf '%s' "$lane_tag" | tr 'A-Z' 'a-z' | tr -s '[:space:]' ' ')
     # Auto-gate route: aliases are annotations that may sit anywhere in the item body
@@ -152,6 +158,48 @@ while IFS= read -r line; do
             *decision*)         class="HUMAN" ;;
             *access*|*author*)  class="HANDS" ;;
             "[hard]"|"[hard ]") class="POOL" ;;
+            # id:4e3b (owner-ratified 2026-07-30) — the OTHER two capability lanes. Before
+            # this they fell through the lane floor entirely into the link/keyword heuristic,
+            # so every open executor/daemon-lane item was a pick-eligible /meeting candidate.
+            # MEASURED on this repo, anchored (31 [ROUTINE] + 1 [MECHANICAL] = 32 items):
+            # BEFORE 19 C3 + 11 C2 + 2 C1 → AFTER 31 EXEC + 1 MECH. That C3/C2 mass is a
+            # FALSE signal, not a design need: C1/C2/C3 grades the DESIGN MATURITY of
+            # meeting-lane work by whether a meeting-note link exists, so a perfectly
+            # well-specified [ROUTINE] item lands in C3 purely for lacking a link, and a C2
+            # is often just prose containing a planning verb ("evaluate"/"plan"). A lane tag
+            # is a deliberate human capability claim and dominates an incidental link-absence.
+            #
+            # NB the anchoring below is load-bearing for these two lanes in particular: a
+            # naive `grep -cE '^- \[ \].*\[ROUTINE\]'` over this repo returns 47, but 16 of
+            # those are OTHER-lane items merely DISCUSSING [ROUTINE] in prose (id:4e3b's own
+            # line is one). The anchored count is 31. Counting without the head-anchor
+            # overstated this change by ~50% during its own design — the id:5648 trap.
+            #
+            # [ROUTINE] → EXEC, ALWAYS — including a link + ## Decisions section. Deliberately
+            # NOT C1-eligible (Fable second-opinion, 2026-07-30): bare [HARD] with
+            # link+Decisions is already POOL — skipped even when impl-ready — so making
+            # [ROUTINE] C1-eligible would grant the CHEAPER-tier lane MORE meeting access than
+            # the apex lane, inverting the capability logic ([ROUTINE] means a cheap executor
+            # suffices, so the pool is its home a fortiori). It would also route the highest-
+            # collision-probability items through SKILL.md step 4's C1 path, which does real
+            # CODE work (full suite green) while /meeting's advisory claim sits on the DISTINCT
+            # key `meeting:<repo>` precisely so a parallel executor is NEVER refused — a
+            # non-blocking design justified by claim.sh's SCOPE INVARIANT "a meeting is
+            # ledger-only" (id:0ee1/id:179e). Under single-id-two-views the same id can be
+            # live in ROADMAP, so a pool executor could be working it concurrently.
+            # Nothing is orphaned: unpromoted-scan.sh (id:2dea) surfaces open TODO items and
+            # handoff C2 promotes them — /meeting was never how [ROUTINE] work reached an
+            # executor. An explicit `/meeting <topic>` still reaches any item on demand.
+            #
+            # [MECHANICAL] → MECH, its own SURFACED class — NOT folded into POOL and never a
+            # silent drop. A [MECHANICAL] item is pool-inert (the classifier verdict is never
+            # dispatched) AND human-inert (gather-human-backlog.sh keeps it out of every
+            # human-triage bucket), and its host daemon is "A3, gated — not built"
+            # (hard-lanes.md §[MECHANICAL]). So /meeting's bucket printout is currently the
+            # ONLY surface where a human sees these items; dropping them silently would
+            # strand them nowhere-visible (the id:4347 no-silent-swallow anti-pattern).
+            "[routine]"|"[routine ]")       class="EXEC" ;;
+            "[mechanical]"|"[mechanical ]") class="MECH" ;;
             *)                  class="C3"; gate="${gate:+${gate};}HARD-NOLANE" ;;
         esac
     elif [[ "$body_low" == *"route:meeting"* || "$body_low" == *"route:decision-gate"* ]]; then
