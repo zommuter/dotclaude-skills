@@ -2237,7 +2237,7 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
   - **Hardening — F3, load-bearing**: an EMPTY extraction ⇒ **run-alone**, never greenlight-all. An empty set is disjoint from everything, so the naive reading turns the maximal under-extraction into the maximal parallelism. This is the single most important acceptance criterion here.
   - **Both metrics are the deliverable, not a nicety** — log the **under-extraction rate** (extracted ⊂ actual merged diff, computable from `drain-integrate.sh`'s merge-check) AND the **false-serialization rate** (declared sets intersect but the actual diffs are disjoint). `**Context**` paths are often CITATIONS rather than touches, so over-extraction would silently destroy the throughput win; a subset-only metric measures half the evidence.
   - **Recorded design rule (D3a), state it in the script header**: the greenlight is a THROUGHPUT OPTIMIZER; the serialized integrator is the SAFETY NET. Never relax integrate checks "because greenlight already proved disjointness".
-  - **Scope boundary**: build the extractor as a standalone script with its own test. **It is NOT wired into the engine here** — `disjoint-greenlight.sh` is itself currently unreferenced from `relay-loop.js` (`grep -c` → 0), and the wiring is id:ae08, which is NOT promoted because it requires editing `relay-loop.js` under the standing do-not-modify directive. Do not "helpfully" wire it.
+  - **Scope boundary**: build the extractor as a standalone script with its own test. **It is NOT wired into the engine here** — `disjoint-greenlight.sh` is itself currently unreferenced from `relay-loop.js` (`grep -c` → 0), and the wiring is id:ae08 (PROMOTED 2026-07-30 as a separate `[HARD]` item after the owner lifted the `relay-loop.js` do-not-modify directive). Do not "helpfully" wire it here — id:ae08 owns the wiring and DEPENDS on this extractor.
   - **Acceptance**:
     - given a fixture ROADMAP item with path tokens in `**Context**`/`**Tests**`/`**Wiring**`, the extractor emits that path set;
     - an item with NO extractable path yields an explicit run-alone verdict, NOT an empty-set-is-disjoint greenlight — assert the verdict, not just the empty set;
@@ -2247,3 +2247,105 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
   - **Tests**: `tests/test_declared_path_extractor_b099.sh` (`# roadmap:b099`) — **synthetic fixtures under `mktemp -d` only**. The meeting cites a loderite corpus as evidence; do NOT read another repo at test time (hermeticity, and loderite is off-limits for this run) — copy representative shapes into fixtures instead.
   - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_disjoint_greenlight.sh` still green unmodified, then tick and run full `make test`.
   - **Out of scope**: wiring into `relay-loop.js` (id:ae08); the wave planner (id:1f4f); an authored `**Touches**` field; changing `disjoint-greenlight.sh`'s own contract.
+
+## In-repo parallelism wave model (id:1f4f children) + round-verdict observability — promoted from TODO 2026-07-30 (handoff C2/C3)
+
+> Five items promoted after the owner LIFTED (2026-07-30) the standing directive that
+> forbade modifying `relay/scripts/relay-loop.js`. All five were blocked solely on that
+> directive. Four are id:1f4f children (meeting
+> `docs/meeting-notes/2026-07-26-1922-relay-efficiency-in-repo-parallelism.md`); id:c7dc is
+> an independent observability gap filed 2026-07-30. Ids REUSED from TODO.md
+> (single-id-two-views) — TODO.md stays the prose SSOT.
+>
+> `relay-loop.js` editing hazards, read before touching it: it holds 17 ` ```relay-mech `
+> fence occurrences, several built by string concatenation and at least one from a VARIABLE
+> (`:2360`, `'```relay-mech\n' + cmd + '\n```'`), plus one inside a template literal with
+> escaped backticks. After ANY edit run BOTH `node --check relay/scripts/relay-loop.js` and
+> `node relay/scripts/lint-workflow-templates.mjs relay/scripts/relay-loop.js`, then the full
+> suite. Every line number below was VERIFIED at promotion time (they differ from the numbers
+> quoted in the TODO lines, which had drifted) — re-verify before editing.
+
+- [ ] [ROUTINE] **L2 — bounded execute→execute rechain (K≤3)** <!-- children-of:1f4f --> <!-- id:cc90 -->
+  - **Why**: child of id:1f4f, meeting 2026-07-26-1922 D4c. Today ONLY reviews rechain — `relay/scripts/relay-loop.js:2443-2452` gates re-enqueue on `unit.verdict === 'review' && … && !unit.rechained`, with the comment *"Only reviews chain — an execute never re-enqueues"*. So a repo with N open `[ROUTINE]` items drains at ~1 per round and pays one STRONG_MODEL review per Sonnet execute.
+  - **What to build**: replace the `rechained` BOOLEAN (`unit.rechained` at `:2445`, set `rechained: true` at `:2449`) with a DEPTH COUNTER (`unit.chainDepth`, default 0), and allow an `execute` unit to re-enqueue another `execute` for the same repo while `chainDepth < K`, K = 3. Chained units stay SERIAL in one lane and are integrated by the existing per-repo `enqueueIntegration` chain (`:820`), so no ROADMAP write collision is possible. The `!rechainedSameRepo` lease-hold exception at `:2460` must extend to the execute→execute case (releasing the lease in the gap lets another run steal the repo).
+  - **Pre-registration is MANDATORY and part of the deliverable (amendment A2, `--fabled` F1)** — record all three answers as a block comment at the rechain site, in the SAME commit as the code. The STATUS-QUO-PRESERVING defaults below are what this handoff pre-registers; each is deliberately the choice that changes nothing beyond the chaining itself. **Any DIFFERENT answer is a design decision and needs a `/meeting`, not an executor's judgement** — see REVIEW_ME id:cc90.
+    - (a) **Review scope under chaining = PER-CHAIN, deferred.** A chained execute is NOT reviewed mid-chain; the whole chain's commits are reviewed by the next round's `review` verdict, exactly as a single execute's are today.
+    - (b) **Reject-unwind at depth K = NO UNWIND.** A reject at depth 3 does NOT unwind the already-integrated units at depths 1–2. Integrated is integrated; the reject stops further chaining and surfaces normally. (Unwinding integrated+pushed work is a strictly larger, hazardous design.)
+    - (c) **A chained member does NOT re-enter the disjoint greenlight.** A chained execute is dependent on its predecessor — the opposite of what `disjoint-greenlight.sh` certifies — so it runs in its predecessor's lane and is never a member of a parallel wave. Without this the wave silently becomes a DAG.
+  - **Acceptance**:
+    - a repo with 3 open `[ROUTINE]` items drains all 3 in ONE round with ONE review (not 3 reviews);
+    - chaining STOPS at depth K=3 — a 4th chained execute is never enqueued, and K is a named constant, not a magic literal;
+    - the depth is carried on the unit (a counter), and `unit.rechained` as a boolean no longer gates the decision anywhere;
+    - the lease is HELD across an execute→execute rechain (not released in the gap);
+    - `quotaStopped` and `MAX_UNITS` still gate actual dispatch of a chained unit exactly as before;
+    - the three pre-registered answers (a)/(b)/(c) are present verbatim as a comment at the rechain site.
+  - **Tests**: `tests/test_rechain_depth_cc90.sh` (`# roadmap:cc90`) — source-shape assertions in the style of `tests/test_dispatch_event_sig.sh` (the Workflow engine cannot be run hermetically), PLUS `node --check` and the template linter. Triangulate: assert the counter exists, that K is a named constant with value 3, that the execute branch is reachable (the rechain condition no longer requires `verdict === 'review'`), that the lease-hold exception covers it, and that all three pre-registration answers are recorded.
+  - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_dispatch_event_sig.sh tests/test_workflow_template_lint.sh` still green unmodified, then tick and run full `make test`.
+  - **Out of scope**: the wave planner (id:1f4f); wiring `disjoint-greenlight.sh` (id:ae08); the round tail (id:3ca7); changing review's own chaining.
+
+- [ ] [ROUTINE] **Layer B — per-unit identity key; re-key the repo-as-primary-key collision sites** <!-- children-of:1f4f --> <!-- id:923b -->
+  - **Why**: child of id:1f4f, meeting 2026-07-26-1922 D2 + amendment A3. This is a CONCRETE LATENT BUG TODAY, independent of any fan-out decision — two concurrent same-repo units already collide:
+    - `relay-loop.js:1804` — `worktreePathFor` builds a template-literal path of the shape `~/.cache/relay/worktrees/<unit.repo>/<state.runId>-<unit.verdict>` — two concurrent same-repo executes compute the IDENTICAL path.
+    - `relay-loop.js:2435` — `state.inFlight = state.inFlight.filter(r => r.repo !== unit.repo)` — clears EVERY same-repo in-flight entry, not just this unit's.
+  - **Key shape**: **itemId × attempt**. A bare itemId collides on retries and on the open id:1b1a fail-open-append duplicate-line bug; a bare nonce orphans every pre-crash worktree from id:7809's reconcile view.
+  - **OPEN QUESTION the executor must NOT silently resolve** — only `execute` units have an item id (`unit.actionable_routine_ids[0]`, `classify-repo.sh` id:b09e); `review`, `handoff`, `hard` and injected units have NONE. The key needs a defined fallback for them. This handoff's provisional shape is `${verdict}-${itemId || 'repo'}-${attempt}`, which preserves today's one-unit-per-repo-per-verdict behaviour for the id-less verdicts. **If the executor finds this insufficient, hand back rather than invent a scheme** — see REVIEW_ME id:923b.
+  - **Lease goes TWO-TIER, NOT flattened (A3)**: the driver keeps the repo-level `claim.sh` lease — that lease is also what a parallel `/meeting` advisory claim collides against ([[claim-lease-mode-blind-no-pool-meeting-skip]]) — while individual units hold unit keys. `enqueueIntegration` (`:820`) stays REPO-keyed; its serialization is correct and must not be re-keyed.
+  - **Also required**: an id:7809 reconcile rule for N same-repo worktrees after a crash mid-wave (today's reconcile assumes one worktree per repo).
+  - **Acceptance**:
+    - two same-repo units in the same run compute DIFFERENT worktree paths (assert with at least two distinct item ids AND a same-item retry, i.e. differing `attempt`);
+    - completing one unit removes ONLY that unit's `inFlight` entry; a sibling same-repo entry survives;
+    - the repo-level `claim.sh` lease is still acquired/released at repo granularity — a `/meeting` advisory claim on the repo still COLLIDES (this is the regression the two-tier split must not break);
+    - `enqueueIntegration` is still keyed by repo;
+    - the reconcile rule handles N same-repo worktrees without orphaning any.
+  - **Tests**: `tests/test_unit_identity_key_923b.sh` (`# roadmap:923b`) — source-shape assertions plus, where a helper is extracted, a directly-callable purity test of the key function. Triangulate with several unit shapes (two ids, same id different attempt, an id-less review unit). Include `node --check` + the template linter.
+  - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_relay_stale_worktree_reap.sh tests/test_context_death_parks_worktree_4df8.sh tests/test_worktree_retire.sh` still green unmodified, then tick and run full `make test`.
+  - **Out of scope**: the mode-blind lease REDESIGN (explicitly out of scope per id:1f4f D1); actually fanning out (id:ae08); id:1b1a's md-merge fix.
+
+- [ ] [ROUTINE] **A relay round that dispatches NOTHING leaves no trace of its verdict or reason — emit a `verdict`-kind event per repo per round** <!-- id:c7dc -->
+  - **Why**: found 2026-07-30 when a live diagnosis became UNDECIDABLE from the artifacts. `pushEvent` (`relay-loop.js:57`) is called with exactly four kinds — `dispatch` (`:2401`), `integrate` (`:2220`), `handback` (`:2080/:2099/:2268/:2478`), `backstop` (`:67`) — **all of which presuppose a unit EXISTS**. The classification step, the thing that decides every repo's verdict every round, writes nothing durable. In run `relay-20260730-120037-1685` rounds 1–12 each dispatched one `execute` and round 13 dispatched nothing; whether that was a drained backlog, a `blocked` verdict at rank 0 (dirty main checkout, routed:6f85 class), or a replayed `discover-sig` cache verdict is UNRECOVERABLE — and the three imply completely different fixes. `RELAY_STATUS.md` does not close it: it is a per-round SNAPSHOT (rewritten each round) and its `## Stop reason` conflates "still running" with "drained".
+  - **This is PLUMBING, not new derivation** — `classify-verdict.sh` already produces `verdict`, `priority_rank`, `reason` and an `evidence[]` array of `{field,value,source}` pointers (`relay/scripts/classify-verdict.sh:118-217`). What is missing is the passthrough: `classify-repo.sh --emit unit` builds the unit dict at `:395-427` and **drops `priority_rank` and `evidence`** — only `verdict`/`reason`/`intensive` survive. So the plumbing spans `classify-repo.sh` → `discover-repo.sh` → `discover-chunk.sh` → `relay-loop.js`.
+  - **Emit for the NO-UNIT paths too — this is the whole point.** `discover-repo.sh` routes `blocked` → `surfaced`, no unit (`:135`); `AMBIGUOUS` → `surfaced`, no unit (`:137`); `idle` → unit + `skipped` (`:139`); and a repo-level reconcile block returns `units:[]` SUBSTITUTIVELY at `:98` **before a verdict is ever computed**. A `verdict` event that only covers dispatched units reproduces the exact blind spot. For the substitutive path, where no verdict exists, emit an HONEST sentinel (e.g. `verdict:"", reason:"<the reconcile block reason>"`) — never fabricate a verdict.
+  - **Payload**: `{repo, round, verdict, priority_rank, reason, sig, cached}`. `cached` is load-bearing and explicit: the id:c3a6 discover-sig cache means a round may REUSE last round's verdict without re-deriving it (`reusedUnits` / `reusedIdle` in `relay-loop.js`), and a reader currently cannot tell a fresh verdict from a replayed one.
+  - **Keep it off the critical path** like the other events — `pushEvent` into `pendingEvents`, drained by `snapshotState` via `relay-state-write.sh event-append`. No new file, no new sink.
+  - **Acceptance**:
+    - `classify-repo.sh --emit unit` carries `priority_rank` through to the unit (behavioural, hermetic fixture — not a source grep);
+    - `pushEvent('verdict', …)` fires once per repo per round, including for repos that produced NO unit (blocked / AMBIGUOUS / substitutive-reconcile / shard-failure) and for `idle` repos;
+    - a cache-reused verdict is emitted with `cached: true` and a freshly-derived one with `cached: false`;
+    - the substitutive no-verdict path emits an honest empty verdict with the block reason, never a fabricated verdict;
+    - the round number is present, so a reader can prove round 13 classified repo X as Y for reason Z;
+    - no new file is written and the event goes through the existing `pendingEvents` → `event-append` sink.
+  - **Tests**: `tests/test_verdict_event_c7dc.sh` (`# roadmap:c7dc`) — BOTH halves: a hermetic behavioural fixture (in the style of `tests/test_classify_repo_unit.sh`) asserting the `priority_rank` passthrough, AND source-shape assertions (in the style of `tests/test_dispatch_event_sig.sh`) for the `pushEvent('verdict',…)` call, its `cached` field, and its reachability from the no-unit paths. Plus `node --check` + the template linter.
+  - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_classify_repo_unit.sh tests/test_dispatch_event_sig.sh tests/test_backstop_fire_log.sh tests/test_discover_repo.sh` still green unmodified, then tick and run full `make test`.
+  - **Out of scope**: id:5749 (a BLOCKED agent leaves no on-disk artifact — agent lifecycle, different gap); the injected-unit-never-dispatched item (`inject.sh take` specifically); changing `RELAY_STATUS.md`'s snapshot shape; any new consumer/reporting tool over the events file.
+
+- [ ] [HARD] **Wire the built-but-unreferenced fan-out machinery (`disjoint-greenlight.sh` + `drain-integrate.sh`) into `relay-loop.js`** <!-- children-of:1f4f --> <!-- id:ae08 -->
+  - **Why**: child of id:1f4f, meeting 2026-07-26-1922 amendment A1 (`--fabled` finding F2, the strongest of the pass). VERIFIED precondition, re-checked at promotion: `grep -c 'disjoint-greenlight\|drain-integrate' relay/scripts/relay-loop.js` → **0**. Both scripts are built, tested and green (id:5367 / id:2062) but the engine never calls them, so D1's entire one-writer safety argument rests on UNREACHABLE code — while the live path still has executors ticking `ROADMAP.md` in their own worktrees (`relay/references/executor-contract.md:88`), the exact non-union collision id:dc5b C2 exists to prevent, multiplied by N worktrees per wave. *"The plan ships every ingredient and no meal."* This is the [[relay-builtgreen-but-unreferenced]] class.
+  - **Scope**: (1) call `disjoint-greenlight.sh plan` from the drain-mode planner; (2) route same-repo integration through `drain-integrate.sh`; (3) change TICK OWNERSHIP in `relay/references/executor-contract.md` — executors report `worked_ids`, the DRIVER ticks — with a contract version bump (currently **v11**; the `## Relay contract` pointer in `CLAUDE.md` must be bumped in the same commit).
+  - **Wave model constraints this must respect** (id:1f4f D1, ratified): the wave model is scoped to **drain mode (`--only <cwd>`) ONLY**; fleet mode keeps `enforceOneUnitPerRepo` UNCHANGED. Review is a **HARD BARRIER** — never concurrent with anything in its own repo; review ∥ its follow-up executor is EXPLICITLY REJECTED (the review's output is the executor's input).
+  - **Design rule D3a, do not violate**: the greenlight is a THROUGHPUT OPTIMIZER; the serialized integrator is the SAFETY NET. Never relax integrate checks "because greenlight already proved disjointness".
+  - **Acceptance**:
+    - `grep -c 'disjoint-greenlight' relay/scripts/relay-loop.js` and `grep -c 'drain-integrate' relay/scripts/relay-loop.js` are both non-zero, and the call sites are reachable from an actual drain-mode run (not dead branches);
+    - fleet mode behaviour is byte-unchanged — no fan-out outside `--only <cwd>`;
+    - a review unit never runs concurrently with any other unit in its own repo;
+    - executors no longer tick `ROADMAP.md`; they return `worked_ids` and the driver ticks — asserted against the executor contract text AND the integrate path;
+    - the executor contract version marker is bumped and `CLAUDE.md`'s `## Relay contract` pointer matches it;
+    - `node --check` and `lint-workflow-templates.mjs` both clean.
+  - **Depends on**: id:b099 (the declared-path extractor that FEEDS `disjoint-greenlight.sh`) and id:923b (per-unit identity key — N same-repo worktrees collide on `worktreePathFor` without it). Land both first, or the fan-out is wired onto a known collision.
+  - **GATES id:ebbe.**
+  - **Done-check**: full `tests/run-tests.sh` green with `tests/test_disjoint_greenlight.sh`, `tests/test_relay_integrate_contain.sh` and `tests/test_workflow_template_lint.sh` unmodified, then tick.
+  - **Out of scope**: the fleet-mode fan-out; the mode-blind lease redesign; id:2840 state extraction (D1: not needed under one-writer).
+
+- [ ] [HARD] **L1 — mechanize the integrator into one `integrate.sh` relay-mech hop** <!-- children-of:1f4f --> <!-- gated-on:87f5 --> <!-- id:a955 -->
+  - **GATED on id:87f5 (measure first) — DO NOT START UNTIL 87f5 PUBLISHES ITS RANKING.** id:87f5 is the pre-registered per-phase burn measurement that ORDERS this item against id:3ca7; both are explicitly gated on it (meeting 2026-07-26-1922 D4a). Promoting it here makes it visible in the execution queue; it is NOT pickable yet. id:87f5 itself is still an `[INPUT — access]`-class TODO item and is not promoted.
+  - **Why**: child of id:1f4f, meeting 2026-07-26-1922 D4b. `relay-loop.js:2176` builds the integrator prompt and `:2215` dispatches it as a **Sonnet agent** (`model: 'sonnet'`) per completed unit, to run ~40 lines of deterministic steps — lease release → clean-tree gate → verify-isolation → sync-origin → `merge --no-ff` → version-bump → changelog-append → ckpt-tag → git-lock-push → worktree-retire → state-write — each ALREADY a tested script with enumerable exit codes. After id:6176 mechanized quota/inject-take/heartbeat, this is the LAST big LLM agent doing deterministic work, and its cost scales with throughput.
+  - **Keep a micro-hop ONLY for the semver "user-observable?" judgement.** That also resolves the recorded contradiction that the bump step's prose says *"the REVIEWER's alone"* while running on a Sonnet integrate agent ([[bump-changelog-reaches-one-of-three-paths]]).
+  - **Fail-closed with LOUD escalation, never a silent fallback.** Mechanizing moves the failure mode from visible-and-recoverable to silent-and-corrupting (the id:25aa wrong-anchored-ckpt class). Any nonzero exit ⇒ handback, surfaced.
+  - **Preserve, verbatim, the safety rules currently carried in the integrator PROMPT** — they are not decoration and they will be LOST in a naive port: the id:aa93 clean-tree gate (NEVER `git stash` / `checkout --` / `reset --hard` / `git clean` on a foreign-dirty main checkout — DEFER instead) at `:2179`, and the id:6e02 destructive-cleanup scope (remove ONLY this unit's own worktree+branch; a zero-commit branch whose tip is an ancestor of main is NOT proof of a leftover — it is what a LIVE parallel child's fresh worktree looks like) at `:2200`.
+  - **Acceptance**:
+    - a run completes integration with NO Sonnet integrate agent (the only remaining agent on the path is the semver micro-hop);
+    - a forced nonzero at each mechanized step surfaces LOUDLY as a handback — assert several distinct steps, not one;
+    - the id:aa93 defer-don't-clean rule and the id:6e02 cleanup-scope rule are enforced MECHANICALLY (fail-closed), not merely restated in a comment;
+    - `enqueueIntegration`'s per-repo serialization is unchanged;
+    - the id:c563 no-agent-before-dispatch invariant (`tests/test_relay_integrator_noop_guard.sh`) still holds or is deliberately superseded with its test updated, not deleted.
+  - **Done-check**: full `tests/run-tests.sh` green with `tests/test_relay_integrate_contain.sh`, `tests/test_integrate_ckpt_merged_tip.sh` and `tests/test_relay_integrator_noop_guard.sh` unmodified, then tick.
+  - **Out of scope**: the round tail (id:3ca7); the wave planner; changing the bump/CHANGELOG POLICY (only its execution substrate moves).
