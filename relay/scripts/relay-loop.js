@@ -1111,7 +1111,7 @@ const preludeRaw = await agent(
   '```relay-mech\n' +
   `STOP_PATH=${STOP_PATH} ~/.claude/skills/relay/scripts/discover-prelude.sh` +
   '\n```',
-  { label: 'discover-prelude', phase: 'Discover', model: 'bash' }
+  { label: 'discover-prelude', phase: 'Discover', model: MECH_MODEL }
 )
 const prelude = parsePrelude(preludeRaw)
 
@@ -1276,7 +1276,7 @@ if (prelude && Array.isArray(prelude.repos)) {
   if (changed.length) log(`relay-loop: id:24ec discover-run MECHANICAL shard dispatch (model:'bash') — reconcile+classify runs LIVE every round via discover-chunk.sh → discover-repo.sh per repo (ff-merge/uv.lock/reap-park/live-claims side-effects + deterministic classify verdict), concatenated in chunk order; CASE B only (the id:9d97 queue content-address copy is the gated follow-on id:6eb3). No LLM judgment — the shard is a single fenced command; the id:7402 residual LLM read is ELIMINATED for CASE B`)
   const shardResults = changed.length
     ? (await parallel(chunks.map((chunk) => () =>
-        agent(runnerPrompt(chunk), { label: `discover-run:${chunk.length}`, phase: 'Classify', model: 'bash' })
+        agent(runnerPrompt(chunk), { label: `discover-run:${chunk.length}`, phase: 'Classify', model: MECH_MODEL })
       ))).map(parseShard)
     : []
   // Merge the shard classifications + the cached (reused) verdicts + the prelude's injected units +
@@ -2358,7 +2358,7 @@ async function releaseLease(unit) {
     agent(
       `Run exactly this one command and report whether it exited 0:\n` +
       '```relay-mech\n' + cmd + '\n```',
-      { label: `release:${unit.repo}:${label}`, phase: 'Leases', model: 'bash' }
+      { label: `release:${unit.repo}:${label}`, phase: 'Leases', model: MECH_MODEL }
     ).catch(err => log(`relay-loop: per-unit ${label} failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
 
   await dispatch('claim', `~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}`)
