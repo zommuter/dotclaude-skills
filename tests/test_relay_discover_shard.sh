@@ -55,8 +55,8 @@ grep -q "NO-FILESYSTEM-HUNTING" "$CHUNK_SH" || fail "discover-chunk.sh does not 
 grep -q "discover-shard" "$JS" || fail "no discover-shard classifiers"
 grep -Eq "await parallel\(chunks\.map" "$JS" || fail "shards are not fanned out via parallel(chunks.map(...))"
 grep -q "SHARD_SCHEMA" "$JS" || fail "SHARD_SCHEMA (the documented shard output contract) is gone"
-grep -Eq "label: [\`']discover-run:[^\"\`']*[\`'], phase: 'Classify', model: 'bash'" "$JS" \
-  || fail "the discover-run shard is not dispatched model:'bash' (id:24ec mechanization)"
+grep -Eq "label: [\`']discover-run:[^\"\`']*[\`'], phase: 'Classify', model: MECH_MODEL" "$JS" \
+  || fail "the discover-run shard is not dispatched model: MECH_MODEL (id:24ec mechanization, id:4239 bash-by-default)"
 grep -q "parseShard" "$JS" || fail "the model:'bash' shard return is not parsed (parseShard, id:24ec)"
 
 # (5) the merge rebuilds the single discovery object: shard units/surfaced/skipped + the prelude's

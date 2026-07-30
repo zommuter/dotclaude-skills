@@ -46,8 +46,8 @@ node --check "$JS" || fail "relay-loop.js fails node --check"
 
 # (1) CASE-B mechanization: the discover-run shard is a model:'bash' dispatch of discover-chunk.sh.
 grep -q "discover-chunk.sh" "$JS" || fail "relay-loop.js no longer dispatches discover-chunk.sh (id:24ec CASE-B shard)"
-grep -Eq "label: [\`']discover-run:[^\"\`']*[\`'], phase: 'Classify', model: 'bash'" "$JS" \
-  || fail "the discover-run shard is not dispatched model:'bash' (id:24ec mechanization)"
+grep -Eq "label: [\`']discover-run:[^\"\`']*[\`'], phase: 'Classify', model: MECH_MODEL" "$JS" \
+  || fail "the discover-run shard is not dispatched model: MECH_MODEL (id:24ec mechanization, id:4239 bash-by-default)"
 grep -q "parseShard" "$JS" || fail "the model:'bash' shard return is not parsed (parseShard, id:24ec)"
 pass "(1) discover-run is the mechanized CASE-B model:'bash' discover-chunk.sh dispatch (id:24ec)"
 

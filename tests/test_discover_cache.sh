@@ -32,12 +32,12 @@ node --check "$JS" || fail "relay-loop.js fails node --check"
 #      dispatch of discover-chunk.sh (CASE B: per-repo discover-repo.sh reconcile+classify,
 #      concatenated; no LLM). So its explicit pin flipped 'haiku' → 'bash'. The D1 invariant
 #      (explicit fixed cheap pin, NEVER inherits Opus) holds for BOTH discovery hops.
-grep -Eq "label: \`discover-run.*model: 'bash'" "$JS" \
-  || grep -Pzoq "discover-run[^\n]*\n?[^\n]*model: 'bash'" "$JS" \
-  || fail "discover-run agent is not pinned to model: 'bash' (id:24ec mechanized dispatch / stale pin / tier leak)"
-grep -Eq "label: 'discover-prelude'.*model: 'bash'" "$JS" \
-  || grep -Pzoq "discover-prelude[^\n]*\n?[^\n]*model: 'bash'" "$JS" \
-  || fail "discover-prelude agent is not pinned to model: 'bash' (id:86a2 mechanized dispatch / stale pin)"
+grep -Eq "label: \`discover-run.*model: MECH_MODEL" "$JS" \
+  || grep -Pzoq "discover-run[^\n]*\n?[^\n]*model: MECH_MODEL" "$JS" \
+  || fail "discover-run agent is not pinned to model: MECH_MODEL (id:24ec mechanized dispatch / stale pin / tier leak)"
+grep -Eq "label: 'discover-prelude'.*model: MECH_MODEL" "$JS" \
+  || grep -Pzoq "discover-prelude[^\n]*\n?[^\n]*model: MECH_MODEL" "$JS" \
+  || fail "discover-prelude agent is not pinned to model: MECH_MODEL (id:86a2 mechanized dispatch / stale pin)"
 
 # (D3a) PRELUDE_SCHEMA carries a signatures field (per-repo {repo, sig}).
 grep -q "signatures" "$JS" || fail "PRELUDE_SCHEMA / prelude has no signatures field"

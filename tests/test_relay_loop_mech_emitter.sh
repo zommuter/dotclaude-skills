@@ -129,14 +129,30 @@ for label in "${must_stay_haiku[@]}"; do
   echo "$line" | grep -qE "model: *['\"]haiku['\"]" \
     || fail "boundary guard: the LLM hop '$label' must STAY model:'haiku' (not proxy-eligible — do not convert)"
 done
-# Positive assertion that the relocation actually happened: discover-run is now model:'bash',
-# NOT a static model:'haiku' (guards against a silent regression that re-pins it to haiku).
+# Positive assertion that the relocation actually happened: discover-run is mechanized via
+# MECH_MODEL, NOT a static model:'haiku' (guards against a silent regression that re-pins it).
+#
+# id:362f — this used to assert a LITERAL model:'bash'. That literal was only ever a PROXY for
+# "this hop is mechanized, not an LLM inference call", and it became wrong the moment id:4239
+# made the mechanical model a run-level variable: under probe mode-a the very same mechanized
+# hop legitimately dispatches 'haiku'. Asserting the literal therefore FORBADE the fallback the
+# whole feature exists to provide — which is how `490ac6e` (a correct fix) turned main red.
+# The replacement is strictly STRONGER, not a weakened string-swap: it still rejects a static
+# 'haiku' pin (the real regression this guard was built for), and additionally requires the
+# MECH_MODEL indirection itself. "Resolves to 'bash' by default, 'haiku' only under mode-a" is
+# asserted once, structurally, at (2b) above — so the bash-by-default contract is still pinned.
 dr_line=$(grep -nE "label: *[\`']discover-run:" "$JS" | grep "model:" || true)
 [[ -n "$dr_line" ]] || fail "boundary guard: could not locate the discover-run hop option object"
 echo "$dr_line" | grep -qE "model: *['\"]haiku['\"]" \
   && fail "boundary guard: discover-run is mechanized (id:24ec) — it must NOT be static model:'haiku' anymore"
-echo "$dr_line" | grep -qE "model: *['\"]bash['\"]" \
-  || fail "boundary guard: discover-run must dispatch model:'bash' (id:24ec mechanized shard)"
-pass "boundary guard: discover-prelude (id:86a2) + discover-run (id:24ec) are both mechanized to model:'bash'; no LLM discovery hop remains pinned haiku"
+echo "$dr_line" | grep -qE "model: *MECH_MODEL" \
+  || fail "boundary guard: discover-run must dispatch model: MECH_MODEL (id:24ec mechanized shard, id:4239 bash-by-default)"
+pass "boundary guard: discover-prelude (id:86a2) + discover-run (id:24ec) are both mechanized via MECH_MODEL; no LLM discovery hop remains pinned haiku"
+
+# id:362f — the three hops `490ac6e` converted are now covered by the SAME per-hop helper as the
+# original five, so a future hop that hardcodes a literal is caught here rather than in a pool run.
+check_hop_model_bash "discover-prelude'" "discover-prelude hop"
+check_hop_model_bash "discover-run:"     "discover-run shard hop"
+check_hop_model_bash "release:"          "releaseLease hop"
 
 echo "ALL PASS"

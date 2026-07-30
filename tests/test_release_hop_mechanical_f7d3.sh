@@ -41,8 +41,8 @@ label_lines="$(printf '%s\n' "$body" | grep -nE "label:.*release:" || true)"
 [[ -n "$label_lines" ]] || fail "(1) no release: labelled dispatch found inside releaseLease()"
 
 while IFS= read -r line; do
-  printf '%s\n' "$line" | grep -qE "model: *'bash'" \
-    || fail "(1) a release: dispatch is not model:'bash' — line: $line"
+  printf '%s\n' "$line" | grep -qE "model: *MECH_MODEL" \
+    || fail "(1) a release: dispatch is not model: MECH_MODEL (id:4239 bash-by-default) — line: $line"
 done <<< "$label_lines"
 pass "(1) every release:-labelled dispatch in releaseLease() is model:'bash'"
 
