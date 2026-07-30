@@ -3914,3 +3914,68 @@ id:b460 — added anchored §2d over-reach review check to relay/references/revi
 ## 2026-07-30 00:25 — reviewer (opus)
 
 id:0cf5 SHIP — @container now excludes a decomposed parent from all three relay DISPATCH collectors (classify-repo/gather-repo-state/discover-repo), making handoff.md/review.md's 'collectors exclude that marker' true as written; RED spec 3/4-red on base to 7/0; suite 327/0/7-xred
+
+## 2026-07-30 17:43 — handoff C2 (opus, manual, branch relay/handoff-manual-20260730-174310)
+
+Scoped C2-only pass (no C1/C3/C4/C5). `unpromoted-scan.sh .` returned 24 `promote` /
+43 `laned` / 243 `surface`. **12 promoted, 12 deliberately LEFT, 1 lane-triaged, 1 ticked.**
+No new ids minted; every promotion reuses its TODO token (single-id-two-views D2).
+Suite after: **328 passed, 0 failed, 7 expected-red**. `roadmap-lint.sh .` clean apart
+from one pre-existing `DECIDED-LEFT-OPEN` WARN on id:5f31 (untouched here).
+
+**Promoted (12)** — id:7142, 6b1c, 5648, bf19, 5bbb, 1f8e, 4313, ef9e, 3f7e, 74e7, 8c6f, b099.
+Two families: unanchored-substring tag readers (6b1c/5648/bf19), and mechanical hops that
+are authored but unreachable at runtime (5bbb/1f8e/4313).
+
+**LEFT, with the reason — this is the load-bearing half of this pass:**
+
+- **id:cc90, id:923b, id:ae08, id:a955, id:c7dc — blocked by the standing owner directive
+  "do NOT modify `relay/scripts/relay-loop.js`" (2026-07-30, a parallel session depends on
+  it as-is).** All five are engine changes: cc90 (execute→execute rechain), 923b (per-unit
+  identity key at `:1742`/`:2225`), ae08 (wire `disjoint-greenlight.sh` + `drain-integrate.sh`
+  — `grep -c` in `relay-loop.js` re-verified **0** this run), a955 (mechanize the integrator
+  at `:2034`), c7dc (a `verdict`-kind `pushEvent` per repo per round). Promoting them would
+  queue an unattended executor to violate the directive. **They are otherwise well-specified
+  and ready** — the moment the directive lifts, they are the next promotions.
+- **id:f91a and id:34b7 — owner directive, recorded in TODO.md itself**: *"Status 2026-07-30:
+  NOTHING IS QUEUED. Both children are filed for discussion only, by owner directive — do not
+  promote either to ROADMAP."* id:34b7 additionally says *"also NOT queued pending the owner's
+  call"*. Not promoted. (Sibling id:d464 carries the same ⛔ and was already `[INPUT — meeting]`.)
+- **id:6eb3 — optional and gated on a measurement that has not happened.** Owner-noted at the
+  2026-07-23 final review as marginal: *"Do only if a burnup measurement shows the live
+  per-repo classify is a real per-round cost."* That measurement is id:87f5, still open.
+- **id:ad7c — the work is DONE; what remains is an owner tick, not executor work.** The
+  lane-vocab ratchet was installed 2026-07-29 13:24 (verified). The item states the install is
+  *"an owner call, since it starts blocking commits fleet-wide"*, so ticking is the owner's.
+- **id:95de — cause UNDETERMINED, no spec is authorable.** `diary-append.sh` produced no entry
+  three times with four hypotheses ruled out. The item's own instruction is *"Only file a
+  defect once the mechanism is known"*. Its next step is a reproduction, not a change: re-run
+  the positional-body shape capturing the script's own exit status and both streams unpiped.
+  A `[ROUTINE]` promotion would hand an executor an item with no done-check.
+- **id:04d9 — explicitly observe-only**: *"OBSERVATION (n=1, do NOT fix yet)"*, with a
+  pre-registered trigger (one more full-suite failure naming the file promotes it to a fix).
+  Promoting it now would consume the trigger. Note this run's suite did NOT reproduce it.
+
+**Lane-triaged (1): id:be40 → `[INPUT — decision]`.** It arrived UNLANED and mis-reported as
+`laned` by the id:6b1c prose-lane bug (`[INPUT — access]` picked from ~offset 132 inside the
+parenthetical *"while [INPUT — access] items exist"*). Verified in this worktree that no
+"flashes/week" metric, hardware-session counter or `[INPUT — access]`-age tracker exists
+anywhere in this repo — the metric lives in helferli, only the ping lives here — so nothing is
+buildable as written and the blocker is a short owner call, not a design session. The three
+questions are recorded on the item; question 1 (which repo owns it) must be answered first,
+because if the answer is helferli this is an inbox mis-route. NOT promoted — laning it does not
+make it executor-ready.
+
+**Ticked (1): id:6a0d.** Its own body already read `✗ FALSE PREMISE — CLOSED 2026-07-29`; the
+checkbox was never flipped, so it kept re-surfacing as a `promote` row and would have been
+sized into ROADMAP as executor work that does not exist.
+
+**Two findings for whoever picks up id:5bbb**, both verified here rather than assumed:
+(1) `worktree-retire.sh` is STILL absent from `mechanical-proxy.py`'s `ALLOWED_RELAY_SCRIPTS`
+(`grep -c` → 0), so id:4df8's context-death parking remains inert at runtime.
+(2) The mech fences are NOT statically greppable as blocks — `relay-loop.js` has 17
+`relay-mech` occurrences built by string concatenation, one inside a template literal with
+escaped backticks (`:1942`), and two (`retireDeadWorktree` at `:2049`, `releaseLease`'s
+`dispatch` at `:2357`) build the fence from a VARIABLE, so the script name is not literal at
+the fence site. A naive block regex recovers only 4 of 17. The spec therefore requires an
+unresolvable fence to fail LOUDLY rather than be skipped.
