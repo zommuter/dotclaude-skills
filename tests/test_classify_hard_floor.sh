@@ -3,13 +3,18 @@
 #  docs/meeting-notes/2026-06-15-0715-meeting-fables-interaction.md D4, tracked in
 #  TODO.md id:15e9, not ROADMAP.md; this test always counts.)
 #
-# classify.sh [HARD] floor (D4): a TODO item tagged [HARD] is strong-tier work and must
-# NOT classify C1/C2 on the strength of a linked ## Decisions section. As of the lane-aware
-# refinement (2026-07-14, id:78ff) the floor routes BY LANE — `[HARD — pool]`→POOL,
-# `[HARD — hands]`→HANDS, `[HARD — meeting]`→C3, bare `[HARD]`→C3+HARD-NOLANE. These
-# fixtures exercise the non-pool/non-hands cases (bare `[HARD]`, `[HARD — strong model]`),
-# which all floor to C3; the pool/hands routing is covered by test_classify_hard_lanes.sh.
-# Non-[HARD] items are unaffected. The relay RELAY mirror line still classifies RELAY.
+# classify.sh lane floor (D4): a TODO item carrying a lane bracket is strong-tier/human
+# work and must NOT classify C1/C2 on the strength of a linked ## Decisions section. As of
+# the lane-aware refinement (2026-07-14, id:78ff) the floor routes BY LANE; as of the
+# capability-keyed vocabulary migration (2026-07-30, routed:f1e1) bare `[HARD]` IS the pool
+# lane, so it floors to POOL rather than the old C3+HARD-NOLANE. Full mapping lives in
+# classify.sh's header and relay/references/hard-lanes.md.
+#
+# These fixtures exercise the FLOOR itself — that a lane tag overrides a link+Decisions
+# C1/C2 classification: bare `[HARD]` (→POOL, the new-vocab pool lane) and
+# `[HARD — strong model]` (an UNRECOGNIZED lane → C3+HARD-NOLANE, the loud reject). The
+# per-lane routing table is covered by test_classify_hard_lanes.sh.
+# Non-lane-tagged items are unaffected. The relay RELAY mirror line still classifies RELAY.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -38,8 +43,13 @@ cls="$("$CLASSIFY" "$fix")"
 
 class_of() { grep -P "\tid:$1\t" <<<"$cls" | cut -f1; }
 
-[[ "$(class_of aaaa)" == "C3" ]] || { echo "[HARD] item must floor to C3, got $(class_of aaaa)"; exit 1; }
+# Bare [HARD] is the new-vocab POOL lane (routed:f1e1) — the floor still overrides the
+# link+Decisions C1 this fixture would otherwise get, it just lands on POOL not C3.
+[[ "$(class_of aaaa)" == "POOL" ]] || { echo "[HARD] item must floor to POOL (new-vocab pool lane), got $(class_of aaaa)"; exit 1; }
+# An UNRECOGNIZED lane ("strong model" is not in hard-lanes.md) still floors to C3 + loud reject.
 [[ "$(class_of dddd)" == "C3" ]] || { echo "[HARD — strong model] must floor to C3, got $(class_of dddd)"; exit 1; }
+grep -P '\tid:dddd\t' <<<"$cls" | grep -q 'HARD-NOLANE' \
+  || { echo "[HARD — strong model] (unrecognized lane) must be flagged HARD-NOLANE"; exit 1; }
 [[ "$(class_of bbbb)" == "C1" ]] || { echo "non-HARD link+Decisions must stay C1, got $(class_of bbbb)"; exit 1; }
 [[ "$(class_of cccc)" == "C3" ]] || { echo "bare item must be C3, got $(class_of cccc)"; exit 1; }
 [[ "$(class_of 9999)" == "RELAY" ]] || { echo "relay mirror line must stay RELAY, got $(class_of 9999)"; exit 1; }
