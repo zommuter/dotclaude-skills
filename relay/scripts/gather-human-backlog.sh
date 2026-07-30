@@ -347,8 +347,20 @@ emit_hard_lanes() {
       # already emitted from ROADMAP so an item in BOTH ledgers is listed exactly once.
       if (todo_mode) {
         if (bucket == "pool" || bucket == "untagged") next
-        itemid = ""
-        if (match(line, /id:[0-9a-f]{4}/)) itemid = substr(line, RSTART, RLENGTH)
+        # OWN-ID ONLY (fix 2026-07-30): key the dedup on the OWN id of this row — the
+        # LAST <!-- id:XXXX --> on the line — not the FIRST id: match. That first match
+        # is very often an id CITED in prose, or a children-of:/gated-on: neighbour, which
+        # breaks dedup in BOTH directions: a TODO row keyed on a cited id never matches
+        # its own ROADMAP twin (DOUBLE-COUNT — measured 76 emitted rows for 56 distinct
+        # ids on this repo, 20 ids emitted twice), and a TODO row whose cited first-id
+        # happens to sit in seen is dropped outright (SILENT UNDER-REPORT).
+        # Mirrors the own-id-is-the-LAST-token rule the seen-set builder now uses.
+        # NOTE: keep apostrophes OUT of these awk comments — this program is inside a
+        # single-quoted shell string, so one apostrophe terminates the quoting.
+        itemid = ""; _s = line
+        while (match(_s, /<!-- id:[0-9a-f][0-9a-f][0-9a-f][0-9a-f] -->/)) {
+          itemid = "id:" substr(_s, RSTART + 8, 4); _s = substr(_s, RSTART + RLENGTH)
+        }
         if (itemid != "" && (itemid in seen)) next
       }
 
@@ -512,7 +524,24 @@ scan_repo() {
   # human-gated items living only in TODO were invisible to /relay human.
   if [[ -f "$path/TODO.md" ]]; then
     local seen_ids
-    seen_ids="$(printf '%s\n' "$hard_out" | grep -oE 'id:[0-9a-f]{4}' | sort -u | tr '\n' ' ')"
+    # OWN-ID ONLY (fix 2026-07-30): extract each emitted row's OWN id — the LAST
+    # `<!-- id:XXXX -->` on the line — never every `id:` mention. A bare
+    # `grep -oE 'id:[0-9a-f]{4}'` over the whole ROADMAP output swept up every id
+    # CITED in an item's prose (`(id:7df1: 164 old-vocab tags…)`, `id:6176 made 5
+    # hops`, …), so `seen` became a polluted SUPERSET of the ids actually emitted.
+    # Any TODO row whose own dedup key collided with one of those citations was then
+    # silently dropped — a SILENT UNDER-REPORT of real human-lane backlog, the same
+    # failure family as [[relay-human-gather-underreport]] (id:fa5c) by a different
+    # mechanism. Measured on this repo before the fix: id:4a5c (the "move to a real
+    # issue tracker" substrate question), id:09a8, id:d84f and id:df87 were all
+    # invisible to `/relay human`.
+    seen_ids="$(printf '%s\n' "$hard_out" | awk '{
+      own = ""; s = $0
+      while (match(s, /<!-- id:[0-9a-f][0-9a-f][0-9a-f][0-9a-f] -->/)) {
+        own = substr(s, RSTART + 8, 4); s = substr(s, RSTART + RLENGTH)
+      }
+      if (own != "") print "id:" own
+    }' | sort -u | tr '\n' ' ')"
     emit_hard_lanes "$name" "$path" "$path/TODO.md" 1 "$seen_ids"
   fi
   # id:8a6b — mechanical-orphan / un-promoted-draft rows for this repo (surface-only). Translate
