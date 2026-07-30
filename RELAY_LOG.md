@@ -3992,3 +3992,7 @@ authored for the other 11 promoted items — this pass was scoped to C2.
 ## 2026-07-30 18:57 — reviewer (opus)
 
 handoff C2/C3 integrated: 12 items promoted (existing ids reused), be40 lane-triaged, 6a0d ticked, RED spec for id:6b1c verified genuinely red; suite 328/0
+
+## 2026-07-30 20:18 — reviewer (claude-opus-5, manual-integrate)
+
+handoff C2/C3 integrated: 5 relay-loop items promoted after the do-not-modify directive lifted (cc90/923b/c7dc [ROUTINE], ae08/a955 [HARD], old-vocab converted); 3 RED specs verified genuinely red; cc90 GATED pending owner ratification of its pre-registered rechain semantics; suite 328/0, 11 expected-red
