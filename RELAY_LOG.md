@@ -3979,3 +3979,12 @@ escaped backticks (`:1942`), and two (`retireDeadWorktree` at `:2049`, `releaseL
 `dispatch` at `:2357`) build the fence from a VARIABLE, so the script name is not literal at
 the fence site. A naive block regex recovers only 4 of 17. The spec therefore requires an
 unresolvable fence to fail LOUDLY rather than be skipped.
+
+**C3 (partial): one RED spec authored — `tests/test_unpromoted_scan_prose_lane_6b1c.sh`.**
+Verified genuinely red against the real `unpromoted-scan.sh`: `aa01` (prose `[ROUTINE]` at
+depth) reports `promote` and `aa02` (prose `[INPUT — access]` in a parenthetical — the id:be40
+shape) reports `laned`, both of which the item's acceptance forbids. The three positive
+controls and the three path-1/path-2 regression cases already pass, which bounds the fix to a
+narrowing of path 3. Suite: **328 passed, 0 failed, 8 expected-red** (the new file is the 8th,
+correctly classified EXPECTED-RED because `roadmap:6b1c` is unticked). No RED specs were
+authored for the other 11 promoted items — this pass was scoped to C2.
