@@ -60,7 +60,7 @@ relay_FILES := SKILL.md \
                scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
-               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
+               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh \
@@ -92,7 +92,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
-               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
+               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
@@ -119,7 +119,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
-               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh \
+               scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
