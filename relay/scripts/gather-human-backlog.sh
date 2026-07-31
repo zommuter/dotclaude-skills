@@ -198,18 +198,52 @@ for name, entry in data.get("repos", {}).items():
 ' "$RELAY_TOML"
 }
 
+# --- @manual marker anchoring (id:05b0) --------------------------------------
+# mask_backticks <str> — replace every backtick-quoted span (backticks included) with '#'
+# filler of the same length, so a marker mentioned only inside a backtick-quoted span
+# (e.g. a prose note discussing the `@manual`/`@wire` grammar) never matches below. Same
+# technique as hooks/pre-commit-lane-vocab.sh's mask_backticks() — kept as an in-file copy
+# per that script's own precedent (lane-convert.sh also carries its own copy), not sourced.
+mask_backticks() {
+  local s="$1" out="" c i in_tick=0
+  for (( i=0; i<${#s}; i++ )); do
+    c="${s:i:1}"
+    if [[ "$c" == '`' ]]; then
+      in_tick=$((1 - in_tick)); out+='#'
+    elif [[ "$in_tick" -eq 1 ]]; then
+      out+='#'
+    else
+      out+="$c"
+    fi
+  done
+  printf '%s' "$out"
+}
+
+# is_manual_marker <line> — true iff <line> carries a standalone @manual marker outside
+# any backtick-quoted span. Anchored on BOTH sides so a longer word containing the
+# substring (e.g. "@manually") does not match, and backtick-masked so a prose MENTION of
+# `@manual` (discussing the marker, not using it) does not match either. The ONE shared
+# predicate for both call sites below — emit_boxes() (REVIEW_ME.md) and
+# emit_roadmap_manual() (ROADMAP.md) — so a fix can never land on one site and miss the
+# other (the id:0d58/id:bf19 second-reader class).
+is_manual_marker() {
+  local line="$1" masked
+  masked="$(mask_backticks "$line")"
+  printf '%s' "$masked" | grep -qiE '(^|[^[:alnum:]_])@manual([^[:alnum:]_-]|$)'
+}
+
 # --- emit open boxes for one file --------------------------------------------
 # $1 repo name, $2 repo path, $3 file path, $4 default kind (review_me|manual)
 emit_boxes() {
   local name="$1" path="$2" file="$3" default_kind="$4"
   [[ -f "$file" ]] || return 0
-  # Read open boxes only ('- [ ]'); classify @manual lines as kind=manual.
+  # Read open boxes only ('- [ ]'); classify a standalone @manual marker as kind=manual.
   while IFS= read -r line; do
     local summary kind
     # strip leading '- [ ] ' and collapse whitespace (tabs/newlines → spaces)
     summary="$(printf '%s' "$line" | tr '\t\n' '  ' | sed -E 's/^[[:space:]]*- \[ \] //; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
     kind="$default_kind"
-    if printf '%s' "$line" | grep -qi '@manual'; then
+    if is_manual_marker "$line"; then
       kind=manual
     fi
     printf '%s\t%s\t%s\t%s\n' "$name" "$path" "$kind" "$summary"
@@ -227,7 +261,7 @@ emit_roadmap_manual() {
   local file="$path/ROADMAP.md"
   [[ -f "$file" ]] || return 0
   while IFS= read -r line; do
-    printf '%s' "$line" | grep -qi '@manual' || continue
+    is_manual_marker "$line" || continue
     local summary
     summary="$(printf '%s' "$line" | tr '\t\n' '  ' | sed -E 's/^[[:space:]]*- \[ \] //; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
     printf '%s\t%s\t%s\t%s\n' "$name" "$path" manual "$summary"

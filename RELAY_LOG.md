@@ -4184,3 +4184,22 @@ refactor: none needed — the new validation/append helpers are small, single-pu
 ## 2026-07-31 19:35 — executor (sonnet, relay-loop)
 
 id:0af4 — md-merge.py update-ids now refuses a malformed replacement (missing own id marker, or non-checkbox payload against a checkbox target) instead of silently wiping the line, and gains an explicit append mode; full suite 341/0/9-expected-red. [id:0af4]
+
+## 2026-07-31 — executor (Sonnet) id:05b0
+
+Worked id:05b0 — `gather-human-backlog.sh` bucketed an item `kind=manual` on a bare
+case-insensitive `grep -qi '@manual'` at both call sites (`emit_boxes()` for
+REVIEW_ME.md, `emit_roadmap_manual()` for ROADMAP.md), so a prose MENTION of
+`` `@manual` `` (backtick-quoted, discussing the marker) or a longer word containing
+the substring (`@manually`) both hijacked the bucket — the live 2026-07-29 id:af48
+miss. Added one shared predicate, `is_manual_marker()`, built on an in-file
+`mask_backticks()` copy (same shape as `hooks/pre-commit-lane-vocab.sh`'s, per that
+script's own precedent of an in-file copy rather than a sourced helper) plus a
+both-sides word-boundary regex, and routed both call sites through it. The RED spec
+(`tests/test_human_backlog_manual_anchor_05b0.sh`, authored 2026-07-29) was already
+in place and went green unmodified; the four named regression tests
+(test_relay_human.sh, test_gather_todo_human_lanes.sh, test_gather_lane_anchor.sh,
+test_gather_human_decision.sh) stayed green. Full suite: 342 passed, 0 failed, 8
+expected-red (matching still-open roadmap items).
+Friction: none — the item was well-scoped and the RED spec's fixture triangulation
+made the fix shape unambiguous.
