@@ -109,6 +109,19 @@ req --all >/dev/null 2>&1
 if [[ -e "$stopfile" ]]; then ok "--all wrote the broadcast sentinel"; else fail_msg "--all wrote nothing"; fi
 rm -f -- "$stopfile"
 
+# ── Test 6b: --all with NO live pool refuses (the landmine case) ─────────────
+# A broadcast with nothing live is not a stop, it is a delayed false-stop of the NEXT pool.
+# Observed for real 2026-07-31: a broadcast outlived its target and the pool started at
+# 23:28:51 consumed it. The default path already refused; --all wrote unconditionally.
+echo "Test 6b: --all refuses with no live pool"
+make_hb
+set +e; out="$(req --all 2>&1)"; rc=$?; set -e
+if [[ $rc -eq 3 && ! -e "$stopfile" ]]; then
+  ok "--all with zero live pools refuses (exit 3) and writes NOTHING"
+else
+  fail_msg "--all wrote a landmine sentinel with no pool live (rc=$rc, exists=$([[ -e $stopfile ]] && echo yes || echo no))"
+fi
+
 # ── Test 7: --after N writes the countdown ───────────────────────────────────
 echo "Test 7: --after N countdown content"
 make_hb "$RUN_A"

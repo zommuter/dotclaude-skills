@@ -88,10 +88,25 @@ write_sentinel() {  # write_sentinel <target-file>
 }
 
 if [[ $broadcast -eq 1 ]]; then
+  # A broadcast written with NO pool live is a landmine, not a stop: nothing consumes it now,
+  # it survives on disk, and the NEXT pool launched eats it and stops itself. That is not
+  # hypothetical — it happened within the hour this guard was written (2026-07-31): a broadcast
+  # aimed at a pool that then died externally lingered, and the pool started at 23:28:51
+  # consumed it (`scope=broadcast run=relay-20260731-232851-10123` in the consume log) and
+  # stopped a run nobody meant to stop. The default path already refused this case; --all
+  # skipped the check and wrote unconditionally. Same refusal, same exit code.
+  if [[ ${#RUNS[@]} -eq 0 ]]; then
+    echo "stop-request.sh: --all with NO live pool — refusing to write a broadcast sentinel." >&2
+    echo "  Nothing would consume it now; it would sit on disk and false-stop the NEXT pool" >&2
+    echo "  you launch. Start the pool first, then stop it." >&2
+    exit 3
+  fi
   write_sentinel "$path"
   echo "wrote BROADCAST stop sentinel: $path${after:+ (after $after rounds)}"
   echo "  NOTE: a broadcast stop is consumed by the FIRST pool to reach a round boundary —" >&2
   echo "  with ${#RUNS[@]} pool(s) live it is not aimable. Use --run <runId> to target one." >&2
+  echo "  It also does NOT expire: if every live pool dies before consuming it, it will" >&2
+  echo "  false-stop the next pool launched. Remove it with: rm -- $path" >&2
   exit 0
 fi
 
