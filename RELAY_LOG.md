@@ -4358,3 +4358,27 @@ full `make test` green (346 passed, 0 failed, 6 expected-red). [id:bf19]
 ## 2026-07-31 21:25 — executor (sonnet, relay-loop)
 
 Fixed DECIDED-LEFT-OPEN's two false-positive classes (id:bf19): @container exemption + widened other-id-scoped strip, in the shared lib-state-claim.sh engine so roadmap-lint.sh and todo-conformance.sh stay in verdict-agreement; new hermetic test test_state_claim_container_fp_bf19.sh; full suite green (346/0/6 expected-red). [id:bf19]
+
+## 2026-07-31 — executor (Sonnet) id:8c6f
+
+Worked id:8c6f — `meeting/SKILL.md` step 0f.5 (the `--fabled` closing pass's "Advisory
+handling" sub-step) did not mandate rendering the closing Fable-5 subagent's findings
+VERBATIM as visible chat before presenting any decision; a driver could summarise or
+renumber them to `F1..Fn` inside the closure-gate prompt while the user never saw the
+subagent's own prose (observed live in loderite, `routed:4d2b`, and milder in this
+repo's own 2026-07-29 mechanical-hop meeting). Fixed by adding an explicit,
+self-contained obligation to step 0f.5 itself — names "verbatim", states the
+before-any-decision-prompt ordering, explicitly rejects summarise-then-ask and
+`F1..Fn` renumbering, and cites (reusing the exact phrasing of) `format.md`
+§Interactive mode / SKILL.md step 5's existing same-message verbatim-then-
+`AskUserQuestion` rule rather than inventing divergent wording — so a reader of
+`meeting/SKILL.md` alone cannot land on summarise-then-ask. Added
+`tests/test_meeting_fabled_verbatim_8c6f.sh` as a reference-doc spec (same honest-
+limitation posture as `tests/test_review_tier_enumeration.sh`: it guards the
+instruction's presence/content, not agent compliance) asserting each acceptance
+criterion against the step-0f.5 region specifically, so a marker dropped elsewhere in
+the file cannot false-green it.
+Friction: none — a small, self-contained doc + reference-test item, matched its ROADMAP
+sizing.
+refactor: none needed — a doc-text addition plus one new self-contained test file, no
+existing code touched, no duplication introduced.

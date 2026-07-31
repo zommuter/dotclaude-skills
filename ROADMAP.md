@@ -2221,7 +2221,7 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
   - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_relay_install_manifest.sh tests/test_relay_quota_args.sh` still green unmodified, then tick and run full `make test`.
   - **Out of scope**: the quota-stop algorithm itself; other `RELAY_ENV_DEFAULTS` knobs; changing the SKILL.md doctrine.
 
-- [ ] [ROUTINE] [INBOUND routed:4d2b from loderite] **`/meeting` step 0f.5 must render the `--fabled` findings VERBATIM before any decision prompt** <!-- routed:4d2b --> <!-- id:8c6f -->
+- [x] [ROUTINE] [INBOUND routed:4d2b from loderite] **`/meeting` step 0f.5 must render the `--fabled` findings VERBATIM before any decision prompt** <!-- routed:4d2b --> <!-- id:8c6f -->
   - **Why**: the closing subagent's return lands in a tool result, so a pass can be summarised or numbered `F1..Fn` inside an `AskUserQuestion` while the user has seen NONE of the actual findings. Observed live in loderite (`docs/meeting-notes/2026-07-29-0918-per-piece-material-flavor-model.md`) — the owner had to ask *"I don't see a list of the F's"*. Confirmed in this repo the same day: the 2026-07-29 mechanical-hop meeting presented the assistant's *summary* of each finding with its verification status, not the subagent's prose. Same gap, milder form.
   - **What to build**: mandate in `meeting/SKILL.md` step 0f.5 that the findings are emitted VERBATIM as visible chat text BEFORE any decision prompt — mirroring `meeting/format.md` §Interactive mode's existing rule (*"output the complete verbatim discussion as visible chat content, then call `AskUserQuestion` in the same message"*). Reuse that wording rather than inventing a second phrasing for the same obligation.
   - **Acceptance**:
