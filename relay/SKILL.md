@@ -636,15 +636,37 @@ round) checks a **STOP sentinel file** — `~/.config/relay/STOP` by default (ov
 `RELAY_STOP_PATH` / `args.STOP_PATH`). The sentinel's CONTENT is an integer "rounds
 remaining before stop":
 
-- **`/relay stop`** — write an EMPTY file (e.g. `: > ~/.config/relay/STOP`). At the next
+**WHICH pool gets stopped (id:cd94 — never guess).** `/relay stop` does NOT write the sentinel
+by hand; it calls `relay/scripts/stop-request.sh`, which resolves the target against the LIVE
+heartbeat registry (`heartbeat.sh live-runs`, excluding the non-pool `discovery-producer`):
+exactly one live pool ⇒ writes its **targeted** sentinel `~/.config/relay/STOP.<runId>` and
+names it; **two or more ⇒ REFUSES (exit 4)** and lists them, so you re-run with
+`/relay stop --run <runId>` or `/relay stop --all`; zero ⇒ refuses (exit 3) and writes nothing
+(a sentinel left with no pool live would false-stop the NEXT pool launched). Relay its output
+verbatim, including which run you stopped.
+
+*Why the refusal matters* — before this the sentinel was ONE global un-scoped file, while
+id:11c6's singleton guard exempts `--afk` and every directed/scoped mode, so parallel pools are
+the normal case. Whichever pool reached a round boundary first consumed the operator's stop and
+stopped **itself**. Observed live 2026-07-31 (id:31ce): a killed run ate the stop at 17:54:39
+and retired at 17:55, while the pool the operator was aiming at read `stopRequested:false` for
+all 8 of its rounds and kept dispatching for another 4 hours — re-working the very repo the
+operator was trying to protect. A targeted sentinel is a different filename, so it cannot be
+stolen; `--all` keeps the old broadcast behaviour but is now **named and opt-in** rather than
+the silent default.
+
+- **`/relay stop`** — `stop-request.sh` writes an EMPTY sentinel (targeted per above). At the next
   round boundary the prelude sees it, **consumes** it (`rm`), and the loop drains the
   already-dispatched wave + integration debt, **drops queued-but-not-dispatched units, does
   NOT re-discover/dispatch a new wave**, and returns cleanly with `stopReason: "user-stop"`.
   Nothing is abandoned — the prior round's integration was already drained before the stop
   is observed.
-- **`/relay stop --after N`** — write `N` to the file (`printf '%s' N > ~/.config/relay/STOP`).
-  The prelude decrements `N→N-1` each round and fires the stop when it reaches 0, i.e. the
-  pool drains `N` more rounds then winds down.
+- **`/relay stop --after N`** — `stop-request.sh --after N` writes `N` into the targeted
+  sentinel. The prelude decrements `N→N-1` each round and fires the stop when it reaches 0,
+  i.e. the pool drains `N` more rounds then winds down.
+- **`/relay stop --run <runId>`** — target one named live pool (required when two or more are
+  live). **`/relay stop --all`** — the explicit broadcast: stop whichever pool sees it first.
+  **`/relay stop --list`** — print the live pools, write nothing.
 - **`/relay stop --now`** — the impatient path: this is just the hard `TaskStop` of the
   running Workflow (orchestrator calls `TaskStop`), accepting that in-flight children are
   killed and their worktrees park as `relay/orphan/*` (recover via `/relay reconcile`). Use
@@ -653,7 +675,16 @@ remaining before stop":
 The sentinel is **self-consuming and fail-safe**: only a literal `stopRequested===true` from
 the prelude triggers the stop, so a flaky read can never wedge the pool, and a fired sentinel
 is removed so it can't silently stop the *next* pool. To cancel a pending `/relay stop`
-before it fires, just `rm ~/.config/relay/STOP`. The check/countdown/consume step is one
+before it fires, `rm` the file it named (`~/.config/relay/STOP.<runId>`, or the bare
+`~/.config/relay/STOP` for a broadcast). Note the self-consuming property is exactly what
+made the *unscoped* sentinel steal-once — it is safe only now that the file is addressed.
+**Removal is the LAST act of a consume** (id:cd94): the decision is logged and emitted first,
+so a failure after the decision leaves the sentinel to re-fire next round rather than
+consuming it while `discover-prelude.sh`'s `|| stopRequested:false` fallback reports no-stop.
+Stopping twice is harmless; silently not stopping is the failure this guards. The consume log
+(`~/.claude/logs/relay-stop-sentinel.log`) records `scope=` and `run=`, so "which pool
+stopped?" is answerable after the fact — its absence is what made the 17:54 line read as
+success. The check/countdown/consume step is one
 atomic call to `relay/scripts/stop-sentinel.sh` (id:482d); every consume appends an
 ISO-timestamped line to `~/.claude/logs/relay-stop-sentinel.log` (override via
 `RELAY_STOP_SENTINEL_LOG`), so a delayed-consumption report has a real timeline.
