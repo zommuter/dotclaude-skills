@@ -18,6 +18,7 @@
 - review: id:c500 verified genuinely green (relay-reconcile non-strong label + ckpt-tag loud note, both parts); ticked TODO twin (cross-ledger sync); suite 340/0/10 (id:c500)
 - id:05b0 — gather-human-backlog.sh @manual marker now anchored (standalone token, backtick-mention-safe) via one shared predicate at both call sites; suite 342/0/8-expected-red (id:05b0)
 - worktree-retire.sh gains opt-in --commit-residue: commits a dirty relay-owned worktree's residue (WIP/UNVERIFIED) onto its own branch and parks it as relay/orphan/<bn>, instead of stranding it surfaced-and-left; relay-loop.js's context-death caller now passes the flag (id:f272) (id:f272)
+- review: id:05b0 verified genuinely green (@manual marker anchored via shared predicate, suite 342/0/8-exp-red, no gaming/over-reach); ticked TODO twins id:05b0+id:0af4 (cross-ledger sync) (id:05b0,0af4)
 
 ## 2026-07-30
 
