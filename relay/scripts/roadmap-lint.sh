@@ -95,6 +95,12 @@ lanes_doc="$script_dir/../references/hard-lanes.md"
 source "$script_dir/lib-anchored-id.sh"
 # shellcheck source=relay/scripts/lib-state-claim.sh
 source "$script_dir/lib-state-claim.sh"
+# shellcheck source=relay/scripts/lib-typed-edges.sh
+# The SHARED id:46f6 typed-edge engine — rule 3(d) DEAD-GATE resolves `gated-on:`
+# markers through it (comment-anchored form C only), never a bare substring read
+# of "gated-on" (the id:4da4/0d58 trap). One engine, now three callers
+# (orphan-scan.sh, resolve-gates.sh, this lint).
+source "$script_dir/lib-typed-edges.sh"
 
 # WARN→ERROR boundary baseline (id:cb3e, gated on id:5533): ids captured here at
 # rule-land time stay WARN even under --strict; a "new" id (absent from the
@@ -330,6 +336,19 @@ has_todo_twin() {
   return 1
 }
 
+# --- rule 3(d) DEAD-GATE resolution maps (id:49e0) ----------------------------
+# THREE separate maps rather than one merged map: the whole point of the rule is
+# WHERE a `gated-on:` target lives. A target that is a ROADMAP checkbox (open OR
+# ticked) is a live/satisfied gate; one that resolves only in TODO.md was never
+# promoted to the execution queue; one that resolves only in TODO.archive.md is
+# retired, so the gate is permanent. Merging them (as resolve-gates.sh correctly
+# does for its own, different question) would erase exactly that distinction.
+_rl_dir="$(dirname "$roadmap")"
+declare -A RL_GATE_ROADMAP RL_GATE_TODO RL_GATE_ARCHIVE
+typed_edges_build_state_map RL_GATE_ROADMAP "$roadmap"
+typed_edges_build_state_map RL_GATE_TODO    "$_rl_dir/TODO.md"
+typed_edges_build_state_map RL_GATE_ARCHIVE "$_rl_dir/TODO.archive.md"
+
 for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   line="${_rl_lines[$_rl_i]}"
   # Track the active/exempt section from headings.
@@ -445,6 +464,41 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
       echo "  $line" >&2
       [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
     fi
+  fi
+
+  # Rule 3(d) DEAD-GATE (id:49e0): a `<!-- gated-on:XXXX -->` marker whose target is
+  # not a dispatchable ROADMAP item reads as "waiting" but means "never". A gated item
+  # is DELIBERATELY unpickable, so it sits in the execution queue looking *scheduled*
+  # while nothing distinguishes "blocked, will unblock" from "blocked forever". THREE
+  # real instances surfaced in a single day (2026-07-31): a955→87f5 and 8123→1a34 (both
+  # targets lived only in TODO.md, never promoted) and f6d5→8ba1 (target retired
+  # 2026-07-24, archived ticked at TODO.archive.md:459 — a gate that can never open).
+  # Each was caught only by a human noticing; nothing detected them.
+  #
+  # A target that IS a ROADMAP checkbox passes whatever its state: open ⇒ a legitimate
+  # live gate; ticked ⇒ the gate is SATISFIED (the id:65f5 semantics — a DONE target
+  # does not block). Everything else names BOTH ids and the remedy. OUT OF SCOPE by
+  # ROADMAP directive: auto-promoting a missing target (handoff C2's judgement — the
+  # lane cannot be guessed) and cross-repo gate resolution.
+  _dg_csv="$(typed_edges_gated_of_line "$line")"
+  if [[ -n "$_dg_csv" ]]; then
+    _dg_id="$(item_id "$line")"
+    IFS=',' read -ra _dg_toks <<<"$_dg_csv"
+    for _dg_t in "${_dg_toks[@]}"; do
+      [[ -z "$_dg_t" ]] && continue
+      # A ROADMAP checkbox (open or ticked) — not a dead gate.
+      [[ -n "${RL_GATE_ROADMAP[$_dg_t]+x}" ]] && continue
+      if [[ -n "${RL_GATE_ARCHIVE[$_dg_t]+x}" ]]; then
+        _dg_why="it is RETIRED — archived in TODO.archive.md and not a ROADMAP item, so the gate is PERMANENT and can never open; drop or re-target the marker"
+      elif [[ -n "${RL_GATE_TODO[$_dg_t]+x}" ]]; then
+        _dg_why="it lives ONLY in TODO.md and was never promoted to the execution queue, so nothing in ROADMAP.md can ever clear the gate; promote it (handoff C2's call — never guess its lane) or re-target the marker"
+      else
+        _dg_why="it resolves NOWHERE (absent from ROADMAP.md, TODO.md and TODO.archive.md) — a dangling gate target"
+      fi
+      echo "roadmap-lint: ${_dr_label} — DEAD-GATE: open item ${_dg_id:-<no id>} is gated-on id:${_dg_t}, but ${_dg_why} (id:49e0)" >&2
+      echo "  $line" >&2
+      [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+    done
   fi
 
   # --- semantic checks (case c / case d) — only when a recognised class tag is present -----
