@@ -17,6 +17,7 @@
 - id:0af4 — md-merge.py update-ids now refuses a malformed replacement (missing own id marker, or non-checkbox payload against a checkbox target) instead of silently wiping the line, and gains an explicit append mode; full suite 341/0/9-expected-red. (id:0af4)
 - review: id:c500 verified genuinely green (relay-reconcile non-strong label + ckpt-tag loud note, both parts); ticked TODO twin (cross-ledger sync); suite 340/0/10 (id:c500)
 - id:05b0 — gather-human-backlog.sh @manual marker now anchored (standalone token, backtick-mention-safe) via one shared predicate at both call sites; suite 342/0/8-expected-red (id:05b0)
+- worktree-retire.sh gains opt-in --commit-residue: commits a dirty relay-owned worktree's residue (WIP/UNVERIFIED) onto its own branch and parks it as relay/orphan/<bn>, instead of stranding it surfaced-and-left; relay-loop.js's context-death caller now passes the flag (id:f272) (id:f272)
 
 ## 2026-07-30
 
