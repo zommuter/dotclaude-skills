@@ -4333,3 +4333,7 @@ Friction: none — the item was well-scoped and self-contained; the live
 this closes a regression risk rather than changing today's runtime behaviour.
 refactor: none needed — a comment-and-value edit plus one new hermetic test, no
 duplication introduced. [id:74e7]
+
+## 2026-07-31 21:13 — executor (sonnet, relay-loop)
+
+Closed id:74e7 — Makefile's RELAY_QUOTA_DECAY_7D default now agrees with relay/SKILL.md's RISING (0.30:0.90) doctrine, with a new hermetic test; full suite green (345 passed, 0 failed, 6 expected-red). [id:74e7]
