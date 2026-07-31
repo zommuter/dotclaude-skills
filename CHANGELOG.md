@@ -26,6 +26,7 @@
 - Fixed DECIDED-LEFT-OPEN's two false-positive classes (id:bf19): @container exemption + widened other-id-scoped strip, in the shared lib-state-claim.sh engine so roadmap-lint.sh and todo-conformance.sh stay in verdict-agreement; new hermetic test test_state_claim_container_fp_bf19.sh; full suite green (346/0/6 expected-red). (id:bf19)
 - review: verified id:74e7 genuinely green (Makefile RELAY_QUOTA_DECAY_7D=0.30:0.90 agrees with SKILL.md RISING doctrine, hermetic test, suite 345/0/6, no gaming, not a superset); reconciled cross-ledger drift by ticking TODO twins id:74e7, id:6b1c (id:74e7,6b1c)
 - executor: closed id:8c6f — meeting/SKILL.md step 0f.5 now mandates rendering --fabled closing-pass findings VERBATIM before any decision prompt, with reference-doc test test_meeting_fabled_verbatim_8c6f.sh; full suite 347/0/6-expected-red (id:8c6f)
+- id:5bbb closed — new tests/test_mech_fence_allowlist_completeness_5bbb.sh statically resolves all 11 real relay-mech fences in relay-loop.js (incl. 2 via one-level call-site indirection) and asserts each script is in ALLOWED_RELAY_SCRIPTS; verified genuinely RED (worktree-retire.sh gap) then added the allowlist entry and confirmed green; full suite 348/0/6-expected-red. (id:5bbb)
 
 ## 2026-07-30
 
