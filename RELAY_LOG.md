@@ -3996,3 +3996,7 @@ handoff C2/C3 integrated: 12 items promoted (existing ids reused), be40 lane-tri
 ## 2026-07-30 20:18 — reviewer (claude-opus-5, manual-integrate)
 
 handoff C2/C3 integrated: 5 relay-loop items promoted after the do-not-modify directive lifted (cc90/923b/c7dc [ROUTINE], ae08/a955 [HARD], old-vocab converted); 3 RED specs verified genuinely red; cc90 GATED pending owner ratification of its pre-registered rechain semantics; suite 328/0, 11 expected-red
+
+## 2026-07-31 11:47 — reconcile (auto/human)
+
+reconcile integrate: WIP UNVERIFIED SALVAGE — second context-death of the day, same class
