@@ -247,7 +247,7 @@ if (MECH_FALLBACK === 'fallback-haiku') {
 
 // buildRelayStatus — generate RELAY_STATUS.md content from a run-state snapshot.
 // state shape:
-//   { runId, ts, inFlight: [{repo, mode, agentId}],
+//   { runId, ts, inFlight: [{repo, mode, agentId, item, itemRank, eligibleCount}],  // choice id:8af2
 //     completed: [{repo, mode, ckptTag, pushStatus, workedIds}],  // workedIds id:de69
 //     queued:    [{repo, verdict}],
 //     blocked:   [{repo, reason, worktreePath}],
@@ -266,8 +266,15 @@ function buildStopReasonLine(sr) {
 function buildRelayStatus(state) {
   const header = `# RELAY_STATUS — last updated ${state.ts}  run: ${state.runId}`
 
+  // id:8af2 — the per-repo row names the CHOSEN item and how many were eligible, e.g.
+  // `- dotclaude-skills  mode=execute  agent=unit-1  → id:cbd2 (1 of 21 actionable)`.
+  // Rank 0 means the id came from a user injection rather than the eligible order, so it renders
+  // `injected, N actionable` instead of a fake "1 of N". Units with no named item (review/handoff,
+  // or an id-less ledger) render EXACTLY as before — fail-open, no dangling decoration.
+  const inFlightChoice = (r) => !r.item ? ''
+    : `  → id:${r.item} (${r.itemRank ? `${r.itemRank} of ${r.eligibleCount}` : `injected, ${r.eligibleCount}`} actionable)`
   const inFlight = state.inFlight && state.inFlight.length
-    ? state.inFlight.map(r => `- ${r.repo}  mode=${r.mode}  agent=${r.agentId}`).join('\n')
+    ? state.inFlight.map(r => `- ${r.repo}  mode=${r.mode}  agent=${r.agentId}${inFlightChoice(r)}`).join('\n')
     : '_(none)_'
 
   const completed = state.completed && state.completed.length
@@ -1906,6 +1913,27 @@ const EXECUTE_SIZEOUT = 'Stop at a natural boundary; never start an item you can
 // plural instruction). An injected --item always wins over the classifier's pick.
 const dispatchItemFor = (unit) => unit.inject_item || namedItemsFor(unit)[0] || ''
 
+// id:8af2 — SURFACE the choice. b09e made the pick deterministic but SILENT: an execute unit
+// takes actionable_routine_ids[0] and no surface ever said which id that was, nor how many were
+// eligible. On 2026-07-31 this repo had 21 actionable [ROUTINE] items with the primary cadence
+// fix mid-list, so the pool would have worked a different item and NOTHING anywhere would have
+// recorded it — the mismatch was invisible until a human read the classifier JSON by hand.
+// VISIBILITY ONLY: this helper does not choose, it REPORTS dispatchItemFor's existing choice.
+// The selection rule (head of namedItemsFor, injection overriding) is deliberately unchanged —
+// override mechanisms already exist (/relay inject --item, --priority).
+//   item          — the id actually dispatched ('' when none could be named; fail-open).
+//   itemRank      — 1-based position of that id in the eligible order; 0 when the id is NOT in
+//                   that order (a user-injected --item), so "1 of 21" is never faked.
+//   eligibleCount — size of the eligible set AFTER orphan-suppression subtraction, i.e. exactly
+//                   the set selection ranges over. That count is what makes a mid-list primary
+//                   fix obvious at a glance; the id alone is not enough.
+const dispatchChoiceFor = (unit) => {
+  const eligible = namedItemsFor(unit)
+  const item = dispatchItemFor(unit)
+  const idx = eligible.indexOf(item)
+  return { item, itemRank: idx >= 0 ? idx + 1 : 0, eligibleCount: eligible.length }
+}
+
 // Returns the NAMED execute instruction, or '' when no item could be named — the caller then
 // falls back INLINE to the historical plural instruction (kept on the template line so the
 // fallback text and its size-out wiring stay visible at the dispatch site).
@@ -2515,9 +2543,12 @@ async function runUnit(unit) {
   }
   unitsDispatched++
   totalDispatched++
-  state.inFlight.push({ repo: unit.repo, mode: unit.verdict, agentId: `unit-${unitsDispatched}` })
-  pushEvent('dispatch', { repo: unit.repo, mode: unit.verdict, tier, round, sig: unit.sig || '' })  // id:c8b6
-  log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})`)
+  // id:8af2 — compute the choice ONCE and stamp it on BOTH surfaces (the live RELAY_STATUS row
+  // and the forensic dispatch event), so the two can never disagree about which item ran.
+  const choice = dispatchChoiceFor(unit)
+  state.inFlight.push({ repo: unit.repo, mode: unit.verdict, agentId: `unit-${unitsDispatched}`, item: choice.item, itemRank: choice.itemRank, eligibleCount: choice.eligibleCount })
+  pushEvent('dispatch', { repo: unit.repo, mode: unit.verdict, tier, round, sig: unit.sig || '', item: choice.item, itemRank: choice.itemRank, eligibleCount: choice.eligibleCount })  // id:c8b6 + choice id:8af2
+  log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})${choice.item ? ` item=id:${choice.item} (${choice.itemRank ? `${choice.itemRank} of ${choice.eligibleCount}` : `injected, ${choice.eligibleCount}`} actionable)` : ''}`)
   // Tier dispatch (D4): review/handoff get the STRONG_TIER model. Execute agents are
   // pinned to Sonnet; STRONG_TIER applies no model override to them.
   // id:de69 (a) — if the worked item id is ALREADY known at dispatch (an injected unit's
