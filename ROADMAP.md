@@ -2369,7 +2369,7 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
 > (2026-07-31, base `b92c4ab`); one claim inherited from the meeting was found FALSE and is
 > corrected in place under id:8123.
 
-- [ ] [ROUTINE] **A `gated-on:` marker whose target is not a dispatchable ROADMAP item reads as "waiting" but means "never" — lint it** <!-- id:49e0 -->
+- [x] [ROUTINE] **A `gated-on:` marker whose target is not a dispatchable ROADMAP item reads as "waiting" but means "never" — lint it** <!-- id:49e0 -->
   - **Origin, not symptom.** THREE instances surfaced in a single day (2026-07-31): `a955` gated on `87f5` (which lived only in TODO — fixed by promoting it), `8123` gated on `1a34` (same, fixed by `id:1a34`'s promotion above), and `f6d5` gated on `8ba1` (retired 2026-07-24 — a gate on an item that will never come back). Each was found by a human noticing; nothing detects them.
   - **Why it is worse than a stale marker**: a gated item is deliberately unpickable, so it sits in the queue looking *scheduled*. There is no signal distinguishing "blocked, will unblock" from "blocked forever". The item silently never runs and never surfaces — the loud-detection-that-nothing-acts-on failure family, one step earlier: here there is no detection at all.
   - **What to build**: a check that, for every `<!-- gated-on:XXXX -->` in `ROADMAP.md`, the target `XXXX` (a) EXISTS as a checkbox item in `ROADMAP.md`, and (b) is not already `[x]`-and-retired in a way that makes the gate permanent. Report LOUDLY per violation, naming both ids. Wire it into `roadmap-lint.sh` (grammar/lane sibling) and therefore into `relay-doctor.sh`, which already collates lint output. Decide report-only vs `--strict` consistently with the existing lint tiers.
