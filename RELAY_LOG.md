@@ -4237,3 +4237,7 @@ Friction: none — the RED spec was already authored and load-bearing; the only
 non-obvious step was routing the flag through a parameter (not hardcoding it in
 the shared helper) so the caller-wiring check's brace-scoped source grep could see
 the literal `--commit-residue` text inside the `if (!report)` block.
+
+## 2026-07-31 20:05 — executor (sonnet, relay-loop)
+
+worktree-retire.sh gains opt-in --commit-residue: commits a dirty relay-owned worktree's residue (WIP/UNVERIFIED) onto its own branch and parks it as relay/orphan/<bn>, instead of stranding it surfaced-and-left; relay-loop.js's context-death caller now passes the flag (id:f272) [id:f272]
