@@ -4241,3 +4241,7 @@ the literal `--commit-residue` text inside the `if (!report)` block.
 ## 2026-07-31 20:05 — executor (sonnet, relay-loop)
 
 worktree-retire.sh gains opt-in --commit-residue: commits a dirty relay-owned worktree's residue (WIP/UNVERIFIED) onto its own branch and parks it as relay/orphan/<bn>, instead of stranding it surfaced-and-left; relay-loop.js's context-death caller now passes the flag (id:f272) [id:f272]
+
+## 2026-07-31 20:14 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:05b0 verified genuinely green (@manual marker anchored via shared predicate, suite 342/0/8-exp-red, no gaming/over-reach); ticked TODO twins id:05b0+id:0af4 (cross-ledger sync) [id:05b0,0af4]
