@@ -2131,14 +2131,18 @@ async function quotaGateMemoized(tier) {
 // the registry); a clean, commitless one is reaped with no ref (do not litter); a
 // dirty-but-uncommitted one is surfaced and left on disk (id:373e force-free discipline) —
 // worktree-retire.sh already implements all three outcomes, untouched here.
-async function retireDeadWorktree(unit) {
+// retireFlags: extra worktree-retire.sh flags for THIS call site (kept as a parameter, not
+// hardcoded in the shared function body, so the literal flag text lives at the call site that
+// decides to pass it — id:f272's caller-wiring check greps the null-report branch's own source
+// for the flag; a flag buried only inside this shared helper would not be visible there).
+async function retireDeadWorktree(unit, retireFlags = '') {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
   try {
     const r = await agent(
-      `Run exactly this one command and report its stdout verbatim (force-free retirement of a context-death worktree, id:4df8/373e — NEVER pass --force/-D yourself, this helper never does):\n` +
+      `Run exactly this one command and report its stdout verbatim (force-free retirement of a context-death worktree, id:4df8/373e/f272 — NEVER pass --force/-D yourself, this helper never does):\n` +
       '```relay-mech\n' +
-      `~/.claude/skills/relay/scripts/worktree-retire.sh ${unit.path} ${wt} ${branch}` +
+      `~/.claude/skills/relay/scripts/worktree-retire.sh ${unit.path} ${wt} ${branch}${retireFlags ? ' ' + retireFlags : ''}` +
       '\n```',
       { label: `retire-death:${unit.repo}`, phase: 'Integrate', model: MECH_MODEL }
     )
@@ -2162,7 +2166,11 @@ async function integrate(unit, report) {
     const branch = branchFor(unit)
     const bn = `${state.runId}-${unit.verdict}`
     const orphanRef = `relay/orphan/${bn}`
-    const retireNote = await retireDeadWorktree(unit)
+    // id:f272 — a context-death worktree may be DIRTY (uncommitted residue), not just
+    // committed-but-unmerged; --commit-residue lets worktree-retire.sh commit-and-park that
+    // residue instead of leaving it surfaced-and-stranded for a human to notice by chance
+    // (the exact incident this item records: run relay-20260729-111723-7520's 47 lines).
+    const retireNote = await retireDeadWorktree(unit, '--commit-residue')
     const terminalFailReason = `child agent failed/skipped (API error or terminal failure); ${unit.verdict === 'handoff' ? 'auto-resume did not complete' : 'no auto-resume for ' + unit.verdict}. Any committed checkpoints are retired force-free (id:4df8/373e): if the worktree carried commits they are now parked as a reachable ${orphanRef} (verify: git -C ${unit.path} show-ref --verify refs/heads/${orphanRef}); if it was clean it was reaped; if it was dirty-but-uncommitted it is surfaced and left on disk at ${worktreePathFor(unit)} for a supervised reconcile. Do NOT rely on the run-id-scoped path ${worktreePathFor(unit)} alone — a relaunch never looks there.${retireNote ? ' retire-helper said: ' + retireNote : ''}`
     state.handbacks.push({
       repo: unit.repo,
