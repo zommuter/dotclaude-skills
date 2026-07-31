@@ -450,7 +450,10 @@ What it does (full procedure in `references/human.md`):
    every open `[HARD]` ROADMAP item bucketed by its EXPLICIT lane tag (id:78ff) into
    `hard_pool` / `hard_meeting` / `hard_hands` (vocabulary: `references/hard-lanes.md`). An
    open `[HARD]` with no recognized lane is a LOUD reject (stderr ERROR + nonzero exit) —
-   add the lane tag at the source.
+   add the lane tag at the source. **NEVER pipe the collector through `head`/`tail`**
+   (id:da87): `review_me` rows are emitted LAST per repo, so a truncating reader drops
+   exactly the tier this mode exists to serve, silently. Filter by `kind`, never truncate,
+   and cross-check the `review_me` count against `grep -c '^- \[ \]' <repo>/REVIEW_ME.md`.
 3. **Classify each box into 3 tiers** by answerability/runnability:
    - **(a) AUTO-ANSWERABLE** — unambiguous from code/tests/spec; the apex model verifies,
      ticks with a re-checkable rationale, and flows back to ROADMAP/TODO under the **same
