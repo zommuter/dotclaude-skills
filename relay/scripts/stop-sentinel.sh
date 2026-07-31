@@ -11,7 +11,12 @@
 # the observe-instrumentation the item's OBSERVE downgrade asked for.
 #
 # Usage:
-#   stop-sentinel.sh check [--path <file>]
+#   stop-sentinel.sh check [--path <file>] [--run <runId>]
+#
+# Scoping (id:cd94): with --run, `<path>.<runId>` (TARGETED, this run only) is checked first
+# and the shared `<path>` (BROADCAST, any run) only if no targeted file exists. Without --run
+# only the broadcast file is seen — unchanged legacy behaviour. A targeted sentinel for another
+# run is a different filename and so can never be consumed here.
 #
 # Semantics (VERBATIM prelude step 8):
 #   file absent                          -> {"stopRequested":false}
@@ -28,18 +33,35 @@
 set -euo pipefail
 
 cmd="${1:-}"
-[[ "$cmd" == "check" ]] || { echo "stop-sentinel.sh: usage: stop-sentinel.sh check [--path <file>]" >&2; exit 2; }
+[[ "$cmd" == "check" ]] || { echo "stop-sentinel.sh: usage: stop-sentinel.sh check [--path <file>] [--run <runId>]" >&2; exit 2; }
 shift
 
 path="${HOME}/.config/relay/STOP"
+run=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --run) run="$2"; shift 2 ;;
     --path) path="$2"; shift 2 ;;
     *) echo "stop-sentinel.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 
 log_path="${RELAY_STOP_SENTINEL_LOG:-$HOME/.claude/logs/relay-stop-sentinel.log}"
+
+# --- id:cd94: TARGETED vs BROADCAST sentinel resolution ---------------------------------------
+# A run passing --run <runId> looks for its OWN sentinel `<path>.<runId>` FIRST; only if that
+# is absent does it consider the shared broadcast `<path>`. A targeted sentinel addressed to a
+# DIFFERENT run is invisible here by construction (different filename), which is the whole
+# point: before this, one global un-scoped file meant the first pool to reach a round boundary
+# consumed the operator's stop and stopped ITSELF, while the pool the operator was aiming at
+# ran on. Observed live 2026-07-31 (id:31ce): a killed lodelore run ate the stop at 17:54:39
+# and retired at 17:55; the intended pool read stopRequested:false for all 8 of its rounds and
+# kept working — including re-dispatching the very repo the operator was trying to protect.
+scope="broadcast"
+if [[ -n "$run" && -e "${path}.${run}" ]]; then
+  path="${path}.${run}"
+  scope="targeted"
+fi
 
 if [[ ! -e "$path" ]]; then
   echo '{"stopRequested":false}'
@@ -59,8 +81,18 @@ fi
 
 # Anything else (empty / non-numeric / "0" / negative) -> consume + stop.
 # ($path exists here: the file-absent case returned {stopRequested:false} earlier.)
-rm -- "$path"
+#
+# ORDER MATTERS (id:cd94, second defect found while diagnosing id:31ce): the decision is
+# LOGGED and EMITTED before the file is removed, and the removal is the LAST act and
+# non-fatal. Previously the `rm` came FIRST, so any nonzero exit after it — while the
+# caller `discover-prelude.sh:136` maps a nonzero exit to `{"stopRequested":false}` as a
+# "fail-safe" — consumed the sentinel and reported no-stop: fail-safe in name, fail-OPEN
+# for the stop, and undetectable afterwards because the sentinel is gone. Failing the
+# other way round (sentinel survives, stop re-fires next round) is the safe direction:
+# stopping twice is harmless, silently not stopping is what this whole item is about.
 mkdir -p "$(dirname "$log_path")"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-echo "$ts consumed STOP sentinel path=$path content=\"$content\"" >> "$log_path"
+echo "$ts consumed STOP sentinel path=$path scope=$scope run=${run:-<unscoped>} content=\"$content\"" >> "$log_path"
 echo '{"stopRequested":true}'
+rm -- "$path" || echo "stop-sentinel.sh: WARNING failed to remove $path — it will re-fire next round" >&2
+exit 0
