@@ -551,6 +551,136 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   report+="      ${line}"$'\n'
 done
 
+# --- SCOPE-TABLE-DRIFT (id:c480) -----------------------------------------------
+# A past-triage class one level deeper than the grammar rules above: a ROADMAP
+# item can carry a well-formed lane+id AND STILL make a stale factual claim about
+# the CODE — specifically, a "scope table" enumerating relay-loop.js hop labels
+# as either CONVERTIBLE (`model:'bash'`) or MUST-STAY (`model:'haiku'`). The live
+# incident (id:c480): id:6b35's "OUT of scope ... MUST STAY `model:'haiku'`"
+# bullet kept listing the `release` hop after id:f7d3 converted its dispatch to
+# `model:'bash'` — an implementer following the table faithfully would have
+# "restored" `model:'haiku'` and re-introduced the exact invariant violation
+# f7d3 removed. This check makes that class of drift LOUD instead of invisible.
+#
+# Parses TWO ROADMAP shapes (never a hardcoded hop list, id:c480):
+#   (a) a markdown table under a "... CONVERTIBLE ..." bullet, one hop label per
+#       row, first column backtick-quoted — these MUST dispatch `model:'bash'`.
+#   (b) an "OUT of scope ... MUST STAY `model:'haiku'`" bullet, a comma-separated
+#       prose list of backtick-quoted hop labels (each optionally followed by a
+#       "(~<line>, <note>)" parenthetical) — these MUST dispatch `model:'haiku'`.
+# Then, for each hop, greps the sibling relay-loop.js for a same-line `label:`
+# match (the hop name used as a PREFIX, since JS labels are often template
+# literals like `release:${unit.repo}:${label}`) and compares its `model:`
+# value. A variable model (e.g. `model: MECH_MODEL`) is NOT literally 'haiku' or
+# 'bash', so it can't be compared either way — no violation is raised for those
+# (conservative: this check only fires on a CONFIRMED literal contradiction,
+# never a guess).
+# sed regex-metachar escaper (delegates to sed rather than bash parameter
+# substitution — a prior bash `${s//\}/\\}}`-style attempt mis-escaped `}`
+# and silently produced a non-matching pattern; sed's BRE escaping is unambiguous).
+_pcre_escape() {
+  printf '%s' "$1" | sed -e 's/[.[\*^$()+?{}|\\]/\\&/g'
+}
+
+check_scope_table_drift() {
+  local roadmap_path="$1" loop_js reqs kind hop esc dispatch
+  loop_js="$(dirname "$roadmap_path")/relay/scripts/relay-loop.js"
+
+  reqs="$(python3 - "$roadmap_path" <<'PY'
+import re, sys
+
+path = sys.argv[1]
+text = open(path, encoding='utf-8').read()
+out = []
+
+# --- (a) the CONVERTIBLE hop table: markdown rows following a "|---|" separator
+# that comes after a bullet mentioning CONVERTIBLE. ---
+lines = text.split("\n")
+saw_header = False
+in_table = False
+for line in lines:
+    stripped = line.strip()
+    if 'CONVERTIBLE' in line and 'Hop label' not in line:
+        saw_header = True
+        in_table = False
+        continue
+    if saw_header and re.match(r'^\|\s*Hop label', stripped):
+        continue
+    if saw_header and re.match(r'^\|[-\s|]+\|$', stripped):
+        in_table = True
+        continue
+    if in_table:
+        if stripped.startswith('|'):
+            m = re.match(r'^\|\s*`([^`]+)`', stripped)
+            if m:
+                out.append(('bash', m.group(1)))
+            continue
+        in_table = False
+        saw_header = False
+
+# --- (b) the OUT-of-scope MUST-STAY-haiku bullet: a comma-separated prose list
+# of backtick hop labels, each optionally followed by a "(~line, note)" aside.
+# Track paren depth so a nested backtick INSIDE an aside (e.g. `<<`, `python3`,
+# `$(...)`) is never mistaken for a hop label — only depth-0 backticks count. ---
+m = re.search(r"MUST STAY `model:'haiku'`\*\*:\s*(.*)$", text, re.MULTILINE)
+if m:
+    tail = m.group(1)
+    depth = 0
+    i = 0
+    n = len(tail)
+    while i < n:
+        c = tail[i]
+        if c == '(':
+            depth += 1; i += 1; continue
+        if c == ')':
+            depth = max(0, depth - 1); i += 1; continue
+        if c == '`' and depth == 0:
+            j = tail.find('`', i + 1)
+            if j == -1:
+                break
+            out.append(('haiku', tail[i + 1:j]))
+            i = j + 1
+            continue
+        i += 1
+
+for kind, hop in out:
+    print(f"{kind}\t{hop}")
+PY
+)"
+  [[ -n "$reqs" ]] || return 0   # this ROADMAP carries no scope table — nothing to check
+
+  if [[ ! -f "$loop_js" ]]; then
+    echo "roadmap-lint: SCOPE-TABLE-DRIFT check SKIPPED — relay-loop.js not found at $loop_js (a scope table exists in $roadmap_path but there is nothing to verify it against)" >&2
+    return 0
+  fi
+
+  while IFS=$'\t' read -r kind hop; do
+    [[ -z "$hop" ]] && continue
+    esc="$(_pcre_escape "$hop")"
+    # Match the WHOLE line (not a bounded `[^}]*}` span) — a template-literal
+    # label like `release:${repo}` contains its own `}` (the interpolation's
+    # closing brace) BEFORE the object literal's real closing brace, so a
+    # brace-bounded submatch truncates before reaching `model:` (observed
+    # false-negative while developing this check). All known dispatch shapes in
+    # this repo are single-line `agent(..., { label: …, model: … })` calls.
+    dispatch="$(grep -P "label:\s*[\`'\"]${esc}" "$loop_js" | head -1 || true)"
+    [[ -n "$dispatch" ]] || continue   # no matching dispatch found — nothing to compare
+    if [[ "$kind" == "haiku" ]]; then
+      if printf '%s' "$dispatch" | grep -qP "model:\s*'bash'"; then
+        violations=$((violations + 1))
+        echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: hop '${hop}' is listed as MUST-STAY \`model:'haiku'\` but relay-loop.js dispatches it as model:'bash' — the ROADMAP scope table is STALE: ${dispatch}" >&2
+      fi
+    else
+      if printf '%s' "$dispatch" | grep -qP "model:\s*'haiku'"; then
+        violations=$((violations + 1))
+        echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: hop '${hop}' is listed as CONVERTIBLE (\`model:'bash'\`) but relay-loop.js dispatches it as model:'haiku' — the ROADMAP scope table is STALE: ${dispatch}" >&2
+      fi
+    fi
+  done <<< "$reqs"
+}
+
+check_scope_table_drift "$roadmap"
+
 # --- log (best-effort) --------------------------------------------------------
 log="$HOME/.claude/logs/relay-roadmap-lint.log"
 mkdir -p "$(dirname "$log")" 2>/dev/null || true
