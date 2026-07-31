@@ -4337,3 +4337,20 @@ duplication introduced. [id:74e7]
 ## 2026-07-31 21:13 — executor (sonnet, relay-loop)
 
 Closed id:74e7 — Makefile's RELAY_QUOTA_DECAY_7D default now agrees with relay/SKILL.md's RISING (0.30:0.90) doctrine, with a new hermetic test; full suite green (345 passed, 0 failed, 6 expected-red). [id:74e7]
+
+## 2026-07-31 — executor (sonnet, relay-loop)
+
+Worked id:bf19 — fixed DECIDED-LEFT-OPEN's two false-positive classes in
+lib-state-claim.sh's shared engine: (a) `@container` items now short-circuit
+direction (i)/(ii) (mirroring rule 3(a)'s existing carve-out) so a correctly
+decomposed parent no longer trips a permanent unfixable WARN; (b) the
+direction (i) scoped-assertion strip now accepts the copula-less "id:XXXX
+CLOSED …" prose form real ROADMAP text actually uses, not only "id:XXXX is
+CLOSED". Both fixes land in the one shared function both roadmap-lint.sh and
+todo-conformance.sh source, so the twin-consumer constraint (same verdict on
+identical line text) holds without a second edit. New hermetic test
+tests/test_state_claim_container_fp_bf19.sh covers all three fixture classes
+(exempt-container, exempt-other-id-scoped, still-fires-self-directed) through
+BOTH consumers directly. Friction: none — the fix location was unambiguous
+once the two named consumer functions (direction_i/direction_ii) were traced;
+full `make test` green (346 passed, 0 failed, 6 expected-red). [id:bf19]
