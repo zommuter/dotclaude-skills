@@ -1173,7 +1173,11 @@ phase('Discover')
 const preludeRaw = await agent(
   'Run exactly this one command and report its stdout verbatim — it is the deterministic discovery PRELUDE (runId, own-repo enumeration + non-own skipped rollup, live-claim peek, the CONSUMING inject.sh take, discover-sig, and the operator STOP-sentinel check), emitting one JSON object on stdout:\n' +
   '```relay-mech\n' +
-  `STOP_PATH=${STOP_PATH} ~/.claude/skills/relay/scripts/discover-prelude.sh` +
+  // id:cd94 — RELAY_RUN_ID threads THIS pool's stable run id into the prelude so its STOP check
+  // is run-scoped (`<STOP_PATH>.<runId>`) and a stop aimed at a different live pool cannot be
+  // stolen. Empty on round 1 only if the front door skipped its id:c5ba mint, in which case the
+  // prelude falls back to its own per-round mint and only the broadcast sentinel is seen.
+  `${state.runId ? `RELAY_RUN_ID=${state.runId} ` : ''}STOP_PATH=${STOP_PATH} ~/.claude/skills/relay/scripts/discover-prelude.sh` +
   '\n```',
   { label: 'discover-prelude', phase: 'Discover', model: MECH_MODEL }
 )

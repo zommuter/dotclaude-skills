@@ -70,7 +70,13 @@ log() { printf '%s discover-prelude.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*"
 source "$LIB_OWN_REPOS"
 
 # --- step 1/2: runId (unique per pool run, id:0902) + ISO-8601 UTC timestamp -----------------
-runId="relay-$(date +%Y%m%d-%H%M%S)-$RANDOM"
+# id:cd94 — RELAY_RUN_ID, when the caller supplies it, is the POOL's run id (minted once by the
+# front door per id:c5ba and held in relay-loop.js `state.runId`). The prelude otherwise mints a
+# FRESH id every round, which the loop then discards (`state.runId || prelude.runId`) — harmless
+# for the emitted object, but fatal for anything that must address THIS pool across rounds: a
+# per-round id can never match a run-scoped STOP sentinel. Falls back to the legacy per-round
+# mint so a standalone/hermetic invocation is unchanged.
+runId="${RELAY_RUN_ID:-relay-$(date +%Y%m%d-%H%M%S)-$RANDOM}"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 tmp_own="$(mktemp)"; tmp_claim="$(mktemp)"; tmp_inject="$(mktemp)"; tmp_sig="$(mktemp)"; tmp_stop="$(mktemp)"
@@ -133,7 +139,10 @@ fi
 
 # --- step 8: stopRequested (stop-sentinel.sh check — CONSUMING check/countdown, EXACTLY ONCE) --
 if [[ -x "$STOP_SENTINEL" ]]; then
-  "$STOP_SENTINEL" check --path "$STOP_PATH" > "$tmp_stop" 2>>"$LOG" || { echo '{"stopRequested":false}' > "$tmp_stop"; log "stop-sentinel.sh check nonzero — defaulting stopRequested:false (fail-safe)"; }
+  # --run scopes the check to THIS pool (id:cd94): `<STOP_PATH>.<runId>` is consulted first, so
+  # a stop aimed at another live pool can no longer be stolen here. Bare STOP_PATH still works
+  # as the broadcast "stop whatever is running".
+  "$STOP_SENTINEL" check --path "$STOP_PATH" --run "$runId" > "$tmp_stop" 2>>"$LOG" || { echo '{"stopRequested":false}' > "$tmp_stop"; log "stop-sentinel.sh check nonzero — defaulting stopRequested:false (fail-safe; NOTE id:cd94 — the sentinel is removed LAST so a nonzero here leaves it to re-fire)"; }
 else
   echo '{"stopRequested":false}' > "$tmp_stop"
   log "stop-sentinel.sh not found/executable at $STOP_SENTINEL — stopRequested:false (fail-safe)"
