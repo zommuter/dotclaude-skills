@@ -20,6 +20,7 @@
 - worktree-retire.sh gains opt-in --commit-residue: commits a dirty relay-owned worktree's residue (WIP/UNVERIFIED) onto its own branch and parks it as relay/orphan/<bn>, instead of stranding it surfaced-and-left; relay-loop.js's context-death caller now passes the flag (id:f272) (id:f272)
 - review: id:05b0 verified genuinely green (@manual marker anchored via shared predicate, suite 342/0/8-exp-red, no gaming/over-reach); ticked TODO twins id:05b0+id:0af4 (cross-ledger sync) (id:05b0,0af4)
 - id:5648 — gather-human-backlog.sh emit_hard_lanes() now picks the item's own lane by textual leftmost-tag position instead of priority-order bucket checks, fixing the d84f prose-hijack/silent-drop; deliberately skipped the fixed-window approach after it regressed 6 real fleet items, verified with a zero-regression before/after diff. (id:5648)
+- id:6b1c — anchored unpromoted-scan.sh's primary_lane path 3 (head or clause-boundary) so a lane tag merely mentioned in prose no longer mislabels an unlaned item promote/laned; full suite 344 passed, 0 failed, 6 expected-red. (id:6b1c)
 
 ## 2026-07-30
 
