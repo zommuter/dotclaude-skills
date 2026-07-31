@@ -4385,3 +4385,7 @@ Friction: none — a small, self-contained doc + reference-test item, matched it
 sizing.
 refactor: none needed — a doc-text addition plus one new self-contained test file, no
 existing code touched, no duplication introduced.
+
+## 2026-07-31 21:45 — executor (sonnet, relay-loop)
+
+executor: closed id:8c6f — meeting/SKILL.md step 0f.5 now mandates rendering --fabled closing-pass findings VERBATIM before any decision prompt, with reference-doc test test_meeting_fabled_verbatim_8c6f.sh; full suite 347/0/6-expected-red [id:8c6f]
