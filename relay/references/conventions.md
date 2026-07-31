@@ -44,7 +44,12 @@ rather than copying the full block — see §Executor-contract pointer below.
   commit range matches BOTH prefixes:
   `git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`. The annotation
   label still records the producing model + role (e.g. `reviewer (claude-opus-4-8,
-  fable-standin, relay-loop)`) — that model-in-label is the historical record.
+  fable-standin, relay-loop)`) — that model-in-label is the historical record. The model
+  MUST be the FULL `claude-*` id, never a bare tier name (`reviewer (opus)`): `ckpt-tag.sh`
+  greps for `claude-[a-z0-9.-]+` to decide whether the checkpoint is STRONG, so a bare name
+  leaves `last_strong_ckpt`/`strong_model` un-advanced (id:1a34). A label carrying no
+  `claude-*` id is legitimate for a deliberately non-strong checkpoint, and now warns on
+  stderr naming the label so the two cases are distinguishable.
 - **Pre-integrate isolation gate (id:f682).** BEFORE merging a child's worktree branch,
   the integrator runs `~/.claude/skills/relay/scripts/verify-isolation.sh <worktree> [--base <ref>]`
   (mirrors `clean-tree-gate.sh`'s observe-only/fail-safe shape): exit 0 = the worktree has
