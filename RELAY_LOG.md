@@ -4241,3 +4241,39 @@ the literal `--commit-residue` text inside the `if (!report)` block.
 ## 2026-07-31 20:05 — executor (sonnet, relay-loop)
 
 worktree-retire.sh gains opt-in --commit-residue: commits a dirty relay-owned worktree's residue (WIP/UNVERIFIED) onto its own branch and parks it as relay/orphan/<bn>, instead of stranding it surfaced-and-left; relay-loop.js's context-death caller now passes the flag (id:f272) [id:f272]
+
+## 2026-07-31 20:31 — executor (sonnet)
+
+Worked id:5648 — gather-human-backlog.sh's emit_hard_lanes() no longer lets a
+whole-line, priority-order lane scan pick a bucket whose pattern merely happens
+to be checked first; it now selects the item's OWN lane bracket by TEXTUAL
+POSITION (leftmost recognized `[HARD ...]`/`[INPUT — ...]` tag wins), fixing the
+demonstrated id:d84f case (head tag [HARD — meeting], an unquoted [HARD — pool]
+mention later in the body used to hijack the bucket to hard_pool and, in TODO
+mode, silently drop the item entirely). `route:`/"needs /relay human" aliases
+still scan the full line as a fallback only when no bracket tag is found, per
+spec. Deliberately did NOT port classify.sh's fixed 120-char head-CHAR window —
+prototyping it first surfaced 6 real production items across zkm/loderite/
+puzzle-pwa whose own (only) lane tag sits past 120 chars on a longer non-bold
+title (a legacy authoring shape, tag-at-title-end rather than tag-at-checkbox);
+a fixed window would have converted those from correctly-bucketed rows into
+false LOUD untagged rejects fleet-wide. Position-based leftmost-tag selection
+satisfies all of id:5648's own acceptance criteria (own tag beats a later
+unquoted mention; every existing bucket's positive control still resolves;
+route: aliases still recognized; genuinely-untagged items still LOUD-reject)
+without that collateral damage — verified via a before/after per-bucket
+row-count diff across all confirmed own repos (relay.toml): hard_hands
+106->104, hard_meeting 237->233, hard_pool 24->25, human_decision 18->21,
+review_me/manual/mechanical_orphan unchanged; the untagged-reject stderr block
+is BYTE-IDENTICAL before and after (the only 2 pre-existing rejects, loderite's
+`[HARD — strong model]` items, are an unrelated unrecognized-vocab gap). Did
+NOT extract a shared helper for id:6b1c (unpromoted-scan.sh's sibling reader) —
+that item's own acceptance doesn't require it and the two scripts' item shapes
+differ (ROADMAP-native leftmost-tag vs TODO.md's dual bold-title-anchored
+forms), so leaving that extraction to whichever of id:6b1c/id:5648-follow-up
+actually needs it.
+Friction: none on landing id:5648 itself. refactor: none needed — an inline
+position-based rewrite of the existing if-elif chain, no new duplication;
+tests/test_gather_lane_anchor.sh EXTENDED (not replaced) with 3 more fixtures
+(leftmost-vs-hijack, positive controls across every bucket incl. INBOUND-prefix
+and route:-fallback, genuine untagged reject) per the item's own requirement.

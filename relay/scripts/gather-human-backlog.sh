@@ -390,16 +390,35 @@ emit_hard_lanes() {
       # DECOMPOSED open item is either ticked or carries this marker.)
       if (line ~ /@container/) next
 
-      # Read the EXPLICIT lane from the bracket tag (never inferred). Em-dash "—"
-      # or a plain "-" between HARD and the lane word are both accepted; surrounding
-      # whitespace is flexible. Recognized auto-gate aliases map to the meeting lane.
+      # ANCHOR the lane to the items OWN (textually-leftmost) bracket tag, not to
+      # whichever bucket pattern happens to be checked first in the if-elif chain
+      # (id:5648 — same anchoring family as classify.sh id:0d58/id:4da4, adapted
+      # to ROADMAP.md/TODO.mds convention: the items own tag sits at the LEFTMOST
+      # bracket position on the line, whether right after the checkbox or right
+      # after a bold title — a FIXED head-char window is the WRONG mechanism here:
+      # it false-rejects real production items whose own (only) tag happens to
+      # sit past the window on a longer non-bold title, measured on this fleet
+      # (zkm/loderite/puzzle-pwa). Position-based selection has no such window and
+      # cannot regress a single-tag line regardless of its length.
+      # NOTE: keep apostrophes OUT of these awk comments — this program is inside a
+      # single-quoted shell string, so one apostrophe terminates the quoting.
       #
-      # OLD vocab (venue-keyed, still accepted during the dual-vocab migration
-      # window, id:4f02/id:8111) is checked FIRST — a dash-lane tag ([HARD — pool],
-      # [HARD — meeting], etc.) always wins over the bare-[HARD] new-vocab branch.
-      # NEW vocab (capability-keyed, id:4f02 north star): bare [HARD] (no dash-lane)
-      # is the renamed [HARD — pool]; [INPUT — meeting]/[INPUT — decision] are both
-      # the meeting lane; [INPUT — access] is the hands lane.
+      # For EACH recognized bracket pattern, find its EARLIEST occurrence in the
+      # backtick-stripped, lowercased full line and keep the one with the SMALLEST
+      # start offset — so an item whose own head tag is `[HARD — meeting]` but
+      # whose body merely discusses an UNQUOTED `[HARD — pool]` later in the
+      # prose (the id:d84f incident) always resolves to its own (earlier) tag,
+      # regardless of which bucket happens to be listed first below. `route:`/
+      # "needs /relay human" ALIASES are checked separately, AFTER no bracket tag
+      # was found — they legitimately appear anywhere in the body (hard-lanes.md),
+      # so anchoring them to a position would be a new drop bug in the opposite
+      # direction.
+      #
+      # Dual-vocab (id:4f02/id:8111 B2a, OPEN): both the old venue-keyed
+      # [HARD — <lane>] spelling AND the new capability-keyed [HARD]/[INPUT — <lane>]
+      # spelling are recognized. NEW vocab: bare [HARD] (no dash-lane) is the
+      # renamed [HARD — pool]; [INPUT — meeting]/[INPUT — decision] are both the
+      # meeting lane; [INPUT — access] is the hands lane.
       # BUCKET vs ROUTE (id:1f1c/80e0): a HUMAN-DECIDES item — `[INPUT — decision]`
       # ("human decides, no meeting"), or an auto-gate note routed `route:human` /
       # "needs /relay human" — gets its OWN `human_decision` bucket, distinct from the
@@ -409,29 +428,45 @@ emit_hard_lanes() {
       # the meeting-routed aliases (route:meeting|decision-gate, [HARD — decision gate])
       # stay hard_meeting; only route:human / needs-/relay-human / [INPUT — decision]
       # move to human_decision.
-      kind = ""; bucket = ""
-      if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*pool[[:space:]]*\]/) {
-        kind = "hard_pool"; bucket = "pool"
-      } else if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/ \
-                 || low ~ /\[hard[[:space:]]*[—-][[:space:]]*decision gate[[:space:]]*\]/ \
-                 || low ~ /route:(meeting|decision-gate)/) {
-        kind = "hard_meeting"; bucket = "meeting"
-      } else if (low ~ /route:human/ || low ~ /needs[[:space:]]+\/relay[[:space:]]+human/) {
-        kind = "human_decision"; bucket = "human-decision"
-      } else if (low ~ /\[hard[[:space:]]*[—-][[:space:]]*hands[[:space:]]*\]/) {
-        kind = "hard_hands"; bucket = "hands"
-      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/) {
-        kind = "hard_meeting"; bucket = "meeting"
-      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*decision[[:space:]]*\]/) {
-        kind = "human_decision"; bucket = "human-decision"
-      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*access[[:space:]]*\]/) {
-        kind = "hard_hands"; bucket = "hands"
-      } else if (low ~ /\[input[[:space:]]*[—-][[:space:]]*author[[:space:]]*\]/) {
-        kind = "hard_hands"; bucket = "author"
-      } else if (low ~ /\[hard[[:space:]]*\]/) {
-        kind = "hard_pool"; bucket = "pool"
-      } else {
-        kind = "untagged"; bucket = "untagged"
+      kind = ""; bucket = ""; best_pos = -1
+      if (match(low, /\[hard[[:space:]]*[—-][[:space:]]*pool[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "hard_pool"; bucket = "pool" }
+      }
+      if (match(low, /\[hard[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "hard_meeting"; bucket = "meeting" }
+      }
+      if (match(low, /\[hard[[:space:]]*[—-][[:space:]]*decision gate[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "hard_meeting"; bucket = "meeting" }
+      }
+      if (match(low, /\[hard[[:space:]]*[—-][[:space:]]*hands[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "hard_hands"; bucket = "hands" }
+      }
+      if (match(low, /\[input[[:space:]]*[—-][[:space:]]*meeting[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "hard_meeting"; bucket = "meeting" }
+      }
+      if (match(low, /\[input[[:space:]]*[—-][[:space:]]*decision[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "human_decision"; bucket = "human-decision" }
+      }
+      if (match(low, /\[input[[:space:]]*[—-][[:space:]]*access[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "hard_hands"; bucket = "hands" }
+      }
+      if (match(low, /\[input[[:space:]]*[—-][[:space:]]*author[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "hard_hands"; bucket = "author" }
+      }
+      # Bare [HARD] cannot overlap a dash-lane match (the dash-lane forms require a
+      # "—"/"-" between "hard" and "]", which this pattern excludes), so no tie is
+      # possible between this and the dash-lane checks above.
+      if (match(low, /\[hard[[:space:]]*\]/)) {
+        if (best_pos < 0 || RSTART < best_pos) { best_pos = RSTART; kind = "hard_pool"; bucket = "pool" }
+      }
+      if (bucket == "") {
+        if (low ~ /route:(meeting|decision-gate)/) {
+          kind = "hard_meeting"; bucket = "meeting"
+        } else if (low ~ /route:human/ || low ~ /needs[[:space:]]+\/relay[[:space:]]+human/) {
+          kind = "human_decision"; bucket = "human-decision"
+        } else {
+          kind = "untagged"; bucket = "untagged"
+        }
       }
 
       # id:4e67 — TODO-mode filtering + dedup. In TODO mode surface ONLY human-lane
