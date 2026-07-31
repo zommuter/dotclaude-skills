@@ -4165,3 +4165,8 @@ orphan-scan.sh's typed-edge resolution map now includes ROADMAP.md (first-wins T
 ## 2026-07-31 18:56 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:9be0 verified genuinely green (orphan-scan resolves ROADMAP seams); reconciled cross-ledger TODO twins (9be0/cbd2/7142); suite 339/0/11 [id:9be0,cbd2,7142]
+## 2026-07-31 — executor (sonnet)
+
+Worked id:c500 — `relay-reconcile.sh`'s hardcoded reconcile checkpoint label no longer bakes in a bare, undocumented "reconcile (auto/human)" literal: it now reads `"reconcile (auto/human, non-strong by design — id:c500)"` with an in-source comment at the `:278` call site explaining PART (1)'s owner-ratified 2026-07-31 answer (a reconcile-integrate deliberately does NOT count as strong, since it can be run by a human/apex/`--auto` and attributing it to a caller-model would make merged orphan work read as audited when nobody audited it). PART (2) (`ckpt-tag.sh` LOUD on a model-less label) was already implemented by a prior session on this branch — this unit's remaining gap was purely PART (1)'s documentation half, caught by the pre-existing RED spec's assertion (4) that the reconcile call site's literal string must change AND the file must carry an explicit non-strong declaration. `tests/test_ckpt_label_no_model_loud_c500.sh` (`# roadmap:c500`) went 3/4→4/4 with this one-file, one-comment change. Full suite: 340 passed, 0 failed, 10 expected-red (unrelated open items).
+Friction: none — the item was mis-sized only in the sense that most of it (part 2) had already landed on this branch; part 1 was a small, well-scoped remainder.
+refactor: none needed — a comment + a label-string literal change, no new duplication.
