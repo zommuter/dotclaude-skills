@@ -71,6 +71,18 @@ JS
 $(cat "$tmpdir/choice.out")"
 fi
 
+# ── (1b) WIRING — the helper must be CALLED at the dispatch site, not merely defined.
+# The banked [[relay-builtgreen-but-unreferenced]] class: built, tested, green, referenced by
+# nothing. Pin the CALL, and pin that it sits in the same block as the inFlight/dispatch-event
+# stamping (so both surfaces are fed from ONE computation and can never disagree).
+grep -qE '^\s*(const|let)\s+\w+\s*=\s*dispatchChoiceFor\(unit\)' "$LOOP" \
+  || note "(1b) dispatchChoiceFor is never CALLED on a unit — the choice is computed nowhere and neither surface can carry it"
+awk '/= dispatchChoiceFor\(unit\)/{c=4} c&&c--{print}' "$LOOP" > "$tmpdir/callsite.txt"
+grep -q 'state\.inFlight\.push' "$tmpdir/callsite.txt" \
+  || note "(1b) the dispatchChoiceFor call is not adjacent to state.inFlight.push — the status row is not fed from it"
+grep -q "pushEvent('dispatch'" "$tmpdir/callsite.txt" \
+  || note "(1b) the dispatchChoiceFor call is not adjacent to pushEvent('dispatch') — the event is not fed from the same computation"
+
 # ── (2) the dispatch EVENT carries the chosen id AND the eligible count ────────────────
 ev="$(grep -n "pushEvent('dispatch'" "$LOOP" || true)"
 [[ -n "$ev" ]] || note "(2) no pushEvent('dispatch', …) call site found"
