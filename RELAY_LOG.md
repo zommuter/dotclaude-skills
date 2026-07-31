@@ -4389,3 +4389,25 @@ existing code touched, no duplication introduced.
 ## 2026-07-31 21:45 — executor (sonnet, relay-loop)
 
 executor: closed id:8c6f — meeting/SKILL.md step 0f.5 now mandates rendering --fabled closing-pass findings VERBATIM before any decision prompt, with reference-doc test test_meeting_fabled_verbatim_8c6f.sh; full suite 347/0/6-expected-red [id:8c6f]
+
+## 2026-07-31 — executor (Sonnet) id:5bbb
+
+Worked id:5bbb — built `tests/test_mech_fence_allowlist_completeness_5bbb.sh`, a
+read-only completeness guard over `relay-loop.js` + `mechanical-proxy.py`: it
+enumerates every real `` ```relay-mech `` fence (distinguishing real fence
+delimiters from mere prose mentions in comments — 11 real markers found, 8
+comment-only mentions correctly excluded, 0 unclassified), resolves each to its
+concrete relay script (including the two fences — `mechVerdictHop` and
+`releaseLease`'s per-call `dispatch` helper — whose command is a bare function
+parameter, resolved via one level of call-site indirection as the item allowed;
+anything beyond that fails loudly by design), and asserts each resolved script
+is present in `ALLOWED_RELAY_SCRIPTS`. Verified genuinely RED first — it
+reported the live `worktree-retire.sh` gap (id:4df8/1f8e) before any fix — then
+added the one-line allowlist entry (matching the existing `discover-prelude.sh`
+comment convention, naming id:4df8/1f8e) and confirmed green. Full suite:
+348 passed, 0 failed, 6 expected-red (pre-existing open items, unrelated).
+Friction: none — the item's own prose (line-number citations, occurrence
+counts) was stale against the current tree (17 vs the 19 raw `relay-mech`
+greps I found, 11 real fences either way), exactly the risk the item's
+acceptance criteria (assert the count, don't hardcode it) was designed to
+survive; the test derives everything from the live file, nothing hardcoded.
