@@ -4354,3 +4354,7 @@ tests/test_state_claim_container_fp_bf19.sh covers all three fixture classes
 BOTH consumers directly. Friction: none — the fix location was unambiguous
 once the two named consumer functions (direction_i/direction_ii) were traced;
 full `make test` green (346 passed, 0 failed, 6 expected-red). [id:bf19]
+
+## 2026-07-31 21:25 — executor (sonnet, relay-loop)
+
+Fixed DECIDED-LEFT-OPEN's two false-positive classes (id:bf19): @container exemption + widened other-id-scoped strip, in the shared lib-state-claim.sh engine so roadmap-lint.sh and todo-conformance.sh stay in verdict-agreement; new hermetic test test_state_claim_container_fp_bf19.sh; full suite green (346/0/6 expected-red). [id:bf19]
