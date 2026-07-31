@@ -76,7 +76,7 @@ run_delta '{"updates":[{"id":"aaaa","line":"APPEND: one more sentence <!-- id:aa
 after="$(cat "$F")"
 [[ "$after" == "$before" ]] \
   || note "(B) the malformed replacement was WRITTEN. File now: $(grep -c . <<<"$after") lines; the target line is $(grep -o 'id:aaaa' <<<"$after" | wc -l)x present"
-grep -qF "$LONG" "$F" \
+grep -qF -- "$LONG" "$F" \
   || note "(B) the original 1400-char-class item is GONE from the file — a silent destructive write at exit 0 is the defect this item exists to close"
 
 # ══ (C) a well-formed replacement still applies, in place ═════════════════════════════
