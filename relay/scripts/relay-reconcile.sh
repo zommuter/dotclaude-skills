@@ -275,7 +275,14 @@ integrate_branch() {
   fi
 
   # 3. ckpt-tag.sh — atomic RELAY_LOG entry + relay-ckpt-* tag (human cannot skip the tag).
-  ckpt_tag="$("$CKPT_TAG" "$repo" -m "reconcile integrate: $subj" -l "reconcile (auto/human)")"
+  #    id:c500 part 1 (owner-ratified 2026-07-31): a reconcile-integrate can be run by a
+  #    human, an apex session, or --auto, so there is no single caller-model to attribute
+  #    it to. Rather than guess (or plumb a caller-supplied model id that would make merged
+  #    orphan work read as audited when nobody audited it), the label DELIBERATELY declares
+  #    itself non-strong — this is a decision, not an oversight. ckpt-tag.sh's `reconcile*`
+  #    prefix match reads this as expected-and-correct and emits a quiet `note:` on stderr
+  #    rather than a WARNING.
+  ckpt_tag="$("$CKPT_TAG" "$repo" -m "reconcile integrate: $subj" -l "reconcile (auto/human, non-strong by design — id:c500)")"
 
   # 4. git-lock-push.sh --ff-only — flock'd push; --ff-only won't race/clobber the live pool.
   if [ -x "$LOCK_PUSH" ]; then
