@@ -65,12 +65,20 @@ state_claim_comments() {
 
 # state_claim_direction_i <line> — return 0 (VIOLATION) iff the line's VISIBLE
 # text asserts a terminal state about the item itself; return 1 otherwise. A
-# scoped assertion ("id:XXXX is SUPERSEDED") is stripped out before the check, so
-# a decision note that only describes ANOTHER id's fate never fires here.
+# scoped assertion is stripped out before the check, so a decision note that
+# only describes ANOTHER id's fate never fires here — this covers both the
+# copula form ("id:XXXX is SUPERSEDED") and the copula-less form real prose
+# actually uses ("id:244b CLOSED matrix-complete 2026-06-30", id:bf19(b): the
+# original strip required a literal " is " and missed this shape entirely). A
+# `@container` item is exempt outright (id:bf19(a), mirrors rule 3(a)'s existing
+# `@container` carve-out in roadmap-lint.sh): it is BY CONSTRUCTION a decomposed
+# item that legitimately records a decision and stays open until its seams
+# close, so it can never be a genuine DECIDED-LEFT-OPEN violation.
 state_claim_direction_i() {
   local line="$1" visible stripped
+  [[ "$line" == *@container* ]] && return 1
   visible="$(state_claim_visible_text "$line")"
-  stripped="$(sed -E "s/id:[0-9a-fA-F]{4}[[:space:]]+is[[:space:]]+(${STATE_CLAIM_TERMINAL_WORDS}|${STATE_CLAIM_DECIDED_RE})//g" <<<"$visible")"
+  stripped="$(sed -E "s/id:[0-9a-fA-F]{4}[[:space:]]+(is[[:space:]]+)?(${STATE_CLAIM_TERMINAL_WORDS}|${STATE_CLAIM_DECIDED_RE})//g" <<<"$visible")"
   [[ "$stripped" =~ $STATE_CLAIM_TERMINAL_RE ]] && return 0
   [[ "$stripped" =~ $STATE_CLAIM_DECIDED_RE ]] && return 0
   return 1
@@ -80,9 +88,11 @@ state_claim_direction_i() {
 # <line> asserts a close (a terminal word, or "closed YYYY-MM-DD") while the
 # checkbox is open. Callers are expected to only invoke this on an OPEN `- [ ]`
 # line (the checkbox-open half of the precondition) — this function only
-# inspects the comment bodies for the close-assertion half.
+# inspects the comment bodies for the close-assertion half. `@container` is
+# exempt outright, same rationale as direction (i) above (id:bf19(a)).
 state_claim_direction_ii() {
   local line="$1" c
+  [[ "$line" == *@container* ]] && return 1
   while IFS= read -r c; do
     [[ -z "$c" ]] && continue
     if [[ "$c" =~ $STATE_CLAIM_TERMINAL_RE ]] || [[ "$c" =~ $STATE_CLAIM_DECIDED_RE ]] \
