@@ -22,6 +22,7 @@
 - id:5648 — gather-human-backlog.sh emit_hard_lanes() now picks the item's own lane by textual leftmost-tag position instead of priority-order bucket checks, fixing the d84f prose-hijack/silent-drop; deliberately skipped the fixed-window approach after it regressed 6 real fleet items, verified with a zero-regression before/after diff. (id:5648)
 - id:6b1c — anchored unpromoted-scan.sh's primary_lane path 3 (head or clause-boundary) so a lane tag merely mentioned in prose no longer mislabels an unlaned item promote/laned; full suite 344 passed, 0 failed, 6 expected-red. (id:6b1c)
 - review: id:5648 gather-human-backlog lane-anchoring verified genuinely green (leftmost-tag position, suite 343/0/7-exp-red, no gaming/over-reach); reconciled cross-ledger (ticked TODO twin id:f272, dropped discharged gated-on:907e from id:6217) (id:5648,f272,6217)
+- Closed id:74e7 — Makefile's RELAY_QUOTA_DECAY_7D default now agrees with relay/SKILL.md's RISING (0.30:0.90) doctrine, with a new hermetic test; full suite green (345 passed, 0 failed, 6 expected-red). (id:74e7)
 
 ## 2026-07-30
 
