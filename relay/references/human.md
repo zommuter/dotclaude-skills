@@ -33,6 +33,34 @@ scripts/gather-human-backlog.sh                 # all own repos
 scripts/gather-human-backlog.sh repoA repoB     # named repos
 ```
 
+> **NEVER pipe the collector through `head`/`tail` — and never let a sub-agent
+> summarise it from a capped preview (id:da87).** Rows are emitted PER REPO in a
+> fixed order: ROADMAP hard lanes → TODO hard lanes → mechanical → **`review_me`**
+> → ROADMAP `@manual`. `review_me` — the one bucket this mode exists to serve — is
+> emitted **LAST**, so it is the FIRST thing a truncating reader loses, and it is
+> lost **silently**: the short TSV reads as a legitimate "no boxes / nothing to do".
+>
+> This is CONFIRMED, not hypothetical. On **2026-07-31** a `/relay human .` run
+> invoked `gather-human-backlog.sh dotclaude-skills 2>&1 | head -80`. The repo
+> emitted **89** rows (81 hard-lane + 6 `review_me` + 2 `manual`); `head -80` kept
+> the first 80 and yielded `hard_meeting 61 / hard_hands 10 / hard_pool 6 /
+> human_decision 3 / manual 0` and **zero `review_me`** — while `REVIEW_ME.md` held
+> **6 open boxes**, every one of them real, actionable human-judgment work. The
+> collector was correct (exit 0, empty stderr, all 89 rows emitted); the caller
+> threw them away. `head` also SIGPIPEs the script, so its status is 141, not 0.
+>
+> Need a preview? **Filter, never truncate:**
+>
+> ```bash
+> scripts/gather-human-backlog.sh <repo> | awk -F'\t' '$3=="review_me"'   # the tier
+> scripts/gather-human-backlog.sh <repo> | cut -f3 | sort | uniq -c        # bucket tally
+> ```
+>
+> And **cross-check the `review_me` count against the file itself** before
+> concluding the queue is clean — `grep -c '^- \[ \]' <repo>/REVIEW_ME.md` must
+> equal the number of `review_me` rows. A mismatch means something between the
+> file and you dropped rows.
+
 **Grammar-lint each own repo's ROADMAP alongside the gather (id:09a3).** Run
 `scripts/roadmap-lint.sh <repo-root>` across the same own repos — a POSITIVE-grammar
 validator that LOUD-rejects ANY open `- [ ]` item not matching the proper syntax (a
