@@ -205,9 +205,14 @@ install: $(addprefix install-,$(SKILLS)) install-hooks install-allowlist install
 # Relay fleet env policy → settings.json (idempotent, like install-allowlist). settings.json
 # is PER-MACHINE (not synced — each machine's ~/.claude is its own branch), so this SHARED repo
 # is the source of truth and `make install` applies it on each machine. RELAY_QUOTA_DECAY_7D
-# = strict-proportional time-decaying 7d quota cap (front-load early, taper to ~8% near reset),
-# so a self-looping --afk pool can't blow the weekly budget on day 1 (user policy 2026-06-16).
-RELAY_ENV_DEFAULTS := RELAY_QUOTA_DECAY_7D=0.30:0.08
+# = time-decaying 7d quota cap threshold, START:END fractions interpolated across the rolling
+# 7-day window. SUPERSEDED 2026-07-31 (id:74e7, owner decision 2026-07-24 `/relay human`): the
+# original 2026-06-16 policy here was a FALLING schedule (front-load early, taper near reset),
+# but weekly quota is use-it-or-lose-it — a falling cap false-stops a healthy low-utilization
+# run right before reset (observed 2026-06-22: 0.40:0.18 stopped at 24% 7d-util with ~22h to
+# reset, forfeiting 76%). relay/SKILL.md's knob-table doctrine is the ratified source; this
+# Makefile default now agrees with it: RISING (conserve early, spend down near reset).
+RELAY_ENV_DEFAULTS := RELAY_QUOTA_DECAY_7D=0.30:0.90
 
 install-relay-env:
 	@python3 $(SRC_DIR)/tools/settings-env.py --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS)
