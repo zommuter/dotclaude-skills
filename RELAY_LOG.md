@@ -4310,3 +4310,7 @@ needed for a change this scoped. [id:6b1c]
 ## 2026-07-31 20:50 — executor (sonnet, relay-loop)
 
 id:6b1c — anchored unpromoted-scan.sh's primary_lane path 3 (head or clause-boundary) so a lane tag merely mentioned in prose no longer mislabels an unlaned item promote/laned; full suite 344 passed, 0 failed, 6 expected-red. [id:6b1c]
+
+## 2026-07-31 21:07 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:5648 gather-human-backlog lane-anchoring verified genuinely green (leftmost-tag position, suite 343/0/7-exp-red, no gaming/over-reach); reconciled cross-ledger (ticked TODO twin id:f272, dropped discharged gated-on:907e from id:6217) [id:5648,f272,6217]
