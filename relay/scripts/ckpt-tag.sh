@@ -2,8 +2,17 @@
 # ckpt-tag.sh — atomic relay checkpoint: RELAY_LOG.md entry + annotated tag.
 #
 # Usage:
-#   ckpt-tag.sh <repo-path> -m "summary paragraph" [-l "reviewer (fable)"] [-c <commit>]
+#   ckpt-tag.sh <repo-path> -m "summary paragraph" [-l "reviewer (claude-opus-5)"] [-c <commit>]
 #   echo "summary paragraph" | ckpt-tag.sh <repo-path> [-l label]
+#
+# LABEL FORMAT (id:1a34) — `<role> (<full claude-* model id>[, <extra tokens>])`.
+#   The model id MUST be the FULL string, e.g. `reviewer (claude-opus-5)` or
+#   `reviewer (claude-opus-4-8, fable-standin, relay-loop)`. A BARE tier name
+#   (`reviewer (opus)`, `reviewer (fable)`) does NOT match the detector at the bottom of
+#   this script, so it silently fails to advance `last_strong_ckpt` — that mismatch between
+#   this usage line and the code is precisely id:1a34. A label with no `claude-*` id is
+#   still accepted (it is the correct form for a deliberately non-strong checkpoint such as
+#   a reconcile-integrate), but it now WARNS on stderr naming the label.
 #
 # -c <commit> (id:8e3e): place the annotated tag on <commit> instead of the RELAY_LOG
 #   commit / HEAD. Used by the integrator for a ZERO-COMMIT review branch: the checkpoint
@@ -101,8 +110,24 @@ $label" ${tag_commit:+"$tag_commit"}
   if [[ -f "$cfg/relay.toml" ]] && grep -qxF "[repos.$name]" "$cfg/relay.toml"; then
     "$sw" toml-set "$name" last_ckpt "\"$tag\"" >&2 \
       || echo "ckpt-tag.sh: WARNING: relay.toml last_ckpt sync failed for $name (tag $tag stands)" >&2
+    # Strong-model detection requires a FULL `claude-*` id in the label (e.g.
+    # `reviewer (claude-opus-5)`); a bare tier name like `reviewer (opus)` does NOT match.
+    # id:1a34/id:c500 — the three outcomes below are each announced on stderr, because the
+    # silent variant is exactly the defect these items exist to kill: before this, a label
+    # that produced no match was indistinguishable from a successful sync, so supervised
+    # strong checkpoints left last_strong_ckpt stale for days ([[no-swallow-stderr]]).
     model="$(grep -oE 'claude-[a-z0-9.-]+' <<<"$label" | head -n1 || true)"
-    if [[ -n "$model" && "$model" != *sonnet* && "$model" != *haiku* ]]; then
+    if [[ -z "$model" ]]; then
+      # A model-less label is CORRECT for a deliberately non-strong checkpoint (id:c500
+      # part 1, owner-ratified 2026-07-31: a reconcile-integrate does not count as strong)
+      # and a DEFECT for a strong review whose label omitted the model id. From here the
+      # two are indistinguishable, so name the label and let the operator judge.
+      echo "ckpt-tag.sh: WARNING: label '$label' contains no full claude-* model id — strong-watermark sync SKIPPED for $name (last_strong_ckpt/strong_model unchanged; tag $tag stands). Intentional for a non-strong checkpoint (e.g. a reconcile-integrate); a DEFECT if this was a strong review — the label must carry the full id, e.g. -l 'reviewer (claude-opus-5)', not a bare tier name." >&2
+    elif [[ "$model" == *sonnet* || "$model" == *haiku* ]]; then
+      # Weak model: skipping is unambiguous (the label names the model), so this is a
+      # `note:` like the unmanaged-repo case, not a WARNING — nothing here needs judging.
+      echo "ckpt-tag.sh: note: label '$label' names a weak model ($model) — strong-watermark sync skipped by design for $name." >&2
+    else
       "$sw" toml-set "$name" last_strong_ckpt "\"$tag\"" >&2 \
         || echo "ckpt-tag.sh: WARNING: relay.toml last_strong_ckpt sync failed for $name" >&2
       "$sw" toml-set "$name" strong_model "\"$model\"" >&2 \
