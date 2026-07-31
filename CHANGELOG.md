@@ -27,6 +27,7 @@
 - review: verified id:74e7 genuinely green (Makefile RELAY_QUOTA_DECAY_7D=0.30:0.90 agrees with SKILL.md RISING doctrine, hermetic test, suite 345/0/6, no gaming, not a superset); reconciled cross-ledger drift by ticking TODO twins id:74e7, id:6b1c (id:74e7,6b1c)
 - executor: closed id:8c6f — meeting/SKILL.md step 0f.5 now mandates rendering --fabled closing-pass findings VERBATIM before any decision prompt, with reference-doc test test_meeting_fabled_verbatim_8c6f.sh; full suite 347/0/6-expected-red (id:8c6f)
 - id:5bbb closed — new tests/test_mech_fence_allowlist_completeness_5bbb.sh statically resolves all 11 real relay-mech fences in relay-loop.js (incl. 2 via one-level call-site indirection) and asserts each script is in ALLOWED_RELAY_SCRIPTS; verified genuinely RED (worktree-retire.sh gap) then added the allowlist entry and confirmed green; full suite 348/0/6-expected-red. (id:5bbb)
+- Shipped relay/scripts/lint-mech-model.mjs — lints every relay-mech fence-carrying agent() call for a hardcoded model literal instead of MECH_MODEL (id:4313), wired into all 3 Makefile allowlist blocks and make test; full suite 350/0/6-expected-red. (id:4313)
 
 ## 2026-07-30
 
