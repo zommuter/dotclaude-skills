@@ -208,13 +208,19 @@ elif [[ "$mode" == "shipped" ]]; then
   source "$(dirname "$orphan_self")/../relay/scripts/lib-typed-edges.sh"
 
   # Local resolution map: token → checkbox state for every id-bearing line in
-  # TODO.md ∪ TODO.archive.md. A child/gate token "resolves" iff it is a key here;
-  # it is "closed" iff its state is 'x'. First-wins so an active TODO.md entry
-  # beats a recycled archive id (same rationale as the cross-ledger map, id:9221).
-  # ROADMAP.md is deliberately excluded (that drift belongs to --cross-ledger).
+  # TODO.md ∪ TODO.archive.md ∪ ROADMAP.md. A child/gate token "resolves" iff it is a
+  # key here; it is "closed" iff its state is 'x'. First-wins in that order so an
+  # active TODO.md entry beats a recycled archive/roadmap id (same rationale as the
+  # cross-ledger map, id:9221) — where TODO.md and ROADMAP.md disagree about a shared
+  # id's checkbox state, the TODO (design-ledger) view decides closure for umbrella/gate
+  # purposes; that disagreement itself is `--cross-ledger`'s job, not this map's (id:9be0).
+  # ROADMAP.md is now included in *resolution* so a dependency on a relay seam (which
+  # lives only in ROADMAP.md) is typeable at all — resolution asks "does this token
+  # exist?", which is a different question from --cross-ledger's "do the two views
+  # agree?", so adding it here does not weaken that check.
   # (a missing TODO.archive.md is a normal state, not an error — handled by the lib.)
   declare -A local_state
-  typed_edges_build_state_map local_state "$ROOT/TODO.md" "$ROOT/TODO.archive.md"
+  typed_edges_build_state_map local_state "$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md"
 
   # Confirmed own-repo NAMES for the UMBRELLA-CROSS-REPO decision. These come from
   # relay.toml via the shared, tested reader lib-own-repos.sh — NEVER a ~/src glob

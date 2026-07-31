@@ -40,10 +40,13 @@ typed_edges_decided_in_of_line() { grep -oP '(?<=<!-- decided-in:)[^[:space:]]+(
 #   id (id:9221). Missing/unreadable files are skipped (grep -h … 2>/dev/null): a repo
 #   without a TODO.archive.md is a normal state, not an error.
 #
-#   The CALLER decides the file set — that is the only difference between the two
-#   consumers: orphan-scan resolves over TODO.md ∪ TODO.archive.md (ROADMAP drift is its
-#   --cross-ledger job); classify-repo resolves over ROADMAP.md ∪ TODO.md ∪ TODO.archive.md
-#   (an executor gate must see a target that lives only in ROADMAP).
+#   The CALLER decides the file set. Both current consumers now resolve over all three
+#   ledgers (id:9be0 added ROADMAP.md to orphan-scan's resolution map so a dependency on
+#   a relay seam — which lives only in ROADMAP.md — is typeable): orphan-scan resolves
+#   over TODO.md ∪ TODO.archive.md ∪ ROADMAP.md (first-wins in that order; ROADMAP-vs-TODO
+#   *disagreement* about a shared id's checkbox state is still `--cross-ledger`'s job, not
+#   this map's); classify-repo resolves over ROADMAP.md ∪ TODO.md ∪ TODO.archive.md (an
+#   executor gate must see a target that lives only in ROADMAP).
 typed_edges_build_state_map() {
   local -n _map="$1"; shift
   local l st tk
