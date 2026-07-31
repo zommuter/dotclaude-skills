@@ -10,6 +10,7 @@
 ## 2026-07-31
 
 - id:cbd2 — relay-doctor.sh now resolves REPO_ROOT via readlink -f + walk-to-Makefile, so its install-drift/reference-install checks give the same verdict whether invoked via source path or the installed symlink; unlocatable manifests now WARN loudly instead of silently SKIPping. (id:cbd2)
+- commit-ledger.sh now resolves a bare repo NAME via the own-repo registry, matching the human.md §5 documented invocation (id:7142) (id:7142)
 
 ## 2026-07-30
 
