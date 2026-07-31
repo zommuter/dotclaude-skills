@@ -30,8 +30,17 @@
 #     commit and exits 0 (idempotent; safe to call when nothing changed).
 #
 # Usage:
-#   commit-ledger.sh <repo-root> -m <msg> <ledger-path> [<ledger-path> ...]
+#   commit-ledger.sh <repo-root-or-name> -m <msg> <ledger-path> [<ledger-path> ...]
 #   ledger-paths may be absolute or relative to <repo-root>.
+#   The first arg accepts EITHER an existing directory (path, relative or absolute,
+#   including `.`, resolved unchanged as before) OR a bare repo NAME resolved through the
+#   canonical own-repo registry (relay/scripts/lib-own-repos.sh: relay.toml
+#   classification="own" + `# path:` comment override + paused-skip — never a re-derived
+#   `~/src/*` glob, id:7142). A name that does not resolve to an existing directory AND does
+#   not match a registered own repo fails loudly, naming both the name and the registry path.
+# Env overrides (name resolution only, mirror the sibling discover-* scripts' idiom):
+#   RELAY_TOML   default ~/.config/relay/relay.toml
+#   SRC_DIR      default ~/src
 # Exit: 0 = committed (or clean no-op); 2 = misuse; 1 = git failure.
 #
 # Short stdout; details to ~/.claude/logs/relay-commit-ledger.log.
@@ -46,9 +55,29 @@ log() { printf '%s %s\n' "$(date -Is)" "$*" >> "$LOG" 2>/dev/null || true; }
 
 die() { echo "ERROR: $*" >&2; exit 2; }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 repo="${1:-}"
-[[ -n "$repo" ]] || die "usage: commit-ledger.sh <repo-root> -m <msg> <ledger-path>..."
+[[ -n "$repo" ]] || die "usage: commit-ledger.sh <repo-root-or-name> -m <msg> <ledger-path>..."
 shift
+
+# Resolve a bare NAME (anything that isn't already an existing directory) through the
+# canonical own-repo registry — id:7142: every other relay front door takes a repo name,
+# so the doc (human.md §5) describes the interface the rest of the system already has.
+if [[ ! -d "$repo" ]]; then
+  repo_name="$repo"
+  RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
+  SRC_DIR="${SRC_DIR:-$HOME/src}"
+  export RELAY_TOML SRC_DIR
+  # shellcheck source=lib-own-repos.sh
+  source "$SCRIPT_DIR/lib-own-repos.sh"
+  own_out="" ; own_rc=0
+  own_out="$(own_repos)" || own_rc=$?
+  [[ $own_rc -eq 0 ]] || die "relay.toml at $RELAY_TOML failed to parse while resolving repo name '$repo_name'"
+  resolved="$(printf '%s\n' "$own_out" | awk -F'\t' -v n="$repo_name" '$1==n{print $2; exit}')"
+  [[ -n "$resolved" ]] || die "repo name '$repo_name' not found (not an existing directory, and not a registered own repo in $RELAY_TOML)"
+  repo="$resolved"
+fi
 
 msg=""
 paths=()
