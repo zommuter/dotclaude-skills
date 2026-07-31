@@ -4000,3 +4000,7 @@ handoff C2/C3 integrated: 5 relay-loop items promoted after the do-not-modify di
 ## 2026-07-31 11:47 — reconcile (auto/human)
 
 reconcile integrate: WIP UNVERIFIED SALVAGE — second context-death of the day, same class
+
+## 2026-07-31 14:03 — reviewer (claude-opus-5)
+
+handoff C2/C3: relay-loop cadence cluster promoted (907e primary, 8123, 6217, c500, 069b) + 5 RED specs; 3 inherited code-claims falsified and corrected
