@@ -29,12 +29,20 @@ SCAN="$SCRIPT_DIR/unpromoted-scan.sh"
 CLASSIFY="$SCRIPT_DIR/classify-verdict.sh"
 RESOLVE_GATES="$SCRIPT_DIR/resolve-gates.sh"
 
-repo="" path="" emit_mode=""
+repo="" path="" emit_mode="" chain_end_reason="" chain_ended=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) repo="$2"; shift 2 ;;
     --path) path="$2"; shift 2 ;;
     --emit) emit_mode="$2"; shift 2 ;;
+    # id:5552 — set chain_ended/chain_end_reason on the emitted unit DIRECTLY, replacing the
+    # `| jq -c '. + {chain_ended:true,...}' |` middle stage that used to patch this script's own
+    # JSON one process later. That stage made the whole hop unrunnable: `jq` is not in
+    # mechanical-proxy.py's _SAFE_PLUMBING, so _command_allowed() returned False, the request
+    # fell open to the real API, and `model:"bash"` 404'd — the chain-end classifier re-ask was
+    # 100% dead for EVERY repo (routed:c555). Owning the field here keeps the hop to two pinned
+    # relay scripts, which the proxy gate already trusts unconditionally.
+    --chain-ended) chain_ended=1; chain_end_reason="$2"; shift 2 ;;
     *) echo "classify-repo.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -353,6 +361,7 @@ fi
 # passthrough fields (base) + deterministic derivations from toml_block/latest_ckpt_msg +
 # classify-verdict's verdict/reason/intensive. SIDE-EFFECT-FREE: reads only.
 REPO_ARG="$repo" PATH_ARG="$path" \
+CHAIN_ENDED="$chain_ended" CHAIN_END_REASON="$chain_end_reason" \
 python3 - "$blobdir/assembled.json" "$blobdir/verdict.json" <<'PYEOF'
 import json, os, re, sys
 
@@ -425,5 +434,13 @@ unit = {
     # consumer reads this yet (A3, gated) — it is passthrough plumbing only.
     "open_mechanical": base.get("open_mechanical", 0),
 }
+
+# id:5552 — chain-end re-ask fields, set here rather than by a `jq` stage in the caller's
+# pipeline. Emitted ONLY when --chain-ended was passed, so an ordinary `--emit unit` is
+# byte-identical to before (no consumer sees a new key it did not see yesterday).
+if os.environ.get("CHAIN_ENDED") == "1":
+    unit["chain_ended"] = True
+    unit["chain_end_reason"] = os.environ.get("CHAIN_END_REASON", "")
+
 print(json.dumps(unit))
 PYEOF
