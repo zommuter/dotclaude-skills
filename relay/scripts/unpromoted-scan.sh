@@ -83,7 +83,7 @@ log() { printf '%s unpromoted-scan.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" 
 # the tag right after the checkbox, before any title text, so "leftmost" is already correct
 # there and TODO.md's non-bold prose-summary items carry no genuine tag either way).
 primary_lane() {
-  local line="$1" tag prefix pos best_pos=-1 best_tag="" rest="" lead_tag=""
+  local line="$1" tag rest="" lead_tag="" prefix after best_pos=-1 best_tag="" pos
   # id:719a — recognized lane vocabulary spans BOTH the old venue-keyed spelling
   # ([HARD — pool|hands|meeting|decision gate]) and the new capability-keyed spelling
   # ([INPUT — meeting|access|decision], bare [HARD], [MECHANICAL]) during the dual-vocab
@@ -113,13 +113,45 @@ primary_lane() {
     printf ''
     return
   fi
+  # id:6b1c — non-bold items must ALSO be anchored, not scanned leftmost-anywhere.
+  # A genuine tag sits at one of two natural positions: (a) the HEAD, immediately
+  # after `- [ ] `, optionally preceded by exactly one non-tag prefix bracket
+  # (`[INBOUND ...]` / `[<target-repo>]`); or (b) a CLAUSE boundary — immediately
+  # (mod whitespace) before the trailing `<!-- id:... -->` marker, or before a
+  # following em-dash aside. A bracket-token that sits fluidly mid-sentence, with
+  # more prose both before AND after it before the next boundary, is prose merely
+  # DISCUSSING a lane (the id:3e14/id:be40 shapes) and must NOT set the lane.
+  #
+  # (b) is what keeps the pre-existing id:4da4 "first recognized tag wins" behaviour
+  # for a line like `(i) design item [HARD — meeting] — note: supersedes an earlier
+  # [ROUTINE] plan`: `[HARD — meeting]` sits right before its own em-dash aside (a
+  # clause boundary) so it counts as genuine, while the `[ROUTINE]` mentioned deeper
+  # inside that very aside sits mid-sentence and does not.
+  local head_re='^-\ \[\ \]\ (\[[^]]*\])(\ (\[[^]]*\]))?'
+  if [[ "$line" =~ $head_re ]]; then
+    local b1="${BASH_REMATCH[1]}" b2="${BASH_REMATCH[3]:-}"
+    for tag in "${tags[@]}"; do
+      [[ "$b1" == "$tag" ]] && { printf '%s' "$tag"; return; }
+    done
+    if [[ -n "$b2" ]]; then
+      for tag in "${tags[@]}"; do
+        [[ "$b2" == "$tag" ]] && { printf '%s' "$tag"; return; }
+      done
+    fi
+  fi
   for tag in "${tags[@]}"; do
     case "$line" in
       *"$tag"*)
-        prefix="${line%%"$tag"*}"; pos=${#prefix}
-        if [[ "$best_pos" -lt 0 || "$pos" -lt "$best_pos" ]]; then
-          best_pos=$pos; best_tag="$tag"
-        fi ;;
+        prefix="${line%%"$tag"*}"
+        after="${line#"$prefix$tag"}"
+        if [[ "$after" =~ ^[[:space:]]*$ ]] || [[ "$after" =~ ^[[:space:]]*\<!-- ]] \
+          || [[ "$after" =~ ^[[:space:]]*— ]]; then
+          pos=${#prefix}
+          if [[ "$best_pos" -lt 0 || "$pos" -lt "$best_pos" ]]; then
+            best_pos=$pos; best_tag="$tag"
+          fi
+        fi
+        ;;
     esac
   done
   printf '%s' "$best_tag"
