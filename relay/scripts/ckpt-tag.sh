@@ -118,11 +118,25 @@ $label" ${tag_commit:+"$tag_commit"}
     # strong checkpoints left last_strong_ckpt stale for days ([[no-swallow-stderr]]).
     model="$(grep -oE 'claude-[a-z0-9.-]+' <<<"$label" | head -n1 || true)"
     if [[ -z "$model" ]]; then
-      # A model-less label is CORRECT for a deliberately non-strong checkpoint (id:c500
-      # part 1, owner-ratified 2026-07-31: a reconcile-integrate does not count as strong)
-      # and a DEFECT for a strong review whose label omitted the model id. From here the
-      # two are indistinguishable, so name the label and let the operator judge.
-      echo "ckpt-tag.sh: WARNING: label '$label' contains no full claude-* model id — strong-watermark sync SKIPPED for $name (last_strong_ckpt/strong_model unchanged; tag $tag stands). Intentional for a non-strong checkpoint (e.g. a reconcile-integrate); a DEFECT if this was a strong review — the label must carry the full id, e.g. -l 'reviewer (claude-opus-5)', not a bare tier name." >&2
+      # A model-less label is CORRECT for a deliberately non-strong checkpoint and a DEFECT
+      # for a strong one whose label omitted the model id. The label's ROLE PREFIX tells the
+      # two apart, so this does NOT need operator judgement in the common case:
+      #   `executor (…)`  — the pool's own execute-unit label (`relay-loop.js:2241` emits
+      #                     `executor (sonnet, relay-loop)`, a bare tier name by design).
+      #                     NEVER strong: id:e030's direction is that an executor checkpoint
+      #                     must not advance the strong-audit anchor.
+      #   `reconcile (…)` — owner-ratified 2026-07-31 (id:c500 part 1): a reconcile-integrate
+      #                     deliberately does NOT count as strong.
+      # Both are expected-and-correct, so they get a `note:`. Warning on them would fire on
+      # EVERY pool execute integrate — the single most common path in the fleet — and noise on
+      # the happy path is how real warnings get ignored (regression introduced 2026-07-31 by
+      # id:1a34's loudness fix, caught the same day before it reached a live pool run).
+      # Anything else (reviewer / strong-execute / unknown) IS a defect: warn and name it.
+      if [[ "$label" == executor* || "$label" == reconcile* ]]; then
+        echo "ckpt-tag.sh: note: label '$label' is a non-strong role (executor/reconcile) — strong-watermark sync skipped by design for $name." >&2
+      else
+        echo "ckpt-tag.sh: WARNING: label '$label' contains no full claude-* model id — strong-watermark sync SKIPPED for $name (last_strong_ckpt/strong_model unchanged; tag $tag stands). A DEFECT if this was a strong review — the label must carry the full id, e.g. -l 'reviewer (claude-opus-5)', not a bare tier name." >&2
+      fi
     elif [[ "$model" == *sonnet* || "$model" == *haiku* ]]; then
       # Weak model: skipping is unambiguous (the label names the model), so this is a
       # `note:` like the unmanaged-repo case, not a WARNING — nothing here needs judging.
