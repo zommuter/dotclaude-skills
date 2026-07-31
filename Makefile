@@ -52,7 +52,7 @@ relay_FILES := SKILL.md \
                scripts/relay-status-publish.sh scripts/gather-repo-state.sh \
                scripts/handback-followup.py scripts/roadmap-archive.sh \
                scripts/roadmap-lint.sh scripts/redispatch-guard.mjs scripts/handback-guard.mjs scripts/handback-summary.mjs scripts/pool-args.mjs scripts/round-plan.mjs scripts/drain.mjs scripts/drain-driver.mjs \
-               scripts/relay-doctor.sh scripts/lint-workflow-templates.mjs \
+               scripts/relay-doctor.sh scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs \
                scripts/commit-ledger.sh scripts/acquire-resource.sh \
                scripts/unpromoted-scan.sh scripts/todo-conformance.sh \
                scripts/scan-routed.sh scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh \
@@ -86,7 +86,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/migrate-state-dirs.sh scripts/relay-status-publish.sh \
                scripts/gather-repo-state.sh scripts/roadmap-archive.sh \
                scripts/roadmap-lint.sh scripts/relay-doctor.sh \
-               scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
+               scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh scripts/inbox-scan-repo.sh \
                scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
@@ -113,7 +113,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/migrate-state-dirs.sh scripts/relay-status-publish.sh \
                scripts/gather-repo-state.sh scripts/roadmap-archive.sh \
                scripts/roadmap-lint.sh scripts/relay-doctor.sh \
-               scripts/lint-workflow-templates.mjs scripts/commit-ledger.sh \
+               scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh scripts/inbox-scan-repo.sh \
                scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \

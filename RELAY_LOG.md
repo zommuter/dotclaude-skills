@@ -4415,3 +4415,28 @@ survive; the test derives everything from the live file, nothing hardcoded.
 ## 2026-07-31 22:02 — executor (sonnet, relay-loop)
 
 id:5bbb closed — new tests/test_mech_fence_allowlist_completeness_5bbb.sh statically resolves all 11 real relay-mech fences in relay-loop.js (incl. 2 via one-level call-site indirection) and asserts each script is in ALLOWED_RELAY_SCRIPTS; verified genuinely RED (worktree-retire.sh gap) then added the allowlist entry and confirmed green; full suite 348/0/6-expected-red. [id:5bbb]
+
+## 2026-07-31 — executor (Sonnet) id:4313
+
+Worked id:4313 — shipped `relay/scripts/lint-mech-model.mjs`, a sibling of
+id:71f2's `lint-workflow-templates.mjs` (same single-pass character-lexer shape),
+that flags any `agent()` call carrying a ` ```relay-mech ` fence whose `model:`
+option is a literal (`'bash'`, `'haiku'`, …) instead of the `MECH_MODEL`
+identifier — the class that let `discover-prelude`/`discover-run`/`releaseLease`
+miss the id:4239 indirection and kill a whole pool run under probe mode-a
+(`relay-20260730-115757-3504`). Comments inside the call's own argument list
+(this file's own id:6176 doc-comment convention, e.g. `mechanical hop
+(model:"bash")`) are stripped before extracting the real `model:` value, so a
+prose mention of the literal doesn't false-positive against the real
+`MECH_MODEL` dispatch two lines below it — caught this live against
+`relay-loop.js:1746` during development. Wired into all 3 Makefile allowlist
+blocks alongside `lint-workflow-templates.mjs` (lines ~55/~89/~117) and into
+`make test` via `tests/test_mech_model_lint_4313.sh` (auto-discovered by
+`run-tests.sh`'s `test_*.sh` glob). The live tree lints clean (10/10 fenced
+hops already use `MECH_MODEL`, confirming the item's own "currently clean, no
+carve-out" claim). id:c480's scope-table correction (the "Land with id:c480"
+note) was already landed and closed — verified, nothing further needed there.
+Full suite: 350 passed, 0 failed, 6 expected-red (all open roadmap items).
+Friction: none — item was well-scoped and explicitly read-only re relay-loop.js.
+refactor: none needed — new sibling file plus one new test, no existing
+duplication touched.
