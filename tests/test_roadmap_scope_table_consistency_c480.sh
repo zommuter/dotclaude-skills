@@ -55,8 +55,17 @@ trap 'rm -rf "$TMP"' EXIT
 # ── §1 the LIVE contradiction is gone ─────────────────────────────────────────────────────
 # Establish the code side first, so the assertion cannot pass by the code having changed
 # in the other direction without anyone noticing.
+#
+# The mechanical model is no longer a literal at every hop: commit 490ac6e (id:4239)
+# replaced the last hardcoded `model: 'bash'` sites — including this one — with the
+# MECH_MODEL indirection (`const MECH_MODEL = MECH_FALLBACK === 'fallback-haiku' ?
+# 'haiku' : 'bash'`). So "f7d3 still holds" means the release hop dispatches EITHER a
+# literal `model: 'bash'` OR `model: MECH_MODEL`; what a genuine f7d3 revert would look
+# like is a literal `model: 'haiku'` (or no mechanical dispatch at all), and that is
+# still caught below.
 loop_release_is_bash=0
-grep -E "label: *\`release:" "$LOOP" | grep -qE "model: *'bash'" && loop_release_is_bash=1
+release_dispatch="$(grep -E "label: *\`release:" "$LOOP" | head -1 || true)"
+printf '%s\n' "$release_dispatch" | grep -qE "model: *('bash'|MECH_MODEL)" && loop_release_is_bash=1
 
 # The ROADMAP side: the OUT-of-scope MUST-STAY-haiku bullet in the id:6b35 block.
 outbullet="$(grep -F 'OUT of scope' "$ROADMAP" | grep -F "MUST STAY \`model:'haiku'\`" || true)"
@@ -67,10 +76,10 @@ roadmap_says_release_haiku=0
 printf '%s\n' "$outbullet" | grep -qF '`release:`' && roadmap_says_release_haiku=1
 
 if (( loop_release_is_bash == 1 && roadmap_says_release_haiku == 1 )); then
-  fail "(1) LIVE CONTRADICTION: relay-loop.js dispatches a 'release:' label as model:'bash' (id:f7d3) while the id:6b35 OUT-of-scope bullet still lists \`release:\` as MUST STAY model:'haiku'"
+  fail "(1) LIVE CONTRADICTION: relay-loop.js dispatches a 'release:' label mechanically (model:'bash'/MECH_MODEL, id:f7d3) while the id:6b35 OUT-of-scope bullet still lists \`release:\` as MUST STAY model:'haiku'"
 fi
 (( loop_release_is_bash == 1 )) \
-  || fail "(1) precondition lost: no 'release:'-labelled model:'bash' dispatch in relay-loop.js — id:f7d3 appears to have been reverted; fix that before touching the table"
+  || fail "(1) precondition lost: the 'release:'-labelled dispatch in relay-loop.js is neither model:'bash' nor model:MECH_MODEL — id:f7d3 appears to have been reverted; fix that before touching the table. Line found: ${release_dispatch:-<none>}"
 pass "(1) the id:6b35 OUT-of-scope bullet no longer contradicts relay-loop.js's release: hop"
 
 # ── fixture builder ───────────────────────────────────────────────────────────────────────
