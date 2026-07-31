@@ -395,7 +395,9 @@ integration invariants.
    `references/conventions.md`'s recovery-doctrine paragraph for the salvage-under-lease
    path before discarding) → `--no-ff` merge the
    worktree branch into the integration branch → `scripts/ckpt-tag.sh <repo-path> -m
-   "<summary>" -l "reviewer (<model>)"` → ONE push via
+   "<summary>" -l "reviewer (<full claude-* model id>)"` — e.g. `-l "reviewer (claude-opus-5)"`;
+   a BARE tier name (`reviewer (opus)`) does NOT match `ckpt-tag.sh`'s strong-model detector
+   and leaves `last_strong_ckpt` stale (id:1a34) → ONE push via
    `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only` → `git worktree prune` →
    update relay.toml. `ckpt-tag.sh` itself now syncs `last_ckpt` (and, for a strong-model
    label, `last_strong_ckpt`/`strong_model`) via the flock'd `relay-state-write.sh` (id:0a3b

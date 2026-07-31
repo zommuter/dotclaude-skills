@@ -4004,3 +4004,33 @@ reconcile integrate: WIP UNVERIFIED SALVAGE — second context-death of the day,
 ## 2026-07-31 14:03 — reviewer (claude-opus-5)
 
 handoff C2/C3: relay-loop cadence cluster promoted (907e primary, 8123, 6217, c500, 069b) + 5 RED specs; 3 inherited code-claims falsified and corrected
+
+## 2026-07-31 — executor (claude-opus-5)
+
+Worked id:1a34 — the documented `ckpt-tag.sh` label format never advanced `last_strong_ckpt`.
+Both halves landed. (a) Doc/code agreement: `ckpt-tag.sh:5` now shows `-l "reviewer
+(claude-opus-5)"` plus a new LABEL FORMAT block stating the full-`claude-*`-id requirement;
+`relay/SKILL.md`'s integrate step (`:398`) and `relay/references/conventions.md`'s
+annotation-label paragraph both say full id, never a bare tier name. I grepped rather than
+assumed — `grep -rn -- '-l "' relay/ docs/ hooks/ tools/ Makefile` found exactly three doc/call
+sites plus two script call sites; the two call sites (`relay-reconcile.sh:278`,
+`auto-integrate-orphan.sh:180`) are id:c500's, deliberately untouched. (b) The non-match is now
+LOUD: the flat `if` became a three-branch `if/elif/else` so all three outcomes announce
+themselves — no-`claude-*` prints a WARNING quoting the offending label and saying the
+strong-watermark sync was SKIPPED, weak (`sonnet`/`haiku`) prints a lower-key `note:`, strong
+syncs as before with no new noise. **Decision recorded for id:c500's open sub-question**: the
+weak-model skip is a `note:`, not a WARNING — the label unambiguously names the model, so
+nothing needs judging, whereas a model-less label is genuinely ambiguous. **Coordination with
+id:c500**: its part (1) was owner-ratified as "a reconcile checkpoint deliberately does NOT
+count as strong", so a model-less label is sometimes correct — the warning text therefore names
+both readings inline ("Intentional for a non-strong checkpoint …; a DEFECT if this was a strong
+review") rather than suppressing on a self-declared-non-strong label, because c500's ratified
+acceptance makes the stderr line unconditional. Friction: the RED spec
+`tests/test_ckpt_label_no_model_loud_c500.sh` is `# roadmap:c500`, and its case (4) asserts
+`relay-reconcile.sh` no longer bakes in a model-less literal — that is c500 part (1), a
+different item and outside this unit's file scope, so the file goes 1/2/3 PASS then FAIL(4) and
+correctly stays EXPECTED-RED until c500 lands. Suite 330 passed / 0 failed / 15 expected-red,
+identical to baseline.
+refactor: none needed — the change replaces one flat `if` with a three-branch `if/elif/else`
+over the same variable and adds no duplication; extracting a helper for three one-line `echo`s
+would obscure more than it saves.
