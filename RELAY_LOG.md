@@ -4280,3 +4280,7 @@ position-based rewrite of the existing if-elif chain, no new duplication;
 tests/test_gather_lane_anchor.sh EXTENDED (not replaced) with 3 more fixtures
 (leftmost-vs-hijack, positive controls across every bucket incl. INBOUND-prefix
 and route:-fallback, genuine untagged reject) per the item's own requirement.
+
+## 2026-07-31 20:33 — executor (sonnet, relay-loop)
+
+id:5648 — gather-human-backlog.sh emit_hard_lanes() now picks the item's own lane by textual leftmost-tag position instead of priority-order bucket checks, fixing the d84f prose-hijack/silent-drop; deliberately skipped the fixed-window approach after it regressed 6 real fleet items, verified with a zero-regression before/after diff. [id:5648]
