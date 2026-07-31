@@ -4310,3 +4310,23 @@ needed for a change this scoped. [id:6b1c]
 ## 2026-07-31 20:50 — executor (sonnet, relay-loop)
 
 id:6b1c — anchored unpromoted-scan.sh's primary_lane path 3 (head or clause-boundary) so a lane tag merely mentioned in prose no longer mislabels an unlaned item promote/laned; full suite 344 passed, 0 failed, 6 expected-red. [id:6b1c]
+
+## 2026-07-31 — executor (sonnet)
+
+Worked id:74e7 — Makefile's `RELAY_QUOTA_DECAY_7D` default was still the stale
+FALLING schedule (`0.30:0.08`, dated "user policy 2026-06-16") while
+`relay/SKILL.md`'s knob table has since documented the RISING doctrine
+(`START < END`, weekly quota is use-it-or-lose-it). Changed `RELAY_ENV_DEFAULTS`
+to `RELAY_QUOTA_DECAY_7D=0.30:0.90`, replaced the Makefile comment with a
+supersession note citing id:74e7 and the 2026-06-22 false-stop observation, and
+added `tests/test_quota_decay_default_74e7.sh` (hermetic: parses the Makefile
+default and asserts START < END, cross-checks relay/SKILL.md still documents the
+rising rule, checks the supersession comment names id:74e7, and runs
+`make SETTINGS_JSON=<tmp> install-relay-env` to confirm the write lands only in a
+staged file — sha256 of the real `~/.claude/settings.json` is asserted unchanged).
+Full suite green: 345 passed, 0 failed, 6 expected-red (open roadmap items).
+Friction: none — the item was well-scoped and self-contained; the live
+`~/.claude/settings.json` already holds `0.30:0.90` per the item's own note, so
+this closes a regression risk rather than changing today's runtime behaviour.
+refactor: none needed — a comment-and-value edit plus one new hermetic test, no
+duplication introduced. [id:74e7]
