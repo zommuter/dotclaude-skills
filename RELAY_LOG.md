@@ -4440,3 +4440,7 @@ Full suite: 350 passed, 0 failed, 6 expected-red (all open roadmap items).
 Friction: none — item was well-scoped and explicitly read-only re relay-loop.js.
 refactor: none needed — new sibling file plus one new test, no existing
 duplication touched.
+
+## 2026-07-31 22:28 — executor (sonnet, relay-loop)
+
+Shipped relay/scripts/lint-mech-model.mjs — lints every relay-mech fence-carrying agent() call for a hardcoded model literal instead of MECH_MODEL (id:4313), wired into all 3 Makefile allowlist blocks and make test; full suite 350/0/6-expected-red. [id:4313]
