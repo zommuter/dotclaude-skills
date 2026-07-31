@@ -4184,3 +4184,7 @@ refactor: none needed — the new validation/append helpers are small, single-pu
 ## 2026-07-31 19:35 — executor (sonnet, relay-loop)
 
 id:0af4 — md-merge.py update-ids now refuses a malformed replacement (missing own id marker, or non-checkbox payload against a checkbox target) instead of silently wiping the line, and gains an explicit append mode; full suite 341/0/9-expected-red. [id:0af4]
+
+## 2026-07-31 19:45 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:c500 verified genuinely green (relay-reconcile non-strong label + ckpt-tag loud note, both parts); ticked TODO twin (cross-ledger sync); suite 340/0/10 [id:c500]
