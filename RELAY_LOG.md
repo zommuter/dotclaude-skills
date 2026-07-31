@@ -4306,3 +4306,7 @@ implementing the prose literally.
 refactor: removed the dead best_pos/best_tag/prefix/pos locals from the old
 leftmost-anywhere scan and reused them for the new anchored scan; no other cleanup
 needed for a change this scoped. [id:6b1c]
+
+## 2026-07-31 20:50 — executor (sonnet, relay-loop)
+
+id:6b1c — anchored unpromoted-scan.sh's primary_lane path 3 (head or clause-boundary) so a lane tag merely mentioned in prose no longer mislabels an unlaned item promote/laned; full suite 344 passed, 0 failed, 6 expected-red. [id:6b1c]
