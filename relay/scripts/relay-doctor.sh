@@ -60,7 +60,48 @@ CLASSIFY_REPO="$SCRIPTS_DIR/classify-repo.sh"          # id:188c — verdict-inv
 # produced via a stub — same override idiom as RELAY_DOCTOR_ORPHAN_SCAN above).
 CLASSIFY_REPO="${RELAY_DOCTOR_CLASSIFY_REPO:-$CLASSIFY_REPO}"
 CLEAN_TREE_GATE="${RELAY_DOCTOR_CLEAN_TREE_GATE:-$CLEAN_TREE_GATE}"
-REPO_ROOT="$(cd "$SCRIPTS_DIR/../.." && pwd)"          # dotclaude-skills repo root
+# --- repo-root resolution by REAL path (id:cbd2) ---------------------------------
+# `$SCRIPTS_DIR` above is derived from `dirname "${BASH_SOURCE[0]}"`, which is NOT
+# symlink-resolved: invoked through the installed symlink
+# (`~/.claude/skills/relay/scripts/relay-doctor.sh` — how `/relay health` and every doc
+# example call it) the naive `$SCRIPTS_DIR/../..` lands on `~/.claude/skills`, which has
+# no Makefile, so every manifest-reading check below silently bailed with
+# "SKIP — Makefile not found" — EVERY time, invisibly, because a skip reads identically
+# to clean in the summary. Same tree, same second, opposite verdicts depending purely on
+# invocation path (verified live 2026-07-29; cost: four undetected install-drift
+# instances, all found by hand). Fix: resolve the REAL script location
+# (`readlink -f`, the idiom `meeting/orphan-scan.sh` already uses for exactly this
+# reason) and walk UP from there to the nearest ancestor that actually has a Makefile —
+# this is invocation-path invariant by construction: source and installed-symlink calls
+# both dereference to the same real file and therefore the same real ancestor chain.
+# ONE resolver feeds BOTH manifest checks (id:1102 install_drift_check and id:69ef
+# refs_install_check) — not two copies (ROADMAP acceptance: "fixed in ONE change").
+resolve_repo_root_by_makefile() {
+  local dir="$1"
+  while [[ -n "$dir" && "$dir" != "/" ]]; do
+    if [[ -f "$dir/Makefile" ]]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  [[ -f "/Makefile" ]] && { printf '/\n'; return 0; }
+  return 1
+}
+
+SCRIPTS_REAL_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+REPO_ROOT_RESOLVED=1
+if ! REPO_ROOT="$(resolve_repo_root_by_makefile "$SCRIPTS_REAL_DIR")"; then
+  # Genuinely unlocatable — no Makefile anywhere up the REAL ancestor chain (e.g. a bare
+  # copy with the repo root stripped off). This is the ONLY case in which a manifest
+  # check may decline to run, and per acceptance it must WARN loudly, never SKIP
+  # silently (both checks below key off REPO_ROOT_RESOLVED for exactly this). Fall back
+  # to the old naive derivation ONLY for the non-manifest-gated default below (the
+  # ORPHAN_SCAN path, which has its own existence check and its own override) — never
+  # used to decide a manifest-check verdict.
+  REPO_ROOT_RESOLVED=0
+  REPO_ROOT="$(cd "$SCRIPTS_DIR/../.." && pwd)"
+fi
 ORPHAN_SCAN="$REPO_ROOT/meeting/orphan-scan.sh"
 # Allow an override so the orphan-scan path resolves when installed via symlink too.
 ORPHAN_SCAN="${RELAY_DOCTOR_ORPHAN_SCAN:-$ORPHAN_SCAN}"
@@ -438,7 +479,12 @@ refs_install_check() {
   local mk="$REPO_ROOT/Makefile"
   local refs="$REPO_ROOT/relay/references"
   if [[ ! -f "$mk" || ! -d "$refs" ]]; then
-    echo "SKIP — Makefile or relay/references not found under $REPO_ROOT" >&2
+    # A silent SKIP here reads identically to "clean" in the summary — the exact defect
+    # id:cbd2 fixes. If the real-path resolver (above) genuinely could not locate a
+    # Makefile anywhere up the ancestor chain, this is the ONE legitimate decline case;
+    # it must still say so LOUDLY and count as an unresolved check, never a quiet skip.
+    echo "WARN — Makefile or relay/references not found under $REPO_ROOT (manifest genuinely unlocatable — cannot verify reference-install completeness)" >&2
+    issues_total=$((issues_total + 1))
     echo
     return 0
   fi
@@ -490,7 +536,10 @@ install_drift_check() {
   local install_root="${RELAY_INSTALL_ROOT:-$HOME/.claude/skills}"
   local mk="$REPO_ROOT/Makefile"
   if [[ ! -f "$mk" ]]; then
-    echo "SKIP — Makefile not found under $REPO_ROOT" >&2
+    # Same rationale as refs_install_check above: a silent SKIP here is what hid four
+    # install-drift instances on 2026-07-29 (id:cbd2). WARN loudly and count it.
+    echo "WARN — Makefile not found under $REPO_ROOT (manifest genuinely unlocatable — cannot verify install-drift)" >&2
+    issues_total=$((issues_total + 1))
     echo
     return 0
   fi

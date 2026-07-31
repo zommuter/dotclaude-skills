@@ -1,5 +1,29 @@
 # Relay log <!-- merge=union; append-only — never edit or reorder past entries -->
 
+## 2026-07-31 — executor (Sonnet) id:cbd2
+
+Worked id:cbd2 — `relay-doctor.sh`'s two manifest checks (id:1102 install-drift,
+id:69ef reference-install) derived `REPO_ROOT` from the invocation path's `dirname`
+without resolving symlinks, so calling the script through its installed symlink
+(`~/.claude/skills/relay/scripts/relay-doctor.sh`, the normal `/relay health` path)
+landed `REPO_ROOT` on `~/.claude/skills` — no Makefile there — and both checks
+silently `SKIP`ped every time. Fix: one shared resolver
+(`resolve_repo_root_by_makefile`) that real-path-resolves the script's own location
+(`readlink -f`, the same idiom `meeting/orphan-scan.sh` already uses) and walks up the
+real ancestor chain to the nearest directory with a Makefile — invocation-path
+invariant by construction, since source and symlink calls dereference to the same real
+file. Both checks now feed off the same `REPO_ROOT`, so the fix lands once, not twice
+(the ROADMAP acceptance's explicit requirement). The genuinely-unlocatable case (no
+Makefile anywhere up the real chain) now emits a loud `WARN` and counts as an
+unresolved check in `issues_total`, replacing the old silent `SKIP` that read
+identically to "clean" — that silence is exactly what let four install-drift
+instances go undetected on 2026-07-29 (see id:cbd2's ROADMAP evidence).
+Friction: none — the RED spec (`tests/test_relay_doctor_invocation_path_cbd2.sh`,
+authored in a prior handoff) pinned the five acceptance angles precisely enough that
+implementation was a direct, one-pass fix; no ambiguity to flag.
+refactor: none needed — one new shared resolver function replacing two independent
+naive derivations is itself the de-duplication; no leftover duplication introduced.
+
 ## 2026-07-07 — executor (Sonnet) id:b3ee
 
 Worked id:b3ee — extended the EXISTING `meeting/orphan-scan.sh` (no NIH) with a new
