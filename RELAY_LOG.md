@@ -4210,3 +4210,30 @@ made the fix shape unambiguous.
 ## 2026-07-31 19:52 — executor (sonnet, relay-loop)
 
 id:05b0 — gather-human-backlog.sh @manual marker now anchored (standalone token, backtick-mention-safe) via one shared predicate at both call sites; suite 342/0/8-expected-red [id:05b0]
+
+## 2026-07-31 — executor (sonnet)
+
+Worked id:f272 — `worktree-retire.sh` gains an opt-in `--commit-residue` flag: when a
+worktree is dirty, its branch is relay-owned (`relay/...`), and `--expect-merged`
+was NOT also passed, the residue (tracked modifications + untracked files) is
+committed onto that SAME branch first (message literally contains `WIP` and
+`UNVERIFIED` and names the worktree), then flows through the existing park logic
+unchanged, ending as a reachable `relay/orphan/<bn>` ref instead of stranding on
+disk. Default behaviour (flag absent) is byte-for-byte unchanged — the existing
+`test_context_death_parks_worktree_4df8.sh` fixture (c) passes unmodified. A
+non-relay-owned branch, or `--expect-merged` set, leaves the flag inert (still
+surfaced-and-left, exit 3, no commit made). `relay-loop.js`'s null-report
+(context-death) caller now passes `--commit-residue` — `retireDeadWorktree()` takes
+a `retireFlags` parameter so the literal flag text is visible at the call site
+inside the `if (!report)` block itself, satisfying the RED spec's structural
+caller-wiring check (fixture (g)) rather than being buried only in the shared
+helper. `tests/test_dirty_worktree_commit_park_f272.sh` (pre-authored RED spec,
+handoff C3) green; `test_context_death_parks_worktree_4df8.sh` and
+`test_relay_orphan_park.sh` unmodified and green. Full suite: 343 passed, 0
+failed, 7 expected-red (open roadmap items).
+refactor: none needed — the change is additive (one new opt-in code block plus a
+plumbed-through parameter), no new duplication introduced.
+Friction: none — the RED spec was already authored and load-bearing; the only
+non-obvious step was routing the flag through a parameter (not hardcoding it in
+the shared helper) so the caller-wiring check's brace-scoped source grep could see
+the literal `--commit-residue` text inside the `if (!report)` block.

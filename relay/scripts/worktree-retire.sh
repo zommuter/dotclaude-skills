@@ -26,11 +26,22 @@
 # selection stays in the callers (reconcile-repo.sh / the relay-loop integrator recipe).
 #
 # Usage:
-#   worktree-retire.sh <repo-path> <worktree-dir> <branch> [--expect-merged]
+#   worktree-retire.sh <repo-path> <worktree-dir> <branch> [--expect-merged] [--commit-residue]
 #
 #   --expect-merged   The caller proved the branch is already merged (e.g. reconcile's reap:
 #                     merge-base --is-ancestor). Then a `branch -d` refusal is an ANOMALY
 #                     (main moved? race?) surfaced LOUDLY, NOT silently parked.
+#
+#   --commit-residue  OPT-IN (id:f272). Default behaviour (flag absent) is UNCHANGED: a dirty
+#                     worktree is still surfaced-and-left, exit 3. With the flag, a DIRTY worktree
+#                     on a relay-owned branch (refs/heads/relay/…), with --expect-merged NOT also
+#                     passed, gets its residue committed onto that SAME branch first (a WIP/
+#                     UNVERIFIED commit naming the worktree) so the normal remove+park path below
+#                     can run and the branch ends up a reachable `relay/orphan/<bn>` ref instead of
+#                     stranding on disk. Committing residue is NOT a force op — it discards
+#                     nothing, unlike stash/clean/reset (id:373e bans discarding, not committing).
+#                     A dirty worktree on a NON-relay branch, or when --expect-merged is also set,
+#                     is untouched by this flag and still surfaces-and-leaves as before.
 #
 # Exit codes:
 #   0  retired cleanly (worktree removed, branch deleted or parked as designed)
@@ -47,16 +58,18 @@ mkdir -p "$(dirname "$LOG")" 2>/dev/null || true  # swallow-ok: log dir best-eff
 log() { printf '%s worktree-retire.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }  # swallow-ok: logging is advisory, never fatal
 
 expect_merged=0
+commit_residue=0
 repo="" wt="" branch=""
 pos=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --expect-merged) expect_merged=1; shift ;;
+    --commit-residue) commit_residue=1; shift ;;
     -*) echo "worktree-retire.sh: unknown flag '$1'" >&2; exit 2 ;;
     *) pos+=("$1"); shift ;;
   esac
 done
-[[ ${#pos[@]} -eq 3 ]] || { echo "worktree-retire.sh: usage: <repo-path> <worktree-dir> <branch> [--expect-merged]" >&2; exit 2; }
+[[ ${#pos[@]} -eq 3 ]] || { echo "worktree-retire.sh: usage: <repo-path> <worktree-dir> <branch> [--expect-merged] [--commit-residue]" >&2; exit 2; }
 repo="${pos[0]}"; wt="${pos[1]}"; branch="${pos[2]}"
 
 if [[ ! -d "$repo" ]] || ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
@@ -98,6 +111,31 @@ if [[ -L "$wt/.git" ]]; then
     log "DEFER-UNRECOGNIZED-SYMLINK $msg"
     echo "$msg"
     exit 3
+  fi
+fi
+
+# ---- 0c. optional dirty-residue commit (id:f272, opt-in via --commit-residue) --
+# Runs BEFORE the removal attempt below so a dirty tree becomes clean and the normal
+# remove+park path can proceed unmodified — commit-and-park reuses the existing park logic
+# rather than adding a new disposal branch. Guards, all required: the flag was passed, the
+# worktree still exists, the caller is NOT claiming the branch is already merged (a merged
+# branch dirty on disk is a different anomaly, not this path), and the branch is relay-owned
+# (`relay/…` — never touch a branch this helper doesn't own). Committing is never a force op:
+# it discards nothing, it only moves untracked/modified content into a new commit on the
+# worktree's OWN branch (id:373e bans discarding, not committing).
+if [[ "$commit_residue" -eq 1 && -e "$wt" && "$expect_merged" -eq 0 && "$branch" == relay/* ]]; then
+  if [[ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
+    git -C "$wt" add -A
+    # --no-verify: this is an emergency preservation commit, not a reviewed change — a
+    # repo-local pre-commit hook (e.g. a lint/lane-vocab gate) must never cause residue to be
+    # lost. The commit is explicitly marked WIP/UNVERIFIED so nothing downstream mistakes it
+    # for reviewed work; the reviewer's normal test-integrity checks (contract rule 3) still
+    # apply once a human/relay picks the parked orphan back up.
+    if git -C "$wt" commit -q --no-verify -m "chore(relay): WIP UNVERIFIED residue auto-commit for worktree $bn (id:f272 commit-and-park; do not treat as reviewed)"; then
+      log "commit-residue committed dirty state branch=$branch wt=$wt"
+    else
+      log "commit-residue FAILED to commit dirty state branch=$branch wt=$wt — falling through to normal surface-and-leave"
+    fi
   fi
 fi
 
