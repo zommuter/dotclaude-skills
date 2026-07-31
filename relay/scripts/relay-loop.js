@@ -1072,6 +1072,49 @@ function isDryRound(r) {
   return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0 && (r.workCreated || 0) === 0)
 }
 
+// ── id:907e clause (iii) — verdict-class OSCILLATION guard ──────────────────────────────
+// Widening `workCreated` to "this round changed the repo's verdict class" (the amended
+// producer in integrateUnit) opens a livelock the narrow c919 predicate could not have: a
+// repo whose class alternates execute <-> review every round would report work-created
+// FOREVER, so the 2-dry-round drain never trips and the pool only ever stops at the
+// MAX_ROUNDS seatbelt — looking like an ordinary termination (--fabled F6). The guard closes
+// it on BOTH sides the decision asked for: a flapping repo's class change stops counting as
+// work (so the round scores DRY again), AND the seatbelt exit reason names the oscillation so
+// it fails LOUDLY instead of reading as a normal max-rounds stop.
+//
+// Flapping = at least OSCILLATION_MIN_FLIPS class transitions inside the last
+// OSCILLATION_WINDOW observations for that repo. Two genuine, settling changes over the
+// window score 1-2 flips and are NOT flapping; a true alternation (A,B,A,B,A) scores 4 and is.
+const OSCILLATION_WINDOW = 5
+const OSCILLATION_MIN_FLIPS = 3
+const verdictClassHistory = {}     // repo -> the last OSCILLATION_WINDOW observed verdict classes
+const oscillatingRepos = new Set() // repos that tripped the guard this run (named in the exit reason)
+function recordVerdictClass(repo, verdictClass) {
+  if (!repo || !verdictClass) return { flips: 0, oscillating: false }
+  const hist = verdictClassHistory[repo] || (verdictClassHistory[repo] = [])
+  hist.push(verdictClass)
+  if (hist.length > OSCILLATION_WINDOW) hist.shift()
+  let flips = 0
+  for (let i = 1; i < hist.length; i++) if (hist[i] !== hist[i - 1]) flips++
+  const oscillating = flips >= OSCILLATION_MIN_FLIPS
+  if (oscillating) oscillatingRepos.add(repo)
+  return { flips, oscillating }
+}
+// id:907e — pull the `verdict` out of a fresh classify-repo.sh mechanical hop's RAW stdout.
+// Returns null on anything unparseable (MECH-ERROR, the id:3557 MECH-OK empty-stdout sentinel,
+// malformed JSON) so the caller can fall back LOUDLY instead of inventing a class.
+function parseVerdictClass(raw) {
+  const text = (raw == null) ? '' : String(raw)
+  if (/^MECH-ERROR exit=/.test(text)) return null
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  try {
+    const obj = JSON.parse(text.slice(start, end + 1))
+    return (obj && typeof obj.verdict === 'string' && obj.verdict) ? obj.verdict : null
+  } catch (_) { return null }
+}
+
 async function runRound() {
 // id:2d20 — productivity baseline: completions integrated BEFORE this round. The outer loop's
 // drain detector keys on `produced` (completions THIS round), not units dispatched — a round
@@ -2263,7 +2306,64 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     // matches this file's own stated principle — under-draining merely runs an extra round,
     // over-draining could strand work.
     const hbSplit = report && Array.isArray(report.proposed_split) ? report.proposed_split.length : 0
-    const workCreated = report && report.route === 'hard-split' && hbSplit > 0
+    const routeCreatedWork = !!(report && report.route === 'hard-split' && hbSplit > 0)
+    // ── id:907e — AMENDS the c919 predicate above: VERDICT-CLASS CHANGE, not route only ──
+    // c919's reasoning counted only *dispatchable [ROUTINE]* work, so it scored a
+    // gate-writing handback as nothing. But writing the gate drops actionable_routine_open
+    // to 0, which flips the repo's classifier verdict execute -> review — the round created
+    // a REVIEW unit. Loderite run relay-20260730-173701-17132 rounds 8-9: both handbacks
+    // wrote gates, both counted dry, K=2 tripped, and the pool quit on the exact round its
+    // verdict had changed. c919's own asymmetry argument (under-draining costs one extra
+    // round; over-draining strands work) argues FOR counting it — it was applied backwards
+    // for this case.
+    //
+    // Clause (i) — CACHE BYPASS (id:c3a6). The "after" class is re-derived from a FRESH,
+    // DIRECT `classify-repo.sh` run dispatched right here as a mechanical model:'bash' hop.
+    // It deliberately does NOT read `state.discoverCache` (the id:c3a6 content-addressed
+    // discovery cache) nor this round's reused verdict: that cache serves last round's
+    // verdict whenever a repo's discover-sig is unchanged, so a predicate reading it would
+    // answer "unchanged" essentially always and the whole amendment would ship as a silent
+    // no-op — the banned detector-whose-resolution-does-nothing pattern. `classify-repo.sh`
+    // and `classify-verdict.sh` are documented side-effect-free and are themselves UNCACHED,
+    // which is what makes the direct call a legitimate bypass rather than a cache poke.
+    //
+    // Clause (ii) — REPO-SCOPED, not per-handback causality. The question is "did THIS ROUND
+    // change THIS REPO's verdict class?", so the named pair is verdictClassBefore (the class
+    // discovery assigned this repo when it dispatched the unit) vs verdictClassAfter (the
+    // repo's whole-repo class now). Because the "after" re-classifies the REPO, a flip caused
+    // by a sibling unit under in-repo parallelism (id:1f4f) is counted too — single-`report`
+    // attribution would under-count exactly there.
+    let verdictClassAfter = null
+    try {
+      const raw = await agent(
+        'Run EXACTLY this one command and report its stdout VERBATIM (fresh, cache-bypassed re-classification of ' + unit.repo + ' for the id:907e verdict-class change predicate):\n' +
+        '```relay-mech\n' +
+        `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}'` +
+        '\n```',
+        { label: `reclassify:${unit.repo}`, phase: 'Classify', model: MECH_MODEL }
+      )
+      verdictClassAfter = parseVerdictClass(raw)
+    } catch (err) {
+      log(`relay-loop: id:907e re-classification of ${unit.repo} failed (${err}) — falling back to the c919 route-only predicate for this round`)
+    }
+    const verdictClassBefore = unit.verdict || null
+    if (!verdictClassAfter) {
+      // LOUD, never silent: an unreadable class is not evidence of a flip, so we fall back to
+      // c919's route-only answer for this round rather than guess in either direction.
+      log(`relay-loop: id:907e — no fresh verdict class for ${unit.repo} (before='${verdictClassBefore}'); workCreated falls back to route-only`)
+    }
+    const osc = recordVerdictClass(unit.repo, verdictClassAfter)
+    const verdictClassChanged = !!(verdictClassBefore && verdictClassAfter && verdictClassBefore !== verdictClassAfter)
+    if (verdictClassChanged && osc.oscillating) {
+      // Clause (iii): flapping counts as DRY (see recordVerdictClass) and is named in the exit reason.
+      log(`relay-loop: id:907e OSCILLATION GUARD — ${unit.repo} verdict class is flapping (${osc.flips} flips in the last ${OSCILLATION_WINDOW} observations, now '${verdictClassAfter}'); NOT counting this change as work created`)
+    } else if (verdictClassChanged) {
+      log(`relay-loop: id:907e — ${unit.repo} verdict class changed ${verdictClassBefore} -> ${verdictClassAfter} this round; counting the round as work-creating (a ${verdictClassAfter} unit now exists)`)
+    }
+    // The amended predicate: c919's route test OR a repo-scoped verdict-class change, read from
+    // the FRESH classify-repo.sh run above rather than the id:c3a6 discovery cache (which would
+    // answer "unchanged" forever), minus a flapping repo (clause iii).
+    const workCreated = routeCreatedWork || (verdictClassChanged && !osc.oscillating)
     state.handbacks.push({ repo: unit.repo, reason, worktreePath: report.worktree, workCreated })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })  // id:c8b6
     emittedHandbackEvents.push({ repo: unit.repo, reason })  // id:1735 — invariant backstop
@@ -2709,6 +2809,9 @@ while (!quotaStopped && round < MAX_ROUNDS) {
     if (dry >= 2) {
       const drain = classifyDrainBacklog(state.surfaced)
       stopReason = stopReason || 'drained'  // id:4ca8 — always set, never left null on a drain exit
+      // id:907e clause (iii) — a drain reached WHILE a repo's verdict class was flapping is not an
+      // ordinary drain: qualify the (already-set) reason so the oscillation is loud, not silent.
+      if (stopReason === 'drained' && oscillatingRepos.size) stopReason = `drained:verdict-oscillation:${[...oscillatingRepos].join(',')}`
       log(`relay-loop: backlog drained (2 consecutive no-substantive-progress rounds) — done. Remaining: ${drain.summary}`)
       if (drain.gated.length) log(`relay-loop: ${drain.gated.length} repo(s) have gated [HARD] work the pool cannot auto-do — take them to /relay human --all or /meeting --cross.`)
       break
@@ -2716,6 +2819,16 @@ while (!quotaStopped && round < MAX_ROUNDS) {
   } else {
     dry = 0
   }
+}
+// id:907e clause (iii) — the MAX_ROUNDS seatbelt is the exit a verdict-class livelock lands on,
+// and until now it left stopReason null, so a livelock was indistinguishable from an ordinary
+// long run. Set it explicitly, and DISTINGUISH the oscillation case by name.
+if (!quotaStopped && !stopReason && round >= MAX_ROUNDS) {
+  stopReason = oscillatingRepos.size
+    ? `max-rounds:verdict-oscillation:${[...oscillatingRepos].join(',')}`
+    : 'max-rounds'
+  log(`relay-loop: MAX_ROUNDS seatbelt (${round}/${MAX_ROUNDS}) — stopReason=${stopReason}`)
+  if (oscillatingRepos.size) log(`relay-loop: id:907e — ${oscillatingRepos.size} repo(s) hit the seatbelt with a FLAPPING verdict class (${[...oscillatingRepos].join(', ')}); this is a livelock, not a normal termination — take them to /relay human.`)
 }
 
 await statusTail  // id:cb50 — flush the queued (off-critical-path) RELAY_STATUS writes so the final state is durable before the run returns
