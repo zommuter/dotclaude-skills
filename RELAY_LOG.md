@@ -4042,3 +4042,42 @@ refactor: none needed — the rule reuses the existing shared typed-edge engine 
 ## 2026-07-31 15:19 — reviewer (claude-opus-5)
 
 wave 1 of the review-starvation chain: id:907e (PRIMARY, workCreated counts verdict-class change), id:1a34 (ckpt label format + loud non-match), id:49e0 (roadmap-lint DEAD-GATE rule); 4th trap instance found (ebbe->0534)
+
+## 2026-07-31 — executor (claude-opus-5)
+
+Worked id:8123 — the chain-end classifier RE-ASK that actually ends review starvation.
+`classify-verdict.sh` now takes a NAMED chain-end fact (`chain_ended` bool, or a non-empty
+`chain_end_reason` on its own) and gains ONE new cascade branch, placed BELOW the rank-0
+dirty/diverged parity guards and ABOVE `execute`: `chain_ended and substantive_unaudited ->
+review`. Both directions of the recorded ambiguity are pinned by the RED spec and hold: a chain
+ending BELOW K (handback / contract-not-met / quota-stop) yields `review`, and WITHOUT the fact
+an 18-open-item state still classifies `execute`, so review never became unconditionally
+reachable. `relay-loop.js` supplies only the FACT — after a unit settles without re-chaining, it
+runs a cache-bypassed mechanical hop (`classify-repo.sh --emit unit | jq '. + {chain_ended...}' |
+classify-verdict.sh`) and enqueues a `review` unit ONLY if the classifier returned one; the
+classifier stays the sole verdict authority and stays side-effect-free. The chosen field
+`chain_ended` was added to `discover-sig.sh`'s hashed blob as a labeled `== chain_ended ==`
+section (under-invalidation being that cache's only hazard), and `relay-loop.js`'s integrator
+step-7a postSig now emits it, so a chain-ended repo's postSig deliberately misses next round's
+plain sig instead of serving a stale `execute`. The false-premise comment claiming an execute's
+commits are reviewed next pool is corrected in place (the cc90 ROADMAP:2273 twin was already
+struck through and annotated by the earlier promotion pass, so it needed no further edit).
+
+refactor: extracted `mechVerdictHop()` from the id:907e post-handback re-classification hop and
+reused it for the new chain-end re-ask — one fenced `relay-mech` command, one model tier, one
+parse path, so the two cache-bypassed classifier hops cannot drift apart. Callers keep their own
+try/catch so each still fails LOUDLY on its own terms.
+
+Friction: three notes. (1) The re-ask fires BEFORE this unit's integration debt merges, so the
+state it classifies is main-as-of-now — the same ordering the pre-existing review->execute chain
+already lives with; the pileup case (unaudited commits already on main) is exactly the case it
+must catch, and it does. (2) `chainDepth` genuinely does not exist (cc90 unshipped, as the item
+warns), so D2b's watermark-ADVANCE reset is recorded as an in-source contract next to the
+re-ask rather than coded against an absent counter; the NAMED escape IS built — a per-round
+`chainEndReasked` set bounds re-asks to one per repo and an unanswerable hop is
+surfaced-and-skipped (state.queued + a loud log), never a halt. (3) Delivering the fact through
+the canonical assembler without editing `classify-repo.sh` (out of scope) meant composing
+`--emit unit | jq | classify-verdict.sh`; the unit JSON omits `dirty`/`diverged`, so the
+re-ask's blocked-parity guard rides on the unit's own plain verdict rather than being
+re-derived — a `--chain-ended` passthrough flag on `classify-repo.sh` would be the cleaner
+shape and is worth an owner call.

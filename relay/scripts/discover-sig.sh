@@ -13,7 +13,8 @@
 #   • FAIL-OPEN: any git error / non-repo path → empty ("") sentinel sig, exit 0. An empty sig
 #     means "I'm not sure" → the caller MUST re-classify. The cache is never a correctness authority.
 #
-# I/O: reads one JSON object on stdin: {"repos":[{"repo":"name","path":"/abs"}...],"liveClaims":[...]}
+# I/O: reads one JSON object on stdin: {"repos":[{"repo":"name","path":"/abs","chain_ended":false}...],"liveClaims":[...]}
+#      the per-repo `chain_ended` flag is OPTIONAL (default false) — see the id:8123 section below
 #      emits one JSON line per repo on stdout: {"repo":"name","sig":"<sha256-hex or empty>"}
 #
 # Env overrides (for hermetic tests; default to the live relay locations):
@@ -42,7 +43,7 @@ toml_block() {
 }
 
 repo_sig() {
-  local repo="$1" path="$2" inlive="$3"
+  local repo="$1" path="$2" inlive="$3" chain_ended="$4"
   # FAIL-OPEN gate: not a git work tree → empty sentinel.
   if ! git -C "$path" rev-parse --git-dir >/dev/null 2>&1; then
     log "fail-open: $repo ($path) is not a git repo"
@@ -123,6 +124,15 @@ repo_sig() {
     printf '== dq ==\n%s\n'        "$dq"
     printf '== inlive ==\n%s\n'    "$inlive"
     printf '== substantive_unaudited ==\n%s\n' "$substantive_unaudited"
+    # id:8123 — CHAIN-END fact. classify-verdict.sh takes `chain_ended` as a named input and
+    # ranks `review` above `execute` under it, so it is a REAL classifier signal and MUST be in
+    # this blob. UNDER-invalidation is this cache's only hazard: without this section a
+    # chain-end verdict could be served STALE from last round's cached (execute) verdict and the
+    # forced review would silently never fire — in exactly the situation the cadence fix exists
+    # for. relay-loop.js's integrator step 7a passes "chain_ended":true when the repo's chain
+    # just ended, so its postSig deliberately differs from the plain next-round sig (a cache
+    # MISS → re-classify; over-invalidation is the safe side, per the contract at the top).
+    printf '== chain_ended ==\n%s\n' "$chain_ended"
   } | sha256sum | cut -d' ' -f1 | tr -d '\n'
 }
 
@@ -132,7 +142,9 @@ while [[ "$i" -lt "$n" ]]; do
   repo="$(printf '%s' "$input" | jq -r ".repos[$i].repo")"
   path="$(printf '%s' "$input" | jq -r ".repos[$i].path")"
   inlive="$(printf '%s' "$input" | jq -r --arg r "$repo" '((.liveClaims // []) | index($r)) != null')"
-  sig="$(repo_sig "$repo" "$path" "$inlive")"
+  # id:8123 — optional per-repo chain-end fact (absent → false; any non-null/non-false → true).
+  chain_ended="$(printf '%s' "$input" | jq -r ".repos[$i].chain_ended // false | if . == false or . == null then \"false\" else \"true\" end")"
+  sig="$(repo_sig "$repo" "$path" "$inlive" "$chain_ended")"
   jq -cn --arg repo "$repo" --arg sig "$sig" '{repo:$repo,sig:$sig}'
   i=$((i+1))
 done

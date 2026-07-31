@@ -1114,6 +1114,20 @@ function parseVerdictClass(raw) {
     return (obj && typeof obj.verdict === 'string' && obj.verdict) ? obj.verdict : null
   } catch (_) { return null }
 }
+// Shared shape for BOTH cache-bypassed classifier hops — id:907e's post-handback
+// re-classification and id:8123's chain-end re-ask. One fenced `relay-mech` command dispatched
+// at MECH_MODEL, stdout parsed by parseVerdictClass (null on MECH-ERROR / the id:3557 empty-
+// stdout sentinel / malformed JSON) so each caller falls back LOUDLY on its own terms. Extracted
+// rather than copied: the two hops must not drift apart on model tier, phase or parse strictness.
+// THROWS on agent failure — callers own the try/catch and the log line that names their fallback.
+async function mechVerdictHop(note, command, label) {
+  const raw = await agent(
+    'Run EXACTLY this one command and report its stdout VERBATIM (' + note + '):\n' +
+    '```relay-mech\n' + command + '\n```',
+    { label, phase: 'Classify', model: MECH_MODEL }
+  )
+  return parseVerdictClass(raw)
+}
 
 async function runRound() {
 // id:2d20 — productivity baseline: completions integrated BEFORE this round. The outer loop's
@@ -1829,6 +1843,13 @@ phase('Execute')
 
 const queue = [...actionable]
 const debts = []
+// id:8123 — CHAIN-END re-ask bookkeeping. At most ONE chain-end review re-ask per repo per
+// round: a re-asked review can itself re-chain an execute (review→execute below), whose chain
+// end would re-ask again — this Set is the explicit bound on that ping-pong, and it is also the
+// NAMED ESCAPE hatch: when the re-ask cannot be answered (mechanical hop error, apex/tier
+// outage) the repo is SURFACED-AND-SKIPPED for the round (state.queued + a loud log) rather
+// than the loop halting or silently dropping the audit. Cleared per round with the queue.
+const chainEndReasked = new Set()
 let unitsDispatched = 0
 let roundCapHit = false   // per-round MAX_UNITS cap; distinct from quotaStopped (run-ending)
 
@@ -2246,7 +2267,7 @@ async function integrate(unit, report) {
 6b. EXECUTOR checkpoint — this is an execute unit (sonnet). Do NOT touch last_strong_ckpt, strong_model, or fable_rechecked: an executor checkpoint must never clear the pending Fable-bonus-recheck queue (that is exactly the masking bug id:e030 fixes). Leave those keys untouched.`}
 7. L2 push-seed inputs (id:c855) — compute these LAST, AFTER steps 1-6 so they reflect the fully-settled post-integrate state on main (the toml block, removed worktree dir, and pushed HEAD all feed the signature):
    a. postSig — recompute this repo's discovery signature so next round's prelude can match it: echo the one-repo object and pipe it to discover-sig.sh, then read the "sig" field:
-        printf '%s' '{"repos":[{"repo":"${unit.repo}","path":"${unit.path}"}],"liveClaims":[]}' | ~/.claude/skills/relay/scripts/discover-sig.sh
+        printf '%s' '{"repos":[{"repo":"${unit.repo}","path":"${unit.path}"${unit.chainEnded ? ',"chain_ended":true' : ''}}],"liveClaims":[]}' | ~/.claude/skills/relay/scripts/discover-sig.sh
       It prints one JSON line {"repo":...,"sig":"<hex or empty>"}. Set postSig = that sig verbatim (may be "" — a fail-open sentinel; pass it through, do NOT invent a hash).
    b. openRoutine — count of unticked routine items: git -C ${unit.path} grep -c -E '^- \\[ \\].*\\[ROUTINE\\]' HEAD -- ROADMAP.md 2>/dev/null (0 if the file/marker is absent; a plain count, not a list).
    c. openHard — count of unticked HARD items: git -C ${unit.path} grep -c -E '^- \\[ \\].*\\[HARD' HEAD -- ROADMAP.md 2>/dev/null (0 if absent). Count ALL [HARD items (gated or not) — the supervisor only push-seeds 'idle' when BOTH counts are 0, so over-counting here is safe (it just declines to cache).
@@ -2335,14 +2356,11 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     // attribution would under-count exactly there.
     let verdictClassAfter = null
     try {
-      const raw = await agent(
-        'Run EXACTLY this one command and report its stdout VERBATIM (fresh, cache-bypassed re-classification of ' + unit.repo + ' for the id:907e verdict-class change predicate):\n' +
-        '```relay-mech\n' +
-        `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}'` +
-        '\n```',
-        { label: `reclassify:${unit.repo}`, phase: 'Classify', model: MECH_MODEL }
+      verdictClassAfter = await mechVerdictHop(
+        'fresh, cache-bypassed re-classification of ' + unit.repo + ' for the id:907e verdict-class change predicate',
+        `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}'`,
+        `reclassify:${unit.repo}`
       )
-      verdictClassAfter = parseVerdictClass(raw)
     } catch (err) {
       log(`relay-loop: id:907e re-classification of ${unit.repo} failed (${err}) — falling back to the c919 route-only predicate for this round`)
     }
@@ -2538,7 +2556,13 @@ async function runUnit(unit) {
   // the SAME pool rather than waiting for the next pool's discovery. The live lanes pull
   // it (the pushing lane itself re-checks `queue.length` after this returns, so it's
   // never lost even as the last unit). Only reviews chain — an execute never re-enqueues,
-  // so there's no intra-pool ping-pong; the execute's own commits are reviewed next pool.
+  // so there's no intra-pool ping-pong.
+  // FALSE-PREMISE CORRECTED (id:8123, 2026-07-31): this comment used to claim that an execute's
+  // commits get reviewed by the next pool. That was NOT true. classify-verdict.sh's cascade is a strict
+  // elif chain, so `review` was UNREACHABLE while a single actionable [ROUTINE] item stayed open —
+  // an execute's commits were never reviewed at all (16 unaudited executor checkpoints piled up on
+  // one repo in a single day; a human had to intervene twice). The chain-end classifier RE-ASK
+  // below is what actually gets those commits audited.
   // MAX_UNITS / quotaStopped still gate actual dispatch in the lane loop.
   let rechainedSameRepo = false
   if (unit.verdict === 'review' && report && report.contract_met &&
@@ -2551,6 +2575,64 @@ async function runUnit(unit) {
     rechainedSameRepo = true
     log(`relay-loop: review→execute re-enqueue ${unit.repo} (${report.routine_open} open [ROUTINE])`)
   }
+  // ── id:8123 — CHAIN-END CLASSIFIER RE-ASK ──────────────────────────────────────────────
+  // The chain for this repo has ENDED whenever we did not just re-chain it: normal completion,
+  // mid-chain handback, contract_met:false, quota-stop, or an agent error. The loop supplies ONLY
+  // that FACT (`chain_ended` + `chain_end_reason`) to classify-verdict.sh and lets the CLASSIFIER
+  // decide — no loop-side `review` judgement, no classifier bypass, purity contract intact.
+  //
+  // This REPLACES id:cc90's originally-ratified `chainDepth === K` forced-review trigger, which
+  // could not have worked: executes never re-enqueue (see the block above), so no chain is longer
+  // than one unit today and a depth-K trigger would never have fired for the incident it was
+  // designed to fix — and every chain ending BELOW K would escape it. A chain-end fact catches
+  // all of those causes uniformly. cc90's K<=3 still bounds chain LENGTH; it is no longer the
+  // audit trigger, and no separate aging term is built (meeting 2026-07-31-1231, amendment A1).
+  //
+  // RESET SEMANTICS (D2b, recorded here because cc90's counter is not shipped yet): when
+  // chainDepth lands it resets on strong-audit WATERMARK ADVANCE (relay.toml last_strong_ckpt
+  // moving — ckpt-tag.sh id:1a34/c500 now warns LOUDLY when a label carries no full claude-* id,
+  // so a silent non-advance is no longer possible), NEVER on mere review DISPATCH: dispatch-reset
+  // would degrade the guard to nothing under an apex outage. The outage escape is the
+  // `chainEndReasked` surfaced-and-skipped path below, not a halt-at-K.
+  //
+  // The re-ask reuses the id:907e mechanical-hop shape (model:'bash' + parseVerdictClass) and
+  // deliberately BYPASSES the id:c3a6 discovery cache — the cache serves last round's verdict for
+  // an unchanged signature, which is exactly the situation a chain end changes. The matching
+  // cache-side half is the `chain_ended` field hashed by discover-sig.sh (step 7a below).
+  let chainEndReason = null
+  if (!rechainedSameRepo && unit.verdict !== 'review' && !chainEndReasked.has(unit.repo)) {
+    chainEndReason = !report ? 'agent-error'
+      : (report.contract_met === false ? 'contract-not-met'
+        : (quotaStopped ? 'quota-stop' : 'chain-complete'))
+    chainEndReasked.add(unit.repo)
+    unit.chainEnded = true            // read by integrate()'s step-7a postSig (discover-sig input)
+    unit.chainEndReason = chainEndReason
+    let chainEndVerdict = null
+    try {
+      chainEndVerdict = await mechVerdictHop(
+        'chain-end classifier RE-ASK for ' + unit.repo + ' — id:8123; the loop supplies only the chain-end FACT, classify-verdict.sh decides the verdict',
+        `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}' --emit unit | jq -c '. + {chain_ended:true,chain_end_reason:"${chainEndReason}"}' | ~/.claude/skills/relay/scripts/classify-verdict.sh`,
+        `chain-end-reask:${unit.repo}`
+      )
+    } catch (err) {
+      log(`relay-loop: id:8123 chain-end re-ask for ${unit.repo} failed (${err})`)
+    }
+    if (chainEndVerdict === 'review' && !quotaStopped) {
+      queue.push({
+        repo: unit.repo, path: unit.path, verdict: 'review',
+        reason: `chain-end review re-ask (${chainEndReason}): classify-verdict.sh returned review for the chain just ended (id:8123)`,
+        lastCkpt: unit.lastCkpt, income: unit.income, chainEndReask: true,
+      })
+      log(`relay-loop: id:8123 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says review; enqueued`)
+    } else if (!chainEndVerdict) {
+      // NAMED ESCAPE — surfaced-and-skipped, never a silent drop and never a halt.
+      state.queued.push({ repo: unit.repo, verdict: `review (id:8123 chain-end re-ask unanswered — surfaced, skipped this round)` })
+      log(`relay-loop: id:8123 CHAIN-END ESCAPE — no readable verdict for ${unit.repo} after a chain end (${chainEndReason}); surfaced-and-skipped, next round re-derives (discover-sig carries the chain_ended fact)`)
+    } else {
+      log(`relay-loop: id:8123 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says ${chainEndVerdict}; no review owed`)
+    }
+  }
+
   // id:7570 — per-unit FINALLY release: the child has settled (merged / handback / null /
   // error). Free the lease NOW so a leaked claim can't block other sessions until the TTL.
   // EXCEPTION: when this run just re-chained the SAME repo (review→execute above), keep the
