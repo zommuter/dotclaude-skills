@@ -446,7 +446,24 @@ def _mechanical_command(body: bytes):
     model=="bash" mechanical request AND its command is an allowlisted relay
     invocation. Returns None otherwise (fail-open → relay to the real model)."""
     command = _extract_mechanical_command(body)
-    if command is None or not _command_allowed(command):
+    if command is None:
+        return None          # not a model=="bash" mechanical request at all — nothing to say
+    if not _command_allowed(command):
+        # id:5552 — LOUD refusal (no-silent-swallow, id:4347). Before this, a REFUSED
+        # mechanical command and a request that was never mechanical collapsed into the same
+        # silent None, so the refusal was indistinguishable from a broken model: the request
+        # fell through to the real API, which has no "bash" model, and the hop died with
+        # "There's an issue with the selected model (bash)". That is how the chain-end
+        # classifier re-ask could be 100% dead for EVERY repo without anyone noticing — twice
+        # over, since id:8123 replaced id:cc90's depth-K trigger precisely because that one
+        # "could not have worked", and the replacement never fired either (loderite run
+        # relay-20260731-221039-22914; routed:c555). One log line makes this class
+        # self-diagnosing: the refused command is named, so the missing allowlist entry or the
+        # offending pipeline stage is immediate rather than a run-costing mystery.
+        _log({"event": "mechanical_refused", "command": command,
+              "reason": "command not allowed by _command_allowed (see _SAFE_PLUMBING / "
+                        "relay-script allowlist); falling open to the real API, which will "
+                        "404 on model=\"bash\""})
         return None
     return command
 

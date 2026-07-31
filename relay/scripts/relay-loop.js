@@ -2654,7 +2654,13 @@ async function runUnit(unit) {
     try {
       chainEndVerdict = await mechVerdictHop(
         'chain-end classifier RE-ASK for ' + unit.repo + ' — id:8123; the loop supplies only the chain-end FACT, classify-verdict.sh decides the verdict',
-        `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}' --emit unit | jq -c '. + {chain_ended:true,chain_end_reason:"${chainEndReason}"}' | ~/.claude/skills/relay/scripts/classify-verdict.sh`,
+        // id:5552 — the `| jq -c '. + {chain_ended:true,…}' |` middle stage is GONE:
+        // classify-repo.sh now owns the field via --chain-ended. `jq` is not in
+        // mechanical-proxy.py's _SAFE_PLUMBING, so _command_allowed() refused this whole
+        // pipeline, it fell open to the real API, and model:"bash" 404'd — making this re-ask
+        // 100% dead for every repo since it landed (routed:c555; verified by calling
+        // _command_allowed on the exact string). Two pinned relay scripts pass the gate.
+        `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}' --emit unit --chain-ended '${String(chainEndReason).replace(/'/g, "'\\''")}' | ~/.claude/skills/relay/scripts/classify-verdict.sh`,
         `chain-end-reask:${unit.repo}`
       )
     } catch (err) {
