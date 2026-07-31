@@ -16,6 +16,7 @@
 - id:c500 part 1 closed — relay-reconcile.sh's checkpoint label now explicitly declares itself non-strong by design (owner-ratified 2026-07-31), with an in-source comment; part 2 (loud ckpt-tag.sh warning) was already landed by a prior session on this branch. (id:c500)
 - id:0af4 — md-merge.py update-ids now refuses a malformed replacement (missing own id marker, or non-checkbox payload against a checkbox target) instead of silently wiping the line, and gains an explicit append mode; full suite 341/0/9-expected-red. (id:0af4)
 - review: id:c500 verified genuinely green (relay-reconcile non-strong label + ckpt-tag loud note, both parts); ticked TODO twin (cross-ledger sync); suite 340/0/10 (id:c500)
+- id:05b0 — gather-human-backlog.sh @manual marker now anchored (standalone token, backtick-mention-safe) via one shared predicate at both call sites; suite 342/0/8-expected-red (id:05b0)
 
 ## 2026-07-30
 
