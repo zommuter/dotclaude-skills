@@ -4411,3 +4411,7 @@ counts) was stale against the current tree (17 vs the 19 raw `relay-mech`
 greps I found, 11 real fences either way), exactly the risk the item's
 acceptance criteria (assert the count, don't hardcode it) was designed to
 survive; the test derives everything from the live file, nothing hardcoded.
+
+## 2026-07-31 22:02 — executor (sonnet, relay-loop)
+
+id:5bbb closed — new tests/test_mech_fence_allowlist_completeness_5bbb.sh statically resolves all 11 real relay-mech fences in relay-loop.js (incl. 2 via one-level call-site indirection) and asserts each script is in ALLOWED_RELAY_SCRIPTS; verified genuinely RED (worktree-retire.sh gap) then added the allowlist entry and confirmed green; full suite 348/0/6-expected-red. [id:5bbb]
