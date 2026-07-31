@@ -4151,3 +4151,9 @@ Friction: none — small, well-scoped item; RED spec had to be authored (not pre
 ## 2026-07-31 18:37 — executor (sonnet, relay-loop)
 
 commit-ledger.sh now resolves a bare repo NAME via the own-repo registry, matching the human.md §5 documented invocation (id:7142) [id:7142]
+
+## 2026-07-31 — executor (sonnet)
+
+Worked id:9be0 — `orphan-scan.sh`'s typed-edge local resolution map (`typed_edges_build_state_map`) now includes `ROADMAP.md` alongside `TODO.md`/`TODO.archive.md` (first-wins in that order, unchanged rationale from id:9221), so a `children:`/`gated-on:` token naming a relay seam — which lives only in `ROADMAP.md` — resolves instead of reporting dangling. A pre-existing hermetic RED spec (`tests/test_orphan_scan_roadmap_seam_9be0.sh`, authored in an earlier handoff session, `# roadmap:9be0`) already pinned the exact shape (ROADMAP-only gate resolves, ROADMAP-only umbrella children close, a genuinely absent token still dangles loudly, first-wins keeps TODO authoritative on disagreement, `--cross-ledger` unchanged) — it went from failing to passing with just the one-line map-build call site change plus updated comments in `orphan-scan.sh` and the shared `lib-typed-edges.sh`. The specified regression suite (`test_orphan_scan_edges.sh`, `test_orphan_scan_cross_ledger_strict.sh`, `test_orphan_scan_cross_ledger_indent.sh`, `test_orphan_scan_gate_prose_only.sh`, `test_orphan_scan_xgate.sh`, `test_orphan_scan_unmarked_gate.sh`) stayed green unmodified. Full suite: 339 passed, 0 failed, 11 expected-red (unrelated open items).
+Friction: none — the RED spec already existed from a prior handoff session, so this unit was a pure implement-against-spec turn.
+refactor: none needed — the fix is a single call-site file-list extension plus comment upkeep in the two files that already documented the old (narrower) file set; no new duplication introduced.
