@@ -4284,3 +4284,25 @@ and route:-fallback, genuine untagged reject) per the item's own requirement.
 ## 2026-07-31 20:33 — executor (sonnet, relay-loop)
 
 id:5648 — gather-human-backlog.sh emit_hard_lanes() now picks the item's own lane by textual leftmost-tag position instead of priority-order bucket checks, fixing the d84f prose-hijack/silent-drop; deliberately skipped the fixed-window approach after it regressed 6 real fleet items, verified with a zero-regression before/after diff. [id:5648]
+
+## 2026-07-31 — executor (sonnet)
+
+Worked id:6b1c — unpromoted-scan.sh's `primary_lane` path 3 (non-bold TODO items) was
+scanning the whole line for the leftmost recognized lane tag, so a tag merely mentioned
+in prose (e.g. an INBOUND report discussing "[ROUTINE] items stay open") got read as the
+item's own lane. Replaced it with an anchored scan: accept a tag only at the item HEAD
+(optionally after one INBOUND/target-repo prefix bracket) or at a clause boundary
+(immediately before the trailing id-comment marker or a following em-dash aside) — never
+mid-sentence with prose on both sides. This had to reconcile with the pre-existing
+id:4da4 "first recognized tag wins" invariant pinned by test_unpromoted_scan.sh's id:9999
+fixture (a [HARD — meeting] item whose own em-dash aside cites a deeper [ROUTINE]) — the
+clause-boundary anchor keeps that case intact by construction rather than needing a
+separate leftmost-among-anchored special case.
+Friction: the roadmap item's "what to build" prose described a strict single (head-only)
+anchor, but the pinned sibling test (id:9999 in test_unpromoted_scan.sh) required
+accepting a tag anchored at a trailing clause boundary too — reconciled by deriving the
+anchor rule empirically against both the new fixture and the pinned ones rather than
+implementing the prose literally.
+refactor: removed the dead best_pos/best_tag/prefix/pos locals from the old
+leftmost-anywhere scan and reused them for the new anchored scan; no other cleanup
+needed for a change this scoped. [id:6b1c]
