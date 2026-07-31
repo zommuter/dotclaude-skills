@@ -10,6 +10,8 @@ Usage:
     # Replace lines by <!-- id:XXXX --> token (for TODO.md)
     python3 md-merge.py update-ids --file <path>
     stdin: {"updates": [{"id": "XXXX", "line": "replacement line text"}]}
+    # id:0af4 — or APPEND to the existing line instead of replacing it:
+    stdin: {"updates": [{"id": "XXXX", "append": "text to add"}]}
 
     # Replace ## section blocks by heading text (for user-profile.md)
     python3 md-merge.py update-sections --file <path>
@@ -109,6 +111,52 @@ def _commit_ledger(file_path: Path, msg: str) -> None:
 # Archive/Icebox section. Matched case-insensitively against `##`+ headings.
 _ARCHIVE_HEADING_RE = re.compile(r'^#{2,}\s+(done|archive|icebox)\b', re.IGNORECASE)
 
+# id:0af4 — mirrors relay/scripts/lib-anchored-id.sh's ANCHORED_ID_MARKER_RE
+# ('<!--[[:space:]]*id:([0-9a-fA-F]{4})[[:space:]]*-->') so a REPLACEMENT line's
+# own id marker is recognised with the exact same grammar the rest of the relay
+# tooling uses — do not invent a looser/stricter pattern here.
+_ID_MARKER_RE = re.compile(r'<!--\s*id:([0-9a-fA-F]{4})\s*-->')
+
+# A checkbox item line starts with `- [ ]` or `- [x]`/`- [X]`.
+_CHECKBOX_RE = re.compile(r'^- \[[ xX]\]')
+
+
+def _validate_replacement(item_id: str, target_line: str, new_line: str) -> str | None:
+    """Return an error string if `new_line` is not a safe replacement for the
+    line currently holding `<!-- id:<item_id> -->`, else None.
+
+    id:0af4 — two guards, both required BEFORE anything is written:
+      1. the replacement must carry that SAME id's own anchored marker (a
+         replacement that silently drops/changes the marker orphans the item);
+      2. if the target line is a checkbox item, the replacement must be one
+         too (this is the exact shape of the 1400-char-wipe payload that
+         motivated this item — a partial fragment passed as a full-line
+         replacement for a checkbox item).
+    The checkbox rule is conditional on the TARGET's shape only: a non-checkbox
+    id-bearing line (e.g. a `## heading <!-- id:XXXX -->`) may still be replaced
+    by another non-checkbox line.
+    """
+    nm = _ID_MARKER_RE.search(new_line)
+    if not nm or nm.group(1).lower() != item_id.lower():
+        return (f'replacement for id:{item_id} is missing that id\'s own '
+                f'<!-- id:{item_id} --> marker')
+    if _CHECKBOX_RE.match(target_line.rstrip('\n')) and not _CHECKBOX_RE.match(new_line):
+        return (f'replacement for id:{item_id} targets a checkbox item '
+                f'(- [ ]/- [x]) but the replacement is not one')
+    return None
+
+
+def _append_to_line(line: str, marker_match: re.Match, append_text: str) -> str:
+    """Append `append_text` to `line` (sans trailing newline), preserving every
+    byte of the original content and re-anchoring the id marker as the LAST
+    thing on the line (id:0af4 append mode)."""
+    prefix = line[:marker_match.start()].rstrip()
+    marker = marker_match.group(0)
+    suffix = line[marker_match.end():]
+    text = append_text.strip()
+    body = f'{prefix} {text}' if text else prefix
+    return f'{body} {marker}{suffix}'
+
 
 def _first_archive_heading_index(result: list) -> int | None:
     """Index into `result` of the first archive-class heading line, or None."""
@@ -120,14 +168,26 @@ def _first_archive_heading_index(result: list) -> int | None:
 
 def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                allow_new: bool = False) -> None:
-    """Replace lines containing <!-- id:XXXX --> with new text, under flock.
+    """Replace (or append to) lines containing <!-- id:XXXX -->, under flock.
 
     id:1b1a — an id NOT found in the file is a fail-LOUD error by default (a typo'd
     UPDATE must never silently become a duplicate APPEND). Pass allow_new=True to
     opt back into the append behaviour for genuinely new items.
+
+    Each update is either a REPLACE ({"id", "line"}) or an APPEND ({"id", "append"},
+    id:0af4) — append preserves the existing line and adds text before its id marker
+    instead of overwriting it wholesale.
     """
     lock_path = file_path.with_suffix(file_path.suffix + '.lock')
-    id_map = {u['id']: u['line'].rstrip('\n') for u in updates}
+    replace_map = {}
+    append_map = {}
+    for u in updates:
+        item_id = u['id']
+        if 'append' in u:
+            append_map[item_id] = u['append']
+        else:
+            replace_map[item_id] = u['line'].rstrip('\n')
+    id_map = {**replace_map, **append_map}  # union, for the unmatched/new-item path below
 
     try:
         with open(lock_path, 'w') as lock_fd:
@@ -136,15 +196,36 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
             lines = file_path.read_text().splitlines(keepends=True)
             found = set()
             result = []
+            errors = []
 
             for line in lines:
                 m = re.search(r'<!--\s*id:([0-9a-f]{4})\s*-->', line)
-                if m and m.group(1) in id_map:
-                    item_id = m.group(1)
+                item_id = m.group(1) if m else None
+                if item_id and item_id in replace_map:
                     found.add(item_id)
-                    result.append(id_map[item_id] + '\n')
+                    new_line = replace_map[item_id]
+                    err = _validate_replacement(item_id, line, new_line)
+                    if err:
+                        errors.append(f'id:{item_id}: {err}')
+                        result.append(line)  # placeholder; discarded if errors is non-empty
+                        continue
+                    result.append(new_line + '\n')
+                elif item_id and item_id in append_map:
+                    found.add(item_id)
+                    result.append(_append_to_line(line.rstrip('\n'), m, append_map[item_id]) + '\n')
                 else:
                     result.append(line)
+
+            if errors:
+                # id:0af4 — a malformed replacement is refused BEFORE anything is
+                # written, exactly like id:1b1a's unmatched-id guard below: name every
+                # offending id and what was wrong, write NOTHING.
+                print(
+                    'md-merge: update-ids: refusing malformed replacement(s) for '
+                    f'{file_path}:\n  ' + '\n  '.join(errors),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
             unmatched = [item_id for item_id in id_map if item_id not in found]
             if unmatched and not allow_new:
@@ -158,7 +239,10 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                 )
                 sys.exit(1)
 
-            new_lines = [id_map[item_id] + '\n' for item_id in unmatched]
+            new_lines = [
+                (replace_map.get(item_id, append_map.get(item_id, '')).rstrip('\n')) + '\n'
+                for item_id in unmatched
+            ]
             if new_lines:
                 # id:14d0 — anchor brand-new ids BEFORE the first archive-class
                 # heading (Done/Archive/Icebox); EOF append is the fallback only
