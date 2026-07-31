@@ -80,6 +80,32 @@
 # Repo paths come from relay.toml's `[repos.<name>]` entries with
 # classification = "own", honoring an optional `path = "..."` override per repo
 # (default path is $SRC_DIR/<name>). Excluded/clone repos are skipped.
+#
+# ============================================================================
+# CALLER CONTRACT — **NEVER TRUNCATE THIS SCRIPT'S STDOUT** (id:da87)
+# ============================================================================
+# Do NOT pipe this collector through `head`/`tail`/`sed Nq`, and do not let a
+# sub-agent summarise it from a capped preview. Rows are emitted PER REPO in a
+# FIXED order — ROADMAP hard lanes, then TODO hard lanes, then mechanical rows,
+# then `review_me` (REVIEW_ME.md), then ROADMAP `@manual` — so `review_me`, the
+# one bucket `/relay human` exists to serve, is emitted LAST and is the FIRST
+# thing a truncating reader loses. It loses it SILENTLY: the truncated TSV reads
+# as a legitimate "no review_me rows / nothing to do".
+#
+# CONFIRMED, not hypothetical. On 2026-07-31 a `/relay human .` run invoked
+#   gather-human-backlog.sh dotclaude-skills 2>&1 | head -80
+# The repo emitted 89 rows (81 hard-lane + 6 review_me + 2 manual); `head -80`
+# kept the first 80 and produced the tally
+#   hard_meeting 61 / hard_hands 10 / hard_pool 6 / human_decision 3 / manual 0
+# with ZERO review_me rows, while REVIEW_ME.md held 6 open boxes. Every one of
+# the 6 was real, actionable human-judgment work. The script itself was correct
+# (exit 0, empty stderr, all 89 rows emitted) — the caller threw them away.
+# `head` also SIGPIPEs the script, so its exit status is 141, not 0.
+#
+# If you need a preview, FILTER — never truncate:
+#   gather-human-backlog.sh <repo> | awk -F'\t' '$3=="review_me"'
+#   gather-human-backlog.sh <repo> | cut -f3 | sort | uniq -c   # bucket tally
+# ============================================================================
 set -euo pipefail
 
 SRC_DIR="${SRC_DIR:-$HOME/src}"
@@ -95,6 +121,20 @@ MECH_SCAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mechanical-orphan-scan.
 # id:415b) — an untagged HARD item is a contract gap to fix at the source, never a
 # silent default disposition.
 UNTAGGED_FOUND=0
+
+# Set to 1 by emitter_failed() when ANY per-repo emitter returns nonzero. A
+# per-repo collector must NEVER let one emitter's failure silently truncate the
+# others (id:da87): every emitter below is rc-captured, the failure is named
+# LOUDLY on stderr, the remaining emitters still run, and the run exits nonzero
+# so a short TSV can never read as "nothing to do".
+EMITTER_FAILED=0
+
+# $1 repo name, $2 emitter label, $3 rc
+emitter_failed() {
+  EMITTER_FAILED=1
+  printf 'ERROR: %s: the %s emitter FAILED (rc=%s) — this repo output is INCOMPLETE. The remaining emitters still ran; do NOT read this TSV as "nothing to do". (id:da87)\n' \
+    "$1" "$2" "$3" >&2
+}
 
 # id:fa5c: untagged-lane ERROR lines are collected here (one per offending item,
 # across ALL repos) and flushed as ONE distinct block at the very end of the run,
@@ -173,7 +213,26 @@ emit_boxes() {
       kind=manual
     fi
     printf '%s\t%s\t%s\t%s\n' "$name" "$path" "$kind" "$summary"
-  done < <(grep -nE '^[[:space:]]*- \[ \] ' "$file" 2>/dev/null | sed -E 's/^[0-9]+://')
+  done < <(grep -nE '^[[:space:]]*- \[ \] ' "$file" | sed -E 's/^[0-9]+://')
+  return 0
+}
+
+# --- emit ROADMAP.md open boxes tagged @manual (a human must RUN them) --------
+# Factored out of scan_repo (id:da87) so its exit status can be captured and
+# reported LOUDLY like every other emitter, instead of being the tail of a
+# `set -e` chain that can abort the repo scan with no message.
+# $1 repo name, $2 repo path.
+emit_roadmap_manual() {
+  local name="$1" path="$2"
+  local file="$path/ROADMAP.md"
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line; do
+    printf '%s' "$line" | grep -qi '@manual' || continue
+    local summary
+    summary="$(printf '%s' "$line" | tr '\t\n' '  ' | sed -E 's/^[[:space:]]*- \[ \] //; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
+    printf '%s\t%s\t%s\t%s\n' "$name" "$path" manual "$summary"
+  done < <(grep -nE '^[[:space:]]*- \[ \] ' "$file" | sed -E 's/^[0-9]+://')
+  return 0
 }
 
 # --- warn on nested worktrees (the "wrong checkout" trap) --------------------
@@ -510,14 +569,22 @@ scan_repo() {
   # Open [HARD] ROADMAP items, bucketed by explicit lane tag (id:78ff). A nonzero
   # return (status 3) means an untagged HARD item was seen — record it for the LOUD
   # nonzero exit at end of run; `|| rc=$?` keeps `set -e` from aborting mid-scan.
+  #
+  # id:da87 — EVERY emitter below is rc-captured and LOUD-on-failure. One
+  # emitter's failure must never silently truncate the ones after it: the
+  # highest-value bucket (`review_me`) is emitted LAST, so an unguarded early
+  # `return` here would drop exactly the rows `/relay human` exists to serve and
+  # leave a short TSV that reads as "nothing to do".
   local rc=0 hard_out=""
   hard_out="$(emit_hard_lanes "$name" "$path" 2>>"$REJECT_LOG")" || rc=$?
   if (( rc == 3 )); then
     UNTAGGED_FOUND=1
   elif (( rc != 0 )); then
-    return "$rc"
+    # Previously `return "$rc"` — which silently suppressed the TODO, mechanical,
+    # REVIEW_ME and @manual emitters for this repo. Report it and keep going.
+    emitter_failed "$name" "ROADMAP hard-lane" "$rc"
   fi
-  [[ -n "$hard_out" ]] && printf '%s\n' "$hard_out"
+  if [[ -n "$hard_out" ]]; then printf '%s\n' "$hard_out"; fi
   # id:4e67 — ALSO scan TODO.md for open human-lane items and emit them alongside the
   # ROADMAP/REVIEW_ME output, deduped by id against the ROADMAP hard-lane rows just
   # emitted (an id in BOTH ledgers is listed once). Closes the e9cd TODO-blindness gap:
@@ -542,11 +609,29 @@ scan_repo() {
       }
       if (own != "") print "id:" own
     }' | sort -u | tr '\n' ' ')"
-    emit_hard_lanes "$name" "$path" "$path/TODO.md" 1 "$seen_ids"
+    # rc-captured (id:da87): this call used to be bare, so under `set -e` any
+    # nonzero from it aborted scan_repo — and with it the mechanical, REVIEW_ME
+    # and @manual emitters — with no message at all.
+    local todo_rc=0 todo_out=""
+    todo_out="$(emit_hard_lanes "$name" "$path" "$path/TODO.md" 1 "$seen_ids")" || todo_rc=$?
+    (( todo_rc == 0 )) || emitter_failed "$name" "TODO hard-lane" "$todo_rc"
+    if [[ -n "$todo_out" ]]; then printf '%s\n' "$todo_out"; fi
   fi
   # id:8a6b — mechanical-orphan / un-promoted-draft rows for this repo (surface-only). Translate
   # the scanner's `kind\tid\trepo\thost\tresource\tdetail` into a gather row with a clear summary.
   if [[ -x "$MECH_SCAN" ]]; then
+    # rc-captured (id:da87). The scanner's stderr is captured rather than dropped:
+    # STATED REASON for not streaming it — a healthy scan is chatty about repos it
+    # cannot classify, which would pollute the collector's own stderr contract; it
+    # is replayed VERBATIM, prefixed, whenever the scan actually FAILS.
+    local mech_rc=0 mech_out="" mech_err=""
+    mech_err="$(mktemp)"
+    mech_out="$("$MECH_SCAN" "$name=$path" 2>"$mech_err")" || mech_rc=$?
+    if (( mech_rc != 0 )); then
+      emitter_failed "$name" "mechanical-orphan scan" "$mech_rc"
+      sed -e "s|^|  ${name} mechanical-orphan-scan: |" "$mech_err" >&2
+    fi
+    rm -- "$mech_err"
     while IFS=$'\t' read -r mkind mid mrepo mhost mres mdetail; do
       [[ -n "$mkind" ]] || continue
       [[ "$mhost" == "-" ]] && mhost="?"; [[ "$mres" == "-" ]] && mres="?"
@@ -558,19 +643,26 @@ scan_repo() {
           printf '%s\t%s\t%s\t%s\n' "$name" "$path" mechanical_draft \
             "[MECHANICAL] id:$mid has an un-promoted DRAFT ($mdetail) — fill its TODO cmd/est_wall/acceptance_artifact and move drafts/ -> pending/ to launch (a draft is never executed)" ;;
       esac
-    done < <("$MECH_SCAN" "$name=$path" 2>/dev/null)
+    done <<< "$mech_out"
   fi
   # REVIEW_ME.md: every open box (default kind review_me; @manual upgrades to manual).
-  emit_boxes "$name" "$path" "$path/REVIEW_ME.md" review_me
+  # THE tier `/relay human` exists to serve — rc-captured and LOUD on failure so it
+  # can never come back empty-but-silent (id:da87).
+  local rm_rc=0 rm_out=""
+  rm_out="$(emit_boxes "$name" "$path" "$path/REVIEW_ME.md" review_me)" || rm_rc=$?
+  (( rm_rc == 0 )) || emitter_failed "$name" "REVIEW_ME.md box" "$rm_rc"
+  if [[ -n "$rm_out" ]]; then printf '%s\n' "$rm_out"; fi
   # ROADMAP.md: only open boxes tagged @manual need a human to RUN them.
   if [[ -f "$path/ROADMAP.md" ]]; then
-    while IFS= read -r line; do
-      printf '%s' "$line" | grep -qi '@manual' || continue
-      local summary
-      summary="$(printf '%s' "$line" | tr '\t\n' '  ' | sed -E 's/^[[:space:]]*- \[ \] //; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
-      printf '%s\t%s\t%s\t%s\n' "$name" "$path" manual "$summary"
-    done < <(grep -nE '^[[:space:]]*- \[ \] ' "$path/ROADMAP.md" 2>/dev/null | sed -E 's/^[0-9]+://')
+    local man_rc=0 man_out=""
+    man_out="$(emit_roadmap_manual "$name" "$path")" || man_rc=$?
+    (( man_rc == 0 )) || emitter_failed "$name" "ROADMAP @manual" "$man_rc"
+    if [[ -n "$man_out" ]]; then printf '%s\n' "$man_out"; fi
   fi
+  # scan_repo must always return 0 on a completed scan: it is called from a bare
+  # top-level loop under `set -e`, so a trailing `[[ … ]] && …` that happens to be
+  # false would abort the WHOLE run (and, before id:da87, did so silently).
+  return 0
 }
 
 # --- dispatch ----------------------------------------------------------------
@@ -609,5 +701,13 @@ if (( UNTAGGED_FOUND )); then
     cat "$REJECT_LOG"
     printf 'ERROR: one or more open [HARD] items carry no recognized lane tag — see the block above and relay/references/hard-lanes.md. Exiting nonzero.\n'
   } >&2
+  exit 1
+fi
+
+# LOUD nonzero exit if ANY per-repo emitter failed (id:da87). Each failure was
+# already named on stderr above; this makes the run itself fail so an INCOMPLETE
+# TSV can never be consumed as a clean "nothing to do".
+if (( EMITTER_FAILED )); then
+  printf 'ERROR: one or more per-repo emitters FAILED (see the ERROR lines above) — this TSV is INCOMPLETE. Exiting nonzero. (id:da87)\n' >&2
   exit 1
 fi
