@@ -4142,3 +4142,8 @@ Audited the 46-commit window that a single session both wrote and integrated, us
 ## 2026-07-31 18:20 — executor (sonnet, relay-loop)
 
 id:cbd2 — relay-doctor.sh now resolves REPO_ROOT via readlink -f + walk-to-Makefile, so its install-drift/reference-install checks give the same verdict whether invoked via source path or the installed symlink; unlocatable manifests now WARN loudly instead of silently SKIPping. [id:cbd2]
+
+## 2026-07-31 — executor (sonnet)
+
+Worked id:7142 — `commit-ledger.sh` now accepts a bare repo NAME (resolved via the shared `lib-own-repos.sh` registry parser: classification="own" + `# path:` override + paused-skip) in addition to a path, so the invocation documented in `human.md` §5 (`commit-ledger.sh <repo> ...`) actually works instead of hard-failing "not a git repo". An existing directory is still treated as a path, unchanged (verified `.`/absolute/relative regressions all still pass). A name that resolves to nothing now fails loudly naming both the name and the registry file. New hermetic RED spec `tests/test_commit_ledger_repo_name_7142.sh` authored and confirmed genuinely red before the fix, green after; the pre-existing `tests/test_relay_commit_ledger.sh` (path-arg regression coverage) still passes unmodified. Full suite: 338 passed, 0 failed, 12 expected-red (unrelated open items).
+Friction: none — small, well-scoped item; RED spec had to be authored (not pre-existing) since the item predates the spec being written.
