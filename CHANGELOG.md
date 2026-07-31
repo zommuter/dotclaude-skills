@@ -15,6 +15,7 @@
 - review: id:9be0 verified genuinely green (orphan-scan resolves ROADMAP seams); reconciled cross-ledger TODO twins (9be0/cbd2/7142); suite 339/0/11 (id:9be0,cbd2,7142)
 - id:c500 part 1 closed — relay-reconcile.sh's checkpoint label now explicitly declares itself non-strong by design (owner-ratified 2026-07-31), with an in-source comment; part 2 (loud ckpt-tag.sh warning) was already landed by a prior session on this branch. (id:c500)
 - id:0af4 — md-merge.py update-ids now refuses a malformed replacement (missing own id marker, or non-checkbox payload against a checkbox target) instead of silently wiping the line, and gains an explicit append mode; full suite 341/0/9-expected-red. (id:0af4)
+- review: id:c500 verified genuinely green (relay-reconcile non-strong label + ckpt-tag loud note, both parts); ticked TODO twin (cross-ledger sync); suite 340/0/10 (id:c500)
 
 ## 2026-07-30
 
