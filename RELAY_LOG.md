@@ -4206,3 +4206,7 @@ test_gather_human_decision.sh) stayed green. Full suite: 342 passed, 0 failed, 8
 expected-red (matching still-open roadmap items).
 Friction: none — the item was well-scoped and the RED spec's fixture triangulation
 made the fix shape unambiguous.
+
+## 2026-07-31 19:52 — executor (sonnet, relay-loop)
+
+id:05b0 — gather-human-backlog.sh @manual marker now anchored (standalone token, backtick-mention-safe) via one shared predicate at both call sites; suite 342/0/8-expected-red [id:05b0]
