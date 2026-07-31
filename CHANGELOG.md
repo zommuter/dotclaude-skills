@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-07-31
+
+- id:cbd2 — relay-doctor.sh now resolves REPO_ROOT via readlink -f + walk-to-Makefile, so its install-drift/reference-install checks give the same verdict whether invoked via source path or the installed symlink; unlocatable manifests now WARN loudly instead of silently SKIPping. (id:cbd2)
+
 ## 2026-07-30
 
 - `@container` now excludes a decomposed parent from the relay's DISPATCH collectors, not just the lint/human ones — an `@container` ROADMAP item no longer fires `verdict=execute` (classify-repo.sh), no longer surfaces as `top_intensive` (gather-repo-state.sh), and no longer inflates the SAME-ITEM orphan carve-out (discover-repo.sh). Makes handoff.md/review.md's "collectors exclude that marker" true as written. (id:0cf5)
