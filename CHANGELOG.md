@@ -24,6 +24,7 @@
 - review: id:5648 gather-human-backlog lane-anchoring verified genuinely green (leftmost-tag position, suite 343/0/7-exp-red, no gaming/over-reach); reconciled cross-ledger (ticked TODO twin id:f272, dropped discharged gated-on:907e from id:6217) (id:5648,f272,6217)
 - Closed id:74e7 — Makefile's RELAY_QUOTA_DECAY_7D default now agrees with relay/SKILL.md's RISING (0.30:0.90) doctrine, with a new hermetic test; full suite green (345 passed, 0 failed, 6 expected-red). (id:74e7)
 - Fixed DECIDED-LEFT-OPEN's two false-positive classes (id:bf19): @container exemption + widened other-id-scoped strip, in the shared lib-state-claim.sh engine so roadmap-lint.sh and todo-conformance.sh stay in verdict-agreement; new hermetic test test_state_claim_container_fp_bf19.sh; full suite green (346/0/6 expected-red). (id:bf19)
+- review: verified id:74e7 genuinely green (Makefile RELAY_QUOTA_DECAY_7D=0.30:0.90 agrees with SKILL.md RISING doctrine, hermetic test, suite 345/0/6, no gaming, not a superset); reconciled cross-ledger drift by ticking TODO twins id:74e7, id:6b1c (id:74e7,6b1c)
 
 ## 2026-07-30
 
