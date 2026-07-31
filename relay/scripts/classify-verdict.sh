@@ -10,6 +10,12 @@
 #   0: blocked     — dirty (non-lock-only) or diverged main tree; surface, do NOT dispatch (id:e424 parity)
 #   1: execute     — open [ROUTINE] ROADMAP items
 #   2: review      — substantive unaudited commits
+#                    ALSO reachable ABOVE execute under the CHAIN-END fact (id:8123): when the
+#                    caller reports `chain_ended` (a relay chain just ended — normal completion,
+#                    mid-chain handback, contract_met:false, quota-stop) AND there are
+#                    substantive unaudited commits, review outranks execute. WITHOUT that named
+#                    fact the cascade is unchanged, so review does NOT become unconditionally
+#                    reachable (that would restore the rejected 1:1 apex-review-per-execute cost).
 #   3: hard        — open [HARD — pool] items (open_hard_pool >= 1)
 #   4: handoff     — promotable TODO backlog (promote > 0)
 #   5: human       — surface-only backlog (promote == 0, surface > 0); no apex dispatch (id:5eb3)
@@ -61,6 +67,21 @@ open_mechanical       = int(data.get("open_mechanical", 0))
 # the spec), never idle — the spec is missing, not the work. Absent on pre-field callers
 # (sentinel 0 → no behaviour change).
 surfaced_open         = int(data.get("surfaced_open", 0))
+# id:8123 — CHAIN-END fact. The relay loop supplies only the FACT that a chain just ended for
+# this repo; THIS classifier decides the verdict, so there is no loop-side bypass and the
+# function stays pure (a function of its stdin object alone). Accepted spellings: the boolean
+# `chain_ended`, or a non-empty `chain_end_reason` string on its own (the cause: handback /
+# contract-not-met / quota-stop / chain-complete). ABSENT ⇒ false ⇒ the cascade below is
+# byte-equivalent to its pre-8123 behaviour for every existing caller.
+#
+# WHY THIS EXISTS: the cascade is a strict elif chain, so before 8123 `review` was UNREACHABLE
+# while a single actionable [ROUTINE] item was open — total structural starvation, not slot
+# contention (this repo carries ~20 open items; 16 unaudited executor checkpoints accumulated on
+# one repo in a single day, needing two human interventions). Meeting
+# docs/meeting-notes/2026-07-31-1231-execute-review-cadence-starvation.md, amendment A1.
+chain_end_reason      = str(data.get("chain_end_reason", "") or "")
+chain_ended           = bool(data.get("chain_ended", False)) or bool(chain_end_reason)
+
 # id:5ac6 — INTENSIVE flag: copy top_intensive from gather VERBATIM (string, always present, "" when none).
 # It is an orthogonal resource axis, never a verdict value. INVARIANT: intensive!="" => verdict in {execute,hard}
 # (enforced by gather excluding human-gated items from top_intensive, id:a707).
@@ -134,6 +155,25 @@ elif dirty_block:
     evidence.append({"field": "dirty", "value": True, "source": "gather-repo-state"})
 
 # D3 priority cascade — each branch appends its driving evidence pointers
+#
+# id:8123 — CHAIN-END RE-ASK branch. Deliberately placed BELOW the rank-0 parity guards (a dirty
+# or diverged tree is still never dispatched) and ABOVE `execute`. It is the ONLY way `review`
+# outranks `execute`, and it fires only on the named chain-end fact — a chain ending BELOW
+# id:cc90 K<=3 (mid-chain handback, contract_met:false, quota-stop) reaches it exactly like a
+# full-length one, which a `chainDepth === K` trigger could not (executes never chain today, so
+# such a trigger would not have fired for the incident that motivated this at all).
+elif chain_ended and substantive_unaudited:
+    verdict       = "review"
+    priority_rank = 2
+    reason        = (
+        "Chain ended ({}) with substantive unaudited commits -- chain-end review re-ask "
+        "(id:8123): review outranks execute ONLY under the chain-end fact, so the chain own "
+        "commits get audited instead of starving behind open [ROUTINE] work"
+    ).format(chain_end_reason or "cause unreported")
+    evidence.append({"field": "chain_ended",           "value": True,              "source": "relay-loop"})
+    evidence.append({"field": "chain_end_reason",      "value": chain_end_reason,  "source": "relay-loop"})
+    evidence.append({"field": "substantive_unaudited", "value": True,              "source": "gather-repo-state"})
+
 elif actionable_routine > 0:
     verdict       = "execute"
     priority_rank = 1
