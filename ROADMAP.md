@@ -1587,6 +1587,29 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 
 ## Executor-death cluster — promoted from TODO 2026-07-28 (parent meta id:93cc, open since 2026-06-22)
 
+### 🔴🔴 ABSOLUTELY URGENT — owner directive 2026-08-01. Work these two FIRST, ahead of every other item in this file.
+
+> **Why, in one line:** the parent `id:93cc` recurred live on 2026-08-01 (run
+> `relay-20260801-213927-29875`) and killed this repo's own `execute` child with
+> `Prompt is too long`, parking 481 lines of unverified work as
+> `relay/orphan/relay-20260801-213927-29875-execute`. Until these land, **every `execute`
+> dispatch on `dotclaude-skills` is at risk of the same death** — the repo with the largest
+> ROADMAP and the most `[ROUTINE]` items blocks its own executors first.
+
+- [ ] [ROUTINE] 🔴🔴 **ABSOLUTELY URGENT — wire `roadmap-archive.sh` into the integrator; it is built, tested, and called by NOTHING** <!-- children-of:93cc --> <!-- id:f54d -->
+  - **This is the ROOT CAUSE of the 2026-08-01 death, and it is a wiring bug, not a design gap.** `id:6b67` shipped `relay/scripts/roadmap-archive.sh` (167 lines) and `id:93cc`'s own text records fix-(b) as **DONE** on that basis. Verified 2026-08-01: `grep -c roadmap-archive relay/scripts/relay-loop.js` = **0**. The script exists, has two passing tests (`test_roadmap_archive.sh`, `test_roadmap_archive_prose_headers.sh`), and a Makefile target — and no relay code path ever invokes it. It last ran **2026-07-19** (`ROADMAP.archive.md` mtime), 13 days before the failure.
+  - **Measured consequence**: `ROADMAP.md` is **2596 lines / 523,926 bytes** with **100** `- [x]` done items still inline. Each carries Session-note/Done-check/Context prose of zero value to an executor. This is the [[relay-builtgreen-but-unreferenced]] class — the same shape as `id:5367`/`id:2062` and `id:ba27`'s auto-install-or-fail-the-suite.
+  - **Do**: (1) run `relay/scripts/roadmap-archive.sh` on this repo NOW as the immediate relief and commit the result; (2) invoke it from the integrator so it runs on every integrate, next to `changelog-append.sh`/`ckpt-tag.sh` — the archiver is idempotent and a no-op when there is nothing to archive; (3) add a test asserting the integrator path actually calls it, so this cannot silently un-wire again.
+  - **Done-check**: `grep -c 'roadmap-archive' relay/scripts/relay-loop.js` ≥ 1 **and** `grep -c '^- \[x\]' ROADMAP.md` drops sharply **and** `make test` green.
+  - **Out of scope**: changing the archiver's own semantics (it is tested and correct); archiving `TODO.md` (`todo-update/archive-done.sh` already owns that).
+
+- [ ] [ROUTINE] 🔴 **ABSOLUTELY URGENT — fix-(c): detect prompt-size overflow BEFORE dispatch and hand back with the real reason** <!-- children-of:93cc --> <!-- id:4f9b --> <!-- gated-on:f54d -->
+  - **The last un-done third of `id:93cc`.** Its fix-(a) (gather-trim) and fix-(b) (the archiver) are both built; fix-(c) — graceful degradation — never was. Today's run proves why it matters: the child died with a bare harness `Prompt is too long`, `relay-loop.js` recorded the generic `child agent failed/skipped (API error or terminal failure)`, and `RELAY_STATUS.md` then reported `## Blocked / HANDBACKs _(none)_` — so the only place the true cause appeared was the Workflow `failures` block. A human reading the status file saw a false clean while 481 lines sat parked.
+  - **Do**: size the assembled child prompt before dispatch; over threshold ⇒ do NOT dispatch, emit a handback whose reason NAMES the cause and the remedy ("ROADMAP too large — run `roadmap-archive.sh`"), and surface it in `RELAY_STATUS.md` Blocked. Never a silent generic failure (the `id:4347` no-silent-swallow rule).
+  - **Gated on `id:f54d`** deliberately: archive first so the threshold is measured against a realistic ROADMAP, not a 524 KiB outlier.
+  - **Done-check**: a fixture repo with an oversized ROADMAP produces a handback naming the cause + remedy instead of a generic terminal failure; `make test` green.
+  - **Out of scope**: raising the model's context limit; changing what the executor contract points at (`id:79dc` already landed the name-the-item dispatch).
+
 > **Why this section exists.** Every item below was already filed in `TODO.md` — several since
 > 2026-06-22 — and **none had ever been promoted to ROADMAP**, so the pool could not dispatch a
 > single one while executors kept dying (n>=4: 2026-06-22 ai-codebench; 2x 2026-07-26 loderite at
