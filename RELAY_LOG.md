@@ -4444,3 +4444,7 @@ duplication touched.
 ## 2026-07-31 22:28 — executor (sonnet, relay-loop)
 
 Shipped relay/scripts/lint-mech-model.mjs — lints every relay-mech fence-carrying agent() call for a hardcoded model literal instead of MECH_MODEL (id:4313), wired into all 3 Makefile allowlist blocks and make test; full suite 350/0/6-expected-red. [id:4313]
+
+## 2026-08-01 21:35 — reviewer (claude-opus-5)
+
+handoff: 5 items promoted (f91a @container, 34b7, ecce, 2047, d808) + 4 RED specs; 2 loderite inbox items adopted (ecd0, 08ad); 3 doc-staleness fixes. Owner ratified the id:34b7 hold-lift at integrate. Suite 352/0/10-xred.
