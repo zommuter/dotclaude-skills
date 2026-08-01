@@ -12,8 +12,8 @@ Public Claude Code skills by [@zommuter](https://github.com/zommuter).
 | [relay](relay/) | The reviewer/executor relay: autonomous pool (bare `/relay`), handoff, anti-gaming review, `reconcile` (human-invoked parked-orphan disposal), and `human` modes, plus the lean executor contract loaded by `/relay executor` (Sonnet sessions in relay-managed repos) |
 | [projects](projects/) | Personal project dashboard — recent activity, open task counts, prioritization |
 
-(`fables-turn` / `fables-executor` remain as deprecated alias stubs that forward to
-`/relay` and `/relay executor`.)
+(The `fables-turn` / `fables-executor` alias stubs were **removed 2026-06-15** — use
+`/relay` and `/relay executor`. `.gitignore` blocks accidental re-add.)
 
 ## The relay
 
