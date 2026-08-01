@@ -69,7 +69,9 @@ off, so its changelog is **date-bucketed**, fired per relay integrate — wherea
 bucket by release (id:e647/b8fa, shipping together per D4). Entries are **derived** from
 existing relay state (`workedIds`, `relay-ckpt-*` tag messages, `RELAY_LOG.md`) and start from
 now — never backfilled, since per-close tags are unrecoverable after the 2026-07-16 batch.
-**Not yet built** — `id:b8fa` is the implementation.
+The deriver is `relay/scripts/changelog-append.sh` (invoked from the relay integrator's
+step 2b); its semver sibling — the reviewer-only bump — is `relay/scripts/version-bump.sh`
+(step 2a). Neither is ever run by an executor.
 
 ## Layout
 
@@ -86,6 +88,7 @@ now — never backfilled, since per-close tags are unrecoverable after the 2026-
 | `statusline/` | `statusline-command.sh` — quota/cost/model statusline (reads JSON on stdin) |
 | `tools/` | `allowlist.py` (settings.json allowlist generator) + `allow-extra.txt`; `ctx-budget.sh` (advisory SKILL.md token-budget audit); `settings-env.py` (settings.json env-block applier, used by `make install-relay-env`); `model-probe.sh` + `model-probe.battery.jsonl` (standing model-quality probe, id:dba3); `quota-sample.sh` + `quota-sample.{service,timer}` + `quota-report.py` (idle-resilient usage-quota sampler → git-versioned JSONL in `~/src/claude-diary/quota/`, `make install-quota-timer`, id:d267); `relay-watchdog.sh` + `relay-watchdog.{service,timer}` (outage watchdog — notifies when a local relay loop died without a clean stop, via the shared run-heartbeat; NO `claude -p`; `make install-relay-watchdog`, id:98f0); `memory-index.py` (GENERATES the auto-memory `MEMORY.md`/`MEMORY.archive.md` index from per-file frontmatter — `--check` exits non-zero on drift, `--write` regenerates atomically; the derived-index/SSOT source-of-truth for the `hooks/memory-index-sync.py` PostToolUse hook, id:2e6d) |
 | `tests/` | Plain-bash test suite (see Testing) |
+| `CHANGELOG.md` | DATE-bucketed (this repo carries no version — see Versioning); DERIVED at relay integrate by `relay/scripts/changelog-append.sh`, never hand-edited, never backfilled |
 | `docs/meeting-notes/` | Design-meeting records — the project's decision log; cited from TODO items |
 
 ## Conventions
