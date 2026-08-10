@@ -36,6 +36,14 @@ import sys
 
 SCHEMA_VERSION = "1.0.0"
 
+# A plain constant, NOT `__doc__`: `python3 -OO` strips docstrings, so deriving the
+# argparse description from `__doc__` made every subcommand die with
+# `AttributeError: 'NoneType' object has no attribute 'split'` before parsing a single
+# argument. The fleet driver (id:94ce) and the adapters (id:90f2) shell out to this
+# file, so it must not depend on docstrings surviving interpreter optimisation.
+CLI_SUMMARY = ("tracker/ledger-map.py — the reference bespoke-markdown -> "
+               "intermediate-JSON mapper.")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCHEMA_PATH = os.path.join(HERE, "schema", "ledger-intermediate.schema.json")
 
@@ -299,9 +307,14 @@ def assignee_for(lane: str, markers, kind: str):
     return None
 
 
-def parse_file(repo: str, path: str, relname: str, view: str, archived: bool,
+def parse_file(path: str, relname: str, view: str, archived: bool,
                report: Report) -> list:
-    """Parse one ledger file into a list of per-view observations."""
+    """Parse one ledger file into a list of per-view observations.
+
+    Deliberately repo-BLIND: observations carry a bare `_key`, and `assemble()` is the
+    single place that composes the `(repo, id)` uid. (A dead `repo` parameter used to
+    sit here, which read as if uids were minted in two places.)
+    """
     with open(path, "r", encoding="utf-8") as fh:
         lines = fh.read().split("\n")
 
@@ -552,7 +565,7 @@ def import_repo(repo: str, root: str) -> dict:
         if not os.path.exists(path):
             continue
         seen_files.append(fname)
-        obs.extend(parse_file(repo, path, fname, view, archived, report))
+        obs.extend(parse_file(path, fname, view, archived, report))
     items = assemble(repo, obs, report)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -703,6 +716,24 @@ def validate_doc(doc: dict, allow_homonyms: bool) -> tuple:
             errs.append("%s: derived_status=done while the two views disagree — an OPEN "
                         "view must always beat a DONE view" % uid)
 
+        # `derived_status` is documented (SCHEMA.md + the JSON schema) as DERIVED and
+        # never authoritative. ENFORCE that rather than merely document it: re-derive it
+        # and fail loudly on any mismatch. Without this, a hand-edited or adapter
+        # round-tripped document can carry a derived_status that contradicts its per-view
+        # fields and still validate OK — which is how the field would quietly become THE
+        # status downstream (id:90f2), re-laundering the very drift meeting 2026-08-10
+        # finding 5 forced the schema to represent.
+        if all(it.get(f) in STATUS_ENUM for f in
+               ("todo_status", "roadmap_status", "review_status")) and it.get("kind") in KIND_ENUM:
+            expect_derived = derived_status(it)
+            if it.get("derived_status") != expect_derived:
+                errs.append("%s: derived_status=%r is not the DERIVED value %r for "
+                            "todo=%r/roadmap=%r/review=%r (kind=%r) — derived_status is "
+                            "never authoritative and must be recomputable"
+                            % (uid, it.get("derived_status"), expect_derived,
+                               it.get("todo_status"), it.get("roadmap_status"),
+                               it.get("review_status"), it.get("kind")))
+
         if it.get("id"):
             by_bare_id.setdefault(it["id"], []).append(uid)
             if it.get("identity") != "tracked":
@@ -779,7 +810,7 @@ def read_doc(path: str) -> dict:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description=CLI_SUMMARY)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p_imp = sub.add_parser("import", help="markdown ledgers -> intermediate JSON (one repo)")
