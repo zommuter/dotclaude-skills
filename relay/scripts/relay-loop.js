@@ -548,6 +548,12 @@ const DISCOVER_SCHEMA = {
           actionable_routine_ids: { type: 'array', items: { type: 'string' } },
           // id:b09e — orphan-suppressed ids the naming picker must subtract (discover-repo.sh).
           suppressed_item_ids: { type: 'array', items: { type: 'string' } },
+          // roadmap_bytes (id:4f9b): size of the repo's ROADMAP.md in BYTES, measured on the
+          // host by classify-repo.sh. This loop runs inside the Workflow sandbox and cannot
+          // stat a file, so the number has to ride along. It feeds the pre-dispatch size gate
+          // (oversizeDispatchReason) which refuses to dispatch a child into a ledger that
+          // cannot fit, naming the cause and the remedy. ABSENT/0 ⇒ unmeasured ⇒ fail OPEN.
+          roadmap_bytes: { type: 'integer' },
         },
       },
     },
@@ -1952,6 +1958,31 @@ function executeNamedInstruction(unit) {
     + EXECUTE_SIZEOUT
 }
 
+// id:4f9b — inline copies of relay/scripts/prompt-size-gate.mjs (keep byte-equivalent; the
+// Workflow sandbox cannot import, and a structural test pins the wiring). Pre-dispatch prompt
+// sizing: refuse to dispatch a child into a ledger that cannot fit, and say WHY, instead of
+// letting it die with a bare `Prompt is too long` that surfaces as the generic terminal-failure
+// handback (and, on 2026-08-01, as `## Blocked / HANDBACKs _(none)_` — a false clean).
+// See that module for the budget derivation and the fail-open rationale.
+const CHARS_PER_TOKEN = 4
+const DISPATCH_TOKEN_BUDGET = 100000
+const FIXED_OVERHEAD_TOKENS = 12000
+function estimateDispatchTokens(promptChars, roadmapBytes) {
+  const p = Number.isFinite(promptChars) && promptChars > 0 ? promptChars : 0
+  const r = Number.isFinite(roadmapBytes) && roadmapBytes > 0 ? roadmapBytes : 0
+  return Math.round((p + r) / CHARS_PER_TOKEN) + FIXED_OVERHEAD_TOKENS
+}
+function oversizeDispatchReason(unit, promptChars, budget) {
+  const u = unit || {}
+  const cap = Number.isFinite(budget) && budget > 0 ? budget : DISPATCH_TOKEN_BUDGET
+  const roadmapBytes = Number.isFinite(u.roadmap_bytes) && u.roadmap_bytes > 0 ? u.roadmap_bytes : 0
+  if (!roadmapBytes) return ''   // unmeasured ⇒ fail OPEN, never block on missing data
+  const est = estimateDispatchTokens(promptChars, roadmapBytes)
+  if (est <= cap) return ''
+  const roadmapTok = Math.round(roadmapBytes / CHARS_PER_TOKEN)
+  return `prompt-size gate (id:4f9b): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${est} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: ROADMAP.md is too large — ${roadmapBytes} bytes (~${roadmapTok} tok of the estimate). REMEDY: run \`~/.claude/skills/relay/scripts/roadmap-archive.sh ${u.path || '<repo-path>'}\` to move the done \`- [x]\` items into ROADMAP.archive.md, commit, and re-run the pool. This repo is skipped, not failed: no worktree was created and no work was lost.`
+}
+
 function unitPrompt(unit) {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
@@ -2553,6 +2584,27 @@ async function runUnit(unit) {
       reason: `INTENSIVE fail-closed (id:5ac6): unit carries intensive=${unit.intensive} but ALLOW_INTENSIVE=false — skipped to prevent OOM dispatch; use --intensive to enable`,
       worktreePath: '-',
     })
+    scheduleStatusWrite(state)
+    return
+  }
+  // id:4f9b — PRE-DISPATCH PROMPT-SIZE GATE. Size the assembled child prompt (plus the ROADMAP
+  // the child is contractually required to read, measured on the host by classify-repo.sh as
+  // `roadmap_bytes`) BEFORE spawning anything. Over budget ⇒ do NOT dispatch: emit a handback
+  // whose reason NAMES the cause (ROADMAP too large, with the byte count) and the REMEDY (run
+  // roadmap-archive.sh), and surface it in RELAY_STATUS.md's Blocked section. Without this the
+  // child dies with a bare harness `Prompt is too long`, integrate() records the GENERIC
+  // `child agent failed/skipped (API error or terminal failure)`, and the status file reports
+  // `## Blocked / HANDBACKs _(none)_` — a false clean over 481 lines of parked work
+  // (run relay-20260801-213927-29875). That anonymous report is the id:4347 silent-swallow.
+  // FAIL-OPEN: a unit with no roadmap_bytes measurement can never trip this.
+  // The handback is emitted on BOTH surfaces (event log + accumulator) so the id:4a46
+  // bidirectional invariant holds; worktreePath is '-' because nothing was created.
+  const oversizeReason = oversizeDispatchReason(unit, unitPrompt(unit).length)
+  if (oversizeReason) {
+    log(`relay-loop: ${oversizeReason}`)
+    state.handbacks.push({ repo: unit.repo, reason: oversizeReason, worktreePath: '-' })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: oversizeReason })
+    emittedHandbackEvents.push({ repo: unit.repo, reason: oversizeReason })  // id:4a46 backstop
     scheduleStatusWrite(state)
     return
   }
