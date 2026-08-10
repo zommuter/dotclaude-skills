@@ -708,6 +708,15 @@ ISO-timestamped line to `~/.claude/logs/relay-stop-sentinel.log` (override via
   (older `fable-ckpt-*` tags are historical and never rewritten; readers match both prefixes).
 - `scripts/gather-human-backlog.sh` — read-only cross-repo collector for `human` mode
   (open REVIEW_ME boxes + `@manual` scenarios as TSV; flags `@manual`).
+- `scripts/control-board.sh` — read-only FLEET board derived from `classify-repo.sh` over
+  the `relay.toml` own-set: per-repo verdict (grouped into blocked / relay-poolable /
+  needs-feedback / design-drained / unclassified, with the raw verdict always shown),
+  open-item counts, and a "waiting on a human" section. `--json` for the machine-readable
+  aggregate; `--repo <name>` for one repo. Writes nothing, needs no LLM, renders offline.
+  It is the tracker pilot's pre-registered CONTROL ARM (TODO id:8066) — the comparator the
+  4-week fail condition is measured against. Distinct from id:36f1 (item-level DAG over
+  project_manager's `edges.json`) and id:51d8 (item-level human-action dashboard over
+  `gather-human-backlog.sh`); this one is REPO-level, over relay classify output.
 - `scripts/relay-burn.sh` — quota burnup time-series (id:219b). `sample` appends one
   point (utilization buckets + `extra_usage.used_credits` USD) to
   `~/.config/relay/quota-samples.jsonl`; `report [--since|--run|--json]` segments at
