@@ -4632,3 +4632,34 @@ hard-execute: id:2bb1 tracker intermediate schema+mapping; id:8066 control-arm f
 ## 2026-08-10 21:00 — reviewer (claude-opus-5)
 
 review: id:2bb1 + id:8066 accept-with-fixes — -OO crash + derived_status enforcement; 3 owner boxes, follow-ups id:6daf/857d (363 pass/0 fail)
+
+## 2026-08-10 — strong-execute (claude-opus-5)
+
+Worked id:94ce — fleet markdown→intermediate-JSON importer. `tracker/fleet-import.sh` (driver)
++ `tracker/fleet-state.py` (pure upsert/tombstone fold) + `tracker/homonym-allowlist.txt`
+(adjudication surface) + `tests/test_tracker_fleet_import.sh` (11 sections, hermetic synthetic
+fleet). Repo set comes from `relay.toml` via the SHARED `own_repos()` in
+`relay/scripts/lib-own-repos.sh`, exit status checked explicitly — no `~/src/*` glob anywhere,
+and a corrupt registry exits 3 with nothing written rather than reading as an empty fleet.
+Two-phase run: pin every repo's HEAD sha FIRST, then read every ledger with
+`git show <sha>:<file>` into a scratch tree, so no byte is ever read from a working tree and
+one run is a coherent cut. Upsert on `(repo,id)`; unchanged records are CARRIED byte-identically
+and the state document holds NO timestamp, which is what makes two-runs-zero-diff hold.
+Tombstones are scoped to repos that imported successfully — a failed repo contributes none.
+
+Friction: (1) the real-fleet dry run over 49 own repos surfaces **78 class-A homonyms** (0 class
+B), so the fleet-wide import is BLOCKED until id:ca24's per-token allow-list lands AND those
+tokens are adjudicated. The driver codes against the explicit per-token contract and REFUSES
+(exit 5) to fall back to the superseded boolean, so it will not silently blanket-downgrade.
+(2) The same dry run found a genuine `ledger-map.py` defect (id:2bb1 residue), NOT fixed here
+because a sibling unit owns that file this round: a `REVIEW_ME` box anchored to an id with no
+TODO/ROADMAP twin (`loderite/ecc3`) yields an item with `id: null` but a NON-synthetic key, which
+`validate` then rejects fatally — `uid 'loderite/ecc3' has no id but its key is not a synthetic
+'~' key`. Needs a follow-up item. (3) `ledger-map.py` records `repos[].path` as given, so the
+driver rewrites it back to the relay.toml path after import; otherwise the scratch tree's mktemp
+name would churn the state document every run.
+
+refactor: none — this unit is two new files plus a new test; no existing file was modified.
+The reuse that mattered (`lib-own-repos.sh`'s `own_repos()`, `ledger-map.py`'s CLI,
+`tests/lib/assert-repo-unchanged.sh`) was taken by construction, and `tracker/ledger-map.py`
+was deliberately left untouched — the sibling id:ca24 owns it this round.
