@@ -20,8 +20,28 @@
 #
 # Buckets are newest-first (a new bucket lands just below the file preamble, above older
 # buckets); a repeat call under the same key merges its bullet into the existing bucket. Writes
-# are flock-guarded on <repo>/.changelog.lock (matches the *.lock gitignore) and atomic
-# (temp-file rename). Prints the bucket key to stdout; short note to stderr on a no-op.
+# are flock-guarded and atomic (temp-file rename). Prints the bucket key to stdout; short note
+# to stderr on a no-op.
+#
+# LOCK LOCATION (id:798b) — the lock lives in the target's GIT DIR (`<gitdir>/changelog-append.lock`),
+# NEVER in its working tree. It used to be `<repo>/.changelog.lock`, under a header claim that the
+# path was covered by a repo-wide lock-file gitignore convention. That claim was FALSE for the
+# repos this actually runs in (puzzle-pwa has no lock entry at all; zkm-stt ignores only
+# `.git-lock-push.lock`), and no such convention is enforceable across ~50 independent repos
+# anyway — so the fix removes the dependency rather than editing 50 ignore files. Every derive
+# therefore left a permanent untracked file, and the pool's dirty-guard then dropped that repo
+# from every later round. Removing the lock on exit does NOT fix it: the dirty-guard is an
+# ASYNCHRONOUS sampler (`git status` from another process), so a lock present only *during* the
+# append is still observable — and unlinking a flock'd path is the classic unlink race (a waiter
+# holds the old inode while a new arrival creates and locks a different one, putting two writers
+# in the critical section). A git-dir lock keeps the tree clean at ALL times with mutual exclusion
+# untouched. Same pattern as ckpt-tag.sh:155, version-bump.sh:147, diary-append.sh:116.
+#
+# KNOWN, OUT OF SCOPE (ROADMAP id:798b explicitly excludes it): the atomic-rename temp file below
+# (`.changelog.XXXXXX`) is still created in the working tree, because `os.replace` requires the
+# same filesystem as the target. It is transient — unlinked by the rename — but a sampler that
+# fires inside that window can still see it. Fixing it means giving up the atomic rename or
+# resolving a same-fs scratch dir; neither belongs in this item.
 set -euo pipefail
 
 repo="${1:?Usage: changelog-append.sh <repo-path> --summary <text> [--ids csv] [--version vX.Y.Z] [--date YYYY-MM-DD]}"
@@ -82,7 +102,20 @@ fi
 bullet="- $summary"
 [[ -n "$ids" ]] && bullet="$bullet (id:$ids)"
 
-lockfile="$repo/.changelog.lock"
+# Lock OUTSIDE the working tree (id:798b — see the header note). Preferred home is the target's
+# own git dir, which `git status` can never see and which is shared by every worktree of the repo,
+# so mutual exclusion covers all callers. `--absolute-git-dir` also resolves a linked worktree's
+# private gitdir, which is what we want: a per-checkout CHANGELOG.md needs a per-checkout lock.
+if gitdir="$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)"; then
+  # swallow-ok: a non-git target is a SUPPORTED case (plain-directory callers/tests), not an
+  # error — git's own diagnostic would be noise, and the fallback below handles it explicitly.
+  lockfile="$gitdir/changelog-append.lock"
+else
+  # Non-git target: there is no git dir to hide the lock in, and putting it in the target
+  # directory is the very defect this fixes. Use a stable per-path lock in the temp dir — same
+  # target ⇒ same lock file ⇒ mutual exclusion is preserved, nothing is ever unlinked.
+  lockfile="${TMPDIR:-/tmp}/changelog-append-$(cd "$repo" && pwd -P | cksum | tr -d ' \t' ).lock"
+fi
 (
   flock -x 9
   CL="$cl" KEY="$key" MATCH_PREFIX="$match_prefix" BULLET="$bullet" python3 - <<'PY'
