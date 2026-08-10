@@ -305,3 +305,58 @@ pins it.
 `repo-alpha/1111` deliberately carries `children-of:4a5c` with **no** `4a5c` item in the
 fixture, so the dangling-parent `WARN` path is exercised: a dangling typed edge is loud but
 never fatal and never silently dropped.
+
+## 7. The adapters (`id:90f2`)
+
+| Path | What |
+|---|---|
+| `tracker/adapters/adapter_common.py` | the layer both adapters must agree on: the `schema_version` refusal gate, the **per-view carrier** (`id:857d`), and the canonical item graph the equivalence contract is stated over |
+| `tracker/adapters/vikunja_adapter.py` | `plan` · `graph` · `apply` · `verify` |
+| `tracker/adapters/plane_adapter.py` | `plan` · `graph` · `apply` |
+
+`plan` and `graph` are **pure and offline**; `apply`/`verify` are the only networked verbs
+and no test invokes them (`tests/test_tracker_adapter_equivalence.sh` asserts the offline
+property with sockets disabled). Both adapters read credentials **by injection from the
+environment only** — a literal-credential grep is part of the test.
+
+### 7.1 What "equivalent item graphs" means
+
+The item graph each adapter is compared on is **recovered from that adapter's own emitted
+target payloads**, never re-derived from the source document — otherwise both sides would
+merely echo the input and the comparison would be vacuous. Nodes carry `uid`, `title`,
+`assignee`, the canonical label set, all three view statuses, `drift` and `derived_status`;
+edges carry the canonical kinds `parent` / `child` / `blocked_by` / `link`, with the
+dangling flag. The contract is asserted on all three fixture documents.
+
+### 7.2 The `id:857d` per-view gate — binding, not advisory
+
+Each adapter **must carry the `todo`/`roadmap`/`review` triple into its target**, plus a
+visible drift marker. An adapter that reads only `derived_status` and renders one column
+satisfies §1.2 in the JSON while defeating it in the product: cross-ledger drift becomes
+invisible exactly where the owner would look for it. `adapter_common.check_gate()` is the
+executable form, asserted for **both** adapters, and the test also proves the gate is not
+vacuous by feeding each adapter a deliberately collapsed plan and requiring rejection.
+
+The triple is written **twice** — as `view:<view>=<state>` labels *and* as an anchored
+`[[ledger-views …]]` marker in the description — and recovery cross-checks them, so a
+half-edited board is loud rather than quietly wrong. The marker is bracketed **plain
+text, not an HTML comment**: both targets sanitise rich text, and a stripped comment would
+silently delete the carrier.
+
+### 7.3 Live verification status
+
+| Target | Status |
+|---|---|
+| **Vikunja** | **VERIFIED LIVE** against v2.4.0 (2026-08-10): 19 items + 39 labels + 3 relations applied to the pilot project, `verify` PASS, re-apply idempotent (0 created), and a deliberately removed `view:todo=` label was **caught** by `verify` (exit 3) and repaired by re-apply |
+| **Plane** | **UNVERIFIED — blocked on `id:02f7`.** The pilot deployment does not serve (21/22 containers up, nothing binds the proxy port; host rootless-podman/netavark nftables defect). `plan`/`graph` are fully tested; `apply` is written from Plane's documented public API v1 and has never issued a live request |
+
+Two known Plane gaps, recorded rather than papered over: its public API v1 documents no
+issue-relation endpoint, so `blocked_by` / `link` edges emit a loud `WARN` and survive only
+in the issue body (`parent` / `child` use the native `parent` field and are fine); and the
+`derived_status → workflow state` map is **not injective** (`backlog` and `needs-decision`
+share a column), which is exactly why `derived:<state>` is also a label.
+
+A scoped Vikunja API token (`projects`/`tasks`/`labels`) **cannot** reach
+`/tasks/{id}/labels` or `/tasks/{id}/relations` — both 401 (observed 2026-08-10). The
+adapter therefore prefers a JWT from `VIKUNJA_USER`/`VIKUNJA_PASSWORD` when present and
+falls back to `VIKUNJA_TOKEN`.
