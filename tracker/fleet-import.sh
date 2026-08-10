@@ -156,6 +156,19 @@ build_homonym_flags() {
   help="$(python3 "$LEDGER_MAP" validate --help 2>&1)" || {
     echo "fleet-import.sh: could not read 'ledger-map.py validate --help'" >&2; exit 2; }
 
+  if grep -qE -- '--allow-homonym-file' <<<"$help"; then
+    # id:ca24's shipped surface (SINGULAR). This is the canonical spelling.
+    local f="$tmpdir/allow.txt"
+    printf '%s\n' "${allow_tokens[@]}" > "$f"
+    homonym_flags=(--allow-homonym-file "$f")
+    return 0
+  fi
+  if grep -qE -- '--allow-homonym[ =]' <<<"$help"; then
+    # id:ca24's repeatable per-token form (SINGULAR).
+    local t
+    for t in "${allow_tokens[@]}"; do homonym_flags+=(--allow-homonym "$t"); done
+    return 0
+  fi
   if grep -qE -- '--allow-homonyms-file' <<<"$help"; then
     local f="$tmpdir/allow.txt"
     printf '%s\n' "${allow_tokens[@]}" > "$f"
