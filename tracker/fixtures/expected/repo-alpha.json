@@ -1,0 +1,804 @@
+{
+  "items": [
+    {
+      "archived": false,
+      "assignee": "apex",
+      "blocked_by": [],
+      "body": "[HARD] Item OPEN in TODO, DONE in ROADMAP — the cross-ledger drift case <!-- children-of:4a5c --> <!-- id:1111 -->\n  - **Acceptance** both statuses survive the round-trip\n  - **Tests** tests/test_tracker_schema_drift_roundtrip.sh",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": true,
+      "fields": {
+        "acceptance": "both statuses survive the round-trip",
+        "tests": "tests/test_tracker_schema_drift_roundtrip.sh"
+      },
+      "id": "1111",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "drift:cross-ledger",
+        "lane:hard"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": "repo-alpha/4a5c",
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "done",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 8,
+          "view": "todo"
+        },
+        {
+          "archived": false,
+          "file": "ROADMAP.md",
+          "line": 5,
+          "view": "roadmap"
+        }
+      ],
+      "title": "Item OPEN in TODO, DONE in ROADMAP — the cross-ledger drift case",
+      "todo_status": "open",
+      "uid": "repo-alpha/1111"
+    },
+    {
+      "archived": false,
+      "assignee": "executor",
+      "blocked_by": [],
+      "body": "[ROUTINE] Item DONE in TODO, OPEN in ROADMAP — drift in the other direction <!-- id:2222 -->",
+      "children": [],
+      "derived_status": "queued",
+      "drift": true,
+      "fields": {},
+      "id": "2222",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "drift:cross-ledger",
+        "lane:routine"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "open",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 11,
+          "view": "todo"
+        },
+        {
+          "archived": false,
+          "file": "ROADMAP.md",
+          "line": 6,
+          "view": "roadmap"
+        }
+      ],
+      "title": "Item DONE in TODO, OPEN in ROADMAP — drift in the other direction",
+      "todo_status": "done",
+      "uid": "repo-alpha/2222"
+    },
+    {
+      "archived": false,
+      "assignee": "apex",
+      "blocked_by": [
+        "repo-alpha/1111"
+      ],
+      "body": "[HARD] Item open in both ledgers, no drift <!-- gated-on:1111 --> <!-- id:3333 -->",
+      "children": [],
+      "derived_status": "queued",
+      "drift": false,
+      "fields": {},
+      "id": "3333",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "has:review-box",
+        "lane:hard"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "open",
+      "roadmap_status": "open",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 12,
+          "view": "todo"
+        },
+        {
+          "archived": false,
+          "file": "ROADMAP.md",
+          "line": 7,
+          "view": "roadmap"
+        },
+        {
+          "archived": false,
+          "file": "REVIEW_ME.md",
+          "line": 3,
+          "view": "review"
+        }
+      ],
+      "title": "Item open in both ledgers, no drift",
+      "todo_status": "open",
+      "uid": "repo-alpha/3333"
+    },
+    {
+      "archived": false,
+      "assignee": "executor",
+      "blocked_by": [],
+      "body": "[ROUTINE] Item done in both ledgers <!-- id:4444 -->",
+      "children": [],
+      "derived_status": "done",
+      "drift": false,
+      "fields": {},
+      "id": "4444",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:routine"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "done",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 13,
+          "view": "todo"
+        },
+        {
+          "archived": false,
+          "file": "ROADMAP.md",
+          "line": 8,
+          "view": "roadmap"
+        }
+      ],
+      "title": "Item done in both ledgers",
+      "todo_status": "done",
+      "uid": "repo-alpha/4444"
+    },
+    {
+      "archived": false,
+      "assignee": "human",
+      "blocked_by": [],
+      "body": "[INPUT — meeting] Lives only in TODO — roadmap_status must be `absent`, not `open` <!-- id:5555 -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "5555",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "input:meeting",
+        "lane:input"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 14,
+          "view": "todo"
+        }
+      ],
+      "title": "Lives only in TODO — roadmap_status must be absent, not open",
+      "todo_status": "open",
+      "uid": "repo-alpha/5555"
+    },
+    {
+      "archived": false,
+      "assignee": "daemon",
+      "blocked_by": [],
+      "body": "[MECHANICAL] [INTENSIVE — local-llm] [host:zomni] Composed capability + resource + host tags <!-- id:6666 -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "6666",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "host:zomni",
+        "lane:mechanical",
+        "resource:local-llm"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 15,
+          "view": "todo"
+        }
+      ],
+      "title": "Composed capability + resource + host tags",
+      "todo_status": "open",
+      "uid": "repo-alpha/6666"
+    },
+    {
+      "archived": false,
+      "assignee": "human",
+      "blocked_by": [],
+      "body": "[HARD — hands] Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED <!-- id:7777 -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "7777",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "input:unresolved-hands",
+        "lane:input",
+        "vocab:legacy"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 16,
+          "view": "todo"
+        }
+      ],
+      "title": "Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED",
+      "todo_status": "open",
+      "uid": "repo-alpha/7777"
+    },
+    {
+      "archived": false,
+      "assignee": "apex",
+      "blocked_by": [],
+      "body": "[HARD — pool] Legacy pool lane — 1:1 rename to [HARD] <!-- children:3333,4444 --> <!-- id:8888 -->",
+      "children": [
+        "repo-alpha/3333",
+        "repo-alpha/4444"
+      ],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "8888",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:hard",
+        "venue:pool",
+        "vocab:legacy"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 17,
+          "view": "todo"
+        }
+      ],
+      "title": "Legacy pool lane — 1:1 rename to",
+      "todo_status": "open",
+      "uid": "repo-alpha/8888"
+    },
+    {
+      "archived": false,
+      "assignee": "human",
+      "blocked_by": [],
+      "body": "[ROUTINE] @manual @needs-auth Human must run it AND supply a secret <!-- id:9999 -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "9999",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:routine",
+        "marker:manual",
+        "marker:needs-auth"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 18,
+          "view": "todo"
+        }
+      ],
+      "title": "@manual @needs-auth Human must run it AND supply a secret",
+      "todo_status": "open",
+      "uid": "repo-alpha/9999"
+    },
+    {
+      "archived": false,
+      "assignee": "executor",
+      "blocked_by": [],
+      "body": "[ROUTINE] @owner-accepted:2026-08-01 Owner-granted acceptance receipt <!-- id:aaaa -->",
+      "children": [],
+      "derived_status": "done",
+      "drift": false,
+      "fields": {},
+      "id": "aaaa",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:routine",
+        "marker:owner-accepted"
+      ],
+      "links": [],
+      "owner_accepted": "2026-08-01",
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 19,
+          "view": "todo"
+        }
+      ],
+      "title": "@owner-accepted:2026-08-01 Owner-granted acceptance receipt",
+      "todo_status": "done",
+      "uid": "repo-alpha/aaaa"
+    },
+    {
+      "archived": false,
+      "assignee": "executor",
+      "blocked_by": [],
+      "body": "[ROUTINE] 🚧 BLOCKED on an upstream decision <!-- id:bbbb -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "bbbb",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "gate:blocked",
+        "lane:routine"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 20,
+          "view": "todo"
+        }
+      ],
+      "title": "🚧 BLOCKED on an upstream decision",
+      "todo_status": "open",
+      "uid": "repo-alpha/bbbb"
+    },
+    {
+      "archived": false,
+      "assignee": "executor",
+      "blocked_by": [],
+      "body": "[ROUTINE] Locally-minted `cafe` — the SAME bare token repo-beta also minted, and repo-alpha routes to it: class-B ambiguous reference <!-- id:cafe -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "cafe",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:routine"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 22,
+          "view": "todo"
+        }
+      ],
+      "title": "Locally-minted cafe — the SAME bare token repo-beta also minted, and repo-alpha routes to it: class-B ambiguous reference",
+      "todo_status": "open",
+      "uid": "repo-alpha/cafe"
+    },
+    {
+      "archived": false,
+      "assignee": "executor",
+      "blocked_by": [],
+      "body": "[ROUTINE] Cross-repo routed item — the token also exists in repo-beta <!-- routed:cafe --> <!-- id:cccc -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "cccc",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:routine"
+      ],
+      "links": [
+        {
+          "kind": "routed",
+          "target_uid": null,
+          "token": "cafe"
+        }
+      ],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 21,
+          "view": "todo"
+        }
+      ],
+      "title": "Cross-repo routed item — the token also exists in repo-beta",
+      "todo_status": "open",
+      "uid": "repo-alpha/cccc"
+    },
+    {
+      "archived": false,
+      "assignee": null,
+      "blocked_by": [],
+      "body": "[FOO] @bogus-marker Unknown tag and unknown marker — both reported, neither silently dropped <!-- id:dddd -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "dddd",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:untagged"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 24,
+          "view": "todo"
+        }
+      ],
+      "title": "@bogus-marker Unknown tag and unknown marker — both reported, neither silently dropped",
+      "todo_status": "open",
+      "uid": "repo-alpha/dddd"
+    },
+    {
+      "archived": false,
+      "assignee": "apex",
+      "blocked_by": [],
+      "body": "[HARD] Lives only in ROADMAP — todo_status must be `absent` <!-- id:eeee -->",
+      "children": [],
+      "derived_status": "queued",
+      "drift": false,
+      "fields": {},
+      "id": "eeee",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:hard"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "open",
+      "section": "Queue",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "ROADMAP.md",
+          "line": 9,
+          "view": "roadmap"
+        }
+      ],
+      "title": "Lives only in ROADMAP — todo_status must be absent",
+      "todo_status": "absent",
+      "uid": "repo-alpha/eeee"
+    },
+    {
+      "archived": true,
+      "assignee": "executor",
+      "blocked_by": [],
+      "body": "[ROUTINE] Archived item — archived=true, todo_status=done <!-- id:ffff -->",
+      "children": [],
+      "derived_status": "done",
+      "drift": false,
+      "fields": {},
+      "id": "ffff",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:routine"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": null,
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": true,
+          "file": "TODO.archive.md",
+          "line": 3,
+          "view": "todo"
+        }
+      ],
+      "title": "Archived item — archived=true, todo_status=done",
+      "todo_status": "done",
+      "uid": "repo-alpha/ffff"
+    },
+    {
+      "archived": false,
+      "assignee": "human",
+      "blocked_by": [],
+      "body": "**Resolved unanchored box** — review_status=done.",
+      "children": [],
+      "derived_status": "done",
+      "drift": false,
+      "fields": {},
+      "id": null,
+      "identity": "untracked",
+      "kind": "review_box",
+      "labels": [],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "done",
+      "roadmap_status": "absent",
+      "section": null,
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "REVIEW_ME.md",
+          "line": 5,
+          "view": "review"
+        }
+      ],
+      "title": "Resolved unanchored box — review_status=done.",
+      "todo_status": "absent",
+      "uid": "repo-alpha/~2ef6ddb91b0e"
+    },
+    {
+      "archived": false,
+      "assignee": null,
+      "blocked_by": [],
+      "body": "Id-less TODO line — no anchored marker at all, must import as identity=untracked",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": null,
+      "identity": "untracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:untagged"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "ledger substrate",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 23,
+          "view": "todo"
+        }
+      ],
+      "title": "Id-less TODO line — no anchored marker at all, must import as identity=untracked",
+      "todo_status": "open",
+      "uid": "repo-alpha/~9fb508b9db0b"
+    },
+    {
+      "archived": false,
+      "assignee": "human",
+      "blocked_by": [],
+      "body": "**Unanchored box** — no id/roadmap marker at all; imported as a standalone untracked review_box, never silently skipped.",
+      "children": [],
+      "derived_status": "needs-decision",
+      "drift": false,
+      "fields": {},
+      "id": null,
+      "identity": "untracked",
+      "kind": "review_box",
+      "labels": [],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-alpha",
+      "review_status": "open",
+      "roadmap_status": "absent",
+      "section": null,
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "REVIEW_ME.md",
+          "line": 4,
+          "view": "review"
+        }
+      ],
+      "title": "Unanchored box — no id/roadmap marker at all; imported as a standalone untracked review_box, never silently skipped.",
+      "todo_status": "absent",
+      "uid": "repo-alpha/~b6e53c0c4364"
+    }
+  ],
+  "repos": [
+    {
+      "labels": [],
+      "ledger_files": [
+        "TODO.md",
+        "TODO.archive.md",
+        "ROADMAP.md",
+        "REVIEW_ME.md"
+      ],
+      "path": "fixtures/repo-alpha",
+      "repo": "repo-alpha",
+      "verdict": null
+    }
+  ],
+  "schema_version": "1.0.0",
+  "unmapped": [
+    {
+      "construct": "section-prose",
+      "file": "TODO.md",
+      "line": 3,
+      "reason": "narrative block outside any checkbox item; not an item, carried by no tracker primitive (counted, not imported)",
+      "text": "Fixture ledger for TODO id:2bb1. Exercises every construct `tracker/SCHEMA.md` claims"
+    },
+    {
+      "construct": "legacy-hands-unresolved",
+      "file": "TODO.md",
+      "line": 16,
+      "reason": "[HARD — hands] has no 1:1 successor (hard-lanes.md names FOUR candidates); mapped to input:unresolved-hands, never guessed",
+      "text": "[HARD — hands] Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED"
+    },
+    {
+      "construct": "untagged-lane",
+      "file": "TODO.md",
+      "line": 23,
+      "reason": "no recognised capability tag; hard-lanes.md makes this a LOUD reject at the source (roadmap-lint.sh owns enforcement, this mapper only reports)",
+      "text": "Id-less TODO line — no anchored marker at all, must import as identity=untracked"
+    },
+    {
+      "construct": "id-less-item",
+      "file": "TODO.md",
+      "line": 23,
+      "reason": "checkbox line carries no anchored <!-- id:XXXX --> marker; imported as identity=untracked with a content-derived synthetic key (SCHEMA.md id-less policy), never silently skipped",
+      "text": "Id-less TODO line — no anchored marker at all, must import as identity=untracked"
+    },
+    {
+      "construct": "unknown-marker",
+      "file": "TODO.md",
+      "line": 24,
+      "reason": "@bogus-marker is not in the known marker set",
+      "text": "[FOO] @bogus-marker Unknown tag and unknown marker — both reported, neither silently dropped"
+    },
+    {
+      "construct": "untagged-lane",
+      "file": "TODO.md",
+      "line": 24,
+      "reason": "no recognised capability tag; hard-lanes.md makes this a LOUD reject at the source (roadmap-lint.sh owns enforcement, this mapper only reports)",
+      "text": "[FOO] @bogus-marker Unknown tag and unknown marker — both reported, neither silently dropped"
+    },
+    {
+      "construct": "review-box-unanchored",
+      "file": "REVIEW_ME.md",
+      "line": 4,
+      "reason": "REVIEW_ME box carries no anchored id/roadmap marker; imported as a standalone untracked review_box item",
+      "text": "**Unanchored box** — no id/roadmap marker at all; imported as a standalone untracked review_box, never silently skipped."
+    },
+    {
+      "construct": "review-box-unanchored",
+      "file": "REVIEW_ME.md",
+      "line": 5,
+      "reason": "REVIEW_ME box carries no anchored id/roadmap marker; imported as a standalone untracked review_box item",
+      "text": "**Resolved unanchored box** — review_status=done."
+    }
+  ],
+  "unmapped_counts": {
+    "id-less-item": 1,
+    "legacy-hands-unresolved": 1,
+    "review-box-unanchored": 2,
+    "section-prose": 1,
+    "unknown-marker": 1,
+    "untagged-lane": 2
+  }
+}

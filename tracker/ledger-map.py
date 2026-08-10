@@ -1,0 +1,843 @@
+#!/usr/bin/env python3
+"""tracker/ledger-map.py — the reference bespoke-markdown -> intermediate-JSON mapper.
+
+TODO id:2bb1 (children-of:4a5c), meeting
+`docs/meeting-notes/2026-08-10-0906-tracker-substrate-replacing-markdown-ledgers.md` D2.
+
+This is the *durable artifact* of the tracker pilot: the mapping from this fleet's
+bespoke ledger grammar onto a tool-independent item model. It survives any tool
+outcome (Plane / Vikunja / git-bug / none). `tracker/SCHEMA.md` is the prose contract,
+`tracker/schema/ledger-intermediate.schema.json` is the machine-readable one, and this
+file is the executable one. All three must agree; `validate` cross-checks the last two.
+
+Scope boundary: this maps ONE repo tree per `import` call and validates a whole
+document. The fleet driver (relay.toml own-set, pinned SHAs, tombstones, upserts,
+recurring cadence) is a SEPARATE gated item — id:94ce. Adapters are id:90f2. Repo-entity
+verdict derivation is id:c17d; this file emits the repo entity with `verdict: null`.
+
+Subcommands
+-----------
+  import <repo-name> <repo-dir> [...]   read ledgers, print an intermediate JSON document
+  merge <doc.json>...                   merge per-repo documents into one fleet document
+  validate <doc.json>                   invariants + schema cross-check; loud, non-zero on failure
+  render-status <doc.json>              project each item back to its per-view checkbox states
+
+Stdlib only (repo convention: no venv, no deps).
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+
+SCHEMA_VERSION = "1.0.0"
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCHEMA_PATH = os.path.join(HERE, "schema", "ledger-intermediate.schema.json")
+
+# --------------------------------------------------------------------------- #
+# Grammar constants — kept deliberately in ONE place so SCHEMA.md, the JSON
+# Schema and this mapper can be cross-checked against each other.
+# --------------------------------------------------------------------------- #
+
+STATUS_ENUM = ["open", "done", "absent"]
+DERIVED_STATUS_ENUM = ["backlog", "queued", "done", "needs-decision"]
+LANE_ENUM = ["routine", "hard", "input", "mechanical", "untagged"]
+INPUT_KIND_ENUM = ["meeting", "decision", "access", "author", "user", "unresolved-hands"]
+ASSIGNEE_ENUM = ["executor", "apex", "human", "daemon"]
+KIND_ENUM = ["ledger_item", "review_box"]
+LINK_KIND_ENUM = ["routed", "settles", "decided-in"]
+
+# Anchored markers only — a bare/backticked mention in prose is NEVER a marker.
+# Same anchoring discipline as relay/scripts/lib-anchored-id.sh (id:521f/3add) and
+# relay/scripts/lib-typed-edges.sh (id:46f6); re-implemented here rather than shelled
+# out to, because this is a pure-python producer and the regexes ARE the contract.
+RE_CHECKBOX = re.compile(r"^(?P<indent>[ \t]*)- \[(?P<box>[ xX])\] (?P<text>.*)$")
+RE_HEADING = re.compile(r"^(?P<hashes>#{1,6}) +(?P<title>.*?)\s*$")
+RE_OWN_ID = re.compile(r"<!--\s*id:([0-9a-fA-F]{4})\s*-->")
+RE_OWN_ROADMAP_REF = re.compile(r"<!--\s*roadmap:([0-9a-fA-F]{4})\s*-->")
+RE_ROUTED = re.compile(r"<!--\s*routed:([0-9a-fA-F]{4})\s*-->")
+RE_CHILDREN = re.compile(r"<!--\s*children:([0-9a-f,]+)\s*-->")
+RE_CHILDREN_OF = re.compile(r"<!--\s*children-of:([0-9a-f,]+)\s*-->")
+RE_GATED_ON = re.compile(r"<!--\s*gated-on:([0-9a-f,]+)\s*-->")
+RE_SETTLES = re.compile(r"<!--\s*settles:([0-9a-f,]+)\s*-->")
+RE_DECIDED_IN = re.compile(r"<!--\s*decided-in:(\S+)\s*-->")
+RE_HTML_COMMENT = re.compile(r"<!--.*?-->")
+
+# Lane / capability tags. Order matters: the legacy `[HARD — <lane>]` forms must be
+# matched BEFORE the bare `[HARD]`, or every legacy item reads as bare-hard.
+RE_HARD_LEGACY = re.compile(r"\[HARD\s+—\s+([a-z][a-z ]*[a-z])\]")
+RE_INPUT = re.compile(r"\[INPUT\s+—\s+([a-z]+)\]")
+RE_INTENSIVE = re.compile(r"\[INTENSIVE\s+—\s+([A-Za-z0-9_.-]+)\]")
+RE_HOST = re.compile(r"\[host:([A-Za-z0-9_.-]+)\]", re.IGNORECASE)
+RE_ROUTE_INLINE = re.compile(r"route:(meeting|human|decision-gate)")
+RE_OWNER_ACCEPTED = re.compile(r"@owner-accepted:(\d{4}-\d{2}-\d{2})")
+RE_UNKNOWN_MARKER = re.compile(r"(?<![\w`])@([a-z][a-z0-9-]*)")
+RE_SUBFIELD = re.compile(r"\*\*(Acceptance|Tests|Done-check|Context)\*\*\s*[:—-]?\s*(.*)$")
+
+# `[HARD — hands]` has NO single auto-default (hard-lanes.md, amendment 2026-07-02:
+# it fragments across FOUR destinations by per-item human judgment). The mapper
+# therefore NEVER guesses — it maps to `input:unresolved-hands` and reports it.
+LEGACY_HARD_LANES = {
+    "pool": ("hard", None, "pool"),
+    "meeting": ("input", "meeting", None),
+    "decision gate": ("input", "decision", None),
+    "hands": ("input", "unresolved-hands", None),
+}
+
+KNOWN_MARKERS = {"manual", "needs-auth", "wire", "owner-verify", "owner-accepted"}
+
+# Section names that mean "this whole section is parked" (mirrors
+# relay/scripts/roadmap-lint.sh:256's gated-heading predicate).
+RE_GATED_SECTION = re.compile(r"(gated|deferred|done|icebox|archive|parked)", re.IGNORECASE)
+
+# view -> (filename, archived)
+LEDGER_FILES = [
+    ("todo", "TODO.md", False),
+    ("todo", "TODO.archive.md", True),
+    ("roadmap", "ROADMAP.md", False),
+    ("roadmap", "ROADMAP.archive.md", True),
+    ("review", "REVIEW_ME.md", False),
+    ("review", "REVIEW_ME.archive.md", True),
+]
+
+
+def die(msg: str, code: int = 2) -> None:
+    print("ERROR: %s" % msg, file=sys.stderr)
+    raise SystemExit(code)
+
+
+def synthetic_key(view: str, title: str) -> str:
+    """Deterministic key for an id-less line (see SCHEMA.md 'id-less policy').
+
+    Keyed on (view, normalized title) rather than (file, line) so that inserting a
+    line above an untracked item does not re-key it. The known cost — documented,
+    not hidden — is that REWORDING an untracked line's head text produces a NEW key,
+    which an upserting importer (id:94ce) sees as tombstone+create.
+    """
+    norm = re.sub(r"\s+", " ", title).strip().lower()
+    return "~" + hashlib.sha1(("%s\n%s" % (view, norm)).encode("utf-8")).hexdigest()[:12]
+
+
+def strip_markers(text: str) -> str:
+    return re.sub(r"\s+", " ", RE_HTML_COMMENT.sub("", text)).strip()
+
+
+def make_title(text: str) -> str:
+    t = strip_markers(text)
+    t = re.sub(r"\[[^\]\[]{1,40}\]", "", t)          # bracket tags
+    t = t.replace("**", "").replace("`", "").strip(" -—:")
+    t = re.sub(r"\s+", " ", t).strip()
+    if len(t) > 200:
+        cut = t[:200].rsplit(" ", 1)[0]
+        t = cut + "…"
+    return t or "(untitled)"
+
+
+# --------------------------------------------------------------------------- #
+# Parsing
+# --------------------------------------------------------------------------- #
+
+
+class Report:
+    """Loud-lossy accumulator (id:4347 no-silent-swallow, [[no-swallow-stderr]])."""
+
+    def __init__(self) -> None:
+        self.entries = []
+
+    def add(self, construct: str, file: str, line: int, text: str, reason: str) -> None:
+        self.entries.append(
+            {
+                "construct": construct,
+                "file": file,
+                "line": line,
+                "text": strip_markers(text)[:200],
+                "reason": reason,
+            }
+        )
+
+    def counts(self) -> dict:
+        out = {}
+        for e in self.entries:
+            out[e["construct"]] = out.get(e["construct"], 0) + 1
+        return dict(sorted(out.items()))
+
+
+def parse_tags(text: str, file: str, line: int, report: Report, lane_required: bool = True) -> dict:
+    """Map the bracket-tag + @marker vocabulary onto labels/lane/resource fields."""
+    lane = None
+    input_kind = None
+    venue = None
+    labels = []
+    resource = None
+    host = None
+    markers = []
+    owner_accepted = None
+    legacy_vocab = False
+
+    m = RE_HARD_LEGACY.search(text)
+    if m:
+        raw = m.group(1).strip()
+        legacy_vocab = True
+        if raw in LEGACY_HARD_LANES:
+            lane, input_kind, venue = LEGACY_HARD_LANES[raw]
+            if raw == "hands":
+                report.add(
+                    "legacy-hands-unresolved",
+                    file,
+                    line,
+                    text,
+                    "[HARD — hands] has no 1:1 successor (hard-lanes.md names FOUR "
+                    "candidates); mapped to input:unresolved-hands, never guessed",
+                )
+        else:
+            lane = "untagged"
+            report.add("unknown-hard-lane", file, line, text,
+                       "unrecognised [HARD — %s] lane" % raw)
+    elif "[MECHANICAL]" in text:
+        lane = "mechanical"
+    elif "[ROUTINE]" in text:
+        lane = "routine"
+    else:
+        mi = RE_INPUT.search(text)
+        if mi:
+            lane = "input"
+            input_kind = mi.group(1)
+            if input_kind not in INPUT_KIND_ENUM:
+                report.add("unknown-input-kind", file, line, text,
+                           "unrecognised [INPUT — %s] kind" % input_kind)
+                input_kind = None
+        elif "[HARD]" in text:
+            lane = "hard"
+
+    if lane is None:
+        lane = "untagged"
+
+    mr = RE_INTENSIVE.search(text)
+    if mr:
+        resource = mr.group(1)
+    mh = RE_HOST.search(text)
+    if mh:
+        host = mh.group(1)
+
+    # Inline auto-gate route markers are EXACT synonyms of the meeting/decision lanes
+    # (hard-lanes.md "recognized aliases"). They refine, never override, an explicit tag.
+    mrt = RE_ROUTE_INLINE.search(text)
+    if mrt and lane in ("input", "untagged"):
+        lane = "input"
+        if input_kind is None:
+            input_kind = "decision" if mrt.group(1) == "decision-gate" else "meeting"
+
+    moa = RE_OWNER_ACCEPTED.search(text)
+    if moa:
+        owner_accepted = moa.group(1)
+
+    for mm in RE_UNKNOWN_MARKER.finditer(text):
+        name = mm.group(1)
+        if name in KNOWN_MARKERS:
+            if name not in markers:
+                markers.append(name)
+        else:
+            report.add("unknown-marker", file, line, text, "@%s is not in the known marker set" % name)
+
+    # A REVIEW_ME box has no capability lane by design; emitting `lane:untagged` for it
+    # would pollute the labels of the ledger item it attaches to (a box on a [HARD] item
+    # would read as both lane:hard AND lane:untagged).
+    if lane_required or lane != "untagged":
+        labels.append("lane:%s" % lane)
+    if input_kind:
+        labels.append("input:%s" % input_kind)
+    if venue:
+        labels.append("venue:%s" % venue)
+    if legacy_vocab:
+        labels.append("vocab:legacy")
+    if resource:
+        labels.append("resource:%s" % resource)
+    if host:
+        labels.append("host:%s" % host)
+    for mk in markers:
+        labels.append("marker:%s" % mk)
+
+    blocked = ("🚧" in text) or ("BLOCKED on" in text) or ("blocked on" in text)
+    if blocked:
+        labels.append("gate:blocked")
+
+    if lane == "untagged" and lane_required:
+        report.add("untagged-lane", file, line, text,
+                   "no recognised capability tag; hard-lanes.md makes this a LOUD reject "
+                   "at the source (roadmap-lint.sh owns enforcement, this mapper only reports)")
+
+    return {
+        "lane": lane,
+        "input_kind": input_kind,
+        "resource": resource,
+        "host": host,
+        "markers": markers,
+        "owner_accepted": owner_accepted,
+        "labels": sorted(set(labels)),
+        "blocked": blocked,
+    }
+
+
+def assignee_for(lane: str, markers, kind: str):
+    if kind == "review_box":
+        return "human"
+    if lane == "input":
+        return "human"
+    if any(m in ("manual", "needs-auth", "owner-verify") for m in markers):
+        return "human"
+    if lane == "mechanical":
+        return "daemon"
+    if lane == "routine":
+        return "executor"
+    if lane == "hard":
+        return "apex"
+    return None
+
+
+def parse_file(repo: str, path: str, relname: str, view: str, archived: bool,
+               report: Report) -> list:
+    """Parse one ledger file into a list of per-view observations."""
+    with open(path, "r", encoding="utf-8") as fh:
+        lines = fh.read().split("\n")
+
+    obs = []
+    section = None
+    cur = None
+    prose_run = 0
+
+    def close(item):
+        if item is None:
+            return
+        item["body"] = "\n".join(item["_body"]).strip()
+        del item["_body"]
+        obs.append(item)
+
+    for i, raw in enumerate(lines, start=1):
+        mh = RE_HEADING.match(raw)
+        if mh:
+            close(cur)
+            cur = None
+            if len(mh.group("hashes")) >= 2:
+                section = strip_markers(mh.group("title"))
+            continue
+
+        mc = RE_CHECKBOX.match(raw)
+        if mc:
+            close(cur)
+            indent = len(mc.group("indent").expandtabs(4))
+            text = mc.group("text")
+            state = "done" if mc.group("box").lower() == "x" else "open"
+            # REVIEW_ME boxes carry no capability lane by design (they are human-assignee
+            # prose boxes) — a missing lane there is NOT the hard-lanes.md loud reject.
+            tags = parse_tags(text, relname, i, report, lane_required=(view != "review"))
+
+            ids = RE_OWN_ID.findall(text)
+            token = ids[0].lower() if ids else None
+            attaches_to = None
+            if view == "review":
+                if token is None:
+                    ref = RE_OWN_ROADMAP_REF.findall(text)
+                    if ref:
+                        attaches_to = ref[0].lower()
+                else:
+                    attaches_to = token
+                    token = None
+
+            if len(ids) > 1:
+                report.add("multi-id-line", relname, i, text,
+                           "line carries %d anchored id markers; the FIRST is taken as "
+                           "the owning id (lib-anchored-id.sh convention)" % len(ids))
+
+            key = token or attaches_to or synthetic_key(view, text)
+            cur = {
+                "_key": key,
+                "_view": view,
+                "_attaches_to": attaches_to,
+                "id": token,
+                "state": state,
+                "archived": archived,
+                "indent": indent,
+                "section": section,
+                "section_gated": bool(section and RE_GATED_SECTION.search(section)),
+                "kind": "review_box" if view == "review" else "ledger_item",
+                "title": make_title(text),
+                "tags": tags,
+                "file": relname,
+                "line": i,
+                "children_of": [t for csv in RE_CHILDREN_OF.findall(text) for t in csv.split(",") if t],
+                "children": [t for csv in RE_CHILDREN.findall(text) for t in csv.split(",") if t],
+                "gated_on": [t for csv in RE_GATED_ON.findall(text) for t in csv.split(",") if t],
+                "links": (
+                    [{"kind": "routed", "token": t.lower(), "target_uid": None}
+                     for t in RE_ROUTED.findall(text)]
+                    + [{"kind": "settles", "token": t.lower(), "target_uid": None}
+                       for csv in RE_SETTLES.findall(text) for t in csv.split(",") if t]
+                    + [{"kind": "decided-in", "token": None, "target_uid": None, "path": p}
+                       for p in RE_DECIDED_IN.findall(text)]
+                ),
+                "fields": {},
+                "_body": [text],
+            }
+            if token is None and attaches_to is None and view != "review":
+                report.add(
+                    "id-less-item", relname, i, text,
+                    "checkbox line carries no anchored <!-- id:XXXX --> marker; imported "
+                    "as identity=untracked with a content-derived synthetic key "
+                    "(SCHEMA.md id-less policy), never silently skipped",
+                )
+            if view == "review" and attaches_to is None:
+                report.add("review-box-unanchored", relname, i, text,
+                           "REVIEW_ME box carries no anchored id/roadmap marker; imported "
+                           "as a standalone untracked review_box item")
+            prose_run = 0
+            continue
+
+        if cur is not None:
+            if raw.strip() == "":
+                # A blank line ends an item block only if the next non-blank is not a
+                # continuation; keep it simple and treat blank as the block terminator.
+                close(cur)
+                cur = None
+                continue
+            cur["_body"].append(raw)
+            msf = RE_SUBFIELD.search(raw)
+            if msf:
+                cur["fields"][msf.group(1).lower().replace("-", "_")] = strip_markers(msf.group(2))
+            continue
+
+        if raw.strip():
+            prose_run += 1
+            if prose_run == 1:
+                report.add("section-prose", relname, i, raw,
+                           "narrative block outside any checkbox item; not an item, "
+                           "carried by no tracker primitive (counted, not imported)")
+
+    close(cur)
+    return obs
+
+
+# --------------------------------------------------------------------------- #
+# Item assembly
+# --------------------------------------------------------------------------- #
+
+
+def uid_of(repo: str, key: str) -> str:
+    return "%s/%s" % (repo, key)
+
+
+def derived_status(item: dict) -> str:
+    """DERIVED, adapters-only. The per-view fields stay authoritative.
+
+    Rule (SCHEMA.md 'derived_status'): an OPEN view always beats a DONE view — under
+    drift the item is never reported done. Promotion to ROADMAP is 'queued'.
+    """
+    if item["kind"] == "review_box" and item.get("review_status") == "open":
+        return "needs-decision"
+    if item["roadmap_status"] == "open":
+        return "queued"
+    if item["todo_status"] == "open":
+        return "backlog"
+    if item.get("review_status") == "open":
+        return "needs-decision"
+    if "done" in (item["todo_status"], item["roadmap_status"], item.get("review_status")):
+        return "done"
+    return "backlog"
+
+
+def assemble(repo: str, observations: list, report: Report) -> list:
+    items = {}
+    for ob in observations:
+        key = ob["_key"]
+        uid = uid_of(repo, key)
+        it = items.get(uid)
+        if it is None:
+            it = {
+                "uid": uid,
+                "repo": repo,
+                "id": ob["id"],
+                "identity": "tracked" if ob["id"] else "untracked",
+                "kind": ob["kind"],
+                "title": ob["title"],
+                "body": "",
+                "todo_status": "absent",
+                "roadmap_status": "absent",
+                "review_status": "absent",
+                "drift": False,
+                "derived_status": "backlog",
+                "labels": [],
+                "assignee": None,
+                "parent": None,
+                "children": [],
+                "blocked_by": [],
+                "links": [],
+                "fields": {},
+                "archived": False,
+                "section": ob["section"],
+                "section_gated": ob["section_gated"],
+                "owner_accepted": None,
+                "sources": [],
+            }
+            items[uid] = it
+
+        view = ob["_view"]
+        it["sources"].append({
+            "file": ob["file"], "line": ob["line"], "view": view, "archived": ob["archived"],
+        })
+        field = {"todo": "todo_status", "roadmap": "roadmap_status", "review": "review_status"}[view]
+        if it[field] != "absent":
+            # First-wins, matching lib-typed-edges.sh: the ACTIVE file beats the
+            # archive for the same view. Report it rather than silently keeping one.
+            report.add("duplicate-view-observation", ob["file"], ob["line"], ob["title"],
+                       "%s already has a %s observation; first-wins (active file "
+                       "precedes archive)" % (uid, view))
+        else:
+            it[field] = ob["state"]
+
+        if ob["kind"] == "review_box" and it["kind"] == "ledger_item":
+            it["labels"] = sorted(set(it["labels"] + ["has:review-box"]))
+        elif ob["kind"] == "review_box":
+            it["kind"] = "review_box"
+
+        if ob["archived"]:
+            it["archived"] = True
+        if not it["body"]:
+            it["body"] = ob["body"]
+        if it["section"] is None:
+            it["section"] = ob["section"]
+        it["labels"] = sorted(set(it["labels"] + ob["tags"]["labels"]))
+        it["fields"].update(ob["fields"])
+        it["links"].extend(ob["links"])
+        if ob["tags"]["owner_accepted"]:
+            it["owner_accepted"] = ob["tags"]["owner_accepted"]
+        for t in ob["children_of"]:
+            it["parent"] = uid_of(repo, t)
+        for t in ob["children"]:
+            c = uid_of(repo, t)
+            if c not in it["children"]:
+                it["children"].append(c)
+        for t in ob["gated_on"]:
+            b = uid_of(repo, t)
+            if b not in it["blocked_by"]:
+                it["blocked_by"].append(b)
+        if ob["_view"] != "review":
+            a = assignee_for(ob["tags"]["lane"], ob["tags"]["markers"], ob["kind"])
+            if a:
+                it["assignee"] = a
+        elif it["assignee"] is None:
+            it["assignee"] = "human"
+
+    for it in items.values():
+        it["drift"] = (
+            it["todo_status"] != "absent"
+            and it["roadmap_status"] != "absent"
+            and it["todo_status"] != it["roadmap_status"]
+        )
+        it["derived_status"] = derived_status(it)
+        if it["drift"]:
+            it["labels"] = sorted(set(it["labels"] + ["drift:cross-ledger"]))
+    return [items[k] for k in sorted(items)]
+
+
+def import_repo(repo: str, root: str) -> dict:
+    report = Report()
+    obs = []
+    seen_files = []
+    for view, fname, archived in LEDGER_FILES:
+        path = os.path.join(root, fname)
+        if not os.path.exists(path):
+            continue
+        seen_files.append(fname)
+        obs.extend(parse_file(repo, path, fname, view, archived, report))
+    items = assemble(repo, obs, report)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "repos": [
+            {
+                "repo": repo,
+                # As GIVEN, never abspath'd: the golden fixture document must be
+                # byte-reproducible on any machine, and the fleet driver (id:94ce)
+                # passes the absolute path it resolved from relay.toml anyway.
+                "path": root,
+                "verdict": None,
+                "labels": [],
+                "ledger_files": seen_files,
+            }
+        ],
+        "items": items,
+        "unmapped": report.entries,
+        "unmapped_counts": report.counts(),
+    }
+
+
+def merge_docs(docs: list) -> dict:
+    out = {
+        "schema_version": SCHEMA_VERSION,
+        "repos": [],
+        "items": [],
+        "unmapped": [],
+        "unmapped_counts": {},
+    }
+    for d in docs:
+        out["repos"].extend(d.get("repos", []))
+        out["items"].extend(d.get("items", []))
+        out["unmapped"].extend(d.get("unmapped", []))
+    for e in out["unmapped"]:
+        k = e["construct"]
+        out["unmapped_counts"][k] = out["unmapped_counts"].get(k, 0) + 1
+    out["unmapped_counts"] = dict(sorted(out["unmapped_counts"].items()))
+    out["items"].sort(key=lambda i: i["uid"])
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Validation
+# --------------------------------------------------------------------------- #
+
+
+def load_schema():
+    if not os.path.exists(SCHEMA_PATH):
+        die("machine-readable schema missing: %s" % SCHEMA_PATH, 2)
+    with open(SCHEMA_PATH, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def schema_cross_check(schema: dict) -> list:
+    """The JSON Schema file and this mapper must not drift apart.
+
+    There is no stdlib JSON Schema validator and this repo takes no dependencies, so
+    `validate` enforces the invariants directly AND asserts that the published schema's
+    enums/required-keys are exactly the ones this mapper implements. A drift is a LOUD
+    failure, not a warning — the schema file is what an external adapter (id:90f2) reads.
+    """
+    errs = []
+    item = schema.get("$defs", {}).get("item", {})
+    props = item.get("properties", {})
+
+    def check_enum(prop, expected, label):
+        got = props.get(prop, {}).get("enum")
+        if got is None and "null" in str(props.get(prop, {})):
+            got = props.get(prop, {}).get("anyOf", [{}])[0].get("enum")
+        if sorted(got or []) != sorted(expected):
+            errs.append("schema/mapper enum drift for item.%s (%s): schema=%r mapper=%r"
+                        % (prop, label, got, expected))
+
+    check_enum("todo_status", STATUS_ENUM, "STATUS_ENUM")
+    check_enum("roadmap_status", STATUS_ENUM, "STATUS_ENUM")
+    check_enum("review_status", STATUS_ENUM, "STATUS_ENUM")
+    check_enum("derived_status", DERIVED_STATUS_ENUM, "DERIVED_STATUS_ENUM")
+    check_enum("kind", KIND_ENUM, "KIND_ENUM")
+
+    required = sorted(item.get("required", []))
+    expected_required = sorted([
+        "uid", "repo", "id", "identity", "kind", "title",
+        "todo_status", "roadmap_status", "review_status", "drift", "derived_status",
+        "labels", "blocked_by", "links", "sources",
+    ])
+    if required != expected_required:
+        errs.append("schema/mapper required-key drift for item: schema=%r mapper=%r"
+                    % (required, expected_required))
+
+    if schema.get("properties", {}).get("schema_version", {}).get("const") != SCHEMA_VERSION:
+        errs.append("schema_version drift: schema=%r mapper=%r"
+                    % (schema.get("properties", {}).get("schema_version", {}).get("const"),
+                       SCHEMA_VERSION))
+    return errs
+
+
+def validate_doc(doc: dict, allow_homonyms: bool) -> tuple:
+    """Return (errors, warnings). Errors are fatal (exit 3)."""
+    errs = []
+    warns = []
+
+    if doc.get("schema_version") != SCHEMA_VERSION:
+        errs.append("schema_version %r != %r" % (doc.get("schema_version"), SCHEMA_VERSION))
+
+    items = doc.get("items", [])
+    by_uid = {}
+    by_bare_id = {}
+
+    for it in items:
+        uid = it.get("uid")
+        if uid in by_uid:
+            errs.append("duplicate uid %s — the composite (repo,id) key is not unique; "
+                        "an id was reused inside one repo" % uid)
+        by_uid[uid] = it
+
+        repo = it.get("repo") or ""
+        if not isinstance(uid, str) or not uid.startswith(repo + "/"):
+            errs.append("uid %r is not '<repo>/<key>' for repo=%r" % (uid, repo))
+        else:
+            key = uid.split("/", 1)[1]
+            if it.get("id") is not None and key != it["id"]:
+                errs.append("uid %r key does not equal id %r (composite (repo,id) key broken)"
+                            % (uid, it["id"]))
+            if it.get("id") is None and not key.startswith("~"):
+                errs.append("uid %r has no id but its key is not a synthetic '~' key" % uid)
+
+        for f in ("todo_status", "roadmap_status", "review_status"):
+            if it.get(f) not in STATUS_ENUM:
+                errs.append("%s: %s=%r not in %r" % (uid, f, it.get(f), STATUS_ENUM))
+        if it.get("derived_status") not in DERIVED_STATUS_ENUM:
+            errs.append("%s: derived_status=%r not in %r" % (uid, it.get("derived_status"), DERIVED_STATUS_ENUM))
+        if it.get("kind") not in KIND_ENUM:
+            errs.append("%s: kind=%r not in %r" % (uid, it.get("kind"), KIND_ENUM))
+        if it.get("assignee") is not None and it.get("assignee") not in ASSIGNEE_ENUM:
+            errs.append("%s: assignee=%r not in %r" % (uid, it.get("assignee"), ASSIGNEE_ENUM))
+
+        # The defining invariant of this schema: drift is REPRESENTED, never collapsed.
+        expect_drift = (
+            it.get("todo_status") != "absent"
+            and it.get("roadmap_status") != "absent"
+            and it.get("todo_status") != it.get("roadmap_status")
+        )
+        if bool(it.get("drift")) != expect_drift:
+            errs.append("%s: drift=%r contradicts todo_status=%r/roadmap_status=%r — "
+                        "per-view status must never be collapsed"
+                        % (uid, it.get("drift"), it.get("todo_status"), it.get("roadmap_status")))
+        if expect_drift and it.get("derived_status") == "done":
+            errs.append("%s: derived_status=done while the two views disagree — an OPEN "
+                        "view must always beat a DONE view" % uid)
+
+        if it.get("id"):
+            by_bare_id.setdefault(it["id"], []).append(uid)
+            if it.get("identity") != "tracked":
+                errs.append("%s: has an id but identity=%r" % (uid, it.get("identity")))
+        elif it.get("identity") != "untracked":
+            errs.append("%s: has no id but identity=%r" % (uid, it.get("identity")))
+
+    # ---- cross-repo 4-hex id collisions (meeting D2 finding 6) ----------------
+    # 4-hex ids are PER-REPO, never fleet-unique. Two classes:
+    #   A (homonym)  — the same bare id in >=2 repos, with no cross-repo reference.
+    #                  The composite key already disambiguates it, but it is LOUD by
+    #                  default because the meeting ratified "cross-repo 4-hex
+    #                  collisions fail loudly at import".
+    #   B (ambiguous reference) — a cross-repo `routed:`/edge token that resolves to
+    #                  >=2 repos. ALWAYS fatal; --allow-homonyms never downgrades it.
+    routed_tokens = set()
+    for it in items:
+        for ln in it.get("links", []):
+            if ln.get("kind") == "routed" and ln.get("token"):
+                routed_tokens.add(ln["token"])
+
+    for tok, uids in sorted(by_bare_id.items()):
+        repos = sorted({u.split("/", 1)[0] for u in uids})
+        if len(repos) < 2:
+            continue
+        if tok in routed_tokens:
+            errs.append("cross-repo id collision (class B, AMBIGUOUS REFERENCE): bare "
+                        "token %r exists in repos %s and is used as a cross-repo routed "
+                        "edge — the edge cannot be resolved to one (repo,id)" % (tok, repos))
+        elif allow_homonyms:
+            warns.append("cross-repo id homonym (class A): %r in repos %s — composite "
+                         "key disambiguates; downgraded by --allow-homonyms" % (tok, repos))
+        else:
+            errs.append("cross-repo id collision (class A, HOMONYM): bare token %r exists "
+                        "in repos %s — pass --allow-homonyms to accept it as a "
+                        "composite-key-disambiguated homonym" % (tok, repos))
+
+    for it in items:
+        for b in it.get("blocked_by", []):
+            if b not in by_uid:
+                warns.append("%s: blocked_by %s is dangling (unresolvable in this document)"
+                             % (it["uid"], b))
+        if it.get("parent") and it["parent"] not in by_uid:
+            warns.append("%s: parent %s is dangling" % (it["uid"], it["parent"]))
+
+    return errs, warns
+
+
+def render_status(doc: dict) -> str:
+    """Project every item back to its per-view checkbox states.
+
+    This is the round-trip half of the id:2bb1 contract: markdown -> JSON -> the
+    per-view checkbox states the markdown carried. Full prose re-rendering is
+    deliberately NOT implemented — D1 ratified that markdown need not survive as an
+    export, so the information the round-trip must preserve is the STATUS PAIR.
+    """
+    box = {"open": "[ ]", "done": "[x]", "absent": "-"}
+    out = []
+    for it in sorted(doc.get("items", []), key=lambda i: i["uid"]):
+        out.append("%s\tTODO:%s\tROADMAP:%s\tREVIEW:%s\tdrift=%s\tderived=%s" % (
+            it["uid"], box[it["todo_status"]], box[it["roadmap_status"]],
+            box[it["review_status"]], "1" if it["drift"] else "0", it["derived_status"]))
+    return "\n".join(out)
+
+
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+
+
+def read_doc(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p_imp = sub.add_parser("import", help="markdown ledgers -> intermediate JSON (one repo)")
+    p_imp.add_argument("repo")
+    p_imp.add_argument("root")
+
+    p_mrg = sub.add_parser("merge", help="merge per-repo documents into one fleet document")
+    p_mrg.add_argument("docs", nargs="+")
+
+    p_val = sub.add_parser("validate", help="invariants + schema cross-check")
+    p_val.add_argument("doc")
+    p_val.add_argument("--allow-homonyms", action="store_true",
+                       help="downgrade class-A cross-repo id homonyms to warnings "
+                            "(class-B ambiguous references stay fatal)")
+
+    p_ren = sub.add_parser("render-status", help="project items back to per-view checkbox states")
+    p_ren.add_argument("doc")
+
+    args = ap.parse_args(argv)
+
+    if args.cmd == "import":
+        if not os.path.isdir(args.root):
+            die("not a directory: %s" % args.root)
+        doc = import_repo(args.repo, args.root)
+        print(json.dumps(doc, indent=2, ensure_ascii=False, sort_keys=True))
+        counts = doc["unmapped_counts"]
+        if counts:
+            print("loud-lossy report for %s: %s" % (
+                args.repo, ", ".join("%s=%d" % (k, v) for k, v in counts.items())), file=sys.stderr)
+        return 0
+
+    if args.cmd == "merge":
+        print(json.dumps(merge_docs([read_doc(p) for p in args.docs]),
+                         indent=2, ensure_ascii=False, sort_keys=True))
+        return 0
+
+    if args.cmd == "validate":
+        doc = read_doc(args.doc)
+        errs = schema_cross_check(load_schema())
+        e2, warns = validate_doc(doc, args.allow_homonyms)
+        errs.extend(e2)
+        for w in warns:
+            print("WARN: %s" % w, file=sys.stderr)
+        if errs:
+            for e in errs:
+                print("ERROR: %s" % e, file=sys.stderr)
+            print("validate: %d error(s), %d warning(s)" % (len(errs), len(warns)), file=sys.stderr)
+            return 3
+        print("validate: OK (%d items, %d repos, %d warning(s))"
+              % (len(doc.get("items", [])), len(doc.get("repos", [])), len(warns)))
+        return 0
+
+    if args.cmd == "render-status":
+        print(render_status(read_doc(args.doc)))
+        return 0
+
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
