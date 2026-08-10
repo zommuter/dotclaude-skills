@@ -4543,3 +4543,7 @@ refactor: extracted the accounting logic as a reusable generic core (`assertComp
 rather than a bespoke own-repo check, so id:eb63(b) can instantiate it at item granularity without
 touching this wrapper or its tests; removed the dead `state.blocked` snapshot field; replaced a
 false explanatory comment with an accurate one instead of leaving both the bug and its denial.
+
+## 2026-08-10 12:44 — reviewer (claude-opus-5)
+
+review: fix chain closed — id:798b (git-dir lock, tree stays clean), id:8c85 (RELAY_STATUS accounts every own repo; snapshotState carries surfaced+handbacks), id:ef9e (linter recovered + coverage hole on its own motivating incident fixed); 358 pass/0 fail; follow-ups id:d525/340f/b3a3/5b21 [id:798b, id:8c85, id:ef9e]
