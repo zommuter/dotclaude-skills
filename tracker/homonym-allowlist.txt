@@ -1,0 +1,18 @@
+# tracker/homonym-allowlist.txt — ADJUDICATED cross-repo 4-hex id homonyms.
+#
+# One 4-hex token per line; `#` starts a comment. Read by tracker/fleet-import.sh and
+# passed to `ledger-map.py validate` EXPLICITLY, one token at a time.
+#
+# A token on this list is a class-A homonym (the same bare id minted independently in
+# two repos) that a HUMAN has looked at and accepted — the composite (repo, id) key
+# already disambiguates it, so it is safe on the board. A token NOT on this list still
+# fails the import loudly, which is the whole point: the recurring fleet import must
+# never be able to switch class A off wholesale (owner-decided 2026-08-10; the
+# ledger-map.py side is id:ca24, replacing the superseded boolean `--allow-homonyms`).
+#
+# Class B — an ambiguous cross-repo `routed:` edge — is NEVER downgradable and can not
+# be adjudicated here. Fix the edge instead.
+#
+# Empty (as shipped) means STRICT: fleet-import.sh passes no allow-list flag at all.
+# Add a token only after checking BOTH repos' items really are unrelated, and say which
+# two repos in the comment.
