@@ -4628,3 +4628,7 @@ enumeration/labelling) was taken by construction, not extracted after the fact.
 ## 2026-08-10 20:19 — reviewer (claude-opus-5)
 
 hard-execute: id:2bb1 tracker intermediate schema+mapping; id:8066 control-arm fleet board (362 pass/0 fail)
+
+## 2026-08-10 21:00 — reviewer (claude-opus-5)
+
+review: id:2bb1 + id:8066 accept-with-fixes — -OO crash + derived_status enforcement; 3 owner boxes, follow-ups id:6daf/857d (363 pass/0 fail)
