@@ -4547,3 +4547,36 @@ false explanatory comment with an accurate one instead of leaving both the bug a
 ## 2026-08-10 12:44 — reviewer (claude-opus-5)
 
 review: fix chain closed — id:798b (git-dir lock, tree stays clean), id:8c85 (RELAY_STATUS accounts every own repo; snapshotState carries surfaced+handbacks), id:ef9e (linter recovered + coverage hole on its own motivating incident fixed); 358 pass/0 fail; follow-ups id:d525/340f/b3a3/5b21 [id:798b, id:8c85, id:ef9e]
+
+## 2026-08-10 — strong-execute (claude-opus-5)
+
+Worked id:8066 — built the tracker pilot's **control-arm board** (`relay/scripts/control-board.sh`)
+plus its spec `tests/test_control_board.sh`, registered in the Makefile relay manifest and pointed
+to from `relay/SKILL.md`'s Shared resources. The item's mandatory reconcile gate was run FIRST and
+found **no duplication**: `id:36f1` is the ITEM-level blocking-DAG visual over project_manager's
+`edges.json` (producer `id:dc60`), and `id:51d8` is the ITEM-level, interactive, LLM-free
+human-action dashboard over `gather-human-backlog.sh`'s tiers — this board is REPO-level over relay
+classify output and shares a data source with neither, so all three obey the "ONE canonical
+producer, N renders" steer rather than duplicating one. To keep that true it deliberately does NOT
+re-derive the human backlog: its "waiting on a human" section is only the per-repo `human`/`blocked`
+verdict, and `--json` is offered so id:51d8 can consume the repo-level roll-up instead of shelling
+out per repo again. No second classifier: verdicts are `classify-repo.sh --emit unit` verbatim and
+the display label comes from `render-verdict.sh` (the only sanctioned emitter of "drained"); the
+five board columns are a documented DISPLAY grouping that always carries the raw verdict alongside,
+so nothing is collapsed. Repo set is `relay.toml`'s own-set via the shared `own_repos()` parser
+(`# path:` override + `paused` honoured, never a `~/src` glob), with its exit status checked
+explicitly so a corrupt relay.toml aborts loudly instead of rendering an empty board. Writes
+nothing at all — stdout only, no artifact to go stale, no tracker write. Smoke-run over the live
+49-repo fleet in 45 s with zero producer errors. Suite 359 pass / 0 fail / 10 expected-red.
+
+Friction: the item's checkbox says "read-only, derived over existing classify-repo.sh output", but
+`classify-repo.sh --emit unit` does not carry the `unpromoted` promote/surface counts it computed
+one step earlier (they are folded into the classifier input and dropped from the unit), so a board
+that wanted "N items awaiting promotion per repo" would have to re-run `unpromoted-scan.sh` — i.e.
+re-derive. Left out rather than re-derived; if the pilot wants that column, the honest fix is a
+passthrough field on the unit, not a second scan in the board.
+
+refactor: none needed — this unit is one new script plus one new test; no existing code path was
+touched beyond a manifest registration and a docs pointer, so there was nothing to clean up. The
+one reuse opportunity that existed (`own_repos()` and `render-verdict.sh` rather than fresh
+enumeration/labelling) was taken by construction, not extracted after the fact.
