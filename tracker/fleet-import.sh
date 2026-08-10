@@ -144,12 +144,14 @@ fi
 # Build the `validate` flags for the adjudicated tokens.
 #
 # The surface is the EXPLICIT per-token allow-LIST (id:ca24, owner-decided 2026-08-10),
-# which supersedes the boolean `--allow-homonyms` that id:2bb1 shipped. Three accepted
-# spellings are probed from `validate --help`, most explicit first; the superseded
-# boolean is REFUSED, never used as a fallback, because using it would downgrade EVERY
-# class-A collision including ones no human has adjudicated.
+# which supersedes the boolean `--allow-homonyms` that id:2bb1 shipped. Both of ca24's
+# spellings are probed from `validate --help`, the file form first; the superseded boolean
+# is REFUSED, never used as a fallback, because using it would downgrade EVERY class-A
+# collision including ones no human has adjudicated. That refusal is a FAIL-CLOSED guard
+# against the boolean being reintroduced, not a live code path — it is unreachable against
+# the ledger-map.py in this repo today, and tests/test_tracker_fleet_import.sh reaches it
+# deliberately with a stub that exposes only the boolean.
 homonym_flags=()
-homonym_retry_flags=()
 build_homonym_flags() {
   [[ ${#allow_tokens[@]} -eq 0 ]] && return 0     # empty list ⇒ STRICT ⇒ no flag at all
   local help
@@ -167,21 +169,6 @@ build_homonym_flags() {
     # id:ca24's repeatable per-token form (SINGULAR).
     local t
     for t in "${allow_tokens[@]}"; do homonym_flags+=(--allow-homonym "$t"); done
-    return 0
-  fi
-  if grep -qE -- '--allow-homonyms-file' <<<"$help"; then
-    local f="$tmpdir/allow.txt"
-    printf '%s\n' "${allow_tokens[@]}" > "$f"
-    homonym_flags=(--allow-homonyms-file "$f")
-    return 0
-  fi
-  if grep -qE -- '--allow-homonyms[ =][A-Z]' <<<"$help"; then
-    # Valued flag. Two shapes are in play and the help text does not distinguish them:
-    # repeatable (`action="append"`) and a single comma-separated value. Repeatable is
-    # tried first; the comma form is the ONE bounded retry (see run_validate).
-    local t
-    for t in "${allow_tokens[@]}"; do homonym_flags+=(--allow-homonyms "$t"); done
-    homonym_retry_flags=(--allow-homonyms "$(IFS=,; echo "${allow_tokens[*]}")")
     return 0
   fi
   if grep -qE -- '--allow-homonyms' <<<"$help"; then
@@ -328,21 +315,6 @@ run_validate() {
   local rc=0
   python3 "$LEDGER_MAP" validate "${homonym_flags[@]+"${homonym_flags[@]}"}" "$fleet" \
     > "$tmpdir/val.out" 2> "$tmpdir/val.err" || rc=$?
-  if [[ "$rc" -ne 0 && ${#homonym_retry_flags[@]} -gt 0 ]]; then
-    # ONE bounded retry, and only when the failure names a token we DID adjudicate —
-    # i.e. the flag is valued but comma-shaped rather than repeatable. Never a retry
-    # that broadens the allow-list: the token set is identical in both spellings.
-    local t
-    for t in "${allow_tokens[@]}"; do
-      if grep -qF -- "'$t'" "$tmpdir/val.err"; then
-        echo "fleet-import.sh: retrying validate with the comma-separated allow-list spelling (same token set)" >&2
-        rc=0
-        python3 "$LEDGER_MAP" validate "${homonym_retry_flags[@]}" "$fleet" \
-          > "$tmpdir/val.out" 2> "$tmpdir/val.err" || rc=$?
-        break
-      fi
-    done
-  fi
   return "$rc"
 }
 

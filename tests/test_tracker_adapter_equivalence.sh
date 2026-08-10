@@ -62,6 +62,15 @@ ad, fix = sys.argv[1], sys.argv[2]
 sys.path.insert(0, ad)
 import adapter_common as C
 
+# The id:857d triple is PINNED LITERALLY, not read from C.VIEWS. Everything downstream —
+# each adapter's emitted labels, check_gate's loop, and the per-view assertions below —
+# is parameterised by that one constant, so a test that also reads it cannot detect a view
+# being dropped. (Review 2026-08-10: shrinking C.VIEWS to ("todo","roadmap") left this
+# whole file GREEN, i.e. the gate was vacuous against losing the `review` view outright —
+# the exact collapse id:857d exists to forbid.)
+assert tuple(C.VIEWS) == ("todo", "roadmap", "review"), \
+    "the id:857d per-view triple changed: %r — the gate is defined over todo/roadmap/review" % (C.VIEWS,)
+
 for name in ("vikunja_adapter", "plane_adapter"):
     mod = importlib.import_module(name)
     for f in ("repo-alpha", "repo-beta", "fleet-collision"):
@@ -83,9 +92,10 @@ for name in ("vikunja_adapter", "plane_adapter"):
     assert a["drift"] and b["drift"], name
     assert a["derived_status"] != "done" and b["derived_status"] != "done", name
     assert C.DRIFT_LABEL in a["labels"] and C.DRIFT_LABEL in b["labels"], name
-    # all three views individually recoverable, review included
+    # all three views individually recoverable, review included — named LITERALLY so a
+    # dropped view is a KeyError here rather than a silently shorter loop
     for n in graph["nodes"]:
-        for v in C.VIEWS:
+        for v in ("todo", "roadmap", "review"):
             assert n["%s_status" % v] in C.VIEW_STATES, (name, n["uid"], v)
 print("ok")
 PY

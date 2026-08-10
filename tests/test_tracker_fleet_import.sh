@@ -236,31 +236,75 @@ set +e; run > /dev/null 2> "$tmp/run9.err"; rc=$?; set -e
 grep -qi 'collision' "$tmp/run9.err" || fail "homonym failure did not name a collision"
 cmp -s "$tmp/state.pre-homonym" "$STATE" || fail "a fatal validate still wrote state"
 
-# The driver must NEVER pass a blanket downgrade. Two lawful outcomes, depending on
-# whether id:ca24 (the explicit per-token allow-LIST) has landed in ledger-map.py:
-#   pre-ca24  — only the superseded boolean exists ⇒ REFUSE, exit 5
-#   post-ca24 — the listed token passes; an UNLISTED homonym still fails
+# PINNED to the post-ca24 world (review 2026-08-10). This block previously accepted EITHER
+# exit 5 (pre-ca24: only the superseded boolean exists ⇒ refuse) OR exit 0 (post-ca24: the
+# allow-list is honoured). id:ca24 has LANDED, so exit 0 is now the ONLY lawful outcome —
+# a test that passes in both worlds is precisely what let the singular/plural flag-name
+# mismatch reach integration. The exit-5 refusal keeps its own dedicated test at 9b below.
 printf '%s\n' '1111' > "$ALLOW"
 set +e; run > /dev/null 2> "$tmp/run9b.err"; rc=$?; set -e
-if [[ "$rc" -eq 5 ]]; then
-  grep -qi 'REFUSING' "$tmp/run9b.err" \
-    || fail "exit 5 without naming the refusal to use the superseded boolean"
-  grep -qi 'ca24' "$tmp/run9b.err" || fail "the refusal does not point at id:ca24"
-elif [[ "$rc" -eq 0 ]]; then
-  # allow-list honoured; now an UNLISTED second homonym must still be fatal
-  printf '%s\n' '- [ ] [ROUTINE] beta second homonym <!-- id:3333 -->' >> "$FLEET/repo-alpha/TODO.md"
-  g "$FLEET/repo-alpha" commit -q --no-verify -am "second homonym"
-  set +e; run > /dev/null 2> "$tmp/run9c.err"; rc2=$?; set -e
-  [[ "$rc2" -eq 3 ]] || fail "an UNLISTED homonym passed while 1111 was allow-listed — the allow-list is behaving like a blanket downgrade"
-  grep -q '3333' "$tmp/run9c.err" || fail "the failure does not name the unlisted token"
-else
-  fail "unexpected exit $rc with a non-empty homonym allow-list: $(cat "$tmp/run9b.err")"
-fi
-# The driver must never reach for the bare boolean, in any code path.
+[[ "$rc" -eq 0 ]] || fail "id:ca24 has landed, so an ADJUDICATED homonym must pass (exit 0), got $rc: $(cat "$tmp/run9b.err")"
+# an UNLISTED second homonym must still be fatal
+printf '%s\n' '- [ ] [ROUTINE] beta second homonym <!-- id:3333 -->' >> "$FLEET/repo-alpha/TODO.md"
+g "$FLEET/repo-alpha" commit -q --no-verify -am "second homonym"
+set +e; run > /dev/null 2> "$tmp/run9c.err"; rc2=$?; set -e
+[[ "$rc2" -eq 3 ]] || fail "an UNLISTED homonym passed while 1111 was allow-listed — the allow-list is behaving like a blanket downgrade"
+grep -q '3333' "$tmp/run9c.err" || fail "the failure does not name the unlisted token"
+g "$FLEET/repo-alpha" reset -q --hard HEAD~1
+
+# --- 9b. the superseded-boolean REFUSAL (exit 5), reached with a STUB ------------------
+# The refusal is fail-closed scaffolding: unreachable against this repo's ledger-map.py,
+# so it needs a stub to be exercised at all. Without this, the guard is untested dead code
+# and could rot silently — which is what the plural-spelling fallbacks it replaced did.
+stub_dir="$tmp/stub"; mkdir -p "$stub_dir/tracker"
+cp "$ROOT/tracker/fleet-import.sh" "$stub_dir/tracker/"
+cp "$ROOT/tracker/fleet-state.py"  "$stub_dir/tracker/"
+mkdir -p "$stub_dir/relay/scripts"
+cp "$ROOT/relay/scripts/lib-own-repos.sh" "$stub_dir/relay/scripts/"
+# The stub is a real (tiny) ledger-map.py: it emits valid documents for import/merge so
+# the driver reaches the allow-list step, but advertises ONLY the superseded boolean.
+cat > "$stub_dir/tracker/ledger-map.py" <<'STUB'
+import json, sys
+SCHEMA_VERSION = "1.0.0"
+EMPTY = {"schema_version": SCHEMA_VERSION, "repos": [], "items": [],
+         "unmapped": [], "unmapped_counts": {}}
+cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+if cmd == "validate" and "--help" in sys.argv:
+    print("usage: ledger-map.py validate [-h] [--allow-homonyms] doc")
+    print("  --allow-homonyms   downgrade class-A cross-repo id homonyms to warnings")
+    sys.exit(0)
+if cmd == "import":
+    doc = dict(EMPTY, repos=[{"repo": sys.argv[2], "path": sys.argv[3],
+                              "verdict": None, "labels": []}])
+    print(json.dumps(doc)); sys.exit(0)
+if cmd == "merge":
+    print(json.dumps(EMPTY)); sys.exit(0)
+sys.exit(0)
+STUB
+printf '%s\n' '1111' > "$ALLOW"
+set +e
+"$stub_dir/tracker/fleet-import.sh" --state "$tmp/stub-state.json" \
+  --allowlist-file "$ALLOW" > /dev/null 2> "$tmp/run9d.err"
+rc3=$?
+set -e
+[[ "$rc3" -eq 5 ]] \
+  || fail "a ledger-map.py exposing ONLY the superseded boolean must be REFUSED with exit 5, got $rc3: $(cat "$tmp/run9d.err")"
+grep -qi 'REFUSING' "$tmp/run9d.err" \
+  || fail "exit 5 without naming the refusal to use the superseded boolean"
+grep -qi 'ca24' "$tmp/run9d.err" || fail "the refusal does not point at id:ca24"
+
+# The driver must never reach for the bare boolean, in any code path...
 grep -qE -- '--allow-homonyms"?[[:space:]]*\)' "$IMPORT" \
   && fail "fleet-import.sh appears to pass a bare --allow-homonyms"
-grep -q 'homonym_flags+=(--allow-homonyms "\$t")' "$IMPORT" \
-  || fail "fleet-import.sh no longer passes homonym tokens explicitly, one at a time"
+# ...and must pass ca24's SINGULAR surface, one adjudicated token at a time. Pinning the
+# actual shipped spelling: the superseded plural spellings matched no ledger-map.py that
+# ever existed, and asserting on them cemented unreachable code.
+grep -q 'homonym_flags+=(--allow-homonym "\$t")' "$IMPORT" \
+  || fail "fleet-import.sh no longer passes homonym tokens explicitly, one at a time (--allow-homonym)"
+grep -q 'homonym_flags=(--allow-homonym-file "\$f")' "$IMPORT" \
+  || fail "fleet-import.sh no longer offers ca24's --allow-homonym-file surface"
+grep -qE -- '--allow-homonyms-file|--allow-homonyms "' "$IMPORT" \
+  && fail "fleet-import.sh still carries a superseded PLURAL allow-list spelling (dead code)"
 
 # --- 10. purity again, after every mutation path above --------------------------------
 repo_state_snapshot "$FLEET/repo-alpha" > "$tmp/snap.alpha2"
