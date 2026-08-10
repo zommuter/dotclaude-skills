@@ -121,6 +121,16 @@ why_not_ready = []
 
 # --- Step 2: derive ROADMAP fields ----------------------------------------
 rm = os.path.join(path, "ROADMAP.md")
+# id:4f9b — the ROADMAP's SIZE IN BYTES, so relay-loop.js can size the child's assembled
+# prompt BEFORE dispatch and hand back with the real reason instead of letting the child die
+# with a bare `Prompt is too long`. relay-loop.js runs inside the Workflow sandbox and has NO
+# filesystem access (see id:61fa's premise problem), so the measurement must be taken HERE, on
+# the host, and ride along as a field. 0 when ROADMAP.md is absent/unreadable — the gate is
+# FAIL-OPEN on 0, so a missing measurement never blocks a dispatch.
+try:
+    roadmap_bytes = os.path.getsize(rm) if os.path.isfile(rm) else 0
+except OSError:
+    roadmap_bytes = 0
 has_routine = False
 roadmap_open = 0
 roadmap_actionable_open = 0
@@ -273,6 +283,7 @@ base["roadmap_open"]            = roadmap_open
 base["roadmap_actionable_open"] = roadmap_actionable_open
 base["actionable_routine_open"] = actionable_routine_open
 base["actionable_routine_ids"]  = actionable_routine_ids   # id:b09e
+base["roadmap_bytes"]           = roadmap_bytes            # id:4f9b
 base["open_mechanical"]         = open_mechanical
 base["surfaced_open"]           = surfaced_open   # id:65f5 → classify-verdict handoff branch
 base["unpromoted"]              = {"promote": promote, "surface": surface}
@@ -429,6 +440,11 @@ unit = {
     # allowed), same treatment as actionable_routine_open above. "" entries mark actionable
     # items that carry no id (unnameable, but still counted).
     "actionable_routine_ids": base.get("actionable_routine_ids", []),
+    # id:4f9b — ROADMAP.md size in bytes, measured on the HOST (the Workflow sandbox where
+    # relay-loop.js runs cannot stat a file). relay-loop.js's pre-dispatch size gate turns
+    # this into "ROADMAP too large — run roadmap-archive.sh" instead of a child dying with a
+    # bare `Prompt is too long`. Schema-safe extra field; 0 ⇒ unmeasured ⇒ gate fails OPEN.
+    "roadmap_bytes": base.get("roadmap_bytes", 0),
     # id:7616 — [MECHANICAL] capability tier: schema-safe extra field (additional
     # properties allowed), same treatment as actionable_routine_open above. No daemon
     # consumer reads this yet (A3, gated) — it is passthrough plumbing only.
