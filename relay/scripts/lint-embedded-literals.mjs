@@ -34,6 +34,13 @@
 // clean (the no-silent-swallow rule: a lint that quietly skips what it cannot parse is a
 // vacuous guard).
 //
+// ONE ESCALATION out of UNCHECKED (added when the motivating incident itself was found to
+// land in the UNCHECKED bucket): a SINGLE-quoted body whose closing quote is glued to a
+// BAREWORD character (`… sh's quoting …`) is that incident's own signature, not
+// concatenation — deliberate concatenation glues on `"`, `$` or `\'`, never a bare letter.
+// For that shape the isolated PREFIX is syntax-checked, and a FAILING prefix is REJECTED
+// (a passing one stays UNCHECKED — the full concatenated program remains unverifiable).
+//
 // Usage: lint-embedded-literals.mjs [file-or-repo-root ...]
 //   no args  → repo root via the script's own location (../.. of relay/scripts)
 //   a dir    → scan its relay/scripts/*.sh
@@ -264,18 +271,31 @@ const WORD_TERMINATOR = new Set([' ', '\t', '\r', '\n', ';', '|', '&', '<', '>',
 function pushCandidate(candidates, src, lang, quote, openIdx, closeIdx, n, body, forcedReason) {
   let isolable = body !== null && !forcedReason
   let reason = forcedReason
+  // A single-quoted body whose closing quote is glued to a BAREWORD character is the
+  // signature of the very incident this lint exists for (`… sh's quoting …` — the
+  // apostrophe closes the string and the rest of the word, `s`, becomes shell text).
+  // Deliberate concatenation never looks like this: it glues on a `"`, a `$`, or a
+  // `\'` — never a bare letter/digit. So the prefix is kept and syntax-checked, and a
+  // FAILING prefix is reported as a violation rather than hidden behind UNCHECKED
+  // (a passing prefix stays UNCHECKED — the full concatenated program is unverifiable).
+  let suspectTruncation = false
+  let prefixBody = null
   if (isolable) {
     const after = src[closeIdx + 1]
     if (after !== undefined && !WORD_TERMINATOR.has(after)) {
       isolable = false
       reason = 'concatenated with adjacent shell word (cannot isolate)'
+      if (quote === "'" && /[A-Za-z0-9_]/.test(after)) {
+        suspectTruncation = true
+        prefixBody = body
+      }
     }
   }
   candidates.push({
     lang, quote, openIdx, closeIdx,
     line: 1 + (src.slice(0, openIdx).match(/\n/g) || []).length,
     body: isolable ? body : null,
-    isolable, reason,
+    isolable, reason, suspectTruncation, prefixBody,
   })
 }
 
@@ -347,11 +367,21 @@ function lintFile(file) {
   const rejected = []
   let unchecked = 0
   for (const cand of candidates) {
+    const checker = cand.lang === 'python3' ? checkPython : checkAwk
     if (!cand.isolable) {
+      if (cand.suspectTruncation && cand.prefixBody !== null) {
+        const res = checker(cand.prefixBody)
+        if (res.ok === false) {
+          rejected.push({
+            file, line: cand.line, lang: cand.lang,
+            detail: `${res.detail} — body appears TRUNCATED at an apostrophe (the closing quote is glued to a bareword; bash single-quotes have no escaping)`,
+          })
+          continue
+        }
+      }
       unchecked++
       continue
     }
-    const checker = cand.lang === 'python3' ? checkPython : checkAwk
     const res = checker(cand.body)
     if (res.ok === null) {
       unchecked++
