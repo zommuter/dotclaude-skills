@@ -192,9 +192,21 @@ amendments accepted by the owner; all 4 hardening groups adopted.**
 **Judged sound as ratified:** D2's schema-plus-thin-adapters shape; the exclusions of Forgejo,
 GitHub and Fossil; and the owner's archaeology call.
 
-**Escalation counter: 5 forced amendments this session (threshold ≥2).** Second independent firing
-after `[[fabled-escalation-trigger-fired-4]]` (count 4, 2026-07-26), and higher. Standing evidence
-for the per-decision pass and multi-pass `id:8df5` — owner's call, tracked as `id:43c8`.
+**Escalation counter: 5 forced amendments this session (threshold ≥2) — the THIRD firing, and the
+highest.** *(Corrected during write-back: this note first said "second". The memory
+`[[fabled-escalation-trigger-fired-4]]` records firings at **4 on 2026-07-26** and **4 on
+2026-07-29**; today is the third.)* Three for three, across three different meeting shapes
+(engine-rewrite, mechanical-hop, substrate-selection) — the original "unusually large design
+surface" base-rate caveat is dead. Standing evidence for the per-decision pass and multi-pass
+`id:8df5`; owner's call, now with a real receiving item, `id:43c8` (the 2026-07-29 memory noted
+there was previously *nothing to escalate into* — `id:8df5` is still not filed as an open item).
+
+**Pattern worth weighing when designing the per-decision pass:** in all three firings the forced
+findings cluster on one shape — **a rationale whose factual premise does not survive being checked**
+(2026-07-29's F1/F2/F6 against `relay-loop.js`; today's F1 against the very decision being amended).
+That is the CLAUDE.md *"a claim about CODE behaviour is a derived doc too"* rule recurring
+specifically at ratification time, which suggests the highest-yield pre-decision pass may be
+**premise-checking** rather than general critique.
 
 ## Decisions
 
