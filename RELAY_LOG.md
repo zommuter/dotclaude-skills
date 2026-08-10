@@ -4547,3 +4547,50 @@ false explanatory comment with an accurate one instead of leaving both the bug a
 ## 2026-08-10 12:44 — reviewer (claude-opus-5)
 
 review: fix chain closed — id:798b (git-dir lock, tree stays clean), id:8c85 (RELAY_STATUS accounts every own repo; snapshotState carries surfaced+handbacks), id:ef9e (linter recovered + coverage hole on its own motivating incident fixed); 358 pass/0 fail; follow-ups id:d525/340f/b3a3/5b21 [id:798b, id:8c85, id:ef9e]
+
+## 2026-08-10 — strong-execute (claude-opus-5)
+
+Worked id:2bb1 — authored the common intermediate JSON schema + the full bespoke-grammar→tracker
+mapping, per the ratified meeting `docs/meeting-notes/2026-08-10-0906-tracker-substrate-replacing-markdown-ledgers.md`
+(D2 as amended by `--fabled` findings 5/6/7), NOT a restatement of it. New `tracker/`: `SCHEMA.md`
+(the durable artifact — every construct in the brief mapped or given an explicit loud-lossy policy),
+`schema/ledger-intermediate.schema.json` (JSON Schema 2020-12, `schema_version` as a contract-surface
+marker per CLAUDE.md §Versioning — this repo still has no repo-wide version), `ledger-map.py`
+(stdlib-only reference mapper / validator / round-trip projector), and fixture ledgers + golden
+documents. Three judgment calls worth flagging for review: (1) **id-less TODO lines import as
+untracked** with a content-derived `~`-prefixed synthetic key, not skip-and-report — a skipped item
+is invisible on the board, and the accepted cost (rewording re-keys it) is documented rather than
+hidden; (2) **REVIEW_ME boxes attach when anchored** (`<!-- roadmap:XXXX -->` sets `review_status` on
+the existing item + a `has:review-box` label) and stand alone as untracked `review_box` items when
+not, with `review_status` a **third** view rather than folded into either ledger view; (3) cross-repo
+collisions are split into class A (homonym — fatal by default, `--allow-homonyms` downgrades to a
+counted WARN because at ~60 repos over a 65 536-token space homonyms are expected and the composite
+key already disambiguates) and class B (a `routed:` edge resolving to ≥2 repos — **never**
+downgradable, because that edge is genuinely unresolvable). The default is fatal-on-both so the
+meeting's ratified "fail loudly at import" wording is honoured literally; the scoped mode is the
+owner's knob, surfaced not chosen. `[HARD — hands]` is deliberately NOT auto-resolved — `hard-lanes.md`
+records four candidate destinations and `lane-convert.sh` refuses to guess, so this mapper refuses too
+and reports every one. Round-trip is scoped to the **status pair + relation graph**, not byte-exact
+prose: D1 records that markdown need not survive as an export, and claiming an untested byte-exact
+round-trip would be exactly the derived-doc drift this repo's rules forbid — said so in SCHEMA.md §4
+rather than quietly narrowing the contract. Three tests, all header-less (id:2bb1 has no ROADMAP entry,
+so their failures always count): drift round-trip in both directions + the collapse being structurally
+rejected; the synthetic cross-repo collision exiting 3 and naming both tokens, both repos and both
+classes; and a golden-fixture/determinism test that also mutates the JSON Schema to prove the
+schema↔mapper cross-check can actually fail rather than passing vacuously. Suite 361 passed / 0 failed
+/ 10 expected-red.
+
+refactor: added `tracker` to the `SKILL_DIRS` list in BOTH `tools/check-no-bare-rm-f.sh` and
+`tools/check-no-silent-swallow.sh` — a new top-level script directory that no repo guard scans is a
+silent coverage hole, and the two lists had already drifted out of sync with the tree once. No other
+cleanup: the mapping is greenfield and re-implements the anchored-marker regexes in python rather than
+shelling out to `lib-anchored-id.sh`/`lib-typed-edges.sh`, which is a deliberate duplication (a pure
+python producer, and the regexes ARE the contract here) recorded in SCHEMA.md, not an accident.
+
+Friction: the item's contract says "a synthetic cross-repo id collision exits non-zero", but a flat
+fatal on every duplicate bare token is impractical at fleet scale — 459+ items over 65 536 tokens makes
+homonyms near-certain, so a strict-only importer would never complete a full pass. Rather than quietly
+reinterpret the contract I implemented it literally (default fatal, test asserts exit 3) and added the
+scoped mode as an explicit, documented knob with class B permanently fatal. Also: `tracker/` is a new
+top-level directory — I proposed it per the brief, but the repo's layout table had no obvious home for
+a non-skill, non-tool artifact, so that placement is a call the integrator may want to confirm.

@@ -1,0 +1,98 @@
+{
+  "items": [
+    {
+      "archived": false,
+      "assignee": "apex",
+      "blocked_by": [],
+      "body": "[HARD] The routed target — also minted as cafe in a second repo <!-- id:cafe -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "cafe",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:hard"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-beta",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "Queue",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 11,
+          "view": "todo"
+        }
+      ],
+      "title": "The routed target — also minted as cafe in a second repo",
+      "todo_status": "open",
+      "uid": "repo-beta/cafe"
+    },
+    {
+      "archived": false,
+      "assignee": "executor",
+      "blocked_by": [],
+      "body": "[ROUTINE] Homonym of repo-alpha's cccc — the composite key disambiguates it <!-- id:cccc -->",
+      "children": [],
+      "derived_status": "backlog",
+      "drift": false,
+      "fields": {},
+      "id": "cccc",
+      "identity": "tracked",
+      "kind": "ledger_item",
+      "labels": [
+        "lane:routine"
+      ],
+      "links": [],
+      "owner_accepted": null,
+      "parent": null,
+      "repo": "repo-beta",
+      "review_status": "absent",
+      "roadmap_status": "absent",
+      "section": "Queue",
+      "section_gated": false,
+      "sources": [
+        {
+          "archived": false,
+          "file": "TODO.md",
+          "line": 10,
+          "view": "todo"
+        }
+      ],
+      "title": "Homonym of repo-alpha's cccc — the composite key disambiguates it",
+      "todo_status": "open",
+      "uid": "repo-beta/cccc"
+    }
+  ],
+  "repos": [
+    {
+      "labels": [],
+      "ledger_files": [
+        "TODO.md"
+      ],
+      "path": "fixtures/repo-beta",
+      "repo": "repo-beta",
+      "verdict": null
+    }
+  ],
+  "schema_version": "1.0.0",
+  "unmapped": [
+    {
+      "construct": "section-prose",
+      "file": "TODO.md",
+      "line": 3,
+      "reason": "narrative block outside any checkbox item; not an item, carried by no tracker primitive (counted, not imported)",
+      "text": "The collision fixture. `id:cccc` is a class-A HOMONYM of repo-alpha's `id:cccc`"
+    }
+  ],
+  "unmapped_counts": {
+    "section-prose": 1
+  }
+}
