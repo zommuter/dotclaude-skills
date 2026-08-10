@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-10
+
+- Pool silent-exclusion cluster: changelog lock no longer dirties target repos (id:798b); RELAY_STATUS accounts for every own repo in exactly one section (id:8c85); embedded-literal quoting linter recovered and its coverage hole fixed (id:ef9e) (id:798b,8c85,ef9e)
+
 ## 2026-07-31
 
 - id:cbd2 — relay-doctor.sh now resolves REPO_ROOT via readlink -f + walk-to-Makefile, so its install-drift/reference-install checks give the same verdict whether invoked via source path or the installed symlink; unlocatable manifests now WARN loudly instead of silently SKIPping. (id:cbd2)
