@@ -39,11 +39,30 @@
         "repo": { "type": "string", "description": "Repo name — the first half of the composite (repo, id) key." },
         "path": { "type": "string" },
         "verdict": {
-          "description": "classify-repo.sh's per-repo verdict (relay-poolable / needs-feedback / design-drained / idle / blocked). Filled by id:c17d; null from this mapper, which does not run the classifier.",
+          "description": "classify-repo.sh's per-repo verdict, VERBATIM (blocked/execute/review/hard/handoff/human/mechanical/idle/AMBIGUOUS). null from ledger-map.py, which does not run the classifier; filled by tracker/repo-entity.py (id:c17d) from control-board.sh --json. null also means 'the classifier produced no verdict for this repo' (producer error) — never an invented value.",
           "anyOf": [{ "type": "string" }, { "type": "null" }]
         },
         "labels": { "type": "array", "items": { "type": "string" } },
-        "ledger_files": { "type": "array", "items": { "type": "string" } }
+        "ledger_files": { "type": "array", "items": { "type": "string" } },
+        "board_column": {
+          "description": "control-board.sh's DISPLAY grouping over the verdict enum (blocked / relay-poolable / needs-feedback / design-drained / unclassified). Carried alongside `verdict`, never instead of it — the grouping collapses nothing. Set by repo-entity.py (id:c17d).",
+          "type": "string"
+        },
+        "board_label": {
+          "description": "render-verdict.sh's display label for the verdict (idle -> \"drained\"; every other verdict verbatim). render-verdict.sh is the only sanctioned emitter of \"drained\". Set by repo-entity.py (id:c17d).",
+          "type": "string"
+        },
+        "verdict_reason": {
+          "description": "The classifier's `reason` string for this verdict, carried so a null/blocked repo is not a dead end on the board.",
+          "type": "string"
+        },
+        "counts": {
+          "description": "Open-work counts from the same classify-repo.sh unit. Does NOT carry the `unpromoted` promote/surface counts — `--emit unit` drops them (id:6daf); they arrive here unchanged once that lands.",
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "verdict_source": { "type": "string", "description": "Provenance of `verdict` — which producer it was quoted from." },
+        "verdict_generated_at": { "type": "string", "description": "The board's generated_at, so a stale repo entity is visible." }
       }
     },
     "item": {
