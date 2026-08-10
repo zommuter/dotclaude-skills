@@ -4720,3 +4720,38 @@ refactor: none — this unit is two new files plus a new test; no existing file 
 The reuse that mattered (`lib-own-repos.sh`'s `own_repos()`, `ledger-map.py`'s CLI,
 `tests/lib/assert-repo-unchanged.sh`) was taken by construction, and `tracker/ledger-map.py`
 was deliberately left untouched — the sibling id:ca24 owns it this round.
+Worked id:90f2 — both tracker adapters (Plane, Vikunja) against the intermediate schema.
+`tracker/adapters/{adapter_common,vikunja_adapter,plane_adapter}.py` + hermetic
+`tests/test_tracker_adapter_equivalence.sh` (364 pass / 0 fail / 10 expected-red).
+The equivalence contract is stated over an item graph RECOVERED from each adapter's own
+emitted target payloads — not re-derived from the source document, which would have made
+the comparison vacuous. Verbs `plan`/`graph` are pure and offline (asserted with sockets
+disabled); `apply`/`verify` are networked and no test invokes them.
+
+id:857d (binding) is enforced by `adapter_common.check_gate()` for BOTH adapters, and the
+test proves the gate is not vacuous: a deliberately collapsed, derived_status-only plan is
+rejected for each adapter. The per-view triple is carried twice — `view:<view>=<state>`
+labels and an anchored `[[ledger-views …]]` description marker — and recovery cross-checks
+them, so a half-edited board is loud rather than quietly wrong.
+
+VERIFIED LIVE (Vikunja v2.4.0, pilot project): 19 items / 39 labels / 3 relations applied,
+`verify` PASS, re-apply idempotent (0 created), and a deliberately removed `view:todo=`
+label was caught (exit 3) and repaired by re-apply. Live board shows both drift directions
+with all three views intact.
+
+NOT VERIFIED (Plane): `apply` has never issued a live request — the pilot does not serve
+(id:02f7). Built and fixture-tested only; reported as BLOCKED, not as a pass.
+
+Friction: (a) the supplied Vikunja API token is scoped projects/tasks/labels and 401s on
+`/tasks/{id}/labels` and `/tasks/{id}/relations`, so the adapter prefers a JWT from
+VIKUNJA_USER/VIKUNJA_PASSWORD — worth widening the token if an unattended importer is
+wanted. (b) Plane's public API v1 documents no issue-relation endpoint, so `blocked_by`/
+`link` edges cannot be written natively; the adapter WARNs and leaves them in the body
+rather than guessing a URL. (c) `derived_status → Plane workflow state` is not injective
+(`backlog` and `needs-decision` share a column) — the `derived:<state>` label is what
+keeps that lossless.
+
+refactor: none — this unit is three new modules and one new test; the only pre-existing
+file touched is `tracker/SCHEMA.md`, additively (a new §7). Shared logic between the two
+adapters was factored into `adapter_common.py` up front rather than extracted afterwards,
+so no behaviour-preserving rewrite of existing code happened and none is claimed.
