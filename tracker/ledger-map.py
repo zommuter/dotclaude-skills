@@ -662,8 +662,16 @@ def schema_cross_check(schema: dict) -> list:
     return errs
 
 
-def validate_doc(doc: dict, allow_homonyms: bool) -> tuple:
-    """Return (errors, warnings). Errors are fatal (exit 3)."""
+def validate_doc(doc: dict, allowed_homonyms=frozenset()) -> tuple:
+    """Return (errors, warnings). Errors are fatal (exit 3).
+
+    `allowed_homonyms` is an explicit ALLOW-LIST of adjudicated bare tokens (id:ca24,
+    owner-decided 2026-08-10; supersedes the blanket boolean shipped by id:2bb1). A
+    LISTED class-A homonym is downgraded to a warning; an UNLISTED one is still fatal,
+    so the recurring fleet import (id:94ce) cannot switch class A off wholesale and the
+    ratified "cross-repo 4-hex collisions fail loudly at import" stays operative for
+    every token a human has not yet adjudicated. Class B is never downgradable.
+    """
     errs = []
     warns = []
 
@@ -748,28 +756,39 @@ def validate_doc(doc: dict, allow_homonyms: bool) -> tuple:
     #                  default because the meeting ratified "cross-repo 4-hex
     #                  collisions fail loudly at import".
     #   B (ambiguous reference) — a cross-repo `routed:`/edge token that resolves to
-    #                  >=2 repos. ALWAYS fatal; --allow-homonyms never downgrades it.
+    #                  >=2 repos. ALWAYS fatal; the allow-list never downgrades it.
+    # The escape hatch is an explicit per-token ALLOW-LIST (--allow-homonym, id:ca24),
+    # never a blanket boolean: adjudication is per token, so a NEW homonym is still loud.
     routed_tokens = set()
     for it in items:
         for ln in it.get("links", []):
             if ln.get("kind") == "routed" and ln.get("token"):
                 routed_tokens.add(ln["token"])
 
+    seen_homonyms = set()
     for tok, uids in sorted(by_bare_id.items()):
         repos = sorted({u.split("/", 1)[0] for u in uids})
         if len(repos) < 2:
             continue
+        seen_homonyms.add(tok)
         if tok in routed_tokens:
             errs.append("cross-repo id collision (class B, AMBIGUOUS REFERENCE): bare "
                         "token %r exists in repos %s and is used as a cross-repo routed "
                         "edge — the edge cannot be resolved to one (repo,id)" % (tok, repos))
-        elif allow_homonyms:
+        elif tok in allowed_homonyms:
             warns.append("cross-repo id homonym (class A): %r in repos %s — composite "
-                         "key disambiguates; downgraded by --allow-homonyms" % (tok, repos))
+                         "key disambiguates; ADJUDICATED via --allow-homonym %s"
+                         % (tok, repos, tok))
         else:
             errs.append("cross-repo id collision (class A, HOMONYM): bare token %r exists "
-                        "in repos %s — pass --allow-homonyms to accept it as a "
-                        "composite-key-disambiguated homonym" % (tok, repos))
+                        "in repos %s — adjudicate it explicitly with --allow-homonym %s "
+                        "(per-token; there is no blanket downgrade)" % (tok, repos, tok))
+
+    # A listed token that is NOT a homonym in this document is stale adjudication — say so,
+    # so the allow-list cannot quietly accumulate tokens nobody has re-checked.
+    for tok in sorted(set(allowed_homonyms) - seen_homonyms):
+        warns.append("--allow-homonym %s is stale: %r is not a class-A cross-repo homonym "
+                     "in this document" % (tok, tok))
 
     for it in items:
         for b in it.get("blocked_by", []):
@@ -804,6 +823,34 @@ def render_status(doc: dict) -> str:
 # --------------------------------------------------------------------------- #
 
 
+ALLOW_TOKEN_RE = re.compile(r"^[0-9a-f]{4}$")
+
+
+def collect_allowed_homonyms(tokens, path) -> frozenset:
+    """Build the adjudicated allow-list from --allow-homonym / --allow-homonym-file.
+
+    Every entry must be a literal 4-hex token. A malformed entry (a wildcard, `all`,
+    a range) dies loudly rather than being ignored — the only way to accept a class-A
+    homonym is to name it, one token at a time (id:ca24).
+    """
+    out = set(tokens or [])
+    if path:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
+        except OSError as exc:
+            die("--allow-homonym-file: %s" % exc)
+        for raw in lines:
+            entry = raw.split("#", 1)[0].strip()
+            if entry:
+                out.add(entry)
+    bad = sorted(t for t in out if not ALLOW_TOKEN_RE.match(t))
+    if bad:
+        die("--allow-homonym takes literal 4-hex tokens, one per adjudicated homonym; "
+            "rejected: %s (there is no blanket/wildcard downgrade)" % ", ".join(repr(b) for b in bad))
+    return frozenset(out)
+
+
 def read_doc(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -822,9 +869,18 @@ def main(argv=None) -> int:
 
     p_val = sub.add_parser("validate", help="invariants + schema cross-check")
     p_val.add_argument("doc")
-    p_val.add_argument("--allow-homonyms", action="store_true",
-                       help="downgrade class-A cross-repo id homonyms to warnings "
-                            "(class-B ambiguous references stay fatal)")
+    # id:ca24 — an explicit per-token ALLOW-LIST, NOT a boolean. The bare
+    # `--allow-homonyms` of id:2bb1 is deliberately GONE (it is not a prefix of either
+    # option below, so argparse rejects it): a blanket downgrade would let id:94ce's
+    # recurring fleet import switch class A off wholesale, which is exactly the
+    # laundering the ratified "fail loudly at import" forbids.
+    p_val.add_argument("--allow-homonym", action="append", metavar="TOKEN", default=[],
+                       help="adjudicate ONE class-A cross-repo id homonym (4-hex token); "
+                            "repeatable. Unlisted homonyms stay FATAL; class-B ambiguous "
+                            "references are never downgradable")
+    p_val.add_argument("--allow-homonym-file", metavar="PATH",
+                       help="file of adjudicated tokens, one per line ('#' comments and "
+                            "blank lines ignored) — same semantics as --allow-homonym")
 
     p_ren = sub.add_parser("render-status", help="project items back to per-view checkbox states")
     p_ren.add_argument("doc")
@@ -849,8 +905,9 @@ def main(argv=None) -> int:
 
     if args.cmd == "validate":
         doc = read_doc(args.doc)
+        allowed = collect_allowed_homonyms(args.allow_homonym, args.allow_homonym_file)
         errs = schema_cross_check(load_schema())
-        e2, warns = validate_doc(doc, args.allow_homonyms)
+        e2, warns = validate_doc(doc, allowed)
         errs.extend(e2)
         for w in warns:
             print("WARN: %s" % w, file=sys.stderr)

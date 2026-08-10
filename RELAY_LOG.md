@@ -4632,3 +4632,27 @@ hard-execute: id:2bb1 tracker intermediate schema+mapping; id:8066 control-arm f
 ## 2026-08-10 21:00 — reviewer (claude-opus-5)
 
 review: id:2bb1 + id:8066 accept-with-fixes — -OO crash + derived_status enforcement; 3 owner boxes, follow-ups id:6daf/857d (363 pass/0 fail)
+
+## 2026-08-10 — strong-execute (claude-opus-5)
+
+Worked id:ca24 — replaced `tracker/ledger-map.py`'s boolean `--allow-homonyms` with an
+explicit per-token allow-list: `--allow-homonym TOKEN` (repeatable) plus
+`--allow-homonym-file PATH` (one token per line, `#` comments). Entries must be literal
+4-hex tokens — a wildcard/prefix/`all` is rejected at exit 2, so there is no blanket
+downgrade. The bare boolean is GONE (not an option, not an argparse prefix of either new
+flag ⇒ rejected), asserted by the new `tests/test_tracker_homonym_allowlist_ca24.sh`.
+Default stays STRICT; a LISTED class-A homonym warns, an UNLISTED one is still fatal and
+named; class B (ambiguous cross-repo `routed:` edge) stays always-fatal even when its token
+is listed. Added a stale-adjudication WARN for a listed token that is not a homonym in the
+document, so `id:94ce`'s list cannot silently accumulate. `tracker/SCHEMA.md` §1.3 rewritten
+(it previously conceded the gap). Suite: 364 passed / 0 failed / 10 expected-red.
+
+Friction: the existing `tests/test_tracker_id_collision_loud.sh` exercised the superseded
+boolean on three lines; those were re-pointed at `--allow-homonym cccc` with every assertion
+kept in substance (class B fatal, adjudicated class A warns) — no assertion weakened or
+skipped. Deriving the "one listed + one unlisted" contract fixture in-test (clone the `cccc`
+pair into `beef`, drop the class-B `cafe` material) avoided editing the shared golden
+fixtures, which other tracker tests hash.
+
+refactor: none needed — the change is confined to the collision block, one new pure helper
+(`collect_allowed_homonyms`), and the argparse surface; no surrounding code was restructured.
