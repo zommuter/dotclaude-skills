@@ -37,8 +37,44 @@ set -euo pipefail
 
 # Never let git or ssh open an interactive prompt (askpass / browser / credential helper).
 # Automated callers (systemd timers) rely on this; interactive callers have a loaded
-# agent already. GIT_SSH_COMMAND is set again per-push below for BatchMode.
+# agent already.
+#
+# GIT_SSH_COMMAND is exported HERE, once, rather than set per-`git push` at the bottom:
+# the pull path's `git ls-remote` / `git fetch` (and the push loop's own pre-push
+# `ls-remote`) also talk to the remote, and used to run WITHOUT it — an unreachable or
+# auth-prompting SSH remote could prompt, or hang unbounded, while holding the flock.
+# That hole is what the old blanket "no SSH key in agent → exit 0" guard was papering
+# over; closing it properly is what lets the guard become per-remote (see is_ssh_url).
+# BatchMode=yes  — never prompt for SSH auth; ConnectTimeout bounds the TCP connect;
+# ServerAlive*   — tear down a dead ESTABLISHED connection (roadmap:3273 belt).
 export GIT_TERMINAL_PROMPT=0
+push_ssh="ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+export GIT_SSH_COMMAND="$push_ssh"
+
+# Is this remote URL one that needs SSH auth (and therefore a key in the agent)?
+# Deliberately narrow — a false positive silently stops pushing a perfectly reachable
+# remote, which is the bug this whole guard rework fixes (fievel pushes to local bare
+# paths and has no ssh-agent at all, so the old unconditional guard skipped 100% of
+# pushes and commits piled up locally forever).
+#   ssh://…                         → SSH
+#   any other <scheme>://…          → NOT SSH (https/http/git/file — incl. https://user@host/…)
+#   no scheme, colon before the
+#   first slash (git@host:path)     → SSH (git's own scp-style rule)
+#   anything else (/abs/path, ./rel,
+#   ~/path, plain names)            → NOT SSH
+is_ssh_url() {
+  case "$1" in
+    ssh://*) return 0 ;;
+    *://*)   return 1 ;;
+  esac
+  case "${1%%/*}" in
+    *:*) return 0 ;;
+  esac
+  return 1
+}
+
+ssh_ok=true
+ssh-add -l >/dev/null 2>&1 || ssh_ok=false
 
 branch=""
 manifest_file=""
@@ -245,18 +281,10 @@ if git ls-remote --exit-code "$remote_name" "refs/heads/$remote_branch" >/dev/nu
   fi
 fi
 
-# Never invoke askpass or open a browser for SSH auth — if the agent has no key
-# loaded, commit stays local and retries on the next tick (same as flock timeout).
-if ! ssh-add -l >/dev/null 2>&1; then
-  echo "WARNING: no SSH key loaded in agent; commit is local, will push on next run." >&2
-  exec 8>&-
-  exit 0
-fi
-
 # push to all remotes (skip guard pushurls); set upstream on first push
 # --follow-tags: push annotated, reachable tags alongside the branch (checkpoint + version tags)
-# GIT_SSH_COMMAND: BatchMode=yes prevents any interactive auth prompt; ConnectTimeout bounds the
-# TCP connect (a tunnelled cloudflared-access fallback when LAN detection misfires).
+# GIT_SSH_COMMAND (exported at the top of the script) keeps BatchMode/ConnectTimeout/ServerAlive
+# on EVERY remote-touching git call here, not just `git push`.
 #
 # Two complementary bounds on a stalled push (roadmap:3273 — ConnectTimeout bounds ONLY the
 # connect; an ESTABLISHED ssh whose network dies mid-transfer otherwise hangs forever while
@@ -267,16 +295,25 @@ fi
 #       hermetic testing. On timeout: warn loud, release the flock, exit 0 — work stays
 #       committed locally and retries next run, same non-fatal contract as the flock-timeout
 #       and ff-only-divergence branches above.
-push_ssh="ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
 push_timeout="${GIT_LOCK_PUSH_TIMEOUT:-120}"
 current_branch="$(git rev-parse --abbrev-ref HEAD)"
 for remote in $(git remote); do
   pushurl=$(git remote get-url --push "$remote")
   [ "$pushurl" = "no_push" ] && continue
+  # Per-remote SSH-key gate (was an unconditional per-RUN gate before the ssh-agent
+  # probe moved to the top): never invoke askpass or open a browser for SSH auth — but
+  # only skip the remotes that actually need it. A repo with a local bare remote and an
+  # SSH remote now pushes the former instead of neither, and a repo with no SSH remote
+  # at all (fievel) is unaffected by having no agent. Same non-fatal contract as before:
+  # warn, leave the work committed, retry next run.
+  if ! $ssh_ok && is_ssh_url "$pushurl"; then
+    echo "NOTE: skipping remote '$remote' (SSH, no key loaded in agent); will push on next run." >&2
+    continue
+  fi
   if git ls-remote --exit-code "$remote" "refs/heads/$current_branch" >/dev/null 2>&1; then
-    GIT_SSH_COMMAND="$push_ssh" timeout "$push_timeout" git push --follow-tags "$remote" || push_rc=$?
+    timeout "$push_timeout" git push --follow-tags "$remote" || push_rc=$?
   else
-    GIT_SSH_COMMAND="$push_ssh" timeout "$push_timeout" git push --follow-tags --set-upstream "$remote" "$current_branch" || push_rc=$?
+    timeout "$push_timeout" git push --follow-tags --set-upstream "$remote" "$current_branch" || push_rc=$?
   fi
   if [[ -n "${push_rc:-}" ]]; then
     if [[ "$push_rc" -eq 124 ]]; then
