@@ -4755,3 +4755,7 @@ refactor: none — this unit is three new modules and one new test; the only pre
 file touched is `tracker/SCHEMA.md`, additively (a new §7). Shared logic between the two
 adapters was factored into `adapter_common.py` up front rather than extracted afterwards,
 so no behaviour-preserving rewrite of existing code happened and none is claimed.
+
+## 2026-08-10 22:32 — reviewer (claude-opus-5)
+
+hard-execute batch: id:ca24 allow-list, id:94ce fleet importer, id:c17d repo entities, id:90f2 adapters (partial); cross-child flag-name defect fixed at integrate (367 pass/0 fail)
