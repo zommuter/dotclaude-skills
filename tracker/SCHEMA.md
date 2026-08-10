@@ -85,16 +85,37 @@ progress state") expressed in the schema.
 
 Two classes, because they have genuinely different consequences:
 
-| Class | What | Default | `--allow-homonyms` |
+| Class | What | Default | `--allow-homonym <token>` |
 |---|---|---|---|
-| **A — homonym** | the same bare 4-hex token exists in ≥2 repos, and nothing references it across repos | **FATAL** (exit 3) | downgraded to a counted `WARN` |
-| **B — ambiguous reference** | a cross-repo `routed:` edge names a token that exists in ≥2 repos, so the edge cannot resolve to one `(repo, id)` | **FATAL** (exit 3) | **still FATAL** — never downgradable |
+| **A — homonym** | the same bare 4-hex token exists in ≥2 repos, and nothing references it across repos | **FATAL** (exit 3) | downgraded to a counted `WARN` — **only for the tokens named on the list** |
+| **B — ambiguous reference** | a cross-repo `routed:` edge names a token that exists in ≥2 repos, so the edge cannot resolve to one `(repo, id)` | **FATAL** (exit 3) | **still FATAL** — never downgradable, listed or not |
 
 Default-fatal for class A is the meeting's ratified wording ("cross-repo 4-hex collisions
-fail loudly at import") taken literally. `--allow-homonyms` exists because at ~60 repos and
+fail loudly at import") taken literally. An escape hatch exists because at ~60 repos and
 459+ items over a 65 536-token space, homonyms are *expected*, and the composite key
-already disambiguates them — the owner decides whether a fleet import runs strict or
-scoped. **Class B is never downgradable** and needs no policy debate: the edge is
+already disambiguates them. **That hatch is an explicit per-token ALLOW-LIST of adjudicated
+tokens, never a blanket switch** (`id:ca24`, owner-decided 2026-08-10, superseding the
+`--allow-homonyms` boolean `id:2bb1` originally shipped):
+
+```bash
+python3 ledger-map.py validate fleet.json --allow-homonym cccc --allow-homonym 91cc
+python3 ledger-map.py validate fleet.json --allow-homonym-file adjudicated-homonyms.txt
+```
+
+- `--allow-homonym TOKEN` is repeatable; `--allow-homonym-file PATH` reads one token per
+  line (`#` comments and blank lines ignored). Both take **literal 4-hex tokens** — a
+  wildcard, a prefix, or `all` is rejected outright (exit 2).
+- **The bare boolean is gone.** `--allow-homonyms` is not an option and argparse rejects
+  it, so the blanket-downgrade path cannot come back by habit — asserted by
+  `tests/test_tracker_homonym_allowlist_ca24.sh`.
+- A **listed** token warns; an **unlisted** one is still fatal and named. This is what
+  keeps "cross-repo collisions fail loudly at import" operative for everything a human has
+  not adjudicated: the recurring fleet import (`id:94ce`) can carry its adjudicated list,
+  but it **cannot** switch class A off wholesale, so a *new* homonym still stops the run.
+- A listed token that is not actually a homonym in the document is reported as a **stale**
+  adjudication (`WARN`), so the list cannot silently accumulate.
+
+**Class B is never downgradable** and needs no policy debate: the edge is
 genuinely unresolvable, and a tracker that guesses one target is worse than one that stops.
 
 A duplicate `uid` (the same id twice **inside** one repo) is always fatal — that is id
