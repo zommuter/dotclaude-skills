@@ -250,7 +250,10 @@ if (MECH_FALLBACK === 'fallback-haiku') {
 //   { runId, ts, inFlight: [{repo, mode, agentId, item, itemRank, eligibleCount}],  // choice id:8af2
 //     completed: [{repo, mode, ckptTag, pushStatus, workedIds}],  // workedIds id:de69
 //     queued:    [{repo, verdict}],
-//     blocked:   [{repo, reason, worktreePath}],
+//     surfaced:  [{repo, reason, worktreePath}],   // id:8c85 — rendered as Blocked, with…
+//     handbacks: [{repo, reason, worktreePath}],   // …the persistent handback accumulator
+//     skipped:   [{repo, reason}],
+//     ownRepos:  [string]                          // id:8c85 — accounting universe
 //     quota:     [{bucket, pctRemaining, resetTime}],
 //     reviewMe:  [{repo, count, path}],
 //     stopReason: string|null }  // id:8c35 — category of the stop (quota-cache-unreadable, quota-extrapolated-stop, quota-exhausted:<bucket>, etc.)
@@ -261,6 +264,72 @@ function buildStopReasonLine(sr) {
   // id:c012 — operator-initiated graceful stop (STOP sentinel or --once/--after cap).
   if (sr === 'user-stop') return '**user-stop** — operator graceful stop (STOP sentinel or --once/--after); in-flight wave + integration debt were drained, no new wave dispatched'
   return `**${sr}**`
+}
+
+// id:8c85 — inline copies of relay/scripts/status-accounting.mjs (keep behaviour-equivalent; the
+// Workflow sandbox cannot import, and a structural test pins the wiring). See that module for the
+// full rationale: RELAY_STATUS must account for EVERY own repo in exactly ONE rendered section
+// every round, with a reason. On 2026-08-10 four non-dispatch classes vanished at once and the
+// file reported a false clean; nothing asserted the property, so nothing noticed.
+// assertCompleteAccounting is the GENERIC core (partition completeness over an enumerated
+// universe); assertStatusAccounting is a thin wrapper instantiating it over ownRepos × the five
+// sections. id:eb63(b) can instantiate the same core at item granularity without touching this.
+const ACCOUNTING_SECTIONS = ['blocked', 'completed', 'inFlight', 'queued', 'skipped']
+function accountingMemberKey(m) {
+  if (typeof m === 'string') return m
+  if (!m || typeof m !== 'object') return ''
+  for (const k of ['repo', 'name', 'id', 'item', 'key']) {
+    if (typeof m[k] === 'string' && m[k] !== '') return m[k]
+  }
+  return ''
+}
+function assertCompleteAccounting(universe, buckets, opts) {
+  const o = opts && typeof opts === 'object' ? opts : {}
+  const label = typeof o.label === 'string' && o.label ? o.label : 'accounting'
+  const id = typeof o.id === 'string' ? o.id : ''
+  const uni = (Array.isArray(universe) ? universe : []).map(accountingMemberKey).filter(Boolean)
+  const b = buckets && typeof buckets === 'object' ? buckets : {}
+  const placement = new Map()
+  for (const bucketName of Object.keys(b)) {
+    for (const m of (Array.isArray(b[bucketName]) ? b[bucketName] : [])) {
+      const k = accountingMemberKey(m)
+      if (!k) continue
+      if (!placement.has(k)) placement.set(k, [])
+      placement.get(k).push(bucketName)
+    }
+  }
+  const missing = uni.filter((k) => !placement.has(k)).sort()
+  const duplicated = [...placement.entries()].filter(([, where]) => where.length > 1).map(([k]) => k).sort()
+  const ok = missing.length === 0 && duplicated.length === 0
+  const tag = id ? ` (id:${id})` : ''
+  const bucketNames = Object.keys(b).sort().join(', ')
+  let message
+  if (ok) {
+    message = `${label}: OK — all ${uni.length} member(s) accounted for in exactly one of [${bucketNames}]${tag}`
+  } else {
+    const parts = []
+    if (missing.length) parts.push(`${missing.length} of ${uni.length} reached NO section [${bucketNames}] — ${missing.join(', ')}`)
+    if (duplicated.length) parts.push(`${duplicated.length} double-counted (must be exactly one section) — ${duplicated.map((k) => `${k} in ${placement.get(k).sort().join('+')}`).join('; ')}`)
+    message = `${label}: INCOMPLETE ACCOUNTING${tag} — ${parts.join(' | ')}. A member that reaches no section is INVISIBLE to the operator: the file reports a false clean.`
+  }
+  return { ok, missing, duplicated, message }
+}
+function statusBuckets(state) {
+  const s = state && typeof state === 'object' ? state : {}
+  const a = (v) => (Array.isArray(v) ? v : [])
+  return {
+    blocked: [...a(s.surfaced), ...a(s.handbacks)],
+    completed: a(s.completed),
+    inFlight: a(s.inFlight),
+    queued: a(s.queued),
+    skipped: a(s.skipped),
+  }
+}
+function assertStatusAccounting(ownRepos, state) {
+  return assertCompleteAccounting(ownRepos, statusBuckets(state), {
+    label: 'RELAY_STATUS accounting (every own repo in exactly one section, with a reason)',
+    id: '8c85',
+  })
 }
 
 function buildRelayStatus(state) {
@@ -330,6 +399,21 @@ function buildRelayStatus(state) {
     `- queued=${(state.queued || []).length}`,
   ].join('\n')
 
+  // id:8c85 — LOUD accounting invariant, rendered INTO the file the operator reads. Every own
+  // repo must appear in exactly one of the five sections above, with a reason; if any repo
+  // reached none (or two), say so here and NAME it, rather than letting the file read clean.
+  // Fail-safe: an absent ownRepos list (early rounds, a pre-discovery write) renders as
+  // not-yet-known instead of a false violation.
+  const accountingUniverse = state.ownRepos || []
+  const accounting = accountingUniverse.length
+    ? (() => {
+        const r = assertStatusAccounting(accountingUniverse, state)
+        return r.ok
+          ? `_(ok — all ${accountingUniverse.length} own repo(s) accounted for across [${ACCOUNTING_SECTIONS.join(', ')}])_`
+          : `⚠️ **${r.message}**`
+      })()
+    : '_(own-repo list not yet known this round)_'
+
   return [
     header,
     '',
@@ -354,6 +438,9 @@ function buildRelayStatus(state) {
     '## Skipped (this round)',
     skipped,
     '',
+    '## Accounting invariant (id:8c85 — every own repo in exactly one section, with a reason)',
+    accounting,
+    '',
     '## Quota remaining',
     quota,
     '',
@@ -377,6 +464,10 @@ async function writeRelayStatus(state, statusPath) {
   const events = state.events || []
   const eventsBlock = events.join('\n')
   log(`RELAY_STATUS updated: in-flight=${inFlightCount} completed=${completedCount} blocked=${blockedCount} events=${events.length} → ${path}`)
+  // id:8c85 — the invariant is WIRED, not merely built: fail LOUDLY into the run log too (the
+  // rendered file carries the same message). An unreferenced module is not an invariant.
+  const acct = assertStatusAccounting(state.ownRepos || [], state)
+  if ((state.ownRepos || []).length && !acct.ok) log(`relay-loop: ${acct.message}`)
   // id:0d31 (skeleton L1 thin-glue) — ALL the deterministic work (path resolve + c34a guard,
   // claims peek → "## Claims (live)", relay-burn → "## Burnup this run", atomic flock'd write,
   // event-append) now lives in relay-status-publish.sh. The haiku agent's whole job collapses
@@ -408,7 +499,14 @@ function snapshotState(s) {
   return {
     runId: s.runId, ts: s.ts,
     inFlight: [...(s.inFlight || [])], completed: [...(s.completed || [])],
-    queued: [...(s.queued || [])], blocked: [...(s.blocked || [])],
+    queued: [...(s.queued || [])],
+    // id:8c85 — the Blocked section is RENDERED from `surfaced` + `handbacks`. This snapshot
+    // used to copy `blocked` (a field nothing reads or writes since id:1735) and NEITHER of the
+    // two the renderer actually reads, so since id:cb50 routed every write through here EVERY
+    // status write rendered `## Blocked / HANDBACKs _(none)_` and `blocked=0` regardless of what
+    // happened — erasing dirty-deferred repos, in-flight-suppressed repos and real HANDBACKs.
+    surfaced: [...(s.surfaced || [])], handbacks: [...(s.handbacks || [])],
+    ownRepos: [...(s.ownRepos || [])],   // id:8c85 — the universe the accounting invariant checks
     skipped: [...(s.skipped || [])], quota: [...(s.quota || [])], reviewMe: [...(s.reviewMe || [])],
     stopReason,  // id:8c35 — capture module-level stopReason at snapshot time
     handbackAlertsList: handbackAlerts(handbackTracker, 2),  // id:1432 — >=2× handback ALERTs
@@ -1269,6 +1367,10 @@ if (prelude && Array.isArray(prelude.repos)) {
     if (excludeSet.has(r.repo)) excludeSkipped.push({ repo: r.repo, reason: 'excluded for this run (--exclude)' })
     else ownRepos.push(r)
   }
+  // id:8c85 — publish the in-scope own-repo list ONTO the run state. It used to be a local here
+  // only, i.e. out of scope at status-write / run-end time, so the accounting invariant had no
+  // universe to check and a repo could fall out of every rendered section unnoticed.
+  state.ownRepos = ownRepos.map(r => r.repo)
   if (excludeSkipped.length) log(`relay-loop: id:d530 --exclude — dropped ${excludeSkipped.length} repo(s) from this run (registry untouched): ${excludeSkipped.map(r => r.repo).join(', ')}`)
   if (prioritySet.size) log(`relay-loop: id:d530 --priority — within-class ordering bump for: ${[...prioritySet].join(', ')}`)
   if (poolArgSurfaced.length) log(`relay-loop: id:d530 pool-arg LOUD reject — ${poolArgSurfaced.length} unknown/unconfirmed name(s): ${poolArgSurfaced.map(s => s.repo).join(', ')}`)
@@ -1737,6 +1839,11 @@ if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTE
 // spawned for a human unit — mechanical filing only. LOUD: each filing is logged and counted;
 // never a silent no-op (anti-gaming invariant, id:47f1). Items with an existing OPEN decision-queue
 // record are skipped idempotently by the script; the anti-gaming loop stops once all items are filed.
+// id:8c85 — hoisted out of the block below so the units reach a RENDERED section. Previously
+// `humanUnits` was block-scoped and died with the block: a human-verdict repo was pulled from
+// `actionable` and added to NEITHER state.queued NOR state.skipped, so it appeared nowhere at
+// all (class (c) — zkWhale, 2026-08-10). Mirrors the `mechanicalSurfaced` pattern below.
+let humanSurfaced = []
 {
   const nonHuman = []
   const humanUnits = []
@@ -1745,6 +1852,7 @@ if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTE
     else nonHuman.push(u)
   }
   actionable = nonHuman
+  humanSurfaced = humanUnits
   if (humanUnits.length) {
     log(`relay-loop: id:5eb3 — ${humanUnits.length} human-verdict unit(s) (surface-only backlog): filing to decision-queue mechanically: ${humanUnits.map(u => u.repo).join(', ')}`)
     // Fire all human-verdict filings concurrently (each is an independent repo, no cross-dep).
@@ -1820,9 +1928,11 @@ state.queued = [
   ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: HARD-execute needs apex Opus; STRONG_MODEL=${STRONG_MODEL} — left for Fable handoff-C5/review-step6)` })),
   ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
   ...intensiveDeferred.map(u => ({ repo: u.repo, verdict: `intensive:${u.intensive} (skipped — needs --intensive; a bare --afk no longer enables it, id:052c; never auto-run, OOM risk id:8d52)` })),
-  // human-verdict repos are not queued (they were handled by the surface-filer above); they
-  // surface in RELAY_STATUS skipped as "human (surface-only: filing dispatched)" so the operator
-  // can see them without confusing them with dispatchable queued work.
+  // human-verdict repos are deliberately NOT queued (they were handled by the surface-filer
+  // above and are not dispatchable pool work); they are folded into state.skipped just below,
+  // with their routing reason, so the operator sees them without confusing them with queued
+  // work. Until id:8c85 this paragraph CLAIMED that placement while no code performed it, and
+  // a human-verdict repo therefore reached no section at all.
   // mechanical-verdict repos (id:7616): POOL-INERT — surfaced here in Queued (visible, never
   // dispatched by the LLM pool; a host daemon dispatches them, A3, gated). Mirrors the `human`
   // contract: pulled from `actionable` above, no child spawned, absent from PHASE_BY_VERDICT.
@@ -1831,8 +1941,9 @@ state.queued = [
   // so the operator sees what was held for the next round (never silently dropped).
   ...repoDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: id:dc5b one-unit-per-repo — another unit for this repo dispatched this round; re-discovered next round after it integrates)` })),
 ]
+const humanSkipped = humanSurfaced.map(u => ({ repo: u.repo, reason: `human (surface-only backlog — filing dispatched to the decision queue; not dispatchable pool work, id:5eb3)` }))   // id:8c85
 state.surfaced = buildSurfacedView(discovery.surfaced)
-state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason }))   // id:be62
+state.skipped = (discovery.skipped || []).map(s => ({ repo: s.repo, reason: s.reason })).concat(humanSkipped)   // id:be62 + id:8c85
 
 log(`relay-loop: ${actionable.length} actionable units (${discovery.units.length} own repos, ${discovery.surfaced.length} surfaced)`)
 scheduleStatusWrite(state)
