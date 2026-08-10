@@ -149,4 +149,53 @@ $out"
 fi
 pass "(6) directory scan finds *.sh under relay/scripts and stays clean when nothing is embedded"
 
+# (7) THE MOTIVATING INCIDENT'S OWN SHAPE — `sh's` inside the embedded comment, with a
+#     LATER apostrophe re-balancing the quotes so the file stays `bash -n` CLEAN and the
+#     corruption surfaces only at runtime as an IndentationError. The closing quote here is
+#     glued to a bareword (`s`), which the extractor's generic concatenation rule would file
+#     as UNCHECKED — i.e. the lint would have reported "clean" on the exact bug it exists to
+#     catch. That shape is escalated: the isolated prefix is syntax-checked and a FAILING
+#     prefix is REJECTED. Regression fixture for that gap (found reviewing the recovered
+#     id:ef9e work, 2026-08-10).
+cat > "$TMP/truncated_word.sh" <<'EOF'
+#!/usr/bin/env bash
+result="$(python3 -c '
+import sys
+if True:
+    # lib-state-claim.sh's quoting habits aren't handled here
+    x = 1
+')"
+echo "$result"
+EOF
+bash -n "$TMP/truncated_word.sh" \
+  || fail "fixture invalid: it must be bash -n CLEAN (that is the whole point — bash sees nothing wrong)"
+if out="$(node "$LINT" "$TMP/truncated_word.sh" 2>&1)"; then
+  fail "linter reported CLEAN on the motivating incident's own shape (apostrophe truncation glued to a bareword):
+$out"
+fi
+echo "$out" | grep -qE 'truncated_word\.sh:2:' \
+  || fail "linter flagged but did not name the offending file:line:
+$out"
+echo "$out" | grep -qi 'truncated' \
+  || fail "linter flagged but did not name apostrophe truncation as the likely cause:
+$out"
+pass "(7) bash -n-clean apostrophe truncation glued to a bareword → REJECTED, not hidden as UNCHECKED"
+
+# (7b) The escalation must NOT swallow deliberate concatenation: a body glued to a
+#      double-quoted expansion (`'…'"$VAR"'…'`) is still UNCHECKED, never a false REJECT,
+#      even though its isolated prefix is not valid Python on its own.
+cat > "$TMP/concat_ok.sh" <<'EOF'
+#!/usr/bin/env bash
+VAR=x
+result="$(python3 -c 'print("'"$VAR"'")')"
+EOF
+if ! out="$(node "$LINT" "$TMP/concat_ok.sh" 2>&1)"; then
+  fail "escalation false-positived on deliberate quote-concatenation (prefix is not standalone-valid, but this is not truncation):
+$out"
+fi
+echo "$out" | grep -qi 'unchecked' \
+  || fail "deliberate concatenation should still be reported UNCHECKED:
+$out"
+pass "(7b) deliberate quote-concatenation stays UNCHECKED (escalation does not false-positive)"
+
 echo "ALL PASS"
