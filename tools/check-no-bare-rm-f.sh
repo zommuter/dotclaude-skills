@@ -32,7 +32,7 @@
 # This script does not itself use a bare `rm -f` (it is the thing it checks for).
 set -euo pipefail
 
-SKILL_DIRS=(meeting git-diary-workflow todo-update meeting-cross relay projects hooks statusline tools)
+SKILL_DIRS=(meeting git-diary-workflow todo-update meeting-cross relay projects hooks statusline tools tracker)
 
 ENFORCE="${RM_F_BAN_ENFORCE:-0}"
 BASELINE="${RM_F_BAN_BASELINE:-0}"

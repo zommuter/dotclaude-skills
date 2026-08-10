@@ -28,7 +28,7 @@
 # This script does not itself swallow errors (it is the thing it checks for).
 set -euo pipefail
 
-SKILL_DIRS=(meeting git-diary-workflow todo-update meeting-cross relay projects hooks statusline tools)
+SKILL_DIRS=(meeting git-diary-workflow todo-update meeting-cross relay projects hooks statusline tools tracker)
 
 ENFORCE="${SWALLOW_BAN_ENFORCE:-0}"
 BASELINE="${SWALLOW_BAN_BASELINE:-0}"
