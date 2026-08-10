@@ -4632,3 +4632,42 @@ hard-execute: id:2bb1 tracker intermediate schema+mapping; id:8066 control-arm f
 ## 2026-08-10 21:00 — reviewer (claude-opus-5)
 
 review: id:2bb1 + id:8066 accept-with-fixes — -OO crash + derived_status enforcement; 3 owner boxes, follow-ups id:6daf/857d (363 pass/0 fail)
+
+## 2026-08-10 — strong-execute (claude-opus-5)
+
+Worked id:c17d — repo-level entity derivation. `tracker/repo-entity.py` (new) fills the
+`repos[].verdict` hole `ledger-map.py` deliberately leaves null, quoting
+`classify-repo.sh --emit unit` verbatim out of `control-board.sh --json` (id:8066, landed
+this session) and `render-verdict.sh`'s display label — no second classifier, no second
+board renderer, no new status vocabulary. Three subcommands: `emit` (repos-only document
+that `ledger-map.py validate` accepts), `enrich` (fills a mapped document in place,
+items untouched), `validate-repos`. Pure function of two JSON documents: reads no
+relay.toml, resolves no path, writes no file (D4 holds; the fleet driver stays id:94ce).
+Spec `tests/test_tracker_repo_entity.sh` asserts the item's contract literally — per
+fixture repo it runs `classify-repo.sh` and compares the verdict byte-for-byte — plus a
+purity assertion on `tests/lib/assert-repo-unchanged.sh` and an anti-drift grep over
+`classify-verdict.sh`'s `verdict = "…"` assignments. Suite 364/0/10.
+
+Findings surfaced, not worked around:
+- `ledger-map.py validate` checks `items[]` exhaustively and does **not** look at
+  `repos[]` at all — a repo entity with a missing required key or a bogus verdict passes.
+  `validate-repos` covers it meanwhile; folding it in belongs to that file's owner (a
+  sibling held `ledger-map.py` this round, so it was not touched).
+- id:6daf (the `unpromoted` counts `--emit unit` drops) is named in the schema + prose and
+  deliberately NOT re-derived — a second `unpromoted-scan.sh` call would be the drift the
+  ledger rules forbid.
+- `schema_version` stays 1.0.0 on purpose: SCHEMA.md §5 bumps on a required-key/enum
+  change, and this adds only optional properties to a `$defs/repo` that already required
+  `verdict`.
+
+refactor: none — no existing code was restructured. `tracker/repo-entity.py` and
+`tests/test_tracker_repo_entity.sh` are new files; `tracker/SCHEMA.md` and
+`tracker/schema/ledger-intermediate.schema.json` gained additive documentation only (a §7,
+one artifact-table row, one scope-boundary row, and optional `$defs/repo` properties). No
+required key, enum, or existing behaviour was changed, and no test was weakened.
+
+Friction: the natural home for this verdict is `ledger-map.py`'s repo-entity builder, but
+a sibling child owned that file this round, so the derivation ships as a separate composable
+step. That turned out better (the mapper stays a pure markdown→JSON function with no
+classifier dependency), but it does mean a consumer now needs two calls; if the owner
+prefers one, `enrich` is a ~10-line fold into `ledger-map.py import`.
