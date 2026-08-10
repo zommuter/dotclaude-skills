@@ -4498,3 +4498,18 @@ review of relay-ckpt-20260801-2135..HEAD (12 commits): id:f54d + id:4f9b verifie
 ## 2026-08-10 11:52 — reviewer (claude-opus-5)
 
 handoff C2+C3: promote id:798b + id:8c85 with RED specs; 798b remove-on-exit direction REJECTED as unsound (async dirty-sampler + unlink race) — gitdir-lock pattern recommended; id:8c85 mechanism corrected to snapshotState field omission [id:798b, id:8c85]
+
+## 2026-08-10 — executor (sonnet)
+
+Worked id:798b — moved `changelog-append.sh`'s flock off `<repo>/.changelog.lock` (working tree)
+onto `<gitdir>/changelog-append.lock`, the pattern ckpt-tag.sh/version-bump.sh/diary-append.sh
+already use. Chose the git-dir mechanism over remove-on-exit deliberately: the dirty-guard is an
+async `git status` sampler, so a transiently-present lock still parks the repo, and unlinking a
+flock'd path reintroduces the unlink race. Non-git target dirs (a supported case — `test_changelog_derive.sh`
+uses plain `mkdir` fixtures) fall back to a stable per-path lock under `$TMPDIR`, still outside
+the target. Deleted the false "matches the *.lock gitignore" header claim.
+Friction: none. The atomic-rename temp file `.changelog.XXXXXX` is STILL created in the working
+tree (`os.replace` needs the same filesystem) — ROADMAP marks it explicitly out of scope for 798b,
+so it was left in place and documented in the header instead of silently changed.
+refactor: none needed — the change is a lock-path relocation plus a corrected header comment; no
+duplication introduced and no dead scaffolding removed.
