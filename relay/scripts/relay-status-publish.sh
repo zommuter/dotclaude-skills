@@ -67,8 +67,15 @@ claim_lines="$("$CLAIM" peek 2>/dev/null || true)"
 if [[ -n "$claim_lines" ]]; then
   rendered="$(printf '%s\n' "$claim_lines" | while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    # {key,repo,runId,mode,item,...}; show repo (or item when repo empty), mode, run.
-    printf '%s' "$line" | jq -r '"- " + (if (.repo // "") != "" then .repo else (.item // "?") end)
+    # {key,repo,runId,mode,item,...}; show repo, else item, else the raw claim KEY (id:8c85).
+    # A KEYED claim (the meeting advisory `meeting:<repo>`, a resource claim, …) has BOTH repo
+    # and item empty, and jq's `//` only falls through on null/false — never on "" — so the old
+    # `.repo // .item` rendered `-   mode=… run=…` with no subject at all. `key` is always
+    # populated, so it is the correct last resort: a live claim always names something.
+    printf '%s' "$line" | jq -r '"- " + (if (.repo // "") != "" then .repo
+        elif (.item // "") != "" then .item
+        elif (.key // "") != "" then .key
+        else "?" end)
       + "  mode=" + (.mode // "?") + "  run=" + (.runId // "?")' 2>/dev/null || true
   done)"
   claims_section+=$'\n'"${rendered:-_(none)_}"
