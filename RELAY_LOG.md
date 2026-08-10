@@ -4513,3 +4513,8 @@ tree (`os.replace` needs the same filesystem) — ROADMAP marks it explicitly ou
 so it was left in place and documented in the header instead of silently changed.
 refactor: none needed — the change is a lock-path relocation plus a corrected header comment; no
 duplication introduced and no dead scaffolding removed.
+## 2026-08-10 — executor (claude-opus-5)
+
+Worked id:ef9e — recovered the orphaned `relay/orphan/relay-20260810-103858-20326-execute` work (`lint-embedded-literals.mjs` + `tests/test_embedded_literal_lint_ef9e.sh`), registered the linter in the Makefile `relay_FILES` manifest (the one gap that kept `test_relay_install_manifest.sh` red), and closed a COVERAGE gap found while verifying it: the linter reported the motivating incident's own shape (`… sh's quoting …` — closing quote glued to a bareword, `bash -n` CLEAN, runtime IndentationError) as UNCHECKED/exit 0, i.e. clean on the exact bug it exists to catch. Single-quoted bodies glued to a BAREWORD character are now prefix-syntax-checked and REJECTED on failure; `"`/`$`/`\'` concatenation stays UNCHECKED (no false positives — live tree still 78 scripts clean, 5 UNCHECKED unchanged). Two regression cases added (7, 7b). Full suite 356 pass / 0 fail / 12 expected-red.
+Friction: the recovered work was complete and coherent apart from the manifest line; the UNCHECKED-swallows-the-incident gap was only visible by replaying the historical corruption against the real `discover-repo.sh`, not from the fixtures.
+refactor: none needed — one manifest token plus a narrowly-scoped severity escalation in an existing branch; no duplication introduced.
