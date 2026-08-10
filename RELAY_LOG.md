@@ -4494,3 +4494,7 @@ fixture builder.
 ## 2026-08-10 10:38 — reviewer (claude-opus-5)
 
 review of relay-ckpt-20260801-2135..HEAD (12 commits): id:f54d + id:4f9b verified green (354 pass / 0 fail / 10 expected-red); fixed prompt-size-gate.mjs install drift; ingested routed:cd7f/d160/24e3; extended id:f6d5 with integrate step 2c; 3 REVIEW_ME findings [id:f54d, id:4f9b, id:bf9d, id:480c, id:f6d5]
+
+## 2026-08-10 11:52 — reviewer (claude-opus-5)
+
+handoff C2+C3: promote id:798b + id:8c85 with RED specs; 798b remove-on-exit direction REJECTED as unsound (async dirty-sampler + unlink race) — gitdir-lock pattern recommended; id:8c85 mechanism corrected to snapshotState field omission [id:798b, id:8c85]
