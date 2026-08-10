@@ -16,6 +16,15 @@
 // relay-loop.js pinned by a structural test (cf. prompt-size-gate.mjs, round-plan.mjs,
 // handback-summary.mjs).
 //
+// THIS MODULE DOES NOT YET MEET THAT PATTERN — say so plainly rather than imply otherwise.
+// The inline copy in relay-loop.js is a HAND-REWRITE, not a byte-identical paste, so the house
+// body-comparison assertion cannot be applied to it, and no test currently pins the two together
+// (the 8c85 spec's case E4 greps only for the NAME `assertStatusAccounting`). Equivalence was
+// hand-verified across 10 fixtures at review time (2026-08-10) — correct then, UNGUARDED since.
+// Closing it needs a differential harness that evaluates the inline block and diffs its output
+// against this module over these fixtures. Tracked as a follow-up; until it exists, treat any
+// edit here as requiring a MANUAL matching edit in relay-loop.js.
+//
 // SHAPE
 // -----
 // `assertCompleteAccounting(universe, buckets, {label, id})` is the GENERIC core: partition

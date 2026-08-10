@@ -267,7 +267,14 @@ function buildStopReasonLine(sr) {
 }
 
 // id:8c85 — inline copies of relay/scripts/status-accounting.mjs (keep behaviour-equivalent; the
-// Workflow sandbox cannot import, and a structural test pins the wiring). See that module for the
+// Workflow sandbox cannot import). NOT PINNED: unlike the prompt-size-gate/handback-guard inline
+// copies, NO test asserts this copy still matches the module — E4 of the 8c85 spec only greps that
+// the NAME `assertStatusAccounting` appears here. The copy is a hand-rewrite (`asArray` vs inline
+// ternaries, `memberKey` vs `accountingMemberKey`), so it can never be byte-identical and the house
+// body-comparison pattern cannot be applied as-is; it was hand-verified behaviour-equivalent across
+// 10 fixtures at review time (2026-08-10) and is UNGUARDED against future drift. Closing that gap
+// needs a differential harness, tracked separately — do not read this comment as a guarantee.
+// See that module for the
 // full rationale: RELAY_STATUS must account for EVERY own repo in exactly ONE rendered section
 // every round, with a reason. On 2026-08-10 four non-dispatch classes vanished at once and the
 // file reported a false clean; nothing asserted the property, so nothing noticed.
