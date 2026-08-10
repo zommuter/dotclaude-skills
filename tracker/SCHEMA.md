@@ -14,6 +14,7 @@ git-bug are all downstream of this file, and none of them is chosen here.
 | `tracker/SCHEMA.md` | this file — the prose contract and the full construct-by-construct mapping |
 | `tracker/schema/ledger-intermediate.schema.json` | the machine-readable contract (JSON Schema 2020-12) an adapter reads |
 | `tracker/ledger-map.py` | the executable contract — reference mapper, validator, round-trip projector (stdlib-only python3) |
+| `tracker/repo-entity.py` | the **repo-level** entity deriver (`id:c17d`, §7) — fills `repos[].verdict` from `control-board.sh --json` |
 | `tracker/fixtures/` | fixture ledgers + the golden intermediate documents derived from them |
 
 The three contracts must agree. `ledger-map.py validate` **cross-checks the JSON Schema
@@ -27,7 +28,7 @@ are enforced in code and the published schema is pinned to them rather than trus
 |---|---|
 | Fleet driver: `relay.toml` own-set, `# path:` overrides, pinned-SHA reads, upserts, tombstones, idempotency | `id:94ce` |
 | Plane / Vikunja adapters | `id:90f2` |
-| Repo-entity `classify-repo.sh` verdict derivation | `id:c17d` (this schema emits the repo entity with `verdict: null`) |
+| Repo-entity `classify-repo.sh` verdict derivation | `id:c17d` — **landed**, see §7 (`ledger-map.py` still emits `verdict: null`; `tracker/repo-entity.py` fills it) |
 | Recurring host-side import timer | `id:f116` |
 | Control-arm comparator board | `id:8066` |
 
@@ -326,3 +327,54 @@ pins it.
 `repo-alpha/1111` deliberately carries `children-of:4a5c` with **no** `4a5c` item in the
 fixture, so the dangling-parent `WARN` path is exercised: a dangling typed edge is loud but
 never fatal and never silently dropped.
+
+## 7. Repo entities — the verdict (`id:c17d`)
+
+`ledger-map.py` emits one repo entity per import with `verdict: null`, because it never
+runs the classifier. `tracker/repo-entity.py` fills it. Fable finding 3 is the reason the
+entity exists at all: without a repo-level entity the board cannot answer *"which repos
+need me?"* — the question that motivated the pilot — because that answer is not a property
+of any single item.
+
+**Contract**: for a fixture fleet, each repo's board status **equals**
+`classify-repo.sh`'s verdict. `tests/test_tracker_repo_entity.sh` asserts it the literal
+way — it runs `classify-repo.sh --repo … --emit unit` per fixture repo and compares the
+verdict string byte-for-byte against the emitted entity.
+
+| Field | Source | Note |
+|---|---|---|
+| `verdict` | `classify-repo.sh --emit unit`, **verbatim** | `null` ⇒ the classifier produced nothing for this repo (producer error), **never** an invented value |
+| `board_column` | `control-board.sh`'s display grouping | carried *alongside* the raw verdict, so the grouping collapses nothing |
+| `board_label` | `render-verdict.sh` | the only sanctioned emitter of `drained` (`idle` → `drained`) |
+| `verdict_reason`, `counts`, `verdict_source`, `verdict_generated_at` | same unit | provenance + staleness, so a board row is not a dead end |
+| `labels` | derived | `verdict:<raw>` + `board:<column>`, or `verdict:unavailable` |
+
+No status vocabulary is authored here — **both** vocabularies already existed
+(`classify-verdict.sh`'s enum and `control-board.sh`'s columns), and a test greps
+`classify-verdict.sh`'s `verdict = "…"` assignments so a new classifier verdict cannot
+land without this file knowing it.
+
+```bash
+relay/scripts/control-board.sh --json > board.json
+tracker/repo-entity.py emit   --board board.json            # repos-only document
+tracker/repo-entity.py enrich doc.json --board board.json   # fill a mapped document
+tracker/repo-entity.py validate-repos doc.json
+```
+
+`repo-entity.py` is a **pure function of two JSON documents**: it reads no `relay.toml`,
+resolves no path, and writes no file (the fleet driver is `id:94ce`; D4's "no relay script
+writes to a tracker" holds). It ships a purity test on `tests/lib/assert-repo-unchanged.sh`.
+
+Two gaps are **named, not silently worked around**:
+
+- `--emit unit` drops the `unpromoted` promote/surface counts (`id:6daf`), so a repo entity
+  cannot carry them. They are **not** re-derived by a second `unpromoted-scan.sh` call —
+  when `id:6daf` lands they arrive through the same pipe into `counts`.
+- `ledger-map.py validate` checks `items[]` exhaustively and **does not look at `repos[]`
+  at all**. `repo-entity.py validate-repos` covers that surface meanwhile (required keys,
+  duplicate repo names, a `board_column` outside the enum, and the two directions of the
+  verdict↔column invariant). Folding it into `ledger-map.py validate` is the coherent home
+  and belongs to that file.
+
+`schema_version` stays **1.0.0**: §5 bumps on a change to a *required* key or an *enum*,
+and this adds only optional properties to a `$defs/repo` that already required `verdict`.
