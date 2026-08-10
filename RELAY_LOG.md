@@ -4448,3 +4448,45 @@ Shipped relay/scripts/lint-mech-model.mjs — lints every relay-mech fence-carry
 ## 2026-08-01 21:35 — reviewer (claude-opus-5)
 
 handoff: 5 items promoted (f91a @container, 34b7, ecce, 2047, d808) + 4 RED specs; 2 loderite inbox items adopted (ecd0, 08ad); 3 doc-staleness fixes. Owner ratified the id:34b7 hold-lift at integrate. Suite 352/0/10-xred.
+
+## 2026-08-10 — executor (claude-opus-5)
+
+Worked id:f54d and id:4f9b — the two ABSOLUTELY-URGENT items of the executor-death
+cluster (parent id:93cc), strictly in gate order. **id:f54d**: `roadmap-archive.sh` had
+been built, tested and Makefile-targeted since id:6b67 and called by nothing —
+confirmed `grep -c roadmap-archive relay/scripts/relay-loop.js` = 0. Ran it on this repo
+as immediate relief (ROADMAP.md 2619→1738 lines, 523,926→254,087 bytes; 100 `- [x]`
+blocks and 12 emptied headings moved to ROADMAP.archive.md; all 70 open items verified
+preserved before and after), then added integrator step 2c between the CHANGELOG derive
+and ckpt-tag so it runs unconditionally on every integrate, scope-committing only
+ROADMAP.md + ROADMAP.archive.md and only when it actually changed something.
+`tests/test_roadmap_archive_wired_f54d.sh` pins the wiring statically (real invocation,
+inside the integrator prompt, before ckpt-tag, scope-staged) plus two hermetic
+behavioural checks of the "safe no-op on any repo" claim the step relies on.
+**id:4f9b**: the pre-dispatch size gate. The interesting friction was that the obvious
+implementation is impossible — relay-loop.js runs in the Workflow sandbox with no
+filesystem and no `process.env`, so it cannot stat ROADMAP.md and cannot take a
+threshold from the environment. Resolved by splitting the measurement (classify-repo.sh
+emits `roadmap_bytes` on the host, the id:b09e passthrough pattern) from the decision
+(`relay/scripts/prompt-size-gate.mjs`, pure, with byte-identical inline copies in
+relay-loop.js per the round-plan.mjs discipline). Over budget ⇒ no dispatch, no
+worktree, and a handback naming both cause and remedy on all three surfaces
+(state.handbacks → RELAY_STATUS Blocked, the event log, the id:4a46 backstop).
+Budget derivation and its two calibration points (523,926 B refuses, 254,087 B
+dispatches) are written down in the module and pinned by the test, so a future change
+to the number is a conscious act rather than a drift.
+
+Friction: the 100k-token dispatch budget is a *derived* number, not a measured one — it
+comes from "~200k window minus ~100k working room", anchored on the two observed deaths
+(peak ctx 176,841) and the two known ROADMAP sizes. It is the honest best estimate
+available without a tokenizer in the sandbox, and the chars-per-token approximation
+deliberately under-counts so the gate fires late rather than early; a real measurement
+would be a better basis and is worth a follow-up if the gate ever misfires. Also worth
+recording: `test_relay_install_manifest.sh` caught the new `.mjs` missing from the
+Makefile manifest — that guard earned its keep.
+
+refactor: pulled the size decision into a pure importable module instead of inlining a
+bespoke check at the dispatch site (which is what makes the behavioural half of the
+id:4f9b test possible), reusing the existing handback-summary.mjs/round-plan.mjs
+pattern rather than inventing a third one; removed a dead loop line from the new test's
+fixture builder.
