@@ -4624,3 +4624,7 @@ refactor: none needed — this unit is one new script plus one new test; no exis
 touched beyond a manifest registration and a docs pointer, so there was nothing to clean up. The
 one reuse opportunity that existed (`own_repos()` and `render-verdict.sh` rather than fresh
 enumeration/labelling) was taken by construction, not extracted after the fact.
+
+## 2026-08-10 20:19 — reviewer (claude-opus-5)
+
+hard-execute: id:2bb1 tracker intermediate schema+mapping; id:8066 control-arm fleet board (362 pass/0 fail)
