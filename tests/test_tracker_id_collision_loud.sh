@@ -55,16 +55,19 @@ grep -q 'repo-alpha' "$tmp/err" || fail "colliding repo repo-alpha not named"
 grep -q 'repo-beta'  "$tmp/err" || fail "colliding repo repo-beta not named"
 
 # --- class B is NEVER downgradable -------------------------------------------------
+# (id:ca24 replaced the blanket boolean with a per-token allow-list; the two assertions
+#  below are unchanged in substance — class B stays fatal, an ADJUDICATED class A warns.)
 set +e
-python3 "$MAP" validate "$tmp/fleet.json" --allow-homonyms > "$tmp/out2" 2> "$tmp/err2"
+python3 "$MAP" validate "$tmp/fleet.json" --allow-homonym cccc --allow-homonym cafe \
+  > "$tmp/out2" 2> "$tmp/err2"
 rc2=$?
 set -e
-[[ "$rc2" -ne 0 ]] || fail "--allow-homonyms silenced the class-B ambiguous routed edge; it must stay fatal"
-grep -q "'cafe'" "$tmp/err2" || fail "class-B token cafe not named under --allow-homonyms"
+[[ "$rc2" -ne 0 ]] || fail "the allow-list silenced the class-B ambiguous routed edge; it must stay fatal"
+grep -q "'cafe'" "$tmp/err2" || fail "class-B token cafe not named under the allow-list"
 grep -qi 'ERROR.*class B' "$tmp/err2" || fail "class-B collision is no longer reported as an ERROR"
-# ...while class A is downgraded to a WARN, and stays visible.
-grep -qi 'WARN.*homonym' "$tmp/err2" || fail "--allow-homonyms dropped the class-A homonym instead of warning"
-if grep -qi 'ERROR.*class A' "$tmp/err2"; then fail "--allow-homonyms left class A fatal"; fi
+# ...while an adjudicated class A is downgraded to a WARN, and stays visible.
+grep -qi 'WARN.*homonym' "$tmp/err2" || fail "--allow-homonym cccc dropped the class-A homonym instead of warning"
+if grep -qi 'ERROR.*class A' "$tmp/err2"; then fail "--allow-homonym cccc left class A fatal"; fi
 
 # --- a duplicate uid INSIDE one repo is always fatal (id reuse, not a homonym) -----
 python3 - "$tmp/alpha.json" "$tmp/dupe.json" <<'PY'
@@ -75,7 +78,7 @@ doc["items"].append(copy.deepcopy(first))
 json.dump(doc, open(sys.argv[2], "w"))
 PY
 set +e
-python3 "$MAP" validate "$tmp/dupe.json" --allow-homonyms > /dev/null 2> "$tmp/err3"
+python3 "$MAP" validate "$tmp/dupe.json" --allow-homonym cccc > /dev/null 2> "$tmp/err3"
 rc3=$?
 set -e
 [[ "$rc3" -ne 0 ]] || fail "validate accepted a duplicate uid within one repo"
