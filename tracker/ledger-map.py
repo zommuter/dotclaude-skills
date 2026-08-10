@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+from typing import NoReturn
 
 SCHEMA_VERSION = "1.0.0"
 
@@ -114,7 +115,11 @@ LEDGER_FILES = [
 ]
 
 
-def die(msg: str, code: int = 2) -> None:
+def die(msg: str, code: int = 2) -> NoReturn:
+    # NoReturn, not None: this function ALWAYS raises. Annotating it `-> None` made every
+    # `except: die(...)` block look like it could fall through, so a type-checker reported
+    # a false "possibly unbound" on any name bound in the corresponding `try` (e.g. `lines`
+    # in collect_allowed_homonyms). Verified false positive — the body has no return path.
     print("ERROR: %s" % msg, file=sys.stderr)
     raise SystemExit(code)
 

@@ -378,6 +378,7 @@ Two gaps are **named, not silently worked around**:
 
 `schema_version` stays **1.0.0**: §5 bumps on a change to a *required* key or an *enum*,
 and this adds only optional properties to a `$defs/repo` that already required `verdict`.
+
 ## 8. The adapters (`id:90f2`)
 
 | Path | What |
@@ -391,7 +392,7 @@ and no test invokes them (`tests/test_tracker_adapter_equivalence.sh` asserts th
 property with sockets disabled). Both adapters read credentials **by injection from the
 environment only** — a literal-credential grep is part of the test.
 
-### 7.1 What "equivalent item graphs" means
+### 8.1 What "equivalent item graphs" means
 
 The item graph each adapter is compared on is **recovered from that adapter's own emitted
 target payloads**, never re-derived from the source document — otherwise both sides would
@@ -400,7 +401,7 @@ merely echo the input and the comparison would be vacuous. Nodes carry `uid`, `t
 edges carry the canonical kinds `parent` / `child` / `blocked_by` / `link`, with the
 dangling flag. The contract is asserted on all three fixture documents.
 
-### 7.2 The `id:857d` per-view gate — binding, not advisory
+### 8.2 The `id:857d` per-view gate — binding, not advisory
 
 Each adapter **must carry the `todo`/`roadmap`/`review` triple into its target**, plus a
 visible drift marker. An adapter that reads only `derived_status` and renders one column
@@ -415,7 +416,7 @@ half-edited board is loud rather than quietly wrong. The marker is bracketed **p
 text, not an HTML comment**: both targets sanitise rich text, and a stripped comment would
 silently delete the carrier.
 
-### 7.3 Live verification status
+### 8.3 Live verification status
 
 | Target | Status |
 |---|---|
