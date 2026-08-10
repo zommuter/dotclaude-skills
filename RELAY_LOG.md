@@ -4759,3 +4759,7 @@ so no behaviour-preserving rewrite of existing code happened and none is claimed
 ## 2026-08-10 22:32 — reviewer (claude-opus-5)
 
 hard-execute batch: id:ca24 allow-list, id:94ce fleet importer, id:c17d repo entities, id:90f2 adapters (partial); cross-child flag-name defect fixed at integrate (367 pass/0 fail)
+
+## 2026-08-10 23:04 — reviewer (claude-opus-5)
+
+review: tracker batch accept-with-fixes — dead plural fallbacks removed, too-tolerant test pinned, id:857d gate vacuity closed, SCHEMA subsection renumber completed (367 pass/0 fail)
