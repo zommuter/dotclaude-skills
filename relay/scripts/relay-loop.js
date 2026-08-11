@@ -1408,6 +1408,8 @@ if (prelude && Array.isArray(prelude.repos)) {
     } else changed.push(r)
   }
   if (reusedUnits.length || reusedIdle.length) log(`relay-loop: discovery cache reused ${reusedUnits.length} verdict(s) + ${reusedIdle.length} idle (id:c3a6/c855) of ${ownRepos.length}; re-classifying ${changed.length}`)
+  // id:e87d — repos served from the discovery cache this round (verdict event cached:true below).
+  const reusedRepoSet = new Set([...reusedUnits.map(u => u.repo), ...reusedIdle.map(r => r.repo)])
   const SHARDS = Math.max(1, Math.min(DISCOVER_SHARDS, changed.length || 1))
   // round-robin chunk so shards are balanced regardless of repo order; only CHANGED repos are sharded.
   // id:4860 — carry each repo's LIVE sig (sigByRepo) into the chunk JSON so the runner can
@@ -1654,7 +1656,16 @@ if (prelude && Array.isArray(prelude.repos)) {
   // (run relay-20260716-125514-23493: 38 phantom entries buried 2 real handbacks); and (2) its
   // splice could delete an idle unit the Fable elevation still needed, silently dropping the
   // optional recheck after 3 rounds. See the breaker at its new home below.
-  if (shardOk) discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
+  if (shardOk) {
+    // id:e87d — per-repo-per-round verdict event (seam 3 of id:c7dc): every own-repo appears
+    // exactly once across units/surfaced/skipped this round (id:8c85 accounting invariant), so
+    // one pushEvent('verdict', …) per entry across all three buckets covers every repo exactly
+    // once — INCLUDING cache-reused repos (cached:true via reusedRepoSet, id:c3a6).
+    for (const u of units) pushEvent('verdict', { repo: u.repo, round: round, verdict: u.verdict || '', priority_rank: u.priority_rank || 0, reason: u.reason || '', sig: u.sig || sigByRepo[u.repo] || '', cached: reusedRepoSet.has(u.repo) })
+    for (const s of surfaced) pushEvent('verdict', { repo: s.repo, round: round, verdict: s.verdict || '', priority_rank: s.priority_rank || 0, reason: s.reason || '', sig: sigByRepo[s.repo] || '', cached: reusedRepoSet.has(s.repo) })
+    for (const s of skipped) pushEvent('verdict', { repo: s.repo, round: round, verdict: s.verdict || '', priority_rank: s.priority_rank || 0, reason: s.reason || '', sig: sigByRepo[s.repo] || '', cached: reusedRepoSet.has(s.repo) })
+    discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
+  }
   else log('relay-loop: all discovery shards failed this round (network outage?) — round fails, completed work preserved')
 }
 
