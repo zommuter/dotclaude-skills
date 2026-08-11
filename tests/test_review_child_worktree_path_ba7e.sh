@@ -51,6 +51,17 @@ else
   pass "every surviving unit.path prompt splice carries an explicit justification (${#prompt_hits[@]} site(s))"
 fi
 
+# ── ADDED at ba7e's fix (strengthening only — nothing above was relaxed) ─────────────────
+# The resolution was NOT "documented exception": the review child's only use of the path was
+# `append.sh new-ids N <root>`, whose root is a READ-ONLY collision scan over
+# docs/meeting-notes + TODO.md + TODO.archive.md + ROADMAP.md (meeting/append.sh scan_ids).
+# Every one of those files exists in the provisioned worktree, and the worktree additionally
+# sees ids the child itself just minted — so it is a strict SUPERSET of the main checkout's
+# collision set, not a compromise. Pin that the instruction now points at the worktree.
+grep -q "append.sh new-ids N ' + wt + '" "$JS" \
+  || fail "the review child's new-ids root is no longer the provisioned worktree — id:34b7 part 3 regressed"
+pass "the review child mints ids against its own worktree, never the main checkout"
+
 # The execute-side guarantee id:34b7 established must NOT regress while fixing the review side.
 grep -q 'main checkout: ${unit.path}' "$JS" \
   && fail "the 'main checkout: \${unit.path}' literal is back in a prompt — id:34b7's core guarantee regressed"

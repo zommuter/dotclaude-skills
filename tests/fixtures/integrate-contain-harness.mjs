@@ -75,6 +75,10 @@ globalThis.agent = async (prompt, opts = {}) => {
       skippedConfig: [], liveClaimRepos: [], injectedUnits: [], signatures: [], stopRequested: false,
     }
   }
+  // id:66d9 — the pre-dispatch provisioning hop now fails CLOSED on a POSITIVE token, so the
+  // stub must answer as the real provision-worktree.sh does (`PROVISION-OK <path>`). Without
+  // it the loop correctly declines to dispatch and the integrator is never reached.
+  if ((opts.label || '').startsWith('provision:')) return 'PROVISION-OK /tmp/relay-harness/wt-alpha'
   if (props.exitCode) return { exitCode: 0, buckets: [{ bucket: 'seven_day', pctRemaining: 95, resetTime: '2026-07-14T12:00:00Z' }] }
   // The execute child (REPORT_SCHEMA has contract_met) → succeeds so integration is attempted.
   if ('contract_met' in props) {
