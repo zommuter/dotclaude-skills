@@ -26,6 +26,7 @@
 - classify-repo.sh --emit unit now passes priority_rank+evidence through from classify-verdict.sh (id:258d), first of three id:c7dc seams (id:258d)
 - review: id:6217 decision-gate CONFIRMED warranted (2 blockers, gate_reason named 1 — surfaced both); fixed id:c7dc auto-split placeholder deps (id:0eb0); suite 380/0/4-red; routine_open=3 (id:6217,37f2,e87d,0eb0)
 - id:34b7 — parent creates+provisions the worktree before dispatch (git worktree add + node_modules/.venv symlinks via new provision-worktree.sh), and the child prompt no longer carries the main-checkout path; suite 381/0/3-expected-red (id:34b7)
+- discover-repo.sh carries verdict/priority_rank on blocked/AMBIGUOUS/idle/substitutive no-unit paths (id:37f2, seam 1 of id:c7dc) (id:37f2)
 
 ## 2026-08-10
 
