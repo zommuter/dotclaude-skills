@@ -3672,3 +3672,31 @@ true of the two collectors that dispatch nothing and false of every collector th
   - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_relay_status_accounting_8c85.sh` passes and `make test` is fully green.
   - **Shared-predicate note for the `id:eb63` pass (design guidance, NOT work for this item).** `8c85` and `eb63(b)` are siblings in motivation — "the pool did something non-obvious and recorded nothing" (id:4347) — but they are different assertion SHAPES. `8c85` is *partition completeness over an enumerated universe*: every own repo lands in exactly one bucket. `eb63(b)` is *record fidelity for one unit*: the id the pool announced at dispatch must equal the id the child worked, or an explicit substitution must be recorded. They can and should share a **generic core** — `assertCompleteAccounting(universe, buckets, {label, id}) → {ok, missing, duplicated, message}` — with `8c85` instantiating it over `ownRepos` × the five RELAY_STATUS sections and `eb63(b)` over `named item ids` × `{worked, substituted-away, deferred}`. They should NOT be one invariant INSTANCE: the universes and granularities differ, and eb63(b) additionally needs the substitution EVENT emitted, which is not an accounting concern at all. Build `status-accounting.mjs` so `assertStatusAccounting` is a THIN wrapper over that generic core; the tests here assert the wrapper's behaviour, not its internals, so factoring the core out during the eb63 pass requires no test change.
   - **Out of scope**: `id:eb63` — implement neither the DONE-but-unticked ROADMAP detector nor the dispatch fall-through/substitution event here. This item is REPO-level section accounting only; eb63(b) is ITEM-level event fidelity in `relay-events.jsonl`. Also out of scope: `id:61fa` (death-cause discarded), `id:1432`, and the run-end flush (verified already correct).
+
+## Anchoring + mechanical-tier cluster — promoted from TODO 2026-07-30 (handoff C2, run handoff-manual-20260730-174310)
+Twelve open TODO items promoted with their EXISTING ids (single-id-two-views D2 — **no new
+tokens minted**). Twelve of the twenty-four `promote` rows were deliberately LEFT; the
+reasons are recorded in `RELAY_LOG.md` for this run, not here. Two themes dominate: **a
+detector or dispatcher reading a tag by unanchored substring** (id:6b1c, id:5648, id:bf19),
+and **a mechanical hop that is authored but unreachable at runtime** (id:5bbb, id:1f8e,
+id:4313).
+**Standing constraint on this whole section (owner directive 2026-07-30):
+`relay/scripts/relay-loop.js` MUST NOT be modified.** Every item below was selected
+because it can be completed without touching that file; four sibling items that cannot
+were left unpromoted for exactly this reason. If an executor finds itself editing
+`relay-loop.js` to close one of these, that is a HANDBACK, not a licence.
+- [x] [ROUTINE] **Layer A — mechanical declared-path extractor feeding `disjoint-greenlight.sh`** <!-- children-of:1f4f --> <!-- id:b099 -->
+  - **Why**: child of id:1f4f, meeting `docs/meeting-notes/2026-07-26-1922-relay-efficiency-in-repo-parallelism.md` D3. The declared path set is NOT missing — 37/39 open items in this repo carry a path-shaped token in `**Context**` / `**Tests**` / `**Wiring**` prose. So this is **EXTRACTION, not invention**. (A field-vocabulary scan for a `**Files**`/`**Touches**` heading returned 0 and was the wrong instrument — owner-corrected in-meeting.) No new authored field for now; promote to an authored `**Touches**` field only if the miss rate justifies it.
+  - **Hardening — F3, load-bearing**: an EMPTY extraction ⇒ **run-alone**, never greenlight-all. An empty set is disjoint from everything, so the naive reading turns the maximal under-extraction into the maximal parallelism. This is the single most important acceptance criterion here.
+  - **Both metrics are the deliverable, not a nicety** — log the **under-extraction rate** (extracted ⊂ actual merged diff, computable from `drain-integrate.sh`'s merge-check) AND the **false-serialization rate** (declared sets intersect but the actual diffs are disjoint). `**Context**` paths are often CITATIONS rather than touches, so over-extraction would silently destroy the throughput win; a subset-only metric measures half the evidence.
+  - **Recorded design rule (D3a), state it in the script header**: the greenlight is a THROUGHPUT OPTIMIZER; the serialized integrator is the SAFETY NET. Never relax integrate checks "because greenlight already proved disjointness".
+  - **Scope boundary**: build the extractor as a standalone script with its own test. **It is NOT wired into the engine here** — `disjoint-greenlight.sh` is itself currently unreferenced from `relay-loop.js` (`grep -c` → 0), and the wiring is id:ae08 (PROMOTED 2026-07-30 as a separate `[HARD]` item after the owner lifted the `relay-loop.js` do-not-modify directive). Do not "helpfully" wire it here — id:ae08 owns the wiring and DEPENDS on this extractor.
+  - **Acceptance**:
+    - given a fixture ROADMAP item with path tokens in `**Context**`/`**Tests**`/`**Wiring**`, the extractor emits that path set;
+    - an item with NO extractable path yields an explicit run-alone verdict, NOT an empty-set-is-disjoint greenlight — assert the verdict, not just the empty set;
+    - both rates are emitted in a machine-readable form on a fixture corpus with known ground truth;
+    - a `**Context**` citation that is demonstrably not a touch is COUNTED in the false-serialization metric rather than silently dropped;
+    - the extractor is pure-read: it writes nothing outside its own output stream.
+  - **Tests**: `tests/test_declared_path_extractor_b099.sh` (`# roadmap:b099`) — **synthetic fixtures under `mktemp -d` only**. The meeting cites a loderite corpus as evidence; do NOT read another repo at test time (hermeticity, and loderite is off-limits for this run) — copy representative shapes into fixtures instead.
+  - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_disjoint_greenlight.sh` still green unmodified, then tick and run full `make test`.
+  - **Out of scope**: wiring into `relay-loop.js` (id:ae08); the wave planner (id:1f4f); an authored `**Touches**` field; changing `disjoint-greenlight.sh`'s own contract.
