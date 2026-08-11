@@ -16,6 +16,7 @@
 - id:cc90 — bounded execute-execute rechain (K<=3): chainDepth counter replaces the one-shot rechained boolean, generalizes chaining to execute units, records the 3 pre-registered answers in-source; full suite 376/0/8-expected-red (id:cc90)
 - review: id:2047 (validate-flags --flag=value parse) verified genuinely green (manifest-driven, no overreach, suite 375/0/9-red); ticked TODO twins id:2047+b099 (archive cross-ledger drift) (id:2047,b099)
 - Closed id:e44e (.changelog.lock dirty-tree pool-blocker) as already discharged by id:798b's git-dir-relocated lock — ticked both ROADMAP.md and TODO.md checkboxes, no code change, full suite 376/0/8-expected-red unchanged. (id:e44e)
+- id:923b per-unit identity key — re-keyed worktreePathFor/branchFor/inFlight off a new unitKey(verdict,itemId,attempt) helper; full suite 377/0/7-expected-red (id:923b)
 
 ## 2026-08-10
 
