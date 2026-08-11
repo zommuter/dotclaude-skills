@@ -5142,3 +5142,7 @@ id:cc90 — bounded execute-execute rechain (K<=3): chainDepth counter replaces 
 ## 2026-08-11 16:15 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:2047 (validate-flags --flag=value parse) verified genuinely green (manifest-driven, no overreach, suite 375/0/9-red); ticked TODO twins id:2047+b099 (archive cross-ledger drift) [id:2047,b099]
+
+## 2026-08-11 16:26 — executor (sonnet, relay-loop)
+
+Closed id:e44e (.changelog.lock dirty-tree pool-blocker) as already discharged by id:798b's git-dir-relocated lock — ticked both ROADMAP.md and TODO.md checkboxes, no code change, full suite 376/0/8-expected-red unchanged. [id:e44e]
