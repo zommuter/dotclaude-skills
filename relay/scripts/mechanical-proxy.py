@@ -64,7 +64,12 @@ Env vars:
   MECH_PROXY_UPSTREAM_SCHEME  (default https; set http for a local mock upstream)
   MECH_PROXY_SHELL            (default /bin/sh)    interpreter for the mechanical command
   MECH_PROXY_TIMEOUT          (default 120)        seconds before a mechanical command is killed
+  MECH_PROXY_STATE            (default ~/.config/relay/mech-proxy-state.json)
+                              startup state file published for the currency check (id:9e48):
+                              {pid, started_at, allowlist_digest} — see mech-currency.sh
 """
+import datetime
+import hashlib
 import http.client
 import json
 import os
@@ -303,6 +308,69 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
     "worktree-retire.sh",  # id:4df8/1f8e — the force-free context-death retirement wrapper; missing here 404s retireDeadWorktree()'s model:'bash' dispatch (id:5bbb completeness-test gap, observed live run relay-20260729-142725-13077)
     "provision-worktree.sh",  # id:34b7 — pre-dispatch parent-side worktree creation + gitignored-artifact provisioning; missing here 404s provisionWorktree()'s model:'bash' dispatch
 ])
+
+
+# ── Startup state publication / currency (id:9e48) ──────────────────────────
+# Python binds ALLOWED_RELAY_SCRIPTS at IMPORT time and this module has no reload
+# path, so a long-running proxy keeps whatever set was on disk when it started. On
+# 2026-08-11 a proxy started 13:32 held a frozenset predating the 19:22 commit that
+# added provision-worktree.sh: every provision hop was refused → fail-open
+# passthrough → 404 on model "bash". Every existing guard read SOURCE (the fence
+# completeness test), or connected a TCP socket (probe-mech-proxy.sh), or mapped a
+# mode to a token (mech-preflight.sh) — none could observe the LIVE process's
+# in-memory set, so all three reported healthy for the whole incident.
+#
+# The fix is to publish what THIS process actually loaded, so an outside checker can
+# compare it against the current source: at startup we write {pid, started_at,
+# allowlist_digest} to MECH_PROXY_STATE. mech-currency.sh recomputes the digest by
+# importing this module (calling allowlist_digest() below — deliberately ONE
+# implementation of the predicate; a second one would drift and re-open this class
+# of bug) and reports STALE on a mismatch, a dead pid, or NO state file at all.
+#
+# ABSENCE MUST READ AS STALE, never healthy: the exact process this detects predates
+# the feature and therefore wrote no state file — fail-closed on the unknown.
+STATE_FILE = os.path.expanduser(
+    os.environ.get("MECH_PROXY_STATE", "~/.config/relay/mech-proxy-state.json"))
+
+
+def allowlist_digest() -> str:
+    """Stable hash of the allowlist THIS module holds.
+
+    Over the SORTED entries, so set iteration order (which varies per process) can
+    never make two identical allowlists look different. Pure and side-effect-free:
+    the checker imports this module solely to call it, and importing must never
+    touch the state file it is about to inspect.
+    """
+    joined = "\n".join(sorted(ALLOWED_RELAY_SCRIPTS))
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+def write_state_file(path: str = None) -> str:
+    """Publish {pid, started_at, allowlist_digest} for the currency check.
+
+    Best-effort: a proxy that cannot write its state file still serves traffic (the
+    checker then reports STALE, which is the correct fail-closed reading of "I cannot
+    tell what this process loaded"). Called from main() ONLY — never at import.
+    """
+    path = path or STATE_FILE
+    state = {
+        "pid": os.getpid(),
+        "started_at": datetime.datetime.now().replace(microsecond=0).isoformat(),
+        "allowlist_digest": allowlist_digest(),
+        "allowlist_count": len(ALLOWED_RELAY_SCRIPTS),
+        "port": PORT,
+    }
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(state, fh, indent=2)
+            fh.write("\n")
+        os.replace(tmp, path)  # atomic — a reader never sees a half-written file
+    except OSError as exc:
+        print(f"mechanical proxy: WARNING — could not write state file {path}: {exc}",
+              flush=True)
+    return path
 
 # id:33b2 / id:a05c option B — the OPT-IN stdin channel allowlist. A ```relay-mech-stdin
 # fence (a payload piped to a child's stdin) is honoured ONLY when the command's pinned
@@ -863,11 +931,14 @@ def main():
     # promptly, before serve_forever() blocks. No-op if NOTIFY_SOCKET is unset.
     _sd_notify("READY=1")
     _start_sd_watchdog()
+    state_path = write_state_file()
     print(f"mechanical proxy on http://127.0.0.1:{PORT} "
           f"→ {UPSTREAM_SCHEME}://{UPSTREAM_HOST}:{UPSTREAM_PORT}", flush=True)
     print(f"  model=='{MECH_MODEL}' → run locally (zero upstream calls); else relay",
           flush=True)
     print(f"Log: {LOG_FILE}", flush=True)
+    print(f"State: {state_path} (allowlist digest {allowlist_digest()[:12]}… — "
+          f"check with mech-currency.sh --currency)", flush=True)
     print(f"To use: ANTHROPIC_BASE_URL=http://127.0.0.1:{PORT} <driver>", flush=True)
     print("Ctrl-C to stop.", flush=True)
     try:

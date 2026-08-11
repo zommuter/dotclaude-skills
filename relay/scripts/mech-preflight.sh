@@ -35,6 +35,16 @@
 #                MECH_PROXY_PORT.
 #
 # Hermetic: no writes, no cache, no ~/.claude touches — a thin decision layer over the probe.
+#
+# SCOPE LIMIT — this preflight cannot see a STALE proxy (roadmap:9e48). Its verdict is derived
+# from the discriminator, which is a pure TCP connect: a proxy that is up and reachable reports
+# `healthy`/`proceed` even when the allowlist it bound at import predates the source on disk, in
+# which case every hop for a newly-added script is refused and falls open to a 404. That
+# in-memory-vs-source currency question is answered by the sibling `mech-currency.sh --currency`
+# (exit non-zero ⇒ STALE), which is deliberately a SEPARATE, explicitly-invoked check rather than
+# a step of `preflight`: this script's contract is one token on stdout for the run's model
+# routing, whereas currency is an operator/observability signal, and turning it into an automatic
+# launch refusal is id:540f/id:c179 (owner-gated, gated-on:b0b1). Report, do not refuse.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
