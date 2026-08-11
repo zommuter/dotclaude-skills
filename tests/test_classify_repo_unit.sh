@@ -77,10 +77,21 @@ pass "(1) default classify-repo.sh output is unchanged (evidence+ambiguous+verdi
 unit="$("$CR" --emit unit --repo repo_a --path "$R")"
 for k in repo path verdict reason lastCkpt income hasRoutine openHard standin \
          is_finished top_intensive substantive_unaudited work_sig open_hard_pool \
-         strongRecheckPending intensive actionable_routine_open; do
+         strongRecheckPending intensive actionable_routine_open priority_rank evidence; do
   printf '%s' "$unit" | has_key "$k" || fail "(2) --emit unit missing required field: $k (unit=$unit)"
 done
-pass "(2) --emit unit emits every DISCOVER_SCHEMA unit field (+ actionable_routine_open, id:188c)"
+pass "(2) --emit unit emits every DISCOVER_SCHEMA unit field (+ actionable_routine_open, id:188c; + priority_rank/evidence, id:258d)"
+
+# === (2b) priority_rank/evidence passthrough is 1:1 with classify-verdict.sh's verdict.json ==
+# (id:258d) — the same repo, run through classify-verdict.sh directly (default mode, which
+# already folds classify-verdict's object through unchanged per (1) above) must agree
+# byte-for-byte on both fields with the --emit unit output.
+[[ "$(printf '%s' "$unit" | field priority_rank)" == "$(printf '%s' "$def_out" | field priority_rank)" ]] \
+  || fail "(2b) --emit unit priority_rank disagrees with default classify-repo.sh priority_rank"
+unit_evidence="$(printf '%s' "$unit" | python3 -c 'import sys,json; print(json.dumps(json.load(sys.stdin)["evidence"], sort_keys=True))')"
+def_evidence="$(printf '%s' "$def_out" | python3 -c 'import sys,json; print(json.dumps(json.load(sys.stdin)["evidence"], sort_keys=True))')"
+[[ "$unit_evidence" == "$def_evidence" ]] || fail "(2b) --emit unit evidence disagrees with default classify-repo.sh evidence"
+pass "(2b) priority_rank/evidence passthrough matches classify-verdict.sh's verdict.json 1:1"
 
 # === (3) field derivations ================================================================
 [[ "$(printf '%s' "$unit" | field repo)"    == "repo_a" ]] || fail "(3) repo != repo_a"

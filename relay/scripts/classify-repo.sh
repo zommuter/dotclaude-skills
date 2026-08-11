@@ -418,6 +418,11 @@ unit = {
     "verdict": v.get("verdict", ""),
     "reason": v.get("reason", ""),
     "intensive": v.get("intensive", ""),
+    # id:258d — passthrough from classify-verdict.sh's verdict.json (already produces both,
+    # verbatim, for every verdict branch). Schema-safe extra fields, same treatment as
+    # actionable_routine_open above.
+    "priority_rank": v.get("priority_rank", 0),
+    "evidence": v.get("evidence", []),
     "lastCkpt": base.get("latest_ckpt", "") or "",
     "income": income,
     "hasRoutine": bool(base.get("hasRoutine", False)),
