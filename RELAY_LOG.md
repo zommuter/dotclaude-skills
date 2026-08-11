@@ -5295,3 +5295,7 @@ against exactly this; worth remembering for anyone editing that fold again.
 refactor: none needed — additive field changes to two existing routing branches ({blocked,
 AMBIGUOUS, idle} dict literals and the substitutive-path list comprehension), no new
 duplication introduced.
+
+## 2026-08-11 19:34 — executor (sonnet, relay-loop)
+
+discover-repo.sh carries verdict/priority_rank on blocked/AMBIGUOUS/idle/substitutive no-unit paths (id:37f2, seam 1 of id:c7dc) [id:37f2]
