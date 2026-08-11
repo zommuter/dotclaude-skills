@@ -296,8 +296,15 @@ if [[ -n "$tags" ]]; then
   while IFS= read -r t; do
     [[ -z "$t" ]] && continue
     lbl="$(git -C "$path" tag -l --format='%(contents)' "$t" 2>/dev/null | awk 'NF{l=$0} END{print l}')"
+    # id:ecce — an `integrate (<model>)` label carries a full claude-* id (just like a real
+    # review) but performs NO audit, so it must NOT match here even though it would satisfy
+    # the ckpt-tag.sh model-id test; ckpt-tag.sh itself never syncs last_strong_ckpt for it
+    # (the two consumers must agree on which prefixes are strong). Split into explicit cases
+    # rather than one alternation so the integrate exclusion is visible, not merely absent.
     case "$lbl" in
-      reviewer*|strong-execute*) newest_strong="$t"; break ;;
+      reviewer*) newest_strong="$t"; break ;;
+      strong-execute*) newest_strong="$t"; break ;;
+      integrate*) : ;;  # never strong — falls through, scan continues to older tags
     esac
   done < <(printf '%s\n' "$tags" | tac)
 fi

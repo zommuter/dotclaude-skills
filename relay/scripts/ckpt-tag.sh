@@ -110,6 +110,18 @@ $label" ${tag_commit:+"$tag_commit"}
   if [[ -f "$cfg/relay.toml" ]] && grep -qxF "[repos.$name]" "$cfg/relay.toml"; then
     "$sw" toml-set "$name" last_ckpt "\"$tag\"" >&2 \
       || echo "ckpt-tag.sh: WARNING: relay.toml last_ckpt sync failed for $name (tag $tag stands)" >&2
+    # id:ecce — an INTEGRATE checkpoint (`-l "integrate (<model>)"`) must NEVER advance the
+    # strong-audit watermark, even though its label DOES carry a full `claude-*` model id
+    # (unlike `executor (sonnet, relay-loop)`/`reconcile (auto/human)`, which are caught by
+    # the empty-model branch below). An integrate verifies contract_met and merges, but runs
+    # no test-integrity audit, no spec-drift check, no roadmap re-derivation — advancing
+    # last_strong_ckpt for it would mark unreviewed work AUDITED (the exact hole observed
+    # 2026-07-31: three integrate checkpoints left a 42-commit unreviewed window reading as
+    # 0 commits to `/relay review`). So this role-prefix check runs BEFORE model detection,
+    # not folded into the "no model id" case.
+    if [[ "$label" == integrate* ]]; then
+      echo "ckpt-tag.sh: note: label '$label' is a non-strong role (integrate) — strong-watermark sync skipped by design for $name (an integrate performs no audit)." >&2
+    else
     # Strong-model detection requires a FULL `claude-*` id in the label (e.g.
     # `reviewer (claude-opus-5)`); a bare tier name like `reviewer (opus)` does NOT match.
     # id:1a34/id:c500 — the three outcomes below are each announced on stderr, because the
@@ -146,6 +158,7 @@ $label" ${tag_commit:+"$tag_commit"}
         || echo "ckpt-tag.sh: WARNING: relay.toml last_strong_ckpt sync failed for $name" >&2
       "$sw" toml-set "$name" strong_model "\"$model\"" >&2 \
         || echo "ckpt-tag.sh: WARNING: relay.toml strong_model sync failed for $name" >&2
+    fi
     fi
   else
     echo "ckpt-tag.sh: note: no [repos.$name] block in $cfg/relay.toml — watermark sync skipped (unmanaged repo)" >&2
