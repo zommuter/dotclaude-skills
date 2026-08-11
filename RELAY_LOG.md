@@ -5024,3 +5024,7 @@ constraint straightforward; no new duplication introduced.
 refactor: none needed — the change is additive (two small functions in an existing
 shared lib, one guarded call site in each consumer), no existing logic touched or
 duplicated.
+
+## 2026-08-11 15:06 — executor (sonnet, relay-loop)
+
+id:3f7e — roadmap-lint.sh + todo-conformance.sh now WARN when an open item's (DEP: id) prose has no matching typed gated-on marker (shared lib-typed-edges.sh engine, twin-consumer agreement, new test, full suite 373/0/10-expected-red green). [id:3f7e]
