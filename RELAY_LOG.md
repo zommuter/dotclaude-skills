@@ -5028,3 +5028,29 @@ duplicated.
 ## 2026-08-11 15:06 — executor (sonnet, relay-loop)
 
 id:3f7e — roadmap-lint.sh + todo-conformance.sh now WARN when an open item's (DEP: id) prose has no matching typed gated-on marker (shared lib-typed-edges.sh engine, twin-consumer agreement, new test, full suite 373/0/10-expected-red green). [id:3f7e]
+
+## 2026-08-11 — executor (sonnet)
+
+Worked id:b099 — built `relay/scripts/declared-path-extractor.sh` (`extract` +
+`eval-corpus` subcommands) feeding `disjoint-greenlight.sh`, per children-of:1f4f
+meeting D3. `extract` scans a ROADMAP item's `**Context**`/`**Tests**`/`**Wiring**`
+lines for backtick-quoted path-shaped tokens and emits a comma-joined set, or the
+explicit literal `RUN-ALONE` (never an empty string) when nothing is extractable —
+F3's load-bearing acceptance criterion, so an empty extraction can never be
+misread as an empty-set-is-disjoint greenlight. `eval-corpus` computes both
+required metrics on a fixture manifest with known ground truth: under-extraction
+(declared set fails to cover the actually-touched paths) and false-serialization
+(declared sets of a pair intersect — including a mere `**Context**` citation, not
+a real touch — but the pair's actual diffs are disjoint); both counted, not
+dropped. Registered the new script in the Makefile's `relay_FILES`/`relay_EXEC`/
+`relay_ALLOW` triplet (`test_relay_install_manifest.sh` caught the initial miss).
+Shipped a purity test on the shared `assert-repo-unchanged.sh` helper per the
+executor contract's purity-test-as-contract rule, since the script documents
+itself as pure-read. Standalone and untested against the engine by design — not
+wired into `relay-loop.js` (that is id:ae08, which depends on this).
+Friction: none — the extraction heuristic (require `/` in the backtick token,
+exclude tokens containing whitespace/`:`/quote chars) needed one iteration to
+correctly exclude non-path citations like `` `model:'bash'` `` while keeping real
+paths; verified with an explicit fixture case.
+refactor: none needed — new standalone script + test, no existing logic touched
+or duplicated.
