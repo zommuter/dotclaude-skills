@@ -5108,3 +5108,7 @@ editing"), which matched what I found.
 refactor: none needed — the change replaces one gating expression with an equivalent-shape wider
 one and adds a small local constant; no new duplication introduced.
 Full suite: 376 passed, 0 failed, 8 expected-red (open roadmap items). [id:cc90]
+
+## 2026-08-11 16:01 — executor (sonnet, relay-loop)
+
+id:cc90 — bounded execute-execute rechain (K<=3): chainDepth counter replaces the one-shot rechained boolean, generalizes chaining to execute units, records the 3 pre-registered answers in-source; full suite 376/0/8-expected-red [id:cc90]
