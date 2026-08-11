@@ -501,6 +501,20 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
     done
   fi
 
+  # Rule 3(e) DEP-PROSE-UNTYPED (id:3f7e): a `(DEP: <id>)` prose gate-annotation
+  # that has no matching typed `<!-- gated-on:id -->` marker is INVISIBLE to
+  # classify-repo.sh (which correctly never reads prose as a gate, id:65f5/4da4/
+  # 0d58) — so the item gets dispatched as ready when the author believed it was
+  # blocked. WARN, not ERROR (id:3f7e's own ruling — the existing backlog carries
+  # this prose already; an ERROR would LOUD-reject it on day one). Never escalates
+  # under --strict; the escalation, if ever, is a separate owner call.
+  _dp_csv="$(typed_edges_dep_prose_untyped_of_line "$line")"
+  if [[ -n "$_dp_csv" ]]; then
+    _dp_id="$(item_id "$line")"
+    echo "roadmap-lint: WARN — DEP-PROSE-UNTYPED: open item ${_dp_id:-<no id>} carries \"(DEP: …)\" prose naming id(s) ${_dp_csv} with no matching <!-- gated-on:${_dp_csv} --> marker — retype it as a typed gate (id:3f7e)" >&2
+    echo "  $line" >&2
+  fi
+
   # --- semantic checks (case c / case d) — only when a recognised class tag is present -----
   if [[ "$has_class" -eq 1 ]]; then
     # Case (c): tag/prose lane DISAGREEMENT — an item must carry exactly ONE recognised
