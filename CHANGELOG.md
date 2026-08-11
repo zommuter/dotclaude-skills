@@ -13,6 +13,7 @@
 - id:b099 — built relay/scripts/declared-path-extractor.sh (extract + eval-corpus) feeding disjoint-greenlight.sh, with test_declared_path_extractor_b099.sh; full suite 374/0/10-expected-red green (id:b099)
 - review: id:3f7e verified genuinely green (DEP-prose-untyped lint, twin-consumer, 373/0/10-red); ticked TODO twin; inbox batch left for C2 triage (id:3f7e)
 - Fixed validate-flags.sh to parse --flag=value for arity-1 flags (id:2047), closing the silent quota-cap-loosening hazard; full suite 375/0/9-expected-red green. (id:2047)
+- id:cc90 — bounded execute-execute rechain (K<=3): chainDepth counter replaces the one-shot rechained boolean, generalizes chaining to execute units, records the 3 pre-registered answers in-source; full suite 376/0/8-expected-red (id:cc90)
 
 ## 2026-08-10
 
