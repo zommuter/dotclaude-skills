@@ -1097,6 +1097,23 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       **id:ac8a** (disjoint-greenlight exact-string disjointness is fail-OPEN on subpath
       overlaps). `provision-worktree.sh`/`drain-integrate.sh` otherwise clean. Windows before
       Run 70 remain uncertified. See `docs/meeting-notes/2026-08-11-2039-strong-model-audit.md`.
+    - Run 71 (2026-08-11-2145): first-seen code since Run 70's audit merge (`2c989a9..HEAD`) =
+      **one feature**, the id:33b2 / id:a05c-option-B opt-in proxy stdin channel
+      (`mechanical-proxy.py` +133/−8 + `test_mech_stdin_channel_33b2.sh` +78). Ran a full 3-pass
+      adversarial audit (code / security / design-coherence) of that bounded diff — **the id:33b2
+      code is CLEAN**: payload reaches `subprocess.run(input=)` never the `-c` string (no
+      word-split/expand/subst — proven by the canary-inert test), the opt-in is genuinely
+      AND-gated with the unchanged `_command_allowed()` gate, `_last_stage_relay_script` mirrors
+      the command gate's last-stage identity, the two fences are disjoint by construction, and
+      the single admitted member (`relay-status-publish.sh`) honours the STANDING OBLIGATION
+      (`raw="$(cat)"`, never eval/source). **1 LOW forward-robustness finding filed → id:09e4**:
+      the channel silently misdirects its payload when the admitted script is a NON-leading
+      pipeline stage (`echo x | relay-status-publish.sh` — stdin goes to the shell/first stage,
+      not the admitted last stage); not attacker-reachable (bare-invoked, trusted caller), fix =
+      require single-stage when a stdin fence is present. 2 nits accepted (re-parse micro-inefficiency;
+      `Optional[str]` hint). NOT fixed inline (needs a design choice + red-green test). id:da95
+      (Run 70's watermark-starvation defect) untouched, stays open. Suite 383/0/1-xred (audit-only).
+      See `docs/meeting-notes/2026-08-11-2145-strong-model-audit.md`.
 
 - [ ] [INPUT — meeting] Sub-agent meeting simulation for main-ctx isolation <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
