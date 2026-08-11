@@ -5268,3 +5268,7 @@ guesswork.
 refactor: none needed — the new function/script mirror the existing
 releaseLease()/retireDeadWorktree() dispatch pattern exactly (same shape, same
 try/catch/log convention); no duplication introduced.
+
+## 2026-08-11 19:23 — executor (sonnet, relay-loop)
+
+id:34b7 — parent creates+provisions the worktree before dispatch (git worktree add + node_modules/.venv symlinks via new provision-worktree.sh), and the child prompt no longer carries the main-checkout path; suite 381/0/3-expected-red [id:34b7]
