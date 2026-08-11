@@ -5083,3 +5083,7 @@ Friction: none — the RED spec (`tests/test_flag_equals_value_2047.sh`) was
 already fully specified; one pass got all 14 assertions green.
 refactor: none needed — the fix is a small, localized addition to the existing
 token-classification loop; no new duplication introduced.
+
+## 2026-08-11 15:45 — executor (sonnet, relay-loop)
+
+Fixed validate-flags.sh to parse --flag=value for arity-1 flags (id:2047), closing the silent quota-cap-loosening hazard; full suite 375/0/9-expected-red green. [id:2047]
