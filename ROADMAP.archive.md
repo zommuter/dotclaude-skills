@@ -3700,3 +3700,18 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
   - **Tests**: `tests/test_declared_path_extractor_b099.sh` (`# roadmap:b099`) — **synthetic fixtures under `mktemp -d` only**. The meeting cites a loderite corpus as evidence; do NOT read another repo at test time (hermeticity, and loderite is off-limits for this run) — copy representative shapes into fixtures instead.
   - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_disjoint_greenlight.sh` still green unmodified, then tick and run full `make test`.
   - **Out of scope**: wiring into `relay-loop.js` (id:ae08); the wave planner (id:1f4f); an authored `**Touches**` field; changing `disjoint-greenlight.sh`'s own contract.
+
+- [x] [ROUTINE] **`validate-flags.sh` does not parse `--flag=value`, so an explicit quota cap is SILENTLY LOOSENED to the default** <!-- id:2047 -->
+  - **Observed live 2026-07-31**: the owner invoked `/relay --afk --quota-7d=90`; the guard printed *"unknown flag `--quota-7d=90` … warning and dropping it"* and emitted only `--afk`. `--quota-7d` IS in `known-flags-relay.tsv` (arity 1), but the runtime guard only ever compares WHOLE tokens — nothing in `validate-flags.sh` splits a token on `=`, and the arity-1 path (`:203-208`) consumes the FOLLOWING token only.
+  - **The near-miss escalation cannot catch it either**: `--quota-7d=90` is edit-distance **3** from `--quota-7d`, and `--quota-7d` is in neither `MODE_FLAGS` nor `SCOPE_FLAGS`, so `nearest_escalate_flag` returns nothing and the token warns-and-drops. Worse, the id:f475 value-swallow at `:225-229` does not fire either (the next token starts with `-` or is absent), so the failure is quiet in both directions.
+  - **The hazard is DIRECTIONAL**: dropping a cap falls back to the LOOSER `RELAY_QUOTA_THRESHOLD` default (0.90), so `--quota-7d=45` — a deliberate tightening — silently becomes 0.90 and the run burns twice the intended weekly budget. The live case was harmless only by coincidence (90 == the default).
+  - **Fix (as stated in `TODO.md` id:2047)**: split `--flag=value` into `(--flag, value)` BEFORE the known-flag lookup, for any arity-1 manifest flag. A `=` on an arity-0 flag stays an ERROR (it is not a silent drop and must not become one). Also consider adding the quota flags to `SCOPE_FLAGS`-style escalation — a dropped budget cap is a scope inversion in the same sense `--except`/`--exclude` is; if you do NOT add them, say why in the commit message.
+  - **Acceptance** (the contract the item itself names, plus its discriminating siblings):
+    - `validate-flags.sh relay -- --afk --quota-7d=45` emits `--afk --quota-7d 45` on stdout, warns NOTHING on stderr, exits 0;
+    - the same holds for other arity-1 flags — at minimum `--exclude=foo`, `--only=bar`, `--strong-tier=opus` — so the fix cannot be special-cased to `--quota-7d`;
+    - a value containing `=` survives intact (`--exclude=a=b` → `--exclude a=b`), i.e. split on the FIRST `=` only;
+    - an arity-0 flag with `=` (`--afk=1`) is an ERROR path, not a silent drop, and says so on stderr;
+    - the space-separated form (`--quota-7d 45`) and the unknown-flag / near-miss / value-swallow paths are all UNCHANGED.
+  - **Tests**: `tests/test_flag_equals_value_2047.sh` (`# roadmap:2047`) — fully behavioural, runs the real script, no git, no network.
+  - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_flag_equals_value_2047.sh` passes and `make test` is fully green.
+  - **Out of scope**: changing the manifest's TSV format; the `--coverage` mode.
