@@ -14,3 +14,11 @@ __pycache__/
 # meeting persona-state event shards (local-only, folded into persona-state.yml)
 persona-events/
 RELAY_STATUS.md
+
+# Homonym-adjudication artifacts (id:e977). tracker/homonym-worksheet.sh writes these
+# OUTSIDE any repo by default and refuses an in-repo --outdir without --force-in-repo;
+# this is the belt-and-braces for the override. They quote item TITLES from ~49 mostly
+# PRIVATE repos and this repo is PUBLIC — the script is the artifact, the output is not.
+homonym-worksheet.md
+homonym-allowlist.draft.txt
+fleet.json
