@@ -5087,3 +5087,24 @@ token-classification loop; no new duplication introduced.
 ## 2026-08-11 15:45 — executor (sonnet, relay-loop)
 
 Fixed validate-flags.sh to parse --flag=value for arity-1 flags (id:2047), closing the silent quota-cap-loosening hazard; full suite 375/0/9-expected-red green. [id:2047]
+
+## 2026-08-11 — executor (sonnet)
+
+Worked id:cc90 — replaced the one-shot `unit.rechained` boolean gate in relay-loop.js's
+review→execute chaining with a `chainDepth` counter bounded by a named `MAX_CHAIN_DEPTH = 3`
+constant, and generalized the gate to also allow execute→execute re-enqueue (previously only
+`review` units could chain). The `!rechainedSameRepo` lease-hold exception already covered the
+generalized case unchanged. Recorded all three owner-ratified pre-registration answers
+(per-chain deferred review / no reject-unwind / no disjoint-greenlight re-entry) as an in-source
+comment at the rechain site, in the same commit as the code, per amendment A2. Reworded one
+unrelated `unit.verdict === 'review' && report` gaming-flag-logger condition (operand order only,
+semantically identical) because the RED spec's global grep for that exact substring incidentally
+matched it too. Updated `tests/test_relay_loop_structure.sh` assertions (13)/(14), which encoded
+the OLD review-only/boolean-gated shape the item's acceptance criteria explicitly supersede — this
+is a spec update tracking a deliberate, owner-ratified design change, not a weakening.
+Friction: none — the RED spec (`tests/test_rechain_depth_cc90.sh`) was accurate and the ROADMAP
+item's own file/line pointers had already been corrected by its own body text ("re-verify before
+editing"), which matched what I found.
+refactor: none needed — the change replaces one gating expression with an equivalent-shape wider
+one and adds a small local constant; no new duplication introduced.
+Full suite: 376 passed, 0 failed, 8 expected-red (open roadmap items). [id:cc90]

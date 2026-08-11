@@ -2503,7 +2503,7 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     //
     // DEFERRED-FLEET SEAM: to escalate, spawn parallel() refuters over gaming_flags[] or
     // verified_green[] here; see id:2909 meeting 2026-06-15 D1 for the evidence gate.
-    if (unit.verdict === 'review' && report) {
+    if (report && unit.verdict === 'review') {
       logGamingFlags(unit.repo, state.runId, report, result.ts || state.ts)
     }
   } else {
@@ -2790,29 +2790,43 @@ async function runUnit(unit) {
     }
   }
   state.inFlight = state.inFlight.filter(r => r.repo !== unit.repo)
-  // Review→execute chaining (user directive 2026-06-13): when a REVIEW re-derives the
+  // Review→execute AND execute→execute chaining (id:cc90, L2 — bounded rechain K≤3;
+  // originally review-only per the 2026-06-13 user directive, generalized 2026-07-31
+  // owner-ratified `/relay human`): when a review OR an execute unit re-derives the
   // roadmap and open [ROUTINE] work remains, re-enqueue this repo as an execute unit in
-  // the SAME pool rather than waiting for the next pool's discovery. The live lanes pull
-  // it (the pushing lane itself re-checks `queue.length` after this returns, so it's
-  // never lost even as the last unit). Only reviews chain — an execute never re-enqueues,
-  // so there's no intra-pool ping-pong.
-  // FALSE-PREMISE CORRECTED (id:8123, 2026-07-31): this comment used to claim that an execute's
+  // the SAME pool rather than waiting for the next pool's discovery, bounded by a DEPTH
+  // COUNTER (not a one-shot boolean) so a repo with several open items drains in one
+  // round instead of one item per round. The live lanes pull it (the pushing lane itself
+  // re-checks `queue.length` after this returns, so it's never lost even as the last unit).
+  // FALSE-PREMISE CORRECTED (id:8123, 2026-07-31): a comment here used to claim that an execute's
   // commits get reviewed by the next pool. That was NOT true. classify-verdict.sh's cascade is a strict
   // elif chain, so `review` was UNREACHABLE while a single actionable [ROUTINE] item stayed open —
   // an execute's commits were never reviewed at all (16 unaudited executor checkpoints piled up on
   // one repo in a single day; a human had to intervene twice). The chain-end classifier RE-ASK
-  // below is what actually gets those commits audited.
+  // below is what actually gets those commits audited, now that chains can run longer.
   // MAX_UNITS / quotaStopped still gate actual dispatch in the lane loop.
+  //
+  // id:cc90 pre-registration (amendment A2 / --fabled F1) — recorded in the SAME commit as the
+  // code that implements it, per the owner-ratified 2026-07-31 `/relay human` decision:
+  //   (a) review scope under chaining = PER-CHAIN, deferred: a chained execute is NOT reviewed
+  //       mid-chain; the whole chain's commits are audited by the id:8123 chain-end classifier
+  //       RE-ASK below (NOT a `chainDepth === K` trigger — that premise was false, see id:8123).
+  //   (b) reject-unwind at depth K = NO UNWIND: a reject at depth K does not unwind units already
+  //       integrated at lower depths in the chain. Integrated is integrated.
+  //   (c) a chained member does NOT re-enter the disjoint greenlight (`disjoint-greenlight.sh`):
+  //       it stays dependent on its predecessor in its own serial lane, never a parallel-wave member.
+  const MAX_CHAIN_DEPTH = 3 // id:cc90 — K: named constant, not a magic literal at the gate below
   let rechainedSameRepo = false
-  if (unit.verdict === 'review' && report && report.contract_met &&
-      (report.routine_open || 0) > 0 && !quotaStopped && !unit.rechained) {
+  if ((unit.verdict === 'review' || unit.verdict === 'execute') && report && report.contract_met &&
+      (report.routine_open || 0) > 0 && !quotaStopped && (unit.chainDepth || 0) < MAX_CHAIN_DEPTH) {
+    const chainDepth = (unit.chainDepth || 0) + 1
     queue.push({
       repo: unit.repo, path: unit.path, verdict: 'execute',
-      reason: `post-review re-enqueue: ${report.routine_open} open [ROUTINE] item(s)`,
-      lastCkpt: unit.lastCkpt, income: unit.income, rechained: true,
+      reason: `post-${unit.verdict} re-enqueue: ${report.routine_open} open [ROUTINE] item(s)`,
+      lastCkpt: unit.lastCkpt, income: unit.income, chainDepth,
     })
     rechainedSameRepo = true
-    log(`relay-loop: review→execute re-enqueue ${unit.repo} (${report.routine_open} open [ROUTINE])`)
+    log(`relay-loop: ${unit.verdict}→execute re-enqueue ${unit.repo} (${report.routine_open} open [ROUTINE], chainDepth ${chainDepth}/${MAX_CHAIN_DEPTH})`)
   }
   // ── id:8123 — CHAIN-END CLASSIFIER RE-ASK ──────────────────────────────────────────────
   // The chain for this repo has ENDED whenever we did not just re-chain it: normal completion,
