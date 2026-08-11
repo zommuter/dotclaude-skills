@@ -30,6 +30,7 @@
 - chain-end review: id:34b7 (parent provisions worktree pre-dispatch) + id:37f2 (discover no-unit verdict/rank) verified GREEN, non-gamed; suite 381/0/3-xred; ticked TODO twin id:34b7 (D2); e87d now ungated (id:34b7,37f2)
 - closed [ROUTINE] id:e87d — relay-loop.js emits pushEvent('verdict', {repo,round,verdict,priority_rank,reason,sig,cached}) once per repo per round (units+surfaced+skipped, including cache-reused repos); suite 382/0/2-expected-red (id:e87d)
 - reviewed id:e87d closure (relay-loop.js verdict-event emission): gaming-scan clean, pristine RED spec byte-identical+green, suite 382/0/2-xred; closed @container id:c7dc (all 3 seams landed) + ticked TODO twin (D2); routine_open=0 (id:e87d,c7dc)
+- closed [HARD — pool] id:e62c — F2 finding branch (1) verdict; threaded rationale correction into id:6b35+id:51f0; suite 382/0/2-xred (id:e62c)
 
 ## 2026-08-10
 
