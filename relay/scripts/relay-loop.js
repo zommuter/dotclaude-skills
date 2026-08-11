@@ -787,10 +787,15 @@ const SHARD_SCHEMA = {
 //             exit 3 stderr "REASON=quota-extrapolated-stop bucket=<bucket>". Empty otherwise.
 //   buckets: no longer available — quota-stop.sh emits no per-bucket JSON on stdout, so state.quota
 //            is simply not refreshed from this hop (crossedBucket now names the culprit directly).
-function parseQuotaMechResult(raw) {
+function parseQuotaMechResult(raw, tier) {
   const text = (raw == null) ? '' : String(raw)
   const m = text.match(/^MECH-ERROR exit=(\d+)/)
   if (!m) return { exitCode: 0, crossedBucket: '', buckets: [] }
+  // id:a104 — MECH-ERROR is how the mechanical proxy conveys ANY non-zero exit (real quota
+  // exhaustion included), so this is a hop-visibility record, not a judgment that the exit was
+  // unexpected — quotaGate() below still handles the exit code exactly as before (fail-soft
+  // preserved, no change to the returned shape).
+  recordAgentFailure(`quota:${tier || '-'}`, '-', 'Quota', text)
   const exitCode = Number(m[1])
   const ex = text.match(/REASON=quota-extrapolated-stop\s+bucket=(\S+)/)   // exit 3
   const th = text.match(/quota-stop:\s*([A-Za-z0-9_]+)=[\d.]+%\s*>=\s*threshold/)  // exit 1
@@ -901,6 +906,10 @@ function parseInjectTake(raw, ownRepos) {
   // rather than a genuinely empty string (mechanical-proxy.py _run_mechanical); check for it
   // explicitly so this never depends on the JSON.parse-per-line loop below happening to fail
   // closed on the sentinel text.
+  // id:a104 — only the genuine failure sentinel is worth recording; an empty take or the
+  // legitimate MECH-OK "nothing pending" result is normal quiet operation, not a hop failure
+  // (recording those would cry-wolf every round the injection queue happens to be empty).
+  if (/^MECH-ERROR/.test(text)) recordAgentFailure('inject-take', '-', 'Support', text)
   if (!text.trim() || /^MECH-ERROR/.test(text) || /^MECH-OK\b/.test(text)) return []
   const units = []
   for (const line of text.split('\n')) {
@@ -945,10 +954,17 @@ function parseInjectTake(raw, ownRepos) {
 function parsePrelude(raw) {
   if (raw && typeof raw === 'object') return raw
   const text = (raw == null) ? '' : String(raw)
+  // id:a104 — record the genuine failure sentinel (MECH-ERROR); an empty/MECH-OK return is the
+  // legitimate "nothing to say" shape (agent() stub, or a quiet mechanical exit) and not a hop
+  // failure — recording it would cry-wolf every ordinary round.
+  if (/^MECH-ERROR/.test(text)) recordAgentFailure('discover-prelude', '-', 'Discover', text)
   if (!text.trim() || /^MECH-ERROR/.test(text) || /^MECH-OK\b/.test(text)) return null
   try { return JSON.parse(text) } catch (_) {
     const m = text.match(/\{[\s\S]*\}/)   // defensive: grab the first {...} block if wrapped in stray lines
     if (m) { try { return JSON.parse(m[0]) } catch (_) { /* fall through */ } }
+    // id:a104 — genuinely unparseable body (not a MECH-ERROR/MECH-OK sentinel, just bad JSON)
+    // is the other named failure mode for this hop; record it too before falling back to null.
+    recordAgentFailure('discover-prelude', '-', 'Discover', `unparseable prelude body: ${text.slice(0, 200)}`)
     return null
   }
 }
@@ -2279,7 +2295,7 @@ ${runIdEnv}${thresholdEnv}~/.claude/skills/relay/scripts/quota-stop.sh --tier ${
 \`\`\``,
     { label: `quota:${tier}`, phase: 'Quota', model: MECH_MODEL }
   )
-  const v = parseQuotaMechResult(raw)
+  const v = parseQuotaMechResult(raw, tier)
   if (v && v.buckets && v.buckets.length) state.quota = v.buckets
   // id:8c35 — distinguish exit codes instead of collapsing both to quotaStopped:
   //   exit 0 → proceed
