@@ -3758,3 +3758,19 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
   - **Tests**: `tests/test_unit_identity_key_923b.sh` (`# roadmap:923b`) — source-shape assertions plus, where a helper is extracted, a directly-callable purity test of the key function. Triangulate with several unit shapes (two ids, same id different attempt, an id-less review unit). Include `node --check` + the template linter.
   - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_relay_stale_worktree_reap.sh tests/test_context_death_parks_worktree_4df8.sh tests/test_worktree_retire.sh` still green unmodified, then tick and run full `make test`.
   - **Out of scope**: the mode-blind lease REDESIGN (explicitly out of scope per id:1f4f D1); actually fanning out (id:ae08); id:1b1a's md-merge fix.
+
+- [x] [ROUTINE] **`open_hard_pool` counts `@container` epics, so a fully-decomposed repo draws a PHANTOM `hard` verdict forever** (ADOPTS `routed:d866` — loderite filed the identical finding from the same run) <!-- routed:d866 --> <!-- id:d808 -->
+  - **Mechanism, verified in code**: `gather-repo-state.sh`'s `open_hard_pool` loop (`~:408-421`) counts every open `- [ ]` line whose primary lane resolves to the pool lane and which lacks `🚧` / `BLOCKED on` / `blocked on`. `@container` is **not** in that filter, so a decomposed epic counts as a dispatchable leaf.
+  - **Live consequence (2026-07-31, run `relay-20260731-221039-22914`)**: loderite's two container epics (`id:16b2` portal-impl, `id:ca44` portal-wiring — the latter explicitly "confirmed a MULTI-SESSION epic") are counted as dispatchable. Every descendant is already `[x]`, decision-gated, or a sequenced-gated `[ROUTINE]` seam, so there is **no un-gated pool-lane leaf for a HARD child to pick** — the repo keeps drawing `hard`, dispatching an apex Opus child, and handing back at zero work indefinitely. The reporting child sized out pre-start with a completely clean worktree and no ledger writes.
+  - **Second brittleness, fold it in**: `ca44` also evades the block filter by writing `BLOCKED (b225…` — the glob matches only `BLOCKED on`.
+  - **Fix**: exclude `@container` from the `open_hard_pool` count — a container is never itself pool-dispatchable; its seams are the units. This is the SAME under-dispatch-safe direction `classify-repo.sh` already applies (`id:0cf5` added `@container` to `is_human` there for exactly this reason). **The two counters simply disagree, and that disagreement IS the defect** — so state in the commit message how the two are kept in agreement going forward (shared predicate, or a parity assertion).
+  - **Cost of leaving it**: one apex-tier Opus dispatch per round per affected repo, each returning nothing.
+  - **Acceptance**:
+    - an open pool-lane ROADMAP line carrying `@container` contributes 0 to `open_hard_pool`;
+    - an otherwise identical line WITHOUT `@container` still contributes 1 (the discriminating case — a fix that zeroes the counter outright must fail);
+    - a `@container` line does not accidentally suppress an unrelated NON-container pool item in the same file;
+    - the block-glob widening: `BLOCKED (` / `BLOCKED:` / `BLOCKED —` are excluded as `BLOCKED on` already is, and the widening is CASE-insensitive exactly as the existing pair `BLOCKED on`/`blocked on` is;
+    - `classify-repo.sh` and `gather-repo-state.sh` return the same answer for a `@container` line.
+  - **Tests**: `tests/test_container_not_hard_pool_d808.sh` (`# roadmap:d808`) — behavioural against `gather-repo-state.sh` on hermetic `git init` fixtures, `RELAY_TOML`/`RELAY_WORKTREE_BASE` sandboxed (idiom: `tests/test_container_dispatch_exclusion.sh`).
+  - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_container_not_hard_pool_d808.sh` passes and `make test` is fully green.
+  - **Out of scope**: fixing loderite's ledger (cross-repo, not this repo's disposition); changing what `@container` MEANS.
