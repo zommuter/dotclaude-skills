@@ -411,6 +411,24 @@ roadmap_primary_lane() {
   printf '%s' "$best_tag"
 }
 
+# id:1022 — TYPED `<!-- gated-on:XXXX -->` edges are honoured here through the SHARED
+# id:46f6 engine (resolve-gates.sh → lib-typed-edges.sh), exactly as the routine collector
+# does (classify-repo.sh's actionable_routine_open, id:65f5) — NOT a second inline
+# gated-on parser (a second parser is the very defect class id:1022 came from, and a bare
+# substring read is the id:4da4/0d58 trap). resolve-gates.sh emits one TSV row per gated
+# item that is not a clean pass: <own-id>\t<block:0|1>\t<dangling-csv>. Only block=1 is an
+# exclusion; a DANGLING target is loud-but-not-a-block on the classifier side, so it must
+# not silently forever-block here either. FAIL-OPEN: if the resolver cannot run, the set
+# stays empty and the counter behaves exactly as before (never wrongly hides real work);
+# its stderr is deliberately NOT swallowed.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib-typed-edges.sh
+source "$SCRIPT_DIR/lib-typed-edges.sh"
+gate_blocked_ids=","
+while IFS=$'\t' read -r g_oid g_block _g_dang; do
+  [[ -n "$g_oid" && "$g_block" == "1" ]] && gate_blocked_ids+="$g_oid,"
+done < <("$SCRIPT_DIR/resolve-gates.sh" "$path" || true)
+
 open_hard_pool=0
 if [[ -n "$roadmap" ]]; then
   while IFS= read -r line; do
@@ -423,6 +441,12 @@ if [[ -n "$roadmap" ]]; then
     # "BLOCKED —") does not slip past the filter the way `BLOCKED on`/`blocked on` alone
     # did (loderite's ca44 wrote "BLOCKED (b225…"). Case-insensitive, same as the
     # existing BLOCKED on/blocked on pair.
+    # id:1022 — typed gated-on: edge pointing at a still-OPEN target (resolved above via
+    # the shared engine, keyed by the item's OWN anchored id).
+    line_own_id="$(typed_edges_own_id_of_line "$line")"
+    if [[ -n "$line_own_id" && "$gate_blocked_ids" == *",$line_own_id,"* ]]; then
+      continue
+    fi
     lower_line="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
     case "$line" in *'🚧'*) continue ;; esac
     case "$lower_line" in
