@@ -5185,3 +5185,7 @@ Worked id:d808 — `gather-repo-state.sh`'s `open_hard_pool` counter excluded no
 Friction: none — the RED spec's own comments already pointed at the exact fix (`case "$line" in *'@container'*) continue`) and pinned the parity assertion, so this was scoped tightly by the spec.
 refactor: none needed — the change is two small additive filters inside the existing `open_hard_pool` loop; no pre-existing duplication to clean up.
 Worked id:d808
+
+## 2026-08-11 17:06 — executor (sonnet, relay-loop)
+
+id:d808 — gather-repo-state.sh's open_hard_pool now excludes @container epics and matches punctuation-variant BLOCKED markers, closing the phantom hard-verdict loop; full suite 378/0/6-expected-red. [id:d808]
