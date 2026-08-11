@@ -5272,3 +5272,26 @@ try/catch/log convention); no duplication introduced.
 ## 2026-08-11 19:23 — executor (sonnet, relay-loop)
 
 id:34b7 — parent creates+provisions the worktree before dispatch (git worktree add + node_modules/.venv symlinks via new provision-worktree.sh), and the child prompt no longer carries the main-checkout path; suite 381/0/3-expected-red [id:34b7]
+
+## 2026-08-11 — executor (sonnet)
+
+Worked id:37f2 — discover-repo.sh's no-unit routing (blocked/AMBIGUOUS/idle/substitutive)
+now carries {verdict, priority_rank, reason} instead of a bare reason; the substitutive
+repo-level-block path (lines 94-101) emits an honest verdict:"" rather than omitting the
+field. discover-chunk.sh needed no code change — its fold already concatenates per-repo
+dicts verbatim, so the new fields pass through unchanged (verified via the extended test).
+Extended tests/test_discover_repo.sh with field assertions for diverged (substitutive),
+idle, and blocked cases, plus a source-shape check for the AMBIGUOUS branch (classify-
+verdict.sh never actually emits AMBIGUOUS today — dormant loud hook, no live fixture
+reaches it, so that case is source-shape-checked rather than behaviourally exercised).
+Friction: none — seam 1 (id:258d) had already landed, so unit.verdict/priority_rank were
+already available on the classify unit; this seam was purely about propagating them into
+the three no-unit branches. Full `make test`: 381 passed, 0 failed, 3 expected-red
+(unrelated open items, including the still-open next seam id:e87d).
+Friction: an early edit introduced an apostrophe inside a single-quoted python3 -c block
+in discover-repo.sh's routing fold, which silently truncated the embedded python (caught
+immediately by `bash -n`, not a test) — the file's own in-line NOTE at line 165 warns
+against exactly this; worth remembering for anyone editing that fold again.
+refactor: none needed — additive field changes to two existing routing branches ({blocked,
+AMBIGUOUS, idle} dict literals and the substitutive-path list comprehension), no new
+duplication introduced.
