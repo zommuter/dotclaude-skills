@@ -408,6 +408,28 @@ if [[ "$target" == "inbox" ]]; then
   fi
 fi
 
+# --- personas: EXTEND an already-registered name instead of appending a duplicate -----
+# id:069b: .gitattributes sets `personas.md merge=union`, which can never reconcile a
+# re-registration on its own (union keeps both sides forever) — the writer is the only
+# place reconciliation can happen. `append.sh -t personas` is the sole sanctioned writer
+# (see the usage note above), so this is a normal write path, not a rare edge case.
+if [[ "$target" == "personas" ]]; then
+  pname="$(grep -oP '\*\*\K[A-Za-z]+(?=\*\*)' <<<"$entry" | head -1)"
+  if [[ -n "$pname" ]] && grep -qF -- "**${pname}**" "$dest"; then
+    echo "persona '$pname' already registered, extending instead of appending a duplicate (id:069b)" >&2
+    (
+      flock -x 9
+      tmp="$(mktemp)"
+      awk -v needle="**${pname}**" -v newline="$entry" '
+        index($0, needle) > 0 && !done { print newline; done=1; next }
+        { print }
+      ' "$dest" > "$tmp"
+      mv -- "$tmp" "$dest"
+    ) 9>"${dest}.lock"
+    exit 0
+  fi
+fi
+
 # Always prepend a blank line — defensive against missing trailing newline
 # flock prevents concurrent calls from interleaving lines
 (
