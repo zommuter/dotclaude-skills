@@ -5174,3 +5174,7 @@ no new code path). Full suite 376/0/8-expected-red green. Contract pointer v11 =
 roadmap-lint exit 0 (pre-existing DEAD-GATE warnings on id:2b49/540f/c179, class tracked by
 id:49e0, not introduced this window); relay-doctor report-only clean of new findings. No new
 ledger items added since last checkpoint (nothing to reverse-handoff). routine_open=8 dispatchable.
+
+## 2026-08-11 16:55 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:e44e close verified genuinely valid — 798b git-dir lock structurally dissolves the .changelog.lock dirty-tree defect; suite 376/0/8-red green, no gaming, no overreach [id:e44e]
