@@ -395,9 +395,16 @@ integration invariants.
    `references/conventions.md`'s recovery-doctrine paragraph for the salvage-under-lease
    path before discarding) → `--no-ff` merge the
    worktree branch into the integration branch → `scripts/ckpt-tag.sh <repo-path> -m
-   "<summary>" -l "reviewer (<full claude-* model id>)"` — e.g. `-l "reviewer (claude-opus-5)"`;
-   a BARE tier name (`reviewer (opus)`) does NOT match `ckpt-tag.sh`'s strong-model detector
-   and leaves `last_strong_ckpt` stale (id:1a34) → ONE push via
+   "<summary>" -l "integrate (<full claude-* model id>)"` — e.g. `-l "integrate (claude-opus-5)"`.
+   **Use `integrate (…)`, never `reviewer (…)`, at this step (id:ecce)**: an integrate verifies
+   `contract_met` and merges, but runs no test-integrity audit, no spec-drift check, no roadmap
+   re-derivation — labeling it `reviewer` advanced `last_strong_ckpt` for work nobody actually
+   reviewed (observed 2026-07-31: three integrate checkpoints made a 42-commit unreviewed window
+   read as 0 commits to the next `/relay review`). `ckpt-tag.sh` recognizes the `integrate*`
+   prefix and deliberately withholds the strong-audit sync for it (a `note:`, not a `WARNING:`);
+   reserve `-l "reviewer (<full claude-* model id>)"` for an actual `/relay review` pass. A BARE
+   tier name (`reviewer (opus)`) does NOT match `ckpt-tag.sh`'s strong-model detector and leaves
+   `last_strong_ckpt` stale (id:1a34) → ONE push via
    `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only` → `git worktree prune` →
    update relay.toml. `ckpt-tag.sh` itself now syncs `last_ckpt` (and, for a strong-model
    label, `last_strong_ckpt`/`strong_model`) via the flock'd `relay-state-write.sh` (id:0a3b
