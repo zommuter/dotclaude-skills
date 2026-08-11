@@ -5153,3 +5153,7 @@ Worked id:923b — per-unit identity key (children-of:1f4f Layer B). Added a pur
 Friction: none — key shape was already owner-ratified and the RED spec pinned the exact contract, so this was closer to a green-fill than open design.
 refactor: none needed — the change is additive (one new helper, two call-site re-keys); no pre-existing duplication to clean up.
 Worked id:923b
+
+## 2026-08-11 16:44 — executor (sonnet, relay-loop)
+
+id:923b per-unit identity key — re-keyed worktreePathFor/branchFor/inFlight off a new unitKey(verdict,itemId,attempt) helper; full suite 377/0/7-expected-red [id:923b]
