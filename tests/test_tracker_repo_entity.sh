@@ -209,9 +209,13 @@ PY
 if "$RE" validate-repos "$bad" >/dev/null 2>&1; then
   fail "validate-repos accepted a bogus board_column"
 fi
-# ledger-map.py validate does NOT catch it — that is the gap this subcommand exists for
-python3 "$LM" validate "$bad" >/dev/null 2>&1 \
-  || fail "precondition changed: ledger-map.py validate now checks repo entities too"
+# As of schema_version 1.1.0 (id:8c7f) `ledger-map.py validate` covers the repo VALUE
+# SPACES too — the gap this subcommand was written around is closed, so BOTH must now
+# reject a bogus board_column. (This assertion used to require ledger-map.py to ACCEPT
+# it, pinning the gap as a precondition; it is INVERTED, not dropped.)
+if python3 "$LM" validate "$bad" >/dev/null 2>&1; then
+  fail "ledger-map.py validate accepted a bogus board_column — the 1.1.0 repo enum check is missing"
+fi
 
 bad2="$tmp/bad2.json"
 python3 - "$enriched" "$bad2" <<'PY'

@@ -60,9 +60,11 @@ USAGE
 
 `--board -` reads the board from stdin. Stdlib only (repo convention: no deps).
 
-SCHEMA VERSION: unchanged at 1.0.0 on purpose. SCHEMA.md §5 bumps `schema_version` on a
-change to a REQUIRED key or an ENUM; this adds only OPTIONAL properties to an existing
-`$defs/repo` that already required `verdict`, so no adapter that knows 1.0.0 is broken.
+SCHEMA VERSION: DERIVED, never restated here (id:8c7f). This file used to carry its own
+literal copy, which is how the `verdict` value-space replacement it introduced shipped
+under an unchanged version marker. The single source is the JSON Schema's
+`properties.schema_version.const`; `ledger-map.py validate` fails loudly if any file in
+`tracker/` re-hardcodes it.
 """
 
 from __future__ import annotations
@@ -72,7 +74,17 @@ import json
 import os
 import sys
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "schema", "ledger-intermediate.schema.json")
+
+
+def _schema_version() -> str:
+    """Read the ONE declared version (id:8c7f) — never a literal in this file."""
+    with open(SCHEMA_PATH, "r", encoding="utf-8") as fh:
+        return json.load(fh)["properties"]["schema_version"]["const"]
+
+
+SCHEMA_VERSION = _schema_version()
 
 # The classifier's verdict enum, quoted from relay/scripts/classify-verdict.sh (the
 # `verdict = "..."` assignments) plus the AMBIGUOUS escape hatch documented in its
