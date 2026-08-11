@@ -123,7 +123,7 @@ pass "(5) a genuinely new name still appends"
 # 6. The conformance check exists at the pinned path and FAILS LOUDLY on a seeded duplicate.
 [[ -x "$CONF" ]] \
   || fail "(6) meeting/personas-conformance.sh missing or not executable — the registry needs a check that fails when a name appears twice, or it will silently re-accrete (id:069b)"
-printf '- 🔧 **Quinn** — a seeded duplicate.\n' >> "$FIX"
+printf '%s\n' '- 🔧 **Quinn** — a seeded duplicate.' >> "$FIX"
 set +e
 conf_err="$(bash "$CONF" "$FIX" 2>&1 >/dev/null)"
 conf_rc=$?
