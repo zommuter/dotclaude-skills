@@ -5365,3 +5365,7 @@ Run 70 strong-model audit (id:401c): audit starved ~6wk — filed id:da95 (stron
 Worked id:33b2 — implemented per its ROADMAP acceptance and existing RED spec, which now passes. Ticked id:33b2. Full make test green.
 Friction: none — well-specified single-file change.
 refactor: extracted one shared helper and reduced the request handler to a single call site; neighbouring test signatures kept backward-compatible.
+
+## 2026-08-11 21:23 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+closed [HARD] id:33b2 — opt-in proxy stdin channel (a05c option B): STDIN_ALLOWED_SCRIPTS gate + AND-gated dispatch; suite 383/0/1-xred [id:33b2]
