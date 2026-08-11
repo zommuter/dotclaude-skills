@@ -125,16 +125,18 @@ pass "API-error failsafe: try/catch + handoff auto-resume present"
 grep -q "worktreePath: worktreePathFor(unit)" "$JS" || fail "null-report handback does not record the real worktree path"
 pass "failed-child handback records recoverable worktree path"
 
-# (13) Review→execute chaining: review with open [ROUTINE] re-enqueues an execute unit
+# (13) Review→execute AND execute→execute chaining (id:cc90): a review OR an execute unit
+#      with open [ROUTINE] work re-enqueues an execute unit, bounded by a depth counter.
 grep -q "routine_open: { type: 'number' }" "$JS" || fail "REPORT_SCHEMA missing routine_open"
-grep -q "unit.verdict === 'review' && report && report.contract_met" "$JS" || fail "no review→execute re-enqueue guard"
+grep -q "unit.verdict === 'review' || unit.verdict === 'execute'" "$JS" || fail "no review/execute→execute re-enqueue guard (id:cc90)"
 grep -q "verdict: 'execute'" "$JS" || fail "re-enqueue does not push an execute unit"
-pass "review→execute re-enqueue present"
+pass "review/execute→execute re-enqueue present"
 
-# (14) No intra-pool ping-pong: the re-enqueue is guarded so an execute never re-chains
-grep -q "!unit.rechained" "$JS" || fail "re-enqueue lacks the rechained ping-pong guard"
-grep -q "rechained: true" "$JS" || fail "re-enqueued unit not marked rechained"
-pass "review→execute re-enqueue is single-hop (no ping-pong)"
+# (14) No unbounded ping-pong: the re-enqueue is bounded by a chainDepth counter (id:cc90 —
+#      replaces the old one-shot !unit.rechained boolean, which could not bound a multi-hop chain).
+grep -q "unit.chainDepth || 0) < MAX_CHAIN_DEPTH" "$JS" || fail "re-enqueue lacks the chainDepth bound guard (id:cc90)"
+grep -q "chainDepth = (unit.chainDepth || 0) + 1" "$JS" || fail "re-enqueued unit does not carry an incremented chainDepth (id:cc90)"
+pass "review/execute→execute re-enqueue is depth-bounded (no unbounded ping-pong)"
 
 # (15) Self-feeding loop: runRound() + outer while re-discovering until drained/capped
 grep -q "async function runRound()" "$JS" || fail "no runRound() — not self-feeding"
