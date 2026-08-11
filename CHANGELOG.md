@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-12
+
+- Wired recordAgentFailure() into the three previously-silent mechanical-hop parse sites (quota, inject-take, discover-prelude) so id:06a1's accumulator no longer under-reports; full suite 390/0/1-expected-red. (id:a104)
+
 ## 2026-08-11
 
 - id:3f7e — roadmap-lint.sh + todo-conformance.sh now WARN when an open item's (DEP: id) prose has no matching typed gated-on marker (shared lib-typed-edges.sh engine, twin-consumer agreement, new test, full suite 373/0/10-expected-red green). (id:3f7e)
