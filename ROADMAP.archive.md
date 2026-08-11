@@ -3793,3 +3793,22 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
     - no persona's emoji or core lens text is silently altered by the dedup.
   - **Tests**: `tests/test_personas_no_duplicate_names_069b.sh` (`# roadmap:069b`) — hermetic (`mktemp -d` copy of `meeting/`), never writes the real registry.
   - **Out of scope**: changing the registry's FORMAT; auto-merging lenses that genuinely DIFFER — none exist today, and if one ever does it must be a LOUD reject, never a silent merge.
+
+- [x] [ROUTINE] **INTEGRATE and a real REVIEW share the label `reviewer (<model>)`, so integrating your own executors' work silently marks it AUDITED** <!-- id:ecce -->
+  - **Mechanism, verified in code**: `relay/SKILL.md:398` prescribes `ckpt-tag.sh -l "reviewer (<full claude-* model id>)"` for the integrate step; `ckpt-tag.sh:~145` treats ANY label carrying a full `claude-*` id — after the `executor*`/`reconcile*` role-prefix carve-outs at `:135` — as a STRONG audit and syncs `last_strong_ckpt` + `strong_model`. `gather-repo-state.sh:~295-300` then anchors the audit window on that watermark and advances it for `reviewer*`/`strong-execute*` tag labels. So an INTEGRATE — which verifies `contract_met` and merges, but performs **no** test-integrity audit, no spec-drift check, no roadmap re-derivation — advances the strong-audit watermark exactly as a genuine review would.
+  - **Observed consequence (2026-07-31)**: three integrate checkpoints (`relay-ckpt-20260731-1403/1519/1613`) were written while integrating five executor units; `last_strong_ckpt..HEAD` was then **0 commits**, so a `/relay review` spawned immediately after would have audited an EMPTY window and reported clean. The true unreviewed window was **42 substantive commits** back to `relay-ckpt-20260730-2018`.
+  - **Why this is the anti-gaming hole, not a cosmetic label bug**: review exists to catch an executor that gamed a test, and the integrator is frequently the same session that dispatched those executors. Self-integration marking work audited removes the only independent check. Note `relay-ckpt-20260730-2018` was hand-labelled `reviewer (claude-opus-5, manual-integrate)` — someone already felt the need to disambiguate, informally.
+  - **What to build**:
+    1. A DISTINCT integrate role prefix (the item names `integrate (<model>)`) that `ckpt-tag.sh` does NOT treat as a strong audit — joining the existing `executor*`/`reconcile*` non-strong role list, with the same `note:` (not `WARNING:`) loudness, since it is expected-and-correct rather than a defect.
+    2. `gather-repo-state.sh`'s `newest_strong` tag scan must NOT match the new prefix (it matches `reviewer*|strong-execute*` today, so this holds only if the new prefix is genuinely distinct — assert it).
+    3. Update `relay/SKILL.md` invariant 5 and `relay/references/review.md` to prescribe the integrate label at the integrate step, leaving `reviewer (...)` to a real review pass.
+    4. Make `/relay review` LOUDLY refuse — never silently pass — when its computed audit window is EMPTY. A vacuous clean report is worse than none. State in the commit message whether "refuse" means non-zero exit or a loud surfaced no-op, and why.
+  - **Acceptance**:
+    - `ckpt-tag.sh -l "integrate (claude-opus-5)"` on a managed fixture repo leaves `last_strong_ckpt` and `strong_model` UNCHANGED, emits a `note:` naming the role, exits 0, and still prints the tag and still syncs `last_ckpt`;
+    - `ckpt-tag.sh -l "reviewer (claude-opus-5)"` on the same fixture DOES sync both keys (unchanged behaviour — this is the discriminating case, not a second copy of the first);
+    - `executor (sonnet, relay-loop)` and `reconcile (auto/human)` keep today's behaviour exactly;
+    - a tag annotated with an `integrate (...)` label does NOT advance `gather-repo-state.sh`'s `newest_strong` anchor, while a `reviewer (...)` one does;
+    - `relay/SKILL.md` no longer prescribes `reviewer (` at the integrate step.
+  - **Tests**: `tests/test_integrate_label_not_strong_ecce.sh` (`# roadmap:ecce`) — hermetic `git init` fixture + scratch `FABLES_CONFIG`, never touching `~/.config/relay`, never pushing.
+  - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_integrate_label_not_strong_ecce.sh` passes and `make test` is fully green.
+  - **Out of scope**: rewriting already-pushed tags; `id:c500`'s model-less-label loudness (shipped); `id:1a34` (shipped).
