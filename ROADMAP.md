@@ -1533,7 +1533,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_parent_creates_worktree_34b7.sh` passes and `make test` is fully green.
   - **Out of scope**: `id:d464`'s PreToolUse deny hook (barred); OS-user containment (`id:13ae`/`02c7`/`8e7a`); changing `verify-isolation.sh`.
 
-- [ ] **[ROUTINE]** classify-repo.sh: pass priority_rank + evidence through into the --emit unit dict — seam of id:c7dc (auto, id:3801) <!-- id:258d -->
+- [x] **[ROUTINE]** classify-repo.sh: pass priority_rank + evidence through into the --emit unit dict — seam of id:c7dc (auto, id:3801) <!-- id:258d -->
   - **Acceptance**: `classify-repo.sh --emit unit` output includes `priority_rank` and `evidence` fields sourced 1:1 from classify-verdict.sh's verdict.json (which already produces both), for every verdict branch.
   - **Done-check**: Extend tests/test_classify_repo_unit.sh with a case asserting the priority_rank/evidence passthrough; `tests/run-tests.sh tests/test_classify_repo_unit.sh` green, then full `make test`.
   - **Context**: relay/scripts/classify-repo.sh (the --emit unit python block, ~lines 371-436, `unit = {...}` dict)
