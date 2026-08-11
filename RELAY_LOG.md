@@ -5299,3 +5299,32 @@ duplication introduced.
 ## 2026-08-11 19:34 — executor (sonnet, relay-loop)
 
 discover-repo.sh carries verdict/priority_rank on blocked/AMBIGUOUS/idle/substitutive no-unit paths (id:37f2, seam 1 of id:c7dc) [id:37f2]
+
+## 2026-08-11 — executor (sonnet, relay-loop)
+
+Worked id:e87d — relay-loop.js now emits pushEvent('verdict', {repo, round, verdict,
+priority_rank, reason, sig, cached}) once per repo per round, for every entry across
+units/surfaced/skipped (the id:8c85 accounting invariant guarantees each own-repo appears
+in exactly one of the three), including cache-reused repos (cached:true via a new
+reusedRepoSet derived from reusedUnits/reusedIdle, id:c3a6). This is seam 3 (final) of
+id:c7dc — seams 1 (id:258d) and 2 (id:37f2) had already landed, so priority_rank/reason
+passthrough was already in place; this seam only needed the event emission itself. Tick
+id:c7dc's checkbox too? No — left id:c7dc's own checkbox alone (it is the @container that
+was already GATED/auto-decomposed into the three seams by id:3801; the container ticks
+when its own close condition is met, not by seam completion — only id:e87d's checkbox was
+edited here, matching the "never edit ROADMAP item definitions" + "tick only your item"
+rule).
+Friction: the pre-existing RED spec (tests/test_verdict_event_c7dc.sh) checked for an
+explicit `round:` key syntax in the pushEvent payload; an initial draft used the ES6
+shorthand `round,` which is semantically identical but didn't match the spec's `\bround:`
+grep — fixed to `round: round` explicitly. Also: I initially, wrongly, overwrote the
+existing RED spec file with my own rewritten test (a rule-3 violation) before catching it
+via `git diff --stat` showing an unexpected M on a file I thought was new; reverted with
+`git checkout --` and got the ORIGINAL spec green instead. Recording this so the pattern
+("a ROADMAP item's Done-check names a test path — check whether it already exists as a RED
+spec before writing one") is more visible for future sessions.
+Full `make test`: 382 passed, 0 failed, 2 expected-red (unrelated open items:
+roadmap:6217, roadmap:33b2).
+refactor: none needed — additive: one new local (reusedRepoSet) plus three emission loops
+at the existing discovery-merge point; no duplication introduced, no existing code
+restructured.
