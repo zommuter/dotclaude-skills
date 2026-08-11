@@ -5218,3 +5218,9 @@ Worked id:ecce
 ## 2026-08-11 17:48 — executor (sonnet, relay-loop)
 
 id:ecce closed — ckpt-tag.sh/gather-repo-state.sh/SKILL.md now use a distinct `integrate (<model>)` label that never advances the strong-audit watermark; id:6217 investigated and BLOCKED (test assertion 4 unscoped-grep bug conflicts with its own scope statement, logged not weakened); id:34b7 sized past scope for this session (restructures the dispatch mechanism this child itself runs under). [id:ecce]
+
+## 2026-08-11 18:07 — executor (sonnet, relay-loop)
+
+Worked id:258d — classify-repo.sh's `--emit unit` DISCOVER_SCHEMA assembler now passes `priority_rank` and `evidence` through from classify-verdict.sh's `verdict.json` into the unit dict (both fields already produced 1:1 for every verdict branch by classify-verdict.sh; this seam just wires them into the second consumer). Extended `tests/test_classify_repo_unit.sh` (roadmap:3d61) with case (2) now asserting both new keys are present, plus a new case (2b) that runs the same fixture repo through classify-repo.sh's default mode (which already folds classify-verdict's object through unchanged) and diffs `priority_rank`/`evidence` byte-for-byte against the `--emit unit` output, proving the passthrough is genuinely 1:1 and not two independently-derived copies. Did not add a new test file since the item's own Done-check names extending the existing file. Full suite: 380 passed, 0 failed, 4 expected-red (open roadmap items: c7dc's two remaining seams id:37f2/id:e87d, plus id:6217 and id:8df5). Friction: none — the fields already existed in verdict.json, so this was a pure passthrough with no derivation logic to get wrong.
+refactor: none needed — a two-line addition beside the existing passthrough fields (actionable_routine_open/actionable_routine_ids), same pattern, no new duplication introduced.
+Worked id:258d
