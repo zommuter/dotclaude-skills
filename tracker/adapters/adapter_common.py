@@ -39,10 +39,18 @@ The per-view triple is written into the target TWICE by design:
 
 The marker is **bracketed plain text, not an HTML comment**, on purpose: both
 targets store descriptions as rich text through a sanitizer.  Vikunja v2.4.0 was
-verified live to preserve an HTML comment verbatim, but Plane's editor could not
-be verified this session (`id:02f7`), and a stripped comment would silently
-delete the per-view carrier — exactly the failure id:857d exists to prevent.
-Text content survives every sanitizer, and it is human-visible as a bonus.
+verified live to preserve an HTML comment verbatim; Plane could not be verified
+when this was written (`id:02f7`), so the conservative form was chosen.
+
+**That caution was justified — measured on a live Plane v2.6.3 (2026-08-11):
+Plane's `description_html` sanitizer DELETES HTML comments.** A probe issue
+POSTed with `<!-- HTMLCOMMENT-CANARY uid=zz -->` and a bracketed marker in the
+same body read back as
+`<div><p>…</p><p>[[ledger-views uid=zz …]]</p></div>` — comment gone, bracketed
+marker byte-identical.  Had the carrier been an HTML comment, every Plane item
+would have silently lost its per-view triple: exactly the failure id:857d exists
+to prevent, and it would have looked like a clean apply.  Text content survives
+both sanitizers, and it is human-visible as a bonus.
 
 Recovery reads BOTH and fails loudly if they disagree, so a half-applied edit
 surfaces as an error instead of a quietly wrong board.
@@ -51,10 +59,47 @@ surfaces as an error instead of a quietly wrong board.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 
-SUPPORTED_SCHEMA_VERSIONS = (json.loads(__import__("pathlib").Path(__file__).resolve().parents[1].joinpath("schema", "ledger-intermediate.schema.json").read_text(encoding="utf-8"))["properties"]["schema_version"]["const"],)  # id:8c7f — DERIVED from the ONE declared version (the JSON Schema const); never a literal here
+# id:8c7f — the ONE declared version is the JSON Schema `const`; never a literal here.
+# Merge note (2026-08-11): id:8c7f and the id:90f2 Plane child independently solved this.
+# 8c7f's derive-from-the-schema form WON because it is the tested one
+# (tests/test_tracker_schema_version_8c7f.sh pins all five readers to one declared copy
+# AND asserts a 1.0.0 document is refused). The Plane child's variant unioned a
+# hand-checked set with a text-scan of the mapper, which would have ACCEPTED 1.0.0 and
+# broken that assertion. Its two helpers are kept below — they have callers — but they
+# now derive from the same single source instead of a parallel literal.
+_SCHEMA_JSON = __import__("pathlib").Path(__file__).resolve().parents[1] / "schema" / "ledger-intermediate.schema.json"
+SUPPORTED_SCHEMA_VERSIONS = (
+    json.loads(_SCHEMA_JSON.read_text(encoding="utf-8"))["properties"]["schema_version"]["const"],
+)
+
+_LEDGER_MAP = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ledger-map.py"
+)
+_SCHEMA_VERSION_RE = re.compile(r"^SCHEMA_VERSION\s*=\s*[\"\']([0-9]+\.[0-9]+\.[0-9]+)[\"\']", re.M)
+
+
+def _mapper_schema_version(path: str = _LEDGER_MAP):
+    """The `SCHEMA_VERSION` this checkout's mapper stamps, or None if unreadable.
+
+    A text scan, not an import: `ledger-map.py` is not an importable module name, and
+    importing a sibling-owned file to read one constant is a far bigger coupling than a
+    regex. Retained from the id:90f2 Plane child (its test asserts on this directly).
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            m = _SCHEMA_VERSION_RE.search(fh.read())
+    except OSError:
+        return None
+    return m.group(1) if m else None
+
+
+def supported_schema_versions() -> tuple:
+    """The accepted set. Derived from the schema const — the single declared source."""
+    return SUPPORTED_SCHEMA_VERSIONS
 
 VIEWS = ("todo", "roadmap", "review")
 VIEW_STATES = ("open", "done", "absent")
@@ -83,12 +128,13 @@ def load_document(path: str) -> dict:
 
 def check_schema_version(doc: dict) -> dict:
     got = doc.get("schema_version")
-    if got not in SUPPORTED_SCHEMA_VERSIONS:
+    supported = supported_schema_versions()          # re-read: the mapper may have bumped
+    if got not in supported:
         raise AdapterError(
             "REFUSING document: schema_version %r is not one of %s. "
             "SCHEMA.md §5 — an adapter must refuse a version it does not know, "
             "because a stale adapter reading a changed document fails SILENTLY."
-            % (got, ", ".join(SUPPORTED_SCHEMA_VERSIONS))
+            % (got, ", ".join(supported))
         )
     return doc
 

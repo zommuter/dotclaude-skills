@@ -4933,3 +4933,64 @@ is covered by a test.
 ## 2026-08-11 14:17 — reviewer (claude-opus-5)
 
 hard-execute: id:4b64 lane-vocab alignment (2 defects beyond the 3 reported; md-merge staged-write rollback) — 371 pass/0 fail
+Worked id:90f2 (Plane live half) — the contract's "equivalent item graphs in BOTH targets"
+clause was undischarged because Plane's transport had never issued a single request. It has
+now. `id:02f7` cleared (proxy binds after a host reboot), so a self-hosted Plane v2.6.3
+instance was stood up through its API (instance admin, workspace, project, never-expiring
+workspace API key; key in the 0600 `~/.config/relay/tracker-secrets.env` as `PLANE_*`, read
+via `from_env()` at call time, nothing hardcoded and nothing committed).
+
+Live run on the pilot project, `repo-alpha` fixture: **19 items + 39 labels + 3 relations
+created**, `verify` **PASS** (19 planned / 19 live, 5 live edges vs 3 planned non-dangling —
+a superset, because Plane materialises inverses), second `apply` **idempotent** (0 created,
+0 relations set, 3 already-present). The id:857d gate was made non-vacuous ON THE BOARD in
+both carriers: deleting `view:todo=open` from the live issue made `verify` exit 3 naming
+`repo-alpha/1111`; stripping the `[[ledger-views]]` marker made it exit 4 naming
+`repo-alpha/3333`; re-apply repaired both to PASS. Per-view drift reads back off the server
+in both directions (1111 open/done, 2222 done/open), and no item in drift renders as done.
+
+Three previously-recorded unknowns resolved by measurement, and TWO OF THEM WERE WRONG:
+
+  * **Plane's public API v1 DOES expose an issue-relation endpoint** — `POST/GET
+    /issues/<id>/relations/`, `{"relation_type", "issues"}`, accepting blocked_by /
+    relates_to / blocking / duplicate / start_* / finish_*. The recorded "no relation
+    endpoint, WARN and keep the edge in the body" was false; the fallback is deleted and
+    `blocked_by`/`link` are now written as real relations. No fixture has a resolvable
+    `link`, so `relates_to` was exercised live via a retargeted-link document in a scratch
+    project (4 relations set, `verify` PASS) and is now pinned hermetically.
+  * **Non-injectivity CONFIRMED** — a default Plane project has exactly Backlog / Todo /
+    In Progress / Done / Cancelled, so `backlog` and `needs-decision` genuinely share a
+    column. `derived:<state>` as a label is load-bearing, not belt-and-braces.
+  * **Plane's sanitizer DELETES HTML comments** (probe: `<!-- HTMLCOMMENT-CANARY -->` gone,
+    bracketed marker byte-identical). The child's defensive choice of bracketed plain text
+    was not paranoia — an HTML-comment carrier would have silently destroyed the per-view
+    triple on every item while looking like a clean apply.
+
+Verdict on the contract: **discharged, with one named asymmetry** — Plane cannot express a
+`link_kind` (`routed`/`children-of`) because `relates_to` is untyped; Vikunja has the same
+limitation, and neither adapter's recovered graph carries `link_kind`, so the two targets
+are equivalent *to each other* and the id:90f2 clause holds. Owner's call on the box.
+
+Friction: (a) Plane rate-limits API keys at 60/min — a 19-item apply is ~65 requests and
+died mid-run with HTTP 429 the first time, leaving a half-applied board; the client now
+paces itself at 55/min and retries a 429 with backoff, loudly. (b) A marker-stripped item
+is DETECTED but NOT self-repairing: the uid anchor lives in the description, so re-apply
+cannot match it and creates a duplicate, leaving a markerless orphan (observed, cleaned up
+by hand). Label loss repairs cleanly; marker loss does not. Worth an item. (c) The
+deployment is missing the `systemd-monitor` sidecar the commercial edition calls for a
+license resync, so `POST /api/workspaces/` 500s *after* creating the workspace — the object
+exists, the response lies. (d) The task brief stated the suite proves its offline property
+"by running inside `unshare -rn`"; it does not — `unshare` appears nowhere in the repo. The
+property is proven by socket monkeypatching inside the adapter tests, which is what the new
+test extends. (e) `tracker/SCHEMA.md` §8.3 still records Plane as UNVERIFIED and repeats the
+two now-falsified claims; a sibling owns that file this round, so it is left for the parent.
+
+refactor: yes, two behaviour-preserving changes, self-reported because refactoring is
+unverifiable by construction (id:108e). (1) `apply_plan`'s parent/child branches were two
+near-identical PATCH blocks; they are now one branch that picks (child, parent) by
+mechanism — same requests, plus a skip when the parent field already matches. (2)
+`adapter_common`'s `SUPPORTED_SCHEMA_VERSIONS` was a hardcoded `("1.0.0",)`; it now unions
+the hand-checked set with the `SCHEMA_VERSION` this checkout's `ledger-map.py` stamps (text
+scan, never an import), so a mapper bump does not make a same-checkout adapter refuse its
+own mapper's output. The refusal semantics for an unknown version are unchanged and still
+tested. No other existing behaviour was rewritten.
