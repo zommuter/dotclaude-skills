@@ -4763,3 +4763,48 @@ hard-execute batch: id:ca24 allow-list, id:94ce fleet importer, id:c17d repo ent
 ## 2026-08-10 23:04 — reviewer (claude-opus-5)
 
 review: tracker batch accept-with-fixes — dead plural fallbacks removed, too-tolerant test pinned, id:857d gate vacuity closed, SCHEMA subsection renumber completed (367 pass/0 fail)
+
+## 2026-08-11 — strong-execute (claude-opus-5)
+
+Worked id:b7f4 + id:8c7f — one file, two contracts. **id:b7f4**: a `REVIEW_ME` box
+anchored to an id that no `TODO`/`ROADMAP` line owns kept its bare 4-hex key while
+carrying `id: null`, so `validate` died on it — and because `validate` is
+whole-document, ONE such box made the whole pilot repo unimportable (reproduced first
+against the real repo, then re-driven hermetically). Policy chosen and written into
+SCHEMA.md §2.3 as the missing branch of the existing two rows: **standalone untracked**
+(synthetic `~` key) + a `dangling-anchor:XXXX` label + a loud
+`review-box-dangling-anchor` report. The two alternatives are recorded as rejected —
+keeping the 4-hex key is the defect itself, and promoting the anchor to the box's own
+`id` would fabricate a *tracked* item for an id no ledger owns (a ghost board row and a
+false positive for every id-consuming scanner). The pilot repo now imports 773 items and
+validates clean. **id:8c7f**: `schema_version` 1.0.0 → **1.1.0**, and SCHEMA.md §5 gains
+clause 3 — a changed **value space** is a bump even when no key is added or removed and
+no `enum` keyword existed to change. That is the case id:c17d passed by the letter of
+clauses 1–2 while replacing `verdict`'s five documented values with nine. `verdict` and
+`board_column` now carry real `enum`s AND `validate` enforces them (an `enum` keyword
+alone catches nothing here — no JSON Schema validator ships in a stdlib-only repo); a
+retired value fails naming where it went. `schema_cross_check()` now covers `$defs/repo`,
+which had zero drift protection, and `head_sha` — load-bearing in `fleet-state.py`, wholly
+undeclared — is declared. The four version copies collapse to ONE declared source (the
+JSON Schema `const`; `ledger-map.py`'s literal is pinned to it, `repo-entity.py` and
+`adapters/adapter_common.py` derive), and `version_copy_check()` makes a re-hardcoded
+copy a loud error rather than a convention.
+
+Friction: (1) `tests/test_tracker_repo_entity.sh` asserted the *absence* of repo checks in
+`ledger-map.py validate` as a precondition — closing the gap SCHEMA.md §7 invited made it
+fail. Assertion INVERTED (both validators must now reject a bogus `board_column`), not
+dropped. (2) `adapters/adapter_common.py` is a sibling's file this round; its `1.0.0`
+literal had to go or every adapter would refuse the new documents, so **exactly one line**
+was changed, to derive from the single source. (3) The new test caught a bug I had just
+written: an explanatory comment above `SCHEMA_VERSION` imitated the `SCHEMA_VERSION = "…"`
+spelling that `fleet-import.sh` scrapes by regex, and being *above* the real assignment it
+won — the scrape returned `…`. Reworded, and the test now pins all five readers agreeing.
+(4) The `boxes == 2` count in `test_tracker_schema_drift_roundtrip.sh` meant adding the
+dangling case to `fixtures/repo-alpha` would have forced an unrelated existing-test edit;
+the new tests build their own ledger trees in `mktemp` instead. Goldens moved by exactly
+one line each (`schema_version`), regenerated per SCHEMA.md §6.
+
+refactor: none. Both items are behaviour changes with tests; no behaviour-preserving
+rewrite was performed. The closest thing is the version-constant collapse, and it is NOT
+refactoring — it changes what `validate` accepts (a stale hardcoded copy now fails) and is
+covered by `tests/test_tracker_schema_version_8c7f.sh` §3, including the non-vacuity case.

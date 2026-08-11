@@ -166,7 +166,26 @@ human-decision prose box, which is prose *because markdown has no assignee field
 | Box shape | Mapping |
 |---|---|
 | carries `<!-- roadmap:XXXX -->` or `<!-- id:XXXX -->` | **attaches** to the existing `(repo, XXXX)` item: sets that item's `review_status` and adds label `has:review-box`. It does **not** mint a second item — that would double-count the same work on the board |
+| carries an anchor whose id is owned by **no** `TODO`/`ROADMAP` line | a **standalone** item exactly as the unanchored row, **plus** label `dangling-anchor:XXXX`; reported as `review-box-dangling-anchor` (`id:b7f4`) |
 | no anchored marker | a **standalone** item, `kind: "review_box"`, `identity: "untracked"`, synthetic `~` key, `assignee: "human"`, `derived_status: "needs-decision"`; reported as `review-box-unanchored` |
+
+**The dangling-anchor row is not a third policy — it is the missing branch of the first
+two** (`id:b7f4`). The original table assumed an anchored box always finds its twin; a box
+anchored to an id nothing owns fell between the rows and kept the bare 4-hex key while
+carrying `id: null`, which is precisely the state `validate` rejects (*"no id but its key
+is not a synthetic `~` key"*). Because `validate` is whole-document, **one** such box made
+an entire real repo unimportable. Two alternatives were rejected:
+
+- *keep the 4-hex key* — breaks the uid invariant and the `uid` pattern, and is what the
+  defect already did;
+- *promote the anchor to the box's own `id`* — fabricates a **tracked** item for an id no
+  ledger owns: a ghost row on the board, and a false positive for every id-consuming
+  scanner (`orphan-scan.sh`, the typed-edge resolvers).
+
+Standalone-untracked keeps the box **visible** (board completeness is the point of §2.2's
+import-as-untracked ruling) while the `dangling-anchor:XXXX` label and the loud report keep
+the broken reference **recoverable** — the fix is to write the missing ledger line or drop
+the anchor, and the report says which file and line to fix.
 
 `review_status` is a **third view**, never folded into `todo_status`/`roadmap_status` — a
 box's state is not a ledger checkbox. A review box carries no capability lane, so a missing
@@ -272,7 +291,7 @@ Every document carries `unmapped[]` (construct, file, line, text, reason) and
 `unmapped_counts` (construct → count). `import` also prints the counts to **stderr**. The
 current construct set:
 
-`id-less-item` · `review-box-unanchored` · `untagged-lane` · `legacy-hands-unresolved` ·
+`id-less-item` · `review-box-unanchored` · `review-box-dangling-anchor` · `untagged-lane` · `legacy-hands-unresolved` ·
 `unknown-hard-lane` · `unknown-input-kind` · `unknown-marker` · `multi-id-line` ·
 `duplicate-view-observation` · `section-prose`
 
@@ -297,9 +316,46 @@ not test would be the derived-doc drift this repo's own rules forbid.
 `schema_version` is a **contract-surface** marker in the sense of `CLAUDE.md` §Versioning:
 this repo has no repo-wide version, and markers exist only where a stale copy breaks
 *silently*. An adapter reading a changed document with an unchanged version is exactly that
-case. Bump `schema_version` on any change to a required key or an enum, in the same commit
-as the change, and update `ledger-map.py`'s `SCHEMA_VERSION` — `validate` fails loudly if
-the two disagree. An adapter must **refuse** a `schema_version` it does not know.
+case. An adapter must **refuse** a `schema_version` it does not know.
+
+### 5.1 When to bump
+
+Bump in the **same commit** as the change, on any of:
+
+1. a change to a **required key**;
+2. a change to an **enum**;
+3. a change to a documented **value space** — even with no key added or removed, and even
+   where no `enum` keyword existed to change.
+
+**Clause 3 is the `id:8c7f` amendment, and it is not a clarification — it changes the
+answer.** `id:c17d` kept `1.0.0`, defensibly by the letter of clauses 1–2: it added only
+optional properties to a `$defs/repo` that already required `verdict`. But it also
+*replaced `verdict`'s documented value space* — three of the five documented values
+(`relay-poolable` / `needs-feedback` / `design-drained`) became `board_column` values —
+and because the property carried its value space in **prose only**, with no `enum`
+keyword, clause 2 never fired and no validator could catch it. A consumer written against
+`1.0.0` is silently wrong: it reads a `verdict` it has never heard of, or filters for one
+that can no longer occur. Treat a changed value space as **semantically non-additive**.
+
+The structural half of the fix: `verdict` and `board_column` now carry real `enum`s, and
+`ledger-map.py validate` **checks them** (§7) — because nothing in this repo runs a JSON
+Schema validator, an `enum` keyword alone catches exactly nothing.
+
+### 5.2 One declared version, not four
+
+The constant existed in **four** uncross-checked copies (`ledger-map.py`, this JSON Schema,
+`repo-entity.py`, `adapters/adapter_common.py`) plus a scrape in `fleet-import.sh`. Now:
+
+| Place | How it gets the version |
+|---|---|
+| `tracker/schema/ledger-intermediate.schema.json` | `properties.schema_version.const` — **the single source** |
+| `tracker/ledger-map.py` | a literal, pinned to the schema `const` by `schema_cross_check()` (`fleet-import.sh` scrapes this exact spelling) |
+| `tracker/repo-entity.py` | **derived** — reads the `const` |
+| `tracker/adapters/adapter_common.py` | **derived** — reads the `const` |
+
+`validate`'s `version_copy_check()` enforces the collapse rather than merely documenting
+it: any line in those files that mentions a schema version *and* carries a literal `X.Y.Z`
+must name the current one, so a re-hardcoded stale copy is a loud error.
 
 ## 6. Fixtures
 
@@ -370,14 +426,21 @@ Two gaps are **named, not silently worked around**:
 - `--emit unit` drops the `unpromoted` promote/surface counts (`id:6daf`), so a repo entity
   cannot carry them. They are **not** re-derived by a second `unpromoted-scan.sh` call —
   when `id:6daf` lands they arrive through the same pipe into `counts`.
-- `ledger-map.py validate` checks `items[]` exhaustively and **does not look at `repos[]`
-  at all**. `repo-entity.py validate-repos` covers that surface meanwhile (required keys,
-  duplicate repo names, a `board_column` outside the enum, and the two directions of the
-  verdict↔column invariant). Folding it into `ledger-map.py validate` is the coherent home
-  and belongs to that file.
+- ~~`ledger-map.py validate` checks `items[]` exhaustively and **does not look at `repos[]`
+  at all**.~~ **CLOSED by `id:8c7f`**: `validate` now checks the repo entities' required
+  keys, duplicate repo names, and both value spaces (`verdict`, `board_column`), and
+  `schema_cross_check()` covers `$defs/repo` — which previously had **zero** drift
+  protection, since it read only `$defs.item`. A retired `verdict` value fails with the
+  migration named in the error. `repo-entity.py validate-repos` keeps the verdict↔column
+  invariant (a real verdict may not sit in `unclassified`, and vice versa), which is a
+  *relation* between two fields rather than a value space.
 
-`schema_version` stays **1.0.0**: §5 bumps on a change to a *required* key or an *enum*,
-and this adds only optional properties to a `$defs/repo` that already required `verdict`.
+`head_sha` is declared as of **1.1.0**. It was written by `fleet-import.sh` and read by
+`fleet-state.py` (every `changed_at_sha` / `tombstoned_at_sha` comes from it) while being
+undeclared in the schema entirely — load-bearing and uncross-checked.
+
+~~`schema_version` stays **1.0.0**.~~ **Superseded**: this change replaced `verdict`'s
+value space, which §5.1 clause 3 now makes a bump. The document version is **1.1.0**.
 
 ## 8. The adapters (`id:90f2`)
 

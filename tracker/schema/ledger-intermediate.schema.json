@@ -8,8 +8,8 @@
   "additionalProperties": true,
   "properties": {
     "schema_version": {
-      "const": "1.0.0",
-      "description": "Contract-surface version marker. This repo has NO repo-wide version (CLAUDE.md Versioning); this marker exists because a stale adapter reading a changed document fails SILENTLY. Bump on any change to required keys or enums; adapters must refuse a version they do not know."
+      "const": "1.1.0",
+      "description": "Contract-surface version marker, and the SINGLE SOURCE every derived consumer reads (tracker/repo-entity.py, tracker/adapters/adapter_common.py); tracker/ledger-map.py's SCHEMA_VERSION literal is pinned to it by its own cross-check. This repo has NO repo-wide version (CLAUDE.md Versioning); this marker exists because a stale adapter reading a changed document fails SILENTLY. Bump on any change to required keys, to an enum, OR to a documented VALUE SPACE — replacing the values a property may take is semantically non-additive even when no key is added or removed (that is what 1.0.0 -> 1.1.0 records: repos[].verdict's five documented values became nine, with relay-poolable/needs-feedback/design-drained moving to board_column). Adapters must refuse a version they do not know."
     },
     "repos": {
       "type": "array",
@@ -38,15 +38,26 @@
       "properties": {
         "repo": { "type": "string", "description": "Repo name — the first half of the composite (repo, id) key." },
         "path": { "type": "string" },
+        "head_sha": {
+          "description": "The repo HEAD the ledgers were read at, pinned per import by tracker/fleet-import.sh and read back by tracker/fleet-state.py (every state change records `changed_at_sha`/`tombstoned_at_sha` from it). Declared as of 1.1.0: it was load-bearing while undeclared, so nothing cross-checked it. Absent from a single-repo ledger-map.py import, which pins no SHA.",
+          "type": "string"
+        },
         "verdict": {
-          "description": "classify-repo.sh's per-repo verdict, VERBATIM (blocked/execute/review/hard/handoff/human/mechanical/idle/AMBIGUOUS). null from ledger-map.py, which does not run the classifier; filled by tracker/repo-entity.py (id:c17d) from control-board.sh --json. null also means 'the classifier produced no verdict for this repo' (producer error) — never an invented value.",
-          "anyOf": [{ "type": "string" }, { "type": "null" }]
+          "description": "classify-repo.sh's per-repo verdict, VERBATIM. null from ledger-map.py, which does not run the classifier; filled by tracker/repo-entity.py (id:c17d) from control-board.sh --json. null also means 'the classifier produced no verdict for this repo' (producer error) — never an invented value. The `enum` is new in 1.1.0: under 1.0.0 this property had a documented value space but NO enum keyword, so replacing that space (relay-poolable/needs-feedback/design-drained moved to board_column) was invisible to every consumer. ledger-map.py `validate` enforces it — a retired value is now a loud error naming the migration.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["blocked", "execute", "review", "hard", "handoff", "human", "mechanical", "idle", "AMBIGUOUS"]
+            },
+            { "type": "null" }
+          ]
         },
         "labels": { "type": "array", "items": { "type": "string" } },
         "ledger_files": { "type": "array", "items": { "type": "string" } },
         "board_column": {
-          "description": "control-board.sh's DISPLAY grouping over the verdict enum (blocked / relay-poolable / needs-feedback / design-drained / unclassified). Carried alongside `verdict`, never instead of it — the grouping collapses nothing. Set by repo-entity.py (id:c17d).",
-          "type": "string"
+          "description": "control-board.sh's DISPLAY grouping over the verdict enum. Carried alongside `verdict`, never instead of it — the grouping collapses nothing. Set by repo-entity.py (id:c17d). Three of its values (relay-poolable / needs-feedback / design-drained) were `verdict` values under the schema's 1.0.0 prose; the `enum` here and on `verdict` is what makes that migration checkable.",
+          "type": "string",
+          "enum": ["blocked", "relay-poolable", "needs-feedback", "design-drained", "unclassified"]
         },
         "board_label": {
           "description": "render-verdict.sh's display label for the verdict (idle -> \"drained\"; every other verdict verbatim). render-verdict.sh is the only sanctioned emitter of \"drained\". Set by repo-entity.py (id:c17d).",
