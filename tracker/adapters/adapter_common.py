@@ -39,10 +39,18 @@ The per-view triple is written into the target TWICE by design:
 
 The marker is **bracketed plain text, not an HTML comment**, on purpose: both
 targets store descriptions as rich text through a sanitizer.  Vikunja v2.4.0 was
-verified live to preserve an HTML comment verbatim, but Plane's editor could not
-be verified this session (`id:02f7`), and a stripped comment would silently
-delete the per-view carrier — exactly the failure id:857d exists to prevent.
-Text content survives every sanitizer, and it is human-visible as a bonus.
+verified live to preserve an HTML comment verbatim; Plane could not be verified
+when this was written (`id:02f7`), so the conservative form was chosen.
+
+**That caution was justified — measured on a live Plane v2.6.3 (2026-08-11):
+Plane's `description_html` sanitizer DELETES HTML comments.** A probe issue
+POSTed with `<!-- HTMLCOMMENT-CANARY uid=zz -->` and a bracketed marker in the
+same body read back as
+`<div><p>…</p><p>[[ledger-views uid=zz …]]</p></div>` — comment gone, bracketed
+marker byte-identical.  Had the carrier been an HTML comment, every Plane item
+would have silently lost its per-view triple: exactly the failure id:857d exists
+to prevent, and it would have looked like a clean apply.  Text content survives
+both sanitizers, and it is human-visible as a bonus.
 
 Recovery reads BOTH and fails loudly if they disagree, so a half-applied edit
 surfaces as an error instead of a quietly wrong board.
@@ -51,10 +59,53 @@ surfaces as an error instead of a quietly wrong board.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 
-SUPPORTED_SCHEMA_VERSIONS = ("1.0.0",)
+# The versions an adapter will accept.  SCHEMA.md §5 — "an adapter must REFUSE a
+# schema_version it does not know" — so this must stay a closed set; but it is
+# NOT a hardcoded literal, because the adapters ship in the same checkout as the
+# mapper that stamps the version.  A pinned literal here goes stale the moment
+# `ledger-map.py` bumps `SCHEMA_VERSION`, and the failure is the loud-but-wrong
+# kind: a same-checkout adapter refusing its own mapper's output.
+#
+# So: read the mapper's current SCHEMA_VERSION (textually — never import, the
+# mapper is a sibling-owned file) and union it with the versions this adapter has
+# been checked against by hand.  A document from ANY other version is still
+# refused, which is the property §5 actually asks for.
+KNOWN_SCHEMA_VERSIONS = ("1.0.0",)
+
+_LEDGER_MAP = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ledger-map.py"
+)
+_SCHEMA_VERSION_RE = re.compile(r"^SCHEMA_VERSION\s*=\s*[\"']([0-9]+\.[0-9]+\.[0-9]+)[\"']", re.M)
+
+
+def _mapper_schema_version(path: str = _LEDGER_MAP):
+    """The `SCHEMA_VERSION` this checkout's mapper stamps, or None if unreadable.
+
+    Deliberately a text scan, not an import: `ledger-map.py` is not an importable
+    module name and importing a sibling-owned file to read one constant is a much
+    bigger coupling than a regex.  Unreadable is not an error — the hand-checked
+    set below still applies.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            m = _SCHEMA_VERSION_RE.search(fh.read())
+    except OSError:
+        return None
+    return m.group(1) if m else None
+
+
+def supported_schema_versions() -> tuple:
+    current = _mapper_schema_version()
+    if current and current not in KNOWN_SCHEMA_VERSIONS:
+        return tuple(KNOWN_SCHEMA_VERSIONS) + (current,)
+    return tuple(KNOWN_SCHEMA_VERSIONS)
+
+
+SUPPORTED_SCHEMA_VERSIONS = supported_schema_versions()
 
 VIEWS = ("todo", "roadmap", "review")
 VIEW_STATES = ("open", "done", "absent")
@@ -83,12 +134,13 @@ def load_document(path: str) -> dict:
 
 def check_schema_version(doc: dict) -> dict:
     got = doc.get("schema_version")
-    if got not in SUPPORTED_SCHEMA_VERSIONS:
+    supported = supported_schema_versions()          # re-read: the mapper may have bumped
+    if got not in supported:
         raise AdapterError(
             "REFUSING document: schema_version %r is not one of %s. "
             "SCHEMA.md §5 — an adapter must refuse a version it does not know, "
             "because a stale adapter reading a changed document fails SILENTLY."
-            % (got, ", ".join(SUPPORTED_SCHEMA_VERSIONS))
+            % (got, ", ".join(supported))
         )
     return doc
 
