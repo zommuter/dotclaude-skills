@@ -10,6 +10,7 @@
 ## 2026-08-12
 
 - Wired recordAgentFailure() into the three previously-silent mechanical-hop parse sites (quota, inject-take, discover-prelude) so id:06a1's accumulator no longer under-reports; full suite 390/0/1-expected-red. (id:a104)
+- Reviewed 0015..0037: id:a104 (recordAgentFailure wired into 3 mech-hop parse sites) verified genuinely green + non-gamed; suite 390/0/1-ered; no dispatchable ROUTINE work left. (id:a104)
 
 ## 2026-08-11
 
