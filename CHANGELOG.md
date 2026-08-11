@@ -28,6 +28,7 @@
 - id:34b7 — parent creates+provisions the worktree before dispatch (git worktree add + node_modules/.venv symlinks via new provision-worktree.sh), and the child prompt no longer carries the main-checkout path; suite 381/0/3-expected-red (id:34b7)
 - discover-repo.sh carries verdict/priority_rank on blocked/AMBIGUOUS/idle/substitutive no-unit paths (id:37f2, seam 1 of id:c7dc) (id:37f2)
 - chain-end review: id:34b7 (parent provisions worktree pre-dispatch) + id:37f2 (discover no-unit verdict/rank) verified GREEN, non-gamed; suite 381/0/3-xred; ticked TODO twin id:34b7 (D2); e87d now ungated (id:34b7,37f2)
+- closed [ROUTINE] id:e87d — relay-loop.js emits pushEvent('verdict', {repo,round,verdict,priority_rank,reason,sig,cached}) once per repo per round (units+surfaced+skipped, including cache-reused repos); suite 382/0/2-expected-red (id:e87d)
 
 ## 2026-08-10
 
