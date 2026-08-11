@@ -95,7 +95,11 @@ else:
     printf '%s' "$rec_json" | python3 -c '
 import sys, json
 rec = json.load(sys.stdin)
-print(json.dumps({"units": [], "surfaced": rec.get("surfaced", []), "skipped": []}))
+# id:37f2 — an honest entry carries verdict:"" (reconcile never classifies, so there IS no
+# verdict here) rather than omitting the field or fabricating one; priority_rank:0 for the
+# same reason (no classify-verdict ranking was computed for a repo-level block).
+surfaced = [dict(s, verdict=s.get("verdict", ""), priority_rank=s.get("priority_rank", 0)) for s in rec.get("surfaced", [])]
+print(json.dumps({"units": [], "surfaced": surfaced, "skipped": []}))
 '
     exit 0
   fi
@@ -130,13 +134,19 @@ if rec_raw:
             suppress_surf.append(s)
             suppressed_ids.update(re.findall(r"id:([0-9a-f]{4})", reason))
 
-# Route the classify verdict (same shape/order as the pre-bc49 script).
+# Route the classify verdict (same shape/order as the pre-bc49 script). id:37f2 — the
+# no-unit paths (blocked/AMBIGUOUS/idle) now carry verdict + priority_rank alongside reason,
+# not just a bare reason, so a verdict-per-round consumer (id:e87d, the next seam) can read
+# them without re-deriving anything. priority_rank is classify-verdicts own ranking (no
+# apostrophes here — this whole block is inside a single-quoted `python3 -c ...`, see the
+# NOTE below), passed through verbatim for every branch (id:258d does this for the unit).
+priority_rank = unit.get("priority_rank", 0)
 if verdict == "blocked":
-    units, surfaced, skipped = [], [{"repo": repo, "reason": unit.get("reason", "")}], []
+    units, surfaced, skipped = [], [{"repo": repo, "verdict": verdict, "priority_rank": priority_rank, "reason": unit.get("reason", "")}], []
 elif verdict == "AMBIGUOUS":
-    units, surfaced, skipped = [], [{"repo": repo, "reason": "classifier returned AMBIGUOUS — needs LLM/human triage (loud, id:a0b6)"}], []
+    units, surfaced, skipped = [], [{"repo": repo, "verdict": verdict, "priority_rank": priority_rank, "reason": "classifier returned AMBIGUOUS — needs LLM/human triage (loud, id:a0b6)"}], []
 elif verdict == "idle":
-    units, surfaced, skipped = [unit], [], [{"repo": repo, "reason": unit.get("reason", "")}]
+    units, surfaced, skipped = [unit], [], [{"repo": repo, "verdict": verdict, "priority_rank": priority_rank, "reason": unit.get("reason", "")}]
 else:
     units, surfaced, skipped = [unit], [], []
 
