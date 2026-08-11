@@ -5335,3 +5335,7 @@ restructured.
 ## 2026-08-11 20:05 — executor (sonnet, relay-loop)
 
 closed [ROUTINE] id:e87d — relay-loop.js emits pushEvent('verdict', {repo,round,verdict,priority_rank,reason,sig,cached}) once per repo per round (units+surfaced+skipped, including cache-reused repos); suite 382/0/2-expected-red [id:e87d]
+
+## 2026-08-11 20:19 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+reviewed id:e87d closure (relay-loop.js verdict-event emission): gaming-scan clean, pristine RED spec byte-identical+green, suite 382/0/2-xred; closed @container id:c7dc (all 3 seams landed) + ticked TODO twin (D2); routine_open=0 [id:e87d,c7dc]
