@@ -5189,3 +5189,7 @@ Worked id:d808
 ## 2026-08-11 17:06 — executor (sonnet, relay-loop)
 
 id:d808 — gather-repo-state.sh's open_hard_pool now excludes @container epics and matches punctuation-variant BLOCKED markers, closing the phantom hard-verdict loop; full suite 378/0/6-expected-red. [id:d808]
+
+## 2026-08-11 17:19 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:d808 close verified genuinely valid — @container/BLOCKED-glob fix faithful to RED spec, suite 378/0/6-red green, no gaming/overreach; reconciled cross-ledger TODO tick [id:d808]
