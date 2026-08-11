@@ -170,6 +170,19 @@ function priorityRank(unit, prioritySet) {
 // behaviour. Byte-identical to pool-args.mjs::resolveScopeRepo (the unit-tested pure copy — the
 // Workflow sandbox cannot import; a structural test pins the two in sync).
 const ONLY_REPO = A.onlyRepo ? String(A.onlyRepo).trim() : ''
+
+// routed:a923 — the scope token as it may be SPLICED INTO A SHELL COMMAND (the ```relay-mech
+// fences below, which the mechanical proxy runs locally). Two hazards, both closed here:
+//   1. injection — anything outside [A-Za-z0-9._-] is refused, never quoted-and-hoped.
+//   2. fail-CLOSED on refusal — an unscoped `inject.sh take` under a scoped run is exactly the
+//      steal this fixes, so an unsafe/unresolvable name yields a sentinel that matches NO repo
+//      (nothing consumed) rather than falling back to a global drain. That mirrors what the
+//      scope resolution does downstream anyway: an unconfirmed --only is a LOUD reject with an
+//      empty scoped list (no dispatch), so consuming an injection for it would be pure loss.
+// Empty ONLY_REPO ⇒ '' ⇒ no --repo flag ⇒ global take (unscoped pool, today's behaviour).
+const INJECT_SCOPE = !ONLY_REPO ? ''
+  : (/^[A-Za-z0-9._-]+$/.test(ONLY_REPO) ? ONLY_REPO : '__unresolvable-scope__')
+
 function resolveScopeRepo(onlyRepo, ownRepos) {
   const name = onlyRepo ? String(onlyRepo).trim() : ''
   if (!name) return { scoped: null, surfaced: null }
@@ -848,6 +861,23 @@ const INTEGRATE_SCHEMA = {
 // from `ownRepos` (prelude.repos — this round's relay.toml read, honoring `# path:`); an injected
 // repo absent from that own-repo list cannot be path-resolved in-sandbox and is skipped LOUDLY,
 // never dispatched with a guessed path.
+// routed:a923 — BACKSTOP for the scope contract above (the enforce-don't-document rule). The
+// fix proper is at the CONSUMING layer (`inject.sh take --repo`), because only refusing to
+// consume keeps an out-of-scope unit recoverable. This is the second line: if an out-of-scope
+// injected unit ever reaches the loop anyway (an inject.sh predating the flag, a proxy running
+// a different copy), do NOT dispatch it under a scope that the harness would block — log LOUDLY
+// with its token so the shard is recoverable by hand from inject.done/. Never silent: a dropped
+// injection that logs nothing is the failure mode this whole item is about.
+function enforceInjectScope(units, where) {
+  if (!INJECT_SCOPE) return units
+  const kept = []
+  for (const u of units) {
+    if (u.repo === INJECT_SCOPE) { kept.push(u); continue }
+    log(`relay-loop: routed:a923 SCOPE VIOLATION (${where}) — injected unit for repo '${u.repo}' surfaced under a --only '${ONLY_REPO}' run and was NOT dispatched. It was ALREADY CONSUMED upstream, so recover the shard by hand: ~/.config/relay/inject.done/${u.inject_token || '<token>'}.json → inject.d/. Expected inject.sh take --repo to have left it pending — check the installed inject.sh supports --repo.`)
+  }
+  return kept
+}
+
 function parseInjectTake(raw, ownRepos) {
   const text = (raw == null) ? '' : String(raw)
   // id:3557 — an empty take (nothing pending) now comes back as the 'MECH-OK exit=0' sentinel
@@ -1288,7 +1318,12 @@ const preludeRaw = await agent(
   // is run-scoped (`<STOP_PATH>.<runId>`) and a stop aimed at a different live pool cannot be
   // stolen. Empty on round 1 only if the front door skipped its id:c5ba mint, in which case the
   // prelude falls back to its own per-round mint and only the broadcast sentinel is seen.
-  `${state.runId ? `RELAY_RUN_ID=${state.runId} ` : ''}STOP_PATH=${STOP_PATH} ~/.claude/skills/relay/scripts/discover-prelude.sh` +
+  // routed:a923 — ONLY_REPO threads THIS pool's --only scope into the prelude's CONSUMING
+  // `inject.sh take`, so a scoped pool consumes only its own repo's injections and leaves the
+  // rest PENDING. Unset for an unscoped pool ⇒ global take, unchanged. Without it a scoped pool
+  // drains the inbox globally and then cannot dispatch what it took — the unit is LOST (no
+  // re-enqueue on handback). Same steal-once shape as the id:cd94 run-scoped STOP sentinel.
+  `${state.runId ? `RELAY_RUN_ID=${state.runId} ` : ''}${INJECT_SCOPE ? `ONLY_REPO=${INJECT_SCOPE} ` : ''}STOP_PATH=${STOP_PATH} ~/.claude/skills/relay/scripts/discover-prelude.sh` +
   '\n```',
   { label: 'discover-prelude', phase: 'Discover', model: MECH_MODEL }
 )
@@ -1529,7 +1564,7 @@ if (prelude && Array.isArray(prelude.repos)) {
   // dropped by the canary above, so it can never poison the cache under the NEW live sig.
   for (const u of units) { const sig = sigByRepo[u.repo] || ''; u.sig = sig; if (sig) state.discoverCache[u.repo] = { sig, unit: u } }
   units.push(...reusedUnits)
-  units.push(...(prelude.injectedUnits || []))
+  units.push(...enforceInjectScope(prelude.injectedUnits || [], 'discovery prelude'))
   // shardOk = at least one shard succeeded → build discovery (failed shards' repos are surfaced).
   // All shards failed (total network outage) → discovery stays null → the round fails gracefully
   // and the outer loop stops after completed rounds (resumable via Workflow resumeFromRunId).
@@ -3007,11 +3042,14 @@ async function takeInjections() {
   const raw = await agent(
     'Run exactly this one command and report its stdout verbatim (it atomically emits AND consumes pending user-injected relay units, one compact JSON per line):\n' +
     '```relay-mech\n' +
-    '~/.claude/skills/relay/scripts/inject.sh take' +
+    // routed:a923 — the mid-round take is scoped the same way as the prelude's: a `--only X`
+    // pool consumes only X's injections, leaving another pool's PENDING rather than stealing
+    // (and losing) it. Unscoped pool ⇒ no flag ⇒ global take, unchanged.
+    `~/.claude/skills/relay/scripts/inject.sh take${INJECT_SCOPE ? ` --repo ${INJECT_SCOPE}` : ''}` +
     '\n```',
     { label: 'inject-take', phase: 'Support', model: MECH_MODEL }
   )
-  return parseInjectTake(raw, prelude.repos)
+  return enforceInjectScope(parseInjectTake(raw, prelude.repos), 'mid-round take')
 }
 
 await parallel(
