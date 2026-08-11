@@ -5331,3 +5331,7 @@ roadmap:6217, roadmap:33b2).
 refactor: none needed — additive: one new local (reusedRepoSet) plus three emission loops
 at the existing discovery-merge point; no duplication introduced, no existing code
 restructured.
+
+## 2026-08-11 20:05 — executor (sonnet, relay-loop)
+
+closed [ROUTINE] id:e87d — relay-loop.js emits pushEvent('verdict', {repo,round,verdict,priority_rank,reason,sig,cached}) once per repo per round (units+surfaced+skipped, including cache-reused repos); suite 382/0/2-expected-red [id:e87d]
