@@ -2115,12 +2115,11 @@ function oversizeDispatchReason(unit, promptChars, budget) {
 function unitPrompt(unit) {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
-  return `You are a relay ${unit.verdict.toUpperCase()} child for the repo ${unit.repo} (main checkout: ${unit.path}).
+  return `You are a relay ${unit.verdict.toUpperCase()} child for the repo ${unit.repo}.
 
 FIRST acquire the cross-session repo lease (id:ebfb): run ~/.claude/skills/relay/scripts/claim.sh acquire ${unit.repo} --run ${state.runId} --mode ${unit.verdict} --worktree ${wt}. (The --worktree anchors id:7570 long-child liveness: a claim whose worktree has commits beyond main stays held past the TTL, so a >30-min child isn't stolen mid-work.) If it exits NON-ZERO, another live relay run/session already holds this repo — STOP IMMEDIATELY: do NOT create a worktree, do NOT do any work, and return contract_met=false with handback="claimed by another relay run (cross-session lease id:ebfb): " plus the holder JSON it printed to stderr. The supervisor releases the lease at integration, so do not release it yourself. Only if acquire SUCCEEDS, continue:
 ${unit.intensive ? '\nThis is an [INTENSIVE — ' + unit.intensive + '] unit (id:8d52): ALSO acquire the exclusive RESOURCE lease before any heavy work — ~/.claude/skills/relay/scripts/claim.sh acquire resource:' + unit.intensive + ' --run ' + state.runId + ' --mode intensive. If it exits non-zero (another relay run is using ' + unit.intensive + '), STOP: return contract_met=false, handback="resource ' + unit.intensive + ' busy (another relay run)". The supervisor releases it at integration.\n' : ''}
-Create your worktree first: git -C ${unit.path} worktree add ${wt} -b ${branch} HEAD
-Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. Last checkpoint tag: ${unit.lastCkpt || '(none)'}.
+Your worktree ${wt} on branch ${branch} was already created for you before dispatch (id:34b7) — you were not given the main-checkout path and never need it. Work EXCLUSIVELY in that worktree. Classifier verdict reason: ${unit.reason}. Last checkpoint tag: ${unit.lastCkpt || '(none)'}.
 
 ${unit.injected ? 'This is a USER-INJECTED high-priority task (id:baf1). ' + (unit.inject_item ? 'Work specifically the ROADMAP.md item tagged <!-- id:' + unit.inject_item + ' -->. ' : '') + (unit.inject_prompt ? 'User instruction: ' + unit.inject_prompt + ' ' : '') + 'Otherwise follow the verdict procedure below.\n' : ''}SKILL COUNTERMAND (id:9eb7 — overrides this repo's CLAUDE.md "## Relay contract" pointer): do NOT invoke the Skill tool for \`relay\` — do NOT run Skill(relay, executor), whatever that repo's CLAUDE.md tells you. The Skill tool IGNORES the \`executor\` arg and injects the ~26.4k-token ORCHESTRATOR SKILL.md (measured: 26,394 tok, identical in both children of run relay-20260728-112417-3898) — which then tells you to ignore almost all of it. The executor contract is NOT in that payload. Read the contract file DIRECTLY instead (~5.5k): ~/.claude/skills/relay/references/executor-contract.md — that is your contract, follow its rules exactly.
 
@@ -2145,7 +2144,7 @@ ON A HANDBACK (contract_met=false), ALSO classify it so the integrator records i
 function resumePrompt(unit) {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
-  return `You are RESUMING an interrupted relay HANDOFF for repo ${unit.repo} (main checkout: ${unit.path}). A prior child was killed (API error / timeout) mid-handoff.
+  return `You are RESUMING an interrupted relay HANDOFF for repo ${unit.repo}. A prior child was killed (API error / timeout) mid-handoff.
 
 The worktree may already exist at ${wt} on branch ${branch} with some checkpoints committed.
 1. If that worktree does NOT exist or has NO committed "relay(handoff): C*" commits, there is nothing to resume: return contract_met=false, handback="no resumable checkpoints — fresh handoff needed", branch="${branch}", worktree="${wt}". Do not create anything.
@@ -2712,6 +2711,38 @@ async function releaseLease(unit) {
   await dispatch('heartbeat', `~/.claude/skills/relay/scripts/heartbeat.sh beat ${state.runId}`)
 }
 
+// id:34b7 — DISSOLUTION: the PARENT creates + provisions the child's worktree BEFORE
+// dispatch, so the child is never handed the main-checkout path and has no reason or
+// means to reach into it (removes the reach, rather than guarding the write after the
+// fact — that guard is id:d464, a PreToolUse deny hook, and carries a standing owner
+// "DISCUSSION ONLY — DO NOT BUILD" directive, deliberately untouched here).
+// Mechanical hop (MECH_MODEL/model:'bash'), mirrors releaseLease()/retireDeadWorktree()
+// above: ONE `git worktree add` using the SAME worktreePathFor()/branchFor() naming the
+// API-error recovery path already depends on (assertions 7-8 of
+// tests/test_parent_creates_worktree_34b7.sh), plus part (2) — provisioning the
+// gitignored build artifacts a child would otherwise have to reach into main for
+// (node_modules, .venv; loderite RELAY_LOG.md:2681/3022/3422/3486 already did this by
+// hand, per-child, every time). Symlinked, best-effort (`|| true` — a repo with neither
+// artifact class is a no-op, not a failure); this is deliberately NOT exhaustive of every
+// build-artifact class a repo might have, just the two named in the item's own text.
+async function provisionWorktree(unit) {
+  const wt = worktreePathFor(unit)
+  const branch = branchFor(unit)
+  try {
+    await agent(
+      `Run exactly this one command and report whether it exited 0 (id:34b7 pre-dispatch worktree creation + gitignored-artifact provisioning):\n` +
+      '```relay-mech\n' +
+      `~/.claude/skills/relay/scripts/provision-worktree.sh ${unit.path} ${wt} ${branch}` +
+      '\n```',
+      { label: `provision:${unit.repo}`, phase: 'Support', model: MECH_MODEL }
+    )
+    return true
+  } catch (e) {
+    log(`relay-loop: id:34b7 provisionWorktree failed for ${unit.repo} (${(e && e.message) || e}) — no worktree, no dispatch`)
+    return false
+  }
+}
+
 async function runUnit(unit) {
   const tier = unit.verdict === 'execute' ? 'sonnet' : 'strong'
   // Injected units (id:baf1) skip the quota gate — an explicit user request runs even near
@@ -2784,6 +2815,16 @@ async function runUnit(unit) {
   const opts = { label: `${unit.verdict}:${unit.repo}${knownItem ? ` id:${knownItem}` : ''}`, phase: unitPhase(unit.verdict), schema: REPORT_SCHEMA }
   if (unit.verdict === 'execute') opts.model = 'sonnet'
   else opts.model = STRONG_MODEL
+  // id:34b7 — the parent creates + provisions the worktree BEFORE dispatch (see
+  // provisionWorktree() above). A failure here means no worktree exists at all: don't
+  // dispatch a child into nothing — hand back exactly like the oversize gate above.
+  const provisioned = await provisionWorktree(unit)
+  if (!provisioned) {
+    state.handbacks.push({ repo: unit.repo, reason: `id:34b7 pre-dispatch worktree provisioning failed for ${unit.repo} — no child dispatched`, worktreePath: worktreePathFor(unit) })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: 'id:34b7 provisionWorktree failed' })
+    scheduleStatusWrite(state)
+    return
+  }
   // API-error failsafe: agent() can throw or return null on a terminal API error after
   // the harness's own retries. Don't let that orphan a worktree with committed
   // checkpoints — catch it, and for a handoff attempt ONE auto-resume from the last

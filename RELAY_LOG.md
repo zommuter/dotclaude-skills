@@ -5239,3 +5239,32 @@ review (chain-end re-ask, window relay-ckpt-20260811-1809..HEAD): single in-wind
 ## 2026-08-11 18:38 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:6217 decision-gate CONFIRMED warranted (2 blockers, gate_reason named 1 — surfaced both); fixed id:c7dc auto-split placeholder deps (id:0eb0); suite 380/0/4-red; routine_open=3 [id:6217,37f2,e87d,0eb0]
+
+## 2026-08-11 — executor (sonnet)
+
+Worked id:34b7 — the DISSOLUTION half of id:f91a: the PARENT now creates + provisions a
+dispatched child's worktree BEFORE dispatch, so the child is never handed the main-checkout
+path. Added `provisionWorktree(unit)` in relay-loop.js — a mechanical (MECH_MODEL/bash) hop
+dispatching the new `relay/scripts/provision-worktree.sh <repo-path> <worktree-dir> <branch>`
+(part 1: `git worktree add` using the SAME worktreePathFor()/branchFor() naming the API-error
+recovery path depends on; part 2: best-effort symlink of `node_modules`/`.venv` from main into
+the worktree if present). Wired it into runUnit() right before the child agent() dispatch,
+with its own handback path if provisioning fails (no worktree ⇒ no dispatch). Only THEN (part
+3, gated on 1+2 per the item's own ordering — assertion 6) dropped `(main checkout:
+${unit.path})` and the "Create your worktree first: git worktree add …" line from BOTH
+unitPrompt() and resumePrompt(). Registered the new script in mechanical-proxy.py's
+ALLOWED_RELAY_SCRIPTS and in the Makefile's relay_FILES/relay_EXEC/relay_ALLOW (3 lists).
+`tests/test_parent_creates_worktree_34b7.sh` 8/8 green; full `make test` 381 passed / 0
+failed / 3 expected-red (unrelated open items).
+Friction: two iterations were needed beyond the item's own RED spec — the mech-fence
+completeness guard (id:5bbb) rejects any relay-mech body that isn't a literal
+`relay/scripts/*.sh` call or single bare-parameter indirection (raw inline `git`/`ln` failed
+it, and would ALSO have been rejected at the mechanical-proxy.py segment-leader check, since
+`git`/`ln` aren't `_SAFE_PLUMBING`) — fixed by extracting the shell into
+provision-worktree.sh. And the structure guard (id:7d1e) forbids the monolithic 'Dispatch'
+phase label — switched to the existing 'Support' bucket. Both are pre-existing repo
+invariants over the mech-dispatch shape, not new work; --afk mode surfaced them, not
+guesswork.
+refactor: none needed — the new function/script mirror the existing
+releaseLease()/retireDeadWorktree() dispatch pattern exactly (same shape, same
+try/catch/log convention); no duplication introduced.
