@@ -5369,3 +5369,9 @@ refactor: extracted one shared helper and reduced the request handler to a singl
 ## 2026-08-11 21:23 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 closed [HARD] id:33b2 — opt-in proxy stdin channel (a05c option B): STDIN_ALLOWED_SCRIPTS gate + AND-gated dispatch; suite 383/0/1-xred [id:33b2]
+
+## 2026-08-11 — strong-model audit Run 71 (claude-opus-4-8, hard-execute)
+
+Worked id:401c (recurring strong-model audit) — audited the ONLY first-seen code since Run 70's audit merge (`2c989a9..HEAD`): the id:33b2 / id:a05c-option-B opt-in proxy stdin channel (`mechanical-proxy.py` +133/−8 + its test +78). 3-pass adversarial audit (code / security / design-coherence). The id:33b2 code is CLEAN — payload reaches `subprocess.run(input=)` never the shell `-c` string (canary-inert test proves inertness), opt-in is genuinely AND-gated with the unchanged `_command_allowed()`, `_last_stage_relay_script` mirrors the command gate's last-stage identity, fences disjoint by construction, and the one admitted member `relay-status-publish.sh` reads stdin as inert data (`raw="$(cat)"`, never eval/source). Filed 1 LOW forward-robustness finding id:09e4 (stdin payload silently misdirected when the admitted script is a non-leading pipeline stage; not attacker-reachable; fix = require single-stage under a stdin fence). 2 nits accepted. Wrote `docs/meeting-notes/2026-08-11-2145-strong-model-audit.md`; appended Run 71 to the id:401c Run log.
+Friction: the mechanical watermark (id:da95, Run 70) reads a 0-commit window and would have falsely said "nothing to audit" — the real window was the one merged id:33b2 feature; audited that directly rather than trusting the starved watermark.
+refactor: none needed — audit run; no code changed (findings tracked as items, no inline fix).
