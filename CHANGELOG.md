@@ -18,6 +18,7 @@
 - Closed id:e44e (.changelog.lock dirty-tree pool-blocker) as already discharged by id:798b's git-dir-relocated lock — ticked both ROADMAP.md and TODO.md checkboxes, no code change, full suite 376/0/8-expected-red unchanged. (id:e44e)
 - id:923b per-unit identity key — re-keyed worktreePathFor/branchFor/inFlight off a new unitKey(verdict,itemId,attempt) helper; full suite 377/0/7-expected-red (id:923b)
 - review: id:e44e close verified genuinely valid — 798b git-dir lock structurally dissolves the .changelog.lock dirty-tree defect; suite 376/0/8-red green, no gaming, no overreach (id:e44e)
+- id:d808 — gather-repo-state.sh's open_hard_pool now excludes @container epics and matches punctuation-variant BLOCKED markers, closing the phantom hard-verdict loop; full suite 378/0/6-expected-red. (id:d808)
 
 ## 2026-08-10
 
