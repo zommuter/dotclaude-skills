@@ -54,7 +54,7 @@ import json
 import re
 import sys
 
-SUPPORTED_SCHEMA_VERSIONS = ("1.0.0",)
+SUPPORTED_SCHEMA_VERSIONS = (json.loads(__import__("pathlib").Path(__file__).resolve().parents[1].joinpath("schema", "ledger-intermediate.schema.json").read_text(encoding="utf-8"))["properties"]["schema_version"]["const"],)  # id:8c7f — DERIVED from the ONE declared version (the JSON Schema const); never a literal here
 
 VIEWS = ("todo", "roadmap", "review")
 VIEW_STATES = ("open", "done", "absent")

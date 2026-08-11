@@ -35,7 +35,57 @@ import re
 import sys
 from typing import NoReturn
 
-SCHEMA_VERSION = "1.0.0"
+# THE single declared copy of the contract-surface version for every *python* consumer
+# (id:8c7f). `tracker/repo-entity.py` and `tracker/adapters/adapter_common.py` derive
+# theirs from the JSON Schema's `const`, which `schema_cross_check()` pins to this
+# literal — so there are two declared copies (this one and the schema's), cross-checked,
+# instead of the four uncross-checked ones that let a value-space change ship unversioned.
+# `tracker/fleet-import.sh` scrapes the assignment below by regex, so it must stay a plain
+# literal — and no line ABOVE it may imitate that spelling, or the scrape reads the
+# imitation instead (this comment used to, and did).
+#
+# 1.1.0 (id:8c7f): `repos[].verdict`'s VALUE SPACE was replaced under 1.0.0 — three of the
+# five documented values (relay-poolable / needs-feedback / design-drained) moved to the
+# new `board_column` — with no `enum` keyword to catch it. A changed value space is
+# semantically NON-additive even when no key is added or removed, so it takes a minor
+# bump, and both value spaces are now `enum`-declared and validated.
+SCHEMA_VERSION = "1.1.0"
+
+# ---- repo-entity value spaces (schema `$defs/repo`) ----------------------------------
+# Mirrors of tracker/repo-entity.py's enums, which quote relay/scripts/classify-verdict.sh
+# and relay/scripts/control-board.sh. Held here too so `validate` can check a document's
+# repo entities and cross-check the schema, which previously read ONLY `$defs.item`.
+VERDICT_ENUM = [
+    "blocked", "execute", "review", "hard", "handoff",
+    "human", "mechanical", "idle", "AMBIGUOUS",
+]
+BOARD_COLUMN_ENUM = [
+    "blocked", "relay-poolable", "needs-feedback", "design-drained", "unclassified",
+]
+# Values that WERE in `verdict`'s documented space under 1.0.0 and are now `board_column`
+# values. Named, not merely absent, so a 1.0.0-era document fails with the migration in
+# the error text instead of a bare "not in enum".
+RETIRED_VERDICTS = {"relay-poolable", "needs-feedback", "design-drained"}
+
+REPO_REQUIRED = ["repo", "path", "verdict", "labels"]
+# The full declared property set of `$defs/repo`. Cross-checked as a SET, so adding or
+# removing a repo property without touching this list is a loud drift (`head_sha` was
+# load-bearing in tracker/fleet-state.py while undeclared in the schema entirely).
+REPO_PROPERTIES = [
+    "repo", "path", "head_sha", "verdict", "labels", "ledger_files",
+    "board_column", "board_label", "verdict_reason", "counts",
+    "verdict_source", "verdict_generated_at",
+]
+
+# Files that must NOT re-introduce a hardcoded copy of the version constant; they derive
+# it from the schema (or, for the shell driver, scrape it from this file).
+VERSION_DERIVED_FILES = [
+    os.path.join("tracker", "repo-entity.py"),
+    os.path.join("tracker", "adapters", "adapter_common.py"),
+    os.path.join("tracker", "fleet-import.sh"),
+]
+RE_VERSION_LITERAL = re.compile(r"[\"']([0-9]+\.[0-9]+\.[0-9]+)[\"']")
+RE_VERSION_CONTEXT = re.compile(r"schema[_ ]?version", re.IGNORECASE)
 
 # A plain constant, NOT `__doc__`: `python3 -OO` strips docstrings, so deriving the
 # argparse description from `__doc__` made every subcommand die with
@@ -382,6 +432,10 @@ def parse_file(path: str, relname: str, view: str, archived: bool,
                 "indent": indent,
                 "section": section,
                 "section_gated": bool(section and RE_GATED_SECTION.search(section)),
+                # Kept even when the line HAS a key of its own: `assemble()` re-keys a
+                # review box whose anchor turns out to have no ledger twin, and it can
+                # only do that after every file has been parsed (id:b7f4).
+                "_synthetic": synthetic_key(view, text),
                 "kind": "review_box" if view == "review" else "ledger_item",
                 "title": make_title(text),
                 "tags": tags,
@@ -467,7 +521,46 @@ def derived_status(item: dict) -> str:
     return "backlog"
 
 
+def resolve_review_anchors(observations: list, report: Report) -> None:
+    """Re-key REVIEW_ME boxes whose anchor id has NO ledger twin (id:b7f4).
+
+    SCHEMA.md 2.3 gave the anchored box exactly two shapes — *attaches to the twin* or
+    *standalone untracked* — and silently assumed the anchored one always finds a twin.
+    A box anchored to an id that no TODO/ROADMAP line owns fell between them: it kept the
+    bare 4-hex key while carrying `id: null`, which is precisely the state `validate`
+    rejects ("no id but its key is not a synthetic '~' key"). Observed on the pilot repo
+    (`REVIEW_ME.archive.md` box anchored to an id whose ledger line was never written /
+    was archived away), where it made the WHOLE repo unimportable.
+
+    Policy (SCHEMA.md 2.3, third row): the box becomes a **standalone untracked** box —
+    synthetic `~` key, `identity: "untracked"` — carrying label `dangling-anchor:XXXX`
+    and a loud `review-box-dangling-anchor` report. The two rejected alternatives are
+    recorded there: keeping the 4-hex key breaks the uid invariant, and promoting the
+    anchor to the box's own `id` would fabricate a *tracked* item for an id no ledger
+    owns — a ghost on the board and a false positive for every id-consuming scanner.
+
+    Mutates the observations in place; must run BEFORE `assemble()` composes uids, and
+    only after EVERY ledger file has been parsed (an anchor may be owned by any of them).
+    """
+    owned = {ob["id"] for ob in observations if ob.get("id")}
+    for ob in observations:
+        anchor = ob.get("_attaches_to")
+        if ob["_view"] != "review" or not anchor or anchor in owned:
+            continue
+        report.add(
+            "review-box-dangling-anchor", ob["file"], ob["line"], ob["title"],
+            "REVIEW_ME box is anchored to id:%s, which NO TODO/ROADMAP line owns; "
+            "imported as a standalone untracked review_box with a synthetic key and a "
+            "dangling-anchor:%s label (SCHEMA.md 2.3), never attached to a fabricated "
+            "twin" % (anchor, anchor),
+        )
+        ob["_key"] = ob["_synthetic"]
+        ob["_attaches_to"] = None
+        ob["tags"]["labels"] = sorted(set(ob["tags"]["labels"] + ["dangling-anchor:%s" % anchor]))
+
+
 def assemble(repo: str, observations: list, report: Report) -> list:
+    resolve_review_anchors(observations, report)
     items = {}
     for ob in observations:
         key = ob["_key"]
@@ -664,6 +757,118 @@ def schema_cross_check(schema: dict) -> list:
         errs.append("schema_version drift: schema=%r mapper=%r"
                     % (schema.get("properties", {}).get("schema_version", {}).get("const"),
                        SCHEMA_VERSION))
+
+    errs.extend(repo_cross_check(schema))
+    errs.extend(version_copy_check())
+    return errs
+
+
+def repo_cross_check(schema: dict) -> list:
+    """`$defs/repo` half of the cross-check (id:8c7f).
+
+    Until now this function read ONLY `$defs.item`, so every property id:c17d and id:90f2
+    added to the repo entity had ZERO drift protection — which is how `verdict`'s value
+    space could be replaced wholesale under an unchanged `schema_version`, and how
+    `head_sha` could become load-bearing in tracker/fleet-state.py while being undeclared
+    in the schema.
+    """
+    errs = []
+    repo = schema.get("$defs", {}).get("repo", {})
+    props = repo.get("properties", {})
+
+    def enum_of(prop):
+        spec = props.get(prop, {})
+        if "enum" in spec:
+            return spec["enum"]
+        for branch in spec.get("anyOf", []):
+            if "enum" in branch:
+                return branch["enum"]
+        return None
+
+    got = enum_of("verdict")
+    if sorted(got or []) != sorted(VERDICT_ENUM):
+        errs.append("schema/mapper enum drift for repo.verdict (VERDICT_ENUM): "
+                    "schema=%r mapper=%r" % (got, VERDICT_ENUM))
+    got = enum_of("board_column")
+    if sorted(got or []) != sorted(BOARD_COLUMN_ENUM):
+        errs.append("schema/mapper enum drift for repo.board_column (BOARD_COLUMN_ENUM): "
+                    "schema=%r mapper=%r" % (got, BOARD_COLUMN_ENUM))
+
+    required = sorted(repo.get("required", []))
+    if required != sorted(REPO_REQUIRED):
+        errs.append("schema/mapper required-key drift for repo: schema=%r mapper=%r"
+                    % (required, sorted(REPO_REQUIRED)))
+    declared = sorted(props)
+    if declared != sorted(REPO_PROPERTIES):
+        errs.append("schema/mapper property drift for repo: schema=%r mapper=%r"
+                    % (declared, sorted(REPO_PROPERTIES)))
+    return errs
+
+
+def version_copy_check(root: str = None) -> list:
+    """No file may re-introduce a hardcoded copy of the version constant (id:8c7f).
+
+    The constant used to exist as FOUR uncross-checked copies (this file, the JSON
+    Schema, repo-entity.py, adapters/adapter_common.py) plus a scrape in fleet-import.sh.
+    Two remain by necessity — this file's literal and the schema's `const`, which
+    `schema_cross_check()` pins to each other — and the rest derive. This check makes the
+    collapse enforced rather than merely intended: any line that mentions a schema version
+    AND carries a literal `X.Y.Z` is required to name the current one, so re-hardcoding a
+    stale copy is caught the next time `validate` runs.
+    """
+    errs = []
+    base = root or os.path.dirname(HERE)
+    for rel in VERSION_DERIVED_FILES:
+        path = os.path.join(base, rel)
+        if not os.path.exists(path):
+            continue
+        with open(path, "r", encoding="utf-8") as fh:
+            for n, line in enumerate(fh, start=1):
+                if not RE_VERSION_CONTEXT.search(line):
+                    continue
+                for lit in RE_VERSION_LITERAL.findall(line):
+                    if lit != SCHEMA_VERSION:
+                        errs.append(
+                            "hardcoded schema_version copy in %s:%d — %r != the single "
+                            "source %r; derive it from the JSON Schema's const instead of "
+                            "restating it (id:8c7f)" % (rel, n, lit, SCHEMA_VERSION))
+    return errs
+
+
+def validate_repos(doc: dict) -> list:
+    """The `repos[]` half of `validate` (id:8c7f).
+
+    `validate` checked `items[]` exhaustively and did not look at `repos[]` at all — the
+    gap SCHEMA.md 7 named and left "to that file's owner". It is folded in here because
+    the 1.1.0 `verdict` enum is worthless as documentation alone: nothing in this repo
+    runs a JSON Schema validator (stdlib only, no deps), so an `enum` keyword catches
+    exactly nothing until a check reads it. tracker/repo-entity.py keeps its own
+    `validate-repos` for the verdict-to-column invariant; this covers the value spaces.
+    """
+    errs = []
+    seen = set()
+    for r in doc.get("repos", []):
+        name = r.get("repo") or "<unnamed>"
+        for k in REPO_REQUIRED:
+            if k not in r:
+                errs.append("repo %r: missing required key %r" % (name, k))
+        if name in seen:
+            errs.append("repo %r appears twice — the repo name is half the composite "
+                        "(repo, id) key and must be unique" % name)
+        seen.add(name)
+
+        v = r.get("verdict")
+        if v is not None and v not in VERDICT_ENUM:
+            if v in RETIRED_VERDICTS:
+                errs.append("repo %r: verdict %r was RETIRED from the verdict value space "
+                            "— it is a `board_column` value now, not a verdict (this is the "
+                            "schema_version 1.0.0 -> %s change; a 1.0.0-era document must "
+                            "be re-derived, never re-labelled)" % (name, v, SCHEMA_VERSION))
+            else:
+                errs.append("repo %r: verdict %r not in %r" % (name, v, VERDICT_ENUM))
+        col = r.get("board_column")
+        if col not in (None, "") and col not in BOARD_COLUMN_ENUM:
+            errs.append("repo %r: board_column %r not in %r" % (name, col, BOARD_COLUMN_ENUM))
     return errs
 
 
@@ -682,6 +887,8 @@ def validate_doc(doc: dict, allowed_homonyms=frozenset()) -> tuple:
 
     if doc.get("schema_version") != SCHEMA_VERSION:
         errs.append("schema_version %r != %r" % (doc.get("schema_version"), SCHEMA_VERSION))
+
+    errs.extend(validate_repos(doc))
 
     items = doc.get("items", [])
     by_uid = {}
