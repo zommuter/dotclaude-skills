@@ -272,6 +272,7 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
     "verify-isolation.sh", "gather-repo-state.sh",
     "ckpt-tag.sh", "quota-stop.sh",
     "worktree-retire.sh",  # id:4df8/1f8e — the force-free context-death retirement wrapper; missing here 404s retireDeadWorktree()'s model:'bash' dispatch (id:5bbb completeness-test gap, observed live run relay-20260729-142725-13077)
+    "provision-worktree.sh",  # id:34b7 — pre-dispatch parent-side worktree creation + gitignored-artifact provisioning; missing here 404s provisionWorktree()'s model:'bash' dispatch
 ])
 
 # Plumbing tokens permitted as a NON-leading pipeline stage (e.g. `echo {json} |
