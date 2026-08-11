@@ -5218,3 +5218,7 @@ Worked id:ecce
 ## 2026-08-11 17:48 — executor (sonnet, relay-loop)
 
 id:ecce closed — ckpt-tag.sh/gather-repo-state.sh/SKILL.md now use a distinct `integrate (<model>)` label that never advances the strong-audit watermark; id:6217 investigated and BLOCKED (test assertion 4 unscoped-grep bug conflicts with its own scope statement, logged not weakened); id:34b7 sized past scope for this session (restructures the dispatch mechanism this child itself runs under). [id:ecce]
+
+## 2026-08-11 18:01 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:069b close verified genuinely green (personas.md dedup + conformance + append extend-path, no gaming/overreach); reconciled cross-ledger TODO tick, resolved @container lint on c7dc, surfaced TICK-READY wave items + flaky test [id:069b,c7dc]
