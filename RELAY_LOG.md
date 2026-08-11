@@ -5199,3 +5199,7 @@ Worked id:069b — `meeting/personas.md` had 27 redundant persona entries (89 bu
 Friction: the RED spec's own seeded-duplicate assertion (case 6) had a pre-existing shell bug — `printf '- 🔧 **Quinn**...'` — the leading `-` made printf parse the format string as an option flag (`printf: invalid option`), unrelated to the substantive assertion. Fixed to `printf '%s\n' '...'` (same string content, no `-`-as-flag ambiguity); the assertion itself (conformance script must fail non-zero and name "Quinn") is unchanged.
 refactor: none needed — dedup pass is a one-shot data fix (not shipped as a script), the conformance script and the append.sh extend-path are each small additive units with no pre-existing duplication to clean up.
 Worked id:069b
+
+## 2026-08-11 17:34 — executor (sonnet, relay-loop)
+
+id:069b — meeting/personas.md deduped (27 redundant entries merged with provenance preserved), personas-conformance.sh added, append.sh now extends instead of duplicating an already-registered persona name; full suite 379/0/5-expected-red. [id:069b]
