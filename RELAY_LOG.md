@@ -5146,3 +5146,21 @@ review: id:2047 (validate-flags --flag=value parse) verified genuinely green (ma
 ## 2026-08-11 16:26 — executor (sonnet, relay-loop)
 
 Closed id:e44e (.changelog.lock dirty-tree pool-blocker) as already discharged by id:798b's git-dir-relocated lock — ticked both ROADMAP.md and TODO.md checkboxes, no code change, full suite 376/0/8-expected-red unchanged. [id:e44e]
+
+## 2026-08-11 16:47 — reviewer (claude-opus-4-8, relay-loop)
+
+review (chain-end, id:8123): VERIFIED id:e44e's close as genuinely valid. The executor closed
+it with no code change, claiming the .changelog.lock dirty-tree defect was already dissolved by
+id:798b's git-dir relocation. Confirmed independently: changelog-append.sh:112 locks
+`<gitdir>/changelog-append.lock`, never the working tree (header :26-37 documents why the git-dir
+lock — not remove-on-exit — is the durable fix). tests/test_changelog_lock_no_dirty_798b.sh is
+GREEN and covers strictly MORE than e44e's acceptance: its check (C) polls `git status` DURING
+concurrent appends and check (B) exercises real concurrency for zero lost updates, on puzzle-pwa
+(no .gitignore) + zkm-stt (partial) fixture shapes. e44e's premise (a lock visible to git status)
+is therefore structurally dissolved; its done-check part (i) gitignore-stanza is moot (no tree
+lock to ignore). The back-fill/unpark residual half is correctly left OPEN under id:d525.
+gaming-scan clean (no deleted tests / added skips / removed asserts); no over-reach (close-only,
+no new code path). Full suite 376/0/8-expected-red green. Contract pointer v11 == contract v11.
+roadmap-lint exit 0 (pre-existing DEAD-GATE warnings on id:2b49/540f/c179, class tracked by
+id:49e0, not introduced this window); relay-doctor report-only clean of new findings. No new
+ledger items added since last checkpoint (nothing to reverse-handoff). routine_open=8 dispatchable.
