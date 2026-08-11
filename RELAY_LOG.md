@@ -5339,3 +5339,9 @@ closed [ROUTINE] id:e87d — relay-loop.js emits pushEvent('verdict', {repo,roun
 ## 2026-08-11 20:19 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 reviewed id:e87d closure (relay-loop.js verdict-event emission): gaming-scan clean, pristine RED spec byte-identical+green, suite 382/0/2-xred; closed @container id:c7dc (all 3 seams landed) + ticked TODO twin (D2); routine_open=0 [id:e87d,c7dc]
+
+## 2026-08-11 — hard-execute (claude-opus-4-8, relay-loop)
+
+Worked id:e62c — closed the F2 PREREQUISITE FINDING ([HARD — pool]). The empirical verdict (branch (1): the safety classifier sits at the `agent()` DISPATCH layer, upstream of `mechanical-proxy.py`'s HTTP interception, so proxying confers NO classifier protection) was already written in-item from run `relay-20260729-111723-7520`; the remaining done-check work was the rationale correction into the id:6b35 block (struck classifier-exposure as a driver; marked F2 RESOLVED; surviving drivers = cost + hardcoded-no-fallback discover hops) and the id:51f0 D3-A block (F2 resolved, per-unit classifier-blocked releases CAN recur, D1-A front-door EXIT-ONLY teardown VINDICATED — id:89d6/54be load-bearing). Ticked e62c with a done-note. No RED spec by design (id:108e — a live-API/harness question no hermetic test can discriminate). Build decisions for the fail-closed refusal (id:540f/c179) explicitly LEFT to the owner via their `gated-on:b0b1` owner gate — this close records the finding, it does not amend the ratified 2026-07-29 meeting decisions.
+Friction: none. Suite 382/0/2-expected-red.
+refactor: none needed — markdown coherence-correction + checkbox tick, no code touched, no new duplication.
