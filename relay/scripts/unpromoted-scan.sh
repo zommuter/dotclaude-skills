@@ -19,14 +19,17 @@
 #
 # Output (TSV, report-only — exit 0 with findings; only MISUSE exits nonzero):
 #   <repo>\t<id>\t<disposition>\t<title>
-#     disposition = promote   → line carries an executable lane ([ROUTINE]/[HARD — pool]);
-#                               directly handoff-promotable.
+#     disposition = promote   → line carries an executable lane ([ROUTINE], or the pool
+#                               lane in EITHER spelling — bare [HARD] (new) / [HARD — pool]
+#                               (old, migration window)); directly handoff-promotable.
 #                 = surface   → untagged / ambiguous → SURFACE for strong-turn triage,
 #                               never auto-promote (acceptance #3). NOT emitted for a
 #                               line whose lane question was already RESOLVED in the
 #                               decision-queue (parked/not-an-item — 2026-07-02 fix).
 #                 = laned     → carries a recognized HUMAN lane ([HARD — meeting]/
-#                               [HARD — hands]/[HARD — decision gate]) as its PRIMARY
+#                               [HARD — hands]/[HARD — decision gate]/[INPUT — meeting]/
+#                               [INPUT — decision]/[INPUT — access]/[INPUT — author]) or
+#                               [MECHANICAL] as its PRIMARY
 #                               tag: lane already decided — reported for visibility,
 #                               verdict-neutral (classify counts only promote/surface),
 #                               never filed to the decision-queue (2026-07-02 fix for
@@ -86,18 +89,40 @@ primary_lane() {
   local line="$1" tag rest="" lead_tag="" prefix after best_pos=-1 best_tag="" pos
   # id:719a — recognized lane vocabulary spans BOTH the old venue-keyed spelling
   # ([HARD — pool|hands|meeting|decision gate]) and the new capability-keyed spelling
-  # ([INPUT — meeting|access|decision], bare [HARD], [MECHANICAL]) during the dual-vocab
-  # window (id:7df1 gated). [HARD] alone is NOT executor-promotable (reserved for the
-  # strong reviewer, rule 1) — only [ROUTINE]/[HARD — pool] are; see disposition mapping
-  # below. All others are recognized-but-laned (lane question already answered).
+  # ([INPUT — meeting|access|decision|author], bare [HARD], [MECHANICAL]) during the
+  # dual-vocab window (id:7df1 gated).
+  #
+  # id:4b64 (routed:6629) — `[INPUT — author]` (the 5th capability lane, id:2b0b) was
+  # MISSING from this list, so a properly-laned author item fell through to `surface`,
+  # inflating the surface count that drives the `human` verdict AND re-asking a lane
+  # question the line already answers (observed: lodelore id:e545). Every lane spelling
+  # in relay/references/hard-lanes.md's capability table must appear here — the
+  # per-spelling fixtures in tests/test_lane_vocab_both_sides_4b64.sh pin that.
+  #
+  # POOL lane = both spellings: bare [HARD] (new) and [HARD — pool] (old) are the SAME
+  # lane (hard-lanes.md's 1:1 rename table), so both map to `promote` in the disposition
+  # below. Everything else here is recognized-but-laned (lane question already answered).
   local -a tags=(
     "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"
-    "[INPUT — meeting]" "[INPUT — access]" "[INPUT — decision]" "[MECHANICAL]" "[HARD]"
+    "[INPUT — meeting]" "[INPUT — access]" "[INPUT — decision]" "[INPUT — author]"
+    "[MECHANICAL]" "[HARD]"
   )
   # id:719a — tag-before-bold-title anchor: "- [ ] [TAG] **title** ..." (new-vocab items
   # are conventionally tagged BEFORE the bold title, unlike old-vocab's after-title spot).
   # A tag here wins over any prose token regardless of order.
   if [[ "$line" =~ ^-\ \[\ \]\ (\[[^]]*\])\ \*\* ]]; then
+    lead_tag="${BASH_REMATCH[1]}"
+    for tag in "${tags[@]}"; do
+      [[ "$lead_tag" == "$tag" ]] && { printf '%s' "$tag"; return; }
+    done
+  fi
+  # id:4b64 — BOLD-TAG anchor: "- [ ] **[TAG]** title …". This is the shape relay's own
+  # id:3801 auto-gate/auto-split EMITS (handback-followup.py renders both the gate tag and
+  # every seam's tier tag bold), so without this branch the emitter and this reader
+  # disagreed about relay's OWN output: the bold branch below treats `**[HARD]**` as the
+  # item's TITLE, finds no tag after it, and returns empty → `surface`. A bold span whose
+  # entire content is a recognized lane tag is never a prose title, so this is unambiguous.
+  if [[ "$line" =~ ^-\ \[\ \]\ \*\*(\[[^]]*\])\*\* ]]; then
     lead_tag="${BASH_REMATCH[1]}"
     for tag in "${tags[@]}"; do
       [[ "$lead_tag" == "$tag" ]] && { printf '%s' "$tag"; return; }
@@ -310,7 +335,7 @@ for line in sys.stdin:
     [[ "$filed_ids" == *" $token "* ]] && { log "repo=$name filed=$token"; continue; }
 
     # Disposition: an executable lane tag means directly handoff-promotable; a recognized
-    # HUMAN lane tag ([HARD — meeting]/[HARD — hands]/[HARD — decision gate]) means the
+    # HUMAN lane tag ([HARD — meeting|hands|decision gate] / [INPUT — …]) means the
     # lane question is ANSWERED on the line itself → `laned` (reported for visibility,
     # verdict-neutral, never filed to the decision-queue — filing a lane-triage request
     # for an already-laned line is the answer-then-re-ask loop, 2026-07-02 fix); anything
@@ -322,7 +347,19 @@ for line in sys.stdin:
     # (e.g. a `[HARD — meeting]` item whose body says "supersedes an earlier [ROUTINE] plan").
     local lane
     lane="$(primary_lane "$line")"
-    if [[ "$lane" =~ ^(\[ROUTINE\]|\[HARD\ —\ pool\])$ ]]; then
+    # id:4b64 (routed:5ccd) — the POOL lane counts as `promote` in BOTH spellings. This
+    # test used to match `[ROUTINE]|[HARD — pool]` ONLY, so bare `[HARD]` — the recorded
+    # 1:1 successor of `[HARD — pool]` (relay/references/hard-lanes.md rename table) —
+    # fell through to `laned`, which is verdict-NEUTRAL by design (it exists for HUMAN
+    # lanes, where re-triage would be the answer-then-re-ask loop). classify-repo.sh
+    # folds only {promote, surface}, so a repo whose entire apex backlog was written in
+    # the NEW vocabulary counted zero in both and classified `idle` — it never
+    # self-routed to handoff (VERIFIED LIVE in lodelore: id:b0c4 + id:193f both reported
+    # `laned`, classify-repo returned verdict:idle, unpromoted.promote:0/.surface:0).
+    # The pre-commit lane-vocab ratchet (hooks/pre-commit-lane-vocab.sh) pushes every
+    # repo INTO that spelling, so the blind spot was actively spreading.
+    # Human lanes stay `laned` — do NOT widen this to any other tag.
+    if [[ "$lane" =~ ^(\[ROUTINE\]|\[HARD\]|\[HARD\ —\ pool\])$ ]]; then
       disposition="promote"
     elif [[ -n "$lane" ]]; then
       disposition="laned"

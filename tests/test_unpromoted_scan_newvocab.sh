@@ -19,8 +19,18 @@
 #
 # RED until primary_lane() recognizes new-vocab tags AND anchors a tag that sits between
 # `- [ ] ` and a bold `**title**`. Expected post-fix disposition:
-#   [INPUT — meeting|access|decision] / [MECHANICAL] → laned (human/compute gate, verdict-neutral)
-#   bare [HARD]                                       → laned (strong-model, not executor-promote)
+#   [INPUT — meeting|access|decision|author] / [MECHANICAL] → laned (human/compute gate,
+#                                                             verdict-neutral)
+#   bare [HARD]                                             → promote (see below)
+#
+# AMENDED 2026-08-11 (id:4b64, routed:5ccd): case (n) originally asserted bare `[HARD]` →
+# `laned`. That was WRONG, and verdict-invisible: `[HARD]` is the recorded 1:1 successor of
+# `[HARD — pool]` (relay/references/hard-lanes.md rename table), which has always been
+# `promote`; `laned` is verdict-NEUTRAL (classify-repo folds only {promote, surface}), so a
+# repo whose apex backlog was written in the NEW vocabulary classified `idle` and never
+# self-routed to handoff (VERIFIED LIVE in lodelore: id:b0c4 + id:193f). The assertion is
+# re-pointed at `promote`, NOT weakened — it still fails if bare [HARD] lands in `surface`
+# (the id:719a prose-false-match regression this case was written to catch).
 # Hermetic: mktemp fixture repo, no network, no ~/.claude touch.
 
 set -uo pipefail
@@ -86,12 +96,15 @@ grep -qP '\t5555\tlaned\t' <<<"$out" || fail "(m) [MECHANICAL] id 5555 not repor
 $out"
 pass "(m) [MECHANICAL] prefixed item → laned, not promote"
 
-# (n) bare [HARD] prefixed, prose [ROUTINE] → laned (strong-model, not executor-promote).
-grep -qP '\t4444\tpromote\t' <<<"$out" && fail "(n) bare [HARD] id 4444 mis-promoted on a prose [ROUTINE] token:
+# (n) bare [HARD] prefixed, prose [ROUTINE] → promote (the pool lane, id:4b64), and NEVER
+# surface (the id:719a anchoring regression this case guards).
+grep -qP '\t4444\tsurface\t' <<<"$out" && fail "(n) bare [HARD] id 4444 fell through to surface (primary_lane did not recognize it):
 $out"
-grep -qP '\t4444\tlaned\t' <<<"$out" || fail "(n) bare [HARD] id 4444 not reported as laned:
+grep -qP '\t4444\tlaned\t' <<<"$out" && fail "(n) bare [HARD] id 4444 reported laned — laned is verdict-neutral, so the item is invisible to classify-repo and the repo classifies idle (id:4b64, routed:5ccd):
 $out"
-pass "(n) bare [HARD] prefixed item → laned, not promote"
+grep -qP '\t4444\tpromote\t' <<<"$out" || fail "(n) bare [HARD] id 4444 not reported as promote (it is the 1:1 successor of [HARD — pool]):
+$out"
+pass "(n) bare [HARD] prefixed item → promote (pool lane, both spellings)"
 
 # (o) genuine [ROUTINE] item is STILL promote (the fix must not over-correct).
 grep -qP '\t3333\tpromote\t' <<<"$out" || fail "(o) genuine [ROUTINE] id 3333 must remain promote:

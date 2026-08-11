@@ -7,9 +7,9 @@ SAME un-doable item every run (the d61a 4×-rerun, the f14f size-out). This make
 handback DURABLE in the repo's ROADMAP.md, under the same id-ecosystem (single-id-two-views):
 
   route=decision-gate / human  → re-tag the parent item to the classifier-EXCLUDED tag
-                                 `[HARD — decision gate]` (id:2d20) with an inline reason,
-                                 so the pool stops dispatching it until a /meeting (or
-                                 /relay human) resolves it.
+                                 `[INPUT — decision]` (id:2d20; id:4b64) with an inline
+                                 reason, so the pool stops dispatching it until a /meeting
+                                 (or /relay human) resolves it.
   route=hard-split             → gate the parent AND append the child's recommended seam
                                  sub-items as individually-pickable `- [ ]` units (reuse
                                  provided ids, mint missing via append.sh), each noting its
@@ -17,14 +17,25 @@ handback DURABLE in the repo's ROADMAP.md, under the same id-ecosystem (single-i
   route=none                   → no-op (surfaced in RELAY_STATUS as before).
 
 Idempotent: re-running on the same handback makes NO further change (a parent already
-`[HARD — decision gate]` is left untouched — this also respects a human's manual gate;
-a seam whose id already exists is skipped). All writes go through the flock'd
+carrying ANY human gate — `[INPUT — decision]`, or the old-vocab `[HARD — decision gate]`
+still present during the migration window — is left untouched, which also respects a
+human's manual gate; a seam whose id already exists is skipped). All writes go through the flock'd
 `meeting/md-merge.py update-ids` (atomic, re-reads under lock) — never a raw rewrite —
 and commit+push via `git-lock-push.sh --ff-only` (manifest mode, ROADMAP.md only),
 the same main-checkout ledger write-back path as /meeting / /relay human (id:15d5).
 
 This is a CLAIM the next review re-checks (anti-gaming, id:3801 fork e): the gate is
-reversible (a human/meeting re-tags it back to [ROUTINE]/[HARD — strong model]).
+reversible (a human/meeting re-tags it back to [ROUTINE]/[HARD]).
+
+VOCABULARY (id:4b64, routed:8858): every tag this script EMITS is the canonical
+capability-keyed spelling of `relay/references/hard-lanes.md` — `[INPUT — decision]` for
+the gate, `[HARD]`/`[ROUTINE]` for seams. It used to emit the OLD venue-keyed
+`[HARD — decision gate]` and the pre-id:78ff legacy `[HARD — strong model]`; the first is
+BLOCKED by relay's own `hooks/pre-commit-lane-vocab.sh` ratchet (so the gate write could
+not commit and left ROADMAP.md STAGED-but-uncommitted, wedging every later pool run into
+deferring the repo — reproduced end-to-end in lodelore run relay-20260810-214130-15097),
+and the second is in NO lane vocabulary at all (so a seam read as untagged). Old-vocab
+tags are still RECOGNIZED on read (migration window), never written.
 
 Usage:
   handback-followup.py <repo-root> --parent-id XXXX --route <decision-gate|hard-split|human|none>
@@ -42,10 +53,29 @@ import re
 import subprocess
 import sys
 
-GATE_TAG = "[HARD — decision gate]"          # the exact classifier-excluded tag (id:2d20)
+# The exact classifier-excluded gate tag (id:2d20). CANONICAL, capability-keyed (id:4b64):
+# `[INPUT — decision]` — recognized as a human gate by classify-repo.sh's HUMAN_GATES,
+# gather-repo-state.sh's roadmap_primary_lane, gather-human-backlog.sh (human_decision
+# bucket) and roadmap-lint.sh, and accepted by hooks/pre-commit-lane-vocab.sh.
+GATE_TAG = "[INPUT — decision]"
+# Old-vocab gate spellings still LIVE in un-migrated ledgers: seeing any of them means the
+# item is ALREADY gated → idempotent no-op (never rewrite a line just to re-spell it; the
+# migration is lane-convert.sh's job, id:4f02).
+LEGACY_GATE_TAGS = ("[HARD — decision gate]",)
 TIER_RE = re.compile(r"\[(?:ROUTINE|HARD[^\]]*)\]")  # first tier tag on a line
 ID_RE = lambda tok: re.compile(r"<!--\s*id:" + re.escape(tok) + r"\s*-->")
 SKILLS = os.path.expanduser("~/.claude/skills")
+# id:6f1c/f682 worktree isolation — resolve sibling helpers relative to THIS script's own
+# tree first, falling back to the ~/.claude/skills install. In a live run the two are the
+# same path (the install is a per-file symlink into the main checkout); in a worktree/test
+# they are NOT, and reaching for the install would silently exercise the MAIN checkout's
+# stale copy of the very helper under test (id:4b64: the md-merge rollback lives there).
+_SELF_TREE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def skill_path(*parts):
+    own = os.path.join(_SELF_TREE, *parts)
+    return own if os.path.exists(own) else os.path.join(SKILLS, *parts)
 
 
 def sh(cmd, **kw):
@@ -62,8 +92,11 @@ def find_line(lines, tok):
 
 def gate_line(line, reason, route):
     """Re-tag a parent item line to the decision-gate tag + inline reason (idempotent)."""
-    if GATE_TAG in line:
-        return None  # already gated (auto OR manual) — leave it untouched
+    # Already gated (auto OR manual) — leave it untouched. id:4b64: the check spans BOTH
+    # vocabularies, so an un-migrated `[HARD — decision gate]` item is NOT re-gated (which
+    # would rewrite a line only to re-spell its tag) and no gate note is duplicated.
+    if GATE_TAG in line or any(t in line for t in LEGACY_GATE_TAGS):
+        return None
     note = f" — 🚧 GATED (auto, id:3801; route:{route}): {reason}".rstrip()
     # swap the tier tag; if none present, inject a bold tag right after the checkbox.
     if TIER_RE.search(line):
@@ -78,7 +111,7 @@ def gate_line(line, reason, route):
 
 
 def mint_id(repo_root):
-    r = sh([os.path.join(SKILLS, "meeting", "append.sh"), "new-id", repo_root])
+    r = sh([skill_path("meeting", "append.sh"), "new-id", repo_root])
     tok = (r.stdout or "").strip().split()[-1] if r.stdout.strip() else ""
     if not re.fullmatch(r"[0-9a-f]{4}", tok):
         raise RuntimeError(f"append.sh new-id returned no token: {r.stdout!r} {r.stderr!r}")
@@ -110,7 +143,13 @@ def seam_line(item, parent_id, repo_root, existing_ids, lines_text):
                 return None, (m.group(1) if m else "exists")
         tok = mint_id(repo_root)
     tier = (item.get("tier") or "HARD").upper()
-    tag = "**[ROUTINE]**" if tier == "ROUTINE" else "**[HARD — strong model]**"
+    # id:4b64 — CANONICAL capability-keyed tier tag. This used to emit the pre-id:78ff
+    # legacy `[HARD — strong model]`, which is in NO lane vocabulary (not hard-lanes.md's
+    # old venue-keyed set, not its new capability-keyed set): every lane parser
+    # (unpromoted-scan primary_lane, gather-repo-state roadmap_primary_lane,
+    # classify-repo LANE_TAGS, roadmap-lint) read such a seam as UNTAGGED, so a
+    # decomposition emitted its own seams into the untagged/surface bucket.
+    tag = "**[ROUTINE]**" if tier == "ROUTINE" else "**[HARD]**"
     dep = (item.get("dep") or "").strip()
     dep_clause = f" (after id:{dep})" if dep else ""
     title = item.get("title", "").strip() or "(untitled seam)"
@@ -223,7 +262,7 @@ def main():
     # PREVIOUSLY this was TWO steps — md-merge write-only, THEN git-lock-push manifest commit —
     # with a stranding window between them (the loderite id:3801 residue that motivated id:4da4).
     # In no-commit mode, write only (the deliberate dry path).
-    merge_cmd = [sys.executable, os.path.join(SKILLS, "meeting", "md-merge.py"),
+    merge_cmd = [sys.executable, skill_path("meeting", "md-merge.py"),
                  "update-ids", "--file", roadmap]
     if a.route == "hard-split":
         # id:1b1a — md-merge's update-ids now fails LOUD on an unmatched id by
@@ -234,7 +273,15 @@ def main():
         merge_cmd += ["--commit", msg]
     merge = sh(merge_cmd, input=json.dumps({"updates": updates}))
     if merge.returncode != 0:
-        print(f"md-merge failed: {merge.stderr}", file=sys.stderr)
+        # id:4b64 — LOUD, and the failure leaves NO residue: md-merge's --commit path rolls
+        # the write AND the index back when the commit itself fails (e.g. a pre-commit hook
+        # rejects the line), so the repo is never left staged-but-uncommitted. Non-zero here
+        # propagates to relay-loop.js's durableHandbackFollowup, which surfaces it as a
+        # blocked entry instead of letting the round report a clean `drained`.
+        print(f"HANDBACK-FOLLOWUP FAILED (id:3801) for id:{a.parent_id} route={a.route}: "
+              f"md-merge exited {merge.returncode} — the ROADMAP gate was NOT recorded "
+              f"(write rolled back, no staged residue). stderr: {merge.stderr.strip()}",
+              file=sys.stderr)
         return 1
     print(f"id:{a.parent_id} route={a.route}: {len(updates)} ROADMAP line(s) written"
           + (" + committed" if do_commit else ""))

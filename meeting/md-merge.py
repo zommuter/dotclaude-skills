@@ -29,8 +29,12 @@ Both subcommands:
   (scoped `git add -- <file>` + `git commit -- <file>`, never `git add -A`, never
   stash/reset — mirrors relay/scripts/commit-ledger.sh id:2147). Closes the scoop
   window: no modified-but-uncommitted ledger is left in the main checkout. Opt-in,
-  idempotent (clean no-op when unchanged), and non-fatal on any git error (the write
-  already succeeded).
+  idempotent (clean no-op when unchanged). PRE-staging git errors (not a repo, `git add`
+  failed) are non-fatal — nothing was staged, so the write simply stays uncommitted.
+  A FAILED COMMIT of an already-STAGED file is different (id:4b64): the write AND the
+  staging are ROLLED BACK and md-merge exits non-zero, LOUDLY. A staged-and-abandoned
+  ledger write is strictly worse than no write — it wedges the repo silently, because
+  every later relay round's dirty-guard (id:aa93) defers a dirty main checkout.
 
 Contract: two sessions editing different items/sections both survive;
 same-item serializes with last-under-lock winning without clobbering others.
@@ -52,7 +56,15 @@ def _atomic_write(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
-def _commit_ledger(file_path: Path, msg: str) -> None:
+class LedgerCommitError(RuntimeError):
+    """The --commit step STAGED the ledger but could NOT commit it (id:4b64).
+
+    Raised only AFTER the write and the staging have been rolled back, so the repo is left
+    exactly as it was found. LOUD by construction: md-merge exits non-zero.
+    """
+
+
+def _commit_ledger(file_path: Path, msg: str, pre_text: str | None = None) -> None:
     """Scoped, idempotent commit of JUST <file_path> in its repo's main checkout.
 
     Closes the scoop window (id:148b): without this the ledger is written but left
@@ -68,8 +80,22 @@ def _commit_ledger(file_path: Path, msg: str) -> None:
         and COMMITs the named file; foreign-dirty paths are never disturbed (id:aa93).
       - COMMIT-ONLY: never pushes (push is the caller's separate, later concern).
       - Clean no-op: if the named file has no staged change, makes NO commit (idempotent).
-    Non-fatal: any git failure (not a repo, index lock, etc.) prints a warning to stderr
-    and returns — the atomic write already succeeded, so the ledger edit is never lost.
+    PRE-staging git failures (not a repo, `git add` failed) are non-fatal: they print a
+    warning and return — nothing was staged, so the atomic write simply stays uncommitted
+    and the ledger edit is never lost.
+
+    id:4b64 — a COMMIT that fails after a successful `git add` is NOT non-fatal. The file
+    is then STAGED-but-uncommitted, and that residue silently wedges the repo: every later
+    relay round's dirty-guard (id:aa93/id:2147) DEFERS a dirty main checkout, so the repo
+    quietly stops being worked. Observed end-to-end in lodelore run
+    relay-20260810-214130-15097, where the pre-commit lane-vocab ratchet rejected the
+    handback auto-gate's old-vocab tag, `git commit` exited non-zero, and the run still
+    reported `stopReason: drained`. So on a commit failure this function ROLLS BACK BOTH
+    halves — the working-tree text (to `pre_text`, the content as of before this md-merge
+    write) and the index entry (to the blob recorded before `git add`) — and then raises
+    LedgerCommitError. Rollback restores a snapshot this process itself took while holding
+    the flock; it never runs `git stash`/`checkout --`/`reset --hard`/`clean`, and never
+    touches any path other than this one file.
     """
     file_path = file_path.resolve()
 
@@ -90,6 +116,12 @@ def _commit_ledger(file_path: Path, msg: str) -> None:
     except ValueError:
         rel = str(file_path)
 
+    # Snapshot the PRE-`git add` index entry for this one path, so a failed commit can put
+    # the index back exactly as it was (id:4b64). Empty output == the path was not in the
+    # index at all (untracked) → the rollback un-stages it entirely.
+    ls = _git('ls-files', '--stage', '--', rel)
+    index_entry = ls.stdout.strip() if ls.returncode == 0 else ''
+
     add = _git('add', '--', rel)
     if add.returncode != 0:
         print(f'md-merge: --commit skipped — git add failed for {rel}: '
@@ -102,8 +134,36 @@ def _commit_ledger(file_path: Path, msg: str) -> None:
 
     commit = _git('commit', '-m', msg, '--', rel)
     if commit.returncode != 0:
-        print(f'md-merge: --commit failed for {rel}: {commit.stderr.strip()} '
-              '(write succeeded, left uncommitted)', file=sys.stderr)
+        # id:4b64 — roll back BOTH halves, then fail LOUD. Never leave the ledger staged.
+        rollback_notes = []
+        if pre_text is not None:
+            try:
+                _atomic_write(file_path, pre_text)
+            except OSError as e:                      # pragma: no cover — disk-level failure
+                rollback_notes.append(f'working-tree restore FAILED: {e}')
+        else:
+            rollback_notes.append('working-tree text NOT restored (no pre-write snapshot '
+                                  'passed by the caller)')
+        if index_entry:
+            # "<mode> <sha> <stage>\t<path>" → put that exact blob back in the index.
+            head, _, entry_path = index_entry.partition('\t')
+            parts = head.split()
+            if len(parts) >= 2:
+                undo = _git('update-index', '--cacheinfo',
+                            f'{parts[0]},{parts[1]},{entry_path or rel}')
+                if undo.returncode != 0:
+                    rollback_notes.append(f'index restore FAILED: {undo.stderr.strip()}')
+        else:
+            # Not in the index before → drop the entry `git add` created. `update-index
+            # --force-remove` touches ONLY the index (never the working tree), unlike
+            # `git rm`, which also refuses on staged-vs-HEAD divergence.
+            undo = _git('update-index', '--force-remove', '--', rel)
+            if undo.returncode != 0:
+                rollback_notes.append(f'un-stage FAILED: {undo.stderr.strip()}')
+        note = ('; '.join(rollback_notes)) if rollback_notes else 'write + staging rolled back'
+        raise LedgerCommitError(
+            f'--commit failed for {rel}: {commit.stderr.strip() or commit.stdout.strip()} '
+            f'({note}) — REFUSING to leave a staged-but-uncommitted ledger (id:4b64)')
 
 
 # id:14d0 — archive-class headings a brand-new (not-found) id must never land under.
@@ -193,7 +253,8 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
         with open(lock_path, 'w') as lock_fd:
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
-            lines = file_path.read_text().splitlines(keepends=True)
+            pre_text = file_path.read_text()   # id:4b64 rollback snapshot (under lock)
+            lines = pre_text.splitlines(keepends=True)
             found = set()
             result = []
             errors = []
@@ -257,7 +318,7 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
             _atomic_write(file_path, ''.join(result))
             # id:148b — atomic write+commit under the SAME flock (scoop-window close).
             if commit_msg is not None:
-                _commit_ledger(file_path, commit_msg)
+                _commit_ledger(file_path, commit_msg, pre_text)
     finally:
         lock_path.unlink(missing_ok=True)
 
@@ -275,7 +336,8 @@ def update_sections(file_path: Path, sections: list, commit_msg: str | None = No
         with open(lock_path, 'w') as lock_fd:
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
-            lines = file_path.read_text().splitlines(keepends=True)
+            pre_text = file_path.read_text()   # id:4b64 rollback snapshot (under lock)
+            lines = pre_text.splitlines(keepends=True)
             found = set()
             result = []
             i = 0
@@ -312,7 +374,7 @@ def update_sections(file_path: Path, sections: list, commit_msg: str | None = No
             _atomic_write(file_path, ''.join(result))
             # id:148b — atomic write+commit under the SAME flock (scoop-window close).
             if commit_msg is not None:
-                _commit_ledger(file_path, commit_msg)
+                _commit_ledger(file_path, commit_msg, pre_text)
     finally:
         lock_path.unlink(missing_ok=True)
 
@@ -345,14 +407,21 @@ def main() -> None:
         print(f'md-merge: invalid JSON on stdin: {e}', file=sys.stderr)
         sys.exit(1)
 
-    if args.cmd == 'update-ids':
-        update_ids(Path(args.file), delta.get('updates', []), getattr(args, 'commit', None),
-                   getattr(args, 'allow_new', False))
-    elif args.cmd == 'update-sections':
-        update_sections(Path(args.file), delta.get('sections', []), getattr(args, 'commit', None))
-    else:
-        parser.print_help()
-        sys.exit(1)
+    # id:4b64 — a staged-but-uncommittable ledger is rolled back and reported LOUDLY here
+    # (exit 3), never swallowed: the caller (e.g. handback-followup.py → relay-loop.js)
+    # must see the failure instead of a silently wedged repo.
+    try:
+        if args.cmd == 'update-ids':
+            update_ids(Path(args.file), delta.get('updates', []), getattr(args, 'commit', None),
+                       getattr(args, 'allow_new', False))
+        elif args.cmd == 'update-sections':
+            update_sections(Path(args.file), delta.get('sections', []), getattr(args, 'commit', None))
+        else:
+            parser.print_help()
+            sys.exit(1)
+    except LedgerCommitError as e:
+        print(f'md-merge: {e}', file=sys.stderr)
+        sys.exit(3)
 
 
 if __name__ == '__main__':

@@ -2584,12 +2584,21 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
 // id:3801 — Durable handback follow-up. When a child hands back (contract_met=false) with a
 // classified route, durably record it in the repo's MAIN-checkout ROADMAP.md so the pool stops
 // re-dispatching an un-doable item: decision-gate/human → re-tag the parent to the
-// classifier-excluded "[HARD — decision gate]"; hard-split → gate the parent + append the
+// classifier-excluded "[INPUT — decision]" (id:4b64 — the canonical capability-keyed spelling
+// of the old "[HARD — decision gate]"); hard-split → gate the parent + append the
 // proposed seams as pickable units. The Workflow sandbox has NO shell/fs (process.* / new Date()
 // crash the pool — id 2026-06-15), so a tiny Haiku agent runs handback-followup.py, which owns
 // all idempotency + the flock'd md-merge write + the --ff-only commit/push. Fire-and-forget,
-// non-fatal (a follow-up failure must never crash the integrator); the item simply stays
-// surfaced in RELAY_STATUS as before. The gate is a CLAIM the next review re-checks (anti-gaming).
+// non-fatal (a follow-up failure must never crash the integrator).
+//
+// LOUD ON FAILURE (id:4b64): "non-fatal" used to mean SILENT — the agent was asked for the exit
+// code and the answer was discarded, so a follow-up that could not write its gate (the
+// pre-commit lane-vocab ratchet rejecting the emitted old-vocab tag) left the round reporting a
+// clean `drained` while the repo sat wedged (lodelore run relay-20260810-214130-15097). The
+// script itself no longer leaves residue (md-merge rolls a failed commit back), but the FAILURE
+// must still surface: a non-zero exit — or an unreadable answer — pushes a Blocked entry into
+// state.handbacks, which renders into RELAY_STATUS and the exit summary. The gate stays a CLAIM
+// the next review re-checks (anti-gaming).
 function durableHandbackFollowup(unit, report) {
   const route = report.route
   if (!route || route === 'none' || !report.handback_item) return  // nothing durable to do
@@ -2597,12 +2606,26 @@ function durableHandbackFollowup(unit, report) {
   const splitJson = JSON.stringify(Array.isArray(report.proposed_split) ? report.proposed_split : [])
   // Short, single-line gate note (never inline the verbose handback into a ROADMAP line).
   const gateReason = (report.gate_reason || String(report.handback || '').slice(0, 200)).replace(/\s+/g, ' ').trim()
+  const surfaceFollowupFailure = detail => {
+    const reason = `durable handback follow-up FAILED for id:${report.handback_item} (route=${route}, id:3801/id:4b64) — the gate was NOT recorded in ROADMAP.md, so the pool will keep re-dispatching this un-doable item: ${detail}`
+    log(`relay-loop: ${reason}`)
+    state.handbacks.push({ repo: unit.repo, reason, worktreePath: '-' })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
+    scheduleStatusWrite(state)
+  }
   agent(
     `Run exactly this command and report whether it exited 0 (durable handback follow-up for ${unit.repo}, id:3801 — records the handback in ROADMAP.md so the pool stops re-dispatching an un-doable item; the script owns idempotency + commit/push):
 python3 ~/.claude/skills/relay/scripts/handback-followup.py '${esc(unit.path)}' --parent-id '${esc(report.handback_item)}' --route '${esc(route)}' --gate-reason '${esc(gateReason)}' --split-json '${esc(splitJson)}' --run-id '${esc(state.runId)}'
-Report the exit code.`,
+Then report the command's exit code as the LAST line of your answer, in EXACTLY this form with nothing else on that line: EXIT:<code> (for example EXIT:0). If the command could not be run at all, report EXIT:127. When the code is not 0, include its stderr on the lines above.`,
     { label: `handback-followup:${unit.repo}`, phase: 'Logging', model: 'haiku' }
-  ).catch(err => log(`relay-loop: durable handback follow-up failed for ${unit.repo} (non-fatal): ${err}`))
+  ).then(res => {
+    const text = typeof res === 'string' ? res : JSON.stringify(res || '')
+    const m = /EXIT:\s*(\d+)/.exec(text)
+    // An unreadable answer counts as a FAILURE: a silent fallback here is precisely the hole
+    // this closes (the no-silent-swallow rule, id:4347). Over-surfacing is the safe direction.
+    if (!m) { surfaceFollowupFailure(`follow-up agent reported no exit code; answer: ${text.slice(0, 300)}`); return }
+    if (m[1] !== '0') { surfaceFollowupFailure(`handback-followup.py exited ${m[1]}; output: ${text.slice(0, 300)}`); return }
+  }).catch(err => surfaceFollowupFailure(`agent error: ${err}`))
 }
 
 // id:3826 — Append a gaming-flags telemetry line to relay-gaming-flags.log.
