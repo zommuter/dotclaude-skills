@@ -5062,3 +5062,24 @@ id:b099 — built relay/scripts/declared-path-extractor.sh (extract + eval-corpu
 ## 2026-08-11 15:36 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:3f7e verified genuinely green (DEP-prose-untyped lint, twin-consumer, 373/0/10-red); ticked TODO twin; inbox batch left for C2 triage [id:3f7e]
+## 2026-08-11 — executor (sonnet)
+
+Worked id:2047 — `validate-flags.sh` did not parse `--flag=value` tokens: the
+runtime guard's known-flag lookup only matched whole tokens, so an explicit
+`--quota-7d=45` (or any other arity-1 flag written with `=`) fell through to
+the unknown-flag path and was silently dropped, quietly loosening a
+deliberately-tightened cap back to the `RELAY_QUOTA_THRESHOLD` default (the
+live 2026-07-31 incident this item documents). Fixed by splitting a
+`--flag=value` token into `(--flag, value)` on the FIRST `=` before the
+known-flag lookup, for any arity-1 manifest flag (manifest-driven, not
+special-cased to `--quota-7d`); a value containing `=` survives intact
+(`--exclude=a=b` -> `--exclude a=b`); an arity-0 flag written with `=`
+(`--afk=1`) is now a surfaced error (exit 2, named on stderr), never a silent
+drop. Did NOT add the quota flags to SCOPE_FLAGS-style near-miss escalation
+(the item's "consider" note) — that guards against a typo'd FLAG NAME, an
+orthogonal concern from this item's actual defect (a correctly-named flag
+written with `=`), and none of the acceptance criteria require it.
+Friction: none — the RED spec (`tests/test_flag_equals_value_2047.sh`) was
+already fully specified; one pass got all 14 assertions green.
+refactor: none needed — the fix is a small, localized addition to the existing
+token-classification loop; no new duplication introduced.

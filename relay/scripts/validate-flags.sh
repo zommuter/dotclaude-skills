@@ -200,6 +200,30 @@ while (( i < nargs )); do
     continue
   fi
 
+  # id:2047: split a `--flag=value` token into (`--flag`, `value`) BEFORE the
+  # known-flag lookup, for any arity-1 manifest flag — the whole-token lookup
+  # below never matches a token containing `=`, so an explicit `--quota-7d=45`
+  # silently fell through to the unknown-flag path and got dropped, quietly
+  # loosening a deliberately-tightened cap back to the default. Split on the
+  # FIRST `=` only, so a value that itself contains `=` (`--exclude=a=b`)
+  # survives intact. An arity-0 flag written with `=` (`--afk=1`) is a real
+  # error, not a silent drop — surface it and stop, exactly like a near-miss
+  # escalation, rather than let it fall through to the unknown-flag warn+drop.
+  if [[ "$tok" == *=* ]]; then
+    flagpart="${tok%%=*}"
+    valpart="${tok#*=}"
+    if [[ -n "${KNOWN_ARITY[$flagpart]+x}" ]]; then
+      if [[ "${KNOWN_ARITY[$flagpart]}" == "1" ]]; then
+        out+=("$flagpart" "$valpart")
+        (( i++ ))
+        continue
+      else
+        echo "validate-flags.sh: '$tok' — '$flagpart' takes no value (arity 0) and cannot be written with '=' for skill '$skill'." >&2
+        exit 2
+      fi
+    fi
+  fi
+
   if [[ -n "${KNOWN_ARITY[$tok]+x}" ]]; then
     out+=("$tok")
     [[ "${KNOWN_ARITY[$tok]}" == "1" ]] && skip_next_as_value=1
