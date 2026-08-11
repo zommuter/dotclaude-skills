@@ -5379,3 +5379,7 @@ refactor: none needed — audit run; no code changed (findings tracked as items,
 ## 2026-08-11 21:37 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 Run 71 strong-model audit (id:401c): id:33b2 opt-in proxy stdin channel CLEAN across 3 passes; filed 1 LOW finding id:09e4 (pipeline-stage stdin misdirection); suite 383/0/1-xred [id:401c,09e4]
+
+## 2026-08-11 22:20 — reviewer (claude-opus-5)
+
+review relay-ckpt-20260811-2019..HEAD: id:33b2 stdin channel verified against a05c (not reopened); filed id:93ac command-fence precedence gating d4ca+e405; fixed id:1022 typed gated-on edges; install-drift fixed; suite 384/0/1-xred
