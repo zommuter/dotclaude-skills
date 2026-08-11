@@ -15,6 +15,7 @@
 - Fixed validate-flags.sh to parse --flag=value for arity-1 flags (id:2047), closing the silent quota-cap-loosening hazard; full suite 375/0/9-expected-red green. (id:2047)
 - id:cc90 — bounded execute-execute rechain (K<=3): chainDepth counter replaces the one-shot rechained boolean, generalizes chaining to execute units, records the 3 pre-registered answers in-source; full suite 376/0/8-expected-red (id:cc90)
 - review: id:2047 (validate-flags --flag=value parse) verified genuinely green (manifest-driven, no overreach, suite 375/0/9-red); ticked TODO twins id:2047+b099 (archive cross-ledger drift) (id:2047,b099)
+- Closed id:e44e (.changelog.lock dirty-tree pool-blocker) as already discharged by id:798b's git-dir-relocated lock — ticked both ROADMAP.md and TODO.md checkboxes, no code change, full suite 376/0/8-expected-red unchanged. (id:e44e)
 
 ## 2026-08-10
 
