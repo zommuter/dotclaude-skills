@@ -4994,3 +4994,7 @@ the hand-checked set with the `SCHEMA_VERSION` this checkout's `ledger-map.py` s
 scan, never an import), so a mapper bump does not make a same-checkout adapter refuse its
 own mapper's output. The refusal semantics for an unknown version are unchanged and still
 tested. No other existing behaviour was rewritten.
+
+## 2026-08-11 14:33 — reviewer (claude-opus-5)
+
+id:90f2 Plane verified live (2 unknowns falsified); owner decisions: size-out routing id:2cfe, Beads full third arm id:4ac9, 63 homonyms accepted, offline log id:2902
