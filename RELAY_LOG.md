@@ -4763,3 +4763,68 @@ hard-execute batch: id:ca24 allow-list, id:94ce fleet importer, id:c17d repo ent
 ## 2026-08-10 23:04 — reviewer (claude-opus-5)
 
 review: tracker batch accept-with-fixes — dead plural fallbacks removed, too-tolerant test pinned, id:857d gate vacuity closed, SCHEMA subsection renumber completed (367 pass/0 fail)
+
+## 2026-08-11 — strong-execute (claude-opus-5)
+
+Worked id:4b64 — the dual-vocab migration had left relay's own tooling behind; three repos
+reported three symptoms of one root cause (routed:6629 / routed:5ccd / routed:8858). Fixed
+BOTH sides in one pass, plus the residue hazard the third symptom exposed.
+
+READ side (`relay/scripts/unpromoted-scan.sh`): `primary_lane()` now recognizes
+`[INPUT — author]` (the id:2b0b 5th capability lane it omitted, so a properly-laned author
+item reported `surface` and inflated the count driving the `human` verdict — lodelore
+id:e545), and also anchors the `- [ ] **[TAG]** title` shape relay's OWN auto-gate emits
+(previously read as a bold TITLE → no lane → `surface`). The promote-test now accepts the
+pool lane in BOTH spellings — bare `[HARD]` joins `[ROUTINE]`/`[HARD — pool]`; bare
+`[HARD]` used to fall through to `laned`, which is verdict-NEUTRAL by design, so a repo
+whose apex backlog was written in the new vocabulary classified `idle` with work pending
+(VERIFIED LIVE in lodelore: id:b0c4 + id:193f). Human lanes stay `laned` — no repo is
+re-tagged backwards, and `[HARD — *]` stays recognized for the migration window.
+
+EMIT side (`relay/scripts/handback-followup.py`): the id:3801 auto-gate now writes the
+canonical `[INPUT — decision]` instead of `[HARD — decision gate]`, which relay's own
+`hooks/pre-commit-lane-vocab.sh` ratchet BLOCKS; seams now carry `[HARD]` instead of the
+pre-id:78ff `[HARD — strong model]`, which is in NO lane vocabulary at all (every parser
+read those seams as untagged). Both old spellings are still RECOGNIZED as already-gated, so
+an un-migrated line is never rewritten just to re-spell its tag.
+
+RESIDUE (`meeting/md-merge.py`): a `--commit` that fails AFTER a successful `git add` used
+to print a warning and return, leaving the ledger STAGED-but-uncommitted — the exact
+lodelore relay-20260810-214130-15097 wedge, where every later pool run then DEFERRED the
+repo (id:aa93) while the run reported `stopReason: drained`. It now rolls back BOTH halves
+(working-tree text from a pre-write snapshot taken under the flock; the index entry from a
+`git ls-files --stage` snapshot, restored via `update-index`) and raises, exiting 3. No
+`stash`/`checkout --`/`reset --hard`/`clean` is involved, and no path but the one file is
+touched. Pre-staging failures (not a repo, `git add` failed) stay non-fatal as before.
+
+LOUD (`relay/scripts/relay-loop.js`): `durableHandbackFollowup` asked its agent for the exit
+code and discarded the answer. It now parses an `EXIT:<code>` line and pushes a Blocked
+entry into `state.handbacks` (rendered in RELAY_STATUS + the exit summary) on a non-zero
+code, an unreadable answer, or an agent error — over-surfacing rather than swallowing.
+
+Test: `tests/test_lane_vocab_both_sides_4b64.sh` (no `# roadmap:` header — it pins three
+OBSERVED defects, so its failures always count). One fixture per lane spelling on the read
+side (11 spellings + untagged → promote/laned/surface), a cross-check that every marker
+defined in `relay/references/hard-lanes.md` appears in the scanner's tag list (so the NEXT
+vocabulary move fails loudly here), an emit-side pass where the auto-gate's own output is
+run through `hooks/pre-commit-lane-vocab.sh` and read back through both
+`unpromoted-scan.sh` and `gather-repo-state.sh` (`open_hard_pool=1`), and a residue case
+with a rejecting pre-commit hook asserting non-zero exit + empty `git status --porcelain`.
+
+Friction: (1) `handback-followup.py` resolved its helpers through `~/.claude/skills`, i.e.
+the MAIN checkout — a worktree test of the md-merge rollback would have exercised stale
+code. Added a `skill_path()` that prefers this script's own tree and falls back to the
+install (identical paths in a live run; the id:6f1c/f682 isolation rule). (2)
+`tests/run-tests.sh` neutralizes `core.hooksPath` for the whole run via `GIT_CONFIG_COUNT`,
+which beats repo-local config — the residue case re-points that same override at its own
+throwaway hooks dir for one invocation. Worth knowing before writing any future
+hook-behaviour test. (3) NOT DECIDED, for the owner: the reporter's substantive point that
+auto-gating on SIZE-OUT is itself questionable — "too big for one turn" is not "needs a
+human decision". Untouched here; the size-out→gate policy is unchanged.
+
+refactor: one small behaviour-preserving extraction — `handback-followup.py`'s two inline
+`os.path.join(SKILLS, ...)` call sites became `skill_path(...)`. That helper's fallback is
+the identical path in a live run, but its preference for the script's own tree is a real
+behaviour CHANGE in a worktree, so it is claimed as a fix, not as a pure refactor. Nothing
+else was rewritten behaviour-preservingly; every other edit changes observable behaviour and
+is covered by a test.
