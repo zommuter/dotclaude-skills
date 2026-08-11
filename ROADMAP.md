@@ -1087,6 +1087,16 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       suite 106/1/0 — the 1 failure is the KNOWN flaky `test_resource_claim_pid.sh` (id:ab5c),
       passed 3/3 in isolation → effectively 107 green. Mirror: TODO id:401c line refreshed
       Run 67→Run 68. See `docs/meeting-notes/2026-06-26-0926-strong-model-audit.md`.
+    - Run 70 (2026-08-11-2039): window per the mechanical watermark = **0 commits**
+      (`last_strong_ckpt`==HEAD), but that is FALSE — the last actual audit was Run 69
+      (2026-06-30), so the true id:401c window is `7527cb1..HEAD` = **1709 commits**. Root
+      cause filed as **id:da95**: a strong-EXECUTE checkpoint advances `last_strong_ckpt`
+      (the id:ecce integrate carve-out was left half-closed), starving this pass ~6 weeks.
+      Did NOT audit the 1709-commit window (unsound in one turn); instead filed id:da95 and
+      ran a bounded pass over the newest UNWIRED engine surface (id:1f4f wave), yielding
+      **id:ac8a** (disjoint-greenlight exact-string disjointness is fail-OPEN on subpath
+      overlaps). `provision-worktree.sh`/`drain-integrate.sh` otherwise clean. Windows before
+      Run 70 remain uncertified. See `docs/meeting-notes/2026-08-11-2039-strong-model-audit.md`.
 
 - [ ] [INPUT — meeting] Sub-agent meeting simulation for main-ctx isolation <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
