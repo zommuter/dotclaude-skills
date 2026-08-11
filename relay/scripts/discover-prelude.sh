@@ -48,6 +48,9 @@
 #   RELAY_TOML   default ~/.config/relay/relay.toml
 #   SRC_DIR      default ~/src   (fallback path for a repo with no explicit path override)
 #   STOP_PATH    default ~/.config/relay/STOP  (the operator graceful-stop sentinel file)
+#   ONLY_REPO    unset  (the pool's `--only` single-repo scope; scopes the CONSUMING
+#                inject.sh take so a scoped pool cannot steal another pool's injection —
+#                routed:a923. Unset ⇒ global take, unchanged.)
 #   INJECT_BASE / CLAIM env / RELAY_WORKTREE_BASE — threaded straight to the sub-scripts.
 set -euo pipefail
 
@@ -98,7 +101,20 @@ fi
 "$CLAIM_SH" peek > "$tmp_claim" 2>>"$LOG" || log "claim.sh peek returned nonzero (treated as no live claims)"
 
 # --- step 6: injectedUnits (inject.sh take — CONSUMING, EXACTLY ONCE) --------------------------
-"$INJECT_SH" take > "$tmp_inject" 2>>"$LOG" || log "inject.sh take returned nonzero (treated as no pending injections)"
+# routed:a923 — SCOPE-AWARE take. $ONLY_REPO (the pool's `--only` scope, threaded from
+# relay-loop.js) restricts the CONSUMING take to that repo's shards; everything else is left
+# PENDING for the pool that can actually work it. Unset ⇒ global take (unscoped pool,
+# today's behaviour). Without this a scoped pool steals and then LOSES another pool's
+# injection (consumed injections have no re-enqueue path).
+# The scope is a conditional ARGUMENT, never a second call site: the take must remain
+# textually AND semantically ONE invocation per round (it consumes; a second run would
+# double-drain). tests/test_relay_discover_shard.sh pins the single call site.
+scope_args=()
+if [[ -n "${ONLY_REPO:-}" ]]; then
+  scope_args=(--repo "$ONLY_REPO")
+  log "inject.sh take scoped to ONLY_REPO='$ONLY_REPO' (routed:a923 — out-of-scope shards left pending)"
+fi
+"$INJECT_SH" take ${scope_args[@]+"${scope_args[@]}"} > "$tmp_inject" 2>>"$LOG" || log "inject.sh take returned nonzero (treated as no pending injections)"
 
 # --- step 5-derived: distinct live-claim repos, as a CSV for discover-sig's liveClaims section -
 live_csv="$(python3 -c '
