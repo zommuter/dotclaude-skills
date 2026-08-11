@@ -4,26 +4,38 @@
     plan   <doc.json>              target-shaped operations, offline, deterministic
     graph  <doc.json>              the canonical item graph RECOVERED from those ops
     apply  <doc.json>              push the plan to a live Plane (network)
+    verify <doc.json>              re-read the LIVE board and diff it against the plan
 
 `plan` and `graph` never touch the network — they are what the hermetic test
 suite exercises, and they are byte-for-byte equivalent (as a canonical item
 graph) to the Vikunja adapter's.
 
-## ⚠ LIVE VERIFICATION STATUS — UNVERIFIED, BLOCKED ON id:02f7
+## LIVE VERIFICATION STATUS — VERIFIED against Plane v2.6.3 (2026-08-11)
 
-`plan` and `graph` are fully tested against the fixtures.  **`apply` has never
-been run against a live Plane instance.**  The pilot deployment does not serve:
-21/22 containers run but nothing binds the proxy port, a host rootless-podman /
-netavark nftables defect tracked as `id:02f7`.  Until that clears:
+`id:02f7` cleared (the proxy binds after a host reboot), so `apply`/`verify` have
+now issued real requests against a live self-hosted Plane v2.6.3 commercial
+instance.  Three things previously recorded as *unknown* are now *measured*, and
+two of them corrected what was written here:
 
-  * every request shape below is written from Plane's documented public API v1
-    and is a BEST-EFFORT CONTRACT, not an observed one;
-  * in particular the **issue-relation** endpoint (`blocked_by`, `relates_to`)
-    is not part of Plane's documented public v1 surface at all — `apply` emits a
-    loud WARN and records the edges in the issue description as a fallback, so a
-    relation is never silently lost;
-  * do not report a Plane end-to-end pass on the strength of a green test suite.
-    The suite proves the *mapping*; it cannot prove the *transport*.
+  1. **Plane's public API v1 DOES expose an issue-relation endpoint** —
+     `POST/GET /issues/<id>/relations/`, body `{"relation_type": …, "issues": […]}`,
+     with `blocked_by` / `relates_to` / `blocking` / `duplicate` / `start_*` /
+     `finish_*` all accepted (verified live).  The previous "no relation endpoint,
+     WARN and keep it in the body" fallback was WRONG, and is gone: `blocked_by`
+     and `link` edges are now written as real relations.  Plane materialises the
+     inverse (`blocking`), so the live edge set is a SUPERSET of the planned one —
+     same shape as Vikunja.
+  2. **The `derived_status → workflow state` map is confirmed NON-injective** on a
+     real project.  Plane's default state set is `Backlog / Todo / In Progress /
+     Done / Cancelled` (groups `backlog/unstarted/started/completed/cancelled`) —
+     there is no column for `needs-decision`, so it shares `Backlog`.  That is
+     exactly why `derived:<state>` is ALSO a label: the column is lossy, the label
+     is not, and `verify` recovers `derived_status` from the marker, never the
+     column.
+  3. **Plane's description sanitizer STRIPS HTML comments** (measured; see
+     `adapter_common`'s module docstring).  The bracketed-plain-text carrier was
+     the right call — an HTML-comment marker would have been deleted silently on
+     every item.
 
 ## Target mapping
 
@@ -37,8 +49,8 @@ netavark nftables defect tracked as `id:02f7`.  Until that clears:
 | `assignee` (a ROLE, not a user) | `assignee:<role>` label                               |
 | `parent`                        | native `parent` field (sub-issue)                     |
 | `children`                      | the same field, written on the child                  |
-| `blocked_by`                    | issue relation `blocked_by` *(unverified)*            |
-| `links[]`                       | issue relation `relates_to` *(unverified)*            |
+| `blocked_by`                    | issue relation `blocked_by` *(verified live)*         |
+| `links[]`                       | issue relation `relates_to` *(verified live)*         |
 
 `assignee` is a ROLE (`executor`/`apex`/`human`/`daemon`), not a Plane member;
 inventing four member accounts to hold four roles would be a fabricated mapping.
@@ -54,6 +66,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -64,8 +77,10 @@ import adapter_common as C  # noqa: E402
 TARGET = "plane"
 
 # derived_status -> Plane workflow state name.  NOT injective (`needs-decision`
-# and `backlog` share a column), which is precisely why `derived:<s>` is also a
-# label: the board column is lossy, the label is not.
+# and `backlog` share a column) — CONFIRMED live against a default Plane project,
+# whose only states are Backlog / Todo / In Progress / Done / Cancelled.  This is
+# precisely why `derived:<s>` is also a label: the board column is lossy, the
+# label is not.
 STATE_NAME = {
     "backlog": "Backlog",
     "queued": "Todo",
@@ -81,6 +96,13 @@ RELATION = {
     "link": ("issue_relation", "relates_to"),
 }
 RELATION_INV = {v: k for k, v in RELATION.items()}
+
+# Plane relation_type -> canonical kind, for reading the LIVE relations endpoint.
+# Plane materialises the inverse of a directed relation, so `blocking` comes back
+# on the other endpoint and is folded back to a `blocked_by` edge in the right
+# direction rather than being reported as an unmapped kind.
+LIVE_RELATION = {"blocked_by": "blocked_by", "relates_to": "link"}
+LIVE_RELATION_INVERSE = {"blocking": "blocked_by"}
 
 
 # --------------------------------------------------------------------------- #
@@ -219,17 +241,26 @@ def extract_graph(plan: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# apply (networked — UNVERIFIED, see the module docstring)
+# apply / verify (networked — verified live, see the module docstring)
 # --------------------------------------------------------------------------- #
 
 class Plane:
-    """Plane public API v1 client.  **Never executed against a live server yet.**"""
+    """Plane public API v1 client (verified against v2.6.3)."""
 
-    def __init__(self, base: str, api_key: str, workspace: str, project: str):
+    #: requests/minute the client paces itself to; 0 disables pacing.
+    DEFAULT_RATE_PER_MIN = 55          # a little under Plane's 60/min default
+    DEFAULT_MAX_RETRIES = 5
+
+    def __init__(self, base: str, api_key: str, workspace: str, project: str,
+                 rate_per_min: float = DEFAULT_RATE_PER_MIN,
+                 max_retries: int = DEFAULT_MAX_RETRIES):
         self.base = base.rstrip("/")
         self.api_key = api_key
         self.workspace = workspace
         self.project = project
+        self.min_interval = 60.0 / rate_per_min if rate_per_min else 0.0
+        self.max_retries = max_retries
+        self._last_request = 0.0
 
     @classmethod
     def from_env(cls) -> "Plane":
@@ -245,6 +276,7 @@ class Plane:
             os.environ["PLANE_API_KEY"],
             os.environ["PLANE_WORKSPACE_SLUG"],
             os.environ["PLANE_PROJECT_ID"],
+            rate_per_min=float(os.environ.get("PLANE_RATE_PER_MIN") or cls.DEFAULT_RATE_PER_MIN),
         )
 
     def _url(self, path: str) -> str:
@@ -252,19 +284,51 @@ class Plane:
             self.base, self.workspace, self.project, path
         )
 
+    def _pace(self) -> None:
+        """Stay under Plane's per-key rate limit instead of provoking it.
+
+        Plane throttles API keys at `API_KEY_RATE_LIMIT`, default **60/min** on a
+        self-hosted instance (observed: a 19-item apply is ~65 requests and hit
+        HTTP 429 mid-run).  A plain client-side spacer is the cheap fix; the 429
+        retry below is the backstop for a shared limit we do not control.
+        """
+        if self.min_interval <= 0:
+            return
+        wait = self.min_interval - (time.monotonic() - self._last_request)
+        if wait > 0:
+            time.sleep(wait)
+
     def request(self, method: str, path: str, body=None):
         payload = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self._url(path), data=payload, method=method)
-        req.add_header("Content-Type", "application/json")
-        req.add_header("X-API-Key", self.api_key)
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                raw = resp.read().decode()
-        except urllib.error.HTTPError as exc:  # loud, never swallowed
-            raise C.AdapterError(
-                "%s %s -> HTTP %s: %s" % (method, path, exc.code, exc.read().decode()[:400])
-            )
-        return json.loads(raw) if raw.strip() else None
+        attempt = 0
+        while True:
+            self._pace()
+            req = urllib.request.Request(self._url(path), data=payload, method=method)
+            req.add_header("Content-Type", "application/json")
+            req.add_header("X-API-Key", self.api_key)
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    raw = resp.read().decode()
+                self._last_request = time.monotonic()
+                return json.loads(raw) if raw.strip() else None
+            except urllib.error.HTTPError as exc:
+                self._last_request = time.monotonic()
+                detail = exc.read().decode()[:400]
+                if exc.code == 429 and attempt < self.max_retries:
+                    # honour an explicit Retry-After, INCLUDING "0" — `or` would
+                    # discard a zero and sleep the full backoff for nothing.
+                    retry_after = (exc.headers or {}).get("Retry-After")
+                    delay = float(retry_after) if retry_after is not None else 5 * 2 ** attempt
+                    attempt += 1
+                    C.warn(
+                        "Plane rate limit (HTTP 429) on %s %s — backing off %.0fs "
+                        "(retry %d/%d); never silent" % (method, path, delay, attempt, self.max_retries)
+                    )
+                    time.sleep(delay)
+                    continue
+                raise C.AdapterError(  # loud, never swallowed
+                    "%s %s -> HTTP %s: %s" % (method, path, exc.code, detail)
+                )
 
     def paged(self, path: str) -> list:
         out, cursor = [], None
@@ -279,14 +343,12 @@ class Plane:
                 return out
 
 
-def apply_plan(plan: dict, client: "Plane") -> dict:
-    C.warn(
-        "Plane `apply` has NEVER been run against a live instance (id:02f7 — the "
-        "pilot proxy does not bind). Treat every result as unverified."
-    )
-    label_ids = {l["name"]: l["id"] for l in client.paged("/labels/")}
-    state_ids = {s["name"]: s["id"] for s in client.paged("/states/")}
+def _issues_by_uid(client: "Plane") -> dict:
+    """Every issue in the project that carries a [[ledger-views]] marker, by uid.
 
+    The list endpoint returns `description_html`, so no per-issue GET is needed
+    (verified live: 19/19 markers recovered straight off the list response).
+    """
     by_uid = {}
     for issue in client.paged("/issues/"):
         try:
@@ -294,10 +356,26 @@ def apply_plan(plan: dict, client: "Plane") -> dict:
         except C.AdapterError:
             continue
         by_uid[marker["uid"]] = issue
+    return by_uid
+
+
+def apply_plan(plan: dict, client: "Plane") -> dict:
+    label_ids = {l["name"]: l["id"] for l in client.paged("/labels/")}
+    state_ids = {s["name"]: s["id"] for s in client.paged("/states/")}
+    by_uid = _issues_by_uid(client)
 
     stats = {"labels_created": 0, "items_created": 0, "items_updated": 0,
-             "relations_set": 0, "relations_skipped_dangling": 0,
-             "relations_unsupported": 0}
+             "relations_set": 0, "relations_already_present": 0,
+             "relations_skipped_dangling": 0}
+    # issue id -> its live relations, fetched lazily so a re-apply can tell an
+    # already-present relation from one it actually created (the idempotence
+    # evidence the id:90f2 contract is checked with).
+    rel_cache = {}
+
+    def live_relations(issue_id: str) -> dict:
+        if issue_id not in rel_cache:
+            rel_cache[issue_id] = client.request("GET", "/issues/%s/relations/" % issue_id) or {}
+        return rel_cache[issue_id]
 
     for op in plan["ops"]:
         if op["op"] == "upsert_label":
@@ -337,29 +415,166 @@ def apply_plan(plan: dict, client: "Plane") -> dict:
                 )
                 continue
             mechanism = op["payload"]["mechanism"]
-            if mechanism == "parent_field":
-                client.request(
-                    "PATCH", "/issues/%s/" % by_uid[op["from_uid"]]["id"],
-                    {"parent": by_uid[op["to_uid"]]["id"]},
-                )
-                stats["relations_set"] += 1
-            elif mechanism == "parent_field_inverse":
-                client.request(
-                    "PATCH", "/issues/%s/" % by_uid[op["to_uid"]]["id"],
-                    {"parent": by_uid[op["from_uid"]]["id"]},
-                )
-                stats["relations_set"] += 1
+            if mechanism in ("parent_field", "parent_field_inverse"):
+                # `parent` edge: from=child, to=parent.  `child` edge: the reverse.
+                if mechanism == "parent_field":
+                    child, parent = by_uid[op["from_uid"]], by_uid[op["to_uid"]]
+                else:
+                    child, parent = by_uid[op["to_uid"]], by_uid[op["from_uid"]]
+                if child.get("parent") == parent["id"]:
+                    stats["relations_already_present"] += 1
+                else:
+                    child.update(
+                        client.request("PATCH", "/issues/%s/" % child["id"],
+                                       {"parent": parent["id"]}) or {}
+                    )
+                    stats["relations_set"] += 1
             else:
-                # Plane's public API v1 does not document an issue-relation
-                # endpoint. Do NOT guess a URL against a live server: report it
-                # loudly and leave the edge visible in the description instead.
-                stats["relations_unsupported"] += 1
-                C.warn(
-                    "%s relation %s -> %s NOT written: Plane public API v1 exposes no "
-                    "issue-relation endpoint. Edge is recorded in the issue body only."
-                    % (op["kind"], op["from_uid"], op["to_uid"])
+                # Plane's public API v1 DOES expose an issue-relation endpoint
+                # (verified live on v2.6.3) — see the module docstring.  Writing a
+                # real relation, not a body-only fallback.
+                relation_type = op["payload"]["relation_type"]
+                src, dst = by_uid[op["from_uid"]], by_uid[op["to_uid"]]
+                if dst["id"] in (live_relations(src["id"]).get(relation_type) or []):
+                    stats["relations_already_present"] += 1
+                    continue
+                client.request(
+                    "POST", "/issues/%s/relations/" % src["id"],
+                    {"relation_type": relation_type, "issues": [dst["id"]]},
                 )
+                rel_cache.pop(src["id"], None)
+                rel_cache.pop(dst["id"], None)
+                stats["relations_set"] += 1
     return stats
+
+
+# --------------------------------------------------------------------------- #
+# the LIVE graph — read back off the server, not off the plan
+# --------------------------------------------------------------------------- #
+
+def fetch_graph(client: "Plane") -> dict:
+    """Recover the item graph FROM THE LIVE SERVER (not from the plan).
+
+    This is the real id:857d evidence: it proves the per-view triple survived the
+    round-trip through Plane's own storage and description SANITIZER — which is
+    not a formality here, since that sanitizer is known to delete HTML comments.
+    """
+    label_names = {l["id"]: l["name"] for l in client.paged("/labels/")}
+    state_names = {s["id"]: s["name"] for s in client.paged("/states/")}
+
+    issues, id_to_uid = [], {}
+    for issue in client.paged("/issues/"):
+        try:
+            marker = C.parse_views_marker(issue.get("description_html") or "")
+        except C.AdapterError:
+            continue
+        id_to_uid[issue["id"]] = marker["uid"]
+        issues.append(issue)
+
+    nodes, edges = [], []
+    for issue in issues:
+        uid = id_to_uid[issue["id"]]
+        labels = []
+        for lid in issue.get("labels") or []:
+            name = label_names.get(lid if isinstance(lid, str) else lid.get("id"))
+            if name is None:
+                raise C.AdapterError("%s: issue carries unknown label id %r" % (uid, lid))
+            labels.append(name)
+        views = C.recover_views(labels, issue.get("description_html") or "", uid)
+
+        want_state = STATE_NAME[views["derived_status"]]
+        got_state = state_names.get(issue.get("state"))
+        if got_state != want_state:
+            raise C.AdapterError(
+                "%s: live workflow state %r contradicts derived_status=%s (expected %r)"
+                % (uid, got_state, views["derived_status"], want_state)
+            )
+
+        assignee = None
+        for label in labels:
+            if label.startswith("assignee:"):
+                assignee = label.split(":", 1)[1]
+        node = {
+            "uid": uid,
+            "title": issue["name"],
+            "assignee": assignee,
+            "labels": C.canonical_labels(labels),
+        }
+        node.update(views)
+        nodes.append(node)
+
+        parent = issue.get("parent")
+        if parent:
+            target = id_to_uid.get(parent)
+            if target is None:
+                C.warn("%s: parent points outside this import" % uid)
+            else:
+                edges.append({"from": uid, "to": target, "kind": "parent", "dangling": False})
+                edges.append({"from": target, "to": uid, "kind": "child", "dangling": False})
+
+        live = client.request("GET", "/issues/%s/relations/" % issue["id"]) or {}
+        for plane_type, others in live.items():
+            kind = LIVE_RELATION.get(plane_type)
+            inverse = LIVE_RELATION_INVERSE.get(plane_type)
+            if kind is None and inverse is None:
+                if others:
+                    C.warn("%s: unmapped live relation_type %r" % (uid, plane_type))
+                continue
+            for other in others or []:
+                target = id_to_uid.get(other)
+                if target is None:
+                    C.warn("%s: %s relation to an issue outside this import" % (uid, plane_type))
+                    continue
+                if kind is not None:
+                    edges.append({"from": uid, "to": target, "kind": kind, "dangling": False})
+                else:
+                    edges.append({"from": target, "to": uid, "kind": inverse, "dangling": False})
+    return C.sort_graph({"nodes": nodes, "edges": edges})
+
+
+def verify_live(doc: dict, client: "Plane") -> dict:
+    """Compare the live server's state against the plan. Non-zero exit on any gap."""
+    plan = build_plan(doc)
+    planned = extract_graph(plan)
+    live = fetch_graph(client)
+
+    problems = []
+    problems += ["gate: %s" % v for v in C.check_gate(doc, live)]
+
+    planned_nodes = {n["uid"]: n for n in planned["nodes"]}
+    live_nodes = {n["uid"]: n for n in live["nodes"]}
+    for uid, want in planned_nodes.items():
+        got = live_nodes.get(uid)
+        if got is None:
+            problems.append("missing on server: %s" % uid)
+            continue
+        for key in ("title", "assignee", "todo_status", "roadmap_status",
+                    "review_status", "drift", "derived_status"):
+            if got[key] != want[key]:
+                problems.append("%s: %s live=%r planned=%r" % (uid, key, got[key], want[key]))
+        missing = set(want["labels"]) - set(got["labels"])
+        if missing:
+            problems.append("%s: labels missing on server: %s" % (uid, sorted(missing)))
+
+    # Plane materialises the inverse of every relation (`blocking` for `blocked_by`,
+    # and `relates_to` both ways), so the live edge set is a SUPERSET; require every
+    # planned non-dangling edge to be present.
+    live_edges = {(e["from"], e["kind"], e["to"]) for e in live["edges"]}
+    for edge in planned["edges"]:
+        if edge["dangling"]:
+            continue
+        key = (edge["from"], edge["kind"], edge["to"])
+        if key not in live_edges:
+            problems.append("relation missing on server: %s" % (key,))
+
+    return {
+        "items_planned": len(planned_nodes),
+        "items_live": len(live_nodes),
+        "edges_planned_non_dangling": sum(1 for e in planned["edges"] if not e["dangling"]),
+        "edges_live": len(live_edges),
+        "problems": problems,
+        "verdict": "PASS" if not problems else "FAIL",
+    }
 
 
 def main(argv=None) -> int:
@@ -376,6 +591,10 @@ def main(argv=None) -> int:
         elif verb == "apply":
             stats = apply_plan(build_plan(C.load_document(args[0])), Plane.from_env())
             sys.stdout.write(C.dump_json(stats))
+        elif verb == "verify":
+            report = verify_live(C.load_document(args[0]), Plane.from_env())
+            sys.stdout.write(C.dump_json(report))
+            return 0 if report["verdict"] == "PASS" else 4
         else:
             sys.stderr.write("unknown verb %r\n" % verb)
             return 2
