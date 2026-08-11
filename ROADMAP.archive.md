@@ -3812,3 +3812,8 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
   - **Tests**: `tests/test_integrate_label_not_strong_ecce.sh` (`# roadmap:ecce`) — hermetic `git init` fixture + scratch `FABLES_CONFIG`, never touching `~/.config/relay`, never pushing.
   - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_integrate_label_not_strong_ecce.sh` passes and `make test` is fully green.
   - **Out of scope**: rewriting already-pushed tags; `id:c500`'s model-less-label loudness (shipped); `id:1a34` (shipped).
+
+- [x] **[ROUTINE]** classify-repo.sh: pass priority_rank + evidence through into the --emit unit dict — seam of id:c7dc (auto, id:3801) <!-- id:258d -->
+  - **Acceptance**: `classify-repo.sh --emit unit` output includes `priority_rank` and `evidence` fields sourced 1:1 from classify-verdict.sh's verdict.json (which already produces both), for every verdict branch.
+  - **Done-check**: Extend tests/test_classify_repo_unit.sh with a case asserting the priority_rank/evidence passthrough; `tests/run-tests.sh tests/test_classify_repo_unit.sh` green, then full `make test`.
+  - **Context**: relay/scripts/classify-repo.sh (the --emit unit python block, ~lines 371-436, `unit = {...}` dict)
