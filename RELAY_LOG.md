@@ -5054,3 +5054,7 @@ correctly exclude non-path citations like `` `model:'bash'` `` while keeping rea
 paths; verified with an explicit fixture case.
 refactor: none needed — new standalone script + test, no existing logic touched
 or duplicated.
+
+## 2026-08-11 15:25 — executor (sonnet, relay-loop)
+
+id:b099 — built relay/scripts/declared-path-extractor.sh (extract + eval-corpus) feeding disjoint-greenlight.sh, with test_declared_path_extractor_b099.sh; full suite 374/0/10-expected-red green [id:b099]
