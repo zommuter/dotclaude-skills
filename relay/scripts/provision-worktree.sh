@@ -26,7 +26,28 @@ branch="${3:?usage: provision-worktree.sh <repo-path> <worktree-dir> <branch>}"
 git -C "$repo_path" worktree add "$wt" -b "$branch" HEAD
 
 # Part (2), best-effort — a repo missing either artifact class is a no-op, never fatal.
+# The trailing `|| true` is DELIBERATE and scoped to these two lines only: under
+# `set -euo pipefail` a bare failing `[[ … ]]` would abort the script, and a repo with
+# neither artifact class must not be a provisioning failure. Do NOT "clean this up".
 [[ -d "$repo_path/node_modules" ]] && ln -s "$repo_path/node_modules" "$wt/node_modules" || true
 [[ -d "$repo_path/.venv" ]] && ln -s "$repo_path/.venv" "$wt/.venv" || true
 
+# id:66d9 — SELF-VERIFY the postcondition, then certify it with a POSITIVE token.
+# `git worktree add` exiting 0 is not proof the worktree is usable, and the parent
+# (relay-loop.js provisionWorktree()) runs in a filesystem-less Workflow sandbox: it can
+# see nothing but this script's stdout, relayed through the mechanical proxy. A proxy
+# refusal / 404 passthrough / harness message all come back as ordinary non-throwing text,
+# so the parent can only fail CLOSED against a token that ONLY a verified success emits.
+resolved="$(cd "$wt" && pwd -P)"
+git -C "$repo_path" worktree list --porcelain | grep -qxF "worktree $resolved" || {
+  echo "provision-worktree.sh: worktree $resolved is NOT registered in '$repo_path' after 'git worktree add'" >&2
+  exit 1
+}
+git -C "$repo_path" rev-parse --verify -q "refs/heads/$branch" >/dev/null || {
+  echo "provision-worktree.sh: branch '$branch' does not exist in '$repo_path' after 'git worktree add'" >&2
+  exit 1
+}
+
+# LAST stdout line, exact form: the parent greps for this and nothing else.
+echo "PROVISION-OK $resolved"
 exit 0

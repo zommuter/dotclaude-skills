@@ -398,6 +398,20 @@ function buildRelayStatus(state) {
     ? state.reviewMe.map(r => `- ${r.repo}  open=${r.count}  path=${r.path}`).join('\n')
     : '_(none)_'
 
+  // id:06a1 — per-agent/per-hop failures that produced NO handback. Rendered as its OWN
+  // clearly-labelled section (an operator has to be able to FIND it), and omitted entirely
+  // when there is nothing to report — an always-present empty section is the id:8c85
+  // cry-wolf failure. Tolerates an absent `agentFailures` (an older/partial state object),
+  // exactly like every sibling row above.
+  const agentFailures = state.agentFailures || []
+  const agentFailureSection = agentFailures.length
+    ? [
+        '',
+        '## Agent/hop FAILURES (id:06a1 — failed with no handback; invisible before this)',
+        agentFailures.map(f => `- ❌ ${f.label}  repo=${f.repo}  phase=${f.phase}  round=${f.round}  reason=${f.reason}`).join('\n'),
+      ]
+    : []
+
   // id:8c35 — stop-reason line alongside Quota remaining so the operator sees WHY the run stopped
   const stopReasonLine = buildStopReasonLine(state.stopReason || null)
 
@@ -417,6 +431,7 @@ function buildRelayStatus(state) {
     `- completed=${(state.completed || []).length}`,
     `- blocked=${((state.surfaced || []).length + (state.handbacks || []).length)}`,
     `- queued=${(state.queued || []).length}`,
+    `- agent-failures=${(state.agentFailures || []).length} (id:06a1 — hops/children that failed with no handback)`,
   ].join('\n')
 
   // id:8c85 — LOUD accounting invariant, rendered INTO the file the operator reads. Every own
@@ -454,6 +469,7 @@ function buildRelayStatus(state) {
     '',
     '## Repeat-handback ALERTs (id:1432 — >=2× this run, a bug signal)',
     alerts,
+    ...agentFailureSection,
     '',
     '## Skipped (this round)',
     skipped,
@@ -528,6 +544,7 @@ function snapshotState(s) {
     surfaced: [...(s.surfaced || [])], handbacks: [...(s.handbacks || [])],
     ownRepos: [...(s.ownRepos || [])],   // id:8c85 — the universe the accounting invariant checks
     skipped: [...(s.skipped || [])], quota: [...(s.quota || [])], reviewMe: [...(s.reviewMe || [])],
+    agentFailures: [...(s.agentFailures || [])],   // id:06a1 — the renderer reads it, so the snapshot must carry it (the id:8c85 class)
     stopReason,  // id:8c35 — capture module-level stopReason at snapshot time
     handbackAlertsList: handbackAlerts(handbackTracker, 2),  // id:1432 — >=2× handback ALERTs
     round, totalDispatched,            // id:c8b6 — run-progress counters at snapshot time
@@ -993,8 +1010,25 @@ function enqueueIntegration(repo, fn) {
 // two different lifetimes: `surfaced` (per-round view, REASSIGNED every round — see ~line 1491,
 // that reassignment is correct and intentional) and `handbacks` (persistent accumulator, only
 // ever pushed to — see handback-summary.mjs for the pure logic + rationale).
-const state = { runId: (A.RUN_ID ? String(A.RUN_ID) : ''), ts: '', inFlight: [], completed: [], queued: [], surfaced: [], handbacks: [], skipped: [], quota: [], reviewMe: [] }
+// id:06a1 — `agentFailures` is the accumulator for a mechanical hop / child agent that
+// resolved to a failure WITHOUT producing a handback. Before this, such a failure existed
+// only in the Workflow task-notification block, which an --afk operator never reads
+// (id:4347 no-silent-swallow class). It records ONLY; it changes no hop's semantics.
+const state = { runId: (A.RUN_ID ? String(A.RUN_ID) : ''), ts: '', inFlight: [], completed: [], queued: [], surfaced: [], handbacks: [], skipped: [], quota: [], reviewMe: [], agentFailures: [] }
 let quotaStopped = false
+// id:06a1 — the ONE writer for the failure accumulator. Call it wherever a mechanical hop
+// or child agent resolves to a failure/null; the reason is truncated so a multi-KB model
+// error body can never blow up RELAY_STATUS.md. RENDERING only — never change a hop's
+// failure semantics from here (id:66d9 owns fail-closed for provision).
+function recordAgentFailure(label, repo, phase, reason) {
+  state.agentFailures.push({
+    label: String(label || '(unlabelled)'),
+    repo: String(repo || '-'),
+    phase: String(phase || '-'),
+    round,
+    reason: String(reason == null ? '(no reason reported)' : reason).replace(/\s+/g, ' ').trim().slice(0, 200),
+  })
+}
 // Run-progress accumulators (id:c8b6), declared here (not at the bottom loop) so snapshotState
 // can read them with no temporal-dead-zone risk. round = re-discover→dispatch→drain iterations;
 // totalDispatched = work units dispatched across ALL rounds (unitsDispatched resets per round).
@@ -2173,7 +2207,7 @@ Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/relay/r
 ${unit.verdict === 'execute' ? (executeNamedInstruction(unit) || 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. ' + EXECUTE_SIZEOUT) : ''}
 ${unit.verdict === 'hard' ? 'You are an Opus-apex HARD-execute child (id:da26). Pick the TOP open "- [ ]" item tagged [HARD — pool] in ROADMAP.md and SIZE it first. Model your discipline on handoff.md C5 "only if small enough to finish safely": only implement the item if you can finish it cleanly and green within this turn — full red-green-refactor, verify-before-merge. If it is too large, contains nested/multi-session scope, or you cannot make the test suite green safely, do NOT half-do it: set contract_met=false and explain the sizing in handback. CRITICAL (id:8b1f) — a SIZE-OUT / GATED refusal (you decided NOT to start) must leave the worktree COMPLETELY CLEAN: make NO commit, and do NOT write the rationale into RELAY_LOG.md / ROADMAP.md / REVIEW_ME.md in the worktree. The rationale goes ONLY in the returned `handback` field. Reason: the integrator never merges a handback, so ANY commit you make on a refusal strands forever as an orphan worktree (the bug behind id:a4e9); a CLEAN worktree is auto-reaped (id:3ac8). The "write a HANDBACK paragraph to RELAY_LOG.md and commit" step in handoff.md C5 applies ONLY to a genuine mid-item CUTOFF where you already committed real work and need resume provenance — NOT to a pre-start sizing refusal (the item stays open for a manual/next-turn strong session). When you DO finish: tick the item\'s checkbox ONLY if the work is genuinely green (all tests pass — never tick to manufacture a pass), append its done-note, commit in the worktree, and make the full test suite green. Work ONE bounded HARD item only — never start a second.' : ''}
 ${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
-${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Single-id-two-views (D2): when you promote a ROADMAP item for work TODO.md already tracks under an <!-- id:XXXX -->, REUSE that token; mint a fresh one via ~/.claude/skills/meeting/append.sh new-ids N ' + unit.path + ' ONLY for genuinely new work — NEVER invent tokens, and never duplicate-id already-tracked work. When you close a ROADMAP item whose id also lives in TODO.md, tick the TODO line too. Reverse-handoff (review.md §5b): qualify+size any unqualified TODO/ROADMAP items added by /meeting or manual edits since the last checkpoint (mini-handoff) — reuse their id. After re-deriving the roadmap, set routine_open = the number of OPEN (unticked) [ROUTINE] items remaining — the supervisor uses it to re-enqueue an execute unit this same pool.' : ''}
+${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Single-id-two-views (D2): when you promote a ROADMAP item for work TODO.md already tracks under an <!-- id:XXXX -->, REUSE that token; mint a fresh one via ~/.claude/skills/meeting/append.sh new-ids N ' + wt + ' ONLY for genuinely new work — NEVER invent tokens, and never duplicate-id already-tracked work. When you close a ROADMAP item whose id also lives in TODO.md, tick the TODO line too. Reverse-handoff (review.md §5b): qualify+size any unqualified TODO/ROADMAP items added by /meeting or manual edits since the last checkpoint (mini-handoff) — reuse their id. After re-deriving the roadmap, set routine_open = the number of OPEN (unticked) [ROUTINE] items remaining — the supervisor uses it to re-enqueue an execute unit this same pool.' : ''}
 
 Hard rules: commit in the worktree as you go; NEVER push; NEVER tag; NEVER run git-diary-workflow or todo-update; never prompt the user. If you cannot meet the contract, set contract_met=false and explain in handback.
 
@@ -2349,6 +2383,11 @@ async function retireDeadWorktree(unit, retireFlags = '') {
   const branch = branchFor(unit)
   try {
     const r = await agent(
+      // id:ba7e — interpolating unit.path here is a DELIBERATE, justified exception to id:34b7's
+      // no-main-checkout rule: this is a PARENT-side mechanical hop, not a child prompt.
+      // worktree-retire.sh's first argument IS the canonical repo (`git -C <repo> worktree
+      // remove/prune` + the orphan-ref write must run against the real checkout, never the
+      // worktree being retired — which by then may not exist). No child ever sees this string.
       `Run exactly this one command and report its stdout verbatim (force-free retirement of a context-death worktree, id:4df8/373e/f272 — NEVER pass --force/-D yourself, this helper never does):\n` +
       '```relay-mech\n' +
       `~/.claude/skills/relay/scripts/worktree-retire.sh ${unit.path} ${wt} ${branch}${retireFlags ? ' ' + retireFlags : ''}` +
@@ -2481,10 +2520,17 @@ async function integrate(unit, report) {
   }
   if (!workedIds.length && (unit.inject_item || unit.item)) workedIds = [unit.inject_item || unit.item]
   const idSuffix = workedIds.length ? ` [id:${workedIds.join(',')}]` : ''
+  // id:ba7e — the integrator prompt below needs the CANONICAL main checkout, and that is a
+  // DELIBERATE exception to id:34b7's no-main-checkout rule, not an oversight. The integrator
+  // is not an execute/review child: its whole job is to merge the child's branch INTO the
+  // canonical checkout (clean-tree gate, merge --no-ff, ckpt tag, push, retire), every step of
+  // which is defined only against the main repo. The rule id:34b7 established is that WORKING
+  // children never receive it; the integrator is the single serialized writer that must.
   const result = await agent(
     `You are the serialized integrator of the relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
 
 0. Release this repo's cross-session lease (id:ebfb) — the child's work is done; do this FIRST so it runs whether the merge below succeeds or aborts: ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}  (run-scoped — a no-op if this run does not hold it).${unit.intensive ? ` Also release the exclusive resource lease (id:8d52): ~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}.` : ''}
+(id:ba7e — the repo path spliced into the steps below is this repo's CANONICAL main checkout, and that is DELIBERATE, not the id:34b7 leak: you are the pool's single serialized writer to main. Working execute/review/handoff children never receive it.)
 1. DETERMINISTIC clean-tree gate (id:aa93 — a foreign-dirty main checkout was silently DESTROYED 3× on 2026-06-18 when an agent "cleaned" the tree to make room): run ~/.claude/skills/relay/scripts/clean-tree-gate.sh ${unit.path}. It prints "clean" and exits 0 ONLY if the tree carries no changes; otherwise it prints "dirty <N>" + the offending porcelain lines and exits NON-ZERO. On any non-zero exit, ABORT: return merged=false with reason "main checkout dirty — a concurrent edit is present; deferring to avoid data loss (id:aa93)" plus the gate's dirty output. The integrator works on the child's WORKTREE, never the main checkout, so ANY dirty entry here is a foreign/concurrent editor's work. You must NEVER run \`git stash\`, \`git checkout --\`, \`git reset --hard\`, or \`git clean\` on ${unit.path} to make room for the merge — do NOT force-clean a foreign-dirty tree; just DEFER it.
 1a. DETERMINISTIC isolation gate (id:f682/id:7612 — a spawned child ran \`git worktree add\` correctly but then wrote every edit to the target's MAIN checkout instead, observed 2026-07-14 loderite and 2026-06-30 jobAI id:c6c8): run ~/.claude/skills/relay/scripts/verify-isolation.sh ${report.worktree}. It prints "ok …" and exits 0 when the worktree is a legitimate completed unit (has its own commits and a clean tree, OR is a genuine zero-commit id:8e3e no-op review — main unmoved since dispatch); it exits NON-ZERO (2) when the worktree is dirty, or is empty AND main advanced by a non-merge commit since dispatch (the isolation-breach signature — the failure output names the offending commit(s)). On any non-zero exit, ABORT: return merged=false with reason "isolation gate failed — worktree/main-checkout isolation breach suspected; deferring to avoid merging unaudited main-checkout drift (id:7612)" plus the gate's output. This gate is OBSERVE-ONLY (never stash/reset --hard/checkout --/clean) — do NOT attempt to "fix" a failure yourself.
 1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; discovery's live reconcile-repo.sh already fast-forwarded behind-only repos — it runs every round on BOTH the fresh-queue and the live-exec discovery path, id:9d97/7402, so a behind-only repo is always ff-merged before dispatch.)
@@ -2505,6 +2551,7 @@ async function integrate(unit, report) {
 3. ~/.claude/skills/relay/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}${idSuffix}" -l "${label}"
    (Append \`-c <reviewedTip>\` ONLY in the ZERO-COMMIT "Already up to date" case per step 2; for a branch that carried commits, pass NO \`-c\` so the tag lands on the post-merge tip.)
    It prints the new tag name — capture it as ckptTag. (The trailing [id:…] tags the durable RELAY_LOG checkpoint with the worked item id(s), id:de69.)
+(id:ba7e — the repo path spliced into the steps below is this repo's CANONICAL main checkout, and that is DELIBERATE, not the id:34b7 leak: you are the pool's single serialized writer to main. Working execute/review/handoff children never receive it.)
 4. ~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only ${unit.path}
    pushStatus = "pushed" on success, otherwise the error summary.
 5. ~/.claude/skills/relay/scripts/worktree-retire.sh ${unit.path} ${report.worktree} ${report.branch} --expect-merged
@@ -2515,6 +2562,7 @@ async function integrate(unit, report) {
 6b. EXECUTOR checkpoint — this is an execute unit (sonnet). Do NOT touch last_strong_ckpt, strong_model, or fable_rechecked: an executor checkpoint must never clear the pending Fable-bonus-recheck queue (that is exactly the masking bug id:e030 fixes). Leave those keys untouched.`}
 7. L2 push-seed inputs (id:c855) — compute these LAST, AFTER steps 1-6 so they reflect the fully-settled post-integrate state on main (the toml block, removed worktree dir, and pushed HEAD all feed the signature):
    a. postSig — recompute this repo's discovery signature so next round's prelude can match it: echo the one-repo object and pipe it to discover-sig.sh, then read the "sig" field:
+(id:ba7e — the repo path spliced into the steps below is this repo's CANONICAL main checkout, and that is DELIBERATE, not the id:34b7 leak: you are the pool's single serialized writer to main. Working execute/review/handoff children never receive it.)
         printf '%s' '{"repos":[{"repo":"${unit.repo}","path":"${unit.path}"${unit.chainEnded ? ',"chain_ended":true' : ''}}],"liveClaims":[]}' | ~/.claude/skills/relay/scripts/discover-sig.sh
       It prints one JSON line {"repo":...,"sig":"<hex or empty>"}. Set postSig = that sig verbatim (may be "" — a fail-open sentinel; pass it through, do NOT invent a hash).
    b. openRoutine — count of unticked routine items: git -C ${unit.path} grep -c -E '^- \\[ \\].*\\[ROUTINE\\]' HEAD -- ROADMAP.md 2>/dev/null (0 if the file/marker is absent; a plain count, not a list).
@@ -2549,6 +2597,10 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
       delete state.discoverCache[unit.repo]
     }
     if (report.review_me_count) {
+      // id:ba7e — a DELIBERATE main-checkout reference, and not a child prompt at all: this is
+      // the operator-facing path printed in RELAY_STATUS.md, written AFTER the merge landed.
+      // The child's worktree is retired moments later, so pointing the human at it would hand
+      // them a path that no longer exists; the canonical checkout is the only durable location.
       state.reviewMe.push({ repo: unit.repo, count: report.review_me_count, path: `${unit.path}/REVIEW_ME.md` })
     }
     // id:3826 — gaming-flag rate logger: append one JSON line per review integration to
@@ -2606,6 +2658,10 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     try {
       verdictClassAfter = await mechVerdictHop(
         'fresh, cache-bypassed re-classification of ' + unit.repo + ' for the id:907e verdict-class change predicate',
+        // id:ba7e — DELIBERATE canonical-checkout use: this is a PARENT-side mechanical hop, not
+        // a child prompt. classify-repo.sh must read the repo's POST-INTEGRATE state (the merge
+        // just landed on main); the child's worktree holds the pre-merge branch, so classifying
+        // it would answer the wrong question.
         `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}'`,
         `reclassify:${unit.repo}`
       )
@@ -2774,19 +2830,34 @@ async function releaseLease(unit) {
 async function provisionWorktree(unit) {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
+  let out
   try {
-    await agent(
-      `Run exactly this one command and report whether it exited 0 (id:34b7 pre-dispatch worktree creation + gitignored-artifact provisioning):\n` +
+    const res = await agent(
+      `Run exactly this one command and report its stdout VERBATIM, including the final line (id:34b7 pre-dispatch worktree creation + gitignored-artifact provisioning):\n` +
       '```relay-mech\n' +
       `~/.claude/skills/relay/scripts/provision-worktree.sh ${unit.path} ${wt} ${branch}` +
       '\n```',
       { label: `provision:${unit.repo}`, phase: 'Support', model: MECH_MODEL }
     )
-    return true
+    out = typeof res === 'string' ? res : JSON.stringify(res == null ? '' : res)
   } catch (e) {
-    log(`relay-loop: id:34b7 provisionWorktree failed for ${unit.repo} (${(e && e.message) || e}) — no worktree, no dispatch`)
+    log(`relay-loop: id:34b7 provisionWorktree threw for ${unit.repo} (${(e && e.message) || e}) — no worktree, no dispatch`)
+    recordAgentFailure(`provision:${unit.repo}`, unit.repo, 'Support', `provisionWorktree threw: ${(e && e.message) || e}`)
     return false
   }
+  // id:66d9 — fail CLOSED on a POSITIVE token. The proxy signals command failure in the
+  // RESPONSE BODY, never by throwing (mechanical-proxy.py returns `MECH-ERROR exit=<n>`),
+  // so the old unbound `await agent(...)` + unconditional success dispatched children into repos
+  // with no worktree. Sniffing for `MECH-ERROR` would be fail-open by construction: an
+  // unrecognised body — a 404 model-error passthrough, a harness message, a truncated read
+  // — is not that string and would sail straight through. Only `PROVISION-OK`, which
+  // provision-worktree.sh emits solely after self-verifying registration AND branch, counts.
+  if (!String(out).includes('PROVISION-OK')) {
+    log(`relay-loop: id:34b7 provisionWorktree failed for ${unit.repo} — no PROVISION-OK token in the hop's reply; got: ${String(out).replace(/\s+/g, ' ').slice(0, 200)}`)
+    recordAgentFailure(`provision:${unit.repo}`, unit.repo, 'Support', `no PROVISION-OK token: ${String(out).slice(0, 200)}`)
+    return false
+  }
+  return true
 }
 
 async function runUnit(unit) {
@@ -2837,6 +2908,21 @@ async function runUnit(unit) {
     scheduleStatusWrite(state)
     return
   }
+  // id:34b7 — the parent creates + provisions the worktree BEFORE dispatch (see
+  // provisionWorktree() above). A failure here means no worktree exists at all: don't
+  // dispatch a child into nothing — hand back exactly like the oversize gate above.
+  // id:ec8a — this gate runs BEFORE any of the dispatch bookkeeping below (the two
+  // counters, the in-flight row and the dispatch event). It used to sit AFTER them, so a
+  // unit that never dispatched was still counted, still rendered as in-flight, and still
+  // left a spurious forensic event — exactly what the 2026-08-11 incident run showed. A
+  // failed provision must also consume no MAX_UNITS slot, so the counters follow the guard.
+  const provisioned = await provisionWorktree(unit)
+  if (!provisioned) {
+    state.handbacks.push({ repo: unit.repo, reason: `id:34b7 pre-dispatch worktree provisioning failed for ${unit.repo} — no child dispatched`, worktreePath: worktreePathFor(unit) })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: 'id:34b7 provisionWorktree failed' })
+    scheduleStatusWrite(state)
+    return
+  }
   unitsDispatched++
   totalDispatched++
   // id:8af2 — compute the choice ONCE and stamp it on BOTH surfaces (the live RELAY_STATUS row
@@ -2861,16 +2947,6 @@ async function runUnit(unit) {
   const opts = { label: `${unit.verdict}:${unit.repo}${knownItem ? ` id:${knownItem}` : ''}`, phase: unitPhase(unit.verdict), schema: REPORT_SCHEMA }
   if (unit.verdict === 'execute') opts.model = 'sonnet'
   else opts.model = STRONG_MODEL
-  // id:34b7 — the parent creates + provisions the worktree BEFORE dispatch (see
-  // provisionWorktree() above). A failure here means no worktree exists at all: don't
-  // dispatch a child into nothing — hand back exactly like the oversize gate above.
-  const provisioned = await provisionWorktree(unit)
-  if (!provisioned) {
-    state.handbacks.push({ repo: unit.repo, reason: `id:34b7 pre-dispatch worktree provisioning failed for ${unit.repo} — no child dispatched`, worktreePath: worktreePathFor(unit) })
-    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: 'id:34b7 provisionWorktree failed' })
-    scheduleStatusWrite(state)
-    return
-  }
   // API-error failsafe: agent() can throw or return null on a terminal API error after
   // the harness's own retries. Don't let that orphan a worktree with committed
   // checkpoints — catch it, and for a handoff attempt ONE auto-resume from the last
@@ -2971,6 +3047,8 @@ async function runUnit(unit) {
         // pipeline, it fell open to the real API, and model:"bash" 404'd — making this re-ask
         // 100% dead for every repo since it landed (routed:c555; verified by calling
         // _command_allowed on the exact string). Two pinned relay scripts pass the gate.
+        // id:ba7e — DELIBERATE canonical-checkout use, same rationale as the id:907e re-ask
+        // above: a PARENT-side mechanical hop that must classify the repo's real main state.
         `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}' --emit unit --chain-ended '${String(chainEndReason).replace(/'/g, "'\\''")}' | ~/.claude/skills/relay/scripts/classify-verdict.sh`,
         `chain-end-reask:${unit.repo}`
       )

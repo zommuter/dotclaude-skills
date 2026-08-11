@@ -111,6 +111,14 @@ globalThis.agent = async (_prompt, opts = {}) => {
     built.add('integrate')
     return { merged: true, ckptTag: 'relay-ckpt-harness', pushStatus: 'pushed', ts: '2026-07-08T00:00:01Z', postSig: '', openRoutine: 0, openHard: 0 }
   }
+  // id:66d9 — provisionWorktree() now fails CLOSED on a POSITIVE token: it returns true only
+  // if the hop's reply carries `PROVISION-OK`, which provision-worktree.sh prints after
+  // self-verifying the worktree. The stub must therefore answer as the real hop does, or the
+  // loop correctly refuses to dispatch and this harness reaches no child builder at all.
+  if (label.startsWith('provision:')) {
+    built.add('provision')
+    return 'PROVISION-OK /tmp/harness/wt-' + label.slice('provision:'.length)
+  }
   if (label === 'inject-take') {
     built.add('inject-take')
     return { units: [] }
