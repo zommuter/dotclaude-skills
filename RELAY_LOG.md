@@ -5157,3 +5157,10 @@ Worked id:923b
 ## 2026-08-11 16:44 — executor (sonnet, relay-loop)
 
 id:923b per-unit identity key — re-keyed worktreePathFor/branchFor/inFlight off a new unitKey(verdict,itemId,attempt) helper; full suite 377/0/7-expected-red [id:923b]
+
+## 2026-08-11 — executor (sonnet, relay-loop)
+
+Worked id:d808 — `gather-repo-state.sh`'s `open_hard_pool` counter excluded nothing for `@container` epics, so a fully-decomposed repo (all descendants closed/gated) kept counting the container line itself as a dispatchable pool-lane leaf, drawing a phantom `hard` verdict every round forever (live consequence: loderite's id:16b2/id:ca44). Added a per-line `@container` skip to the `open_hard_pool` loop, mirroring `classify-repo.sh`'s existing `is_container`/`is_human` exclusion (id:0cf5) so the two collectors agree (test case 5 asserts parity directly). Also widened the BLOCKED glob — the old filter matched only `BLOCKED on`/`blocked on` literally, which loderite's `ca44` slipped past by writing `BLOCKED (b225…`; now lowercased before matching against `blocked on`/`blocked (`/`blocked:`/`blocked —`, case-insensitively, closing the punctuation-variant hole named in the item. The already-authored RED spec (`tests/test_container_not_hard_pool_d808.sh`, 6 cases across 3 concerns: marker exclusion, per-line scoping so a container doesn't suppress an unrelated sibling leaf, block-glob widening, and cross-collector parity) went green with this change alone.
+Friction: none — the RED spec's own comments already pointed at the exact fix (`case "$line" in *'@container'*) continue`) and pinned the parity assertion, so this was scoped tightly by the spec.
+refactor: none needed — the change is two small additive filters inside the existing `open_hard_pool` loop; no pre-existing duplication to clean up.
+Worked id:d808
