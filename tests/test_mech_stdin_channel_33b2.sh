@@ -91,10 +91,82 @@ PYEOF
 rc=$?
 [[ $rc -eq 0 ]] || fail=1
 
-# (3)+(5) end-to-end: a payload of shell metacharacters must round-trip byte-identical to the
-# script's stdin and leave no side effects. Only meaningful once the channel exists.
+# (3)+(5) end-to-end: drive the ACTUAL interception path — a payload of shell metacharacters
+# must round-trip byte-identical to the script's stdin, leave no side effects, and the opt-in
+# gate must refuse a stdin fence for a non-admitted script (AND-gated with the command gate).
+# Uses a CONTROLLED canonical relay-scripts root (MECHANICAL_PROXY_RELAY_ROOT) so the command
+# gate's pinned-path identity check is exercised with a script whose ONLY behaviour is `cat`.
 if [[ $fail -eq 0 ]]; then
-  printf 'line one\n$(touch %s)\n`whoami`\na; b && c\n' "$CANARY" > "$tmp/payload.txt"
+python3 - "$PROXY" "$CANARY" <<'PYEOF'
+import importlib.util, sys, os, json, tempfile
+proxy_path, canary = sys.argv[1], sys.argv[2]
+
+def load():
+    spec = importlib.util.spec_from_file_location("mp", proxy_path)
+    m = importlib.util.module_from_spec(spec); sys.modules["mp"] = m
+    spec.loader.exec_module(m)
+    return m
+
+# A controlled canonical root: relay-status-publish.sh (the initial STDIN_ALLOWED member) and
+# claim.sh (allowlisted but deliberately NOT stdin-admitted) both cat their stdin, so any
+# returned bytes are exactly what reached the child's stdin.
+canon_parent = tempfile.mkdtemp()
+canon = os.path.join(canon_parent, "relay", "scripts"); os.makedirs(canon)
+for nm in ("relay-status-publish.sh", "claim.sh"):
+    with open(os.path.join(canon, nm), "w") as f:
+        f.write("#!/bin/sh\ncat\n")
+    os.chmod(os.path.join(canon, nm), 0o755)
+os.environ["MECHANICAL_PROXY_RELAY_ROOT"] = canon
+mp = load()
+
+PUB = os.path.join(canon, "relay-status-publish.sh")
+CLAIM = os.path.join(canon, "claim.sh")
+assert "relay-status-publish.sh" in mp.STDIN_ALLOWED_SCRIPTS
+assert "claim.sh" not in mp.STDIN_ALLOWED_SCRIPTS and "claim.sh" in mp.ALLOWED_RELAY_SCRIPTS
+
+# The metacharacter payload — the exact content classes a command-string route cannot carry.
+payload = "line one\n$(touch %s)\n`whoami`\na; b && c\ntrailing" % canary
+
+def body(cmd, stdin=None):
+    text = "wrapper prose\n```relay-mech\n%s\n```\n" % cmd
+    if stdin is not None:
+        text += "more prose\n```relay-mech-stdin\n%s\n```\nafter\n" % stdin
+    return json.dumps({"model": "bash",
+                       "messages": [{"role": "user", "content": text}]}).encode()
+
+bad = []
+def ck(c, m):
+    if not c: bad.append(m)
+
+# (3+5) admitted script + stdin fence -> dispatched, payload byte-identical, inert.
+d = mp._mechanical_dispatch(body(PUB, payload))
+ck(d is not None, "(3) dispatch refused an admitted-script stdin fence")
+if d is not None:
+    cmd, sp = d
+    ck(sp == payload, "(3) stdin payload not byte-identical after extraction: %r" % (sp,))
+    out = mp._run_mechanical(cmd, stdin=sp)
+    ck(out == payload, "(5) payload did not round-trip through the child's stdin: %r" % (out,))
+ck(not os.path.exists(canary), "(5) canary exists — stdin payload was SHELL-EVALUATED")
+
+# (2/refusal) stdin fence for an allowlisted-but-NOT-admitted script -> refused (fail open).
+ck(mp._mechanical_dispatch(body(CLAIM, payload)) is None,
+   "(2) stdin fence for claim.sh (not in STDIN_ALLOWED_SCRIPTS) was NOT refused")
+
+# (3/AND) stdin fence whose COMMAND fence is itself disallowed -> refused, even though the
+# pinned script IS admitted (the gate is AND: command gate must also pass).
+ck(mp._mechanical_dispatch(body("cat /etc/passwd ; " + PUB, payload)) is None,
+   "(3) AND-gate breached — a disallowed command fence with a stdin fence was accepted")
+
+# (4) no stdin fence -> legacy tuple (command, None); run path unchanged.
+d2 = mp._mechanical_dispatch(body(PUB))
+ck(d2 is not None and d2[1] is None,
+   "(4) no-stdin request did not take the byte-identical legacy path")
+
+if bad:
+    for b in bad: print("FAIL: " + b, file=sys.stderr)
+    sys.exit(1)
+PYEOF
+  [[ $? -eq 0 ]] || fail=1
   [[ -e "$CANARY" ]] && note "(5) the payload was SHELL-EVALUATED — stdin must be inert data, never parsed"
 fi
 
