@@ -1408,7 +1408,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 > suite. Every line number below was VERIFIED at promotion time (they differ from the numbers
 > quoted in the TODO lines, which had drifted) — re-verify before editing.
 
-- [ ] [ROUTINE] **Layer B — per-unit identity key; re-key the repo-as-primary-key collision sites** <!-- children-of:1f4f --> <!-- id:923b -->
+- [x] [ROUTINE] **Layer B — per-unit identity key; re-key the repo-as-primary-key collision sites** <!-- children-of:1f4f --> <!-- id:923b -->
   - **Why**: child of id:1f4f, meeting 2026-07-26-1922 D2 + amendment A3. This is a CONCRETE LATENT BUG TODAY, independent of any fan-out decision — two concurrent same-repo units already collide:
     - `relay-loop.js:1804` — `worktreePathFor` builds a template-literal path of the shape `~/.cache/relay/worktrees/<unit.repo>/<state.runId>-<unit.verdict>` — two concurrent same-repo executes compute the IDENTICAL path.
     - `relay-loop.js:2435` — `state.inFlight = state.inFlight.filter(r => r.repo !== unit.repo)` — clears EVERY same-repo in-flight entry, not just this unit's.
