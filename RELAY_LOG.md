@@ -4863,3 +4863,7 @@ unvalidated path and the existing success path share one implementation instead 
 copies of `cp` + `mv -f`. No other pre-existing code was rewritten; everything else in
 this unit is new files plus one additive flag, one `.gitignore` block and one CLAUDE.md
 Layout sentence.
+
+## 2026-08-11 14:09 — reviewer (claude-opus-5)
+
+hard-execute: id:b7f4 dangling anchors (unblocks loderite), id:8c7f schema 1.1.0, id:e977 homonym worksheet (78/0 re-derived); id:2902 filed (370 pass/0 fail)
