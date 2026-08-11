@@ -5111,4 +5111,30 @@ Full suite: 376 passed, 0 failed, 8 expected-red (open roadmap items). [id:cc90]
 
 ## 2026-08-11 16:01 — executor (sonnet, relay-loop)
 
+Worked id:e44e — closed as already discharged by a superior fix. e44e's own text proposes
+two remedies for the `.changelog.lock` dirty-tree defect: (a) add the lock to a gitignore
+stanza the b8fa bootstrap writes, and (b) have `changelog-append.sh` remove its lock on
+exit. Reading `relay/scripts/changelog-append.sh` (lines 26-37, 108-120) shows a THIRD,
+already-shipped fix under a different id (`id:798b`, promoted separately via handoff C2+C3,
+see the RELAY_LOG.md entries around 2026-08-10): the lock was relocated entirely out of the
+working tree into `<gitdir>/changelog-append.lock`, so no gitignore stanza is ever needed
+(there is nothing in the tree to ignore) and no lock is ever left behind to remove on exit
+(there is nothing there to begin with). `798b`'s own RED spec
+(`tests/test_changelog_lock_no_dirty_798b.sh`) asserts strictly MORE than e44e's stated
+acceptance — no `.changelog.lock` or any `*.lock` artefact ever appears in the working tree
+(including transiently, polled during concurrent runs), mutual exclusion holds under 30
+concurrent writers, and the false "matches the gitignore convention" comment is gone — and
+it already passes green. e44e's own "back-fill every repo that already got the rollout"
+half is untouched by this close: that is a distinct, already-filed follow-up (`id:d525` in
+TODO.md, review-follow-ups 2026-08-10) covering repos with a PAST stray lock already on
+disk, out of scope here since it touches other repos' working trees. Ticked e44e's checkbox
+in both ROADMAP.md and TODO.md (single-id-two-views) with no change to the item's own text.
+Friction: none — the item's literal done-check ("fixture asserting a gitignore stanza")
+doesn't apply to the fix that actually shipped, but the underlying user-observable defect
+(the pool skip) is verifiably fixed, and it would be gaming to leave a satisfied item open
+just because its done-check names a rejected mechanism.
+refactor: none needed — no code changed, only two checkboxes ticked.
+Full suite: 376 passed, 0 failed, 8 expected-red (unchanged — e44e had no dedicated red
+test of its own; its acceptance was already covered green by id:798b's test). [id:e44e]
+
 id:cc90 — bounded execute-execute rechain (K<=3): chainDepth counter replaces the one-shot rechained boolean, generalizes chaining to execute units, records the 3 pre-registered answers in-source; full suite 376/0/8-expected-red [id:cc90]
