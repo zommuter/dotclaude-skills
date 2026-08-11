@@ -4929,3 +4929,7 @@ the identical path in a live run, but its preference for the script's own tree i
 behaviour CHANGE in a worktree, so it is claimed as a fix, not as a pure refactor. Nothing
 else was rewritten behaviour-preservingly; every other edit changes observable behaviour and
 is covered by a test.
+
+## 2026-08-11 14:17 — reviewer (claude-opus-5)
+
+hard-execute: id:4b64 lane-vocab alignment (2 defects beyond the 3 reported; md-merge staged-write rollback) — 371 pass/0 fail
