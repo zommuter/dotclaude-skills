@@ -23,6 +23,7 @@
 - id:069b — meeting/personas.md deduped (27 redundant entries merged with provenance preserved), personas-conformance.sh added, append.sh now extends instead of duplicating an already-registered persona name; full suite 379/0/5-expected-red. (id:069b)
 - id:ecce closed — ckpt-tag.sh/gather-repo-state.sh/SKILL.md now use a distinct `integrate (<model>)` label that never advances the strong-audit watermark; id:6217 investigated and BLOCKED (test assertion 4 unscoped-grep bug conflicts with its own scope statement, logged not weakened); id:34b7 sized past scope for this session (restructures the dispatch mechanism this child itself runs under). (id:ecce)
 - review: id:069b close verified genuinely green (personas.md dedup + conformance + append extend-path, no gaming/overreach); reconciled cross-ledger TODO tick, resolved @container lint on c7dc, surfaced TICK-READY wave items + flaky test (id:069b,c7dc)
+- classify-repo.sh --emit unit now passes priority_rank+evidence through from classify-verdict.sh (id:258d), first of three id:c7dc seams (id:258d)
 
 ## 2026-08-10
 
