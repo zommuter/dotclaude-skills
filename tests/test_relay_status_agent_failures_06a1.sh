@@ -95,6 +95,70 @@ node "$tmpdir/status.js" >"$tmpdir/out" 2>&1 \
   || { echo "FAIL: RELAY_STATUS does not surface agent failures:"; sed 's/^/    /' "$tmpdir/out"; exit 1; }
 pass "buildRelayStatus renders a findable failure section, stays quiet when clean, tolerates an absent field"
 
+# ── (3b) id:a104 — the three previously-unwired parse sites now push on a genuine failure ──
+# recordAgentFailure + the three parse functions, driven directly on fixture bodies (extracted
+# the same way (3) extracts buildRelayStatus — relay-loop.js has no importable surface).
+awk '/^function recordAgentFailure\(/,/^\}$/'     "$LOOP" >  "$tmpdir/parse.js"
+awk '/^function parseQuotaMechResult\(/,/^\}$/'   "$LOOP" >> "$tmpdir/parse.js"
+awk '/^function parseInjectTake\(/,/^\}$/'        "$LOOP" >> "$tmpdir/parse.js"
+awk '/^function parsePrelude\(/,/^\}$/'           "$LOOP" >> "$tmpdir/parse.js"
+for fn in recordAgentFailure parseQuotaMechResult parseInjectTake parsePrelude; do
+  grep -q "function $fn" "$tmpdir/parse.js" || fail "could not extract $fn from relay-loop.js"
+done
+
+cat >> "$tmpdir/parse.js" <<'JS'
+const state = { agentFailures: [] }
+const round = 1
+const bad = []
+
+// quota hop: MECH-ERROR body records, exit-code parsing is unchanged
+{
+  const before = state.agentFailures.length
+  const v = parseQuotaMechResult('MECH-ERROR exit=1\nquota-stop: five_hour=92% >= threshold 90', 'five_hour')
+  if (v.exitCode !== 1) bad.push('parseQuotaMechResult return value changed for a MECH-ERROR body (fail-soft broken)')
+  if (state.agentFailures.length !== before + 1) bad.push('parseQuotaMechResult(MECH-ERROR) did not push to state.agentFailures')
+  else if (!/quota:five_hour/.test(state.agentFailures[before].label)) bad.push('quota failure entry does not name the tier')
+  // legitimate proceed (exit 0 sentinel, i.e. no MECH-ERROR prefix) must NOT record — no cry-wolf
+  const before2 = state.agentFailures.length
+  parseQuotaMechResult('', 'five_hour')
+  if (state.agentFailures.length !== before2) bad.push('parseQuotaMechResult recorded a failure on a clean (non-MECH-ERROR) body')
+}
+
+// inject-take hop: MECH-ERROR records; MECH-OK / empty (legitimate "nothing pending") do not
+{
+  const before = state.agentFailures.length
+  const units = parseInjectTake('MECH-ERROR exit=1\nboom', [])
+  if (!Array.isArray(units) || units.length !== 0) bad.push('parseInjectTake return value changed for a MECH-ERROR body')
+  if (state.agentFailures.length !== before + 1) bad.push('parseInjectTake(MECH-ERROR) did not push to state.agentFailures')
+  const before2 = state.agentFailures.length
+  parseInjectTake('MECH-OK exit=0', [])
+  parseInjectTake('', [])
+  if (state.agentFailures.length !== before2) bad.push('parseInjectTake recorded a failure on a legitimate empty/MECH-OK body (cry-wolf)')
+}
+
+// discover-prelude hop: MECH-ERROR records, and genuinely unparseable JSON also records
+{
+  const before = state.agentFailures.length
+  const p1 = parsePrelude('MECH-ERROR exit=1\nboom')
+  if (p1 !== null) bad.push('parsePrelude return value changed for a MECH-ERROR body')
+  if (state.agentFailures.length !== before + 1) bad.push('parsePrelude(MECH-ERROR) did not push to state.agentFailures')
+  const before2 = state.agentFailures.length
+  const p2 = parsePrelude('{not json')
+  if (p2 !== null) bad.push('parsePrelude return value changed for an unparseable body')
+  if (state.agentFailures.length !== before2 + 1) bad.push('parsePrelude(unparseable) did not push to state.agentFailures')
+  const before3 = state.agentFailures.length
+  parsePrelude('MECH-OK exit=0')
+  parsePrelude('')
+  if (state.agentFailures.length !== before3) bad.push('parsePrelude recorded a failure on a legitimate empty/MECH-OK body (cry-wolf)')
+}
+
+if (bad.length) { bad.forEach(b => console.error('  ' + b)); process.exit(1) }
+JS
+
+node "$tmpdir/parse.js" >"$tmpdir/out2" 2>&1 \
+  || { echo "FAIL: the three previously-unwired parse sites (id:a104) don't record agent failures:"; sed 's/^/    /' "$tmpdir/out2"; exit 1; }
+pass "quota / inject-take / discover-prelude parse sites now record real failures without changing their return shape (id:a104)"
+
 # ── (4) the engine still lints (backtick-in-template hazard, the id:5bac crash class) ─────
 LINT="$SRC_DIR/relay/scripts/lint-workflow-templates.mjs"
 if [[ -f "$LINT" ]]; then
