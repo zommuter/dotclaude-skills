@@ -4998,3 +4998,7 @@ tested. No other existing behaviour was rewritten.
 ## 2026-08-11 14:33 — reviewer (claude-opus-5)
 
 id:90f2 Plane verified live (2 unknowns falsified); owner decisions: size-out routing id:2cfe, Beads full third arm id:4ac9, 63 homonyms accepted, offline log id:2902
+
+## 2026-08-11 14:39 — reviewer (claude-opus-5)
+
+owner decisions landed: 63 homonyms accepted (import 78→15 errors), Beads full third arm, size-out routing filed; homonym-draft invariant corrected (372 pass/0 fail)
