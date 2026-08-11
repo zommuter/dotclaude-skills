@@ -220,6 +220,20 @@ def _last_user_text(obj: dict):
 # prose that merely mentions a relay path — but carries no fence — fails open (never run).
 _MECH_FENCE_RE = re.compile(r"```relay-mech[ \t]*\r?\n(.*?)\r?\n```", re.DOTALL | re.IGNORECASE)
 
+# id:33b2 — the DATA-plane fence, separate from the ```relay-mech COMMAND fence above.
+# A ```relay-mech-stdin block carries a payload that is piped to the child process's
+# STDIN and is NEVER handed to the shell (see _run_mechanical's `input=`). This is what
+# unblocks the hops whose payload embeds arbitrary repo/item prose (heredoc, JSON, `$(…)`,
+# newlines) that _command_allowed() must otherwise refuse: the command stays a single
+# bare allowlisted script invocation, while its DATA arrives out-of-band on stdin.
+#
+# The two fences are disjoint by construction: the COMMAND regex above requires
+# `[ \t]*\r?\n` immediately after `relay-mech`, so it never matches the `-stdin` opener;
+# this regex requires the literal `-stdin` suffix, so it never matches a plain command
+# fence. A request may carry the command fence alone (legacy path, no stdin) or both.
+_MECH_STDIN_FENCE_RE = re.compile(
+    r"```relay-mech-stdin[ \t]*\r?\n(.*?)\r?\n```", re.DOTALL | re.IGNORECASE)
+
 
 def _command_from_wrapped(text: str):
     """Pull the mechanical command out of a (possibly wrapper-framed) user message.
@@ -231,6 +245,21 @@ def _command_from_wrapped(text: str):
     if m:
         return m.group(1).strip() or None
     return text
+
+
+def extract_stdin_payload(text: str):
+    """Return the BYTE-IDENTICAL payload of the first ```relay-mech-stdin fenced block,
+    or None when no such fence is present.
+
+    The payload is inert DATA destined for a child process's stdin, so — unlike a
+    command — it is NEVER stripped: leading/trailing whitespace, embedded backticks,
+    `$(…)`, `;`, `&&` and newlines must reach the script exactly as authored. The
+    regex's capture already excludes only the single newline after the opener and the
+    single newline before the closing fence; everything between is returned verbatim."""
+    m = _MECH_STDIN_FENCE_RE.search(text)
+    if m:
+        return m.group(1)
+    return None
 
 
 def _extract_mechanical_command(body: bytes):
@@ -273,6 +302,26 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
     "ckpt-tag.sh", "quota-stop.sh",
     "worktree-retire.sh",  # id:4df8/1f8e — the force-free context-death retirement wrapper; missing here 404s retireDeadWorktree()'s model:'bash' dispatch (id:5bbb completeness-test gap, observed live run relay-20260729-142725-13077)
     "provision-worktree.sh",  # id:34b7 — pre-dispatch parent-side worktree creation + gitignored-artifact provisioning; missing here 404s provisionWorktree()'s model:'bash' dispatch
+])
+
+# id:33b2 / id:a05c option B — the OPT-IN stdin channel allowlist. A ```relay-mech-stdin
+# fence (a payload piped to a child's stdin) is honoured ONLY when the command's pinned
+# last-stage script is an EXPLICIT member of this set. It is a SEPARATE, hand-maintained
+# frozenset — deliberately NOT derived from, defaulted to, or aliased to
+# ALLOWED_RELAY_SCRIPTS. Option A (every allowlisted script inherits stdin) was rejected by
+# the owner (2026-07-28): admitting a script to the DATA plane must stay a deliberate,
+# reviewable act, never a property a future ALLOWED_RELAY_SCRIPTS addition silently inherits.
+# A change that makes this default to / alias / derive from ALLOWED_RELAY_SCRIPTS is a
+# ruling violation, not an optimization.
+#
+# STANDING OBLIGATION for every member below: the script MUST treat its stdin as INERT
+# DATA — never `eval` it, `source` it, or shell-interpolate it. The proxy's command scanner
+# cannot see what a member does with the bytes it receives; this comment is the only place a
+# future author admitting a script here will meet that hazard. Admit a script only after
+# confirming it consumes stdin as opaque data (e.g. `cat`, a `--path -` reader, `python -`
+# that json.loads it), never as code.
+STDIN_ALLOWED_SCRIPTS = frozenset([
+    "relay-status-publish.sh",  # write-relay-status (id:d4ca) moves a markdown doc as its payload
 ])
 
 # Plumbing tokens permitted as a NON-leading pipeline stage (e.g. `echo {json} |
@@ -442,6 +491,21 @@ def _command_allowed(command: str) -> bool:
     return saw_relay_script and last_is_relay_script
 
 
+def _last_stage_relay_script(command: str):
+    """Return the basename of the pinned relay script leading the LAST pipeline stage
+    of `command`, or None. Mirrors _command_allowed()'s last-stage identification so the
+    stdin opt-in gate keys off exactly the script whose stdout the proxy would return —
+    the one that will actually receive the piped payload on its stdin. Callers must have
+    already established `_command_allowed(command) is True`; this only names the script."""
+    segments = [seg for seg in _SEG_SPLIT_RE.split(command) if seg.strip()]
+    if not segments:
+        return None
+    leader = _segment_leader(segments[-1])
+    if leader is None:
+        return None
+    return _token_is_relay_script(leader)
+
+
 def _mechanical_command(body: bytes):
     """Combined gate: return the command to run locally iff the request is a clear
     model=="bash" mechanical request AND its command is an allowlisted relay
@@ -469,7 +533,55 @@ def _mechanical_command(body: bytes):
     return command
 
 
-def _run_mechanical(command: str) -> str:
+def _extract_mechanical_stdin(body: bytes):
+    """Return the byte-identical ```relay-mech-stdin payload for a model=="bash" request,
+    or None (no fence present, or the request is not a mechanical one at all). Mirrors
+    _extract_mechanical_command's parse/guard shape; never strips the payload."""
+    try:
+        obj = json.loads(body)
+    except Exception:
+        return None
+    if not isinstance(obj, dict) or obj.get("model") != MECH_MODEL:
+        return None
+    text = _last_user_text(obj)
+    if text is None:
+        return None
+    return extract_stdin_payload(text)
+
+
+def _mechanical_dispatch(body: bytes):
+    """Full interception decision INCLUDING the opt-in stdin channel (id:33b2).
+
+    Returns a `(command, stdin_payload)` tuple to run locally, or None to fall open to
+    the real upstream. `stdin_payload` is None for the legacy no-stdin path — the byte-
+    identical behaviour from before this channel existed — and a str only when a
+    ```relay-mech-stdin fence is present AND the command's pinned script is admitted to
+    STDIN_ALLOWED_SCRIPTS.
+
+    The gate is AND, not OR: `_command_allowed()` still governs the command fence exactly
+    as before (via _mechanical_command), and the stdin opt-in is an ADDITIONAL narrowing
+    layered on top — never a way to run something the command gate would have refused."""
+    command = _mechanical_command(body)
+    if command is None:
+        return None                      # not mechanical, or command not allowed — fail open
+    stdin_payload = _extract_mechanical_stdin(body)
+    if stdin_payload is None:
+        return (command, None)           # legacy path — byte-identical to pre-id:33b2
+    # A ```relay-mech-stdin fence is present. Option B (id:a05c): honour it ONLY when the
+    # command's pinned last-stage script is an EXPLICIT member of STDIN_ALLOWED_SCRIPTS —
+    # a separate set from ALLOWED_RELAY_SCRIPTS. Not admitted → refuse (fail open), never
+    # silently run; the whole point is that admission is deliberate, not inherited.
+    pinned = _last_stage_relay_script(command)
+    if pinned not in STDIN_ALLOWED_SCRIPTS:
+        _log({"event": "mechanical_stdin_refused", "command": command, "pinned": pinned,
+              "reason": "```relay-mech-stdin fence for a script not in STDIN_ALLOWED_SCRIPTS "
+                        "(opt-in DATA-plane admission, id:a05c option B); falling open to the "
+                        "real API, which will 404 on model=\"bash\""})
+        return None
+    return (command, stdin_payload)
+
+
+def _run_mechanical(command: str, stdin: str = None) -> str:
     """Run the command locally and return the echo-runner-shaped payload.
 
     Success (non-empty stdout) -> stdout verbatim (UNCHANGED — hops that parse
@@ -483,10 +595,17 @@ def _run_mechanical(command: str) -> str:
                 beat, claim.sh release, inject.sh take with nothing pending).
                 id:3557, observed live 2026-07-23 (run relay-20260723-141926-10371).
     Failure  -> 'MECH-ERROR exit=<code>' + newline + stderr verbatim (mirrors the
-                echo-runner agent contract exactly)."""
+                echo-runner agent contract exactly).
+
+    `stdin` (id:33b2): when a ```relay-mech-stdin payload is supplied it is fed to the
+    child on its stdin as INERT DATA and never handed to the shell — the command line is
+    only ever `[MECH_SHELL, '-c', command]`, so the payload cannot be word-split, expanded,
+    or command-substituted. When stdin is None the call is byte-identical to before this
+    channel existed (`input=None` leaves the child's stdin inherited, exactly as before)."""
     try:
         proc = subprocess.run(
             [MECH_SHELL, "-c", command],
+            input=stdin,
             capture_output=True, text=True, timeout=MECH_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
@@ -643,8 +762,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(req_length) if req_length else b""
 
         # ── Interception: model=="bash" + allowlisted relay command ───────────
-        command = _mechanical_command(body)
-        if command is not None:
+        # id:33b2 — _mechanical_dispatch returns (command, stdin_payload); stdin_payload
+        # is None on the legacy no-fence path (byte-identical to before this channel).
+        dispatch = _mechanical_dispatch(body)
+        if dispatch is not None:
+            command, stdin_payload = dispatch
             try:
                 obj = json.loads(body)
             except Exception:
@@ -652,7 +774,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             model = obj.get("model", MECH_MODEL)
             wants_stream = bool(obj.get("stream")) or \
                 "text/event-stream" in self.headers.get("Accept", "")
-            output = _run_mechanical(command)
+            output = _run_mechanical(command, stdin=stdin_payload)
             try:
                 if wants_stream:
                     _serve_mechanical_sse(self, output, model)
@@ -663,6 +785,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             _log({
                 "event": "mechanical", "path": self.path,
                 "command": command, "stream": wants_stream,
+                "stdin_bytes": len(stdin_payload.encode("utf-8")) if stdin_payload else 0,
                 "output_bytes": len(output.encode("utf-8")),
                 "upstream_hit": False,
             })
