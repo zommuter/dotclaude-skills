@@ -120,3 +120,5 @@ Format: `- **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<mee
 
 - 🛰️ **Ada** — agent-facing protocol-surface lens; MCP server design, machine-readable descriptors (llms.txt / schema.org JSON-LD / .well-known / OpenAPI), and the three-paths model of how a tool-using agent actually reaches a capability (already-in-the-weights ⟂ human-wired-in ⟂ already-on-your-page) — which separates ACQUISITION levers from CONVERSION levers and reclassifies llms.txt as the latter; also weighs an agent-facing endpoint against a product's own data-handling invariant (uptime dependency vs a self-verifying local artifact). Introduced 2026-08-10 (zkWhale/agent-discoverability-deploy-gate).
 
+
+- 🧷 **Fen** — FUSE/VFS and syscall-boundary lens; kernel page cache vs write-back timing, which errno actually reaches which syscall (write() vs release() vs close() vs fsync()), write-temp-then-rename() as the dominant editor/agent write pattern, and mount availability as a fleet constraint (Android/Termux). Prices "validate at the write" claims against what the API can actually report. Introduced 2026-08-11 (cartulary/db-txt-substrate-prior-art-and-validity-gate).
