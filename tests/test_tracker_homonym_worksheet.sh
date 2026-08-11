@@ -105,9 +105,18 @@ done
   || fail "the live homonym-allowlist.txt was MODIFIED — this tool must never adjudicate"
 
 [[ -s "$DRAFT" ]] || fail "no draft allow-list emitted"
-# The decisive property: strip comments the way fleet-import.sh does, and NOTHING is left.
-if grep -vE '^\s*(#|$)' "$DRAFT" | grep -qE '^[0-9a-f]{4}$'; then
-  fail "the DRAFT carries an ACCEPTED bare token — a draft must parse as STRICT"
+# The decisive property, stated PRECISELY (corrected 2026-08-11): the draft must introduce
+# NO NEW acceptance. It is not "the draft contains no accepted token" — the draft is meant
+# to be a complete replacement file, so it deliberately echoes tokens ALREADY accepted in
+# the live allow-list; dropping them would silently un-adjudicate the owner's decisions.
+# The original assertion was written when the live list was empty and only held by that
+# accident, so it went red the moment the owner accepted the first 63 tokens (id:e977).
+# Comparing against the live list instead also makes this test independent of that file's
+# mutable contents, which it was previously (and unintentionally) coupled to.
+grep -oE '^[0-9a-f]{4}$' "$ROOT/tracker/homonym-allowlist.txt" | sort -u > "$tmp/live-accepted.txt" || true
+grep -vE '^\s*(#|$)' "$DRAFT" | grep -oE '^[0-9a-f]{4}$' | sort -u > "$tmp/draft-accepted.txt" || true
+if [[ -n "$(comm -13 "$tmp/live-accepted.txt" "$tmp/draft-accepted.txt")" ]]; then
+  fail "the DRAFT accepted a token that is NOT already on the live allow-list: $(comm -13 "$tmp/live-accepted.txt" "$tmp/draft-accepted.txt" | tr '\n' ' ')"
 fi
 grep -q 'UNCONFIRMED aaaa' "$DRAFT" || fail "draft does not carry token aaaa behind the UNCONFIRMED marker"
 grep -q 'UNCONFIRMED bbbb' "$DRAFT" || fail "draft does not carry token bbbb behind the UNCONFIRMED marker"
