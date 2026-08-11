@@ -409,8 +409,17 @@ if [[ -n "$roadmap" ]]; then
   while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:]]*-\ \[\ \]\  ]] || continue
     [[ "$(roadmap_primary_lane "$line")" == "[HARD — pool]" ]] || continue
-    case "$line" in
-      *'🚧'*|*'BLOCKED on'*|*'blocked on'*) continue ;;
+    # id:d808 — a @container epic is never itself pool-dispatchable; its seams are the
+    # units (mirrors classify-repo.sh's is_human `is_container` exclusion, id:0cf5).
+    case "$line" in *'@container'*) continue ;; esac
+    # id:d808 — widen the BLOCKED glob so a punctuation variant ("BLOCKED (", "BLOCKED:",
+    # "BLOCKED —") does not slip past the filter the way `BLOCKED on`/`blocked on` alone
+    # did (loderite's ca44 wrote "BLOCKED (b225…"). Case-insensitive, same as the
+    # existing BLOCKED on/blocked on pair.
+    lower_line="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
+    case "$line" in *'🚧'*) continue ;; esac
+    case "$lower_line" in
+      *'blocked on'*|*'blocked ('*|*'blocked:'*|*'blocked —'*) continue ;;
     esac
     # A recurring-audit item with nothing new to audit must NOT count.
     if printf '%s' "$line" | grep -q 'relay:recurring-audit' \
