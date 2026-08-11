@@ -240,13 +240,44 @@ _MECH_STDIN_FENCE_RE = re.compile(
     r"```relay-mech-stdin[ \t]*\r?\n(.*?)\r?\n```", re.DOTALL | re.IGNORECASE)
 
 
+def _strip_stdin_fence_span(text: str) -> str:
+    """Return `text` with the first ```relay-mech-stdin fenced block's SPAN excised, so
+    the command extractor can never read a ```relay-mech fence that lives inside the
+    stdin PAYLOAD (id:93ac — command-fence precedence).
+
+    The defect this closes: `_command_from_wrapped` used to `.search()` the WHOLE user
+    text, and nothing required the loop's real command fence to precede the stdin fence.
+    A payload that merely QUOTES a ```relay-mech block (ordinary content — this repo's
+    own ROADMAP/SKILL carry literal such fences) could therefore SUPPLY the dispatched
+    command: the payload's inner fence won on position. Excising the stdin span BEFORE
+    command extraction makes a payload structurally unable to contribute a command —
+    reusing the two existing regexes (`_MECH_STDIN_FENCE_RE` here, `_MECH_FENCE_RE` in
+    the caller), never a third hand-rolled parser.
+
+    Note the two regexes parse the span asymmetrically at a nested opener: the non-greedy
+    stdin capture stops at the FIRST `\\n``` `, i.e. at the inner ```relay-mech opener's
+    backticks, so the excised span ends there — which leaves the remainder starting at
+    `relay-mech\\n…` (no leading backticks), so `_MECH_FENCE_RE` cannot re-match the
+    smuggled fragment. The loop's own out-of-payload command fence remains intact and is
+    the one extracted. This does NOT change what `extract_stdin_payload` returns (the
+    payload path is untouched); it only narrows where a COMMAND may come from.
+
+    No stdin fence present ⇒ returns `text` unchanged (the legacy no-stdin path,
+    byte-identical)."""
+    m = _MECH_STDIN_FENCE_RE.search(text)
+    if not m:
+        return text
+    return text[:m.start()] + text[m.end():]
+
+
 def _command_from_wrapped(text: str):
     """Pull the mechanical command out of a (possibly wrapper-framed) user message.
 
-    Returns the body of the first ```relay-mech fenced block when present; otherwise
-    returns `text` unchanged (the bare-command shape). Never runs anything itself —
-    _command_allowed() remains the gate on whatever this returns."""
-    m = _MECH_FENCE_RE.search(text)
+    Returns the body of the first ```relay-mech fenced block found OUTSIDE any
+    ```relay-mech-stdin payload (id:93ac) when present; otherwise returns `text`
+    unchanged (the bare-command shape). Never runs anything itself — _command_allowed()
+    remains the gate on whatever this returns."""
+    m = _MECH_FENCE_RE.search(_strip_stdin_fence_span(text))
     if m:
         return m.group(1).strip() or None
     return text
