@@ -40,6 +40,10 @@ set -euo pipefail
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=relay/scripts/lib-state-claim.sh
 source "$SCRIPTS_DIR/lib-state-claim.sh"
+# shellcheck source=relay/scripts/lib-typed-edges.sh
+# Twin-consumer for the id:3f7e DEP-PROSE-UNTYPED check — the SAME engine
+# roadmap-lint.sh's rule 3(e) uses, so the two linters never silently diverge.
+source "$SCRIPTS_DIR/lib-typed-edges.sh"
 # WARN→ERROR boundary baseline (id:cb3e, gated on id:5533) — same shared snapshot
 # roadmap-lint.sh reads, so both linters agree on which ids are grandfathered.
 STATE_CLAIM_BASELINE="${STATE_CLAIM_BASELINE:-$SCRIPTS_DIR/../state-claim-baseline.txt}"
@@ -153,10 +157,16 @@ scan_path() {
     # `- [ ]` top-level item regardless of its missing-id/orphan/conforming class
     # (a decided-but-open item can otherwise carry a perfectly well-formed id).
     sc=""
+    dp=""
     if [[ "$inbox" -eq 0 && "$line" =~ ^-\ \[\ \]\  ]]; then
       sc="$(state_claim_violation "$line")"
+      # id:3f7e DEP-PROSE-UNTYPED (twin of roadmap-lint.sh rule 3(e), same shared
+      # engine — lib-typed-edges.sh). WARN-only: adds to `findings` (always
+      # reported) but never to `strict_findings` (never fails --strict) — the
+      # ROADMAP.md item's own ruling is WARN, not ERROR, and that never escalates.
+      dp="$(typed_edges_dep_prose_untyped_of_line "$line")"
     fi
-    if [[ -z "$cls" && -z "$sc" ]]; then continue; fi
+    if [[ -z "$cls" && -z "$sc" && -z "$dp" ]]; then continue; fi
     if [[ -n "$cls" ]]; then
       findings=$((findings+1)); strict_findings=$((strict_findings+1))
       out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
@@ -173,6 +183,10 @@ scan_path() {
         strict_findings=$((strict_findings+1))
         out_lines+=("$(printf 'decided-left-open\t%d\t%s' "$lineno" "$line")")
       fi
+    fi
+    if [[ -n "$dp" ]]; then
+      findings=$((findings+1))
+      out_lines+=("$(printf 'dep-prose-untyped (id:%s)\t%d\t%s' "$dp" "$lineno" "$line")")
     fi
   done < "$path"
   return 0   # the while's EOF-exit status (1) must not become scan_path's return (set -e)

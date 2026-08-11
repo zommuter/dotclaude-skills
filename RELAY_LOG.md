@@ -5002,3 +5002,25 @@ id:90f2 Plane verified live (2 unknowns falsified); owner decisions: size-out ro
 ## 2026-08-11 14:39 — reviewer (claude-opus-5)
 
 owner decisions landed: 63 homonyms accepted (import 78→15 errors), Beads full third arm, size-out routing filed; homonym-draft invariant corrected (372 pass/0 fail)
+
+## 2026-08-11 — executor (claude-sonnet-5)
+
+Worked id:3f7e — added DEP-PROSE-UNTYPED, a WARN-only rule in the shared id:46f6
+typed-edge engine (lib-typed-edges.sh) that flags an open item's `(DEP: <id>)` prose
+gate-annotation when no matching `<!-- gated-on:id -->` typed marker exists. Wired
+into both twin consumers per the item's constraint: roadmap-lint.sh (rule 3(e), WARN
+that never escalates under --strict) and todo-conformance.sh (a new `dep-prose-untyped`
+finding class, counted in `findings` but never `strict_findings`). Backtick-quoted DEP
+mentions are masked (sed strip, same idiom `mask_backticks` uses elsewhere) and closed
+`[x]` items are never checked, since the callers only invoke the shared function on
+open `- [ ]` lines. New test tests/test_dep_prose_untyped_gate_3f7e.sh covers both
+consumers against identical fixtures (untyped/typed/backtick-quoted/closed), plus a
+--strict non-escalation assertion for each. Current tree: roadmap-lint.sh's own WARN
+count is 0 — the repo's one live untyped-DEP line (id:7df1, `(DEP: 3ef7 + ...)`) sits
+under the "### GATED — B2 migration" heading, which is a section-exempt/parked bucket
+for every WARN rule in this file, not specific to this new one.
+Friction: none — the shared-engine (id:46f6) extraction pattern made the twin-consumer
+constraint straightforward; no new duplication introduced.
+refactor: none needed — the change is additive (two small functions in an existing
+shared lib, one guarded call site in each consumer), no existing logic touched or
+duplicated.

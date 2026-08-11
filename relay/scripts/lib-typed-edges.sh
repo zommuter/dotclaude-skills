@@ -32,6 +32,43 @@ typed_edges_settles_of_line()    { grep -oP '(?<=<!-- settles:)[0-9a-f,]+(?= -->
 # to the meeting note that decided it. The relpath has no spaces or `-->` by construction.
 typed_edges_decided_in_of_line() { grep -oP '(?<=<!-- decided-in:)[^[:space:]]+(?= -->)' <<<"$1" || true; }
 
+# --- DEP-prose vs typed gated-on (id:3f7e) ------------------------------------
+# `(DEP: <id>)` / `(DEP <id>)` prose gate-annotations are NOT edges — same
+# id:4da4/0d58 bare-substring trap the anchored extractors above exist to close.
+# classify-repo.sh correctly ignores them; the hazard is an item whose ONLY gate
+# is this untyped prose, so nothing mechanical ever sees it as blocked/unblocked.
+# typed_edges_dep_prose_ids_of_line <line> — every 4-hex id immediately following
+# a `(DEP:` / `(dep ` opener (case-insensitive on "dep", optional `id:` prefix),
+# one per parenthetical. Backtick-quoted spans are masked first (sed strip) so a
+# `(DEP: xxxx)` example inside a code span — documentation, not a live annotation
+# — is never matched, mirroring the mask_backticks idiom used elsewhere.
+typed_edges_dep_prose_ids_of_line() {
+  local masked
+  masked="$(sed -E 's/`[^`]*`//g' <<<"$1")"
+  grep -oiP '\(dep:?\s*(?:id:)?\K[0-9a-f]{4}' <<<"$masked" || true
+}
+
+# typed_edges_dep_prose_untyped_of_line <line> — the subset of
+# typed_edges_dep_prose_ids_of_line's ids that are NOT also present in this same
+# line's `<!-- gated-on:… -->` marker (comma-joined output, empty when every DEP-
+# prose id is typed, or when the line carries no DEP prose at all). This is the
+# WARN condition id:3f7e enforces: prose says "gated on X" but no typed edge does.
+typed_edges_dep_prose_untyped_of_line() {
+  local line="$1" gated_csv dep_id out=() found=0
+  gated_csv="$(typed_edges_gated_of_line "$line")"
+  while IFS= read -r dep_id; do
+    [[ -z "$dep_id" ]] && continue
+    found=1
+    case ",$gated_csv," in
+      *",$dep_id,"*) ;;                # typed — not a violation
+      *) out+=("$dep_id") ;;
+    esac
+  done < <(typed_edges_dep_prose_ids_of_line "$line")
+  [[ "$found" -eq 0 ]] && return 0
+  local IFS=,
+  echo "${out[*]}"
+}
+
 # --- token → checkbox-state resolution map ------------------------------------
 # typed_edges_build_state_map <assoc-array-name> <file>...
 #   Populates the named associative array: token → checkbox state ('x' when the

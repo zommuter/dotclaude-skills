@@ -1452,7 +1452,7 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
   - **Done-check**: the new test green AND `tests/run-tests.sh tests/test_workflow_template_lint.sh tests/test_discover_repo.sh` still green unmodified, then tick and run full `make test`.
   - **Out of scope**: fixing any currently-corrupted script (there are none — the id:0cf5 instance was already repaired); linting embedded languages outside `relay/scripts/`.
 
-- [ ] [ROUTINE] **Lint: flag `(DEP: <id>)` prose gate-annotations that lack a typed `<!-- gated-on:id -->` marker** <!-- id:3f7e -->
+- [x] [ROUTINE] **Lint: flag `(DEP: <id>)` prose gate-annotations that lack a typed `<!-- gated-on:id -->` marker** <!-- id:3f7e -->
   - **Why**: observed 2026-07-24 (run `relay-20260724-160054-19815`) — zelegator's two open `[ROUTINE]` items (id:df0f, id:c106) gate on `(DEP: 0cd5)` **prose**, which `classify-repo.sh` correctly does NOT read as a gate (the settled id:65f5/4da4/0d58 rule: never gate on a prose substring; only typed `<!-- gated-on:XXXX -->` edges are honoured). Both were mis-dispatched as `execute` and handed back with zero actionable work.
   - **The fix is NOT to teach the classifier to read `(DEP:)` prose** — that re-opens the prose-substring trap the rule exists to close. ENFORCE the typed-marker convention instead: WARN when an item carries `(DEP: <id>)` / `(dep …)` prose without a matching `gated-on:` marker, so the author retags it (as zelegator's df0f/c106 were).
   - **Twin-consumer constraint**: land it in `roadmap-lint.sh` AND `todo-conformance.sh` together — the `lib-state-claim.sh` header rule that both consumers must return the same answer applies, and a one-sided fix silently diverges them.
