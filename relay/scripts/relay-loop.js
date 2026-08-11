@@ -1997,11 +1997,22 @@ function refDoc(verdict) {
   return '~/.claude/skills/relay/references/executor-contract.md'
 }
 
+// id:923b — per-unit identity key (children-of:1f4f D2/A3, ratified 2026-07-31 `/relay human`).
+// Two same-repo units in the same run used to collide on {repo,verdict} alone (worktree path,
+// inFlight sweep). Key shape is itemId x attempt: a bare itemId collides on retries and on the
+// open id:1b1a duplicate-line bug; a bare nonce would orphan pre-crash worktrees from id:7809's
+// reconcile view. MUST stay a single-line pure arrow with NO closure over module state — the
+// Workflow sandbox extracts it textually to test it standalone (tests/test_unit_identity_key_923b.sh).
+const unitKey = (u) => `${u.verdict}-${u.itemId || 'repo'}-${u.attempt || 0}`
+
 // Deterministic worktree path + branch for a unit — the child creates them, and the
 // API-error recovery path (runUnit catch / integrate null-guard) needs the same names
-// to find a failed child's partial work instead of orphaning it.
-const worktreePathFor = (unit) => `~/.cache/relay/worktrees/${unit.repo}/${state.runId}-${unit.verdict}`
-const branchFor = (unit) => `relay/${state.runId}-${unit.verdict}`
+// to find a failed child's partial work instead of orphaning it. Keyed by unitKey (not
+// bare repo+verdict) so two same-repo units in one run never compute the same path/branch;
+// the runId prefix is preserved so reconcile-repo.sh's "skip worktrees from THIS run"
+// prefix match (`bn == runid*`) keeps working unchanged.
+const worktreePathFor = (unit) => `~/.cache/relay/worktrees/${unit.repo}/${state.runId}-${unitKey({ verdict: unit.verdict, itemId: dispatchItemFor(unit), attempt: unit.attempt || 0 })}`
+const branchFor = (unit) => `relay/${state.runId}-${unitKey({ verdict: unit.verdict, itemId: dispatchItemFor(unit), attempt: unit.attempt || 0 })}`
 
 // id:b09e — NAME the item the execute child must work, instead of handing it the whole ledger.
 // `unit.actionable_routine_ids` is emitted by classify-repo.sh: the ids BEHIND the
@@ -2753,8 +2764,11 @@ async function runUnit(unit) {
   totalDispatched++
   // id:8af2 — compute the choice ONCE and stamp it on BOTH surfaces (the live RELAY_STATUS row
   // and the forensic dispatch event), so the two can never disagree about which item ran.
+  // id:923b — the inFlight row's `key: unitKey(...)` below stamps this unit's identity so
+  // completion only clears THIS unit, not every same-repo sibling; recomputed identically
+  // (pure fn) at the filter site further down.
   const choice = dispatchChoiceFor(unit)
-  state.inFlight.push({ repo: unit.repo, mode: unit.verdict, agentId: `unit-${unitsDispatched}`, item: choice.item, itemRank: choice.itemRank, eligibleCount: choice.eligibleCount })
+  state.inFlight.push({ repo: unit.repo, mode: unit.verdict, agentId: `unit-${unitsDispatched}`, item: choice.item, itemRank: choice.itemRank, eligibleCount: choice.eligibleCount, key: unitKey({ verdict: unit.verdict, itemId: choice.item || '', attempt: unit.attempt || 0 }) })
   pushEvent('dispatch', { repo: unit.repo, mode: unit.verdict, tier, round, sig: unit.sig || '', item: choice.item, itemRank: choice.itemRank, eligibleCount: choice.eligibleCount })  // id:c8b6 + choice id:8af2
   log(`relay-loop: dispatch ${unit.verdict} → ${unit.repo} (tier=${tier})${choice.item ? ` item=id:${choice.item} (${choice.itemRank ? `${choice.itemRank} of ${choice.eligibleCount}` : `injected, ${choice.eligibleCount}`} actionable)` : ''}`)
   // Tier dispatch (D4): review/handoff get the STRONG_TIER model. Execute agents are
@@ -2789,7 +2803,7 @@ async function runUnit(unit) {
       log(`relay-loop: auto-resume of ${unit.repo} also failed (${(e2 && e2.message) || e2}) — handback`)
     }
   }
-  state.inFlight = state.inFlight.filter(r => r.repo !== unit.repo)
+  state.inFlight = state.inFlight.filter(r => r.key !== unitKey({ verdict: unit.verdict, itemId: choice.item || '', attempt: unit.attempt || 0 }))
   // Review→execute AND execute→execute chaining (id:cc90, L2 — bounded rechain K≤3;
   // originally review-only per the 2026-06-13 user directive, generalized 2026-07-31
   // owner-ratified `/relay human`): when a review OR an execute unit re-derives the
