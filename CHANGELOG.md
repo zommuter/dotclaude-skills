@@ -11,6 +11,7 @@
 
 - id:3f7e — roadmap-lint.sh + todo-conformance.sh now WARN when an open item's (DEP: id) prose has no matching typed gated-on marker (shared lib-typed-edges.sh engine, twin-consumer agreement, new test, full suite 373/0/10-expected-red green). (id:3f7e)
 - id:b099 — built relay/scripts/declared-path-extractor.sh (extract + eval-corpus) feeding disjoint-greenlight.sh, with test_declared_path_extractor_b099.sh; full suite 374/0/10-expected-red green (id:b099)
+- review: id:3f7e verified genuinely green (DEP-prose-untyped lint, twin-consumer, 373/0/10-red); ticked TODO twin; inbox batch left for C2 triage (id:3f7e)
 
 ## 2026-08-10
 
