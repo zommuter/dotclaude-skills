@@ -3834,3 +3834,8 @@ were left unpromoted for exactly this reason. If an executor finds itself editin
   - **Tests**: `tests/test_parent_creates_worktree_34b7.sh` (`# roadmap:34b7`). Its relay-loop.js assertions are **source-shape**, not behavioural — the Workflow sandbox cannot be run hermetically (same honest limitation as `tests/test_chain_end_reask_8123.sh` and `tests/test_rechain_depth_cc90.sh`); this is stated in the file header, not hidden.
   - **Done-check**: tick this box, then `tests/run-tests.sh tests/test_parent_creates_worktree_34b7.sh` passes and `make test` is fully green.
   - **Out of scope**: `id:d464`'s PreToolUse deny hook (barred); OS-user containment (`id:13ae`/`02c7`/`8e7a`); changing `verify-isolation.sh`.
+
+- [x] **[ROUTINE]** discover-repo.sh + discover-chunk.sh: carry verdict/priority_rank on the no-unit paths (blocked/AMBIGUOUS/idle/substitutive) (after id:258d — seam 1, DONE) — seam of id:c7dc (auto, id:3801) <!-- id:37f2 -->
+  - **Acceptance**: discover-repo.sh's blocked/AMBIGUOUS surfaced entries and idle skipped entries include `verdict`, `priority_rank`, `reason` (not just bare `reason`); the substitutive repo-level-block path (lines 94-101) emits an honest entry with `verdict:""` and the real block reason, never a fabricated verdict. discover-chunk.sh passes these new fields through its {units,surfaced,skipped} aggregation unchanged.
+  - **Done-check**: Extend tests/test_discover_repo.sh with cases for blocked/AMBIGUOUS/idle/substitutive asserting the new fields are present and correctly valued; `tests/run-tests.sh tests/test_discover_repo.sh` green, then full `make test`.
+  - **Context**: relay/scripts/discover-repo.sh (routing block lines 94-190), relay/scripts/discover-chunk.sh
