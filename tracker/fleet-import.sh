@@ -73,6 +73,12 @@
 #   --state           durable state document (default $TRACKER_STATE or
 #                     ~/.cache/relay/tracker/fleet-state.json). Written atomically.
 #   --out             also write the merged fleet document here (atomically).
+#   --emit-unvalidated  write --out EVEN IF validate fails. Downgrades NOTHING: the exit
+#                     code is unchanged (still 3), --state is still left untouched, and
+#                     every collision is still reported. It only exposes the merged
+#                     DIAGNOSTIC document, which is precisely what an operator needs in
+#                     order to adjudicate the collisions that made validate fail
+#                     (tracker/homonym-worksheet.sh is the consumer). Requires --out.
 #   --repo            restrict to ONE own-set repo (still resolved via relay.toml).
 #   --allowlist-file  adjudicated homonym tokens, one 4-hex token per line, `#` comments
 #                     (default tracker/homonym-allowlist.txt).
@@ -101,11 +107,13 @@ out_file=""
 only_repo=""
 allowlist_file="$SCRIPT_DIR/homonym-allowlist.txt"
 dry_run=0
+emit_unvalidated=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --state) state_file="$2"; shift 2 ;;
     --out) out_file="$2"; shift 2 ;;
+    --emit-unvalidated) emit_unvalidated=1; shift ;;
     --repo) only_repo="$2"; shift 2 ;;
     --allowlist-file) allowlist_file="$2"; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
@@ -113,6 +121,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "fleet-import.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+if [[ "$emit_unvalidated" -eq 1 && -z "$out_file" ]]; then
+  echo "fleet-import.sh: --emit-unvalidated is meaningless without --out" >&2; exit 2
+fi
 
 for f in "$LEDGER_MAP" "$FLEET_STATE" "$LIB_OWN_REPOS"; do
   [[ -f "$f" ]] || { echo "fleet-import.sh: missing dependency: $f" >&2; exit 2; }
@@ -318,10 +330,20 @@ run_validate() {
   return "$rc"
 }
 
+publish_out() {   # atomic publish of the merged fleet document to $out_file
+  mkdir -p "$(dirname "$out_file")"
+  cp "$fleet" "$out_file.tmp.$$"
+  mv -f "$out_file.tmp.$$" "$out_file"
+}
+
 val_rc=0
 run_validate || val_rc=$?
 cat "$tmpdir/val.err" >&2 || true
 if [[ "$val_rc" -ne 0 ]]; then
+  if [[ "$emit_unvalidated" -eq 1 && "$dry_run" -eq 0 ]]; then
+    publish_out
+    echo "fleet-import.sh: --emit-unvalidated: wrote the UNVALIDATED merged document to $out_file (diagnostic only — it did NOT pass validate)." >&2
+  fi
   echo "fleet-import.sh: validate FAILED (rc=$val_rc) — NOTHING written to $state_file. A cross-repo collision that is not on $allowlist_file must be adjudicated, not switched off." >&2
   exit 3
 fi
@@ -379,9 +401,7 @@ else
   cp "$next_state" "$state_file.tmp.$$"
   mv -f "$state_file.tmp.$$" "$state_file"
   if [[ -n "$out_file" ]]; then
-    mkdir -p "$(dirname "$out_file")"
-    cp "$fleet" "$out_file.tmp.$$"
-    mv -f "$out_file.tmp.$$" "$out_file"
+    publish_out
   fi
 fi
 

@@ -4808,3 +4808,58 @@ refactor: none. Both items are behaviour changes with tests; no behaviour-preser
 rewrite was performed. The closest thing is the version-constant collapse, and it is NOT
 refactoring — it changes what `validate` accepts (a stale hardcoded copy now fails) and is
 covered by `tests/test_tracker_schema_version_8c7f.sh` §3, including the non-vacuity case.
+Worked id:e977 — the cross-repo homonym ADJUDICATION worksheet, the decision aid behind
+id:ca24's per-token allow-list.
+
+First, the number was re-derived independently rather than inherited. id:94ce's dry-run
+reported 78 class-A homonyms and 0 class-B, and the subsequent review declined to re-run
+the 49-repo import, so that count was unverified. A fresh strict run of
+`tracker/fleet-import.sh` over the relay.toml own-set (49 repos, 4785 items incl.
+archived, ~5 s) reproduces it EXACTLY: 78 class A, 0 class B. The number stands.
+
+The worksheet itself (`tracker/homonym-worksheet.sh` + `homonym-worksheet.py`) renders,
+per token: every `(repo, id)` that mints it with its title, per-view statuses and
+`file:line`; whether either item REFERENCES the other (an edge on the shared token, a
+`blocked_by`/`parent`/`children` edge crossing into a sibling minting repo, or a prose
+mention of a sibling minting repo's name); and how much RARE vocabulary the titles share.
+Rarity matters: a raw shared-word count flagged 46 of 78, because every ledger item is
+full of the same relay boilerplate ("acceptance", "done-check", "green"). Weighting by
+document frequency over the fleet's own vocabulary — a word counts only if it occurs in
+<=0.5% of items — cuts that to 15 without losing a single cross-referencing pair. The
+remaining 63 have no signal in either direction and are the bulk-confirmable ones.
+
+It never adjudicates. `tracker/homonym-allowlist.txt` is never written; every token in
+the emitted DRAFT is prefixed `# UNCONFIRMED `, so the draft pasted verbatim into the
+live allow-list still parses as STRICT — a test asserts that by feeding the draft back
+through `fleet-import.sh` and requiring the homonyms to still fail. A human accepts one
+token by deleting that prefix.
+
+PRIVACY: the worksheet quotes item titles from ~49 mostly-private repos and this repo is
+PUBLIC, so the SCRIPT is committed and the ARTIFACT is not — output defaults to
+`~/.cache/relay/tracker`, an `--outdir` inside a git working tree is REFUSED (with
+`--force-in-repo` as the deliberate override), and `.gitignore` blocks the filenames as
+belt-and-braces.
+
+`tracker/fleet-import.sh` gained ONE additive flag, `--emit-unvalidated`: it writes the
+merged diagnostic document to `--out` even when validate fails. It downgrades nothing —
+the exit code is unchanged (still 3), `--state` is still left untouched, every collision
+is still reported. Without it the collisions that make validate fail are precisely the
+ones whose evidence you cannot see, which is a real chicken-and-egg in the adjudication
+loop. The test pins the no-downgrade property in both directions.
+
+Friction: (a) a full-fleet import cannot currently pass validate at all, because
+`loderite/ecc3` trips a separate unrelated error (`uid has no id but its key is not a
+synthetic '~' key`) — that is the id:b7f4 defect a sibling is fixing this round; it did
+NOT block this work thanks to `--emit-unvalidated`, and it is the 79th error in the
+strict log, not a 79th homonym. (b) The "prose mentions a sibling repo" signal has known
+false positives: an `[INBOUND routed:XXXX from dotclaude-skills]` preamble names a repo
+incidentally, which is why b427 and d6f0 land in "needs a look" despite being ordinary
+coincidences. That is the deliberate direction to err in — a false "needs a look" costs
+the owner one glance, a false "coincidence" costs a wrong adjudication.
+
+refactor: one behaviour-preserving extraction — the atomic `--out` publish in
+`fleet-import.sh` was lifted verbatim into a `publish_out()` function so the new
+unvalidated path and the existing success path share one implementation instead of two
+copies of `cp` + `mv -f`. No other pre-existing code was rewritten; everything else in
+this unit is new files plus one additive flag, one `.gitignore` block and one CLAUDE.md
+Layout sentence.
