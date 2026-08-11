@@ -38,6 +38,8 @@ mkrepo() { local d="$1"; mkdir -p "$d"; git -C "$d" init -q; git -C "$d" config 
 ncount() { python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get(sys.argv[1],[])))' "$1"; }
 uverdict() { python3 -c 'import sys,json; u=json.load(sys.stdin).get("units",[]); print(u[0]["verdict"] if u else "<none>")'; }
 surf_reasons() { python3 -c 'import sys,json; print("|".join(s.get("reason","") for s in json.load(sys.stdin).get("surfaced",[])))'; }
+# id:37f2 — field getters for the {verdict,priority_rank,reason} contract on no-unit paths.
+surf0_field() { python3 -c 'import sys,json; s=json.load(sys.stdin).get(sys.argv[2],[]); print(s[0].get(sys.argv[1], "<absent>") if s else "<empty>")' "$1" "$2"; }
 
 # === (1) clean + open [ROUTINE] → exactly 1 execute unit, 0 surfaced, 0 skipped ===========
 R1="$tmp/r_exec"; mkrepo "$R1"
@@ -65,7 +67,11 @@ o2="$("$DR" --repo r_div --path "$R2" --runid thisrun --live-claims "" --main-br
 [[ "$(printf '%s' "$o2" | ncount units)"    == "0" ]] || fail "(2) diverged must yield 0 units: $o2"
 [[ "$(printf '%s' "$o2" | ncount surfaced)" == "1" ]] || fail "(2) diverged must surface EXACTLY once (no reconcile+classify double): $o2"
 printf '%s' "$o2" | surf_reasons | grep -qi diverged || fail "(2) surfaced reason is not the diverged one: $o2"
-pass "(2) diverged surfaces exactly once, classify skipped, 0 units"
+# id:37f2 — the substitutive (repo-level-block) path emits an HONEST verdict:"" (reconcile
+# never classifies — there is no verdict to report), not a bare reason and not a fabricated one.
+[[ "$(printf '%s' "$o2" | surf0_field verdict surfaced)" == "" ]] || fail "(2) substitutive surfaced.verdict must be empty string, not absent/fabricated: $o2"
+[[ "$(printf '%s' "$o2" | surf0_field priority_rank surfaced)" == "0" ]] || fail "(2) substitutive surfaced.priority_rank must default to 0: $o2"
+pass "(2) diverged surfaces exactly once, classify skipped, 0 units, honest empty verdict"
 
 # === (3) finished/idle → 1 idle unit + 1 skipped ==========================================
 R3="$tmp/r_idle"; mkrepo "$R3"
@@ -76,7 +82,10 @@ o3="$("$DR" --repo r_idle --path "$R3" --runid thisrun --live-claims "" --main-b
 [[ "$(printf '%s' "$o3" | ncount units)"   == "1" ]] || fail "(3) idle repo still emits a unit (schema: idle=unit+skipped): $o3"
 [[ "$(printf '%s' "$o3" | uverdict)"       == "idle" ]] || fail "(3) unit verdict != idle: $o3"
 [[ "$(printf '%s' "$o3" | ncount skipped)" == "1" ]] || fail "(3) idle repo must also appear in skipped: $o3"
-pass "(3) finished/idle → 1 idle unit + 1 skipped rollup"
+# id:37f2 — the idle skipped entry carries verdict + priority_rank alongside reason.
+[[ "$(printf '%s' "$o3" | surf0_field verdict skipped)" == "idle" ]] || fail "(3) skipped.verdict != idle: $o3"
+[[ "$(printf '%s' "$o3" | surf0_field priority_rank skipped)" != "<absent>" ]] || fail "(3) skipped.priority_rank absent: $o3"
+pass "(3) finished/idle → 1 idle unit + 1 skipped rollup, verdict+priority_rank carried"
 
 # === (4) dirty non-lock → reconcile silent, classify blocked → surfaced, 0 units ==========
 R4="$tmp/r_dirty"; mkrepo "$R4"
@@ -87,7 +96,23 @@ echo change >> "$R4/ROADMAP.md"   # dirty non-lock
 o4="$("$DR" --repo r_dirty --path "$R4" --runid thisrun --live-claims "" --main-branch main)"
 [[ "$(printf '%s' "$o4" | ncount units)"    == "0" ]] || fail "(4) dirty non-lock must not dispatch (blocked): $o4"
 [[ "$(printf '%s' "$o4" | ncount surfaced)" == "1" ]] || fail "(4) dirty non-lock must surface (blocked): $o4"
-pass "(4) dirty non-lock → classify blocked → surfaced, 0 units"
+# id:37f2 — the blocked surfaced entry carries verdict + priority_rank alongside reason.
+[[ "$(printf '%s' "$o4" | surf0_field verdict surfaced)" == "blocked" ]] || fail "(4) surfaced.verdict != blocked: $o4"
+[[ "$(printf '%s' "$o4" | surf0_field priority_rank surfaced)" != "<absent>" ]] || fail "(4) surfaced.priority_rank absent: $o4"
+pass "(4) dirty non-lock → classify blocked → surfaced, 0 units, verdict+priority_rank carried"
+
+# === (6) AMBIGUOUS routing source-shape (id:37f2) =========================================
+# classify-verdict.sh never actually EMITS AMBIGUOUS today (dormant loud hook, no LLM call —
+# see classify-verdict.sh:28), so there is no live repo fixture that reaches this branch. Assert
+# the routing SOURCE carries the same {verdict,priority_rank,reason} shape as the reachable
+# branches, in the style of tests/test_dispatch_event_sig.sh's call-site source assertions.
+python3 -c '
+import re, sys
+src = open(sys.argv[1]).read()
+m = re.search(r"elif verdict == \"AMBIGUOUS\":\n\s*units, surfaced, skipped = .*", src)
+sys.exit(0 if m and "\"verdict\": verdict" in m.group(0) and "\"priority_rank\": priority_rank" in m.group(0) else 1)
+' "$DR" || fail "(6) AMBIGUOUS branch does not carry verdict+priority_rank in discover-repo.sh source"
+pass "(6) AMBIGUOUS branch source carries verdict+priority_rank (dormant path, source-shape check)"
 
 # === (5) uv.lock-only dirty + open routine → reconcile commits lock, classify → 1 unit =====
 R5="$tmp/r_lock"; mkrepo "$R5"
