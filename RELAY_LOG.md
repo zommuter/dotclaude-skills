@@ -5214,3 +5214,7 @@ Worked id:ecce — an INTEGRATE checkpoint's `-l "integrate (<model>)"` label ca
 Friction: none beyond the id:6217 detour above — id:ecce's test and acceptance were internally consistent and matched the code exactly as described.
 refactor: none needed — the ckpt-tag.sh change is one new early-exit branch beside the existing model-detection branch (no duplication introduced); the gather-repo-state.sh change replaces one alternation with two explicit cases, which is a clarity change forced by the spec, not new duplication.
 Worked id:ecce
+
+## 2026-08-11 17:48 — executor (sonnet, relay-loop)
+
+id:ecce closed — ckpt-tag.sh/gather-repo-state.sh/SKILL.md now use a distinct `integrate (<model>)` label that never advances the strong-audit watermark; id:6217 investigated and BLOCKED (test assertion 4 unscoped-grep bug conflicts with its own scope statement, logged not weakened); id:34b7 sized past scope for this session (restructures the dispatch mechanism this child itself runs under). [id:ecce]
