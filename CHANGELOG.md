@@ -32,6 +32,7 @@
 - reviewed id:e87d closure (relay-loop.js verdict-event emission): gaming-scan clean, pristine RED spec byte-identical+green, suite 382/0/2-xred; closed @container id:c7dc (all 3 seams landed) + ticked TODO twin (D2); routine_open=0 (id:e87d,c7dc)
 - closed [HARD — pool] id:e62c — F2 finding branch (1) verdict; threaded rationale correction into id:6b35+id:51f0; suite 382/0/2-xred (id:e62c)
 - Run 70 strong-model audit (id:401c): audit starved ~6wk — filed id:da95 (strong-execute advances last_strong_ckpt) + id:ac8a (disjoint-greenlight subpath fail-open); suite 382/0/2-xred (id:401c,da95,ac8a)
+- closed [HARD] id:33b2 — opt-in proxy stdin channel (a05c option B): STDIN_ALLOWED_SCRIPTS gate + AND-gated dispatch; suite 383/0/1-xred (id:33b2)
 
 ## 2026-08-10
 
