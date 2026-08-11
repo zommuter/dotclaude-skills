@@ -2,6 +2,12 @@
 # roadmap:3801 — durable handback follow-up (auto-gate / auto-split a handed-back item).
 # Hermetic: temp ROADMAP fixture, HANDBACK_NO_COMMIT=1 (no git). Asserts gating, splitting,
 # and IDEMPOTENCY (the pool re-runs handbacks — a second apply must be a no-op).
+#
+# id:4b64 — the EMITTED tags are the canonical capability-keyed spelling: `[INPUT — decision]`
+# for the gate (was `[HARD — decision gate]`, which relay's own pre-commit lane-vocab ratchet
+# BLOCKS) and `[HARD]` for a HARD seam (was the pre-id:78ff `[HARD — strong model]`, which is
+# in no lane vocabulary at all). An OLD-vocab gate already on a line is still recognized as
+# gated (migration window) — the last case below pins that.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # id:6f1c/f682 worktree isolation: always resolve THIS repo's own copy (never the
@@ -23,7 +29,8 @@ cat > "$RM" <<'EOF'
 ## Open
 - [ ] **[ROUTINE]** Add the widget loader <!-- id:aaaa -->
 - [ ] **[HARD — strong model]** Build the whole funnel end to end <!-- id:bbbb -->
-- [ ] **[HARD — decision gate]** Already-gated thing — do not touch <!-- id:cccc -->
+- [ ] **[HARD — decision gate]** Already-gated thing (OLD vocab, migration window) — do not touch <!-- id:cccc -->
+- [ ] **[INPUT — decision]** Already-gated thing (NEW vocab) — do not touch <!-- id:dddd -->
 EOF
 
 run() { HANDBACK_NO_COMMIT=1 python3 "$HELPER" "$STORE" "$@" >/dev/null 2>&1; }
@@ -31,7 +38,8 @@ run() { HANDBACK_NO_COMMIT=1 python3 "$HELPER" "$STORE" "$@" >/dev/null 2>&1; }
 echo "== decision-gate re-tags a [ROUTINE] parent + inline reason =="
 run --parent-id aaaa --route decision-gate --gate-reason "blocked on a design call"
 aaaa_line() { grep -- 'id:aaaa' "$RM"; }
-if aaaa_line | grep -qF '[HARD — decision gate]'; then ok "aaaa now decision-gated"; else bad "aaaa not gated"; fi
+if aaaa_line | grep -qF '[INPUT — decision]'; then ok "aaaa now decision-gated (canonical [INPUT — decision])"; else bad "aaaa not gated with the canonical [INPUT — decision] tag"; fi
+if aaaa_line | grep -qF '[HARD — decision gate]'; then bad "aaaa gated with the OLD-vocab tag (the pre-commit ratchet blocks it, id:4b64)"; else ok "no old-vocab tag emitted"; fi
 if aaaa_line | grep -qF 'GATED (auto, id:3801; route:decision-gate)'; then ok "auto-gate marker + route"; else bad "no auto-gate marker"; fi
 if aaaa_line | grep -qF 'blocked on a design call'; then ok "reason inlined"; else bad "reason missing"; fi
 if aaaa_line | grep -qF '<!-- id:aaaa -->'; then ok "id token preserved"; else bad "id token lost"; fi
@@ -47,11 +55,12 @@ echo "== hard-split gates the parent + appends pickable seams =="
 run --parent-id bbbb --route hard-split --gate-reason "6-session money path" \
     --split-json "$SPLIT_JSON"
 bbbb_line() { grep -- '<!-- id:bbbb -->' "$RM"; }
-if bbbb_line | grep -qF '[HARD — decision gate]'; then ok "parent bbbb gated"; else bad "parent not gated"; fi
+if bbbb_line | grep -qF '[INPUT — decision]'; then ok "parent bbbb gated"; else bad "parent not gated"; fi
 if bbbb_line | grep -qF 'DECOMPOSED into seams'; then ok "parent marked DECOMPOSED"; else bad "parent not marked decomposed"; fi
 has "$RM" 'id:1234'               "explicit-id seam appended"
 seam1() { grep -A3 -- '<!-- id:1234 -->' "$RM"; }
-if seam1 | grep -qF '[HARD — strong model]'; then ok "seam-one HARD tier"; else bad "seam-one tier wrong"; fi
+if seam1 | grep -qF '**[HARD]**'; then ok "seam-one HARD tier (canonical bare [HARD])"; else bad "seam-one tier wrong (want the canonical **[HARD]**)"; fi
+if seam1 | grep -qF '[HARD — strong model]'; then bad "seam-one emitted the legacy [HARD — strong model] tag, which no lane parser recognizes (id:4b64)"; else ok "no legacy strong-model tag emitted"; fi
 if seam1 | grep -qF '(after id:be4b)'; then ok "seam-one dependency noted"; else bad "seam-one dep missing"; fi
 if seam1 | grep -qF 'seam of id:bbbb'; then ok "seam-one parent marker"; else bad "seam-one parent marker missing"; fi
 if seam1 | grep -qF '**Acceptance**: the hash helper is pure and unit-tested'; then ok "seam-one acceptance rendered"; else bad "seam-one acceptance missing"; fi
@@ -70,10 +79,13 @@ cnt "$RM" '<!-- id:1234 -->'   1 "explicit-id seam not duplicated"
 cnt "$RM" 'Seam Two UI wiring' 1 "id-less seam not re-minted (title dedup)"
 cnt "$RM" 'DECOMPOSED into seams' 1 "parent not re-gated twice"
 
-echo "== an already-gated item is left untouched (respects manual gating) =="
+echo "== an already-gated item is left untouched (respects manual gating; BOTH vocabularies) =="
 before="$(cat "$RM")"
 run --parent-id cccc --route decision-gate --gate-reason "should be ignored"
-if [ "$before" = "$(cat "$RM")" ]; then ok "already-gated cccc untouched"; else bad "cccc was mutated"; fi
+if [ "$before" = "$(cat "$RM")" ]; then ok "already-gated cccc (old vocab) untouched"; else bad "cccc was mutated"; fi
+before="$(cat "$RM")"
+run --parent-id dddd --route decision-gate --gate-reason "should be ignored"
+if [ "$before" = "$(cat "$RM")" ]; then ok "already-gated dddd (new vocab) untouched"; else bad "dddd was mutated"; fi
 
 echo "== route=none is a no-op =="
 before="$(cat "$RM")"
