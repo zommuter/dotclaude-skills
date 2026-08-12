@@ -50,12 +50,21 @@ pass "the helper records both the throw and the null/empty-resolution cases"
 # ── (3) the fire-and-forget hops actually USE it ───────────────────────────────────────────
 # These are the classes that produced real damage: blocked releases stranded two leases, blocked
 # status writes left RELAY_STATUS hours stale.
+# STRENGTHENED (reviewer, 2026-08-12): the original form grepped a ±12-line window and could be
+# satisfied by a COMMENT mentioning the guard — the id:3222 executor flagged exactly that, since
+# the real dispatch carries `label: 'write-relay-status'` in SINGLE quotes (pinned by
+# test_relay_phase_buckets.sh:31) while the item's prose used a template literal. Require a
+# NON-COMMENT line that actually calls the guard AND names the label, so a comment cannot pass.
 for label in "release:" "write-relay-status" "gaming-log"; do
-  ctx="$(grep -n -A12 "label: \`\?${label}" "$JS" | head -40 || true)"
-  grep -Eq "dispatchGuarded|agentGuarded|safeAgent" <<<"$ctx" \
-    || fail "the '${label}' hop does not go through the guarded dispatcher — its failures stay invisible (this class stranded leases / staled RELAY_STATUS in run relay-20260812-001727-5554)"
+  hit="$(grep -nE "(dispatchGuarded|agentGuarded|safeAgent)\(" "$JS" \
+        | grep -v "^[0-9]*: *//" \
+        | while IFS=: read -r ln _; do
+            sed -n "${ln},$((ln+4))p" "$JS" | grep -q "${label}" && echo "$ln"
+          done | head -1 || true)"
+  [[ -n "$hit" ]] \
+    || fail "the '${label}' hop does not go through the guarded dispatcher on a real (non-comment) call line — its failures stay invisible (this class stranded leases / staled RELAY_STATUS in run relay-20260812-001727-5554)"
 done
-pass "the release / write-relay-status / gaming-log hops dispatch through the guard"
+pass "the release / write-relay-status / gaming-log hops dispatch through the guard (real call sites, not comments)"
 
 # ── (4) NO DOUBLE-COUNTING: provisionWorktree already records its own failure (id:66d9) ────
 prov="$(awk '/^async function provisionWorktree/,/^}/' "$JS")"

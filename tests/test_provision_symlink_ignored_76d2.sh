@@ -65,10 +65,20 @@ if [[ -x "$GATE" ]]; then
 fi
 
 # ── the gate must NOT have been weakened: a genuine dirty edit still fails ────────────────
+# FIXTURE CORRECTED (reviewer, 2026-08-12): this block used to add an untracked file to a
+# worktree with ZERO commits beyond base, then assert the gate refuses it. It cannot: the gate
+# takes its documented branch (b1) first — "no commits beyond base and main has not moved ⇒
+# legitimate id:8e3e no-op review" — and returns 0 BEFORE the dirty check, which by design only
+# runs once commits exist beyond base. Verified by probe against the pristine gate. The live
+# incident reached the dirty check because that worktree had 2 real commits. So commit in the
+# worktree first, which is what a real dispatched unit looks like at merge time.
+# (Whether an empty-BUT-DIRTY worktree should pass as a no-op review is a separate, genuine
+# question — filed as id:1b13 for the owner, deliberately NOT decided by editing this test.)
+git -C "$WT" -c user.email=t@e.invalid -c user.name=t commit -q --allow-empty -m "unit work"
 echo "real uncommitted source change" > "$WT/somefile.py"
 if [[ -x "$GATE" ]]; then
-  if "$GATE" "$WT" >/dev/null 2>&1; then
-    fail "verify-isolation.sh now PASSES a genuinely dirty worktree — the gate was weakened instead of the provisioner fixed"
+  if "$GATE" "$WT" --base main >/dev/null 2>&1; then
+    fail "verify-isolation.sh now PASSES a genuinely dirty worktree with commits — the gate was weakened instead of the provisioner fixed"
   fi
   pass "a genuinely dirty worktree is still refused (gate not weakened)"
 fi
