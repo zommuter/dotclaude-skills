@@ -5466,3 +5466,33 @@ so it cannot reach (c). Fixing this means either the fixture commits in the work
 the gate's dirty check moves ahead of the empty-check — both are edits to files I was told not
 to touch, and the second is a real behaviour change to the gate, so it is the reviewer's call.
 refactor: none needed — one self-contained additive block appended after the symlink lines; no duplication introduced and nothing existing to extract.
+
+## 2026-08-12 — executor (claude-opus-5, reviewer-orchestrated)
+
+Worked id:3222 (ticked, spec green) and id:9834 (code landed, checkbox LEFT UNTICKED — see below).
+id:3222: added one `dispatchGuarded(opts, repo, prompt)` wrapper next to `recordAgentFailure`
+and routed the three fire-and-forget hops (`release:*`, `write-relay-status`, `gaming-log:*`)
+through it; it records BOTH a rejected dispatch and a null/empty resolution, never rethrows, and
+`provisionWorktree` deliberately still records its own failure so id:66d9 is not double-counted.
+id:9834: `provisionWorktree(unit, isRetry)` now recognises an `already exists` provision body,
+bumps `unit.attempt` exactly ONCE (guarded single recursion, no loop) and re-provisions under
+the fresh attempt-scoped name; the naming machinery (`unitKey`/`worktreePathFor`/`branchFor`)
+was already correct and was NOT touched, per the spec's premise correction.
+Friction: (1) `tests/test_attempt_scoped_worktree_9834.sh:62` is FLAKY-BY-CONSTRUCTION — under
+`set -o pipefail` its `run="$(awk '/^async function runUnit/,0' "$JS" | head -80)"` gives awk
+SIGPIPE once head takes 80 of the region's 538 lines, aborting the whole file with exit 141
+before assertions (4) and (5) run. Measured 1 pass / 19 fails over 20 runs on the FIXED code;
+the `run` variable is never used afterwards. One-line fix (reviewer's call, a test edit is not
+mine to make): append `|| true`, or delete the line. Assertions (4)+(5) were replayed verbatim
+out-of-band against the fixed code and both pass; the item is therefore left unticked and the
+file reports EXPECTED-RED. (2) The 3222 spec's `label: \`?write-relay-status` grep assumes a
+template-literal label, but `tests/test_relay_phase_buckets.sh:31` pins that label to single
+quotes; the two cannot both match on the same code line, so the matching line is the call
+site's own comment immediately above the real guarded dispatch. (3) Routing the `release:` fence
+through the guard moves it out of a bare `agent(` call, so `lint-mech-model.mjs` (which matches
+the identifier `agent` only) no longer covers it; `test_release_hop_mechanical_f7d3.sh` still
+asserts `model: MECH_MODEL` on that line, so the invariant is held by a different check now —
+worth folding `dispatchGuarded` into the linter's call-site matcher later.
+refactor: replaced three hand-rolled per-hop failure paths (two bare `.catch(log)` and one
+unguarded `await agent`) with the single wrapper the spec asked for — that consolidation IS the
+item; no further duplication left behind.
