@@ -5510,3 +5510,7 @@ refactor: none needed — additive matcher change (one identifier set, one line-
 ## 2026-08-12 12:40 — executor (sonnet, relay-loop)
 
 id:ed3f — lint-mech-model.mjs now matches dispatchGuarded/agentGuarded/safeAgent call sites too, closing the coverage gap the releaseLease dispatchGuarded refactor opened; full suite 394/0/1-expected-red. [id:ed3f]
+
+## 2026-08-12 12:58 — executor (sonnet, relay-loop)
+
+No dispatchable [ROUTINE] work: only unticked ROUTINE lines are 4 GATED items (d4ca/540f/c179/554b) and the f91a @container epic (non-dispatchable); worktree left clean.
