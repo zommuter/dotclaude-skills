@@ -5500,3 +5500,9 @@ item; no further duplication left behind.
 ## 2026-08-12 09:15 — reviewer (claude-opus-5)
 
 Reviewed 76d2 (provisioned symlinks excluded so the worktree reads clean), 9834 (attempt bumped once on a collided provision), 3222 (blocked/failed dispatches counted via dispatchGuarded). Both executors refused to tick on spec bugs they proved by probe; both spec bugs were mine and are fixed. Also fixed verify-isolation.sh's silent exit-1 on repos without origin. Gaming check 521 insertions / 0 deletions. Suite 394/0.
+
+## 2026-08-12 — executor (claude-sonnet-5)
+
+Worked id:ed3f — taught lint-mech-model.mjs to match `dispatchGuarded`/`agentGuarded`/`safeAgent` call sites in addition to bare `agent(`, since routing `releaseLease`'s fence dispatch through `dispatchGuarded` (id:3222) moved it out of a bare `agent(` call and the linter silently stopped covering that hop. Added tests (2d)/(2e) asserting the new matcher fires on a `dispatchGuarded`-wrapped fence hardcoding a literal model and stays silent when it correctly uses `model: MECH_MODEL`; full suite still lints the live tree clean. Full test suite: 394 passed, 0 failed, 1 expected-red (unrelated open item).
+Friction: none.
+refactor: none needed — additive matcher change (one identifier set, one line-checked condition), no new duplication introduced.

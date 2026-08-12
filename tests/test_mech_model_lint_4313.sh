@@ -126,6 +126,46 @@ $out"
 fi
 pass "(2c) doc-comment mentioning model:\"bash\" as prose does not desync the real model: MECH_MODEL check"
 
+# (2d) id:ed3f — a fence-carrying call routed through the `dispatchGuarded` wrapper (not a
+#      bare `agent(` call) hardcoding a literal model must be FLAGGED, naming the line — the
+#      real releaseLease shape this fix targets.
+cat > "$TMP/bad-guarded.mjs" <<'EOF'
+export const meta = { name: 'bad-guarded' }
+async function run() {
+  await dispatchGuarded(
+    { label: 'release:x:claim', phase: 'Leases', model: 'bash' },
+    'repo',
+    'Run exactly this one command:\n```relay-mech\ncmd\n```'
+  )
+}
+EOF
+if out="$(node "$LINT" "$TMP/bad-guarded.mjs" 2>&1)"; then
+  fail "linter did NOT flag a fence-carrying dispatchGuarded() call hardcoding model:'bash':
+$out"
+fi
+echo "$out" | grep -qE 'bad-guarded\.mjs:3:' \
+  || fail "linter flagged but did not name the dispatchGuarded() call's line:
+$out"
+pass "(2d) fence-carrying dispatchGuarded() call hardcoding a literal model → nonzero, names the line"
+
+# (2e) Same shape but with model: MECH_MODEL → exit zero (no false positive on the wrapper).
+cat > "$TMP/good-guarded.mjs" <<'EOF'
+export const meta = { name: 'good-guarded' }
+const MECH_MODEL = 'bash'
+async function run() {
+  await dispatchGuarded(
+    { label: 'release:x:claim', phase: 'Leases', model: MECH_MODEL },
+    'repo',
+    'Run exactly this one command:\n```relay-mech\ncmd\n```'
+  )
+}
+EOF
+if ! out="$(node "$LINT" "$TMP/good-guarded.mjs" 2>&1)"; then
+  fail "linter false-positived on a fence-carrying dispatchGuarded() call using model: MECH_MODEL:
+$out"
+fi
+pass "(2e) fence-carrying dispatchGuarded() call with model: MECH_MODEL → exit zero"
+
 # (3) Directory scan discovers workflow scripts via the export-const-meta marker / *.workflow.js
 #     and ignores a plain script with no marker.
 mkdir -p "$TMP/repo/relay/scripts"
