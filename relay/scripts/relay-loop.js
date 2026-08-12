@@ -512,15 +512,20 @@ async function writeRelayStatus(state, statusPath) {
   // present, the event lines after a sentinel) ride stdin via a quoted heredoc so they transit
   // verbatim without expansion.
   const stdinPayload = events.length ? `${content}\n===RELAY-EVENTS===\n${eventsBlock}` : content
-  await agent(
+  // id:3222 — this hop is best-effort, so a blocked/empty reply used to vanish entirely (six of
+  // them in run relay-20260812-001727-5554 left RELAY_STATUS hours stale with nothing recorded).
+  // The label: write-relay-status dispatch below now goes through dispatchGuarded, which records
+  // the failure into state.agentFailures; the hop's own fail-soft behaviour is unchanged
+  // (scheduleStatusWrite already .catch()es this tail).
+  await dispatchGuarded(
+    { label: 'write-relay-status', phase: 'Status', model: 'haiku' }, '-',
     `Run EXACTLY this one command and nothing else — no path math, no formatting, no extra files. Pipe the payload below to it verbatim via the quoted heredoc (the script resolves the path, renders the Claims + Burnup sections, writes atomically, and appends any events itself):
 
 ~/.claude/skills/relay/scripts/relay-status-publish.sh --path '${path}' --run '${state.runId || ''}' --events-path '${RELAY_EVENTS_PATH}' <<'RELAY_STATUS_EOF'
 ${stdinPayload}
 RELAY_STATUS_EOF
 
-Report the script's final line. If it exits non-zero, report its stderr; do not retry or write any file yourself.`,
-    { label: 'write-relay-status', phase: 'Status', model: 'haiku' }
+Report the script's final line. If it exits non-zero, report its stderr; do not retry or write any file yourself.`
   )
 }
 
@@ -1044,6 +1049,46 @@ function recordAgentFailure(label, repo, phase, reason) {
     round,
     reason: String(reason == null ? '(no reason reported)' : reason).replace(/\s+/g, ' ').trim().slice(0, 200),
   })
+}
+// id:3222 — ONE guarded-dispatch wrapper for the fire-and-forget / best-effort hops
+// (`release:*`, `write-relay-status`, `gaming-log:*`). VISIBILITY ONLY: it changes no hop's
+// control flow — a hop that continues on failure still continues, it just stops being
+// INVISIBLE. Run relay-20260812-001727-5554 had 39 agents blocked at the dispatch boundary
+// while RELAY_STATUS.md reported `agent-failures=8`: id:a104 wired the three PARSE sites, but
+// a dispatch that resolves null/empty or rejects at the `agent()` boundary was counted
+// nowhere the operator could see (the id:4347 silent-swallow shape).
+//
+// BOTH failure shapes are recorded, deliberately: a rejected call AND a null/empty resolution.
+// The run's own journal (wf_3da78c35-8a0/journal.jsonl) records 198 dispatches, ALL of them
+// with a non-empty result — i.e. it contains NO record of a blocked dispatch at all, so it
+// does NOT establish which shape a harness block takes. Handling only the shape one incident
+// note guessed at would leave the other silent again.
+//
+// It NEVER rethrows and never fails a unit — id:66d9 owns fail-closed for provisioning, and
+// provisionWorktree() deliberately does NOT route through here: it records its own failure, and
+// a second entry for the same event would double-count it.
+//
+// Signature is (opts, repo, prompt): the hop's identity leads the call so the label, phase and
+// model stay on the dispatch line itself.
+async function dispatchGuarded(opts, repo, prompt) {
+  const o = opts || {}
+  const label = o.label || '(unlabelled hop)'
+  const phase = o.phase || '-'
+  let res
+  try {
+    res = await agent(prompt, o)
+  } catch (e) {
+    log(`relay-loop: id:3222 guarded hop ${label} failed (non-fatal, continuing): ${(e && e.message) || e}`)
+    recordAgentFailure(label, repo, phase, `agent() rejected: ${(e && e.message) || e}`)
+    return null
+  }
+  const body = typeof res === 'string' ? res : (res == null ? '' : JSON.stringify(res))
+  if (!String(body).trim()) {
+    log(`relay-loop: id:3222 guarded hop ${label} resolved null/empty (non-fatal, continuing)`)
+    recordAgentFailure(label, repo, phase, 'agent() resolved null/empty — the dispatch produced no reply (the shape a harness-side block leaves behind)')
+    return null
+  }
+  return res
 }
 // Run-progress accumulators (id:c8b6), declared here (not at the bottom loop) so snapshotState
 // can read them with no temporal-dead-zone risk. round = re-discover→dispatch→drain iterations;
@@ -2780,13 +2825,18 @@ function logGamingFlags(repo, runId, report, ts) {
   // process.*/require()/fs in this file.
   const logPath = '~/.claude/logs/relay-gaming-flags.log'
   // Spawn a tiny agent (fire-and-forget, not awaited — log failure is non-fatal).
-  agent(
+  // id:3222 — routed through dispatchGuarded so a blocked/empty log write is RECORDED in
+  // state.agentFailures instead of vanishing; still fire-and-forget (the guard never rejects).
+  const gamingPrompt =
     `Append the following JSON line to the gaming-flags log (create if absent, append only).
 FIRST resolve the path with the shell (the JS cannot): log=$(python3 -c "import os;print(os.path.expanduser('${logPath}'))")
 Then run: mkdir -p "$(dirname "$log")" && printf '%s\\n' '${json.replace(/'/g, "'\\''")}' >> "$log"
-Confirm it succeeded.`,
-    { label: `gaming-log:${repo}`, phase: 'Logging', model: 'haiku' }
-  ).catch(err => log(`relay-loop: gaming-flags log write failed (non-fatal): ${err}`))
+Confirm it succeeded.`
+  // The trailing .catch stays: the guard already absorbs a rejected dispatch, but this call is
+  // never awaited, so the belt-and-braces handler keeps a gaming-flags log failure non-fatal
+  // even if the guard itself ever grows a reject path.
+  dispatchGuarded({ label: `gaming-log:${repo}`, phase: 'Logging', model: 'haiku' }, repo, gamingPrompt)
+    .catch(err => log(`relay-loop: gaming-flags log write failed (non-fatal): ${err}`))
 }
 
 // id:7570 — per-unit FINALLY lease release. The cross-session repo lease (id:ebfb) — and
@@ -2815,12 +2865,14 @@ Confirm it succeeded.`,
 // non-fatal — a failed release/beat must never fail the unit; the claim TTL / next heartbeat
 // backstops it either way.
 async function releaseLease(unit) {
+  // id:3222 — each fence goes through dispatchGuarded: a release blocked at the dispatch
+  // boundary used to be invisible (17 of them in run relay-20260812-001727-5554 stranded two
+  // leases for the full TTL with nothing in RELAY_STATUS). Still non-fatal — the guard records
+  // and returns null, it never rejects, so the TTL/next-heartbeat backstop is unchanged.
   const dispatch = (label, cmd) =>
-    agent(
+    dispatchGuarded({ label: `release:${unit.repo}:${label}`, phase: 'Leases', model: MECH_MODEL }, unit.repo,
       `Run exactly this one command and report whether it exited 0:\n` +
-      '```relay-mech\n' + cmd + '\n```',
-      { label: `release:${unit.repo}:${label}`, phase: 'Leases', model: MECH_MODEL }
-    ).catch(err => log(`relay-loop: per-unit ${label} failed for ${unit.repo} (non-fatal; TTL backstops): ${err}`))
+      '```relay-mech\n' + cmd + '\n```')
 
   await dispatch('claim', `~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}`)
   if (unit.intensive) {
@@ -2843,7 +2895,7 @@ async function releaseLease(unit) {
 // hand, per-child, every time). Symlinked, best-effort (`|| true` — a repo with neither
 // artifact class is a no-op, not a failure); this is deliberately NOT exhaustive of every
 // build-artifact class a repo might have, just the two named in the item's own text.
-async function provisionWorktree(unit) {
+async function provisionWorktree(unit, isRetry) {
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
   let out
@@ -2869,6 +2921,24 @@ async function provisionWorktree(unit) {
   // — is not that string and would sail straight through. Only `PROVISION-OK`, which
   // provision-worktree.sh emits solely after self-verifying registration AND branch, counts.
   if (!String(out).includes('PROVISION-OK')) {
+    // id:9834 — RETRYABLE COLLISION. The worktree path and branch are already attempt-scoped
+    // (unitKey encodes `attempt`, and worktreePathFor/branchFor thread `unit.attempt || 0` into
+    // it) — but nothing ever INCREMENTED attempt, so a unit re-dispatched after a prior attempt
+    // parked its worktree (an isolation-gate defer, id:76d2, or a dirty exit) renamed to `…-0`
+    // every round and died on its own leftover branch: `fatal: a branch named
+    // 'relay/<run>-execute-4d35-0' already exists` (run relay-20260812-001727-5554 spent three
+    // dispatches per repo on that, then the id:365b breaker skipped the repo).
+    // Bump the attempt ONCE and re-provision under the fresh name. Exactly one bump, via a
+    // single guarded recursion rather than a loop: an unbounded retry would spin against a
+    // genuinely broken repo. Reusing the parked worktree is deliberately NOT an option — it
+    // would hand a child another attempt's uncommitted state, which is what the isolation gate
+    // exists to prevent. If the retry also fails it records its own failure below (id:06a1).
+    if (!isRetry && /already exists/i.test(String(out))) {
+      const nextAttempt = unit.attempt ? unit.attempt + 1 : 1
+      unit.attempt = nextAttempt
+      log(`relay-loop: id:9834 provision collided with a prior attempt's branch/worktree for ${unit.repo} — retrying ONCE as attempt ${nextAttempt} (fresh name ${branchFor(unit)})`)
+      return await provisionWorktree(unit, true)
+    }
     log(`relay-loop: id:34b7 provisionWorktree failed for ${unit.repo} — no PROVISION-OK token in the hop's reply; got: ${String(out).replace(/\s+/g, ' ').slice(0, 200)}`)
     recordAgentFailure(`provision:${unit.repo}`, unit.repo, 'Support', `no PROVISION-OK token: ${String(out).slice(0, 200)}`)
     return false
