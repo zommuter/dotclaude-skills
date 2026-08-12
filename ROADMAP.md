@@ -1114,6 +1114,24 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       `Optional[str]` hint). NOT fixed inline (needs a design choice + red-green test). id:da95
       (Run 70's watermark-starvation defect) untouched, stays open. Suite 383/0/1-xred (audit-only).
       See `docs/meeting-notes/2026-08-11-2145-strong-model-audit.md`.
+    - Run 72 (2026-08-12-1413): first-seen code since Run 71's audit commit (`0454e8f..HEAD`,
+      HEAD `1b7e9bb`) = the mechanical-proxy/provisioning hardening batch (~780 prod LOC / 10
+      scripts + 12 tests: routed:a923 inject-scope, id:76d2/66d9 provision self-verify+gitignore,
+      id:9e48 proxy-currency, id:93ac command-fence precedence, id:06a1/3222/a104 hop-failure
+      visibility, id:ed3f lint coverage, verify-isolation `|| true` fix). Full 3-pass adversarial
+      audit — **code CLEAN, security CLEAN, no inline fix**: provision emits `PROVISION-OK` only
+      after both postconditions (fail-closed cert); mech-currency fail-closed on every unknown;
+      id:93ac excises the stdin payload span before command extraction so a payload can't supply
+      the command (verified the asymmetric-parse reasoning); INJECT_SCOPE is `[A-Za-z0-9._-]`-
+      validated before shell splice, sentinel-on-refusal; relay-loop.js +270 is all
+      visibility/scope/doc, zero control-flow change. **1 design-coherence finding TRACKED (not
+      fixed inline)**: in-window archival of id:33b2 + id:93ac left stale `gated-on:33b2,93ac`
+      markers on d4ca/e405 → roadmap-lint DEAD-GATE; NOT cleared here because naive clearing
+      unblocks d4ca into dispatch ahead of the unresolved id:09e4 payload-misdirection, and the
+      id:6b35 cluster is owner-gated (b0b1) — recommend the next handoff re-target to the real
+      gate. Pre-existing lint debt (2b49→ac7f, ae08 DECOMPOSED-CONTAINER, 1b13 NO-ACCEPTANCE) and
+      the correct owner-gated 540f/c179 DEAD-GATE noted, not this window's. Suite 394/0/1-xred.
+      See `docs/meeting-notes/2026-08-12-1413-strong-model-audit.md`.
 
 - [ ] [INPUT — meeting] Sub-agent meeting simulation for main-ctx isolation <!-- id:3346 -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
