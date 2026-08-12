@@ -14,6 +14,7 @@
 - id:93ac command-fence precedence fixed — stdin payload can no longer supply the dispatched command in mechanical-proxy.py; suite 391/0/1-ered (id:93ac)
 - id:ed3f — lint-mech-model.mjs now matches dispatchGuarded/agentGuarded/safeAgent call sites too, closing the coverage gap the releaseLease dispatchGuarded refactor opened; full suite 394/0/1-expected-red. (id:ed3f)
 - No dispatchable [ROUTINE] work: only unticked ROUTINE lines are 4 GATED items (d4ca/540f/c179/554b) and the f91a @container epic (non-dispatchable); worktree left clean.
+- review: no-op window (CHANGELOG+RELAY_LOG only); gaming-scan clean, suite green (393/1-flake/1-xred), all 5 open [ROUTINE] gated/container — no dispatchable work; routine_open=0
 
 ## 2026-08-11
 
