@@ -247,18 +247,12 @@ item_id() {
 }
 
 # --- section gating -----------------------------------------------------------
-# An item is EXEMPT when its nearest preceding `## ` / `### ` heading names a parked
-# bucket. Match case-insensitively on the heading text.
-is_exempt_heading() {
-  local h="$1"
-  shopt -s nocasematch
-  local exempt=1
-  if [[ "$h" =~ (gated|deferred|done|icebox|archive|parked) ]]; then
-    exempt=0
-  fi
-  shopt -u nocasematch
-  return $exempt
-}
+# `is_exempt_heading` moved to lib-roadmap-sections.sh (id:4b8f) so the DISPATCH counters
+# share this repo's one definition of "parked" instead of each re-deriving it — the lint
+# knowing a section is parked while gather-repo-state.sh's open_hard_pool did not is what
+# dispatched an Opus HARD child at zkWhale every round for 6 already-gated items.
+# shellcheck source=lib-roadmap-sections.sh
+source "$script_dir/lib-roadmap-sections.sh"
 
 # --- scan ---------------------------------------------------------------------
 violations=0
