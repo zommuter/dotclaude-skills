@@ -1550,7 +1550,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 > self-provisioned and their work merged. The careful refusal quoted in `routed:8d64` was the
 > **exception, not the rule** — the `id:c6c8` hazard `id:34b7` was closed to remove is actively occurring.
 
-- [ ] **[HARD]** Wire disjoint-greenlight.sh plan into the drain-mode fan-out planner — seam of id:ae08 (auto, id:3801) <!-- id:02b2 -->
+- [ ] **[INPUT — decision]** Wire disjoint-greenlight.sh plan into the drain-mode fan-out planner — seam of id:ae08 (auto, id:3801) <!-- id:02b2 --> — 🚧 GATED (auto, id:3801; route:decision-gate): Needs /meeting: per-unit file-set provenance + which same-repo units are concurrency-eligible under the review-barrier — else the greenlight call is a forbidden dead branch. — needs a /meeting
   - **Acceptance**: grep -c 'disjoint-greenlight' relay/scripts/relay-loop.js is non-zero and the call is reachable from a drain-mode (--only) round's planner (a real call site, NOT the existing line-3009 comment or a dead branch); fleet-mode fan-out is byte-unchanged (enforceOneUnitPerRepo untouched outside --only, id:dc5b).
   - **Done-check**: tests/run-tests.sh tests/test_disjoint_greenlight.sh (unmodified) green AND node --check relay/scripts/relay-loop.js clean
   - **Context**: relay/scripts/relay-loop.js (drain-mode planner / round dispatch near enforceOneUnitPerRepo, ~line 1167-1189) + relay/scripts/disjoint-greenlight.sh
