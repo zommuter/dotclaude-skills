@@ -3995,3 +3995,8 @@ takes it in parallel. Crossing the surfaces means two sessions editing `relay-lo
   - **Do NOT double-count**: `provisionWorktree` already records its own failure (`id:66d9`). A generic wrapper must not add a second entry for the same event — assert this in the test.
   - **Acceptance (BDD)**: GIVEN a dispatch site whose `agent()` resolves null/empty or throws THEN `state.agentFailures` gains exactly ONE entry naming that hop's label and a reason distinguishing block-vs-error where determinable, AND the hop's own return/continue behaviour is byte-identical to today. GIVEN `provisionWorktree` fails THEN exactly one entry is recorded, not two.
   - **Spec**: `tests/test_blocked_hop_counted_3222.sh` (RED, authored at handoff).
+
+- [x] [ROUTINE] **`lint-mech-model.mjs` no longer lints the `release:` fence — routing it through `dispatchGuarded` moved it out of a bare `agent(` call, and the linter matches only the identifier `agent`** <!-- children-of:3222 --> <!-- id:ed3f -->
+  - Reported by the `id:3222` executor as a coverage note, not a failure: `test_release_hop_mechanical_f7d3.sh` still greps the label line, so the `model: MECH_MODEL` invariant currently holds by a second route. But the linter silently stopped covering that hop, and the next hop routed through the guard will lose its coverage the same way — invisibly.
+  - **Fix**: teach `lint-mech-model.mjs` to match `dispatchGuarded`/`agentGuarded`/`safeAgent` call sites in addition to `agent(`. Assert the new matcher actually fires on the `release:` fence (a linter change that silently matches nothing is the same defect one level up).
+  - The executor did not touch the linter — correctly, it was outside its declared file surface.
