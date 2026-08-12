@@ -2895,7 +2895,28 @@ async function releaseLease(unit) {
 // hand, per-child, every time). Symlinked, best-effort (`|| true` — a repo with neither
 // artifact class is a no-op, not a failure); this is deliberately NOT exhaustive of every
 // build-artifact class a repo might have, just the two named in the item's own text.
+// id:315c — RUN-SCOPED attempt watermark, keyed by the unit's attempt-LESS identity.
+// id:9834 made the retry bump `attempt`, but it bumped it on the UNIT OBJECT only, and a
+// unit is re-created fresh by discovery every round with no `attempt` field. So each round
+// restarted at 0, collided with its own earlier round's leftover branch, bumped to 1,
+// collided with THAT round's retry branch too, and gave up — both names permanently
+// consumed for the rest of the run. Observed 2026-08-12 (run relay-20260812-122721-23819):
+// loderite `review-repo-1` failed provisioning in rounds 3,4,5,6,7,8 and ai-codebench
+// `hard-repo-1/2` 4× — 10 of that run's 14 agent-failures were this one bug, each burning
+// the repo's dispatch slot for the round while doing nothing. Fail-closed (id:66d9) so it
+// never corrupted anything; it just silently starved those repos.
+// Seeding from this watermark means a round starts at the last attempt that WORKED, so at
+// most ONE collision+bump is ever needed (attempt N's branch may survive; N+1 is then free
+// by construction) — which is exactly what the id:9834 single-bump budget provides.
+const attemptSeq = Object.create(null)
+const attemptSeqKey = (unit) => `${unit.repo}|${unit.verdict}|${dispatchItemFor(unit) || 'repo'}`
+
 async function provisionWorktree(unit, isRetry) {
+  // Seed once per dispatch (never on the retry recursion — that already carries its bump).
+  if (!isRetry) {
+    const seeded = attemptSeq[attemptSeqKey(unit)] || 0
+    if (seeded > (unit.attempt || 0)) unit.attempt = seeded
+  }
   const wt = worktreePathFor(unit)
   const branch = branchFor(unit)
   let out
@@ -2936,6 +2957,8 @@ async function provisionWorktree(unit, isRetry) {
     if (!isRetry && /already exists/i.test(String(out))) {
       const nextAttempt = unit.attempt ? unit.attempt + 1 : 1
       unit.attempt = nextAttempt
+      // id:315c — persist the bump for the NEXT round's fresh unit object, not just this one.
+      attemptSeq[attemptSeqKey(unit)] = nextAttempt
       log(`relay-loop: id:9834 provision collided with a prior attempt's branch/worktree for ${unit.repo} — retrying ONCE as attempt ${nextAttempt} (fresh name ${branchFor(unit)})`)
       return await provisionWorktree(unit, true)
     }

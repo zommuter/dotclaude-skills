@@ -424,14 +424,33 @@ roadmap_primary_lane() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib-typed-edges.sh
 source "$SCRIPT_DIR/lib-typed-edges.sh"
+# id:4b8f — the SHARED parked-section predicate (one definition, lib-roadmap-sections.sh),
+# not a second inline copy: a second parser is the exact defect class id:1022 came from.
+# shellcheck source=lib-roadmap-sections.sh
+source "$SCRIPT_DIR/lib-roadmap-sections.sh"
 gate_blocked_ids=","
 while IFS=$'\t' read -r g_oid g_block _g_dang; do
   [[ -n "$g_oid" && "$g_block" == "1" ]] && gate_blocked_ids+="$g_oid,"
 done < <("$SCRIPT_DIR/resolve-gates.sh" "$path" || true)
 
 open_hard_pool=0
+# id:4b8f — track the section a line sits under. An item beneath a GATED / DEFERRED /
+# DONE / ICEBOX / ARCHIVE / PARKED heading is EXPLICITLY parked and is NOT pool-dispatchable
+# (the same exemption roadmap-lint.sh has always applied, now shared via
+# lib-roadmap-sections.sh). Without this the counter reads parked work as available and the
+# pool dispatches a HARD child per round that can only hand back — zkWhale 2026-08-12, 6
+# items under `## Gated / deferred`, every one gated on an OPEN owner decision.
+# UNDER-DISPATCH-SAFE, consistent with every other filter in this loop: when in doubt the
+# item is skipped, never invented.
+in_exempt_section=0
 if [[ -n "$roadmap" ]]; then
   while IFS= read -r line; do
+    # A heading re-decides the section for every line that follows it.
+    if [[ "$line" =~ ^[[:space:]]*#{1,6}[[:space:]] ]]; then
+      if is_exempt_heading "$line"; then in_exempt_section=1; else in_exempt_section=0; fi
+      continue
+    fi
+    [[ "$in_exempt_section" -eq 1 ]] && continue
     [[ "$line" =~ ^[[:space:]]*-\ \[\ \]\  ]] || continue
     [[ "$(roadmap_primary_lane "$line")" == "[HARD — pool]" ]] || continue
     # id:d808 — a @container epic is never itself pool-dispatchable; its seams are the
