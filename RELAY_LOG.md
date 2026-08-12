@@ -5506,3 +5506,7 @@ Reviewed 76d2 (provisioned symlinks excluded so the worktree reads clean), 9834 
 Worked id:ed3f — taught lint-mech-model.mjs to match `dispatchGuarded`/`agentGuarded`/`safeAgent` call sites in addition to bare `agent(`, since routing `releaseLease`'s fence dispatch through `dispatchGuarded` (id:3222) moved it out of a bare `agent(` call and the linter silently stopped covering that hop. Added tests (2d)/(2e) asserting the new matcher fires on a `dispatchGuarded`-wrapped fence hardcoding a literal model and stays silent when it correctly uses `model: MECH_MODEL`; full suite still lints the live tree clean. Full test suite: 394 passed, 0 failed, 1 expected-red (unrelated open item).
 Friction: none.
 refactor: none needed — additive matcher change (one identifier set, one line-checked condition), no new duplication introduced.
+
+## 2026-08-12 12:40 — executor (sonnet, relay-loop)
+
+id:ed3f — lint-mech-model.mjs now matches dispatchGuarded/agentGuarded/safeAgent call sites too, closing the coverage gap the releaseLease dispatchGuarded refactor opened; full suite 394/0/1-expected-red. [id:ed3f]
