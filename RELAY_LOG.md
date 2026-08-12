@@ -5427,3 +5427,42 @@ refactor: none needed — additive helper + one-line call-site change reusing th
 ## 2026-08-12 01:43 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 id:93ac command-fence precedence fixed — stdin payload can no longer supply the dispatched command in mechanical-proxy.py; suite 391/0/1-ered [id:93ac]
+
+## 2026-08-12 — executor (claude-opus-5, reviewer-orchestrated)
+
+Worked id:76d2 — provisioned artifact symlinks no longer dirty the child's worktree.
+`provision-worktree.sh` now writes the names it actually symlinked (`/node_modules`, `/.venv`,
+only those it created) into the worktree's git exclude file, resolved via `cd "$wt" && git
+rev-parse --git-path info/exclude`, right after the symlink lines. Idempotent (a `grep -qxF`
+per line plus a one-time marker comment), trailing-newline safe, and the deliberate `|| true`
+best-effort semantics on the two symlink lines are untouched, as is the `PROVISION-OK <path>`
+last-stdout-line contract from id:66d9. No repo's committed `.gitignore` is touched and
+`verify-isolation.sh` was NOT given a name-based carve-out. Two VERIFIED facts worth banking:
+(1) a linked worktree's `info/exclude` resolves to the repo-COMMON `.git/info/exclude` — git
+2.55 does NOT honour a per-worktree `.git/worktrees/<name>/info/exclude` at all (probed
+directly), so the common file is the only working target; it is still local-only and never
+committed; (2) `<wt>/.git` is a FILE, so the path must be resolved with rev-parse, never
+assumed. The core property is now green: a freshly provisioned worktree with a trailing-slash
+`.venv/` gitignore reads `git status --porcelain` EMPTY where it previously read `?? .venv`.
+
+BLOCKED: 76d2 the RED spec's two `verify-isolation.sh` assertions cannot pass from the provisioner side — both fail on TWO pre-existing gate defects outside this item's file surface, and neither is caused by (or fixable in) provision-worktree.sh.
+Friction: 76d2's checkbox is left UNTICKED (so `tests/test_provision_symlink_ignored_76d2.sh`
+stays EXPECTED-RED and the suite stays green at 391/0) pending a reviewer decision on the two
+gate defects, which I was explicitly fenced out of touching:
+(D1) `verify-isolation.sh:77` — `default_branch="$(git … symbolic-ref --short -q
+refs/remotes/origin/HEAD 2>/dev/null | sed …)"` exits 1 under `set -euo pipefail` whenever
+`origin/HEAD` does not resolve, so the gate dies SILENTLY with exit 1 and no output on any repo
+lacking an origin (every hermetic test fixture). It has never been caught because all four
+existing call sites in `tests/test_verify_isolation.sh` pass `--base main` explicitly and skip
+the fallback; the 76d2 spec is the first caller to exercise it. One-line fix: append `|| true`.
+(D2) Even with D1 fixed, the spec's "a genuinely dirty worktree is still refused" assertion
+fails — the fixture's worktree has ZERO commits beyond base, so the gate takes its documented
+branch (b1) ("empty + main unmoved ⇒ legitimate id:8e3e no-op review, exit 0") and returns
+before ever reaching the dirty check (c), which by design only runs when there are commits
+beyond base. Confirmed provisioner-independent: a plain `git worktree add` + one untracked file
++ explicit `--base main` against the PRISTINE gate also exits 0. The live id:76d2 incident hit
+branch (c) because that worktree had 2 real commits; the fixture never commits in the worktree,
+so it cannot reach (c). Fixing this means either the fixture commits in the worktree first or
+the gate's dirty check moves ahead of the empty-check — both are edits to files I was told not
+to touch, and the second is a real behaviour change to the gate, so it is the reviewer's call.
+refactor: none needed — one self-contained additive block appended after the symlink lines; no duplication introduced and nothing existing to extract.
