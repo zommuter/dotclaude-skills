@@ -16,6 +16,7 @@
 - No dispatchable [ROUTINE] work: only unticked ROUTINE lines are 4 GATED items (d4ca/540f/c179/554b) and the f91a @container epic (non-dispatchable); worktree left clean.
 - review: no-op window (CHANGELOG+RELAY_LOG only); gaming-scan clean, suite green (393/1-flake/1-xred), all 5 open [ROUTINE] gated/container — no dispatchable work; routine_open=0
 - review: no-op window (only id:8df5 gate edit by own integrator + personas /meeting docs); gaming-scan clean, suite 394/0/1-xred, all 5 open [ROUTINE] gated/container; routine_open=0
+- audit(relay): Run 72 strong-model audit (id:401c) over 0454e8f..HEAD — code+security clean, 1 coherence finding tracked (stale gated-on:33b2,93ac on d4ca/e405); suite 394/0/1-xred (id:401c)
 
 ## 2026-08-11
 
