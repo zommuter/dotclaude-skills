@@ -1,13 +1,23 @@
 #!/usr/bin/env node
-// lint-mech-model.mjs (id:4313) — every `agent()` call in a Workflow JS script that carries
-// a ```relay-mech fenced command must dispatch with `model: MECH_MODEL`, never a literal
-// model name ('bash', 'haiku', …). MECH_MODEL resolves to 'bash' under a healthy proxy and
-// 'haiku' under probe mode-a (id:4239) — a hop hardcoding either literal breaks the OTHER
+// lint-mech-model.mjs (id:4313) — every dispatch call (`agent()`, or one of its guarded
+// wrappers — `dispatchGuarded`/`agentGuarded`/`safeAgent`, id:ed3f) in a Workflow JS script
+// that carries a ```relay-mech fenced command must dispatch with `model: MECH_MODEL`, never a
+// literal model name ('bash', 'haiku', …). MECH_MODEL resolves to 'bash' under a healthy proxy
+// and 'haiku' under probe mode-a (id:4239) — a hop hardcoding either literal breaks the OTHER
 // mode. Three real hops (discover-prelude, the discover-run shard, releaseLease) missed the
 // id:4239 indirection and were fixed by loderite in 490ac6e; because discover-prelude is
 // round-1's FIRST hop, probe mode-a killed the whole pool with zero units dispatched (run
 // relay-20260730-115757-3504). This lint makes the invariant durable instead of relying on
 // each future hop's author remembering it.
+//
+// id:ed3f — `releaseLease`'s fence dispatch was later routed through `dispatchGuarded` (id:3222,
+// so a blocked/empty guarded call is recorded instead of silently vanishing), which moved the
+// real dispatch out of a bare `agent(` call site: the literal text at the fence is now
+// `dispatchGuarded({ ..., model: MECH_MODEL }, repo, fenceText)`, not `agent(fenceText, {...})`.
+// A linter matching only the identifier `agent` stopped covering that hop — invisibly, since the
+// coverage gap itself produces no test failure (a second route, the `model: MECH_MODEL` label
+// line, happened to still hold the invariant for THIS hop). The next hop routed through a guard
+// wrapper would lose coverage the same way. Matching the wrapper identifiers too closes that gap.
 //
 // SAME LEXER SHAPE AS lint-workflow-templates.mjs (id:71f2) — a single-pass character state
 // machine tracking JS context (code / line-comment / block-comment / '…' / "…" / `…`
@@ -38,7 +48,17 @@ const isWordChar = (c) => c !== undefined && /[A-Za-z0-9_$]/.test(c)
 const DIVISION_AFTER = (c) => isWordChar(c) || c === ')' || c === ']'
 const regexAllowed = (prevSig) => prevSig === '' || !DIVISION_AFTER(prevSig)
 
-// Find every top-level `agent(...)` CALL in `src` — i.e. the identifier `agent`, not
+// Call identifiers that dispatch a hop and so are in scope for this lint: the bare `agent`
+// call, plus the guarded wrappers that route a fence-carrying prompt through `agent()`
+// internally without the literal text `agent(` at the call site itself (id:ed3f —
+// `dispatchGuarded` moved `releaseLease`'s fence dispatch out of a bare `agent(` call, and a
+// linter matching only `agent` silently stopped covering that hop). All three share the same
+// (opts-ish-first-or-last, prompt) shape closely enough that substring-searching the raw call
+// text for the fence marker and the `model:` property (below) works unchanged regardless of
+// argument order.
+const AGENT_CALL_IDENTIFIERS = new Set(['agent', 'dispatchGuarded', 'agentGuarded', 'safeAgent'])
+
+// Find every top-level guarded-dispatch CALL in `src` — i.e. one of AGENT_CALL_IDENTIFIERS, not
 // preceded by a word char or `.` (so `someAgent(` / `x.agent(` never match), immediately
 // followed (modulo whitespace) by `(`, whose ARGUMENT LIST is captured with correct
 // paren-depth tracking through nested strings/comments/templates/regex/parens.
@@ -82,7 +102,7 @@ function findAgentCalls(src) {
         while (wStart > 0 && isWordChar(src[wStart - 1])) wStart--
         const word = src.slice(wStart, wEnd)
         const preWord = src[wStart - 1]
-        if (word === 'agent' && !isWordChar(preWord) && preWord !== '.') {
+        if (AGENT_CALL_IDENTIFIERS.has(word) && !isWordChar(preWord) && preWord !== '.') {
           callStack.push({ depth: parenDepth, startIdx: wStart, startLine: lineAt[wStart] })
         }
         prevSig = '('
