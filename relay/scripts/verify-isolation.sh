@@ -74,7 +74,15 @@ if [ -z "$base" ]; then
   if git -C "$worktree" rev-parse --verify -q origin/main >/dev/null 2>&1; then
     base="origin/main"
   else
-    default_branch="$(git -C "$worktree" symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+    # `|| true` is REQUIRED, not decorative: `symbolic-ref -q` exits 1 when origin/HEAD is
+    # absent, `set -o pipefail` propagates that through the pipe, and `set -e` then killed the
+    # whole gate — exit 1 with COMPLETELY EMPTY output, on every repo without an origin (i.e.
+    # every hermetic fixture). A gate that fails silently is worse than no gate: the caller
+    # cannot distinguish "isolation breach" from "could not determine the base ref". Never
+    # caught because all four callers in tests/test_verify_isolation.sh pass --base and skip
+    # this fallback; tests/test_provision_symlink_ignored_76d2.sh is the first to reach it.
+    # Found 2026-08-12 by the id:76d2 executor, reproduced by the reviewer before fixing.
+    default_branch="$(git -C "$worktree" symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
     base="${default_branch:-main}"
   fi
 fi

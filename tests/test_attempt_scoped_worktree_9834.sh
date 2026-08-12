@@ -59,7 +59,12 @@ pass "a retry increments attempt"
 
 # Bound it: the retry must not be able to loop unboundedly.
 prov="$(awk '/^async function provisionWorktree/,/^}/' "$JS")"
-run="$(awk '/^async function runUnit/,0' "$JS" | head -80)"
+# NOTE (reviewer, 2026-08-12): a `run="$(awk '…' | head -80)"` line stood here and was never
+# used. Under `set -o pipefail` awk takes SIGPIPE once head closes the pipe, so the assignment
+# returned 141 and `set -e` aborted the file BEFORE assertions (4) and (5) — measured 1 pass /
+# 11 fails over 12 runs against CORRECT code. The executor hit it, verified it, and refused to
+# edit the test (contract rule 3) rather than paper over it; deleting the dead line is the
+# reviewer's fix. Any future `cmd | head` here must carry `|| true`.
 if grep -qE "while *\(" <<<"$prov"; then
   fail "provisionWorktree contains a while-loop — the retry must be bounded to ONE bump, not a spin"
 fi
