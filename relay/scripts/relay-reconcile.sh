@@ -173,6 +173,61 @@ fi
 
 # --all (list): cross-repo list — enumerate own repos from relay.toml and list each.
 # (--all --auto is handled after the function defs below, since it calls auto_one_repo.)
+# main_ref <repo> — echo the repo's integration/trunk branch. Resolves from the checked-out
+# HEAD (the branch children fork from) via the single-source trunk-branch.sh, falling back to
+# main→master only on a detached HEAD. NOT hardcoded 'main' — a repo on e.g. claude/opusplan
+# (main frozen) must classify its orphans against the real trunk merge-base, not frozen main.
+main_ref() {
+  "$SCRIPTS_DIR/trunk-branch.sh" "$1"
+}
+
+# list_stranded <repo-path> — id:2b4b, REPORT-ONLY. Echo `<branch>\t<sha>\t<subject>` for every
+# LIVE relay branch (`relay/<runId>-<verdict>-repo-N`) that is NOT parked under relay/orphan/,
+# whose owning run is no longer alive, and which carries commits the trunk does not have.
+#
+# WHY THIS EXISTS: a branch only enters relay/orphan/ when a run DIES and its worktree is parked
+# (id:689c). A child that hits a merge conflict does the RIGHT thing — `git merge --abort`, hand
+# back — which leaves its branch under the live name with the worktree still registered. It never
+# becomes an orphan, so both the --all sweep and the per-repo list reported a clean "no parked
+# orphans" while real unmerged work sat on disk. Measured after run relay-20260812-122721-23819:
+# 0 parked orphans reported, while FOUR branches held real commits (cartulary execute-repo-1,
+# dotclaude-skills review-repo-0, escapement review-repo-0, loderite review-repo-1). The
+# handbacks did name each worktree path, so the information existed — but the tool a human is
+# told to run for exactly this answered "nothing here".
+#
+# This is the SURFACING half only. It never integrates, discards, or renames anything — the
+# durable fix (park a conflict-handback branch into relay/orphan/ at abort, so the existing
+# consume path finds it) belongs in the integrator and is deliberately NOT done here.
+#
+# A run is "alive" iff heartbeat.sh live-runs names it. FAIL-SAFE: if heartbeat cannot be read
+# we treat every run as ALIVE, so a live pool's in-flight branches are never reported as
+# stranded. Stderr is deliberately not swallowed.
+list_stranded() {
+  local r="${1:?list_stranded <repo-path>}" hb live_runs="" trunk br sha subj runid
+  hb="$(dirname "${BASH_SOURCE[0]}")/heartbeat.sh"
+  if [ -x "$hb" ]; then
+    live_runs="$("$hb" live-runs 2>/dev/null || true)"
+  else
+    echo "list_stranded: heartbeat.sh not executable at $hb — treating all runs as ALIVE (no stranded branches reported)" >&2
+    return 0
+  fi
+  trunk="$(main_ref "$r")" || return 0
+  while IFS= read -r br; do
+    [ -n "$br" ] || continue
+    case "$br" in "$ORPHAN_NS"*) continue ;; esac          # parked ones are the other listing
+    # relay/<runId>-<verdict>-repo-N  →  runId is everything before the last 3 dash-fields
+    runid="${br#relay/}"
+    case "$runid" in relay-*) ;; *) continue ;; esac        # not a run-scoped branch, leave it
+    runid="$(printf '%s' "$runid" | sed -E 's/-[a-z]+-[^-]+-[0-9]+$//')"
+    if printf '%s\n' "$live_runs" | grep -qxF "$runid"; then continue; fi   # owning run still alive
+    # Only report branches that actually carry work the trunk lacks.
+    if [ "$(git -C "$r" rev-list --count "$trunk..$br" 2>/dev/null || echo 0)" -eq 0 ]; then continue; fi
+    sha="$(git -C "$r" rev-parse --short "$br" 2>/dev/null || echo '???????')"
+    subj="$(git -C "$r" log -1 --format='%s' "$br" 2>/dev/null || true)"
+    printf '%s\t%s\t%s\n' "$br" "$sha" "$subj"
+  done < <(git -C "$r" for-each-ref --format='%(refname:short)' 'refs/heads/relay/*')
+}
+
 if [[ $all_repos -eq 1 && "$action" == "list" ]]; then
   total_orphans=0
   while IFS=$'\t' read -r rname rpath; do
@@ -203,6 +258,23 @@ if [[ $all_repos -eq 1 && "$action" == "list" ]]; then
     log "--all list repo=$rname orphans=$n"
   done < <(own_repos)
   echo "$total_orphans parked orphan(s) across all own repos"
+  # id:2b4b — also surface STRANDED live relay branches (conflict handbacks never get parked,
+  # so the count above can read as a clean bill of health while real work sits unmerged).
+  total_stranded=0
+  while IFS=$'\t' read -r rname rpath; do
+    [[ -n "$rname" && -n "$rpath" ]] || continue
+    git -C "$rpath" rev-parse --git-dir >/dev/null 2>&1 || continue
+    while IFS=$'\t' read -r br sha subj; do
+      [[ -n "$br" ]] || continue
+      [[ "$total_stranded" -eq 0 ]] && echo "" && echo "STRANDED (unmerged, owning run not alive, NOT parked — id:2b4b):"
+      printf '%s\t%s\t%s\t%s\n' "$rname" "$br" "$sha" "$subj"
+      total_stranded=$((total_stranded+1))
+    done < <(list_stranded "$rpath")
+  done < <(own_repos)
+  if [[ "$total_stranded" -gt 0 ]]; then
+    echo "$total_stranded stranded branch(es) — NOT auto-disposable here; inspect, then salvage or park."
+  fi
+  log "--all list stranded=$total_stranded"
   exit 0
 fi
 
@@ -227,13 +299,7 @@ list_orphans() {
   git -C "$repo" for-each-ref --format='%(refname:short)' "refs/heads/$ORPHAN_NS"
 }
 
-# main_ref <repo> — echo the repo's integration/trunk branch. Resolves from the checked-out
-# HEAD (the branch children fork from) via the single-source trunk-branch.sh, falling back to
-# main→master only on a detached HEAD. NOT hardcoded 'main' — a repo on e.g. claude/opusplan
-# (main frozen) must classify its orphans against the real trunk merge-base, not frozen main.
-main_ref() {
-  "$SCRIPTS_DIR/trunk-branch.sh" "$1"
-}
+
 
 # integrate_branch <repo> <full-branch> — the SAME serialized-integrator recipe the live
 # pool + the human `--integrate` use (clean main + sync-origin → merge --no-ff → ckpt-tag →
@@ -439,9 +505,18 @@ fi
 case "$action" in
   list)
     orphans="$(list_orphans)"
+    # id:2b4b — computed BEFORE the early return, so the no-orphans path still surfaces
+    # stranded conflict-handback branches instead of reporting a false clean.
+    stranded="$(list_stranded "$repo")"
     if [ -z "$orphans" ]; then
       echo "no parked orphans"
-      log "list repo=$repo orphans=0"
+      if [ -n "$stranded" ]; then
+        echo ""
+        echo "STRANDED (unmerged, owning run not alive, NOT parked — id:2b4b):"
+        printf '%s\n' "$stranded"
+        echo "NOT auto-disposable here; inspect, then salvage or park."
+      fi
+      log "list repo=$repo orphans=0 stranded=$(printf '%s' "$stranded" | grep -c . || true)"
       exit 0
     fi
     n=0
