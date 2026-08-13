@@ -84,6 +84,19 @@ top_done_re = re.compile(r'^- \[x\]')
 date_re     = re.compile(r'\bdone (\d{4}-\d{2}-\d{2})\.?', re.IGNORECASE)
 # Regex for any top-level bullet (open or done) — no leading whitespace, starts "- [".
 top_bullet_re = re.compile(r'^- \[')
+# ── Archived-stub guard (routed:f833 / loderite id:2ab3-B) ──────────────────────────
+# A stub left behind for an already-archived item is BY CONSTRUCTION `- [x]` + an id, and it
+# is present in the prior commit — so without this guard the archiver eats its own successor's
+# output: it deletes the stub from ROADMAP.md and re-appends the body to ROADMAP.archive.md,
+# duplicating ids there and re-blinding `orphan-scan --cross-ledger` (which reads ONLY the
+# live file). Reproduced in the fleet: loderite id:154a restored 59 stubs at 1dc91f6, and
+# c9059f0 — the SAME relay run, 12 minutes later — deleted 58 of them.
+# Grammar mirrors loderite's reference implementation (tools/archive-roadmap.mjs STUB_SUFFIX
+# / STUB_LINE_RE). NOT end-anchored, deliberately: real stubs carry trailing annotations past
+# the suffix (live: bfb3/3d6c/a10c each carry a `**⚠ …`), and an end anchor would re-archive
+# exactly those — the very defect this guard exists for.
+STUB_SUFFIX = " (archived — see ROADMAP.archive.md)"
+stub_line_re = re.compile(r'^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->' + re.escape(STUB_SUFFIX))
 # Regex for a ## or deeper section heading (matches H1 too — H1 is protected separately).
 heading_re  = re.compile(r'^#{1,6}\s')
 
@@ -125,7 +138,9 @@ n = len(lines)
 i = 0
 while i < n:
     line = lines[i]
-    if top_done_re.match(line):
+    # An already-archived stub is classified `keep`, never `arch` (routed:f833) — it falls
+    # through to the else-branch below and stays in place, one line, exactly as written.
+    if top_done_re.match(line) and not stub_line_re.match(line):
         # Gather the block: header + everything up to the next boundary.
         unit = [line]
         j = i + 1
