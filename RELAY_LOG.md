@@ -5703,3 +5703,7 @@ was already authored at handoff and required no changes; it now passes as-is. Fu
 Friction: none — the RED spec was already precise and the fix was a small, well-isolated addition.
 refactor: none needed — the change reuses the existing typed-edge extractor pattern and adds
 one guard clause; no new duplication introduced.
+
+## 2026-08-13 21:31 — executor (sonnet, relay-loop)
+
+roadmap-lint recognizes an explicit owner-hold marker, suppressing false DEAD-GATE findings on intentionally-held gates (id:d119) [id:d119]
