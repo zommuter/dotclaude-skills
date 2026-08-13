@@ -3,6 +3,20 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-13b (window `relay-ckpt-20260813-1618`..HEAD — 21 commits, all owner-authored)
+
+Clean verification pass over the FIX-and-bookkeeping response to the 16:18 review's findings
+(plus a `/meeting` amendment and a `/relay human` pass). No executor units. `gaming-scan.sh`
+clean; suite **411 passed / 0 failed / 1 expected-red** (`roadmap:6217`, an open decision-gated
+item — legitimate). Test-integrity VERIFIED not gamed: the load-bearing
+`test_reconcile_stranded_liveness_b99f.sh` was run side-by-side and FAILS against the pre-fix
+`relay-reconcile.sh` (whole-line `grep -qxF` against a bare runId — gate could never fire),
+PASSES against the jq `.runId` fix; genuinely non-vacuous. Cross-ledger clean; contract pointer
+v11 == canonical. `actionable_routine_open` = **0** (all 5 open `[ROUTINE]` items gated or
+`@container`). Nothing reopened. One advisory box below.
+
+- [ ] **GATE-STALE (`orphan-scan --shipped`): `id:6c6e` "Better sudo-elevation mechanism than plain `ssh-askpass`" — its gating clause is now 23 days old (>=14d threshold); re-check whether the gate has lapsed.** `[INPUT — meeting]` design item, so this is a human re-read, not executor work — surfaced per review.md §5(b3ee), advisory only.
+
 ## Review 2026-08-13 (window `relay-ckpt-20260812-1417`..HEAD — 13 commits)
 
 Window is ledger-heavy: one `/meeting --fabled` session (`id:55f6`), two relay-script fixes
