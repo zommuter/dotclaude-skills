@@ -17,6 +17,7 @@
 - id:292b already fully implemented/committed by a prior session in this worktree (tests/lint-vacuous-fixtures.py + green RED-authored test); verified full suite green (415 passed, 0 failed, 3 expected-red) and worktree already clean — no new work needed. (id:292b)
 - C2: promoted routed:f833/id:cd9c (loderite archive-stub design call) into ROADMAP.md as [INPUT — decision], reusing existing TODO id (single-id-two-views), no RED spec (id:cd9c)
 - Added ARCHITECTURE.md §11 recording the pool ∥ meeting same-repo concurrent-safety convention (id:f657); RED spec went green, full suite 418/0/2-expected-red. (id:f657)
+- roadmap-lint recognizes an explicit owner-hold marker, suppressing false DEAD-GATE findings on intentionally-held gates (id:d119) (id:d119)
 
 ## 2026-08-12
 
