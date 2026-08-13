@@ -5653,3 +5653,7 @@ this item's diff).
 Friction: none.
 refactor: none needed — new standalone file, no shared logic with the sibling lint to factor
 out (deliberately mirrors its shape rather than extending it, per the item's scope).
+
+## 2026-08-13 19:38 — executor (sonnet, relay-loop)
+
+Add tests/lint-vacuous-fixtures.py (id:292b mechanism 1) — advisory lint flagging defect-fix tests missing a `# fails-against:` header [id:292b]
