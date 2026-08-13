@@ -38,6 +38,27 @@ set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# lock_path_for <dest>: the flock file for a destination, derived from the RESOLVED target.
+#
+# id:244f — SKILL_DIR is `dirname "$0"`, i.e. the INVOCATION directory, so `$dest` for the
+# same underlying registry differs between the install path
+# (~/.claude/skills/meeting/personas.md, itself a per-file symlink) and the canonical path
+# (~/src/dotclaude-skills/meeting/personas.md). Locking on the unresolved `"${dest}.lock"`
+# therefore created TWO independent locks for ONE file (both were found on disk 2026-08-13),
+# so an install-path writer and a repo-path writer were never mutually excluded — and
+# personas.md is `merge=union`, where an interleaved write is unrecoverable.
+#
+# Canonicalising with `readlink -f` collapses both to one lock beside the resolved target.
+# `readlink -f` succeeds for a not-yet-existing FILE as long as its directory exists (it
+# canonicalises the parent), which is the "dest does not exist yet" case; if even that
+# fails we fall back to the literal path rather than skipping the lock.
+lock_path_for() {
+  local p="$1" resolved
+  resolved="$(readlink -f -- "$p" 2>/dev/null || true)"
+  [[ -n "$resolved" ]] || resolved="$p"
+  printf '%s\n' "${resolved}.lock"
+}
+
 # resolve_inbox: emit the path to the cross-project inbox store.
 #   * RELAY_INBOX set non-empty  → use it VERBATIM, no migration (injected path is
 #     authoritative; hermetic tests rely on this).
@@ -200,7 +221,7 @@ new_lines = [l for l in lines
              if not (own_marker.search(l.rstrip('\n')) and l.lstrip().startswith("- ["))]
 path.write_text("".join(new_lines))
 PYEOF
-  ) 9>"${inbox}.lock"
+  ) 9>"$(lock_path_for "$inbox")"
   exit 0
 fi
 
@@ -340,6 +361,10 @@ case "$target" in
   *)           echo "Error: -t must be 'discoveries', 'personas', or 'inbox'" >&2; exit 1 ;;
 esac
 
+# One lock per underlying file, regardless of invocation path (id:244f). Derived ONCE here
+# so every write path below (route-to append, personas extend, plain append) shares it.
+dest_lock="$(lock_path_for "$dest")"
+
 if [[ -n "$route_to" && "$target" != "inbox" ]]; then
   echo "Error: --route-to is only valid with -t inbox" >&2
   exit 1
@@ -389,7 +414,7 @@ if [[ -n "$route_to" ]]; then
   (
     flock -x 9
     printf '\n%s\n' "$line" >> "$dest"
-  ) 9>"${dest}.lock"
+  ) 9>"$dest_lock"
   printf '%s\n' "$mint_token"
   exit 0
 fi
@@ -446,12 +471,31 @@ fi
 #   $dest (~/.claude/skills/meeting/personas.md) is a SYMLINK to the canonical checkout, so
 #   the mv REPLACED the symlink with a detached regular file: the canonical file never got
 #   the edit, the registry forked silently, perms dropped 0644→0600 and the write crossed
-#   filesystems. Fixed by writing IN PLACE (python `open(path,"w")` truncates the resolved
-#   target), which follows the symlink and preserves inode + permissions — exactly like the
-#   plain-append `printf >> "$dest"` path below, which was always correct.
+#   filesystems. Fixed by writing to the RESOLVED target — see id:00b1 below for the final
+#   shape (the intermediate fix, an in-place `Path.write_text()`, followed the symlink but
+#   gave up atomicity).
+#
+# id:00b1 — that in-place write is open-for-TRUNCATE-then-write, so a concurrent reader can
+#   observe a PARTIAL registry rather than a stale-but-whole one — destructive rather than
+#   merely lossy, on a `merge=union` file. Fixed by writing a temp file IN THE SAME DIRECTORY
+#   as the resolved target and `os.replace()`ing onto that resolved path: one atomic rename,
+#   no filesystem hop, and the symlink survives because the LINK is never the rename target.
+#   The target's mode is copied onto the temp file first (mkstemp defaults to 0600 — the
+#   exact perms regression routed:96da suffered).
+#
+# id:44c5 — the target line was located by SUBSTRING (`grep -qF "**Name**"` / `needle in
+#   line`), so a persona whose prose legitimately CITES another persona's bolded name got
+#   that other persona's merged text written into it. Fixed by anchoring on the registry's
+#   own definition shape — `- <emoji> **Name** — lens…`, i.e. a list item whose FIRST bolded
+#   token is the name (`PERSONA_DEF_RE` below, mirrored in the bash pre-check). A prose
+#   citation is never the first bold on its line, so it can no longer be picked.
 if [[ "$target" == "personas" ]]; then
   pname="$(grep -oP '\*\*\K[A-Za-z]+(?=\*\*)' <<<"$entry" | head -1)"
-  if [[ -n "$pname" ]] && grep -qF -- "**${pname}**" "$dest"; then
+  # Definition-anchored (id:44c5): a list item whose FIRST `**bold**` token is this name.
+  # `[^*]*` before the name is what forbids an earlier bold on the same line, so a prose
+  # citation of `**Name**` inside someone else's entry does not match. Must stay in sync
+  # with PERSONA_DEF_RE in the python block below.
+  if [[ -n "$pname" ]] && grep -qP -- "^\s*-\s+[^*]*\*\*${pname}\*\*" "$dest"; then
     if [[ "$persona_mode" == "replace" ]]; then
       echo "persona '$pname' already registered, REPLACING its entry (--replace: prior text is discarded) (routed:81b8)" >&2
     else
@@ -465,17 +509,24 @@ if [[ "$target" == "personas" ]]; then
       if [[ ! -L "$dest" && "$dest" == "$HOME/.claude/skills/"* ]]; then
         echo "warning: $dest is a regular file, not a symlink into the dotclaude-skills checkout — the registry may already be FORKED (routed:96da); reconcile it against \$dest's canonical twin." >&2
       fi
-      # In-place write: python opens the RESOLVED path for truncation, so a symlinked $dest
-      # keeps its link, inode and permissions. No mktemp, no mv, no /tmp→home hop.
+      # Atomic write onto the RESOLVED target (routed:96da + id:00b1): temp file in the
+      # target's OWN directory, mode copied over, then one os.replace(). The symlink is
+      # followed (never replaced), there is no /tmp→home hop, and no reader can observe a
+      # half-written registry.
       PERSONA_NAME="$pname" PERSONA_NEW="$entry" PERSONA_MODE="$persona_mode" \
       python3 - "$dest" <<'PYEOF'
-import os, re, sys, pathlib
+import os, re, stat, sys, tempfile, pathlib
 
 path = pathlib.Path(sys.argv[1])
 name = os.environ["PERSONA_NAME"]
 new  = os.environ["PERSONA_NEW"].strip()
 mode = os.environ.get("PERSONA_MODE", "extend")
-needle = "**%s**" % name
+
+# id:44c5 — the line that DEFINES the persona: a list item whose FIRST bolded token is the
+# name (`- <emoji> **Name** — lens…`, the registry's documented format). A prose citation of
+# another persona's name is never the first bold on its line, so it is never targeted.
+# Mirrors the bash-side pre-check above; keep the two in sync.
+PERSONA_DEF_RE = re.compile(r"^\s*-\s+[^*]*\*\*" + re.escape(name) + r"\*\*")
 
 def squash(s):
     return re.sub(r"\s+", " ", s).strip()
@@ -506,19 +557,42 @@ trailing_nl = raw.endswith("\n")
 lines = raw.splitlines()
 out, done = [], False
 for line in lines:
-    if not done and needle in line:
+    if not done and PERSONA_DEF_RE.match(line):
         out.append(new if mode == "replace" else merge_persona_line(line, new))
         done = True
     else:
         out.append(line)
 if not done:
-    # Defensive: the bash-side grep matched but this pass did not (should be unreachable).
-    # Never write a file that silently lost the caller's entry — fail loudly instead.
-    sys.stderr.write("append.sh: internal error — '%s' matched but no line to extend; NOTHING written\n" % needle)
+    # Defensive: the bash-side grep matched but this pass did not (should be unreachable —
+    # both use the same definition anchor). Never write a file that silently lost the
+    # caller's entry — fail loudly instead.
+    sys.stderr.write("append.sh: internal error — a defining entry for '**%s**' matched but no line to extend; NOTHING written\n" % name)
     sys.exit(4)
-path.write_text("\n".join(out) + ("\n" if trailing_nl else ""))
+
+data = "\n".join(out) + ("\n" if trailing_nl else "")
+
+# Atomic replace of the RESOLVED target (id:00b1). realpath() first so a symlinked $dest
+# resolves to the canonical file: the temp file is created in THAT file's directory (same
+# filesystem, so the rename is atomic and there is no /tmp→home hop), and the rename lands
+# on the canonical path — the symlink itself is never the target, so it survives.
+target = pathlib.Path(os.path.realpath(path))
+perm = stat.S_IMODE(target.stat().st_mode)
+fd, tmpname = tempfile.mkstemp(dir=str(target.parent), prefix=".personas-", suffix=".tmp")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(data)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.chmod(tmpname, perm)          # mkstemp defaults to 0600 — restore the registry's mode
+    os.replace(tmpname, str(target))  # atomic
+except BaseException:
+    try:
+        os.unlink(tmpname)
+    except FileNotFoundError:
+        pass
+    raise
 PYEOF
-    ) 9>"${dest}.lock"
+    ) 9>"$dest_lock"
     exit 0
   fi
 fi
@@ -528,7 +602,7 @@ fi
 (
   flock -x 9
   printf '\n%s\n' "$entry" >> "$dest"
-) 9>"${dest}.lock"
+) 9>"$dest_lock"
 
 # --- (C) echo what was written: `-t inbox`, raw -e/-f/stdin form --------------------------
 # stdout is the token PARSED BACK OUT of the line just appended — never the caller's own
