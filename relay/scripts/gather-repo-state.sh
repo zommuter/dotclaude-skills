@@ -446,7 +446,10 @@ in_exempt_section=0
 if [[ -n "$roadmap" ]]; then
   while IFS= read -r line; do
     # A heading re-decides the section for every line that follows it.
-    if [[ "$line" =~ ^[[:space:]]*#{1,6}[[:space:]] ]]; then
+    # id:bb32 — the heading recognizer is the shared lib's too, not a local ERE: the
+    # three readers had already diverged on H1 (`#{1,6}` here vs `##+` in the lint and
+    # in classify-repo.sh's python).
+    if is_heading_line "$line"; then
       if is_exempt_heading "$line"; then in_exempt_section=1; else in_exempt_section=0; fi
       continue
     fi

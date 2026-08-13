@@ -47,6 +47,23 @@ STATE_CLAIM_TERMINAL_WORDS='RESOLVED|SUPERSEDED|DONE|CLOSED|DEFERRED'
 # the terminal word is NOT already preceded by a consumed separator.
 STATE_CLAIM_TERMINAL_RE="(^|[^A-Za-z0-9_-])(${STATE_CLAIM_TERMINAL_WORDS})(\$|[^A-Za-z0-9_-])"
 STATE_CLAIM_DECIDED_RE='[Dd]ecided[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}'
+
+# STATE_CLAIM_SCOPING_NOUNS (id:c8e5) — nouns that can only refer to something OTHER
+# than the item: the things the item POINTS AT. A terminal word governed by one of them
+# ("both targets are `[x]` DONE and archived") is scoped prose, not a self-claim — the
+# same exemption the adjacent `id:XXXX <WORD>` form already gets, for the phrasing real
+# prose actually uses when it has no room to repeat the id token.
+#
+# Live false positive it cures: `3f983f4`'s gate-re-target note on id:d4ca/id:e405, which
+# says their GATE TARGETS are ticked-and-archived. Both items are correctly still open and
+# correctly still gated, and both fired DECIDED-LEFT-OPEN from that sentence alone.
+#
+# DELIBERATELY NARROW — the list is closed and contains only pointer-nouns; no generic
+# subject ("this", "it", "the item") is or may be added, since those are exactly what a
+# genuine self-claim uses. An over-wide strip blinds the rule to real decided-but-open
+# items, which is worse than the noise it removes. Both directions are pinned by
+# tests/test_state_claim_scoping_noun_phrase_c8e5.sh.
+STATE_CLAIM_SCOPING_NOUNS='targets?|deps?|dependenc(y|ies)|gates?|blockers?|prereq(uisite)?s?|predecessors?'
 STATE_CLAIM_CLOSED_DATE_RE='closed[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}'
 
 # state_claim_visible_text <line> — <line> with every `<!-- ... -->` HTML comment
@@ -79,6 +96,14 @@ state_claim_direction_i() {
   [[ "$line" == *@container* ]] && return 1
   visible="$(state_claim_visible_text "$line")"
   stripped="$(sed -E "s/id:[0-9a-fA-F]{4}[[:space:]]+(is[[:space:]]+)?(${STATE_CLAIM_TERMINAL_WORDS}|${STATE_CLAIM_DECIDED_RE})//g" <<<"$visible")"
+  # id:c8e5 — second scoped form: the terminal word is governed by a pointer-NOUN rather
+  # than by an adjacent id token ("both targets are `[x]` DONE"). Only a closed list of
+  # pointer-nouns qualifies (STATE_CLAIM_SCOPING_NOUNS), the copula must be immediate, and
+  # at most two intervening tokens are allowed — none of which may contain sentence
+  # punctuation, so the strip can never reach across a sentence boundary into a self-claim.
+  # Case-insensitive on the phrase (prose capitalises at a sentence start); a lowercase
+  # terminal word never fired anyway, so the `I` flag cannot hide a claim.
+  stripped="$(sed -E "s/(${STATE_CLAIM_SCOPING_NOUNS})[[:space:]]+(are|is|were|was)[[:space:]]+([^[:space:].;:!?]+[[:space:]]+){0,2}(${STATE_CLAIM_TERMINAL_WORDS})//gI" <<<"$stripped")"
   [[ "$stripped" =~ $STATE_CLAIM_TERMINAL_RE ]] && return 0
   [[ "$stripped" =~ $STATE_CLAIM_DECIDED_RE ]] && return 0
   return 1
