@@ -37,7 +37,11 @@ Project override files (`<root>/docs/meeting-notes/meeting-style.md`) may **add*
 
 ## Warrantability self-check
 
-Before facilitating a meeting, evaluate the request against the "When to call a meeting" criteria below. If the request fails (e.g., looks like a bug fix, a one-liner, or an already-decided feature), respond with an "are you sure you want a meeting?" prompt and a brief reason it might be overkill — before running the agenda. If the request clearly passes, note that it was warranted and proceed.
+Before facilitating a meeting, evaluate the request against the "When to call a meeting" criteria below. If the request clearly passes, note in one line that it was warranted and proceed — no prompt.
+
+If it fails (e.g., looks like a bug fix, a one-liner, or an already-decided feature), raise it **as a decision point, not as prose** — §Interactive mode's harness-class protocol applies here exactly as it does at every other decision point: on Sonnet/Opus/Haiku state the concern and call `AskUserQuestion` in the **same message** (`[hold the meeting anyway / just do it directly / something else]`, the overkill reason in the tl;dr); on Fable-class emit it as the turn's final text with numbered options inline. **Never end the turn on "are you sure you want a meeting?" and wait.**
+
+Why this is a rule and not a style note (id:2419): the warrantability check used to be the single legitimate place where a meeting turn ended on bare prose, which made it the one accepted false positive of the `meeting-question-guard` Stop hook (`hooks/meeting-question-guard.py`, routed:29bc). With it closed, **no legitimate prose yield exists between `/meeting` and the meeting-note write** — every yield in that window is a decision point and therefore a question.
 
 ## Past-meetings audit
 
