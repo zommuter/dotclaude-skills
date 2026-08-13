@@ -65,10 +65,17 @@ pass "a live-name branch carrying no work is NOT reported"
   || fail "the stranded branch was deleted — this listing must be strictly read-only"
 pass "listing is read-only; the branch survives"
 
-# FAIL-SAFE: a branch whose run IS alive must not be reported as stranded. Simulated by
-# asserting the code consults heartbeat live-runs rather than assuming every run is dead.
-grep -q 'live-runs' "$SCRIPT" \
-  || fail "list_stranded never consults heartbeat live-runs — a running pool's in-flight branches would be reported as stranded"
-pass "liveness is checked against the heartbeat registry"
+# LIVENESS is deliberately NOT asserted here (id:05a2). This file used to end with
+#   grep -q 'live-runs' "$SCRIPT"
+# under the comment "simulated by asserting the code consults heartbeat live-runs". That is a
+# source-shape assertion, not a behavioural one: consulting the registry and consulting it
+# CORRECTLY are different claims, and only the first was ever tested. The string `live-runs`
+# was present the entire time the whole-line `grep -qxF` match made the gate unreachable
+# (id:b99f, fixed in f0fdeb1) — the line stayed green through the defect's whole life.
+# It is REMOVED rather than reworded: the behavioural coverage now lives in
+# tests/test_reconcile_stranded_liveness_b99f.sh, which drives the real relay-reconcile.sh
+# against the real heartbeat.sh (alive run suppressed / dead run reported / suppression
+# disappears once the run stops / unreadable heartbeat fails safe). Keeping a source grep
+# beside that test would read as extra coverage while providing none.
 
 echo "ALL PASS: stranded conflict-handback branches are surfaced (2b4b)"
