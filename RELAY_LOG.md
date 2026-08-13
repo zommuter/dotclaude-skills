@@ -5741,3 +5741,7 @@ Fixed classify.sh's GATE detector to be word-boundary anchored (id:259f) — inv
 ## 2026-08-13 22:40 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Review: id:259f verified genuine-green (classify.sh word-boundary gate fix, not gamed/over-reach); suite 420/0/1-xred; @container on ae08; routine_open=0; surfaced d119 cross-ledger drift + roadmap-tick.sh install-drift [id:259f,ae08]
+
+## 2026-08-13 23:32 — integrate (claude-opus-5)
+
+C3 red spec for id:cd9c (archivers must leave a one-line stub); verified RED against unmodified roadmap-archive.sh; suite 420/0/3-xred
