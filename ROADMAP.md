@@ -1595,3 +1595,25 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Done-check**: `tests/run-tests.sh tests/test_roadmap_lint_owner_hold_d119.sh`, then tick the box and run full `make test` green (`tests/test_roadmap_lint_dead_gate.sh` must not regress).
   - **Context**: `relay/scripts/roadmap-lint.sh` DEAD-GATE rule + `tests/test_roadmap_lint_dead_gate.sh` (id:49e0); TODO id:d119; relates id:8de9 (lint resolution-span defect), id:540f/id:c179 (the two owner-held items the marker is FOR). REVIEW_ME carries the grammar-spelling + dispatch-suppression-coordination judgment.
 
+## User-injected promotion 2026-08-13 (id:baf1) — archive-path stub design call (routed:f833, INBOUND from loderite)
+
+> Owner-directed, NARROWED-SCOPE C2 promotion of `TODO.md` `routed:f833` (`id:cd9c`). Single-id-two-views:
+> the ROADMAP line REUSES the TODO item's existing token `id:cd9c` (already cross-referenced by sibling
+> `id:90d6`), rather than minting a duplicate. The LANE-INDEPENDENT half is ALREADY SHIPPED and must NOT be
+> re-done — commit `12e9825` added an already-archived-stub guard to `relay/scripts/roadmap-archive.sh`
+> (`stub_line_re`: an already-archived `- [x]` stub now classifies `keep`, not `arch`) plus
+> `tests/test_roadmap_archive_stub_guard.sh` (RED-verified before the fix; 6 assertions incl. the
+> non-end-anchored grammar and cross-run idempotence). What REMAINS is ONLY the open design call — an OWNER
+> ruling, NOT executor work — so it is lane-tagged `[INPUT — decision]` and carries NO RED spec (authoring one
+> would presuppose a branch).
+
+- [ ] [INPUT — decision] **Make the relay integrate archiving path LEAVE A STUB per moved item — pick the mechanism (recurrence-prevention for loderite `id:2ab3`)** <!-- routed:f833 --> <!-- id:cd9c -->
+  - **The problem (measured, loderite 2026-08-12)**: `roadmap-archive.sh` (and `archive-closed.sh`) block-move each closed `- [x]` item into `<REPO>.archive.md` leaving NO stub behind, so archived ids stop resolving from the live `ROADMAP.md` alone — which silently blinds `orphan-scan --cross-ledger` (it reads ONLY the live file). In loderite: 54 stubs that belong in `ROADMAP.md` were sitting in `ROADMAP.archive.md` beside their own full bodies; `tests/roadmap-archive.test.ts` cases 18+19 RED; `node tools/check-ledger-duplicates.mjs` reported 58 violations.
+  - **The design call the OWNER must rule (do NOT guess, do NOT author a RED spec that presupposes either branch)**: `roadmap-archive.sh` is GENERIC across all relay repos, while loderite's `tools/archive-roadmap.mjs` is repo-specific and already stub-correct — so "call `archive-roadmap.mjs`" cannot be taken literally fleet-wide. Either:
+    - **(a)** teach the generic `roadmap-archive.sh` to LEAVE a one-line stub per moved item (uniform fleet-wide behaviour, one codepath), or
+    - **(b)** have the generic script DELEGATE to a per-repo archiver when the repo provides one, generic behaviour otherwise (per-repo override seam).
+  - **Evidence bearing on the choice (fleet sweep 2026-08-13, all 51 `relay.toml` own repos)**: loderite is the ONLY repo with a per-repo archiver (`tools/archive-roadmap.mjs`) AND the ONLY repo emitting the stub suffix. So branch (b)'s "when the repo provides one" currently has EXACTLY ONE consumer (N=1) — directly relevant to the mechanize/abstraction N≥2 gate (`id:415b` determinism-gate: build the general seam when ≥2 consumers or a logged recurring cost; a single consumer argues for the simpler branch (a) or for keeping the override implicit until a second repo needs it). The already-shipped guard (`12e9825`) already hard-codes loderite's `STUB_SUFFIX` grammar, which is itself a small (b)-flavoured coupling to weigh.
+  - **Already shipped (do NOT redo)**: `12e9825` — the archived-stub-idempotence guard in `roadmap-archive.sh` + `tests/test_roadmap_archive_stub_guard.sh`, full suite green. That closed the "re-archiving an already-archived stub" recurrence; it did NOT decide (a) vs (b), which is what this item is FOR.
+  - **Scope guards**: loderite's data-restore half is its own seam `id:154a` and does NOT block this. Sibling defects in the same component: `id:7756` (mints seam ids by regexing a token out of the seam's own subject text) and `id:90d6` (splitter files executable seams under a parked heading) — related but distinct, not folded here.
+  - **On resolution**: once the owner rules (a) or (b), this becomes a normal `[HARD]`/`[ROUTINE]` build item with a RED spec authored to the CHOSEN branch. Provenance: loderite `id:2ab3`; inbound via shared inbox `routed:f833`; TODO `id:cd9c`.
+
