@@ -4033,3 +4033,27 @@ takes it in parallel. Crossing the surfaces means two sessions editing `relay-lo
   - **Tests**: `tests/test_vacuous_fixture_lint_292b.sh` (`# roadmap:292b`) — currently RED (`tests/lint-vacuous-fixtures.py` does not exist). Runs the lint over purpose-built fixture test files under `$tmpdir` (never asserts on the lint's own source text — that would be the very defect being linted).
   - **Done-check**: `tests/run-tests.sh tests/test_vacuous_fixture_lint_292b.sh`, then tick the box and run full `make test` green.
   - **Context**: sibling `tests/lint-source-grep-assertions.py` + its test `tests/test_source_grep_lint.sh` (mirror its structure); `tests/run-tests.sh` EXPECTED-RED semantics; TODO id:292b (three motivating live instances). Relates id:3a50, id:05a2.
+
+### 2026-08-13 handoff reconcile (run relay-20260813-203957-8486)
+> The unpromoted-scan flagged ~22 `promote` items, but MOST were already-fixed work whose
+> TODO checkbox merely lagged the landed fix (several fix commits landed the same day, suite
+> green 419/0/1-xred). This handoff therefore did a CROSS-LEDGER RECONCILE rather than a bulk
+> promote: **7 confirmed-done items were CLOSED in TODO.md** (each ticked with an inline
+> `CLOSED 2026-08-13 (handoff reconcile): <evidence>` note citing the fix commit + green test):
+> `id:3262` (scan-labelled 1a30; fix 347866e), `id:315c` (fix ef43739), `id:4b8f`
+> (gather-repo-state open_hard_pool), `id:aa05` (its task WAS verify+close 4b8f),
+> `id:b99f` + `id:e53a` (review-verified ad626ff), `id:f657` (verified green 0887665).
+> Only genuinely-open, cheaply-specc'able bugs are promoted below with an authored RED spec.
+> The remaining promote-ready-but-unspecced bugs (`id:9dd0` relay-events skipped-repo kind,
+> `id:dda0` fleet-aware new-id, `id:ec3c` statusline hardcoded /tmp paths, `id:331a`
+> reconcile --discard namespace, `id:8132` merged-worktree debris, `id:f544` ecce part-4
+> refusal spec, `id:7be4` wire lint-embedded-literals into integrate, `id:3986` bb32/3d78
+> residuals) stay `[ROUTINE]` in TODO.md — each needs a dedicated RED spec (git-worktree
+> fixtures or Workflow-JS static harnesses) that did not fit this turn; a follow-up handoff
+> should author them. Design-nuanced / gated / apex items (`id:5a14`, `id:d119`, `id:7e2a`,
+> `id:04d6`, `id:0bbc`) are left in TODO, never lane-guessed.
+- [x] [ROUTINE] **`classify.sh`'s GATE detector matches the bare substring `gate`, so *investigate* / *mitigate* / *aggregate* / *delegate* / *navigate* all render `[GATED]`** — the pattern `grep -qiE 'gated?|gate:|…'` has no word boundary on `gated?`, so ordinary TODO prose containing "gate" is flagged gated in every `/meeting` bucket summary. Fixed 2026-08-13: tightened to `\bgated?\b|\bgate:`. <!-- id:259f -->
+  - **Acceptance**: an item whose body merely CONTAINS a "gate"-substring word (investigate/mitigate/aggregate/delegate/navigate) yields an EMPTY gate column; a genuine gate phrase ("gated on X", "blocked on X", "reopen gate") still yields `GATED`.
+  - **Tests**: `tests/test_classify_gate_word_boundary_259f.sh` (`# roadmap:259f`) — currently RED (investigate → GATED today). Five distinct false-positive words + two distinct true-positive phrases (id:108e triangulation).
+  - **Done-check**: `tests/run-tests.sh tests/test_classify_gate_word_boundary_259f.sh`, then tick the box and run full `make test` green. Do NOT weaken `test_classify_disposition_contract_3bf3.sh` — its ungated fixtures are worded around the defect on purpose and must stay green after the fix.
+  - **Context**: fix site is the gate-text check at `meeting/classify.sh:98` — tighten to `\bgated?\b` and audit the other alternatives (`gate:` is already colon-anchored). Found during id:3bf3 C1 dispatch; single-id-two-views token id:259f spans TODO.md + ROADMAP.
