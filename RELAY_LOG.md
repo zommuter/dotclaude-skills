@@ -5628,3 +5628,7 @@ substring `gate`, so any body containing *investigate*, *mitigate*, *aggregate*,
 new test (pinning it would encode the defect as intended behaviour) and NOT fixed here (out of
 this item's scope). The new fixtures are worded around it. Owner's call whether to tighten the
 pattern to a word-boundary form.
+
+## 2026-08-13 19:12 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Handoff C2-C4: promoted 3 self-contained non-dispatch items (292b/f657/d119) with verified RED specs; minted local ids for 3 inbound items; 2 REVIEW_ME boxes; dispatch-semantics promote items left for owner per id:eb16 [id:292b,f657,d119,1f9a,dda0,0bbc]
