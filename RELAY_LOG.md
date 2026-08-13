@@ -5665,3 +5665,18 @@ id:292b already fully implemented/committed by a prior session in this worktree 
 ## 2026-08-13 20:45 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 C2: promoted routed:f833/id:cd9c (loderite archive-stub design call) into ROADMAP.md as [INPUT — decision], reusing existing TODO id (single-id-two-views), no RED spec [id:cd9c]
+
+## 2026-08-13 — executor (Sonnet) id:f657
+
+Worked id:f657 — added ARCHITECTURE.md §11 (Pool ∥ meeting: same-repo concurrent-safety
+convention), naming the three load-bearing mechanisms (distinct claim keys id:0ee1,
+ledger-only writes not lease-gated id:c144, flock+atomic commit on shared ledgers) and
+the two expected (non-defect) interactions, without restating either id's mutable
+checkbox state. `tests/test_architecture_pool_meeting_convention_f657.sh` went RED→GREEN;
+full suite 418 passed / 0 failed / 2 expected-red (id:d119 still open — its RED spec
+`test_roadmap_lint_owner_hold_d119.sh` is the unimplemented linter feature; id:292b's
+`test_vacuous_fixture_lint_292b.sh` was already GREEN from a prior session's commit
+55900b6, unticked in ROADMAP — left for the driver to tick, not re-worked here).
+Friction: none — content was well-scoped by the RED spec + existing TODO id:f657 prose
+and claim.sh's own SCOPE INVARIANT comments; no code changes, doc-only.
+refactor: none needed — a single new doc subsection, no duplication introduced.
