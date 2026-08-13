@@ -91,6 +91,8 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    lint emits nothing (clean inbox, or the inbox file does not exist), skip this block
    silently.
 
+7c. **Same-turn protocol guard (ENFORCED — `routed:29bc`).** From here until the meeting note is written, a `Stop` hook (`~/.claude/hooks/meeting-question-guard.py`) **BLOCKS** any turn that ends on ≥800 characters of prose without an `AskUserQuestion` call in that same turn. It arms itself from the transcript — there is nothing to write at setup. **Fable-class is exempt automatically** (read from the session model); pin it only if that inference could be wrong: `bash ~/.claude/hooks/meeting-guard-marker.sh start --class fable`. If a turn genuinely has no decision point and the block fires: `bash ~/.claude/hooks/meeting-guard-marker.sh disable`.
+
 ## With a subject argument
 
 1. **Warrantability self-check** (see format spec). If the request looks like a bug fix, one-liner, or already-decided feature, respond "are you sure you want a meeting?" and briefly explain why it might be overkill — before running the agenda. If it clearly passes, note that and proceed.
@@ -222,6 +224,8 @@ description: Hold a structured design meeting with multi-persona scrutiny on a n
    - *universal* → propose a concrete `~/.claude/CLAUDE.md` edit and ask approval. Do not write directly.
    - *discard* → skip.
 5. **Persona registry**: for each new ad-hoc persona introduced, ask [save to global registry / meeting-only]. On save, run `~/.claude/skills/meeting/append.sh -t personas -e "- 🔣 **Name** — one-sentence lens. Introduced YYYY-MM-DD (<project>/<meeting-slug>)."` (replace `🔣` with an appropriate emoji).
+
+6. **Release the same-turn protocol guard (setup step 7c).** Writing the meeting note in step 2 already disarms it. Run `bash ~/.claude/hooks/meeting-guard-marker.sh end` **only** if the meeting is abandoned or deferred without a note being written — otherwise this step is a no-op and can be skipped.
 
 > **IMPORTANT — end-of-meeting writes:** Always use `~/.claude/skills/meeting/append.sh -t discoveries -e "…"` or `append.sh -t personas -e "…"` for registry appends. **Never** use direct Edit or Write on `discoveries.md` or `personas.md` — those trigger a permission prompt even though Edit is generally allowlisted. `append.sh` is the allowlisted path.
 
