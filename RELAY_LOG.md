@@ -5711,3 +5711,21 @@ roadmap-lint recognizes an explicit owner-hold marker, suppressing false DEAD-GA
 ## 2026-08-13 21:42 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Chain-end review: verified id:f657 green (ARCHITECTURE §11 doc, not over-reach), closed id:292b (green on HEAD; tick was stranded on unmerged orphan) in ROADMAP+TODO; suite 418/0/2-expected-red; routine_open=1 (id:d119) [id:f657,292b]
+
+## 2026-08-13 20:40 — handoff (claude-opus-4-8, relay-loop)
+
+Cross-ledger reconcile + one promotion. The unpromoted-scan flagged ~22 `promote` items, but
+7 were already-fixed work whose TODO checkbox lagged the landed fix (fix commits 347866e/
+ef43739 landed the same day; b99f/e53a/f657 already review-verified; suite green 419/0/1-xred).
+CLOSED those 7 in TODO.md with inline dated evidence notes: id:3262 (scan-labelled 1a30),
+id:315c, id:4b8f, id:aa05, id:b99f, id:e53a, id:f657 — none had a ROADMAP twin, so no
+cross-ledger disagreement was created. Promoted the one genuinely-open, cheaply-specc'able bug
+to ROADMAP with an authored RED spec: id:259f (classify.sh GATE detector matches the bare
+substring `gate`, so investigate/mitigate/aggregate/delegate/navigate all render `[GATED]`);
+tests/test_classify_gate_word_boundary_259f.sh is RED (investigate → GATED today), 5 distinct
+false-positive words + 2 true-positive phrases (id:108e triangulation). Left promote-ready-but-
+unspecced bugs (id:9dd0/dda0/ec3c/331a/8132/f544/7be4/3986) as [ROUTINE] in TODO — each needs a
+git-worktree-fixture or Workflow-JS static harness that did not fit one turn; a follow-up handoff
+should author them (this is why the scan will still show promotable items — resumable by design).
+Design-nuanced/gated/apex items (5a14/d119/7e2a/04d6/0bbc) left in TODO, never lane-guessed.
+Friction: none. C4 skipped — no user-facing surface (infra/scripts repo).
