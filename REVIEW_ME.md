@@ -3,6 +3,20 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-13 (window `relay-ckpt-20260812-1417`..HEAD — 13 commits)
+
+Window is ledger-heavy: one `/meeting --fabled` session (`id:55f6`), two relay-script fixes
+(`ef43739`, `82643ab`), one `meeting/append.sh` fix (`89f6e1c`), and gate/handback bookkeeping.
+Suite 400 passed / 0 failed / 1 expected-red (`roadmap:6217`, still open — the red test is the
+spec). `gaming-scan.sh` clean. Cross-ledger drift clean. `actionable_routine_open` stays **0**
+after re-derivation — the gate re-target did NOT make `id:d4ca`/`id:e405` actionable
+(`resolve-gates.sh` reports `d4ca 1 ⟨empty⟩`, `e405 1 ⟨empty⟩`: block=1, zero dangling).
+
+Boxes for the human:
+
+- [ ] **Dispose the now-fully-SUPERSEDED stranded branch `relay/relay-20260812-122721-23819-review-repo-0`.** `edbc462` salvaged its content into `main` and the salvage is **complete**: `tests/test_mech_model_lint_dispatchguarded_ed3f.sh` is byte-identical between the branch and `main` (`git diff --numstat main..<branch> -- <that file>` is empty) and the REVIEW_ME install-drift box it carried is present and already ticked. Everything the branch still shows as "branch-only" is superseded OLDER text (`id:d4ca`/`id:e405` pre-re-target, `id:8df5` pre-update, `id:02b2`/`id:99e5` pre-gate) that `main` has since moved past. So the ref holds nothing unique, yet `relay-doctor` keeps listing it as STRANDED every run. **Why this is yours and not mine:** `/relay reconcile` is human-invoked by design and is NEVER auto-triggered, and disposal is a `git branch -D` behind `RELAY_DISCARD_CONFIRM=1`. Recommended: `RELAY_DISCARD_CONFIRM=1 relay/scripts/relay-reconcile.sh --discard relay/relay-20260812-122721-23819-review-repo-0`. This is exactly the SUPERSEDED-orphan class `classify_orphan` cannot detect (the open item at `TODO.md`'s Run-72 section) — a live instance of it, which is worth noting when that item is worked. <!-- id:aeac -->
+- [ ] **`edbc462`'s salvage correctly dropped the `id:ed3f` ROADMAP hunk — no action needed; noted only for the over-reach it concealed.** My first pass called this a possible gap because I grepped only `ROADMAP.md`; **that was wrong** — `id:ed3f` is `- [x]` at `ROADMAP.archive.md:3999`, so the item was legitimately closed and archived and re-adding an open hunk would have been the error. The salvaged test passes, and by genuine implementation (`5c425fc` really did teach the linter `dispatchGuarded`; the test was not weakened — verified byte-identical to the branch copy). The one residue worth your eye: the salvaged spec prose contains the clause that `id:3d78` now flags — the ratified text says `agentGuarded`/`safeAgent` *"do not exist — do not invent matchers for them"* while the shipped linter matches both. The spec came back without a live item, so nothing was positioned to notice the contradiction; `id:3d78` is now that item. Also stale-but-harmless: the test's header still says "EXPECTED-RED until id:ed3f is ticked in ROADMAP.md" — `run-tests.sh` greps `ROADMAP.md`, where `ed3f` no longer appears, so a future regression counts as a REAL failure rather than being masked. <!-- id:3d78 -->
+
 ## Review 2026-08-12 (chain-end re-ask, window `relay-ckpt-20260812-0915`..HEAD — id:8123)
 
 Window carries **no executor code/test work**: 9 mechanical inbox ingests (`id:678e`, cross-project routed items appended to `TODO.md`), one `meeting/personas.md` Ada extension (`e601f79`, from escapement id:4982 — a non-destructive in-place persona edit, not gaming), and the archive move of the three already-verified provisioning-cluster closes (`76d2`/`9834`/`3222`, PASS'd by the prior review `e3ff3ec`). `gaming-scan.sh` clean; cross-ledger `orphan-scan` clean; contract pointer v11 == canonical v11; full `tests/run-tests.sh` **394 passed, 0 failed, 2 expected-red**. Nothing to reopen.
