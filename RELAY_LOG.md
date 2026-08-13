@@ -5532,3 +5532,7 @@ refactor: none needed — audit is a read + document unit; no code changed, so n
 ## 2026-08-12 14:17 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 audit(relay): Run 72 strong-model audit (id:401c) over 0454e8f..HEAD — code+security clean, 1 coherence finding tracked (stale gated-on:33b2,93ac on d4ca/e405); suite 394/0/1-xred [id:401c]
+
+## 2026-08-13 16:18 — reviewer (claude-opus-5)
+
+review: window relay-ckpt-20260812-1417..HEAD (13 commits, 8 more than the brief stated). gaming-scan clean; suite 400/0/1-xred; cross-ledger clean; actionable_routine_open=0 (unchanged — gate re-target verified NOT actionable: resolve-gates d4ca/e405 block=1 zero-dangling). 9 findings filed, 2 REAL BUGS in 82643ab (id:b99f live-runs JSON vs bare-token grep => live runs mislabelled STRANDED, proven empirically; id:e53a stranded hidden when orphans present); test-integrity finding id:3a50 (315c test passes against a functionally-disabled fix, mutation-tested). 55f6/c74e meeting ledger fidelity VERIFIED. routed:832e adopted.
