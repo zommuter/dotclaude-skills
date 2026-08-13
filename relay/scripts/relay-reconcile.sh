@@ -199,17 +199,38 @@ main_ref() {
 # durable fix (park a conflict-handback branch into relay/orphan/ at abort, so the existing
 # consume path finds it) belongs in the integrator and is deliberately NOT done here.
 #
-# A run is "alive" iff heartbeat.sh live-runs names it. FAIL-SAFE: if heartbeat cannot be read
-# we treat every run as ALIVE, so a live pool's in-flight branches are never reported as
-# stranded. Stderr is deliberately not swallowed.
+# A run is "alive" iff heartbeat.sh live-runs names it. `live-runs` emits one compact JSON
+# OBJECT per alive marker (`{"runId":"relay-…","pid":…,"state":"alive"}`) — NOT a bare runId —
+# so the runId must be read out of the `.runId` FIELD (id:b99f: a whole-line `grep -qxF` against
+# the JSON can never match, which made every unmerged branch report STRANDED even mid-round).
+#
+# FAIL-SAFE: if heartbeat cannot be read AT ALL (missing/not executable, non-zero exit, or
+# unparseable JSON) we treat every run as ALIVE and report NOTHING. Direction chosen
+# deliberately: the recommended disposition for a STRANDED branch is `--discard`, so a FALSE
+# stranded points a human at live in-flight work (destructive, irreversible), while a false
+# clean only misses a surfacing (the refs persist and the next pass finds them). An EMPTY
+# live-runs output is not "unreadable" — it is a successful answer meaning "no run is alive",
+# and stranded branches are reported normally.
+#
+# heartbeat's stderr is deliberately NOT swallowed (no-silent-swallow, id:4347): `live-runs` is
+# silent on a healthy registry, so nothing is spammed on a normal run, and a real registry
+# fault must be visible to the human doing the reconcile rather than masked into a false clean.
 list_stranded() {
-  local r="${1:?list_stranded <repo-path>}" hb live_runs="" trunk br sha subj runid
-  hb="$(dirname "${BASH_SOURCE[0]}")/heartbeat.sh"
-  if [ -x "$hb" ]; then
-    live_runs="$("$hb" live-runs 2>/dev/null || true)"
-  else
+  local r="${1:?list_stranded <repo-path>}" hb live_runs="" live_ids="" trunk br sha subj runid
+  hb="$HEARTBEAT"
+  if [ ! -x "$hb" ]; then
     echo "list_stranded: heartbeat.sh not executable at $hb — treating all runs as ALIVE (no stranded branches reported)" >&2
     return 0
+  fi
+  if ! live_runs="$("$hb" live-runs)"; then
+    echo "list_stranded: heartbeat.sh live-runs failed — treating all runs as ALIVE (no stranded branches reported)" >&2
+    return 0
+  fi
+  if [ -n "$live_runs" ]; then
+    if ! live_ids="$(printf '%s\n' "$live_runs" | jq -r '.runId // empty')"; then
+      echo "list_stranded: could not parse heartbeat live-runs JSON — treating all runs as ALIVE (no stranded branches reported)" >&2
+      return 0
+    fi
   fi
   trunk="$(main_ref "$r")" || return 0
   while IFS= read -r br; do
@@ -219,7 +240,8 @@ list_stranded() {
     runid="${br#relay/}"
     case "$runid" in relay-*) ;; *) continue ;; esac        # not a run-scoped branch, leave it
     runid="$(printf '%s' "$runid" | sed -E 's/-[a-z]+-[^-]+-[0-9]+$//')"
-    if printf '%s\n' "$live_runs" | grep -qxF "$runid"; then continue; fi   # owning run still alive
+    # owning run still alive (match against the runId FIELD, never the whole JSON line)
+    if [ -n "$live_ids" ] && printf '%s\n' "$live_ids" | grep -qxF "$runid"; then continue; fi
     # Only report branches that actually carry work the trunk lacks.
     if [ "$(git -C "$r" rev-list --count "$trunk..$br" 2>/dev/null || echo 0)" -eq 0 ]; then continue; fi
     sha="$(git -C "$r" rev-parse --short "$br" 2>/dev/null || echo '???????')"
@@ -508,15 +530,22 @@ case "$action" in
     # id:2b4b — computed BEFORE the early return, so the no-orphans path still surfaces
     # stranded conflict-handback branches instead of reporting a false clean.
     stranded="$(list_stranded "$repo")"
+    n_stranded="$(printf '%s' "$stranded" | grep -c . || true)"
+    # id:e53a — the stranded section is printed on BOTH branches. It used to live only inside
+    # the no-orphans early return, so a single parked orphan silently hid every stranded
+    # branch — and the mixed case (some parked AND some stranded) is exactly what a real
+    # recovery session hits, i.e. the id:2b4b surfacing vanished precisely when it was needed.
+    print_stranded() {
+      [ -n "$stranded" ] || return 0
+      echo ""
+      echo "STRANDED (unmerged, owning run not alive, NOT parked — id:2b4b):"
+      printf '%s\n' "$stranded"
+      echo "NOT auto-disposable here; inspect, then salvage or park."
+    }
     if [ -z "$orphans" ]; then
       echo "no parked orphans"
-      if [ -n "$stranded" ]; then
-        echo ""
-        echo "STRANDED (unmerged, owning run not alive, NOT parked — id:2b4b):"
-        printf '%s\n' "$stranded"
-        echo "NOT auto-disposable here; inspect, then salvage or park."
-      fi
-      log "list repo=$repo orphans=0 stranded=$(printf '%s' "$stranded" | grep -c . || true)"
+      print_stranded
+      log "list repo=$repo orphans=0 stranded=$n_stranded"
       exit 0
     fi
     n=0
@@ -528,7 +557,8 @@ case "$action" in
       n=$((n+1))
     done <<<"$orphans"
     echo "$n parked orphan(s) — integrate | discard | leave  (relay-reconcile.sh --integrate|--discard <branch>)"
-    log "list repo=$repo orphans=$n"
+    print_stranded
+    log "list repo=$repo orphans=$n stranded=$n_stranded"
     ;;
 
   discard)
