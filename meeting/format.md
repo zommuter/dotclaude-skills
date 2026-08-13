@@ -146,7 +146,14 @@ At each decision point:
 3. The user answers in prose in the next turn. Quote their answer **VERBATIM** in the meeting note as the `**Decision provenance:**` ratification marker for that decision (see Decisions template below).
 4. Do **NOT** call `AskUserQuestion` at meeting decision points on Fable.
 
-### Default protocol (Sonnet / Opus / Haiku)
+### Default protocol (Sonnet / Opus / Haiku) — MECHANICALLY ENFORCED
+
+> **This section is enforced by a `Stop` hook, not by your good intentions.**
+> `~/.claude/hooks/meeting-question-guard.py` BLOCKS any turn between `/meeting` and the
+> meeting note that ends on ≥800 characters of prose with no `AskUserQuestion` in the same
+> turn (`routed:29bc` — the prose rule below was violated across multiple sessions and
+> models, so it stopped being prose). **Fable-class runs are exempt** — the inline-prose
+> protocol above is their spec, and the guard reads the harness class before firing.
 
 1. The skill accumulates the meeting transcript in the plan file turn-by-turn during plan mode.
 2. At each natural user decision point (roughly every 4–8 exchanges), the skill emits the transcript chunk **and** calls `AskUserQuestion` **in the same response** — never end a turn on bare prose and send the question in a subsequent turn:

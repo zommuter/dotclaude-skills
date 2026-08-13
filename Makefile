@@ -278,6 +278,8 @@ install-hooks: install-statusline
 	@ln -sf $(SRC_DIR)/hooks/parallel-edit-detector.py $(HOOKS_DIR)/parallel-edit-detector.py
 	@ln -sf $(SRC_DIR)/hooks/pathspec-drop-guard.py $(HOOKS_DIR)/pathspec-drop-guard.py
 	@ln -sf $(SRC_DIR)/hooks/memory-index-sync.py $(HOOKS_DIR)/memory-index-sync.py
+	@ln -sf $(SRC_DIR)/hooks/meeting-question-guard.py $(HOOKS_DIR)/meeting-question-guard.py
+	@ln -sf $(SRC_DIR)/hooks/meeting-guard-marker.sh $(HOOKS_DIR)/meeting-guard-marker.sh
 	@ln -sf $(SRC_DIR)/hooks/notify-hook.linux-x11.sh $(HOME)/.claude/notify-hook.sh
 
 # Privacy pre-push gate (id:ebd0): wire the WARN+LOG leak scanner into git's GLOBAL
