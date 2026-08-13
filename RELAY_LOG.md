@@ -5680,3 +5680,7 @@ full suite 418 passed / 0 failed / 2 expected-red (id:d119 still open — its RE
 Friction: none — content was well-scoped by the RED spec + existing TODO id:f657 prose
 and claim.sh's own SCOPE INVARIANT comments; no code changes, doc-only.
 refactor: none needed — a single new doc subsection, no duplication introduced.
+
+## 2026-08-13 21:19 — executor (sonnet, relay-loop)
+
+Added ARCHITECTURE.md §11 recording the pool ∥ meeting same-repo concurrent-safety convention (id:f657); RED spec went green, full suite 418/0/2-expected-red. [id:f657]
