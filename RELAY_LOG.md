@@ -5558,3 +5558,22 @@ reopened.
 ## 2026-08-13 18:21 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: 16:18-findings fixes (b99f/e53a/3a50/15f3) verified non-gamed; suite 411/0/1-xred; cross-ledger clean; routine_open=0 [id:b99f,e53a,3a50,15f3]
+
+## 2026-08-13 — hard-execute (claude-opus-4-8, relay-loop)
+
+Worked id:5b12 (seam of id:ae08) — tick-ownership inversion. Bumped the executor contract
+v11→v12: execute/hard children no longer tick their own ROADMAP.md checkbox — they return
+worked_ids and the serialized integrator ticks the box in the canonical checkout via a new
+`relay/scripts/roadmap-tick.sh` (idempotent, flock'd; ticks `- [ ]`→`- [x]` by worked id,
+never edits an item body). Added the driver-tick step to relay-loop.js's integrate path,
+gated to execute/hard (review/handoff keep self-ticking in their own merged worktree, since
+their reopen/verify semantics differ and they run as barriers, not N-wide). Updated the hard
+child prompt to defer ticking to the driver, and the CLAUDE.md pointer + Layout table to v12.
+Asserted by `tests/test_relay_driver_ticks.sh` over BOTH the contract text and the integrate
+path; the helper is exercised end-to-end by `tests/test_roadmap_tick.sh` (7/7). Registered
+the new script in the Makefile relay_FILES/_EXEC/_ALLOW manifest (caught by
+test_relay_install_manifest.sh). refactor: none needed — additive helper + a bounded
+integrate step; no existing duplication to fold. Friction: none. Transition is safe because
+roadmap-tick.sh is idempotent, so an in-flight v11 executor that still self-ticks plus the new
+integrator tick is a harmless double-flip. Note: this seam only inverts tick OWNERSHIP; the
+disjoint-greenlight/drain-integrate wiring (sibling seams id:02b2/id:99e5) is out of scope.
