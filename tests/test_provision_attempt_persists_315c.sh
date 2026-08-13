@@ -30,6 +30,12 @@ node --check "$JS" || fail "relay-loop.js fails node --check"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
+# SECTIONS 1-4 ARE SOURCE-SHAPE GUARDS, NOT BEHAVIOURAL ASSERTIONS (id:3a50). They grep
+# relay-loop.js and would stay green against code whose fix is functionally disabled — that is
+# exactly the defect id:3a50 records. They are kept only as cheap "the fix was not deleted /
+# not widened into a loop" tripwires. The behavioural claim is carried by section 5, which
+# EXTRACTS AND RUNS the real relay-loop.js source of provisionWorktree.
+
 # ── (1) a run-scoped watermark exists and is keyed WITHOUT attempt ───────────────────────
 grep -q 'attemptSeq' "$JS" \
   || fail "no run-scoped attempt watermark — a fresh unit each round still restarts at 0 (THE DEFECT)"
@@ -61,58 +67,144 @@ grep -q 'recordAgentFailure' <<<"$prov" \
   || fail "provisionWorktree no longer records its failure (id:06a1 silent-swallow)"
 pass "the retry is still single-bump and still records a failure"
 
-# ── (5) BEHAVIOURAL: simulate the multi-round sequence the incident showed ───────────────
-# Extract the real helpers and drive them the way the loop does: a FRESH unit object each
-# round (as discovery produces), against a set of branch names already taken on disk.
-cat > "$tmpdir/sim.js" <<'JS'
-const dispatchItemFor = (u) => u.itemId || ''
-const unitKey = (u) => `${u.verdict}-${u.itemId || 'repo'}-${u.attempt || 0}`
-const state = { runId: 'run1' }
-const branchFor = (unit) => `relay/${state.runId}-${unitKey({ verdict: unit.verdict, itemId: dispatchItemFor(unit), attempt: unit.attempt || 0 })}`
+# ── (5) BEHAVIOURAL: run the REAL relay-loop.js provisionWorktree over 8 rounds ──────────
+#
+# This section previously wrote a hand-copied COPY of the fix into a sim.js and ran THAT
+# (id:3a50): production `provisionWorktree` was never executed, and the vacuity guard mutated
+# the copy, so the whole section proved only that the copy was self-consistent. Mutation-tested
+# 2026-08-13: `if (false && seeded > (unit.attempt || 0)) unit.attempt = seeded` in
+# relay-loop.js still yielded ALL PASS.
+#
+# It now EXTRACTS THE REAL SOURCE REGION out of relay/scripts/relay-loop.js — unitKey,
+# worktreePathFor, branchFor, attemptSeq/attemptSeqKey and the whole `async function
+# provisionWorktree` body, verbatim — evaluates it in a `vm` context, and drives it exactly as
+# the loop does: a FRESH unit object per round (as discovery produces, with no `attempt`
+# field), against branch names that persist on "disk" across rounds. relay-loop.js is a
+# Workflow script that cannot be `require`d (no module.exports, closes over engine globals),
+# so textual extraction is the same mechanism tests/test_unit_identity_key_923b.sh already
+# uses for unitKey.
+#
+# WHAT THIS COVERS: the real seed/bump/persist logic of the shipped provisionWorktree, its
+# real branch-name derivation, its single-bump bound, and its fail-closed PROVISION-OK check.
+# WHAT IT DOES NOT COVER (honest limits): the `agent()` hop, provision-worktree.sh itself, and
+# git are STUBBED — the stub only decides "this branch name is already taken" and returns the
+# real `fatal: a branch named … already exists` / `PROVISION-OK` strings; `dispatchItemFor`,
+# `log`, `recordAgentFailure`, `state` and `MECH_MODEL` are stubs too. So this proves the
+# watermark logic in the shipped file, NOT that a real worktree gets created on disk.
+# The extraction fails LOUDLY if the markers move, rather than silently testing nothing.
+cat > "$tmpdir/drive.mjs" <<'MJS'
+import fs from 'node:fs'
+import vm from 'node:vm'
 
-// The fix under test, mirrored: a run-scoped watermark keyed attempt-lessly.
-const attemptSeq = Object.create(null)
-const attemptSeqKey = (unit) => `${unit.repo}|${unit.verdict}|${dispatchItemFor(unit) || 'repo'}`
+const [file, mutation = 'none'] = process.argv.slice(2)
+const src = fs.readFileSync(file, 'utf8')
+const die = (m) => { console.error('EXTRACT-FAIL: ' + m); process.exit(2) }
 
-const taken = new Set()          // branches that exist on disk (survive across rounds)
-function provision(unit, isRetry) {
-  if (!isRetry) {
-    const seeded = attemptSeq[attemptSeqKey(unit)] || 0
-    if (seeded > (unit.attempt || 0)) unit.attempt = seeded
-  }
-  const b = branchFor(unit)
-  if (taken.has(b)) {
-    if (isRetry) return false                       // single-bump budget exhausted
-    unit.attempt = unit.attempt ? unit.attempt + 1 : 1
-    attemptSeq[attemptSeqKey(unit)] = unit.attempt
-    return provision(unit, true)
-  }
-  taken.add(b)                                       // a successful provision creates the branch
-  attemptSeq[attemptSeqKey(unit)] = unit.attempt || 0
-  return true
+// --- extract the REAL source spans -------------------------------------------------------
+const lines = src.split('\n')
+const oneLine = (re, what) => {
+  const hits = lines.filter((l) => re.test(l))
+  if (hits.length !== 1) die(`expected exactly 1 line matching ${what}, found ${hits.length}`)
+  return hits[0]
+}
+const unitKeyLine   = oneLine(/^const unitKey = \(/, 'const unitKey =')
+const worktreeLine  = oneLine(/^const worktreePathFor = \(/, 'const worktreePathFor =')
+const branchLine    = oneLine(/^const branchFor = \(/, 'const branchFor =')
+const seqLine       = oneLine(/^const attemptSeq = /, 'const attemptSeq =')
+const seqKeyLine    = oneLine(/^const attemptSeqKey = /, 'const attemptSeqKey =')
+
+const startIdx = src.indexOf('\nasync function provisionWorktree(')
+if (startIdx < 0) die('no top-level `async function provisionWorktree(` in ' + file)
+const endIdx = src.indexOf('\n}\n', startIdx)
+if (endIdx < 0) die('could not find the closing brace of provisionWorktree')
+let prov = src.slice(startIdx + 1, endIdx + 3)
+if (!/return true\s*\n\}/.test(prov)) die('extracted provisionWorktree does not end in `return true }` — extraction is wrong')
+
+// --- MUTATIONS applied to the REAL source (this is what makes the test non-vacuous) -------
+const mutate = (text, re, replacement, what) => {
+  const hits = text.split('\n').filter((l) => re.test(l))
+  if (hits.length !== 1) die(`mutation "${what}": expected exactly 1 matching line, found ${hits.length} — the implementation moved, re-derive this test`)
+  return text.split('\n').map((l) => (re.test(l) ? replacement : l)).join('\n')
+}
+if (mutation === 'seed') {
+  // neuter the seed, keeping every identifier the sections 1-4 greps look for
+  prov = mutate(prov, /unit\.attempt = seeded/, '    // MUTATED: seed disabled', 'seed')
+} else if (mutation === 'persist') {
+  prov = mutate(prov, /attemptSeq\[attemptSeqKey\(unit\)\] *= *[^|]*$/, '      // MUTATED: bump not persisted', 'persist')
+} else if (mutation !== 'none') {
+  die('unknown mutation ' + mutation)
 }
 
-const failures = []
+const region = [unitKeyLine, worktreeLine, branchLine, seqLine, seqKeyLine, prov].join('\n')
+
+// --- stubs (see the honest-limits note in the test file) ----------------------------------
+const taken = new Set()      // branch names that exist on "disk"; they survive across rounds
+const paths = new Set()
+let agentCalls = 0
+const sandbox = {
+  console,
+  state: { runId: 'relay-20260101-000000-1234' },
+  MECH_MODEL: 'bash',
+  dispatchItemFor: (u) => u.inject_item || '',        // STUB of the real ledger-reading helper
+  log: () => {},
+  failures: [],
+  recordAgentFailure: (...a) => { sandbox.failures.push(a) },
+  agent: async (prompt) => {
+    agentCalls++
+    const m = /provision-worktree\.sh\s+(\S+)\s+(\S+)\s+(\S+)/.exec(String(prompt))
+    if (!m) { console.error('STUB-FAIL: provisionWorktree did not invoke provision-worktree.sh with 3 args'); process.exit(2) }
+    const [, , wt, branch] = m
+    if (taken.has(branch)) return `fatal: a branch named '${branch}' already exists`
+    taken.add(branch); paths.add(wt)
+    return 'PROVISION-OK'
+  },
+}
+sandbox.globalThis = sandbox
+vm.createContext(sandbox)
+vm.runInContext(region, sandbox, { filename: 'relay-loop-region.js' })
+if (typeof sandbox.provisionWorktree !== 'function') die('provisionWorktree did not evaluate to a function')
+
+// --- drive the incident sequence: 8 rounds, a FRESH unit each round ------------------------
+const failedRounds = []
+const perRoundCalls = []
 for (let round = 1; round <= 8; round++) {
-  const unit = { repo: 'loderite', verdict: 'review', itemId: '' }   // FRESH each round, no attempt
-  if (!provision(unit)) failures.push(round)
+  const before = agentCalls
+  const unit = { repo: 'loderite', verdict: 'review', path: '/fixture/loderite' }  // no `attempt`
+  const ok = await sandbox.provisionWorktree(unit)
+  perRoundCalls.push(agentCalls - before)
+  if (!ok) failedRounds.push(round)
 }
-if (failures.length) {
-  console.error('provision failed in rounds: ' + failures.join(','))
+if (failedRounds.length) {
+  console.error('provision failed in rounds: ' + failedRounds.join(',') + ' (agent calls/round: ' + perRoundCalls.join(',') + ')')
   process.exit(1)
 }
-console.log('8 rounds, 0 provision failures')
-JS
-node "$tmpdir/sim.js" > "$tmpdir/out" 2>&1 \
-  || { echo "FAIL: the multi-round sequence still starves the repo:"; sed 's/^/    /' "$tmpdir/out"; exit 1; }
-pass "8 consecutive rounds provision successfully (the incident sequence)"
+const worst = Math.max(...perRoundCalls)
+if (worst > 2) {
+  console.error('a round needed ' + worst + ' provision attempts — the id:9834 single-bump bound was widened')
+  process.exit(1)
+}
+if (taken.size !== 8) { console.error('expected 8 distinct branches, got ' + taken.size); process.exit(1) }
+if (paths.size !== 8) { console.error('expected 8 distinct worktree paths, got ' + paths.size); process.exit(1) }
+console.log('8 rounds, 0 provision failures, max ' + worst + ' attempts in any round')
+MJS
 
-# The same simulation WITHOUT the watermark must fail — proving the test can actually detect
-# the defect rather than passing vacuously.
-sed 's/^    const seeded = attemptSeq.*$/    const seeded = 0/' "$tmpdir/sim.js" > "$tmpdir/sim-broken.js"
-if node "$tmpdir/sim-broken.js" >/dev/null 2>&1; then
-  fail "the simulation passes even WITHOUT the watermark — it does not actually test the defect"
-fi
-pass "the same simulation without the watermark fails (the test is not vacuous)"
+node "$tmpdir/drive.mjs" "$JS" > "$tmpdir/out" 2>&1 \
+  || { echo "FAIL: the REAL provisionWorktree still starves the repo across rounds:"; sed 's/^/    /' "$tmpdir/out"; exit 1; }
+pass "8 consecutive rounds provision successfully against the real relay-loop.js source ($(cat "$tmpdir/out"))"
+
+# MUTATION GUARD — mutate the REAL source region (not a copy of it) and require a FAIL.
+# `seed` reproduces the exact mutation that fooled the old section 5; `persist` kills the
+# cross-round write. An EXTRACT-FAIL (exit 2) is itself a failure: it means the mutation no
+# longer matched, so the guard would have been proving nothing.
+for m in seed persist; do
+  if node "$tmpdir/drive.mjs" "$JS" "$m" > "$tmpdir/mut" 2>&1; then
+    fail "mutation '$m' of the REAL relay-loop.js source still passed — this test is vacuous"
+  fi
+  if grep -q 'EXTRACT-FAIL\|STUB-FAIL' "$tmpdir/mut"; then
+    sed 's/^/    /' "$tmpdir/mut"
+    fail "mutation '$m' failed for the WRONG reason (extraction/stub broke, not the behaviour)"
+  fi
+  pass "mutating the real source ('$m') makes this test FAIL — it is not vacuous"
+done
 
 echo "ALL PASS: the attempt watermark survives across rounds (315c)"
