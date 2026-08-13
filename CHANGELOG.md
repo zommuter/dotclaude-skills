@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-13
+
+- review: 16:18-findings fixes (b99f/e53a/3a50/15f3) verified non-gamed; suite 411/0/1-xred; cross-ledger clean; routine_open=0 (id:b99f,e53a,3a50,15f3)
+
 ## 2026-08-12
 
 - Wired recordAgentFailure() into the three previously-silent mechanical-hop parse sites (quota, inject-take, discover-prelude) so id:06a1's accumulator no longer under-reports; full suite 390/0/1-expected-red. (id:a104)
