@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// lint-mech-model.mjs (id:4313) — every dispatch call (`agent()`, or one of its guarded
-// wrappers — `dispatchGuarded`/`agentGuarded`/`safeAgent`, id:ed3f) in a Workflow JS script
+// lint-mech-model.mjs (id:4313) — every dispatch call (`agent()`, or its guarded
+// wrapper `dispatchGuarded`, id:ed3f — the only one in the tree, id:3d78) in a Workflow JS script
 // that carries a ```relay-mech fenced command must dispatch with `model: MECH_MODEL`, never a
 // literal model name ('bash', 'haiku', …). MECH_MODEL resolves to 'bash' under a healthy proxy
 // and 'haiku' under probe mode-a (id:4239) — a hop hardcoding either literal breaks the OTHER
@@ -49,14 +49,22 @@ const DIVISION_AFTER = (c) => isWordChar(c) || c === ')' || c === ']'
 const regexAllowed = (prevSig) => prevSig === '' || !DIVISION_AFTER(prevSig)
 
 // Call identifiers that dispatch a hop and so are in scope for this lint: the bare `agent`
-// call, plus the guarded wrappers that route a fence-carrying prompt through `agent()`
+// call, plus the guarded wrapper that routes a fence-carrying prompt through `agent()`
 // internally without the literal text `agent(` at the call site itself (id:ed3f —
 // `dispatchGuarded` moved `releaseLease`'s fence dispatch out of a bare `agent(` call, and a
-// linter matching only `agent` silently stopped covering that hop). All three share the same
+// linter matching only `agent` silently stopped covering that hop). Both share the same
 // (opts-ish-first-or-last, prompt) shape closely enough that substring-searching the raw call
 // text for the fence marker and the `model:` property (below) works unchanged regardless of
 // argument order.
-const AGENT_CALL_IDENTIFIERS = new Set(['agent', 'dispatchGuarded', 'agentGuarded', 'safeAgent'])
+//
+// id:3d78 — this set TRACKS THE TREE; it does not speculate. The ratified id:ed3f spec says
+// verbatim: "`dispatchGuarded` is the ONLY such wrapper in the tree today
+// (`agentGuarded`/`safeAgent` do not exist — do not invent matchers for them)". `5c425fc`
+// shipped them anyway — inert (they match nothing), so a green suite never surfaced it, but a
+// derived implementation contradicting its ratified source in the permissive direction. A new
+// wrapper earns a matcher when it EXISTS, added together with the spec amendment.
+// Pinned by tests/test_mech_model_lint_identifier_set_3d78.sh in BOTH directions.
+const AGENT_CALL_IDENTIFIERS = new Set(['agent', 'dispatchGuarded'])
 
 // Find every top-level guarded-dispatch CALL in `src` — i.e. one of AGENT_CALL_IDENTIFIERS, not
 // preceded by a word char or `.` (so `someAgent(` / `x.agent(` never match), immediately

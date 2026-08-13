@@ -346,7 +346,10 @@ typed_edges_build_state_map RL_GATE_ARCHIVE "$_rl_dir/TODO.archive.md"
 for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   line="${_rl_lines[$_rl_i]}"
   # Track the active/exempt section from headings.
-  if [[ "$line" =~ ^##+[[:space:]] ]]; then
+  # id:bb32 — heading recognition comes from lib-roadmap-sections.sh (H1..H6). This used
+  # to be a local `^##+[[:space:]]`, which made an H1 `# Gated / deferred` parked for
+  # gather-repo-state.sh's counter and NOT for this lint.
+  if is_heading_line "$line"; then
     if is_exempt_heading "$line"; then
       in_exempt_section=1; heading_is_item=0
     else

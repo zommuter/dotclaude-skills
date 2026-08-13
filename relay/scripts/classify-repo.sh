@@ -24,6 +24,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# id:bb32 — the SHARED parked-section predicate. Sourced (not re-implemented) so the
+# embedded python below can read ROADMAP_PARKED_HEADING_VOCAB / ROADMAP_HEADING_LINE_PCRE
+# from the environment: one definition for the bash readers AND the python one.
+# shellcheck source=lib-roadmap-sections.sh
+source "$SCRIPT_DIR/lib-roadmap-sections.sh"
+
 GATHER="$SCRIPT_DIR/gather-repo-state.sh"
 SCAN="$SCRIPT_DIR/unpromoted-scan.sh"
 CLASSIFY="$SCRIPT_DIR/classify-verdict.sh"
@@ -146,19 +152,26 @@ actionable_routine_ids = []
 open_mechanical = 0
 surfaced_open = 0   # id:65f5 class 3: open executor-lane items carrying `⚠ SURFACED`
 
-# id:356f — whole-section gating, mirroring roadmap-lint.sh's `is_exempt_heading`
-# (roadmap-lint.sh:158-167) EXACTLY: a `##`/`###` heading whose text matches
-# (case-insensitive) gated|deferred|done|icebox|archive|parked opens an exempt
-# section; any other `##`/`###` heading closes it. While in an exempt section, an
-# open [ROUTINE] line must not count toward actionable_routine_open / roadmap_actionable_open
+# id:356f — whole-section gating: a heading whose text names a parked bucket opens an
+# exempt section; any other heading closes it. While in an exempt section, an open
+# [ROUTINE] line must not count toward actionable_routine_open / roadmap_actionable_open
 # / open_mechanical — parked is parked for all lanes.
-_EXEMPT_HEADING_RE = re.compile(r"(gated|deferred|done|icebox|archive|parked)", re.IGNORECASE)
+#
+# id:bb32 — the two patterns are READ from the shared bash lib (lib-roadmap-sections.sh,
+# sourced by this script and exported into the environment), never retyped here. A
+# retyped python copy is invisible to a bash-function-name grep, which is precisely how
+# the third copy of this predicate survived `ef43739`'s "one definition" claim — and it
+# had already drifted (this reader ignored an H1 `# Gated / deferred` that
+# gather-repo-state.sh honoured). KeyError on a missing env var is deliberate: a LOUD
+# failure beats silently falling back to a local copy.
+_EXEMPT_HEADING_RE = re.compile(os.environ["ROADMAP_PARKED_HEADING_VOCAB"], re.IGNORECASE)
+_HEADING_LINE_RE   = re.compile(os.environ["ROADMAP_HEADING_LINE_PCRE"])
 
 if os.path.isfile(rm):
     in_exempt_section = False
     with open(rm, errors="replace") as f:
         for ln in f:
-            if re.match(r"##+\s", ln):
+            if _HEADING_LINE_RE.match(ln):
                 in_exempt_section = bool(_EXEMPT_HEADING_RE.search(ln))
                 continue
             if not re.match(r"\s*- \[ \] ", ln):
