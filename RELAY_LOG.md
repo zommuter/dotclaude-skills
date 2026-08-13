@@ -5729,3 +5729,7 @@ git-worktree-fixture or Workflow-JS static harness that did not fit one turn; a 
 should author them (this is why the scan will still show promotable items — resumable by design).
 Design-nuanced/gated/apex items (5a14/d119/7e2a/04d6/0bbc) left in TODO, never lane-guessed.
 Friction: none. C4 skipped — no user-facing surface (infra/scripts repo).
+
+## 2026-08-13 22:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Handoff: cross-ledger reconcile — closed 7 already-landed items in TODO, promoted id:259f to ROADMAP with RED spec (classify.sh gate substring FP) [id:259f,3262,315c,4b8f,aa05,b99f,e53a,f657]
