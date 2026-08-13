@@ -11,6 +11,7 @@
 
 - review: 16:18-findings fixes (b99f/e53a/3a50/15f3) verified non-gamed; suite 411/0/1-xred; cross-ledger clean; routine_open=0 (id:b99f,e53a,3a50,15f3)
 - Invert ROADMAP tick ownership: driver ticks from worked_ids via roadmap-tick.sh; executor-contract v11→v12 (id:5b12) (id:5b12)
+- Handoff C2-C4: promoted 3 self-contained non-dispatch items (292b/f657/d119) with verified RED specs; minted local ids for 3 inbound items; 2 REVIEW_ME boxes; dispatch-semantics promote items left for owner per id:eb16 (id:292b,f657,d119,1f9a,dda0,0bbc)
 
 ## 2026-08-12
 
