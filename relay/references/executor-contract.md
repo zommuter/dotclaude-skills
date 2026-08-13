@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v11 -->
+## Executor contract <!-- relay-executor contract v12 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -21,6 +21,15 @@ you were told you are the reviewer) follow these rules:
 2. **Definition of done**: the item's previously-failing tests pass, a refactor
    pass is done (and **reported** via the `refactor:` self-report line, rule 4), and
    the FULL test suite is green. Nothing else counts.
+   - **Driver ticks, not you (v12, id:5b12)**: when the item is done, DO NOT tick its
+     `- [ ]` → `- [x]` checkbox in `ROADMAP.md` yourself. Return the item's 4-hex id in
+     `worked_ids` and the **serialized integrator** ticks the box in the canonical checkout
+     after your branch merges (`relay/scripts/roadmap-tick.sh`, driven from the integrate
+     path). This is the one-writer inversion (meeting 2026-07-26-1922 D1): N parallel
+     execute worktreees must not each edit the non-union checkbox line (`id:dc5b` C2), so the
+     single integrator owns the tick. Your DoD is the green suite + the returned id — the
+     checkbox flip is the driver's job, and it is idempotent, so a stray tick you leave does
+     no harm but is not required and not your responsibility.
    - **Host gate (multi-host config monorepos only, id:43b9)**: if the item carries a
      `[host:<name>]` tag (e.g. `[host:zomni]`/`[host:fievel]`; absent ⇒ `host:any` ⇒ this
      gate is a no-op, which is every ordinary single-host repo), run
@@ -85,8 +94,8 @@ you were told you are the reviewer) follow these rules:
      reviewer only flags it when the committed diff visibly contradicts it (leftover
      duplication/cruft — review.md §2b). Do NOT invent a fake refactor to fill the line.
 5. **Hygiene**: commit early and often with conventional messages; never force-push;
-   never edit ROADMAP.md item definitions (tick checkboxes only); pamac not pacman;
-   uv for Python.
+   never edit ROADMAP.md item definitions, and never tick its checkboxes — the DRIVER
+   ticks from your `worked_ids` (rule 2, v12/id:5b12); pamac not pacman; uv for Python.
 5b. **Clean-worktree exit gate (id:373e)**: leave your worktree CLEAN — at the end of the
    unit `git status --porcelain` in your worktree must be EMPTY. Reach that state by SENSIBLE
    means only: **commit** every piece of legitimate work (including a regenerated lockfile —
@@ -157,8 +166,9 @@ Each ROADMAP.md item you pick has this shape:
 The `[host:<name>]` modifier is OPTIONAL (multi-host config monorepos only) — see rule 2's
 host gate. Absent ⇒ `host:any` ⇒ verifiable on any host.
 
-Tick the checkbox (`- [x]`) only after the done-check passes. Never edit the
-Acceptance / Tests / Done-check / Context fields.
+Do NOT tick the checkbox (`- [ ]` → `- [x]`) yourself (v12, id:5b12) — report the
+item's id in `worked_ids` and the driver/integrator ticks it after the done-check passes
+and your branch merges. Never edit the Acceptance / Tests / Done-check / Context fields.
 
 ## RELAY_LOG.md conventions
 
@@ -205,6 +215,13 @@ Typo fixes and clarifications that don't change behaviour do **not** bump.
 
 After bumping: update the `## Relay contract <!-- relay-executor contract vN -->`
 pointer in the managed repo's `CLAUDE.md` to match.
+
+**v11 → v12 (id:5b12, seam of id:ae08):** tick-ownership inversion. Execute/hard children
+no longer tick their own `ROADMAP.md` checkbox; they return `worked_ids` and the serialized
+integrator ticks the box in the canonical checkout (`relay/scripts/roadmap-tick.sh`). This is
+behaviour an in-flight executor must know (rule 2 / rule 5 / the ROADMAP-format tick note), so
+it bumps. Transition is safe: `roadmap-tick.sh` is idempotent, so an in-flight v11 executor
+that still ticks in its worktree plus the new integrator tick is a harmless double-flip.
 
 For the human-facing picture of the whole relay (modes, artifacts, what the
 user does between turns), see `docs/relay.md` in dotclaude-skills.
