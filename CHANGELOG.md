@@ -10,6 +10,7 @@
 ## 2026-08-13
 
 - review: 16:18-findings fixes (b99f/e53a/3a50/15f3) verified non-gamed; suite 411/0/1-xred; cross-ledger clean; routine_open=0 (id:b99f,e53a,3a50,15f3)
+- Invert ROADMAP tick ownership: driver ticks from worked_ids via roadmap-tick.sh; executor-contract v11→v12 (id:5b12) (id:5b12)
 
 ## 2026-08-12
 
