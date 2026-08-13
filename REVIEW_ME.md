@@ -3,6 +3,48 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-13d (chain-end re-ask, chain `relay-ckpt-20260813-2045`..`-2119` — id:f657)
+
+Chain-end re-ask: HEAD == the `-2119` checkpoint, so the reviewed window is the just-ended
+execute chain (the reviewer C2 checkpoint `-2045` → the `id:f657` execute at `-2119`).
+`gaming-scan.sh` clean; `orphan-scan --cross-ledger` clean; contract pointer v12 == canonical v12.
+
+**`id:f657` VERIFIED green (not gamed, not over-reach).** Doc-only: `ARCHITECTURE.md` §11
+records the pool ∥ meeting same-repo concurrent-safety convention, citing the three built
+mechanisms (distinct claim keys `id:0ee1`, ledger-only writes not lease-gated `id:c144`,
+flock+atomic commit). The RED spec `test_architecture_pool_meeting_convention_f657.sh` is a
+legitimate DOC-content contract (the `lint-source-grep-assertions.py` carve-out), and it went
+RED→GREEN by genuine content, not a weakened assertion. §2d over-reach: NONE — the subsection
+correctly BOUNDS the convention (does NOT extend to two executors; explicitly notes no
+dispatch-time pool→meeting skip exists, that skip being the gated `id:9000`/`id:5a39` proposal),
+matching the ratified topology facts; no mutable checkbox state restated (CLAUDE.md
+ARCHITECTURE-carries-conventions-not-status). Already ticked + archived (`ROADMAP.archive.md`).
+
+**`id:292b` CLOSED this pass (was open-but-green).** Its implementation (`tests/lint-vacuous-fixtures.py`,
+commit `55900b6`) IS merged into HEAD and `tests/test_vacuous_fixture_lint_292b.sh` passes 4/4
+(headerless flag / declared-negative pass / roadmap-spec exempt / `--strict` non-zero) — a genuine
+behavioural lint, not gamed. It stayed unticked only because its closing tick landed on an
+unmerged parked orphan branch (`relay/orphan/relay-20260813-180303-4214-review-repo-0`, commits
+`c3856b6`/`f86bcba`) that never integrated. Ticked here in both `ROADMAP.md` and its `TODO.md`
+twin (single-id-two-views).
+
+`routine_open` = **1** — after closing `id:292b`, the only ungated, non-container, RED-spec-backed
+open `[ROUTINE]` is `id:d119` (`roadmap-lint` OWNER-HOLD marker suppresses false DEAD-GATE;
+`test_roadmap_lint_owner_hold_d119.sh` confirmed still RED). The other 4 open `[ROUTINE]` items
+(`d4ca`/`540f`/`c179`/`554b`) stay 🚧 GATED (owner/technical gates), and `id:f91a` is an
+`@container`. Nothing reopened.
+
+Advisory (report-only, pre-existing, owner/design's call — not executor work):
+- `relay-doctor`: 12 cross-repo dead-letters routed to this repo not yet ingested (relay-core
+  parity items `9178`/`f968`/`ca39`/`8b2a` et al.) + the 416-mismatch relay-core shadow still
+  short of the flip gate — inbox-reconcile backlog, surfaced not acted.
+- `orphan-scan --shipped`: `id:ebbe` now GATE-READY (all gates `[x]`); `id:6c6e` GATE-STALE 24d
+  (carried from 13b); several UNMARKED-GATE items in `TODO.md` — typed-edge back-fill for a
+  strong/human turn, not this review.
+- `roadmap-lint` WARNs (DEAD-GATE/DEP-PROSE-UNTYPED on the gated `d4ca`/`e405`/`540f`/`c179`
+  cluster; DECOMPOSED-CONTAINER `id:ae08`; NO-ACCEPTANCE-NO-TWIN `id:1b13`) — all pre-existing
+  gated/[INPUT — decision] items previously surfaced.
+
 ## Review 2026-08-13c (window `relay-ckpt-20260813-1850`..HEAD — 5 commits)
 
 Clean verification pass over the `id:3bf3` `/meeting` C1 inline close (disposition-routing
