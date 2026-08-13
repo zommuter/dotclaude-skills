@@ -5577,3 +5577,7 @@ integrate step; no existing duplication to fold. Friction: none. Transition is s
 roadmap-tick.sh is idempotent, so an in-flight v11 executor that still self-ticks plus the new
 integrator tick is a harmless double-flip. Note: this seam only inverts tick OWNERSHIP; the
 disjoint-greenlight/drain-integrate wiring (sibling seams id:02b2/id:99e5) is out of scope.
+
+## 2026-08-13 18:50 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+Invert ROADMAP tick ownership: driver ticks from worked_ids via roadmap-tick.sh; executor-contract v11→v12 (id:5b12) [id:5b12]
