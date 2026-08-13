@@ -21,6 +21,7 @@
 - Chain-end review: verified id:f657 green (ARCHITECTURE §11 doc, not over-reach), closed id:292b (green on HEAD; tick was stranded on unmerged orphan) in ROADMAP+TODO; suite 418/0/2-expected-red; routine_open=1 (id:d119) (id:f657,292b)
 - Handoff: cross-ledger reconcile — closed 7 already-landed items in TODO, promoted id:259f to ROADMAP with RED spec (classify.sh gate substring FP) (id:259f,3262,315c,4b8f,aa05,b99f,e53a,f657)
 - Fixed classify.sh's GATE detector to be word-boundary anchored (id:259f) — investigate/mitigate/aggregate/delegate/navigate no longer false-positive as GATED; genuine gate/blocked phrases still detected. (id:259f)
+- Review: id:259f verified genuine-green (classify.sh word-boundary gate fix, not gamed/over-reach); suite 420/0/1-xred; @container on ae08; routine_open=0; surfaced d119 cross-ledger drift + roadmap-tick.sh install-drift (id:259f,ae08)
 
 ## 2026-08-12
 
