@@ -5737,3 +5737,7 @@ Handoff: cross-ledger reconcile — closed 7 already-landed items in TODO, promo
 ## 2026-08-13 22:22 — executor (sonnet, relay-loop)
 
 Fixed classify.sh's GATE detector to be word-boundary anchored (id:259f) — investigate/mitigate/aggregate/delegate/navigate no longer false-positive as GATED; genuine gate/blocked phrases still detected. [id:259f]
+
+## 2026-08-13 22:40 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Review: id:259f verified genuine-green (classify.sh word-boundary gate fix, not gamed/over-reach); suite 420/0/1-xred; @container on ae08; routine_open=0; surfaced d119 cross-ledger drift + roadmap-tick.sh install-drift [id:259f,ae08]
