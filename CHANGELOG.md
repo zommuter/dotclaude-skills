@@ -18,6 +18,7 @@
 - C2: promoted routed:f833/id:cd9c (loderite archive-stub design call) into ROADMAP.md as [INPUT — decision], reusing existing TODO id (single-id-two-views), no RED spec (id:cd9c)
 - Added ARCHITECTURE.md §11 recording the pool ∥ meeting same-repo concurrent-safety convention (id:f657); RED spec went green, full suite 418/0/2-expected-red. (id:f657)
 - roadmap-lint recognizes an explicit owner-hold marker, suppressing false DEAD-GATE findings on intentionally-held gates (id:d119) (id:d119)
+- Chain-end review: verified id:f657 green (ARCHITECTURE §11 doc, not over-reach), closed id:292b (green on HEAD; tick was stranded on unmerged orphan) in ROADMAP+TODO; suite 418/0/2-expected-red; routine_open=1 (id:d119) (id:f657,292b)
 
 ## 2026-08-12
 
