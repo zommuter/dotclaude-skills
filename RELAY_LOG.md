@@ -5536,3 +5536,21 @@ audit(relay): Run 72 strong-model audit (id:401c) over 0454e8f..HEAD — code+se
 ## 2026-08-13 16:18 — reviewer (claude-opus-5)
 
 review: window relay-ckpt-20260812-1417..HEAD (13 commits, 8 more than the brief stated). gaming-scan clean; suite 400/0/1-xred; cross-ledger clean; actionable_routine_open=0 (unchanged — gate re-target verified NOT actionable: resolve-gates d4ca/e405 block=1 zero-dangling). 9 findings filed, 2 REAL BUGS in 82643ab (id:b99f live-runs JSON vs bare-token grep => live runs mislabelled STRANDED, proven empirically; id:e53a stranded hidden when orphans present); test-integrity finding id:3a50 (315c test passes against a functionally-disabled fix, mutation-tested). 55f6/c74e meeting ledger fidelity VERIFIED. routed:832e adopted.
+
+## 2026-08-13 18:03 — reviewer (claude-opus-5)
+
+review: window relay-ckpt-20260813-1618..HEAD (21 commits, all owner-authored — this window
+is the FIX + bookkeeping response to the 16:18 review's findings, plus a `/meeting` amendment
+and a `/relay human` pass, no executor units). gaming-scan clean; suite 411/0/1-xred
+(`roadmap:6217`, an open decision-gated item — its red test IS the spec, legitimate). The
+16:18 review found id:b99f/e53a/3a50 as REAL BUGS; this window's `f0fdeb1`/`d2f645d`/`8dd5d42`
+landed the fixes and `54c3e2c` ticked the 8 defects. Test-integrity VERIFIED not gamed:
+spot-checked the load-bearing `test_reconcile_stranded_liveness_b99f.sh` side-by-side — it
+FAILS against the pre-fix `relay-reconcile.sh` (grep -qxF against a bare runId, gate could
+never fire) and PASSES against the jq `.runId` fix; genuinely non-vacuous. cross-ledger clean;
+contract pointer v11 == canonical v11 (no drift); roadmap-lint WARN-only (pre-existing gate
+warnings, already owned by id:d119). actionable_routine_open=0 after re-derivation — all 5 open
+[ROUTINE] items are gated (d4ca/540f/c179/554b) or @container (f91a), none dispatchable, so no
+execute re-enqueue. New TODO items this window arrived pre-qualified (lane+id) from the owner
+`/relay human` pass; promotion of the [ROUTINE] subset is itself owner-gated by id:eb16. Nothing
+reopened.
