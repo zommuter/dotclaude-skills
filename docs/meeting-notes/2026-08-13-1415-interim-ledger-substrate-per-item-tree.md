@@ -348,3 +348,54 @@ explicitly; D3's *outcome* (though not its recorded rationale); and honouring `5
 **Not action items, surfaced for the record:** `id:8df5` remains unfiled after a fourth trigger firing
 (`routed:7b8f` in the shared inbox); two live `meeting/append.sh` data-loss defects also sit unadopted
 in the inbox (`routed:81b8`, `routed:96da`).
+
+---
+
+## Post-meeting amendments (2026-08-13, after `id:4fb8` reported)
+
+Appended after the meeting closed. The ratified text above is **unchanged**; these are superseding
+entries citing what they supersede, per the decision-provenance rule.
+
+- **D2-A → DISCHARGED, and the gate resolved to BUILD FULL.** D2-A downgraded "proceeds" to GATED on
+  `id:4fb8` (sketch one collector port + quantify the rename-vs-content conflict trade). That
+  evidence was produced and is preserved verbatim at
+  `2026-08-13-1415-interim-ledger-substrate-4fb8-evidence.md`. **Owner ruling: BUILD FULL per-item.**
+  `id:55f6` is no longer gated.
+
+  Recorded plainly because it matters for auditability later: the delegated agent recommended
+  **BUILD-NARROWER** (bodies-only), and the measured evidence pointed the same way — ledger conflicts
+  at **0.37/week** (5 of 416 merges over 95 days), **2 of 6** conflicting relay branches dissolving,
+  the motivating `id:2b4b` incident not preventable by any ledger substrate (2 of its 3 stranded
+  branches also conflict on *code* files), and `meeting/md-merge.py` already serving as the per-item
+  substrate for the same-machine path. **The owner ruled against that recommendation.** That is his
+  call as domain expert and is not re-litigated here — a delegated verdict is a recommendation, never
+  a self-settling decision, and this is the owner exercising exactly that distinction. The evidence is
+  preserved so the trade-off he accepted stays legible.
+
+- **D5-A's accepted cost was wrong by ~7× — amended on the measurement, not reinterpreted.** D5-A was
+  ratified with the accepted cost *"~69 values per repo to maintain, and they will rot without a
+  lint."* Measured: **489 for this repo alone** (`TODO.md` 432 + `ROADMAP.md` 57 checkbox items), because
+  both ledgers must explode — half the measured conflicts are in `TODO.md`. **The decision stands**
+  (gaps of 100, ties by id ascending, lint `id:5a14`); what is amended is the premise it was accepted
+  under. At 489 hand-maintained values the lint stops being hygiene and becomes the only thing between
+  the ordering and rot.
+
+- **Six questions BUILD FULL must answer that BUILD-NARROWER would have sidestepped** — all surfaced
+  by `id:4fb8`, all recorded on `id:55f6`: `in_exempt_section` has no truth source under a tree;
+  `REVIEW_ME.md` has 57 entries but only **2** with id markers; the indented `- [ ]` sub-bullet makes
+  an item vanish from dispatch and forces the migration to pick a side (`classify-repo.sh` and
+  `todo-conformance.sh` already disagree); the leftover `_chrome.md` reintroduces a shared non-union
+  file holding exactly the malformed content; `roadmap-archive.sh` and `meeting/append.sh` get
+  rewritten rather than ported; and the `id:c74e` divergence caveat still binds, since D4-A's inline
+  comment gates are a **third** form distinct from cartulary's sorted list field and cannot borrow its
+  merge driver (`basesize=0` defeats add/add refusal).
+
+- **`id:45aa` RULED — cartulary R1 was never ratified; the `id:4a5c` tracker pilot is ALIVE.** This
+  settles the prerequisite D1-A imposed. In cartulary's founding note the "killed Vikunja/Plane"
+  annotation sits at line 72 **inside `## Discussion`** (18–132), introduced as *"Petra's
+  requirements"*; the `## Decisions` section begins at line 132 with five decisions each carrying a
+  verbatim `**Decision provenance:**` quote, **none about R1**. `id:90f2` and `id:e977` are
+  **unfrozen**. This means **D1's original reading was correct** and the closing pass's **F6** — which
+  charged that the "derived doc, not a ratification" label was asserted without checking — was right
+  about the process but wrong about where the check would land. F6 was itself an unchecked-premise
+  finding, which is worth weighing when `id:8df5` / `id:43c8` design the per-decision Fable pass.
