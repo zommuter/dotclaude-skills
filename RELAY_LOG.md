@@ -5661,3 +5661,7 @@ Add tests/lint-vacuous-fixtures.py (id:292b mechanism 1) — advisory lint flagg
 ## 2026-08-13 19:46 — executor (sonnet, relay-loop)
 
 id:292b already fully implemented/committed by a prior session in this worktree (tests/lint-vacuous-fixtures.py + green RED-authored test); verified full suite green (415 passed, 0 failed, 3 expected-red) and worktree already clean — no new work needed. [id:292b]
+
+## 2026-08-13 20:45 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+C2: promoted routed:f833/id:cd9c (loderite archive-stub design call) into ROADMAP.md as [INPUT — decision], reusing existing TODO id (single-id-two-views), no RED spec [id:cd9c]
