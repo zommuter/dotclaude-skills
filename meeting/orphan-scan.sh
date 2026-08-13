@@ -122,6 +122,7 @@ id_lines=0
 candidates=0
 output_lines=()
 unresolved_found=0  # shipped mode: set to 1 by any UMBRELLA-UNRESOLVED → non-zero exit
+skipped_unrunnable=()  # routed:15f3 — discovered tests whose language we could not identify
 
 if [[ "$mode" == "cross-ledger" ]]; then
   # Build token→state maps for the TODO union and for ROADMAP separately, then
@@ -402,9 +403,43 @@ elif [[ "$mode" == "shipped" ]]; then
       # timed-out test is treated as non-green (no TICK-READY claim), matching a
       # genuinely-failing test's outcome rather than hanging or erroring the scan.
       timeout_s="${ORPHAN_SCAN_TEST_TIMEOUT_S:-60}"
-      if (cd "$ROOT" && timeout "${timeout_s}s" bash "$test_rel") >/dev/null 2>&1; then
+      # routed:15f3 — DISPATCH ON LANGUAGE. This used to run EVERY discovered test with
+      # `bash` regardless of extension. In a Python repo that shell-executes `test_*.py`
+      # line by line, so `import csv` resolves to /usr/bin/import (ImageMagick) and writes
+      # a multi-MB PostScript SCREEN CAPTURE of the desktop into the repo root, each
+      # blocking on a mouse click — and `>/dev/null 2>&1` hid all of it. CONFIRMED live
+      # 2026-08-13 16:41-16:42 in linguistic-universals (6 captures, 36 MB, blocked the
+      # relay pool via the dirty-tree guard). 23 own repos carry non-.sh `# roadmap:`
+      # tests and /todo-update runs this scan after every prompt.
+      #
+      # Rule: execute ONLY a language we positively identify; anything else is SKIPPED and
+      # never claims TICK-READY. A skip is under-claiming (the item stays open, which is
+      # safe); a misdispatch executes attacker-shaped-by-accident code (which is not).
+      runner=(); lang=""
+      case "$test_rel" in
+        *.sh)  runner=(bash "$test_rel"); lang=sh ;;
+        *.bash) runner=(bash "$test_rel"); lang=sh ;;
+        *.py)  if command -v pytest >/dev/null 2>&1; then runner=(pytest -q "$test_rel"); lang=py; fi ;;
+        *)
+          # No extension: sniff the shebang. Never guess — an unrecognised shebang skips.
+          case "$(head -c 128 "$ROOT/$test_rel" 2>/dev/null)" in
+            '#!'*python*) if command -v pytest >/dev/null 2>&1; then runner=(pytest -q "$test_rel"); lang=py; fi ;;
+            '#!'*bash*|'#!'*/sh*|'#!'*' sh'*) runner=(bash "$test_rel"); lang=sh ;;
+          esac ;;
+      esac
+      if [[ ${#runner[@]} -eq 0 ]]; then
+        # LOUD skip (id:4347) — counted and surfaced, never a silent non-result.
+        skipped_unrunnable+=("$test_rel")
+        continue
+      fi
+      # Stderr is no longer swallowed (id:4347): the run's combined output goes to a log
+      # so a runner fault (missing interpreter, import error, a test writing to the repo)
+      # is inspectable instead of vanishing. Only the EXIT STATUS decides TICK-READY.
+      _os_log="${ORPHAN_SCAN_LOG:-$HOME/.claude/logs/orphan-scan.log}"
+      mkdir -p "$(dirname "$_os_log")" 2>/dev/null || true
+      if (cd "$ROOT" && timeout "${timeout_s}s" "${runner[@]}") >>"$_os_log" 2>&1; then
         candidates=$((candidates+1))
-        output_lines+=("id:$token — TICK-READY (green: $test_rel, no gate) — ready to tick. $(short_text "$text")")
+        output_lines+=("id:$token — TICK-READY (green: $test_rel, runner=$lang, no gate) — ready to tick. $(short_text "$text")")
       fi
     fi
   done < <(grep -nE '^\s*- \[ \] ' "$ROOT/TODO.md" 2>/dev/null || true)
@@ -507,6 +542,15 @@ if [[ "$limit" -gt 0 && "$total" -gt "$limit" ]]; then
     "$suppressed" "$limit"
 else
   printf '%s\n' "${output_lines[@]:-}"
+fi
+
+# routed:15f3 — surface skipped tests. A test whose language we could not identify is NOT
+# run (misdispatching one is what wrote 36 MB of desktop screen captures into a repo), but
+# the skip must not be silent: without this line an unrunnable test is indistinguishable
+# from a red one, and the item would sit un-tickable forever with no stated reason.
+if [[ ${#skipped_unrunnable[@]} -gt 0 ]]; then
+  printf '# orphan-scan: %d discovered test(s) SKIPPED — language not identified, so not executed and never claimed TICK-READY (routed:15f3): %s\n' \
+    "${#skipped_unrunnable[@]}" "$(printf '%s ' "${skipped_unrunnable[@]}")" >&2
 fi
 
 # Shipped mode (id:46f6): any UMBRELLA-UNRESOLVED is a LOUD failure — an unresolvable
