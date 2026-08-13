@@ -19,6 +19,7 @@
 - Added ARCHITECTURE.md §11 recording the pool ∥ meeting same-repo concurrent-safety convention (id:f657); RED spec went green, full suite 418/0/2-expected-red. (id:f657)
 - roadmap-lint recognizes an explicit owner-hold marker, suppressing false DEAD-GATE findings on intentionally-held gates (id:d119) (id:d119)
 - Chain-end review: verified id:f657 green (ARCHITECTURE §11 doc, not over-reach), closed id:292b (green on HEAD; tick was stranded on unmerged orphan) in ROADMAP+TODO; suite 418/0/2-expected-red; routine_open=1 (id:d119) (id:f657,292b)
+- Handoff: cross-ledger reconcile — closed 7 already-landed items in TODO, promoted id:259f to ROADMAP with RED spec (classify.sh gate substring FP) (id:259f,3262,315c,4b8f,aa05,b99f,e53a,f657)
 
 ## 2026-08-12
 
