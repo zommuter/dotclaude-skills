@@ -202,3 +202,33 @@ graded permitted-intensity superseding binary `ALLOW_INTENSIVE` (id:e407), A5
 rename (id:4f02/id:8111, gated on `[MECHANICAL]` existing) are tracked but GATED. See the
 meeting note for the ratified decisions and rejected alternatives (flag-day rename;
 auto-scanning ROADMAP for arbitrary INTENSIVE items; active gamemode-suspend).
+
+## 11. Pool ∥ meeting: same-repo concurrent-safety convention
+
+A scoped `/relay --afk --only <repo>` pool and a `/meeting` may run **concurrently
+on the same repo** without a ledger collision — observed directly (a pool drained
+4 rounds / 57 agents while a `/meeting` amended the same `ROADMAP.md`/`TODO.md`
+concurrently, `routed:832e`). Three already-built mechanisms make this safe:
+
+1. **Distinct claim keys** (`id:0ee1`) — `/meeting`'s advisory setup claim lives
+   on `meeting:<repo>`, never on the bare `<repo>` hard-lease key a pool executor
+   acquires with `--mode execute`. `claim.sh acquire` is mode-blind (it refuses any
+   live *same-key* claim regardless of mode), so putting the two claims on different
+   keys is what avoids the collision, not a mode check.
+2. **Ledger-only writes are not lease-gated** (`id:c144`) — `/meeting` step 2a and
+   `/relay human` PEEK-AND-WARN on the hard lease for a ledger write-back instead of
+   acquiring it, so a ledger edit is never blocked behind (or blocking) a multi-repo
+   pool run holding the lease.
+3. **flock + atomic commit** on the shared ledgers (`meeting/md-merge.py`,
+   `relay/scripts/commit-ledger.sh`) — concurrent writers to `TODO.md`/`ROADMAP.md`/
+   `REVIEW_ME.md` serialize at the file level instead of racing.
+
+Two interactions this produces are **expected, not defects**: the pool can close an
+item the meeting is mid-way through reasoning about, and a handback the pool files
+can carry an owner question the meeting answers in the same turn.
+
+This convention does **not** extend to two real executors on the same repo (still
+mutually refused by the same-key hard lease), and there is still no dispatch-time
+pool→meeting *skip* — the pool does not back off a meeting-held repo, it simply
+never collides with one on the ledger. (That skip is a separate, gated proposal —
+`id:9000`/`id:5a39` — not part of what makes today's concurrent run safe.)
