@@ -478,7 +478,12 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # ROADMAP directive: auto-promoting a missing target (handoff C2's judgement — the
   # lane cannot be guessed) and cross-repo gate resolution.
   _dg_csv="$(typed_edges_gated_of_line "$line")"
-  if [[ -n "$_dg_csv" ]]; then
+  # id:d119 — an explicit `<!-- owner-hold:REASON -->` marker means the gate is
+  # INTENTIONALLY unclearable (owner directive), not a mistaken/dead one: suppress
+  # DEAD-GATE for THIS item only. Scoped to this report-only lint's recognition of
+  # the marker — classify-repo.sh's dispatch gate does not read it (separate step).
+  _dg_hold="$(typed_edges_owner_hold_of_line "$line")"
+  if [[ -n "$_dg_csv" && -z "$_dg_hold" ]]; then
     _dg_id="$(item_id "$line")"
     IFS=',' read -ra _dg_toks <<<"$_dg_csv"
     for _dg_t in "${_dg_toks[@]}"; do
