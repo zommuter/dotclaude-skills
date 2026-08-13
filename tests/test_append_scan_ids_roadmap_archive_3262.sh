@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Defect-fix test (no roadmap item — id:3262 lives in TODO.md only). Failures always count.
+# fails-against: relay-ckpt-20260813-1946 (append.sh scan_ids omits ROADMAP.archive.md — token aaa4 absent from the collision set; verified red at review 2026-08-13)
 #
 # DEFECT: meeting/append.sh's `scan_ids` — the collision set a new mint is checked against —
 # scanned `docs/meeting-notes`, `TODO.md`, `TODO.archive.md` and `ROADMAP.md`, but NOT

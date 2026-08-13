@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Defect-fix test (no roadmap item — recurrence-prevention for the routed:f833 escalation,
 # loderite id:2ab3-B; filed 2026-08-13). Failures always count.
+# fails-against: relay-ckpt-20260813-1946 (roadmap-archive.sh has no stub-guard — the archived stub id:1a2b is eaten from ROADMAP.md; verified red at review 2026-08-13)
 #
 # DEFECT: relay/scripts/roadmap-archive.sh has NO notion of an archived STUB. Its gate at
 # `if top_done_re.match(line):` classifies any `- [x]` top-level item as archivable when
