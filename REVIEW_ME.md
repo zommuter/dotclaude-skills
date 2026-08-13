@@ -529,3 +529,42 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   before the dispatch gate also honours the marker would make those owner-held items dispatchable,
   which the 2026-07-31 owner gate forbids. Confirm that (a)+(b) should indeed be a separate,
   coordinated step and not folded into id:d119.
+
+## review 2026-08-13 (relay-20260813-203957-8486, reviewer opus) — surfaced, not acted
+
+- [ ] **id:292b — intentional two-views scope divergence (expect a `--cross-ledger` flag).**
+  This review closed the ROADMAP slice `id:292b` (mechanism (1) linter shipped, verified green)
+  but LEFT the TODO twin `id:292b` OPEN because the TODO bundles the broader design (mechanism
+  (2) reached-fixture, (3) ledger-token-shape, and the CI-runner negative-case check) that the
+  ROADMAP item explicitly carved out of scope. So `orphan-scan.sh --cross-ledger` will report
+  `292b` as "closed in ROADMAP, open in TODO" — that is EXPECTED here, not drift. Owner call: is
+  keeping the follow-ups under the SAME id acceptable, or should they be re-minted as a distinct
+  successor id so cross-ledger stays clean? (The `xledger-ok`-style suppression marker convention
+  is routed:42c9 — not built here.)
+
+- [ ] **inbox dead-letter backlog: 12 routed items unrouted (relay-doctor scan-routed, report-only).**
+  `scan-routed.sh` reports 12 dead-letters (11 → dotclaude-skills, 1 → escapement) absent from
+  their target TODO/ROADMAP. This is pre-existing backlog, NOT from this diff window; surfaced for
+  a `/relay human` or `/meeting` routing pass (respecting `--exclude`/paused repos). Two are
+  directly relevant to this session's fixes: **routed:f833 / routed:7a88** (roadmap-archive
+  stub-leaving) — the destructive MECHANISM is now guarded by commit 12e9825 (`roadmap-archive.sh`
+  stub-guard, test green), but f833's open (a)/(b) DESIGN call (teach the generic script to leave
+  stubs vs delegate to a per-repo archiver) is UNRESOLVED and remains the owner's; and the
+  **archive-blindness cluster** (routed:8b21 unpromoted-scan, routed:42c9/675b cross-ledger
+  archive blind spot) — the `scan_ids` half is now fixed by id:3262 (commit 347866e), but the
+  orphan-scan/unpromoted-scan halves are still open.
+
+- [ ] **roadmap-lint pre-existing warnings (none introduced this window).** `roadmap-lint.sh`
+  WARNs (exit 0, non-blocking): DEAD-GATE on id:d4ca/id:e405/id:540f/id:c179 (all TODO-only,
+  deliberately owner-held/gated — the false-positive DEAD-GATE these throw is exactly what the
+  open [ROUTINE] id:d119 owner-hold-marker item is built to suppress); DEP-PROSE-UNTYPED on
+  id:d4ca/id:e405; DECOMPOSED-CONTAINER on id:ae08 (already carries a route:hard-split annotation
+  into seams id:02b2/99e5/5b12); NO-ACCEPTANCE-NO-TWIN on id:1b13 (an [INPUT — decision] item,
+  structurally a /meeting question not executor work). No action taken — surfaced for the human's
+  lane-assignment-at-source discipline (id:78ff).
+
+- [ ] **2 parked orphan branches (relay-reconcile --all).** `relay/orphan/relay-20260813-180303-4214-review-repo-0`
+  carried the STRANDED close of id:292b — this review has now reconciled that (ticked id:292b in
+  ROADMAP + annotated the TODO twin), so that orphan is superseded and safe to drop. The other,
+  `relay/orphan/relay-20260813-180303-4214-execute-repo-0` (session log for id:f657/id:d119), is a
+  parked orphan for the human's reconcile call.
