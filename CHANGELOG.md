@@ -15,6 +15,7 @@
 - review: id:3bf3 verified green (414/0/1-xred), test behavioural+mutation-verified, no over-reach; id:259f surfaced; routine_open=0 (id:3bf3,259f)
 - Add tests/lint-vacuous-fixtures.py (id:292b mechanism 1) — advisory lint flagging defect-fix tests missing a `# fails-against:` header (id:292b)
 - id:292b already fully implemented/committed by a prior session in this worktree (tests/lint-vacuous-fixtures.py + green RED-authored test); verified full suite green (415 passed, 0 failed, 3 expected-red) and worktree already clean — no new work needed. (id:292b)
+- C2: promoted routed:f833/id:cd9c (loderite archive-stub design call) into ROADMAP.md as [INPUT — decision], reusing existing TODO id (single-id-two-views), no RED spec (id:cd9c)
 
 ## 2026-08-12
 
