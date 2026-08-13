@@ -13,6 +13,7 @@
 - Invert ROADMAP tick ownership: driver ticks from worked_ids via roadmap-tick.sh; executor-contract v11→v12 (id:5b12) (id:5b12)
 - Handoff C2-C4: promoted 3 self-contained non-dispatch items (292b/f657/d119) with verified RED specs; minted local ids for 3 inbound items; 2 REVIEW_ME boxes; dispatch-semantics promote items left for owner per id:eb16 (id:292b,f657,d119,1f9a,dda0,0bbc)
 - review: id:3bf3 verified green (414/0/1-xred), test behavioural+mutation-verified, no over-reach; id:259f surfaced; routine_open=0 (id:3bf3,259f)
+- Add tests/lint-vacuous-fixtures.py (id:292b mechanism 1) — advisory lint flagging defect-fix tests missing a `# fails-against:` header (id:292b)
 
 ## 2026-08-12
 
