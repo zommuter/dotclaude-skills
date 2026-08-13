@@ -412,3 +412,29 @@ re-derives from the evidence named here; reopen any whose evidence does not hold
 - **9 INBOUND items — promote only the unambiguous ones** (owner): those whose lane is already
   tagged and whose scope is self-contained; anything touching in-flight dispatch semantics stays
   for the owner. Filed as `id:eb16`.
+
+## Handoff C2/C3 2026-08-13 (promotion judgment calls)
+
+Two interpretations baked into the RED specs of the items promoted this handoff (id:292b,
+id:f657, id:d119). f657 carries no judgment call (its contract is fully specified in TODO).
+
+- [ ] **id:292b — `# fails-against:` header scope: ALL headerless tests, or a marked defect-fix
+  subset only?** The RED spec (`tests/test_vacuous_fixture_lint_292b.sh`) requires the header on
+  every `tests/test_*.sh` that lacks a `# roadmap:` header, treating "no roadmap header" as the
+  definition of "defect-fix test" (CLAUDE.md §Testing). But some headerless tests are harness /
+  structure tests (e.g. a pure-shape lint test), not defect-fix regressions, and requiring
+  `# fails-against:` on those may be noise. **Confirm**: is the requirement over ALL headerless
+  tests correct, or should the lint key on an explicit opt-in marker (e.g. `# defect-fix:`) so
+  only genuine defect-fix tests are held to it? Also note the item ships mechanism (1) ONLY — the
+  CI runner that actually executes the declared negative case, plus mechanisms (2)/(3), are
+  deliberately out of scope (follow-ups).
+
+- [ ] **id:d119 — owner-hold marker grammar + the deliberate roadmap-lint-only scope.** The RED
+  spec proposes the spelling `<!-- owner-hold:REASON -->`; confirm or rename it before it is
+  built (it becomes a grammar other tools may later read). AND confirm the scoping decision: this
+  handoff scoped id:d119 to the REPORT-ONLY linter's recognition of the marker, and left OUT (a)
+  migrating `id:540f`/`id:c179`'s real `gated-on:e62c,b0b1` to the new marker and (b) teaching
+  `classify-repo.sh`'s dispatch gate to honour owner-hold — because removing `gated-on:b0b1`
+  before the dispatch gate also honours the marker would make those owner-held items dispatchable,
+  which the 2026-07-31 owner gate forbids. Confirm that (a)+(b) should indeed be a separate,
+  coordinated step and not folded into id:d119.
