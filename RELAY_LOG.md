@@ -5733,3 +5733,7 @@ Friction: none. C4 skipped — no user-facing surface (infra/scripts repo).
 ## 2026-08-13 22:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Handoff: cross-ledger reconcile — closed 7 already-landed items in TODO, promoted id:259f to ROADMAP with RED spec (classify.sh gate substring FP) [id:259f,3262,315c,4b8f,aa05,b99f,e53a,f657]
+
+## 2026-08-13 22:22 — executor (sonnet, relay-loop)
+
+Fixed classify.sh's GATE detector to be word-boundary anchored (id:259f) — investigate/mitigate/aggregate/delegate/navigate no longer false-positive as GATED; genuine gate/blocked phrases still detected. [id:259f]
