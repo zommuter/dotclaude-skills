@@ -5636,3 +5636,20 @@ Handoff C2-C4: promoted 3 self-contained non-dispatch items (292b/f657/d119) wit
 ## 2026-08-13 19:21 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review: id:3bf3 verified green (414/0/1-xred), test behavioural+mutation-verified, no over-reach; id:259f surfaced; routine_open=0 [id:3bf3,259f]
+
+## 2026-08-13 — executor (claude-sonnet-5)
+
+Worked id:292b — built `tests/lint-vacuous-fixtures.py`, mechanism (1) of the vacuous-fixture
+lint: flags a "defect-fix" test (`tests/test_*.sh` with no `# roadmap:XXXX` header) that omits
+a `# fails-against: <rev|mutation>` header naming the negative case it must fail against; a
+roadmap-spec test (carries `# roadmap:`) is exempt. Advisory by default (exit 0), non-zero only
+under `--strict`/`--max N`, mirroring the sibling `tests/lint-source-grep-assertions.py`. OUT of
+scope per the item: the CI runner that actually checks out/mutates and re-runs the negative case
+(mechanism (1)'s second half), plus mechanisms (2) reached-fixture and (3) ledger-token-shape.
+`tests/test_vacuous_fixture_lint_292b.sh` (already RED-authored) is now green; full suite
+415 passed, 0 failed, 3 expected-red (a `test_lean_toolchain_drift.sh` failure on the first run
+was order-dependent/flaky — reran green in isolation and in a full clean rerun, unrelated to
+this item's diff).
+Friction: none.
+refactor: none needed — new standalone file, no shared logic with the sibling lint to factor
+out (deliberately mirrors its shape rather than extending it, per the item's scope).
