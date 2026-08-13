@@ -5581,3 +5581,50 @@ disjoint-greenlight/drain-integrate wiring (sibling seams id:02b2/id:99e5) is ou
 ## 2026-08-13 18:50 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 Invert ROADMAP tick ownership: driver ticks from worked_ids via roadmap-tick.sh; executor-contract v11→v12 (id:5b12) [id:5b12]
+
+## 2026-08-13 18:47 — `/meeting` C1 inline (id:3bf3), apex (claude-opus-5)
+
+Worked `id:3bf3` (/meeting disposition-routing surface) as a Class-1 inline implementation
+under the `/relay executor` contract (D7). **The item was NOT what its ledger line implied.**
+Its stated contract — "Red test: a fixture item per lane/state maps to the right disposition
+label" — reads as untested, and a filename grep for `3bf3`/`disposition` in `tests/` returns
+nothing. Reading the actual suite showed the LANE half was already fully discharged by
+`tests/test_classify_hard_lanes.sh` (all 8 lanes across both the canonical capability-keyed and
+accepted venue-keyed vocabularies, head-anchoring per id:0d58/id:4da4, backtick-stripping per
+id:306d/id:1bbd) and the RELAY mirror line by `tests/test_classify_hard_floor.sh`. Writing "the"
+missing test would have duplicated existing coverage. Verified-uncovered remainder, by grep over
+all `tests/test_classify*.sh`: **GATED had no assertion anywhere**, and **no test pinned the TSV
+column contract** — which `CLAUDE.md` §Versioning independently lists as an unmarked *candidate
+contract surface* with the rationale that SKILL.md parses fixed columns.
+
+Added `tests/test_classify_disposition_contract_3bf3.sh` (15 assertions) covering exactly that
+remainder: (1) the STATE axis — empty-GATE on ungated items, `GATED` from both `gated on` and
+`blocked on` vocabulary, and the `GATED;HARD-NOLANE` *composition* (a naive overwrite instead of
+append would silently drop one marker); (2) the 5-column TSV contract — arity via `NF!=5` plus
+positional shape checks on columns 1/2/4/5, so a transposition that preserves arity still fails;
+(3) the disposition PARTITION — `{C1,C2,C3}` pickable vs `{RELAY,POOL,EXEC,MECH,HANDS,HUMAN}`
+skipped, asserted disjoint and non-vacuous, with every lane-tagged skip-class item required to
+land in the skip half. That partition previously lived only in SKILL.md prose; it is the
+"/meeting over-claim" regression (a pool-executable item surfacing as a redundant meeting
+candidate) made mechanical.
+
+**Non-vacuity established by mutation, not assumed** (the id:292b vacuous-fixture concern): three
+independent mutations applied to a COPY of `classify.sh` in a tempdir — dropping `blocked on`
+from the gate detector, removing the GATE column from the `printf` (5→4 fields), and routing
+`[ROUTINE]` to C1 — each kill the test. Worth recording that the third mutation FIRST reported
+`ALL PASS`, because my `sed` anchor silently failed to match; re-running it through a Python
+replace with an `assert anchor in source` proved it applied and the test then failed correctly.
+A green mutation run that actually means "the mutation never applied" is the same false-negative
+shape id:292b exists to catch, encountered live while testing for it.
+
+`refactor: none needed` — the new file shares no logic with the existing classify tests by
+construction (it was scoped to their complement) and introduces no duplication to factor out.
+Full suite **414 passed, 0 failed, 1 expected-red**. Ledger: `id:3bf3` ticked in `TODO.md` only —
+it has zero refs in `ROADMAP.md`, so single-id-two-views needs no second write.
+
+**Surfaced, not fixed** — `classify.sh`'s gate detector `grep -qiE 'gated?|…'` matches the bare
+substring `gate`, so any body containing *investigate*, *mitigate*, *aggregate*, *delegate* or
+*navigate* is flagged `GATED`. Real false positive on live data; deliberately NOT asserted in the
+new test (pinning it would encode the defect as intended behaviour) and NOT fixed here (out of
+this item's scope). The new fixtures are worded around it. Owner's call whether to tighten the
+pattern to a word-boundary form.
