@@ -5684,3 +5684,22 @@ refactor: none needed — a single new doc subsection, no duplication introduced
 ## 2026-08-13 21:19 — executor (sonnet, relay-loop)
 
 Added ARCHITECTURE.md §11 recording the pool ∥ meeting same-repo concurrent-safety convention (id:f657); RED spec went green, full suite 418/0/2-expected-red. [id:f657]
+
+## 2026-08-13 — executor (sonnet)
+
+Worked id:d119 — `roadmap-lint`'s DEAD-GATE rule (3(d), id:49e0) now recognizes an explicit
+`<!-- owner-hold:REASON -->` marker: an item carrying it is treated as an intentional owner
+hold, so the false DEAD-GATE finding no longer fires for it, while an identically-gated twin
+with no marker still fires unchanged (WARN default, ERROR under --strict). Implemented as a
+new anchored extractor `typed_edges_owner_hold_of_line` in `lib-typed-edges.sh` (mirrors the
+existing `gated-on`/`children`/`settles` extractors) plus a one-line guard in the DEAD-GATE
+loop in `roadmap-lint.sh`. Scoped exactly per the ROADMAP item: this only teaches the
+report-only linter to recognize the marker — migrating `id:540f`/`id:c179`'s real
+`gated-on:e62c,b0b1` onto it, and teaching `classify-repo.sh`'s dispatch gate to honour it,
+are explicitly OUT of scope (separate coordinated step, per REVIEW_ME's still-open judgment
+call on the marker grammar/scoping). The RED spec (`tests/test_roadmap_lint_owner_hold_d119.sh`)
+was already authored at handoff and required no changes; it now passes as-is. Full suite:
+419 passed, 0 failed, 1 expected-red.
+Friction: none — the RED spec was already precise and the fix was a small, well-isolated addition.
+refactor: none needed — the change reuses the existing typed-edge extractor pattern and adds
+one guard clause; no new duplication introduced.
