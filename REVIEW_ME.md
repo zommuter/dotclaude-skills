@@ -3,6 +3,25 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-13c (window `relay-ckpt-20260813-1850`..HEAD — 5 commits)
+
+Clean verification pass over the `id:3bf3` `/meeting` C1 inline close (disposition-routing
+surface). `gaming-scan.sh` clean; full suite **414 passed / 0 failed / 1 expected-red**.
+Test-integrity VERIFIED not gamed: the new `tests/test_classify_disposition_contract_3bf3.sh`
+is a genuine BEHAVIOURAL test — it runs `meeting/classify.sh` against a fixture `TODO.md` and
+asserts on the emitted TSV columns (STATE/GATE axis, 5-column arity+order contract, the
+`{C1,C2,C3}` pickable vs `{RELAY,POOL,EXEC,MECH,HANDS,HUMAN}` skip partition), not a source
+grep; RELAY_LOG records mutation-verification against 3 independent `classify.sh` mutations.
+Over-reach (§2d): none — the diff adds only a test, no `classify.sh` behaviour change, and the
+executor UNDER-reached honestly (found the LANE axis already covered by
+`test_classify_hard_lanes.sh` and scoped only the complement). `id:3bf3` ticked + archived
+correctly (zero ROADMAP refs, so single-id-two-views needs no second write).
+`actionable_routine_open` = **0** — unchanged from 13b (the 4 real open `[ROUTINE]` items stay
+`🚧 GATED`, `id:f91a` is an `@container`). Nothing reopened. One box below for the newly-filed
+`id:259f`.
+
+- [ ] **`id:259f` (classify.sh gate detector substring false-positive) — owner call on WHETHER/HOW to tighten.** The executor filed this as a `[ROUTINE]` item in `TODO.md` after discovering that `classify.sh`'s gate pattern `grep -qiE 'gated?|…'` matches the bare substring `gate`, so *investigate* / *mitigate* / *aggregate* / *delegate* / *navigate* all render `[GATED]` in every `/meeting` bucket summary (confirmed live on *investigate*). It is a real correctness defect. Held in `TODO.md`, **not promoted to ROADMAP with a red spec this turn** (reverse-handoff §5b), because the executor explicitly reserved it as the owner's call — two approaches (A: tighten to `\bgated?\b` word-boundary form; B: leave and word fixtures around it). If you want it pool-picked: confirm approach A and it can be mini-handed-off with a word-boundary red spec next review.
+
 ## Review 2026-08-13b (window `relay-ckpt-20260813-1618`..HEAD — 21 commits, all owner-authored)
 
 Clean verification pass over the FIX-and-bookkeeping response to the 16:18 review's findings
