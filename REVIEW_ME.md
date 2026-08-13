@@ -3,6 +3,36 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-13e (window last-reviewer-ckpt `relay-ckpt-20260813-2213`..HEAD `-2222` — id:259f execute)
+
+Trust-but-verify over the `id:259f` executor (sonnet) unit. HEAD `-2222` is the executor's OWN
+checkpoint, so `$LAST..HEAD` is empty; audited the real window `-2213` (last **reviewer** ckpt) →
+HEAD instead. `gaming-scan.sh` clean; full suite **420 passed / 0 failed / 1 expected-red**;
+contract pointer v12 == canonical v12.
+
+**`id:259f` VERIFIED genuine-green (not gamed, not over-reach).** One-line fix to
+`meeting/classify.sh` gate detector: `gated?|gate:` → `\bgated?\b|\bgate:` (word-boundary anchor).
+The RED spec `test_classify_gate_word_boundary_259f.sh` was authored at handoff (`60a9208`),
+UNMODIFIED by the executor (resurrection check trivially passes), and went RED→GREEN by the
+implementation change alone. §2d over-reach: NONE — the diff matches the TODO item's OWN stated
+remedy (`\bgated?\b`, "check the other alternatives similarly"); the untouched multi-word
+alternatives (`reopen (gate|trigger)`, `condition-triggered`, `blocked on`) have no substring-FP
+hazard, so leaving them is correct, not under-reach. Closed + archived (`ROADMAP.archive.md`);
+TODO twin ticked. The archive commit `a4d1aed` moved ONLY `id:259f` (verified `[x]`) — no un-done
+item swept. Resolves the `id:259f` owner-call box from 13c (approach A shipped).
+
+`routine_open` = **0** — no ungated, non-`@container` open `[ROUTINE]` remains (13d's sole
+candidate `id:d119`'s ROADMAP twin has since closed+archived). The 5 open `[ROUTINE]` items
+(`1255`/`1380`/`c179`/`1397`/`f91a`) are all `🚧 GATED` (owner/technical) or `@container`;
+`classify-repo.sh --emit` agrees (`actionable_routine_open=0`). Nothing reopened.
+
+Re-derivation edit: added `@container` to `id:ae08` (was DECOMPOSED into seams `02b2`/`99e5`/`5b12`
+but still wore an `[INPUT — decision]` lane → roadmap-lint DECOMPOSED-CONTAINER; not ticked
+because seams `02b2`/`99e5` remain open, `5b12` closed).
+
+- [ ] **`id:d119` cross-ledger drift — SAME id reused for two different scopes; ROADMAP half shipped, TODO half genuinely still open.** `id:d119` is `[x]` CLOSED in `ROADMAP.archive.md:4015` (scoped "roadmap-lint *recognizes* an OWNER-HOLD marker & suppresses its false DEAD-GATE — linter only") but `[ ]` OPEN in `TODO.md:732` (broader: *apply* the owner-hold marker onto `id:540f`/`id:c179` in place of their dead `gated-on:b0b1` + the marker grammar). The remaining TODO work is genuinely incomplete — **evidence:** `roadmap-lint` STILL emits false DEAD-GATE for `540f`/`c179` this pass, i.e. the owner-hold marker was never written onto them. So do NOT auto-tick the TODO twin (would mark undone work done). `orphan-scan --cross-ledger` missed this (archive blind spot — already tracked as inbox dead-letters routed:42c9/8b21). **Owner/handoff call:** either mint a fresh id for the "apply-the-marker + grammar" remainder and re-scope the TODO d119 line, or confirm the remainder is intended and leave it — not a review auto-fix.
+- [ ] **Install-drift: `relay/scripts/roadmap-tick.sh` is in the repo + declared in `relay_FILES`, but its `~/.claude/skills/relay/scripts/` symlink is MISSING** (relay-doctor install-drift, id:1102). This is the v12 tick-ownership script the serialized integrator uses to tick ROADMAP checkboxes from `worked_ids`. Report-only, but if the live integrator resolves scripts through the installed skill path it can't tick — run **`make install-relay`** (or `make install`) on zomni to regenerate the symlink. Install-state, not repo content, so not fixable in this worktree.
+
 ## Review 2026-08-13d (chain-end re-ask, chain `relay-ckpt-20260813-2045`..`-2119` — id:f657)
 
 Chain-end re-ask: HEAD == the `-2119` checkpoint, so the reviewed window is the just-ended
@@ -62,7 +92,7 @@ correctly (zero ROADMAP refs, so single-id-two-views needs no second write).
 `🚧 GATED`, `id:f91a` is an `@container`). Nothing reopened. One box below for the newly-filed
 `id:259f`.
 
-- [ ] **`id:259f` (classify.sh gate detector substring false-positive) — owner call on WHETHER/HOW to tighten.** The executor filed this as a `[ROUTINE]` item in `TODO.md` after discovering that `classify.sh`'s gate pattern `grep -qiE 'gated?|…'` matches the bare substring `gate`, so *investigate* / *mitigate* / *aggregate* / *delegate* / *navigate* all render `[GATED]` in every `/meeting` bucket summary (confirmed live on *investigate*). It is a real correctness defect. Held in `TODO.md`, **not promoted to ROADMAP with a red spec this turn** (reverse-handoff §5b), because the executor explicitly reserved it as the owner's call — two approaches (A: tighten to `\bgated?\b` word-boundary form; B: leave and word fixtures around it). If you want it pool-picked: confirm approach A and it can be mini-handed-off with a word-boundary red spec next review.
+- [x] **`id:259f` (classify.sh gate detector substring false-positive) — owner call on WHETHER/HOW to tighten.** ✅ RESOLVED via **approach A**: promoted to ROADMAP with a word-boundary RED spec (handoff `-2142`), executed at `-2222` (`\bgated?\b|\bgate:`, `meeting/classify.sh`), and VERIFIED genuine-green this review (2026-08-13e) — `test_classify_gate_word_boundary_259f.sh` passes, no gaming, not a superset (the fix matches the TODO item's own stated remedy). Closed + archived in ROADMAP; TODO twin ticked. If you prefer approach B, the change is a trivial one-line revert. Original box: the executor filed this as a `[ROUTINE]` item after discovering `classify.sh`'s gate pattern matched the bare substring `gate`, so *investigate*/*mitigate*/*aggregate*/*delegate*/*navigate* all rendered `[GATED]` in every `/meeting` bucket summary.
 
 ## Review 2026-08-13b (window `relay-ckpt-20260813-1618`..HEAD — 21 commits, all owner-authored)
 
