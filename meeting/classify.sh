@@ -95,7 +95,7 @@ while IFS= read -r line; do
 
     # Gate-text check (advisory): detect gate/condition/blocked vocabulary in body
     gate=""
-    printf '%s' "$body" | grep -qiE 'gated?|gate:|reopen (gate|trigger)|condition-triggered|blocked on' \
+    printf '%s' "$body" | grep -qiE '\bgated?\b|\bgate:|reopen (gate|trigger)|condition-triggered|blocked on' \
         && gate="GATED" || true
 
     # Lane floor, LANE-AWARE (D4 + id:78ff): a [HARD]/[INPUT — …] item needs a strong
