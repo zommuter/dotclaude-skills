@@ -1565,24 +1565,6 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Why it is a genuine question, not an obvious bug**: `id:8e3e` deliberately admits the zero-commit review as legitimate, and most such worktrees really are clean no-ops. But a zero-commit worktree with uncommitted changes is not a no-op — it is an INCOMPLETE unit whose work is about to be discarded silently, which is the shape contract rule 5b exists to prevent. Reordering the checks would catch that, at the cost of failing some genuine no-op reviews that happen to carry stray untracked files.
   - **The owner decides.** Do not reorder the gate on the strength of this note alone. Surfaced because the `id:76d2` executor hit it, proved it provisioner-independent, and correctly refused to either edit the spec or change gate behaviour on its own authority.
 
-## Handoff C2 2026-08-13 (relay handoff, self-contained non-dispatch subset)
-
-> Promotion of the SELF-CONTAINED, non-dispatch-semantics subset of the open TODO backlog
-> (ids REUSED — single-id-two-views). The scan found 17 promote- and 25 surface-disposition
-> items; the majority of the promote set touches in-flight dispatch / `relay-reconcile` /
-> `gather-repo-state` semantics and is deliberately LEFT for the owner per `id:eb16`'s directive
-> ("promote only those whose lane is ALREADY tagged and whose scope is self-contained; anything
-> touching in-flight dispatch semantics stays for the owner — do not promote on a guess"). The
-> three promoted here concern the TEST HARNESS, a DOC convention, and a REPORT-ONLY linter — none
-> is on any dispatch path. Rationale and full evidence stay in `TODO.md`; these entries are the
-> execution spec only. Two carry a judgment-call flagged in `REVIEW_ME.md`.
-
-- [x] [ROUTINE] **Lint for VACUOUS FIXTURES — a defect-fix test that proves nothing because its fixture never reaches the guarded code path** <!-- id:292b -->
-  - **Acceptance**: a new advisory linter `tests/lint-vacuous-fixtures.py` (sibling to `tests/lint-source-grep-assertions.py`) implements mechanism (1) from `TODO.md` id:292b: every "defect-fix" test file (a `tests/test_*.sh` carrying NO `# roadmap:XXXX` header — the harness convention for defect-fix tests, per CLAUDE.md §Testing) MUST declare a `# fails-against: <rev|mutation>` header naming the revision/mutation it must fail against; a headerless test missing that line is FLAGGED, one that declares it PASSES, and a roadmap-spec test (carries `# roadmap:`) is never flagged. Advisory by default (exit 0), non-zero only under `--strict` (mirror the sibling lint's `--strict`/`--max N` shape). **OUT of scope (explicit): the CI RUNNER that actually checks out/mutates and re-runs the negative case** — mechanism (1)'s second half — plus mechanisms (2) reached-fixture and (3) ledger-token-shape; those are follow-ups, not this item. See REVIEW_ME (header-scope judgment).
-  - **Tests**: `tests/test_vacuous_fixture_lint_292b.sh` (`# roadmap:292b`) — currently RED (`tests/lint-vacuous-fixtures.py` does not exist). Runs the lint over purpose-built fixture test files under `$tmpdir` (never asserts on the lint's own source text — that would be the very defect being linted).
-  - **Done-check**: `tests/run-tests.sh tests/test_vacuous_fixture_lint_292b.sh`, then tick the box and run full `make test` green.
-  - **Context**: sibling `tests/lint-source-grep-assertions.py` + its test `tests/test_source_grep_lint.sh` (mirror its structure); `tests/run-tests.sh` EXPECTED-RED semantics; TODO id:292b (three motivating live instances). Relates id:3a50, id:05a2.
-
 ## User-injected promotion 2026-08-13 (id:baf1) — archive-path stub design call (routed:f833, INBOUND from loderite)
 
 > Owner-directed, NARROWED-SCOPE C2 promotion of `TODO.md` `routed:f833` (`id:cd9c`). Single-id-two-views:
