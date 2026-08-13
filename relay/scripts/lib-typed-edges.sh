@@ -31,6 +31,14 @@ typed_edges_settles_of_line()    { grep -oP '(?<=<!-- settles:)[0-9a-f,]+(?= -->
 # `<!-- decided-in:<note-relpath> -->` — authored on the ledger item itself: a backref
 # to the meeting note that decided it. The relpath has no spaces or `-->` by construction.
 typed_edges_decided_in_of_line() { grep -oP '(?<=<!-- decided-in:)[^[:space:]]+(?= -->)' <<<"$1" || true; }
+# `<!-- owner-hold:REASON -->` (id:d119) — an explicit owner decision that this item's
+# gated-on target is INTENTIONALLY unclearable (e.g. the owner wants dispatch held back
+# regardless of whether the technical gate ever resolves). REASON has no spaces, same
+# token grammar as gated-on's CSV — free-text notes belong in the item's own body, not
+# inside the comment. roadmap-lint's DEAD-GATE rule (3(d)) reads this to distinguish a
+# deliberate hold from a genuinely dead/mistaken gate; it is SCOPED to that lint only —
+# classify-repo.sh's dispatch gate does NOT read it (a separate, coordinated follow-up).
+typed_edges_owner_hold_of_line() { grep -oP '(?<=<!-- owner-hold:)[^[:space:]]+(?= -->)' <<<"$1" || true; }
 
 # --- DEP-prose vs typed gated-on (id:3f7e) ------------------------------------
 # `(DEP: <id>)` / `(DEP <id>)` prose gate-annotations are NOT edges — same
