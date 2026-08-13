@@ -5,6 +5,11 @@
 #   append.sh -t {discoveries|personas|inbox} -e "line text"
 #   append.sh -t {discoveries|personas|inbox} -f entry.txt
 #   echo "line" | append.sh -t {discoveries|personas|inbox}
+#   append.sh -t personas [--replace] -e "line text"
+#                                         — re-registering an already-listed **Name** EXTENDS
+#                                           its entry losslessly (union of old + new text,
+#                                           routed:81b8); `--replace` opts in to discarding
+#                                           the prior text instead.
 #   append.sh -t inbox --route-to <target-repo> -e "<description>"
 #                                         — mint the token INSIDE append.sh, build the
 #                                           conforming line, append it, print the token
@@ -309,6 +314,10 @@ target=""
 entry=""
 entry_file=""
 route_to=""
+# personas re-registration mode. Default "extend" = LOSSLESS union with the existing entry
+# (routed:81b8). "replace" is the explicit opt-in for a deliberate rewrite — the only way to
+# discard prior lens text, and it must be asked for.
+persona_mode="extend"
 
 # Manual parse (not getopts) so `-t inbox --route-to <repo> -e "<desc>"` (id:34c2, form B)
 # can sit alongside the original short flags without getopts' lack of long-option support.
@@ -318,7 +327,8 @@ while [[ $# -gt 0 ]]; do
     -e) entry="${2:-}"; shift 2 ;;
     -f) entry_file="${2:-}"; shift 2 ;;
     --route-to) route_to="${2:-}"; shift 2 ;;
-    *) echo "Usage: $0 -t {discoveries|personas|inbox} [-e text | -f file] [--route-to <target-repo>]" >&2; exit 1 ;;
+    --replace) persona_mode="replace"; shift ;;
+    *) echo "Usage: $0 -t {discoveries|personas|inbox} [-e text | -f file] [--route-to <target-repo>] [--replace]" >&2; exit 1 ;;
   esac
 done
 
@@ -332,6 +342,11 @@ esac
 
 if [[ -n "$route_to" && "$target" != "inbox" ]]; then
   echo "Error: --route-to is only valid with -t inbox" >&2
+  exit 1
+fi
+
+if [[ "$persona_mode" == "replace" && "$target" != "personas" ]]; then
+  echo "Error: --replace is only valid with -t personas" >&2
   exit 1
 fi
 
@@ -413,18 +428,96 @@ fi
 # re-registration on its own (union keeps both sides forever) — the writer is the only
 # place reconciliation can happen. `append.sh -t personas` is the sole sanctioned writer
 # (see the usage note above), so this is a normal write path, not a rare edge case.
+#
+# TWO defects were fixed here on 2026-08-13 (both observed live 2026-08-12):
+#
+# routed:81b8 — the original awk was a whole-line REPLACE
+#     index($0, needle) > 0 && !done { print newline; done=1; next }
+#   which printed the caller's line and `next`ed past the old one, SILENTLY DISCARDING all
+#   prior lens text unless the caller happened to retype it (exit 0, stderr still claiming
+#   "extending"). Confirmed loss: Gil's RELEASE-TAG-PUSH-SEMANTICS, Hank's
+#   PROMPT-PROSE-AS-CACHE, Dex's KIND-vs-ARITY text (repaired by hand in 624a7f8). Because
+#   personas.md is `merge=union`, a lost fragment can NEVER be recovered by a later merge.
+#   Fixed by making the extend LOSSLESS (merge_persona_line below): the surviving entry is
+#   the UNION of old and new. `--replace` is the explicit opt-in for a deliberate rewrite —
+#   destructive by request, never by default.
+#
+# routed:96da — the original wrote `tmp=$(mktemp)` then `mv -- "$tmp" "$dest"`. The installed
+#   $dest (~/.claude/skills/meeting/personas.md) is a SYMLINK to the canonical checkout, so
+#   the mv REPLACED the symlink with a detached regular file: the canonical file never got
+#   the edit, the registry forked silently, perms dropped 0644→0600 and the write crossed
+#   filesystems. Fixed by writing IN PLACE (python `open(path,"w")` truncates the resolved
+#   target), which follows the symlink and preserves inode + permissions — exactly like the
+#   plain-append `printf >> "$dest"` path below, which was always correct.
 if [[ "$target" == "personas" ]]; then
   pname="$(grep -oP '\*\*\K[A-Za-z]+(?=\*\*)' <<<"$entry" | head -1)"
   if [[ -n "$pname" ]] && grep -qF -- "**${pname}**" "$dest"; then
-    echo "persona '$pname' already registered, extending instead of appending a duplicate (id:069b)" >&2
+    if [[ "$persona_mode" == "replace" ]]; then
+      echo "persona '$pname' already registered, REPLACING its entry (--replace: prior text is discarded) (routed:81b8)" >&2
+    else
+      echo "persona '$pname' already registered, extending instead of appending a duplicate (id:069b)" >&2
+    fi
     (
       flock -x 9
-      tmp="$(mktemp)"
-      awk -v needle="**${pname}**" -v newline="$entry" '
-        index($0, needle) > 0 && !done { print newline; done=1; next }
-        { print }
-      ' "$dest" > "$tmp"
-      mv -- "$tmp" "$dest"
+      # Guard the symlink topology explicitly (routed:96da): a plain regular file at the
+      # INSTALL path where a symlink is expected means an earlier detaching write already
+      # forked the registry. Say so — do not silently write into the fork.
+      if [[ ! -L "$dest" && "$dest" == "$HOME/.claude/skills/"* ]]; then
+        echo "warning: $dest is a regular file, not a symlink into the dotclaude-skills checkout — the registry may already be FORKED (routed:96da); reconcile it against \$dest's canonical twin." >&2
+      fi
+      # In-place write: python opens the RESOLVED path for truncation, so a symlinked $dest
+      # keeps its link, inode and permissions. No mktemp, no mv, no /tmp→home hop.
+      PERSONA_NAME="$pname" PERSONA_NEW="$entry" PERSONA_MODE="$persona_mode" \
+      python3 - "$dest" <<'PYEOF'
+import os, re, sys, pathlib
+
+path = pathlib.Path(sys.argv[1])
+name = os.environ["PERSONA_NAME"]
+new  = os.environ["PERSONA_NEW"].strip()
+mode = os.environ.get("PERSONA_MODE", "extend")
+needle = "**%s**" % name
+
+def squash(s):
+    return re.sub(r"\s+", " ", s).strip()
+
+def merge_persona_line(old, new):
+    """LOSSLESS union of an existing registry entry and a re-registration (routed:81b8).
+
+    Three cases, in order:
+      * the new entry already CONTAINS the old text (the caller retyped it, as in e601f79)
+        -> take the new line: it is a strict superset, nothing is lost and nothing repeats;
+      * the new entry adds nothing the old line lacks -> keep the old line untouched;
+      * otherwise -> APPEND the new entry's payload (its leading bullet/emoji/**Name**/dash
+        prefix stripped) to the old line. Concatenation, never replacement: duplicated
+        wording is a cosmetic cost, dropped wording is unrecoverable under merge=union.
+    """
+    o, n = squash(old), squash(new)
+    if o and o in n:
+        return new
+    if n and n in o:
+        return old
+    tail = re.sub(r"^.*?\*\*" + re.escape(name) + r"\*\*\s*(?:[-—–:]\s*)?", "", new).strip()
+    if not tail:
+        tail = new.strip()
+    return old.rstrip() + " " + tail
+
+raw = path.read_text()
+trailing_nl = raw.endswith("\n")
+lines = raw.splitlines()
+out, done = [], False
+for line in lines:
+    if not done and needle in line:
+        out.append(new if mode == "replace" else merge_persona_line(line, new))
+        done = True
+    else:
+        out.append(line)
+if not done:
+    # Defensive: the bash-side grep matched but this pass did not (should be unreachable).
+    # Never write a file that silently lost the caller's entry — fail loudly instead.
+    sys.stderr.write("append.sh: internal error — '%s' matched but no line to extend; NOTHING written\n" % needle)
+    sys.exit(4)
+path.write_text("\n".join(out) + ("\n" if trailing_nl else ""))
+PYEOF
     ) 9>"${dest}.lock"
     exit 0
   fi
