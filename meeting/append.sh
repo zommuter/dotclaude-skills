@@ -229,13 +229,27 @@ fi
 # ORIGINATES tokens must be listed here (TODO ledger, meeting notes, relay
 # ROADMAP). Files that only cite existing tokens (RELAY_LOG.md, REVIEW_ME.md,
 # tests' `# roadmap:` comments) are deliberately excluded.
+#
+# BOTH ledger archives are scanned, and the symmetry is load-bearing (id:3262). Archiving
+# an item does NOT un-originate its token: an id that has moved into TODO.archive.md or
+# ROADMAP.archive.md is still spoken for, and re-minting it creates a within-repo collision.
+# ROADMAP.archive.md was missing here until 2026-08-13 while its TODO twin was present, so
+# any id archived out of ROADMAP.md went invisible to the minter and could be handed out
+# again — confirmed live in zkm-pdf, whose ROADMAP.archive.md:76 and :115 are two DISTINCT
+# top-level items both tagged <!-- id:1a30 -->.
 scan_ids() {
   local root="$1"
+  # 2>/dev/null is deliberate and bounded (id:4347 no-silent-swallow): not every repo is
+  # relay-managed, so a missing ROADMAP.md / ROADMAP.archive.md / TODO.archive.md /
+  # docs-meeting-notes is a NORMAL state, not an error. The only thing suppressed is grep's
+  # per-path "No such file or directory"; a token that exists in a readable file is never
+  # hidden by it, and an unreadable-but-present file still yields grep's own nonzero exit.
   grep -rho 'id:[0-9a-f]\{4\}' \
     "$root/docs/meeting-notes" \
     "$root/TODO.md" \
     "$root/TODO.archive.md" \
-    "$root/ROADMAP.md" 2>/dev/null || true
+    "$root/ROADMAP.md" \
+    "$root/ROADMAP.archive.md" 2>/dev/null || true
 }
 
 # scan-ids: print every existing token (bare 4-hex, one per line, sorted unique).
