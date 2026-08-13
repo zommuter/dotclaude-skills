@@ -66,10 +66,20 @@ Turns deliberately NOT guarded
   • Fable-class sessions, entirely.
   • Any turn ending in under MIN_CHARS of prose — a clarifying answer to a user
     question mid-meeting is a legitimate conversational turn.
-Known accepted false-positive: the SKILL.md step-1 warrantability self-check
-("are you sure you want a meeting?") is a prose yield inside the window.  It is
-rare, it is itself a question that would be better posed via `AskUserQuestion`,
-and the block is recoverable in one turn.
+Formerly-accepted false positive, now CLOSED (2026-08-13, id:2419): the SKILL.md
+step-1 warrantability self-check ("are you sure you want a meeting?") used to be a
+prose yield inside the window.  SKILL.md and format.md now require it to be posed
+through the same harness-class protocol as every other decision point, so it is a
+question and no longer trips this guard.  With it closed, **no legitimate prose
+yield exists between `/meeting` and the meeting-note Write** — every yield in that
+window is a decision point.
+
+MIN_CHARS is deliberately NOT dropped to 0 despite that.  The floor no longer
+exempts a *skill step*; it exempts a *conversational* turn — a short clarifying
+answer to a user question asked mid-meeting ("what is id:X?") is legitimate, is not
+a decision point, and has no `AskUserQuestion` to pair with.  Dropping the floor
+would block those, which is the false-block class that gets a hook disabled.  The
+measured regressions sit ~7x and ~14x above 800, so the floor costs no coverage.
 
 Escape hatch
 ------------
