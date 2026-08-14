@@ -10,9 +10,18 @@
 # otherwise contend on (id:dc5b C2), while keeping a single writer to main.
 #
 # Behaviour:
-#   - For each id, find the FIRST open "- [ ] … id:<id> …" line in ROADMAP.md and flip
-#     its "[ ]" to "[x]". The id is matched as the literal token `id:<id>` (an item's own
-#     `<!-- id:XXXX -->` comment; `children-of:`/`gated-on:`/`routed:` never contain `id:`).
+#   - For each id, find the FIRST open "- [ ] …" line whose OWN id is <id> and flip its
+#     "[ ]" to "[x]". The own id is the LAST `<!-- id:XXXX -->` MARKER on the line.
+#     ANCHORED-MARKER MATCH, never a bare-token search (cartulary 2026-08-14, routed:4a12).
+#     The previous `index($0, "id:<id>")` containment test matched the id ANYWHERE, including
+#     in PROSE — and the id:3801 auto hard-split writes "DECOMPOSED into seams id:AAAA,
+#     id:BBBB" into the @container line. Combined with "FIRST open line", the container
+#     (earlier in the file) beat its own seam every time: 4 mis-ticks in one day in cartulary
+#     (b1f005f [a251]→55e6, 841245f [7b09]→6ed1, ace091e [b3f7]→9c14, 8039b10 [518a]→fc32),
+#     leaving shipped work reading OPEN (so the pool re-dispatched it) and containers reading
+#     DONE over open seams. This is define-vs-refer: `<!-- id:X -->` means "this line IS X",
+#     prose `id:X` means "see X". Taking the LAST marker also makes a body that QUOTES another
+#     item's marker non-matching (the id:cc7e first-vs-last lesson), so both are closed here.
 #   - Idempotent: an id already ticked ("- [x] … id:<id>") or absent is a clean no-op.
 #   - NEVER edits an item's Acceptance/Tests/Done-check/Context body — only the checkbox char.
 #   - flock-guarded (shares nothing with archive); logs detail to ~/.claude/logs.
@@ -59,9 +68,19 @@ TICKED=()
 for id in "${IDS[@]}"; do
     # Only flip the FIRST open checkbox line carrying this id. awk edits in place via a temp.
     tmp=$(mktemp)
-    if awk -v id="id:${id}" '
-        BEGIN { done = 0 }
-        (!done && $0 ~ /^- \[ \]/ && index($0, id) > 0) {
+    if awk -v want="${id}" '
+        # own_id(line): the LAST "<!-- id:XXXX -->" marker on the line, or "" if none.
+        # Anchored on the marker, never a bare-token search — see the header note.
+        function own_id(s,   last) {
+            last = ""
+            while (match(s, /<!-- id:[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F] -->/)) {
+                last = substr(s, RSTART + 8, 4)
+                s = substr(s, RSTART + RLENGTH)
+            }
+            return last
+        }
+        BEGIN { done = 0; wl = tolower(want) }
+        (!done && $0 ~ /^- \[ \]/ && tolower(own_id($0)) == wl) {
             sub(/^- \[ \]/, "- [x]")
             done = 1
         }

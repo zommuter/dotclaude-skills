@@ -101,7 +101,14 @@ top_bullet_re = re.compile(r'^- \[')
 # the suffix (live: bfb3/3d6c/a10c each carry a `**⚠ …`), and an end anchor would re-archive
 # exactly those — the very defect this guard exists for.
 STUB_SUFFIX = " (archived — see ROADMAP.archive.md)"
-stub_line_re = re.compile(r'^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->' + re.escape(STUB_SUFFIX))
+# The `.*` between the id marker and the suffix is LOAD-BEARING (cartulary 2026-08-14,
+# routed:4a12): an item line may carry prose AFTER its own `<!-- id:XXXX -->` marker —
+# ledger write-backs from `/relay human` and `/meeting` routinely append rationale there.
+# Without it the suffix had to follow the marker IMMEDIATELY, so every such stub read as
+# un-stubbed and was re-archived + re-stubbed EVERY round: cartulary accumulated up to 9
+# duplicate bodies per id in ROADMAP.archive.md and stub suffixes repeated 3x on one line.
+# Still NOT end-anchored, for the reason stated above (trailing annotations past the suffix).
+stub_line_re = re.compile(r'^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->.*' + re.escape(STUB_SUFFIX))
 # Regex for a ## or deeper section heading (matches H1 too — H1 is protected separately).
 heading_re  = re.compile(r'^#{1,6}\s')
 
