@@ -1558,7 +1558,8 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Acceptance**: grep -c 'drain-integrate' relay/scripts/relay-loop.js is non-zero and reachable from the drain-mode integration path (enqueueIntegration); a review unit never runs concurrently with any other unit in its own repo; integrate checks are NOT relaxed because greenlight proved disjointness (design rule D3a).
   - **Done-check**: tests/run-tests.sh tests/test_relay_integrate_contain.sh AND tests/test_drain_serial_integrator.sh (both unmodified) green AND node --check relay/scripts/relay-loop.js clean
   - **Context**: relay/scripts/relay-loop.js (enqueueIntegration ~line 1001 and the integration-drain path) + relay/scripts/drain-integrate.sh
-## User-injected promotion 2026-08-13 (id:baf1) — archive-path stub design call (routed:f833, INBOUND from loderite)
+<!-- HEADING WORD-CHOICE (id:cd9c review 2026-08-14): the section title must NOT contain any parked-vocab word (gated|deferred|done|icebox|archive|parked) — classify-repo.sh's lib-roadmap-sections.sh matches it as a bare substring and PARKS the whole section, silently excluding the actionable cd9c below (actionable_routine_open:0). "archive-path" was renamed to "stub-on-move" for exactly this reason. Hardening filed as id:6446. -->
+## User-injected promotion 2026-08-13 (id:baf1) — stub-on-move design call (routed:f833, INBOUND from loderite)
 
 > Owner-directed, NARROWED-SCOPE C2 promotion of `TODO.md` `routed:f833` (`id:cd9c`). Single-id-two-views:
 > the ROADMAP line REUSES the TODO item's existing token `id:cd9c` (already cross-referenced by sibling
