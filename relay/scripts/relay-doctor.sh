@@ -60,6 +60,8 @@ CLASSIFY_REPO="$SCRIPTS_DIR/classify-repo.sh"          # id:188c — verdict-inv
 # produced via a stub — same override idiom as RELAY_DOCTOR_ORPHAN_SCAN above).
 CLASSIFY_REPO="${RELAY_DOCTOR_CLASSIFY_REPO:-$CLASSIFY_REPO}"
 CLEAN_TREE_GATE="${RELAY_DOCTOR_CLEAN_TREE_GATE:-$CLEAN_TREE_GATE}"
+CLAIM_SH="$SCRIPTS_DIR/claim.sh"                       # id:aee5 — liveness oracle for check 9
+CLAIM_SH="${RELAY_DOCTOR_CLAIM_SH:-$CLAIM_SH}"
 # --- repo-root resolution by REAL path (id:cbd2) ---------------------------------
 # `$SCRIPTS_DIR` above is derived from `dirname "${BASH_SOURCE[0]}"`, which is NOT
 # symlink-resolved: invoked through the installed symlink
@@ -302,9 +304,27 @@ check_repo() {
       done)"
       if [[ -n "$resid" ]]; then
         local n9; n9="$(printf '%s\n' "$resid" | grep -cE '^  ' || true)"
-        printf 'RESIDUE — %s uncommitted non-lock entry(ies) on the main checkout (foreign/stranded ledger edit — invariant I1/I7):\n' "$n9"
-        printf '%s\n' "$resid"
-        repo_issues=$((repo_issues + n9))
+        # id:aee5 — LIVENESS DISCRIMINATOR. Residue alone is ambiguous: mid-run it is the
+        # normal state of a repo a live session is writing, but once that session ends the
+        # same bytes are ABANDONED — nobody will ever commit them, and they block the id:aa93
+        # dirty guard (deferring every pool unit) and git-lock-push's rebase indefinitely.
+        # Reporting both identically is why this check could not be run routinely: it would
+        # false-alarm on healthy in-flight work. `claim.sh peek` is the oracle and needs no new
+        # machinery — it emits ONLY live claims (dead ones skipped, id:7570), so a claim keyed
+        # to this repo means a live run holds it. Grounded 2026-08-14: an orphaned
+        # meeting/personas.md write from a finished session sat unnoticed for hours.
+        local holder=""
+        if [[ -x "$CLAIM_SH" ]]; then
+          holder="$(bash "$CLAIM_SH" peek 2>>"$LOG" | grep -F "\"key\":\"$name\"" | head -1 || true)"
+        fi
+        if [[ -n "$holder" ]]; then
+          printf 'RESIDUE (IN-FLIGHT) — %s uncommitted non-lock entry(ies); a LIVE run holds %s, so this is expected mid-run state, NOT actionable:\n' "$n9" "$name"
+          printf '%s\n' "$resid"
+        else
+          printf 'RESIDUE (ABANDONED) — %s uncommitted non-lock entry(ies) on the main checkout and NO live run holds %s: the writer is gone, nothing will commit it, and it blocks the id:aa93 dirty guard until a human acts (invariant I1/I7):\n' "$n9" "$name"
+          printf '%s\n' "$resid"
+          repo_issues=$((repo_issues + n9))
+        fi
       else
         echo "clean (dirty-lock-only — benign in-place relock, not residue)"
       fi
