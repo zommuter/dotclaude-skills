@@ -10,6 +10,7 @@
 ## 2026-08-14
 
 - verify-isolation.sh: empty worktree + dirty tree now exits 2 (breach-shaped) under both main-unmoved (b1) and merge-commits-only (b3) conditions; id:8e3e no-op review unregressed (id:1b13)
+- Chain-end review: no executor code work (ledger/human window); authored RED spec for id:1b13; suite 420/0/4-xred; relay-doctor clean; routine_open=4 (id:1b13)
 
 ## 2026-08-13
 
