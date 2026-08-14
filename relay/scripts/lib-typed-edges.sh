@@ -18,9 +18,32 @@
 # Only the comment-wrapped form matches; prose/backticked mentions never do.
 typed_edges_children_of_line() { grep -oP '(?<=<!-- children:)[0-9a-f,]+(?= -->)' <<<"$1" || true; }
 typed_edges_gated_of_line()    { grep -oP '(?<=<!-- gated-on:)[0-9a-f,]+(?= -->)' <<<"$1" || true; }
-# An item's OWN id: the FIRST `<!-- id:XXXX -->` comment on the line (by convention only
-# the item's own trailing id is comment-wrapped; body-prose ids are bare).
-typed_edges_own_id_of_line()   { grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$1" | head -1 || true; }
+# An item's OWN id — the single `<!-- id:XXXX -->` comment on the line.
+#
+# id:6059 — this used to be `| head -1` (FIRST wins). That was a silent POSITIONAL GUESS,
+# and there is no safe positional rule: `<!-- id:X -->` means BOTH "this line IS X" and
+# "this line REFERS to X" with identical syntax. A body that QUOTES a marker puts the own
+# id LAST (this repo, TODO.md's `id:f346`); a TRAILING REFERENCE puts it FIRST (loderite
+# ROADMAP.md L211/L229/L628, routed:3ad9 — three OPEN items each ending
+# `<!-- id:XXXX --> <!-- id:50f3 -->` where 50f3 is a CLOSED item). Either guess
+# mis-attributes one of the two shapes.
+#
+# So a multi-marker line resolves to NOTHING and says so on stderr. Empty is what every
+# caller already handles for an id-less line, and it is the under-dispatch-safe /
+# fail-open direction (gather-repo-state.sh skips the item; resolve-gates.sh emits no
+# row). The real fix is a define-vs-refer grammar — routed:20ce / cartulary id:344d,
+# NOT decided here. (Note gather-repo-state.sh:527 documents this helper as "the LAST
+# marker"; that claim was never true of the code and is now wrong in the other
+# direction — flagged for central correction, that file is not edited here.)
+typed_edges_own_id_of_line() {
+  local _te_ids
+  _te_ids="$(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$1" || true)"
+  if [[ "$(wc -l <<<"$_te_ids")" -gt 1 ]]; then
+    echo "lib-typed-edges: AMBIGUOUS own id — line carries multiple anchored id markers ($(tr '\n' ' ' <<<"$_te_ids")); REFUSING to attribute it (id:6059): $1" >&2
+    return 0
+  fi
+  printf '%s' "$_te_ids"
+}
 # id:8913 — settled-decision detection edges. Anchored ONLY: a bare `id:XXXX` mention
 # or a backticked bare token (`e647`) under a Decisions heading is NOT an edge (the
 # refuted D1(ii) bare-grep design, meeting 2026-07-24-0929) — these extractors only

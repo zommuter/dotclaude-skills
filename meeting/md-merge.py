@@ -177,6 +177,46 @@ _ARCHIVE_HEADING_RE = re.compile(r'^#{2,}\s+(done|archive|icebox)\b', re.IGNOREC
 # tooling uses — do not invent a looser/stricter pattern here.
 _ID_MARKER_RE = re.compile(r'<!--\s*id:([0-9a-fA-F]{4})\s*-->')
 
+
+class AmbiguousOwnId(Exception):
+    """A line carries MORE THAN ONE `<!-- id:XXXX -->` marker, so its own id cannot be
+    resolved under the current grammar. Raised instead of guessing (id:6059)."""
+
+
+def _own_id_match_of_line(line: str) -> "re.Match | None":
+    """The re.Match for the line's OWN `<!-- id:XXXX -->` marker, or None if it has none.
+
+    Raises AmbiguousOwnId when the line carries several. id:cc7e / id:6059 — this used to
+    be `_ID_MARKER_RE.search(...)`, i.e. a silent FIRST-match guess, and last-match is no
+    better: `<!-- id:X -->` means BOTH "this line IS X" and "this line REFERS to X" with
+    identical syntax, and the two shapes put the own id at OPPOSITE ends —
+
+      body QUOTES a marker  → own id LAST  (this repo: TODO.md's `id:f346` item)
+      TRAILING reference    → own id FIRST (loderite ROADMAP.md L211/L229/L628,
+                              routed:3ad9: three OPEN items ending
+                              `<!-- id:XXXX --> <!-- id:50f3 -->`, 50f3 CLOSED)
+
+    Either positional rule silently mis-attributes one shape, and on `update-ids` — a
+    WRITE path — a mis-attribution rewrites the WRONG item with no error. So this refuses.
+    A LOUD "ambiguous, refusing" is the correct outcome for such a line; the reported
+    "unmatched id(s) not found in TODO.md: 7756" (2026-08-14) becomes an explicit
+    ambiguity report instead. The durable fix is a define-vs-refer grammar (routed:20ce /
+    cartulary id:344d), not decided here.
+
+    Append mode (id:0af4) re-anchors around the marker's span, so it needs the match
+    object, not just the token.
+    """
+    ms = list(_ID_MARKER_RE.finditer(line))
+    if len(ms) > 1:
+        raise AmbiguousOwnId(', '.join(m.group(1) for m in ms))
+    return ms[0] if ms else None
+
+
+def _own_id_of_line(line: str) -> str | None:
+    """The line's OWN id token, or None. Raises AmbiguousOwnId (see above)."""
+    m = _own_id_match_of_line(line)
+    return m.group(1) if m else None
+
 # A checkbox item line starts with `- [ ]` or `- [x]`/`- [X]`.
 _CHECKBOX_RE = re.compile(r'^- \[[ xX]\]')
 
@@ -196,14 +236,62 @@ def _validate_replacement(item_id: str, target_line: str, new_line: str) -> str 
     id-bearing line (e.g. a `## heading <!-- id:XXXX -->`) may still be replaced
     by another non-checkbox line.
     """
-    nm = _ID_MARKER_RE.search(new_line)
-    if not nm or nm.group(1).lower() != item_id.lower():
+    # id:cc7e/id:6059 — the replacement is resolved by the SAME rule as the target line:
+    # exactly one own marker, or a loud refusal. A replacement carrying two markers would
+    # make the line it writes un-addressable on the next pass.
+    try:
+        nm = _own_id_of_line(new_line)
+    except AmbiguousOwnId as amb:
+        return (f'replacement for id:{item_id} carries several anchored id markers '
+                f'({amb}) — the resulting line would be un-addressable (id:6059); '
+                f'de-literalise the quoted marker or use a typed edge')
+    if nm is None or nm.lower() != item_id.lower():
         return (f'replacement for id:{item_id} is missing that id\'s own '
                 f'<!-- id:{item_id} --> marker')
     if _CHECKBOX_RE.match(target_line.rstrip('\n')) and not _CHECKBOX_RE.match(new_line):
         return (f'replacement for id:{item_id} targets a checkbox item '
                 f'(- [ ]/- [x]) but the replacement is not one')
     return None
+
+
+def _final_line_marker_error(where: str, final_line: str) -> str | None:
+    """WRITE-SIDE guard (id:6059). Return an error string if `final_line` is a ledger
+    ITEM line (`- [ ]` / `- [x]`) that would be written with a number of anchored
+    `<!-- id:XXXX -->` markers other than exactly one, else None.
+
+    This is the deliberate twin of the read-side refusal, not a duplicate of it: the
+    read side refuses to INTERPRET an ambiguous line, this side refuses to CREATE one.
+    Both are needed because `update-ids` is itself a path that echoes marker syntax into
+    prose. Loderite reproduced exactly that on 2026-08-14 while trying to REPAIR the
+    hazard: its de-ambiguation note QUOTED literal markers to describe the problem, so
+    "fixed" lines went from 2 markers to 3 — a de-ambiguation annotation cannot safely
+    quote the syntax it is de-ambiguating.
+
+    ORDERING IS THE POINT: call this on the FINAL composed line, after any append/
+    annotation has been spliced in. Loderite's guard checked the replacement line and
+    THEN appended the note, so it passed while the written result was wrong.
+
+    COUNT, never a set: loderite also carries a pre-existing `<!-- id:466d -->
+    <!-- id:466d -->` — the SAME id twice. A dedup/set-based check calls that fine; a
+    count catches it.
+
+    Non-item lines (prose, headings, sub-bullets) are out of scope — they legitimately
+    discuss markers.
+    """
+    stripped = final_line.rstrip('\n')
+    if not _CHECKBOX_RE.match(stripped):
+        return None
+    ms = _ID_MARKER_RE.findall(stripped)
+    if len(ms) == 1:
+        return None
+    if not ms:
+        return (f'{where}: REFUSING to write a ledger item line with NO anchored '
+                f'<!-- id:XXXX --> marker (id:6059) — the item would be unaddressable')
+    return (f'{where}: REFUSING to write a ledger item line carrying {len(ms)} anchored '
+            f'id markers ({", ".join(ms)}) (id:6059) — the written line would be '
+            f'AMBIGUOUS ("this line IS X" vs "this line REFERS to X" are spelled the '
+            f'same). A de-ambiguation note must NOT quote the marker syntax it '
+            f'describes; de-literalise it or use a typed edge.')
 
 
 def _append_to_line(line: str, marker_match: re.Match, append_text: str) -> str:
@@ -259,21 +347,60 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
             result = []
             errors = []
 
-            for line in lines:
-                m = re.search(r'<!--\s*id:([0-9a-f]{4})\s*-->', line)
-                item_id = m.group(1) if m else None
-                if item_id and item_id in replace_map:
+            for lineno, line in enumerate(lines, start=1):
+                # id:cc7e/id:6059 — a line carrying SEVERAL anchored id markers is
+                # AMBIGUOUS under the current grammar (define vs refer are spelled
+                # identically). Never guess a position. If any pending update names one
+                # of its candidate ids, that is a refusal WITH the reason; otherwise the
+                # line is simply not addressable and passes through untouched.
+                try:
+                    m = _own_id_match_of_line(line)
+                except AmbiguousOwnId as amb:
+                    cands = [c.lower() for c in str(amb).split(', ')]
+                    hit = [c for c in cands if c in id_map]
+                    if hit:
+                        errors.append(
+                            f'{file_path}:{lineno}: AMBIGUOUS own id — line carries '
+                            f'{len(cands)} anchored id markers ({", ".join(cands)}) and '
+                            f'the grammar cannot tell "this line IS X" from "this line '
+                            f'REFERS to X"; REFUSING to update {", ".join(hit)} here '
+                            f'(id:6059). De-literalise the quoted marker, or spell the '
+                            f'reference as a typed edge, then retry.')
+                    result.append(line)
+                    continue
+                if m is None:
+                    # No anchored marker at all: this line addresses no id. It is not an
+                    # error (most lines are prose) — it simply passes through, and `m` is
+                    # never handed to a consumer that assumes a match.
+                    result.append(line)
+                    continue
+                item_id = m.group(1).lower()
+                if item_id in replace_map:
                     found.add(item_id)
                     new_line = replace_map[item_id]
                     err = _validate_replacement(item_id, line, new_line)
+                    if err is None:
+                        # id:6059 write-side guard, on the FINAL composed content.
+                        err = _final_line_marker_error(f'{file_path}:{lineno}', new_line)
                     if err:
                         errors.append(f'id:{item_id}: {err}')
                         result.append(line)  # placeholder; discarded if errors is non-empty
                         continue
                     result.append(new_line + '\n')
-                elif item_id and item_id in append_map:
+                elif item_id in append_map:
                     found.add(item_id)
-                    result.append(_append_to_line(line.rstrip('\n'), m, append_map[item_id]) + '\n')
+                    # id:6059 — compose FIRST, then validate what will actually be
+                    # written: an appended annotation that quotes marker syntax is the
+                    # exact way loderite manufactured a 3-marker line while "repairing"
+                    # a 2-marker one. Checking the pre-append line would pass and still
+                    # write the broken result.
+                    composed = _append_to_line(line.rstrip('\n'), m, append_map[item_id])
+                    err = _final_line_marker_error(f'{file_path}:{lineno}', composed)
+                    if err:
+                        errors.append(f'id:{item_id}: {err}')
+                        result.append(line)
+                        continue
+                    result.append(composed + '\n')
                 else:
                     result.append(line)
 
@@ -304,6 +431,21 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                 (replace_map.get(item_id, append_map.get(item_id, '')).rstrip('\n')) + '\n'
                 for item_id in unmatched
             ]
+            # id:6059 — --allow-new appends brand-new item lines verbatim, so the
+            # write-side guard applies here too: a NEW item may not be born ambiguous.
+            new_errors = [
+                e for e in (
+                    _final_line_marker_error(f'{file_path}:<new item {item_id}>', nl)
+                    for item_id, nl in zip(unmatched, new_lines)
+                ) if e
+            ]
+            if new_errors:
+                print(
+                    'md-merge: update-ids: refusing new item line(s) for '
+                    f'{file_path}:\n  ' + '\n  '.join(new_errors),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
             if new_lines:
                 # id:14d0 — anchor brand-new ids BEFORE the first archive-class
                 # heading (Done/Archive/Icebox); EOF append is the fallback only

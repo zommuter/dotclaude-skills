@@ -405,7 +405,14 @@ def parse_file(path: str, relname: str, view: str, archived: bool,
             tags = parse_tags(text, relname, i, report, lane_required=(view != "review"))
 
             ids = RE_OWN_ID.findall(text)
-            token = ids[0].lower() if ids else None
+            # id:6059 — a line carrying SEVERAL anchored id markers is AMBIGUOUS: the
+            # grammar spells "this line IS X" and "this line REFERS to X" identically,
+            # and the two live shapes put the own id at opposite ends (a body that QUOTES
+            # a marker → last; a TRAILING reference → first, loderite routed:3ad9). Both
+            # positional rules mis-attribute one shape, so NEITHER is taken: the line
+            # imports as UNTRACKED (no id, synthetic key) and is reported below. A wrong
+            # id here would be a wrong tracker identity, propagated fleet-wide.
+            token = ids[0].lower() if len(ids) == 1 else None
             attaches_to = None
             if view == "review":
                 if token is None:
@@ -418,8 +425,9 @@ def parse_file(path: str, relname: str, view: str, archived: bool,
 
             if len(ids) > 1:
                 report.add("multi-id-line", relname, i, text,
-                           "line carries %d anchored id markers; the FIRST is taken as "
-                           "the owning id (lib-anchored-id.sh convention)" % len(ids))
+                           "line carries %d anchored id markers; the LAST is taken as "
+                           "the owning id (lib-anchored-id.sh convention, id:6059) — "
+                           "de-literalise the quoted marker in the prose" % len(ids))
 
             key = token or attaches_to or synthetic_key(view, text)
             cur = {

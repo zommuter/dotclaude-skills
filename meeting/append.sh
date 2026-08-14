@@ -59,6 +59,71 @@ lock_path_for() {
   printf '%s\n' "${resolved}.lock"
 }
 
+# --- post-write read-back (id:729c / routed:ece6) -----------------------------------------
+# Every append path used to be a bare `printf … >> "$dest"` inside a flock'd subshell, after
+# which the script echoed a routed token and exited 0 WITHOUT ever reading the file back. So
+# a write that reached nothing — a store that swallows it, a redirect that went elsewhere, a
+# concurrent non-flock writer clobbering the file (id:2be7 / routed:8eb5) — produced a
+# perfect success: exit 0 plus a token receipt, and an inbox entry that exists nowhere. The
+# inbox is vanish-on-resolve, so a loss BEFORE adoption leaves no trace in either ledger and
+# no scanner can detect it. Hence: append, then verify the bytes are there, INSIDE the same
+# lock, and fail LOUDLY if they are not (CLAUDE.md no-silent-swallow, id:4347).
+#
+# NOTE (verified 2026-08-14, before writing this): routed:ece6 reported `-t inbox` as
+# "silently no-opping on some payloads", citing `git log -S routed:d4b3 -- todo-inbox.md`
+# being empty. That premise is FALSE — d4b3 WAS written; the auto-ingest consumed and
+# drained it inside one hourly-backup window (dotclaude-skills 502b8b5, "chore(inbox):
+# ingest routed:d4b3", 10:28, between the 10:02 and 11:02 store commits), so the token never
+# appeared in a commit. An add-then-drain cycle is invisible to `git log -S` on that store.
+# No payload-dependent skip was reproducible. The read-back below is built anyway: it is the
+# acceptance criterion of the item, and it closes the real (observed) clobber class id:2be7.
+
+# verify_appended <dest> <block>: 0 iff <block> is present verbatim in <dest>.
+# The whole block, not its first line — a partially-written multi-line entry is exactly the
+# clobber shape a first-line grep would call success.
+verify_appended() {
+  local dest="$1" block="$2"
+  APPEND_VERIFY_BLOCK="$block" python3 - "$dest" <<'PYEOF'
+import os, sys, pathlib
+path = pathlib.Path(sys.argv[1])
+block = os.environ["APPEND_VERIFY_BLOCK"]
+try:
+    data = path.read_text(encoding="utf-8", errors="replace")
+except OSError:
+    sys.exit(1)
+sys.exit(0 if block in data else 1)
+PYEOF
+}
+
+# write_failed <dest> <block> <rc>: LOUD, non-zero, names the payload and the store.
+# Nothing is echoed on stdout — stdout is the caller's receipt (id:34c2 contract C) and must
+# stay silent when there is nothing to receipt.
+write_failed() {
+  local dest="$1" block="$2" rc="$3"
+  {
+    echo "Error: append.sh FAILED to write the entry — it is NOT in the store (post-write read-back, id:729c)."
+    echo "  store: $dest"
+    echo "  entry:"
+    printf '%s\n' "$block" | sed 's/^/    /'
+    echo "  (append or read-back exit status: $rc)"
+    echo "  NOTHING was filed and no token was printed — do NOT record this as routed/filed."
+    echo "  Check the store is writable, and that no other session is writing it without the flock (id:2be7)."
+  } >&2
+  exit 4
+}
+
+# append_verified <dest> <lock> <block>: the ONLY sanctioned append. Takes the lock, appends,
+# reads back under the SAME lock, and fails loudly if the bytes are not there.
+append_verified() {
+  local dest="$1" lock="$2" block="$3" rc=0
+  (
+    flock -x 9
+    printf '\n%s\n' "$block" >> "$dest"
+    verify_appended "$dest" "$block"
+  ) 9>"$lock" || rc=$?
+  (( rc == 0 )) || write_failed "$dest" "$block" "$rc"
+}
+
 # resolve_inbox: emit the path to the cross-project inbox store.
 #   * RELAY_INBOX set non-empty  → use it VERBATIM, no migration (injected path is
 #     authoritative; hermetic tests rely on this).
@@ -425,10 +490,9 @@ if [[ -n "$route_to" ]]; then
     fi
   done
   line="- [ ] [$route_to] $entry <!-- routed:$mint_token -->"
-  (
-    flock -x 9
-    printf '\n%s\n' "$line" >> "$dest"
-  ) 9>"$dest_lock"
+  # Verified append (id:729c): the token is echoed ONLY after the line is read back off disk,
+  # so the mint-inside receipt can never name a line that is not in the store.
+  append_verified "$dest" "$dest_lock" "$line"
   printf '%s\n' "$mint_token"
   exit 0
 fi
@@ -570,9 +634,11 @@ raw = path.read_text()
 trailing_nl = raw.endswith("\n")
 lines = raw.splitlines()
 out, done = [], False
+written_line = None
 for line in lines:
     if not done and PERSONA_DEF_RE.match(line):
-        out.append(new if mode == "replace" else merge_persona_line(line, new))
+        written_line = new if mode == "replace" else merge_persona_line(line, new)
+        out.append(written_line)
         done = True
     else:
         out.append(line)
@@ -599,6 +665,19 @@ try:
         os.fsync(fh.fileno())
     os.chmod(tmpname, perm)          # mkstemp defaults to 0600 — restore the registry's mode
     os.replace(tmpname, str(target))  # atomic
+    # Post-write read-back (id:729c), the extend path's twin of append_verified: re-read the
+    # RESOLVED target and require the merged entry to actually be there. A rename that landed
+    # somewhere nobody reads, or a file clobbered between write and now, must fail LOUDLY —
+    # personas.md is merge=union, where a silently lost fragment is unrecoverable.
+    # Assert the EXACT line that was written is there (not a regex re-derivation, which could
+    # false-fire on a --replace payload that is not itself in definition form).
+    back = pathlib.Path(os.path.realpath(path)).read_text(encoding="utf-8", errors="replace")
+    if written_line is not None and written_line not in back.splitlines():
+        sys.stderr.write(
+            "append.sh: FAILED to write persona '%s' — the merged entry is NOT in %s after the "
+            "atomic replace (post-write read-back, id:729c). NOTHING can be assumed filed:\n    %s\n"
+            % (name, os.path.realpath(path), written_line))
+        sys.exit(5)
 except BaseException:
     try:
         os.unlink(tmpname)
@@ -611,12 +690,11 @@ PYEOF
   fi
 fi
 
-# Always prepend a blank line — defensive against missing trailing newline
-# flock prevents concurrent calls from interleaving lines
-(
-  flock -x 9
-  printf '\n%s\n' "$entry" >> "$dest"
-) 9>"$dest_lock"
+# Always prepend a blank line — defensive against missing trailing newline.
+# flock prevents concurrent calls from interleaving lines; append_verified additionally reads
+# the entry back off disk under that same lock, so a write that stored nothing fails LOUDLY
+# instead of returning exit 0 with a phantom token (id:729c / routed:ece6).
+append_verified "$dest" "$dest_lock" "$entry"
 
 # --- (C) echo what was written: `-t inbox`, raw -e/-f/stdin form --------------------------
 # stdout is the token PARSED BACK OUT of the line just appended — never the caller's own

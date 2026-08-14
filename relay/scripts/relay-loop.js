@@ -665,6 +665,18 @@ const DISCOVER_SCHEMA = {
           // observed 2026-06-24 dispatching repos whose only open HARD item was
           // [HARD — decision gate]). 0 when none.
           open_hard_pool: { type: 'number' },
+          // open_hard_pool_ids (id:7517, routed:2d94): the RESOLVED 4-hex ids BEHIND
+          // open_hard_pool, in ROADMAP file order, produced by gather-repo-state.sh's own
+          // open_hard_pool walk — the SAME predicate that produces the count, so list and count
+          // cannot drift. unitPrompt HANDS this list to the HARD-execute child and FORBIDS it
+          // from re-deriving the enumeration by grep: in loderite run
+          // relay-20260814-133435-24323 a HARD child grepped only the RETIRED "[HARD — pool]"
+          // spelling, found 0, and refused 5 real bare-"[HARD]" items — a whole dispatch round
+          // wasted on a repo that had work. Exact sibling of actionable_routine_ids (id:b09e).
+          // An item with no `<!-- id:XXXX -->` contributes an EMPTY STRING (counted, unnameable).
+          // ABSENT/[] on older queue entries and injected units → fail-open to the old
+          // survey-the-ledger instruction, so this can only narrow the child's search.
+          open_hard_pool_ids: { type: 'array', items: { type: 'string' } },
           // queue_sig (id:4860): the discover-sig.sh SUPERSET signature the MECHANICAL
           // discovery producer (discover-repos-mechanical.sh, id:9d97) stamped onto this
           // entry in the discovery queue, present ONLY on units the runner copied from the
@@ -834,6 +846,15 @@ const REPORT_SCHEMA = {
     // can durably record it in ROADMAP.md (handback-followup.py) instead of letting the
     // judgment evaporate into RELAY_STATUS and re-dispatching the same un-doable item.
     handback_item: { type: 'string' },  // the 4-hex id the handback concerns
+    // considered_ids (id:bfbf, routed:9371): on a WHOLE-DISPATCH "nothing dispatchable"
+    // handback, the 4-hex ids the child actually LOOKED AT and rejected. This is the EVIDENCE
+    // behind the claim: without it a correct "nothing to do" is indistinguishable from a child
+    // that looked in the wrong place (loderite 2026-08-14 — grepped the retired "[HARD — pool]"
+    // spelling, found 0, refused 5 real bare-"[HARD]" items, and the pool accepted it as a
+    // clean drain). noWorkEnumerationAlarm cross-checks it against the deterministic
+    // open_hard_pool count; an empty/absent list with a nonzero count ALARMS and is NOT
+    // recorded as a clean drain. [] / absent on a successful unit.
+    considered_ids: { type: 'array', items: { type: 'string' } },
     route: { type: 'string' },          // decision-gate | hard-split | human | none
     gate_reason: { type: 'string' },    // ONE short line for the inline ROADMAP gate note
     proposed_split: {                   // hard-split only: seams to mint as pickable units
@@ -1149,6 +1170,57 @@ function trackHandback(tracker, repo, verdict, reason) {
   e.count++
   e.lastReason = String(reason == null ? '' : reason).replace(/\s+/g, ' ').trim().slice(0, 200)
   return e
+}
+// id:bfbf (routed:9371) — inline copy of handback-guard.mjs's noWorkEnumerationAlarm (keep
+// byte-equivalent; see that file for the full rationale). An unevidenced "nothing dispatchable"
+// claim must ALARM LOUDLY and must NOT be recorded as a clean drain.
+function noWorkEnumerationAlarm(ctx) {
+  const c = ctx || {}
+  const route = c.route ? String(c.route) : 'none'
+  const item = c.handbackItem ? String(c.handbackItem) : ''
+  if (route !== 'none' || item) return null            // item-level handback — not this detector's business
+  const open = Number.isFinite(c.openHardPool) ? c.openHardPool : Number(c.openHardPool || 0)
+  if (!(open > 0)) return null                          // genuinely empty backlog — nothing to enumerate
+  const norm = (a) => (Array.isArray(a) ? a : [])
+    .filter((x) => typeof x === 'string' && x.trim() !== '')
+    .map((x) => x.trim().toLowerCase())
+  const considered = norm(c.consideredIds)
+  const pool = norm(c.poolIds)
+  const who = `${c.repo || '(repo)'} ${c.verdict || '(verdict)'}`
+  const base = { repo: c.repo || '', verdict: c.verdict || '', openHardPool: open, cleanDrain: false }
+  const NOT_A_DRAIN = 'NOT recorded as a clean drain: the no-work suppression cache is deliberately NOT stamped, so this verdict cannot silently park a repo that has work.'
+  // (a) No enumeration at all — independent of whether the pool set is usable. The child owed
+  // evidence and returned none; silence must never read as "considered everything".
+  if (!considered.length) {
+    return {
+      ...base,
+      kind: 'unevidenced-no-enumeration',
+      overlap: 0,
+      reason: `UNEVIDENCED zero-dispatchable handback (id:bfbf): ${who} claimed nothing was dispatchable while the deterministic open_hard_pool count is ${open}, and returned NO considered_ids at all. Without the enumeration a correct "nothing to do" is indistinguishable from a child that looked in the wrong place — the id:7517/routed:2d94 failure. ${NOT_A_DRAIN} Investigate the child's item-selection path before re-dispatching.`,
+    }
+  }
+  // (b) THIRD STATE — the pool set is unusable, so disjointness cannot be decided either way.
+  if (!pool.length) {
+    const rawLen = Array.isArray(c.poolIds) ? c.poolIds.length : 0
+    const why = rawLen
+      ? `open_hard_pool_ids was PRESENT (${rawLen} entr${rawLen === 1 ? 'y' : 'ies'}) but NONE of them resolves to an id — every counted ROADMAP line was unnameable (the routed:3ad9 multi-marker ambiguity, where an item's own id cannot be told from a trailing reference)`
+      : `open_hard_pool_ids was ABSENT or empty — an older discovery-queue entry, or a producer that never emitted the field`
+    return {
+      ...base,
+      kind: 'enumeration-unevaluable',
+      overlap: null,
+      reason: `UNEVALUABLE zero-dispatchable handback (id:bfbf): ${who} claimed nothing was dispatchable and DID enumerate ${considered.length} considered id(s) [${considered.join(', ')}], but the cross-check could not be run: open_hard_pool is ${open} while ${why}. This is NOT an assertion that the child looked in the wrong place — disjointness was never computed — and it is NOT a clean drain either: a nonzero open_hard_pool whose ids cannot be named is itself an upstream fault worth fixing (something counted work it could not name). ${NOT_A_DRAIN} The handback is not blocked; this is surfaced so the gap cannot rot into a silent branch.`,
+    }
+  }
+  // (c) Both sets usable — the real test.
+  const overlap = pool.filter((x) => considered.includes(x))
+  if (overlap.length) return null                       // the child really did look at the queue
+  return {
+    ...base,
+    kind: 'unevidenced-disjoint',
+    overlap: 0,
+    reason: `UNEVIDENCED zero-dispatchable handback (id:bfbf): ${who} claimed nothing was dispatchable while the deterministic open_hard_pool count is ${open}, and it returned ${considered.length} considered id(s) [${considered.join(', ')}] of which NOT ONE is in the resolved pool set [${pool.join(', ')}] — ZERO overlap. The child looked somewhere OTHER than the queue — exactly the id:7517/routed:2d94 failure (it swept for the retired "[HARD — pool]" spelling, found 0, and refused ${open > 1 ? open + ' real items' : 'a real item'}; three occurrences on 2026-08-14 alone). ${NOT_A_DRAIN} Investigate the child's item-selection path before re-dispatching.`,
+  }
 }
 function handbackAlerts(tracker, threshold = 2) {
   return Object.values(tracker)
@@ -2185,6 +2257,32 @@ const namedItemsFor = (unit) => {
     .filter((x) => !suppressed.has(x))
 }
 
+// id:7517 (routed:2d94) — the HARD-lane sibling of namedItemsFor. `unit.open_hard_pool_ids` is
+// emitted by gather-repo-state.sh's open_hard_pool walk: the ids BEHIND the count, in ROADMAP
+// file order, filtered by the SAME predicate the count uses (parked sections, @container,
+// @owner-gated, typed gated-on: edges, 🚧, blocked*, and the spent recurring audit never
+// appear), with BOTH the retired "[HARD — pool]" and the new bare "[HARD]" spelling normalized
+// by roadmap_primary_lane. Handing this to the child is the whole point: the previous brief told
+// it to "Pick the TOP open item tagged [HARD — pool] in ROADMAP.md", i.e. to RE-DERIVE the
+// enumeration by raw grep on the retired spelling — loderite run relay-20260814-133435-24323
+// found 0 that way and refused 5 real items. Mechanize-first: the resolved list already exists;
+// re-deriving it is the defect.
+// Orphan-suppressed ids are subtracted for the same reason namedItemsFor subtracts them (id:b09e):
+// unit.reason carries a "do NOT work id:X" instruction into the same prompt, so naming a
+// suppressed item would imperatively contradict the text next to it.
+// FAIL-OPEN: an empty/absent list ⇒ the historical survey instruction is used unchanged.
+const hardPoolIdsFor = (unit) => {
+  const suppressed = new Set(
+    (Array.isArray(unit.suppressed_item_ids) ? unit.suppressed_item_ids : [])
+      .filter((x) => typeof x === 'string')
+      .map((x) => x.toLowerCase()),
+  )
+  return (Array.isArray(unit.open_hard_pool_ids) ? unit.open_hard_pool_ids : [])
+    .filter((x) => typeof x === 'string' && /^[0-9a-fA-F]{4}$/.test(x))
+    .map((x) => x.toLowerCase())
+    .filter((x) => !suppressed.has(x))
+}
+
 // Shared tail of the execute instruction — identical in the named and the fallback branch, so
 // the two can never drift on the SIZE-OUT contract.
 const EXECUTE_SIZEOUT = 'Stop at a natural boundary; never start an item you cannot finish. SIZE-OUT rule (id:08c0): if a [ROUTINE] item is too large to land green in one session and you cannot partially advance it, do NOT silently leave it open — return a structured handback (contract_met=false, handback_item=<id>, route=hard-split or decision-gate, gate_reason). Soft notes (friction:/BLOCKED:) are not sufficient; the integrator\'s durable follow-up (id:3801) reads only the structured fields. Leave the worktree COMPLETELY CLEAN on a size-out (no commit) — same clean-worktree discipline as the hard-verdict id:8b1f.'
@@ -2228,6 +2326,29 @@ function executeNamedInstruction(unit) {
     + EXECUTE_SIZEOUT
 }
 
+// id:7517 (routed:2d94) — the OPENING of the HARD-execute brief: HAND the child the resolved
+// pool-lane list and FORBID re-derivation. The retired text (it told the child to pick the top
+// open checkbox item carrying the OLD venue-keyed pool tag) made re-deriving the enumeration the
+// child's job, on a spelling the lane-vocab migration had retired — loderite run
+// relay-20260814-133435-24323 found 0 that way and refused 5 real bare-[HARD] items, wasting
+// the whole dispatch round on a repo that had work. Returns the naming form when gather
+// resolved ids, else a DUAL-VOCAB fallback survey instruction (FAIL-OPEN: an older queue entry
+// or an injected unit carries no list, and must still be able to work).
+function hardNamedInstruction(unit) {
+  const ids = hardPoolIdsFor(unit)
+  const NO_REDERIVE = 'That list is AUTHORITATIVE and already resolved by gather-repo-state.sh from the SAME predicate that counted them — do NOT re-derive it by grepping ROADMAP.md for a lane tag. The lane vocabulary is in a DUAL-VOCAB window: the pool lane is spelled BOTH as a bare "[HARD]" and as the retired "[HARD — pool]", so a grep for either spelling alone silently misses real items (id:7517/routed:2d94). '
+  if (!ids.length) {
+    return 'You are an Opus-apex HARD-execute child (id:da26). The classifier resolved NO pool-lane id list for this unit, so survey ROADMAP.md yourself and pick the TOP open "- [ ]" item on the POOL lane — that is an item tagged with a bare "[HARD]" OR with the retired "[HARD — pool]" spelling; BOTH are the same lane and you must accept either. Skip items that are parked, @container, @owner-gated, 🚧, BLOCKED, or gated-on an open id. SIZE it first. '
+  }
+  const rest = ids.slice(1, 3)
+  return 'You are an Opus-apex HARD-execute child (id:da26). The pool-lane queue for this repo is ALREADY RESOLVED for you (id:7517) — the open, dispatchable pool-lane items, in ROADMAP file order, are: '
+    + ids.map((i) => '<!-- id:' + i + ' -->').join(', ') + '. Work the FIRST one, <!-- id:' + ids[0] + ' -->: `grep -n "id:' + ids[0] + '" ROADMAP.md` gives the line, then read only that item\'s own block (the bullet plus its indented sub-bullets). Do NOT read the whole ROADMAP.md. '
+    + NO_REDERIVE
+    + 'Because that list is non-empty, you MUST NOT hand back "no open [HARD] item / nothing dispatchable" — if you believe every listed id is unworkable, say so per id in `handback` and return them in `considered_ids` (id:bfbf). '
+    + (rest.length ? 'ONLY if the first item is already done or genuinely unworkable, fall through to ' + rest.map((i) => '<!-- id:' + i + ' -->').join(' then ') + ' — never range beyond the resolved list. ' : '')
+    + 'SIZE it first. '
+}
+
 // id:4f9b — inline copies of relay/scripts/prompt-size-gate.mjs (keep byte-equivalent; the
 // Workflow sandbox cannot import, and a structural test pins the wiring). Pre-dispatch prompt
 // sizing: refuse to dispatch a child into a ledger that cannot fit, and say WHY, instead of
@@ -2266,13 +2387,15 @@ ${unit.injected ? 'This is a USER-INJECTED high-priority task (id:baf1). ' + (un
 
 Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/relay/references/conventions.md for environment facts and relay invariants before starting.
 ${unit.verdict === 'execute' ? (executeNamedInstruction(unit) || 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. ' + EXECUTE_SIZEOUT) : ''}
-${unit.verdict === 'hard' ? 'You are an Opus-apex HARD-execute child (id:da26). Pick the TOP open "- [ ]" item tagged [HARD — pool] in ROADMAP.md and SIZE it first. Model your discipline on handoff.md C5 "only if small enough to finish safely": only implement the item if you can finish it cleanly and green within this turn — full red-green-refactor, verify-before-merge. If it is too large, contains nested/multi-session scope, or you cannot make the test suite green safely, do NOT half-do it: set contract_met=false and explain the sizing in handback. CRITICAL (id:8b1f) — a SIZE-OUT / GATED refusal (you decided NOT to start) must leave the worktree COMPLETELY CLEAN: make NO commit, and do NOT write the rationale into RELAY_LOG.md / ROADMAP.md / REVIEW_ME.md in the worktree. The rationale goes ONLY in the returned `handback` field. Reason: the integrator never merges a handback, so ANY commit you make on a refusal strands forever as an orphan worktree (the bug behind id:a4e9); a CLEAN worktree is auto-reaped (id:3ac8). The "write a HANDBACK paragraph to RELAY_LOG.md and commit" step in handoff.md C5 applies ONLY to a genuine mid-item CUTOFF where you already committed real work and need resume provenance — NOT to a pre-start sizing refusal (the item stays open for a manual/next-turn strong session). When you DO finish: do NOT tick the item\'s checkbox yourself (executor-contract v12, id:5b12) — return the item id in worked_ids and the DRIVER ticks the box at integrate; append its done-note, commit in the worktree, and make the full test suite green. Never manufacture a pass. Work ONE bounded HARD item only — never start a second.' : ''}
+${unit.verdict === 'hard' ? hardNamedInstruction(unit) + 'Model your discipline on handoff.md C5 "only if small enough to finish safely": only implement the item if you can finish it cleanly and green within this turn — full red-green-refactor, verify-before-merge. If it is too large, contains nested/multi-session scope, or you cannot make the test suite green safely, do NOT half-do it: set contract_met=false and explain the sizing in handback. CRITICAL (id:8b1f) — a SIZE-OUT / GATED refusal (you decided NOT to start) must leave the worktree COMPLETELY CLEAN: make NO commit, and do NOT write the rationale into RELAY_LOG.md / ROADMAP.md / REVIEW_ME.md in the worktree. The rationale goes ONLY in the returned `handback` field. Reason: the integrator never merges a handback, so ANY commit you make on a refusal strands forever as an orphan worktree (the bug behind id:a4e9); a CLEAN worktree is auto-reaped (id:3ac8). The "write a HANDBACK paragraph to RELAY_LOG.md and commit" step in handoff.md C5 applies ONLY to a genuine mid-item CUTOFF where you already committed real work and need resume provenance — NOT to a pre-start sizing refusal (the item stays open for a manual/next-turn strong session). When you DO finish: do NOT tick the item\'s checkbox yourself (executor-contract v12, id:5b12) — return the item id in worked_ids and the DRIVER ticks the box at integrate; append its done-note, commit in the worktree, and make the full test suite green. Never manufacture a pass. Work ONE bounded HARD item only — never start a second.' : ''}
 ${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
 ${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Single-id-two-views (D2): when you promote a ROADMAP item for work TODO.md already tracks under an <!-- id:XXXX -->, REUSE that token; mint a fresh one via ~/.claude/skills/meeting/append.sh new-ids N ' + wt + ' ONLY for genuinely new work — NEVER invent tokens, and never duplicate-id already-tracked work. When you close a ROADMAP item whose id also lives in TODO.md, tick the TODO line too. Reverse-handoff (review.md §5b): qualify+size any unqualified TODO/ROADMAP items added by /meeting or manual edits since the last checkpoint (mini-handoff) — reuse their id. After re-deriving the roadmap, set routine_open = the number of OPEN (unticked) [ROUTINE] items remaining — the supervisor uses it to re-enqueue an execute unit this same pool.' : ''}
 
 Hard rules: commit in the worktree as you go; NEVER push; NEVER tag; NEVER run git-diary-workflow or todo-update; never prompt the user. If you cannot meet the contract, set contract_met=false and explain in handback.
 
 Return: contract_met, branch ("${branch}"), worktree ("${wt}"), summary (one line for the checkpoint tag message), review_me_count (open REVIEW_ME.md boxes you wrote, else 0), diary_fragment (one paragraph), handback ("" if none), routine_open (review units: open [ROUTINE] count after re-derivation; 0 for handoff/execute), worked_ids (id:de69 — array of the ROADMAP/TODO 4-hex id(s) you actually worked this unit: for execute, the item id(s) you closed/advanced; for hard, the single [HARD] item id you executed; for handoff, the id(s) you promoted/created; for review, the ids you verified-green or reopened; [] if none — these are the tokens in the commits/ROADMAP you touched, NOT invented).${unit.verdict === 'review' ? ' ALSO (review units only, id:3826 — feeds the gaming-flag rate logger; see review.md §6 return schema): verified_green (array of ROADMAP ids you confirmed genuinely green this review, [] if none), gaming_flags (array of "<id>: <reason>" strings for every DELETED_TEST/ADDED_SKIP/REMOVED_ASSERT or judgment flag you raised, [] if none), reopened (array of ROADMAP ids you reopened, [] if none).' : ''}
+
+IF YOU HAND BACK CLAIMING THERE IS NOTHING DISPATCHABLE (id:bfbf) — no open item you could work — you MUST set considered_ids = the array of every 4-hex ROADMAP id you actually LOOKED AT and rejected, and say per id in \`handback\` WHY it was rejected. That enumeration is the EVIDENCE for the claim: a bare "nothing to do" is indistinguishable from a child that looked in the wrong place, and the supervisor cross-checks considered_ids against its own deterministic open-item count. An empty or missing considered_ids with a nonzero count raises a LOUD alarm and is NOT accepted as a clean drain, so returning the list is how a genuine empty queue gets believed.
 
 ON A HANDBACK (contract_met=false), ALSO classify it so the integrator records it DURABLY in ROADMAP.md and the pool stops re-dispatching the same un-doable item (id:3801): set handback_item (the 4-hex ROADMAP id you handed back, e.g. the [HARD] item you sized out), and route = one of "decision-gate" (needs a /meeting design decision before anyone can build it), "hard-split" (too large for one turn but decomposable into smaller pickable seams), "human" (needs a manual human action / /relay human), or "none" (transient/other failure — no durable action). Set gate_reason to ONE short line for the inline ROADMAP note. For route="hard-split" ONLY, set proposed_split = an ordered array of seam units [{title, tier:"HARD"|"ROUTINE", dep:"<4-hex id of the seam this one depends on, omit if independent>", id:"<reuse an existing 4-hex token if the seam already has one in the ROADMAP/meeting-note, else OMIT to let the integrator mint one>", acceptance:"<observable done-behaviour for THIS seam>", done_check:"<exact command/test that proves this seam done>", file:"<the file(s)/function(s) this seam concerns, so the executor goes straight to the work>"}] — acceptance/done_check/file are REQUIRED per seam (id:44a1); a seam missing any of them is rejected and written nowhere. On a clean success, omit these (route defaults to none).`
 }
@@ -2503,7 +2626,37 @@ async function integrate(unit, report) {
   }
   if (!report.contract_met) {
     // HANDBACK: not merged; worktree held on disk for a human/strong turn.
-    const hbReason = report.handback || 'contract_met=false'
+    // id:bfbf (routed:9371) — CROSS-CHECK a whole-dispatch "nothing dispatchable" claim against
+    // the RESOLVED pool set BEFORE anything records it. The discriminator is SET DISJOINTNESS,
+    // not emptiness: in the real incident the child returned 15 considered ids (all correctly
+    // gated) and NOT ONE was among the 5 the counter had counted, so an emptiness check would
+    // have stayed silent — exactly the id:7517/routed:2d94 failure (it swept for the retired
+    // "[HARD — pool]" spelling, found 0, refused 5 real bare-"[HARD]" items). The alarm is
+    // folded into hbReason so it rides the PERSISTENT handback accumulator (state.surfaced is
+    // rebuilt every round by buildSurfacedView — a push there would be destroyed, the id:1735
+    // bug), and it is computed here so `hbReason` is identical in the accumulator, the emitted
+    // event, and the invariant backstop.
+    const enumAlarm = noWorkEnumerationAlarm({
+      repo: unit.repo, verdict: unit.verdict,
+      openHardPool: unit.open_hard_pool || 0,
+      // routed:9371 correction — the RESOLVED pool set is the second consumer of
+      // gather-repo-state.sh's OPEN_HARD_POOL_IDS (the first is the HARD brief). Passing the
+      // raw unit field, not hardPoolIdsFor(unit): orphan-suppression is a DISPATCH concern and
+      // a suppressed id the child correctly looked at still proves it looked in the right place.
+      poolIds: unit.open_hard_pool_ids,
+      consideredIds: report.considered_ids,
+      route: report.route, handbackItem: report.handback_item,
+    })
+    const hbReason = (report.handback || 'contract_met=false') + (enumAlarm ? ` || ${enumAlarm.reason}` : '')
+    // THREE outcomes, and the third one must stay VISIBLE: 'enumeration-unevaluable' is neither
+    // an accept nor a disjointness finding — it says the cross-check could not be run. It is
+    // surfaced in the same place as the alarms, with its own event kind so it can never be
+    // read as a proven wrong-place verdict, and it does NOT block the handback. All three
+    // non-null outcomes skip recordNoWorkHandback below.
+    if (enumAlarm) {
+      log(`relay-loop: ${enumAlarm.reason}`)
+      pushEvent(`handback-${enumAlarm.kind}`, { repo: unit.repo, mode: unit.verdict, kind: enumAlarm.kind, openHardPool: enumAlarm.openHardPool, overlap: enumAlarm.overlap, reason: enumAlarm.reason })
+    }
     state.handbacks.push({ repo: unit.repo, reason: hbReason, worktreePath: report.worktree })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: hbReason })
     emittedHandbackEvents.push({ repo: unit.repo, reason: hbReason })  // id:4a46 — invariant backstop
@@ -2527,7 +2680,11 @@ async function integrate(unit, report) {
     // verdict until the work_sig genuinely changes. ITEM-level handbacks (route=decision-gate/
     // hard-split/human, with handback_item) are gated durably by handback-followup.py instead —
     // this is the defense-in-depth for the route=none case that path skips.
-    if (!report.route || report.route === 'none') {
+    // id:bfbf (routed:9371) — but ONLY when the zero-dispatchable claim is EVIDENCED (alarm
+    // computed above). Stamping the negative cache on an UNEVIDENCED claim would suppress
+    // re-dispatch until work_sig changes, i.e. silently PARK a repo that has work — the alarm
+    // must never be recorded as a clean drain.
+    if (!enumAlarm && (!report.route || report.route === 'none')) {
       recordNoWorkHandback(noWorkNegCache, unit.repo, unit.verdict, unit.work_sig || '')
     }
     // id:3801 — durably record the handback in ROADMAP.md (auto-gate / auto-split) so the

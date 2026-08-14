@@ -31,22 +31,64 @@
 # the change disjoint and avoids a broad regression across shipped grep passes).
 
 # Canonical marker regex: an item's own id lives in an HTML comment,
-# `<!-- id:XXXX -->` (optional internal whitespace, 4 hex digits). Only the FIRST
-# such comment on a line is treated as the item's own marker — by convention only
-# the item's own trailing id is ever HTML-comment-wrapped; body-prose mentions of
-# other ids (seam ids, "dep: id:XXXX") are bare, un-wrapped text.
+# `<!-- id:XXXX -->` (optional internal whitespace, 4 hex digits). Body-prose mentions
+# of other ids (seam ids, "dep: id:XXXX") are bare, un-wrapped text and never count.
 ANCHORED_ID_MARKER_RE='<!--[[:space:]]*id:([0-9a-fA-F]{4})[[:space:]]*-->'
 
-# own_id_of_line <line> — print "id:XXXX" for <line>'s own `<!-- id:XXXX -->`
-# marker, or print nothing (and return 1) if no such marker is present. A bare
-# `id:XXXX` mention with no HTML-comment wrapper does NOT count.
+# --- TWO MARKERS ON ONE LINE: AMBIGUOUS — REFUSE LOUDLY, never guess (id:6059) --
+# The convention above assumed only the item's own trailing id is ever comment-wrapped.
+# That assumption is FALSE in practice, and there is NO SAFE POSITIONAL RULE, because
+# `<!-- id:X -->` carries two OPPOSITE meanings with IDENTICAL syntax — "this line IS X"
+# (define) and "this line REFERS to X" (refer). Both shapes are live, and they place the
+# item's own id at opposite ends:
+#
+#   BODY QUOTES A MARKER  → the own id is LAST.   Live here: TODO.md's `id:f346` item
+#     documents its own re-mint by quoting a literal marker, so its own marker trails.
+#   TRAILING REFERENCE    → the own id is FIRST.  Live in loderite's ROADMAP.md
+#     (routed:3ad9, 2026-08-14): three OPEN items at L211/L229/L628 each end
+#     `<!-- id:XXXX --> <!-- id:50f3 -->`, where the trailing marker REFERS to a CLOSED
+#     item. A last-match reader attributes all three open items to a closed id.
+#
+# So LAST is wrong for the second shape exactly as FIRST is wrong for the first. Picking
+# either is a silent WRONG ATTRIBUTION, and on a write path that is corruption — this is
+# how roadmap-tick.sh performed an owner-reserved close of the WRONG item. Therefore this
+# matcher REFUSES: it resolves NO id for a multi-marker line, returns a distinct status
+# (3), and names the file/line/candidates on stderr. Loud refusal beats a wrong answer.
+#
+# This is a HOLDING position, not the fix. The real dissolution is a grammar that
+# distinguishes define from refer (schema-not-sigil) — filed cross-repo as routed:20ce /
+# cartulary id:344d, and NOT decided here. Until then, de-literalise quoted markers and
+# spell references with a typed edge (`<!-- gated-on:XXXX -->`, `<!-- children:XXXX -->`)
+# or a bare backticked token; roadmap-lint.sh flags offending lines (MULTI-ID).
+#
+# OWN_ID_AMBIGUOUS is the return status callers should special-case; 1 stays "no marker".
+OWN_ID_AMBIGUOUS=3
+
+# marker_tokens_of_line <line> <kind> — print every anchored <kind> token on <line>,
+# one per line, in file order. <kind> is `id` or `routed`. Used by the own-* resolvers
+# to detect (and name) the ambiguous multi-marker case.
+marker_tokens_of_line() {
+  grep -oE "<!--[[:space:]]*$2:[0-9a-fA-F]{4}[[:space:]]*-->" <<<"$1" \
+    | grep -oE '[0-9a-fA-F]{4}' || true
+}
+
+# own_id_of_line <line> [context] — print "id:XXXX" for <line>'s own `<!-- id:XXXX -->`
+# marker. A bare `id:XXXX` mention with no HTML-comment wrapper does NOT count.
+#   exit 0 — resolved, token on stdout
+#   exit 1 — no anchored marker at all
+#   exit $OWN_ID_AMBIGUOUS (3) — MORE THAN ONE marker: refuses to guess, prints nothing
+#            on stdout and names every candidate on stderr (see the note above; there is
+#            no safe positional rule). Optional <context> (e.g. "TODO.md:412") is echoed
+#            in the message so the caller's location reaches the operator.
 own_id_of_line() {
-  local line="$1"
-  if [[ "$line" =~ $ANCHORED_ID_MARKER_RE ]]; then
-    printf 'id:%s' "${BASH_REMATCH[1]}"
-    return 0
-  fi
-  return 1
+  local line="$1" ctx="${2:-}" toks
+  mapfile -t toks < <(marker_tokens_of_line "$line" id)
+  case "${#toks[@]}" in
+    0) return 1 ;;
+    1) printf 'id:%s' "${toks[0]}"; return 0 ;;
+  esac
+  echo "lib-anchored-id: AMBIGUOUS own id${ctx:+ at $ctx} — line carries ${#toks[@]} anchored id markers (${toks[*]}) and the grammar cannot tell 'this line IS X' from 'this line REFERS to X'; REFUSING to attribute it (id:6059). De-literalise a quoted marker, or spell a reference as a typed edge." >&2
+  return "$OWN_ID_AMBIGUOUS"
 }
 
 # has_own_id_marker <line> — boolean: does <line> carry its own HTML-comment id
@@ -81,24 +123,36 @@ ANCHORED_TOKEN_MARKER_RE='<!--[[:space:]]*(id|routed):([0-9a-fA-F]{4})[[:space:]
 # `<!-- routed:XXXX -->` marker, or nothing (return 1). A bare `routed:XXXX` prose
 # citation of a SIBLING item's token does NOT count; an `<!-- id:XXXX -->` marker
 # does NOT count. Mirrors own_id_of_line for the routed namespace.
+# Same three-way contract as own_id_of_line: 0 resolved / 1 absent / 3 ambiguous.
 own_routed_of_line() {
-  local line="$1"
-  if [[ "$line" =~ $ANCHORED_ROUTED_MARKER_RE ]]; then
-    printf 'routed:%s' "${BASH_REMATCH[1]}"
-    return 0
-  fi
-  return 1
+  local line="$1" ctx="${2:-}" toks
+  mapfile -t toks < <(marker_tokens_of_line "$line" routed)
+  case "${#toks[@]}" in
+    0) return 1 ;;
+    1) printf 'routed:%s' "${toks[0]}"; return 0 ;;
+  esac
+  echo "lib-anchored-id: AMBIGUOUS own routed token${ctx:+ at $ctx} — line carries ${#toks[@]} anchored routed markers (${toks[*]}); REFUSING to attribute it (id:6059)." >&2
+  return "$OWN_ID_AMBIGUOUS"
 }
 
-# own_token_of_line <line> — print "id:XXXX" or "routed:XXXX" for <line>'s own
-# trailing marker, whichever kind it is (id preferred if — by malformed convention —
-# both appear, since the regex takes the first match), or nothing (return 1).
+# own_token_of_line <line> [context] — print "id:XXXX" or "routed:XXXX" for <line>'s own
+# marker, whichever kind it is.
+#   exit 0 — resolved / exit 1 — no marker / exit $OWN_ID_AMBIGUOUS (3) — refused, loud.
+# An INBOUND ingest stub legitimately carries BOTH kinds (`<!-- routed:AAAA --> …
+# <!-- id:BBBB -->`): they are distinct namespaces with distinct meanings ("came from"
+# vs "is"), so that is NOT ambiguity — the `id:` marker is the own token, and `id:` is
+# therefore consulted first. Ambiguity is two markers of the SAME kind.
 own_token_of_line() {
-  local line="$1"
-  if [[ "$line" =~ $ANCHORED_TOKEN_MARKER_RE ]]; then
-    printf '%s:%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
-    return 0
-  fi
+  # `|| rc=$?` (never a bare `; rc=$?`) — this lib is sourced into `set -e` scripts,
+  # where a failing command substitution in a plain assignment aborts the caller.
+  local line="$1" ctx="${2:-}" tok rc=0
+  tok="$(own_id_of_line "$line" "$ctx")" || rc=$?
+  [[ $rc -eq 0 ]] && { printf '%s' "$tok"; return 0; }
+  [[ $rc -eq "$OWN_ID_AMBIGUOUS" ]] && return "$OWN_ID_AMBIGUOUS"
+  rc=0
+  tok="$(own_routed_of_line "$line" "$ctx")" || rc=$?
+  [[ $rc -eq 0 ]] && { printf '%s' "$tok"; return 0; }
+  [[ $rc -eq "$OWN_ID_AMBIGUOUS" ]] && return "$OWN_ID_AMBIGUOUS"
   return 1
 }
 

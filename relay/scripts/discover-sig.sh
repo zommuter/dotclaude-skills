@@ -62,6 +62,15 @@ repo_sig() {
   orphans="$(git -C "$path" for-each-ref --format='%(refname:short) %(objectname)' refs/heads/relay/orphan/ 2>/dev/null || true)"
   block="$(toml_block "$repo")"
   roadmap="$(cat "$path/ROADMAP.md" 2>/dev/null || true)"
+  # routed:42c9/8b21 — ROADMAP.archive.md is a CLASSIFIER INPUT since the archive-blindness
+  # fixes: resolve-gates.sh resolves `gated-on:` targets over it, and BOTH classify-repo.sh
+  # and gather-repo-state.sh call resolve-gates.sh. Archiving a gate target flips it from
+  # dangling to satisfied and can change the verdict, so it MUST move the sig or the cache
+  # serves a stale one. `git status --porcelain` only accidentally covered the file's
+  # APPEARANCE (as an untracked entry) and never its CONTENT — and not even that once it is
+  # committed. Over-hashing is free here; under-invalidation is this cache's only hazard.
+  # (`2>/dev/null` on the cat: a repo with no archive is a normal state, not an error.)
+  roadmap_archive="$(cat "$path/ROADMAP.archive.md" 2>/dev/null || true)"
   # substantive_unaudited (id:e833 — 2a fix): mirrors gather-repo-state.sh's id:365b
   # computation so the sig captures the AUDIT TARGET (which commit the audit ref
   # resolves to), not just the tag NAME/message. A force-retagged ckpt (same name,
@@ -121,6 +130,7 @@ repo_sig() {
     printf '== orphans ==\n%s\n'   "$orphans"
     printf '== toml ==\n%s\n'      "$block"
     printf '== roadmap ==\n%s\n'   "$roadmap"
+    printf '== roadmap_archive ==\n%s\n' "$roadmap_archive"
     printf '== dq ==\n%s\n'        "$dq"
     printf '== inlive ==\n%s\n'    "$inlive"
     printf '== substantive_unaudited ==\n%s\n' "$substantive_unaudited"

@@ -225,7 +225,18 @@ if os.path.isfile(rm):
             # the work (loderite ids c19e/2b24, 2026-07-29). Same under-dispatch-safe direction
             # as @manual: the marker can only REMOVE work from the dispatch set, never add it.
             is_container = "@container" in ln
-            is_human   = primary in HUMAN_GATES or "@manual" in ln or is_owner_verify or is_container
+            # id:7517 — @owner-gated joins the same conservative path (OWNER RULING 2026-08-14,
+            # answering routed:34a2's open question). Only the owner can discharge an
+            # owner-gated item, so dispatching one to an executor is wasted work by
+            # construction; excluding it is the fail-safe direction, identical in kind to
+            # @manual/@owner-verify/@container. Keep the THREE dispatch predicates in agreement
+            # (gather-repo-state.sh's top_intensive + open_hard_pool carry the same exclusion) —
+            # and do NOT rely on lib-roadmap-sections.sh's parked-heading vocab for this: that
+            # protection is an ACCIDENT of substring matching (`@owner-gated` contains `gated`)
+            # which id:f391/id:6446 remove.
+            is_owner_gated = "@owner-gated" in ln
+            is_human   = (primary in HUMAN_GATES or "@manual" in ln or is_owner_verify
+                          or is_container or is_owner_gated)
             # id:4da4 — a [ROUTINE]/@wire item that declares a dependency BLOCK / gate is NOT
             # executor-actionable — the executor can only no-op it (zkm-threema id:180b
             # "[ROUTINE] (BLOCKED on id:7364)" was dispatched execute → empty handback,
@@ -446,6 +457,14 @@ unit = {
     "substantive_unaudited": bool(base.get("substantive_unaudited", True)),
     "work_sig": base.get("work_sig", "") or "",
     "open_hard_pool": open_hard_pool,
+    # id:7517 (routed:2d94) — the RESOLVED pool-lane ids BEHIND open_hard_pool, in ROADMAP file
+    # order, computed by gather-repo-state.sh's own open_hard_pool walk (same predicate, so the
+    # list and the count can never disagree). relay-loop.js's unitPrompt HANDS this list to the
+    # HARD-execute child, which is FORBIDDEN from re-deriving it by grep: a child that grepped
+    # only the retired "[HARD — pool]" spelling found 0 and refused 5 real bare-"[HARD]" items
+    # (loderite run relay-20260814-133435-24323). Schema-safe extra field, exactly like
+    # actionable_routine_ids (id:b09e) below.
+    "open_hard_pool_ids": base.get("open_hard_pool_ids", []),
     "strongRecheckPending": strong_recheck_pending,
     # id:188c (relay-doctor check 10 / invariant I2) — expose the derived executor-actionable
     # [ROUTINE] count so the invalid-state detector can cross-check `verdict==execute ⟹
