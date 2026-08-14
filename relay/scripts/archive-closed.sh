@@ -32,6 +32,12 @@
 # archiving, is left untouched.
 # --dry-run prints a per-ledger summary and mutates NOTHING (the default posture
 # to review before a real run). A second run is a no-op (idempotent).
+#
+# id:cd9c: archiving from ROADMAP.md leaves a one-line STUB behind in ROADMAP.md
+# for every moved item — the header line verbatim plus " (archived — see
+# ROADMAP.archive.md)" — so the id keeps resolving from the live ledger alone.
+# TODO.md and REVIEW_ME.md archiving do NOT get a stub (out of scope for cd9c;
+# the ratified grammar names ROADMAP.archive.md literally).
 
 set -euo pipefail
 
@@ -61,6 +67,14 @@ ID_RE      = re.compile(r'<!-- id:([0-9a-f]{4}) -->')
 HEADING_RE = re.compile(r'^#{1,6}\s')
 # Top-level (indent 0) checkbox bullet only.
 TOPBULLET  = re.compile(r'^- \[([ xX])\] ')
+
+# id:cd9c — ROADMAP-ledger stub grammar (writer half only asserted for ROADMAP.md;
+# see tests/test_roadmap_archive_leaves_stub.sh). Mirrors roadmap-archive.sh's
+# reader guard: a stub already left behind by a prior run must classify as `kb`
+# (kept, never re-archived) — without this, the next run eats its own successor's
+# output exactly like the defect roadmap-archive.sh's stub_line_re guards against.
+STUB_SUFFIX = " (archived — see ROADMAP.archive.md)"
+STUB_LINE_RE = re.compile(r'^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->' + re.escape(STUB_SUFFIX))
 
 PROTECTED_TEXTS = {'items', 'current', 'done', 'backlog'}
 
@@ -191,6 +205,10 @@ def plan(blocks, other_ids):
         if state != 'x':
             entries.append(('kb', block))
             continue
+        if STUB_LINE_RE.match(block[0]):
+            # Already an archived-stub line (id:cd9c) — keep as-is, never re-archive.
+            entries.append(('kb', block))
+            continue
         tk = first_id(block)
         if tk is not None and other_ids.get(tk) == ' ':
             # Twin still open in the other ledger — MUST NOT archive.
@@ -204,7 +222,7 @@ def plan(blocks, other_ids):
         archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
     return entries, skipped, moved, archived_count_by_heading, heading_indices, heading_line
 
-def apply_and_report(name, src_path, blocks, other_ids):
+def apply_and_report(name, src_path, blocks, other_ids, emit_stub=False):
     if blocks is None:
         return
     entries, skipped, moved, archived_count_by_heading, heading_indices, heading_line = plan(blocks, other_ids)
@@ -275,6 +293,9 @@ def apply_and_report(name, src_path, blocks, other_ids):
                 keep_out.extend(payload)
         else:  # ('arch', block, owning)
             block = strip_trailing_blanks(e[1])
+            if emit_stub:
+                header = block[0].rstrip('\n')
+                keep_out.append(header + STUB_SUFFIX + '\n')
             if last_appended_heading:
                 arch_out.extend(block)
             else:
@@ -302,7 +323,7 @@ def apply_and_report(name, src_path, blocks, other_ids):
         print(f"archive-closed[{name}]: skipped id:{tk} (twin open)", file=sys.stderr)
 
 apply_and_report('TODO',      todo_path,   todo_blocks,   road_ids)
-apply_and_report('ROADMAP',   road_path,   road_blocks,   todo_ids)
+apply_and_report('ROADMAP',   road_path,   road_blocks,   todo_ids, emit_stub=True)
 # REVIEW_ME items are NOT cross-ledger twins — pass an empty id map so no twin
 # can ever block or skip an archive decision; archiving is based purely on the
 # item's own [x]/[ ] state.
