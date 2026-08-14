@@ -3,6 +3,20 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-14 (chain-end re-ask, chain `relay-ckpt-20260813-2332` — id:8123)
+
+Window carried no executor code work (ledger/human batches + inbox ingests only); `gaming-scan.sh`
+clean. §5b reverse-handoff: authored the missing RED spec for `id:1b13` (re-laned to `[ROUTINE]`
+this window). One handoff-readiness gap surfaced:
+
+- [ ] **`id:f91a` (@container, ROADMAP.md:1509) is an open `[ROUTINE]` with NO RED spec — not
+  executor-ready.** `grep -rl 'roadmap:f91a' tests/` returns nothing, so an executor that picks it
+  has no failing test to satisfy (the executor-contract definition-of-done). It is NOT new this
+  window (predates `relay-ckpt-20260813-2332`), so it is outside the §5b mini-handoff, but it needs
+  a handoff pass to author a red spec before it can be dispatched. Either author the spec at the
+  next handoff or re-lane it if @container is a design task rather than executor work. (The other
+  dispatchable `[ROUTINE]` items — `id:1b13`, `id:cd9c`, `id:ec3c` — all have specs.)
+
 ## Review 2026-08-13e (window last-reviewer-ckpt `relay-ckpt-20260813-2213`..HEAD `-2222` — id:259f execute)
 
 Trust-but-verify over the `id:259f` executor (sonnet) unit. HEAD `-2222` is the executor's OWN
