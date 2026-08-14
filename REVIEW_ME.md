@@ -30,8 +30,8 @@ Re-derivation edit: added `@container` to `id:ae08` (was DECOMPOSED into seams `
 but still wore an `[INPUT — decision]` lane → roadmap-lint DECOMPOSED-CONTAINER; not ticked
 because seams `02b2`/`99e5` remain open, `5b12` closed).
 
-- [ ] **`id:d119` cross-ledger drift — SAME id reused for two different scopes; ROADMAP half shipped, TODO half genuinely still open.** `id:d119` is `[x]` CLOSED in `ROADMAP.archive.md:4015` (scoped "roadmap-lint *recognizes* an OWNER-HOLD marker & suppresses its false DEAD-GATE — linter only") but `[ ]` OPEN in `TODO.md:732` (broader: *apply* the owner-hold marker onto `id:540f`/`id:c179` in place of their dead `gated-on:b0b1` + the marker grammar). The remaining TODO work is genuinely incomplete — **evidence:** `roadmap-lint` STILL emits false DEAD-GATE for `540f`/`c179` this pass, i.e. the owner-hold marker was never written onto them. So do NOT auto-tick the TODO twin (would mark undone work done). `orphan-scan --cross-ledger` missed this (archive blind spot — already tracked as inbox dead-letters routed:42c9/8b21). **Owner/handoff call:** either mint a fresh id for the "apply-the-marker + grammar" remainder and re-scope the TODO d119 line, or confirm the remainder is intended and leave it — not a review auto-fix.
-- [ ] **Install-drift: `relay/scripts/roadmap-tick.sh` is in the repo + declared in `relay_FILES`, but its `~/.claude/skills/relay/scripts/` symlink is MISSING** (relay-doctor install-drift, id:1102). This is the v12 tick-ownership script the serialized integrator uses to tick ROADMAP checkboxes from `worked_ids`. Report-only, but if the live integrator resolves scripts through the installed skill path it can't tick — run **`make install-relay`** (or `make install`) on zomni to regenerate the symlink. Install-state, not repo content, so not fixable in this worktree.
+- [x] **`id:d119` cross-ledger drift — SAME id reused for two different scopes; ROADMAP half shipped, TODO half genuinely still open.** `id:d119` is `[x]` CLOSED in `ROADMAP.archive.md:4015` (scoped "roadmap-lint *recognizes* an OWNER-HOLD marker & suppresses its false DEAD-GATE — linter only") but `[ ]` OPEN in `TODO.md:732` (broader: *apply* the owner-hold marker onto `id:540f`/`id:c179` in place of their dead `gated-on:b0b1` + the marker grammar). The remaining TODO work is genuinely incomplete — **evidence:** `roadmap-lint` STILL emits false DEAD-GATE for `540f`/`c179` this pass, i.e. the owner-hold marker was never written onto them. So do NOT auto-tick the TODO twin (would mark undone work done). `orphan-scan --cross-ledger` missed this (archive blind spot — already tracked as inbox dead-letters routed:42c9/8b21). **Owner/handoff call:** either mint a fresh id for the "apply-the-marker + grammar" remainder and re-scope the TODO d119 line, or confirm the remainder is intended and leave it — not a review auto-fix. **OWNER-DECIDED 2026-08-14 (`/relay human .`): MINT a fresh id for the apply-the-marker remainder.** `id:d119` is re-scoped in `TODO.md` to the SHIPPED slice only (roadmap-lint *recognizes* `<!-- owner-hold:REASON -->` and suppresses its false DEAD-GATE — linter-only), matching the archived ROADMAP half, so the two views agree. The genuinely-open remainder — (a) migrate `id:540f`/`id:c179` off their dead `gated-on:e62c,b0b1` onto the confirmed `owner-hold:` marker AND (b) teach `classify-repo.sh`'s dispatch gate to honour it, **as one atomic change** — is filed as **`id:b8e8`**. The marker spelling was confirmed in the same pass (see the id:d119 grammar box below). Note the false DEAD-GATE for 540f/c179 is EXPECTED to persist until `id:b8e8` lands — the linter recognizes the marker, but nothing has written it onto those two lines yet.
+- [x] **Install-drift: `relay/scripts/roadmap-tick.sh` is in the repo + declared in `relay_FILES`, but its `~/.claude/skills/relay/scripts/` symlink is MISSING** (relay-doctor install-drift, id:1102). This is the v12 tick-ownership script the serialized integrator uses to tick ROADMAP checkboxes from `worked_ids`. Report-only, but if the live integrator resolves scripts through the installed skill path it can't tick — run **`make install-relay`** (or `make install`) on zomni to regenerate the symlink. Install-state, not repo content, so not fixable in this worktree. **RESOLVED 2026-08-14 (`/relay human .`, owner-approved) — `make install-relay` RUN on zomni.** Evidence: `ls -l ~/.claude/skills/relay/scripts/roadmap-tick.sh` now resolves to `/home/tobias/src/dotclaude-skills/relay/scripts/roadmap-tick.sh`, and `check-install-drift.sh --canonical <repo>/relay --installed ~/.claude/skills/relay` reports `OK — fully mirrored (scripts + source targets)`. Re-checkable by re-running either command. The RECURRENCE gate is a separate owner decision — see `TODO.md` id:83c3, decided this pass.
 
 ## Review 2026-08-13d (chain-end re-ask, chain `relay-ckpt-20260813-2045`..`-2119` — id:f657)
 
@@ -509,7 +509,7 @@ re-derives from the evidence named here; reopen any whose evidence does not hold
 Two interpretations baked into the RED specs of the items promoted this handoff (id:292b,
 id:f657, id:d119). f657 carries no judgment call (its contract is fully specified in TODO).
 
-- [ ] **id:292b — `# fails-against:` header scope: ALL headerless tests, or a marked defect-fix
+- [x] **id:292b — `# fails-against:` header scope: ALL headerless tests, or a marked defect-fix
   subset only?** The RED spec (`tests/test_vacuous_fixture_lint_292b.sh`) requires the header on
   every `tests/test_*.sh` that lacks a `# roadmap:` header, treating "no roadmap header" as the
   definition of "defect-fix test" (CLAUDE.md §Testing). But some headerless tests are harness /
@@ -519,8 +519,15 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   only genuine defect-fix tests are held to it? Also note the item ships mechanism (1) ONLY — the
   CI runner that actually executes the declared negative case, plus mechanisms (2)/(3), are
   deliberately out of scope (follow-ups).
+  **OWNER-DECIDED 2026-08-14 (`/relay human .`): keep ALL headerless tests in scope, PLUS an
+  allowlist file for known shape/harness tests.** The opt-in-marker alternative (`# defect-fix:`)
+  was REJECTED: opt-in means a genuine defect-fix test that forgets the marker escapes the lint
+  entirely, so the blind spot grows silently — the fail-closed direction was chosen deliberately.
+  Exemptions go in ONE reviewable allowlist file rather than scattered `# fails-against: n/a`
+  comments, so what has been excused is auditable in one place. Implementation note for the
+  executor: this changes the RED spec's exemption MECHANISM, not its scope predicate.
 
-- [ ] **id:d119 — owner-hold marker grammar + the deliberate roadmap-lint-only scope.** The RED
+- [x] **id:d119 — owner-hold marker grammar + the deliberate roadmap-lint-only scope.** The RED
   spec proposes the spelling `<!-- owner-hold:REASON -->`; confirm or rename it before it is
   built (it becomes a grammar other tools may later read). AND confirm the scoping decision: this
   handoff scoped id:d119 to the REPORT-ONLY linter's recognition of the marker, and left OUT (a)
@@ -529,10 +536,20 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   before the dispatch gate also honours the marker would make those owner-held items dispatchable,
   which the 2026-07-31 owner gate forbids. Confirm that (a)+(b) should indeed be a separate,
   coordinated step and not folded into id:d119.
+  **OWNER-DECIDED 2026-08-14 (`/relay human .`), both halves:**
+  1. **Marker spelling CONFIRMED as proposed: `<!-- owner-hold:REASON -->`.** Chosen over
+     `<!-- owner-gate:REASON -->` and over overloading `<!-- gated-on:owner -->` (which would put a
+     non-4-hex token into a space that today holds only ids). It joins the existing typed-edge
+     family (`gated-on:`, `children-of:`) in shape; `REASON` is free prose after the colon.
+  2. **(a)+(b) CONFIRMED as a separate, coordinated step — they must land TOGETHER, never split.**
+     Ratifies the handoff's reasoning verbatim: migrating id:540f/id:c179's `gated-on:e62c,b0b1`
+     to the new marker BEFORE `classify-repo.sh`'s dispatch gate honours it would make those
+     owner-held items dispatchable in the gap — exactly what the 2026-07-31 owner gate forbids.
+     Filed as its own item `id:b8e8` (see `TODO.md`), NOT folded into d119.
 
 ## review 2026-08-13 (relay-20260813-203957-8486, reviewer opus) — surfaced, not acted
 
-- [ ] **id:292b — intentional two-views scope divergence (expect a `--cross-ledger` flag).**
+- [x] **id:292b — intentional two-views scope divergence (expect a `--cross-ledger` flag).**
   This review closed the ROADMAP slice `id:292b` (mechanism (1) linter shipped, verified green)
   but LEFT the TODO twin `id:292b` OPEN because the TODO bundles the broader design (mechanism
   (2) reached-fixture, (3) ledger-token-shape, and the CI-runner negative-case check) that the
@@ -541,6 +558,14 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   keeping the follow-ups under the SAME id acceptable, or should they be re-minted as a distinct
   successor id so cross-ledger stays clean? (The `xledger-ok`-style suppression marker convention
   is routed:42c9 — not built here.)
+  **OWNER-DECIDED 2026-08-14 (`/relay human .`): RE-MINT a successor id for the remaining
+  mechanisms.** `id:292b` closes in BOTH views (the mechanism-(1) linter that shipped); the leftover
+  scope — mechanism (2) reached-fixture, mechanism (3) ledger-token-shape, and the CI runner that
+  executes the declared negative case — is re-filed as **`id:a73c`** (see `TODO.md`), together with
+  the allowlist-file exemption mechanism decided in the box above. Cross-ledger stays clean with no
+  suppression marker, so this does NOT wait on routed:42c9. The cost is accepted explicitly: the
+  one-id-spans-the-design-thread property is broken here, and `id:a73c` carries a back-pointer to
+  `id:292b` so the thread is still followable.
 
 - [ ] **inbox dead-letter backlog: 12 routed items unrouted (relay-doctor scan-routed, report-only).**
   `scan-routed.sh` reports 12 dead-letters (11 → dotclaude-skills, 1 → escapement) absent from
@@ -563,8 +588,15 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   structurally a /meeting question not executor work). No action taken — surfaced for the human's
   lane-assignment-at-source discipline (id:78ff).
 
-- [ ] **2 parked orphan branches (relay-reconcile --all).** `relay/orphan/relay-20260813-180303-4214-review-repo-0`
+- [x] **2 parked orphan branches (relay-reconcile --all).** `relay/orphan/relay-20260813-180303-4214-review-repo-0`
   carried the STRANDED close of id:292b — this review has now reconciled that (ticked id:292b in
   ROADMAP + annotated the TODO twin), so that orphan is superseded and safe to drop. The other,
   `relay/orphan/relay-20260813-180303-4214-execute-repo-0` (session log for id:f657/id:d119), is a
   parked orphan for the human's reconcile call.
+  **RESOLVED 2026-08-14 (`/relay human .`, tier-a auto-answer) — both branches are GONE.**
+  Evidence: `relay/scripts/relay-reconcile.sh /home/tobias/src/dotclaude-skills` prints
+  `no parked orphans` (run this pass). Disposal is recorded independently in `TODO.md`
+  id:8132, which states all four leftover worktrees from the 2026-08-12 run were retired by
+  hand on 2026-08-13 via `worktree-retire.sh` (three clean `git branch -d`, one
+  park-then-`--discard`). Re-checkable: re-run `relay-reconcile.sh <repo>` — a non-empty
+  parked list reopens this box.
