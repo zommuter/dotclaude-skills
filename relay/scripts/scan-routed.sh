@@ -43,6 +43,11 @@ SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFORMANCE="$SCRIPTS_DIR/todo-conformance.sh"
 COMMIT_LEDGER="$SCRIPTS_DIR/commit-ledger.sh"
 CLAIM_SH="$SCRIPTS_DIR/claim.sh"
+# token_marker_in_files — the shared OWN-MARKER twin predicate (id:3add, tightened by
+# id:c97c). Sourced, never re-implemented: this script and `append.sh inbox-done` must
+# ask the same question, or a stub this script writes is refused by the drain that follows.
+# shellcheck source=./lib-anchored-id.sh
+source "$SCRIPTS_DIR/lib-anchored-id.sh"
 SKILL_ROOT="$(cd "$SCRIPTS_DIR/../.." && pwd)"
 MD_MERGE="$SKILL_ROOT/meeting/md-merge.py"
 APPEND_SH="$SKILL_ROOT/meeting/append.sh"
@@ -232,16 +237,27 @@ for line in "${_inbox_lines[@]}"; do
     findings=$((findings+1)); dead=$((dead+1)); continue
   fi
 
-  # Twin = the token appears in the target's TODO or ROADMAP as a `routed:`/`id:`
-  # MARKER — anchored, NOT a bare-substring grep. A bare `grep -F "$tok"` (the
-  # original) false-matches the HHMM field of meeting-note filename timestamps
-  # (`YYYY-MM-DD-HHMM-…`) and any hash/id/number containing those 4 hex chars, so
-  # a routed token like `1328`/`0928` reads as "already ingested" when it is not —
-  # a SILENT false-clean that under-reports dead letters (observed 2026-06-30:
-  # routed:0928 absent in dotclaude-skills, routed:1328 absent in zkm, both masked
-  # by meeting-note timestamps). Require the `routed:`/`id:` prefix + a trailing
-  # token boundary so only a real twin marker counts.
-  if grep -qsE -- "(routed|id):$tok([^0-9a-f]|\$)" "$tpath/TODO.md" "$tpath/ROADMAP.md" 2>/dev/null; then
+  # Twin = the token is the OWN MARKER of some line in the target's TODO or ROADMAP —
+  # either an `<!-- routed:XXXX -->`/`<!-- id:XXXX -->` HTML comment, or the leading
+  # `[INBOUND routed:XXXX …]` tag of the ingest stub this very script writes. Delegated
+  # to the shared `token_marker_in_files` primitive (lib-anchored-id.sh, id:3add) — one
+  # predicate for this check and for `append.sh inbox-done`'s id:9fdb refusal guard,
+  # which must agree or a successful write is followed by a refused drain.
+  #
+  # Two false-match classes it rejects, both of which caused real damage:
+  #   * a BARE SUBSTRING (the original `grep -F "$tok"`) matches the HHMM field of a
+  #     meeting-note filename (`YYYY-MM-DD-HHMM-…`) or any longer hash containing those
+  #     4 hex chars, silently UNDER-reporting dead letters (2026-06-30: routed:0928 in
+  #     dotclaude-skills, routed:1328 in zkm, both masked by note timestamps);
+  #   * a PROSE CITATION of a sibling item's token (`… the sibling item \`routed:XXXX\``)
+  #     matched the prefix-anchored successor, so this loop DELETED inbox items it had
+  #     never filed — three of them on 2026-08-14, recovered by hand from git (id:c97c).
+  #     That one is self-inflicted and INTRA-RUN: the stub written for item A carries A's
+  #     citation of B, and the check below re-reads the file on every iteration (grep
+  #     re-opens it), so B is then read as "landed". The per-iteration fresh read is
+  #     deliberately KEPT — it is what makes a concurrent/earlier write visible, and with
+  #     an ownership-anchored predicate the citation no longer registers.
+  if token_marker_in_files "$tok" "$tpath/TODO.md" "$tpath/ROADMAP.md"; then
     # Twin present → the item already LANDED in its target. Under vanish-on-resolve
     # (user decision 2026-06-30) an OPEN inbox line for an already-landed item is just
     # un-drained residue: close the loop and remove it. --apply deletes it now; report

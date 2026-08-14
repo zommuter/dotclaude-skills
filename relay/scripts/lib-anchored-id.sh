@@ -61,9 +61,11 @@ has_own_id_marker() {
 # UNKNOWN id from a line). The functions below add the two OTHER shapes the same
 # family of callers hand-rolls — the `routed:` extraction variant, and the "does a
 # SPECIFIC KNOWN token appear as an anchored `(id|routed):XXXX` marker" presence
-# check — so a fourth copy is not written. Modelled on scan-routed.sh's twin check
-# (its `grep -qsE -- "(routed|id):$tok([^0-9a-f]|$)"`), which already anchors on the
-# marker prefix + a trailing token boundary instead of a bare substring. A bare
+# check — so a fourth copy is not written. Originally modelled on scan-routed.sh's twin
+# check (its `grep -qsE -- "(routed|id):$tok([^0-9a-f]|$)"`), which anchors on the marker
+# PREFIX + a trailing token boundary instead of a bare substring — **that prefix anchor
+# was never ownership, and the difference destroyed data; see the id:c97c block below,
+# which replaces the predicate for `token_marker_in_*`**. A bare
 # substring grep false-matches a meeting-note filename's `YYYY-MM-DD-HHMM` timestamp
 # and any longer hash containing the same 4 hex chars — the silent false-clean this
 # family exists to prevent (scan-routed id:d515, unpromoted-scan id:1312, inbox-done
@@ -104,24 +106,67 @@ own_token_of_line() {
 # reject (return 2) in the presence checks below, never a silent false answer.
 _valid_tok() { [[ "$1" =~ ^[0-9a-fA-F]{4}$ ]]; }
 
-# token_marker_in_text <tok>  (text on stdin) — return 0 iff <tok> appears anywhere
-# in the piped text as an ANCHORED `(id|routed):<tok>` marker, bounded by a non-hex
-# char (or end of line). This is scan-routed.sh's twin check in string form. Return
-# 2 (loud) on a malformed <tok>; return 1 if absent.
+# --- OWN-MARKER twin presence (id:c97c) ----------------------------------------
+# The presence checks below decide whether a routed inbox item "already landed" in its
+# target repo — and that verdict authorises a DESTRUCTIVE, effectively unrecoverable
+# `append.sh inbox-done` (vanish-on-resolve). So the bar is not "the token occurs
+# somewhere"; it is "the token is some line's OWN marker".
+#
+# The ORIGINAL predicate was `(routed|id):$tok([^0-9a-f]|$)`. It anchors the PREFIX and a
+# trailing token boundary — enough to reject an `HHMM` filename timestamp or a longer
+# hash (id:d515/1312, still rejected below) — but it does NOT require ownership, so a
+# prose cross-reference inside ANOTHER item's body satisfies it:
+#     ... the bigger gap is the sibling item `routed:057f` ...
+# (the trailing backtick is a valid boundary). VERIFIED LIVE 2026-08-14: three inbox
+# items were deleted, never filed, and had to be recovered by hand from
+# `git show HEAD:todo-inbox.md`. It is SELF-INFLICTED and INTRA-RUN — `scan-routed.sh
+# --apply` writes item A's INBOUND stub (citation and all) into the target TODO.md, then
+# iterates on to the cited token B, re-greps the file it just wrote, and drains B. Hence
+# ORDER-DEPENDENT and intermittent. The id:9fdb "refuse without a twin" guard in
+# `inbox-done` calls straight into here, so it was not bypassed — it was SATISFIED BY THE
+# WRONG THING. (The `id:3add` header comment above, and the global CLAUDE.md line calling
+# this check "anchored to the marker, not a bare-token grep", both described an ownership
+# property the code never had — doc-vs-code drift, corrected here.)
+#
+# THE TWO OWNING FORMS in this corpus, and only these:
+#   1. an HTML-comment marker — `<!-- routed:XXXX -->` or `<!-- id:XXXX -->`;
+#   2. the INGEST-STUB prefix — a checkbox line whose LEADING bracket tags include
+#      `[INBOUND routed:XXXX …]`, i.e. `- [ ] [LANE] [INBOUND routed:XXXX from src] …`.
+# Form 2 is load-bearing, not a nicety: it is exactly the line `scan-routed.sh --apply`
+# writes when it files an item (the stub's own HTML comment carries the freshly MINTED
+# target id, never the routed token), and it is the ONLY marker most already-ingested
+# items carry — 176 such lines in this repo's TODO.md alone. Dropping it would make every
+# past ingest re-file forever and make `inbox-done` refuse right after a successful write.
+# The `^`-anchored leading-tag sequence is what keeps it honest: a mid-sentence
+# "(INBOUND routed:XXXX from …)" inside a body does NOT match.
+#
+# A bare `routed:XXXX` / `id:XXXX` in running prose NEVER counts.
+
+# _own_marker_re <tok> — the ERE matching <tok> in either owning form. Both alternatives
+# are line-scoped, so this is safe to grep over a whole file.
+_own_marker_re() {
+  local tok="$1"
+  printf '(<!--[[:space:]]*(id|routed):%s[[:space:]]*-->)|(^- \[[ xX]\] (\[[^]]*\] )*\[INBOUND routed:%s[^0-9a-fA-F])' \
+    "$tok" "$tok"
+}
+
+# token_marker_in_text <tok>  (text on stdin) — return 0 iff <tok> is some line's OWN
+# marker in the piped text (see the two owning forms above). This is scan-routed.sh's
+# twin check in string form. Return 2 (loud) on a malformed <tok>; 1 if absent.
 token_marker_in_text() {
   local tok="$1"
   _valid_tok "$tok" || return 2
-  grep -qE -- "(routed|id):$tok([^0-9a-f]|\$)"
+  grep -qE -- "$(_own_marker_re "$tok")"
 }
 
-# token_marker_in_files <tok> <file>... — same anchored twin check over one or more
-# files (missing/unreadable files are skipped via grep -s, mirroring scan-routed.sh
-# which greps TODO.md + ROADMAP.md that may not both exist). Return 2 on a malformed
-# <tok>; 0 if present in any file; 1 if absent from all.
+# token_marker_in_files <tok> <file>... — same own-marker check over one or more files
+# (missing/unreadable files are skipped via grep -s, mirroring scan-routed.sh which greps
+# TODO.md + ROADMAP.md that may not both exist). Return 2 on a malformed <tok>; 0 if
+# present in any file; 1 if absent from all.
 token_marker_in_files() {
   local tok="$1"; shift
   _valid_tok "$tok" || return 2
-  grep -qsE -- "(routed|id):$tok([^0-9a-f]|\$)" "$@"
+  grep -qsE -- "$(_own_marker_re "$tok")" "$@"
 }
 
 # token_own_checkbox_marker_in_text <tok>  (text on stdin) — return 0 iff some
