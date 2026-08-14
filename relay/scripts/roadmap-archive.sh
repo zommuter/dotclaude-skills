@@ -12,6 +12,11 @@
 # the <!-- id:XXXX --> token and original text verbatim. This also captures column-0
 # prose paragraphs and "> " blockquotes in the item's body (not just indented lines).
 #
+# id:cd9c: a one-line STUB is left behind in the LIVE ROADMAP.md for every moved
+# item — the header line verbatim plus " (archived — see ROADMAP.archive.md)" — so
+# the id keeps resolving from the live ledger alone. Only the header line becomes
+# the stub; the rest of the block (continuations/body) moves to the archive only.
+#
 # NEVER touches open "- [ ]" items or the file preamble. A grouping heading (##/###/…)
 # that this run EMPTIES of all top-level items is MOVED into the archive with it,
 # UNLESS it is protected: the H1 title, or a heading whose text is exactly one of
@@ -240,6 +245,13 @@ for e in entries:
                 keep_out.append(line)
     else:  # ('arch', block, owning)
         block = e[1]
+        # id:cd9c — leave a one-line stub behind in the LIVE ledger so the item's
+        # id keeps resolving from ROADMAP.md alone (orphan-scan --cross-ledger
+        # reads only the live file). The stub is the header line verbatim plus the
+        # ratified suffix; the reader half (stub_line_re, above) already classifies
+        # this exact grammar as `keep` on every subsequent run.
+        header = block[0].rstrip('\n')
+        keep_out.append(header + STUB_SUFFIX + '\n')
         if last_appended_heading:
             # First item directly under a just-moved heading — no separator, so
             # the heading and its item are adjacent in the archive.
