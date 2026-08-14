@@ -1558,19 +1558,6 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Acceptance**: grep -c 'drain-integrate' relay/scripts/relay-loop.js is non-zero and reachable from the drain-mode integration path (enqueueIntegration); a review unit never runs concurrently with any other unit in its own repo; integrate checks are NOT relaxed because greenlight proved disjointness (design rule D3a).
   - **Done-check**: tests/run-tests.sh tests/test_relay_integrate_contain.sh AND tests/test_drain_serial_integrator.sh (both unmodified) green AND node --check relay/scripts/relay-loop.js clean
   - **Context**: relay/scripts/relay-loop.js (enqueueIntegration ~line 1001 and the integration-drain path) + relay/scripts/drain-integrate.sh
-### Review follow-ups 2026-08-12 (reviewer pass over 76d2 / 9834 / 3222)
-
-- [x] [ROUTINE] **`verify-isolation.sh`: an EMPTY worktree with a DIRTY tree must FAIL (exit 2), not pass** — **OWNER-DECIDED 2026-08-14 (`/relay human .`)**, re-laned from `[INPUT — decision]` now that the call is made. **Defect**: branches (b1) and (b3) `exit 0` on "no commits beyond base" *before* the (c) dirty check ever runs (confirmed against the script's own header behaviour table this pass), so a worktree holding uncommitted edits and zero commits is waved through. The owner ruled that shape is **breach-shaped** — it is the closest signature to "the child worked but never committed", the same family as the loderite/jobAI main-checkout breach the gate exists for — and that a re-dispatch on a false positive is the acceptable cost, consistent with the conservative direction the header already accepts for (b2). <!-- id:1b13 -->
-  **Acceptance**: a RED spec asserting (i) empty worktree + dirty tree ⇒ exit 2 naming the dirty
-  entries, under BOTH the main-unmoved (b1) and merge-commits-only (b3) conditions; (ii) empty +
-  CLEAN + main unmoved still exits 0 — the legitimate `id:8e3e` no-op review must NOT regress;
-  (iii) the existing (a)/(b2)/(c)/(d) cases stay green. Update the script header's behaviour table
-  in the same change — it is the contract readers cite. Do NOT add stash/reset/clean: the script
-  stays observe-only.
-  - **Verified by probe 2026-08-12** (reviewer, against the pristine gate): a worktree with zero commits beyond base plus an untracked file exits **0** with *"ok: worktree has no commits beyond base 'main', and main has not moved since dispatch — legitimate no-op review (id:8e3e)"*. Add one commit and the same tree exits **2** with the DIRTY-tree failure. So the dirty check is reachable only after commits exist.
-  - **Why it is a genuine question, not an obvious bug**: `id:8e3e` deliberately admits the zero-commit review as legitimate, and most such worktrees really are clean no-ops. But a zero-commit worktree with uncommitted changes is not a no-op — it is an INCOMPLETE unit whose work is about to be discarded silently, which is the shape contract rule 5b exists to prevent. Reordering the checks would catch that, at the cost of failing some genuine no-op reviews that happen to carry stray untracked files.
-  - **The owner decides.** Do not reorder the gate on the strength of this note alone. Surfaced because the `id:76d2` executor hit it, proved it provisioner-independent, and correctly refused to either edit the spec or change gate behaviour on its own authority.
-
 ## User-injected promotion 2026-08-13 (id:baf1) — archive-path stub design call (routed:f833, INBOUND from loderite)
 
 > Owner-directed, NARROWED-SCOPE C2 promotion of `TODO.md` `routed:f833` (`id:cd9c`). Single-id-two-views:
