@@ -5816,3 +5816,7 @@ Surfaced inbox dead-letter routed:c8d7 (`/meeting --triaged`, → dotclaude-skil
 `/meeting` candidate. Nothing reopened; no gaming flags.
 Friction: none.
 refactor: none needed — review pass; the only code added is one RED spec test (no production code touched).
+
+## 2026-08-14 12:20 — integrate (claude-opus-5)
+
+hand-integrate 2 handed-back review branches: id:6446 parked-vocab substring defect; id:cc7e reverse-handoff RED spec (RED-verified). Suite 423/0/2-xred.
