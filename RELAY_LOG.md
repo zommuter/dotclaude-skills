@@ -5745,3 +5745,16 @@ Review: id:259f verified genuine-green (classify.sh word-boundary gate fix, not 
 ## 2026-08-13 23:32 — integrate (claude-opus-5)
 
 C3 red spec for id:cd9c (archivers must leave a one-line stub); verified RED against unmodified roadmap-archive.sh; suite 420/0/3-xred
+
+## 2026-08-14 — executor (sonnet, relay-loop)
+
+Fixed verify-isolation.sh: an EMPTY worktree with a DIRTY tree now exits 2 (breach-shaped,
+owner-decided 2026-08-14) under BOTH the main-unmoved (b1) and merge-commits-only (b3)
+conditions — previously those branches returned exit 0 before the dirty check ever ran.
+Added a dirty-tree check at the top of the empty-worktree branch, ahead of the main-HEAD
+discrimination logic; updated the script header's behaviour table (new b0 case). The
+legitimate id:8e3e no-op review (empty + CLEAN + main unmoved) still exits 0, unregressed.
+Full suite green (420/0/3-xred). [id:1b13]
+Friction: none.
+refactor: none needed — a single early-exit check added to an existing branch, no new
+duplication introduced.
