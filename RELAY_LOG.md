@@ -5820,3 +5820,7 @@ refactor: none needed — review pass; the only code added is one RED spec test 
 ## 2026-08-14 12:20 — integrate (claude-opus-5)
 
 hand-integrate 2 handed-back review branches: id:6446 parked-vocab substring defect; id:cc7e reverse-handoff RED spec (RED-verified). Suite 423/0/2-xred.
+
+## 2026-08-14 13:38 — integrate (claude-opus-5)
+
+id:c97c — inbox twin check anchored to a token's OWN marker (shared primitive; writer+drainer agree). Independently re-derived against the original incident: old code silently destroyed the sibling item, new code files both. 121/121 true twins still resolve. Suite 425/0/2-xred.
