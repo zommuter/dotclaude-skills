@@ -5784,3 +5784,7 @@ Friction: none — the item's Acceptance/Tests/Done-check were already fully spe
 by the mini-handoff at review 2026-08-13.
 refactor: none needed — a one-line-per-path parameter-expansion change, no new
 duplication introduced.
+
+## 2026-08-14 11:02 — executor (sonnet, relay-loop)
+
+statusline: the four /tmp usage-state paths (id:ec3c) are now env-overridable, defaulting to the old literals — closes the make-test race against a live-session statusline [id:ec3c]
