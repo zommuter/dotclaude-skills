@@ -5758,3 +5758,7 @@ Full suite green (420/0/3-xred). [id:1b13]
 Friction: none.
 refactor: none needed — a single early-exit check added to an existing branch, no new
 duplication introduced.
+
+## 2026-08-14 10:34 — executor (sonnet, relay-loop)
+
+verify-isolation.sh: empty worktree + dirty tree now exits 2 (breach-shaped) under both main-unmoved (b1) and merge-commits-only (b3) conditions; id:8e3e no-op review unregressed [id:1b13]
