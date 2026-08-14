@@ -23,12 +23,17 @@
 # "is the worktree empty" and "did main move since dispatch" — are derivable without any new
 # pool plumbing):
 #   (a) worktree has ≥1 commit beyond base AND a clean tree        → print "ok …", exit 0.
-#   (b1) EMPTY worktree (no commits beyond base) AND main UNMOVED  → exit 0 (legitimate id:8e3e
-#        no-op review; a handback here would re-dispatch the same review forever).
-#   (b2) EMPTY worktree AND main advanced by ≥1 NON-MERGE commit   → exit 2, names the
+#   (b0) EMPTY worktree (no commits beyond base) AND a DIRTY tree  → exit 2, names dirty
+#        entries — checked BEFORE b1/b3 below, regardless of whether main moved (id:1b13,
+#        owner-decided 2026-08-14: breach-shaped, the closest signature to "the child worked
+#        but never committed").
+#   (b1) EMPTY worktree (no commits beyond base), CLEAN tree, main UNMOVED → exit 0
+#        (legitimate id:8e3e no-op review; a handback here would re-dispatch the same
+#        review forever).
+#   (b2) EMPTY worktree, CLEAN tree, main advanced by ≥1 NON-MERGE commit → exit 2, names the
 #        offending commit(s) (the loderite/jobAI isolation-breach signature).
-#   (b3) EMPTY worktree AND main advanced ONLY by merge commit(s)  → exit 0 (another unit's
-#        --no-ff integration is not this child's breach).
+#   (b3) EMPTY worktree, CLEAN tree, main advanced ONLY by merge commit(s) → exit 0 (another
+#        unit's --no-ff integration is not this child's breach).
 #   (c) worktree has commits beyond base but a DIRTY tree          → exit 2, names dirty entries.
 #   (d) non-existent path / not a git worktree                     → exit 2, stderr message.
 #
@@ -99,6 +104,22 @@ if [ -z "$commits" ]; then
   # dispatch-time main HEAD (merge-base of worktree HEAD and the base ref), so whether
   # main has since moved (and by what kind of commit) tells legitimate no-op review
   # (b1/b3) apart from an isolation breach (b2).
+  #
+  # id:1b13 (owner-decided 2026-08-14): an EMPTY worktree with a DIRTY tree is NOT a
+  # legitimate no-op review under ANY of the b1/b3 short-circuits below — it is the
+  # closest signature to "the child worked but never committed" (the same breach family
+  # this gate exists for), so check dirty FIRST and fail loud before any of the
+  # main-moved discrimination gets a chance to wave it through.
+  porcelain_empty="$(git -C "$worktree" status --porcelain 2>/dev/null || true)"
+  if [ -n "$porcelain_empty" ]; then
+    log "empty+dirty worktree=$worktree base=$base"
+    echo "isolation failure: worktree has NO commits beyond base '$base' AND a DIRTY tree (uncommitted changes) — breach-shaped (id:1b13): looks like the child worked but never committed, not safe to merge"
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      printf '  %s\n' "$entry"
+    done <<< "$porcelain_empty"
+    exit 2
+  fi
   main_head="$(git -C "$worktree" rev-parse --verify -q "$base")"
   merge_base="$(git -C "$worktree" merge-base HEAD "$base" 2>/dev/null || true)"
   if [ -n "$merge_base" ] && [ "$main_head" != "$merge_base" ]; then
