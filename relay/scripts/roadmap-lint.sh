@@ -240,9 +240,23 @@ leading_lane_run() {
 # than an unconditional `<no id>` — that fallback is never used to satisfy the
 # "has an id" grammar clause (see has_own_id_marker call sites below), only for
 # display.
+# id:6059 — a line with SEVERAL anchored markers is AMBIGUOUS (own_id_of_line exits 3);
+# it gets a `<ambiguous:…>` display handle, never a positional guess, and never the bare
+# fallback below (which would silently pick the first token — the very guess being
+# refused). Its stderr is deliberately discarded HERE and only here: rule 3(f) MULTI-ID
+# reports the same line once, with the full line and the repair instruction, whereas
+# item_id is a display helper invoked several times per line — leaving it on would print
+# the identical warning N times per item. This is a de-duplication, not a swallow.
 item_id() {
-  local l="$1" tok
-  if tok="$(own_id_of_line "$l")"; then printf '%s' "$tok"; return; fi
+  # `|| rc=$?` (not a bare `; rc=$?`) — a failing command substitution in a plain
+  # assignment triggers errexit under this script's `set -e`, and own_id_of_line now
+  # exits nonzero on BOTH the absent (1) and ambiguous (3) branches.
+  local l="$1" tok rc=0
+  tok="$(own_id_of_line "$l" 2>/dev/null)" || rc=$?
+  case "$rc" in
+    0) printf '%s' "$tok"; return ;;
+    3) printf '<ambiguous:%s>' "$(marker_tokens_of_line "$l" id | tr '\n' ',' | sed 's/,$//')"; return ;;
+  esac
   if [[ "$l" =~ id:([0-9a-fA-F]{4}) ]]; then printf 'id:%s' "${BASH_REMATCH[1]}"; fi
 }
 
@@ -402,6 +416,31 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # (exempt sections already `continue`d above) — an item legitimately parked under a
   # Deferred/Gated/Icebox heading does NOT fire.
   _dr_label="WARN"; [[ "$strict" -eq 1 ]] && _dr_label="ERROR"
+
+  # Rule 3(f) MULTI-ID (id:6059, routed:b71e's real find + loderite routed:3ad9): a
+  # checkbox line carrying MORE THAN ONE `<!-- id:XXXX -->` marker is AMBIGUOUS and every
+  # id-resolver now REFUSES it rather than guess a position — the line addresses nothing
+  # until it is repaired. Anchoring cannot fix this: `<!-- id:X -->` spells both "this
+  # line IS X" and "this line REFERS to X", and the two live shapes put the own id at
+  # opposite ends (a body that QUOTES a marker → last; a trailing reference → first), so
+  # no positional rule is safe. Count, never dedup — the same id twice is ambiguous too.
+  # Repair: de-literalise a quoted marker, or spell a reference as a typed edge
+  # (gated-on:/children:/settles:) which has its own marker namespace.
+  #
+  # COUNT VIA THE SHARED HELPER, NOT A LOCAL `grep | wc -l`. This script runs under
+  # `set -euo pipefail`, where `x="$(grep … | wc -l)"` on a line with ZERO markers is
+  # FATAL: grep exits 1, pipefail propagates it, and a bare assignment is subject to
+  # errexit — so the scan died mid-loop on the first id-less item and `$report` (printed
+  # only at the END) was never emitted. The lint still exited nonzero, so it LOOKED like
+  # it had rejected something while reporting nothing at all, and every violation on
+  # every later line was lost. `marker_tokens_of_line` ends in `|| true`, so it is
+  # zero-marker-safe, and reusing it keeps one spelling of the marker regex.
+  _mi_count="$(marker_tokens_of_line "$line" id | wc -l)"
+  if [[ "$_mi_count" -gt 1 ]]; then
+    echo "roadmap-lint: ${_dr_label} — MULTI-ID: open item carries ${_mi_count} anchored id markers on ONE line — AMBIGUOUS, so id-resolvers REFUSE it and the item addresses nothing (id:6059). De-literalise the quoted marker, or spell a reference as a typed edge." >&2
+    echo "  $line" >&2
+    [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+  fi
 
   # Rule 3(a) DECOMPOSED-CONTAINER (id:8504): an OPEN item whose body says DECOMPOSED
   # (its work was split into seams) must NOT carry a dispatchable/meeting lane — the

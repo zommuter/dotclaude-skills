@@ -74,6 +74,7 @@ emit() {  # emit the JSON object via temp files (avoids execve overflow on large
   printf '%s' "${18:-true}" > "$_blobdir/SUBSTANTIVE_UNAUDITED"
   printf '%s' "${19:-}"   > "$_blobdir/WORK_SIG"
   printf '%s' "${20:-0}"  > "$_blobdir/OPEN_HARD_POOL"
+  printf '%s' "${21:-}"   > "$_blobdir/OPEN_HARD_POOL_IDS"   # id:7517 — newline-separated
   EMIT_DIR="$_blobdir" REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
@@ -138,6 +139,12 @@ o = {
   # LLM shard `hard` judgment is non-deterministic and has wrongly dispatched repos whose
   # only open HARD item was [HARD — decision gate] (observed 2026-06-24).
   "open_hard_pool": int(r("OPEN_HARD_POOL") or 0),
+  # id:7517 (routed:2d94) — the RESOLVED ids behind that count, in ROADMAP file order, produced
+  # by the SAME walk/predicate (so len(ids) == open_hard_pool by construction; "" entries mark
+  # counted items that carry no own id and are therefore unnameable). relay-loop.js hands this
+  # list to the HARD-execute child so it never re-derives the enumeration by raw grep on the
+  # retired "[HARD — pool]" spelling — the loderite relay-20260814-133435-24323 defect.
+  "open_hard_pool_ids": [x for x in r("OPEN_HARD_POOL_IDS").split("\n")[:-1]],
 }
 print(json.dumps(o))
 '
@@ -263,11 +270,31 @@ fi
 # id:0cf5 (routed:02d9) — @container joins the exclusion list: a DECOMPOSED parent is not work
 # (its seams are), so it must never be the resource-claiming top_intensive item. Mirrors
 # classify-repo.sh's is_human and gather-human-backlog.sh:298; the three must agree.
+#
+# id:7517 (routed:34a2 + routed:2d94) — the exclusion list was OLD-VOCAB ONLY and therefore
+# SILENTLY REOPENED the id:a707 hole. It matched the retired venue-keyed spellings
+# ([HARD — hands|meeting|decision gate]) but NOT their capability-keyed replacements
+# ([INPUT — access|meeting|decision|author], relay/references/hard-lanes.md +
+# lane-convert.sh's mapping), so a correctly re-laned human-gated [INTENSIVE] item passed the
+# filter and became the resource-claiming top item — the exact 2026-06-23 zomni failure the
+# comment above records, re-created by the migration, and widening with every item re-laned.
+# The DUAL-VOCAB WINDOW (id:4f02/id:8111) is still open, so BOTH spellings must be listed;
+# open_hard_pool below already handles both (roadmap_primary_lane normalizes them) and these
+# two predicates must be CONSISTENT.
+#
+# `@owner-gated` joins them by OWNER RULING (2026-08-14, answering routed:34a2's open
+# question): it IS a dispatch exclusion. Rationale — FAIL-SAFE: an owner-gated item handed to
+# an executor is wasted work by construction (only the owner can discharge it). Today such
+# items are protected only by the ACCIDENT that lib-roadmap-sections.sh's parked-heading vocab
+# substring-matches `gated` inside the literal `@owner-gated`; id:f391/id:6446 remove that
+# accident, so the marker needs to be a first-class exclusion in the dispatch predicates too.
+# Same direction as @manual/@container (id:0cf5): the marker can only REMOVE work from the
+# dispatch set, never add it, so a rare prose mention only ever UNDER-dispatches.
 top_intensive=""
 if [[ -n "$roadmap" ]]; then
   top_intensive="$(printf '%s\n' "$roadmap" \
     | grep -P '^- \[ \].*\[INTENSIVE — ' 2>/dev/null \
-    | grep -vP '\[HARD — (hands|meeting|decision gate)\]|@manual|@container|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
+    | grep -vP '\[HARD — (hands|meeting|decision gate)\]|\[INPUT — (access|meeting|decision|author)\]|@manual|@container|@owner-gated|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
     | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
 fi
 
@@ -434,6 +461,15 @@ while IFS=$'\t' read -r g_oid g_block _g_dang; do
 done < <("$SCRIPT_DIR/resolve-gates.sh" "$path" || true)
 
 open_hard_pool=0
+# id:7517 (routed:2d94) — the RESOLVED pool-lane id list BEHIND the count, in ROADMAP file
+# order, filtered by exactly the same predicate the counter uses. relay-loop.js hands this to
+# the HARD-execute child instead of letting it RE-DERIVE the enumeration by raw grep: in
+# loderite run relay-20260814-133435-24323 the child grepped only the retired `[HARD — pool]`
+# spelling, found 0, and refused 5 real bare-`[HARD]` items — a whole dispatch round wasted on
+# a repo that had work. Mechanize-first: the resolved list already exists here; re-deriving it
+# downstream is the defect. Exact sibling of actionable_routine_ids (id:b09e). An item carrying
+# no own id contributes an empty entry, so len(ids) == open_hard_pool always holds.
+open_hard_pool_ids=""
 # id:4b8f — track the section a line sits under. An item beneath a GATED / DEFERRED /
 # DONE / ICEBOX / ARCHIVE / PARKED heading is EXPLICITLY parked and is NOT pool-dispatchable
 # (the same exemption roadmap-lint.sh has always applied, now shared via
@@ -459,6 +495,13 @@ if [[ -n "$roadmap" ]]; then
     # id:d808 — a @container epic is never itself pool-dispatchable; its seams are the
     # units (mirrors classify-repo.sh's is_human `is_container` exclusion, id:0cf5).
     case "$line" in *'@container'*) continue ;; esac
+    # id:7517 — @owner-gated is a FIRST-CLASS dispatch exclusion (OWNER RULING 2026-08-14,
+    # answering routed:34a2). Only the owner can discharge such an item, so handing it to an
+    # executor is wasted work; excluding it here is the fail-safe direction and mirrors the
+    # top_intensive filter above and classify-repo.sh's is_human. Do NOT rely on
+    # lib-roadmap-sections.sh's parked-heading vocab for this — that protection is an accident
+    # of substring matching (`@owner-gated` contains `gated`) that id:f391/id:6446 remove.
+    case "$line" in *'@owner-gated'*) continue ;; esac
     # id:d808 — widen the BLOCKED glob so a punctuation variant ("BLOCKED (", "BLOCKED:",
     # "BLOCKED —") does not slip past the filter the way `BLOCKED on`/`blocked on` alone
     # did (loderite's ca44 wrote "BLOCKED (b225…"). Case-insensitive, same as the
@@ -480,10 +523,23 @@ if [[ -n "$roadmap" ]]; then
       continue
     fi
     open_hard_pool=$((open_hard_pool + 1))
+    # id:7517 — record the id BEHIND this count, keyed by the item's OWN anchored id resolved
+    # through the SHARED lib-typed-edges helper (never a local regex, never a positional guess).
+    # routed:3ad9 named THIS extraction site as most at risk: loderite's ROADMAP carries OPEN
+    # items ending `<!-- id:XXXX --> <!-- id:50f3 -->` where 50f3 is a CLOSED item, so a
+    # last-match extractor attributes an open item to a closed id — a write-side corruption
+    # path. `typed_edges_own_id_of_line` resolves a MULTI-MARKER line to NOTHING and says so on
+    # stderr (see that file's id:6059 note: there is no safe positional rule, both directions
+    # have real fleet counter-examples). An empty entry here is the already-documented
+    # "counted but unnameable" case: the item still counts toward open_hard_pool (count
+    # semantics unchanged, so the demote-guard cannot regress), it simply cannot be NAMED to the
+    # child — under-dispatch-safe, and recoverable, unlike a mis-attribution.
+    # `$line_own_id` was already resolved above for the gated-on: check, so this reuses it.
+    open_hard_pool_ids+="${line_own_id}"$'\n'
   done < <(printf '%s\n' "$roadmap")
 fi
 
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap" \
      "$lock_only_unaudited" "$dirty_lock_only" "$is_finished" "$top_intensive" \
-     "$substantive_unaudited" "$work_sig" "$open_hard_pool"
+     "$substantive_unaudited" "$work_sig" "$open_hard_pool" "$open_hard_pool_ids"

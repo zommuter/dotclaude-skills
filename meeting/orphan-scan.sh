@@ -2,22 +2,30 @@
 # orphan-scan.sh — sibling to append.sh, cost-of.sh
 # Usage: orphan-scan.sh [--reverse|-r | --cross-ledger|-x | --promotion|-p] [<root-dir>]
 # Forward (default): scans <root>/docs/meeting-notes/*.md for ID-bearing unchecked action items
-#   whose <!-- id:XXXX --> token is absent from the union of TODO.md + TODO.archive.md + ROADMAP.md.
+#   whose <!-- id:XXXX --> token is absent from the union of TODO.md + TODO.archive.md +
+#   ROADMAP.md + ROADMAP.archive.md (routed:42c9 — the ROADMAP side reads its archive too,
+#   or an id swept out of the live queue is false-flagged as an untracked orphan).
 # Reverse (--reverse): finds ID-bearing checked ([x]) or inline lines absent from the TODO union
 #   — the forward scan's blind spot (Step 5b skipped, items completed in-session).
 # Cross-ledger (--cross-ledger): single-id-two-views guard (D2, meeting note
 #   2026-06-15-0715-meeting-fables-interaction.md). Flags any <!-- id:XXXX --> token
-#   present in BOTH the TODO union (TODO.md + TODO.archive.md) AND ROADMAP.md whose
+#   present in BOTH the TODO union (TODO.md + TODO.archive.md) AND the ROADMAP union
+#   (ROADMAP.md + ROADMAP.archive.md — routed:42c9; before that widening the ROADMAP side
+#   read only the live file, so a closed item swept into the archive stopped colliding with
+#   its still-open TODO twin and the scan reported a false CLEAN) whose
 #   checkbox state ([ ] vs [x]) DISAGREES across the two ledgers — i.e. work closed in
 #   ROADMAP but left open in TODO (or vice versa). A duplicate id with matching state is
 #   the intended single-id-two-views shape and is NOT flagged; a duplicate is only
 #   detectable once promotion reuses the id, so this guard also enforces that contract.
 #   Scope-split false-positives can be suppressed with <!-- xledger-ok: <reason> --> on
 #   the open-side line (id:d9b0) — a divergence annotated with xledger-ok is intentional
-#   and not flagged; an unannotated divergence still is.
+#   and not flagged; an unannotated divergence still is. The marker is honoured WHEREVER
+#   the annotated line lives, ROADMAP.archive.md included (routed:42c9's second clause);
+#   otherwise widening the scan would resurface every already-marked intentional split.
 # Promotion (--promotion): id:d9b0 — scans TODO.md (and archive) for OPEN items carrying
 #   an executable lane tag ([ROUTINE] or [HARD — pool]) whose <!-- id:XXXX --> token has
-#   NO twin in ROADMAP.md. An un-promoted item is "pool-invisible": the relay can't see it.
+#   NO twin in ROADMAP.md ∪ ROADMAP.archive.md (routed:42c9). An un-promoted item is
+#   "pool-invisible": the relay can't see it.
 #   Prints one line per un-promoted item; exits 0 regardless (caller decides severity).
 # Shipped (--shipped): id:b3ee — report-only reconciliation of stale-ledger drift (see
 #   docs/meeting-notes/2026-07-07-1138-stale-ledger-root-cause.md). Scans OPEN `- [ ]`
@@ -110,10 +118,14 @@ start_ms=$(date +%s%3N)
 # "tracked anywhere?" scans (forward + reverse) don't false-flag relocated ids. Only
 # the union blob is plugin-aware; cross-ledger/promotion build their own intra-ledger
 # maps and stay per-(plugin-or-root) by design. No-op for plugins-less repos.
-ledger_files=("$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md")
+# routed:42c9 — ROADMAP.archive.md belongs in this union for the same reason
+# TODO.archive.md always did: the question is "is this id tracked ANYWHERE?", and an
+# id archived out of the live queue is still tracked. Omitting it made the forward and
+# reverse scans report a shipped-and-archived note item as an untracked ORPHAN.
+ledger_files=("$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md" "$ROOT/ROADMAP.archive.md")
 if [[ -d "$ROOT/plugins" ]]; then
   for p in "$ROOT"/plugins/*/; do
-    ledger_files+=("$p/TODO.md" "$p/TODO.archive.md" "$p/ROADMAP.md")
+    ledger_files+=("$p/TODO.md" "$p/TODO.archive.md" "$p/ROADMAP.md" "$p/ROADMAP.archive.md")
   done
 fi
 todo="$(cat "${ledger_files[@]}" 2>/dev/null || true)"
@@ -155,7 +167,19 @@ if [[ "$mode" == "cross-ledger" ]]; then
       [[ -n "${roadmap_state[$tk]+x}" ]] || roadmap_state["$tk"]="$st"
       [[ -n "$xok" ]] && todo_xledger_ok["$tk"]='1' || true
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
-  done < <(grep -hE '^\s*- \[[ xX]\] ' "$ROOT/ROADMAP.md" 2>/dev/null || true)
+    # routed:42c9 — ROADMAP.archive.md is read HERE, after ROADMAP.md, so `grep -h`
+    # file order makes the LIVE line authoritative and a recycled token in the archive
+    # cannot overwrite it (the id:9221 first-wins rule, now applied symmetrically on
+    # both sides). Without the archive, an item swept out of the live queue simply
+    # vanished from roadmap_state, its token was skipped at the `continue` below, and
+    # a still-open TODO twin reported CLEAN — loderite had 4 such ids. The stub
+    # roadmap-archive.sh now leaves (id:cd9c) narrows but does not close this:
+    # historically-archived items carry no stub, other repos run other archivers, and
+    # id:36f7 makes stub emission SELECTIVE. Suppression markers are picked up from the
+    # archived line by the same `xok` test as the live one — the item's second clause
+    # ("read xledger-ok wherever the closed twin now lives"), without which every
+    # already-marked intentional split would resurface as a fresh false positive.
+  done < <(grep -hE '^\s*- \[[ xX]\] ' "$ROOT/ROADMAP.md" "$ROOT/ROADMAP.archive.md" 2>/dev/null || true)
   for tk in "${!todo_state[@]}"; do
     [[ -n "${roadmap_state[$tk]:-}" ]] || continue
     id_lines=$((id_lines+1))
@@ -169,7 +193,11 @@ if [[ "$mode" == "cross-ledger" ]]; then
 elif [[ "$mode" == "promotion" ]]; then
   # id:d9b0 — flag open TODO items with an executable lane tag ([ROUTINE] or [HARD — pool])
   # that have no twin id:XXXX in ROADMAP.md. Such items are "un-promoted, pool-invisible".
-  roadmap_content="$(cat "$ROOT/ROADMAP.md" 2>/dev/null || true)"
+  # routed:42c9 — same widening as --cross-ledger: an item whose ROADMAP twin was
+  # archived is PROMOTED, not un-promoted, so reading only the live file re-reported
+  # shipped work as "pool-invisible" forever. (`2>/dev/null` on the cat: a repo with
+  # no ROADMAP.md / no archive is a normal state, not an error.)
+  roadmap_content="$(cat "$ROOT/ROADMAP.md" "$ROOT/ROADMAP.archive.md" 2>/dev/null || true)"
   while IFS= read -r l; do
     # Executable lane tag: [ROUTINE] or [HARD — pool]
     echo "$l" | grep -qE '\[ROUTINE\]|\[HARD — pool\]' || continue

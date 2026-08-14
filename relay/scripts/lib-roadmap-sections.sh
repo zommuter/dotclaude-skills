@@ -39,9 +39,47 @@
 # whitespace class spelling — they must always describe the SAME language; the parity is
 # covered end-to-end by tests/test_parked_heading_single_definition_bb32.sh, which mutates
 # this file and asserts every reader follows.
-ROADMAP_PARKED_HEADING_VOCAB='(gated|deferred|done|icebox|archive|parked)'
+# ── TWO HALVES, deliberately separate (id:f391) ───────────────────────────────────────
+# `ROADMAP_PARKED_HEADING_VOCAB` — the pattern every reader consumes — is COMPOSED from
+# two independently-defined halves. They are separate because id:6446 will anchor ONE of
+# them and must not be able to reach the other:
+#
+#   MARKERS  first-class, explicitly-named dispatch-exclusion markers. These are TOKENS a
+#            heading carries on purpose (like `@manual`/`@container` at item level), not
+#            descriptive prose, so they are ALREADY standalone-anchored here.
+#   WORDS    the descriptive parking VOCABULARY ("Gated / deferred", "Done", "Icebox").
+#            Matched UNANCHORED today; making that match intentional is id:6446's whole
+#            job (a heading merely MENTIONING `archive` must stop parking its section).
+#
+# WHY THE SPLIT EXISTS — read before touching either half. Until 2026-08-14 `@owner-gated`
+# appeared NOWHERE in this file: a heading like loderite's
+#     ### `@owner-gated` — an executor CANNOT discharge these
+# was parked ONLY because the literal string `@owner-gated` CONTAINS the vocab word
+# `gated`. Three open loderite items (f303, d385, 6e7a) had their dispatch protection
+# resting on that coincidence. Anchoring the vocabulary — exactly what id:6446 does —
+# would have removed the coincidence in the same edit and made owner-gated work
+# executor-dispatchable: an owner-gate breach (the failure class id:540f/id:c179's owner
+# holds exist to prevent). The owner RULED 2026-08-14 that `@owner-gated` IS a dispatch
+# exclusion, on the same footing as `@manual`/`@container`.
+#
+# ⚠️  id:6446 IMPLEMENTER: anchor `ROADMAP_PARKED_HEADING_WORDS` ONLY. Do NOT wrap or
+#     anchor the composed `ROADMAP_PARKED_HEADING_VOCAB` — that would re-capture the
+#     marker half and silently un-protect owner-gated sections again.
+#     tests/test_owner_gated_first_class_f391.sh enforces this: it rewrites the WORDS
+#     line into an anchored form and asserts `@owner-gated` STILL parks, for the bash
+#     predicate AND for classify-repo.sh / gather-repo-state.sh.
+#
+# Marker grammar: a STANDALONE `@owner-gated` token — a preceding/following word char
+# means it is a different word (`@owner-gatedness` does NOT match). Spelled with explicit
+# `[^A-Za-z0-9_…]` classes rather than `[[:alnum:]]`/`\w` so the ONE exported string is
+# valid as BOTH an ERE (bash `=~`) and a Python `re` pattern — python's `re` does not
+# understand POSIX bracket expressions, and this string is consumed by both.
+ROADMAP_PARKED_HEADING_MARKERS='(^|[^A-Za-z0-9_])@owner-gated([^A-Za-z0-9_-]|$)'
+ROADMAP_PARKED_HEADING_WORDS='(gated|deferred|done|icebox|archive|parked)'
+ROADMAP_PARKED_HEADING_VOCAB="(${ROADMAP_PARKED_HEADING_MARKERS}|${ROADMAP_PARKED_HEADING_WORDS})"
 ROADMAP_HEADING_LINE_ERE='^[[:space:]]*#{1,6}[[:space:]]'
 ROADMAP_HEADING_LINE_PCRE='^[ \t]*#{1,6}[ \t]'
+export ROADMAP_PARKED_HEADING_MARKERS ROADMAP_PARKED_HEADING_WORDS
 export ROADMAP_PARKED_HEADING_VOCAB ROADMAP_HEADING_LINE_ERE ROADMAP_HEADING_LINE_PCRE
 
 # is_heading_line <line> — exit 0 when the line is a markdown ATX heading (H1..H6).
@@ -52,12 +90,15 @@ is_heading_line() {
   [[ "$1" =~ $ROADMAP_HEADING_LINE_ERE ]]
 }
 
-# is_exempt_heading <heading-line> — exit 0 when the heading names a parked bucket.
-# An item is EXEMPT when its nearest preceding heading matches. Matched
-# case-insensitively on the heading TEXT (substring, not anchored): real headings vary
-# ("## Gated / deferred", "### Gated on OPEN owner decisions", "## Done", "## Icebox").
-# (The unanchored-substring false positive — "ungated" — is a KNOWN separate defect,
-# TODO id:920b; do not fix it here, fix it in this one place when it is ruled.)
+# is_exempt_heading <heading-line> — exit 0 when the heading names a parked bucket,
+# EITHER by carrying a first-class exclusion MARKER (`@owner-gated`, standalone-anchored)
+# OR by matching the descriptive parking WORD vocabulary. An item is EXEMPT when its
+# nearest preceding heading matches. Matched case-insensitively on the heading TEXT; the
+# WORD half is substring, not anchored — real headings vary ("## Gated / deferred",
+# "### Gated on OPEN owner decisions", "## Done", "## Icebox").
+# (The unanchored-substring false positive on the WORD half — "ungated" — is a KNOWN
+# separate defect, TODO id:920b / ROADMAP id:6446; do not fix it here, fix it in this one
+# place when it is ruled, and see the ⚠️ note above before you do.)
 is_exempt_heading() {
   local h="$1"
   shopt -s nocasematch

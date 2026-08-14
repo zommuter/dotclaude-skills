@@ -102,6 +102,30 @@ a conforming box and clean-continues the separable remainder (defaulting to a cl
 handback when separability is uncertain), rather than stranding the unit — see rule 6 in
 `relay/references/executor-contract.md` (contract v7+).
 
+## The `@owner-gated` marker — only the OWNER can discharge it (id:7517, OWNER RULING 2026-08-14)
+
+`@owner-gated` is a **marker**, NOT a lane — orthogonal to the `[HARD — *]` / `[INPUT — *]`
+lanes and to `@manual`/`@needs-auth`/`@container`, exactly like them. It records that the
+item is the **owner's own call** (a GO/NO-GO, a scope cut, a design-direction verdict), so
+no executor — and no delegated agent — can discharge it.
+
+**It IS a dispatch exclusion.** This answers the open question carried in from `routed:34a2`.
+Rationale: **fail-safe** — an owner-gated item handed to an executor is wasted work by
+construction, and the exclusion can only ever REMOVE work from the dispatch set, never add
+it (the same under-dispatch-safe direction as `@manual`/`@container`, id:0cf5). The three
+dispatch predicates that must agree carry it:
+
+| Predicate | File |
+|---|---|
+| `top_intensive` (the resource-claiming top `[INTENSIVE]` item) | `relay/scripts/gather-repo-state.sh` |
+| `open_hard_pool` (+ its resolved `open_hard_pool_ids` list) | `relay/scripts/gather-repo-state.sh` |
+| `is_human` (feeds `actionable_routine_open`) | `relay/scripts/classify-repo.sh` |
+
+**Do NOT rely on the parked-heading vocab for this.** Before id:7517, an `@owner-gated`
+section was parked only because `lib-roadmap-sections.sh`'s heading vocab substring-matches
+`gated` **inside the literal string `@owner-gated`** — an accident, and one that `id:f391` /
+`id:6446` deliberately remove when they anchor that match. The marker now stands on its own.
+
 ## The `@wire` marker — executor-verifiable-via-a-host/e2e-RED-spec (id:ac7f)
 
 `@wire` is a **marker**, NOT a lane — orthogonal to the `[HARD — *]` / `[INPUT — *]`

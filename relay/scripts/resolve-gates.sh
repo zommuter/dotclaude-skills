@@ -28,12 +28,19 @@ path="${1:-}"
 roadmap="$path/ROADMAP.md"
 [[ -f "$roadmap" ]] || exit 0   # no ROADMAP → no gates to resolve
 
-# id:46f6 resolution map spans ROADMAP ∪ TODO ∪ archive (the executor gate must see a
-# target that lives only in ROADMAP — orphan-scan deliberately excludes ROADMAP, that is
+# id:46f6 resolution map spans ROADMAP ∪ TODO ∪ BOTH archives (the executor gate must see
+# a target that lives only in ROADMAP — orphan-scan deliberately excludes ROADMAP, that is
 # the one scope difference between the two callers).
+#
+# ROADMAP.archive.md (routed:42c9/8b21 ARCHIVE-BLINDNESS class): a gate target that WAS a
+# ROADMAP item, shipped, and got swept into the archive used to resolve NOWHERE, so a
+# SATISFIED gate was reported DANGLING and classify-repo.sh screamed it into gate_dangling.
+# Archiving does not un-track an id — the same reasoning that put TODO.archive.md here.
+# It goes LAST so first-wins keeps the LIVE ledgers authoritative over a recycled archive
+# token (id:9221), exactly as TODO.archive.md sits behind TODO.md.
 declare -A EDGE_STATE
 typed_edges_build_state_map EDGE_STATE \
-  "$roadmap" "$path/TODO.md" "$path/TODO.archive.md"
+  "$roadmap" "$path/TODO.md" "$path/TODO.archive.md" "$path/ROADMAP.archive.md"
 
 while IFS= read -r line; do
   # Only checkbox lines can carry an item id + edge.

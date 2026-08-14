@@ -189,16 +189,40 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
   # parked commit; if that item is still OPEN (or the binding is ambiguous), SURFACE a one-line
   # relay-burn cost hint (which makes discover-repo.sh skip classify → no fresh dispatch). A
   # CLOSED-item orphan does NOT suppress (stale leftover — let it classify; /relay reconcile prunes).
+  # routed:42c9/8b21 ARCHIVE-BLINDNESS class: the binding must read ROADMAP.archive.md too.
+  # `roadmap-archive.sh` sweeps shipped `- [x]` items out of the live file, so a DONE item
+  # used to fall into the third branch below ("item not in ROADMAP — ambiguous") and its
+  # stale orphan suppressed re-dispatch FOREVER — discover-repo.sh then skips classify and
+  # the repo silently stalls.
+  #
+  # PRECEDENCE — deliberately NOT the live-first rule resolve-gates.sh uses. The greps below
+  # run across BOTH files, so the semantics is OPEN-ANYWHERE-WINS: an id that is `- [x]` live
+  # but `- [ ]` in the archive SUPPRESSES. That is intentional and matches this step's stated
+  # bias two paragraphs up ("Ambiguous binding defaults to suppress — a glance is cheaper than
+  # repeating an expensive session"): the two scripts answer different questions. resolve-gates
+  # computes a TRUTH VALUE about closure, where the live ledger is current state and the
+  # archive is history, so live must win. This step makes a COST-ASYMMETRIC safety call, where
+  # the penalty for wrongly suppressing is one manual glance and the penalty for wrongly
+  # re-dispatching is a repeated expensive session — so any sign of openness wins.
+  # Membership in the archive is NOT closure either: the `- [x]` / `- [ ]` tests are unchanged,
+  # so an archived parent nesting an open sub-item still suppresses.
   roadmap="$path/ROADMAP.md"
+  roadmap_archive="$path/ROADMAP.archive.md"
   while IFS= read -r oref; do
     [[ -n "$oref" ]] || continue
     oid="$(git -C "$path" show --stat "$oref" 2>/dev/null | grep -oE 'id:[0-9a-f]{4}' | head -1 | sed 's/id://' || true)"
     suppress=false; why=""
     if [[ -n "$oid" && -f "$roadmap" ]]; then
-      if grep -qE "^[[:space:]]*- \[ \].*id:$oid" "$roadmap"; then
+      # ROADMAP union = live ∪ archive, OPEN-ANYWHERE-WINS (see the precedence note above —
+      # this is not resolve-gates.sh's live-first rule, and the difference is deliberate).
+      # A missing ROADMAP.archive.md is a normal state, so it is passed only when present
+      # rather than swallowed with `2>/dev/null`.
+      roadmap_set=("$roadmap")
+      [[ -f "$roadmap_archive" ]] && roadmap_set+=("$roadmap_archive")
+      if grep -qE "^[[:space:]]*- \[ \].*id:$oid" "${roadmap_set[@]}"; then
         suppress=true; why="parked partial work for id:$oid still OPEN"
-      elif grep -qE "^[[:space:]]*- \[x\].*id:$oid" "$roadmap"; then
-        suppress=false   # closed → stale orphan, do not suppress
+      elif grep -qE "^[[:space:]]*- \[x\].*id:$oid" "${roadmap_set[@]}"; then
+        suppress=false   # closed (live OR archived) → stale orphan, do not suppress
       else
         suppress=true; why="parked partial work for id:$oid (item not in ROADMAP — ambiguous)"
       fi

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# unpromoted-scan.sh — list OPEN TODO.md items whose id has NO twin in ROADMAP.md,
-# REGARDLESS of whether the TODO line carries a lane tag (id:2dea).
+# unpromoted-scan.sh — list OPEN TODO.md items whose id has NO twin in
+# ROADMAP.md ∪ ROADMAP.archive.md, REGARDLESS of whether the TODO line carries a
+# lane tag (id:2dea).
+#
+# ARCHIVE (routed:8b21): the twin corpus includes ROADMAP.archive.md. Reading the live
+# file alone made every already-SHIPPED item whose TODO twin was never ticked reappear
+# as `promote` the moment roadmap-archive.sh swept its ROADMAP twin out — re-dispatched
+# forever. Same defect class as routed:42c9 in orphan-scan.sh --cross-ledger.
 #
 # WHY (LIVE evidence 2026-06-25, truncocraft — SECOND instance; first was id:78ff):
 # `/relay next`/`review`/handoff decide "is there work?" from OPEN ROADMAP items +
@@ -240,12 +246,24 @@ scan_repo() {
     return 1
   fi
 
-  local todo="$path/TODO.md" roadmap="$path/ROADMAP.md"
+  local todo="$path/TODO.md" roadmap="$path/ROADMAP.md" roadmap_archive="$path/ROADMAP.archive.md"
   # A repo with no TODO.md has no backlog to promote; no ROADMAP.md means every
   # id-bearing open TODO is un-twinned by definition (a not-yet-handed-off repo).
   [[ -f "$todo" ]] || { log "repo=$name no-todo"; return 0; }
+  # routed:8b21 — the twin corpus is ROADMAP.md ∪ ROADMAP.archive.md, NOT the live file
+  # alone. `roadmap-archive.sh` sweeps shipped `- [x]` items into ROADMAP.archive.md; read
+  # only the live file and the twin VANISHES, so an open TODO line whose work already
+  # shipped is re-reported `promote` and re-dispatched every single round, forever. The
+  # same root cause made a `/relay human` existence check report shipped work as MISSING.
+  # This is the exact asymmetry routed:42c9 names in orphan-scan --cross-ledger: the TODO
+  # side of the fleet's scanners reads its archive, the ROADMAP side did not.
+  # The anchored `<!-- id:XXXX -->` twin test below is applied UNCHANGED to the combined
+  # blob, so the id:1312 bare-prose false-match guard covers the archive too.
   local roadmap_content=""
   [[ -f "$roadmap" ]] && roadmap_content="$(cat "$roadmap")" || true
+  if [[ -f "$roadmap_archive" ]]; then
+    roadmap_content="$roadmap_content"$'\n'"$(cat "$roadmap_archive")"
+  fi
 
   # case-g loop-breaker (id:47f1): a surface item already filed to the decision-queue
   # for OPEN human lane-triage is no longer fresh un-promoted backlog — exclude it so
@@ -387,7 +405,7 @@ repo_arg=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all)     scope="all"; shift ;;
-    -h|--help) sed -n '2,46p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,52p' "$0"; exit 0 ;;  # +6: the routed:8b21 archive note
     --*)       echo "unpromoted-scan.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)
       if [[ -n "$repo_arg" ]]; then
