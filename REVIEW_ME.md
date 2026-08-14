@@ -120,7 +120,9 @@ PASSES against the jq `.runId` fix; genuinely non-vacuous. Cross-ledger clean; c
 v11 == canonical. `actionable_routine_open` = **0** (all 5 open `[ROUTINE]` items gated or
 `@container`). Nothing reopened. One advisory box below.
 
-- [ ] **GATE-STALE (`orphan-scan --shipped`): `id:6c6e` "Better sudo-elevation mechanism than plain `ssh-askpass`" — its gating clause is now 23 days old (>=14d threshold); re-check whether the gate has lapsed.** `[INPUT — meeting]` design item, so this is a human re-read, not executor work — surfaced per review.md §5(b3ee), advisory only.
+- [x] **GATE-STALE (`orphan-scan --shipped`): `id:6c6e` "Better sudo-elevation mechanism than plain `ssh-askpass`" — its gating clause is now 23 days old (>=14d threshold); re-check whether the gate has lapsed.** `[INPUT — meeting]` design item, so this is a human re-read, not executor work — surfaced per review.md §5(b3ee), advisory only.
+
+  **RESOLVED 2026-08-14 (`/relay human .`) — the gate was re-read and the item RE-SCOPED, so the staleness is discharged.** The 24-day-old clause reflected that no design session had happened, not that the problem had gone away. The owner ruled: carve out failure mode (1) — an anonymous askpass popup gives no session/agent/command attribution, so elevation cannot be judged — as buildable NOW, and re-laned `id:6c6e` from `[INPUT — meeting]` to `[ROUTINE]` with an explicit Acceptance clause. Whether a `/meeting` is still warranted for the remainder is deliberately deferred until the attribution half ships and is used: `id:18ce`, gated on `id:6c6e`. Re-checkable: `id:6c6e` is no longer `[INPUT — meeting]` and no longer appears in the `hard_meeting` bucket.
 
 ## Review 2026-08-13 (window `relay-ckpt-20260812-1417`..HEAD — 13 commits)
 
@@ -581,7 +583,7 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   one-id-spans-the-design-thread property is broken here, and `id:a73c` carries a back-pointer to
   `id:292b` so the thread is still followable.
 
-- [ ] **inbox dead-letter backlog: 12 routed items unrouted (relay-doctor scan-routed, report-only).**
+- [x] **inbox dead-letter backlog: 12 routed items unrouted (relay-doctor scan-routed, report-only).**
   `scan-routed.sh` reports 12 dead-letters (11 → dotclaude-skills, 1 → escapement) absent from
   their target TODO/ROADMAP. This is pre-existing backlog, NOT from this diff window; surfaced for
   a `/relay human` or `/meeting` routing pass (respecting `--exclude`/paused repos). Two are
@@ -592,6 +594,8 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   **archive-blindness cluster** (routed:8b21 unpromoted-scan, routed:42c9/675b cross-ledger
   archive blind spot) — the `scan_ids` half is now fixed by id:3262 (commit 347866e), but the
   orphan-scan/unpromoted-scan halves are still open.
+
+  **RESOLVED 2026-08-14 (`/relay human .`, tier-a auto-answer) — the inbox is DRAINED.** All 18 items targeting this repo were routed in this session's inbox pass: 15 auto-filed as INBOUND stubs by `scan-routed.sh --apply`, and 3 (`routed:057f`/`8b21`/`42c9`) recovered by hand from `git show HEAD:todo-inbox.md` after `--apply` deleted them on FALSE twin matches — a bare-token twin check satisfied by a prose mention inside a sibling item (defect filed `id:c97c`). Evidence: `scan-routed.sh` reports 0 dead-letters; `inbox-scan-repo.sh dotclaude-skills` reports 0 open lines; every one of the 18 tokens verified present exactly once by an ANCHORED grep (`<!-- routed:X -->|INBOUND routed:X`), never a bare-token grep. Re-checkable by re-running those three commands. NOTE: one NEW dead-letter is expected and correct — `routed:5018`, routed OUT to cartulary this session and not yet ingested there.
 
 - [ ] **roadmap-lint pre-existing warnings (none introduced this window).** `roadmap-lint.sh`
   WARNs (exit 0, non-blocking): DEAD-GATE on id:d4ca/id:e405/id:540f/id:c179 (all TODO-only,
