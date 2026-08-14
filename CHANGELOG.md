@@ -12,6 +12,7 @@
 - verify-isolation.sh: empty worktree + dirty tree now exits 2 (breach-shaped) under both main-unmoved (b1) and merge-commits-only (b3) conditions; id:8e3e no-op review unregressed (id:1b13)
 - Chain-end review: no executor code work (ledger/human window); authored RED spec for id:1b13; suite 420/0/4-xred; relay-doctor clean; routine_open=4 (id:1b13)
 - statusline: the four /tmp usage-state paths (id:ec3c) are now env-overridable, defaulting to the old literals — closes the make-test race against a live-session statusline (id:ec3c)
+- roadmap-archive.sh + archive-closed.sh now leave a one-line stub for every item they archive (id:cd9c) — RED spec green, full suite 423/0/1-xred (id:cd9c)
 
 ## 2026-08-13
 
