@@ -40,12 +40,24 @@ both `md-merge.py:263` own-id resolution AND `_validate_replacement`'s marker ch
 item). Actionable `[ROUTINE]` queue now: `id:cd9c` + `id:cc7e` (2); the other 4 open `[ROUTINE]`
 items (`d4ca`/`540f`/`c179`/`554b`) all carry live gates.
 
-- [ ] **Inbox dead-letter `routed:c8d7 → [dotclaude-skills]` is unrouted into this repo's ledgers.**
+- [x] **Inbox dead-letter `routed:c8d7 → [dotclaude-skills]` is unrouted into this repo's ledgers.**
   `relay-doctor` (`scan-routed.sh`) reports an inbound `/meeting --triaged` design item destined for
   dotclaude-skills but absent from `TODO.md`/`ROADMAP.md`. It is a **design-judgment** item (new
   `/meeting` switch with a schema-definition sub-task, gate-verification semantics, and a cross-repo
   edge-ownership question) — a `/meeting` candidate, NOT auto-promotable to ROADMAP. Human: ingest it
   into `TODO.md` as a meeting candidate or discard the inbox line. Surfaced report-only per review.md §4b.
+  **RESOLVED 2026-08-14 (`/relay human .`, tier-a auto-answer) — the item IS ingested; the dead-letter
+  is cleared.** It landed as `TODO.md:672`, an open `[INBOUND routed:c8d7 from escapement]` line carrying
+  a fresh `id:948c` and the full design text — the `/meeting --triaged` switch with all five recorded
+  constraints (a)–(e), including the schema-definition sub-task (c) and the cartulary edge-ownership
+  boundary this box named. It is filed as a **meeting candidate in TODO, NOT promoted to ROADMAP**,
+  which is exactly the disposition this box asked for. Ingest happened in the 2026-08-14 inbox drain
+  recorded at REVIEW_ME:628 (15 auto-filed by `scan-routed.sh --apply`). Evidence, re-checkable:
+  `scan-routed.sh` reports `0 dead-letter/unresolved`; `inbox-scan-repo.sh dotclaude-skills` exits 0
+  with nothing surfaced; `grep -n 'routed:c8d7' TODO.md` matches the anchored `[INBOUND routed:c8d7 …]`
+  ingest marker (not a bare-token prose mention — the [[inbox-twin-check-bare-token-false-resolve]]
+  hazard was checked for explicitly and this is a genuine ingest, verified by reading the line body
+  against this box's own description of the item).
 
 ## Review 2026-08-13e (window last-reviewer-ckpt `relay-ckpt-20260813-2213`..HEAD `-2222` — id:259f execute)
 
@@ -445,10 +457,21 @@ id:069b (personas.md dedup + `personas-conformance.sh` + `append.sh -t personas`
 
 Window is a SINGLE commit (`dc1fb21`, the id:3801 durable handback-followup that gated id:6217 to `[INPUT — decision]`); zero code/test delta, `gaming-scan.sh` clean. **The decision-gate is WARRANTED — verified against the RED spec directly.** Surfacing the box below because the gate's inline `gate_reason` names only ONE of the item's TWO independent, confirmed blockers, and the `/meeting` that eventually addresses id:6217 needs both. Also cleaned up two malformed placeholder deps this same window: id:37f2/id:e87d carried literal `(after id:(seam 1's id))`/`(after id:(seam 2's id))` — the id:3801 auto-split never substituted the seam ids; corrected in ROADMAP to `(after id:258d — seam 1, DONE)` / `(after id:37f2 — seam 2)` from the unambiguous RELAY_LOG mapping (258d/37f2/e87d = seams 1/2/3), and the substitution defect filed as `id:0eb0`.
 
-- [ ] **`id:6217` decision-gate has TWO independent spec blockers, not one — the eventual `/meeting` must reconcile BOTH, and the ROADMAP `gate_reason` records only the second.** Verified in this review against `tests/test_dryround_single_definition_6217.sh` and the live `relay/scripts/relay-loop.js`:
+- [x] **`id:6217` decision-gate has TWO independent spec blockers, not one — the eventual `/meeting` must reconcile BOTH, and the ROADMAP `gate_reason` records only the second.** Verified in this review against `tests/test_dryround_single_definition_6217.sh` and the live `relay/scripts/relay-loop.js`:
   - **(A) Assertion 4 is an UNSCOPED-grep bug that contradicts the spec's own assertion 5** (this is the executor's committed BLOCKED finding, 2026-08-11 17:46, RELAY_LOG — NOT captured in the gate line). Assertion 4 does `grep -q 'keep byte-equivalent' "$JS"` over the WHOLE of `relay-loop.js` and requires it absent. That literal substring appears in FIVE comments — 998 (id:1432), 1065 (id:1735), 1087 (id:dc5b), **1185 (id:4ca8 — THIS item's actual target: drain.mjs's isBlockedRound/isDryRound inline copy)**, 2090 (id:4f9b) — four of which are unrelated predicates. So assertion 4 can never pass unless all five are rewritten, which is exactly the blanket sweep assertion 5 exists to catch (`this item's scope is isDryRound/isBlockedRound/workCreated only`). Confirmed pre-existing (3 of the 4 collisions predate the spec's 2026-07-31 authoring per `git blame`). Fix is to LINE-SCOPE assertion 4 to id:4ca8's line 1185 (as assertion 5 already line-ranges drain.mjs), OR an owner call on whether the other four inline-copy comments are in scope.
   - **(B) Assertions 1-2 (`exactly one` `function isDryRound(r)`/`isBlockedRound(r)` across BOTH files) are structurally unreachable under the owner-ratified mechanism** (this IS the recorded gate_reason). The 2026-07-31 owner ratification says: build a GENERATION step that EMITS relay-loop.js's copy from drain.mjs's single source. But a generated/emitted copy still leaves a literal `function isDryRound(r)` in relay-loop.js → `defs_of` counts 2 → assertion fails. The only ways to reach count==1 are `import` (impossible — Workflow sandbox) or an unverified `eval`/`Function`-constructor escape-hatch. So either the assertion must be relaxed to verify the generation mechanism (source→emitted-copy byte-equality + an id-marker) rather than a literal single-declaration count, OR the owner must confirm a sandbox posture that permits the escape-hatch.
   - **Both are owner/design calls, not build work** — decision-gate is the right route. The `/meeting` should resolve (A) and (B) together: relaxing assertion 1-2 to a generation-verification shape (B) would also naturally re-scope assertion 4 (A) to the emitted block. Do NOT let a partial fix of one blocker re-dispatch the item while the other still blocks it.
+  - **RESOLVED 2026-08-14 (`/relay human .`, tier-a auto-answer) — the gate_reason now records BOTH.**
+    This box's ask was a *bookkeeping* one: get blocker (A) into the ROADMAP gate line so the eventual
+    `/meeting` cannot address only (B). That landed. `ROADMAP.md:1475` now opens its `gate_reason` with
+    "**TWO independent blockers — the /meeting must reconcile BOTH (gate_reason previously recorded only
+    (B); corrected 2026-08-13 by `/relay human`)**" and carries both (A) — the unscoped `grep -q 'keep
+    byte-equivalent'` hitting five comments (998/1065/1087/1185/2090) with the line-scope-to-1185 remedy
+    — and (B) — the structurally-unreachable one-declaration count under the no-import sandbox — plus the
+    "do NOT let a partial fix re-dispatch the item" clause verbatim. **The DESIGN question is untouched
+    and still open**: `id:6217` remains `[ ] [INPUT — decision]` 🚧 GATED awaiting its `/meeting`; only
+    the record-keeping defect this box tracked is closed. Re-checkable: `grep -n 'id:6217' ROADMAP.md`
+    — if the gate line ever loses either blocker, reopen this box.
 
 ## Review 2026-08-11c (chain-end re-ask, window `relay-ckpt-20260811-1838`..HEAD — two executor units, id:8123)
 
@@ -627,7 +650,7 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
 
   **RESOLVED 2026-08-14 (`/relay human .`, tier-a auto-answer) — the inbox is DRAINED.** All 18 items targeting this repo were routed in this session's inbox pass: 15 auto-filed as INBOUND stubs by `scan-routed.sh --apply`, and 3 (`routed:057f`/`8b21`/`42c9`) recovered by hand from `git show HEAD:todo-inbox.md` after `--apply` deleted them on FALSE twin matches — a bare-token twin check satisfied by a prose mention inside a sibling item (defect filed `id:c97c`). Evidence: `scan-routed.sh` reports 0 dead-letters; `inbox-scan-repo.sh dotclaude-skills` reports 0 open lines; every one of the 18 tokens verified present exactly once by an ANCHORED grep (`<!-- routed:X -->|INBOUND routed:X`), never a bare-token grep. Re-checkable by re-running those three commands. NOTE: one NEW dead-letter is expected and correct — `routed:5018`, routed OUT to cartulary this session and not yet ingested there.
 
-- [ ] **roadmap-lint pre-existing warnings (none introduced this window).** `roadmap-lint.sh`
+- [x] **roadmap-lint pre-existing warnings (none introduced this window).** `roadmap-lint.sh`
   WARNs (exit 0, non-blocking): DEAD-GATE on id:d4ca/id:e405/id:540f/id:c179 (all TODO-only,
   deliberately owner-held/gated — the false-positive DEAD-GATE these throw is exactly what the
   open [ROUTINE] id:d119 owner-hold-marker item is built to suppress); DEP-PROSE-UNTYPED on
@@ -635,6 +658,20 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   into seams id:02b2/99e5/5b12); NO-ACCEPTANCE-NO-TWIN on id:1b13 (an [INPUT — decision] item,
   structurally a /meeting question not executor work). No action taken — surfaced for the human's
   lane-assignment-at-source discipline (id:78ff).
+  **CLOSED 2026-08-14 (`/relay human .`, OWNER-DECIDED) — every WARN is owned at source; the standing
+  box is duplicate signal.** Owner's call, verbatim option: "Close it — id:b8e8 owns the fix". Re-ran
+  `roadmap-lint.sh .` this pass: the same set, none new — DEAD-GATE ×6 rows (id:2b49, id:d4ca, id:e405,
+  id:540f ×2, id:c179 ×2) and DEP-PROSE-UNTYPED ×2 (id:d4ca, id:e405). Ownership at source: the
+  540f/c179 DEAD-GATEs are the EXPECTED false positive `id:b8e8` (`TODO.md:749`) exists to remove — its
+  own acceptance clause requires `roadmap-lint` to emit no DEAD-GATE for them while `classify-repo.sh`
+  still refuses to dispatch, asserted together; `id:d119` (`TODO.md:740`) ships the `<!-- owner-hold:REASON -->`
+  grammar it depends on; DEP-PROSE-UNTYPED is `id:3f7e`. **Reopen condition** (this is what a closed box
+  costs, stated so it is re-checkable): a lint WARN appears that no open item covers. The two currently
+  in that position — DECOMPOSED-CONTAINER on `id:ae08` and NO-ACCEPTANCE-NO-TWIN on `id:1b13` — were
+  inspected and are **benign by construction, not unowned**: ae08 already carries its `route:hard-split`
+  annotation into seams id:02b2/99e5/5b12, and 1b13 is an `[INPUT — decision]` item, which has no
+  executor twin to have. Neither is a defect the lint should stay open over. Note the lint exits 0
+  throughout — these have never blocked anything.
 
 - [x] **2 parked orphan branches (relay-reconcile --all).** `relay/orphan/relay-20260813-180303-4214-review-repo-0`
   carried the STRANDED close of id:292b — this review has now reconciled that (ticked id:292b in
@@ -649,4 +686,14 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   park-then-`--discard`). Re-checkable: re-run `relay-reconcile.sh <repo>` — a non-empty
   parked list reopens this box.
 
-- [ ] **id:cd9c was silently un-dispatchable — parked-vocab substring FP on its section heading (FIXED this window; hardening filed id:6446).** The owner-ruled (a), ungated `[ROUTINE]` `id:cd9c` (roadmap-archive stub-on-move, RED spec `tests/test_roadmap_archive_leaves_stub.sh` landed EXPECTED-RED) was excluded from dispatch — `classify-repo.sh` reported `actionable_routine_open:0` — because its section heading `## … — archive-path stub design call` contains `archive`, which `lib-roadmap-sections.sh`'s parked-vocab `(gated|deferred|done|icebox|archive|parked)` matches as a bare substring, parking the whole section. Renamed the heading `archive-path` → `stub-on-move` this review, which restores `actionable_routine_open:1 [cd9c]`; a guard comment now sits above the heading. **Root-cause hardening is id:6446** (make the vocab match intentional, not any-substring). Owner: confirm the heading rename is acceptable and greenlight id:6446's anchor fix so future `archive`/`done`-mentioning headings don't re-park live work.
+- [x] **id:cd9c was silently un-dispatchable — parked-vocab substring FP on its section heading (FIXED this window; hardening filed id:6446).** The owner-ruled (a), ungated `[ROUTINE]` `id:cd9c` (roadmap-archive stub-on-move, RED spec `tests/test_roadmap_archive_leaves_stub.sh` landed EXPECTED-RED) was excluded from dispatch — `classify-repo.sh` reported `actionable_routine_open:0` — because its section heading `## … — archive-path stub design call` contains `archive`, which `lib-roadmap-sections.sh`'s parked-vocab `(gated|deferred|done|icebox|archive|parked)` matches as a bare substring, parking the whole section. Renamed the heading `archive-path` → `stub-on-move` this review, which restores `actionable_routine_open:1 [cd9c]`; a guard comment now sits above the heading. **Root-cause hardening is id:6446** (make the vocab match intentional, not any-substring). Owner: confirm the heading rename is acceptable and greenlight id:6446's anchor fix so future `archive`/`done`-mentioning headings don't re-park live work.
+  **OWNER-DECIDED 2026-08-14 (`/relay human .`) — BOTH confirmed: rename accepted, `id:6446` greenlit and PROMOTED.**
+  Owner's call, verbatim option: "Confirm rename + promote id:6446". (1) The `archive-path` → `stub-on-move`
+  heading rename stands as the immediate unblock — re-verified this pass that the live heading no longer
+  carries a parked-vocab word. (2) `id:6446` is promoted from `TODO.md:761` to `ROADMAP.md` as an
+  executor-ready `[ROUTINE]` item under the **same id** (single-id-two-views, D2 — no duplicate token
+  minted); its acceptance and done-check were already written at TODO-authoring time and are carried
+  across verbatim, so the pool can pick it up without a further handoff. Re-checkable: `grep -n 'id:6446'
+  ROADMAP.md TODO.md` shows one open line in each, same token. **The rename is a workaround, not the fix**
+  — it holds only until someone writes another heading that happens to mention `archive`/`done`/`gated`;
+  `id:6446` is the durable one, which is why it was promoted rather than left as backlog.
