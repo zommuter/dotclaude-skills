@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-14
+
+- verify-isolation.sh: empty worktree + dirty tree now exits 2 (breach-shaped) under both main-unmoved (b1) and merge-commits-only (b3) conditions; id:8e3e no-op review unregressed (id:1b13)
+
 ## 2026-08-13
 
 - review: 16:18-findings fixes (b99f/e53a/3a50/15f3) verified non-gamed; suite 411/0/1-xred; cross-ledger clean; routine_open=0 (id:b99f,e53a,3a50,15f3)
