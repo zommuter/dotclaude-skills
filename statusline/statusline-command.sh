@@ -60,10 +60,10 @@ percent_to_gradient()
 # Known issue: /api/oauth/usage has a per-token limit of ~5 requests total,
 # so any polling interval will eventually 429. We use a lockfile to prevent
 # concurrent fetches, backoff on failure, and extrapolate when stale >5m.
-USAGE_CACHE="/tmp/claude-usage-cache.json"
-USAGE_HISTORY="/tmp/claude-usage-history"  # "epoch session_pct weekly_pct" per line (last 2 samples)
-USAGE_BACKOFF="/tmp/claude-usage-backoff"
-USAGE_LOCK="/tmp/claude-usage-lock"
+USAGE_CACHE="${CLAUDE_USAGE_CACHE:-/tmp/claude-usage-cache.json}"
+USAGE_HISTORY="${CLAUDE_USAGE_HISTORY:-/tmp/claude-usage-history}"  # "epoch session_pct weekly_pct" per line (last 2 samples)
+USAGE_BACKOFF="${CLAUDE_USAGE_BACKOFF:-/tmp/claude-usage-backoff}"
+USAGE_LOCK="${CLAUDE_USAGE_LOCK:-/tmp/claude-usage-lock}"
 NOW=$(date +%s)
 CACHE_MTIME=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || echo 0)
 CACHE_AGE=$((NOW - CACHE_MTIME))

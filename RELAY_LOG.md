@@ -5769,3 +5769,18 @@ Chain-end review re-ask (chain ended `relay-ckpt-20260813-2332`; classifier id:8
 ## 2026-08-14 10:53 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 Chain-end review: no executor code work (ledger/human window); authored RED spec for id:1b13; suite 420/0/4-xred; relay-doctor clean; routine_open=4 [id:1b13]
+
+## 2026-08-14 — executor (sonnet, relay-loop)
+
+Worked id:ec3c — `statusline/statusline-command.sh`'s four usage-state paths
+(USAGE_CACHE/USAGE_HISTORY/USAGE_BACKOFF/USAGE_LOCK) now read from env overrides
+(CLAUDE_USAGE_CACHE/CLAUDE_USAGE_HISTORY/CLAUDE_USAGE_BACKOFF/CLAUDE_USAGE_LOCK),
+defaulting to the previous hardcoded `/tmp` literals so live behaviour is byte-unchanged.
+This lets `tests/test_statusline_path_overrides_ec3c.sh` point all four into its own
+`mktemp -d` sandbox instead of racing the developer's own live-session statusline writing
+the same `/tmp` paths. Verified RED before the fix, GREEN after; full suite green
+(421 passed, 0 failed, 2 expected-red).
+Friction: none — the item's Acceptance/Tests/Done-check were already fully spelled out
+by the mini-handoff at review 2026-08-13.
+refactor: none needed — a one-line-per-path parameter-expansion change, no new
+duplication introduced.
