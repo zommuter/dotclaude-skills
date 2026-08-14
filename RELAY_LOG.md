@@ -5798,3 +5798,21 @@ refactor: none needed — this is an additive branch inside each archiver's exis
 ## 2026-08-14 11:40 — executor (sonnet, relay-loop)
 
 roadmap-archive.sh + archive-closed.sh now leave a one-line stub for every item they archive (id:cd9c) — RED spec green, full suite 423/0/1-xred [id:cd9c]
+## 2026-08-14 — reviewer (claude-opus-4-8, relay-loop)
+
+Chain-end review re-ask (chain id:8123), window `relay-ckpt-20260814-1102`..HEAD — 2 human ledger
+commits only (relay-human batch 4 + false-DEAD-GATE drop on id:f91a), NO executor code work.
+Test-integrity audit trivially clean: `gaming-scan.sh` clean, no test files touched, full suite
+green (422 passed, 0 failed, expected-red for the open `[ROUTINE]` specs). Health: `orphan-scan
+--cross-ledger` clean, `check-install-drift`/reference-install clean, no MECHANICAL orphans, 0
+parked orphans, contract pointer v12 == canonical, `roadmap-lint` exit 0 (only pre-existing
+DEAD-GATE/DEP-PROSE WARNs). §5b reverse-handoff: qualified the two new TODO items — `id:f346`
+(deterministic premise-checker, `[HARD]`) left for the reviewer, and `id:cc7e` (md-merge
+`update-ids` resolves an item's own id by the FIRST `<!-- id:XXXX -->` instead of the LAST)
+mini-handed-off: promoted to ROADMAP.md reusing its id with RED spec
+`tests/test_md_merge_own_id_last.sh` (`# roadmap:cc7e`), verified RED against the unmodified tree
+and non-vacuous via a throwaway patched copy. Actionable `[ROUTINE]` queue: id:cd9c + id:cc7e.
+Surfaced inbox dead-letter routed:c8d7 (`/meeting --triaged`, → dotclaude-skills) as a REVIEW_ME
+`/meeting` candidate. Nothing reopened; no gaming flags.
+Friction: none.
+refactor: none needed — review pass; the only code added is one RED spec test (no production code touched).

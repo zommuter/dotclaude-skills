@@ -9,13 +9,43 @@ Window carried no executor code work (ledger/human batches + inbox ingests only)
 clean. §5b reverse-handoff: authored the missing RED spec for `id:1b13` (re-laned to `[ROUTINE]`
 this window). One handoff-readiness gap surfaced:
 
-- [ ] **`id:f91a` (@container, ROADMAP.md:1509) is an open `[ROUTINE]` with NO RED spec — not
+- [x] **`id:f91a` (@container, ROADMAP.md:1509) is an open `[ROUTINE]` with NO RED spec — not
   executor-ready.** `grep -rl 'roadmap:f91a' tests/` returns nothing, so an executor that picks it
   has no failing test to satisfy (the executor-contract definition-of-done). It is NOT new this
   window (predates `relay-ckpt-20260813-2332`), so it is outside the §5b mini-handoff, but it needs
   a handoff pass to author a red spec before it can be dispatched. Either author the spec at the
   next handoff or re-lane it if @container is a design task rather than executor work. (The other
   dispatchable `[ROUTINE]` items — `id:1b13`, `id:cd9c`, `id:ec3c` — all have specs.)
+  **RESOLVED 2026-08-14 (`/relay human .` batch 4): the "re-lane if @container is a design task"
+  branch was taken — `id:f91a` is now `[INPUT — meeting] @container` at ROADMAP.md:1509, so it is
+  no longer an open `[ROUTINE]` and needs no RED spec. No longer dispatchable pool work.**
+
+### Re-ask 2026-08-14 (window `relay-ckpt-20260814-1102`..HEAD — 2 human ledger commits, no code)
+
+Chain-end review re-ask (same chain id:8123) fired after the `/relay human` batch-4 commit +
+the false-DEAD-GATE fix on `id:f91a`. Window carried **no executor code work** — only ledger/human
+decisions. `gaming-scan.sh` clean; `orphan-scan --cross-ledger` clean; `check-install-drift`/refs
+clean; no MECHANICAL orphans; 0 parked orphans; contract pointer `v12` == canonical. Full suite
+green (422 pass, expected-red for the open `[ROUTINE]` specs). `roadmap-lint` exit 0 (only the
+pre-existing DEAD-GATE/DEP-PROSE WARNs already boxed below — none introduced this window).
+
+**§5b reverse-handoff:** the batch added two genuinely-new items to `TODO.md`. `id:f346`
+(deterministic premise-checker) is `[HARD]` → left for the reviewer, not mini-handoff material.
+`id:cc7e` (md-merge `update-ids` own-id resolved by FIRST id-comment instead of LAST) is
+execution-ready `[ROUTINE]` → **mini-handoff done**: promoted to ROADMAP.md (Review-derived
+promotion section) reusing `id:cc7e`, with RED spec `tests/test_md_merge_own_id_last.sh`
+(`# roadmap:cc7e`). Verified RED against the unmodified tree and non-vacuous (green only when
+both `md-merge.py:263` own-id resolution AND `_validate_replacement`'s marker check use the LAST
+`<!-- id:XXXX -->`; `lib-typed-edges.sh:22` `head -1` is the third consistency site named in the
+item). Actionable `[ROUTINE]` queue now: `id:cd9c` + `id:cc7e` (2); the other 4 open `[ROUTINE]`
+items (`d4ca`/`540f`/`c179`/`554b`) all carry live gates.
+
+- [ ] **Inbox dead-letter `routed:c8d7 → [dotclaude-skills]` is unrouted into this repo's ledgers.**
+  `relay-doctor` (`scan-routed.sh`) reports an inbound `/meeting --triaged` design item destined for
+  dotclaude-skills but absent from `TODO.md`/`ROADMAP.md`. It is a **design-judgment** item (new
+  `/meeting` switch with a schema-definition sub-task, gate-verification semantics, and a cross-repo
+  edge-ownership question) — a `/meeting` candidate, NOT auto-promotable to ROADMAP. Human: ingest it
+  into `TODO.md` as a meeting candidate or discard the inbox line. Surfaced report-only per review.md §4b.
 
 ## Review 2026-08-13e (window last-reviewer-ckpt `relay-ckpt-20260813-2213`..HEAD `-2222` — id:259f execute)
 
