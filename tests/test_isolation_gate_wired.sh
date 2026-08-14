@@ -129,6 +129,52 @@ set -e
 [[ $rc -eq 0 ]] || fail "empty + main advanced only by a merge commit: expected exit 0 (another unit's --no-ff integration is not this child's breach), got $rc — out: $out"
 pass "empty worktree + main advanced only by a merge → exit 0 (not a breach)"
 
+# ── (b1-dirty) EMPTY worktree + DIRTY tree + main UNMOVED → exit 2 (id:1b13) ──
+# Owner-decided 2026-08-14: an empty worktree carrying uncommitted changes is NOT a
+# legitimate id:8e3e no-op review — it is the closest signature to "the child worked but
+# never committed" (the same breach family this gate exists for), even when main never
+# moved. Must fail BEFORE the (b1) main-unmoved short-circuit ever waves it through.
+r="$(mkrepo b1dirty)"; w="$(mkwt "$r" b1dirty)"
+printf 'uncommitted\n' > "$w/dirty.txt"
+set +e
+out="$("$SH" "$w" --base main 2>&1)"; rc=$?
+set -e
+[[ $rc -eq 2 ]] || fail "empty + dirty + main unmoved: expected exit 2 (id:1b13 breach-shaped), got $rc — out: $out"
+grep -qi 'dirty' <<<"$out" \
+  || fail "empty + dirty + main unmoved: exit-2 output should name the dirty entries, got: $out"
+grep -q 'dirty.txt' <<<"$out" \
+  || fail "empty + dirty + main unmoved: exit-2 output should name dirty.txt, got: $out"
+pass "empty worktree + dirty tree + main unmoved → exit 2, names dirty entries (id:1b13 b1)"
+
+# ── (b3-dirty) EMPTY worktree + DIRTY tree + main advanced ONLY by a merge → exit 2 (id:1b13) ──
+r="$(mkrepo b3dirty)"; w="$(mkwt "$r" b3dirty)"
+git -C "$r" checkout -q -b other main
+printf 'other unit work\n' > "$r/other.txt"
+git -C "$r" add -A
+git -C "$r" commit -qm "other unit"
+git -C "$r" checkout -q main
+git -C "$r" merge --no-ff -q other -m "merge(relay): other unit"
+printf 'uncommitted\n' > "$w/dirty.txt"
+set +e
+out="$("$SH" "$w" --base main 2>&1)"; rc=$?
+set -e
+[[ $rc -eq 2 ]] || fail "empty + dirty + main advanced only by merge: expected exit 2 (id:1b13 breach-shaped), got $rc — out: $out"
+grep -qi 'dirty' <<<"$out" \
+  || fail "empty + dirty + main advanced only by merge: exit-2 output should name the dirty entries, got: $out"
+grep -q 'dirty.txt' <<<"$out" \
+  || fail "empty + dirty + main advanced only by merge: exit-2 output should name dirty.txt, got: $out"
+pass "empty worktree + dirty tree + main advanced only by merge → exit 2, names dirty entries (id:1b13 b3)"
+
+# ── (b1-clean) EMPTY worktree + CLEAN tree + main UNMOVED → still exit 0 (id:8e3e regression guard) ──
+# Already covered by (b1) above, restated here explicitly per the id:1b13 acceptance to pin
+# that the legitimate no-op review must NOT regress alongside the new dirty check.
+r="$(mkrepo b1clean)"; w="$(mkwt "$r" b1clean)"
+set +e
+out="$("$SH" "$w" --base main 2>&1)"; rc=$?
+set -e
+[[ $rc -eq 0 ]] || fail "empty + clean + main unmoved: expected exit 0 (id:8e3e no-op review must not regress), got $rc — out: $out"
+pass "empty worktree + clean tree + main unmoved → exit 0 (id:8e3e no-op review unaffected by id:1b13)"
+
 # ── (b4) non-empty worktree + clean tree → exit 0 (unchanged behaviour) ──
 r="$(mkrepo b4)"; w="$(mkwt "$r" b4)"
 printf 'real work\n' > "$w/work.txt"
