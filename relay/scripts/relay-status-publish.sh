@@ -141,7 +141,17 @@ mkdir -p "$BASE_DIR"
 # This run's section: the rendered body (its own H1 demoted to a run heading so the merged file
 # keeps exactly one H1) followed by the PER-RUN burnup. Claims + mechanical orphans are
 # cross-run scans, so they stay at file level, rendered once.
-run_body="$(printf '%s\n' "$content" | sed "1s|^# RELAY_STATUS — |## Run ${RUN_KEY} — |")"
+# The payload's H1 becomes the run's section heading (one H1 per file), and its `## Run progress`
+# is DEMOTED to `### Run progress (this run)`. The demotion is not cosmetic: that heading used to
+# be unique per file, and after the merge it appears once PER RUN — so a fleet reader doing
+# `grep -A6 '## Run progress'` silently lands in whichever run sorted first and reads ONE run's
+# counters believing they are totals (reported by the csgebra session 2026-08-18, who hit exactly
+# that). Demoting removes the `^## ` collision while leaving `## In-flight` / `## Completed this
+# run` intact, which the id:15bd statusline's awk fallbacks anchor on. Fleet numbers live in
+# `## Aggregate` above; per-run numbers live inside that run's `relay-run:` block.
+run_body="$(printf '%s\n' "$content" \
+  | sed "1s|^# RELAY_STATUS — |## Run ${RUN_KEY} — |" \
+  | sed "s|^## Run progress\$|### Run progress (this run)|")"
 run_block="$(printf '<!-- relay-run:%s -->\n%s\n\n%s\n<!-- /relay-run:%s -->' \
   "$RUN_KEY" "$run_body" "$burnup_section" "$RUN_KEY")"
 
