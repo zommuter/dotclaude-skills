@@ -5885,3 +5885,7 @@ Did not tick id:4438's checkbox (integrator's job per rule 2/v12) and did not ed
 ROADMAP.md's item text (rule 5) — the ranking is published in the docs/ report only.
 Friction: none — this was measure-and-report only, no code change, no test to satisfy.
 refactor: none needed — no production code touched, docs-only report addition.
+
+## 2026-08-18 15:06 — reconcile (auto/human, non-strong by design — id:c500)
+
+reconcile integrate: docs(relay): publish per-phase burn ranking for id:4438 (a955 vs 3ca7)
