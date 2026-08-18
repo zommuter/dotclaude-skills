@@ -62,6 +62,22 @@ pass "(2) aggregate sums across run sections"
   || fail "(2b) first ^- completed= line must be the aggregate"
 pass "(2b) the statusline's head -1 counters resolve to the fleet aggregate"
 
+# ── (2c) The per-run `## Run progress` heading must be DEMOTED on merge. Before the merge it was
+#        unique per file; after it appears once PER RUN, so a fleet reader doing
+#        `grep -A6 '## Run progress'` silently lands in one run's block and reads that run's
+#        counters as totals (reported live by the csgebra session 2026-08-18). The headings the
+#        id:15bd statusline's awk fallbacks anchor on must NOT be demoted. ──────────────────────
+[[ "$(grep -c '^## Run progress$' "$STATUS")" == "0" ]] \
+  || fail "(2c) '## Run progress' must not survive at H2 — it collides across run sections and misreads as fleet totals"
+[[ "$(grep -c '^### Run progress (this run)$' "$STATUS")" == "2" ]] \
+  || fail "(2c) each run section must carry its own demoted '### Run progress (this run)' heading"
+# the statusline's awk anchors must be untouched by the demotion
+printf '# RELAY_STATUS — x  run: anchor-run\n\n## Run progress\n- round=1\n- in-flight=1\n- completed=0\n- blocked=0\n\n## In-flight\n- repo-x  mode=execute\n\n## Completed this run\n- repo-y  mode=review\n' \
+  | "$PUB" --path "$STATUS" --run anchor-run --events-path "$EVENTS" >/dev/null
+grep -q '^## In-flight$' "$STATUS"          || fail "(2c) '## In-flight' must stay at H2 — the id:15bd statusline awk fallback anchors on it"
+grep -q '^## Completed this run$' "$STATUS" || fail "(2c) '## Completed this run' must stay at H2 — same reason"
+pass "(2c) per-run progress heading demoted; statusline awk anchors preserved"
+
 # ── (3) A republish replaces ONLY its own section and leaves the other run's untouched. ──
 body run-AAA 9 9 9 | "$PUB" --path "$STATUS" --run run-AAA --events-path "$EVENTS" >/dev/null
 [[ "$(sections)" == "2" ]] || fail "(3) republish must not drop the other run's section"
