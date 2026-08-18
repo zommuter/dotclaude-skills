@@ -194,6 +194,7 @@ help:
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
 	@echo "  status               show symlink state for all skills"
 	@echo "  test                 run the test suite (tests/run-tests.sh); runs lint first"
+	@echo "  test FILES=\"...\"     inner-loop subset (id:d3f8) — NOT the release check, full 'make test' still is"
 	@echo "  lint                 enforce the no-bare-rm-f rule (tools/check-no-bare-rm-f.sh --enforce)"
 	@echo "  gaming-canary        Tier B model anti-gaming canary harness (on-demand; costs tokens)"
 	@echo "  shard-canary         discover-shard classifier behavior canary (on-demand; costs tokens)"
@@ -235,8 +236,12 @@ install-relay-acls:
 lint:
 	@bash $(SRC_DIR)/tools/check-no-bare-rm-f.sh --enforce
 
+# id:d3f8 — inner-loop subset runner. `make test FILES="tests/test_a.sh tests/test_b.sh"`
+# runs exactly those files; `make test` with no FILES is unchanged (full suite, lint
+# first). This is NOT the release check — the full `make test` (no FILES) stays the
+# definition-of-done gate (CLAUDE.md §Testing); FILES= is for the inner loop only.
 test: lint
-	@bash $(SRC_DIR)/tests/run-tests.sh
+	@bash $(SRC_DIR)/tests/run-tests.sh $(FILES)
 
 # Tier B model canary harness (id:414a) — on-demand, costs tokens, NOT in `make test`.
 # Verifies the review procedure's JUDGMENT anti-gaming checks (resurrection-rewrite,
