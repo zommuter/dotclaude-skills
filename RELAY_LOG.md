@@ -5861,3 +5861,7 @@ ambiguous-line case it exists to catch. Not executor-decidable; needs an
 owner/meeting ruling on whether to (a) retire cc7e's old spec + rewrite its
 test to assert the id:6059 refusal instead, or (b) narrow id:6059's ambiguity
 rule for the trailing-marker case. Left untouched, worktree clean of this item.
+
+## 2026-08-18 11:13 — executor (sonnet, relay-loop)
+
+Shipped id:d3f8 — make test FILES="..." inner-loop subset runner (forwards to run-tests.sh's existing subset support); full suite green (438/0/2-xred). [id:d3f8]
