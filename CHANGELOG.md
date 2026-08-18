@@ -10,6 +10,7 @@
 ## 2026-08-18
 
 - review: chain-end verify clean (437 green, gaming-scan 0, 12 pure-add specs); reconciled cd9c/d119 cross-ledger drift; boxed ec3c scope-mismatch; routine_open=5 (id:cd9c,d119,ec3c,7517,f391)
+- Shipped id:d3f8 — make test FILES="..." inner-loop subset runner (forwards to run-tests.sh's existing subset support); full suite green (438/0/2-xred). (id:d3f8)
 
 ## 2026-08-14
 
