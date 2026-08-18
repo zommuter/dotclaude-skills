@@ -5824,3 +5824,7 @@ hand-integrate 2 handed-back review branches: id:6446 parked-vocab substring def
 ## 2026-08-14 13:38 — integrate (claude-opus-5)
 
 id:c97c — inbox twin check anchored to a token's OWN marker (shared primitive; writer+drainer agree). Independently re-derived against the original incident: old code silently destroyed the sibling item, new code files both. 121/121 true twins still resolve. Suite 425/0/2-xred.
+
+## 2026-08-18 11:01 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: chain-end verify clean (437 green, gaming-scan 0, 12 pure-add specs); reconciled cd9c/d119 cross-ledger drift; boxed ec3c scope-mismatch; routine_open=5 [id:cd9c,d119,ec3c,7517,f391]
