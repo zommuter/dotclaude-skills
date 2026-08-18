@@ -5865,3 +5865,23 @@ rule for the trailing-marker case. Left untouched, worktree clean of this item.
 ## 2026-08-18 11:13 — executor (sonnet, relay-loop)
 
 Shipped id:d3f8 — make test FILES="..." inner-loop subset runner (forwards to run-tests.sh's existing subset support); full suite green (438/0/2-xred). [id:d3f8]
+## 2026-08-18 — executor (claude-sonnet-5)
+
+Worked id:4438 — ran the pre-registered burn measurement (id:87f5's decision rule) and
+published the per-phase ranking at `docs/relay-burn-ranking-2026-08-18.md`. Verified
+first that `relay-burn.sh` has no per-phase attribution (pure quota-utilization burnup)
+and that `relay-econ.py`'s existing 4-category rollup (`work`/`status`/`scaffold`/
+`poll/other`) is too coarse to isolate `id:a955`'s target (`integrate`, one phase inside
+`work`) — wrote a small read-only analysis script reusing `relay-econ.py`'s own
+discovery + `profile-run.sh` plumbing at the raw-phase grain (no relay script modified).
+n = 272 retained runs (relay-econ.py's own discovery, no --limit). Result: `integrate`
+(id:a955) = 14.1% of parallelity-weighted wall-clock; the round-tail idle-floor proxy
+(id:3ca7) = ~2.0-2.6%. Order: id:a955 > id:3ca7 by ~5-7x, but **neither clears the
+pre-registered ≥25% promote threshold**. Reconciled against the banked 47.6% discover
+cost baseline (id:9cb1, 2026-06-18): current discover cost share = 13.9% (a ~3.4x drop),
+explained by the discover-cache levers (id:c855, id:c3a6 sig-cache) that landed after
+the baseline was taken — not a contradiction, both numbers correct for their windows.
+Did not tick id:4438's checkbox (integrator's job per rule 2/v12) and did not edit
+ROADMAP.md's item text (rule 5) — the ranking is published in the docs/ report only.
+Friction: none — this was measure-and-report only, no code change, no test to satisfy.
+refactor: none needed — no production code touched, docs-only report addition.
