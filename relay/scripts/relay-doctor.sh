@@ -43,6 +43,17 @@
 #                  $RELAY_TOML, honors `# path:` overrides, like the other scripts)
 #   An UNKNOWN scope token / unreadable scope path is a LOUD reject (nonzero exit).
 #
+#   --only <check>  → run ONLY the named check (see DOCTOR_CHECKS below for the list).
+#     WHY (id:f69b): a full run costs ~50s because the per-repo bundle re-scans the whole
+#     ledger (classify-repo.sh, unpromoted-scan.sh, todo-conformance.sh, roadmap-lint.sh,
+#     orphan-scan.sh). A caller that cares about exactly ONE check — e.g. the id:1102
+#     install-drift test, which asserts nothing about the other five — should not pay for
+#     all of them. Check names are this script's OWN section vocabulary (the *_check
+#     function names, minus the suffix, hyphenated); `repo` selects the per-repo bundle.
+#     An UNKNOWN --only name is a LOUD reject listing the valid names (nonzero exit) — a
+#     scoped mode that silently runs nothing and exits 0 would be worse than none.
+#     WITHOUT --only, behaviour is byte-identical to before this flag existed.
+#
 # Conventions (study relay-reconcile.sh / gather-repo-state.sh): set -euo pipefail;
 # short stdout; `2>/dev/null` ONLY with a stated reason; a missing/unreadable repo is
 # SURFACED on stderr, never silently swallowed (id:4e14). Details → ~/.claude/logs.
@@ -135,11 +146,35 @@ source "$SCRIPTS_DIR/lib-own-repos.sh"
 scope="cwd"
 repo_arg=""
 strict=0   # id:a883 — opt-in strict mode: exits nonzero when any issue is found
+only=""    # id:f69b — empty means "run every check", i.e. the unchanged default report
+
+# The complete check vocabulary, in RUN ORDER. `repo` is the per-repo bundle (check_repo);
+# the rest are the once-only checks and match their <name>_check function names.
+DOCTOR_CHECKS="repo registry-parse refs-install install-drift parked-orphans routed-deadletters quota-config relay-core-shadow lean-toolchain-drift"
+
+# want <name> — true when <name> should run under the current --only selection. With no
+# --only it is true for every check, so the default path runs exactly what it always ran.
+want() { [[ -z "$only" || "$only" == "$1" ]]; }
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all)     scope="all"; shift ;;
     --strict)  strict=1; shift ;;   # id:a883 — nonzero exit when issues found
-    -h|--help) sed -n '2,52p' "$0"; exit 0 ;;
+    --only)
+      # id:f69b — scoped run. A missing or unknown name is MISUSE → loud nonzero.
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "relay-doctor.sh: --only requires a check name; valid names: $DOCTOR_CHECKS" >&2
+        exit 2
+      fi
+      only="$2"
+      # Membership test on the space-padded list — no word-splitting, no external tools.
+      case " $DOCTOR_CHECKS " in
+        *" $only "*) ;;
+        *) echo "relay-doctor.sh: unknown --only check '$only'; valid names: $DOCTOR_CHECKS" >&2
+           exit 2 ;;
+      esac
+      shift 2 ;;
+    -h|--help) sed -n '2,62p' "$0"; exit 0 ;;
     --*)       echo "relay-doctor.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)
       if [[ -n "$repo_arg" ]]; then
@@ -838,6 +873,8 @@ PY
 # --- header --------------------------------------------------------------------
 echo "relay-doctor — relay-machinery health report (REPORT-ONLY; cheap-first-slice of id:0907, id:9bec)"
 echo "Scope: $scope    (report-only: issues are surfaced, NEVER cause a nonzero exit — only misuse does)"
+# Printed ONLY under --only, so the default report is byte-identical (id:f69b).
+[[ -n "$only" ]] && echo "SCOPED RUN (--only $only): the other checks were NOT run — this is not a full health report."
 echo
 
 # --- run per-repo checks per scope ---------------------------------------------
@@ -848,7 +885,7 @@ case "$scope" in
       echo "relay-doctor.sh: cwd is not inside a git repo and no repo path was given" >&2
       exit 2
     fi
-    check_repo "$(basename "$root")" "$root" || true
+    if want repo; then check_repo "$(basename "$root")" "$root" || true; fi
     ;;
   repo)
     # An explicit repo path that does not exist is MISUSE → loud nonzero reject.
@@ -861,14 +898,14 @@ case "$scope" in
       exit 2
     fi
     abspath="$(cd "$repo_arg" && pwd)"
-    check_repo "$(basename "$abspath")" "$abspath" || true
+    if want repo; then check_repo "$(basename "$abspath")" "$abspath" || true; fi
     ;;
   all)
     any=0
     while IFS=$'\t' read -r rname rpath; do
       [[ -n "$rname" ]] || continue
       any=1
-      check_repo "$rname" "$rpath" || true
+      if want repo; then check_repo "$rname" "$rpath" || true; fi
     done < <(own_repos)
     if [[ "$any" -eq 0 ]]; then
       echo "relay-doctor.sh: --all found NO own repos in $RELAY_TOML (is it readable?)" >&2
@@ -883,14 +920,15 @@ case "$scope" in
 esac
 
 # --- cross-repo / once-only checks ---------------------------------------------
-registry_parse_check   # id:2945 — loud-fail if relay.toml is corrupt (else everything silently empty)
-refs_install_check
-install_drift_check   # id:1102 — manifest -> tree (the direction id:69ef cannot catch)
-parked_orphans_check
-routed_deadletter_check   # id:678e slice 1 — inbox routed dead-letters (report-only)
-quota_config_check   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + threshold bounds)
-relay_core_shadow_check   # id:82c4 — which classify path is live (legacy bash vs relay-core shadow)
-lean_toolchain_drift_check   # id:50c4 — F4 local lean-toolchain drift compare
+# Each call is gated by `want` (id:f69b) — a no-op guard unless --only was given.
+if want registry-parse;        then registry_parse_check; fi   # id:2945 — loud-fail if relay.toml is corrupt (else everything silently empty)
+if want refs-install;          then refs_install_check; fi
+if want install-drift;         then install_drift_check; fi   # id:1102 — manifest -> tree (the direction id:69ef cannot catch)
+if want parked-orphans;        then parked_orphans_check; fi
+if want routed-deadletters;    then routed_deadletter_check; fi   # id:678e slice 1 — inbox routed dead-letters (report-only)
+if want quota-config;          then quota_config_check; fi   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + threshold bounds)
+if want relay-core-shadow;     then relay_core_shadow_check; fi   # id:82c4 — which classify path is live (legacy bash vs relay-core shadow)
+if want lean-toolchain-drift;  then lean_toolchain_drift_check; fi   # id:50c4 — F4 local lean-toolchain drift compare
 
 # --- coverage honesty (D4, meeting 2026-06-24): never look falsely-green ---------
 # LIST the checks that are designed but NOT yet wired, so this report's coverage is
