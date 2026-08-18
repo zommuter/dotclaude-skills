@@ -60,7 +60,13 @@ fi
 # Reproduce the exact incident: a manifested file absent from the tree.
 rm -- "$INSTALL/relay/scripts/lib-anchored-id.sh"
 
-out="$(RELAY_INSTALL_ROOT="$INSTALL" "$DOCTOR" 2>&1)"
+# --only install-drift (id:f69b): this test asserts NOTHING about the doctor's five
+# full-ledger per-repo scanners (classify-repo/unpromoted-scan/todo-conformance/
+# roadmap-lint/orphan-scan), which cost ~50s per doctor run — and this file invokes the
+# doctor TWICE. Scoping to the one check under test keeps the assertions identical while
+# the suite stops paying for checks it never inspects. Full-report behaviour is covered
+# by the doctor's own default-path tests.
+out="$(RELAY_INSTALL_ROOT="$INSTALL" "$DOCTOR" --only install-drift 2>&1)"
 grep -q 'lib-anchored-id.sh' <<<"$out" \
   || fail "relay-doctor did not report the dropped manifested file (lib-anchored-id.sh) as install drift — this is the exact 2026-07-17 incident and it must not pass silently; got: $(head -c 400 <<<"$out")"
 pass "drift on a manifested-but-absent file is reported, naming the file"
@@ -69,7 +75,7 @@ pass "drift on a manifested-but-absent file is reported, naming the file"
 INSTALL2="$TMP/install2"
 make -s -C "$ROOT" DEST_DIR="$INSTALL2" install-relay >/dev/null 2>&1 \
   || fail "could not stage the second synthetic install root"
-out2="$(RELAY_INSTALL_ROOT="$INSTALL2" "$DOCTOR" 2>&1)"
+out2="$(RELAY_INSTALL_ROOT="$INSTALL2" "$DOCTOR" --only install-drift 2>&1)"
 if grep -qE '^MISSING:.*(scripts|references)/' <<<"$out2"; then
   fail "relay-doctor reported install drift against a FRESHLY installed tree — a check that fires when nothing is wrong trains everyone to ignore it; got: $(grep -E '^MISSING:' <<<"$out2" | head -3)"
 fi
