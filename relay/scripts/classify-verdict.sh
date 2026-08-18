@@ -87,6 +87,19 @@ chain_ended           = bool(data.get("chain_ended", False)) or bool(chain_end_r
 # (enforced by gather excluding human-gated items from top_intensive, id:a707).
 top_intensive         = str(data.get("top_intensive", "") or "")
 
+# id:2799 — per-lane split (gather-repo-state.sh): top_intensive above is a REPO-WIDE pick
+# (the first open [INTENSIVE] item anywhere, regardless of lane) — stamping it onto every
+# execute/hard verdict let an unrelated [HARD] [INTENSIVE — disk-io] item defer every open
+# [ROUTINE] item behind --intensive (relay-20260818-152657-28729, dotclaude-skills own repo:
+# id:3c9d blocked b8ae/4438/cc7e/f69b/5bef/dd7d, none of which carry [INTENSIVE]). Sentinel
+# is `None` (key ABSENT), not "" — "" is a legitimate "this lane has no intensive item"
+# answer from a caller that DOES send the per-lane fields. BACK-COMPAT: a caller that
+# predates these fields (e.g. existing test fixtures / historical backtests that only set
+# top_intensive) omits them entirely -> sentinel None -> fall back to the pre-2799 verbatim
+# top_intensive copy, byte-identical to the pre-2799 behaviour for such a caller.
+top_intensive_routine = data.get("top_intensive_routine", None)
+top_intensive_hard    = data.get("top_intensive_hard", None)
+
 # id:c79e (a) — is_finished authority fold (native id:000d backstop): is_finished is an
 # INDEPENDENTLY-derived, holistic signal (gather-repo-state.sh: roadmap present/non-empty +
 # 0 open "- [ ]" items + no unaudited commits + clean/lock-only tree) — strictly stronger
@@ -257,11 +270,22 @@ result = {
     "evidence":      evidence,
     "ambiguous":     False,
     "priority_rank": priority_rank,
-    # id:5ac6 — INTENSIVE flag: verbatim copy of gather top_intensive, ONLY when the verdict
-    # is executor-dispatchable (execute/hard). For all other verdicts (review/handoff/human/
-    # idle/blocked) the flag is "" — the invariant intensive!="" => verdict in {execute,hard}
+    # id:5ac6 / id:2799 — INTENSIVE flag: the resource of the top open [INTENSIVE] item
+    # belonging to the SAME LANE the emitted verdict actually came from (execute <-
+    # [ROUTINE], hard <- [HARD — pool]) — never the repo-wide top_intensive, which does not
+    # record which lane its match was in and so could stamp an unrelated lane resource
+    # claim onto this verdict (id:2799). For all other verdicts (review/handoff/human/idle/
+    # blocked) the flag is "" — the invariant intensive!="" => verdict in {execute,hard}
     # must hold so a regression of the dispatch partition cannot OOM-dispatch intensive work.
-    "intensive":     top_intensive if verdict in ("execute", "hard") else "",
+    # Back-compat fallback to the verbatim top_intensive copy when the per-lane fields are
+    # absent (sentinel None) — see the id:2799 note above.
+    "intensive": (
+        (top_intensive_routine if top_intensive_routine is not None else top_intensive)
+        if verdict == "execute" else
+        (top_intensive_hard if top_intensive_hard is not None else top_intensive)
+        if verdict == "hard" else
+        ""
+    ),
 }
 
 print(json.dumps(result))

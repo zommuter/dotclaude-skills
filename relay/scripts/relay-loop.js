@@ -639,6 +639,16 @@ const DISCOVER_SCHEMA = {
           // idle/skipped despite having open [INTENSIVE] work. MUST be "" (not absent)
           // when no open [INTENSIVE] item exists.
           top_intensive: { type: 'string' },
+          // top_intensive_routine / top_intensive_hard (id:2799): the SAME field, split by
+          // the lane the matching [INTENSIVE] item is actually in ([ROUTINE] / [HARD —
+          // pool] respectively), "" when that lane carries none. Computed deterministically
+          // by gather-repo-state.sh alongside top_intensive. The id:ad74 promote backstop
+          // below reads these (not the lane-blind top_intensive) when patching a non-idle
+          // unit's .intensive, so it never stamps an unrelated lane's resource claim onto a
+          // dispatch (the exact id:2799 regression: an unrelated [HARD] [INTENSIVE] item
+          // deferring every open [ROUTINE] item behind --intensive).
+          top_intensive_routine: { type: 'string' },
+          top_intensive_hard: { type: 'string' },
           // substantive_unaudited (id:365b): the DETERMINISTIC anti-spin flag computed by
           // gather-repo-state.sh — false iff there is NOTHING NEW for a recurring strong-model
           // audit (id:401c) to review since the audit ref (only `relay:/fable: checkpoint` /
@@ -1814,19 +1824,37 @@ if (prelude && Array.isArray(prelude.repos)) {
   // (ALLOW_INTENSIVE ? intensiveUnits : intensiveDeferred) — exactly as a shard-emitted intensive
   // unit would be. PROMOTE-ONLY: only moves idle→execute, never demotes a higher verdict.
   // Injected units are exempt (explicit user injection is already the highest priority).
+  //
+  // id:2799 — LANE-AWARE patch. The idle→execute PROMOTE case (below) still uses the
+  // lane-blind top_intensive: an idle unit has no verdict-lane yet, so there is nothing to
+  // match it against, and "there is open [INTENSIVE] work somewhere so this repo is not
+  // really idle" is the pre-existing (unchanged) contract here. But the PATCH case — filling
+  // in .intensive on a unit that ALREADY carries a real verdict (execute/hard, typically from
+  // the deterministic classify-verdict.sh path) — must use ONLY the resource from THAT
+  // verdict's own lane (top_intensive_routine for execute, top_intensive_hard for hard).
+  // Patching from the lane-blind field here was the id:2799 regression: an unrelated [HARD]
+  // [INTENSIVE — disk-io] item (id:3c9d) stamped .intensive onto every unrelated [ROUTINE]
+  // execute unit, deferring the whole repo's routine backlog behind --intensive
+  // (relay-20260818-152657-28729). A verdict outside {idle, execute, hard} is never patched
+  // (mirrors the id:5ac6 invariant: intensive!="" => verdict in {execute,hard}).
   {
     const promotedIntensive = []
     for (const u of units) {
+      if (u.injected) continue
       const top_intensive = u.top_intensive || ''
-      if (!top_intensive || u.injected) continue
-      if (!u.intensive) u.intensive = top_intensive
       if (u.verdict === 'idle') {
+        if (!top_intensive) continue
+        u.intensive = top_intensive
         u.verdict = 'execute'
         u.reason = `promoted by INTENSIVE-emit backstop (id:ad74): open [INTENSIVE — ${top_intensive}] item found but shard classified idle — intensive dispatch gated behind --allow-intensive. ${u.reason || ''}`.trim()
         promotedIntensive.push(`${u.repo}(idle→execute,${top_intensive})`)
         emitBackstopFire('ad74', u.repo, u.verdict)
-      } else {
-        promotedIntensive.push(`${u.repo}(intensive-field-patched,${top_intensive})`)
+      } else if (u.verdict === 'execute' || u.verdict === 'hard') {
+        const laneVal = u.verdict === 'hard' ? (u.top_intensive_hard || '') : (u.top_intensive_routine || '')
+        if (!u.intensive && laneVal) {
+          u.intensive = laneVal
+          promotedIntensive.push(`${u.repo}(intensive-field-patched,${laneVal})`)
+        }
       }
     }
     if (promotedIntensive.length) {
