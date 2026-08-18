@@ -77,6 +77,43 @@ else
     pass "(3) empty range → ledger_only_diff FALSE"
 fi
 
+# ── 3b. id:5340 — the ARCHIVE siblings are ledger files too. The integrator's own archive step
+#        (roadmap-archive.sh, the id:15d5 post-merge path) writes ROADMAP.md + ROADMAP.archive.md
+#        in ONE commit; with the archive file missing from the set that commit read as substantive
+#        and re-opened the false positive this item closed. Reproduces csgebra a1644c0 exactly
+#        (75 deletions from ROADMAP.md, 73 insertions into ROADMAP.archive.md).
+printf 'roadmap seed\n' > "$REPO/ROADMAP.md"
+printf 'archived item\n' > "$REPO/ROADMAP.archive.md"
+git -C "$REPO" add ROADMAP.md ROADMAP.archive.md
+git -C "$REPO" commit -qm 'chore(roadmap): archive done items'
+arch_sha="$(git -C "$REPO" rev-parse HEAD)"
+if ledger_only_diff "$REPO" "$mixed_sha..$arch_sha"; then
+    pass "(3b) ROADMAP.md + ROADMAP.archive.md (the integrator's archive commit) → TRUE"
+else
+    fail "(3b) id:5340: the integrator's own archive commit must be ledger-only, not a suspected breach"
+fi
+# the other two archive siblings, same reason (archive-done.sh / archive-closed.sh)
+printf 'todo archived\n' > "$REPO/TODO.archive.md"
+printf 'review archived\n' > "$REPO/REVIEW_ME.archive.md"
+git -C "$REPO" add TODO.archive.md REVIEW_ME.archive.md
+git -C "$REPO" commit -qm 'chore: archive todo + review_me'
+arch2_sha="$(git -C "$REPO" rev-parse HEAD)"
+if ledger_only_diff "$REPO" "$arch_sha..$arch2_sha"; then
+    pass "(3b) TODO.archive.md + REVIEW_ME.archive.md → TRUE"
+else
+    fail "(3b) id:5340: TODO/REVIEW_ME archive siblings must be ledger-only too"
+fi
+# and the guard stays real: an archive file mixed with CODE is still FALSE
+printf 'code again\n' > "$REPO/lib.sh"
+printf 'more archived\n' >> "$REPO/ROADMAP.archive.md"
+git -C "$REPO" commit -qam 'leaked: archive + code'
+arch3_sha="$(git -C "$REPO" rev-parse HEAD)"
+if ledger_only_diff "$REPO" "$arch2_sha..$arch3_sha"; then
+    fail "(3b) id:5340: archive file + lib.sh must still be FALSE — the set must not become a blanket pass"
+else
+    pass "(3b) archive file + code → still FALSE (broadening did not blunt the gate)"
+fi
+
 # ── 4. merge-only case: isolation gate unaffected, still ok/exit 0 (pre-existing (b3)) ──
 BREPO="$tmp/brepo"
 mkdir -p "$BREPO"

@@ -111,10 +111,108 @@ if [[ -x "$mech_scan" ]]; then
 fi
 mech_section+=$'\n'"${mech_rendered:-_(none)_}"
 
-combined="${content}"$'\n\n'"${claims_section}"$'\n\n'"${burnup_section}"$'\n\n'"${mech_section}"$'\n'
+# ── id:0f9e — MERGE-ON-WRITE, not whole-file replace. ───────────────────────────────────────
+# RELAY_STATUS.md is ONE global path with no runId in it (relay-loop.js: RELAY_STATUS_PATH), and
+# id:11c6's singleton guard EXEMPTS --afk and every directed/scoped mode, so parallel pools are
+# the DESIGNED normal case. The write was atomic but last-writer-wins whole-file replacement, so
+# at any instant the file showed exactly one run and every other live run's status was simply
+# gone — and because the id:8c85 accounting universe is the SCOPED ownRepos, a `--only` run's
+# "complete accounting" and a fleet run's were indistinguishable at the same filename. Observed
+# live 2026-08-18: loderite relay-20260818-154017-12780 overlapping cartulary
+# relay-20260818-152657-28729, and again csgebra relay-20260818-205434-31345 alongside the
+# discovery producer.
+#
+# Each run now owns a DELIMITED section keyed by its runId; a publish replaces only its OWN
+# section and preserves every other LIVE run's. Sections whose run is no longer live are garbage
+# collected, EXCEPT when liveness cannot be determined — an unreadable/empty `heartbeat.sh
+# live-runs` keeps everything (FAIL-OPEN: never delete another run's status on uncertainty).
+#
+# Concurrency: read→compose→write is serialized on a DEDICATED lock so two publishers cannot
+# lose each other's section (the atomic single-writer alone does not prevent a lost update — it
+# prevents a torn one). The final byte-write still goes through relay-state-write.sh status-write
+# so there remains exactly ONE writer; that helper takes a DIFFERENT lock file, so nesting the
+# two cannot deadlock.
+RUN_KEY="${run:-no-run}"
+BASE_DIR="${FABLES_CONFIG:-$HOME/.config/relay}"
+MERGE_LOCK="$BASE_DIR/.status-merge.lock"
+mkdir -p "$BASE_DIR"
+: >>"$MERGE_LOCK"
+
+# This run's section: the rendered body (its own H1 demoted to a run heading so the merged file
+# keeps exactly one H1) followed by the PER-RUN burnup. Claims + mechanical orphans are
+# cross-run scans, so they stay at file level, rendered once.
+run_body="$(printf '%s\n' "$content" | sed "1s|^# RELAY_STATUS — |## Run ${RUN_KEY} — |")"
+run_block="$(printf '<!-- relay-run:%s -->\n%s\n\n%s\n<!-- /relay-run:%s -->' \
+  "$RUN_KEY" "$run_body" "$burnup_section" "$RUN_KEY")"
+
+# Live run universe (fail-open: empty ⇒ keep every existing section).
+HEARTBEAT="$HERE/heartbeat.sh"
+live_runs=""
+if [[ -x "$HEARTBEAT" ]]; then
+  live_runs="$("$HEARTBEAT" live-runs 2>/dev/null | jq -r 'select(.state=="alive") | .runId' 2>/dev/null || true)"
+fi
+
+exec 8>"$MERGE_LOCK"
+flock -w 30 8 || { echo "relay-status-publish: merge lock timeout" >&2; exit 1; }
+
+prev=""
+[[ -f "$target" ]] && prev="$(cat "$target")"
+
+# Carry forward every OTHER run's section, in the order it already had.
+carried="$(RUN_KEY="$RUN_KEY" LIVE="$live_runs" python3 - "$target" <<'PYEOF'
+import os, re, sys
+path = sys.argv[1]
+try:
+    prev = open(path, encoding='utf-8').read()
+except OSError:
+    prev = ''
+mine = os.environ['RUN_KEY']
+live = [r for r in os.environ.get('LIVE', '').split('\n') if r.strip()]
+blocks = re.findall(r'<!-- relay-run:(\S+) -->\n(.*?)\n<!-- /relay-run:\1 -->', prev, re.DOTALL)
+out = []
+for rid, body in blocks:
+    if rid == mine:
+        continue                      # replaced by the freshly rendered section
+    if live and rid not in live:
+        continue                      # run is over — garbage collect its section
+    out.append(f'<!-- relay-run:{rid} -->\n{body}\n<!-- /relay-run:{rid} -->')
+print('\n\n'.join(out), end='')
+PYEOF
+)"
+
+all_blocks="$run_block"
+[[ -n "$carried" ]] && all_blocks="$run_block"$'\n\n'"$carried"
+
+# Aggregate — DERIVED by summing the per-run "## Run progress" counters actually present in the
+# merged sections, so it can never claim a scope it did not read. A run whose block omits a
+# counter contributes 0 to it.
+agg_runs="$(printf '%s\n' "$all_blocks" | grep -c '^<!-- relay-run:' || true)"
+agg_inflight="$(printf '%s\n' "$all_blocks" | awk -F= '/^- in-flight=/{s+=$2} END{print s+0}')"
+agg_blocked="$(printf '%s\n' "$all_blocks" | awk -F= '/^- blocked=/{s+=$2} END{print s+0}')"
+agg_completed="$(printf '%s\n' "$all_blocks" | awk -F= '/^- completed=/{s+=$2} END{print s+0}')"
+agg_round="$(printf '%s\n' "$all_blocks" | awk -F= '/^- round=/{if($2+0>m) m=$2+0} END{print m+0}')"
+header="# RELAY_STATUS — last updated $(date '+%Y-%m-%dT%H:%M:%S%:z')"
+# The counters are emitted ONE PER LINE, aggregate FIRST, deliberately: the id:15bd statusline
+# reads `^- round=` / `^- completed=` / `^- in-flight=` with `head -1`, so placing the summed
+# values above the run sections makes it report FLEET totals with ZERO reader changes. Left as a
+# single multi-key line, `head -1` would instead have picked whichever run section happened to
+# sit first — the same nondeterminism id:0f9e exists to remove. `round` is the MAX across runs
+# (rounds are per-run, so a sum would be meaningless), the rest are sums.
+aggregate="## Aggregate (id:0f9e — summed over the run sections below)"
+aggregate+=$'\n'"- run sections=${agg_runs}"
+aggregate+=$'\n'"- round=${agg_round}"
+aggregate+=$'\n'"- in-flight=${agg_inflight}"
+aggregate+=$'\n'"- completed=${agg_completed}"
+aggregate+=$'\n'"- blocked=${agg_blocked}"
+if [[ -z "$live_runs" ]]; then
+  aggregate+=$'\n'"- ⚠️ liveness UNKNOWN (heartbeat live-runs unreadable) — stale sections are KEPT, not garbage collected"
+fi
+
+combined="${header}"$'\n\n'"${aggregate}"$'\n\n'"${all_blocks}"$'\n\n'"${claims_section}"$'\n\n'"${mech_section}"$'\n'
 
 # Atomic, flock'd single-writer (mkdir -p + temp + atomic mv + ~/$HOME refusal — id:ebfb step 2).
 printf '%s' "$combined" | "$STATE_WRITE" status-write "$target"
+flock -u 8 || true
 
 # Append event lines off-critical-path (id:c8b6). Only when there is a non-empty events block.
 if [[ -n "${events//[$'\n\t ']/}" && -n "$events_path" ]]; then

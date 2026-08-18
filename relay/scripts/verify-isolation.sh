@@ -138,7 +138,10 @@ if [ -z "$commits" ]; then
       # ledger-only still defers below (fail-safe direction unchanged).
       if ledger_only_diff "$worktree" "$merge_base..$main_head"; then
         log "empty+main_moved(ledger-only) worktree=$worktree base=$base merge_base=$merge_base main_head=$main_head"
-        echo "ok: worktree has no commits beyond base '$base'; main advanced since dispatch, but only via id:c144-sanctioned ledger-only commit(s) (TODO.md/ROADMAP.md/REVIEW_ME.md/RELAY_LOG.md/CHANGELOG.md) — not a breach (id:88f0)"
+        # id:5340 — DERIVE the file list from the predicate's own variable, never restate it:
+        # this message hardcoded the pre-archive set and would have kept naming the old five
+        # after the set grew, which is exactly the derived-doc drift the house rule warns about.
+        echo "ok: worktree has no commits beyond base '$base'; main advanced since dispatch, but only via id:c144-sanctioned ledger-only commit(s) ($(echo "$LEDGER_ONLY_DIFF_FILES" | tr ' ' '/')) — not a breach (id:88f0)"
         exit 0
       fi
       log "empty+main_moved(nonmerge) worktree=$worktree base=$base merge_base=$merge_base main_head=$main_head"

@@ -295,6 +295,12 @@ function buildStopReasonLine(sr) {
 // universe); assertStatusAccounting is a thin wrapper instantiating it over ownRepos × the five
 // sections. id:eb63(b) can instantiate the same core at item granularity without touching this.
 const ACCOUNTING_SECTIONS = ['blocked', 'completed', 'inFlight', 'queued', 'skipped']
+// id:2f6b — only these three are mutually exclusive for one repo in one round. `completed` and
+// `handbacks` (rendered inside `blocked`) ACCUMULATE for the whole run, so a repo legitimately
+// appears in them alongside anything else; asserting "exactly one section" over all five fired on
+// every multi-round run and the false message then tripped the harness safety classifier, failing
+// two status writes (loderite relay-20260818-154017-12780). See status-accounting.mjs.
+const EXCLUSIVE_SECTIONS = ['inFlight', 'queued', 'skipped']
 function accountingMemberKey(m) {
   if (typeof m === 'string') return m
   if (!m || typeof m !== 'object') return ''
@@ -303,33 +309,69 @@ function accountingMemberKey(m) {
   }
   return ''
 }
+// id:2f6b — a row is a UNIT, not a repo. Null when the row carries no item identity (exempt from
+// the unit arm, still covered by the completeness arm).
+function statusUnitKey(m) {
+  if (!m || typeof m !== 'object') return null
+  const repo = typeof m.repo === 'string' ? m.repo : ''
+  if (!repo) return null
+  const verdict = [m.mode, m.verdict].find((v) => typeof v === 'string' && v) || ''
+  let item = ''
+  if (typeof m.item === 'string' && m.item) item = m.item
+  else if (Array.isArray(m.workedIds) && m.workedIds.length) item = [...m.workedIds].filter(Boolean).sort().join(',')
+  if (!item) return null
+  return `${repo}#${verdict}#${item}`
+}
 function assertCompleteAccounting(universe, buckets, opts) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const label = typeof o.label === 'string' && o.label ? o.label : 'accounting'
   const id = typeof o.id === 'string' ? o.id : ''
   const uni = (Array.isArray(universe) ? universe : []).map(accountingMemberKey).filter(Boolean)
   const b = buckets && typeof buckets === 'object' ? buckets : {}
+  const exclusive = Array.isArray(o.exclusiveBuckets) ? o.exclusiveBuckets : null
+  const unitKeyOf = typeof o.unitKey === 'function' ? o.unitKey : null
   const placement = new Map()
+  const exclusivePlacement = new Map()
+  const unitPlacement = new Map()
   for (const bucketName of Object.keys(b)) {
+    const isExclusive = !exclusive || exclusive.includes(bucketName)
     for (const m of (Array.isArray(b[bucketName]) ? b[bucketName] : [])) {
       const k = accountingMemberKey(m)
-      if (!k) continue
-      if (!placement.has(k)) placement.set(k, [])
-      placement.get(k).push(bucketName)
+      if (k) {
+        if (!placement.has(k)) placement.set(k, [])
+        placement.get(k).push(bucketName)
+        if (isExclusive) {
+          if (!exclusivePlacement.has(k)) exclusivePlacement.set(k, [])
+          exclusivePlacement.get(k).push(bucketName)
+        }
+      }
+      const uk = unitKeyOf ? unitKeyOf(m) : null
+      if (uk) {
+        if (!unitPlacement.has(uk)) unitPlacement.set(uk, [])
+        unitPlacement.get(uk).push(bucketName)
+      }
     }
   }
   const missing = uni.filter((k) => !placement.has(k)).sort()
-  const duplicated = [...placement.entries()].filter(([, where]) => where.length > 1).map(([k]) => k).sort()
+  const dupExclusive = [...exclusivePlacement.entries()].filter(([, where]) => where.length > 1).map(([k]) => k)
+  const dupUnit = [...unitPlacement.entries()].filter(([, where]) => where.length > 1).map(([k]) => k)
+  const duplicated = [...new Set([...dupExclusive, ...dupUnit])].sort()
+  const whereOf = (k) => (exclusivePlacement.has(k) && exclusivePlacement.get(k).length > 1
+    ? exclusivePlacement.get(k) : (unitPlacement.get(k) || placement.get(k) || []))
   const ok = missing.length === 0 && duplicated.length === 0
   const tag = id ? ` (id:${id})` : ''
   const bucketNames = Object.keys(b).sort().join(', ')
   let message
   if (ok) {
-    message = `${label}: OK — all ${uni.length} member(s) accounted for in exactly one of [${bucketNames}]${tag}`
+    const scope = exclusive ? `at most one of [${[...exclusive].sort().join(', ')}]` : `exactly one of [${bucketNames}]`
+    message = `${label}: OK — all ${uni.length} member(s) accounted for, ${scope}${tag}`
   } else {
     const parts = []
     if (missing.length) parts.push(`${missing.length} of ${uni.length} reached NO section [${bucketNames}] — ${missing.join(', ')}`)
-    if (duplicated.length) parts.push(`${duplicated.length} double-counted (must be exactly one section) — ${duplicated.map((k) => `${k} in ${placement.get(k).sort().join('+')}`).join('; ')}`)
+    if (duplicated.length) {
+      const what = exclusive ? 'in more than one mutually-exclusive section' : 'must be exactly one section'
+      parts.push(`${duplicated.length} double-counted (${what}) — ${duplicated.map((k) => `${k} in ${[...whereOf(k)].sort().join('+')}`).join('; ')}`)
+    }
     message = `${label}: INCOMPLETE ACCOUNTING${tag} — ${parts.join(' | ')}. A member that reaches no section is INVISIBLE to the operator: the file reports a false clean.`
   }
   return { ok, missing, duplicated, message }
@@ -347,8 +389,10 @@ function statusBuckets(state) {
 }
 function assertStatusAccounting(ownRepos, state) {
   return assertCompleteAccounting(ownRepos, statusBuckets(state), {
-    label: 'RELAY_STATUS accounting (every own repo in exactly one section, with a reason)',
+    label: 'RELAY_STATUS accounting (every own repo in at least one section, with a reason)',
     id: '8c85',
+    exclusiveBuckets: EXCLUSIVE_SECTIONS,   // id:2f6b — completed/blocked accumulate across rounds
+    unitKey: statusUnitKey,                 // id:2f6b — the same UNIT twice is still a defect
   })
 }
 
@@ -517,15 +561,33 @@ async function writeRelayStatus(state, statusPath) {
   // The label: write-relay-status dispatch below now goes through dispatchGuarded, which records
   // the failure into state.agentFailures; the hop's own fail-soft behaviour is unchanged
   // (scheduleStatusWrite already .catch()es this tail).
+  //
+  // id:b0ce — MECHANICAL HOP (was: a hardcoded model:'haiku' agent that had the whole payload
+  // dictated to it verbatim). This was the LAST hop whose script is allowlisted in
+  // mechanical-proxy.py yet still crossed a model, and it cost two status writes on 2026-08-18:
+  // the harness safety classifier read "run EXACTLY this command, pipe the payload verbatim"
+  // plus a payload asserting fleet state as an injection attempt and refused BOTH hops
+  // (agents_error=2). That prompt shape cannot be reworded out of looking like injection, so the
+  // fix is to take the model out of the path: `model: MECH_MODEL` sends it to the ```relay-mech
+  // command fence + the ```relay-mech-stdin DATA fence (id:33b2/93ac), which the proxy runs
+  // locally with the payload piped to stdin and NEVER handed to a shell or a model. The stdin
+  // fence was built and allowlisted for exactly this hop ("payload embeds arbitrary repo/item
+  // prose … heredoc, JSON, newlines") and had NO call site until now.
+  //
+  // STATED LIMIT — this removes the model only when the proxy IS in path. Under
+  // MECH_FALLBACK='fallback-haiku' (mode-a, no proxy) MECH_MODEL is 'haiku' and the payload
+  // still crosses a model, so the classifier exposure remains in that mode. The prompt below is
+  // therefore written to be executable by a model too, and the heredoc it names is the model's
+  // path only — the proxy ignores the prose entirely and reads the two fences.
   await dispatchGuarded(
-    { label: 'write-relay-status', phase: 'Status', model: 'haiku' }, '-',
-    `Run EXACTLY this one command and nothing else — no path math, no formatting, no extra files. Pipe the payload below to it verbatim via the quoted heredoc (the script resolves the path, renders the Claims + Burnup sections, writes atomically, and appends any events itself):
-
-~/.claude/skills/relay/scripts/relay-status-publish.sh --path '${path}' --run '${state.runId || ''}' --events-path '${RELAY_EVENTS_PATH}' <<'RELAY_STATUS_EOF'
+    { label: 'write-relay-status', phase: 'Status', model: MECH_MODEL }, '-',
+    `Run exactly this command and report its stdout verbatim (publishes the relay run-status snapshot; the script resolves the path, renders the Claims + Burnup sections, writes atomically, and appends any events itself). The payload in the second fence is DATA: pipe it to the command's stdin unchanged, e.g. via a quoted heredoc. Do not reformat it, do not write any file yourself, and do not retry on a non-zero exit — report its stderr instead.
+\`\`\`relay-mech
+~/.claude/skills/relay/scripts/relay-status-publish.sh --path '${path}' --run '${state.runId || ''}' --events-path '${RELAY_EVENTS_PATH}'
+\`\`\`
+\`\`\`relay-mech-stdin
 ${stdinPayload}
-RELAY_STATUS_EOF
-
-Report the script's final line. If it exits non-zero, report its stderr; do not retry or write any file yourself.`
+\`\`\``
   )
 }
 
