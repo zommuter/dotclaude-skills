@@ -5824,3 +5824,37 @@ hand-integrate 2 handed-back review branches: id:6446 parked-vocab substring def
 ## 2026-08-14 13:38 — integrate (claude-opus-5)
 
 id:c97c — inbox twin check anchored to a token's OWN marker (shared primitive; writer+drainer agree). Independently re-derived against the original incident: old code silently destroyed the sibling item, new code files both. 121/121 true twins still resolve. Suite 425/0/2-xred.
+
+## 2026-08-18 — executor (claude-sonnet-5)
+
+Worked id:d3f8 — added `make test FILES="..."` as a thin forward to
+tests/run-tests.sh's existing subset-args support (the harness already accepted
+explicit file args; only the `make` front door was missing). `make test` with
+no FILES is unchanged (empty $(FILES) expansion, same recipe line — verified
+with `make -n test`). New test tests/test_make_test_files.sh (roadmap:d3f8)
+fixtures on two real suite files (one PASS, one currently-EXPECTED-RED) rather
+than a fabricated ROADMAP.md, because run-tests.sh resolves ROADMAP.md
+relative to its own script location, not an overridable env var — a fixture
+repo would silently check the wrong ledger. `test-changed` deliberately NOT
+built (item scopes it as secondary). Full suite green: 438 passed, 0 failed,
+2 expected-red.
+Friction: none — cleanly scoped item, no ambiguity.
+
+Considered and rejected id:cc7e (`md-merge.py update-ids` own-id resolution):
+its Acceptance requires "last <!-- id:XXXX --> marker on a line wins" (an
+update to the line's trailing id MUST apply even though the body quotes an
+earlier id). The shipped id:6059 grammar (already in `meeting/md-merge.py`,
+`_own_id_match_of_line`/`AmbiguousOwnId`) instead treats ANY line with >1
+marker as ambiguous and refuses BOTH directions loudly — verified by running
+`tests/test_md_merge_own_id_last.sh` directly: case (A) (update to the
+line's own trailing id) fails with "AMBIGUOUS own id ... REFUSING to update
+bbbb", contradicting the test's requirement that it apply. This is the exact
+ratified-spec conflict TODO.md's id:7cd6 flags in its own residue list
+("see the cc7e/4a12 ratified-spec conflict below before touching it") —
+cc7e's spec predates and is superseded by id:6059's stricter refusal design.
+Implementing cc7e as written would either fight already-shipped, tested
+behaviour or require deliberately weakening the id:6059 guard for exactly the
+ambiguous-line case it exists to catch. Not executor-decidable; needs an
+owner/meeting ruling on whether to (a) retire cc7e's old spec + rewrite its
+test to assert the id:6059 refusal instead, or (b) narrow id:6059's ambiguity
+rule for the trailing-marker case. Left untouched, worktree clean of this item.
