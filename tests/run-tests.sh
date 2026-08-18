@@ -2,7 +2,9 @@
 # run-tests.sh — plain-bash test runner for dotclaude-skills.
 #
 # Usage:
-#   tests/run-tests.sh                      # full suite
+#   tests/run-tests.sh                      # full suite, parallel (jobs = nproc)
+#   tests/run-tests.sh -j 4                 # explicit job count
+#   JOBS=4 tests/run-tests.sh               # same, via env (an explicit -j wins)
 #   tests/run-tests.sh tests/test_foo.sh …  # subset
 #
 # Each tests/test_*.sh is an independent bash script: exit 0 = pass.
@@ -12,6 +14,16 @@
 #   are the executable spec for open roadmap items. Once the item's checkbox is
 #   ticked, its failures are real failures. Passing tests always count.
 # Exit code: 0 if no real failures, 1 otherwise.
+#
+# Parallelism contract:
+#   * `-j 1` reproduces the historical serial behaviour EXACTLY (same lines, same
+#     order, same exit code). It is the compatibility anchor.
+#   * Output NEVER interleaves: each test's stdout+stderr is buffered to its own
+#     temp file and results are emitted in STABLE FILE ORDER (not completion
+#     order), so a FAIL block stays contiguous under its own FAIL line.
+#   * NESTED RUNS ARE SERIAL: ~10 test files invoke this runner recursively. We
+#     export RUN_TESTS_NESTED=1; when set, jobs is forced to 1 regardless of
+#     flag/env/nproc, so an outer pool of N cannot spawn N inner pools of N.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,8 +41,34 @@ export GIT_CONFIG_COUNT=1
 export GIT_CONFIG_KEY_0=core.hooksPath
 export GIT_CONFIG_VALUE_0=/dev/null
 
-if [[ $# -gt 0 ]]; then
-  files=("$@")
+jobs="${JOBS:-}"
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -j)   jobs="${2-}"; shift 2 ;;
+    -j*)  jobs="${1#-j}"; shift ;;
+    --)   shift; args+=("$@"); break ;;
+    *)    args+=("$1"); shift ;;
+  esac
+done
+
+nested=0
+if [[ -n "${RUN_TESTS_NESTED:-}" ]]; then
+  nested=1
+  jobs=1                       # a nested run always stays serial (see contract above)
+elif [[ -z "$jobs" ]]; then
+  # stderr suppressed deliberately: a missing/failing nproc is a benign "unknown core
+  # count", and its message would corrupt the runner's own output. Falls back to 1.
+  jobs="$(nproc 2>/dev/null || echo 1)"
+fi
+if ! [[ "$jobs" =~ ^[0-9]+$ ]] || (( jobs < 1 )); then
+  echo "run-tests.sh: invalid job count: '$jobs'" >&2
+  exit 2
+fi
+export RUN_TESTS_NESTED=1
+
+if [[ ${#args[@]} -gt 0 ]]; then
+  files=("${args[@]}")
 else
   files=("$ROOT"/tests/test_*.sh)
 fi
@@ -45,11 +83,54 @@ item_open() {
   grep -qE "^- \[ \] .*<!-- id:${token} -->" "$ROADMAP"
 }
 
-for f in "${files[@]}"; do
+# Longest-first scheduling: durations are LEARNED from previous runs into a cache
+# outside the repo (no hardcoded slow-test list — that rots). No cache => file order.
+# Scheduling order never affects OUTPUT order, which is always file order. Nested runs
+# neither read nor write the cache: they are serial anyway, and their throwaway fixture
+# test files would poison real tests' timings via basename collisions.
+DURCACHE="${RUN_TESTS_DURCACHE:-${TMPDIR:-/tmp}/dotclaude-run-tests-durations.tsv}"
+(( nested )) && DURCACHE=""
+mapfile -t order < <(
+  printf '%s\n' "${files[@]}" | awk -v cache="$DURCACHE" '
+    BEGIN { if (cache != "") while ((getline line < cache) > 0) { split(line, a, "\t"); d[a[1]] = a[2] } }
+    { n = $0; sub(/.*\//, "", n); printf "%.3f\t%d\n", (n in d ? d[n] : 0), NR - 1 }
+  ' | sort -t$'\t' -k1,1gr -k2,2n | cut -f2
+)
+
+tmp="$(mktemp -d)"
+trap 'rm -rf -- "$tmp"' EXIT
+
+run_one() {  # $1 = index into files[]
+  local i="$1" t0="$EPOCHREALTIME" rc
+  bash "${files[$i]}" >"$tmp/$i.out" 2>&1
+  rc=$?
+  printf '%s\n' "$rc" >"$tmp/$i.rc"
+  awk -v a="$t0" -v b="$EPOCHREALTIME" 'BEGIN{printf "%.3f\n", b-a}' >"$tmp/$i.dur"
+}
+
+running=0
+for i in "${order[@]}"; do
+  [[ -f "${files[$i]}" ]] || continue          # missing file => SKIP, emitted below
+  while (( running >= jobs )); do wait -n; (( running-- )); done
+  run_one "$i" &
+  (( ++running ))
+done
+wait
+
+# A harness that silently skips tests also "passes" — refuse to report at all if the
+# scheduler failed to run something it should have.
+for i in "${!files[@]}"; do
+  [[ -f "${files[$i]}" ]] || continue
+  [[ -f "$tmp/$i.rc" ]] || { echo "run-tests.sh: internal error: ${files[$i]} was never executed" >&2; exit 2; }
+done
+
+for i in "${!files[@]}"; do
+  f="${files[$i]}"
   [[ -f "$f" ]] || { echo "SKIP   $f (not found)"; continue; }
   name="$(basename "$f")"
   token="$(grep -oE '# roadmap:[0-9a-f]{4}' "$f" | head -1 | sed 's/.*roadmap://')" || true
-  if out="$(bash "$f" 2>&1)"; then
+  out="$(cat "$tmp/$i.out")"
+  if [[ "$(cat "$tmp/$i.rc")" == 0 ]]; then
     echo "PASS   $name"
     (( ++pass ))
   else
@@ -64,6 +145,20 @@ for f in "${files[@]}"; do
     fi
   fi
 done
+
+# Refresh the duration cache (last value per test name wins). Best-effort and silent:
+# a broken cache only costs file-order scheduling, never correctness.
+if [[ -n "$DURCACHE" ]]; then
+  for i in "${!files[@]}"; do
+    [[ -f "$tmp/$i.dur" ]] && printf '%s\t%s\n' "$(basename "${files[$i]}")" "$(cat "$tmp/$i.dur")"
+  done >"$tmp/durs.new"
+  # stderr suppressed deliberately: a first-ever run has no cache to cat, and an
+  # unwritable cache is a benign loss of scheduling hints — never of test results.
+  cat "$DURCACHE" "$tmp/durs.new" 2>/dev/null \
+    | awk -F'\t' 'NF==2{d[$1]=$2} END{for (k in d) printf "%s\t%s\n", k, d[k]}' \
+    | sort >"$tmp/durs.merged"
+  [[ -s "$tmp/durs.merged" ]] && mv -- "$tmp/durs.merged" "$DURCACHE" 2>/dev/null
+fi
 
 echo
 echo "summary: $pass passed, $fail failed, $xred expected-red (open roadmap items)"
