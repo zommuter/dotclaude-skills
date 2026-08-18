@@ -53,8 +53,17 @@ RELAY_LOG.md, hygiene).
   priority. Only the orchestrator writes it (after your confirmation).
 - **`~/.config/relay/RELAY_STATUS.md`** — live cross-repo rollup during
   autonomous runs: in-flight units, completed integrations with their tags,
-  queued/blocked repos, quota remaining, open REVIEW_ME counts. Overwritten on
-  every integration; read-only for humans.
+  queued/blocked repos, quota remaining, open REVIEW_ME counts. Read-only for
+  humans. **MERGED, not overwritten (id:0f9e):** parallel runs are the designed
+  normal case (the id:11c6 singleton guard exempts `--afk` and every directed or
+  scoped mode), so each run owns a `<!-- relay-run:<runId> -->` section and a
+  publish rewrites only its own. Other live runs' sections are carried forward;
+  a section whose run is no longer in `heartbeat.sh live-runs` is garbage
+  collected, and when liveness cannot be read NOTHING is dropped and the file
+  says so. The `## Aggregate` block at the top is summed over the sections
+  actually present — so a `--only` run's numbers can no longer masquerade as the
+  fleet's. Written by `relay-status-publish.sh` as a mechanical hop with no model
+  in the path when the proxy is up (id:b0ce).
 - **Worktrees under `~/.cache/relay/worktrees/<repo>/`** — children work
   in isolation and never push. A worktree that is still there after a turn is a
   **HANDBACK**: work that failed its contract and was deliberately *not* merged.

@@ -69,7 +69,7 @@ if [[ ! -f "$MOD" ]]; then
   bad "id:8c85: relay/scripts/status-accounting.mjs does not exist — there is no pure, testable owner of the own_count == sum(sections) invariant"
 else
   cat > "$TMP/drive.mjs" <<NODE
-import { accountedRepos, unaccountedRepos, doubleCountedRepos, assertStatusAccounting, ACCOUNTING_SECTIONS } from 'file://$MOD'
+import { accountedRepos, unaccountedRepos, doubleCountedRepos, assertStatusAccounting, assertCompleteAccounting, statusUnitKey, ACCOUNTING_SECTIONS, EXCLUSIVE_SECTIONS } from 'file://$MOD'
 const out = []
 const say = (k, v) => out.push(k + '=' + (v ? '1' : '0'))
 
@@ -126,6 +126,52 @@ const dup = { inFlight: [{ repo: 'a' }], completed: [], queued: [{ repo: 'a', ve
 say('duplicate_detected', doubleCountedRepos(dup).includes('a'))
 say('duplicate_assert_not_ok', assertStatusAccounting(['a'], dup).ok === false)
 
+// ── (C2) id:2f6b — sections with DIFFERENT temporality must NOT read as double-counting.
+//        `completed` and `handbacks` accumulate for the whole run (relay-loop.js: state.completed
+//        .push / state.handbacks.push, never reset), so a repo legitimately occupies them
+//        alongside a live in-flight unit. Both fixtures below are REAL observed states that the
+//        pre-2f6b check called INCOMPLETE ACCOUNTING; the loderite one then tripped the harness
+//        safety classifier and FAILED both status writes. ─────────────────────────────────────
+const csgebra = {
+  inFlight:  [{ repo: 'csgebra', mode: 'execute', agentId: 'unit-3' }],
+  completed: [{ repo: 'csgebra', mode: 'execute', ckptTag: 'relay-ckpt-20260818-2103', pushStatus: 'pushed', workedIds: ['0feb'] }],
+  queued: [], surfaced: [],
+  handbacks: [{ repo: 'csgebra', reason: 'isolation gate failed', worktreePath: '/w' }],
+  skipped: [],
+}
+const csRes = assertStatusAccounting(['csgebra'], csgebra)
+say('accum_csgebra_not_flagged', csRes.ok === true)
+say('accum_csgebra_no_dup', doubleCountedRepos(csgebra).length === 0)
+// loderite run relay-20260818-154017-12780: ONE repo, 14 completed rows + 3 handbacks, 9 rounds.
+const loderite = {
+  inFlight: [], queued: [], surfaced: [], skipped: [],
+  completed: Array.from({ length: 14 }, (_, i) => ({ repo: 'loderite', mode: 'execute', ckptTag: 't' + i, pushStatus: 'ok', workedIds: ['id' + i] })),
+  handbacks: Array.from({ length: 3 }, (_, i) => ({ repo: 'loderite', reason: 'hb' + i, worktreePath: '/w' })),
+}
+const loRes = assertStatusAccounting(['loderite'], loderite)
+say('accum_loderite_not_flagged', loRes.ok === true)
+say('accum_loderite_message_not_incomplete', !String(loRes.message).includes('INCOMPLETE ACCOUNTING'))
+say('accum_loderite_completeness_intact', unaccountedRepos(['loderite', 'never-seen'], loderite).length === 1)
+
+// ── (C3) id:2f6b — the arm that MUST survive: the SAME UNIT rendered in two sections. Keyed by
+//        (repo, verdict, item), so an in-flight row and a completed row naming the same id are a
+//        real defect even though those two sections are otherwise free to co-occur. ───────────
+const sameUnit = {
+  inFlight:  [{ repo: 'x', mode: 'execute', item: 'id:9999' }],
+  completed: [{ repo: 'x', mode: 'execute', ckptTag: 't', pushStatus: 'ok', workedIds: ['id:9999'] }],
+  queued: [], surfaced: [], handbacks: [], skipped: [],
+}
+say('same_unit_twice_detected', doubleCountedRepos(sameUnit).includes('x#execute#id:9999'))
+say('same_unit_twice_not_ok', assertStatusAccounting(['x'], sameUnit).ok === false)
+say('unit_key_null_without_item', statusUnitKey({ repo: 'x', reason: 'dirty' }) === null)
+say('unit_key_null_for_junk', statusUnitKey(null) === null && statusUnitKey('str') === null)
+say('exclusive_sections_are_the_three', EXCLUSIVE_SECTIONS.join(',') === 'inFlight,queued,skipped')
+
+// ── (C4) id:2f6b — the GENERIC core keeps its original "exactly one bucket" semantics when no
+//        exclusiveBuckets is passed, so id:eb63(b) can instantiate it unchanged. ─────────────
+const genericDup = assertCompleteAccounting(['m'], { one: [{ repo: 'm' }], two: [{ repo: 'm' }] }, { label: 'generic', id: 'eb63' })
+say('generic_core_default_still_exactly_one', genericDup.ok === false && genericDup.duplicated.includes('m'))
+
 // ── (D) Fail-safe on absent/empty inputs — the invariant must never throw inside the loop. ──
 say('empty_own_ok', unaccountedRepos([], {}).length === 0 && assertStatusAccounting([], {}).ok === true)
 say('missing_fields_no_throw', (() => { try { unaccountedRepos(['x'], {}); return true } catch { return false } })())
@@ -141,7 +187,7 @@ NODE
     done <<< "$res"
   else
     echo "$res" | sed 's/^/    /'
-    bad "id:8c85: status-accounting.mjs does not expose the required API (accountedRepos / unaccountedRepos / doubleCountedRepos / assertStatusAccounting / ACCOUNTING_SECTIONS)"
+    bad "id:8c85: status-accounting.mjs does not expose the required API (accountedRepos / unaccountedRepos / doubleCountedRepos / assertStatusAccounting / assertCompleteAccounting / statusUnitKey / ACCOUNTING_SECTIONS / EXCLUSIVE_SECTIONS)"
   fi
 fi
 
@@ -264,4 +310,4 @@ fi
 echo "---"
 echo "summary: $pass ok, $fail bad"
 [[ "$fail" -eq 0 ]] || exit 1
-echo "ALL PASS: RELAY_STATUS.md accounts for every own repo in exactly one section (id:8c85)"
+echo "ALL PASS: RELAY_STATUS.md accounts for every own repo in at least one section, at most one exclusive section (id:8c85/id:2f6b)"

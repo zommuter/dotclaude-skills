@@ -27,7 +27,17 @@
 #   OR if the range is empty (an empty diff is NEVER vacuously "ledger-only" — id:88f0
 #   fixture requirement: "an empty range → FALSE, never vacuously true").
 #   Never mutates; a single read-only `git diff --name-only`.
-LEDGER_ONLY_DIFF_FILES="TODO.md ROADMAP.md REVIEW_ME.md RELAY_LOG.md CHANGELOG.md"
+# id:5340 — the *.archive.md siblings belong here for the same reason their sources do: the
+# integrator's OWN archive step (roadmap-archive.sh / archive-done.sh / archive-closed.sh, the
+# id:15d5 post-merge path) MOVES items out of ROADMAP.md/TODO.md/REVIEW_ME.md into them, in the
+# main checkout, by design. Omitting them made an archive commit look substantive and re-opened
+# the exact false positive id:88f0 closed. Observed twice on 2026-08-18 (csgebra runs
+# relay-20260818-200205-25179 and -205434-31345): of the three commits the isolation gate named,
+# `bf529da` (RELAY_LOG.md) and `af8547b` (ROADMAP.md) were ALREADY exempt — only
+# `a1644c0 chore(roadmap): archive done items` (ROADMAP.md + ROADMAP.archive.md) broke the
+# predicate, and it deferred a legitimate no-findings review unit with a breach diagnosis that
+# had not happened. Paths, not commit-message shapes: message wording drifts, this set does not.
+LEDGER_ONLY_DIFF_FILES="TODO.md ROADMAP.md REVIEW_ME.md RELAY_LOG.md CHANGELOG.md TODO.archive.md ROADMAP.archive.md REVIEW_ME.archive.md"
 
 ledger_only_diff() {
   local repo="$1" range="$2"

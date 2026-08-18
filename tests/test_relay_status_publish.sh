@@ -24,7 +24,13 @@ EVENTS="$TMP/.config/relay/relay-events.jsonl"
 printf '# RELAY_STATUS — body line\nsome status text' \
   | "$PUB" --path "$STATUS" --run relay-20260618-test --events-path "$EVENTS" >/dev/null
 [[ -f "$STATUS" ]] || fail "status file not written"
-grep -q "RELAY_STATUS — body line" "$STATUS" || fail "base content missing from status file"
+# id:0f9e — the payload's own H1 is DEMOTED to a per-run heading on merge, because the merged
+# file now carries exactly one H1 of its own and one delimited section per live run. The body
+# text itself must still survive verbatim.
+grep -q "## Run relay-20260618-test — body line" "$STATUS" \
+  || fail "base content missing from status file (payload H1 should become the run's section heading)"
+grep -q "<!-- relay-run:relay-20260618-test -->" "$STATUS" || fail "run section delimiter missing"
+grep -q "^# RELAY_STATUS — last updated " "$STATUS" || fail "merged file must carry its own H1 header"
 grep -q "## Claims (live)" "$STATUS" || fail "Claims section not rendered"
 grep -q "## Burnup this run" "$STATUS" || fail "Burnup section not rendered"
 grep -q "_(none)_" "$STATUS" || fail "empty-sandbox claims should render _(none)_"

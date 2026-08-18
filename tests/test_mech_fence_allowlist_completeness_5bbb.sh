@@ -80,6 +80,7 @@ def line_of(pos):
 # guard against the extractor silently missing a future fence shape.
 mention_re = re.compile(r"relay-mech")
 markers = []
+stdin_markers = []
 comment_mentions = []
 unclassified = []
 
@@ -92,7 +93,18 @@ for i, line in enumerate(raw_lines):
             continue
         before = line[:col]
         if before.endswith('```') or before.endswith('\\`\\`\\`'):
-            markers.append((i + 1, line_offsets[i] + col))
+            # id:b0ce — a ```relay-mech-stdin opener is the DATA-plane fence, NOT a command
+            # fence: its body is a payload piped to the child's stdin and is NEVER handed to a
+            # shell (mechanical-proxy.py `_MECH_STDIN_FENCE_RE` / `_run_mechanical`'s `input=`).
+            # Resolving it against the script allowlist is a category error — the payload is
+            # arbitrary markdown by construction. This mirrors the proxy's own disjointness rule:
+            # its COMMAND regex requires `[ \t]*\r?\n` right after `relay-mech`, so it never
+            # matches this opener. Counted separately rather than skipped, so a data fence still
+            # cannot slip past the classifier unnoticed (acceptance #5's spirit).
+            if line[col + len('relay-mech'):].startswith('-stdin'):
+                stdin_markers.append((i + 1, col))
+            else:
+                markers.append((i + 1, line_offsets[i] + col))
         else:
             unclassified.append((i + 1, col, line))
 
@@ -105,7 +117,7 @@ if not markers:
     print("FAIL: zero real relay-mech fence markers found — the proxy has nothing to dispatch, or the extractor is broken")
     sys.exit(1)
 
-print(f"PASS: {len(markers)} real relay-mech fence markers found (acceptance #1 count), {len(comment_mentions)} comment-only mentions correctly excluded (acceptance #5 negative control), 0 unclassified")
+print(f"PASS: {len(markers)} real relay-mech COMMAND fence markers found (acceptance #1 count), {len(stdin_markers)} relay-mech-stdin DATA fence(s) correctly excluded from allowlist resolution, {len(comment_mentions)} comment-only mentions correctly excluded (acceptance #5 negative control), 0 unclassified")
 
 close_re = re.compile(r"```|\\`\\`\\`")
 script_re = re.compile(r"relay/scripts/([A-Za-z0-9_.-]+\.sh)")
