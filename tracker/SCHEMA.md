@@ -484,7 +484,7 @@ silently delete the carrier.
 | Target | Status |
 |---|---|
 | **Vikunja** | **VERIFIED LIVE** against v2.4.0 (2026-08-10): 19 items + 39 labels + 3 relations applied to the pilot project, `verify` PASS, re-apply idempotent (0 created), and a deliberately removed `view:todo=` label was **caught** by `verify` (exit 3) and repaired by re-apply |
-| **Plane** | **UNVERIFIED — blocked on `id:02f7`.** The pilot deployment does not serve (21/22 containers up, nothing binds the proxy port; host rootless-podman/netavark nftables defect). `plan`/`graph` are fully tested; `apply` is written from Plane's documented public API v1 and has never issued a live request |
+| **Plane** | **VERIFIED LIVE** against v2.6.3 (2026-08-11, `id:90f2`): 19 items + 39 labels + 3 relations applied to the pilot project, `verify` PASS, re-apply idempotent. ~~UNVERIFIED — blocked on `id:02f7`~~ — **corrected 2026-08-18**: that blocker (rootless-podman/netavark nftables defect, nothing binding the proxy port) was RESOLVED by a host reboot on 2026-08-10 and the item is archived; this row asserting otherwise was stale for a week. Note the stack currently needs a manual start after each reboot — the quadlets carry no `[Install]` section — which `id:a532` now ratifies as boot-persistent |
 
 Two known Plane gaps, recorded rather than papered over: its public API v1 documents no
 issue-relation endpoint, so `blocked_by` / `link` edges emit a loud `WARN` and survive only
