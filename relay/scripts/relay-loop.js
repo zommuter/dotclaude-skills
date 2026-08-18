@@ -1455,6 +1455,19 @@ function classifyDrainBacklog(blocked) {
 function isBlockedRound(r) {
   return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) > 0)
 }
+// id:bd04 — ONE predicate for "this handback CREATED dispatchable work", shared by both sites
+// that record a handback. It was previously inline at the integrate() site ONLY, which made
+// id:c919 inert for the case it was built for: a child-reported SIZE-OUT takes the
+// `if (!report.contract_met)` branch and never reaches integrate(), so its `workCreated` stayed
+// undefined and isDryRound scored the round dry. Observed csgebra run
+// relay-20260818-205434-31345: two hard size-outs whose reports explicitly carried
+// route=hard-split + a 4-seam and a 3-seam proposed_split, both recorded via the contract_met
+// path, run exited stopReason:'drained' while classify-repo.sh reported open_hard=4.
+function handbackCreatedWork(report) {
+  const split = report && Array.isArray(report.proposed_split) ? report.proposed_split.length : 0
+  return !!(report && report.route === 'hard-split' && split > 0)
+}
+
 function isDryRound(r) {
   return !!(r && (r.substantive || 0) === 0 && (r.surfaced || 0) === 0 && (r.workCreated || 0) === 0)
 }
@@ -2747,7 +2760,11 @@ async function integrate(unit, report) {
       log(`relay-loop: ${enumAlarm.reason}`)
       pushEvent(`handback-${enumAlarm.kind}`, { repo: unit.repo, mode: unit.verdict, kind: enumAlarm.kind, openHardPool: enumAlarm.openHardPool, overlap: enumAlarm.overlap, reason: enumAlarm.reason })
     }
-    state.handbacks.push({ repo: unit.repo, reason: hbReason, worktreePath: report.worktree })
+    // id:bd04 — a size-out that proposes seams CREATES work (handback-followup.py writes them into
+    // ROADMAP.md as pickable units), so it must not score the round dry. This is the id:c919
+    // predicate, which until now was applied only at the integrate() site — i.e. never to a
+    // size-out, the one case c919 exists for.
+    state.handbacks.push({ repo: unit.repo, reason: hbReason, worktreePath: report.worktree, workCreated: handbackCreatedWork(report) })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: hbReason })
     emittedHandbackEvents.push({ repo: unit.repo, reason: hbReason })  // id:4a46 — invariant backstop
     // id:1432 (b) — loud repeat-tracking: count every child handback this run; a repo+verdict
@@ -2937,8 +2954,7 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
     // fire-and-forget and reports nothing back; over-counting is the safe direction here and
     // matches this file's own stated principle — under-draining merely runs an extra round,
     // over-draining could strand work.
-    const hbSplit = report && Array.isArray(report.proposed_split) ? report.proposed_split.length : 0
-    const routeCreatedWork = !!(report && report.route === 'hard-split' && hbSplit > 0)
+    const routeCreatedWork = handbackCreatedWork(report)   // id:bd04 — shared with the size-out site
     // ── id:907e — AMENDS the c919 predicate above: VERDICT-CLASS CHANGE, not route only ──
     // c919's reasoning counted only *dispatchable [ROUTINE]* work, so it scored a
     // gate-writing handback as nothing. But writing the gate drops actionable_routine_open
