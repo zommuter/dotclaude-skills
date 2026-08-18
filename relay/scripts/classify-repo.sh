@@ -454,6 +454,12 @@ unit = {
     "standin": standin,
     "is_finished": bool(base.get("is_finished", False)),
     "top_intensive": base.get("top_intensive", "") or "",
+    # id:2799 — per-lane split passthrough (gather-repo-state.sh); relay-loop.js's id:ad74
+    # backstop reads these instead of the lane-blind top_intensive above when patching a
+    # non-idle unit's .intensive, so it never stamps an unrelated lane's resource claim.
+    # Schema-safe extra fields (additional properties allowed), same as top_intensive.
+    "top_intensive_routine": base.get("top_intensive_routine", "") or "",
+    "top_intensive_hard": base.get("top_intensive_hard", "") or "",
     "substantive_unaudited": bool(base.get("substantive_unaudited", True)),
     "work_sig": base.get("work_sig", "") or "",
     "open_hard_pool": open_hard_pool,

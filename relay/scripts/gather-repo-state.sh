@@ -75,6 +75,8 @@ emit() {  # emit the JSON object via temp files (avoids execve overflow on large
   printf '%s' "${19:-}"   > "$_blobdir/WORK_SIG"
   printf '%s' "${20:-0}"  > "$_blobdir/OPEN_HARD_POOL"
   printf '%s' "${21:-}"   > "$_blobdir/OPEN_HARD_POOL_IDS"   # id:7517 — newline-separated
+  printf '%s' "${22:-}"   > "$_blobdir/TOP_INTENSIVE_ROUTINE"  # id:2799 — per-lane split
+  printf '%s' "${23:-}"   > "$_blobdir/TOP_INTENSIVE_HARD"     # id:2799 — per-lane split
   EMIT_DIR="$_blobdir" REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
@@ -116,6 +118,14 @@ o = {
   # The JS-side INTENSIVE promote backstop uses this to self-correct a shard that
   # classifies a repo idle/skipped despite having an open [INTENSIVE] item.
   "top_intensive": r("TOP_INTENSIVE"),
+  # id:2799 — per-lane split of the same (human-gate-excluded) candidate set: the resource
+  # of the top open [INTENSIVE] item whose PRIMARY lane is [ROUTINE] / [HARD — pool]
+  # respectively, "" when neither lane carries one. classify-verdict.sh selects between
+  # these by the verdict it actually emits, instead of stamping `intensive` from whichever
+  # lane happened to match FIRST repo-wide (id:2799 regression: an unrelated [HARD]
+  # [INTENSIVE] item deferred every open [ROUTINE] item behind --intensive).
+  "top_intensive_routine": r("TOP_INTENSIVE_ROUTINE"),
+  "top_intensive_hard": r("TOP_INTENSIVE_HARD"),
   # id:365b — relay anti-spin primitive. substantive_unaudited (FAIL-OPEN default true):
   # false iff every commit since the audit ref (relay.toml last_strong_ckpt, else the latest
   # ckpt tag) is a `relay:/fable: checkpoint` commit or touches ONLY uv.lock — i.e. there is
@@ -290,12 +300,73 @@ fi
 # accident, so the marker needs to be a first-class exclusion in the dispatch predicates too.
 # Same direction as @manual/@container (id:0cf5): the marker can only REMOVE work from the
 # dispatch set, never add it, so a rare prose mention only ever UNDER-dispatches.
+# roadmap_primary_lane <line> — leftmost recognized lane-tag by byte position, AFTER
+# stripping backtick-quoted spans (id:1bbd) so a prose mention wrapped in backticks
+# (e.g. "...whose re-lane criterion quotes `[HARD — pool]`...") cannot out-rank the
+# item's own bare tag. Defined here (moved up from its former position beside the
+# open_hard_pool walk below, id:2799) so the top_intensive block above can already use it
+# to per-lane-split the intensive resource; the open_hard_pool walk further down still
+# calls the SAME single definition, unchanged.
+roadmap_primary_lane() {
+  local line="$1" clean tag prefix pos best_pos=-1 best_tag=""
+  clean="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"
+  # Dual-vocab window (id:4f02/id:8111 B2a, OPEN): the OLD venue-keyed "[HARD — <lane>]"
+  # spelling and the NEW capability-keyed bare "[HARD]"/"[INPUT — <lane>]" spelling are
+  # both recognized, then normalized to the same tag string below so every caller
+  # (the open_hard_pool anchor) keeps comparing against one canonical value. "[HARD]"
+  # is an EXACT substring match — it never false-matches inside "[HARD — pool]"/
+  # "[HARD — hands]"/etc. (those contain "[HARD —", never the literal "[HARD]").
+  for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]" \
+             "[HARD]" "[INPUT — access]" "[INPUT — meeting]" "[INPUT — decision]"; do
+    case "$clean" in
+      *"$tag"*)
+        prefix="${clean%%"$tag"*}"; pos=${#prefix}
+        if [[ "$best_pos" -lt 0 || "$pos" -lt "$best_pos" ]]; then
+          best_pos=$pos; best_tag="$tag"
+        fi ;;
+    esac
+  done
+  case "$best_tag" in
+    "[HARD]")              best_tag="[HARD — pool]" ;;
+    "[INPUT — meeting]")   best_tag="[HARD — meeting]" ;;
+    "[INPUT — decision]")  best_tag="[HARD — decision gate]" ;;
+    "[INPUT — access]")    best_tag="[HARD — hands]" ;;
+  esac
+  printf '%s' "$best_tag"
+}
+
 top_intensive=""
+top_intensive_routine=""
+top_intensive_hard=""
 if [[ -n "$roadmap" ]]; then
-  top_intensive="$(printf '%s\n' "$roadmap" \
+  intensive_candidates="$(printf '%s\n' "$roadmap" \
     | grep -P '^- \[ \].*\[INTENSIVE — ' 2>/dev/null \
     | grep -vP '\[HARD — (hands|meeting|decision gate)\]|\[INPUT — (access|meeting|decision|author)\]|@manual|@container|@owner-gated|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
-    | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
+    || true)"
+  top_intensive="$(printf '%s\n' "$intensive_candidates" | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
+  # id:2799 — PER-LANE split of the same (already human-gate-excluded) candidate set: a
+  # repo-wide top_intensive stamped a WHOLE dispatch unit regardless of which lane the item
+  # was actually in, so an unrelated [HARD] [INTENSIVE] item deferred every open [ROUTINE]
+  # item behind --intensive (relay-20260818-152657-28729, dotclaude-skills own repo, id:3c9d
+  # blocking b8ae/4438/cc7e/f69b/5bef/dd7d). Walk the candidates in file order and take the
+  # first whose PRIMARY lane (roadmap_primary_lane, same predicate open_hard_pool below uses)
+  # is [ROUTINE] / [HARD — pool] respectively — independent top-of-lane picks, so a HARD-only
+  # intensive item never populates top_intensive_routine and vice versa. classify-verdict.sh
+  # then stamps `intensive` from the field matching the verdict's OWN lane.
+  if [[ -n "$intensive_candidates" ]]; then
+    while IFS= read -r _ic_line; do
+      [[ -z "$_ic_line" ]] && continue
+      _ic_lane="$(roadmap_primary_lane "$_ic_line")"
+      _ic_res="$(printf '%s' "$_ic_line" | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
+      [[ -z "$_ic_res" ]] && continue
+      if [[ -z "$top_intensive_routine" && "$_ic_lane" == "[ROUTINE]" ]]; then
+        top_intensive_routine="$_ic_res"
+      fi
+      if [[ -z "$top_intensive_hard" && "$_ic_lane" == "[HARD — pool]" ]]; then
+        top_intensive_hard="$_ic_res"
+      fi
+    done <<< "$intensive_candidates"
+  fi
 fi
 
 # id:365b — relay anti-spin primitive (shared by both mechanisms). The recurring strong-model
@@ -406,37 +477,8 @@ work_sig="$(printf '%s\n%s\n%s\n' "$open_ids" "$substantive_unaudited" "$nonckpt
 # executor-actionable this round either (under-dispatch-safe). The JS-side demote-guard
 # (id:9973) reads this to demote a `hard` verdict on a repo with open_hard_pool == 0.
 #
-# roadmap_primary_lane <line> — leftmost recognized lane-tag by byte position, AFTER
-# stripping backtick-quoted spans (id:1bbd) so a prose mention wrapped in backticks
-# (e.g. "...whose re-lane criterion quotes `[HARD — pool]`...") cannot out-rank the
-# item's own bare tag.
-roadmap_primary_lane() {
-  local line="$1" clean tag prefix pos best_pos=-1 best_tag=""
-  clean="$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')"
-  # Dual-vocab window (id:4f02/id:8111 B2a, OPEN): the OLD venue-keyed "[HARD — <lane>]"
-  # spelling and the NEW capability-keyed bare "[HARD]"/"[INPUT — <lane>]" spelling are
-  # both recognized, then normalized to the same tag string below so every caller
-  # (the open_hard_pool anchor) keeps comparing against one canonical value. "[HARD]"
-  # is an EXACT substring match — it never false-matches inside "[HARD — pool]"/
-  # "[HARD — hands]"/etc. (those contain "[HARD —", never the literal "[HARD]").
-  for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]" \
-             "[HARD]" "[INPUT — access]" "[INPUT — meeting]" "[INPUT — decision]"; do
-    case "$clean" in
-      *"$tag"*)
-        prefix="${clean%%"$tag"*}"; pos=${#prefix}
-        if [[ "$best_pos" -lt 0 || "$pos" -lt "$best_pos" ]]; then
-          best_pos=$pos; best_tag="$tag"
-        fi ;;
-    esac
-  done
-  case "$best_tag" in
-    "[HARD]")              best_tag="[HARD — pool]" ;;
-    "[INPUT — meeting]")   best_tag="[HARD — meeting]" ;;
-    "[INPUT — decision]")  best_tag="[HARD — decision gate]" ;;
-    "[INPUT — access]")    best_tag="[HARD — hands]" ;;
-  esac
-  printf '%s' "$best_tag"
-}
+# roadmap_primary_lane <line> is now defined ABOVE (id:2799), beside the top_intensive
+# per-lane split — this walk reuses that SAME single definition, never a second copy.
 
 # id:1022 — TYPED `<!-- gated-on:XXXX -->` edges are honoured here through the SHARED
 # id:46f6 engine (resolve-gates.sh → lib-typed-edges.sh), exactly as the routine collector
@@ -542,4 +584,5 @@ fi
 emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcelain" \
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap" \
      "$lock_only_unaudited" "$dirty_lock_only" "$is_finished" "$top_intensive" \
-     "$substantive_unaudited" "$work_sig" "$open_hard_pool" "$open_hard_pool_ids"
+     "$substantive_unaudited" "$work_sig" "$open_hard_pool" "$open_hard_pool_ids" \
+     "$top_intensive_routine" "$top_intensive_hard"
