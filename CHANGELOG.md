@@ -19,6 +19,7 @@
 - review chain relay-ckpt-20260819-1530: id:5bef hardened relay-ro/relay-svc systemd units verified honest+scope-faithful+green (446/0/3); reconciled cross-ledger 5bef TODO twin; surfaced id:8e7a RUN residue gate-cleared + f875/f26d missing-spec gap (id:5bef)
 - Hardened test_run_tests_parallel.sh's serial-mode checks against load-flake (id:f875) — flock-ordered event stream replaces racy live-marker sampling; full suite 447/0/2-expected-red (id:f875)
 - md-merge.py update-ids gains insert-relative-to-id (insert_before/insert_after) and an in-lock regex_sub transform (id:f26d); full suite 448/0/2-expected-red (id:f26d)
+- review re-ask relay-ckpt-20260819-1614: id:f875 hardened test_run_tests_parallel.sh verified honest+green (447/0/2); reconciled cross-ledger id:dd7d TODO twin [x]; f26d remains spec-less non-gated [ROUTINE] → needs handoff, no dispatchable routine work (id:f875,dd7d)
 
 ## 2026-08-18
 
