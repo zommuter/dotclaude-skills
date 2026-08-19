@@ -12,6 +12,13 @@ Usage:
     stdin: {"updates": [{"id": "XXXX", "line": "replacement line text"}]}
     # id:0af4 — or APPEND to the existing line instead of replacing it:
     stdin: {"updates": [{"id": "XXXX", "append": "text to add"}]}
+    # id:f26d — or an in-lock REGEX_SUB transform (TOCTOU-free: applied to the line
+    # as read UNDER the lock, not a literal composed before it):
+    stdin: {"updates": [{"id": "XXXX", "regex_sub": {"pattern": "foo", "repl": "bar"}}]}
+    # id:f26d — or INSERT a brand-new item beside an existing anchor id (fails loud,
+    # no EOF fallback, if the anchor id is not found):
+    stdin: {"updates": [{"id": "XXXX", "insert_after": "- [ ] new item <!-- id:YYYY -->"}]}
+    stdin: {"updates": [{"id": "XXXX", "insert_before": "- [ ] new item <!-- id:YYYY -->"}]}
 
     # Replace ## section blocks by heading text (for user-profile.md)
     python3 md-merge.py update-sections --file <path>
@@ -316,26 +323,58 @@ def _first_archive_heading_index(result: list) -> int | None:
 
 def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                allow_new: bool = False) -> None:
-    """Replace (or append to) lines containing <!-- id:XXXX -->, under flock.
+    """Replace (or append to, or in-lock-transform) lines containing
+    <!-- id:XXXX -->, and/or insert new lines relative to an anchor id — under flock.
 
     id:1b1a — an id NOT found in the file is a fail-LOUD error by default (a typo'd
     UPDATE must never silently become a duplicate APPEND). Pass allow_new=True to
     opt back into the append behaviour for genuinely new items.
 
-    Each update is either a REPLACE ({"id", "line"}) or an APPEND ({"id", "append"},
-    id:0af4) — append preserves the existing line and adds text before its id marker
-    instead of overwriting it wholesale.
+    Each update is one of:
+      - REPLACE  {"id", "line"} — whole-line overwrite. TOCTOU-prone: the caller
+        must compose `line` from a read taken OUTSIDE this lock, so a concurrent
+        in-lock write to the SAME id between that read and this call is silently
+        clobbered (last-under-lock wins). Prefer append/regex_sub below when the
+        edit can be expressed as a transform instead of a fresh literal.
+      - APPEND   {"id", "append"} (id:0af4) — preserves the existing line and adds
+        text before its id marker. TOCTOU-free: computed from the line as read
+        UNDER this lock.
+      - REGEX_SUB {"id", "regex_sub": {"pattern", "repl"}} (id:f26d) — applies
+        `re.sub(pattern, repl, line)` to the line as read UNDER this lock. The
+        general in-lock transform: unlike REPLACE it never depends on a pre-lock
+        read, so two concurrent regex_sub calls against the SAME id both apply,
+        each against whatever the other already wrote, instead of the second
+        clobbering the first.
+      - INSERT   {"id": "<anchor id>", "insert_before"|"insert_after": "<new line>"}
+        (id:f26d) — places a brand-new item line immediately before/after the line
+        whose OWN id marker is <anchor id>. The anchor is looked up under this same
+        lock (also TOCTOU-free). An anchor id not present in the file is a fail-LOUD
+        error, same class as id:1b1a's unmatched-id guard — it never silently falls
+        back to an EOF append, because EOF is the wrong place for a seam that must
+        sit beside its siblings.
     """
     lock_path = file_path.with_suffix(file_path.suffix + '.lock')
     replace_map = {}
     append_map = {}
+    regex_sub_map = {}
+    insert_ops = []  # ordered [(anchor_id, 'before'|'after', new_line_text), ...]
     for u in updates:
         item_id = u['id']
-        if 'append' in u:
+        if 'insert_before' in u:
+            insert_ops.append((item_id, 'before', u['insert_before'].rstrip('\n')))
+        elif 'insert_after' in u:
+            insert_ops.append((item_id, 'after', u['insert_after'].rstrip('\n')))
+        elif 'append' in u:
             append_map[item_id] = u['append']
+        elif 'regex_sub' in u:
+            regex_sub_map[item_id] = u['regex_sub']
         else:
             replace_map[item_id] = u['line'].rstrip('\n')
-    id_map = {**replace_map, **append_map}  # union, for the unmatched/new-item path below
+    # union, for the unmatched/new-item path below (insert anchors are tracked
+    # separately — they name a POSITION, not an id to overwrite, and must fail
+    # loud rather than fall into the --allow-new EOF-append path).
+    id_map = {**replace_map, **append_map, **regex_sub_map}
+    insert_anchor_ids = {op[0] for op in insert_ops}
 
     try:
         with open(lock_path, 'w') as lock_fd:
@@ -344,6 +383,8 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
             pre_text = file_path.read_text()   # id:4b64 rollback snapshot (under lock)
             lines = pre_text.splitlines(keepends=True)
             found = set()
+            found_anchor = set()
+            anchor_index = {}   # anchor id -> index of its (post-edit) line in `result`
             result = []
             errors = []
 
@@ -357,7 +398,7 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                     m = _own_id_match_of_line(line)
                 except AmbiguousOwnId as amb:
                     cands = [c.lower() for c in str(amb).split(', ')]
-                    hit = [c for c in cands if c in id_map]
+                    hit = [c for c in cands if c in id_map or c in insert_anchor_ids]
                     if hit:
                         errors.append(
                             f'{file_path}:{lineno}: AMBIGUOUS own id — line carries '
@@ -384,9 +425,9 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                         err = _final_line_marker_error(f'{file_path}:{lineno}', new_line)
                     if err:
                         errors.append(f'id:{item_id}: {err}')
-                        result.append(line)  # placeholder; discarded if errors is non-empty
-                        continue
-                    result.append(new_line + '\n')
+                        line_to_write = line  # placeholder; discarded if errors is non-empty
+                    else:
+                        line_to_write = new_line + '\n'
                 elif item_id in append_map:
                     found.add(item_id)
                     # id:6059 — compose FIRST, then validate what will actually be
@@ -398,11 +439,65 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                     err = _final_line_marker_error(f'{file_path}:{lineno}', composed)
                     if err:
                         errors.append(f'id:{item_id}: {err}')
-                        result.append(line)
-                        continue
-                    result.append(composed + '\n')
+                        line_to_write = line
+                    else:
+                        line_to_write = composed + '\n'
+                elif item_id in regex_sub_map:
+                    # id:f26d — TOCTOU-free in-lock transform: `line` is the content as
+                    # read UNDER this flock, never a caller-supplied literal computed
+                    # before it. Two concurrent regex_sub calls against the same id each
+                    # apply to whatever the other already wrote (see docstring).
+                    found.add(item_id)
+                    spec = regex_sub_map[item_id]
+                    try:
+                        composed = re.sub(spec['pattern'], spec['repl'], line.rstrip('\n'))
+                    except re.error as e:
+                        errors.append(f'id:{item_id}: regex_sub: invalid pattern: {e}')
+                        line_to_write = line
+                    else:
+                        err = _final_line_marker_error(f'{file_path}:{lineno}', composed)
+                        if err:
+                            errors.append(f'id:{item_id}: {err}')
+                            line_to_write = line
+                        else:
+                            line_to_write = composed + '\n'
                 else:
-                    result.append(line)
+                    line_to_write = line
+                result.append(line_to_write)
+                if item_id in insert_anchor_ids:
+                    # id:f26d — anchor located under the SAME lock as everything else;
+                    # position recorded post-edit so an insert lands beside the anchor's
+                    # FINAL content, not a stale pre-lock snapshot of it.
+                    found_anchor.add(item_id)
+                    anchor_index[item_id] = len(result) - 1
+
+            unmatched_regex_sub = sorted(regex_sub_map.keys() - found)
+            if unmatched_regex_sub:
+                # regex_sub transforms an EXISTING line; there is no "new" line to
+                # invent for a missing id, so this fails loud unconditionally —
+                # --allow-new does not apply here (unlike replace/append, id:1b1a).
+                errors.append(
+                    'regex_sub id(s) not found (nothing to transform): '
+                    f'{", ".join(unmatched_regex_sub)}')
+
+            missing_anchors = sorted(a for a in insert_anchor_ids if a not in found_anchor)
+            if missing_anchors:
+                # id:f26d — an insert anchor that doesn't exist fails LOUD, exactly like
+                # id:1b1a's unmatched-id guard: it must NEVER silently fall back to an
+                # EOF append (that is the defect this item exists to close — a seam
+                # inserted at EOF instead of beside its siblings).
+                errors.append(
+                    'insert anchor id(s) not found (no EOF fallback — insert requires '
+                    f'a real anchor): {", ".join(missing_anchors)}')
+
+            insert_errors = [
+                e for e in (
+                    _final_line_marker_error(
+                        f'{file_path}:<insert {pos} id:{anchor_id}>', text)
+                    for anchor_id, pos, text in insert_ops
+                ) if e
+            ]
+            errors.extend(insert_errors)
 
             if errors:
                 # id:0af4 — a malformed replacement is refused BEFORE anything is
@@ -414,6 +509,21 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                     file=sys.stderr,
                 )
                 sys.exit(1)
+
+            if insert_ops:
+                # id:f26d — compute each insertion's position against the PRE-insert
+                # `result` (anchor_index), then apply left-to-right with a running
+                # offset so earlier insertions shift later ones correctly, and ties
+                # (same anchor+side) land in the order they were given rather than
+                # reversed.
+                targets = [
+                    (anchor_index[anchor_id] + (1 if pos == 'after' else 0), i, text)
+                    for i, (anchor_id, pos, text) in enumerate(insert_ops)
+                ]
+                offset = 0
+                for at, _, text in sorted(targets, key=lambda t: (t[0], t[1])):
+                    result[at + offset:at + offset] = [text + '\n']
+                    offset += 1
 
             unmatched = [item_id for item_id in id_map if item_id not in found]
             if unmatched and not allow_new:
