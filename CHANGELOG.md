@@ -10,6 +10,7 @@
 ## 2026-08-19
 
 - id:b8ae — relay-loop.js's rechain block now emits a pushEvent('rechain',…) into relay-events.jsonl, mechanizing the six-weeks-uncaught observe-only re-chain signal (id:b8ae)
+- review chain relay-ckpt-20260818-1506: id:f69b speedup real but suite load-flaky (split→id:f875, statusline test fixed inline); id:2799/ec3c/2419 verified honest (id:f875,ec3c,f69b)
 
 ## 2026-08-18
 
