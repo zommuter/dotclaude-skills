@@ -5908,3 +5908,7 @@ cross-checked against the code (note: the ROADMAP block still cites a stale
 `!unit.rechained` single-hop guard that id:cc90 already replaced with the chainDepth
 counter — the event addition itself was unaffected by that staleness).
 refactor: none needed — one addition at an existing call site, no new duplication.
+
+## 2026-08-19 13:53 — executor (sonnet, relay-loop)
+
+id:b8ae — relay-loop.js's rechain block now emits a pushEvent('rechain',…) into relay-events.jsonl, mechanizing the six-weeks-uncaught observe-only re-chain signal [id:b8ae]
