@@ -5969,3 +5969,7 @@ refactor: none needed — new script + new check function follow the existing
 quota_config_check/routed_deadletter_check sibling shape verbatim (own script called
 from a thin `*_check` wrapper, `RELAY_DOCTOR_*` override var, `log()` line), no
 duplication introduced.
+
+## 2026-08-19 14:49 — executor (sonnet, relay-loop)
+
+id:2bc6 — new mechanical core.hooksPath shadowing detector (hooks-path-shadow-scan.sh), wired into relay-doctor.sh + Makefile manifest, tested + sanity-run against live relay.toml [id:2bc6]
