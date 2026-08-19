@@ -1,0 +1,36 @@
+[Unit]
+Description=Relay recipe-exec daemon tick, HARDENED — runs as the relay-svc service user (id:5bef, authoring half of id:8e7a)
+Documentation=file:/home/tobias/src/dotclaude-skills/relay/scripts/mechanical-daemon.sh
+# Hardened counterpart of tools/mechanical-daemon.service (id:b3d0), which runs as the
+# login user (tobias) with no sandboxing. THIS unit is destined for root-owned
+# /etc/systemd/user/ (tamper-proof — F3) and is executed under relay-svc's OWN --user
+# manager once id:8e7a (the run/install half) enables it there. Do not `systemctl --user
+# enable` this from the tobias session — it is scoped to the relay-svc account.
+#
+# Literal absolute paths only (Amendment-2 F3, binding — do not rediscover): %h under
+# relay-svc's manager is /home/relay-svc, never tobias's home, so every path below (unit
+# Documentation=, EnvironmentFile=, ExecStart=) is hand-written literal.
+
+[Service]
+Type=oneshot
+User=relay-svc
+EnvironmentFile=/home/tobias/src/dotclaude-skills/tools/relay-service-users.env
+Environment=RELAY_REQUIRE_SERVICE_USER=relay-svc
+ExecStart=/home/tobias/src/dotclaude-skills/relay/scripts/mechanical-daemon.sh run
+Nice=10
+
+# --- hardening: second enforcement layer over the POSIX ACLs apply-relay-acls.sh
+# (id:02c7) already enforces at the kernel on ~/.config/relay's subdirectories ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+# ProtectHome=true masks /home/tobias — another user's home — ENTIRELY (Amendment-2 F3).
+# These carve-outs restore exactly what the recipe-exec daemon needs: read the repo tree
+# a recipe's `cmd` may operate on plus its own state files, and write only its own scoped
+# subtrees under ~/.config/relay (further write-scoped by the ACL matrix) plus its own log
+# file. NOTE (drift found while authoring, id:5bef): inject.d/ and inject.done/ (INJECT_BASE
+# = ~/.config/relay itself, id:baf1) carry NO POSIX ACL yet — apply-relay-acls.sh (id:02c7)
+# does not cover them — so a real run under this uid would still need that ACL gap closed;
+# tracked as a run-time (id:8e7a) precondition, not re-derived or silently fixed here.
+ReadOnlyPaths=/home/tobias/src /home/tobias/.config/relay/permitted-intensity.json
+ReadWritePaths=/home/tobias/.config/relay/recipes /home/tobias/.config/relay/heartbeats /home/tobias/.config/relay/.heartbeat.lock /home/tobias/.config/relay/.claim.lock /home/tobias/.config/relay/claims /home/tobias/.config/relay/claims.done /home/tobias/.config/relay/inject.d /home/tobias/.config/relay/inject.done /home/tobias/.config/relay/.inject.lock /home/tobias/.claude/logs

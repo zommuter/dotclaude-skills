@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the hardened relay-ro discovery producer every 15 min (id:5bef, authoring half of id:8e7a)
+
+[Timer]
+# Same cadence as tools/discover-repos-mechanical.timer (id:9d97) — the two are meant to
+# converge once id:8e7a cuts the login-user timer over to this hardened one.
+OnStartupSec=2min
+OnUnitActiveSec=15min
+# Don't pile up missed runs after suspend/resume; one catch-up is plenty.
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

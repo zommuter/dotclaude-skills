@@ -129,6 +129,20 @@ PRODUCER_RUN_ID="${DISCOVERY_PRODUCER_RUN_ID:-discovery-producer}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s discover-repos-mechanical.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
+# Service-user assertion gate (id:5bef, authoring half of id:8e7a). Set ONLY by the
+# hardened relay-ro-discover-repos-mechanical.service unit (Environment=); absent for the
+# existing tobias-run tools/discover-repos-mechanical.service, so this is a no-op there and
+# for every hermetic test. When set, a mismatch means the unit's User=/service-user wiring
+# is wrong (or the script was invoked by hand under the wrong account) — fail LOUD rather
+# than silently doing discovery-producer work under an unintended uid.
+if [[ -n "${RELAY_REQUIRE_SERVICE_USER:-}" ]]; then
+  _actual_user="$(id -un)"
+  if [[ "$_actual_user" != "$RELAY_REQUIRE_SERVICE_USER" ]]; then
+    echo "ERROR: discover-repos-mechanical.sh must run as service user '$RELAY_REQUIRE_SERVICE_USER' (actually running as '$_actual_user') — id:5bef hardening guard" >&2
+    exit 1
+  fi
+fi
+
 # shellcheck source=lib-own-repos.sh
 source "$LIB_OWN_REPOS"
 
