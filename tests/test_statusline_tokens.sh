@@ -11,6 +11,19 @@ FIXTURE="$ROOT/tests/fixtures/statusline-input.json"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# Hermeticity (id:ec3c class): statusline-command.sh writes usage-state files whose
+# defaults are hardcoded /tmp paths the DEVELOPER'S OWN live-session statusline also
+# writes continuously. Overriding HOME does NOT redirect those absolute paths, so under
+# a parallel `make test` this test raced the live statusline and flaked (passed
+# standalone, failed in-suite). Point every usage-state path into this test's mktemp so
+# the script touches nothing shared. The overrides themselves are id:ec3c's shipped
+# contract (statusline-command.sh:63-66); this is the "and have the test point them into
+# its mktemp -d" half that instance (1) left undone.
+export CLAUDE_USAGE_CACHE="$tmp/usage-cache.json"
+export CLAUDE_USAGE_HISTORY="$tmp/usage-history"
+export CLAUDE_USAGE_BACKOFF="$tmp/usage-backoff"
+export CLAUDE_USAGE_LOCK="$tmp/usage-lock"
+
 strip_ansi() { sed -e 's/\x1b\[[0-9;]*m//g'; }
 
 # Fixture: 110000 input + 5000 output = 115000 tokens of 200000 → 58%(115k)
