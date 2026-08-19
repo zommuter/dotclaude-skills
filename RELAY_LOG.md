@@ -6002,3 +6002,7 @@ Amendment-2 F3 corrections and the env-var enumeration was straightforward to de
 grepping the two entrypoint scripts' `${VAR:-$HOME/...}` defaults.
 refactor: none needed — new unit/env files plus a small, symmetric opt-in guard addition
 to the two existing entrypoint scripts; no new duplication introduced.
+
+## 2026-08-19 15:30 — executor (sonnet, relay-loop)
+
+id:5bef — authored hardened relay-ro/relay-svc systemd --user units (unit files, hardening directives, shared EnvironmentFile, uid-assertion guard, make install target) + hermetic fixture test; full suite 445/0/4-expected-red. [id:5bef]
