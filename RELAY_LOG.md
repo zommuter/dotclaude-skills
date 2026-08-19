@@ -6006,3 +6006,26 @@ to the two existing entrypoint scripts; no new duplication introduced.
 ## 2026-08-19 15:30 — executor (sonnet, relay-loop)
 
 id:5bef — authored hardened relay-ro/relay-svc systemd --user units (unit files, hardening directives, shared EnvironmentFile, uid-assertion guard, make install target) + hermetic fixture test; full suite 445/0/4-expected-red. [id:5bef]
+
+## 2026-08-19 — executor (sonnet)
+
+Worked id:dd7d — built relay/scripts/stranded-branch-scan.sh (observe-only, run-id-agnostic
+scan of the relay/*-<verdict>-<item>-* and relay/orphan/*-<verdict>-<item>-* branch
+namespaces, filtering out zero-commit branches per the id:6e02 live-parallel-child trap)
+and wired it at both required sites in relay-loop.js: pre-dispatch in runUnit() via a new
+strandedBranchesFor() mechanical hop (non-empty scan refuses to dispatch and hands back
+every branch+commit-count instead of spawning a child blind to a prior attempt's committed
+work — the lodelore id:15d2 incident), and at integrate via a new step 1c that has the
+integrator scan for sibling branches (excluding the one just merged) and surface them
+loudly (log + pushEvent + handback) through a new INTEGRATE_SCHEMA `siblingBranches`
+field, rather than relying on a lucky git add/add conflict. Registered the new script in
+mechanical-proxy.py's ALLOWED_RELAY_SCRIPTS and the three Makefile install manifests
+(relay_FILES/relay_EXEC/relay_ALLOW) — both required for the wiring to be reachable, not
+just present (id:5367/2062 failure mode). Full suite: 447 passed, 0 failed, 2 expected-red
+(open roadmap items) — clean, nothing weakened.
+Friction: the RED spec (tests/test_redispatch_stranded_branch_dd7d.sh) was already fully
+authored; the id:34b7/ba7e "unit.path must carry an explicit justification" test caught two
+new unjustified splices from the new code (both legitimately need the canonical checkout,
+same as the existing provisionWorktree()/integrate() sites) — a one-line comment each fixed
+it, not a design problem.
+refactor: none needed — new script + two wiring sites; no pre-existing duplication to clean up.
