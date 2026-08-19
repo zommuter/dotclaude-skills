@@ -6029,3 +6029,7 @@ new unjustified splices from the new code (both legitimately need the canonical 
 same as the existing provisionWorktree()/integrate() sites) — a one-line comment each fixed
 it, not a design problem.
 refactor: none needed — new script + two wiring sites; no pre-existing duplication to clean up.
+
+## 2026-08-19 15:43 — executor (sonnet, relay-loop)
+
+Built relay/scripts/stranded-branch-scan.sh and wired it at both pre-dispatch (runUnit refusal + handback) and integrate (sibling-branch surfacing) sites in relay-loop.js, plus the mechanical-proxy allowlist and Makefile install manifests; full suite 447/0/2-expected-red. [id:dd7d]
