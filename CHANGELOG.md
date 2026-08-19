@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-19
+
+- id:b8ae — relay-loop.js's rechain block now emits a pushEvent('rechain',…) into relay-events.jsonl, mechanizing the six-weeks-uncaught observe-only re-chain signal (id:b8ae)
+
 ## 2026-08-18
 
 - review: chain-end verify clean (437 green, gaming-scan 0, 12 pure-add specs); reconciled cd9c/d119 cross-ledger drift; boxed ec3c scope-mismatch; routine_open=5 (id:cd9c,d119,ec3c,7517,f391)
