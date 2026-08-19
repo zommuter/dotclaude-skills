@@ -6056,3 +6056,7 @@ refactor: replaced the replace/append branches' duplicated "result.append(...); 
 ## 2026-08-19 16:27 — executor (sonnet, relay-loop)
 
 md-merge.py update-ids gains insert-relative-to-id (insert_before/insert_after) and an in-lock regex_sub transform (id:f26d); full suite 448/0/2-expected-red [id:f26d]
+
+## 2026-08-19 16:40 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review re-ask relay-ckpt-20260819-1614: id:f875 hardened test_run_tests_parallel.sh verified honest+green (447/0/2); reconciled cross-ledger id:dd7d TODO twin [x]; f26d remains spec-less non-gated [ROUTINE] → needs handoff, no dispatchable routine work [id:f875,dd7d]
