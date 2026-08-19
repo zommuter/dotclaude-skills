@@ -5889,3 +5889,22 @@ refactor: none needed — no production code touched, docs-only report addition.
 ## 2026-08-18 15:06 — reconcile (auto/human, non-strong by design — id:c500)
 
 reconcile integrate: docs(relay): publish per-phase burn ranking for id:4438 (a955 vs 3ca7)
+
+## 2026-08-19 — executor (sonnet)
+
+Worked id:b8ae — mechanized the review->execute (and execute->execute) rechain signal:
+runUnit's re-enqueue block in relay/scripts/relay-loop.js now calls
+`pushEvent('rechain', {repo, fromVerdict, reenqueuedVerdict: 'execute', routineOpen,
+chainDepth, maxChainDepth})` right after the existing log line, so a chain occurrence
+is recorded durably in relay-events.jsonl instead of depending on a human reading the
+log — the observe-only remainder had gone uncaught for six weeks per the ROADMAP note.
+Added tests/test_rechain_event_b8ae.sh (roadmap:b8ae), a source-shape spec (the
+Workflow engine can't run hermetically) asserting the pushEvent call lives inside the
+rechain block and names the repo + re-enqueued verdict + chain depth; confirmed RED
+against the un-edited relay-loop.js (git stash) before committing the fix. Full suite:
+444 passed, 0 failed, 3 expected-red (unrelated open items).
+Friction: none — single call-site addition, no ambiguity in the acceptance text once
+cross-checked against the code (note: the ROADMAP block still cites a stale
+`!unit.rechained` single-hop guard that id:cc90 already replaced with the chainDepth
+counter — the event addition itself was unaffected by that staleness).
+refactor: none needed — one addition at an existing call site, no new duplication.
