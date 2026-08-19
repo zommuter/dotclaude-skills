@@ -5912,3 +5912,57 @@ refactor: none needed — one addition at an existing call site, no new duplicat
 ## 2026-08-19 13:53 — executor (sonnet, relay-loop)
 
 id:b8ae — relay-loop.js's rechain block now emits a pushEvent('rechain',…) into relay-events.jsonl, mechanizing the six-weeks-uncaught observe-only re-chain signal [id:b8ae]
+
+## 2026-08-19 14:47 — executor (sonnet)
+
+BLOCKED: id:cc7e the RED spec test (`tests/test_md_merge_own_id_last.sh`) encodes the
+OLD "own-id is the LAST anchored marker" contract, but `meeting/md-merge.py` has since
+been changed (comments cite `id:6059`) to a STRICTER, different design: a line carrying
+more than one anchored `<!-- id:XXXX -->` marker is refused outright (LOUD, both read
+and write side) rather than resolved by first-vs-last positional guessing at all — the
+code's own docstring explains why last-match is "no better" than first-match (the same
+`<!-- id:X -->` syntax means both "this line IS X" and "this line REFERS to X", and
+which end holds the own id varies per ledger, per `_own_id_match_of_line`'s comment).
+So case (A) of the shipped test (an update aimed at the line's own trailing id must
+*apply*) now fails against the *intended*, already-implemented id:6059 design, which
+refuses ALL multi-marker lines including that one. This isn't a bug to fix by rewriting
+the test to match new behaviour (test-integrity rule) nor by "fixing" the code back to
+last-match (id:6059's own comment already argues last-match is unsound) — the ROADMAP
+item's spec is stale relative to a design decision that superseded it after the item
+was filed. Needs an owner/meeting call: either retire id:cc7e as superseded-by-id:6059,
+or decide the item now means "assert the id:6059 refusal, not the old last-match
+resolution" and get the test rewritten as a fresh RED spec under owner sign-off. Picked
+a different open item instead this session (id:2bc6).
+
+Worked id:2bc6 — new mechanical, read-only `relay/scripts/hooks-path-shadow-scan.sh`
+detects repo-local `core.hooksPath` shadowing the global hook dir (which REPLACES
+rather than overlays, so a repo-local setting silently drops both the pre-push privacy
+gate and the pre-commit lane-vocab ratchet) across the relay own-set, sourcing
+`lib-own-repos.sh`'s `own_repos` (never a glob or re-derived list, per the id:7877
+defect class). Classifies each repo carrying a local `core.hooksPath` as EMPTY-SHADOW
+(configured dir has no real, non-`.sample` hook file — the gate is silently hollowed,
+actionable) or DELIBERATE (a real repo-local hook file is present — an owner call to
+merge the global hooks in, not to unset); a repo with no local override gets no row.
+Wired into `relay/scripts/relay-doctor.sh` as a new `hooks-path-shadow` check (calls
+the canonical script, never reimplements it), registered in the Makefile's
+`relay_FILES`/`relay_EXEC`/`relay_ALLOW` manifests (caught by
+`tests/test_relay_install_manifest.sh`, which failed loud before the registration —
+exactly the check doing its job). Added `tests/test_hooks_path_shadow_scan.sh`
+(`# roadmap:2bc6`): fixture with one EMPTY-SHADOW repo, one DELIBERATE repo and one
+clean repo, asserting all three classifications plus mutual exclusivity plus a
+`# path:`-override repo still resolving via `own_repos` (not a glob). Sanity-ran the
+new check live against this machine's real relay.toml (`--only hooks-path-shadow`):
+found 7 EMPTY-SHADOW + 2 DELIBERATE across 52 own repos, including a `loderite` entry
+whose `core.hooksPath` points at `truncocraft/.git/hooks` — the exact "points at a
+*different repo's* hook directory (a rename residue)" case the ROADMAP item's own text
+describes, confirming the detector reproduces the live finding it was written for.
+Full suite: 445 passed, 0 failed, 3 expected-red (unrelated open items) — one transient
+failure (`test_git_lock_push_slash_branch.sh`) on the first parallel run vanished on
+re-run standalone and full-suite rerun, unrelated to this change (no file this item
+touches is anywhere in that test).
+Friction: id:cc7e turned out to be stale-relative-to-a-later-decision rather than a
+plain RED spec — see the BLOCKED note above; no friction on id:2bc6 itself.
+refactor: none needed — new script + new check function follow the existing
+quota_config_check/routed_deadletter_check sibling shape verbatim (own script called
+from a thin `*_check` wrapper, `RELAY_DOCTOR_*` override var, `log()` line), no
+duplication introduced.
