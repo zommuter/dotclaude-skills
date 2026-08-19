@@ -59,7 +59,7 @@ relay_FILES := SKILL.md \
                scripts/scan-routed.sh scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh \
                scripts/hooks-path-shadow-scan.sh \
                scripts/inbox-scan-repo.sh \
-               scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
+               scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/stranded-branch-scan.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
@@ -92,7 +92,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh scripts/inbox-scan-repo.sh scripts/hooks-path-shadow-scan.sh \
-               scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
+               scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/stranded-branch-scan.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
@@ -119,7 +119,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh scripts/inbox-scan-repo.sh scripts/hooks-path-shadow-scan.sh \
-               scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
+               scripts/host-gate.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/stranded-branch-scan.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \

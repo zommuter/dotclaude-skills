@@ -968,6 +968,11 @@ const INTEGRATE_SCHEMA = {
     postSig: { type: 'string' },       // recomputed discover-sig for this repo ("" = fail-open)
     openRoutine: { type: 'number' },   // unticked "- [ ]" [ROUTINE] items in ROADMAP.md post-merge
     openHard: { type: 'number' },      // unticked "- [ ]" [HARD items in ROADMAP.md post-merge (any HARD)
+    // id:dd7d — sibling-branch surfacing (c): OTHER branches for the same item (not
+    // report.branch itself) that stranded-branch-scan.sh found still carrying committed
+    // work at integrate time. "<branch>\t<count>" lines, verbatim from the scan; empty/absent
+    // when none. Informational only — does NOT block the merge already performed in step 2.
+    siblingBranches: { type: 'array', items: { type: 'string' } },
   },
 }
 
@@ -2859,6 +2864,7 @@ async function integrate(unit, report) {
 1. DETERMINISTIC clean-tree gate (id:aa93 — a foreign-dirty main checkout was silently DESTROYED 3× on 2026-06-18 when an agent "cleaned" the tree to make room): run ~/.claude/skills/relay/scripts/clean-tree-gate.sh ${unit.path}. It prints "clean" and exits 0 ONLY if the tree carries no changes; otherwise it prints "dirty <N>" + the offending porcelain lines and exits NON-ZERO. On any non-zero exit, ABORT: return merged=false with reason "main checkout dirty — a concurrent edit is present; deferring to avoid data loss (id:aa93)" plus the gate's dirty output. The integrator works on the child's WORKTREE, never the main checkout, so ANY dirty entry here is a foreign/concurrent editor's work. You must NEVER run \`git stash\`, \`git checkout --\`, \`git reset --hard\`, or \`git clean\` on ${unit.path} to make room for the merge — do NOT force-clean a foreign-dirty tree; just DEFER it.
 1a. DETERMINISTIC isolation gate (id:f682/id:7612 — a spawned child ran \`git worktree add\` correctly but then wrote every edit to the target's MAIN checkout instead, observed 2026-07-14 loderite and 2026-06-30 jobAI id:c6c8): run ~/.claude/skills/relay/scripts/verify-isolation.sh ${report.worktree}. It prints "ok …" and exits 0 when the worktree is a legitimate completed unit (has its own commits and a clean tree, OR is a genuine zero-commit id:8e3e no-op review — main unmoved since dispatch); it exits NON-ZERO (2) when the worktree is dirty, or is empty AND main advanced by a non-merge commit since dispatch (the isolation-breach signature — the failure output names the offending commit(s)). On any non-zero exit, ABORT: return merged=false with reason "isolation gate failed — worktree/main-checkout isolation breach suspected; deferring to avoid merging unaudited main-checkout drift (id:7612)" plus the gate's output. This gate is OBSERVE-ONLY (never stash/reset --hard/checkout --/clean) — do NOT attempt to "fix" a failure yourself.
 1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; discovery's live reconcile-repo.sh already fast-forwarded behind-only repos — it runs every round on BOTH the fresh-queue and the live-exec discovery path, id:9d97/7402, so a behind-only repo is always ff-merged before dispatch.)
+1c. SIBLING-BRANCH surfacing (id:dd7d, lodelore id:15d2) — does ANOTHER branch for this same item already carry committed work this merge might silently ignore? (id:ba7e — ${unit.path} here is the same CANONICAL main checkout used throughout this integrate flow, not the id:34b7 leak.)${workedIds.length ? ` Run ~/.claude/skills/relay/scripts/stranded-branch-scan.sh ${unit.path} --verdict ${unit.verdict} --item ${workedIds[0]}. It prints one "<branch>\\t<count>" line per branch (live relay/* or parked relay/orphan/*, any run) carrying commits beyond base; empty output means none. DROP any line naming ${report.branch} itself (that is this unit's own branch, about to be merged in step 2, not a sibling). If any OTHER line remains, this is the id:15d2 divergent-sibling hazard (a prior attempt's committed-but-different result) — do NOT silently merge past it: proceed with merging ${report.branch} in step 2 as normal (this gate surfaces, it does not pick a winner), but set siblingBranches = the remaining line(s) verbatim so it is recorded LOUDLY in your report rather than only ever surfacing as a lucky git conflict. If no lines remain (or the scan printed nothing), set siblingBranches = [] (or omit it).` : ' This unit has no worked item id (repo-scoped) — nothing to compare against; set siblingBranches = [] or omit it.'}
 2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
    On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
    The checkpoint tag's anchor (\`-c\` for step 3) is decided HERE by which of two cases the merge produced:
@@ -2904,6 +2910,18 @@ Never push any other repo, never force-push, never resolve conflicts yourself.`,
   )
   if (result && result.merged) {
     if (result.ts) state.ts = result.ts
+    // id:dd7d step 1c — the integrator's own stranded-sibling scan came back non-empty:
+    // ANOTHER committed branch for this same item exists beyond the one just merged. This
+    // does not block the merge already performed (a human triages which result is right),
+    // but it must not surface only as luck — log it loudly and record it in RELAY_STATUS so
+    // it cannot silently disappear the way the lodelore id:15d2 divergence did.
+    const siblingBranches = Array.isArray(result.siblingBranches) ? result.siblingBranches.filter(Boolean) : []
+    if (siblingBranches.length) {
+      const siblingReason = `id:dd7d sibling branch(es) for ${unit.repo}${workedIds.length ? ' item ' + workedIds[0] : ''} still carry committed work distinct from the branch just merged (${report.branch}) — a prior attempt may have reached a different result; needs human triage: ${siblingBranches.join('; ')}`
+      log(`relay-loop: ${siblingReason}`)
+      state.handbacks.push({ repo: unit.repo, reason: siblingReason, worktreePath: '-' })
+      pushEvent('sibling-branch', { repo: unit.repo, mode: unit.verdict, ids: workedIds, siblingBranches })
+    }
     state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?', substantive: unitIsSubstantive(unit.verdict, report), workedIds })  // workedIds id:de69
     pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?', ids: workedIds })  // id:c8b6 + worked ids id:de69
     // L2 push-seed the discovery cache (id:c855): a just-integrated repo's sig CHANGES (new
@@ -3177,6 +3195,42 @@ async function releaseLease(unit) {
 const attemptSeq = Object.create(null)
 const attemptSeqKey = (unit) => `${unit.repo}|${unit.verdict}|${dispatchItemFor(unit) || 'repo'}`
 
+// id:dd7d — pre-dispatch stranded-branch check (b). Returns an array of
+// "<branch>\t<count>" lines (possibly empty) reporting any branch — live or parked in
+// relay/orphan/* — for this unit's item that already carries >0 commits beyond base, i.e.
+// a prior attempt's committed-but-unmerged work (lodelore id:15d2: a dirty-tree handback
+// followed by a plain re-dispatch redid the work from scratch and reached a contradictory
+// answer, undetected until a manual integrate hit an add/add conflict). Repo-scoped units
+// (no item id) have nothing to compare against and always return []. FAIL-OPEN on any
+// scan/agent error — this is a refusal-to-dispatch guard, not a correctness gate, and must
+// never itself become a reason no repo can ever be worked.
+async function strandedBranchesFor(unit) {
+  const item = dispatchItemFor(unit)
+  if (!item) return []
+  let raw
+  try {
+    // (unit.path is the CANONICAL repo checkout, not a worktree — deliberate: no worktree
+    // exists yet at pre-dispatch time (same canonical-checkout justification as id:ba7e),
+    // so the branch/commit scan below must run against the repo's own git dir.)
+    const res = await agent(
+      `Run EXACTLY this one command and report its stdout VERBATIM (id:dd7d pre-dispatch stranded-branch scan — is there already a committed branch for this item from a prior attempt?):\n` +
+      '```relay-mech\n' +
+      `~/.claude/skills/relay/scripts/stranded-branch-scan.sh ${unit.path} --verdict ${unit.verdict} --item ${item}` +
+      '\n```',
+      { label: `stranded-scan:${unit.repo}`, phase: 'Support', model: MECH_MODEL }
+    )
+    raw = typeof res === 'string' ? res : JSON.stringify(res == null ? '' : res)
+  } catch (e) {
+    log(`relay-loop: id:dd7d stranded-branch-scan threw for ${unit.repo} (${(e && e.message) || e}) — fail-open, proceeding with dispatch`)
+    return []
+  }
+  if (/^MECH-ERROR exit=/.test(String(raw))) {
+    log(`relay-loop: id:dd7d stranded-branch-scan errored for ${unit.repo}: ${String(raw).replace(/\s+/g, ' ').slice(0, 200)} — fail-open, proceeding with dispatch`)
+    return []
+  }
+  return String(raw).split('\n').map(l => l.trim()).filter(l => l.includes('\t'))
+}
+
 async function provisionWorktree(unit, isRetry) {
   // Seed once per dispatch (never on the retry recursion — that already carries its bump).
   if (!isRetry) {
@@ -3280,6 +3334,23 @@ async function runUnit(unit) {
     state.handbacks.push({ repo: unit.repo, reason: oversizeReason, worktreePath: '-' })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: oversizeReason })
     emittedHandbackEvents.push({ repo: unit.repo, reason: oversizeReason })  // id:4a46 backstop
+    scheduleStatusWrite(state)
+    return
+  }
+  // id:dd7d — pre-dispatch stranded-branch guard (b). Runs BEFORE provisioning (same
+  // ordering rationale as id:ec8a below: a refused dispatch must consume no MAX_UNITS slot
+  // and must not render as in-flight). If a prior attempt already committed a branch for
+  // this exact item — live (relay/*) or parked (relay/orphan/*), any run — do NOT dispatch
+  // a fresh child blind to it (the lodelore id:15d2 incident: a second child redid the work
+  // from scratch and reached a contradictory answer, undetected until a manual integrate).
+  // Hand back naming every branch found + its commit count so a human dispositions it —
+  // this guard never deletes/merges/picks a winner itself.
+  const stranded = await strandedBranchesFor(unit)
+  if (stranded.length) {
+    const reason = `id:dd7d stranded branch(es) already carry committed work for ${unit.repo} item ${dispatchItemFor(unit)} — refusing re-dispatch to avoid a second child redoing the work blind (lodelore id:15d2): ${stranded.join('; ')}`
+    log(`relay-loop: ${reason}`)
+    state.handbacks.push({ repo: unit.repo, reason, worktreePath: '-' })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
     scheduleStatusWrite(state)
     return
   }
