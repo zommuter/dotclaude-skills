@@ -5973,3 +5973,7 @@ duplication introduced.
 ## 2026-08-19 14:49 — executor (sonnet, relay-loop)
 
 id:2bc6 — new mechanical core.hooksPath shadowing detector (hooks-path-shadow-scan.sh), wired into relay-doctor.sh + Makefile manifest, tested + sanity-run against live relay.toml [id:2bc6]
+
+## 2026-08-19 14:54 — executor (sonnet, relay-loop)
+
+id:4438 already complete on main (docs/relay-burn-ranking-2026-08-18.md, commit ecc555e) — confirmed acceptance met, no new work needed, worked_ids returned for integrator tick [id:4438]
