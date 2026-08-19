@@ -25,31 +25,42 @@ trap 'rm -rf -- "$WORK"' EXIT
 mkdir -p "$WORK/root/tests"
 cp "$RUNNER" "$WORK/root/tests/run-tests.sh"
 FIXRUN="$WORK/root/tests/run-tests.sh"
-OBS="$WORK/obs"        # each fixture test appends its observed concurrency here
-LIVE="$WORK/live"      # one marker file per currently-running fixture test
-mkdir -p "$LIVE"
+OBS="$WORK/obs"        # each fixture test appends an ordered start/stop event here
+LOCK="$WORK/obs.lock"  # flock guard so concurrent appends never interleave mid-line
 
+# id:f875 — concurrency is derived from an ORDERING of flock-serialized start/stop
+# events, not from sampling a live-marker directory at one instant. The prior
+# design (touch a marker, sleep, `ls` the marker dir, then `rm` the marker) was
+# load-flaky: under CPU contention a just-finished fixture's `rm` could lag past
+# the next fixture's `ls`, so a genuinely-serial run was observed as concurrency 2
+# even though the two fixture processes never actually overlapped. Appending an
+# atomic "start $$"/"stop $$" line under flock has no such gap — in a truly serial
+# run, fixture B's script (and its own "start" append) is never even invoked until
+# fixture A's whole process (including its "stop" append) has exited, so there is
+# no window in which a delayed cleanup can be mis-sampled as overlap.
+#
 # Deliberately NOT alphabetical-by-duration: zz sleeps longest, so under
 # longest-first scheduling it starts first — yet must still be REPORTED last.
 for spec in "aa 0.5" "bb 0.5" "cc 0.5" "zz 0.9"; do
   set -- $spec
   cat >"$WORK/root/tests/test_${1}.sh" <<EOF
 #!/usr/bin/env bash
-touch "$LIVE/\$\$"
+( flock -x 9; echo "start \$\$" >> "$OBS" ) 9>>"$LOCK"
 sleep $2
-ls "$LIVE" | wc -l >> "$OBS"
-rm -f -- "$LIVE/\$\$"
+( flock -x 9; echo "stop \$\$" >> "$OBS" ) 9>>"$LOCK"
 echo "marker-$1"
 exit 0
 EOF
 done
 
-# Returns the maximum concurrency observed during one fixture run.
+# Returns the maximum concurrency observed during one fixture run: walk the
+# ordered start/stop events and track the running depth's peak (interval-stabbing,
+# not a point-in-time sample).
 run_fixture() {  # $@ = args/env passthrough already applied by caller
-  : >"$OBS"; rm -f -- "$LIVE"/*
+  : >"$OBS"
   "$@" >"$WORK/out.txt" 2>&1
   echo "$?" >"$WORK/rc.txt"
-  sort -n "$OBS" | tail -1
+  awk '{if($1=="start"){c++; if(c>m)m=c}else if($1=="stop"){c--}}END{print m+0}' "$OBS"
 }
 
 # --- 1. parallel really is parallel -------------------------------------------
