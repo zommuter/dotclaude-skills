@@ -23,6 +23,29 @@ days with zero response is a dead CHANNEL, not a bad message (banked discovery,
 relay-core 2026-08-11).  The observe-first heuristic is already satisfied — the
 window is routed:29bc plus two same-day recurrences.
 
+Second defect — the guard was a NO-OP for its first six days (fixed 2026-08-19)
+------------------------------------------------------------------------------
+Shipped 2026-08-13, this hook blocked NOTHING: its log held 50 firings, every one
+of them `WARN … trailing segment is empty`, with zero BLOCK and zero SKIP.  The
+Stop hook chain runs BEFORE the harness appends the just-ended turn's assistant
+lines to the session JSONL, so `trailing_segment()` was structurally always `[]`.
+
+Measured on a live transcript (2026-08-19): the cost logger — first in
+the same Stop chain — recorded `wc -l` = 83, and line 83 was the `attachment`
+following a `user` tool_result; the turn's own 3159-char assistant `text` entry
+was line 84, appended afterwards.  On a second live transcript the
+same pattern hid a 7515-char bare-prose meeting turn — precisely the defect this
+hook exists to block.
+
+The unit suite passed 16/16 throughout because its fixtures write the trailing
+assistant entry BEFORE invoking the hook — a state the live harness never presents
+at Stop time.  `tests/test_meeting_question_guard_flush.sh` is the negative
+control that fixture class was missing: it withholds the trailing turn on the
+first read and appends it from a background writer.
+
+Fix: `await_trailing_segment()` polls until the turn appears and settles.  A turn
+that never appears is logged at NOFLUSH — loudly, never silently (id:4347).
+
 Trigger (deliberately narrow)
 -----------------------------
 Fires only when ALL of these hold:
@@ -112,10 +135,21 @@ Exit codes
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 DEFAULT_MIN_CHARS = 800
 LOG_REL = ".claude/logs/meeting-question-guard.log"
+
+# --- transcript-flush wait (id:2419 second defect) ------------------------- #
+# The Stop hook chain fires BEFORE the harness appends the just-ended turn's
+# assistant lines to the session JSONL, so a naive read sees a transcript that
+# ends at the last `user` entry and yields an EMPTY trailing segment.  Measured
+# 2026-08-19: 50/50 live firings logged "trailing segment is empty" and the
+# guard blocked nothing in 6 days.  See `await_trailing_segment`.
+DEFAULT_WAIT_SECS = 3.0     # total budget to wait for the turn to appear
+POLL_SECS = 0.05            # re-read interval
+SETTLE_SECS = 0.30          # segment must stop growing this long before we judge
 
 
 # --------------------------------------------------------------------------- #
@@ -271,6 +305,53 @@ def trailing_segment(entries: list) -> list:
     return seg
 
 
+def await_trailing_segment(path: str, budget: float):
+    """Re-read the transcript until the just-ended turn is visible.
+
+    Returns `(entries, seg, waited, settled)`:
+      * `entries` / `seg` — the last read, whatever state it reached.
+      * `waited`  — seconds spent waiting.
+      * `settled` — True iff a non-empty trailing segment appeared AND stopped
+        growing for SETTLE_SECS (so we are judging a COMPLETE turn, not a
+        half-written one).
+
+    Why this exists: at Stop time the harness has not yet appended the turn's
+    assistant lines, so the first read shows a transcript ending at a `user`
+    entry.  The lines land shortly after; without this wait the guard evaluates
+    an empty segment and can never fire (measured: 50/50 firings, 0 blocks).
+
+    Failure is REPORTED, never silent: the caller logs a distinct NOFLUSH level
+    when `settled` is False so a regression in harness ordering shows up in the
+    log instead of quietly disarming the gate (id:4347).
+    """
+    deadline = time.monotonic() + budget
+    start = time.monotonic()
+    entries = load_entries(path)
+    seg = trailing_segment(entries)
+    stable_since = time.monotonic() if seg else None
+    last_len = len(seg)
+
+    while time.monotonic() < deadline:
+        if seg and stable_since is not None and \
+                time.monotonic() - stable_since >= SETTLE_SECS:
+            return entries, seg, time.monotonic() - start, True
+        time.sleep(POLL_SECS)
+        try:
+            entries = load_entries(path)
+        except Exception:
+            continue  # a torn read mid-append: just try again
+        seg = trailing_segment(entries)
+        if len(seg) != last_len:
+            last_len = len(seg)
+            stable_since = time.monotonic() if seg else None
+        elif seg and stable_since is None:
+            stable_since = time.monotonic()
+
+    settled = bool(seg) and stable_since is not None and \
+        time.monotonic() - stable_since >= SETTLE_SECS
+    return entries, seg, time.monotonic() - start, settled
+
+
 def segment_has_question(seg: list) -> bool:
     for entry in seg:
         for block in content_blocks(entry):
@@ -355,7 +436,32 @@ def main() -> None:
         fail_open(f"could not read transcript {transcript_path}: {exc!r}")
         return
 
+    # Cheap pre-check on the unflushed read: outside a meeting window there is
+    # nothing to guard and nothing to wait for.  Re-checked below on the settled
+    # entries, because the turn that WRITES the meeting note is itself invisible
+    # here and would otherwise be judged as still-inside the window.
     if not is_meeting_open(entries):
+        return
+
+    try:
+        budget = float(os.environ.get("MEETING_STOP_GUARD_WAIT") or DEFAULT_WAIT_SECS)
+    except ValueError:
+        budget = DEFAULT_WAIT_SECS
+
+    entries, seg, waited, settled = await_trailing_segment(transcript_path, budget)
+
+    if not settled:
+        # The just-ended turn never became visible. Fail open — but LOUDLY, so a
+        # harness-ordering regression shows up as a log level rather than as a
+        # gate that quietly stops firing (this is exactly the defect that made
+        # the guard a no-op for its first six days).
+        log("NOFLUSH",
+            f"session {session_id}: turn never flushed within {budget}s "
+            f"(waited {waited:.2f}s, segment entries={len(seg)}) — NOT evaluated")
+        return
+
+    if not is_meeting_open(entries):
+        # The meeting note was written in this very turn; the window closed.
         return
 
     cls = str((marker or {}).get("class") or "").strip().lower()
@@ -367,14 +473,8 @@ def main() -> None:
         log("SKIP", f"session {session_id}: fable-class harness is exempt by spec")
         return
 
-    seg = trailing_segment(entries)
-    if not seg:
-        # Either the transcript tail has not been flushed yet, or the turn ended
-        # on a tool result. Do not block on an empty read — but do not swallow it.
-        log("WARN", f"session {session_id}: meeting open but trailing segment is empty")
-        return
-
     if segment_has_question(seg):
+        log("OK", f"session {session_id}: AskUserQuestion present (waited {waited:.2f}s)")
         return
 
     try:
