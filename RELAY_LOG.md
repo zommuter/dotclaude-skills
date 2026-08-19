@@ -5977,3 +5977,7 @@ id:2bc6 — new mechanical core.hooksPath shadowing detector (hooks-path-shadow-
 ## 2026-08-19 14:54 — executor (sonnet, relay-loop)
 
 id:4438 already complete on main (docs/relay-burn-ranking-2026-08-18.md, commit ecc555e) — confirmed acceptance met, no new work needed, worked_ids returned for integrator tick [id:4438]
+
+## 2026-08-19 15:07 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review chain relay-ckpt-20260819-1449: id:2bc6 hooks-path-shadow detector verified honest+green (445/0/3); reconciled TODO twins 2bc6/b8ae; re-laned cc7e→[INPUT — decision] (conflicts shipped id:6059, owner call); 293f gate-ready [id:2bc6,cc7e,b8ae]
