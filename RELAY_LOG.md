@@ -5981,3 +5981,24 @@ id:4438 already complete on main (docs/relay-burn-ranking-2026-08-18.md, commit 
 ## 2026-08-19 15:07 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review chain relay-ckpt-20260819-1449: id:2bc6 hooks-path-shadow detector verified honest+green (445/0/3); reconciled TODO twins 2bc6/b8ae; re-laned cc7e→[INPUT — decision] (conflicts shipped id:6059, owner call); 293f gate-ready [id:2bc6,cc7e,b8ae]
+
+## 2026-08-19 — executor (sonnet)
+
+Worked id:5bef — authored the hardened relay-ro/relay-svc systemd --user units (authoring
+half of id:8e7a, promoted 2026-08-18 by owner decision). New files: tools/relay-ro-discover-
+repos-mechanical.{service,timer}, tools/relay-svc-mechanical-daemon.{service,path,timer},
+tools/relay-service-users.env (shared EnvironmentFile, literal /home/tobias paths per the
+binding Amendment-2 F3 correction — never %h). Added an opt-in RELAY_REQUIRE_SERVICE_USER
+uid-assertion guard to discover-repos-mechanical.sh and mechanical-daemon.sh (unset by
+default, so the existing tobias-run units are unaffected). Makefile gained
+install-relay-hardened-units (copies into /etc/systemd/user/ via sudo, deliberately does
+NOT enable — per-user enable/verify stays id:8e7a). New hermetic fixture test
+tests/test_relay_hardened_service_units_5bef.sh asserts unit content (User=, no %h,
+hardening directives, EnvironmentFile wiring, uid-guard refuse/no-op behaviour) without
+ever touching /etc/systemd/user/ or invoking sudo. Full make test: 445 passed, 0 failed,
+4 expected-red (open items) — clean, nothing weakened.
+Friction: none — the item's own text (TODO.md:333) already carried the three
+Amendment-2 F3 corrections and the env-var enumeration was straightforward to derive from
+grepping the two entrypoint scripts' `${VAR:-$HOME/...}` defaults.
+refactor: none needed — new unit/env files plus a small, symmetric opt-in guard addition
+to the two existing entrypoint scripts; no new duplication introduced.

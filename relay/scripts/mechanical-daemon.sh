@@ -59,6 +59,20 @@ DONE="$RECIPE_DIR/done"
 REJECTED="$RECIPE_DIR/rejected"
 LOG="${MECHANICAL_DAEMON_LOG:-$HOME/.claude/logs/mechanical-daemon.log}"
 
+# Service-user assertion gate (id:5bef, authoring half of id:8e7a). Set ONLY by the
+# hardened relay-svc-mechanical-daemon.service unit (Environment=); absent for the
+# existing tobias-run tools/mechanical-daemon.service, so this is a no-op there and for
+# every hermetic test. When set, a mismatch means the unit's User=/service-user wiring is
+# wrong (or the script was invoked by hand under the wrong account) — fail LOUD rather
+# than silently running recipe commands under an unintended uid.
+if [[ -n "${RELAY_REQUIRE_SERVICE_USER:-}" ]]; then
+  _actual_user="$(id -un)"
+  if [[ "$_actual_user" != "$RELAY_REQUIRE_SERVICE_USER" ]]; then
+    echo "ERROR: mechanical-daemon.sh must run as service user '$RELAY_REQUIRE_SERVICE_USER' (actually running as '$_actual_user') — id:5bef hardening guard" >&2
+    exit 1
+  fi
+fi
+
 usage() { sed -n '2,29p' "$0"; }
 
 log() { printf '%s mechanical-daemon.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
