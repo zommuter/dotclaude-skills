@@ -30,14 +30,20 @@ tracked as `id:dc80`.
   close the `heartbeats.done/`+`inject.d/` ACL gap (`id:dc80`) first, or a service-user write there
   fails once the daemons switch uid.
 
-- [ ] **Handoff-readiness: `id:f875` + `id:f26d` are open `[ROUTINE]` with NO RED spec** —
-  `grep -rl 'roadmap:f875'/'roadmap:f26d' tests/` returns nothing, yet the classifier ranks both as
-  `actionable_routine` (non-gated `[ROUTINE]`), so an execute chain will pick them with no failing
-  test to satisfy (executor definition-of-done). Only `id:dd7d` of the 3 `actionable_routine_ids` has
-  a spec (`test_*` `# roadmap:dd7d`). Predates this window (outside §5b), so not authored here — needs
-  a handoff pass to write the two red specs (or re-lane if either is a design task) before they are
-  genuinely dispatchable. `id:f875` = de-flake `test_run_tests_parallel.sh`; `id:f26d` = `md-merge.py`
-  insert-relative-to-id + in-lock line transform.
+- [ ] **Handoff-readiness: `id:f26d` is an open non-gated `[ROUTINE]` with NO RED spec** —
+  `grep -rl 'roadmap:f26d' tests/` returns nothing, yet the classifier ranks it `actionable_routine`
+  (non-gated `[ROUTINE]`), so an execute chain would pick it with no failing test to satisfy (executor
+  definition-of-done). Needs a handoff pass to author the red spec (or re-lane — it is `md-merge.py`
+  insert-relative-to-id + a TOCTOU-free in-lock line transform, arguably design-weight) before it is
+  genuinely dispatchable.
+  **UPDATE — review relay-ckpt-20260819-1614 chain (chain-end re-ask of the `id:f875` executor chain):**
+  the sibling `id:f875` this box also named is now CLOSED and green — the executor hardened
+  `test_run_tests_parallel.sh` itself (its deliverable IS the test, so it needed no separate RED spec);
+  the change replaces the racy live-marker point-sample with a flock-ordered start/stop event stream +
+  interval-stabbing peak, verified honest (gaming-scan clean, assertions intact, `maxc==1` serial /
+  `maxc>1` parallel checks unchanged). `id:dd7d` — the item this box cited as the only spec'd one of the
+  trio — is also closed+green (`tests/test_redispatch_stranded_branch_dd7d.sh` passes) and its TODO twin
+  was reconciled [x] this review. Only `id:f26d` remains from the original trio.
 
 ## Review 2026-08-14 (chain-end re-ask, chain `relay-ckpt-20260813-2332` — id:8123)
 
@@ -754,6 +760,14 @@ Trust-but-verify found the suite is NOT deterministically green under load — t
   seriality observation load-robust, and one instance was fixed inline (next box). **Owner call**: is
   the split disposition right, or do you want `id:f69b` reopened until the suite is deterministically
   green? Re-checkable: `for i in $(seq 20); do tests/run-tests.sh 2>&1 | grep '^failed:'; done` under load.
+  **UPDATE 2026-08-19 (chain-end re-ask review):** the split follow-up `id:f875` has now LANDED —
+  `test_run_tests_parallel.sh`'s seriality observation is load-robust (flock-ordered event stream,
+  no point-in-time sample), so THAT specific flake instance is closed. The broader owner call stands:
+  the suite is still not deterministically green under heavy load. Fresh evidence this review — running
+  the full suite at load-avg ~15 flaked `test_mechanical_tag.sh` ONCE (446/1/2), which then passed
+  standalone 3x and passed on the immediate suite re-run (447/0/2); no timing/concurrency in that test,
+  so it is a fork/resource-exhaustion flake under contention, not a `test_run_tests_parallel.sh`-class
+  sampling race. `id:f69b` still LEFT TICKED (speedup real, no gaming). Owner call unchanged.
 
 - [x] **`id:ec3c` instance (1) was closed as DONE but its ORIGINAL flaky test was never made
   hermetic — FIXED inline this review.** The id:ec3c fix made `statusline-command.sh` usage-state
