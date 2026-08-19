@@ -12,6 +12,7 @@
 - id:b8ae — relay-loop.js's rechain block now emits a pushEvent('rechain',…) into relay-events.jsonl, mechanizing the six-weeks-uncaught observe-only re-chain signal (id:b8ae)
 - review chain relay-ckpt-20260818-1506: id:f69b speedup real but suite load-flaky (split→id:f875, statusline test fixed inline); id:2799/ec3c/2419 verified honest (id:f875,ec3c,f69b)
 - id:2bc6 — new mechanical core.hooksPath shadowing detector (hooks-path-shadow-scan.sh), wired into relay-doctor.sh + Makefile manifest, tested + sanity-run against live relay.toml (id:2bc6)
+- id:4438 already complete on main (docs/relay-burn-ranking-2026-08-18.md, commit ecc555e) — confirmed acceptance met, no new work needed, worked_ids returned for integrator tick (id:4438)
 
 ## 2026-08-18
 
