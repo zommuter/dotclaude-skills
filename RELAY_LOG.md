@@ -6033,3 +6033,7 @@ refactor: none needed — new script + two wiring sites; no pre-existing duplica
 ## 2026-08-19 15:43 — executor (sonnet, relay-loop)
 
 Built relay/scripts/stranded-branch-scan.sh and wired it at both pre-dispatch (runUnit refusal + handback) and integrate (sibling-branch surfacing) sites in relay-loop.js, plus the mechanical-proxy allowlist and Makefile install manifests; full suite 447/0/2-expected-red. [id:dd7d]
+
+## 2026-08-19 15:56 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review chain relay-ckpt-20260819-1530: id:5bef hardened relay-ro/relay-svc systemd units verified honest+scope-faithful+green (446/0/3); reconciled cross-ledger 5bef TODO twin; surfaced id:8e7a RUN residue gate-cleared + f875/f26d missing-spec gap [id:5bef]
