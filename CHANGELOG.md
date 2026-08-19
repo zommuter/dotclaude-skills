@@ -13,6 +13,7 @@
 - review chain relay-ckpt-20260818-1506: id:f69b speedup real but suite load-flaky (split→id:f875, statusline test fixed inline); id:2799/ec3c/2419 verified honest (id:f875,ec3c,f69b)
 - id:2bc6 — new mechanical core.hooksPath shadowing detector (hooks-path-shadow-scan.sh), wired into relay-doctor.sh + Makefile manifest, tested + sanity-run against live relay.toml (id:2bc6)
 - id:4438 already complete on main (docs/relay-burn-ranking-2026-08-18.md, commit ecc555e) — confirmed acceptance met, no new work needed, worked_ids returned for integrator tick (id:4438)
+- review chain relay-ckpt-20260819-1449: id:2bc6 hooks-path-shadow detector verified honest+green (445/0/3); reconciled TODO twins 2bc6/b8ae; re-laned cc7e→[INPUT — decision] (conflicts shipped id:6059, owner call); 293f gate-ready (id:2bc6,cc7e,b8ae)
 
 ## 2026-08-18
 
