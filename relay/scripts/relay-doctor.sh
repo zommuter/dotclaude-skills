@@ -150,7 +150,7 @@ only=""    # id:f69b — empty means "run every check", i.e. the unchanged defau
 
 # The complete check vocabulary, in RUN ORDER. `repo` is the per-repo bundle (check_repo);
 # the rest are the once-only checks and match their <name>_check function names.
-DOCTOR_CHECKS="repo registry-parse refs-install install-drift parked-orphans routed-deadletters quota-config relay-core-shadow lean-toolchain-drift"
+DOCTOR_CHECKS="repo registry-parse refs-install install-drift parked-orphans routed-deadletters quota-config relay-core-shadow lean-toolchain-drift hooks-path-shadow"
 
 # want <name> — true when <name> should run under the current --only selection. With no
 # --only it is true for every check, so the default path runs exactly what it always ran.
@@ -793,6 +793,28 @@ lean_toolchain_drift_check() {
   echo
 }
 
+# --- hooks-path-shadow check (id:2bc6) — repo-local core.hooksPath silently
+# shadowing the global hook dir, across the relay own-set. Cross-repo (own_repos
+# reads relay.toml itself), so it runs ONCE regardless of scope — same shape as
+# routed_deadletter_check / parked_orphans_check below. This CALLS the canonical
+# scan script, never reimplements its logic.
+HOOKS_PATH_SHADOW_SCAN="$SCRIPTS_DIR/hooks-path-shadow-scan.sh"
+HOOKS_PATH_SHADOW_SCAN="${RELAY_DOCTOR_HOOKS_PATH_SHADOW_SCAN:-$HOOKS_PATH_SHADOW_SCAN}"
+hooks_path_shadow_check() {
+  echo "=== core.hooksPath shadowing across the own-set (id:2bc6) ==="
+  if [[ -x "$HOOKS_PATH_SHADOW_SCAN" ]]; then
+    local out
+    out="$(RELAY_TOML="$RELAY_TOML" SRC_DIR="$SRC_DIR" bash "$HOOKS_PATH_SHADOW_SCAN" 2>>"$LOG" || true)"
+    printf '%s\n' "$out"
+    local n; n="$(printf '%s\n' "$out" | grep -cE '^(EMPTY-SHADOW|DELIBERATE) ' || true)"
+    [[ -n "$n" && "$n" -gt 0 ]] && issues_total=$((issues_total + n)) || true
+    log "hooks-path-shadow n=${n:-0}"
+  else
+    echo "SKIP — hooks-path-shadow-scan.sh not found at $HOOKS_PATH_SHADOW_SCAN" >&2
+  fi
+  echo
+}
+
 # --- check 8: inbox routed dead-letters (id:678e slice 1, cross-repo once-only) ---
 # Reports routed inbox items whose target repo never ingested them + non-conforming
 # inbox entries. REPORT-ONLY (never writes — slice-2 auto-write is gated). Cross-repo
@@ -929,6 +951,7 @@ if want routed-deadletters;    then routed_deadletter_check; fi   # id:678e slic
 if want quota-config;          then quota_config_check; fi   # id:a883 — quota-config sanity (RELAY_QUOTA_DECAY_7D + threshold bounds)
 if want relay-core-shadow;     then relay_core_shadow_check; fi   # id:82c4 — which classify path is live (legacy bash vs relay-core shadow)
 if want lean-toolchain-drift;  then lean_toolchain_drift_check; fi   # id:50c4 — F4 local lean-toolchain drift compare
+if want hooks-path-shadow;     then hooks_path_shadow_check; fi   # id:2bc6 — repo-local core.hooksPath silently shadowing the global hook dir
 
 # --- coverage honesty (D4, meeting 2026-06-24): never look falsely-green ---------
 # LIST the checks that are designed but NOT yet wired, so this report's coverage is
