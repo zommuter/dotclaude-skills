@@ -1,0 +1,14 @@
+[Unit]
+Description=Periodically retry deferred relay recipes under the hardened relay-svc daemon (id:5bef, authoring half of id:8e7a, mirrors id:8a6b clause d)
+
+[Timer]
+# Mirrors tools/mechanical-daemon.timer's rationale (id:8a6b clause d): PathModified alone
+# never re-evaluates a recipe that check-and-deferred once; this low-cadence timer fires
+# the same oneshot service periodically so a deferred recipe retries without a manual touch.
+OnStartupSec=5min
+OnUnitActiveSec=30min
+Persistent=false
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

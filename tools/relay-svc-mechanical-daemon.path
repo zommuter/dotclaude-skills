@@ -1,0 +1,13 @@
+[Unit]
+Description=Watch the relay recipe pending/ drop-dir and trigger a hardened relay-svc mechanical-daemon tick (id:5bef, authoring half of id:8e7a)
+Documentation=file:/home/tobias/src/dotclaude-skills/relay/scripts/mechanical-daemon.sh
+# Literal absolute path (Amendment-2 F3, binding): %h under relay-svc's manager is
+# /home/relay-svc, never tobias's home.
+
+[Path]
+# Mirrors tools/mechanical-daemon.path's PathModified re-arm rationale.
+PathModified=/home/tobias/.config/relay/recipes/pending
+Unit=relay-svc-mechanical-daemon.service
+
+[Install]
+WantedBy=paths.target
