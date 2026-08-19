@@ -3,6 +3,42 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-19 (chain-end re-ask, chain `relay-ckpt-20260819-1530` — id:8123)
+
+Window `relay-ckpt-20260819-1507`..HEAD = one executor unit, **`id:5bef`** (author the hardened
+`relay-ro`/`relay-svc` systemd `--user` units + shared EnvironmentFile + opt-in uid guard + `make
+install-relay-hardened-units`). **Verified honest + green.** `gaming-scan.sh` clean (only a new test
+file added, none modified/deleted); no `@owner-accepted` in the window; §2b resurrection/fixture/
+faked-clean-tree/refactor-claim all clean; §2d over-reach: diff is faithful to the authoring-ONLY
+scope the owner ratified (`/relay human .` 2026-08-18, id:e175 split; Amendment-2 F3 literal-paths
+correction) — no superset (never installs, never sudo-invokes, never enables; the `make` target
+copies but does not enable; the uid guard is a no-op unless `RELAY_REQUIRE_SERVICE_USER` is set, so
+the existing tobias-run units + every hermetic test are unaffected). Full `make test` green: 446
+passed, 0 failed, 3 expected-red (item ticked). Contract pointer `v12` == canonical. Honest drift
+disclosure (inject.d/inject.done ACL gap) surfaced in the unit comments, not silently fixed — already
+tracked as `id:dc80`.
+
+- [x] **Cross-ledger drift `id:5bef` — `[x]` in ROADMAP (archived) but `[ ]` in TODO.md — reconciled
+  this review.** TODO.md:333 twin ticked; `orphan-scan --cross-ledger` now clean for 5bef.
+
+- [ ] **`id:8e7a` (RUN residue, `[INPUT — access]`) is now GATE-CLEARED — ready for the human.** Its
+  only gate was `gated-on:5bef` (the authoring half), now DONE. The residue is device work relay never
+  auto-runs: `make install-relay-hardened-units` (root-owned install into `/etc/systemd/user/` via
+  sudo), deliberate per-user enable, and runtime verification (e0f8-class blocked + cross-uid heartbeat
+  round-trip). **Order note (from the item + `id:dc80`): run `id:e8a3` BEFORE the unit migration** —
+  afterwards an ACL denial and a `ProtectHome` mount-namespace failure are indistinguishable — and
+  close the `heartbeats.done/`+`inject.d/` ACL gap (`id:dc80`) first, or a service-user write there
+  fails once the daemons switch uid.
+
+- [ ] **Handoff-readiness: `id:f875` + `id:f26d` are open `[ROUTINE]` with NO RED spec** —
+  `grep -rl 'roadmap:f875'/'roadmap:f26d' tests/` returns nothing, yet the classifier ranks both as
+  `actionable_routine` (non-gated `[ROUTINE]`), so an execute chain will pick them with no failing
+  test to satisfy (executor definition-of-done). Only `id:dd7d` of the 3 `actionable_routine_ids` has
+  a spec (`test_*` `# roadmap:dd7d`). Predates this window (outside §5b), so not authored here — needs
+  a handoff pass to write the two red specs (or re-lane if either is a design task) before they are
+  genuinely dispatchable. `id:f875` = de-flake `test_run_tests_parallel.sh`; `id:f26d` = `md-merge.py`
+  insert-relative-to-id + in-lock line transform.
+
 ## Review 2026-08-14 (chain-end re-ask, chain `relay-ckpt-20260813-2332` — id:8123)
 
 Window carried no executor code work (ledger/human batches + inbox ingests only); `gaming-scan.sh`
