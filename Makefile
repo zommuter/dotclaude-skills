@@ -158,7 +158,8 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-mech-proxy status-mech-proxy uninstall-mech-proxy \
         install-claude-relay status-claude-relay uninstall-claude-relay \
         install-mechanical-daemon status-mechanical-daemon uninstall-mechanical-daemon \
-        install-relay-users install-relay-acls install-privacy-gate install-privacy-claude-rule \
+        install-relay-users install-relay-acls install-relay-hardened-units status-relay-hardened-units \
+        install-privacy-gate install-privacy-claude-rule \
         install-lane-ratchet install-lane-ratchet-claude-rule \
         install-discovery-timer status-discovery-timer uninstall-discovery-timer \
         $(addprefix install-,$(SKILLS)) \
@@ -182,6 +183,8 @@ help:
 	@echo "  install-claude-relay install the opt-in claude-relay launcher (proxy-when-healthy) into rc files (id:99a4)"
 	@echo "  install-mechanical-daemon install the mechanical-run daemon systemd user path+service unit (id:b3d0)"
 	@echo "  install-discovery-timer install the mechanical discovery-producer systemd user timer (id:9d97)"
+	@echo "  install-relay-hardened-units  copy the hardened relay-ro/relay-svc systemd --user units into /etc/systemd/user/ (id:5bef; needs sudo; does NOT enable — id:8e7a)"
+	@echo "  status-relay-hardened-units   show whether the hardened units are present in /etc/systemd/user/"
 	@echo "  check-statusline-deps  warn/err on missing statusbar CLI deps (jq critical; bc/curl/... optional)"
 	@echo "  print-allowlist      preview Bash allowlist entries (read-only)"
 	@echo "  install-allowlist    merge allowlist entries into settings.json (idempotent)"
@@ -233,6 +236,37 @@ install-relay-users:
 # invoking user (setfacl on own paths, no sudo); requires the users to exist first.
 install-relay-acls:
 	@bash $(SRC_DIR)/relay/scripts/apply-relay-acls.sh
+
+# id:5bef (authoring half of id:8e7a) — copy the HARDENED relay-ro/relay-svc unit files
+# (+ the shared EnvironmentFile) into root-owned /etc/systemd/user/ so they are
+# tamper-proof (Amendment-2 F3) and visible for per-user enable. This target only COPIES
+# — it deliberately does NOT `systemctl --user enable` anything, because units dropped in
+# /etc/systemd/user/ are visible to EVERY user's manager (Amendment-2 F3 point 3) and must
+# be enabled per-user, DELIBERATELY, by a human running as (or targeting) that specific
+# service user — the run/enable/verify half is id:8e7a, not this target. Needs root (sudo
+# -A); relay itself NEVER runs this target (never invokes sudo, per the executor
+# contract) — it exists for the human to run by hand.
+install-relay-hardened-units:
+	@echo "→ installing hardened relay-ro/relay-svc systemd --user unit files into /etc/systemd/user/"
+	@SUDO_ASKPASS="$${SUDO_ASKPASS:-/usr/lib/ssh/ssh-askpass}" sudo -A install -m 0644 -o root -g root \
+		$(SRC_DIR)/tools/relay-service-users.env \
+		$(SRC_DIR)/tools/relay-ro-discover-repos-mechanical.service \
+		$(SRC_DIR)/tools/relay-ro-discover-repos-mechanical.timer \
+		$(SRC_DIR)/tools/relay-svc-mechanical-daemon.service \
+		$(SRC_DIR)/tools/relay-svc-mechanical-daemon.path \
+		$(SRC_DIR)/tools/relay-svc-mechanical-daemon.timer \
+		/etc/systemd/user/
+	@echo "  copied. NOT enabled — enable per-user deliberately (id:8e7a), e.g.:"
+	@echo "    sudo -u relay-ro   XDG_RUNTIME_DIR=/run/user/\$$(id -u relay-ro)   systemctl --user enable --now relay-ro-discover-repos-mechanical.timer"
+	@echo "    sudo -u relay-svc  XDG_RUNTIME_DIR=/run/user/\$$(id -u relay-svc)  systemctl --user enable --now relay-svc-mechanical-daemon.path relay-svc-mechanical-daemon.timer"
+
+status-relay-hardened-units:
+	@echo "hardened relay-ro/relay-svc units in /etc/systemd/user/:"
+	@for f in relay-service-users.env relay-ro-discover-repos-mechanical.service relay-ro-discover-repos-mechanical.timer \
+	          relay-svc-mechanical-daemon.service relay-svc-mechanical-daemon.path relay-svc-mechanical-daemon.timer; do \
+		if [ -e "/etc/systemd/user/$$f" ]; then echo "  ok  present -> /etc/systemd/user/$$f"; \
+		else echo "  !!  absent   /etc/systemd/user/$$f  (make install-relay-hardened-units)"; fi; \
+	done
 
 lint:
 	@bash $(SRC_DIR)/tools/check-no-bare-rm-f.sh --enforce

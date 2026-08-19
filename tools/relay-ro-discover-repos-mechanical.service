@@ -1,0 +1,33 @@
+[Unit]
+Description=Mechanical relay discovery producer, HARDENED — runs as the relay-ro service user (id:5bef, authoring half of id:8e7a)
+Documentation=file:/home/tobias/src/dotclaude-skills/relay/scripts/discover-repos-mechanical.sh
+# Hardened counterpart of tools/discover-repos-mechanical.service (id:9d97), which runs as
+# the login user (tobias) with no sandboxing. THIS unit is destined for root-owned
+# /etc/systemd/user/ (tamper-proof — F3) and is executed under relay-ro's OWN --user
+# manager once id:8e7a (the run/install half) enables it there. Do not `systemctl --user
+# enable` this from the tobias session — it is scoped to the relay-ro account.
+#
+# Literal absolute paths only (Amendment-2 F3, binding — do not rediscover): %h under
+# relay-ro's manager is /home/relay-ro, never tobias's home, so every path below (unit
+# Documentation=, EnvironmentFile=, ExecStart=) is hand-written literal.
+
+[Service]
+Type=oneshot
+User=relay-ro
+EnvironmentFile=/home/tobias/src/dotclaude-skills/tools/relay-service-users.env
+Environment=RELAY_REQUIRE_SERVICE_USER=relay-ro
+ExecStart=/home/tobias/src/dotclaude-skills/relay/scripts/discover-repos-mechanical.sh
+Nice=10
+
+# --- hardening: second enforcement layer over the POSIX ACLs apply-relay-acls.sh
+# (id:02c7) already enforces at the kernel on ~/.config/relay's subdirectories ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+# ProtectHome=true masks /home/tobias — another user's home — ENTIRELY (Amendment-2 F3).
+# These carve-outs restore exactly what the read-only producer needs: read the repo tree
+# it classifies + relay.toml (own_repos() parser), read the worktree base (live-claim
+# awareness), and write only its own scoped subtrees under ~/.config/relay (further
+# write-scoped by the ACL matrix) plus its own log file.
+ReadOnlyPaths=/home/tobias/src /home/tobias/.config/relay/relay.toml /home/tobias/.cache/relay/worktrees
+ReadWritePaths=/home/tobias/.config/relay/discovery-queue /home/tobias/.config/relay/heartbeats /home/tobias/.config/relay/.heartbeat.lock /home/tobias/.claude/logs
