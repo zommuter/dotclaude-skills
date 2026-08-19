@@ -354,26 +354,38 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
         sit beside its siblings.
     """
     lock_path = file_path.with_suffix(file_path.suffix + '.lock')
-    replace_map = {}
-    append_map = {}
-    regex_sub_map = {}
+    # id:5d7e — ops are held as an ORDERED LIST PER ID, never one dict per op-class.
+    # The previous shape (replace_map / append_map / regex_sub_map + an if/elif/elif
+    # chain) dropped work SILENTLY in two ways and still exited 0: across classes only
+    # one bucket could win per id, and within a class a dict overwrite kept the last.
+    # Observed live: a payload of 2 regex_sub ticks + 2 appends applied only the appends,
+    # leaving two ledger lines that READ as done-and-annotated with an open checkbox.
+    # Semantic: COMPOSE every op for an id, in payload order (see the fold below).
+    ops_by_id = {}          # id -> ordered [(kind, payload), ...]
+    replace_map = {}        # id -> line, for the --allow-new EOF path only
+    regex_sub_ids = set()   # ids carrying >=1 regex_sub, for the unmatched guard
     insert_ops = []  # ordered [(anchor_id, 'before'|'after', new_line_text), ...]
     for u in updates:
         item_id = u['id']
         if 'insert_before' in u:
             insert_ops.append((item_id, 'before', u['insert_before'].rstrip('\n')))
-        elif 'insert_after' in u:
+            continue
+        if 'insert_after' in u:
             insert_ops.append((item_id, 'after', u['insert_after'].rstrip('\n')))
-        elif 'append' in u:
-            append_map[item_id] = u['append']
+            continue
+        if 'append' in u:
+            kind, payload = 'append', u['append']
         elif 'regex_sub' in u:
-            regex_sub_map[item_id] = u['regex_sub']
+            kind, payload = 'regex_sub', u['regex_sub']
+            regex_sub_ids.add(item_id)
         else:
-            replace_map[item_id] = u['line'].rstrip('\n')
+            kind, payload = 'line', u['line'].rstrip('\n')
+            replace_map[item_id] = payload
+        ops_by_id.setdefault(item_id, []).append((kind, payload))
     # union, for the unmatched/new-item path below (insert anchors are tracked
     # separately — they name a POSITION, not an id to overwrite, and must fail
     # loud rather than fall into the --allow-new EOF-append path).
-    id_map = {**replace_map, **append_map, **regex_sub_map}
+    id_map = {k: replace_map.get(k) for k in ops_by_id}
     insert_anchor_ids = {op[0] for op in insert_ops}
 
     try:
@@ -416,51 +428,59 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                     result.append(line)
                     continue
                 item_id = m.group(1).lower()
-                if item_id in replace_map:
+                if item_id in ops_by_id:
+                    # id:5d7e — FOLD every op for this id, in payload order. `composed`
+                    # carries forward, so a regex_sub sees what an earlier append wrote
+                    # and vice versa. Validation runs ONCE, on the final text (id:6059:
+                    # compose first, then validate what will actually be written — an
+                    # appended annotation that quotes marker syntax is the exact way
+                    # loderite manufactured a 3-marker line while "repairing" a 2-marker
+                    # one, and checking any intermediate would pass while the written
+                    # result was wrong).
                     found.add(item_id)
-                    new_line = replace_map[item_id]
-                    err = _validate_replacement(item_id, line, new_line)
-                    if err is None:
-                        # id:6059 write-side guard, on the FINAL composed content.
-                        err = _final_line_marker_error(f'{file_path}:{lineno}', new_line)
-                    if err:
-                        errors.append(f'id:{item_id}: {err}')
-                        line_to_write = line  # placeholder; discarded if errors is non-empty
-                    else:
-                        line_to_write = new_line + '\n'
-                elif item_id in append_map:
-                    found.add(item_id)
-                    # id:6059 — compose FIRST, then validate what will actually be
-                    # written: an appended annotation that quotes marker syntax is the
-                    # exact way loderite manufactured a 3-marker line while "repairing"
-                    # a 2-marker one. Checking the pre-append line would pass and still
-                    # write the broken result.
-                    composed = _append_to_line(line.rstrip('\n'), m, append_map[item_id])
-                    err = _final_line_marker_error(f'{file_path}:{lineno}', composed)
-                    if err:
-                        errors.append(f'id:{item_id}: {err}')
-                        line_to_write = line
+                    composed = line.rstrip('\n')
+                    op_err = None
+                    for kind, payload in ops_by_id[item_id]:
+                        if kind == 'line':
+                            # Full replacement is validated against the ORIGINAL line —
+                            # that is what _validate_replacement's contract compares.
+                            op_err = _validate_replacement(item_id, line, payload)
+                            if op_err:
+                                break
+                            composed = payload
+                        elif kind == 'append':
+                            # Re-locate the marker on the CURRENT text: an earlier
+                            # regex_sub may have shifted or rewritten it, so the match
+                            # captured before the fold is stale.
+                            try:
+                                cm = _own_id_match_of_line(composed + '\n')
+                            except AmbiguousOwnId as amb:
+                                op_err = (f'append: composed line became ambiguous '
+                                          f'({amb}) — refusing (id:6059)')
+                                break
+                            if cm is None:
+                                op_err = ('append: composed line no longer carries its '
+                                          'own id marker — refusing')
+                                break
+                            composed = _append_to_line(composed, cm, payload)
+                        elif kind == 'regex_sub':
+                            # id:f26d — TOCTOU-free in-lock transform: the input is the
+                            # content as read UNDER this flock (or as composed by an
+                            # earlier op here), never a caller-supplied literal computed
+                            # before the lock.
+                            try:
+                                composed = re.sub(payload['pattern'], payload['repl'],
+                                                  composed)
+                            except re.error as e:
+                                op_err = f'regex_sub: invalid pattern: {e}'
+                                break
+                    if op_err is None:
+                        op_err = _final_line_marker_error(f'{file_path}:{lineno}', composed)
+                    if op_err:
+                        errors.append(f'id:{item_id}: {op_err}')
+                        line_to_write = line  # placeholder; discarded, errors is non-empty
                     else:
                         line_to_write = composed + '\n'
-                elif item_id in regex_sub_map:
-                    # id:f26d — TOCTOU-free in-lock transform: `line` is the content as
-                    # read UNDER this flock, never a caller-supplied literal computed
-                    # before it. Two concurrent regex_sub calls against the same id each
-                    # apply to whatever the other already wrote (see docstring).
-                    found.add(item_id)
-                    spec = regex_sub_map[item_id]
-                    try:
-                        composed = re.sub(spec['pattern'], spec['repl'], line.rstrip('\n'))
-                    except re.error as e:
-                        errors.append(f'id:{item_id}: regex_sub: invalid pattern: {e}')
-                        line_to_write = line
-                    else:
-                        err = _final_line_marker_error(f'{file_path}:{lineno}', composed)
-                        if err:
-                            errors.append(f'id:{item_id}: {err}')
-                            line_to_write = line
-                        else:
-                            line_to_write = composed + '\n'
                 else:
                     line_to_write = line
                 result.append(line_to_write)
@@ -471,7 +491,7 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                     found_anchor.add(item_id)
                     anchor_index[item_id] = len(result) - 1
 
-            unmatched_regex_sub = sorted(regex_sub_map.keys() - found)
+            unmatched_regex_sub = sorted(regex_sub_ids - found)
             if unmatched_regex_sub:
                 # regex_sub transforms an EXISTING line; there is no "new" line to
                 # invent for a missing id, so this fails loud unconditionally —
@@ -537,10 +557,19 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                 )
                 sys.exit(1)
 
-            new_lines = [
-                (replace_map.get(item_id, append_map.get(item_id, '')).rstrip('\n')) + '\n'
-                for item_id in unmatched
-            ]
+            def _new_line_text(item_id: str) -> str:
+                # id:5d7e — derive a brand-new item's text from its ordered ops: a full
+                # `line` if one was given, else the first `append` payload (the pre-5d7e
+                # behaviour). A regex_sub cannot invent a line, and an unmatched one has
+                # already failed loud above, so it is never reached here.
+                if item_id in replace_map:
+                    return replace_map[item_id].rstrip('\n') + '\n'
+                for kind, payload in ops_by_id.get(item_id, []):
+                    if kind == 'append':
+                        return payload.rstrip('\n') + '\n'
+                return '\n'
+
+            new_lines = [_new_line_text(item_id) for item_id in unmatched]
             # id:6059 — --allow-new appends brand-new item lines verbatim, so the
             # write-side guard applies here too: a NEW item may not be born ambiguous.
             new_errors = [
