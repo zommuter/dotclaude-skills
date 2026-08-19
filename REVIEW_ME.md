@@ -699,3 +699,49 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
   `id:6446` is the durable one, which is why it was promoted rather than left as backlog.
 
 - [x] **id:ec3c — cross-ledger drift with a SCOPE MISMATCH; do NOT auto-tick the TODO twin (review 2026-08-18).** `orphan-scan --cross-ledger` flags `id:ec3c` as `TODO:[ ] ROADMAP:[x]`. The ROADMAP twin (`ROADMAP.archive.md`, "statusline-command.sh hardcodes its four /tmp usage-state paths — make them env-overridable", reverse-handoff, REUSED the id) is genuinely done+verified: `statusline/statusline-command.sh:63-66` now read `${CLAUDE_USAGE_*:-/tmp/…}` overrides and `tests/test_statusline_path_overrides_ec3c.sh` is green. BUT the TODO twin (`TODO.md:651`) frames a **CLASS** — "Parallel-suite flakes are a CLASS" — of THREE flake instances: (1) statusline /tmp paths [FIXED here], (2) `test_git_lock_push_slash_branch.sh` ssh-agent state [spun out to an OPEN item `TODO.md:783`], (3) `test_relay_loop_intensive_emit.sh` [**NOT tracked anywhere**]. Ticking `id:ec3c` on the statusline closure over-closes the class and drops instance (3). This review LEFT `id:ec3c` OPEN and reverted a provisional tick. Owner's call: either (a) split instance (3) into its own `[ROUTINE]` item and close `id:ec3c` as the class-container, or (b) re-scope `id:ec3c` to the remaining instances. `cd9c` and `d119` (same-scope twins) WERE reconciled/ticked this pass. **RESOLVED 2026-08-18 (`/relay human .`, owner-decided).** Option (a) taken: instance (3) `test_relay_loop_intensive_emit.sh` split out as its own `[ROUTINE]` item `id:7a3d` (`children-of:ec3c`), and `id:ec3c` then ticked as the class-container — so the class closes with all three instances individually tracked and nothing dropped. Re-verified before ticking, not taken on trust: `statusline-command.sh:63-66` do carry the `${CLAUDE_USAGE_*:-…}` overrides and `tests/test_statusline_path_overrides_ec3c.sh` exits 0; instance (2) is open at `TODO.md:781`; and `grep -rn test_relay_loop_intensive_emit` across both ledgers + both archives confirmed instance (3) appeared ONLY as the test artifact of closed items, never as an open flake item. (This box's own line references had drifted — the class item is at `TODO.md:650`, not 651, and instance (2) at 781, not 783; located by content instead.)
+
+## Review 2026-08-19 (chain-end re-ask, chain `relay-ckpt-20260818-1506` — id:8123)
+
+`gaming-scan.sh` clean (no deleted tests / added skips / removed asserts). One closed item
+this window (`id:f69b`, parallelise the suite); the rest were ledger/meeting/human batches.
+Trust-but-verify found the suite is NOT deterministically green under load — the finding below.
+
+- [ ] **`id:f69b` LANDED the 5.4x speedup but the parallel suite is INTERMITTENTLY red under
+  concurrent load — the "442/0/3, verified" green claim is a single-quiet-run claim, not a
+  deterministic one.** Running the FULL suite in a loop on a loaded box (a relay pool running is
+  the normal case), I saw distinct intermittent failures across ~20 runs: `test_run_tests_parallel.sh`
+  (`-j 1 overrides JOBS=4: expected '1', got '2'`), `test_statusline_tokens.sh` (blank output), and
+  once `test_no_silent_swallow.sh`; every one passes standalone. This is NOT test-gaming (scan clean,
+  no weakened tests) and the speedup is real, so `id:f69b` was LEFT TICKED rather than reopened —
+  reopening would re-dispatch the whole done parallelisation. Instead the residue is split into a
+  targeted follow-up **`id:f875`** ([ROUTINE], filed this review) to make `test_run_tests_parallel.sh`'s
+  seriality observation load-robust, and one instance was fixed inline (next box). **Owner call**: is
+  the split disposition right, or do you want `id:f69b` reopened until the suite is deterministically
+  green? Re-checkable: `for i in $(seq 20); do tests/run-tests.sh 2>&1 | grep '^failed:'; done` under load.
+
+- [x] **`id:ec3c` instance (1) was closed as DONE but its ORIGINAL flaky test was never made
+  hermetic — FIXED inline this review.** The id:ec3c fix made `statusline-command.sh` usage-state
+  paths overridable (`CLAUDE_USAGE_{CACHE,HISTORY,BACKOFF,LOCK}`) and added a NEW test
+  (`test_statusline_path_overrides_ec3c.sh`), but `tests/test_statusline_tokens.sh` — the test that
+  MOTIVATED the class — still set only `HOME` and left the usage paths at their hardcoded `/tmp`
+  defaults, so it kept racing the developer's live-session statusline and flaking in-suite. Completed
+  id:ec3c's own stated shape ("have the test point them into its mktemp -d"): the four `CLAUDE_USAGE_*`
+  paths now point into the test's `mktemp -d`. Verified still green standalone. No owner action — the
+  ratified id:ec3c design authorized exactly this; recorded for visibility.
+
+- [ ] **relay-doctor surfaced 5 inbox DEAD-LETTERS whose target is THIS repo but which are in
+  neither `TODO.md` nor `ROADMAP.md`** (report-only, not routed by this review — several are
+  design-weight and belong to `/relay human` / `/meeting`, not a review turn): `routed:9ff0` (URGENT —
+  pool DOUBLE-DISPATCHES: in-flight de-dup keyed on dispatch-time slot, not the item the child works),
+  `routed:30c0` (URGENT/owner-ruling — a HARD lane silently dispatches to Sonnet when it also carries
+  the wire marker), `routed:96de` (RELAY_STATUS.md last-writer-wins across concurrent `--afk` pools),
+  `routed:236d` (`id:34b7` pre-dispatch worktree provisioning failed, emitted twice), `routed:f0bb`
+  (hard-split must re-point dependants when it containerises an item). Route via `/relay human .` /
+  `/meeting`, respecting paused repos. Re-checkable: `relay/scripts/relay-doctor.sh "$(pwd)"`.
+
+- [ ] **`roadmap-lint` reports 5 pre-existing DEAD-GATE / DEP-PROSE-UNTYPED warnings on gated,
+  owner-held items** (`id:2b49`, `id:d4ca`, `id:e405`, `id:540f`, `id:c179`) — gates pointing at
+  RETIRED ids or at TODO-only ids never promoted, so they can never open. All predate this window and
+  sit under owner-gates (the id:6b35 haiku-hop cluster + the visible-half item), so a review turn does
+  NOT re-target them (guessing a lane/gate is handoff/owner work). Surfaced for the owner to drop or
+  re-target the markers. Re-checkable: `relay/scripts/roadmap-lint.sh "$(pwd)"`.
