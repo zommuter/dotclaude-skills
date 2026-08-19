@@ -3379,6 +3379,11 @@ async function runUnit(unit) {
     })
     rechainedSameRepo = true
     log(`relay-loop: ${unit.verdict}→execute re-enqueue ${unit.repo} (${report.routine_open} open [ROUTINE], chainDepth ${chainDepth}/${MAX_CHAIN_DEPTH})`)
+    // id:b8ae — mechanize the six-weeks-uncaught observe-only signal: record the re-chain as a
+    // durable relay-events.jsonl entry (kind 'rechain') instead of relying on a human to catch
+    // the log line above. Names the repo, the re-enqueued verdict, and the chain depth so the
+    // occurrence can be found on evidence rather than needing someone to be watching a log.
+    pushEvent('rechain', { repo: unit.repo, fromVerdict: unit.verdict, reenqueuedVerdict: 'execute', routineOpen: report.routine_open, chainDepth, maxChainDepth: MAX_CHAIN_DEPTH })
   }
   // ── id:8123 — CHAIN-END CLASSIFIER RE-ASK ──────────────────────────────────────────────
   // The chain for this repo has ENDED whenever we did not just re-chain it: normal completion,
