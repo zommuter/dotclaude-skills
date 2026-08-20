@@ -6084,3 +6084,7 @@ title line; the only judgment call was picking a replacement RED fixture for the
 collateral test.
 refactor: none needed — this unit only replaces/repoints test specs, no production
 code changed.
+
+## 2026-08-20 18:13 — executor (sonnet, relay-loop)
+
+id:cc7e redefined per owner ruling: replaced tests/test_md_merge_own_id_last.sh (retired last-marker spec) with tests/test_md_merge_ambiguous_own_id.sh asserting md-merge.py's id:6059 AmbiguousOwnId refusal; repointed test_make_test_files.sh's RED fixture to id:6217. [id:cc7e]
