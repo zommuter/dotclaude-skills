@@ -6092,3 +6092,23 @@ id:cc7e redefined per owner ruling: replaced tests/test_md_merge_own_id_last.sh 
 ## 2026-08-20 18:35 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review chain relay-ckpt-20260820-1813: cc7e verified honest+green (owner-redefined AmbiguousOwnId spec; old last-marker test legit-retired) 451/0/1-expected-red; reconciled cc7e TODO twin [x]; routine_open=0 (all open ROUTINE gated/owner-verify) [id:cc7e]
+
+## 2026-08-20 — hard-execute (opus-apex)
+
+Worked id:3c9d — H3 standalone warm-vs-cold copy timing on a build-dep repo. Ran under an
+exclusive `resource:disk-io` lease on btrfs `/home` (zomni). Benchmarked `cp -a --reflink=always`
+(warm tree) vs `git clone --local --no-hardlinks` (cold tree) vs `cp -a --reflink=never` (control)
+on `zkm-ner` (heavy: spaCy+models, 341 MB `.venv`) and `zkm-stt` (light: pure-Python, 106 MB),
+3 iterations each, plus the cold-clone re-warm cost (`uv sync`: 16.08 s online for ner and
+offline-UNSATISFIABLE; 0.27 s offline for stt from the warm 43 GB uv cache). Published timings +
+verdict in `docs/reflink-warm-vs-cold-timing-2026-08-20.md` and appended a DONE note to the
+ROADMAP item (checkbox left for the driver per v12/id:5b12).
+Verdict: reflink premise is FALSE at the copy step (clone is faster to copy) but CORRECT once
+tree warmth is priced in — ACCEPT for heavy/network-bound repos (decisive: 0.14 s warm copy vs
+16 s+network rebuild), REJECT as a blanket rule for light cache-hit repos. Recommend the d03d
+fleet migration weight reflink by per-repo rebuild cost, not adopt it uniformly — owner's GO/NO-GO.
+Friction: none — item was correctly sized measure-only; the surprising bit is that the literal
+copy-time comparison inverts the premise, which is why the tree-warmth + rebuild-cost framing
+matters. All measurement copies were made outside any git repo and removed; no source repo state
+was touched (measure-only).
+refactor: none needed — measure-only item; no code changed, only a new docs note + ledger appends.
