@@ -6116,3 +6116,26 @@ refactor: none needed — measure-only item; no code changed, only a new docs no
 ## 2026-08-20 19:33 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 id:3c9d H3 reflink warm-vs-cold copy timings measured on zkm-ner/zkm-stt + verdict published [id:3c9d]
+
+## 2026-08-20 — id:9e50 integrate.sh (mechanical integrator, build half of id:a955)
+
+Built `relay/scripts/integrate.sh`: a standalone, fail-closed shell integrator that runs
+the 11 deterministic integrate steps (lease-release → clean-tree → verify-isolation →
+sync-origin → merge --no-ff → version-bump → changelog-append → ckpt-tag → git-lock-push →
+worktree-retire → state-write) by composing the existing relay helpers, extracted verbatim
+from the relay-loop.js integrate() Sonnet-agent prompt (~2696-2909). Each step maps its
+failure to a DISTINCT non-zero exit (20–29) + a loud `HANDBACK[<step>]` line. id:aa93 is
+enforced structurally: clean-tree is step 1, its non-zero defers before any mutation, and the
+script contains NO stash/reset/checkout--/clean op anywhere. id:6e02 scope enforced:
+worktree-retire receives exactly the one worktree+branch passed, no globbing. The SemVer
+user-observable judgement is an explicit `--level` input (absent ⇒ no bump), never embedded.
+Helper paths are env-overridable — the failure-injection seam the test uses. Does NOT touch
+relay-loop.js (that rewire is the sibling seam id:087b).
+
+Test `tests/test_integrate_sh_mechanized.sh`: hermetic full-sequence integrate (bare origin +
+main + child worktree + unrelated sibling worktree); forced failure at 4 distinct steps
+(exits 20/21/22/23, main HEAD unmoved on each); real-gate aa93 defer (a foreign tracked edit
+survives byte-for-byte, no merge lands); id:6e02 unrelated-worktree survival. Registered the
+new script in the Makefile install manifest (relay_FILES/_EXEC/_ALLOW, id:5f09). Full suite:
+452 passed, 0 failed. Friction: none. Checkbox left unticked per v12 (id:5b12) — driver ticks
+from worked_ids at integrate.
