@@ -29,8 +29,24 @@ tracked as `id:dc80`.
   afterwards an ACL denial and a `ProtectHome` mount-namespace failure are indistinguishable — and
   close the `heartbeats.done/`+`inject.d/` ACL gap (`id:dc80`) first, or a service-user write there
   fails once the daemons switch uid.
+  — ✅ **GATE-CLEARANCE INDEPENDENTLY VERIFIED 2026-08-20 (`/relay human --all`) — the box is
+  right. Kept OPEN because it is real human work, not a decision.** Checked because a stored
+  memory (`sandbox-relay-os-users-2026-07-08`) asserted the OPPOSITE — that `id:5bef` was
+  TODO-only, never promoted, so the pool could not author the units and `id:8e7a` stayed gated.
+  **That memory is STALE:** `id:5bef` is `- [x] [ROUTINE]` at `ROADMAP.md:1588` ("Author the
+  systemd units + hardening for the two relay service users"), also archived. The authoring half
+  is done and the gate IS cleared. Memory corrected in the same pass rather than left to mislead
+  the next session.
+  **This stays on the "you run these" list** — device work the relay never auto-runs: root-owned
+  install into `/etc/systemd/user/` via sudo, deliberate per-user enable, and runtime verification
+  (e0f8-class blocked + cross-uid heartbeat round-trip). **The ORDER is the load-bearing part, and
+  it is not arbitrary:** run `id:e8a3` FIRST — after the unit migration an ACL denial and a
+  `ProtectHome` mount-namespace failure become indistinguishable, so diagnosing anything gets much
+  harder — and close the `heartbeats.done/` + `inject.d/` ACL gap (`id:dc80`) before switching
+  uids, or a service-user write there fails immediately. Doing these out of order is recoverable
+  but costs a debugging session for no reason.
 
-- [ ] **Handoff-readiness: `id:f26d` is an open non-gated `[ROUTINE]` with NO RED spec** —
+- [x] **Handoff-readiness: `id:f26d` is an open non-gated `[ROUTINE]` with NO RED spec** —
   `grep -rl 'roadmap:f26d' tests/` returns nothing, yet the classifier ranks it `actionable_routine`
   (non-gated `[ROUTINE]`), so an execute chain would pick it with no failing test to satisfy (executor
   definition-of-done). Needs a handoff pass to author the red spec (or re-lane — it is `md-merge.py`
@@ -44,6 +60,21 @@ tracked as `id:dc80`.
   `maxc>1` parallel checks unchanged). `id:dd7d` — the item this box cited as the only spec'd one of the
   trio — is also closed+green (`tests/test_redispatch_stranded_branch_dd7d.sh` passes) and its TODO twin
   was reconciled [x] this review. Only `id:f26d` remains from the original trio.
+  — ✅ **STALE — the last of the trio closed too. Box closed 2026-08-20 (`/relay human --all`) after
+  verification, with a correction.** Both halves of the hazard are now false: **(1)** `id:f26d` is
+  `- [x]` on `ROADMAP.md:1608` (the `md-merge.py` insert-relative-to-id + in-lock line transform
+  shipped, INBOUND `routed:f88b` from loderite); **(2)** the missing RED spec EXISTS —
+  `tests/test_md_merge_insert_and_transform_f26d.sh` (authored 2026-08-19 16:26), and it PASSES
+  (`tests/run-tests.sh` → `1 passed, 0 failed, 0 expected-red`). So the dispatch hazard this box
+  described — a non-gated `[ROUTINE]` an execute chain would pick with no failing test to satisfy —
+  cannot occur: there is nothing left to pick.
+  **Recorded because it changed a decision:** the owner was asked (on this box's stale framing) and
+  chose \"route to `/relay handoff` to author the RED spec\". **That routing was NOT performed**, because
+  the spec it would have commissioned already exists and the item it would have prepared is already
+  done — dispatching it would have produced a duplicate spec for shipped work. Verified before acting
+  rather than after. This is the third stale REVIEW_ME box found in this pass (with helferli `id:4137`
+  and loderite `id:8b7c`'s misattributed blocker); the common shape is a box asserting a CODE state
+  that the code has since moved past, which is exactly the doc-vs-code drift the global rule names.
 
 ## Review 2026-08-14 (chain-end re-ask, chain `relay-ckpt-20260813-2332` — id:8123)
 
@@ -748,7 +779,7 @@ id:f657, id:d119). f657 carries no judgment call (its contract is fully specifie
 this window (`id:f69b`, parallelise the suite); the rest were ledger/meeting/human batches.
 Trust-but-verify found the suite is NOT deterministically green under load — the finding below.
 
-- [ ] **`id:f69b` LANDED the 5.4x speedup but the parallel suite is INTERMITTENTLY red under
+- [x] **`id:f69b` LANDED the 5.4x speedup but the parallel suite is INTERMITTENTLY red under
   concurrent load — the "442/0/3, verified" green claim is a single-quiet-run claim, not a
   deterministic one.** Running the FULL suite in a loop on a loaded box (a relay pool running is
   the normal case), I saw distinct intermittent failures across ~20 runs: `test_run_tests_parallel.sh`
@@ -768,6 +799,19 @@ Trust-but-verify found the suite is NOT deterministically green under load — t
   standalone 3x and passed on the immediate suite re-run (447/0/2); no timing/concurrency in that test,
   so it is a fork/resource-exhaustion flake under contention, not a `test_run_tests_parallel.sh`-class
   sampling race. `id:f69b` still LEFT TICKED (speedup real, no gaming). Owner call unchanged.
+  — ✅ **OWNER CALL MADE 2026-08-20 (`/relay human --all`): the split disposition is RIGHT — `id:f69b`
+  stays TICKED, not reopened — and the residue gets ONE ITEM PER FLAKY TEST.** Reopening f69b would
+  re-dispatch a completed parallelisation to chase a test-hygiene residue, which is the wrong unit of
+  work; per-test items let each be reproduced and fixed independently. **Checked each of the three
+  before filing anything, and only ONE was untracked:** `test_run_tests_parallel.sh` → `id:f875`,
+  CLOSED green; `test_statusline_tokens.sh` → fixed under `id:ec3c` (`- [x]`, `TODO.archive.md:645`;
+  the fix made `statusline-command.sh`'s four hardcoded `/tmp` usage-state paths env-overridable);
+  `test_no_silent_swallow.sh` → **nowhere**, now filed as **`id:a4d2`**. Its done-check is explicitly
+  repeat-under-load, because \"442/0/3, verified\" being a single quiet run is the exact weakness this
+  box was opened to name. **Deliberately NOT merged in:** `tests/test_git_lock_push_slash_branch.sh`
+  (`TODO.md:450`) stays a do-not-fix-yet n=1 observation, and `test_mechanical_tag.sh` above is a
+  one-off fork/resource-exhaustion flake with no timing logic — neither has the evidence to justify an
+  item yet, and inflating the class with singletons would make it unfalsifiable.
 
 - [x] **`id:ec3c` instance (1) was closed as DONE but its ORIGINAL flaky test was never made
   hermetic — FIXED inline this review.** The id:ec3c fix made `statusline-command.sh` usage-state
@@ -799,12 +843,27 @@ Trust-but-verify found the suite is NOT deterministically green under load — t
   `routed:9ff0` pool double-dispatch) are now tracked items awaiting a lane + disposition, not
   resolved defects.
 
-- [ ] **`roadmap-lint` reports 5 pre-existing DEAD-GATE / DEP-PROSE-UNTYPED warnings on gated,
+- [x] **`roadmap-lint` reports 5 pre-existing DEAD-GATE / DEP-PROSE-UNTYPED warnings on gated,
   owner-held items** (`id:2b49`, `id:d4ca`, `id:e405`, `id:540f`, `id:c179`) — gates pointing at
   RETIRED ids or at TODO-only ids never promoted, so they can never open. All predate this window and
   sit under owner-gates (the id:6b35 haiku-hop cluster + the visible-half item), so a review turn does
   NOT re-target them (guessing a lane/gate is handoff/owner work). Surfaced for the owner to drop or
   re-target the markers. Re-checkable: `relay/scripts/roadmap-lint.sh "$(pwd)"`.
+  — ✅ **RESOLVED 2026-08-20 (owner, `/relay human --all`) — and the five were TWO different problems,
+  which only resolving each target revealed.** **Class 1, FIXED this pass (mechanical, no judgment):**
+  `ac7f`, `e62c` and `33b2` are each `- [x]` in `ROADMAP.archive.md`, so gates on them were
+  **DISCHARGED, not dead** — the lint called them dead only because the archived items lost their live
+  ROADMAP stub (the same stub-loss class loderite's `id:2ab3` names, and the same reason loderite's
+  `id:4027` gate cleared). Markers replaced with an explicit discharge note rather than silently
+  deleted, so the provenance survives: `id:2b49` (was `gated-on:ac7f`) is now **fully unblocked**, and
+  `id:540f` / `id:c179` lost their `e62c` half. **Class 2, SURFACED not fixed:** `id:b0b1`
+  (`[HARD — meeting]`) and `id:09e4` (`[ROUTINE]`) live only in `TODO.md` and were never promoted, so
+  gates on them genuinely cannot open — `id:540f` and `id:c179` remain blocked on `b0b1`, `id:d4ca` and
+  `id:e405` on `09e4`. Fixing that means either promoting the targets (assigning a lane, which
+  `hard-lanes.md` says must be read from the item, not guessed — handoff C2's call) or re-targeting the
+  markers (an owner decision about what those items truly depend on). A review turn may do neither, so
+  it is now tracked as **`id:ae11`** rather than left in this queue. **Measured before and after:**
+  `roadmap-lint.sh` reported 7 DEAD-GATE lines; it now reports exactly 4, all class 2.
 
 - [x] **id:cc7e — OWNER CALL PENDING: spec conflicts with the shipped id:6059 design; RE-LANED [ROUTINE]→[INPUT — decision] by review relay-ckpt-20260819-1449.** The executor (relay-ckpt-20260819-1449 chain) correctly BLOCKED cc7e instead of gaming it: `meeting/md-merge.py` already implements id:6059 (it RAISES `AmbiguousOwnId` / refuses any line carrying multiple anchored `<!-- id:XXXX -->` markers, rather than resolving own-id as first-vs-last), so cc7e's RED test case (A) — an `update-ids` write aimed at the trailing OWN id must APPLY — can never pass against the intended behaviour. Two honest resolutions, both need your sign-off: (1) CLOSE cc7e in favour of id:6059 and retire `tests/test_md_merge_own_id_last.sh`; or (2) REDEFINE cc7e to assert the id:6059 refusal and author a fresh RED spec. Until then the item is parked as [INPUT — decision] (not executor-dispatchable) and its test stays EXPECTED-RED. Evidence: RELAY_LOG 2026-08-19 BLOCKED note; `grep -n id:6059 meeting/md-merge.py`. — ✅ **OWNER DECIDED 2026-08-20 (`/relay human --all`): option (2) REDEFINE, not close.** Rationale recorded with the decision: the `AmbiguousOwnId` refusal is currently pinned only by `md-merge.py`'s own code, with no spec asserting it is *deliberate* rather than incidental — closing cc7e would have left it untested. cc7e now owns that assertion and is re-laned [INPUT — decision] → **[ROUTINE]** (ordinary executor work once the direction is fixed). New contract on the ROADMAP twin (`ROADMAP.md`, `<!-- id:cc7e -->`): a fresh RED spec asserting `update-ids` RAISES `AmbiguousOwnId` and writes nothing for a line bearing >1 anchored marker, while a single-marker line still applies; `tests/test_md_merge_own_id_last.sh` is retired/replaced, since its assertions encode the retired spec. **NOTE — the TODO twin (`TODO.md:784`) could NOT receive this flow-back:** `md-merge.py` refused it with `AMBIGUOUS own id — line carries 5 anchored id markers (2f81, 7756, aaaa, bbbb, cc7e)`, because that item quotes marker literals as its own evidence. The guard fired correctly, on the very item that documents it; the ROADMAP twin carries the decision and both twins remain `- [ ]`, so there is no checkbox drift.
 
