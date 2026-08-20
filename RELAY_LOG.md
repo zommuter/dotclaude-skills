@@ -6060,3 +6060,27 @@ md-merge.py update-ids gains insert-relative-to-id (insert_before/insert_after) 
 ## 2026-08-19 16:40 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 review re-ask relay-ckpt-20260819-1614: id:f875 hardened test_run_tests_parallel.sh verified honest+green (447/0/2); reconciled cross-ledger id:dd7d TODO twin [x]; f26d remains spec-less non-gated [ROUTINE] → needs handoff, no dispatchable routine work [id:f875,dd7d]
+
+## 2026-08-20 — executor (claude-sonnet-5)
+
+Worked id:cc7e — the owner's 2026-08-20 REDEFINE ruling (`/relay human --all`) asked
+for a fresh RED-turned-GREEN spec asserting the id:6059 `AmbiguousOwnId` refusal
+instead of the retired last-marker-wins behaviour. Replaced
+`tests/test_md_merge_own_id_last.sh` (which encoded the retired spec) with
+`tests/test_md_merge_ambiguous_own_id.sh`: asserts a write aimed at either marker
+on a 2-marker line raises loud, names both candidate ids, and writes nothing, and
+that a single-marker line elsewhere in the same file still applies normally.
+Since `meeting/md-merge.py` already ships the `AmbiguousOwnId` refusal (id:6059),
+the new spec is GREEN immediately against HEAD — it locks in already-shipped
+behaviour as a tested contract rather than driving new code.
+Collateral: `tests/test_make_test_files.sh` used the retired file by name as its
+"currently open+RED" fixture; repointed it at
+`tests/test_dryround_single_definition_6217.sh` (roadmap:6217, still open/gated)
+so the fixture stays a genuine RED example. Full suite: 450 passed, 1 expected-red
+(id:6217), 1 pre-existing unrelated flake (`test_git_lock_push_slash_branch.sh`,
+fails only inside the full-suite run, passes standalone — not touched by this unit).
+Friction: none — the item was well-specified by the owner's ruling on the ROADMAP
+title line; the only judgment call was picking a replacement RED fixture for the
+collateral test.
+refactor: none needed — this unit only replaces/repoints test specs, no production
+code changed.
