@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-20
+
+- id:cc7e redefined per owner ruling: replaced tests/test_md_merge_own_id_last.sh (retired last-marker spec) with tests/test_md_merge_ambiguous_own_id.sh asserting md-merge.py's id:6059 AmbiguousOwnId refusal; repointed test_make_test_files.sh's RED fixture to id:6217. (id:cc7e)
+
 ## 2026-08-19
 
 - id:b8ae — relay-loop.js's rechain block now emits a pushEvent('rechain',…) into relay-events.jsonl, mechanizing the six-weeks-uncaught observe-only re-chain signal (id:b8ae)
