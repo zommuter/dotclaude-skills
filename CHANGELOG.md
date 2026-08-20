@@ -10,6 +10,7 @@
 ## 2026-08-20
 
 - id:cc7e redefined per owner ruling: replaced tests/test_md_merge_own_id_last.sh (retired last-marker spec) with tests/test_md_merge_ambiguous_own_id.sh asserting md-merge.py's id:6059 AmbiguousOwnId refusal; repointed test_make_test_files.sh's RED fixture to id:6217. (id:cc7e)
+- review chain relay-ckpt-20260820-1813: cc7e verified honest+green (owner-redefined AmbiguousOwnId spec; old last-marker test legit-retired) 451/0/1-expected-red; reconciled cc7e TODO twin [x]; routine_open=0 (all open ROUTINE gated/owner-verify) (id:cc7e)
 
 ## 2026-08-19
 
