@@ -6139,3 +6139,7 @@ survives byte-for-byte, no merge lands); id:6e02 unrelated-worktree survival. Re
 new script in the Makefile install manifest (relay_FILES/_EXEC/_ALLOW, id:5f09). Full suite:
 452 passed, 0 failed. Friction: none. Checkbox left unticked per v12 (id:5b12) — driver ticks
 from worked_ids at integrate.
+
+## 2026-08-20 20:44 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+Built relay/scripts/integrate.sh — standalone fail-closed mechanical integrator (11 steps, distinct exits, aa93/6e02 enforced in-script), hermetic test, Makefile-registered (id:9e50) [id:9e50]
