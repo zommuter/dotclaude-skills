@@ -6112,3 +6112,7 @@ copy-time comparison inverts the premise, which is why the tree-warmth + rebuild
 matters. All measurement copies were made outside any git repo and removed; no source repo state
 was touched (measure-only).
 refactor: none needed — measure-only item; no code changed, only a new docs note + ledger appends.
+
+## 2026-08-20 19:33 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+id:3c9d H3 reflink warm-vs-cold copy timings measured on zkm-ner/zkm-stt + verdict published [id:3c9d]
