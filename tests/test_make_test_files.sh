@@ -10,19 +10,19 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-pass_fixture="$ROOT/tests/test_makefile_skills.sh"      # a real, currently-green test
-red_fixture="$ROOT/tests/test_md_merge_own_id_last.sh"  # roadmap:cc7e, currently open+RED
+pass_fixture="$ROOT/tests/test_makefile_skills.sh"              # a real, currently-green test
+red_fixture="$ROOT/tests/test_dryround_single_definition_6217.sh"  # roadmap:6217, currently open+RED
 
 [[ -f "$pass_fixture" ]] || { echo "fixture missing: $pass_fixture"; exit 1; }
 [[ -f "$red_fixture" ]] || { echo "fixture missing: $red_fixture"; exit 1; }
-grep -qE '^- \[ \] .*<!-- id:cc7e -->' "$ROOT/ROADMAP.md" \
-  || { echo "fixture precondition failed: id:cc7e is no longer an open ROADMAP item — pick a different currently-open RED fixture"; exit 1; }
+grep -qE '^- \[ \] .*<!-- id:6217 -->' "$ROOT/ROADMAP.md" \
+  || { echo "fixture precondition failed: id:6217 is no longer an open ROADMAP item — pick a different currently-open RED fixture"; exit 1; }
 
 out="$(make -C "$ROOT" -s FILES="$pass_fixture $red_fixture" test 2>&1)" \
   || { echo "make test FILES=... exited non-zero on a pass+expected-red pair"; echo "$out"; exit 1; }
 grep -q "PASS   test_makefile_skills.sh" <<<"$out" \
   || { echo "pass fixture not reported PASS"; echo "$out"; exit 1; }
-grep -q "EXPECTED-RED test_md_merge_own_id_last.sh" <<<"$out" \
+grep -q "EXPECTED-RED test_dryround_single_definition_6217.sh" <<<"$out" \
   || { echo "red fixture not reported EXPECTED-RED"; echo "$out"; exit 1; }
 grep -q "^summary: 1 passed, 0 failed, 1 expected-red" <<<"$out" \
   || { echo "summary line does not show exactly the two fixture files (FILES= didn't scope the run)"; echo "$out"; exit 1; }
