@@ -77,6 +77,7 @@ emit() {  # emit the JSON object via temp files (avoids execve overflow on large
   printf '%s' "${21:-}"   > "$_blobdir/OPEN_HARD_POOL_IDS"   # id:7517 — newline-separated
   printf '%s' "${22:-}"   > "$_blobdir/TOP_INTENSIVE_ROUTINE"  # id:2799 — per-lane split
   printf '%s' "${23:-}"   > "$_blobdir/TOP_INTENSIVE_HARD"     # id:2799 — per-lane split
+  printf '%s' "${24:-false}" > "$_blobdir/DIRTY_UNTRACKED_ONLY"  # id:27b4
   EMIT_DIR="$_blobdir" REPO="$repo" RPATH="$path" RUNID="$runid" \
   python3 -c '
 import os, json
@@ -102,6 +103,13 @@ o = {
   # tree is dirty with ONLY uv.lock modified (→ still dispatchable; child relocks).
   "lock_only_unaudited": b(r("LOCK_ONLY_UNAUDITED")),
   "dirty_lock_only": b(r("DIRTY_LOCK_ONLY")),
+  # id:27b4 — dirty_untracked_only: the tree is dirty with ONLY UNTRACKED files. Still
+  # DISPATCHABLE: a child works in its own git-worktree clone and never touches the main
+  # checkout untracked files, and git merge itself refuses a merge that would overwrite an
+  # untracked file, so integrate safety does not rest on this flag.
+  # Conservative: ANY tracked change (staged or unstaged) defeats it.
+  # NOTE: no apostrophes in this block — it lives inside a single-quoted python3 -c string.
+  "dirty_untracked_only": b(r("DIRTY_UNTRACKED_ONLY")),
   "upstream_ahead_behind": r("UPSTREAM"),
   "has_upstream": b(r("HAS_UPSTREAM")),
   "worktrees": r("WORKTREES"),
@@ -199,6 +207,16 @@ dirty_lock_only=false
 if [[ "$dirty" == true ]]; then
   dirty_nonlock="$(printf '%s\n' "$porcelain" | grep -v '^[[:space:]]*$' | awk '{print $NF}' | grep -vx 'uv.lock' || true)"
   [[ -z "$dirty_nonlock" ]] && dirty_lock_only=true
+fi
+# id:27b4 — dirty_untracked_only: dirty with ONLY untracked ("??") entries. Blocking a repo
+# on untracked files silently parked yinyang-puzzle for 19 days over two campaign assets
+# (no dispatch since relay-ckpt-20260731-1801). Mirrors the id:bae5 dirty_lock_only
+# precedent: some dirt is still dispatchable. This NEVER authorises cleaning a tree —
+# id:aa93 stands; untracked files are exactly what `git clean` destroys.
+dirty_untracked_only=false
+if [[ "$dirty" == true ]]; then
+  dirty_tracked="$(printf '%s\n' "$porcelain" | grep -v '^[[:space:]]*$' | grep -v '^??' || true)"
+  [[ -z "$dirty_tracked" ]] && dirty_untracked_only=true
 fi
 # upstream ahead/behind (tab-separated "ahead<TAB>behind"); has_upstream=false when none.
 if git -C "$path" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
@@ -585,4 +603,4 @@ emit true "$head_sha" "$latest" "$latest_msg" "$commits_since" "$dirty" "$porcel
      "$upstream" "$has_upstream" "$worktrees" "$orphans" "$block" "$roadmap" \
      "$lock_only_unaudited" "$dirty_lock_only" "$is_finished" "$top_intensive" \
      "$substantive_unaudited" "$work_sig" "$open_hard_pool" "$open_hard_pool_ids" \
-     "$top_intensive_routine" "$top_intensive_hard"
+     "$top_intensive_routine" "$top_intensive_hard" "$dirty_untracked_only"
