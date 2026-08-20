@@ -69,6 +69,14 @@ if [ -n "$porcelain" ]; then
   while IFS= read -r entry; do
     [ -n "$entry" ] || continue
     path="${entry:3}"   # strip the 2-char XY status + 1 space
+    # id:27b4 — an UNTRACKED entry ("??") is not foreign-dirty for merge purposes. A merge
+    # that would overwrite an untracked file is refused by git itself, so the aa93 hazard
+    # (a tracked edit clobbered by an agent) is unaffected; blocking on untracked files
+    # instead silently parks repos (yinyang-puzzle: 19 days over two campaign assets).
+    # Set RELAY_STRICT_UNTRACKED=1 to restore the old strict behaviour.
+    if [ "${entry:0:2}" = "??" ] && [ "${RELAY_STRICT_UNTRACKED:-0}" != "1" ]; then
+      continue
+    fi
     accepted=0
     for pat in ${accepts[@]+"${accepts[@]}"}; do
       if [ "$path" = "$pat" ]; then accepted=1; break; fi

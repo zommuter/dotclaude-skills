@@ -138,6 +138,7 @@ if top_intensive and actionable_routine == 0 and open_hard_pool == 0 and not is_
 # All fields already arrive from gather via classify-repo (full gather JSON passthrough).
 dirty                 = bool(data.get("dirty", False))
 dirty_lock_only       = bool(data.get("dirty_lock_only", False))
+dirty_untracked_only  = bool(data.get("dirty_untracked_only", False))
 has_upstream          = bool(data.get("has_upstream", False))
 _ab                   = str(data.get("upstream_ahead_behind", "") or "")
 try:
@@ -147,7 +148,13 @@ try:
 except (ValueError, IndexError):
     _ahead, _behind = 0, 0
 diverged    = has_upstream and _ahead > 0 and _behind > 0
-dirty_block = dirty and not dirty_lock_only
+# id:27b4 — untracked-ONLY dirt no longer blocks dispatch. A child works in its own
+# git-worktree clone and never touches the main checkout untracked files, and git merge
+# refuses any merge that would overwrite an untracked file, so integrate safety is
+# enforced by git itself rather than by this verdict. TRACKED dirt still blocks
+# (id:aa93 stands, and nothing here ever authorises cleaning a tree).
+# NOTE: no apostrophes — this block lives inside a single-quoted python3 -c string.
+dirty_block = dirty and not dirty_lock_only and not dirty_untracked_only
 
 evidence = []
 

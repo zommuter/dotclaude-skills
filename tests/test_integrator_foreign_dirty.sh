@@ -8,6 +8,11 @@
 # This test pins the deterministic fix:
 #   (A) clean-tree-gate.sh observes ONLY (never stash/checkout/reset/clean): on a foreign-dirty
 #       tree it reports "dirty N" + exit 2, and the edit SURVIVES on disk untouched.
+#       AMENDED 2026-08-20 (id:27b4, owner-ratified): "foreign-dirty" here means TRACKED dirt.
+#       An UNTRACKED-only tree no longer defers (exit 0) — it still SURVIVES, and the gate still
+#       never cleans, so this file's data-loss purpose is intact. RELAY_STRICT_UNTRACKED=1
+#       restores the old defer. Rationale + the 19-day yinyang-puzzle outage that motivated it:
+#       tests/test_untracked_only_dispatchable_27b4.sh.
 #   (B) a clean tree → "clean" + exit 0.
 #   (C) --accept whitelists a declared-acceptable path so it does not block.
 #   (D) relay-loop.js integrate step 1 calls the deterministic gate (not just an agent prompt),
@@ -57,13 +62,28 @@ grep -q "FOREIGN EDIT" "$TMP/repo/tracked.txt" || fail "DATA LOSS: gate destroye
 [[ -z "$(git -C "$TMP/repo" stash list)" ]] || fail "gate stashed the foreign edit (must never stash a main checkout)"
 pass "foreign-dirty tree defers (exit 2) and the concurrent edit SURVIVES (no stash, no reset)"
 
-# ── untracked foreign file is also foreign-dirty and survives ──
+# ── untracked foreign file: SURVIVES (aa93 core) but no longer DEFERS (id:27b4) ──
+# SUPERSEDED 2026-08-20 (owner-ratified): this case previously asserted exit 2. That
+# assertion is explicitly retired, NOT silently weakened. The aa93 bug this file pins was a
+# TRACKED-but-unstaged edit vanishing when an agent "cleaned" the tree; both core invariants
+# are untouched and still asserted below — the gate never cleans, and the file SURVIVES.
+# What changed is only the DEFER decision for an untracked-only tree, because blocking on it
+# silently parked yinyang-puzzle for 19 days over two campaign assets (no dispatch from
+# relay-ckpt-20260731-1801 until 2026-08-20). Safety is not weakened: `git merge` itself
+# refuses any merge that would overwrite an untracked file. Strictness is recoverable per-run
+# via RELAY_STRICT_UNTRACKED=1, asserted immediately after.
 printf 'new\n' >"$TMP/repo/untracked.txt"
 git -C "$TMP/repo" checkout -q -- tracked.txt   # restore tracked to clean for an isolated case
 run_gate "$TMP/repo"
-[[ "$rc" -eq 2 ]] || fail "untracked-dirty tree exit code should be 2 (got $rc)"
+[[ "$rc" -eq 0 ]] || fail "untracked-only tree should NOT defer since id:27b4 (got $rc)"
 [[ -f "$TMP/repo/untracked.txt" ]] || fail "DATA LOSS: gate deleted an untracked foreign file"
-pass "untracked foreign file defers (exit 2) and survives (no git clean)"
+pass "untracked-only tree does NOT defer (id:27b4) and still SURVIVES (no git clean)"
+
+# strictness is still available per-run — the escape hatch must actually work
+RELAY_STRICT_UNTRACKED=1 run_gate "$TMP/repo"
+[[ "$rc" -eq 2 ]] || fail "RELAY_STRICT_UNTRACKED=1 must restore the pre-27b4 defer (got $rc)"
+[[ -f "$TMP/repo/untracked.txt" ]] || fail "DATA LOSS: strict mode deleted an untracked file"
+pass "RELAY_STRICT_UNTRACKED=1 restores the strict untracked defer, still without cleaning"
 
 # ── (C) --accept whitelists a declared-acceptable path ──
 run_gate "$TMP/repo" --accept untracked.txt
