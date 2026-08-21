@@ -46,6 +46,7 @@ PAT="$TMP/patterns.txt"
   echo '# synthetic fixture — no real leak specifics'
   echo 'ZZOLDLEAK-[0-9]+'      # seeded ONLY in already-published history
   echo 'ZZNEWLEAK-[0-9]+'      # seeded ONLY in the commits this push publishes
+  echo 'ZZMERGELEAK-[0-9]+'    # seeded ONLY in a merge's resolved tree (id:5171)
   echo 'allow: ZZALLOWED-[0-9]+'
 } > "$PAT"
 
@@ -238,6 +239,62 @@ out3="$( cd "$FRESH" && printf 'refs/heads/main %s refs/heads/main %s\n' "$FHEAD
 grep -q 'ZZOLDLEAK-9999' <<<"$out3" \
   && ok "b4dd: FIRST push of a fresh repo still scans the whole history (no haves)" \
   || bad "b4dd: fresh-repo first push missed a leak in the root commit — first-push scanning regressed. Output: $out3"
+
+# ── (6) MERGE-COMMIT RESOLVED-TREE CONTENT (id:5171) ───────────────────────────────────
+# `git log -p` prints NO diff for a merge commit by default, so a leak that exists ONLY
+# in the merge's RESOLVED TREE — a genuine conflict, hand-resolved with new content
+# present in NEITHER parent — was invisible to the id:b4dd rewrite even though the old
+# tree-diff caught it. Build a real conflict (not a synthetic "merge commit" faked via
+# `commit --allow-empty` or similar) and resolve it with the seeded leak, then push ONLY
+# the merge commit (the remote already has both parent tips, via remote-tracking refs).
+MREPO="$TMP/merge/repo"; mkdir -p "$TMP/merge"
+git -C "$TMP/merge" init -q repo
+git -C "$MREPO" config user.email t@example.com
+git -C "$MREPO" config user.name tester
+git -C "$MREPO" config core.hooksPath /dev/null
+
+printf 'line1\nline2\nline3\n' > "$MREPO/f.txt"
+git -C "$MREPO" add f.txt
+git -C "$MREPO" commit -q -m base
+
+git -C "$MREPO" checkout -q -b branch-a
+printf 'line1\nCHANGED-ON-A\nline3\n' > "$MREPO/f.txt"
+git -C "$MREPO" commit -q -am on-a
+MA="$(git -C "$MREPO" rev-parse HEAD)"
+
+git -C "$MREPO" checkout -q main 2>/dev/null || git -C "$MREPO" checkout -q master
+printf 'line1\nCHANGED-ON-B\nline3\n' > "$MREPO/f.txt"
+git -C "$MREPO" commit -q -am on-b
+MB="$(git -C "$MREPO" rev-parse HEAD)"
+
+# Merge branch-a in: f.txt conflicts on line2. Resolve by hand with the seeded leak —
+# text present in NEITHER MA's nor MB's version of the line.
+git -C "$MREPO" merge -q --no-ff branch-a -m "merge with conflict" >/dev/null 2>&1 || true
+printf 'line1\nZZMERGELEAK-8888 resolved by hand\nline3\n' > "$MREPO/f.txt"
+git -C "$MREPO" add f.txt
+git -C "$MREPO" commit -q -m "merge with conflict"
+MM="$(git -C "$MREPO" rev-parse HEAD)"
+
+# Remote already holds BOTH parent tips (a normal state: they were pushed earlier,
+# the merge commit is the only new thing in this push).
+git -C "$MREPO" update-ref "refs/remotes/github/main" "$MB"
+git -C "$MREPO" update-ref "refs/remotes/github/branch-a" "$MA"
+
+MRT="$TMP/merge/relay.toml"
+printf '[repos.testfix]\nclassification = "own"\npath = "%s"\n' "$MREPO" > "$MRT"
+
+LOG5="$TMP/gate5.log"; : > "$LOG5"
+out5="$( cd "$MREPO" && printf 'refs/heads/main %s refs/heads/main %s\n' "$MM" "$MB" \
+          | env PRIVACY_GATE_PATTERNS="$PAT" PRIVACY_GATE_LOG="$LOG5" \
+                PRIVACY_GATE_RELAY_TOML="$MRT" bash "$HOOK" github "$PUBLIC_URL" 2>&1 )"
+
+grep -q 'ZZMERGELEAK-8888' <<<"$out5" \
+  && ok "id:5171: leak in a merge's RESOLVED TREE (present in neither parent) is PRINTED" \
+  || bad "id:5171: merge-resolution-only leak went UNDETECTED — git log -p prints no diff for merge commits. Output: $out5"
+
+grep -q 'ZZMERGELEAK-8888' "$LOG5" 2>/dev/null \
+  && ok "id:5171: merge-resolution-only leak is LOGGED" \
+  || bad "id:5171: merge-resolution-only leak was not appended to the log"
 
 # ── (4) a ref this repo cannot resolve is reported LOUDLY, never silently dropped ──────
 LOG4="$TMP/gate4.log"; : > "$LOG4"
