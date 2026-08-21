@@ -6320,3 +6320,24 @@ Workflow sandbox cannot import, which is why the copy exists).
 ## 2026-08-21 09:48 — integrate (claude-opus-5)
 
 integrate id:35b7 — gate measures the e68f slice (303,321 tok REFUSED without / 14,548 tok DISPATCHES with); ledger conflict resolved by hand; id:087b tick backfilled
+
+## 2026-08-21 — executor (claude-opus-5)
+
+Worked id:7518 — promoted it to ROADMAP.md (reusing the TODO id) as an OBSERVE-FIRST item,
+built `tests/flake-log.sh`, ran a 12-run × 4-width campaign, and identified the cause. The
+suite's flakiness is NOT shared state and NOT host exhaustion: it is `set -o pipefail`
+combined with a producer piped into an early-exiting consumer (`grep -q` / `head -N`). The
+consumer exits on its first match, the producer takes SIGPIPE (141), `pipefail` promotes 141
+to the pipeline status, and the test's `|| fail` fires. Measured 8/400 (2%) on the exact
+assertion that failed in-suite, against a static 262-line file with no fixture and no lock.
+Width raises load, load widens the scheduling window, the per-site rate rises — which is why
+the flakers span four unrelated domains with no shared fixture. 427 at-risk sites across 162
+of 459 test files; all 459 set `pipefail`. Killed by the log: tmpfs exhaustion (/tmp never
+below 2.27 GiB) and fd exhaustion (~17k allocated vs `ulimit -n` 524288).
+
+The item stays OPEN. The fix is mechanical but wide (427 sites), so it is NOT the "small
+change" clause 6 permits an executor to merge — it needs its own item plus a lint that bans
+the shape. Log: `~/.cache/dotclaude-flake/runs.jsonl`.
+
+Friction: the campaign is ~25 min of wall-clock the executor must sit through; a red run is
+data, not a failure, which the runner's exit code cannot express.
