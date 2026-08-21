@@ -40,10 +40,16 @@ Three-way, positive-signal based, ambiguity resolving to BLOCK:
                   * env RELAY_RUN_ID or CLAUDE_RELAY_RUN_ID non-empty
                     (the relay loop's own run marker — relay/scripts/discover-prelude.sh)
                   * env RELAY_AFK / CLAUDE_UNATTENDED truthy
-                  * a LIVE relay run heartbeat (id:e149) — i.e. at least one
+                  * a LIVE relay POOL heartbeat (id:e149) — i.e. at least one
                     `heartbeats/<runId>.json` under $HEARTBEAT_BASE
                     (default ~/.config/relay/heartbeats) whose heartbeat_ts is
-                    within HEARTBEAT_TTL (default 3600s)
+                    within HEARTBEAT_TTL (default 3600s) AND whose runId names a
+                    real pool.  "Names a real pool" is NOT re-derived here: it is
+                    `relay/scripts/lib-pool-runs.py::is_pool_run`, the same predicate
+                    `stop-request.sh` uses (id:6f62).  Before that fix this probe
+                    accepted ANY live marker, and the always-beating non-pool
+                    `discovery-producer` daemon (fixed runId, 2100s TTL, id:54fc)
+                    therefore hard-DENIED every interactive session.
 
   INTERACTIVE → DEFER (stay silent; the existing `permissions.ask` entry prompts a
                 human, who can approve exactly as the owner did on 2026-08-21).
@@ -54,9 +60,10 @@ Three-way, positive-signal based, ambiguity resolving to BLOCK:
                   * no entrypoint signal at all (env not propagated / unknown harness)
                   * an unrecognised CLAUDE_CODE_ENTRYPOINT value (e.g. an sdk/print
                     headless entrypoint — those are unattended by nature)
-                  * the heartbeat probe ERRORED (directory present but unreadable, or
-                    a marker file that will not parse) — we cannot tell whether a pool
-                    run is live, so we assume it is
+                  * the heartbeat probe ERRORED (directory present but unreadable, a
+                    marker file that will not parse, or the shared pool-run predicate
+                    could not be loaded) — we cannot tell whether a pool run is live,
+                    so we assume it is
                 An ABSENT heartbeat directory is NOT an error — it just means the relay
                 is not installed/running here, and contributes no signal.
 
@@ -79,15 +86,40 @@ Output
 ------
 A PreToolUse deny object on stdout when blocking; nothing (exit 0) otherwise.
 """
+import importlib.util
 import json
 import os
 import re
 import shlex
 import sys
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
 GUARD_ID = "id:3a09"
+
+# ── the SHARED pool-run predicate (id:6f62) ──────────────────────────────────
+# Single definition, in relay/scripts/lib-pool-runs.py, also used by
+# relay/scripts/stop-request.sh.  Never re-derive the rule here: a second copy is
+# exactly how this guard came to treat the non-pool `discovery-producer` daemon as
+# proof of an unattended run.  Resolved through realpath() so it works both from the
+# repo and from the ~/.claude/hooks/ symlink that `make install-hooks` creates.
+_POOL_RUNS_LIB = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+    "relay", "scripts", "lib-pool-runs.py",
+)
+
+
+def _load_is_pool_run():
+    """Return lib-pool-runs.py's is_pool_run, or None if it cannot be loaded."""
+    try:
+        spec = importlib.util.spec_from_file_location("relay_lib_pool_runs", _POOL_RUNS_LIB)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.is_pool_run
+    except Exception:
+        return None  # caller turns this into a heartbeat-probe ERROR ⇒ ambiguous ⇒ block
 
 # ── shell operators that terminate one simple command in the token stream ─────
 _OPERATORS = frozenset({";", "&&", "||", "|", "&", "\n"})
@@ -116,29 +148,37 @@ def _truthy(val: Optional[str]) -> bool:
     return bool(val) and val.strip().lower() not in ("0", "false", "no", "")
 
 
-def _heartbeat_signal(env) -> str:
+def _heartbeat_signal(env) -> Tuple[str, str]:
     """
     Probe the id:e149 relay run heartbeat.
 
-    Returns one of:
-      "live"    — at least one run marker beat within TTL  (⇒ unattended)
-      "none"    — no heartbeat directory / no live marker   (⇒ no signal)
-      "error"   — the probe itself failed                   (⇒ ambiguous)
+    Returns (status, detail) where status is one of:
+      "live"    — at least one POOL run marker beat within TTL (⇒ unattended);
+                  detail is that runId
+      "none"    — no heartbeat dir / no live POOL marker        (⇒ no signal)
+      "error"   — the probe itself failed                        (⇒ ambiguous);
+                  detail says what failed
+    Markers whose runId is NOT a pool (is_pool_run ⇒ False, e.g. the
+    `discovery-producer` daemon) contribute NO signal, however fresh they are.
     """
+    is_pool_run = _load_is_pool_run()
+    if is_pool_run is None:
+        return "error", f"cannot load the shared pool-run predicate ({_POOL_RUNS_LIB})"
+
     base = env.get("HEARTBEAT_BASE") or os.path.join(
         env.get("HOME", os.path.expanduser("~")), ".config", "relay", "heartbeats"
     )
     if not os.path.isdir(base):
-        return "none"  # relay not installed/running here — not an error
+        return "none", ""  # relay not installed/running here — not an error
     try:
         ttl = int(env.get("HEARTBEAT_TTL", "3600"))
     except ValueError:
-        return "error"
+        return "error", "HEARTBEAT_TTL is not an integer"
     now = time.time()
     try:
         names = os.listdir(base)
     except OSError:
-        return "error"  # present but unreadable — cannot rule out a live pool
+        return "error", f"heartbeat dir present but unreadable ({base})"
     for name in names:
         if not name.endswith(".json"):
             continue
@@ -147,36 +187,51 @@ def _heartbeat_signal(env) -> str:
             with open(path, "r", encoding="utf-8") as fh:
                 marker = json.load(fh)
             ts = float(marker.get("heartbeat_ts", 0))
+            run_id = marker.get("runId", "")
         except (OSError, ValueError, TypeError):
-            return "error"  # a marker we cannot read might be a live run
-        if now - ts <= ttl:
-            return "live"
-    return "none"
+            return "error", f"unparseable heartbeat marker ({name})"
+        if now - ts > ttl:
+            continue  # stale — not a live run
+        if not is_pool_run(run_id):
+            continue  # a non-pool daemon (id:54fc) is NOT evidence of an unattended run
+        return "live", str(run_id).strip()
+    return "none", ""
 
 
-def detect_context(env=None) -> str:
-    """Return 'unattended' | 'interactive' | 'ambiguous'."""
+def detect_context(env=None) -> Tuple[str, str]:
+    """
+    Return (context, trigger) where context is
+    'unattended' | 'interactive' | 'ambiguous' and `trigger` names the CONCRETE
+    signal that decided it (id:6f62 — the refusal must report what actually fired,
+    not assert a compound reason).
+    """
     env = os.environ if env is None else env
 
     forced = (env.get("DESTRUCTIVE_GIT_GUARD_CONTEXT") or "").strip().lower()
     if forced in ("unattended", "interactive", "ambiguous"):
-        return forced
+        return forced, f"DESTRUCTIVE_GIT_GUARD_CONTEXT={forced} (forced)"
 
-    if env.get("RELAY_RUN_ID", "").strip() or env.get("CLAUDE_RELAY_RUN_ID", "").strip():
-        return "unattended"
-    if _truthy(env.get("RELAY_AFK")) or _truthy(env.get("CLAUDE_UNATTENDED")):
-        return "unattended"
+    for var in ("RELAY_RUN_ID", "CLAUDE_RELAY_RUN_ID"):
+        val = env.get(var, "").strip()
+        if val:
+            return "unattended", f"{var}={val}"
+    for var in ("RELAY_AFK", "CLAUDE_UNATTENDED"):
+        if _truthy(env.get(var)):
+            return "unattended", f"{var}={env.get(var, '').strip()}"
 
-    hb = _heartbeat_signal(env)
+    hb, detail = _heartbeat_signal(env)
     if hb == "live":
-        return "unattended"
+        return "unattended", f"live pool heartbeat: {detail}"
     if hb == "error":
-        return "ambiguous"
+        return "ambiguous", f"heartbeat probe ERRORED: {detail}"
 
-    if env.get("CLAUDE_CODE_ENTRYPOINT", "").strip() == "cli":
-        return "interactive"
+    entrypoint = env.get("CLAUDE_CODE_ENTRYPOINT", "").strip()
+    if entrypoint == "cli":
+        return "interactive", "CLAUDE_CODE_ENTRYPOINT=cli, no unattended signal"
+    if entrypoint:
+        return "ambiguous", f"unrecognised CLAUDE_CODE_ENTRYPOINT={entrypoint}"
 
-    return "ambiguous"
+    return "ambiguous", "no CLAUDE_CODE_ENTRYPOINT signal at all"
 
 
 # ── command classification ───────────────────────────────────────────────────
@@ -312,33 +367,39 @@ def find_violation(command: str) -> Optional[str]:
 
 # ── refusal message ──────────────────────────────────────────────────────────
 
+# The context line REPORTS the signal that actually fired (id:6f62) rather than
+# asserting a compound "relay run id / live heartbeat detected", which read as fact
+# even when neither applied.
 _CONTEXT_LINE = {
     "unattended": (
-        "Context: UNATTENDED (relay run id / live heartbeat detected) — no human is "
-        "here to answer the permissions.ask prompt, so this guard fails closed."
+        "Context: UNATTENDED — trigger: {trigger}. No human is here to answer the "
+        "permissions.ask prompt, so this guard fails closed."
     ),
     "ambiguous": (
-        "Context: AMBIGUOUS (no positive interactive signal) — ambiguity resolves to the "
-        "safe side, so this guard blocks. Re-run in a confirmed interactive session, or "
-        "set DESTRUCTIVE_GIT_GUARD_CONTEXT=interactive if you are certain a human is watching."
+        "Context: AMBIGUOUS — trigger: {trigger}. Ambiguity resolves to the safe side, so "
+        "this guard blocks. Re-run in a confirmed interactive session, or set "
+        "DESTRUCTIVE_GIT_GUARD_CONTEXT=interactive if you are certain a human is watching."
     ),
 }
 
 
-def refusal_reason(form: str, context: str) -> str:
+def refusal_reason(form: str, context: str, trigger: str = "") -> str:
+    line = _CONTEXT_LINE.get(context, _CONTEXT_LINE["ambiguous"])
     return (
         f"Destructive-git guard ({GUARD_ID}): refusing `{form}` — this is TREE-WIDE. It "
         f"discards EVERY uncommitted change in the worktree, including files you did not "
         f"touch (a parallel session's or a human's in-flight edits). Uncommitted content "
         f"has no reflog, so it is UNRECOVERABLE.\n"
         f"Do one of these instead:\n"
-        f"  1. COMMIT FIRST — worktree commits are free and squashable: "
-        f"`git add -A && git commit -m 'wip: before transform'`, then revert or squash "
-        f"whatever you don't keep.\n"
+        f"  1. COMMIT FIRST — worktree commits are free and squashable: stage the exact "
+        f"paths you changed and commit them, "
+        f"`git add -- path/to/changed.sh path/to/other.py && git commit -m 'wip: before "
+        f"transform'`, then revert or squash whatever you don't keep. (Stage named paths, "
+        f"never the whole tree — this repo's convention, id:debf.)\n"
         f"  2. SCOPE THE REVERT to enumerated paths — this guard ALLOWS that: "
         f"`git checkout -- path/to/one/file.sh path/to/other.sh`.\n"
         f"  3. Run the exploratory pass on a `tar`-copy of the tree and throw the copy away.\n"
-        f"{_CONTEXT_LINE.get(context, _CONTEXT_LINE['ambiguous'])}"
+        f"{line.format(trigger=trigger or 'unspecified')}"
     )
 
 
@@ -357,7 +418,7 @@ def main() -> None:
     if form is None:
         return
 
-    context = detect_context()
+    context, trigger = detect_context()
     if context == "interactive":
         # Defer to the existing permissions.ask prompt — a human can approve.
         return
@@ -366,7 +427,7 @@ def main() -> None:
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": refusal_reason(form, context),
+            "permissionDecisionReason": refusal_reason(form, context, trigger),
         }
     }))
 
