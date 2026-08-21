@@ -22,9 +22,16 @@
 # this detects predates the state-file feature and therefore wrote none, so absence is the
 # PRIMARY signal, not an excuse to pass.
 #
-# REPORT, DO NOT REFUSE (roadmap:9e48 scope). This makes staleness VISIBLE; whether a stale
-# proxy blocks a launch is id:540f/id:c179, which carry an owner gate (gated-on:b0b1). No
-# caller should turn a non-zero exit here into an automatic refusal without that decision.
+# REPORT, DO NOT REFUSE (roadmap:9e48 scope). This script itself only makes staleness VISIBLE;
+# it never blocks anything. Turning a STALE verdict into a refusal is a CALLER's decision and
+# needs its own ratification — id:540f/id:c179 (the mech-preflight/relay-loop refusal pair)
+# still carry an owner gate (gated-on:b0b1) and are NOT unblocked by the note below.
+#
+# ONE RATIFIED REFUSING CALLER (id:0384): the relay FRONT DOOR, step 0b of relay/SKILL.md, is
+# authorised to treat a STALE verdict as a launch REFUSAL — matching the mode-b `abort` posture
+# already in that step — and calls this check whenever the preflight probe says `proceed`. That
+# carve-out is scoped to the front door's launch decision and to that step only; it does not
+# license any other caller to auto-refuse, and it changes nothing in this script's behaviour.
 #
 # The source digest is NOT recomputed here — it is obtained by importing mechanical-proxy.py
 # and calling its allowlist_digest(). One implementation of the predicate, on purpose: two
