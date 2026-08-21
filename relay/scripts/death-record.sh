@@ -221,7 +221,9 @@ repo_map_file="$(mktemp)"
 existing_keys_file="$(mktemp)"
 records_file="$(mktemp)"
 new_file="$(mktemp)"
-trap 'rm -f -- "$repo_map_file" "$existing_keys_file" "$records_file" "$new_file"' EXIT
+# All four are mktemp'd immediately above, so they are known-present: plain `rm --`, never
+# `rm -f` (the repo's destructive-op lint bans a non-recursive force flag).
+trap 'rm -- "$repo_map_file" "$existing_keys_file" "$records_file" "$new_file"' EXIT
 
 repo_map_ok=1
 if ! own_repos >"$repo_map_file" 2>/dev/null; then
