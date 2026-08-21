@@ -6390,3 +6390,7 @@ sits on a checkbox-leading line. Repaired the four drifted items; `orphan-scan.s
 Friction: `awk -v` processes escape sequences, so passing a `^- \[ \]` regex as a variable
 silently degrades it into a character class — the checkbox probe matches by literal prefix
 instead. Did NOT touch relay-loop.js (a sibling executor holds it).
+
+## 2026-08-21 11:30 — integrate (claude-opus-5)
+
+integrate: mechanized TODO twin tick (4 drifted items repaired, cross-ledger now empty) + headroom-conditional slice invitation (id:7575 option b); a955 closed superseded-by-seams
