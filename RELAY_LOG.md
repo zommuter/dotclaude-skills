@@ -6521,3 +6521,7 @@ this host was 8 red in 12 runs at j8, and three consecutive red runs on three di
 tests earlier the same day.
 
 `id:7518` left OPEN — see the note on its ROADMAP item.
+
+## 2026-08-21 13:00 — integrate (claude-opus-5)
+
+integrate id:81d5 — pipefail/SIGPIPE remediated across 478 sites in 185 files + a zero-exemption lint; verified by an inverse token-for-token checker (476/476) and ten green -j8 runs. id:7518 left OPEN (its clause-4 hypothesis ranking is not discharged; ten green runs are evidence, not proof)
