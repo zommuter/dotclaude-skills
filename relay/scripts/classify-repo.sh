@@ -144,6 +144,15 @@ try:
     roadmap_bytes = os.path.getsize(rm) if os.path.isfile(rm) else 0
 except OSError:
     roadmap_bytes = 0
+# id:b018 — the SECOND ledger. The 4f9b gate sized ROADMAP.md alone and loderite cleared the
+# budget by 326 tokens, then died with `Prompt is too long` anyway: the child is contractually
+# required to read TODO.md too (handoff C2's first check, review's single-id-two-views
+# tick-back, the execute contract's id reuse). Measured exactly like roadmap_bytes, and
+# fail-open on the same terms — 0 when TODO.md is absent/unreadable.
+try:
+    todo_bytes = os.path.getsize(os.path.join(path, "TODO.md")) if os.path.isfile(os.path.join(path, "TODO.md")) else 0
+except OSError:
+    todo_bytes = 0
 has_routine = False
 roadmap_open = 0
 roadmap_actionable_open = 0
@@ -337,6 +346,7 @@ base["roadmap_actionable_open"] = roadmap_actionable_open
 base["actionable_routine_open"] = actionable_routine_open
 base["actionable_routine_ids"]  = actionable_routine_ids   # id:b09e
 base["roadmap_bytes"]           = roadmap_bytes            # id:4f9b
+base["todo_bytes"]              = todo_bytes               # id:b018
 base["open_mechanical"]         = open_mechanical
 base["surfaced_open"]           = surfaced_open   # id:65f5 → classify-verdict handoff branch
 base["open_human_lane"]         = open_human_lane # id:4a76 → classify-verdict human branch
@@ -518,6 +528,11 @@ unit = {
     # this into "ROADMAP too large — run roadmap-archive.sh" instead of a child dying with a
     # bare `Prompt is too long`. Schema-safe extra field; 0 ⇒ unmeasured ⇒ gate fails OPEN.
     "roadmap_bytes": base.get("roadmap_bytes", 0),
+    # id:b018 — TODO.md size in bytes, measured on the HOST, beside roadmap_bytes. The child
+    # reads BOTH ledgers, so the pre-dispatch size gate must count both; sizing only the
+    # ROADMAP under-counted by ~50% and let loderite through by 326 tok before it died.
+    # Schema-safe extra field; 0 ⇒ unmeasured ⇒ that ledger contributes nothing (fail-open).
+    "todo_bytes": base.get("todo_bytes", 0),
     # id:7616 — [MECHANICAL] capability tier: schema-safe extra field (additional
     # properties allowed), same treatment as actionable_routine_open above. No daemon
     # consumer reads this yet (A3, gated) — it is passthrough plumbing only.
