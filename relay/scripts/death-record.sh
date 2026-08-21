@@ -24,18 +24,26 @@
 #     * relay.toml (via lib-own-repos.sh)    the canonical repo->path map (NEVER a ~/src glob)
 #     * the child's worktree + branches      the SALVAGE signal (below)
 #
-#   The discriminator is structural, not prose: `pushEvent('dispatch', …)` is emitted at
-#   relay-loop.js:3802, AFTER the prompt-size gate (:3756), the stranded-branch guard (:3774)
-#   and provisionWorktree (:3789). So a terminal handback with NO preceding `dispatch` event
-#   for the same (runId, repo, mode) means NOTHING WAS DISPATCHED — no worktree, no work
-#   lost. A terminal handback WITH one means a child ran and then died. That single fact
-#   separates the safe case from the costly one without parsing a single sentence.
+#   TWO signals decide the cause, and NEITHER is trusted alone:
+#     (1) STRUCTURE — `pushEvent('dispatch', …)` is emitted at relay-loop.js:3802, AFTER the
+#         prompt-size gate (:3756), the stranded-branch guard (:3774) and provisionWorktree
+#         (:3789), so a `dispatch` event proves a child was spawned.
+#     (2) SIGNATURE — the literal strings relay-loop.js emits for each named guard.
+#   Structure alone is NOT enough, and this was MEASURED, not assumed: in the live log
+#   (run relay-20260821-174757-32436, 2026-08-21) two units carried a terminal handback with
+#   NO dispatch event anywhere in the file — and one of them was a full child report, i.e.
+#   the child demonstrably ran. Reading absence-of-dispatch as "refused" would have told a
+#   human "no worktree was created and no work was lost" about a unit that had both. So a
+#   `dispatch-refused` verdict requires a NAMED guard signature, and an unexplained unpaired
+#   terminal is recorded as cause-unknown/unpaired-terminal and salvage-probed — never
+#   assumed safe. The `pairing` field records the structural fact separately from the cause,
+#   so a reader can see the evidence the verdict rests on.
 #
 # CAUSE CLASSES (the `cause` field)
-#   dispatch-refused  The gate fired (or a sibling pre-dispatch guard did). Nothing was
-#                     dispatched, no worktree was created, no work was lost. `cause_detail`
-#                     names WHICH guard: prompt-size-gate / stranded-branch / provision-failed
-#                     / isolation-gate / dirty-main-checkout / redispatch-suppressed / ...
+#   dispatch-refused  A NAMED pre-dispatch guard fired. Nothing was dispatched, no worktree
+#                     was created, no work was lost. `cause_detail` names WHICH guard:
+#                     prompt-size-gate / stranded-branch / provision-failed / isolation-gate
+#                     / dirty-main-checkout / redispatch-suppressed / stale-worktree / ...
 #                     REMEDY CLASS: shrink the dispatched payload (archive, split the item).
 #   runtime-death     A child was dispatched, did work, and died mid-session with NO report
 #                     (relay-loop.js:3024's null-report terminal failure). This is the costly
@@ -54,6 +62,9 @@
 #                       no-terminal-event  A `dispatch` with neither integrate nor handback
 #                                        anywhere in the log — the pool itself died or was
 #                                        killed mid-unit.
+#                       unpaired-terminal  A terminal handback with no dispatch event AND no
+#                                        recognised guard signature. Observed live 2026-08-21;
+#                                        salvage-probed, never assumed safe.
 #   (A `dispatch` followed by `integrate` is a HEALTHY unit and produces NO record at all.)
 #
 # THE SALVAGE SIGNAL (`salvage`)
@@ -361,10 +372,20 @@ def classify(dispatched, terminal):
     if terminal.get("kind") == "integrate":
         return (None, None, None)          # healthy: NO death record, by design
     reason = str(terminal.get("reason") or "")
-    if not dispatched:
-        return ("dispatch-refused", refusal_detail(reason),
-                "a pre-dispatch guard fired: no child was spawned, no worktree was created, "
-                "no work was lost")
+    # A RECOGNISED pre-dispatch guard signature is POSITIVE evidence of a refusal. The
+    # absence of a `dispatch` event is NOT, on its own — measured against the live log
+    # (run relay-20260821-174757-32436, 2026-08-21) TWO units carried a terminal handback
+    # with no dispatch event anywhere in the file, and one of them was a full child report,
+    # i.e. the child demonstrably ran. Trusting absence alone would have told a human "no
+    # worktree was created and no work was lost" about a unit that had both — the exact
+    # wrong-remedy failure this tool exists to prevent. So a refusal must be NAMED by one of
+    # relay-loop.js's literal guard strings, and an unexplained unpaired terminal is
+    # recorded as UNKNOWN rather than assumed safe.
+    guard = refusal_detail(reason)
+    if guard != "other":
+        return ("dispatch-refused", guard,
+                "a NAMED pre-dispatch guard fired: no child was spawned, no worktree was "
+                "created, no work was lost")
     if RUNTIME_DEATH_SIG in reason:
         return ("runtime-death", "null-report-terminal-failure",
                 "the child was dispatched and did work, then died mid-session with no report "
@@ -376,6 +397,12 @@ def classify(dispatched, terminal):
                 "classifier block, a dispatch failure and a mute integrator alike (id:f5d9(b)); "
                 "they are not distinguishable today, so this is recorded as UNKNOWN rather "
                 "than guessed")
+    if not dispatched:
+        return ("cause-unknown", "unpaired-terminal",
+                "a terminal handback with NO dispatch event anywhere in the log AND no "
+                "recognised pre-dispatch guard signature. Whether a child ran — and therefore "
+                "whether a worktree holds work — is NOT derivable from the log; observed live "
+                "on 2026-08-21. Recorded as UNKNOWN and salvage-probed, never assumed safe")
     return ("child-handback", "contract-not-met",
             "the child ran to completion and handed back (contract_met=false) — not a death")
 
@@ -470,6 +497,11 @@ for run, repo, mode, seq, disp, term in units:
         "cause_detail": detail,
         "cause_meaning": meaning,
         "dispatched": dispatched,
+        # How the two halves lined up. `terminal-without-dispatch` is NOT proof of a refusal
+        # (see classify()) — it is a property of the LOG, recorded separately from the cause
+        # so a reader can see the evidence the verdict rests on.
+        "pairing": ("paired" if (disp and term)
+                    else ("dispatch-without-terminal" if disp else "terminal-without-dispatch")),
         "dispatch_ts": (disp or {}).get("ts", ""),
         "terminal_ts": (term or {}).get("ts", ""),
         "terminal_kind": (term or {}).get("kind", ""),

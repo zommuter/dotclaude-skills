@@ -14,9 +14,14 @@
 #     * a HEALTHY unit (dispatch -> integrate) produces a death record (the negative control:
 #       a false positive on a post-mortem tool destroys the credibility that makes anyone read
 #       it, id:4347);
-#     * a pre-dispatch refusal (handback with NO preceding dispatch event) is not classed
+#     * a NAMED pre-dispatch refusal (a guard-signature handback) is not classed
 #       `dispatch-refused`, or is not marked `dispatched:false` — that conflation is the whole
 #       reason `roadmap-archive.sh` keeps being recommended for run-time deaths;
+#     * an UNPAIRED terminal (handback, no dispatch event, no recognised guard signature) is
+#       read as a refusal instead of `cause-unknown/unpaired-terminal`. Measured on the live
+#       log 2026-08-21 (run relay-20260821-174757-32436): two such units existed and one
+#       carried a FULL CHILD REPORT, so absence-of-dispatch does not mean nothing ran, and
+#       calling it a refusal declares "no work was lost" over recoverable work;
 #     * a run-time death (dispatch THEN the null-report terminal-failure handback) is not
 #       classed `runtime-death`;
 #     * the `no merged= line` signature is silently attributed to a cause instead of recorded
@@ -77,6 +82,15 @@ mkgit "$REPOS/mute"
 mkgit "$REPOS/healthy"
 mkgit "$REPOS/refused"
 mkgit "$REPOS/handedback"
+mkgit "$REPOS/unpaired"
+
+# `unpaired`: a child that RAN (it filed a full report) but has NO dispatch event in the log.
+# Its worktree holds uncommitted work — so misreading it as a pre-dispatch refusal would
+# declare "no work was lost" over recoverable work.
+UNP_WT="$WT/unpaired/$RUN-handoff-0"
+mkdir -p "$WT/unpaired"
+git -C "$REPOS/unpaired" worktree add -q --detach "$UNP_WT" >/dev/null
+printf 'unsaved child work\n' > "$UNP_WT/scratch.txt"
 
 # `dead`: a child worktree on relay/<runId>-… with TWO unmerged commits AND an uncommitted file.
 DEAD_WT="$WT/dead/$RUN-execute-4f9b-0"
@@ -95,7 +109,7 @@ git -C "$REPOS/mute" worktree add -q --detach "$MUTE_WT" >/dev/null
 
 TOML="$tmp/relay.toml"
 {
-  for r in dead mute healthy refused handedback; do
+  for r in dead mute healthy refused handedback unpaired; do
     printf '[repos.%s]\nclassification = "own"\npath = "%s/%s"\n\n' "$r" "$REPOS" "$r"
   done
   # registered but MISSING on disk — the salvage probe must report UNKNOWN, never clean
@@ -118,6 +132,7 @@ cat > "$EV" <<EOF
 {"ts":"2026-08-21T10:08:00Z","runId":"$RUN","kind":"dispatch","repo":"handedback","mode":"handoff","round":1,"tier":"opus","item":"cccc"}
 {"ts":"2026-08-21T10:09:00Z","runId":"$RUN","kind":"handback","repo":"handedback","mode":"handoff","reason":"contract_met=false — the slice lacked the acceptance criteria; no commit made; worktree clean."}
 {"ts":"2026-08-21T10:10:00Z","runId":"$RUN","kind":"dispatch","repo":"gone","mode":"execute","round":2,"tier":"sonnet","item":"dddd"}
+{"ts":"2026-08-21T10:11:00Z","runId":"$RUN","kind":"handback","repo":"unpaired","mode":"handoff","reason":"contract_met=false — the classifier's promote is already shipped; no commit made. (A FULL CHILD REPORT: this child demonstrably RAN, yet no dispatch event exists for it — observed live in run relay-20260821-174757-32436 on 2026-08-21.)"}
 EOF
 
 env_run() {
@@ -146,8 +161,25 @@ def check(cond, msg):
 check("healthy" not in by_repo,
       "NEGATIVE CONTROL: a healthy dispatch->integrate unit produced a death record: %s"
       % by_repo.get("healthy"))
-check(len(recs) == 5, "expected exactly 5 records (5 non-healthy units), got %d: %s"
+check(len(recs) == 6, "expected exactly 6 records (6 non-healthy units), got %d: %s"
       % (len(recs), [r["repo"] for r in recs]))
+
+# THE HARDENED RULE. A terminal handback with no dispatch event is NOT evidence of a
+# refusal — measured on the live log 2026-08-21, where such a unit carried a full child
+# report. It must read UNKNOWN and be salvage-probed, never "no work was lost".
+r = by_repo.get("unpaired")
+check(r is not None, "no record for the unpaired terminal handback")
+if r:
+    check(r["cause"] == "cause-unknown" and r["cause_detail"] == "unpaired-terminal",
+          "an unpaired terminal with no guard signature classed %s/%s — reading absence of a "
+          "dispatch event as a refusal declares 'no work was lost' over recoverable work"
+          % (r["cause"], r["cause_detail"]))
+    check(r["pairing"] == "terminal-without-dispatch",
+          "the structural fact must be recorded separately from the cause, got %r"
+          % r.get("pairing"))
+    check(r["salvage"]["recoverable"] is True,
+          "SALVAGE: an unpaired terminal must still be probed; its worktree holds "
+          "uncommitted work but recoverable=%r" % r["salvage"]["recoverable"])
 
 r = by_repo.get("refused")
 check(r is not None, "no record for the pre-dispatch refusal")
@@ -156,6 +188,7 @@ if r:
     check(r["cause_detail"] == "prompt-size-gate",
           "refusal detail %r, want prompt-size-gate" % r["cause_detail"])
     check(r["dispatched"] is False, "refusal must be dispatched:false")
+    check(r["pairing"] == "terminal-without-dispatch", "refusal pairing %r" % r.get("pairing"))
     check(r["salvage"]["recoverable"] is None and not r["salvage"]["probed"],
           "a refusal loses no work; it must not be salvage-probed")
 
@@ -237,7 +270,7 @@ out="$(HOME="$tmp" SRC_DIR="$REPOS" RELAY_TOML="$TOML" RELAY_EVENTS_PATH="$EV" \
        FABLES_CONFIG="$CFG" RELAY_DEATH_RECORD_PATH="$STORE" RELAY_WORKTREE_BASE="$WT" \
        DEATH_RECORD_LOG="$tmp/death-record.log" RELAY_STATE_WRITE="$SPY" \
        "$SH" record "$RUN")" || fail "record exited nonzero"
-grep -q 'appended 5' <<<"$out" || fail "record must append 5 records, said:\n$out"
+grep -q 'appended 6' <<<"$out" || fail "record must append 6 records, said:\n$out"
 [[ -f "$STORE" ]] || fail "record did not create the store"
 grep -q "event-append $STORE" "$tmp/spy.log" \
   || fail "the store must be written ONLY via relay-state-write.sh event-append (flock'd)"
@@ -305,7 +338,7 @@ HOME="$tmp" SRC_DIR="$REPOS" RELAY_TOML="$TOML" RELAY_EVENTS_PATH="$EV3" \
   RELAY_WORKTREE_BASE="$WT" DEATH_RECORD_LOG="$tmp/death-record.log" \
   "$SH" scan "$RUN" --json > "$tmp/bad.jsonl" 2>"$err" || fail "a malformed line must not crash the scan"
 grep -q 'malformed event line' "$err" || fail "a malformed event line must be reported on stderr"
-[[ "$(grep -c '' "$tmp/bad.jsonl")" == "5" ]] || fail "malformed lines must not change the record set"
+[[ "$(grep -c '' "$tmp/bad.jsonl")" == "6" ]] || fail "malformed lines must not change the record set"
 pass "a malformed event line is skipped LOUDLY, never silently"
 
 echo "ALL TESTS PASSED"
