@@ -87,11 +87,11 @@ out1="$(run_doctor "$r1" "$stub_free")"
 grep -qi 'RESIDUE' <<<"$out1" \
   || fail "(1) expected check 9 to report residue at all; got: $(head -c 400 <<<"$out1")"
 grep -qi 'ABANDONED' <<<"$out1" \
-  || fail "(1) residue with no live claim must be labelled ABANDONED — got: $(grep -i residue <<<"$out1" | head -3)"
+  || fail "(1) residue with no live claim must be labelled ABANDONED — got: $(head -3 < <(grep -i residue <<<"$out1") )"
 pass "residue with no live holder → labelled ABANDONED"
 
 grep -qi 'TODO.md' <<<"$out1" \
-  || fail "(1) the ABANDONED report must name the offending path, got: $(grep -i -A2 residue <<<"$out1" | head -4)"
+  || fail "(1) the ABANDONED report must name the offending path, got: $(head -4 < <(grep -i -A2 residue <<<"$out1") )"
 pass "ABANDONED report names the offending path"
 
 # ── (2) residue WHILE a live run holds the repo → IN-FLIGHT, NOT an issue ─────
@@ -100,7 +100,7 @@ stub_held="$(mkclaim_stub held rheld)"
 out2="$(run_doctor "$r2" "$stub_held")"
 
 grep -qi 'IN-FLIGHT' <<<"$out2" \
-  || fail "(2) residue under a live claim must be labelled IN-FLIGHT — got: $(grep -i residue <<<"$out2" | head -3)"
+  || fail "(2) residue under a live claim must be labelled IN-FLIGHT — got: $(head -3 < <(grep -i residue <<<"$out2") )"
 pass "residue under a live holder → labelled IN-FLIGHT"
 
 grep -qi 'ABANDONED' <<<"$out2" \

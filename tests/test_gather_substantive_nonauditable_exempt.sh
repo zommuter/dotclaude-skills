@@ -57,7 +57,7 @@ j="$(gather bump "$r")"
 # (3) docs + README + version bump together → NOT substantive (the chidiai case: big docs body
 #     must not defeat its own exemption — content check is scoped to auditable files only).
 r="$(mkrepo docsheavy)"
-for i in 1 2 3; do printf 'a case file with lots of prose line %s\n%s\n' "$i" "$(yes x | head -40 | tr '\n' ' ')" > "$r/docs/cases/case-$i.md"; done
+for i in 1 2 3; do printf 'a case file with lots of prose line %s\n%s\n' "$i" "$(head -40 < <(yes x) | tr '\n' ' ' )" > "$r/docs/cases/case-$i.md"; done
 printf 'more readme\n' >> "$r/README.md"
 sed -i 's/0.18.0/0.21.0/' "$r/pyproject.toml" "$r/uv.lock"
 git -C "$r" commit -qam "cases + readme + bump"

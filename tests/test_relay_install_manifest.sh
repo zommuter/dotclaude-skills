@@ -101,7 +101,7 @@ inv="$(grep -n 'quota-stop\.sh' "$JS" | grep -- '--tier' || true)"
 
 # Isolate the invocation substring from 'quota-stop.sh' up to the trailing newline marker
 # in the template literal (the command is on a single template-literal line).
-cmd="$(printf '%s\n' "$inv" | sed -n 's/.*\(quota-stop\.sh[^\\]*\).*/\1/p' | head -1)"
+cmd="$(head -1 < <(printf '%s\n' "$inv" | sed -n 's/.*\(quota-stop\.sh[^\\]*\).*/\1/p') )"
 [[ -n "$cmd" ]] || fail "could not isolate the quota-stop.sh command substring"
 
 for flag in --tier --agents --wall; do

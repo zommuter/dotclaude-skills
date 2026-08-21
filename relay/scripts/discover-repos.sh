@@ -75,7 +75,7 @@ classify() {
   git -C "$path" rev-parse --git-dir >/dev/null 2>&1 || return 0
 
   dirty=no
-  [[ -n "$(git -C "$path" status --porcelain 2>/dev/null | head -1)" ]] && dirty=yes
+  [[ -n "$(head -1 < <(git -C "$path" status --porcelain 2>/dev/null) )" ]] && dirty=yes
 
   if [[ -n "${OVERRIDE[$name]:-}" ]]; then
     cls="${OVERRIDE[$name]}"

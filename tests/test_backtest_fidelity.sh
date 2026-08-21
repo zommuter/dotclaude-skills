@@ -316,7 +316,7 @@ plain_out="$(python3 "$BH" 2>/dev/null)"
 grep -qi "candidate.classifier.worse\|candidate_classifier_worse" < <(echo "$plain_out") \
   || { echo "FAIL: plain output must lead with candidate-classifier-worse count"; exit 1; }
 # Must NOT lead with "agree=" or "agreement %" as the headline signal
-first_line="$(echo "$plain_out" | head -1)"
+first_line="$(head -1 < <(echo "$plain_out") )"
 grep -qi "^agree\|^agreement" < <(echo "$first_line") \
   && { echo "FAIL: first summary line must NOT be agree count: $first_line"; exit 1; }
 

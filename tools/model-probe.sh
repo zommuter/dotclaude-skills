@@ -91,7 +91,11 @@ if [[ -n "$_probe_home_check" ]]; then
 fi
 
 # Capture environment facts for the log
-CLI_VERSION="$(claude --version 2>/dev/null | head -1 || echo "unknown")"
+# The `|| echo unknown` fallback used to ride on the PIPELINE's status; process
+# substitution discards the producer's status, so the fallback is now explicit —
+# a missing/failing `claude` yields no output, which is what we test for.
+CLI_VERSION="$(head -1 < <(claude --version 2>/dev/null))"
+[[ -n "$CLI_VERSION" ]] || CLI_VERSION="unknown"
 
 _config_home="${PROBE_HOME:-/home/claude-probe}"
 if [[ -d "$_config_home/.claude" ]]; then

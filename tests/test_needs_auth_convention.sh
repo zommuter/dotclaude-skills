@@ -71,8 +71,8 @@ set -e
   || fail "roadmap-lint stderr treats @needs-auth as an unknown/untagged marker (err: $(cat "$tmp/lint_err"))"
 
 # --- (3) contract marker >= v7 (the @needs-auth floor) AND CLAUDE.md pointer matches (no skew)
-contract_v="$(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT" | head -1 | grep -oE 'v[0-9]+')"
-pointer_v="$(grep -oE 'relay-executor contract v[0-9]+' "$CLAUDE_MD"  | head -1 | grep -oE 'v[0-9]+')"
+contract_v="$(head -1 < <(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT") | grep -oE 'v[0-9]+' )"
+pointer_v="$(head -1 < <(grep -oE 'relay-executor contract v[0-9]+' "$CLAUDE_MD") | grep -oE 'v[0-9]+' )"
 [[ "${contract_v#v}" -ge 7 ]] || fail "executor-contract marker is '$contract_v', expected >= v7 (the @needs-auth floor)"
 [[ "$contract_v" == "$pointer_v" ]] || fail "version skew: contract=$contract_v vs pointer=$pointer_v"
 

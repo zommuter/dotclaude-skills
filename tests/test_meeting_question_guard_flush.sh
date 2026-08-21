@@ -155,7 +155,7 @@ fi
 if grep -q "BLOCK" "$LOG" && ! grep -q "trailing prose 0 <" "$LOG"; then
   ok "waits for the segment to settle (judges the full turn, not the first partial line)"
 else
-  bad "hook judged a partial segment — log shows: $(grep -c BLOCK "$LOG" 2>/dev/null || echo 0) blocks, $(grep -o 'trailing prose [0-9]* <' "$LOG" 2>/dev/null | head -1)"
+  bad "hook judged a partial segment — log shows: $(grep -c BLOCK "$LOG" 2>/dev/null || echo 0) blocks, $(head -1 < <(grep -o 'trailing prose [0-9]* <' "$LOG" 2>/dev/null) )"
 fi
 
 # --- 4. turn NEVER flushes -> fail open, but LOUDLY (NOFLUSH, not silence) --------

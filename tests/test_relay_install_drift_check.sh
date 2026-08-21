@@ -77,7 +77,7 @@ make -s -C "$ROOT" DEST_DIR="$INSTALL2" install-relay >/dev/null 2>&1 \
   || fail "could not stage the second synthetic install root"
 out2="$(RELAY_INSTALL_ROOT="$INSTALL2" "$DOCTOR" --only install-drift 2>&1)"
 if grep -qE '^MISSING:.*(scripts|references)/' <<<"$out2"; then
-  fail "relay-doctor reported install drift against a FRESHLY installed tree — a check that fires when nothing is wrong trains everyone to ignore it; got: $(grep -E '^MISSING:' <<<"$out2" | head -3)"
+  fail "relay-doctor reported install drift against a FRESHLY installed tree — a check that fires when nothing is wrong trains everyone to ignore it; got: $(head -3 < <(grep -E '^MISSING:' <<<"$out2") )"
 fi
 pass "a freshly-installed tree reports no install drift"
 

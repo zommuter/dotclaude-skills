@@ -55,7 +55,7 @@ hank_after="$(grep -m1 -- '\*\*Hank\*\*' "$FIX")"
 $hank_after"
 pass "(1) a persona whose prose cites another persona's name is left untouched"
 
-gil_line="$(grep -nP '^\s*-\s+[^*]*\*\*Gil\*\*' "$FIX" | head -1)"
+gil_line="$(head -1 < <(grep -nP '^\s*-\s+[^*]*\*\*Gil\*\*' "$FIX") )"
 grep -qF -- 'changelog derivation' <<<"$gil_line" \
   || fail "(2) **Gil**'s own defining entry never received the extension (id:44c5). Gil's line: $gil_line"
 pass "(2) the extension landed on the persona's defining entry"

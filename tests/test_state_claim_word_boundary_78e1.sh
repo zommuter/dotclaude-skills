@@ -59,7 +59,7 @@ v_undone="$(state_claim_violation "$l_undone")"
 pass "'undone' does not fire (case-sensitive, unaffected by this fix)"
 
 # --- ground-truth regression: id:6b35's actual ROADMAP line must not fire -------
-b35_line="$(grep -F 'id:6b35' "$ROOT/ROADMAP.md" | head -1)"
+b35_line="$(head -1 < <(grep -F 'id:6b35' "$ROOT/ROADMAP.md") )"
 if [[ -n "$b35_line" ]]; then
   v_b35="$(state_claim_violation "$b35_line")"
   [[ "$v_b35" != *i* ]] || fail "id:6b35's own ROADMAP line still fires direction (i): '$v_b35' — line: $b35_line"

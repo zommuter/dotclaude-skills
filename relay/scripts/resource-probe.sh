@@ -131,7 +131,7 @@ case "$resource" in
         '{resource:$resource, available:false, reason:$reason}'
       exit 1
     fi
-    free_mb="$(printf '%s\n' "$smi_out" | head -n1 | tr -dc '0-9')"
+    free_mb="$(head -n1 < <(printf '%s\n' "$smi_out") | tr -dc '0-9' )"
     if [[ -z "$free_mb" ]]; then
       jq -n --arg resource "$resource" --arg reason "could not parse nvidia-smi output ('$smi_out')" \
         '{resource:$resource, available:false, reason:$reason}'

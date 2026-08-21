@@ -64,7 +64,7 @@ trap 'rm -rf "$TMP"' EXIT
 # like is a literal `model: 'haiku'` (or no mechanical dispatch at all), and that is
 # still caught below.
 loop_release_is_bash=0
-release_dispatch="$(grep -E "label: *\`release:" "$LOOP" | head -1 || true)"
+release_dispatch="$(head -1 < <(grep -E "label: *\`release:" "$LOOP") || true)"
 grep -qE "model: *('bash'|MECH_MODEL)" < <(printf '%s\n' "$release_dispatch") && loop_release_is_bash=1
 
 # The ROADMAP side: the OUT-of-scope MUST-STAY-haiku bullet in the id:6b35 block.

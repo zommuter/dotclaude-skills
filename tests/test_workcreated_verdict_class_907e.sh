@@ -40,7 +40,7 @@ pass() { echo "PASS: $*"; }
 # The producer BLOCK: the 40 lines around the `workCreated` assignment. Every source-shape
 # assertion below is scoped to this window rather than the whole file, so an unrelated
 # mention of "classify-verdict" elsewhere in relay-loop.js cannot satisfy the spec.
-line="$(grep -n 'const workCreated' "$JS" | head -1 | cut -d: -f1 || true)"
+line="$(head -1 < <(grep -n 'const workCreated' "$JS") | cut -d: -f1 || true)"
 [[ -n "$line" ]] || fail "(0) no 'const workCreated' assignment found in relay-loop.js — the c919 producer moved; re-derive this spec before editing it"
 lo=$(( line > 40 ? line - 40 : 1 ))
 hi=$(( line + 40 ))
@@ -70,7 +70,7 @@ pass "(3) the id:c3a6 cache bypass is documented at the site"
 # 4. Clause (ii) — REPO-WIDE scoping: a before/after verdict-class pair, not per-handback
 #    causality. In-repo parallelism (id:1f4f) lets another unit flip the class in the same
 #    round, so single-report attribution under-counts.
-befores="$(grep -Eoi '[A-Za-z_]*(verdictClass|classBefore|verdict_before|priorVerdict|verdictWas)[A-Za-z_]*' <<<"$block" | head -5 || true)"
+befores="$(head -5 < <(grep -Eoi '[A-Za-z_]*(verdictClass|classBefore|verdict_before|priorVerdict|verdictWas)[A-Za-z_]*' <<<"$block") || true)"
 [[ -n "$befores" ]] \
   || fail "(4) no verdict-class before/after identifier at the workCreated site — the predicate must ask 'did THIS ROUND change THIS REPO's verdict class', not 'did this handback cause it' (id:907e clause ii)"
 pass "(4) a repo-scoped verdict-class comparison exists ($(tr '\n' ' ' <<<"$befores"))"

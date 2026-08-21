@@ -60,7 +60,7 @@ pass "(1) discover-run is the mechanized CASE-B model:'bash' discover-chunk.sh d
 # The actual discover-repo.sh invocation line (carries --repo "$name" --path "$path") must NOT
 # pass --no-reconcile — that is the LIVE reconcile+classify path (FINDING 1). (A comment in the
 # header legitimately explains WHY --no-reconcile is absent, so match the exec line specifically.)
-invoke_line="$(grep -n -- '--repo "$name" --path "$path"' "$CHUNK_SH" | head -1)"
+invoke_line="$(head -1 < <(grep -n -- '--repo "$name" --path "$path"' "$CHUNK_SH") )"
 [[ -n "$invoke_line" ]] || fail "discover-chunk.sh does not invoke discover-repo.sh per repo"
 grep -q -- '--no-reconcile' < <(echo "$invoke_line") \
   && fail "discover-chunk.sh's discover-repo.sh invocation passes --no-reconcile — CASE B must be the LIVE path (FINDING 1)"

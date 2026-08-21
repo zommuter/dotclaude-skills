@@ -73,7 +73,7 @@ for ((r = 1; r <= runs; r++)); do
   xred="$(sed -n 's/^summary: .* \([0-9]*\) expected-red.*/\1/p' <<<"$summary")"
   # The runner prints every failing test on one "failed: a b c" line — that IS the
   # co-failure SET this instrument exists to capture.
-  failed_line="$(sed -n 's/^failed: //p' "$raw" | head -1)"
+  failed_line="$(head -1 < <(sed -n 's/^failed: //p' "$raw") )"
   tmp_kb="$(df -Pk "${TMPDIR:-/tmp}" | awk 'NR==2{print $4}')"
 
   # Keep the raw output for anything that failed, and for every standalone re-run

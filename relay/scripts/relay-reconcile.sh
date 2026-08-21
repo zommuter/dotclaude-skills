@@ -158,7 +158,7 @@ while [ $# -gt 0 ]; do
     --discard)   action="discard";   target="${2:-}"; shift; shift || true ;;
     # id:c14d — the range used to be hardcoded ('2,52p') and went stale the moment the header
     # grew (the id:0fa0 heartbeat.sh lesson); compute it from `set -euo pipefail`'s line instead.
-    -h|--help)   sed -n "2,$(( $(grep -n '^set -euo pipefail' "$0" | head -1 | cut -d: -f1) - 1 ))p" "$0"; exit 0 ;;
+    -h|--help)   sed -n "2,$(( $(head -1 < <(grep -n '^set -euo pipefail' "$0") | cut -d: -f1 ) - 1 ))p" "$0"; exit 0 ;;
     --*)         echo "relay-reconcile.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)           repo="$1"; shift ;;
   esac

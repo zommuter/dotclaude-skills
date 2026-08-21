@@ -25,7 +25,7 @@ pass "executor-contract.md has no skill frontmatter"
 # 3. Contract marker present and >= v7 (v7 = id:a505 @needs-auth; v8 = id:373e clean-worktree
 #    exit gate). Exact value is checked for sync against CLAUDE.md in step 6; here we only
 #    require a well-formed marker at or past the v7 floor.
-marker_v="$(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT" | head -1 | grep -oE '[0-9]+')"
+marker_v="$(head -1 < <(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT") | grep -oE '[0-9]+' )"
 [[ -n "$marker_v" ]] || fail "executor-contract.md missing a '<!-- relay-executor contract vN -->' marker"
 [[ "$marker_v" -ge 7 ]] || fail "executor-contract marker is v$marker_v, expected >= v7"
 pass "contract marker present (v$marker_v)"

@@ -74,7 +74,7 @@ pass "(2) prelude enumeration is deterministic across runs (mechanical, no LLM)"
 
 # --- (3) STRUCTURAL: the discover-prelude dispatch in relay-loop.js is model:'bash', not haiku -
 [[ -f "$LOOP" ]] || fail "(3) relay-loop.js not found: $LOOP"
-disp_line="$(grep -nE "label: .discover-prelude" "$LOOP" | head -1 || true)"
+disp_line="$(head -1 < <(grep -nE "label: .discover-prelude" "$LOOP") || true)"
 [[ -n "$disp_line" ]] || fail "(3) could not locate the discover-prelude agent() dispatch in relay-loop.js"
 grep -qE "model: *MECH_MODEL" < <(printf '%s' "$disp_line") \
   || fail "(3) discover-prelude must dispatch model: MECH_MODEL (id:4239 bash-by-default; was a literal 'bash') — line: $disp_line"

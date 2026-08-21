@@ -30,7 +30,7 @@ pass "fc0f: format.md Plan-mode gate skips Opus/Fable, uses Sonnet/Haiku, cites 
 # ── (fc0f) SKILL.md EnterPlanMode/ExitPlanMode steps are gated, not unconditional ─────────
 # subject-mode step 3 must reference the plan-mode gate + both branches (not a bare 'Call EnterPlanMode').
 # (SKILL.md has several numbered lists, so target the step-3 line that mentions the gate directly.)
-seg3="$(grep -E '^3\. ' "$SKILL" | grep -i 'Plan-mode gate' | head -1)"
+seg3="$(head -1 < <(grep -E '^3\. ' "$SKILL" | grep -i 'Plan-mode gate') )"
 [[ -n "$seg3" ]] || fail "fc0f: no step-3 line references the plan-mode gate (subject-mode step 3 not gated)"
 grep -qiE 'Opus/Fable|SKIP' <<<"$seg3" || fail "fc0f: subject-mode step 3 has no Opus/Fable skip branch"
 grep -qiE 'Sonnet/Haiku' <<<"$seg3" || fail "fc0f: subject-mode step 3 has no Sonnet/Haiku use branch"

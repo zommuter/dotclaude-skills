@@ -128,7 +128,7 @@ for i in "${!files[@]}"; do
   f="${files[$i]}"
   [[ -f "$f" ]] || { echo "SKIP   $f (not found)"; continue; }
   name="$(basename "$f")"
-  token="$(grep -oE '# roadmap:[0-9a-f]{4}' "$f" | head -1 | sed 's/.*roadmap://')" || true
+  token="$(head -1 < <(grep -oE '# roadmap:[0-9a-f]{4}' "$f") | sed 's/.*roadmap://' )" || true
   out="$(cat "$tmp/$i.out")"
   if [[ "$(cat "$tmp/$i.rc")" == 0 ]]; then
     echo "PASS   $name"
