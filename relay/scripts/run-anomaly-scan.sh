@@ -54,11 +54,21 @@
 #                               CAUSE UNKNOWN by construction (see above).
 #                               (relay-events.jsonl only)
 #   ZERO-YIELD-RUN              dispatched > 0 but integrated == 0. Run-level.
-#                               (relay-events.jsonl only)
+#                               SUPPRESSED while the run is still ALIVE (heartbeat.sh
+#                               live-runs) and has `## In-flight` rows — a unit still
+#                               executing has not yet had its chance to yield.
+#                               (relay-events.jsonl x RELAY_STATUS `## In-flight`
+#                                x heartbeat.sh live-runs)
 #   SKIPPED-WITH-ACTIONABLE     a repo rendered into RELAY_STATUS.md's `Skipped` or
 #                               `Blocked / HANDBACKs` section for this run that
 #                               NONETHELESS classifies pool-actionable, with its item
 #                               count. (RELAY_STATUS.md x classify-repo.sh)
+#   STARVED-UNVERIFIED          a ZERO-work-unit-trace repo whose live classification
+#                               could NOT be obtained this scan (classify-error, or its
+#                               registered path is gone). Absence of evidence is never
+#                               rendered as clean — this fires instead of the repo being
+#                               silently dropped for failing the pool-actionable test.
+#                               (relay.toml x relay-events.jsonl x classify-repo.sh)
 #
 #   STARVED and SKIPPED-WITH-ACTIONABLE are MUTUALLY EXCLUSIVE by construction:
 #   STARVED means the run left no trace of a work unit for that repo (the loderite
@@ -68,7 +78,26 @@
 #
 #   Repos the run deliberately excluded (`excluded-by-config`, `excluded for this run`)
 #   are NEVER anomalies and are not even re-classified — a paused/excluded repo doing
-#   nothing is the configuration working.
+#   nothing is the configuration working. The same holds for a repo rendered into
+#   `## Queued` (relay-loop.js:417/2451/4054 — a quota-stopped --afk run parks its
+#   classified-but-undispatched units there): it was seen and accounted for, just not
+#   given a turn. A scanner that reads only `Skipped`/`Blocked` renders a healthy
+#   quota-stop as STARVED, because "no dispatch trace yet" and "starved" look identical
+#   without that section.
+#
+# RUN SCOPE (the `--only` guard, and its deliberate limit).
+#   relay-loop.js:2143-2145 emits exactly ONE `verdict` event per own repo IN SCOPE per
+#   round, across units/surfaced/skipped. So WHEN a run emitted any verdict events at
+#   all, that event set (plus anything with a dispatch/integrate/handback or a status
+#   row) IS the run's scope, and an own repo outside it was never asked about — not
+#   starved. That is what keeps a `--only <repo>` run (which drops out-of-scope repos
+#   before sharding) from reporting the rest of the fleet STARVED.
+#
+#   The guard is RUN-LEVEL and FAIL-OPEN by construction: a run with ZERO verdict events
+#   carries no scope evidence, so NO scope filtering is applied and every own repo stays
+#   a candidate. Per-repo "no verdict event ⇒ out of scope" would be strictly wrong there
+#   — it silences the exact class this tool exists for whenever the verdict rows are the
+#   thing that went missing.
 #
 # Usage:
 #   run-anomaly-scan.sh [RUN_ID] [--strict] [--json] [--fast] [--repo <name>]
@@ -76,9 +105,16 @@
 #                  present in the event log.
 #     --strict     exit nonzero when any finding is surfaced (default: always exit 0).
 #     --json       emit one JSON object instead of the human report.
-#     --fast       do NOT re-classify; reuse the run's own recorded `verdict` events.
-#                  Cheaper, but blind to state that changed since the run — the report
-#                  says which mode produced it.
+#     --fast       HYBRID, never fully recorded (id:87a7). A candidate with SOME work-unit
+#                  trace this run reuses the run's own recorded `verdict` event, cheaply.
+#                  A candidate with ZERO trace — the exact STARVED-candidate population,
+#                  empirically a handful of repos, not the fleet — is STILL live-
+#                  reclassified, because STARVED is the one class this tool exists for and
+#                  a recorded verdict cannot answer "is this repo starved" by construction
+#                  (a starved repo's recorded verdict is precisely what proved untrustworthy).
+#                  A MODE THAT CANNOT CHECK A CLASS MUST NEVER PRINT THAT CLASS AS CLEAN:
+#                  the earlier `--fast` printed `clean: … STARVED` for a class it never
+#                  examined. The report names which repos were live vs recorded.
 #     --repo <n>   restrict re-classification + per-repo findings to ONE repo.
 #     --list-runs  print the runIds present in the event log (oldest first) and exit.
 #
@@ -88,6 +124,11 @@
 #   RELAY_TOML            default ~/.config/relay/relay.toml
 #   SRC_DIR               default ~/src
 #   RUN_ANOMALY_CLASSIFY  override the classify-repo.sh path (stub it in tests)
+#   RUN_ANOMALY_HEARTBEAT override the heartbeat.sh path (stub it in tests) — used ONLY to
+#                         answer "is this run still alive", reusing the same live-runs
+#                         query relay-status-publish.sh:158 already makes. Never a new
+#                         liveness check, and fail-open: an unreadable heartbeat means
+#                         "not known alive", so nothing is suppressed.
 #   RUN_ANOMALY_LOG       default ~/.claude/logs/run-anomaly-scan.log
 set -euo pipefail
 
@@ -98,6 +139,7 @@ RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
 RELAY_EVENTS_PATH="${RELAY_EVENTS_PATH:-$HOME/.config/relay/relay-events.jsonl}"
 RELAY_STATUS_PATH="${RELAY_STATUS_PATH:-$HOME/.config/relay/RELAY_STATUS.md}"
 CLASSIFY_REPO="${RUN_ANOMALY_CLASSIFY:-$SCRIPT_DIR/classify-repo.sh}"
+HEARTBEAT_SH="${RUN_ANOMALY_HEARTBEAT:-$SCRIPT_DIR/heartbeat.sh}"
 LOG="${RUN_ANOMALY_LOG:-$HOME/.claude/logs/run-anomaly-scan.log}"
 
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true   # best-effort: never fail on a log dir
@@ -126,7 +168,14 @@ while [[ $# -gt 0 ]]; do
         echo "run-anomaly-scan.sh: --repo requires a repo name" >&2; exit 2
       fi
       only_repo="$2"; shift 2 ;;
-    -h|--help) sed -n '2,86p' "$0"; exit 0 ;;
+    -h|--help)
+      # Compute the header range instead of hardcoding it: the literal '2,86p' had ALREADY
+      # drifted past the end of the header block. No pipe into an early-exiting consumer
+      # (banned): grep drains fully, and bash expansion takes the first match.
+      _gn="$(grep -n '^set -euo pipefail' "$0")"
+      _gn="${_gn%%$'\n'*}"
+      sed -n "2,$(( ${_gn%%:*} - 1 ))p" "$0"
+      exit 0 ;;
     --*) echo "run-anomaly-scan.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)
       if [[ -n "$run_id" ]]; then
@@ -145,6 +194,17 @@ if [[ ! -f "$RELAY_EVENTS_PATH" ]]; then
 fi
 
 # --- own-repo enumeration -------------------------------------------------------
+# An ABSENT relay.toml is a DISTINCT misuse case from a CORRUPT one, and only the corrupt
+# one was guarded. own_repos() returns 0 with NO output when $RELAY_TOML does not exist —
+# a valid "no registry yet" state for its mutating callers, but for a READ-ONLY scanner it
+# yields `own-repos=0 … no anomalies … exit=0`: a FALSE CLEAN, the precise failure this
+# tool's own header calls worse than no scanner. Check existence before calling own_repos().
+if [[ ! -f "$RELAY_TOML" ]]; then
+  echo "run-anomaly-scan.sh: relay.toml not found: $RELAY_TOML" >&2
+  echo "run-anomaly-scan.sh: refusing to report clean when the own-repo registry is absent (id:0fa0)." >&2
+  exit 2
+fi
+
 # lib-own-repos.sh's contract (id:0fa0 finding (a)): a bare
 # `while read; do …; done < <(own_repos)` DISCARDS the subshell's exit status, so a
 # CORRUPT relay.toml reads as "zero own repos" and everything downstream looks clean.
@@ -237,14 +297,32 @@ ev = [d for d in rows if (d.get("runId") or "") == run_id]
 # The empty-tail integrator signature. The TAIL is what matters: a NON-empty tail
 # means integrate.sh ran and printed something unparseable (a different defect);
 # an EMPTY tail means it produced nothing at all — the dispatch never landed.
-EVAP_RE = re.compile(r"no merged= line \(unparseable integrator output\):\s*$")
+# A SECOND, equally "the integrator never ran" signature (relay-loop.js:3219): the
+# mechanical integrate.sh hop was REFUSED at dispatch (a classifier block, an
+# install-drift 404, …) before it could run at all. Per the 2026-08-21 incident THIS
+# branch, not the empty-tail one, is how three of four evaporations actually happened —
+# and the empty-tail-only regex missed every one of them. Same cause-unknown set.
+EVAP_RE = re.compile(
+    r"no merged= line \(unparseable integrator output\):\s*$"
+    r"|integrate\.sh mechanical hop failed to dispatch \("
+)
 EXCLUDED_RE = re.compile(r"excluded-by-config|excluded for this run")
+
+# The one-word skip categories (relay-loop.js:430) that are BENIGN under
+# one-unit-per-repo-per-round: the repo was passed over for a reason that is the pool
+# working, not the pool failing. Matched as narrow literal tokens ON PURPOSE — a looser
+# `worktree`/`claim` match would swallow the loderite reason ("stale worktree … from a
+# dead run"), which is a REAL anomaly and must keep firing.
+BENIGN_SKIP_RE = re.compile(r"claimed-elsewhere|dirty-worktree|\bintensive\b")
 
 per = {}
 def slot(repo):
     return per.setdefault(repo, {
         "dispatch": [], "integrate": [], "handback": [],
         "verdict": "", "verdict_reason": "", "excluded": False,
+        # verdict_seen, not `verdict`: a verdict EVENT may carry an empty verdict string
+        # (an excluded repo does). Scope is about the event existing, not its value.
+        "verdict_seen": False,
     })
 
 for d in ev:
@@ -265,6 +343,7 @@ for d in ev:
                               "evaporated": bool(EVAP_RE.search(reason))})
     elif kind == "verdict":
         # LAST verdict wins — a repo may be re-classified across rounds.
+        s["verdict_seen"] = True
         s["verdict"] = d.get("verdict") or ""
         s["verdict_reason"] = d.get("reason") or ""
         if EXCLUDED_RE.search(d.get("reason") or ""):
@@ -276,7 +355,14 @@ for d in ev:
 # (id:0f9e merged per-run file). We read ONLY this run's section; a reason may wrap
 # over continuation lines, so a row starts at a `- ` at column 0 and the first line
 # of the reason is what we report.
-status_rows = {}     # repo -> {"section": ..., "reason": ...}
+#
+# FOUR headings are read, not two. `## Skipped` / `## Blocked / HANDBACKs` were the
+# original pair; `## Queued` holds a quota-stopped run's classified-but-undispatched
+# units and `## In-flight` holds units still executing. A scan that never reads those two
+# reports a healthy quota-stop, and a healthy still-running run, as anomalies.
+status_rows = {}     # repo -> {"section": "skipped"|"blocked", "reason": ...}
+queued_rows = {}     # repo -> verdict text  (classified, not yet given a turn)
+inflight_rows = {}   # repo -> detail text   (a unit still executing right now)
 status_present = os.path.exists(status_path)
 status_section_found = False
 if status_present:
@@ -301,6 +387,10 @@ if status_present:
                 cur = "skipped"
             elif head.startswith("blocked"):
                 cur = "blocked"
+            elif head.startswith("queued"):
+                cur = "queued"
+            elif head.startswith("in-flight") or head.startswith("in flight"):
+                cur = "inflight"
             else:
                 cur = None
             continue
@@ -312,30 +402,65 @@ if status_present:
             repo = parts[0]
             reason = parts[1] if len(parts) > 1 else ""
             reason = re.sub(r"\s+worktree=\S*$", "", reason).strip()
-            # first row for a repo wins (a repo can be rendered twice across rounds)
-            status_rows.setdefault(repo, {"section": cur, "reason": reason})
+            if cur == "queued":
+                queued_rows.setdefault(repo, reason)
+            elif cur == "inflight":
+                inflight_rows.setdefault(repo, reason)
+            else:
+                # first row for a repo wins (a repo can be rendered twice across rounds)
+                status_rows.setdefault(repo, {"section": cur, "reason": reason})
 
 # --- candidate set for (re)classification ------------------------------------
 # Only repos that could possibly BE an anomaly: an own repo that either got no
 # dispatch this run, or ended in a skip/blocked section. Deliberately excluded /
 # paused repos are dropped here — they are the configuration working, not a defect,
 # and re-classifying them would burn time to produce guaranteed non-findings.
+#
+# SCOPE (see the header's RUN SCOPE block). `scope_known` is a RUN-level fact: this run
+# emitted at least one verdict event, so relay-loop.js:2143-2145's one-verdict-per-
+# in-scope-repo-per-round invariant makes the observed set authoritative. With no verdict
+# events at all there is no scope evidence and NO filtering happens — fail-open, so a run
+# whose verdict rows are themselves what went missing still gets every repo checked.
+scope_known = any(bool(s["verdict"]) or s["excluded"] or s["verdict_seen"] for s in per.values())
+
 candidates = []
+dropped_out_of_scope = []
 for name, path in own:
     if only_repo and name != only_repo:
         continue
     s = per.get(name)
     if s and s["excluded"]:
         continue
+    # Queued = classified and accounted for, just not this run's turn (quota-stop /
+    # end-of-run leftover). The configuration working, not a repo the run starved.
+    if name in queued_rows:
+        continue
+    if scope_known:
+        in_scope = (name in per) or (name in status_rows) or (name in inflight_rows)
+        if not in_scope:
+            dropped_out_of_scope.append(name)
+            continue
     dispatched = len(s["dispatch"]) if s else 0
     in_status = name in status_rows
     if dispatched == 0 or in_status:
         candidates.append(name)
 
+# touched(repo) == 0 iff the repo has ZERO work-unit trace this run — the exact
+# STARVED-candidate population. --fast's hybrid mode needs it to decide which candidates
+# must be live-reclassified regardless; the report step re-derives the identical number
+# for its own STARVED test, so the formula lives in exactly these two places.
+def touched_count(name):
+    s = per.get(name)
+    if not s:
+        return 0
+    return len(s["dispatch"]) + len(s["integrate"]) + len(s["handback"])
+
 # The bash classify loop reads this TSV directly — one file, no per-repo python spawn.
+# Column 3 is "1" when the candidate has zero work-unit trace this run, "0" otherwise.
 with open(os.environ["CAND_TSV"], "w", encoding="utf-8") as f:
     for name in candidates:
-        f.write("%s\t%s\n" % (name, own_paths.get(name, "")))
+        f.write("%s\t%s\t%s\n"
+                % (name, own_paths.get(name, ""), "1" if touched_count(name) == 0 else "0"))
 
 out = {
     "run_id": run_id,
@@ -348,7 +473,12 @@ out = {
     "own_paths": own_paths,
     "per_repo": per,
     "status_rows": status_rows,
+    "queued_rows": queued_rows,
+    "inflight_rows": inflight_rows,
+    "scope_known": scope_known,
+    "dropped_out_of_scope": dropped_out_of_scope,
     "candidates": candidates,
+    "zero_trace": [n for n in candidates if touched_count(n) == 0],
     "totals": {
         "dispatched": sum(len(v["dispatch"]) for v in per.values()),
         "integrated": sum(len(v["integrate"]) for v in per.values()),
@@ -381,6 +511,24 @@ if [[ -n "$err" ]]; then
   exit 2
 fi
 
+# --- run liveness: is the run being audited STILL RUNNING? ----------------------
+# Reuses relay-status-publish.sh:158's own live-runs query verbatim — no new liveness
+# check, no second notion of "alive". FAIL-OPEN in the safe direction: any failure here
+# leaves run_alive=0, which SUPPRESSES NOTHING. A false "alive" would hide real findings;
+# a false "dead" merely reports an in-flight unit early.
+resolved_run="$(python3 -c '
+import json,sys
+print(json.load(open(sys.argv[1]))["run_id"])' "$facts_json")"
+run_alive=0
+if [[ -x "$HEARTBEAT_SH" ]]; then
+  # jq drains the whole stream; no early-exiting consumer anywhere in this pipeline.
+  live_runs="$("$HEARTBEAT_SH" live-runs 2>>"$LOG" | jq -r 'select(.state=="alive") | .runId' 2>>"$LOG" || true)"
+  while IFS= read -r _r; do
+    [[ "$_r" == "$resolved_run" ]] && run_alive=1
+  done <<<"$live_runs"
+fi
+log "run=$resolved_run alive=$run_alive"
+
 # --- pass 1b: (re)classify each candidate --------------------------------------
 # The LIVE verdict is the authority for STARVED / SKIPPED-WITH-ACTIONABLE — the whole
 # point is that the run's own recorded verdict may be stale, or may have been correct
@@ -393,8 +541,12 @@ classify_mode="live"
 # Each line is a few hundred bytes, far under PIPE_BUF, and every writer opens with
 # O_APPEND (`>>`), so the parallel appends below cannot interleave within a line.
 classify_one() {
-  local line="$1" name path out
-  IFS=$'\t' read -r name path <<<"$line"
+  local line="$1" name path zero_trace out
+  # THREE columns since the --fast hybrid landed. Reading only two silently folds the
+  # trailing field into $path, every path then fails `-d`, every candidate classifies
+  # "unreadable", and STARVED stops firing entirely — which is exactly how an earlier
+  # attempt at these guards broke the tool while looking like a formatting detail.
+  IFS=$'\t' read -r name path zero_trace <<<"$line"
   [[ -n "$name" ]] || return 0
   if [[ -z "$path" || ! -d "$path" ]]; then
     # Surfaced, never swallowed (id:4e14): a registered repo whose path is gone is
@@ -424,7 +576,17 @@ export -f classify_one
 export CLASSIFY_REPO CLS_TSV="$cls_tsv" LOG
 
 if [[ "$fast" -eq 1 ]]; then
-  classify_mode="recorded"
+  # HYBRID (id:87a7), not "recorded". The zero-work-unit-trace candidates — column 3 == 1,
+  # the STARVED-candidate population and empirically a handful of repos — are STILL
+  # classified live, because a recorded verdict cannot answer "is this repo starved"
+  # (loderite recorded `execute` and was skipped anyway). Everything else falls back to
+  # the recorded verdict. The alternative, which this replaces, printed
+  # `clean: … STARVED` for a class it had not examined.
+  classify_mode="hybrid"
+  fast_tsv="$wk/candidates-fast.tsv"
+  awk -F'\t' '$3 == "1"' "$cand_tsv" > "$fast_tsv"
+  jobs="${RUN_ANOMALY_JOBS:-$(nproc 2>/dev/null || echo 4)}"
+  xargs -d '\n' -r -n 1 -P "$jobs" bash -c 'classify_one "$1"' _ < "$fast_tsv"
 else
   # Fan out: a fleet-wide scan is ~50 independent read-only classify-repo.sh calls, and
   # serially that is minutes of wall time for an END-OF-RUN check nobody will wait for
@@ -437,9 +599,9 @@ fi
 # --- pass 2: derive findings + render ------------------------------------------
 rc=0
 FACTS="$facts_json" CLS="$cls_tsv" CLASSIFY_MODE="$classify_mode" \
-AS_JSON="$as_json" STRICT="$strict" ONLY_REPO="$only_repo" \
+AS_JSON="$as_json" STRICT="$strict" ONLY_REPO="$only_repo" RUN_ALIVE="$run_alive" \
 python3 - <<'PY_REPORT' || rc=$?
-import json, os, sys
+import json, os, re, sys
 
 facts = json.load(open(os.environ["FACTS"], encoding="utf-8"))
 as_json = os.environ.get("AS_JSON") == "1"
@@ -447,8 +609,12 @@ strict  = os.environ.get("STRICT") == "1"
 mode    = os.environ.get("CLASSIFY_MODE", "live")
 only_repo = os.environ.get("ONLY_REPO", "").strip()
 
+run_alive = os.environ.get("RUN_ALIVE") == "1"
+
 per        = facts["per_repo"]
 status_rows= facts["status_rows"]
+inflight_rows = facts.get("inflight_rows") or {}
+zero_trace = set(facts.get("zero_trace") or [])
 own_paths  = facts["own_paths"]
 totals     = facts["totals"]
 run_id     = facts["run_id"]
@@ -457,22 +623,34 @@ run_id     = facts["run_id"]
 # are non-dispatchable BY DESIGN — a repo sitting at one of those is not starved.
 POOL_ACTIONABLE = {"execute", "review", "hard", "handoff"}
 
+# The one-word skip categories (relay-loop.js:430) that are benign under
+# one-unit-per-repo-per-round. NARROW literal tokens on purpose: a looser `worktree` or
+# `claim` match would swallow the loderite reason ("stale worktree … from a dead run"),
+# a REAL anomaly that must keep firing.
+BENIGN_SKIP_RE = re.compile(r"claimed-elsewhere|dirty-worktree|\bintensive\b")
+
 cls = {}
-if mode == "live":
-    with open(os.environ["CLS"], encoding="utf-8") as f:
-        for line in f:
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 2:
-                continue
-            name = parts[0]
-            verdict = parts[1]
-            count = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
-            ids = [x for x in (parts[3].split(",") if len(parts) > 3 and parts[3] else [])]
-            cls[name] = {"verdict": verdict, "count": count, "ids": ids}
-else:
-    for name in facts["candidates"]:
-        s = per.get(name) or {}
-        cls[name] = {"verdict": s.get("verdict", ""), "count": 0, "ids": []}
+live_names = set()      # candidates whose verdict came from a LIVE classify this scan
+with open(os.environ["CLS"], encoding="utf-8") as f:
+    for line in f:
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) < 2:
+            continue
+        name = parts[0]
+        verdict = parts[1]
+        count = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+        ids = [x for x in (parts[3].split(",") if len(parts) > 3 and parts[3] else [])]
+        cls[name] = {"verdict": verdict, "count": count, "ids": ids}
+        live_names.add(name)
+# hybrid (--fast): everything the live pass did NOT cover falls back to the run's own
+# recorded verdict. In full LIVE mode the live pass covered every candidate, so this loop
+# adds nothing — the fallback is not a second code path to keep in sync.
+for name in facts["candidates"]:
+    if name in cls:
+        continue
+    s = per.get(name) or {}
+    cls[name] = {"verdict": s.get("verdict", ""), "count": 0, "ids": []}
+recorded_names = [n for n in facts["candidates"] if n not in live_names]
 
 findings = []
 def add(cls_name, repo, detail, nxt, **extra):
@@ -484,8 +662,22 @@ def short(s, n=110):
     s = " ".join((s or "").split())
     return s if len(s) <= n else s[: n - 1] + "…"
 
+# in_flight_suppressed(repo): the run is CONFIRMED still alive AND this repo has a
+# `## In-flight` row — the unit is executing right now, so "no outcome yet" is the
+# expected state, not an evaporation. BOTH conjuncts are required: liveness alone would
+# silence a repo whose unit really did evaporate in a run that is still going, and an
+# In-flight row alone would silence every unit stranded by a dead run, which is precisely
+# the DISPATCHED-BUT-NO-OUTCOME case this tool was built for.
+def in_flight_suppressed(repo):
+    return run_alive and repo in inflight_rows
+
 # --- ZERO-YIELD-RUN ------------------------------------------------------------
-if totals["dispatched"] > 0 and totals["integrated"] == 0:
+# Same conjunction, at run level: a live run with units still in flight has not yet had
+# its chance to yield. A DEAD run with nothing integrated still reports, in-flight rows
+# and all — a dead run's in-flight rows are stranded units, not pending ones.
+if run_alive and inflight_rows:
+    pass
+elif totals["dispatched"] > 0 and totals["integrated"] == 0:
     add("ZERO-YIELD-RUN", "-",
         "dispatched=%d but integrated=0 — every unit this run failed to land" % totals["dispatched"],
         "bash relay/scripts/check-install-drift.sh --canonical relay/scripts "
@@ -513,6 +705,8 @@ for repo in sorted(per):
 for repo in sorted(per):
     if only_repo and repo != only_repo:
         continue
+    if in_flight_suppressed(repo):
+        continue
     s = per[repo]
     from collections import Counter
     d_modes = Counter(x["mode"] for x in s["dispatch"])
@@ -531,8 +725,22 @@ for repo in sorted(per):
             count=sum(n for _, n in orphaned))
 
 # --- STARVED / SKIPPED-WITH-ACTIONABLE ----------------------------------------
+UNVERIFIABLE = {"classify-error", "unreadable"}
 for repo in sorted(cls):
     c = cls[repo]
+    if c["verdict"] in UNVERIFIABLE and repo in zero_trace:
+        # Absence of evidence is NEVER rendered as clean. A zero-trace repo whose live
+        # classification failed is the one population where "not pool-actionable" cannot
+        # be concluded — dropping it here is how a scanner reports a clean fleet it never
+        # actually checked.
+        add("STARVED-UNVERIFIED", repo,
+            "zero work-unit trace this run AND its live classification failed (%s) — this "
+            "repo could NOT be checked for STARVED; it is reported, never assumed clean"
+            % c["verdict"],
+            "bash relay/scripts/classify-repo.sh --repo %s --path %s"
+            % (repo, own_paths.get(repo, "")),
+            verdict=c["verdict"], count=0, ids=[])
+        continue
     if c["verdict"] not in POOL_ACTIONABLE:
         continue
     s = per.get(repo) or {}
@@ -563,13 +771,27 @@ for repo in sorted(cls):
             % (c["verdict"], item_txt, ("; RELAY_STATUS %s: %s" % (row["section"], reason)) if row else ""),
             nxt, verdict=c["verdict"], count=items, ids=c["ids"])
     elif row:
+        # TWO false-positive sources, both of them the pool WORKING:
+        #   (a) the handback accumulator — state.handbacks is push-only and never reset
+        #       all run (relay-loop.js:425), so a repo handed back in round 1 and
+        #       INTEGRATED in round 2 keeps its Blocked row for the rest of the run;
+        #   (b) a benign per-round skip category — under one-unit-per-repo-per-round a
+        #       backlog repo is EXPECTED to be passed over once its unit has landed.
+        # Both are gated on the repo having actually got somewhere this run, so a repo
+        # that was blocked or skipped and NEVER worked still reports. And neither guard
+        # touches STARVED: a zero-trace repo carrying `claimed-elsewhere` may be sitting
+        # behind a STALE claim, which is the loderite failure wearing a benign label.
+        if per.get(repo, {}).get("integrate"):
+            continue
+        if BENIGN_SKIP_RE.search(row["reason"] or "") and touched > 0:
+            continue
         add("SKIPPED-WITH-ACTIONABLE", repo,
             "ends the run in RELAY_STATUS '%s' (%s) but still classifies %s with %s"
             % (row["section"], reason, c["verdict"], item_txt),
             "bash relay/scripts/classify-repo.sh --repo %s --path %s" % (repo, path),
             verdict=c["verdict"], count=items, ids=c["ids"])
 
-ORDER = ["ZERO-YIELD-RUN", "STARVED", "DISPATCHED-BUT-NO-OUTCOME",
+ORDER = ["ZERO-YIELD-RUN", "STARVED", "STARVED-UNVERIFIED", "DISPATCHED-BUT-NO-OUTCOME",
          "INTEGRATE-EVAPORATED", "SKIPPED-WITH-ACTIONABLE"]
 findings.sort(key=lambda f: (ORDER.index(f["class"]) if f["class"] in ORDER else 99, f["repo"]))
 
@@ -582,7 +804,14 @@ if as_json:
         "status_section_found": facts["status_section_found"],
         "malformed_event_lines": facts["malformed_event_lines"],
         "own_count": facts["own_count"],
-        "reclassified": len(cls) if mode == "live" else 0,
+        "reclassified": len(live_names),
+        "live_classified": sorted(live_names),
+        "recorded_verdicts": sorted(recorded_names),
+        "run_alive": run_alive,
+        "in_flight": sorted(inflight_rows),
+        "queued": sorted(facts.get("queued_rows") or {}),
+        "scope_known": facts.get("scope_known", False),
+        "out_of_scope": sorted(facts.get("dropped_out_of_scope") or []),
         "totals": totals,
         "findings": findings,
         "strict": strict,
@@ -596,9 +825,25 @@ else:
           "classified=%s (%s)"
           % (totals["dispatched"], totals["integrated"], totals["handbacks"],
              facts["own_count"], len(cls), mode))
-    if mode == "recorded":
-        print("NOTE: --fast — verdicts are the run's own RECORDED ones, blind to state "
-              "that changed since; re-run without --fast for the authoritative answer.")
+    if mode == "hybrid":
+        # Names WHICH repos were live vs recorded. A blanket "--fast is blind" note lets a
+        # reader treat every class as unchecked; the point of the hybrid is that STARVED
+        # was checked, live, for exactly the repos where it could apply.
+        print("NOTE: --fast HYBRID — %d zero-work-unit-trace repo(s) were live-reclassified "
+              "so the STARVED class is NOT skipped%s; the other %d candidate(s) reuse the "
+              "run's RECORDED verdict and are blind to state changed since%s."
+              % (len(live_names),
+                 (" (%s)" % ", ".join(sorted(live_names))) if live_names else "",
+                 len(recorded_names),
+                 (" (%s)" % ", ".join(recorded_names[:8])) if recorded_names else ""))
+    if facts.get("scope_known") and facts.get("dropped_out_of_scope"):
+        print("NOTE: %d own repo(s) were NOT in this run's scope (no verdict event, no "
+              "trace, no status row) and are not candidates: %s."
+              % (len(facts["dropped_out_of_scope"]),
+                 ", ".join(facts["dropped_out_of_scope"][:8])))
+    if run_alive:
+        print("NOTE: run %s is STILL ALIVE (heartbeat.sh live-runs) — %d in-flight unit(s) "
+              "are exempt from the mid-flight anomaly classes." % (run_id, len(inflight_rows)))
     if not facts["status_section_found"]:
         print("NOTE: no RELAY_STATUS section for this run — the SKIPPED-WITH-ACTIONABLE "
               "class had nothing to read (a status-hop failure is itself worth checking).")
