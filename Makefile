@@ -81,7 +81,7 @@ relay_FILES := SKILL.md \
                scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
                scripts/lib-own-repos.sh scripts/lib-anchored-id.sh scripts/lib-typed-edges.sh scripts/lib-state-claim.sh \
-               scripts/lib-roadmap-sections.sh \
+               scripts/lib-roadmap-sections.sh scripts/lib-private-remote.sh \
                scripts/lib-ledger-only-diff.sh scripts/lib-pool-runs.py \
                scripts/resolve-gates.sh scripts/ledger-slice.sh \
                scripts/mechanical-proxy.py \

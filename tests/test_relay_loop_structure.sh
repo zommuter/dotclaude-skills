@@ -69,7 +69,12 @@ INTEG="$SRC_DIR/relay/scripts/integrate.sh"
 grep -q 'relay/scripts/integrate.sh' "$JS" || fail "relay-loop.js does not dispatch integrate.sh"
 grep -q -- "--no-ff" "$INTEG" || fail "integrator does not document/perform --no-ff merge"
 grep -q "ckpt-tag.sh" "$INTEG" || fail "integrator does not call ckpt-tag.sh"
-grep -qE -- 'GIT_LOCK_PUSH" --ff-only' "$INTEG" || fail "integrator does not push via git-lock-push.sh --ff-only"
+# id:4d44 — the push argv is now BUILT (`push_args=(--ff-only "$path")`, plus `--remote NAME`
+# per selected remote) instead of being one literal invocation, because a SUBSTANTIVE unit
+# pushes only its PRIVATE/LAN remotes. Both halves of the contract still hold and are still
+# asserted: the push goes through $GIT_LOCK_PUSH, and it is --ff-only.
+grep -qE -- 'push_args=\(--ff-only' "$INTEG" || fail "integrator does not build a --ff-only push invocation"
+grep -qE -- 'GIT_LOCK_PUSH" "\$\{push_args\[@\]\}"' "$INTEG" || fail "integrator does not push via git-lock-push.sh"
 pass "integrator chain: --no-ff merge, ckpt-tag.sh, git-lock-push.sh --ff-only (in integrate.sh, dispatched from relay-loop.js)"
 
 # (3b) id:087b — the integrator dispatch must be MECHANICAL, never an LLM agent. A
