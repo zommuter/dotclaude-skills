@@ -6567,3 +6567,25 @@ as a second conditional.
 ## 2026-08-21 13:25 — integrate (claude-opus-5)
 
 integrate id:e82e + id:31c3 — integrate.sh now commits the TODO twin (the untriggered wedge is closed, with a test at the integrate SEAM rather than the unit); the child-facing brief drops the column-0 truncation claim b015 fixed
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:7c5f — the id:b018 prompt-size gate's counted ledger set is now VERDICT-DEPENDENT.
+`REVIEW_ME.md` + `RELAY_LOG.md` are counted iff `unit.verdict === 'review'` (a review child is
+contractually required to read both), and never for execute/hard/handoff — so b018's own
+objection ("would refuse execute units on bytes they never read") still holds. One new pure
+function, `countedLedgersFor(unit)`, is the single place the set is decided; both
+`oversizeDispatchReason` and `sliceLedgerHeadroom` read it, so the gate and the brief can never
+disagree about which files a verdict must swallow. `classify-repo.sh` measures the two files on
+the host as `review_me_bytes`/`relay_log_bytes`, fail-open on 0. The id:35b7 slice precedence is
+untouched: a unit carrying `slice_path` is still sized on the SLICE and counts NO ledgers at all,
+review units included (pinned by a test case).
+Friction: the materiality filter that decides WHICH ledgers the refusal names would have hidden
+the review-only pair — they are small (15k/10k tok) against a 25k-tok threshold, yet they were
+the entire cause of the overrun, so the refusal would have sent the operator to archive
+ROADMAP/TODO, which were never the problem. Added a swing-cause clause: a review-only ledger is
+named whenever the estimate WITHOUT the review-only ledgers would have fitted.
+refactor: extracted `countedLedgersFor()` rather than duplicating the verdict test in the gate
+and in `sliceLedgerHeadroom` — that duplication is exactly how the gate and the brief would drift
+apart on which ledgers a review unit reads. Also generalised the `fix` field with a `cmd` flag so
+RELAY_LOG.md (append-only, NO archiver) gets honest prose instead of a command that does not exist.

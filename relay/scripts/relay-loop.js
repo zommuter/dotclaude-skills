@@ -782,6 +782,14 @@ const DISCOVER_SCHEMA = {
           // and for the same reason. The child reads BOTH ledgers, so sizing only the ROADMAP
           // under-counted by ~50% — loderite cleared the budget by 326 tok and died anyway.
           todo_bytes: { type: 'integer' },
+          // review_me_bytes / relay_log_bytes (id:7c5f): the two REVIEW-ONLY ledgers, measured
+          // on the host the same way. The gate counts them ONLY when the unit's verdict is
+          // `review` — a review child must read both (trust-but-verify, and the
+          // single-id-two-views tick-back), an execute child never does, so counting them
+          // unconditionally would refuse execute units on bytes they never read (the id:b018
+          // objection). ABSENT/0 ⇒ unmeasured ⇒ fail OPEN.
+          review_me_bytes: { type: 'integer' },
+          relay_log_bytes: { type: 'integer' },
         },
       },
     },
@@ -2598,15 +2606,36 @@ const dispatchChoiceFor = (unit) => {
 // only when the MEASURED headroom left after the slice could absorb the largest measured
 // ledger. This changes the BRIEF only — the gate's verdict is untouched — and it never claims
 // the slice enforces anything (id:9663).
+// id:7c5f — INLINE COPY of prompt-size-gate.mjs's countedLedgersFor (keep byte-identical; the
+// structural test in tests/test_prompt_size_gate_review_7c5f.sh pins it). It is the SINGLE
+// place the counted ledger set is decided, read by BOTH the gate and sliceLedgerHeadroom:
+// ROADMAP.md + TODO.md always, plus REVIEW_ME.md + RELAY_LOG.md when the verdict is `review`,
+// because only a review child is contractually required to read those two.
+function countedLedgersFor(unit) {
+  const u = unit || {}
+  const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
+  const repoPath = u.path || '<repo-path>'
+  const ledgers = [
+    { name: 'ROADMAP.md', bytes: n(u.roadmap_bytes), cmd: true, fix: '~/.claude/skills/relay/scripts/roadmap-archive.sh ' + repoPath },
+    { name: 'TODO.md', bytes: n(u.todo_bytes), cmd: true, fix: '~/.claude/skills/todo-update/archive-done.sh ' + repoPath + '/TODO.md' },
+  ]
+  if (u.verdict === 'review') {
+    ledgers.push({ name: 'REVIEW_ME.md', bytes: n(u.review_me_bytes), cmd: true, reviewOnly: true, fix: '~/.claude/skills/relay/scripts/archive-closed.sh ' + repoPath })
+    ledgers.push({ name: 'RELAY_LOG.md', bytes: n(u.relay_log_bytes), cmd: false, reviewOnly: true, fix: 'RELAY_LOG.md is append-only (merge=union) and has NO archiver — rotate its older session entries into a RELAY_LOG.archive.md by hand' })
+  }
+  return ledgers
+}
+
 function sliceLedgerHeadroom(unit, budget) {
   const u = unit || {}
   const cap = Number.isFinite(budget) && budget > 0 ? budget : DISPATCH_TOKEN_BUDGET
   const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
   const sliceBytes = n(u.slice_bytes)
-  const roadmapBytes = n(u.roadmap_bytes)
-  const todoBytes = n(u.todo_bytes)
-  const largestLedgerBytes = Math.max(roadmapBytes, todoBytes)
-  const largestLedgerName = largestLedgerBytes <= 0 ? '' : (roadmapBytes >= todoBytes ? 'ROADMAP.md' : 'TODO.md')
+  let largestLedgerBytes = 0
+  let largestLedgerName = ''
+  for (const l of countedLedgersFor(u)) {
+    if (l.bytes > largestLedgerBytes) { largestLedgerBytes = l.bytes; largestLedgerName = l.name }
+  }
   const headroomTokens = cap - estimateDispatchTokens(0, sliceBytes, 0)
   const largestLedgerTokens = Math.round(largestLedgerBytes / CHARS_PER_TOKEN)
   const affordable = largestLedgerBytes <= 0 || largestLedgerTokens <= headroomTokens
@@ -2620,7 +2649,7 @@ function sliceInstruction(unit, budget) {
   if (h.affordable) {
     return head + 'The full ledgers are still on disk at their canonical paths if the slice genuinely does not carry something you need — if you had to open one, say which and why in your report. '
   }
-  return head + 'Do NOT open the full ROADMAP.md or TODO.md for this unit (id:7575). They are MEASURED at ' + h.largestLedgerBytes + ' bytes for ' + h.largestLedgerName + ' alone (~' + h.largestLedgerTokens + ' tok) against only ~' + h.headroomTokens + ' tok of dispatch headroom left once this slice is counted, so a full read would blow the window and kill you mid-work with "Prompt is too long" — reported to the operator as an anonymous failure. Nothing stops you from reading them: this is a cost, not a boundary. A targeted `grep -n` for a specific id or string against a ledger is fine and cheap; a whole-file read is not. If the slice is genuinely insufficient — it carries this item block, its typed edges and the TODO twin, not neighbouring items or whole-ledger context — HAND BACK (contract_met=false, gate_reason naming exactly what the slice lacked) rather than opening a ledger speculatively. '
+  return head + 'Do NOT open the full ledgers for this unit (id:7575) — ROADMAP.md, TODO.md, and on a review unit REVIEW_ME.md and RELAY_LOG.md too (id:7c5f). They are MEASURED at ' + h.largestLedgerBytes + ' bytes for ' + h.largestLedgerName + ' alone (~' + h.largestLedgerTokens + ' tok) against only ~' + h.headroomTokens + ' tok of dispatch headroom left once this slice is counted, so a full read would blow the window and kill you mid-work with "Prompt is too long" — reported to the operator as an anonymous failure. Nothing stops you from reading them: this is a cost, not a boundary. A targeted `grep -n` for a specific id or string against a ledger is fine and cheap; a whole-file read is not. If the slice is genuinely insufficient — it carries this item block, its typed edges and the TODO twin, not neighbouring items or whole-ledger context — HAND BACK (contract_met=false, gate_reason naming exactly what the slice lacked) rather than opening a ledger speculatively. '
 }
 
 // Returns the NAMED execute instruction, or '' when no item could be named — the caller then
@@ -2700,22 +2729,29 @@ function oversizeDispatchReason(unit, promptChars, budget) {
     if (sliceEst <= cap) return ''
     return `prompt-size gate (id:4f9b/id:35b7): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${sliceEst} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: this unit carries an id:e68f ledger SLICE (${u.slice_path}) and is sized on THAT, not on the ledgers — and the slice itself is ${sliceBytes} bytes (~${Math.round(sliceBytes / CHARS_PER_TOKEN)} tok of the estimate). REMEDY: archiving the ledgers will NOT help here — the bulk is one item's own block plus its typed edges and TODO twin. Shrink the dispatched ITEM: split it into seams, or move its prose into a linked meeting note and leave the acceptance criteria. This repo is skipped, not failed: no worktree was created and no work was lost.`
   }
-  const roadmapBytes = n(u.roadmap_bytes)
-  const todoBytes = n(u.todo_bytes)
-  if (!roadmapBytes && !todoBytes) return ''   // unmeasured ⇒ fail OPEN, never block on missing data
-  const est = estimateDispatchTokens(promptChars, roadmapBytes, todoBytes)
+  // id:7c5f — the counted set is verdict-dependent (see countedLedgersFor). For a review unit
+  // this includes REVIEW_ME.md + RELAY_LOG.md; for every other verdict it is exactly the b018
+  // pair, so no execute/hard/handoff unit's verdict can change.
+  const measured = countedLedgersFor(u).filter((l) => l.bytes > 0)
+  if (!measured.length) return ''   // unmeasured ⇒ fail OPEN, never block on missing data
+  const ledgerBytes = measured.reduce((s, l) => s + l.bytes, 0)
+  const est = estimateDispatchTokens(promptChars, ledgerBytes, 0)
   if (est <= cap) return ''
-  const repoPath = u.path || '<repo-path>'
-  const measured = [
-    { name: 'ROADMAP.md', bytes: roadmapBytes, fix: '~/.claude/skills/relay/scripts/roadmap-archive.sh ' + repoPath },
-    { name: 'TODO.md', bytes: todoBytes, fix: '~/.claude/skills/todo-update/archive-done.sh ' + repoPath + '/TODO.md' },
-  ].filter((l) => l.bytes > 0)
   // Name the ledgers that MATERIALLY drive the overrun (>= a quarter of the cap on their own);
   // if none does individually, the overrun is the aggregate, so name them all.
   const material = measured.filter((l) => l.bytes / CHARS_PER_TOKEN >= cap / 4)
-  const named = material.length ? material : measured
+  // id:7c5f — a REVIEW-ONLY ledger is typically small yet decisive: if the estimate WITHOUT the
+  // review-only ledgers would have fitted, they are the SWING cause and must be named however
+  // far under the materiality threshold they sit. Naming only ROADMAP.md/TODO.md there would
+  // send the operator to archive the two files that were never the problem — the same
+  // wrong-file misdirection id:b018 fixed for the roadmap-only refusal.
+  const swing = measured.filter((l) => l.reviewOnly)
+  const swingBytes = swing.reduce((s, l) => s + l.bytes, 0)
+  const swingIsCause = swingBytes > 0 && estimateDispatchTokens(promptChars, ledgerBytes - swingBytes, 0) <= cap
+  const named = swingIsCause ? measured.filter((l) => l.reviewOnly || material.includes(l))
+                             : (material.length ? material : measured)
   const causes = named.map((l) => `${l.name} is too large — ${l.bytes} bytes (~${Math.round(l.bytes / CHARS_PER_TOKEN)} tok of the estimate)`).join('; ')
-  const remedies = named.map((l) => '`' + l.fix + '`').join(' and ')
+  const remedies = named.map((l) => (l.cmd === false ? l.fix : '`' + l.fix + '`')).join(' and ')
   // REMEDY WORDING (id:35b7): the old text sent the operator to the archivers unconditionally.
   // They move DONE `- [x]` items ONLY, so on a ledger whose bulk is OPEN (dotclaude-skills
   // TODO.md, 2026-08-21: 529 open / 1 closed) they move nothing and the refusal is a dead end.
