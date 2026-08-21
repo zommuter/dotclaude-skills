@@ -6474,3 +6474,7 @@ builder, which only worked earlier via dynamic scoping from its caller).
 refactor: none needed — the change is additive on one shell function, one JS parser and one
 new call-site branch; no duplication was introduced and the existing pre-push paths were not
 touched.
+
+## 2026-08-21 12:20 — integrate (claude-opus-5)
+
+integrate id:5fe2 — post-push integrate failures are classified landedUnfinished (never re-merged) instead of being retried forever; verified on a SEQUENTIAL suite run (463 passed) since the id:7518 parallel race made three consecutive parallel runs red on three different tests
