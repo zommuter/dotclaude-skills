@@ -24,12 +24,24 @@
 // UNDER-counts — which keeps the gate conservative: it fires late, never early.
 export const CHARS_PER_TOKEN = 4
 
-// The dispatch-time payload budget, in tokens. Derivation (do not "round this up" without
-// redoing it): the child's window is ~200k. Measured deaths sat at peak context 176,841 tok
+// The dispatch-time payload budget, in tokens.
+//
+// TIER DERIVATION (id:b018 — re-derived 2026-08-21 from the tiers this pool actually
+// dispatches, rather than left as an unexplained flat number). relay-loop.js dispatches
+// exactly four models: `claude-opus-4-8` (hard/review), `claude-fable-5` (hard/review when
+// STRONG_TIER=fable), the default Sonnet (execute/integrate) and `haiku` (the id:4239
+// mechanical fallback). ALL FOUR carry a 200,000-token context window — no dispatched tier
+// has a different one, and the 1M-context variants are not dispatched here — so a tier-keyed
+// budget table would hold four identical rows and buy nothing. The budget is therefore ONE
+// number, derived as: 200,000-token window x 50% reserved as working room = 100,000 tokens of
+// fixed dispatch payload. If a tier with a different window is ever dispatched, THIS is the
+// line to split per tier (oversizeDispatchReason already takes a `budget` override).
+//
+// Why 50% and not more: Measured deaths sat at peak context 176,841 tok
 // (dotclaude-skills, run relay-20260728-212859-24420) and the surviving children need real
 // working room for exploration, edits and tool results — id:9eb7 records "well under 100k
 // working room" as the pathology, not the target. So the FIXED payload the child must swallow
-// before it can do anything (its dispatch prompt + the ledger it is contractually required to
+// before it can do anything (its dispatch prompt + the ledgers it is contractually required to
 // read) is capped at 100k, leaving ~100k of working room.
 //
 // Calibration against the two known points: the 2026-08-01 ROADMAP (523,926 B ≈ 131k tok
@@ -38,36 +50,72 @@ export const CHARS_PER_TOKEN = 4
 // fires on the ledger that actually killed a child and not on the one that does not.
 export const DISPATCH_TOKEN_BUDGET = 100000
 
-// Fixed overhead every child pays on top of its dispatch prompt and the ROADMAP, in tokens:
+// Fixed overhead every child pays on top of its dispatch prompt and the ledgers, in tokens:
 // the executor contract (~5.5k, measured id:9eb7) plus conventions.md (~4k) plus the harness
 // system prompt and tool definitions. Counted so the budget is measured against what the child
-// really carries, not just the two things we can size directly.
+// really carries, not just the things we can size directly.
 export const FIXED_OVERHEAD_TOKENS = 12000
 
+// id:b018 — WHICH ledgers count. The 4f9b gate sized ROADMAP.md ALONE, and loderite passed by
+// 326 tokens then died anyway: the child is also contractually required to read TODO.md
+// (handoff C2's first check, review's single-id-two-views tick-back, and the execute contract's
+// id reuse), so its bytes belong in the estimate exactly as the ROADMAP's do. Both are measured
+// on the HOST by classify-repo.sh (`roadmap_bytes`, `todo_bytes`) and ride along on the unit.
+//
+// Audit of the assembled child prompt (unitPrompt in relay-loop.js, 2026-08-21): the prompt
+// EMBEDS no ledger bytes at all — it interpolates instructions plus `unit.reason`. What it
+// makes the child SWALLOW is the set of files its procedure requires: ROADMAP.md (every
+// verdict) and TODO.md (handoff/review/execute), plus the fixed contract+conventions payload
+// already carried by FIXED_OVERHEAD_TOKENS. REVIEW_ME.md and RELAY_LOG.md are read by REVIEW
+// units only and are deliberately NOT counted here — adding them would refuse execute units on
+// bytes they never read.
+//
+// HONEST RESIDUAL (id:9663 / --fabled F5): this budgets what the child is REQUIRED to read, not
+// everything it MAY pull. The child holds Read/Bash on the checkout and auto mode denies
+// essentially nothing outside protected paths (banked probe id:5937), so its potential read set
+// is the whole repo and is not soundly boundable from a byte count. Bounding it needs either
+// the id:e68f slice-and-hand-a-path change or a real enforcement — neither is in this item.
+
 // estimateDispatchTokens — tokens the child must swallow before it can start work.
-// promptChars: length of the assembled unitPrompt string. roadmapBytes: the host-measured
-// size of ROADMAP.md (0 when unmeasured).
-export function estimateDispatchTokens(promptChars, roadmapBytes) {
-  const p = Number.isFinite(promptChars) && promptChars > 0 ? promptChars : 0
-  const r = Number.isFinite(roadmapBytes) && roadmapBytes > 0 ? roadmapBytes : 0
-  return Math.round((p + r) / CHARS_PER_TOKEN) + FIXED_OVERHEAD_TOKENS
+// promptChars: length of the assembled unitPrompt string. roadmapBytes / todoBytes: the
+// host-measured sizes of ROADMAP.md and TODO.md (0 or omitted when unmeasured).
+export function estimateDispatchTokens(promptChars, roadmapBytes, todoBytes) {
+  const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
+  const bytes = n(promptChars) + n(roadmapBytes) + n(todoBytes)
+  return Math.round(bytes / CHARS_PER_TOKEN) + FIXED_OVERHEAD_TOKENS
 }
 
 // oversizeDispatchReason — '' when the unit is safe to dispatch, otherwise ONE line naming
 // BOTH the cause and the remedy, suitable verbatim as a handback reason and as the
-// RELAY_STATUS.md "Blocked" row.
+// RELAY_STATUS.md "Blocked" row. The cause names EVERY oversized ledger with its byte count
+// and the archiver that shrinks it — a refusal that blames only ROADMAP.md sends the human to
+// archive the wrong file (id:b018).
 //
-// FAIL-OPEN by construction: a unit with no `roadmap_bytes` (an older queue entry, an injected
-// unit, a shard-produced unit) measures as 0 and can never trip the gate. Refusing to dispatch
-// on ABSENT data would be strictly worse than the death this prevents — the gate only ever
-// acts on a positive measurement.
+// FAIL-OPEN by construction: a unit with NO ledger measurement at all (an older queue entry, an
+// injected unit, a shard-produced unit) measures as 0 and can never trip the gate. Refusing to
+// dispatch on ABSENT data would be strictly worse than the death this prevents — the gate only
+// ever acts on a positive measurement. A unit measured on only ONE ledger is still sized on
+// that one (the old `if (!roadmapBytes) return ''` short-circuit silently skipped a TODO-only
+// measurement).
 export function oversizeDispatchReason(unit, promptChars, budget) {
   const u = unit || {}
   const cap = Number.isFinite(budget) && budget > 0 ? budget : DISPATCH_TOKEN_BUDGET
-  const roadmapBytes = Number.isFinite(u.roadmap_bytes) && u.roadmap_bytes > 0 ? u.roadmap_bytes : 0
-  if (!roadmapBytes) return ''   // unmeasured ⇒ fail OPEN, never block on missing data
-  const est = estimateDispatchTokens(promptChars, roadmapBytes)
+  const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
+  const roadmapBytes = n(u.roadmap_bytes)
+  const todoBytes = n(u.todo_bytes)
+  if (!roadmapBytes && !todoBytes) return ''   // unmeasured ⇒ fail OPEN, never block on missing data
+  const est = estimateDispatchTokens(promptChars, roadmapBytes, todoBytes)
   if (est <= cap) return ''
-  const roadmapTok = Math.round(roadmapBytes / CHARS_PER_TOKEN)
-  return `prompt-size gate (id:4f9b): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${est} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: ROADMAP.md is too large — ${roadmapBytes} bytes (~${roadmapTok} tok of the estimate). REMEDY: run \`~/.claude/skills/relay/scripts/roadmap-archive.sh ${u.path || '<repo-path>'}\` to move the done \`- [x]\` items into ROADMAP.archive.md, commit, and re-run the pool. This repo is skipped, not failed: no worktree was created and no work was lost.`
+  const repoPath = u.path || '<repo-path>'
+  const measured = [
+    { name: 'ROADMAP.md', bytes: roadmapBytes, fix: '~/.claude/skills/relay/scripts/roadmap-archive.sh ' + repoPath },
+    { name: 'TODO.md', bytes: todoBytes, fix: '~/.claude/skills/todo-update/archive-done.sh ' + repoPath + '/TODO.md' },
+  ].filter((l) => l.bytes > 0)
+  // Name the ledgers that MATERIALLY drive the overrun (>= a quarter of the cap on their own);
+  // if none does individually, the overrun is the aggregate, so name them all.
+  const material = measured.filter((l) => l.bytes / CHARS_PER_TOKEN >= cap / 4)
+  const named = material.length ? material : measured
+  const causes = named.map((l) => `${l.name} is too large — ${l.bytes} bytes (~${Math.round(l.bytes / CHARS_PER_TOKEN)} tok of the estimate)`).join('; ')
+  const remedies = named.map((l) => '`' + l.fix + '`').join(' and ')
+  return `prompt-size gate (id:4f9b/id:b018): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${est} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: ${causes}. REMEDY: run ${remedies} to move the done \`- [x]\` items into the matching archive file, commit, and re-run the pool. This repo is skipped, not failed: no worktree was created and no work was lost.`
 }
