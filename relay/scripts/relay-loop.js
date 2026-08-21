@@ -778,6 +778,10 @@ const DISCOVER_SCHEMA = {
           // (oversizeDispatchReason) which refuses to dispatch a child into a ledger that
           // cannot fit, naming the cause and the remedy. ABSENT/0 ⇒ unmeasured ⇒ fail OPEN.
           roadmap_bytes: { type: 'integer' },
+          // todo_bytes (id:b018): size of the repo's TODO.md in BYTES, measured the same way
+          // and for the same reason. The child reads BOTH ledgers, so sizing only the ROADMAP
+          // under-counted by ~50% — loderite cleared the budget by 326 tok and died anyway.
+          todo_bytes: { type: 'integer' },
         },
       },
     },
@@ -2513,20 +2517,34 @@ function hardNamedInstruction(unit) {
 const CHARS_PER_TOKEN = 4
 const DISPATCH_TOKEN_BUDGET = 100000
 const FIXED_OVERHEAD_TOKENS = 12000
-function estimateDispatchTokens(promptChars, roadmapBytes) {
-  const p = Number.isFinite(promptChars) && promptChars > 0 ? promptChars : 0
-  const r = Number.isFinite(roadmapBytes) && roadmapBytes > 0 ? roadmapBytes : 0
-  return Math.round((p + r) / CHARS_PER_TOKEN) + FIXED_OVERHEAD_TOKENS
+// id:b018 — BOTH ledgers are counted (ROADMAP.md + TODO.md), not just the ROADMAP: sizing one
+// under-counted by ~50% and let loderite through by 326 tok before it died anyway.
+function estimateDispatchTokens(promptChars, roadmapBytes, todoBytes) {
+  const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
+  const bytes = n(promptChars) + n(roadmapBytes) + n(todoBytes)
+  return Math.round(bytes / CHARS_PER_TOKEN) + FIXED_OVERHEAD_TOKENS
 }
 function oversizeDispatchReason(unit, promptChars, budget) {
   const u = unit || {}
   const cap = Number.isFinite(budget) && budget > 0 ? budget : DISPATCH_TOKEN_BUDGET
-  const roadmapBytes = Number.isFinite(u.roadmap_bytes) && u.roadmap_bytes > 0 ? u.roadmap_bytes : 0
-  if (!roadmapBytes) return ''   // unmeasured ⇒ fail OPEN, never block on missing data
-  const est = estimateDispatchTokens(promptChars, roadmapBytes)
+  const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
+  const roadmapBytes = n(u.roadmap_bytes)
+  const todoBytes = n(u.todo_bytes)
+  if (!roadmapBytes && !todoBytes) return ''   // unmeasured ⇒ fail OPEN, never block on missing data
+  const est = estimateDispatchTokens(promptChars, roadmapBytes, todoBytes)
   if (est <= cap) return ''
-  const roadmapTok = Math.round(roadmapBytes / CHARS_PER_TOKEN)
-  return `prompt-size gate (id:4f9b): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${est} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: ROADMAP.md is too large — ${roadmapBytes} bytes (~${roadmapTok} tok of the estimate). REMEDY: run \`~/.claude/skills/relay/scripts/roadmap-archive.sh ${u.path || '<repo-path>'}\` to move the done \`- [x]\` items into ROADMAP.archive.md, commit, and re-run the pool. This repo is skipped, not failed: no worktree was created and no work was lost.`
+  const repoPath = u.path || '<repo-path>'
+  const measured = [
+    { name: 'ROADMAP.md', bytes: roadmapBytes, fix: '~/.claude/skills/relay/scripts/roadmap-archive.sh ' + repoPath },
+    { name: 'TODO.md', bytes: todoBytes, fix: '~/.claude/skills/todo-update/archive-done.sh ' + repoPath + '/TODO.md' },
+  ].filter((l) => l.bytes > 0)
+  // Name the ledgers that MATERIALLY drive the overrun (>= a quarter of the cap on their own);
+  // if none does individually, the overrun is the aggregate, so name them all.
+  const material = measured.filter((l) => l.bytes / CHARS_PER_TOKEN >= cap / 4)
+  const named = material.length ? material : measured
+  const causes = named.map((l) => `${l.name} is too large — ${l.bytes} bytes (~${Math.round(l.bytes / CHARS_PER_TOKEN)} tok of the estimate)`).join('; ')
+  const remedies = named.map((l) => '`' + l.fix + '`').join(' and ')
+  return `prompt-size gate (id:4f9b/id:b018): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${est} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: ${causes}. REMEDY: run ${remedies} to move the done \`- [x]\` items into the matching archive file, commit, and re-run the pool. This repo is skipped, not failed: no worktree was created and no work was lost.`
 }
 
 function unitPrompt(unit) {
@@ -3376,14 +3394,15 @@ async function runUnit(unit) {
   }
   // id:4f9b — PRE-DISPATCH PROMPT-SIZE GATE. Size the assembled child prompt (plus the ROADMAP
   // the child is contractually required to read, measured on the host by classify-repo.sh as
-  // `roadmap_bytes`) BEFORE spawning anything. Over budget ⇒ do NOT dispatch: emit a handback
-  // whose reason NAMES the cause (ROADMAP too large, with the byte count) and the REMEDY (run
-  // roadmap-archive.sh), and surface it in RELAY_STATUS.md's Blocked section. Without this the
+  // `roadmap_bytes` — and TODO.md as `todo_bytes`, id:b018) BEFORE spawning anything. Over
+  // budget ⇒ do NOT dispatch: emit a handback whose reason NAMES every oversized ledger with
+  // its byte count and the REMEDY that shrinks it (roadmap-archive.sh / todo-update's
+  // archive-done.sh), and surface it in RELAY_STATUS.md's Blocked section. Without this the
   // child dies with a bare harness `Prompt is too long`, integrate() records the GENERIC
   // `child agent failed/skipped (API error or terminal failure)`, and the status file reports
   // `## Blocked / HANDBACKs _(none)_` — a false clean over 481 lines of parked work
   // (run relay-20260801-213927-29875). That anonymous report is the id:4347 silent-swallow.
-  // FAIL-OPEN: a unit with no roadmap_bytes measurement can never trip this.
+  // FAIL-OPEN: a unit with no ledger measurement at all can never trip this.
   // The handback is emitted on BOTH surfaces (event log + accumulator) so the id:4a46
   // bidirectional invariant holds; worktreePath is '-' because nothing was created.
   const oversizeReason = oversizeDispatchReason(unit, unitPrompt(unit).length)
