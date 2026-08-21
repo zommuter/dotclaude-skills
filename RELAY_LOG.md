@@ -6177,3 +6177,49 @@ integrate id:4a76 — human-lane verdict so a repo blocked entirely on the owner
 ## 2026-08-21 08:55 — integrate (claude-opus-5)
 
 integrate id:087b — integrate() rewired to the mechanical integrate.sh hop; no LLM agent remains on the merge-to-main path. Bump trigger fail-closed pre-merge (HANDBACK[bump] exit 30) per the 2026-08-21 ship-as-is ruling
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:b018 — the id:4f9b pre-dispatch prompt-size gate now counts TODO.md as well as
+ROADMAP.md. `classify-repo.sh` stats TODO.md on the host and ships `todo_bytes` beside
+`roadmap_bytes` (kept the spec author's field name); `estimateDispatchTokens` takes a third
+`todoBytes` argument; `oversizeDispatchReason` fails open only when NEITHER ledger is measured
+(the old `if (!roadmapBytes) return ''` silently skipped a TODO-only measurement) and now names
+every materially-oversized ledger with its byte count plus the archiver that shrinks it
+(`roadmap-archive.sh` / `todo-update/archive-done.sh`), so a refusal no longer sends the human
+to archive the wrong file. relay-loop.js's inline copy + DISCOVER schema updated; the two
+prompt-size-gate structural tests (byte-equivalence + call site) both hold.
+
+PROMPT AUDIT (asked for by the item): the assembled `unitPrompt` embeds NO ledger bytes at all
+— it interpolates instructions plus `unit.reason`. What the child must SWALLOW is the file set
+its procedure requires: ROADMAP.md (every verdict) and TODO.md (handoff C2's first check,
+review's single-id-two-views tick-back, the execute contract's id reuse). REVIEW_ME.md and
+RELAY_LOG.md are read by REVIEW units only and are deliberately NOT counted — counting them
+would refuse execute units on bytes they never read. Recorded in the module comment.
+
+BUDGET: re-derived from the dispatched tiers rather than left unexplained, but the number does
+not move. relay-loop.js dispatches exactly four models (claude-opus-4-8, claude-fable-5, the
+default Sonnet, haiku); all four carry a 200k window, so a tier-keyed table would hold four
+identical rows. The derivation (200k x 50% working room = 100k) is now written out in the
+constant's comment, with a pointer to `oversizeDispatchReason`'s existing `budget` override as
+the split point if a differently-sized tier is ever dispatched. Keeping the literal was also
+forced: tests/test_prompt_size_gate_4f9b.sh pins `const DISPATCH_TOKEN_BUDGET = 100000` in BOTH
+files as a drift check, and rewriting a closed item's test to pass is banned by rule 3.
+
+NOT DONE, deliberately (id:9663 / --fabled F5): the gate budgets what the child is REQUIRED to
+read, not what it MAY pull. The child holds Read/Bash on the checkout and auto mode denies
+essentially nothing outside protected paths (banked probe id:5937), so its potential read set is
+the whole repo and is not soundly boundable from a byte count. That needs the id:e68f slice or a
+real enforcement — out of scope here, so it is stated rather than half-done.
+
+LOUD CONSEQUENCE for the reviewer: this repo now trips its own gate. dotclaude-skills is
+ROADMAP.md 252,809 B + TODO.md 904,586 B ≈ 301k tok, ~3x the 100k budget, so the next pool round
+will REFUSE every dispatch here with the archive remedy until TODO.md is archived
+(`~/.claude/skills/todo-update/archive-done.sh <repo>/TODO.md`). That is the model working as
+specced — TODO.md is genuinely 904 KB — but it is a fleet-visible behaviour change on the repo
+that hosts the relay, and it should be an owner-visible call, not a surprise mid-run.
+
+Friction: none on sizing. refactor: extracted the repeated `Number.isFinite(v) && v > 0 ? v : 0`
+clamp into a local `n()` in both gate functions and replaced the hardcoded single-ledger cause
+/remedy string with a data-driven ledger list, so adding a third ledger is a one-line append
+instead of another bespoke branch.
