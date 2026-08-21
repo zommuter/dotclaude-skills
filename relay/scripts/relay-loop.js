@@ -2533,15 +2533,40 @@ const dispatchChoiceFor = (unit) => {
   return { item, itemRank: idx >= 0 ? idx + 1 : 0, eligibleCount: eligible.length }
 }
 
-// id:e68f — the SLICE sentence shared by both named briefs. When sliceLedgerForUnit() stamped a
-// path on the unit, point the child at that file instead of leaving it to grep the ledgers. It
-// is a cheaper DEFAULT, not a boundary (id:9663): the child keeps Read/Bash and the checkout, so
-// the wording must not claim it cannot read more. Empty string when no slice exists (fail-open),
-// which leaves the historical grep instruction as the only guidance — exactly today's behaviour.
-const sliceInstruction = (unit) =>
-  unit && typeof unit.slice_path === 'string' && unit.slice_path
-    ? 'The orchestrator has ALREADY extracted this item for you (id:e68f): read ' + unit.slice_path + ' — it holds the item\'s own block, its typed gated-on:/children: edges with each target\'s line, the TODO.md twin, and a repo-state header. Start there; it is the intended default context for this unit. The full ledgers are still on disk at their canonical paths if the slice genuinely does not carry something you need — if you had to open one, say which and why in your report. '
-    : ''
+// ── id:7575 / id:e68f — the SLICE brief, with a CONDITIONAL escape hatch. ─────────────────
+// INLINE COPIES of relay/scripts/prompt-size-gate.mjs (the Workflow sandbox cannot `import`;
+// same discipline as the id:4f9b gate copies below). Keep byte-identical — the rationale for
+// both functions lives in the module and tests/test_slice_invitation_headroom_7575.sh pins the
+// equivalence. Summary: a sliced unit is approved by the gate on its SLICE alone, so offering
+// "the full ledgers are still on disk" unconditionally invites a child holding a few KB of
+// approval to open a ~900 KB ledger and die with `Prompt is too long`. The offer is now made
+// only when the MEASURED headroom left after the slice could absorb the largest measured
+// ledger. This changes the BRIEF only — the gate's verdict is untouched — and it never claims
+// the slice enforces anything (id:9663).
+function sliceLedgerHeadroom(unit, budget) {
+  const u = unit || {}
+  const cap = Number.isFinite(budget) && budget > 0 ? budget : DISPATCH_TOKEN_BUDGET
+  const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
+  const sliceBytes = n(u.slice_bytes)
+  const roadmapBytes = n(u.roadmap_bytes)
+  const todoBytes = n(u.todo_bytes)
+  const largestLedgerBytes = Math.max(roadmapBytes, todoBytes)
+  const largestLedgerName = largestLedgerBytes <= 0 ? '' : (roadmapBytes >= todoBytes ? 'ROADMAP.md' : 'TODO.md')
+  const headroomTokens = cap - estimateDispatchTokens(0, sliceBytes, 0)
+  const largestLedgerTokens = Math.round(largestLedgerBytes / CHARS_PER_TOKEN)
+  const affordable = largestLedgerBytes <= 0 || largestLedgerTokens <= headroomTokens
+  return { headroomTokens, largestLedgerTokens, largestLedgerBytes, largestLedgerName, affordable, budget: cap }
+}
+
+function sliceInstruction(unit, budget) {
+  if (!unit || typeof unit.slice_path !== 'string' || !unit.slice_path) return ''
+  const head = 'The orchestrator has ALREADY extracted this item for you (id:e68f): read ' + unit.slice_path + ' — it holds the item\'s own block, its typed gated-on:/children: edges with each target\'s line, the TODO.md twin, and a repo-state header. Start there; it is the intended default context for this unit. '
+  const h = sliceLedgerHeadroom(unit, budget)
+  if (h.affordable) {
+    return head + 'The full ledgers are still on disk at their canonical paths if the slice genuinely does not carry something you need — if you had to open one, say which and why in your report. '
+  }
+  return head + 'Do NOT open the full ROADMAP.md or TODO.md for this unit (id:7575). They are MEASURED at ' + h.largestLedgerBytes + ' bytes for ' + h.largestLedgerName + ' alone (~' + h.largestLedgerTokens + ' tok) against only ~' + h.headroomTokens + ' tok of dispatch headroom left once this slice is counted, so a full read would blow the window and kill you mid-work with "Prompt is too long" — reported to the operator as an anonymous failure. Nothing stops you from reading them: this is a cost, not a boundary. A targeted `grep -n` for a specific id or string against a ledger is fine and cheap; a whole-file read is not. If the slice is genuinely insufficient — note that the slicer bounds an item block by INDENTATION, so a criterion written at column 0 can be missing — HAND BACK (contract_met=false, gate_reason naming exactly what the slice lacked) rather than opening a ledger speculatively. '
+}
 
 // Returns the NAMED execute instruction, or '' when no item could be named — the caller then
 // falls back INLINE to the historical plural instruction (kept on the template line so the
