@@ -974,7 +974,13 @@ const INTEGRATE_SCHEMA = {
   properties: {
     merged: { type: 'boolean' },
     ckptTag: { type: 'string' },
+    // id:4d44 — 'pushed' (VERIFIED against the remote ref, id:f5d9(a) — never inferred from
+    // git-lock-push.sh's exit code), 'deferred' (a SUBSTANTIVE unit: merged + tagged LOCALLY,
+    // awaiting owner ratification), 'no-upstream', or 'FAILED'.
     pushStatus: { type: 'string' },
+    // id:4d44 — 'pending' when this unit sits in the durable ratification queue
+    // (~/.config/relay/ratification-queue.jsonl), 'none' when it was published outright.
+    ratification: { type: 'string' },
     ts: { type: 'string' },
     reason: { type: 'string' },
     // L2 push-seed (id:c855): the integrator recomputes the just-worked repo's discovery
@@ -1554,17 +1560,27 @@ const mechArg = (v) => "'" + String(v == null ? '' : v)
 //
 // id:5fe2 — THREE outcomes, not two. A failed integrate is NOT uniformly retryable:
 //   • merged:true                    — the full sequence completed (the stdout contract).
-//   • landedUnfinished:true          — integrate.sh handed back at a POST-push step
-//     (retire/state-write/strong-state): the merge is COMMITTED, TAGGED and PUSHED and
-//     only a tail step failed. `merged` stays FALSE so the caller never takes the success
-//     path, but `deferred` is FALSE too — re-running integrate.sh would fail forever at
-//     merge/isolation. Such a unit is SURFACED for completion, never re-merged.
-//   • deferred:true                  — a PRE-push handback (incl. push(27) itself, where
-//     the push FAILED so the remote is untouched), the id:3557 MECH-OK empty-stdout
-//     sentinel, or unparseable output. Retry is correct, exactly as before this landed.
-// The discriminator is integrate.sh's STDERR block (`handback=<step>` plus, only when the
-// push already succeeded, `landed=true` + `merged=<sha>`) — stderr because
-// mechanical-proxy.py discards a non-zero-exit child's stdout.
+//   • landedUnfinished:true          — integrate.sh handed back at a POST-LAND step
+//     (ratify-enqueue/retire/state-write/strong-state): the merge is COMMITTED and TAGGED
+//     (and PUSHED, for a pushing unit) and only a tail step failed. `merged` stays FALSE so
+//     the caller never takes the success path, but `deferred` is FALSE too — re-running
+//     integrate.sh would take the zero-commit path and mint a SECOND ckpt tag. Such a unit
+//     is SURFACED for completion, never re-merged.
+//   • deferred:true                  — a PRE-LAND handback (incl. push(27) itself, where
+//     the push FAILED or could not be VERIFIED to have landed so the remote is untouched),
+//     the id:3557 MECH-OK empty-stdout sentinel, or unparseable output. Retry is correct.
+// The discriminator is integrate.sh's STDERR block (`handback=<step>` plus, only past the
+// land point, `landed=true` + `merged=<sha>`) — stderr because mechanical-proxy.py discards
+// a non-zero-exit child's stdout.
+//
+// id:4d44 RE-DERIVED THE LAND POINT rather than assuming id:5fe2's still applied. id:5fe2
+// keyed "landed" on the PUSH; a SUBSTANTIVE unit no longer has one (the pool merges, the
+// owner pushes), so on that reading EVERY substantive tail failure would have come back
+// `deferred:true` and been re-merged — the exact wedge id:5fe2 exists to prevent. The land
+// point is therefore the CKPT TAG, and integrate.sh sets its `landed` marker there on the
+// deferred path (and after the VERIFIED push on the pushing path). This parser needs no
+// structural change for that — it already keys on `landed=true` + `merged=<sha>` — but it no
+// longer DEFAULTS pushStatus to 'pushed', which would have asserted a publish that never was.
 function parseIntegrateResult(raw) {
   const text = (raw == null) ? '' : String(raw)
   const sentinel = /^MECH-ERROR exit=/.test(text) || /^MECH-OK exit=0/.test(text)
@@ -1578,6 +1594,7 @@ function parseIntegrateResult(raw) {
     if (k === 'merged' && v) { out.merged = true; mergedSha = v }
     else if (k === 'ckpt') out.ckptTag = v
     else if (k === 'push') out.pushStatus = v
+    else if (k === 'ratification') out.ratification = v   // id:4d44
     else if (k === 'ts') out.ts = v
     else if (k === 'postSig') out.postSig = v
     else if (k === 'openRoutine') out.openRoutine = Number(v) || 0
@@ -1595,7 +1612,11 @@ function parseIntegrateResult(raw) {
       return {
         merged: false, landedUnfinished: true, deferred: false,
         handbackStep, mergedSha, ckptTag: out.ckptTag || '',
-        pushStatus: out.pushStatus || 'pushed', remaining, ckptRecorded, reason,
+        // id:4d44 — no default to 'pushed' any more: a substantive unit's tail failure is
+        // LANDED-BUT-UNFINISHED with push=deferred, and defaulting would assert a publish
+        // that never happened. Unknown stays unknown.
+        pushStatus: out.pushStatus || '?', ratification: out.ratification || 'unknown',
+        remaining, ckptRecorded, reason,
       }
     }
     return { merged: false, landedUnfinished: false, deferred: true, handbackStep, reason }
@@ -3211,8 +3232,18 @@ async function integrate(unit, report) {
       state.handbacks.push({ repo: unit.repo, reason: siblingReason, worktreePath: '-' })
       pushEvent('sibling-branch', { repo: unit.repo, mode: unit.verdict, ids: workedIds, siblingBranches })
     }
-    state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?', substantive: unitIsSubstantive(unit.verdict, report), workedIds })  // workedIds id:de69
-    pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?', ids: workedIds })  // id:c8b6 + worked ids id:de69
+    state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?', ratification: result.ratification || 'none', substantive: unitIsSubstantive(unit.verdict, report), workedIds })  // workedIds id:de69; ratification id:4d44
+    pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?', ratification: result.ratification || 'none', ids: workedIds })  // id:c8b6 + worked ids id:de69 + ratification id:4d44
+    // ── id:4d44 — a SUBSTANTIVE unit merged LOCALLY and was NOT published. ─────────────
+    // This is the owner's ruling (a), not a failure: the pool merges, the human ratifies and
+    // pushes. It is still SURFACED loudly every time, because an unpushed local-ahead main is
+    // invisible in every artifact a reader normally looks at, and RELAY_STATUS.md itself goes
+    // stale exactly when a run goes deep (id:4917). The durable record is the append-only
+    // ratification queue the integrator wrote; this line only points at it.
+    if (result.ratification === 'pending' || result.pushStatus === 'deferred') {
+      log(`relay-loop: id:4d44 RATIFICATION PENDING for ${unit.repo}${workedIds.length ? ' (ids ' + workedIds.join(',') + ')' : ''}: merged + tagged LOCALLY (ckpt=${result.ckptTag || '?'}) and deliberately NOT pushed — substantive agent-authored work needs owner ratification. main is LOCAL-AHEAD until a human reviews and pushes it; the durable entry is in ~/.config/relay/ratification-queue.jsonl`)
+      pushEvent('ratification-pending', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', ids: workedIds })
+    }
     // L2 push-seed the discovery cache (id:c855): a just-integrated repo's sig CHANGES (new
     // ckpt tag + RELAY_LOG/ROADMAP), so without this the next round re-classifies (an LLM
     // shard — the dominant discover cost, id:9cb1) the exact repo the pool just finished.
@@ -3251,10 +3282,11 @@ async function integrate(unit, report) {
     }
   } else if (result && result.landedUnfinished) {
     // ── id:5fe2 — LANDED-BUT-UNFINISHED, the third outcome ────────────────────────────
-    // integrate.sh handed back at a POST-push step, so the merge is already COMMITTED,
-    // TAGGED and PUSHED. This branch exists so the unit is NEVER re-merged: re-running
-    // integrate.sh fails forever at merge/isolation (the branch is already an ancestor of
-    // main), which is exactly how the old uniform-defer treatment wedged the pool.
+    // integrate.sh handed back at a POST-LAND step, so the merge is already COMMITTED and
+    // TAGGED (and PUSHED iff result.pushStatus === 'pushed' — id:4d44 made the push optional
+    // but NOT the land point). This branch exists so the unit is NEVER re-merged: the branch
+    // is already an ancestor of main, so a retry takes the zero-commit path and mints a
+    // second ckpt tag, which is exactly how the old uniform-defer treatment wedged the pool.
     //
     // It deliberately does NOT take the success path either — the tail steps named in
     // `remaining` did not run, so counting this in state.completed would assert a
@@ -3263,9 +3295,15 @@ async function integrate(unit, report) {
     // exact steps that did not run, so a supervised reconcile finishes it by hand.
     if (result.ts) state.ts = result.ts
     const ckptNote = result.ckptRecorded === true
-      ? `relay.toml last_ckpt was RECONCILED to ${result.ckptTag || '?'} (it matches the pushed remote)`
-      : `relay.toml last_ckpt could NOT be reconciled and may be STALE vs the pushed ${result.ckptTag || '?'} — record it by hand`
-    const landedReason = `id:5fe2 LANDED-BUT-UNFINISHED integrate for ${unit.repo}${workedIds.length ? ' (ids ' + workedIds.join(',') + ')' : ''}: the merge is COMMITTED, TAGGED and PUSHED (merged=${result.mergedSha || '?'}, ckpt=${result.ckptTag || '?'}) but integrate.sh handed back at the POST-push step '${result.handbackStep || '?'}'. DO NOT re-merge or re-dispatch — a retry fails forever at merge/isolation. Steps that did NOT run: ${result.remaining || 'unknown'}. ${ckptNote}. The worktree ${report.worktree} and branch ${report.branch} are still on disk for a supervised reconcile. Integrator output: ${result.reason || ''}`
+      ? `relay.toml last_ckpt was RECONCILED to ${result.ckptTag || '?'}`
+      : `relay.toml last_ckpt could NOT be reconciled and may be STALE vs ${result.ckptTag || '?'} — record it by hand`
+    // id:4d44 — the land point is the CKPT TAG, not the push (a substantive unit has none),
+    // so this sentence must not assert a publish that never happened. Say what actually
+    // happened to the remote, from the integrator's own reported push status.
+    const landedWhere = result.pushStatus === 'pushed'
+      ? 'COMMITTED, TAGGED and PUSHED'
+      : `COMMITTED and TAGGED **LOCALLY ONLY** (push=${result.pushStatus || '?'}, ratification=${result.ratification || 'unknown'} — id:4d44: nothing reached the remote, so main is LOCAL-AHEAD and the work still needs an owner push)`
+    const landedReason = `id:5fe2 LANDED-BUT-UNFINISHED integrate for ${unit.repo}${workedIds.length ? ' (ids ' + workedIds.join(',') + ')' : ''}: the merge is ${landedWhere} (merged=${result.mergedSha || '?'}, ckpt=${result.ckptTag || '?'}) but integrate.sh handed back at the POST-LAND step '${result.handbackStep || '?'}'. DO NOT re-merge or re-dispatch — a retry takes the zero-commit path and mints a SECOND ckpt tag. Steps that did NOT run: ${result.remaining || 'unknown'}. ${ckptNote}. The worktree ${report.worktree} and branch ${report.branch} are still on disk for a supervised reconcile. Integrator output: ${result.reason || ''}`
     log(`relay-loop: ${landedReason}`)
     // workCreated:false — a post-push tail failure writes no new dispatchable work; it is
     // pure operator residue, so it must not keep the drain loop spinning.

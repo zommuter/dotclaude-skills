@@ -29,7 +29,9 @@
 #   6. changelog-append(id:b8fa)
 #   6b. roadmap-archive(id:f54d — port #2; scoped commit of ROADMAP.md + ROADMAP.archive.md)
 #   7. ckpt-tag        (id:1a34 label; -c reviewed-tip for the zero-commit case)
-#   8. git-lock-push   (--ff-only; the only network step)
+#   8. git-lock-push   (--ff-only; the only network step) — SUBSTANTIVE units SKIP this
+#                      (id:4d44 owner ruling (a)); see the RATIFICATION GATE block below.
+#   8b. ratify-enqueue (id:4d44 — durable ratification queue; ONLY for a deferred push)
 #   9. worktree-retire (id:373e force-free; id:6e02 scope = EXACTLY this unit's pair)
 #  10. state-write     (id:ebfb flock'd relay.toml single-writer)
 #  10b. durable Fable-recheck keys (id:e030 — port #3). STRONG (verdict != execute) writes
@@ -62,6 +64,43 @@
 # pool checkpoint commit (the scoop window, id:3558). The step-1 clean-tree gate already
 # DEFERS on a foreign-dirty tree; scoped staging closes the rest.
 #
+# ── THE RATIFICATION GATE (id:4d44 — OWNER RULING (a), 2026-08-21) ──────────────────
+# MEASURED FACT, not a hypothesis: the harness safety classifier BLOCKS the integrate hop
+# whenever the merge would PUBLISH substantive agent-authored work. Run
+# relay-20260821-174757-32436, n=5: all three substantive integrates were refused
+# `[Self-Approval]` across all three verdict modes (execute/review/hard); both integrates
+# that SUCCEEDED carried `substantive: false`. The discriminator is SUBSTANTIVE-ness, not
+# verdict mode. The classifier cited the owner's own CLAUDE.md delegated-verdict rule ("a
+# delegated agent's verdict is a recommendation, never a self-settling decision") BY NAME.
+# That is a DESIGN COLLISION between "the pool integrates unattended" and "a human ratifies
+# agent-authored change", and the owner resolved it interactively:
+#
+#     THE POOL MERGES LOCALLY. THE HUMAN RATIFIES AND PUSHES.
+#
+# So for a SUBSTANTIVE unit this script runs EVERY step except the push: merge --no-ff,
+# tick, bump, changelog, archive, ckpt-tag, retire and state-write all still run, the push
+# does NOT, and the unit is enqueued in a DURABLE ratification queue (step 8b) for the next
+# attended session. A NON-SUBSTANTIVE unit is UNCHANGED — it still pushes, exactly as before
+# (those already pass the classifier and carry nothing to ratify).
+#
+# `--substantive` is REUSED, never re-derived: relay-loop.js already computes it
+# (unitIsSubstantive) and passes it on every dispatch. UNSET defers too — deferring is the
+# fail-CLOSED direction (nothing reaches the remote and the unit is still queued), so an
+# ambiguous/manual invocation can never publish agent work by accident.
+#
+# LOCAL-AHEAD `main` IS NOW THE STEADY STATE, ACROSS RUNS. That is already tolerated by both
+# gates that could have refused it, and this was CHECKED rather than assumed:
+#   • sync-origin.sh (step 3) returns `diverged` ONLY when ahead>0 AND behind>0; ahead-only
+#     falls through to `ok` (its step-4 "otherwise (in sync / ahead) → ok" branch).
+#   • classify-verdict.sh sets `diverged = has_upstream and _ahead > 0 and _behind > 0` —
+#     ahead-only is NOT the rank-0 `blocked` parity guard, so the repo keeps being dispatched.
+#   • ckpt-tag.sh / relay-state-write.sh never consult origin at all: the tag and
+#     relay.toml last_ckpt are local facts, and an unpushed tag resolves locally exactly as a
+#     pushed one does. discover-sig.sh DOES hash ahead/behind, so the sig changes and the
+#     repo re-classifies — over-invalidation, the safe direction (id:c3a6).
+# ahead>0 AND behind>0 still hands back at step 3, and that is CORRECT and deliberate: an
+# origin that moved under an unpushed local queue is a real divergence needing the owner.
+#
 # ── FAIL-CLOSED, LOUD, DISTINCT EXITS ───────────────────────────────────────────────
 # Each step maps its own failure to a DISTINCT non-zero exit code and prints a loud
 # HANDBACK[<step>] line to stderr. The caller records it durably and does not re-merge.
@@ -93,14 +132,30 @@
 #                [--chain-ended]
 #
 # Output contract (stdout, one KEY=VALUE per line — parsed by relay-loop.js integrate()):
-#   merged=<sha>  ckpt=<tag>  push=pushed  ts=<ISO>  bump=<vX.Y.Z|>  retire=<note>
+#   merged=<sha>  ckpt=<tag>  push=<pushed|deferred>  ratification=<pending|none>
+#   ts=<ISO>  bump=<vX.Y.Z|>  retire=<note>
 #   postSig=<hex|>  openRoutine=<n>  openHard=<n>  sibling=<branch>\t<count>  (0..n lines)
+#   push=deferred + ratification=pending  ⇔  a SUBSTANTIVE unit merged locally and is queued
+#   for the owner (id:4d44). push=pushed is now VERIFIED against the remote ref, never
+#   inferred from git-lock-push.sh's exit code (id:f5d9(a)); a push that did not land is
+#   reported push=FAILED on stderr with a handback, never as success.
 #
 # Handback contract (STDERR, id:5fe2 — stdout is discarded by the proxy on a non-zero exit):
-#   PRE-push  exits: handback=<step>  landed=false                      (safe to retry)
-#   POST-push exits: handback=<step>  landed=true  merged=<sha>  ckpt=<tag>  push=pushed
+#   PRE-LAND  exits: handback=<step>  landed=false                      (safe to retry)
+#   POST-LAND exits: handback=<step>  landed=true  merged=<sha>  ckpt=<tag>
+#                    push=<pushed|deferred>  ratification=<pending|none>
 #                    remaining=<steps that did NOT run>  ckptRecorded=<true|false>
-#   A `merged=` line NEVER appears on a pre-push exit — that is the whole discriminator.
+#   A `merged=` line NEVER appears on a pre-land exit — that is the whole discriminator.
+#
+#   id:4d44 RE-DERIVED THE LAND POINT (id:5fe2's discriminator was keyed on the PUSH, and a
+#   substantive unit no longer has one). "LANDED" means: the merge is COMMITTED to the
+#   canonical checkout AND TAGGED — i.e. the point after which re-running this script is
+#   WRONG (the branch is already an ancestor of main, so a retry takes the zero-commit path
+#   and mints a SECOND ckpt tag while relay.toml stays stale). That point is:
+#     • a PUSHING unit      → after step 8's push is VERIFIED (unchanged from id:5fe2)
+#     • a PUSH-DEFERRED unit → after step 7's ckpt-tag returns (there is no post-push class
+#       for it, so keying on the push would have mis-classified EVERY substantive tail
+#       failure as a safe retry — the exact wedge id:5fe2 was built to prevent).
 #
 # Helper resolution (all overridable for hermetic tests — the failure-injection seam):
 #   INTEGRATE_CLAIM INTEGRATE_CLEAN_TREE_GATE INTEGRATE_VERIFY_ISOLATION
@@ -129,23 +184,33 @@ EX_ARCHIVE=32       # roadmap-archive.sh failed, or its scoped commit failed
 EX_STRONG=33        # the durable Fable-recheck keys (id:e030) could not be written
 EX_WIRING=34        # a required helper is missing/not executable (a wiring bug, not a
                     # scan failure — see the fail-open note on steps 3b/11 below)
+EX_RATIFY=35        # id:4d44 — the merge landed locally but could NOT be recorded in the
+                    # durable ratification queue. NEVER swallowed: an unqueued deferred merge
+                    # is invisible work sitting unpushed on main, which is the one failure
+                    # this whole design must not have.
 
 LOG="${INTEGRATE_LOG:-$HOME/.claude/logs/relay-integrate.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log()  { printf '%s integrate.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
-# ── id:5fe2 — DEFERRED vs LANDED-BUT-UNFINISHED ─────────────────────────────────────
-# The push at step 8 splits every handback into two classes the caller MUST tell apart:
-#   • PRE-push  — the remote is untouched, so re-running the whole script is CORRECT.
-#     (isolation, sync, wiring, bump, merge, tick, version, changelog, archive, ckpt —
-#     AND push itself: exit 27 means the push FAILED, so the remote never moved.)
-#   • POST-push — the merge is committed, TAGGED and PUSHED; only a tail step failed
-#     (retire, state-write, strong-state). Re-running is WRONG: the retry fails forever
-#     at merge/isolation while `relay.toml last_ckpt` stays stale and the completion
-#     never reaches state.completed/CHANGELOG. Such a unit must be SURFACED for
-#     completion, never re-merged.
-# These three variables are the class discriminator; `pushed` is set ONLY after step 8
-# returns 0, so the PRE-push half cannot accidentally advertise a landed merge.
-merged_head="" ckpt_tag="" pushed=""
+# ── id:5fe2 — DEFERRED vs LANDED-BUT-UNFINISHED (LAND POINT RE-DERIVED by id:4d44) ──
+# The LAND POINT splits every handback into two classes the caller MUST tell apart:
+#   • PRE-LAND  — nothing durable happened that a re-run would duplicate, so re-running the
+#     whole script is CORRECT. (isolation, sync, wiring, bump, merge, tick, version,
+#     changelog, archive, ckpt — AND push itself: exit 27 means the push FAILED or could not
+#     be VERIFIED to have landed, so the remote never moved.)
+#   • POST-LAND — the merge is committed and TAGGED (and PUSHED, for a pushing unit); only a
+#     tail step failed (ratify-enqueue, retire, state-write, strong-state). Re-running is
+#     WRONG: the retry takes the zero-commit path and mints a SECOND ckpt tag while
+#     `relay.toml last_ckpt` stays stale and the completion never reaches
+#     state.completed/CHANGELOG. Such a unit must be SURFACED for completion, never re-merged.
+# id:4d44 — the land point is the CKPT TAG, not the push: a substantive unit has NO push, so
+# keying on it would have re-classified every substantive tail failure as a safe retry.
+# `landed` is set at exactly one place per path (verified push, or ckpt-tag on the deferred
+# path), so the PRE-LAND half cannot accidentally advertise a landed merge.
+merged_head="" ckpt_tag="" landed=""
+# push_status/ratify_status are reported on BOTH the success and the handback path, so they
+# are initialised to the pre-push truth: nothing pushed, nothing queued yet.
+push_status="not-attempted" ratify_status="none"
 # The KEY=VALUE handback block goes to STDERR on purpose: mechanical-proxy.py DISCARDS a
 # non-zero-exit child's stdout and returns 'MECH-ERROR exit=<n>\n<stderr>', so stdout would
 # never reach parseIntegrateResult. stdout stays the SUCCESS-only contract.
@@ -155,14 +220,15 @@ handback() { # <step-label> <exit-code> <reason...>
   local step="$1" code="$2"; shift 2
   printf 'integrate.sh: HANDBACK[%s]: %s\n' "$step" "$*" >&2
   log "HANDBACK[$step] exit=$code $*"
-  if [ -n "$pushed" ]; then
+  if [ -n "$landed" ]; then
     # Which tail steps did NOT run — the operator is told EXACTLY, never left to guess.
     local remaining
     case "$step" in
+      ratify-enqueue)  remaining="ratification-enqueue,worktree-retire,state-write,strong-state,push-seed" ;;
       worktree-retire) remaining="worktree-retire,state-write,strong-state,push-seed" ;;
       state-write)     remaining="state-write,strong-state,push-seed" ;;
       strong-state)    remaining="strong-state,push-seed" ;;
-      *)               remaining="UNKNOWN post-push step '$step' — treat every tail step as unrun" ;;
+      *)               remaining="UNKNOWN post-land step '$step' — treat every tail step as unrun" ;;
     esac
     # Best-effort reconcile of the ONE piece of durable state whose staleness is the
     # observed symptom: relay.toml last_ckpt must not silently disagree with the remote,
@@ -170,21 +236,30 @@ handback() { # <step-label> <exit-code> <reason...>
     local recorded=false
     if [ -n "$ckpt_tag" ] && "$STATE_WRITE" toml-set "$repo" last_ckpt "\"$ckpt_tag\"" >/dev/null 2>&1; then
       recorded=true
-      log "HANDBACK[$step] id:5fe2 post-push reconcile: relay.toml last_ckpt set to $ckpt_tag"
+      log "HANDBACK[$step] id:5fe2 post-land reconcile: relay.toml last_ckpt set to $ckpt_tag"
     else
-      log "HANDBACK[$step] id:5fe2 post-push reconcile FAILED — relay.toml last_ckpt may be STALE vs the pushed $ckpt_tag"
+      log "HANDBACK[$step] id:5fe2 post-land reconcile FAILED — relay.toml last_ckpt may be STALE vs $ckpt_tag"
     fi
     {
       printf 'handback=%s\n'     "$step"
       printf 'landed=%s\n'       'true'
       printf 'merged=%s\n'       "$merged_head"
       printf 'ckpt=%s\n'         "$ckpt_tag"
-      printf 'push=%s\n'         'pushed'
+      printf 'push=%s\n'         "$push_status"
+      printf 'ratification=%s\n' "$ratify_status"
       printf 'remaining=%s\n'    "$remaining"
       printf 'ckptRecorded=%s\n' "$recorded"
     } >&2
   else
-    { printf 'handback=%s\n' "$step"; printf 'landed=%s\n' 'false'; } >&2
+    {
+      printf 'handback=%s\n' "$step"
+      printf 'landed=%s\n'   'false'
+      # id:f5d9(a) — a push that did not land is reported as such even on the PRE-LAND path,
+      # so no reader can mistake "the helper exited 0" for "the remote moved".
+      # An `if`, not `[ … ] && …`: a false one-liner would be the group's last command, so
+      # its non-zero status would trip `set -e` and exit 1 INSTEAD of the step's distinct code.
+      if [ "$push_status" = "FAILED" ]; then printf 'push=%s\n' 'FAILED'; fi
+    } >&2
   fi
   exit "$code"
 }
@@ -261,7 +336,23 @@ idsuffix=""
 # First worked id — the item axis the id:dd7d sibling scan compares against.
 first_id="${ids%%,*}"
 
-log "START repo=$repo path=$path branch=$branch worktree=$worktree run=$run level=${level:-none} verdict=$verdict substantive=${substantive:-unset}"
+# ── id:4d44 RATIFICATION GATE: does THIS unit push, or defer to the owner? ───────────
+#    The `substantive` flag is REUSED, not re-derived — relay-loop.js's unitIsSubstantive
+#    already computed it and passes it on every dispatch. Only an EXPLICIT `--substantive
+#    false` pushes; `true` AND unset both defer, because deferring is the fail-closed
+#    direction (nothing reaches the remote, and the unit is still durably queued).
+defer_push=1
+if [ "$substantive" = "false" ]; then
+  defer_push=""
+fi
+# The durable ratification queue lives beside the relay's other durable state and is
+# APPEND-ONLY JSONL, written through relay-state-write.sh's flock'd `event-append`. It is
+# deliberately NOT RELAY_STATUS.md: id:4917 established that the status hop is itself blocked
+# by the classifier precisely when a run goes deep, so the status file goes stale exactly when
+# it would matter. $FABLES_CONFIG keeps it hermetically overridable for tests.
+RATIFY_QUEUE="${RELAY_RATIFICATION_QUEUE:-${FABLES_CONFIG:-$HOME/.config/relay}/ratification-queue.jsonl}"
+
+log "START repo=$repo path=$path branch=$branch worktree=$worktree run=$run level=${level:-none} verdict=$verdict substantive=${substantive:-unset} deferPush=${defer_push:-0}"
 
 # ── step 0: lease-release (best-effort; the child's work is done, so this must run
 #            whether the merge below succeeds or aborts; a no-op if this run does not
@@ -468,19 +559,120 @@ if ! ckpt_tag="$("$CKPT_TAG" "${ckpt_args[@]}" 2>&1)"; then
 fi
 ckpt_tag="$(printf '%s' "$ckpt_tag" | tail -n1)"
 
-# ── step 8: git-lock-push --ff-only (the only network step). ──
-if ! push_out="$("$GIT_LOCK_PUSH" --ff-only "$path" 2>&1)"; then
-  handback git-lock-push "$EX_PUSH" "push failed (merge + tag are committed locally; retry push): $push_out"
+# ── step 8: git-lock-push --ff-only (the only network step) — OR the id:4d44 DEFERRAL. ──
+if [ -n "$defer_push" ]; then
+  # ── SUBSTANTIVE: merged locally, NOT published. The owner ratifies and pushes. ──
+  # Everything before this point already ran; everything after it still runs. The ONLY
+  # difference is that nothing goes to the remote, so `main` is left LOCAL-AHEAD (see the
+  # RATIFICATION GATE header block for why every later gate tolerates that).
+  push_status="deferred"
+  # id:5fe2 land point (re-derived by id:4d44): the merge is committed AND tagged, so from
+  # here on a re-run is WRONG. There is no push to key on, so the ckpt tag is the marker.
+  landed=1
+  log "step8 id:4d44 PUSH DEFERRED — substantive=${substantive:-unset}; merged=$merged_head ckpt=$ckpt_tag stays LOCAL, awaiting owner ratification"
+else
+  if ! push_out="$("$GIT_LOCK_PUSH" --ff-only "$path" 2>&1)"; then
+    push_status="FAILED"
+    handback git-lock-push "$EX_PUSH" "push failed (merge + tag are committed locally; retry push): $push_out"
+  fi
+  # ── id:f5d9(a) — VERIFY THE PUSH LANDED; never trust the helper's exit code. ─────────
+  #    OBSERVED 2026-08-21 (run relay-20260821-170128-5042): integrate.sh printed
+  #    `push=pushed` while origin stayed 10 commits behind, because git-lock-push.sh exits 0
+  #    having pushed NOTHING (id:dc4f). The exit code is therefore NOT evidence. Compare the
+  #    REMOTE ref to the sha we just tried to push and believe only that.
+  #    Compared against HEAD, not $merged_head: bump/changelog/archive/tick commits land on
+  #    top of the merge, so HEAD is the sha the push actually had to carry.
+  pushed_sha="$(git -C "$path" rev-parse HEAD)"
+  up_ref=""
+  if up_ref="$(git -C "$path" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"; then :; else up_ref=""; fi
+  if [ -z "$up_ref" ]; then
+    # No upstream configured => there is no remote ref to compare against and git-lock-push
+    # had nothing to push. Report that HONESTLY rather than claiming a push landed.
+    push_status="no-upstream"
+    log "step8 id:f5d9(a) no @{upstream} for $path — nothing to verify, reporting push=no-upstream"
+  else
+    push_remote="${up_ref%%/*}"
+    push_branch="${up_ref#*/}"
+    remote_sha=""
+    for _try in 1 2; do
+      remote_sha="$(git -C "$path" ls-remote "$push_remote" "refs/heads/$push_branch" 2>/dev/null | awk 'NR==1{print $1}')" || remote_sha=""
+      [ -n "$remote_sha" ] && break
+    done
+    if [ -z "$remote_sha" ]; then
+      # UNVERIFIABLE is treated as NOT landed — fail closed. A silent false success is the
+      # exact defect being fixed, and the pre-land class (retry) is the safe side: the
+      # remote either did not move, or a retry re-pushes the same sha idempotently.
+      push_status="FAILED"
+      handback git-lock-push "$EX_PUSH" "push=FAILED (id:f5d9(a)): git-lock-push.sh exited 0 but the push could NOT be VERIFIED — 'git ls-remote $push_remote refs/heads/$push_branch' returned nothing after 2 attempts, so there is no evidence the remote moved. The merge + tag are committed LOCALLY at $pushed_sha; nothing was published. $push_out"
+    elif [ "$remote_sha" != "$pushed_sha" ]; then
+      push_status="FAILED"
+      handback git-lock-push "$EX_PUSH" "push=FAILED (id:f5d9(a)): git-lock-push.sh exited 0 but NOTHING REACHED THE REMOTE — $push_remote/$push_branch is at $remote_sha while the local HEAD it had to carry is $pushed_sha. The exit code lied (id:dc4f); the merge + tag are committed LOCALLY only. $push_out"
+    else
+      push_status="pushed"
+      # id:5fe2 — FROM HERE ON the remote HAS the merge + tag: every later handback is
+      # LANDED-BUT-UNFINISHED, never a retryable defer.
+      landed=1
+      log "step8 push VERIFIED: $push_remote/$push_branch == $pushed_sha"
+    fi
+  fi
+  if [ "$push_status" = "no-upstream" ]; then
+    # Nothing was published, but the merge + tag ARE committed locally — that is the same
+    # land point as the deferred path, so the same non-retryable class applies.
+    landed=1
+  fi
 fi
-# id:5fe2 — FROM HERE ON the remote HAS the merge + tag: every later handback is
-# LANDED-BUT-UNFINISHED, never a retryable defer. Set immediately after the push returns 0.
-pushed=1
+
+# ── step 8b: RATIFICATION ENQUEUE (id:4d44) — the durable surface for a deferred push. ──
+#    ONLY on the deferred path. Append-only JSONL through relay-state-write.sh's flock'd
+#    `event-append`, so two concurrent integrates never interleave a partial line. The JSON
+#    is built by python3 from argv — NEVER string-concatenated — because summary/label carry
+#    arbitrary text (the decision-queue.sh convention).
+#
+#    FAIL-CLOSED AND LOUD: if the queue write fails, the merge is sitting unpushed on main
+#    with NOTHING telling the owner it exists. That is the one outcome this design cannot
+#    have, so it is a HANDBACK, and because `landed` is already set it surfaces as
+#    LANDED-BUT-UNFINISHED (surface for reconcile) rather than as a retryable defer.
+if [ -n "$defer_push" ]; then
+  ratify_line="$(python3 - "$RATIFY_QUEUE" "$repo" "$path" "$branch" "$worktree" "$merged_head" "$ckpt_tag" \
+                   "$run" "$verdict" "$ids" "${bump_version:-}" "$summary" "$label" "${substantive:-unset}" <<'PYEOF'
+import json, sys, datetime
+(_q, repo, path, branch, worktree, merged, ckpt, run, verdict, ids,
+ bump, summary, label, substantive) = sys.argv[1:15]
+print(json.dumps({
+    "kind": "ratification-pending",
+    "id": "id:4d44",
+    "ts": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "status": "pending",
+    "repo": repo,
+    "path": path,
+    "branch": branch,
+    "worktree": worktree,
+    "merged": merged,
+    "ckpt": ckpt,
+    "run": run,
+    "verdict": verdict,
+    "ids": [i for i in ids.split(",") if i],
+    "bump": bump,
+    "substantive": substantive,
+    "summary": summary,
+    "label": label,
+    "push": "deferred",
+    "action": "review the merge, then push it: git -C %s push --follow-tags" % (path,),
+}, ensure_ascii=False))
+PYEOF
+)" || handback ratify-enqueue "$EX_RATIFY" "could not RENDER the id:4d44 ratification record for [$repo] — the merge $merged_head + tag $ckpt_tag are committed locally and UNPUSHED with no durable queue entry; record them by hand"
+  if ! printf '%s\n' "$ratify_line" | "$STATE_WRITE" event-append "$RATIFY_QUEUE" >/dev/null 2>&1; then
+    handback ratify-enqueue "$EX_RATIFY" "could not APPEND the id:4d44 ratification record to $RATIFY_QUEUE for [$repo] — the merge $merged_head + tag $ckpt_tag are committed locally and UNPUSHED with no durable queue entry; record them by hand. Queue line was: $ratify_line"
+  fi
+  ratify_status="pending"
+  log "step8b id:4d44 ratification queued in $RATIFY_QUEUE: repo=$repo merged=$merged_head ckpt=$ckpt_tag"
+fi
 
 # ── step 9: worktree-retire (id:373e force-free; id:6e02 scope = EXACTLY this pair). ──
 #    No globbing, no discovery — the two artifacts named on the command line, nothing else.
 retire_note=""
 if ! retire_note="$("$WORKTREE_RETIRE" "$path" "$worktree" "$branch" --expect-merged 2>&1)"; then
-  handback worktree-retire "$EX_RETIRE" "worktree-retire failed (branch merged+pushed; worktree left on disk for supervised reconcile): $retire_note"
+  handback worktree-retire "$EX_RETIRE" "worktree-retire failed (branch merged+tagged, push=$push_status; worktree left on disk for supervised reconcile): $retire_note"
 fi
 
 # ── step 10: state-write (id:ebfb flock'd relay.toml single-writer). Change ONLY this
@@ -567,12 +759,16 @@ open_hard="$(git -C "$path" grep -c -E '^- \[ \].*\[HARD' HEAD -- ROADMAP.md 2>/
 case "$open_routine" in ''|*[!0-9]*) open_routine=0 ;; esac
 case "$open_hard"    in ''|*[!0-9]*) open_hard=0 ;; esac
 
-log "DONE repo=$repo merged=$merged_head ckpt=$ckpt_tag bump=${bump_version:-none} postSig=${post_sig:-<empty>} openRoutine=$open_routine openHard=$open_hard"
+log "DONE repo=$repo merged=$merged_head ckpt=$ckpt_tag push=$push_status ratification=$ratify_status bump=${bump_version:-none} postSig=${post_sig:-<empty>} openRoutine=$open_routine openHard=$open_hard"
 # ── Machine-readable output contract: one KEY=VALUE per line (parsed by relay-loop.js's
 #    parseIntegrateResult, id:087b). Values are single-line by construction.
 printf 'merged=%s\n' "$merged_head"
 printf 'ckpt=%s\n'   "$ckpt_tag"
-printf 'push=%s\n'   "pushed"
+# id:f5d9(a) — `pushed` here is now a VERIFIED remote-ref match, never the helper's exit code.
+# id:4d44 — `deferred` means the merge is local-only and `ratification=pending` names it in
+# the durable queue; the two keys always agree.
+printf 'push=%s\n'   "$push_status"
+printf 'ratification=%s\n' "$ratify_status"
 printf 'ts=%s\n'     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 printf 'bump=%s\n'   "${bump_version:-}"
 printf 'retire=%s\n' "$(printf '%s' "${retire_note:-}" | tr '\n' ' ')"
