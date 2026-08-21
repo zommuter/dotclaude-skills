@@ -23,7 +23,9 @@
 #
 # ROUTING (id:bc49 — orphan-suppress is ITEM-scoped/ADDITIVE, not REPO-scoped):
 #   1. Unless --no-reconcile: run reconcile-repo.sh, then dispose its surfaced array by CLASS:
-#        • ONLY orphan-suppress entries (reason starts "suppressed re-dispatch:", id:1f53) →
+#        • ONLY additive-marker entries — reason starts "suppressed re-dispatch:" (orphan-suppress,
+#          id:1f53) or "parked-orphan (planned):" (this round's park of a dead run's leftover
+#          worktree, id:689c/e7e4) →
 #          ADDITIVE: fall through to classify, emit the classify unit ALONGSIDE the suppress
 #          surface (an orphan's mere existence NEVER blocks a repo's independent progress —
 #          meeting 2026-07-23, D1). SAME-ITEM carve-out: if the classify unit is an execute
@@ -35,6 +37,10 @@
 #          refusal, discover-error) → SUBSTITUTIVE: return surfaced verbatim (units:[],
 #          skipped:[]) and STOP — an executor dispatched into a repo another live run holds is
 #          the dc5b cross-run ledger collision. This is the pre-bc49 behaviour, preserved.
+#          LOUDNESS (id:e7e4): before returning, a mechanical classify probe annotates every
+#          surfaced reason with "STARVED (N actionable: id:…, verdict=…) skipped because — " when
+#          the blocked repo does carry open executor-actionable work, so a starved repo can never
+#          again read like an idle one in RELAY_STATUS.md.
 #   2. Else (reconcile clean, or --no-reconcile) run classify-repo.sh --emit unit and route by
 #      unit.verdict:
 #        blocked    → surfaced += {repo,reason}; no unit
@@ -82,23 +88,56 @@ if [[ -z "$no_reconcile" ]]; then
   # classify; the suppress entries are merged back in the final fold). Empty → normal classify.
   rec_disposition="$(printf '%s' "$rec_json" | python3 -c '
 import sys, json
+# ADDITIVE CLASS MARKERS (id:bc49 + id:e7e4). A surfaced entry is additive iff its reason starts
+# with one of these prefixes. Prose matching is deliberately anchored to a PREFIX MARKER, never a
+# substring of the human-facing sentence.
+#   "suppressed re-dispatch:"   — orphan-suppress, item-scoped (id:1f53)
+#   "parked-orphan (planned):"  — this rounds planned park of a dead runs leftover worktree
+#                                 (id:689c). Also a parked orphan under D1, hence additive.
+# (NOTE: no apostrophes in this block — it lives inside a single-quoted `python3 -c ...`.)
+ADDITIVE = ("suppressed re-dispatch:", "parked-orphan (planned):")
 surf = json.load(sys.stdin).get("surfaced", [])
 if not surf:
     print("clean")
-elif all(s.get("reason", "").startswith("suppressed re-dispatch:") for s in surf):
+elif all(s.get("reason", "").startswith(ADDITIVE) for s in surf):
     print("additive")
 else:
     print("substitutive")
 ')"
 
   if [[ "$rec_disposition" == "substitutive" ]]; then
-    printf '%s' "$rec_json" | python3 -c '
-import sys, json
+    # id:e7e4 STARVATION LOUDNESS — a repo-level block still means units:[], but a repo that is
+    # blocked WHILE CARRYING ACTIONABLE WORK must not read like "nothing to do". classify-repo.sh
+    # is mechanical and side-effect-free (no LLM, no git writes), so we run it purely to ANNOTATE:
+    # if it says the repo has N open executor-actionable items, every surfaced reason is prefixed
+    # "STARVED (N actionable: ids) — ". Silent starvation was the actual harm in the loderite
+    # incident (2026-08-20/21): the RELAY_STATUS line was indistinguishable from an idle repo.
+    # Fail-open: if classify errors, the annotation is skipped and the pre-existing JSON is emitted
+    # verbatim — the block itself is NEVER made conditional on this probe.
+    # stderr is deliberately NOT swallowed (no-silent-swallow, id:4347) — a classify failure
+    # stays visible; only its stdout is optional here.
+    starve_json="$("$CLASSIFY" --emit unit --repo "$repo" --path "$path" || true)"
+    printf '%s' "$rec_json" | STARVE_JSON="$starve_json" python3 -c '
+import sys, json, os
 rec = json.load(sys.stdin)
 # id:37f2 — an honest entry carries verdict:"" (reconcile never classifies, so there IS no
 # verdict here) rather than omitting the field or fabricating one; priority_rank:0 for the
 # same reason (no classify-verdict ranking was computed for a repo-level block).
 surfaced = [dict(s, verdict=s.get("verdict", ""), priority_rank=s.get("priority_rank", 0)) for s in rec.get("surfaced", [])]
+try:
+    probe = json.loads(os.environ.get("STARVE_JSON") or "{}")
+except Exception:
+    probe = {}
+n = int(probe.get("actionable_routine_open") or 0)
+if n > 0:
+    ids = [i for i in (probe.get("actionable_routine_ids") or []) if i]
+    idtxt = (": " + ", ".join("id:" + i for i in ids)) if ids else ""
+    prefix = "STARVED (%d actionable item%s%s, verdict=%s) skipped because — " % (
+        n, "" if n == 1 else "s", idtxt, probe.get("verdict", "?"))
+    for s in surfaced:
+        s["reason"] = prefix + s.get("reason", "")
+        s["starved_actionable_open"] = n
+        s["starved_actionable_ids"] = ids
 print(json.dumps({"units": [], "surfaced": surfaced, "skipped": []}))
 '
     exit 0
@@ -120,7 +159,15 @@ rec_raw = os.environ.get("REC_JSON", "")
 unit = json.load(sys.stdin)
 verdict = unit.get("verdict", "")
 
-# Collect orphan-suppress surface entries from reconcile (additive notifications) + their ids.
+# Collect the ADDITIVE surface entries from reconcile (notifications that ride ALONGSIDE the
+# emitted unit) + the item ids the orphan-suppress subset names.
+#   additive_surf  — EVERY entry reconcile surfaced on this path. Reaching this fold means the
+#                    disposition was additive or clean, so every entry here is additive by
+#                    construction; keeping them all is what stops the id:e7e4 "parked-orphan
+#                    (planned):" notification from being silently dropped from the output.
+#   suppress_surf  — the item-scoped orphan-suppress subset, which alone drives the SAME-ITEM
+#                    carve-out and the do-NOT-work id list.
+additive_surf = []
 suppress_surf = []
 suppressed_ids = set()
 if rec_raw:
@@ -129,6 +176,7 @@ if rec_raw:
     except Exception:
         rec = {}
     for s in rec.get("surfaced", []):
+        additive_surf.append(s)
         reason = s.get("reason", "")
         if reason.startswith("suppressed re-dispatch:"):
             suppress_surf.append(s)
@@ -152,8 +200,8 @@ else:
 
 # Additive orphan-suppress handling (reached ONLY when reconcile surfaced solely orphan-suppress
 # entries, or none at all — the substitutive class already returned above).
-if suppress_surf:
-    if verdict == "execute" and units:
+if additive_surf:
+    if suppress_surf and verdict == "execute" and units:
         # SAME-ITEM carve-out (D1): collect open executable [ROUTINE] item ids; if EVERY one is
         # bound to a suppressed orphan (none free), drop the duplicate execute unit (reconcile-
         # first). Fail-open: if we parse no routine ids at all, keep the unit (never wrong-suppress).
@@ -194,7 +242,7 @@ if suppress_surf:
             # (the id:b09e count<->list invariant); suppression is a DISPATCH concern, not a
             # count concern.
             unit["suppressed_item_ids"] = sorted(suppressed_ids)
-    surfaced = surfaced + suppress_surf   # additive: surface the suppress alongside
+    surfaced = surfaced + additive_surf   # additive: surface every reconcile notification alongside
 
 print(json.dumps({"units": units, "surfaced": surfaced, "skipped": skipped}))
 ' <<< "$unit_json"
