@@ -37,12 +37,22 @@ grep -q 'id:5b12' "$CONTRACT" || bad "contract does not carry the id:5b12 proven
 ok "contract text: executors report worked_ids, do not tick; driver ticks (id:5b12)"
 
 # ── INTEGRATE PATH: the integrator ticks from workedIds via roadmap-tick.sh, gated exec/hard ──
-grep -q 'DRIVER-SIDE ROADMAP TICK (id:5b12' "$JS" || bad "integrate path has no driver-tick step"
-grep -q 'roadmap-tick.sh' "$JS" || bad "integrate path does not call roadmap-tick.sh"
-grep -qF 'roadmap-tick.sh ${unit.path}' "$JS" || bad "integrate tick does not pass unit.path to roadmap-tick.sh"
-grep -qF "workedIds.join(',')" "$JS" || bad "integrate tick does not pass workedIds to roadmap-tick.sh"
+# id:087b RELOCATION — the driver-side tick moved out of relay-loop.js's LLM integrator prompt
+# into relay/scripts/integrate.sh (step 4b), which relay-loop.js dispatches as one mechanical
+# hop. All FOUR properties are preserved and now executed rather than instructed: the step
+# exists, it calls roadmap-tick.sh, it passes the repo path and the worked ids, and it is
+# gated to execute/hard (review/handoff self-tick in their own worktree). relay-loop.js is
+# still checked for the half it owns — passing workedIds through to the script.
+INTEG="$ROOT/relay/scripts/integrate.sh"
+[[ -x "$INTEG" ]] || bad "integrate.sh not found/executable"
+grep -q 'DRIVER-SIDE ROADMAP TICK (id:5b12' "$INTEG" || bad "integrate path has no driver-tick step"
+grep -q 'ROADMAP_TICK' "$INTEG" || bad "integrate path does not call roadmap-tick.sh"
+grep -q 'roadmap-tick.sh' "$INTEG" || bad "integrate path does not resolve roadmap-tick.sh"
+grep -qF '"$ROADMAP_TICK" "$path" "$ids"' "$INTEG" || bad "integrate tick does not pass the repo path + worked ids to roadmap-tick.sh"
+grep -qF "workedIds.join(',')" "$JS" || bad "relay-loop.js does not pass workedIds to the integrator"
+grep -qF "integrateArgs.push('--ids'" "$JS" || bad "relay-loop.js does not forward --ids to integrate.sh — the tick would have nothing to tick"
 # gated to execute/hard: review/handoff self-tick in their own worktree, not driver-ticked.
-grep -q "(unit.verdict === 'execute' || unit.verdict === 'hard')" "$JS" \
+grep -qE '^\s*execute\|hard\)' "$INTEG" \
   || bad "driver-tick is not gated to execute/hard units"
 ok "integrate path ticks from workedIds via roadmap-tick.sh, gated to execute/hard"
 

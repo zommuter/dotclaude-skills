@@ -116,13 +116,20 @@ grep -qE '^- ' "$R6/CHANGELOG.md" \
   && fail "(6) a bullet was written despite the empty-summary rejection (D2)"
 pass "(6) D2 guard: empty summary rejected, nothing fabricated"
 
-# (7) INTEGRATOR wiring: relay-loop.js must invoke changelog-append.sh in the integrate chain,
-#     passing the summary + worked ids (D2 derive-at-integrate). Static check (live integration
-#     is agent-driven — see the id:83c9 structure-test rationale).
+# (7) INTEGRATOR wiring: the integrate chain must invoke changelog-append.sh, passing the
+#     summary + worked ids (D2 derive-at-integrate).
+#     id:087b RELOCATION — the integrator is no longer an LLM prompt inside relay-loop.js; it
+#     is relay/scripts/integrate.sh, dispatched by relay-loop.js as ONE mechanical relay-mech
+#     hop. The INVARIANT is unchanged (this step is wired into integration); only its home
+#     moved, so the assertion now checks the step in integrate.sh AND that relay-loop.js
+#     really dispatches integrate.sh (without which the step would be wired to nothing).
 JS="$ROOT/relay/scripts/relay-loop.js"
-grep -q 'changelog-append.sh' "$JS" \
-  || fail "(7) relay-loop.js integrator never invokes changelog-append.sh (b8fa not wired)"
-pass "(7) integrator wiring: relay-loop.js invokes changelog-append.sh"
+INTEG="$ROOT/relay/scripts/integrate.sh"
+grep -q 'changelog-append.sh' "$INTEG" \
+  || fail "(7) integrate.sh never invokes changelog-append.sh (b8fa not wired)"
+grep -q 'relay/scripts/integrate.sh' "$JS" \
+  || fail "(7) relay-loop.js does not dispatch integrate.sh — the changelog step is wired to nothing"
+pass "(7) integrator wiring: integrate.sh invokes changelog-append.sh, dispatched from relay-loop.js"
 
 # (8) node --check still passes after the integrator-prompt edit (guard the template edit).
 node --check "$JS" >/dev/null 2>&1 || fail "(8) relay-loop.js fails node --check after wiring edit"

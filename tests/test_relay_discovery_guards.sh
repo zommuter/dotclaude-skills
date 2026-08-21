@@ -32,8 +32,13 @@ pass "sync-with-origin guard: fetch+ahead/behind in gather, diverged-surface+ff-
 
 # Integrator belt-and-suspenders (id:c3f7): the serialized integrator re-checks via the
 # testable sync-origin.sh helper and aborts before checkpointing on a diverged base.
-grep -q "sync-origin.sh" "$JS" || fail "integrator does not belt-and-suspenders via sync-origin.sh"
-grep -q "base diverged from origin" "$JS" || fail "integrator does not abort on a diverged base"
+# id:087b RELOCATION — the serialized integrator is now relay/scripts/integrate.sh (step 3),
+# dispatched by relay-loop.js as one mechanical hop. Same belt-and-suspenders invariant.
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
+[[ -f "$INTEG" ]] || fail "integrate.sh not found"
+grep -q "sync-origin.sh" "$INTEG" || fail "integrator does not belt-and-suspenders via sync-origin.sh"
+grep -q "base diverged from origin" "$INTEG" || fail "integrator does not abort on a diverged base"
+grep -q 'relay/scripts/integrate.sh' "$JS" || fail "relay-loop.js does not dispatch integrate.sh — the sync-origin guard is wired to nothing"
 pass "integrator belt-and-suspenders via sync-origin.sh (id:c3f7)"
 
 # ── Worktree-aware / claimed-elsewhere guard (id:ebfb step 1) ──

@@ -116,6 +116,30 @@ An executor checkpoint MUST NOT clear them. A repo with a non-empty `last_strong
 and `fable_rechecked = false` is an **optional** Fable-recheck candidate — non-gating,
 never blocks work (Opus decisions are final; `@fable-optional-recheck` is a free second
 opinion only).
+
+## Semver bump trigger at integrate (relay.toml `bump_policy`, id:e647 / id:087b)
+
+The integrator (`relay/scripts/integrate.sh`, dispatched as one mechanical hop since
+id:087b) bumps a repo's version ONCE per **user-observable** close; a refactor-only /
+internal-cleanup close does NOT bump. That is a ratified reviewer JUDGEMENT, not a
+derivable fact — and the mechanized integrator refuses to guess it. It resolves the
+trigger before any mutation, first match wins:
+
+1. `--level minor|patch` — the caller judged the close user-observable.
+2. `--no-bump` — the caller judged it refactor-only.
+3. **No versioned manifest** (`pyproject.toml` / `package.json`) — a version-less repo
+   (dotclaude-skills by design, id:8ef3). Nothing to bump; the changelog date-buckets.
+4. `--substantive false` — the unit produced no substantive close, so it cannot be a
+   user-observable one.
+5. `bump_policy` in `[repos.<name>]` — a DURABLE standing judgement, one of
+   `never` / `minor` / `patch`, recorded once by the owner.
+6. Otherwise — **`HANDBACK[bump]` (exit 30)**, loud, with main byte-identical and the
+   worktree still on disk. Never a silent bump, never a silent skip.
+
+So a MANIFEST repo whose closes are substantive will hand back on its first pool
+integrate until the owner records `bump_policy` for it (or the caller passes an explicit
+judgement). That deferral is the intended behaviour, not a bug: it is the point at which
+a human decides what "user-observable" means for that repo, once, durably.
 - Cross-repo action items discovered mid-work go to the shared inbox
   (`~/.claude/skills/meeting/append.sh -t inbox`), never into another repo's TODO.md.
 

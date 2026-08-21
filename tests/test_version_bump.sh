@@ -149,14 +149,42 @@ pass "(7) cascade gate: scripts/relock-plugins.sh invoked when present (finding 
 
 # ── (8) INTEGRATOR wiring: relay-loop.js must invoke version-bump.sh AND still pass --version to
 #        changelog-append.sh (bump BEFORE changelog so the release bucket gets the version). ──
+#        id:087b RELOCATION — the integrator is now relay/scripts/integrate.sh, dispatched by
+#        relay-loop.js as one mechanical hop, so the wiring lives there. The ORDER invariant
+#        (bump BEFORE changelog) is now checkable as real code order rather than prompt order.
 JS="$ROOT/relay/scripts/relay-loop.js"
-grep -q 'version-bump.sh' "$JS" \
-  || fail "(8) relay-loop.js integrator never invokes version-bump.sh (e647 not wired)"
-grep -q 'changelog-append.sh' "$JS" \
-  || fail "(8) relay-loop.js no longer invokes changelog-append.sh (b8fa wiring lost)"
-grep -q -- '--version' "$JS" \
-  || fail "(8) relay-loop.js integrator does not pass --version to changelog-append.sh (release bucketing lost)"
-pass "(8) integrator wiring: version-bump.sh invoked; --version passed to changelog-append.sh"
+INTEG="$ROOT/relay/scripts/integrate.sh"
+[[ -x "$INTEG" ]] || fail "(8) integrate.sh not found/executable at $INTEG"
+grep -q 'relay/scripts/integrate.sh' "$JS" \
+  || fail "(8) relay-loop.js does not dispatch integrate.sh — the bump is wired to nothing"
+grep -q 'version-bump.sh' "$INTEG" \
+  || fail "(8) integrate.sh never invokes version-bump.sh (e647 not wired)"
+grep -q 'changelog-append.sh' "$INTEG" \
+  || fail "(8) integrate.sh no longer invokes changelog-append.sh (b8fa wiring lost)"
+grep -qF -- 'cl_args+=(--version "$bump_version")' "$INTEG" \
+  || fail "(8) integrate.sh does not pass --version to changelog-append.sh (release bucketing lost)"
+vb_line=$(grep -n '"\$VERSION_BUMP"' "$INTEG" | head -1 | cut -d: -f1)
+cl_line=$(grep -n '"\$CHANGELOG"' "$INTEG" | head -1 | cut -d: -f1)
+[[ -n "$vb_line" && -n "$cl_line" ]] || fail "(8) could not locate both the bump and changelog calls in integrate.sh"
+[[ "$vb_line" -lt "$cl_line" ]] \
+  || fail "(8) version-bump runs AFTER changelog-append (bump=$vb_line, changelog=$cl_line) — the release bucket would miss the new version"
+pass "(8) integrator wiring: version-bump.sh invoked before changelog-append.sh; --version passed through"
+
+# ── (8b) id:087b — the bump TRIGGER is never guessed. It resolves from explicit input, a
+#        version-less repo, a non-substantive close, or a durable relay.toml bump_policy; the
+#        undeterminable case is a LOUD HANDBACK[bump], never a silent bump or a silent skip. ──
+grep -q 'HANDBACK\|handback bump' "$INTEG" || fail "(8b) integrate.sh has no handback mechanism"
+grep -q 'handback bump "\$EX_BUMP"' "$INTEG" \
+  || fail "(8b) integrate.sh does not hand back loudly when the semver bump trigger is unresolvable (id:e647 — it must never silently bump or silently skip)"
+grep -q 'EX_BUMP=' "$INTEG" \
+  || fail "(8b) the bump handback has no distinct exit code"
+# The trigger must be resolved BEFORE the merge, so an unresolvable trigger leaves main unmoved.
+bump_res_line=$(grep -n 'handback bump "\$EX_BUMP"' "$INTEG" | head -1 | cut -d: -f1)
+merge_line=$(grep -n 'merge --no-ff "\$branch"' "$INTEG" | head -1 | cut -d: -f1)
+[[ -n "$bump_res_line" && -n "$merge_line" ]] || fail "(8b) could not locate both the bump handback and the merge"
+[[ "$bump_res_line" -lt "$merge_line" ]] \
+  || fail "(8b) the bump trigger is resolved AFTER the merge (bump=$bump_res_line, merge=$merge_line) — a HANDBACK[bump] would strand a half-integrated repo"
+pass "(8b) the semver bump trigger is resolved pre-merge and hands back loudly when undeterminable (id:e647)"
 
 # ── (9) relay-loop.js still parses + template lint passes after the integrator edit. ──
 node --check "$JS" >/dev/null 2>&1 || fail "(9) relay-loop.js fails node --check after wiring edit"

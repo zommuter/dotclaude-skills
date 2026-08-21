@@ -89,6 +89,15 @@ UPSTREAM_PORT = int(os.environ.get("MECH_PROXY_UPSTREAM_PORT", 443))
 UPSTREAM_SCHEME = os.environ.get("MECH_PROXY_UPSTREAM_SCHEME", "https")
 MECH_SHELL = os.environ.get("MECH_PROXY_SHELL", "/bin/sh")
 MECH_TIMEOUT = int(os.environ.get("MECH_PROXY_TIMEOUT", 120))
+# id:087b — PER-SCRIPT timeout override, keyed by the pinned last-stage script basename.
+# The default 120s is right for the read/atomic-op hops, but the mechanical integrator does
+# a `git merge` + a `uv lock`/`npm install --package-lock-only` regen + a NETWORK push. A
+# 124-timeout mid-integrate is the worst possible outcome (main merged locally, the caller
+# told it handed back), so this one hop gets a much longer budget. Keep the map SHORT and
+# auditable — a longer timeout is a real cost when a hop genuinely wedges.
+MECH_TIMEOUT_BY_SCRIPT = {
+    "integrate.sh": int(os.environ.get("MECH_PROXY_INTEGRATE_TIMEOUT", 900)),
+}
 
 # The ONE real directory an allowlisted relay script may live in. The gate pins a
 # candidate leader to this root by filesystem IDENTITY (realpath), never by
@@ -339,6 +348,7 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
     "worktree-retire.sh",  # id:4df8/1f8e — the force-free context-death retirement wrapper; missing here 404s retireDeadWorktree()'s model:'bash' dispatch (id:5bbb completeness-test gap, observed live run relay-20260729-142725-13077)
     "provision-worktree.sh",  # id:34b7 — pre-dispatch parent-side worktree creation + gitignored-artifact provisioning; missing here 404s provisionWorktree()'s model:'bash' dispatch
     "stranded-branch-scan.sh",  # id:dd7d — pre-dispatch + integrate stranded/sibling committed-branch scan; missing here 404s strandedBranchesFor()'s model:'bash' dispatch
+    "integrate.sh",  # id:087b — THE mechanical integrator (merge/tick/bump/changelog/archive/tag/push/retire/state-write). Missing here refuses the hop -> FAIL-OPEN to the real model, which would silently resurrect an LLM on the merge-to-main critical path. It calls the other helpers itself, so only this one basename is needed.
 ])
 
 
@@ -702,14 +712,16 @@ def _run_mechanical(command: str, stdin: str = None) -> str:
     only ever `[MECH_SHELL, '-c', command]`, so the payload cannot be word-split, expanded,
     or command-substituted. When stdin is None the call is byte-identical to before this
     channel existed (`input=None` leaves the child's stdin inherited, exactly as before)."""
+    # id:087b — per-script timeout, defaulting to MECH_TIMEOUT for every other hop.
+    timeout = MECH_TIMEOUT_BY_SCRIPT.get(_last_stage_relay_script(command) or "", MECH_TIMEOUT)
     try:
         proc = subprocess.run(
             [MECH_SHELL, "-c", command],
             input=stdin,
-            capture_output=True, text=True, timeout=MECH_TIMEOUT,
+            capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        return f"MECH-ERROR exit=124\ncommand timed out after {MECH_TIMEOUT}s"
+        return f"MECH-ERROR exit=124\ncommand timed out after {timeout}s"
     if proc.returncode == 0:
         if proc.stdout.strip() == "":
             return "MECH-OK exit=0\n"

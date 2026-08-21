@@ -49,11 +49,15 @@ globalThis.agent = async (prompt, opts = {}) => {
   const p = String(prompt || '')
   const props = (opts.schema && opts.schema.properties) || {}
 
-  // The serialized integrator → THROW (the id:efaf crash trigger: a schema-validation failure
-  // after retries surfaces as a thrown Error out of the `await agent(...)` in integrate()).
-  if (p.includes('serialized integrator of the relay pool')) {
+  // The serialized integrator → THROW (the id:efaf crash trigger: a dispatch failure after
+  // retries surfaces as a thrown Error out of the `await agent(...)` in integrate()).
+  // id:087b — the integrator is now ONE mechanical `relay-mech` hop running integrate.sh, so
+  // the router keys on the new prompt marker. Nothing else about this harness changes: the
+  // thrown error still originates at exactly the same `await agent(...)` site in integrate(),
+  // which is what id:efaf's containment guards.
+  if (p.includes('mechanical relay integrator for') || p.includes('serialized integrator of the relay pool')) {
     integratorCalls++
-    throw new Error('simulated INTEGRATE_SCHEMA validation failure (harness)')
+    throw new Error('simulated integrator dispatch failure (harness)')
   }
   // Discovery runner: one execute unit on the first call, drained after → loop winds down.
   // id:24ec — the discover-run shard is now a model:'bash' discover-chunk.sh dispatch, so key on
@@ -103,5 +107,11 @@ try {
 if (!integratorCalls) { console.error('FAIL: the integrator was never invoked — harness did not exercise the integration path'); process.exit(1) }
 const blocked = (result && Array.isArray(result.handbacks)) ? result.handbacks
   : (result && Array.isArray(result.queuedRemaining)) ? result.queuedRemaining : []
-console.log(`OK: workflow resolved despite a throwing integrator (integratorCalls=${integratorCalls}); no pool-wide crash. result.completed=${(result && result.completed || []).length}`)
+// id:087b — SURFACED, not swallowed. Containment that loses the unit is not containment: the
+// repo must appear as a recoverable handback, never vanish into a resolved-but-silent round.
+if (!blocked.some(b => b && b.repo === 'alpha')) {
+  console.error(`FAIL: the integration failure was contained but NOT recorded — repo 'alpha' is absent from the handbacks (${JSON.stringify(blocked)})`)
+  process.exit(1)
+}
+console.log(`OK: workflow resolved despite a throwing integrator (integratorCalls=${integratorCalls}); no pool-wide crash and the unit is recorded as a handback. result.completed=${(result && result.completed || []).length}`)
 process.exit(0)

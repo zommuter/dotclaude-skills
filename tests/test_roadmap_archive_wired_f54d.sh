@@ -24,29 +24,39 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -x "$ARCHIVER" ]] || fail "roadmap-archive.sh not found/executable at $ARCHIVER"
 pass "relay-loop.js and roadmap-archive.sh both exist"
 
-# (1) The integrator actually names the script. This is the exact done-check the
-#     item specifies: grep -c 'roadmap-archive' relay-loop.js >= 1.
-hits=$(grep -c 'roadmap-archive' "$JS" || true)
+# id:087b RELOCATION — "the integrator" is now relay/scripts/integrate.sh, dispatched by
+# relay-loop.js as ONE mechanical relay-mech hop instead of an LLM prompt. All five wiring
+# properties below are preserved verbatim in meaning; they simply read integrate.sh, where
+# they are now executed code rather than instructions. relay-loop.js is still checked for the
+# dispatch, without which the archiver would again be wired to nothing (the exact regression
+# this file exists to catch).
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
+[[ -x "$INTEG" ]] || fail "id:f54d: integrate.sh not found/executable at $INTEG"
+grep -q 'relay/scripts/integrate.sh' "$JS" \
+  || fail "id:f54d: relay-loop.js does not dispatch integrate.sh — the archiver is un-wired again"
+pass "id:f54d: relay-loop.js dispatches the mechanical integrator"
+
+# (1) The integrator actually names the script.
+hits=$(grep -c 'roadmap-archive' "$INTEG" || true)
 [[ "$hits" -ge 1 ]] \
-  || fail "id:f54d: relay-loop.js never mentions roadmap-archive (count=$hits) — the archiver is un-wired again"
-pass "id:f54d: relay-loop.js references roadmap-archive ($hits occurrence(s))"
+  || fail "id:f54d: integrate.sh never mentions roadmap-archive (count=$hits) — the archiver is un-wired again"
+pass "id:f54d: integrate.sh references roadmap-archive ($hits occurrence(s))"
 
-# (2) It is invoked as a COMMAND from the relay scripts dir, not merely discussed
-#     in prose. A mention inside a comment/explanation would satisfy (1) alone.
-grep -qF -- 'relay/scripts/roadmap-archive.sh ${unit.path}' "$JS" \
-  || fail "id:f54d: no 'roadmap-archive.sh \${unit.path}' invocation — the reference is prose, not a call"
-pass "id:f54d: archiver is invoked on the unit's repo path (\${unit.path})"
+# (2) It is INVOKED as a command, not merely discussed in prose. A mention inside a comment
+#     would satisfy (1) alone, so this pins the executed call on the repo path.
+grep -qF -- '"$ROADMAP_ARCHIVE" "$path"' "$INTEG" \
+  || fail "id:f54d: no '\$ROADMAP_ARCHIVE \"\$path\"' invocation — the reference is prose, not a call"
+grep -qF -- 'INTEGRATE_ROADMAP_ARCHIVE:-$SCRIPT_DIR/roadmap-archive.sh' "$INTEG" \
+  || fail "id:f54d: \$ROADMAP_ARCHIVE does not resolve to relay/scripts/roadmap-archive.sh"
+pass "id:f54d: archiver is invoked on the unit's repo path"
 
-# (3) The invocation lives in the INTEGRATOR prompt — the serialized, once-per-unit
-#     path that already runs changelog-append.sh and ckpt-tag.sh — not in some other
-#     phase where it would race a live child.
-integ_start=$(grep -n 'You are the serialized integrator of the relay pool' "$JS" | head -1 | cut -d: -f1)
-[[ -n "$integ_start" ]] || fail "id:f54d: could not locate the integrator prompt in relay-loop.js"
-ckpt_line=$(awk -v s="$integ_start" 'NR>s && /ckpt-tag\.sh \$\{unit\.path\}/ {print NR; exit}' "$JS")
-arch_line=$(awk -v s="$integ_start" 'NR>s && /roadmap-archive\.sh \$\{unit\.path\}/ {print NR; exit}' "$JS")
-[[ -n "$ckpt_line" ]] || fail "id:f54d: integrator prompt has no ckpt-tag.sh step to anchor against"
-[[ -n "$arch_line" ]] || fail "id:f54d: the roadmap-archive invocation is NOT inside the integrator prompt"
-pass "id:f54d: archiver call sits inside the integrator prompt (line $arch_line), beside ckpt-tag (line $ckpt_line)"
+# (3) The invocation lives in the serialized, once-per-unit integrator path that already runs
+#     changelog-append.sh and ckpt-tag.sh — not somewhere it would race a live child.
+ckpt_line=$(grep -n '"\$CKPT_TAG" "\${ckpt_args\[@\]}"' "$INTEG" | head -1 | cut -d: -f1)
+arch_line=$(grep -n '"\$ROADMAP_ARCHIVE" "\$path"' "$INTEG" | head -1 | cut -d: -f1)
+[[ -n "$ckpt_line" ]] || fail "id:f54d: integrate.sh has no ckpt-tag.sh step to anchor against"
+[[ -n "$arch_line" ]] || fail "id:f54d: the roadmap-archive invocation is NOT in integrate.sh"
+pass "id:f54d: archiver call sits in the serialized integrator (line $arch_line), beside ckpt-tag (line $ckpt_line)"
 
 # (4) It runs BEFORE the checkpoint tag, so the archived ROADMAP is part of the
 #     checkpointed state rather than dangling uncommitted into worktree-retire.
@@ -56,7 +66,7 @@ pass "id:f54d: archiver runs before ckpt-tag.sh"
 
 # (5) The step commits its own result with SCOPED staging, so the integrator does
 #     not hand a dirty ROADMAP.md to worktree-retire (id:debf / id:373e).
-step=$(awk -v a="$arch_line" -v c="$ckpt_line" 'NR>=a-6 && NR<c' "$JS")
+step=$(awk -v a="$arch_line" -v c="$ckpt_line" 'NR>=a && NR<c' "$INTEG")
 grep -qF -- 'add -- ROADMAP.md ROADMAP.archive.md' <<<"$step" \
   || fail "id:f54d: the archive step does not scope-stage ROADMAP.md + ROADMAP.archive.md"
 grep -qF -- 'status --porcelain -- ROADMAP.md ROADMAP.archive.md' <<<"$step" \

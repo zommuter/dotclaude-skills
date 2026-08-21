@@ -6,22 +6,31 @@
 # (llm-from-scratch second occurrence: tag pointed at the previous checkpoint commit instead of
 # its own post-merge commit).
 #
-# The integrate() `-c` decision lives inside an LLM agent prompt (relay-loop.js), so this file
-# pins it two ways: (A) a STRUCTURE check that the prompt states the merged-tip rule symmetrically
-# and warns against carrying `-c <reviewedTip>` into the carries-commits case; (B) a hermetic
-# BEHAVIORAL fixture that the mechanism the prompt now relies on — default ckpt-tag (no -c) after
-# a --no-ff merge — actually lands the tag on the post-merge tip that CONTAINS the merged commits.
+# ── AMENDED 2026-08-20 by id:087b (owner ruling D1) ──────────────────────────────────────
+# The `-c` decision USED to live inside an LLM agent prompt in relay-loop.js, so part (A) was
+# a check that the PROSE stated the rule. id:087b moved the whole integrator into
+# relay/scripts/integrate.sh, where the anchor is no longer a judgement at all: it is DERIVED
+# from whether the `--no-ff` merge moved HEAD. Part (A) therefore now checks the rule where it
+# lives AND, more importantly, that it is DERIVED rather than restated — a strictly stronger
+# assertion than the old prose grep, which a wrong implementation could have satisfied.
+# Part (B), the hermetic behavioural fixture, is UNCHANGED: it still proves that a default
+# ckpt-tag (no -c) after a --no-ff merge lands on the post-merge tip containing the merged
+# commits. relay-loop.js is still parsed and template-linted here — that engine-edit guard is
+# exactly what an integrate()-editing change must not lose.
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 JS="$SRC_DIR/relay/scripts/relay-loop.js"
 CT="$SRC_DIR/relay/scripts/ckpt-tag.sh"
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
 [[ -x "$CT" ]] || fail "ckpt-tag.sh not found/executable at $CT"
+[[ -x "$INTEG" ]] || fail "integrate.sh not found/executable at $INTEG"
+bash -n "$INTEG" || fail "integrate.sh fails bash -n"
 
 # --- engine-edit safety: the whole file must still parse (template-literal-lint hazard) ---
 command -v node >/dev/null && {
@@ -29,20 +38,28 @@ command -v node >/dev/null && {
   LINT="$SRC_DIR/relay/scripts/lint-workflow-templates.mjs"
   [[ -f "$LINT" ]] && { node "$LINT" "$JS" >/dev/null || fail "relay-loop.js fails the template-literal lint"; }
 }
-pass "relay-loop.js parses + template-lint clean"
+pass "relay-loop.js parses + template-lint clean; integrate.sh parses"
 
-# --- (A) structure: the integrate() prompt states the carries-commits merged-tip rule ---
-# The zero-commit id:8e3e rule stays; the id:25aa carries-commits complement is added symmetrically.
-grep -q 'id:8e3e' "$JS" || fail "id:8e3e zero-commit rule text vanished from the integrate() prompt"
-grep -q 'id:25aa' "$JS" || fail "id:25aa carries-commits rule missing from the integrate() prompt"
+# --- (A) structure: integrate.sh states AND DERIVES the carries-commits merged-tip rule ---
+# The zero-commit id:8e3e rule stays; the id:25aa carries-commits complement is symmetric.
+grep -q 'id:8e3e' "$INTEG" || fail "id:8e3e zero-commit rule text vanished from the integrator"
+grep -q 'id:25aa' "$INTEG" || fail "id:25aa carries-commits rule missing from the integrator"
 # The carries-commits branch must anchor on the POST-MERGE tip.
-grep -qi 'post-merge tip' "$JS" \
-  || fail "id:25aa: integrate() prompt must name the POST-MERGE tip as the carries-commits anchor"
+grep -qi 'post-merge tip' "$INTEG" \
+  || fail "id:25aa: the integrator must name the POST-MERGE tip as the carries-commits anchor"
 # It must explicitly warn against carrying the zero-commit `-c <reviewedTip>` into this case
 # (anchoring behind the merge = the run's own commits outside the audited window forever).
-grep -qi 'OUTSIDE the audited window' "$JS" \
-  || fail "id:25aa: prompt must warn that -c <reviewedTip> here leaves merged commits OUTSIDE the audited window"
-pass "(A) integrate() prompt states the carries-commits merged-tip rule symmetrically to id:8e3e"
+grep -qi 'OUTSIDE the audited window' "$INTEG" \
+  || fail "id:25aa: the integrator must record that -c <reviewedTip> here leaves merged commits OUTSIDE the audited window"
+# (A2, id:087b) The anchor is DERIVED from the merge, not judged: reviewed_tip is set ONLY when
+# the merge left HEAD unmoved, and the `-c` flag is passed ONLY when reviewed_tip is non-empty.
+grep -qF '[ "$pre_head" = "$merged_head" ]' "$INTEG" \
+  || fail "id:8e3e/25aa: the integrator does not derive the anchor from whether the merge moved HEAD"
+grep -qF 'reviewed_tip="$(git -C "$path" rev-parse "$branch")"' "$INTEG" \
+  || fail "id:8e3e: the zero-commit branch does not anchor on the reviewed branch tip"
+grep -qF -- '[ -n "$reviewed_tip" ] && ckpt_args+=(-c "$reviewed_tip")' "$INTEG" \
+  || fail "id:25aa: -c is not conditional on a derived reviewed_tip — the carries-commits case could anchor behind the merge"
+pass "(A) the integrator states the merged-tip rule symmetrically to id:8e3e AND derives the anchor from the merge"
 
 # --- (B) behavioral: default ckpt-tag (no -c) after a --no-ff merge tags the post-merge tip ---
 TMP="$(mktemp -d)"
