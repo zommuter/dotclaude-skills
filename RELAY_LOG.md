@@ -6247,3 +6247,40 @@ instead of another bespoke branch.
 ## 2026-08-21 09:24 — integrate (claude-opus-5)
 
 integrate id:e68f + id:b018 — ledger slice at dispatch (3,854 B vs 1,157,395 B for a real item) and a prompt-size gate that counts TODO.md. Known: dotclaude-skills now estimates ~301k vs 100k budget until the gate measures the slice (owner-accepted, follow-up immediate)
+Worked id:bc2b — suppression must DEMOTE the verdict, not DROP the unit. Added a
+`--exclude <class>[,<class>…]` interface to `relay/scripts/classify-verdict.sh` (the RED
+spec's named interface, adopted verbatim): each cascade branch is now guarded by
+`allow("<class>")`, so excluding a class merely SKIPS its elif and control can only fall
+THROUGH to a lower-ranked branch — demote-only by construction, no ranking table, no new
+state. `blocked` (rank-0 safety) and `idle` (terminal fallthrough) are accepted but
+non-excludable; an unknown class exits 2 loudly rather than silently excluding nothing.
+Wired both suppression sites in `relay-loop.js` (id:1432 no-work suppression, id:365b >3×
+circuit breaker) through one shared `demoteSuppressedUnit()` helper that mirrors the
+ratified id:8123 chain-end re-ask shape: a `model:'bash'` mechanical hop running
+`classify-repo.sh … | classify-verdict.sh --exclude <class>`, with the loop supplying only
+the suppressed CLASS and the classifier deciding the verdict. Only a unit for which the
+classifier offers nothing dispatchable is surfaced-and-skipped as before, so the id:8c85
+one-bucket-per-repo accounting invariant holds.
+
+Verified purity two ways beyond the spec: over 1500 randomized gather-state objects the
+no-`--exclude` path is byte-identical (stdout, stderr and exit code) to the pre-bc2b script
+at HEAD, 0 differences; and over 9600 (state, excluded-class) pairs no exclusion ever raised
+a repo's cascade position. 65 pairs DO lower `priority_rank` (chain-end `review` → `execute`)
+— that is cascade-order demotion, not a promotion: the id:8123 chain-end branch deliberately
+sits ABOVE `execute` while keeping review's rank-2 label, so its rank number is non-monotone
+independently of this change. Worth a reviewer's eye since `priority_rank` is what the
+dispatch sort keys on.
+
+Friction: none on sizing. Two sibling executors held `relay-loop.js` concurrently (id:b018
+inline prompt-size gate, id:e68f dispatch path), so the edit was kept to three hunks — one
+new top-level helper after `mechVerdictHop`, and one line replaced at each suppression site —
+with no reformatting anywhere else.
+
+Shadow-parity obligation discharged: the `--exclude` contract was routed to relay-core via
+the shared inbox (token f79b) — bash stays authoritative, parity is RED until relay-core
+adopts it.
+
+refactor: extracted ONE `demoteSuppressedUnit()` helper rather than copying the re-classify
++ escape-handling logic into both suppression sites, and folded the exclusion into a single
+`allow()` predicate instead of threading an excluded-set test through each of the eight
+cascade branches by hand.
