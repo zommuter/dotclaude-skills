@@ -6173,3 +6173,7 @@ parallel lane list.
 ## 2026-08-21 08:48 — integrate (claude-opus-5)
 
 integrate id:4a76 — human-lane verdict so a repo blocked entirely on the owner no longer reads as design-drained; classify-repo.sh gains open_human_lane + the missing [INPUT — author] lane
+
+## 2026-08-21 08:55 — integrate (claude-opus-5)
+
+integrate id:087b — integrate() rewired to the mechanical integrate.sh hop; no LLM agent remains on the merge-to-main path. Bump trigger fail-closed pre-merge (HANDBACK[bump] exit 30) per the 2026-08-21 ship-as-is ruling
