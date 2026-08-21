@@ -56,13 +56,15 @@ for body in \
   'if printf "%s" "$v" | grep -q x; then :; fi' \
   'printf "%s" "$v" | tr a b | grep -q x || true' \
   'x=$(git log --oneline | head -1)' \
+  'x="$(git log --oneline | head -1)"' \
+  'line1b="$(HOME="$t" bash "$S" < "$t/m.json" | head -1 | strip_ansi)"' \
   ; do
   i=$((i + 1))
   mk "pos$i.sh" "$body"
   [[ "$(lint_rc "pos$i.sh")" == 1 ]] \
     || fail "positive control NOT flagged: $body"
 done
-pass "all $i positive controls flagged (grep -q/-m/-l/--quiet, head, sed q, awk exit, nested, \$( ) )"
+pass "all $i positive controls flagged (grep -q/-m/-l/--quiet, head, sed q, awk exit, nested, \$( ), \"\$( )\")"
 
 # ---------------------------------------------------------------- NEGATIVE controls
 # Consumers that DRAIN to EOF cannot SIGPIPE their producer, and the safe rewrites
@@ -82,6 +84,7 @@ for body in \
   'head -1 < <(cat /etc/hosts)' \
   'out=$(cat /etc/hosts); grep -q localhost <<<"$out"' \
   'echo "a | grep -q b"' \
+  '[[ "$(sort -u <<<"$ids" | grep -c .)" -eq "$(grep -c . <<<"$ids")" ]]' \
   ; do
   j=$((j + 1))
   mk "neg$j.sh" "$body"
