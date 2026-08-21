@@ -20,7 +20,7 @@
 #     existing flock + pull/push machinery rather than a bespoke merge daemon.
 #
 # Usage: git-lock-push.sh [REPO_PATH] [-b branch] [-f manifest-file] [-m msg]
-#                          [--merge-branch branch] [--ff-only]
+#                          [--merge-branch branch] [--ff-only] [--remote NAME]...
 #   -b          Branch to rebase against (default: detected from tracking branch)
 #   -f          Manifest file (one path per line) — requires -m
 #   -m          Commit message — requires -f, OR the commit message for --merge-branch
@@ -32,6 +32,23 @@
 #               auto-detects merge topology in local-ahead (id:e4f5) and falls back to this
 #               same ff-only reconcile on its own when it finds one — --ff-only remains the
 #               explicit, caller-asserted form; pass it when you know in advance.
+#   --remote    Push ONLY to this remote. Repeatable (`--remote a --remote b`) to select a
+#               SUBSET. ABSENT → push to ALL remotes, exactly as before; every existing
+#               caller is therefore unaffected.
+#
+#               id:4d44 — the reason this flag exists rather than the callers pushing
+#               per-remote themselves: the flock IS this helper (parallel-session safety,
+#               id:aa93). integrate.sh needs to publish a substantive unit's PRIVATE/LAN
+#               remotes while DEFERRING its public ones, and both rejected alternatives lose
+#               something real — a bare `git push <remote>` from the caller drops the flock,
+#               and temporarily setting `remote.<name>.pushurl=no_push` mutates SHARED repo
+#               config mid-run (a process that dies there leaves that remote silently
+#               un-pushable forever). Selecting inside the lock costs neither.
+#
+#               A named remote that does not exist is a LOUD failure BEFORE the lock is
+#               taken — never a silent "pushed nothing" (this helper already has a live
+#               exit-0-having-pushed-nothing defect, id:dc4f/id:f5d9; do not add a second
+#               route to it).
 
 set -euo pipefail
 
@@ -81,18 +98,25 @@ manifest_file=""
 commit_msg=""
 merge_branch=""
 ff_only=0
-# getopts does not handle long opts; strip --ff-only and --merge-branch <val>
-# before the getopts loop (the latter consumes the following arg as its value).
+selected_remotes=()
+# getopts does not handle long opts; strip --ff-only, --merge-branch <val> and
+# --remote <val> before the getopts loop (the latter two consume the following arg).
 args=()
 take_next_as_merge_branch=0
+take_next_as_remote=0
 for arg in "$@"; do
   if [[ "$take_next_as_merge_branch" -eq 1 ]]; then
     merge_branch="$arg"
     take_next_as_merge_branch=0
+  elif [[ "$take_next_as_remote" -eq 1 ]]; then
+    selected_remotes+=("$arg")
+    take_next_as_remote=0
   elif [[ "$arg" == "--ff-only" ]]; then
     ff_only=1
   elif [[ "$arg" == "--merge-branch" ]]; then
     take_next_as_merge_branch=1
+  elif [[ "$arg" == "--remote" ]]; then
+    take_next_as_remote=1
   else
     args+=("$arg")
   fi
@@ -103,6 +127,12 @@ done
 # on a missing branch name.
 if [[ "$take_next_as_merge_branch" -eq 1 ]]; then
   echo "ERROR: --merge-branch requires a branch name argument" >&2
+  exit 1
+fi
+# Same trap for a trailing `--remote`: without this it silently degrades to "push all
+# remotes", i.e. it would PUBLISH the very remotes the caller asked to exclude.
+if [[ "$take_next_as_remote" -eq 1 ]]; then
+  echo "ERROR: --remote requires a remote name argument" >&2
   exit 1
 fi
 set -- "${args[@]+"${args[@]}"}"
@@ -142,6 +172,19 @@ if [[ -n "${1:-}" ]]; then
 fi
 
 repo_root="$(git rev-parse --show-toplevel)"
+
+# --remote validation happens HERE: after the cd (so `git remote` is this repo's), and
+# BEFORE the flock (a usage error must not hold the lock, and must not look like a push).
+# A typo'd remote name is fatal, never a silent no-op push.
+if [[ "${#selected_remotes[@]}" -gt 0 ]]; then
+  all_remotes="$(git remote)"
+  for want in "${selected_remotes[@]}"; do
+    if ! grep -qx -- "$want" <<<"$all_remotes"; then
+      echo "ERROR: --remote '$want' is not a remote of $repo_root (have: $(tr '\n' ' ' <<<"$all_remotes"))" >&2
+      exit 1
+    fi
+  done
+fi
 
 # Lock file in repo root — except ~/.claude, where we use /tmp to avoid
 # needing blanket write permissions on the settings directory.
@@ -298,6 +341,16 @@ fi
 push_timeout="${GIT_LOCK_PUSH_TIMEOUT:-120}"
 current_branch="$(git rev-parse --abbrev-ref HEAD)"
 for remote in $(git remote); do
+  # id:4d44 --remote selection. Empty selection = push ALL (the pre-existing behaviour and
+  # the behaviour of every caller that does not pass the flag). Filtering HERE, inside the
+  # lock, keeps the flock and touches no shared repo config.
+  if [[ "${#selected_remotes[@]}" -gt 0 ]]; then
+    wanted=0
+    for want in "${selected_remotes[@]}"; do
+      if [ "$want" = "$remote" ]; then wanted=1; fi
+    done
+    if [[ "$wanted" -eq 0 ]]; then continue; fi
+  fi
   pushurl=$(git remote get-url --push "$remote")
   [ "$pushurl" = "no_push" ] && continue
   # Per-remote SSH-key gate (was an unconditional per-RUN gate before the ssh-agent
