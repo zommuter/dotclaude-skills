@@ -1635,3 +1635,24 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Done-check**: `tests/test_classify_verdict_human_drained_4a76.sh` green AND `tests/test_classify_verdict_humanlane.sh` still green; then full `tests/run-tests.sh`.
   - **Sequencing**: touches `classify-verdict.sh` / `classify-repo.sh` only — **NOT sequenced behind `id:087b`**, can proceed immediately.
   - ⚠️ **SHADOW-PARITY OBLIGATION**: `classify-verdict.sh` / `gather-repo-state.sh` are reimplemented by the relay-core Lean shadow binary. Bash stays authoritative, but parity goes RED until relay-core adopts this too — route the contract to relay-core via the shared inbox in the same pass. Relates `id:bc2b`, `id:8066`, `[[classify-shadow-parity]]`.
+
+## Parallel-suite flakiness — OBSERVE-FIRST (promoted from TODO 2026-08-21, `id:7518`)
+
+> Promoted reusing the existing TODO id (single-id-two-views). `TODO.md` stays the prose
+> SSOT for the accumulated observations; this is the execution spec. **This item is
+> deliberately OBSERVE-FIRST** (CLAUDE.md "observe before preventing"): its deliverable is
+> EVIDENCE plus a recommendation, not a speculative fix. It stays OPEN until a cause is
+> identified — "could not reproduce" is NOT a close.
+
+- [ ] [ROUTINE] **General parallel-suite flakiness — four unrelated tests have flaked in-suite and passed standalone; build the per-run failure logger before any fix** <!-- id:7518 -->
+  - **Acceptance**:
+    1. A per-run failure log exists at a single named path OUTSIDE any repo, and the report states that path. Each row records: timestamp, parallel width (`-j`), the FULL SET of tests that failed in that run (not just the first), total pass/fail/expected-red counts, wall-clock, and the load average (`uptime`) sampled at start AND end of the run.
+    2. At least three distinct parallel widths are exercised, including `-j1` and `-j<nproc>`, with more than one run at each. The report states `nproc` for this host and the exact number of runs at each width.
+    3. The report contains an explicit correlation statement — does the observed failure rate track parallel width? — with n stated per width, and an explicit acknowledgement of what that n can and cannot distinguish (the ~10pp-at-n=10 limit).
+    4. The report ranks the surviving hypotheses, and for EACH gives the concrete observation that would confirm it and the one that would kill it. A hypothesis with no kill-criterion does not count as ranked.
+    5. Any test that fails in-suite is re-run standalone and BOTH outcomes are recorded in the log. A red run is data, not a failure of the task.
+    6. No speculative fix is merged. A fix lands ONLY if the evidence identifies the cause unambiguously AND the change is small; otherwise the item stays open with the evidence attached.
+    7. `id:7518` remains OPEN (unticked) unless clause 6's condition is genuinely met. "Could not reproduce" MUST NOT close it.
+  - **Tests**: NONE, deliberately — recorded so its absence is not read as a skipped step. This item has no conventional RED spec: a test asserting "N consecutive suite runs are green" would be non-hermetic, ~5 min per iteration, flaky by construction, and would pass by luck rather than by fix. A hermetic regression test becomes writable only once a cause is identified — authoring it is then a FOLLOW-UP item, not part of this one. No `# roadmap:7518` test exists, so the open checkbox creates no EXPECTED-RED.
+  - **Done-check**: the named log file exists and holds one row per run performed, matching the counts claimed in the report; `make test` is green on the final recorded run (a red earlier run is expected and fine — it is the data); the report states n plainly and does not claim a rate the sample cannot support.
+  - **Context**: `tests/run-tests.sh` (`-j`/`JOBS`, `RUN_TESTS_NESTED=1` forces serial, longest-first duration cache). REFUTED hypothesis — do not re-run it: shared global state via the `relay-state-write.sh` lock (`FABLES_CONFIG` override makes it per-fixture). Observed flakers: `test_integrate_sh_mechanized.sh` (x2), `test_integrate_mechanized_ports_087b.sh`, `test_statusline_tokens.sh`, `test_mechanical_orphan_draft.sh`.
