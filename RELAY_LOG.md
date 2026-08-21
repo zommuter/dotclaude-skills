@@ -6478,3 +6478,46 @@ touched.
 ## 2026-08-21 12:20 — integrate (claude-opus-5)
 
 integrate id:5fe2 — post-push integrate failures are classified landedUnfinished (never re-merged) instead of being retried forever; verified on a SEQUENTIAL suite run (463 passed) since the id:7518 parallel race made three consecutive parallel runs red on three different tests
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:81d5 — removed the `pipefail` + early-exiting-pipe-consumer race repo-wide
+(478 sites across 202 files) and added `tests/lint-pipefail-sigpipe.py` +
+`tests/test_pipefail_sigpipe_lint.sh` (`# roadmap:81d5`) to ban its return, with no
+exemption mechanism.
+
+Method: a written transform, not hand edits. `producer | grep -q P` → `grep -q P <
+<(producer)`, run to a fixed point per line, on a scratch COPY of the tree each pass;
+applied to the worktree only after `bash -n` was clean. Every rewritten line was then
+verified by a mechanical INVERSE check — undo the rewrite, compare token-for-token
+against the original modulo whitespace — 476/476 identical.
+
+Friction: the transform needed three passes because the DETECTOR kept under-reporting,
+and each gap was found by a different instrument, none of which the others would have
+caught.
+- `bash -n` missed two mangled lines (`2>&1` and a leading `&&` mis-read as command
+  separators); the inverse check caught both.
+- The inverse check could not see sites the detector never reported. The masker treated
+  a command substitution inside double quotes as string content, so `x="$(prod | head
+  -1)"` was invisible — 87 live sites. That gap was surfaced by the FIRST post-remediation
+  suite run going red on `test_statusline_tokens.sh`, whose two `$( … | head -1 |
+  strip_ansi)` sites are exactly that form. A green lint was not evidence of a clean repo.
+- The fixer classified stages on masked text while the lint classified on raw, so `awk
+  '…exit'` was visible to one and not the other. Two sites.
+
+Both gaps now have controls in the test (the statusline line verbatim as a positive
+control) so neither can regress silently.
+
+One genuine semantic change was found and fixed by hand rather than shipped:
+`tools/model-probe.sh`'s `claude --version | head -1 || echo unknown` rode the
+PIPELINE's status for its fallback, and process substitution discards the producer's
+status by design. Made explicit. It was the only such case in 476 rewrites — I searched
+for the class rather than trusting the sample.
+
+Verification: ten consecutive PARALLEL full-suite runs at `-j8` on zomni (`nproc` 8),
+recorded in `~/.cache/dotclaude-flake/runs.jsonl`, all `464 passed, 0 failed`, at load
+13.5–17.8 — above the 15.1 at which a pre-fix `-j8` run went red. Pre-fix baseline on
+this host was 8 red in 12 runs at j8, and three consecutive red runs on three different
+tests earlier the same day.
+
+`id:7518` left OPEN — see the note on its ROADMAP item.
