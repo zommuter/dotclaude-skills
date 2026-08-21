@@ -31,7 +31,7 @@ for pair in "relay-ro:$RO_SVC" "relay-svc:$SVC_SVC"; do
   grep -qE "^User=${user}\$" "$svc" || fail "$name must set User=$user"
   pass "$name sets User=$user"
 
-  grep -vE '^\s*#' "$svc" | grep -q '%h' && fail "$name uses %h in a directive — under $user's OWN --user manager %h resolves to /home/$user, not tobias's home (Amendment-2 F3); every path must be literal"
+  grep -q '%h' < <(grep -vE '^\s*#' "$svc") && fail "$name uses %h in a directive — under $user's OWN --user manager %h resolves to /home/$user, not tobias's home (Amendment-2 F3); every path must be literal"
   pass "$name carries no %h in any directive (literal paths only)"
 
   grep -qE '^EnvironmentFile=/home/[^%]+/tools/relay-service-users\.env$' "$svc" \
@@ -64,9 +64,9 @@ done
 pass "relay-service-users.env assigns a literal absolute path for every \$HOME-relative override"
 
 ENVFILE_ASSIGN_LINES="$(grep -E '^[A-Z_]+=' "$ENVFILE")"
-echo "$ENVFILE_ASSIGN_LINES" | grep -q '\$HOME' && fail "relay-service-users.env must not use \$HOME in an assignment — it is loaded verbatim by systemd's EnvironmentFile= (no shell expansion)"
-echo "$ENVFILE_ASSIGN_LINES" | grep -q '~' && fail "relay-service-users.env must not use ~ in an assignment — no shell expansion under EnvironmentFile="
-echo "$ENVFILE_ASSIGN_LINES" | grep -q '%h' && fail "relay-service-users.env must not use %h in an assignment — %h resolves to the SERVICE user's home, not tobias's (Amendment-2 F3)"
+grep -q '\$HOME' < <(echo "$ENVFILE_ASSIGN_LINES") && fail "relay-service-users.env must not use \$HOME in an assignment — it is loaded verbatim by systemd's EnvironmentFile= (no shell expansion)"
+grep -q '~' < <(echo "$ENVFILE_ASSIGN_LINES") && fail "relay-service-users.env must not use ~ in an assignment — no shell expansion under EnvironmentFile="
+grep -q '%h' < <(echo "$ENVFILE_ASSIGN_LINES") && fail "relay-service-users.env must not use %h in an assignment — %h resolves to the SERVICE user's home, not tobias's (Amendment-2 F3)"
 pass "relay-service-users.env's assignments carry no \$HOME/~/%h shell-style or unit-specifier expansion"
 
 # --- the two entrypoint scripts: the uid-assertion guard exists and is opt-in (unset by
@@ -89,21 +89,21 @@ out="$(RELAY_REQUIRE_SERVICE_USER="$BOGUS_USER" RELAY_TOML="$TMP/relay.toml" SRC
        bash "$DISCOVER_SH" 2>&1)"
 rc=$?
 [[ $rc -ne 0 ]] || fail "discover-repos-mechanical.sh must exit nonzero when RELAY_REQUIRE_SERVICE_USER ($BOGUS_USER) does not match the invoking user"
-echo "$out" | grep -qi 'hardening guard' || fail "discover-repos-mechanical.sh's uid-mismatch failure must name the id:5bef hardening guard (got: $out)"
+grep -qi 'hardening guard' < <(echo "$out") || fail "discover-repos-mechanical.sh's uid-mismatch failure must name the id:5bef hardening guard (got: $out)"
 pass "discover-repos-mechanical.sh refuses to run under a mismatched RELAY_REQUIRE_SERVICE_USER"
 
 out="$(RELAY_REQUIRE_SERVICE_USER="$BOGUS_USER" RELAY_RECIPE_DIR="$TMP/recipes" MECHANICAL_DAEMON_LOG="$TMP/log2.txt" \
        bash "$DAEMON_SH" run 2>&1)"
 rc=$?
 [[ $rc -ne 0 ]] || fail "mechanical-daemon.sh must exit nonzero when RELAY_REQUIRE_SERVICE_USER ($BOGUS_USER) does not match the invoking user"
-echo "$out" | grep -qi 'hardening guard' || fail "mechanical-daemon.sh's uid-mismatch failure must name the id:5bef hardening guard (got: $out)"
+grep -qi 'hardening guard' < <(echo "$out") || fail "mechanical-daemon.sh's uid-mismatch failure must name the id:5bef hardening guard (got: $out)"
 pass "mechanical-daemon.sh refuses to run under a mismatched RELAY_REQUIRE_SERVICE_USER"
 
 # Behavioural: an UNSET RELAY_REQUIRE_SERVICE_USER (the existing tobias-run units' shape)
 # must never trip the guard — confirm the guard's own message never appears when it is unset.
 out="$(RELAY_TOML="$TMP/relay.toml" SRC_DIR="$TMP/src" RELAY_DISCOVERY_QUEUE_DIR="$TMP/dq" \
        RELAY_DISCOVER_MECH_LOG="$TMP/log3.txt" bash "$DISCOVER_SH" 2>&1 || true)"
-echo "$out" | grep -qi 'hardening guard' && fail "discover-repos-mechanical.sh must NOT invoke the id:5bef guard when RELAY_REQUIRE_SERVICE_USER is unset (would break the existing tobias-run unit)"
+grep -qi 'hardening guard' < <(echo "$out") && fail "discover-repos-mechanical.sh must NOT invoke the id:5bef guard when RELAY_REQUIRE_SERVICE_USER is unset (would break the existing tobias-run unit)"
 pass "discover-repos-mechanical.sh's guard is a no-op when RELAY_REQUIRE_SERVICE_USER is unset"
 
 # --- Makefile: a human-run install target exists, copies all six files, targets
@@ -114,23 +114,23 @@ grep -q '^install-relay-hardened-units:' "$MAKEFILE" || fail "Makefile has no in
 pass "Makefile declares install-relay-hardened-units"
 
 TARGET_BODY="$(awk '/^install-relay-hardened-units:/{f=1;next} /^[a-zA-Z_.-]+:/{f=0} f' "$MAKEFILE")"
-echo "$TARGET_BODY" | grep -q '/etc/systemd/user/' || fail "install-relay-hardened-units must target /etc/systemd/user/"
-echo "$TARGET_BODY" | grep -qi 'sudo' || fail "install-relay-hardened-units must use sudo (root-owned unit dir)"
+grep -q '/etc/systemd/user/' < <(echo "$TARGET_BODY") || fail "install-relay-hardened-units must target /etc/systemd/user/"
+grep -qi 'sudo' < <(echo "$TARGET_BODY") || fail "install-relay-hardened-units must use sudo (root-owned unit dir)"
 for f in relay-service-users.env relay-ro-discover-repos-mechanical.service relay-ro-discover-repos-mechanical.timer \
          relay-svc-mechanical-daemon.service relay-svc-mechanical-daemon.path relay-svc-mechanical-daemon.timer; do
-  echo "$TARGET_BODY" | grep -q "$f" || fail "install-relay-hardened-units must reference $f"
+  grep -q "$f" < <(echo "$TARGET_BODY") || fail "install-relay-hardened-units must reference $f"
 done
 pass "install-relay-hardened-units copies all six files into /etc/systemd/user/ via sudo"
 
 # Only a REAL (non-@echo) invocation counts — the target's own @echo instructions may
 # quote a sample "systemctl --user enable" command for the human to run BY HAND under
 # id:8e7a; that is documentation, not this target executing it.
-echo "$TARGET_BODY" | grep -vE '^\s*@echo' | grep -qE 'systemctl --user enable' \
+grep -qE 'systemctl --user enable' < <(echo "$TARGET_BODY" | grep -vE '^\s*@echo') \
   && fail "install-relay-hardened-units must NOT enable the units itself — per-user enable is deliberately the id:8e7a run/verify half, not authored here"
 pass "install-relay-hardened-units does not itself enable any unit (id:8e7a stays the run half)"
 
 PHONY_BLOCK="$(awk '/^\.PHONY:/{f=1} f{print; if ($0 !~ /\\$/) exit}' "$MAKEFILE")"
-echo "$PHONY_BLOCK" | grep -q 'install-relay-hardened-units' || fail ".PHONY must list install-relay-hardened-units"
+grep -q 'install-relay-hardened-units' < <(echo "$PHONY_BLOCK") || fail ".PHONY must list install-relay-hardened-units"
 pass "install-relay-hardened-units is declared .PHONY"
 
 echo "all id:5bef hardened-unit checks passed"

@@ -66,7 +66,7 @@ echo l > "$R2/fl"; git -C "$R2" add fl; git -C "$R2" commit -qm lside; git -C "$
 o2="$("$DR" --repo r_div --path "$R2" --runid thisrun --live-claims "" --main-branch main)"
 [[ "$(printf '%s' "$o2" | ncount units)"    == "0" ]] || fail "(2) diverged must yield 0 units: $o2"
 [[ "$(printf '%s' "$o2" | ncount surfaced)" == "1" ]] || fail "(2) diverged must surface EXACTLY once (no reconcile+classify double): $o2"
-printf '%s' "$o2" | surf_reasons | grep -qi diverged || fail "(2) surfaced reason is not the diverged one: $o2"
+grep -qi diverged < <(printf '%s' "$o2" | surf_reasons) || fail "(2) surfaced reason is not the diverged one: $o2"
 # id:37f2 — the substitutive (repo-level-block) path emits an HONEST verdict:"" (reconcile
 # never classifies — there is no verdict to report), not a bare reason and not a fabricated one.
 [[ "$(printf '%s' "$o2" | surf0_field verdict surfaced)" == "" ]] || fail "(2) substitutive surfaced.verdict must be empty string, not absent/fabricated: $o2"

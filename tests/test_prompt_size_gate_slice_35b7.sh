@@ -65,7 +65,7 @@ slice_stdout="$("$SLICE" --repo repo --path "$R" --id 1111 --out "$OUT" 2>"$TMP/
   bad "id:35b7: ledger-slice.sh failed — $(head -2 "$TMP/err" | tr '\n' ' ')"
 }
 real_bytes=$(wc -c < "$OUT" 2>/dev/null || echo 0)
-reported=$(sed -n 's/^slice-bytes:[[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p' <<<"$slice_stdout" | head -1)
+reported=$(head -1 < <(sed -n 's/^slice-bytes:[[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p' <<<"$slice_stdout") )
 if [[ -n "$reported" ]]; then
   ok "ledger-slice.sh reports its slice size on stdout (slice-bytes: $reported)"
 else
@@ -159,8 +159,8 @@ else
 fi
 # Ordering: the slice must be stamped BEFORE the gate is consulted, or slice_path is never set
 # when the gate runs.
-slice_at=$(grep -n 'await sliceLedgerForUnit(unit)' "$JS" | head -1 | cut -d: -f1)
-gate_at=$(grep -n 'const oversizeReason = oversizeDispatchReason(' "$JS" | head -1 | cut -d: -f1)
+slice_at=$(head -1 < <(grep -n 'await sliceLedgerForUnit(unit)' "$JS") | cut -d: -f1 )
+gate_at=$(head -1 < <(grep -n 'const oversizeReason = oversizeDispatchReason(' "$JS") | cut -d: -f1 )
 if [[ -n "$slice_at" && -n "$gate_at" && "$slice_at" -lt "$gate_at" ]]; then
   ok "sliceLedgerForUnit() runs BEFORE the gate (line $slice_at < $gate_at) — slice_path is set when the gate reads it"
 else

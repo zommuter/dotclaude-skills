@@ -29,7 +29,7 @@ mkdir -p "$SRC_DIR"
 
 # ── (1) no dead run -> benign "no dead run, skipped", exits 0, no reap side effects ──
 out1="$(bash "$SCRIPT" --auto-restart)"
-echo "$out1" | grep -q "no dead run, skipped" || fail "(1) expected no-dead-run summary, got: $out1"
+grep -q "no dead run, skipped" < <(echo "$out1") || fail "(1) expected no-dead-run summary, got: $out1"
 pass "(1) no dead run -> benign no-op summary"
 
 # ── (2) a genuinely dead run (heartbeat_ts far in the past, matching relay-* prefix) is
@@ -44,10 +44,10 @@ printf '{"runId":"%s","pid":"","host":"","started_at":1,"started_iso":"","heartb
 
 # Sanity: heartbeat.sh itself sees this as dead before we invoke the wrapper.
 dead_check="$("$HEARTBEAT" dead-runs --prefix 'relay-*')"
-echo "$dead_check" | grep -q "$DEAD_RUN" || fail "(2) fixture setup: heartbeat.sh dead-runs did not see $DEAD_RUN: $dead_check"
+grep -q "$DEAD_RUN" < <(echo "$dead_check") || fail "(2) fixture setup: heartbeat.sh dead-runs did not see $DEAD_RUN: $dead_check"
 
 out2="$(bash "$SCRIPT" --auto-restart)"
-echo "$out2" | grep -qE "1 dead run\(s\) observed-reaped" || fail "(2) expected 1 observed-reaped in summary, got: $out2"
+grep -qE "1 dead run\(s\) observed-reaped" < <(echo "$out2") || fail "(2) expected 1 observed-reaped in summary, got: $out2"
 pass "(2) auto-restart summary reports the one dead run reaped: $out2"
 
 # The marker must have moved OUT of the live heartbeats dir (reap-run archived it) —
@@ -64,7 +64,7 @@ pass "(2) archived marker preserved (moved to heartbeats.done, not destroyed)"
 
 # ── (3) idempotent: running --auto-restart again finds nothing to reap ──
 out3="$(bash "$SCRIPT" --auto-restart)"
-echo "$out3" | grep -q "no dead run, skipped" || fail "(3) expected a clean re-run to be a no-op, got: $out3"
+grep -q "no dead run, skipped" < <(echo "$out3") || fail "(3) expected a clean re-run to be a no-op, got: $out3"
 pass "(3) a second --auto-restart run is a clean no-op (idempotent)"
 
 echo "ALL PASS: relay-reconcile.sh --auto-restart wraps id:7809's 3-step flow into one mechanical hop (id:c14d)"

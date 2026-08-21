@@ -94,7 +94,7 @@ console.log(out.join('\n'))
 NODE
 
 node "$TMP/drive.mjs" > "$TMP/res" 2>"$TMP/err" || { echo "FAIL: driver errored:"; cat "$TMP/err"; exit 1; }
-get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2-; }
+get() { head -1 < <(grep -E "^$1=" "$TMP/res") | cut -d= -f2- ; }
 
 # (a) suppression
 [[ "$(get samesig_kept)" == "0" && "$(get samesig_suppressed)" == "1" ]] && ok "same work_sig ⇒ no-work verdict SUPPRESSED (not re-dispatched)" || bad "same-sig should suppress"

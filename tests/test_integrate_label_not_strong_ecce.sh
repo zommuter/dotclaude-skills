@@ -64,7 +64,7 @@ git -C "$REPO" add f.txt
 git -C "$REPO" -c commit.gpgsign=false commit -qm init
 printf '[repos.fixturerepo]\nlast_ckpt = ""\nlast_strong_ckpt = ""\nstrong_model = ""\n' > "$CFG/relay.toml"
 
-toml_of() { grep -E "^$1" "$CFG/relay.toml" | head -1 | sed 's/.*= *//; s/"//g'; }
+toml_of() { head -1 < <(grep -E "^$1" "$CFG/relay.toml") | sed 's/.*= *//; s/"//g' ; }
 
 run_ckpt() { # $1 = label, $2 = summary -> OUT / ERR / RC
   OUT="$(FABLES_CONFIG="$CFG" bash "$CKPT" "$REPO" -m "$2" -l "$1" 2>"$TMP/err")"

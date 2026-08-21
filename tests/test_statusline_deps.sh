@@ -32,7 +32,7 @@ d=$(mkbin bash sh stat date bc curl sha1sum)   # everything except jq
 out=$(PATH="$d" bash "$CHECK" 2>&1); rc=$?
 rm -rf "$d"
 [ "$rc" -eq 1 ] || fail "missing jq did not exit 1 (got $rc)"
-echo "$out" | grep -qi 'CRITICAL' || fail "missing jq produced no CRITICAL message"
+grep -qi 'CRITICAL' < <(echo "$out") || fail "missing jq produced no CRITICAL message"
 pass "missing critical dep (jq) → exit 1 + CRITICAL warning"
 
 # (3) optional missing (bc) → WARN → exit 0 + a WARN message
@@ -40,7 +40,7 @@ d=$(mkbin bash sh stat date jq curl sha1sum)   # everything except bc
 out=$(PATH="$d" bash "$CHECK" 2>&1); rc=$?
 rm -rf "$d"
 [ "$rc" -eq 0 ] || fail "missing optional bc must NOT fail install (got exit $rc)"
-echo "$out" | grep -qi 'WARN' || fail "missing bc produced no WARN message"
+grep -qi 'WARN' < <(echo "$out") || fail "missing bc produced no WARN message"
 pass "missing optional dep (bc) → exit 0 + WARN"
 
 # (4) install-statusline actually runs the check

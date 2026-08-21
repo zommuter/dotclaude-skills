@@ -67,15 +67,15 @@ while IFS= read -r line; do
 
     # Relay mirror line (see ROADMAP.md template): executor work lives in
     # ROADMAP.md — classify as RELAY so dispatch never proposes a meeting on it.
-    if printf '%s' "$body" | grep -qE '^Relay: [0-9]+ open ROADMAP items[[:space:]]*$'; then
+    if grep -qE '^Relay: [0-9]+ open ROADMAP items[[:space:]]*$' < <(printf '%s' "$body") ; then
         printf '%s\t%s\t%s\t%s\t%s\n' "RELAY" "$id" "$summary" "" ""
         continue
     fi
 
     # Find first meeting-note link in line
-    note_link=$(printf '%s' "$line" \
-        | grep -oE 'docs/meeting-notes/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4}-[^)> .,`]+\.md' \
-        | head -1 || true)
+    note_link=$(head -1 < <(printf '%s' "$line" \
+        | grep -oE 'docs/meeting-notes/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4}-[^)> .,`]+\.md') \
+        || true)
 
     # Classify
     if [[ -n "$note_link" ]]; then
@@ -86,7 +86,7 @@ while IFS= read -r line; do
         fi
     else
         # Keyword hint: signals planning work
-        if printf '%s' "$body" | grep -qiE '(design|investigate|decide|evaluate|plan|deferred|forward-flag)'; then
+        if grep -qiE '(design|investigate|decide|evaluate|plan|deferred|forward-flag)' < <(printf '%s' "$body") ; then
             class="C2"
         else
             class="C3"
@@ -95,7 +95,7 @@ while IFS= read -r line; do
 
     # Gate-text check (advisory): detect gate/condition/blocked vocabulary in body
     gate=""
-    printf '%s' "$body" | grep -qiE '\bgated?\b|\bgate:|reopen (gate|trigger)|condition-triggered|blocked on' \
+    grep -qiE '\bgated?\b|\bgate:|reopen (gate|trigger)|condition-triggered|blocked on' < <(printf '%s' "$body") \
         && gate="GATED" || true
 
     # Lane floor, LANE-AWARE (D4 + id:78ff): a [HARD]/[INPUT — …] item needs a strong
@@ -141,7 +141,7 @@ while IFS= read -r line; do
     # only inside backticks (e.g. a note "re-laned `[HARD — pool]`→`[ROUTINE]`") never
     # counts as this item's own lane.
     lead=$(printf '%s' "$body" | cut -c1-120 | sed -E 's/`[^`]*`//g')
-    lane_tag=$(printf '%s' "$lead" | grep -oE '\[(HARD|INPUT|ROUTINE|MECHANICAL)[^]]*\]' | head -1 || true)
+    lane_tag=$(head -1 < <(printf '%s' "$lead" | grep -oE '\[(HARD|INPUT|ROUTINE|MECHANICAL)[^]]*\]') || true)
     # Normalize for matching: lowercase, collapse runs of whitespace.
     lane_norm=$(printf '%s' "$lane_tag" | tr 'A-Z' 'a-z' | tr -s '[:space:]' ' ')
     # Auto-gate route: aliases are annotations that may sit anywhere in the item body

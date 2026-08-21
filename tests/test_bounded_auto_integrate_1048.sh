@@ -92,7 +92,7 @@ if out_b="$(RELAY_SUITE_CMD=false "$AI" --repo "$RB" --orphan-branch "relay/orph
   || fail "(b1) main must be UNCHANGED when the suite is red (no force-merge): $out_b"
 git -C "$RB" rev-parse -q --verify "relay/orphan/deadrun-2b2b" >/dev/null \
   || fail "(b1) the orphan branch must remain PARKED (intact) when integrate is refused: $out_b"
-printf '%s' "$out_b" | grep -qiE "surface|reconcile|park" \
+grep -qiE "surface|reconcile|park" < <(printf '%s' "$out_b") \
   || fail "(b1) a refused integrate must SURFACE for human /relay reconcile: $out_b"
 pass "(b1) red post-merge suite → NOT integrated; orphan left parked + surfaced"
 

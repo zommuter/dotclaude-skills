@@ -44,7 +44,7 @@ printf '# note\n\nMentions <!-- id:aaa5 -->\n'                            > "$re
 out="$("$SH" scan-ids "$repo" 2>/dev/null)"
 [[ -n "$out" ]] || fail "scan-ids produced no output for the fixture"
 
-has() { printf '%s\n' "$out" | grep -qx "$1"; }
+has() { grep -qx "$1" < <(printf '%s\n' "$out") ; }
 
 # Regression guards — the four sources that already worked must keep working.
 has aaa1 || fail "TODO.md token aaa1 missing from the collision set"
@@ -72,7 +72,7 @@ bare="$tmp/bare"
 mkdir -p "$bare"
 printf '# TODO\n\n- [ ] only file here <!-- id:bbb1 -->\n' > "$bare/TODO.md"
 out2="$("$SH" scan-ids "$bare" 2>/dev/null)"
-printf '%s\n' "$out2" | grep -qx bbb1 || fail "scan-ids failed on a repo with only TODO.md"
+grep -qx bbb1 < <(printf '%s\n' "$out2") || fail "scan-ids failed on a repo with only TODO.md"
 pass "missing ledger files are tolerated (partial repo still scans)"
 
 echo "ALL PASS"

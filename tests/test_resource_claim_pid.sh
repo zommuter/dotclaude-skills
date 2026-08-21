@@ -51,7 +51,7 @@ fi
 pass "live --pid keeps a >TTL standalone claim live (steal refused)"
 
 # peek must still emit it (live), reap must NOT drop it.
-"$CLAIM" peek | grep -q '"key":"resource:gpu"' || fail "peek dropped a live-pid claim"
+grep -q '"key":"resource:gpu"' < <("$CLAIM" peek) || fail "peek dropped a live-pid claim"
 "$CLAIM" reap 2>/dev/null || true
 [[ -f "$shard" ]] || fail "reap removed a live-pid claim"
 pass "peek emits + reap keeps a live-pid claim past TTL"

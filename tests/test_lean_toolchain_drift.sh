@@ -68,7 +68,7 @@ run_doctor() {
 }
 # Extract the "total issues surfaced: N" count from the summary line. Under --only this
 # is exactly THIS check's own contribution (0 or 1) — no other check ran.
-issue_count() { grep -oP '^total issues surfaced: \K[0-9]+' <<<"$1" | head -1; }
+issue_count() { head -1 < <(grep -oP '^total issues surfaced: \K[0-9]+' <<<"$1") ; }
 # Negative assertions use `if ! grep -q`/`if grep -q` blocks rather than `grep && {…}`:
 # under `set -e` a failing `grep -q X && {…}` AND-list would abort the script itself.
 has() { grep -q -- "$2" <<<"$1"; }

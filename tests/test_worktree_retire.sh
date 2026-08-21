@@ -61,7 +61,7 @@ set -e
 [[ -e "$WTBASE/d1" ]] || fail "dirty: worktree dir must be LEFT on disk (not force-removed)"
 [[ -f "$WTBASE/d1/realsource.py" ]] || fail "dirty: uncommitted file must be preserved"
 git -C "$REPO" show-ref --verify --quiet refs/heads/relay/d1 || fail "dirty: branch relay/d1 must be untouched"
-printf '%s' "$out" | grep -q "retire-deferred" || fail "dirty: output must surface a retire-deferred line"
+grep -q "retire-deferred" < <(printf '%s' "$out") || fail "dirty: output must surface a retire-deferred line"
 pass "dirty worktree → surfaced + left on disk, branch untouched, exit 3 ($out)"
 
 # ── 4. gitignored-only residue → removed cleanly (gitignore hygiene), exit 0 ──
@@ -89,7 +89,7 @@ set -e
 [[ $rc -eq 4 ]] || fail "expect-merged anomaly: expected exit 4, got $rc"
 git -C "$REPO" show-ref --verify --quiet refs/heads/relay/orphan/a1 && fail "expect-merged anomaly: must NOT silently park"
 git -C "$REPO" show-ref --verify --quiet refs/heads/relay/a1 || fail "expect-merged anomaly: branch must be kept as relay/a1"
-printf '%s' "$out" | grep -q "retire-anomaly" || fail "expect-merged anomaly: must surface a retire-anomaly line"
+grep -q "retire-anomaly" < <(printf '%s' "$out") || fail "expect-merged anomaly: must surface a retire-anomaly line"
 pass "--expect-merged + unmerged → loud anomaly, branch kept, exit 4 ($out)"
 
 # ── 6b. git-annex layout: worktree .git is a SYMLINK to the admin dir → still retires (id:de4a) ──
@@ -147,7 +147,7 @@ pass "single-target scope: sibling worktree+branch untouched"
 # in prose/surfaced text ("do NOT -D", "commit real work"). What remains is actual command
 # invocations; none may carry a force/destructive git verb.
 code="$(grep -vE '^[[:space:]]*#' "$SH" | grep -vE '(^[[:space:]]*(log|echo)\b|[[:space:]]*msg=)')"
-printf '%s\n' "$code" | grep -Eq -- '--force|branch[[:space:]]+-D\b|reset[[:space:]]+--hard|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?clean|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?stash' \
+grep -Eq -- '--force|branch[[:space:]]+-D\b|reset[[:space:]]+--hard|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?clean|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?stash' < <(printf '%s\n' "$code") \
   && fail "helper executes a forbidden force/destructive git verb"
 pass "helper executes no forbidden force/destructive git verb"
 

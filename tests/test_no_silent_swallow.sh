@@ -13,7 +13,7 @@ CHECK="$ROOT/tools/check-no-silent-swallow.sh"
 
 fail=0
 check() { if [ "$1" = "$2" ]; then echo "  ok  $3"; else echo "  FAIL $3 (got '$1' want '$2')"; fail=1; fi; }
-contains() { if printf '%s' "$1" | grep -qF "$2"; then echo "  ok  $3"; else echo "  FAIL $3 (missing '$2')"; fail=1; fi; }
+contains() { if grep -qF "$2" < <(printf '%s' "$1") ; then echo "  ok  $3"; else echo "  FAIL $3 (missing '$2')"; fail=1; fi; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

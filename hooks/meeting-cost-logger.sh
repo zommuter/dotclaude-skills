@@ -12,7 +12,7 @@ TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
 
 [[ -z "$SESSION_ID" ]] && exit 0
 
-JSONL=$(find "$HOME/.claude/projects" -name "${SESSION_ID}.jsonl" 2>/dev/null | head -1)
+JSONL=$(head -1 < <(find "$HOME/.claude/projects" -name "${SESSION_ID}.jsonl" 2>/dev/null) )
 [[ -z "$JSONL" ]] && exit 0
 
 TURNS=$(wc -l < "$JSONL")

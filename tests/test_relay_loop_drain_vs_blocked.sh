@@ -88,7 +88,7 @@ console.log(out.join('\n'))
 NODE
 
 node "$TMP/drive.mjs" > "$TMP/res" 2>"$TMP/err" || { echo "FAIL: driver errored:"; cat "$TMP/err"; exit 1; }
-get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2-; }
+get() { head -1 < <(grep -E "^$1=" "$TMP/res") | cut -d= -f2- ; }
 
 [[ "$(get suppressed_bucket)" == "loderite" ]] && ok "classifyDrainBacklog buckets the verbatim suppression reason as 'suppressed', not 'other'" || bad "suppression should bucket as suppressed: $(get suppressed_bucket)"
 [[ "$(get not_in_other)" == "1" ]] && ok "the suppressed repo does NOT also land in 'other'" || bad "suppressed repo leaked into other"
@@ -114,8 +114,8 @@ grep -q "function classifyDrainBacklog" "$JS" || bad "relay-loop.js missing the 
 grep -q "buckets.suppressed" "$JS" || bad "relay-loop.js inline classifyDrainBacklog copy missing the suppressed bucket"
 # Ordering: isBlockedRound must be checked BEFORE isDryRound (a surfaced>0 round must never
 # reach the dry-counter increment at all — see the "id:4ca8 — now gated on isDryRound" note).
-blocked_line=$(grep -n "if (isBlockedRound(r))" "$JS" | head -1 | cut -d: -f1)
-dry_line=$(grep -n "if (isDryRound(r))" "$JS" | head -1 | cut -d: -f1)
+blocked_line=$(head -1 < <(grep -n "if (isBlockedRound(r))" "$JS") | cut -d: -f1 )
+dry_line=$(head -1 < <(grep -n "if (isDryRound(r))" "$JS") | cut -d: -f1 )
 if [[ -n "$blocked_line" && -n "$dry_line" && "$blocked_line" -lt "$dry_line" ]]; then
   ok "isBlockedRound(r) is checked BEFORE isDryRound(r) in the outer loop"
 else

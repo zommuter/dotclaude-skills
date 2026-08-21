@@ -112,12 +112,12 @@ grep -q 'relay/scripts/integrate.sh' "$JS" || fail "relay-loop.js does not dispa
 # integrate.sh must contain NO destructive tree op in any CODE line (comments naming the
 # banned ops are the rationale, and are tolerated — this is the same check as
 # tests/test_integrate_sh_mechanized.sh).
-if grep -vE '^\s*#' "$INTEG" | grep -qE 'git .*(stash|reset --hard|checkout --|clean -[a-z])'; then
+if grep -qE 'git .*(stash|reset --hard|checkout --|clean -[a-z])' < <(grep -vE '^\s*#' "$INTEG") ; then
   fail "id:aa93: integrate.sh contains a destructive tree op in a code line"
 fi
 # relay-loop.js must never be told to clean a foreign tree to make room either.
 for verb in 'git stash' 'reset --hard' 'checkout --' 'git clean'; do
-  if grep -nF "$verb" "$JS" | grep -viq 'never\|NEVER\|must not\|MUST NOT\|do not\|do NOT'; then
+  if grep -viq 'never\|NEVER\|must not\|MUST NOT\|do not\|do NOT' < <(grep -nF "$verb" "$JS") ; then
     fail "relay-loop.js mentions '$verb' outside an explicit prohibition — risk of force-cleaning a main checkout (id:aa93)"
   fi
 done

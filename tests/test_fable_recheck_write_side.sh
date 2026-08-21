@@ -28,7 +28,7 @@ echo "Test 1: isFableRecheck covers ANY strong unit (no verdict === 'review' con
 line="$(grep -n 'isFableRecheck *=' "$JS" | head -1)"
 if [[ -z "$line" ]]; then
   fail_msg "isFableRecheck assignment not found (renamed? update this spec)"
-elif grep 'isFableRecheck *=' "$JS" | grep -q "verdict === 'review'"; then
+elif grep -q "verdict === 'review'" < <(grep 'isFableRecheck *=' "$JS") ; then
   fail_msg "isFableRecheck still conjoined with verdict === 'review' — a Fable HANDOFF queues a bogus self-recheck: $line"
 else
   ok "isFableRecheck no longer restricted to review units"

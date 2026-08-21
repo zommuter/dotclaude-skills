@@ -45,7 +45,7 @@ git -C "$work" rev-parse -q --verify "refs/tags/$tag" >/dev/null \
   || bad "the printed tag does not exist in the repo"
 
 # annotation label (model + role) is preserved verbatim in the tag message
-git -C "$work" tag -l --format='%(contents)' "$tag" | grep -qF "$label" \
+grep -qF "$label" < <(git -C "$work" tag -l --format='%(contents)' "$tag") \
   && ok "tag message preserves the model+role annotation label" \
   || bad "tag message lost the model+role annotation label"
 

@@ -76,7 +76,7 @@ pass "(2) intensive!=\"\" ∧ verdict=review → I4 VIOLATED"
 printf '{"verdict":"execute","actionable_routine_open":3,"intensive":""}' > "$UNIT"
 out="$(run)"
 grep -q 'VIOLATED' <<<"$out" && fail "(3) valid execute∧aro=3 wrongly flagged:\n$out"
-grep -A1 'verdict-invariant replay' <<<"$out" | grep -q 'OK verdict=execute' \
+grep -q 'OK verdict=execute' < <(grep -A1 'verdict-invariant replay' <<<"$out") \
   || fail "(3) valid unit not reported OK:\n$(grep -A2 verdict-invariant <<<"$out")"
 rc=0; "$SH" --strict "$FIX" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "(3) --strict must exit 0 when the unit is valid; got $rc"

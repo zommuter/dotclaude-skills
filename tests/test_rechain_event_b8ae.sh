@@ -21,25 +21,25 @@ pass() { echo "PASS: $*"; }
 #    the id:8123 chain-end-reask section), so the event is emitted exactly when a re-chain
 #    actually happens (not speculatively / unconditionally elsewhere).
 block="$(awk '/rechainedSameRepo = true/,/id:8123 — CHAIN-END/' "$JS")"
-echo "$block" | grep -q "pushEvent(" \
+grep -q "pushEvent(" < <(echo "$block") \
   || fail "(1) no pushEvent(...) call inside the rechain block (id:b8ae)"
 pass "(1) rechain block calls pushEvent"
 
 # 2. The event names the repo.
-echo "$block" | grep -Eq "pushEvent\([^)]*repo:\s*unit\.repo" \
+grep -Eq "pushEvent\([^)]*repo:\s*unit\.repo" < <(echo "$block") \
   || fail "(2) the rechain pushEvent does not name the repo (repo: unit.repo) (id:b8ae)"
 pass "(2) rechain event carries repo"
 
 # 3. The event names the RE-ENQUEUED verdict — the queue.push above always re-enqueues
 #    verdict: 'execute', so the event must say so explicitly (not just echo unit.verdict,
 #    which is the FROM side of the chain, not the re-enqueued TO side).
-echo "$block" | grep -Eq "pushEvent\([^)]*'execute'" \
+grep -Eq "pushEvent\([^)]*'execute'" < <(echo "$block") \
   || fail "(3) the rechain pushEvent does not name the re-enqueued verdict ('execute') (id:b8ae)"
 pass "(3) rechain event carries the re-enqueued verdict"
 
 # 4. The event is distinguishable as a RE-CHAIN (not a generic dispatch/verdict event) —
 #    either a dedicated event kind or an explicit chain-depth field on the payload.
-echo "$block" | grep -Eq "pushEvent\('rechain'|chainDepth" \
+grep -Eq "pushEvent\('rechain'|chainDepth" < <(echo "$block") \
   || fail "(4) the rechain pushEvent carries nothing marking it as a re-chain (kind or chainDepth) (id:b8ae)"
 pass "(4) rechain event is marked as a re-chain"
 

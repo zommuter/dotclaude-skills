@@ -73,31 +73,31 @@ fail() { echo "FAIL: $1"; echo "--- exit=$RC out ---"; echo "$OUT"; exit 1; }
 # --- --settled ------------------------------------------------------------------
 run --settled
 
-echo "$OUT" | grep -q 'id:aaaa.*SETTLED-BUT-OPEN' \
+grep -q 'id:aaaa.*SETTLED-BUT-OPEN' < <(echo "$OUT") \
   || fail "id:aaaa carries an anchored settles: edge and is OPEN — must fire SETTLED-BUT-OPEN"
 
-echo "$OUT" | grep -q 'id:bbbb' \
+grep -q 'id:bbbb' < <(echo "$OUT") \
   && fail "id:bbbb's settles: edge resolves to a CLOSED ([x]) item — must NOT fire"
 
-echo "$OUT" | grep -q 'id:cccc' \
+grep -q 'id:cccc' < <(echo "$OUT") \
   && fail "id:cccc is only a BARE id: mention under Decisions (no settles: edge, mirrors the real id:010c ground truth) — must NOT fire"
 
-echo "$OUT" | grep -q 'id:dddd\|dddd' \
+grep -q 'id:dddd\|dddd' < <(echo "$OUT") \
   && fail "id:dddd is only a backticked BARE token under Decisions (mirrors the real e647/b8fa founding note) — must NOT fire"
 
 # --- --unbackrefed ----------------------------------------------------------------
 run --unbackrefed
 
-echo "$OUT" | grep -q 'id:eeee.*UNBACKREFED' \
+grep -q 'id:eeee.*UNBACKREFED' < <(echo "$OUT") \
   || fail "id:eeee is OPEN, tagged [INPUT — decision], no decided-in: marker — must fire UNBACKREFED"
 
-echo "$OUT" | grep -q 'id:ffff' \
+grep -q 'id:ffff' < <(echo "$OUT") \
   && fail "id:ffff carries a decided-in: backref — must NOT fire"
 
-echo "$OUT" | grep -q 'id:1111' \
+grep -q 'id:1111' < <(echo "$OUT") \
   && fail "id:1111 is CLOSED ([x]) — must NOT fire even though it lacks a backref"
 
-echo "$OUT" | grep -q 'id:2222' \
+grep -q 'id:2222' < <(echo "$OUT") \
   && fail "id:2222 carries no [* — meeting]/[INPUT — decision] lane tag — must NOT fire"
 
 echo ok

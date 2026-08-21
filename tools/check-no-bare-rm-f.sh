@@ -83,11 +83,11 @@ for f in "${files[@]:-}"; do
     line="${lines[i]}"
     # Skip pure-comment lines (a `#`-leading line can't itself remove anything).
     case "${line#"${line%%[![:space:]]*}"}" in '#'*) continue ;; esac
-    if printf '%s' "$line" | grep -qE "$VIOLATION_RE"; then
+    if grep -qE "$VIOLATION_RE" < <(printf '%s' "$line") ; then
       # annotated on the same line?
-      if printf '%s' "$line" | grep -qE "$ANNOT_RE"; then continue; fi
+      if grep -qE "$ANNOT_RE" < <(printf '%s' "$line") ; then continue; fi
       # annotated on the line directly above?
-      if [ "$i" -gt 0 ] && printf '%s' "${lines[i-1]}" | grep -qE "$ANNOT_RE"; then continue; fi
+      if [ "$i" -gt 0 ] && grep -qE "$ANNOT_RE" < <(printf '%s' "${lines[i-1]}") ; then continue; fi
       total=$((total + 1))
       if [ "${#samples[@]}" -lt 15 ]; then
         samples+=("${f}:$((i + 1)): ${line#"${line%%[![:space:]]*}"}")

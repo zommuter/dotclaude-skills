@@ -62,7 +62,7 @@ pass "(1) discover-run is the mechanized CASE-B model:'bash' discover-chunk.sh d
 # header legitimately explains WHY --no-reconcile is absent, so match the exec line specifically.)
 invoke_line="$(grep -n -- '--repo "$name" --path "$path"' "$CHUNK_SH" | head -1)"
 [[ -n "$invoke_line" ]] || fail "discover-chunk.sh does not invoke discover-repo.sh per repo"
-echo "$invoke_line" | grep -q -- '--no-reconcile' \
+grep -q -- '--no-reconcile' < <(echo "$invoke_line") \
   && fail "discover-chunk.sh's discover-repo.sh invocation passes --no-reconcile — CASE B must be the LIVE path (FINDING 1)"
 grep -q -- '--live-claims "$live_claims"' "$CHUNK_SH" || fail "discover-chunk.sh does not thread --live-claims (in-flight worktree protection lost)"
 grep -Eq "NO --no-reconcile|LIVE reconcile" "$CHUNK_SH" || fail "discover-chunk.sh does not document the LIVE reconcile contract (FINDING 1)"

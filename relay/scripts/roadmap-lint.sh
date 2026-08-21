@@ -574,20 +574,20 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
     # second live lane, and must not trip the conflict either.
     _bare="$(leading_lane_run "$(printf '%s' "$line" | sed -E 's/`[^`]*`//g')")"
     _lc=0; _lf=()
-    echo "$_bare" | grep -qF '[ROUTINE]' && { _lc=$((_lc+1)); _lf+=('[ROUTINE]'); }
-    echo "$_bare" | grep -qF '[MECHANICAL]' && { _lc=$((_lc+1)); _lf+=('[MECHANICAL]'); }
+    grep -qF '[ROUTINE]' < <(echo "$_bare") && { _lc=$((_lc+1)); _lf+=('[ROUTINE]'); }
+    grep -qF '[MECHANICAL]' < <(echo "$_bare") && { _lc=$((_lc+1)); _lf+=('[MECHANICAL]'); }
     # Bare new-vocab [HARD] (id:4f02) — counted separately from the old `[HARD — *]`
     # spellings below so an item carrying BOTH (e.g. `[HARD — pool]` + `[HARD]`) is
     # correctly flagged as a two-lane conflict, never silently merged into one.
-    echo "$_bare" | grep -qF '[HARD]' && { _lc=$((_lc+1)); _lf+=('[HARD]'); }
+    grep -qF '[HARD]' < <(echo "$_bare") && { _lc=$((_lc+1)); _lf+=('[HARD]'); }
     while IFS= read -r _hl; do
       [[ -z "$_hl" ]] && continue
-      echo "$_bare" | grep -qF "$_hl" && { _lc=$((_lc+1)); _lf+=("$_hl"); }
+      grep -qF "$_hl" < <(echo "$_bare") && { _lc=$((_lc+1)); _lf+=("$_hl"); }
     done <<< "$hard_lanes"
     # New-vocab [INPUT — <kind>] lanes (id:4f02 dual-vocab window) count the same way.
     while IFS= read -r _il; do
       [[ -z "$_il" ]] && continue
-      echo "$_bare" | grep -qF "$_il" && { _lc=$((_lc+1)); _lf+=("$_il"); }
+      grep -qF "$_il" < <(echo "$_bare") && { _lc=$((_lc+1)); _lf+=("$_il"); }
     done <<< "$input_lanes"
     if [[ "$_lc" -gt 1 ]]; then
       violations=$((violations + 1))
@@ -775,12 +775,12 @@ PY
     dispatch="$(grep -P "label:\s*[\`'\"]${esc}" "$loop_js" | head -1 || true)"
     [[ -n "$dispatch" ]] || continue   # no matching dispatch found — nothing to compare
     if [[ "$kind" == "haiku" ]]; then
-      if printf '%s' "$dispatch" | grep -qP "model:\s*'bash'"; then
+      if grep -qP "model:\s*'bash'" < <(printf '%s' "$dispatch") ; then
         violations=$((violations + 1))
         echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: hop '${hop}' is listed as MUST-STAY \`model:'haiku'\` but relay-loop.js dispatches it as model:'bash' — the ROADMAP scope table is STALE: ${dispatch}" >&2
       fi
     else
-      if printf '%s' "$dispatch" | grep -qP "model:\s*'haiku'"; then
+      if grep -qP "model:\s*'haiku'" < <(printf '%s' "$dispatch") ; then
         violations=$((violations + 1))
         echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: hop '${hop}' is listed as CONVERTIBLE (\`model:'bash'\`) but relay-loop.js dispatches it as model:'haiku' — the ROADMAP scope table is STALE: ${dispatch}" >&2
       fi

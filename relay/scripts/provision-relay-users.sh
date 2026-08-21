@@ -58,7 +58,7 @@ for u in "${SERVICE_USERS[@]}"; do
 
   # gitconfig safe.directory=* for the service user (D2 / Sven gotcha). Idempotent:
   # --get-all first so re-runs do not append duplicates.
-  if sudo_a -u "$u" git config --global --get-all safe.directory 2>/dev/null | grep -qx '\*'; then
+  if grep -qx '\*' < <(sudo_a -u "$u" git config --global --get-all safe.directory 2>/dev/null) ; then
     log "  $u gitconfig safe.directory=* already set"
   else
     sudo_a -u "$u" git config --global --add safe.directory '*'
@@ -66,7 +66,7 @@ for u in "${SERVICE_USERS[@]}"; do
   fi
 
   # Enable linger so `systemctl --user` units (id:8e7a) run without an active login.
-  if loginctl show-user "$u" 2>/dev/null | grep -qx 'Linger=yes'; then
+  if grep -qx 'Linger=yes' < <(loginctl show-user "$u" 2>/dev/null) ; then
     log "  $u linger already enabled"
   else
     sudo_a loginctl enable-linger "$u"

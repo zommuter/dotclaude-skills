@@ -81,9 +81,9 @@ pass "(2c) per-run progress heading demoted; statusline awk anchors preserved"
 # ── (3) A republish replaces ONLY its own section and leaves the other run's untouched. ──
 body run-AAA 9 9 9 | "$PUB" --path "$STATUS" --run run-AAA --events-path "$EVENTS" >/dev/null
 [[ "$(sections)" == "2" ]] || fail "(3) republish must not drop the other run's section"
-sed -n '/<!-- relay-run:run-AAA -->/,/<!-- \/relay-run:run-AAA -->/p' "$STATUS" | grep -q -- '- in-flight=9' \
+grep -q -- '- in-flight=9' < <(sed -n '/<!-- relay-run:run-AAA -->/,/<!-- \/relay-run:run-AAA -->/p' "$STATUS") \
   || fail "(3) run-AAA's own section was not refreshed"
-sed -n '/<!-- relay-run:run-BBB -->/,/<!-- \/relay-run:run-BBB -->/p' "$STATUS" | grep -q -- '- in-flight=2' \
+grep -q -- '- in-flight=2' < <(sed -n '/<!-- relay-run:run-BBB -->/,/<!-- \/relay-run:run-BBB -->/p' "$STATUS") \
   || fail "(3) run-BBB's section must be carried forward VERBATIM, not re-rendered from AAA's state"
 pass "(3) republish refreshes only the publishing run's section"
 

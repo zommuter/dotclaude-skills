@@ -59,7 +59,7 @@ for label in "release:" "write-relay-status" "gaming-log"; do
   hit="$(grep -nE "(dispatchGuarded|agentGuarded|safeAgent)\(" "$JS" \
         | grep -v "^[0-9]*: *//" \
         | while IFS=: read -r ln _; do
-            sed -n "${ln},$((ln+4))p" "$JS" | grep -q "${label}" && echo "$ln"
+            grep -q "${label}" < <(sed -n "${ln},$((ln+4))p" "$JS") && echo "$ln"
           done | head -1 || true)"
   [[ -n "$hit" ]] \
     || fail "the '${label}' hop does not go through the guarded dispatcher on a real (non-comment) call line — its failures stay invisible (this class stranded leases / staled RELAY_STATUS in run relay-20260812-001727-5554)"

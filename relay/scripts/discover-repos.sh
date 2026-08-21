@@ -35,7 +35,7 @@ OWN_REMOTE_RE='(fievel(\.local)?[:/]|github\.com[:/ ]*[Zz]ommuter/)'
 
 # --- repo list -------------------------------------------------------------
 repo_paths() {
-  if [[ -f "$STATE_JSON" ]] && find "$STATE_JSON" -mmin -1440 | grep -q .; then
+  if [[ -f "$STATE_JSON" ]] && grep -q . < <(find "$STATE_JSON" -mmin -1440) ; then
     python3 -c '
 import json, sys
 for v in json.load(open(sys.argv[1])).values():
@@ -83,7 +83,7 @@ classify() {
     remotes="$(git -C "$path" remote -v 2>/dev/null || true)"
     if [[ -n "$remotes" ]]; then
       if grep -qiE "$OWN_REMOTE_RE" <<<"$remotes"; then
-        if grep -viE "$OWN_REMOTE_RE" <<<"$remotes" | grep -q .; then
+        if grep -q . < <(grep -viE "$OWN_REMOTE_RE" <<<"$remotes") ; then
           cls=needs_review   # own fork/mirror + foreign upstream
         else
           cls=own

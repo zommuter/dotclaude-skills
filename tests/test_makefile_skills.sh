@@ -39,7 +39,7 @@ grep -q 'relay'    <<<"$help_out" || { echo "make help does not list relay"; exi
 grep -q 'projects' <<<"$help_out" || { echo "make help does not list projects"; exit 1; }
 
 # status target handles nested paths
-make -C "$ROOT" -s DEST_DIR="$DEST" status-relay | grep -q 'references/handoff.md' \
+grep -q 'references/handoff.md' < <(make -C "$ROOT" -s DEST_DIR="$DEST" status-relay) \
   || { echo "status-relay does not report nested files"; exit 1; }
 
 # uninstall removes the symlinks (and only symlinks)

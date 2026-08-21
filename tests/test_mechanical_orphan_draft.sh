@@ -48,11 +48,11 @@ REPOARG="repoX=$TMP/repoX"
 
 # --- scanner: orphans before drafting ------------------------------------------------
 before="$("$SCAN" "$REPOARG")"
-echo "$before" | grep -qP '^orphan\tac14\trepoX\tzomni\tr5-jvm\t' && ok "scanner reports ac14 orphan with host+resource extracted" || bad "ac14 orphan/tags wrong: $before"
-echo "$before" | grep -qP '^orphan\tcafe\trepoX\t-\t-\t'           && ok "scanner reports cafe orphan with '-' host/resource placeholders" || bad "cafe orphan row wrong: $before"
-echo "$before" | grep -q 'beef' && bad "beef (has a real recipe) must NOT surface" || ok "item with a real recipe is excluded"
-echo "$before" | grep -q 'dead' && bad "closed [x] item must NOT surface" || ok "closed item excluded"
-echo "$before" | grep -q '0001' && bad "non-[MECHANICAL] item must NOT surface" || ok "non-mechanical item excluded"
+grep -qP '^orphan\tac14\trepoX\tzomni\tr5-jvm\t' < <(echo "$before") && ok "scanner reports ac14 orphan with host+resource extracted" || bad "ac14 orphan/tags wrong: $before"
+grep -qP '^orphan\tcafe\trepoX\t-\t-\t' < <(echo "$before") && ok "scanner reports cafe orphan with '-' host/resource placeholders" || bad "cafe orphan row wrong: $before"
+grep -q 'beef' < <(echo "$before") && bad "beef (has a real recipe) must NOT surface" || ok "item with a real recipe is excluded"
+grep -q 'dead' < <(echo "$before") && bad "closed [x] item must NOT surface" || ok "closed item excluded"
+grep -q '0001' < <(echo "$before") && bad "non-[MECHANICAL] item must NOT surface" || ok "non-mechanical item excluded"
 
 # --- (a) auto-draft: writes to drafts/, NOT pending/ ---------------------------------
 "$DRAFT" "$REPOARG" >/dev/null
@@ -94,8 +94,8 @@ python3 -c "import json;d=json.load(open('$RELAY_RECIPE_DIR/drafts/ac14.json'));
 grep -q 'HAND-EDITED' "$RELAY_RECIPE_DIR/drafts/ac14.json" && ok "idempotent: existing draft NOT overwritten on re-run" || bad "re-run clobbered an existing draft"
 
 after="$("$SCAN" "$REPOARG")"
-echo "$after" | grep -qP '^draft\tac14\trepoX\t' && ok "after drafting, ac14 reports as an un-promoted DRAFT (not orphan)" || bad "ac14 should be a draft now: $after"
-echo "$after" | grep -qP '^orphan\t' && bad "no orphans should remain after drafting all" || ok "all orphans became drafts"
+grep -qP '^draft\tac14\trepoX\t' < <(echo "$after") && ok "after drafting, ac14 reports as an un-promoted DRAFT (not orphan)" || bad "ac14 should be a draft now: $after"
+grep -qP '^orphan\t' < <(echo "$after") && bad "no orphans should remain after drafting all" || ok "all orphans became drafts"
 
 # --- (b) surfacing: gather-human-backlog rows ---------------------------------------
 # gather-human-backlog takes repo NAMES (resolved via relay.toml), not name=path; give it a toml.
@@ -105,11 +105,11 @@ classification = "own"
 # path: $TMP/repoX
 EOF
 gh_out="$(SRC_DIR="$TMP" RELAY_TOML="$TMP/relay.toml" "$GATHER" repoX 2>/dev/null || true)"
-echo "$gh_out" | grep -qP '\tmechanical_draft\t' && ok "gather-human-backlog surfaces mechanical_draft rows" || bad "gather missing mechanical_draft: $gh_out"
+grep -qP '\tmechanical_draft\t' < <(echo "$gh_out") && ok "gather-human-backlog surfaces mechanical_draft rows" || bad "gather missing mechanical_draft: $gh_out"
 # reset drafts to force an orphan for the orphan-row assertion
 rm -f "$RELAY_RECIPE_DIR/drafts/"*.json
 gh_orph="$(SRC_DIR="$TMP" RELAY_TOML="$TMP/relay.toml" "$GATHER" repoX 2>/dev/null || true)"
-echo "$gh_orph" | grep -qP '\tmechanical_orphan\t' && ok "gather-human-backlog surfaces mechanical_orphan rows" || bad "gather missing mechanical_orphan: $gh_orph"
+grep -qP '\tmechanical_orphan\t' < <(echo "$gh_orph") && ok "gather-human-backlog surfaces mechanical_orphan rows" || bad "gather missing mechanical_orphan: $gh_orph"
 
 # --- (b) surfacing: relay-status-publish "## Mechanical orphans / drafts" section ----
 status_out="$(printf 'BODY\n' | RELAY_TOML="$TMP/relay.toml" SRC_DIR="$TMP" HOME="$TMP" \

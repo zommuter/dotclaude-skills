@@ -578,7 +578,7 @@ if [[ -n "$roadmap" ]]; then
       *'blocked on'*|*'blocked ('*|*'blocked:'*|*'blocked —'*) continue ;;
     esac
     # A recurring-audit item with nothing new to audit must NOT count.
-    if printf '%s' "$line" | grep -q 'relay:recurring-audit' \
+    if grep -q 'relay:recurring-audit' < <(printf '%s' "$line") \
        && [[ "$substantive_unaudited" == false ]]; then
       continue
     fi

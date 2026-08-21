@@ -57,7 +57,7 @@ rm -f "$IA/standalone.sh"                                                # drift
 if out="$("$GUARD" --canonical "$CA" --installed "$IA" 2>&1)"; then
   bad "(a) direct: a canonical script with no installed symlink must exit non-zero (drift)"
 else
-  echo "$out" | grep -qF 'standalone.sh' \
+  grep -qF 'standalone.sh' < <(echo "$out") \
     && ok "(a) direct: uninstalled canonical script → non-zero + names standalone.sh" \
     || bad "(a) direct: exited non-zero but did not name the missing standalone.sh (got: $out)"
 fi
@@ -81,7 +81,7 @@ rm -f "$IB/lib-state-claim.sh"                    # drift: the SOURCE target is 
 if out="$("$GUARD" --canonical "$CB" --installed "$IB" 2>&1)"; then
   bad "(b) source: an installed script whose source-target is not installed must exit non-zero (routed:35eb)"
 else
-  echo "$out" | grep -qF 'lib-state-claim.sh' \
+  grep -qF 'lib-state-claim.sh' < <(echo "$out") \
     && ok "(b) source: uninstalled source-target → non-zero + names lib-state-claim.sh" \
     || bad "(b) source: exited non-zero but did not name the missing source-target lib-state-claim.sh (got: $out)"
 fi
@@ -105,7 +105,7 @@ link_all "$CD" "$ID"                              # only a.sh is canonical → b
 if out="$("$GUARD" --canonical "$CD" --installed "$ID" 2>&1)"; then
   bad "(d) source-only: direct enumeration is green but a dangling source-target must still be drift"
 else
-  echo "$out" | grep -qF 'helper.sh' \
+  grep -qF 'helper.sh' < <(echo "$out") \
     && ok "(d) source-only: unresolved source-target with green enumeration → non-zero + names helper.sh" \
     || bad "(d) source-only: exited non-zero but did not name the missing source-target helper.sh (got: $out)"
 fi

@@ -397,7 +397,7 @@ if intensive and verdict not in ("execute", "hard"):
 disp = intensive if intensive else "-"
 print("\n".join(issues) if issues else "OK verdict=" + verdict + " actionable_routine_open=" + str(aro) + " intensive=" + disp)
 ' 2>>"$LOG" || echo "ERR — could not parse unit")"
-      if printf '%s' "$v10" | grep -q 'VIOLATED'; then
+      if grep -q 'VIOLATED' < <(printf '%s' "$v10") ; then
         printf '%s\n' "$v10"
         local n10; n10="$(printf '%s\n' "$v10" | grep -c 'VIOLATED' || true)"
         repo_issues=$((repo_issues + n10))

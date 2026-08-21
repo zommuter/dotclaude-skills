@@ -65,7 +65,7 @@ trap 'rm -rf "$TMP"' EXIT
 # still caught below.
 loop_release_is_bash=0
 release_dispatch="$(grep -E "label: *\`release:" "$LOOP" | head -1 || true)"
-printf '%s\n' "$release_dispatch" | grep -qE "model: *('bash'|MECH_MODEL)" && loop_release_is_bash=1
+grep -qE "model: *('bash'|MECH_MODEL)" < <(printf '%s\n' "$release_dispatch") && loop_release_is_bash=1
 
 # The ROADMAP side: the OUT-of-scope MUST-STAY-haiku bullet in the id:6b35 block.
 outbullet="$(grep -F 'OUT of scope' "$ROADMAP" | grep -F "MUST STAY \`model:'haiku'\`" || true)"
@@ -73,7 +73,7 @@ outbullet="$(grep -F 'OUT of scope' "$ROADMAP" | grep -F "MUST STAY \`model:'hai
   || fail "(1) could not locate the id:6b35 \"OUT of scope … MUST STAY model:'haiku'\" bullet in ROADMAP.md — if it was renamed, this spec and the lint rule must be re-anchored, not deleted"
 
 roadmap_says_release_haiku=0
-printf '%s\n' "$outbullet" | grep -qF '`release:`' && roadmap_says_release_haiku=1
+grep -qF '`release:`' < <(printf '%s\n' "$outbullet") && roadmap_says_release_haiku=1
 
 if (( loop_release_is_bash == 1 && roadmap_says_release_haiku == 1 )); then
   fail "(1) LIVE CONTRADICTION: relay-loop.js dispatches a 'release:' label mechanically (model:'bash'/MECH_MODEL, id:f7d3) while the id:6b35 OUT-of-scope bullet still lists \`release:\` as MUST STAY model:'haiku'"
@@ -119,7 +119,7 @@ if out="$("$LINT" "$TMP/ok/ROADMAP.md" 2>&1)"; then :; else
   fail "(2) a CONSISTENT scope table must lint clean (exit 0); got:
 $out"
 fi
-printf '%s\n' "$out" | grep -q 'SCOPE-TABLE-DRIFT' \
+grep -q 'SCOPE-TABLE-DRIFT' < <(printf '%s\n' "$out") \
   && fail "(2) the rule fired on a CONSISTENT fixture (false positive):
 $out"
 pass "(2) a consistent scope table lints clean and emits no SCOPE-TABLE-DRIFT"
@@ -133,10 +133,10 @@ if out="$("$LINT" "$TMP/badA/ROADMAP.md" 2>&1)"; then
   fail "(3) lint exited 0 on table-says-haiku/code-says-bash — the drift must be a hard non-zero, not a --strict WARN. Output:
 $out"
 fi
-printf '%s\n' "$out" | grep -q 'SCOPE-TABLE-DRIFT' \
+grep -q 'SCOPE-TABLE-DRIFT' < <(printf '%s\n' "$out") \
   || fail "(3) violation output does not contain the token SCOPE-TABLE-DRIFT:
 $out"
-printf '%s\n' "$out" | grep -q 'release:' \
+grep -q 'release:' < <(printf '%s\n' "$out") \
   || fail "(3) violation output does not name the offending hop 'release:':
 $out"
 pass "(3) table-says-MUST-STAY-haiku + code-says-bash ⇒ non-zero, names the hop"
@@ -150,10 +150,10 @@ if out="$("$LINT" "$TMP/badB/ROADMAP.md" 2>&1)"; then
   fail "(4) lint exited 0 on table-says-convertible/code-says-haiku. Output:
 $out"
 fi
-printf '%s\n' "$out" | grep -q 'SCOPE-TABLE-DRIFT' \
+grep -q 'SCOPE-TABLE-DRIFT' < <(printf '%s\n' "$out") \
   || fail "(4) violation output does not contain SCOPE-TABLE-DRIFT:
 $out"
-printf '%s\n' "$out" | grep -q 'file-surface' \
+grep -q 'file-surface' < <(printf '%s\n' "$out") \
   || fail "(4) violation output does not name the offending hop 'file-surface':
 $out"
 pass "(4) table-says-convertible + code-says-haiku ⇒ non-zero, names the hop"
@@ -167,7 +167,7 @@ if out="$("$LINT" "$TMP/parsed/ROADMAP.md" 2>&1)"; then
   fail "(5) lint exited 0 on an INVENTED hop name — the hop list is hardcoded, not parsed from the ROADMAP. Output:
 $out"
 fi
-printf '%s\n' "$out" | grep -q 'zzz-invented-hop' \
+grep -q 'zzz-invented-hop' < <(printf '%s\n' "$out") \
   || fail "(5) the invented hop name is absent from the violation output — hop names are not parsed from the ROADMAP:
 $out"
 pass "(5) hop names are parsed from the ROADMAP table, not hardcoded"
@@ -176,7 +176,7 @@ pass "(5) hop names are parsed from the ROADMAP table, not hardcoded"
 mkfixture "$TMP/noloop" '`release:`' "$CONSISTENT_ROWS" "// unused"
 rm -- "$TMP/noloop/relay/scripts/relay-loop.js"
 out="$("$LINT" "$TMP/noloop/ROADMAP.md" 2>&1)" || true
-printf '%s\n' "$out" | grep -qiE 'relay-loop\.js.*(not found|missing|skip)' \
+grep -qiE 'relay-loop\.js.*(not found|missing|skip)' < <(printf '%s\n' "$out") \
   || fail "(6) a missing relay-loop.js was skipped SILENTLY — it must say so (no-silent-swallow):
 $out"
 pass "(6) an absent relay-loop.js is skipped loudly, with a message"

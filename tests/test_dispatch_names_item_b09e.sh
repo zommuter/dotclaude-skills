@@ -160,7 +160,7 @@ tmpl="$(grep -n 'executeNamedInstruction(unit)' "$LOOP" | grep -v '^\s*//' || tr
   || note "(8) executeNamedInstruction is never CALLED — the naming feature is defined but unwired; the dispatch template still emits the plural instruction"
 
 # It must be called from the execute branch of the dispatch template, not some dead helper.
-awk "/verdict === 'execute'/{print}" "$LOOP" | grep -q 'executeNamedInstruction' \
+grep -q 'executeNamedInstruction' < <(awk "/verdict === 'execute'/{print}" "$LOOP") \
   || note "(8) executeNamedInstruction is not called from the execute-verdict dispatch line — naming cannot reach a child"
 
 # ── (9) ORPHAN-SUPPRESS must subtract — a named item must never be one the reason forbids. ──

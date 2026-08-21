@@ -92,12 +92,12 @@ oa="$("$DR" --repo r_orphan_heavy --path "$RA" --runid myrun123 --live-claims ""
 [[ "$(printf '%s' "$oa" | uverdict)" == "execute" ]] \
   || fail "(A) surviving unit verdict != execute: $oa"
 # the orphan notification is preserved (surfaced alongside, carrying the parked item's id)
-printf '%s' "$oa" | surf_join | grep -q "id:bbbb" \
+grep -q "id:bbbb" < <(printf '%s' "$oa" | surf_join) \
   || fail "(A) parked item's suppress line must still be SURFACED (additive notification), reason missing id:bbbb: $oa"
 # ENFORCEMENT (A4-ii): item-scoping reaches the executor via unit.reason
-printf '%s' "$oa" | ureason | grep -q "id:bbbb" \
+grep -q "id:bbbb" < <(printf '%s' "$oa" | ureason) \
   || fail "(A/A4-ii) emitted unit.reason must NAME the parked item (id:bbbb) for item-scoped executor guidance: reason=[$(printf '%s' "$oa" | ureason)]"
-printf '%s' "$oa" | ureason | grep -qi "reconcile" \
+grep -qi "reconcile" < <(printf '%s' "$oa" | ureason) \
   || fail "(A/A4-ii) emitted unit.reason must carry the 'reconcile-first, do NOT work id:X' note: reason=[$(printf '%s' "$oa" | ureason)]"
 pass "(A) different-item orphan is ADDITIVE — execute unit emitted + suppress surfaced + reconcile-first note injected into unit.reason"
 
@@ -117,7 +117,7 @@ echo l > "$RB/fl"; git -C "$RB" add fl; git -C "$RB" commit -qm lside; git -C "$
 ob="$("$DR" --repo r_div --path "$RB" --runid myrun123 --live-claims "" --main-branch main)"
 [[ "$(printf '%s' "$ob" | ncount units)" == "0" ]] \
   || fail "(B) a diverged (repo-level) surface must stay SUBSTITUTIVE — units must be 0: $ob"
-printf '%s' "$ob" | surf_join | grep -qi diverged \
+grep -qi diverged < <(printf '%s' "$ob" | surf_join) \
   || fail "(B) diverged repo must surface the diverged reason: $ob"
 pass "(B) diverged (repo-level) surface stays substitutive — units:[]"
 
@@ -136,7 +136,7 @@ mkdir -p "$RELAY_WORKTREE_BASE/r_inflight/otherrun-wt1"
 oc="$("$DR" --repo r_inflight --path "$RC" --runid myrun123 --live-claims "r_inflight" --main-branch main)"
 [[ "$(printf '%s' "$oc" | ncount units)" == "0" ]] \
   || fail "(C) in-flight/live-claimed repo must stay SUBSTITUTIVE (dc5b collision guard) — units must be 0 despite an executable item: $oc"
-printf '%s' "$oc" | surf_join | grep -qi "in-flight" \
+grep -qi "in-flight" < <(printf '%s' "$oc" | surf_join) \
   || fail "(C) in-flight repo must surface the in-flight-elsewhere reason: $oc"
 pass "(C) in-flight/live-claimed repo stays substitutive — units:[] (dc5b cross-run collision guard)"
 
@@ -156,7 +156,7 @@ git -C "$RD" reset -q --hard HEAD~1
 od="$("$DR" --repo r_same --path "$RD" --runid myrun123 --live-claims "" --main-branch main)"
 [[ "$(printf '%s' "$od" | ncount units)" == "0" ]] \
   || fail "(D) same-item orphan must NOT emit a duplicate execute unit for id:dddd — units must be 0 (reconcile-first): $od"
-printf '%s' "$od" | surf_join | grep -q "id:dddd" \
+grep -q "id:dddd" < <(printf '%s' "$od" | surf_join) \
   || fail "(D) same-item repo must surface the reconcile-first suppress line naming id:dddd: $od"
 pass "(D) same-item-only orphan → reconcile-first, no duplicate execute unit (integrate half gated on id:1048)"
 
@@ -179,7 +179,7 @@ oe="$("$DR" --repo r_ambig --path "$RE" --runid myrun123 --live-claims "" --main
   || fail "(E) ambiguous-binding orphan must be ADDITIVE (A3) — the independent execute unit is still expected, got units=$(printf '%s' "$oe" | ncount units): $oe"
 [[ "$(printf '%s' "$oe" | uverdict)" == "execute" ]] \
   || fail "(E) surviving unit verdict != execute: $oe"
-printf '%s' "$oe" | surf_join | grep -qi "ambiguous" \
+grep -qi "ambiguous" < <(printf '%s' "$oe" | surf_join) \
   || fail "(E) ambiguous orphan must still be SURFACED (additive) with its no-binding reason: $oe"
 pass "(E) ambiguous-binding orphan is ADDITIVE — execute unit still emitted + surfaced (A3)"
 

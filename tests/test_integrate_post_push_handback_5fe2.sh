@@ -139,7 +139,7 @@ MERGED_SHA_WIRE="$(sed -n 's/^merged=//p' "$ERRF" | tail -n1)"
 # top of it), so pin it as a real ancestor of main HEAD carrying the merge subject.
 git -C "$MAIN_PATH" merge-base --is-ancestor "$MERGED_SHA_WIRE" HEAD \
   || fail "(B) merged= on the wire ($MERGED_SHA_WIRE) is not an ancestor of main HEAD"
-git -C "$MAIN_PATH" log -1 --format=%s "$MERGED_SHA_WIRE" | grep -q 'merge(relay): test close id:test' \
+grep -q 'merge(relay): test close id:test' < <(git -C "$MAIN_PATH" log -1 --format=%s "$MERGED_SHA_WIRE") \
   || fail "(B) merged= on the wire is not the --no-ff merge commit"
 # ACCEPTANCE 6: the recorded checkpoint must not silently disagree with the remote.
 CKPT="$(git -C "$MAIN_PATH" tag -l 'relay-ckpt-*' | tail -n1)"

@@ -33,10 +33,10 @@ out="$("$CE" edges.json "$tmp")" || { echo "FAIL: consumer-enum must exit 0 as a
 n="$(printf '%s\n' "$out" | grep -c . || true)"
 [[ "$n" -eq 3 ]] || { echo "FAIL: expected 3 readers of edges.json, listed $n:"; printf '%s\n' "$out"; exit 1; }
 for want in reader1.sh reader2.py doc.md; do
-  printf '%s\n' "$out" | grep -q "$want" || { echo "FAIL: reader '$want' missing from the enumeration"; exit 1; }
+  grep -q "$want" < <(printf '%s\n' "$out") || { echo "FAIL: reader '$want' missing from the enumeration"; exit 1; }
 done
-printf '%s\n' "$out" | grep -q 'unrelated.txt' && { echo "FAIL: non-reader unrelated.txt must NOT be listed"; exit 1; }
-printf '%s\n' "$out" | grep -q '\.git/' && { echo "FAIL: .git contents must be excluded"; exit 1; }
+grep -q 'unrelated.txt' < <(printf '%s\n' "$out") && { echo "FAIL: non-reader unrelated.txt must NOT be listed"; exit 1; }
+grep -q '\.git/' < <(printf '%s\n' "$out") && { echo "FAIL: .git contents must be excluded"; exit 1; }
 
 # --- aid-not-gate: a nonexistent artifact lists nothing and STILL exits 0 -----------------
 out2="$("$CE" no_such_artifact_xyz.json "$tmp")" || { echo "FAIL: nonexistent artifact must still exit 0 (aid, not gate)"; exit 1; }

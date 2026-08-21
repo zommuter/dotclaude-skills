@@ -147,7 +147,7 @@ grep -q 'WARN — DEAD-GATE' "$b/err" \
 grep -q 'DEAD-GATE.*id:e001' "$b/err" || fail "e001 (TODO-only target) must fire (err: $(cat "$b/err"))"
 grep -q 'DEAD-GATE.*id:e004.*d0ff' "$b/err" || fail "e004 (target exists nowhere) must fire and name d0ff (err: $(cat "$b/err"))"
 grep -q 'DEAD-GATE.*id:e005.*d002' "$b/err" || fail "e005 (CSV gate with an archived member) must fire naming d002 (err: $(cat "$b/err"))"
-if grep 'DEAD-GATE.*id:e005' "$b/err" | grep -q 'd003'; then
+if grep -q 'd003' < <(grep 'DEAD-GATE.*id:e005' "$b/err") ; then
   fail "e005 must name ONLY the dead target d002, not the healthy d003 (err: $(cat "$b/err"))"
 fi
 

@@ -58,9 +58,9 @@ export CLAIM_LOG="$tmp/claim.log"
 pass "id:11c6: first autonomous pool acquires the singleton"
 
 # peek names the holder.
-"$CLAIM" peek | grep -q '"key":"pool:autonomous"' \
+grep -q '"key":"pool:autonomous"' < <("$CLAIM" peek) \
   || fail "id:11c6: peek does not surface the live pool:autonomous claim (holder name)"
-"$CLAIM" peek | grep -q 'relay-pool-AAAA' \
+grep -q 'relay-pool-AAAA' < <("$CLAIM" peek) \
   || fail "id:11c6: peek does not name the holder run id"
 pass "id:11c6: peek names the live autonomous-pool holder"
 

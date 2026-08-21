@@ -37,7 +37,7 @@ grep -q "is_live_claimed" "$RECONCILE" || fail "reconcile-repo.sh does not key t
 grep -q "merge-base --is-ancestor" "$RECONCILE" || fail "reconcile-repo.sh does not test ancestor-of-main (empty) before reaping"
 grep -Eq "worktree-retire\.sh" "$RECONCILE" || fail "reconcile-repo.sh does not reap via the force-free worktree-retire.sh (id:373e)"
 # strip full-line comments so the explanatory "NO --force" comment isn't a false positive
-grep -vE '^[[:space:]]*#' "$RECONCILE" | grep -Eq "worktree remove --force" && fail "reconcile-repo.sh still force-removes worktrees — must be force-free (id:373e)"
+grep -Eq "worktree remove --force" < <(grep -vE '^[[:space:]]*#' "$RECONCILE") && fail "reconcile-repo.sh still force-removes worktrees — must be force-free (id:373e)"
 
 # (4) commit-bearing stale worktree is NEVER reaped — parked (id:689c) and surfaced, not lost.
 grep -Eqi "park|parked" "$RECONCILE" \

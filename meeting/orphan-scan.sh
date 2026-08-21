@@ -200,7 +200,7 @@ elif [[ "$mode" == "promotion" ]]; then
   roadmap_content="$(cat "$ROOT/ROADMAP.md" "$ROOT/ROADMAP.archive.md" 2>/dev/null || true)"
   while IFS= read -r l; do
     # Executable lane tag: [ROUTINE] or [HARD — pool]
-    echo "$l" | grep -qE '\[ROUTINE\]|\[HARD — pool\]' || continue
+    grep -qE '\[ROUTINE\]|\[HARD — pool\]' < <(echo "$l") || continue
     token="$(echo "$l" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)"
     [[ -z "$token" ]] && continue
     id_lines=$((id_lines+1))
@@ -293,7 +293,7 @@ elif [[ "$mode" == "shipped" ]]; then
     # The full line stays in the file; the id: token is the handle for looking it up.
     short_text() {
       local t="$1" title
-      title=$(grep -oP '(?<=\*\*).*?(?=\*\*)' <<<"$t" | head -1 || true)
+      title=$(head -1 < <(grep -oP '(?<=\*\*).*?(?=\*\*)' <<<"$t") || true)
       if [[ -z "$title" ]]; then
         title=$(sed -E 's/^[[:space:]]*- \[[ x]\] //; s/<!--.*$//' <<<"$t")
       fi
@@ -402,13 +402,13 @@ elif [[ "$mode" == "shipped" ]]; then
       output_lines+=("id:$token — UNMARKED-GATE (gate vocabulary present, no gated-on: marker) — add a typed gated-on: edge or confirm the gate. $(short_text "$text")")
     fi
 
-    if echo "$text" | grep -qiE "$wait_re"; then
+    if grep -qiE "$wait_re" < <(echo "$text") ; then
       # EXTERNAL-WAIT clause: legitimately open — suppress from both classes.
       continue
-    elif echo "$text" | grep -qiE "$completion_re"; then
+    elif grep -qiE "$completion_re" < <(echo "$text") ; then
       # GATE-STALE candidate: the completion clause may have lapsed — check line age.
-      commit_epoch=$(git -C "$ROOT" blame -L "${lineno},${lineno}" --porcelain -- TODO.md 2>/dev/null \
-        | grep -m1 '^author-time ' | awk '{print $2}' || true)
+      commit_epoch=$(awk '/^author-time /{print $2; exit}' \
+        < <(git -C "$ROOT" blame -L "${lineno},${lineno}" --porcelain -- TODO.md 2>/dev/null) || true)
       [[ -z "$commit_epoch" ]] && continue
       age_days=$(( (now_epoch - commit_epoch) / 86400 ))
       if (( age_days >= age_days_threshold )); then
@@ -421,7 +421,7 @@ elif [[ "$mode" == "shipped" ]]; then
       # inline `tests/test_*.sh` path mention is NOT trusted — a multi-part/umbrella
       # item routinely cites a sub-part's test in prose, which produced false
       # "ready to tick" hits on live items (id:401c/af30) when dogfooded 2026-07-07.
-      match=$(grep -rlE "# roadmap:$token([^0-9a-f]|\$)" "$ROOT/tests" 2>/dev/null | head -1 || true)
+      match=$(head -1 < <(grep -rlE "# roadmap:$token([^0-9a-f]|\$)" "$ROOT/tests" 2>/dev/null) || true)
       [[ -z "$match" ]] && continue
       test_rel="${match#"$ROOT"/}"
       [[ ! -f "$ROOT/$test_rel" ]] && continue
@@ -510,8 +510,8 @@ elif [[ "$mode" == "unbackrefed" ]]; then
   while IFS=: read -r lineno text; do
     # Lane-tag gate: `[* — meeting]` (any bracket ending "— meeting") or the exact
     # `[INPUT — decision]` tag.
-    echo "$text" | grep -qE '\[[^]]*— meeting\]|\[INPUT — decision\]' || continue
-    token=$(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' | head -1 || true)
+    grep -qE '\[[^]]*— meeting\]|\[INPUT — decision\]' < <(echo "$text") || continue
+    token=$(head -1 < <(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)') || true)
     [[ -z "$token" ]] && continue
     id_lines=$((id_lines+1))
     decided_in=$(typed_edges_decided_in_of_line "$text")

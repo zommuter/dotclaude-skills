@@ -70,22 +70,22 @@ write_recipe "$RECIPES/done" "a002"
 
 out="$(RELAY_RECIPE_DIR="$RECIPES" "$SH" "$FIX" 2>/dev/null)"
 
-echo "$out" | grep -q 'mechanical-orphan' \
+grep -q 'mechanical-orphan' < <(echo "$out") \
   || fail "relay-doctor output has no mechanical-orphan check section:\n$out"
 
-echo "$out" | grep -q 'id:a001' \
+grep -q 'id:a001' < <(echo "$out") \
   || fail "(a) orphaned open [MECHANICAL] item id:a001 (no recipe anywhere) must be reported:\n$out"
 pass "(a) open [MECHANICAL] item with no authored recipe anywhere is reported as orphan"
 
-echo "$out" | grep -q 'id:a002' \
+grep -q 'id:a002' < <(echo "$out") \
   && fail "(b) id:a002 has a recipe in done/ — must NOT be reported as orphan:\n$out"
 pass "(b) open [MECHANICAL] item with a recipe present (even in done/) is not reported"
 
-echo "$out" | grep -q 'id:a003' \
+grep -q 'id:a003' < <(echo "$out") \
   && fail "(c) id:a003 is CLOSED — must NOT be reported even though it has no recipe:\n$out"
 pass "(c) closed [x] [MECHANICAL] item with no recipe is not reported"
 
-echo "$out" | grep -q 'id:a004' \
+grep -q 'id:a004' < <(echo "$out") \
   && fail "(d) id:a004 is not [MECHANICAL] — must NOT be reported:\n$out"
 pass "(d) non-[MECHANICAL] open item with no recipe is not reported"
 

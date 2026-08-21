@@ -35,7 +35,7 @@ git -C "$REPO" -c user.email=t@example.invalid -c user.name=t commit -q --allow-
 WT1="$TMP/wt1"
 out="$("$SH" "$REPO" "$WT1" relay/test-a)" || fail "provision-worktree.sh exited non-zero on a clean provision"
 
-git -C "$REPO" worktree list --porcelain | grep -q "$(cd "$WT1" && pwd)" \
+grep -q "$(cd "$WT1" && pwd)" < <(git -C "$REPO" worktree list --porcelain) \
   || fail "worktree was not registered in 'git worktree list'"
 git -C "$REPO" rev-parse --verify -q refs/heads/relay/test-a >/dev/null \
   || fail "branch relay/test-a was not created"
