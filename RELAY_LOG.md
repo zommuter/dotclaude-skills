@@ -6445,3 +6445,7 @@ refactor: extracted the fence-state + owning-heading computation into a single f
 over the already-mapfile'd ROADMAP array (reused by both the block-end scan and the heading
 stamp) rather than two separate scans, and pulled the next-item edge-comment lookahead into
 `is_next_items_edge_comment()` instead of inlining it in the loop condition.
+
+## 2026-08-21 12:09 — integrate (claude-opus-5)
+
+integrate id:353e + id:b015 — demoted units re-enter the circuit breaker and review is non-excludable while unaudited; slice blocks bound by checkbox/heading so column-0 criteria are no longer dropped
