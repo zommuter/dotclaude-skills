@@ -6339,5 +6339,17 @@ The item stays OPEN. The fix is mechanical but wide (427 sites), so it is NOT th
 change" clause 6 permits an executor to merge — it needs its own item plus a lint that bans
 the shape. Log: `~/.cache/dotclaude-flake/runs.jsonl`.
 
+AMENDED after a reviewer challenge, n grown to 17 suite runs: width does NOT separate (both
+j32 runs passed at the highest observed load while a j8 run failed at lower load), and the
+"all failures in the first 6 runs" temporal reading is dead — runs 14-17 each went red after
+a 6-run green streak. The driver is scheduling latency, which width only correlates with.
+Six distinct tests reproduced, three of them from the banked four; a wide rotating failure
+set is what 427 at-risk sites across 162 files PREDICTS. Two reproductions are self-proving:
+`test_integrate_sh_mechanized.sh` passed the un-piped `--is-ancestor` check for a commit and
+then failed the piped `git log | grep -q` for that same commit, and `test_gaming_scan.sh`
+printed a `$out` visibly containing the string its `printf | grep -q` had just called absent.
+Control form `grep -qF P < <(producer)`: 0/400. NOT established: a controlled load
+dose-response (started, not finished), and that this is the only live cause.
+
 Friction: the campaign is ~25 min of wall-clock the executor must sit through; a red run is
 data, not a failure, which the runner's exit code cannot express.
