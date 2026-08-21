@@ -6394,3 +6394,31 @@ instead. Did NOT touch relay-loop.js (a sibling executor holds it).
 ## 2026-08-21 11:30 — integrate (claude-opus-5)
 
 integrate: mechanized TODO twin tick (4 drifted items repaired, cross-ledger now empty) + headroom-conditional slice invitation (id:7575 option b); a955 closed superseded-by-seams
+
+## 2026-08-21 — executor (sonnet-tier session, Opus model)
+
+Worked id:b015 — `relay/scripts/ledger-slice.sh` bounded an item's block by INDENTATION
+(`^[[:space:]]+`), so column-0 acceptance prose, un-indented bullets and fenced code blocks
+belonging to the item were silently dropped: a well-formed, non-empty slice with an honest
+`slice-bytes` that passed the prompt-size gate while the child worked a truncated spec.
+The block now runs to the next COLUMN-0 checkbox line or the next `#`-heading; a single
+forward pass computes per-line fence state (so a fenced sample `- [ ]` or `# comment` never
+terminates or splits a block) and the owning `#`-heading, which is stamped into the slice's
+repo-state header as `- owning section:` (parked/exempt context, id:356f). Trailing blank
+lines are trimmed; the single-line bare-comment run that carries typed edges is still claimed
+by the item BELOW it. `relay-loop.js` was NOT touched (two siblings in flight there).
+
+Size impact measured across all 82 ROADMAP.md items, before vs after on the same corpus:
+min 832→919, median 3,366→3,471, p90 9,908→10,051, max 99,907→100,012 B (+0.1% on the worst
+item — the heading line). Exactly ONE item grew materially: id:0e56, +1,166 B, which is its
+own previously-dropped content plus two multi-line `<!-- handoff -->` annotation blocks that
+sit between items; those are absorbed by the PRECEDING item (fail-toward-including), noted
+in the script header.
+
+Friction: none on sizing. Observed the known id:7518 flake class — `test_embedded_literal_lint_ef9e.sh`
+failed once IN-SUITE and passed standalone and on two subsequent full runs; unrelated to this diff.
+
+refactor: extracted the fence-state + owning-heading computation into a single forward pass
+over the already-mapfile'd ROADMAP array (reused by both the block-end scan and the heading
+stamp) rather than two separate scans, and pulled the next-item edge-comment lookahead into
+`is_next_items_edge_comment()` instead of inlining it in the loop condition.
