@@ -6675,3 +6675,7 @@ one observable exit instead of eight bare `return`s.
 ## 2026-08-21 16:06 — integrate (claude-opus-5)
 
 integrate id:3866 + id:8987 + id:4c14 — the destructive-git guard can no longer fail OPEN on a malformed payload; empty runId is now a probe error; the no-drift assertion pins the rule not a spelling (negative-control verified). Guard is now wiring-ready
+
+## 2026-08-21 17:30 — integrate (claude-opus-5)
+
+review: verify id:0384 front-door currency gate (red->green, 12/12); owner-ratified integrate [id:0384]
