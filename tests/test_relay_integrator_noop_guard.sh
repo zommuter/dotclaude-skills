@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# roadmap:c563 — relay-loop.js integrate(): verify no Sonnet agent is spawned for
-# no-op/handback cases (null report or contract_met=false), and that genuine merges
-# (contract_met=true) always reach the Sonnet agent. Static structural checks only —
-# live integration throughput is out of scope per task scope (high blast-radius guard).
+# roadmap:c563 — relay-loop.js integrate(): verify NOTHING is dispatched for no-op/handback
+# cases (null report or contract_met=false), and that genuine merges (contract_met=true)
+# always reach the integrator dispatch. Static structural checks only — live integration
+# throughput is out of scope per task scope (high blast-radius guard).
+# (Since id:087b that dispatch is a MECHANICAL relay-mech hop, not an LLM agent — see the
+# AMENDED block below. The historical findings that follow say "Sonnet agent" because that is
+# what they measured in 2026-06; they are preserved as written, not retro-edited.)
 #
 # Findings from id:c563 investigation + meeting 2026-06-17-0812:
 #
@@ -37,6 +40,25 @@
 #
 # Combined verdict: id:c563 CLOSED. All levers exhausted. See meeting note:
 #   docs/meeting-notes/2026-06-17-0812-relay-integrator-batching-close.md
+#
+# ── AMENDED 2026-08-20 by id:087b (owner ruling D1) ──────────────────────────────────────
+# id:c563's D2 sub-decision — "the integrator stays sonnet (Haiku-fail risk for logic-dense
+# tasks)" — is SUPERSEDED. id:087b removes the LLM integrator entirely: every step is
+# deterministic and now runs in relay/scripts/integrate.sh, dispatched as ONE mechanical
+# `relay-mech` hop at MECH_MODEL. "Which model should the integrator be?" is no longer a
+# question, so assertion (2) below INVERTS: it now REFUSES any LLM model on the integrate
+# dispatch instead of pinning 'sonnet'. The owner ruled explicitly that this file may be
+# rewritten for that, and ONLY for that.
+#
+# EVERY OTHER INVARIANT IN THIS FILE IS PRESERVED UNCHANGED, because none of them was about
+# the model: the two early-return guards still precede the dispatch (1), both still record a
+# recoverable handback (3), enqueueIntegration still wraps integrate() unconditionally and
+# .catch-contained (4/4b), no agent() call may precede the guards (5), the post-integrator
+# merged=false handback path still exists (6), batching is still absent (7), and the per-repo
+# parallel integrationChains design is still intact (8). id:c563's PART 1 and PART 2 verdicts
+# are untouched — this amendment is narrowly about D2's model pin. Note that PART 1's
+# economic finding is now moot in the strongest possible direction: the integrator costs no
+# inference at all.
 
 set -euo pipefail
 
@@ -66,7 +88,7 @@ body = m.group(1)
 # Both early-return guards must appear before the first agent() call
 pos_null_guard    = body.find('if (!report)')
 pos_contract_guard = body.find('if (!report.contract_met)')
-pos_agent_call    = body.find('const result = await agent(')
+pos_agent_call    = body.find('await agent(')  # id:087b: the dispatch is now 'const raw = await agent(' inside a try
 if pos_null_guard < 0:
     print("FAIL: !report guard not found inside integrate()"); sys.exit(1)
 if pos_contract_guard < 0:
@@ -81,13 +103,24 @@ print("PASS: both early-return guards precede the agent() call in integrate()")
 PYEOF
 pass "!report and !report.contract_met guards precede the Sonnet agent() call"
 
-# ── (2) The Sonnet agent in integrate() is pinned to 'sonnet' ─────────────────
-# The integrator is logic-dense (merge, tag, push, toml write) — must not inherit
-# the session model. D2 decision: integrator stays sonnet (Haiku-fail risk for
-# logic-dense tasks). Verify the agent() call in integrate() carries model:'sonnet'.
-grep -qF "{ label: \`integrate:\${unit.repo}\`, phase: 'Integrate', schema: INTEGRATE_SCHEMA, model: 'sonnet' }" "$JS" \
-  || fail "integrate() Sonnet agent not pinned to model:'sonnet' (D2: must not downgrade)"
-pass "integrate() Sonnet agent pinned to model:'sonnet' (D2 invariant)"
+# ── (2) [AMENDED by id:087b] The integrate dispatch is MECHANICAL, never an LLM ─────
+# Was: "pinned to model:'sonnet' (c563 D2)". Now: there is no integrator model to pin —
+# integrate.sh runs every step deterministically and is dispatched at MECH_MODEL. Pinning any
+# LLM name here would put inference back on the merge-to-main critical path, so the assertion
+# is inverted into a REFUSAL. This is strictly stronger than the old pin: 'sonnet' was one
+# acceptable value out of several; MECH_MODEL is the only acceptable value.
+grep -qF "{ label: \`integrate:\${unit.repo}\`, phase: 'Integrate', model: MECH_MODEL }" "$JS" \
+  || fail "integrate() does not dispatch at MECH_MODEL — the mechanical integrator hop is missing (id:087b)"
+for m in sonnet haiku opus fable; do
+  if grep -qF "label: \`integrate:\${unit.repo}\`, phase: 'Integrate', schema: INTEGRATE_SCHEMA, model: '$m'" "$JS" \
+     || grep -qF "label: \`integrate:\${unit.repo}\`, phase: 'Integrate', model: '$m'" "$JS"; then
+    fail "integrate() dispatches an LLM ('$m') — id:087b removed inference from the merge-to-main path"
+  fi
+done
+# …and the hop must actually carry integrate.sh, or "mechanical" would mean "does nothing".
+grep -q 'relay/scripts/integrate.sh' "$JS" \
+  || fail "the mechanical integrate hop does not invoke relay/scripts/integrate.sh"
+pass "(2) integrate() dispatches relay/scripts/integrate.sh mechanically at MECH_MODEL; no LLM integrator remains (id:087b, amends c563 D2)"
 
 # ── (3) Early-return paths push to state.handbacks (recoverable handback) ────────
 # Both !report and !report.contract_met must push a blocked entry so the caller
@@ -103,7 +136,7 @@ body = m.group(1)
 # Null-report guard block: between 'if (!report)' and the next closing brace+return
 null_guard_pos = body.find('if (!report) {')
 contract_guard_pos = body.find('if (!report.contract_met)')
-agent_pos = body.find('const result = await agent(')
+agent_pos = body.find('await agent(')  # id:087b: the dispatch is now 'const raw = await agent(' inside a try
 
 # Both blocks before the agent call should contain state.handbacks.push
 pre_agent = body[:agent_pos]
@@ -142,7 +175,7 @@ m = re.search(r'async function integrate\(unit, report\) \{(.*?)^async function'
 if not m:
     print("FAIL: could not locate integrate() body"); sys.exit(1)
 body = m.group(1)
-agent_pos = body.find('const result = await agent(')
+agent_pos = body.find('await agent(')  # id:087b: the dispatch is now 'const raw = await agent(' inside a try
 pre_agent = body[:agent_pos]
 # No agent() call should appear before the guarded agent call
 pre_agent_calls = len(re.findall(r'\bawait agent\(', pre_agent))

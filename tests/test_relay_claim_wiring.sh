@@ -39,7 +39,14 @@ pass "RELAY_STATUS projects live claims via peek, in relay-status-publish.sh (id
 # (4) Flock'd single-writer for shared state (id:ebfb step 2): integrator writes relay.toml
 # via relay-state-write.sh toml-set (in the JS); the status writer writes RELAY_STATUS via
 # status-write inside relay-status-publish.sh.
-grep -q "relay-state-write.sh toml-set" "$JS" || fail "integrator does not write relay.toml via the flock'd toml-set helper"
+# id:087b RELOCATION — the integrator's relay.toml writes moved from relay-loop.js's LLM
+# prompt into relay/scripts/integrate.sh (step 10/10b), dispatched as one mechanical hop.
+# Same flock'd-single-writer invariant, asserted in its new home plus the dispatch.
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
+[[ -f "$INTEG" ]] || fail "integrate.sh not found"
+grep -q "relay-state-write.sh" "$INTEG" || fail "integrator does not write relay.toml via the flock'd relay-state-write.sh helper"
+grep -q "toml-set" "$INTEG" || fail "integrator does not use the flock'd toml-set subcommand"
+grep -q 'relay/scripts/integrate.sh' "$JS" || fail "relay-loop.js does not dispatch integrate.sh — the relay.toml write is wired to nothing"
 grep -q "relay-state-write.sh" "$PUB" && grep -q "status-write" "$PUB" || fail "relay-status-publish.sh does not write via the flock'd status-write helper"
 pass "shared state written via the flock'd single-writer (id:ebfb step 2)"
 

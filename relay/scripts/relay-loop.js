@@ -952,6 +952,10 @@ const REPORT_SCHEMA = {
   },
 }
 
+// id:087b — this is NO LONGER a dispatch schema: integrate() has no LLM agent to constrain.
+// It is retained as the DOCUMENTED SHAPE of the object `parseIntegrateResult()` builds from
+// integrate.sh's `KEY=VALUE`-per-line stdout contract, so the producer (the shell script),
+// the parser and the consumer below can be diffed against one written-down contract.
 const INTEGRATE_SCHEMA = {
   type: 'object',
   required: ['merged'],
@@ -1518,6 +1522,49 @@ function parseVerdictClass(raw) {
     const obj = JSON.parse(text.slice(start, end + 1))
     return (obj && typeof obj.verdict === 'string' && obj.verdict) ? obj.verdict : null
   } catch (_) { return null }
+}
+// id:087b — quote ONE argument for the `relay-mech` fence. Two hazards, both real:
+//   (a) mechanical-proxy.py's `_SEG_SPLIT_RE` splits a command on `| ; & \n` with a NAIVE
+//       regex that is NOT shell-aware, so those characters inside an otherwise-quoted
+//       argument make a segment that leads with no allowlisted script → the gate refuses →
+//       FAIL-OPEN to the real model. On the integrate path that would silently resurrect an
+//       LLM integrator, so they are stripped, never merely quoted.
+//   (b) a single quote cannot survive inside a single-quoted argument.
+// Everything else (`$`, backtick, parens — e.g. the id:1a34 ckpt label "reviewer (claude-…)")
+// is inert inside single quotes and is preserved VERBATIM.
+const mechArg = (v) => "'" + String(v == null ? '' : v)
+  .replace(/[|;&\n\r]+/g, ' ')
+  .replace(/'/g, '')
+  .replace(/\s+/g, ' ')
+  .trim() + "'"
+// id:087b — parse integrate.sh's KEY=VALUE stdout contract into the object integrate()
+// consumes. Shape mirrors INTEGRATE_SCHEMA (kept above as the documented contract). Returns
+// `{merged:false, reason}` for MECH-ERROR / the id:3557 MECH-OK empty-stdout sentinel / any
+// stdout without a `merged=` line — a handback, never an invented success.
+function parseIntegrateResult(raw) {
+  const text = (raw == null) ? '' : String(raw)
+  if (/^MECH-ERROR exit=/.test(text) || /^MECH-OK exit=0/.test(text)) {
+    return { merged: false, reason: `integrate.sh handback: ${text.replace(/\s+/g, ' ').trim().slice(0, 900)}` }
+  }
+  const out = { merged: false, siblingBranches: [] }
+  for (const line of text.split('\n')) {
+    const eq = line.indexOf('=')
+    if (eq <= 0) continue
+    const k = line.slice(0, eq).trim()
+    const v = line.slice(eq + 1).trim()
+    if (k === 'merged' && v) out.merged = true
+    else if (k === 'ckpt') out.ckptTag = v
+    else if (k === 'push') out.pushStatus = v
+    else if (k === 'ts') out.ts = v
+    else if (k === 'postSig') out.postSig = v
+    else if (k === 'openRoutine') out.openRoutine = Number(v) || 0
+    else if (k === 'openHard') out.openHard = Number(v) || 0
+    else if (k === 'sibling' && v) out.siblingBranches.push(v)
+  }
+  if (!out.merged) {
+    out.reason = `integrate.sh produced no merged= line (unparseable integrator output): ${text.replace(/\s+/g, ' ').trim().slice(0, 900)}`
+  }
+  return out
 }
 // Shared shape for BOTH cache-bypassed classifier hops — id:907e's post-handback
 // re-classification and id:8123's chain-end re-ask. One fenced `relay-mech` command dispatched
@@ -2849,65 +2896,76 @@ async function integrate(unit, report) {
     workedIds = [...new Set([...asIdArray(report.verified_green), ...asIdArray(report.reopened)])]
   }
   if (!workedIds.length && (unit.inject_item || unit.item)) workedIds = [unit.inject_item || unit.item]
-  const idSuffix = workedIds.length ? ` [id:${workedIds.join(',')}]` : ''
-  // id:ba7e — the integrator prompt below needs the CANONICAL main checkout, and that is a
-  // DELIBERATE exception to id:34b7's no-main-checkout rule, not an oversight. The integrator
-  // is not an execute/review child: its whole job is to merge the child's branch INTO the
-  // canonical checkout (clean-tree gate, merge --no-ff, ckpt tag, push, retire), every step of
-  // which is defined only against the main repo. The rule id:34b7 established is that WORKING
-  // children never receive it; the integrator is the single serialized writer that must.
-  const result = await agent(
-    `You are the serialized integrator of the relay pool. Integrate ONE completed unit, strictly in this order, for repo ${unit.repo} at ${unit.path}:
-
-0. Release this repo's cross-session lease (id:ebfb) — the child's work is done; do this FIRST so it runs whether the merge below succeeds or aborts: ~/.claude/skills/relay/scripts/claim.sh release ${unit.repo} --run ${state.runId}  (run-scoped — a no-op if this run does not hold it).${unit.intensive ? ` Also release the exclusive resource lease (id:8d52): ~/.claude/skills/relay/scripts/claim.sh release resource:${unit.intensive} --run ${state.runId}.` : ''}
-(id:ba7e — the repo path spliced into the steps below is this repo's CANONICAL main checkout, and that is DELIBERATE, not the id:34b7 leak: you are the pool's single serialized writer to main. Working execute/review/handoff children never receive it.)
-1. DETERMINISTIC clean-tree gate (id:aa93 — a foreign-dirty main checkout was silently DESTROYED 3× on 2026-06-18 when an agent "cleaned" the tree to make room): run ~/.claude/skills/relay/scripts/clean-tree-gate.sh ${unit.path}. It prints "clean" and exits 0 ONLY if the tree carries no changes; otherwise it prints "dirty <N>" + the offending porcelain lines and exits NON-ZERO. On any non-zero exit, ABORT: return merged=false with reason "main checkout dirty — a concurrent edit is present; deferring to avoid data loss (id:aa93)" plus the gate's dirty output. The integrator works on the child's WORKTREE, never the main checkout, so ANY dirty entry here is a foreign/concurrent editor's work. You must NEVER run \`git stash\`, \`git checkout --\`, \`git reset --hard\`, or \`git clean\` on ${unit.path} to make room for the merge — do NOT force-clean a foreign-dirty tree; just DEFER it.
-1a. DETERMINISTIC isolation gate (id:f682/id:7612 — a spawned child ran \`git worktree add\` correctly but then wrote every edit to the target's MAIN checkout instead, observed 2026-07-14 loderite and 2026-06-30 jobAI id:c6c8): run ~/.claude/skills/relay/scripts/verify-isolation.sh ${report.worktree}. It prints "ok …" and exits 0 when the worktree is a legitimate completed unit (has its own commits and a clean tree, OR is a genuine zero-commit id:8e3e no-op review — main unmoved since dispatch); it exits NON-ZERO (2) when the worktree is dirty, or is empty AND main advanced by a non-merge commit since dispatch (the isolation-breach signature — the failure output names the offending commit(s)). On any non-zero exit, ABORT: return merged=false with reason "isolation gate failed — worktree/main-checkout isolation breach suspected; deferring to avoid merging unaudited main-checkout drift (id:7612)" plus the gate's output. This gate is OBSERVE-ONLY (never stash/reset --hard/checkout --/clean) — do NOT attempt to "fix" a failure yourself.
-1b. Belt-and-suspenders (id:c3f7) — never checkpoint on a base that diverged from origin (the ai-codebench incident): run ~/.claude/skills/relay/scripts/sync-origin.sh ${unit.path}. If its output starts with "diverged", ABORT: return merged=false with reason "base diverged from origin — manual reconcile (id:c3f7)". (Output "ok"/"behind N"/"no-upstream" → proceed; discovery's live reconcile-repo.sh already fast-forwarded behind-only repos — it runs every round on BOTH the fresh-queue and the live-exec discovery path, id:9d97/7402, so a behind-only repo is always ff-merged before dispatch.)
-1c. SIBLING-BRANCH surfacing (id:dd7d, lodelore id:15d2) — does ANOTHER branch for this same item already carry committed work this merge might silently ignore? (id:ba7e — ${unit.path} here is the same CANONICAL main checkout used throughout this integrate flow, not the id:34b7 leak.)${workedIds.length ? ` Run ~/.claude/skills/relay/scripts/stranded-branch-scan.sh ${unit.path} --verdict ${unit.verdict} --item ${workedIds[0]}. It prints one "<branch>\\t<count>" line per branch (live relay/* or parked relay/orphan/*, any run) carrying commits beyond base; empty output means none. DROP any line naming ${report.branch} itself (that is this unit's own branch, about to be merged in step 2, not a sibling). If any OTHER line remains, this is the id:15d2 divergent-sibling hazard (a prior attempt's committed-but-different result) — do NOT silently merge past it: proceed with merging ${report.branch} in step 2 as normal (this gate surfaces, it does not pick a winner), but set siblingBranches = the remaining line(s) verbatim so it is recorded LOUDLY in your report rather than only ever surfacing as a lucky git conflict. If no lines remain (or the scan printed nothing), set siblingBranches = [] (or omit it).` : ' This unit has no worked item id (repo-scoped) — nothing to compare against; set siblingBranches = [] or omit it.'}
-2. git -C ${unit.path} merge --no-ff ${report.branch} -m "merge(relay): ${report.summary}"
-   On conflict: git -C ${unit.path} merge --abort, return merged=false with reason (worktree stays on disk).
-   The checkpoint tag's anchor (\`-c\` for step 3) is decided HERE by which of two cases the merge produced:
-   • ZERO-COMMIT branch (id:8e3e — merge printed "Already up to date"; the branch tip is already an ancestor of main): the child audited its window and had nothing to change. That IS a completed unit, NOT a "duplicate dispatch" — do NOT return merged=false (a handback here leaves the audited window UNCLOSED, so discovery re-dispatches the same strong review every round; observed 3× on 2026-07-01). Capture reviewedTip = git -C ${unit.path} rev-parse ${report.branch}, then proceed to step 3 WITH the extra flag \`-c <reviewedTip>\` so the checkpoint tag anchors on the commit the child actually audited — NEVER on current main HEAD, which may contain commits that landed after dispatch and were NOT audited.
-   • BRANCH WITH COMMITS (id:25aa — the merge actually created a \`--no-ff\` merge commit; the branch carried its own work, e.g. a REVIEW_ME prune + a RELAY_LOG commit): the run's OWN merged commits MUST fall INSIDE the audited window, so the checkpoint MUST anchor on the POST-MERGE tip. Do this by passing NO \`-c\` at step 3 (the default: ckpt-tag appends its RELAY_LOG commit on top of the just-created merge commit and tags THAT — the post-merge tip, which contains the merge). Do NOT carry over the zero-commit rule here: passing \`-c <reviewedTip>\` (the branch tip) when the branch carried commits anchors the tag BEHIND the merge, leaving the run's own merged commits permanently OUTSIDE the audited window — classify-repo then re-dispatches a "substantive unaudited commits" review forever (the id:25aa bug; the carries-commits COMPLEMENT of id:8e3e). The id:8e3e "NEVER tag main HEAD" caution applies ONLY to the zero-commit case (where main HEAD may hold unaudited post-dispatch commits); when the merge just happened, the post-merge tip IS the audited boundary.
-2-tick. DRIVER-SIDE ROADMAP TICK (id:5b12, seam of id:ae08) — ${(unit.verdict === 'execute' || unit.verdict === 'hard') ? `this is a ${unit.verdict} unit, so execute/hard children NO LONGER tick their own ROADMAP.md checkbox in the worktree (executor-contract v12): YOU tick it here, in the canonical checkout, from the worked ids. Run:
-     ~/.claude/skills/relay/scripts/roadmap-tick.sh ${unit.path} "${workedIds.join(',')}"
-   It flips each open \`- [ ] … id:X\` line to \`- [x]\` (idempotent; an already-ticked or absent id is a clean no-op; it NEVER edits an item's Acceptance/Tests/Done-check/Context body). ${workedIds.length ? '' : 'workedIds is EMPTY for this unit, so this is a no-op — run it anyway (harmless) or skip. '}If (and only if) it actually changed ROADMAP.md — check with: git -C ${unit.path} status --porcelain -- ROADMAP.md is non-empty — commit ONLY that exact path so the tree stays clean for retire: git -C ${unit.path} add -- ROADMAP.md then git -C ${unit.path} commit -q -m "chore(roadmap): tick worked items${idSuffix}". NEVER stage anything else (scoped-staging invariant id:debf). (Review/handoff units tick/reopen inside their OWN merged worktree per their contract — do NOT driver-tick them here; this step is execute/hard only.)` : `this is a ${unit.verdict} unit — review/handoff children tick/reopen inside their OWN merged worktree per their contract, so there is NO driver-side tick to perform here. Skip to 2a.`}
-2a. SEMVER BUMP (id:e647) — YOUR judgement, once per USER-OBSERVABLE close (meeting 2026-07-17-1541 D1). This step is the REVIEWER's alone: decide whether this close is user-observable and, if so, at what level. A REFACTOR-ONLY / internal-cleanup close must NOT bump — skip straight to 2b (do NOT pass --version there). "User-observable" is NOT derivable (that is why full derivation was rejected, Riku/D1); it is a judgement, so you must MAKE it, not compute it. Only the reviewer at integrate has both the context to judge AND the authority to commit to main — the executor must NEVER bump (parallel worktrees collide on the manifest+lockfile, Orla/D1). When the close IS user-observable, pick the level per loose-0.x (patch = a user-facing bugfix; minor = a new feature / behaviour change / anything else) and run:
-     bumpVersion = ~/.claude/skills/relay/scripts/version-bump.sh ${unit.path} --level <minor|patch>
-   It is a NO-OP for a version-less repo (no pyproject.toml/package.json, e.g. dotclaude-skills — it exits 0 and prints nothing, leaving the tree untouched), so it is safe to call on any repo you have judged user-observable. On a manifest repo it: rewrites ONLY the version line, regenerates the lockfile (via \`uv lock\`/\`npm install --package-lock-only\`), runs the repo's OWN scripts/relock-plugins.sh cascade if present (zkm's ~18 plugin uv.locks — NEVER re-implement that loop), commits manifest+lockfile TOGETHER (scoped \`git add -- <path>\` only, id:debf), and creates the ANNOTATED tag vX.Y.Z on that commit — leaving the tree CLEAN (a dirty tree would trip clean-tree-gate.sh and defer the repo). Capture its stdout as bumpVersion (e.g. "v0.5.0"); it is EMPTY when you skipped the bump OR the repo is version-less. Do this BEFORE 2b so the changelog can release-bucket under the new version.
-2b. DERIVE the CHANGELOG entry (id:b8fa) — the repo's human-readable record of this close, folded from the SAME state you already have (report.summary + the worked ids; NO new field — meeting 2026-07-17-1541 D2). Run (append \` --version <bumpVersion>\` ONLY when step 2a actually produced a non-empty bumpVersion — that release-buckets the entry under the new version; omit it entirely for a refactor-only close or a version-less repo, which then date-bucket):
-     ~/.claude/skills/relay/scripts/changelog-append.sh ${unit.path} --summary "${report.summary}"${workedIds.length ? ' --ids "' + workedIds.join(',') + '"' : ''} [--version <bumpVersion>]
-   Behaviour by case (id:7d20): if you passed --version (a real release just bumped, step 2a) and the repo has NO CHANGELOG.md yet, the helper AUTO-CREATES a release-bucketed CHANGELOG.md — a semver repo self-onboards its changelog on its FIRST release, no manual bootstrap. If you did NOT pass --version and there is no CHANGELOG.md, it stays a NO-OP (opt-in preserved: version-less repos like dotclaude-skills are a deliberate bootstrap, never auto-created on a non-release close). If the repo already has a CHANGELOG.md it always records the entry. So the step is safe for EVERY repo. If (and only if) the helper actually created OR modified CHANGELOG.md — check with: git -C ${unit.path} status --porcelain -- CHANGELOG.md is non-empty (this catches a newly-created, untracked file too) — commit ONLY that exact path so the tree stays clean for retire: git -C ${unit.path} add -- CHANGELOG.md then git -C ${unit.path} commit -q -m "docs(changelog): ${report.summary}". NEVER stage anything else (scoped-staging invariant id:debf — no git add -A/./-u/--all). Version-less repos (no manifest, e.g. dotclaude-skills) date-bucket with no --version; a semver bump (id:e647, step 2a) supplies --version when it fired.
-2c. ARCHIVE the done ROADMAP items (id:f54d) — keep the ledger small so the NEXT round's child prompt still fits its context window. This is the ROOT-CAUSE fix for the recurring \`Prompt is too long\` child deaths (id:93cc): an unarchived ROADMAP grows without bound (523,926 bytes / 100 inline done items when this was wired), and the executor must read it to find its work. Run:
-     ~/.claude/skills/relay/scripts/roadmap-archive.sh ${unit.path}
-   It is IDEMPOTENT, flock-guarded, and a clean NO-OP ("nothing to archive") on a repo with no ROADMAP.md or no archivable done items — so it is safe to call on EVERY integrate, unconditionally. It NEVER touches open \`- [ ]\` items; it moves each \`- [x]\` block (and any heading this run empties) into ROADMAP.archive.md verbatim. If (and only if) it actually changed something — check with: git -C ${unit.path} status --porcelain -- ROADMAP.md ROADMAP.archive.md is non-empty (this catches a newly-created, untracked ROADMAP.archive.md too) — commit ONLY those exact paths so the tree stays clean for retire: git -C ${unit.path} add -- ROADMAP.md ROADMAP.archive.md then git -C ${unit.path} commit -q -m "chore(roadmap): archive done items". NEVER stage anything else (scoped-staging invariant id:debf). Do NOT "fix up" or re-word what the archiver moved, and do NOT hand-edit ROADMAP.archive.md.
-3. ~/.claude/skills/relay/scripts/ckpt-tag.sh ${unit.path} -m "${report.summary}${idSuffix}" -l "${label}"
-   (Append \`-c <reviewedTip>\` ONLY in the ZERO-COMMIT "Already up to date" case per step 2; for a branch that carried commits, pass NO \`-c\` so the tag lands on the post-merge tip.)
-   It prints the new tag name — capture it as ckptTag. (The trailing [id:…] tags the durable RELAY_LOG checkpoint with the worked item id(s), id:de69.)
-(id:ba7e — the repo path spliced into the steps below is this repo's CANONICAL main checkout, and that is DELIBERATE, not the id:34b7 leak: you are the pool's single serialized writer to main. Working execute/review/handoff children never receive it.)
-4. ~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only ${unit.path}
-   pushStatus = "pushed" on success, otherwise the error summary.
-5. ~/.claude/skills/relay/scripts/worktree-retire.sh ${unit.path} ${report.worktree} ${report.branch} --expect-merged
-   (FORCE-FREE retirement — id:373e. The merge+tag+push above already integrated the committed branch work, so the branch is merged; \`--expect-merged\` tells the helper that a \`git branch -d\` refusal is an anomaly to surface, not to park. The helper runs \`git worktree remove\` WITHOUT \`--force\` and \`git branch -d\` WITHOUT \`-D\` — you must NEVER run \`--force\`, \`git branch -D\`, \`git stash\`, \`git clean\`, or \`git reset --hard\` yourself (they are destructive and the executor's clean-worktree exit gate in the executor contract means the tree is normally already clean; gitignored build residue like a uv.lock does NOT block a force-free remove). If the child nonetheless left the worktree DIRTY (uncommitted non-ignored files), the helper SURFACES it and LEAVES the worktree+branch on disk for a supervised reconcile — that is the correct, safe outcome; do NOT force-clean to "finish the job". Capture the helper's stdout line into your report if it is non-empty (id:d187 orphaning is now surfaced, not silent).)
-   DESTRUCTIVE-CLEANUP SCOPE (id:6e02): you may remove ONLY the two artifacts named above — ${report.worktree} and ${report.branch}, this unit's own. NEVER delete, prune, or "tidy up" any OTHER relay/* branch or worktree, no matter how redundant it looks: a zero-commit branch whose tip is an ancestor of main is NOT proof of an already-integrated leftover — it is exactly what a LIVE parallel child's freshly-created worktree looks like, and the repo lease was already released in step 0 so a foreign child may legitimately hold one (on 2026-07-01 an integrator swept a parallel review child's branch+worktree mid-run on this inference). The same scope applies on EVERY abort/handback path: return merged=false and leave ALL worktrees and branches on disk — including this unit's own.
-6. Update ~/.config/relay/relay.toml for [repos.${unit.repo}] via the flock'd single-writer (id:ebfb step 2) — for EACH field run \`~/.claude/skills/relay/scripts/relay-state-write.sh toml-set ${unit.repo} <key> <value>\` (value VERBATIM: quote strings e.g. '"<tag>"', bare for bool e.g. false; NEVER hand-edit relay.toml): set last_ckpt to the new tag${unit.verdict === 'review' ? ", set last_review to today's date (ISO)" : ''}${unit.verdict === 'handoff' ? ", set handoff_date to today's date (ISO) and status to \"handed-off\"" : ', set status to "active"'}. Change ONLY this repo's block.${isStrong ? `
-6b. STRONG checkpoint — this is a ${unit.verdict} unit produced by the strong model (${STRONG_MODEL}). ${isFableRecheck ? `This session's strong tier is REAL Fable, so this self-produced strong checkpoint (${unit.verdict}) has nothing pending — it IS (or satisfies) the optional Fable recheck (id:e030 consume side). Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = "<today's date, ISO>" (the recheck just happened — mark it done, do NOT set false).` : `Record the durable Fable-bonus-recheck queue entry for [repos.${unit.repo}]: set last_strong_ckpt = "<the new tag>", strong_model = "${STRONG_MODEL}", and fable_rechecked = false (an Opus-standin/strong checkpoint that still invites an optional Fable recheck).`} These keys survive a LATER executor (sonnet) checkpoint that overwrites last_ckpt — so the pending optional Fable recheck stays visible even when masked. Write all three via the same flock'd relay-state-write.sh toml-set helper (overwrite if present; fable_rechecked is a BARE value: false, or '"<ISO date>"' when rechecked). Change ONLY this repo's block.` : `
-6b. EXECUTOR checkpoint — this is an execute unit (sonnet). Do NOT touch last_strong_ckpt, strong_model, or fable_rechecked: an executor checkpoint must never clear the pending Fable-bonus-recheck queue (that is exactly the masking bug id:e030 fixes). Leave those keys untouched.`}
-7. L2 push-seed inputs (id:c855) — compute these LAST, AFTER steps 1-6 so they reflect the fully-settled post-integrate state on main (the toml block, removed worktree dir, and pushed HEAD all feed the signature):
-   a. postSig — recompute this repo's discovery signature so next round's prelude can match it: echo the one-repo object and pipe it to discover-sig.sh, then read the "sig" field:
-(id:ba7e — the repo path spliced into the steps below is this repo's CANONICAL main checkout, and that is DELIBERATE, not the id:34b7 leak: you are the pool's single serialized writer to main. Working execute/review/handoff children never receive it.)
-        printf '%s' '{"repos":[{"repo":"${unit.repo}","path":"${unit.path}"${unit.chainEnded ? ',"chain_ended":true' : ''}}],"liveClaims":[]}' | ~/.claude/skills/relay/scripts/discover-sig.sh
-      It prints one JSON line {"repo":...,"sig":"<hex or empty>"}. Set postSig = that sig verbatim (may be "" — a fail-open sentinel; pass it through, do NOT invent a hash).
-   b. openRoutine — count of unticked routine items: git -C ${unit.path} grep -c -E '^- \\[ \\].*\\[ROUTINE\\]' HEAD -- ROADMAP.md 2>/dev/null (0 if the file/marker is absent; a plain count, not a list).
-   c. openHard — count of unticked HARD items: git -C ${unit.path} grep -c -E '^- \\[ \\].*\\[HARD' HEAD -- ROADMAP.md 2>/dev/null (0 if absent). Count ALL [HARD items (gated or not) — the supervisor only push-seeds 'idle' when BOTH counts are 0, so over-counting here is safe (it just declines to cache).
-8. Return merged=true, ckptTag, pushStatus, ts (current ISO timestamp), postSig, openRoutine, openHard.
-
-SCOPED-STAGING INVARIANT (id:debf — never scoop a concurrent ledger edit). You integrate the child's work EXCLUSIVELY via the committed-branch \`git merge --no-ff\` in step 2 — that brings in ONLY the commits already on \`${report.branch}\`. You must NEVER stage the main checkout broadly: do NOT run \`git add -A\`, \`git add .\`, \`git add -u\`, or \`git add --all\` anywhere. A \`/meeting\` or \`/relay human\` session may be writing a ledger file (TODO/ROADMAP/REVIEW_ME) in the main checkout concurrently (those writes are flock-protected, NOT lease-protected — id:c144); a broad \`git add\` would capture that uncommitted foreign edit into this pool checkpoint commit (the scoop window, id:3558). The step-1 clean-tree gate already DEFERS on any foreign-dirty tree; the merge stages nothing from the working tree, so a concurrent ledger edit is never scooped. If you ever need to stage a specific file (e.g. the id:bae5 uv.lock relock), stage it by exact path (\`git add -- <path>\`), never broadly.
-
-Never push any other repo, never force-push, never resolve conflicts yourself.`,
-    { label: `integrate:${unit.repo}`, phase: 'Integrate', schema: INTEGRATE_SCHEMA, model: 'sonnet' }
-  )
+  // id:087b — the ` [id:a,b]` checkpoint-message suffix itself is built by integrate.sh from
+  // the --ids it receives; relay-loop.js only RESOLVES the ids (above) and forwards them.
+  // ── id:087b — THE INTEGRATOR IS FULLY MECHANICAL. NO LLM AGENT RUNS HERE. ──────────
+  // What used to sit here was an ~11-step Sonnet AGENT prompt (model:'sonnet') that merged
+  // to main, ticked ROADMAP, bumped, changelogged, archived, tagged, pushed, retired the
+  // worktree and wrote relay.toml — every one of those steps DETERMINISTIC, all of them on
+  // the merge-to-main critical path, all of them re-derived from prose by an LLM on every
+  // single integration. It is now ONE `relay-mech` mechanical hop (id:6176) dispatching
+  // relay/scripts/integrate.sh at MECH_MODEL, exactly like the other mechanical hops in this
+  // file. Owner rulings D1/D2 (2026-08-20) closed the last five LLM-only behaviours into the
+  // script: the ROADMAP tick (roadmap-tick.sh, id:5b12), archive-done (roadmap-archive.sh,
+  // id:f54d), the durable Fable-recheck keys last_strong_ckpt/strong_model/fable_rechecked
+  // (id:e030), the L2 push-seed inputs (id:c855 — postSig via discover-sig.sh plus the
+  // open [ROUTINE] / [HARD] counts, computed LAST so they reflect settled post-integrate
+  // state), and sibling-branch surfacing (stranded-branch-scan.sh, id:dd7d).
+  //
+  // The two SAFETY rules that used to live in the prompt are now ENFORCED IN-SCRIPT, which
+  // is the whole point of the move — a shell script cannot decide to "clean the tree to make
+  // room": id:aa93 (a foreign-dirty main is DEFERRED, and NEVER force-cleaned — integrate.sh
+  // must NEVER run `git stash`, `git reset --hard`, `git checkout --` or `git clean`, and
+  // contains none of them in any code line, proven by its own test) and id:6e02 (retire
+  // EXACTLY the one named worktree+branch, never a glob, never a "tidy other relay/*").
+  // The ckpt `-c` anchor (id:8e3e zero-commit vs id:25aa post-merge tip) is DERIVED from
+  // whether the merge moved HEAD, not judged.
+  //
+  // THE ONE RESIDUAL, deliberately NOT guessed here: the semver bump trigger ("one bump per
+  // USER-OBSERVABLE close; a refactor-only close does NOT bump", id:e647). It is driven by
+  // this unit's `substantive` signal — and when that cannot settle user-observability,
+  // integrate.sh HANDS BACK LOUDLY (`HANDBACK[bump]`, exit 30) BEFORE any mutation rather
+  // than silently bumping or silently skipping. It resolves without asking on a version-less
+  // repo (nothing to bump), on a non-substantive close, or from a durable per-repo
+  // `bump_policy` in relay.toml.
+  //
+  // id:ba7e — the CANONICAL main checkout below is a DELIBERATE exception to id:34b7's
+  // no-main-checkout rule, not an oversight. The integrator is not an execute/review child:
+  // its whole job is to merge the child's branch INTO the canonical checkout, every step of
+  // which is defined only against the main repo. id:34b7 established that WORKING children
+  // never receive it; the integrator is the single serialized writer that must.
+  const integrateArgs = [
+    '--repo', mechArg(unit.repo), '--path', mechArg(unit.path),
+    '--worktree', mechArg(report.worktree), '--branch', mechArg(report.branch),
+    '--summary', mechArg(report.summary), '--run', mechArg(state.runId),
+    '--label', mechArg(label), '--verdict', mechArg(unit.verdict),
+    '--substantive', mechArg(String(unitIsSubstantive(unit.verdict, report))),
+    '--strong-model', mechArg(STRONG_MODEL),
+  ]
+  if (workedIds.length) integrateArgs.push('--ids', mechArg(workedIds.join(',')))
+  if (unit.intensive) integrateArgs.push('--intensive', mechArg(unit.intensive))
+  // isStrong / isFableRecheck are computed above and passed through VERBATIM: integrate.sh
+  // preserves BOTH branches of step 6b (a real-Fable strong ckpt marks fable_rechecked with
+  // today's date; an Opus-standin strong ckpt records bare `false`), and an EXECUTE (sonnet)
+  // checkpoint never touches those three keys at all — that is the id:e030 masking bug.
+  if (isStrong && isFableRecheck) integrateArgs.push('--fable-recheck')
+  if (unit.chainEnded) integrateArgs.push('--chain-ended')
+  let result
+  try {
+    // The script path is a LITERAL in the fence body (only the args are built above) so the
+    // id:5bbb allowlist-completeness guard can statically resolve this hop to integrate.sh.
+    const raw = await agent(
+      'Run EXACTLY this one command and report its stdout VERBATIM (id:087b mechanical relay integrator for ' + unit.repo + ' — merge, tick, bump, changelog, archive, tag, push, retire, state-write; it is fail-closed and prints a loud HANDBACK[<step>] on stderr):\n' +
+      '```relay-mech\n~/.claude/skills/relay/scripts/integrate.sh ' + integrateArgs.join(' ') + '\n```',
+      { label: `integrate:${unit.repo}`, phase: 'Integrate', model: MECH_MODEL }
+    )
+    result = parseIntegrateResult(raw)
+  } catch (err) {
+    // A dispatch failure is NOT evidence the merge did or did not land — integrate.sh is
+    // idempotent enough to re-run (every mutating step is guarded), so record a handback and
+    // let the next round retry rather than inventing a merged=true.
+    result = { merged: false, reason: `integrate.sh mechanical hop failed to dispatch (${(err && err.message) || err}) — no merged= line was returned; the worktree stays on disk for a retry` }
+  }
   if (result && result.merged) {
     if (result.ts) state.ts = result.ts
     // id:dd7d step 1c — the integrator's own stranded-sibling scan came back non-empty:

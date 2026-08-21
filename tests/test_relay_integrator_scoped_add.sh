@@ -35,20 +35,44 @@ for badform in 'git add -A' 'git add --all' 'git add -u' 'git add .'; do
 done
 pass "id:debf: no broad git add (-A/./-u/--all) USED in relay-loop.js (only the prohibition mentions them)"
 
+# id:087b RELOCATION — the integrator is now relay/scripts/integrate.sh, dispatched by
+# relay-loop.js as one mechanical hop. Check (1) above still guards relay-loop.js; the
+# integrator's own staging behaviour is now real code in integrate.sh, so (1b), (2) and (3)
+# read that file. This is STRONGER than before: a broad `git add` is now the literal absence
+# of a command rather than a prompt instruction an agent could reweigh.
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
+[[ -x "$INTEG" ]] || fail "integrate.sh not found/executable at $INTEG"
+grep -q 'relay/scripts/integrate.sh' "$JS" || fail "id:debf: relay-loop.js does not dispatch integrate.sh"
+
+# (1b) No broad `git add` form is USED in integrate.sh either — checked over CODE lines only,
+# so the prohibition comments that name the forms cannot satisfy it.
+for badform in 'git add -A' 'git add --all' 'git add -u' 'git add .'; do
+  if grep -vE '^\s*#' "$INTEG" | grep -qF -- "$badform"; then
+    fail "id:debf: integrate.sh USES a broad '$badform' in a code line — the scoop window is open"
+  fi
+done
+pass "id:debf: no broad git add (-A/./-u/--all) in any integrate.sh code line"
+
 # (2) The integrator integrates via the committed-branch --no-ff merge (stages nothing
 # from the working tree), not by adding from the main checkout.
-grep -qF -- 'merge --no-ff ${report.branch}' "$JS" \
-  || fail "id:debf: integrator does not integrate via 'git merge --no-ff \${report.branch}' (committed branch)"
+grep -qF -- 'merge --no-ff "$branch"' "$INTEG" \
+  || fail "id:debf: integrate.sh does not integrate via 'git merge --no-ff \$branch' (committed branch)"
 pass "id:debf: integrator integrates the committed worktree branch via --no-ff merge"
 
-# (3) The scoped-staging invariant is documented in the integrator prompt with its id,
-# so it can't be silently dropped.
-grep -q "SCOPED-STAGING INVARIANT (id:debf" "$JS" \
-  || fail "id:debf: integrator prompt missing the SCOPED-STAGING INVARIANT (id:debf) marker"
-grep -q "never scoop a concurrent ledger edit" "$JS" \
-  || fail "id:debf: invariant does not state the concurrent-ledger-edit contract"
-grep -q "scoop window, id:3558" "$JS" \
-  || fail "id:debf: invariant does not cite the scoop-window hazard (id:3558)"
-pass "id:debf: integrator prompt documents the scoped-staging invariant (no-scoop contract)"
+# (3) Every staging call in integrate.sh is path-SCOPED (`git add -- <path>`), and the
+# scoped-staging invariant is documented with its id so it can't be silently dropped.
+while IFS= read -r addline; do
+  grep -qE 'git -C "\$path" add -- ' <<<"$addline" \
+    || fail "id:debf: integrate.sh has a non-path-scoped staging call: $addline"
+done < <(grep -vE '^\s*#' "$INTEG" | grep -F 'git -C "$path" add' || true)
+grep -q "SCOPED-STAGING INVARIANT (id:debf" "$INTEG" \
+  || fail "id:debf: integrate.sh missing the SCOPED-STAGING INVARIANT (id:debf) marker"
+grep -q "scoped staging, id:debf" "$INTEG" \
+  || fail "id:debf: integrate.sh does not name scoped staging at the staging sites"
+grep -q "never scoop a concurrent ledger edit" "$INTEG" \
+  || fail "id:debf: integrate.sh no longer states the concurrent-ledger-edit contract"
+grep -q "scoop window, id:3558" "$INTEG" \
+  || fail "id:debf: integrate.sh no longer cites the scoop-window hazard (id:3558)"
+pass "id:debf: every integrate.sh staging call is path-scoped and the no-scoop contract is documented"
 
 echo "ALL PASS: relay integrator uses scoped staging — no git add -A (id:debf)"
