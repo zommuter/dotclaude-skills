@@ -6611,3 +6611,7 @@ Surfaced here for the reviewer rather than acted on.
 refactor: replaced the eight hand-written `ln -sf` lines in `install-hooks` with a single
 `HOOK_FILES` manifest shared by `install-hooks` and the new `status-hooks` — the two can no
 longer drift, and that shared manifest is precisely what makes the id:5218 drift class visible.
+
+## 2026-08-21 14:51 — integrate (claude-opus-5)
+
+integrate id:7c5f (verdict-dependent counted ledger set; shadowed surface STABLE) + id:3a09/id:5218 (destructive-git guard built-but-unwired; last unmanaged hook versioned)
