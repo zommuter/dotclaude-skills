@@ -38,7 +38,23 @@
 #   (7) LOCAL-AHEAD ACROSS RUNS — a second integrate on a main left local-ahead by the first
 #                             still merges: sync-origin says `ok` and classify-verdict does
 #                             NOT call it diverged (seam 2).
+#   (8) id:8739 BREACH STILL CAUGHT — a child that wrote to the MAIN CHECKOUT is rejected
+#                             (exit 21) while origin/main is FROZEN and local main is ahead,
+#                             i.e. the id:f682 gate is NOT disabled by the ratification gate.
+#   (9) id:8739 NO FALSE POSITIVE — an empty worktree with an unmoved main is still the
+#                             legitimate id:8e3e no-op, and passes via the (b1) branch rather
+#                             than by accident through the stale-base (a) branch.
+#
+# Sections (8)/(9) are RED against the pre-id:8739 integrate.sh (the `"$VERIFY_ISO"
+# "$worktree"` call with no --base): (8) exits 0 having merged the breach, and (9) passes
+# for the wrong reason (its verify-isolation log says `ok … commits=2`, not
+# `empty+main_unmoved`). Both were run against that reverted script to confirm it.
 set -uo pipefail
+
+# Hermeticity: neutralise the developer's global core.hooksPath for every git invocation
+# this file spawns (run-tests.sh already does this; repeated here so a standalone run of
+# this file is hermetic too). Never touches the real config.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 INT="${INT_OVERRIDE:-$SRC_DIR/relay/scripts/integrate.sh}"
@@ -299,5 +315,85 @@ out7="$(FABLES_CONFIG="$C1" INTEGRATE_GIT_LOCK_PUSH="$REAL_PUSH" \
 [[ "$(origin_head "$O1")" == "$ORIGIN_BEFORE" ]] || fail "(7) the second integrate pushed"
 [[ "$(grep -c . "$Q1")" -eq 2 ]] || fail "(7) the ratification queue must APPEND (want 2 entries, got $(grep -c . "$Q1"))"
 pass "(7) seam 2: a LOCAL-AHEAD main is 'ok' to sync-origin, not diverged to classify-verdict, and a later run still integrates"
+
+# =====================================================================================
+# (8) id:8739 — THE BREACH GATE STILL FIRES WHILE origin/main IS FROZEN
+#     The regression that matters most. id:4d44 leaves `origin/main` permanently behind, and
+#     integrate.sh used to let verify-isolation.sh DEFAULT its base to that frozen ref — so
+#     main_head == merge_base always, every empty worktree read as a "legitimate no-op
+#     review", and a child that wrote to the MAIN CHECKOUT (the loderite/jobAI id:f682
+#     incident) was merged straight in. Fixture reproduces exactly that state: origin frozen,
+#     local main ahead, worktree EMPTY, and the child's work committed on main instead.
+#
+#     fails-against: the pre-id:8739 integrate.sh (`"$VERIFY_ISO" "$worktree"`, no --base).
+#     VERIFIED RED there: the gate returns `ok: N commit(s) beyond origin/main, tree clean`
+#     and integrate exits 0 having merged.
+# =====================================================================================
+M8="$(build iso)"; R8="$(basename "$M8")"; O8="$TMP/o-iso.git"
+C8="$(cfg iso "$R8")"
+ISOLOG8="$TMP/verify-iso-8.log"
+# Freeze origin exactly as a deferred substantive unit does: two local-only commits on main.
+for n in 1 2; do
+  echo "unratified-$n" > "$M8/deferred-$n"
+  git -C "$M8" add -- "deferred-$n"
+  git -C "$M8" commit -qm "unratified local commit $n"
+done
+[[ "$(origin_head "$O8")" != "$(git -C "$M8" rev-parse HEAD)" ]] \
+  || fail "(8) fixture bug: origin is not frozen behind local main"
+# DISPATCH: the child gets a worktree off the current (local-ahead) main…
+git -C "$M8" worktree add -q -b relay/iso "$TMP/wt-iso" main
+W8="$TMP/wt-iso"
+# …and then BREACHES: it writes and commits in the MAIN CHECKOUT instead of its worktree.
+echo "child work that went to the wrong tree" > "$M8/breached-artifact.txt"
+git -C "$M8" add -- breached-artifact.txt
+git -C "$M8" commit -qm "child wrote to the MAIN CHECKOUT (id:f682 breach signature)"
+BEFORE8_MAIN="$(git -C "$M8" rev-parse HEAD)"
+rc=0
+out8="$(FABLES_CONFIG="$C8" INTEGRATE_GIT_LOCK_PUSH="$REAL_PUSH" VERIFY_ISOLATION_LOG="$ISOLOG8" \
+  "$INT" --repo "$R8" --path "$M8" --worktree "$W8" --branch relay/iso \
+         --summary "empty worktree while main carries the work" --run r8 \
+         --label "executor (claude-sonnet-4-5, relay-loop)" \
+         --ids aaaa --verdict execute --substantive true 2>"$ERRLOG")" || rc=$?
+[[ $rc -ne 0 ]] || fail "(8) id:8739 REGRESSION: integrate exited 0 on a MAIN-CHECKOUT BREACH while origin/main is frozen — the id:f682 gate is disabled and the loose edits were swept into the merge. stdout=$out8"
+[[ $rc -eq 21 ]] || fail "(8) expected the isolation exit code 21, got $rc. stderr: $(cat "$ERRLOG")"
+grep -q 'HANDBACK\[verify-isolation\]' "$ERRLOG" \
+  || fail "(8) the handback did not name verify-isolation: $(cat "$ERRLOG")"
+grep -q '^landed=false$' "$ERRLOG" || fail "(8) a pre-merge isolation defer must stay PRE-LAND"
+# The gate must have reached the b2 discriminator, not merely errored out on some other path.
+grep -q 'empty+main_moved(nonmerge)' "$ISOLOG8" \
+  || fail "(8) verify-isolation.sh never reached its (b2) breach branch — it saw base='$(sed -n 's/.*base=\([^ ]*\).*/\1/p' "$ISOLOG8" | tail -n1)'. log: $(cat "$ISOLOG8")"
+# …and nothing was mutated: main is byte-unmoved and the worktree survives for reconcile.
+[[ "$(git -C "$M8" rev-parse HEAD)" == "$BEFORE8_MAIN" ]] || fail "(8) main MOVED on an isolation defer"
+[[ -d "$W8" ]] || fail "(8) the worktree was retired despite the defer"
+pass "(8) id:8739 a MAIN-CHECKOUT BREACH is still caught (exit 21) while origin/main is FROZEN and local main is ahead"
+
+# =====================================================================================
+# (9) id:8739 — NO FALSE POSITIVE: an empty worktree with an UNMOVED main is still the
+#     legitimate id:8e3e no-op review, even though origin/main is frozen behind.
+#     The assertion is on WHICH branch the gate took (its own log), not just the exit code:
+#     with the pre-fix defaulted base the gate takes the (a) "ok: N commit(s) beyond
+#     origin/main" branch — it passes for the WRONG REASON, and that wrong reason is
+#     precisely what made (8) fail. So this is RED pre-change too, on the log assertion.
+# =====================================================================================
+M9="$(build noop)"; R9="$(basename "$M9")"; O9="$TMP/o-noop.git"
+C9="$(cfg noop "$R9")"
+ISOLOG9="$TMP/verify-iso-9.log"
+for n in 1 2; do
+  echo "unratified-$n" > "$M9/deferred-$n"
+  git -C "$M9" add -- "deferred-$n"
+  git -C "$M9" commit -qm "unratified local commit $n"
+done
+git -C "$M9" worktree add -q -b relay/noop "$TMP/wt-noop" main   # EMPTY: no commits, clean
+W9="$TMP/wt-noop"
+rc=0
+out9="$(FABLES_CONFIG="$C9" INTEGRATE_GIT_LOCK_PUSH="$REAL_PUSH" VERIFY_ISOLATION_LOG="$ISOLOG9" \
+  "$INT" --repo "$R9" --path "$M9" --worktree "$W9" --branch relay/noop \
+         --summary "no-op review, nothing to change" --run r9 \
+         --label "reviewer (claude-opus-5, relay-loop)" \
+         --verdict review --substantive false --strong-model claude-opus-5 2>"$ERRLOG")" || rc=$?
+[[ $rc -eq 0 ]] || fail "(9) id:8739 FALSE POSITIVE: a legitimate id:8e3e no-op review was rejected with exit $rc. stderr: $(cat "$ERRLOG")"
+grep -q 'empty+main_unmoved' "$ISOLOG9" \
+  || fail "(9) the gate passed for the WRONG REASON — it never took the empty+main_unmoved (b1) branch, so an id:8e3e no-op is being waved through by the (a) commits-beyond-a-stale-base path. log: $(cat "$ISOLOG9")"
+pass "(9) id:8739 an empty worktree with an UNMOVED main is still a legitimate no-op (b1), not a false positive"
 
 echo "ALL PASS: tests/$(basename "$0")"

@@ -980,6 +980,11 @@ const INTEGRATE_SCHEMA = {
     pushStatus: { type: 'string' },
     // id:4d44 — 'pending' when this unit sits in the durable ratification queue
     // (~/.config/relay/ratification-queue.jsonl), 'none' when it was published outright.
+    // id:f0ad — 'pending' covers BOTH unpublished-land classes: pushStatus 'deferred' (a
+    // substantive unit awaiting owner ratification) AND pushStatus 'no-upstream' (nowhere to
+    // push at all). The latter used to report 'none', so the surfacing condition below
+    // matched neither key and an unpublished merge was counted as a plain completion.
+    // 'none' therefore means exactly one thing now: the merge reached a remote.
     ratification: { type: 'string' },
     ts: { type: 'string' },
     reason: { type: 'string' },
