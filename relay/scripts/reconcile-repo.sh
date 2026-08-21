@@ -176,7 +176,16 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
           # surface named a ref that did not exist and idled the pool with 0 dispatched.
           # Parity (id:77ce) forbids APPLY adding to this JSON, so the fix is tense, not timing:
           # state the INTENT here; APPLY verifies the outcome on stderr/log (see the park loop).
-          add_surfaced "stale worktree $bn from a dead run — to be parked as relay/orphan/$bn for manual /relay reconcile (id:689c); verify the ref exists before acting on it"
+          # id:1e6c — CLASS MARKER prefix. This line used to start with the bare prose "stale
+          # worktree …", which discover-repo.sh's class dispatcher could only read as "not
+          # orphan-suppress" ⇒ SUBSTITUTIVE ⇒ units:[] — so a repo whose ONLY problem was a
+          # dead run's leftover worktree was silently starved even while classifying `execute`
+          # (loderite, runs relay-20260820-180056-4594 + relay-20260821-174757-32436: 6 open
+          # actionable [ROUTINE] items, zero dispatched, two rounds running). A planned park IS
+          # the D1 "parked orphan" (meeting 2026-07-23, id:bc49/7e87), which is ADDITIVE surface,
+          # never repo-scoped suppression — the marker is what lets the dispatcher say so. The
+          # item-scoped half is handled below: the suppress step now also binds PLANNED parks.
+          add_surfaced "parked-orphan (planned): stale worktree $bn from a dead run — to be parked as relay/orphan/$bn for manual /relay reconcile (id:689c); verify the ref exists before acting on it"
           plan_park+=("$bn:$branch")
         fi
       done < <(ls -1 "$wtdir" 2>/dev/null || true)
@@ -233,7 +242,20 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       add_action "suppress" "$why"
       add_surfaced "suppressed re-dispatch: $why on $oref — manual /relay reconcile; cost hint: relay-burn.sh --run ${runid:-<runId>}"
     fi
-  done < <(git -C "$path" for-each-ref --format='%(refname:short)' refs/heads/relay/orphan/ 2>/dev/null || true)
+  done < <( { git -C "$path" for-each-ref --format='%(refname:short)' refs/heads/relay/orphan/ 2>/dev/null || true
+              # id:1e6c — a PLANNED park (this round's plan_park) is evaluated by the SAME
+              # item-binding rule as an already-parked orphan. Without this, the round in which
+              # a park is planned would have no item-scoped guard at all: the park surface is
+              # now ADDITIVE (see the marker above), so classify runs, and the just-parked item
+              # could be re-dispatched to a second expensive session. Binding it here makes this
+              # round behave exactly like the NEXT round would (when the ref lives under
+              # relay/orphan/). The ref is named by its CURRENT name (relay/<bn>) — honest tense
+              # per id:1af1: the rename has not happened yet and may fail.
+              for __pp in "${plan_park[@]:-}"; do
+                [[ -n "$__pp" ]] || continue
+                printf '%s\n' "${__pp#*:}"
+              done
+            } )
 
   # ============================ APPLY (mutating) =============================
   if [[ "$dry_run" -eq 0 ]]; then
