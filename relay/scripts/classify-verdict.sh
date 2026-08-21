@@ -35,8 +35,69 @@
 # The `AMBIGUOUS` verdict is reserved for states the mechanical rules cannot decide;
 # it gates the LLM discover-shard (DP1, meeting 2026-06-30-1523).
 #
+# ── id:bc2b — CLASS EXCLUSION (`--exclude <class>[,<class>…]`, repeatable) ──────────────────
+# Suppression must DEMOTE the verdict, not DROP the unit. relay-loop.js's two anti-spin
+# mechanisms (id:1432 no-work suppression, id:365b >3x circuit breaker) are SUBSTITUTIVE: they
+# removed the unit from dispatch entirely. Because the cascade below is a strict elif chain, a
+# single actionable [ROUTINE] item PINS a repo at `execute` (rank 1) — so a repo pinned at
+# `execute` with `execute` suppressed could reach NOTHING (observed live on loderite, run
+# relay-20260820-180056-4594: actionable_routine_ids ['57d1'] starved 9 promotable items until a
+# human ran handoff by hand).
+#
+# `--exclude` makes the classifier the place that answers "what would this repo be WITHOUT that
+# class?" — the loop supplies only the suppressed class, exactly as id:8123 supplies only the
+# chain-end FACT, so there is no loop-side verdict judgement and the function stays pure.
+#
+# DEMOTE-ONLY BY CONSTRUCTION: excluding a class merely skips its elif, so control can only fall
+# THROUGH to a lower-ranked branch. There is no path by which an exclusion promotes a repo above
+# the verdict it would otherwise get.
+#
+# NON-EXCLUDABLE: `blocked` (rank 0, a safety verdict — excluding it would dispatch into a dirty
+# or diverged tree) and `idle` (rank 7, the terminal fallthrough — nothing sits below it). Both
+# are accepted and silently ignored rather than rejected, so a caller can pass a whole verdict
+# set without special-casing. An UNKNOWN class is a loud error (exit 2) — a typo must never read
+# as "excluded nothing".
+#
+# PURITY / BACK-COMPAT: with no `--exclude`, `excluded` is empty, every guard is a no-op and the
+# emitted object is byte-identical to the pre-bc2b output (the `excluded` key is added ONLY when
+# the set is non-empty).
+#
 # Seeded from the 2026-06-30 discovery failures (TODO id:4d8e corpus a/b/h).
 set -euo pipefail
+
+# id:bc2b — arg parse BEFORE the stdin capture (stdin is the JSON object, never a heredoc).
+KNOWN_CLASSES=" blocked execute review hard handoff human mechanical idle "
+EXCLUDE=""
+_add_exclude() {
+  local spec="$1" cls
+  local IFS=','
+  for cls in $spec; do
+    cls="$(printf '%s' "$cls" | tr -d '[:space:]')"
+    [ -n "$cls" ] || continue
+    case "$KNOWN_CLASSES" in
+      *" $cls "*) ;;
+      *) echo "classify-verdict.sh: --exclude: unknown verdict class '$cls' (known:$KNOWN_CLASSES)" >&2; exit 2 ;;
+    esac
+    EXCLUDE="${EXCLUDE}${cls},"
+  done
+}
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --exclude)
+      shift
+      [ "$#" -gt 0 ] || { echo "classify-verdict.sh: --exclude needs a value" >&2; exit 2; }
+      _add_exclude "$1"
+      ;;
+    --exclude=*) _add_exclude "${1#--exclude=}" ;;
+    -h|--help)
+      echo "usage: classify-verdict.sh [--exclude <class>[,<class>...]] < gather-state.json" >&2
+      exit 0
+      ;;
+    *) echo "classify-verdict.sh: unknown argument '$1'" >&2; exit 2 ;;
+  esac
+  shift
+done
+export RELAY_VERDICT_EXCLUDE="$EXCLUDE"
 
 # Capture stdin first — we cannot use a bash heredoc (<<) for the Python code
 # because that would replace stdin (our JSON input) with the heredoc content.
@@ -45,8 +106,21 @@ INPUT=$(cat)
 printf '%s' "$INPUT" | python3 -c '
 import sys
 import json
+import os
 
 data = json.load(sys.stdin)
+
+# id:bc2b — the excluded verdict CLASSES (see the header block). Arrives as a comma-separated,
+# already-validated list in RELAY_VERDICT_EXCLUDE. `blocked` (rank 0 safety verdict) and `idle`
+# (terminal fallthrough) are dropped here: they are NON-EXCLUDABLE, so a caller passing a whole
+# verdict set does not have to special-case them. Empty set => every guard below is a no-op and
+# the output is byte-identical to the pre-bc2b behaviour.
+excluded = set(
+    c for c in os.environ.get("RELAY_VERDICT_EXCLUDE", "").split(",") if c
+) - set(["blocked", "idle"])
+# DEMOTE-ONLY: this only ever SKIPS an elif, so control falls THROUGH to a lower-ranked branch.
+def allow(cls):
+    return cls not in excluded
 
 has_routine           = bool(data.get("hasRoutine", False))
 substantive_unaudited = bool(data.get("substantive_unaudited", False))
@@ -199,7 +273,7 @@ elif dirty_block:
 # id:cc90 K<=3 (mid-chain handback, contract_met:false, quota-stop) reaches it exactly like a
 # full-length one, which a `chainDepth === K` trigger could not (executes never chain today, so
 # such a trigger would not have fired for the incident that motivated this at all).
-elif chain_ended and substantive_unaudited:
+elif allow("review") and chain_ended and substantive_unaudited:
     verdict       = "review"
     priority_rank = 2
     reason        = (
@@ -211,19 +285,19 @@ elif chain_ended and substantive_unaudited:
     evidence.append({"field": "chain_end_reason",      "value": chain_end_reason,  "source": "relay-loop"})
     evidence.append({"field": "substantive_unaudited", "value": True,              "source": "gather-repo-state"})
 
-elif actionable_routine > 0:
+elif allow("execute") and actionable_routine > 0:
     verdict       = "execute"
     priority_rank = 1
     reason        = "Open executor-actionable [ROUTINE] ROADMAP items present — executor can act immediately"
     evidence.append({"field": "actionable_routine_open", "value": actionable_routine, "source": "classify-repo"})
 
-elif substantive_unaudited:
+elif allow("review") and substantive_unaudited:
     verdict       = "review"
     priority_rank = 2
     reason        = "Substantive unaudited commits present — reviewer pass needed before execution"
     evidence.append({"field": "substantive_unaudited", "value": True, "source": "gather-repo-state"})
 
-elif open_hard_pool >= 1:
+elif allow("hard") and open_hard_pool >= 1:
     verdict       = "hard"
     priority_rank = 3
     reason        = (
@@ -232,7 +306,7 @@ elif open_hard_pool >= 1:
     ).format(open_hard_pool)
     evidence.append({"field": "open_hard_pool", "value": open_hard_pool, "source": "gather-repo-state"})
 
-elif promote > 0 or surfaced_open > 0:
+elif allow("handoff") and (promote > 0 or surfaced_open > 0):
     # Case (b) split 1/2 (id:5eb3): promotable backlog → full handoff (Opus apex promotion work).
     # Covers: drained @manual-only ROADMAP + promotable TODO items (case b); is_finished=true
     # with promote items (case h). promote>0 ALWAYS beats surface-only, never silenced as idle.
@@ -249,7 +323,7 @@ elif promote > 0 or surfaced_open > 0:
     evidence.append({"field": "unpromoted.surface", "value": surface,       "source": "unpromoted-scan"})
     evidence.append({"field": "surfaced_open",      "value": surfaced_open, "source": "classify-repo"})
 
-elif surface > 0:
+elif allow("human") and surface > 0:
     # Case (b) split 2/2 (id:5eb3): surface-only backlog (promote==0 ∧ surface>0) → human.
     # No promotable work for Opus to act on; mechanical filing only (no apex dispatch).
     # The relay-loop wires file-surface-decisions.sh at the human verdict to file each
@@ -263,7 +337,7 @@ elif surface > 0:
     evidence.append({"field": "unpromoted.promote", "value": 0,       "source": "unpromoted-scan"})
     evidence.append({"field": "unpromoted.surface", "value": surface,  "source": "unpromoted-scan"})
 
-elif roadmap_open > 0 and open_human_lane > 0 and open_mechanical == 0:
+elif allow("human") and roadmap_open > 0 and open_human_lane > 0 and open_mechanical == 0:
     # id:4a76 — HUMAN-LANE-DRAINED. Every executable lane is empty (no actionable [ROUTINE],
     # no unaudited commits, no [HARD — pool], no promotable/surface TODO backlog, no open
     # [MECHANICAL]) YET the ROADMAP still carries open items, at least one of which sits on a
@@ -294,7 +368,7 @@ elif roadmap_open > 0 and open_human_lane > 0 and open_mechanical == 0:
     evidence.append({"field": "roadmap_open",    "value": roadmap_open,    "source": "classify-repo"})
     evidence.append({"field": "open_human_lane", "value": open_human_lane, "source": "classify-repo"})
 
-elif open_mechanical >= 1:
+elif allow("mechanical") and open_mechanical >= 1:
     # id:7616 — MECHANICAL-only backlog: pure-compute open items, nothing higher-priority
     # (no actionable routine / unaudited / hard-pool / promote / surface). POOL-INERT — a
     # host daemon dispatches this (A3, gated), never the LLM pool; intensive stays "" (the
@@ -342,6 +416,12 @@ result = {
         ""
     ),
 }
+
+# id:bc2b — record WHICH classes were excluded, so a demoted verdict is self-explaining in the
+# relay-events / RELAY_STATUS trail. Added ONLY when the set is non-empty, keeping the no-exclude
+# output byte-identical to the pre-bc2b object.
+if excluded:
+    result["excluded"] = sorted(excluded)
 
 print(json.dumps(result))
 '
