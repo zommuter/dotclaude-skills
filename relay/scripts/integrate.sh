@@ -394,10 +394,24 @@ case "$verdict" in
       if ! tick_out="$("$ROADMAP_TICK" "$path" "$ids" 2>&1)"; then
         handback roadmap-tick "$EX_TICK" "roadmap-tick failed for ids '$ids' (merge landed; main is at $merged_head, NOT tagged/pushed): $tick_out"
       fi
-      # Commit ROADMAP.md ONLY if it actually changed (scoped staging, id:debf — never -A).
-      if [ -n "$(git -C "$path" status --porcelain -- ROADMAP.md 2>/dev/null)" ]; then
-        git -C "$path" add -- ROADMAP.md
-        git -C "$path" commit -q -m "chore(roadmap): tick worked items [id:$ids]" \
+      # Commit ROADMAP.md **and TODO.md** ONLY if they actually changed (scoped staging,
+      # id:debf — never -A/./-u). roadmap-tick.sh also ticks the TODO TWIN of every worked
+      # id (single-id-two-views), so the tick can dirty EITHER ledger. Staging only
+      # ROADMAP.md left TODO.md modified-but-uncommitted in the CANONICAL checkout: the run
+      # reported clean, step 8's `git-lock-push --ff-only` never reaches the id:aa93
+      # tracked-dirty guard (that guard lives in the rebase branch), and one round later the
+      # repo classified `dirty_block` with every later integrate.sh handing back at step-1
+      # EX_CLEAN_TREE **permanently** — the tick is idempotent, so a retry cleared nothing
+      # (id:e82e). An id with no TODO twin leaves TODO.md untouched, so the porcelain check
+      # simply narrows to ROADMAP.md and no empty commit is made.
+      # Each ledger is named ONLY if it exists on disk: `git add -- <missing>` is a fatal
+      # pathspec error (exit 128), and a repo with no TODO.md is perfectly normal.
+      tick_paths=()
+      [ -e "$path/ROADMAP.md" ] && tick_paths+=(ROADMAP.md)
+      [ -e "$path/TODO.md" ] && tick_paths+=(TODO.md)
+      if [ "${#tick_paths[@]}" -gt 0 ] && [ -n "$(git -C "$path" status --porcelain -- "${tick_paths[@]}" 2>/dev/null)" ]; then
+        git -C "$path" add -- "${tick_paths[@]}"
+        git -C "$path" commit -q -m "chore(roadmap): tick worked items + TODO twins [id:$ids]" \
           || handback roadmap-tick "$EX_TICK" "roadmap tick commit failed for ids '$ids'"
       fi
     fi

@@ -6525,3 +6525,41 @@ tests earlier the same day.
 ## 2026-08-21 13:00 — integrate (claude-opus-5)
 
 integrate id:81d5 — pipefail/SIGPIPE remediated across 478 sites in 185 files + a zero-exemption lint; verified by an inverse token-for-token checker (476/476) and ten green -j8 runs. id:7518 left OPEN (its clause-4 hypothesis ranking is not discharged; ten green runs are evidence, not proof)
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:e82e and id:31c3.
+
+id:e82e (POOL-BLOCKING): `integrate.sh` step 4b staged only `ROADMAP.md`, while
+`roadmap-tick.sh` also writes the TODO twin of every worked id — so an integrate whose
+worked id had an open twin left `TODO.md` modified-but-uncommitted in the canonical
+checkout and wedged the repo one round later at step-1 `EX_CLEAN_TREE`. Widened the
+porcelain check + `git add` to `ROADMAP.md TODO.md` (scoped paths only, id:debf intact),
+renamed the commit to `chore(roadmap): tick worked items + TODO twins [id:$ids]`, and
+corrected the stale `roadmap-tick.sh` header comment that still named `ROADMAP.md` alone.
+New test `tests/test_integrate_todo_twin_commit_e82e.sh` drives a REAL integrate at the
+`integrate.sh` seam — the existing `test_roadmap_tick_todo_twin.sh` runs the script
+standalone and structurally cannot see a staging gap, which is why a green suite missed
+this. Verified red-before against a mirrored pre-fix `integrate.sh` (` M TODO.md` left
+behind, the exact wedge dirt) and green-after.
+
+Surprise worth recording: naming both ledgers unconditionally broke
+`test_integrate_mechanized_ports_087b.sh` — `git add -- TODO.md` is a FATAL exit-128
+pathspec error in a fixture repo with no `TODO.md`, and a repo without one is perfectly
+normal. Step 4b now names each ledger only if it exists on disk. The suite caught it; the
+new test alone would not have, since its fixtures always seed both files.
+
+id:31c3 (wording only): the `id:7575` hardened brief told children the slicer bounds an
+item block by INDENTATION so a column-0 criterion can be missing — `id:b015` removed that
+months ago. Replaced the false justification in `prompt-size-gate.mjs` and its inline copy
+in `relay-loop.js` with a true statement of what the slice carries, kept the hand-back
+instruction itself intact, and rewrote the `sliceInstruction` rationale comment to record
+that `b015` fixed it rather than repeating the claim. The two copies are still
+byte-equivalent (`test_slice_invitation_headroom_7575.sh` pins this and passes), and the
+`id:9663` no-enforcement assertion still holds.
+
+Friction: none. `make test` → 465 passed, 0 failed, 1 expected-red
+(`test_dryround_single_definition_6217.sh`, pre-existing, roadmap:6217 still open).
+refactor: none needed — one staging widening plus two string/comment corrections; no new
+duplication, and the existing-path guard was folded into the same block rather than added
+as a second conditional.
