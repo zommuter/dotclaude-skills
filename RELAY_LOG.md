@@ -6394,3 +6394,27 @@ instead. Did NOT touch relay-loop.js (a sibling executor holds it).
 ## 2026-08-21 11:30 — integrate (claude-opus-5)
 
 integrate: mechanized TODO twin tick (4 drifted items repaired, cross-ledger now empty) + headroom-conditional slice invitation (id:7575 option b); a955 closed superseded-by-seams
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:353e — closed the two defects in the `id:bc2b` demote path. (1) In the `id:365b`
+circuit-breaker loop the counting step is now a shared `breakerAllows(u)` closure that BOTH the
+ordinary unit and the demoted replacement pass through; a demoted class that is itself over its
+own suppression count is excluded in turn and control falls further through the cascade, instead
+of dispatching past the breaker. Termination: each retry adds the returned class to the exclusion
+set and `demoteSuppressedUnit` returns null for a class already excluded, so the set grows
+strictly and is bounded by `DEMOTE_MAX_CLASSES = 8` (the finite `KNOWN_CLASSES` set
+classify-verdict.sh validates against). (2) `classify-verdict.sh` now drops `review` from the
+honoured exclusion set whenever `substantive_unaudited` is true — a third, CONDITIONALLY
+non-excludable class beside `blocked`/`idle` — so an unaudited window can no longer grow through
+the exclusion door and the ratified `id:8123` chain-end re-ask cannot be silently switched off
+along with the ordinary review branch. Scoped to the hazard: with no unaudited commits `review`
+excludes normally. Demote-only, no new state, no threshold heuristic.
+
+Friction: the flagged `id:7518` flake fired — `test_integrate_mechanized_ports_087b.sh` and
+`test_statusline_tokens.sh` went red in-suite, both PASSED standalone, and a clean re-run of the
+full suite was 461/0. Neither touches this diff.
+
+refactor: extracted the breaker's counting step into the shared `breakerAllows` closure rather
+than duplicating the key/sig/count block for the demote path — the duplication the fix would
+otherwise have forced, and it keeps the inline copy logic-equivalent to redispatch-guard.mjs.
