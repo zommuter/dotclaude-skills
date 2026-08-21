@@ -1584,6 +1584,55 @@ async function mechVerdictHop(note, command, label) {
   )
   return parseVerdictClass(raw)
 }
+// ── id:bc2b — SUPPRESSION MUST DEMOTE THE VERDICT, NOT DROP THE UNIT ────────────────────────
+// classify-verdict.sh is a strict elif cascade, so ONE actionable [ROUTINE] item PINS a repo at
+// `execute` (rank 1). Both anti-spin mechanisms were SUBSTITUTIVE — id:1432 no-work suppression
+// and the id:365b >3x circuit breaker each removed the unit from dispatch — so a repo pinned at
+// `execute` with `execute` suppressed could reach NOTHING. Observed live on loderite (run
+// relay-20260820-180056-4594): actionable_routine_ids ['57d1'] — one item whose child died on
+// prompt size — starved 9 promotable items until a human ran handoff BY HAND.
+//
+// The remedy MIRRORS the ratified id:8123 chain-end re-ask: the loop supplies only the FACT
+// (here: which class was suppressed) and classify-verdict.sh decides. No loop-side verdict
+// judgement, no threshold heuristic, no new state (the suppression caches already persist per
+// run). If the classifier returns nothing dispatchable, the unit is surfaced and idles EXACTLY
+// as it did before this landed.
+//
+// Returns a REPLACEMENT unit (demoted verdict) or null — null means "surface it as before".
+async function demoteSuppressedUnit(unit, excludeClasses, sourceId) {
+  const excl = Array.from(new Set((excludeClasses || []).filter(Boolean)))
+  if (!unit || !unit.repo || !unit.path || !excl.length) return null
+  let v = null
+  try {
+    v = await mechVerdictHop(
+      'id:bc2b suppression DEMOTE re-ask for ' + unit.repo + ' — re-classify with the SUPPRESSED class excluded; the loop supplies only the excluded class, classify-verdict.sh decides the next-ranked verdict',
+      // Same two pinned relay scripts the id:8123 re-ask uses (mechanical-proxy.py allowlists by
+      // basename, so the added --exclude arg passes the gate unchanged).
+      '~/.claude/skills/relay/scripts/classify-repo.sh --repo ' + mechArg(unit.repo) +
+        ' --path ' + mechArg(unit.path) + ' --emit unit' +
+        ' | ~/.claude/skills/relay/scripts/classify-verdict.sh --exclude ' + mechArg(excl.join(',')),
+      'suppress-demote:' + unit.repo
+    )
+  } catch (err) {
+    log(`relay-loop: id:bc2b suppression demote re-ask for ${unit.repo} failed (${err}) — surfacing as before`)
+    return null
+  }
+  // NAMED ESCAPES, never a silent invention: an unreadable verdict, a non-dispatchable class
+  // (idle/blocked/mechanical are pool-inert), or a class we just excluded all fall back to the
+  // pre-bc2b surface-and-skip. Demote-only is enforced by the classifier's cascade itself.
+  if (!v || v === 'idle' || v === 'blocked' || v === 'mechanical' || excl.includes(v)) return null
+  log(`relay-loop: id:bc2b ${sourceId} suppression DEMOTED ${unit.repo} ${unit.verdict}→${v} (excluded: ${excl.join(',')}) instead of dropping the unit`)
+  pushEvent('suppression-demote', { repo: unit.repo, round, fromVerdict: unit.verdict || '', toVerdict: v, excluded: excl.join(','), source: sourceId })
+  return Object.assign({}, unit, {
+    verdict: v,
+    priority_rank: (PRIORITY[v] === undefined ? (unit.priority_rank || 0) : PRIORITY[v]),
+    // The INTENSIVE resource claim belonged to the SUPPRESSED lane (id:2799/5ac6): a demoted
+    // verdict must not carry it, or an unrelated lane's resource defers this unit.
+    intensive: '',
+    suppressionDemote: { from: unit.verdict || '', excluded: excl, source: sourceId },
+    reason: `id:bc2b suppression demote (${sourceId}): ${unit.verdict} was suppressed, so the repo was re-classified with that class excluded and came back ${v}. Prior reason: ${unit.reason || '(none)'}`,
+  })
+}
 
 async function runRound() {
 // id:2d20 — productivity baseline: completions integrated BEFORE this round. The outer loop's
@@ -2003,7 +2052,15 @@ if (prelude && Array.isArray(prelude.repos)) {
     // prelude.runId names a run nothing ever wrote (0 samples).
     const { kept, suppressed } = applyNoWorkSuppression(units, noWorkNegCache, state.runId)
     if (suppressed.length) {
-      for (const s of suppressed) surfaced.push({ repo: s.unit.repo, reason: s.reason })
+      // id:bc2b — DEMOTE, don't drop: re-classify each suppressed unit with its suppressed class
+      // excluded and keep the next-ranked class. Only a unit the classifier gives nothing
+      // dispatchable for is surfaced (the pre-bc2b behaviour), so the id:8c85 accounting
+      // invariant holds — each repo lands in exactly ONE of units/surfaced.
+      for (const s of suppressed) {
+        const demoted = await demoteSuppressedUnit(s.unit, [s.unit.verdict], 'id:1432')
+        if (demoted) kept.push(demoted)
+        else surfaced.push({ repo: s.unit.repo, reason: s.reason })
+      }
       log(`relay-loop: id:1432 no-work handback suppression — ${suppressed.length} unit(s) not re-dispatched (route=none handback, work_sig unchanged): ${suppressed.map(s => `${s.unit.repo}(${s.unit.verdict})`).join(', ')}`)
       units.length = 0
       units.push(...kept)
@@ -2107,7 +2164,12 @@ const dispatchable = discovery.units.filter(u => u.verdict !== 'idle')
     else redispatchGuard[key] = { sig, count: 1 }
     if (redispatchGuard[key].count > 3) {
       suppressedCB.push(u)
-      discovery.surfaced.push({ repo: u.repo, reason: `circuit breaker (id:365b): ${u.repo} ${u.verdict} dispatched >3× this run with no substantive change (work_sig unchanged) — skipping until new work or a human intervenes; cost hint: relay-burn.sh --run ${state.runId}` })
+      // id:bc2b — DEMOTE, don't drop (same remedy as the id:1432 site above): re-classify with
+      // this class excluded and dispatch the next-ranked one. Only when the classifier offers
+      // nothing dispatchable does the unit surface and idle exactly as it did before.
+      const demotedCB = await demoteSuppressedUnit(u, [u.verdict], 'id:365b')
+      if (demotedCB) keptCB.push(demotedCB)
+      else discovery.surfaced.push({ repo: u.repo, reason: `circuit breaker (id:365b): ${u.repo} ${u.verdict} dispatched >3× this run with no substantive change (work_sig unchanged) — skipping until new work or a human intervenes; cost hint: relay-burn.sh --run ${state.runId}` })
     } else {
       keptCB.push(u)
     }
