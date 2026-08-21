@@ -58,6 +58,16 @@
 # set without special-casing. An UNKNOWN class is a loud error (exit 2) — a typo must never read
 # as "excluded nothing".
 #
+# CONDITIONALLY NON-EXCLUDABLE (id:353e): `review` while `substantive_unaudited` is true. Excluding
+# `review` disabled BOTH review branches at once — the ordinary rank-2 one AND the ratified id:8123
+# chain-end re-ask — so a repo with an unaudited window demoted to `execute`/`hard`/`handoff` and
+# got a child STACKED ON the unaudited commits. Next round `repo:review` is still over its
+# suppression count, so it demotes again and the window GROWS for the whole run: precisely the
+# total starvation id:8123 was ratified to prevent, re-entering through the exclusion door. The
+# refusal is SCOPED to the hazard — with no unaudited commits there is no window to grow and
+# `review` excludes normally — and is recorded the same way blocked/idle are: `review` is dropped
+# from the honoured set, so the emitted `excluded` key never claims an exclusion that was ignored.
+#
 # PURITY / BACK-COMPAT: with no `--exclude`, `excluded` is empty, every guard is a no-op and the
 # emitted object is byte-identical to the pre-bc2b output (the `excluded` key is added ONLY when
 # the set is non-empty).
@@ -124,6 +134,12 @@ def allow(cls):
 
 has_routine           = bool(data.get("hasRoutine", False))
 substantive_unaudited = bool(data.get("substantive_unaudited", False))
+# id:353e — `review` joins blocked/idle as NON-EXCLUDABLE while an unaudited window is open (see
+# the header block). Dropped from the honoured set rather than rejected, so the `excluded` key
+# below reports what was actually honoured and both review branches (ordinary + id:8123
+# chain-end) survive together — neither can be switched off through the exclusion door.
+if substantive_unaudited:
+    excluded.discard("review")
 open_hard_pool        = int(data.get("open_hard_pool", 0))
 unpromoted            = data.get("unpromoted", {})
 promote               = int(unpromoted.get("promote", 0))

@@ -2155,24 +2155,47 @@ const dispatchable = discovery.units.filter(u => u.verdict !== 'idle')
 // pure helper — the Workflow sandbox cannot import it). A structural test pins the wiring.
 {
   const keptCB = [], suppressedCB = []
-  for (const u of dispatchable) {
-    if (u.injected) { keptCB.push(u); continue }
+  // id:353e — the breaker's counting step, extracted so the id:bc2b DEMOTE path re-enters it
+  // instead of bypassing it. Counts one prospective dispatch of `u` under the verdict key it
+  // would dispatch as, and answers whether that dispatch is still under the >3× cap. Logic is
+  // byte-for-byte what the inline loop did before, so redispatch-guard.mjs equivalence holds.
+  const breakerAllows = (u) => {
     const key = `${u.repo}:${u.verdict}`
     const sig = u.work_sig || ''
     const prev = redispatchGuard[key]
     if (prev && prev.sig === sig) prev.count++
     else redispatchGuard[key] = { sig, count: 1 }
-    if (redispatchGuard[key].count > 3) {
-      suppressedCB.push(u)
-      // id:bc2b — DEMOTE, don't drop (same remedy as the id:1432 site above): re-classify with
-      // this class excluded and dispatch the next-ranked one. Only when the classifier offers
-      // nothing dispatchable does the unit surface and idle exactly as it did before.
-      const demotedCB = await demoteSuppressedUnit(u, [u.verdict], 'id:365b')
-      if (demotedCB) keptCB.push(demotedCB)
-      else discovery.surfaced.push({ repo: u.repo, reason: `circuit breaker (id:365b): ${u.repo} ${u.verdict} dispatched >3× this run with no substantive change (work_sig unchanged) — skipping until new work or a human intervenes; cost hint: relay-burn.sh --run ${state.runId}` })
-    } else {
-      keptCB.push(u)
+    return redispatchGuard[key].count <= 3
+  }
+  // id:353e TERMINATION BOUND: every demote round adds the class just returned to the exclusion
+  // set, and demoteSuppressedUnit returns null for any class already in it — so the set grows
+  // strictly and the retry cannot exceed the finite KNOWN_CLASSES set classify-verdict.sh
+  // validates against (blocked execute review hard handoff human mechanical idle).
+  const DEMOTE_MAX_CLASSES = 8
+  for (const u of dispatchable) {
+    if (u.injected) { keptCB.push(u); continue }
+    if (breakerAllows(u)) { keptCB.push(u); continue }
+    suppressedCB.push(u)
+    // id:bc2b — DEMOTE, don't drop (same remedy as the id:1432 site above): re-classify with
+    // this class excluded and dispatch the next-ranked one. Only when the classifier offers
+    // nothing dispatchable does the unit surface and idle exactly as it did before.
+    //
+    // id:353e — the demoted unit RE-ENTERS the breaker. It used to be pushed straight into
+    // keptCB, so a demoted class that was ITSELF over its own suppression count dispatched
+    // anyway — bypassing the very breaker the demotion was added to soften. A demoted class
+    // over its count is excluded in turn and control falls FURTHER through the cascade; this
+    // stays demote-only (no promotion, no new state, no threshold heuristic).
+    const excl = [u.verdict]
+    let placed = false
+    while (excl.length < DEMOTE_MAX_CLASSES) {
+      const demotedCB = await demoteSuppressedUnit(u, excl.slice(), 'id:365b')
+      if (!demotedCB) break
+      if (breakerAllows(demotedCB)) { keptCB.push(demotedCB); placed = true; break }
+      log(`relay-loop: id:353e ${u.repo} demoted to ${demotedCB.verdict} but THAT class is itself >3× suppressed — excluding it too and re-asking the classifier`)
+      suppressedCB.push(demotedCB)
+      excl.push(demotedCB.verdict)
     }
+    if (!placed) discovery.surfaced.push({ repo: u.repo, reason: `circuit breaker (id:365b): ${u.repo} ${u.verdict} dispatched >3× this run with no substantive change (work_sig unchanged) — skipping until new work or a human intervenes; cost hint: relay-burn.sh --run ${state.runId}` })
   }
   if (suppressedCB.length) {
     log(`relay-loop: id:365b re-dispatch circuit breaker — ${suppressedCB.length} unit(s) suppressed (>3× this run, work_sig unchanged): ${suppressedCB.map(u => `${u.repo}(${u.verdict})`).join(', ')}`)
