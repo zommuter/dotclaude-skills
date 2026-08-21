@@ -36,27 +36,59 @@ def strip_comment_and_quotes(line):
     friends INSIDE quotes are invisible to the pipeline splitter, while column
     offsets stay true.  `ok` is False when the line ends inside a quote (a
     continued multi-line string) — the caller then treats it as opaque.
+
+    A COMMAND SUBSTITUTION stays visible even inside double quotes: `x="$(a |
+    head -1)"` is code, not a string, and masking it hid a whole class of live
+    sites (`test_statusline_tokens.sh` was one).  The scanner therefore keeps a
+    context STACK — double-quote, single-quote, and `$(`-code — rather than a
+    single `quote` flag.
     """
     out = []
-    i = 0
-    n = len(line)
-    quote = None
+    stack = ["code"]          # innermost context last
+    parens = [0]              # open-paren depth of each "code" context
+    i, n = 0, len(line)
     while i < n:
         c = line[i]
-        if quote:
-            if c == "\\" and quote == '"' and i + 1 < n:
-                out.append("_"); out.append("_"); i += 2; continue
-            if c == quote:
-                out.append(c); quote = None; i += 1; continue
-            out.append("_"); i += 1; continue
+        top = stack[-1]
+
+        if top == "sq":                       # single quotes: nothing expands
+            out.append(c if c == "'" else "_")
+            if c == "'":
+                stack.pop()
+            i += 1
+            continue
+
+        if top == "dq":
+            if c == "\\" and i + 1 < n:
+                out.append("__"); i += 2; continue
+            if c == '"':
+                out.append(c); stack.pop(); i += 1; continue
+            if c == "$" and line[i + 1:i + 2] == "(":
+                out.append("$("); stack.append("code"); parens.append(0); i += 2
+                continue
+            out.append("_"); i += 1
+            continue
+
+        # --- code context
         if c == "\\" and i + 1 < n:
-            out.append("_"); out.append("_"); i += 2; continue
-        if c in ("'", '"'):
-            out.append(c); quote = c; i += 1; continue
-        if c == "#" and (i == 0 or line[i - 1] in " \t;&|("):
+            out.append("__"); i += 2; continue
+        if c == "'":
+            out.append(c); stack.append("sq"); i += 1; continue
+        if c == '"':
+            out.append(c); stack.append("dq"); i += 1; continue
+        if c == "$" and line[i + 1:i + 2] == "(":
+            out.append("$("); stack.append("code"); parens.append(0); i += 2
+            continue
+        if c == "(":
+            parens[-1] += 1; out.append(c); i += 1; continue
+        if c == ")":
+            if parens[-1] == 0 and len(stack) > 1:
+                out.append(c); stack.pop(); parens.pop(); i += 1; continue
+            parens[-1] -= 1; out.append(c); i += 1; continue
+        if c == "#" and (i == 0 or line[i - 1] in " \t;&|(") and len(stack) == 1:
             break
         out.append(c); i += 1
-    return "".join(out), quote is None
+    return "".join(out), all(s == "code" for s in stack)
 
 
 # ------------------------------------------------------- consumer classifier
