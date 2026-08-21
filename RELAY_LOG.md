@@ -6247,3 +6247,31 @@ instead of another bespoke branch.
 ## 2026-08-21 09:24 — integrate (claude-opus-5)
 
 integrate id:e68f + id:b018 — ledger slice at dispatch (3,854 B vs 1,157,395 B for a real item) and a prompt-size gate that counts TODO.md. Known: dotclaude-skills now estimates ~301k vs 100k budget until the gate measures the slice (owner-accepted, follow-up immediate)
+
+## 2026-08-21 — executor (opus)
+
+Worked id:35b7 — the pre-dispatch prompt-size gate now sizes a unit on its `id:e68f` ledger
+SLICE when one exists, and only counts `roadmap_bytes + todo_bytes` when there is none. The
+`id:b018` + `id:e68f` interaction had made this repo un-dispatchable: measured on the canonical
+checkout, an unsliced execute unit estimates 303,321 tok against the 100,000 budget (REFUSED),
+while the same unit carrying the real 4,192-byte slice for this very item estimates 14,548 tok
+(DISPATCHES). Byte count route: ADDITIVE stdout contract on `ledger-slice.sh` — it now prints
+`slice-bytes: <N>` ABOVE the path, so the path stays the last non-empty line and both the 18
+`id:e68f` assertions and `sliceLedgerForUnit()`'s `/^[~/][^\s]*\.md$/` last-line parse are
+untouched; a second mech hop was rejected as an extra per-dispatch agent round-trip for a number
+the slicer already has on the host. The size is MEASURED (`wc -c` on the written file), never a
+guessed allowance. Fail-open is unchanged and now covers one more case: a slice whose size is
+unreported is unmeasured input, so it dispatches rather than falling back to counting ledgers
+the child will not read. Also rewrote the printed REMEDY — it used to prescribe
+`archive-done.sh` unconditionally, which moves `- [x]` items only and therefore does nothing
+here (TODO.md is 529 open / 1 closed); it now names the slice lever first and marks archiving as
+conditional on the bulk being CLOSED.
+
+Friction: the suite's known parallel-run flake (id:7518) hit `test_statusline_tokens.sh` on the
+first `make test`; it passed standalone and on the re-run (457 passed, 0 failed, 2 expected-red —
+both pre-existing open items, 6217 and the sibling's bc2b). Stayed clear of the suppression
+region a sibling executor holds for id:bc2b: the three relay-loop.js hunks are at lines 2543,
+2577 and 3391, nowhere near 1196/1235.
+refactor: none needed — the change is one new early-return branch inside the existing gate plus
+its byte-equivalent inline twin; extracting a shared helper is impossible by construction (the
+Workflow sandbox cannot import, which is why the copy exists).

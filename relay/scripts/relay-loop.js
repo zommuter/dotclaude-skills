@@ -2540,6 +2540,24 @@ function oversizeDispatchReason(unit, promptChars, budget) {
   const u = unit || {}
   const cap = Number.isFinite(budget) && budget > 0 ? budget : DISPATCH_TOKEN_BUDGET
   const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
+  // id:35b7 — WHEN A SLICE EXISTS, THE SLICE *IS* THE REQUIRED-READ SET. sliceLedgerForUnit()
+  // (id:e68f) stamps `slice_path`/`slice_bytes` immediately BEFORE this call, and the brief then
+  // points the child at that file instead of the ledgers. Counting the ledgers anyway refuses
+  // dispatches on bytes the child is no longer required to read: dotclaude-skills, 2026-08-21,
+  // measured ROADMAP 252,809 B + TODO 904,586 B ⇒ ~301,349 tok vs a 100,000 budget ⇒ EVERY
+  // dispatch refused, while the real slice for a real item measured 3,854 B (~300x smaller).
+  // The slice size is MEASURED on the host by ledger-slice.sh and shipped on its stdout — never
+  // a guessed allowance (the guessed-estimate failure is exactly what let loderite through by
+  // 326 tok). A slice whose size is UNMEASURED is missing data, so it fails OPEN like any other
+  // unmeasured input; it does NOT fall back to counting ledgers the child will not read.
+  const sliced = typeof u.slice_path === 'string' && u.slice_path.length > 0
+  if (sliced) {
+    const sliceBytes = n(u.slice_bytes)
+    if (!sliceBytes) return ''   // slice present but unmeasured ⇒ fail OPEN
+    const sliceEst = estimateDispatchTokens(promptChars, sliceBytes, 0)
+    if (sliceEst <= cap) return ''
+    return `prompt-size gate (id:4f9b/id:35b7): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${sliceEst} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: this unit carries an id:e68f ledger SLICE (${u.slice_path}) and is sized on THAT, not on the ledgers — and the slice itself is ${sliceBytes} bytes (~${Math.round(sliceBytes / CHARS_PER_TOKEN)} tok of the estimate). REMEDY: archiving the ledgers will NOT help here — the bulk is one item's own block plus its typed edges and TODO twin. Shrink the dispatched ITEM: split it into seams, or move its prose into a linked meeting note and leave the acceptance criteria. This repo is skipped, not failed: no worktree was created and no work was lost.`
+  }
   const roadmapBytes = n(u.roadmap_bytes)
   const todoBytes = n(u.todo_bytes)
   if (!roadmapBytes && !todoBytes) return ''   // unmeasured ⇒ fail OPEN, never block on missing data
@@ -2556,7 +2574,12 @@ function oversizeDispatchReason(unit, promptChars, budget) {
   const named = material.length ? material : measured
   const causes = named.map((l) => `${l.name} is too large — ${l.bytes} bytes (~${Math.round(l.bytes / CHARS_PER_TOKEN)} tok of the estimate)`).join('; ')
   const remedies = named.map((l) => '`' + l.fix + '`').join(' and ')
-  return `prompt-size gate (id:4f9b/id:b018): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${est} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: ${causes}. REMEDY: run ${remedies} to move the done \`- [x]\` items into the matching archive file, commit, and re-run the pool. This repo is skipped, not failed: no worktree was created and no work was lost.`
+  // REMEDY WORDING (id:35b7): the old text sent the operator to the archivers unconditionally.
+  // They move DONE `- [x]` items ONLY, so on a ledger whose bulk is OPEN (dotclaude-skills
+  // TODO.md, 2026-08-21: 529 open / 1 closed) they move nothing and the refusal is a dead end.
+  // Name the lever that applies either way FIRST — the id:e68f slice, whose absence is why this
+  // unit was sized on whole ledgers at all — and mark archiving as the conditional remedy.
+  return `prompt-size gate (id:4f9b/id:b018): NOT dispatched — the assembled ${u.verdict || 'child'} prompt for ${u.repo || '(repo)'} is ~${est} tok, over the ${cap} tok dispatch budget, so the child would die with "Prompt is too long" instead of doing work. CAUSE: ${causes}. REMEDY: this unit carries NO id:e68f ledger slice, so it is sized on the WHOLE ledgers — a sliced unit is sized on its slice instead (id:35b7), so the first lever is to find why \`~/.claude/skills/relay/scripts/ledger-slice.sh\` produced no \`slice_path\` for it (the relay-loop log records the reason) and fix that. ARCHIVING is the second lever and only applies if the bulk is CLOSED: ${remedies} move done \`- [x]\` items into the matching archive file and do NOTHING for a ledger of mostly OPEN items — where the real lever is splitting the ledger or pruning stale open items. Then commit and re-run the pool. This repo is skipped, not failed: no worktree was created and no work was lost.`
 }
 
 function unitPrompt(unit) {
@@ -3365,7 +3388,14 @@ async function sliceLedgerForUnit(unit) {
     return null
   }
   unit.slice_path = p
-  log(`relay-loop: id:e68f ledger slice for ${unit.repo} id:${item} → ${p}`)
+  // id:35b7 — carry the slice's MEASURED size onto the unit so the prompt-size gate (called
+  // immediately after this, in provisionWorktree) can size the unit on the slice instead of on
+  // the ledgers. ledger-slice.sh prints `slice-bytes: <N>` ABOVE the path (additive stdout
+  // contract — the path is still the last line, which is why the parse above is unchanged).
+  // Absent/garbled ⇒ left unset ⇒ the gate treats the slice as unmeasured and fails OPEN.
+  const bm = /^slice-bytes:\s*(\d+)\s*$/m.exec(String(raw))
+  if (bm) unit.slice_bytes = Number(bm[1])
+  log(`relay-loop: id:e68f ledger slice for ${unit.repo} id:${item} → ${p}${bm ? ` (${bm[1]} B, id:35b7 gate sizes on this)` : ' (size unreported — gate fails open)'}`)
   return p
 }
 
