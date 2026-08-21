@@ -510,7 +510,10 @@ What it does (full procedure in `references/human.md`):
 2. **Collect** — `scripts/gather-human-backlog.sh` emits a TSV of every open `REVIEW_ME.md`
    `- [ ]` box, open `@manual` BDD scenarios (REVIEW_ME `@manual` + ROADMAP `@manual`), and
    every open `[HARD]` ROADMAP item bucketed by its EXPLICIT lane tag (id:78ff) into
-   `hard_pool` / `hard_meeting` / `hard_hands` (vocabulary: `references/hard-lanes.md`). An
+   `hard_pool` / `hard_meeting` / `hard_hands` (vocabulary: `references/hard-lanes.md`), plus
+   every PENDING `ratification_pending` entry (id:4d44) — a unit the pool merged LOCALLY and
+   did not push; you review it, push it, then `scripts/ratify-queue.sh resolve <ckpt|sha>`,
+   which verifies the remote with `git ls-remote` and refuses otherwise. An
    open `[HARD]` with no recognized lane is a LOUD reject (stderr ERROR + nonzero exit) —
    add the lane tag at the source. **NEVER pipe the collector through `head`/`tail`**
    (id:da87): `review_me` rows are emitted LAST per repo, so a truncating reader drops

@@ -35,8 +35,9 @@ scripts/gather-human-backlog.sh repoA repoB     # named repos
 
 > **NEVER pipe the collector through `head`/`tail` — and never let a sub-agent
 > summarise it from a capped preview (id:da87).** Rows are emitted PER REPO in a
-> fixed order: ROADMAP hard lanes → TODO hard lanes → mechanical → **`review_me`**
-> → ROADMAP `@manual`. `review_me` — the one bucket this mode exists to serve — is
+> fixed order: ROADMAP hard lanes → TODO hard lanes → mechanical →
+> `ratification_pending` → **`review_me`** → ROADMAP `@manual`.
+> `review_me` — the one bucket this mode exists to serve — is
 > emitted **LAST**, so it is the FIRST thing a truncating reader loses, and it is
 > lost **silently**: the short TSV reads as a legitimate "no boxes / nothing to do".
 >
@@ -110,6 +111,17 @@ the repo-scoped complement.
 
 It emits a TSV `repo  path  kind  box_summary` covering:
 
+- every PENDING entry in the **ratification queue** (`kind = ratification_pending`,
+  id:4d44) — a substantive unit `integrate.sh` merged, bumped and ckpt-tagged **locally**
+  and deliberately did NOT push. Until you review it and push, that work exists only in
+  your checkout. `box_summary` carries the exact `git -C <path> push --follow-tags`.
+  **This is the only bucket with a resolve step outside the markdown ledgers**: after
+  pushing, run `scripts/ratify-queue.sh resolve <ckpt|sha>` — it re-checks the remote with
+  `git ls-remote` and REFUSES unless the recorded merge sha is a branch tip there (or an
+  ancestor of one) *and* the ckpt tag arrived. Never mark one resolved any other way; a
+  push helper's exit code is not evidence (id:f5d9(a)/id:dc4f — `git-lock-push.sh` can
+  exit 0 having pushed nothing). `scripts/ratify-queue.sh list` / `show <key>` / `verify
+  <key>` are the read-only views. AND
 - every OPEN `- [ ]` box in each repo's `REVIEW_ME.md` (`kind = review_me`), AND
 - open `@manual` boxes — REVIEW_ME `@manual` lines AND `ROADMAP.md` items tagged
   `@manual`/BDD that need a human to RUN them (`kind = manual`), AND
