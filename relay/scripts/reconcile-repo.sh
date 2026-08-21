@@ -176,7 +176,7 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
           # surface named a ref that did not exist and idled the pool with 0 dispatched.
           # Parity (id:77ce) forbids APPLY adding to this JSON, so the fix is tense, not timing:
           # state the INTENT here; APPLY verifies the outcome on stderr/log (see the park loop).
-          # id:1e6c — CLASS MARKER prefix. This line used to start with the bare prose "stale
+          # id:e7e4 — CLASS MARKER prefix. This line used to start with the bare prose "stale
           # worktree …", which discover-repo.sh's class dispatcher could only read as "not
           # orphan-suppress" ⇒ SUBSTITUTIVE ⇒ units:[] — so a repo whose ONLY problem was a
           # dead run's leftover worktree was silently starved even while classifying `execute`
@@ -243,7 +243,7 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       add_surfaced "suppressed re-dispatch: $why on $oref — manual /relay reconcile; cost hint: relay-burn.sh --run ${runid:-<runId>}"
     fi
   done < <( { git -C "$path" for-each-ref --format='%(refname:short)' refs/heads/relay/orphan/ 2>/dev/null || true
-              # id:1e6c — a PLANNED park (this round's plan_park) is evaluated by the SAME
+              # id:e7e4 — a PLANNED park (this round's plan_park) is evaluated by the SAME
               # item-binding rule as an already-parked orphan. Without this, the round in which
               # a park is planned would have no item-scoped guard at all: the park surface is
               # now ADDITIVE (see the marker above), so classify runs, and the just-parked item
