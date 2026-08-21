@@ -25,7 +25,7 @@
 #   1. Unless --no-reconcile: run reconcile-repo.sh, then dispose its surfaced array by CLASS:
 #        • ONLY additive-marker entries — reason starts "suppressed re-dispatch:" (orphan-suppress,
 #          id:1f53) or "parked-orphan (planned):" (this round's park of a dead run's leftover
-#          worktree, id:689c/1e6c) →
+#          worktree, id:689c/e7e4) →
 #          ADDITIVE: fall through to classify, emit the classify unit ALONGSIDE the suppress
 #          surface (an orphan's mere existence NEVER blocks a repo's independent progress —
 #          meeting 2026-07-23, D1). SAME-ITEM carve-out: if the classify unit is an execute
@@ -37,7 +37,7 @@
 #          refusal, discover-error) → SUBSTITUTIVE: return surfaced verbatim (units:[],
 #          skipped:[]) and STOP — an executor dispatched into a repo another live run holds is
 #          the dc5b cross-run ledger collision. This is the pre-bc49 behaviour, preserved.
-#          LOUDNESS (id:1e6c): before returning, a mechanical classify probe annotates every
+#          LOUDNESS (id:e7e4): before returning, a mechanical classify probe annotates every
 #          surfaced reason with "STARVED (N actionable: id:…, verdict=…) skipped because — " when
 #          the blocked repo does carry open executor-actionable work, so a starved repo can never
 #          again read like an idle one in RELAY_STATUS.md.
@@ -88,7 +88,7 @@ if [[ -z "$no_reconcile" ]]; then
   # classify; the suppress entries are merged back in the final fold). Empty → normal classify.
   rec_disposition="$(printf '%s' "$rec_json" | python3 -c '
 import sys, json
-# ADDITIVE CLASS MARKERS (id:bc49 + id:1e6c). A surfaced entry is additive iff its reason starts
+# ADDITIVE CLASS MARKERS (id:bc49 + id:e7e4). A surfaced entry is additive iff its reason starts
 # with one of these prefixes. Prose matching is deliberately anchored to a PREFIX MARKER, never a
 # substring of the human-facing sentence.
 #   "suppressed re-dispatch:"   — orphan-suppress, item-scoped (id:1f53)
@@ -106,7 +106,7 @@ else:
 ')"
 
   if [[ "$rec_disposition" == "substitutive" ]]; then
-    # id:1e6c STARVATION LOUDNESS — a repo-level block still means units:[], but a repo that is
+    # id:e7e4 STARVATION LOUDNESS — a repo-level block still means units:[], but a repo that is
     # blocked WHILE CARRYING ACTIONABLE WORK must not read like "nothing to do". classify-repo.sh
     # is mechanical and side-effect-free (no LLM, no git writes), so we run it purely to ANNOTATE:
     # if it says the repo has N open executor-actionable items, every surfaced reason is prefixed
@@ -163,7 +163,7 @@ verdict = unit.get("verdict", "")
 # emitted unit) + the item ids the orphan-suppress subset names.
 #   additive_surf  — EVERY entry reconcile surfaced on this path. Reaching this fold means the
 #                    disposition was additive or clean, so every entry here is additive by
-#                    construction; keeping them all is what stops the id:1e6c "parked-orphan
+#                    construction; keeping them all is what stops the id:e7e4 "parked-orphan
 #                    (planned):" notification from being silently dropped from the output.
 #   suppress_surf  — the item-scoped orphan-suppress subset, which alone drives the SAME-ITEM
 #                    carve-out and the do-NOT-work id list.

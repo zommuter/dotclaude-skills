@@ -9,7 +9,7 @@
 # NO `# roadmap:` HEADER ON PURPOSE — this is a DEFECT-FIX test, not the RED spec of an open
 # ROADMAP item, so expected-red semantics must NEVER apply to it and its failures always count.
 #
-# THE DEFECT (id:1e6c). loderite classified `execute` with 6 open executor-actionable [ROUTINE]
+# THE DEFECT (id:e7e4). loderite classified `execute` with 6 open executor-actionable [ROUTINE]
 # items and produced ZERO work in two consecutive pool runs (relay-20260820-180056-4594 and
 # relay-20260821-174757-32436). Its only problem was a leftover worktree from a DEAD run. The
 # ratified D1 (meeting 2026-07-23, id:bc49/7e87) says a parked orphan is ADDITIVE SURFACE and
@@ -141,4 +141,4 @@ s4="$(printf '%s' "$o4" | surf_join)"
   || fail "(5) a repo with NO actionable work must not be labelled STARVED (that would make the banner meaningless): [$s4]"
 pass "(5) substitutive block with no actionable work is NOT labelled STARVED"
 
-echo "ALL PASS: a dead run's leftover worktree no longer starves a repo with actionable work; a skip that still happens is LOUD (id:1e6c)"
+echo "ALL PASS: a dead run's leftover worktree no longer starves a repo with actionable work; a skip that still happens is LOUD (id:e7e4)"
