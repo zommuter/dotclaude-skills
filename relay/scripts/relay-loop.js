@@ -2467,6 +2467,16 @@ const dispatchChoiceFor = (unit) => {
   return { item, itemRank: idx >= 0 ? idx + 1 : 0, eligibleCount: eligible.length }
 }
 
+// id:e68f — the SLICE sentence shared by both named briefs. When sliceLedgerForUnit() stamped a
+// path on the unit, point the child at that file instead of leaving it to grep the ledgers. It
+// is a cheaper DEFAULT, not a boundary (id:9663): the child keeps Read/Bash and the checkout, so
+// the wording must not claim it cannot read more. Empty string when no slice exists (fail-open),
+// which leaves the historical grep instruction as the only guidance — exactly today's behaviour.
+const sliceInstruction = (unit) =>
+  unit && typeof unit.slice_path === 'string' && unit.slice_path
+    ? 'The orchestrator has ALREADY extracted this item for you (id:e68f): read ' + unit.slice_path + ' — it holds the item\'s own block, its typed gated-on:/children: edges with each target\'s line, the TODO.md twin, and a repo-state header. Start there; it is the intended default context for this unit. The full ledgers are still on disk at their canonical paths if the slice genuinely does not carry something you need — if you had to open one, say which and why in your report. '
+    : ''
+
 // Returns the NAMED execute instruction, or '' when no item could be named — the caller then
 // falls back INLINE to the historical plural instruction (kept on the template line so the
 // fallback text and its size-out wiring stay visible at the dispatch site).
@@ -2475,7 +2485,8 @@ function executeNamedInstruction(unit) {
   const primary = dispatchItemFor(unit)
   if (!primary) return ''
   const alts = named.filter((i) => i !== primary).slice(0, 2)
-  return 'Work specifically the ROADMAP.md item tagged <!-- id:' + primary + ' --> under the executor contract — the classifier ALREADY selected it for you (id:b09e), so do NOT survey ROADMAP.md to find your work. '
+  return sliceInstruction(unit)
+    + 'Work specifically the ROADMAP.md item tagged <!-- id:' + primary + ' --> under the executor contract — the classifier ALREADY selected it for you (id:b09e), so do NOT survey ROADMAP.md to find your work. '
     + 'Go straight to it: `grep -n "id:' + primary + '" ROADMAP.md` gives the line, then read only that item\'s own block (the bullet plus its indented sub-bullets). Do NOT read the whole ROADMAP.md — on a large ledger that alone exhausts the context window and kills the child mid-survey; that is the exact failure this naming exists to prevent. '
     + (alts.length ? 'ONLY if that item turns out to be already done or genuinely unworkable, the next classifier-actionable candidates are ' + alts.map((i) => '<!-- id:' + i + ' -->').join(' then ') + ' — never range beyond those. ' : 'It is the only executor-actionable [ROUTINE] item the classifier found; if it is unworkable, hand back rather than looking for other work. ')
     + EXECUTE_SIZEOUT
@@ -2496,7 +2507,8 @@ function hardNamedInstruction(unit) {
     return 'You are an Opus-apex HARD-execute child (id:da26). The classifier resolved NO pool-lane id list for this unit, so survey ROADMAP.md yourself and pick the TOP open "- [ ]" item on the POOL lane — that is an item tagged with a bare "[HARD]" OR with the retired "[HARD — pool]" spelling; BOTH are the same lane and you must accept either. Skip items that are parked, @container, @owner-gated, 🚧, BLOCKED, or gated-on an open id. SIZE it first. '
   }
   const rest = ids.slice(1, 3)
-  return 'You are an Opus-apex HARD-execute child (id:da26). The pool-lane queue for this repo is ALREADY RESOLVED for you (id:7517) — the open, dispatchable pool-lane items, in ROADMAP file order, are: '
+  return sliceInstruction(unit)
+    + 'You are an Opus-apex HARD-execute child (id:da26). The pool-lane queue for this repo is ALREADY RESOLVED for you (id:7517) — the open, dispatchable pool-lane items, in ROADMAP file order, are: '
     + ids.map((i) => '<!-- id:' + i + ' -->').join(', ') + '. Work the FIRST one, <!-- id:' + ids[0] + ' -->: `grep -n "id:' + ids[0] + '" ROADMAP.md` gives the line, then read only that item\'s own block (the bullet plus its indented sub-bullets). Do NOT read the whole ROADMAP.md. '
     + NO_REDERIVE
     + 'Because that list is non-empty, you MUST NOT hand back "no open [HARD] item / nothing dispatchable" — if you believe every listed id is unworkable, say so per id in `handback` and return them in `considered_ids` (id:bfbf). '
@@ -3289,6 +3301,56 @@ async function strandedBranchesFor(unit) {
   return String(raw).split('\n').map(l => l.trim()).filter(l => l.includes('\t'))
 }
 
+// id:e68f — PRE-DISPATCH LEDGER SLICE. The orchestrator extracts exactly what this unit needs
+// (the dispatched item's block, its typed gated-on:/children:/children-of: edges + each edge
+// target's defining line, the item's TODO.md twin, and a repo-state header) into ONE file, and
+// hands the child that PATH. Previously the brief told the child, in prose, to grep its item
+// and NOT read the whole ROADMAP.md — a prose instruction the child can get wrong is not a
+// mechanism (mechanize-first). Host-side because the Workflow sandbox has no filesystem
+// (id:2ec4), so this is a mechanical model:'bash' hop exactly like strandedBranchesFor above.
+//
+// NOT AN ENFORCEMENT (id:9663, meeting 2026-08-21 --fabled F5). This LOWERS THE DEFAULT read
+// size. The child keeps Read/Bash and the repo checkout, and per the banked deny-probe id:5937
+// auto mode denies essentially nothing outside protected paths — nothing here prevents it
+// opening ROADMAP.md at its canonical path.
+//
+// FAIL-OPEN and LOUD: any failure (no item id, script error, agent throw, MECH-ERROR, empty or
+// non-path stdout) leaves unit.slice_path unset, logs WHY, and dispatch proceeds with today's
+// behaviour. A slice is a cheaper default, never a dispatch precondition — and an empty slice is
+// never dispatched silently (ledger-slice.sh exits 4 on an unresolvable id, id:4347).
+async function sliceLedgerForUnit(unit) {
+  const item = dispatchItemFor(unit)
+  if (!item) return null
+  let raw
+  try {
+    // unit.path is the CANONICAL checkout (same id:ba7e justification as the scan above): the
+    // slice must reflect the ledger state the classifier selected the item from.
+    const res = await agent(
+      `Run EXACTLY this one command and report its stdout VERBATIM (id:e68f pre-dispatch ledger slice — writes the unit's item + typed edges to a file and prints its path):\n` +
+      '```relay-mech\n' +
+      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} --id ${item}` +
+      '\n```',
+      { label: `ledger-slice:${unit.repo}`, phase: 'Support', model: MECH_MODEL }
+    )
+    raw = typeof res === 'string' ? res : JSON.stringify(res == null ? '' : res)
+  } catch (e) {
+    log(`relay-loop: id:e68f ledger-slice threw for ${unit.repo} id:${item} (${(e && e.message) || e}) — fail-open, dispatching with the unsliced brief`)
+    return null
+  }
+  if (/^MECH-ERROR exit=/.test(String(raw))) {
+    log(`relay-loop: id:e68f ledger-slice errored for ${unit.repo} id:${item}: ${String(raw).replace(/\s+/g, ' ').slice(0, 200)} — fail-open, dispatching with the unsliced brief`)
+    return null
+  }
+  const p = String(raw).split('\n').map(l => l.trim()).filter(Boolean).pop() || ''
+  if (!/^[~/][^\s]*\.md$/.test(p)) {
+    log(`relay-loop: id:e68f ledger-slice produced no usable slice path for ${unit.repo} id:${item} (got '${p.slice(0, 120)}') — fail-open, dispatching with the unsliced brief`)
+    return null
+  }
+  unit.slice_path = p
+  log(`relay-loop: id:e68f ledger slice for ${unit.repo} id:${item} → ${p}`)
+  return p
+}
+
 async function provisionWorktree(unit, isRetry) {
   // Seed once per dispatch (never on the retry recursion — that already carries its bump).
   if (!isRetry) {
@@ -3374,6 +3436,10 @@ async function runUnit(unit) {
     scheduleStatusWrite(state)
     return
   }
+  // id:e68f — write this unit's ledger SLICE and stamp unit.slice_path BEFORE the prompt is
+  // assembled, so the named-item instructions below can hand the child the path. Fail-open:
+  // sliceLedgerForUnit() logs and returns null on any failure, and dispatch continues.
+  await sliceLedgerForUnit(unit)
   // id:4f9b — PRE-DISPATCH PROMPT-SIZE GATE. Size the assembled child prompt (plus the ROADMAP
   // the child is contractually required to read, measured on the host by classify-repo.sh as
   // `roadmap_bytes`) BEFORE spawning anything. Over budget ⇒ do NOT dispatch: emit a handback
