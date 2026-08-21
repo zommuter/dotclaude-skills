@@ -77,10 +77,17 @@ printf '[repos.%s]\nstatus = "active"\n' "$REPO_NAME" > "$CFG/relay.toml"
 # stub the ONLY network step, recording that it fired
 PUSH_MARK="$TMP/push-fired"
 PUSH_STUB="$TMP/push-stub.sh"
+# id:f5d9(a) — the stub records that it fired AND really pushes into the fixture's local bare
+# origin. An `exit 0` that pushes nothing is now (correctly) reported as push=FAILED, because
+# integrate.sh verifies the remote ref instead of trusting the exit code — that stub was
+# modelling the id:dc4f defect, not a working push. Hermetic: origin is a bare repo in $TMP.
 cat > "$PUSH_STUB" <<EOF
 #!/usr/bin/env bash
+set -euo pipefail
 echo "\$@" > "$PUSH_MARK"
-exit 0
+p=""
+for a in "\$@"; do case "\$a" in --ff-only) ;; *) p="\$a" ;; esac; done
+git -C "\$p" push --follow-tags origin HEAD >/dev/null 2>&1
 EOF
 chmod +x "$PUSH_STUB"
 
@@ -89,7 +96,12 @@ out="$(FABLES_CONFIG="$CFG" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
   "$INT" --repo "$REPO_NAME" --path "$MAIN" --worktree "$WT" --branch relay/x \
          --summary "test close id:test" --run testrun \
          --label "reviewer (claude-opus-4-8, integrate)" --ids test --level patch \
-         --verdict execute 2>&1)" || rc=$?
+         --verdict execute --substantive false 2>&1)" || rc=$?
+# id:4d44 — `--substantive false` is REQUIRED here, not incidental: since the ratification
+# gate landed, a SUBSTANTIVE unit deliberately does NOT push (it merges locally and is queued
+# for the owner), so the "git-lock-push fired" assertion below can only be exercised on the
+# NON-substantive path. The deferred path's behaviour is specced in
+# tests/test_integrate_ratification_gate_4d44.sh.
 [[ $rc -eq 0 ]] || fail "(A) full sequence exited non-zero ($rc): $out"
 
 # merge landed: the child's commit is now an ancestor of main HEAD

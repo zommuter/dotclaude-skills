@@ -63,7 +63,9 @@ grep -qF -- '-m "${summary}${idsuffix}"' "$INTEG" \
   || bad "(b) checkpoint message does not include the worked-id suffix"
 grep -q "substantive: unitIsSubstantive(unit.verdict, report), workedIds })" "$JS" \
   || bad "(b) state.completed entry does not carry workedIds"
-grep -q "push: result.pushStatus || '?', ids: workedIds })" "$JS" \
+# id:4d44 inserted `ratification:` between pushStatus and ids, so match the two ENDS of the
+# call rather than an exact adjacency that any future field would break again.
+grep -q "push: result.pushStatus || '?'.*ids: workedIds })" "$JS" \
   || bad "(b) integrate event does not carry the worked ids"
 grep -q 'ids=${r.workedIds.join' "$JS" \
   || bad "(b) RELAY_STATUS Completed line does not render the worked ids"
