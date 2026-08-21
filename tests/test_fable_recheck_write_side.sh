@@ -41,18 +41,40 @@ else
   ok "no hardcoded Opus-standin reason literal"
 fi
 
+# id:087b RELOCATION — the two id:e030 branches used to be prose inside relay-loop.js's LLM
+# integrator prompt; they are now EXECUTED CODE in relay/scripts/integrate.sh step 10b, which
+# relay-loop.js dispatches as one mechanical hop. Same two invariants, new home — and the
+# `isFableRecheck` decision (Test 1) still lives in relay-loop.js, which passes it through as
+# --fable-recheck, so both files are checked below.
+INTEG="$ROOT/relay/scripts/integrate.sh"
+[[ -f "$INTEG" ]] || { echo "FAIL: integrate.sh not found"; exit 1; }
+
 echo "Test 3 (regression guard): consume side still writes a dated watermark"
-if grep -q 'do NOT set false' "$JS"; then
-  ok "isFableRecheck branch still instructs a dated fable_rechecked (consume side intact)"
+if grep -q 'do NOT set false' "$INTEG"; then
+  ok "the --fable-recheck branch still writes a dated fable_rechecked (consume side intact)"
 else
   fail_msg "consume-side 'do NOT set false' instruction lost (id:e030 consume semantics)"
 fi
 
 echo "Test 4 (regression guard): the standin (non-Fable strong) branch still queues false"
-if grep -q 'fable_rechecked = false' "$JS"; then
+if grep -q 'fable_rechecked = false' "$INTEG"; then
   ok "non-Fable strong checkpoint still records fable_rechecked = false (queue side intact)"
 else
   fail_msg "queue-side 'fable_rechecked = false' instruction lost (id:e030 queue semantics)"
+fi
+
+echo "Test 5 (id:087b): relay-loop.js passes the isFableRecheck decision through to integrate.sh"
+if grep -q "push('--fable-recheck')" "$JS"; then
+  ok "relay-loop.js forwards --fable-recheck to the mechanical integrator"
+else
+  fail_msg "relay-loop.js computes isFableRecheck but never forwards it — the consume side can never fire"
+fi
+
+echo "Test 6 (id:e030 masking bug): an EXECUTE checkpoint must not touch the three keys"
+if grep -q 'verdict" != "execute"' "$INTEG"; then
+  ok "integrate.sh gates the durable-queue write on a non-execute (STRONG) verdict"
+else
+  fail_msg "integrate.sh does not gate the durable-queue write on a STRONG verdict — an executor checkpoint could clear a pending Fable recheck (id:e030)"
 fi
 
 echo ""

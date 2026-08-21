@@ -32,8 +32,18 @@ fail() { echo "FAIL: $*"; exit 1; }
 export VERIFY_ISOLATION_LOG=/dev/null
 
 # ── (a) WIRING — the integrator must actually call the gate ──────────────────
+# id:087b RELOCATION — the integrator moved out of an LLM prompt in relay-loop.js into
+# relay/scripts/integrate.sh, which relay-loop.js dispatches as one mechanical hop. The
+# wiring invariant is UNCHANGED and in fact stronger (the gate is now an executed
+# `if ! "$VERIFY_ISO" …; then handback …` rather than a recipe line an agent must obey), so
+# the assertions below now read integrate.sh — with the dispatch from relay-loop.js asserted
+# separately, since a gate in an unreachable script guards nothing.
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
+[[ -x "$INTEG" ]] || fail "integrate.sh not found/executable at $INTEG"
+grep -q 'relay/scripts/integrate\.sh' "$LOOP" \
+  || fail "wiring: relay-loop.js does not dispatch integrate.sh — the isolation gate is unreachable"
 # Strip comment-only lines so a "we should call verify-isolation" note can never satisfy this.
-loop_code="$(grep -vE '^[[:space:]]*//' "$LOOP")"
+loop_code="$(grep -vE '^[[:space:]]*#' "$INTEG")"
 
 # NOTE (id:b780): feed $loop_code via herestring, NEVER `printf ... | grep`. relay-loop.js is
 # ~91 KB — larger than the 64 KB pipe buffer — so printf BLOCKS mid-write while an early-exiting
@@ -43,24 +53,31 @@ loop_code="$(grep -vE '^[[:space:]]*//' "$LOOP")"
 # red that indicts the gate rather than the test. A herestring has no early-exiting reader.
 # Same reason `grep -m1` replaces `| head -1` below.
 grep -q 'verify-isolation\.sh' <<< "$loop_code" \
-  || fail "wiring: relay-loop.js never calls verify-isolation.sh — the gate is documented but not wired (the id:f682 gap this item closes)"
-pass "wiring: relay-loop.js references verify-isolation.sh"
+  || fail "wiring: integrate.sh never calls verify-isolation.sh — the gate is documented but not wired (the id:f682 gap this item closes)"
+pass "wiring: integrate.sh references verify-isolation.sh"
 
-# Absolute installed path, like every other integrator gate. The repo-relative form
-# (relay/scripts/verify-isolation.sh) only resolves when cwd is dotclaude-skills itself, so
-# in any other target repo it would fail even when installed.
-grep -q '~/\.claude/skills/relay/scripts/verify-isolation\.sh' <<< "$loop_code" \
-  || fail "wiring: verify-isolation.sh must be invoked via the absolute ~/.claude/skills/... path (the repo-relative form only resolves when cwd is dotclaude-skills)"
-pass "wiring: gate invoked via the absolute ~/.claude/skills/... path"
+# CWD-INDEPENDENT resolution. The old requirement was the literal
+# ~/.claude/skills/relay/scripts/... path, because a repo-relative form spliced into an agent
+# prompt only resolves when cwd happens to be dotclaude-skills. integrate.sh resolves its
+# helpers from its OWN location ($SCRIPT_DIR, derived from BASH_SOURCE) — the same property,
+# obtained more robustly: it holds no matter which repo the integrator is run against, and it
+# is also the failure-injection seam the hermetic tests override. The invariant asserted is
+# therefore "resolved absolutely, never relative to cwd", not one specific spelling.
+grep -qE 'INTEGRATE_VERIFY_ISOLATION:-\$SCRIPT_DIR/verify-isolation\.sh' "$INTEG" \
+  || fail "wiring: verify-isolation.sh must be resolved from integrate.sh's own \$SCRIPT_DIR (cwd-independent), not a bare/relative name"
+grep -qE 'SCRIPT_DIR="\$\(cd "\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)" && pwd\)"' "$INTEG" \
+  || fail "wiring: integrate.sh's \$SCRIPT_DIR is not derived from BASH_SOURCE — helper resolution would depend on cwd"
+pass "wiring: gate resolved via integrate.sh's own absolute \$SCRIPT_DIR (cwd-independent)"
 
-# The call must carry an ABORT instruction, mirroring step 1's clean-tree-gate text.
-# Look at the recipe line containing the call.
-call_line="$(grep -m1 'verify-isolation\.sh' <<< "$loop_code")"
-grep -qi 'ABORT' <<< "$call_line" \
-  || fail "wiring: the verify-isolation.sh recipe step must instruct ABORT on non-zero exit (mirroring step 1 clean-tree-gate); got: ${call_line:0:160}"
-pass "wiring: recipe step instructs ABORT on non-zero exit"
+# The call must ABORT on non-zero, mirroring step 1's clean-tree gate: in the mechanized
+# integrator that means a loud, distinctly-coded handback, not a logged warning.
+grep -qE 'handback verify-isolation' "$INTEG" \
+  || fail "wiring: a non-zero verify-isolation.sh exit must ABORT via a loud HANDBACK[verify-isolation], mirroring step 1's clean-tree gate"
+grep -qE 'if ! iso_out=.*VERIFY_ISO' "$INTEG" \
+  || fail "wiring: verify-isolation.sh's exit status is not tested — a failing gate would be ignored"
+pass "wiring: a non-zero gate exit aborts with a loud HANDBACK[verify-isolation]"
 
-# It must gate the MERGE, i.e. appear before the merge --no-ff step in the recipe text.
+# It must gate the MERGE, i.e. run before the merge --no-ff step.
 call_pos="$(grep -nm1 'verify-isolation\.sh' <<< "$loop_code" | cut -d: -f1)"
 merge_pos="$(grep -nm1 'merge --no-ff' <<< "$loop_code" | cut -d: -f1)"
 if [[ -n "$call_pos" && -n "$merge_pos" ]]; then
@@ -68,7 +85,7 @@ if [[ -n "$call_pos" && -n "$merge_pos" ]]; then
     || fail "wiring: the gate must run BEFORE 'merge --no-ff' (call at line $call_pos, merge at $merge_pos) — a gate after the merge guards nothing"
   pass "wiring: gate runs before the merge --no-ff step"
 else
-  fail "wiring: could not locate both the gate call and the merge --no-ff step in relay-loop.js"
+  fail "wiring: could not locate both the gate call and the merge --no-ff step in integrate.sh"
 fi
 
 # ── Hermetic repo helpers ───────────────────────────────────────────────────

@@ -43,11 +43,23 @@ grep -qF 'workedIds = [...new Set([...asIdArray(report.verified_green), ...asIdA
   || bad "(b) no review verified-green∪reopened fallback for worked_ids"
 grep -q "const asIdArray = (v) => {" "$JS" && grep -q "return Array.isArray(p) ? p.filter(Boolean).map(String) : \[\]" "$JS" \
   || bad "(b) missing asIdArray string-coercion guard (ids:[\"[\",\"]\"] regression)"
-grep -q "const idSuffix = workedIds.length ?" "$JS" || bad "(b) no idSuffix built for the checkpoint message"
+# id:087b — the checkpoint suffix is no longer built here (integrate.sh owns it, asserted
+# below); relay-loop.js's remaining job is to RESOLVE the ids and forward them.
 ok "(b) integrator resolves workedIds (explicit → review verified/reopened → dispatch-time id)"
 
 # (b) durable propagation: ckpt-tag message + RELAY_STATUS completed line + integrate event.
-grep -q 'ckpt-tag.sh ${unit.path} -m "${report.summary}${idSuffix}"' "$JS" \
+# id:087b RELOCATION — the ckpt-tag invocation moved from relay-loop.js's LLM integrator
+# prompt into relay/scripts/integrate.sh. relay-loop.js forwards the worked ids as --ids and
+# integrate.sh builds the same ` [id:a,b]` suffix onto the checkpoint message.
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
+[[ -x "$INTEG" ]] || bad "(b) integrate.sh not found/executable"
+grep -qF "integrateArgs.push('--ids'" "$JS" \
+  || bad "(b) relay-loop.js does not forward the worked ids to the integrator"
+grep -qF 'idsuffix=" [id:${ids}]"' "$INTEG" \
+  || bad "(b) integrate.sh does not build the ' [id:…]' worked-id suffix"
+grep -qF '"$CKPT_TAG" "${ckpt_args[@]}"' "$INTEG" \
+  || bad "(b) integrate.sh does not invoke ckpt-tag.sh with the assembled args"
+grep -qF -- '-m "${summary}${idsuffix}"' "$INTEG" \
   || bad "(b) checkpoint message does not include the worked-id suffix"
 grep -q "substantive: unitIsSubstantive(unit.verdict, report), workedIds })" "$JS" \
   || bad "(b) state.completed entry does not carry workedIds"
