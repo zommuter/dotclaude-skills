@@ -51,32 +51,38 @@ fi
 # ── Load patterns / allowlist / private-host directives from the PRIVATE file ──
 leak_patterns=()
 allow_patterns=()
-priv_host_res=()
 while IFS= read -r line || [[ -n "$line" ]]; do
   line="${line%$'\r'}"                       # tolerate CRLF
   [[ "$line" =~ ^[[:space:]]*# ]] && continue
   [[ -z "${line//[[:space:]]/}" ]] && continue
   case "$line" in
     allow:*)        allow_patterns+=("$(printf '%s' "${line#allow:}"        | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')") ;;
-    private-host:*) priv_host_res+=("$(printf '%s' "${line#private-host:}"  | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')") ;;
+    # `private-host:` is CONSUMED BY relay/scripts/lib-private-remote.sh, which re-reads this
+    # same file. It is matched here only so it never falls through to the leak-pattern arm.
+    private-host:*) : ;;
     *)              leak_patterns+=("$line") ;;
   esac
 done < "$PATTERNS_FILE"
 
 # ── D1: classify the remote from its URL. Private host → SKIP the scan entirely. ──
-# Built-in defaults cover loopback / RFC-1918 / *.local; the private file and
-# PRIVACY_GATE_PRIVATE_HOSTS add site-specific hosts (kept OUT of this public file).
-builtin_private='(^|@|//)(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)|\.local($|[:/])'
+# The predicate itself is NOT defined here any more (id:4d44): it lives in ONE place,
+# relay/scripts/lib-private-remote.sh, because integrate.sh's per-remote push narrowing needs
+# the SAME answer and a second, drifting copy of "is this remote public" is the failure class
+# this repo keeps paying for. The lib reads the very same PRIVATE pattern file (via
+# $PRIVACY_GATE_PATTERNS) plus $PRIVACY_GATE_PRIVATE_HOSTS plus its builtin loopback/RFC-1918/
+# *.local ERE — same three sources, same order, same result as the inline code it replaces.
+#
+# Lib unreadable → treat the remote as PUBLIC and SCAN. That is this gate's standing fail
+# direction (never skip a scan on uncertainty), and it is loud, not silent.
+priv_lib="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")/.." 2>/dev/null && pwd)/relay/scripts/lib-private-remote.sh"
 is_private=0
-if [[ -n "$REMOTE_URL" ]] && grep -Eq -e "$builtin_private" <<<"$REMOTE_URL"; then
-  is_private=1
+if [[ -r "$priv_lib" ]]; then
+  # shellcheck source=../relay/scripts/lib-private-remote.sh
+  source "$priv_lib"
+  if is_private_remote_url "$REMOTE_URL"; then is_private=1; fi
+else
+  notice "WARNING: shared private-remote predicate not found at $priv_lib — cannot prove '$REMOTE_NAME' is a private host, so it is treated as PUBLIC and SCANNED."
 fi
-if [[ -n "${PRIVACY_GATE_PRIVATE_HOSTS:-}" ]] && grep -Eq -e "$PRIVACY_GATE_PRIVATE_HOSTS" <<<"$REMOTE_URL"; then
-  is_private=1
-fi
-for re in "${priv_host_res[@]}"; do
-  [[ -n "$re" ]] && grep -Eq -e "$re" <<<"$REMOTE_URL" && is_private=1
-done
 
 if [[ "$is_private" -eq 1 ]]; then
   notice "remote '$REMOTE_NAME' ($REMOTE_URL) is a PRIVATE host — skipping leak scan."
