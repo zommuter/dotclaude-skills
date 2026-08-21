@@ -6143,3 +6143,29 @@ from worked_ids at integrate.
 ## 2026-08-20 20:44 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
 
 Built relay/scripts/integrate.sh — standalone fail-closed mechanical integrator (11 steps, distinct exits, aa93/6e02 enforced in-script), hermetic test, Makefile-registered (id:9e50) [id:9e50]
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:4a76 — `classify-verdict.sh` gained a HUMAN-LANE-DRAINED branch: `verdict=human`
+when `roadmap_open > 0` AND every executable lane is zero AND `open_human_lane >= 1` AND
+`open_mechanical == 0`, with a reason that NAMES the human-lane cause. `classify-repo.sh`
+derives and ships the new `open_human_lane` field (human LANE tag or `@manual`, parked
+sections excluded) and gained the missing `[INPUT — author]` lane in `HUMAN_GATES` — the
+lane set is enumerated from `relay/references/hard-lanes.md`, which lists FOUR `[INPUT — *]`
+lanes where several restatements say three.
+Friction: `tests/test_classifier_not_ready.sh` case (2a) directly contradicted the RED spec —
+its fixture IS the measured csgebra shape (a `[ROUTINE]` item `gated-on:` an open
+`[INPUT — meeting]` root) and it asserted the not-actionable fact through the verdict PROXY
+`idle`, the exact false-clean id:4a76 was filed against. Rewritten to be verdict-INDEPENDENT:
+it now asserts the underlying claim `actionable_routine_open == 0` directly AND pins the new
+`human` verdict. NOT a weakening — a gate-regression still fails it — but it IS an edit to an
+existing test file and the reviewer should confirm the call.
+Also NARROWED from my first cut: `open_human_lane` counts only the ratified acceptance's two
+signals (human lane tag, `@manual`). The dispatch-exclusion MARKERS `@owner-verify` /
+`@owner-gated` / `@container` are deliberately NOT counted — case (1a) of the same test pins
+an `@owner-verify`-only repo at `idle`, and widening is a separate owner-decidable question.
+SHADOW-PARITY: routed to relay-core via the shared inbox (`routed:9699`); the Lean shadow
+binary reimplements both scripts, so parity goes RED until it adopts this.
+refactor: none needed — one new elif in the classifier plus one counter in the producer, both
+reusing the existing `HUMAN_GATES` / `in_exempt_section` predicates rather than adding a
+parallel lane list.
