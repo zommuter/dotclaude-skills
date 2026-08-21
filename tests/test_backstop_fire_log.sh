@@ -50,7 +50,7 @@ grep -q "pushEvent('backstop'" "$JS" \
 
 # A2: the emitted backstop record identifies the repo it acted on and the verdict it changed.
 #     Look inside the backstop-emit region (pushEvent('backstop' … up to the closing brace).
-emit_region="$(grep -n "pushEvent('backstop'" "$JS" | head -1 | cut -d: -f1 || true)"
+emit_region="$(head -1 < <(grep -n "pushEvent('backstop'" "$JS") | cut -d: -f1 || true)"
 if [[ -n "$emit_region" ]]; then
   block="$(sed -n "${emit_region},$((emit_region+4))p" "$JS")"
   grep -q "repo" <<<"$block" \

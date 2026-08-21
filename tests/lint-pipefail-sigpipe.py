@@ -119,11 +119,13 @@ def early_exit_reason(stage, raw=None):
         for w in rest:
             if w == "--":
                 break
+            if not w.startswith("-"):
+                break          # the PATTERN operand; later words are files, not flags
             if w.startswith("--"):
                 if w in ("--quiet", "--silent") or w.startswith("--max-count"):
                     return "grep exits at first match (-q/--max-count)"
                 continue
-            if w.startswith("-") and len(w) > 1:
+            if len(w) > 1:
                 flags = w[1:]
                 if "q" in flags:
                     return "grep -q exits at first match"

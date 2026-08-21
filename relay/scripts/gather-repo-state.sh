@@ -361,7 +361,7 @@ if [[ -n "$roadmap" ]]; then
     | grep -P '^- \[ \].*\[INTENSIVE — ' 2>/dev/null \
     | grep -vP '\[HARD — (hands|meeting|decision gate)\]|\[INPUT — (access|meeting|decision|author)\]|@manual|@container|@owner-gated|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
     || true)"
-  top_intensive="$(printf '%s\n' "$intensive_candidates" | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
+  top_intensive="$(grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null < <(printf '%s\n' "$intensive_candidates") || true)"
   # id:2799 — PER-LANE split of the same (already human-gate-excluded) candidate set: a
   # repo-wide top_intensive stamped a WHOLE dispatch unit regardless of which lane the item
   # was actually in, so an unrelated [HARD] [INTENSIVE] item deferred every open [ROUTINE]
@@ -375,7 +375,7 @@ if [[ -n "$roadmap" ]]; then
     while IFS= read -r _ic_line; do
       [[ -z "$_ic_line" ]] && continue
       _ic_lane="$(roadmap_primary_lane "$_ic_line")"
-      _ic_res="$(printf '%s' "$_ic_line" | grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null || true)"
+      _ic_res="$(grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null < <(printf '%s' "$_ic_line") || true)"
       [[ -z "$_ic_res" ]] && continue
       if [[ -z "$top_intensive_routine" && "$_ic_lane" == "[ROUTINE]" ]]; then
         top_intensive_routine="$_ic_res"
@@ -394,7 +394,7 @@ fi
 # relay.toml's last_strong_ckpt for this repo (the strong-audit watermark), falling back to
 # the latest ckpt tag ($latest) when unset. FAIL-OPEN: stay true unless we can PROVE there is
 # nothing new — a real audit must never be wrongly skipped.
-audit_ref="$(printf '%s\n' "$block" | sed -n 's/^[[:space:]]*last_strong_ckpt[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' | head -n1)"
+audit_ref="$(head -n1 < <(printf '%s\n' "$block" | sed -n 's/^[[:space:]]*last_strong_ckpt[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p') )"
 [[ -z "$audit_ref" ]] && audit_ref="$latest"
 # Stale-watermark guard (2026-07-01 duplicate-dispatch incident, run relay-20260701-202806-14640):
 # relay.toml's last_strong_ckpt can LAG the real newest strong checkpoint when an out-of-pool

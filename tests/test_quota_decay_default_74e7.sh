@@ -23,7 +23,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$SKILL" ]] || fail "relay/SKILL.md not found at $SKILL"
 
 # ── extract RELAY_QUOTA_DECAY_7D=START:END from the Makefile's RELAY_ENV_DEFAULTS ──
-mk_pair="$(grep -oE 'RELAY_QUOTA_DECAY_7D=[0-9.]+:[0-9.]+' "$MK" | head -1 || true)"
+mk_pair="$(head -1 < <(grep -oE 'RELAY_QUOTA_DECAY_7D=[0-9.]+:[0-9.]+' "$MK") || true)"
 [[ -n "$mk_pair" ]] || fail "could not find RELAY_QUOTA_DECAY_7D=START:END in Makefile"
 mk_val="${mk_pair#RELAY_QUOTA_DECAY_7D=}"
 mk_start="${mk_val%%:*}"

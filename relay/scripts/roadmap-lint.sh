@@ -772,7 +772,7 @@ PY
     # brace-bounded submatch truncates before reaching `model:` (observed
     # false-negative while developing this check). All known dispatch shapes in
     # this repo are single-line `agent(..., { label: …, model: … })` calls.
-    dispatch="$(grep -P "label:\s*[\`'\"]${esc}" "$loop_js" | head -1 || true)"
+    dispatch="$(head -1 < <(grep -P "label:\s*[\`'\"]${esc}" "$loop_js") || true)"
     [[ -n "$dispatch" ]] || continue   # no matching dispatch found — nothing to compare
     if [[ "$kind" == "haiku" ]]; then
       if grep -qP "model:\s*'bash'" < <(printf '%s' "$dispatch") ; then

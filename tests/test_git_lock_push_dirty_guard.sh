@@ -95,7 +95,7 @@ fi
 # ── Test 3: refusal message states facts, no causal guess ─────────────────────
 echo "Test 3: refusal wording drops the 'concurrent edit' guess"
 if grep -qi "concurrent edit" < <(echo "$out2") ; then
-  fail_msg "refusal still asserts the unverified 'concurrent edit' cause: $(echo "$out2" | grep -i 'concurrent edit' | head -1)"
+  fail_msg "refusal still asserts the unverified 'concurrent edit' cause: $(head -1 < <(echo "$out2" | grep -i 'concurrent edit') )"
 else
   ok "no 'concurrent edit' causal guess in the refusal"
 fi

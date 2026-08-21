@@ -49,8 +49,8 @@ RUN_ID_T="relay-20260729-100152-27550"
 OTHER_RUN="relay-20260729-999999-11111"
 
 # ── §1 the anchored teardown block exists and holds exactly one bash fence ────────────────
-start_n="$(grep -n -- '<!-- teardown-trap:start -->' "$SKILL" | head -1 | cut -d: -f1)"
-end_n="$(grep -n -- '<!-- teardown-trap:end -->'   "$SKILL" | head -1 | cut -d: -f1)"
+start_n="$(head -1 < <(grep -n -- '<!-- teardown-trap:start -->' "$SKILL") | cut -d: -f1 )"
+end_n="$(head -1 < <(grep -n -- '<!-- teardown-trap:end -->'   "$SKILL") | cut -d: -f1 )"
 [[ -n "$start_n" && -n "$end_n" ]] \
   || fail "(1) relay/SKILL.md has no <!-- teardown-trap:start/end --> anchors — the teardown must live in an ANCHORED region, not prose (id:cdcf: a prose-scoped guard can silently check nothing)"
 (( end_n > start_n )) || fail "(1) teardown-trap:end precedes teardown-trap:start"

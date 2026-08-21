@@ -55,7 +55,7 @@ if [ ! -d "$repo" ]; then
 fi
 
 # ---- 2. Resolve remote, host, bare repo path --------------------------------------
-remote="$(git -C "$repo" remote 2>/dev/null | head -1)"
+remote="$(head -1 < <(git -C "$repo" remote 2>/dev/null) )"
 [ -n "$remote" ] || { echo "ERROR: no git remote in $repo" >&2; exit 2; }
 
 push_url="$(git -C "$repo" remote get-url --push "$remote")"

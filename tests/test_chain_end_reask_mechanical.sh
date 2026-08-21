@@ -32,7 +32,7 @@ tmpdir="$(mktemp -d)"; trap 'rm -rf "$tmpdir"' EXIT
 
 # ── Test 1: the dispatched hop no longer contains a jq stage ──────────────────
 echo "Test 1: chain-end hop is jq-free"
-hop="$(grep -n -- '--chain-ended' "$LOOP" | head -5)"
+hop="$(head -5 < <(grep -n -- '--chain-ended' "$LOOP") )"
 # Assert on a DISPATCHED pipeline, not on prose: the refused command had classify-repo.sh and
 # jq on the SAME line. A comment that merely quotes the old stage (this fix's own rationale
 # comment does) must not trip the guard — matching it would make the test unfixable-by-design.

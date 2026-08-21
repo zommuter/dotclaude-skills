@@ -88,8 +88,8 @@ pass "provisionWorktree() gates its true-return on the PROVISION-OK token"
 
 # `return true` must not be reachable without consulting the token: no bare `return true` that
 # precedes the token check in the function body.
-first_true="$(grep -n 'return true' <<<"$body" | head -1 | cut -d: -f1 || true)"
-first_tok="$(grep -n 'PROVISION-OK' <<<"$body" | head -1 | cut -d: -f1 || true)"
+first_true="$(head -1 < <(grep -n 'return true' <<<"$body") | cut -d: -f1 || true)"
+first_tok="$(head -1 < <(grep -n 'PROVISION-OK' <<<"$body") | cut -d: -f1 || true)"
 [[ -n "$first_true" && -n "$first_tok" && "$first_tok" -lt "$first_true" ]] \
   || fail "a 'return true' appears before any PROVISION-OK check — the success path is still unguarded"
 pass "no unguarded 'return true' precedes the token check"

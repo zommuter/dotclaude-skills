@@ -25,7 +25,7 @@ fail_msg() { echo "  FAIL: $1"; fail=$((fail+1)); }
 [[ -f "$JS" ]] || { echo "FAIL: relay-loop.js not found"; exit 1; }
 
 echo "Test 1: isFableRecheck covers ANY strong unit (no verdict === 'review' conjunct)"
-line="$(grep -n 'isFableRecheck *=' "$JS" | head -1)"
+line="$(head -1 < <(grep -n 'isFableRecheck *=' "$JS") )"
 if [[ -z "$line" ]]; then
   fail_msg "isFableRecheck assignment not found (renamed? update this spec)"
 elif grep -q "verdict === 'review'" < <(grep 'isFableRecheck *=' "$JS") ; then
