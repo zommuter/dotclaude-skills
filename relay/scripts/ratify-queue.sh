@@ -73,8 +73,11 @@ _flock_acquire() {
 _flock_release() { exec 9>&-; }
 
 # ── the shared record reader ────────────────────────────────────────────────────────────
-# Emits, on stdout, one TAB-separated projection per WELL-FORMED record:
-#   lineno  status  repo  path  branch  merged  ckpt  ids  bump  run  verdict  ts  summary
+# Emits, on stdout, one US(0x1f)-separated projection per WELL-FORMED record:
+#   lineno status repo path branch merged ckpt ids bump run verdict ts summary pending
+# `pending` (id:4d44) is the comma-separated list of remotes that did NOT receive the merge;
+# EMPTY on a pre-id:4d44 record, which means "unknown" and restores the original single-remote
+# verification. New columns go at the END so an older reader's positions never shift.
 # and one `MALFORMED:` line per bad record on stderr. Exit 3 if any malformed was seen.
 # Kept in ONE place so list/show/verify/resolve can never disagree about what is valid.
 _read_records() {
@@ -131,12 +134,18 @@ with open(path, encoding="utf-8", errors="replace") as fh:
         ids = rec.get("ids") or []
         if isinstance(ids, list):
             ids = ",".join(str(i) for i in ids)
+        # id:4d44 per-remote: which remotes did NOT receive the merge. OLDER records (and any
+        # hand-written one) have no such field — an EMPTY list means "unknown / all of them",
+        # and the verification falls back to its original single-default-remote behaviour.
+        pending = rec.get("pending_remotes") or []
+        if isinstance(pending, list):
+            pending = ",".join(str(r) for r in pending if r)
         cols = [
             str(n), str(rec.get("status")), str(rec["repo"]), str(rec["path"]),
             str(rec.get("branch", "")), merged, str(rec.get("ckpt", "")),
             flat(ids), str(rec.get("bump", "")), str(rec.get("run", "")),
             str(rec.get("verdict", "")), str(rec.get("ts", "")),
-            flat(rec.get("summary", "")),
+            flat(rec.get("summary", "")), flat(pending),
         ]
         # US (0x1f), NOT tab: a TAB is an IFS-*whitespace* character, so bash's
         # `IFS=$'\t' read` COLLAPSES consecutive tabs and an empty field (bump="" on a
@@ -280,6 +289,44 @@ _verify_remote() {
   printf '%s %s %s\n' "$verdict" "$remote" "$ref"
 }
 
+# ── id:4d44 per-remote: verify EVERY remote that still owes this merge ───────────────────
+# $1 path, $2 merged, $3 ckpt, $4 explicit --remote override (may be empty),
+# $5 the record's comma-separated `pending_remotes` (may be empty on a legacy record).
+# Prints one `<verdict> <remote> <ref>` line per verified remote. ANY remote that fails
+# verification aborts the whole thing (each _verify_remote already exits loud + nonzero, and
+# `set -e` propagates it) — so a partial pass can never look like a resolve.
+#
+# WHY THIS EXISTS: integrate.sh now pushes a substantive unit's PRIVATE/LAN remotes and defers
+# only its public ones. If the private remote happens to be named `origin`, the ORIGINAL
+# single-default-remote check would verify the remote that was ALREADY pushed and resolve the
+# entry while the public remote still lacks the merge — a false resolve of exactly the kind
+# this queue exists to prevent.
+_verify_pending() {
+  local path="$1" merged="$2" ckpt="$3" remote="$4" pending="$5"
+  local targets="" t res
+  if [ -n "$remote" ]; then
+    # An explicit override must COVER every pending remote, else it would resolve an entry
+    # on partial evidence. Refuse rather than narrow silently.
+    if [ -n "$pending" ] && [ "$pending" != "$remote" ]; then
+      loud "--remote '$remote' does not cover this entry's PENDING remotes ($pending) — resolving on it would mark the entry done while $pending still lack the merge. Omit --remote to verify all of them."
+      exit "$EX_USAGE"
+    fi
+    targets="$remote"
+  elif [ -n "$pending" ]; then
+    targets="$(printf '%s' "$pending" | tr ',' '\n')"
+  else
+    # Legacy record (pre-id:4d44) — no per-remote knowledge; verify the single default
+    # remote exactly as before.
+    _verify_remote "$path" "$merged" "$ckpt" ""
+    return 0
+  fi
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
+    res="$(_verify_remote "$path" "$merged" "$ckpt" "$t")"
+    printf '%s\n' "$res"
+  done <<< "$targets"
+}
+
 cmd="${1:-}"; shift || true
 
 case "$cmd" in
@@ -314,15 +361,23 @@ case "$cmd" in
     rc=0
     recs="$(_read_records)" || rc=$?
     count=0
-    while IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary; do
+    while IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending; do
       [ -n "${lineno:-}" ] || continue
       [ "$show_all" = 1 ] || [ "$status" = pending ] || continue
       [ -z "$filter_repo" ] || [ "$repo" = "$filter_repo" ] || continue
       count=$(( count + 1 ))
       if [ "$fmt" = tsv ]; then
         # gather-human-backlog.sh column contract: repo \t path \t kind \t box_summary
+        # id:4d44 per-remote: when the record names its pending remotes, the box must name
+        # them too — "did NOT push" is false for a unit that already published to its LAN
+        # remotes, and the owner needs to know which push is actually outstanding.
+        if [ -n "$pending" ]; then
+          rq_what="pool merged LOCALLY and pushed only the PRIVATE/LAN remote(s); [$pending] still need an owner push: $(printf '%s' "$pending" | tr ',' '\n' | sed "s|^|git -C $path push --follow-tags |" | tr '\n' ';')"
+        else
+          rq_what="pool merged LOCALLY and did NOT push — review then push: git -C $path push --follow-tags"
+        fi
         printf '%s\t%s\t%s\t%s\n' "$repo" "$path" ratification_pending \
-          "[RATIFY id:4d44] pool merged LOCALLY and did NOT push — review then push: git -C $path push --follow-tags (merged=${merged:0:12} ckpt=${ckpt:--} ids=${ids:--} bump=${bump:-none} age=$(_age "$ts")) — ${summary:-no summary}"
+          "[RATIFY id:4d44] $rq_what (merged=${merged:0:12} ckpt=${ckpt:--} ids=${ids:--} bump=${bump:-none} age=$(_age "$ts")) — ${summary:-no summary}"
       else
         printf '%-28s %-22s %-12s ids=%-24s bump=%-8s age=%s\n' \
           "${ckpt:--}" "$repo" "${merged:0:12}" "${ids:--}" "${bump:-none}" "$(_age "$ts")"
@@ -349,7 +404,7 @@ case "$cmd" in
   show)
     key="${1:-}"; [ -n "$key" ] || die "usage: ratify-queue.sh show <ckpt|merged-sha>"
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending <<< "$line"
     printf 'repo      %s\n'  "$repo"
     printf 'path      %s\n'  "$path"
     printf 'merged    %s\n'  "$merged"
@@ -362,7 +417,17 @@ case "$cmd" in
     printf 'queued    %s (%s ago)\n' "${ts:--}" "$(_age "$ts")"
     printf 'status    %s\n'  "$status"
     printf 'summary   %s\n'  "${summary:--}"
-    printf 'push      git -C %s push --follow-tags\n' "$path"
+    # id:4d44 — name the remotes that are actually outstanding. A `partial` unit already
+    # published to its private/LAN remotes; a bare `git push` command would be misleading
+    # about what is left (and about what is already out there).
+    printf 'pending   %s\n'  "${pending:-<all/unknown>}"
+    if [ -n "$pending" ]; then
+      printf '%s' "$pending" | tr ',' '\n' | while IFS= read -r r; do
+        [ -n "$r" ] && printf 'push      git -C %s push --follow-tags %s\n' "$path" "$r"
+      done
+    else
+      printf 'push      git -C %s push --follow-tags\n' "$path"
+    fi
     printf 'then      ratify-queue.sh resolve %s\n' "${ckpt:-$merged}"
     exit 0
     ;;
@@ -380,10 +445,12 @@ case "$cmd" in
       shift || true
     done
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary <<< "$line"
-    res="$(_verify_remote "$path" "$merged" "$ckpt" "$remote")"
-    set -- $res
-    printf 'LANDED (%s): %s/%s carries %s (%s)\n' "$1" "$repo" "$2" "$merged" "$3"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending <<< "$line"
+    res="$(_verify_pending "$path" "$merged" "$ckpt" "$remote" "$pending")"
+    while IFS=' ' read -r v_verdict v_remote v_ref; do
+      [ -n "${v_verdict:-}" ] || continue
+      printf 'LANDED (%s): %s/%s carries %s (%s)\n' "$v_verdict" "$repo" "$v_remote" "$merged" "$v_ref"
+    done <<< "$res"
     exit 0
     ;;
 
@@ -402,13 +469,24 @@ case "$cmd" in
     done
 
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending <<< "$line"
 
     # VERIFY BEFORE MARKING. Any non-landed outcome exits nonzero from here and the
     # queue is left untouched — the entry stays pending, which is the safe side.
-    res="$(_verify_remote "$path" "$merged" "$ckpt" "$remote")"
-    set -- $res
-    v_verdict="$1"; v_remote="$2"; v_ref="$3"
+    # id:4d44 — EVERY pending remote must carry the merge; a single verified remote is not
+    # evidence when the record says two are outstanding.
+    res="$(_verify_pending "$path" "$merged" "$ckpt" "$remote" "$pending")"
+    v_verdict="" v_remote="" v_ref=""
+    while IFS=' ' read -r _v _r _f; do
+      [ -n "${_v:-}" ] || continue
+      v_verdict="${v_verdict:+$v_verdict,}$_v"
+      v_remote="${v_remote:+$v_remote,}$_r"
+      v_ref="${v_ref:+$v_ref,}$_f"
+    done <<< "$res"
+    if [ -z "$v_remote" ]; then
+      loud "verification produced no result for '${ckpt:-$merged}' — refusing to resolve on no evidence"
+      exit "$EX_UNVERIFIABLE"
+    fi
 
     _flock_acquire
     tmp="${QUEUE}.tmp.$$"
@@ -431,6 +509,9 @@ with open(queue, encoding="utf-8") as fh:
         rec = json.loads(raw)
         rec["status"] = "resolved"
         rec["push"] = "pushed"
+        # id:4d44 — nothing is outstanding any more; leaving a stale pending list would make
+        # a later reader think remotes still owe this merge.
+        rec["pending_remotes"] = []
         rec["resolved_at"] = now
         rec["resolved_by"] = "ratify-queue.sh"
         rec["resolved_remote"] = remote

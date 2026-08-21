@@ -136,17 +136,33 @@
 #                [--chain-ended]
 #
 # Output contract (stdout, one KEY=VALUE per line — parsed by relay-loop.js integrate()):
-#   merged=<sha>  ckpt=<tag>  push=<pushed|deferred>  ratification=<pending|none>
+#   merged=<sha>  ckpt=<tag>  push=<pushed|partial|deferred|no-upstream|FAILED>
+#   pushRemote=<name>:<pushed|deferred|FAILED|skipped-no-ssh-key|no-push-url>  (0..n lines)
+#   pushPending=<comma-separated remotes that did NOT receive the merge, or empty>
+#   ratification=<pending|none>
 #   ts=<ISO>  bump=<vX.Y.Z|>  retire=<note>
 #   postSig=<hex|>  openRoutine=<n>  openHard=<n>  sibling=<branch>\t<count>  (0..n lines)
-#   push=deferred + ratification=pending  ⇔  a SUBSTANTIVE unit merged locally and is queued
-#   for the owner (id:4d44). id:f0ad — push=no-upstream ALSO carries ratification=pending:
-#   it is the same durable state (merged + tagged, nothing on any remote), and reporting it
-#   as ratification=none made relay-loop.js count an UNPUBLISHED merge as a plain completion
-#   with no durable record. ratification=none now means exactly one thing: it was published.
-#   push=pushed is now VERIFIED against the remote ref, never
-#   inferred from git-lock-push.sh's exit code (id:f5d9(a)); a push that did not land is
-#   reported push=FAILED on stderr with a handback, never as success.
+#
+#   id:4d44 PER-REMOTE. `push=` is the AGGREGATE; the per-remote truth is in the
+#   `pushRemote=` lines. A SUBSTANTIVE unit now pushes its PRIVATE/LAN remotes automatically
+#   and defers ONLY the public ones, so `push=partial` is a normal outcome. Every `pushed` is
+#   VERIFIED per remote against the remote ref, never inferred from git-lock-push.sh's exit
+#   code (id:f5d9(a)/id:dc4f — it exits 0 having pushed nothing); an intended push that did
+#   not land is push=FAILED on stderr with a handback, never success.
+#
+#   `ratification=` is the OWNER-FACING key, and id:f0ad's rule survives the per-remote
+#   rework UNCHANGED IN SUBSTANCE — only generalised from one remote to many:
+#     pending ⇔ at least one remote still lacks the merge. THREE push classes reach it:
+#               `deferred` (nothing pushed — a substantive unit whose remotes are all
+#               public), `partial` (id:4d44 — some remotes got it, some were withheld), and
+#               `no-upstream` (id:f0ad — nowhere to push at all). All three are the same
+#               durable state for the remotes concerned: merged + tagged locally, absent
+#               from those remotes. The queue entry NAMES them (`pending_remotes`).
+#     none    ⇔ EVERY eligible remote carries the merge. id:f0ad's "it was published" for a
+#               one-remote repo is exactly this, and the generalisation is the only reading
+#               that keeps `none` meaning one thing: nothing is waiting for the owner.
+#               Reporting `none` for any unit with an unpublished remote is the id:f0ad
+#               defect (relay-loop counts an unpublished merge as a plain completion).
 #
 # Handback contract (STDERR, id:5fe2 — stdout is discarded by the proxy on a non-zero exit):
 #   PRE-LAND  exits: handback=<step>  landed=false                      (safe to retry)
@@ -289,6 +305,10 @@ ROADMAP_TICK="${INTEGRATE_ROADMAP_TICK:-$SCRIPT_DIR/roadmap-tick.sh}"
 ROADMAP_ARCHIVE="${INTEGRATE_ROADMAP_ARCHIVE:-$SCRIPT_DIR/roadmap-archive.sh}"
 STRANDED_SCAN="${INTEGRATE_STRANDED_SCAN:-$SCRIPT_DIR/stranded-branch-scan.sh}"
 DISCOVER_SIG="${INTEGRATE_DISCOVER_SIG:-$SCRIPT_DIR/discover-sig.sh}"
+# id:4d44 — THE single "is this remote a PRIVATE/LAN host?" predicate. Shared with
+# hooks/pre-push-privacy-gate.sh; never re-derived here. See lib-private-remote.sh's header
+# for why git-lock-push.sh's is_ssh_url() is NOT a substitute (it fails toward AUTO-PUBLISH).
+LIB_PRIVATE_REMOTE="${INTEGRATE_LIB_PRIVATE_REMOTE:-$SCRIPT_DIR/lib-private-remote.sh}"
 
 # ── args ──
 repo="" path="" worktree="" branch="" summary="" run="" label=""
@@ -593,76 +613,176 @@ if ! ckpt_tag="$("$CKPT_TAG" "${ckpt_args[@]}" 2>&1)"; then
 fi
 ckpt_tag="$(printf '%s' "$ckpt_tag" | tail -n1)"
 
-# ── step 8: git-lock-push --ff-only (the only network step) — OR the id:4d44 DEFERRAL. ──
+# ── step 8: PER-REMOTE push narrowing (id:4d44) ──────────────────────────────────────
+#
+#    A SUBSTANTIVE unit no longer defers its push WHOLESALE. It pushes the PRIVATE/LAN
+#    remotes automatically (those are not publication — nothing leaves the fleet) and defers
+#    ONLY the non-local/public ones, which are the ones owner ratification exists to gate.
+#    A NON-SUBSTANTIVE unit is UNCHANGED: every remote is pushed, as before.
+#
+#    THE PREDICATE IS NOT DEFINED HERE. relay/scripts/lib-private-remote.sh is the ONE copy,
+#    shared with hooks/pre-push-privacy-gate.sh. It reads the PRIVATE, never-committed
+#    pattern file at runtime, which is the only way this fleet's named LAN hosts classify at
+#    all. git-lock-push.sh's is_ssh_url() is NOT a substitute — it answers "needs SSH auth",
+#    so it calls ssh://github.com/... private and would AUTO-PUBLISH agent work.
+#
+#    FAIL DIRECTION — UNPROVEN IS PUBLIC. An unreadable lib, an unreadable pattern file, an
+#    unresolvable remote URL: all yield "public" ⇒ DEFER. Never auto-publish on a guess.
+#
+#    Selection happens inside git-lock-push.sh via its `--remote` flag (id:4d44 piece A), NOT
+#    by pushing per-remote from here: the flock IS that helper (id:aa93), and the two
+#    rejected alternatives (bare per-remote `git push`; a temporary
+#    `remote.<name>.pushurl=no_push`) drop the lock and mutate shared repo config
+#    respectively.
+push_pushed=""      # newline-separated: remotes VERIFIED to carry HEAD
+push_deferred=""    # newline-separated: remotes deliberately NOT pushed (public/unproven)
+push_unreached=""   # newline-separated: intended but did NOT arrive for a benign reason
+push_lines=""       # `pushRemote=<name>:<status>` stdout lines, in `git remote` order
+
 if [ -n "$defer_push" ]; then
-  # ── SUBSTANTIVE: merged locally, NOT published. The owner ratifies and pushes. ──
-  # Everything before this point already ran; everything after it still runs. The ONLY
-  # difference is that nothing goes to the remote, so `main` is left LOCAL-AHEAD (see the
-  # RATIFICATION GATE header block for why every later gate tolerates that).
-  push_status="deferred"
   # id:5fe2 land point (re-derived by id:4d44): the merge is committed AND tagged, so from
-  # here on a re-run is WRONG. There is no push to key on, so the ckpt tag is the marker.
+  # here on a re-run is WRONG. A substantive unit may push NOTHING, so the ckpt tag — not the
+  # push — is the marker, and it is set BEFORE any push is attempted.
   landed=1
-  log "step8 id:4d44 PUSH DEFERRED — substantive=${substantive:-unset}; merged=$merged_head ckpt=$ckpt_tag stays LOCAL, awaiting owner ratification"
+fi
+
+# Source the shared predicate. Unreadable → every remote stays unproven ⇒ public ⇒ deferred.
+priv_lib_ok=0
+if [ -r "$LIB_PRIVATE_REMOTE" ]; then
+  # shellcheck source=./lib-private-remote.sh
+  . "$LIB_PRIVATE_REMOTE"
+  priv_lib_ok=1
 else
-  if ! push_out="$("$GIT_LOCK_PUSH" --ff-only "$path" 2>&1)"; then
+  log "step8 id:4d44 lib-private-remote.sh UNREADABLE at $LIB_PRIVATE_REMOTE — no remote can be PROVEN private, so every remote is treated as PUBLIC (fail-closed: defer, never auto-publish)"
+fi
+
+# Classify every remote. `no_push` pushurls are not remotes at all for this purpose —
+# git-lock-push.sh skips them by the same rule, so they are neither pushed nor deferred.
+to_push="" eligible_count=0
+all_remotes="$(git -C "$path" remote 2>/dev/null || true)"
+for _r in $all_remotes; do
+  _rurl="$(git -C "$path" remote get-url --push "$_r" 2>/dev/null || true)"
+  if [ "$_rurl" = "no_push" ]; then
+    push_lines="${push_lines}pushRemote=$_r:no-push-url"$'\n'
+    continue
+  fi
+  eligible_count=$(( eligible_count + 1 ))
+  if [ -z "$defer_push" ]; then
+    to_push="${to_push}${_r}"$'\n'                       # non-substantive: push everything
+  elif [ "$priv_lib_ok" = 1 ] && is_private_remote_url "$_rurl"; then
+    to_push="${to_push}${_r}"$'\n'                       # substantive: private/LAN → push
+  else
+    push_deferred="${push_deferred}${_r}"$'\n'           # substantive: public/unproven → defer
+    log "step8 id:4d44 remote '$_r' is NOT provably private — DEFERRED for owner ratification"
+  fi
+done
+
+push_out=""
+if [ -n "$to_push" ]; then
+  # ALL eligible remotes selected AND nothing deferred → invoke git-lock-push.sh exactly as
+  # before (no --remote at all), so the non-substantive path is byte-identical to today.
+  push_args=(--ff-only "$path")
+  if [ -n "$push_deferred" ]; then
+    while IFS= read -r _r; do
+      [ -n "$_r" ] || continue
+      push_args+=(--remote "$_r")
+    done <<< "$to_push"
+  fi
+  if ! push_out="$("$GIT_LOCK_PUSH" "${push_args[@]}" 2>&1)"; then
     push_status="FAILED"
     handback git-lock-push "$EX_PUSH" "push failed (merge + tag are committed locally; retry push): $push_out"
   fi
-  # ── id:f5d9(a) — VERIFY THE PUSH LANDED; never trust the helper's exit code. ─────────
-  #    OBSERVED 2026-08-21 (run relay-20260821-170128-5042): integrate.sh printed
-  #    `push=pushed` while origin stayed 10 commits behind, because git-lock-push.sh exits 0
-  #    having pushed NOTHING (id:dc4f). The exit code is therefore NOT evidence. Compare the
-  #    REMOTE ref to the sha we just tried to push and believe only that.
-  #    Compared against HEAD, not $merged_head: bump/changelog/archive/tick commits land on
-  #    top of the merge, so HEAD is the sha the push actually had to carry.
-  pushed_sha="$(git -C "$path" rev-parse HEAD)"
-  up_ref=""
-  if up_ref="$(git -C "$path" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"; then :; else up_ref=""; fi
-  if [ -z "$up_ref" ]; then
-    # No upstream configured => there is no remote ref to compare against and git-lock-push
-    # had nothing to push. Report that HONESTLY rather than claiming a push landed.
-    push_status="no-upstream"
-    log "step8 id:f5d9(a) no @{upstream} for $path — nothing to verify, reporting push=no-upstream"
-    # id:f0ad — …AND ENQUEUE IT. This branch used to set `landed=1` and then fall through
-    # to a step 8b gated on $defer_push, which is EMPTY here (the unit is NON-substantive,
-    # that is the only way it reaches this branch at all). So the unit took the SUCCESS
-    # path with ratification=none, and relay-loop.js's surfacing condition
-    # (`ratification === 'pending' || pushStatus === 'deferred'`) matched NEITHER: an
-    # unpublished merge was counted as a completion with no durable record anywhere. The
-    # state is materially the same as a deferred push — merged + tagged locally, nothing on
-    # any remote — so it takes the same durable queue and the same `pending` surfacing.
-  else
-    push_remote="${up_ref%%/*}"
-    push_branch="${up_ref#*/}"
+fi
+
+# ── id:f5d9(a) — VERIFY EACH PUSHED REMOTE; never trust the helper's exit code. ────────
+#    OBSERVED 2026-08-21 (run relay-20260821-170128-5042): integrate.sh printed
+#    `push=pushed` while origin stayed 10 commits behind, because git-lock-push.sh exits 0
+#    having pushed NOTHING (id:dc4f). The exit code is therefore NOT evidence.
+#    Verification is now PER REMOTE — a single-@{upstream} check could not see a second
+#    remote silently missing the push, and under narrowing the remote that matters may not
+#    be the upstream one at all.
+#    Compared against HEAD, not $merged_head: bump/changelog/archive/tick commits land on
+#    top of the merge, so HEAD is the sha the push actually had to carry.
+pushed_sha="$(git -C "$path" rev-parse HEAD)"
+push_branch="$(git -C "$path" rev-parse --abbrev-ref HEAD)"
+push_failures=""
+if [ -n "$to_push" ]; then
+  while IFS= read -r _r; do
+    [ -n "$_r" ] || continue
+    # git-lock-push.sh DECLINES an SSH remote when no key is loaded in the agent, by design,
+    # and says so. That is not a failed push — record it honestly as unreached rather than
+    # manufacturing a handback for a documented, benign skip.
+    # Substring match via `case`, NOT `… | grep -q …`: a producer piped into an
+    # early-exiting consumer under `set -o pipefail` is banned repo-wide (id:81d5).
+    if case "$push_out" in *"skipping remote '$_r' (SSH, no key loaded"*) true ;; *) false ;; esac; then
+      push_unreached="${push_unreached}${_r}"$'\n'
+      push_lines="${push_lines}pushRemote=$_r:skipped-no-ssh-key"$'\n'
+      log "step8 remote '$_r' SKIPPED by git-lock-push.sh (SSH, no key in agent) — treated as UNREACHED, not as a push failure"
+      continue
+    fi
     remote_sha=""
     for _try in 1 2; do
-      remote_sha="$(git -C "$path" ls-remote "$push_remote" "refs/heads/$push_branch" 2>/dev/null | awk 'NR==1{print $1}')" || remote_sha=""
+      remote_sha="$(git -C "$path" ls-remote "$_r" "refs/heads/$push_branch" 2>/dev/null | awk 'NR==1{print $1}')" || remote_sha=""
       [ -n "$remote_sha" ] && break
     done
     if [ -z "$remote_sha" ]; then
       # UNVERIFIABLE is treated as NOT landed — fail closed. A silent false success is the
-      # exact defect being fixed, and the pre-land class (retry) is the safe side: the
-      # remote either did not move, or a retry re-pushes the same sha idempotently.
-      push_status="FAILED"
-      handback git-lock-push "$EX_PUSH" "push=FAILED (id:f5d9(a)): git-lock-push.sh exited 0 but the push could NOT be VERIFIED — 'git ls-remote $push_remote refs/heads/$push_branch' returned nothing after 2 attempts, so there is no evidence the remote moved. The merge + tag are committed LOCALLY at $pushed_sha; nothing was published. $push_out"
+      # exact defect being fixed.
+      push_lines="${push_lines}pushRemote=$_r:FAILED"$'\n'
+      push_failures="${push_failures}[$_r] 'git ls-remote $_r refs/heads/$push_branch' returned NOTHING after 2 attempts — no evidence the remote moved. "
     elif [ "$remote_sha" != "$pushed_sha" ]; then
-      push_status="FAILED"
-      handback git-lock-push "$EX_PUSH" "push=FAILED (id:f5d9(a)): git-lock-push.sh exited 0 but NOTHING REACHED THE REMOTE — $push_remote/$push_branch is at $remote_sha while the local HEAD it had to carry is $pushed_sha. The exit code lied (id:dc4f); the merge + tag are committed LOCALLY only. $push_out"
+      push_lines="${push_lines}pushRemote=$_r:FAILED"$'\n'
+      push_failures="${push_failures}[$_r] is at $remote_sha while the local HEAD it had to carry is $pushed_sha. "
     else
-      push_status="pushed"
-      # id:5fe2 — FROM HERE ON the remote HAS the merge + tag: every later handback is
+      push_pushed="${push_pushed}${_r}"$'\n'
+      push_lines="${push_lines}pushRemote=$_r:pushed"$'\n'
+      # id:5fe2 — the remote HAS the merge + tag: every later handback is
       # LANDED-BUT-UNFINISHED, never a retryable defer.
       landed=1
-      log "step8 push VERIFIED: $push_remote/$push_branch == $pushed_sha"
+      log "step8 push VERIFIED: $_r/$push_branch == $pushed_sha"
     fi
-  fi
-  if [ "$push_status" = "no-upstream" ]; then
-    # Nothing was published, but the merge + tag ARE committed locally — that is the same
-    # land point as the deferred path, so the same non-retryable class applies.
-    landed=1
-  fi
+  done <<< "$to_push"
 fi
+while IFS= read -r _r; do
+  [ -n "$_r" ] || continue
+  push_lines="${push_lines}pushRemote=$_r:deferred"$'\n'
+done <<< "$push_deferred"
+
+# Count non-empty lines. `awk 'NF'` (not `grep -c .`) — grep exits 1 on no match, which under
+# `set -e` inside a command substitution is a needless trap, and awk never early-exits.
+_count() { printf '%s' "${1:-}" | awk 'NF{n++} END{print n+0}'; }
+n_pushed="$(_count "$push_pushed")"
+n_deferred="$(_count "$push_deferred")"
+n_unreached="$(_count "$push_unreached")"
+n_missing=$(( n_deferred + n_unreached ))
+
+if [ -n "$push_failures" ]; then
+  push_status="FAILED"
+  handback git-lock-push "$EX_PUSH" "push=FAILED (id:f5d9(a)): git-lock-push.sh exited 0 but the push could NOT be VERIFIED for at least one remote. The exit code lied (id:dc4f); the merge + tag are committed locally at $pushed_sha, and $n_pushed of the intended remote(s) did receive them. Per-remote evidence: $push_failures Helper output: $push_out"
+fi
+
+# ── the AGGREGATE `push=` token (see the stdout contract at the foot of this file) ──
+#   pushed     every eligible remote received the merge, nothing was withheld
+#   partial    at least one remote received it AND at least one did not (id:4d44 narrowing)
+#   deferred   nothing reached any remote and at least one was withheld
+#   no-upstream  the repo has NO eligible remote at all — nothing to push, nothing withheld
+if [ "$n_pushed" -gt 0 ] && [ "$n_missing" -eq 0 ]; then
+  push_status="pushed"
+elif [ "$n_pushed" -gt 0 ]; then
+  push_status="partial"
+elif [ "$n_missing" -gt 0 ]; then
+  push_status="deferred"
+else
+  push_status="no-upstream"
+  # Nothing was published, but the merge + tag ARE committed locally — that is the same
+  # land point as the deferred path, so the same non-retryable class applies.
+  landed=1
+fi
+# NOTE: there is deliberately NO `defer_push`-based enqueue decision here. id:f0ad moved that
+# gate onto `$push_status` at step 8b, after proving that `$defer_push` silently excluded the
+# `no-upstream` class; keying it on substantive-ness again — even indirectly — would reopen
+# exactly that hole. The single gate lives at step 8b and reads `$push_status` alone.
+log "step8 id:4d44 substantive=${substantive:-unset} push=$push_status pushed=[$(printf '%s' "$push_pushed" | tr '\n' ' ')] deferred=[$(printf '%s' "$push_deferred" | tr '\n' ' ')] unreached=[$(printf '%s' "$push_unreached" | tr '\n' ' ')]"
 
 # ── step 8b: RATIFICATION ENQUEUE (id:4d44) — the durable surface for an UNPUBLISHED land. ──
 #    Append-only JSONL through relay-state-write.sh's flock'd `event-append`, so two
@@ -680,6 +800,25 @@ fi
 #    with NOTHING telling the owner it exists. That is the one outcome this design cannot
 #    have, so it is a HANDBACK, and because `landed` is already set it surfaces as
 #    LANDED-BUT-UNFINISHED (surface for reconcile) rather than as a retryable defer.
+#
+#    id:4d44 PER-REMOTE — HOW id:f0ad's GATE GENERALISES. f0ad moved the gate off
+#    `$defer_push` onto `$push_status` precisely so that EVERY unpublished-land class is
+#    queued, not just the substantive one. The per-remote rework adds a THIRD such class,
+#    so it joins the same case arm rather than getting a parallel gate:
+#      deferred     nothing reached any remote (a substantive unit, all remotes public)
+#      no-upstream  there was nowhere to push at all                            (id:f0ad)
+#      partial      SOME remotes got it, some were withheld                     (id:4d44)
+#    All three are the same durable state FOR THE REMOTES CONCERNED — merge committed, tag
+#    written, absent from those remotes — so all three queue and all three report
+#    ratification=pending. `pushed` is never queued: there is nothing left to ratify.
+#    The record NAMES the outstanding remotes (`pending_remotes`) and the ones that already
+#    have it (`pushed_remotes`), so a `partial` entry is actionable rather than ambiguous.
+#
+#    `ratification=none` therefore still means EXACTLY ONE THING, as id:f0ad established —
+#    only stated per-remote: every eligible remote carries the merge. For a one-remote repo
+#    that is verbatim f0ad's "it was published". For a SUBSTANTIVE unit whose remotes are all
+#    private/LAN it is also true: they were pushed, nothing was withheld, nothing awaits the
+#    owner. Reporting `none` while ANY remote still lacks the merge is the f0ad defect.
 #
 # ── id:f0ad — WHY THE ENQUEUE IS *NOT* MOVED AHEAD OF THE CKPT TAG ───────────────────
 #    The residual crash window is real: `landed` is set the moment step 7's tag exists, and
@@ -703,22 +842,33 @@ fi
 #    entry. Closing it properly needs a two-phase record (write `landing` pre-tag, promote it
 #    post-tag) which changes the queue contract ratify-queue.sh consumes — an owner call, not
 #    a silent widening here.
-case "$push_status" in deferred|no-upstream) ratify_enqueue=1 ;; *) ratify_enqueue="" ;; esac
+case "$push_status" in deferred|no-upstream|partial) ratify_enqueue=1 ;; *) ratify_enqueue="" ;; esac
 if [ -n "$ratify_enqueue" ]; then
+  pending_csv="$(printf '%s%s' "$push_deferred" "$push_unreached" | awk 'NF{printf "%s%s", sep, $0; sep=","}')"
+  pushed_csv="$(printf '%s' "$push_pushed" | awk 'NF{printf "%s%s", sep, $0; sep=","}')"
   ratify_line="$(python3 - "$RATIFY_QUEUE" "$repo" "$path" "$branch" "$worktree" "$merged_head" "$ckpt_tag" \
                    "$run" "$verdict" "$ids" "${bump_version:-}" "$summary" "$label" "${substantive:-unset}" \
-                   "$push_status" <<'PYEOF'
+                   "$push_status" "$pending_csv" "$pushed_csv" <<'PYEOF'
 import json, sys, datetime
 (_q, repo, path, branch, worktree, merged, ckpt, run, verdict, ids,
- bump, summary, label, substantive, push_status) = sys.argv[1:16]
+ bump, summary, label, substantive, push_status, pending_csv, pushed_csv) = sys.argv[1:18]
+pending = [r for r in pending_csv.split(",") if r]
+pushed = [r for r in pushed_csv.split(",") if r]
 # id:f0ad — the record must say WHICH unpublished class this is, and the remediation must
 # match it. A `no-upstream` repo has no remote to push to, so telling the owner to
 # `git push --follow-tags` would hand him a command that cannot work.
-action = ("review the merge, then push it: git -C %s push --follow-tags" % (path,)
-          if push_status == "deferred" else
-          "this checkout has NO upstream, so the merge + tag are LOCAL-ONLY with nowhere to "
-          "go: add/authorise a remote for %s and push it (git -C %s push -u <remote> HEAD "
-          "--follow-tags), or record that this repo is deliberately local-only" % (repo, path))
+# id:4d44 extends that principle rather than replacing it: when the remotes are KNOWN, the
+# remediation names them, because a `partial` unit's bare `git push --follow-tags` would be
+# just as misleading — it hides which remotes are already published and which are not.
+if push_status == "no-upstream":
+    action = ("this checkout has NO upstream, so the merge + tag are LOCAL-ONLY with nowhere to "
+              "go: add/authorise a remote for %s and push it (git -C %s push -u <remote> HEAD "
+              "--follow-tags), or record that this repo is deliberately local-only" % (repo, path))
+elif pending:
+    action = ("review the merge, then push the remotes that did NOT receive it: "
+              + "; ".join("git -C %s push --follow-tags %s" % (path, r) for r in pending))
+else:
+    action = ("review the merge, then push it: git -C %s push --follow-tags" % (path,))
 print(json.dumps({
     "kind": "ratification-pending",
     "id": "id:4d44",
@@ -737,7 +887,14 @@ print(json.dumps({
     "substantive": substantive,
     "summary": summary,
     "label": label,
+    # id:f0ad — the record carries the REAL class, not a hardcoded "deferred".
+    # id:4d44 per-remote adds WHICH remotes are still pending and which already carry the
+    # merge. ratify-queue.sh's `resolve` verification reads `pending_remotes` so it can never
+    # resolve an entry by checking a remote that was already pushed while a genuinely pending
+    # one still lacks the merge.
     "push": push_status,
+    "pending_remotes": pending,
+    "pushed_remotes": pushed,
     "action": action,
 }, ensure_ascii=False))
 PYEOF
@@ -746,7 +903,9 @@ PYEOF
     handback ratify-enqueue "$EX_RATIFY" "could not APPEND the id:4d44 ratification record to $RATIFY_QUEUE for [$repo] — the merge $merged_head + tag $ckpt_tag are committed locally and UNPUSHED with no durable queue entry; record them by hand. Queue line was: $ratify_line"
   fi
   ratify_status="pending"
-  log "step8b id:4d44 ratification queued in $RATIFY_QUEUE: repo=$repo merged=$merged_head ckpt=$ckpt_tag push=$push_status"
+  log "step8b id:4d44 ratification queued in $RATIFY_QUEUE: repo=$repo merged=$merged_head ckpt=$ckpt_tag push=$push_status pending=[$pending_csv] pushed=[$pushed_csv]"
+else
+  log "step8b id:4d44/id:f0ad NO ratification entry: push=$push_status — every eligible remote ($(printf '%s' "$push_pushed" | tr '\n' ' ')) received the merge, so nothing is waiting for the owner"
 fi
 
 # ── step 9: worktree-retire (id:373e force-free; id:6e02 scope = EXACTLY this pair). ──
@@ -845,10 +1004,26 @@ log "DONE repo=$repo merged=$merged_head ckpt=$ckpt_tag push=$push_status ratifi
 #    parseIntegrateResult, id:087b). Values are single-line by construction.
 printf 'merged=%s\n' "$merged_head"
 printf 'ckpt=%s\n'   "$ckpt_tag"
-# id:f5d9(a) — `pushed` here is now a VERIFIED remote-ref match, never the helper's exit code.
-# id:4d44 — `deferred` means the merge is local-only and `ratification=pending` names it in
-# the durable queue; the two keys always agree.
+# id:f5d9(a) — every `pushed` here is a VERIFIED remote-ref match, never the helper's exit code.
+#
+# id:4d44 PER-REMOTE CONTRACT. `push=` is the AGGREGATE token over all eligible remotes:
+#   pushed | partial | deferred | no-upstream | FAILED
+# and the PER-REMOTE detail follows as 0..n `pushRemote=<name>:<status>` lines, in
+# `git remote` order, with status ∈ pushed | deferred | FAILED | skipped-no-ssh-key |
+# no-push-url. `pushPending=` is the comma-separated list of remotes that did NOT receive the
+# merge (empty when none). `push=` stayed a single aggregate token DELIBERATELY: three
+# consumers (relay-loop's RELAY_STATUS line, its landedWhere prose, and the existing
+# integrate tests) read it as one word, and splitting it would have broken them silently —
+# the per-remote truth is ADDED alongside, never hidden.
+#
+# `ratification=pending` ⇔ at least one remote is still missing the merge (or it reached
+# none at all) and the durable queue entry NAMES them; `ratification=none` ⇔ every eligible
+# remote carries it. See step 8b's header for the full definition.
 printf 'push=%s\n'   "$push_status"
+if [ -n "$push_lines" ]; then
+  printf '%s' "$push_lines"
+fi
+printf 'pushPending=%s\n' "$(printf '%s%s' "$push_deferred" "$push_unreached" | awk 'NF{printf "%s%s", sep, $0; sep=","}')"
 printf 'ratification=%s\n' "$ratify_status"
 printf 'ts=%s\n'     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 printf 'bump=%s\n'   "${bump_version:-}"
