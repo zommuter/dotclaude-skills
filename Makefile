@@ -77,7 +77,7 @@ relay_FILES := SKILL.md \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
-               scripts/deny-tail-probe.sh \
+               scripts/deny-tail-probe.sh scripts/death-record.sh \
                scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
                scripts/lib-own-repos.sh scripts/lib-anchored-id.sh scripts/lib-typed-edges.sh scripts/lib-state-claim.sh \
@@ -91,7 +91,7 @@ relay_FILES := SKILL.md \
                scripts/validate-flags.sh scripts/known-flags-relay.tsv scripts/known-flags-meeting.tsv \
                scripts/probe-mech-proxy.sh scripts/mech-preflight.sh scripts/mech-currency.sh scripts/relay-spawn-bench.sh \
                scripts/diagram-edge-coverage.sh scripts/control-board.sh scripts/ratify-queue.sh
-relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
+relay_EXEC  := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
                scripts/force-push.sh scripts/integrate.sh \
@@ -118,7 +118,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/auto-integrate-orphan.sh \
                scripts/validate-flags.sh scripts/probe-mech-proxy.sh scripts/mech-preflight.sh scripts/mech-currency.sh \
                scripts/relay-spawn-bench.sh scripts/diagram-edge-coverage.sh scripts/control-board.sh scripts/ratify-queue.sh
-relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
+relay_ALLOW := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
                scripts/force-push.sh scripts/integrate.sh \
