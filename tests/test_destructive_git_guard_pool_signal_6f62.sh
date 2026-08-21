@@ -144,6 +144,38 @@ for f in "$GUARD" "$STOP"; do
         pass "$(basename "$f") carries no inline copy of the predicate"
     fi
 done
+
+# id:4c14 — the assertion above pins ONE SPELLING, not the rule: a reintroduced copy
+# written `== "discovery-producer": continue`, `not in ("discovery-producer",)` or
+# `startswith("discovery")` would sail past it. Both callers mention the literal ONLY in
+# COMMENTS today (guard: module docstring + a `#` comment + a function docstring;
+# stop-request.sh: two `#` lines), so the strictly stronger assertion — ZERO NON-COMMENT
+# occurrences of the literal in either caller — is available and already true. Comments
+# ARE allowed (they explain why the predicate is shared); executable code is not.
+python3 - "$GUARD" <<'PY' && pass "guard mentions 'discovery-producer' only in comments/docstrings (id:4c14)" \
+    || fail "destructive-git-guard.py has a NON-COMMENT occurrence of 'discovery-producer'"
+import io, sys, tokenize
+src = open(sys.argv[1], encoding="utf-8").read()
+hits = []
+for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+    if tok.type == tokenize.COMMENT:
+        continue
+    # Docstrings are triple-quoted; an inline predicate copy would use a plain literal,
+    # so ONLY triple-quoted strings are exempt — `== "discovery-producer"` still counts.
+    if tok.type == tokenize.STRING and tok.string.lstrip("rbuRBUf")[:3] in ('"""', "'''"):
+        continue
+    if "discovery-producer" in tok.string:
+        hits.append((tok.start[0], tok.string.strip()[:60]))
+if hits:
+    print("NON-COMMENT occurrences:", hits)
+    sys.exit(1)
+PY
+# stop-request.sh is shell: strip whole-line `#` comments and assert the same.
+if grep -q 'discovery-producer' < <(sed 's/^[[:space:]]*#.*$//' "$STOP"); then
+    fail "stop-request.sh has a NON-COMMENT occurrence of 'discovery-producer' (id:4c14)"
+else
+    pass "stop-request.sh mentions 'discovery-producer' only in comments (id:4c14)"
+fi
 grep -q 'lib-pool-runs.py' "$ROOT/Makefile" && pass "lib-pool-runs.py is in the Makefile manifest" \
     || fail "lib-pool-runs.py is not in the Makefile manifest"
 

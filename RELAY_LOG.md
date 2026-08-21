@@ -6643,3 +6643,31 @@ integrate id:6f62 — discovery-producer no longer counts as an unattended signa
 ## 2026-08-21 15:42 — reviewer (claude-opus-5)
 
 review relay-ckpt-20260821-1515..HEAD (id:6f62): verdict SAFE TO WIRE. Reproduction re-derived through the real symlink against the real live producer marker; fail-safe verified by breaking the lib four ways (all deny); hook JSON shape correct; 22 ms/call, no shell-out; stop-request.sh no regression across 0/1/2/producer-only. FIVE findings boxed — id:3866 (malformed payload crashes exit 1, and a crashing PreToolUse hook fails OPEN) is the only one that can let a destructive command through
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:3866, id:8987, id:4c14 — the three `id:6f62` wiring-readiness cleanups in
+`hooks/destructive-git-guard.py`. id:3866: a crashing PreToolUse hook exits 1, which is a
+NON-BLOCKING error, so the command RAN — the guard failed OPEN on exactly the input class it
+should trust least. Every branch of `main()` now exits 0, `find_violation` never raises (an
+unexpected failure of the tokenised analysis routes to the same conservative regex scan a
+`shlex` error already took), and an outermost `try` catches the rest. Disposition for an
+unreadable payload: DEFER (exit 0, empty stdout) + a one-line stderr note — a payload that
+will not parse carries no command, and blocking would make any hook-protocol change a
+fleet-wide outage in front of every Bash call. id:8987: a FRESH marker with an empty /
+whitespace / non-string runId (or a non-object marker) is now a probe ERROR ⇒ BLOCK;
+`lib-pool-runs.py` untouched, the split is in the caller. id:4c14: the no-drift assertion
+tightened to ZERO NON-COMMENT occurrences of `discovery-producer` in either caller.
+Friction: the new `#`-stripping check first landed as `sed … | grep -q`, which
+`tests/lint-pipefail-sigpipe.py` correctly rejected under `pipefail`; rewritten as
+`grep -q … < <(sed …)`. Surprising: nothing — the four reported crash shapes reproduced
+verbatim. Verified before trusting: the id:4c14 mutation negative control (an injected
+`== "discovery-producer": continue` is MISSED by the old grep, CAUGHT by the new assertion);
+all four fail-SAFE `lib-pool-runs.py` breakages, with and without a heartbeat dir, still
+`deny` naming `heartbeat probe ERRORED`. Latency 27 ms/call, still zero `subprocess`.
+`~/.claude/settings.json` NOT written (grep: 0 occurrences, mtime still 2026-08-19 21:28).
+id:5f95, id:fb2c and the id:3a09 close-boundary box left open as instructed.
+refactor: extracted `_raw_scan` out of `find_violation` so the conservative fallback has one
+definition reachable from both the shlex-error path and the new never-raise wrapper, instead
+of duplicating the pattern loop; added `_defer` so the eight malformed-payload branches share
+one observable exit instead of eight bare `return`s.
