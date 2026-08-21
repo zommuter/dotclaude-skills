@@ -140,7 +140,11 @@
 #   ts=<ISO>  bump=<vX.Y.Z|>  retire=<note>
 #   postSig=<hex|>  openRoutine=<n>  openHard=<n>  sibling=<branch>\t<count>  (0..n lines)
 #   push=deferred + ratification=pending  ⇔  a SUBSTANTIVE unit merged locally and is queued
-#   for the owner (id:4d44). push=pushed is now VERIFIED against the remote ref, never
+#   for the owner (id:4d44). id:f0ad — push=no-upstream ALSO carries ratification=pending:
+#   it is the same durable state (merged + tagged, nothing on any remote), and reporting it
+#   as ratification=none made relay-loop.js count an UNPUBLISHED merge as a plain completion
+#   with no durable record. ratification=none now means exactly one thing: it was published.
+#   push=pushed is now VERIFIED against the remote ref, never
 #   inferred from git-lock-push.sh's exit code (id:f5d9(a)); a push that did not land is
 #   reported push=FAILED on stderr with a handback, never as success.
 #
@@ -620,6 +624,14 @@ else
     # had nothing to push. Report that HONESTLY rather than claiming a push landed.
     push_status="no-upstream"
     log "step8 id:f5d9(a) no @{upstream} for $path — nothing to verify, reporting push=no-upstream"
+    # id:f0ad — …AND ENQUEUE IT. This branch used to set `landed=1` and then fall through
+    # to a step 8b gated on $defer_push, which is EMPTY here (the unit is NON-substantive,
+    # that is the only way it reaches this branch at all). So the unit took the SUCCESS
+    # path with ratification=none, and relay-loop.js's surfacing condition
+    # (`ratification === 'pending' || pushStatus === 'deferred'`) matched NEITHER: an
+    # unpublished merge was counted as a completion with no durable record anywhere. The
+    # state is materially the same as a deferred push — merged + tagged locally, nothing on
+    # any remote — so it takes the same durable queue and the same `pending` surfacing.
   else
     push_remote="${up_ref%%/*}"
     push_branch="${up_ref#*/}"
@@ -652,22 +664,61 @@ else
   fi
 fi
 
-# ── step 8b: RATIFICATION ENQUEUE (id:4d44) — the durable surface for a deferred push. ──
-#    ONLY on the deferred path. Append-only JSONL through relay-state-write.sh's flock'd
-#    `event-append`, so two concurrent integrates never interleave a partial line. The JSON
-#    is built by python3 from argv — NEVER string-concatenated — because summary/label carry
-#    arbitrary text (the decision-queue.sh convention).
+# ── step 8b: RATIFICATION ENQUEUE (id:4d44) — the durable surface for an UNPUBLISHED land. ──
+#    Append-only JSONL through relay-state-write.sh's flock'd `event-append`, so two
+#    concurrent integrates never interleave a partial line. The JSON is built by python3
+#    from argv — NEVER string-concatenated — because summary/label carry arbitrary text
+#    (the decision-queue.sh convention).
+#
+#    id:f0ad — THE GATE IS `push_status`, NOT `defer_push`. It used to be `defer_push`, which
+#    silently excluded the OTHER unpublished-land class: `no-upstream` (a NON-substantive unit
+#    in an upstream-less repo). Both classes are the same durable state — merge committed, tag
+#    written, nothing on any remote — so both are queued and both report ratification=pending.
+#    A `pushed` unit is never queued; there is nothing to ratify.
 #
 #    FAIL-CLOSED AND LOUD: if the queue write fails, the merge is sitting unpushed on main
 #    with NOTHING telling the owner it exists. That is the one outcome this design cannot
 #    have, so it is a HANDBACK, and because `landed` is already set it surfaces as
 #    LANDED-BUT-UNFINISHED (surface for reconcile) rather than as a retryable defer.
-if [ -n "$defer_push" ]; then
+#
+# ── id:f0ad — WHY THE ENQUEUE IS *NOT* MOVED AHEAD OF THE CKPT TAG ───────────────────
+#    The residual crash window is real: `landed` is set the moment step 7's tag exists, and
+#    the queue append happens a few statements later, so a hard kill in between leaves an
+#    unpushed merge with no queue entry. Moving the enqueue BEFORE step 7 was considered and
+#    REJECTED, because it trades a microsecond crash window for a durable CORRECTNESS defect:
+#      • ckpt-tag failure (EX_CKPT, 26) is a PRE-LAND handback — "re-running is CORRECT". A
+#        pre-tag enqueue would already have written a `pending` record for that unit. The
+#        re-run's merge is a no-op (the branch is now an ancestor of main), so it produces the
+#        SAME `merged` sha and appends a SECOND record.
+#      • ratify-queue.sh keys entries by ckpt tag OR merged sha and REFUSES an ambiguous key
+#        ("an ambiguous key is a loud refusal, never a guess"). Two records sharing one sha
+#        are therefore permanently UNRESOLVABLE — the queue wedges on exactly the unit it was
+#        supposed to protect.
+#      • the pre-tag record could not carry `ckpt` at all, and that field is what
+#        ratify-queue.sh's tag-parity check (`PARTIAL: … carries the merge but NOT its
+#        checkpoint tag`) reads.
+#    So the ordering stands. The window is NOT closed, and is not claimed to be: the honest
+#    recovery is that the ckpt TAG is itself durable in git, so an orphaned land is
+#    recoverable by finding a local-ahead main carrying a `relay-ckpt-*` tag with no queue
+#    entry. Closing it properly needs a two-phase record (write `landing` pre-tag, promote it
+#    post-tag) which changes the queue contract ratify-queue.sh consumes — an owner call, not
+#    a silent widening here.
+case "$push_status" in deferred|no-upstream) ratify_enqueue=1 ;; *) ratify_enqueue="" ;; esac
+if [ -n "$ratify_enqueue" ]; then
   ratify_line="$(python3 - "$RATIFY_QUEUE" "$repo" "$path" "$branch" "$worktree" "$merged_head" "$ckpt_tag" \
-                   "$run" "$verdict" "$ids" "${bump_version:-}" "$summary" "$label" "${substantive:-unset}" <<'PYEOF'
+                   "$run" "$verdict" "$ids" "${bump_version:-}" "$summary" "$label" "${substantive:-unset}" \
+                   "$push_status" <<'PYEOF'
 import json, sys, datetime
 (_q, repo, path, branch, worktree, merged, ckpt, run, verdict, ids,
- bump, summary, label, substantive) = sys.argv[1:15]
+ bump, summary, label, substantive, push_status) = sys.argv[1:16]
+# id:f0ad — the record must say WHICH unpublished class this is, and the remediation must
+# match it. A `no-upstream` repo has no remote to push to, so telling the owner to
+# `git push --follow-tags` would hand him a command that cannot work.
+action = ("review the merge, then push it: git -C %s push --follow-tags" % (path,)
+          if push_status == "deferred" else
+          "this checkout has NO upstream, so the merge + tag are LOCAL-ONLY with nowhere to "
+          "go: add/authorise a remote for %s and push it (git -C %s push -u <remote> HEAD "
+          "--follow-tags), or record that this repo is deliberately local-only" % (repo, path))
 print(json.dumps({
     "kind": "ratification-pending",
     "id": "id:4d44",
@@ -686,8 +737,8 @@ print(json.dumps({
     "substantive": substantive,
     "summary": summary,
     "label": label,
-    "push": "deferred",
-    "action": "review the merge, then push it: git -C %s push --follow-tags" % (path,),
+    "push": push_status,
+    "action": action,
 }, ensure_ascii=False))
 PYEOF
 )" || handback ratify-enqueue "$EX_RATIFY" "could not RENDER the id:4d44 ratification record for [$repo] — the merge $merged_head + tag $ckpt_tag are committed locally and UNPUSHED with no durable queue entry; record them by hand"
@@ -695,7 +746,7 @@ PYEOF
     handback ratify-enqueue "$EX_RATIFY" "could not APPEND the id:4d44 ratification record to $RATIFY_QUEUE for [$repo] — the merge $merged_head + tag $ckpt_tag are committed locally and UNPUSHED with no durable queue entry; record them by hand. Queue line was: $ratify_line"
   fi
   ratify_status="pending"
-  log "step8b id:4d44 ratification queued in $RATIFY_QUEUE: repo=$repo merged=$merged_head ckpt=$ckpt_tag"
+  log "step8b id:4d44 ratification queued in $RATIFY_QUEUE: repo=$repo merged=$merged_head ckpt=$ckpt_tag push=$push_status"
 fi
 
 # ── step 9: worktree-retire (id:373e force-free; id:6e02 scope = EXACTLY this pair). ──
