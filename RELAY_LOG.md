@@ -6639,3 +6639,7 @@ refactor: extracted the duplicated "which runIds are pools" rule into relay/scri
 ## 2026-08-21 15:35 — integrate (claude-opus-5)
 
 integrate id:6f62 — discovery-producer no longer counts as an unattended signal; predicate extracted to lib-pool-runs.py and shared with stop-request.sh (no-drift pinned by test); refusal names the concrete trigger; remedy teaches scoped staging. The original deny-on-interactive reproduction now defers, live-verified
+
+## 2026-08-21 15:42 — reviewer (claude-opus-5)
+
+review relay-ckpt-20260821-1515..HEAD (id:6f62): verdict SAFE TO WIRE. Reproduction re-derived through the real symlink against the real live producer marker; fail-safe verified by breaking the lib four ways (all deny); hook JSON shape correct; 22 ms/call, no shell-out; stop-request.sh no regression across 0/1/2/producer-only. FIVE findings boxed — id:3866 (malformed payload crashes exit 1, and a crashing PreToolUse hook fails OPEN) is the only one that can let a destructive command through
