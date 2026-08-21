@@ -72,7 +72,7 @@ relay_FILES := SKILL.md \
                scripts/lib-own-repos.sh scripts/lib-anchored-id.sh scripts/lib-typed-edges.sh scripts/lib-state-claim.sh \
                scripts/lib-roadmap-sections.sh \
                scripts/lib-ledger-only-diff.sh \
-               scripts/resolve-gates.sh \
+               scripts/resolve-gates.sh scripts/ledger-slice.sh \
                scripts/mechanical-proxy.py \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/declared-path-extractor.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
@@ -101,7 +101,7 @@ relay_EXEC  := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
-               scripts/resolve-gates.sh \
+               scripts/resolve-gates.sh scripts/ledger-slice.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/declared-path-extractor.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
                scripts/auto-integrate-orphan.sh \
@@ -128,7 +128,7 @@ relay_ALLOW := scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-confi
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
-               scripts/resolve-gates.sh \
+               scripts/resolve-gates.sh scripts/ledger-slice.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
                scripts/disjoint-greenlight.sh scripts/declared-path-extractor.sh scripts/drain-integrate.sh scripts/drain-cron-guard.sh \
                scripts/auto-integrate-orphan.sh \
