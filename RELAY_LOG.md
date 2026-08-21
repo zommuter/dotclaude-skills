@@ -6357,3 +6357,19 @@ data, not a failure, which the runner's exit code cannot express.
 ## 2026-08-21 11:03 — integrate (claude-opus-5)
 
 integrate id:7518 — cause identified: pipefail + SIGPIPE from an early-exiting pipe consumer (8/400 measured, 0/400 no-pipe control); item stays OPEN, fix filed as id:81d5; adds tests/flake-log.sh
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:7575 (TODO-only defect item, no ROADMAP twin) — made the sliced brief's "full
+ledgers are still on disk" escape hatch CONDITIONAL on measured headroom. New shared pair
+`sliceLedgerHeadroom` / `sliceInstruction` in `relay/scripts/prompt-size-gate.mjs`, mirrored
+byte-for-byte into `relay-loop.js` (the old `const sliceInstruction` arrow is gone). Headroom
+= `DISPATCH_TOKEN_BUDGET - estimateDispatchTokens(0, slice_bytes, 0)`, compared against the
+LARGEST measured ledger; unmeasured ⇒ fail-open to today's wording. The gate's verdict is
+untouched — `test_slice_invitation_headroom_7575.sh` case (D) pins that every unit which
+dispatches today still dispatches.
+Friction: id:7575 lists THREE options and only (b) shipped — (a) naming the `Prompt is too
+long` death on the child-failure path (overlaps the still-open id:61fa) and (c) budgeting a
+bounded allowance into the gate itself are both still open. The item should stay OPEN.
+refactor: replaced the duplicated inline arrow with the shared module function so the brief
+text now has exactly one authoritative source, pinned by the byte-equivalence check.
