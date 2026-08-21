@@ -41,18 +41,18 @@ label_lines="$(printf '%s\n' "$body" | grep -nE "label:.*release:" || true)"
 [[ -n "$label_lines" ]] || fail "(1) no release: labelled dispatch found inside releaseLease()"
 
 while IFS= read -r line; do
-  printf '%s\n' "$line" | grep -qE "model: *MECH_MODEL" \
+  grep -qE "model: *MECH_MODEL" < <(printf '%s\n' "$line") \
     || fail "(1) a release: dispatch is not model: MECH_MODEL (id:4239 bash-by-default) — line: $line"
 done <<< "$label_lines"
 pass "(1) every release:-labelled dispatch in releaseLease() is model:'bash'"
 
 # --- (1b) no single dispatch bundles claim.sh release AND heartbeat.sh beat via && ---------------
-printf '%s\n' "$body" | grep -qE '&&.*heartbeat\.sh|heartbeat\.sh.*&&' \
+grep -qE '&&.*heartbeat\.sh|heartbeat\.sh.*&&' < <(printf '%s\n' "$body") \
   && fail "(1b) found an && -joined claim.sh/heartbeat.sh bundle — must be separate dispatches" \
   || pass "(1b) claim.sh release and heartbeat.sh beat are not && -joined in one command"
 
 # --- (1c) the intensive resource release is its own dispatch, not && -chained onto the repo release
-printf '%s\n' "$body" | grep -qE 'resource:.*&&|&&.*resource:' \
+grep -qE 'resource:.*&&|&&.*resource:' < <(printf '%s\n' "$body") \
   && fail "(1c) intensive resource release is && -chained onto another command" \
   || pass "(1c) intensive resource release (if present) is not && -chained"
 

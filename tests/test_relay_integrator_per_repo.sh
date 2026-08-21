@@ -40,7 +40,7 @@ grep -qE "Promise\.all\(\[\.\.\.integrationChains\.values\(\)\]\)" "$JS" \
 pass "drain awaits all per-repo chains"
 
 # (5) Still NOT a bare parallel() over the integration step (same-repo must serialize).
-if grep -E "parallel\(.*[Ii]ntegrat" "$JS" | grep -qv "^\s*//"; then
+if grep -qv "^\s*//" < <(grep -E "parallel\(.*[Ii]ntegrat" "$JS") ; then
   fail "integration wrapped in parallel() — same-repo ordering would race"
 fi
 pass "integration not wrapped in parallel() (same-repo stays ordered)"

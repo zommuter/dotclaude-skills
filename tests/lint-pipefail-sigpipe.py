@@ -64,8 +64,14 @@ def strip_comment_and_quotes(line):
 _GREP = re.compile(r"^(grep|egrep|fgrep|zgrep|rg)$")
 
 
-def early_exit_reason(stage):
-    """Why this pipeline stage exits before draining stdin — or None."""
+def early_exit_reason(stage, raw=None):
+    """Why this pipeline stage exits before draining stdin — or None.
+
+    `stage` is the QUOTE-MASKED text (so a `-q` inside a quoted pattern is never
+    mistaken for a flag); `raw` is the original, needed for `sed`/`awk` whose
+    early-exit command lives INSIDE the quoted script.
+    """
+    raw = stage if raw is None else raw
     words = stage.split()
     # skip leading env assignments / `!` / `command`
     k = 0
@@ -103,13 +109,13 @@ def early_exit_reason(stage):
 
     if cmd == "sed":
         # `sed Nq`, `sed -n '/x/{p;q}'`, `sed -n 3p;3q` … any `q` command quits early.
-        body = " ".join(rest)
+        body = " ".join(raw.split()[k + 1:])
         if re.search(r"(^|[^a-zA-Z])q($|[^a-zA-Z])", body) or re.search(r"\d+q", body):
             return "sed quits early (q command)"
         return None
 
     if cmd in ("awk", "gawk", "mawk"):
-        if re.search(r"\bexit\b", " ".join(rest)):
+        if re.search(r"\bexit\b", " ".join(raw.split()[k + 1:])):
             return "awk exits early (exit statement)"
         return None
 
@@ -168,7 +174,8 @@ def scan(path):
             pos += len(p) + 1
         for idx in range(1, len(parts)):
             masked = parts[idx].strip()
-            reason = early_exit_reason(masked)
+            raw_stage = line[offs[idx]:offs[idx] + len(parts[idx])].strip()
+            reason = early_exit_reason(masked, raw_stage)
             if not reason:
                 continue
             producer = code[:offs[idx] - 1].strip()

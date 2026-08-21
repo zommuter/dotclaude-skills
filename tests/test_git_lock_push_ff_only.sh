@@ -39,7 +39,7 @@ git -C "$work" tag -a "v0.1.0" -m "version 0.1.0"
 
 "$LOCK_PUSH" "$work" >/dev/null 2>&1
 # Tag should now be on remote
-if git -C "$work" ls-remote --tags origin "refs/tags/v0.1.0" | grep -q "v0.1.0"; then
+if grep -q "v0.1.0" < <(git -C "$work" ls-remote --tags origin "refs/tags/v0.1.0") ; then
   ok "--follow-tags pushed annotated tag to remote"
 else
   fail_msg "--follow-tags did NOT push annotated tag to remote"
@@ -89,7 +89,7 @@ else
 fi
 
 # Tag must be on remote
-if git -C "$work" ls-remote --tags origin "refs/tags/fable-ckpt-test" | grep -q "fable-ckpt-test"; then
+if grep -q "fable-ckpt-test" < <(git -C "$work" ls-remote --tags origin "refs/tags/fable-ckpt-test") ; then
   ok "--ff-only: annotated checkpoint tag reached remote via --follow-tags"
 else
   fail_msg "--ff-only: annotated checkpoint tag did NOT reach remote"
@@ -120,7 +120,7 @@ git -C "$work" commit -q -m "local-side commit"
 # Both sides now have one commit beyond $common — genuine fork.
 # lock-push --ff-only should warn and exit 0 (non-fatal).
 output="$("$LOCK_PUSH" "$work" --ff-only 2>&1 || true)"
-if echo "$output" | grep -qi "warning\|diverge\|ff-only\|resolve"; then
+if grep -qi "warning\|diverge\|ff-only\|resolve" < <(echo "$output") ; then
   ok "--ff-only: prints warning on true divergence"
 else
   fail_msg "--ff-only: no warning printed on divergence (output: $output)"

@@ -94,12 +94,12 @@ fi
 
 # ── Test 3: refusal message states facts, no causal guess ─────────────────────
 echo "Test 3: refusal wording drops the 'concurrent edit' guess"
-if echo "$out2" | grep -qi "concurrent edit"; then
+if grep -qi "concurrent edit" < <(echo "$out2") ; then
   fail_msg "refusal still asserts the unverified 'concurrent edit' cause: $(echo "$out2" | grep -i 'concurrent edit' | head -1)"
 else
   ok "no 'concurrent edit' causal guess in the refusal"
 fi
-if echo "$out2" | grep -q "aa93"; then
+if grep -q "aa93" < <(echo "$out2") ; then
   ok "refusal still cites the id:aa93 guard"
 else
   fail_msg "refusal no longer cites id:aa93 (traceability lost); output: $out2"

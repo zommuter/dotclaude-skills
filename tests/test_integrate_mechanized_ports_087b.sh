@@ -114,7 +114,7 @@ grep -q '^- \[x\].*id:aaaa' "$MT/ROADMAP.md" || fail "(1) worked id aaaa was NOT
 grep -q '^- \[ \].*id:bbbb' "$MT/ROADMAP.md" || fail "(1) an unworked item was ticked — the tick is not id-scoped"
 # the tick was COMMITTED (a dirty ROADMAP would have tripped worktree-retire)
 [[ -z "$(git -C "$MT" status --porcelain)" ]] || fail "(1) tree left dirty after integrate — the tick was not committed"
-git -C "$MT" log --oneline -- ROADMAP.md | grep -q 'tick worked items' \
+grep -q 'tick worked items' < <(git -C "$MT" log --oneline -- ROADMAP.md) \
   || fail "(1) no scoped 'tick worked items' commit"
 pass "(1) id:5b12 driver-side tick fires for an execute unit, id-scoped, and is committed"
 

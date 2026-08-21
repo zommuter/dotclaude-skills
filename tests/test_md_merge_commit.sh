@@ -40,7 +40,7 @@ JSON
 grep -q '\[x\] first item' "$repo/TODO.md" || fail "default write did not apply"
 [[ "$(git -C "$repo" rev-parse HEAD)" == "$base_sha" ]] \
   || fail "default (no --commit) must NOT create a commit"
-git -C "$repo" status --porcelain TODO.md | grep -q . \
+grep -q . < <(git -C "$repo" status --porcelain TODO.md) \
   || fail "default mode should leave TODO.md modified-but-uncommitted (baseline behaviour)"
 pass "default mode writes without committing (backward compatible)"
 
@@ -54,9 +54,9 @@ JSON
 grep -q '\[x\] first item' "$repo/TODO.md" || fail "--commit write did not apply"
 new_sha="$(git -C "$repo" rev-parse HEAD)"
 [[ "$new_sha" != "$base_sha" ]] || fail "--commit did not create a commit"
-git -C "$repo" status --porcelain TODO.md | grep -q . \
+grep -q . < <(git -C "$repo" status --porcelain TODO.md) \
   && fail "--commit left TODO.md modified-but-uncommitted (scoop window NOT closed)" || true
-git -C "$repo" log -1 --pretty=%s | grep -q 'id:148b' \
+grep -q 'id:148b' < <(git -C "$repo" log -1 --pretty=%s) \
   || fail "--commit did not use the supplied commit message"
 pass "id:148b: --commit commits the ledger atomically — no uncommitted residue"
 
@@ -71,7 +71,7 @@ files="$(git -C "$repo" show --name-only --pretty=format: HEAD | grep -v '^$' ||
 [[ "$files" == "TODO.md" ]] \
   || fail "id:148b/debf: commit captured more than TODO.md (scoped staging violated): [$files]"
 # OTHER.md must still be staged-but-uncommitted (foreign edit preserved, not scooped).
-git -C "$repo" diff --cached --name-only | grep -q '^OTHER.md$' \
+grep -q '^OTHER.md$' < <(git -C "$repo" diff --cached --name-only) \
   || fail "foreign staged file OTHER.md was disturbed by the scoped commit"
 pass "id:148b: commit is scoped to the named ledger — foreign edit untouched"
 

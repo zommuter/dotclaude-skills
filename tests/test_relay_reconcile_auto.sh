@@ -58,7 +58,7 @@ R1="$TMP/r1"; mk_repo "$R1"
 park_ledger_orphan "$R1" ledger-a
 park_code_orphan   "$R1" code-b
 out="$(bash "$SCRIPT" "$R1" --auto)"
-echo "$out" | grep -q "1 integrated, 1 surfaced" || fail "auto summary wrong: $out"
+grep -q "1 integrated, 1 surfaced" < <(echo "$out") || fail "auto summary wrong: $out"
 git -C "$R1" rev-parse -q --verify refs/heads/relay/orphan/ledger-a >/dev/null \
   && fail "SAFE ledger orphan was NOT integrated (ref still present)"
 git -C "$R1" rev-parse -q --verify refs/heads/relay/orphan/code-b >/dev/null \
@@ -75,7 +75,7 @@ R2="$TMP/r2"; mk_repo "$R2"
 park_ledger_orphan "$R2" ledger-c
 printf 'dirty\n' >> "$R2/app.py"   # make main dirty (a foreign uncommitted edit)
 out2="$(bash "$SCRIPT" "$R2" --auto)"
-echo "$out2" | grep -q "0 integrated, 1 surfaced" || fail "dirty-tree auto summary wrong: $out2"
+grep -q "0 integrated, 1 surfaced" < <(echo "$out2") || fail "dirty-tree auto summary wrong: $out2"
 git -C "$R2" rev-parse -q --verify refs/heads/relay/orphan/ledger-c >/dev/null \
   || fail "dirty tree wrongly consumed the orphan (must stay parked)"
 git -C "$R2" checkout -- app.py
@@ -86,7 +86,7 @@ pass "a dirty main tree defers integration — SAFE orphan parked + surfaced, no
 R3="$TMP/r3"; mk_repo "$R3"
 git -C "$R3" branch relay/orphan/empty-d main   # no commits beyond main → empty diff
 out3="$(bash "$SCRIPT" "$R3" --auto)"
-echo "$out3" | grep -q "0 integrated, 1 surfaced" || fail "empty-diff auto summary wrong: $out3"
+grep -q "0 integrated, 1 surfaced" < <(echo "$out3") || fail "empty-diff auto summary wrong: $out3"
 git -C "$R3" rev-parse -q --verify refs/heads/relay/orphan/empty-d >/dev/null \
   || fail "empty-diff orphan wrongly consumed"
 grep -q "empty-d" "$R3/REVIEW_ME.md" || fail "empty-diff orphan not surfaced"
@@ -95,7 +95,7 @@ pass "empty/unrelated-diff orphan is surfaced, never auto-consumed (id:7809)"
 # ── no orphans → benign no-op ──
 R4="$TMP/r4"; mk_repo "$R4"
 out4="$(bash "$SCRIPT" "$R4" --auto)"
-echo "$out4" | grep -q "no parked orphans" || fail "no-orphan repo did not report cleanly: $out4"
+grep -q "no parked orphans" < <(echo "$out4") || fail "no-orphan repo did not report cleanly: $out4"
 pass "a repo with no parked orphans is a benign no-op (id:7809)"
 
 echo "ALL PASS: relay auto-reconcile-on-restart classifier + integrate/surface (id:7809)"

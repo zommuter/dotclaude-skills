@@ -66,10 +66,10 @@ check_hop_model_bash() {
   local line
   line=$(grep -nE "label: *[\`'\"]$label_re" "$JS" | grep "model:" || true)
   [[ -n "$line" ]] || fail "$human: no single-line option object matching label '$label_re' with a model field"
-  if echo "$line" | grep -qE "model: *['\"]haiku['\"]"; then
+  if grep -qE "model: *['\"]haiku['\"]" < <(echo "$line") ; then
     fail "$human: hop still dispatched with a STATIC model:'haiku' — must be model: MECH_MODEL (id:4239 proxy-eligible mechanical hop, bash-by-default)"
   fi
-  echo "$line" | grep -qE "model: *MECH_MODEL" \
+  grep -qE "model: *MECH_MODEL" < <(echo "$line") \
     || fail "$human: hop's model is not MECH_MODEL — expected model: MECH_MODEL (id:4239, bash-by-default)"
   pass "$human: dispatched with model: MECH_MODEL (bash-by-default, not static haiku)"
 }
@@ -126,7 +126,7 @@ must_stay_haiku=()
 for label in "${must_stay_haiku[@]}"; do
   line=$(grep -nE "label: *[\`']$label" "$JS" | grep "model:" || true)
   [[ -n "$line" ]] || fail "boundary guard: could not locate the '$label' hop option object"
-  echo "$line" | grep -qE "model: *['\"]haiku['\"]" \
+  grep -qE "model: *['\"]haiku['\"]" < <(echo "$line") \
     || fail "boundary guard: the LLM hop '$label' must STAY model:'haiku' (not proxy-eligible — do not convert)"
 done
 # Positive assertion that the relocation actually happened: discover-run is mechanized via
@@ -143,9 +143,9 @@ done
 # asserted once, structurally, at (2b) above — so the bash-by-default contract is still pinned.
 dr_line=$(grep -nE "label: *[\`']discover-run:" "$JS" | grep "model:" || true)
 [[ -n "$dr_line" ]] || fail "boundary guard: could not locate the discover-run hop option object"
-echo "$dr_line" | grep -qE "model: *['\"]haiku['\"]" \
+grep -qE "model: *['\"]haiku['\"]" < <(echo "$dr_line") \
   && fail "boundary guard: discover-run is mechanized (id:24ec) — it must NOT be static model:'haiku' anymore"
-echo "$dr_line" | grep -qE "model: *MECH_MODEL" \
+grep -qE "model: *MECH_MODEL" < <(echo "$dr_line") \
   || fail "boundary guard: discover-run must dispatch model: MECH_MODEL (id:24ec mechanized shard, id:4239 bash-by-default)"
 pass "boundary guard: discover-prelude (id:86a2) + discover-run (id:24ec) are both mechanized via MECH_MODEL; no LLM discovery hop remains pinned haiku"
 

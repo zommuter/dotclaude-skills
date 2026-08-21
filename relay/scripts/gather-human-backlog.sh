@@ -229,7 +229,7 @@ mask_backticks() {
 is_manual_marker() {
   local line="$1" masked
   masked="$(mask_backticks "$line")"
-  printf '%s' "$masked" | grep -qiE '(^|[^[:alnum:]_])@manual([^[:alnum:]_-]|$)'
+  grep -qiE '(^|[^[:alnum:]_])@manual([^[:alnum:]_-]|$)' < <(printf '%s' "$masked")
 }
 
 # --- emit open boxes for one file --------------------------------------------

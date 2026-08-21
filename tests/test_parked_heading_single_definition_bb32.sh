@@ -97,7 +97,7 @@ ohp="$("$SCRIPTS/gather-repo-state.sh" --repo fixture --path "$repo" 2>/dev/null
 # (asserted on the SPECIFIC item, not on the exit code: this fixture also trips
 # unrelated advisory WARNs that are none of bb32's business)
 lint_out="$("$SCRIPTS/roadmap-lint.sh" "$repo/ROADMAP.md" 2>&1 || true)"
-printf '%s' "$lint_out" | grep -q '0005' \
+grep -q '0005' < <(printf '%s' "$lint_out") \
   && bad "roadmap-lint.sh flagged the untagged item under an H1 parked heading (id:0005)" \
   || ok "roadmap-lint.sh exempts a section opened by an H1 parked heading"
 
@@ -110,7 +110,7 @@ cat > "$tmpdir/h2active.md" <<'EOF'
 - [ ] an item with no lane tag at all, active <!-- id:0005 -->
 EOF
 lint_out="$("$SCRIPTS/roadmap-lint.sh" "$tmpdir/h2active.md" 2>&1 || true)"
-printf '%s' "$lint_out" | grep -q '0005' \
+grep -q '0005' < <(printf '%s' "$lint_out") \
   && ok "roadmap-lint.sh still flags the same untagged item under an ACTIVE heading" \
   || bad "roadmap-lint.sh no longer flags an untagged ACTIVE item — the exemption over-broadened"
 

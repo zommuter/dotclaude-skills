@@ -116,7 +116,7 @@ console.log(out.join('\n'))
 NODE
 
 node "$TMP/drive.mjs" > "$TMP/res" 2>"$TMP/err" || { echo "FAIL: driver errored:"; cat "$TMP/err"; exit 1; }
-get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2-; }
+get() { head -1 < <(grep -E "^$1=" "$TMP/res") | cut -d= -f2- ; }
 
 [[ "$(get norm_csv)" == "beta|gamma" ]] && ok "normalizeRepoArg splits a comma string" || bad "csv normalize wrong: $(get norm_csv)"
 [[ "$(get norm_arr)" == "beta|gamma" ]] && ok "normalizeRepoArg trims an array" || bad "array normalize wrong: $(get norm_arr)"
@@ -157,7 +157,7 @@ grep -q "priorityRank(a, prioritySet) - priorityRank(b, prioritySet)" "$JS" || b
 # priorityRank must sit AFTER the verdict-class key and BEFORE the income key in the comparator
 # (above income, below the D3 order). Assert the ordering on the main comparator line.
 if grep -q "PRIORITY\[a.verdict\] - PRIORITY\[b.verdict\]) ||" "$JS" \
-   && grep -A1 "PRIORITY\[a.verdict\] - PRIORITY\[b.verdict\]) ||" "$JS" | grep -q "priorityRank(a, prioritySet)"; then
+   && grep -q "priorityRank(a, prioritySet)" < <(grep -A1 "PRIORITY\[a.verdict\] - PRIORITY\[b.verdict\]) ||" "$JS") ; then
   ok "(c-wiring) priorityRank is placed directly after the verdict-class key (above income, below D3)"
 else
   bad "(c-wiring) priorityRank not placed after the verdict-class key in the comparator"

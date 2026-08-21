@@ -63,7 +63,7 @@ pass "(3) the single-source block is marked with id:6217"
 if grep -q 'keep byte-equivalent' "$JS"; then
   fail "(4) relay-loop.js:1067's '(keep byte-equivalent)' admission still stands — it must be deleted or rewritten once there is one definition (id:6217)"
 fi
-if sed -n '1,140p' "$MJS" | grep -q 'keep the two in sync'; then
+if grep -q 'keep the two in sync' < <(sed -n '1,140p' "$MJS") ; then
   fail "(4) drain.mjs's isDryRound-scoped 'keep the two in sync' admission (near :21) still stands (id:6217)"
 fi
 pass "(4) both isDryRound sync admissions are gone"
@@ -72,7 +72,7 @@ pass "(4) both isDryRound sync admissions are gone"
 #    comment for a DIFFERENT function and must SURVIVE. A blanket grep-and-delete fails here.
 grep -q 'classifyRepeatHandbacks' "$MJS" \
   || fail "(5) classifyRepeatHandbacks vanished from drain.mjs — this item's scope is isDryRound/isBlockedRound/workCreated only (id:6217)"
-sed -n '141,200p' "$MJS" | grep -q 'keep the two in sync' \
+grep -q 'keep the two in sync' < <(sed -n '141,200p' "$MJS") \
   || fail "(5) drain.mjs's classifyRepeatHandbacks 'keep the two in sync' comment was deleted — it belongs to a DIFFERENT function and is out of scope; TODO.md:57 mis-cited it as the isDryRound admission (id:6217)"
 pass "(5) the classifyRepeatHandbacks sync comment survives (correctly out of scope)"
 

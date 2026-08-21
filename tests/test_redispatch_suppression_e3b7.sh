@@ -66,7 +66,7 @@ console.log(out.join('\n'))
 NODE
 
 node "$TMP/drive.mjs" > "$TMP/res" 2>"$TMP/err" || { echo "FAIL: driver errored:"; cat "$TMP/err"; exit 1; }
-get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2-; }
+get() { head -1 < <(grep -E "^$1=" "$TMP/res") | cut -d= -f2- ; }
 
 [[ "$(get samesig_kept)" == "0" && "$(get samesig_suppressed)" == "1" ]] && ok "null-report handback, same work_sig ⇒ SUPPRESSED (not re-dispatched into the same death)" || bad "same-sig should suppress after a stamped death"
 [[ "$(get samesig_reason_mentions_suppression)" == "1" ]] && ok "suppression reason is not silent — names the suppression" || bad "suppression reason missing"
@@ -98,11 +98,11 @@ NULL_REPORT_BLOCK="$(awk '
 ' "$JS")"
 [[ -n "$NULL_REPORT_BLOCK" ]] || { echo "FAIL: could not locate the 'if (!report)' branch in $JS"; exit 1; }
 
-echo "$NULL_REPORT_BLOCK" | grep -q "recordNoWorkHandback(noWorkNegCache, unit.repo, unit.verdict" \
+grep -q "recordNoWorkHandback(noWorkNegCache, unit.repo, unit.verdict" < <(echo "$NULL_REPORT_BLOCK") \
   && ok "relay-loop.js's null-report (context-death) branch stamps noWorkNegCache" \
   || bad "relay-loop.js's null-report branch does NOT call recordNoWorkHandback — a context-death repo can re-dispatch straight back into the same death"
 
-echo "$NULL_REPORT_BLOCK" | grep -q "id:e3b7" \
+grep -q "id:e3b7" < <(echo "$NULL_REPORT_BLOCK") \
   && ok "null-report suppression stamp is tagged id:e3b7" \
   || bad "null-report suppression stamp missing an id:e3b7 tag"
 
@@ -111,7 +111,7 @@ echo "$NULL_REPORT_BLOCK" | grep -q "id:e3b7" \
 # and must NOT also get double-stamped into the whole-dispatch negative cache.
 CONTRACT_MET_BLOCK="$(awk '/if \(!report\.contract_met\) \{/{flag=1} flag{print} /durableHandbackFollowup\(unit, report\)/{exit}' "$JS")"
 [[ -n "$CONTRACT_MET_BLOCK" ]] || { echo "FAIL: could not locate the contract_met=false branch in $JS"; exit 1; }
-echo "$CONTRACT_MET_BLOCK" | grep -q "report.route === 'none'" \
+grep -q "report.route === 'none'" < <(echo "$CONTRACT_MET_BLOCK") \
   && ok "the contract_met=false branch still gates its own stamp on route=none (unchanged)" \
   || bad "regression: contract_met=false branch's route=none gate was removed"
 

@@ -45,7 +45,7 @@ pass "(2) handoff.md documents authoring an A2 recipe into recipes/pending/ (rec
 # after the C2 checkpoint marker (the roadmap-writing checkpoint C2 owns tagging).
 c2_line="$(grep -nF '**C2 — roadmap.**' "$HANDOFF" | head -1 | cut -d: -f1 || true)"
 [[ -n "$c2_line" ]] || fail "(3) could not locate the '**C2 — roadmap.**' checkpoint marker in handoff.md"
-tail -n "+$c2_line" "$HANDOFF" | grep -qF '[MECHANICAL]' \
+grep -qF '[MECHANICAL]' < <(tail -n "+$c2_line" "$HANDOFF") \
   || fail "(3) the [MECHANICAL]-tagging instruction is not at/after the C2 checkpoint (must live in C2's producer prose)"
 pass "(3) the [MECHANICAL] producer instruction lives at/after the C2 checkpoint"
 

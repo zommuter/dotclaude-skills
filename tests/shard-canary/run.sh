@@ -126,7 +126,7 @@ for name in "${fixtures[@]}"; do
   ok=0
   if [[ "$expected" == surfaced:* ]]; then
     sub="${expected#surfaced:}"
-    [[ "$verdict" == "surfaced" ]] && printf '%s' "$reason" | grep -qi "$sub" && ok=1
+    [[ "$verdict" == "surfaced" ]] && grep -qi "$sub" < <(printf '%s' "$reason") && ok=1
   else
     [[ "$verdict" == "$expected" ]] && ok=1
   fi

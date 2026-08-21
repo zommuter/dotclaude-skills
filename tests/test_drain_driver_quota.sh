@@ -61,7 +61,7 @@ run_case() { # $1=quota-exit-code  $2=expected-reason
   [ -e "$TMP/rounds" ] && rm -- "$TMP/rounds"
   echo "$1" > "$TMP/quota_rc"
   out="$(node "$DRIVER" --repo "$TMP" --max-rounds 10 2>"$TMP/err")"; rc=$?
-  if [[ $rc -eq 4 ]] && echo "$out" | grep -qE "DRAIN_STOP reason=$2"; then
+  if [[ $rc -eq 4 ]] && grep -qE "DRAIN_STOP reason=$2" < <(echo "$out") ; then
     ok "quota exit $1 → reason=$2, driver exit 4"
   else
     bad "quota exit $1: expected exit 4 + reason=$2 (rc=$rc, out: $out)"
@@ -91,7 +91,7 @@ if [[ "$gates" -ge "$rounds" && "$rounds" -ge 3 ]]; then
 else
   bad "expected >=1 gate call per round (gates=$gates rounds=$rounds)"
 fi
-if tail -n +2 "$TMP/quota_argv" | grep -qE -- '--agents 5'; then
+if grep -qE -- '--agents 5' < <(tail -n +2 "$TMP/quota_argv") ; then
   ok "cumulative --agents 5 passed to the gate after the 5-agent round (seatbelt feed)"
 else
   bad "gate never saw cumulative --agents 5 (argv log: $(cat "$TMP/quota_argv"))"

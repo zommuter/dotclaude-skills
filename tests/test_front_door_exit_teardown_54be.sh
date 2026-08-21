@@ -64,26 +64,26 @@ snippet="$(printf '%s\n' "$region" | sed -n '/^```/,/^```/p' | sed '1d;$d')"
 pass "(1) relay/SKILL.md carries an anchored teardown-trap region with one fenced snippet"
 
 # ── §2 exactly two actions: heartbeat.sh stop + claim.sh release --run ────────────────────
-printf '%s\n' "$snippet" | grep -q 'heartbeat\.sh stop' \
+grep -q 'heartbeat\.sh stop' < <(printf '%s\n' "$snippet") \
   || fail "(2) the teardown snippet does not run 'heartbeat.sh stop'"
-printf '%s\n' "$snippet" | grep -qE 'claim\.sh release .*--run' \
+grep -qE 'claim\.sh release .*--run' < <(printf '%s\n' "$snippet") \
   || fail "(2) the teardown snippet does not run the id:89d6 sweep 'claim.sh release --run <RUN_ID>'"
 extra="$(printf '%s\n' "$snippet" | grep -oE '[a-z0-9_-]+\.(sh|py|js)' | sort -u \
          | grep -vE '^(heartbeat|claim)\.sh$' || true)"
 [[ -z "$extra" ]] \
   || fail "(2) the teardown snippet invokes MORE than the two permitted actions (two-action cap): $extra"
-printf '%s\n' "$snippet" | grep -qE 'heartbeat\.sh (beat|start)' \
+grep -qE 'heartbeat\.sh (beat|start)' < <(printf '%s\n' "$snippet") \
   && fail "(2) the teardown snippet BEATS the heartbeat — beat must STAY in-Workflow (--fabled F4: a shell-lifetime beater beats through a wedged Workflow and blinds id:98f0)"
 pass "(2) the teardown owns exactly heartbeat.sh stop + the claim.sh release --run sweep"
 
 # ── §3 no-swallow: neither action may be silenced ─────────────────────────────────────────
-printf '%s\n' "$snippet" | grep -q '|| true' \
+grep -q '|| true' < <(printf '%s\n' "$snippet") \
   && fail "(3) the teardown snippet contains '|| true' — a failed teardown MUST be loud ([[no-swallow-stderr]], D3-A rider 1)"
-printf '%s\n' "$snippet" | grep -q '2>/dev/null' \
+grep -q '2>/dev/null' < <(printf '%s\n' "$snippet") \
   && fail "(3) the teardown snippet redirects stderr to /dev/null — a failed teardown MUST be loud"
-printf '%s\n' "$snippet" | grep -q 'trap' \
+grep -q 'trap' < <(printf '%s\n' "$snippet") \
   || fail "(3) the teardown snippet installs no trap — it must be an EXIT trap, not a straight-line call on the success path"
-printf '%s\n' "$snippet" | grep -qE 'trap[^#]*EXIT' \
+grep -qE 'trap[^#]*EXIT' < <(printf '%s\n' "$snippet") \
   || fail "(3) the trap is not on EXIT — a Workflow that DIES must still tear down"
 pass "(3) the teardown is an EXIT trap and swallows nothing"
 

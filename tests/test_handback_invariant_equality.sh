@@ -97,7 +97,7 @@ console.log(out.join('\n'))
 NODE
 
 node "$TMP/drive.mjs" > "$TMP/res" 2>"$TMP/err" || { echo "FAIL: driver errored:"; cat "$TMP/err"; exit 1; }
-get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2-; }
+get() { head -1 < <(grep -E "^$1=" "$TMP/res") | cut -d= -f2- ; }
 
 [[ "$(get reverse_gap_flagged)" == "1" ]] && ok "a real-worktree accumulator entry with NO emitted event is flagged (reverse direction — the RED assertion)" || bad "reverse gap NOT flagged: assertHandbackInvariant is still one-directional (emitted ⊆ accumulator only)"
 [[ "$(get reverse_gap_names_repo)" == "1" ]] && ok "the reverse violation names the under-reported repo" || bad "reverse violation does not name the repo"

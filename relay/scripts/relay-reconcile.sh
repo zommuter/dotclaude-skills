@@ -241,7 +241,7 @@ list_stranded() {
     case "$runid" in relay-*) ;; *) continue ;; esac        # not a run-scoped branch, leave it
     runid="$(printf '%s' "$runid" | sed -E 's/-[a-z]+-[^-]+-[0-9]+$//')"
     # owning run still alive (match against the runId FIELD, never the whole JSON line)
-    if [ -n "$live_ids" ] && printf '%s\n' "$live_ids" | grep -qxF "$runid"; then continue; fi
+    if [ -n "$live_ids" ] && grep -qxF "$runid" < <(printf '%s\n' "$live_ids") ; then continue; fi
     # Only report branches that actually carry work the trunk lacks.
     if [ "$(git -C "$r" rev-list --count "$trunk..$br" 2>/dev/null || echo 0)" -eq 0 ]; then continue; fi
     sha="$(git -C "$r" rev-parse --short "$br" 2>/dev/null || echo '???????')"
@@ -412,7 +412,7 @@ classify_orphan() {
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     base="$(basename "$f")"
-    printf '%s' "$base" | grep -qE "$LEDGER_FILES_RE" || non_ledger+=("$f")
+    grep -qE "$LEDGER_FILES_RE" < <(printf '%s' "$base") || non_ledger+=("$f")
   done <<<"$files"
   if [ ${#non_ledger[@]} -gt 0 ]; then
     n=${#non_ledger[@]}

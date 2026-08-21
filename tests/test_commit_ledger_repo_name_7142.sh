@@ -52,7 +52,7 @@ sed -i 's/\[ROUTINE\]/[ROUTINE] (gated)/' "$REPO_A/ROADMAP.md"
 "$HELPER" repo_a -m "relay human: ledger flow-back (id:3801, id:2147)" ROADMAP.md TODO.md REVIEW_ME.md >/dev/null 2>&1
 rc=$?
 if [ "$rc" = 0 ]; then ok "documented invocation with a bare name exits 0"; else bad "documented invocation with a bare name failed (rc=$rc)"; fi
-if git -C "$REPO_A" log -1 --pretty=%s 2>/dev/null | grep -qF 'ledger flow-back'; then ok "commit landed in the name-resolved repo"; else bad "no commit landed in repo_a"; fi
+if grep -qF 'ledger flow-back' < <(git -C "$REPO_A" log -1 --pretty=%s 2>/dev/null) ; then ok "commit landed in the name-resolved repo"; else bad "no commit landed in repo_a"; fi
 if [ -z "$(git -C "$REPO_A" status --porcelain 2>/dev/null)" ]; then ok "repo_a tree clean after name-resolved commit"; else bad "repo_a still dirty"; fi
 
 echo "== 2. an existing directory PATH is still treated as a path, unchanged (no registry lookup) =="
@@ -73,9 +73,9 @@ echo "== 4. a name that resolves to nothing fails LOUDLY, naming the name AND th
 err="$("$HELPER" no_such_repo -m "x" ROADMAP.md 2>&1 >/dev/null)"
 rc=$?
 if [ "$rc" != 0 ]; then ok "unresolvable name exits nonzero"; else bad "unresolvable name did not fail"; fi
-if printf '%s' "$err" | grep -qF 'no_such_repo'; then ok "error names the unresolved repo name"; else bad "error does not name the repo name: $err"; fi
-if printf '%s' "$err" | grep -qF "$RELAY_TOML"; then ok "error names the registry it was looked up in"; else bad "error does not name the registry: $err"; fi
-if printf '%s' "$err" | grep -qiF 'not a git repo:'; then bad "error is the old bare 'not a git repo' message (doc/script drift not fixed)"; else ok "error is not the old bare 'not a git repo' message"; fi
+if grep -qF 'no_such_repo' < <(printf '%s' "$err") ; then ok "error names the unresolved repo name"; else bad "error does not name the repo name: $err"; fi
+if grep -qF "$RELAY_TOML" < <(printf '%s' "$err") ; then ok "error names the registry it was looked up in"; else bad "error does not name the registry: $err"; fi
+if grep -qiF 'not a git repo:' < <(printf '%s' "$err") ; then bad "error is the old bare 'not a git repo' message (doc/script drift not fixed)"; else ok "error is not the old bare 'not a git repo' message"; fi
 
 echo "== 5. a repo carrying a '# path:' override resolves via the override, not ~/src/<name> =="
 REPO_D="$TMP/elsewhere/actual_repo_d"

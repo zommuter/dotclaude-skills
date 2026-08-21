@@ -18,7 +18,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 pass "executor-contract.md exists under relay/references/"
 
 # 2. It is a plain reference doc — NO skill frontmatter (it must not register as a skill).
-head -1 "$CONTRACT" | grep -q '^---$' \
+grep -q '^---$' < <(head -1 "$CONTRACT") \
   && fail "executor-contract.md still has skill frontmatter (should be a lean reference)" || true
 pass "executor-contract.md has no skill frontmatter"
 
@@ -53,8 +53,8 @@ make -C "$SRC_DIR" DEST_DIR="$DEST_DIR" install-relay >/dev/null 2>&1 \
 pass "install-relay creates non-dangling executor-contract.md symlink"
 
 # 6. Version consistency: vN in the contract matches vN in this repo's CLAUDE.md pointer.
-CONTRACT_VER=$(grep -o 'relay-executor contract v[0-9]*' "$CONTRACT" | head -1 | grep -o 'v[0-9]*')
-CLAUDE_VER=$(grep -o 'relay-executor contract v[0-9]*' "$SRC_DIR/CLAUDE.md" | head -1 | grep -o 'v[0-9]*')
+CONTRACT_VER=$(head -1 < <(grep -o 'relay-executor contract v[0-9]*' "$CONTRACT") | grep -o 'v[0-9]*' )
+CLAUDE_VER=$(head -1 < <(grep -o 'relay-executor contract v[0-9]*' "$SRC_DIR/CLAUDE.md") | grep -o 'v[0-9]*' )
 [[ -n "$CONTRACT_VER" ]] || fail "Could not extract version from executor-contract.md"
 [[ -n "$CLAUDE_VER" ]] || fail "Could not extract version from CLAUDE.md (pointer missing?)"
 [[ "$CONTRACT_VER" == "$CLAUDE_VER" ]] \

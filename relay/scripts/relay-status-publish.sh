@@ -56,7 +56,7 @@ esac
 raw="$(cat)"
 content="$raw"
 events=""
-if printf '%s\n' "$raw" | grep -qxF "$SENTINEL"; then
+if grep -qxF "$SENTINEL" < <(printf '%s\n' "$raw") ; then
   content="$(printf '%s\n' "$raw" | sed "/^${SENTINEL}\$/,\$d")"
   events="$(printf '%s\n' "$raw" | sed "1,/^${SENTINEL}\$/d")"
 fi

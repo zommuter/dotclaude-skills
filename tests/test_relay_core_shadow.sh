@@ -83,7 +83,7 @@ rc=$?
 [[ "$rc" == "0" ]] || { echo "FAIL (3): mismatch must never alter classify-repo exit code (got $rc)"; exit 1; }
 [[ "$out_disagree" == "$out_absent" ]] || { echo "FAIL (3): authoritative output changed under disagreeing shadow"; exit 1; }
 [[ "$(wc -l < "$RELAY_CORE_SHADOW_LOG")" == "2" ]] || { echo "FAIL (3): expected a 2nd log line"; exit 1; }
-tail -1 "$RELAY_CORE_SHADOW_LOG" | grep -q '"result":"MISMATCH"' || { echo "FAIL (3): 2nd line must be MISMATCH"; exit 1; }
+grep -q '"result":"MISMATCH"' < <(tail -1 "$RELAY_CORE_SHADOW_LOG") || { echo "FAIL (3): 2nd line must be MISMATCH"; exit 1; }
 # MISMATCH entry carries both canonical forms for diagnosis.
 python3 -c '
 import json,sys
@@ -101,8 +101,8 @@ exit 3
 EOF
 out_crash="$(PATH="$fakebin:$PATH" run_cr 2> "$tmp/err3b")"
 [[ "$out_crash" == "$out_absent" ]] || { echo "FAIL (3b): crashing shadow must not alter output"; exit 1; }
-tail -1 "$RELAY_CORE_SHADOW_LOG" | grep -q '"result":"MISMATCH"' || { echo "FAIL (3b): crash must log a MISMATCH"; exit 1; }
-tail -1 "$RELAY_CORE_SHADOW_LOG" | grep -q 'INVALID-JSON' || { echo "FAIL (3b): crash entry must carry the INVALID-JSON marker"; exit 1; }
+grep -q '"result":"MISMATCH"' < <(tail -1 "$RELAY_CORE_SHADOW_LOG") || { echo "FAIL (3b): crash must log a MISMATCH"; exit 1; }
+grep -q 'INVALID-JSON' < <(tail -1 "$RELAY_CORE_SHADOW_LOG") || { echo "FAIL (3b): crash entry must carry the INVALID-JSON marker"; exit 1; }
 
 # --- (4) relay-doctor live-path line -------------------------------------------------
 if [[ -x "$DOCTOR" ]]; then

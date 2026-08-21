@@ -9,7 +9,7 @@ REPORT="$ROOT/tools/quota-report.py"
 
 fail=0
 check() { if [ "$1" = "$2" ]; then echo "  ok  $3"; else echo "  FAIL $3 (got '$1' want '$2')"; fail=1; fi; }
-contains() { if printf '%s' "$1" | grep -qF "$2"; then echo "  ok  $3"; else echo "  FAIL $3 (missing '$2')"; fail=1; fi; }
+contains() { if grep -qF "$2" < <(printf '%s' "$1") ; then echo "  ok  $3"; else echo "  FAIL $3 (missing '$2')"; fail=1; fi; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -62,7 +62,7 @@ out=$(python3 "$REPORT" "$DATA" --jump 15 2>&1)
 contains "$out" "60%→95%" "spike reported"
 contains "$out" "+35pp" "delta magnitude reported"
 # the reset drop (95 -> 2) must not appear as a jump
-if printf '%s' "$out" | grep -q "95%→2%"; then echo "  FAIL reset drop wrongly flagged"; fail=1; else echo "  ok  reset drop not flagged"; fi
+if grep -q "95%→2%" < <(printf '%s' "$out") ; then echo "  FAIL reset drop wrongly flagged"; fail=1; else echo "  ok  reset drop not flagged"; fi
 # two reset dates => two windows
 wins=$(printf '%s' "$out" | grep -c "window→reset")
 check "$wins" "2" "segmented into two weekly windows"

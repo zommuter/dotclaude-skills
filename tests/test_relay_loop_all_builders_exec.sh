@@ -42,7 +42,7 @@ $out"
 
 # Every builder the discovery-only harness does NOT exercise must be reached by this one.
 for builder in execute-child integrate review-child handoff-child quota inject-take auto-reconcile; do
-  echo "$out" | grep -q "BUILT: $builder" \
+  grep -q "BUILT: $builder" < <(echo "$out") \
     || fail "harness never evaluated the '$builder' prompt builder (coverage gap this item closes):
 $out"
 done

@@ -49,9 +49,9 @@ resid="$(git -C "$FIX" status --porcelain)"
 pass "(1) push died mid-follow-up → main checkout is CLEAN (no stranded ROADMAP.md)"
 
 # The gate WAS committed atomically (before the push) — a new commit carries it.
-git -C "$FIX" log -1 --format='%s' | grep -q 'handback follow-up' \
+grep -q 'handback follow-up' < <(git -C "$FIX" log -1 --format='%s') \
   || fail "(2) the atomic commit did not happen (no handback-follow-up commit in HEAD)"
-git -C "$FIX" show HEAD:ROADMAP.md | grep -q 'GATED' \
+grep -q 'GATED' < <(git -C "$FIX" show HEAD:ROADMAP.md) \
   || fail "(2) the committed ROADMAP.md does not carry the gate"
 pass "(2) the gate is committed atomically (before the push) — the write+commit are one op"
 

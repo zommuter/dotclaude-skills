@@ -52,19 +52,19 @@ EORM
 promo_out="$(HOME="$tmp" "$ORPHAN" --promotion "$fix")"
 
 # Must flag aa01 ([ROUTINE] absent from ROADMAP)
-echo "$promo_out" | grep -q 'id:aa01' \
+grep -q 'id:aa01' < <(echo "$promo_out") \
   || fail "--promotion must flag aa01 ([ROUTINE] not in ROADMAP): got: $promo_out"
 # Must flag bb02 ([HARD — pool] absent from ROADMAP)
-echo "$promo_out" | grep -q 'id:bb02' \
+grep -q 'id:bb02' < <(echo "$promo_out") \
   || fail "--promotion must flag bb02 ([HARD — pool] not in ROADMAP): got: $promo_out"
 # Must NOT flag cc03 ([HARD — meeting] is non-executable, no promotion needed)
-echo "$promo_out" | grep -q 'id:cc03' \
+grep -q 'id:cc03' < <(echo "$promo_out") \
   && fail "--promotion must NOT flag cc03 ([HARD — meeting] is not a pool-executable lane): got: $promo_out" || true
 # Must NOT flag dd04 (already has a twin in ROADMAP)
-echo "$promo_out" | grep -q 'id:dd04' \
+grep -q 'id:dd04' < <(echo "$promo_out") \
   && fail "--promotion must NOT flag dd04 (already promoted to ROADMAP): got: $promo_out" || true
 # Must NOT flag ee05 (in ROADMAP — xledger-ok is irrelevant to promotion check)
-echo "$promo_out" | grep -q 'id:ee05' \
+grep -q 'id:ee05' < <(echo "$promo_out") \
   && fail "--promotion must NOT flag ee05 (exists in ROADMAP, xledger-ok N/A): got: $promo_out" || true
 pass "--promotion flags un-promoted [ROUTINE]/[HARD — pool] items and spares promoted/non-executable ones"
 
@@ -78,10 +78,10 @@ pass "-p alias is identical to --promotion"
 cl_out="$(HOME="$tmp" "$ORPHAN" --cross-ledger "$fix")"
 
 # Must flag ff06 (unannotated divergence)
-echo "$cl_out" | grep -q 'id:ff06' \
+grep -q 'id:ff06' < <(echo "$cl_out") \
   || fail "--cross-ledger must flag ff06 (unannotated divergence): got: $cl_out"
 # Must NOT flag ee05 (annotated with xledger-ok)
-echo "$cl_out" | grep -q 'id:ee05' \
+grep -q 'id:ee05' < <(echo "$cl_out") \
   && fail "--cross-ledger must NOT flag ee05 (xledger-ok annotation suppresses it): got: $cl_out" || true
 pass "--cross-ledger suppresses xledger-ok-annotated scope-splits and flags unannotated ones"
 

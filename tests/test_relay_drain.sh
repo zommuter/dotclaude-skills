@@ -60,7 +60,7 @@ console.log(out.join('\n'))
 NODE
 
 node "$TMP/drive.mjs" > "$TMP/res" 2>"$TMP/err" || { echo "FAIL: driver errored:"; cat "$TMP/err"; exit 1; }
-get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2-; }
+get() { head -1 < <(grep -E "^$1=" "$TMP/res") | cut -d= -f2- ; }
 
 # unitIsSubstantive
 [[ "$(get exec)" == "true" && "$(get hard)" == "true" && "$(get handoff)" == "true" ]] \

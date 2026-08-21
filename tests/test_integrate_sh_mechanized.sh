@@ -26,7 +26,7 @@ bash -n "$INT" || fail "integrate.sh fails bash -n"
 
 # integrate.sh must contain NO destructive tree op (id:aa93 enforced structurally, not in a
 # comment). We check the CODE lines, tolerating the header comment that names them.
-if grep -vE '^\s*#' "$INT" | grep -qE 'git .*(stash|reset --hard|checkout --|clean -[a-z])'; then
+if grep -qE 'git .*(stash|reset --hard|checkout --|clean -[a-z])' < <(grep -vE '^\s*#' "$INT") ; then
   fail "id:aa93: integrate.sh contains a destructive tree op in a code line"
 fi
 pass "structure: parses, and no destructive tree op in any code line (id:aa93)"
@@ -96,10 +96,10 @@ out="$(FABLES_CONFIG="$CFG" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
 git -C "$MAIN" merge-base --is-ancestor "$CHILD_SHA" HEAD \
   || fail "(A) child commit is not an ancestor of main HEAD — merge did not land"
 # main HEAD is past the merge: it must be a --no-ff merge OR carry the ckpt commit on top
-git -C "$MAIN" log --oneline | grep -q 'merge(relay): test close id:test' \
+grep -q 'merge(relay): test close id:test' < <(git -C "$MAIN" log --oneline) \
   || fail "(A) no --no-ff merge commit on main"
 # ckpt-tag fired
-git -C "$MAIN" tag -l 'relay-ckpt-*' | grep -q . \
+grep -q . < <(git -C "$MAIN" tag -l 'relay-ckpt-*') \
   || fail "(A) no relay-ckpt-* tag created"
 CKPT="$(git -C "$MAIN" tag -l 'relay-ckpt-*' | tail -n1)"
 # git-lock-push fired

@@ -163,8 +163,8 @@ grep -q 'changelog-append.sh' "$INTEG" \
   || fail "(8) integrate.sh no longer invokes changelog-append.sh (b8fa wiring lost)"
 grep -qF -- 'cl_args+=(--version "$bump_version")' "$INTEG" \
   || fail "(8) integrate.sh does not pass --version to changelog-append.sh (release bucketing lost)"
-vb_line=$(grep -n '"\$VERSION_BUMP"' "$INTEG" | head -1 | cut -d: -f1)
-cl_line=$(grep -n '"\$CHANGELOG"' "$INTEG" | head -1 | cut -d: -f1)
+vb_line=$(head -1 < <(grep -n '"\$VERSION_BUMP"' "$INTEG") | cut -d: -f1 )
+cl_line=$(head -1 < <(grep -n '"\$CHANGELOG"' "$INTEG") | cut -d: -f1 )
 [[ -n "$vb_line" && -n "$cl_line" ]] || fail "(8) could not locate both the bump and changelog calls in integrate.sh"
 [[ "$vb_line" -lt "$cl_line" ]] \
   || fail "(8) version-bump runs AFTER changelog-append (bump=$vb_line, changelog=$cl_line) — the release bucket would miss the new version"
@@ -179,8 +179,8 @@ grep -q 'handback bump "\$EX_BUMP"' "$INTEG" \
 grep -q 'EX_BUMP=' "$INTEG" \
   || fail "(8b) the bump handback has no distinct exit code"
 # The trigger must be resolved BEFORE the merge, so an unresolvable trigger leaves main unmoved.
-bump_res_line=$(grep -n 'handback bump "\$EX_BUMP"' "$INTEG" | head -1 | cut -d: -f1)
-merge_line=$(grep -n 'merge --no-ff "\$branch"' "$INTEG" | head -1 | cut -d: -f1)
+bump_res_line=$(head -1 < <(grep -n 'handback bump "\$EX_BUMP"' "$INTEG") | cut -d: -f1 )
+merge_line=$(head -1 < <(grep -n 'merge --no-ff "\$branch"' "$INTEG") | cut -d: -f1 )
 [[ -n "$bump_res_line" && -n "$merge_line" ]] || fail "(8b) could not locate both the bump handback and the merge"
 [[ "$bump_res_line" -lt "$merge_line" ]] \
   || fail "(8b) the bump trigger is resolved AFTER the merge (bump=$bump_res_line, merge=$merge_line) — a HANDBACK[bump] would strand a half-integrated repo"

@@ -36,7 +36,7 @@ hop="$(grep -n -- '--chain-ended' "$LOOP" | head -5)"
 # Assert on a DISPATCHED pipeline, not on prose: the refused command had classify-repo.sh and
 # jq on the SAME line. A comment that merely quotes the old stage (this fix's own rationale
 # comment does) must not trip the guard — matching it would make the test unfixable-by-design.
-if grep -n 'classify-repo\.sh' "$LOOP" | grep -v '^\s*[0-9]*:\s*//' | grep -q 'jq'; then
+if grep -q 'jq' < <(grep -n 'classify-repo\.sh' "$LOOP" | grep -v '^\s*[0-9]*:\s*//') ; then
   fail_msg "relay-loop.js still pipes the chain-end unit through jq (the refused stage)"
 else
   ok "no jq stage on any classify-repo.sh pipeline line"

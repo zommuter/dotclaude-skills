@@ -77,7 +77,7 @@ set -e
 [[ "$rc" -eq 3 ]] || fail "an UNLISTED homonym must still exit 3, got $rc: $(cat "$tmp/one.err")"
 grep -q "ERROR.*'beef'" "$tmp/one.err" \
   || fail "the unlisted token beef is not named as an ERROR: $(cat "$tmp/one.err")"
-if grep '^ERROR' "$tmp/one.err" | grep -q "'cccc'"; then
+if grep -q "'cccc'" < <(grep '^ERROR' "$tmp/one.err") ; then
   fail "the ADJUDICATED token cccc is still reported as an ERROR: $(cat "$tmp/one.err")"
 fi
 grep -qi "WARN.*'cccc'" "$tmp/one.err" \
