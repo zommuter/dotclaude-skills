@@ -96,6 +96,12 @@
 #   merged=<sha>  ckpt=<tag>  push=pushed  ts=<ISO>  bump=<vX.Y.Z|>  retire=<note>
 #   postSig=<hex|>  openRoutine=<n>  openHard=<n>  sibling=<branch>\t<count>  (0..n lines)
 #
+# Handback contract (STDERR, id:5fe2 — stdout is discarded by the proxy on a non-zero exit):
+#   PRE-push  exits: handback=<step>  landed=false                      (safe to retry)
+#   POST-push exits: handback=<step>  landed=true  merged=<sha>  ckpt=<tag>  push=pushed
+#                    remaining=<steps that did NOT run>  ckptRecorded=<true|false>
+#   A `merged=` line NEVER appears on a pre-push exit — that is the whole discriminator.
+#
 # Helper resolution (all overridable for hermetic tests — the failure-injection seam):
 #   INTEGRATE_CLAIM INTEGRATE_CLEAN_TREE_GATE INTEGRATE_VERIFY_ISOLATION
 #   INTEGRATE_SYNC_ORIGIN INTEGRATE_VERSION_BUMP INTEGRATE_CHANGELOG_APPEND
@@ -127,12 +133,59 @@ EX_WIRING=34        # a required helper is missing/not executable (a wiring bug,
 LOG="${INTEGRATE_LOG:-$HOME/.claude/logs/relay-integrate.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log()  { printf '%s integrate.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
+# ── id:5fe2 — DEFERRED vs LANDED-BUT-UNFINISHED ─────────────────────────────────────
+# The push at step 8 splits every handback into two classes the caller MUST tell apart:
+#   • PRE-push  — the remote is untouched, so re-running the whole script is CORRECT.
+#     (isolation, sync, wiring, bump, merge, tick, version, changelog, archive, ckpt —
+#     AND push itself: exit 27 means the push FAILED, so the remote never moved.)
+#   • POST-push — the merge is committed, TAGGED and PUSHED; only a tail step failed
+#     (retire, state-write, strong-state). Re-running is WRONG: the retry fails forever
+#     at merge/isolation while `relay.toml last_ckpt` stays stale and the completion
+#     never reaches state.completed/CHANGELOG. Such a unit must be SURFACED for
+#     completion, never re-merged.
+# These three variables are the class discriminator; `pushed` is set ONLY after step 8
+# returns 0, so the PRE-push half cannot accidentally advertise a landed merge.
+merged_head="" ckpt_tag="" pushed=""
+# The KEY=VALUE handback block goes to STDERR on purpose: mechanical-proxy.py DISCARDS a
+# non-zero-exit child's stdout and returns 'MECH-ERROR exit=<n>\n<stderr>', so stdout would
+# never reach parseIntegrateResult. stdout stays the SUCCESS-only contract.
 # LOUD handback: name the step, print the reason to stderr, log it, exit with the step's
 # distinct code. Never swallowed.
 handback() { # <step-label> <exit-code> <reason...>
   local step="$1" code="$2"; shift 2
   printf 'integrate.sh: HANDBACK[%s]: %s\n' "$step" "$*" >&2
   log "HANDBACK[$step] exit=$code $*"
+  if [ -n "$pushed" ]; then
+    # Which tail steps did NOT run — the operator is told EXACTLY, never left to guess.
+    local remaining
+    case "$step" in
+      worktree-retire) remaining="worktree-retire,state-write,strong-state,push-seed" ;;
+      state-write)     remaining="state-write,strong-state,push-seed" ;;
+      strong-state)    remaining="strong-state,push-seed" ;;
+      *)               remaining="UNKNOWN post-push step '$step' — treat every tail step as unrun" ;;
+    esac
+    # Best-effort reconcile of the ONE piece of durable state whose staleness is the
+    # observed symptom: relay.toml last_ckpt must not silently disagree with the remote,
+    # which already carries $ckpt_tag. Idempotent; failure is REPORTED, never swallowed.
+    local recorded=false
+    if [ -n "$ckpt_tag" ] && "$STATE_WRITE" toml-set "$repo" last_ckpt "\"$ckpt_tag\"" >/dev/null 2>&1; then
+      recorded=true
+      log "HANDBACK[$step] id:5fe2 post-push reconcile: relay.toml last_ckpt set to $ckpt_tag"
+    else
+      log "HANDBACK[$step] id:5fe2 post-push reconcile FAILED — relay.toml last_ckpt may be STALE vs the pushed $ckpt_tag"
+    fi
+    {
+      printf 'handback=%s\n'     "$step"
+      printf 'landed=%s\n'       'true'
+      printf 'merged=%s\n'       "$merged_head"
+      printf 'ckpt=%s\n'         "$ckpt_tag"
+      printf 'push=%s\n'         'pushed'
+      printf 'remaining=%s\n'    "$remaining"
+      printf 'ckptRecorded=%s\n' "$recorded"
+    } >&2
+  else
+    { printf 'handback=%s\n' "$step"; printf 'landed=%s\n' 'false'; } >&2
+  fi
   exit "$code"
 }
 
@@ -405,6 +458,9 @@ ckpt_tag="$(printf '%s' "$ckpt_tag" | tail -n1)"
 if ! push_out="$("$GIT_LOCK_PUSH" --ff-only "$path" 2>&1)"; then
   handback git-lock-push "$EX_PUSH" "push failed (merge + tag are committed locally; retry push): $push_out"
 fi
+# id:5fe2 — FROM HERE ON the remote HAS the merge + tag: every later handback is
+# LANDED-BUT-UNFINISHED, never a retryable defer. Set immediately after the push returns 0.
+pushed=1
 
 # ── step 9: worktree-retire (id:373e force-free; id:6e02 scope = EXACTLY this pair). ──
 #    No globbing, no discovery — the two artifacts named on the command line, nothing else.

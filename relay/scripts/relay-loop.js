@@ -1542,21 +1542,32 @@ const mechArg = (v) => "'" + String(v == null ? '' : v)
   .replace(/\s+/g, ' ')
   .trim() + "'"
 // id:087b — parse integrate.sh's KEY=VALUE stdout contract into the object integrate()
-// consumes. Shape mirrors INTEGRATE_SCHEMA (kept above as the documented contract). Returns
-// `{merged:false, reason}` for MECH-ERROR / the id:3557 MECH-OK empty-stdout sentinel / any
-// stdout without a `merged=` line — a handback, never an invented success.
+// consumes. Shape mirrors INTEGRATE_SCHEMA (kept above as the documented contract).
+//
+// id:5fe2 — THREE outcomes, not two. A failed integrate is NOT uniformly retryable:
+//   • merged:true                    — the full sequence completed (the stdout contract).
+//   • landedUnfinished:true          — integrate.sh handed back at a POST-push step
+//     (retire/state-write/strong-state): the merge is COMMITTED, TAGGED and PUSHED and
+//     only a tail step failed. `merged` stays FALSE so the caller never takes the success
+//     path, but `deferred` is FALSE too — re-running integrate.sh would fail forever at
+//     merge/isolation. Such a unit is SURFACED for completion, never re-merged.
+//   • deferred:true                  — a PRE-push handback (incl. push(27) itself, where
+//     the push FAILED so the remote is untouched), the id:3557 MECH-OK empty-stdout
+//     sentinel, or unparseable output. Retry is correct, exactly as before this landed.
+// The discriminator is integrate.sh's STDERR block (`handback=<step>` plus, only when the
+// push already succeeded, `landed=true` + `merged=<sha>`) — stderr because
+// mechanical-proxy.py discards a non-zero-exit child's stdout.
 function parseIntegrateResult(raw) {
   const text = (raw == null) ? '' : String(raw)
-  if (/^MECH-ERROR exit=/.test(text) || /^MECH-OK exit=0/.test(text)) {
-    return { merged: false, reason: `integrate.sh handback: ${text.replace(/\s+/g, ' ').trim().slice(0, 900)}` }
-  }
+  const sentinel = /^MECH-ERROR exit=/.test(text) || /^MECH-OK exit=0/.test(text)
   const out = { merged: false, siblingBranches: [] }
+  let handbackStep = '', landed = false, mergedSha = '', remaining = '', ckptRecorded = null
   for (const line of text.split('\n')) {
     const eq = line.indexOf('=')
     if (eq <= 0) continue
     const k = line.slice(0, eq).trim()
     const v = line.slice(eq + 1).trim()
-    if (k === 'merged' && v) out.merged = true
+    if (k === 'merged' && v) { out.merged = true; mergedSha = v }
     else if (k === 'ckpt') out.ckptTag = v
     else if (k === 'push') out.pushStatus = v
     else if (k === 'ts') out.ts = v
@@ -1564,10 +1575,31 @@ function parseIntegrateResult(raw) {
     else if (k === 'openRoutine') out.openRoutine = Number(v) || 0
     else if (k === 'openHard') out.openHard = Number(v) || 0
     else if (k === 'sibling' && v) out.siblingBranches.push(v)
+    else if (k === 'handback' && v) handbackStep = v
+    else if (k === 'landed') landed = (v === 'true')
+    else if (k === 'remaining') remaining = v
+    else if (k === 'ckptRecorded') ckptRecorded = (v === 'true')
+  }
+  if (handbackStep || sentinel) {
+    // A handback, never an invented success — `merged` is forced false in BOTH branches.
+    const reason = `integrate.sh handback: ${text.replace(/\s+/g, ' ').trim().slice(0, 900)}`
+    if (landed && mergedSha) {
+      return {
+        merged: false, landedUnfinished: true, deferred: false,
+        handbackStep, mergedSha, ckptTag: out.ckptTag || '',
+        pushStatus: out.pushStatus || 'pushed', remaining, ckptRecorded, reason,
+      }
+    }
+    return { merged: false, landedUnfinished: false, deferred: true, handbackStep, reason }
   }
   if (!out.merged) {
+    out.landedUnfinished = false
+    out.deferred = true
     out.reason = `integrate.sh produced no merged= line (unparseable integrator output): ${text.replace(/\s+/g, ' ').trim().slice(0, 900)}`
+    return out
   }
+  out.landedUnfinished = false
+  out.deferred = false
   return out
 }
 // Shared shape for BOTH cache-bypassed classifier hops — id:907e's post-handback
@@ -3104,7 +3136,7 @@ async function integrate(unit, report) {
     // A dispatch failure is NOT evidence the merge did or did not land — integrate.sh is
     // idempotent enough to re-run (every mutating step is guarded), so record a handback and
     // let the next round retry rather than inventing a merged=true.
-    result = { merged: false, reason: `integrate.sh mechanical hop failed to dispatch (${(err && err.message) || err}) — no merged= line was returned; the worktree stays on disk for a retry` }
+    result = { merged: false, landedUnfinished: false, deferred: true, reason: `integrate.sh mechanical hop failed to dispatch (${(err && err.message) || err}) — no merged= line was returned; the worktree stays on disk for a retry` }
   }
   if (result && result.merged) {
     if (result.ts) state.ts = result.ts
@@ -3158,6 +3190,33 @@ async function integrate(unit, report) {
     if (report && unit.verdict === 'review') {
       logGamingFlags(unit.repo, state.runId, report, result.ts || state.ts)
     }
+  } else if (result && result.landedUnfinished) {
+    // ── id:5fe2 — LANDED-BUT-UNFINISHED, the third outcome ────────────────────────────
+    // integrate.sh handed back at a POST-push step, so the merge is already COMMITTED,
+    // TAGGED and PUSHED. This branch exists so the unit is NEVER re-merged: re-running
+    // integrate.sh fails forever at merge/isolation (the branch is already an ancestor of
+    // main), which is exactly how the old uniform-defer treatment wedged the pool.
+    //
+    // It deliberately does NOT take the success path either — the tail steps named in
+    // `remaining` did not run, so counting this in state.completed would assert a
+    // completion that never reached the state write / push-seed. Instead it is SURFACED as
+    // a handback whose reason names the merged sha, the ckpt tag, the failing step and the
+    // exact steps that did not run, so a supervised reconcile finishes it by hand.
+    if (result.ts) state.ts = result.ts
+    const ckptNote = result.ckptRecorded === true
+      ? `relay.toml last_ckpt was RECONCILED to ${result.ckptTag || '?'} (it matches the pushed remote)`
+      : `relay.toml last_ckpt could NOT be reconciled and may be STALE vs the pushed ${result.ckptTag || '?'} — record it by hand`
+    const landedReason = `id:5fe2 LANDED-BUT-UNFINISHED integrate for ${unit.repo}${workedIds.length ? ' (ids ' + workedIds.join(',') + ')' : ''}: the merge is COMMITTED, TAGGED and PUSHED (merged=${result.mergedSha || '?'}, ckpt=${result.ckptTag || '?'}) but integrate.sh handed back at the POST-push step '${result.handbackStep || '?'}'. DO NOT re-merge or re-dispatch — a retry fails forever at merge/isolation. Steps that did NOT run: ${result.remaining || 'unknown'}. ${ckptNote}. The worktree ${report.worktree} and branch ${report.branch} are still on disk for a supervised reconcile. Integrator output: ${result.reason || ''}`
+    log(`relay-loop: ${landedReason}`)
+    // workCreated:false — a post-push tail failure writes no new dispatchable work; it is
+    // pure operator residue, so it must not keep the drain loop spinning.
+    state.handbacks.push({ repo: unit.repo, reason: landedReason, worktreePath: report.worktree, workCreated: false, landedUnfinished: true })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: landedReason })
+    emittedHandbackEvents.push({ repo: unit.repo, reason: landedReason })  // id:1735 — invariant backstop
+    // The post-integrate state was never settled (no push-seed ran), so never cache 'idle'
+    // here: DELETE the entry so the repo re-classifies next round (id:c855 fail-open).
+    state.discoverCache = state.discoverCache || {}
+    delete state.discoverCache[unit.repo]
   } else {
     const reason = (result && result.reason) || 'integration failed'
     // id:c919 — workCreated: did THIS handback cause new dispatchable work to be written?
