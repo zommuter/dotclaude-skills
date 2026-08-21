@@ -25,7 +25,15 @@
 #
 # Usage: ledger-slice.sh --repo <name> --path <repo-path> --id <4-hex> [--out <file>]
 #   --out omitted ⇒ a run-stable path under ~/.cache/relay/slices/ is minted and printed.
-# Prints the slice path on stdout. SIDE-EFFECT-FREE apart from writing that one file.
+#
+# STDOUT CONTRACT (id:35b7 — ADDITIVE, the path stays the LAST line):
+#   slice-bytes: <N>        # the written slice's real size, measured here on the host
+#   <path>                  # the slice path — unchanged, still the last non-empty line
+# The byte count exists so the pre-dispatch prompt-size gate can size the unit on the SLICE
+# instead of on the ledgers (relay/scripts/prompt-size-gate.mjs). It MUST be measured, never
+# assumed: the gate exists because an unmeasured estimate let loderite through by 326 tokens.
+# Consumers that only want the path keep taking the last line and are unaffected.
+# SIDE-EFFECT-FREE apart from writing that one file.
 # Exit 0 = slice written; 2 = misuse; 4 = the id owns no ROADMAP.md item (LOUD, never a
 # silent empty slice — id:4347).
 set -euo pipefail
@@ -187,4 +195,6 @@ trap '[ -e "$tmp" ] && rm -- "$tmp"' EXIT
 
 mv -- "$tmp" "$out"
 trap - EXIT
+# id:35b7 — additive stdout contract: the measured slice size first, the path LAST (unchanged).
+printf 'slice-bytes: %s\n' "$(wc -c < "$out" | tr -d '[:space:]')"
 printf '%s\n' "$out"
