@@ -347,6 +347,7 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
     "ckpt-tag.sh", "quota-stop.sh",
     "worktree-retire.sh",  # id:4df8/1f8e — the force-free context-death retirement wrapper; missing here 404s retireDeadWorktree()'s model:'bash' dispatch (id:5bbb completeness-test gap, observed live run relay-20260729-142725-13077)
     "provision-worktree.sh",  # id:34b7 — pre-dispatch parent-side worktree creation + gitignored-artifact provisioning; missing here 404s provisionWorktree()'s model:'bash' dispatch
+    "ledger-slice.sh",  # id:e68f — pre-dispatch ledger slice (item block + typed edges → a file, path on stdout); missing here 404s sliceLedgerForUnit()'s model:'bash' dispatch. Fail-open by design: a refused hop just means the child gets the unsliced brief.
     "stranded-branch-scan.sh",  # id:dd7d — pre-dispatch + integrate stranded/sibling committed-branch scan; missing here 404s strandedBranchesFor()'s model:'bash' dispatch
     "integrate.sh",  # id:087b — THE mechanical integrator (merge/tick/bump/changelog/archive/tag/push/retire/state-write). Missing here refuses the hop -> FAIL-OPEN to the real model, which would silently resurrect an LLM on the merge-to-main critical path. It calls the other helpers itself, so only this one basename is needed.
 ])

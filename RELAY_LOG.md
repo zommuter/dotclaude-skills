@@ -6177,3 +6177,26 @@ integrate id:4a76 — human-lane verdict so a repo blocked entirely on the owner
 ## 2026-08-21 08:55 — integrate (claude-opus-5)
 
 integrate id:087b — integrate() rewired to the mechanical integrate.sh hop; no LLM agent remains on the merge-to-main path. Bump trigger fail-closed pre-merge (HANDBACK[bump] exit 30) per the 2026-08-21 ship-as-is ruling
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:e68f — added `relay/scripts/ledger-slice.sh` (host-side pre-dispatch ledger slicer)
+and wired it into `relay-loop.js` as a mechanical `model:'bash'` hop (`sliceLedgerForUnit`),
+stamping `unit.slice_path` before the prompt is assembled; both named briefs
+(`executeNamedInstruction` / `hardNamedInstruction`) now open with a shared `sliceInstruction()`
+that hands the child the PATH. Registered the script in the Makefile relay manifest
+(FILES/EXEC/ALLOW) and in `mechanical-proxy.py`'s `ALLOWED_RELAY_SCRIPTS` (without which the hop
+404s). Dogfooded: this repo's `id:b018` slices to 3,854 B against 1,157,395 B of ROADMAP+TODO.
+Honoured id:9663 — every comment and the child-facing wording says LOWERS THE DEFAULT, never
+"cannot over-read"; the child keeps Read/Bash and the checkout (banked deny-probe id:5937).
+Friction: the RED spec's fixture puts the `<!-- gated-on:2222 -->` edge on a SIBLING line ABOVE
+the item, which `resolve-gates.sh` does not read (it only scans the checkbox line) — the slicer
+walks back over bare comment lines to cover both placements. `children-of:` has no extractor in
+`lib-typed-edges.sh`; added a local anchored one rather than widening the shared lib while a
+sibling executor is in flight. `make test` failed twice on repo-wide lints I tripped
+(`rm -f` in a trap; unregistered script in the Makefile manifest) — both real, both fixed.
+`test_integrate_sh_mechanized.sh` failed in the full suite and PASSED standalone: the known
+id:7518 flake, not a regression.
+refactor: reused `lib-typed-edges.sh` for every id/edge lookup instead of hand-rolling a bare
+`grep id:XXXX` (the id:c97c define-vs-refer defect), and extracted the child-facing slice
+sentence into one shared `sliceInstruction()` rather than duplicating it into both briefs.
