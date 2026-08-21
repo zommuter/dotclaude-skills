@@ -6373,3 +6373,20 @@ long` death on the child-failure path (overlaps the still-open id:61fa) and (c) 
 bounded allowance into the gate itself are both still open. The item should stay OPEN.
 refactor: replaced the duplicated inline arrow with the shared module function so the brief
 text now has exactly one authoritative source, pinned by the byte-equivalence check.
+## 2026-08-21 — executor (sonnet-class)
+
+Mechanized the single-id-two-views twin tick in `relay/scripts/roadmap-tick.sh`. Since
+contract-v12 moved the execute child's ROADMAP tick into the driver, "tick the TODO twin
+too" survived only as prose in one LLM prompt (relay-loop.js's review child, which
+`--exclude review` can disable), so every mechanical integrate drifted another pair —
+id:e68f/bc2b/b018/4a76 were all TODO:[ ] ROADMAP:[x]. roadmap-tick.sh now converges the
+TODO.md twin whenever the id's ROADMAP line reads [x] (flipped now or already ticked, so
+it self-repairs), through the flock'd `meeting/md-merge.py update-ids` as an in-lock
+`regex_sub` — never a hand-rolled sed on a shared non-union ledger, never `--append`
+(id:e166 moves the marker off the checkbox line). Missing twin = clean no-op; a twin that
+exists but fails to write = loud exit 1, with a post-write assertion that the marker still
+sits on a checkbox-leading line. Repaired the four drifted items; `orphan-scan.sh
+--cross-ledger .` is now empty.
+Friction: `awk -v` processes escape sequences, so passing a `^- \[ \]` regex as a variable
+silently degrades it into a character class — the checkbox probe matches by literal prefix
+instead. Did NOT touch relay-loop.js (a sibling executor holds it).
