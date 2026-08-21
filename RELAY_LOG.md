@@ -6284,3 +6284,7 @@ refactor: extracted ONE `demoteSuppressedUnit()` helper rather than copying the 
 + escape-handling logic into both suppression sites, and folded the exclusion into a single
 `allow()` predicate instead of threading an excluded-set test through each of the eight
 cascade branches by hand.
+
+## 2026-08-21 09:35 — integrate (claude-opus-5)
+
+integrate id:bc2b — suppression demotes instead of dropping; a stuck item no longer starves every lower verdict class (the loderite 57d1 starvation shape)
