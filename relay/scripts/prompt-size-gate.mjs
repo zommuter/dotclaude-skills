@@ -50,10 +50,80 @@ export const CHARS_PER_TOKEN = 4
 // fires on the ledger that actually killed a child and not on the one that does not.
 export const DISPATCH_TOKEN_BUDGET = 100000
 
+// ── MEASURED RE-DERIVATION, 2026-08-21/22 (id:299c(c)). THRESHOLD DELIBERATELY UNCHANGED. ──
+//
+// Everything below is EVIDENCE for an owner decision on id:299c(c). Nothing here changes a
+// comparison or a cap; DISPATCH_TOKEN_BUDGET above is still 100,000 and every unit that
+// dispatches today still dispatches. Raising it is the owner's call, not an executor's.
+//
+// (1) WHAT THE CEILING ACTUALLY IS — MEASURED (id:10dc, seven real delegated-agent transcripts,
+//     2026-08-21). Delegated Sonnet children die at an effective ceiling of ~175,000 tok; the
+//     last SUCCESSFUL requests before death measured 172,450 / 171,959 / 174,207 tok. That is
+//     consistent with a 200,000-token window minus a ~24,000-token output reserve
+//     (200,000 - 24,000 = 176,000). A FULL-TIER control ran 200,534 input tokens successfully,
+//     so ~175k is a delegated-child/harness ceiling, NOT a universal 200k wall. Deaths were
+//     strictly monotonic accumulation — no single oversized request — and the agent's own
+//     OUTPUT often exceeded everything it read.
+//
+// (2) WHAT THE PREAMBLE COSTS — MEASURED (same transcripts): ~58,600 tok are consumed BEFORE
+//     the child's first tool call (harness system prompt + CLAUDE.md + memory index + tool
+//     definitions). This is the number FIXED_OVERHEAD_TOKENS below is trying to be, and it is
+//     ~4.9x larger than the 12,000 that constant currently carries.
+//
+// (3) THE IMPLIED WORKING BUDGET — DERIVED from (1) and (2):
+//         175,000 (measured ceiling)
+//       -  58,600 (measured preamble)
+//       = 116,400 tok available for the dispatch payload PLUS all in-session growth.
+//     The gate's own accounting today is `bytes/4 + FIXED_OVERHEAD_TOKENS <= 100,000`, i.e.
+//     a real payload allowance of 100,000 - 12,000 = 88,000 tok. So the gate sits ~28,400 tok
+//     BELOW the measured working budget (88,000 vs 116,400) — but note the measured budget must
+//     also absorb tool results, edits and the child's own output, which is where the deaths
+//     actually happened. The 28.4k gap is not slack the gate is wasting; it is the only
+//     working room the child has. Two independently-wrong numbers (a 12k preamble against a
+//     100k cap) currently compose into an approximately right verdict.
+//
+// (4) THE GATE MEASURES A PROXY, NOT THE PROMPT — VERIFIED against relay-loop.js (unitPrompt,
+//     ~line 2784, sliced with grep/sed; 2026-08-22). unitPrompt() interpolates instructions,
+//     paths, `unit.reason` and the return schema. It EMBEDS NO LEDGER BYTES AT ALL. The
+//     ledgers reach the child as TOOL RESULTS, if and when it reads them. So `roadmap_bytes` /
+//     `todo_bytes` are not prompt text: they are a forecast of the child's first reads. Say it
+//     plainly — this gate is a dispatch-time forecast of run-time consumption, not a
+//     measurement of the assembled prompt. That is defensible (the contract requires those
+//     reads) but it means the number being compared to the cap and the number that kills
+//     children are different quantities, and only the second one is causal.
+//
+// (5) THE RECORDED COUNTER-CASE (ROADMAP.md id:4f9b/id:93cc): a real pool child died with
+//     `Prompt is too long` at roadmap_bytes = 254,087 (254,087/4 = 63,522 tok). The gate's
+//     estimate for that unit was ~77k against the 100k cap, so it CORRECTLY did not fire — the
+//     child then created its worktree and committed 566 lines before dying. Recorded verdict:
+//     "the death was in-session context growth, not prompt assembly." id:4f9b closes the
+//     DISPATCH-TIME half. THE RUN-TIME HALF IS UNCOVERED — nothing in this file, or anywhere
+//     else in the pool, watches a child's context grow after dispatch.
+//
+// (6) ⚠ WARNING — THE CRUX OF THE id:299c(c) DECISION. Raising this cap toward the measured
+//     ~116k budget WITHOUT run-time protection does not buy more completed work; it converts a
+//     LOUD, SAFE REFUSAL into a SILENT MID-WORK DEATH. A refusal costs nothing: no worktree is
+//     created, no work is lost, the repo is surfaced with a named cause and a remedy. A
+//     mid-work death costs everything the child had done: three such deaths on 2026-08-21 each
+//     stranded 130,000-200,000 tokens of UNCOMMITTED work, surfaced only as the generic "child
+//     agent failed/skipped". MORE DISPATCHES THAT DIE IS NOT AN IMPROVEMENT OVER FEWER THAT
+//     REFUSE. If the cap is raised, the run-time half (a growth watchdog, or forced incremental
+//     commits so a death loses at most one step) should land FIRST or in the same change.
+//
+// PROVENANCE: (1) and (2) are MEASURED from transcripts (id:10dc). (3) is DERIVED arithmetic
+// over them. (4) is VERIFIED by reading relay-loop.js. (5) is RECORDED in ROADMAP.md
+// (id:4f9b/id:93cc), not re-measured here. (6) is analysis of (1)-(5), and is the recommendation
+// this file offers — the decision itself is the owner's.
+
 // Fixed overhead every child pays on top of its dispatch prompt and the ledgers, in tokens:
 // the executor contract (~5.5k, measured id:9eb7) plus conventions.md (~4k) plus the harness
 // system prompt and tool definitions. Counted so the budget is measured against what the child
 // really carries, not just the things we can size directly.
+//
+// UNCHANGED, but now KNOWN LOW: the measured preamble is ~58,600 tok, not 12,000 — see item (2)
+// of the MEASURED RE-DERIVATION block above (id:299c(c)). Correcting this constant alone, with
+// the cap left at 100,000, would tighten the gate by ~46,600 tok and refuse units that dispatch
+// safely today. The two numbers must be re-derived TOGETHER, by the owner.
 export const FIXED_OVERHEAD_TOKENS = 12000
 
 // id:b018 — WHICH ledgers count. The 4f9b gate sized ROADMAP.md ALONE, and loderite passed by
