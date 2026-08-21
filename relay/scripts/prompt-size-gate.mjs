@@ -110,10 +110,55 @@ export const DISPATCH_TOKEN_BUDGET = 100000
 //     REFUSE. If the cap is raised, the run-time half (a growth watchdog, or forced incremental
 //     commits so a death loses at most one step) should land FIRST or in the same change.
 //
+// (7) OWNER RULING, 2026-08-22 (id:299c(c)): FIX THE REMEDY TEXT; THE 100k CAP STAYS.
+//     DISPATCH_TOKEN_BUDGET remains 100,000 DELIBERATELY, not by omission. A later reader who
+//     redoes the arithmetic in (3) and finds ~116k must NOT "helpfully" raise it: while the
+//     run-time half (5) is uncovered, raising the cap trades a loud, LOSSLESS refusal for a
+//     silent mid-work death, and A DEAD CHILD NEVER COMMITS. Re-open this only together with
+//     run-time protection.
+//
+// (8) WHICH REMEDY IS THE REAL ONE — corrected ordering, and the measurements behind it.
+//     FIRST LEVER: the id:e68f ledger SLICE. The orchestrator writes the dispatched item plus
+//     its typed edges to a file and hands the child a path — MEASURED 3,854 B against
+//     1,157,395 B of combined ledgers (~300x). If a unit reached this gate unsliced, the
+//     question is why ledger-slice.sh produced no `slice_path`, not which archiver to run.
+//     SECOND LEVER: shrink the dispatched ITEM — split it into seams, or move its prose into a
+//     linked meeting note and leave the acceptance criteria in the ledger.
+//     ARCHIVING IS THIRD AND CONDITIONAL. roadmap-archive.sh / archive-done.sh move DONE
+//     `- [x]` items ONLY, so on a ledger whose bulk is OPEN they move nothing. MEASURED on this
+//     repo 2026-08-21: TODO.md is 95.6% OPEN — 881,247 of 921,603 chars, 548 open items and
+//     ZERO closed; ROADMAP.md is 12.3% open items / 14.6% closed / 73.1% sub-bullet prose. On
+//     this repo archiving is a dead end, and the adjacent ROADMAP note records it barely
+//     shrinks the live file even when it does fire, since one stub line accrues permanently per
+//     archived item. (These figures SUPERSEDE the older "529 open / 1 closed" and "904,586 B"
+//     counts quoted in the id:35b7/id:7575 comments below, which are frozen inside byte-parity
+//     regions — the direction of the finding is unchanged, only the magnitudes are fresher.)
+//
+// (9) A RUN-TIME DEATH NEEDS A DIFFERENT FIX FROM A DISPATCH-TIME REFUSAL. This gate covers
+//     dispatch-time ONLY: it can refuse to start a unit. It cannot do anything about a child
+//     that started within budget and then accumulated its way past ~175k — which is what (5)
+//     actually was. Conflating the two is the documented reason the wrong remedy kept being
+//     recommended: an operator handed a "shrink your ledgers" line for a death that ledger size
+//     did not cause will archive, re-run, and die again. The run-time half wants a growth
+//     watchdog or forced incremental commits, not a bigger or smaller number here.
+//
+// RESIDUAL (be honest about what this change did NOT do): (8) and (9) are recorded HERE, in the
+// comments, and are only PARTLY reflected in the strings the gate actually EMITS. The emitted
+// remedy already names the slice lever first and marks archiving conditional (id:35b7, asserted
+// by tests/test_prompt_size_gate_slice_35b7.sh) — but the unsliced branch's closing clause still
+// says "splitting the ledger or pruning stale open items" rather than splitting the dispatched
+// ITEM, and no emitted string carries (9)'s dispatch-time-vs-run-time distinction. Those strings
+// live inside oversizeDispatchReason/countedLedgersFor, whose bodies are pinned BYTE-IDENTICAL
+// to inline copies in relay-loop.js (tests/test_prompt_size_gate_{4f9b,review_7c5f}.sh extract
+// the function bodies and require a verbatim match), so changing them REQUIRES the matching edit
+// in relay-loop.js — out of this change's ownership. Same for sliceInstruction, which has an
+// unpinned but real inline copy at relay-loop.js:2666 that would silently diverge.
+//
 // PROVENANCE: (1) and (2) are MEASURED from transcripts (id:10dc). (3) is DERIVED arithmetic
 // over them. (4) is VERIFIED by reading relay-loop.js. (5) is RECORDED in ROADMAP.md
-// (id:4f9b/id:93cc), not re-measured here. (6) is analysis of (1)-(5), and is the recommendation
-// this file offers — the decision itself is the owner's.
+// (id:4f9b/id:93cc), not re-measured here. (6) is analysis of (1)-(5). (7) is the OWNER'S
+// RULING of 2026-08-22, not a derivation. (8)'s percentages are MEASURED on this repo
+// 2026-08-21; its lever ordering follows from them. (9) is analysis.
 
 // Fixed overhead every child pays on top of its dispatch prompt and the ledgers, in tokens:
 // the executor contract (~5.5k, measured id:9eb7) plus conventions.md (~4k) plus the harness
