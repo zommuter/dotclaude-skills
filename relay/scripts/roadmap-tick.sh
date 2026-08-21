@@ -45,8 +45,11 @@
 #   - flock-guarded (shares nothing with archive); logs detail to ~/.claude/logs.
 #   - Prints one short line: "roadmap-tick: ticked <ids>" (or "nothing to tick").
 #
-# The caller (the integrator) is responsible for `git add -- ROADMAP.md` + commit iff the
-# file actually changed (scoped-staging invariant id:debf) — this script only edits the file.
+# This script performs NO git mutation — it only EDITS files. The caller (the integrator)
+# is responsible for `git add -- ROADMAP.md TODO.md` + commit iff a file actually changed
+# (scoped-staging invariant id:debf — scoped paths only, never `-A`/`.`/`-u`). BOTH ledgers
+# must be staged: the twin write below dirties TODO.md too, and staging ROADMAP.md alone
+# stranded TODO.md uncommitted in the canonical checkout until the repo wedged (id:e82e).
 set -euo pipefail
 
 REPO_ROOT="${1:-$(git rev-parse --show-toplevel)}"
