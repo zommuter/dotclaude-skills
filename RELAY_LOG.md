@@ -6169,3 +6169,7 @@ binary reimplements both scripts, so parity goes RED until it adopts this.
 refactor: none needed — one new elif in the classifier plus one counter in the producer, both
 reusing the existing `HUMAN_GATES` / `in_exempt_section` predicates rather than adding a
 parallel lane list.
+
+## 2026-08-21 08:48 — integrate (claude-opus-5)
+
+integrate id:4a76 — human-lane verdict so a repo blocked entirely on the owner no longer reads as design-drained; classify-repo.sh gains open_human_lane + the missing [INPUT — author] lane
