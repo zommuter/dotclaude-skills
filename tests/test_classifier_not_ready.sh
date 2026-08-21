@@ -80,7 +80,21 @@ pass "(1b) control without the marker still classifies execute"
 # ═══ Class 2: typed gated-on edge, resolved against the target checkbox ═══════
 
 # (2a) gated-on → target OPEN (in ROADMAP, human-laned) → the gated item is NOT
-#      actionable → verdict=idle.
+#      actionable.
+#
+#      STRENGTHENED, roadmap:4a76 (2026-08-21). This case originally asserted the
+#      not-actionable FACT through a verdict PROXY (`verdict == idle`). That proxy is
+#      exactly the false-clean id:4a76 was filed against: the fixture below IS the
+#      measured csgebra shape — every executable item gated-on an open [INPUT — *] root,
+#      zero poolable work — and `idle` renders as `design-drained` on control-board.sh
+#      while the repo is in fact WAITING ON A HUMAN. `roadmap:4a76`'s ratified acceptance
+#      requires that shape to classify `human`, and its spec
+#      (tests/test_classify_verdict_human_drained_4a76.sh, case B) asserts it directly.
+#      So the ASSERTION IS NOT WEAKENED — it is made verdict-INDEPENDENT: this case now
+#      checks the underlying claim (`actionable_routine_open == 0`, which is what "the
+#      gated item is NOT actionable" actually means and what the id:65f5 exclusion owns)
+#      AND pins the new verdict. A regression that let the gate stop blocking would flip
+#      actionable_routine_open to 1 and fail here exactly as before.
 R2="$TMP/r_gated_open"; mkrepo "$R2"
 cat > "$R2/ROADMAP.md" <<'EOF'
 # Roadmap
@@ -91,8 +105,10 @@ EOF
 printf '# TODO\n## Current\n' > "$R2/TODO.md"
 commit_repo "$R2"; ckpt_head "$R2"
 v="$(verdict_of "$R2")"
-[[ "$v" == "idle" ]] || fail "(2a) [ROUTINE] item gated-on an OPEN target must be blocked (expected idle, got $v)"
-pass "(2a) gated-on with OPEN target blocks (idle)"
+aro="$(classify "$R2" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("actionable_routine_open","<<MISSING>>"))')"
+[[ "$aro" == "0" ]] || fail "(2a) [ROUTINE] item gated-on an OPEN target must be excluded from actionable_routine_open (expected 0, got $aro)"
+[[ "$v" == "human" ]] || fail "(2a) a repo whose only executable item is gated-on an open [INPUT — *] root is WAITING ON A HUMAN (roadmap:4a76), expected human, got $v"
+pass "(2a) gated-on with OPEN target blocks (actionable_routine_open=0) → human, not a false-clean idle"
 
 # (2b) gated-on → target DONE ([x]) → the edge does NOT block → verdict=execute.
 #      (Live-ROADMAP regression class: done items still carry the edge; an

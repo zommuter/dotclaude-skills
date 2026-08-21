@@ -18,7 +18,14 @@
 #                    reachable (that would restore the rejected 1:1 apex-review-per-execute cost).
 #   3: hard        — open [HARD — pool] items (open_hard_pool >= 1)
 #   4: handoff     — promotable TODO backlog (promote > 0)
-#   5: human       — surface-only backlog (promote == 0, surface > 0); no apex dispatch (id:5eb3)
+#   5: human       — EITHER a surface-only backlog (promote == 0, surface > 0; id:5eb3)
+#                    OR a HUMAN-LANE-ONLY backlog (id:4a76): roadmap_open > 0 AND every
+#                    executable lane is zero AND open_human_lane >= 1 — i.e. the repo's whole
+#                    remaining backlog sits on a human ([INPUT — *] lane, or @manual).
+#                    Before 4a76 that state fell through to `idle`, which
+#                    control-board.sh renders `design-drained` — so helferli (18 open, ALL
+#                    [INPUT — …]) and csgebra (13 open, all gated-on: an [INPUT — decision]
+#                    root) read as FINISHED. No apex dispatch either way.
 #   6: mechanical  — open [MECHANICAL] ROADMAP items (open_mechanical >= 1), nothing higher-
 #                    priority; POOL-INERT (id:7616) — a host daemon dispatches it (A3, gated),
 #                    never the LLM pool. intensive stays "" (id:5ac6 invariant untouched).
@@ -67,6 +74,16 @@ open_mechanical       = int(data.get("open_mechanical", 0))
 # the spec), never idle — the spec is missing, not the work. Absent on pre-field callers
 # (sentinel 0 → no behaviour change).
 surfaced_open         = int(data.get("surfaced_open", 0))
+# id:4a76 — HUMAN-LANE open count: open ROADMAP items whose disposition is a HUMAN
+# ([INPUT — meeting|decision|access|author], the old [HARD — hands|meeting|decision gate]
+# spellings, or @manual). Derived by classify-repo.sh from
+# ROADMAP.md; the lane set is enumerated from relay/references/hard-lanes.md (FOUR INPUT
+# lanes — several restatements say three and silently drop [INPUT — author]).
+# BACK-COMPAT: absent on any caller predating the field -> sentinel 0 -> the human-drained
+# branch below can never fire, so such a caller is byte-identical to its pre-4a76 behaviour
+# (same sentinel discipline as id:4da4 / id:7616).
+open_human_lane       = int(data.get("open_human_lane", 0))
+roadmap_open          = int(data.get("roadmap_open", 0))
 # id:8123 — CHAIN-END fact. The relay loop supplies only the FACT that a chain just ended for
 # this repo; THIS classifier decides the verdict, so there is no loop-side bypass and the
 # function stays pure (a function of its stdin object alone). Accepted spellings: the boolean
@@ -245,6 +262,37 @@ elif surface > 0:
     ).format(surface)
     evidence.append({"field": "unpromoted.promote", "value": 0,       "source": "unpromoted-scan"})
     evidence.append({"field": "unpromoted.surface", "value": surface,  "source": "unpromoted-scan"})
+
+elif roadmap_open > 0 and open_human_lane > 0 and open_mechanical == 0:
+    # id:4a76 — HUMAN-LANE-DRAINED. Every executable lane is empty (no actionable [ROUTINE],
+    # no unaudited commits, no [HARD — pool], no promotable/surface TODO backlog, no open
+    # [MECHANICAL]) YET the ROADMAP still carries open items, at least one of which sits on a
+    # human. That repo is BLOCKED ON THE OWNER, not finished — before this branch it fell
+    # through to `idle`, and control-board.sh:162 renders idle as `design-drained` while its
+    # "Waiting on a human" section only collects needs-feedback/blocked. Measured 2026-08-21:
+    # helferli (18 open, ALL [INPUT — …], zero poolable) and csgebra (13 open, all executable
+    # items gated-on: the 940f [INPUT — decision] root) both read as DONE, 31 items between
+    # them. `human -> needs-feedback` already lands in the right board section, so the fix is
+    # HERE and control-board.sh needs no change.
+    #
+    # THREE conjuncts, all required — collapsing any of them makes `human` over-fire and every
+    # genuinely drained repo would read as blocked:
+    #   roadmap_open > 0      a genuinely empty repo stays idle
+    #   open_human_lane > 0   open items with no human-lane item stay idle
+    #   open_mechanical == 0  real daemon-dispatchable work still reaches the rank-6 branch
+    #                         below (this branch never demotes it)
+    # Ranking is unchanged: every dispatchable class (execute/review/hard/handoff) is an
+    # earlier elif, so a human-lane backlog can never starve the pool (the id:bc2b failure
+    # mode, inverted).
+    verdict       = "human"
+    priority_rank = 5
+    reason        = (
+        "Human-lane-only backlog: {} open ROADMAP item(s), {} of them on a human lane "
+        "([INPUT -- *] or @manual) and ZERO executable work in any lane -- "
+        "the repo is WAITING ON A HUMAN, not drained; no apex dispatch (id:4a76)"
+    ).format(roadmap_open, open_human_lane)
+    evidence.append({"field": "roadmap_open",    "value": roadmap_open,    "source": "classify-repo"})
+    evidence.append({"field": "open_human_lane", "value": open_human_lane, "source": "classify-repo"})
 
 elif open_mechanical >= 1:
     # id:7616 — MECHANICAL-only backlog: pure-compute open items, nothing higher-priority

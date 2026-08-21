@@ -85,9 +85,16 @@ import json, os, re, sys
 # `[HARD — <lane>]` spelling and the NEW capability-keyed `[INPUT — <lane>]` spelling
 # are recognized as human gates, equivalently. `[HARD]`/`[HARD — pool]` are equivalent
 # pool tags (see LANE_TAGS/is_pool below).
+# id:4a76 — the lane set is enumerated from relay/references/hard-lanes.md ("North star —
+# capability-keyed vocabulary"), which lists FOUR [INPUT — *] lanes: meeting, decision,
+# access, AUTHOR. "[INPUT — author]" (human-expert-authored prose) was missing here; several
+# restatements of the vocabulary say "three INPUT lanes", and an exclusion set built from
+# that narrowing silently misses it. Adding it is purely ADDITIVE for the dispatch gates —
+# it was not in LANE_TAGS either, so such an item already contributed to no executable
+# count; it now correctly counts as a human lane (see open_human_lane below).
 HUMAN_GATES = (
     "[HARD — hands]", "[HARD — meeting]", "[HARD — decision gate]",
-    "[INPUT — meeting]", "[INPUT — decision]", "[INPUT — access]",
+    "[INPUT — meeting]", "[INPUT — decision]", "[INPUT — access]", "[INPUT — author]",
 )
 # id:4da4 — recognized lane tags, in no particular order; the item's lane is whichever
 # appears FIRST on the line (see the primary-lane parse below). "[HARD]" (bare, no
@@ -151,6 +158,12 @@ actionable_routine_open = 0
 actionable_routine_ids = []
 open_mechanical = 0
 surfaced_open = 0   # id:65f5 class 3: open executor-lane items carrying `⚠ SURFACED`
+# id:4a76 — open items whose disposition is a HUMAN. Feeds classify-verdict.sh's
+# human-lane-drained branch so a repo whose ENTIRE remaining backlog waits on the owner
+# emits `human` (board: needs-feedback) instead of falling through to `idle` (board:
+# design-drained). Parked/exempt sections do NOT count — parked is parked for all lanes,
+# same carve-out every other counter above uses.
+open_human_lane = 0
 
 # id:356f — whole-section gating: a heading whose text names a parked bucket opens an
 # exempt section; any other heading closes it. While in an exempt section, an open
@@ -237,6 +250,22 @@ if os.path.isfile(rm):
             is_owner_gated = "@owner-gated" in ln
             is_human   = (primary in HUMAN_GATES or "@manual" in ln or is_owner_verify
                           or is_container or is_owner_gated)
+            # id:4a76 — HUMAN-LANE count (a strict SUBSET of is_human above). The ratified
+            # acceptance names exactly TWO signals — a human LANE tag ([INPUT — *], and its
+            # old [HARD — hands|meeting|decision gate] spellings) and @manual — so this is
+            # deliberately NARROWER than is_human. The three other dispatch-exclusion MARKERS
+            # are excluded on purpose:
+            #   @container    — a decomposed parent whose SEAMS are the work (id:0cf5); no
+            #                   human owes anything, so counting it would falsely report a
+            #                   seam-decomposed repo as "waiting on a human".
+            #   @owner-verify — tests/test_classifier_not_ready.sh (1a) pins an
+            #                   @owner-verify-only repo at `idle`; widening here would flip
+            #                   that ratified assertion, which is not this item's mandate.
+            #   @owner-gated  — same shape (a marker, not a lane, and not in the acceptance).
+            # Widening to the markers is a separate, owner-decidable question; the safe
+            # direction here is UNDER-reporting, which only ever leaves the old behaviour.
+            if (primary in HUMAN_GATES or "@manual" in ln) and not in_exempt_section:
+                open_human_lane += 1
             # id:4da4 — a [ROUTINE]/@wire item that declares a dependency BLOCK / gate is NOT
             # executor-actionable — the executor can only no-op it (zkm-threema id:180b
             # "[ROUTINE] (BLOCKED on id:7364)" was dispatched execute → empty handback,
@@ -310,6 +339,7 @@ base["actionable_routine_ids"]  = actionable_routine_ids   # id:b09e
 base["roadmap_bytes"]           = roadmap_bytes            # id:4f9b
 base["open_mechanical"]         = open_mechanical
 base["surfaced_open"]           = surfaced_open   # id:65f5 → classify-verdict handoff branch
+base["open_human_lane"]         = open_human_lane # id:4a76 → classify-verdict human branch
 base["unpromoted"]              = {"promote": promote, "surface": surface}
 
 # id:65f5 — flush every collected why-not-ready line to stderr LOUDLY (the exclusions
@@ -492,6 +522,11 @@ unit = {
     # properties allowed), same treatment as actionable_routine_open above. No daemon
     # consumer reads this yet (A3, gated) — it is passthrough plumbing only.
     "open_mechanical": base.get("open_mechanical", 0),
+    # id:4a76 — open human-lane item count. Schema-safe extra field (DISCOVER_SCHEMA units
+    # allow additional properties). It is the EVIDENCE behind a `human` verdict on a
+    # human-lane-drained repo, so /relay human and the control board can say WHO is waited on
+    # instead of rendering the repo `design-drained`.
+    "open_human_lane": base.get("open_human_lane", 0),
 }
 
 # id:5552 — chain-end re-ask fields, set here rather than by a `jq` stage in the caller's
