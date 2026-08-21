@@ -6619,3 +6619,19 @@ integrate id:7c5f (verdict-dependent counted ledger set; shadowed surface STABLE
 ## 2026-08-21 15:15 — reviewer (claude-opus-5)
 
 review relay-ckpt-20260820-2044..HEAD (82 commits): ROADMAP re-derived; id:7575 re-worded to record option (b) shipped with (a)/(c) unbuilt; id:7518 confirmed OPEN on TWO unmet clauses and its prose close-condition recorded as NARROWER than its ratified acceptance; 3 REVIEW_ME boxes opened (3a09 close boundary, ebd0 disarmed-green test, 4 dead gates); gaming-scan 2 hits both false positives; a955 closure verified sound. STATED GAP: the section-2d over-reach check was run only for a955, NOT for each of the ~14 closes against its cited ratified source
+
+## 2026-08-21 — executor (claude-opus-5)
+
+Worked id:6f62 — destructive-git-guard.py's heartbeat probe accepted ANY live marker, so the
+always-beating non-pool `discovery-producer` daemon (id:54fc) made every interactive session
+read as UNATTENDED and get a hard `deny` on a false stated reason. Extracted the pool-run
+predicate `stop-request.sh` already had inline into `relay/scripts/lib-pool-runs.py`; both the
+hook and stop-request.sh now call that ONE definition (a test asserts neither keeps a copy).
+Also: the refusal names the concrete trigger that fired instead of the compound
+`(relay run id / live heartbeat detected)`, and remedy #1 no longer teaches the repo-banned
+tree-wide staging. settings.json untouched — wiring stays the owner's switch.
+Friction: `tests/test_stop_request_target.sh` copies stop-request.sh into a stub bindir, so the
+new shared lib had to be copied beside it — a real dependency of the script under test, not a
+weakened assertion. That was the one suite failure and it is fixed in the fixture, not the test.
+refactor: extracted the duplicated "which runIds are pools" rule into relay/scripts/lib-pool-runs.py
+(one definition, two callers) instead of copy-pasting the exclusion into the hook.
