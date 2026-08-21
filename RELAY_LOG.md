@@ -6353,3 +6353,7 @@ dose-response (started, not finished), and that this is the only live cause.
 
 Friction: the campaign is ~25 min of wall-clock the executor must sit through; a red run is
 data, not a failure, which the runner's exit code cannot express.
+
+## 2026-08-21 11:03 — integrate (claude-opus-5)
+
+integrate id:7518 — cause identified: pipefail + SIGPIPE from an early-exiting pipe consumer (8/400 measured, 0/400 no-pipe control); item stays OPEN, fix filed as id:81d5; adds tests/flake-log.sh
