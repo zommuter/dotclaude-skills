@@ -151,7 +151,7 @@ PRIVACY_RULE_SRC := $(SRC_DIR)/hooks/privacy-gate.claude-rule.md
 LANE_VOCAB_RULE_SRC := $(SRC_DIR)/hooks/lane-vocab.claude-rule.md
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
-.PHONY: help install install-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
+.PHONY: help install install-hooks status-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
         install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test lint gaming-canary shard-canary \
         install-quota-timer status-quota-timer uninstall-quota-timer \
         install-gap-sample status-gap-sample uninstall-gap-sample \
@@ -197,7 +197,8 @@ help:
 	@echo "  print-relay-env      preview the relay env policy entries (read-only)"
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
-	@echo "  status               show symlink state for all skills"
+	@echo "  status               show symlink state for all skills + hooks"
+	@echo "  status-hooks         show hook symlink state + unmanaged-hook drift (id:5218)"
 	@echo "  test                 run the test suite (tests/run-tests.sh); runs lint first"
 	@echo "  test FILES=\"...\"     inner-loop subset (id:d3f8) — NOT the release check, full 'make test' still is"
 	@echo "  lint                 enforce the no-bare-rm-f rule (tools/check-no-bare-rm-f.sh --enforce)"
@@ -312,16 +313,42 @@ install-allowlist:
 		--extra-file $(ALLOWLIST_EXTRA) \
 		$(ALLOWLIST_SCRIPTS)
 
+# Managed-hook manifest (id:5218). ONE list drives BOTH install-hooks and status-hooks,
+# so the "wired in settings.json but a real local file with no counterpart here" drift
+# class (which rm-force-guard.sh was in until 2026-08-21) is visible from `make status`
+# instead of being found by hand. destructive-git-guard.py (id:3a09) is installed but
+# DELIBERATELY NOT wired into settings.json — activation is the owner's.
+HOOK_FILES := meeting-cost-logger.sh parallel-edit-detector.py pathspec-drop-guard.py \
+              memory-index-sync.py meeting-question-guard.py meeting-guard-marker.sh \
+              rm-force-guard.sh destructive-git-guard.py
+
 install-hooks: install-statusline
 	@echo "→ installing hooks"
 	@mkdir -p $(HOOKS_DIR)
-	@ln -sf $(SRC_DIR)/hooks/meeting-cost-logger.sh $(HOOKS_DIR)/meeting-cost-logger.sh
-	@ln -sf $(SRC_DIR)/hooks/parallel-edit-detector.py $(HOOKS_DIR)/parallel-edit-detector.py
-	@ln -sf $(SRC_DIR)/hooks/pathspec-drop-guard.py $(HOOKS_DIR)/pathspec-drop-guard.py
-	@ln -sf $(SRC_DIR)/hooks/memory-index-sync.py $(HOOKS_DIR)/memory-index-sync.py
-	@ln -sf $(SRC_DIR)/hooks/meeting-question-guard.py $(HOOKS_DIR)/meeting-question-guard.py
-	@ln -sf $(SRC_DIR)/hooks/meeting-guard-marker.sh $(HOOKS_DIR)/meeting-guard-marker.sh
+	@for f in $(HOOK_FILES); do ln -sf $(SRC_DIR)/hooks/$$f $(HOOKS_DIR)/$$f; done
 	@ln -sf $(SRC_DIR)/hooks/notify-hook.linux-x11.sh $(HOME)/.claude/notify-hook.sh
+
+# id:5218 — surface hook symlink state AND unmanaged drift. A hook that is a REAL FILE
+# in $(HOOKS_DIR) (rather than a symlink into this repo) is unversioned, unreviewable,
+# absent on every other machine, and lost on a rebuild — report it loudly.
+status-hooks:
+	@echo "hooks:"
+	@trap '' PIPE; for f in $(HOOK_FILES); do \
+		if [ -L $(HOOKS_DIR)/$$f ]; then echo "  ok  $$f -> $$(readlink $(HOOKS_DIR)/$$f)"; \
+		elif [ -e $(HOOKS_DIR)/$$f ]; then echo "  !!  $$f is a REAL FILE, not a symlink (unversioned drift — make install-hooks)"; \
+		else echo "  --  $$f not installed (make install-hooks)"; fi; \
+	done
+	@trap '' PIPE; if [ -d $(HOOKS_DIR) ]; then \
+		for p in $(HOOKS_DIR)/*; do \
+			[ -e "$$p" ] || continue; \
+			b=$$(basename "$$p"); \
+			case " $(HOOK_FILES) " in *" $$b "*) continue;; esac; \
+			echo "  ??  $$b present in $(HOOKS_DIR) but NOT in this repo's manifest (unmanaged)"; \
+		done; \
+	fi
+	@if [ -L $(HOME)/.claude/notify-hook.sh ]; then echo "  ok  notify-hook.sh -> $$(readlink $(HOME)/.claude/notify-hook.sh)"; \
+	elif [ -e $(HOME)/.claude/notify-hook.sh ]; then echo "  !!  notify-hook.sh is a REAL FILE, not a symlink (unversioned drift)"; \
+	else echo "  --  notify-hook.sh not installed (make install-hooks)"; fi
 
 # Privacy pre-push gate (id:ebd0): wire the WARN+LOG leak scanner into git's GLOBAL
 # `core.hooksPath` so EVERY repo's push runs it (a raw `git push` or a background agent
@@ -632,7 +659,7 @@ uninstall-discovery-timer:
 
 uninstall: $(addprefix uninstall-,$(SKILLS)) uninstall-statusline
 
-status: $(addprefix status-,$(SKILLS)) status-statusline
+status: $(addprefix status-,$(SKILLS)) status-statusline status-hooks
 
 define SKILL_RULES
 
