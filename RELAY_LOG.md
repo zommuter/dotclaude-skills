@@ -6394,3 +6394,31 @@ instead. Did NOT touch relay-loop.js (a sibling executor holds it).
 ## 2026-08-21 11:30 — integrate (claude-opus-5)
 
 integrate: mechanized TODO twin tick (4 drifted items repaired, cross-ledger now empty) + headroom-conditional slice invitation (id:7575 option b); a955 closed superseded-by-seams
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:5fe2 — a POST-PUSH integrate failure was indistinguishable from a retryable
+defer. `integrate.sh`'s `handback()` now emits a machine-readable block on STDERR
+(stderr, not stdout: `mechanical-proxy.py` discards a non-zero-exit child's stdout and
+returns `MECH-ERROR exit=<n>\n<stderr>`). PRE-push exits print `handback=<step>` +
+`landed=false` and never a `merged=` line; the POST-push exits (retire 28, state-write 29,
+strong-state 33) additionally print `landed=true`, `merged=<sha>`, `ckpt=<tag>`,
+`push=pushed`, `remaining=<steps that did NOT run>` and `ckptRecorded=<bool>`, and
+best-effort reconcile `relay.toml last_ckpt` to the already-pushed tag (the stale-last_ckpt
+symptom). A new `pushed` flag is set immediately after step 8 returns 0, so the class is
+derived from what actually happened, never from the exit NUMBER (30-34 were added later and
+do not follow step order). `parseIntegrateResult` gained a third outcome —
+`landedUnfinished` vs `deferred` — and the integrate call site gained its own branch that
+surfaces the unit as a handback (naming merged sha, ckpt, failing step, unrun steps) and
+never re-merges it. `push(27)` stays deferred; every pre-push exit is byte-unchanged.
+
+Friction: the suite showed a one-off 2-failure round (`test_embedded_literal_lint_ef9e.sh`,
+`test_integrate_mechanized_ports_087b.sh`); both pass standalone and the next full round was
+clean at 461 — the known id:7518 in-suite flake class, not a regression from this change.
+Also note bash expands ALL of a `local`'s arguments before assigning any, so
+`local a="$1" b="$a"` reads an unbound `$a` under `set -u` (bit the new test's fixture
+builder, which only worked earlier via dynamic scoping from its caller).
+
+refactor: none needed — the change is additive on one shell function, one JS parser and one
+new call-site branch; no duplication was introduced and the existing pre-push paths were not
+touched.
