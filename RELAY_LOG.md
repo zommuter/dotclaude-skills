@@ -6357,3 +6357,21 @@ data, not a failure, which the runner's exit code cannot express.
 ## 2026-08-21 11:03 — integrate (claude-opus-5)
 
 integrate id:7518 — cause identified: pipefail + SIGPIPE from an early-exiting pipe consumer (8/400 measured, 0/400 no-pipe control); item stays OPEN, fix filed as id:81d5; adds tests/flake-log.sh
+
+## 2026-08-21 — executor (sonnet-class)
+
+Mechanized the single-id-two-views twin tick in `relay/scripts/roadmap-tick.sh`. Since
+contract-v12 moved the execute child's ROADMAP tick into the driver, "tick the TODO twin
+too" survived only as prose in one LLM prompt (relay-loop.js's review child, which
+`--exclude review` can disable), so every mechanical integrate drifted another pair —
+id:e68f/bc2b/b018/4a76 were all TODO:[ ] ROADMAP:[x]. roadmap-tick.sh now converges the
+TODO.md twin whenever the id's ROADMAP line reads [x] (flipped now or already ticked, so
+it self-repairs), through the flock'd `meeting/md-merge.py update-ids` as an in-lock
+`regex_sub` — never a hand-rolled sed on a shared non-union ledger, never `--append`
+(id:e166 moves the marker off the checkbox line). Missing twin = clean no-op; a twin that
+exists but fails to write = loud exit 1, with a post-write assertion that the marker still
+sits on a checkbox-leading line. Repaired the four drifted items; `orphan-scan.sh
+--cross-ledger .` is now empty.
+Friction: `awk -v` processes escape sequences, so passing a `^- \[ \]` regex as a variable
+silently degrades it into a character class — the checkbox probe matches by literal prefix
+instead. Did NOT touch relay-loop.js (a sibling executor holds it).
