@@ -869,3 +869,52 @@ Trust-but-verify found the suite is NOT deterministically green under load — t
 
 - [x] **id:293f is now GATE-READY — its `gated-on:2bc6` blocker landed this chain.** The mechanical detector (id:2bc6, `relay/scripts/hooks-path-shadow-scan.sh`) is built, tested, wired into `relay-doctor.sh`, and its live sanity run against the real `~/.config/relay/relay.toml` reproduces the exact finding the sweep was filed for: 7 EMPTY-SHADOW own repos (incl. `dotclaude-skills` itself, and `loderite` whose `core.hooksPath` points at `truncocraft/.git/hooks` — a rename residue) + 2 DELIBERATE. id:293f ([INPUT — access], owner-decided "build the detector first, then sweep") is now actionable: run `git config --local --unset core.hooksPath` on the 7 EMPTY-SHADOW repos (owner call — a security-relevant config change; the two DELIBERATE repos, zkWhale/toesnail, are a separate call to merge the global hooks in). Re-checkable: `relay/scripts/hooks-path-shadow-scan.sh` or `relay/scripts/relay-doctor.sh "$(pwd)" --only hooks-path-shadow`. — ✅ **SWEEP AUTHORISED + EXECUTED + VERIFIED 2026-08-20 (`/relay human --all`).** Owner chose "unset the 7 EMPTY-SHADOW, leave the 2 DELIBERATE as a separate call". `git config --local --unset core.hooksPath` ran on all 7 (dotclaude-skills, isochrone, trAIdBTC, zkm-stt, project_manager, mathematical-writing, loderite), each rc=0 and re-reading as unset. **Re-verified after:** the scan reports `52 own repo(s) scanned, 0 EMPTY-SHADOW, 2 DELIBERATE` (was 7/2), and in this repo `git config --get core.hooksPath` → `~/.config/git/hooks` with `pre-push` resolving to `hooks/pre-push-privacy-gate.sh`. **This box is closed; `id:293f` itself stays `- [ ]` on purpose** — its own recorded fix has FOUR steps and only three are discharged. Step 4 (push a throwaway branch carrying a KNOWN fixture pattern with `PRIVACY_GATE_LOG` pointed at a scratch file, confirm a line lands, never commit the fixture) proves the gate *fires*, not merely that it *resolves* — an outward-facing push the human runs. It is on the `/relay human` "you run these" checklist. zkWhale/toesnail remain a separate owner call.
 - [x] auto-reconcile parked orphan `relay/orphan/relay-20260819-134717-30389-execute-repo-0` (0ceacbc) — non-ledger (code) diff in 4 file(s) (e.g. Makefile) — needs strong-turn review; --auto never auto-merges code. Subject: chore(relay): WIP UNVERIFIED residue auto-commit for worktree relay-20260819-134717-30389-execute-repo-0 (id:f272 commit-and-park; do not treat as reviewed). Surfaced 2026-08-19 16:48 by `relay-reconcile.sh --auto` (id:7809); integrate or discard manually: `relay-reconcile.sh --integrate relay/orphan/relay-20260819-134717-30389-execute-repo-0` / `--discard relay/orphan/relay-20260819-134717-30389-execute-repo-0`. — **REVIEWED + DISCARDED 2026-08-20** (`/relay reconcile --all`, owner-ratified). Verdict: SUPERSEDED, nothing unique. Re-checkable evidence: the branch was the earlier WIP park (tip `0ceacbc`, 2026-08-19 15:16) of the SAME item `id:dd7d` whose reviewed landing is `b966ea8` on main 25 min later (15:41); all four touched files are already on main in later form — `Makefile` (3 refs to `stranded-branch-scan.sh`), `mechanical-proxy.py` allowlist (1 ref), `relay-loop.js` (5 refs: both the pre-dispatch check and the `1c.` integrate sibling-comparison), and the script itself; a comment-stripped diff of `stranded-branch-scan.sh` shows identical flag surface (`--base --count --format --git-dir --item --verdict --verify`) and identical algorithm, with main's version STRICTLY more robust (validates the base ref resolves, defaults to `origin/main` when present, POSIX-hardened arg parsing). `id:dd7d` is `[x]` in `ROADMAP.md:1589` + `TODO.md:844` with `tests/test_redispatch_stranded_branch_dd7d.sh` present. Integrating would have REGRESSED the script, so the real choice was discard-vs-leave; owner chose discard. Ref deleted via `RELAY_DISCARD_CONFIRM=1 relay-reconcile.sh --discard`.
+
+## Review 2026-08-21 (window `relay-ckpt-20260820-2044`..HEAD — 82 commits, ~18 closes)
+
+NOTE: appended at the file's END, not the top — `md-merge.py` (the flock'd write path this
+repo mandates) can only replace a `##` section or append an unknown one, and REVIEW_ME.md
+carries no HTML id-marker at its head to anchor an `insert_before` against. Read this
+section as the NEWEST. (Filing that gap as a tooling nit is the owner's call.)
+
+Scope of THIS pass: ROADMAP re-derivation, the REVIEW_ME contract, cross-ledger, and an
+anti-gaming spot-check. Six targeted agent audits (blast-radius, test-integrity/mutation,
+evidence, synthesis, control-flow, transform) already covered this window and were
+deliberately NOT redone. `make test` re-run standalone: 467 passed, 0 failed, 1
+expected-red. `gaming-scan.sh` produced two `ADDED_SKIP` hits — BOTH verified false
+positives (the literal word "skip" inside a docstring in `tests/lint-pipefail-sigpipe.py`
+and inside a comment in `tests/test_slice_invitation_headroom_7575.sh`); no test file was
+deleted and no assertion removed.
+
+- [ ] **`id:3a09` is TICKED but the guard it ships protects NOTHING today, and `id:6f62`
+  says it cannot be wired as written — is that the close boundary you want?** The item's
+  own text is fully honest about this ("INSTALLED BUT NOT WIRED — activation is the
+  owner's"; a test asserts it is unregistered), and I independently confirmed
+  `destructive-git-guard.py` has ZERO occurrences in `~/.claude/settings.json`. So this is
+  NOT gaming — it is a scope question. But the sequence matters: the guard was ticked, and
+  then `id:6f62` was filed recording that the hook misreads the discovery-producer daemon
+  as an unattended run, so wiring it would hard-deny every INTERACTIVE session. A reader
+  scanning tick-states sees "destructive-git guard: done". **Your call:** (a) leave ticked
+  and rely on `id:6f62` carrying the wiring, (b) untick until `6f62` lands and the owner
+  wires it, or (c) re-title it "…— hook AUTHORED (activation gated on id:6f62)".
+
+- [ ] **A GREEN test sitting under an UNTICKED item is silently disarmed — `id:ebd0` is in
+  that state right now (the `id:087b` shape, but standing).** `tests/run-tests.sh` reports
+  a failing test as EXPECTED-RED while its `# roadmap:` item is unticked. That is correct
+  for a RED spec, but it also means a test that is ALREADY GREEN under an open item has no
+  teeth: if it regresses, the suite stays green-with-an-expected-red and nobody is told.
+  `tests/test_privacy_gate_prepush.sh` passes standalone today while `id:ebd0`
+  (`ROADMAP.md:1252`, `[INPUT — access]`) is open — the warn+log half shipped, the
+  access half did not. I swept every `# roadmap:`-headed test in `tests/` and this is the
+  only unambiguous instance. **Question:** should a partially-shipped item's green half be
+  re-homed to a separate ticked item (so its test is armed), or is the disarm acceptable?
+  A general fix — arm a test the moment it first goes green regardless of checkbox — is a
+  runner change, not a review edit, so it is not made here.
+
+- [ ] **Four DEAD-GATE / two DEP-PROSE-UNTYPED `roadmap-lint` warnings persist (`id:d4ca`,
+  `id:e405`, `id:540f`, `id:c179`) — all four are gated on ids that live ONLY in TODO.md.**
+  Pre-existing, not introduced this window, and lint exits 0 (WARN, not FAIL). Nothing in
+  ROADMAP.md can ever clear `gated-on:09e4` / `gated-on:b0b1`. Resolution is `id:49e0`'s
+  choice — promote the gate targets (handoff C2's lane call, never guessed) or re-target
+  the markers — and both are owner-gated items, so I did not touch them. Surfaced so the
+  four are not read as accidentally-blocked a second time.
