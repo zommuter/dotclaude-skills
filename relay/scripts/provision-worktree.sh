@@ -71,7 +71,7 @@ fi
 # refusal / 404 passthrough / harness message all come back as ordinary non-throwing text,
 # so the parent can only fail CLOSED against a token that ONLY a verified success emits.
 resolved="$(cd "$wt" && pwd -P)"
-git -C "$repo_path" worktree list --porcelain | grep -qxF "worktree $resolved" || {
+grep -qxF "worktree $resolved" < <(git -C "$repo_path" worktree list --porcelain) || {
   echo "provision-worktree.sh: worktree $resolved is NOT registered in '$repo_path' after 'git worktree add'" >&2
   exit 1
 }

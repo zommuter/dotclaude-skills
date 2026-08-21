@@ -292,7 +292,7 @@ if [[ -x "$PUBLISH" && -x "$CLAIM" ]] && command -v jq >/dev/null 2>&1; then
   printf '# RELAY_STATUS — test\n\n## Run progress\n- round=1\n' \
     | "$PUBLISH" --path "$TMP/RELAY_STATUS.md" --run 'relay-testrun' --events-path "$TMP/events.jsonl" >/dev/null 2>&1 || true
   if [[ -f "$TMP/RELAY_STATUS.md" ]]; then
-    claimline=$(sed -n '/^## Claims (live)/,/^## /p' "$TMP/RELAY_STATUS.md" | grep '^- ' | head -1 || true)
+    claimline=$(head -1 < <(sed -n '/^## Claims (live)/,/^## /p' "$TMP/RELAY_STATUS.md" | grep '^- ') || true)
     if [[ -z "$claimline" ]]; then
       bad "id:8c85: the live keyed claim was not rendered in '## Claims (live)' at all"
     elif grep -qF 'meeting:loderite' <<<"$claimline"; then

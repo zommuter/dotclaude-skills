@@ -47,7 +47,7 @@ grep -q 'relay/scripts/integrate.sh' "$JS" || fail "id:debf: relay-loop.js does 
 # (1b) No broad `git add` form is USED in integrate.sh either — checked over CODE lines only,
 # so the prohibition comments that name the forms cannot satisfy it.
 for badform in 'git add -A' 'git add --all' 'git add -u' 'git add .'; do
-  if grep -vE '^\s*#' "$INTEG" | grep -qF -- "$badform"; then
+  if grep -qF -- "$badform" < <(grep -vE '^\s*#' "$INTEG") ; then
     fail "id:debf: integrate.sh USES a broad '$badform' in a code line — the scoop window is open"
   fi
 done

@@ -236,7 +236,7 @@ check_repo() {
       if [[ "$rc" -ne 0 ]]; then
         printf '%s\n' "$lint"
         # roadmap-lint's first line says "<N> open ROADMAP item(s) violate…"
-        local n; n="$(printf '%s\n' "$lint" | grep -oP '^roadmap-lint: \K[0-9]+' | head -1 || true)"
+        local n; n="$(head -1 < <(printf '%s\n' "$lint" | grep -oP '^roadmap-lint: \K[0-9]+') || true)"
         [[ -n "$n" ]] && repo_issues=$((repo_issues + n)) || repo_issues=$((repo_issues + 1))
       else
         echo "clean (every open item carries a recognized lane tag + id)"
@@ -350,7 +350,7 @@ check_repo() {
         # meeting/personas.md write from a finished session sat unnoticed for hours.
         local holder=""
         if [[ -x "$CLAIM_SH" ]]; then
-          holder="$(bash "$CLAIM_SH" peek 2>>"$LOG" | grep -F "\"key\":\"$name\"" | head -1 || true)"
+          holder="$(head -1 < <(bash "$CLAIM_SH" peek 2>>"$LOG" | grep -F "\"key\":\"$name\"") || true)"
         fi
         if [[ -n "$holder" ]]; then
           printf 'RESIDUE (IN-FLIGHT) — %s uncommitted non-lock entry(ies); a LIVE run holds %s, so this is expected mid-run state, NOT actionable:\n' "$n9" "$name"
@@ -397,7 +397,7 @@ if intensive and verdict not in ("execute", "hard"):
 disp = intensive if intensive else "-"
 print("\n".join(issues) if issues else "OK verdict=" + verdict + " actionable_routine_open=" + str(aro) + " intensive=" + disp)
 ' 2>>"$LOG" || echo "ERR — could not parse unit")"
-      if printf '%s' "$v10" | grep -q 'VIOLATED'; then
+      if grep -q 'VIOLATED' < <(printf '%s' "$v10") ; then
         printf '%s\n' "$v10"
         local n10; n10="$(printf '%s\n' "$v10" | grep -c 'VIOLATED' || true)"
         repo_issues=$((repo_issues + n10))

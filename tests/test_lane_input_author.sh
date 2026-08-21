@@ -50,7 +50,7 @@ grep -q 'Write the Experiment-1 results section' <<<"$out" \
   || fail "the [INPUT — author] item was not emitted (out: $out)"
 grep -iP 'author' <<<"$(grep 'Experiment-1 results section' <<<"$out")" \
   || fail "the [INPUT — author] item must bucket onto an author/owner kind (out: $out)"
-if grep 'Experiment-1 results section' <<<"$out" | grep -qi 'untagged'; then
+if grep -qi 'untagged' < <(grep 'Experiment-1 results section' <<<"$out") ; then
   fail "the [INPUT — author] item must NOT be bucketed as untagged (out: $out)"
 fi
 

@@ -91,7 +91,7 @@ flowchart TD
 MMD
 "$CHECKER" "$tmp/none.mmd" >/dev/null 2>&1 \
   || note "(d) an explicit 'NONE — <reason>' edge must be TOLERATED (reported, not fatal)"
-"$CHECKER" "$tmp/none.mmd" 2>&1 | grep -qi 'unenforced\|NONE' \
+grep -qi 'unenforced\|NONE' < <("$CHECKER" "$tmp/none.mmd" 2>&1) \
   || note "(d) unenforced edges must be REPORTED loudly, not silently tolerated"
 
 # (e) The regression anchor: the edge that c919 violated must be enforced by a real test.
@@ -99,7 +99,7 @@ grep -q 'hard-split' "$DISPATCH" \
   || note "(e) relay-dispatch.mmd no longer contains the hard-split handback edge — that edge is the c919 anchor"
 [[ $rc -eq 0 ]] \
   || note "(e) the live relay-dispatch.mmd does not pass the coverage checker — annotate its edges (this is the real work)"
-"$CHECKER" "$DISPATCH" 2>&1 | grep -q 'test_dry_round_work_creating_handback_c919.sh' \
+grep -q 'test_dry_round_work_creating_handback_c919.sh' < <("$CHECKER" "$DISPATCH" 2>&1) \
   || note "(e) the hard-split→discover edge is not annotated with its enforcing test (c919) — the one edge known to have been violated must never go unenforced"
 
 [[ $fail -eq 0 ]] || exit 1

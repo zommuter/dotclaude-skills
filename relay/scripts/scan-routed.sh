@@ -215,14 +215,14 @@ mapfile -t _inbox_lines < "$inbox"
 for line in "${_inbox_lines[@]}"; do
   # OPEN conforming routed item only: `- [ ] [target] … <!-- routed:XXXX -->`
   [[ "$line" =~ ^-\ \[\ \]\ \[ ]] || continue
-  tok="$(grep -oP '(?<=<!-- routed:)[0-9a-f]{4}(?= -->)' <<<"$line" | head -1 || true)"
+  tok="$(head -1 < <(grep -oP '(?<=<!-- routed:)[0-9a-f]{4}(?= -->)' <<<"$line") || true)"
   [[ -z "$tok" ]] && continue
-  target="$(grep -oP '^- \[ \] \[\K[^\]]+' <<<"$line" | head -1 || true)"
+  target="$(head -1 < <(grep -oP '^- \[ \] \[\K[^\]]+' <<<"$line") || true)"
   [[ -z "$target" ]] && continue
   if [[ -n "${exclude[$target]:-}" ]]; then
     log "excluded target=$target routed=$tok"; continue
   fi
-  src_name="$(grep -oP '\(from \K[^,)]+' <<<"$line" | head -1 || true)"
+  src_name="$(head -1 < <(grep -oP '\(from \K[^,)]+' <<<"$line") || true)"
   desc="$(sed -E 's/^- \[ \] \[[^]]*\] +//; s/ *\(from [^)]*\)//; s/ *<!-- routed:[0-9a-f]{4} -->.*$//' <<<"$line")"
 
   # Resolve target → repo path

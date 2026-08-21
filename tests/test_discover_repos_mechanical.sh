@@ -359,7 +359,7 @@ echo "$allerr_out"
 [[ -f "$QUEUE_DIR_ALLERR/latest.json" ]] || fail "(5) all-error snapshot was NOT written; should be (consumer transparency)"
 [[ ! -d "$HEARTBEAT_BASE_ALLERR" ]] || [[ -z "$(ls -A "$HEARTBEAT_BASE_ALLERR" 2>/dev/null)" ]] \
   || fail "(5) all-error snapshot beat the heartbeat; should NOT have"
-printf '%s\n' "$allerr_out" | grep -q 'heartbeat NOT beaten' \
+grep -q 'heartbeat NOT beaten' < <(printf '%s\n' "$allerr_out") \
   || fail "(5) expected a loud stderr line about the heartbeat not being beaten"
 pass "(5) all-repos-errored snapshot is written for transparency but does NOT beat the heartbeat"
 

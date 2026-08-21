@@ -151,7 +151,7 @@ source "$LIB_OWN_REPOS"
 # prior hardcoded '2,66p' had already gone stale once the header grew past line 66).
 usage() {
   local header_end
-  header_end="$(grep -n '^set -euo pipefail' "$0" | head -1 | cut -d: -f1)"
+  header_end="$(head -1 < <(grep -n '^set -euo pipefail' "$0") | cut -d: -f1 )"
   sed -n "2,$((header_end - 1))p" "$0"
 }
 

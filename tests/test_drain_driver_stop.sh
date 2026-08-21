@@ -72,7 +72,7 @@ BLK='{"actionable":0,"produced":0,"substantive":0,"surfaced":2}'
 printf '%s\n%s\n%s\n' "$SUB" "$DRY" "$DRY" > "$TMP/seq_a"
 mk_round_stub "$TMP/seq_a"
 out="$(node "$DRIVER" --repo "$TMP" --max-rounds 10 2>"$TMP/err_a")"; rc=$?
-if [[ $rc -eq 0 ]] && echo "$out" | grep -qE 'DRAIN_STOP reason=drained rounds=3'; then
+if [[ $rc -eq 0 ]] && grep -qE 'DRAIN_STOP reason=drained rounds=3' < <(echo "$out") ; then
   ok "K=2 dry rounds after progress → drained (exit 0, 3 rounds)"
 else
   bad "expected exit 0 + 'DRAIN_STOP reason=drained rounds=3' (rc=$rc, out: $out)"
@@ -85,7 +85,7 @@ fi
 printf '%s\n%s\n' "$BLK" "$BLK" > "$TMP/seq_b"
 mk_round_stub "$TMP/seq_b"
 out="$(node "$DRIVER" --repo "$TMP" --max-rounds 10 2>"$TMP/err_b")"; rc=$?
-if [[ $rc -eq 2 ]] && echo "$out" | grep -qE 'DRAIN_STOP reason=blocked'; then
+if [[ $rc -eq 2 ]] && grep -qE 'DRAIN_STOP reason=blocked' < <(echo "$out") ; then
   ok "blocked rounds → reason=blocked, exit 2 (2026-07-17 drained-while-blocked guard)"
 else
   bad "expected exit 2 + reason=blocked (rc=$rc, out: $out)"
@@ -95,7 +95,7 @@ fi
 printf '%s\n%s\n%s\n%s\n%s\n' "$SUB" "$SUB" "$SUB" "$SUB" "$SUB" > "$TMP/seq_c"
 mk_round_stub "$TMP/seq_c"
 out="$(node "$DRIVER" --repo "$TMP" --max-rounds 3 2>"$TMP/err_c")"; rc=$?
-if [[ $rc -eq 3 ]] && echo "$out" | grep -qE 'DRAIN_STOP reason=max-rounds rounds=3'; then
+if [[ $rc -eq 3 ]] && grep -qE 'DRAIN_STOP reason=max-rounds rounds=3' < <(echo "$out") ; then
   ok "--max-rounds seatbelt → reason=max-rounds, exit 3"
 else
   bad "expected exit 3 + reason=max-rounds at 3 rounds (rc=$rc, out: $out)"

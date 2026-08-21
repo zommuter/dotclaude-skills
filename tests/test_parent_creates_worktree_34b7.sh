@@ -67,10 +67,10 @@ fi
 # ── 2. BOTH sites, not just the dispatch prompt ──────────────────────────────────
 # unitPrompt (~:1958) and the RESUME prompt (~:1988) are separate template literals.
 # Fixing one and leaving the other is the exact half-fix this assertion exists to catch.
-resume_line="$(grep -n 'You are RESUMING an interrupted relay HANDOFF' "$JS" | head -1 | cut -d: -f1)"
+resume_line="$(head -1 < <(grep -n 'You are RESUMING an interrupted relay HANDOFF' "$JS") | cut -d: -f1 )"
 if [[ -z "$resume_line" ]]; then
   bad "(2) the resume-prompt anchor 'You are RESUMING an interrupted relay HANDOFF' is gone — test anchor stale, re-derive it before trusting this file"
-elif sed -n "${resume_line}p" "$JS" | grep -q 'unit.path'; then
+elif grep -q 'unit.path' < <(sed -n "${resume_line}p" "$JS") ; then
   bad "(2) the RESUME prompt (relay-loop.js:$resume_line) still interpolates unit.path — the auto-resume child is dispatched by the same mechanism and must be covered too (id:34b7 part 3)"
 else
   ok "(2) the resume prompt no longer interpolates the main-checkout path"
@@ -95,7 +95,7 @@ else
   near_mech=0
   for ln in $wt_lines; do
     lo=$(( ln > 12 ? ln - 12 : 1 )); hi=$(( ln + 12 ))
-    if sed -n "${lo},${hi}p" "$JS" | grep -qE "MECH_MODEL|model: *'bash'"; then near_mech=1; break; fi
+    if grep -qE "MECH_MODEL|model: *'bash'" < <(sed -n "${lo},${hi}p" "$JS") ; then near_mech=1; break; fi
   done
   if [[ "$near_mech" == "1" ]]; then
     ok "(4) a 'worktree add' occurrence sits in a mechanical (MECH_MODEL/bash) parent hop"

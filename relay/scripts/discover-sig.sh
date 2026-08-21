@@ -90,7 +90,7 @@ repo_sig() {
       esac
     done < <(printf '%s\n' "$tags" | tac)
   fi
-  audit_ref="$(printf '%s\n' "$block" | sed -n 's/^[[:space:]]*last_strong_ckpt[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' | head -n1)"
+  audit_ref="$(head -n1 < <(printf '%s\n' "$block" | sed -n 's/^[[:space:]]*last_strong_ckpt[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p') )"
   [[ -z "$audit_ref" ]] && audit_ref="$latest"
   if [[ -n "$audit_ref" && -n "$newest_strong" ]] && [[ "$newest_strong" > "$audit_ref" ]]; then
     audit_ref="$newest_strong"

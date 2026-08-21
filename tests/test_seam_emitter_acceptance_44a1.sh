@@ -33,7 +33,7 @@ out="$(run --parent-id bbbb --route hard-split --gate-reason "too large" \
     --split-json '[{"title":"Bare title seam"}]' 2>&1)"
 rc=$?
 if [ "$rc" -ne 0 ]; then ok "nonzero exit on bare-title seam"; else bad "exited 0 on a non-conforming seam"; fi
-if echo "$out" | grep -qi "acceptance"; then ok "error names the missing field(s)"; else bad "error doesn't name missing fields ($out)"; fi
+if grep -qi "acceptance" < <(echo "$out") ; then ok "error names the missing field(s)"; else bad "error doesn't name missing fields ($out)"; fi
 if [ "$before" = "$(cat "$RM")" ]; then ok "ROADMAP unchanged (write-nothing on reject)"; else bad "ROADMAP was mutated despite rejection"; fi
 
 echo "== a seam missing only 'file' is also rejected (all 3 fields required) =="
@@ -50,9 +50,9 @@ run --parent-id bbbb --route hard-split --gate-reason "too large" \
 rc=$?
 [ "$rc" -eq 0 ] && ok "conforming seam accepted (exit 0)" || bad "conforming seam rejected (exit $rc)"
 seam() { grep -A3 -- 'Conforming seam' "$RM"; }
-seam | grep -qF '**Acceptance**: the widget loads under 200ms' && ok "acceptance rendered" || bad "acceptance not rendered"
-seam | grep -qF '**Done-check**: tests/run-tests.sh tests/test_widget_perf.sh' && ok "done-check rendered" || bad "done-check not rendered"
-seam | grep -qF '**Context**: src/widget.js:load()' && ok "file/function rendered" || bad "file/function not rendered"
+grep -qF '**Acceptance**: the widget loads under 200ms' < <(seam) && ok "acceptance rendered" || bad "acceptance not rendered"
+grep -qF '**Done-check**: tests/run-tests.sh tests/test_widget_perf.sh' < <(seam) && ok "done-check rendered" || bad "done-check not rendered"
+grep -qF '**Context**: src/widget.js:load()' < <(seam) && ok "file/function rendered" || bad "file/function not rendered"
 
 echo "== the rendered seam passes id:213a's roadmap-lint WITHOUT a TODO.md twin =="
 LINTOUT="$STORE/lint.out"

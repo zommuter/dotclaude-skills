@@ -59,7 +59,7 @@ export RELAY_DECISION_QUEUE="$TMPDIR/test-decision-queue.jsonl"
 OUT="$("$FSD" "$REPO" 2>/tmp/fsd-test-stderr.txt)"
 
 # 1a. stdout must contain a count line (LOUD — never silent)
-echo "$OUT" | grep -q "file-surface-decisions:" || {
+grep -q "file-surface-decisions:" < <(echo "$OUT") || {
   echo "LOUD-output: script must emit a count summary line to stdout"
   echo "Got: $OUT"
   exit 1
@@ -104,7 +104,7 @@ print('source-ids-ok')
 OUT2="$("$FSD" "$REPO" 2>/tmp/fsd-test-stderr2.txt)"
 
 # 2a. stdout must still emit a count line (LOUD even on a no-op)
-echo "$OUT2" | grep -q "file-surface-decisions:" || {
+grep -q "file-surface-decisions:" < <(echo "$OUT2") || {
   echo "idempotency-loud: run 2 must still emit a count summary"
   exit 1
 }

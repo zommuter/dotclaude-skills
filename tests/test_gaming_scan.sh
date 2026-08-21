@@ -49,7 +49,7 @@ rm "$repo/tests/test_foo.sh"
 make_commit "$repo" "GAMED: delete test"
 
 out="$("$SH" "$repo" "$BASE_TAG" 2>&1)"
-if printf '%s' "$out" | grep -q "DELETED_TEST:tests/test_foo.sh"; then
+if grep -q "DELETED_TEST:tests/test_foo.sh" < <(printf '%s' "$out") ; then
   pass "(a) DELETED_TEST flag emitted for deleted test file"
 else
   fail "(a) expected DELETED_TEST:tests/test_foo.sh but got: $out"
@@ -80,7 +80,7 @@ EOF
 make_commit "$repo" "GAMED: skip test"
 
 out="$("$SH" "$repo" "$BASE_TAG" 2>&1)"
-if printf '%s' "$out" | grep -q "ADDED_SKIP:tests/test_bar.py"; then
+if grep -q "ADDED_SKIP:tests/test_bar.py" < <(printf '%s' "$out") ; then
   pass "(b) ADDED_SKIP flag emitted for @pytest.mark.skip"
 else
   fail "(b) expected ADDED_SKIP:tests/test_bar.py but got: $out"
@@ -110,7 +110,7 @@ EOF
 make_commit "$repo" "GAMED: remove assertion"
 
 out="$("$SH" "$repo" "$BASE_TAG" 2>&1)"
-if printf '%s' "$out" | grep -q "REMOVED_ASSERT:tests/test_baz.sh"; then
+if grep -q "REMOVED_ASSERT:tests/test_baz.sh" < <(printf '%s' "$out") ; then
   pass "(c) REMOVED_ASSERT flag emitted for removed assert line"
 else
   fail "(c) expected REMOVED_ASSERT:tests/test_baz.sh but got: $out"

@@ -38,11 +38,11 @@ run() { HANDBACK_NO_COMMIT=1 python3 "$HELPER" "$STORE" "$@" >/dev/null 2>&1; }
 echo "== decision-gate re-tags a [ROUTINE] parent + inline reason =="
 run --parent-id aaaa --route decision-gate --gate-reason "blocked on a design call"
 aaaa_line() { grep -- 'id:aaaa' "$RM"; }
-if aaaa_line | grep -qF '[INPUT — decision]'; then ok "aaaa now decision-gated (canonical [INPUT — decision])"; else bad "aaaa not gated with the canonical [INPUT — decision] tag"; fi
-if aaaa_line | grep -qF '[HARD — decision gate]'; then bad "aaaa gated with the OLD-vocab tag (the pre-commit ratchet blocks it, id:4b64)"; else ok "no old-vocab tag emitted"; fi
-if aaaa_line | grep -qF 'GATED (auto, id:3801; route:decision-gate)'; then ok "auto-gate marker + route"; else bad "no auto-gate marker"; fi
-if aaaa_line | grep -qF 'blocked on a design call'; then ok "reason inlined"; else bad "reason missing"; fi
-if aaaa_line | grep -qF '<!-- id:aaaa -->'; then ok "id token preserved"; else bad "id token lost"; fi
+if grep -qF '[INPUT — decision]' < <(aaaa_line) ; then ok "aaaa now decision-gated (canonical [INPUT — decision])"; else bad "aaaa not gated with the canonical [INPUT — decision] tag"; fi
+if grep -qF '[HARD — decision gate]' < <(aaaa_line) ; then bad "aaaa gated with the OLD-vocab tag (the pre-commit ratchet blocks it, id:4b64)"; else ok "no old-vocab tag emitted"; fi
+if grep -qF 'GATED (auto, id:3801; route:decision-gate)' < <(aaaa_line) ; then ok "auto-gate marker + route"; else bad "no auto-gate marker"; fi
+if grep -qF 'blocked on a design call' < <(aaaa_line) ; then ok "reason inlined"; else bad "reason missing"; fi
+if grep -qF '<!-- id:aaaa -->' < <(aaaa_line) ; then ok "id token preserved"; else bad "id token lost"; fi
 
 echo "== decision-gate is idempotent (second apply = no-op) =="
 before="$(cat "$RM")"
@@ -55,22 +55,22 @@ echo "== hard-split gates the parent + appends pickable seams =="
 run --parent-id bbbb --route hard-split --gate-reason "6-session money path" \
     --split-json "$SPLIT_JSON"
 bbbb_line() { grep -- '<!-- id:bbbb -->' "$RM"; }
-if bbbb_line | grep -qF '[INPUT — decision]'; then ok "parent bbbb gated"; else bad "parent not gated"; fi
-if bbbb_line | grep -qF 'DECOMPOSED into seams'; then ok "parent marked DECOMPOSED"; else bad "parent not marked decomposed"; fi
+if grep -qF '[INPUT — decision]' < <(bbbb_line) ; then ok "parent bbbb gated"; else bad "parent not gated"; fi
+if grep -qF 'DECOMPOSED into seams' < <(bbbb_line) ; then ok "parent marked DECOMPOSED"; else bad "parent not marked decomposed"; fi
 has "$RM" 'id:1234'               "explicit-id seam appended"
 seam1() { grep -A3 -- '<!-- id:1234 -->' "$RM"; }
-if seam1 | grep -qF '**[HARD]**'; then ok "seam-one HARD tier (canonical bare [HARD])"; else bad "seam-one tier wrong (want the canonical **[HARD]**)"; fi
-if seam1 | grep -qF '[HARD — strong model]'; then bad "seam-one emitted the legacy [HARD — strong model] tag, which no lane parser recognizes (id:4b64)"; else ok "no legacy strong-model tag emitted"; fi
-if seam1 | grep -qF '(after id:be4b)'; then ok "seam-one dependency noted"; else bad "seam-one dep missing"; fi
-if seam1 | grep -qF 'seam of id:bbbb'; then ok "seam-one parent marker"; else bad "seam-one parent marker missing"; fi
-if seam1 | grep -qF '**Acceptance**: the hash helper is pure and unit-tested'; then ok "seam-one acceptance rendered"; else bad "seam-one acceptance missing"; fi
-if seam1 | grep -qF '**Done-check**: tests/run-tests.sh tests/test_seam_one.sh'; then ok "seam-one done-check rendered"; else bad "seam-one done-check missing"; fi
-if seam1 | grep -qF '**Context**: src/hash.js:pureHash()'; then ok "seam-one file/function rendered"; else bad "seam-one file/function missing"; fi
+if grep -qF '**[HARD]**' < <(seam1) ; then ok "seam-one HARD tier (canonical bare [HARD])"; else bad "seam-one tier wrong (want the canonical **[HARD]**)"; fi
+if grep -qF '[HARD — strong model]' < <(seam1) ; then bad "seam-one emitted the legacy [HARD — strong model] tag, which no lane parser recognizes (id:4b64)"; else ok "no legacy strong-model tag emitted"; fi
+if grep -qF '(after id:be4b)' < <(seam1) ; then ok "seam-one dependency noted"; else bad "seam-one dep missing"; fi
+if grep -qF 'seam of id:bbbb' < <(seam1) ; then ok "seam-one parent marker"; else bad "seam-one parent marker missing"; fi
+if grep -qF '**Acceptance**: the hash helper is pure and unit-tested' < <(seam1) ; then ok "seam-one acceptance rendered"; else bad "seam-one acceptance missing"; fi
+if grep -qF '**Done-check**: tests/run-tests.sh tests/test_seam_one.sh' < <(seam1) ; then ok "seam-one done-check rendered"; else bad "seam-one done-check missing"; fi
+if grep -qF '**Context**: src/hash.js:pureHash()' < <(seam1) ; then ok "seam-one file/function rendered"; else bad "seam-one file/function missing"; fi
 has "$RM" 'Seam Two UI wiring'    "id-less seam appended"
 seam2() { grep -A3 -- 'Seam Two UI wiring' "$RM"; }
-if seam2 | grep -qF '[ROUTINE]'; then ok "seam-two ROUTINE tier"; else bad "seam-two tier wrong"; fi
-if seam2 | grep -qE 'id:[0-9a-f]{4}' && ! seam2 | grep -qF 'id:1234'; then ok "seam-two got a freshly minted id"; else bad "seam-two id not minted"; fi
-if seam2 | grep -qF '**Done-check**: tests/run-tests.sh tests/test_seam_two.sh'; then ok "seam-two done-check rendered"; else bad "seam-two done-check missing"; fi
+if grep -qF '[ROUTINE]' < <(seam2) ; then ok "seam-two ROUTINE tier"; else bad "seam-two tier wrong"; fi
+if grep -qE 'id:[0-9a-f]{4}' < <(seam2) && ! grep -qF 'id:1234' < <(seam2) ; then ok "seam-two got a freshly minted id"; else bad "seam-two id not minted"; fi
+if grep -qF '**Done-check**: tests/run-tests.sh tests/test_seam_two.sh' < <(seam2) ; then ok "seam-two done-check rendered"; else bad "seam-two done-check missing"; fi
 
 echo "== hard-split is idempotent (no duplicate seams on re-run) =="
 run --parent-id bbbb --route hard-split --gate-reason "6-session money path" \

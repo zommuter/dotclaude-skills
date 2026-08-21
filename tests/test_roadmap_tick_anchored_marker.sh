@@ -50,12 +50,12 @@ cat > "$tmp/R2.md" <<'EOF'
 EOF
 cp "$tmp/R2.md" "$tmp/ROADMAP.md"
 "$TICK" "$tmp" aaaa >/dev/null 2>&1 || true
-quoted=$(grep -o '^- \[.\]' "$tmp/ROADMAP.md" | head -1)
+quoted=$(head -1 < <(grep -o '^- \[.\]' "$tmp/ROADMAP.md") )
 check "quoted body marker id:aaaa does NOT tick the line" "- [ ]" "$quoted"
 
 cp "$tmp/R2.md" "$tmp/ROADMAP.md"
 "$TICK" "$tmp" bbbb >/dev/null 2>&1 || true
-ownid=$(grep -o '^- \[.\]' "$tmp/ROADMAP.md" | head -1)
+ownid=$(head -1 < <(grep -o '^- \[.\]' "$tmp/ROADMAP.md") )
 check "the line's OWN id id:bbbb DOES tick it"            "- [x]" "$ownid"
 
 # --- case 3: idempotent no-op on an already-ticked id --------------------------------

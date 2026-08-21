@@ -100,11 +100,11 @@ if [[ -n "$item" ]]; then
     git -C "$REPO" show "$ORPHAN:ROADMAP.md" 2>/dev/null || true
     git -C "$REPO" show "$ORPHAN:TODO.md"    2>/dev/null || true
   )"
-  if printf '%s\n' "$orphan_ledger" | grep -qiE "^\s*-\s*\[ \].*id:$item\b"; then
+  if grep -qiE "^\s*-\s*\[ \].*id:$item\b" < <(printf '%s\n' "$orphan_ledger") ; then
     surface "item id:$item still has an OPEN checkbox on the orphan (PARTIAL) — human reconcile"
     exit 1
   fi
-  if ! printf '%s\n' "$orphan_ledger" | grep -qiE "^\s*-\s*\[x\].*id:$item\b"; then
+  if ! grep -qiE "^\s*-\s*\[x\].*id:$item\b" < <(printf '%s\n' "$orphan_ledger") ; then
     surface "item id:$item is not marked COMPLETE ([x]) on the orphan — human reconcile"
     exit 1
   fi

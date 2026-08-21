@@ -77,7 +77,7 @@ grep -q 'repoNA' <<<"$out" || fail "repo name not shown for the @needs-auth box 
 grep -q 'e588'   <<<"$out" || fail "box id (e588) not shown (out: $out)"
 
 # (2) PLAIN, non-TSV: no tab characters anywhere in the listing.
-if printf '%s' "$out" | grep -qP '\t'; then
+if grep -qP '\t' < <(printf '%s' "$out") ; then
   fail "--needs-auth output contains TAB characters (expected plain non-TSV, out: $out)"
 fi
 

@@ -152,8 +152,8 @@ grep -qF -- 'const oversizeReason = oversizeDispatchReason(unit, unitPrompt(unit
   && ok "relay-loop.js calls oversizeDispatchReason on the assembled unitPrompt" \
   || bad "id:4f9b: relay-loop.js never sizes the assembled prompt before dispatch"
 
-gate_line=$(grep -n 'const oversizeReason = oversizeDispatchReason' "$JS" | head -1 | cut -d: -f1)
-disp_line=$(grep -n 'report = await agent(unitPrompt(unit), opts)' "$JS" | head -1 | cut -d: -f1)
+gate_line=$(head -1 < <(grep -n 'const oversizeReason = oversizeDispatchReason' "$JS") | cut -d: -f1 )
+disp_line=$(head -1 < <(grep -n 'report = await agent(unitPrompt(unit), opts)' "$JS") | cut -d: -f1 )
 if [[ -n "$gate_line" && -n "$disp_line" && "$gate_line" -lt "$disp_line" ]]; then
   ok "gate (line $gate_line) runs BEFORE the child dispatch (line $disp_line)"
 else

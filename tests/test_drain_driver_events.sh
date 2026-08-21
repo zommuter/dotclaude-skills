@@ -50,7 +50,7 @@ out="$(node "$DRIVER" --repo "$TMP" --max-rounds 5 2>"$TMP/err")"; rc=$?
 [[ -f "$RELAY_EVENTS_PATH" ]] || { echo "FAIL: no events file written"; exit 1; }
 
 # --- append-only: the pre-existing line survives ------------------------------
-head -1 "$RELAY_EVENTS_PATH" | grep -qF '"pre-existing"' \
+grep -qF '"pre-existing"' < <(head -1 "$RELAY_EVENTS_PATH") \
   && ok "events file appended to (pre-existing line intact)" \
   || bad "events file was truncated — must append, never clobber"
 
@@ -76,7 +76,7 @@ if [[ -n "$last_stop" ]]; then
   echo "$last_stop" | jq -e '.reason == "drained"' >/dev/null 2>&1 \
     && ok "drain-stop event carries reason=drained" \
     || bad "drain-stop event lacks reason=drained (line: $last_stop)"
-  echo "$last_stop" | jq -r '.runId' | grep -qE '^relay-' \
+  grep -qE '^relay-' < <(echo "$last_stop" | jq -r '.runId') \
     && ok "stop event runId is in the relay-* namespace" \
     || bad "stop event runId not relay-* (line: $last_stop)"
 else

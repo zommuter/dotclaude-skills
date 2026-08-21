@@ -25,7 +25,7 @@ out="$(RELAY_STATE_DIR="$TMP/state" "$HINT" 2>&1 || true)"
 
 # Correctness property: the nudge must not imply /loop survives an outage / session kill.
 if grep -qiE 'recover|recovered|resilien|survive|missed during an outage' <<<"$out"; then
-  bad "nudge still claims outage/session-kill resilience for /loop (id:bde8): $(grep -iE 'recover|recovered|resilien|survive|missed during an outage' <<<"$out" | head -1)"
+  bad "nudge still claims outage/session-kill resilience for /loop (id:bde8): $(head -1 < <(grep -iE 'recover|recovered|resilien|survive|missed during an outage' <<<"$out") )"
 else
   ok "nudge no longer claims /loop is outage/session-kill resilient (id:bde8)"
 fi

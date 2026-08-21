@@ -127,7 +127,7 @@ set +e
 out="$("$SH" "$w" --base main 2>&1)"; rc=$?
 set -e
 [[ $rc -eq 2 ]] || fail "empty + main advanced by non-merge: expected exit 2 (isolation breach), got $rc — out: $out"
-printf '%s' "$out" | grep -q "$leak" \
+grep -q "$leak" < <(printf '%s' "$out") \
   || fail "empty + main advanced: failure output must NAME the offending commit ($leak) so it can be recovered under the id:15d5 lease — got: $out"
 pass "empty worktree + main advanced by non-merge commit → exit 2, names the offending commit"
 
@@ -217,7 +217,7 @@ pass "non-empty worktree + dirty tree → exit 2"
 
 # ── (c) the gate still mutates nothing ──
 code="$(grep -vE '^[[:space:]]*#' "$SH" | grep -vE '(^[[:space:]]*(log|echo)\b|[[:space:]]*msg=)')"
-printf '%s\n' "$code" | grep -Eq -- 'git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?(stash|clean)|reset[[:space:]]+--hard|checkout[[:space:]]+--' \
+grep -Eq -- 'git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?(stash|clean)|reset[[:space:]]+--hard|checkout[[:space:]]+--' < <(printf '%s\n' "$code") \
   && fail "gate must be observe-only: it executes a mutating git verb"
 pass "gate executes no mutating git verb (observe-only)"
 

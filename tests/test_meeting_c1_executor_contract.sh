@@ -14,7 +14,7 @@ SKILL="$ROOT/meeting/SKILL.md"
 fail() { echo "FAIL: $1"; exit 1; }
 
 # The C1 dispatch line must reference the executor contract under a relay gate.
-c1="$(grep -nE 'Class 1 .*proceed to implementation' "$SKILL" | head -1 | cut -d: -f1)"
+c1="$(head -1 < <(grep -nE 'Class 1 .*proceed to implementation' "$SKILL") | cut -d: -f1 )"
 [[ -n "$c1" ]] || fail "could not find the Class 1 dispatch line"
 seg="$(sed -n "${c1}p" "$SKILL")"
 

@@ -41,7 +41,7 @@ print("add record OK")
 PYEOF
 
 # list (default = open) shows it
-"$DQ" list | grep -q "$id" || { echo "list must show the open decision"; exit 1; }
+grep -q "$id" < <("$DQ" list) || { echo "list must show the open decision"; exit 1; }
 
 # add a second, idempotency of the file (append-only, two records)
 id2="$("$DQ" add --repo zelegator --kind close-or-drain --question "close 244b or drain?")"
@@ -58,7 +58,7 @@ print("resolve record OK")
 PYEOF
 
 # list (open) no longer shows the resolved one, still shows the other
-"$DQ" list | grep -q "$id" && { echo "resolved decision must NOT appear in the open list"; exit 1; } || true
-"$DQ" list | grep -q "$id2" || { echo "the still-open decision must remain in the list"; exit 1; }
+grep -q "$id" < <("$DQ" list) && { echo "resolved decision must NOT appear in the open list"; exit 1; } || true
+grep -q "$id2" < <("$DQ" list) || { echo "the still-open decision must remain in the list"; exit 1; }
 
 echo "PASS test_decision_queue"

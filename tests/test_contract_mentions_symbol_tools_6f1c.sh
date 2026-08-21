@@ -62,8 +62,8 @@ grep -qiE 're-?read' "$CONTRACT" \
 # pointer marker must agree — a stale pointer is exactly the silent-breakage
 # class the vN marker exists to prevent (CLAUDE.md 'Versions live only on
 # contract surfaces').
-contract_v="$(grep -oE '<!-- relay-executor contract v[0-9]+ -->' "$CONTRACT" | head -1 | grep -oE '[0-9]+')"
-pointer_v="$(grep -oE '<!-- relay-executor contract v[0-9]+ -->' "$CLAUDE_MD" | head -1 | grep -oE '[0-9]+')"
+contract_v="$(head -1 < <(grep -oE '<!-- relay-executor contract v[0-9]+ -->' "$CONTRACT") | grep -oE '[0-9]+' )"
+pointer_v="$(head -1 < <(grep -oE '<!-- relay-executor contract v[0-9]+ -->' "$CLAUDE_MD") | grep -oE '[0-9]+' )"
 
 [[ -n "$contract_v" ]] || fail "could not find the contract vN marker in executor-contract.md"
 [[ -n "$pointer_v" ]] || fail "could not find the '## Relay contract' vN pointer marker in CLAUDE.md"

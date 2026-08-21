@@ -81,8 +81,8 @@ pass "(3) same-date append merges into one bucket (no duplicate header)"
 # (4) NEWEST-FIRST insertion: a new (distinct-key) bucket lands ABOVE an older one.
 "$CL" "$R2" --summary "Later change" --date 2026-07-19 >/dev/null \
   || fail "(4) newer-date append failed"
-new_ln="$(grep -nxF '## 2026-07-19' "$R2/CHANGELOG.md" | head -1 | cut -d: -f1)"
-old_ln="$(grep -nxF '## 2026-07-18' "$R2/CHANGELOG.md" | head -1 | cut -d: -f1)"
+new_ln="$(head -1 < <(grep -nxF '## 2026-07-19' "$R2/CHANGELOG.md") | cut -d: -f1 )"
+old_ln="$(head -1 < <(grep -nxF '## 2026-07-18' "$R2/CHANGELOG.md") | cut -d: -f1 )"
 [[ -n "$new_ln" && -n "$old_ln" && "$new_ln" -lt "$old_ln" ]] \
   || fail "(4) newest bucket ($new_ln) not inserted above the older one ($old_ln) — newest-first broken"
 pass "(4) new bucket inserted newest-first (above older buckets, below the preamble)"

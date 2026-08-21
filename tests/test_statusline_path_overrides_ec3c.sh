@@ -50,11 +50,11 @@ out="$(printf '%s' '{}' | \
 
 [[ -n "$out" ]] || fail "statusline produced no stdout"
 
-printf '%s' "$out" | grep -q '63%' \
+grep -q '63%' < <(printf '%s' "$out") \
   || fail "session utilization 63% from the OVERRIDE cache did not render — CLAUDE_USAGE_CACHE is not honoured (id:ec3c)"
 pass "CLAUDE_USAGE_CACHE override is honoured (session 63% rendered)"
 
-printf '%s' "$out" | grep -q '71%' \
+grep -q '71%' < <(printf '%s' "$out") \
   || fail "weekly utilization 71% from the OVERRIDE cache did not render — CLAUDE_USAGE_CACHE is not honoured (id:ec3c)"
 pass "weekly 71% rendered from the override cache"
 

@@ -85,7 +85,7 @@ console.log(out.join('\n'))
 NODE
 
 node "$TMP/drive.mjs" > "$TMP/res" 2>"$TMP/err" || { echo "FAIL: driver errored:"; cat "$TMP/err"; exit 1; }
-get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2-; }
+get() { head -1 < <(grep -E "^$1=" "$TMP/res") | cut -d= -f2- ; }
 
 [[ "$(get handback_survives_round_boundary)" == "1" ]] && ok "a handback pushed in round 1 SURVIVES a round-2 surfaced-view reassignment" || bad "handback should survive the round boundary"
 [[ "$(get handback_repo)" == "loderite" ]] && ok "the surviving handback is the real one (loderite)" || bad "wrong handback survived"

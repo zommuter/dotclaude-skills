@@ -74,7 +74,7 @@ if [[ ! -d "$repo" ]]; then
   own_out="" ; own_rc=0
   own_out="$(own_repos)" || own_rc=$?
   [[ $own_rc -eq 0 ]] || die "relay.toml at $RELAY_TOML failed to parse while resolving repo name '$repo_name'"
-  resolved="$(printf '%s\n' "$own_out" | awk -F'\t' -v n="$repo_name" '$1==n{print $2; exit}')"
+  resolved="$(awk -F'\t' -v n="$repo_name" '$1==n{print $2; exit}' < <(printf '%s\n' "$own_out") )"
   [[ -n "$resolved" ]] || die "repo name '$repo_name' not found (not an existing directory, and not a registered own repo in $RELAY_TOML)"
   repo="$resolved"
 fi

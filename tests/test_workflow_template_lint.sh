@@ -37,7 +37,7 @@ if out="$(node "$LINT" "$TMP/bad.mjs" 2>&1)"; then
   fail "linter did NOT flag an unescaped backtick inside a template literal:
 $out"
 fi
-echo "$out" | grep -qE 'bad\.mjs:2:' \
+grep -qE 'bad\.mjs:2:' < <(echo "$out") \
   || fail "linter flagged but did not name the offending line (expected bad.mjs:2:…):
 $out"
 pass "(1) unescaped backtick inside a template literal → nonzero, names the line"
@@ -81,7 +81,7 @@ if out="$(node "$LINT" "$TMP/member.mjs" 2>&1)"; then
   fail "linter did NOT flag a `.member` tagged-template desync (the .timer crash class):
 $out"
 fi
-echo "$out" | grep -qE 'member\.mjs:2:' \
+grep -qE 'member\.mjs:2:' < <(echo "$out") \
   || fail "linter flagged the .member desync but did not name the offending line:
 $out"
 pass "(2b) unescaped backtick + .member chain + reopening backtick (tagged-template desync) → nonzero, names the line"
@@ -99,7 +99,7 @@ if out="$(node "$LINT" "$TMP/dashc.mjs" 2>&1)"; then
   fail "linter did NOT flag an operator-glued inline span (the -c crash class):
 $out"
 fi
-echo "$out" | grep -qE 'dashc\.mjs:2:' \
+grep -qE 'dashc\.mjs:2:' < <(echo "$out") \
   || fail "linter flagged the -c inline span but did not name the offending line:
 $out"
 pass "(2c) unescaped backtick + operator-glued token + reopening backtick (\`-c\` desync) → nonzero, names the line"

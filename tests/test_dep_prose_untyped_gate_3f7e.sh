@@ -70,13 +70,13 @@ pass "roadmap-lint.sh: untyped (DEP: 0cd5) prose WARNs, naming the item id and t
 
 # id:bbbb (typed) must NOT trigger a DEP-PROSE-UNTYPED line for bbbb specifically —
 # check no DEP-PROSE-UNTYPED report line mentions id:bbbb.
-! grep 'DEP-PROSE-UNTYPED' <<<"$rl_out" | grep -qF 'id:bbbb' || { echo "$rl_out"; fail "roadmap-lint.sh: id:bbbb has a matching gated-on marker — must NOT WARN"; }
+! grep -qF 'id:bbbb' < <(grep 'DEP-PROSE-UNTYPED' <<<"$rl_out") || { echo "$rl_out"; fail "roadmap-lint.sh: id:bbbb has a matching gated-on marker — must NOT WARN"; }
 pass "roadmap-lint.sh: (DEP: 0cd5) WITH matching <!-- gated-on:0cd5 --> does not WARN"
 
-! grep 'DEP-PROSE-UNTYPED' <<<"$rl_out" | grep -qF 'id:cccc' || { echo "$rl_out"; fail "roadmap-lint.sh: id:cccc's DEP mention is backtick-quoted (docs) — must NOT WARN"; }
+! grep -qF 'id:cccc' < <(grep 'DEP-PROSE-UNTYPED' <<<"$rl_out") || { echo "$rl_out"; fail "roadmap-lint.sh: id:cccc's DEP mention is backtick-quoted (docs) — must NOT WARN"; }
 pass "roadmap-lint.sh: a backtick-quoted (DEP: ...) mention does not WARN"
 
-! grep 'DEP-PROSE-UNTYPED' <<<"$rl_out" | grep -qF 'id:dddd' || { echo "$rl_out"; fail "roadmap-lint.sh: id:dddd is a closed [x] item — must NOT WARN"; }
+! grep -qF 'id:dddd' < <(grep 'DEP-PROSE-UNTYPED' <<<"$rl_out") || { echo "$rl_out"; fail "roadmap-lint.sh: id:dddd is a closed [x] item — must NOT WARN"; }
 pass "roadmap-lint.sh: a closed [x] item with untyped DEP prose does not WARN"
 
 # --- --strict never escalates this rule ---------------------------------------
@@ -101,7 +101,7 @@ tc_rc=$?
 [[ "$tc_rc" -eq 0 ]] || { echo "$tc_out"; fail "todo-conformance.sh must exit 0 by default (report-only)"; }
 
 grep -qF 'dep-prose-untyped' <<<"$tc_out" || { echo "$tc_out"; fail "todo-conformance.sh: id:aaaa's untyped (DEP: 0cd5) did not report a finding"; }
-grep 'dep-prose-untyped' <<<"$tc_out" | grep -qF '0cd5' || { echo "$tc_out"; fail "todo-conformance.sh: finding did not name the untyped id 0cd5"; }
+grep -qF '0cd5' < <(grep 'dep-prose-untyped' <<<"$tc_out") || { echo "$tc_out"; fail "todo-conformance.sh: finding did not name the untyped id 0cd5"; }
 pass "todo-conformance.sh: untyped (DEP: 0cd5) prose is reported as a dep-prose-untyped finding"
 
 bbbb_line="$(grep -F 'id:bbbb' <<<"$tc_out" || true)"

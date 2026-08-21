@@ -169,7 +169,7 @@ res="$(node "$TMP/drive.mjs")"
 echo "--- helper output ---"; echo "$res"; echo "---------------------"
 get() { printf '%s\n' "$res" | sed -n "s/^$1=//p"; }
 
-if printf '%s\n' "$res" | grep -q '^MISSING_EXPORT$'; then
+if grep -q '^MISSING_EXPORT$' < <(printf '%s\n' "$res") ; then
   bad "handback-guard.mjs exports no noWorkEnumerationAlarm — the detector does not exist"
 else
   [[ "$(get disjoint_alarm)" == "1" ]] \

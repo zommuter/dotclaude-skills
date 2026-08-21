@@ -41,7 +41,7 @@ if out="$(node "$LINT" "$TMP/bad-bash.mjs" 2>&1)"; then
   fail "linter did NOT flag a fence-carrying agent() call hardcoding model:'bash':
 $out"
 fi
-echo "$out" | grep -qE 'bad-bash\.mjs:3:' \
+grep -qE 'bad-bash\.mjs:3:' < <(echo "$out") \
   || fail "linter flagged but did not name the agent() call's line (expected bad-bash.mjs:3:…):
 $out"
 pass "(1) fence-carrying agent() call hardcoding model:'bash' → nonzero, names the line"
@@ -62,7 +62,7 @@ if out="$(node "$LINT" "$TMP/bad-haiku.mjs" 2>&1)"; then
   fail "linter did NOT flag a fence-carrying agent() call hardcoding model:'haiku':
 $out"
 fi
-echo "$out" | grep -qE 'bad-haiku\.mjs:3:' \
+grep -qE 'bad-haiku\.mjs:3:' < <(echo "$out") \
   || fail "linter flagged but did not name the agent() call's line:
 $out"
 pass "(1b) fence-carrying agent() call hardcoding model:'haiku' → nonzero, names the line"
@@ -143,7 +143,7 @@ if out="$(node "$LINT" "$TMP/bad-guarded.mjs" 2>&1)"; then
   fail "linter did NOT flag a fence-carrying dispatchGuarded() call hardcoding model:'bash':
 $out"
 fi
-echo "$out" | grep -qE 'bad-guarded\.mjs:3:' \
+grep -qE 'bad-guarded\.mjs:3:' < <(echo "$out") \
   || fail "linter flagged but did not name the dispatchGuarded() call's line:
 $out"
 pass "(2d) fence-carrying dispatchGuarded() call hardcoding a literal model → nonzero, names the line"

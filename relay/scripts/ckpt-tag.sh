@@ -128,7 +128,7 @@ $label" ${tag_commit:+"$tag_commit"}
     # silent variant is exactly the defect these items exist to kill: before this, a label
     # that produced no match was indistinguishable from a successful sync, so supervised
     # strong checkpoints left last_strong_ckpt stale for days ([[no-swallow-stderr]]).
-    model="$(grep -oE 'claude-[a-z0-9.-]+' <<<"$label" | head -n1 || true)"
+    model="$(head -n1 < <(grep -oE 'claude-[a-z0-9.-]+' <<<"$label") || true)"
     if [[ -z "$model" ]]; then
       # A model-less label is CORRECT for a deliberately non-strong checkpoint and a DEFECT
       # for a strong one whose label omitted the model id. The label's ROLE PREFIX tells the

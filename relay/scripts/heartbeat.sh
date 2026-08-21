@@ -273,7 +273,7 @@ case "$cmd" in
     # id:0fa0 minor finding: hardcoded '2,66p' had already gone stale (header runs to line 76,
     # before `set -euo pipefail`) — compute the range so a future header edit can't truncate
     # --help again.
-    sed -n "2,$(( $(grep -n '^set -euo pipefail' "$0" | head -1 | cut -d: -f1) - 1 ))p" "$0"
+    sed -n "2,$(( $(head -1 < <(grep -n '^set -euo pipefail' "$0") | cut -d: -f1 ) - 1 ))p" "$0"
     ;;
 
   *)

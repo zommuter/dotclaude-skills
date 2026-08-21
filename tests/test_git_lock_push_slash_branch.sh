@@ -69,11 +69,11 @@ diagnose() {
   || { echo "git-lock-push failed on slash-named branch"; diagnose; exit 1; }
 
 # Pull must have happened: the remote-side commit is now in local history.
-git -C "$work" log --format=%s | grep -q "remote-side commit" \
+grep -q "remote-side commit" < <(git -C "$work" log --format=%s) \
   || { echo "pull was skipped: remote-side commit missing locally (slash-branch parse bug)"; diagnose; exit 1; }
 
 # Push must have happened: the local-side commit reached the remote.
-git -C "$bare" log --format=%s "relay/review-x" | grep -q "local-side commit" \
+grep -q "local-side commit" < <(git -C "$bare" log --format=%s "relay/review-x") \
   || { echo "push did not reach remote on slash-named branch"; exit 1; }
 
 echo ok

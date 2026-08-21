@@ -41,7 +41,7 @@ fi
 current="${RELAY_HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
 
 # Extract the FIRST [host:<name>] tag (case-insensitive 'host'); name is [A-Za-z0-9_.-]+.
-tag="$(printf '%s' "$text" | grep -oiE '\[host:[A-Za-z0-9_.-]+\]' | head -n1 || true)"
+tag="$(head -n1 < <(printf '%s' "$text" | grep -oiE '\[host:[A-Za-z0-9_.-]+\]') || true)"
 
 if [[ -z "$tag" ]]; then
   echo "proceed: no host tag (host:any default)"

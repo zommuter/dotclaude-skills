@@ -82,22 +82,22 @@ printf 'u1\t%s\t%s\nu2\t%s\t%s\nu3\t%s\t%s\nu4\t%s\t%s\n' \
   "$u1" "$u1_actual" "$u2" "$u2_actual" "$u3" "$u3_actual" "$u4" "$u4_actual" > "$manifest"
 
 out="$("$SC" eval-corpus "$manifest")"
-echo "$out" | grep -qx 'units=4' \
+grep -qx 'units=4' < <(echo "$out") \
   && ok "eval-corpus: unit count correct" \
   || bad "eval-corpus: expected units=4, got: $out"
-echo "$out" | grep -qx 'under_extracted=1' \
+grep -qx 'under_extracted=1' < <(echo "$out") \
   && ok "eval-corpus: under-extraction counted exactly the 1 under-extracted unit (u3)" \
   || bad "eval-corpus: expected under_extracted=1, got: $out"
-echo "$out" | grep -qx 'under_extraction_rate=0.25' \
+grep -qx 'under_extraction_rate=0.25' < <(echo "$out") \
   && ok "eval-corpus: under-extraction rate = 1/4 = 0.25" \
   || bad "eval-corpus: expected under_extraction_rate=0.25, got: $out"
-echo "$out" | grep -qx 'declared_overlap_pairs=1' \
+grep -qx 'declared_overlap_pairs=1' < <(echo "$out") \
   && ok "eval-corpus: exactly the u1/u4 pair has declared-set overlap" \
   || bad "eval-corpus: expected declared_overlap_pairs=1, got: $out"
-echo "$out" | grep -qx 'false_serialized_pairs=1' \
+grep -qx 'false_serialized_pairs=1' < <(echo "$out") \
   && ok "eval-corpus: the citation-only overlap (u1/u4) is COUNTED as false-serialization, not silently dropped" \
   || bad "eval-corpus: expected false_serialized_pairs=1, got: $out"
-echo "$out" | grep -qx 'false_serialization_rate=1.00' \
+grep -qx 'false_serialization_rate=1.00' < <(echo "$out") \
   && ok "eval-corpus: false-serialization rate = 1/1 = 1.00" \
   || bad "eval-corpus: expected false_serialization_rate=1.00, got: $out"
 
@@ -105,13 +105,13 @@ echo "$out" | grep -qx 'false_serialization_rate=1.00' \
 manifest2="$TMP/manifest2.tsv"
 printf 'u1\t%s\t%s\nu2\t%s\t%s\n' "$u1" "$u1_actual" "$u2" "$u2_actual" > "$manifest2"
 out2="$("$SC" eval-corpus "$manifest2")"
-echo "$out2" | grep -qx 'under_extraction_rate=0.00' \
+grep -qx 'under_extraction_rate=0.00' < <(echo "$out2") \
   && ok "eval-corpus: fully-covered corpus -> under_extraction_rate=0.00" \
   || bad "eval-corpus: expected under_extraction_rate=0.00, got: $out2"
-echo "$out2" | grep -qx 'declared_overlap_pairs=0' \
+grep -qx 'declared_overlap_pairs=0' < <(echo "$out2") \
   && ok "eval-corpus: disjoint-declared corpus -> declared_overlap_pairs=0" \
   || bad "eval-corpus: expected declared_overlap_pairs=0, got: $out2"
-echo "$out2" | grep -qx 'false_serialization_rate=n/a' \
+grep -qx 'false_serialization_rate=n/a' < <(echo "$out2") \
   && ok "eval-corpus: no overlap pairs -> false_serialization_rate reported as n/a, not a division error" \
   || bad "eval-corpus: expected false_serialization_rate=n/a, got: $out2"
 
