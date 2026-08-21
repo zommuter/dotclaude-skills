@@ -186,7 +186,39 @@ D1/D2):
      contradicted). Recommend starting/restarting `mechanical-proxy.py` (id:69f6) and
      relaunching once healthy.
    - `proceed` (probe healthy): the proxy is intercepting `model:"bash"` as designed — no warning,
-     pass nothing (or `MECH_FALLBACK=proceed`).
+     pass nothing (or `MECH_FALLBACK=proceed`). **`proceed` is NOT sufficient on its own — run the
+     currency check below before launching.**
+
+   **Currency check (id:0384) — ONLY on `proceed`, and a STALE verdict is a launch REFUSAL.**
+   When and only when the probe said `proceed` (the proxy IS in the request path), also run the
+   sibling helper `scripts/mech-currency.sh --currency` ONCE. The probe answers *"is the proxy
+   socket reachable"*; it CANNOT answer *"does the LIVE process's in-memory allowlist still match
+   the source on disk"* — and only the second question decides whether a mechanical hop survives.
+   `mechanical-proxy.py` binds `ALLOWED_RELAY_SCRIPTS` at **import** and the module has **no reload
+   path**, so a proxy that started before a script was added to that frozenset REFUSES that script's
+   hop, fails OPEN to the real API, and 404s on `model:"bash"` — while the socket probe, the mode
+   discriminator and this step's own token all report healthy for as long as the process lives.
+   (Observed live 2026-08-21, run `relay-20260821-164439-2279`: proxy pid 1130 started ~25 h before
+   the commit that allowlisted `ledger-slice.sh`; the slice hop 404'd, so the id:35b7 prompt-size
+   gate sized the WHOLE ledgers — ~315,704 tok against a 100,000 budget — and the round handed back
+   with zero dispatch. `mech-currency.sh` reported STALE with both digests the entire time; nothing
+   called it.) Branch on the checker's verdict:
+   - **STALE** — exit **1**, and the word `STALE` plus both digests and the remedy on stderr. Every
+     unknown is folded into this verdict fail-CLOSED: digest mismatch, a dead pid, an unreadable or
+     field-less state file, and **no state file at all** (the pre-feature process this exists to
+     catch wrote none, so absence is the primary signal, never health). Treat it exactly as `abort`
+     above — this is a **launch REFUSAL**. Relay the checker's stderr verbatim to the operator, name
+     the remedy — **restart `mechanical-proxy.py`** (`make relay-proxy-start`, id:69f6) — and do
+     **NOT** launch the Workflow; relaunch once the check reports `current`. Contract: a proxy whose
+     in-memory allowlist predates any allowlisted script cannot pass step 0b.
+   - **current** — exit **0**, one `current …` line on stdout naming the pid and digest. Nothing to
+     surface; launch with the token the probe chose.
+   Exit status and verdict agree here, so either may be keyed on — but key on **one of them**, not
+   on stdout being non-empty: a STALE report writes its whole explanation to **stderr** and leaves
+   stdout empty, so a caller that only looks for output on stdout sees silence and reads it as calm.
+   The check is deliberately skipped for `fallback-haiku` (probe mode-a): no proxy is in the request
+   path there, the mechanical hops are already re-routed to `model:"haiku"`, and the missing state
+   file of an absent proxy would otherwise refuse every session not launched through it.
 1. **Non-interactive by default.** The front door operates ONLY on relay.toml
    `classification = "own"` confirmed repos. New, dirty, or `needs_review` repos are
    *surfaced* in `RELAY_STATUS.md` (Queued/Blocked sections) — never asked about
