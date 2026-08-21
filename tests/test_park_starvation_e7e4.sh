@@ -81,9 +81,16 @@ o1="$("$DR" --repo loderite --path "$R1" --runid freshrun --live-claims "" --mai
   || fail "(1) dispatched unit verdict != execute: $o1"
 pass "(1) leftover worktree from a dead run no longer zeroes out a repo with actionable work"
 
-grep -q "deadrun-execute-repo-0" < <(printf '%s' "$o1" | surf_join) \
-  || fail "(2) the park notification was DROPPED from surfaced — additive means alongside, not instead of, and not gone: $o1"
-pass "(2) the planned-park notification is still surfaced (additive)"
+# Assert on the MARKER (id:e7e4's "parked-orphan (planned):" class prefix), not the
+# worktree BASENAME. The pre-fix suppress reason ALSO names the basename ("stale
+# worktree $bn from a dead run"), so a basename grep passes even when the additive-surf
+# fold is reverted — id:f0ad(c) demonstrated this leaves the test 5/5-green against a
+# revert of discover-repo.sh:170,179,203,245. The marker is the thing the class
+# dispatcher actually keys on (discover-repo.sh's ADDITIVE tuple), so it is the only
+# assertion that can tell "additive surfaced" apart from "repo-scoped suppressed".
+grep -q "^parked-orphan (planned):" < <(printf '%s' "$o1" | surf_join) \
+  || fail "(2) the park notification was DROPPED from surfaced (no 'parked-orphan (planned):' marker) — additive means alongside, not instead of, and not gone: $o1"
+pass "(2) the planned-park notification is still surfaced (additive), asserted on the marker"
 
 # =====================================================================================
 # (3) NEGATIVE CONTROL / SAME-ITEM carve-out — the planned park is bound to the repo's ONLY
@@ -140,5 +147,31 @@ s4="$(printf '%s' "$o4" | surf_join)"
 ! grep -q "STARVED" <<< "$s4" \
   || fail "(5) a repo with NO actionable work must not be labelled STARVED (that would make the banner meaningless): [$s4]"
 pass "(5) substitutive block with no actionable work is NOT labelled STARVED"
+
+# =====================================================================================
+# (6) f0ad(c) — a planned park whose bound item is CLOSED. reconcile-repo.sh:233 sets
+#     suppress=false for a closed binding (stale orphan, do not suppress), so the ONLY
+#     surface entry produced for this worktree is the "parked-orphan (planned):" line
+#     — there is no "suppressed re-dispatch:" line to fall back on. If the additive-surf
+#     fold were reverted, this planned park would be read as repo-scoped substitutive
+#     suppression and the surfaced list would be EMPTY — a dead run's parked worktree
+#     with ZERO operator trace (the 2026-07-28 phantom-park class). This is the state
+#     the basename-based case (2) assertion could not distinguish from a healthy repo.
+# =====================================================================================
+R5="$tmp/closeditem"; mkrepo "$R5"
+printf '# Roadmap\n## Items\n- [x] [ROUTINE] already shipped <!-- id:eeee -->\n' > "$R5/ROADMAP.md"
+printf '# TODO\n## Current\n' > "$R5/TODO.md"
+git -C "$R5" add -A; git -C "$R5" commit -qm init
+stale_worktree "$R5" closeditem deadrun-execute-closed-0 "executor wip for id:eeee"
+
+o5="$("$DR" --repo closeditem --path "$R5" --runid freshrun --live-claims "" --main-branch main 2>/dev/null)"
+s5="$(printf '%s' "$o5" | surf_join)"
+[[ -n "$s5" ]] \
+  || fail "(6) a planned park bound to a CLOSED item produced NO surfaced entries at all — the phantom-park class: a dead run's leftover worktree with zero operator trace: $o5"
+grep -q "^parked-orphan (planned):" <<< "$s5" \
+  || fail "(6) a planned park bound to a CLOSED item must still surface the 'parked-orphan (planned):' marker: [$s5]"
+! grep -q "suppressed re-dispatch:" <<< "$s5" \
+  || fail "(6) a CLOSED-item binding must NOT ALSO emit 'suppressed re-dispatch:' (that path is for still-open bindings): [$s5]"
+pass "(6) planned park bound to a closed item still surfaces the parked-orphan marker (no phantom park)"
 
 echo "ALL PASS: a dead run's leftover worktree no longer starves a repo with actionable work; a skip that still happens is LOUD (id:e7e4)"

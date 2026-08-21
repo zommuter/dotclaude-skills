@@ -991,11 +991,16 @@ const INTEGRATE_SCHEMA = {
     pushRemotes: { type: 'array', items: { type: 'string' } },
     // id:4d44 — comma-separated remotes that did NOT receive the merge ('' when none).
     pushPending: { type: 'string' },
-    // id:4d44 — the OWNER-facing key. 'pending' when this unit sits in the durable
-    // ratification queue (~/.config/relay/ratification-queue.jsonl) because at least one
-    // remote still lacks the merge (or it reached none at all) — the queue entry NAMES those
-    // remotes. 'none' when every eligible remote carries it, which now INCLUDES a substantive
-    // unit whose remotes are all private/LAN: those were pushed, so nothing awaits the owner.
+    // id:4d44 — 'pending' when this unit sits in the durable ratification queue
+    // (~/.config/relay/ratification-queue.jsonl), 'none' when it was published outright.
+    // id:f0ad — 'pending' covers EVERY unpublished-land class, not just the substantive one:
+    // pushStatus 'deferred' (a substantive unit awaiting owner ratification), 'no-upstream'
+    // (nowhere to push at all), and — id:4d44's per-remote addition — 'partial' (some remotes
+    // received the merge, others were withheld). 'no-upstream' used to report 'none', so the
+    // surfacing condition below matched neither key and an unpublished merge was counted as a
+    // plain completion; 'partial' would have the same defect for its withheld remotes.
+    // 'none' therefore means exactly one thing: EVERY eligible remote carries the merge.
+
     ratification: { type: 'string' },
     ts: { type: 'string' },
     reason: { type: 'string' },
@@ -3264,15 +3269,28 @@ async function integrate(unit, report) {
     // invisible in every artifact a reader normally looks at, and RELAY_STATUS.md itself goes
     // stale exactly when a run goes deep (id:4917). The durable record is the append-only
     // ratification queue the integrator wrote; this line only points at it.
-    if (result.ratification === 'pending' || result.pushStatus === 'deferred' || result.pushStatus === 'partial') {
+    // The three unpublished-land classes, all of which the integrator now queues: 'deferred'
+    // (id:4d44), 'no-upstream' (id:f0ad) and 'partial' (id:4d44 per-remote). `ratification ===
+    // 'pending'` already covers all three; the pushStatus arms are a belt against a parser or
+    // integrator that reports one key and not the other.
+    if (result.ratification === 'pending' || result.pushStatus === 'deferred'
+        || result.pushStatus === 'partial' || result.pushStatus === 'no-upstream') {
       // id:4d44 per-remote: say WHICH remotes are still waiting. A `partial` unit already
       // published to its private/LAN remotes, so "nothing reached the remote" would be false
       // — the pending list is the only accurate sentence here.
       const pending = result.pushPending || ''
-      const where = pending
-        ? `PUBLIC/unreached remote(s) [${pending}] do NOT have it (private/LAN remotes were pushed automatically)`
-        : 'no remote has it'
-      log(`relay-loop: id:4d44 RATIFICATION PENDING for ${unit.repo}${workedIds.length ? ' (ids ' + workedIds.join(',') + ')' : ''}: merged + tagged LOCALLY (ckpt=${result.ckptTag || '?'}, push=${result.pushStatus || '?'}) — ${where}. Substantive agent-authored work needs owner ratification before it is published; main is LOCAL-AHEAD on those remotes until a human reviews and pushes. Per-remote: ${(result.pushRemotes || []).join(' ') || 'n/a'}. The durable entry is in ~/.config/relay/ratification-queue.jsonl`)
+      const where = result.pushStatus === 'no-upstream'
+        ? 'this checkout has NO upstream — there is nowhere to push it at all (id:f0ad)'
+        : pending
+          ? `PUBLIC/unreached remote(s) [${pending}] do NOT have it (private/LAN remotes were pushed automatically)`
+          : 'no remote has it'
+      // id:f0ad — a no-upstream unit is NON-substantive by construction, so "substantive
+      // agent-authored work needs owner ratification" would be false for it. Say what is
+      // actually true of this class.
+      const why = result.pushStatus === 'no-upstream'
+        ? 'This is not a ratification hold — it is an unpublishable land: give the repo a remote, or record that it is deliberately local-only.'
+        : 'Substantive agent-authored work needs owner ratification before it is published; main is LOCAL-AHEAD on those remotes until a human reviews and pushes.'
+      log(`relay-loop: id:4d44 RATIFICATION PENDING for ${unit.repo}${workedIds.length ? ' (ids ' + workedIds.join(',') + ')' : ''}: merged + tagged LOCALLY (ckpt=${result.ckptTag || '?'}, push=${result.pushStatus || '?'}) — ${where}. ${why} Per-remote: ${(result.pushRemotes || []).join(' ') || 'n/a'}. The durable entry is in ~/.config/relay/ratification-queue.jsonl`)
       pushEvent('ratification-pending', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', ids: workedIds, push: result.pushStatus || '?', pending })
     }
     // L2 push-seed the discovery cache (id:c855): a just-integrated repo's sig CHANGES (new
@@ -3337,7 +3355,10 @@ async function integrate(unit, report) {
       ? 'COMMITTED, TAGGED and PUSHED'
       : result.pushStatus === 'partial'
         ? `COMMITTED, TAGGED and PUSHED TO SOME REMOTES ONLY (push=partial, ratification=${result.ratification || 'unknown'} — id:4d44: [${result.pushPending || '?'}] still lack it and need an owner push; per-remote: ${(result.pushRemotes || []).join(' ') || 'n/a'})`
-        : `COMMITTED and TAGGED **LOCALLY ONLY** (push=${result.pushStatus || '?'}, ratification=${result.ratification || 'unknown'} — id:4d44: nothing reached the remote, so main is LOCAL-AHEAD and the work still needs an owner push)`
+        : result.pushStatus === 'no-upstream'
+          // id:f0ad — "needs an owner push" is false here: there is no upstream to push to.
+          ? `COMMITTED and TAGGED **LOCALLY ONLY** (push=no-upstream, ratification=${result.ratification || 'unknown'} — id:f0ad: this checkout has NO upstream, so nothing could reach any remote; give the repo a remote or record it as deliberately local-only)`
+          : `COMMITTED and TAGGED **LOCALLY ONLY** (push=${result.pushStatus || '?'}, ratification=${result.ratification || 'unknown'} — id:4d44: nothing reached the remote, so main is LOCAL-AHEAD and the work still needs an owner push)`
     const landedReason = `id:5fe2 LANDED-BUT-UNFINISHED integrate for ${unit.repo}${workedIds.length ? ' (ids ' + workedIds.join(',') + ')' : ''}: the merge is ${landedWhere} (merged=${result.mergedSha || '?'}, ckpt=${result.ckptTag || '?'}) but integrate.sh handed back at the POST-LAND step '${result.handbackStep || '?'}'. DO NOT re-merge or re-dispatch — a retry takes the zero-commit path and mints a SECOND ckpt tag. Steps that did NOT run: ${result.remaining || 'unknown'}. ${ckptNote}. The worktree ${report.worktree} and branch ${report.branch} are still on disk for a supervised reconcile. Integrator output: ${result.reason || ''}`
     log(`relay-loop: ${landedReason}`)
     // workCreated:false — a post-push tail failure writes no new dispatchable work; it is

@@ -6,6 +6,17 @@ SKILLS := meeting meeting-cross git-diary-workflow todo-update relay projects
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
+# Custom subagent definitions (~/.claude/agents/*.md). The markdown BODY becomes that agent
+# type's SYSTEM PROMPT, replacing the default; `tools:` narrows the tool-definition block and
+# `model:`/frontmatter set the tier. All three are large shares of the ~58.6k preamble every
+# delegated agent pays before its first tool call (measured 2026-08-21, id:10dc).
+# Adopted into this repo 2026-08-21: echo-runner.md was created 2026-07-02 as a relay-loop
+# token-trim experiment and left UNTRACKED in ~/.claude/agents/ — no manifest entry, no
+# install target, no drift check, absent on every other machine and lost on a rebuild. That
+# is the same unmanaged-artifact class that cost two dead pool rounds (id:83c3).
+AGENTS_DIR := $(HOME)/.claude/agents
+AGENT_FILES := echo-runner.md
+
 meeting_FILES := SKILL.md format.md personas.md broker-mode.md cross-mode.md append.sh cost-of.sh \
                  find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
                  persona-state.py retrieve-top-k.py md-merge.py gh-audit.sh classify.sh \
@@ -209,7 +220,7 @@ help:
 	@echo ""
 	@echo "Install location: $$DEST_DIR  (override: make DEST_DIR=/path install)"
 
-install: $(addprefix install-,$(SKILLS)) install-hooks install-allowlist install-relay-env
+install: $(addprefix install-,$(SKILLS)) install-hooks install-agents install-allowlist install-relay-env
 
 # Relay fleet env policy → settings.json (idempotent, like install-allowlist). settings.json
 # is PER-MACHINE (not synced — each machine's ~/.claude is its own branch), so this SHARED repo
@@ -327,6 +338,25 @@ install-hooks: install-statusline
 	@mkdir -p $(HOOKS_DIR)
 	@for f in $(HOOK_FILES); do ln -sf $(SRC_DIR)/hooks/$$f $(HOOKS_DIR)/$$f; done
 	@ln -sf $(SRC_DIR)/hooks/notify-hook.linux-x11.sh $(HOME)/.claude/notify-hook.sh
+
+install-agents:
+	@echo "→ installing agent definitions"
+	@mkdir -p $(AGENTS_DIR)
+	@for f in $(AGENT_FILES); do ln -sf $(SRC_DIR)/agents/$$f $(AGENTS_DIR)/$$f; done
+
+# Same posture as status-hooks (id:5218): an agent definition that is a REAL FILE in
+# $(AGENTS_DIR) rather than a symlink into this repo is unversioned, unreviewable, absent
+# on every other machine, and lost on a rebuild — report it loudly. Also surfaces any
+# definition present in $(AGENTS_DIR) that this repo does not manage.
+status-agents:
+	@echo "agents:"
+	@trap '' PIPE; for f in $(AGENT_FILES); do \
+		if [ -L $(AGENTS_DIR)/$$f ]; then echo "  ok  $$f -> $$(readlink $(AGENTS_DIR)/$$f)"; \
+		elif [ -e $(AGENTS_DIR)/$$f ]; then echo "  DRIFT $$f is a real file, not a symlink into this repo"; \
+		else echo "  MISSING $$f (run: make install-agents)"; fi; done
+	@trap '' PIPE; for f in $(AGENTS_DIR)/*.md; do \
+		[ -e "$$f" ] || continue; b=$$(basename $$f); \
+		case " $(AGENT_FILES) " in *" $$b "*) ;; *) echo "  UNMANAGED $$b (present in $(AGENTS_DIR), not in AGENT_FILES)";; esac; done
 
 # id:5218 — surface hook symlink state AND unmanaged drift. A hook that is a REAL FILE
 # in $(HOOKS_DIR) (rather than a symlink into this repo) is unversioned, unreviewable,
@@ -659,7 +689,7 @@ uninstall-discovery-timer:
 
 uninstall: $(addprefix uninstall-,$(SKILLS)) uninstall-statusline
 
-status: $(addprefix status-,$(SKILLS)) status-statusline status-hooks
+status: $(addprefix status-,$(SKILLS)) status-statusline status-hooks status-agents
 
 define SKILL_RULES
 
