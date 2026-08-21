@@ -918,3 +918,65 @@ deleted and no assertion removed.
   choice — promote the gate targets (handoff C2's lane call, never guessed) or re-target
   the markers — and both are owner-gated items, so I did not touch them. Surfaced so the
   four are not read as accidentally-blocked a second time.
+
+## Review 2026-08-21 (focused, `relay-ckpt-20260821-1515`..HEAD — id:6f62)
+
+One unit, 10 files. **Verified honest + green.** `gaming-scan.sh` clean; no `@owner-accepted` in
+the window; no test deleted/skipped/weakened. Reproduction independently re-derived through the
+REAL `~/.claude/hooks/` symlink with the REAL live `discovery-producer` marker: empty output,
+exit 0 (DEFERS). Real pool marker still `deny`. `stop-request.sh` matrix re-run: 0 pools → exit 3
++ writes nothing; producer-only → exit 3 + writes nothing; 1 pool → exit 0 + targeted sentinel;
+2 pools + producer → exit 4, lists both, writes nothing. Missing / corrupt / attribute-less lib
+all fail SAFE (deny) in a scratch copy. Latency 22 ms/call, no subprocess. Boxes below are for
+wiring readiness — none blocks the merge.
+
+- [ ] **The guard CRASHES (exit 1, traceback) on four malformed-payload shapes, and a crashing
+  PreToolUse hook fails OPEN.** Reproduced: top-level JSON array or string (`payload.get` on a
+  non-dict → `AttributeError`), `tool_input` a string (`.get` on `str`), and `command` a non-string
+  (`"git" not in 123` → `TypeError`; a list reaches `shlex.split` and raises). Exit 1 is a
+  *non-blocking* hook error — Claude Code surfaces stderr and RUNS the command — so the one input
+  class that should never be trusted is exactly the class that bypasses the guard. Today's harness
+  always sends a well-formed payload, so likelihood is low; impact is the "worst outcome" the
+  wiring question named. **Recommendation:** `if not isinstance(payload, dict): return` plus
+  `isinstance(command, str)`, and wrap `find_violation` so an unexpected exception routes to the
+  conservative regex scan rather than to an uncaught traceback. <!-- id:3866 -->
+
+- [ ] **A live marker whose `runId` is empty or non-string is SILENTLY IGNORED rather than treated
+  as a probe error.** `is_pool_run("")`/`is_pool_run(None)` → `False`, and `_heartbeat_signal`
+  `continue`s on a `False` — so an unclassifiable-but-FRESH marker contributes no signal and an
+  interactive session DEFERS. That is right for `stop-request.sh` (an unnamed run cannot be
+  addressed) but inverts the guard's own stated doctrine, where "cannot tell whether a pool is
+  live" is ambiguity and must BLOCK. Narrow: `heartbeat.sh beat` refuses an empty runId, so no
+  sanctioned writer produces one. **Recommendation:** in the guard only, distinguish "marker parsed,
+  runId unusable" → `error` from "marker parsed, runId is a known non-pool" → skip. Keep
+  `lib-pool-runs.py` as-is; the split belongs in the caller. <!-- id:8987 -->
+
+- [ ] **id:6f62 shared the runId predicate but left the LIVENESS predicate re-derived — the same
+  drift shape, one level up.** The guard reimplements `heartbeat.sh`'s `is_alive` (ts + TTL) and
+  its `3600` default instead of consuming `heartbeat.sh live-runs`. A divergence already exists:
+  `hb_ts()` falls back to the file's MTIME when `heartbeat_ts` is missing or garbled and can call
+  such a marker ALIVE, while the guard reads a missing field as `ts=0` ⇒ stale ⇒ skip. Both err
+  safe today and nothing tests the parity. Note the re-derivation is a deliberate latency trade —
+  shelling to `heartbeat.sh` would add a bash+`jq` fan-out to every Bash call. **Recommendation:**
+  either a parity test pinning the two liveness rules against one fixture set, or an in-file
+  comment stating the divergence is intended and why. Owner's call which. <!-- id:5f95 -->
+
+- [ ] **The no-drift assertion prevents ONE SPELLING, not the rule.** The test greps both callers
+  for `!= "discovery-producer"`. A reintroduced inline copy written as `== "discovery-producer":
+  continue`, `not in ("discovery-producer",)`, or `startswith("discovery")` passes it untouched.
+  A strictly stronger assertion is available and already true: both callers mention
+  `discovery-producer` ONLY in comments (verified — guard lines 51/103/162, stop-request 58/59),
+  so the test can assert ZERO non-comment occurrences of the literal in either file.
+  **Recommendation:** tighten to the non-comment-occurrence form. <!-- id:4c14 -->
+
+- [ ] **Pre-existing (id:3a09 scope, NOT introduced here), surfaced because wiring is next:
+  `eval 'git reset --hard'` and `bash -c 'git reset --hard'` are ALLOWED.** Not the
+  command-substitution path — these tokenise cleanly, and `_split_git_commands` only starts a
+  command at a bare `git` token, so the quoted string is one opaque argument. Also allowed:
+  `git $(echo reset) --hard` (the raw-pattern fallback does not match). Correctly blocked:
+  `git -C /tmp reset --hard`, `cd sub && git checkout -- .`, `git clean -fdx`, `git stash drop`.
+  The guard is an accident-prevention lever, not an adversarial one, so this may be an accepted
+  boundary — but an executor that hits the refusal could reach for `bash -c` as its next move,
+  which is the routed-around-into-the-tree-wide-form failure the guard's own header warns about.
+  **Recommendation:** owner's call — either accept and say so in `hooks/README.md`, or scan
+  `eval`/`bash -c`/`sh -c` string arguments with the existing `_RAW_PATTERNS`. <!-- id:fb2c -->
