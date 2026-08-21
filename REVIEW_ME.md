@@ -930,7 +930,7 @@ exit 0 (DEFERS). Real pool marker still `deny`. `stop-request.sh` matrix re-run:
 all fail SAFE (deny) in a scratch copy. Latency 22 ms/call, no subprocess. Boxes below are for
 wiring readiness — none blocks the merge.
 
-- [ ] **The guard CRASHES (exit 1, traceback) on four malformed-payload shapes, and a crashing
+- [x] **The guard CRASHES (exit 1, traceback) on four malformed-payload shapes, and a crashing
   PreToolUse hook fails OPEN.** Reproduced: top-level JSON array or string (`payload.get` on a
   non-dict → `AttributeError`), `tool_input` a string (`.get` on `str`), and `command` a non-string
   (`"git" not in 123` → `TypeError`; a list reaches `shlex.split` and raises). Exit 1 is a
@@ -940,8 +940,9 @@ wiring readiness — none blocks the merge.
   wiring question named. **Recommendation:** `if not isinstance(payload, dict): return` plus
   `isinstance(command, str)`, and wrap `find_violation` so an unexpected exception routes to the
   conservative regex scan rather than to an uncaught traceback. <!-- id:3866 -->
+  — ✅ **RESOLVED 2026-08-21 (executor). Promoted to `ROADMAP.md` under the SAME id and ticked.** Every branch of `main()` now exits 0 and `find_violation` never raises; the tokenised analysis routing to the conservative regex scan on an unexpected exception is the same safe side a `shlex` error already took. **Disposition for an unreadable payload (acceptance clause 2): DEFER — exit 0, EMPTY stdout, plus a one-line stderr note.** A payload that will not parse carries no command, so there is nothing destructive to block; blocking would make any future hook-protocol change a fleet-wide outage in front of every Bash call. The stderr note keeps it observable rather than a silent hole. Six shapes pinned (the four reported verbatim + empty stdin + invalid JSON), each asserted exit 0 / empty stdout / non-empty stderr, in `tests/test_destructive_git_guard_malformed_3866.sh`. Fail-safe branches re-verified: breaking `lib-pool-runs.py` three ways × (heartbeat dir present / absent) still denies naming `heartbeat probe ERRORED`. `settings.json` NOT written.
 
-- [ ] **A live marker whose `runId` is empty or non-string is SILENTLY IGNORED rather than treated
+- [x] **A live marker whose `runId` is empty or non-string is SILENTLY IGNORED rather than treated
   as a probe error.** `is_pool_run("")`/`is_pool_run(None)` → `False`, and `_heartbeat_signal`
   `continue`s on a `False` — so an unclassifiable-but-FRESH marker contributes no signal and an
   interactive session DEFERS. That is right for `stop-request.sh` (an unnamed run cannot be
@@ -950,6 +951,7 @@ wiring readiness — none blocks the merge.
   sanctioned writer produces one. **Recommendation:** in the guard only, distinguish "marker parsed,
   runId unusable" → `error` from "marker parsed, runId is a known non-pool" → skip. Keep
   `lib-pool-runs.py` as-is; the split belongs in the caller. <!-- id:8987 -->
+  — ✅ **RESOLVED 2026-08-21 (executor). Promoted to `ROADMAP.md` under the SAME id and ticked.** Implemented exactly as recommended — the split is in the CALLER, `lib-pool-runs.py` is unchanged. A FRESH marker whose `runId` is empty, whitespace, or not a string now returns `error` ⇒ ambiguous ⇒ BLOCK (a non-object marker likewise); a fresh marker naming a known non-pool run still contributes nothing. Staleness is still evaluated BEFORE the runId, so a stale empty-runId marker remains no signal. Pinned in `tests/test_destructive_git_guard_malformed_3866.sh`.
 
 - [ ] **id:6f62 shared the runId predicate but left the LIVENESS predicate re-derived — the same
   drift shape, one level up.** The guard reimplements `heartbeat.sh`'s `is_alive` (ts + TTL) and
@@ -961,13 +963,14 @@ wiring readiness — none blocks the merge.
   either a parity test pinning the two liveness rules against one fixture set, or an in-file
   comment stating the divergence is intended and why. Owner's call which. <!-- id:5f95 -->
 
-- [ ] **The no-drift assertion prevents ONE SPELLING, not the rule.** The test greps both callers
+- [x] **The no-drift assertion prevents ONE SPELLING, not the rule.** The test greps both callers
   for `!= "discovery-producer"`. A reintroduced inline copy written as `== "discovery-producer":
   continue`, `not in ("discovery-producer",)`, or `startswith("discovery")` passes it untouched.
   A strictly stronger assertion is available and already true: both callers mention
   `discovery-producer` ONLY in comments (verified — guard lines 51/103/162, stop-request 58/59),
   so the test can assert ZERO non-comment occurrences of the literal in either file.
   **Recommendation:** tighten to the non-comment-occurrence form. <!-- id:4c14 -->
+  — ✅ **RESOLVED 2026-08-21 (executor). Promoted to `ROADMAP.md` under the SAME id and ticked.** Tightened to the non-comment-occurrence form in `tests/test_destructive_git_guard_pool_signal_6f62.sh`: the guard is checked with `tokenize` (COMMENT tokens and triple-quoted docstrings exempt, plain string literals NOT — so `== "discovery-producer"` still counts) and `stop-request.sh` by stripping `#` lines. Negative control run before trusting it: an injected `== "discovery-producer": continue` mutant is MISSED by the old spelling grep and CAUGHT by the new assertion. The old assertion is retained beside it, so the change is strictly additive.
 
 - [ ] **Pre-existing (id:3a09 scope, NOT introduced here), surfaced because wiring is next:
   `eval 'git reset --hard'` and `bash -c 'git reset --hard'` are ALLOWED.** Not the

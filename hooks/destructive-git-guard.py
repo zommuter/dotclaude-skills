@@ -61,9 +61,10 @@ Three-way, positive-signal based, ambiguity resolving to BLOCK:
                   * an unrecognised CLAUDE_CODE_ENTRYPOINT value (e.g. an sdk/print
                     headless entrypoint — those are unattended by nature)
                   * the heartbeat probe ERRORED (directory present but unreadable, a
-                    marker file that will not parse, or the shared pool-run predicate
-                    could not be loaded) — we cannot tell whether a pool run is live,
-                    so we assume it is
+                    marker file that will not parse, a LIVE marker whose runId is empty
+                    or not a string (id:8987), or the shared pool-run predicate could
+                    not be loaded) — we cannot tell whether a pool run is live, so we
+                    assume it is
                 An ABSENT heartbeat directory is NOT an error — it just means the relay
                 is not installed/running here, and contributes no signal.
 
@@ -186,12 +187,22 @@ def _heartbeat_signal(env) -> Tuple[str, str]:
         try:
             with open(path, "r", encoding="utf-8") as fh:
                 marker = json.load(fh)
+            if not isinstance(marker, dict):
+                return "error", f"unparseable heartbeat marker ({name})"
             ts = float(marker.get("heartbeat_ts", 0))
             run_id = marker.get("runId", "")
-        except (OSError, ValueError, TypeError):
+        except (OSError, ValueError, TypeError, AttributeError):
             return "error", f"unparseable heartbeat marker ({name})"
         if now - ts > ttl:
             continue  # stale — not a live run
+        # A FRESH marker we cannot classify is a probe ERROR, not a non-signal (id:8987).
+        # `is_pool_run` answers False for "" / None just as it does for a known non-pool
+        # daemon, and collapsing the two inverted this guard's own "cannot tell ⇒ block"
+        # doctrine: an unnameable-but-live run would have let an interactive session
+        # DEFER. The split belongs here, in the caller — lib-pool-runs.py stays as is,
+        # because stop-request.sh genuinely cannot address an unnamed run.
+        if not isinstance(run_id, str) or not run_id.strip():
+            return "error", f"live heartbeat marker with an empty or non-string runId ({name})"
         if not is_pool_run(run_id):
             continue  # a non-pool daemon (id:54fc) is NOT evidence of an unattended run
         return "live", str(run_id).strip()
@@ -339,11 +350,15 @@ def classify_git_argv(argv: list[str]) -> Optional[str]:
     return None
 
 
-def find_violation(command: str) -> Optional[str]:
-    """Return a description of the banned form in `command`, or None."""
-    if "git" not in command:
-        return None
+def _raw_scan(command: str) -> Optional[str]:
+    """Conservative raw-text scan, used when tokenised analysis is unavailable."""
+    for pat, label in _RAW_PATTERNS:
+        if pat.search(command):
+            return label
+    return None
 
+
+def _find_violation_tokenised(command: str) -> Optional[str]:
     tokens: Optional[list[str]] = None
     if not _UNPARSEABLE_CONSTRUCT.search(command):
         try:
@@ -353,16 +368,39 @@ def find_violation(command: str) -> Optional[str]:
 
     if tokens is None:
         # Parse ambiguity → conservative raw scan (safe side).
-        for pat, label in _RAW_PATTERNS:
-            if pat.search(command):
-                return label
-        return None
+        return _raw_scan(command)
 
     for argv in _split_git_commands(tokens):
         hit = classify_git_argv(argv)
         if hit:
             return hit
     return None
+
+
+def find_violation(command: str) -> Optional[str]:
+    """
+    Return a description of the banned form in `command`, or None.
+
+    NEVER raises (id:3866).  An uncaught exception here would exit the hook 1, and a
+    PreToolUse hook that exits non-zero is a NON-BLOCKING error — Claude Code prints
+    stderr and RUNS the command, i.e. the guard would fail OPEN.  Any unexpected
+    failure of the tokenised analysis therefore routes to the conservative regex scan
+    (the same safe side a shlex parse failure takes), not to a traceback.
+    """
+    if not isinstance(command, str) or "git" not in command:
+        return None
+    try:
+        return _find_violation_tokenised(command)
+    except Exception as exc:  # noqa: BLE001 — deliberate: fail SAFE, never fail open
+        print(
+            f"destructive-git-guard ({GUARD_ID}): tokenised analysis failed "
+            f"({type(exc).__name__}: {exc}); falling back to the conservative scan",
+            file=sys.stderr,
+        )
+        try:
+            return _raw_scan(command)
+        except Exception:  # noqa: BLE001 — a regex cannot realistically fail; still never raise
+            return None
 
 
 # ── refusal message ──────────────────────────────────────────────────────────
@@ -403,16 +441,48 @@ def refusal_reason(form: str, context: str, trigger: str = "") -> str:
     )
 
 
+def _defer(note: str) -> None:
+    """
+    Unreadable payload ⇒ DEFER, observably (id:3866, acceptance clause 2).
+
+    Disposition: a payload this hook cannot parse carries no command, so there is
+    nothing destructive to block — exit 0 with EMPTY stdout.  Blocking instead would
+    turn any future hook-protocol change into a fleet-wide outage in front of every
+    single Bash call, which is a far larger hazard than the one this guard removes.
+    But the deferral is never SILENT: one line to stderr so a malformed-payload
+    regression is visible rather than an invisible hole in the guard.
+    """
+    print(f"destructive-git-guard ({GUARD_ID}): {note}; deferring", file=sys.stderr)
+
+
 def main() -> None:
+    # Every branch below must exit 0.  A PreToolUse hook exiting non-zero is a
+    # NON-BLOCKING error: Claude Code surfaces stderr and RUNS the command, so a crash
+    # here silently BYPASSES the guard (id:3866).  No stdin shape may reach a traceback.
     try:
-        payload = json.loads(sys.stdin.read())
+        raw = sys.stdin.read()
+    except Exception as exc:  # noqa: BLE001
+        return _defer(f"stdin unreadable ({type(exc).__name__})")
+    if not raw.strip():
+        return _defer("empty stdin")
+    try:
+        payload = json.loads(raw)
     except Exception:
-        return  # not our payload — stay silent
+        return _defer("stdin is not valid JSON")
+    if not isinstance(payload, dict):
+        return _defer(f"payload is a {type(payload).__name__}, not an object")
     if payload.get("tool_name") != "Bash":
         return
-    command = (payload.get("tool_input") or {}).get("command", "")
-    if not command:
+    tool_input = payload.get("tool_input")
+    if tool_input is None:
+        return _defer("payload has no tool_input")
+    if not isinstance(tool_input, dict):
+        return _defer(f"tool_input is a {type(tool_input).__name__}, not an object")
+    command = tool_input.get("command")
+    if command is None or command == "":
         return
+    if not isinstance(command, str):
+        return _defer(f"tool_input.command is a {type(command).__name__}, not a string")
 
     form = find_violation(command)
     if form is None:
@@ -433,4 +503,17 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Outermost net (id:3866): even a bug OUTSIDE the payload-shape checks must not
+    # exit non-zero, because a non-zero PreToolUse hook fails OPEN.
+    try:
+        main()
+    except Exception as exc:  # noqa: BLE001
+        try:
+            print(
+                f"destructive-git-guard ({GUARD_ID}): unexpected "
+                f"{type(exc).__name__}: {exc}; deferring",
+                file=sys.stderr,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    sys.exit(0)
