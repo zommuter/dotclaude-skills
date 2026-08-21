@@ -39,7 +39,6 @@ REMOTE_URL="${2:-}"
 
 PATTERNS_FILE="${PRIVACY_GATE_PATTERNS:-${XDG_CONFIG_HOME:-$HOME/.config}/dotclaude-skills/privacy-patterns.txt}"
 LOG_FILE="${PRIVACY_GATE_LOG:-$HOME/.claude/logs/privacy-gate.log}"
-EMPTY_TREE="4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # git's canonical empty-tree object
 
 notice() { printf 'privacy-gate: %s\n' "$*" >&2; }
 
@@ -119,47 +118,156 @@ if [[ "${PRIVACY_GATE_ALL_REPOS:-}" != "1" ]]; then
 fi
 
 # ── Collect ADDED diff lines across every pushed ref (D3: added lines only) ──
-added_lines=""
-while read -r local_ref local_sha remote_ref remote_sha; do
-  [[ -z "${local_ref:-}" ]] && continue
-  # Deletion (local sha all-zero): nothing is being added — skip.
-  if [[ "$local_sha" =~ ^0+$ ]]; then continue; fi
-  # New branch (remote sha all-zero): diff against the empty tree = whole history added.
-  base="$remote_sha"
-  if [[ -z "$remote_sha" || "$remote_sha" =~ ^0+$ ]]; then base="$EMPTY_TREE"; fi
-  # `git diff base..local`; only '+' lines (excluding the '+++' file header) are additions.
-  d=""
-  # git may exit non-zero if a sha is unknown to this repo; tolerate it (best-effort) — a
-  # scan failure must not block a push. Reason for the redirect: git prints "fatal: bad
-  # object" to stderr for an unknown base, which is expected/handled, not a real error.
-  d="$(git diff "$base".."$local_sha" 2>/dev/null || true)"
-  while IFS= read -r dl; do
-    [[ "$dl" == +++* ]] && continue
-    [[ "$dl" == +* ]] && added_lines+="${local_ref}"$'\t'"${dl:1}"$'\n'
-  done <<< "$d"
+#
+# PERFORMANCE (id:b4dd — the gate took HOURS on this repo and got the public remote
+# disabled). Two amplifiers were measured, both fixed here; NEITHER fix reduces what
+# is detected:
+#
+#   (a) EMPTY-TREE RESCAN OF PUBLISHED HISTORY.  `git push --follow-tags` sends one ref
+#       line per new annotated tag, each with an all-zero remote sha. The old code read
+#       that as "new ref → diff against the empty tree", i.e. re-scanned the ENTIRE
+#       repository history once PER TAG — 142k added lines × 28 tags, for content the
+#       remote already had. Fixed by excluding commits the remote demonstrably already
+#       holds (`--not` the other refs' remote shas + this remote's remote-tracking refs
+#       + refs already handled earlier in this same push). With NO such haves — a
+#       genuine first push of a fresh repo — the whole history is still scanned, exactly
+#       as before.
+#
+#   (b) FORK-PER-PATTERN-PER-LINE.  The scan spawned one `grep` per pattern per added
+#       line (~23 forks/line, measured ~80 ms/line). Now every pattern is applied ONCE
+#       to the whole added-line stream as a file. Same patterns, same per-line ERE
+#       semantics, same first-pattern-wins attribution, same allowlist precedence —
+#       O(patterns) greps instead of O(patterns × lines).
+#
+# `git log -p` over the new commits (rather than a single range diff) is a strict
+# SUPERSET of the old added-line set: it also catches a leak that was added and then
+# removed within the pushed range. Detection widens, never narrows.
+#
+# There is NO size cap and NO silent skip: a ref whose sha this repo cannot resolve is
+# reported LOUDLY via notice() rather than dropped.
+
+tmpdir=""
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/privacy-gate.XXXXXX" 2>/dev/null || true)"
+if [[ -z "$tmpdir" || ! -d "$tmpdir" ]]; then
+  notice "WARNING: could not create a temp dir — leak scan SKIPPED for this push (push NOT blocked)."
+  exit 0
+fi
+trap 'rm -rf "$tmpdir"' EXIT
+
+content_file="$tmpdir/content"   # one added line of content per line
+ref_file="$tmpdir/refs"          # parallel: the pushed ref that contributed line N
+: > "$content_file"
+: > "$ref_file"
+
+# Buffer stdin first: every ref line's remote sha is evidence of what the remote already
+# holds, and that evidence must be complete BEFORE the first ref is scanned.
+ref_lines=()
+while read -r rl; do
+  [[ -n "${rl:-}" ]] && ref_lines+=("$rl")
 done
 
-if [[ -z "$added_lines" ]]; then
+haves=()
+add_have() { # <sha> — record a commit-ish the remote already has (best-effort)
+  local s="${1:-}"
+  [[ -n "$s" ]] || return 0
+  [[ "$s" =~ ^0+$ ]] && return 0
+  git cat-file -e "${s}^{commit}" 2>/dev/null || return 0
+  haves+=("$s")
+}
+
+# Everything this remote is already known to hold, per its remote-tracking refs.
+# Reason for the redirect: a remote with no remote-tracking refs is the normal
+# first-push case, not an error — it simply yields no haves and the full history
+# is scanned, which is the pre-existing behaviour.
+if [[ -n "$REMOTE_NAME" ]]; then
+  while IFS= read -r rs; do
+    add_have "$rs"
+  done < <(git for-each-ref --format='%(objectname)' "refs/remotes/$REMOTE_NAME/" 2>/dev/null || true)
+fi
+# ...plus every remote sha git itself reported for the refs in THIS push.
+for rl in "${ref_lines[@]}"; do
+  read -r _lr _ls _rr rsha <<< "$rl"
+  add_have "${rsha:-}"
+done
+
+for rl in "${ref_lines[@]}"; do
+  read -r local_ref local_sha remote_ref remote_sha <<< "$rl"
+  [[ -z "${local_ref:-}" ]] && continue
+  # Deletion (local sha all-zero): nothing is being added — skip.
+  if [[ -z "${local_sha:-}" || "$local_sha" =~ ^0+$ ]]; then continue; fi
+  if ! git cat-file -e "${local_sha}^{commit}" 2>/dev/null; then
+    notice "WARNING: ref '$local_ref' ($local_sha) is not resolvable in this repo — NOT scanned."
+    continue
+  fi
+
+  # Added lines of the commits this push actually publishes = reachable from local_sha
+  # but from none of the haves. No haves at all → the whole history (old behaviour).
+  # Redirect reason: `git log` can still fail on a corrupt/odd object; the gate is
+  # best-effort and must never abort a push, and an empty result simply scans nothing.
+  if [[ "${#haves[@]}" -gt 0 ]]; then
+    git log -p -U0 --format='' --no-ext-diff --no-textconv "$local_sha" --not "${haves[@]}" 2>/dev/null
+  else
+    git log -p -U0 --format='' --no-ext-diff --no-textconv "$local_sha" 2>/dev/null
+  fi | awk -v ref="$local_ref" -v cf="$content_file" -v rf="$ref_file" '
+    /^\+\+\+/ { next }
+    /^\+/ {
+      s = substr($0, 2)
+      if (s == "") next
+      print s   >> cf
+      print ref >> rf
+    }
+  '
+
+  # This ref is now accounted for; later refs in the same push need not rescan it.
+  haves+=("$local_sha")
+done
+
+if [[ ! -s "$content_file" ]]; then
   exit 0   # nothing added to scan
 fi
 
 # ── Scan added lines against the leak patterns, honoring the allowlist ──
+# One grep per pattern over the WHOLE stream (not per line). Line numbers are the join
+# key back to $ref_file / $content_file. Sorting is LEXICAL throughout because `comm`
+# compares as strings; the final output is re-sorted numerically so findings still
+# appear in added-line order, exactly as before.
+claimed_file="$tmpdir/claimed"; : > "$claimed_file"
+hits_file="$tmpdir/hits";       : > "$hits_file"
+match_file="$tmpdir/match"
+
+# Allowlisted content is intentional/functional — suppress it. Claimed FIRST so an
+# allowlisted line can never be reported by a later leak pattern (old precedence).
+for a in "${allow_patterns[@]}"; do
+  [[ -n "$a" ]] || continue
+  grep -n -E -e "$a" "$content_file" 2>/dev/null | cut -d: -f1 >> "$claimed_file"
+done
+sort -u -o "$claimed_file" "$claimed_file" 2>/dev/null || true
+
+# First matching pattern wins, patterns tried in file order — same as the old inner loop.
+for p in "${leak_patterns[@]}"; do
+  [[ -n "$p" ]] || continue
+  grep -n -E -e "$p" "$content_file" 2>/dev/null | cut -d: -f1 | sort -u > "$match_file"
+  [[ -s "$match_file" ]] || continue
+  new_hits="$(comm -23 "$match_file" "$claimed_file" 2>/dev/null || true)"
+  [[ -n "$new_hits" ]] || continue
+  while IFS= read -r ln; do
+    [[ -n "$ln" ]] && printf '%s\t%s\n' "$ln" "$p" >> "$hits_file"
+  done <<< "$new_hits"
+  printf '%s\n' "$new_hits" >> "$claimed_file"
+  sort -u -o "$claimed_file" "$claimed_file" 2>/dev/null || true
+done
+
 findings=""
-while IFS=$'\t' read -r ref content; do
-  [[ -z "${content:-}" ]] && continue
-  # Allowlisted content is intentional/functional — suppress it.
-  suppressed=0
-  for a in "${allow_patterns[@]}"; do
-    [[ -n "$a" ]] && grep -Eq -e "$a" <<<"$content" && { suppressed=1; break; }
-  done
-  [[ "$suppressed" -eq 1 ]] && continue
-  for p in "${leak_patterns[@]}"; do
-    if grep -Eq -e "$p" <<<"$content"; then
-      findings+="${ref}"$'\t'"${p}"$'\t'"${content}"$'\n'
-      break
-    fi
-  done
-done <<< "$added_lines"
+if [[ -s "$hits_file" ]]; then
+  findings="$(awk -F'\t' '
+    NR == FNR { pat[$1] = $2; next }
+    (FNR in pat) {
+      i = index($0, "\t")
+      printf "%s\t%s\t%s\n", substr($0, 1, i - 1), pat[FNR], substr($0, i + 1)
+    }
+  ' "$hits_file" <(paste -d'\t' "$ref_file" "$content_file") 2>/dev/null || true)"
+  [[ -n "$findings" ]] && findings+=$'\n'
+fi
 
 # ── D2: best-effort `scan_pii` shell-out iff present (never a hard dependency) ──
 scan_pii_bin="${PRIVACY_GATE_SCAN_PII:-}"
@@ -172,7 +280,7 @@ if [[ -n "$scan_pii_bin" && -x "$scan_pii_bin" ]]; then
   # Best-effort augmentation: feed the added content to scan_pii; any crash is ignored so a
   # broken/absent PII tool can never block a push (redirect reason: tool-internal errors are
   # non-fatal here by design — D2 "best-effort, never a hard dependency").
-  pii_out="$(cut -f2- <<<"$added_lines" | "$scan_pii_bin" 2>/dev/null || true)"
+  pii_out="$("$scan_pii_bin" < "$content_file" 2>/dev/null || true)"
   while IFS= read -r pl; do
     [[ -z "$pl" ]] && continue
     findings+="(scan_pii)"$'\t'"scan_pii"$'\t'"${pl}"$'\n'
