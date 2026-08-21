@@ -6615,3 +6615,7 @@ longer drift, and that shared manifest is precisely what makes the id:5218 drift
 ## 2026-08-21 14:51 — integrate (claude-opus-5)
 
 integrate id:7c5f (verdict-dependent counted ledger set; shadowed surface STABLE) + id:3a09/id:5218 (destructive-git guard built-but-unwired; last unmanaged hook versioned)
+
+## 2026-08-21 15:15 — reviewer (claude-opus-5)
+
+review relay-ckpt-20260820-2044..HEAD (82 commits): ROADMAP re-derived; id:7575 re-worded to record option (b) shipped with (a)/(c) unbuilt; id:7518 confirmed OPEN on TWO unmet clauses and its prose close-condition recorded as NARROWER than its ratified acceptance; 3 REVIEW_ME boxes opened (3a09 close boundary, ebd0 disarmed-green test, 4 dead gates); gaming-scan 2 hits both false positives; a955 closure verified sound. STATED GAP: the section-2d over-reach check was run only for a955, NOT for each of the ~14 closes against its cited ratified source
