@@ -6316,3 +6316,7 @@ region a sibling executor holds for id:bc2b: the three relay-loop.js hunks are a
 refactor: none needed — the change is one new early-return branch inside the existing gate plus
 its byte-equivalent inline twin; extracting a shared helper is impossible by construction (the
 Workflow sandbox cannot import, which is why the copy exists).
+
+## 2026-08-21 09:48 — integrate (claude-opus-5)
+
+integrate id:35b7 — gate measures the e68f slice (303,321 tok REFUSED without / 14,548 tok DISPATCHES with); ledger conflict resolved by hand; id:087b tick backfilled
