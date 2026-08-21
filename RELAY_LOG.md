@@ -6567,3 +6567,28 @@ as a second conditional.
 ## 2026-08-21 13:25 — integrate (claude-opus-5)
 
 integrate id:e82e + id:31c3 — integrate.sh now commits the TODO twin (the untriggered wedge is closed, with a test at the integrate SEAM rather than the unit); the child-facing brief drops the column-0 truncation claim b015 fixed
+
+## 2026-08-21 — executor (sonnet)
+
+Worked id:3a09 + id:5218 — added `hooks/destructive-git-guard.py`, a third PreToolUse/Bash
+guard that refuses the TREE-WIDE destructive git forms while allowing a path-scoped
+`git checkout -- <file>`, and versioned the previously-local-only `rm-force-guard.sh`
+into `hooks/`. Both are registered in a new single Makefile `HOOK_FILES` manifest that
+now drives `install-hooks` AND a new `status-hooks` target folded into `make status`,
+which reports real-file-instead-of-symlink drift and unmanaged hooks. `settings.json`
+was NOT written — wiring the new guard is the owner's step (id:3a09 acceptance 5), and
+the live `~/.claude/hooks/rm-force-guard.sh` was NOT replaced with a symlink (that is
+`make install-hooks`' job on a protected path).
+
+Audit (id:5218's second half): rm-force-guard.sh was the ONLY unmanaged hook path in
+settings.json. All six others resolve to symlinks into ~/src/dotclaude-skills/hooks/.
+
+Friction: the driver asked for a ROADMAP promotion with the same id on close. Skipped
+deliberately — executor contract rule 5 forbids editing ROADMAP item definitions and
+v12/id:5b12 gives the tick to the integrator, and a promotion of already-closed work adds
+nothing to the execution queue. Both ids are ticked in TODO.md via the flock'd md-merge.py.
+Surfaced here for the reviewer rather than acted on.
+
+refactor: replaced the eight hand-written `ln -sf` lines in `install-hooks` with a single
+`HOOK_FILES` manifest shared by `install-hooks` and the new `status-hooks` — the two can no
+longer drift, and that shared manifest is precisely what makes the id:5218 drift class visible.

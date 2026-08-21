@@ -24,6 +24,21 @@ Registration snippets are in the `settings.json` section below. Deeper documenta
 **Purpose:** Blocks a `git commit` call when the command includes explicit file-path arguments and at least one of those arguments does NOT match any currently staged file. Catches pathspec typos (e.g. `git commit foo.p` instead of `git commit foo.py`) and forgotten `git add` cases. Silent on ordinary partial-staging / diary-style commits — a commit that names only staged files is never blocked. Tracks TODO id:b67e.  
 **Prerequisites:** Python 3, `git`
 
+### `rm-force-guard.sh`
+
+**Event:** PreToolUse (Bash)  
+**Purpose:** Owner directive (2026-07) — denies a command that STARTS with `rm` (optionally `sudo rm`) carrying a force flag (`-f`, `-rf`, `-fr`, `--force`, and variants a fixed-prefix rule would miss like `rm -vf`). Anchored to the command start, so a force flag merely mentioned inside a commit message or quoted argument is not matched here. Allows `rm --`, `rm -r`, `rm -i`, `git rm`. **Wired in `settings.json` today.** Versioned here since 2026-08-21 (TODO id:5218) — it previously existed *only* as an unversioned real file in `~/.claude/hooks/`, absent from every other machine. Behaviour is byte-identical to that local file; `make status-hooks` now reports this drift class.  
+**Prerequisites:** `bash`, `jq`
+
+### `destructive-git-guard.py`
+
+**Event:** PreToolUse (Bash) — **NOT wired into `settings.json`; activation is the owner's** (TODO id:3a09).  
+**Purpose:** Refuses the **tree-wide** destructive git forms — `git checkout -- .` / `git checkout .` / `git checkout -- <dir>`, `git restore .` / `--staged .` / `<dir>`, `git reset --hard`, `git clean -f`/`-d`/`-fd`, `git stash drop`/`clear` — while **allowing a path-scoped revert of enumerated files** (`git checkout -- path/to/one/file.sh`). Uncommitted content has no reflog, and a tree-wide revert is blind to whose in-flight edits it discards; observed live 2026-08-21 when an executor mid-transform reached for `git checkout -- .`.  
+**Why a hook:** `permissions.ask` prompts in every mode, so under an unattended `--afk` run each of these entries is a stall by construction; `permissions.deny` fails closed but is mode-blind. A PreToolUse hook fails closed **and** can be context-aware.  
+**Context detection (three-way, ambiguity → block):** *unattended* = `RELAY_RUN_ID`/`CLAUDE_RELAY_RUN_ID` set, or `RELAY_AFK`/`CLAUDE_UNATTENDED` truthy, or a live `id:e149` run heartbeat under `$HEARTBEAT_BASE` → **BLOCK**. *interactive* = `CLAUDE_CODE_ENTRYPOINT=cli` with no unattended signal → **defer silently** to the existing `permissions.ask` prompt. Everything else — no entrypoint signal, an unrecognised entrypoint, or a heartbeat probe that *errored* — is **ambiguous → BLOCK**. An absent heartbeat directory is not an error (the relay simply isn't running here). Parse ambiguity resolves the same way: an untokenisable command falls back to a conservative regex scan. Force a branch with `DESTRUCTIVE_GIT_GUARD_CONTEXT=unattended|interactive`.  
+**The refusal teaches:** commit first (worktree commits are free and squashable), scope the revert to enumerated paths, or run the exploratory pass on a `tar`-copy.  
+**Prerequisites:** Python 3 (stdlib only)
+
 ### `memory-index-sync.py`
 
 **Event:** PostToolUse (Write, Edit, NotebookEdit)  
@@ -101,7 +116,8 @@ Add to `~/.claude/settings.json` (or merge into the existing `hooks` object):
       {
         "matcher": "Bash",
         "hooks": [
-          {"type": "command", "command": "python3 ~/.claude/hooks/pathspec-drop-guard.py"}
+          {"type": "command", "command": "python3 ~/.claude/hooks/pathspec-drop-guard.py"},
+          {"type": "command", "command": "bash ~/.claude/hooks/rm-force-guard.sh"}
         ]
       }
     ]
@@ -111,4 +127,4 @@ Add to `~/.claude/settings.json` (or merge into the existing `hooks` object):
 
 `meeting-question-guard.py` is the only hook here that can BLOCK a turn (`Stop`, exit 2). It is a strict no-op outside an open `/meeting` window, and fails open (exit 1, loud) on any internal error — see its entry above for the exact trigger and the escape hatch.
 
-`SessionStart` and the first `PostToolUse` entry are inline commands (no script files in this repo); the second `PostToolUse` entry (matcher `Write|Edit|NotebookEdit`) references `memory-index-sync.py`, which is a strict no-op for every non-memory file. `Stop` and `Notification` reference the installed scripts. `PreToolUse` references `pathspec-drop-guard.py` which only blocks on a confirmed pathspec drop; all other Bash calls pass through silently.
+`SessionStart` and the first `PostToolUse` entry are inline commands (no script files in this repo); the second `PostToolUse` entry (matcher `Write|Edit|NotebookEdit`) references `memory-index-sync.py`, which is a strict no-op for every non-memory file. `Stop` and `Notification` reference the installed scripts. `PreToolUse` references `pathspec-drop-guard.py`, which only blocks on a confirmed pathspec drop, and `rm-force-guard.sh`, which only denies a force-flagged `rm` at the start of a command; all other Bash calls pass through silently. `destructive-git-guard.py` is installed by `make install-hooks` but deliberately **absent** from this snippet — wiring it changes behaviour for every session at once, so that step is the owner's (id:3a09).
