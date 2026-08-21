@@ -94,6 +94,10 @@
 #     falls through to `ok` (its step-4 "otherwise (in sync / ahead) → ok" branch).
 #   • classify-verdict.sh sets `diverged = has_upstream and _ahead > 0 and _behind > 0` —
 #     ahead-only is NOT the rank-0 `blocked` parity guard, so the repo keeps being dispatched.
+#   • verify-isolation.sh (step 2) DID NOT tolerate it — it was the ONE gate this list
+#     originally omitted, and it was the one that broke (id:8739): its base defaulted to the
+#     now-FROZEN origin/main, which silently disabled the id:f682 breach detector. Fixed by
+#     passing an explicit `--base <canonical HEAD sha>` at step 2; see the block there.
 #   • ckpt-tag.sh / relay-state-write.sh never consult origin at all: the tag and
 #     relay.toml last_ckpt are local facts, and an unpushed tag resolves locally exactly as a
 #     pushed one does. discover-sig.sh DOES hash ahead/behind, so the sig changes and the
@@ -136,7 +140,11 @@
 #   ts=<ISO>  bump=<vX.Y.Z|>  retire=<note>
 #   postSig=<hex|>  openRoutine=<n>  openHard=<n>  sibling=<branch>\t<count>  (0..n lines)
 #   push=deferred + ratification=pending  ⇔  a SUBSTANTIVE unit merged locally and is queued
-#   for the owner (id:4d44). push=pushed is now VERIFIED against the remote ref, never
+#   for the owner (id:4d44). id:f0ad — push=no-upstream ALSO carries ratification=pending:
+#   it is the same durable state (merged + tagged, nothing on any remote), and reporting it
+#   as ratification=none made relay-loop.js count an UNPUBLISHED merge as a plain completion
+#   with no durable record. ratification=none now means exactly one thing: it was published.
+#   push=pushed is now VERIFIED against the remote ref, never
 #   inferred from git-lock-push.sh's exit code (id:f5d9(a)); a push that did not land is
 #   reported push=FAILED on stderr with a handback, never as success.
 #
@@ -369,8 +377,34 @@ if ! ct_out="$("$CLEAN_TREE" "$path" 2>&1)"; then
 fi
 
 # ── step 2: isolation gate (id:f682/7612) — did the child actually work in its worktree? ──
-if ! iso_out="$("$VERIFY_ISO" "$worktree" 2>&1)"; then
-  handback verify-isolation "$EX_ISOLATION" "isolation gate failed — worktree/main-checkout isolation breach suspected; deferring (id:7612). $iso_out"
+#
+# ── id:8739: THE BASE IS PASSED EXPLICITLY, NEVER DEFAULTED TO origin/main ───────────
+# verify-isolation.sh's default base is `origin/main` (its lines 78-80), and its whole
+# main-HEAD discriminator rests on the premise (its lines 18-24) that the base ref TRACKS
+# the canonical main, so that `merge-base(worktree HEAD, base)` is the DISPATCH-TIME main
+# HEAD and `base` itself is main's CURRENT head. The id:4d44 ratification gate FREEZES
+# `origin/main` — a substantive unit merges locally and never pushes — so that premise is
+# false BY CONSTRUCTION here, and it degrades further with every deferred unit. Measured
+# consequences of leaving it defaulted (REPRODUCED 2026-08-21, not inferred):
+#   • (b2) NEVER FIRES AGAIN: main_head = rev-parse origin/main never advances, so
+#     main_head == merge_base always and every empty worktree is waved through as a
+#     "legitimate no-op review (id:8e3e)" — including the loderite/jobAI breach signature
+#     this gate exists for (id:f682). The breach detector is simply OFF.
+#   • (a) FIRES SPURIOUSLY: a worktree branched off a local-ahead main reports the whole
+#     unratified backlog as "commits beyond base", so an EMPTY worktree reads `ok: N
+#     commit(s) beyond origin/main, tree clean`.
+# So the base is the CANONICAL CHECKOUT'S CURRENT HEAD — a sha, not a name. It is the exact
+# commit step 4 is about to merge INTO, which is what "main" means for this integrate: no
+# branch-name guess, no remote round-trip, and no dependence on a ref the ratification gate
+# has frozen. It resolves inside the worktree because a linked worktree shares the object db.
+# FAIL-CLOSED: if the canonical HEAD does not resolve we hand back rather than fall back to
+# the defaulted (broken) base — an unverifiable isolation gate must never wave a merge
+# through, and this is the merge-to-main critical path.
+if ! iso_base="$(git -C "$path" rev-parse --verify -q HEAD 2>/dev/null)" || [ -z "$iso_base" ]; then
+  handback verify-isolation "$EX_ISOLATION" "cannot resolve the canonical checkout's HEAD at '$path' (unborn branch or corrupt repo), so the id:8739 isolation base is UNDETERMINABLE — refusing to fall back to verify-isolation.sh's origin/main default, which id:4d44 has frozen (that fallback silently disables the id:f682 breach gate). Nothing was mutated."
+fi
+if ! iso_out="$("$VERIFY_ISO" "$worktree" --base "$iso_base" 2>&1)"; then
+  handback verify-isolation "$EX_ISOLATION" "isolation gate failed — worktree/main-checkout isolation breach suspected; deferring (id:7612, base=$iso_base per id:8739). $iso_out"
 fi
 
 # ── step 3: sync-origin (id:c3f7) — never checkpoint on a base diverged from origin. ──
@@ -590,6 +624,14 @@ else
     # had nothing to push. Report that HONESTLY rather than claiming a push landed.
     push_status="no-upstream"
     log "step8 id:f5d9(a) no @{upstream} for $path — nothing to verify, reporting push=no-upstream"
+    # id:f0ad — …AND ENQUEUE IT. This branch used to set `landed=1` and then fall through
+    # to a step 8b gated on $defer_push, which is EMPTY here (the unit is NON-substantive,
+    # that is the only way it reaches this branch at all). So the unit took the SUCCESS
+    # path with ratification=none, and relay-loop.js's surfacing condition
+    # (`ratification === 'pending' || pushStatus === 'deferred'`) matched NEITHER: an
+    # unpublished merge was counted as a completion with no durable record anywhere. The
+    # state is materially the same as a deferred push — merged + tagged locally, nothing on
+    # any remote — so it takes the same durable queue and the same `pending` surfacing.
   else
     push_remote="${up_ref%%/*}"
     push_branch="${up_ref#*/}"
@@ -622,22 +664,61 @@ else
   fi
 fi
 
-# ── step 8b: RATIFICATION ENQUEUE (id:4d44) — the durable surface for a deferred push. ──
-#    ONLY on the deferred path. Append-only JSONL through relay-state-write.sh's flock'd
-#    `event-append`, so two concurrent integrates never interleave a partial line. The JSON
-#    is built by python3 from argv — NEVER string-concatenated — because summary/label carry
-#    arbitrary text (the decision-queue.sh convention).
+# ── step 8b: RATIFICATION ENQUEUE (id:4d44) — the durable surface for an UNPUBLISHED land. ──
+#    Append-only JSONL through relay-state-write.sh's flock'd `event-append`, so two
+#    concurrent integrates never interleave a partial line. The JSON is built by python3
+#    from argv — NEVER string-concatenated — because summary/label carry arbitrary text
+#    (the decision-queue.sh convention).
+#
+#    id:f0ad — THE GATE IS `push_status`, NOT `defer_push`. It used to be `defer_push`, which
+#    silently excluded the OTHER unpublished-land class: `no-upstream` (a NON-substantive unit
+#    in an upstream-less repo). Both classes are the same durable state — merge committed, tag
+#    written, nothing on any remote — so both are queued and both report ratification=pending.
+#    A `pushed` unit is never queued; there is nothing to ratify.
 #
 #    FAIL-CLOSED AND LOUD: if the queue write fails, the merge is sitting unpushed on main
 #    with NOTHING telling the owner it exists. That is the one outcome this design cannot
 #    have, so it is a HANDBACK, and because `landed` is already set it surfaces as
 #    LANDED-BUT-UNFINISHED (surface for reconcile) rather than as a retryable defer.
-if [ -n "$defer_push" ]; then
+#
+# ── id:f0ad — WHY THE ENQUEUE IS *NOT* MOVED AHEAD OF THE CKPT TAG ───────────────────
+#    The residual crash window is real: `landed` is set the moment step 7's tag exists, and
+#    the queue append happens a few statements later, so a hard kill in between leaves an
+#    unpushed merge with no queue entry. Moving the enqueue BEFORE step 7 was considered and
+#    REJECTED, because it trades a microsecond crash window for a durable CORRECTNESS defect:
+#      • ckpt-tag failure (EX_CKPT, 26) is a PRE-LAND handback — "re-running is CORRECT". A
+#        pre-tag enqueue would already have written a `pending` record for that unit. The
+#        re-run's merge is a no-op (the branch is now an ancestor of main), so it produces the
+#        SAME `merged` sha and appends a SECOND record.
+#      • ratify-queue.sh keys entries by ckpt tag OR merged sha and REFUSES an ambiguous key
+#        ("an ambiguous key is a loud refusal, never a guess"). Two records sharing one sha
+#        are therefore permanently UNRESOLVABLE — the queue wedges on exactly the unit it was
+#        supposed to protect.
+#      • the pre-tag record could not carry `ckpt` at all, and that field is what
+#        ratify-queue.sh's tag-parity check (`PARTIAL: … carries the merge but NOT its
+#        checkpoint tag`) reads.
+#    So the ordering stands. The window is NOT closed, and is not claimed to be: the honest
+#    recovery is that the ckpt TAG is itself durable in git, so an orphaned land is
+#    recoverable by finding a local-ahead main carrying a `relay-ckpt-*` tag with no queue
+#    entry. Closing it properly needs a two-phase record (write `landing` pre-tag, promote it
+#    post-tag) which changes the queue contract ratify-queue.sh consumes — an owner call, not
+#    a silent widening here.
+case "$push_status" in deferred|no-upstream) ratify_enqueue=1 ;; *) ratify_enqueue="" ;; esac
+if [ -n "$ratify_enqueue" ]; then
   ratify_line="$(python3 - "$RATIFY_QUEUE" "$repo" "$path" "$branch" "$worktree" "$merged_head" "$ckpt_tag" \
-                   "$run" "$verdict" "$ids" "${bump_version:-}" "$summary" "$label" "${substantive:-unset}" <<'PYEOF'
+                   "$run" "$verdict" "$ids" "${bump_version:-}" "$summary" "$label" "${substantive:-unset}" \
+                   "$push_status" <<'PYEOF'
 import json, sys, datetime
 (_q, repo, path, branch, worktree, merged, ckpt, run, verdict, ids,
- bump, summary, label, substantive) = sys.argv[1:15]
+ bump, summary, label, substantive, push_status) = sys.argv[1:16]
+# id:f0ad — the record must say WHICH unpublished class this is, and the remediation must
+# match it. A `no-upstream` repo has no remote to push to, so telling the owner to
+# `git push --follow-tags` would hand him a command that cannot work.
+action = ("review the merge, then push it: git -C %s push --follow-tags" % (path,)
+          if push_status == "deferred" else
+          "this checkout has NO upstream, so the merge + tag are LOCAL-ONLY with nowhere to "
+          "go: add/authorise a remote for %s and push it (git -C %s push -u <remote> HEAD "
+          "--follow-tags), or record that this repo is deliberately local-only" % (repo, path))
 print(json.dumps({
     "kind": "ratification-pending",
     "id": "id:4d44",
@@ -656,8 +737,8 @@ print(json.dumps({
     "substantive": substantive,
     "summary": summary,
     "label": label,
-    "push": "deferred",
-    "action": "review the merge, then push it: git -C %s push --follow-tags" % (path,),
+    "push": push_status,
+    "action": action,
 }, ensure_ascii=False))
 PYEOF
 )" || handback ratify-enqueue "$EX_RATIFY" "could not RENDER the id:4d44 ratification record for [$repo] — the merge $merged_head + tag $ckpt_tag are committed locally and UNPUSHED with no durable queue entry; record them by hand"
@@ -665,7 +746,7 @@ PYEOF
     handback ratify-enqueue "$EX_RATIFY" "could not APPEND the id:4d44 ratification record to $RATIFY_QUEUE for [$repo] — the merge $merged_head + tag $ckpt_tag are committed locally and UNPUSHED with no durable queue entry; record them by hand. Queue line was: $ratify_line"
   fi
   ratify_status="pending"
-  log "step8b id:4d44 ratification queued in $RATIFY_QUEUE: repo=$repo merged=$merged_head ckpt=$ckpt_tag"
+  log "step8b id:4d44 ratification queued in $RATIFY_QUEUE: repo=$repo merged=$merged_head ckpt=$ckpt_tag push=$push_status"
 fi
 
 # ── step 9: worktree-retire (id:373e force-free; id:6e02 scope = EXACTLY this pair). ──
