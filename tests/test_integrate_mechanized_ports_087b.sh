@@ -43,10 +43,18 @@ fail() { echo "FAIL: $*"; [[ -s "$ERRLOG" ]] && { echo "       last integrate.sh
 
 [[ -x "$INT" ]] || fail "integrate.sh not found/executable at $INT"
 
+# id:f5d9(a) — this stub must REALLY push (into the fixture's local bare origin), not just
+# exit 0. integrate.sh now VERIFIES the push against the remote ref instead of trusting the
+# helper's exit code, so the old `exit 0` stub is now correctly reported as push=FAILED —
+# it was modelling the id:dc4f defect, not a working push. Still hermetic: `origin` is a bare
+# repo under $TMP and no network is touched.
 PUSH_STUB="$TMP/push-stub.sh"
 cat > "$PUSH_STUB" <<'EOF'
 #!/usr/bin/env bash
-exit 0
+set -euo pipefail
+p=""
+for a in "$@"; do case "$a" in --ff-only|-b|-m|-f) ;; *) p="$a" ;; esac; done
+git -C "$p" push --follow-tags origin HEAD >/dev/null 2>&1
 EOF
 chmod +x "$PUSH_STUB"
 
@@ -229,7 +237,11 @@ grep -q '^openRoutine=1$' <<<"$sout" \
 grep -q '^openHard=1$' <<<"$sout" \
   || fail "(4) openHard wrong (want 1): $(grep '^openHard=' <<<"$sout")"
 grep -q '^ts=' <<<"$sout" || fail "(4) no ts= line (the fs-less Workflow sandbox cannot make one itself)"
-grep -q '^push=pushed$' <<<"$sout" || fail "(4) no push=pushed line"
+# id:4d44 — this unit is `--substantive true`, so the push is now DEFERRED for owner
+# ratification and the line reads `push=deferred`. `push=pushed` here would mean the
+# ratification gate had stopped firing. The pushing half is asserted in
+# tests/test_integrate_ratification_gate_4d44.sh, which owns that contract.
+grep -q '^push=deferred$' <<<"$sout" || fail "(4) no push=deferred line for a substantive unit (id:4d44): $(grep '^push=' <<<"$sout")"
 pass "(4) id:c855 push-seed inputs are emitted and reflect settled post-integrate state"
 
 # a DRAINED repo (no ROADMAP.md at all) must report 0/0 rather than erroring
