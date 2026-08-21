@@ -219,6 +219,27 @@ D1/D2):
    The check is deliberately skipped for `fallback-haiku` (probe mode-a): no proxy is in the request
    path there, the mechanical hops are already re-routed to `model:"haiku"`, and the missing state
    file of an absent proxy would otherwise refuse every session not launched through it.
+
+0c. **Install-drift check (id:83c3 AMENDMENT — WARN-ONLY, never a refusal).** Also BEFORE
+   launching, run `scripts/check-install-drift.sh --canonical <repo>/relay/scripts --installed
+   ~/.claude/skills/relay/scripts` ONCE and relay its output verbatim. Every relay hop resolves
+   through the INSTALLED `~/.claude/skills/relay/scripts/` symlinks, so a script committed to the
+   repo but never `make install`-ed is unreachable at runtime — the proxy refuses it, the hop fails
+   OPEN to the real API, and it 404s on `model:"bash"`. **The remedy is `make install-relay`.**
+   - **drift reported** — print the missing scripts and the remedy LOUDLY, then **LAUNCH ANYWAY**.
+     This is deliberately NOT a refusal (owner call 2026-08-21): a false positive here would
+     silently kill an entire unattended `--afk` run, which is a worse failure than the drift it
+     guards. Promote to a refusal only after it has run clean across real launches.
+   - **clean** — nothing to surface.
+   Observed live 2026-08-21: `integrate.sh` and `ledger-slice.sh` were committed that morning and
+   never installed, so `ledger-slice` 404'd every round (whole-ledger prompt-size handbacks, zero
+   dispatch) and `integrate.sh` was unreachable on the merge-to-main path. `check-install-drift.sh`
+   named both in under a second the first time it was asked — nothing in the front door asked.
+   **SCOPE:** this is a THIRD invocation site, beyond the two the 2026-08-14 `id:83c3` decision
+   named (pre-commit hook, gated-on `id:7a05`; and `relay-doctor --strict` on the integrate path,
+   still to be built). Recorded as an explicit amendment on new evidence — today's failure was at
+   LAUNCH, which neither decided gate covers — not as a reinterpretation of that decision.
+
 1. **Non-interactive by default.** The front door operates ONLY on relay.toml
    `classification = "own"` confirmed repos. New, dirty, or `needs_review` repos are
    *surfaced* in `RELAY_STATUS.md` (Queued/Blocked sections) — never asked about
