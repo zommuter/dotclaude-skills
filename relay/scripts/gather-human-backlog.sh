@@ -25,6 +25,12 @@
 #   mechanical_orphan — an open `[MECHANICAL]` ROADMAP item with NO recipe anywhere in the
 #                drop-dir (id:8a6b / id:1bd1): it will never run. Surface only — author a recipe
 #                (or run mechanical-orphan-draft.sh) and promote drafts/ -> pending/.
+#   ratification_pending — a substantive unit integrate.sh merged LOCALLY and deliberately did
+#                NOT push (id:4d44): the owner reviews it and pushes. Read from the durable
+#                ratification queue (relay/scripts/ratify-queue.sh, which owns the record
+#                format); box_summary carries the exact `git -C <path> push --follow-tags`
+#                command plus merged sha / ckpt / ids / age. Surface only — this collector
+#                never resolves an entry (resolution VERIFIES the remote; see ratify-queue.sh).
 #   mechanical_draft  — an auto-DRAFTED recipe skeleton (drafts/) awaiting an Opus/human to fill
 #                its TODO cmd/est_wall/acceptance_artifact and deliberately promote it to
 #                pending/ (id:8a6b). A draft is NEVER executed by the daemon. Surface only.
@@ -87,7 +93,8 @@
 # Do NOT pipe this collector through `head`/`tail`/`sed Nq`, and do not let a
 # sub-agent summarise it from a capped preview. Rows are emitted PER REPO in a
 # FIXED order — ROADMAP hard lanes, then TODO hard lanes, then mechanical rows,
-# then `review_me` (REVIEW_ME.md), then ROADMAP `@manual` — so `review_me`, the
+# then `ratification_pending` (id:4d44), then `review_me` (REVIEW_ME.md), then
+# ROADMAP `@manual` — so `review_me`, the
 # one bucket `/relay human` exists to serve, is emitted LAST and is the FIRST
 # thing a truncating reader loses. It loses it SILENTLY: the truncated TSV reads
 # as a legitimate "no review_me rows / nothing to do".
@@ -115,6 +122,18 @@ RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
 #   mechanical_draft  — an auto-drafted skeleton awaiting an Opus/human to fill + promote to pending/.
 # Both are surface-only (never auto-tickable), so /relay human shows them.
 MECH_SCAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mechanical-orphan-scan.sh"
+# id:4d44 — the ratification queue's read side. integrate.sh merges a substantive unit
+# LOCALLY and does NOT push; the owner ratifies + pushes. A pending entry is human backlog
+# by construction, so it belongs in this collector.
+#
+# QUEUE PATH: $RELAY_RATIFICATION_QUEUE, else $FABLES_CONFIG, else the DIRECTORY OF
+# $RELAY_TOML — deliberately the relay-config base this run is already reading, not a
+# hardcoded $HOME. In production RELAY_TOML defaults to ~/.config/relay/relay.toml so this
+# resolves to the same file integrate.sh writes; in a test that points RELAY_TOML at a
+# fixture it stays inside the fixture, so this collector can never reach into the real
+# ~/.config/relay/.
+RATIFY_QUEUE_SH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ratify-queue.sh"
+RATIFY_QUEUE="${RELAY_RATIFICATION_QUEUE:-${FABLES_CONFIG:-$(dirname "$RELAY_TOML")}/ratification-queue.jsonl}"
 
 # Set to 1 by emit_hard_lanes() when an open [HARD] item carries no recognized lane
 # tag. A nonzero value forces a LOUD nonzero exit at the end of the run (id:78ff /
@@ -713,6 +732,20 @@ scan_repo() {
             "[MECHANICAL] id:$mid has an un-promoted DRAFT ($mdetail) — fill its TODO cmd/est_wall/acceptance_artifact and move drafts/ -> pending/ to launch (a draft is never executed)" ;;
       esac
     done <<< "$mech_out"
+  fi
+  # id:4d44 — PENDING RATIFICATIONS for this repo (surface-only). A substantive unit the
+  # pool merged locally and deliberately did NOT push: until the owner reviews + pushes it,
+  # the work exists only in this checkout. Emitted here — AFTER the mechanical rows, BEFORE
+  # `review_me` — so the id:da87 ordering contract is untouched: `review_me` stays the LAST
+  # bucket before ROADMAP @manual, which is what makes truncation detectable.
+  # rc-captured and LOUD (id:da87): ratify-queue.sh exits 3 when the queue holds a record it
+  # cannot read, and that MUST surface — an unreadable queue entry is an unpushed merge
+  # nobody is tracking, the exact outcome the id:4d44 design cannot have.
+  if [[ -x "$RATIFY_QUEUE_SH" && -f "$RATIFY_QUEUE" ]]; then
+    local rq_rc=0 rq_out=""
+    rq_out="$(RELAY_RATIFICATION_QUEUE="$RATIFY_QUEUE" "$RATIFY_QUEUE_SH" list --tsv --repo "$name")" || rq_rc=$?
+    (( rq_rc == 0 )) || emitter_failed "$name" "ratification queue (id:4d44)" "$rq_rc"
+    if [[ -n "$rq_out" ]]; then printf '%s\n' "$rq_out"; fi
   fi
   # REVIEW_ME.md: every open box (default kind review_me; @manual upgrades to manual).
   # THE tier `/relay human` exists to serve — rc-captured and LOUD on failure so it
