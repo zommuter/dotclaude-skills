@@ -6635,3 +6635,7 @@ new shared lib had to be copied beside it — a real dependency of the script un
 weakened assertion. That was the one suite failure and it is fixed in the fixture, not the test.
 refactor: extracted the duplicated "which runIds are pools" rule into relay/scripts/lib-pool-runs.py
 (one definition, two callers) instead of copy-pasting the exclusion into the hook.
+
+## 2026-08-21 15:35 — integrate (claude-opus-5)
+
+integrate id:6f62 — discovery-producer no longer counts as an unattended signal; predicate extracted to lib-pool-runs.py and shared with stop-request.sh (no-drift pinned by test); refusal names the concrete trigger; remedy teaches scoped staging. The original deny-on-interactive reproduction now defers, live-verified
