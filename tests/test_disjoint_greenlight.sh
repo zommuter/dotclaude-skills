@@ -78,7 +78,7 @@ printf 'relay/scripts/a.sh\ndocs/x.md\n' > "$TMP/touched2"
 if out="$("$GL" merge-check --touched "$TMP/touched2" --merged "$TMP/merged")"; then
   bad "merge-check: intersecting path lists must exit nonzero (handback signal)"
 else
-  echo "$out" | grep -qF 'relay/scripts/a.sh' \
+  grep -qF 'relay/scripts/a.sh' < <(echo "$out") \
     && ok "merge-check: intersection → exit 1 + overlapping path printed" \
     || bad "merge-check: intersection detected but overlapping path not printed (got: $out)"
 fi

@@ -39,15 +39,15 @@ index="$TMP/MEMORY.md"
 line="$(grep 'sample.md' "$index" 2>/dev/null || true)"
 
 # (a) resolution — the metadata-nested hook and title must WIN over description/stem.
-if ! printf '%s' "$line" | grep -qF 'the terse hook line'; then
+if ! grep -qF 'the terse hook line' < <(printf '%s' "$line") ; then
   echo "FAIL: hook must resolve from metadata.hook, got line: $line"
   rc=1
 fi
-if printf '%s' "$line" | grep -qF 'should NOT be the hook'; then
+if grep -qF 'should NOT be the hook' < <(printf '%s' "$line") ; then
   echo "FAIL: description leaked into the hook — metadata.hook was ignored: $line"
   rc=1
 fi
-if ! printf '%s' "$line" | grep -qF 'My Nice Title'; then
+if ! grep -qF 'My Nice Title' < <(printf '%s' "$line") ; then
   echo "FAIL: display title must resolve from metadata.title (not the file stem): $line"
   rc=1
 fi

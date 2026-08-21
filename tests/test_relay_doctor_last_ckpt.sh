@@ -29,7 +29,7 @@ write_toml() { printf '[repos."%s"]\nclassification = "own"\nlast_ckpt = "%s"\n'
 # (1) last_ckpt names a REAL tag → clean.
 write_toml "relay-ckpt-20260701-1200"
 out="$("$SH" "$FIX" 2>/dev/null)"
-grep -A1 'last_ckpt tag existence' <<<"$out" | grep -q 'resolves to a tag' \
+grep -q 'resolves to a tag' < <(grep -A1 'last_ckpt tag existence' <<<"$out") \
   || fail "(1) real last_ckpt tag not reported clean:\n$(grep -A2 'last_ckpt tag' <<<"$out")"
 grep -q 'DANGLING' <<<"$out" && fail "(1) real tag wrongly flagged DANGLING:\n$out"
 pass "(1) last_ckpt names a real tag → clean"
@@ -45,7 +45,7 @@ pass "(2) dangling last_ckpt → DANGLING + --strict nonzero"
 # (3) empty last_ckpt → clean (not-yet-checkpointed).
 write_toml ""
 out="$("$SH" "$FIX" 2>/dev/null)"
-grep -A1 'last_ckpt tag existence' <<<"$out" | grep -q 'not yet checkpointed' \
+grep -q 'not yet checkpointed' < <(grep -A1 'last_ckpt tag existence' <<<"$out") \
   || fail "(3) empty last_ckpt not reported clean:\n$(grep -A2 'last_ckpt tag' <<<"$out")"
 grep -q 'DANGLING' <<<"$out" && fail "(3) empty last_ckpt wrongly flagged DANGLING:\n$out"
 pass "(3) empty last_ckpt → clean"

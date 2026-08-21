@@ -158,7 +158,7 @@ while [ $# -gt 0 ]; do
     --discard)   action="discard";   target="${2:-}"; shift; shift || true ;;
     # id:c14d — the range used to be hardcoded ('2,52p') and went stale the moment the header
     # grew (the id:0fa0 heartbeat.sh lesson); compute it from `set -euo pipefail`'s line instead.
-    -h|--help)   sed -n "2,$(( $(grep -n '^set -euo pipefail' "$0" | head -1 | cut -d: -f1) - 1 ))p" "$0"; exit 0 ;;
+    -h|--help)   sed -n "2,$(( $(head -1 < <(grep -n '^set -euo pipefail' "$0") | cut -d: -f1 ) - 1 ))p" "$0"; exit 0 ;;
     --*)         echo "relay-reconcile.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)           repo="$1"; shift ;;
   esac
@@ -241,7 +241,7 @@ list_stranded() {
     case "$runid" in relay-*) ;; *) continue ;; esac        # not a run-scoped branch, leave it
     runid="$(printf '%s' "$runid" | sed -E 's/-[a-z]+-[^-]+-[0-9]+$//')"
     # owning run still alive (match against the runId FIELD, never the whole JSON line)
-    if [ -n "$live_ids" ] && printf '%s\n' "$live_ids" | grep -qxF "$runid"; then continue; fi
+    if [ -n "$live_ids" ] && grep -qxF "$runid" < <(printf '%s\n' "$live_ids") ; then continue; fi
     # Only report branches that actually carry work the trunk lacks.
     if [ "$(git -C "$r" rev-list --count "$trunk..$br" 2>/dev/null || echo 0)" -eq 0 ]; then continue; fi
     sha="$(git -C "$r" rev-parse --short "$br" 2>/dev/null || echo '???????')"
@@ -412,7 +412,7 @@ classify_orphan() {
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     base="$(basename "$f")"
-    printf '%s' "$base" | grep -qE "$LEDGER_FILES_RE" || non_ledger+=("$f")
+    grep -qE "$LEDGER_FILES_RE" < <(printf '%s' "$base") || non_ledger+=("$f")
   done <<<"$files"
   if [ ${#non_ledger[@]} -gt 0 ]; then
     n=${#non_ledger[@]}

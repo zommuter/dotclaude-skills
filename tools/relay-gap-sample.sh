@@ -136,7 +136,7 @@ new_state="{}"
 while IFS=$'\t' read -r name path; do
   [[ -n "$name" ]] || continue
   checked=$((checked+1))
-  sig="$(printf '%s\n' "$sig_lines" | jq -r --arg r "$name" 'select(.repo==$r).sig' | head -1)"
+  sig="$(head -1 < <(printf '%s\n' "$sig_lines" | jq -r --arg r "$name" 'select(.repo==$r).sig') )"
   prev_sig="$(printf '%s' "$prev_state" | jq -r --arg r "$name" '.[$r].sig // ""')"
   prev_verdict="$(printf '%s' "$prev_state" | jq -r --arg r "$name" '.[$r].verdict // ""')"
 

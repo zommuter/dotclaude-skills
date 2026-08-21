@@ -95,8 +95,8 @@ fi
 # (8) the step must be reachable from the document's own ordering — not an orphan block.
 # It is sequenced AFTER the §2b residue checks (it presumes honesty), so a numbered heading
 # must exist for it and must be positioned after §2b's heading.
-hdr_line="$(grep -nE '^#{2,3} .*(over-?reach)' "$REVIEW" | head -1 | cut -d: -f1 || true)"
-b2_line="$(grep -nE '^### 2b\.' "$REVIEW" | head -1 | cut -d: -f1 || true)"
+hdr_line="$(head -1 < <(grep -nE '^#{2,3} .*(over-?reach)' "$REVIEW") | cut -d: -f1 || true)"
+b2_line="$(head -1 < <(grep -nE '^### 2b\.' "$REVIEW") | cut -d: -f1 || true)"
 if [[ -z "$hdr_line" ]]; then
   note "(8) review.md has no numbered heading for the over-reach step — an anchored region nothing points at is an orphan the reviewer never reaches"
 elif [[ -n "$b2_line" ]] && (( hdr_line < b2_line )); then
@@ -105,7 +105,7 @@ fi
 
 # (9) the region must sit INSIDE that step, not somewhere unrelated in the file.
 if [[ -n "$hdr_line" && "$n_start" == "1" ]]; then
-  start_line="$(grep -nF -- "$START" "$REVIEW" | head -1 | cut -d: -f1)"
+  start_line="$(head -1 < <(grep -nF -- "$START" "$REVIEW") | cut -d: -f1 )"
   (( start_line > hdr_line )) \
     || note "(9) the anchored region does not sit under the over-reach heading (region at line $start_line, heading at line $hdr_line)"
 fi

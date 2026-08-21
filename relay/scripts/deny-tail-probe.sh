@@ -67,7 +67,7 @@ run_class() {
   after="$(eval "$truth_cmd" 2>/dev/null || echo "__ERR__")"
 
   local denials tools effect
-  denials="$(jq -r 'select(.type=="result") | .permission_denials | length' "$log" 2>/dev/null | head -1)"
+  denials="$(head -1 < <(jq -r 'select(.type=="result") | .permission_denials | length' "$log" 2>/dev/null) )"
   [[ -z "$denials" ]] && denials="?"
   tools="$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name' "$log" 2>/dev/null | sort -u | paste -sd, -)"
   [[ -z "$tools" ]] && tools="(none)"
@@ -84,7 +84,7 @@ run_class() {
 
   # last assistant text — reveals the OS-level outcome (e.g. sudo refused, curl blocked)
   local note
-  note="$(jq -r 'select(.type=="result") | .result' "$log" 2>/dev/null | head -1 | tr '\n' ' ' | cut -c1-70)"
+  note="$(head -1 < <(jq -r 'select(.type=="result") | .result' "$log" 2>/dev/null) | tr '\n' ' ' | cut -c1-70 )"
 
   printf '%s\t%s\t%s\t%s\t%s\trc=%s\t%s\n' "$name" "$verdict" "$denials" "$effect" "$tools" "$rc" "$note"
 }

@@ -47,13 +47,13 @@ grep -qiE "INTENSIVE.*promote|promote.*intensive" "$JS" \
 # `set -o pipefail` (grep -q closes the pipe early → awk dies → pipeline non-zero), a false FAIL.
 backstop_block="$(awk '/id:ad74 — JS-side INTENSIVE promote backstop/{f=1} /\[INTENSIVE\] partition .id:8d52/{f=0} f' "$JS")"
 
-printf '%s' "$backstop_block" | grep -qE "verdict = 'execute'" \
+grep -qE "verdict = 'execute'" < <(printf '%s' "$backstop_block") \
   || fail "id:ad74: promote backstop does not flip an idle unit's verdict to 'execute' — patching .intensive alone is a no-op (idle units are filtered out before the INTENSIVE partition)"
 
 # (2d) The backstop must NOT treat skipped-rollup entries as a top_intensive SOURCE — skipped items
 #      carry only {repo, reason} (no top_intensive), so any `skipped` lookup that gates on
 #      `top_intensive && !unit` is provably-dead code. The live source is the paired emitted unit.
-if printf '%s' "$backstop_block" | grep -qE "top_intensive && !u\b"; then
+if grep -qE "top_intensive && !u\b" < <(printf '%s' "$backstop_block") ; then
   fail "id:ad74: promote backstop still gates on a skipped-entry source (top_intensive && !u) — dead branch (skipped items carry no top_intensive)"
 fi
 ok "id:ad74: promote backstop flips idle→dispatch verdict and has no dead skipped-source branch"

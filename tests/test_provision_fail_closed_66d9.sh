@@ -35,7 +35,7 @@ git -C "$REPO" -c user.email=t@example.invalid -c user.name=t commit -q --allow-
 WT1="$TMP/wt1"
 out="$("$SH" "$REPO" "$WT1" relay/test-a)" || fail "provision-worktree.sh exited non-zero on a clean provision"
 
-git -C "$REPO" worktree list --porcelain | grep -q "$(cd "$WT1" && pwd)" \
+grep -q "$(cd "$WT1" && pwd)" < <(git -C "$REPO" worktree list --porcelain) \
   || fail "worktree was not registered in 'git worktree list'"
 git -C "$REPO" rev-parse --verify -q refs/heads/relay/test-a >/dev/null \
   || fail "branch relay/test-a was not created"
@@ -88,8 +88,8 @@ pass "provisionWorktree() gates its true-return on the PROVISION-OK token"
 
 # `return true` must not be reachable without consulting the token: no bare `return true` that
 # precedes the token check in the function body.
-first_true="$(grep -n 'return true' <<<"$body" | head -1 | cut -d: -f1 || true)"
-first_tok="$(grep -n 'PROVISION-OK' <<<"$body" | head -1 | cut -d: -f1 || true)"
+first_true="$(head -1 < <(grep -n 'return true' <<<"$body") | cut -d: -f1 || true)"
+first_tok="$(head -1 < <(grep -n 'PROVISION-OK' <<<"$body") | cut -d: -f1 || true)"
 [[ -n "$first_true" && -n "$first_tok" && "$first_tok" -lt "$first_true" ]] \
   || fail "a 'return true' appears before any PROVISION-OK check — the success path is still unguarded"
 pass "no unguarded 'return true' precedes the token check"

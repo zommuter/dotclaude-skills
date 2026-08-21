@@ -68,7 +68,7 @@ else
   ok "no live marker after clean exit"
 fi
 done_dir="$TMP/heartbeats.done"
-archived="$(ls "$done_dir"/*.json 2>/dev/null | head -1)"
+archived="$(head -1 < <(ls "$done_dir"/*.json 2>/dev/null) )"
 if [[ -n "$archived" ]]; then
   ok "marker archived to heartbeats.done (clean stop, id:e149 contract)"
   runid="$(jq -r '.runId // .run_id // empty' "$archived")"

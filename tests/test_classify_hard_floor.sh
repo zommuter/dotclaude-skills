@@ -48,14 +48,14 @@ class_of() { grep -P "\tid:$1\t" <<<"$cls" | cut -f1; }
 [[ "$(class_of aaaa)" == "POOL" ]] || { echo "[HARD] item must floor to POOL (new-vocab pool lane), got $(class_of aaaa)"; exit 1; }
 # An UNRECOGNIZED lane ("strong model" is not in hard-lanes.md) still floors to C3 + loud reject.
 [[ "$(class_of dddd)" == "C3" ]] || { echo "[HARD — strong model] must floor to C3, got $(class_of dddd)"; exit 1; }
-grep -P '\tid:dddd\t' <<<"$cls" | grep -q 'HARD-NOLANE' \
+grep -q 'HARD-NOLANE' < <(grep -P '\tid:dddd\t' <<<"$cls") \
   || { echo "[HARD — strong model] (unrecognized lane) must be flagged HARD-NOLANE"; exit 1; }
 [[ "$(class_of bbbb)" == "C1" ]] || { echo "non-HARD link+Decisions must stay C1, got $(class_of bbbb)"; exit 1; }
 [[ "$(class_of cccc)" == "C3" ]] || { echo "bare item must be C3, got $(class_of cccc)"; exit 1; }
 [[ "$(class_of 9999)" == "RELAY" ]] || { echo "relay mirror line must stay RELAY, got $(class_of 9999)"; exit 1; }
 
 # the [HARD] tag stays visible in the SUMMARY column
-grep -P '\tid:aaaa\t' <<<"$cls" | grep -q '\[HARD\]' \
+grep -q '\[HARD\]' < <(grep -P '\tid:aaaa\t' <<<"$cls") \
   || { echo "[HARD] tag must remain visible in SUMMARY"; exit 1; }
 
 echo ok

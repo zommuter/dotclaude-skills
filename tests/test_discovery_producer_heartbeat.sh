@@ -147,7 +147,7 @@ reap_out="$("$HB" reap --prefix 'relay-*' 2>&1 >/dev/null)"
 [[ -f "$pmf" ]] || fail "scoped reap (--prefix 'relay-*') archived the discovery-producer marker — cross-domain alarm suppression regression"
 [[ -f "$HEARTBEAT_BASE/relay-20260101-000000-1.json" ]] && fail "scoped reap left a matching relay-* marker un-reaped"
 [[ -f "$tmp/heartbeats.done/relay-20260101-000000-1.json" ]] || fail "scoped reap did not archive the matching relay-* marker into heartbeats.done"
-echo "$reap_out" | grep -q "reaped 1" || fail "scoped reap should report exactly 1 reaped marker, got: $reap_out"
+grep -q "reaped 1" < <(echo "$reap_out") || fail "scoped reap should report exactly 1 reaped marker, got: $reap_out"
 pass "a --prefix 'relay-*' reap archives the dispatch-loop marker but leaves the discovery-producer marker intact (id:54fc / cross-domain suppression fix)"
 
 # ── (e) cross-domain alarm suppression on the DETECTION side: an aged

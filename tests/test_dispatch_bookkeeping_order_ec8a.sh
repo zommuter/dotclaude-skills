@@ -31,7 +31,7 @@ body="$(awk '/^async function runUnit/,0' "$JS")"
 # NOTE: `|| true` is required — a grep miss returns 1, and under `set -e` a bare command
 # substitution assignment would abort the whole test SILENTLY (exit 1, no output). The
 # not-found case is handled explicitly by each caller instead.
-line_of() { grep -n -F -- "$1" <<<"$body" | head -1 | cut -d: -f1 || true; }
+line_of() { head -1 < <(grep -n -F -- "$1" <<<"$body") | cut -d: -f1 || true; }
 
 prov="$(line_of 'await provisionWorktree(' || true)"
 guard="$(line_of 'if (!provisioned)' || true)"

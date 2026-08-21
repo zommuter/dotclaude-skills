@@ -75,7 +75,7 @@ pass "integrator chain: --no-ff merge, ckpt-tag.sh, git-lock-push.sh --ff-only (
 # (3b) id:087b — the integrator dispatch must be MECHANICAL, never an LLM agent. A
 # `model: 'sonnet'`/'haiku'/'opus' integrate dispatch would put an LLM back on the
 # merge-to-main critical path, which is exactly what this item removed.
-if grep -nE "label: \`integrate:\\\$\{unit\.repo\}\`" "$JS" | grep -qvE "model: MECH_MODEL"; then
+if grep -qvE "model: MECH_MODEL" < <(grep -nE "label: \`integrate:\\\$\{unit\.repo\}\`" "$JS") ; then
   fail "id:087b: the integrate dispatch is not model: MECH_MODEL — an LLM is back on the merge-to-main path"
 fi
 grep -qE "label: \`integrate:\\\$\{unit\.repo\}\`, phase: 'Integrate', model: MECH_MODEL" "$JS" \
@@ -83,7 +83,7 @@ grep -qE "label: \`integrate:\\\$\{unit\.repo\}\`, phase: 'Integrate', model: ME
 pass "id:087b: the integrator is dispatched mechanically (MECH_MODEL), not as an LLM agent"
 
 # No bare parallel() over the integration step
-if grep -E "parallel\(.*[Ii]ntegrat" "$JS" | grep -qv "^\s*//"; then
+if grep -qv "^\s*//" < <(grep -E "parallel\(.*[Ii]ntegrat" "$JS") ; then
   fail "integration step appears inside a parallel() call (must be serialized)"
 fi
 pass "no parallel() over the integration step"

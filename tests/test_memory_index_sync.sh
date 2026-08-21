@@ -109,9 +109,9 @@ printf -- '---\nhook: a durable user preference\nmetadata:\n  archived: true\n--
 run_hook "$(make_payload Write "$D6/feedback-something.md")"
 [[ "$HOOK_RC" -ne 0 ]] || fail "test6: expected non-zero exit on validation failure, got 0"
 [[ "$HOOK_RC" -eq 2 ]] || fail "test6: expected exit 2 (loud), got $HOOK_RC"
-printf '%s' "$HOOK_ERR" | grep -q "feedback-something.md" \
+grep -q "feedback-something.md" < <(printf '%s' "$HOOK_ERR") \
     || fail "test6: generator's stderr not surfaced (no filename in: $HOOK_ERR)"
-printf '%s' "$HOOK_ERR" | grep -q "id:2e6d" \
+grep -q "id:2e6d" < <(printf '%s' "$HOOK_ERR") \
     || fail "test6: hook diagnostic (id:2e6d) not on stderr"
 pass "test6: feedback-* archived → loud stderr + exit 2"
 
@@ -144,9 +144,9 @@ ERR8="$(make_payload Write "$D8/lonely.md" | python3 "$ORPHAN_HOOK" 2>&1 >/dev/n
 RC8=$?
 set -e
 [[ "$RC8" -eq 2 ]] || fail "test8: expected loud exit 2 when generator is missing, got $RC8"
-printf '%s' "$ERR8" | grep -q "generator missing" \
+grep -q "generator missing" < <(printf '%s' "$ERR8") \
     || fail "test8: expected a 'generator missing' diagnostic, got: $ERR8"
-printf '%s' "$ERR8" | grep -qi "stale" \
+grep -qi "stale" < <(printf '%s' "$ERR8") \
     || fail "test8: diagnostic must say the index is now stale, got: $ERR8"
 pass "test8: generator missing → LOUD exit 2 (no silent index rot)"
 

@@ -82,12 +82,12 @@ out="$(RELAY_TOML="$tmp/relay.toml" SRC_DIR="$tmp/src" RELAY_RECIPE_DIR="$tmp/re
 [[ $rc -eq 0 ]] || fail "(b) MECHANICAL-only repo must NOT trip a LOUD reject (exit 0); got $rc, stderr: $(cat "$tmp/err")"
 # A MECHANICAL item must NEVER surface as a HARD / human-decision / manual / review lane — that
 # was the original bug this test guarded (mis-routing a pool-inert mechanical item to /meeting).
-printf '%s\n' "$out" | grep -qE $'\t(hard_pool|hard_meeting|hard_hands|human_decision|manual|review_me)\t' \
+grep -qE $'\t(hard_pool|hard_meeting|hard_hands|human_decision|manual|review_me)\t' < <(printf '%s\n' "$out") \
   && fail "(b) MECHANICAL-only repo leaked into a HARD/human lane; got: $out" || true
 pass "(b) gather-human-backlog keeps a MECHANICAL-only repo out of every HARD/human lane"
 # id:8a6b: a MECHANICAL item with NO recipe MUST now surface as a mechanical_orphan so it can't
 # rot silently (the resolution loop's LOUD-surface clause). This is the intended new behavior.
-printf '%s\n' "$out" | grep -qE $'\tmechanical_orphan\t' \
+grep -qE $'\tmechanical_orphan\t' < <(printf '%s\n' "$out") \
   || fail "(b') an un-recipe'd MECHANICAL item must surface as mechanical_orphan (id:8a6b); got: $out"
 pass "(b') gather-human-backlog surfaces an un-recipe'd MECHANICAL item as a mechanical_orphan (id:8a6b)"
 

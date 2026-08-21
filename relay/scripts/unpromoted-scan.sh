@@ -322,7 +322,7 @@ for line in sys.stdin:
     # Mechanically exempt it here, which also removes the need for a hand-added lint-ok marker
     # on these lines (cf. meeting-rpg id:070c). Same prose-false-match family as id:4da4.
     grep -qE '^- \[ \] Relay: ' <<<"$line" && continue
-    token="$(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$line" | head -1 || true)"
+    token="$(head -1 < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$line") || true)"
     if [[ -z "$token" ]]; then
       # No id token → cannot be correlated to ROADMAP at all (the favicon-class blind
       # spot from the truncocraft evidence). It is un-promoted by definition: report it

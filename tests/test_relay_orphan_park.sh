@@ -41,9 +41,9 @@ grep -Eq "branch -m " "$RETIRE" \
 #     force-deletes a branch. `git worktree remove --force` / `git branch -D` must be ABSENT
 #     from both reconcile-repo.sh and the helper.
 # (strip full-line comments so an explanatory "NO --force" comment isn't a false positive)
-grep -vE '^[[:space:]]*#' "$RECONCILE" | grep -Eq "worktree remove --force" \
+grep -Eq "worktree remove --force" < <(grep -vE '^[[:space:]]*#' "$RECONCILE") \
   && fail "reconcile-repo.sh still uses 'git worktree remove --force' — must be force-free (id:373e)"
-grep -vE '^[[:space:]]*#' "$RETIRE" | grep -Eq "worktree remove --force|branch +-D\b" \
+grep -Eq "worktree remove --force|branch +-D\b" < <(grep -vE '^[[:space:]]*#' "$RETIRE") \
   && fail "worktree-retire.sh must not use --force / branch -D (id:373e)"
 grep -Eq "worktree remove" "$RETIRE" \
   || fail "worktree-retire.sh never removes the orphan worktree dir (would re-surface every round)"

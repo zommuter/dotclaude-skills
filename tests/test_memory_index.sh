@@ -117,8 +117,8 @@ ERR="$(python3 "$TOOL" --dir "$D" --write --project t6 2>&1 >/dev/null)"
 RC=$?
 set -e
 [[ $RC -eq 2 ]] || fail "test6: expected exit 2, got $RC"
-echo "$ERR" | grep -qi "never be archived" || fail "test6: missing loud message, got: $ERR"
-echo "$ERR" | grep -q "feedback-x.md" || fail "test6: message did not name the file"
+grep -qi "never be archived" < <(echo "$ERR") || fail "test6: missing loud message, got: $ERR"
+grep -q "feedback-x.md" < <(echo "$ERR") || fail "test6: message did not name the file"
 pass "test6: feedback-* + archived is a loud exit-2 failure"
 
 # ── test 7: multi-line/newline hook → exit 2 ─────────────────────────────────
@@ -139,8 +139,8 @@ ERR="$(python3 "$TOOL" --dir "$D" --write --project t7 2>&1 >/dev/null)"
 RC=$?
 set -e
 [[ $RC -eq 2 ]] || fail "test7: expected exit 2 for newline hook, got $RC"
-echo "$ERR" | grep -qi "newline" || fail "test7: missing newline error, got: $ERR"
-echo "$ERR" | grep -q "multi.md" || fail "test7: did not name the file"
+grep -qi "newline" < <(echo "$ERR") || fail "test7: missing newline error, got: $ERR"
+grep -q "multi.md" < <(echo "$ERR") || fail "test7: did not name the file"
 pass "test7: multi-line hook is a loud exit-2 failure"
 
 # ── test 8: --check exits 0 in sync, 1 (with diff) out of sync ───────────────
@@ -159,7 +159,7 @@ DIFF="$(python3 "$TOOL" --dir "$D" --check --project t8)"
 RC=$?
 set -e
 [[ $RC -eq 1 ]] || fail "test8: --check on drifted dir should exit 1, got $RC"
-echo "$DIFF" | grep -q "two.md" || fail "test8: diff did not mention the new file"
+grep -q "two.md" < <(echo "$DIFF") || fail "test8: diff did not mention the new file"
 pass "test8: --check exits 0 in sync, 1 with a diff out of sync"
 
 # ── test 9: --write is idempotent (byte-identical second run) ─────────────────
@@ -191,8 +191,8 @@ ERR="$(python3 "$TOOL" --dir "$D" --write --project t10 --ceiling 200 2>&1 >/dev
 RC=$?
 set -e
 [[ $RC -eq 0 ]] || fail "test10: over-ceiling should still exit 0, got $RC"
-echo "$ERR" | grep -qi "WARNING" || fail "test10: no ceiling warning on stderr, got: $ERR"
-echo "$ERR" | grep -q "over" || fail "test10: warning missing overage detail, got: $ERR"
+grep -qi "WARNING" < <(echo "$ERR") || fail "test10: no ceiling warning on stderr, got: $ERR"
+grep -q "over" < <(echo "$ERR") || fail "test10: warning missing overage detail, got: $ERR"
 pass "test10: ceiling exceeded warns on stderr but exits 0"
 
 # ── test 11: title resolution order (title: → name: → stem) ──────────────────
@@ -278,10 +278,10 @@ OUT="$(python3 "$TOOL" --dir "$D" --check --project t12)"
 RC=$?
 set -e
 [[ $RC -ne 0 ]] || fail "test12: expected non-zero exit when a hook invariant regressed"
-echo "$OUT" | grep -q "pref.md.*user:" || fail "test12a: lost 'user:' prefix not flagged, got: $OUT"
-echo "$OUT" | grep -q "bold.md" || fail "test12b: lost emphasis token not flagged, got: $OUT"
-echo "$OUT" | grep -q "caps.md" && fail "test12c: unchanged hook (caps.md) was wrongly flagged, got: $OUT"
-echo "$OUT" | grep -q "new.md" && fail "test12d: brand-new memory (new.md) was wrongly flagged, got: $OUT"
+grep -q "pref.md.*user:" < <(echo "$OUT") || fail "test12a: lost 'user:' prefix not flagged, got: $OUT"
+grep -q "bold.md" < <(echo "$OUT") || fail "test12b: lost emphasis token not flagged, got: $OUT"
+grep -q "caps.md" < <(echo "$OUT") && fail "test12c: unchanged hook (caps.md) was wrongly flagged, got: $OUT"
+grep -q "new.md" < <(echo "$OUT") && fail "test12d: brand-new memory (new.md) was wrongly flagged, got: $OUT"
 pass "test12: --check flags a stripped 'user:' prefix and a lost emphasis token vs git HEAD, and leaves unchanged/new entries alone"
 
 # ── test 13: clean (no invariant regressions) → --check exits 0 in a git repo ──

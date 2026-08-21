@@ -112,7 +112,7 @@ grep -qE 'loud-lossy report \(construct=count' "$tmp/run1.err" \
 # --- 2. CONTRACT (A): two consecutive runs over an unchanged fleet, zero diffs ---------
 cp "$STATE" "$tmp/state.run1"; cp "$OUT" "$tmp/out.run1"
 run > /dev/null 2>&1 || fail "second run failed"
-cmp -s "$tmp/state.run1" "$STATE" || { diff -u "$tmp/state.run1" "$STATE" | head -40; \
+cmp -s "$tmp/state.run1" "$STATE" || { head -40 < <(diff -u "$tmp/state.run1" "$STATE") ; \
   fail "CONTRACT (A) VIOLATED: two runs over an unchanged fleet differ (state)"; }
 cmp -s "$tmp/out.run1" "$OUT" || fail "CONTRACT (A) VIOLATED: fleet document differs across runs"
 

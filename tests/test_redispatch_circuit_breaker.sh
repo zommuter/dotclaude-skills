@@ -82,7 +82,7 @@ console.log(out.join('\n'))
 NODE
 
 node "$TMP/drive.mjs" > "$TMP/res" 2>"$TMP/err" || { echo "FAIL: driver errored:"; cat "$TMP/err"; exit 1; }
-get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2; }
+get() { head -1 < <(grep -E "^$1=" "$TMP/res") | cut -d= -f2 ; }
 
 [[ "$(get round1_kept)" == "1" && "$(get round1_suppressed)" == "0" ]] && ok "round 1 dispatches" || bad "round 1 should dispatch"
 [[ "$(get round3_kept)" == "1" && "$(get round3_suppressed)" == "0" ]] && ok "round 3 dispatches (not more than thrice = 3 allowed)" || bad "round 3 should still dispatch"
@@ -108,7 +108,7 @@ get() { grep -E "^$1=" "$TMP/res" | head -1 | cut -d= -f2; }
 # no local run), so the ORDER of its inline pipeline stages is asserted structurally by
 # line position. This is a genuine limitation, stated honestly: the pure-helper tests
 # above cover the breaker's LOGIC; these greps cover only its WIRING/placement.
-lineno() { grep -n -- "$1" "$JS" | head -1 | cut -d: -f1; }
+lineno() { head -1 < <(grep -n -- "$1" "$JS") | cut -d: -f1 ; }
 L_ELEV="$(lineno 'if (SESSION_IS_FABLE && !FABLE_DOWN) {')"
 L_BRK="$(lineno 'id:365b — re-dispatch circuit breaker (mechanism 2')"
 L_FILT="$(lineno "filter(u => u.verdict !== 'idle')")"

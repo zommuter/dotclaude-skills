@@ -51,7 +51,7 @@ esac
 
 # The checkpoint commit must exist and contain the RELAY_LOG.md entry.
 if [[ -n "$tag" ]] && git -C "$work" rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
-  if git -C "$work" show "$tag:RELAY_LOG.md" 2>/dev/null | grep -q "degrade summary paragraph"; then
+  if grep -q "degrade summary paragraph" < <(git -C "$work" show "$tag:RELAY_LOG.md" 2>/dev/null) ; then
     ok "RELAY_LOG.md entry was committed on the checkpoint"
   else
     bad "checkpoint commit is missing the RELAY_LOG.md entry"

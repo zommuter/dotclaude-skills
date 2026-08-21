@@ -46,10 +46,10 @@ if out="$(node "$LINT" "$TMP/bad_py.sh" 2>&1)"; then
   fail "linter did NOT flag an apostrophe-truncated embedded python body:
 $out"
 fi
-echo "$out" | grep -qE 'bad_py\.sh:2:' \
+grep -qE 'bad_py\.sh:2:' < <(echo "$out") \
   || fail "linter flagged but did not name the offending file:line (expected bad_py.sh:2:…):
 $out"
-echo "$out" | grep -qi 'python' \
+grep -qi 'python' < <(echo "$out") \
   || fail "linter flagged but did not name the guest language:
 $out"
 pass "(1) apostrophe-truncated embedded python body → nonzero, names file:line and language"
@@ -78,7 +78,7 @@ if out="$(node "$LINT" "$TMP/bad_awk.sh" 2>&1)"; then
   fail "linter did NOT flag a corrupted embedded awk body:
 $out"
 fi
-echo "$out" | grep -qE 'bad_awk\.sh:2:' \
+grep -qE 'bad_awk\.sh:2:' < <(echo "$out") \
   || fail "linter flagged but did not name the offending file:line:
 $out"
 pass "(3) corrupted embedded awk body → nonzero, names the file"
@@ -106,7 +106,7 @@ out="$(node "$LINT" "$TMP/unchecked.sh" 2>&1)"
 rc=$?
 [[ $rc -eq 0 ]] || fail "linter should exit 0 on an unchecked-only fixture (nothing REJECTED), got rc=$rc:
 $out"
-echo "$out" | grep -qi 'unchecked' \
+grep -qi 'unchecked' < <(echo "$out") \
   || fail "linter did not report the un-isolable (interpolated) body as UNCHECKED:
 $out"
 pass "(4) un-isolable (interpolated) embedded body → UNCHECKED, reported not silently skipped"
@@ -173,10 +173,10 @@ if out="$(node "$LINT" "$TMP/truncated_word.sh" 2>&1)"; then
   fail "linter reported CLEAN on the motivating incident's own shape (apostrophe truncation glued to a bareword):
 $out"
 fi
-echo "$out" | grep -qE 'truncated_word\.sh:2:' \
+grep -qE 'truncated_word\.sh:2:' < <(echo "$out") \
   || fail "linter flagged but did not name the offending file:line:
 $out"
-echo "$out" | grep -qi 'truncated' \
+grep -qi 'truncated' < <(echo "$out") \
   || fail "linter flagged but did not name apostrophe truncation as the likely cause:
 $out"
 pass "(7) bash -n-clean apostrophe truncation glued to a bareword → REJECTED, not hidden as UNCHECKED"
@@ -193,7 +193,7 @@ if ! out="$(node "$LINT" "$TMP/concat_ok.sh" 2>&1)"; then
   fail "escalation false-positived on deliberate quote-concatenation (prefix is not standalone-valid, but this is not truncation):
 $out"
 fi
-echo "$out" | grep -qi 'unchecked' \
+grep -qi 'unchecked' < <(echo "$out") \
   || fail "deliberate concatenation should still be reported UNCHECKED:
 $out"
 pass "(7b) deliberate quote-concatenation stays UNCHECKED (escalation does not false-positive)"

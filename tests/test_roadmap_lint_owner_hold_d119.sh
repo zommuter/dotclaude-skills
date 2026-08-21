@@ -60,14 +60,14 @@ set -e
 [[ $rc -eq 0 ]] || fail "default run must exit 0 (DEAD-GATE is WARN-only), got $rc (err: $(cat "$tmp/err"))"
 
 # The owner-held item must NOT be flagged DEAD-GATE — the marker declares the hold intentional.
-if grep -E 'DEAD-GATE' "$tmp/err" | grep -q 'id:fa01'; then
+if grep -q 'id:fa01' < <(grep -E 'DEAD-GATE' "$tmp/err") ; then
   sed 's/^/    /' "$tmp/err"
   fail "an item carrying an owner-hold marker must NOT fire DEAD-GATE (id:d119 not yet built)"
 fi
 pass "an owner-held item with a dead gate is exempted from DEAD-GATE"
 
 # The plain item with the same dead gate MUST still fire — the marker suppresses only itself.
-grep -E 'DEAD-GATE' "$tmp/err" | grep -q 'id:fa02' \
+grep -q 'id:fa02' < <(grep -E 'DEAD-GATE' "$tmp/err") \
   || { sed 's/^/    /' "$tmp/err"; fail "the unmarked item with a dead gate must STILL fire DEAD-GATE (the marker must not disable the rule globally)"; }
 pass "an unmarked item with the same dead gate still fires DEAD-GATE"
 
@@ -76,9 +76,9 @@ set +e
 bash "$LINT" --strict "$tmp/ROADMAP.md" >/dev/null 2>"$tmp/err2"; rc_s=$?
 set -e
 [[ $rc_s -ne 0 ]] || fail "--strict must exit non-zero while an unmarked dead gate remains"
-grep -E 'DEAD-GATE' "$tmp/err2" | grep -q 'id:fa02' \
+grep -q 'id:fa02' < <(grep -E 'DEAD-GATE' "$tmp/err2") \
   || fail "--strict must still name the unmarked dead gate id:fa02 (err: $(cat "$tmp/err2"))"
-if grep -E 'DEAD-GATE' "$tmp/err2" | grep -q 'id:fa01'; then
+if grep -q 'id:fa01' < <(grep -E 'DEAD-GATE' "$tmp/err2") ; then
   fail "--strict must NOT flag the owner-held item id:fa01 either"
 fi
 pass "--strict escalates the surviving unmarked dead gate, still exempts the owner-held one"

@@ -29,7 +29,7 @@ export RELAY_TOML="$TOML"
 # (1) clean main checkout → check 9 reports clean, doctor exits 0.
 out="$("$SH" "$FIX" 2>/dev/null)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "(1) report-only must exit 0 on a clean repo; got $rc"
-grep -A1 'main-checkout residue' <<<"$out" | grep -q 'clean (main checkout has no uncommitted residue)' \
+grep -q 'clean (main checkout has no uncommitted residue)' < <(grep -A1 'main-checkout residue' <<<"$out") \
   || fail "(1) clean repo not reported clean by check 9:\n$out"
 pass "(1) clean main checkout → check 9 clean"
 
@@ -50,7 +50,7 @@ git -C "$FIX" checkout -q -- TODO.md          # drop the stray edit
 printf 'lock = 1\n' > "$FIX/uv.lock"; git -C "$FIX" add uv.lock; git -C "$FIX" commit -qm 'add lock'
 printf 'lock = 2\n' > "$FIX/uv.lock"          # dirty ONLY the lock file
 out="$("$SH" "$FIX" 2>/dev/null)"
-grep -A1 'main-checkout residue' <<<"$out" | grep -q 'dirty-lock-only' \
+grep -q 'dirty-lock-only' < <(grep -A1 'main-checkout residue' <<<"$out") \
   || fail "(3) lock-only dirty not treated as benign:\n$(grep -A2 'main-checkout residue' <<<"$out")"
 grep -q 'RESIDUE' <<<"$out" && fail "(3) lock-only dirty wrongly flagged as RESIDUE:\n$out"
 pass "(3) lock-only dirty → benign, not residue"

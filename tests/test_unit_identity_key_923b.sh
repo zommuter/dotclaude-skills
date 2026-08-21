@@ -77,7 +77,7 @@ pass "(6) the claim.sh lease is still repo-granular"
 #    argument — the same shape `worktreePathFor` already has at :1804 — with no closure over
 #    module state. Three distinct unit shapes (two ids / same id different attempt / id-less
 #    review) must yield distinct keys, and the same shape must be stable across calls.
-keyline="$(grep -E '^[[:space:]]*const unitKey(For)? = \(' "$JS" | head -1 || true)"
+keyline="$(head -1 < <(grep -E '^[[:space:]]*const unitKey(For)? = \(' "$JS") || true)"
 [[ -n "$keyline" ]] \
   || fail "(7) no single-line 'const unitKey = (…) => …' arrow found — the key must be a pure, textually-extractable one-liner so it can be tested standalone (id:923b)"
 KEYLINE="$keyline" node -e '

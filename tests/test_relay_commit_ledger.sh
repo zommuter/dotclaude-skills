@@ -34,17 +34,17 @@ echo "== 1. a scoped ledger edit commits atomically (tree clean after) =="
 sed -i 's/\[HARD — pool\]/[HARD — decision gate]/' "$REPO/ROADMAP.md"
 "$HELPER" "$REPO" -m "roadmap: gate id:aaaa (id:3801)" ROADMAP.md >/dev/null 2>&1
 if [ -z "$(git -C "$REPO" status --porcelain)" ]; then ok "tree clean after commit (no dirty residue)"; else bad "tree still dirty after commit: $(git -C "$REPO" status --porcelain)"; fi
-if git -C "$REPO" log -1 --pretty=%s | grep -qF 'gate id:aaaa'; then ok "commit landed with the message"; else bad "commit message missing"; fi
-if git -C "$REPO" show --stat HEAD | grep -qF 'ROADMAP.md'; then ok "ROADMAP.md is in the commit"; else bad "ROADMAP.md not committed"; fi
+if grep -qF 'gate id:aaaa' < <(git -C "$REPO" log -1 --pretty=%s) ; then ok "commit landed with the message"; else bad "commit message missing"; fi
+if grep -qF 'ROADMAP.md' < <(git -C "$REPO" show --stat HEAD) ; then ok "ROADMAP.md is in the commit"; else bad "ROADMAP.md not committed"; fi
 
 echo "== 2. an UNRELATED concurrent edit is left untouched (scoped stage, no git add -A) =="
 sed -i 's/\[HARD — decision gate\]/[HARD — pool]/' "$REPO/ROADMAP.md"   # another ledger edit
 printf 'concurrent foreign work\n' >> "$REPO/unrelated.txt"            # foreign dirty, NOT a ledger
 "$HELPER" "$REPO" -m "roadmap: revert gate (id:3801)" ROADMAP.md >/dev/null 2>&1
 # the foreign file must STILL be dirty + uncommitted (never swept into the commit, never stashed)
-if git -C "$REPO" status --porcelain | grep -q 'unrelated.txt'; then ok "foreign unrelated.txt left dirty (not staged/committed/stashed)"; else bad "foreign edit was swallowed (git add -A / stash hazard)"; fi
-if ! git -C "$REPO" show --stat HEAD | grep -qF 'unrelated.txt'; then ok "unrelated.txt NOT in the ledger commit"; else bad "unrelated.txt leaked into the scoped commit"; fi
-if git -C "$REPO" show --stat HEAD | grep -qF 'ROADMAP.md'; then ok "only ROADMAP.md committed"; else bad "ROADMAP edit not committed"; fi
+if grep -q 'unrelated.txt' < <(git -C "$REPO" status --porcelain) ; then ok "foreign unrelated.txt left dirty (not staged/committed/stashed)"; else bad "foreign edit was swallowed (git add -A / stash hazard)"; fi
+if ! grep -qF 'unrelated.txt' < <(git -C "$REPO" show --stat HEAD) ; then ok "unrelated.txt NOT in the ledger commit"; else bad "unrelated.txt leaked into the scoped commit"; fi
+if grep -qF 'ROADMAP.md' < <(git -C "$REPO" show --stat HEAD) ; then ok "only ROADMAP.md committed"; else bad "ROADMAP edit not committed"; fi
 # no stash was created (id:aa93: never stash a foreign-dirty tree)
 if [ -z "$(git -C "$REPO" stash list)" ]; then ok "no stash created (foreign work not swept)"; else bad "a stash was created — foreign-dirty sweep (id:aa93 violation)"; fi
 # clean up the foreign edit so later cases start clean
@@ -55,7 +55,7 @@ sed -i 's/a todo/a todo (gated)/' "$REPO/TODO.md"
 sed -i 's/\[HARD — pool\]/[HARD — decision gate]/' "$REPO/ROADMAP.md"
 "$HELPER" "$REPO" -m "ledger: sync id:aaaa across ROADMAP+TODO" ROADMAP.md TODO.md >/dev/null 2>&1
 if [ -z "$(git -C "$REPO" status --porcelain)" ]; then ok "both ledgers committed, tree clean"; else bad "residue after multi-file commit"; fi
-if git -C "$REPO" show --stat HEAD | grep -qF 'TODO.md' && git -C "$REPO" show --stat HEAD | grep -qF 'ROADMAP.md'; then ok "both files in one commit"; else bad "multi-file commit incomplete"; fi
+if grep -qF 'TODO.md' < <(git -C "$REPO" show --stat HEAD) && grep -qF 'ROADMAP.md' < <(git -C "$REPO" show --stat HEAD) ; then ok "both files in one commit"; else bad "multi-file commit incomplete"; fi
 
 echo "== 4. clean no-op when the named ledger has no change =="
 before="$(git -C "$REPO" rev-parse HEAD)"
@@ -74,7 +74,7 @@ echo "== 6. misuse is a loud nonzero (no commit message) =="
 sed -i 's/\[HARD — pool\]/[HARD — decision gate]/' "$REPO/ROADMAP.md"
 if "$HELPER" "$REPO" ROADMAP.md >/dev/null 2>&1; then bad "missing -m did not fail"; else ok "missing -m exits nonzero"; fi
 # the ledger stays as the caller left it (dirty) — misuse never half-commits
-if git -C "$REPO" status --porcelain | grep -q 'ROADMAP.md'; then ok "misuse left the edit uncommitted (no partial commit)"; else bad "misuse mutated the commit graph"; fi
+if grep -q 'ROADMAP.md' < <(git -C "$REPO" status --porcelain) ; then ok "misuse left the edit uncommitted (no partial commit)"; else bad "misuse mutated the commit graph"; fi
 git -C "$REPO" checkout -- ROADMAP.md
 
 echo "== 7. a path escaping the repo root is rejected =="
@@ -83,7 +83,7 @@ if "$HELPER" "$REPO" -m "evil" ../escape.md >/dev/null 2>&1; then bad "path trav
 echo "== 8. the helper NEVER USES destructive git verbs (static guard, id:aa93) =="
 # Strip comment lines first — the header documents the prohibition in prose;
 # the guard is about CODE that runs, not the doc that explains it.
-if grep -vE '^[[:space:]]*#' "$HELPER" | grep -Eq 'git[[:space:]]+(stash|reset|clean)\b|checkout[[:space:]]+--|git[[:space:]]+add[[:space:]]+-A\b'; then
+if grep -Eq 'git[[:space:]]+(stash|reset|clean)\b|checkout[[:space:]]+--|git[[:space:]]+add[[:space:]]+-A\b' < <(grep -vE '^[[:space:]]*#' "$HELPER") ; then
   bad "helper USES a destructive/blanket git verb (stash/reset/clean/checkout --/add -A)"
 else
   ok "no stash/reset/clean/checkout --/add -A in executable code"
@@ -101,7 +101,7 @@ block() { awk -v v="$1" '
   inblk { print; if ($0 !~ /\\[[:space:]]*$/) exit }
 ' "$ROOT/Makefile"; }
 for var in relay_FILES relay_EXEC relay_ALLOW; do
-  if block "$var" | grep -qF 'commit-ledger.sh'; then
+  if grep -qF 'commit-ledger.sh' < <(block "$var") ; then
     ok "$var lists commit-ledger.sh"
   else
     bad "$var missing commit-ledger.sh"

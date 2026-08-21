@@ -52,8 +52,8 @@ pass "id:f54d: archiver is invoked on the unit's repo path"
 
 # (3) The invocation lives in the serialized, once-per-unit integrator path that already runs
 #     changelog-append.sh and ckpt-tag.sh — not somewhere it would race a live child.
-ckpt_line=$(grep -n '"\$CKPT_TAG" "\${ckpt_args\[@\]}"' "$INTEG" | head -1 | cut -d: -f1)
-arch_line=$(grep -n '"\$ROADMAP_ARCHIVE" "\$path"' "$INTEG" | head -1 | cut -d: -f1)
+ckpt_line=$(head -1 < <(grep -n '"\$CKPT_TAG" "\${ckpt_args\[@\]}"' "$INTEG") | cut -d: -f1 )
+arch_line=$(head -1 < <(grep -n '"\$ROADMAP_ARCHIVE" "\$path"' "$INTEG") | cut -d: -f1 )
 [[ -n "$ckpt_line" ]] || fail "id:f54d: integrate.sh has no ckpt-tag.sh step to anchor against"
 [[ -n "$arch_line" ]] || fail "id:f54d: the roadmap-archive invocation is NOT in integrate.sh"
 pass "id:f54d: archiver call sits in the serialized integrator (line $arch_line), beside ckpt-tag (line $ckpt_line)"

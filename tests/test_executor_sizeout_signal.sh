@@ -60,7 +60,7 @@ else
 fi
 
 echo "== contract version bumped past v5 (in-flight executors must learn the new obligation) =="
-ver="$(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT" | grep -oE 'v[0-9]+' | head -1 | tr -d v)"
+ver="$(head -1 < <(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT" | grep -oE 'v[0-9]+') | tr -d v )"
 if [ -n "$ver" ] && [ "$ver" -ge 6 ] 2>/dev/null; then
   ok "contract version v$ver (>= v6)"
 else
@@ -75,7 +75,7 @@ echo "== relay-loop.js EXECUTE-verdict prompt covers ROUTINE size-out =="
 # executor hands back instead of committing a no-op checkpoint that leaves the [ROUTINE]
 # re-dispatchable. (Scope to that segment — grepping the whole file would match the
 # 'hard'-verdict prompt and pass trivially.)
-exec_seg="$(grep -nE "unit\.verdict === 'execute' \?" "$LOOP" | grep -i routine | head -1)"
+exec_seg="$(head -1 < <(grep -nE "unit\.verdict === 'execute' \?" "$LOOP" | grep -i routine) )"
 if [ -n "$exec_seg" ] && grep -qiE 'size[ -]?out|too large to land|hand ?back' <<<"$exec_seg"; then
   ok "execute-verdict prompt wires ROUTINE size-out → handback"
 else

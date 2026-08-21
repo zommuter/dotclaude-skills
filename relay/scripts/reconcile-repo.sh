@@ -210,7 +210,7 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
   roadmap_archive="$path/ROADMAP.archive.md"
   while IFS= read -r oref; do
     [[ -n "$oref" ]] || continue
-    oid="$(git -C "$path" show --stat "$oref" 2>/dev/null | grep -oE 'id:[0-9a-f]{4}' | head -1 | sed 's/id://' || true)"
+    oid="$(head -1 < <(git -C "$path" show --stat "$oref" 2>/dev/null | grep -oE 'id:[0-9a-f]{4}') | sed 's/id://' || true)"
     suppress=false; why=""
     if [[ -n "$oid" && -f "$roadmap" ]]; then
       # ROADMAP union = live ∪ archive, OPEN-ANYWHERE-WINS (see the precedence note above —

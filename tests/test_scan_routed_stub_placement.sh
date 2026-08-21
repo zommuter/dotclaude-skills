@@ -79,8 +79,8 @@ $(cat "$done_todo")"
 pass "(1) stub for routed:eee1 written into the Done-terminated TODO"
 
 # (2) the stub must sit BEFORE the `## Done` heading, not after it.
-stub_line="$(grep -n 'routed:eee1' "$done_todo" | head -1 | cut -d: -f1)"
-done_line="$(grep -n '^## Done' "$done_todo" | head -1 | cut -d: -f1)"
+stub_line="$(head -1 < <(grep -n 'routed:eee1' "$done_todo") | cut -d: -f1 )"
+done_line="$(head -1 < <(grep -n '^## Done' "$done_todo") | cut -d: -f1 )"
 [[ -n "$stub_line" && -n "$done_line" ]] \
   || fail "(2) could not locate stub/Done lines in $done_todo"
 if [[ "$stub_line" -lt "$done_line" ]]; then

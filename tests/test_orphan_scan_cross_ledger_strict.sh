@@ -100,7 +100,7 @@ if grep -q 'id:cc33[^ab]' <<<"$out2" || grep -qE 'id:cc33 ' <<<"$out2"; then
   true  # we'll check explicitly below
 fi
 # The 4-hex token is 'cc33' — check it's not flagged
-if echo "$out2" | grep -qE 'id:cc33[^0-9a-f]|id:cc33$'; then
+if grep -qE 'id:cc33[^0-9a-f]|id:cc33$' < <(echo "$out2") ; then
   echo "FAIL: must NOT flag id:cc33 — primary lines agree ([ ] in both ledgers)"
   echo "got: $out2"
   exit 1
@@ -109,7 +109,7 @@ echo "PASS: id:cc33 not flagged — prose references on sibling lines do not aff
 
 # cc33a: both [ ] — AGREE; cc33b: both [x] — AGREE. Neither should be flagged.
 for tk in cc33a cc33b; do
-  if echo "$out2" | grep -q "id:$tk"; then
+  if grep -q "id:$tk" < <(echo "$out2") ; then
     echo "FAIL: must NOT flag id:$tk — states agree in both ledgers"
     echo "got: $out2"
     exit 1

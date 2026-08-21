@@ -34,7 +34,7 @@ tag_target="$(git -C "$R" rev-parse "$tag^{commit}")"
 pass "(1) -c <commit>: tag anchored on the reviewed tip, not the advanced HEAD"
 
 # (2) the RELAY_LOG entry still lands on the current branch (documentation is not lost).
-git -C "$R" show HEAD --name-only --pretty=format: | grep -qx 'RELAY_LOG.md' \
+grep -qx 'RELAY_LOG.md' < <(git -C "$R" show HEAD --name-only --pretty=format:) \
   || fail "(2) RELAY_LOG.md commit missing from the current branch"
 pass "(2) RELAY_LOG entry still committed on the current branch"
 

@@ -167,7 +167,7 @@ pass "[INPUT — meeting] → C3 and pick-eligible (partition is non-vacuous)"
 
 # The RELAY mirror line is emitted with EMPTY note and gate columns (classify.sh returns
 # early for it) — pin that shape so the early-return keeps filling all 5 columns.
-relay_line="$(printf '%s\n' "$out" | awk -F'\t' '$1=="RELAY"{print; exit}')"
+relay_line="$(awk -F'\t' '$1=="RELAY"{print; exit}' < <(printf '%s\n' "$out") )"
 [[ -n "$relay_line" ]] || fail "the relay mirror line must be emitted as class RELAY"
 rn="$(printf '%s' "$relay_line" | cut -f4)"; rg="$(printf '%s' "$relay_line" | cut -f5)"
 [[ -z "$rn" && -z "$rg" ]] || fail "RELAY line must have empty note+gate columns, got note='$rn' gate='$rg'"

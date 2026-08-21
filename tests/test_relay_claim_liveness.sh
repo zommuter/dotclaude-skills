@@ -100,7 +100,7 @@ touch -d '1 hour ago' "$shard"          # age it past TTL → would be stale
 if "$SH" acquire hb-repo --run RUN-OTHER 2>/dev/null; then
   fail "heartbeat did not refresh mtime — a stale claim was stolen by another run"
 fi
-"$SH" peek | grep -q '"key":"hb-repo"' || fail "peek dropped a freshly-heartbeated claim"
+grep -q '"key":"hb-repo"' < <("$SH" peek) || fail "peek dropped a freshly-heartbeated claim"
 pass "heartbeat refreshes a held claim's mtime (long child keeps its lease) (id:7570)"
 
 # heartbeat is run-scoped: a different run cannot refresh someone else's claim mtime.
@@ -131,7 +131,7 @@ if "$SH" acquire wt-repo --run RUN-STEAL 2>/dev/null; then
   fail "a stale-mtime claim with a WORKING worktree was stolen (long child lost its lease)"
 fi
 # peek still emits it; reap keeps it
-"$SH" peek | grep -q '"key":"wt-repo"' || fail "peek dropped a stale-but-working long-child claim"
+grep -q '"key":"wt-repo"' < <("$SH" peek) || fail "peek dropped a stale-but-working long-child claim"
 "$SH" reap 2>/dev/null
 [[ -f "$shard2" ]] || fail "reap wrongly removed a stale-but-working long-child claim"
 pass "stale-mtime + working worktree → LIVE (peek emits, reap keeps, acquire refused) (id:7570)"
@@ -175,7 +175,7 @@ touch -d '1 hour ago' "$shardA"          # stale mtime — only the worktree+hea
 if "$SH" acquire hbgate-live --run RUN-A-STEAL 2>/dev/null; then
   fail "(a) worktree+FRESH-heartbeat claim was stolen — the heartbeat-backed long child lost its lease (id:33d3)"
 fi
-"$SH" peek | grep -q '"key":"hbgate-live"' || fail "(a) peek dropped a worktree+fresh-heartbeat LIVE claim (id:33d3)"
+grep -q '"key":"hbgate-live"' < <("$SH" peek) || fail "(a) peek dropped a worktree+fresh-heartbeat LIVE claim (id:33d3)"
 pass "(a) worktree-with-commits + FRESH heartbeat → LIVE (acquire refused, peek emits) (id:33d3)"
 
 # (b) worktree-with-commits + STALE/dead heartbeat → RECLAIMABLE (the dead-but-committed run).

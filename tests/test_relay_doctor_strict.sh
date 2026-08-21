@@ -44,7 +44,7 @@ git -C "$REPO" commit -qm init
 
 # --- (1) --strict flag is recognized (no "unknown flag" error) -----------------
 err="$(HOME="$tmp" "$SH" --strict "$REPO" 2>&1 || true)"
-echo "$err" | grep -qiE 'unknown flag.*strict' \
+grep -qiE 'unknown flag.*strict' < <(echo "$err") \
   && fail "--strict must not be reported as unknown flag (got: $err)" || true
 pass "--strict flag is recognized (no unknown-flag error)"
 
@@ -86,7 +86,7 @@ rc=0
 out="$(HOME="$tmp" RELAY_QUOTA_DECAY_7D="0.90:0.30" "$SH" "$REPO" 2>&1)" || rc=$?
 # Should still exit 0 (report-only, no --strict)
 [[ "$rc" -eq 0 ]] || fail "quota-config issue without --strict must still exit 0; got $rc"
-echo "$out" | grep -qiE 'WARN.*RELAY_QUOTA_DECAY_7D.*START.*>=.*END|backward' \
+grep -qiE 'WARN.*RELAY_QUOTA_DECAY_7D.*START.*>=.*END|backward' < <(echo "$out") \
   || fail "quota-config START(0.90) >= END(0.30) must emit a WARN; got: $out"
 pass "RELAY_QUOTA_DECAY_7D=0.90:0.30 (START>=END) emits WARN"
 
@@ -98,21 +98,21 @@ pass "--strict + START>=END exits nonzero"
 
 # --- (6) quota-config: valid START:END is clean --------------------------------
 out="$(HOME="$tmp" RELAY_QUOTA_DECAY_7D="0.30:0.90" "$SH" "$REPO" 2>&1)"
-echo "$out" | grep -qiE 'WARN.*RELAY_QUOTA_DECAY_7D' \
+grep -qiE 'WARN.*RELAY_QUOTA_DECAY_7D' < <(echo "$out") \
   && fail "valid RELAY_QUOTA_DECAY_7D=0.30:0.90 must NOT emit WARN; got: $out" || true
-echo "$out" | grep -qiE 'direction OK|START<END' \
+grep -qiE 'direction OK|START<END' < <(echo "$out") \
   || fail "valid 0.30:0.90 must confirm direction OK; got: $out"
 pass "RELAY_QUOTA_DECAY_7D=0.30:0.90 (valid START<END) is clean"
 
 # --- (7) quota-config: unset → no complaint ------------------------------------
 out="$(HOME="$tmp" RELAY_QUOTA_DECAY_7D= "$SH" "$REPO" 2>&1)"
-echo "$out" | grep -qiE 'WARN.*RELAY_QUOTA_DECAY_7D' \
+grep -qiE 'WARN.*RELAY_QUOTA_DECAY_7D' < <(echo "$out") \
   && fail "unset RELAY_QUOTA_DECAY_7D must not emit WARN; got: $out" || true
 pass "unset RELAY_QUOTA_DECAY_7D produces no WARN"
 
 # --- (8) quota-config: malformed format is flagged ----------------------------
 out="$(HOME="$tmp" RELAY_QUOTA_DECAY_7D="not-a-number" "$SH" "$REPO" 2>&1)"
-echo "$out" | grep -qiE 'WARN.*RELAY_QUOTA_DECAY_7D' \
+grep -qiE 'WARN.*RELAY_QUOTA_DECAY_7D' < <(echo "$out") \
   || fail "malformed RELAY_QUOTA_DECAY_7D must emit WARN; got: $out"
 pass "malformed RELAY_QUOTA_DECAY_7D emits WARN"
 

@@ -213,7 +213,7 @@ if [[ "$fix" -eq 1 && "${#fix_lines[@]}" -gt 0 ]]; then
         log "skip-inline-id line=$ln file=$path"
         continue
       fi
-      tok="$(bash "$APPEND_SH" new-id 2>>"$LOG" | grep -oP '^[0-9a-f]{4}$' | head -1 || true)"
+      tok="$(head -1 < <(bash "$APPEND_SH" new-id 2>>"$LOG" | grep -oP '^[0-9a-f]{4}$') || true)"
       if [[ -z "$tok" ]]; then
         echo "todo-conformance.sh: could not mint an id for line $ln (append.sh new-id failed)" >&2
         continue

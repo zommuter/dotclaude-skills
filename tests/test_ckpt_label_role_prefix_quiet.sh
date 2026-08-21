@@ -47,7 +47,7 @@ run_label() {
   cat "$TMP/err.$2"
 }
 
-watermark() { grep -oP 'last_strong_ckpt = "\K[^"]*' "$FABLES_CONFIG/relay.toml" | head -1; }
+watermark() { head -1 < <(grep -oP 'last_strong_ckpt = "\K[^"]*' "$FABLES_CONFIG/relay.toml") ; }
 
 # --- (1) the pool's real execute label must be QUIET ---------------------------
 err="$(run_label 'executor (sonnet, relay-loop)' a)"

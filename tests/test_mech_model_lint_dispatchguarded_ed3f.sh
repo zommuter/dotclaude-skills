@@ -49,7 +49,7 @@ if out="$(node "$LINT" "$TMP/dg-bad-bash.workflow.js" 2>&1)"; then
   fail "linter did NOT flag a fence-carrying dispatchGuarded() call hardcoding model:'bash':
 $out"
 fi
-echo "$out" | grep -qE 'dg-bad-bash\.workflow\.js:3:' \
+grep -qE 'dg-bad-bash\.workflow\.js:3:' < <(echo "$out") \
   || fail "linter flagged but did not name the dispatchGuarded() call's line (expected dg-bad-bash.workflow.js:3:…):
 $out"
 pass "(1) fence-carrying dispatchGuarded() call hardcoding model:'bash' → nonzero, names the line"
@@ -70,7 +70,7 @@ if out="$(node "$LINT" "$TMP/dg-bad-haiku.workflow.js" 2>&1)"; then
   fail "linter did NOT flag a fence-carrying dispatchGuarded() call hardcoding model:'haiku':
 $out"
 fi
-echo "$out" | grep -qE 'dg-bad-haiku\.workflow\.js:3:' \
+grep -qE 'dg-bad-haiku\.workflow\.js:3:' < <(echo "$out") \
   || fail "linter flagged but did not name the dispatchGuarded() call's line:
 $out"
 pass "(1b) fence-carrying dispatchGuarded() call hardcoding model:'haiku' → nonzero, names the line"

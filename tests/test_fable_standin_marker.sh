@@ -26,7 +26,7 @@ grep -q "unit\.verdict !== 'execute'" "$JS" \
   || fail "relay-loop.js missing non-execute guard for fable-standin"
 
 # 3. execute label does NOT contain fable-standin
-grep "executor (sonnet, relay-loop)" "$JS" | grep -qv 'fable-standin' \
+grep -qv 'fable-standin' < <(grep "executor (sonnet, relay-loop)" "$JS") \
   && ok "execute label does not contain fable-standin" \
   || fail "execute label unexpectedly contains fable-standin"
 

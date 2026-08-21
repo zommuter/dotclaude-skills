@@ -245,7 +245,7 @@ PYEOF
     exit 0
   fi
   # Extract the target repo name from the leading `[<target>]`.
-  target="$(printf '%s\n' "$own_line" | grep -oP '^\s*- \[[ x]\] \[\K[^\]]+' | head -1 || true)"
+  target="$(head -1 < <(printf '%s\n' "$own_line" | grep -oP '^\s*- \[[ x]\] \[\K[^\]]+') || true)"
   if [[ -z "$target" ]]; then
     echo "inbox-done: REFUSING to delete routed:$token — could not parse the leading [<target>] from its inbox line:" >&2
     echo "  $own_line" >&2
@@ -568,7 +568,7 @@ fi
 #   token is the name (`PERSONA_DEF_RE` below, mirrored in the bash pre-check). A prose
 #   citation is never the first bold on its line, so it can no longer be picked.
 if [[ "$target" == "personas" ]]; then
-  pname="$(grep -oP '\*\*\K[A-Za-z]+(?=\*\*)' <<<"$entry" | head -1)"
+  pname="$(head -1 < <(grep -oP '\*\*\K[A-Za-z]+(?=\*\*)' <<<"$entry") )"
   # Definition-anchored (id:44c5): a list item whose FIRST `**bold**` token is this name.
   # `[^*]*` before the name is what forbids an earlier bold on the same line, so a prose
   # citation of `**Name**` inside someone else's entry does not match. Must stay in sync

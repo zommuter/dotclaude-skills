@@ -17,7 +17,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 # (1) STRUCTURAL — the size-out push site must carry workCreated. This is the regression that bit.
-sizeout_push="$(grep -n 'reason: hbReason, worktreePath: report.worktree' "$JS" | head -1)"
+sizeout_push="$(head -1 < <(grep -n 'reason: hbReason, worktreePath: report.worktree' "$JS") )"
 [[ -n "$sizeout_push" ]] || fail "(1) could not find the contract_met=false handback push site"
 grep -q 'reason: hbReason, worktreePath: report.worktree, workCreated:' "$JS" \
   || fail "(1) id:bd04 REGRESSION: the size-out handback push does not set workCreated — id:c919 is inert for size-outs, and a decomposing round will score dry again"

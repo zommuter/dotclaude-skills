@@ -72,7 +72,7 @@ else
   fail_msg "(a) exited $rc_a, expected 0"
 fi
 
-if echo "$out_a" | grep -qi "local-ahead contains.*merge commit"; then
+if grep -qi "local-ahead contains.*merge commit" < <(echo "$out_a") ; then
   ok "(a) NOTE line printed on stderr"
 else
   fail_msg "(a) NOTE line missing (output: $out_a)"
@@ -126,7 +126,7 @@ else
   fail_msg "(b) exited $rc_b, expected 0"
 fi
 
-if echo "$out_b" | grep -qi "warning\|diverge"; then
+if grep -qi "warning\|diverge" < <(echo "$out_b") ; then
   ok "(b) warning emitted"
 else
   fail_msg "(b) no warning printed (output: $out_b)"
@@ -165,7 +165,7 @@ else
   fail_msg "(c) exited $rc_c, expected 0"
 fi
 
-if echo "$out_c" | grep -qi "local-ahead contains.*merge commit"; then
+if grep -qi "local-ahead contains.*merge commit" < <(echo "$out_c") ; then
   fail_msg "(c) guard fired on a purely linear local-ahead (should not)"
 else
   ok "(c) guard did not fire (no merge commits present)"

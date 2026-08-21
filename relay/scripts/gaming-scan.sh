@@ -62,7 +62,7 @@ while IFS= read -r path; do
   [ -z "$path" ] && continue
   # Only flag files in test directories or with test-naming convention
   basename="$(basename "$path")"
-  if printf '%s' "$path" | grep -qE '(^|/)(tests?|spec|__tests__)/|test_|_test\.|\.spec\.|_spec\.'; then
+  if grep -qE '(^|/)(tests?|spec|__tests__)/|test_|_test\.|\.spec\.|_spec\.' < <(printf '%s' "$path") ; then
     echo "DELETED_TEST:$path"
   fi
 done < <(git diff "$SINCE"..HEAD --diff-filter=D --name-only 2>/dev/null || true)
@@ -76,7 +76,7 @@ SKIP_PATTERN='(\.skip\b|\.only\b|xfail|@pytest\.mark\.skip|# skip|# SKIP|\bskip\
 while IFS= read -r path; do
   [ -z "$path" ] && continue
   # Is this a test file?
-  if printf '%s' "$path" | grep -qE '(^|/)(tests?|spec|__tests__)/|test_|_test\.|\.spec\.|_spec\.'; then
+  if grep -qE '(^|/)(tests?|spec|__tests__)/|test_|_test\.|\.spec\.|_spec\.' < <(printf '%s' "$path") ; then
     # Look for added lines matching skip patterns
     lineno=0
     while IFS= read -r diff_line; do
@@ -88,7 +88,7 @@ while IFS= read -r path; do
       # Added lines start with +, not ++
       if [[ "$diff_line" =~ ^\+[^+] ]]; then
         content="${diff_line:1}"
-        if printf '%s' "$content" | grep -qEi "$SKIP_PATTERN"; then
+        if grep -qEi "$SKIP_PATTERN" < <(printf '%s' "$content") ; then
           echo "ADDED_SKIP:$path:$lineno"
         fi
         (( lineno++ )) || true
@@ -112,20 +112,20 @@ ASSERT_PATTERN='(\bassert|\bexpect\(|\bshould\b|\bmust\b|\bverify\b)'
 
 while IFS= read -r path; do
   [ -z "$path" ] && continue
-  if printf '%s' "$path" | grep -qE '(^|/)(tests?|spec|__tests__)/|test_|_test\.|\.spec\.|_spec\.'; then
+  if grep -qE '(^|/)(tests?|spec|__tests__)/|test_|_test\.|\.spec\.|_spec\.' < <(printf '%s' "$path") ; then
     removed=0
     added=0
     while IFS= read -r diff_line; do
       # Removed lines (start with -)
       if [[ "$diff_line" =~ ^-[^-] ]]; then
         content="${diff_line:1}"
-        if printf '%s' "$content" | grep -qEi "$ASSERT_PATTERN"; then
+        if grep -qEi "$ASSERT_PATTERN" < <(printf '%s' "$content") ; then
           (( removed++ )) || true
         fi
       # Added lines (start with +)
       elif [[ "$diff_line" =~ ^\+[^+] ]]; then
         content="${diff_line:1}"
-        if printf '%s' "$content" | grep -qEi "$ASSERT_PATTERN"; then
+        if grep -qEi "$ASSERT_PATTERN" < <(printf '%s' "$content") ; then
           (( added++ )) || true
         fi
       fi
