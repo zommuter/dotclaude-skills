@@ -97,17 +97,33 @@ run_gate "$TMP/nope"
 [[ "$rc" -eq 2 ]] || fail "non-git path exit code should be 2 (got $rc)"
 pass "non-git path errors out (exit 2)"
 
-# ── (D) relay-loop.js integrate step calls the deterministic gate + bans force-clean ──
+# ── (D) the integrate step calls the deterministic gate + bans force-clean ──
+# id:087b RELOCATION — the integrator is no longer an LLM prompt inside relay-loop.js; it is
+# relay/scripts/integrate.sh, dispatched as one mechanical hop. That STRENGTHENS id:aa93: a
+# shell script cannot decide to "clean the tree to make room", so the ban is now the total
+# ABSENCE of those ops from executable code rather than a prohibition an agent might reweigh.
+# Both files are still checked: integrate.sh for the gate + the absent destructive ops,
+# relay-loop.js for the dispatch that makes the gate reachable at all.
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
-grep -q "clean-tree-gate.sh" "$JS" || fail "integrate step does not call the deterministic clean-tree-gate.sh (still an agent-only prompt — id:aa93)"
-# The integrator must NEVER be told to clean a foreign tree to make room.
+[[ -x "$INTEG" ]] || fail "integrate.sh not found/executable at $INTEG"
+grep -q "clean-tree-gate.sh" "$INTEG" || fail "integrate.sh does not call the deterministic clean-tree-gate.sh (id:aa93)"
+grep -q 'relay/scripts/integrate.sh' "$JS" || fail "relay-loop.js does not dispatch integrate.sh — the clean-tree gate is wired to nothing"
+# integrate.sh must contain NO destructive tree op in any CODE line (comments naming the
+# banned ops are the rationale, and are tolerated — this is the same check as
+# tests/test_integrate_sh_mechanized.sh).
+if grep -vE '^\s*#' "$INTEG" | grep -qE 'git .*(stash|reset --hard|checkout --|clean -[a-z])'; then
+  fail "id:aa93: integrate.sh contains a destructive tree op in a code line"
+fi
+# relay-loop.js must never be told to clean a foreign tree to make room either.
 for verb in 'git stash' 'reset --hard' 'checkout --' 'git clean'; do
   if grep -nF "$verb" "$JS" | grep -viq 'never\|NEVER\|must not\|MUST NOT\|do not\|do NOT'; then
     fail "relay-loop.js mentions '$verb' outside an explicit prohibition — risk of force-cleaning a main checkout (id:aa93)"
   fi
 done
-grep -q "id:aa93" "$JS" || fail "integrate step has no id:aa93 marker (deterministic-gate rationale missing)"
-pass "integrate step uses deterministic clean-tree-gate.sh and forbids force-cleaning (id:aa93)"
+grep -q "id:aa93" "$INTEG" || fail "integrate.sh has no id:aa93 marker (deterministic-gate rationale missing)"
+grep -q "id:aa93" "$JS" || fail "relay-loop.js has no id:aa93 marker (the defer-don't-clean rule must stay named at the dispatch site)"
+pass "integrate step uses deterministic clean-tree-gate.sh, carries no destructive tree op, and is dispatched from relay-loop.js (id:aa93)"
 
 # ── (E) git-lock-push.sh refuses a foreign-dirty tree on the rebase path ──
 [[ -f "$LOCKPUSH" ]] || fail "git-lock-push.sh not found at $LOCKPUSH"

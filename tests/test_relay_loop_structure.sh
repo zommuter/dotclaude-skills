@@ -59,10 +59,28 @@ grep -qE "enqueueIntegration\([^,)]+," "$JS" || fail "enqueueIntegration not key
 grep -q "integrationChains" "$JS" || fail "missing per-repo integration chain map (integrationChains)"
 pass "per-repo integration serializer (enqueueIntegration keyed by repo) present"
 
-grep -q -- "--no-ff" "$JS" || fail "integrator does not document/perform --no-ff merge"
-grep -q "ckpt-tag.sh" "$JS" || fail "integrator does not call ckpt-tag.sh"
-grep -q -- "git-lock-push.sh --ff-only" "$JS" || fail "integrator does not push via git-lock-push.sh --ff-only"
-pass "integrator chain: --no-ff merge, ckpt-tag.sh, git-lock-push.sh --ff-only"
+# id:087b RELOCATION — the integrator chain moved from relay-loop.js's LLM prompt into
+# relay/scripts/integrate.sh, dispatched from here as ONE mechanical relay-mech hop. The
+# per-repo serialization above is unchanged (it still wraps integrate()); only the chain's
+# implementation moved, so the chain assertions read integrate.sh and the dispatch is
+# asserted here.
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
+[[ -x "$INTEG" ]] || fail "integrate.sh not found/executable — the integrator chain has no home"
+grep -q 'relay/scripts/integrate.sh' "$JS" || fail "relay-loop.js does not dispatch integrate.sh"
+grep -q -- "--no-ff" "$INTEG" || fail "integrator does not document/perform --no-ff merge"
+grep -q "ckpt-tag.sh" "$INTEG" || fail "integrator does not call ckpt-tag.sh"
+grep -qE -- 'GIT_LOCK_PUSH" --ff-only' "$INTEG" || fail "integrator does not push via git-lock-push.sh --ff-only"
+pass "integrator chain: --no-ff merge, ckpt-tag.sh, git-lock-push.sh --ff-only (in integrate.sh, dispatched from relay-loop.js)"
+
+# (3b) id:087b — the integrator dispatch must be MECHANICAL, never an LLM agent. A
+# `model: 'sonnet'`/'haiku'/'opus' integrate dispatch would put an LLM back on the
+# merge-to-main critical path, which is exactly what this item removed.
+if grep -nE "label: \`integrate:\\\$\{unit\.repo\}\`" "$JS" | grep -qvE "model: MECH_MODEL"; then
+  fail "id:087b: the integrate dispatch is not model: MECH_MODEL — an LLM is back on the merge-to-main path"
+fi
+grep -qE "label: \`integrate:\\\$\{unit\.repo\}\`, phase: 'Integrate', model: MECH_MODEL" "$JS" \
+  || fail "id:087b: no mechanical (MECH_MODEL) integrate dispatch found in relay-loop.js"
+pass "id:087b: the integrator is dispatched mechanically (MECH_MODEL), not as an LLM agent"
 
 # No bare parallel() over the integration step
 if grep -E "parallel\(.*[Ii]ntegrat" "$JS" | grep -qv "^\s*//"; then
@@ -289,8 +307,12 @@ pass "id:7570: per-unit finally release (run-scoped, re-chain-guarded) frees a l
 
 # id:7570 — the integrator's step-0 release stays (idempotent vs. the per-unit release) so a
 # merged unit still releases even if the per-unit path somehow didn't (defense in depth).
-grep -q "Release this repo's cross-session lease" "$JS" \
+# id:087b RELOCATION — step 0 now lives in integrate.sh as an executed command rather than a
+# prompt instruction; the defense-in-depth invariant is unchanged.
+grep -qE '"\$CLAIM" release "\$repo" --run "\$run"' "$INTEG" \
   || fail "id:7570: integrator step-0 lease release was removed (must stay idempotent)"
+grep -q "step 0: lease-release" "$INTEG" \
+  || fail "id:7570: integrator step-0 lease release is no longer identified as step 0 (ordering rationale lost)"
 pass "id:7570: integrator step-0 release retained (idempotent, defense-in-depth)"
 
 # id:7570 — long-child liveness: the work child anchors its claim to the held worktree so a

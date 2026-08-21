@@ -53,11 +53,18 @@ pass "relay-loop.js excludes handoff units from demotion"
 grep -q "no executor work" "$JS" || fail "relay-loop.js missing zero-execute + fable-down clean-exit log line"
 pass "relay-loop.js handles zero-execute + --fable-down clean exit"
 
-# relay-loop.js: integrator is untouched (D2: only the dispatch queue is affected)
-grep -q -- "--no-ff" "$JS" || fail "integrator --no-ff merge removed (must be untouched)"
-grep -q "ckpt-tag.sh" "$JS" || fail "integrator ckpt-tag.sh reference removed (must be untouched)"
-grep -q "git-lock-push.sh --ff-only" "$JS" || fail "integrator push via git-lock-push.sh --ff-only removed"
-pass "integrator chain intact (--no-ff, ckpt-tag.sh, git-lock-push.sh --ff-only)"
+# integrator is untouched (D2: only the dispatch queue is affected).
+# id:087b RELOCATION — the integrator chain is now relay/scripts/integrate.sh (dispatched by
+# relay-loop.js as one mechanical hop) instead of an LLM prompt inside relay-loop.js. Same
+# three chain steps, asserted in their new home.
+INTEG="$SRC_DIR/relay/scripts/integrate.sh"
+[[ -f "$INTEG" ]] || fail "integrate.sh not found — the integrator chain has no home"
+grep -q -- "--no-ff" "$INTEG" || fail "integrator --no-ff merge removed (must be untouched)"
+grep -q "ckpt-tag.sh" "$INTEG" || fail "integrator ckpt-tag.sh reference removed (must be untouched)"
+grep -q "git-lock-push.sh" "$INTEG" || fail "integrator push via git-lock-push.sh removed"
+grep -q -- '--ff-only' "$INTEG" || fail "integrator push is no longer --ff-only"
+grep -q 'relay/scripts/integrate.sh' "$JS" || fail "relay-loop.js does not dispatch integrate.sh — the integrator chain is wired to nothing"
+pass "integrator chain intact (--no-ff, ckpt-tag.sh, git-lock-push.sh --ff-only), dispatched from relay-loop.js"
 
 # relay-loop.js: AskUserQuestion invariant preserved (unattended D2)
 if grep -q "AskUserQuestion" "$JS"; then
