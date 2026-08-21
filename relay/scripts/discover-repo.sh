@@ -40,7 +40,11 @@
 #          LOUDNESS (id:e7e4): before returning, a mechanical classify probe annotates every
 #          surfaced reason with "STARVED (N actionable: id:…, verdict=…) skipped because — " when
 #          the blocked repo does carry open executor-actionable work, so a starved repo can never
-#          again read like an idle one in RELAY_STATUS.md.
+#          again read like an idle one in RELAY_STATUS.md. GATED (id:f0ad(a)) on the probe's OWN
+#          verdict being in POOL_ACTIONABLE = {execute,review,hard,handoff} — actionable_routine_open
+#          is a raw ROADMAP count independent of verdict, so a diverged/dirty repo can carry a
+#          nonzero count while genuinely non-dispatchable; the banner must never call that STARVED
+#          (run-anomaly-scan.sh gates the identical signal the same way — the two tools must agree).
 #   2. Else (reconcile clean, or --no-reconcile) run classify-repo.sh --emit unit and route by
 #      unit.verdict:
 #        blocked    → surfaced += {repo,reason}; no unit
@@ -129,11 +133,29 @@ try:
 except Exception:
     probe = {}
 n = int(probe.get("actionable_routine_open") or 0)
-if n > 0:
+verdict = probe.get("verdict", "")
+# id:f0ad(a) — actionable_routine_open is a RAW ROADMAP scan (classify-repo.sh folds it in
+# regardless of verdict — it is always present at the top level), so a repo that is itself
+# BLOCKED (diverged, dirty main tree, …) can carry a nonzero count while being genuinely
+# undispatchable. Gating on n>0 ALONE produced a self-contradicting banner: "STARVED (N
+# actionable …, verdict=blocked) skipped because — diverged … needs manual reconcile" — the
+# same run classified it non-actionable via classify-verdict.sh yet this banner called it
+# starved. run-anomaly-scan.sh (the sibling shipped the same day) gates the identical signal
+# on verdict membership in POOL_ACTIONABLE = {execute,review,hard,handoff}; align here so the
+# two tools never disagree about the same repo (id:4347 — two tools disagreeing on one run is
+# how a signal stops being read). human/mechanical/idle/blocked are non-dispatchable BY
+# DESIGN — a repo sitting at one of those is not starved, however many open items it lists.
+POOL_ACTIONABLE = ("execute", "review", "hard", "handoff")
+if n > 0 and verdict in POOL_ACTIONABLE:
     ids = [i for i in (probe.get("actionable_routine_ids") or []) if i]
-    idtxt = (": " + ", ".join("id:" + i for i in ids)) if ids else ""
+    # id:f0ad(d) — cap the id list shown so the banner cannot itself overrun
+    # run-anomaly-scan.sh:483s short(reason, n=110) and truncate away the actual cause
+    # (the sibling reason this banner is prefixed onto, e.g. "diverged … id:c3f7").
+    SHOWN = 4
+    shown_ids, more = ids[:SHOWN], max(0, len(ids) - SHOWN)
+    idtxt = (": " + ", ".join("id:" + i for i in shown_ids) + (" +%d more" % more if more else "")) if ids else ""
     prefix = "STARVED (%d actionable item%s%s, verdict=%s) skipped because — " % (
-        n, "" if n == 1 else "s", idtxt, probe.get("verdict", "?"))
+        n, "" if n == 1 else "s", idtxt, verdict)
     for s in surfaced:
         s["reason"] = prefix + s.get("reason", "")
         s["starved_actionable_open"] = n
