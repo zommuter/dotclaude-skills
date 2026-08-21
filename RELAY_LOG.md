@@ -6243,3 +6243,7 @@ Friction: none on sizing. refactor: extracted the repeated `Number.isFinite(v) &
 clamp into a local `n()` in both gate functions and replaced the hardcoded single-ledger cause
 /remedy string with a data-driven ledger list, so adding a third ledger is a one-line append
 instead of another bespoke branch.
+
+## 2026-08-21 09:24 — integrate (claude-opus-5)
+
+integrate id:e68f + id:b018 — ledger slice at dispatch (3,854 B vs 1,157,395 B for a real item) and a prompt-size gate that counts TODO.md. Known: dotclaude-skills now estimates ~301k vs 100k budget until the gate measures the slice (owner-accepted, follow-up immediate)
