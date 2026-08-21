@@ -23,6 +23,7 @@ KNOWN-early-exiting consumer.  Consumers that read to EOF (`grep` without -q/-m,
 `grep -c`, `wc -l`, `tail`, `sort`, `sed` without a quit command) are NOT
 flagged — they cannot SIGPIPE their producer.
 """
+import os
 import re
 import sys
 from pathlib import Path
@@ -220,14 +221,43 @@ def scan(path):
     return
 
 
+def iter_shell_files(root):
+    """Yield every `*.sh` under `root`, pruning nested checkouts (id:b818).
+
+    A plain `root.rglob("*.sh")` walks into ANY nested git checkout under `root`
+    — most concretely `.claude/worktrees/<agent>/…`, where the Agent tool's
+    `isolation: worktree` places a full second checkout of a DIFFERENT branch.
+    That checkout's WIP is not `root`'s tree; flagging it makes the suite's
+    result depend on which sibling agents happen to be mid-edit (id:b818).
+
+    Fix: `os.walk` with pruning. Any directory OTHER than `root` itself that is
+    a git checkout root (carries a `.git`, dir-or-file, worktree-or-normal) is
+    a nested repo — do not descend into it. `.git` directories are pruned
+    everywhere (including at `root`) since they hold no `.sh` sources. This is
+    generic (any nested checkout, not just the worktrees path) and keeps
+    catching an at-risk site as long as it is in `root`'s OWN tree, however
+    deep, since only a NESTED `.git` boundary prunes.
+    """
+    root = Path(root)
+    if root.is_file():
+        yield root
+        return
+    for dirpath, dirnames, filenames in os.walk(root):
+        d = Path(dirpath)
+        dirnames[:] = [dn for dn in dirnames if dn != ".git"]
+        if d != root and (d / ".git").exists():
+            dirnames[:] = []  # nested checkout — do not descend further
+            continue
+        for fn in filenames:
+            if fn.endswith(".sh"):
+                yield d / fn
+
+
 def main(argv):
     roots = [Path(a) for a in argv[1:]] or [Path(".")]
     hits = []
     for root in roots:
-        files = sorted(root.rglob("*.sh")) if root.is_dir() else [root]
-        for f in files:
-            if ".git/" in str(f):
-                continue
+        for f in sorted(iter_shell_files(root)):
             for lineno, line, reason, producer in scan(f):
                 hits.append((f, lineno, line, reason))
     for f, lineno, line, reason in hits:

@@ -145,9 +145,27 @@ fi
 #       semantics, same first-pattern-wins attribution, same allowlist precedence —
 #       O(patterns) greps instead of O(patterns × lines).
 #
-# `git log -p` over the new commits (rather than a single range diff) is a strict
-# SUPERSET of the old added-line set: it also catches a leak that was added and then
-# removed within the pushed range. Detection widens, never narrows.
+# `git log -p` over the new commits (rather than a single range diff) is NOT simply a
+# superset of the old added-line set. It widens in one direction — it also catches a
+# leak that was added and then removed within the pushed range, which a single
+# base..head range diff would miss — but it NARROWS in another: `git log -p` prints NO
+# diff for a merge commit by default, so any line that exists only in a merge's
+# RESOLVED TREE (conflict resolution, `-X ours`, a manual edit made during the merge)
+# and in neither parent is invisible to a plain commit walk, while the old range-diff
+# caught it. (id:5171 — corrected; the previous "superset, detection widens never
+# narrows" claim here was false and is exactly the defect that item found.)
+#
+# Fixed by ALSO taking each merge commit's own dense-combined diff
+# (`--diff-merges=dense-combined`, i.e. old `--cc`): it shows only the hunks that
+# differ from EVERY parent — the content the merge itself introduced — instead of
+# reprinting the whole incoming branch (which `first-parent` or `-m` would do, and
+# which is already covered by that branch's own commits earlier in this same walk).
+# Measured on this repo's own history (155 commits / 25 merges, realistic push size):
+# baseline (no diff-merges) 19295 added lines / 1.45s; dense-combined 19820 lines
+# (+525, the merge-only content) / 1.44s — no measurable cost. `first-parent` added
+# 14650 duplicate lines (+76%) and `-m` added 24713 (+128%) by reprinting each merge's
+# whole incoming branch a second time, so both were rejected as an unwarranted
+# duplication cost for content this scan already sees via the individual commits.
 #
 # There is NO size cap and NO silent skip: a ref whose sha this repo cannot resolve is
 # reported LOUDLY via notice() rather than dropped.
@@ -211,9 +229,9 @@ for rl in "${ref_lines[@]}"; do
   # Redirect reason: `git log` can still fail on a corrupt/odd object; the gate is
   # best-effort and must never abort a push, and an empty result simply scans nothing.
   if [[ "${#haves[@]}" -gt 0 ]]; then
-    git log -p -U0 --format='' --no-ext-diff --no-textconv "$local_sha" --not "${haves[@]}" 2>/dev/null
+    git log -p -U0 --format='' --no-ext-diff --no-textconv --diff-merges=dense-combined "$local_sha" --not "${haves[@]}" 2>/dev/null
   else
-    git log -p -U0 --format='' --no-ext-diff --no-textconv "$local_sha" 2>/dev/null
+    git log -p -U0 --format='' --no-ext-diff --no-textconv --diff-merges=dense-combined "$local_sha" 2>/dev/null
   fi | awk -v ref="$local_ref" -v cf="$content_file" -v rf="$ref_file" '
     /^\+\+\+/ { next }
     /^\+/ {
