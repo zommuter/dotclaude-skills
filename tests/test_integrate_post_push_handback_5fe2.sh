@@ -89,6 +89,10 @@ build() { # <suffix> → prints the main checkout path; sets nothing global
 OK_STUB="$TMP/ok.sh";   printf '#!/usr/bin/env bash\nexit 0\n' > "$OK_STUB";   chmod +x "$OK_STUB"
 BAD_STUB="$TMP/bad.sh"; printf '#!/usr/bin/env bash\necho "injected failure" >&2\nexit 1\n' > "$BAD_STUB"; chmod +x "$BAD_STUB"
 
+# id:4d44 — CASE_EXTRA lets one case pass extra integrate.sh flags. Only case (C) uses it, to
+# ask for `--substantive false`: since the ratification gate landed, a SUBSTANTIVE unit does
+# not push at all, so the push-failure class (C) can only be exercised on the pushing path.
+CASE_EXTRA=()
 run_case() { # <suffix> <env-assignments...> → sets RC, ERRF, MAIN_PATH, CFG_TOML, REPO
   local sfx="$1"; shift
   MAIN_PATH="$(build "$sfx")"
@@ -105,7 +109,7 @@ run_case() { # <suffix> <env-assignments...> → sets RC, ERRF, MAIN_PATH, CFG_T
     "$INT" --repo "$REPO" --path "$MAIN_PATH" --worktree "$wt" --branch "relay/$sfx" \
            --summary "test close id:test" --run testrun \
            --label "reviewer (claude-opus-4-8, integrate)" --ids test --level patch \
-           --verdict execute >"$TMP/out-$sfx" 2>"$ERRF" || RC=$?
+           --verdict execute ${CASE_EXTRA[@]+"${CASE_EXTRA[@]}"} >"$TMP/out-$sfx" 2>"$ERRF" || RC=$?
 }
 
 # =====================================================================================
@@ -124,7 +128,11 @@ PRE_JSON="$(parse_of "$RC" "$ERRF")"
 pass "(A) PRE-push failure (changelog, 25): no merged=/landed= on the wire, parsed as DEFERRED (retry is correct)"
 
 # =====================================================================================
-# (B) POST-push failure — worktree-retire (exit 28). Merge committed, tagged AND pushed.
+# (B) POST-LAND failure — worktree-retire (exit 28). Merge committed AND tagged.
+#     id:4d44 note: this case passes no --substantive, so the push is now DEFERRED and the
+#     land point is the CKPT TAG rather than the push. Every assertion below is unchanged and
+#     still green — which is the point: the LANDED-BUT-UNFINISHED class survived the land
+#     point moving, so a substantive unit's tail failure is still never re-merged.
 # =====================================================================================
 run_case post INTEGRATE_GIT_LOCK_PUSH="$OK_STUB" INTEGRATE_WORKTREE_RETIRE="$BAD_STUB"
 [[ $RC -eq 28 ]] || fail "(B) expected exit 28 (worktree-retire, POST-push), got $RC: $(cat "$ERRF")"
@@ -166,7 +174,9 @@ pass "(A/B) the caller's resulting state DIFFERS between the two classes"
 # =====================================================================================
 # (C) push(27) SPECIAL CASE — the push itself failed, so the remote is untouched: DEFERRED.
 # =====================================================================================
+CASE_EXTRA=(--substantive false)   # id:4d44 — only a NON-substantive unit still pushes
 run_case push INTEGRATE_GIT_LOCK_PUSH="$BAD_STUB"
+CASE_EXTRA=()
 [[ $RC -eq 27 ]] || fail "(C) expected exit 27 (push), got $RC: $(cat "$ERRF")"
 grep -qE '^merged=' "$ERRF" && fail "(C) push(27) advertised a landed merge — the push FAILED, the remote is untouched"
 PUSH_JSON="$(parse_of "$RC" "$ERRF")"
