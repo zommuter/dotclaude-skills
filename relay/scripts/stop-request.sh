@@ -59,19 +59,20 @@ fi
 # heartbeat.sh live-runs emits one JSON object per live marker. discovery-producer is a systemd
 # timer unit (discover-repos-mechanical.sh), NOT a pool — it never reads the sentinel, so
 # offering it as a stop target would be a lie.
+#
+# The "which runIds are pools" predicate lives in lib-pool-runs.py (id:6f62) — SHARED with
+# hooks/destructive-git-guard.py, which had re-derived it wrongly (it accepted ANY live marker
+# and so hard-denied every interactive session). One definition, two callers, no drift.
+POOL_RUNS_PY="$SCRIPT_DIR/lib-pool-runs.py"
 live_runs() {
   [[ -x "$HEARTBEAT_SH" ]] || return 0
-  "$HEARTBEAT_SH" live-runs 2>/dev/null \
-    | python3 -c '
-import json,sys
-for line in sys.stdin:
-    line=line.strip()
-    if not line: continue
-    try: o=json.loads(line)
-    except ValueError: continue
-    r=o.get("runId","")
-    if r and r!="discovery-producer": print(r)
-'
+  # Missing helper must be LOUD, not an empty list: an empty list reads as "no live pool"
+  # and would silently report nothing to stop.
+  [[ -f "$POOL_RUNS_PY" ]] || {
+    echo "stop-request.sh: missing the shared pool-run predicate: $POOL_RUNS_PY" >&2
+    exit 1
+  }
+  "$HEARTBEAT_SH" live-runs 2>/dev/null | python3 "$POOL_RUNS_PY"
 }
 
 mapfile -t RUNS < <(live_runs)

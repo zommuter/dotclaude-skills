@@ -30,7 +30,11 @@ RUN_A="relay-20260731-174550-21952"
 RUN_B="relay-20260731-221039-22914"
 
 # Stub heartbeat.sh next to a COPY of stop-request.sh so SCRIPT_DIR resolution finds the stub.
+# lib-pool-runs.py (id:6f62) is the SHARED "which runIds are pools" predicate stop-request.sh
+# now calls instead of an inline copy, so the fixture dir needs it too — it is a real
+# dependency of the script under test, not a stub.
 cp "$REQ_SH" "$bindir/stop-request.sh"
+cp "$REPO_ROOT/relay/scripts/lib-pool-runs.py" "$bindir/lib-pool-runs.py"
 make_hb() {  # make_hb <runId>...
   { echo '#!/usr/bin/env bash'
     echo '[[ "${1:-}" == "live-runs" ]] || exit 0'
