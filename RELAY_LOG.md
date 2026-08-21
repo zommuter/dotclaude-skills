@@ -6563,3 +6563,7 @@ Friction: none. `make test` → 465 passed, 0 failed, 1 expected-red
 refactor: none needed — one staging widening plus two string/comment corrections; no new
 duplication, and the existing-path guard was folded into the same block rather than added
 as a second conditional.
+
+## 2026-08-21 13:25 — integrate (claude-opus-5)
+
+integrate id:e82e + id:31c3 — integrate.sh now commits the TODO twin (the untriggered wedge is closed, with a test at the integrate SEAM rather than the unit); the child-facing brief drops the column-0 truncation claim b015 fixed
