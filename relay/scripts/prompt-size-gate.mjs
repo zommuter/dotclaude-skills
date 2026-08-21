@@ -150,10 +150,12 @@ export function oversizeDispatchReason(unit, promptChars, budget) {
 // that "the full ledgers are still on disk". On dotclaude-skills (2026-08-21) that is an
 // approval granted on a 3,854 B slice plus an open invitation to read a 904,586 B TODO.md
 // (~226k tok). A child that accepts dies with `Prompt is too long`, surfaced as the generic
-// "child agent failed/skipped" while id:61fa is open. Worse, ledger-slice.sh bounds an item
-// block by INDENTATION, so a column-0 acceptance line is dropped silently — the slice LOOKS
-// incomplete exactly when opening a ledger is most fatal, so a well-behaved child follows the
-// invitation precisely in the worst case.
+// "child agent failed/skipped" while id:61fa is open. (When this was written ledger-slice.sh
+// also bounded an item block by INDENTATION, so a column-0 acceptance line was dropped
+// silently. `id:b015` FIXED that — the block now extends to the next column-0 checkbox or
+// `#`-heading with fence tracking, so column-0 prose is INCLUDED. Do not re-assert the old
+// truncation anywhere: it is no longer a defect the child can hit, and the hardened brief
+// below no longer cites it. id:31c3.)
 //
 // This changes ONLY WHAT THE BRIEF SAYS. oversizeDispatchReason's verdict is untouched: every
 // unit that dispatches today still dispatches. And it does NOT claim the slice enforces
@@ -210,5 +212,5 @@ export function sliceInstruction(unit, budget) {
   if (h.affordable) {
     return head + 'The full ledgers are still on disk at their canonical paths if the slice genuinely does not carry something you need — if you had to open one, say which and why in your report. '
   }
-  return head + 'Do NOT open the full ROADMAP.md or TODO.md for this unit (id:7575). They are MEASURED at ' + h.largestLedgerBytes + ' bytes for ' + h.largestLedgerName + ' alone (~' + h.largestLedgerTokens + ' tok) against only ~' + h.headroomTokens + ' tok of dispatch headroom left once this slice is counted, so a full read would blow the window and kill you mid-work with "Prompt is too long" — reported to the operator as an anonymous failure. Nothing stops you from reading them: this is a cost, not a boundary. A targeted `grep -n` for a specific id or string against a ledger is fine and cheap; a whole-file read is not. If the slice is genuinely insufficient — note that the slicer bounds an item block by INDENTATION, so a criterion written at column 0 can be missing — HAND BACK (contract_met=false, gate_reason naming exactly what the slice lacked) rather than opening a ledger speculatively. '
+  return head + 'Do NOT open the full ROADMAP.md or TODO.md for this unit (id:7575). They are MEASURED at ' + h.largestLedgerBytes + ' bytes for ' + h.largestLedgerName + ' alone (~' + h.largestLedgerTokens + ' tok) against only ~' + h.headroomTokens + ' tok of dispatch headroom left once this slice is counted, so a full read would blow the window and kill you mid-work with "Prompt is too long" — reported to the operator as an anonymous failure. Nothing stops you from reading them: this is a cost, not a boundary. A targeted `grep -n` for a specific id or string against a ledger is fine and cheap; a whole-file read is not. If the slice is genuinely insufficient — it carries this item block, its typed edges and the TODO twin, not neighbouring items or whole-ledger context — HAND BACK (contract_met=false, gate_reason naming exactly what the slice lacked) rather than opening a ledger speculatively. '
 }
