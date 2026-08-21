@@ -94,6 +94,10 @@
 #     falls through to `ok` (its step-4 "otherwise (in sync / ahead) → ok" branch).
 #   • classify-verdict.sh sets `diverged = has_upstream and _ahead > 0 and _behind > 0` —
 #     ahead-only is NOT the rank-0 `blocked` parity guard, so the repo keeps being dispatched.
+#   • verify-isolation.sh (step 2) DID NOT tolerate it — it was the ONE gate this list
+#     originally omitted, and it was the one that broke (id:8739): its base defaulted to the
+#     now-FROZEN origin/main, which silently disabled the id:f682 breach detector. Fixed by
+#     passing an explicit `--base <canonical HEAD sha>` at step 2; see the block there.
 #   • ckpt-tag.sh / relay-state-write.sh never consult origin at all: the tag and
 #     relay.toml last_ckpt are local facts, and an unpushed tag resolves locally exactly as a
 #     pushed one does. discover-sig.sh DOES hash ahead/behind, so the sig changes and the
@@ -369,8 +373,34 @@ if ! ct_out="$("$CLEAN_TREE" "$path" 2>&1)"; then
 fi
 
 # ── step 2: isolation gate (id:f682/7612) — did the child actually work in its worktree? ──
-if ! iso_out="$("$VERIFY_ISO" "$worktree" 2>&1)"; then
-  handback verify-isolation "$EX_ISOLATION" "isolation gate failed — worktree/main-checkout isolation breach suspected; deferring (id:7612). $iso_out"
+#
+# ── id:8739: THE BASE IS PASSED EXPLICITLY, NEVER DEFAULTED TO origin/main ───────────
+# verify-isolation.sh's default base is `origin/main` (its lines 78-80), and its whole
+# main-HEAD discriminator rests on the premise (its lines 18-24) that the base ref TRACKS
+# the canonical main, so that `merge-base(worktree HEAD, base)` is the DISPATCH-TIME main
+# HEAD and `base` itself is main's CURRENT head. The id:4d44 ratification gate FREEZES
+# `origin/main` — a substantive unit merges locally and never pushes — so that premise is
+# false BY CONSTRUCTION here, and it degrades further with every deferred unit. Measured
+# consequences of leaving it defaulted (REPRODUCED 2026-08-21, not inferred):
+#   • (b2) NEVER FIRES AGAIN: main_head = rev-parse origin/main never advances, so
+#     main_head == merge_base always and every empty worktree is waved through as a
+#     "legitimate no-op review (id:8e3e)" — including the loderite/jobAI breach signature
+#     this gate exists for (id:f682). The breach detector is simply OFF.
+#   • (a) FIRES SPURIOUSLY: a worktree branched off a local-ahead main reports the whole
+#     unratified backlog as "commits beyond base", so an EMPTY worktree reads `ok: N
+#     commit(s) beyond origin/main, tree clean`.
+# So the base is the CANONICAL CHECKOUT'S CURRENT HEAD — a sha, not a name. It is the exact
+# commit step 4 is about to merge INTO, which is what "main" means for this integrate: no
+# branch-name guess, no remote round-trip, and no dependence on a ref the ratification gate
+# has frozen. It resolves inside the worktree because a linked worktree shares the object db.
+# FAIL-CLOSED: if the canonical HEAD does not resolve we hand back rather than fall back to
+# the defaulted (broken) base — an unverifiable isolation gate must never wave a merge
+# through, and this is the merge-to-main critical path.
+if ! iso_base="$(git -C "$path" rev-parse --verify -q HEAD 2>/dev/null)" || [ -z "$iso_base" ]; then
+  handback verify-isolation "$EX_ISOLATION" "cannot resolve the canonical checkout's HEAD at '$path' (unborn branch or corrupt repo), so the id:8739 isolation base is UNDETERMINABLE — refusing to fall back to verify-isolation.sh's origin/main default, which id:4d44 has frozen (that fallback silently disables the id:f682 breach gate). Nothing was mutated."
+fi
+if ! iso_out="$("$VERIFY_ISO" "$worktree" --base "$iso_base" 2>&1)"; then
+  handback verify-isolation "$EX_ISOLATION" "isolation gate failed — worktree/main-checkout isolation breach suspected; deferring (id:7612, base=$iso_base per id:8739). $iso_out"
 fi
 
 # ── step 3: sync-origin (id:c3f7) — never checkpoint on a base diverged from origin. ──
