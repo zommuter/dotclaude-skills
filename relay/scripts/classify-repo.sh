@@ -153,6 +153,20 @@ try:
     todo_bytes = os.path.getsize(os.path.join(path, "TODO.md")) if os.path.isfile(os.path.join(path, "TODO.md")) else 0
 except OSError:
     todo_bytes = 0
+# id:7c5f — the two REVIEW-ONLY ledgers. b018 deliberately left these out of the gate because
+# an execute child never reads them; a REVIEW child is required to read both (trust-but-verify,
+# and the single-id-two-views tick-back), so a review unit could clear the budget and still die
+# with `Prompt is too long`. They are measured here unconditionally — the gate decides per
+# VERDICT whether to count them (prompt-size-gate.mjs countedLedgersFor). Same fail-open terms:
+# absent/unreadable ⇒ 0 ⇒ contributes nothing.
+def _ledger_bytes(name):
+    try:
+        p = os.path.join(path, name)
+        return os.path.getsize(p) if os.path.isfile(p) else 0
+    except OSError:
+        return 0
+review_me_bytes = _ledger_bytes("REVIEW_ME.md")
+relay_log_bytes = _ledger_bytes("RELAY_LOG.md")
 has_routine = False
 roadmap_open = 0
 roadmap_actionable_open = 0
@@ -347,6 +361,8 @@ base["actionable_routine_open"] = actionable_routine_open
 base["actionable_routine_ids"]  = actionable_routine_ids   # id:b09e
 base["roadmap_bytes"]           = roadmap_bytes            # id:4f9b
 base["todo_bytes"]              = todo_bytes               # id:b018
+base["review_me_bytes"]         = review_me_bytes          # id:7c5f
+base["relay_log_bytes"]         = relay_log_bytes          # id:7c5f
 base["open_mechanical"]         = open_mechanical
 base["surfaced_open"]           = surfaced_open   # id:65f5 → classify-verdict handoff branch
 base["open_human_lane"]         = open_human_lane # id:4a76 → classify-verdict human branch
@@ -533,6 +549,12 @@ unit = {
     # ROADMAP under-counted by ~50% and let loderite through by 326 tok before it died.
     # Schema-safe extra field; 0 ⇒ unmeasured ⇒ that ledger contributes nothing (fail-open).
     "todo_bytes": base.get("todo_bytes", 0),
+    # id:7c5f — the REVIEW-ONLY ledgers, measured on the HOST beside the other two. The gate
+    # counts them ONLY when the unit's verdict is `review` (countedLedgersFor): a review child
+    # must read both, an execute child never does. Schema-safe extra fields; 0 ⇒ unmeasured ⇒
+    # contributes nothing (fail-open).
+    "review_me_bytes": base.get("review_me_bytes", 0),
+    "relay_log_bytes": base.get("relay_log_bytes", 0),
     # id:7616 — [MECHANICAL] capability tier: schema-safe extra field (additional
     # properties allowed), same treatment as actionable_routine_open above. No daemon
     # consumer reads this yet (A3, gated) — it is passthrough plumbing only.
