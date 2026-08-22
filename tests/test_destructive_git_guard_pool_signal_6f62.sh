@@ -47,12 +47,19 @@ guard() {
 is_deny() { grep -q '"permissionDecision": *"deny"' <<< "$1"; }
 
 # ── (1) THE REPRODUCTION (acceptance clause 2) ────────────────────────────────
+# RE-SPECIFIED 2026-08-22: the owner ruled the five guarded forms an UNCONDITIONAL DENY,
+# so "DEFERS" is no longer available as an observable outcome anywhere. What id:6f62 is
+# actually about survives intact at the level of ATTRIBUTION: the non-pool
+# `discovery-producer` daemon must NOT be reported as a live pool run. That is what is
+# pinned here now.
 HB_PRODUCER="$TMP/hb-producer"
 beat "$HB_PRODUCER" discovery-producer
 out="$(guard "$HB_PRODUCER" "$PAYLOAD" CLAUDE_CODE_ENTRYPOINT=cli)"
-[[ -z "$out" ]] \
-    && pass "cli + only discovery-producer beating ⇒ DEFERS to permissions.ask (id:6f62)" \
-    || fail "REPRODUCTION: cli + discovery-producer should DEFER, got: $out"
+is_deny "$out" && pass "cli + discovery-producer ⇒ denies (unconditional, 2026-08-22)" \
+    || fail "REPRODUCTION: the guarded form must deny in every context, got: $out"
+grep -q 'live pool heartbeat' <<< "$out" \
+    && fail "REPRODUCTION (id:6f62): discovery-producer reported as a LIVE POOL run" \
+    || pass "cli + only discovery-producer ⇒ NOT attributed to a live pool run (id:6f62)"
 
 # ── (2) real unattended signals still BLOCK (clause 3) ────────────────────────
 out="$(guard "$HB_PRODUCER" "$PAYLOAD" CLAUDE_CODE_ENTRYPOINT=cli RELAY_RUN_ID=relay-20260821-000000-6f62)"
@@ -75,11 +82,13 @@ out="$(guard "$HB_POOL" "$PAYLOAD" CLAUDE_CODE_ENTRYPOINT=cli)"
 is_deny "$out" && pass "producer + real pool ⇒ BLOCKS (producer does not mask a pool)" \
     || fail "a real pool alongside the producer was missed"
 
-# A STALE producer marker is still no signal.
+# A STALE producer marker is still no signal (attribution, per the note at (1)).
 HB_STALE="$TMP/hb-stale"
 beat "$HB_STALE" discovery-producer 99999
 out="$(guard "$HB_STALE" "$PAYLOAD" CLAUDE_CODE_ENTRYPOINT=cli)"
-[[ -z "$out" ]] && pass "stale producer marker ⇒ defer" || fail "stale producer marker blocked"
+grep -q 'live pool heartbeat' <<< "$out" \
+    && fail "stale producer marker reported as a live pool run" \
+    || pass "stale producer marker ⇒ no unattended signal reported"
 
 # ── (3) ambiguity still resolves to BLOCK (clause 4) ──────────────────────────
 out="$(guard "$HB_PRODUCER" "$PAYLOAD")"                       # no entrypoint at all
@@ -99,9 +108,12 @@ is_deny "$out" && pass "heartbeat probe ERROR ⇒ BLOCK" || fail "heartbeat prob
 grep -q 'heartbeat probe ERRORED' <<< "$out" \
     && pass "refusal names the heartbeat probe error" || fail "heartbeat probe error unnamed"
 
+# An ABSENT heartbeat dir means the relay is simply not installed here. It must not be
+# reported as a probe ERROR (attribution, per the note at (1)).
 out="$(guard "$TMP/no-such-dir" "$PAYLOAD" CLAUDE_CODE_ENTRYPOINT=cli)"
-[[ -z "$out" ]] && pass "ABSENT heartbeat dir is no signal (not an error) ⇒ defer" \
-    || fail "absent heartbeat dir should not be an error"
+grep -q 'heartbeat probe ERRORED' <<< "$out" \
+    && fail "absent heartbeat dir reported as a probe ERROR" \
+    || pass "ABSENT heartbeat dir is no signal, not an error"
 
 # ── (4) the refusal must not assert a compound reason (clause 5) ──────────────
 out="$(guard "$HB_POOL" "$PAYLOAD" CLAUDE_CODE_ENTRYPOINT=cli)"
