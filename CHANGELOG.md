@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-22
+
+- reviewer (claude-opus-4-8): chain-end verify green (484/0/1), gaming clean (6 false-positive skips), @container fix on id:7518+id:372a routine_open=5 (id:7518,372a)
+
 ## 2026-08-21
 
 - review: verify id:0384 front-door currency gate (red->green, 12/12); owner-ratified integrate (id:0384)
