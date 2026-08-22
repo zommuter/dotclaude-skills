@@ -133,10 +133,15 @@ is_deny "$out" && pass "non-object heartbeat marker ⇒ BLOCK" \
     || fail "non-object heartbeat marker did not block: $out"
 
 # ── (7) the STALE case is unchanged — staleness is checked BEFORE runId ───────
+# RE-SPECIFIED 2026-08-22: the guarded forms now deny unconditionally, so "defer" is no
+# longer observable. The invariant this pins is unchanged and survives at the level of
+# ATTRIBUTION — a STALE marker is skipped before its runId is ever examined, so it must
+# NOT be reported as a probe ERROR the way a FRESH unusable marker is in (6) above.
 HB="$TMP/hb-stale-empty"; beat "$HB" marker '""' 99999
 out="$(guard "$HB")"
-[[ -z "$out" ]] && pass "STALE marker with an empty runId is still no signal ⇒ defer" \
-    || fail "stale empty-runId marker should not block: $out"
+grep -q 'heartbeat probe ERRORED' <<< "$out" \
+    && fail "STALE marker with an empty runId was reported as a probe ERROR: $out" \
+    || pass "STALE marker with an empty runId is still no signal (staleness checked first)"
 
 [[ $fails -eq 0 ]] || { echo "$fails assertion(s) failed"; exit 1; }
 echo "All destructive-git-guard malformed-payload tests passed (id:3866, id:8987)."
