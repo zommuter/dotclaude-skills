@@ -886,7 +886,7 @@ positives (the literal word "skip" inside a docstring in `tests/lint-pipefail-si
 and inside a comment in `tests/test_slice_invitation_headroom_7575.sh`); no test file was
 deleted and no assertion removed.
 
-- [ ] **`id:3a09` is TICKED but the guard it ships protects NOTHING today, and `id:6f62`
+- [x] **`id:3a09` is TICKED but the guard it ships protects NOTHING today, and `id:6f62`
   says it cannot be wired as written — is that the close boundary you want?** The item's
   own text is fully honest about this ("INSTALLED BUT NOT WIRED — activation is the
   owner's"; a test asserts it is unregistered), and I independently confirmed
@@ -897,8 +897,20 @@ deleted and no assertion removed.
   scanning tick-states sees "destructive-git guard: done". **Your call:** (a) leave ticked
   and rely on `id:6f62` carrying the wiring, (b) untick until `6f62` lands and the owner
   wires it, or (c) re-title it "…— hook AUTHORED (activation gated on id:6f62)".
+  — ✅ **RESOLVED 2026-08-22 (`/relay human`) — tier (a): BOTH halves of the premise are now false,
+  so option (a) "leave ticked" is simply CORRECT and the tick reads true.**
+  **(1)** The guard IS wired — `destructive-git-guard.py` is registered in `~/.claude/settings.json`
+  (line 909), and `tests/test_destructive_git_guard_3a09.sh` check (6) now asserts *it IS wired* and
+  PASSES. The assertion this box cited (a test asserting it UNregistered) was INVERTED when the owner
+  wired it; the file's own header records that both original claims "are now wrong".
+  **(2)** `id:6f62` — the blocker this box named ("cannot be wired as written") — is `- [x]` at
+  `ROADMAP.md:1627`. It fixed exactly that: the heartbeat probe now requires a marker to name a real
+  POOL run via the shared `lib-pool-runs.py::is_pool_run`, so the `discovery-producer` daemon no
+  longer reads as an unattended run and interactive sessions are not hard-denied on a false reason.
+  Re-checkable in two commands: `grep -n destructive-git-guard ~/.claude/settings.json` and
+  `tests/run-tests.sh tests/test_destructive_git_guard_3a09.sh`.
 
-- [ ] **A GREEN test sitting under an UNTICKED item is silently disarmed — `id:ebd0` is in
+- [x] **A GREEN test sitting under an UNTICKED item is silently disarmed — `id:ebd0` is in
   that state right now (the `id:087b` shape, but standing).** `tests/run-tests.sh` reports
   a failing test as EXPECTED-RED while its `# roadmap:` item is unticked. That is correct
   for a RED spec, but it also means a test that is ALREADY GREEN under an open item has no
@@ -910,14 +922,36 @@ deleted and no assertion removed.
   re-homed to a separate ticked item (so its test is armed), or is the disarm acceptable?
   A general fix — arm a test the moment it first goes green regardless of checkbox — is a
   runner change, not a review edit, so it is not made here.
+  — ✅ **DECIDED 2026-08-22 (`/relay human`, tier (b) — owner): fix the CLASS in the runner, not this
+  one instance.** `tests/run-tests.sh` will ARM a test the moment it first goes green, regardless of
+  its `# roadmap:` item's checkbox, so a green test can never again silently regress under an open
+  item. Because this changes a documented `CLAUDE.md` §Testing convention (expected-red semantics),
+  it is filed as its own item rather than edited inline: **`id:86ca`** in `TODO.md`. `id:ebd0`'s
+  green half is deliberately NOT re-homed — the owner chose the class fix over the one-off remedy,
+  and the runner change subsumes the need.
 
-- [ ] **Four DEAD-GATE / two DEP-PROSE-UNTYPED `roadmap-lint` warnings persist (`id:d4ca`,
+- [x] **Four DEAD-GATE / two DEP-PROSE-UNTYPED `roadmap-lint` warnings persist (`id:d4ca`,
   `id:e405`, `id:540f`, `id:c179`) — all four are gated on ids that live ONLY in TODO.md.**
   Pre-existing, not introduced this window, and lint exits 0 (WARN, not FAIL). Nothing in
   ROADMAP.md can ever clear `gated-on:09e4` / `gated-on:b0b1`. Resolution is `id:49e0`'s
   choice — promote the gate targets (handoff C2's lane call, never guessed) or re-target
   the markers — and both are owner-gated items, so I did not touch them. Surfaced so the
   four are not read as accidentally-blocked a second time.
+  — ✅ **DECIDED 2026-08-22 (`/relay human`, tier (b) — owner): fix the LINT CHECK, not the ledger.**
+  The DIAGNOSIS is what is wrong. `resolve-gates.sh:36` already resolves gates against
+  `ROADMAP.md ∪ TODO.md ∪ TODO.archive.md`, so a gate target living in `TODO.md` IS resolvable —
+  only `roadmap-lint.sh` insists it must be in `ROADMAP.md`, which is why all four WARNs fire. Make
+  lint agree with the resolver; that clears all four without touching a single gate marker. The
+  alternative (promote `09e4` + `b0b1`) was explicitly REJECTED — `b0b1` is a deliberate OWNER gate
+  and promoting it would put it in the execution queue's line of sight.
+  **This box's counts VERIFIED correct 2026-08-22:** 4 DEAD-GATE (`d4ca`, `e405`, `540f`, `c179`)
+  + 2 DEP-PROSE-UNTYPED (`d4ca`, `e405`), lint exit 0 — plus 2 NEWER `DECOMPOSED-CONTAINER` WARNs
+  (`7518`, `372a`) that postdate the box.
+  **Routing correction:** the box (and `roadmap-lint.sh`'s own WARN string) sends the reader to
+  `id:49e0` — which is `- [x]` CLOSED and archived (`TODO.archive.md:515`,
+  `ROADMAP.archive.md:3488`). The live owner is **`id:8de9`** (`TODO.md:494`), which already records
+  the sibling inversion bug in the same check; the decision is recorded there, including a note to
+  fix the dead `(id:49e0)` pointer in the WARN string itself.
 
 ## Review 2026-08-21 (focused, `relay-ckpt-20260821-1515`..HEAD — id:6f62)
 
@@ -953,7 +987,7 @@ wiring readiness — none blocks the merge.
   `lib-pool-runs.py` as-is; the split belongs in the caller. <!-- id:8987 -->
   — ✅ **RESOLVED 2026-08-21 (executor). Promoted to `ROADMAP.md` under the SAME id and ticked.** Implemented exactly as recommended — the split is in the CALLER, `lib-pool-runs.py` is unchanged. A FRESH marker whose `runId` is empty, whitespace, or not a string now returns `error` ⇒ ambiguous ⇒ BLOCK (a non-object marker likewise); a fresh marker naming a known non-pool run still contributes nothing. Staleness is still evaluated BEFORE the runId, so a stale empty-runId marker remains no signal. Pinned in `tests/test_destructive_git_guard_malformed_3866.sh`.
 
-- [ ] **id:6f62 shared the runId predicate but left the LIVENESS predicate re-derived — the same
+- [x] **id:6f62 shared the runId predicate but left the LIVENESS predicate re-derived — the same
   drift shape, one level up.** The guard reimplements `heartbeat.sh`'s `is_alive` (ts + TTL) and
   its `3600` default instead of consuming `heartbeat.sh live-runs`. A divergence already exists:
   `hb_ts()` falls back to the file's MTIME when `heartbeat_ts` is missing or garbled and can call
@@ -962,6 +996,15 @@ wiring readiness — none blocks the merge.
   shelling to `heartbeat.sh` would add a bash+`jq` fan-out to every Bash call. **Recommendation:**
   either a parity test pinning the two liveness rules against one fixture set, or an in-file
   comment stating the divergence is intended and why. Owner's call which. <!-- id:5f95 -->
+  — ✅ **DECIDED 2026-08-22 (`/relay human`, tier (b) — owner): parity test against ONE fixture set.**
+  The latency trade STAYS — the guard keeps its in-process re-derivation, with no bash+`jq` fan-out
+  per Bash call — so this is explicitly NOT a one-definition extraction. What changes is that the
+  divergence becomes MEASURED rather than assumed: one fixture set (valid ts, missing field, garbled
+  field, expired ts, fresh ts) exercised through BOTH `heartbeat.sh`'s `is_alive`/`hb_ts` and the
+  guard's ts+TTL rule, asserting the intended agreements AND pinning the intended MTIME-fallback
+  difference, so a later change to either side fails loudly. The cheaper alternative (an in-file
+  comment stating intent) was REJECTED — a comment rots, a test does not. Filed in `TODO.md`
+  reusing **`id:5f95`**.
 
 - [x] **The no-drift assertion prevents ONE SPELLING, not the rule.** The test greps both callers
   for `!= "discovery-producer"`. A reintroduced inline copy written as `== "discovery-producer":
@@ -972,7 +1015,7 @@ wiring readiness — none blocks the merge.
   **Recommendation:** tighten to the non-comment-occurrence form. <!-- id:4c14 -->
   — ✅ **RESOLVED 2026-08-21 (executor). Promoted to `ROADMAP.md` under the SAME id and ticked.** Tightened to the non-comment-occurrence form in `tests/test_destructive_git_guard_pool_signal_6f62.sh`: the guard is checked with `tokenize` (COMMENT tokens and triple-quoted docstrings exempt, plain string literals NOT — so `== "discovery-producer"` still counts) and `stop-request.sh` by stripping `#` lines. Negative control run before trusting it: an injected `== "discovery-producer": continue` mutant is MISSED by the old spelling grep and CAUGHT by the new assertion. The old assertion is retained beside it, so the change is strictly additive.
 
-- [ ] **Pre-existing (id:3a09 scope, NOT introduced here), surfaced because wiring is next:
+- [x] **Pre-existing (id:3a09 scope, NOT introduced here), surfaced because wiring is next:
   `eval 'git reset --hard'` and `bash -c 'git reset --hard'` are ALLOWED.** Not the
   command-substitution path — these tokenise cleanly, and `_split_git_commands` only starts a
   command at a bare `git` token, so the quoted string is one opaque argument. Also allowed:
@@ -983,3 +1026,16 @@ wiring readiness — none blocks the merge.
   which is the routed-around-into-the-tree-wide-form failure the guard's own header warns about.
   **Recommendation:** owner's call — either accept and say so in `hooks/README.md`, or scan
   `eval`/`bash -c`/`sh -c` string arguments with the existing `_RAW_PATTERNS`. <!-- id:fb2c -->
+  — ✅ **DECIDED 2026-08-22 (`/relay human`, tier (b) — owner): scan the `eval` / `bash -c` / `sh -c`
+  string argument with the existing `_RAW_PATTERNS`.** Now load-bearing rather than theoretical:
+  since the owner's 2026-08-22 ruling the five tree-wide forms are an UNCONDITIONAL deny, so an
+  agent that hits the wall has a live incentive to reach for a wrapper — precisely the
+  routed-around-into-the-tree-wide-form failure the guard's own header warns about.
+  **Scope stays BOUNDED by explicit owner choice:** the command-substitution form remains an
+  ACCEPTED, documented boundary. The fuller "close every wrapper form" option was declined — the
+  guard is accident-prevention, not adversarial, and chasing substitution adds false-positive
+  surface. Done-check pins the boundary as well as the fix, so it is deliberate rather than merely
+  unimplemented. Filed in `TODO.md` reusing **`id:fb2c`**.
+  **Observed while filing this, 2026-08-22:** the guard fired on a Bash call whose only offence was
+  QUOTING a destructive form inside a heredoc — the `id:9979` false-positive class, live and now
+  twice-confirmed, and it forced this very write-back onto a different tool path.
