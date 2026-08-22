@@ -17,9 +17,11 @@
 #   (5) sibling surfacing (dd7d)  — a sibling branch is surfaced VERBATIM, the unit's own branch
 #                                   is NOT, and the merge lands either way (surface, never block).
 #   (6) bump trigger (id:e647)    — version-less repo: no bump, no handback. Manifest repo with
-#                                   a substantive close and no explicit judgement: HANDBACK[bump]
-#                                   with its own exit code, and NOTHING mutated (main unmoved).
-#                                   --no-bump and --level are the two explicit resolutions.
+#                                   a substantive close and no recorded policy: the id:65ad
+#                                   FLEET DEFAULT minor. An UNRECOGNISED bump_policy value is
+#                                   still HANDBACK[bump] with its own exit code and NOTHING
+#                                   mutated (main unmoved). --no-bump and --level remain the
+#                                   two explicit caller resolutions.
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -323,24 +325,42 @@ build_manifest() { # <suffix> → prints the main checkout path
   printf '%s' "$main"
 }
 
-# (6b) manifest repo + substantive close + NO explicit judgement → LOUD HANDBACK[bump],
-#      distinct exit, and NOTHING mutated: main unmoved, worktree still on disk.
+# (6b) AMENDED by id:65ad (owner-ratified 2026-08-22). The ABSENT-policy case is no longer
+#      undeterminable — it takes the FLEET DEFAULT `minor`. The loud-handback assertions
+#      below are NOT dropped: they are RETARGETED onto the case that is still genuinely
+#      undeterminable, an explicit but UNRECOGNISED bump_policy value (a typo), which must
+#      never be silently defaulted. Full precedence coverage: test_bump_policy_fleet_default_65ad.sh.
 MM="$(build_manifest bumpask)"; RM_="$(basename "$MM")"
 WTM="$(child "$MM" bumpask)"
 CM="$(cfg bumpask "$RM_")"
-HEAD_BEFORE="$(git -C "$MM" rev-parse HEAD)"
 rc=0
 mout="$(FABLES_CONFIG="$CM" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
   "$INT" --repo "$RM_" --path "$MM" --worktree "$WTM" --branch relay/bumpask \
          --summary "close" --run r1 --label "executor (sonnet, relay-loop)" \
+         --verdict execute --substantive true 2>"$ERRLOG")" || rc=$?
+[[ $rc -eq 0 ]] || fail "(6b) an absent bump_policy did not take the id:65ad fleet default (exit $rc)"
+grep -q '^bump=v0.5.0$' <<<"$mout" || fail "(6b) the fleet default did not mint a MINOR bump: $(grep '^bump=' <<<"$mout")"
+pass "(6b) id:65ad: an absent bump_policy takes the fleet default MINOR bump (amends id:e647's handback)"
+
+# (6b2) a TYPO'D bump_policy is still undeterminable → LOUD HANDBACK[bump], distinct exit,
+#       and NOTHING mutated: main unmoved, worktree still on disk.
+MZ="$(build_manifest bumpbad)"; RZ="$(basename "$MZ")"
+WTZ="$(child "$MZ" bumpbad)"
+CZ="$(cfg bumpbad "$RZ")"
+printf 'bump_policy = "mnior"\n' >> "$CZ/relay.toml"
+HEAD_BEFORE="$(git -C "$MZ" rev-parse HEAD)"
+rc=0
+zout="$(FABLES_CONFIG="$CZ" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
+  "$INT" --repo "$RZ" --path "$MZ" --worktree "$WTZ" --branch relay/bumpbad \
+         --summary "close" --run r1 --label "executor (sonnet, relay-loop)" \
          --verdict execute --substantive true 2>&1)" || rc=$?
-[[ $rc -ne 0 ]] || fail "(6b) an undeterminable bump trigger SILENTLY proceeded — it must hand back"
-[[ $rc -eq 30 ]] || fail "(6b) expected the distinct bump exit code 30, got $rc"
-grep -q 'HANDBACK\[bump\]' <<<"$mout" || fail "(6b) no loud HANDBACK[bump] line: $mout"
-[[ "$(git -C "$MM" rev-parse HEAD)" == "$HEAD_BEFORE" ]] \
-  || fail "(6b) main MOVED before the bump handback — the trigger must resolve BEFORE any mutation"
-[[ -d "$WTM" ]] || fail "(6b) the worktree was retired despite the handback"
-pass "(6b) id:e647: an undeterminable bump trigger hands back loudly (exit 30) with main unmoved"
+[[ $rc -ne 0 ]] || fail "(6b2) an undeterminable bump trigger SILENTLY proceeded — it must hand back"
+[[ $rc -eq 30 ]] || fail "(6b2) expected the distinct bump exit code 30, got $rc"
+grep -q 'HANDBACK\[bump\]' <<<"$zout" || fail "(6b2) no loud HANDBACK[bump] line: $zout"
+[[ "$(git -C "$MZ" rev-parse HEAD)" == "$HEAD_BEFORE" ]] \
+  || fail "(6b2) main MOVED before the bump handback — the trigger must resolve BEFORE any mutation"
+[[ -d "$WTZ" ]] || fail "(6b2) the worktree was retired despite the handback"
+pass "(6b2) id:e647: an undeterminable bump trigger hands back loudly (exit 30) with main unmoved"
 
 # (6c) the same close with --no-bump (reviewer judged it refactor-only) integrates cleanly.
 MN="$(build_manifest bumpno)"; RN="$(basename "$MN")"
