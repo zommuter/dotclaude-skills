@@ -342,12 +342,23 @@ mout="$(FABLES_CONFIG="$CM" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
 grep -q '^bump=v0.5.0$' <<<"$mout" || fail "(6b) the fleet default did not mint a MINOR bump: $(grep '^bump=' <<<"$mout")"
 pass "(6b) id:65ad: an absent bump_policy takes the fleet default MINOR bump (amends id:e647's handback)"
 
-# (6b2) a TYPO'D bump_policy is still undeterminable → LOUD HANDBACK[bump], distinct exit,
-#       and NOTHING mutated: main unmoved, worktree still on disk.
+# (6b2) a still-undeterminable bump trigger → LOUD HANDBACK[bump], distinct exit, and
+#       NOTHING mutated: main unmoved, worktree still on disk. EVERY assertion below is
+#       unchanged; only the FIXTURE moved, twice, and each move is recorded:
+#         - id:65ad (2026-08-22) retargeted it off the ABSENT policy (now the fleet default)
+#           and onto a TYPO'D VALUE (`bump_policy = "mnior"`).
+#         - id:d51f(b) (owner decision, same day) then REVERSED the typo'd-VALUE case to
+#           warn-and-default, so the fixture moves again — onto a PRESENT-BUT-UNPARSED line,
+#           which is what is genuinely still undeterminable: a near-miss key sits inside the
+#           repo's own block with unmistakable intent but yields no value, so the reader
+#           cannot know what the owner meant and must refuse rather than take a default that
+#           might contradict it.
+#       Value-path coverage (warn + default) and the full precedence ladder live in
+#       tests/test_bump_policy_fleet_default_65ad.sh (5d/5e/5f, 6a/6b/6c).
 MZ="$(build_manifest bumpbad)"; RZ="$(basename "$MZ")"
 WTZ="$(child "$MZ" bumpbad)"
 CZ="$(cfg bumpbad "$RZ")"
-printf 'bump_policy = "mnior"\n' >> "$CZ/relay.toml"
+printf 'bumppolicy = "never"\n' >> "$CZ/relay.toml"
 HEAD_BEFORE="$(git -C "$MZ" rev-parse HEAD)"
 rc=0
 zout="$(FABLES_CONFIG="$CZ" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
