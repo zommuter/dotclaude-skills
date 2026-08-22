@@ -289,9 +289,12 @@ else
       [[ -z "$clean" ]] \
         || note "(6) the dispatched id:$itemA is NOT clean — the shipped scanner reports committed work on it: [$clean]. Dispatching would repeat the very hazard dd7d exists to prevent."
     fi
-    # and the scanner must still SEE the stranded one (the fixture must keep reproducing)
-    "$SCAN" "$repoA" --verdict execute --item 57d1 --base main 2>/dev/null | grep -q 'execute-57d1-0' \
-      || note "(6) stranded-branch-scan.sh no longer sees the 57d1 orphan — the fixture stopped reproducing the incident"
+    # and the scanner must still SEE the stranded one (the fixture must keep reproducing).
+    # Captured, not piped: `producer | grep -q` under `pipefail` is the id:81d5 shape.
+    scan57="$("$SCAN" "$repoA" --verdict execute --item 57d1 --base main 2>"$tmp/scan57.err")" \
+      || note "(6) stranded-branch-scan.sh errored on the stranded item: $(cat "$tmp/scan57.err")"
+    grep -q 'execute-57d1-0' <<<"$scan57" \
+      || note "(6) stranded-branch-scan.sh no longer sees the 57d1 orphan — the fixture stopped reproducing the incident: [$scan57]"
   fi
 fi
 
