@@ -39,8 +39,31 @@ Co-Authored-By fields: **Model** from system context (e.g. `Claude Sonnet 4.6`);
 
 ```bash
 # Push (parallel-safe: flock'd dirty-guard + pull --rebase + push)
-~/.claude/skills/git-diary-workflow/git-lock-push.sh
+# --remote origin: PRIVATE remotes only. Publishing is a DELIBERATE act — see below.
+~/.claude/skills/git-diary-workflow/git-lock-push.sh --remote origin
 ```
+
+**`--remote origin` is mandatory here, and publishing to a PUBLIC remote is never
+automatic** (id:f66e, owner decision 2026-08-22). Without it `git-lock-push.sh` pushes to
+**every** remote — that is its documented default — so this skill, which runs after every
+prompt in every session, silently published to public GitHub from unattended `--afk` pools
+and parallel sessions alike. Measured that day: 41 of 46 own-repo remotes are the private
+`fievel:` LAN host and all are named `origin`, so `--remote origin` is a no-op for the fleet;
+exactly **four** repos carry a public GitHub remote (`dotclaude-skills`, `zkm`, `toesnail`,
+`proton-moresync`) and only those were ever affected. `~/.claude` and `~/src/claude-diary`
+also push `origin` → the private host, so the flag is safe there too.
+
+To publish, run it deliberately as its own step, naming the public remote:
+
+```bash
+~/.claude/skills/git-diary-workflow/git-lock-push.sh --remote github --ff-only
+```
+
+Do this only when you intend to publish, having looked at what the diff exposes. **The
+pre-push privacy gate is NOT a safety net** — it is warn-only (`exit 0`, never blocks) and
+DIFF-scoped, so it neither stops a push nor sees identity strings already committed
+(id:9bfc). A named remote that does not exist is a loud failure before the lock, so
+`--remote github` in a repo without one refuses rather than silently pushing nothing.
 
 If this session created `--no-ff` merges or annotated tags (e.g. a relay integration
 turn), pass `--ff-only` explicitly so `pull --rebase` doesn't flatten them. The script
@@ -74,7 +97,7 @@ EOF
 
 # Stage + commit + pull + push atomically inside the per-repo flock
 # NOTE: flags MUST precede REPO_PATH — getopts stops at the first non-flag arg
-~/.claude/skills/git-diary-workflow/git-lock-push.sh -f "$manifest" -m "$msg" ~/.claude
+~/.claude/skills/git-diary-workflow/git-lock-push.sh --remote origin -f "$manifest" -m "$msg" ~/.claude
 rm -- "$manifest"
 ```
 
@@ -98,7 +121,7 @@ If non-empty → **attribute each dirty file before committing**. The repo is si
 For YOUR files only: build a manifest and msg exactly as in Step 1b, using `~/src/dotclaude-skills/<file1>` paths and a dotclaude-skills description, then:
 
 ```bash
-~/.claude/skills/git-diary-workflow/git-lock-push.sh -f "$manifest" -m "$msg" ~/src/dotclaude-skills
+~/.claude/skills/git-diary-workflow/git-lock-push.sh --remote origin -f "$manifest" -m "$msg" ~/src/dotclaude-skills
 rm -- "$manifest"
 ```
 
