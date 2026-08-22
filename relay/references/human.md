@@ -288,8 +288,23 @@ in the main checkout** — the same path as the per-repo `/meeting` REVIEW_ME wr
 (D5, id:15d5), NOT a worktree merge — because these are line-scoped bookkeeping toggles,
 not a roadmap re-derivation. Use the flock'd `meeting/md-merge.py` for every ledger edit
 so a concurrent pool/meeting surfaces a git conflict rather than silently losing a
-toggle. One commit per repo touched; do NOT push, tag, or run git-diary-workflow /
+toggle. One commit per repo touched; do NOT tag, and do NOT run git-diary-workflow /
 todo-update (the orchestrator/global obligation owns those).
+
+**Pushing is PER-REMOTE, not a blanket refusal (id:4d44 — this text used to say "do NOT
+push" flat, and that was wrong after `id:4d44` was ratified).** The ratified rule is:
+**private/LAN remotes push AUTOMATICALLY; only PUBLIC remotes defer** to the owner, because
+publishing to a public remote is the owner's ratification act and a local-only merge is not.
+So a `/relay human` write-back SHOULD be pushed to every private remote — withholding it
+there buys nothing and leaves the work existing only in one checkout, which is the failure
+`ratify-queue` exists to track. Use `~/.claude/skills/git-diary-workflow/git-lock-push.sh
+--remote <name>`; the private/public predicate is `scripts/lib-private-remote.sh`, the single
+definition shared with the pre-push privacy gate — never re-derive it, and never use
+`git-lock-push.sh`'s `is_ssh_url()` as a substitute (it is an SSH-AUTH predicate and fails
+toward auto-publish). **Observed 2026-08-22:** this paragraph's absence caused a real miss —
+a session read the blanket "do NOT push" here, held seven commits back from a PRIVATE remote
+for hours, and had to be corrected by the owner. A derived doc that predates a ratified
+decision is read as current, which is exactly the drift the global CLAUDE.md rule names.
 
 **Commit each repo's ledger edit ATOMICALLY, never leave it dirty-uncommitted (id:2147).**
 `md-merge.py` writes the ledger but does NOT commit — and an interrupted `/relay human` run
@@ -303,8 +318,9 @@ named files — never `git add -A` — and never stashes/resets a foreign-dirty 
   -m "relay human: ledger flow-back (id:3801, id:2147)" ROADMAP.md TODO.md REVIEW_ME.md
 ```
 It is a clean no-op for any named file that didn't change, so listing all three is safe.
-Commit-only (no push, per the contract above); committing locally is what clears the
-dirty-guard for the next pool run.
+Committing locally is what clears the dirty-guard for the next pool run; then push per the
+PER-REMOTE rule above (private remotes automatically, public ones deferred to the owner) —
+NOT the blanket "commit-only" this line used to state.
 
 **Peek-and-warn, not lease-gated (id:c144 — supersedes the id:0902 DEFER for ledger writes).**
 A `/relay human` write-back is a **ledger-only** edit (line-scoped ticks + flow-back), so per
