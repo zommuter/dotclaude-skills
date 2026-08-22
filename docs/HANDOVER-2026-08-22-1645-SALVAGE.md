@@ -22,9 +22,22 @@ The only thing that actually stops such a run is `TaskStop`, which is precisely 
 option the graceful path exists to avoid. `relay/SKILL.md`'s Stop-mode section describes draining
 "the already-dispatched wave" — a wave boundary a chaining round does not have.
 
-**Consequence for you:** if you launch a pool, you own it until it drains itself. At 89% of the
-7-day quota window (below, §2) that is a real risk. Fix `id:a615` first, or run only
-`--once`/`--after N`, which are pure-JS round caps independent of the sentinel.
+**`--once` / `--after N` are NOT a workaround** (owner, 2026-08-22 — correcting an earlier draft of
+this file that recommended them). They cap **rounds**, and a round is unbounded in work: the
+chain-end re-ask deliberately keeps a round "effective" by dispatching follow-on units without
+returning to the prelude. The same run proves it — **all 14 dispatches carried `round=1`**, so
+`--once` would have permitted every one of them, including both apex `hard` units and the
+re-dispatched executor the owner killed by hand. A round cap and the stop sentinel share the
+identical blind spot.
+
+**Therefore:** there is currently **no working way to bound a pool's work from the outside.** If
+you launch one, you own it until it drains itself or you `TaskStop` it. At 89% of the 7-day quota
+window (§2) that is a real risk.
+
+**This also constrains the `id:a615` fix:** it must act at the **dispatch decision**, not the round
+boundary. A fix that only makes the round boundary more reliable leaves `--once`, `--after N` and
+`/relay stop` all still toothless against a chaining round. A dispatch-scoped cap (bound the number
+of *dispatches*, not rounds) is the shape that fixes all three at once.
 
 ## 2. Hard state (verified 2026-08-22 ~16:45, not inherited from prose)
 
