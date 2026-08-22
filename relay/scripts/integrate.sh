@@ -127,9 +127,16 @@
 #                                 An EXPLICIT owner OVERRIDE of the 2026-07-17-1541 D1 rule,
 #                                 not a convenience — see the block at the fallback site for
 #                                 what it costs and why `minor`, not `patch`.
-#   7. bump_policy set to an    → UNDETERMINABLE. HANDBACK[bump] (exit 30), LOUD, BEFORE any
-#      UNRECOGNISED value         mutation. NEVER a silent bump; NEVER a silent skip. A typo'd
-#                                 policy is NOT the absent case and never takes the default.
+#   7. bump_policy line PRESENT → UNDETERMINABLE. HANDBACK[bump] (exit 30), LOUD, BEFORE any
+#      but UNPARSED (malformed/     mutation. A line the reader could not read is NOT the
+#      empty RHS, or a NEAR-MISS    absent case and never takes the default — under a fleet
+#      key such as `bumppolicy`)    default that would silently bump against a recorded
+#                                   `never`. See the reader block at step 3c.
+#   8. bump_policy PARSED but   → FLEET DEFAULT minor, with a LOUD WARNING naming the bad
+#      an UNRECOGNISED VALUE       value (id:d51f(b), owner-decided 2026-08-22). NOT a
+#      (`auto`, `NEVER`, `mnior`)  handback: the primary guard is WRITER-side enum validation
+#                                  in relay-state-write.sh (id:d51f(a)), which makes this
+#                                  path near-unreachable defence-in-depth.
 # Resolution happens pre-merge on purpose: a deferred repo is left byte-identical.
 #
 # Usage:
@@ -492,14 +499,75 @@ elif [ "$substantive" = "false" ]; then
   bump_reason="--substantive false — the unit produced no substantive close, so it cannot be a user-observable one"
 else
   # Durable per-repo standing judgement, if the owner recorded one.
-  policy=""
+  #
+  # ── THE READER HAS THREE STATES, NEVER TWO (id:65ad hardening) ────────────────────
+  # With a FLEET DEFAULT in place, "absent" now MEANS "bump". A line this reader fails to
+  # parse must therefore NEVER be conflated with a line that is not there: that converts a
+  # fail-LOUD into a SILENT bump against an owner's recorded `never` — a fail-silent in the
+  # UNSAFE direction, and it makes the config unfalsifiable. The reader this replaces was a
+  # bare `$1 == "bump_policy" { print $3 }` three-field split, which read the perfectly
+  # VALID TOML `bump_policy="never"` (no spaces) as ABSENT and minted a version — on exactly
+  # the hand-editing path the HANDBACK[bump] text tells a human to take.
+  #
+  # This is deliberately NOT a TOML parser. It stays awk-shaped and auditable, and emits
+  # exactly one of three things:
+  #   (nothing)          ABSENT                 => FLEET DEFAULT minor (below)
+  #   value<TAB><v>      a parsed RHS           => enum-matched below
+  #   unparsed<TAB><l>   PRESENT but unreadable => LOUD HANDBACK[bump], NEVER defaulted
+  #
+  # PRESENT-BUT-UNPARSED covers a malformed/empty RHS *and* a NEAR-MISS KEY. The near-miss
+  # test, pinned by tests/test_bump_policy_fleet_default_65ad.sh (5d/5e): the key —
+  # lowercased, with `_`/`-`/whitespace stripped — CONTAINS `bump`. So `bumppolicy`,
+  # `bump-policy`, `BUMP_POLICY` and `bump_polcy` are all PRESENT: they sit inside this
+  # repo's own block and their intent is unmistakable, so silently contradicting them is
+  # worse than refusing. It keys on `bump` and NOT on `policy` ON PURPOSE — an unrelated
+  # future `*_policy` key must not start false-tripping this gate. A typo that destroys the
+  # `bump` stem (`ump_policy`) still reads as absent; the fuzzy set has to end somewhere,
+  # and this boundary keeps the rule to one line.
+  #
+  # It also tolerates an INDENTED `[repos.<name>]` header and indented keys (valid TOML that
+  # the old `$0 == want` / `/^\[/` anchors missed, hiding a whole block's policy), a trailing
+  # inline comment, and TOML literal (single-quoted) strings.
+  policy="" policy_state="absent" policy_line=""
   policy_toml="${FABLES_CONFIG:-$HOME/.config/relay}/relay.toml"
   if [ -f "$policy_toml" ]; then
-    policy="$(awk -v want="[repos.$repo]" '
-      $0 == want { inblk = 1; next }
-      /^\[/      { inblk = 0 }
-      inblk && $1 == "bump_policy" { gsub(/[",]/, "", $3); print $3; exit }
+    policy_read="$(awk -v want="[repos.$repo]" -v sq="'" '
+      function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+      {
+        line = trim($0)
+        if (line == "" || substr(line, 1, 1) == "#") next
+        if (line == want) { inblk = 1; next }
+        if (substr(line, 1, 1) == "[") { if (inblk) exit; next }
+        if (!inblk) next
+        eq  = index(line, "=")
+        key = (eq ? trim(substr(line, 1, eq - 1)) : line)
+        if (key == "bump_policy") {
+          val = (eq ? trim(substr(line, eq + 1)) : "")
+          q = substr(val, 1, 1)
+          if (q == "\"" || q == sq) {                 # quoted: up to the closing quote
+            rest = substr(val, 2); p = index(rest, q)
+            val = (p ? substr(rest, 1, p - 1) : "")   # unterminated => unparsed, not absent
+          } else {                                    # bare: drop inline comment + comma
+            h = index(val, "#"); if (h) val = trim(substr(val, 1, h - 1))
+            sub(/,$/, "", val); val = trim(val)
+          }
+          if (val == "") print "unparsed\t" line; else print "value\t" val
+          done = 1; exit
+        }
+        nk = tolower(key); gsub(/[-_ \t]/, "", nk)
+        if (fuzzy == "" && index(nk, "bump")) fuzzy = line
+      }
+      END { if (!done && fuzzy != "") print "unparsed\t" fuzzy }
     ' "$policy_toml" 2>/dev/null || true)"
+    if [ -n "$policy_read" ]; then
+      policy_state="${policy_read%%$'\t'*}"
+      policy_line="${policy_read#*$'\t'}"
+      if [ "$policy_state" = "value" ]; then policy="$policy_line"; fi
+    fi
+  fi
+  if [ "$policy_state" = "unparsed" ]; then
+    handback bump "$EX_BUMP" \
+      "SEMVER BUMP TRIGGER UNRESOLVABLE for [$repo] (id:e647 / id:65ad): [repos.$repo] in $policy_toml carries a line about bump_policy that this reader could NOT parse into a value — \`$policy_line\`. PRESENT-BUT-UNPARSED is NOT the absent case and is NEVER given the fleet default: defaulting here would silently BUMP against a policy you may have recorded as 'never', which is the unsafe direction. NOTHING was mutated — main is byte-identical and the worktree is on disk. Resolve by writing the key EXACTLY as bump_policy = \"never|minor|patch\" in [repos.$repo] of $policy_toml, or by re-running with --level minor|patch or --no-bump."
   fi
   case "$policy" in
     never)         bump_reason="relay.toml [repos.$repo] bump_policy = never" ;;
@@ -528,12 +596,32 @@ else
     # and --substantive false ALL still outrank this default; it is the last resort.
     "")            bump_level="minor"
                    bump_reason="FLEET DEFAULT bump_policy = minor (id:65ad, owner-ratified 2026-08-22) — no explicit [repos.$repo] bump_policy in $policy_toml" ;;
+    # ── PARSED BUT UNRECOGNISED VALUE => WARN AND DEFAULT (id:d51f(b)) ──────────────
+    # NOT a handback. Owner decision, 2026-08-22, and a deliberate REVERSAL of id:65ad's
+    # first implementation (which handed back on a bad value, reasoning that a silent
+    # default makes the config unfalsifiable — sound, but answered better below).
+    #
+    # WHY THE REVERSAL: the load-bearing guard is WRITER-side, not here. id:d51f(a) makes
+    # `relay-state-write.sh toml-set` refuse any bump_policy outside never|minor|patch at
+    # the moment an agent writes it, while that agent can still fix it — dissolving the
+    # problem at its origin. This reader branch is then near-unreachable DEFENCE IN DEPTH,
+    # and a handback here would defer a whole repo over a fault the writer already refuses.
+    # (Measured basis for the real failure mode: not a typo, but an agent inventing a
+    # plausible-but-absent enum member — `auto`, `none`, `patch-only`.)
+    #
+    # THE WARNING IS NOT OPTIONAL AND MUST NAME THE VALUE: an unattended --afk pool is
+    # precisely where a nameless warning degrades silently. It goes to stderr AND the log.
+    #
+    # KEEP THE DISTINCTION FROM THE UNPARSED CASE ABOVE: a line that did not PARSE (or a
+    # near-miss key) stays a LOUD HANDBACK, because there the reader does not know what the
+    # owner wrote. Here it does know, and knows it is not a policy — so it says so and takes
+    # the documented default. Do not merge the two branches.
     *)
-      # An explicit but UNRECOGNISED value (a typo) is NOT the absent case and must NEVER be
-      # silently defaulted — that would make the config unfalsifiable. It stays a LOUD
-      # HANDBACK[bump], pre-merge, with main byte-identical (id:e647).
-      handback bump "$EX_BUMP" \
-        "SEMVER BUMP TRIGGER UNRESOLVABLE for [$repo] (id:e647): relay.toml [repos.$repo] sets bump_policy = '$policy', which is not one of never|minor|patch. An UNRECOGNISED policy value is never silently defaulted (the fleet default, id:65ad, applies only when NO policy is recorded) and is never guessed in either direction. NOTHING was mutated — main is byte-identical and the worktree is on disk. Resolve by fixing bump_policy in [repos.$repo] of $policy_toml (never|minor|patch), or by re-running with --level minor|patch or --no-bump." ;;
+      bump_level="minor"
+      printf 'integrate.sh: WARNING[bump]: [repos.%s] in %s sets bump_policy = "%s", which is not one of never|minor|patch. Falling through to the FLEET DEFAULT minor (id:65ad) and bumping anyway, per id:d51f(b). The primary guard for this is writer-side enum validation in relay-state-write.sh (id:d51f(a)) — if this fired, that guard is missing or was bypassed. FIX THE VALUE in %s.\n' \
+        "$repo" "$policy_toml" "$policy" "$policy_toml" >&2
+      log "step3c bump-trigger WARNING id:d51f(b): unrecognised bump_policy '$policy' for [$repo] — defaulting to minor"
+      bump_reason="FLEET DEFAULT bump_policy = minor after an UNRECOGNISED [repos.$repo] bump_policy = '$policy' (warned; id:d51f(b), owner-decided 2026-08-22)" ;;
   esac
 fi
 log "step3c bump-trigger: level=${bump_level:-none} — $bump_reason"

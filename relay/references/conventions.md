@@ -120,10 +120,7 @@ opinion only).
 ## Semver bump trigger at integrate (relay.toml `bump_policy`, id:e647 / id:087b)
 
 The integrator (`relay/scripts/integrate.sh`, dispatched as one mechanical hop since
-id:087b) bumps a repo's version ONCE per **user-observable** close; a refactor-only /
-internal-cleanup close does NOT bump. That is a ratified reviewer JUDGEMENT, not a
-derivable fact — and the mechanized integrator refuses to guess it. It resolves the
-trigger before any mutation, first match wins:
+id:087b) resolves the bump trigger before any mutation, first match wins:
 
 1. `--level minor|patch` — the caller judged the close user-observable.
 2. `--no-bump` — the caller judged it refactor-only.
@@ -133,13 +130,39 @@ trigger before any mutation, first match wins:
    user-observable one.
 5. `bump_policy` in `[repos.<name>]` — a DURABLE standing judgement, one of
    `never` / `minor` / `patch`, recorded once by the owner.
-6. Otherwise — **`HANDBACK[bump]` (exit 30)**, loud, with main byte-identical and the
-   worktree still on disk. Never a silent bump, never a silent skip.
+6. **No `bump_policy` recorded — FLEET DEFAULT `minor`** (id:65ad, owner-ratified
+   2026-08-22). A policy-less manifest repo BUMPS; it no longer defers.
+7. A `bump_policy` line that is **present but UNPARSED** — a malformed/empty right-hand
+   side, or a near-miss key such as `bumppolicy` / `BUMP_POLICY` — is **`HANDBACK[bump]`
+   (exit 30)**, loud, main byte-identical, worktree still on disk. Present-but-unparsed
+   is NOT the absent case: under a fleet default, defaulting there would silently bump
+   against a `never` the owner did record.
+8. A `bump_policy` that **parsed but is an unrecognised VALUE** (`auto`, `NEVER`,
+   `mnior`) takes the `minor` fleet default **with a loud warning naming the value**
+   (id:d51f(b), owner-decided 2026-08-22) — not a handback. The load-bearing guard is
+   writer-side enum validation in `relay-state-write.sh` (id:d51f(a)), which refuses a
+   bad value at the moment an agent writes it; this reader branch is defence-in-depth.
 
-So a MANIFEST repo whose closes are substantive will hand back on its first pool
-integrate until the owner records `bump_policy` for it (or the caller passes an explicit
-judgement). That deferral is the intended behaviour, not a bug: it is the point at which
-a human decides what "user-observable" means for that repo, once, durably.
+**Rule 6 is a deliberate, owner-ratified OVERRIDE of the ratified 2026-07-17-1541 D1 rule**
+("one bump per user-observable close; a refactor-only / internal-cleanup close does NOT
+bump"), not a convenience default. There is no no-bump branch under a level policy, so a
+defaulted close bumps unconditionally — including a refactor-only one, contrary to D1. The
+owner was shown the measured blast radius (63 `[repos.*]` blocks, **zero** explicit
+policies, so effectively every manifest repo) and the cheaper-to-reverse narrowing to the
+three repos that actually handed back, and kept the fleet default at full scope.
+
+**His reasoning contests D1's premise rather than merely outweighing it, and that is the
+substantive part: _a refactor-only close ASSERTS a functional identity it cannot actually
+guarantee_, so minting a version is the HONEST signal — the changed code is not provably
+the same code. The carve-out he named is formally-verified code (e.g. Lean), where that
+identity CAN be mechanically established and a no-bump would be truthful.** This is the
+legitimate way to amend a ratified decision — state the false premise explicitly — rather
+than reinterpret its words. It also weakens the obvious "fix": building a genuine no-bump
+branch would restore a rule whose premise the owner disputes. The open residue is tracked
+as id:0832 (the `zkm` parent-bump → plugin-`uv.lock` cascade, a real unautomated cost that
+is independent of the principle); `minor` over `patch` because under loose-0.x `patch`
+means bugfix-ONLY — the harmful UNDER-signal for a defaulted feature close, where `minor`
+is the harmless over-signal.
 - Cross-repo action items discovered mid-work go to the shared inbox
   (`~/.claude/skills/meeting/append.sh -t inbox`), never into another repo's TODO.md.
 
