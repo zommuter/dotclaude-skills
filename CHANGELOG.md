@@ -10,6 +10,10 @@
 ## 2026-08-22
 
 - reviewer (claude-opus-4-8): chain-end verify green (484/0/1), gaming clean (6 false-positive skips), @container fix on id:7518+id:372a routine_open=5 (id:7518,372a)
+- id:a360 — loderite starvation fixed: an orphan branch now binds to its item by COMMIT MESSAGE, not branch name; covered by a new loderite-shaped end-to-end regression test (id:a360)
+- id:1171 — residual half closed: the commit-message fallback's bare-token grep is now anchored to the id marker via the shared typed_edges_own_id_of_line (id:1171)
+- id:65ad + id:d51f(b) — fleet bump_policy now defaults to minor; three-state reader (absent / parsed / present-but-unparsed) warns and defaults on an unrecognised value; two stale prose contracts refreshed (d51f stays open on its unbuilt writer half) (id:65ad,d51f)
+- id:4d44 — relay/references/human.md corrected to the per-remote push narrowing; 3 cross-repo inbox items ingested (id:4d44)
 
 ## 2026-08-21
 
