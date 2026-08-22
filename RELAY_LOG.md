@@ -6683,3 +6683,15 @@ review: verify id:0384 front-door currency gate (red->green, 12/12); owner-ratif
 ## 2026-08-22 10:52 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
 
 reviewer (claude-opus-4-8): chain-end verify green (484/0/1), gaming clean (6 false-positive skips), @container fix on id:7518+id:372a routine_open=5 [id:7518,372a]
+
+## 2026-08-22 14:38 — reviewer (claude-opus-5)
+
+Afternoon hand-integrate (commits de45af3..9028bef), bookkeeping-only checkpoint — no re-review performed.
+
+Worked and closed:
+- id:a360 — loderite starvation: an orphan branch now binds to its item by COMMIT MESSAGE, not branch name; new loderite-shaped end-to-end regression test.
+- id:1171 — residual half: the commit-message fallback's bare-token grep anchored to the id marker via the shared typed_edges_own_id_of_line.
+- id:65ad + id:d51f(b) — fleet bump_policy defaults to minor; three-state reader (absent / parsed / present-but-unparsed); warn-and-default on an unrecognised value; two stale prose contracts refreshed. d51f stays OPEN on its unbuilt writer half.
+- id:4d44 — relay/references/human.md corrected to the per-remote push narrowing; 3 cross-repo inbox items ingested.
+
+TODO/ROADMAP boxes were already reconciled in 3872867. This checkpoint exists because the hand-integrate skipped all three post-integrate hops (RELAY_LOG, CHANGELOG, ckpt tag), leaving the audit boundary stale at relay-ckpt-20260822-1052 and the ledger reading as if nothing shipped. CHANGELOG derived in 9028bef.
