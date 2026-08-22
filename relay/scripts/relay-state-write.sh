@@ -17,6 +17,10 @@
 #       it is ADDED as the last line of the block (before the next [...] header or EOF).
 #       Every other byte is preserved. If relay.toml or the [repos.<repo>] block is missing,
 #       exit non-zero and do NOT create/clobber.
+#       ONE key is value-validated (id:d51f(a), key-scoped ON PURPOSE — toml-set is NOT
+#       enum-aware in general): `bump_policy` accepts only never|minor|patch (bare or
+#       double-quoted) and otherwise REFUSES loudly with exit 2, writing nothing. That set
+#       is integrate.sh's reader set; keep the two in lockstep.
 #   status-write <abs-path>
 #       Read full file CONTENT from STDIN and write it to <abs-path> atomically under the
 #       SAME flock. <abs-path> must start with '/' (id:c34a: never a ~/$HOME/${...} literal).
@@ -53,6 +57,42 @@ case "$cmd" in
     [ -n "$repo" ] && [ -n "$key" ] && [ $# -ge 3 ] || {
       echo "relay-state-write.sh toml-set: <repo> <key> <value-literal> required" >&2; exit 2; }
     [ -f "$TOML" ] || { echo "relay-state-write.sh toml-set: $TOML does not exist" >&2; exit 1; }
+
+    # ── id:d51f(a) — KEY-SCOPED enum validation for `bump_policy` ONLY ───────────────
+    # `toml-set` is otherwise fully generic, so `toml-set <repo> bump_policy auto` used to
+    # land in relay.toml verbatim and SILENTLY. The measured failure mode is NOT a typo but
+    # an agent INVENTING a plausible-but-absent enum member (`auto`, `none`, `patch-only`,
+    # `on-feature`). Refusing here rejects it at the moment of writing, while the agent that
+    # wrote it can still fix it — dissolving the fault at its origin. The reader-side
+    # warn-and-default (id:d51f(b), integrate.sh) is then near-unreachable defence in depth;
+    # a warning alone is insufficient because an unattended --afk pool logs it where nobody
+    # reads it.
+    #
+    # THE SET IS THE READER'S SET, not a restatement: integrate.sh's `case "$policy" in`
+    # recognises exactly `never` / `minor` / `patch` (relay/scripts/integrate.sh:573-574);
+    # everything else falls into its warn-and-default `*)` branch. If that case ever gains
+    # or loses a member, change it HERE TOO or the writer starts refusing values the reader
+    # honours.
+    #
+    # DELIBERATELY KEY-SCOPED (owner constraint, id:d51f): do NOT generalise `toml-set` into
+    # an enum-aware writer. `bump_policy` is the only key with an allowed-value list.
+    #
+    # A pre-quoted `"never"` is accepted (callers may pass either form — the smart-quoter
+    # below is idempotent). A TOML *literal* (single-quoted) `'never'` is NOT unwrapped and
+    # so is refused: the smart-quoter would write `"'never'"`, which the reader does not
+    # recognise, so refusing is the honest answer.
+    if [ "$key" = "bump_policy" ]; then
+      _bp="$value"
+      case "$_bp" in \"*\") _bp="${_bp#\"}"; _bp="${_bp%\"}" ;; esac
+      case "$_bp" in
+        never|minor|patch) ;;
+        *)
+          echo "relay-state-write.sh toml-set: REFUSED — bump_policy = '$_bp' is not a recognised value for [repos.$repo]. Valid values are exactly: never|minor|patch (id:d51f(a); this is the same set relay/scripts/integrate.sh recognises). Nothing was written to $TOML." >&2
+          log "toml-set REFUSED repo=$repo key=bump_policy value=$_bp (not in never|minor|patch; id:d51f)"
+          exit 2
+          ;;
+      esac
+    fi
 
     # id:abbd — smart-quote the value BEFORE it reaches awk, idempotently:
     #   already "..."-wrapped -> verbatim; true/false -> verbatim (bare bool);
