@@ -248,6 +248,12 @@ handback() { # <step-label> <exit-code> <reason...>
     # Which tail steps did NOT run — the operator is told EXACTLY, never left to guess.
     local remaining
     case "$step" in
+      # id:a726(b) — `git-lock-push` became a POST-LAND step when id:4d44 moved the land
+      # point to the ckpt tag, but it had no arm here, so it degraded to "UNKNOWN post-land
+      # step" — precisely the message an operator does NOT want during a supervised
+      # reconcile. id:5155 then moved the ratification enqueue AHEAD of this handback, so
+      # `ratification-enqueue` is deliberately NOT listed as unrun: it already ran.
+      git-lock-push)   remaining="push (the merge reached ${n_pushed:-?} of the intended remote(s); pending: ${pending_csv:-unknown}),worktree-retire,state-write,strong-state,push-seed" ;;
       ratify-enqueue)  remaining="ratification-enqueue,worktree-retire,state-write,strong-state,push-seed" ;;
       worktree-retire) remaining="worktree-retire,state-write,strong-state,push-seed" ;;
       state-write)     remaining="state-write,strong-state,push-seed" ;;
@@ -613,6 +619,17 @@ if ! ckpt_tag="$("$CKPT_TAG" "${ckpt_args[@]}" 2>&1)"; then
 fi
 ckpt_tag="$(printf '%s' "$ckpt_tag" | tail -n1)"
 
+# ── THE LAND POINT — id:5fe2, re-derived by id:4d44, GENERALISED by id:a726(a). ──────
+#    The merge is committed AND now TAGGED, so from this line on a re-run is WRONG for EVERY
+#    unit, substantive or not: it takes the zero-commit path and tries to mint a SECOND ckpt
+#    tag. `landed` used to be set only on the deferred / no-upstream / verified-push paths, so
+#    a unit whose push FAILED handed back with `landed` still empty; relay-loop.js then read
+#    that as `deferred:true` — documented "Retry is correct." — for a merge that was already
+#    on main and already tagged. The retry does not double-tag (id:8739's isolation gate stops
+#    it at exit 21), but it reports a FALSE main-checkout breach for a unit that is really
+#    "already merged and tagged, push failed". The marker belongs at the tag, unconditionally.
+landed=1
+
 # ── step 8: PER-REMOTE push narrowing (id:4d44) ──────────────────────────────────────
 #
 #    A SUBSTANTIVE unit no longer defers its push WHOLESALE. It pushes the PRIVATE/LAN
@@ -639,12 +656,9 @@ push_deferred=""    # newline-separated: remotes deliberately NOT pushed (public
 push_unreached=""   # newline-separated: intended but did NOT arrive for a benign reason
 push_lines=""       # `pushRemote=<name>:<status>` stdout lines, in `git remote` order
 
-if [ -n "$defer_push" ]; then
-  # id:5fe2 land point (re-derived by id:4d44): the merge is committed AND tagged, so from
-  # here on a re-run is WRONG. A substantive unit may push NOTHING, so the ckpt tag — not the
-  # push — is the marker, and it is set BEFORE any push is attempted.
-  landed=1
-fi
+# NOTE (id:a726(a)): the `if [ -n "$defer_push" ]; then landed=1; fi` that used to sit here is
+# GONE — not because the deferred path stopped being landed, but because EVERY path is, from
+# the ckpt tag onwards. The marker now lives immediately after step 7 (see THE LAND POINT).
 
 # Source the shared predicate. Unreadable → every remote stays unproven ⇒ public ⇒ deferred.
 priv_lib_ok=0
@@ -678,6 +692,7 @@ for _r in $all_remotes; do
 done
 
 push_out=""
+push_helper_failed=""   # id:5155: git-lock-push.sh exited non-zero (recorded, not yet handed back)
 if [ -n "$to_push" ]; then
   # ALL eligible remotes selected AND nothing deferred → invoke git-lock-push.sh exactly as
   # before (no --remote at all), so the non-substantive path is byte-identical to today.
@@ -689,8 +704,13 @@ if [ -n "$to_push" ]; then
     done <<< "$to_push"
   fi
   if ! push_out="$("$GIT_LOCK_PUSH" "${push_args[@]}" 2>&1)"; then
-    push_status="FAILED"
-    handback git-lock-push "$EX_PUSH" "push failed (merge + tag are committed locally; retry push): $push_out"
+    # id:5155 — this used to `handback git-lock-push` RIGHT HERE, which pre-empted step 8b
+    # entirely: the merge and the ckpt tag were already committed, no remote carried them,
+    # and NO ratification-queue entry was ever written. The failure is now RECORDED and the
+    # per-remote verification below still runs, so the queue entry can NAME the remotes that
+    # did not receive the merge. The handback itself moved to AFTER the enqueue.
+    push_helper_failed=1
+    log "step8 id:5155 git-lock-push.sh exited non-zero — recorded, NOT handed back yet; per-remote verification + the ratification enqueue still run: $push_out"
   fi
 fi
 
@@ -706,6 +726,7 @@ fi
 pushed_sha="$(git -C "$path" rev-parse HEAD)"
 push_branch="$(git -C "$path" rev-parse --abbrev-ref HEAD)"
 push_failures=""
+push_failed=""      # id:5155: newline-separated names of the remotes that FAILED verification
 if [ -n "$to_push" ]; then
   while IFS= read -r _r; do
     [ -n "$_r" ] || continue
@@ -729,9 +750,11 @@ if [ -n "$to_push" ]; then
       # UNVERIFIABLE is treated as NOT landed — fail closed. A silent false success is the
       # exact defect being fixed.
       push_lines="${push_lines}pushRemote=$_r:FAILED"$'\n'
+      push_failed="${push_failed}${_r}"$'\n'
       push_failures="${push_failures}[$_r] 'git ls-remote $_r refs/heads/$push_branch' returned NOTHING after 2 attempts — no evidence the remote moved. "
     elif [ "$remote_sha" != "$pushed_sha" ]; then
       push_lines="${push_lines}pushRemote=$_r:FAILED"$'\n'
+      push_failed="${push_failed}${_r}"$'\n'
       push_failures="${push_failures}[$_r] is at $remote_sha while the local HEAD it had to carry is $pushed_sha. "
     else
       push_pushed="${push_pushed}${_r}"$'\n'
@@ -754,11 +777,17 @@ _count() { printf '%s' "${1:-}" | awk 'NF{n++} END{print n+0}'; }
 n_pushed="$(_count "$push_pushed")"
 n_deferred="$(_count "$push_deferred")"
 n_unreached="$(_count "$push_unreached")"
-n_missing=$(( n_deferred + n_unreached ))
+n_failed="$(_count "$push_failed")"
+# id:5155 — a FAILED remote is a MISSING remote. It used to be counted in neither
+# `n_missing` nor the step-8b gate, so a merge that reached ZERO remotes could still be
+# reported `ratification=none` — the exact inverse of what that token means.
+n_missing=$(( n_deferred + n_unreached + n_failed ))
 
-if [ -n "$push_failures" ]; then
-  push_status="FAILED"
-  handback git-lock-push "$EX_PUSH" "push=FAILED (id:f5d9(a)): git-lock-push.sh exited 0 but the push could NOT be VERIFIED for at least one remote. The exit code lied (id:dc4f); the merge + tag are committed locally at $pushed_sha, and $n_pushed of the intended remote(s) did receive them. Per-remote evidence: $push_failures Helper output: $push_out"
+# id:5155 — a non-zero helper exit is itself a failure signal even when every remote happened
+# to verify. Fail CLOSED: manufacture a failure record so the unit is queued for the owner
+# rather than silently reported as published on the strength of a lie we already caught once.
+if [ -n "$push_helper_failed" ] && [ -z "$push_failures" ]; then
+  push_failures="[git-lock-push] the helper exited NON-ZERO while every intended remote verified as carrying $pushed_sha — the two disagree, so this is treated as FAILED (fail-closed). "
 fi
 
 # ── the AGGREGATE `push=` token (see the stdout contract at the foot of this file) ──
@@ -766,7 +795,14 @@ fi
 #   partial    at least one remote received it AND at least one did not (id:4d44 narrowing)
 #   deferred   nothing reached any remote and at least one was withheld
 #   no-upstream  the repo has NO eligible remote at all — nothing to push, nothing withheld
-if [ "$n_pushed" -gt 0 ] && [ "$n_missing" -eq 0 ]; then
+#   FAILED     at least one remote was intended, attempted, and could not be VERIFIED
+# id:5155 — FAILED is computed HERE, alongside the others, and the handback that reports it
+# is deferred until AFTER step 8b. Previously the handback fired from the middle of this
+# block, so the enqueue below was unreachable on the one path where an unpublished land is
+# most likely (an unreachable LAN origin fails EVERY substantive unit in the run).
+if [ -n "$push_failures" ]; then
+  push_status="FAILED"
+elif [ "$n_pushed" -gt 0 ] && [ "$n_missing" -eq 0 ]; then
   push_status="pushed"
 elif [ "$n_pushed" -gt 0 ]; then
   push_status="partial"
@@ -842,9 +878,16 @@ log "step8 id:4d44 substantive=${substantive:-unset} push=$push_status pushed=[$
 #    entry. Closing it properly needs a two-phase record (write `landing` pre-tag, promote it
 #    post-tag) which changes the queue contract ratify-queue.sh consumes — an owner call, not
 #    a silent widening here.
-case "$push_status" in deferred|no-upstream|partial) ratify_enqueue=1 ;; *) ratify_enqueue="" ;; esac
+#
+#    id:5155 ADDS THE FOURTH CLASS — `FAILED`. It was missing from this arm, and the
+#    push-failure handback fired BEFORE this line anyway, so a landed merge that reached ZERO
+#    remotes produced no queue entry at all and reported `ratification=none`. Both halves are
+#    fixed: FAILED joins the arm, and the handback now fires AFTER the enqueue. A failed
+#    remote is a PENDING remote — it is in `pending_remotes` exactly like a deferred one,
+#    because from the owner's side the state is identical: the merge is not there.
+case "$push_status" in deferred|no-upstream|partial|FAILED) ratify_enqueue=1 ;; *) ratify_enqueue="" ;; esac
 if [ -n "$ratify_enqueue" ]; then
-  pending_csv="$(printf '%s%s' "$push_deferred" "$push_unreached" | awk 'NF{printf "%s%s", sep, $0; sep=","}')"
+  pending_csv="$(printf '%s%s%s' "$push_deferred" "$push_unreached" "$push_failed" | awk 'NF{printf "%s%s", sep, $0; sep=","}')"
   pushed_csv="$(printf '%s' "$push_pushed" | awk 'NF{printf "%s%s", sep, $0; sep=","}')"
   ratify_line="$(python3 - "$RATIFY_QUEUE" "$repo" "$path" "$branch" "$worktree" "$merged_head" "$ckpt_tag" \
                    "$run" "$verdict" "$ids" "${bump_version:-}" "$summary" "$label" "${substantive:-unset}" \
@@ -906,6 +949,16 @@ PYEOF
   log "step8b id:4d44 ratification queued in $RATIFY_QUEUE: repo=$repo merged=$merged_head ckpt=$ckpt_tag push=$push_status pending=[$pending_csv] pushed=[$pushed_csv]"
 else
   log "step8b id:4d44/id:f0ad NO ratification entry: push=$push_status — every eligible remote ($(printf '%s' "$push_pushed" | tr '\n' ' ')) received the merge, so nothing is waiting for the owner"
+fi
+
+# ── step 8c: the PUSH-FAILURE handback (id:f5d9(a)), MOVED here by id:5155. ──────────
+#    It used to fire from the middle of step 8, which pre-empted the enqueue above entirely.
+#    The unit IS landed (merge committed, ckpt tag written) and is now ALSO queued, so this
+#    surfaces as LANDED-BUT-UNFINISHED with `ratification=pending` — never as a retryable
+#    defer, and never as the `ratification=none` that the stdout contract defines as "every
+#    eligible remote carries the merge".
+if [ -n "$push_failures" ]; then
+  handback git-lock-push "$EX_PUSH" "push=FAILED (id:f5d9(a)/id:5155): the push could NOT be VERIFIED for at least one remote. The exit code is not evidence (id:dc4f); the merge + tag are committed locally at $pushed_sha, $n_pushed of the intended remote(s) did receive them, and this unit IS recorded in the ratification queue (ratification=$ratify_status). Per-remote evidence: $push_failures Helper output: $push_out"
 fi
 
 # ── step 9: worktree-retire (id:373e force-free; id:6e02 scope = EXACTLY this pair). ──
@@ -1019,11 +1072,15 @@ printf 'ckpt=%s\n'   "$ckpt_tag"
 # `ratification=pending` ⇔ at least one remote is still missing the merge (or it reached
 # none at all) and the durable queue entry NAMES them; `ratification=none` ⇔ every eligible
 # remote carries it. See step 8b's header for the full definition.
+# id:5155 — that ⇔ now holds on the FAILED path too. A remote whose push could not be
+# VERIFIED counts as MISSING, so a landed merge that reached zero remotes is queued and
+# reports `ratification=pending` (on the handback's stderr block); `ratification=none` is
+# emitted ONLY when every eligible remote demonstrably carries the merge.
 printf 'push=%s\n'   "$push_status"
 if [ -n "$push_lines" ]; then
   printf '%s' "$push_lines"
 fi
-printf 'pushPending=%s\n' "$(printf '%s%s' "$push_deferred" "$push_unreached" | awk 'NF{printf "%s%s", sep, $0; sep=","}')"
+printf 'pushPending=%s\n' "$(printf '%s%s%s' "$push_deferred" "$push_unreached" "$push_failed" | awk 'NF{printf "%s%s", sep, $0; sep=","}')"
 printf 'ratification=%s\n' "$ratify_status"
 printf 'ts=%s\n'     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 printf 'bump=%s\n'   "${bump_version:-}"

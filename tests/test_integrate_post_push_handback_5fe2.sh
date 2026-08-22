@@ -172,17 +172,28 @@ pass "(B) POST-push failure (retire, 28): merged=<sha>+handback=<step> on the wi
 pass "(A/B) the caller's resulting state DIFFERS between the two classes"
 
 # =====================================================================================
-# (C) push(27) SPECIAL CASE — the push itself failed, so the remote is untouched: DEFERRED.
+# (C) push(27) — SUPERSEDED BY id:a726(a). This case used to assert DEFERRED (acceptance 4:
+#     "the push failed, so the remote is untouched, so a retry is correct"). That premise was
+#     WRONG about the local side: step 7 writes the ckpt tag BEFORE step 8 pushes, so by the
+#     time a push can fail the merge is on main AND tagged. A retry takes the zero-commit path
+#     and is stopped by id:8739's isolation gate at exit 21, reported as a FALSE main-checkout
+#     breach for a unit that is really "already merged and tagged, push failed".
+#     The class is therefore LANDED-BUT-UNFINISHED — the same class as (B) — and id:5155 adds
+#     the durable ratification-queue entry that makes it actionable.
 # =====================================================================================
 CASE_EXTRA=(--substantive false)   # id:4d44 — only a NON-substantive unit still pushes
 run_case push INTEGRATE_GIT_LOCK_PUSH="$BAD_STUB"
 CASE_EXTRA=()
 [[ $RC -eq 27 ]] || fail "(C) expected exit 27 (push), got $RC: $(cat "$ERRF")"
-grep -qE '^merged=' "$ERRF" && fail "(C) push(27) advertised a landed merge — the push FAILED, the remote is untouched"
+grep -qE '^merged=' "$ERRF" \
+  || fail "(C/a726a) push(27) hid the landed merge — the merge + ckpt tag ARE committed, so merged= must be on the wire: $(cat "$ERRF")"
 PUSH_JSON="$(parse_of "$RC" "$ERRF")"
-[[ "$(jget deferred <<<"$PUSH_JSON")" == "True" ]] || fail "(C) push(27) not parsed as DEFERRED: $PUSH_JSON"
-[[ "$(jget landedUnfinished <<<"$PUSH_JSON")" == "False" ]] || fail "(C) push(27) parsed as landed: $PUSH_JSON"
-pass "(C) push(27) is DEFERRED, not landed (acceptance 4)"
+[[ "$(jget deferred <<<"$PUSH_JSON")" == "False" ]] \
+  || fail "(C/a726a) push(27) parsed as DEFERRED — the caller would retry a merge that is already on main and already tagged: $PUSH_JSON"
+[[ "$(jget landedUnfinished <<<"$PUSH_JSON")" == "True" ]] \
+  || fail "(C/a726a) push(27) not parsed as LANDED-BUT-UNFINISHED: $PUSH_JSON"
+[[ "$(jget handbackStep <<<"$PUSH_JSON")" == "git-lock-push" ]] || fail "(C) parse lost the handback step: $PUSH_JSON"
+pass "(C/a726a) push(27) is LANDED-BUT-UNFINISHED, not a retryable defer (acceptance 4, superseded by id:a726(a))"
 
 # =====================================================================================
 # (D) HAPPY PATH UNCHANGED — a full success still parses as merged (no regression).
