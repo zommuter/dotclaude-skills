@@ -1637,7 +1637,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Acceptance**: ROADMAP.md id:7518 body states the correlation across 3 widths with n-per-width and the ~10pp-at-n=10 caveat, ranks every surviving hypothesis with a confirm-observation and a kill-observation, and either ticks the item (only if clause 6 is genuinely met) or explains why it stays open
   - **Done-check**: manual reviewer read of the updated ROADMAP.md block against Acceptance clauses 1-7
   - **Context**: ROADMAP.md:1653 (id:7518 block)
-- [ ] **[ROUTINE]** flake-log width=1 confirmation run #1 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:97e0 -->
+- [ ] **[INPUT — decision]** flake-log width=1 confirmation run #1 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:97e0 --> — 🚧 GATED (auto, id:3801; route:human): flake-log -j1 (sequential full suite) exceeds one executor turn's wall-clock budget under current host load (~10-16 loadavg); needs a longer-lived/background run or a lower-load window, not a code change. — needs /relay human
   - **Acceptance**: tests/flake-log.sh -j 1 completes and appends one new row to ~/.cache/dotclaude-flake/runs.jsonl with ts after 2026-08-21T10:58:33Z
   - **Done-check**: grep the new row's ts in ~/.cache/dotclaude-flake/runs.jsonl; rc recorded per the row's rc (0 or failure logged)
   - **Context**: tests/flake-log.sh, ~/.cache/dotclaude-flake/runs.jsonl
