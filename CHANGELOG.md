@@ -14,6 +14,7 @@
 - id:1171 — residual half closed: the commit-message fallback's bare-token grep is now anchored to the id marker via the shared typed_edges_own_id_of_line (id:1171)
 - id:65ad + id:d51f(b) — fleet bump_policy now defaults to minor; three-state reader (absent / parsed / present-but-unparsed) warns and defaults on an unrecognised value; two stale prose contracts refreshed (d51f stays open on its unbuilt writer half) (id:65ad,d51f)
 - id:4d44 — relay/references/human.md corrected to the per-remote push narrowing; 3 cross-repo inbox items ingested (id:4d44)
+- Review re-ask (id:8123): d51f writer enum guard + f66e diary push-narrowing both verified genuine (mutation-checked both directions), suite 491/0/1, no gaming routine_open=3 (id:d51f,f66e)
 
 ## 2026-08-21
 
