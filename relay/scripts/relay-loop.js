@@ -3212,13 +3212,24 @@ async function integrate(unit, report) {
   // The ckpt `-c` anchor (id:8e3e zero-commit vs id:25aa post-merge tip) is DERIVED from
   // whether the merge moved HEAD, not judged.
   //
-  // THE ONE RESIDUAL, deliberately NOT guessed here: the semver bump trigger ("one bump per
-  // USER-OBSERVABLE close; a refactor-only close does NOT bump", id:e647). It is driven by
-  // this unit's `substantive` signal — and when that cannot settle user-observability,
-  // integrate.sh HANDS BACK LOUDLY (`HANDBACK[bump]`, exit 30) BEFORE any mutation rather
-  // than silently bumping or silently skipping. It resolves without asking on a version-less
-  // repo (nothing to bump), on a non-substantive close, or from a durable per-repo
-  // `bump_policy` in relay.toml.
+  // THE SEMVER BUMP TRIGGER (id:e647) is resolved in integrate.sh from this unit's
+  // `substantive` signal, a version-less repo (nothing to bump), a durable per-repo
+  // `bump_policy` in relay.toml — and, since id:65ad (owner-ratified 2026-08-22), a
+  // FLEET DEFAULT of `minor` when NO policy is recorded. A policy-less manifest repo
+  // therefore BUMPS; it no longer hands back. `HANDBACK[bump]` (exit 30) still fires,
+  // loud and pre-mutation, for a bump_policy line that is PRESENT BUT UNPARSED (malformed
+  // RHS, or a near-miss key like `bumppolicy`) — that is not the absent case, and under a
+  // default it would silently bump against a recorded `never`. A parsed-but-UNRECOGNISED
+  // value (`auto`, `mnior`) warns loudly and takes the default instead (id:d51f(b)).
+  //
+  // The fleet default is a DELIBERATE, owner-ratified OVERRIDE of the ratified
+  // 2026-07-17-1541 D1 rule ("a refactor-only / internal-cleanup close does NOT bump"),
+  // not a convenience — under a level policy there is no no-bump branch, so refactor-only
+  // closes bump too. The owner's stated reasoning CONTESTS D1's premise rather than merely
+  // outweighing it: a refactor-only close asserts a functional identity it cannot actually
+  // guarantee, so minting a version is the honest signal; the carve-out he named is
+  // formally-verified code (e.g. Lean), where that identity can be mechanically
+  // established. Full rationale: relay/references/conventions.md, "Semver bump trigger".
   //
   // id:ba7e — the CANONICAL main checkout below is a DELIBERATE exception to id:34b7's
   // no-main-checkout rule, not an oversight. The integrator is not an execute/review child:
