@@ -219,7 +219,26 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
   roadmap_archive="$path/ROADMAP.archive.md"
   while IFS= read -r oref; do
     [[ -n "$oref" ]] || continue
-    oid="$(head -1 < <(git -C "$path" show --stat "$oref" 2>/dev/null | grep -oE 'id:[0-9a-f]{4}') | sed 's/id://' || true)"
+    # BRANCH NAME first, commit message only as a FALLBACK (defect found live on loderite
+    # 2026-08-22, upstream of id:a360). The ref name is the AUTHORITATIVE encoding of the item:
+    # worktree-retire.sh parks as relay/orphan/$(basename <worktree-dir>) and the worktree dir is
+    # relay-loop.js's `${runId}-${unitKey}` with unitKey = "<verdict>-<itemId|repo>-<attempt>",
+    # so the item sits in a fixed, parseable position. The commit MESSAGE does not: a
+    # commit-and-park residue commit is written by the PARKING MECHANISM, and its only `id:`
+    # token is the mechanism's own — e.g. "chore(relay): WIP UNVERIFIED residue auto-commit for
+    # worktree relay-20260820-180056-4594-execute-57d1-0 (id:f272 commit-and-park; …)". The
+    # message-only derivation therefore bound that orphan to f272; id:57d1 never reached
+    # discover-repo.sh's suppressed_item_ids, relay-loop.js's namedItemsFor (id:b09e) could not
+    # subtract it, and it was selected anyway — whereupon the id:dd7d guard, which binds by
+    # BRANCH NAME through stranded-branch-scan.sh and therefore DID see it, starved the repo for
+    # three consecutive runs (id:a360). Both mechanisms now use the same key. Note this is
+    # precisely the class where the binding matters most: a residue commit is what an executor
+    # dying mid-work produces.
+    # The FALLBACK is load-bearing, not defensive: a repo-scoped unit's unitKey is
+    # "<verdict>-repo-<attempt>" and encodes NO item, so those refs must keep binding via the
+    # message exactly as before — as must a hand-renamed orphan (dd7d trap (ii)).
+    oid="$(sed -nE 's/.*-[a-z]+-([0-9a-f]{4})-[0-9]+$/\1/p' <<<"${oref##*/}")"
+    [[ -n "$oid" ]] || oid="$(head -1 < <(git -C "$path" show --stat "$oref" 2>/dev/null | grep -oE 'id:[0-9a-f]{4}') | sed 's/id://' || true)"
     suppress=false; why=""
     if [[ -n "$oid" && -f "$roadmap" ]]; then
       # ROADMAP union = live ∪ archive, OPEN-ANYWHERE-WINS (see the precedence note above —
