@@ -123,8 +123,13 @@
 #                                 No bump.
 #   5. relay.toml bump_policy   → [repos.<repo>] bump_policy = never|minor|patch, a durable
 #                                 per-repo standing judgement the owner records ONCE.
-#   6. otherwise                → UNDETERMINABLE. HANDBACK[bump] (exit 30), LOUD, BEFORE any
-#                                 mutation. NEVER a silent bump; NEVER a silent skip.
+#   6. NO bump_policy recorded  → FLEET DEFAULT minor (id:65ad, owner-ratified 2026-08-22).
+#                                 An EXPLICIT owner OVERRIDE of the 2026-07-17-1541 D1 rule,
+#                                 not a convenience — see the block at the fallback site for
+#                                 what it costs and why `minor`, not `patch`.
+#   7. bump_policy set to an    → UNDETERMINABLE. HANDBACK[bump] (exit 30), LOUD, BEFORE any
+#      UNRECOGNISED value         mutation. NEVER a silent bump; NEVER a silent skip. A typo'd
+#                                 policy is NOT the absent case and never takes the default.
 # Resolution happens pre-merge on purpose: a deferred repo is left byte-identical.
 #
 # Usage:
@@ -499,9 +504,36 @@ else
   case "$policy" in
     never)         bump_reason="relay.toml [repos.$repo] bump_policy = never" ;;
     minor|patch)   bump_level="$policy"; bump_reason="relay.toml [repos.$repo] bump_policy = $policy" ;;
+    # ── FLEET DEFAULT (id:65ad) — READ THIS BEFORE "TIDYING" IT AWAY ────────────────
+    # No explicit bump_policy for this repo => default to `minor`. This is a DELIBERATE,
+    # OWNER-RATIFIED OVERRIDE (2026-08-22, meeting D12) of a ratified decision — NOT an
+    # accidental config default, and not a convenience.
+    #
+    # WHAT IT OVERRIDES, stated plainly: meeting 2026-07-17-1541 D1 ratified "one bump per
+    # USER-OBSERVABLE close; a refactor-only / internal-cleanup close does NOT bump".
+    # There is NO no-bump branch under any LEVEL policy here — a level bumps on EVERY
+    # integrate — so under this default a refactor-only close WILL mint a version,
+    # contrary to that rule. The owner accepted that cost knowingly: the trigger it
+    # replaces was handing back three repos in a single pool run (puzzle-pwa, csgebra,
+    # leAIrn2learn), and it also permanently silences the per-repo escalation the gate
+    # existed to force. Whether to add a genuine no-bump branch so D1 can survive under a
+    # level policy is SURFACED IN id:65ad AND NOT DECIDED — do not invent one here.
+    #
+    # WHY `minor` AND NOT `patch`: under the loose-0.x rule, `patch` means bugfix-ONLY, so
+    # it is the harmful UNDER-signal for a defaulted feature close (it tells a consumer
+    # "nothing new here" when something new landed). `minor` is the harmless OVER-signal.
+    #
+    # SCOPE: manifest repos only — a version-less repo (this one, id:8ef3) resolved several
+    # branches above and never reaches here. An EXPLICIT bump_policy, --level, --no-bump,
+    # and --substantive false ALL still outrank this default; it is the last resort.
+    "")            bump_level="minor"
+                   bump_reason="FLEET DEFAULT bump_policy = minor (id:65ad, owner-ratified 2026-08-22) — no explicit [repos.$repo] bump_policy in $policy_toml" ;;
     *)
+      # An explicit but UNRECOGNISED value (a typo) is NOT the absent case and must NEVER be
+      # silently defaulted — that would make the config unfalsifiable. It stays a LOUD
+      # HANDBACK[bump], pre-merge, with main byte-identical (id:e647).
       handback bump "$EX_BUMP" \
-        "SEMVER BUMP TRIGGER UNRESOLVABLE for [$repo] (id:e647). This is a MANIFEST repo, so a bump is possible, and --substantive is '${substantive:-unset}' — which does NOT establish whether this close is USER-OBSERVABLE. That is a ratified reviewer judgement (meeting 2026-07-17-1541 D1) and is NOT derivable, so this script refuses to guess in either direction: it will neither silently bump nor silently skip. NOTHING was mutated — main is byte-identical and the worktree is on disk. Resolve by re-running with ONE of: --level minor|patch (user-observable close), --no-bump (refactor-only/internal close), or by recording a durable standing judgement as bump_policy = never|minor|patch in [repos.$repo] of $policy_toml." ;;
+        "SEMVER BUMP TRIGGER UNRESOLVABLE for [$repo] (id:e647): relay.toml [repos.$repo] sets bump_policy = '$policy', which is not one of never|minor|patch. An UNRECOGNISED policy value is never silently defaulted (the fleet default, id:65ad, applies only when NO policy is recorded) and is never guessed in either direction. NOTHING was mutated — main is byte-identical and the worktree is on disk. Resolve by fixing bump_policy in [repos.$repo] of $policy_toml (never|minor|patch), or by re-running with --level minor|patch or --no-bump." ;;
   esac
 fi
 log "step3c bump-trigger: level=${bump_level:-none} — $bump_reason"
