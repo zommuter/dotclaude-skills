@@ -13,9 +13,37 @@ mid-transform (427 sites / 162 files) reached for `git checkout -- .`.
 
 `~/.claude/settings.json` already lists these under `permissions.ask`, which PROMPTS
 in every mode — so under an unattended `--afk` pool run each one is a STALL by
-construction (nobody is there to answer).  `permissions.deny` fails closed but is
-mode-blind: it would also remove the interactive escape a human legitimately wants.
-A PreToolUse hook is the lever because it fails closed AND can be context-aware.
+construction (nobody is there to answer).
+
+OWNER RULING 2026-08-22 — UNCONDITIONAL DENY.  DO NOT RE-LITIGATE.
+------------------------------------------------------------------
+All five guarded ops are now DENIED in every context.  There is no context branch and
+no defer-to-`permissions.ask`.  The argument, in full, so nobody reopens it:
+
+  This is a PreToolUse hook on **Claude's Bash tool**.  It governs what the AGENT may
+  run — it does not govern the human.  A human who genuinely needs `git reset --hard`
+  types it in their own terminal, where this hook does not exist and never fires.
+
+  Therefore the "interactive escape a human legitimately wants" that this header used
+  to cite as the reason not to use `permissions.deny` was never an escape for the
+  human at all.  It was an escape for the AGENT — and there is no case in which an
+  agent should perform an unrecoverable, tree-wide revert on the owner's repository.
+  Denying costs the human exactly nothing.
+
+  This also disposes of the old note that "`deny` is worse than `ask` because it
+  cannot be approved".  That objection was written about a FALSE deny produced by the
+  id:6f62 heartbeat bug (every interactive session hard-denied).  A CORRECT deny being
+  un-approvable is not a defect; it is the entire point.
+
+  Motivating incident (2026-08-22): a delegated review agent ran `git reset --hard`.
+  The guard classified the session INTERACTIVE and deferred, so `permissions.ask`
+  fired a prompt at ~02:00 with the owner asleep — the agent stalled and the owner
+  woke to an unanswerable request.  The guard behaved exactly as designed; the design
+  was wrong.
+
+  NOT in scope, deliberately (TODO id:6a6b): no whitelist/exemption for disposable
+  worktrees.  Owner ruled: ship the deny first, relax later ONLY for a context the
+  guard can PROVE.  A premature exemption reopens the hole.
 
 WHAT IT BLOCKS  (tree-wide only)
 --------------------------------
@@ -32,11 +60,29 @@ gets routed around into the tree-wide form)
   git checkout <branch> / -b <branch>      git reset / git reset --soft / --mixed
   git clean -n / --dry-run                 git stash / pop / list / show
 
-CONTEXT DETECTION  (acceptance clause 3)
-----------------------------------------
-Three-way, positive-signal based, ambiguity resolving to BLOCK:
+CONTEXT DETECTION  (REPORT-ONLY since the 2026-08-22 ruling)
+------------------------------------------------------------
+`detect_context()` NO LONGER DECIDES ANYTHING.  Nothing in this file branches on its
+result; the deny is unconditional.  It survives for one purpose only: so the refusal
+message can NAME the situation it fired in, which is what made the id:6f62 and id:8987
+defects diagnosable.  Keep that in mind before wiring it into a new decision.
 
-  UNATTENDED  → BLOCK (deny, fails closed).  Signalled by ANY of:
+WHAT WAS DONE WITH THE NOW-DEAD `interactive` BRANCH, AND WHY
+------------------------------------------------------------
+It was REMOVED, not merely left unreferenced.  The branch read: `CLAUDE_CODE_ENTRYPOINT
+== "cli"` and no unattended signal ⇒ "interactive" ⇒ a human is present.  That claim is
+FALSE, and not only because the deny is now unconditional: a human-launched CLI session
+keeps the same `CLAUDE_CODE_ENTRYPOINT=cli` after the human walks away, which is exactly
+what happened at ~02:00 on 2026-08-22.  The entrypoint records HOW the session was
+started, never WHO is currently watching it; no environment variable available here can
+establish presence.  Leaving a function that asserts presence on evidence that cannot
+establish it is a trap for the next reader who reuses it — so the verdict is gone.
+
+`detect_context()` is therefore TWO-WAY now: 'unattended' (a positive unattended signal
+fired) or 'ambiguous' (none did).  `CLAUDE_CODE_ENTRYPOINT` is still REPORTED in the
+trigger string — it is useful diagnostics — but it no longer produces a verdict.
+
+  UNATTENDED  (reported).  Signalled by ANY of:
                   * env RELAY_RUN_ID or CLAUDE_RELAY_RUN_ID non-empty
                     (the relay loop's own run marker — relay/scripts/discover-prelude.sh)
                   * env RELAY_AFK / CLAUDE_UNATTENDED truthy
@@ -51,25 +97,24 @@ Three-way, positive-signal based, ambiguity resolving to BLOCK:
                     `discovery-producer` daemon (fixed runId, 2100s TTL, id:54fc)
                     therefore hard-DENIED every interactive session.
 
-  INTERACTIVE → DEFER (stay silent; the existing `permissions.ask` entry prompts a
-                human, who can approve exactly as the owner did on 2026-08-21).
-                Requires the POSITIVE signal CLAUDE_CODE_ENTRYPOINT == "cli"
-                AND no unattended signal above.
-
-  AMBIGUOUS   → BLOCK.  Anything else is ambiguous and resolves to the SAFE side:
-                  * no entrypoint signal at all (env not propagated / unknown harness)
+  AMBIGUOUS   (reported).  No positive unattended signal was identified.  The trigger
+                string still distinguishes the interesting sub-cases:
+                  * `CLAUDE_CODE_ENTRYPOINT=cli` — reported, explicitly annotated as
+                    NOT evidence that a human is present (see above)
                   * an unrecognised CLAUDE_CODE_ENTRYPOINT value (e.g. an sdk/print
-                    headless entrypoint — those are unattended by nature)
+                    headless entrypoint)
+                  * no entrypoint signal at all (env not propagated / unknown harness)
                   * the heartbeat probe ERRORED (directory present but unreadable, a
                     marker file that will not parse, a LIVE marker whose runId is empty
                     or not a string (id:8987), or the shared pool-run predicate could
-                    not be loaded) — we cannot tell whether a pool run is live, so we
-                    assume it is
+                    not be loaded)
                 An ABSENT heartbeat directory is NOT an error — it just means the relay
                 is not installed/running here, and contributes no signal.
 
-  Set DESTRUCTIVE_GIT_GUARD_CONTEXT=unattended|interactive to force a branch (used by
-  the tests; also an owner escape hatch).
+  DESTRUCTIVE_GIT_GUARD_CONTEXT=unattended|ambiguous forces the REPORTED label.  It is
+  no longer an escape hatch and CANNOT unblock anything — in particular the historical
+  value `interactive` is accepted on input but IGNORED (reported as such), because
+  honouring it would reintroduce the 2026-08-22 incident verbatim.
 
 PARSE AMBIGUITY also resolves to BLOCK: if the command cannot be tokenised (shlex
 error, command substitution, heredoc), a conservative regex scan for the unmistakable
@@ -78,14 +123,16 @@ paths); a false allow destroys work.
 
 WIRING
 ------
-DELIBERATELY NOT wired into settings.json by this change (id:3a09 acceptance 5) —
-wiring changes behaviour for every session at once and an over-blocking guard is worse
-than none.  `make install-hooks` symlinks it into ~/.claude/hooks/; activation is the
-owner's, by adding it to the PreToolUse/Bash matcher.
+WIRED.  The owner activated it in `~/.claude/settings.json` (PreToolUse/Bash matcher) on
+2026-08-21, and on 2026-08-22 it demonstrably stopped an agent's `git reset --hard`.
+`make install-hooks` symlinks it into ~/.claude/hooks/.  The `permissions.ask` entries
+for these five forms are now redundant — this hook denies first — but they are harmless
+and are left alone.
 
 Output
 ------
-A PreToolUse deny object on stdout when blocking; nothing (exit 0) otherwise.
+A PreToolUse deny object on stdout whenever one of the five forms is present; nothing
+(exit 0) otherwise.
 """
 import importlib.util
 import json
@@ -211,38 +258,62 @@ def _heartbeat_signal(env) -> Tuple[str, str]:
 
 def detect_context(env=None) -> Tuple[str, str]:
     """
-    Return (context, trigger) where context is
-    'unattended' | 'interactive' | 'ambiguous' and `trigger` names the CONCRETE
-    signal that decided it (id:6f62 — the refusal must report what actually fired,
-    not assert a compound reason).
+    REPORT-ONLY (owner ruling 2026-08-22).  Return (context, trigger) where context is
+    'unattended' | 'ambiguous' and `trigger` names the CONCRETE signal observed (id:6f62
+    — the refusal must report what actually fired, not assert a compound reason).
+
+    NOTHING BRANCHES ON THIS.  All five guarded forms deny unconditionally; this only
+    annotates the refusal.  Do not reintroduce a decision here without re-reading the
+    ruling in the module docstring.
+
+    The third verdict 'interactive' is DELETED.  `CLAUDE_CODE_ENTRYPOINT=cli` records how
+    the session was STARTED, not whether a human is watching it now — a human-launched
+    session that keeps working after the human walks away carries the identical value, and
+    that is precisely the 2026-08-22 incident.  Nothing readable from this process can
+    establish presence, so no verdict here claims it.
     """
     env = os.environ if env is None else env
 
     forced = (env.get("DESTRUCTIVE_GIT_GUARD_CONTEXT") or "").strip().lower()
-    if forced in ("unattended", "interactive", "ambiguous"):
-        return forced, f"DESTRUCTIVE_GIT_GUARD_CONTEXT={forced} (forced)"
+    if forced in ("unattended", "ambiguous"):
+        return forced, f"DESTRUCTIVE_GIT_GUARD_CONTEXT={forced} (forced label)"
+    ignored_force = ""
+    if forced:
+        # Historically 'interactive' selected the defer branch.  Accepted on input so an
+        # old caller does not error, but it decides NOTHING — honouring it would
+        # reintroduce the incident this guard was re-specified to prevent.
+        ignored_force = (
+            f"DESTRUCTIVE_GIT_GUARD_CONTEXT={forced} (IGNORED — no context can "
+            f"unblock these forms); "
+        )
 
     for var in ("RELAY_RUN_ID", "CLAUDE_RELAY_RUN_ID"):
         val = env.get(var, "").strip()
         if val:
-            return "unattended", f"{var}={val}"
+            return "unattended", f"{ignored_force}{var}={val}"
     for var in ("RELAY_AFK", "CLAUDE_UNATTENDED"):
         if _truthy(env.get(var)):
-            return "unattended", f"{var}={env.get(var, '').strip()}"
+            return "unattended", f"{ignored_force}{var}={env.get(var, '').strip()}"
 
     hb, detail = _heartbeat_signal(env)
     if hb == "live":
-        return "unattended", f"live pool heartbeat: {detail}"
+        return "unattended", f"{ignored_force}live pool heartbeat: {detail}"
     if hb == "error":
-        return "ambiguous", f"heartbeat probe ERRORED: {detail}"
+        return "ambiguous", f"{ignored_force}heartbeat probe ERRORED: {detail}"
 
     entrypoint = env.get("CLAUDE_CODE_ENTRYPOINT", "").strip()
     if entrypoint == "cli":
-        return "interactive", "CLAUDE_CODE_ENTRYPOINT=cli, no unattended signal"
+        # REPORTED, never a verdict: this says the session was STARTED from the CLI, which
+        # is NOT evidence that a human is present at it now (2026-08-22 incident).
+        return "ambiguous", (
+            f"{ignored_force}no unattended signal identified; "
+            f"CLAUDE_CODE_ENTRYPOINT=cli (how the session STARTED — NOT evidence "
+            f"a human is present)"
+        )
     if entrypoint:
-        return "ambiguous", f"unrecognised CLAUDE_CODE_ENTRYPOINT={entrypoint}"
+        return "ambiguous", f"{ignored_force}unrecognised CLAUDE_CODE_ENTRYPOINT={entrypoint}"
 
-    return "ambiguous", "no CLAUDE_CODE_ENTRYPOINT signal at all"
+    return "ambiguous", f"{ignored_force}no CLAUDE_CODE_ENTRYPOINT signal at all"
 
 
 # ── command classification ───────────────────────────────────────────────────
@@ -408,15 +479,18 @@ def find_violation(command: str) -> Optional[str]:
 # The context line REPORTS the signal that actually fired (id:6f62) rather than
 # asserting a compound "relay run id / live heartbeat detected", which read as fact
 # even when neither applied.
+# Since the 2026-08-22 ruling the context is REPORTED, never decisive — both lines say so
+# explicitly, so nobody reads the refusal as "this would have been allowed elsewhere".
 _CONTEXT_LINE = {
     "unattended": (
-        "Context: UNATTENDED — trigger: {trigger}. No human is here to answer the "
-        "permissions.ask prompt, so this guard fails closed."
+        "Context: UNATTENDED — trigger: {trigger}. Reported for diagnosis only: this "
+        "refusal is UNCONDITIONAL and does not depend on the context."
     ),
     "ambiguous": (
-        "Context: AMBIGUOUS — trigger: {trigger}. Ambiguity resolves to the safe side, so "
-        "this guard blocks. Re-run in a confirmed interactive session, or set "
-        "DESTRUCTIVE_GIT_GUARD_CONTEXT=interactive if you are certain a human is watching."
+        "Context: AMBIGUOUS (no positive unattended signal identified) — trigger: "
+        "{trigger}. Reported for diagnosis only: this refusal is UNCONDITIONAL and does "
+        "not depend on the context. There is no interactive escape — this hook governs "
+        "the AGENT's Bash tool, not your terminal; run it there if you really mean it."
     ),
 }
 
@@ -488,10 +562,11 @@ def main() -> None:
     if form is None:
         return
 
+    # UNCONDITIONAL DENY (owner ruling 2026-08-22 — see the module docstring).  There is
+    # deliberately NO context branch here: `detect_context()` is called only to annotate
+    # the refusal.  A PreToolUse hook governs the AGENT's Bash tool, not the human's
+    # terminal, so there is no legitimate escape to preserve.
     context, trigger = detect_context()
-    if context == "interactive":
-        # Defer to the existing permissions.ask prompt — a human can approve.
-        return
 
     print(json.dumps({
         "hookSpecificOutput": {
