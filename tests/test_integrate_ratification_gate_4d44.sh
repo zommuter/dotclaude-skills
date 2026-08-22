@@ -227,11 +227,20 @@ out4="$(FABLES_CONFIG="$C4" INTEGRATE_GIT_LOCK_PUSH="$LIAR_PUSH" \
 [[ $rc -ne 0 ]] || fail "(4) integrate exited 0 while the remote never moved (id:f5d9(a) false-success push): stdout=$out4"
 [[ $rc -eq 27 ]] || fail "(4) expected the push exit code 27, got $rc"
 grep -q '^push=FAILED$' "$ERRLOG" || fail "(4) no push=FAILED line on stderr: $(cat "$ERRLOG")"
-grep -q '^landed=false$' "$ERRLOG" || fail "(4) a failed push must stay PRE-LAND (landed=false) so a retry is correct"
-grep -q '^merged=' "$ERRLOG" && fail "(4) a merged= line on a pre-land exit would advertise a landed merge"
+# ── SUPERSEDED BY id:a726(a) — this used to assert `landed=false` + NO `merged=` line. ──
+#    The reasoning was "the push failed, so nothing was published, so a retry is correct".
+#    It is not: the merge is ALREADY on main and the ckpt tag is ALREADY written (step 7
+#    precedes step 8), so a retry takes the zero-commit path and id:8739's isolation gate
+#    stops it at exit 21 while reporting a FALSE main-checkout breach. The land point is the
+#    CKPT TAG, for every unit — see integrate.sh's "THE LAND POINT" block. The unit is now
+#    LANDED-BUT-UNFINISHED, and (id:5155) also carries a ratification-queue entry.
+grep -q '^landed=true$' "$ERRLOG" || fail "(4/a726a) a failed push is LANDED (the merge + ckpt tag exist), so landed=true: $(cat "$ERRLOG")"
+grep -q '^merged=' "$ERRLOG" || fail "(4/a726a) no merged= line — the caller cannot tell this apart from a pre-land defer"
+grep -q '^ratification=pending$' "$ERRLOG" || fail "(4/5155) a landed merge on zero remotes must report ratification=pending: $(cat "$ERRLOG")"
 grep -q '^push=pushed$' <<<"$out4" && fail "(4) stdout claimed push=pushed while origin is still at $BEFORE4 — the exact defect"
 [[ "$(origin_head "$O4")" == "$BEFORE4" ]] || fail "(4) fixture bug: the liar stub actually pushed"
 pass "(4) id:f5d9(a) a push verified NOT to have landed is reported push=FAILED, not success"
+pass "(4/a726a+5155) ...and it is LANDED-BUT-UNFINISHED with ratification=pending, not a retryable defer"
 
 # =====================================================================================
 # (5) SEAM 3 — a POST-LAND tail failure on a DEFERRED unit is LANDED-BUT-UNFINISHED

@@ -42,7 +42,71 @@
 
 # The builtin, PUBLIC-SAFE half of the classifier: loopback, RFC-1918, and mDNS `.local`.
 # Site-specific hosts NEVER appear here — they live in the private pattern file (see above).
-PRIVATE_REMOTE_BUILTIN_ERE='(^|@|//)(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)|\.local($|[:/])'
+#
+# id:a726(c) — IT MATCHES THE *HOST COMPONENT*, NOT A SUBSTRING OF THE WHOLE URL.
+#   The previous ERE was `(^|@|//)(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)|\.local($|[:/])`
+#   applied to the entire URL string, and it false-positived in the UNSAFE direction:
+#       https://github.com/o/repo.local   → PRIVATE   (`\.local($|[:/])` was unanchored, so a
+#                                                      PATH ending in `.local` matched)
+#       https://10.example.com/o/r.git    → PRIVATE   (`10\.` matched any host whose first
+#                                                      label merely starts "10.")
+#   Inherited byte-identical from hooks/pre-push-privacy-gate.sh, so not a regression — but
+#   the blast radius changed when id:4d44 made this predicate decide whether the relay
+#   AUTO-PUSHES agent-authored work. A wrong PRIVATE verdict PUBLISHES unratified work.
+#   The fix is to parse the host out first (private_remote_host below) and anchor every
+#   alternative to it: a bare `10.` prefix is no longer enough, an IPv4 must be a whole
+#   IPv4, and `.local` must be the end of the HOST, never of the path.
+# NOTE the direction of every change here: each one turns a former PRIVATE into a PUBLIC,
+#   i.e. from auto-push toward defer-for-ratification. Nothing that was private became
+#   public-unproven, and the two non-builtin sources below are UNTOUCHED — the fleet's named
+#   LAN hosts match through the private pattern file exactly as before.
+PRIVATE_REMOTE_HOST_ERE='^(localhost|127(\.[0-9]{1,3}){3}|\[?::1\]?|10(\.[0-9]{1,3}){3}|192\.168(\.[0-9]{1,3}){2}|172\.(1[6-9]|2[0-9]|3[01])(\.[0-9]{1,3}){2}|([A-Za-z0-9_-]+\.)*[A-Za-z0-9_-]+\.local)$'
+
+# private_remote_host <remote-url> → prints the HOST component, or NOTHING when the URL has
+# no host at all (a bare filesystem path, `file:///…`, an empty string).
+#
+# THE FORMS THIS FLEET REALLY USES, in the order they are discriminated:
+#   scheme://[user@]host[:port]/path   https://…, ssh://…, git://…, file:///… (no host)
+#   [user@]host:path                   scp-style — `git@github.com:o/r.git`, `host:/srv/x.git`
+#   /any/local/path                    no host; a colon-free relative path likewise
+# `[::1]`-style bracketed IPv6 literals keep their brackets so the ERE can anchor on them.
+#
+# NOT A SUBSTITUTE FOR THIS EITHER — git-lock-push.sh's is_ssh_url(). It answers "does this
+# need SSH AUTH", so it calls `ssh://github.com/…` ssh. Here that URL MUST come out as the
+# PUBLIC host `github.com`; borrowing is_ssh_url's logic would auto-publish agent work.
+#
+# A no-host result is deliberately NOT treated as private: a bare path can still be matched
+# by a `private-host:` directive (the fleet's local bare repos are), and inventing a
+# "paths are local ⇒ private" rule would widen auto-push on a guess. Unknown stays public.
+private_remote_host() {
+  local url="${1-}" rest before host=""
+  if [ -z "$url" ]; then printf ''; return 0; fi
+  case "$url" in
+    *://*)
+      rest="${url#*://}"      # drop the scheme
+      rest="${rest%%/*}"      # drop the path FIRST, so an `@` or `:` in it cannot confuse us
+      rest="${rest%%\?*}"
+      rest="${rest%%#*}"
+      rest="${rest#*@}"       # drop userinfo (a no-op when there is none)
+      case "$rest" in
+        \[*\]*) host="${rest%%\]*}]" ;;   # bracketed IPv6 literal, port (if any) discarded
+        *)      host="${rest%%:*}"   ;;   # drop :port
+      esac
+      ;;
+    *:*)
+      before="${url%%:*}"
+      # A slash BEFORE the colon means this is a filesystem path that happens to contain a
+      # colon, not an scp-style URL. No host.
+      case "$before" in
+        */*) host="" ;;
+        *)   host="${before#*@}" ;;
+      esac
+      ;;
+    *) host="" ;;             # bare local path
+  esac
+  printf '%s' "$host"
+  return 0
+}
 
 # Path of the PRIVATE pattern+allowlist file this predicate reads its `private-host:`
 # directives from. Same env var and same default the privacy-gate hook has always used, so
@@ -80,11 +144,13 @@ private_host_res() {
 #   0 → PRIVATE/LAN (safe to skip a leak scan; safe to push without owner ratification)
 #   1 → PUBLIC or UNKNOWN (scan it; defer the push)
 is_private_remote_url() {
-  local url="${1-}" re
-  # 1. builtin ERE — guarded on a non-empty URL so an empty string can never match `(^|@|//)`
-  #    on some grep implementation and silently declare "private".
-  if [ -n "$url" ]; then
-    if grep -Eq -e "$PRIVATE_REMOTE_BUILTIN_ERE" <<<"$url"; then return 0; fi
+  local url="${1-}" re host
+  # 1. builtin ERE — matched against the parsed HOST (id:a726(c)), never the whole URL.
+  #    Guarded on a non-empty host so an empty string can never match and silently declare
+  #    "private": no host ⇒ unproven ⇒ fall through to sources 2 and 3, then PUBLIC.
+  host="$(private_remote_host "$url")"
+  if [ -n "$host" ]; then
+    if grep -Eq -e "$PRIVATE_REMOTE_HOST_ERE" <<<"$host"; then return 0; fi
   fi
   # 2. environment override (an operator's extra ERE)
   if [ -n "${PRIVACY_GATE_PRIVATE_HOSTS:-}" ]; then
