@@ -2579,9 +2579,19 @@ const branchFor = (unit) => `relay/${state.runId}-${unitKey({ verdict: unit.verd
 // plural instruction left the child free to obey the reason), a live conflict after it.
 // Read the FIELD, never the prose. Case-normalised: classify-repo.sh accepts [0-9a-fA-F] while
 // this filter was lowercase-only, so an uppercase-hex id was counted but silently unnameable.
+// id:a360 — ALSO subtract `unit.stranded_item_ids`, the ids the id:dd7d pre-dispatch guard has
+// found to already carry committed work on a stranded branch THIS round (see
+// strandedDispatchGate below). Same reason the orphan set is subtracted: a stranded item must
+// never be named to a child. Subtracting it HERE — rather than aborting the unit — is what makes
+// dd7d ITEM-scoped in action as well as in its message: selection simply falls through to the
+// next actionable id, and the repo only hands back when EVERY id has been subtracted (loderite
+// starved three consecutive runs on a single stranded first item, id:a360).
 const namedItemsFor = (unit) => {
   const suppressed = new Set(
-    (Array.isArray(unit.suppressed_item_ids) ? unit.suppressed_item_ids : [])
+    [
+      ...(Array.isArray(unit.suppressed_item_ids) ? unit.suppressed_item_ids : []),
+      ...(Array.isArray(unit.stranded_item_ids) ? unit.stranded_item_ids : []),
+    ]
       .filter((x) => typeof x === 'string')
       .map((x) => x.toLowerCase()),
   )
@@ -3641,6 +3651,57 @@ async function strandedBranchesFor(unit) {
   return String(raw).split('\n').map(l => l.trim()).filter(l => l.includes('\t'))
 }
 
+// id:a360 — the ITEM-SCOPED resolution of the id:dd7d guard. dd7d's message always named the
+// ITEM ("… for <repo> item <id> …") but its ACTION was a bare `return` that aborted the whole
+// UNIT and filed a REPO-level handback. Combined with the id:b09e head-of-list selection rule
+// and one-unit-per-repo-per-round (dc5b C2) that is a CLOSED LOOP: the round picks
+// actionable_routine_ids[0], the guard refuses, the repo gets zero dispatch, and the next round
+// makes the identical choice. Observed live on loderite for three consecutive runs
+// (relay-20260822-102233-32252): verdict=execute, priority_rank=1, six actionable ids, only the
+// FIRST stranded — the other five unreachable forever, clearable only by a manual reconcile.
+// That is not what id:bc49/D1 ratified (`orphan exists → surface, never block`; the sole
+// item-scoped carve-out is `same item → reconcile-first, not a duplicate re-dispatch`).
+//
+// WHAT IS PRESERVED, exactly: the dd7d no-blind-redispatch guarantee. A stranded item is NEVER
+// dispatched while stranded — it is recorded on `unit.stranded_item_ids`, which namedItemsFor
+// subtracts, so it can be neither the dispatched item nor one of the child's named alternates.
+// This changes WHICH item is dispatched, never the protection on the stranded one.
+//
+// The handback fires only when EVERY actionable id has been found stranded, and still names
+// every branch found + its commit count (accumulated across the skipped items, de-duplicated,
+// in discovery order) exactly as the repo-scoped form did.
+//
+// `scan` is injected so this decision is testable without the Workflow engine (id:2ec4); the
+// call site passes strandedBranchesFor. FAIL-OPEN is inherited from it: any scan error returns
+// [] and the item dispatches, so this can never itself become a reason no repo can be worked.
+// An INJECTED item (id:baf1 --item) is NOT skipped: the user asked for that specific item, so a
+// stranded branch on it still hands back — skipping would silently work something else.
+async function strandedDispatchGate(unit, scan) {
+  const found = []
+  const seen = new Set()
+  for (;;) {
+    const item = dispatchItemFor(unit)
+    if (!item) return { ok: true, item: '', stranded: found, skipped: [] }
+    const hits = await scan(unit)
+    if (!hits.length) return { ok: true, item, stranded: found, skipped: strandedIdsOf(unit) }
+    for (const line of hits) { if (!seen.has(line)) { seen.add(line); found.push(line) } }
+    if (unit.inject_item) return { ok: false, item, stranded: found, skipped: strandedIdsOf(unit), injected: true }
+    unit.stranded_item_ids = [...strandedIdsOf(unit), item]
+    if (!dispatchItemFor(unit)) return { ok: false, item: '', stranded: found, skipped: strandedIdsOf(unit) }
+  }
+}
+const strandedIdsOf = (unit) => (Array.isArray(unit.stranded_item_ids) ? unit.stranded_item_ids : [])
+
+// id:a360 — the handback text for an all-stranded (or injected-and-stranded) unit. Pure, so the
+// spec can assert it names every branch line found. Keeps dd7d's original opening + its
+// lodelore id:15d2 citation verbatim so existing greps and human readers still recognise it.
+const strandedDispatchReason = (unit, gate) => {
+  const scopeNote = gate.injected
+    ? `injected item ${gate.item}`
+    : `EVERY actionable item (${(gate.skipped || []).map((i) => `id:${i}`).join(', ') || 'none nameable'})`
+  return `id:dd7d stranded branch(es) already carry committed work for ${unit.repo} — ${scopeNote} — refusing re-dispatch to avoid a second child redoing the work blind (lodelore id:15d2): ${gate.stranded.join('; ')}`
+}
+
 // id:e68f — PRE-DISPATCH LEDGER SLICE. The orchestrator extracts exactly what this unit needs
 // (the dispatched item's block, its typed gated-on:/children:/children-of: edges + each edge
 // target's defining line, the item's TODO.md twin, and a repo-state header) into ONE file, and
@@ -3783,6 +3844,32 @@ async function runUnit(unit) {
     scheduleStatusWrite(state)
     return
   }
+  // id:dd7d — pre-dispatch stranded-branch guard (b). Runs BEFORE provisioning (same
+  // ordering rationale as id:ec8a below: a refused dispatch must consume no MAX_UNITS slot
+  // and must not render as in-flight). If a prior attempt already committed a branch for
+  // this exact item — live (relay/*) or parked (relay/orphan/*), any run — do NOT dispatch
+  // a fresh child blind to it (the lodelore id:15d2 incident: a second child redid the work
+  // from scratch and reached a contradictory answer, undetected until a manual integrate).
+  // Hand back naming every branch found + its commit count so a human dispositions it —
+  // this guard never deletes/merges/picks a winner itself.
+  // id:a360 — and it is ITEM-scoped in ACTION, not just in its message: strandedDispatchGate
+  // SKIPS a stranded item (recording it on unit.stranded_item_ids, which namedItemsFor
+  // subtracts) and lets selection fall through to the next actionable id. The handback below
+  // fires only when EVERY actionable item is stranded. It runs BEFORE the slice + size gate
+  // (it used to sit after them) because both are computed from dispatchItemFor(unit): slicing
+  // and sizing an item we then skip would hand the child the WRONG item's slice.
+  const strandedGate = await strandedDispatchGate(unit, strandedBranchesFor)
+  if (!strandedGate.ok) {
+    const reason = strandedDispatchReason(unit, strandedGate)
+    log(`relay-loop: ${reason}`)
+    state.handbacks.push({ repo: unit.repo, reason, worktreePath: '-' })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
+    scheduleStatusWrite(state)
+    return
+  }
+  if (strandedGate.stranded.length) {
+    log(`relay-loop: id:a360 skipped stranded item(s) ${strandedGate.skipped.map((i) => `id:${i}`).join(', ')} for ${unit.repo} (${strandedGate.stranded.join('; ')}) — dispatching the next actionable item id:${strandedGate.item} instead; the stranded item(s) stay un-dispatched (id:dd7d) pending a manual /relay reconcile`)
+  }
   // id:e68f — write this unit's ledger SLICE and stamp unit.slice_path BEFORE the prompt is
   // assembled, so the named-item instructions below can hand the child the path. Fail-open:
   // sliceLedgerForUnit() logs and returns null on any failure, and dispatch continues.
@@ -3806,23 +3893,6 @@ async function runUnit(unit) {
     state.handbacks.push({ repo: unit.repo, reason: oversizeReason, worktreePath: '-' })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: oversizeReason })
     emittedHandbackEvents.push({ repo: unit.repo, reason: oversizeReason })  // id:4a46 backstop
-    scheduleStatusWrite(state)
-    return
-  }
-  // id:dd7d — pre-dispatch stranded-branch guard (b). Runs BEFORE provisioning (same
-  // ordering rationale as id:ec8a below: a refused dispatch must consume no MAX_UNITS slot
-  // and must not render as in-flight). If a prior attempt already committed a branch for
-  // this exact item — live (relay/*) or parked (relay/orphan/*), any run — do NOT dispatch
-  // a fresh child blind to it (the lodelore id:15d2 incident: a second child redid the work
-  // from scratch and reached a contradictory answer, undetected until a manual integrate).
-  // Hand back naming every branch found + its commit count so a human dispositions it —
-  // this guard never deletes/merges/picks a winner itself.
-  const stranded = await strandedBranchesFor(unit)
-  if (stranded.length) {
-    const reason = `id:dd7d stranded branch(es) already carry committed work for ${unit.repo} item ${dispatchItemFor(unit)} — refusing re-dispatch to avoid a second child redoing the work blind (lodelore id:15d2): ${stranded.join('; ')}`
-    log(`relay-loop: ${reason}`)
-    state.handbacks.push({ repo: unit.repo, reason, worktreePath: '-' })
-    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
     scheduleStatusWrite(state)
     return
   }
