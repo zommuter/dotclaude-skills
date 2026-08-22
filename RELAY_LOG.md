@@ -6679,3 +6679,7 @@ integrate id:3866 + id:8987 + id:4c14 — the destructive-git guard can no longe
 ## 2026-08-21 17:30 — integrate (claude-opus-5)
 
 review: verify id:0384 front-door currency gate (red->green, 12/12); owner-ratified integrate [id:0384]
+
+## 2026-08-22 10:52 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+reviewer (claude-opus-4-8): chain-end verify green (484/0/1), gaming clean (6 false-positive skips), @container fix on id:7518+id:372a routine_open=5 [id:7518,372a]
