@@ -64,6 +64,12 @@ fi
 
 WORKTREE_BASE="${RELAY_WORKTREE_BASE:-$HOME/.cache/relay/worktrees}"
 
+# id:1171 — the orphan→item binding below resolves "an item's OWN id" through the SHARED
+# id:46f6/6059 engine rather than a third private definition of it (use-existing-tools).
+# Defines functions only; runs nothing.
+# shellcheck source=/dev/null
+source "$(dirname "$0")/lib-typed-edges.sh"
+
 # actions/surfaced accumulated as TSV lines, folded into JSON by python3 at the end.
 actions_file="$(mktemp)"
 surfaced_file="$(mktemp)"
@@ -247,9 +253,41 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       # rather than swallowed with `2>/dev/null`.
       roadmap_set=("$roadmap")
       [[ -f "$roadmap_archive" ]] && roadmap_set+=("$roadmap_archive")
-      if grep -qE "^[[:space:]]*- \[ \].*id:$oid" "${roadmap_set[@]}"; then
+      # ANCHORED BINDING (id:1171). These tests used to grep a BARE `id:$oid` substring, so
+      # an id merely MENTIONED in some other item's PROSE decided the branch taken. The
+      # asymmetry is what made it a defect rather than noise: a false OPEN match is safe
+      # (we suppress, cost = one manual glance), but a false CLOSED match silently
+      # suppresses NOTHING — the starvation class id:a360 exists to prevent. Measured on
+      # post-fix main: a repo-scoped orphan (`…-execute-repo-0`, no item in its ref name, so
+      # the commit-message fallback is its only path) naming id:d050, with d050 occurring
+      # only inside a closed `- [x]` body, produced `surfaced: []`.
+      #
+      # An item's OWN id is resolved by the SHARED id:46f6/6059 engine
+      # (typed_edges_own_id_of_line), NOT a third private rule. That engine no longer picks
+      # positionally: `<!-- id:X -->` means both "this line IS X" and "this line REFERS to
+      # X", so a line carrying SEVERAL anchored markers resolves to NOTHING and says so on
+      # stderr. Here that lands in the ambiguous⇒suppress branch below — the safe side.
+      # (md-merge.py's _own_id_of_line raises AmbiguousOwnId for the same shape; the two
+      # agree. The FIRST-vs-LAST divergence recorded under id:cc7e was closed by id:6059.)
+      #
+      # The grep is only a cheap CANDIDATE prefilter (checkbox line carrying the anchored
+      # marker); the engine decides. Unchanged: the union is live ∪ archive with
+      # OPEN-ANYWHERE-WINS (open is tested first, across both files), `- [x]` anywhere means
+      # closed ⇒ do NOT suppress (the routed:42c9/8b21 archive-blindness fix), and anything
+      # unresolvable defaults to suppress.
+      open_hit=false; closed_hit=false
+      __open_re='^[[:space:]]*- \[ \]'
+      __closed_re='^[[:space:]]*- \[x\]'
+      while IFS= read -r __line; do
+        [[ -n "$__line" ]] || continue
+        [[ "$(typed_edges_own_id_of_line "$__line")" == "$oid" ]] || continue
+        if   [[ "$__line" =~ $__open_re   ]]; then open_hit=true
+        elif [[ "$__line" =~ $__closed_re ]]; then closed_hit=true
+        fi
+      done < <(grep -hE "^[[:space:]]*- \[[ x]\].*<!-- id:$oid -->" "${roadmap_set[@]}" || true)
+      if [[ "$open_hit" == true ]]; then
         suppress=true; why="parked partial work for id:$oid still OPEN"
-      elif grep -qE "^[[:space:]]*- \[x\].*id:$oid" "${roadmap_set[@]}"; then
+      elif [[ "$closed_hit" == true ]]; then
         suppress=false   # closed (live OR archived) → stale orphan, do not suppress
       else
         suppress=true; why="parked partial work for id:$oid (item not in ROADMAP — ambiguous)"
