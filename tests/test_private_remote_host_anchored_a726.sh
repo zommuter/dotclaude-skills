@@ -106,12 +106,20 @@ nofile="$(PRIVACY_GATE_PATTERNS="$TMP/absent.txt" \
 # no other file may re-derive (the drift class this lib exists to prevent).
 # The needle is SPLIT so this test file does not match itself — that keeps tests/ IN scope,
 # which matters: a test that quietly re-declared the ERE would defeat the whole point.
+#
+# id:b818 — these sweeps MUST prune `.claude/worktrees/`, where the Agent tool's
+# `isolation: worktree` places full checkouts of OTHER branches. Without it the "exactly
+# one definition" assertion counts every sibling agent's in-flight copy and fails on a
+# clean tree — observed live 2026-08-22: ten worktrees, ten false hits. `id:b818` fixed
+# this class in `tests/lint-pipefail-sigpipe.py`, but that fix was file-local, so the
+# pattern reappeared here the same day. Prune nested checkouts generically (any dir
+# carrying a `.git`, file or directory), not just the one path that bit us.
 NEEDLE='PRIVATE_REMOTE_'"HOST_ERE="
-defs="$(grep -rl "$NEEDLE" "$SRC_DIR" --exclude-dir=.git 2>/dev/null | sort)"
+defs="$(grep -rl "$NEEDLE" "$SRC_DIR" --exclude-dir=.git --exclude-dir=worktrees 2>/dev/null | sort)"
 [[ "$defs" == "$SRC_DIR/relay/scripts/lib-private-remote.sh" ]] \
   && ok "a726(c) exactly ONE file defines the builtin host ERE" \
   || bad "a726(c) the builtin host ERE is defined in more than one place: $defs"
-reimpl="$(grep -rln '172\\\.(1\[6-9\]|2\[0-9\]|3\[01\])' "$SRC_DIR" --exclude-dir=.git --exclude-dir=tests 2>/dev/null | sort)"
+reimpl="$(grep -rln '172\\\.(1\[6-9\]|2\[0-9\]|3\[01\])' "$SRC_DIR" --exclude-dir=.git --exclude-dir=worktrees --exclude-dir=tests 2>/dev/null | sort)"
 [[ "$reimpl" == "$SRC_DIR/relay/scripts/lib-private-remote.sh" ]] \
   && ok "a726(c) no second copy of the RFC-1918 alternation anywhere in the repo" \
   || bad "a726(c) the RFC-1918 alternation is re-derived outside the lib: $reimpl"
