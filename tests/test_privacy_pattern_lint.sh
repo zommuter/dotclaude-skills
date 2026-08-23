@@ -8,6 +8,11 @@
 # common English word 63 times with ZERO standalone occurrences. That noise camouflaged a
 # genuine hit — on the very ledger line documenting the noise — and the leak went public.
 # The real pattern file is PRIVATE and never committed, so every case here is SYNTHETIC.
+#
+# THE FIXTURES BELOW MUST STAY SYNTHETIC. A first draft of this file used the actual private
+# token as a fixture, and a fragment of the real username as another — reproducing, inside the
+# regression test for the leak, the exact leak it specs. Use invented tokens with no relation
+# to any real name, and a made-up containing word (Zep/Zeppelin) for the substring case.
 set -uo pipefail
 
 # PRIVACY_AUDIT_BIN lets a mutation check point this spec at a deliberately-broken copy, to
@@ -35,7 +40,7 @@ fi
 # --- THE security property: the lint must NEVER echo the pattern itself -----------------
 leaked=0
 for secret in Zep Bob Ann quo; do
-  printf '%s\n' "$out" | grep -qF -- "$secret" && leaked=1
+  grep -qF -- "$secret" <<<"$out" && leaked=1   # herestring: no SIGPIPE under pipefail
 done
 if [ "$leaked" -eq 0 ]; then
   ok "lint output names INDICES only — no pattern text echoed"
@@ -45,7 +50,7 @@ fi
 
 # --- negative controls: MUST NOT be flagged ---------------------------------------------
 {
-  printf '%s\n' '\bEvi\b'                    # anchored short literal — the prescribed fix
+  printf '%s\n' '\bZep\b'                    # anchored short literal — the prescribed fix
   printf '%s\n' '^Ann$'                      # fully anchored
   printf '%s\n' 'Bob\b'                      # trailing anchor
   printf '%s\n' 'averylongliteralname'       # long enough to be specific
@@ -62,7 +67,7 @@ fi
 
 # --- the exact incident shape: unanchored short literal matches inside a longer word -----
 # Demonstrates WHY the lint exists, using grep directly rather than trusting the claim.
-if printf 'Evidence\n' | grep -qE -- 'Zep' && ! printf 'Evidence\n' | grep -qE -- '\bEvi\b'; then
+if grep -qE -- 'Zep' <<<'Zeppelin' && ! grep -qE -- '\bZep\b' <<<'Zeppelin'; then
   ok "unanchored literal matches inside a word; the \\b form does not (the fix works)"
 else
   bad "word-boundary semantics not as specified"

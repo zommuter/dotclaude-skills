@@ -74,7 +74,7 @@ lint_patterns() {
     esac
     # Contains regex metacharacters that make it specific enough (classes, quantifiers,
     # alternation, escapes like \. — a bare literal has none of these).
-    if printf '%s' "$p" | grep -qE '[][(){}|+*?\\]'; then continue; fi
+    if grep -qE '[][(){}|+*?\\]' <<<"$p"; then continue; fi
     if [ "${#p}" -lt "$PRIVACY_AUDIT_SHORT_LEN" ]; then
       printf 'pattern #%d: SHORT (%d chars) and UNANCHORED — will match inside longer words; anchor it with \\b\n' \
         "$i" "${#p}"
