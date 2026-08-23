@@ -229,6 +229,21 @@ else
   fail "(B6) the state.queued hardDeferred.map does not surface gateReason — deferred hard units render without the --afk reason (id:8c85 vanish class)"
 fi
 
+# (B7, id:84c5) --intensive IMPLIES --afk, and that implication must hold IN CODE, not only in
+# SKILL.md's front-door prose. Before this, AFK was `!!A.afk` alone, so `/relay --intensive`
+# yielded AFK=false and deferred EVERY hard unit with "requires --afk" — on a run the docs call
+# inherently an away-run. Resting it on the front door alone would repeat the id:7986 defect
+# (a correct owner rule, documented and unenforced). Pinned structurally: the AFK definition
+# must consult the intensive flag.
+afk_def="$(grep -E '^const AFK\s*=' "$JS" || true)"
+if [[ -z "$afk_def" ]]; then
+  fail "(B7) no top-level 'const AFK =' definition found in relay-loop.js (id:84c5)"
+elif grep -qE 'ALLOW_INTENSIVE|allowIntensive' <<<"$afk_def"; then
+  pass "(B7) AFK honours the --intensive implies --afk contract in code (id:84c5)"
+else
+  fail "(B7) AFK ignores the intensive flag — '/relay --intensive' will defer every hard unit while the docs promise --intensive implies --afk (id:84c5). Got: $afk_def"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # (C) relay/SKILL.md — the doc currently teaches the OPPOSITE (id:7986)
 # ─────────────────────────────────────────────────────────────────────────────

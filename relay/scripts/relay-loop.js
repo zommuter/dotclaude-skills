@@ -83,7 +83,19 @@ const ALLOW_INTENSIVE = !!A.allowIntensive
 // `review`/`handoff`/`execute` are NEVER gated on it. Read from the normalized args object so the
 // flag is no longer inert (before this it had zero consumers — `grep afk relay-loop.js` found only
 // comments, and the owner's --afk-gates-hard rule was prose only).
-const AFK = !!A.afk
+//
+// `|| ALLOW_INTENSIVE` (id:84c5, owner 2026-08-23): --intensive IMPLIES --afk. That implication is
+// documented in SKILL.md's --intensive row and dates to id:052c, but until id:7986 it was INERT
+// (nothing read afk), so nothing enforced it. Making `hard` depend on afk made it load-bearing:
+// without this clause `/relay --intensive` yields AFK=false and defers EVERY hard unit with
+// "requires --afk" — on a run the docs call inherently an away-run.
+//
+// It is enforced HERE, in code, and not only by the front door passing args.afk. The front door is
+// PROSE (SKILL.md) executed by an LLM session; resting an apex-spend gate on prose alone is exactly
+// the defect id:7986 was filed to fix — the owner's rule had been correct and unenforced for
+// months. The front door DOES also pass args.afk for --intensive (documented below), so the two
+// agree; this clause is the structural floor that holds when the prose is misread.
+const AFK = !!A.afk || ALLOW_INTENSIVE
 
 // TODO (id:e407 follow-up, NOT required for that item's green): supersede this binary
 // gate with the graded permitted-intensity window (relay/scripts/relay-intensity.sh

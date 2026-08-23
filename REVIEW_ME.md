@@ -1054,7 +1054,7 @@ against `eb582156`) and mutation-verified independently against five mutants —
 at its commit step); the `refactor:` forcing-function line is therefore absent — noted, no cruft
 visible in the diff.
 
-- [ ] **`--intensive` no longer implies `--afk` in practice, so `/relay --intensive` silently
+- [x] **`--intensive` no longer implies `--afk` in practice, so `/relay --intensive` silently
   withholds every `hard` unit.** `relay/SKILL.md`'s `--intensive` flags-table row states
   "**`--intensive` IMPLIES `--afk`** (id:052c — a user need not pass both)" but documents only
   `Sets args.allowIntensive = true`; `relay-loop.js` derives `const AFK = !!A.afk` and never falls
@@ -1066,14 +1066,16 @@ visible in the diff.
   implication real — the front door sets `args.afk = true` for `--intensive` too (and the row says
   so), or (b) drop the "implies `--afk`" sentence and require both flags. Do not pick silently.
   <!-- id:84c5 -->
+  - **OWNER-DECIDED 2026-08-23: make the implication REAL (option (a)), and enforce it in CODE, not only in the front door.** `relay-loop.js`'s `AFK` is now `!!A.afk || ALLOW_INTENSIVE`, so `/relay --intensive` permits `hard` dispatch as the docs have always promised. **Deliberate deviation from the option as worded** (it said "the front door sets `args.afk = true`"): the front door is PROSE in `SKILL.md` executed by an LLM session, and resting an apex-spend gate on prose alone is precisely the `id:7986` defect — an owner rule that was correct, documented, and unenforced for months. The front door DOES now also pass `args.afk` for `--intensive` (SKILL.md `:282`, `:856`), so the two agree; the code clause is the structural floor that holds when the prose is misread. Pinned by a new assertion group **(B7)** in `tests/test_apex_afk_hard_gate_7986.sh`, mutation-verified in a temp tree: reverting `AFK` to the bare `!!A.afk` fails B7 and ONLY B7 (`RED: 1 assertion group`).
 
-- [ ] **`relay/scripts/apex-gate.mjs` is declared in the Makefile's `relay_FILES` but is NOT in the
+- [x] **`relay/scripts/apex-gate.mjs` is declared in the Makefile's `relay_FILES` but is NOT in the
   live install tree** — `relay-doctor.sh` install-drift check: `MISSING: relay/scripts/apex-gate.mjs
   is declared in relay_FILES but not installed under ~/.claude/skills/relay`. Harmless to the pool
   today (relay-loop.js carries the byte-equivalent inline copy, and the test reads the repo tree),
   but this repo's convention is "the live install IS the published version", so the gap is real.
   Fix is one command, deliberately NOT run by this review because it writes outside the repo into
   `~/.claude/`: `make install-relay`. <!-- id:bfc9 -->
+  - **RESOLVED 2026-08-23 (owner-approved, verified): `make install-relay` was run.** `ls -l ~/.claude/skills/relay/scripts/apex-gate.mjs` → symlink to the repo path; `check-install-drift.sh --canonical relay --installed ~/.claude/skills/relay` → `OK — relay fully mirrored (scripts + source targets)`, rc=0. This is another instance of the recurrence class already filed as `id:ba27` (auto-`make install` after a new relay script lands) — detection worked again, and again nothing acted on it until a human did.
 
 **Observed, NOT filed as a defect (out of this unit's ratified scope):** the same model-id-coupling
 class `id:da51` removed from the apex gate still exists on the Fable side — `relay-loop.js:240`,
