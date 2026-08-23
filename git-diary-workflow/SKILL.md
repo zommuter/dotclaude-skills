@@ -30,20 +30,27 @@ git add <changed-files>
 git commit -m "$(cat <<'EOF'
 descriptive message
 
-Co-Authored-By: Claude Opus 4.6 (high) <PASTE-SESSION-ID-HERE@session.invalid>
+Co-Authored-By: Claude Opus 4.6 (high) <PASTE-SESSION-ID-HERE@kienzler.dev>
 EOF
 )"
 ```
 
 Co-Authored-By fields: **Model** from system context (e.g. `Claude Sonnet 4.6`); **Effort** = `low` (≤33), `mid` (34–66), `high` (≥67); **Session ID** = the captured UUID — never the literal `$CLAUDE_SESSION_ID`.
 
-**The UUID is deliberate provenance — never scrub it.** It is the join key from a commit back
-to the session transcript that produced it, which is the only way to answer "which session did
-this?" from a commit alone in a fleet running parallel and unattended sessions. A privacy scan
-WILL flag it (it matches the UUID shape); that is a false positive by design. The **domain** is
-`session.invalid` on purpose — RFC 2606 reserved, non-routable, and deliberately NOT a real
-private domain, because the trailer is published in every commit message of a public repo.
-Do not "restore" a real domain here.
+**BOTH halves of the trailer address are deliberate — never scrub either.**
+
+- **The UUID** is the join key from a commit back to the session transcript that produced it —
+  the only way to answer "which session did this?" from a commit alone, in a fleet running
+  parallel and unattended sessions.
+- **The domain `kienzler.dev` is intentional too**: it attributes the session to the owner, and
+  it deliberately serves as a scammer honeypot. It is NOT a leak.
+
+A privacy scan WILL flag both — the UUID by shape, the domain because it is in the pattern file
+for other contexts. **Both are false positives here, by design.** Do not "helpfully" redact them,
+do not include them in a redaction or history-rewrite scope, and do not replace the domain with a
+reserved placeholder. This paragraph exists because exactly that was done on 2026-08-23 and had
+to be reverted: a scan finding is not a mandate, and an intentional string can look identical to
+a leaked one.
 
 ```bash
 # Push (parallel-safe: flock'd dirty-guard + pull --rebase + push)
@@ -99,7 +106,7 @@ printf '%s\n' \
 msg="$(cat <<'EOF'
 <brief description of what changed in ~/.claude>
 
-Co-Authored-By: Claude <Model> (<effort>) <PASTE-SESSION-ID-HERE@session.invalid>
+Co-Authored-By: Claude <Model> (<effort>) <PASTE-SESSION-ID-HERE@kienzler.dev>
 EOF
 )"
 
