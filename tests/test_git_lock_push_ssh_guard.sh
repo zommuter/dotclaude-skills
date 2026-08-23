@@ -3,7 +3,7 @@
 #
 # BUG (observed 2026-08-10 on fievel, ~/src/yinyang-puzzle): git-lock-push.sh gated the
 # ENTIRE push on `ssh-add -l` succeeding, before it looked at any remote. fievel's repos
-# push to LOCAL BARE PATHS (/home/tobias/src/<repo>.git) and fievel runs no ssh-agent at
+# push to LOCAL BARE PATHS (~/src/<repo>.git) and fievel runs no ssh-agent at
 # all, so the guard fired on 100% of runs — every push skipped with "no SSH key loaded in
 # agent", commits accumulating locally forever, while a plain `git push origin main`
 # succeeded instantly.

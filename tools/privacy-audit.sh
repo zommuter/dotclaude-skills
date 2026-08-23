@@ -27,7 +27,17 @@
 #   tools/privacy-audit.sh --show-patterns      # print patterns verbatim (terminal ONLY)
 #   tools/privacy-audit.sh --files              # list matching files per pattern
 #   tools/privacy-audit.sh --no-log             # suppress the private resolved log
+#   tools/privacy-audit.sh --lint-patterns      # audit the PATTERN FILE itself, scan nothing
 #   PRIVACY_AUDIT_LOG=<path>                    # override the private log location
+#
+# PATTERN-AUTHORING RULE (id:9bfc part (b)) — enforced by --lint-patterns:
+#   A SHORT, UNANCHORED literal pattern matches inside longer words and buries the real hits
+#   in noise. That is not theoretical: a 3-character name pattern matched inside a common
+#   English word 63 times with ZERO standalone occurrences, and on 2026-08-22 that noise
+#   camouflaged a genuine hit on the very line that documented the noise. Anchor short
+#   literals with \b (`\bFoo\b`), or make them specific enough not to collide.
+#   The pattern file is PRIVATE and never committed, so this is an authoring rule plus a
+#   lint over whatever file is loaded — not a committed pattern edit.
 #
 # To resolve an index: read the private log (`tail ~/.claude/logs/privacy-audit.log`), or
 # re-run with --show-patterns. Never paste either into a tracked file.
@@ -40,8 +50,45 @@ REV=""
 SHOW_PATTERNS=0
 SHOW_FILES=0
 DO_LOG=1
+LINT_ONLY=0
+META_ONLY=0
+META_RANGE="HEAD"
 AUDIT_LOG="${PRIVACY_AUDIT_LOG:-$HOME/.claude/logs/privacy-audit.log}"
 SKIPS=()
+
+# A literal shorter than this, with no \b anchor and no regex metacharacter to make it
+# specific, is treated as collision-prone by --lint-patterns.
+PRIVACY_AUDIT_SHORT_LEN="${PRIVACY_AUDIT_SHORT_LEN:-6}"
+
+# lint_patterns <pattern-file> — prints one line per collision-prone pattern (INDEX ONLY,
+# never the pattern) and returns 1 if any were found. Split out so the test suite can drive
+# it over a SYNTHETIC pattern file; the real one is private and never committed.
+lint_patterns() {
+  local pf="$1" i=0 bad=0 p
+  while IFS= read -r p; do
+    i=$((i + 1))
+    [ -z "$p" ] && continue
+    # Anchored already? \b at either end, or a ^/$ anchor.
+    case "$p" in
+      *'\b'*|'^'*|*'$') continue ;;
+    esac
+    # Contains regex metacharacters that make it specific enough (classes, quantifiers,
+    # alternation, escapes like \. — a bare literal has none of these).
+    if printf '%s' "$p" | grep -qE '[][(){}|+*?\\]'; then continue; fi
+    if [ "${#p}" -lt "$PRIVACY_AUDIT_SHORT_LEN" ]; then
+      printf 'pattern #%d: SHORT (%d chars) and UNANCHORED — will match inside longer words; anchor it with \\b\n' \
+        "$i" "${#p}"
+      bad=$((bad + 1))
+    fi
+  done < "$pf"
+  [ "$bad" -eq 0 ]
+}
+
+# Driven by the test suite: lint a given file and exit, scanning nothing.
+if [ "${PRIVACY_AUDIT_LINT_SELFTEST:-}" != "" ]; then
+  lint_patterns "$PRIVACY_AUDIT_LINT_SELFTEST"
+  exit $?
+fi
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -50,6 +97,8 @@ while [ $# -gt 0 ]; do
     --show-patterns) SHOW_PATTERNS=1; shift ;;
     --files) SHOW_FILES=1; shift ;;
     --no-log) DO_LOG=0; shift ;;
+    --lint-patterns) LINT_ONLY=1; shift ;;
+    --metadata) META_ONLY=1; META_RANGE="${2:-HEAD}"; [ $# -ge 2 ] && shift 2 || shift ;;
     -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
     *) echo "privacy-audit: unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -83,6 +132,53 @@ fi
 # by relay/scripts/lib-private-remote.sh and are NOT content patterns.
 grep -vE '^[[:space:]]*(#|$)' "$PATTERNS_FILE" | grep -vE '^[[:space:]]*private-host:' > "$tmp/pats" || true
 [ -s "$tmp/pats" ] || { echo "privacy-audit: pattern file has no content patterns" >&2; exit 2; }
+
+# --- metadata scope -----------------------------------------------------------------------
+# File content is NOT the whole repo. Commit MESSAGES and author/committer IDENTITY are
+# published too, and neither the pre-push gate nor the tree scan above can see them. That is
+# not a hypothetical gap: a tree scan of this repo reported 2 occurrences of a private domain
+# while 975 commit messages carried it, and the author identity — invisible to both — carried
+# a personal address on every one of 3608 commits.
+if [ "$META_ONLY" -eq 1 ]; then
+  git rev-parse --verify -q "$META_RANGE" >/dev/null 2>&1 || \
+    { echo "privacy-audit: bad rev/range: $META_RANGE" >&2; exit 2; }
+  git log --format='%an%n%ae%n%cn%n%ce' "$META_RANGE" > "$tmp/ident" 2>/dev/null || true
+  git log --format='%B' "$META_RANGE" > "$tmp/msgs" 2>/dev/null || true
+  ncommits=$(git rev-list --count "$META_RANGE" 2>/dev/null || echo 0)
+  echo "privacy-audit: metadata scope — $ncommits commit(s) in '$META_RANGE'"
+
+  echo "distinct author/committer identities:"
+  sort -u "$tmp/ident" | sed 's/^/      /'
+
+  meta_hits=0; i=0
+  while IFS= read -r pat; do
+    i=$((i + 1))
+    ni=$(grep -cE -e "$pat" "$tmp/ident" 2>/dev/null || true)
+    nm=$(grep -cE -e "$pat" "$tmp/msgs" 2>/dev/null || true)
+    [ "${ni:-0}" -eq 0 ] && [ "${nm:-0}" -eq 0 ] && continue
+    meta_hits=$((meta_hits + ni + nm))
+    printf '#%-6s identity-field lines: %-6d commit-message lines: %d\n' "$i" "${ni:-0}" "${nm:-0}"
+    [ "$DO_LOG" -eq 1 ] && printf '#%d\tMETADATA ident=%d msg=%d\tpattern=%s\n' \
+      "$i" "${ni:-0}" "${nm:-0}" "$pat" >> "$AUDIT_LOG"
+  done < "$tmp/pats"
+
+  echo "---"
+  if [ "$meta_hits" -eq 0 ]; then echo "privacy-audit: metadata clean"; exit 0; fi
+  echo "privacy-audit: $meta_hits metadata hit(s). NOTE: identity is fixable going forward with"
+  echo "\`git config user.email\`, but existing commits change only via a full-history rewrite."
+  exit 1
+fi
+
+if [ "$LINT_ONLY" -eq 1 ]; then
+  if lint_patterns "$tmp/pats"; then
+    echo "privacy-audit: all patterns are anchored or specific enough"
+    exit 0
+  fi
+  echo "---"
+  echo "Anchor these with \\b. An unanchored short literal buries real hits in substring noise"
+  echo "(id:9bfc): that is how a genuine leak went unnoticed on 2026-08-22."
+  exit 1
+fi
 
 # File list — tracked paths only.
 if [ -n "$REV" ]; then

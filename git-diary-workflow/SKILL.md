@@ -83,8 +83,8 @@ If you did make changes, write your file list to a temp manifest and call `git-l
 # Temp manifest — one absolute path per line (only files you edited/created this session)
 manifest=$(mktemp)
 printf '%s\n' \
-  "/home/tobias/.claude/<file1>" \
-  "/home/tobias/.claude/<file2>" \
+  "$HOME/.claude/<file1>" \
+  "$HOME/.claude/<file2>" \
   > "$manifest"
 
 # Commit message in a var first (quoted heredoc so no $-expansion)
