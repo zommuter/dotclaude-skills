@@ -30,12 +30,20 @@ git add <changed-files>
 git commit -m "$(cat <<'EOF'
 descriptive message
 
-Co-Authored-By: Claude Opus 4.6 (high) <PASTE-SESSION-ID-HERE@kienzler.dev>
+Co-Authored-By: Claude Opus 4.6 (high) <PASTE-SESSION-ID-HERE@session.invalid>
 EOF
 )"
 ```
 
 Co-Authored-By fields: **Model** from system context (e.g. `Claude Sonnet 4.6`); **Effort** = `low` (≤33), `mid` (34–66), `high` (≥67); **Session ID** = the captured UUID — never the literal `$CLAUDE_SESSION_ID`.
+
+**The UUID is deliberate provenance — never scrub it.** It is the join key from a commit back
+to the session transcript that produced it, which is the only way to answer "which session did
+this?" from a commit alone in a fleet running parallel and unattended sessions. A privacy scan
+WILL flag it (it matches the UUID shape); that is a false positive by design. The **domain** is
+`session.invalid` on purpose — RFC 2606 reserved, non-routable, and deliberately NOT a real
+private domain, because the trailer is published in every commit message of a public repo.
+Do not "restore" a real domain here.
 
 ```bash
 # Push (parallel-safe: flock'd dirty-guard + pull --rebase + push)
@@ -91,7 +99,7 @@ printf '%s\n' \
 msg="$(cat <<'EOF'
 <brief description of what changed in ~/.claude>
 
-Co-Authored-By: Claude <Model> (<effort>) <PASTE-SESSION-ID-HERE@kienzler.dev>
+Co-Authored-By: Claude <Model> (<effort>) <PASTE-SESSION-ID-HERE@session.invalid>
 EOF
 )"
 
