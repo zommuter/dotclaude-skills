@@ -13,15 +13,69 @@ Auto mode injects a standing instruction to do work through Bash (`cat`, `sed`, 
 short scripts) *"rather than using the dedicated Read, Edit, or Write tools"*, falling back
 *"only when Bash genuinely cannot do the job."*
 
-That instruction is **hardcoded in the CLI binary** as a `bashFirst` template gated on an
-internal feature flag. **No setting disables it.** The `autoMode` settings block
-(`environment` / `allow` / `soft_deny` / `hard_deny` / `classifyAllShell`) configures the
-*classifier* — which shell commands are permitted — not this guidance.
+That instruction is a `bashFirst` template in the CLI binary, gated on an internal feature
+flag. The `autoMode` settings block (`environment` / `allow` / `soft_deny` / `hard_deny` /
+`classifyAllShell`) configures the *classifier* — which shell commands are permitted — not
+this guidance.
 
-So the clause cannot and does not *override* `bashFirst`. It works by **scoping** it
-through `bashFirst`'s own stated escape hatch: it enumerates the cases where Bash
-*genuinely cannot do the job* — shared ledgers that need a flock, edits where a silent
-wrong outcome is unacceptable, and protected paths where shell writes are denied outright.
+### The opt-out — `CLAUDE_CODE_THRIFTY_SONIC=0`
+
+**Set fleet-wide** in `~/.claude/settings.json` `env` via `make install-relay-env`
+(`HARNESS_ENV_DEFAULTS` in the Makefile), so it reaches every repo and every spawned
+subagent, including non-interactive relay/timer sessions a shell `export` would miss.
+Reported upstream in [claude-code#87575](https://github.com/anthropics/claude-code/issues/87575);
+the facts below are read off the installed 2.1.237 binary, not taken on trust. The gate:
+
+```js
+function S7o(){
+  if (q.CLAUDE_CODE_THRIFTY_SONIC !== void 0) return q.CLAUDE_CODE_THRIFTY_SONIC;
+  switch (jBb()) {                     // bashFirstSessionAssignment()
+    case "forced": return !0;
+    case "none":   return !1;
+    case "cohort": return nt(M6d, !1)  // A/B assignment
+  }
+}
+```
+
+Three properties that matter:
+
+- **`"0"` really parses to false.** The var is registered `qe.triBool()`, falsey parser
+  `["0","false","no","off"]`, truthy `["1","true","yes","on"]` — not a raw truthy string.
+- **UNSET IS NOT OFF.** The env branch is guarded by `!== undefined`, so an absent entry —
+  or any value outside those lists, which `triBool` maps to `undefined` — falls through to
+  cohort assignment. Keep the entry present and spelled from the list.
+- **Env beats the server.** It returns before the `"forced"` case, so a server-side gate
+  cannot override a local setting.
+
+**Blast radius is two call sites, both benign.** `S7o()` is consulted by `cOS`, which sets
+the `bashFirst` attachment (only when the toolset has Bash *and* Edit/Write, in
+`auto`/`bypassPermissions` mode); and by `TLm` → `bashFirstDescriptionTrimmed`, which
+despite the generic name feeds only the **Bash tool's own description builder** —
+Edit/Write/Read descriptions are untouched. Turning the flag off restores this bullet
+inside the Bash tool description:
+
+> *IMPORTANT: Avoid using this tool to run `find`, `grep`, `cat`, `head`, `tail`, `sed`,
+> `awk`, or `echo` commands … use the appropriate dedicated tool … it's better to use the
+> built-in tools as they provide a better user experience and make it easier to review tool
+> calls and give permission.*
+
+Both effects push the **same** direction — no countervailing collateral. It also means
+`bashFirst` did two things at once: instruct the model toward Bash *and* delete the one
+in-context hint arguing the other way.
+
+### Why the four rules still stand
+
+The escape-hatch framing is gone with the flag, but three rules never depended on it and
+one gains importance:
+
+- **shared ledgers** — about the flock, which `Edit` bypasses exactly as `sed -i` does;
+  never about harness pressure.
+- **protected paths** — about the permission classifier.
+- **reads are cheaper from the shell** — *more* load-bearing now, because turning the flag
+  off removes the harness's push toward cheap shell reads. This clause is the only thing
+  carrying it.
+- **edits go through Edit** — the escape-hatch framing goes; the reliability argument
+  (fails ~4× less, and *loudly*) stands on its own.
 
 ## The measurement
 
@@ -174,6 +228,9 @@ so the record is the guard against re-deriving it.
    operator (e.g. `git add TODO.md && git commit`). Requiring the write to actually
    **target** the ledger corrects it to **26%**. The direction of the finding survived; the
    magnitude did not.
+4. **"No setting disables it" — WRONG.** `CLAUDE_CODE_THRIFTY_SONIC=0` always existed; the
+   claim was inferred from the absence of a *documented* setting and never checked against
+   the binary. Re-derivable, hence kept.
 
 ## Enforcement — open
 
@@ -184,9 +241,11 @@ effect. The corresponding question here — mechanize as a PreToolUse hook, or w
 
 - *For mechanizing now:* the rule is deterministic on the ledger and protected-path tiers
   (path match ⇒ verdict), i.e. exactly the mechanizable half.
-- *For waiting:* the whole clause exists to scope a `bashFirst` template gated on an
-  **internal feature flag**. If that gate flips off, the pressure this rule counteracts
-  disappears and a hook built for it becomes vestigial scaffolding — the
-  constraint-archaeology risk from the global CLAUDE.md design heuristics.
+- *For waiting:* the clause was written to scope `bashFirst`. **That gate is now off**
+  (above), so the pressure a hook would counteract is gone on this fleet — the
+  constraint-archaeology case from the global CLAUDE.md design heuristics, no longer
+  hypothetical. What survives the flag is the ledger/flock tier and protected paths, and
+  those are the deterministic half worth mechanizing on their own merits — not as
+  `bashFirst` counter-pressure.
 
 The call is the owner's.

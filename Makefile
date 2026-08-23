@@ -234,11 +234,24 @@ install: $(addprefix install-,$(SKILLS)) install-hooks install-agents install-al
 # Makefile default now agrees with it: RISING (conserve early, spend down near reset).
 RELAY_ENV_DEFAULTS := RELAY_QUOTA_DECAY_7D=0.30:0.90
 
+# Harness env policy (NOT relay-specific; rides the same idempotent apply step).
+# CLAUDE_CODE_THRIFTY_SONIC=0 opts every session on this machine OUT of the auto-mode
+# "bashFirst" experiment, which instructs the model to make file changes with sed/heredocs
+# instead of Edit/Write. Verified against the 2.1.237 binary (2026-08-23): the var is a
+# tri-state bool parsed by ["0","false","no","off"], and the gate reads
+#   if (env.CLAUDE_CODE_THRIFTY_SONIC !== undefined) return it;  else <cohort assignment>
+# so UNSET IS NOT OFF — leaving it out re-enters the A/B cohort, and a value outside that
+# list parses to undefined and does the same. The env branch returns BEFORE the "forced"
+# case, so this also beats a server-side gate. Exactly two consumers in the binary, both
+# in the Bash tool's own description builder; Edit/Write/Read descriptions are untouched.
+# Rationale + measurement: docs/tool-choice-for-file-edits.md (id:93b4).
+HARNESS_ENV_DEFAULTS := CLAUDE_CODE_THRIFTY_SONIC=0
+
 install-relay-env:
-	@python3 $(SRC_DIR)/tools/settings-env.py --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS)
+	@python3 $(SRC_DIR)/tools/settings-env.py --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS) $(HARNESS_ENV_DEFAULTS)
 
 print-relay-env:
-	@python3 $(SRC_DIR)/tools/settings-env.py --mode print --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS)
+	@python3 $(SRC_DIR)/tools/settings-env.py --mode print --settings $(SETTINGS_JSON) $(RELAY_ENV_DEFAULTS) $(HARNESS_ENV_DEFAULTS)
 
 # id:13ae — provision the two mechanical-daemon service users (relay-ro, relay-svc).
 # Idempotent; uses sudo -A (set SUDO_ASKPASS). System-modifying (useradd/linger).
