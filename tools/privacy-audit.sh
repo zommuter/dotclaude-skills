@@ -98,7 +98,9 @@ while IFS= read -r pat; do
   idx=$((idx + 1))
   skip=0
   for s in ${SKIPS+"${SKIPS[@]}"}; do
-    if printf '%s' "$pat" | grep -qE -- "$s"; then skip=1; break; fi
+    # herestring, not a pipe: `grep -q` exits at the first match and would SIGPIPE a
+    # producer under `pipefail` (id:81d5 lint).
+    if grep -qE -- "$s" <<<"$pat"; then skip=1; break; fi
   done
   [ "$skip" -eq 1 ] && continue
 
@@ -124,7 +126,9 @@ while IFS= read -r pat; do
   [ "$SHOW_PATTERNS" -eq 1 ] && label="#$idx  $pat"
   printf '%-28s %5d occurrence(s) in %d file(s)\n' "$label" "$occ" "$nf"
   if [ "$SHOW_FILES" -eq 1 ]; then
-    sort -t"$(printf '\t')" -k1,1nr "$tmp/hits" | head -20 | sed 's/^/      /'
+    # capture-then-slice: `head` must not be the direct consumer of a pipe (id:81d5 lint).
+    _sorted=$(sort -t"$(printf '\t')" -k1,1nr "$tmp/hits")
+    head -20 <<<"$_sorted" | sed 's/^/      /'
   fi
   if [ "$DO_LOG" -eq 1 ]; then
     { printf '#%d\t%d occurrence(s) in %d file(s)\tpattern=%s\n' "$idx" "$occ" "$nf" "$pat"
