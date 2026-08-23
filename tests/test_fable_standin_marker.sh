@@ -30,10 +30,15 @@ grep -qv 'fable-standin' < <(grep "executor (sonnet, relay-loop)" "$JS") \
   && ok "execute label does not contain fable-standin" \
   || fail "execute label unexpectedly contains fable-standin"
 
-# 4. fable-standin is conditional on STRONG_MODEL === claude-opus-4-8
-grep -q "claude-opus-4-8.*fable-standin\|fable-standin.*claude-opus-4-8\|STRONG_MODEL.*claude-opus-4-8" "$JS" \
-  && ok "relay-loop.js gates fable-standin on claude-opus-4-8 model" \
-  || fail "relay-loop.js fable-standin not gated on model ID"
+# 4. fable-standin is conditional on STRONG_TIER === 'opus' (id:da51: NEVER a model-id
+#    literal — the gate must survive a model-pin bump unchanged, so it must NOT re-key on
+#    STRONG_MODEL/claude-opus-* at all).
+grep -q "STRONG_TIER === 'opus'.*fable-standin\|fable-standin.*STRONG_TIER === 'opus'" "$JS" \
+  && ok "relay-loop.js gates fable-standin on STRONG_TIER === 'opus' (model-id-blind, id:da51)" \
+  || fail "relay-loop.js fable-standin not gated on STRONG_TIER"
+grep -qE "claude-opus[a-zA-Z0-9._-]*.*fable-standin|fable-standin.*claude-opus[a-zA-Z0-9._-]*" "$JS" \
+  && fail "relay-loop.js fable-standin gate still keys on a model-id literal (da51 regression)" \
+  || ok "relay-loop.js fable-standin gate carries no model-id literal"
 
 # 5. STRONG_MODEL variable is still used in the reviewer label template
 grep -q 'STRONG_MODEL.*relay-loop\|STRONG_MODEL.*fable-standin' "$JS" \

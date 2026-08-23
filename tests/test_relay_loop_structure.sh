@@ -200,11 +200,18 @@ grep -qF "const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3, human: 
   || fail "PRIORITY ordering not exactly execute:0 review:1 hard:2 handoff:3 human:5 mechanical:6"
 pass "PRIORITY ranks hard after execute+review, before handoff; human < mechanical (pool-inert) lowest"
 
-# Opus-only gate: hard units are dropped/deferred unless STRONG_MODEL is apex Opus.
-grep -qF "if (STRONG_MODEL !== 'claude-opus-4-8') {" "$JS" \
-  || fail "no opus-only gate guarding hard dispatch (STRONG_MODEL !== 'claude-opus-4-8')"
-grep -q "hardDeferred" "$JS" || fail "no hardDeferred surface for non-apex hard units"
-pass "hard dispatch gated on apex Opus (claude-opus-4-8); non-apex hard surfaced as deferred"
+# Apex + --afk gate (id:7986/da51): hard units are dropped/deferred unless BOTH
+# STRONG_TIER is apex ('opus') AND the run was launched --afk. The gate is the extractable
+# enforceApexGate (relay/scripts/apex-gate.mjs) — it must be wired in by NAME (not just any
+# STRONG_MODEL-keyed conditional: a model-id comparison here IS the da51 regression, since
+# bumping the pin would silently change dispatch) and it must be fed the boolean STRONG_TIER
+# check plus AFK, never a raw model-id comparison.
+grep -qF "const { plan: gatedActionable, hardDeferred } = enforceApexGate(actionable, { strongTier: STRONG_TIER, afk: AFK })" "$JS" \
+  || fail "no apex+afk gate call wiring enforceApexGate(actionable, { strongTier: STRONG_TIER, afk: AFK })"
+grep -qE "STRONG_MODEL\s*(!==|===)\s*'claude-opus" "$JS" \
+  && fail "hard gate still compares STRONG_MODEL to a model-id literal (da51 regression) — must ask STRONG_TIER === 'opus' instead"
+grep -q "hardDeferred" "$JS" || fail "no hardDeferred surface for non-apex/non-afk hard units"
+pass "hard dispatch gated on apex Opus AND --afk via enforceApexGate (id:7986/da51); non-apex/non-afk hard surfaced as deferred, gate is model-id-blind"
 
 # Sonnet-never-HARD: hard maps to the 'strong' tier, never 'sonnet'. The tier derivation
 # sends only verdict==='execute' to sonnet; everything else (incl. hard) to strong.

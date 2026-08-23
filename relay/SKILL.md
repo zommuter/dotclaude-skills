@@ -279,6 +279,8 @@ D1/D2):
    `args.allowIntensive` (true ONLY when `--intensive` / `--allow-intensive` is set — id:8d52,
    semantics revised id:052c; a bare `--afk` NO LONGER sets it — `--afk` stays non-intensive,
    and `--intensive` implies `--afk`),
+   `args.afk` (true when `--afk` is set — id:7986; gates apex `hard` dispatch only, see the
+   HARD-execute gate paragraph below),
    `args.priorityRepos` / `args.excludeRepos` (per-run repo lists from `--priority` /
    `--exclude` — id:d530; the front door maps the natural-language forms the user types
    ("priority on X", "exclude Y") onto these arrays),
@@ -327,12 +329,18 @@ D1/D2):
    hands back). This is the steady-state path now that `[ROUTINE]` is drained and every
    repo carries a ROADMAP (so `handoff`/opportunistic C5 never fire) — without it the
    ~46 open `[HARD]` items would stall while Fable is out. **Gate: `hard` is dispatched
-   ONLY when `STRONG_TIER=opus` (`STRONG_MODEL=claude-opus-4-8`, the apex tier) — never
-   on the Sonnet execute tier, and not when the strong tier is Fable or under the
-   `-d` defer path** (there it stays for Fable handoff-C5 / review-step-6 as today, and
-   surfaces in `RELAY_STATUS.md` Queued with a clear reason). It carries `fable-standin`
-   (apex Opus work invites an optional Fable recheck) and uses a `strong-execute (...)`
-   checkpoint label.
+   ONLY when `STRONG_TIER=opus` (the apex tier — the gate asks `STRONG_TIER === 'opus'`,
+   never a model-id string, id:da51) AND the run was launched `--afk`** (id:7986, owner
+   2026-08-22: a live pool spent Opus on three `[HARD]` units against his cap while `--afk`
+   had no consumer to stop it) — never on the Sonnet execute tier, and not when the strong
+   tier is Fable, under the `-d` defer path, or the run was not launched `--afk` (there it
+   stays for Fable handoff-C5 / review-step-6 as today, and surfaces in `RELAY_STATUS.md`
+   Queued with a clear reason naming why it was withheld). `review` and `handoff` dispatch
+   at apex REGARDLESS of `--afk` — only `hard` is gated (owner 2026-08-22, settled; do not
+   read this paragraph as gating handoff too). The gate itself is the extractable pure
+   module `relay/scripts/apex-gate.mjs` (`enforceApexGate`), mirroring the `round-plan.mjs`
+   pattern. It carries `fable-standin` (apex Opus work invites an optional Fable recheck)
+   and uses a `strong-execute (...)` checkpoint label.
 3b. **Exit-only teardown trap (id:54be, D1-A/D3-A).** Immediately after minting `$RUN_ID`
    and before invoking the Workflow, the front-door shell installs an `EXIT` trap owning
    **exactly two** teardown actions and nothing else — `heartbeat.sh stop` (releases this
@@ -826,7 +834,7 @@ last_review    = ""
 # masking last_ckpt. A non-empty last_strong_ckpt with fable_rechecked = false is an
 # OPTIONAL recheck candidate (non-gating @fable-optional-recheck — never blocks work).
 last_strong_ckpt = ""           # tag of the last strong-model checkpoint
-strong_model     = ""           # e.g. "claude-opus-4-8" — the producing strong model
+strong_model     = ""           # e.g. "claude-opus-5" — the producing strong model
 fable_rechecked  = false        # false until a real Fable session rechecks, then its ISO date
 ```
 
@@ -844,7 +852,7 @@ the historical `fable-ckpt-*` prefix:
 | `--strong-tier fable` / "Fable is available" | flag/override | off | The ONLY way to use Fable: asserts Fable is up. Use when you know Fable works despite `[relay] fable_available = false`. Without it the default stays `opus`. |
 | `--fable-down` / `-d` | flag | off (config decides) | Forces Fable-down explicitly, without consulting `fable-config.sh`. On the now-default `STRONG_TIER=opus` it is a **no-op** (Opus is already apex). Only meaningful with an explicit `STRONG_TIER=fable`, where it triggers the legacy defer/demote (executor-only) path. Passed as `args.fableDown = true`. |
 | `--interactive` | flag | off | Re-enables the one-batch `AskUserQuestion` confirmations before launch; passed to the Workflow as `args.interactive`. Default mode is unattended. |
-| `--afk` | flag | off | "I'm away, do something useful" — an unattended run (surfaces the `/loop` resilience nudge, step 0a). **Stays NON-intensive (id:052c):** it does NOT opt into `[INTENSIVE — <resource>]` work — auto-running OOM-risky local-LLM/big-index units *because* the user stepped away is backwards (the [[oom-local-model-session-kills]] hazard). A bare `--afk` runs the normal parallel pool only; intensive units stay surfaced-as-skipped. Does NOT set `args.allowIntensive`. |
+| `--afk` | flag | off | "I'm away, do something useful" — an unattended run (surfaces the `/loop` resilience nudge, step 0a). **Gates apex `hard` dispatch (id:7986):** a `hard` unit dispatches ONLY when `STRONG_TIER=opus` AND `--afk` was passed — without it, `hard` units are withheld and surfaced as Queued (see the HARD-execute gate paragraph above). `review` and `handoff` are NEVER gated by `--afk` — they dispatch at apex regardless. **Stays NON-intensive (id:052c):** it does NOT opt into `[INTENSIVE — <resource>]` work — auto-running OOM-risky local-LLM/big-index units *because* the user stepped away is backwards (the [[oom-local-model-session-kills]] hazard). A bare `--afk` runs the normal parallel pool only; intensive units stay surfaced-as-skipped. Does NOT set `args.allowIntensive`. Sets `args.afk = true`. |
 | `--intensive` / `--allow-intensive` | flag | off | Explicit opt-in to `[INTENSIVE — <resource>]` work (id:8d52; `--intensive` is the canonical name as of id:052c, `--allow-intensive` a synonym). By default such resource-heavy units (local-LLM benchmarks, big index rebuilds — the OOM risk) are NEVER auto-dispatched: they're surfaced as skipped in `RELAY_STATUS.md`. With this flag they run **serially-alone** after each round's normal parallel wave, each holding an exclusive `resource:<name>` claim (cross-run). **`--intensive` IMPLIES `--afk`** (id:052c — intensive work is inherently a long, away-run): a user need not pass both. Sets `args.allowIntensive = true`. |
 | `RELAY_QUOTA_THRESHOLD` | 0–1 fraction | `0.90` | Quota stop threshold used by `scripts/quota-stop.sh` (cache `.utilization` is 0–100 percent; converted internally). |
 | `RELAY_QUOTA_THRESHOLD_<BUCKET>` | 0–1 fraction | (general threshold) | Per-bucket override of `RELAY_QUOTA_THRESHOLD` for one cache bucket only, e.g. `RELAY_QUOTA_THRESHOLD_FIVE_HOUR=0.80` or `RELAY_QUOTA_THRESHOLD_SEVEN_DAY=0.50`. Caps a long-window bucket tighter than the 5h bucket ("use most of the 5h window but never exceed 50% of 7d"); buckets without an override keep the general threshold, so behaviour is unchanged unless set. **Nested form** (id:b841): the front door may pass `args.quotaThresholds = { SEVEN_DAY: 0.70 }` as a map; `relay-loop.js` folds each entry into the corresponding flat key (flat key wins if both present). **Note (2026-06-30):** the per-model weekly sub-limits (`seven_day_sonnet` et al.) are `null` in `/api/oauth/usage` since 2026-06-30 — they now appear in `.limits[]` as `weekly_scoped` entries (currently `is_active:false`), so a `RELAY_QUOTA_THRESHOLD_SEVEN_DAY_SONNET` override no longer binds; the consolidated `SEVEN_DAY` bucket governs the weekly cap. See memory `usage-api-per-model-weekly-null-2026-06-30`. |
@@ -873,7 +881,7 @@ STRONG_TIER=opus /relay          # pilot Opus for review+handoff agents
 /relay -d --strong-tier opus     # Fable down → substitute Opus for review+handoff
 ```
 
-Model IDs: `fable` → `claude-fable-5`, `opus` → `claude-opus-4-8`.
+Model IDs: `fable` → `claude-fable-5`, `opus` → `claude-opus-5`.
 
 ## Guardrails
 

@@ -63,7 +63,7 @@ relay_FILES := SKILL.md \
                scripts/loop-hint.sh scripts/discover-sig.sh scripts/migrate-state-dirs.sh \
                scripts/relay-status-publish.sh scripts/gather-repo-state.sh \
                scripts/handback-followup.py scripts/roadmap-archive.sh scripts/roadmap-tick.sh \
-               scripts/roadmap-lint.sh scripts/redispatch-guard.mjs scripts/handback-guard.mjs scripts/handback-summary.mjs scripts/pool-args.mjs scripts/round-plan.mjs scripts/prompt-size-gate.mjs scripts/drain.mjs scripts/drain-driver.mjs \
+               scripts/roadmap-lint.sh scripts/redispatch-guard.mjs scripts/handback-guard.mjs scripts/handback-summary.mjs scripts/pool-args.mjs scripts/round-plan.mjs scripts/apex-gate.mjs scripts/prompt-size-gate.mjs scripts/drain.mjs scripts/drain-driver.mjs \
                scripts/status-accounting.mjs \
                scripts/relay-doctor.sh scripts/run-anomaly-scan.sh scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs scripts/lint-embedded-literals.mjs \
                scripts/commit-ledger.sh scripts/acquire-resource.sh \

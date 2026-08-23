@@ -43,7 +43,7 @@ rather than copying the full block — see §Executor-contract pointer below.
   historical and are NEVER rewritten; every reader that finds the latest checkpoint or its
   commit range matches BOTH prefixes:
   `git -C <path> tag -l 'fable-ckpt-*' 'relay-ckpt-*' | sort | tail -1`. The annotation
-  label still records the producing model + role (e.g. `reviewer (claude-opus-4-8,
+  label still records the producing model + role (e.g. `reviewer (claude-opus-5,
   fable-standin, relay-loop)`) — that model-in-label is the historical record. The model
   MUST be the FULL `claude-*` id, never a bare tier name (`reviewer (opus)`): `ckpt-tag.sh`
   greps for `claude-[a-z0-9.-]+` to decide whether the checkpoint is STRONG, so a bare name
@@ -100,12 +100,12 @@ override the repo default.
 
 ## Durable Fable-bonus-recheck queue (relay.toml, id:e030)
 
-When a STRONG unit (review / handoff / hard, i.e. `STRONG_MODEL=claude-opus-4-8`)
+When a STRONG unit (review / handoff / hard, i.e. `STRONG_TIER=opus`, `STRONG_MODEL=claude-opus-5`)
 checkpoints a repo, the integrator records a model-tracked entry in
 `~/.config/relay/relay.toml` under `[repos.<name>]`:
 
 - `last_strong_ckpt` — the strong checkpoint's tag name.
-- `strong_model` — the model that produced it (e.g. `claude-opus-4-8`).
+- `strong_model` — the model that produced it (e.g. `claude-opus-5`).
 - `fable_rechecked` — `false` until a real Fable session rechecks the repo, then its
   ISO date.
 

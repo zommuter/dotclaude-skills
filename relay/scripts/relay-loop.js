@@ -37,7 +37,7 @@ const A = (typeof args === 'string')
 // --strong-tier fable override) confirms it's available; otherwise the default 'opus' stands.
 // Passed via args.STRONG_TIER from the front-door SKILL.md (set by STRONG_TIER env var or --strong-tier flag).
 const STRONG_TIER = A.STRONG_TIER || 'opus'
-const STRONG_MODEL = STRONG_TIER === 'opus' ? 'claude-opus-4-8' : 'claude-fable-5'
+const STRONG_MODEL = STRONG_TIER === 'opus' ? 'claude-opus-5' : 'claude-fable-5'
 
 // RELAY_STATUS_PATH: output file for cross-repo rollup. Overridable for testing.
 const RELAY_STATUS_PATH = A.RELAY_STATUS_PATH || '~/.config/relay/RELAY_STATUS.md'
@@ -78,6 +78,13 @@ function emitBackstopFire(backstopId, repo, verdict) {
 // --allow-intensive, never for a bare --afk.
 const ALLOW_INTENSIVE = !!A.allowIntensive
 
+// AFK (id:7986): true when the run was launched --afk. Consumed ONLY by the apex `hard`-dispatch
+// gate (enforceApexGate below) — `hard` requires BOTH apex tier (STRONG_TIER==='opus') AND --afk;
+// `review`/`handoff`/`execute` are NEVER gated on it. Read from the normalized args object so the
+// flag is no longer inert (before this it had zero consumers — `grep afk relay-loop.js` found only
+// comments, and the owner's --afk-gates-hard rule was prose only).
+const AFK = !!A.afk
+
 // TODO (id:e407 follow-up, NOT required for that item's green): supersede this binary
 // gate with the graded permitted-intensity window (relay/scripts/relay-intensity.sh
 // `permits <est_wall> <resource>`). Deferred here deliberately — the meeting note flags
@@ -92,7 +99,7 @@ const ALLOW_INTENSIVE = !!A.allowIntensive
 //     the strong model literally can't run, so handoff units and routine-less review units
 //     are deferred and review repos with open [ROUTINE] work are demoted to execute (the
 //     Sonnet pool keeps running). See the demotion block in Phase 1 for the D3 rationale.
-//   • -d + STRONG_TIER=opus (STRONG_MODEL=claude-opus-4-8) → SUBSTITUTE Opus for the
+//   • -d + STRONG_TIER=opus (STRONG_MODEL=claude-opus-5) → SUBSTITUTE Opus for the
 //     unavailable Fable: review/handoff units dispatch NORMALLY on Opus (already marked
 //     `fable-standin` by standInSuffix). No defer/demote — the demote block is skipped.
 // Forward-compatible: a future auto-probe would set args.fableDown = true identically.
@@ -1421,6 +1428,32 @@ function enforceOneUnitPerRepo(units) {
   }
   return { plan, deferred }
 }
+// id:7986/da51 — inline copy of apex-gate.mjs enforceApexGate (keep byte-equivalent; the
+// Workflow sandbox cannot import, a structural test pins the wiring). `hard` (an Opus-apex
+// child working one bounded [HARD] item) is withheld unless BOTH the strong tier is apex
+// (strongTier === 'opus') AND the run was launched --afk; `review`/`handoff`/`execute` are
+// NEVER gated by this function. The gate observes no model id (da51: comparing a model-id
+// string means bumping the pin can silently defer every hard unit). See that file for full
+// rationale.
+function enforceApexGate(units, { strongTier, afk } = {}) {
+  const isApex = strongTier === 'opus'
+  const plan = []
+  const hardDeferred = []
+  for (const u of units || []) {
+    if (u && u.verdict === 'hard') {
+      if (!isApex) {
+        hardDeferred.push({ ...u, gateReason: 'HARD-execute requires apex Opus (STRONG_TIER is not opus)' })
+        continue
+      }
+      if (!afk) {
+        hardDeferred.push({ ...u, gateReason: 'HARD-execute at apex requires --afk (owner 2026-08-22)' })
+        continue
+      }
+    }
+    plan.push(u)
+  }
+  return { plan, hardDeferred }
+}
 // id:8c35 — machine-readable stop reason: null | "quota-cache-unreadable" |
 // "quota-extrapolated-stop[:<bucket>]" (id:0175/82e3) | "quota-exhausted:<bucket>" |
 // "budget" | "drained" | "max-rounds" | "user-stop" (id:c012)
@@ -2303,26 +2336,20 @@ let actionable = dispatchable
     (standInRank(a) - standInRank(b))
   )
 
-// HARD-execute gate (id:da26): a "hard" unit dispatches an Opus-apex child to work ONE
-// bounded [HARD] item. It is ONLY dispatched when STRONG_MODEL === 'claude-opus-4-8'
-// (the apex tier). When the strong tier is Fable (or the -d defer path with no Opus
-// substitute), HARD work stays for Fable handoff-C5 / review-step-6 as today — NEVER
-// dispatched on the Sonnet execute tier. Non-apex hard units are pulled out of the
-// dispatch queue and surfaced as Queued with a clear reason (next apex turn picks them up).
-let hardDeferred = []
-if (STRONG_MODEL !== 'claude-opus-4-8') {
-  const kept = []
-  for (const u of actionable) {
-    if (u.verdict === 'hard') {
-      hardDeferred.push(u)
-    } else {
-      kept.push(u)
-    }
-  }
-  actionable = kept
-  if (hardDeferred.length) {
-    log(`relay-loop: HARD-execute requires apex Opus (STRONG_MODEL=${STRONG_MODEL}) — deferring ${hardDeferred.length} hard unit(s) for Fable handoff-C5/review-step6: ${hardDeferred.map(u => u.repo).join(', ')}`)
-  }
+// HARD-execute gate (id:da26, gated on --afk per id:7986/da51): a "hard" unit dispatches an
+// Opus-apex child to work ONE bounded [HARD] item. It is dispatched ONLY when STRONG_TIER ===
+// 'opus' (the apex tier — never a model-id comparison, da51) AND the run was launched --afk
+// (owner 2026-08-22: an apex pool was spending Opus on [HARD] units against his cap with no
+// --afk consumer to stop it). review/handoff are NEVER gated by this — owner-settled, permitted
+// always, like today. When the strong tier is Fable (or the -d defer path with no Opus
+// substitute), or when --afk was not passed, HARD work stays for Fable handoff-C5 / review-
+// step-6 as today — NEVER dispatched on the Sonnet execute tier. Non-apex/non-afk hard units
+// are pulled out of the dispatch queue and surfaced as Queued with a clear reason (next apex
+// --afk turn picks them up).
+const { plan: gatedActionable, hardDeferred } = enforceApexGate(actionable, { strongTier: STRONG_TIER, afk: AFK })
+actionable = gatedActionable
+if (hardDeferred.length) {
+  log(`relay-loop: HARD-execute gate (id:7986/da51) — deferring ${hardDeferred.length} hard unit(s): ${hardDeferred.map(u => `${u.repo} (${u.gateReason})`).join(', ')}`)
 }
 
 // --fable-down / -d DEFER path: gated on STRONG_MODEL === 'claude-fable-5', i.e. -d with
@@ -2335,7 +2362,7 @@ if (STRONG_MODEL !== 'claude-opus-4-8') {
 // range. Handoff repos are NOT demoted (no proper ROADMAP → no executor work); review
 // repos with no routine work are deferred and surface in RELAY_STATUS for the next turn.
 //
-// When -d is combined with STRONG_TIER=opus (STRONG_MODEL === 'claude-opus-4-8') this
+// When -d is combined with STRONG_TIER=opus (STRONG_MODEL=claude-opus-5) this
 // block is SKIPPED entirely: Opus SUBSTITUTES for the unavailable Fable, so review/handoff
 // units dispatch normally (marked fable-standin via standInSuffix) — nothing is deferred.
 let fableDownDeferred = []
@@ -2479,7 +2506,7 @@ state.ts = discovery.ts
 await beatHeartbeat()
 state.queued = [
   ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
-  ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: HARD-execute needs apex Opus; STRONG_MODEL=${STRONG_MODEL} — left for Fable handoff-C5/review-step6)` })),
+  ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: ${u.gateReason})` })),
   ...fableDownDeferred.map(u => ({ repo: u.repo, verdict: `${u.verdict} (deferred: --fable-down, strong model skipped)` })),
   ...intensiveDeferred.map(u => ({ repo: u.repo, verdict: `intensive:${u.intensive} (skipped — needs --intensive; a bare --afk no longer enables it, id:052c; never auto-run, OOM risk id:8d52)` })),
   // human-verdict repos are deliberately NOT queued (they were handled by the surface-filer
@@ -3144,7 +3171,7 @@ async function integrate(unit, report) {
     scheduleStatusWrite(state)
     return
   }
-  const standInSuffix = (unit.verdict !== 'execute' && STRONG_MODEL === 'claude-opus-4-8') ? ', fable-standin' : ''
+  const standInSuffix = (unit.verdict !== 'execute' && STRONG_TIER === 'opus') ? ', fable-standin' : ''
   // A STRONG unit (review/handoff/hard — anything but the sonnet execute tier) checkpoints
   // a strong-model decision. We persist a durable, model-tracked Fable-bonus-recheck queue
   // entry into relay.toml (last_strong_ckpt/strong_model/fable_rechecked) so a LATER executor

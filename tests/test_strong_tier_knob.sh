@@ -39,5 +39,10 @@ pass "SKILL.md shows opus usage example"
 grep -q "fable.*claude-fable-5\|claude-fable-5.*fable" "$SKILL" || fail "SKILL.md does not map fable to claude-fable-5"
 pass "SKILL.md maps fable to claude-fable-5"
 
-grep -q "opus.*claude-opus-4-8\|claude-opus-4-8.*opus" "$SKILL" || fail "SKILL.md does not map opus to claude-opus-4-8"
-pass "SKILL.md maps opus to claude-opus-4-8"
+# id:da51: the apex pin is claude-opus-5 now (claude-opus-4-8 is superseded and must not
+# reappear anywhere in SKILL.md — a stale pin silently mislabels checkpoint provenance).
+grep -q "opus.*claude-opus-5\|claude-opus-5.*opus" "$SKILL" || fail "SKILL.md does not map opus to claude-opus-5"
+pass "SKILL.md maps opus to claude-opus-5"
+
+grep -q "claude-opus-4-8" "$SKILL" && fail "SKILL.md still contains the superseded pin claude-opus-4-8 (id:da51)"
+pass "SKILL.md carries no superseded claude-opus-4-8 literal"

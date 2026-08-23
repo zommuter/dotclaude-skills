@@ -28,7 +28,7 @@ export const CHARS_PER_TOKEN = 4
 //
 // TIER DERIVATION (id:b018 — re-derived 2026-08-21 from the tiers this pool actually
 // dispatches, rather than left as an unexplained flat number). relay-loop.js dispatches
-// exactly four models: `claude-opus-4-8` (hard/review), `claude-fable-5` (hard/review when
+// exactly four models: `claude-opus-5` (hard/review), `claude-fable-5` (hard/review when
 // STRONG_TIER=fable), the default Sonnet (execute/integrate) and `haiku` (the id:4239
 // mechanical fallback). ALL FOUR carry a 200,000-token context window — no dispatched tier
 // has a different one, and the 1M-context variants are not dispatched here — so a tier-keyed
