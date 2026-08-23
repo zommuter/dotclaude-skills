@@ -1039,3 +1039,44 @@ wiring readiness — none blocks the merge.
   **Observed while filing this, 2026-08-22:** the guard fired on a Bash call whose only offence was
   QUOTING a destructive form inside a heredoc — the `id:9979` false-positive class, live and now
   twice-confirmed, and it forced this very write-back onto a different tool path.
+
+## Review 2026-08-23 (apex `--afk` hard gate — `id:7986` + `ref:da51`)
+
+Window `eb582156~1`..`75e8f18e` (handoff + execute). **Verified honest + green** — `gaming-scan.sh`
+clean, no `@owner-accepted` in the window, suite re-run independently: **493 passed / 0 failed /
+1 expected-red** (`test_dryround_single_definition_6217.sh`, unrelated). `node --check` and
+`lint-workflow-templates.mjs` both pass. The three sibling tests the executor rewrote were each
+re-audited BEFORE-vs-AFTER: all three are strictly STRONGER (each replaced its old positive
+assertion with an equivalent one plus a new ABSENCE assertion banning the superseded literal);
+nothing was skipped, emptied, or loosened. The RED spec was verified non-tautological (12/12 red
+against `eb582156`) and mutation-verified independently against five mutants — all five caught.
+**No RELAY_LOG.md self-report exists for this window** (the executor died with "Prompt is too long"
+at its commit step); the `refactor:` forcing-function line is therefore absent — noted, no cruft
+visible in the diff.
+
+- [ ] **`--intensive` no longer implies `--afk` in practice, so `/relay --intensive` silently
+  withholds every `hard` unit.** `relay/SKILL.md`'s `--intensive` flags-table row states
+  "**`--intensive` IMPLIES `--afk`** (id:052c — a user need not pass both)" but documents only
+  `Sets args.allowIntensive = true`; `relay-loop.js` derives `const AFK = !!A.afk` and never falls
+  back to `ALLOW_INTENSIVE`. Before `id:7986` this was inert (`afk` had zero consumers). Now it is
+  load-bearing: an `--intensive` run gets `AFK=false`, so `enforceApexGate` defers every `hard` unit
+  with `HARD-execute at apex requires --afk` — on a run the docs call an away-run. **This does NOT
+  violate the three owner rulings** (they say `hard` requires `--afk`, which the code does); it is a
+  front-door contract self-contradiction. **Owner's call**, two clean options: (a) make the
+  implication real — the front door sets `args.afk = true` for `--intensive` too (and the row says
+  so), or (b) drop the "implies `--afk`" sentence and require both flags. Do not pick silently.
+  <!-- id:84c5 -->
+
+- [ ] **`relay/scripts/apex-gate.mjs` is declared in the Makefile's `relay_FILES` but is NOT in the
+  live install tree** — `relay-doctor.sh` install-drift check: `MISSING: relay/scripts/apex-gate.mjs
+  is declared in relay_FILES but not installed under ~/.claude/skills/relay`. Harmless to the pool
+  today (relay-loop.js carries the byte-equivalent inline copy, and the test reads the repo tree),
+  but this repo's convention is "the live install IS the published version", so the gap is real.
+  Fix is one command, deliberately NOT run by this review because it writes outside the repo into
+  `~/.claude/`: `make install-relay`. <!-- id:bfc9 -->
+
+**Observed, NOT filed as a defect (out of this unit's ratified scope):** the same model-id-coupling
+class `id:da51` removed from the apex gate still exists on the Fable side — `relay-loop.js:240`,
+`:2369`, `:2535` compare `STRONG_MODEL === 'claude-fable-5'` rather than asking `STRONG_TIER`.
+Bumping the Fable pin would reproduce the da51 trap on the `-d` defer path. Pre-existing, untouched
+by this window, and `id:f6a1` already owns the adjacent pin question.
