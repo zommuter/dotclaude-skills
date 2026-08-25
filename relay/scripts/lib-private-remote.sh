@@ -132,7 +132,12 @@ private_host_res() {
     if [[ -z "${line//[[:space:]]/}" ]]; then continue; fi
     case "$line" in
       private-host:*)
-        re="$(printf '%s' "${line#private-host:}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        # Trim with parameter expansion, not a `sed` fork: the sole consumer now DRAINS this
+        # producer to EOF (id:17ac), so the per-directive fork is paid for every line instead
+        # of only up to the first match. Same trim as the old `s/^[[:space:]]*//;s/…$//`.
+        re="${line#private-host:}"
+        while [ "$re" != "${re#[[:space:]]}" ]; do re="${re#[[:space:]]}"; done
+        while [ "$re" != "${re%[[:space:]]}" ]; do re="${re%[[:space:]]}"; done
         if [ -n "$re" ]; then printf '%s\n' "$re"; fi
         ;;
     esac
@@ -156,10 +161,20 @@ is_private_remote_url() {
   if [ -n "${PRIVACY_GATE_PRIVATE_HOSTS:-}" ]; then
     if grep -Eq -e "$PRIVACY_GATE_PRIVATE_HOSTS" <<<"$url"; then return 0; fi
   fi
-  # 3. the PRIVATE pattern file's `private-host:` directives
-  while IFS= read -r re; do
+  # 3. the PRIVATE pattern file's `private-host:` directives.
+  #    DRAIN the producer to EOF into an array BEFORE matching (id:17ac). Looping directly
+  #    over `< <(private_host_res)` and `return 0`-ing on the first match closes the process
+  #    substitution's read end while the producer is still mid-loop, so its next
+  #    `printf '%s\n'` takes SIGPIPE. In a terminal that kills the subshell silently; under
+  #    `git push` it is LOUD — git ignores SIGPIPE and hooks inherit that disposition, so the
+  #    write returns EPIPE instead and bash prints `printf: write error: Broken pipe` into the
+  #    push transcript. That stream is the privacy gate's ONLY evidence channel (id:293f: a
+  #    clean public scan prints nothing), so noise in it degrades the one signal.
+  local -a res_list=()
+  mapfile -t res_list < <(private_host_res)
+  for re in ${res_list[@]+"${res_list[@]}"}; do
     [ -n "$re" ] || continue
     if grep -Eq -e "$re" <<<"$url"; then return 0; fi
-  done < <(private_host_res)
+  done
   return 1
 }
