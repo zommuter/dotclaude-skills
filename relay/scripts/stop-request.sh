@@ -24,7 +24,8 @@
 #   --run <runId>  address that run explicitly (must be live, else exit 3)
 #   --all          write the BROADCAST sentinel (stop whichever pool sees it first) — the
 #                  legacy behaviour, now opt-in and named rather than the silent default
-#   --after N      sentinel content N (countdown: stop after N more rounds) instead of empty
+#   --after N      sentinel content N (countdown: stop after N more DISPATCH DECISIONS,
+#                  id:a615 — NOT rounds; a chaining round is unbounded in dispatches) instead of empty
 #   --list         print live pools, write nothing (exit 0)
 #
 # Refusing on ambiguity is the point: a stop that silently picks a pool is what id:31ce was.
@@ -103,8 +104,8 @@ if [[ $broadcast -eq 1 ]]; then
     exit 3
   fi
   write_sentinel "$path"
-  echo "wrote BROADCAST stop sentinel: $path${after:+ (after $after rounds)}"
-  echo "  NOTE: a broadcast stop is consumed by the FIRST pool to reach a round boundary —" >&2
+  echo "wrote BROADCAST stop sentinel: $path${after:+ (after $after dispatches)}"
+  echo "  NOTE: a broadcast stop is consumed by the FIRST pool to reach a DISPATCH DECISION —" >&2
   echo "  with ${#RUNS[@]} pool(s) live it is not aimable. Use --run <runId> to target one." >&2
   echo "  It also does NOT expire: if every live pool dies before consuming it, it will" >&2
   echo "  false-stop the next pool launched. Remove it with: rm -- $path" >&2
@@ -120,7 +121,7 @@ if [[ -n "$want_run" ]]; then
     exit 3
   fi
   write_sentinel "${path}.${want_run}"
-  echo "wrote TARGETED stop sentinel for $want_run: ${path}.${want_run}${after:+ (after $after rounds)}"
+  echo "wrote TARGETED stop sentinel for $want_run: ${path}.${want_run}${after:+ (after $after dispatches)}"
   exit 0
 fi
 
@@ -133,7 +134,7 @@ case ${#RUNS[@]} in
     ;;
   1)
     write_sentinel "${path}.${RUNS[0]}"
-    echo "wrote TARGETED stop sentinel for ${RUNS[0]}: ${path}.${RUNS[0]}${after:+ (after $after rounds)}"
+    echo "wrote TARGETED stop sentinel for ${RUNS[0]}: ${path}.${RUNS[0]}${after:+ (after $after dispatches)}"
     exit 0
     ;;
   *)

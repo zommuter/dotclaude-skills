@@ -23,8 +23,8 @@ Invocation:
 /relay health  [repo | --all]        # relay-machinery health report (id:3eb5): runs relay-doctor.sh
 /relay inject  <repo> [--item ID] [--verdict execute|review|hard|handoff] [--prompt TEXT]  # enqueue a high-priority unit into the running pool (id:354f); no <repo> ⇒ list pending
 /relay executor                      # load the lean executor contract (cheap Sonnet sessions)
-/relay stop [--after N | --now]      # graceful drain-then-end of a RUNNING pool (id:c012)
-/relay --once                        # launch: dispatch one round, then stop (id:c012)
+/relay stop [--after N | --now]      # graceful drain-then-end of a RUNNING pool (id:c012; --after N counts DISPATCHES, id:a615)
+/relay --once                        # launch: ONE round, bounded to the wave discovery produced (id:c012/a615)
 ```
 
 ## `executor` arg (lean executor contract)
@@ -729,15 +729,17 @@ operator was trying to protect. A targeted sentinel is a different filename, so 
 stolen; `--all` keeps the old broadcast behaviour but is now **named and opt-in** rather than
 the silent default.
 
-- **`/relay stop`** — `stop-request.sh` writes an EMPTY sentinel (targeted per above). At the next
-  round boundary the prelude sees it, **consumes** it (`rm`), and the loop drains the
-  already-dispatched wave + integration debt, **drops queued-but-not-dispatched units, does
-  NOT re-discover/dispatch a new wave**, and returns cleanly with `stopReason: "user-stop"`.
-  Nothing is abandoned — the prior round's integration was already drained before the stop
-  is observed.
+- **`/relay stop`** — `stop-request.sh` writes an EMPTY sentinel (targeted per above). At the
+  **next DISPATCH DECISION** (id:a615 — not merely the next round boundary) the pool sees it,
+  **consumes** it (`rm`), and drains the children already in flight + integration debt,
+  **dispatches nothing further — no chained follow-on, no mid-round injection, no new wave** —
+  and returns cleanly with `stopReason: "user-stop"`. Units still queued are SURFACED in
+  `RELAY_STATUS.md` as `(not dispatched)`, never silently dropped.
 - **`/relay stop --after N`** — `stop-request.sh --after N` writes `N` into the targeted
-  sentinel. The prelude decrements `N→N-1` each round and fires the stop when it reaches 0,
-  i.e. the pool drains `N` more rounds then winds down.
+  sentinel. Each stop-check point decrements `N→N-1` and the stop fires when it reaches 0.
+  **`N` counts DISPATCH DECISIONS, not rounds** (id:a615): the round prelude is one check
+  point and every subsequent dispatch decision in that round is another, so `--after 3` means
+  "three more units dispatched, then wind down".
 - **`/relay stop --run <runId>`** — target one named live pool (required when two or more are
   live). **`/relay stop --all`** — the explicit broadcast: stop whichever pool sees it first.
   **`/relay stop --list`** — print the live pools, write nothing.
@@ -746,8 +748,18 @@ the silent default.
   killed and their worktrees park as `relay/orphan/*` (recover via `/relay reconcile`). Use
   only when you won't wait for the current wave to finish.
 
+> **Why the check is per-DISPATCH, not per-round (id:a615, corrected 2026-08-26).** A round is
+> unbounded in work: the id:8123 chain-end classifier re-ask and the review→execute re-chain both
+> push follow-on units into the *same* round's queue without returning to `discover-prelude`,
+> where the sentinel used to be read. Run `relay-20260822-154630-17003` made **14 dispatches, all
+> stamped `round=1`**, four of them after the operator's sentinel was already on disk — the file
+> was still unconsumed 22 minutes later. So the earlier wording here — that a stop drains the
+> *wave that was already dispatched* — assumed a wave boundary a chaining round does not have, and the
+> graceful path could not fire at all; only `TaskStop` bounded such a run. The check now runs at
+> every dispatch decision, and the launch caps below are dispatch-scoped for the same reason.
+
 The sentinel is **self-consuming and fail-safe**: only a literal `stopRequested===true` from
-the prelude triggers the stop, so a flaky read can never wedge the pool, and a fired sentinel
+the check triggers the stop, so a flaky read can never wedge the pool, and a fired sentinel
 is removed so it can't silently stop the *next* pool. To cancel a pending `/relay stop`
 before it fires, `rm` the file it named (`~/.config/relay/STOP.<runId>`, or the bare
 `~/.config/relay/STOP` for a broadcast). Note the self-consuming property is exactly what
@@ -765,10 +777,21 @@ ISO-timestamped line to `~/.claude/logs/relay-stop-sentinel.log` (override via
 
 **Launch-time variants** (no running pool — set a cap when you start one):
 
-- **`/relay --once`** — dispatch exactly ONE round, then stop (`args.once`, `stopReason:
-  "user-stop"`). Useful for a single supervised wave.
-- **`/relay --after N`** — dispatch `N` rounds, then stop (`args.stopAfter = N`; `--once` is
-  sugar for `--after 1`). A pure-JS round cap in the outer loop, independent of the sentinel.
+- **`/relay --once`** — **a bounded amount of work, once**: one round, dispatching only the
+  units DISCOVERY produced for it, then stop (`args.once`, `stopReason: "user-stop"`).
+  Chained follow-ons (id:8123 chain-end re-ask, review→execute re-chain) beyond that wave are
+  refused and surfaced as `(not dispatched)`. Useful for a single supervised wave.
+- **`/relay --after N`** — `N` such bounded rounds, then stop (`args.stopAfter = N`; `--once`
+  is sugar for `--after 1`).
+
+Both caps are **DISPATCH-scoped, not round-scoped** (id:a615). Before this they were pure
+outer-loop round counters, and a round is unbounded in work — `--once` would have permitted
+every one of the 14 chained `round=1` dispatches of run `relay-20260822-154630-17003`. The
+implementation snapshots `waveDispatchBudget = queue.length` before the lanes start; a mid-round
+`inject.sh take` EXTENDS that budget (operator-requested work is not the chaining the bound
+exists to stop, and the take has already consumed it), and the `[INTENSIVE]` serial phase is
+exempt (a fixed discovery-produced list that cannot chain). The STOP sentinel outranks the
+budget and does bound both.
 
 ## Shared resources
 
@@ -866,9 +889,9 @@ the historical `fable-ckpt-*` prefix:
 | `<repo>` / `.` / `--only <repo>` | repo name | (none) | **First-class SINGLE-REPO scope (id:7633).** `/relay zkm` or `--only zkm` classifies **ONLY** that repo — the own-repo universe enumeration + 40× discover fan-out is bypassed, but the SAME per-repo path (`discover-repo.sh` reconcile→classify→route) is reused for the one repo (never forked). The repo resolves against `relay.toml` (THE canonical own set, honoring `# path:`-relocated repos — never a `~/src` glob); a name not confirmed `own` there is a **LOUD reject** (surfaced, no dispatch), not a guess. This replaces the old `--exclude`-everything-else workaround (which silently missed `# path:` repos). **Bare `/relay .` is the one exception** (2026-07-19 Amendment, supersedes id:7633 acceptance #4): it resolves to the cwd repo's basename but now means the **off-Workflow drain**, not this Workflow pool — see **Drain mode** below. See **Single-repo scope** below for the pool forms. |
 | `RELAY_QUOTA_DECAY_7D` | `START:END` fractions | (unset) | Time-decaying cap for the 7-day + 7-day-Sonnet buckets: the threshold linearly interpolates from `START` at the rolling 7-day window's open to `END` at its reset (e.g. `0.30:0.90` → ~0.82 at 6/7 elapsed). **Direction matters — weekly quota is use-it-or-lose-it (unused 7-day allowance is forfeit at reset), so the cap should RISE toward reset (`START < END`): conserve early (don't blow the week on day 1), then spend down the about-to-reset budget.** A `START > END` (spend-early / back-off-late) schedule is almost always wrong — it false-stops a healthy low-utilization run right before reset (observed 2026-06-22: `0.40:0.18` stopped at 24% 7d-util with ~22 h to reset, leaving 76% to be forfeit). Recomputed each gate check from `seven_day.resets_at`. 5h bucket unaffected (it is the real short-term burst guard). Forwarded into the quota-gate via args. |
 | `MAX_ROUNDS` | integer | `30` | Self-feeding-loop seatbelt: max re-discover→dispatch→drain rounds in one `relay-loop.js` invocation before it returns regardless. The loop normally ends earlier on the quota cap or two consecutive empty discoveries (backlog drained). Passed as `args.MAX_ROUNDS`. |
-| `RELAY_STOP_PATH` / `--stop-path` | path | `~/.config/relay/STOP` | id:c012 — the graceful-stop **STOP sentinel** the `discover-prelude` checks each round. Content = integer "rounds remaining before stop" (empty/≤0 = stop at next round boundary; the prelude consumes+removes it on firing → `stopReason: "user-stop"`). Written by `/relay stop` (empty) / `/relay stop --after N` (N). Passed as `args.STOP_PATH`. See **Stop mode**. |
-| `--once` | flag | off | id:c012 — launch-time round cap: dispatch exactly ONE round, then stop with `stopReason: "user-stop"`. Sugar for `--after 1`. Passed as `args.once = true`. |
-| `--after N` | integer | (none) | id:c012 — launch-time round cap: dispatch `N` rounds, then stop with `stopReason: "user-stop"`. Pure-JS outer-loop cap, independent of the STOP sentinel. Passed as `args.stopAfter = N`. |
+| `RELAY_STOP_PATH` / `--stop-path` | path | `~/.config/relay/STOP` | id:c012 — the graceful-stop **STOP sentinel**, checked at the `discover-prelude` AND at **every dispatch decision inside the round** (id:a615 — a chaining round never reaches a round boundary, so the prelude-only check could not fire). Content = integer **"dispatch decisions remaining before stop"** (empty/≤0 = stop at the next dispatch decision; the check consumes+removes it on firing → `stopReason: "user-stop"`). Written by `/relay stop` (empty) / `/relay stop --after N` (N). Passed as `args.STOP_PATH`. See **Stop mode**. |
+| `--once` | flag | off | id:c012, **dispatch-scoped since id:a615** — launch cap: ONE round, bounded to the units DISCOVERY produced for it (`waveDispatchBudget`), then stop with `stopReason: "user-stop"`. Chained follow-ons beyond that wave are refused and surfaced. Sugar for `--after 1`. Passed as `args.once = true`. |
+| `--after N` | integer | (none) | id:c012, **dispatch-scoped since id:a615** — launch cap: `N` such bounded rounds, then stop with `stopReason: "user-stop"`. Pure-JS, independent of the STOP sentinel. Passed as `args.stopAfter = N`. |
 | `--drain` | flag | off | id:93fe Phase 1 — **single-repo off-Workflow drain, a discoverability ALIAS.** Resolves to the cwd repo (or the named/`--only` repo) and runs the lean **off-Workflow** drain via `drain-driver.mjs` (id:cd7a) — no Workflow prelude/discovery agents. **Not strictly needed: bare `/relay .` already drains** (2026-07-19 Amendment, supersedes id:7633 acceptance #4) — the driver's `isDryRound`→`drained` (K=2 no-substantive-progress rounds via the inlined `drain.mjs`, id:d58f/4ca8) and `isBlockedRound`→`blocked-pending-human` termination is the whole drain contract (meeting `2026-07-19-2035-relay-drain-parallel-contract.md`, D2/D6). `--drain` is the explicit verb for users who reach for it, or for requesting the drain on a named/`--only` repo — no separate engine. |
 | `--parallel N` | integer | (none) | id:ebbe — **Phase 2 of `--drain`, NOT YET BUILT.** Would fan out N executors within a drain round (one-writer-to-main: executors→worktrees, single driver merges `--no-ff` serially; mechanical fail-closed disjoint-path greenlight — meeting D4/D5). Gated-on id:0534 (landed). Until built, the front door LOUD-surfaces "`--parallel` (id:ebbe) is not yet implemented — running single-executor drain" and proceeds as `--drain` (N=1). Route id:ebbe to `/relay handoff` to author the RED spec. |
 | `DISCOVER_SHARDS` | integer | `6` | Number of parallel discovery-shard classifiers fanned out per round (id:9ed4). A once-only prelude does the global work (runId, the consuming `inject.sh take`, `claim.sh peek`, the own-repo list + non-own skipped rollup); the own repos are round-robin chunked across this many shard agents that classify in parallel, then merged into the same discovery object. Capped at the repo count; the Workflow harness's `min(16, cpu_cores-2)` agent ceiling still applies, so shards above it just queue. Passed as `args.DISCOVER_SHARDS`. |

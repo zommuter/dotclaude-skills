@@ -18,6 +18,13 @@
 # only the broadcast file is seen — unchanged legacy behaviour. A targeted sentinel for another
 # run is a different filename and so can never be consumed here.
 #
+# Countdown UNIT (id:a615, 2026-08-26): N counts DISPATCH DECISIONS, not rounds. A round is
+# unbounded in work — the id:8123 chain-end re-ask dispatches follow-on units without returning
+# to the prelude — so a per-round countdown could be arbitrarily long or never reached at all
+# (run relay-20260822-154630-17003: 14 dispatches, all round=1, sentinel never consumed).
+# relay-loop.js therefore calls this script at the round prelude AND at every subsequent
+# dispatch decision within the round, so each dispatch decision counts exactly one tick.
+#
 # Semantics (VERBATIM prelude step 8):
 #   file absent                          -> {"stopRequested":false}
 #   trimmed content a positive integer N>=1 -> write N-1 back, {"stopRequested":false}
@@ -29,7 +36,10 @@
 #                             (default ~/.claude/logs/relay-stop-sentinel.log)
 #
 # This is the ONLY actor that writes/removes the sentinel; callers must invoke it
-# at most once per round (prelude step 8 contract, unchanged).
+# at most once per STOP-CHECK POINT — the round prelude (step 8) and each subsequent
+# dispatch decision inside the round (id:a615). Concurrent lanes must collapse onto ONE
+# call (relay-loop.js's `stopCheckInFlight` memo does this) so a countdown is not
+# double-decremented by a parallel wave.
 set -euo pipefail
 
 cmd="${1:-}"

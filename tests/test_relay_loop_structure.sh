@@ -177,7 +177,10 @@ grep -q "roundCapHit = true" "$JS" || fail "MAX_UNITS does not use a per-round f
 # moved INSIDE the loop (a drained lane polls injections before breaking — see
 # test_relay_midround_inject.sh), so the while-condition is now (!quotaStopped && !roundCapHit)
 # with an `if (!queue.length)` drain/poll/break inside.
-grep -q "while (!quotaStopped && !roundCapHit)" "$JS" || fail "lane loop missing quotaStopped/roundCapHit guard"
+# id:a615 added a THIRD guard — userStopMidRound — because the operator STOP sentinel is now
+# consumed at a dispatch decision INSIDE the round (a chaining round never reaches the round
+# boundary where the prelude used to read it), so the lanes must stop pulling on it too.
+grep -q "while (!quotaStopped && !roundCapHit && !userStopMidRound)" "$JS" || fail "lane loop missing quotaStopped/roundCapHit/userStopMidRound guard"
 grep -q "if (!queue.length)" "$JS" || fail "lane loop missing queue-drain branch (id:6e9d injection poll)"
 # state + quotaStopped must be module-level accumulators (declared before runRound), not reset per round
 grep -q "^let quotaStopped = false" "$JS" || fail "quotaStopped not a cross-round accumulator"

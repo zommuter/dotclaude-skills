@@ -140,20 +140,49 @@ const MECH_MODEL = MECH_FALLBACK === 'fallback-haiku' ? 'haiku' : 'bash'
 // stopReason="user-stop" + a clean drain (the prior round's wave + integration debt are
 // already drained by runRound before the next round's discovery runs, so a stop between
 // rounds abandons nothing — it just declines to re-discover/dispatch a new wave):
-//   • STOP sentinel (live pool): a file at STOP_PATH the discover-prelude checks each round
-//     (the Workflow script has NO filesystem access — only agents run shell, so the prelude
-//     owns the read/decrement/consume and returns `stopRequested`). Sentinel CONTENT = integer
-//     "rounds remaining before stop" (empty / non-numeric / <=0 ⇒ stop at the NEXT round
-//     boundary). `/relay stop` writes an empty file (stop now); `/relay stop --after N` writes
-//     N (drain N more rounds, then stop). The prelude decrements N→N-1 each round and consumes
-//     (rm) the sentinel when it fires, so a stale sentinel can never wedge the next pool.
-//   • --once (launch flag): dispatch exactly ONE round, then stop. Pure JS round cap.
-//   • --after N (launch flag): dispatch N rounds, then stop. Pure JS round cap (--once = N:1).
+//   • STOP sentinel (live pool): a file at STOP_PATH, checked at EVERY DISPATCH DECISION
+//     (id:a615) — the discover-prelude checks it once at the round boundary, and every
+//     subsequent dispatch decision inside the round re-checks it via the same
+//     `stop-sentinel.sh check` mechanical hop (the Workflow script has NO filesystem access —
+//     only agents run shell). Sentinel CONTENT = integer "dispatch decisions remaining before
+//     stop" (empty / non-numeric / <=0 ⇒ stop at the NEXT dispatch decision). `/relay stop`
+//     writes an empty file (stop now); `/relay stop --after N` writes N. The check decrements
+//     N→N-1 and consumes (rm) the sentinel when it fires, so a stale sentinel can never wedge
+//     the next pool.
+//   • --once (launch flag): ONE round, bounded to the wave DISCOVERY produced. Dispatch-scoped.
+//   • --after N (launch flag): N such rounds (--once = N:1). Dispatch-scoped.
 // Distinct from quota-stop (involuntary) — this is the voluntary, operator-initiated wind-down.
+//
+// ── id:a615 — WHY ALL THREE ARE DISPATCH-SCOPED, NOT ROUND-SCOPED ──────────────────────────
+// A ROUND IS UNBOUNDED IN WORK. The id:8123 chain-end classifier re-ask and the
+// review→execute re-chain both push follow-on units into the SAME round's queue without ever
+// returning to discover-prelude, so a repo with N actionable items chains N dispatches under
+// ONE round number. Observed live on run relay-20260822-154630-17003: 14 dispatches, EVERY
+// ONE stamped round=1, four of them after the operator's STOP sentinel was already on disk.
+// A round-boundary sentinel check is therefore never reached, and a round CAP (`--once`,
+// `--after N`) permits every chained dispatch — all three outside controls shared one blind
+// spot, leaving TaskStop (the destructive path the graceful one exists to avoid) as the only
+// working bound.
+// The REJECTED alternative was routing the chain-end re-ask back through the prelude: that
+// repairs the sentinel but leaves the caps meaningless, because a round could still chain —
+// it moves WHERE the boundary is checked, not WHAT a round can contain.
+// The ratified shape (owner, 2026-08-22) BOUNDS DISPATCHES:
+//   (a) the sentinel is re-checked at each dispatch decision (stopCheck() below), and
+//   (b) under a launch cap, each round may dispatch only the wave DISCOVERY produced —
+//       `waveDispatchBudget`, snapshotted from the queue before the lanes start. Chained /
+//       mid-round-injected follow-ons beyond that snapshot are REFUSED and SURFACED (never
+//       silently dropped), which is what makes `--once` mean "a bounded amount of work, once".
+// id:cd94 FAIL-SAFE PROPERTIES PRESERVED, all three: a flaky/failed/unparseable sentinel read
+// yields stopRequested:false and the pool CONTINUES (fail toward working, never toward a hang);
+// the consume stays logged by stop-sentinel.sh; and stopping twice is harmless (the second
+// check simply finds no sentinel).
 const STOP_PATH = A.STOP_PATH || '~/.config/relay/STOP'
 // Launch-time round cap (0 = off). --once is sugar for --after 1. The outer loop breaks with
 // stopReason="user-stop" once `round` reaches this cap.
 const STOP_AFTER_ROUNDS = A.once ? 1 : (Number.isInteger(A.stopAfter) && A.stopAfter > 0 ? A.stopAfter : 0)
+// id:a615 — a launch cap is active ⇒ the per-round wave dispatch budget is armed. Off (0) ⇒
+// unbounded chaining exactly as before, so an uncapped `/relay` run is behaviourally unchanged.
+const DISPATCH_BOUND_ACTIVE = STOP_AFTER_ROUNDS > 0
 
 // id:d530 — first-class per-RUN --priority / --exclude pool args (no relay.toml write; the
 // registry stays untouched). The front door maps the natural-language forms the user types
@@ -1719,6 +1748,51 @@ async function mechVerdictHop(note, command, label) {
   )
   return parseVerdictClass(raw)
 }
+
+// ── id:a615 — PER-DISPATCH STOP-SENTINEL CHECK ──────────────────────────────────────────────
+// The round-boundary check in discover-prelude (id:c012 step 8) is structurally unreachable
+// inside a chaining round, so this is the SAME check moved to the dispatch decision. It runs
+// the SAME script (`stop-sentinel.sh check --path <p> --run <runId>`) with the SAME
+// targeted-then-broadcast resolution and the SAME countdown/consume semantics — this is not a
+// second implementation of the sentinel protocol, it is a second CALL SITE of the one actor.
+//
+// CONCURRENCY: POOL_WIDTH lanes reach their dispatch decisions at once. Launching one hop per
+// lane would (a) burn N hops for one answer and (b) race two countdown decrements against each
+// other. `stopCheckInFlight` collapses concurrent callers onto ONE hop, so a wave of lanes
+// consumes exactly one dispatch-decision tick.
+//
+// FAIL-SAFE (id:cd94, preserved): the agent throwing, an empty/garbled reply, or anything that
+// is not a literal `"stopRequested": true` ⇒ FALSE ⇒ the pool KEEPS WORKING. A flaky read can
+// never wedge the pool, and stop-sentinel.sh removes the file LAST so an unread stop re-fires
+// at the next dispatch decision rather than being silently eaten.
+let stopCheckInFlight = null
+async function stopCheck() {
+  if (stopCheckInFlight) return stopCheckInFlight
+  stopCheckInFlight = (async () => {
+    let raw = ''
+    try {
+      raw = await agent(
+        'Run EXACTLY this one command and report its stdout VERBATIM (the id:a615 per-dispatch operator STOP-sentinel check — it atomically checks, counts down, and consumes the sentinel):\n' +
+        '```relay-mech\n' +
+        '~/.claude/skills/relay/scripts/stop-sentinel.sh check --path ' + STOP_PATH +
+          (state.runId ? ' --run ' + mechArg(state.runId) : '') +
+        '\n```',
+        { label: 'stop-check', phase: 'Support', model: MECH_MODEL }
+      )
+    } catch (err) {
+      log(`relay-loop: id:a615 per-dispatch stop check FAILED (${err}) — treating as NO STOP and continuing (id:cd94 fail-safe: a flaky read must never wedge the pool; the sentinel survives and re-fires at the next dispatch decision)`)
+      return false
+    }
+    const text = typeof raw === 'string' ? raw : (raw && typeof raw.stdout === 'string' ? raw.stdout : JSON.stringify(raw || ''))
+    const fired = /"stopRequested"\s*:\s*true/.test(text)
+    if (!fired && !/"stopRequested"\s*:\s*false/.test(text)) {
+      log(`relay-loop: id:a615 per-dispatch stop check returned no readable stopRequested field — treating as NO STOP and continuing (fail-safe)`)
+    }
+    return fired
+  })().finally(() => { stopCheckInFlight = null })
+  return stopCheckInFlight
+}
+
 // ── id:bc2b — SUPPRESSION MUST DEMOTE THE VERDICT, NOT DROP THE UNIT ────────────────────────
 // classify-verdict.sh is a strict elif cascade, so ONE actionable [ROUTINE] item PINS a repo at
 // `execute` (rank 1). Both anti-spin mechanisms were SUBSTITUTIVE — id:1432 no-work suppression
@@ -2573,6 +2647,48 @@ const debts = []
 const chainEndReasked = new Set()
 let unitsDispatched = 0
 let roundCapHit = false   // per-round MAX_UNITS cap; distinct from quotaStopped (run-ending)
+// ── id:a615 — DISPATCH-SCOPED launch bound + mid-round operator stop ────────────────────────
+// waveDispatchBudget: how many dispatch decisions this round may make under `--once`/`--after N`.
+// Snapshotted from the queue BEFORE the lanes start (see the snapshot just above the lane
+// `parallel(...)` below) = exactly the wave DISCOVERY produced. 0 = bound disarmed (no launch
+// cap) ⇒ pre-a615 behaviour, chaining unbounded.
+// dispatchDecisions: every unit the lanes/intensive phase decide to run, counted BEFORE the
+// oversize/provision gates — unlike unitsDispatched (which counts only units that actually
+// reached a child), this is the DECISION counter the bound and the stop check key on, so a
+// chain that keeps producing refused units still consumes the bound.
+// waveBudgetHit / userStopMidRound: distinct from roundCapHit on purpose — the budget must not
+// suppress the [INTENSIVE] serial phase (those units are part of the discovered wave and never
+// chain), whereas an operator stop must.
+let waveDispatchBudget = 0
+let dispatchDecisions = 0
+let waveBudgetHit = false
+let userStopMidRound = false
+// The gate every dispatch decision passes through. Returns a REASON string when this decision
+// must NOT happen, or '' to proceed. Order matters: the operator's stop outranks the cap.
+async function dispatchGateBlock(where) {
+  if (userStopMidRound) return 'operator STOP sentinel (already fired this round)'
+  if (dispatchDecisions > 0 && await stopCheck()) {
+    // dispatchDecisions > 0: the round's FIRST decision was already covered by the prelude's
+    // check (id:c012 step 8), so each dispatch decision is checked exactly ONCE and the
+    // sentinel's countdown unit is honestly "dispatch decisions", not "rounds".
+    userStopMidRound = true
+    stopReason = 'user-stop'
+    log(`relay-loop: id:a615 STOP sentinel consumed MID-ROUND at a ${where} dispatch decision (round ${round}, ${dispatchDecisions} dispatches so far) — draining in-flight work + integration debt, dispatching nothing further`)
+    pushEvent('user-stop', { round, dispatchDecisions, where, source: 'dispatch-gate (id:a615)' })
+    return 'operator STOP sentinel'
+  }
+  // The wave budget governs the LANE loop only — the [INTENSIVE] serial phase runs a fixed,
+  // discovery-produced list that cannot chain, so bounding it would make `--once` silently drop
+  // work discovery legitimately found (only the STOP sentinel above applies there).
+  if (where === 'lane' && waveDispatchBudget > 0 && dispatchDecisions >= waveDispatchBudget) {
+    if (!waveBudgetHit) {
+      waveBudgetHit = true
+      log(`relay-loop: id:a615 wave dispatch budget reached (${dispatchDecisions}/${waveDispatchBudget}, --once/--after) — the discovered wave is done; chained/injected follow-ons are SURFACED, not dispatched`)
+    }
+    return `--once/--after wave dispatch budget (${waveDispatchBudget})`
+  }
+  return ''
+}
 
 function refDoc(verdict) {
   if (verdict === 'review') return '~/.claude/skills/relay/references/review.md'
@@ -4154,6 +4270,11 @@ async function runUnit(unit) {
 // id:6e9d "Known residual"). A unit-shaped injected object so the normal dispatch path runs it.
 async function takeInjections() {
   if (quotaStopped || roundCapHit || unitsDispatched >= MAX_UNITS) return []
+  // id:a615 — a STOPPED run must not pull injections: `inject.sh take` CONSUMES, so taking one
+  // we then refuse to dispatch would LOSE it. Leaving it pending is the safe direction.
+  // (A capped run still takes them — see the budget EXTENSION at the call site: an injection is
+  // operator-supplied work, not the chaining this bound exists to stop.)
+  if (userStopMidRound) return []
   // id:6176 — mechanical hop (model:"bash"): the ```relay-mech fence carries `inject.sh take`; the
   // proxy runs it locally and returns its RAW STDOUT (one compact JSON per line
   // {token,repo,verdict,item,prompt,requested_at}; empty when nothing pending). The path-resolve +
@@ -4173,9 +4294,28 @@ async function takeInjections() {
   return enforceInjectScope(parseInjectTake(raw, prelude.repos), 'mid-round take')
 }
 
+// id:a615 — SNAPSHOT the wave dispatch budget before the lanes start. This is the whole
+// dispatch-scoped bound: under `--once`/`--after N` a round may dispatch exactly the units
+// DISCOVERY produced, and no more. Everything the id:8123 chain-end re-ask / the
+// review→execute re-chain / a mid-round injection pushes into `queue` afterwards lands ABOVE
+// the snapshot and is refused + surfaced. Disarmed (0) without a launch cap.
+waveDispatchBudget = DISPATCH_BOUND_ACTIVE ? queue.length : 0
+if (waveDispatchBudget) log(`relay-loop: id:a615 --once/--after wave dispatch budget = ${waveDispatchBudget} unit(s) for round ${round} (chained follow-ons beyond this are surfaced, not dispatched)`)
+
 await parallel(
   Array.from({ length: Math.min(POOL_WIDTH, queue.length) }, () => async () => {
-    while (!quotaStopped && !roundCapHit) {
+    while (!quotaStopped && !roundCapHit && !userStopMidRound) {
+      // id:a615 — the DISPATCH DECISION gate: the operator STOP sentinel (re-checked here, not
+      // only at the unreachable round boundary) and the --once/--after wave budget. A blocked
+      // decision leaves the unit in `queue`, where the post-wave sweep surfaces it as
+      // "(not dispatched)" — refused LOUDLY, never silently dropped.
+      if (queue.length) {
+        const blocked = await dispatchGateBlock('lane')
+        if (blocked) {
+          log(`relay-loop: id:a615 dispatch REFUSED (${blocked}) — ${queue.length} queued unit(s) surfaced instead: ${queue.map(u => `${u.repo}:${u.verdict}`).join(', ')}`)
+          break
+        }
+      }
       if (unitsDispatched >= MAX_UNITS) {
         log(`relay-loop: MAX_UNITS per-round cap (${MAX_UNITS}) reached — draining this round`)
         roundCapHit = true
@@ -4191,12 +4331,19 @@ await parallel(
         const injected = await takeInjections()
         if (injected.length) {
           queue.push(...injected)
+          // id:a615 — an injection EXTENDS the wave budget rather than being refused by it. The
+          // bound exists to stop CHAINING (loop-generated follow-ons), not to discard work the
+          // operator explicitly requested; and since `inject.sh take` has already consumed it,
+          // refusing here would lose it outright. An injected unit cannot chain by itself — any
+          // follow-on it produces is still capped by the (extended) budget.
+          if (waveDispatchBudget > 0) waveDispatchBudget += injected.length
           log(`relay-loop: mid-round inject pickup — ${injected.length} unit(s): ${injected.map(u => u.repo).join(', ')} (id:6e9d)`)
           continue
         }
         break  // nothing queued and no pending injection → this lane is done
       }
       const unit = queue.shift()
+      dispatchDecisions++   // id:a615 — counted at the DECISION, before any dispatch-time gate
       state.queued = state.queued.filter(q => q.repo !== unit.repo)
       await runUnit(unit)
     }
@@ -4220,7 +4367,17 @@ for (const unit of intensiveUnits) {
     state.queued.push({ repo: unit.repo, verdict: `intensive:${unit.intensive} (not run — quota/cap)` })
     continue
   }
+  // id:a615 — the intensive phase is a DISPATCH DECISION too, so the operator's stop reaches it.
+  // NOTE the deliberate asymmetry: intensive units are part of the wave discovery produced and
+  // never chain, so the `--once`/`--after` WAVE BUDGET (sized from `queue`) does not apply to
+  // them — only the STOP sentinel does. That asymmetry is enforced inside dispatchGateBlock by
+  // the `where === 'lane'` guard on the budget clause.
+  if (userStopMidRound || await dispatchGateBlock('intensive')) {
+    state.queued.push({ repo: unit.repo, verdict: `intensive:${unit.intensive} (not run — operator stop, id:a615)` })
+    continue
+  }
   log(`relay-loop: [INTENSIVE] serial run-alone dispatch ${unit.repo} (resource=${unit.intensive})`)
+  dispatchDecisions++   // id:a615
   await runUnit(unit)
   await Promise.all(debts)
   await Promise.all([...integrationChains.values()])
@@ -4239,7 +4396,11 @@ const produced = state.completed.length - completedBefore
 const substantive = state.completed.slice(completedBefore).filter(c => c.substantive).length
 // id:c919 — hard-split handbacks THIS round whose seams were written as new pickable units.
 const workCreated = state.handbacks.slice(handbacksBefore).filter(h => h.workCreated).length
-return { actionable: actionable.length + intensiveRan, produced, substantive, workCreated, surfaced: discovery.surfaced.length }
+// id:a615 — `userStop` now has TWO producers: the prelude short-circuit above (round boundary,
+// id:c012) and the per-dispatch gate (mid-round, the case that was unreachable). The outer loop
+// breaks on either, so a stop consumed at dispatch #7 of a chaining round ends the RUN, not just
+// the round — which is what the operator asked for.
+return { actionable: actionable.length + intensiveRan, produced, substantive, workCreated, surfaced: discovery.surfaced.length, userStop: userStopMidRound }
 }
 // ── end runRound ──
 
@@ -4328,7 +4489,7 @@ while (!quotaStopped && round < MAX_ROUNDS) {
   }
   // id:c012 — operator STOP sentinel fired inside this round's prelude: stopReason is already
   // set to "user-stop"; the round drained without dispatching. Break the outer loop cleanly.
-  if (r.userStop) { log(`relay-loop: graceful stop after round ${round} (operator STOP sentinel)`); break }
+  if (r.userStop) { log(`relay-loop: graceful stop after round ${round} (operator STOP sentinel — round boundary id:c012 or mid-round dispatch gate id:a615)`); break }
   // id:c012 — launch-time round cap (--once = 1 round; --after N = N rounds). The cap counts
   // COMPLETED rounds; once `round` reaches it, wind down voluntarily (drain already done above).
   if (STOP_AFTER_ROUNDS > 0 && round >= STOP_AFTER_ROUNDS) {
