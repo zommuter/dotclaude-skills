@@ -4374,3 +4374,8 @@ with their existing ids (single-id-two-views); `id:7986` is primary, `id:da51` r
   - **Acceptance**: tests/flake-log.sh -j 1 completes and appends a second new row to ~/.cache/dotclaude-flake/runs.jsonl with ts after 2026-08-21T10:58:33Z
   - **Done-check**: grep the new row's ts in ~/.cache/dotclaude-flake/runs.jsonl
   - **Context**: tests/flake-log.sh, ~/.cache/dotclaude-flake/runs.jsonl
+
+- [x] **[ROUTINE]** flake-log over-subscribed-width confirmation run #1 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:b1ef -->
+  - **Acceptance**: tests/flake-log.sh -j 16 (or -j 24/-j 32) completes and appends one new row to ~/.cache/dotclaude-flake/runs.jsonl with ts after 2026-08-21T10:58:33Z
+  - **Done-check**: grep the new row's ts and width in ~/.cache/dotclaude-flake/runs.jsonl
+  - **Context**: tests/flake-log.sh, ~/.cache/dotclaude-flake/runs.jsonl
