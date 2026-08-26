@@ -15,6 +15,7 @@
 - id:c3be — ran flake-log.sh -j 16 (over-subscribed width) confirmation run #2, appended ts=20260826T124545Z pass=498 fail=0 rc=0 row to runs.jsonl (id:c3be)
 - review(8123): id:758a verified green + closed (cross-ledger drift resolved) id:7354 independently verified via a RED spec recovered from a stranded orphan branch mini-handoff promoted id:76fd with a RED spec all 4 tiers green (505/0/2) (id:758a,7354,76fd,9566)
 - id:76fd — integrate hops --summary now rides the relay-mech-stdin channel instead of an inline shell arg full suite 506/0/1-expected-red (id:76fd)
+- review(8123): window = 1 integrator commit (id:6ab7 gate note, verified accurate vs runs.jsonl) no executor code work all 4 tiers green (506/0/1-xred, canaries 3/3+6/6) gaming-scan + relay-doctor clean routine_open=0 (all 6 open [ROUTINE] gated or @owner-verify) [id:6ab7] (id:6ab7)
 
 ## 2026-08-22
 
