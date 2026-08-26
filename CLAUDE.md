@@ -155,12 +155,24 @@ step 2b); its semver sibling — the reviewer-only bump — is `relay/scripts/ve
   protects `Done`/`Current` headings.
 - **relay discovery is signature-cached** (id:c3a6): `discover-sig.sh` hashes a SUPERSET
   of every input the classifier shard reads; `relay-loop.js` reuses last round's verdict
-  when a repo's sig is unchanged, so an LLM shard fires only on churn. It is **fail-open** —
+  when a repo's sig is unchanged, so the shard re-runs only on churn. It is **fail-open** —
   an empty/sentinel sig (or a cache miss) always re-classifies; the cache is never a
   correctness authority. If you add a NEW signal to the shard prompt, add it to
   `discover-sig.sh`'s blob too, or its verdict can go stale (under-invalidation is the only
-  hazard — over-hashing merely wastes a re-classify). The `discover-shard` agent is pinned
-  `model: 'sonnet'` (it used to inherit the Opus session model — the 35%-overhead leak).
+  hazard — over-hashing merely wastes a re-classify).
+- **Discovery is MECHANICAL, not an LLM hop — do not cost it as inference.** Both discovery
+  hops dispatch at `MECH_MODEL` (`relay-loop.js:137`), which is `'bash'` unless
+  `MECH_FALLBACK === 'fallback-haiku'`: the prelude at `:1944` (id:86a2) and the shard at
+  `:2113` (id:24ec), where `discover-chunk.sh` is one fenced `relay-mech` command with ZERO
+  agents and no LLM judgment. **This line previously read "the `discover-shard` agent is
+  pinned `model: 'sonnet'`" — true when written, false since id:24ec**, and the stale copy
+  was traced (2026-08-26) as the likely source of `id:79fd`'s false premise that continuous
+  re-discovery costs Sonnet tokens. It does not. The real per-scan cost is that the shard
+  runs `reconcile-repo.sh` LIVE with bounded git side effects (fetch / ff-merge when behind
+  origin / uv.lock cascade commit / worktree reap+park) — unmeasured, and the thing to price
+  in any continuous-dispatch design. Note `meta.phases[1].detail` still says "parallel
+  discover-shard classifiers"; `relay-loop.js:5-8` marks that block as purely a DISPLAY
+  grouping with zero behavioural change, so do not read it as a model claim.
 
 ## Testing
 
