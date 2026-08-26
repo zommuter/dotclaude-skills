@@ -6888,3 +6888,56 @@ in integrate.sh, one hop-builder edit in relay-loop.js); no duplication introduc
 ## 2026-08-26 17:10 — executor (sonnet, relay-loop)
 
 id:76fd — integrate hops --summary now rides the relay-mech-stdin channel instead of an inline shell arg full suite 506/0/1-expected-red [id:76fd]
+
+## 2026-08-26 — reviewer (claude-opus-5, relay-loop)
+
+Chain-end review re-ask (classifier id:8123, chain `relay-ckpt-20260826-1710`). The
+`$LAST..HEAD` window is a SINGLE commit — `8075c255`, the integrator's own durable
+handback follow-up re-laning `id:6ab7` `[ROUTINE]` → `[INPUT — decision]` with a
+`route:human` gate note (id:3801). **No executor code work, no test files touched**, so
+there was no formerly-red test to verify-green and no item to close this pass.
+`gaming-scan.sh` clean (exit 0, no output); §2b residue checks vacuous by construction
+(nothing to resurrect / special-case / fake-clean, no `refactor:` claim in the window, no
+`@owner-accepted` introduced); §2d over-reach vacuous (zero items closed).
+
+**Verified the gate note rather than trusting it** (the claim is a restatement about
+repo state, so it was checked against the evidence): `id:6ab7`'s note says only 3/4
+required post-`id:81d5` flake-log confirmation rows exist. `id:81d5` landed `9f0334ea`
+2026-08-25 15:02; `~/.cache/dotclaude-flake/runs.jsonl` carries exactly three rows after
+it — one `width=1` (`20260826T102748Z`, 419.4 s) and two `width=16` (`114235Z`,
+`124545Z`) — matching seams `f2ef`/`b1ef`/`c3be` `[x]` and the second `width=1` seam
+`id:97e0` still open. The 419 s wall-clock also substantiates the "exceeds one executor
+turn's budget" rationale on `97e0`. Gate note is ACCURATE; left as written.
+
+**Test tiers (§3, all four DECLARED tiers RUN — none skipped):** `make lint` green (runs
+as `make test`'s prerequisite); `make test` **506 passed / 0 failed / 1 expected-red**
+(`test_dryround_single_definition_6217.sh`, `roadmap:6217` legitimately still open);
+`make gaming-canary` 3/3; `make shard-canary` 6/6 against
+`shard-prompt.baseline.txt`. No `SKIPPED-TIER`. Host load 2.09 at start, so the timings
+are not load-confounded.
+
+**relay-doctor (§4b): 0 per-repo issues** — roadmap-lint clean, todo-conformance clean,
+cross-ledger clean, main-checkout residue clean, mechanical-orphan clean, refs-install
+and install-drift clean, relay.toml parses, inbox 0 dead-letters, quota-config OK,
+lean-toolchain pins agree. The two fleet-level findings it prints (relay-core shadow
+mismatches `id:82c4`; the parked orphan `relay/orphan/relay-20260826-122101-7415-review-repo-0`)
+are BOTH already open REVIEW_ME boxes from prior passes — deliberately NOT re-boxed, to
+avoid duplicating standing items. **No new REVIEW_ME boxes this pass** (8 remain open).
+
+**Reverse-handoff (§5b):** the only `- [ ]` line added in the window is the `id:6ab7`
+re-lane, which already carries a lane, a gate reason and a route — nothing left to
+qualify. **Spec-drift (§4):** contract pointer in `CLAUDE.md` is `v12` == the canonical
+marker in `relay/references/executor-contract.md`; no shipped surface changed this
+window, so README/ARCHITECTURE need no update.
+
+**`routine_open = 0`, and that is a judgement worth stating explicitly:** six `[ROUTINE]`
+items are literally unticked, but NONE is dispatchable — `d4ca`/`540f`/`c179`/`554b`/`6446`
+all carry live `gated-on:` markers, and `cf2d` is `@owner-verify` (an observability claim
+only a real `/meeting` can produce, per the poolability rule). `classify-repo.sh`'s own
+replay independently computes `actionable_routine_open=0`, and the same convention was
+used at `relay-ckpt-20260820-1813`. Reporting the raw 6 would re-enqueue an execute unit
+that could only hand back — a dispatch spin. This repo's pool throughput is now gated
+almost entirely on human/meeting decisions (28 `[INPUT — meeting]` + 11
+`[INPUT — decision]` open), which is the standing condition REVIEW_ME already tracks.
+refactor: none needed — reviewer verification pass; no code paths touched, one
+append-only RELAY_LOG entry.
