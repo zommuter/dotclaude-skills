@@ -27,6 +27,7 @@
 #
 # Usage:
 #   worktree-retire.sh <repo-path> <worktree-dir> <branch> [--expect-merged] [--commit-residue]
+#                      [--discard-residue --ack <token>]
 #
 #   --expect-merged   The caller proved the branch is already merged (e.g. reconcile's reap:
 #                     merge-base --is-ancestor). Then a `branch -d` refusal is an ANOMALY
@@ -43,27 +44,36 @@
 #                     A dirty worktree on a NON-relay branch, or when --expect-merged is also set,
 #                     is untouched by this flag and still surfaces-and-leaves as before.
 #
-# THE THIRD BRANCH THIS SCRIPT DELIBERATELY DOES NOT HAVE (id:8d76) — owner-authorized DISCARD.
+# THE THIRD BRANCH — owner-authorized DISCARD (id:8d76). Use `--discard-residue --ack <token>`.
 # Both dirty-tree paths above assume the residue might be worth keeping. When the owner has
-# INSPECTED the residue and ruled it worthless-or-harmful, neither fits:
+# INSPECTED it and ruled it worthless-or-harmful, neither fits:
 #   - the default (surface-and-leave, exit 3) parks known-bad content on disk indefinitely;
 #   - --commit-residue makes it WORSE for harmful residue — it moves the content out of an
 #     unreachable index into a reachable, pushable `relay/orphan/*` ref, and the pre-push
 #     privacy gate is warn+LOG only (id:df87), so nothing would block a later publish.
-# There is NO flag for this and that is intentional: discarding is the one act id:373e bans,
-# so it stays a deliberate, supervised human step OUTSIDE this script. The exit is:
-#   1. confirm the branch has 0 unmerged commits (`git log --oneline main..<branch>` empty),
-#      so the residue really is the whole content and nothing of record is lost;
-#   2. the human runs the force removal themselves, at a prompt they answer;
-#   3. finish the branch half HERE or with plain `git branch -d` — a merged branch never
-#      needs -D, and reaching for -D is the signal that step 1 was skipped.
-# Recorded 2026-08-26 after a session reached for the raw force op because this header did not
-# say the above. If you are about to do the same: you are in the supported case, not a gap.
+#
+# This branch was DELIBERATELY ABSENT until 2026-08-26, on the reasoning that discarding is the
+# one act id:373e bans, so it should stay a supervised human step outside this script. That
+# reasoning DEPENDED on the raw `git worktree remove --force` remaining available to a human at
+# an approved prompt. The owner's id:221f(a) ruling the same day moves `git * --force*` to
+# `deny` — so the documented exit stopped existing, and a documented path to a denied command
+# is not a path. The capability now lives HERE, in the one allowlisted, audited script, which
+# is exactly what "deny the raw form, route through the gated script" means.
+#
+# It refuses unless: the flag is passed explicitly; the worktree exists and is genuinely dirty;
+# the branch is relay-owned; and `--ack <token>` matches a digest of THIS residue's exact bytes.
+# A first run prints the token and the residue's PATHS (never its content — the content may be
+# the private material being disposed of, and stdout is the agent transcript). So a blanket
+# loop cannot discard anything, and a residue that changed since inspection refuses.
+# COMMITS ARE NEVER TOUCHED: only uncommitted content goes, and unmerged commits still take the
+# normal park path, so "discard the residue" can never become "lose the work". The residue is
+# archived first, to a 0700 dir OUTSIDE any git repo — refused if that path is in a work tree.
 #
 # Exit codes:
 #   0  retired cleanly (worktree removed, branch deleted or parked as designed)
 #   2  usage / not-a-git-repo error
-#   3  surfaced-and-left: worktree dirty/unremovable, or orphan ref collision — NOTHING forced
+#   3  surfaced-and-left: worktree dirty/unremovable, orphan ref collision, or a
+#      --discard-residue run whose --ack token was missing/stale — NOTHING forced, NOTHING lost
 #   4  anomaly: --expect-merged but branch -d refused (worktree already removed; branch kept)
 #
 # Env overrides (hermetic tests):
@@ -76,17 +86,26 @@ log() { printf '%s worktree-retire.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" 
 
 expect_merged=0
 commit_residue=0
+discard_residue=0
+ack=""
 repo="" wt="" branch=""
 pos=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --expect-merged) expect_merged=1; shift ;;
     --commit-residue) commit_residue=1; shift ;;
+    --discard-residue) discard_residue=1; shift ;;
+    --ack) ack="${2:-}"; shift 2 ;;
     -*) echo "worktree-retire.sh: unknown flag '$1'" >&2; exit 2 ;;
     *) pos+=("$1"); shift ;;
   esac
 done
-[[ ${#pos[@]} -eq 3 ]] || { echo "worktree-retire.sh: usage: <repo-path> <worktree-dir> <branch> [--expect-merged] [--commit-residue]" >&2; exit 2; }
+[[ ${#pos[@]} -eq 3 ]] || { echo "worktree-retire.sh: usage: <repo-path> <worktree-dir> <branch> [--expect-merged] [--commit-residue] [--discard-residue --ack <token>]" >&2; exit 2; }
+if [[ "$discard_residue" -eq 1 && "$commit_residue" -eq 1 ]]; then
+  echo "worktree-retire.sh: --discard-residue and --commit-residue are mutually exclusive (one preserves the residue, the other destroys it)" >&2
+  exit 2
+fi
+[[ -n "$ack" && "$discard_residue" -eq 0 ]] && { echo "worktree-retire.sh: --ack is only meaningful with --discard-residue" >&2; exit 2; }
 repo="${pos[0]}"; wt="${pos[1]}"; branch="${pos[2]}"
 
 if [[ ! -d "$repo" ]] || ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
@@ -156,6 +175,97 @@ if [[ "$commit_residue" -eq 1 && -e "$wt" && "$expect_merged" -eq 0 && "$branch"
   fi
 fi
 
+# ---- 0d. OWNER-AUTHORIZED RESIDUE DISCARD (id:8d76, opt-in via --discard-residue) ----
+# THE THIRD BRANCH. See the header block. This is the ONE place in the relay that destroys
+# uncommitted work, and every guard below exists because of that.
+#
+# Why it lives HERE and not at an ad-hoc call site: id:221f(a) moves `git * --force*` to
+# `deny`, which removes the raw `git worktree remove --force` a human used to reach for. The
+# capability has to survive that ruling in an AUDITED form or the next privacy-residue
+# disposal has no legal route at all.
+#
+# GUARDS, all required:
+#   * the flag was passed explicitly (never a default, never implied by another flag);
+#   * the worktree exists and is actually dirty (otherwise there is nothing to discard and
+#     the normal clean path handles it);
+#   * the branch is relay-owned (`relay/…`) — never a branch this helper does not own;
+#   * --ack <token> matches a digest computed from THIS residue's exact content. Getting the
+#     token requires a first run that prints it, so a blanket loop over `*` cannot discard
+#     anything, and a residue that CHANGED between inspection and disposal refuses (TOCTOU).
+#
+# COMMITS ARE NEVER TOUCHED. This discards only uncommitted content — tracked modifications
+# and non-ignored untracked files. Unmerged commits still take the normal park path below, so
+# "discard the residue" can never become "lose the work".
+#
+# The residue is ARCHIVED before deletion, to a 0700 directory OUTSIDE any git repo (the
+# tools/privacy-audit.sh precedent). The residue that motivated this was a PRIVACY LEAK, so
+# its content must never land where git could commit it — and the archive is written to a
+# path this script REFUSES to use if it turns out to be inside a work tree.
+if [[ "$discard_residue" -eq 1 ]]; then
+  if [[ ! -e "$wt" ]]; then
+    echo "worktree-retire.sh: --discard-residue but '$wt' does not exist — nothing to discard" >&2
+    exit 2
+  fi
+  if [[ "$branch" != relay/* ]]; then
+    echo "worktree-retire.sh: --discard-residue refused — '$branch' is not a relay-owned branch (relay/…). This helper never destroys work on a branch it does not own." >&2
+    exit 2
+  fi
+  status="$(git -C "$wt" status --porcelain 2>/dev/null || true)"
+  if [[ -z "$status" ]]; then
+    echo "worktree-retire.sh: --discard-residue but the worktree is CLEAN — nothing to discard; falling through to the normal path."
+  else
+    # The digest covers the porcelain status AND the tracked diff AND every untracked file's
+    # bytes, so ANY change to the residue invalidates a previously-issued token.
+    residue_blob="$(
+      printf '%s\n' "$status"
+      git -C "$wt" diff HEAD 2>/dev/null || true
+      git -C "$wt" ls-files --others --exclude-standard -z 2>/dev/null \
+        | while IFS= read -r -d '' f; do printf '=== %s ===\n' "$f"; cat -- "$wt/$f" 2>/dev/null || true; done
+    )"
+    want="$(printf '%s' "$residue_blob" | sha256sum | cut -c1-12)"
+    if [[ "$ack" != "$want" ]]; then
+      # Print the FILE LIST but never the CONTENT — the content may be exactly the private
+      # material being disposed of, and stdout is the agent transcript.
+      echo "worktree-retire.sh: --discard-residue REFUSED — missing or stale --ack token." >&2
+      echo "  worktree: $wt" >&2
+      echo "  branch:   $branch" >&2
+      echo "  residue (paths only; content deliberately NOT printed):" >&2
+      printf '%s\n' "$status" | sed 's/^/    /' >&2
+      echo "  Inspect it yourself, then re-run with:  --discard-residue --ack $want" >&2
+      echo "  The token is bound to this exact residue: if it changes, the token stops working." >&2
+      log "DISCARD-REFUSED wt=$wt branch=$branch reason=${ack:+stale-ack}${ack:-no-ack} want=$want"
+      exit 3
+    fi
+
+    # DEFAULT IS ~/.cache, NOT ~/.claude/logs — and that is not a style choice. `~/.claude` IS a
+    # git repository (the private zomni/sessions branch), so `~/.claude/logs/` is inside a work
+    # tree; the guard below correctly refused it on the first real run, 2026-08-26. `logs/` being
+    # in `.gitignore` is NOT sufficient — an ignored path can still be force-added, and this
+    # content is exactly what must never become committable. `~/.cache/relay/` is not a repo and
+    # is where relay worktrees already live.
+    archive_dir="${WORKTREE_RETIRE_ARCHIVE:-$HOME/.cache/relay/discarded-residue}"
+    # REFUSE to archive anywhere git could commit it (privacy-audit.sh precedent).
+    if git -C "$(dirname "$archive_dir")" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo "worktree-retire.sh: --discard-residue REFUSED — archive dir '$archive_dir' is inside a git work tree. The discarded residue must never land where git could commit it." >&2
+      log "DISCARD-REFUSED-ARCHIVE-IN-REPO wt=$wt archive=$archive_dir"
+      exit 3
+    fi
+    mkdir -p "$archive_dir"; chmod 700 "$archive_dir" 2>/dev/null || true  # swallow-ok: chmod is best-effort hardening, never fatal
+    archive="$archive_dir/$(date '+%Y%m%dT%H%M%S')-$bn-$want.residue"
+    printf '%s\n' "$residue_blob" > "$archive"; chmod 600 "$archive" 2>/dev/null || true  # swallow-ok: as above
+    log "DISCARD-ARCHIVED wt=$wt branch=$branch ack=$want archive=$archive"
+
+    # Destroy the residue with the NARROWEST ops that do the job — deliberately NOT
+    # `clean -fd` (which would also take ignored build output, and is itself a guarded form).
+    # Tracked modifications first, then non-ignored untracked files one by one.
+    git -C "$wt" checkout -- . 2>/dev/null || true  # swallow-ok: a tree with only untracked residue has nothing to restore
+    git -C "$wt" ls-files --others --exclude-standard -z 2>/dev/null \
+      | while IFS= read -r -d '' f; do rm -- "$wt/$f"; done
+    log "DISCARDED residue wt=$wt branch=$branch (archived at $archive)"
+    echo "discard-residue $bn: residue destroyed, archived OUTSIDE any repo at $archive"
+  fi
+fi
+
 # ---- 1. worktree removal (never --force) -----------------------------------
 if [[ ! -e "$wt" ]]; then
   # Directory already gone (crash / manual rm). Clear the stale admin ref — non-destructive,
@@ -173,6 +283,24 @@ else
     # Dirty (non-ignored untracked or tracked-modified), locked, or otherwise unremovable.
     # Per the no-force policy: SURFACE and LEAVE. Do NOT touch the branch — worktree+branch
     # both stay on disk for a supervised reconcile. Nothing is discarded or forced.
+    # roadmap:b02f — SUBMODULE repos are a STRUCTURALLY different case and must not be given
+    # the dirty-tree advice. `git worktree remove` refuses any worktree whose tree carries
+    # submodules, regardless of state: measured 2026-08-26 on three CLEAN, fully-merged,
+    # zero-unmerged-commit yinyang-puzzle worktrees, the oldest a month old. Telling a human to
+    # "commit real work / gitignore throwaway" sends them hunting for dirt that does not exist.
+    #
+    # Direction (b) of b02f — deinit the submodules first — was TESTED and REFUTED the same day:
+    # `git submodule deinit --all` (no -f) succeeded and printed "Cleared directory
+    # 'vendor/spectre_py'", and `git worktree remove` STILL refused with the identical message.
+    # git keys this check on `.gitmodules` being in the tree, not on whether any submodule is
+    # actually checked out. So there is no force-free route, and we say so plainly instead of
+    # implying one exists.
+    if [[ "$err" == *"containing submodules"* ]]; then
+      msg="retire-unretirable $bn: this worktree's tree carries SUBMODULES, and git refuses to remove any such worktree regardless of its state — this one may be perfectly clean and merged. There is NO force-free route (roadmap:b02f: deinit-first was tested and does NOT lift the refusal; git checks .gitmodules, not checkout state). Only 'git worktree remove --force' removes it, which is the op id:373e avoids and id:221f(a) denies. LEFT on disk deliberately; do NOT go looking for dirt to clean. git said: ${err//$'\n'/ }"
+      log "UNRETIRABLE-SUBMODULE $msg"
+      echo "$msg"
+      exit 3
+    fi
     msg="retire-deferred $bn: worktree unremovable — LEFT on disk for supervised reconcile. git said: ${err//$'\n'/ } (inspect: git -C $wt status; then commit real work / gitignore throwaway, or remove by hand)"
     log "DEFER $msg"
     echo "$msg"

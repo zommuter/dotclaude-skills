@@ -43,7 +43,14 @@ grep -Eq "branch -m " "$RETIRE" \
 # (strip full-line comments so an explanatory "NO --force" comment isn't a false positive)
 grep -Eq "worktree remove --force" < <(grep -vE '^[[:space:]]*#' "$RECONCILE") \
   && fail "reconcile-repo.sh still uses 'git worktree remove --force' — must be force-free (id:373e)"
-grep -Eq "worktree remove --force|branch +-D\b" < <(grep -vE '^[[:space:]]*#' "$RETIRE") \
+# Strip full-line comments AND surfaced-text lines (msg=/echo/log). Since 2026-08-26 the
+# helper's own SURFACED message for the submodule case (roadmap:b02f) names the forbidden
+# command in prose — "Only 'git worktree remove --force' removes it, which is the op id:373e
+# avoids" — precisely so a human is not left thinking a force-free route exists. A guard that
+# fires on a command merely QUOTED is the id:221f(b) anchoring defect; test_worktree_retire.sh's
+# equivalent check already strips these lines, and this one now matches it.
+grep -Eq "worktree remove --force|branch +-D\b" \
+  < <(grep -vE '^[[:space:]]*#' "$RETIRE" | grep -vE '(^[[:space:]]*(log|echo)\b|[[:space:]]*msg=)') \
   && fail "worktree-retire.sh must not use --force / branch -D (id:373e)"
 grep -Eq "worktree remove" "$RETIRE" \
   || fail "worktree-retire.sh never removes the orphan worktree dir (would re-surface every round)"

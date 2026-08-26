@@ -151,4 +151,64 @@ grep -Eq -- '--force|branch[[:space:]]+-D\b|reset[[:space:]]+--hard|git[[:space:
   && fail "helper executes a forbidden force/destructive git verb"
 pass "helper executes no forbidden force/destructive git verb"
 
+# ── 9. roadmap:8d76 — owner-authorized residue DISCARD (--discard-residue --ack <token>) ──
+# This is the ONE path that destroys uncommitted work, so every guard is asserted. It exists
+# because id:221f(a) moves `git * --force*` to deny, removing the raw command a human used to
+# reach for; the capability has to survive that in an audited form.
+export WORKTREE_RETIRE_ARCHIVE="$TMP/archive"
+
+mkdirty() { # <name> — worktree with BOTH a tracked modification and an untracked file
+  mkwt "$1"
+  printf 'modified\n' >> "$WTBASE/$1/a.txt"
+  printf 'untracked secret\n' > "$WTBASE/$1/leak.txt"
+}
+
+# 9a. no --ack → REFUSED, exit 3, nothing touched, and the token is printed for a second run.
+mkdirty dr1
+rc=0; out="$("$SH" "$REPO" "$WTBASE/dr1" "relay/dr1" --discard-residue 2>&1)" || rc=$?
+[[ $rc -eq 3 ]] || fail "9a: no --ack should exit 3, got $rc"
+[[ -e "$WTBASE/dr1/leak.txt" ]] || fail "9a: untracked residue must survive a refused discard"
+grep -q 'REFUSED' <<<"$out" || fail "9a: refusal must say REFUSED"
+grep -q -- '--ack ' <<<"$out" || fail "9a: refusal must print the token to use"
+pass "9a: --discard-residue without --ack refuses (exit 3), residue intact, token printed"
+
+# 9b. the refusal prints residue PATHS but never CONTENT — stdout is the agent transcript,
+#     and the content may be exactly the private material being disposed of.
+grep -q 'leak.txt' <<<"$out" || fail "9b: refusal should name the residue paths"
+grep -q 'untracked secret' <<<"$out" && fail "9b: refusal must NEVER print residue CONTENT"
+pass "9b: refusal names residue paths but never prints their content"
+
+# 9c. WRONG/stale --ack → still refused. The token is bound to the residue's exact bytes.
+rc=0; "$SH" "$REPO" "$WTBASE/dr1" "relay/dr1" --discard-residue --ack deadbeef1234 >/dev/null 2>&1 || rc=$?
+[[ $rc -eq 3 ]] || fail "9c: stale --ack should exit 3, got $rc"
+[[ -e "$WTBASE/dr1/leak.txt" ]] || fail "9c: residue must survive a stale-ack refusal"
+pass "9c: a wrong --ack token refuses; residue intact"
+
+# 9d. CORRECT --ack → residue destroyed, worktree removed, branch deleted, residue ARCHIVED
+#     outside the repo. Extract the token from 9a's own refusal output (the documented flow).
+# {8,} matters: the refusal ALSO contains the prose "--ack token.", and a `[0-9a-f]*` glob
+# would match that with an EMPTY token and silently yield nothing.
+tok="$(awk 'match($0, /--ack [0-9a-f][0-9a-f]+/) { print substr($0, RSTART+6, RLENGTH-6); exit }' <<<"$out")"
+[[ -n "$tok" ]] || fail "9d: could not read the token out of the refusal message"
+rc=0; out2="$("$SH" "$REPO" "$WTBASE/dr1" "relay/dr1" --discard-residue --ack "$tok" --expect-merged 2>&1)" || rc=$?
+[[ $rc -eq 0 ]] || fail "9d: correct --ack should exit 0, got $rc ($out2)"
+[[ ! -e "$WTBASE/dr1" ]] || fail "9d: worktree should be gone"
+git -C "$REPO" show-ref --verify --quiet refs/heads/relay/dr1 && fail "9d: merged branch should be deleted"
+ls "$WORKTREE_RETIRE_ARCHIVE"/*dr1* >/dev/null 2>&1 || fail "9d: residue must be archived"
+grep -q 'untracked secret' "$WORKTREE_RETIRE_ARCHIVE"/*dr1* || fail "9d: archive must contain the discarded residue"
+pass "9d: correct --ack discards the residue, retires the worktree, archives outside the repo"
+
+# 9e. a NON-relay branch is never discarded from, however good the token.
+git -C "$REPO" worktree add -q "$WTBASE/nr1" -b "mine/nr1"
+printf 'mine\n' > "$WTBASE/nr1/untracked.txt"
+rc=0; "$SH" "$REPO" "$WTBASE/nr1" "mine/nr1" --discard-residue --ack whatever >/dev/null 2>&1 || rc=$?
+[[ $rc -eq 2 ]] || fail "9e: non-relay branch should be a usage refusal (exit 2), got $rc"
+[[ -e "$WTBASE/nr1/untracked.txt" ]] || fail "9e: non-relay residue must be untouched"
+pass "9e: --discard-residue refuses on a branch this helper does not own"
+
+# 9f. --discard-residue and --commit-residue are mutually exclusive (one preserves, one destroys).
+rc=0; "$SH" "$REPO" "$WTBASE/nr1" "relay/x" --discard-residue --commit-residue >/dev/null 2>&1 || rc=$?
+[[ $rc -eq 2 ]] || fail "9f: mutually-exclusive flags should exit 2, got $rc"
+pass "9f: --discard-residue + --commit-residue is refused as contradictory"
+
 echo "ALL PASS"

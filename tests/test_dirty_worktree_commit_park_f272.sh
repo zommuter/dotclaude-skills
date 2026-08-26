@@ -149,9 +149,24 @@ git -C "$repo5" worktree add -q "$wt5" -b "relay/run5-execute" >/dev/null 2>&1
 git -C "$repo5" show-ref --verify --quiet "refs/heads/relay/orphan/run5-execute" \
   && note "(f) a CLEAN, commitless worktree must still be reaped, not parked (id:4df8 fixture (b) regression)"
 
-# ── (e2) the script must still contain no discarding op ───────────────────────────────
-if grep -nE 'git (stash|clean|reset --hard)|checkout -- |git restore' "$RETIRE" >/dev/null; then
-  note "(e2) worktree-retire.sh now contains a DISCARDING git op — id:373e bans stash/clean/reset/checkout--; the whole point of this item is that committing is the force-free alternative"
+# ── (e2) no discarding op OUTSIDE the gated discard branch ────────────────────────────
+# NARROWED 2026-08-26 (roadmap:8d76, owner ruling). This used to ban every discarding verb
+# anywhere in the file, which was right while the script had NO discard path. It now has
+# exactly one — `--discard-residue --ack <token>` — because id:221f(a) moves
+# `git * --force*` to `deny`, removing the raw command a human previously used, so the
+# capability had to survive in an audited form inside this allowlisted script.
+#
+# f272's OWN invariant is unchanged and is what this still enforces: the COMMIT-and-park
+# path must never discard — committing is the force-free alternative, and that is the whole
+# point of the item. So we strip the guarded discard block and assert the REST is clean.
+# `git stash`, `git clean` and `reset --hard` stay banned EVERYWHERE, including inside the
+# discard block: they are unrecoverable, whereas the discard path archives first.
+rest="$(awk '/^if \[\[ "\$discard_residue" -eq 1 \]\]; then/{skip=1} skip && /^fi$/{skip=0; next} !skip' "$RETIRE")"
+if grep -nE 'checkout -- |git restore' <<<"$rest" >/dev/null; then
+  note "(e2) a DISCARDING git op appears OUTSIDE the gated --discard-residue block — id:373e bans stash/clean/reset/checkout-- on the commit-and-park path; committing is the force-free alternative"
+fi
+if grep -nE 'git (stash|clean|reset --hard)' "$RETIRE" >/dev/null; then
+  note "(e2b) worktree-retire.sh contains an UNRECOVERABLE discarding op (stash/clean/reset --hard) — banned everywhere, including inside the gated discard block, which archives before it destroys"
 fi
 
 # ── (g) the null-report (context-death) caller must pass the flag ─────────────────────
