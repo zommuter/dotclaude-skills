@@ -3,6 +3,77 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-26b (chain-end re-ask, run `relay-20260826-162405-7522` — id:8123)
+
+Window `relay-ckpt-20260826-1449`..HEAD = **18 commits, all owner-attended (`Co-Authored-By: Claude
+Opus 5`), zero executor units** — the classifier re-asked at chain end because the previous chain
+returned `contract_met:false`. **All four declared tiers RUN, none skipped**: `make lint` (0
+violations, within baseline), `make test` (**504 passed, 0 failed, 1 expected-red** — `6217`, an
+open item whose red test IS the spec), `make gaming-canary` (3/0), `make shard-canary` (6/0).
+`gaming-scan.sh` raised exactly one line (`REMOVED_ASSERT:tests/test_git_lock_push_remote_select_4d44.sh`
+removed=1 added=0) — **adjudicated benign**: assertion (3) was re-pointed from "absent flag → all
+remotes" to "`--all` → all remotes" because the owner deliberately flipped that default, and the
+same commit ADDS a new mutual-exclusion assertion (4b) plus a dedicated 7-assertion file
+`tests/test_git_lock_push_default_origin.sh`. The four `integrate` test-stub edits are one-token
+additions to an arg-parser skip-list inside a **fixture**, not weakened assertions. No
+`@owner-accepted` anywhere in the window; no discard-verb (`stash`/`reset --hard`/`checkout --`) in
+any commit message; contract pointer `v12` == canonical; `relay-doctor` 1 per-repo issue
+(the `id:758a` cross-ledger drift, resolved below).
+
+`id:758a` **verified green and CLOSED** against the RED spec the PREVIOUS review authored
+(`tests/test_base_ref_checked_out_branch_758a.sh`) — the fix commit `478d70d2` did not touch that
+file, so it is a genuinely independent spec, and its ROADMAP checkbox is now ticked to match the
+already-`[x]` TODO twin.
+
+- [ ] **An entire prior review's ledger output never reached `main` — it is stranded on the parked
+  orphan branch `relay/orphan/relay-20260826-122101-7415-review-repo-0` (`3d9ca6f3`).** Not just a
+  branch left lying around: that commit carries **+43 lines of `REVIEW_ME.md`** (a whole review
+  section with 2 open boxes addressed to you — the `391b`/`2c2a` "filed `[ROUTINE]` but opens with a
+  question only the owner can answer" lane question, and the `7354` hypothesis correction), **+6
+  lines of `ROADMAP.md`** (the full `id:7354` promotion with Acceptance / Tests / Done-check /
+  Context), **+56 lines of `RELAY_LOG.md`**, and one test file. None of it is in `HEAD`. You
+  independently reached the same two conclusions hours later in this window (`242bebc5` ratifies
+  391b option A; `d9b6c3c8` refutes the 7354 hypothesis), so nothing was lost in substance **this
+  time** — that is luck, not a mechanism. **Owner's call:** whether stranded-review-output is a
+  `[ROUTINE]` fix (auto-integrate or loudly surface an orphan carrying ledger diffs) or belongs to
+  the existing `id:dd7d`/`id:7809` reconcile family. The generic parked-orphan warning
+  `relay-doctor` already prints does NOT distinguish "stale branch" from "unread questions for the
+  owner", which is why this sat unnoticed.
+
+- [ ] **`id:7354` is now INDEPENDENTLY verified — recording it because the shipped test alone would
+  not have proven it.** The fix (`01ce9b9c`) and its test (`tests/test_repeat_handback_wiring_7354.sh`)
+  were authored in the same commit — the [[feedback-verify-delegated-work-independently]] shape,
+  where a green suite proves only self-consistency. The prior review's *separately authored* RED
+  spec was one of the stranded files above; this review restored it as
+  `tests/test_handback_tracker_all_sites_7354.sh` and ran it **both ways**: it FAILS against
+  `01ce9b9c^` naming all 10 unwired sites, and PASSES against `HEAD` (4/4). So the fix is real, and
+  the repo now keeps the independent spec. **Confirm you want both files retained** — they overlap
+  deliberately (different authors, same contract); say so if you would rather they were merged.
+
+- [ ] **`tests/test_diary_push_remote_narrowed_f66e.sh` lost a check it used to have: a mandatory
+  post-prompt step naming a PUBLIC remote now passes every assertion.** The old assertion (2)
+  required ≥3 invocations to carry `--remote origin` specifically, with the stated reason
+  *"`--remote` alone is not enough: `--remote github` would satisfy (1) while publishing"*. The
+  rewrite replaced it with a prose grep (`SKILL.md documents that origin is the default`), and the
+  rewritten (1) rejects only `--all`. Meanwhile assertion (3) still REQUIRES the literal string
+  `--remote github` to appear in the file. Net effect: if Step 1's bare
+  `git-lock-push.sh` (SKILL.md:58) were ever edited to `--remote github`, all four assertions still
+  pass. The rewrite is otherwise correct — the default flip genuinely made bare calls private, so
+  the old (1) had to invert — this is a narrow hole, not a wrong test. **Suggested fix** (owner's
+  call, not applied here since it is the owner's own test): re-add a positive check that the
+  post-prompt invocations at SKILL.md:58/125/149 are bare-or-`--remote origin`, i.e. never name a
+  non-private remote.
+
+- [ ] **The `id:a73b` publish-by-default fix does not reach the busiest push path — `integrate.sh`
+  now passes `--all` explicitly.** The owner directive closed the footgun at the helper's default;
+  the diff then added an explicit `--all` at `integrate.sh`'s non-substantive push branch (plus
+  `auto-integrate-orphan.sh` and `relay-reconcile.sh --integrate`) to keep those byte-identical. The
+  commit message says so plainly, so this is disclosed, not hidden — **and it is not a regression**,
+  those paths pushed every remote before too. But it means the relay's own merge-to-main path is
+  still publish-to-every-remote-including-public, unattended, which is the exact shape the directive
+  was written against. **Owner's call:** intended (integrate is a deliberate publish point), or
+  should integrate narrow to origin + an explicit publish step like `git-diary-workflow` does?
+
 ## Review 2026-08-26 (chain-end re-ask, run `relay-20260826-122101-7415` — id:8123)
 
 Window `relay-ckpt-20260822-1619`..HEAD. One executor unit (**`id:f2ef`**, flake-log width=1
