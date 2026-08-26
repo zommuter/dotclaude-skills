@@ -6864,3 +6864,23 @@ file; no implementation code was touched, so there is no duplication to unify.
 ## 2026-08-26 17:03 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review(8123): id:758a verified green + closed (cross-ledger drift resolved) id:7354 independently verified via a RED spec recovered from a stranded orphan branch mini-handoff promoted id:76fd with a RED spec all 4 tiers green (505/0/2) [id:758a,7354,76fd,9566]
+
+## 2026-08-26 — executor (claude-sonnet-5)
+
+Worked id:76fd — routed the integrate hop's free-text `--summary`/`--label` fields through the
+`relay-mech-stdin` payload channel instead of an inline shell argument. `integrate.sh` was added
+to `mechanical-proxy.py`'s `STDIN_ALLOWED_SCRIPTS` (scope (b)); `--summary -` is now the opt-in
+sentinel it reads as "take the summary off stdin" (a plain `$(cat)` assignment placed AFTER the
+required-arg validation, so a bare `--summary -`-less call still fails fast at usage checking
+without ever touching stdin — confirmed against the pre-authored RED spec's inertness probe).
+`relay-loop.js`'s integrate hop no longer builds `--summary` via `mechArg(report.summary)`; it
+passes the literal sentinel and emits the free-text summary on a ```relay-mech-stdin fence
+alongside the existing ```relay-mech command fence, copying the `write-relay-status` reference
+pattern. `mechArg()`'s sanitisation is left untouched (kept as defence-in-depth per the item's
+scope). `tests/test_integrate_stdin_channel_76fd.sh` (pre-authored RED on assertions (1)/(2), GREEN
+on the (3)/(3b)/(4) regression guards) is now 5/5 green; full suite 506 passed, 0 failed, 1
+expected-red (an unrelated open item).
+Friction: none — the item's acceptance/tests/context were precise enough that the change was a
+direct implementation of the spec, no design judgement calls needed.
+refactor: none needed — a small, targeted three-file diff (proxy allowlist entry, one `if` block
+in integrate.sh, one hop-builder edit in relay-loop.js); no duplication introduced to unify.

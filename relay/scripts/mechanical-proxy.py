@@ -434,6 +434,9 @@ def write_state_file(path: str = None) -> str:
 # that json.loads it), never as code.
 STDIN_ALLOWED_SCRIPTS = frozenset([
     "relay-status-publish.sh",  # write-relay-status (id:d4ca) moves a markdown doc as its payload
+    "integrate.sh",  # id:76fd — the integrate hop's free-text --summary rides stdin (sentinel
+                      # `--summary -`) instead of a shell argument; confirmed the script reads
+                      # stdin as inert data (a plain `$(cat)` assignment, never eval/source'd).
 ])
 
 # Plumbing tokens permitted as a NON-leading pipeline stage (e.g. `echo {json} |

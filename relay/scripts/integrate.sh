@@ -381,6 +381,15 @@ for req in repo path worktree branch summary run label; do
   eval "v=\${$req}"
   [ -n "${v:-}" ] || { echo "integrate.sh: --$req is required" >&2; exit "$EX_USAGE"; }
 done
+# id:76fd — `--summary -` is the opt-in stdin-payload sentinel (id:33b2/a05c option B):
+# the caller's free-text summary rides the ```relay-mech-stdin fence instead of an inline
+# shell argument (a markdown-backticked executor summary can no longer 404 its own
+# integrate — id:2e7a). Read AFTER the required-arg check above so a call with no args at
+# all (nothing to read stdin for) still fails fast at usage validation without touching
+# stdin. Read as INERT DATA ONLY — never eval'd, sourced, or otherwise interpreted.
+if [ "$summary" = "-" ]; then
+  summary="$(cat)"
+fi
 # ── TILDE EXPANSION (id:087b) ───────────────────────────────────────────────────────
 # Children report their worktree as a `~/.cache/relay/worktrees/...` path, and the old LLM
 # integrator got that expanded for free because the prompt spliced it into a shell command
