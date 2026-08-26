@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v12 -->
+## Executor contract <!-- relay-executor contract v13 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -66,6 +66,33 @@ you were told you are the reviewer) follow these rules:
 
     The id:3801 gate then re-tags the `[ROUTINE]` parent to `[HARD — decision gate]`
     (or applies the appropriate split/human follow-up), stopping the re-dispatch spin.
+
+2c. **Mid-run context-budget check — checkpoint-and-handback before you die of
+   `Prompt is too long` (id:5eeb)**: two loderite executors (run
+   `relay-20260826-162405-7522`) died mid-unit with the verbatim API error
+   `Prompt is too long`, orphaning partial work and suppressing re-dispatch until a
+   human ran `/relay reconcile`. The cause was pure transcript accumulation — measured
+   growth was LINEAR over 166-193 turns with no single line dominant — and both dead
+   transcripts had already burned 64-77% of their budget INVESTIGATING BEFORE THEIR
+   FIRST EDIT. Run the pure, read-only decision function
+   `relay/scripts/context-budget.sh --transcript <your transcript path>` (or `--bytes N`
+   if you know your transcript size another way) at **two check points**:
+   - **periodically** during a long unit (e.g. every several tool rounds, or whenever
+     you notice the session feels long), and
+   - **BEFORE your first edit** — i.e. at the end of the investigation phase, before
+     you make your first `Edit`/`Write`/commit. This is the check point the 64-77%
+     pre-first-edit spend demands: catching it only periodically still lets a unit
+     burn most of its window before producing anything committable.
+
+   On a `handback` verdict (exit 3): this is the id:8b1f **CUTOFF** branch, NOT rule
+   2b's clean-worktree size-out branch — the disposition is the opposite. **Commit the
+   work already done** (do not discard it), append a `HANDBACK: <item-id> context
+   budget exceeded (<bytes> B)` line to RELAY_LOG.md and commit that too, then return a
+   structured result with `contract_met=false` and `route="none"` — deliberately an
+   EXISTING enum value (not a new one) so `handback-followup.py` needs no change and
+   the item stays a plain, re-dispatchable `[ROUTINE]` item rather than being gated or
+   re-tagged. A `warn` verdict is advisory only (exit 0) — keep working, but budget
+   your remaining investigation accordingly.
 
 3. **Test integrity**: never weaken, delete, skip, or rewrite a test to make it
    pass. The reviewer diffs all test files against the last relay checkpoint tag
@@ -222,6 +249,14 @@ integrator ticks the box in the canonical checkout (`relay/scripts/roadmap-tick.
 behaviour an in-flight executor must know (rule 2 / rule 5 / the ROADMAP-format tick note), so
 it bumps. Transition is safe: `roadmap-tick.sh` is idempotent, so an in-flight v11 executor
 that still ticks in its worktree plus the new integrator tick is a harmless double-flip.
+
+**v12 → v13 (id:5eeb):** new rule 2c, a mid-run context-budget check
+(`relay/scripts/context-budget.sh`) run periodically AND before the first edit, with a
+checkpoint-and-handback disposition (commit work done, `HANDBACK:` RELAY_LOG.md line,
+`contract_met=false` / `route="none"`) on a `handback` verdict — this prevents the
+`Prompt is too long` death class instead of the executor dying and orphaning a
+worktree. This is behaviour an in-flight executor must know (a new check point and a
+new disposition), so it bumps.
 
 For the human-facing picture of the whole relay (modes, artifacts, what the
 user does between turns), see `docs/relay.md` in dotclaude-skills.

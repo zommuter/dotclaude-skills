@@ -22,12 +22,20 @@ for f in "$CONTRACT" "$CLAUDEMD" "$JS" "$TICK"; do
   [[ -f "$f" ]] || { echo "FAIL: missing $f"; exit 1; }
 done
 
-# ── Contract version bumped v11 -> v12, and the two markers agree ──
-grep -q 'relay-executor contract v12' "$CONTRACT" || bad "contract marker is not v12"
+# ── Contract version bumped past v11 -> v12 (id:5b12), and the two markers agree ──
+# NOTE: the contract has since bumped further (v12 -> v13, id:5eeb); this test only
+# asserts the v11->v12 tick-ownership marker never regresses and that CLAUDE.md's
+# pointer still agrees with whatever marker the contract currently carries — it does
+# not pin an exact version number, so later bumps don't require touching this test.
+contract_marker="$(grep -oE 'relay-executor contract v[0-9]+' "$CONTRACT" | awk 'NR==1')"
+pointer_marker="$(grep -oE 'relay-executor contract v[0-9]+' "$CLAUDEMD" | awk 'NR==1')"
+[[ -n "$contract_marker" ]] || bad "no 'relay-executor contract vN' marker found in contract"
+contract_v="$(printf '%s' "$contract_marker" | tr -dc '0-9')"
+[[ -n "$contract_v" && "$contract_v" -ge 12 ]] || bad "contract marker has not reached v12 (id:5b12)"
 grep -q 'relay-executor contract v11' "$CONTRACT" && bad "stale v11 marker still present in contract"
-grep -q '## Relay contract <!-- relay-executor contract v12 -->' "$CLAUDEMD" \
-  || bad "CLAUDE.md '## Relay contract' pointer is not v12"
-ok "contract bumped to v12 and CLAUDE.md pointer matches"
+[[ "$contract_marker" == "$pointer_marker" ]] \
+  || bad "CLAUDE.md '## Relay contract' pointer ($pointer_marker) disagrees with the contract marker ($contract_marker)"
+ok "contract bumped to $contract_marker and CLAUDE.md pointer matches"
 
 # ── CONTRACT TEXT: executors report worked_ids and no longer tick; the driver ticks ──
 grep -q 'Driver ticks, not you' "$CONTRACT" || bad "contract does not state driver-ticks inversion"
