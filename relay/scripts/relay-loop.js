@@ -3253,6 +3253,7 @@ async function integrate(unit, report) {
     })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: terminalFailReason })
     emittedHandbackEvents.push({ repo: unit.repo, reason: terminalFailReason })  // id:4a46 — invariant backstop
+    trackHandback(handbackTracker, unit.repo, unit.verdict, terminalFailReason)  // id:7354 — every state.handbacks.push must feed the repeat-handback tracker
     // id:e3b7 (in-sandbox half of id:61fa) — a null-report handback means the child died
     // terminally (API error / context death) with NO report at all, which today produces NO
     // durable ROADMAP action (unlike an item-level handback via handback-followup.py/id:3801).
@@ -3477,6 +3478,7 @@ async function integrate(unit, report) {
       log(`relay-loop: ${siblingReason}`)
       state.handbacks.push({ repo: unit.repo, reason: siblingReason, worktreePath: '-' })
       pushEvent('sibling-branch', { repo: unit.repo, mode: unit.verdict, ids: workedIds, siblingBranches })
+      trackHandback(handbackTracker, unit.repo, unit.verdict, siblingReason)  // id:7354 — every state.handbacks.push must feed the repeat-handback tracker
     }
     state.completed.push({ repo: unit.repo, mode: unit.verdict, ckptTag: result.ckptTag || '?', pushStatus: result.pushStatus || '?', ratification: result.ratification || 'none', substantive: unitIsSubstantive(unit.verdict, report), workedIds })  // workedIds id:de69; ratification id:4d44
     pushEvent('integrate', { repo: unit.repo, mode: unit.verdict, ckpt: result.ckptTag || '?', push: result.pushStatus || '?', ratification: result.ratification || 'none', ids: workedIds })  // id:c8b6 + worked ids id:de69 + ratification id:4d44
@@ -3583,6 +3585,7 @@ async function integrate(unit, report) {
     state.handbacks.push({ repo: unit.repo, reason: landedReason, worktreePath: report.worktree, workCreated: false, landedUnfinished: true })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: landedReason })
     emittedHandbackEvents.push({ repo: unit.repo, reason: landedReason })  // id:1735 — invariant backstop
+    trackHandback(handbackTracker, unit.repo, unit.verdict, landedReason)  // id:7354 — every state.handbacks.push must feed the repeat-handback tracker
     // The post-integrate state was never settled (no push-seed ran), so never cache 'idle'
     // here: DELETE the entry so the repo re-classifies next round (id:c855 fail-open).
     state.discoverCache = state.discoverCache || {}
@@ -3661,6 +3664,7 @@ async function integrate(unit, report) {
     state.handbacks.push({ repo: unit.repo, reason, worktreePath: report.worktree, workCreated })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })  // id:c8b6
     emittedHandbackEvents.push({ repo: unit.repo, reason })  // id:1735 — invariant backstop
+    trackHandback(handbackTracker, unit.repo, unit.verdict, reason)  // id:7354 — every state.handbacks.push must feed the repeat-handback tracker
   }
   scheduleStatusWrite(state)
 }
@@ -3695,6 +3699,7 @@ function durableHandbackFollowup(unit, report) {
     log(`relay-loop: ${reason}`)
     state.handbacks.push({ repo: unit.repo, reason, worktreePath: '-' })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
+    trackHandback(handbackTracker, unit.repo, unit.verdict, reason)  // id:7354 — every state.handbacks.push must feed the repeat-handback tracker
     scheduleStatusWrite(state)
   }
   agent(
@@ -4043,11 +4048,13 @@ async function runUnit(unit) {
   // better to loudly skip a unit than to silently OOM-dispatch (id:oom-local-model-session-kills).
   if (unit.intensive && !ALLOW_INTENSIVE) {
     log(`relay-loop: id:5ac6 INTENSIVE fail-closed — unit ${unit.repo}(${unit.verdict}, intensive=${unit.intensive}) reached runUnit without --allow-intensive; SKIP + surface LOUDLY. This is a dispatch invariant violation (the INTENSIVE partition should have caught this). Use --intensive to enable.`)
+    const intensiveGuardReason = `INTENSIVE fail-closed (id:5ac6): unit carries intensive=${unit.intensive} but ALLOW_INTENSIVE=false — skipped to prevent OOM dispatch; use --intensive to enable`
     state.handbacks.push({
       repo: unit.repo,
-      reason: `INTENSIVE fail-closed (id:5ac6): unit carries intensive=${unit.intensive} but ALLOW_INTENSIVE=false — skipped to prevent OOM dispatch; use --intensive to enable`,
+      reason: intensiveGuardReason,
       worktreePath: '-',
     })
+    trackHandback(handbackTracker, unit.repo, unit.verdict, intensiveGuardReason)  // id:7354 — every state.handbacks.push must feed the repeat-handback tracker
     scheduleStatusWrite(state)
     return
   }
@@ -4071,6 +4078,11 @@ async function runUnit(unit) {
     log(`relay-loop: ${reason}`)
     state.handbacks.push({ repo: unit.repo, reason, worktreePath: '-' })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
+    // id:7354 — guarded (not a bare call): this dispatch-path region is extracted stand-alone
+    // by two hermetic awk-driven tests (dd7d item-scoped skip; loderite starvation shape),
+    // which do not carry the module-level handbackTracker/trackHandback definitions — a bare
+    // reference ReferenceErrors there. typeof short-circuits safely for both bare identifiers.
+    if (typeof trackHandback === 'function') trackHandback(handbackTracker, unit.repo, unit.verdict, reason)
     scheduleStatusWrite(state)
     return
   }
@@ -4100,6 +4112,7 @@ async function runUnit(unit) {
     state.handbacks.push({ repo: unit.repo, reason: oversizeReason, worktreePath: '-' })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: oversizeReason })
     emittedHandbackEvents.push({ repo: unit.repo, reason: oversizeReason })  // id:4a46 backstop
+    if (typeof trackHandback === 'function') trackHandback(handbackTracker, unit.repo, unit.verdict, oversizeReason)  // id:7354, guarded: this region is awk-extracted stand-alone by two tests without handbackTracker in scope
     scheduleStatusWrite(state)
     return
   }
@@ -4113,8 +4126,10 @@ async function runUnit(unit) {
   // failed provision must also consume no MAX_UNITS slot, so the counters follow the guard.
   const provisioned = await provisionWorktree(unit)
   if (!provisioned) {
-    state.handbacks.push({ repo: unit.repo, reason: `id:34b7 pre-dispatch worktree provisioning failed for ${unit.repo} — no child dispatched`, worktreePath: worktreePathFor(unit) })
+    const provisionFailReason = `id:34b7 pre-dispatch worktree provisioning failed for ${unit.repo} — no child dispatched`
+    state.handbacks.push({ repo: unit.repo, reason: provisionFailReason, worktreePath: worktreePathFor(unit) })
     pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: 'id:34b7 provisionWorktree failed' })
+    trackHandback(handbackTracker, unit.repo, unit.verdict, provisionFailReason)  // id:7354 — every state.handbacks.push must feed the repeat-handback tracker
     scheduleStatusWrite(state)
     return
   }
@@ -4297,6 +4312,7 @@ async function runUnit(unit) {
       state.handbacks.push({ repo: unit.repo, reason, worktreePath: (report && report.worktree) || worktreePathFor(unit) })
       pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
       emittedHandbackEvents.push({ repo: unit.repo, reason })  // id:1735 — invariant backstop
+      trackHandback(handbackTracker, unit.repo, unit.verdict, reason)  // id:7354 — every state.handbacks.push must feed the repeat-handback tracker
       scheduleStatusWrite(state)
     })
   )
