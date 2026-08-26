@@ -121,6 +121,19 @@ error, command substitution, heredoc), a conservative regex scan for the unmista
 tree-wide forms runs instead.  A false block is recoverable (commit first, or scope the
 paths); a false allow destroys work.
 
+That fallback scan is ANCHORED to command start and SPELLING-INSENSITIVE (id:221f,
+2026-08-26 — parity with hooks/rm-force-guard.sh).  It no longer fires on a guarded
+command that a heredoc payload or a quoted argument merely MENTIONS, and `git clean
+--force` / `git checkout -f .` now reach the same verdict there as their other
+spellings already reached on the tokenised path.  Full rationale sits above
+`_CMD_START`; the spelling table and the mention negative-control live in
+tests/test_destructive_git_guard_spelling_anchor_221f.sh.
+
+NOT fixed here, and NOT fixable here: the guard covers only the five tree-wide forms.
+`git worktree remove -f`, `git branch -D`, `git push -f` are gated (or not) by
+`~/.claude/settings.json` `permissions`, which is the OWNER's file and is never
+agent-edited.  The short-form/long-form asymmetry there is recorded in TODO id:221f.
+
 WIRING
 ------
 WIRED.  The owner activated it in `~/.claude/settings.json` (PreToolUse/Bash matcher) on
@@ -178,16 +191,131 @@ _UNPARSEABLE_CONSTRUCT = re.compile(r"\$\(|`|<<|<\(")
 # git global options that consume the NEXT token as their value.
 _GIT_GLOBAL_WITH_VALUE = frozenset({"-C", "--git-dir", "--work-tree", "-c", "--exec-path", "--namespace"})
 
-# Conservative raw-text patterns for the unmistakable tree-wide forms, used only
-# when tokenisation is impossible.  Deliberately narrow: they must not fire on a
-# path-scoped revert mentioned inside a commit message.
-_RAW_PATTERNS = (
-    (re.compile(r"\bgit\s+(?:\S+\s+)*?checkout\s+(?:--\s+)?\.(?:\s|$)"), "git checkout -- ."),
-    (re.compile(r"\bgit\s+(?:\S+\s+)*?restore\s+(?:--staged\s+)?\.(?:\s|$)"), "git restore ."),
-    (re.compile(r"\bgit\s+(?:\S+\s+)*?reset\s+(?:\S+\s+)*?--hard\b"), "git reset --hard"),
-    (re.compile(r"\bgit\s+(?:\S+\s+)*?clean\b[^;&|]*\s-{1,2}[A-Za-z]*(?:f|d)\b"), "git clean -f/-d"),
-    (re.compile(r"\bgit\s+(?:\S+\s+)*?stash\s+(?:drop|clear)\b"), "git stash drop/clear"),
+# ── raw-text fallback scan (id:221f) ─────────────────────────────────────────
+# PARITY WITH hooks/rm-force-guard.sh.  That guard is (1) ANCHORED to command start
+# and (2) SPELLING-INSENSITIVE about the force flag.  This scan used to be neither.
+#
+# (b) ANCHORING.  These patterns are reached only when tokenisation is impossible —
+# in practice a heredoc, which is exactly how a TODO item, commit message, meeting
+# note or test fixture that QUOTES a guarded command gets written.  Unanchored, the
+# guard fired on the mention: filing id:221f itself was refused because the item's
+# prose quoted a tree-wide discard inside a heredoc payload to md-merge.py.  A guard
+# that cannot be written about trains the route-around reflex it exists to prevent.
+# Two mechanisms, both of which make the scan fire STRICTLY LESS (no op that merely
+# prompted before can newly deny):
+#   * `_strip_noncommand_text()` blanks heredoc BODIES and the interior of balanced
+#     quoted spans, so a command named inside a payload or an argument is not text
+#     this scan ever sees;
+#   * every pattern is anchored to `_CMD_START` — string start or immediately after a
+#     shell operator that terminates the previous simple command.
+# The tokenised path (`classify_git_argv`) is unchanged and remains the primary
+# analysis; it was already quoting-aware, which is why `git commit -m "git reset
+# --hard"` never fired there.
+#
+# (a) SPELLING.  `git clean --force` did NOT match the old clean pattern
+# (`-{1,2}[A-Za-z]*(?:f|d)\b` cannot reach the `f` in `force` — the following `o` is
+# not a word boundary), and `git checkout -f .` / `git restore -s HEAD .` did not
+# match either, though the tokenised path denies all three.  A destructive op must
+# not reach a different verdict because of which spelling was typed.  `--dry-run`
+# and `-n` still do NOT match (verified by the spelling table in
+# tests/test_destructive_git_guard_spelling_anchor_221f.sh).
+
+# Start of a simple command: string start, or right after an operator/grouping
+# character that ends the previous one.  Tolerates `sudo`, shell keywords, and
+# leading VAR=value assignments.
+_CMD_START = (
+    r"(?:^|[\n;&|(){}])[ \t]*"
+    r"(?:(?:then|do|else|elif|!)[ \t]+)*"
+    r"(?:sudo[ \t]+)?"
+    r"(?:[A-Za-z_][A-Za-z0-9_]*=(?:\"[^\"]*\"|'[^']*'|[^\s;&|]*)[ \t]+)*"
 )
+
+# git's own global options (and their values) sitting between `git` and the
+# subcommand: `-C <dir>`, `-c k=v`, `--git-dir=…`, `--no-pager`, …  Deliberately
+# unable to consume a bare word, so it can never swallow a subcommand.
+_GIT_GLOBALS = (
+    r"(?:[ \t]+(?:"
+    r"-{1,2}[^\s;&|]*"           # any option, short or long, with or without =value
+    r"|[^\s;&|]*[=/][^\s;&|]*"   # a value that looks like a path or key=value
+    r"|\.{1,2}"                  # `-C .` / `-C ..`
+    r"|~[^\s;&|]*"               # `-C ~/src/x`
+    r"))*"
+)
+
+_GIT_HEAD = _CMD_START + r"(?:[^\s;&|]*/)?git" + _GIT_GLOBALS + r"[ \t]+"
+
+# Options and tree-ish/pathspec words a subcommand may carry before the tree-wide
+# pathspec (`-f`, `--staged`, `HEAD`, a branch name, …).
+_SUB_ARGS = r"(?:[ \t]+(?:-{1,2}[^\s;&|]*|[A-Za-z0-9_][^\s;&|]*))*"
+
+# A pathspec of exactly `.` — end of token, not the start of `./foo.sh`.
+_DOT = r"\.(?=[\s;&|]|$)"
+
+_RAW_PATTERNS = (
+    (re.compile(_GIT_HEAD + r"checkout" + _SUB_ARGS + r"[ \t]+(?:--[ \t]+)?" + _DOT),
+     "git checkout -- ."),
+    (re.compile(_GIT_HEAD + r"restore" + _SUB_ARGS + r"[ \t]+(?:--[ \t]+)?" + _DOT),
+     "git restore ."),
+    (re.compile(_GIT_HEAD + r"reset\b(?:[ \t]+[^\s;&|]+)*?[ \t]+--hard\b"),
+     "git reset --hard"),
+    # Spelling-insensitive, the way rm-force-guard.sh is: `--force`, and any short
+    # cluster containing f or d (`-f`, `-d`, `-fd`, `-df`, `-xdf`, `-dfx`).  `-n` and
+    # `--dry-run` are excluded — a long option can only match via the literal
+    # `--force`, so `--dry-run` cannot reach the `d`.
+    (re.compile(_GIT_HEAD + r"clean\b[^;&|]*?[ \t](?:--force\b|-[A-Za-z]*[fd][A-Za-z]*(?=[\s;&|]|$))"),
+     "git clean -f/-d"),
+    (re.compile(_GIT_HEAD + r"stash[ \t]+(?:drop|clear)\b"),
+     "git stash drop/clear"),
+)
+
+# `<<TAG`, `<<-TAG`, `<<'TAG'`, `<<"TAG"`
+_HEREDOC_START = re.compile(r"<<-?[ \t]*(?P<q>['\"]?)(?P<tag>[A-Za-z_][A-Za-z0-9_]*)(?P=q)")
+
+# A balanced single- or double-quoted span.
+_QUOTED_SPAN = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
+
+
+def _strip_heredoc_bodies(command: str) -> str:
+    """Blank the BODY of every heredoc, keeping line structure.
+
+    A heredoc body is a PAYLOAD, not a command — it is where a commit message, a
+    ledger line or a test fixture quotes the very command this guard blocks.  The
+    delimiter line and everything outside the body are left untouched, so a real
+    `... <<EOF ... EOF ; git reset --hard` is still scanned.
+    """
+    lines = command.split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        tags = [m.group("tag") for m in _HEREDOC_START.finditer(line)]
+        i += 1
+        for tag in tags:
+            while i < len(lines):
+                body = lines[i]
+                i += 1
+                if body.strip() == tag:
+                    out.append(body)
+                    break
+                out.append("")
+    return "\n".join(out)
+
+
+def _blank_quoted_spans(command: str) -> str:
+    """Replace the INTERIOR of balanced quoted spans with spaces.
+
+    Length and quote characters are preserved so no new token adjacency or shell
+    operator can be manufactured.  An UNbalanced quote simply does not match and is
+    left alone — that direction only ever scans more text, never less.
+    """
+    return _QUOTED_SPAN.sub(lambda m: m.group(0)[0] + " " * (len(m.group(0)) - 2) + m.group(0)[-1],
+                            command)
+
+
+def _strip_noncommand_text(command: str) -> str:
+    """Remove the regions of `command` that are payload/argument text, not commands."""
+    return _blank_quoted_spans(_strip_heredoc_bodies(command))
 
 
 # ── context detection ────────────────────────────────────────────────────────
@@ -422,9 +550,14 @@ def classify_git_argv(argv: list[str]) -> Optional[str]:
 
 
 def _raw_scan(command: str) -> Optional[str]:
-    """Conservative raw-text scan, used when tokenised analysis is unavailable."""
+    """Conservative raw-text scan, used when tokenised analysis is unavailable.
+
+    ANCHORED to command start and blind to payload/argument text (id:221f) — see the
+    long note above `_CMD_START`.
+    """
+    scanned = _strip_noncommand_text(command)
     for pat, label in _RAW_PATTERNS:
-        if pat.search(command):
+        if pat.search(scanned):
             return label
     return None
 
