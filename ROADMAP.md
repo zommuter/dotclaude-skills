@@ -1638,7 +1638,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] **[ROUTINE]** flake-log over-subscribed-width confirmation run #1 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:b1ef --> (archived — see ROADMAP.archive.md)
 - [x] **[ROUTINE]** flake-log over-subscribed-width confirmation run #2 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:c3be --> (archived — see ROADMAP.archive.md)
 - [x] **[ROUTINE]** **Route the integrate hop's FREE-TEXT fields (`--summary`/`--label`) through the `relay-mech-stdin` payload channel instead of inline shell args** (owner decision 2026-08-26 "sanitize now, migrate durably" — this is the DURABLE half; the sanitize half landed as `17b4e4e0`). Promoted at review 2026-08-26b (mini-handoff, review.md §5b) reusing the existing TODO token. <!-- id:76fd --> (archived — see ROADMAP.archive.md)
-- [ ] **[ROUTINE]** Summarize the 4 post-id:81d5 flake-log confirmation rows in RELAY_LOG.md (after id:all 4 run seams above) — seam of id:372a (auto, id:3801) <!-- id:6ab7 -->
+- [ ] **[INPUT — decision]** Summarize the 4 post-id:81d5 flake-log confirmation rows in RELAY_LOG.md (after id:all 4 run seams above) — seam of id:372a (auto, id:3801) <!-- id:6ab7 --> — 🚧 GATED (auto, id:3801; route:human): only 3/4 required flake-log confirmation rows exist — 4th seam id:97e0 still gated on /relay human (width=1 run exceeds one turn's wall-clock budget) — needs /relay human
   - **Acceptance**: RELAY_LOG.md gets one committed self-report paragraph summarizing pass/fail across the 4 new rows (no ROADMAP.md edit); id:372a can then be ticked by the integrator
   - **Done-check**: grep the new RELAY_LOG.md entry; confirm it cites all 4 new runs.jsonl timestamps
   - **Context**: RELAY_LOG.md
