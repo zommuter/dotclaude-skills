@@ -6945,3 +6945,7 @@ append-only RELAY_LOG entry.
 ## 2026-08-26 17:34 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review(8123): window = 1 integrator commit (id:6ab7 gate note, verified accurate vs runs.jsonl) no executor code work all 4 tiers green (506/0/1-xred, canaries 3/3+6/6) gaming-scan + relay-doctor clean routine_open=0 (all 6 open [ROUTINE] gated or @owner-verify) [id:6ab7] [id:6ab7]
+
+## 2026-08-26 19:34 — integrate (claude-opus-5)
+
+handoff id:5eeb C2+C3: promoted to ROADMAP [ROUTINE] reusing the TODO id, RED spec tests/test_context_budget_handback_5eeb.sh pinning a mid-run context-budget checkpoint-and-handback. Diagnosis corrected mid-flight to the byte-attributed measurement.
