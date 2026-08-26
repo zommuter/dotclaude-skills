@@ -6709,3 +6709,7 @@ Review re-ask (id:8123): d51f writer enum guard + f66e diary push-narrowing both
 Worked id:f2ef — flake-log width=1 confirmation run #2 (post-id:81d5). Ran `tests/flake-log.sh -j 1` in the worktree; it appended a new row to `~/.cache/dotclaude-flake/runs.jsonl` with ts 20260826T102748Z (after the required 2026-08-21T10:58:33Z threshold): mode=suite, width=1, wall_s=419.4, pass=498, fail=0, xred=1. Acceptance met by the log append itself — no repo-file changes were needed since the target log lives outside the repo (`~/.cache/dotclaude-flake/`).
 Friction: none — the item was a pure observational re-run, no code changes, no test edits.
 refactor: none needed — one-shot data-collection run, no code touched.
+
+## 2026-08-26 12:36 — executor (sonnet, relay-loop)
+
+id:f2ef — flake-log width=1 confirmation run #2 done: appended a new suite row (ts 20260826T102748Z, pass=498 fail=0) to ~/.cache/dotclaude-flake/runs.jsonl [id:f2ef]
