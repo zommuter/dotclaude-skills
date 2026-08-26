@@ -6949,3 +6949,22 @@ review(8123): window = 1 integrator commit (id:6ab7 gate note, verified accurate
 ## 2026-08-26 19:34 — integrate (claude-opus-5)
 
 handoff id:5eeb C2+C3: promoted to ROADMAP [ROUTINE] reusing the TODO id, RED spec tests/test_context_budget_handback_5eeb.sh pinning a mid-run context-budget checkpoint-and-handback. Diagnosis corrected mid-flight to the byte-attributed measurement.
+
+## 2026-08-26 — executor (sonnet)
+
+Worked id:5eeb — built relay/scripts/context-budget.sh (pure read-only decision
+function: --bytes/--transcript, overridable thresholds, defaults warn 200,000 B /
+handback 300,000 B calibrated on the two real deaths in run
+relay-20260826-162405-7522; exit 3 on handback, fail-open-but-loud to `unknown` on
+an unmeasurable transcript). Added executor-contract.md rule 2c naming both trigger
+points (periodic + before-first-edit) and the checkpoint-and-handback disposition
+(commit work done, HANDBACK: RELAY_LOG.md line, contract_met=false/route="none").
+Bumped the contract v12 -> v13 (in-file marker + CLAUDE.md pointer + Maintenance
+entry) and registered the new script in the Makefile relay_FILES/_EXEC/_ALLOW
+manifest (test_relay_install_manifest.sh caught the initial omission).
+Friction: the version bump broke an unrelated pre-existing test
+(test_relay_driver_ticks.sh) that hardcoded the literal `v12` marker string; fixed
+it to assert "marker present, >=12, and CLAUDE.md pointer agrees" instead of a fixed
+version, so it survives this and future contract bumps without further edits.
+tests/run-tests.sh: 507 passed, 0 failed, 1 expected-red (up from the 506/0/2
+baseline — id:5eeb's RED spec now passes).
