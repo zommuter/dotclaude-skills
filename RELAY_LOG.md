@@ -6802,3 +6802,61 @@ refactor: none needed — pure instrument invocation, no code changed.
 ## 2026-08-26 14:49 — executor (sonnet, relay-loop)
 
 id:c3be — ran flake-log.sh -j 16 (over-subscribed width) confirmation run #2, appended ts=20260826T124545Z pass=498 fail=0 rc=0 row to runs.jsonl [id:c3be]
+
+## 2026-08-26 — reviewer (claude-opus-5, relay-loop)
+
+Chain-end re-ask review, run `relay-20260826-162405-7522`, window `relay-ckpt-20260826-1449`..HEAD
+= 18 commits, **all owner-attended, zero executor units**. **All four declared tiers RUN, none
+skipped**: `make lint` (0 violations, within baseline), `make test` (**505 passed, 0 failed, 2
+expected-red** — `6217` and the new `76fd`, both open items whose red test IS the spec),
+`make gaming-canary` (3/0), `make shard-canary` (6/0). No `SKIPPED-TIER`.
+
+`gaming-scan.sh` raised one line (`REMOVED_ASSERT:tests/test_git_lock_push_remote_select_4d44.sh`
+removed=1 added=0), **adjudicated benign**: the owner deliberately flipped `git-lock-push.sh`'s
+absent-flag default from "every remote" to "origin only" (`id:a73b`), so assertion (3) was
+re-pointed from the old default to the new `--all` flag, and the same commit ADDS a mutual-exclusion
+assertion (4b) plus a dedicated 7-assertion file. The four `integrate` test-stub edits are
+one-token arg-parser skip-list additions inside FIXTURES, not weakened assertions. No
+`@owner-accepted` in the window; no discard-verb in any commit message; contract pointer `v12` ==
+canonical; `relay-doctor` reported 1 per-repo issue (the `id:758a` cross-ledger drift, now resolved).
+
+**`id:758a` verified green and CLOSED.** Its ROADMAP checkbox is now `[x]` to match the already-`[x]`
+TODO twin. Verified against `tests/test_base_ref_checked_out_branch_758a.sh` — the RED spec the
+PREVIOUS review authored, which the fix commit `478d70d2` did not touch, so it is a genuinely
+independent spec rather than same-author self-consistency.
+
+**Recovered stranded work.** The parked orphan `relay/orphan/relay-20260826-122101-7415-review-repo-0`
+(`3d9ca6f3`) turned out to carry a whole prior review's ledger output that never reached main:
++43 lines of `REVIEW_ME.md` (2 open boxes addressed to the owner), +6 lines of `ROADMAP.md` (the
+full `id:7354` promotion), +56 lines of `RELAY_LOG.md`, and one test file. This review restored the
+test file as `tests/test_handback_tracker_all_sites_7354.sh` and ran it BOTH ways: it FAILS against
+`01ce9b9c^` naming all 10 unwired `state.handbacks.push(` sites, and PASSES (4/4) against HEAD. So
+`id:7354` is now **independently** verified, not merely self-consistent — the shipped
+`test_repeat_handback_wiring_7354.sh` was authored in the same commit as the fix. The stranding
+itself is surfaced as a REVIEW_ME box: nothing distinguishes "stale orphan branch" from "orphan
+carrying unread questions for the owner".
+
+**Reverse-handoff (§5b)** over the 5 open items added this window (`2c2a`, `9459`, `2e7a`, `76fd`,
+`9566`): four already carried an owner-written `[ROUTINE]` tag, so only `9566` was genuinely
+unqualified. Dispositions — **`76fd` PROMOTED** to `ROADMAP.md` reusing its TODO token
+(single-id-two-views) with acceptance, done-check, context and a RED spec
+`tests/test_integrate_stdin_channel_76fd.sh` (2 RED assertions on `STDIN_ALLOWED_SCRIPTS`
+membership and the inline `--summary`, plus 2 GREEN regression-guards pinning stdin inertness and
+the `mechArg` defence-in-depth the owner said to KEEP). **`9566` qualified as NOT executor-ready**
+and deliberately left unpromoted — its fix depends on loderite's no-gallery-ack line format, which
+an executor here would have to invent. **`2c2a` and `2e7a` left in TODO**: `2c2a` opens with an
+exit-code question only the owner can settle (the prior, stranded review flagged this too and it is
+still open), and `2e7a` says in its own text that it must be read together with `id:5552`'s
+unsettled decision. **`9459`** left in TODO as a `/meeting` candidate — the prior art is named but
+the in-flight-lease semantics are an open design question.
+
+Friction: the `76fd` RED spec's first draft tripped this repo's own
+`test_pipefail_sigpipe_lint.sh` (three `printf | grep -q` shapes, where `grep -q` exits at first
+match and `pipefail` turns the SIGPIPE into a failure). Rewritten to here-strings. Its assertion (4)
+also initially fired its own vacuity guard — the anchor regex missed `mechArg`'s body — which is the
+guard working as designed. `orphan-scan --shipped` reports 84 advisory candidates (2 GATE-READY:
+`3ca7`, `ebbe`); not boxed individually, since REVIEW_ME's ~10-box budget is nearly spent and the
+existing stale-WARN box covers the class.
+
+refactor: none needed — this unit wrote ledger entries, one new RED spec and one recovered test
+file; no implementation code was touched, so there is no duplication to unify.
