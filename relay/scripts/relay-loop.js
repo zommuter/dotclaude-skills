@@ -1672,10 +1672,31 @@ function parseVerdictClass(raw) {
 //       FAIL-OPEN to the real model. On the integrate path that would silently resurrect an
 //       LLM integrator, so they are stripped, never merely quoted.
 //   (b) a single quote cannot survive inside a single-quoted argument.
-// Everything else (`$`, backtick, parens — e.g. the id:1a34 ckpt label "reviewer (claude-…)")
-// is inert inside single quotes and is preserved VERBATIM.
+// id:2e7a — the line that used to sit here said backticks and `$(` "are inert inside single
+// quotes and preserved VERBATIM". That is true of BASH and FALSE of the mechanical proxy, and
+// the gap cost three integrate hops in run relay-20260826-122101-7415. `_command_allowed()`
+// (mechanical-proxy.py:578) refuses `$(`, a backtick, `<(` or `>(` ANYWHERE in the command via a
+// BARE SUBSTRING scan with no quote-awareness — unlike its quote-aware siblings for sequence
+// operators and redirection. So a perfectly safe single-quoted backtick in free-text prose still
+// refuses the hop, which then FAILS OPEN to the real API and 404s on model:"bash".
+// Executor summaries quote command names in markdown backticks as a matter of course (the two
+// live casualties: "added `toc` subcommand" and "`lake exe bench`"), so this fired on CONTENT,
+// not on any repo property — which is why it looked intermittent.
+// Neutralising them here, at the single chokepoint every fenced argument already passes through,
+// is deliberate and matches what this function ALREADY does with |;& and quotes. The loss is
+// cosmetic: a ckpt message reads `toc` as toc.
+// The proxy's paranoia is NOT a bug to route around — the ratified answer for genuinely
+// free-text payloads is the separate `relay-mech-stdin` channel (id:a05c), and loosening
+// `_command_allowed()` was tried and REVERTED because it broke that decision's test.
+// This sanitisation is the unblock; the stdin migration is the durable fix (owner-decided
+// 2026-08-26, filed as its own item) — until it lands, a NEW free-text field added to a fenced
+// command would reintroduce this, so add it via the stdin channel rather than as a shell arg.
 const mechArg = (v) => "'" + String(v == null ? '' : v)
   .replace(/[|;&\n\r]+/g, ' ')
+  .replace(/`/g, "'")            // id:2e7a — backtick -> quote, then stripped by the rule below
+  .replace(/\$\(/g, '$ (')       // id:2e7a — break the `$(` token; the `$` itself stays readable
+  .replace(/<\(/g, '< (')        // id:2e7a — process substitution markers, same treatment
+  .replace(/>\(/g, '> (')        // id:2e7a
   .replace(/'/g, '')
   .replace(/\s+/g, ' ')
   .trim() + "'"
