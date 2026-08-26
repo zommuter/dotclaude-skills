@@ -6884,3 +6884,7 @@ Friction: none — the item's acceptance/tests/context were precise enough that 
 direct implementation of the spec, no design judgement calls needed.
 refactor: none needed — a small, targeted three-file diff (proxy allowlist entry, one `if` block
 in integrate.sh, one hop-builder edit in relay-loop.js); no duplication introduced to unify.
+
+## 2026-08-26 17:10 — executor (sonnet, relay-loop)
+
+id:76fd — integrate hops --summary now rides the relay-mech-stdin channel instead of an inline shell arg full suite 506/0/1-expected-red [id:76fd]
