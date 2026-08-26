@@ -10,6 +10,7 @@
 ## 2026-08-26
 
 - id:f2ef — flake-log width=1 confirmation run #2 done: appended a new suite row (ts 20260826T102748Z, pass=498 fail=0) to ~/.cache/dotclaude-flake/runs.jsonl (id:f2ef)
+- review(8123): id:f2ef verified green at the source + mini-handoff id:758a with RED spec routed:2e43 ingested as id:e278 3 REVIEW_ME boxes suite 498/0/2 routine_open=10 [id:f2ef,758a,e278] (id:f2ef,758a,e278)
 
 ## 2026-08-22
 
