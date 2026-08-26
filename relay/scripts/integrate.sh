@@ -110,11 +110,18 @@
 # HANDBACK[<step>] line to stderr. The caller records it durably and does not re-merge.
 #
 # ── THE ONE RESIDUAL: the SEMVER BUMP TRIGGER (id:e647) ─────────────────────────────
-# "One bump per USER-OBSERVABLE close; a refactor-only / internal-cleanup close does NOT
-# bump" is a ratified REVIEWER judgement (meeting 2026-07-17-1541 D1). It is NOT derivable,
-# so this script never guesses it. Resolution order — the FIRST match wins:
+# "One bump per USER-OBSERVABLE close" is a ratified REVIEWER judgement (meeting
+# 2026-07-17-1541 D1). Its second half — "a refactor-only / internal-cleanup close does NOT
+# bump" — was AMENDED AWAY by the owner on 2026-08-26 (verbatim: *"a refactor/internal can
+# still mess up plenty and must at least bump patch"*), continuing the same reasoning that
+# produced the id:65ad fleet default: a refactor-only close ASSERTS a functional identity it
+# cannot actually guarantee, so minting a version is the honest signal. NO per-close path
+# skips a bump on a manifest repo any more. The LEVEL is still not derivable, so this script
+# never guesses it. Resolution order — the FIRST match wins:
 #   1. --level minor|patch      → the caller judged it user-observable. Bump at that level.
-#   2. --no-bump                → the caller judged it refactor-only. No bump.
+#   2. --internal               → the caller judged it refactor-only / internal. Bump PATCH.
+#                                 (`--no-bump` is a DEPRECATED ALIAS for this and warns
+#                                 loudly — the name is now a lie; it no longer skips.)
 #   3. no versioned manifest    → a VERSION-LESS repo (dotclaude-skills by design, id:8ef3):
 #                                 there is nothing to bump. No bump; the changelog
 #                                 date-buckets instead. version-bump.sh is a no-op here.
@@ -122,7 +129,13 @@
 #                                 unitIsSubstantive), so it cannot be a user-observable one.
 #                                 No bump.
 #   5. relay.toml bump_policy   → [repos.<repo>] bump_policy = never|minor|patch, a durable
-#                                 per-repo standing judgement the owner records ONCE.
+#                                 per-repo standing judgement the owner records ONCE. Since
+#                                 the 2026-08-26 amendment this is the ONLY surviving way to
+#                                 skip a bump, and it is deliberately OWNER-recorded and
+#                                 per-REPO, not a per-close agent judgement. It is where the
+#                                 formally-verified carve-out (Lean — where a functional
+#                                 identity CAN be mechanically established, so a no-bump is
+#                                 truthful) lives. Zero repos set it today.
 #   6. NO bump_policy recorded  → FLEET DEFAULT minor (id:65ad, owner-ratified 2026-08-22).
 #                                 An EXPLICIT owner OVERRIDE of the 2026-07-17-1541 D1 rule,
 #                                 not a convenience — see the block at the fallback site for
@@ -142,7 +155,7 @@
 # Usage:
 #   integrate.sh --repo <name> --path <main-checkout> --worktree <dir> --branch <branch> \
 #                --summary <text> --run <runId> --label <ckpt-label> \
-#                [--ids a,b] [--level minor|patch] [--no-bump] [--substantive true|false] \
+#                [--ids a,b] [--level minor|patch] [--internal] [--substantive true|false] \
 #                [--reviewed-tip <sha>] [--verdict execute|hard|review|handoff] \
 #                [--intensive <resource>] [--strong-model <id>] [--fable-recheck] \
 #                [--chain-ended]
@@ -331,7 +344,7 @@ LIB_PRIVATE_REMOTE="${INTEGRATE_LIB_PRIVATE_REMOTE:-$SCRIPT_DIR/lib-private-remo
 # ── args ──
 repo="" path="" worktree="" branch="" summary="" run="" label=""
 ids="" level="" reviewed_tip="" verdict="execute" intensive=""
-no_bump="" substantive="" strong_model="" fable_recheck="" chain_ended=""
+internal="" substantive="" strong_model="" fable_recheck="" chain_ended=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo)         repo="${2:-}"; shift 2 ;;
@@ -346,7 +359,17 @@ while [ $# -gt 0 ]; do
     --reviewed-tip) reviewed_tip="${2:-}"; shift 2 ;;
     --verdict)      verdict="${2:-}"; shift 2 ;;
     --intensive)    intensive="${2:-}"; shift 2 ;;
-    --no-bump)      no_bump=1; shift ;;
+    --internal)     internal=1; shift ;;
+    # DEPRECATED ALIAS (id:8d76 sibling ruling, 2026-08-26). The name is now a LIE: this
+    # flag bumps PATCH, it does not skip the bump. Accepted so no caller breaks, but it
+    # warns LOUDLY rather than silently doing something other than what it says.
+    --no-bump)      internal=1
+                    printf 'integrate.sh: WARNING — `--no-bump` is DEPRECATED and NO LONGER SKIPS THE BUMP.\n' >&2
+                    printf '  Owner ruling 2026-08-26 amending meeting 2026-07-17-1541 D1: a refactor-only /\n' >&2
+                    printf '  internal-cleanup close MUST still bump at least PATCH. Treating this as `--internal`\n' >&2
+                    printf '  (bump level = patch). Use `--internal` explicitly; to skip a bump entirely, record\n' >&2
+                    printf '  a durable `bump_policy = "never"` in relay.toml for this repo instead.\n' >&2
+                    shift ;;
     --substantive)  substantive="${2:-}"; shift 2 ;;
     --strong-model) strong_model="${2:-}"; shift 2 ;;
     --fable-recheck) fable_recheck=1; shift ;;
@@ -491,8 +514,18 @@ fi
 bump_level="" bump_reason=""
 if [ -n "$level" ]; then
   bump_level="$level"; bump_reason="explicit --level $level (caller judged the close user-observable)"
-elif [ -n "$no_bump" ]; then
-  bump_reason="explicit --no-bump (caller judged the close refactor-only / internal)"
+elif [ -n "$internal" ]; then
+  # OWNER RULING 2026-08-26 — amends meeting 2026-07-17-1541 D1's "a refactor-only /
+  # internal-cleanup close does NOT bump". Owner verbatim: *"a refactor/internal can still
+  # mess up plenty and must at least bump patch"*. This branch used to leave bump_level
+  # EMPTY (no version, no tag); it now resolves to PATCH. There is no longer ANY per-close
+  # path that skips a bump on a manifest repo — the only remaining skip is the DURABLE,
+  # owner-recorded `bump_policy = "never"` (rule 5), which is where the formally-verified
+  # carve-out he named in 2026-07-17-1541 lives. `patch` and not `minor` is the point of
+  # the flag: under loose-0.x it signals "no new surface", while still minting a version
+  # so the changed code is not silently asserted identical to the old.
+  bump_level="patch"
+  bump_reason="explicit --internal (caller judged the close refactor-only / internal) — PATCH, never nothing (owner ruling 2026-08-26 amending 2026-07-17-1541 D1)"
 elif [ ! -f "$path/pyproject.toml" ] && [ ! -f "$path/package.json" ]; then
   bump_reason="version-less repo (no pyproject.toml/package.json) — nothing to bump by construction (id:8ef3); the changelog date-buckets instead"
 elif [ "$substantive" = "false" ]; then
@@ -567,7 +600,7 @@ else
   fi
   if [ "$policy_state" = "unparsed" ]; then
     handback bump "$EX_BUMP" \
-      "SEMVER BUMP TRIGGER UNRESOLVABLE for [$repo] (id:e647 / id:65ad): [repos.$repo] in $policy_toml carries a line about bump_policy that this reader could NOT parse into a value — \`$policy_line\`. PRESENT-BUT-UNPARSED is NOT the absent case and is NEVER given the fleet default: defaulting here would silently BUMP against a policy you may have recorded as 'never', which is the unsafe direction. NOTHING was mutated — main is byte-identical and the worktree is on disk. Resolve by writing the key EXACTLY as bump_policy = \"never|minor|patch\" in [repos.$repo] of $policy_toml, or by re-running with --level minor|patch or --no-bump."
+      "SEMVER BUMP TRIGGER UNRESOLVABLE for [$repo] (id:e647 / id:65ad): [repos.$repo] in $policy_toml carries a line about bump_policy that this reader could NOT parse into a value — \`$policy_line\`. PRESENT-BUT-UNPARSED is NOT the absent case and is NEVER given the fleet default: defaulting here would silently BUMP against a policy you may have recorded as 'never', which is the unsafe direction. NOTHING was mutated — main is byte-identical and the worktree is on disk. Resolve by writing the key EXACTLY as bump_policy = \"never|minor|patch\" in [repos.$repo] of $policy_toml, or by re-running with --level minor|patch or --internal (which bumps PATCH — since the 2026-08-26 amendment there is no per-close flag that skips a bump)."
   fi
   case "$policy" in
     never)         bump_reason="relay.toml [repos.$repo] bump_policy = never" ;;
@@ -585,14 +618,19 @@ else
     # replaces was handing back three repos in a single pool run (puzzle-pwa, csgebra,
     # leAIrn2learn), and it also permanently silences the per-repo escalation the gate
     # existed to force. Whether to add a genuine no-bump branch so D1 can survive under a
-    # level policy is SURFACED IN id:65ad AND NOT DECIDED — do not invent one here.
+    # level policy was SURFACED IN id:65ad and has since been DECIDED — in the opposite
+    # direction. On 2026-08-26 the owner amended D1's no-bump half away entirely (*"a
+    # refactor/internal can still mess up plenty and must at least bump patch"*), so a
+    # refactor-only close minting a version is no longer a "cost accepted knowingly" but
+    # the INTENDED behaviour. Do not build a no-bump branch here; `bump_policy = "never"`
+    # is the one surviving skip and it is owner-recorded per repo.
     #
     # WHY `minor` AND NOT `patch`: under the loose-0.x rule, `patch` means bugfix-ONLY, so
     # it is the harmful UNDER-signal for a defaulted feature close (it tells a consumer
     # "nothing new here" when something new landed). `minor` is the harmless OVER-signal.
     #
     # SCOPE: manifest repos only — a version-less repo (this one, id:8ef3) resolved several
-    # branches above and never reaches here. An EXPLICIT bump_policy, --level, --no-bump,
+    # branches above and never reaches here. An EXPLICIT bump_policy, --level, --internal,
     # and --substantive false ALL still outrank this default; it is the last resort.
     "")            bump_level="minor"
                    bump_reason="FLEET DEFAULT bump_policy = minor (id:65ad, owner-ratified 2026-08-22) — no explicit [repos.$repo] bump_policy in $policy_toml" ;;

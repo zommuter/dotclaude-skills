@@ -373,7 +373,10 @@ grep -q 'HANDBACK\[bump\]' <<<"$zout" || fail "(6b2) no loud HANDBACK[bump] line
 [[ -d "$WTZ" ]] || fail "(6b2) the worktree was retired despite the handback"
 pass "(6b2) id:e647: an undeterminable bump trigger hands back loudly (exit 30) with main unmoved"
 
-# (6c) the same close with --no-bump (reviewer judged it refactor-only) integrates cleanly.
+# (6c) the same close with --internal (reviewer judged it refactor-only) integrates cleanly
+# and bumps PATCH. Owner ruling 2026-08-26 amended meeting 2026-07-17-1541 D1's no-bump half
+# away — "a refactor/internal can still mess up plenty and must at least bump patch" — so
+# this branch resolves to patch, not to nothing. 0.4.0 -> 0.4.1.
 MN="$(build_manifest bumpno)"; RN="$(basename "$MN")"
 WTN="$(child "$MN" bumpno)"
 CN="$(cfg bumpno "$RN")"
@@ -381,11 +384,26 @@ rc=0
 nout="$(FABLES_CONFIG="$CN" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
   "$INT" --repo "$RN" --path "$MN" --worktree "$WTN" --branch relay/bumpno \
          --summary "refactor only" --run r1 --label "executor (sonnet, relay-loop)" \
+         --verdict execute --substantive true --internal 2>"$ERRLOG")" || rc=$?
+[[ $rc -eq 0 ]] || fail "(6c) --internal did not resolve the trigger (exit $rc)"
+grep -q '^bump=v0.4.1$' <<<"$nout" || fail "(6c) --internal did not resolve to a PATCH bump: $(grep '^bump=' <<<"$nout")"
+grep -q '0.4.1' "$MN/pyproject.toml" || fail "(6c) --internal did not bump the manifest to 0.4.1"
+pass "(6c) id:e647: --internal is an explicit refactor-only resolution — integrates, bumps PATCH"
+
+# (6c-alias) --no-bump is a DEPRECATED ALIAS: same PATCH bump, plus a loud stderr warning.
+# The name is a lie post-amendment, so it must never silently do something else.
+MA="$(build_manifest bumpalias)"; RA="$(basename "$MA")"
+WTA="$(child "$MA" bumpalias)"
+CA="$(cfg bumpalias "$RA")"
+rc=0
+aout="$(FABLES_CONFIG="$CA" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
+  "$INT" --repo "$RA" --path "$MA" --worktree "$WTA" --branch relay/bumpalias \
+         --summary "refactor only" --run r1 --label "executor (sonnet, relay-loop)" \
          --verdict execute --substantive true --no-bump 2>"$ERRLOG")" || rc=$?
-[[ $rc -eq 0 ]] || fail "(6c) --no-bump did not resolve the trigger (exit $rc)"
-grep -q '^bump=$' <<<"$nout" || fail "(6c) --no-bump still produced a bump"
-grep -q '0.4.0' "$MN/pyproject.toml" || fail "(6c) --no-bump changed the manifest version"
-pass "(6c) id:e647: --no-bump is an explicit refactor-only resolution — integrates, no bump"
+[[ $rc -eq 0 ]] || fail "(6c-alias) --no-bump did not resolve the trigger (exit $rc)"
+grep -q '^bump=v0.4.1$' <<<"$aout" || fail "(6c-alias) --no-bump did not behave as --internal (patch): $(grep '^bump=' <<<"$aout")"
+grep -q 'DEPRECATED' "$ERRLOG" || fail "(6c-alias) --no-bump did not warn loudly on stderr"
+pass "(6c-alias) id:e647: --no-bump is a deprecated alias — bumps PATCH and warns"
 
 # (6d) a NON-substantive close on a manifest repo resolves without asking (it cannot be a
 #      user-observable close), and a durable relay.toml bump_policy also resolves it.

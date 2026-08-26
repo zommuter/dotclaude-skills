@@ -82,10 +82,41 @@
 
 ## Decisions
 
-- **D1 — Global default: the reviewer bumps at integrate, once per user-observable close.** Standing rule for every semver repo: at integrate the reviewer judges each closed ROADMAP item, bumps + tags per user-observable close, and regenerates the lockfile in the **same** commit (`bump-includes-lockfile`). The judgement stays with the reviewer — a refactor close must NOT bump. **Out of scope:** deriving the bump itself (Riku: "user-observable" is not derivable); the executor ever bumping (worktrees collide on manifest+lockfile — Orla); per-repo opt-in (that IS the status quo `e647` complains about).
+- **D1 — Global default: the reviewer bumps at integrate, once per user-observable close.** Standing rule for every semver repo: at integrate the reviewer judges each closed ROADMAP item, bumps + tags per user-observable close, and regenerates the lockfile in the **same** commit (`bump-includes-lockfile`). The judgement stays with the reviewer — a refactor close must NOT bump. **⚠ THIS LAST CLAUSE IS SUPERSEDED — see the AMENDMENTS block below D4.** **Out of scope:** deriving the bump itself (Riku: "user-observable" is not derivable); the executor ever bumping (worktrees collide on manifest+lockfile — Orla); per-repo opt-in (that IS the status quo `e647` complains about).
 - **D2 — The CHANGELOG is derived at integrate, from existing relay state, starting from now.** Source is what the relay already has: `workedIds`, `relay-ckpt-*` tag messages, `RELAY_LOG.md`. **If it requires a new per-item "user-facing?" field, this decision is wrong and must come back** — that is authoring with extra steps, not derivation. **Out of scope:** retroactive backfill — per-close tags are unrecoverable after the 2026-07-16 batch, so generated history would be plausible and unverifiable (a fabricated record).
 - **D3 — `8ef3` is EXPLICITLY AMENDED: `dotclaude-skills` gets a CHANGELOG, but still no version.** Git remains the version SSOT — no `VERSION` file, no `v*` tags, no manifest. **Amendment basis (owner-stated, on record):** `8ef3` evaluated only *external* consumers and correctly found none; this repo is consumed *internally*, through per-file symlinks, by every other repo's sessions — **a consumer class `8ef3` never weighed**. This is an explicit amendment on a premise the original did not consider, NOT a reinterpretation of its words. **Trigger for a version-less repo:** date buckets (per the user's own original ask), fired per relay integrate; semver repos bucket by release. **Out of scope:** giving this repo a version (`8ef3`'s no-version ruling stands unamended); citing this amendment as precedent that `8ef3` was wrong about versions.
 - **D4 — Per-repo `CHANGELOG.md` in every semver repo; `e647` and `b8fa` ship together.** Overrides the recommended pilot-first sequencing. **Recorded dissent (Riku/Orla, for the record, not to re-litigate):** this builds `b8fa` on a hook with zero observed firings; if the bump stalls repos via `clean-tree-gate.sh`, the changelog rides a mechanism that does not work yet. **Out of scope:** central-only (`claude-diary`) as the sole record — it fails the external-consumer case that motivates a changelog.
+
+## Amendments to D1 (recorded after the fact, in date order)
+
+D1's *level/derivation* half stands untouched. Its **no-bump half** — "a refactor close must
+NOT bump" — has been amended twice, both times by the owner, both times by contesting its
+**premise** rather than reinterpreting its words:
+
+- **2026-08-22 — `id:65ad`, the FLEET DEFAULT `minor`.** A manifest repo with no recorded
+  `bump_policy` bumps `minor` instead of handing back. There is no no-bump branch under a
+  level policy, so a defaulted refactor-only close mints a version, contrary to D1. Owner was
+  shown the blast radius (63 `[repos.*]` blocks, zero explicit policies) and kept full scope.
+- **2026-08-26 — the no-bump half is WITHDRAWN OUTRIGHT.** Owner verbatim: *"a
+  refactor/internal can still mess up plenty and must at least bump patch"*. This closes the
+  gap 65ad left: the per-close `--no-bump` flag (which had **zero callers** — it existed only
+  in `integrate.sh` and one line of `conventions.md`) now resolves to **`patch`** and is
+  spelled **`--internal`**; `--no-bump` survives as a deprecated alias that warns loudly,
+  because a flag whose name says "no bump" while minting a version is worse than either
+  behaviour alone.
+
+**The shared premise both amendments rest on, and it is the substantive part:** *a
+refactor-only close ASSERTS a functional identity it cannot actually guarantee*, so minting a
+version is the HONEST signal — the changed code is not provably the same code. The carve-out
+the owner named is **formally-verified code (e.g. Lean)**, where that identity CAN be
+mechanically established and a no-bump would be truthful.
+
+**Net state after 2026-08-26:** no per-close path skips a bump on a manifest repo. The
+surviving skips are structural (no manifest — `id:8ef3`; nothing closed — `--substantive
+false`) or durable and owner-recorded (`bump_policy = "never"` in `relay.toml`, which is
+where the formally-verified carve-out lives; zero repos set it today). `patch` and not
+`minor` for `--internal` is the point of the flag: under loose-0.x it signals "no new
+surface" while still refusing to assert that changed code is the same code.
 
 ## Action items
 

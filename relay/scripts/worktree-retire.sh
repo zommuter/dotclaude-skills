@@ -43,6 +43,23 @@
 #                     A dirty worktree on a NON-relay branch, or when --expect-merged is also set,
 #                     is untouched by this flag and still surfaces-and-leaves as before.
 #
+# THE THIRD BRANCH THIS SCRIPT DELIBERATELY DOES NOT HAVE (id:8d76) — owner-authorized DISCARD.
+# Both dirty-tree paths above assume the residue might be worth keeping. When the owner has
+# INSPECTED the residue and ruled it worthless-or-harmful, neither fits:
+#   - the default (surface-and-leave, exit 3) parks known-bad content on disk indefinitely;
+#   - --commit-residue makes it WORSE for harmful residue — it moves the content out of an
+#     unreachable index into a reachable, pushable `relay/orphan/*` ref, and the pre-push
+#     privacy gate is warn+LOG only (id:df87), so nothing would block a later publish.
+# There is NO flag for this and that is intentional: discarding is the one act id:373e bans,
+# so it stays a deliberate, supervised human step OUTSIDE this script. The exit is:
+#   1. confirm the branch has 0 unmerged commits (`git log --oneline main..<branch>` empty),
+#      so the residue really is the whole content and nothing of record is lost;
+#   2. the human runs the force removal themselves, at a prompt they answer;
+#   3. finish the branch half HERE or with plain `git branch -d` — a merged branch never
+#      needs -D, and reaching for -D is the signal that step 1 was skipped.
+# Recorded 2026-08-26 after a session reached for the raw force op because this header did not
+# say the above. If you are about to do the same: you are in the supported case, not a gap.
+#
 # Exit codes:
 #   0  retired cleanly (worktree removed, branch deleted or parked as designed)
 #   2  usage / not-a-git-repo error

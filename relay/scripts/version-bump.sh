@@ -8,9 +8,13 @@
 # child's branch has merged.
 #
 # The level is an INPUT, not computed: "user-observable" is a JUDGEMENT the reviewer makes (Riku,
-# D1) — a refactor-only close must NOT bump at all, so the integrator only calls this for a close
-# it has decided is user-observable, and passes --level minor|patch. loose-0.x (global CLAUDE.md
-# §Versioning): patch = z+1; minor = y+1, z=0; MAJOR is never touched here.
+# D1), and it selects the LEVEL — no longer whether a bump happens at all. D1's "a refactor-only
+# close must NOT bump" half was AMENDED AWAY by the owner 2026-08-26 (*"a refactor/internal can
+# still mess up plenty and must at least bump patch"*): the integrator now calls this for every
+# close on a manifest repo, passing --level minor for a user-observable one and --level patch for
+# an internal one (integrate.sh's --internal). The ONLY remaining no-call path is a durable
+# owner-recorded `bump_policy = "never"`. loose-0.x (global CLAUDE.md §Versioning): patch = z+1;
+# minor = y+1, z=0; MAJOR is never touched here.
 #
 # Usage:
 #   version-bump.sh <repo-path> --level minor|patch [--date YYYY-MM-DD]

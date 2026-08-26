@@ -11,8 +11,15 @@
 # because under loose-0.x `patch` means bugfix-only — the harmful UNDER-signal for a
 # defaulted feature close, where `minor` is the harmless over-signal.
 #
+# A FURTHER owner amendment (2026-08-26) withdrew D1's no-bump half OUTRIGHT — "a
+# refactor/internal can still mess up plenty and must at least bump patch" — so the former
+# `--no-bump` per-close escape now resolves to PATCH and is spelled `--internal`
+# (`--no-bump` remains a deprecated, loudly-warning alias). NO per-close path skips a bump
+# on a manifest repo any more; the only surviving skip is a durable owner-recorded
+# `bump_policy = "never"`.
+#
 # Precedence this file pins (first match wins), across the whole resolution ladder:
-#   --level > --no-bump > version-less repo > --substantive false > explicit bump_policy
+#   --level > --internal > version-less repo > --substantive false > explicit bump_policy
 #   > FLEET DEFAULT minor.
 #
 # ── THE THREE-WAY READER SEMANTIC this file pins (id:65ad reader hole + id:d51f(b)) ──
@@ -205,11 +212,15 @@ pass "(3) id:8ef3: a version-less repo still never reaches the bump gate"
 # =====================================================================================
 # (4) EXPLICIT CALLER FLAGS still override the fleet default.
 # =====================================================================================
-run flagnobump manifest "" --no-bump
-[[ $RC -eq 0 ]] || fail "(4a) --no-bump handed back (exit $RC)"
-[[ -z "$(bump_of)" ]] || fail "(4a) --no-bump produced a bump '$(bump_of)' — the fleet default overrode an explicit caller judgement"
-grep -q '^version = "0.4.0"$' "$MAIN_PATH/pyproject.toml" || fail "(4a) --no-bump changed the manifest version"
-pass "(4a) --no-bump still overrides the fleet default (refactor-only close, no bump)"
+# (4a) --internal still OUTRANKS the fleet default — but since the owner's 2026-08-26
+# amendment of meeting 2026-07-17-1541 D1 ("a refactor/internal can still mess up plenty and
+# must at least bump patch") it resolves to PATCH, not to nothing. So the thing being proved
+# here is that the explicit caller judgement still wins over the default's `minor`.
+run flagnobump manifest "" --internal
+[[ $RC -eq 0 ]] || fail "(4a) --internal handed back (exit $RC)"
+[[ "$(bump_of)" == v0.4.1 ]] || fail "(4a) --internal resolved to '$(bump_of)', expected v0.4.1 (a PATCH bump) — the fleet default overrode an explicit caller judgement"
+grep -q '^version = "0.4.1"$' "$MAIN_PATH/pyproject.toml" || fail "(4a) --internal did not bump the manifest to 0.4.1"
+pass "(4a) --internal still overrides the fleet default's minor (refactor-only close, patch bump)"
 
 run flaglevel manifest "" --level patch
 [[ $RC -eq 0 ]] || fail "(4b) --level patch handed back (exit $RC)"

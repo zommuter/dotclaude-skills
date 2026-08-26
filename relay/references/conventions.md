@@ -123,7 +123,9 @@ The integrator (`relay/scripts/integrate.sh`, dispatched as one mechanical hop s
 id:087b) resolves the bump trigger before any mutation, first match wins:
 
 1. `--level minor|patch` — the caller judged the close user-observable.
-2. `--no-bump` — the caller judged it refactor-only.
+2. `--internal` — the caller judged it refactor-only / internal. **Bumps `patch`.** (Since
+   the 2026-08-26 amendment below, this no longer skips the bump; `--no-bump` survives as a
+   deprecated alias that warns loudly and behaves as `--internal`.)
 3. **No versioned manifest** (`pyproject.toml` / `package.json`) — a version-less repo
    (dotclaude-skills by design, id:8ef3). Nothing to bump; the changelog date-buckets.
 4. `--substantive false` — the unit produced no substantive close, so it cannot be a
@@ -163,6 +165,24 @@ as id:0832 (the `zkm` parent-bump → plugin-`uv.lock` cascade, a real unautomat
 is independent of the principle); `minor` over `patch` because under loose-0.x `patch`
 means bugfix-ONLY — the harmful UNDER-signal for a defaulted feature close, where `minor`
 is the harmless over-signal.
+
+**AMENDMENT 2026-08-26 (owner ruling) — D1's no-bump half is withdrawn outright.** Owner
+verbatim: *"a refactor/internal can still mess up plenty and must at least bump patch"*.
+Rule 6 above had already overridden D1 for the DEFAULTED case; this extends the same
+reasoning to the one remaining per-close judgement, `--no-bump` (rule 2), which had **zero
+callers** — it existed only in `integrate.sh` and this line. It now resolves to `patch`
+rather than to nothing, and is spelled `--internal`; `--no-bump` is kept as a deprecated
+alias that warns loudly, because a flag whose name says "no bump" while minting a version
+is worse than either behaviour alone.
+
+**Net effect: no per-close path skips a bump on a manifest repo any more.** The surviving
+skips are all STRUCTURAL or DURABLE, never a per-close agent judgement — rule 3 (no
+manifest to bump), rule 4 (nothing was closed), and rule 5 `bump_policy = "never"`, which
+stays and is where the formally-verified carve-out the owner named in 2026-07-17-1541 lives
+(Lean code, where functional identity CAN be mechanically established, so a no-bump is
+truthful). Zero repos set `never` today. `patch` and not `minor` for `--internal` is the
+point of the flag: it signals "no new surface" under loose-0.x while still refusing to
+assert that changed code is the same code.
 - Cross-repo action items discovered mid-work go to the shared inbox
   (`~/.claude/skills/meeting/append.sh -t inbox`), never into another repo's TODO.md.
 
