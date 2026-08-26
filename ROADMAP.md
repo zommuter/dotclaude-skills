@@ -1636,7 +1636,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Context**: tests/flake-log.sh, ~/.cache/dotclaude-flake/runs.jsonl
 - [x] **[ROUTINE]** flake-log width=1 confirmation run #2 (post-id:81d5) (after id:(seam 1, independent — no id yet)) — seam of id:372a (auto, id:3801) <!-- id:f2ef --> (archived — see ROADMAP.archive.md)
 - [x] **[ROUTINE]** flake-log over-subscribed-width confirmation run #1 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:b1ef --> (archived — see ROADMAP.archive.md)
-- [ ] **[ROUTINE]** flake-log over-subscribed-width confirmation run #2 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:c3be -->
+- [x] **[ROUTINE]** flake-log over-subscribed-width confirmation run #2 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:c3be -->
   - **Acceptance**: tests/flake-log.sh -j 16 (or matching width) completes and appends a second new row to ~/.cache/dotclaude-flake/runs.jsonl with ts after 2026-08-21T10:58:33Z
   - **Done-check**: grep the new row's ts and width in ~/.cache/dotclaude-flake/runs.jsonl
   - **Context**: tests/flake-log.sh, ~/.cache/dotclaude-flake/runs.jsonl
