@@ -490,6 +490,20 @@ function buildRelayStatus(state) {
     ? state.reviewMe.map(r => `- ${r.repo}  open=${r.count}  path=${r.path}`).join('\n')
     : '_(none)_'
 
+  // id:391b — mechanical-orphan drafts written by THIS RUN's per-round drafter hop (see the
+  // state.mechanicalDrafts declaration comment: it is an ACCUMULATOR of drafted/skipped summed
+  // across rounds, never a live total — mechanical-orphan-scan.sh stops reporting an id as
+  // `orphan` the moment it has a draft, so re-summing a later round's 0/0 would never inflate
+  // this beyond what was genuinely newly drafted this run). Rendered even at 0 (like Quota/Queued
+  // above) so an operator can tell "ran, nothing new" from "never ran".
+  // NOTE: for the TRUE cross-run total still awaiting promotion, see
+  // relay-status-publish.sh's pre-existing FILE-level "## Mechanical orphans / drafts (id:8a6b)"
+  // section (it re-scans live on every write) — that section already existed and needed no
+  // relay-loop.js change; this one is additive, not a replacement for it.
+  const mechDrafts = state.mechanicalDrafts
+    ? `- ${state.mechanicalDrafts.drafted} new draft(s) written this run in ~/.config/relay/recipes/drafts (or \`$RELAY_RECIPE_DIR/drafts\` if overridden)${state.mechanicalDrafts.skipped ? `, ${state.mechanicalDrafts.skipped} same-round skip(s)` : ''} — awaiting HUMAN promotion drafts/ → pending/ (id:64d3); see the Mechanical orphans / drafts section for the full un-promoted backlog`
+    : '_(not yet run this session)_'
+
   // id:06a1 — per-agent/per-hop failures that produced NO handback. Rendered as its OWN
   // clearly-labelled section (an operator has to be able to FIND it), and omitted entirely
   // when there is nothing to report — an always-present empty section is the id:8c85
@@ -577,6 +591,9 @@ function buildRelayStatus(state) {
     '',
     '## REVIEW_ME open items',
     reviewMe,
+    '',
+    '## Mechanical drafts (id:391b — id:8a6b auto-drafted recipe skeletons; drafts/ → pending/ promotion STAYS HUMAN, the id:64d3 whitelist trust boundary)',
+    mechDrafts,
   ].join('\n')
 }
 
@@ -660,6 +677,7 @@ function snapshotState(s) {
     ownRepos: [...(s.ownRepos || [])],   // id:8c85 — the universe the accounting invariant checks
     skipped: [...(s.skipped || [])], quota: [...(s.quota || [])], reviewMe: [...(s.reviewMe || [])],
     agentFailures: [...(s.agentFailures || [])],   // id:06a1 — the renderer reads it, so the snapshot must carry it (the id:8c85 class)
+    mechanicalDrafts: s.mechanicalDrafts ? { ...s.mechanicalDrafts } : null,   // id:391b — shallow copy of the reassigned per-round snapshot (or null before the first successful hop)
     stopReason,  // id:8c35 — capture module-level stopReason at snapshot time
     handbackAlertsList: handbackAlerts(handbackTracker, 2),  // id:1432 — >=2× handback ALERTs
     round, totalDispatched,            // id:c8b6 — run-progress counters at snapshot time
@@ -1224,7 +1242,18 @@ function enqueueIntegration(repo, fn) {
 // resolved to a failure WITHOUT producing a handback. Before this, such a failure existed
 // only in the Workflow task-notification block, which an --afk operator never reads
 // (id:4347 no-silent-swallow class). It records ONLY; it changes no hop's semantics.
-const state = { runId: (A.RUN_ID ? String(A.RUN_ID) : ''), ts: '', inFlight: [], completed: [], queued: [], surfaced: [], handbacks: [], skipped: [], quota: [], reviewMe: [], agentFailures: [] }
+// id:391b — `mechanicalDrafts` is an ACCUMULATOR across rounds this run (mirrors `reviewMe`,
+// NOT a reassigned live snapshot like `quota`): once mechanical-orphan-draft.sh drafts an id,
+// mechanical-orphan-scan.sh's OWN `orphan`->`draft` kind-flip (mechanical-orphan-scan.sh:118-120)
+// removes that id from every LATER round's orphan set, so a later round's `drafted`/`skipped`
+// counters both silently go back to 0 for it — drafted+skipped on any ONE round is NEVER the
+// running total, only that round's fresh contribution. Summing `drafted` (+`skipped`, the rare
+// same-round-race case) across rounds is therefore the only honest per-run count. null until the
+// first successful hop; a failed/refused hop adds nothing (fail-open — never a false count).
+// The TRUE cross-run total of everything still awaiting promotion is already served live by
+// relay-status-publish.sh's pre-existing "## Mechanical orphans / drafts (id:8a6b)" section
+// (it re-scans every write); this field is a distinct, complementary "what did THIS run add".
+const state = { runId: (A.RUN_ID ? String(A.RUN_ID) : ''), ts: '', inFlight: [], completed: [], queued: [], surfaced: [], handbacks: [], skipped: [], quota: [], reviewMe: [], agentFailures: [], mechanicalDrafts: null }
 let quotaStopped = false
 // id:06a1 — the ONE writer for the failure accumulator. Call it wherever a mechanical hop
 // or child agent resolves to a failure/null; the reason is truncated so a multi-KB model
@@ -2590,6 +2619,18 @@ state.ts = discovery.ts
 // settled unit (intra-round freshness), so the marker stays fresh whenever the pool does
 // anything; only a genuinely dead loop lets it age past TTL. Best-effort.
 await beatHeartbeat()
+
+// id:391b — PER-ROUND mechanical-orphan drafter (owner-ratified 2026-08-26). Runs every round
+// (not just the review path — see draftMechanicalOrphans()'s header comment for why), right
+// alongside the heartbeat beat above. FAIL-OPEN: a null result (throw/MECH-ERROR/unparseable)
+// adds nothing this round — never blocks or fails it. ACCUMULATES across rounds (see the
+// state.mechanicalDrafts declaration comment for why a per-round value can't just be reassigned).
+const mechDraftResult = await draftMechanicalOrphans()
+if (mechDraftResult) {
+  const prior = state.mechanicalDrafts || { drafted: 0, skipped: 0 }
+  state.mechanicalDrafts = { drafted: prior.drafted + mechDraftResult.drafted, skipped: prior.skipped + mechDraftResult.skipped }
+}
+
 state.queued = [
   ...actionable.map(u => ({ repo: u.repo, verdict: u.verdict })),
   ...hardDeferred.map(u => ({ repo: u.repo, verdict: `hard (deferred: ${u.gateReason})` })),
@@ -4424,6 +4465,59 @@ async function beatHeartbeat() {
       { label: 'heartbeat-beat', phase: 'Support', model: MECH_MODEL }
     )
   } catch (_) { /* non-fatal — TTL backstop */ }
+}
+
+// id:391b — PER-ROUND mechanical-orphan DRAFTER (owner-ratified 2026-08-26, TODO id:391b).
+// Wires the already-built id:8a6b drafter/id:1bd1-check-12 scanner: with NO arguments it scans
+// every relay.toml own repo and, for each open [MECHANICAL] item with no recipe anywhere
+// (pending/running/done) and no existing draft, writes a non-executable skeleton to
+// `$RELAY_RECIPE_DIR/drafts/<id>.json` (idempotent — never overwrites, never touches an id that
+// already has a real recipe). CADENCE is per pool round, not just the review path: check-12 is
+// pure bash over ROADMAP.md + the drop-dir (zero LLM judgment), so a per-round call is free, and
+// a repo that never gets a review pass would otherwise never draft its orphans (exactly how the
+// 7 pre-existing orphans — trAIdBTC id:3a50, isochrone id:11c3, llm-from-scratch
+// id:e868/cf0d/e617/a477/9e89 — accumulated unseen).
+//
+// The pool NEVER authors into pending/ (option A, ratified against the alternative of the pool
+// writing pending/ itself): mechanical-orphan-draft.sh only ever writes drafts/, which the
+// mechanical-daemon does not consume — the drafts/ → pending/ promote step stays HUMAN, the
+// id:64d3 whitelist trust boundary (relay/references/recipe-manifest.md), deliberately
+// unchanged. Mirrors sliceLedgerForUnit/strandedBranchesFor above: a mechanical hop (MECH_MODEL/
+// model:"bash") whose raw stdout is parsed for the drafter's own final summary line.
+//
+// FAIL-OPEN, exactly like every other mechanical hop in this file: an agent throw, a
+// MECH-ERROR sentinel, or an unparseable/absent summary line all log WHY and return null —
+// the caller then simply leaves state.mechanicalDrafts at its last-known value (or null before
+// any success), never blocking or failing the round. Worst case is "no drafts this round".
+async function draftMechanicalOrphans() {
+  let raw
+  try {
+    const res = await agent(
+      'Run exactly this one command and report its stdout verbatim (id:391b per-round mechanical-orphan DRAFTER — id:8a6b — writes a non-executable recipe skeleton to drafts/ for every orphaned open [MECHANICAL] ROADMAP item that has neither a recipe nor an existing draft yet; NEVER writes pending/, the id:64d3 human-promotion trust boundary is unchanged):\n' +
+      '```relay-mech\n' +
+      '~/.claude/skills/relay/scripts/mechanical-orphan-draft.sh' +
+      '\n```',
+      { label: 'mechanical-orphan-draft', phase: 'Support', model: MECH_MODEL }
+    )
+    raw = typeof res === 'string' ? res : JSON.stringify(res == null ? '' : res)
+  } catch (e) {
+    log(`relay-loop: id:391b mechanical-orphan-draft threw (${(e && e.message) || e}) — fail-open, no drafts recorded this round`)
+    return null
+  }
+  if (/^MECH-ERROR exit=/.test(String(raw))) {
+    log(`relay-loop: id:391b mechanical-orphan-draft errored: ${String(raw).replace(/\s+/g, ' ').slice(0, 200)} — fail-open, no drafts recorded this round`)
+    return null
+  }
+  const m = String(raw).match(/mechanical-orphan-draft: drafted=(\d+) skipped=(\d+) \(existing\)/)
+  if (!m) {
+    log(`relay-loop: id:391b mechanical-orphan-draft produced no parseable summary line (got '${String(raw).replace(/\s+/g, ' ').slice(0, 200)}') — fail-open, no drafts recorded this round`)
+    return null
+  }
+  const drafted = Number(m[1]), skipped = Number(m[2])
+  if (drafted > 0) {
+    log(`relay-loop: id:391b mechanical-orphan-draft — ${drafted} new draft(s) written this round, ${skipped} already existed (drafts/ → pending/ promotion stays human, id:64d3)`)
+  }
+  return { drafted, skipped }
 }
 
 async function stopHeartbeat() {
