@@ -6798,3 +6798,7 @@ ts=20260826T124545Z width=16 pass=498 fail=0 xred=2 rc=0 to
 entirely the external log append, so this is a log-only self-report commit.
 Friction: none.
 refactor: none needed — pure instrument invocation, no code changed.
+
+## 2026-08-26 14:49 — executor (sonnet, relay-loop)
+
+id:c3be — ran flake-log.sh -j 16 (over-subscribed width) confirmation run #2, appended ts=20260826T124545Z pass=498 fail=0 rc=0 row to runs.jsonl [id:c3be]
