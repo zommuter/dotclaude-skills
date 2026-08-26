@@ -54,19 +54,29 @@ a leaked one.
 
 ```bash
 # Push (parallel-safe: flock'd dirty-guard + pull --rebase + push)
-# --remote origin: PRIVATE remotes only. Publishing is a DELIBERATE act — see below.
-~/.claude/skills/git-diary-workflow/git-lock-push.sh --remote origin
+# No flag needed: origin is the DEFAULT remote (2026-08-26) — see below.
+~/.claude/skills/git-diary-workflow/git-lock-push.sh
 ```
 
-**`--remote origin` is mandatory here, and publishing to a PUBLIC remote is never
-automatic** (id:f66e, owner decision 2026-08-22). Without it `git-lock-push.sh` pushes to
-**every** remote — that is its documented default — so this skill, which runs after every
-prompt in every session, silently published to public GitHub from unattended `--afk` pools
-and parallel sessions alike. Measured that day: 41 of 46 own-repo remotes are the private
-`fievel:` LAN host and all are named `origin`, so `--remote origin` is a no-op for the fleet;
-exactly **four** repos carry a public GitHub remote (`dotclaude-skills`, `zkm`, `toesnail`,
-`proton-moresync`) and only those were ever affected. `~/.claude` and `~/src/claude-diary`
-also push `origin` → the private host, so the flag is safe there too.
+**Publishing to a PUBLIC remote is never automatic** (id:f66e, owner decision
+2026-08-22). `git-lock-push.sh`'s default is now `origin` ONLY (changed 2026-08-26 —
+its prior default was "push to every remote", which was the footgun this skill's
+`--remote origin` requirement used to guard against). That guard is now the helper's own
+default, so a bare call is safe: this skill runs after every prompt in every session, and
+an unattended `--afk` pool or parallel session that forgets a flag no longer risks
+silently publishing to public GitHub. Measured 2026-08-22: 41 of 46 own-repo remotes are
+the private `fievel:` LAN host and all are named `origin`, so pushing `origin` is a no-op
+change for the fleet; exactly **four** repos carry a public GitHub remote
+(`dotclaude-skills`, `zkm`, `toesnail`, `proton-moresync`) and only those are affected by
+the distinction. `~/.claude` and `~/src/claude-diary` also push `origin` → the private
+host, so the default is safe there too.
+
+Passing `--remote origin` explicitly still works and is harmless (it's the same
+selection as the default) — prefer the bare call for new code so the intent ("push the
+private remote") reads directly off the default rather than a repeated flag. Use
+`--all` only when you deliberately want every remote, private and public alike, in one
+call (e.g. reusing a full-integrate recipe) — never as a way to "just push everything"
+from this per-prompt skill.
 
 To publish, run it deliberately as its own step, naming the public remote:
 

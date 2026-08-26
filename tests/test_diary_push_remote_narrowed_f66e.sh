@@ -5,20 +5,28 @@
 # checkbox, so the harness's expected-red semantics do not apply and every failure in this
 # file is a REAL failure.
 #
-# fails-against: mutation — drop `--remote origin` from any git-lock-push.sh invocation in
-# git-diary-workflow/SKILL.md (e.g. revert line ~42 to a bare `git-lock-push.sh`).
-# Assertion (1) then goes RED naming the un-narrowed line. Verified by mutation before
-# commit — both directions observed.
+# fails-against: mutation — add `--all` to any git-lock-push.sh invocation in
+# git-diary-workflow/SKILL.md's mandatory post-prompt steps. Assertion (1) then goes RED
+# naming the over-broadened line. Verified by mutation before commit — both directions
+# observed.
 #
-# WHY (owner decision 2026-08-22): `git-lock-push.sh` pushes to EVERY remote when
-# `--remote` is absent — its own documented default ("ABSENT -> push to ALL remotes").
-# git-diary-workflow runs after every prompt in every session, so that default published
-# to public GitHub from unattended --afk pools and parallel sessions with no human in the
-# loop. Measured that day: 77 commits reached github.com/zommuter/dotclaude-skills while
-# a handover doc and a July RELAY_STATUS line both asserted the repo was "held" — a hold
-# that existed only as PROSE, which nothing reads. The per-remote narrowing (id:4d44) was
-# already built and had two dedicated test files; it was simply never passed at this call
-# site. This test exists so the rule cannot silently regress into prose again.
+# WHY (owner decision 2026-08-22, AMENDED 2026-08-26 by the git-lock-push.sh default flip):
+# originally, `git-lock-push.sh` pushed to EVERY remote when `--remote` was absent — its
+# own documented default was "ABSENT -> push to ALL remotes". git-diary-workflow runs
+# after every prompt in every session, so that default published to public GitHub from
+# unattended --afk pools and parallel sessions with no human in the loop. Measured that
+# day: 77 commits reached github.com/zommuter/dotclaude-skills while a handover doc and a
+# July RELAY_STATUS line both asserted the repo was "held" — a hold that existed only as
+# PROSE, which nothing reads. The per-remote narrowing (id:4d44) was already built and had
+# two dedicated test files; it was simply never passed at this call site.
+#
+# 2026-08-26: the owner closed this class of footgun at its root — git-lock-push.sh's
+# ABSENT-flag default is now `origin` ONLY (private), and pushing every remote requires
+# the NEW, explicit `--all` flag. So a bare `git-lock-push.sh` call in SKILL.md is now
+# private-only BY DEFAULT; the danger this test guards against is inverted — it is now
+# `--all` (or `--remote` naming a non-private remote) creeping into a mandatory
+# post-prompt step that must stay private. This test exists so the rule cannot silently
+# regress, in either the old or the new form.
 #
 # SCOPE: asserts the SKILL.md contract only. It does NOT push, does not touch any remote,
 # and does not read ~/.claude — the canonical repo file is the single source under test.
@@ -34,35 +42,40 @@ fail() { echo "  FAIL: $1"; fails=$((fails + 1)); }
 
 [ -f "$SKILL" ] || { echo "missing $SKILL"; exit 1; }
 
-# ── (1) every git-lock-push.sh INVOCATION carries --remote ────────────────────
+# ── (1) NO git-lock-push.sh invocation carries --all ────────────────────────────
 # An invocation is a line that actually calls the script (starts with the path), not a
 # prose mention of its name. Anchoring on the path is what keeps assertion (1) from
-# passing vacuously off the narrative paragraphs that also say "git-lock-push.sh".
+# passing vacuously off the narrative paragraphs that also say "git-lock-push.sh". Since
+# the 2026-08-26 default flip, a BARE invocation (no --remote, no --all) is private-only
+# by construction — the hazard this test now guards is `--all` (every remote, public
+# included) creeping into a mandatory per-prompt step.
 invocations=0
-unnarrowed=""
+broadened=""
 while IFS= read -r line; do
     invocations=$((invocations + 1))
     case "$line" in
-        *--remote*) ;;
-        *) unnarrowed="$unnarrowed
+        *--all*) broadened="$broadened
     $line" ;;
+        *) ;;
     esac
 done < <(grep -E '^[^#]*git-diary-workflow/git-lock-push\.sh' "$SKILL")
 
 if [ "$invocations" -eq 0 ]; then
     fail "no git-lock-push.sh invocations found in SKILL.md — the grep anchor is wrong, so (1) would pass vacuously"
-elif [ -n "$unnarrowed" ]; then
-    fail "git-lock-push.sh invoked WITHOUT --remote (pushes to ALL remotes, incl. public):$unnarrowed"
+elif [ -n "$broadened" ]; then
+    fail "git-lock-push.sh invoked WITH --all (pushes to ALL remotes, incl. public) in a mandatory post-prompt step:$broadened"
 else
-    pass "all $invocations git-lock-push.sh invocations carry --remote"
+    pass "none of the $invocations git-lock-push.sh invocations carry --all"
 fi
 
-# ── (2) the DEFAULT/post-prompt invocations narrow to origin specifically ──────
-# --remote alone is not enough: `--remote github` would satisfy (1) while publishing.
-if [ "$(grep -cE '^[^#]*git-diary-workflow/git-lock-push\.sh.*--remote origin' "$SKILL")" -ge 3 ]; then
-    pass "the three post-prompt invocations (Step 1, 1b, 1c) narrow to origin"
+# ── (2) the default-to-origin contract is documented, not left implicit ────────
+# --remote-free invocations rely on the helper's OWN default; SKILL.md must say so, or a
+# reader (or a future edit) could reintroduce --all under the mistaken belief that a bare
+# call still means "push everything".
+if grep -qi 'origin is the DEFAULT remote' "$SKILL" || grep -qi 'default is now `origin`' "$SKILL"; then
+    pass "SKILL.md documents that origin is the default (private-only) remote"
 else
-    fail "fewer than 3 invocations narrow to '--remote origin' — Step 1, 1b and 1c must all be private-only"
+    fail "SKILL.md does not document the origin-is-default contract — a bare git-lock-push.sh call's safety is unexplained"
 fi
 
 # ── (3) publishing is documented as a SEPARATE, deliberate step ───────────────

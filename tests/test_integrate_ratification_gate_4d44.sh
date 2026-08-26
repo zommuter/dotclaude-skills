@@ -71,13 +71,16 @@ fail() { echo "FAIL: $*"; [[ -s "$ERRLOG" ]] && { echo "       last integrate.sh
 [[ -x "$INT" ]] || fail "integrate.sh not found/executable at $INT"
 
 # A git-lock-push stub that REALLY pushes (the honest helper).
+# --all (2026-08-26): integrate.sh's non-substantive path now passes --all explicitly
+# (the real helper's default flipped to origin-only) — skip it like --ff-only, or it
+# gets mistaken for the trailing path arg and the stub pushes the wrong directory.
 REAL_PUSH="$TMP/push-real.sh"
 cat > "$REAL_PUSH" <<'EOF'
 #!/usr/bin/env bash
-# args: --ff-only <path>
+# args: --ff-only [--all] <path>
 set -euo pipefail
 p=""
-for a in "$@"; do case "$a" in --ff-only) ;; *) p="$a" ;; esac; done
+for a in "$@"; do case "$a" in --ff-only|--all) ;; *) p="$a" ;; esac; done
 git -C "$p" push --follow-tags origin HEAD >/dev/null 2>&1
 EOF
 chmod +x "$REAL_PUSH"

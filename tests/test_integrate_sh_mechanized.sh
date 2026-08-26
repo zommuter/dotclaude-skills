@@ -86,7 +86,7 @@ cat > "$PUSH_STUB" <<EOF
 set -euo pipefail
 echo "\$@" > "$PUSH_MARK"
 p=""
-for a in "\$@"; do case "\$a" in --ff-only) ;; *) p="\$a" ;; esac; done
+for a in "\$@"; do case "\$a" in --ff-only|--all) ;; *) p="\$a" ;; esac; done
 git -C "\$p" push --follow-tags origin HEAD >/dev/null 2>&1
 EOF
 chmod +x "$PUSH_STUB"

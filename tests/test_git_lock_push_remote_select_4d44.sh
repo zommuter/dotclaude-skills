@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# roadmap:4d44 — git-lock-push.sh --remote (per-remote push selection).
+# roadmap:4d44 — git-lock-push.sh --remote / --all (per-remote push selection).
 #
-# Spec:
+# Spec (updated 2026-08-26 — owner directive: default flipped from "push ALL remotes" to
+# "push origin ONLY", a publish-by-default footgun fix; see
+# tests/test_git_lock_push_default_origin.sh for the dedicated default-behaviour coverage):
 #   (1) `--remote NAME` pushes ONLY that remote; the other remotes do NOT move.
 #   (2) `--remote a --remote b` is repeatable and pushes exactly that subset.
-#   (3) NO flag → pushes ALL remotes, byte-for-byte the pre-existing behaviour (every
-#       existing caller must be unaffected).
+#   (3) `--all` → pushes every remote (the NEW way to get the old "push everything"
+#       behaviour that used to be the absent-flag default).
 #   (4) A `--remote` naming a non-existent remote FAILS LOUD (nonzero) and pushes NOTHING —
 #       never a silent no-op push. A TRAILING `--remote` with no value likewise fails loud
 #       rather than degrading to "push all", which would publish the excluded remotes.
+#       `--all` and `--remote` together also fail loud (mutually exclusive).
 #   (5) The flock is STILL taken (it is the whole reason this helper exists, id:aa93):
 #       the run creates/uses the per-repo .git-lock-push.lock.
 #
@@ -79,14 +82,23 @@ fi
   && ok "4d44 (2) the unnamed third remote stayed untouched" \
   || bad "4d44 (2) gamma was pushed though it was not named"
 
-# ── (3) absent flag → ALL remotes (unchanged behaviour) ─────────────────────────────────
+# ── (3) --all → every remote ────────────────────────────────────────────────────────────
 C="$TMP/all"; mkdir -p "$C"; mk_repo "$C"
-out="$("$LOCKPUSH" "$C/repo" 2>&1)" || bad "(3) exited nonzero: $out"
+out="$("$LOCKPUSH" "$C/repo" --all 2>&1)" || bad "(3) --all exited nonzero: $out"
 head_sha="$(git -C "$C/repo" rev-parse HEAD)"
 if [[ "$(tip "$C/alpha.git")" == "$head_sha" && "$(tip "$C/beta.git")" == "$head_sha" ]]; then
-  ok "4d44 (3) with NO --remote every remote is still pushed (existing callers unaffected)"
+  ok "4d44 (3) --all pushes every remote"
 else
-  bad "4d44 (3) absent --remote changed behaviour (alpha=$(tip "$C/alpha.git") beta=$(tip "$C/beta.git"))"
+  bad "4d44 (3) --all did not push every remote (alpha=$(tip "$C/alpha.git") beta=$(tip "$C/beta.git"))"
+fi
+
+# ── (4b) --all and --remote together are mutually exclusive ────────────────────────────
+rc=0
+out="$("$LOCKPUSH" "$C/repo" --all --remote alpha 2>&1)" || rc=$?
+if [[ "$rc" -ne 0 ]]; then
+  ok "4d44 (4b) --all + --remote together fail loud (mutually exclusive)"
+else
+  bad "4d44 (4b) --all + --remote together did not fail (rc=0): $out"
 fi
 
 # ── (4) loud failures ───────────────────────────────────────────────────────────────────

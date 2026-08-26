@@ -20,7 +20,7 @@
 #     existing flock + pull/push machinery rather than a bespoke merge daemon.
 #
 # Usage: git-lock-push.sh [REPO_PATH] [-b branch] [-f manifest-file] [-m msg]
-#                          [--merge-branch branch] [--ff-only] [--remote NAME]...
+#                          [--merge-branch branch] [--ff-only] [--remote NAME]... [--all]
 #   -b          Branch to rebase against (default: detected from tracking branch)
 #   -f          Manifest file (one path per line) — requires -m
 #   -m          Commit message — requires -f, OR the commit message for --merge-branch
@@ -33,8 +33,18 @@
 #               same ff-only reconcile on its own when it finds one — --ff-only remains the
 #               explicit, caller-asserted form; pass it when you know in advance.
 #   --remote    Push ONLY to this remote. Repeatable (`--remote a --remote b`) to select a
-#               SUBSET. ABSENT → push to ALL remotes, exactly as before; every existing
-#               caller is therefore unaffected.
+#               SUBSET.
+#   --all       Push to EVERY remote of the repo. Mutually exclusive with --remote.
+#
+#               DEFAULT (neither --remote nor --all given): push to `origin` ONLY.
+#               Changed 2026-08-26 (owner directive) — the prior default was "ABSENT →
+#               push to ALL remotes", which was a publish-by-default footgun: several own
+#               repos carry a public GitHub remote alongside private/LAN ones, and any
+#               caller that forgot `--remote origin` silently published to it. The safe
+#               default is now the private one; opt into every remote explicitly with
+#               `--all`. If `origin` itself does not exist in the repo, this is a LOUD
+#               failure before the lock is taken — it never silently falls back to "all
+#               remotes" (that would reinstate the exact footgun this change closes).
 #
 #               id:4d44 — the reason this flag exists rather than the callers pushing
 #               per-remote themselves: the flock IS this helper (parallel-session safety,
@@ -99,8 +109,10 @@ commit_msg=""
 merge_branch=""
 ff_only=0
 selected_remotes=()
-# getopts does not handle long opts; strip --ff-only, --merge-branch <val> and
-# --remote <val> before the getopts loop (the latter two consume the following arg).
+push_all_remotes=0
+# getopts does not handle long opts; strip --ff-only, --merge-branch <val>,
+# --remote <val> and --all before the getopts loop (the middle two consume the
+# following arg).
 args=()
 take_next_as_merge_branch=0
 take_next_as_remote=0
@@ -117,6 +129,8 @@ for arg in "$@"; do
     take_next_as_merge_branch=1
   elif [[ "$arg" == "--remote" ]]; then
     take_next_as_remote=1
+  elif [[ "$arg" == "--all" ]]; then
+    push_all_remotes=1
   else
     args+=("$arg")
   fi
@@ -142,7 +156,7 @@ while getopts "b:f:m:" opt; do
     b) branch="$OPTARG" ;;
     f) manifest_file="$OPTARG" ;;
     m) commit_msg="$OPTARG" ;;
-    *) echo "Usage: $0 [REPO_PATH] [-b branch] [-f manifest-file] [-m msg] [--merge-branch branch] [--ff-only]" >&2; exit 1 ;;
+    *) echo "Usage: $0 [REPO_PATH] [-b branch] [-f manifest-file] [-m msg] [--merge-branch branch] [--ff-only] [--remote NAME]... [--all]" >&2; exit 1 ;;
   esac
 done
 shift $((OPTIND - 1))
@@ -166,6 +180,9 @@ fi
 if [[ -n "$commit_msg" && -z "$manifest_file" && -z "$merge_branch" ]]; then
   echo "ERROR: -m requires -f (manifest file) or --merge-branch" >&2; exit 1
 fi
+if [[ "$push_all_remotes" -eq 1 && "${#selected_remotes[@]}" -gt 0 ]]; then
+  echo "ERROR: --all and --remote are mutually exclusive" >&2; exit 1
+fi
 
 if [[ -n "${1:-}" ]]; then
   cd "$1"
@@ -173,14 +190,25 @@ fi
 
 repo_root="$(git rev-parse --show-toplevel)"
 
-# --remote validation happens HERE: after the cd (so `git remote` is this repo's), and
-# BEFORE the flock (a usage error must not hold the lock, and must not look like a push).
-# A typo'd remote name is fatal, never a silent no-op push.
-if [[ "${#selected_remotes[@]}" -gt 0 ]]; then
+# --remote / default-origin validation happens HERE: after the cd (so `git remote` is
+# this repo's), and BEFORE the flock (a usage error must not hold the lock, and must not
+# look like a push). A typo'd remote name — or a missing default `origin` — is fatal,
+# never a silent no-op push, and never a silent fall-back to "all remotes".
+defaulted_to_origin=0
+if [[ "$push_all_remotes" -eq 0 && "${#selected_remotes[@]}" -eq 0 ]]; then
+  # Neither --all nor --remote given: default to origin-only (2026-08-26).
+  selected_remotes=(origin)
+  defaulted_to_origin=1
+fi
+if [[ "$push_all_remotes" -eq 0 ]]; then
   all_remotes="$(git remote)"
   for want in "${selected_remotes[@]}"; do
     if ! grep -qx -- "$want" <<<"$all_remotes"; then
-      echo "ERROR: --remote '$want' is not a remote of $repo_root (have: $(tr '\n' ' ' <<<"$all_remotes"))" >&2
+      if [[ "$defaulted_to_origin" -eq 1 ]]; then
+        echo "ERROR: default remote 'origin' does not exist in $repo_root (have: $(tr '\n' ' ' <<<"$all_remotes")) — pass --remote NAME or --all explicitly." >&2
+      else
+        echo "ERROR: --remote '$want' is not a remote of $repo_root (have: $(tr '\n' ' ' <<<"$all_remotes"))" >&2
+      fi
       exit 1
     fi
   done
@@ -341,9 +369,11 @@ fi
 push_timeout="${GIT_LOCK_PUSH_TIMEOUT:-120}"
 current_branch="$(git rev-parse --abbrev-ref HEAD)"
 for remote in $(git remote); do
-  # id:4d44 --remote selection. Empty selection = push ALL (the pre-existing behaviour and
-  # the behaviour of every caller that does not pass the flag). Filtering HERE, inside the
-  # lock, keeps the flock and touches no shared repo config.
+  # id:4d44 --remote selection. `selected_remotes` is non-empty here UNLESS --all was
+  # given (in which case it's push ALL) — it defaults to ("origin") when the caller
+  # passed neither --remote nor --all (2026-08-26 default-to-origin change), and holds
+  # the explicit --remote subset otherwise. Filtering HERE, inside the lock, keeps the
+  # flock and touches no shared repo config.
   if [[ "${#selected_remotes[@]}" -gt 0 ]]; then
     wanted=0
     for want in "${selected_remotes[@]}"; do

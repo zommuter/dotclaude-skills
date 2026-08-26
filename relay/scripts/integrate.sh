@@ -852,14 +852,24 @@ done
 push_out=""
 push_helper_failed=""   # id:5155: git-lock-push.sh exited non-zero (recorded, not yet handed back)
 if [ -n "$to_push" ]; then
-  # ALL eligible remotes selected AND nothing deferred → invoke git-lock-push.sh exactly as
-  # before (no --remote at all), so the non-substantive path is byte-identical to today.
+  # ALL eligible remotes selected AND nothing deferred → invoke git-lock-push.sh with
+  # --all, so the non-substantive path still pushes every eligible remote.
+  #
+  # id:a73b (2026-08-26) — git-lock-push.sh's ABSENT-flag default flipped from "push ALL
+  # remotes" to "push origin ONLY" (owner directive: the old default was a
+  # publish-by-default footgun). This call site is the one place that deliberately
+  # RELIED on the old default to mean "push everything" — it must now say so explicitly
+  # via --all, or a repo with 2+ eligible private remotes would silently push only
+  # origin here. --remote subset selection below (the substantive/deferred path) is
+  # unaffected — it already named every remote explicitly.
   push_args=(--ff-only "$path")
   if [ -n "$push_deferred" ]; then
     while IFS= read -r _r; do
       [ -n "$_r" ] || continue
       push_args+=(--remote "$_r")
     done <<< "$to_push"
+  else
+    push_args+=(--all)
   fi
   if ! push_out="$("$GIT_LOCK_PUSH" "${push_args[@]}" 2>&1)"; then
     # id:5155 — this used to `handback git-lock-push` RIGHT HERE, which pre-empted step 8b

@@ -372,9 +372,12 @@ integrate_branch() {
   #    rather than a WARNING.
   ckpt_tag="$("$CKPT_TAG" "$repo" -m "reconcile integrate: $subj" -l "reconcile (auto/human, non-strong by design — id:c500)")"
 
-  # 4. git-lock-push.sh --ff-only — flock'd push; --ff-only won't race/clobber the live pool.
+  # 4. git-lock-push.sh --ff-only --all — flock'd push; --ff-only won't race/clobber the
+  #    live pool. --all (2026-08-26): the helper's absent-flag default flipped to
+  #    origin-only; this reuses the SAME serialized-integrator recipe integrate.sh uses
+  #    and must still reach every eligible remote.
   if [ -x "$LOCK_PUSH" ]; then
-    "$LOCK_PUSH" "$repo" --ff-only
+    "$LOCK_PUSH" "$repo" --ff-only --all
     push_status="pushed"
   else
     push_status="push-skipped (no git-lock-push.sh)"

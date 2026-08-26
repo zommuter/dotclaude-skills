@@ -187,7 +187,10 @@ fi
 # surfaced but does NOT void the local integrate (the work IS on main; a later push recovers).
 push_status="push-skipped (no git-lock-push.sh)"
 if [[ -x "$LOCK_PUSH" ]]; then
-  if "$LOCK_PUSH" "$REPO" --ff-only >>"$LOG" 2>&1; then
+  # --all (2026-08-26): git-lock-push.sh's absent-flag default flipped to origin-only;
+  # this is a full standard-integrate push (same recipe as integrate.sh's non-substantive
+  # path) and must still reach every eligible remote, not just origin.
+  if "$LOCK_PUSH" "$REPO" --ff-only --all >>"$LOG" 2>&1; then
     push_status="pushed"
   else
     push_status="push-failed (surfaced; integrate stands locally)"

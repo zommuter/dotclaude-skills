@@ -35,7 +35,7 @@ rather than copying the full block — see §Executor-contract pointer below.
 - One subagent per repo; within a repo, parallel tasks only on disjoint paths.
 - Verification-before-merge: tests green in the worktree → single integration branch →
   `--no-ff` merge by the orchestrator → ONE push per repo per turn via
-  `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only`. Children NEVER push.
+  `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only --all`. Children NEVER push.
 - Children do not run git-diary-workflow or todo-update; they return a
   `diary_fragment` and the orchestrator batches.
 - Every touched repo ends the turn with a `relay-ckpt-YYYYMMDD-HHMM` annotated tag and

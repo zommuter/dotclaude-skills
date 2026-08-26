@@ -469,7 +469,7 @@ integration invariants.
    reserve `-l "reviewer (<full claude-* model id>)"` for an actual `/relay review` pass. A BARE
    tier name (`reviewer (opus)`) does NOT match `ckpt-tag.sh`'s strong-model detector and leaves
    `last_strong_ckpt` stale (id:1a34) → ONE push via
-   `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only` → `git worktree prune` →
+   `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only --all` → `git worktree prune` →
    update relay.toml. `ckpt-tag.sh` itself now syncs `last_ckpt` (and, for a strong-model
    label, `last_strong_ckpt`/`strong_model`) via the flock'd `relay-state-write.sh` (id:0a3b
    — before this, supervised-session checkpoints left the watermark stale and the pool
@@ -568,7 +568,7 @@ Run `scripts/relay-reconcile.sh [repo]` (defaults to the cwd repo). With no flag
   serialized-integrator recipe the live pool uses, so a human can't skip the checkpoint
   tag or race the pool's push: verify clean main + `sync-origin.sh` → `git merge --no-ff`
   (preserves 3-way conflict surfacing; **no CAS plumbing**) → `ckpt-tag.sh` (atomic
-  RELAY_LOG + `relay-ckpt-*` tag) → `git-lock-push.sh --ff-only` → force-free `git branch -d`
+  RELAY_LOG + `relay-ckpt-*` tag) → `git-lock-push.sh --ff-only --all` → force-free `git branch -d`
   the consumed (now-merged) ref (id:373e; a refusal is surfaced + left, never force-deleted).
   A merge **conflict** is `git merge --abort`ed and the branch is **left + surfaced**, never
   half-merged.
