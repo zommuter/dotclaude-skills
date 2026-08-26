@@ -3,6 +3,53 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-26 (chain-end re-ask, run `relay-20260826-122101-7415` — id:8123)
+
+Window `relay-ckpt-20260822-1619`..HEAD. One executor unit (**`id:f2ef`**, flake-log width=1
+confirmation run #2) plus ~60 owner/`/relay human` commits. **`id:f2ef` verified GENUINELY green,
+not gamed**: it is a pure observational re-run with NO repo diff, and its acceptance artifact was
+confirmed independently at the source — `~/.cache/dotclaude-flake/runs.jsonl` carries the row
+`ts=20260826T102748Z, mode=suite, width=1, wall_s=419.4, pass=498, fail=0, xred=1`, after the
+required `2026-08-21T10:58:33Z` threshold. `gaming-scan.sh` clean (no DELETED_TEST / ADDED_SKIP /
+REMOVED_ASSERT); no executor-introduced `@owner-accepted` in the window (the three hits are the
+owner's own `chore(046a)` archive MOVES of pre-existing text). Contract pointer `v12` == canonical.
+Full `make test` re-run independently: **498 passed, 0 failed, 1 expected-red** — this repo declares
+exactly ONE tier (`make test` → `tests/run-tests.sh`; no CI workflows, no e2e/integration target),
+so no tier was skipped.
+
+- [ ] **`id:ebd0` was ticked + archived 2026-08-26 as "owner-authorized" but carries NO greppable
+  `@owner-accepted:YYYY-MM-DD` marker** — the exact provenance shape review.md §5c fail-closes on,
+  and the second instance in this repo (`id:ad7c`, 2026-08-01, is the first). **NOT reopened, and
+  deliberately so: I verified the acceptance evidence myself rather than taking the prose.**
+  `~/.claude/logs/privacy-gate.log` is 49 lines with **34 naming
+  `https://github.com/zommuter/dotclaude-skills.git`** (the public remote), `git config --local
+  --get core.hooksPath` exits 1 (the `id:293f` local override that shadowed the global hook is
+  genuinely gone), and `--global` resolves to `~/.config/git/hooks`. The close is CORRECT; what is
+  missing is the machine-checkable trace of the owner's authorization. **Owner's call:** stamp
+  `@owner-accepted:2026-08-26` onto the `id:ebd0` line in `ROADMAP.archive.md`, or say the tick was
+  premature. Two unmarked owner-authorized closes in a month is the signal worth acting on — the
+  marker only helps if writing it is the habit, not the exception.
+
+- [ ] **`relay-core` shadow parity is 13,994 mismatches across 227,265 rounds and nothing is
+  clearing it** (`id:82c4`, surfaced by `relay-doctor` this pass). Bash stays authoritative so
+  nothing is BROKEN today, but the stated flip gate is *100% parity + N=5 clean rounds*, and at a
+  ~6% mismatch rate that gate cannot be approached by waiting. Report-only, pre-existing, not this
+  window's regression — recorded because a standing 6% divergence in a shadow binary is a decision
+  the owner should take deliberately (investigate, re-scope the gate, or retire the shadow) rather
+  than let accumulate silently. See memory `classify-shadow-parity`: editing
+  `classify-verdict.sh`/`gather-repo-state.sh` semantics reddens parity further, and the fix lives
+  in a DIFFERENT repo.
+
+- [ ] **Four `roadmap-lint` DEAD-GATE / DEP-PROSE-UNTYPED WARNs are now ~13 days stale and have
+  survived three reviews** (`id:d4ca`, `id:e405` — both classes; `id:540f`, `id:c179` — DEAD-GATE).
+  All four are open ROADMAP items gated on `id:09e4` / `id:b0b1`, which live ONLY in `TODO.md` and
+  were never promoted, so **nothing in `ROADMAP.md` can ever clear them** — they are permanently
+  blocked by construction, not by design. Each successive review has correctly recorded them as
+  "pre-existing"; that is precisely how a dead gate becomes furniture. Resolution is handoff C2's
+  call (promote `09e4`/`b0b1` with a lane, or re-target the markers) and explicitly NOT a reviewer
+  guess — surfaced here so the next handoff turn inherits it as a task rather than as background
+  noise.
+
 ## Review 2026-08-19 (chain-end re-ask, chain `relay-ckpt-20260819-1530` — id:8123)
 
 Window `relay-ckpt-20260819-1507`..HEAD = one executor unit, **`id:5bef`** (author the hardened
