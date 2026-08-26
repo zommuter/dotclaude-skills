@@ -4369,3 +4369,8 @@ with their existing ids (single-id-two-views); `id:7986` is primary, `id:da51` r
     9. `tests/test_apex_afk_hard_gate_7986.sh` goes fully green; `node --check relay/scripts/relay-loop.js` AND `relay/scripts/lint-workflow-templates.mjs` both pass; `make test` is green with this item ticked.
   - **Done-check**: `bash tests/test_apex_afk_hard_gate_7986.sh` (12 assertion groups, all PASS) && `node --check relay/scripts/relay-loop.js` && `node relay/scripts/lint-workflow-templates.mjs` && `grep -rn 'claude-opus-4-8' relay/ tests/` returns nothing && `tests/run-tests.sh`
   - **Context**: `relay/scripts/relay-loop.js` (`:40`, `:95`, `:2306-2325`, `:2338`, `:2482-2484`, `:3147`), `relay/SKILL.md` (`:275-281`, `:329-334`, `:829`, `:847`, `:876`), `relay/scripts/round-plan.mjs` (the module pattern to copy), `tests/test_apex_afk_hard_gate_7986.sh` (the spec), `TODO.md:963` (id:7986), `TODO.md:530` (id:da51)
+
+- [x] **[ROUTINE]** flake-log width=1 confirmation run #2 (post-id:81d5) (after id:(seam 1, independent — no id yet)) — seam of id:372a (auto, id:3801) <!-- id:f2ef -->
+  - **Acceptance**: tests/flake-log.sh -j 1 completes and appends a second new row to ~/.cache/dotclaude-flake/runs.jsonl with ts after 2026-08-21T10:58:33Z
+  - **Done-check**: grep the new row's ts in ~/.cache/dotclaude-flake/runs.jsonl
+  - **Context**: tests/flake-log.sh, ~/.cache/dotclaude-flake/runs.jsonl
