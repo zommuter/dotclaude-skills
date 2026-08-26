@@ -6713,3 +6713,61 @@ refactor: none needed — one-shot data-collection run, no code touched.
 ## 2026-08-26 12:36 — executor (sonnet, relay-loop)
 
 id:f2ef — flake-log width=1 confirmation run #2 done: appended a new suite row (ts 20260826T102748Z, pass=498 fail=0) to ~/.cache/dotclaude-flake/runs.jsonl [id:f2ef]
+
+## 2026-08-26 — reviewer (claude-opus-5, relay-loop)
+
+Chain-end review re-ask (id:8123) over `relay-ckpt-20260822-1619`..HEAD — one executor unit
+(id:f2ef) plus ~60 owner / `/relay human` commits. **id:f2ef verified GENUINELY green, not
+gamed**: a pure observational re-run with NO repo diff, whose acceptance artifact I confirmed at
+the source rather than from its self-report — `~/.cache/dotclaude-flake/runs.jsonl` carries
+`ts=20260826T102748Z, mode=suite, width=1, wall_s=419.4, pass=498, fail=0, xred=1`, after the
+required 2026-08-21T10:58:33Z threshold. `gaming-scan.sh` clean (no DELETED_TEST / ADDED_SKIP /
+REMOVED_ASSERT). No executor-introduced `@owner-accepted` (§2b.7): the three window hits are the
+owner's own `chore(046a)` archive MOVES of pre-existing text, not new assertions. §2d over-reach:
+f2ef's diff is empty, so no superset is possible; its cited source (the id:372a seam
+decomposition) is present. Contract pointer v12 == canonical v12.
+
+**Test tiers (§3):** this repo declares exactly ONE tier — `make test` → `tests/run-tests.sh`;
+no `.github/workflows/`, no e2e/integration target. It ran green: **498 passed, 0 failed, 1
+expected-red**. No tier was skipped.
+
+**Reverse-handoff (§5b):** ROADMAP gained ZERO new open items this window; TODO gained 33, nearly
+all owner-filed design-ledger. One qualified for a mini-handoff and got one — **id:758a**
+(base-ref resolution must use the ACTUAL checked-out branch), promoted to ROADMAP `[ROUTINE]`
+REUSING its TODO token, with acceptance / done-check / context and a RED spec
+(`tests/test_base_ref_checked_out_branch_758a.sh`, `# roadmap:758a`). It qualifies because it is
+PROPAGATION of an already-ratified decision (id:8739) to two named offenders with line numbers —
+no design judgment left open. Its case (a) reproduces the live `integrate:git-annex` failure
+verbatim, and case (c) pins the fail-CLOSED posture so the fix cannot "helpfully" fall back to
+the stale `master` mirror that resolves to the WRONG base. **id:6c8c** (tmux-wrap `claude-relay`)
+was deliberately LEFT as design-ledger: its own text names three unresolved decisions (session
+name fixed vs per-cwd, which proxy branches wrap, opt-out env var), so it is a `/meeting`
+candidate, not executor work.
+
+**relay-doctor (§4b):** reference-install, install-drift, parked orphans, quota-config, lean-pin
+and hooks-path-shadow all clean. Two findings: one inbox DEAD-LETTER (`routed:2e43`, destined for
+this repo, absent from both ledgers) — **ingested** into TODO.md as `id:e278` with the
+`[INBOUND routed:2e43 from yinyang-puzzle]` provenance bracket, so the next `scan-routed --apply`
+drains it; and the standing relay-core shadow divergence (13,994 mismatches / 227,265 rounds),
+surfaced to REVIEW_ME as an owner decision, not a review blocker.
+
+**Three REVIEW_ME boxes written**, all judgment calls I declined to settle myself: (1) `id:ebd0`
+was ticked "owner-authorized" with no greppable `@owner-accepted` marker — NOT reopened, because
+I verified the acceptance evidence independently (privacy-gate log 49 lines, 34 naming the public
+remote; no local `core.hooksPath` override; global hooksPath set), so the close is CORRECT and
+only its provenance trace is missing; the owner stamps or retracts. (2) the relay-core shadow
+divergence. (3) four `roadmap-lint` DEAD-GATE / DEP-PROSE-UNTYPED WARNs (d4ca, e405, 540f, c179)
+that have now survived three reviews, each correctly recording them as "pre-existing" — which is
+exactly how a dead gate becomes furniture. They are gated on ids that live only in TODO.md and
+were never promoted, so nothing in ROADMAP can ever clear them; re-targeting is handoff C2's call,
+not a reviewer guess.
+
+**Own-error disclosure:** my first `md-merge insert_after` anchored on `id:6ab7` wedged the new
+item BETWEEN 6ab7's header line and its sub-bullets. `roadmap-lint` caught it immediately
+(NO-ACCEPTANCE-NO-TWIN on 6ab7) and it was repaired before commit — recorded because the loud
+detector earning its keep on the reviewer's own mistake is the datum worth keeping, and because
+`insert_after` anchors on the id LINE, not the item BLOCK, which is a trap for the next caller.
+Lint is back to the same 6 pre-existing WARNs; `todo-conformance` and `orphan-scan
+--cross-ledger` both clean.
+
+routine_open = 10.
