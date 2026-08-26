@@ -1636,10 +1636,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Context**: tests/flake-log.sh, ~/.cache/dotclaude-flake/runs.jsonl
 - [x] **[ROUTINE]** flake-log width=1 confirmation run #2 (post-id:81d5) (after id:(seam 1, independent — no id yet)) — seam of id:372a (auto, id:3801) <!-- id:f2ef --> (archived — see ROADMAP.archive.md)
 - [x] **[ROUTINE]** flake-log over-subscribed-width confirmation run #1 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:b1ef --> (archived — see ROADMAP.archive.md)
-- [x] **[ROUTINE]** flake-log over-subscribed-width confirmation run #2 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:c3be -->
-  - **Acceptance**: tests/flake-log.sh -j 16 (or matching width) completes and appends a second new row to ~/.cache/dotclaude-flake/runs.jsonl with ts after 2026-08-21T10:58:33Z
-  - **Done-check**: grep the new row's ts and width in ~/.cache/dotclaude-flake/runs.jsonl
-  - **Context**: tests/flake-log.sh, ~/.cache/dotclaude-flake/runs.jsonl
+- [x] **[ROUTINE]** flake-log over-subscribed-width confirmation run #2 (post-id:81d5) — seam of id:372a (auto, id:3801) <!-- id:c3be --> (archived — see ROADMAP.archive.md)
 - [ ] **[ROUTINE]** Summarize the 4 post-id:81d5 flake-log confirmation rows in RELAY_LOG.md (after id:all 4 run seams above) — seam of id:372a (auto, id:3801) <!-- id:6ab7 -->
   - **Acceptance**: RELAY_LOG.md gets one committed self-report paragraph summarizing pass/fail across the 4 new rows (no ROADMAP.md edit); id:372a can then be ticked by the integrator
   - **Done-check**: grep the new RELAY_LOG.md entry; confirm it cites all 4 new runs.jsonl timestamps
