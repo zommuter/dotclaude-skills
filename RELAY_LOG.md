@@ -6968,3 +6968,7 @@ it to assert "marker present, >=12, and CLAUDE.md pointer agrees" instead of a f
 version, so it survives this and future contract bumps without further edits.
 tests/run-tests.sh: 507 passed, 0 failed, 1 expected-red (up from the 506/0/2
 baseline — id:5eeb's RED spec now passes).
+
+## 2026-08-26 19:52 — reviewer (claude-opus-5)
+
+review-verified id:5eeb: context-budget.sh + executor-contract rule 2c (v12->v13). Suite 507/0/1, gaming-scan clean. Box deliberately NOT ticked — review found rule 2c is UNRUNNABLE as written (no dispatch path tells a pooled executor its own transcript path).
