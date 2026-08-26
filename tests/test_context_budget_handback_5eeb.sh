@@ -207,34 +207,100 @@ pass "context-budget.sh is read-only (no files created or removed)"
 
 # ------------------------------------------- (8) the executor contract carries the rule
 contract_text="$(cat "$CONTRACT")"
-[[ "$contract_text" == *"context-budget.sh"* ]] \
-  || fail "executor-contract.md never names context-budget.sh — the mid-run check is not in the contract"
-case "$contract_text" in
-  *heckpoint*) : ;;
-  *) fail "executor-contract.md does not describe a mid-run CHECKPOINT before the wall" ;;
+# SCOPE THE ASSERTIONS TO RULE 2c ITSELF (id:5eeb spec-hole fix, owner-ratified
+# 2026-08-26). These used to match against the WHOLE 250+-line document, which made
+# two of them VACUOUS — pre-satisfied by text elsewhere, so they could never fail:
+#   *heckpoint*        — satisfied by the ## Maintenance section alone, so deleting
+#                        rule 2c outright would still have passed.
+#   *'route'*'none'*   — a two-token glob matching ANYWHERE, in ANY order, across the
+#                        whole file; `route` on line 56 and `none` 200 lines later
+#                        satisfied it. So route="none" — the exact disposition the
+#                        livelock finding turns on — was NOT pinned by the spec.
+# Extracting the rule's own slice is the root fix: an assertion can now only pass on
+# text that is actually inside rule 2c.
+rule2c="$(awk '/^2c\./{f=1} /^3\. \*\*Test integrity/{f=0} f' "$CONTRACT")"
+[[ -n "$rule2c" ]] \
+  || fail "could not extract rule 2c from executor-contract.md — the anchors ('2c.' … '3. **Test integrity') moved, so block (8) would silently assert against nothing"
+[[ "$rule2c" == *"context-budget.sh"* ]] \
+  || fail "rule 2c never names context-budget.sh — the mid-run check is not in the contract"
+case "$rule2c" in
+  *"checkpoint-and-handback"*) : ;;
+  *) fail "rule 2c does not describe a mid-run CHECKPOINT before the wall (phrase 'checkpoint-and-handback')" ;;
 esac
-case "$contract_text" in
+case "$rule2c" in
   *"Prompt is too long"*) : ;;
-  *) fail "executor-contract.md does not name the verbatim failure (\`Prompt is too long\`) the rule prevents" ;;
+  *) fail "rule 2c does not name the verbatim failure (\`Prompt is too long\`) the rule prevents" ;;
 esac
 # The disposition matters as much as the trigger: on a handback the executor
 # COMMITS the work already done (this is the id:8b1f CUTOFF branch, NOT the
 # clean-worktree SIZE-OUT branch of rule 2b), and returns route "none" so the
 # item stays plainly re-dispatchable instead of being gated or re-tagged.
-case "$contract_text" in
-  *'route'*'none'*) : ;;
-  *) fail "executor-contract.md does not state the context handback returns route \"none\" (keeps the item re-dispatchable, no handback-followup gating)" ;;
+# Phrase-level, inside rule 2c only — not the old order-free two-token glob.
+case "$rule2c" in
+  *'`route="none"`'*|*'route="none"'*) : ;;
+  *) fail "rule 2c does not state the context handback returns route=\"none\" (keeps the item re-dispatchable, no handback-followup gating)" ;;
 esac
 # THE PRE-FIRST-EDIT CHECK POINT — the trigger the 63.9% / 76.8% measurement
 # demands. A budget check that only fires periodically still lets a unit spend
 # three-quarters of its window investigating before producing anything
 # committable; the investigate→edit boundary is where a handback is still cheap
 # AND the remaining budget still covers the actual work.
-case "$contract_text" in
+case "$rule2c" in
   *"first edit"*|*"first Edit"*|*"FIRST EDIT"*) : ;;
-  *) fail "executor-contract.md does not name the investigate→edit boundary (BEFORE your first edit) as a check point — the 63.9%/76.8% pre-first-edit spend is the measured shape this rule exists to catch" ;;
+  *) fail "rule 2c does not name the investigate→edit boundary (BEFORE your first edit) as a check point — the 63.9%/76.8% pre-first-edit spend is the measured shape this rule exists to catch" ;;
 esac
 pass "executor contract carries the mid-run budget rule, both trigger points (periodic + pre-first-edit), and the disposition"
+
+# --------------------------------- (8a) ZERO-COMMIT livelock guard — ratified option (a)
+# MEASURED: the threshold is crossed at transcript line 95 of a unit whose first Edit
+# is at line 133, so the handback fires with ZERO commits. route="none" is a literal
+# no-op in handback-followup.py:181 and the HANDBACK: prose has no machine reader, so
+# re-dispatch reproduces the same empty handback forever. The guard is a distinct
+# GREPPABLE form plus escalation to an EXISTING enum on the second occurrence.
+case "$rule2c" in
+  *"ZERO-COMMIT"*) : ;;
+  *) fail "rule 2c has no ZERO-COMMIT branch — a handback firing before the first edit commits nothing, and route=\"none\" writes nothing durable: that is the ratified livelock (option (a), 2026-08-26)" ;;
+esac
+# The suffix must be specified as part of the HANDBACK: line, else it is not greppable
+# by the next executor and the accumulator does not accumulate.
+case "$rule2c" in
+  *"HANDBACK:"*"ZERO-COMMIT"*) : ;;
+  *) fail "rule 2c mentions ZERO-COMMIT but not as part of the HANDBACK: RELAY_LOG.md line — the marker is only useful if it lands in the greppable artifact" ;;
+esac
+# Escalation on repeat, to hard-split specifically. A guard that only marks the
+# occurrence without changing the disposition still re-dispatches into the same wall.
+case "$rule2c" in
+  *'route="hard-split"'*) : ;;
+  *) fail "rule 2c does not escalate a REPEAT zero-commit handback to route=\"hard-split\" — without escalation the marker records the livelock instead of breaking it" ;;
+esac
+# hard-split must be an EXISTING enum DECLARED BEFORE rule 2c (i.e. in rule 2b's route
+# enumeration), which is what makes option (a) require no handback-followup.py change.
+# Scoped to text BEFORE 2c deliberately: matching the whole rest of the file would let
+# this rule's own ## Maintenance entry satisfy it, which is the same vacuity class this
+# block was just tightened to remove. If hard-split ever became 2c-only, the "no new
+# enum" premise the owner ratified has lapsed and this fails loudly.
+before_2c="$(awk '/^2c\./{f=1} !f' "$CONTRACT")"
+case "$before_2c" in
+  *"hard-split"*) : ;;
+  *) fail "hard-split is not declared BEFORE rule 2c — option (a) was ratified on the premise that it reuses an EXISTING enum needing no handback-followup.py change; that premise no longer holds" ;;
+esac
+pass "rule 2c carries the ZERO-COMMIT livelock guard: greppable HANDBACK: marker + escalation to the pre-existing hard-split enum"
+
+# ------------------ (8b) pre-first-edit warn is the NARROW-SCOPE signal — option (b)
+# In both measured units the warn fired with 34 / 74 lines of headroom: enough for a
+# committable slice, not enough to finish reading. Advisory-everywhere was the v14
+# behaviour; the ratified change makes it actionable AT the investigate→edit boundary.
+case "$rule2c" in
+  *"NARROW"*|*"narrow"*) : ;;
+  *) fail "rule 2c does not make the pre-first-edit warn an actionable NARROW-SCOPE signal (option (b), ratified 2026-08-26) — a warn that is advisory everywhere leaves the doomed-broad-attempt shape intact" ;;
+esac
+# It must remain advisory AWAY from that boundary — otherwise every long unit narrows
+# on its first periodic warn, which is a different (over-triggering) defect.
+case "$rule2c" in
+  *"periodic"*"advisory"*|*"advisory"*"periodic"*) : ;;
+  *) fail "rule 2c does not keep a PERIODIC warn advisory — option (b) promotes the warn only at the investigate→edit boundary, not everywhere" ;;
+esac
+pass "rule 2c promotes the pre-first-edit warn to a narrow-scope instruction while keeping periodic warns advisory"
 
 # ------------------------------------- (9) VERSIONED-CONTRACT discipline (v12 → v13)
 # executor-contract.md is a versioned surface: a rule change an in-flight

@@ -25,6 +25,17 @@
 # Usage:
 #   context-budget.sh --bytes N [--warn-bytes W] [--handback-bytes H]
 #   context-budget.sh --transcript PATH [--warn-bytes W] [--handback-bytes H]
+#   context-budget.sh --self [--marker STR] [--warn-bytes W] [--handback-bytes H]
+#
+# `--self` (id:ff30) is THE form an executor actually uses, and the reason rule 2c is
+# runnable at all. Neither --bytes nor --transcript could be satisfied by a dispatched
+# child: nothing in the dispatch chain ever told it its own transcript path or size, so
+# this script was built, tested, green and UNREACHABLE. `--self` delegates to the sibling
+# `self-transcript.sh`, which resolves the CALLING agent's own
+# `.../<session>/subagents/agent-<id>.jsonl` and disambiguates sibling children by
+# `--marker` (relay executor: your worktree path, which your dispatch prompt already
+# gives you). If that resolution fails it FAILS OPEN exactly like an unreadable
+# transcript — verdict `unknown`, exit 0, loud stderr — never blocking the caller.
 #
 # Output (stdout, EXACTLY one line, always):
 #   context-budget: <ok|warn|handback|unknown> bytes=<N> est_tokens=<T> warn_bytes=<W> handback_bytes=<H>
@@ -44,6 +55,10 @@ DEFAULT_HANDBACK_BYTES=300000
 
 bytes=""
 transcript=""
+self=0
+marker=""
+session_id=""
+projects_root=""
 warn_bytes="$DEFAULT_WARN_BYTES"
 handback_bytes="$DEFAULT_HANDBACK_BYTES"
 
@@ -53,6 +68,14 @@ while [[ $# -gt 0 ]]; do
       bytes="${2:-}"; shift 2 ;;
     --transcript)
       transcript="${2:-}"; shift 2 ;;
+    --self)
+      self=1; shift ;;
+    --marker)
+      marker="${2:-}"; shift 2 ;;
+    --session-id)
+      session_id="${2:-}"; shift 2 ;;
+    --projects-root)
+      projects_root="${2:-}"; shift 2 ;;
     --warn-bytes)
       warn_bytes="${2:-}"; shift 2 ;;
     --handback-bytes)
@@ -63,8 +86,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$bytes" && -z "$transcript" ]]; then
-  echo "context-budget.sh: one of --bytes N or --transcript PATH is required" >&2
+if (( self == 0 )) && [[ -z "$bytes" && -z "$transcript" ]]; then
+  echo "context-budget.sh: one of --bytes N, --transcript PATH or --self is required" >&2
   exit 2
 fi
 
@@ -73,6 +96,30 @@ emit() {
   est_tokens=$(( b / CHARS_PER_TOKEN ))
   echo "context-budget: $verdict bytes=$b est_tokens=$est_tokens warn_bytes=$warn_bytes handback_bytes=$handback_bytes"
 }
+
+# id:ff30 — resolve --self into a concrete --transcript path. An explicit --transcript
+# always wins (it is the more specific statement). Resolution failure is NOT an error
+# here: it degrades to the same fail-open `unknown` a missing transcript produces, so a
+# harness/layout change can never turn the budget check into a work blocker.
+if (( self )) && [[ -z "$transcript" ]]; then
+  resolver="$(dirname "$0")/self-transcript.sh"
+  if [[ ! -x "$resolver" ]]; then
+    echo "context-budget.sh: --self needs $resolver (not found or not executable) (fail-open: verdict unknown)" >&2
+    emit unknown 0
+    exit 0
+  fi
+  resolver_args=()
+  [[ -n "$marker" ]] && resolver_args+=(--marker "$marker")
+  [[ -n "$session_id" ]] && resolver_args+=(--session-id "$session_id")
+  [[ -n "$projects_root" ]] && resolver_args+=(--projects-root "$projects_root")
+  if resolved="$("$resolver" "${resolver_args[@]+"${resolver_args[@]}"}")"; then
+    transcript="$resolved"
+  else
+    echo "context-budget.sh: --self could not resolve this agent's own transcript (see self-transcript.sh above) (fail-open: verdict unknown)" >&2
+    emit unknown 0
+    exit 0
+  fi
+fi
 
 # --transcript takes precedence when both are somehow given (--bytes wins only if
 # --transcript was never passed at all).

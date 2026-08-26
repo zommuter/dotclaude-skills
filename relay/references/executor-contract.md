@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v13 -->
+## Executor contract <!-- relay-executor contract v15 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -74,9 +74,24 @@ you were told you are the reviewer) follow these rules:
    human ran `/relay reconcile`. The cause was pure transcript accumulation — measured
    growth was LINEAR over 166-193 turns with no single line dominant — and both dead
    transcripts had already burned 64-77% of their budget INVESTIGATING BEFORE THEIR
-   FIRST EDIT. Run the pure, read-only decision function
-   `relay/scripts/context-budget.sh --transcript <your transcript path>` (or `--bytes N`
-   if you know your transcript size another way) at **two check points**:
+   FIRST EDIT. Run the pure, read-only decision function `context-budget.sh` — this
+   exact line, which needs no path you were never given (id:ff30):
+
+   ```
+   ~/.claude/skills/relay/scripts/context-budget.sh --self --marker "<your worktree path>"
+   ```
+
+   `--self` resolves YOUR OWN transcript via `self-transcript.sh` (id:ff30):
+   `$CLAUDE_SESSION_ID` is the TOP-LEVEL session id, which is the *directory* holding
+   your `subagents/agent-<id>.jsonl`, and `--marker` picks yours out from your sibling
+   children — your worktree path is already in your dispatch brief above ("Your worktree
+   `<wt>` on branch …"), so paste that. This is the whole reason the check is runnable:
+   the pre-v14 form asked you for a transcript path that nothing in the dispatch chain
+   has ever communicated to a child. `--bytes N` and `--transcript PATH` remain
+   for callers that already know one. If resolution fails you get verdict `unknown` and
+   exit 0 — a measurement failure never blocks your work, but it is never silent either.
+
+   Run it at **two check points**:
    - **periodically** during a long unit (e.g. every several tool rounds, or whenever
      you notice the session feels long), and
    - **BEFORE your first edit** — i.e. at the end of the investigation phase, before
@@ -91,8 +106,40 @@ you were told you are the reviewer) follow these rules:
    structured result with `contract_met=false` and `route="none"` — deliberately an
    EXISTING enum value (not a new one) so `handback-followup.py` needs no change and
    the item stays a plain, re-dispatchable `[ROUTINE]` item rather than being gated or
-   re-tagged. A `warn` verdict is advisory only (exit 0) — keep working, but budget
-   your remaining investigation accordingly.
+   re-tagged.
+
+   **ZERO-COMMIT branch — the livelock guard (id:5eeb).** If the budget is exceeded and
+   you have **nothing committed for this item**, a plain `route="none"` handback writes
+   NOTHING durable: `handback-followup.py` makes `route="none"` a literal no-op and the
+   `HANDBACK:` prose line has no machine reader, so re-dispatch reproduces the same
+   investigation and the same empty handback forever, with no accumulating signal. This
+   is not hypothetical — it is the measured case: the threshold was crossed at line 95
+   of a unit whose first `Edit` was at line 133, so the pre-first-edit check point is
+   precisely what GUARANTEES the empty handback in the case it was designed for.
+   Therefore:
+   1. Use the DISTINCT, greppable form — note the trailing marker:
+      `HANDBACK: <item-id> context budget exceeded (<bytes> B) ZERO-COMMIT`
+      The `ZERO-COMMIT` suffix is the machine-readable accumulator; without it the
+      occurrence is invisible to the next executor and the loop closes again.
+   2. **Before writing it, count prior occurrences** for this item:
+      `grep -c "HANDBACK: <item-id> .*ZERO-COMMIT" RELAY_LOG.md`. If the count is
+      **≥ 1** — this is the second or later zero-commit handback for the same item —
+      return `route="hard-split"` instead of `route="none"`. `hard-split` is an
+      EXISTING enum (see 2b), so this still needs no `handback-followup.py` change, and
+      it routes the item to decomposition rather than to another doomed attempt.
+   Commit the RELAY_LOG.md line even though you have no work commit: on a zero-commit
+   handback that line IS the deliverable.
+
+   A `warn` verdict is advisory only (exit 0) — **except at the pre-first-edit check
+   point, where it is the actionable NARROW-SCOPE signal, not a shrug.** In both
+   measured units the warn fired with 34 / 74 lines of headroom remaining: enough to
+   produce a committable slice, not enough to finish a broad reading of the codebase.
+   So on a pre-first-edit `warn`, stop investigating and NARROW — pick the smallest
+   coherent slice of the item you can implement and commit NOW, then hand back the
+   remainder as a normal scoped handback. This is what keeps the zero-commit branch
+   above rare: it converts the doomed-broad-attempt shape into a small landed slice
+   plus a scoped remainder. A periodic `warn` away from the investigate→edit boundary
+   stays purely advisory — keep working, but budget your investigation accordingly.
 
 3. **Test integrity**: never weaken, delete, skip, or rewrite a test to make it
    pass. The reviewer diffs all test files against the last relay checkpoint tag
@@ -257,6 +304,32 @@ checkpoint-and-handback disposition (commit work done, `HANDBACK:` RELAY_LOG.md 
 `Prompt is too long` death class instead of the executor dying and orphaning a
 worktree. This is behaviour an in-flight executor must know (a new check point and a
 new disposition), so it bumps.
+
+**v13 → v14 (id:ff30):** rule 2c's command is now RUNNABLE. v13 told you to run
+`context-budget.sh --transcript <PLACEHOLDER>` — a path nothing in the dispatch
+chain has ever communicated to a child (`grep -rn 'transcript_path\|transcriptPath' relay/`
+returned nothing), and whose `--bytes N` alternative needed a size obtainable by no means
+either. So v13's rule 2c could not be executed at all and prevented zero context deaths.
+v14 names `context-budget.sh --self --marker "<your worktree path>"`, backed by the new
+`relay/scripts/self-transcript.sh`, which resolves the calling agent's own
+`<session>/subagents/agent-<id>.jsonl` and disambiguates siblings by a string from its own
+dispatch prompt. This changes the command an in-flight executor must run, so it bumps.
+
+**v14 → v15 (id:5eeb, owner-ratified 2026-08-26):** rule 2c gains a ZERO-COMMIT branch
+and promotes the pre-first-edit `warn`. v14's handback disposition was a LIVELOCK in the
+exact case the pre-first-edit check point exists to catch: measured, the threshold was
+crossed at transcript line 95 of a unit whose first `Edit` was at line 133, so the
+handback fired with **zero commits** — and `route="none"` is a literal no-op in
+`handback-followup.py:181` while the `HANDBACK:` prose line has no machine reader
+(`grep -rn 'HANDBACK:' relay/scripts/` = 1 hit, a comment). Re-dispatch therefore
+reproduced the same empty handback forever with no accumulating signal. v15 adds (a) a
+distinct greppable `… ZERO-COMMIT` handback form whose prior-occurrence count the
+executor itself reads, escalating to the EXISTING `route="hard-split"` enum on the
+second occurrence, and (b) a pre-first-edit `warn` that is now an actionable
+NARROW-SCOPE instruction rather than advisory, since in both measured units it fired
+with 34 / 74 lines of headroom still available. Both change what an in-flight executor
+must do on a verdict it can already receive, so it bumps. No new enum and no
+`handback-followup.py` change — deliberately, per the ratified option (a).
 
 For the human-facing picture of the whole relay (modes, artifacts, what the
 user does between turns), see `docs/relay.md` in dotclaude-skills.
