@@ -74,7 +74,22 @@ TOPBULLET  = re.compile(r'^- \[([ xX])\] ')
 # (kept, never re-archived) — without this, the next run eats its own successor's
 # output exactly like the defect roadmap-archive.sh's stub_line_re guards against.
 STUB_SUFFIX = " (archived — see ROADMAP.archive.md)"
-STUB_LINE_RE = re.compile(r'^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->' + re.escape(STUB_SUFFIX))
+# The `.*` between the id marker and the suffix is LOAD-BEARING, and is the same
+# `.*` roadmap-archive.sh:111 carries (cartulary 2026-08-14, routed:4a12). An item
+# line routinely carries prose AFTER its own `<!-- id:XXXX -->` marker — `/relay
+# human` and `/meeting` write-backs append rationale there, and some lines end in a
+# DIFFERENT HTML comment (e.g. `<!-- 2cd0-decision-gate: ... -->`). Without the
+# `.*` the suffix had to follow the id marker IMMEDIATELY, so every such stub read
+# as un-stubbed and was RE-ARCHIVED on every run: a second body appended to
+# `*.archive.md` and a second ` (archived — see …)` suffix appended to the live
+# line, without bound. This copy had dropped the `.*` and reproduced exactly that
+# defect — measured 2026-08-26 across the 6 own repos: 24 stubs re-archived in one
+# run (loderite 14, dotclaude-skills 5, yinyang-puzzle 4, linguistic-universals 1),
+# duplicating 16 ids into loderite's ROADMAP.archive.md and inflating that run's
+# reported ROADMAP total from the 4 genuine items to 18.
+# Still NOT end-anchored: real stubs carry trailing annotations past the suffix,
+# and an end anchor would re-archive exactly those.
+STUB_LINE_RE = re.compile(r'^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->.*' + re.escape(STUB_SUFFIX))
 
 PROTECTED_TEXTS = {'items', 'current', 'done', 'backlog'}
 
