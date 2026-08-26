@@ -350,6 +350,7 @@ ALLOWED_RELAY_SCRIPTS = frozenset([
     "ledger-slice.sh",  # id:e68f — pre-dispatch ledger slice (item block + typed edges → a file, path on stdout); missing here 404s sliceLedgerForUnit()'s model:'bash' dispatch. Fail-open by design: a refused hop just means the child gets the unsliced brief.
     "stranded-branch-scan.sh",  # id:dd7d — pre-dispatch + integrate stranded/sibling committed-branch scan; missing here 404s strandedBranchesFor()'s model:'bash' dispatch
     "integrate.sh",  # id:087b — THE mechanical integrator (merge/tick/bump/changelog/archive/tag/push/retire/state-write). Missing here refuses the hop -> FAIL-OPEN to the real model, which would silently resurrect an LLM on the merge-to-main critical path. It calls the other helpers itself, so only this one basename is needed.
+    "mechanical-orphan-draft.sh",  # id:391b — the per-round mechanical-orphan DRAFTER (id:8a6b). Missing here 404s draftMechanicalOrphans()'s model:'bash' dispatch. It invokes mechanical-orphan-scan.sh itself as a subprocess the proxy never sees, so — like integrate.sh — only this one basename is needed. Fail-open by design: a refused hop just means no drafts this round, never a blocked round.
 ])
 
 
