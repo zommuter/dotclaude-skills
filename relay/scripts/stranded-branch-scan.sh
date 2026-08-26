@@ -39,7 +39,9 @@
 #         branch with >0 commits beyond base.
 #
 # Behavior: prints one "<branch>\t<commit-count>" line per matching branch with >0 commits
-# beyond <base> (default: origin/main, falling back to 'main' if that does not resolve).
+# beyond <base> (default: the repo's own checked-out branch via `git symbolic-ref --short
+# HEAD`, falling back to origin/HEAD only if HEAD is detached/unborn — id:758a, never a
+# hard-coded main/master guess).
 # Prints nothing when none are found. Exit 0 in both cases (observe-only, mirrors
 # verify-isolation.sh) — non-zero is reserved for a usage/repo error. NEVER deletes, renames,
 # checks out, or merges anything; only `git for-each-ref` / `git rev-list --count`.
@@ -67,11 +69,28 @@ if [ ! -d "$repo" ] || ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; the
 fi
 
 if [ -z "$base" ]; then
-  if git -C "$repo" rev-parse --verify -q origin/main >/dev/null 2>&1; then
-    base="origin/main"
+  # id:758a (owner ruling 2026-08-26, general invariant): base-ref resolution must use the
+  # repo's ACTUAL checked-out branch — NEVER a hard-coded origin/main -> main -> master guess.
+  # FIRED LIVE on git-annex (run relay-20260826-122101-7415): its branches are 'master' (stale
+  # upstream mirror), 'annex-dotgit' (the real checked-out working branch) and
+  # 'backup-pre-e49a' — no 'main' anywhere. Critically, adding 'master' to a guess-list would
+  # NOT have fixed it: 'master' DOES resolve there, but to the stale mirror, so the scan would
+  # have silently measured against the WRONG base instead of failing loudly — worse than the
+  # original bug. Mirrors the fail-closed, HEAD-not-name posture id:8739 already implements on
+  # the integrate path (relay/scripts/integrate.sh:455-465): derive from the repo's own HEAD,
+  # falling back to origin/HEAD only when HEAD is detached/unborn — never a plausible-looking
+  # name guess.
+  branch="$(git -C "$repo" symbolic-ref --short -q HEAD 2>/dev/null || true)"
+  if [ -n "$branch" ]; then
+    base="$branch"
   else
-    base="main"
+    # HEAD detached or unborn: fall back to origin/HEAD only (still no main/master guess-list).
+    base="$(git -C "$repo" symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null || true)"
   fi
+fi
+if [ -z "$base" ]; then
+  echo "stranded-branch-scan.sh: could not determine a base ref in '$repo' (HEAD is detached/unborn and no origin/HEAD symbolic ref) — refusing to guess main/master (id:758a)" >&2
+  exit 2
 fi
 if ! git -C "$repo" rev-parse --verify -q "$base" >/dev/null 2>&1; then
   echo "stranded-branch-scan.sh: base ref '$base' does not resolve in '$repo'" >&2

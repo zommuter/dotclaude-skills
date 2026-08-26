@@ -12,9 +12,12 @@
 # 0 = safe to merge / exit 2 = isolation failure, never mutates.
 #
 # Usage:
-#   verify-isolation.sh <worktree> [--base <ref>]   (default --base origin/main, falling
-#                                                      back to the checkout's current branch
-#                                                      if origin/main does not resolve)
+#   verify-isolation.sh <worktree> [--base <ref>]   (default --base derives from the repo's
+#                                                      OWN checked-out branch via `git
+#                                                      symbolic-ref --short HEAD`, falling back
+#                                                      to origin/HEAD only if HEAD is detached/
+#                                                      unborn — id:758a, never a hard-coded
+#                                                      origin/main -> main -> master guess)
 #
 # Behavior (id:7612 main-HEAD discriminator — "worktree empty" alone is AMBIGUOUS: it is the
 # signature of BOTH a legitimate id:8e3e no-op review (child audited its window, found nothing
@@ -72,26 +75,48 @@ if [ ! -d "$worktree" ] || ! git -C "$worktree" rev-parse --git-dir >/dev/null 2
   exit 2
 fi
 
-# Resolve the base ref: explicit --base wins; else origin/main; else the worktree's own
-# current branch's upstream is unavailable in a bare test repo, so fall back to whatever
-# the local default branch is (best-effort, observe-only — never fails the gate by itself).
+# Resolve the base ref: explicit --base wins. Otherwise derive from the repo's OWN
+# checked-out branch (id:758a, owner ruling 2026-08-26, general invariant: base-ref
+# resolution must use the repo's ACTUAL checked-out branch — NEVER a hard-coded
+# origin/main -> main -> master guess). Mirrors the fail-closed, HEAD-not-name posture
+# id:8739 already implements on the integrate path (relay/scripts/integrate.sh:455-465).
+# A guess-list (adding 'master' as a further fallback) is actively WORSE than failing
+# loudly: on git-annex, 'master' DOES resolve — but to a stale upstream mirror, not the
+# real checked-out branch ('annex-dotgit') — so a guess-list would silently verify
+# isolation against the WRONG base instead of refusing.
 if [ -z "$base" ]; then
-  if git -C "$worktree" rev-parse --verify -q origin/main >/dev/null 2>&1; then
-    base="origin/main"
+  # `|| true` is REQUIRED, not decorative: `symbolic-ref -q` exits 1 when HEAD is detached
+  # or unborn (or when origin/HEAD is absent), `set -o pipefail` propagates that through the
+  # pipe, and `set -e` then killed the whole gate — exit 1 with COMPLETELY EMPTY output, on
+  # every repo without a resolvable ref (i.e. every hermetic fixture missing one). A gate
+  # that fails silently is worse than no gate: the caller cannot distinguish "isolation
+  # breach" from "could not determine the base ref". Never caught because all four callers
+  # in tests/test_verify_isolation.sh pass --base and skip this fallback;
+  # tests/test_provision_symlink_ignored_76d2.sh is the first to reach it.
+  # Found 2026-08-12 by the id:76d2 executor, reproduced by the reviewer before fixing.
+  #
+  # NOTE this must resolve the MAIN checkout's checked-out branch, NOT $worktree's own —
+  # $worktree is always a LINKED worktree on a throwaway child branch (e.g.
+  # relay/<run>-<verdict>-<item>-<attempt>), so `symbolic-ref HEAD` run directly against it
+  # would just echo that same throwaway branch back as its own base (0 commits beyond
+  # itself, always), silently disabling the whole gate. `git worktree list --porcelain`
+  # always lists the MAIN worktree first (the repo's own checked-out branch lives there);
+  # it works from any linked worktree because they share one git-common-dir/object db.
+  main_wt="$(awk '/^worktree /{print $2; exit}' < <(git -C "$worktree" worktree list --porcelain 2>/dev/null) || true)"
+  branch=""
+  [ -n "$main_wt" ] && branch="$(git -C "$main_wt" symbolic-ref --short -q HEAD 2>/dev/null || true)"
+  if [ -n "$branch" ]; then
+    base="$branch"
   else
-    # `|| true` is REQUIRED, not decorative: `symbolic-ref -q` exits 1 when origin/HEAD is
-    # absent, `set -o pipefail` propagates that through the pipe, and `set -e` then killed the
-    # whole gate — exit 1 with COMPLETELY EMPTY output, on every repo without an origin (i.e.
-    # every hermetic fixture). A gate that fails silently is worse than no gate: the caller
-    # cannot distinguish "isolation breach" from "could not determine the base ref". Never
-    # caught because all four callers in tests/test_verify_isolation.sh pass --base and skip
-    # this fallback; tests/test_provision_symlink_ignored_76d2.sh is the first to reach it.
-    # Found 2026-08-12 by the id:76d2 executor, reproduced by the reviewer before fixing.
-    default_branch="$(git -C "$worktree" symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
-    base="${default_branch:-main}"
+    # HEAD detached or unborn: fall back to origin/HEAD only (still no main/master guess).
+    base="$(git -C "$worktree" symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null || true)"
   fi
 fi
 
+if [ -z "$base" ]; then
+  echo "verify-isolation.sh: could not determine a base ref in '$worktree' (HEAD is detached/unborn and no origin/HEAD symbolic ref) — refusing to guess main/master (id:758a)" >&2
+  exit 2
+fi
 if ! git -C "$worktree" rev-parse --verify -q "$base" >/dev/null 2>&1; then
   echo "verify-isolation.sh: base ref '$base' does not resolve in '$worktree'" >&2
   exit 2
