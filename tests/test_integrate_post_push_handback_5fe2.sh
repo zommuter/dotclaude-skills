@@ -113,7 +113,11 @@ run_case() { # <suffix> <env-assignments...> → sets RC, OUTF, ERRF, MAIN_PATH,
   git -C "$MAIN_PATH" worktree add -q -b "relay/$sfx" "$wt" main
   echo work > "$wt/g"; git -C "$wt" add -A; git -C "$wt" commit -qm "child work id:test"
   local cfg="$TMP/cfg-$sfx"; mkdir -p "$cfg"
-  printf '[repos.%s]\nstatus = "active"\n' "$REPO" > "$cfg/relay.toml"
+  # id:c82a — declare `[publish]` explicitly, as the live relay.toml does. FLOORED, a local
+  # bare `origin` that cannot be proven private is withheld from the publish set, and this
+  # file's whole subject (a POST-push failure) becomes unreachable. See
+  # tests/test_publish_floor_privacy_gate_c82a.sh for the floor's own spec.
+  printf '[publish]\ndefault_remotes = ["origin"]\n\n[repos.%s]\nstatus = "active"\n' "$REPO" > "$cfg/relay.toml"
   CFG_TOML="$cfg/relay.toml"
   ERRF="$TMP/err-$sfx"
   OUTF="$TMP/out-$sfx"   # id:2c2a — stdout is now the parsed channel on a handback too
@@ -232,7 +236,8 @@ pass "(C/a726a) push(27) is LANDED-BUT-UNFINISHED, not a retryable defer (accept
 MAIN_OK="$(build ok)"; REPO_OK="$(basename "$MAIN_OK")"
 git -C "$MAIN_OK" worktree add -q -b relay/ok "$TMP/wt-ok" main
 echo work > "$TMP/wt-ok/g"; git -C "$TMP/wt-ok" add -A; git -C "$TMP/wt-ok" commit -qm "child work id:test"
-mkdir -p "$TMP/cfg-ok"; printf '[repos.%s]\nstatus = "active"\n' "$REPO_OK" > "$TMP/cfg-ok/relay.toml"
+mkdir -p "$TMP/cfg-ok"
+printf '[publish]\ndefault_remotes = ["origin"]\n\n[repos.%s]\nstatus = "active"\n' "$REPO_OK" > "$TMP/cfg-ok/relay.toml"   # id:c82a — see build() above
 OKRC=0
 FABLES_CONFIG="$TMP/cfg-ok" INTEGRATE_GIT_LOCK_PUSH="$OK_STUB" \
   "$INT" --repo "$REPO_OK" --path "$MAIN_OK" --worktree "$TMP/wt-ok" --branch relay/ok \

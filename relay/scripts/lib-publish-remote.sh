@@ -43,8 +43,34 @@
 # BUILT-IN FLOOR: with no `[publish] default_remotes` at all, the default is `origin`.
 #   Fail-closed-to-NOTHING would stop the whole fleet pushing anywhere, including to the
 #   private LAN origin — which is not publication at all. The ratified text names `origin`
-#   as the global default, so that is the floor. Note the floor is deliberately the PRIVATE
-#   one: an absent config can never cause a PUBLIC push.
+#   as the global default, so that is the floor.
+#
+#   id:c82a — THE FLOOR'S "origin IS PRIVATE" ASSUMPTION IS A FLEET PROPERTY, NOT AN INVARIANT.
+#   The comment that used to stand here read "the floor is deliberately the PRIVATE one: an
+#   absent config can never cause a PUBLIC push". That is true of THIS fleet TODAY — all 56
+#   own-repo origins were verified (2026-08-27) to be the private LAN host, 0 non-private —
+#   and false in general: `git clone https://github.com/foo/bar` sets `origin` to a PUBLIC
+#   remote, which is the single most ordinary way a repo enters `~/src`. The floor is the ONE
+#   path that never consults a declaration, so on such a repo it would publish agent-authored
+#   work straight through the allowlist built to prevent exactly that, silently.
+#
+#   THE FLOOR IS THEREFORE A CANDIDATE, NOT A GRANT. This resolver cannot decide it: it takes
+#   a repo NAME and has no checkout, so it cannot resolve `origin`'s URL — and resolving one
+#   here would also drag the PRIVACY predicate into the PUBLISH resolver, which the owner
+#   ruling above forbids. It instead SIGNALS the floor to the caller, as a PREDICATE:
+#
+#       if publish_remotes_floored "$repo"; then ...   # 0 → the set is the BUILT-IN FLOOR
+#
+#   A predicate, NOT an out-parameter global: every caller consumes the set through
+#   `set="$(publish_declared_remotes "$repo")"`, and a command substitution is a SUBSHELL, so
+#   any variable that function assigned is discarded before the caller can read it. (The first
+#   cut of id:c82a did exactly that and the flag read UNSET at every call site.)
+#
+#   A caller that HOLDS THE CHECKOUT (integrate.sh) must, when it is floored, prove `origin`
+#   private via lib-private-remote.sh's `is_private_remote_url` before treating it as a
+#   publish target, and WITHHOLD it — loudly — when it cannot. Not private, no pattern file,
+#   an unresolvable URL: all three fail toward NOT publishing. A caller that does not hold a
+#   checkout cannot make that proof and must not push on the floor alone.
 #
 # THIS IS DELIBERATELY NOT A TOML PARSER. It stays awk-shaped and auditable, matching the
 # `bump_policy` reader next door. It tolerates indented headers/keys, trailing inline
@@ -54,6 +80,7 @@
 #   . .../relay/scripts/lib-publish-remote.sh
 #   set="$(publish_declared_remotes "$repo")"        # newline-separated, deduped, ordered
 #   if publish_set_contains "$set" "$remote"; then ... ; fi
+#   if publish_remotes_floored "$repo"; then ... ; fi # id:c82a — nothing was declared
 #
 # Safe to source under `set -euo pipefail`: no bare `cmd && return` tails, no producer piped
 # into an early-exiting consumer (id:81d5), and a missing relay.toml is a clean floor result.
@@ -64,15 +91,15 @@ publish_remotes_toml_file() {
   printf '%s' "${RELAY_PUBLISH_TOML:-${FABLES_CONFIG:-$HOME/.config/relay}/relay.toml}"
 }
 
-# publish_declared_remotes <repo> → one declared remote NAME per line, deduped, globals
-# first then the repo's own additions. Never empty: the built-in `origin` floor applies when
-# no `[publish] default_remotes` is declared (or the file is absent/unreadable).
-publish_declared_remotes() {
-  local repo="${1-}" f raw defaults extra
+# _publish_raw_decls <repo> → `default<TAB><name>` / `repo<TAB><name>` for every DECLARED
+# entry, nothing at all when the file is absent/unreadable. THE parse — extracted (id:c82a)
+# so `publish_declared_remotes` and `publish_remotes_floored` cannot drift apart, which is the
+# very class this repo keeps paying for. Internal: the leading `_` marks it private to the lib.
+_publish_raw_decls() {
+  local repo="${1-}" f
   f="$(publish_remotes_toml_file)"
-  raw=""
   if [ -f "$f" ] && [ -r "$f" ]; then
-    raw="$(awk -v want="[repos.$repo]" -v sq="'" '
+    awk -v want="[repos.$repo]" -v sq="'" '
       function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
       # Emit every QUOTED token inside an array literal. Scanning for quotes (rather than
       # splitting on commas) is what makes a trailing `# comment`, a trailing comma and an
@@ -104,8 +131,17 @@ publish_declared_remotes() {
         if (index(val, "]")) emit(val, tag)
         else { acc = val; acctag = tag }
       }
-    ' "$f" 2>/dev/null || true)"
+    ' "$f" 2>/dev/null || true
   fi
+  return 0
+}
+
+# publish_declared_remotes <repo> → one declared remote NAME per line, deduped, globals
+# first then the repo's own additions. Never empty: the built-in `origin` floor applies when
+# no `[publish] default_remotes` is declared (or the file is absent/unreadable).
+publish_declared_remotes() {
+  local repo="${1-}" raw defaults extra
+  raw="$(_publish_raw_decls "$repo")"
   defaults="$(awk -F'\t' '$1=="default" && $2!="" {print $2}' <<<"$raw")"
   extra="$(awk -F'\t' '$1=="repo" && $2!="" {print $2}' <<<"$raw")"
   # THE FLOOR. Only when NO default is declared at all — an explicitly declared, non-empty
@@ -113,6 +149,22 @@ publish_declared_remotes() {
   if [ -z "$defaults" ]; then defaults="origin"; fi
   printf '%s\n%s\n' "$defaults" "$extra" | awk 'NF && !seen[$0]++'
   return 0
+}
+
+# publish_remotes_floored <repo>
+#   0 → the set publish_declared_remotes returns rests on the BUILT-IN `origin` FLOOR: no
+#       `[publish] default_remotes` is declared anywhere (absent/unreadable relay.toml, a
+#       fresh install, a hermetic root).
+#   1 → an explicit `[publish] default_remotes` was found and honoured.
+# id:c82a — a checkout-holding caller MUST, on 0, prove `origin` private before publishing to
+# it (see the BUILT-IN FLOOR note at the top). Deliberately keyed on the GLOBAL default only:
+# a per-repo `publish_remotes` addition is additive and never displaces the floor, so a repo
+# that declares only additions is still floored for `origin`.
+publish_remotes_floored() {
+  local repo="${1-}" defaults
+  defaults="$(_publish_raw_decls "$repo" | awk -F'\t' '$1=="default" && $2!="" {print $2}')"
+  if [ -z "$defaults" ]; then return 0; fi
+  return 1
 }
 
 # publish_set_contains <newline-separated-set> <remote-name>

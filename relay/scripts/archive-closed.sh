@@ -5,8 +5,28 @@
 #   NOT cross-ledger twins, so REVIEW_ME archiving uses an empty twin map and is
 #   decided purely by the item's own [x]/[ ] state (no open-twin protection).
 #
-# Usage: archive-closed.sh [--dry-run] [<repo-root>]
+# Usage: archive-closed.sh [--dry-run] [--only todo|roadmap|review_me] [<repo-root>]
 #   <repo-root> defaults to `git rev-parse --show-toplevel`.
+#
+# --only <ledger> (id:046a) restricts the run to ONE source ledger. The DEFAULT is
+# unchanged — all three — so every existing caller and test behaves exactly as before.
+#
+# WHY THE FLAG EXISTS: integrate.sh step 6c invokes this archiver automatically, and it
+# must invoke it as `--only review_me`. Two independent reasons, both measured:
+#   • ROADMAP.md is ALREADY archived one step earlier (step 6b, roadmap-archive.sh). Running
+#     both over the same ledger in the same integrate is a second archiver with its own stub
+#     grammar over the same lines — the collision id:fdc4 says to look at BEFORE either is
+#     wired anywhere.
+#   • The measured relief says REVIEW_ME is the only ledger worth it: REVIEW_ME 30.3–91.0%,
+#     TODO 2.7–56.1%, ROADMAP −0.5% to +3.0% — NET-NEGATIVE for two repos, because the
+#     id:cd9c stub reproduces the header line verbatim, so a single-line item's stub is
+#     LONGER than what it replaced. ROADMAP.md structurally cannot shrink via archiving.
+# TODO.md is likewise left to its own owner-facing path (todo-update/archive-done.sh); it is
+# the ledger the owner hand-edits most, and this script's un-age-gated policy is not the one
+# ratified for it.
+# The TWIN-SAFE rule below is unaffected: the twin STATE MAPS are always computed from BOTH
+# ledgers' original content regardless of --only, so scoping can never turn a twin-open skip
+# into an archive.
 #
 # Rationale: closed items clutter both ledgers and get caught by lane migration.
 # Unlike todo-update/archive-done.sh (TODO-only, age-gated), this archives ALL
@@ -43,12 +63,22 @@ set -euo pipefail
 
 DRY_RUN=0
 ROOT=""
+ONLY=all
+want_only=0
 for arg in "$@"; do
+    if [[ $want_only -eq 1 ]]; then ONLY="$arg"; want_only=0; continue; fi
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
-        *) ROOT="$arg" ;;
+        --only)    want_only=1 ;;
+        --only=*)  ONLY="${arg#--only=}" ;;
+        *)         ROOT="$arg" ;;
     esac
 done
+[[ $want_only -eq 0 ]] || { echo "archive-closed: --only needs a value (todo|roadmap|review_me)" >&2; exit 2; }
+case "$ONLY" in
+    all|todo|roadmap|review_me) : ;;
+    *) echo "archive-closed: --only must be todo|roadmap|review_me (got '$ONLY')" >&2; exit 2 ;;
+esac
 
 if [[ -z "$ROOT" ]]; then
     ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
@@ -56,12 +86,13 @@ if [[ -z "$ROOT" ]]; then
 fi
 [[ -d "$ROOT" ]] || { echo "archive-closed: $ROOT is not a directory" >&2; exit 1; }
 
-python3 - "$ROOT" "$DRY_RUN" <<'PYEOF'
+python3 - "$ROOT" "$DRY_RUN" "$ONLY" <<'PYEOF'
 import sys, re, bisect
 from pathlib import Path
 
 root    = Path(sys.argv[1])
 dry_run = sys.argv[2] == '1'
+only    = sys.argv[3] if len(sys.argv) > 3 else 'all'
 
 ID_RE      = re.compile(r'<!-- id:([0-9a-f]{4}) -->')
 HEADING_RE = re.compile(r'^#{1,6}\s')
@@ -337,10 +368,17 @@ def apply_and_report(name, src_path, blocks, other_ids, emit_stub=False):
     for tk in skipped:
         print(f"archive-closed[{name}]: skipped id:{tk} (twin open)", file=sys.stderr)
 
-apply_and_report('TODO',      todo_path,   todo_blocks,   road_ids)
-apply_and_report('ROADMAP',   road_path,   road_blocks,   todo_ids, emit_stub=True)
+# --only (id:046a) gates only the WRITE step. `todo_ids`/`road_ids` above are still built
+# from BOTH ledgers' original content, so a scoped run makes exactly the same twin-safe
+# decisions a full run would — narrowing the scope can never turn a twin-open SKIP into an
+# archive.
+if only in ('all', 'todo'):
+    apply_and_report('TODO',      todo_path,   todo_blocks,   road_ids)
+if only in ('all', 'roadmap'):
+    apply_and_report('ROADMAP',   road_path,   road_blocks,   todo_ids, emit_stub=True)
 # REVIEW_ME items are NOT cross-ledger twins — pass an empty id map so no twin
 # can ever block or skip an archive decision; archiving is based purely on the
 # item's own [x]/[ ] state.
-apply_and_report('REVIEW_ME', review_path, review_blocks, {})
+if only in ('all', 'review_me'):
+    apply_and_report('REVIEW_ME', review_path, review_blocks, {})
 PYEOF

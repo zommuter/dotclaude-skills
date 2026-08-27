@@ -67,7 +67,11 @@ run_path() {
   git -C "$MAIN_PATH" worktree add -q -b "relay/$sfx" "$wt" main
   echo work > "$wt/g"; git -C "$wt" add -A; git -C "$wt" commit -qm "child work id:aaaa"
   local cfg="$TMP/cfg-$sfx"; mkdir -p "$cfg"
-  { printf '[repos.%s]\nstatus = "active"\n' "$repo"
+  # id:c82a — `[publish]` is declared EXPLICITLY, exactly as the live relay.toml does. Left
+  # FLOORED, a local bare `origin` that cannot be PROVEN private is withheld from the publish
+  # set, so the push/post-push step codes below would never be reached. The floor's own
+  # behaviour is specified in tests/test_publish_floor_privacy_gate_c82a.sh.
+  { printf '[publish]\ndefault_remotes = ["origin"]\n\n[repos.%s]\nstatus = "active"\n' "$repo"
     [[ "$tomlx" != "-" ]] && printf '%s\n' "$tomlx"; } > "$cfg/relay.toml"
   OUTF="$TMP/out-$sfx"; ERRF="$TMP/err-$sfx"
   local -a xargs=()

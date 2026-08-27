@@ -72,7 +72,12 @@ git -C "$MAIN" worktree add -q -b relay/other "$WT_OTHER" main
 # hermetic relay config with the [repos.myrepo-happy] block state-write + ckpt-tag update
 CFG="$TMP/cfg"; mkdir -p "$CFG"
 REPO_NAME="$(basename "$MAIN")"
-printf '[repos.%s]\nstatus = "active"\n' "$REPO_NAME" > "$CFG/relay.toml"
+# id:c82a — declare the publish default EXPLICITLY, exactly as the live relay.toml does
+# (`[publish] default_remotes = ["origin"]`). Without it the run is FLOORED, and a floored
+# `origin` that cannot be PROVEN private is withheld from the publish set — correct, but it
+# would stop this fixture from exercising the push step at all. Floor behaviour has its own
+# spec in tests/test_publish_floor_privacy_gate_c82a.sh.
+printf '[publish]\ndefault_remotes = ["origin"]\n\n[repos.%s]\nstatus = "active"\n' "$REPO_NAME" > "$CFG/relay.toml"
 
 # stub the ONLY network step, recording that it fired
 PUSH_MARK="$TMP/push-fired"

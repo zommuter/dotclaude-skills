@@ -28,7 +28,12 @@
 #   5. version-bump    (SemVer, level from step 3c)
 #   6. changelog-append(id:b8fa)
 #   6b. roadmap-archive(id:f54d — port #2; scoped commit of ROADMAP.md + ROADMAP.archive.md)
-#   7. ckpt-tag        (id:1a34 label; -c reviewed-tip for the zero-commit case)
+#   6c. review-archive (id:046a — archive-closed.sh --only review_me; scoped commit of
+#                       REVIEW_ME.md + REVIEW_ME.archive.md. NOT a bare invocation: ROADMAP
+#                       is already done at 6b and TODO keeps its own path — see the step.)
+#   6d. relay-log-archive (id:046a — RELAY_LOG.md rotation; scoped commit of RELAY_LOG.md +
+#                       RELAY_LOG.archive.md. Age/tail/size-gated inside the helper.)
+#   7. ckpt-tag       (id:1a34 label; -c reviewed-tip for the zero-commit case)
 #   8. git-lock-push   (--ff-only; the only network step) — SUBSTANTIVE units SKIP this
 #                      (id:4d44 owner ruling (a)); see the RATIFICATION GATE block below.
 #   8b. ratify-enqueue (id:4d44 — durable ratification queue; ONLY for a deferred push)
@@ -242,6 +247,7 @@
 #   INTEGRATE_CKPT_TAG INTEGRATE_GIT_LOCK_PUSH INTEGRATE_WORKTREE_RETIRE
 #   INTEGRATE_STATE_WRITE INTEGRATE_ROADMAP_TICK INTEGRATE_ROADMAP_ARCHIVE
 #   INTEGRATE_STRANDED_SCAN INTEGRATE_DISCOVER_SIG
+#   INTEGRATE_REVIEW_ARCHIVE INTEGRATE_RELAY_LOG_ARCHIVE                      (id:046a)
 set -euo pipefail
 
 # ── distinct STEP-IDENTITY codes (per step) ──
@@ -273,6 +279,11 @@ EX_RATIFY=35        # id:4d44 — the merge landed locally but could NOT be reco
                     # durable ratification queue. NEVER swallowed: an unqueued deferred merge
                     # is invisible work sitting unpushed on main, which is the one failure
                     # this whole design must not have.
+# ── id:046a: one distinct code per NEWLY WIRED ledger archiver (steps 6c/6d) ──
+# Both sit alongside EX_ARCHIVE=32 (roadmap-archive, step 6b) — three archivers, three codes,
+# so a handback names WHICH ledger's rotation refused rather than "an archive step".
+EX_REVIEW_ARCHIVE=36  # archive-closed.sh --only review_me failed, or its scoped commit failed
+EX_LOG_ARCHIVE=37     # relay-log-archive.sh failed, or its scoped commit failed
 
 LOG="${INTEGRATE_LOG:-$HOME/.claude/logs/relay-integrate.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
@@ -281,7 +292,8 @@ log()  { printf '%s integrate.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$L
 # The LAND POINT splits every handback into two classes the caller MUST tell apart:
 #   • PRE-LAND  — nothing durable happened that a re-run would duplicate, so re-running the
 #     whole script is CORRECT. (isolation, sync, wiring, bump, merge, tick, version,
-#     changelog, archive, ckpt — AND push itself: exit 27 means the push FAILED or could not
+#     changelog, the three archives — roadmap 32, review 36, relay-log 37 (id:046a) — and
+#     ckpt; AND push itself: exit 27 means the push FAILED or could not
 #     be VERIFIED to have landed, so the remote never moved.)
 #   • POST-LAND — the merge is committed and TAGGED (and PUSHED, for a pushing unit); only a
 #     tail step failed (ratify-enqueue, retire, state-write, strong-state). Re-running is
@@ -391,6 +403,11 @@ WORKTREE_RETIRE="${INTEGRATE_WORKTREE_RETIRE:-$SCRIPT_DIR/worktree-retire.sh}"
 STATE_WRITE="${INTEGRATE_STATE_WRITE:-$SCRIPT_DIR/relay-state-write.sh}"
 ROADMAP_TICK="${INTEGRATE_ROADMAP_TICK:-$SCRIPT_DIR/roadmap-tick.sh}"
 ROADMAP_ARCHIVE="${INTEGRATE_ROADMAP_ARCHIVE:-$SCRIPT_DIR/roadmap-archive.sh}"
+# id:046a — the two archivers that existed, tested and green, with ZERO call sites anywhere
+# (`grep -c` returned 0 in relay-loop.js AND relay/SKILL.md; the Makefile manifest was the
+# only reference). Wired at steps 6c/6d below, in the same shape as ROADMAP_ARCHIVE.
+REVIEW_ARCHIVE="${INTEGRATE_REVIEW_ARCHIVE:-$SCRIPT_DIR/archive-closed.sh}"
+RELAY_LOG_ARCHIVE="${INTEGRATE_RELAY_LOG_ARCHIVE:-$SCRIPT_DIR/relay-log-archive.sh}"
 STRANDED_SCAN="${INTEGRATE_STRANDED_SCAN:-$SCRIPT_DIR/stranded-branch-scan.sh}"
 DISCOVER_SIG="${INTEGRATE_DISCOVER_SIG:-$SCRIPT_DIR/discover-sig.sh}"
 # id:4d44 — THE single "is this remote a PRIVATE/LAN host?" predicate. Shared with
@@ -840,6 +857,66 @@ if [ -n "$(git -C "$path" status --porcelain -- ROADMAP.md ROADMAP.archive.md 2>
     || handback roadmap-archive "$EX_ARCHIVE" "roadmap archive commit failed"
 fi
 
+# ── step 6c: ARCHIVE closed REVIEW_ME items (id:046a). ───────────────────────────────
+#    `archive-closed.sh` was built, tested and green with NO call site anywhere — the
+#    built-green-but-unreferenced shape. It is wired here, in step 6b's exact pattern, and
+#    NOT at a new trigger: this integrator is already the single serialized writer to the
+#    canonical checkout, already holds the clean-tree + isolation gates, and already commits
+#    ledger rotations scoped.
+#
+#    `--only review_me` IS THE WHOLE POINT — do not widen it to a bare invocation:
+#      • ROADMAP.md was archived ONE STEP AGO by roadmap-archive.sh. A second archiver over
+#        the same lines in the same run, with its own stub grammar, is the double-archiver
+#        collision id:fdc4 says to examine BEFORE either is wired.
+#      • The measured relief (id:046a, 6 repos) says REVIEW_ME is the only ledger that gains:
+#        REVIEW_ME 30.3–91.0%, TODO 2.7–56.1%, ROADMAP −0.5% to +3.0% — NET-NEGATIVE for two
+#        repos, since the id:cd9c stub reproduces the header verbatim and so a single-line
+#        item's stub is LONGER than what it replaced.
+#      • TODO.md keeps its own owner-facing path (todo-update/archive-done.sh); it is the
+#        ledger the owner hand-edits most and this script's un-age-gated policy is not the
+#        one ratified for it.
+#    A clean no-op on a repo with no REVIEW_ME.md or nothing archivable, and idempotent — so
+#    like 6b it runs unconditionally. It NEVER touches open `- [ ]` items.
+[ -x "$REVIEW_ARCHIVE" ] || handback review-archive "$EX_WIRING" "archive-closed.sh missing or not executable at $REVIEW_ARCHIVE (id:046a wiring bug — REVIEW_ME.md would grow unbounded, and it is one of the two REVIEW-ONLY ledgers a review unit's prompt is sized on, id:7c5f)"
+if ! rev_arch_out="$("$REVIEW_ARCHIVE" --only review_me "$path" 2>&1)"; then
+  handback review-archive "$EX_REVIEW_ARCHIVE" "archive-closed --only review_me failed (merge landed; main is at $merged_head, NOT tagged/pushed): $rev_arch_out"
+fi
+# Commit ONLY those two exact paths (scoped staging, id:debf). The porcelain check also
+# catches a newly-created, still-untracked REVIEW_ME.archive.md.
+if [ -n "$(git -C "$path" status --porcelain -- REVIEW_ME.md REVIEW_ME.archive.md 2>/dev/null)" ]; then
+  git -C "$path" add -- REVIEW_ME.md REVIEW_ME.archive.md
+  git -C "$path" commit -q -m "chore(review): archive closed REVIEW_ME items" \
+    || handback review-archive "$EX_REVIEW_ARCHIVE" "REVIEW_ME archive commit failed"
+fi
+
+# ── step 6d: ROTATE old RELAY_LOG.md entries (id:046a). ──────────────────────────────
+#    The third built-green-but-unreferenced archiver (landed 696dec67). RELAY_LOG.md grows on
+#    EVERY relay round unconditionally — faster than ROADMAP, which only grows when items
+#    close — and it is counted against the review dispatch budget (id:7c5f/id:502f). Measured
+#    on a COPY of a real 998-entry log: 600 entries rotate, 1,252,525 → 431,343 B (−65.6%);
+#    recombining archive+live returns exactly 998 entries; a second run moves 0.
+#
+#    THE merge=union HAZARD IS WHY THIS IS THE RIGHT PLACE, not a reason to avoid it.
+#    RELAY_LOG.md is `merge=union` because concurrent worktrees append at the same position;
+#    union merge does not protect a DELETION. The helper's own conservatism is what closes
+#    that: a 30-day AGE GATE (a still-landing append is by construction far too young to be a
+#    candidate, so there is no window in which a rotation and a concurrent append contend for
+#    the SAME entry), a 20-entry TAIL FLOOR, and a 500-line SIZE FLOOR that makes it a
+#    complete no-op on a small log. On top of that, this call site runs on the CANONICAL
+#    checkout, after the clean-tree and isolation gates, as the single serialized writer — the
+#    most contention-free moment that exists in the whole relay. No extra gate is added here:
+#    the thresholds live in the helper, where they are tested, and duplicating them would be
+#    a second copy to drift.
+[ -x "$RELAY_LOG_ARCHIVE" ] || handback relay-log-archive "$EX_WIRING" "relay-log-archive.sh missing or not executable at $RELAY_LOG_ARCHIVE (id:046a wiring bug — RELAY_LOG.md would grow unbounded; it already drives the majority of one repo's review prompt-size estimate, id:502f)"
+if ! log_arch_out="$("$RELAY_LOG_ARCHIVE" "$path" 2>&1)"; then
+  handback relay-log-archive "$EX_LOG_ARCHIVE" "relay-log-archive failed (merge landed; main is at $merged_head, NOT tagged/pushed): $log_arch_out"
+fi
+if [ -n "$(git -C "$path" status --porcelain -- RELAY_LOG.md RELAY_LOG.archive.md 2>/dev/null)" ]; then
+  git -C "$path" add -- RELAY_LOG.md RELAY_LOG.archive.md
+  git -C "$path" commit -q -m "chore(relay-log): rotate old entries to RELAY_LOG.archive.md" \
+    || handback relay-log-archive "$EX_LOG_ARCHIVE" "RELAY_LOG rotation commit failed"
+fi
+
 # ── step 7: ckpt-tag (id:1a34 label). -c reviewed-tip ONLY for the zero-commit case. ──
 ckpt_args=("$path" -m "${summary}${idsuffix}" -l "$label")
 [ -n "$reviewed_tip" ] && ckpt_args+=(-c "$reviewed_tip")
@@ -933,22 +1010,83 @@ fi
 # senses: it can never authorise a PUBLIC push (origin is this fleet's private LAN host in
 # 41 of 46 own repos), and it does not wedge the fleet by declaring nothing at all.
 publish_set=""
+publish_floored=0     # id:c82a — 1 when the set rests on the built-in `origin` floor
 if [ -r "$LIB_PUBLISH_REMOTE" ]; then
   # shellcheck source=./lib-publish-remote.sh
   . "$LIB_PUBLISH_REMOTE"
   publish_set="$(publish_declared_remotes "$repo")"
+  # A PREDICATE, not a variable the resolver sets: the line above is a command substitution,
+  # i.e. a SUBSHELL, so any global it assigned would already be gone (id:c82a).
+  if publish_remotes_floored "$repo"; then publish_floored=1; fi
 else
   publish_set="origin"
+  publish_floored=1   # the hard-coded fallback IS a floor, and gets the same id:c82a proof
   printf 'integrate.sh: WARNING[publish] (id:99b7): lib-publish-remote.sh UNREADABLE at %s — falling back to the built-in floor publish set `origin` ONLY. Any other remote of [%s] is NOT IN THE PUBLISH SET for this run: not publishing, not tracking.\n' \
     "$LIB_PUBLISH_REMOTE" "$repo" >&2
   log "step8 id:99b7 lib-publish-remote.sh UNREADABLE at $LIB_PUBLISH_REMOTE — publish set floors to 'origin'"
+fi
+
+all_remotes="$(git -C "$path" remote 2>/dev/null || true)"
+
+# ── id:c82a — THE FLOOR IS A CANDIDATE, NOT A GRANT. ─────────────────────────────────
+#   `lib-publish-remote.sh`'s built-in floor hands back `origin` whenever NOTHING is declared
+#   (absent/unreadable relay.toml, a fresh install, a hermetic root) and it is the ONE path
+#   that never consults a declaration. Its "origin is private" premise is a FLEET PROPERTY —
+#   verified true of all 56 own repos on 2026-08-27 — not an invariant: `git clone
+#   https://github.com/foo/bar` sets `origin` to a PUBLIC remote, and on such a repo the floor
+#   would publish agent-authored work straight through the allowlist built to stop exactly
+#   that, silently.
+#
+#   So when (and ONLY when) the set is FLOORED, `origin` must be PROVEN private here — this is
+#   the layer that holds the checkout and can resolve the URL at all. The proof reuses
+#   `lib-private-remote.sh`'s `is_private_remote_url`, THE single private-host predicate
+#   (id:4d44), already sourced above. NOT `git-lock-push.sh`'s `is_ssh_url()`: that answers
+#   "does this need SSH AUTH", calls `ssh://github.com/…` private, and so fails toward
+#   AUTO-PUBLISH — the wrong direction for a publishing decision.
+#
+#   THE PREDICATES STAY ORTHOGONAL. Nothing about publishing moved into lib-private-remote.sh
+#   and nothing about privacy moved into lib-publish-remote.sh; the two answers are COMBINED
+#   here, at the only caller that has both.
+#
+#   FAIL DIRECTION — UNPROVEN MEANS DO NOT PUBLISH, LOUDLY. Not private, no readable pattern
+#   file (`priv_lib_ok=0`), an unresolvable URL: every one withholds `origin` from the publish
+#   set. Withheld means it takes the existing UNDECLARED path — never pushed, never queued for
+#   a ratification no owner could resolve — plus the explicit line below saying WHY, because a
+#   silent fall-through is the whole defect being fixed. An explicitly DECLARED `origin` is
+#   untouched by this gate: the owner said so on purpose, and that is the fleet's live case
+#   (`[publish] default_remotes = ["origin"]`), so this changes nothing for a configured fleet.
+#
+#   The two membership tests are awk-over-a-herestring, not `grep -qx`: a producer piped into
+#   an early-exiting consumer is banned repo-wide (id:81d5). And the gate is skipped entirely
+#   when the repo has no `origin` remote at all — there is nothing to withhold, and a loud
+#   line about a remote that does not exist is noise.
+floor_has_origin="$(awk '$0 == "origin" { f = 1 } END { print f + 0 }' <<<"$publish_set")"
+repo_has_origin="$(awk '$0 == "origin" { f = 1 } END { print f + 0 }' <<<"$all_remotes")"
+if [ "$publish_floored" = 1 ] && [ "$floor_has_origin" = 1 ] && [ "$repo_has_origin" = 1 ]; then
+  floor_url="$(git -C "$path" remote get-url --push origin 2>/dev/null || true)"
+  floor_why=""
+  if [ -z "$floor_url" ]; then
+    floor_why="its push URL could not be resolved, so its privacy is UNDETERMINABLE"
+  elif [ "$priv_lib_ok" != 1 ]; then
+    floor_why="lib-private-remote.sh is UNREADABLE at $LIB_PRIVATE_REMOTE, so NO remote can be proven private"
+  elif ! is_private_remote_url "$floor_url"; then
+    floor_why="it is NOT provably a private/LAN host"
+  fi
+  if [ -n "$floor_why" ]; then
+    publish_set="$(printf '%s\n' "$publish_set" | awk 'NF && $0 != "origin"')"
+    printf 'integrate.sh: WITHHELD FLOOR (id:c82a): [%s] has NO `[publish] default_remotes` declared, so the publish set fell back to the built-in `origin` floor — but %s. The floor assumes `origin` is the private LAN host; that is a fleet property, not an invariant (a repo cloned from a public URL has a PUBLIC `origin`), so `origin` is NOT IN THE PUBLISH SET for this run: not publishing, not tracking. If you DO want to publish there, declare it: `[publish] default_remotes = ["origin"]` (or `publish_remotes` in [repos.%s]) in %s.\n' \
+      "$repo" "$floor_why" "$repo" \
+      "$(publish_remotes_toml_file 2>/dev/null || printf '%s' "${FABLES_CONFIG:-$HOME/.config/relay}/relay.toml")" >&2
+    log "step8 id:c82a floor WITHHELD for [$repo]: origin ($floor_url) — $floor_why"
+  else
+    log "step8 id:c82a floor ALLOWED for [$repo]: origin is provably private"
+  fi
 fi
 log "step8 id:99b7 publish set for [$repo]: [$(printf '%s' "$publish_set" | tr '\n' ' ')]"
 
 # Classify every remote. `no_push` pushurls are not remotes at all for this purpose —
 # git-lock-push.sh skips them by the same rule, so they are neither pushed nor deferred.
 to_push="" eligible_count=0
-all_remotes="$(git -C "$path" remote 2>/dev/null || true)"
 for _r in $all_remotes; do
   _rurl="$(git -C "$path" remote get-url --push "$_r" 2>/dev/null || true)"
   if [ "$_rurl" = "no_push" ]; then

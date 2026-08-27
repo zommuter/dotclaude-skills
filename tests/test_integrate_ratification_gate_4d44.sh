@@ -123,9 +123,15 @@ child() { # <main> <name> → prints the worktree path
 }
 
 cfg() { # <suffix> <repo-name> → prints the config dir with a [repos.<name>] block
+  # id:c82a — the `[publish]` table is declared EXPLICITLY, exactly as the live relay.toml
+  # does. This file is about the PRIVACY axis (private ⇒ push, public/unproven ⇒ defer for
+  # ratification), which is only reachable once a remote is IN the publish set. Left FLOORED,
+  # an `origin` that cannot be proven private is withheld before the privacy branch is ever
+  # consulted, and every case here would collapse to `push=no-upstream`. The floor's own
+  # behaviour is specified in tests/test_publish_floor_privacy_gate_c82a.sh.
   local d="$TMP/cfg-$1"
   mkdir -p "$d"
-  printf '[repos.%s]\nstatus = "active"\n' "$2" > "$d/relay.toml"
+  printf '[publish]\ndefault_remotes = ["origin"]\n\n[repos.%s]\nstatus = "active"\n' "$2" > "$d/relay.toml"
   printf '%s' "$d"
 }
 
