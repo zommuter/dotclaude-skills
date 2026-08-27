@@ -10,11 +10,22 @@
 # itself, so no dispatcher change (and no relay-loop.js prompt-template edit, the
 # loop-crash class) is required for rule 2c to actually run.
 #
-# LAYOUT (verified empirically 2026-08-26 on claude-code 2.1.246, not inferred):
+# LAYOUT (verified empirically 2026-08-26 on claude-code 2.1.246 and re-verified
+# 2026-08-27 on 2.1.247 against the live tree, not inferred):
 #
 #   $HOME/.claude/projects/<cwd-slug>/<SESSION-ID>/subagents/agent-<agentid>.jsonl
 #   $HOME/.claude/projects/<cwd-slug>/<SESSION-ID>/subagents/agent-<agentid>.meta.json
 #   $HOME/.claude/projects/<cwd-slug>/<SESSION-ID>.jsonl        <- top-level session
+#
+#   ...and, for a WORKFLOW-dispatched child (id:c219) — which is what the relay pool
+#   actually produces for handoff/execute units — one level deeper:
+#
+#   $HOME/.claude/projects/<cwd-slug>/<SESSION-ID>/subagents/workflows/wf_<id>/agent-<agentid>.jsonl
+#   $HOME/.claude/projects/<cwd-slug>/<SESSION-ID>/subagents/workflows/wf_<id>/journal.jsonl
+#
+# A 2026-08-27 census of the live tree: 25,620 transcripts in the workflow shape vs
+# 2,476 flat. Only `agent-*.jsonl` is ever a candidate, at either depth — `journal.jsonl`
+# and `*.meta.json` are not transcripts.
 #
 # THE TWO FACTS THAT MAKE THIS SOLVABLE:
 #   1. `$CLAUDE_SESSION_ID` inside a subagent resolves to the TOP-LEVEL session id (this
@@ -99,14 +110,40 @@ if [[ ! -d "$projects_root" ]]; then
 fi
 
 # ---------------------------------------------------------------- collect candidates
+# DEPTH-AGNOSTIC under subagents/ (id:c219). The original glob was
+# `<session>/subagents/agent-*.jsonl` only — one fixed level — and a
+# Workflow-dispatched child (which is what the relay pool actually produces for
+# handoff/execute units) writes one level DEEPER:
+#
+#   <session>/subagents/workflows/wf_<id>/agent-<agentid>.jsonl
+#
+# so the resolver scanned a real directory, found only the unrelated flat sibling, and
+# reported "marker matched none of the 1 transcript(s)" — making rule 2c's mandatory
+# pre-first-edit budget check a silent no-op on every pool run. A census of the live
+# tree on 2026-08-27 found 25,620 transcripts in the workflow shape against 2,476 flat:
+# the missed shape was the DOMINANT one.
+#
+# Searching at ANY depth (rather than adding a second fixed glob for `workflows/*/`)
+# dissolves the class instead of patching this one level, so the next harness nesting
+# change cannot silently re-disable the check. It stays safe because the filename
+# pattern is unchanged — only `agent-*.jsonl` is ever a candidate, so a sibling
+# `journal.jsonl` or `*.meta.json` is still never picked up — and because the marker,
+# not the search breadth, is what selects the winner.
+#
+# `-maxdepth 4` is measured against each `subagents/` root: the flat shape sits at
+# depth 1 and the workflow shape at depth 3, so 4 leaves one level of headroom without
+# turning this into an unbounded walk.
 candidates=()
 shopt -s nullglob
-for d in "$projects_root"/*/"$session_id"/subagents; do
-  [[ -d "$d" ]] || continue
-  for f in "$d"/agent-*.jsonl; do
+subagent_roots=("$projects_root"/*/"$session_id"/subagents)
+shopt -u nullglob
+if (( ${#subagent_roots[@]} > 0 )); then
+  while IFS= read -r -d '' f; do
     [[ -f "$f" && -r "$f" ]] && candidates+=("$f")
-  done
-done
+  done < <(find "${subagent_roots[@]}" -maxdepth 4 -type f -name 'agent-*.jsonl' -print0)
+fi
+
+shopt -s nullglob
 
 # A TOP-LEVEL session has no subagents/ dir of its own to be found in; its transcript is
 # the sibling <session-id>.jsonl. Only fall back to it when there are no child
@@ -119,7 +156,7 @@ fi
 shopt -u nullglob
 
 if (( ${#candidates[@]} == 0 )); then
-  echo "self-transcript.sh: no transcript found for session $session_id under $projects_root (looked for */$session_id/subagents/agent-*.jsonl then */$session_id.jsonl)" >&2
+  echo "self-transcript.sh: no transcript found for session $session_id under $projects_root (looked for agent-*.jsonl anywhere under */$session_id/subagents/ — flat and workflows/wf_*/ — then */$session_id.jsonl)" >&2
   exit 4
 fi
 

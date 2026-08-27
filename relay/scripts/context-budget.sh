@@ -31,8 +31,12 @@
 # runnable at all. Neither --bytes nor --transcript could be satisfied by a dispatched
 # child: nothing in the dispatch chain ever told it its own transcript path or size, so
 # this script was built, tested, green and UNREACHABLE. `--self` delegates to the sibling
-# `self-transcript.sh`, which resolves the CALLING agent's own
-# `.../<session>/subagents/agent-<id>.jsonl` and disambiguates sibling children by
+# `self-transcript.sh`, which resolves the CALLING agent's own `agent-<id>.jsonl`
+# anywhere under `.../<session>/subagents/` — flat OR the deeper
+# `workflows/wf_<id>/` shape a Workflow-dispatched relay child actually writes to
+# (id:c219; before that fix `--self` was inert on exactly that shape, so rule 2c's
+# "mandatory" pre-first-edit check silently returned `unknown` on every pool run) —
+# and disambiguates sibling children by
 # `--marker` (relay executor: your worktree path, which your dispatch prompt already
 # gives you). If that resolution fails it FAILS OPEN exactly like an unreadable
 # transcript — verdict `unknown`, exit 0, loud stderr — never blocking the caller.
