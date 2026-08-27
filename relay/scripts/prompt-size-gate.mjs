@@ -85,20 +85,29 @@ export const OPUS_DISPATCH_TOKEN_BUDGET = 300000
 // on. The caller passes the resolved model id (relay-loop.js: `unit.verdict === 'execute' ?
 // 'sonnet' : STRONG_MODEL`), so this file never re-derives the verdict→model mapping.
 //
-// ⚠ THE FABLE CASE IS AN OPEN OWNER DECISION — DO NOT "FIX" IT BY ANALOGY WITH OPUS.
-// When STRONG_TIER=fable, review/hard/handoff dispatch `claude-fable-5`, NOT Opus. The 300,000
-// figure was measured and ratified for OPUS ONLY. The Fable evidence is CONTRADICTORY: the
-// corpus shows a max observed context of 429,064 tok (higher than anything Opus was ever asked
-// for) AND one genuine `Prompt is too long` failure at only 177,602 tok. A tier that both
-// carries 429k and dies at 178k is not characterised, and handing it the Opus budget on the
-// assumption it behaves like Opus would trade a loud, lossless refusal for a silent mid-work
-// death (the item-(6) warning below). So Fable is treated CONSERVATIVELY — it falls through to
-// the Sonnet-tier 100,000 — until the owner rules. This is a deliberate placeholder, not an
-// oversight: whoever resolves it should raise Fable explicitly here, never by widening the
-// `startsWith` test.
+// FABLE — OWNER RULED 2026-08-27: "fable same as opus". Fable gets the 300,000 STRONG-tier
+// budget. Raised as its OWN branch below, never by widening the Opus `startsWith`, exactly as
+// the superseded placeholder here required.
+//
+// THE RULING OVERRODE A CONTRARY DATA POINT — record it, do not silently re-open it. The Fable
+// evidence is contradictory: max observed context 429,064 tok (higher than anything Opus was
+// ever asked for) AND one genuine `Prompt is too long` failure at 177,602 tok. The prior text
+// treated "carries 429k but died at 178k" as uncharacterised and fell through to the Sonnet
+// 100,000. The owner weighed that and ruled for parity with Opus. The residual risk is real and
+// unchanged: IF that 178k death was a true Fable ceiling rather than a one-off, a 300,000 budget
+// trades a loud, lossless refusal for a silent mid-work death. Fable is also only reachable via
+// STRONG_TIER=fable, which is not the default (`opus`), so the blast radius is limited to runs
+// that opt in. If a Fable child ever dies of `Prompt is too long`, THIS is the line to revisit —
+// and that death is the evidence the ruling lacked, not a reason to re-litigate it now.
+//
+// NAMING: `OPUS_DISPATCH_TOKEN_BUDGET` now serves BOTH strong tiers, so `STRONG_…` would read
+// truer. Deliberately not renamed here — five tests pin the literal string
+// `const OPUS_DISPATCH_TOKEN_BUDGET = 300000`, and churning them was not worth doing inside an
+// unrelated merge. Rename as its own change if it starts misleading anyone.
 export function dispatchBudgetForModel(model) {
   const m = String(model == null ? '' : model)
   if (m === 'claude-opus-5' || m.startsWith('claude-opus-')) return OPUS_DISPATCH_TOKEN_BUDGET
+  if (m.startsWith('claude-fable-')) return OPUS_DISPATCH_TOKEN_BUDGET
   return DISPATCH_TOKEN_BUDGET
 }
 

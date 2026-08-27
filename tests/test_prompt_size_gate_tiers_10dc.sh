@@ -23,12 +23,17 @@
 # RATIFIED (owner, 2026-08-27): Sonnet/execute → 100,000; Opus/review+hard+handoff → 300,000;
 # FIXED_OVERHEAD_TOKENS → 65,000.
 #
-# THE FABLE CASE IS UNRESOLVED AND IS PINNED CONSERVATIVE HERE. With STRONG_TIER=fable the
-# strong verdicts dispatch claude-fable-5, not Opus, and the Fable evidence is contradictory:
-# max observed context 429,064 tok, yet one genuine `Prompt is too long` at 177,602 tok. Until
-# the owner rules, Fable gets the Sonnet-tier 100,000. Case (C) pins that DELIBERATE choice —
-# if this test starts failing because someone gave Fable 300,000, that is an owner decision to
-# make explicitly, not a fix to apply by analogy with Opus.
+# THE FABLE CASE WAS RESOLVED BY THE OWNER 2026-08-27: "fable same as opus" — claude-fable-5
+# gets the 300,000 STRONG-tier budget. Case (C) now pins THAT. The ratification the previous
+# revision of this comment demanded ("an owner decision to make explicitly, not a fix to apply
+# by analogy with Opus") is exactly what happened, and the branch is explicit in both copies
+# rather than a widened Opus `startsWith`.
+#
+# THE OVERRIDDEN EVIDENCE IS STILL LIVE, so case (C) also documents it: Fable shows max observed
+# context 429,064 tok yet one genuine `Prompt is too long` at 177,602 tok. If that death was a
+# true ceiling rather than a one-off, 300,000 trades a loud refusal for a silent mid-work death.
+# A Fable `Prompt is too long` is the evidence the ruling lacked — if one appears, re-open the
+# ruling; do NOT quietly re-tighten this test instead.
 #
 # HONEST COVERAGE LIMIT (same precedent as tests/test_prompt_size_gate_4f9b.sh, id:2ec4):
 # relay-loop.js is a Workflow module that cannot be imported or executed in this harness. The
@@ -80,22 +85,35 @@ for (const m of ['', 'haiku', 'claude-sonnet-5', 'sonnet[1m]', 'gpt-nonsense'])
 out.push('null_model_is_conservative=' + (dispatchBudgetForModel(null) === DISPATCH_TOKEN_BUDGET ? '1' : '0'))
 out.push('undefined_model_is_conservative=' + (dispatchBudgetForModel(undefined) === DISPATCH_TOKEN_BUDGET ? '1' : '0'))
 
-// ── (C) FABLE — CONSERVATIVE, AND AN OPEN OWNER DECISION. ───────────────────────────────────
-// claude-fable-5 is dispatched for review/hard/handoff whenever STRONG_TIER=fable. The 300,000
-// was measured for OPUS ONLY. Fable's evidence is contradictory (429,064 tok observed; one
-// genuine failure at 177,602 tok), so it is NOT characterised and gets the Sonnet cap.
-out.push('fable_gets_conservative_budget=' + (dispatchBudgetForModel('claude-fable-5') === DISPATCH_TOKEN_BUDGET ? '1' : '0'))
-out.push('fable_does_not_get_opus_budget=' + (dispatchBudgetForModel('claude-fable-5') !== OPUS_DISPATCH_TOKEN_BUDGET ? '1' : '0'))
-// ...and it must behave that way END-TO-END, not just in the lookup: a strong unit sized for a
-// fable-tier run is refused at exactly the payload a Sonnet unit would be.
+// ── (C) FABLE — PARITY WITH OPUS, OWNER-RULED 2026-08-27. ───────────────────────────────────
+// claude-fable-5 is dispatched for review/hard/handoff whenever STRONG_TIER=fable. The owner
+// ruled "fable same as opus", so it gets the 300,000 STRONG-tier budget via its OWN branch —
+// never a widened Opus `startsWith`. The overridden evidence (429,064 tok observed; one genuine
+// failure at 177,602 tok) is recorded in both module copies; see this file's header.
+out.push('fable_gets_strong_budget=' + (dispatchBudgetForModel('claude-fable-5') === OPUS_DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+out.push('fable_is_not_sonnet_capped=' + (dispatchBudgetForModel('claude-fable-5') !== DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+// The branch must be EXPLICIT, not a widened Opus prefix test: a fable id must not match via
+// any 'claude-opus-' rule, and an unrelated strong-sounding model must still be conservative.
+out.push('unknown_strong_model_still_conservative=' + (dispatchBudgetForModel('claude-sonnet-5') === DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+// ...and parity must hold END-TO-END, not just in the lookup: the same strong unit that
+// dispatches on Opus must now dispatch on Fable too, at the identical payload.
 {
   const u = { repo: 'fixture', path: '/p/x', verdict: 'review',
               roadmap_bytes: 150000, todo_bytes: 150000 }
   const fable = oversizeDispatchReason(u, P, dispatchBudgetForModel('claude-fable-5'))
   const opus  = oversizeDispatchReason(u, P, dispatchBudgetForModel('claude-opus-5'))
-  out.push('fable_strong_unit_refused=' + (fable ? '1' : '0'))
-  out.push('fable_refusal_quotes_sonnet_cap=' + (fable.includes(String(DISPATCH_TOKEN_BUDGET) + ' tok dispatch budget') ? '1' : '0'))
+  out.push('fable_strong_unit_dispatches=' + (fable === '' ? '1' : '0'))
   out.push('same_unit_dispatches_on_opus=' + (opus === '' ? '1' : '0'))
+  out.push('fable_and_opus_agree=' + (fable === opus ? '1' : '0'))
+}
+// A unit too big for BOTH strong tiers must still be refused on Fable, quoting the strong cap —
+// parity must not become "Fable is never refused".
+{
+  const huge = { repo: 'fixture', path: '/p/x', verdict: 'review',
+                 roadmap_bytes: 900000, todo_bytes: 900000 }
+  const fable = oversizeDispatchReason(huge, P, dispatchBudgetForModel('claude-fable-5'))
+  out.push('oversize_fable_unit_still_refused=' + (fable ? '1' : '0'))
+  out.push('fable_refusal_quotes_strong_cap=' + (fable.includes(String(OPUS_DISPATCH_TOKEN_BUDGET) + ' tok dispatch budget') ? '1' : '0'))
 }
 
 // ── (D) BEHAVIOURAL SPLIT — the same unit, sized against each tier. ─────────────────────────
@@ -237,12 +255,19 @@ grep -q '28,365' "$GATE" \
 grep -qi 'ceiling.*UNKNOWN\|UNKNOWN' "$GATE" \
   && ok "prompt-size-gate.mjs records honestly that Opus's true ceiling is UNKNOWN" \
   || bad "id:10dc: prompt-size-gate.mjs does not record that 378,108 is a DEMAND, not a limit"
-grep -q 'FABLE' "$GATE" \
-  && ok "the unresolved Fable case is flagged in the module" \
-  || bad "id:10dc: the Fable case is not flagged in prompt-size-gate.mjs"
-grep -q 'FABLE IS AN OPEN OWNER DECISION' "$JS" \
-  && ok "the unresolved Fable case is flagged at the inline copy too" \
-  || bad "id:10dc: the Fable case is not flagged in relay-loop.js"
+grep -q 'FABLE — OWNER RULED' "$GATE" \
+  && ok "prompt-size-gate.mjs records the Fable ruling" \
+  || bad "id:10dc: the Fable ruling is not recorded in prompt-size-gate.mjs"
+grep -q 'FABLE — OWNER RULED' "$JS" \
+  && ok "the Fable ruling is recorded at the inline copy too" \
+  || bad "id:10dc: the Fable ruling is not recorded in relay-loop.js"
+# The ruling OVERRODE a contrary measurement. Both copies must keep that data point visible, so
+# a future reader can re-open the ruling on evidence instead of rediscovering the conflict.
+for f in "$GATE" "$JS"; do
+  grep -q '177,602' "$f" \
+    && ok "the overridden Fable failure datum survives in $(basename "$f")" \
+    || bad "id:10dc: $(basename "$f") drops the 177,602 datum the Fable ruling overrode"
+done
 
 echo "---"
 echo "summary: $pass ok, $fail bad"

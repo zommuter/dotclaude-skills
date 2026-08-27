@@ -2994,13 +2994,17 @@ const FIXED_OVERHEAD_TOKENS = 65000
 // dispatchBudgetForModel — INLINE COPY of prompt-size-gate.mjs (keep byte-identical). Keyed off
 // the RESOLVED MODEL, so the verdict→model mapping stays in ONE place (the `unitModel` line at
 // the dispatch site) and cannot drift into a second copy here.
-// ⚠ FABLE IS AN OPEN OWNER DECISION: `claude-fable-5` deliberately falls through to the
-// conservative Sonnet-tier 100,000 — the 300,000 was measured and ratified for OPUS ONLY, and
-// the Fable evidence is contradictory (max observed context 429,064 tok, yet one genuine
-// `Prompt is too long` at 177,602 tok). Do NOT widen this to Fable by analogy.
+// FABLE — OWNER RULED 2026-08-27 ("fable same as opus"): its OWN branch below, never a widened
+// Opus `startsWith`. The ruling OVERRODE a contrary data point, recorded so it is not silently
+// re-opened: Fable shows max observed context 429,064 tok yet one genuine `Prompt is too long`
+// at 177,602 tok. If that death was a true ceiling, 300,000 trades a loud refusal for a silent
+// mid-work death; Fable is only reachable via STRONG_TIER=fable (not the default), so the blast
+// radius is opt-in runs. A Fable `Prompt is too long` is the evidence the ruling lacked — THIS
+// is the line to revisit if one appears.
 function dispatchBudgetForModel(model) {
   const m = String(model == null ? '' : model)
   if (m === 'claude-opus-5' || m.startsWith('claude-opus-')) return OPUS_DISPATCH_TOKEN_BUDGET
+  if (m.startsWith('claude-fable-')) return OPUS_DISPATCH_TOKEN_BUDGET
   return DISPATCH_TOKEN_BUDGET
 }
 // The BOUNDED allowance charged for RELAY_LOG.md on a review unit (see prompt-size-gate.mjs
