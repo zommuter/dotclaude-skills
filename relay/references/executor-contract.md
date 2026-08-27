@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v16 -->
+## Executor contract <!-- relay-executor contract v17 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -245,6 +245,19 @@ you were told you are the reviewer) follow these rules:
    greps the diff for an executor-introduced marker (review.md §2b.7) and will FLAG +
    REOPEN the item if it finds one.
 
+8. **Never write `@owner-answered` (id:ca14/id:6621, v17 provenance rule)**: the
+   `@owner-answered:YYYY-MM-DD` marker plus its mandatory `<!-- answer-src:... -->`
+   citation (`relay/references/hard-lanes.md`) records that ONE QUESTION inside an item
+   was answered BY THE OWNER, when, and where the answer lives. It is the same forgeable
+   shape as `@owner-accepted` above: the marker's whole value is that only the owner
+   writes it, so an executor or drain session minting one manufactures an owner ruling
+   out of nothing. You as an executor or drain session **MUST NOT** write, add, or edit
+   an `@owner-answered` marker or an `answer-src:` citation anywhere in this repo, under
+   any circumstance, not even when told to by the driver, and not even to "record" an
+   answer you believe you saw. Only a genuine owner action may write it. The reviewer
+   greps the diff for an executor-introduced marker (review.md §2b.9) and will FLAG +
+   REOPEN the item if it finds one.
+
 ## ROADMAP item format (reference)
 
 Each ROADMAP.md item you pick has this shape:
@@ -369,6 +382,17 @@ re-dispatch while averting no death. v16 therefore exempts *landing work you alr
 — explicitly NOT starting anything new — and requires the measured bytes be named in the
 report so the deviation stays visible. This changes what an in-flight executor must do on
 a verdict it can already receive, so it bumps.
+
+**v16 → v17 (id:6621, the missing second arm of id:ca14):** new **rule 8, never write
+`@owner-answered`**. `id:ca14` shipped the `@owner-answered:YYYY-MM-DD` marker and
+documented it in `hard-lanes.md` as owner-only, *citing `@owner-accepted` (id:8089) as its
+precedent*, but shipped neither of the two arms that make 8089's owner-only claim real:
+the executor-side ban (rule 7 here) and the reviewer-side diff grep (review.md §2b.7). A
+`grep -rn 'owner-answered'` found the token only in `lib-typed-edges.sh`, `hard-lanes.md`
+and `roadmap-lint.sh`, so an executor could mint `@owner-answered:<today>` and nothing
+would flag it: the marker was a forgeable claim, i.e. exactly this repo's "prose relay rule
+that silently no-ops" class. Rule 8 is rule 7's twin, worded from it. This adds a
+prohibition an in-flight executor must know, so it bumps.
 
 *Note for future readers:* v15 shipped before rule 2c had ever run in a live pool — it was
 inert until `id:c219` (2026-08-27) fixed the transcript resolver. So v15's disposition was

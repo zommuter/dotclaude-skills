@@ -111,6 +111,46 @@ do not re-implement them inline.
    FLAG loudly (REVIEW_ME box) when the only wiring you can find is a dev harness or test
    fixture mistaken for shipped — the incident this guards against.
 
+9. **Executor-introduced `@owner-answered` (id:ca14/id:6621 provenance gaming-check)**:
+   grep the reviewed diff (`$LAST`..HEAD) for `@owner-answered:` and for
+   `<!-- answer-src:` in any executor-attributed commit. The marker records that the
+   OWNER answered a question inside the item; it is spoofable by exactly the actor whose
+   re-asks it exists to stop, so the executor contract (v17, rule 8) FORBIDS
+   executors/drain sessions from writing it. If the diff shows either half introduced by
+   an executor commit rather than a genuine owner action: **flag it and reopen the item**
+   (same forcing-function shape as §2b.7). Suggested command:
+
+   ```bash
+   git -C <repo> log --format='%H %an' "$LAST"..HEAD | while read -r sha who; do
+     git -C <repo> show --format= -U0 "$sha" -- '*.md' \
+       | grep -nE '^\+.*(@owner-answered:|<!-- answer-src:)' >/dev/null \
+       && echo "PROVENANCE: $sha ($who) introduces an owner-answered marker"
+   done
+   ```
+
+10. **MODIFIED `@owner-answered` line = contradiction review (id:6621)**: a diff hunk
+    that changes a ledger line ALREADY carrying `@owner-answered` is the incident shape:
+    in the loderite `id:ed3a` case a later author edited the ROADMAP line to assert the
+    OPPOSITE of the answer the item's own body quoted, and nothing noticed, because a
+    recorded answer is only prose to every tool that reads the line. This check is
+    ORTHOGONAL to §2b.9: 9 asks *who wrote the marker*, 10 asks *what happened to a line
+    that already had one*, and 10 fires even when the marker itself is untouched. Find the
+    hunks with:
+
+    ```bash
+    git -C <repo> diff -U0 "$LAST"..HEAD -- ROADMAP.md TODO.md REVIEW_ME.md \
+      | grep -nE '^-.*@owner-answered'
+    ```
+
+    For each hit: OPEN the `answer-src:` citation on that line, read the recorded answer,
+    and compare it against the new text. If the new text asserts anything the cited answer
+    contradicts (or quietly drops the marker), **flag it and reopen the item**; name the
+    citation path in the flag so the next reader does not have to re-derive it. If the
+    edit is compatible (wording, a new child, an unrelated clause), say so explicitly in
+    the report; a silent pass here is indistinguishable from not having looked. This is
+    JUDGMENT, not a mechanical verdict: the grep finds the candidates, you read the answer.
+    It never suppresses or auto-closes anything.
+
 Anything flagged here (from either the mechanical pass or the judgment residue) is
 surfaced prominently in the return report and the roadmap item is reopened.
 

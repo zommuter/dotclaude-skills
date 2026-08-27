@@ -19,6 +19,17 @@
 #   repo  path  kind  box_summary
 #
 # kind:
+#   answered_question — an open `- [ ]` item (ROADMAP.md / TODO.md / REVIEW_ME.md) that
+#                carries the owner-only `@owner-answered:YYYY-MM-DD` marker (id:ca14): ONE
+#                QUESTION inside it already has a recorded owner answer, and box_summary
+#                names the `answer-src:` citation. Emitted FIRST for the repo so a human
+#                triage or a /meeting agenda-builder reads "already answered, cited at X"
+#                BEFORE it re-opens the question (id:6621, the consumer side of ca14 —
+#                grammar lint alone caught none of the three loderite `id:ed3a` re-asks).
+#                PURELY ADDITIVE, surface-never-suppress: the item ALSO keeps every other
+#                row it had (hard_pool, review_me, ...), no bucket loses a member, and no
+#                dispatch verdict changes. The marker does NOT mean "tick me" — an item
+#                may legitimately stay open with one question inside it settled.
 #   review_me  — an open `- [ ]` box in the repo's REVIEW_ME.md
 #   manual     — an open `- [ ]` box tagged `@manual` (REVIEW_ME.md or ROADMAP.md);
 #                a human must RUN it, so it is NEVER auto-tickable (surface only).
@@ -92,7 +103,8 @@
 # ============================================================================
 # Do NOT pipe this collector through `head`/`tail`/`sed Nq`, and do not let a
 # sub-agent summarise it from a capped preview. Rows are emitted PER REPO in a
-# FIXED order — ROADMAP hard lanes, then TODO hard lanes, then mechanical rows,
+# FIXED order — `answered_question` (id:6621), then ROADMAP hard lanes, then TODO
+# hard lanes, then mechanical rows,
 # then `ratification_pending` (id:4d44), then `review_me` (REVIEW_ME.md), then
 # ROADMAP `@manual` — so `review_me`, the
 # one bucket `/relay human` exists to serve, is emitted LAST and is the FIRST
@@ -285,6 +297,64 @@ emit_roadmap_manual() {
     summary="$(printf '%s' "$line" | tr '\t\n' '  ' | sed -E 's/^[[:space:]]*- \[ \] //; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
     printf '%s\t%s\t%s\t%s\n' "$name" "$path" manual "$summary"
   done < <(grep -nE '^[[:space:]]*- \[ \] ' "$file" | sed -E 's/^[0-9]+://')
+  return 0
+}
+
+# --- @owner-answered surfacer (id:6621, consumer side of id:ca14) ------------
+# is_answered_marker <line> — true iff <line> carries an `@owner-answered` marker outside
+# any backtick-quoted span. Same anchoring + backtick-masking contract as
+# is_manual_marker() above, and an in-file copy for the same stated reason (this script
+# does not source lib-typed-edges.sh; mask_backticks is already duplicated here per the
+# hooks/pre-commit-lane-vocab.sh precedent). NOTE the trailing class excludes `:` so the
+# well-formed `@owner-answered:2026-08-14` matches, while `@owner-answeredish` does not.
+is_answered_marker() {
+  local line="$1" masked
+  masked="$(mask_backticks "$line")"
+  grep -qiE '(^|[^[:alnum:]_])@owner-answered([^[:alnum:]_-]|$)' < <(printf '%s' "$masked")
+}
+
+# answer_src_of_line <line> — the SOURCE of the mandatory `<!-- answer-src:<SOURCE> -->`
+# citation, or empty. Comment-anchored exactly like lib-typed-edges.sh's
+# typed_edges_answer_src_of_line(), never a raw-line substring (the id:4da4/id:0d58 trap).
+answer_src_of_line() { grep -oP '(?<=<!-- answer-src:)[^[:space:]]+(?= -->)' <<<"$1" || true; }
+
+# emit_answered_questions <name> <path> — one `answered_question` row per OPEN `- [ ]`
+# line carrying `@owner-answered`, across ROADMAP.md, TODO.md and REVIEW_ME.md.
+#
+# SURFACE, NEVER SUPPRESS. This emitter is purely ADDITIVE: it changes no existing row,
+# removes nothing from any bucket, and touches no dispatch verdict. An item carrying the
+# marker still appears in every bucket it appeared in before (hard_pool, review_me, ...)
+# — the marker says ONE QUESTION inside the item is answered, not that the item is done,
+# which is the loderite `id:ed3a` shape itself. A mechanism that quietly dropped answered
+# items off a human's list would be a WORSE failure than the re-asks it is fixing.
+#
+# Emitted FIRST for the repo, deliberately: the CALLER CONTRACT above pins `review_me` as
+# the LAST bucket (a truncating reader loses it first), and an agenda-builder wants the
+# "already answered, cited at X" rows before it reads the questions.
+emit_answered_questions() {
+  local name="$1" path="$2" file f line summary src date_str
+  for f in ROADMAP.md TODO.md REVIEW_ME.md; do
+    file="$path/$f"
+    [[ -f "$file" ]] || continue
+    while IFS= read -r line; do
+      is_answered_marker "$line" || continue
+      summary="$(printf '%s' "$line" | tr '\t\n' '  ' | sed -E 's/^[[:space:]]*- \[ \] //; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
+      src="$(answer_src_of_line "$line")"
+      # A marked line with no citation is roadmap-lint rule 3(h)'s LOUD error; this
+      # collector is read-only and never lints, so it says so in the row rather than
+      # dropping it — an uncited claim is exactly what a re-asker must see.
+      [[ -n "$src" ]] || src='(MISSING CITATION -- roadmap-lint rule 3(h) ERROR)'
+      # NOT `grep … | head -1`: an early-exiting consumer under `pipefail` is the id:81d5
+      # at-risk shape the repo lints for. Capture every hit, then take the first in-shell.
+      local _hits
+      _hits="$(grep -oiE '@owner-answered:[0-9]{4}-[0-9]{2}-[0-9]{2}' <<<"$line" || true)"
+      date_str="${_hits%%$'\n'*}"
+      date_str="${date_str#*:}"
+      [[ -n "$date_str" ]] || date_str='(MALFORMED DATE)'
+      printf '%s\t%s\t%s\t%s\n' "$name" "$path" answered_question \
+        "$f: RECORDED ANSWER ($date_str), cited at ${src} -- READ IT BEFORE RE-ASKING: $summary"
+    done < <(grep -E '^[[:space:]]*- \[ \] ' "$file")
+  done
   return 0
 }
 
@@ -654,6 +724,14 @@ scan_repo() {
     return 0
   fi
   warn_nested_worktrees "$name" "$path"
+  # id:6621 — `answered_question` rows FIRST (see emit_answered_questions): purely
+  # additive surfacing of items that already carry an owner-recorded answer, so a human
+  # triage or a meeting agenda sees the citation before re-opening the question. rc-
+  # captured and LOUD-on-failure like every other emitter (id:da87).
+  local ans_rc=0 ans_out=""
+  ans_out="$(emit_answered_questions "$name" "$path")" || ans_rc=$?
+  if (( ans_rc != 0 )); then emitter_failed "$name" "answered-question" "$ans_rc"; fi
+  if [[ -n "$ans_out" ]]; then printf '%s\n' "$ans_out"; fi
   # Open [HARD] ROADMAP items, bucketed by explicit lane tag (id:78ff). A nonzero
   # return (status 3) means an untagged HARD item was seen — record it for the LOUD
   # nonzero exit at end of run; `|| rc=$?` keeps `set -e` from aborting mid-scan.

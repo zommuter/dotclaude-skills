@@ -223,6 +223,11 @@ claim, exactly the thing this marker exists to replace.
 `@owner-accepted` (id:8089). An executor or reviewer minting it would be asserting that the
 owner decided something, which is the gaming class, not a bookkeeping shortcut. An agent that
 BELIEVES a question is already answered quotes the source and asks the owner to mark it.
+That rule is ENFORCED, not merely stated (id:6621, the second arm `ca14` shipped without):
+`relay/references/executor-contract.md` rule 8 (v17) forbids an executor/drain session from
+writing the marker or its citation, and `relay/references/review.md` §2b.9 greps the reviewed
+diff for either half in an executor-attributed commit and reopens the item. §2b.10 additionally
+flags any diff that MODIFIES a line already carrying the marker, for contradiction review.
 
 **It does NOT mean "tick me".** An item may legitimately stay open (gated children, remaining
 work) while one question inside it is settled. `@owner-answered` therefore neither implies a
