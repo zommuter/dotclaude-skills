@@ -48,6 +48,10 @@ cat >"$tmp/TODO.md" <<'MD'
 - [ ] twin stub <!-- id:a00a -->
 - [ ] twin stub <!-- id:a00b -->
 - [ ] twin stub <!-- id:a00c -->
+- [ ] twin stub <!-- id:a00d -->
+- [ ] twin stub <!-- id:a00e -->
+- [ ] twin stub <!-- id:a00f -->
+- [ ] twin stub <!-- id:a010 -->
 MD
 
 R="$tmp/ROADMAP.md"
@@ -66,6 +70,10 @@ cat >"$R" <<'MD'
 - [ ] [INPUT — access] a human lane under a parked heading — legitimate <!-- id:a004 -->
 - [ ] [MECHANICAL] pool-inert and human-inert — legitimate under a parked heading <!-- id:a005 -->
 - [x] [ROUTINE] a CLOSED pool-executable item under a parked heading — never linted <!-- id:a006 -->
+- [ ] [INPUT — access] human primary lane; prose mentions `[HARD — pool]` historically <!-- id:a00d -->
+- [ ] [INPUT — meeting] human primary lane; was `[ROUTINE]`-tagged there historically <!-- id:a00e -->
+- [ ] [INTENSIVE — local-llm] [HARD] resource-first composed run — still a violation <!-- id:a00f -->
+- [ ] [HARD] [INTENSIVE — disk-io] lane-first composed run — still a violation <!-- id:a010 -->
 
 ## Deferred
 
@@ -126,6 +134,26 @@ grep -q 'ERROR — PARKED-POOL-LANE' "$tmp/err" \
 # incident.
 grep -q 'PARKED-POOL-LANE: open item id:a00a' "$tmp/err" \
   || fail "bare [HARD] under a parked heading did not fire 3(g) (err: $(cat "$tmp/err"))"
+
+# --- ANCHORING: 3(g) reads the item's LEADING lane run, never the raw line ------
+# Regression for a defect found by the 2026-08-27 fleet sweep: the first version
+# matched $pool_lane_re against the whole line, so a BACKTICK'D audit-trail mention
+# of a pool tag fired an ERROR on an item whose live primary lane is human. Three
+# real false positives fleet-wide (loderite affd + 1e21, toesnail 8807).
+! grep -q 'id:a00d' "$tmp/err" \
+  || fail "[INPUT — access] item with a backtick'd [HARD — pool] prose mention wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+! grep -q 'id:a00e' "$tmp/err" \
+  || fail "[INPUT — meeting] item with a backtick'd [ROUTINE] prose mention wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+
+# ...but a composed run still fires in BOTH orders. `[INTENSIVE — <res>]` is not a
+# lane (it is the orthogonal resource axis) and is absent from all_lane_tags, so a
+# resource-FIRST item would stop leading_lane_run dead and silently escape unless
+# the resource brackets are stripped first. Relying on lane-first authoring
+# convention is exactly the class id:d35a is about.
+grep -q 'PARKED-POOL-LANE: open item id:a00f' "$tmp/err" \
+  || fail "resource-first [INTENSIVE — local-llm] [HARD] under a parked heading did not fire 3(g) (err: $(cat "$tmp/err"))"
+grep -q 'PARKED-POOL-LANE: open item id:a010' "$tmp/err" \
+  || fail "lane-first [HARD] [INTENSIVE — disk-io] under a parked heading did not fire 3(g) (err: $(cat "$tmp/err"))"
 
 pass "3(g) PARKED-POOL-LANE: [ROUTINE]/[HARD]/legacy [HARD — pool] under a parked heading are unconditional violations; human lanes + [MECHANICAL] + closed items + active-heading items stay silent (id:d35a)"
 

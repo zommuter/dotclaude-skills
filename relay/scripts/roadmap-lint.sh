@@ -455,7 +455,27 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # deliberate exception to the exempt-section skip; nothing else runs on these
   # lines.
   if [[ "$in_exempt_section" -eq 1 ]]; then
-    if [[ "$line" =~ $pool_lane_re ]]; then
+    # Anchor on the item's LEADING lane run, never the raw line (defect found by
+    # the 2026-08-27 fleet sweep: matching $pool_lane_re against the whole line
+    # produced 3 false positives in 38 fleet findings -- loderite affd/1e21 and
+    # toesnail 8807 -- where the live primary lane is human ([INPUT - access] /
+    # [INPUT - meeting] / a bare @container umbrella) and the only pool tag is a
+    # BACKTICK'D audit-trail mention in prose, e.g. "`[ROUTINE]`-tagged there
+    # historically". leading_lane_run returns only the contiguous recognized lane
+    # brackets at the item's start, so trailing prose mentions cannot fire. This is
+    # the same anchoring lane-convert.sh and first_lane_tag use; matching the raw
+    # line was the odd one out.
+    #
+    # `[INTENSIVE - <res>]` is deliberately NOT in all_lane_tags (it is the
+    # orthogonal RESOURCE axis, not a lane), so leading_lane_run stops dead at it
+    # and a resource-first item like `[INTENSIVE - local-llm] [HARD]` would return
+    # an empty run and silently escape. Convention is lane-first, but relying on
+    # authoring convention is what id:d35a is about, so strip the resource brackets
+    # before computing the run. Stripping cannot manufacture a violation: removing
+    # a bracket can only ever leave prose where a tag would have to be.
+    _pp_line="$(printf '%s' "$line" | sed -E 's/\[INTENSIVE[^]]*\]//g')"
+    _pp_run="$(leading_lane_run "$_pp_line")"
+    if [[ -n "$_pp_run" && "$_pp_run" =~ $pool_lane_re ]]; then
       _pp_tag="${BASH_REMATCH[0]}"
       _pp_id="$(item_id "$line")"
       violations=$((violations + 1))
