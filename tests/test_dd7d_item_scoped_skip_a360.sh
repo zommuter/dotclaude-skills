@@ -77,6 +77,11 @@ const emittedHandbackEvents = []
 const sliceLedgerForUnit = async () => null
 const oversizeDispatchReason = () => ''
 const unitPrompt = () => ''
+// id:10dc — the extracted region resolves this unit's tier budget before the gate, so the
+// stand-alone harness needs the same two names in scope. Neither affects this test: the gate
+// itself is stubbed to '' above, so no budget is ever compared against anything.
+const STRONG_MODEL = 'claude-opus-5'
+const dispatchBudgetForModel = () => 100000
 // The fake scanner: keyed on the item the region is CURRENTLY selecting, exactly as the real
 // strandedBranchesFor is (it calls dispatchItemFor(unit) itself).
 // Mirrors the real one's contract: repo-scoped units (no item id) always return [].

@@ -161,6 +161,11 @@ const scheduleStatusWrite = () => {}
 const sliceLedgerForUnit = async () => null
 const oversizeDispatchReason = () => ''
 const unitPrompt = () => ''
+// id:10dc — the extracted region resolves this unit's tier budget before the gate, so the
+// stand-alone harness needs the same two names in scope. Neither affects this test: the gate
+// itself is stubbed to '' above, so no budget is ever compared against anything.
+const STRONG_MODEL = 'claude-opus-5'
+const dispatchBudgetForModel = () => 100000
 
 // The REAL scanner, invoked exactly as relay-loop.js's strandedBranchesFor invokes it (same
 // argv, same "<branch>\t<count>" line contract, same repo-scoped ⇒ [] rule, same fail-open).

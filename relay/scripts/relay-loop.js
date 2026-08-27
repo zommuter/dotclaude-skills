@@ -2978,8 +2978,31 @@ function hardNamedInstruction(unit) {
 // handback (and, on 2026-08-01, as `## Blocked / HANDBACKs _(none)_` — a false clean).
 // See that module for the budget derivation and the fail-open rationale.
 const CHARS_PER_TOKEN = 4
+// PER-TIER since 2026-08-27 (id:10dc, owner-ratified). DISPATCH_TOKEN_BUDGET is the Sonnet /
+// `execute` cap AND the conservative default; OPUS_DISPATCH_TOKEN_BUDGET applies to
+// `claude-opus-5` only. The b018 comment that used to sit in the module claiming "all four
+// dispatched models carry a 200,000-token context window, so a tier table would hold four
+// identical rows" is MEASURED FALSE and its own pre-registered split trigger has fired — see
+// prompt-size-gate.mjs for the 28,365-transcript census (id:7829/id:10dc) and the honest note
+// that Opus's true ceiling is UNKNOWN (378,108 tok is the largest ever DEMANDED, not a limit).
 const DISPATCH_TOKEN_BUDGET = 100000
-const FIXED_OVERHEAD_TOKENS = 12000
+const OPUS_DISPATCH_TOKEN_BUDGET = 300000
+// FIXED_OVERHEAD_TOKENS corrected 12,000 → 65,000 in the same ratified change: the 12,000 was
+// never measured and the real preamble is ~4.9x larger, so the gate is now TIGHTER at the
+// Sonnet tier and refuses more execute units. That is the correction working, not a regression.
+const FIXED_OVERHEAD_TOKENS = 65000
+// dispatchBudgetForModel — INLINE COPY of prompt-size-gate.mjs (keep byte-identical). Keyed off
+// the RESOLVED MODEL, so the verdict→model mapping stays in ONE place (the `unitModel` line at
+// the dispatch site) and cannot drift into a second copy here.
+// ⚠ FABLE IS AN OPEN OWNER DECISION: `claude-fable-5` deliberately falls through to the
+// conservative Sonnet-tier 100,000 — the 300,000 was measured and ratified for OPUS ONLY, and
+// the Fable evidence is contradictory (max observed context 429,064 tok, yet one genuine
+// `Prompt is too long` at 177,602 tok). Do NOT widen this to Fable by analogy.
+function dispatchBudgetForModel(model) {
+  const m = String(model == null ? '' : model)
+  if (m === 'claude-opus-5' || m.startsWith('claude-opus-')) return OPUS_DISPATCH_TOKEN_BUDGET
+  return DISPATCH_TOKEN_BUDGET
+}
 // The BOUNDED allowance charged for RELAY_LOG.md on a review unit (see prompt-size-gate.mjs
 // for the 1,050-transcript census, the contract citations, and the tighter 8,192 B alternative
 // left for the owner). 32,768 B is the smallest round bound above the largest whole-file read
@@ -4148,7 +4171,14 @@ async function runUnit(unit) {
   // FAIL-OPEN: a unit with no ledger measurement at all can never trip this.
   // The handback is emitted on BOTH surfaces (event log + accumulator) so the id:4a46
   // bidirectional invariant holds; worktreePath is '-' because nothing was created.
-  const oversizeReason = oversizeDispatchReason(unit, unitPrompt(unit).length)
+  // id:10dc — the budget is PER TIER, keyed off the model this unit will ACTUALLY run on.
+  // `unitModel` is the SINGLE source of the verdict→model mapping: it is resolved here, BEFORE
+  // the gate, and reused verbatim for `opts.model` at the dispatch call below — so the gate can
+  // never size a unit against a different tier from the one it is handed to. Sonnet/execute is
+  // capped at 100,000; claude-opus-5 at 300,000; claude-fable-5 falls through to the
+  // conservative 100,000 pending an owner ruling (see dispatchBudgetForModel).
+  const unitModel = unit.verdict === 'execute' ? 'sonnet' : STRONG_MODEL
+  const oversizeReason = oversizeDispatchReason(unit, unitPrompt(unit).length, dispatchBudgetForModel(unitModel))
   if (oversizeReason) {
     log(`relay-loop: ${oversizeReason}`)
     state.handbacks.push({ repo: unit.repo, reason: oversizeReason, worktreePath: '-' })
@@ -4197,8 +4227,10 @@ async function runUnit(unit) {
   // cosmetic label is not worth reshaping another item's contract. Follow-up, not a defect.)
   const knownItem = unit.inject_item || unit.item || ''
   const opts = { label: `${unit.verdict}:${unit.repo}${knownItem ? ` id:${knownItem}` : ''}`, phase: unitPhase(unit.verdict), schema: REPORT_SCHEMA }
-  if (unit.verdict === 'execute') opts.model = 'sonnet'
-  else opts.model = STRONG_MODEL
+  // id:10dc — reuse the SAME `unitModel` the prompt-size gate was keyed off above. Do NOT
+  // re-derive the verdict→model mapping here: a second copy could drift and let the gate size a
+  // unit against a tier it is not actually dispatched on.
+  opts.model = unitModel
   // API-error failsafe: agent() can throw or return null on a terminal API error after
   // the harness's own retries. Don't let that orphan a worktree with committed
   // checkpoints — catch it, and for a handoff attempt ONE auto-resume from the last

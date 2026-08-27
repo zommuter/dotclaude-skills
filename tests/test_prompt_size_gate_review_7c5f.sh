@@ -93,9 +93,12 @@ import { oversizeDispatchReason, sliceLedgerHeadroom, estimateDispatchTokens, co
 const out = []
 const P = 1000
 
-// Sizing: budget 100000 tok, 12000 tok fixed overhead ⇒ ~352,000 B of countable payload.
-// ROADMAP + TODO alone sit UNDER it; adding the two review-only ledgers pushes OVER.
-const RM = 150000, TD = 180000, RME = 60000, RLOG = 40000
+// Sizing: budget 100000 tok, 65000 tok fixed overhead (id:10dc — corrected 2026-08-27 from an
+// unmeasured 12,000) ⇒ ~140,000 B of countable payload. ROADMAP + TODO alone sit UNDER it;
+// adding the two review-only ledgers pushes OVER. These figures were RESCALED with that
+// overhead correction: the shape under test is the verdict-dependent counted SET, not any
+// particular byte count, so the fixtures track the constants.
+const RM = 40000, TD = 60000, RME = 60000, RLOG = 40000
 const base = { repo: 'fixture', path: '/p/x', roadmap_bytes: RM, todo_bytes: TD,
                review_me_bytes: RME, relay_log_bytes: RLOG }
 
@@ -182,11 +185,12 @@ out.push('review_only_ledgers_sizeable=' + (oversizeDispatchReason(
 
   // BEHAVIOURAL: a review unit refused SOLELY because of a whole-file RELAY_LOG charge now
   // dispatches — that is the over-count this change removes.
+  // (rescaled with the id:10dc overhead correction, same shape as before)
   const u = { repo: 'fixture', path: '/p/x', verdict: 'review',
-              roadmap_bytes: 100000, todo_bytes: 100000, review_me_bytes: 20000, relay_log_bytes: 400000 }
+              roadmap_bytes: 40000, todo_bytes: 40000, review_me_bytes: 20000, relay_log_bytes: 400000 }
   out.push('windowed_review_dispatches=' + (oversizeDispatchReason(u, P) === '' ? '1' : '0'))
   out.push('same_unit_over_budget_if_charged_whole=' +
-    (estimateDispatchTokens(P, 100000 + 100000 + 20000 + 400000, 0) > DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+    (estimateDispatchTokens(P, 40000 + 40000 + 20000 + 400000, 0) > DISPATCH_TOKEN_BUDGET ? '1' : '0'))
 
   // ...and the remedy is now a RUNNABLE command (relay-log-archive.sh landed 2026-08-27),
   // not the stale "has NO archiver" prose.
@@ -200,7 +204,9 @@ out.push('review_only_ledgers_sizeable=' + (oversizeDispatchReason(
   out.push('headroom_relay_log_windowed=' + (h.largestLedgerBytes === RELAY_LOG_WINDOW_BYTES ? '1' : '0'))
 }
 
-// (6) The budget literal is untouched (test_prompt_size_gate_4f9b.sh pins it in both copies).
+// (6) The SONNET budget literal is untouched — DISPATCH_TOKEN_BUDGET is now the Sonnet/execute
+//     tier cap (id:10dc added OPUS_DISPATCH_TOKEN_BUDGET = 300000 alongside it, it did not
+//     widen this one). test_prompt_size_gate_4f9b.sh pins both in both copies.
 out.push('budget_unchanged=' + (DISPATCH_TOKEN_BUDGET === 100000 ? '1' : '0'))
 
 console.log(out.join('\n'))

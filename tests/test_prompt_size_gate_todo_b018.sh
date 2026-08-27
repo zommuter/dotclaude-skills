@@ -81,26 +81,48 @@ grep -q 'todo_bytes' "$CR" \
 # ── (B) BEHAVIOUR: the pure gate must count BOTH ledgers. Driven with a SMALL promptChars so
 #        the roadmap-only estimate reproduces the incident's own 'under budget by 326'. ──────
 cat > "$TMP/drive.mjs" <<NODE
-import { oversizeDispatchReason, estimateDispatchTokens, DISPATCH_TOKEN_BUDGET } from 'file://$GATE'
+import { oversizeDispatchReason, estimateDispatchTokens, DISPATCH_TOKEN_BUDGET, OPUS_DISPATCH_TOKEN_BUDGET } from 'file://$GATE'
 const out = []
 const P = 1000                    // small assembled prompt: the ledgers dominate, as in the incident
 const LODERITE_ROADMAP = 350698
 const LODERITE_TODO    = 392043
 
-// (1) The incident, reproduced. ROADMAP alone is UNDER budget — that is why the child was
-//     dispatched at all. This case documents the trap; it must keep holding after the fix.
+// (1) The incident, and WHY it can no longer happen the same way. At the constants of the day
+//     (FIXED_OVERHEAD_TOKENS = 12,000) loderite's ROADMAP alone measured 99,925 tok — UNDER the
+//     100,000 budget by 75 tok — which is exactly why the child was dispatched at all before
+//     dying. At the CORRECTED overhead (65,000, id:10dc, 2026-08-27) that same input measures
+//     ~152,675 tok and is OVER on its own. So the trap this file documents is now caught one
+//     step earlier, by the overhead correction, in addition to the b018 second-ledger fix.
+//     Pinned in the new direction so nobody "restores" the old under-budget reading.
 {
   const roadmapOnly = estimateDispatchTokens(P, LODERITE_ROADMAP)
-  out.push('roadmap_only_under_budget=' + (roadmapOnly <= DISPATCH_TOKEN_BUDGET ? '1' : '0'))
-  out.push('roadmap_only_near_budget=' + (roadmapOnly > 95000 ? '1' : '0'))
+  out.push('roadmap_only_over_budget_at_corrected_overhead=' + (roadmapOnly > DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+  out.push('roadmap_only_was_a_near_miss_at_the_old_overhead=' + (roadmapOnly - 53000 > 95000 && roadmapOnly - 53000 <= 100000 ? '1' : '0'))
 }
 
-// (2) THE FIX: counting both ledgers must exceed the budget by roughly 2x.
+// (2) THE b018 PROPERTY, still under test independently of (1): TODO.md must actually be
+//     counted. Sized on a shape that still straddles the Sonnet budget at the corrected
+//     overhead — ROADMAP alone FITS, ROADMAP + TODO does not — so this case fails if the
+//     second ledger is ever dropped again, exactly as it did before.
 {
+  const RM = 100000, TD = 120000
+  out.push('roadmap_alone_fits=' + (estimateDispatchTokens(P, RM) <= DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+  out.push('todo_actually_counted=' + (estimateDispatchTokens(P, RM, TD) > DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+  out.push('todo_counted_refuses_unit=' + (oversizeDispatchReason(
+    { repo: 'r', path: '/p', verdict: 'execute', roadmap_bytes: RM, todo_bytes: TD }, P) ? '1' : '0'))
+}
+
+// (2b) THE PER-TIER SPLIT on the loderite numbers (id:10dc). Both ledgers ⇒ ~250,935 tok:
+//      over the 100,000 Sonnet cap, under the 300,000 Opus one. So loderite is refused as an
+//      execute unit and dispatches as a review one — the ratified behaviour change, pinned.
+{
+  const u = { repo: 'loderite', path: '/p/loderite',
+              roadmap_bytes: LODERITE_ROADMAP, todo_bytes: LODERITE_TODO }
   const both = estimateDispatchTokens(P, LODERITE_ROADMAP, LODERITE_TODO)
-  out.push('both_over_budget=' + (both > DISPATCH_TOKEN_BUDGET ? '1' : '0'))
-  out.push('both_about_double=' + (both > 180000 && both < 215000 ? '1' : '0'))
-  out.push('todo_actually_counted=' + (both > estimateDispatchTokens(P, LODERITE_ROADMAP) + 90000 ? '1' : '0'))
+  out.push('loderite_both_over_sonnet=' + (both > DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+  out.push('loderite_both_under_opus=' + (both <= OPUS_DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+  out.push('loderite_execute_refused=' + (oversizeDispatchReason({ ...u, verdict: 'execute' }, P, DISPATCH_TOKEN_BUDGET) ? '1' : '0'))
+  out.push('loderite_opus_tier_dispatches=' + (oversizeDispatchReason({ ...u, verdict: 'hard' }, P, OPUS_DISPATCH_TOKEN_BUDGET) === '' ? '1' : '0'))
 }
 
 // (3) The loderite unit must be REFUSED, and the reason must NAME TODO.md and its bytes —
@@ -146,13 +168,18 @@ const LODERITE_TODO    = 392043
     { repo: 'r', path: '/p', todo_bytes: 900000 }, P) ? '1' : '0'))
 }
 
-// (7) id:4f9b CALIBRATION UNCHANGED — the two historical points must keep their verdicts
-//     when no todo_bytes is present, so this change cannot silently re-tune the gate.
+// (7) id:4f9b CALIBRATION, re-anchored per tier (id:10dc). The two historical points keep
+//     their verdicts on the SONNET tier only for the incident file; the post-archive file now
+//     refuses on Sonnet and fits Opus, because the overhead constant was corrected. Pinning
+//     both tiers keeps a future change to either number a conscious act. The authoritative
+//     copy of this calibration lives in tests/test_prompt_size_gate_4f9b.sh.
 {
-  out.push('incident_523926_refused=' + (oversizeDispatchReason(
+  out.push('incident_523926_refused_on_sonnet=' + (oversizeDispatchReason(
     { repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 523926 }, P) ? '1' : '0'))
-  out.push('postarchive_254087_dispatches=' + (oversizeDispatchReason(
-    { repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 254087 }, P) === '' ? '1' : '0'))
+  out.push('postarchive_254087_refused_on_sonnet=' + (oversizeDispatchReason(
+    { repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 254087 }, P) ? '1' : '0'))
+  out.push('postarchive_254087_dispatches_on_opus=' + (oversizeDispatchReason(
+    { repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 254087 }, P, OPUS_DISPATCH_TOKEN_BUDGET) === '' ? '1' : '0'))
 }
 
 console.log(out.join('\n'))

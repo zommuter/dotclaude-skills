@@ -220,9 +220,14 @@ pass "hard dispatch gated on apex Opus AND --afk via enforceApexGate (id:7986/da
 # sends only verdict==='execute' to sonnet; everything else (incl. hard) to strong.
 grep -qF "const tier = unit.verdict === 'execute' ? 'sonnet' : 'strong'" "$JS" \
   || fail "tier derivation does not keep non-execute (incl. hard) off the sonnet tier"
-# and the model override only pins sonnet for execute — hard gets STRONG_MODEL.
-grep -qF "if (unit.verdict === 'execute') opts.model = 'sonnet'" "$JS" \
+# and the model override only pins sonnet for execute — hard gets STRONG_MODEL. Since id:10dc
+# the mapping is resolved ONCE into `unitModel`, above the prompt-size gate (which is keyed off
+# the resolved model, not the verdict), and `opts.model` reuses it — so there is exactly one
+# copy of verdict→model and the gate can never size a unit against a tier it is not run on.
+grep -qF "const unitModel = unit.verdict === 'execute' ? 'sonnet' : STRONG_MODEL" "$JS" \
   || fail "sonnet model override is not execute-only (hard must not run on Sonnet)"
+grep -qF "opts.model = unitModel" "$JS" \
+  || fail "opts.model no longer reuses the resolved unitModel (a second verdict→model copy can drift)"
 pass "Sonnet-never-HARD: hard runs on the strong tier, never Sonnet"
 
 # Checkpoint label: hard integrates with a strong-execute label carrying fable-standin.

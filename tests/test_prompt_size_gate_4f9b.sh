@@ -87,7 +87,7 @@ fi
 # ── (B) BEHAVIOUR: the pure gate refuses the oversized fixture with a reason naming cause +
 #        remedy, and passes the normal one. Driven through node against the real byte counts. ─
 cat > "$TMP/drive.mjs" <<NODE
-import { oversizeDispatchReason, estimateDispatchTokens, DISPATCH_TOKEN_BUDGET } from 'file://$GATE'
+import { oversizeDispatchReason, estimateDispatchTokens, DISPATCH_TOKEN_BUDGET, OPUS_DISPATCH_TOKEN_BUDGET } from 'file://$GATE'
 const out = []
 const PROMPT = 'x'.repeat(9000)   // a realistic assembled unitPrompt (~9 KB)
 
@@ -124,16 +124,30 @@ const PROMPT = 'x'.repeat(9000)   // a realistic assembled unitPrompt (~9 KB)
 {
   const withLedger = estimateDispatchTokens(PROMPT.length, $big_bytes)
   const withoutLedger = estimateDispatchTokens(PROMPT.length, 0)
-  out.push('ledger_dominates=' + (withLedger > withoutLedger * 10 ? '1' : '0'))
+  // The ledger must move the estimate by MORE than the whole Sonnet budget — a gate that
+  // ignored the ROADMAP could not have caught the 2026-08-01 death. (This was a >10x RATIO
+  // test until id:10dc; at the corrected 65,000 overhead the ledger-free baseline is dominated
+  // by the preamble, so a ratio no longer measures what the case is about. The DELTA does.)
+  out.push('ledger_dominates=' + (withLedger - withoutLedger > DISPATCH_TOKEN_BUDGET ? '1' : '0'))
   out.push('budget_sane=' + (DISPATCH_TOKEN_BUDGET >= 50000 && DISPATCH_TOKEN_BUDGET <= 150000 ? '1' : '0'))
 }
 
-// (5) The historical incident's own numbers: 523,926 B must refuse; the post-archive
-//     254,087 B must dispatch. This is the calibration, pinned so a budget change is a
-//     conscious act.
+// (5) The historical incident's own numbers, RE-ANCHORED to the per-tier budgets (id:10dc,
+//     2026-08-27). MEASURED, not assumed: 523,926 B (~196k tok at the corrected overhead)
+//     refuses on the SONNET tier and FITS the Opus one — the child that actually died on
+//     2026-08-01 was an execute/Sonnet child, so the Sonnet refusal is the guard that matters
+//     and the Opus fit is a real, deliberate consequence of the 300,000 cap. The post-archive
+//     254,087 B used to be
+//     the "must dispatch" half of the calibration; at the CORRECTED overhead (65,000, up from
+//     an unmeasured 12,000) it estimates ~129k, so it now refuses on the SONNET tier and
+//     dispatches on the OPUS one. That verdict flip is the ratified consequence of correcting
+//     the overhead constant — it is pinned here, on both tiers, precisely so a future change to
+//     either number is a conscious act rather than a silent re-tune.
 {
   out.push('incident_refused=' + (oversizeDispatchReason({ repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 523926 }, PROMPT.length) ? '1' : '0'))
-  out.push('postarchive_dispatches=' + (oversizeDispatchReason({ repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 254087 }, PROMPT.length) === '' ? '1' : '0'))
+  out.push('incident_fits_the_opus_tier=' + (oversizeDispatchReason({ repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 523926 }, PROMPT.length, OPUS_DISPATCH_TOKEN_BUDGET) === '' ? '1' : '0'))
+  out.push('postarchive_refused_on_sonnet=' + (oversizeDispatchReason({ repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 254087 }, PROMPT.length) ? '1' : '0'))
+  out.push('postarchive_dispatches_on_opus=' + (oversizeDispatchReason({ repo: 'dotclaude-skills', path: '/p', roadmap_bytes: 254087 }, PROMPT.length, OPUS_DISPATCH_TOKEN_BUDGET) === '' ? '1' : '0'))
 }
 
 console.log(out.join('\n'))
@@ -148,9 +162,9 @@ done <<< "$res"
 
 # ── (C) WIRING: relay-loop.js must actually call the gate at the dispatch site, before the
 #        child is spawned, and record it as a real handback on BOTH surfaces. ───────────────
-grep -qF -- 'const oversizeReason = oversizeDispatchReason(unit, unitPrompt(unit).length)' "$JS" \
-  && ok "relay-loop.js calls oversizeDispatchReason on the assembled unitPrompt" \
-  || bad "id:4f9b: relay-loop.js never sizes the assembled prompt before dispatch"
+grep -qF -- 'const oversizeReason = oversizeDispatchReason(unit, unitPrompt(unit).length, dispatchBudgetForModel(unitModel))' "$JS" \
+  && ok "relay-loop.js sizes the assembled unitPrompt against THIS unit's tier budget (id:10dc)" \
+  || bad "id:4f9b: relay-loop.js never sizes the assembled prompt before dispatch (or no longer passes the per-tier budget)"
 
 gate_line=$(head -1 < <(grep -n 'const oversizeReason = oversizeDispatchReason' "$JS") | cut -d: -f1 )
 disp_line=$(head -1 < <(grep -n 'report = await agent(unitPrompt(unit), opts)' "$JS") | cut -d: -f1 )
@@ -182,12 +196,16 @@ import sys
 mod = open(sys.argv[1]).read()
 js  = open(sys.argv[2]).read()
 bad = []
-for fn in ('function estimateDispatchTokens', 'function oversizeDispatchReason'):
+for fn in ('function estimateDispatchTokens', 'function oversizeDispatchReason',
+           'function dispatchBudgetForModel'):
     body = mod[mod.index('export ' + fn):]
     body = body[:body.index('\n}\n') + 3].replace('export ', '', 1)
     if body not in js:
         bad.append(fn)
-for const in ('const CHARS_PER_TOKEN = 4', 'const DISPATCH_TOKEN_BUDGET = 100000', 'const FIXED_OVERHEAD_TOKENS = 12000'):
+# id:10dc — the constants are PER TIER now, and the overhead is the MEASURED 65,000, not the
+# unmeasured 12,000 it carried until 2026-08-27. All three are pinned in both copies.
+for const in ('const CHARS_PER_TOKEN = 4', 'const DISPATCH_TOKEN_BUDGET = 100000',
+              'const OPUS_DISPATCH_TOKEN_BUDGET = 300000', 'const FIXED_OVERHEAD_TOKENS = 65000'):
     if const not in js or ('export ' + const) not in mod:
         bad.append(const)
 sys.exit(1 if bad else 0)

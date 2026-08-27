@@ -24,31 +24,83 @@
 // UNDER-counts — which keeps the gate conservative: it fires late, never early.
 export const CHARS_PER_TOKEN = 4
 
-// The dispatch-time payload budget, in tokens.
+// The dispatch-time payload budget, in tokens. PER TIER since 2026-08-27 (id:10dc).
 //
-// TIER DERIVATION (id:b018 — re-derived 2026-08-21 from the tiers this pool actually
-// dispatches, rather than left as an unexplained flat number). relay-loop.js dispatches
-// exactly four models: `claude-opus-5` (hard/review), `claude-fable-5` (hard/review when
-// STRONG_TIER=fable), the default Sonnet (execute/integrate) and `haiku` (the id:4239
-// mechanical fallback). ALL FOUR carry a 200,000-token context window — no dispatched tier
-// has a different one, and the 1M-context variants are not dispatched here — so a tier-keyed
-// budget table would hold four identical rows and buy nothing. The budget is therefore ONE
-// number, derived as: 200,000-token window x 50% reserved as working room = 100,000 tokens of
-// fixed dispatch payload. If a tier with a different window is ever dispatched, THIS is the
-// line to split per tier (oversizeDispatchReason already takes a `budget` override).
+// ── THE PRE-REGISTERED TRIGGER FIRED. ────────────────────────────────────────────────────
+// The text that stood here (id:b018, 2026-08-21) claimed: "relay-loop.js dispatches exactly
+// four models … ALL FOUR carry a 200,000-token context window — no dispatched tier has a
+// different one … so a tier-keyed budget table would hold four identical rows and buy nothing.
+// … If a tier with a different window is ever dispatched, THIS is the line to split per tier
+// (oversizeDispatchReason already takes a `budget` override)."
 //
-// Why 50% and not more: Measured deaths sat at peak context 176,841 tok
+// That premise is MEASURED FALSE, and the comment's own pre-registered trigger has therefore
+// FIRED. The rows are not identical: Opus and Sonnet demonstrably do not share a ceiling. The
+// split below is that pre-registration being honoured, not a re-litigation of it — and it uses
+// exactly the `budget` override seam the old text nominated.
+//
+// ── THE MEASUREMENT (2026-08-27; 28,365 transcripts, API `usage` sums of
+//    `input` + `cache_creation` + `cache_read`). Ledger refs: id:7829 (the Sonnet drop),
+//    id:10dc (these constants).
+//
+//   * `claude-opus-5` — max 378,108 tok direct, 234,302 tok in-pool; ZERO `Prompt is too long`
+//     failures, ever, across the whole corpus.
+//   * `claude-sonnet-5` — max 379,086 tok in 2026-07, dropping to 178,310 tok in 2026-08; 46
+//     genuine `Prompt is too long` failures, ALL in the band 170,875–178,310 tok. That band
+//     matches a 200,000-token window minus the ~24,000-token output reserve documented at the
+//     `(1) WHAT THE CEILING ACTUALLY IS` item below — i.e. Sonnet really is a ~200k tier and
+//     really does die at it.
+//
+// BE HONEST ABOUT WHAT IS *NOT* KNOWN: Opus's true ceiling is UNKNOWN. 378,108 is the largest
+// context ever DEMANDED of it in this corpus, not a measured limit — nothing in 28,365
+// transcripts ever pushed Opus to a refusal, so the ceiling could be far higher. 300,000 is a
+// budget chosen BELOW the largest observed success, not a probe of where Opus breaks.
+//
+// ── THE RATIFIED BUDGETS (owner, 2026-08-27) ──────────────────────────────────────────────
+//   * Sonnet / `execute`                      → 100,000 tok  (DISPATCH_TOKEN_BUDGET, below)
+//   * Opus / `review` + `hard` + `handoff`    → 300,000 tok  (OPUS_DISPATCH_TOKEN_BUDGET)
+//
+// The budget is keyed off the RESOLVED MODEL, never off the verdict string — relay-loop.js
+// already owns the verdict→model mapping (`unit.verdict === 'execute' ? 'sonnet' :
+// STRONG_MODEL`), and keying off the verdict here would create a second copy of it that can
+// drift. See dispatchBudgetForModel() below.
+//
+// Why 100,000 for Sonnet and not more: measured deaths sat at peak context 176,841 tok
 // (dotclaude-skills, run relay-20260728-212859-24420) and the surviving children need real
 // working room for exploration, edits and tool results — id:9eb7 records "well under 100k
 // working room" as the pathology, not the target. So the FIXED payload the child must swallow
 // before it can do anything (its dispatch prompt + the ledgers it is contractually required to
-// read) is capped at 100k, leaving ~100k of working room.
+// read) is capped at 100k, leaving ~100k of working room inside a ~200k tier.
 //
-// Calibration against the two known points: the 2026-08-01 ROADMAP (523,926 B ≈ 131k tok
-// + overhead) is OVER and would have been refused; the same file after roadmap-archive.sh
-// (254,087 B ≈ 63.5k tok + overhead) is UNDER and dispatches normally. The gate therefore
-// fires on the ledger that actually killed a child and not on the one that does not.
+// Calibration, restated at the CORRECTED overhead (FIXED_OVERHEAD_TOKENS = 65,000, below):
+// the 2026-08-01 ROADMAP (523,926 B ≈ 131k tok + overhead ⇒ ~196k) is OVER for BOTH tiers. The
+// same file after roadmap-archive.sh (254,087 B ≈ 63.5k tok + overhead ⇒ ~129k) is now OVER for
+// Sonnet and UNDER for Opus — that verdict flip is a DELIBERATE consequence of correcting the
+// overhead constant from 12,000 to its measured value, not a re-tuning of the caps.
 export const DISPATCH_TOKEN_BUDGET = 100000
+
+// The Opus-tier budget. Applies to `claude-opus-5` ONLY — see dispatchBudgetForModel().
+export const OPUS_DISPATCH_TOKEN_BUDGET = 300000
+
+// dispatchBudgetForModel — the per-tier cap for the model a unit will ACTUALLY be dispatched
+// on. The caller passes the resolved model id (relay-loop.js: `unit.verdict === 'execute' ?
+// 'sonnet' : STRONG_MODEL`), so this file never re-derives the verdict→model mapping.
+//
+// ⚠ THE FABLE CASE IS AN OPEN OWNER DECISION — DO NOT "FIX" IT BY ANALOGY WITH OPUS.
+// When STRONG_TIER=fable, review/hard/handoff dispatch `claude-fable-5`, NOT Opus. The 300,000
+// figure was measured and ratified for OPUS ONLY. The Fable evidence is CONTRADICTORY: the
+// corpus shows a max observed context of 429,064 tok (higher than anything Opus was ever asked
+// for) AND one genuine `Prompt is too long` failure at only 177,602 tok. A tier that both
+// carries 429k and dies at 178k is not characterised, and handing it the Opus budget on the
+// assumption it behaves like Opus would trade a loud, lossless refusal for a silent mid-work
+// death (the item-(6) warning below). So Fable is treated CONSERVATIVELY — it falls through to
+// the Sonnet-tier 100,000 — until the owner rules. This is a deliberate placeholder, not an
+// oversight: whoever resolves it should raise Fable explicitly here, never by widening the
+// `startsWith` test.
+export function dispatchBudgetForModel(model) {
+  const m = String(model == null ? '' : model)
+  if (m === 'claude-opus-5' || m.startsWith('claude-opus-')) return OPUS_DISPATCH_TOKEN_BUDGET
+  return DISPATCH_TOKEN_BUDGET
+}
 
 // ── MEASURED RE-DERIVATION, 2026-08-21/22 (id:299c(c)). THRESHOLD DELIBERATELY UNCHANGED. ──
 //
@@ -116,6 +168,14 @@ export const DISPATCH_TOKEN_BUDGET = 100000
 //     run-time half (5) is uncovered, raising the cap trades a loud, LOSSLESS refusal for a
 //     silent mid-work death, and A DEAD CHILD NEVER COMMITS. Re-open this only together with
 //     run-time protection.
+//     AMENDED 2026-08-27 (id:10dc, owner): the SONNET cap is still 100,000, exactly as ruled
+//     here — nothing below raises it. What changed is (a) FIXED_OVERHEAD_TOKENS 12,000 → 65,000
+//     and (b) a SEPARATE, higher cap for the Opus tier (300,000), on the measurement in the
+//     header block. Note the direction: (a) TIGHTENS the gate, so this ruling's hazard (raising
+//     a cap into a silent mid-work death) is not engaged by it. The Opus cap is engaged by it,
+//     and rests on 28,365 transcripts in which Opus never once hit `Prompt is too long`.
+//     The arithmetic in items (3) and (5) above is FROZEN at the old 12,000 constant; read it
+//     as history, and do not recompute today's verdicts from it.
 //
 // (8) WHICH REMEDY IS THE REAL ONE — corrected ordering, and the measurements behind it.
 //     FIRST LEVER: the id:e68f ledger SLICE. The orchestrator writes the dispatched item plus
@@ -165,11 +225,21 @@ export const DISPATCH_TOKEN_BUDGET = 100000
 // system prompt and tool definitions. Counted so the budget is measured against what the child
 // really carries, not just the things we can size directly.
 //
-// UNCHANGED, but now KNOWN LOW: the measured preamble is ~58,600 tok, not 12,000 — see item (2)
-// of the MEASURED RE-DERIVATION block above (id:299c(c)). Correcting this constant alone, with
-// the cap left at 100,000, would tighten the gate by ~46,600 tok and refuse units that dispatch
-// safely today. The two numbers must be re-derived TOGETHER, by the owner.
-export const FIXED_OVERHEAD_TOKENS = 12000
+// CORRECTED 2026-08-27 (id:10dc, owner-ratified): 12,000 → 65,000. The 12,000 was never
+// measured; item (2) of the MEASURED RE-DERIVATION block above put the real preamble at
+// ~58,600 tok from seven delegated-agent transcripts, and the 2026-08-27 census over 28,365
+// transcripts settled the ratified figure at 65,000. That block's own caveat — "correcting this
+// constant alone, with the cap left at 100,000, would tighten the gate and refuse units that
+// dispatch safely today; the two numbers must be re-derived TOGETHER, by the owner" — is
+// exactly what happened: the overhead and the (now per-tier) caps were re-derived and ratified
+// in ONE owner decision, not one at a time.
+//
+// CONSEQUENCE, stated plainly so nobody "fixes" it back: the gate is now ~53,000 tok tighter at
+// the Sonnet tier than it was, and it refuses MORE execute units. That is the correction doing
+// its job — those units were being sized against a preamble ~4.9x smaller than the one they
+// actually pay. Item (6)'s warning still governs the other direction: do not widen a cap to
+// paper over a refusal while the run-time half is uncovered.
+export const FIXED_OVERHEAD_TOKENS = 65000
 
 // RELAY_LOG_WINDOW_BYTES — the BOUNDED allowance charged for RELAY_LOG.md on a review unit,
 // instead of the whole file. MEASURED, 2026-08-27, over a census of 1,050 genuine relay
@@ -405,6 +475,12 @@ export function sliceLedgerHeadroom(unit, budget) {
 // The trailing clause is CONDITIONAL on sliceLedgerHeadroom (id:7575): offer the "full ledgers
 // are still on disk" escape only when the measured headroom could absorb one; otherwise quote
 // the measured cost and ask for a hand-back.
+//
+// id:10dc — `budget` is left UNPASSED by relay-loop.js's brief-assembly call sites, so the
+// wording is sized against the CONSERVATIVE Sonnet-tier default (DISPATCH_TOKEN_BUDGET) even
+// for an Opus unit the gate approved at 300,000. That is deliberate and one-directional: it can
+// only make the brief MORE cautious about opening a ledger, never less. Passing the resolved
+// tier budget here would need the model to reach unitPrompt(), which it does not today.
 export function sliceInstruction(unit, budget) {
   if (!unit || typeof unit.slice_path !== 'string' || !unit.slice_path) return ''
   const head = 'The orchestrator has ALREADY extracted this item for you (id:e68f): read ' + unit.slice_path + ' — it holds the item\'s own block, its typed gated-on:/children: edges with each target\'s line, the TODO.md twin, and a repo-state header. Start there; it is the intended default context for this unit. '
