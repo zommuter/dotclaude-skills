@@ -49,6 +49,8 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 - [ ] [INPUT — meeting] Use VISIBLE annotations, not HTML comments, for metadata that should render — see TODO.md <!-- id:ee62 -->
 - [ ] [INPUT — meeting] Mechanize the keystone-unblock triage as a `/relay human` view (gate-graph fan-out ranking) (us… — see TODO.md <!-- id:c3f6 -->
+- [ ] [INPUT — decision] Derived-index pilot arm (`tracker/derived-index.py`, built + tested) awaits the `id:a08d` pre-registration amendment — see TODO.md <!-- gated-on:a08d --> <!-- id:dcf3 -->
+- [ ] [INPUT — decision] ONE amendment covering ALL candidate tracker-pilot arms (derived index `id:dcf3` + Forgejo `id:016e`): PROPOSAL, owner ratification required — see TODO.md <!-- id:a08d -->
 - [ ] [INPUT — meeting] Fake-Haiku mechanical-dispatch proxy — see TODO.md <!-- id:176f -->
 - [ ] [INPUT — meeting] Meeting-as-relay-producer: route `/meeting` ledger writes through a worktree the integrator mer… — see TODO.md <!-- id:5a39 -->
 - [ ] [INPUT — meeting] Full-loop relay REPLAY test — see TODO.md <!-- id:5bac -->
