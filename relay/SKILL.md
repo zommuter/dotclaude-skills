@@ -550,7 +550,13 @@ What it does (full procedure in `references/human.md`):
    `hard_pool` / `hard_meeting` / `hard_hands` (vocabulary: `references/hard-lanes.md`), plus
    every PENDING `ratification_pending` entry (id:4d44) — a unit the pool merged LOCALLY and
    did not push; you review it, push it, then `scripts/ratify-queue.sh resolve <ckpt|sha>`,
-   which verifies the remote with `git ls-remote` and refuses otherwise. An
+   which verifies the remote with `git ls-remote` and refuses otherwise. When an entry can
+   NEVER land — its pending remote is a read-only third-party upstream we don't publish to,
+   or the merge commit no longer exists while its ids landed by another path — close it with
+   `scripts/ratify-queue.sh retire <ckpt|sha> --reason TEXT` (id:99b7(b)): a separate verb,
+   `--reason` mandatory, `status=retired` not `resolved`, and NO landing evidence written.
+   There is deliberately no `resolve --force` — that would let a real un-pushed merge be
+   stamped ratified. Never hand-edit `ratification-queue.jsonl` to clear an entry. An
    open `[HARD]` with no recognized lane is a LOUD reject (stderr ERROR + nonzero exit) —
    add the lane tag at the source. **NEVER pipe the collector through `head`/`tail`**
    (id:da87): `review_me` rows are emitted LAST per repo, so a truncating reader drops

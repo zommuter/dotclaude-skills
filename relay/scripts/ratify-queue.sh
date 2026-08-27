@@ -20,9 +20,29 @@
 #   resolve <key> [--remote NAME] [--allow-missing-tag] [--note TEXT]
 #       VERIFY FIRST, then mark the entry resolved. Refuses (nonzero, loud) unless the
 #       remote demonstrably carries the recorded merge sha.
+#   retire <key> --reason TEXT
+#       Close an entry that can NEVER land, WITHOUT the remote carrying it, recording WHY.
+#       `--reason` is MANDATORY. Marks status=retired (distinct from resolved) and writes
+#       NO landing evidence. Refuses an entry that is not pending.
 #
 # <key> is the entry's ckpt tag, or its merged sha (full or a >=7-char prefix). It must
 # match EXACTLY ONE entry; an ambiguous key is a loud refusal, never a guess.
+#
+# ── WHY `retire` IS A SEPARATE VERB, NOT `resolve --force` (id:99b7(b)) ─────────────────
+# Some entries are unresolvable BY CONSTRUCTION: a pending remote that is a read-only
+# third-party upstream nobody pushes to (`git://…`), or a merge commit that no longer
+# exists in any object store while its ids demonstrably landed by other paths. `resolve`
+# must keep refusing those — its remote check is the whole point of the queue.
+#
+# A `--force` on resolve would be the wrong shape: it would ALSO let a real, still-unpushed
+# merge be stamped ratified, which is the single failure this queue exists to prevent. So
+# the escape is a DIFFERENT verb with DIFFERENT semantics and a DIFFERENT stored status:
+#   resolve = "the remote demonstrably carries this"  (evidence: verified_sha/resolved_ref)
+#   retire  = "this can never land, and here is why"  (evidence: retire_reason/retired_at)
+# `retire` never runs a remote check and never writes a `verified_*`/`resolved_*` field, so
+# a retired entry can never be mistaken for a published one by any later reader. The reason
+# is mandatory because an unexplained close is exactly what trains a reader to stop trusting
+# the queue — and a queue reporting N pending when 0 are actionable is the same disease.
 #
 # ── WHY RESOLUTION VERIFIES THE REMOTE ITSELF (id:f5d9(a) / id:dc4f) ────────────────────
 # `git-lock-push.sh` has a live defect: it can exit 0 having pushed NOTHING. So a push
@@ -47,7 +67,9 @@
 # ratified it and WHEN is not, and neither is the verification evidence. So a resolved
 # entry is MARKED in place (status/resolved_at/resolved_remote/resolved_ref/verified_sha)
 # and kept: the queue doubles as the audit trail of local-merge → human sign-off. Growth
-# is bounded by integrates; `list` shows only pending unless asked.
+# is bounded by integrates; `list` shows only pending unless asked. A RETIRED entry is kept
+# for the same reason and more strongly: its whole value is the recorded reason it could
+# never land, so `list --all` prints that reason next to the status.
 #
 # Queue file: $RELAY_RATIFICATION_QUEUE, else $FABLES_CONFIG/ratification-queue.jsonl,
 # else ~/.config/relay/ratification-queue.jsonl — the same resolution integrate.sh uses.
@@ -74,7 +96,7 @@ _flock_release() { exec 9>&-; }
 
 # ── the shared record reader ────────────────────────────────────────────────────────────
 # Emits, on stdout, one US(0x1f)-separated projection per WELL-FORMED record:
-#   lineno status repo path branch merged ckpt ids bump run verdict ts summary pending
+#   lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason
 # `pending` (id:4d44) is the comma-separated list of remotes that did NOT receive the merge;
 # EMPTY on a pre-id:4d44 record, which means "unknown" and restores the original single-remote
 # verification. New columns go at the END so an older reader's positions never shift.
@@ -146,6 +168,8 @@ with open(path, encoding="utf-8", errors="replace") as fh:
             flat(ids), str(rec.get("bump", "")), str(rec.get("run", "")),
             str(rec.get("verdict", "")), str(rec.get("ts", "")),
             flat(rec.get("summary", "")), flat(pending),
+            # id:99b7(b) — the retire reason, LAST so no older reader's positions shift.
+            flat(rec.get("retire_reason", "")),
         ]
         # US (0x1f), NOT tab: a TAB is an IFS-*whitespace* character, so bash's
         # `IFS=$'\t' read` COLLAPSES consecutive tabs and an empty field (bump="" on a
@@ -173,34 +197,58 @@ _age() {
   fi
 }
 
-# Resolve <key> to EXACTLY ONE pending record's projection line. Loud on 0 or >1.
-# $1 key. Echoes the TSV projection line. Exit 2 on no/ambiguous match.
+# Resolve <key> to EXACTLY ONE record's projection line. Loud on 0 or >1.
+# $1 key. Echoes the projection line. Exit 2 on no/ambiguous match.
+#
+# PENDING entries are matched FIRST and alone: that keeps the pre-id:99b7 ambiguity
+# semantics exactly as they were (a closed entry can never make a live key ambiguous).
+# Only when NO pending entry matches does it fall back to closed (resolved/retired) ones —
+# so `show <retired-key>` still works, and `resolve`/`retire` can say "that entry is
+# already retired" instead of the misleading "no such key". Callers that MUTATE must check
+# the returned status themselves; this function deliberately does not decide that.
 _find_one() {
-  local key="$1" recs rc=0 hits
+  local key="$1" recs rc=0 hits scope=pending
   recs="$(_read_records)" || rc=$?
   if (( rc == 3 )); then
     loud "the queue contains MALFORMED entries (listed above) — fix them first; refusing to act on a queue this consumer cannot fully read"
     exit "$EX_MALFORMED"
   fi
-  hits="$(printf '%s\n' "$recs" | awk -F'\037' -v k="$key" '
-    $1 == "" { next }
-    $2 != "pending" { next }
-    $7 == k { print; next }                                   # exact ckpt tag
-    $6 == k { print; next }                                   # exact merged sha
-    length(k) >= 7 && substr($6, 1, length(k)) == k { print }  # merged sha prefix
-  ')"
+  _match() {  # $1 = "pending" to restrict to pending records, "" for any status
+    printf '%s\n' "$recs" | awk -F'\037' -v k="$1" -v only="$2" '
+      $1 == "" { next }
+      only != "" && $2 != only { next }
+      $7 == k { print; next }                                   # exact ckpt tag
+      $6 == k { print; next }                                   # exact merged sha
+      length(k) >= 7 && substr($6, 1, length(k)) == k { print }  # merged sha prefix
+    '
+  }
+  hits="$(_match "$key" pending)"
   local n
   n="$(printf '%s' "$hits" | grep -c . || true)"
   if [ "$n" -eq 0 ]; then
-    loud "no PENDING ratification entry matches key '$key' in $QUEUE (try: ratify-queue.sh list --all)"
+    hits="$(_match "$key" "")"
+    scope=closed
+    n="$(printf '%s' "$hits" | grep -c . || true)"
+  fi
+  if [ "$n" -eq 0 ]; then
+    loud "no ratification entry matches key '$key' in $QUEUE (try: ratify-queue.sh list --all)"
     exit "$EX_USAGE"
   fi
   if [ "$n" -gt 1 ]; then
-    loud "key '$key' is AMBIGUOUS — it matches $n pending entries; name the full ckpt tag or merged sha:"
-    printf '%s\n' "$hits" | awk -F'\037' '{printf "  ckpt=%s merged=%s repo=%s\n", $7, $6, $3}' >&2
+    loud "key '$key' is AMBIGUOUS — it matches $n $scope entries; name the full ckpt tag or merged sha:"
+    printf '%s\n' "$hits" | awk -F'\037' '{printf "  ckpt=%s merged=%s repo=%s status=%s\n", $7, $6, $3, $2}' >&2
     exit "$EX_USAGE"
   fi
   printf '%s\n' "$hits"
+}
+
+# A mutating subcommand may only act on a PENDING entry. $1 verb, $2 status, $3 key.
+_require_pending() {
+  local verb="$1" status="$2" key="$3"
+  [ "$status" = pending ] || {
+    loud "$verb: entry '$key' is already $status — refusing. A closed entry is never re-closed (its recorded evidence would be overwritten). See: ratify-queue.sh show $key"
+    exit "$EX_USAGE"
+  }
 }
 
 # ── remote verification (the safety core) ───────────────────────────────────────────────
@@ -361,12 +409,17 @@ case "$cmd" in
     rc=0
     recs="$(_read_records)" || rc=$?
     count=0
-    while IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending; do
+    while IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason; do
       [ -n "${lineno:-}" ] || continue
       [ "$show_all" = 1 ] || [ "$status" = pending ] || continue
       [ -z "$filter_repo" ] || [ "$repo" = "$filter_repo" ] || continue
       count=$(( count + 1 ))
       if [ "$fmt" = tsv ]; then
+        # id:99b7(b) — the TSV feeds /relay human's backlog. A CLOSED entry (resolved or
+        # retired) is not a human box any more, so it is never emitted here even under
+        # --all; emitting it would put a "still needs an owner push" row in front of the
+        # owner for a merge that will never be pushed.
+        [ "$status" = pending ] || { count=$(( count - 1 )); continue; }
         # gather-human-backlog.sh column contract: repo \t path \t kind \t box_summary
         # id:4d44 per-remote: when the record names its pending remotes, the box must name
         # them too — "did NOT push" is false for a unit that already published to its LAN
@@ -382,7 +435,14 @@ case "$cmd" in
         printf '%-28s %-22s %-12s ids=%-24s bump=%-8s age=%s\n' \
           "${ckpt:--}" "$repo" "${merged:0:12}" "${ids:--}" "${bump:-none}" "$(_age "$ts")"
         if [ "$show_all" = 1 ] && [ "$status" != pending ]; then
-          printf '%-28s   ^ status=%s\n' "" "$status"
+          # id:99b7(b) — a RETIRED entry is closed WITHOUT the remote carrying it, so the
+          # status alone is not enough: print the recorded reason right beside it, or the
+          # listing reads identically to a genuine, verified resolve.
+          if [ -n "$reason" ]; then
+            printf '%-28s   ^ status=%s — %s\n' "" "$status" "$reason"
+          else
+            printf '%-28s   ^ status=%s\n' "" "$status"
+          fi
         fi
       fi
     done <<< "$recs"
@@ -404,7 +464,7 @@ case "$cmd" in
   show)
     key="${1:-}"; [ -n "$key" ] || die "usage: ratify-queue.sh show <ckpt|merged-sha>"
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason <<< "$line"
     printf 'repo      %s\n'  "$repo"
     printf 'path      %s\n'  "$path"
     printf 'merged    %s\n'  "$merged"
@@ -421,6 +481,14 @@ case "$cmd" in
     # published to its private/LAN remotes; a bare `git push` command would be misleading
     # about what is left (and about what is already out there).
     printf 'pending   %s\n'  "${pending:-<all/unknown>}"
+    # id:99b7(b) — a RETIRED entry must never be presented as outstanding work. Its
+    # `pending_remotes` is kept as evidence of what could never land, so print the
+    # retirement instead of a push command nobody is ever going to run.
+    if [ "$status" = retired ]; then
+      printf 'retired   %s\n' "${reason:-<no reason recorded — this should be impossible>}"
+      printf 'note      CLOSED WITHOUT PUBLISHING: the remote does NOT carry %s and never will.\n' "$merged"
+      exit 0
+    fi
     if [ -n "$pending" ]; then
       printf '%s' "$pending" | tr ',' '\n' | while IFS= read -r r; do
         [ -n "$r" ] && printf 'push      git -C %s push --follow-tags %s\n' "$path" "$r"
@@ -429,6 +497,7 @@ case "$cmd" in
       printf 'push      git -C %s push --follow-tags\n' "$path"
     fi
     printf 'then      ratify-queue.sh resolve %s\n' "${ckpt:-$merged}"
+    printf 'or        ratify-queue.sh retire %s --reason "<why it can NEVER land>"\n' "${ckpt:-$merged}"
     exit 0
     ;;
 
@@ -445,7 +514,7 @@ case "$cmd" in
       shift || true
     done
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason <<< "$line"
     res="$(_verify_pending "$path" "$merged" "$ckpt" "$remote" "$pending")"
     while IFS=' ' read -r v_verdict v_remote v_ref; do
       [ -n "${v_verdict:-}" ] || continue
@@ -469,7 +538,10 @@ case "$cmd" in
     done
 
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason <<< "$line"
+    # id:99b7(b) — never re-close a closed entry. A retired entry in particular must not be
+    # re-opened into "resolved": its whole record is that the remote does NOT carry it.
+    _require_pending resolve "$status" "$key"
 
     # VERIFY BEFORE MARKING. Any non-landed outcome exits nonzero from here and the
     # queue is left untouched — the entry stays pending, which is the safe side.
@@ -536,13 +608,90 @@ PYEOF
     exit 0
     ;;
 
+  # ── retire (id:99b7(b)) — close an entry that can NEVER land ──────────────────────────
+  # Deliberately NOT `resolve --force`: see the header. This verb runs NO remote check
+  # (there is nothing to check — that is the premise) and writes NO landing evidence, so a
+  # retired entry can never be misread as published. The mandatory --reason is the whole
+  # point: the record's value is WHY it was written off, and an unexplained close is what
+  # makes a queue untrustworthy.
+  retire)
+    key="${1:-}"; [ -n "$key" ] || die "usage: ratify-queue.sh retire <ckpt|merged-sha> --reason TEXT"
+    shift || true
+    reason_arg=""; have_reason=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --reason) shift; reason_arg="${1:-}"; have_reason=1 ;;
+        *) die "retire: unknown flag '$1' (retire takes only --reason TEXT; there is deliberately no --force, no --remote and no --allow-* escape)" ;;
+      esac
+      shift || true
+    done
+    if [ "$have_reason" = 0 ]; then
+      die "retire: --reason TEXT is MANDATORY. Retiring closes an entry WITHOUT the remote carrying its merge, so the recorded reason is the only thing that keeps the queue auditable. If the merge CAN be published, push it and use \`resolve\` instead."
+    fi
+    if [ -z "$(printf '%s' "$reason_arg" | tr -d '[:space:]')" ]; then
+      die "retire: --reason is EMPTY — an empty reason is no reason. Say why this entry can never land (e.g. 'pending remote is a read-only third-party upstream we never publish to', or 'merge commit no longer exists; ids landed via <path>')."
+    fi
+
+    line="$(_find_one "$key")"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason <<< "$line"
+    _require_pending retire "$status" "$key"
+
+    _flock_acquire
+    tmp="${QUEUE}.tmp.$$"
+    python3 - "$QUEUE" "$tmp" "$lineno" "$reason_arg" <<'PYEOF'
+import json, sys, datetime
+
+queue, tmp, lineno, reason = sys.argv[1:5]
+lineno = int(lineno)
+now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+out = []
+hit = False
+with open(queue, encoding="utf-8") as fh:
+    for n, raw in enumerate(fh, 1):
+        if n != lineno:
+            # Byte-for-byte, malformed neighbours included — same invariant as resolve.
+            out.append(raw.rstrip("\n"))
+            continue
+        rec = json.loads(raw)
+        rec["status"] = "retired"
+        rec["push"] = "never"
+        rec["retired_at"] = now
+        rec["retired_by"] = "ratify-queue.sh"
+        rec["retire_reason"] = reason
+        # `pending_remotes` is deliberately LEFT AS IT WAS. On a resolve it is cleared
+        # because nothing is outstanding any more; here the remotes genuinely never got the
+        # merge, and that list IS the evidence of what was written off. `status=retired`
+        # already keeps the entry out of every pending view.
+        #
+        # No verified_sha / resolved_* / verification key is written, ever: those mean "the
+        # remote demonstrably carries this", which is precisely what a retire does not claim.
+        out.append(json.dumps(rec, ensure_ascii=False))
+        hit = True
+
+if not hit:
+    raise SystemExit("ERROR: line %d vanished from %s while retiring — queue changed underneath; nothing written" % (lineno, queue))
+
+with open(tmp, "w", encoding="utf-8") as fh:
+    for l in out:
+        fh.write(l + "\n")
+PYEOF
+    mv "$tmp" "$QUEUE"
+    _flock_release
+    printf 'RETIRED %s (%s): closed WITHOUT publishing %s — %s\n' "${ckpt:-$merged}" "$repo" "$merged" "$reason_arg"
+    printf '  (the remote does NOT carry this merge; `ratify-queue.sh list --all` shows the entry and this reason)\n'
+    exit 0
+    ;;
+
   ""|-h|--help|help)
-    sed -n '2,60p' "$0" | sed 's/^# \{0,1\}//'
+    # Print the contiguous comment header starting at line 2, however long it grows — a
+    # hardcoded line range silently truncated the usage block every time the header did.
+    awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
     if [ -z "$cmd" ]; then exit "$EX_USAGE"; fi
     exit 0
     ;;
 
   *)
-    die "unknown subcommand '$cmd' (list|show|verify|resolve)"
+    die "unknown subcommand '$cmd' (list|show|verify|resolve|retire)"
     ;;
 esac
