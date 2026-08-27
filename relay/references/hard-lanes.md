@@ -201,6 +201,56 @@ but never a silent block. An open executor-lane item carrying `⚠ SURFACED` (no
 authored) is excluded from `actionable_routine_open` and routes the repo to verdict
 `handoff` (author the spec), never `execute`.
 
+## The `@owner-answered` marker -- a QUESTION inside the item is answered (id:ca14)
+
+`@owner-answered:YYYY-MM-DD` is a **marker**, NOT a lane, orthogonal to the `[HARD — *]` /
+`[INPUT — *]` lanes and to `@manual`/`@needs-auth`/`@container`/`@owner-gated`, exactly like
+its siblings. It records that **one question inside this item** has been ANSWERED by the
+owner, on that date, and it is **always paired with a citation**:
+
+```
+- [ ] [ROUTINE] engine work; the genre question is settled @owner-answered:2026-08-14 <!-- answer-src:docs/meeting-notes/2026-08-14-genre-call.md#Decisions --> <!-- id:XXXX -->
+```
+
+**Two halves, both mandatory.** The `@owner-answered:YYYY-MM-DD` marker says WHO (the owner,
+by the marker's owner-only semantics) and WHEN. The comment-anchored
+`<!-- answer-src:SOURCE -->` says WHERE the answer is recorded, and SOURCE is either a
+repo-relative path (optionally with a `#anchor` fragment naming the Decisions section) or an
+`id:XXXX` ledger token. A marker with no citation is worthless: it is one more unfalsifiable
+claim, exactly the thing this marker exists to replace.
+
+**Who may write it: the OWNER ONLY**, the same rule and the same reason as
+`@owner-accepted` (id:8089). An executor or reviewer minting it would be asserting that the
+owner decided something, which is the gaming class, not a bookkeeping shortcut. An agent that
+BELIEVES a question is already answered quotes the source and asks the owner to mark it.
+
+**It does NOT mean "tick me".** An item may legitimately stay open (gated children, remaining
+work) while one question inside it is settled. `@owner-answered` therefore neither implies a
+close nor interacts with rule 3(b) DECIDED-LEFT-OPEN, and it changes no dispatch lane.
+
+**Why it exists (the incident).** loderite's `id:ed3a` carried the owner's own answer to the
+genre question, quoted verbatim in its own body, from 2026-08-14. Over the following 13 days a
+later author wrote the OPPOSITE assertion into the ROADMAP line, a meeting agenda re-opened the
+question, and a session put it to the owner a third time. Nothing noticed, because a recorded
+answer was only PROSE. The near-miss mechanism, `roadmap-lint.sh` rule 3(b), could not fire: it
+is WARN-only unless `--strict`, and its lexeme set (`RESOLVED|SUPERSEDED|DONE|CLOSED|DEFERRED`
+plus `decided <date>`, in `relay/scripts/lib-state-claim.sh`) matches nothing in an owner's
+answer quoted as prose. The owner's summary: *"this is like the tenth repetition of re-asking
+an already decided question across the project pool"*.
+
+**Recognition and enforcement.** `roadmap-lint.sh` rule 3(h) ANSWER-SRC validates the marker
+wherever it appears, ticked or not, parked or not: the date must be well formed, the citation
+must be present, and it must RESOLVE (the path exists relative to the ledger's directory, or
+the id resolves through the shared id:46f6 engine over `ROADMAP.md` union `TODO.md` union
+`TODO.archive.md`). Findings are ERROR and exit nonzero UNCONDITIONALLY, never gated behind
+`--strict`, because a dangling citation is the rot mode; nothing that lacks the marker is
+examined, so the rule reddens only what opted in. Matching is ANCHORED: backtick spans are
+masked before the marker match, and the citation is read only through
+`typed_edges_answer_src_of_line` in `relay/scripts/lib-typed-edges.sh`, never a raw-line
+substring (the id:4da4/0d58 trap). The lint cannot enforce owner-only authorship, which is a
+contract rule (this file plus the `review.md` gaming-check), not something a lint over ledger
+text can establish.
+
 ## The orthogonal resource axis (NOT a lane)
 
 `[INTENSIVE — <resource>]` (id:8d52) is an ORTHOGONAL resource modifier, not a lane.

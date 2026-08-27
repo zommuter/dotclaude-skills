@@ -36,6 +36,18 @@
 #        mistake of a live executable tag sitting under a heading that IS recognized
 #        exempt.
 #
+#   3(h) ANSWER-SRC (id:ca14): the owner-only DECIDED-ANSWER marker
+#        `@owner-answered:YYYY-MM-DD` must be well formed and must carry a resolvable
+#        citation `<!-- answer-src:<path[#anchor]|id:XXXX> -->` saying WHERE the answer
+#        is recorded; an answer-src citation with no marker is equally rejected. Like
+#        3(g) this is a GRAMMAR rule: nonzero UNCONDITIONALLY, never behind --strict,
+#        and it runs on every checkbox line (ticked or not, parked or not) since a
+#        dangling citation rots anywhere. It says nothing about whether the item should
+#        be ticked: the marker settles a QUESTION inside the item, not the item. Origin:
+#        loderite id:ed3a, whose body quoted the owner's own answer for 13 days while
+#        the question was re-opened twice — 3(b) is WARN-only and its lexeme set does
+#        not match an answer quoted as prose. See relay/references/hard-lanes.md.
+#
 # RECOGNIZED non-lane markers (id:a505): `@container` (DECOMPOSED parent), `@manual`
 # (human must run/verify), and `@needs-auth` (blocked on a human-held secret /
 # interactive-auth wall — see relay/references/hard-lanes.md) are KNOWN markers,
@@ -406,6 +418,93 @@ declare -A RL_GATE_ROADMAP RL_GATE_TODO RL_GATE_ARCHIVE
 typed_edges_build_state_map RL_GATE_ROADMAP "$roadmap"
 typed_edges_build_state_map RL_GATE_TODO    "$_rl_dir/TODO.md"
 typed_edges_build_state_map RL_GATE_ARCHIVE "$_rl_dir/TODO.archive.md"
+
+# --- rule 3(h) ANSWER-SRC (id:ca14) -------------------------------------------
+# The DECIDED-ANSWER marker `@owner-answered:YYYY-MM-DD` (owner-only, the
+# `@owner-accepted`/id:8089 precedent) plus its mandatory citation
+# `<!-- answer-src:SOURCE -->` records that ONE QUESTION inside an item has been
+# answered by the owner, when, and WHERE the answer lives. It deliberately does NOT
+# mean "tick me": loderite's id:ed3a legitimately stayed open (gated children) while
+# the genre question inside it was settled 13 days earlier, and during those 13 days a
+# later author wrote the OPPOSITE assertion into its ROADMAP line, a meeting agenda
+# re-opened it, and a session put it to the owner a third time. Rule 3(b)
+# DECIDED-LEFT-OPEN could not see any of that: it is WARN-only unless --strict, and its
+# lexeme set (lib-state-claim.sh: RESOLVED|SUPERSEDED|DONE|CLOSED|DEFERRED plus
+# "decided <date>") matches nothing in an owner's answer quoted as prose.
+#
+# This rule validates only the marker's OWN grammar: well-formed date, citation
+# present, citation RESOLVES. A dangling citation is the rot mode that would turn the
+# marker into one more unfalsifiable claim, so findings are ERROR and count toward the
+# nonzero exit UNCONDITIONALLY, never gated behind --strict. That reddens nothing that
+# has not opted in: an item without the marker and without an answer-src comment is
+# never examined here.
+#
+# ANCHORING (the id:4da4/0d58 bare-substring trap): backtick spans are masked out
+# BEFORE both the marker match and the citation extraction, so documenting the marker
+# in prose is inert; the citation itself is read only through the comment-anchored
+# extractor typed_edges_answer_src_of_line. Never a raw-line substring.
+#
+# SCOPE: this runs over EVERY top-level checkbox line, ticked or not, parked section or
+# not -- a dangling citation rots identically wherever it sits, and unlike the doctrine
+# rules there is no "legitimately parked" reading of a malformed marker.
+# It says nothing about WHO may write the marker: owner-only is a contract rule
+# (relay/references/hard-lanes.md + the review.md gaming-check), not something a lint
+# over ledger text can establish.
+ANSWER_MARKER_RE='(^|[^A-Za-z0-9_-])@owner-answered'
+ANSWER_WELLFORMED_RE='(^|[^A-Za-z0-9_-])@owner-answered:[0-9]{4}-[0-9]{2}-[0-9]{2}($|[^A-Za-z0-9_-])'
+for ((_as_i = 0; _as_i < ${#_rl_lines[@]}; _as_i++)); do
+  _as_line="${_rl_lines[$_as_i]}"
+  [[ "$_as_line" =~ ^-[[:space:]]\[[[:space:]xX]\][[:space:]] ]] || continue
+  _as_masked="$(printf '%s' "$_as_line" | sed -E 's/`[^`]*`//g')"
+  _as_has_marker=0
+  [[ "$_as_masked" =~ $ANSWER_MARKER_RE ]] && _as_has_marker=1
+  _as_srcs="$(typed_edges_answer_src_of_line "$_as_masked")"
+  [[ "$_as_has_marker" -eq 0 && -z "$_as_srcs" ]] && continue
+  _as_id="$(item_id "$_as_line")"
+
+  if [[ "$_as_has_marker" -eq 1 && ! "$_as_masked" =~ $ANSWER_WELLFORMED_RE ]]; then
+    violations=$((violations + 1))
+    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} carries a MALFORMED @owner-answered marker — the only accepted form is @owner-answered:YYYY-MM-DD (id:ca14)" >&2
+    echo "  $_as_line" >&2
+    report+="  - [${_as_id:-<no id>}] ANSWER-SRC: malformed @owner-answered marker"$'\n'
+  elif [[ "$_as_has_marker" -eq 1 && -z "$_as_srcs" ]]; then
+    violations=$((violations + 1))
+    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} claims an owner answer but cites NO source — add <!-- answer-src:<path[#anchor]|id:XXXX> --> naming where the answer is recorded; an uncited answer is just another unfalsifiable claim (id:ca14)" >&2
+    echo "  $_as_line" >&2
+    report+="  - [${_as_id:-<no id>}] ANSWER-SRC: @owner-answered with no citation"$'\n'
+  elif [[ "$_as_has_marker" -eq 0 ]]; then
+    violations=$((violations + 1))
+    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} carries an answer-src citation with NO @owner-answered:YYYY-MM-DD marker — nothing records WHO answered or WHEN; add the marker or drop the citation (id:ca14)" >&2
+    echo "  $_as_line" >&2
+    report+="  - [${_as_id:-<no id>}] ANSWER-SRC: citation with no @owner-answered marker"$'\n'
+  fi
+
+  while IFS= read -r _as_tok; do
+    [[ -z "$_as_tok" ]] && continue
+    if [[ "$_as_tok" =~ ^id:([0-9a-fA-F]{4})$ ]]; then
+      _as_t="${BASH_REMATCH[1]}"
+      _as_tl="${_as_t,,}"
+      if [[ -n "${RL_GATE_ROADMAP[$_as_t]+x}" || -n "${RL_GATE_TODO[$_as_t]+x}" || -n "${RL_GATE_ARCHIVE[$_as_t]+x}" \
+         || -n "${RL_GATE_ROADMAP[$_as_tl]+x}" || -n "${RL_GATE_TODO[$_as_tl]+x}" || -n "${RL_GATE_ARCHIVE[$_as_tl]+x}" ]]; then
+        continue
+      fi
+      violations=$((violations + 1))
+      echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source id:${_as_t}, which resolves NOWHERE (absent from ROADMAP.md, TODO.md and TODO.archive.md) — a dangling citation (id:ca14)" >&2
+      echo "  $_as_line" >&2
+      report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling id citation id:${_as_t}"$'\n'
+    else
+      # Path form, repo-relative to the ledger's own directory; a trailing `#anchor`
+      # names the Decisions section and is stripped before the existence check.
+      _as_path="${_as_tok%%#*}"
+      if [[ -z "$_as_path" || ! -e "$_rl_dir/$_as_path" ]]; then
+        violations=$((violations + 1))
+        echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source ${_as_tok}, but no such file exists (resolved repo-relative as ${_rl_dir}/${_as_path}) — a dangling citation (id:ca14)" >&2
+        echo "  $_as_line" >&2
+        report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling path citation ${_as_tok}"$'\n'
+      fi
+    fi
+  done <<< "$_as_srcs"
+done
 
 for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   line="${_rl_lines[$_rl_i]}"

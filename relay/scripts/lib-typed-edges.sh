@@ -62,6 +62,15 @@ typed_edges_decided_in_of_line() { grep -oP '(?<=<!-- decided-in:)[^[:space:]]+(
 # deliberate hold from a genuinely dead/mistaken gate; it is SCOPED to that lint only —
 # classify-repo.sh's dispatch gate does NOT read it (a separate, coordinated follow-up).
 typed_edges_owner_hold_of_line() { grep -oP '(?<=<!-- owner-hold:)[^[:space:]]+(?= -->)' <<<"$1" || true; }
+# `<!-- answer-src:<SOURCE> -->` (id:ca14) — the CITATION half of the owner-only
+# `@owner-answered:YYYY-MM-DD` decided-answer marker: WHERE the recorded answer lives.
+# SOURCE is either a repo-relative path (optionally with a `#anchor` fragment naming the
+# Decisions section) or a `id:XXXX` ledger token. Anchored exactly like its siblings — a
+# bare or backticked `answer-src:` mention in prose is NOT a citation. A marker whose
+# citation is absent, malformed or dangling is worthless (it becomes one more
+# unfalsifiable claim), which is why roadmap-lint's rule 3(h) fails LOUD and nonzero on
+# it rather than warning.
+typed_edges_answer_src_of_line() { grep -oP '(?<=<!-- answer-src:)[^[:space:]]+(?= -->)' <<<"$1" || true; }
 
 # --- DEP-prose vs typed gated-on (id:3f7e) ------------------------------------
 # `(DEP: <id>)` / `(DEP <id>)` prose gate-annotations are NOT edges — same
