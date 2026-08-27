@@ -39,6 +39,19 @@ fail() { echo "FAIL: $*"; exit 1; }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# id:b54b — fail CLOSED rather than silently operating on the caller's cwd repo. mktemp
+# failing is already loud (empty $TMP makes every "$TMP/x" path resolve under the real
+# filesystem root and every git command below error out) — this just says so up front and
+# also guards `in_tmp()` below, the last line of defense right at each git-fixture call
+# site that actually creates a relay/* branch.
+[[ -n "$TMP" && -d "$TMP" ]] || fail "mktemp -d did not produce a usable directory (TMP='$TMP') — refusing to run any git fixture that could fall back to the caller's real repo"
+in_tmp() { # <path> → true iff <path> is inside this run's own $TMP sandbox
+  case "$1" in
+    "$TMP"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # ── node harness: extract the REAL parseIntegrateResult from relay-loop.js (brace-matched,
 #    never a reimplementation) and print the fields the caller branches on. ──
 PARSE="$TMP/parse.js"
@@ -108,6 +121,7 @@ CASE_EXTRA=()
 run_case() { # <suffix> <env-assignments...> → sets RC, OUTF, ERRF, MAIN_PATH, CFG_TOML, REPO
   local sfx="$1"; shift
   MAIN_PATH="$(build "$sfx")"
+  in_tmp "$MAIN_PATH" || fail "MAIN_PATH ('$MAIN_PATH') is not inside \$TMP ($TMP) — refusing to create relay/$sfx outside the sandbox"
   REPO="$(basename "$MAIN_PATH")"
   local wt="$TMP/wt-$sfx"
   git -C "$MAIN_PATH" worktree add -q -b "relay/$sfx" "$wt" main
@@ -234,6 +248,7 @@ pass "(C/a726a) push(27) is LANDED-BUT-UNFINISHED, not a retryable defer (accept
 # (D) HAPPY PATH UNCHANGED — a full success still parses as merged (no regression).
 # =====================================================================================
 MAIN_OK="$(build ok)"; REPO_OK="$(basename "$MAIN_OK")"
+in_tmp "$MAIN_OK" || fail "MAIN_OK ('$MAIN_OK') is not inside \$TMP ($TMP) — refusing to create relay/ok outside the sandbox"
 git -C "$MAIN_OK" worktree add -q -b relay/ok "$TMP/wt-ok" main
 echo work > "$TMP/wt-ok/g"; git -C "$TMP/wt-ok" add -A; git -C "$TMP/wt-ok" commit -qm "child work id:test"
 mkdir -p "$TMP/cfg-ok"
