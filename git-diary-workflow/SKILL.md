@@ -64,12 +64,23 @@ its prior default was "push to every remote", which was the footgun this skill's
 `--remote origin` requirement used to guard against). That guard is now the helper's own
 default, so a bare call is safe: this skill runs after every prompt in every session, and
 an unattended `--afk` pool or parallel session that forgets a flag no longer risks
-silently publishing to public GitHub. Measured 2026-08-22: 41 of 46 own-repo remotes are
-the private `fievel:` LAN host and all are named `origin`, so pushing `origin` is a no-op
-change for the fleet; exactly **four** repos carry a public GitHub remote
-(`dotclaude-skills`, `zkm`, `toesnail`, `proton-moresync`) and only those are affected by
-the distinction. `~/.claude` and `~/src/claude-diary` also push `origin` → the private
-host, so the default is safe there too.
+silently publishing to public GitHub. Most own-repo remotes are the private `fievel:` LAN
+host and are named `origin`, so pushing `origin` is a no-op change for the fleet.
+**RE-MEASURED 2026-08-27: FOURTEEN of 56 own repos carry a public GitHub remote** —
+`dotclaude-skills`, `zkm`, `toesnail`, `proton-moresync`, and the ten published zkm plugins
+(`zkm-whatsapp`, `-calendar`, `-social`, `-eml`, `-ner`, `-vcard`, `-pdf`, `-scan`,
+`-photo`, `-notmuch`). Only those are affected by the distinction. `~/.claude` and
+`~/src/claude-diary` also push `origin` → the private host, so the default is safe there
+too.
+
+> The superseded text read *"Measured 2026-08-22: 41 of 46 own-repo remotes … exactly
+> **four** repos carry a public GitHub remote"*. That was almost certainly TRUE when
+> measured; the own-set then grew by exactly the ten plugins (46 → 56) and the claim was
+> never revisited. **Do not derive a public-remote set from this paragraph** — it is a
+> restatement and it rots. Enumerate it: `lib-own-repos.sh` + `git remote get-url github`.
+> The stale count reached a ratified design (`id:99b7(a)`, whose allowlist would have
+> silently unpublished those ten live repos) before being caught — the CLAUDE.md
+> derived-doc rule, firing on a premise rather than a pointer.
 
 Passing `--remote origin` explicitly still works and is harmless (it's the same
 selection as the default) — prefer the bare call for new code so the intent ("push the
