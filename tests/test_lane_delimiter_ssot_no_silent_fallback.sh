@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# RED SPEC — em-dash delimiter migration, seam S2 (TODO item, not a ROADMAP item —
-# no `# roadmap:` header; this file's failures always count).
+# roadmap:71d6
+# RED SPEC — em-dash delimiter migration, seam S1.
 #
 # THE DEFECT (verified empirically 2026-08-27, before writing this spec):
 #
@@ -50,7 +50,11 @@ for f in relay/scripts/lane-convert.sh relay/scripts/roadmap-lint.sh hooks/pre-c
   # The fallback is recognisable by its literal multi-lane assignment:
   #   hard_lanes=$'[HARD — pool]\n[HARD — meeting]…'  (or the hyphen equivalent)
   if grep -qE "(hard_lanes|input_lanes)=\\\$'\[" "$ROOT/$f"; then
-    fail "$f still carries a HARDCODED lane-vocabulary fallback — the migration deletes it so a failed scrape fails loudly (grep: $(grep -nE "(hard_lanes|input_lanes)=\\\$'\[" "$ROOT/$f" | head -2 | tr '\n' ' '))"
+    # `grep | head -2` is the id:7518 / id:81d5 pipefail class the repo's own lint
+    # forbids: head exits early, grep takes SIGPIPE, pipefail promotes it. Read the
+    # matches into an array via process substitution and slice them without a pipe.
+    mapfile -t _fb_hits < <(grep -nE "(hard_lanes|input_lanes)=\\\$'\[" "$ROOT/$f")
+    fail "$f still carries a HARDCODED lane-vocabulary fallback — the migration deletes it so a failed scrape fails loudly (grep: ${_fb_hits[0]:-} ${_fb_hits[1]:-})"
   fi
 done
 pass "no reader carries a hardcoded lane-vocabulary fallback"

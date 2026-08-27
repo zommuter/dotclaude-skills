@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# RED SPEC — em-dash delimiter migration, seam S3 (TODO item, not a ROADMAP item —
-# no `# roadmap:` header; this file's failures always count).
+# roadmap:2ee5
+# RED SPEC — em-dash delimiter migration, seam S3.
 #
 # THE DEFECT (verified empirically 2026-08-27, before writing this spec):
 #
@@ -79,7 +79,13 @@ stage_line() {
   printf '%s\n' "$1" >> ROADMAP.md
   git add -A
   # Prove the fixture is what we think it is before running the hook.
-  git diff --cached -U0 --no-color | grep -qF -e "$1" \
+  # Capture first, then match with a here-string: under `set -o pipefail` a
+  # `producer | grep -q` races (grep exits on first match, producer gets SIGPIPE,
+  # and pipefail promotes that to a failure). That is the id:7518 / id:81d5 class
+  # the repo's own pipefail lint forbids.
+  local _staged
+  _staged="$(git diff --cached -U0 --no-color)"
+  grep -qF -e "$1" <<<"$_staged" \
     || fail "FIXTURE BROKEN: staged diff does not contain the line under test: $1"
 }
 

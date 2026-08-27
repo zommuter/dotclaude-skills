@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# RED SPEC — em-dash delimiter migration, seam S1 (TODO item, not a ROADMAP item —
-# no `# roadmap:` header; this file's failures always count).
+# roadmap:70bc
+# RED SPEC — em-dash delimiter migration, seam S0.
 #
 # WHAT IS MISSING: there is no mechanical way to answer "is this repo's migration
 # complete?" or "is the fleet half-migrated?". Several readers already accept BOTH
