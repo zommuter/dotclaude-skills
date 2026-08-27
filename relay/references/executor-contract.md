@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v15 -->
+## Executor contract <!-- relay-executor contract v16 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -111,6 +111,22 @@ you were told you are the reviewer) follow these rules:
    EXISTING enum value (not a new one) so `handback-followup.py` needs no change and
    the item stays a plain, re-dispatchable `[ROUTINE]` item rather than being gated or
    re-tagged.
+
+   **NEAR-DONE CARVE-OUT (v16, owner-ratified 2026-08-27 on live evidence).** The
+   handback disposition above does NOT apply when you are **already green and about to
+   finish**: your work for the item is complete or all but complete, your tests pass, and
+   what remains is committing and reporting. In that case **finish the unit normally** and
+   return `contract_met=true`, adding one line to your handback/summary field naming the
+   measured bytes so the deviation is on the record. Do NOT start new investigation, do
+   NOT open a new file, do NOT begin another item — the carve-out covers *landing what you
+   already have*, nothing more. If in doubt you are NOT near-done: hand back.
+   *Why:* this rule exists to prevent a `Prompt is too long` DEATH that orphans a worktree
+   and blocks re-dispatch, not to discard near-complete work. Observed live in run
+   `relay-20260827-102629-23445`: the `leancow` hard unit crossed the threshold
+   (`bytes=310010`) at ~92% of its eventual transcript, finished green, and integrated
+   cleanly — handing back there would have thrown away a nearly-done unit and paid for a
+   full re-dispatch, with no death averted. The unconditional wording would have made that
+   correct outcome a contract violation, which is the wrong incentive.
 
    **ZERO-COMMIT branch — the livelock guard (id:5eeb).** If the budget is exceeded and
    you have **nothing committed for this item**, a plain `route="none"` handback writes
@@ -340,6 +356,24 @@ NARROW-SCOPE instruction rather than advisory, since in both measured units it f
 with 34 / 74 lines of headroom still available. Both change what an in-flight executor
 must do on a verdict it can already receive, so it bumps. No new enum and no
 `handback-followup.py` change — deliberately, per the ratified option (a).
+
+**v15 → v16 (id:5eeb follow-on, owner-ratified 2026-08-27 on FIRST live evidence):** rule
+2c's `handback` disposition gains a **NEAR-DONE CARVE-OUT**. v15 made the disposition
+unconditional; the first pool run in which rule 2c actually executed showed that is the
+wrong incentive. Run `relay-20260827-102629-23445` produced 7 real verdicts (5 `ok`, 1
+`warn` at 265,470 B, 1 `handback` at 310,010 B) — and the `handback` fired on the `leancow`
+hard unit at byte 310,292 of a 335,766-byte transcript, i.e. ~92% through: it finished
+green and integrated cleanly. Under v15's wording that correct outcome was a violation,
+and obeying the letter would have discarded a nearly-complete unit and paid for a full
+re-dispatch while averting no death. v16 therefore exempts *landing work you already have*
+— explicitly NOT starting anything new — and requires the measured bytes be named in the
+report so the deviation stays visible. This changes what an in-flight executor must do on
+a verdict it can already receive, so it bumps.
+
+*Note for future readers:* v15 shipped before rule 2c had ever run in a live pool — it was
+inert until `id:c219` (2026-08-27) fixed the transcript resolver. So v15's disposition was
+authored entirely from two post-mortem transcripts, never from observed behaviour. v16 is
+the first revision of this rule informed by watching it work.
 
 For the human-facing picture of the whole relay (modes, artifacts, what the
 user does between turns), see `docs/relay.md` in dotclaude-skills.
