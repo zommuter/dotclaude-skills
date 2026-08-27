@@ -25,10 +25,21 @@ THE `id:cb00` CHILDREN-OF TRAP, HANDLED EXPLICITLY
 and is blind to `<!-- children-of:PARENT -->`, which outnumbers it 45 to 12 in this
 repo's TODO.md. This script does NOT inherit that blindness and does not work around it
 locally either: it never touches the bash library. `tracker/ledger-map.py` already reads
-BOTH spellings (`RE_CHILDREN` / `RE_CHILDREN_OF`) and normalises them into one
-`parent`/`children` graph before this script sees anything, so the intermediate document
-is the both-directions reader. That makes `ledger-map.py` the existing reference
-behaviour `id:cb00` should converge the bash library onto, rather than a second fix.
+BOTH spellings (`RE_CHILDREN` / `RE_CHILDREN_OF`), so the intermediate document sees the
+79% of edges the bash library cannot.
+
+MEASURED CAVEAT, found while building this arm and filed as `id:7a9c`: reading both
+spellings is not the same as NORMALISING them. In the emitted document each spelling
+populates only ONE direction -- a downward `<!-- children:X -->` fills the parent's
+`children` but leaves X's `parent` null, and an upward `<!-- children-of:P -->` fills the
+child's `parent` but is absent from P's `children`. So neither field alone is the graph.
+The `parent_child_edges()` helper below takes the UNION of both fields and is the
+reference both-directions reader; `id:cb00` should converge the bash library onto that
+edge set, and `id:7a9c` covers making the document itself symmetric. Nothing here edits
+the shared mapper: the normalisation is derived, in memory, by the consumer.
+
+Note the pilot queries in this file are GATE-only, and `gated-on:` is unaffected by
+`id:cb00` in either library.
 
 WHY IT IS NOT PART OF `control-board.sh`
 ----------------------------------------
@@ -44,8 +55,10 @@ VIEWS
               than the prose-grep that item explicitly forbids)
   stale-gates open items whose gate target is already DONE, or does not resolve at all --
               `id:c3f6`'s "(i) STALE gates ... unblock = re-check/re-tag, ~zero cost"
+  child-edges the normalised parent/child edge set (union of both marker spellings), the
+              runnable reference reader for `id:cb00` / `id:7a9c`
 
-Both take `--json`.
+All take `--json`.
 
 CROSS-REPO GATES, STATED NOT GUESSED
 ------------------------------------
@@ -146,6 +159,33 @@ def descendants(root, rev):
     return seen
 
 
+def parent_child_edges(by_uid):
+    """The normalised parent -> child edge set: the UNION of both marker directions.
+
+    `<!-- children:X -->` on the parent populates only `children`; `<!-- children-of:P -->`
+    on the child populates only `parent`. Either field read alone is a partial graph
+    (`id:7a9c`). This union is the reference reader `id:cb00` should converge onto.
+    Each edge carries how it was declared, so a one-sided edge stays visible as one.
+    """
+    seen = {}
+    for uid, it in by_uid.items():
+        p = it.get("parent")
+        if p:
+            seen.setdefault((p, uid), set()).add("upward")
+        for c in it.get("children") or []:
+            seen.setdefault((uid, c), set()).add("downward")
+    return [{"parent": p, "child": c, "declared": sorted(d)}
+            for (p, c), d in sorted(seen.items())]
+
+
+def view_child_edges(by_uid, args):
+    rows = parent_child_edges(by_uid)
+    if args.assignee:
+        rows = [r for r in rows
+                if by_uid.get(r["child"], {}).get("assignee") == args.assignee]
+    return rows
+
+
 def view_keystones(by_uid, gate_edges, args):
     rev = reverse(gate_edges)
     rows = []
@@ -206,7 +246,7 @@ def view_stale_gates(by_uid, gate_edges, unresolved, args):
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="derived-index.py", description=__doc__.split("\n")[0])
-    ap.add_argument("view", choices=["keystones", "stale-gates"])
+    ap.add_argument("view", choices=["keystones", "stale-gates", "child-edges"])
     ap.add_argument("doc", help="intermediate JSON document, or - for stdin")
     ap.add_argument("--json", action="store_true", help="emit JSON rather than a table")
     ap.add_argument("--assignee", default=None,
@@ -219,8 +259,15 @@ def main(argv=None) -> int:
 
     if args.view == "keystones":
         rows = view_keystones(by_uid, gate_edges, args)
+    elif args.view == "child-edges":
+        rows = view_child_edges(by_uid, args)
     else:
         rows = view_stale_gates(by_uid, gate_edges, unresolved, args)
+
+    # Unresolved edges are ALWAYS reported on stderr, in EVERY view and every output
+    # mode (id:4347) -- a --json consumer that ignores the field still sees them.
+    for u, t, w in unresolved:
+        print("derived-index.py: UNRESOLVED gate %s -> %s: %s" % (u, t, w), file=sys.stderr)
 
     if args.json:
         print(json.dumps({"view": args.view, "rows": rows,
@@ -236,14 +283,15 @@ def main(argv=None) -> int:
             print("%4d %4d  %-24s %-10s %s"
                   % (r["ungates_open"], r["ungates_direct_open"], r["uid"],
                      r["assignee"] or "-", r["title"][:88]))
+    elif args.view == "child-edges":
+        print("%-24s %-24s %s" % ("parent", "child", "declared"))
+        for r in shown:
+            print("%-24s %-24s %s" % (r["parent"], r["child"], ",".join(r["declared"])))
     else:
         print("%-24s %-24s %s" % ("uid", "gate", "reason"))
         for r in shown:
             print("%-24s %-24s %s%s" % (r["uid"], r["gate"], r["reason"],
                                         " [cross-repo]" if r["cross_repo"] else ""))
-    # Unresolved edges are ALWAYS reported, in every view, on stderr (id:4347).
-    for u, t, w in unresolved:
-        print("derived-index.py: UNRESOLVED gate %s -> %s: %s" % (u, t, w), file=sys.stderr)
     print("\n%d row(s); %d item(s), %d open; %d gate edge(s), %d unresolved"
           % (len(rows), len(by_uid), sum(1 for i in by_uid.values() if is_open(i)),
              sum(len(v) for v in gate_edges.values()), len(unresolved)))
