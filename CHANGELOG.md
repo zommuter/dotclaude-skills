@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-27
+
+- id:5eeb verified already-satisfied: context-budget.sh, its test, and the executor-contract v15 rule 2c (with ZERO-COMMIT branch) all already ship; full suite green 508/0/1-expected-red — no code change needed, just confirming done-check for the driver's tick. (id:5eeb)
+
 ## 2026-08-26
 
 - id:f2ef — flake-log width=1 confirmation run #2 done: appended a new suite row (ts 20260826T102748Z, pass=498 fail=0) to ~/.cache/dotclaude-flake/runs.jsonl (id:f2ef)
