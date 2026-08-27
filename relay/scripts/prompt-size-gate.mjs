@@ -171,6 +171,37 @@ export const DISPATCH_TOKEN_BUDGET = 100000
 // safely today. The two numbers must be re-derived TOGETHER, by the owner.
 export const FIXED_OVERHEAD_TOKENS = 12000
 
+// RELAY_LOG_WINDOW_BYTES — the BOUNDED allowance charged for RELAY_LOG.md on a review unit,
+// instead of the whole file. MEASURED, 2026-08-27, over a census of 1,050 genuine relay
+// review-child transcripts:
+//
+//   * WHOLE-file reads of RELAY_LOG.md:   33 (~3%) — none died; largest payload ~28 KB.
+//   * WINDOW-scoped reads (`tail -8`, `head -5`, Read with offset/limit): 482.
+//   * DIFF-window reads (`git diff relay-ckpt-…HEAD -- RELAY_LOG.md`):     42.
+//
+// So ~96% of review children never swallow the file, and the CONTRACT agrees with the census:
+// relay/references/review.md asks only for diff-window-scoped reads (:78, :87, :310, :357 —
+// :357 says "the diff window's RELAY_LOG.md paragraph" in as many words), and
+// executor-contract.md:267-285 is a WRITE-format spec that never instructs a read at all.
+//
+// Charging the whole file therefore over-counted the required-read set by ~161x
+// (dotclaude-skills, 676,801 B), ~151x (loderite, 1,252,525 B) and ~49x (it-infra, 115,702 B).
+//
+// WHY NOT ZERO: 3% of children genuinely DO read it whole, and a 0 allowance would lie in the
+// other direction — it would re-open exactly the loderite-by-326-tokens pathology id:7c5f was
+// filed to close, for the one class of read that actually happens. The allowance is set at
+// 32,768 B because that is the smallest round bound ABOVE the largest whole-file read the
+// census actually observed (~28 KB), so no MEASURED review read is under-counted by it.
+// It is a MIN, not a replacement: a RELAY_LOG.md smaller than the window is charged its real
+// size, and an unmeasured/absent one is still 0 (fail-open, unchanged).
+//
+// SMALLER ALTERNATIVE, DELIBERATELY NOT TAKEN (owner's call): the contract mandates only the
+// DIFF WINDOW, whose measured reads are a few KB — an ~8,192 B allowance would match what
+// review.md actually requires and would shave a further ~6,100 tok off every review unit. That
+// is the tighter, contract-literal reading; 32,768 B is the census-literal one, and this gate
+// errs toward not under-counting.
+export const RELAY_LOG_WINDOW_BYTES = 32768
+
 // id:b018 — WHICH ledgers count. The 4f9b gate sized ROADMAP.md ALONE, and loderite passed by
 // 326 tokens then died anyway: the child is also contractually required to read TODO.md
 // (handoff C2's first check, review's single-id-two-views tick-back, and the execute contract's
@@ -219,8 +250,14 @@ export function estimateDispatchTokens(promptChars, roadmapBytes, todoBytes) {
 // unit; an absent/unmeasured file is 0 and therefore contributes nothing (fail-open).
 //
 // `cmd` marks a remedy that is a runnable command (rendered in backticks) versus a prose
-// instruction. RELAY_LOG.md has NO archiver — it is append-only/merge=union — so its remedy is
-// honest prose rather than a command that does not exist.
+// instruction.
+//
+// RELAY_LOG.md is charged a BOUNDED WINDOW, not its whole size (`windowed: true`, see
+// RELAY_LOG_WINDOW_BYTES above for the census and the rejected tighter alternative): a review
+// child is contractually required to read the DIFF WINDOW's paragraph, not the file, and
+// charging the file over-counted by up to ~161x. Its remedy is now a runnable command —
+// relay-log-archive.sh landed 2026-08-27 (commit 696dec67); the older comment here said
+// RELAY_LOG.md "has NO archiver", which was true when written and is no longer.
 export function countedLedgersFor(unit) {
   const u = unit || {}
   const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
@@ -231,7 +268,7 @@ export function countedLedgersFor(unit) {
   ]
   if (u.verdict === 'review') {
     ledgers.push({ name: 'REVIEW_ME.md', bytes: n(u.review_me_bytes), cmd: true, reviewOnly: true, fix: '~/.claude/skills/relay/scripts/archive-closed.sh ' + repoPath })
-    ledgers.push({ name: 'RELAY_LOG.md', bytes: n(u.relay_log_bytes), cmd: false, reviewOnly: true, fix: 'RELAY_LOG.md is append-only (merge=union) and has NO archiver — rotate its older session entries into a RELAY_LOG.archive.md by hand' })
+    ledgers.push({ name: 'RELAY_LOG.md', bytes: Math.min(n(u.relay_log_bytes), RELAY_LOG_WINDOW_BYTES), cmd: true, reviewOnly: true, windowed: true, fix: '~/.claude/skills/relay/scripts/relay-log-archive.sh ' + repoPath })
   }
   return ledgers
 }

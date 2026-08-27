@@ -89,7 +89,7 @@ fi
 
 # ── (B) BEHAVIOUR: the pure gate. ────────────────────────────────────────────────────────────
 cat > "$TMP/drive.mjs" <<NODE
-import { oversizeDispatchReason, sliceLedgerHeadroom, estimateDispatchTokens, DISPATCH_TOKEN_BUDGET } from 'file://$GATE'
+import { oversizeDispatchReason, sliceLedgerHeadroom, estimateDispatchTokens, countedLedgersFor, DISPATCH_TOKEN_BUDGET, RELAY_LOG_WINDOW_BYTES } from 'file://$GATE'
 const out = []
 const P = 1000
 
@@ -107,7 +107,8 @@ out.push('two_ledgers_under_budget=' + (estimateDispatchTokens(P, RM, TD) <= DIS
   const r = oversizeDispatchReason({ ...base, verdict: 'review' }, P)
   out.push('review_refused=' + (r ? '1' : '0'))
   out.push('review_reason_names_review_me=' + (r.includes('REVIEW_ME.md') && r.includes(String(RME)) ? '1' : '0'))
-  out.push('review_reason_names_relay_log=' + (r.includes('RELAY_LOG.md') && r.includes(String(RLOG)) ? '1' : '0'))
+  // RELAY_LOG.md is charged its BOUNDED WINDOW, so the reason quotes the window, not the file.
+  out.push('review_reason_names_relay_log=' + (r.includes('RELAY_LOG.md') && r.includes(String(Math.min(RLOG, RELAY_LOG_WINDOW_BYTES))) ? '1' : '0'))
 }
 
 // (2) NO VERDICT CHANGE for anything else: the IDENTICAL unit as execute/hard/handoff still
@@ -145,6 +146,58 @@ out.push('review_only_ledgers_sizeable=' + (oversizeDispatchReason(
   out.push('headroom_review_not_affordable=' + (h.affordable === false ? '1' : '0'))
   const he = sliceLedgerHeadroom({ ...u, verdict: 'execute' })
   out.push('headroom_execute_ignores_review_ledgers=' + (he.largestLedgerName === 'TODO.md' && he.affordable === true ? '1' : '0'))
+}
+
+// (5b) RELAY_LOG.md is charged a BOUNDED WINDOW, not the whole file — and REVIEW_ME.md is NOT.
+//      Census of 1,050 relay review-child transcripts: RELAY_LOG.md read WHOLE 33 times (~3%,
+//      max ~28 KB) vs 482 window-scoped + 42 diff-window; review.md mandates only the diff
+//      window's paragraph. REVIEW_ME.md is different — 360/1,050 (~34%) whole reads — so it
+//      stays counted in full. The allowance is a MIN, never a replacement, and never zero.
+{
+  const byName = (u) => Object.fromEntries(countedLedgersFor(u).map((l) => [l.name, l]))
+
+  // A huge RELAY_LOG.md is charged exactly the window...
+  const huge = byName({ verdict: 'review', relay_log_bytes: 1252525, review_me_bytes: 800000 })
+  out.push('relay_log_charged_window=' + (huge['RELAY_LOG.md'].bytes === RELAY_LOG_WINDOW_BYTES ? '1' : '0'))
+  out.push('relay_log_marked_windowed=' + (huge['RELAY_LOG.md'].windowed === true ? '1' : '0'))
+  // ...while REVIEW_ME.md is still charged WHOLE (the two must not be lumped together).
+  out.push('review_me_still_charged_whole=' + (huge['REVIEW_ME.md'].bytes === 800000 ? '1' : '0'))
+  out.push('review_me_not_windowed=' + (huge['REVIEW_ME.md'].windowed === undefined ? '1' : '0'))
+
+  // A SMALL RELAY_LOG.md is charged its real size — the window is a cap, not a flat allowance.
+  const small = byName({ verdict: 'review', relay_log_bytes: 5000 })
+  out.push('small_relay_log_charged_real_size=' + (small['RELAY_LOG.md'].bytes === 5000 ? '1' : '0'))
+  // NEVER ZERO: ~3% of review children do read it whole, so a 0 allowance would lie the other way.
+  out.push('relay_log_allowance_nonzero=' + (RELAY_LOG_WINDOW_BYTES > 0 ? '1' : '0'))
+  // The window must cover the largest whole-file read the census actually observed (~28 KB).
+  out.push('window_covers_measured_max_whole_read=' + (RELAY_LOG_WINDOW_BYTES >= 28 * 1024 ? '1' : '0'))
+
+  // An absent/unmeasured RELAY_LOG.md is still 0 — the window never invents bytes (fail-open).
+  const none = byName({ verdict: 'review' })
+  out.push('unmeasured_relay_log_still_zero=' + (none['RELAY_LOG.md'].bytes === 0 ? '1' : '0'))
+
+  // NON-review verdicts are untouched: RELAY_LOG.md is not in their counted set at all.
+  out.push('execute_still_excludes_relay_log=' +
+    (countedLedgersFor({ verdict: 'execute', relay_log_bytes: 1252525 }).some((l) => l.name === 'RELAY_LOG.md') ? '0' : '1'))
+
+  // BEHAVIOURAL: a review unit refused SOLELY because of a whole-file RELAY_LOG charge now
+  // dispatches — that is the over-count this change removes.
+  const u = { repo: 'fixture', path: '/p/x', verdict: 'review',
+              roadmap_bytes: 100000, todo_bytes: 100000, review_me_bytes: 20000, relay_log_bytes: 400000 }
+  out.push('windowed_review_dispatches=' + (oversizeDispatchReason(u, P) === '' ? '1' : '0'))
+  out.push('same_unit_over_budget_if_charged_whole=' +
+    (estimateDispatchTokens(P, 100000 + 100000 + 20000 + 400000, 0) > DISPATCH_TOKEN_BUDGET ? '1' : '0'))
+
+  // ...and the remedy is now a RUNNABLE command (relay-log-archive.sh landed 2026-08-27),
+  // not the stale "has NO archiver" prose.
+  out.push('relay_log_remedy_is_command=' +
+    (huge['RELAY_LOG.md'].cmd === true && huge['RELAY_LOG.md'].fix.includes('relay-log-archive.sh') ? '1' : '0'))
+
+  // sliceLedgerHeadroom reads the SAME set, so the brief cannot size a review child's
+  // invitation on a whole RELAY_LOG the gate no longer charges.
+  const h = sliceLedgerHeadroom({ verdict: 'review', slice_bytes: 4000,
+                                  roadmap_bytes: 20000, todo_bytes: 30000, relay_log_bytes: 1252525 })
+  out.push('headroom_relay_log_windowed=' + (h.largestLedgerBytes === RELAY_LOG_WINDOW_BYTES ? '1' : '0'))
 }
 
 // (6) The budget literal is untouched (test_prompt_size_gate_4f9b.sh pins it in both copies).

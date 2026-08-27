@@ -2887,7 +2887,10 @@ const dispatchChoiceFor = (unit) => {
 // structural test in tests/test_prompt_size_gate_review_7c5f.sh pins it). It is the SINGLE
 // place the counted ledger set is decided, read by BOTH the gate and sliceLedgerHeadroom:
 // ROADMAP.md + TODO.md always, plus REVIEW_ME.md + RELAY_LOG.md when the verdict is `review`,
-// because only a review child is contractually required to read those two.
+// because only a review child is contractually required to read those two. RELAY_LOG.md is
+// charged a BOUNDED WINDOW (RELAY_LOG_WINDOW_BYTES) rather than its whole size — review.md
+// requires only the diff window's paragraph, and a 1,050-transcript census found whole-file
+// reads at ~3%; see prompt-size-gate.mjs for the measurements and the rejected alternative.
 function countedLedgersFor(unit) {
   const u = unit || {}
   const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
@@ -2898,7 +2901,7 @@ function countedLedgersFor(unit) {
   ]
   if (u.verdict === 'review') {
     ledgers.push({ name: 'REVIEW_ME.md', bytes: n(u.review_me_bytes), cmd: true, reviewOnly: true, fix: '~/.claude/skills/relay/scripts/archive-closed.sh ' + repoPath })
-    ledgers.push({ name: 'RELAY_LOG.md', bytes: n(u.relay_log_bytes), cmd: false, reviewOnly: true, fix: 'RELAY_LOG.md is append-only (merge=union) and has NO archiver — rotate its older session entries into a RELAY_LOG.archive.md by hand' })
+    ledgers.push({ name: 'RELAY_LOG.md', bytes: Math.min(n(u.relay_log_bytes), RELAY_LOG_WINDOW_BYTES), cmd: true, reviewOnly: true, windowed: true, fix: '~/.claude/skills/relay/scripts/relay-log-archive.sh ' + repoPath })
   }
   return ledgers
 }
@@ -2977,6 +2980,12 @@ function hardNamedInstruction(unit) {
 const CHARS_PER_TOKEN = 4
 const DISPATCH_TOKEN_BUDGET = 100000
 const FIXED_OVERHEAD_TOKENS = 12000
+// The BOUNDED allowance charged for RELAY_LOG.md on a review unit (see prompt-size-gate.mjs
+// for the 1,050-transcript census, the contract citations, and the tighter 8,192 B alternative
+// left for the owner). 32,768 B is the smallest round bound above the largest whole-file read
+// actually observed (~28 KB), so no measured review read is under-counted. NOT zero: ~3% of
+// review children genuinely read the file whole.
+const RELAY_LOG_WINDOW_BYTES = 32768
 // id:b018 — BOTH ledgers are counted (ROADMAP.md + TODO.md), not just the ROADMAP: sizing one
 // under-counted by ~50% and let loderite through by 326 tok before it died anyway.
 function estimateDispatchTokens(promptChars, roadmapBytes, todoBytes) {
@@ -3959,7 +3968,14 @@ const strandedDispatchReason = (unit, gate) => {
 // never dispatched silently (ledger-slice.sh exits 4 on an unresolvable id, id:4347).
 async function sliceLedgerForUnit(unit) {
   const item = dispatchItemFor(unit)
-  if (!item) return null
+  if (!item) {
+    // id:f499 — this was the ONE silent branch of the five the header promises "logs WHY".
+    // The unsliced-branch REMEDY in oversizeDispatchReason tells the operator the relay-loop
+    // log records why no slice_path was produced; without this line that remedy dead-ends for
+    // every unit (review units especially) whose verdict names no dispatch item.
+    log(`relay-loop: id:e68f no dispatch item for ${unit.repo} (verdict ${unit.verdict || '(none)'}) — nothing to slice, fail-open, dispatching with the unsliced brief`)
+    return null
+  }
   let raw
   try {
     // unit.path is the CANONICAL checkout (same id:ba7e justification as the scan above): the
