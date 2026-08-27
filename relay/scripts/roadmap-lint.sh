@@ -23,6 +23,19 @@
 #   Both run only on OPEN items in ACTIVE sections (parked/exempt sections are skipped),
 #   and NEVER silently filter — the offending line always prints to stderr.
 #
+#   3(g) PARKED-POOL-LANE (id:d35a, owner ruling 2026-08-27): the ONE rule that runs
+#        INSIDE an already-exempt/parked section, not an active one. An OPEN `- [ ]`
+#        item under a parked heading must NOT carry a pool-executable lane tag
+#        (`[ROUTINE]` or `[HARD — pool]`) — a human/non-dispatch lane there
+#        (`[HARD — meeting|hands|decision gate]`, any `[INPUT — …]`, `[MECHANICAL]`)
+#        is legitimate and stays silent. This is a GRAMMAR rule, not doctrine: it
+#        fails nonzero UNCONDITIONALLY, never gated behind --strict. Origin: a
+#        `### Visibility-only — human lane, NOT dispatchable` heading was dispatched
+#        to the pool because none of its words matched ROADMAP_PARKED_HEADING_WORDS
+#        (a separate, deliberately-untouched gap) — this rule catches the orthogonal
+#        mistake of a live executable tag sitting under a heading that IS recognized
+#        exempt.
+#
 # RECOGNIZED non-lane markers (id:a505): `@container` (DECOMPOSED parent), `@manual`
 # (human must run/verify), and `@needs-auth` (blocked on a human-held secret /
 # interactive-auth wall — see relay/references/hard-lanes.md) are KNOWN markers,
@@ -127,6 +140,43 @@ fi
 lane_alt="$(printf '%s\n' "$hard_lanes" \
   | sed -E 's/^\[HARD — (.*)\]$/\1/' \
   | paste -sd'|' -)"
+
+# --- PARKED-POOL-LANE pool-executable set (id:d35a, owner ruling 2026-08-27) ---
+# A `### Visibility-only — human lane, NOT dispatchable` heading was NOT recognized
+# as exempt (none of its words are in ROADMAP_PARKED_HEADING_WORDS — that gap is a
+# SEPARATE ruling, deliberately NOT fixed here: widening the parked-heading
+# vocabulary is out of scope for this check and belongs to whoever owns id:6446/
+# lib-roadmap-sections.sh). Its `[ROUTINE]`-tagged items were dispatched to the
+# pool and killed two Sonnet executors. THIS check assumes a heading IS already
+# recognized exempt, and catches the orthogonal mistake: a pool-executable lane
+# tag sitting on an item under a heading that IS already parked.
+#
+# "Pool-executable" = the two dispositions the `/relay --afk` pool actually
+# dispatches, per hard-lanes.md's own "Who runs it" column: [ROUTINE] (the base
+# executor-tier lane) and [HARD — pool] (the "hard" verdict). Neither is a fresh
+# second copy of the vocabulary: [HARD — pool] is filtered out of $hard_lanes,
+# which is ALREADY sourced from hard-lanes.md a few lines up; [ROUTINE] is a bash
+# literal because hard-lanes.md's `[HARD — <lane>]` table only enumerates the
+# `[HARD — *]` family, never `[ROUTINE]` itself (it appears only in prose in the
+# north-star table) — this mirrors the PRE-EXISTING `\[ROUTINE\]` literal in
+# `class_re` above, not a new hardcode.
+#
+# BARE `[HARD]` IS COVERED, and is not a judgment call — it is id:4f02's
+# unambiguous 1:1 rename of `[HARD — pool]` (same disposition, new spelling), and
+# `lane-convert.sh` auto-applies exactly that rename with no human input. It is
+# therefore the CURRENT spelling of the pool-executable lane, not a variant: under
+# the north-star vocabulary `[HARD — pool]` is the legacy form the pre-commit
+# ratchet (hooks/pre-commit-lane-vocab.sh) actively BLOCKS from new commits.
+# Omitting it would have left the rule catching loderite dd4d S2/S3 while missing
+# S1/S4/S5 — three of the five items in its own origin incident (id:d35a).
+# The `\[HARD\]` alternative matches ONLY the bare form; `[HARD — meeting]` and the
+# rest of the `[HARD — *]` family cannot match it (the `]` is anchored).
+if grep -qxF '[HARD — pool]' <<<"$hard_lanes"; then
+  pool_lane_re='\[ROUTINE\]|\[HARD\]|\[HARD — pool\]'
+else
+  echo "roadmap-lint: WARNING — [HARD — pool] not found in $lanes_doc; PARKED-POOL-LANE will only catch [ROUTINE] and bare [HARD]" >&2
+  pool_lane_re='\[ROUTINE\]|\[HARD\]'
+fi
 
 # --- DUAL-VOCAB WINDOW (id:4f02, meeting 2026-07-02-1924 decision 2) -----------
 # The target capability-keyed vocabulary (`[HARD]` bare + `[INPUT — meeting|decision|
@@ -398,8 +448,24 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # lane+id, so its bare `- [ ] Open` / `- [x] Done` status marker is not a violation.
   [[ "$heading_is_item" -eq 1 ]] && continue
 
-  # Section-exempt items are explicitly parked → never linted.
-  [[ "$in_exempt_section" -eq 1 ]] && continue
+  # Section-exempt items are explicitly parked → never linted for the usual
+  # grammar (class tag + id) — EXCEPT for rule 3(g) PARKED-POOL-LANE just below,
+  # which exists precisely BECAUSE that blanket skip hides an executable lane
+  # tag under a parked heading (the id:d35a origin incident). This is the one
+  # deliberate exception to the exempt-section skip; nothing else runs on these
+  # lines.
+  if [[ "$in_exempt_section" -eq 1 ]]; then
+    if [[ "$line" =~ $pool_lane_re ]]; then
+      _pp_tag="${BASH_REMATCH[0]}"
+      _pp_id="$(item_id "$line")"
+      violations=$((violations + 1))
+      echo "roadmap-lint: ERROR — PARKED-POOL-LANE: open item ${_pp_id:-<no id>} sits under a parked/human-lane heading yet carries the pool-executable tag ${_pp_tag} — an executable lane must never appear under a parked heading (id:d35a)" >&2
+      echo "  $line" >&2
+      report+="  - [${_pp_id:-<no id>}] PARKED-POOL-LANE: pool-executable tag ${_pp_tag} under a parked/human-lane heading"$'\n'
+      report+="      ${line}"$'\n'
+    fi
+    continue
+  fi
 
   # Grammar clause 1: a recognized class/lane tag.
   has_class=0

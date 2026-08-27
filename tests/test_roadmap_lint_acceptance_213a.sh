@@ -55,7 +55,7 @@ cat >"$R" <<'MD'
 
 ## Deferred
 
-- [ ] [ROUTINE] a bare one-liner parked under a Deferred heading <!-- id:e006 -->
+- [ ] [INPUT — meeting] a bare one-liner parked under a Deferred heading <!-- id:e006 -->
 MD
 
 cat >"$tmp/TODO.md" <<'MD'
