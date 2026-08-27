@@ -83,7 +83,11 @@ you were told you are the reviewer) follow these rules:
 
    `--self` resolves YOUR OWN transcript via `self-transcript.sh` (id:ff30):
    `$CLAUDE_SESSION_ID` is the TOP-LEVEL session id, which is the *directory* holding
-   your `subagents/agent-<id>.jsonl`, and `--marker` picks yours out from your sibling
+   your transcript — either `subagents/agent-<id>.jsonl` (flat) or, when you were
+   dispatched by the Workflow pool, `subagents/workflows/wf_<id>/agent-<id>.jsonl`
+   (nested); the resolver searches both shapes, so you need not know which you are
+   (id:c219 — it once searched only the flat one, which made this check silently inert
+   for every pooled child). `--marker` picks yours out from your sibling
    children — your worktree path is already in your dispatch brief above ("Your worktree
    `<wt>` on branch …"), so paste that. This is the whole reason the check is runnable:
    the pre-v14 form asked you for a transcript path that nothing in the dispatch chain
@@ -314,6 +318,12 @@ v14 names `context-budget.sh --self --marker "<your worktree path>"`, backed by 
 `relay/scripts/self-transcript.sh`, which resolves the calling agent's own
 `<session>/subagents/agent-<id>.jsonl` and disambiguates siblings by a string from its own
 dispatch prompt. This changes the command an in-flight executor must run, so it bumps.
+(Historical note, id:c219: as shipped in v14 the resolver searched ONLY that flat path,
+so it resolved nothing for a Workflow-dispatched child — whose transcript is one level
+deeper, under `subagents/workflows/wf_<id>/` — and rule 2c was therefore silently inert
+for every pooled executor until the resolver was made depth-agnostic on 2026-08-27. The
+v14 COMMAND above is unchanged and remains correct, which is why that fix carried no
+version bump.)
 
 **v14 → v15 (id:5eeb, owner-ratified 2026-08-26):** rule 2c gains a ZERO-COMMIT branch
 and promotes the pre-first-edit `warn`. v14's handback disposition was a LIVELOCK in the
