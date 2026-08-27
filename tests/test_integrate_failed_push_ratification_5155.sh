@@ -90,8 +90,11 @@ child() { local main="$1" name="$2"; local wt="$TMP/wt-$name"
   git -C "$main" worktree add -q -b "relay/$name" "$wt" main
   echo "work-$name" > "$wt/g-$name"; git -C "$wt" add -A; git -C "$wt" commit -qm "child work $name"
   printf '%s' "$wt"; }
+# id:99b7 — this fixture's ONLY remote is `lan` (it deliberately removes `origin`), so it must
+# be DECLARED in the do-publish allowlist or it classifies as UNDECLARED: never pushed, hence
+# never FAILED, and the failed-push ratification path this file specs would be unreachable.
 cfg() { local d="$TMP/cfg-$1"; mkdir -p "$d"
-  printf '[repos.%s]\nstatus = "active"\n' "$2" > "$d/relay.toml"; printf '%s' "$d"; }
+  printf '[publish]\ndefault_remotes = ["origin"]\n\n[repos.%s]\nstatus = "active"\npublish_remotes = ["lan"]\n' "$2" > "$d/relay.toml"; printf '%s' "$d"; }
 bare_head() { git -C "$1" rev-parse --verify -q refs/heads/main 2>/dev/null || echo NONE; }
 key() { awk -F'=' -v k="$2" '$1==k{print substr($0, length(k)+2); exit}' <<<"$1"; }
 

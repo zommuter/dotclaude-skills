@@ -162,9 +162,17 @@
 #
 # Output contract (stdout, one KEY=VALUE per line — parsed by relay-loop.js integrate()):
 #   merged=<sha>  ckpt=<tag>  push=<pushed|partial|deferred|no-upstream|FAILED>
-#   pushRemote=<name>:<pushed|deferred|FAILED|skipped-no-ssh-key|no-push-url>  (0..n lines)
+#   pushRemote=<name>:<pushed|deferred|FAILED|skipped-no-ssh-key|no-push-url|undeclared>
+#                                                                             (0..n lines)
 #   pushPending=<comma-separated remotes that did NOT receive the merge, or empty>
 #   ratification=<pending|none>
+#
+#   id:99b7 `undeclared` — the remote is NOT IN THIS REPO'S DO-PUBLISH ALLOWLIST
+#   (`[publish] default_remotes` + `[repos.<r>] publish_remotes` in relay.toml). It is NOT a
+#   publish target at all: never pushed, never counted as eligible, NEVER in `pushPending=`
+#   and never in the ratification queue. It is also SURFACED LOUDLY on stderr — the mirror
+#   failure (a remote the owner DID want to publish to, left undeclared) must never be
+#   silent. See relay/scripts/lib-publish-remote.sh.
 #   ts=<ISO>  bump=<vX.Y.Z|>  retire=<note>
 #   postSig=<hex|>  openRoutine=<n>  openHard=<n>  sibling=<branch>\t<count>  (0..n lines)
 #
@@ -340,6 +348,11 @@ DISCOVER_SIG="${INTEGRATE_DISCOVER_SIG:-$SCRIPT_DIR/discover-sig.sh}"
 # hooks/pre-push-privacy-gate.sh; never re-derived here. See lib-private-remote.sh's header
 # for why git-lock-push.sh's is_ssh_url() is NOT a substitute (it fails toward AUTO-PUBLISH).
 LIB_PRIVATE_REMOTE="${INTEGRATE_LIB_PRIVATE_REMOTE:-$SCRIPT_DIR/lib-private-remote.sh}"
+# id:99b7 — THE single "may we PUBLISH to this remote at all?" resolver (the do-publish
+# ALLOWLIST). A SEPARATE predicate from lib-private-remote.sh on purpose: privacy gates the
+# LEAK SCAN, this gates the PUSH, and conflating them would skip a leak scan. See that file's
+# header for the third-party-upstream defect it closes.
+LIB_PUBLISH_REMOTE="${INTEGRATE_LIB_PUBLISH_REMOTE:-$SCRIPT_DIR/lib-publish-remote.sh}"
 
 # ── args ──
 repo="" path="" worktree="" branch="" summary="" run="" label=""
@@ -818,9 +831,38 @@ landed=1
 #    rejected alternatives (bare per-remote `git push`; a temporary
 #    `remote.<name>.pushurl=no_push`) drop the lock and mutate shared repo config
 #    respectively.
+#
+# ── step 8 PART ZERO (id:99b7): THE DO-PUBLISH ALLOWLIST RUNS *BEFORE* THE PRIVACY QUESTION ─
+#
+#    id:4d44 (above) INFERRED the publish question from the privacy one — "not provably
+#    private ⇒ a public remote awaiting owner ratification". That inference fails OPEN, and
+#    for a PUBLISHING decision that is the wrong way round. Observed: git-annex's `upstream`
+#    is `git://git-annex.branchable.com/`, a third-party project this repo forks and only ever
+#    FETCHES from. It was recorded as awaiting ratification (four entries that can NEVER
+#    resolve, one more per integrate) and — because the NON-SUBSTANTIVE path below pushed
+#    EVERY remote — a push to a stranger's repository was actually ATTEMPTED on 2026-08-27.
+#
+#    The owner ratified an explicit do-publish ALLOWLIST, INVERTING the offered scheme-based
+#    exclusion: declare the remotes we DO publish to, and everything else is not a publish
+#    target at all. An allowlist fails CLOSED. The result is a THREE-WAY semantic the old
+#    private/public split could not express:
+#
+#      private + DECLARED  ⇒ push IMMEDIATELY                (unchanged, id:4d44)
+#      public  + DECLARED  ⇒ push GATED by ratification      (unchanged, id:4d44)
+#      UNDECLARED          ⇒ NEVER pushed, NEVER queued, and SURFACED LOUDLY
+#
+#    UNDECLARED IS UNCONDITIONAL. It is decided BEFORE `$defer_push` is consulted, so the
+#    NON-SUBSTANTIVE path can no longer "push everything": "never push, never track" carries
+#    no substantive-ness qualifier. This NARROWS id:4d44 case 4 — flagged for the owner.
+#
+#    AND IT IS NEVER SILENT. The mirror failure is the dangerous one: add a real GitHub
+#    remote, forget to declare it, and a pure allowlist publishes nothing AND says nothing.
+#    Every exclusion therefore emits a LOUD stderr line naming the remote. Do not "tidy" that
+#    line away, and do not downgrade it to log() — the log is not read.
 push_pushed=""      # newline-separated: remotes VERIFIED to carry HEAD
 push_deferred=""    # newline-separated: remotes deliberately NOT pushed (public/unproven)
 push_unreached=""   # newline-separated: intended but did NOT arrive for a benign reason
+push_undeclared=""  # newline-separated: id:99b7 — not in the publish set; never a push target
 push_lines=""       # `pushRemote=<name>:<status>` stdout lines, in `git remote` order
 
 # NOTE (id:a726(a)): the `if [ -n "$defer_push" ]; then landed=1; fi` that used to sit here is
@@ -837,6 +879,23 @@ else
   log "step8 id:4d44 lib-private-remote.sh UNREADABLE at $LIB_PRIVATE_REMOTE — no remote can be PROVEN private, so every remote is treated as PUBLIC (fail-closed: defer, never auto-publish)"
 fi
 
+# Source the do-publish resolver and materialise THIS repo's declared set once (id:99b7).
+# UNREADABLE LIB ⇒ the built-in floor `origin` alone. That is the safe direction in BOTH
+# senses: it can never authorise a PUBLIC push (origin is this fleet's private LAN host in
+# 41 of 46 own repos), and it does not wedge the fleet by declaring nothing at all.
+publish_set=""
+if [ -r "$LIB_PUBLISH_REMOTE" ]; then
+  # shellcheck source=./lib-publish-remote.sh
+  . "$LIB_PUBLISH_REMOTE"
+  publish_set="$(publish_declared_remotes "$repo")"
+else
+  publish_set="origin"
+  printf 'integrate.sh: WARNING[publish] (id:99b7): lib-publish-remote.sh UNREADABLE at %s — falling back to the built-in floor publish set `origin` ONLY. Any other remote of [%s] is NOT IN THE PUBLISH SET for this run: not publishing, not tracking.\n' \
+    "$LIB_PUBLISH_REMOTE" "$repo" >&2
+  log "step8 id:99b7 lib-publish-remote.sh UNREADABLE at $LIB_PUBLISH_REMOTE — publish set floors to 'origin'"
+fi
+log "step8 id:99b7 publish set for [$repo]: [$(printf '%s' "$publish_set" | tr '\n' ' ')]"
+
 # Classify every remote. `no_push` pushurls are not remotes at all for this purpose —
 # git-lock-push.sh skips them by the same rule, so they are neither pushed nor deferred.
 to_push="" eligible_count=0
@@ -845,6 +904,29 @@ for _r in $all_remotes; do
   _rurl="$(git -C "$path" remote get-url --push "$_r" 2>/dev/null || true)"
   if [ "$_rurl" = "no_push" ]; then
     push_lines="${push_lines}pushRemote=$_r:no-push-url"$'\n'
+    continue
+  fi
+  # ── id:99b7 — THE ALLOWLIST GATE, ahead of everything else. ────────────────────────
+  # An UNDECLARED remote is not "a public remote awaiting ratification" and not "a remote we
+  # failed to push": it is NOT A PUBLISH TARGET. It never enters `to_push` (so it is never
+  # pushed and never verified), never enters `push_deferred` (so it never reaches
+  # `pushPending=` and never mints a ratification-queue entry that no owner action could
+  # ever resolve), and it is NOT counted as eligible (so it cannot degrade the aggregate
+  # `push=` token — we were never going to publish there).
+  #
+  # THE LOUD LINE IS HALF THE FEATURE, not garnish. Without it the allowlist's own mirror
+  # failure — an owner adds a GitHub remote and forgets to declare it, so nothing publishes
+  # and nothing complains — is completely invisible. stderr, not log(), on purpose.
+  #
+  # The remote URL is deliberately NOT printed: an undeclared remote may be an internal host,
+  # and this line can end up in relay status output that is committed to a PUBLIC repo. The
+  # URL goes to the private log instead.
+  if ! publish_set_contains "$publish_set" "$_r"; then
+    push_undeclared="${push_undeclared}${_r}"$'\n'
+    push_lines="${push_lines}pushRemote=$_r:undeclared"$'\n'
+    printf 'integrate.sh: UNDECLARED REMOTE (id:99b7): [%s] remote %s is NOT IN THE PUBLISH SET — not publishing, not tracking. Declared for this repo: [%s]. If you DO want to publish there, add it to `publish_remotes` in [repos.%s] of %s; if you do not, this line is the expected outcome and needs no action.\n' \
+      "$repo" "$_r" "$(printf '%s' "$publish_set" | tr '\n' ' ')" "$repo" "$(publish_remotes_toml_file 2>/dev/null || printf '%s' "${FABLES_CONFIG:-$HOME/.config/relay}/relay.toml")" >&2
+    log "step8 id:99b7 remote '$_r' ($_rurl) is UNDECLARED — never pushed, never queued"
     continue
   fi
   eligible_count=$(( eligible_count + 1 ))
@@ -871,8 +953,13 @@ if [ -n "$to_push" ]; then
   # via --all, or a repo with 2+ eligible private remotes would silently push only
   # origin here. --remote subset selection below (the substantive/deferred path) is
   # unaffected — it already named every remote explicitly.
+  # id:99b7 — `--all` means EVERY remote of the repo, INCLUDING an undeclared one. So the
+  # `--all` shortcut is now valid only when NOTHING was withheld at all: no deferred remote
+  # AND no undeclared one. With an undeclared remote present we must enumerate `--remote`
+  # explicitly, or the non-substantive path would push to a third party's repo through the
+  # very shortcut this fix exists to close.
   push_args=(--ff-only "$path")
-  if [ -n "$push_deferred" ]; then
+  if [ -n "$push_deferred" ] || [ -n "$push_undeclared" ]; then
     while IFS= read -r _r; do
       [ -n "$_r" ] || continue
       push_args+=(--remote "$_r")
@@ -995,7 +1082,7 @@ fi
 # gate onto `$push_status` at step 8b, after proving that `$defer_push` silently excluded the
 # `no-upstream` class; keying it on substantive-ness again — even indirectly — would reopen
 # exactly that hole. The single gate lives at step 8b and reads `$push_status` alone.
-log "step8 id:4d44 substantive=${substantive:-unset} push=$push_status pushed=[$(printf '%s' "$push_pushed" | tr '\n' ' ')] deferred=[$(printf '%s' "$push_deferred" | tr '\n' ' ')] unreached=[$(printf '%s' "$push_unreached" | tr '\n' ' ')]"
+log "step8 id:4d44 substantive=${substantive:-unset} push=$push_status pushed=[$(printf '%s' "$push_pushed" | tr '\n' ' ')] deferred=[$(printf '%s' "$push_deferred" | tr '\n' ' ')] unreached=[$(printf '%s' "$push_unreached" | tr '\n' ' ')] undeclared=[$(printf '%s' "$push_undeclared" | tr '\n' ' ')]"
 
 # ── step 8b: RATIFICATION ENQUEUE (id:4d44) — the durable surface for an UNPUBLISHED land. ──
 #    Append-only JSONL through relay-state-write.sh's flock'd `event-append`, so two
@@ -1245,6 +1332,12 @@ printf 'ckpt=%s\n'   "$ckpt_tag"
 # consumers (relay-loop's RELAY_STATUS line, its landedWhere prose, and the existing
 # integrate tests) read it as one word, and splitting it would have broken them silently —
 # the per-remote truth is ADDED alongside, never hidden.
+#
+# id:99b7 — an `undeclared` remote is DELIBERATELY absent from `pushPending=`. That key means
+# "did not receive the merge but was supposed to"; an undeclared remote was never a publish
+# target, so listing it there would mint exactly the unresolvable owner-action entry this
+# change removes. Its evidence is its own `pushRemote=<n>:undeclared` line plus a LOUD stderr
+# line — never silence.
 #
 # `ratification=pending` ⇔ at least one remote is still missing the merge (or it reached
 # none at all) and the durable queue entry NAMES them; `ratification=none` ⇔ every eligible

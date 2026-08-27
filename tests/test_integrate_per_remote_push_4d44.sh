@@ -86,8 +86,13 @@ child() { local main="$1" name="$2"; local wt="$TMP/wt-$name"
   git -C "$main" worktree add -q -b "relay/$name" "$wt" main
   echo "work-$name" > "$wt/g-$name"; git -C "$wt" add -A; git -C "$wt" commit -qm "child work $name"
   printf '%s' "$wt"; }
+# id:99b7 — every remote this fixture exercises is DECLARED in the do-publish allowlist, so
+# what stays under test here is the PRIVATE/PUBLIC narrowing and nothing else. Without these
+# declarations `lan` and `pub` would classify as UNDECLARED (never pushed, never deferred)
+# and the id:4d44 behaviour this file specs would never be reached. `origin` needs no
+# declaration — it is the built-in global default.
 cfg() { local d="$TMP/cfg-$1"; mkdir -p "$d"
-  printf '[repos.%s]\nstatus = "active"\n' "$2" > "$d/relay.toml"; printf '%s' "$d"; }
+  printf '[publish]\ndefault_remotes = ["origin"]\n\n[repos.%s]\nstatus = "active"\npublish_remotes = ["lan", "pub"]\n' "$2" > "$d/relay.toml"; printf '%s' "$d"; }
 # --verify -q, NOT a bare rev-parse: on a ref that does not exist a bare `git rev-parse
 # refs/heads/main` ECHOES ITS ARGUMENT and exits 128, so the "empty bare repo" case would
 # capture "refs/heads/main" and silently never compare equal to NONE.
