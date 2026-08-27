@@ -450,19 +450,68 @@ typed_edges_build_state_map RL_GATE_ARCHIVE "$_rl_dir/TODO.archive.md"
 # It says nothing about WHO may write the marker: owner-only is a contract rule
 # (relay/references/hard-lanes.md + the review.md gaming-check), not something a lint
 # over ledger text can establish.
+#
+# SCOPE DECISION (S3, adversarial review, id:ca14 follow-up): this rule matches ONLY
+# column-0 `^- [ ]`/`^- [x]` lines, same as the rest of this file's grammar checks --
+# an indented continuation line (the item's BODY) is NEVER scanned, even though the
+# origin incident (ed3a) had the owner's answer live in exactly such a line. This is a
+# DELIBERATE, KEPT restriction, not an oversight: todo-conformance.sh's header already
+# states the column-0 convention for this codebase, and lifting it here alone would
+# require resolving an indented line's marker against its ENCLOSING item's id (an
+# indented line carries no id of its own), which is a materially bigger change than a
+# grammar fix and risks silently disagreeing with every other rule in this file that
+# also stops at column 0. Reported to the owner as a follow-up rather than done here.
+#
+# FENCED CODE (S4) and BACKTICK SPANS (S5): a fenced ``` / ~~~ block is documentation,
+# not a live line -- hard-lanes.md's own canonical example is a fenced checkbox line,
+# so an author copying it must not trip a real ERROR. Fence state is tracked and
+# fenced lines are skipped entirely. Within a non-fenced line, backtick masking uses
+# `(`+)[^`]*\1` (a same-length backtick run on both sides) rather than a bare
+# `` s/`[^`]*`//g ``, so a double-backtick span (`` `` ``, used to quote text that
+# itself contains a backtick) is consumed whole instead of leaving its content exposed
+# between what the old regex saw as two adjacent empty single-backtick spans.
+#
+# CASE (S9): marker + citation matching is case-INSENSITIVE (`grep -qiE`), mirroring
+# `is_manual_marker` in gather-human-backlog.sh:251 -- `@Owner-Answered` is the same
+# marker as `@owner-answered`, not a silent miss.
+#
+# CITATION STRENGTH (S6): the path form must resolve to a REGULAR FILE (`-f`, not
+# `-e` -- a directory cites nothing) and, when a `#anchor` is present, the anchor must
+# resolve to an actual heading in the target file (slugified compare), not merely be
+# stripped and ignored.
+_as_slugify() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-zA-Z0-9 -]//g; s/ +/-/g' | tr '[:upper:]' '[:lower:]'
+}
+_as_anchor_resolves() {
+  local file="$1" anchor="$2" slug hline htext
+  slug="$(_as_slugify "$anchor")"
+  while IFS= read -r hline || [[ -n "$hline" ]]; do
+    if [[ "$hline" =~ ^#+[[:space:]]+(.*)$ ]]; then
+      htext="${BASH_REMATCH[1]}"
+      [[ "$(_as_slugify "$htext")" == "$slug" ]] && return 0
+    fi
+  done < "$file"
+  return 1
+}
 ANSWER_MARKER_RE='(^|[^A-Za-z0-9_-])@owner-answered'
 ANSWER_WELLFORMED_RE='(^|[^A-Za-z0-9_-])@owner-answered:[0-9]{4}-[0-9]{2}-[0-9]{2}($|[^A-Za-z0-9_-])'
+_as_in_fence=0
 for ((_as_i = 0; _as_i < ${#_rl_lines[@]}; _as_i++)); do
   _as_line="${_rl_lines[$_as_i]}"
+  if [[ "$_as_line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
+    _as_in_fence=$((1 - _as_in_fence))
+    continue
+  fi
+  [[ "$_as_in_fence" -eq 1 ]] && continue
   [[ "$_as_line" =~ ^-[[:space:]]\[[[:space:]xX]\][[:space:]] ]] || continue
-  _as_masked="$(printf '%s' "$_as_line" | sed -E 's/`[^`]*`//g')"
+  _as_masked="$(printf '%s' "$_as_line" | sed -E 's/(`+)[^`]*\1//g')"
   _as_has_marker=0
-  [[ "$_as_masked" =~ $ANSWER_MARKER_RE ]] && _as_has_marker=1
+  grep -qiE "$ANSWER_MARKER_RE" <<<"$_as_masked" && _as_has_marker=1
   _as_srcs="$(typed_edges_answer_src_of_line "$_as_masked")"
   [[ "$_as_has_marker" -eq 0 && -z "$_as_srcs" ]] && continue
   _as_id="$(item_id "$_as_line")"
 
-  if [[ "$_as_has_marker" -eq 1 && ! "$_as_masked" =~ $ANSWER_WELLFORMED_RE ]]; then
+  if [[ "$_as_has_marker" -eq 1 ]] && ! grep -qiE "$ANSWER_WELLFORMED_RE" <<<"$_as_masked"; then
     violations=$((violations + 1))
     echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} carries a MALFORMED @owner-answered marker — the only accepted form is @owner-answered:YYYY-MM-DD (id:ca14)" >&2
     echo "  $_as_line" >&2
@@ -493,14 +542,21 @@ for ((_as_i = 0; _as_i < ${#_rl_lines[@]}; _as_i++)); do
       echo "  $_as_line" >&2
       report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling id citation id:${_as_t}"$'\n'
     else
-      # Path form, repo-relative to the ledger's own directory; a trailing `#anchor`
-      # names the Decisions section and is stripped before the existence check.
+      # Path form, repo-relative to the ledger's own directory. Must be a regular
+      # FILE (`-f`); a trailing `#anchor` must resolve to an actual heading in it.
       _as_path="${_as_tok%%#*}"
-      if [[ -z "$_as_path" || ! -e "$_rl_dir/$_as_path" ]]; then
+      _as_anchor=""
+      [[ "$_as_tok" == *#* ]] && _as_anchor="${_as_tok#*#}"
+      if [[ -z "$_as_path" || ! -f "$_rl_dir/$_as_path" ]]; then
         violations=$((violations + 1))
-        echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source ${_as_tok}, but no such file exists (resolved repo-relative as ${_rl_dir}/${_as_path}) — a dangling citation (id:ca14)" >&2
+        echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source ${_as_tok}, but no such FILE exists (resolved repo-relative as ${_rl_dir}/${_as_path}) — a dangling citation (id:ca14)" >&2
         echo "  $_as_line" >&2
         report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling path citation ${_as_tok}"$'\n'
+      elif [[ -n "$_as_anchor" ]] && ! _as_anchor_resolves "$_rl_dir/$_as_path" "$_as_anchor"; then
+        violations=$((violations + 1))
+        echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source ${_as_tok}, but no heading in ${_as_path} matches the #${_as_anchor} anchor — a dangling citation (id:ca14)" >&2
+        echo "  $_as_line" >&2
+        report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling anchor citation ${_as_tok}"$'\n'
       fi
     fi
   done <<< "$_as_srcs"

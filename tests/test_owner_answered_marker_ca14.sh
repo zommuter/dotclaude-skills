@@ -26,13 +26,26 @@
 #      accepted.
 #   G  a ledger-id source resolving NOWHERE is a LOUD error.
 #   H  a BACKTICKED mention of the marker is documentation prose, not a live marker,
-#      and must not fire anything (anchoring discipline; the id:4da4/0d58 trap).
+#      and must not fire anything (anchoring discipline; the id:4da4/0d58 trap) -- both
+#      the single-backtick AND double-backtick quoting forms.
 #   I  the `ed3a` shape: an item legitimately STAYS OPEN while one question inside it
 #      is answered. The marker must neither imply a tick nor trip DECIDED-LEFT-OPEN.
 #   J  a `#fragment` on the path source (e.g. `...md#Decisions`) is stripped before
 #      the existence check.
 #   K  the marker is DOCUMENTED in relay/references/hard-lanes.md beside its siblings,
 #      and documented as OWNER-ONLY to write (the id:8089 `@owner-accepted` precedent).
+#   L  (adversarial review S4) a marker inside a FENCED code block (``` ... ```) is
+#      documentation, not a live line -- must not fire, even with a dangling citation.
+#   M  (adversarial review S5) a DOUBLE-backtick-quoted mention is prose, not a live
+#      marker -- H's single-backtick case cannot exercise this: the old mask consumed
+#      only single-backtick spans and left a double-backtick span's content exposed.
+#   N  (adversarial review S6) a path source resolving to a DIRECTORY, not a file, is
+#      a dangling citation -- `-e` accepts a directory, `-f` must not.
+#   O  (adversarial review S6) a `#anchor` that matches no heading in the target file
+#      is a dangling citation -- the anchor must actually resolve, not merely be
+#      stripped and ignored.
+#   P  (adversarial review S9) marker matching is case-INSENSITIVE --
+#      `@Owner-Answered:BOGUS` must still be caught as malformed, not silently ignored.
 #
 # This is a defect-fix/design spec traced to a TODO id promoted to ROADMAP with the
 # same id (single-id-two-views), hence the `# roadmap:ca14` header.
@@ -143,10 +156,16 @@ grep -q 'dead' "$tmp/err" || { show; fail "G: the finding must name the unresolv
 pass "G: an unresolvable ledger-id source fails loudly"
 
 # --- H: backticked mention is documentation, not a live marker ----------------
+# Covers BOTH the single-backtick form and the double-backtick form -- a mask that
+# only strips single-backtick spans (the old `` s/`[^`]*`//g `` regex) leaves a
+# double-backtick span's content exposed, which is exactly S5 (see M below).
 run_case "- [ ] [ROUTINE] document the \`@owner-answered:2026-08-14\` marker shape here <!-- id:fa08 -->"
 [[ $rc -eq 0 ]] || { show; fail "H: a backticked marker mention must not fire (exit $rc)"; }
 if grep -q 'ANSWER-SRC' "$tmp/err"; then show; fail "H: a backticked marker mention must not be treated as a live marker"; fi
-pass "H: a backticked marker mention is prose, not a live marker"
+run_case "- [ ] [ROUTINE] document the \`\`@owner-answered:WRONG\`\` marker shape here <!-- id:fa08 -->"
+[[ $rc -eq 0 ]] || { show; fail "H: a double-backticked marker mention must not fire (exit $rc)"; }
+if grep -q 'ANSWER-SRC' "$tmp/err"; then show; fail "H: a double-backticked marker mention must not be treated as a live marker"; fi
+pass "H: a backticked marker mention (single AND double backtick) is prose, not a live marker"
 
 # --- I: the ed3a shape -- answered question, item legitimately still open ------
 run_case "- [ ] [ROUTINE] engine work, genre addon still gated @owner-answered:2026-08-14 <!-- answer-src:${SRC}#Decisions --> <!-- id:fa09 -->"
@@ -166,5 +185,49 @@ grep -qi 'OWNER ONLY' "$tmp/lanes-tail" \
   || fail "K: hard-lanes.md must document @owner-answered as OWNER-ONLY to write"
 grep -q 'answer-src' "$LANES" || fail "K: hard-lanes.md must document the answer-src citation half"
 pass "K: the marker and its citation are documented in hard-lanes.md"
+
+# --- L: a fenced code block carrying the marker+a dangling citation must not fire --
+# (S4) hard-lanes.md's own canonical example is a FENCED checkbox line; without fence
+# tracking this fires a real, unconditional ERROR on a doc example, not a live item.
+{
+  echo "# Roadmap"
+  echo
+  echo "## Items"
+  echo
+  echo '```'
+  echo "- [ ] [ROUTINE] doc example @owner-answered:2026-08-14 <!-- answer-src:docs/nope.md --> <!-- id:fa10 -->"
+  echo '```'
+} >"$tmp/ROADMAP.md"
+set +e
+bash "$LINT" "$tmp/ROADMAP.md" >"$tmp/out" 2>"$tmp/err"; rc=$?
+set -e
+[[ $rc -eq 0 ]] || { show; fail "L: a fenced checkbox line must not fire (exit $rc)"; }
+if grep -q 'ANSWER-SRC' "$tmp/err"; then show; fail "L: a fenced checkbox line must not be treated as a live line"; fi
+pass "L: a checkbox line inside a fenced code block is documentation, not a live item"
+
+# --- M: double-backtick-quoted mention is prose, not a live marker (S5) -------
+run_case "- [ ] [ROUTINE] document the \`\`@owner-answered:WRONG\`\` marker shape here <!-- id:fa11 -->"
+[[ $rc -eq 0 ]] || { show; fail "M: a double-backticked marker mention must not fire (exit $rc)"; }
+if grep -q 'ANSWER-SRC' "$tmp/err"; then show; fail "M: a double-backticked marker mention must not be treated as a live marker"; fi
+pass "M: a double-backtick-quoted marker mention is prose, not a live marker"
+
+# --- N: path source resolving to a DIRECTORY is a dangling citation (S6) -----
+run_case "- [ ] [ROUTINE] settled @owner-answered:2026-08-14 <!-- answer-src:docs --> <!-- id:fa12 -->"
+[[ $rc -ne 0 ]] || { show; fail "N: a directory path citation must exit nonzero (got 0)"; }
+grep -q 'ANSWER-SRC' "$tmp/err" || { show; fail "N: a directory path citation must emit an ANSWER-SRC finding"; }
+pass "N: a path source resolving to a directory, not a file, fails loudly"
+
+# --- O: an anchor that matches no heading is a dangling citation (S6) --------
+run_case "- [ ] [ROUTINE] settled @owner-answered:2026-08-14 <!-- answer-src:${SRC}#no-such-section --> <!-- id:fa13 -->"
+[[ $rc -ne 0 ]] || { show; fail "O: an unresolvable anchor must exit nonzero (got 0)"; }
+grep -q 'ANSWER-SRC' "$tmp/err" || { show; fail "O: an unresolvable anchor must emit an ANSWER-SRC finding"; }
+grep -q 'no-such-section' "$tmp/err" || { show; fail "O: the finding must name the unresolvable anchor"; }
+pass "O: an anchor that matches no heading in the target file fails loudly"
+
+# --- P: marker matching is case-insensitive (S9) -----------------------------
+run_case "- [ ] [ROUTINE] settled @Owner-Answered:BOGUS <!-- id:fa14 -->"
+[[ $rc -ne 0 ]] || { show; fail "P: an uppercase-variant malformed marker must exit nonzero (got 0)"; }
+grep -q 'ANSWER-SRC' "$tmp/err" || { show; fail "P: an uppercase-variant malformed marker must emit an ANSWER-SRC finding"; }
+pass "P: marker matching is case-insensitive"
 
 echo "ALL PASS: @owner-answered decided-answer marker + lint rule (id:ca14)"
