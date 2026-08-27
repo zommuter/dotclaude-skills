@@ -114,7 +114,17 @@ trap 'rm -rf -- "$tmp"' EXIT
 snapshot_repo_state() {
   git for-each-ref --format='%(refname) %(objectname)' refs/heads/relay/ 2>/dev/null | sort
   echo '--worktrees--'
-  git worktree list --porcelain 2>/dev/null | grep '^worktree ' | sort
+  # Exclude HARNESS-created agent worktrees (`.claude/worktrees/<name>`). Claude Code
+  # creates one per isolated subagent and auto-removes it when the agent ends, so a
+  # concurrent agent starting or finishing mid-run would otherwise trip a SPURIOUS
+  # breach — this repo routinely carries ~20 of them. They are not test leaks and no
+  # test creates them: fixtures work in `mktemp -d`, which is never under `.claude/`.
+  # The leak signature this guard exists for (a fixture writing into the cwd repo) is
+  # unaffected, since such a worktree would not live in that directory.
+  git worktree list --porcelain 2>/dev/null \
+    | grep '^worktree ' \
+    | grep -v '/\.claude/worktrees/' \
+    | sort
 }
 hermeticity_before="$(snapshot_repo_state)"
 
