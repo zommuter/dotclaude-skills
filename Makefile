@@ -78,7 +78,7 @@ relay_FILES := SKILL.md \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
                scripts/deny-tail-probe.sh scripts/death-record.sh \
-               scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
+               scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh scripts/relay-log-archive.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
                scripts/lib-own-repos.sh scripts/lib-anchored-id.sh scripts/lib-typed-edges.sh scripts/lib-state-claim.sh \
                scripts/lib-roadmap-sections.sh scripts/lib-private-remote.sh \
@@ -110,7 +110,7 @@ relay_EXEC  := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-ta
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
-               scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
+               scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh scripts/relay-log-archive.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
                scripts/resolve-gates.sh scripts/ledger-slice.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
@@ -137,7 +137,7 @@ relay_ALLOW := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-ta
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
                scripts/relay-intensity.sh scripts/mechanical-daemon.sh scripts/discover-repos-mechanical.sh scripts/discover-prelude.sh scripts/discover-chunk.sh \
                scripts/mechanical-orphan-scan.sh scripts/mechanical-orphan-draft.sh \
-               scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh \
+               scripts/deny-tail-probe.sh scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh scripts/relay-log-archive.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
                scripts/resolve-gates.sh scripts/ledger-slice.sh \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \
