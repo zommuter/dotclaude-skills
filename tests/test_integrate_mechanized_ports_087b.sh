@@ -365,13 +365,16 @@ zout="$(FABLES_CONFIG="$CZ" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
   "$INT" --repo "$RZ" --path "$MZ" --worktree "$WTZ" --branch relay/bumpbad \
          --summary "close" --run r1 --label "executor (sonnet, relay-loop)" \
          --verdict execute --substantive true 2>&1)" || rc=$?
-[[ $rc -ne 0 ]] || fail "(6b2) an undeterminable bump trigger SILENTLY proceeded — it must hand back"
-[[ $rc -eq 30 ]] || fail "(6b2) expected the distinct bump exit code 30, got $rc"
+# id:2c2a — "did it hand back?" is now read off the stdout contract, not the exit status
+# (a reached-and-executed refusal exits 0); the distinct step number survives as handbackCode.
+grep -qx 'handback=bump' <<<"$zout" || fail "(6b2) an undeterminable bump trigger SILENTLY proceeded — it must hand back: $zout"
+grep -qx 'handbackCode=30' <<<"$zout" || fail "(6b2) expected the distinct bump step code 30 on the wire, got: $zout"
+[[ $rc -eq 0 ]] || fail "(6b2/2c2a) a reached-and-executed refusal must exit 0, got $rc"
 grep -q 'HANDBACK\[bump\]' <<<"$zout" || fail "(6b2) no loud HANDBACK[bump] line: $zout"
 [[ "$(git -C "$MZ" rev-parse HEAD)" == "$HEAD_BEFORE" ]] \
   || fail "(6b2) main MOVED before the bump handback — the trigger must resolve BEFORE any mutation"
 [[ -d "$WTZ" ]] || fail "(6b2) the worktree was retired despite the handback"
-pass "(6b2) id:e647: an undeterminable bump trigger hands back loudly (exit 30) with main unmoved"
+pass "(6b2) id:e647: an undeterminable bump trigger hands back loudly (handbackCode=30, exit 0 per id:2c2a) with main unmoved"
 
 # (6c) the same close with --internal (reviewer judged it refactor-only) integrates cleanly
 # and bumps PATCH. Owner ruling 2026-08-26 amended meeting 2026-07-17-1541 D1's no-bump half

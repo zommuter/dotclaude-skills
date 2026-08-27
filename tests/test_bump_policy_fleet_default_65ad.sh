@@ -174,7 +174,10 @@ bout="$(FABLES_CONFIG="$CB" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
   "$INT" --repo "$RB" --path "$MB" --worktree "$WTB" --branch relay/noblock \
          --summary "close" --run r1 --label "executor (sonnet, relay-loop)" \
          --verdict execute --substantive true 2>"$ERRLOG")" || rc=$?
-[[ $rc -ne 30 ]] || fail "(1b) a repo with no [repos.<name>] block still hit the BUMP handback (exit 30)"
+# id:2c2a — the bump handback no longer shows up as exit 30; it shows up as handbackCode=30
+# on stdout (a reached-and-executed refusal exits 0). Assert against THAT.
+grep -qx 'handbackCode=30' <<<"$bout" && fail "(1b) a repo with no [repos.<name>] block still hit the BUMP handback (handbackCode=30)"
+[[ $rc -eq 0 ]] || fail "(1b) integrate exited $rc"
 grep -q 'HANDBACK\[bump\]' "$ERRLOG" && fail "(1b) an absent [repos.<name>] block produced a bump handback"
 grep -q '^version = "0.5.0"$' "$MB/pyproject.toml" \
   || fail "(1b) the fleet default did not bump an unregistered repo: $(grep version "$MB/pyproject.toml")"
@@ -272,7 +275,7 @@ pass "(5b) arbitrary whitespace around = is tolerated, the recorded never is hon
 # (5c) an INDENTED `[repos.<name>]` header. Valid TOML; an exact `$0 == want` block match
 #      misses it, so the whole block — policy included — reads as absent.
 runtoml polindent manifest '  [repos.%s]\n  status = "active"\n  bump_policy = "never"\n'
-[[ $RC -ne 30 ]] || fail "(5c) an indented [repos.<name>] header produced a BUMP handback (exit 30)"
+grep -qx 'handbackCode=30' <<<"$OUT" && fail "(5c) an indented [repos.<name>] header produced a BUMP handback (handbackCode=30)"
 [[ "$(version_of)" == 0.4.0 ]] || fail "(5c) an INDENTED block header hid bump_policy = \"never\" — the manifest was silently bumped to $(version_of)"
 pass "(5c) an indented [repos.<name>] header still finds the recorded bump_policy"
 
@@ -283,7 +286,7 @@ pass "(5c) an indented [repos.<name>] header still finds the recorded bump_polic
 #      stripped — CONTAINS `bump`. It deliberately does NOT key on `policy`, so a future
 #      unrelated `*_policy` key cannot start false-tripping this gate.)
 run polnearkey manifest 'bumppolicy = "never"'
-[[ $RC -eq 30 ]] || fail "(5d) a near-miss key 'bumppolicy = \"never\"' was treated as ABSENT and defaulted (exit $RC) — a present-but-unparsed line must stay LOUD"
+grep -qx 'handbackCode=30' <<<"$OUT" || fail "(5d) a near-miss key 'bumppolicy = \"never\"' was treated as ABSENT and defaulted (no handbackCode=30 on stdout, rc=$RC) — a present-but-unparsed line must stay LOUD"
 grep -q 'HANDBACK\[bump\]' "$ERRLOG" || fail "(5d) no loud HANDBACK[bump] for a near-miss bump_policy key"
 grep -q 'bumppolicy' "$ERRLOG" || fail "(5d) the handback does not quote the offending line, so a human cannot see what was wrong"
 [[ "$(git -C "$MAIN_PATH" rev-parse HEAD)" == "$HEAD_BEFORE" ]] \
@@ -294,13 +297,13 @@ pass "(5d) a near-miss key is PRESENT-BUT-UNPARSED — loud handback, main unmov
 # (5e) case-differing key. TOML keys are case-sensitive, so `BUMP_POLICY` is NOT the key —
 #      but it is just as clearly intended, so it takes the same present-but-unparsed path.
 run polupkey manifest 'BUMP_POLICY = "never"'
-[[ $RC -eq 30 ]] || fail "(5e) 'BUMP_POLICY = \"never\"' was treated as ABSENT and defaulted (exit $RC)"
+grep -qx 'handbackCode=30' <<<"$OUT" || fail "(5e) 'BUMP_POLICY = \"never\"' was treated as ABSENT and defaulted (no handbackCode=30 on stdout, rc=$RC)"
 grep -q 'HANDBACK\[bump\]' "$ERRLOG" || fail "(5e) no loud HANDBACK[bump] for a case-differing bump_policy key"
 pass "(5e) a case-differing key is PRESENT-BUT-UNPARSED, not absent"
 
 # (5f) the canonical key with an EMPTY right-hand side. Present, unparseable, so loud.
 run polempty manifest 'bump_policy ='
-[[ $RC -eq 30 ]] || fail "(5f) an empty 'bump_policy =' was treated as ABSENT and defaulted (exit $RC)"
+grep -qx 'handbackCode=30' <<<"$OUT" || fail "(5f) an empty 'bump_policy =' was treated as ABSENT and defaulted (no handbackCode=30 on stdout, rc=$RC)"
 grep -q 'HANDBACK\[bump\]' "$ERRLOG" || fail "(5f) no loud HANDBACK[bump] for an empty bump_policy value"
 pass "(5f) an empty bump_policy RHS is PRESENT-BUT-UNPARSED — loud, never defaulted"
 

@@ -151,36 +151,46 @@ MAINB="$(build_fixture fail)"
 git -C "$MAINB" worktree add -q -b relay/y "$TMP/wt-y" main
 echo w > "$TMP/wt-y/h"; git -C "$TMP/wt-y" add -A; git -C "$TMP/wt-y" commit -qm "y id:test"
 
-run_expect() { # <label> <expected-exit> <expected-step-in-msg> <env-overrides...>
+# id:2c2a — the per-step EXIT codes were flattened to `exit 0` (a handback is a verdict
+# REACHED and EXECUTED, not a failure to reach one). The step identity they carried moved
+# WHOLLY onto the stdout contract, so this helper now asserts the SAME four distinct steps
+# are still distinguishable — via `handback=<step>` + `handbackCode=<N>` ON STDOUT (the only
+# channel the mechanical proxy returns on a zero exit), plus the loud stderr HANDBACK line.
+run_expect() { # <label> <expected-step-code> <expected-step> <env-overrides...>
   local label="$1" want="$2" step="$3"; shift 3
-  local before after rc=0 msg
+  local before after rc=0 out err
   before="$(git -C "$MAINB" rev-parse HEAD)"
-  msg="$(env "$@" "$INT" --repo x --path "$MAINB" --worktree "$TMP/wt-y" --branch relay/y \
-           --summary "s id:test" --run r --label "reviewer (claude-opus-4-8, integrate)" 2>&1)" || rc=$?
+  err="$TMP/err-$label"
+  out="$(env "$@" "$INT" --repo x --path "$MAINB" --worktree "$TMP/wt-y" --branch relay/y \
+           --summary "s id:test" --run r --label "reviewer (claude-opus-4-8, integrate)" 2>"$err")" || rc=$?
   after="$(git -C "$MAINB" rev-parse HEAD)"
-  [[ $rc -eq $want ]]        || fail "(B/$label) expected exit $want, got $rc — $msg"
-  grep -q "HANDBACK\[$step\]" <<<"$msg" || fail "(B/$label) missing loud HANDBACK[$step] — $msg"
+  [[ $rc -eq 0 ]] || fail "(B/$label) id:2c2a: a legitimate refusal must exit 0, got $rc — $out $(cat "$err")"
+  grep -qx "handback=$step" <<<"$out" \
+    || fail "(B/$label) STDOUT did not carry handback=$step — step attribution regressed: $out"
+  grep -qx "handbackCode=$want" <<<"$out" \
+    || fail "(B/$label) STDOUT did not carry handbackCode=$want — the code the exit status used to carry was LOST: $out"
+  grep -q "HANDBACK\[$step\]" "$err" || fail "(B/$label) missing loud HANDBACK[$step] — $(cat "$err")"
   [[ "$before" == "$after" ]] || fail "(B/$label) main HEAD MOVED ($before → $after) on a pre-merge failure"
 }
 
-# clean-tree fails → exit 20
+# clean-tree fails → handbackCode 20
 run_expect clean-tree 20 clean-tree \
   INTEGRATE_CLEAN_TREE_GATE="$FAIL_STUB"
-# clean-tree ok, verify-isolation fails → exit 21
+# clean-tree ok, verify-isolation fails → handbackCode 21
 run_expect verify-isolation 21 verify-isolation \
   INTEGRATE_CLEAN_TREE_GATE="$PASS_STUB" INTEGRATE_VERIFY_ISOLATION="$FAIL_STUB"
-# clean-tree + isolation ok, sync-origin reports diverged → exit 22
+# clean-tree + isolation ok, sync-origin reports diverged → handbackCode 22
 run_expect sync-origin 22 sync-origin \
   INTEGRATE_CLEAN_TREE_GATE="$PASS_STUB" INTEGRATE_VERIFY_ISOLATION="$PASS_STUB" \
   INTEGRATE_SYNC_ORIGIN="$DIVERGE_STUB"
-# a fourth distinct step: force a merge conflict → exit 23, main unmoved (merge --abort)
+# a fourth distinct step: force a merge conflict → handbackCode 23, main unmoved (merge --abort)
 # create a conflicting commit on main so relay/y cannot merge cleanly
 git -C "$MAINB" checkout -q main
 echo mainside > "$MAINB/h"; git -C "$MAINB" add -A; git -C "$MAINB" commit -qm "conflict seed"
 run_expect merge 23 merge \
   INTEGRATE_CLEAN_TREE_GATE="$PASS_STUB" INTEGRATE_VERIFY_ISOLATION="$PASS_STUB" \
   INTEGRATE_SYNC_ORIGIN="$PASS_STUB"
-pass "(B) forced failure at 4 distinct steps → distinct exits 20/21/22/23, loud handbacks, main unmoved"
+pass "(B) forced failure at 4 distinct steps → exit 0 with distinct handbackCode 20/21/22/23 on stdout, loud handbacks, main unmoved"
 
 # =====================================================================================
 # (C) id:aa93 — REAL clean-tree gate + foreign-dirty main → DEFER, never force-clean
@@ -197,8 +207,11 @@ rc=0
 msg="$(FABLES_CONFIG="$TMP/cfg-aa93" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
   "$INT" --repo x --path "$MAINC" --worktree "$TMP/wt-z" --branch relay/z \
          --summary "s id:test" --run r --label "reviewer (claude-opus-4-8, integrate)" 2>&1)" || rc=$?
-[[ $rc -eq 20 ]] || fail "(C/aa93) foreign-dirty main must exit 20 (clean-tree defer), got $rc — $msg"
+# id:2c2a — the defer is a REACHED verdict, so exit 0; the step rides on the stdout contract.
+[[ $rc -eq 0 ]] || fail "(C/aa93) foreign-dirty main must DEFER at exit 0 (id:2c2a), got $rc — $msg"
 grep -q 'HANDBACK\[clean-tree\]' <<<"$msg" || fail "(C/aa93) missing loud HANDBACK[clean-tree] — $msg"
+grep -qx 'handback=clean-tree' <<<"$msg" || fail "(C/aa93) no handback=clean-tree on the wire — $msg"
+grep -qx 'handbackCode=20' <<<"$msg" || fail "(C/aa93) no handbackCode=20 on the wire — $msg"
 # the foreign edit SURVIVES byte-for-byte (never stashed/checked-out/reset/cleaned)
 [[ "$(cat "$MAINC/f")" == "$FOREIGN_BEFORE" ]] \
   || fail "(C/aa93) FOREIGN edit was destroyed — integrate.sh force-cleaned a dirty tree"
@@ -207,6 +220,6 @@ grep -q 'HANDBACK\[clean-tree\]' <<<"$msg" || fail "(C/aa93) missing loud HANDBA
   || fail "(C/aa93) main HEAD moved despite the clean-tree defer"
 git -C "$MAINC" merge-base --is-ancestor "$(git -C "$TMP/wt-z" rev-parse HEAD)" HEAD \
   && fail "(C/aa93) child commit landed on main despite the defer"
-pass "(C) id:aa93: foreign-dirty main is DEFERRED (exit 20), foreign edit survives, no merge"
+pass "(C) id:aa93: foreign-dirty main is DEFERRED (exit 0 + handbackCode=20, id:2c2a), foreign edit survives, no merge"
 
 echo "ALL PASS: roadmap:9e50 integrate.sh mechanized integrator (full sequence + fail-closed + aa93/6e02)"

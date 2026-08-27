@@ -227,8 +227,12 @@ out4="$(FABLES_CONFIG="$C4" INTEGRATE_GIT_LOCK_PUSH="$LIAR_PUSH" \
   "$INT" --repo "$R4" --path "$M4" --worktree "$W4" --branch relay/liar \
          --summary "nothing reaches the remote" --run r1 --label "reviewer (claude-opus-5, relay-loop)" \
          --verdict review --substantive false --strong-model claude-opus-5 2>"$ERRLOG")" || rc=$?
-[[ $rc -ne 0 ]] || fail "(4) integrate exited 0 while the remote never moved (id:f5d9(a) false-success push): stdout=$out4"
-[[ $rc -eq 27 ]] || fail "(4) expected the push exit code 27, got $rc"
+# id:2c2a — "did it refuse?" is answered by `handback=` on STDOUT, not by the exit status;
+# the per-step number survives verbatim as `handbackCode=`.
+grep -qx 'handback=git-lock-push' <<<"$out4" \
+  || fail "(4) integrate reported no handback while the remote never moved (id:f5d9(a) false-success push): stdout=$out4"
+grep -qx 'handbackCode=27' <<<"$out4" || fail "(4) expected the push step code 27 on stdout, got: $out4"
+[[ $rc -eq 0 ]] || fail "(4/2c2a) a reached-and-executed refusal must exit 0, got $rc"
 grep -q '^push=FAILED$' "$ERRLOG" || fail "(4) no push=FAILED line on stderr: $(cat "$ERRLOG")"
 # ── SUPERSEDED BY id:a726(a) — this used to assert `landed=false` + NO `merged=` line. ──
 #    The reasoning was "the push failed, so nothing was published, so a retry is correct".
@@ -266,7 +270,10 @@ out5="$(FABLES_CONFIG="$C5" INTEGRATE_GIT_LOCK_PUSH="$REAL_PUSH" INTEGRATE_WORKT
   "$INT" --repo "$R5" --path "$M5" --worktree "$W5" --branch relay/tail \
          --summary "tail fails after the local land" --run r1 --label "executor (claude-sonnet-4-5, relay-loop)" \
          --verdict execute --substantive true 2>"$ERRLOG")" || rc=$?
-[[ $rc -eq 28 ]] || fail "(5) expected the worktree-retire exit code 28, got $rc"
+[[ $rc -eq 0 ]] || fail "(5/2c2a) the landed-but-unfinished tail failure must exit 0, got $rc"
+grep -qx 'handbackCode=28' <<<"$out5" || fail "(5) expected the worktree-retire step code 28 on stdout, got: $out5"
+grep -qx 'partial=worktree-retire' <<<"$out5" \
+  || fail "(5/2c2a) no partial= marker for the landed-but-unfinished case — it would be indistinguishable from a plain success: $out5"
 grep -q '^landed=true$' "$ERRLOG" \
   || fail "(5) SEAM 3 REGRESSION: a tail failure AFTER a deferred-push land reported landed=false — the caller would re-merge an already-merged branch. stderr: $(cat "$ERRLOG")"
 grep -q '^push=deferred$' "$ERRLOG" || fail "(5) the handback block must report push=deferred, never a publish that never happened"
@@ -366,8 +373,12 @@ out8="$(FABLES_CONFIG="$C8" INTEGRATE_GIT_LOCK_PUSH="$REAL_PUSH" VERIFY_ISOLATIO
          --summary "empty worktree while main carries the work" --run r8 \
          --label "executor (claude-sonnet-4-5, relay-loop)" \
          --ids aaaa --verdict execute --substantive true 2>"$ERRLOG")" || rc=$?
-[[ $rc -ne 0 ]] || fail "(8) id:8739 REGRESSION: integrate exited 0 on a MAIN-CHECKOUT BREACH while origin/main is frozen — the id:f682 gate is disabled and the loose edits were swept into the merge. stdout=$out8"
-[[ $rc -eq 21 ]] || fail "(8) expected the isolation exit code 21, got $rc. stderr: $(cat "$ERRLOG")"
+# id:2c2a — the breach REFUSAL is a reached verdict (exit 0); what must never happen is a
+# SILENT pass. The gate's evidence is the handback on stdout, so assert THAT.
+grep -qx 'handback=verify-isolation' <<<"$out8" \
+  || fail "(8) id:8739 REGRESSION: integrate reported NO handback on a MAIN-CHECKOUT BREACH while origin/main is frozen — the id:f682 gate is disabled and the loose edits were swept into the merge. stdout=$out8"
+grep -qx 'handbackCode=21' <<<"$out8" || fail "(8) expected the isolation step code 21 on stdout, got: $out8"
+[[ $rc -eq 0 ]] || fail "(8/2c2a) a reached-and-executed refusal must exit 0, got $rc. stderr: $(cat "$ERRLOG")"
 grep -q 'HANDBACK\[verify-isolation\]' "$ERRLOG" \
   || fail "(8) the handback did not name verify-isolation: $(cat "$ERRLOG")"
 grep -q '^landed=false$' "$ERRLOG" || fail "(8) a pre-merge isolation defer must stay PRE-LAND"

@@ -197,12 +197,34 @@
 #               Reporting `none` for any unit with an unpublished remote is the id:f0ad
 #               defect (relay-loop counts an unpublished merge as a plain completion).
 #
-# Handback contract (STDERR, id:5fe2 — stdout is discarded by the proxy on a non-zero exit):
-#   PRE-LAND  exits: handback=<step>  landed=false                      (safe to retry)
-#   POST-LAND exits: handback=<step>  landed=true  merged=<sha>  ckpt=<tag>
-#                    push=<pushed|deferred>  ratification=<pending|none>
-#                    remaining=<steps that did NOT run>  ckptRecorded=<true|false>
-#   A `merged=` line NEVER appears on a pre-land exit — that is the whole discriminator.
+# Handback contract (STDOUT — mirrored to STDERR for the human tail; id:5fe2, EXIT CODE
+# FLATTENED by id:2c2a):
+#   PRE-LAND  handback: handback=<step>  handbackCode=<N>  handbackReason=<one line>
+#                       landed=false                                    (safe to retry)
+#   POST-LAND handback: handback=<step>  handbackCode=<N>  handbackReason=<one line>
+#                       landed=true  partial=<step>  merged=<sha>  ckpt=<tag>
+#                       push=<pushed|deferred>  ratification=<pending|none>
+#                       remaining=<steps that did NOT run>  ckptRecorded=<true|false>
+#   A `merged=` line NEVER appears on a pre-land handback — that is the whole discriminator.
+#
+#   id:2c2a — EXIT 0 WHENEVER A VERDICT WAS REACHED AND EXECUTED (owner-ratified 2026-08-26).
+#   A handback IS the mechanism working: integrate.sh reached a determinate verdict ("refuse,
+#   and here is exactly where and why") and executed it. Every one of the 16 per-step handback
+#   codes therefore now exits 0, and the step identity that USED to ride on the exit code
+#   rides — wholly — on the parsed stdout contract instead (`handback=`, plus `handbackCode=`
+#   which preserves the numeric code verbatim, plus `handbackReason=`). NON-ZERO is reserved
+#   for genuinely UNDETERMINABLE outcomes: EX_USAGE (the script was mis-invoked and never
+#   started), and any uncaught `set -e` failure. The EX_* constants below are NOT dead — they
+#   remain the step-identity numbers, emitted as `handbackCode=` and logged.
+#
+#   Because the block is now read off a ZERO-exit child, it goes to STDOUT: the proxy returns
+#   stdout on exit 0 and DISCARDS stderr, the exact mirror of the pre-id:2c2a situation. It is
+#   ALSO written to stderr so an operator tailing the terminal/log still sees it whole.
+#
+#   `partial=<step>` (id:2c2a) is the distinct marker for the LANDED-BUT-UNFINISHED class:
+#   the merge is COMMITTED, TAGGED and (for a pushing unit) PUSHED, and only a post-land tail
+#   step failed. It is emitted on exactly the same condition as `landed=true`, and never on a
+#   pre-land handback or a full success — so a consumer can key case (ii) off one token.
 #
 #   id:4d44 RE-DERIVED THE LAND POINT (id:5fe2's discriminator was keyed on the PUSH, and a
 #   substantive unit no longer has one). "LANDED" means: the merge is COMMITTED to the
@@ -222,7 +244,13 @@
 #   INTEGRATE_STRANDED_SCAN INTEGRATE_DISCOVER_SIG
 set -euo pipefail
 
-# ── distinct exit codes (per step) ──
+# ── distinct STEP-IDENTITY codes (per step) ──
+# id:2c2a — these are no longer EXIT codes. Every one of them is now reported as
+# `handbackCode=<N>` on the stdout contract and the script exits 0 (a handback is a verdict
+# REACHED and EXECUTED). They are kept, unrenumbered, as the durable per-step identity: the
+# logs, the tests and the operator all still name a step by its number. The ONLY non-zero
+# exits left are EX_USAGE (mis-invoked — no verdict was ever reached) and an uncaught
+# `set -e` failure, which is the genuinely-undeterminable class the flattening reserves it for.
 EX_USAGE=2
 EX_CLEAN_TREE=20
 EX_ISOLATION=21
@@ -268,15 +296,25 @@ merged_head="" ckpt_tag="" landed=""
 # push_status/ratify_status are reported on BOTH the success and the handback path, so they
 # are initialised to the pre-push truth: nothing pushed, nothing queued yet.
 push_status="not-attempted" ratify_status="none"
-# The KEY=VALUE handback block goes to STDERR on purpose: mechanical-proxy.py DISCARDS a
-# non-zero-exit child's stdout and returns 'MECH-ERROR exit=<n>\n<stderr>', so stdout would
-# never reach parseIntegrateResult. stdout stays the SUCCESS-only contract.
-# LOUD handback: name the step, print the reason to stderr, log it, exit with the step's
-# distinct code. Never swallowed.
+# id:2c2a — the KEY=VALUE handback block goes to STDOUT (and is MIRRORED to stderr for the
+# human tail). It used to be stderr-only because mechanical-proxy.py DISCARDS a non-zero-exit
+# child's stdout and returns 'MECH-ERROR exit=<n>\n<stderr>'. Since a handback now exits 0,
+# that is exactly inverted — the proxy returns stdout and drops stderr — so a stderr-only
+# block would reach parseIntegrateResult as NOTHING and every handback would be misread as
+# "produced no merged= line". The block therefore MOVED with the exit code, in one step:
+# stdout is now the full contract (success AND handback), discriminated by `handback=`.
+# LOUD handback: name the step, print the reason, log it, emit the machine block, exit 0
+# (the step identity travels as `handback=`/`handbackCode=`, never as the exit status).
+# Never swallowed.
 handback() { # <step-label> <exit-code> <reason...>
   local step="$1" code="$2"; shift 2
   printf 'integrate.sh: HANDBACK[%s]: %s\n' "$step" "$*" >&2
-  log "HANDBACK[$step] exit=$code $*"
+  log "HANDBACK[$step] code=$code $*"
+  # id:2c2a — the reason must ride on the PARSED channel too, not just the human one: with
+  # exit 0 the proxy drops stderr, so a stderr-only reason would leave the operator with a
+  # step name and no cause. Squashed to ONE line — every KEY=VALUE value is single-line.
+  local reason_line block=""
+  reason_line="$(printf '%s' "$*" | tr '\n\r' '  ')"
   if [ -n "$landed" ]; then
     # Which tail steps did NOT run — the operator is told EXACTLY, never left to guess.
     local remaining
@@ -303,28 +341,39 @@ handback() { # <step-label> <exit-code> <reason...>
     else
       log "HANDBACK[$step] id:5fe2 post-land reconcile FAILED — relay.toml last_ckpt may be STALE vs $ckpt_tag"
     fi
-    {
-      printf 'handback=%s\n'     "$step"
-      printf 'landed=%s\n'       'true'
-      printf 'merged=%s\n'       "$merged_head"
-      printf 'ckpt=%s\n'         "$ckpt_tag"
-      printf 'push=%s\n'         "$push_status"
-      printf 'ratification=%s\n' "$ratify_status"
-      printf 'remaining=%s\n'    "$remaining"
-      printf 'ckptRecorded=%s\n' "$recorded"
-    } >&2
+    block="$(
+      printf 'handback=%s\n'       "$step"
+      printf 'handbackCode=%s\n'   "$code"
+      printf 'handbackReason=%s\n' "$reason_line"
+      printf 'landed=%s\n'         'true'
+      # id:2c2a — the LANDED-BUT-UNFINISHED marker. Emitted on exactly the `landed` condition,
+      # so it can never appear on a pre-land handback or on the success path.
+      printf 'partial=%s\n'        "$step"
+      printf 'merged=%s\n'         "$merged_head"
+      printf 'ckpt=%s\n'           "$ckpt_tag"
+      printf 'push=%s\n'           "$push_status"
+      printf 'ratification=%s\n'   "$ratify_status"
+      printf 'remaining=%s\n'      "$remaining"
+      printf 'ckptRecorded=%s\n'   "$recorded"
+    )"
   else
-    {
-      printf 'handback=%s\n' "$step"
-      printf 'landed=%s\n'   'false'
+    block="$(
+      printf 'handback=%s\n'       "$step"
+      printf 'handbackCode=%s\n'   "$code"
+      printf 'handbackReason=%s\n' "$reason_line"
+      printf 'landed=%s\n'         'false'
       # id:f5d9(a) — a push that did not land is reported as such even on the PRE-LAND path,
       # so no reader can mistake "the helper exited 0" for "the remote moved".
       # An `if`, not `[ … ] && …`: a false one-liner would be the group's last command, so
-      # its non-zero status would trip `set -e` and exit 1 INSTEAD of the step's distinct code.
+      # its non-zero status would trip `set -e` and abort BEFORE the block is emitted.
       if [ "$push_status" = "FAILED" ]; then printf 'push=%s\n' 'FAILED'; fi
-    } >&2
+    )"
   fi
-  exit "$code"
+  # STDOUT is the parsed channel (id:2c2a); stderr keeps a verbatim mirror for the human tail.
+  printf '%s\n' "$block"
+  printf '%s\n' "$block" >&2
+  # id:2c2a — exit 0: a handback is a REACHED-AND-EXECUTED verdict, not a failure to reach one.
+  exit 0
 }
 
 # ── helper resolution ──

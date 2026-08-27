@@ -236,10 +236,13 @@ out4="$(FABLES_CONFIG="$C4" INTEGRATE_GIT_LOCK_PUSH="$LIAR" \
   "$INT" --repo "$R4" --path "$M4" --worktree "$W4" --branch relay/liar \
          --summary "close aaaa" --run r4 --label "executor (claude-sonnet-4-5, relay-loop)" \
          --ids aaaa --verdict execute --substantive true 2>"$TMP/err4")" || rc=$?
-if [[ $rc -ne 0 ]]; then
-  pass "(6) a push helper that exits 0 having pushed NOTHING is a HANDBACK (rc=$rc), not a success"
+# id:2c2a — the handback discriminator is `handback=<step>` on STDOUT, not the exit code:
+# a reached-and-executed refusal now exits 0. The substance is untouched — a push helper that
+# pushed nothing must still be refused, never counted as a success.
+if grep -qx 'handback=git-lock-push' <<<"$out4"; then
+  pass "(6) a push helper that exits 0 having pushed NOTHING is a HANDBACK (handback=git-lock-push; id:2c2a rc=$rc), not a success"
 else
-  fail "(6) the liar push was accepted (rc=0): $out4"
+  fail "(6) the liar push was accepted (no handback= on stdout): $out4"
 fi
 grep -q 'push=FAILED' "$TMP/err4" \
   && pass "(6) the handback reports push=FAILED" \

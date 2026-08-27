@@ -127,9 +127,15 @@ run_failed_push liar "$LIAR"
   && pass "(1) the fixture is honest — the remote really is unmoved" \
   || fail "(1) the remote moved; the liar helper fixture is wrong"
 
-[[ $RC -ne 0 ]] \
-  && pass "(1) an unverifiable push is still a HANDBACK (rc=$RC), not a success" \
-  || fail "(1) the liar push was accepted (rc=0): $OUT"
+# id:2c2a — the HANDBACK discriminator is `handback=<step>` on STDOUT, no longer the exit
+# code (a reached-and-executed refusal exits 0). The substance is unchanged: an unverifiable
+# push must NOT be reported as a plain success.
+grep -qx 'handback=git-lock-push' <<<"$OUT" \
+  && pass "(1) an unverifiable push is still a HANDBACK (handback=git-lock-push, rc=$RC), not a success" \
+  || fail "(1) the liar push was accepted (no handback= on stdout): $OUT"
+[[ $RC -eq 0 ]] \
+  && pass "(1/2c2a) …and it exits 0 — a correct refusal is the mechanism working, not a MECH-ERROR" \
+  || fail "(1/2c2a) the refusal exited $RC; id:2c2a reserves non-zero for UNDETERMINABLE outcomes"
 
 [[ -s "$QUEUE" ]] \
   && pass "(1) id:5155 A RATIFICATION-QUEUE ENTRY EXISTS for the landed-but-unpublished merge" \
@@ -185,8 +191,8 @@ printf '#!/usr/bin/env bash\necho "fatal: could not read from remote repository"
 chmod +x "$HARDFAIL"
 run_failed_push hardfail "$HARDFAIL"
 
-[[ $RC -ne 0 ]] \
-  && pass "(2) a non-zero push helper is a HANDBACK (rc=$RC)" \
+grep -qx 'handback=git-lock-push' <<<"$OUT" \
+  && pass "(2) a non-zero push helper is a HANDBACK (handback=git-lock-push; id:2c2a rc=$RC)" \
   || fail "(2) a non-zero push helper was accepted: $OUT"
 [[ -s "$QUEUE" ]] \
   && pass "(2) id:5155 a queue entry EXISTS even when the helper itself failed" \
@@ -238,8 +244,8 @@ HEAD3="$(git -C "$M3" rev-parse HEAD)"
 # =====================================================================================
 run_failed_push nonsub "$LIAR" false
 
-[[ $RC -ne 0 ]] \
-  && pass "(4) the non-substantive failed push is a HANDBACK (rc=$RC)" \
+grep -qx 'handback=git-lock-push' <<<"$OUT" \
+  && pass "(4) the non-substantive failed push is a HANDBACK (handback=git-lock-push; id:2c2a rc=$RC)" \
   || fail "(4) the non-substantive liar push was accepted: $OUT"
 grep -q '^landed=true$' "$ERR" \
   && pass "(4/a726a) id:a726(a) landed=true for a NON-SUBSTANTIVE unit — the ckpt tag is the land point for EVERY unit" \

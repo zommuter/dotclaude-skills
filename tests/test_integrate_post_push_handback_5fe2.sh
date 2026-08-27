@@ -12,10 +12,18 @@
 # retry that then fails forever at merge/isolation, leaving relay.toml last_ckpt stale.
 #
 # This test drives the REAL integrate.sh against REAL git fixtures to one PRE-push failure
-# (changelog, exit 25), one POST-push failure (worktree-retire, exit 28) and the push(27)
-# special case, then feeds each result — shaped exactly as mechanical-proxy.py shapes it
-# ('MECH-ERROR exit=<n>\n<stderr>', stdout DISCARDED) — through relay-loop.js's real
-# parseIntegrateResult and asserts the caller's resulting state DIFFERS correctly.
+# (changelog, code 25), one POST-push failure (worktree-retire, code 28) and the push(27)
+# special case, then feeds each result — shaped exactly as mechanical-proxy.py shapes it —
+# through relay-loop.js's real parseIntegrateResult and asserts the caller's resulting state
+# DIFFERS correctly.
+#
+# id:2c2a UPDATED THE WIRE, NOT THE CLASSES. Those per-step numbers are no longer EXIT codes:
+# a handback is a verdict REACHED and EXECUTED, so integrate.sh exits 0 and the step identity
+# rides on stdout as handback=/handbackCode=/handbackReason=. The proxy shape therefore
+# inverted — it returns STDOUT on a zero exit and discards stderr, where it used to return
+# 'MECH-ERROR exit=<n>\n<stderr>' and discard stdout — so every assertion below reads STDOUT.
+# The three CLASSES (pre-land defer / landed-but-unfinished / success) are unchanged, and the
+# landed-but-unfinished one gained its own `partial=<step>` marker.
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -53,6 +61,8 @@ console.log(JSON.stringify({
   landedUnfinished: !!r.landedUnfinished,
   deferred: !!r.deferred,
   handbackStep: r.handbackStep || "",
+  handbackCode: r.handbackCode || "",
+  partial: r.partial || "",
   mergedSha: r.mergedSha || "",
   remaining: r.remaining || "",
   ckptRecorded: r.ckptRecorded === undefined ? null : r.ckptRecorded,
@@ -60,10 +70,12 @@ console.log(JSON.stringify({
 }));
 NODEEOF
 
-parse_of() { # <exit-code> <stderr-file> → JSON of parseIntegrateResult on the proxy shape
-  local rc="$1" errf="$2" mech="$TMP/mech.txt"
-  { printf 'MECH-ERROR exit=%s\n' "$rc"; cat "$errf"; } > "$mech"
-  node "$PARSE" "$JS" "$mech"
+# id:2c2a — the proxy shape CHANGED with the exit-code flattening. A handback now exits 0, so
+# mechanical-proxy.py returns the child's STDOUT (and DISCARDS stderr) — the exact mirror of
+# the old 'MECH-ERROR exit=<n>\n<stderr>'. This helper therefore feeds parseIntegrateResult
+# the STDOUT file, which is where integrate.sh now writes the KEY=VALUE block.
+parse_of() { # <stdout-file> → JSON of parseIntegrateResult on the proxy shape
+  node "$PARSE" "$JS" "$1"
 }
 
 jget() { python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$1"; }
@@ -93,7 +105,7 @@ BAD_STUB="$TMP/bad.sh"; printf '#!/usr/bin/env bash\necho "injected failure" >&2
 # ask for `--substantive false`: since the ratification gate landed, a SUBSTANTIVE unit does
 # not push at all, so the push-failure class (C) can only be exercised on the pushing path.
 CASE_EXTRA=()
-run_case() { # <suffix> <env-assignments...> → sets RC, ERRF, MAIN_PATH, CFG_TOML, REPO
+run_case() { # <suffix> <env-assignments...> → sets RC, OUTF, ERRF, MAIN_PATH, CFG_TOML, REPO
   local sfx="$1"; shift
   MAIN_PATH="$(build "$sfx")"
   REPO="$(basename "$MAIN_PATH")"
@@ -104,6 +116,7 @@ run_case() { # <suffix> <env-assignments...> → sets RC, ERRF, MAIN_PATH, CFG_T
   printf '[repos.%s]\nstatus = "active"\n' "$REPO" > "$cfg/relay.toml"
   CFG_TOML="$cfg/relay.toml"
   ERRF="$TMP/err-$sfx"
+  OUTF="$TMP/out-$sfx"   # id:2c2a — stdout is now the parsed channel on a handback too
   RC=0
   env FABLES_CONFIG="$cfg" "$@" \
     "$INT" --repo "$REPO" --path "$MAIN_PATH" --worktree "$wt" --branch "relay/$sfx" \
@@ -116,16 +129,21 @@ run_case() { # <suffix> <env-assignments...> → sets RC, ERRF, MAIN_PATH, CFG_T
 # (A) PRE-push failure — changelog-append (exit 25). Remote untouched; retry is CORRECT.
 # =====================================================================================
 run_case pre INTEGRATE_CHANGELOG_APPEND="$BAD_STUB" INTEGRATE_GIT_LOCK_PUSH="$OK_STUB"
-[[ $RC -eq 25 ]] || fail "(A) expected exit 25 (changelog, PRE-push), got $RC: $(cat "$ERRF")"
+# id:2c2a — a legitimate refusal EXITS 0 and carries its step on stdout instead.
+[[ $RC -eq 0 ]] || fail "(A) id:2c2a: a PRE-push refusal must exit 0, got $RC: $(cat "$ERRF")"
 grep -q 'HANDBACK\[changelog-append\]' "$ERRF" || fail "(A) no loud HANDBACK[changelog-append] line"
-# ACCEPTANCE 1 (negative half): a PRE-push exit must NOT advertise a landed merge.
-grep -qE '^merged=' "$ERRF" && fail "(A) PRE-push exit emitted a merged= line — a deferred unit must never look landed"
-grep -qE '^landed=true' "$ERRF" && fail "(A) PRE-push exit claimed landed=true"
-PRE_JSON="$(parse_of "$RC" "$ERRF")"
+grep -qx 'handback=changelog-append' "$OUTF" || fail "(A) STDOUT lost the step identity (handback=changelog-append): $(cat "$OUTF")"
+grep -qx 'handbackCode=25' "$OUTF" || fail "(A) STDOUT lost the numeric step identity the exit code used to carry (handbackCode=25): $(cat "$OUTF")"
+grep -q '^handbackReason=.*injected failure' "$OUTF" || fail "(A) STDOUT lost the handback REASON — with exit 0 the proxy drops stderr, so the cause must ride on stdout: $(cat "$OUTF")"
+# ACCEPTANCE 1 (negative half): a PRE-push handback must NOT advertise a landed merge.
+grep -qE '^merged=' "$OUTF" && fail "(A) PRE-push handback emitted a merged= line — a deferred unit must never look landed"
+grep -qE '^landed=true' "$OUTF" && fail "(A) PRE-push handback claimed landed=true"
+grep -qE '^partial=' "$OUTF" && fail "(A) PRE-push handback emitted partial= — that marker is for the LANDED-BUT-UNFINISHED class only"
+PRE_JSON="$(parse_of "$OUTF")"
 [[ "$(jget merged <<<"$PRE_JSON")" == "False" ]] || fail "(A) parse says merged for a PRE-push failure"
 [[ "$(jget deferred <<<"$PRE_JSON")" == "True" ]] || fail "(A) parse did not mark the PRE-push failure DEFERRED: $PRE_JSON"
 [[ "$(jget landedUnfinished <<<"$PRE_JSON")" == "False" ]] || fail "(A) parse marked a PRE-push failure landed: $PRE_JSON"
-pass "(A) PRE-push failure (changelog, 25): no merged=/landed= on the wire, parsed as DEFERRED (retry is correct)"
+pass "(A) PRE-push failure (changelog, code 25): exit 0, step+code+reason on STDOUT, no merged=/landed=/partial=, parsed as DEFERRED (retry is correct)"
 
 # =====================================================================================
 # (B) POST-LAND failure — worktree-retire (exit 28). Merge committed AND tagged.
@@ -135,14 +153,20 @@ pass "(A) PRE-push failure (changelog, 25): no merged=/landed= on the wire, pars
 #     point moving, so a substantive unit's tail failure is still never re-merged.
 # =====================================================================================
 run_case post INTEGRATE_GIT_LOCK_PUSH="$OK_STUB" INTEGRATE_WORKTREE_RETIRE="$BAD_STUB"
-[[ $RC -eq 28 ]] || fail "(B) expected exit 28 (worktree-retire, POST-push), got $RC: $(cat "$ERRF")"
+# id:2c2a — THE LANDED-BUT-UNFINISHED CASE. Owner-ratified: it exits 0 (the merge was
+# COMMITTED, TAGGED and PUSHED — it succeeded at everything that matters) and carries a
+# DISTINCT `partial=` marker on stdout alongside merged=/handback=/landed=.
+[[ $RC -eq 0 ]] || fail "(B) id:2c2a: landed-but-unfinished must exit 0, got $RC: $(cat "$ERRF")"
 grep -q 'HANDBACK\[worktree-retire\]' "$ERRF" || fail "(B) no loud HANDBACK[worktree-retire] line"
-# ACCEPTANCE 1: merged=<sha> alongside handback=<step> on a POST-push exit.
-grep -qE '^handback=worktree-retire$' "$ERRF" || fail "(B) POST-push exit did not emit handback=worktree-retire: $(cat "$ERRF")"
-grep -qE '^landed=true$' "$ERRF"               || fail "(B) POST-push exit did not emit landed=true"
-grep -qE '^merged=[0-9a-f]{7,}$' "$ERRF"       || fail "(B) POST-push exit did not emit merged=<sha>"
-grep -qE '^remaining=.*worktree-retire'  "$ERRF" || fail "(B) POST-push exit did not name the steps that did NOT run"
-MERGED_SHA_WIRE="$(sed -n 's/^merged=//p' "$ERRF" | tail -n1)"
+grep -qx 'partial=worktree-retire' "$OUTF" \
+  || fail "(B) id:2c2a: no partial=<step> marker on stdout — the landed-but-unfinished class is now indistinguishable from a plain success: $(cat "$OUTF")"
+grep -qx 'handbackCode=28' "$OUTF" || fail "(B) STDOUT lost the numeric step identity (handbackCode=28): $(cat "$OUTF")"
+# ACCEPTANCE 1: merged=<sha> alongside handback=<step> on a POST-push handback.
+grep -qE '^handback=worktree-retire$' "$OUTF" || fail "(B) POST-push handback did not emit handback=worktree-retire: $(cat "$OUTF")"
+grep -qE '^landed=true$' "$OUTF"               || fail "(B) POST-push handback did not emit landed=true"
+grep -qE '^merged=[0-9a-f]{7,}$' "$OUTF"       || fail "(B) POST-push handback did not emit merged=<sha>"
+grep -qE '^remaining=.*worktree-retire'  "$OUTF" || fail "(B) POST-push handback did not name the steps that did NOT run"
+MERGED_SHA_WIRE="$(sed -n 's/^merged=//p' "$OUTF" | tail -n1)"
 # merged= is the --no-ff MERGE commit (later scoped tick/changelog/archive commits sit on
 # top of it), so pin it as a real ancestor of main HEAD carrying the merge subject.
 git -C "$MAIN_PATH" merge-base --is-ancestor "$MERGED_SHA_WIRE" HEAD \
@@ -154,8 +178,8 @@ CKPT="$(git -C "$MAIN_PATH" tag -l 'relay-ckpt-*' | tail -n1)"
 [[ -n "$CKPT" ]] || fail "(B) fixture produced no relay-ckpt-* tag — the POST-push state was never reached"
 grep -qF "last_ckpt = \"$CKPT\"" "$CFG_TOML" \
   || fail "(B) relay.toml last_ckpt is STALE after a POST-push failure (acceptance 6): $(cat "$CFG_TOML")"
-grep -qE '^ckptRecorded=true$' "$ERRF" || fail "(B) POST-push exit did not report ckptRecorded=true"
-POST_JSON="$(parse_of "$RC" "$ERRF")"
+grep -qE '^ckptRecorded=true$' "$OUTF" || fail "(B) POST-push handback did not report ckptRecorded=true"
+POST_JSON="$(parse_of "$OUTF")"
 [[ "$(jget merged <<<"$POST_JSON")" == "False" ]] \
   || fail "(B) parse reported merged=true — the caller would take the SUCCESS path and double-count the unit"
 [[ "$(jget landedUnfinished <<<"$POST_JSON")" == "True" ]] \
@@ -164,7 +188,11 @@ POST_JSON="$(parse_of "$RC" "$ERRF")"
   || fail "(B) parse marked a POST-push (already-pushed) failure DEFERRED — it would be re-merged: $POST_JSON"
 [[ "$(jget handbackStep <<<"$POST_JSON")" == "worktree-retire" ]] || fail "(B) parse lost the handback step: $POST_JSON"
 [[ "$(jget mergedSha <<<"$POST_JSON")" == "$MERGED_SHA_WIRE" ]] || fail "(B) parse lost the merged sha: $POST_JSON"
-pass "(B) POST-push failure (retire, 28): merged=<sha>+handback=<step> on the wire, parsed as LANDED-BUT-UNFINISHED, last_ckpt reconciled"
+[[ "$(jget partial <<<"$POST_JSON")" == "worktree-retire" ]] \
+  || fail "(B/2c2a) parseIntegrateResult DROPPED partial= — a partial must never land silently: $POST_JSON"
+[[ "$(jget handbackCode <<<"$POST_JSON")" == "28" ]] \
+  || fail "(B/2c2a) parseIntegrateResult DROPPED handbackCode: $POST_JSON"
+pass "(B) POST-push failure (retire, code 28): exit 0 with partial=<step>+merged=<sha>+handback=<step> on stdout, parsed as LANDED-BUT-UNFINISHED, last_ckpt reconciled"
 
 # ── the two caller states genuinely DIFFER (the whole point of the item) ──
 [[ "$(jget deferred <<<"$PRE_JSON")" != "$(jget deferred <<<"$POST_JSON")" ]] \
@@ -184,10 +212,13 @@ pass "(A/B) the caller's resulting state DIFFERS between the two classes"
 CASE_EXTRA=(--substantive false)   # id:4d44 — only a NON-substantive unit still pushes
 run_case push INTEGRATE_GIT_LOCK_PUSH="$BAD_STUB"
 CASE_EXTRA=()
-[[ $RC -eq 27 ]] || fail "(C) expected exit 27 (push), got $RC: $(cat "$ERRF")"
-grep -qE '^merged=' "$ERRF" \
-  || fail "(C/a726a) push(27) hid the landed merge — the merge + ckpt tag ARE committed, so merged= must be on the wire: $(cat "$ERRF")"
-PUSH_JSON="$(parse_of "$RC" "$ERRF")"
+[[ $RC -eq 0 ]] || fail "(C) id:2c2a: push(code 27) is a reached verdict and must exit 0, got $RC: $(cat "$ERRF")"
+grep -qx 'handbackCode=27' "$OUTF" || fail "(C) STDOUT lost the numeric step identity (handbackCode=27): $(cat "$OUTF")"
+grep -qE '^merged=' "$OUTF" \
+  || fail "(C/a726a) push(27) hid the landed merge — the merge + ckpt tag ARE committed, so merged= must be on the wire: $(cat "$OUTF")"
+grep -qx 'partial=git-lock-push' "$OUTF" \
+  || fail "(C/2c2a) push(27) is LANDED-BUT-UNFINISHED but carried no partial= marker: $(cat "$OUTF")"
+PUSH_JSON="$(parse_of "$OUTF")"
 [[ "$(jget deferred <<<"$PUSH_JSON")" == "False" ]] \
   || fail "(C/a726a) push(27) parsed as DEFERRED — the caller would retry a merge that is already on main and already tagged: $PUSH_JSON"
 [[ "$(jget landedUnfinished <<<"$PUSH_JSON")" == "True" ]] \
