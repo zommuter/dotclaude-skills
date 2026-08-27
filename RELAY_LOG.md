@@ -6972,3 +6972,7 @@ baseline — id:5eeb's RED spec now passes).
 ## 2026-08-26 19:52 — reviewer (claude-opus-5)
 
 review-verified id:5eeb: context-budget.sh + executor-contract rule 2c (v12->v13). Suite 507/0/1, gaming-scan clean. Box deliberately NOT ticked — review found rule 2c is UNRUNNABLE as written (no dispatch path tells a pooled executor its own transcript path).
+
+## 2026-08-27 08:50 — executor (sonnet, relay-loop)
+
+id:5eeb verified already-satisfied: context-budget.sh, its test, and the executor-contract v15 rule 2c (with ZERO-COMMIT branch) all already ship; full suite green 508/0/1-expected-red — no code change needed, just confirming done-check for the driver's tick. [id:5eeb]
