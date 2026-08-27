@@ -55,6 +55,11 @@
 #   --session-id ID     override $CLAUDE_SESSION_ID (testing).
 #   --projects-root DIR override $HOME/.claude/projects (testing).
 #   --bytes             print the SIZE in bytes instead of the path.
+#   --list-candidates   print this resolver's OWN candidate set (one path per line,
+#                       pre-marker-filter) and exit 0. For transcript-shape-preflight.sh
+#                       (id:413c), so the coverage check asks the resolver what it
+#                       searches instead of re-deriving the glob — a second copy of that
+#                       knowledge is what made id:c219 possible.
 #
 # Output: exactly one line on stdout (the path, or the byte count with --bytes).
 #
@@ -77,6 +82,7 @@ marker=""
 session_id=""
 projects_root=""
 want_bytes=0
+list_candidates=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -84,6 +90,7 @@ while [[ $# -gt 0 ]]; do
     --session-id)     session_id="${2:-}"; shift 2 ;;
     --projects-root)  projects_root="${2:-}"; shift 2 ;;
     --bytes)          want_bytes=1; shift ;;
+    --list-candidates) list_candidates=1; shift ;;
     *)
       echo "self-transcript.sh: unknown arg '$1'" >&2
       exit 2 ;;
@@ -158,6 +165,18 @@ shopt -u nullglob
 if (( ${#candidates[@]} == 0 )); then
   echo "self-transcript.sh: no transcript found for session $session_id under $projects_root (looked for agent-*.jsonl anywhere under */$session_id/subagents/ — flat and workflows/wf_*/ — then */$session_id.jsonl)" >&2
   exit 4
+fi
+
+# ---------------------------------------------------------------- report candidates
+# `--list-candidates` prints the resolver's OWN candidate set, one path per line, before
+# any marker filtering, and exits 0. It exists so a caller can ask THIS script what it
+# searches rather than re-deriving the glob (id:413c). Re-deriving is precisely how
+# id:c219 happened: a second copy of "where do transcripts live" drifted from the first.
+# The preflight checker compares this list against an INDEPENDENT unbounded census of the
+# session dir; anything the census sees and this list does not is an uncovered shape.
+if (( list_candidates )); then
+  printf '%s\n' "${candidates[@]}"
+  exit 0
 fi
 
 # ---------------------------------------------------------------- filter by marker

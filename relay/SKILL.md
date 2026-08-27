@@ -240,6 +240,32 @@ D1/D2):
    still to be built). Recorded as an explicit amendment on new evidence — today's failure was at
    LAUNCH, which neither decided gate covers — not as a reinterpretation of that decision.
 
+0d. **Transcript-resolver liveness check (id:413c — WARN-ONLY, never a refusal).** Also
+   BEFORE launching, run `scripts/transcript-shape-preflight.sh` ONCE and relay its output.
+   Executor-contract rule 2c's mandatory pre-first-edit budget check depends on a child
+   being able to resolve its OWN transcript via `self-transcript.sh`; when that resolution
+   fails the check returns `verdict unknown` and **fails open**, so the rule is silently a
+   no-op and the run looks entirely healthy. That is not hypothetical: `id:c219` — a single
+   over-specific glob that missed the Workflow-nested transcript shape, which outnumbers
+   the flat one ~10:1 — made rule 2c inert for EVERY pooled child for a day, behind a fully
+   green 509-test suite. No `tests/` file can catch that class, because what changes is the
+   live `~/.claude/projects` layout, outside any fixture.
+   - **exit 0** — the resolver sees every transcript shape present, and (when a uniquely-
+     marked child exists) resolved one end-to-end. Nothing to surface.
+   - **exit 3** — an UNCOVERED SHAPE or a broken end-to-end resolution. Rule 2c is, or is
+     about to be, inert. Surface the script's output LOUDLY (it names the offending
+     relative path and the remedy), then **LAUNCH ANYWAY**. This is deliberately not a
+     refusal: the owner's 2026-08-27 ruling keeps rule 2c fail-open because a harness
+     layout change must never wedge the pool. Being loud at launch IS the fix — c219's
+     defining property was silence, not severity.
+   - **exit 4** — INDETERMINATE (no session id, no session dir, or no child transcripts
+     yet). Distinct from both OK and FAIL by design: "I could not look" must never read as
+     "all clear". Normal before the first child of a fresh session is dispatched; mention
+     it, do not act on it.
+   Runs at launch only. The resolver's own logic IS hermetically tested
+   (`tests/test_transcript_shape_preflight_413c.sh`, which drives it against fixtures via
+   `--projects-root`/`--session-id`); what only a live invocation can check is the real tree.
+
 1. **Non-interactive by default.** The front door operates ONLY on relay.toml
    `classification = "own"` confirmed repos. New, dirty, or `needs_review` repos are
    *surfaced* in `RELAY_STATUS.md` (Queued/Blocked sections) — never asked about
