@@ -100,6 +100,24 @@ mapfile -t order < <(
 tmp="$(mktemp -d)"
 trap 'rm -rf -- "$tmp"' EXIT
 
+# ── id:b54b hermeticity backstop ─────────────────────────────────────────────────────
+# A test fixture leaked a real `relay/ok` branch into THIS repo on 2026-08-22 (see
+# TODO.md id:b54b) — a mktemp-scoped git fixture is supposed to touch only its own
+# throwaway checkout, never the cwd repo run-tests.sh itself lives in. Rather than trust
+# every test file to get that right, snapshot the cwd repo's relay/* branches and
+# worktree list before and after the WHOLE run and fail LOUDLY on any drift. This is a
+# structural backstop, not an attribution tool — under parallel jobs (`-j`>1) a leak by
+# one test can't be pinned to it from this check alone; rerun the suspect file(s) alone
+# (or with `-j 1`) to localize. Scoped to `.` (the runner's own cwd), which is the real
+# repo root for every normal invocation and a scratch fixture repo for a nested
+# self-test — never `$ROOT`, since a nested run's `$ROOT` still points at THIS repo.
+snapshot_repo_state() {
+  git for-each-ref --format='%(refname) %(objectname)' refs/heads/relay/ 2>/dev/null | sort
+  echo '--worktrees--'
+  git worktree list --porcelain 2>/dev/null | grep '^worktree ' | sort
+}
+hermeticity_before="$(snapshot_repo_state)"
+
 run_one() {  # $1 = index into files[]
   local i="$1" t0="$EPOCHREALTIME" rc
   bash "${files[$i]}" >"$tmp/$i.out" 2>&1
@@ -116,6 +134,18 @@ for i in "${order[@]}"; do
   (( ++running ))
 done
 wait
+
+hermeticity_after="$(snapshot_repo_state)"
+hermeticity_breach=0
+if [[ "$hermeticity_before" != "$hermeticity_after" ]]; then
+  hermeticity_breach=1
+  echo
+  echo "HERMETICITY BREACH (id:b54b): the test run left new relay/* refs and/or worktrees in $(pwd) —"
+  echo "a fixture reached the real repo instead of its own mktemp sandbox. This ALWAYS fails the"
+  echo "suite, independent of every individual test's exit code. Diff (before -> after):"
+  diff <(printf '%s\n' "$hermeticity_before") <(printf '%s\n' "$hermeticity_after") | sed 's/^/       | /' || true
+  echo "Rerun the suspect file(s) alone (or with -j 1) to localize which test caused this."
+fi
 
 # A harness that silently skips tests also "passes" — refuse to report at all if the
 # scheduler failed to run something it should have.
@@ -164,6 +194,11 @@ echo
 echo "summary: $pass passed, $fail failed, $xred expected-red (open roadmap items)"
 if (( fail > 0 )); then
   printf 'failed: %s\n' "${failed_names[*]}"
+fi
+if (( hermeticity_breach )); then
+  echo "summary: HERMETICITY BREACH — see above (id:b54b)"
+fi
+if (( fail > 0 || hermeticity_breach )); then
   exit 1
 fi
 exit 0

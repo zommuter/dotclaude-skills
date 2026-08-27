@@ -43,6 +43,11 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
+[[ -n "$TMP" && -d "$TMP" ]] || fail "mktemp -d did not produce a usable directory (TMP='$TMP') — refusing to run any git fixture that could fall back to the caller's real repo"
+# id:b54b — last line of defense at each git-fixture call site that creates a relay/*
+# branch: refuse to operate on any path that isn't inside this run's own $TMP sandbox.
+in_tmp() { case "$1" in "$TMP"/*) return 0 ;; *) return 1 ;; esac; }
+
 [[ -x "$INT" ]] || fail "integrate.sh not found/executable at $INT"
 
 export GIT_CONFIG_COUNT=4
@@ -87,6 +92,7 @@ build_lanonly() {
   printf '%s' "$main"
 }
 child() { local main="$1" name="$2"; local wt="$TMP/wt-$name"
+  in_tmp "$main" || fail "child(): '$main' is not inside \$TMP ($TMP) — refusing to create relay/$name outside the sandbox"
   git -C "$main" worktree add -q -b "relay/$name" "$wt" main
   echo "work-$name" > "$wt/g-$name"; git -C "$wt" add -A; git -C "$wt" commit -qm "child work $name"
   printf '%s' "$wt"; }
