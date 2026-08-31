@@ -14,6 +14,7 @@
 - Em-dash migration: tracker/ledger-map.py's three lane regexes now accept the hyphen delimiter, and the one golden fixture that carried it em-dash-spelled (repo-alpha/TODO.md + its expected JSONs) migrated together in one commit (id:c442) (id:c442)
 - review: suite green 532/0/1-expected-red (make test = the only declared tier, none skipped); resurrection pass over all 71 modified test files (2 non-spec fails adjudicated); S9 conservation re-measured independently (live ledgers 0, archives 38+47); FOUND id:1a03's own done-check still failing on the EMIT side -> filed id:32f9, plus id:4ce8 + promoted id:4d1c; ingested 3 inbox dead-letters; routine_open=3 [id:32f9,4ce8,4d1c] (id:32f9,4ce8,4d1c,41d3,d3bf,bfee,59f2,5c05,4e01)
 - execute: fixed lane-delimiter-scan.sh's directory-argument crash (id:4ce8) -- now a clean exit-2 usage error instead of an unbound-variable trace; full suite 532/0/1-expected-red (id:4ce8)
+- Em-dash migration S5b: flipped handback-followup.py's GATE_TAG and lane-convert.sh's two repl= strings to emit the canonical hyphen [INPUT - decision]/[INPUT - meeting] instead of the legacy em dash, with all four affected pinning tests updated; full suite green (532/0/1-expected-red). (id:32f9)
 
 ## 2026-08-26
 
