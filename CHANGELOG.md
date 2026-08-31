@@ -16,6 +16,7 @@
 - execute: fixed lane-delimiter-scan.sh's directory-argument crash (id:4ce8) -- now a clean exit-2 usage error instead of an unbound-variable trace; full suite 532/0/1-expected-red (id:4ce8)
 - Em-dash migration S5b: flipped handback-followup.py's GATE_TAG and lane-convert.sh's two repl= strings to emit the canonical hyphen [INPUT - decision]/[INPUT - meeting] instead of the legacy em dash, with all four affected pinning tests updated; full suite green (532/0/1-expected-red). (id:32f9)
 - review: id:4ce8 + id:32f9 both VERIFIED GREEN by independent done-check re-run (make test = the only declared tier, 532/0/1-expected-red, none skipped); gaming-scan clean, resurrection + over-reach + provenance passes all clean; re-measured id:1a03's grep 53->49 and read all 49 -- every one is prose, ZERO emitters, so filed id:ad2a (prose-blind done-check is a re-file trap) + id:9e86 (id:4ce8 added a dead `[[ ! -e ]]` branch its `refactor: none needed` glossed; NOT reopened); routine_open=1 [id:ad2a,9e86] (id:4ce8,32f9,ad2a,9e86)
+- Fixed hermetic test fixtures inheriting the developer's global git core.hooksPath (id:4d1c): extracted the existing run-tests.sh neutralization into tests/lib/hermetic-git-env.sh, sourced by test_backtest_fidelity.sh and test_lane_vocab_ratchet_hook.sh so `bash tests/test_foo.sh` run directly is now hermetic; full suite 532 passed / 0 failed / 1 expected-red. (id:4d1c)
 
 ## 2026-08-26
 
