@@ -17,7 +17,7 @@
 #
 # DELIBERATE NARROWING of routed:b945's proposal, which said `route` in {hard-split,
 # decision-gate}: **decision-gate creates NOTHING**. It re-tags the parent into the
-# classifier-EXCLUDED "[HARD — decision gate]" lane, which REMOVES work from the actionable pool.
+# classifier-EXCLUDED "[HARD - decision gate]" lane, which REMOVES work from the actionable pool.
 # Counting it as work-creating would keep the loop spinning on a shrinking backlog — the exact
 # failure id:2d20/id:d58f exist to prevent. Only hard-split-with-seams counts.
 #

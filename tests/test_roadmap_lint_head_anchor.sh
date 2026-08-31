@@ -39,7 +39,7 @@ $out_bold"; exit 1; }
 cat > "$tmp/roadmap_bold_body.md" <<'EOF'
 # Roadmap
 ## Items
-- [ ] **[ROUTINE] fix the parser** (re-laned `[INPUT — decision]`→`[ROUTINE]` this session) <!-- id:c0de -->
+- [ ] **[ROUTINE] fix the parser** (re-laned `[INPUT - decision]`→`[ROUTINE]` this session) <!-- id:c0de -->
 EOF
 out_bb="$("$LINT" "$tmp/roadmap_bold_body.md" 2>&1 || true)"
 "$LINT" "$tmp/roadmap_bold_body.md" >/dev/null 2>&1 \

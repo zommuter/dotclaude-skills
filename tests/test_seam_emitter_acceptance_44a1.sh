@@ -22,7 +22,7 @@ cat > "$RM" <<'ROADMAP'
 # ROADMAP
 
 ## Open
-- [ ] **[HARD — strong model]** Build the whole funnel end to end <!-- id:bbbb -->
+- [ ] **[HARD - strong model]** Build the whole funnel end to end <!-- id:bbbb -->
 ROADMAP
 
 run() { HANDBACK_NO_COMMIT=1 python3 "$HELPER" "$STORE" "$@"; }

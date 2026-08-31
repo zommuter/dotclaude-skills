@@ -46,7 +46,7 @@ git -C "$R" config user.name t
   printf -- '- [ ] [ROUTINE] **THE DISPATCHED ITEM** — build the widget <!-- id:1111 -->\n'
   printf -- '  - **Acceptance**: the widget exists.\n'
   printf -- '  - **Done-check**: tests/test_widget.sh green.\n\n'
-  printf -- '- [ ] [INPUT — decision] **THE GATE TARGET** — owner must pick a widget shape <!-- id:2222 -->\n\n'
+  printf -- '- [ ] [INPUT - decision] **THE GATE TARGET** — owner must pick a widget shape <!-- id:2222 -->\n\n'
   n=0
   while [[ $n -lt 800 ]]; do
     printf -- '- [x] [ROUTINE] **UNRELATED CLOSED ITEM %03d** — NEEDLE_UNRELATED, a long done note representative of the real ledger prose that accumulates inline and dominates the byte count. <!-- id:%04x -->\n' "$n" $(( 0x4000 + n ))

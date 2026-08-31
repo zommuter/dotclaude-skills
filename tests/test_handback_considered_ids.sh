@@ -7,7 +7,7 @@
 # loderite run relay-20260814-133435-24323, confirmed against the run record):
 #   - gather computed open_hard_pool = 5 ("Open [HARD -- pool] items: 5 -- pool-lane hard work
 #     pending").
-#   - the child handed back "There is NO pool-dispatchable [HARD — pool] item in loderite this
+#   - the child handed back "There is NO pool-dispatchable [HARD - pool] item in loderite this
 #     turn."
 #   - its considered-id list was NOT EMPTY — it had FIFTEEN entries: containers 16b2, ca44,
 #     d215, 5d76, 5d00, 9403, 23aa, 40ad and gated 3d11, 8452, 9a6b, c8ad, c2f3, 1a09, 55c7.

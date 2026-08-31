@@ -46,7 +46,7 @@ cat >"$tmp/src/repoM/ROADMAP.md" <<'MD'
 
 ## Items
 
-- [ ] [INPUT — meeting] **`drained` machine-verdict + `@wire`/`@manual` grammar split** — a DESIGN item ABOUT the tag, not a scenario to run <!-- id:aaaa -->
+- [ ] [INPUT - meeting] **`drained` machine-verdict + `@wire`/`@manual` grammar split** — a DESIGN item ABOUT the tag, not a scenario to run <!-- id:aaaa -->
 - [ ] [ROUTINE] Verify the tunnel by hand on the device @manual <!-- id:bbbb -->
 - [ ] [ROUTINE] Document that the tag is spelled @manually nowhere in the grammar <!-- id:eeee -->
 MD

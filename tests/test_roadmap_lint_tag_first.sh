@@ -65,8 +65,8 @@ run() { # <fixture-line> -> combined stdout+stderr in $tmp/out (exit code ignore
 
 # --- (a) VIOLATION: backtick'd prose lane BEFORE the genuine lane tag ----------------------
 # Raw-first lane (classify-repo, no strip) = `[ROUTINE]` (it is first); genuine-first
-# (gather, strip) = [HARD — pool]. Disagreement → classify-repo mis-anchors → FLAG.
-run '- [ ] `[ROUTINE]` (that classification was rejected on handback) — the real work is [HARD — pool] follow-up <!-- id:1111 -->'
+# (gather, strip) = [HARD - pool]. Disagreement → classify-repo mis-anchors → FLAG.
+run '- [ ] `[ROUTINE]` (that classification was rejected on handback) — the real work is [HARD - pool] follow-up <!-- id:1111 -->'
 grep -qiE "$TAGFIRST_RE" "$tmp/out" \
   || { echo "case (a): a prose lane bracket BEFORE the genuine lane tag must be flagged with a tag-first/ordering diagnostic (got: $(cat "$tmp/out"))"; exit 1; }
 
@@ -76,11 +76,11 @@ grep -qiE "$TAGFIRST_RE" "$tmp/out" \
   && { echo "case (b): a plain tag-first item must NOT trip the tag-first rule (got: $(cat "$tmp/out"))"; exit 1; }
 
 # --- (c) COMPLIANT: genuine lane FIRST, a backtick'd lane mention LATER --------------------
-# The id:0d58/fb7f/c3f5 real-world shape: a [HARD — pool] item whose handback history
+# The id:0d58/fb7f/c3f5 real-world shape: a [HARD - pool] item whose handback history
 # quotes a backtick'd `[ROUTINE]` far to the right. The genuine lane IS first (raw_first
-# == genuine_first == [HARD — pool]), so the tag-first rule must NOT fire — guards against
+# == genuine_first == [HARD - pool]), so the tag-first rule must NOT fire — guards against
 # a naive "any line with >1 lane bracket" implementation.
-run '- [ ] [HARD — pool] leAIrn2learn thing whose handback history later quotes `[ROUTINE]` as the rejected verdict <!-- id:3333 -->'
+run '- [ ] [HARD - pool] leAIrn2learn thing whose handback history later quotes `[ROUTINE]` as the rejected verdict <!-- id:3333 -->'
 grep -qiE "$TAGFIRST_RE" "$tmp/out" \
   && { echo "case (c): a genuinely-tag-first item with a LATER backtick'd lane mention must NOT trip the tag-first rule (got: $(cat "$tmp/out"))"; exit 1; }
 

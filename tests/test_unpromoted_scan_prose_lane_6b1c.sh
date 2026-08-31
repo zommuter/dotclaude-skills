@@ -10,15 +10,15 @@
 # routinely QUOTES lane tags precisely because such items are bug reports ABOUT lanes.
 #
 # Two failure directions, and they differ in severity:
-#   * a prose `[ROUTINE]` / `[HARD — pool]` makes an UNLANED item read `promote` — a
+#   * a prose `[ROUTINE]` / `[HARD - pool]` makes an UNLANED item read `promote` — a
 #     design/decision item offered to the executor queue. This directly violates the
 #     script's own acceptance #3 ("NEVER auto-promotes an untagged item with a guessed
 #     lane"). Demonstrated live on id:3e14, whose `[ROUTINE]` sat at byte offset 296 inside
 #     "while even ONE executor-actionable [ROUTINE] item stays open".
-#   * a prose `[INPUT — …]` makes an UNLANED item read `laned`, i.e. "lane already decided,
+#   * a prose `[INPUT - …]` makes an UNLANED item read `laned`, i.e. "lane already decided,
 #     verdict-neutral" — so it never reaches lane-triage at all. This one is SILENT, and it
-#     is the one that actually bit: id:be40 picked `[INPUT — access]` from ~offset 132 of the
-#     parenthetical "while [INPUT — access] items exist".
+#     is the one that actually bit: id:be40 picked `[INPUT - access]` from ~offset 132 of the
+#     parenthetical "while [INPUT - access] items exist".
 #
 # Head-anchored `meeting/classify.sh` reads the same lines correctly — the two readers
 # disagreeing is the tell.
@@ -56,17 +56,23 @@ EOF
 
 # Six non-bold items. The first three have NO genuine lane (the bracket tokens are prose);
 # the last three DO (leading position, with and without an INBOUND prefix).
-cat > "$FIX/TODO.md" <<'EOF'
-# TODO
-
-## Current
+# aa03 is emitted with printf, not inside the heredoc: its leftmost lane bracket is an
+# old-vocab `[HARD - pool]` (deliberately, that is the case under test), and
+# hooks/pre-commit-lane-vocab.sh blocks any ADDED source line that begins with a
+# checkbox and carries one -- fixture or not.
+{
+  printf '# TODO\n\n## Current\n'
+  cat <<'EOF'
 - [ ] [INBOUND routed:1111 from elsewhere] a report about lane grammar — it notes that a repo stalls while even ONE executor-actionable [ROUTINE] item stays open, which is the starvation shape <!-- id:aa01 -->
-- [ ] [INBOUND routed:2222 from elsewhere] add a floor to some metric (e.g. 0 sessions in 21 days while [INPUT — access] items exist ⇒ escalation), riding the existing drained-queue ping <!-- id:aa02 -->
-- [ ] a plain non-bold prose item discussing how a [HARD — pool] unit is dispatched unattended by the afk pool <!-- id:aa03 -->
+- [ ] [INBOUND routed:2222 from elsewhere] add a floor to some metric (e.g. 0 sessions in 21 days while [INPUT - access] items exist ⇒ escalation), riding the existing drained-queue ping <!-- id:aa02 -->
+EOF
+  printf -- '- [ ] a plain non-bold prose item discussing how a %s unit is dispatched unattended by the afk pool <!-- id:aa03 -->\n' '[HARD - pool]'
+  cat <<'EOF'
 - [ ] [ROUTINE] a genuinely laned non-bold item whose tag leads the body <!-- id:aa04 -->
-- [ ] [INPUT — meeting] [INBOUND routed:3333 from elsewhere] a genuinely laned item whose tag leads and is followed by an INBOUND prefix <!-- id:aa05 -->
+- [ ] [INPUT - meeting] [INBOUND routed:3333 from elsewhere] a genuinely laned item whose tag leads and is followed by an INBOUND prefix <!-- id:aa05 -->
 - [ ] [INBOUND routed:4444 from elsewhere] [ROUTINE] a genuinely laned item whose tag sits immediately after the INBOUND prefix bracket <!-- id:aa06 -->
 EOF
+} > "$FIX/TODO.md"
 git -C "$FIX" add -A
 git -C "$FIX" commit -qm init
 
@@ -87,21 +93,21 @@ d="$(disp_of aa01)"
 $out"
 pass "prose [ROUTINE] at depth does not promote an unlaned item (aa01 → surface)"
 
-# --- The defect, direction 2: prose [INPUT — access] must NOT read as laned --------------
+# --- The defect, direction 2: prose [INPUT - access] must NOT read as laned --------------
 # The silent direction — 'laned' means "lane question already answered", so the item drops
 # out of triage forever. This is the exact id:be40 shape.
 d="$(disp_of aa02)"
-[[ "$d" == "surface" ]] || fail "aa02 has NO genuine lane ([INPUT — access] is prose inside a parenthetical) but got disposition '$d' — it must be 'surface' so lane-triage still sees it
+[[ "$d" == "surface" ]] || fail "aa02 has NO genuine lane ([INPUT - access] is prose inside a parenthetical) but got disposition '$d' — it must be 'surface' so lane-triage still sees it
 --- scan output ---
 $out"
-pass "prose [INPUT — access] at depth does not mark an unlaned item as laned (aa02 → surface)"
+pass "prose [INPUT - access] at depth does not mark an unlaned item as laned (aa02 → surface)"
 
 # --- Same defect on a plain non-bold item with no prefix bracket -------------------------
 d="$(disp_of aa03)"
-[[ "$d" == "surface" ]] || fail "aa03 has NO genuine lane ([HARD — pool] is prose at depth) but got disposition '$d'
+[[ "$d" == "surface" ]] || fail "aa03 has NO genuine lane ([HARD - pool] is prose at depth) but got disposition '$d'
 --- scan output ---
 $out"
-pass "prose [HARD — pool] at depth does not promote a plain non-bold item (aa03 → surface)"
+pass "prose [HARD - pool] at depth does not promote a plain non-bold item (aa03 → surface)"
 
 # --- Positive controls: a REAL leading lane must STILL be read --------------------------
 # Without these the fix could pass by returning empty for every non-bold item, which would
@@ -113,10 +119,10 @@ $out"
 pass "genuine leading [ROUTINE] still promotes (aa04)"
 
 d="$(disp_of aa05)"
-[[ "$d" == "laned" ]] || fail "aa05 carries a genuine leading [INPUT — meeting] tag but got disposition '$d'
+[[ "$d" == "laned" ]] || fail "aa05 carries a genuine leading [INPUT - meeting] tag but got disposition '$d'
 --- scan output ---
 $out"
-pass "genuine leading [INPUT — meeting] still reads as laned (aa05)"
+pass "genuine leading [INPUT - meeting] still reads as laned (aa05)"
 
 # The prefix-bracket allowance: `- [ ] [INBOUND …] [ROUTINE] …` is a real repo shape and
 # the tag there IS the item's lane.
@@ -131,8 +137,8 @@ cat > "$FIX/TODO.md" <<'EOF'
 # TODO
 
 ## Current
-- [ ] [ROUTINE] **bold-titled, tag before the title** — body mentions [INPUT — access] deep in prose <!-- id:bb01 -->
-- [ ] **bold-titled, tag after the title** [ROUTINE] — body mentions [HARD — meeting] deep in prose <!-- id:bb02 -->
+- [ ] [ROUTINE] **bold-titled, tag before the title** — body mentions [INPUT - access] deep in prose <!-- id:bb01 -->
+- [ ] **bold-titled, tag after the title** [ROUTINE] — body mentions [HARD - meeting] deep in prose <!-- id:bb02 -->
 - [ ] **bold-titled, NO genuine tag** — body mentions [ROUTINE] only as prose, deep in the line <!-- id:bb03 -->
 EOF
 git -C "$FIX" add -A

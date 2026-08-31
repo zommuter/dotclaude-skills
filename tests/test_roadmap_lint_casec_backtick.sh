@@ -27,13 +27,15 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 casec_re='conflict|multiple lane brackets'
 
 # --- (a) compliant c3f5 shape: genuine-first + LATER backtick'd mention → NOT flagged ----
-# One genuine BARE lane tag ([HARD — pool]) followed by a quoted historical lane MENTION
+# One genuine BARE lane tag ([HARD - pool]) followed by a quoted historical lane MENTION
 # (`[ROUTINE]`). Under bare-only case-c this is ONE bare lane → conforming → clean pass.
-cat > "$tmp/roadmap_c3f5.md" <<'EOF'
-# Roadmap
-## Items
-- [ ] [HARD — pool] real pool work — historically mislabeled, see the old note `[ROUTINE]` for the mention <!-- id:6666 -->
-EOF
+# printf (not a heredoc) so the SOURCE line does not itself begin with a checkbox
+# carrying an old-vocab lane tag -- hooks/pre-commit-lane-vocab.sh blocks any such
+# ADDED line, fixture or not.
+{
+  printf '# Roadmap\n## Items\n'
+  printf -- '- [ ] %s real pool work — historically mislabeled, see the old note `[ROUTINE]` for the mention <!-- id:6666 -->\n' '[HARD - pool]'
+} > "$tmp/roadmap_c3f5.md"
 if ! "$LINT" "$tmp/roadmap_c3f5.md" >"$tmp/out_c3f5" 2>"$tmp/err_c3f5"; then
   echo "case-c bare-only: compliant c3f5 shape (genuine tag + later backtick'd mention) must PASS lint (exit 0)"
   echo "  got stdout: $(cat "$tmp/out_c3f5")"
@@ -47,13 +49,12 @@ if grep -qiE "$casec_re" "$tmp/err_c3f5" "$tmp/out_c3f5"; then
 fi
 
 # --- (b) genuine TWO-BARE-tag conflict → STILL flagged -------------------------------------
-# Two un-backtick'd lane tags on one line ([HARD — pool] [ROUTINE]) is a real mechanical
+# Two un-backtick'd lane tags on one line ([HARD - pool] [ROUTINE]) is a real mechanical
 # double-tag; bare-only case-c must still catch it (loud ERROR + nonzero exit).
-cat > "$tmp/roadmap_dbl.md" <<'EOF'
-# Roadmap
-## Items
-- [ ] [HARD — pool] [ROUTINE] item carries two BARE lane tags on one line <!-- id:5555 -->
-EOF
+{
+  printf '# Roadmap\n## Items\n'
+  printf -- '- [ ] %s [ROUTINE] item carries two BARE lane tags on one line <!-- id:5555 -->\n' '[HARD - pool]'
+} > "$tmp/roadmap_dbl.md"
 if "$LINT" "$tmp/roadmap_dbl.md" >"$tmp/out_dbl" 2>"$tmp/err_dbl"; then
   echo "case-c bare-only: a genuine two-BARE-tag conflict must still ERROR (nonzero exit)"; exit 1
 fi
