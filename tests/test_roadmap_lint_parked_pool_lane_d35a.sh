@@ -66,20 +66,20 @@ cat >"$R" <<'MD'
 
 - [ ] [ROUTINE] a pool-executable lane wrongly left under a parked heading <!-- id:a001 -->
 - [ ] [HARD] another pool-executable lane under the same parked heading <!-- id:a002 -->
-- [ ] [INPUT — meeting] a human lane under a parked heading — legitimate <!-- id:a003 -->
-- [ ] [INPUT — access] a human lane under a parked heading — legitimate <!-- id:a004 -->
+- [ ] [INPUT - meeting] a human lane under a parked heading — legitimate <!-- id:a003 -->
+- [ ] [INPUT - access] a human lane under a parked heading — legitimate <!-- id:a004 -->
 - [ ] [MECHANICAL] pool-inert and human-inert — legitimate under a parked heading <!-- id:a005 -->
 - [x] [ROUTINE] a CLOSED pool-executable item under a parked heading — never linted <!-- id:a006 -->
-- [ ] [INPUT — access] human primary lane; prose mentions `[HARD — pool]` historically <!-- id:a00d -->
-- [ ] [INPUT — meeting] human primary lane; was `[ROUTINE]`-tagged there historically <!-- id:a00e -->
-- [ ] [INTENSIVE — local-llm] [HARD] resource-first composed run — still a violation <!-- id:a00f -->
-- [ ] [HARD] [INTENSIVE — disk-io] lane-first composed run — still a violation <!-- id:a010 -->
+- [ ] [INPUT - access] human primary lane; prose mentions `[HARD - pool]` historically <!-- id:a00d -->
+- [ ] [INPUT - meeting] human primary lane; was `[ROUTINE]`-tagged there historically <!-- id:a00e -->
+- [ ] [INTENSIVE - local-llm] [HARD] resource-first composed run — still a violation <!-- id:a00f -->
+- [ ] [HARD] [INTENSIVE - disk-io] lane-first composed run — still a violation <!-- id:a010 -->
 
 ## Deferred
 
-- [ ] [INPUT — meeting] triage note one <!-- id:a007 -->
-- [ ] [INPUT — meeting] triage note two <!-- id:a008 -->
-- [ ] [INPUT — meeting] triage note three <!-- id:a009 -->
+- [ ] [INPUT - meeting] triage note one <!-- id:a007 -->
+- [ ] [INPUT - meeting] triage note two <!-- id:a008 -->
+- [ ] [INPUT - meeting] triage note three <!-- id:a009 -->
 - [ ] [HARD] an appended executable item, north-star bare HARD — DOES trip the rule <!-- id:a00a -->
 - [ ] [ROUTINE] an appended executable item that DOES trip the rule <!-- id:a00b -->
 MD
@@ -98,7 +98,7 @@ grep -q 'PARKED-POOL-LANE: open item id:a001' "$tmp/err" \
 grep -q 'PARKED-POOL-LANE: open item id:a002' "$tmp/err" \
   || fail "[HARD] under a parked heading did not fire 3(g) (err: $(cat "$tmp/err"))"
 grep -q 'PARKED-POOL-LANE: open item id:a00b' "$tmp/err" \
-  || fail "the appended [ROUTINE] item after the [INPUT — meeting] chain did not fire 3(g) (err: $(cat "$tmp/err"))"
+  || fail "the appended [ROUTINE] item after the [INPUT - meeting] chain did not fire 3(g) (err: $(cat "$tmp/err"))"
 
 # The violation is reported to stdout too (the script's existing convention).
 grep -q 'id:a001' "$tmp/out" || fail "3(g) violation for id:a001 missing from stdout report"
@@ -109,8 +109,8 @@ grep -q 'ERROR — PARKED-POOL-LANE' "$tmp/err" \
   || fail "3(g) must report as ERROR (unconditional), not WARN (err: $(cat "$tmp/err"))"
 
 # --- legitimate human lanes under the SAME parked heading stay silent -----------
-! grep -q 'id:a003' "$tmp/err" || fail "[INPUT — meeting] under a parked heading wrongly fired 3(g) (err: $(cat "$tmp/err"))"
-! grep -q 'id:a004' "$tmp/err" || fail "[INPUT — access] under a parked heading wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+! grep -q 'id:a003' "$tmp/err" || fail "[INPUT - meeting] under a parked heading wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+! grep -q 'id:a004' "$tmp/err" || fail "[INPUT - access] under a parked heading wrongly fired 3(g) (err: $(cat "$tmp/err"))"
 ! grep -q 'id:a005' "$tmp/err" || fail "[MECHANICAL] under a parked heading wrongly fired 3(g) (err: $(cat "$tmp/err"))"
 
 # --- a CLOSED item is never linted, even with a pool-executable lane ------------
@@ -119,14 +119,14 @@ grep -q 'ERROR — PARKED-POOL-LANE' "$tmp/err" \
 # --- unchanged behaviour: [ROUTINE] under an ACTIVE heading is fine as always ---
 ! grep -q 'id:a00c' "$tmp/err" || fail "[ROUTINE] under an ACTIVE heading wrongly fired 3(g) (err: $(cat "$tmp/err"))"
 
-# --- real-world shape: 3 legitimate [INPUT — meeting] items, then an appended ---
+# --- real-world shape: 3 legitimate [INPUT - meeting] items, then an appended ---
 # chain — only the appended EXECUTABLE ones fire, the meeting notes stay silent.
-! grep -q 'id:a007' "$tmp/err" || fail "[INPUT — meeting] note one wrongly fired 3(g) (err: $(cat "$tmp/err"))"
-! grep -q 'id:a008' "$tmp/err" || fail "[INPUT — meeting] note two wrongly fired 3(g) (err: $(cat "$tmp/err"))"
-! grep -q 'id:a009' "$tmp/err" || fail "[INPUT — meeting] note three wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+! grep -q 'id:a007' "$tmp/err" || fail "[INPUT - meeting] note one wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+! grep -q 'id:a008' "$tmp/err" || fail "[INPUT - meeting] note two wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+! grep -q 'id:a009' "$tmp/err" || fail "[INPUT - meeting] note three wrongly fired 3(g) (err: $(cat "$tmp/err"))"
 
 # id:a00a carries the north-star BARE `[HARD]` tag. It IS in scope: id:4f02 makes
-# `[HARD]` the 1:1 rename of `[HARD — pool]` (same disposition), `lane-convert.sh`
+# `[HARD]` the 1:1 rename of `[HARD - pool]` (same disposition), `lane-convert.sh`
 # auto-applies that rename with no human input, and the pre-commit lane ratchet
 # BLOCKS the legacy spelling from new commits — so bare `[HARD]` is simply the
 # current spelling of the pool-executable lane. Omitting it would have left the
@@ -141,21 +141,21 @@ grep -q 'PARKED-POOL-LANE: open item id:a00a' "$tmp/err" \
 # of a pool tag fired an ERROR on an item whose live primary lane is human. Three
 # real false positives fleet-wide (loderite affd + 1e21, toesnail 8807).
 ! grep -q 'id:a00d' "$tmp/err" \
-  || fail "[INPUT — access] item with a backtick'd [HARD — pool] prose mention wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+  || fail "[INPUT - access] item with a backtick'd [HARD - pool] prose mention wrongly fired 3(g) (err: $(cat "$tmp/err"))"
 ! grep -q 'id:a00e' "$tmp/err" \
-  || fail "[INPUT — meeting] item with a backtick'd [ROUTINE] prose mention wrongly fired 3(g) (err: $(cat "$tmp/err"))"
+  || fail "[INPUT - meeting] item with a backtick'd [ROUTINE] prose mention wrongly fired 3(g) (err: $(cat "$tmp/err"))"
 
-# ...but a composed run still fires in BOTH orders. `[INTENSIVE — <res>]` is not a
+# ...but a composed run still fires in BOTH orders. `[INTENSIVE - <res>]` is not a
 # lane (it is the orthogonal resource axis) and is absent from all_lane_tags, so a
 # resource-FIRST item would stop leading_lane_run dead and silently escape unless
 # the resource brackets are stripped first. Relying on lane-first authoring
 # convention is exactly the class id:d35a is about.
 grep -q 'PARKED-POOL-LANE: open item id:a00f' "$tmp/err" \
-  || fail "resource-first [INTENSIVE — local-llm] [HARD] under a parked heading did not fire 3(g) (err: $(cat "$tmp/err"))"
+  || fail "resource-first [INTENSIVE - local-llm] [HARD] under a parked heading did not fire 3(g) (err: $(cat "$tmp/err"))"
 grep -q 'PARKED-POOL-LANE: open item id:a010' "$tmp/err" \
-  || fail "lane-first [HARD] [INTENSIVE — disk-io] under a parked heading did not fire 3(g) (err: $(cat "$tmp/err"))"
+  || fail "lane-first [HARD] [INTENSIVE - disk-io] under a parked heading did not fire 3(g) (err: $(cat "$tmp/err"))"
 
-pass "3(g) PARKED-POOL-LANE: [ROUTINE]/[HARD]/legacy [HARD — pool] under a parked heading are unconditional violations; human lanes + [MECHANICAL] + closed items + active-heading items stay silent (id:d35a)"
+pass "3(g) PARKED-POOL-LANE: [ROUTINE]/[HARD]/legacy [HARD - pool] under a parked heading are unconditional violations; human lanes + [MECHANICAL] + closed items + active-heading items stay silent (id:d35a)"
 
 # =================================================================================
 # Independent re-derivation against the ORIGINAL incident shape (ruling (1) check).

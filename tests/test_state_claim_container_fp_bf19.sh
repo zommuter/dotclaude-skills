@@ -49,13 +49,13 @@ trap 'rm -rf "$tmp"' EXIT
 source "$LIB"
 
 # (1) @container carrying a decision record -> direction (i) does NOT fire.
-l_container='- [ ] [HARD — meeting] DECOMPOSED into seams, DECIDED 2026-07-20 @container <!-- id:d001 -->'
+l_container='- [ ] [HARD - meeting] DECOMPOSED into seams, DECIDED 2026-07-20 @container <!-- id:d001 -->'
 v_container="$(state_claim_violation "$l_container")"
 [[ -z "$v_container" ]] || fail "@container item wrongly fired state_claim_violation: '$v_container'"
 pass "engine: @container-marked open item does not fire DECIDED-LEFT-OPEN"
 
 # (1b) @container with a comment-only close (direction ii) also exempt.
-l_container_ii='- [ ] [HARD — meeting] DECOMPOSED into seams @container <!-- closed 2026-07-20 --> <!-- id:d002 -->'
+l_container_ii='- [ ] [HARD - meeting] DECOMPOSED into seams @container <!-- closed 2026-07-20 --> <!-- id:d002 -->'
 v_container_ii="$(state_claim_violation "$l_container_ii")"
 [[ -z "$v_container_ii" ]] || fail "@container item wrongly fired direction (ii): '$v_container_ii'"
 pass "engine: @container-marked open item does not fire direction (ii) either"

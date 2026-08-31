@@ -86,19 +86,19 @@ got="$(aro_of '- [ ] [ROUTINE] DECOMPOSED into seams — parent is a container @
                     || bad "classify-repo: @container [ROUTINE] should be excluded (aro=0), got '$got'"
 
 # ── Case 3: the @wire-on-pool-lane branch shares the predicate, so it shares the fix ──
-got="$(aro_of '- [ ] [HARD — pool] @wire DECOMPOSED parent @container <!-- id:0003 -->')"
-[[ "$got" == "0" ]] && ok "classify-repo: @container @wire [HARD — pool] is excluded (aro=0)" \
+got="$(aro_of '- [ ] [HARD - pool] @wire DECOMPOSED parent @container <!-- id:0003 -->')"
+[[ "$got" == "0" ]] && ok "classify-repo: @container @wire [HARD - pool] is excluded (aro=0)" \
                     || bad "classify-repo: @container @wire pool-lane should be excluded (aro=0), got '$got'"
 # ...and the same line WITHOUT the marker must still count, else case 3 is vacuous.
-got="$(aro_of '- [ ] [HARD — pool] @wire DECOMPOSED parent <!-- id:0004 -->')"
-[[ "$got" == "1" ]] && ok "control: @wire [HARD — pool] without @container counts (aro=1)" \
+got="$(aro_of '- [ ] [HARD - pool] @wire DECOMPOSED parent <!-- id:0004 -->')"
+[[ "$got" == "1" ]] && ok "control: @wire [HARD - pool] without @container counts (aro=1)" \
                     || bad "control: @wire pool-lane without @container should count 1, got '$got'"
 
 # ── Case 4: gather-repo-state.sh must not surface an @container item as top_intensive ──
-got="$(intensive_of '- [ ] [ROUTINE] [INTENSIVE — local-llm] DECOMPOSED parent <!-- id:0005 -->')"
+got="$(intensive_of '- [ ] [ROUTINE] [INTENSIVE - local-llm] DECOMPOSED parent <!-- id:0005 -->')"
 [[ -n "$got" ]] && ok "control: [INTENSIVE] without @container surfaces as top_intensive ('$got')" \
                 || bad "control: [INTENSIVE] without @container should surface, got empty"
-got="$(intensive_of '- [ ] [ROUTINE] [INTENSIVE — local-llm] DECOMPOSED parent @container <!-- id:0006 -->')"
+got="$(intensive_of '- [ ] [ROUTINE] [INTENSIVE - local-llm] DECOMPOSED parent @container <!-- id:0006 -->')"
 [[ -z "$got" ]] && ok "gather-repo-state: @container [INTENSIVE] not surfaced as top_intensive" \
                 || bad "gather-repo-state: @container [INTENSIVE] should not surface, got '$got'"
 

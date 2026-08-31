@@ -4,10 +4,10 @@
 # per line and IGNORE lane-bracket mentions that appear in trailing audit-trail prose.
 #
 # Surfaced by leAIrn2learn (id:c3f5): an item whose HEAD tag is a correct single lane
-# but whose BODY cites a prior `[HARD — …]`/`[ROUTINE]` transition in *non-backticked*
+# but whose BODY cites a prior `[HARD - …]`/`[ROUTINE]` transition in *non-backticked*
 # audit-trail prose currently trips the case-c "multiple lane brackets" LOUD-reject
 # (roadmap-lint.sh:350). The existing backtick-strip (line 328) only rescues
-# `[HARD]`-in-backticks; a bare mention like "(was [HARD — pool] before, re-laned to
+# `[HARD]`-in-backticks; a bare mention like "(was [HARD - pool] before, re-laned to
 # [ROUTINE])" still false-positives.
 #
 # Fix contract: the lane tag(s) are the CONTIGUOUS run of lane brackets at the very
@@ -27,7 +27,7 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 cat > "$tmp/roadmap_trailing.md" <<'EOF'
 # Roadmap
 ## Items
-- [ ] [ROUTINE] fix the parser (was [HARD — pool] before 2026-07-01, re-laned to [ROUTINE]) <!-- id:abcd -->
+- [ ] [ROUTINE] fix the parser (was [HARD - pool] before 2026-07-01, re-laned to [ROUTINE]) <!-- id:abcd -->
 EOF
 if ! "$LINT" "$tmp/roadmap_trailing.md" 2>"$tmp/err_t"; then
   echo "id:1781 FAIL: a correct leading [ROUTINE] tag with a lane bracket in TRAILING prose must PASS (got: $(cat "$tmp/err_t"))"
@@ -35,10 +35,14 @@ if ! "$LINT" "$tmp/roadmap_trailing.md" 2>"$tmp/err_t"; then
 fi
 
 # --- (2) genuine two-contiguous-LEADING-tag conflict → must still ERROR ----------------
-cat > "$tmp/roadmap_conflict.md" <<'EOF'
+# $HP, not literal source text: the lane-vocab pre-commit ratchet blocks an ADDED
+# `- [ ]` line whose primary tag is `[HARD - pool]` in EITHER delimiter spelling, and
+# this fixture needs that tag in the LEADING run for the conflict to exist at all.
+HP='[HARD - pool]'
+cat > "$tmp/roadmap_conflict.md" <<EOF
 # Roadmap
 ## Items
-- [ ] [HARD — pool] [ROUTINE] two contiguous leading lane tags on one item <!-- id:1111 -->
+- [ ] $HP [ROUTINE] two contiguous leading lane tags on one item <!-- id:1111 -->
 EOF
 if "$LINT" "$tmp/roadmap_conflict.md" 2>"$tmp/err_c"; then
   echo "id:1781 FAIL: two contiguous LEADING lane tags must still ERROR (regression of case-c)"; exit 1

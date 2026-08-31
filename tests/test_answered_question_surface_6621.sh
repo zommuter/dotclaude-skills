@@ -55,16 +55,16 @@ cat >"$tmp/src/repoA/ROADMAP.md" <<'MD'
 
 ## Items
 
-- [ ] [INPUT — meeting] engine work; the genre question is settled @owner-answered:2026-08-14 <!-- answer-src:docs/genre-call.md#Decisions --> <!-- id:aa01 -->
-- [ ] [INPUT — meeting] pick a serialization format for the save file <!-- id:aa02 -->
-- [ ] [INPUT — meeting] document how `@owner-answered:2026-08-14` markers are spelled <!-- id:aa03 -->
+- [ ] [INPUT - meeting] engine work; the genre question is settled @owner-answered:2026-08-14 <!-- answer-src:docs/genre-call.md#Decisions --> <!-- id:aa01 -->
+- [ ] [INPUT - meeting] pick a serialization format for the save file <!-- id:aa02 -->
+- [ ] [INPUT - meeting] document how `@owner-answered:2026-08-14` markers are spelled <!-- id:aa03 -->
 MD
 
 # TODO.md -- id:aa04 marked, cited by ledger id (E)
 cat >"$tmp/src/repoA/TODO.md" <<'MD'
 # TODO
 
-- [ ] [INPUT — decision] addon mechanism scope @owner-answered:2026-08-14 <!-- answer-src:id:aa01 --> <!-- id:aa04 -->
+- [ ] [INPUT - decision] addon mechanism scope @owner-answered:2026-08-14 <!-- answer-src:id:aa01 --> <!-- id:aa04 -->
 MD
 
 # REVIEW_ME.md -- id:aa05 marked WITHOUT a citation (F); id:aa06 plain (C)

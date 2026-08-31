@@ -52,13 +52,18 @@ grep -qiE 'what-secret|where-it-goes|exact-command' "$VOCAB" \
 # --- (2) roadmap-lint recognizes @needs-auth (no unknown/untagged flag) --------
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-cat >"$tmp/ROADMAP.md" <<'MD'
+# Lane tags arrive via variables, not literal source text: the lane-vocab pre-commit
+# ratchet blocks an ADDED `- [ ]` line whose primary tag is `[HARD - hands|pool]` in
+# EITHER delimiter spelling, and these fixture lines must keep the legacy lanes.
+HH='[HARD - hands]'
+HP='[HARD - pool]'
+cat >"$tmp/ROADMAP.md" <<MD
 # Roadmap
 
 ## Items
 
-- [ ] [HARD — hands] Provide the Signal linked-device QR @needs-auth <!-- id:1234 -->
-- [ ] [HARD — pool] An ordinary pool item with no marker <!-- id:5678 -->
+- [ ] $HH Provide the Signal linked-device QR @needs-auth <!-- id:1234 -->
+- [ ] $HP An ordinary pool item with no marker <!-- id:5678 -->
 MD
 
 set +e

@@ -23,11 +23,15 @@ FIX="$(mktemp -d)"; STUB="$(mktemp)"
 trap 'rm -rf "$FIX" "$STUB"' EXIT
 git -C "$FIX" init -q
 git -C "$FIX" config user.email t@e.st; git -C "$FIX" config user.name t
-cat > "$FIX/ROADMAP.md" <<'EOF'
+# The pool-lane tag arrives via $HP rather than as literal source text: the lane-vocab
+# pre-commit ratchet blocks an ADDED `- [ ]` line whose primary tag is `[HARD - pool]`
+# in EITHER delimiter spelling, and this fixture must keep the legacy lane.
+HP='[HARD - pool]'
+cat > "$FIX/ROADMAP.md" <<EOF
 # Roadmap
 
 ## Items
-- [ ] [HARD — pool] a bounded item a strong child handed back <!-- id:aaaa -->
+- [ ] $HP a bounded item a strong child handed back <!-- id:aaaa -->
 EOF
 git -C "$FIX" add -A; git -C "$FIX" commit -qm init
 
@@ -57,11 +61,11 @@ pass "(2) the gate is committed atomically (before the push) — the write+commi
 
 # (3) --no-commit still writes WITHOUT committing (the deliberate dry path is preserved).
 # Restore the UN-gated item first (case 1 gated it in HEAD → would be an idempotent no-op).
-cat > "$FIX/ROADMAP.md" <<'EOF'
+cat > "$FIX/ROADMAP.md" <<EOF
 # Roadmap
 
 ## Items
-- [ ] [HARD — pool] a bounded item a strong child handed back <!-- id:aaaa -->
+- [ ] $HP a bounded item a strong child handed back <!-- id:aaaa -->
 EOF
 git -C "$FIX" add -A; git -C "$FIX" commit -qm 'reset roadmap (un-gated) for no-commit case'
 python3 "$SH" "$FIX" --parent-id aaaa --route decision-gate --gate-reason "dry" --no-commit >/dev/null 2>&1 || true

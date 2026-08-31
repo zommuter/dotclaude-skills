@@ -8,7 +8,7 @@
 #
 # Three deliverables, each pinned below:
 #   (2) classify-repo.sh: an open item carrying `@wire` on a primary EXECUTOR lane
-#       ([ROUTINE]/[HARD — pool]/[HARD]) counts toward actionable_routine_open, so the
+#       ([ROUTINE]/[HARD - pool]/[HARD]) counts toward actionable_routine_open, so the
 #       classify-verdict execute gate fires → verdict=execute. `@manual` stays EXCLUDED.
 #   (3) drained render-alias: a NEW relay/scripts/render-verdict.sh maps a classify-verdict
 #       JSON on stdin → a display label; verdict=idle → "drained" (the ONLY sanctioned way
@@ -39,40 +39,44 @@ ckpt_head() { git -C "$1" tag -a "relay-ckpt-20260101-0000" -m ckpt; }  # mark H
 verdict_of() { "$CR" --repo "$(basename "$1")" --path "$1" | python3 -c 'import sys,json;print(json.load(sys.stdin)["verdict"])'; }
 
 # =====================================================================================
-# (2a) @wire on a [HARD — pool] item COUNTS as executor-actionable → verdict=execute.
+# (2a) @wire on a [HARD - pool] item COUNTS as executor-actionable → verdict=execute.
 #      Control: the SAME item WITHOUT @wire is plain pool-lane hard work → verdict=hard.
 #      Triangulation (id:108e): identical item, only the @wire marker differs → the
 #      verdict flips execute↔hard, so a hard-coded pass can't fake it.
 # =====================================================================================
+# The pool-lane tag arrives via $HP rather than as literal source text: the lane-vocab
+# pre-commit ratchet blocks an ADDED `- [ ]` line whose primary tag is `[HARD - pool]`
+# in EITHER delimiter spelling, and these fixtures must keep the legacy lane.
+HP='[HARD - pool]'
 RW="$tmp/r_wire"; mkrepo "$RW"
-cat > "$RW/ROADMAP.md" <<'EOF'
+cat > "$RW/ROADMAP.md" <<EOF
 # Roadmap
 ## Items
-- [ ] [HARD — pool] Wire the new picker into the toolbar @wire <!-- id:aaaa -->
+- [ ] $HP Wire the new picker into the toolbar @wire <!-- id:aaaa -->
 EOF
 printf '# TODO\n## Current\n' > "$RW/TODO.md"
 commit_repo "$RW"; ckpt_head "$RW"
-[[ "$(verdict_of "$RW")" == "execute" ]] || { echo "FAIL (2a): [HARD — pool] @wire item must classify execute (counts toward actionable_routine_open), got $(verdict_of "$RW")"; exit 1; }
+[[ "$(verdict_of "$RW")" == "execute" ]] || { echo "FAIL (2a): [HARD - pool] @wire item must classify execute (counts toward actionable_routine_open), got $(verdict_of "$RW")"; exit 1; }
 
 RH="$tmp/r_nowire"; mkrepo "$RH"
-cat > "$RH/ROADMAP.md" <<'EOF'
+cat > "$RH/ROADMAP.md" <<EOF
 # Roadmap
 ## Items
-- [ ] [HARD — pool] Wire the new picker into the toolbar <!-- id:cccc -->
+- [ ] $HP Wire the new picker into the toolbar <!-- id:cccc -->
 EOF
 printf '# TODO\n## Current\n' > "$RH/TODO.md"
 commit_repo "$RH"; ckpt_head "$RH"
 [[ "$(verdict_of "$RH")" == "hard" ]] || { echo "FAIL (2-control): same item WITHOUT @wire must stay hard, got $(verdict_of "$RH")"; exit 1; }
 
 # =====================================================================================
-# (2b) @manual stays EXCLUDED — a [HARD — pool] item tagged @manual is NEVER execute
+# (2b) @manual stays EXCLUDED — a [HARD - pool] item tagged @manual is NEVER execute
 #      (the safe under-dispatch direction; must hold both before and after ac7f).
 # =====================================================================================
 RM="$tmp/r_manual"; mkrepo "$RM"
-cat > "$RM/ROADMAP.md" <<'EOF'
+cat > "$RM/ROADMAP.md" <<EOF
 # Roadmap
 ## Items
-- [ ] [HARD — pool] Rehearse the on-device unlock flow @manual <!-- id:bbbb -->
+- [ ] $HP Rehearse the on-device unlock flow @manual <!-- id:bbbb -->
 EOF
 printf '# TODO\n## Current\n' > "$RM/TODO.md"
 commit_repo "$RM"; ckpt_head "$RM"

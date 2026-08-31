@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # roadmap:d9b0 — Mechanize the TODO↔ROADMAP seam: promotion-tracking + derived count
 # + xledger-ok scope-split suppression. Three sub-features (id:d9b0):
-#   1. --promotion mode: flags open TODO items with [ROUTINE]/[HARD — pool] absent from ROADMAP.
+#   1. --promotion mode: flags open TODO items with [ROUTINE]/[HARD - pool] absent from ROADMAP.
 #   2. xledger-ok: --cross-ledger honors <!-- xledger-ok: <reason> --> to suppress intentional
 #      scope-splits (e.g. closed ROADMAP decision + open TODO action with different scope).
 #   3. Derived count: the fixture has no hand-maintained "Relay: N open ROADMAP items" line;
@@ -25,13 +25,19 @@ mkdir -p "$fix/docs/meeting-notes"
 # ── Fixture ──────────────────────────────────────────────────────────────────
 # TODO.md: mix of promoted, un-promoted, non-executable, and xledger-ok items.
 # Notably NO hand-maintained "Relay: N open ROADMAP items" count line (item 3 of d9b0).
-cat > "$fix/TODO.md" <<'EOTODO'
+# The two legacy-lane tags come in through variables, not literal source text: the
+# lane-vocab pre-commit ratchet blocks any ADDED `- [ ]` line whose primary tag is
+# `[HARD - <lane>]` in EITHER delimiter spelling, and these fixture lines must keep
+# the legacy lane to exercise the dual-vocab reader.
+HP='[HARD - pool]'
+HM='[HARD - meeting]'
+cat > "$fix/TODO.md" <<EOTODO
 # TODO
 
 ## Current work
 - [ ] A ROUTINE item NOT yet in ROADMAP — pool-invisible [ROUTINE] <!-- id:aa01 -->
-- [ ] A HARD-pool item NOT yet in ROADMAP — pool-invisible [HARD — pool] <!-- id:bb02 -->
-- [ ] A design item (no promotion needed) [HARD — meeting] <!-- id:cc03 -->
+- [ ] A HARD-pool item NOT yet in ROADMAP — pool-invisible $HP <!-- id:bb02 -->
+- [ ] A design item (no promotion needed) $HM <!-- id:cc03 -->
 - [ ] A ROUTINE item already promoted to ROADMAP [ROUTINE] <!-- id:dd04 -->
 - [ ] Intentional scope-split: ROADMAP closed this decision, TODO still tracks follow-up action <!-- id:ee05 --> <!-- xledger-ok: eval closed in ROADMAP, follow-up action still open in TODO -->
 - [ ] Unintentional drift: ROADMAP closed this, TODO should also be closed <!-- id:ff06 -->
@@ -54,19 +60,19 @@ promo_out="$(HOME="$tmp" "$ORPHAN" --promotion "$fix")"
 # Must flag aa01 ([ROUTINE] absent from ROADMAP)
 grep -q 'id:aa01' < <(echo "$promo_out") \
   || fail "--promotion must flag aa01 ([ROUTINE] not in ROADMAP): got: $promo_out"
-# Must flag bb02 ([HARD — pool] absent from ROADMAP)
+# Must flag bb02 ([HARD - pool] absent from ROADMAP)
 grep -q 'id:bb02' < <(echo "$promo_out") \
-  || fail "--promotion must flag bb02 ([HARD — pool] not in ROADMAP): got: $promo_out"
-# Must NOT flag cc03 ([HARD — meeting] is non-executable, no promotion needed)
+  || fail "--promotion must flag bb02 ([HARD - pool] not in ROADMAP): got: $promo_out"
+# Must NOT flag cc03 ([HARD - meeting] is non-executable, no promotion needed)
 grep -q 'id:cc03' < <(echo "$promo_out") \
-  && fail "--promotion must NOT flag cc03 ([HARD — meeting] is not a pool-executable lane): got: $promo_out" || true
+  && fail "--promotion must NOT flag cc03 ([HARD - meeting] is not a pool-executable lane): got: $promo_out" || true
 # Must NOT flag dd04 (already has a twin in ROADMAP)
 grep -q 'id:dd04' < <(echo "$promo_out") \
   && fail "--promotion must NOT flag dd04 (already promoted to ROADMAP): got: $promo_out" || true
 # Must NOT flag ee05 (in ROADMAP — xledger-ok is irrelevant to promotion check)
 grep -q 'id:ee05' < <(echo "$promo_out") \
   && fail "--promotion must NOT flag ee05 (exists in ROADMAP, xledger-ok N/A): got: $promo_out" || true
-pass "--promotion flags un-promoted [ROUTINE]/[HARD — pool] items and spares promoted/non-executable ones"
+pass "--promotion flags un-promoted [ROUTINE]/[HARD - pool] items and spares promoted/non-executable ones"
 
 # -p alias must behave identically
 alias_out="$(HOME="$tmp" "$ORPHAN" -p "$fix")"

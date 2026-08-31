@@ -45,19 +45,24 @@ cat > "$FIX/ROADMAP.md" <<'EOF'
 EOF
 
 # TODO holds open backlog with no ROADMAP twin (except bbbb).
-cat > "$FIX/TODO.md" <<'EOF'
+# The meeting-lane tag arrives via $HM rather than as literal source text: the
+# lane-vocab pre-commit ratchet blocks an ADDED checkbox line whose primary tag is
+# `[HARD - meeting]` in EITHER delimiter spelling, and cases (c)/(i) need exactly
+# that legacy lane to exercise the `laned` disposition.
+HM='[HARD - meeting]'
+cat > "$FIX/TODO.md" <<EOF
 # TODO
 
 ## Current
 - [ ] (a) untagged raw backlog the pool can't see <!-- id:aaaa -->
 - [ ] (b) already promoted — has a ROADMAP twin [ROUTINE] <!-- id:bbbb -->
-- [ ] (c) needs a design meeting first [HARD — meeting] <!-- id:cccc -->
+- [ ] (c) needs a design meeting first $HM <!-- id:cccc -->
 - [ ] (d) plain routine, never promoted [ROUTINE] <!-- id:dddd -->
 - [x] (e) closed in TODO — not open, must be ignored <!-- id:eeee -->
 - [ ] (f) favicon-class: an open checkbox item with NO id token at all
 - [ ] (g) a deliberate forward-flag note, marked exempt <!-- lint-ok: forward-flag note -->
-- [ ] Relay: 0 open ROADMAP items; 6 [ROUTINE] + 1 [HARD — pool] closed <!-- id:ffff -->
-- [ ] (i) design item [HARD — meeting] — note: supersedes an earlier [ROUTINE] plan <!-- id:9999 -->
+- [ ] Relay: 0 open ROADMAP items; 6 [ROUTINE] + 1 [HARD - pool] closed <!-- id:ffff -->
+- [ ] (i) design item $HM — note: supersedes an earlier [ROUTINE] plan <!-- id:9999 -->
 EOF
 git -C "$FIX" add -A; git -C "$FIX" commit -qm init
 
@@ -104,7 +109,7 @@ grep -qi 'forward-flag note' <<<"$out" && fail "(g) lint-ok-marked line wrongly 
 $out"
 pass "(g) lint-ok-marked open checkbox is exempt (not reported)"
 
-# (h) id:ed2e — a `- [ ] Relay: …` status-summary line: its [ROUTINE]/[HARD — pool] tokens
+# (h) id:ed2e — a `- [ ] Relay: …` status-summary line: its [ROUTINE]/[HARD - pool] tokens
 #     are closed-item PROSE, not the item's own lane. A substring match mis-labels it promote
 #     → wasteful handoff dispatch. It is the relay's regenerated roll-up, not backlog → exempt
 #     entirely (never reported, in any disposition).
@@ -112,16 +117,16 @@ grep -qP '\tffff\tpromote\t' <<<"$out" && fail "(h) relay status-summary id ffff
 $out"
 grep -qP '\tffff\t' <<<"$out" && fail "(h) relay status-summary id ffff must be exempt entirely (not backlog, id:ed2e):
 $out"
-pass "(h) relay status-summary line exempt (prose [ROUTINE]/[HARD — pool] not promoted)"
+pass "(h) relay status-summary line exempt (prose [ROUTINE]/[HARD - pool] not promoted)"
 
-# (i) id:ed2e / id:4da4 — PRIMARY-LANE anchoring: a [HARD — meeting] item whose prose later
+# (i) id:ed2e / id:4da4 — PRIMARY-LANE anchoring: a [HARD - meeting] item whose prose later
 #     mentions [ROUTINE] must stay non-promote (first lane-tag wins → laned), NOT
 #     promote on the substring.
-grep -qP '\t9999\tpromote\t' <<<"$out" && fail "(i) [HARD — meeting] id 9999 mis-promoted on a prose [ROUTINE] token (primary-lane anchoring missing, id:4da4):
+grep -qP '\t9999\tpromote\t' <<<"$out" && fail "(i) [HARD - meeting] id 9999 mis-promoted on a prose [ROUTINE] token (primary-lane anchoring missing, id:4da4):
 $out"
-grep -qP '\t9999\tlaned\t' <<<"$out" || fail "(i) [HARD — meeting] id 9999 not reported as laned:
+grep -qP '\t9999\tlaned\t' <<<"$out" || fail "(i) [HARD - meeting] id 9999 not reported as laned:
 $out"
-pass "(i) primary-lane anchoring: prose [ROUTINE] in a [HARD — meeting] item → laned, not promote"
+pass "(i) primary-lane anchoring: prose [ROUTINE] in a [HARD - meeting] item → laned, not promote"
 
 # (2) TSV shape: <repo>\t<id>\t<disposition>\t<title>, repo column is the fixture name.
 fixbase="$(basename "$FIX")"

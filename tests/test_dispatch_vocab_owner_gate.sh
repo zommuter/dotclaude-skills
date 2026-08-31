@@ -7,10 +7,10 @@
 #
 #  (1) gather-repo-state.sh's `top_intensive` excluded human-gated items with an OLD-VOCAB-ONLY
 #      grep (`[HARD — hands|meeting|decision gate]|@manual|@container|[MECHANICAL]|🚧|blocked`).
-#      The capability-keyed replacements `[INPUT — access]` / `[INPUT — meeting]` /
-#      `[INPUT — decision]` were absent, so a NEW-VOCAB human-gated [INTENSIVE] item passed the
+#      The capability-keyed replacements `[INPUT - access]` / `[INPUT - meeting]` /
+#      `[INPUT - decision]` were absent, so a NEW-VOCAB human-gated [INTENSIVE] item passed the
 #      filter and became the resource-claiming top item — re-creating the id:a707 defect
-#      (2026-06-23 zomni: a human-gated [INTENSIVE — local-llm] item was auto-dispatched and
+#      (2026-06-23 zomni: a human-gated [INTENSIVE - local-llm] item was auto-dispatched and
 #      could not complete). `open_hard_pool` already handles BOTH spellings (roadmap_primary_lane
 #      normalizes them); the two must be consistent.
 #
@@ -60,9 +60,9 @@ empty_ti() { [[ "$1" == "None" || -z "$1" ]]; }
 # A. top_intensive — NEW-VOCAB human gates must suppress, exactly as old vocab does.
 # ---------------------------------------------------------------------------
 b1="$TMP/b1"; printf '%s\n' \
-  '- [ ] Provision the GPU box [INPUT — access] [INTENSIVE — local-llm] <!-- id:aaaa -->' \
-  '- [ ] Decide the quantisation policy [INPUT — decision] [INTENSIVE — local-llm] <!-- id:bbbb -->' \
-  '- [ ] Design the eval harness [INPUT — meeting] [INTENSIVE — gpu-bench] <!-- id:cccc -->' > "$b1"
+  '- [ ] Provision the GPU box [INPUT - access] [INTENSIVE - local-llm] <!-- id:aaaa -->' \
+  '- [ ] Decide the quantisation policy [INPUT - decision] [INTENSIVE - local-llm] <!-- id:bbbb -->' \
+  '- [ ] Design the eval harness [INPUT - meeting] [INTENSIVE - gpu-bench] <!-- id:cccc -->' > "$b1"
 r1="$(mkrepo r1 "$b1")"
 ti="$(field top_intensive <<<"$(gather r1 "$r1")")"
 empty_ti "$ti" \
@@ -72,8 +72,8 @@ empty_ti "$ti" \
 # Positive control (the acceptance clause insists on it — the suppression case alone would pass
 # against a filter that excludes EVERYTHING).
 b2="$TMP/b2"; printf '%s\n' \
-  '- [ ] Provision the GPU box [INPUT — access] [INTENSIVE — local-llm] <!-- id:aaaa -->' \
-  '- [ ] Benchmark sweep [ROUTINE] [INTENSIVE — gpu-bench] <!-- id:cccc -->' > "$b2"
+  '- [ ] Provision the GPU box [INPUT - access] [INTENSIVE - local-llm] <!-- id:aaaa -->' \
+  '- [ ] Benchmark sweep [ROUTINE] [INTENSIVE - gpu-bench] <!-- id:cccc -->' > "$b2"
 r2="$(mkrepo r2 "$b2")"
 ti2="$(field top_intensive <<<"$(gather r2 "$r2")")"
 [[ "$ti2" == "gpu-bench" ]] \
@@ -82,7 +82,7 @@ ti2="$(field top_intensive <<<"$(gather r2 "$r2")")"
 
 # B. @owner-gated is an exclusion for top_intensive (OWNER RULING 2026-08-14).
 b3="$TMP/b3"; printf '%s\n' \
-  '- [ ] Ratify the substrate choice @owner-gated [ROUTINE] [INTENSIVE — gpu-bench] <!-- id:dddd -->' > "$b3"
+  '- [ ] Ratify the substrate choice @owner-gated [ROUTINE] [INTENSIVE - gpu-bench] <!-- id:dddd -->' > "$b3"
 r3="$(mkrepo r3 "$b3")"
 ti3="$(field top_intensive <<<"$(gather r3 "$r3")")"
 empty_ti "$ti3" \
@@ -90,12 +90,12 @@ empty_ti "$ti3" \
   || bad "top_intensive='$ti3' for an @owner-gated item — an owner-gated item must never be auto-dispatched"
 
 # ---------------------------------------------------------------------------
-# C. open_hard_pool — @owner-gated excluded; bare [HARD] and [HARD — pool] both counted.
+# C. open_hard_pool — @owner-gated excluded; bare [HARD] and [HARD - pool] both counted.
 # ---------------------------------------------------------------------------
 b4="$TMP/b4"; printf '%s\n' \
   '- [ ] Owner must ratify the ledger substrate @owner-gated [HARD] <!-- id:eeee -->' \
   '- [ ] Real pool work, new spelling [HARD] <!-- id:ffff -->' \
-  '- [ ] Real pool work, old spelling [HARD — pool] <!-- id:1111 -->' > "$b4"
+  '- [ ] Real pool work, old spelling [HARD - pool] <!-- id:1111 -->' > "$b4"
 r4="$(mkrepo r4 "$b4")"
 g4="$(gather r4 "$r4")"
 ohp="$(field open_hard_pool <<<"$g4")"
