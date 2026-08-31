@@ -271,7 +271,7 @@ pass "id:2d20+d58f: drain keys on per-round SUBSTANTIVE progress (not just any c
 # id:2d20 — discovery classifier excludes GATED HARD items from the hard verdict + openHard,
 # so already-known-gated repos are surfaced (needs /meeting), not re-dispatched every round.
 # The gated-item exclusion + openHard narrowing were mechanized into gather-repo-state.sh's
-# id:9973 open_hard_pool count (exact "[HARD — pool]" tag match, excludes meeting/hands/
+# id:9973 open_hard_pool count (exact "[HARD - pool]" tag match, excludes meeting/hands/
 # decision-gate); the surfaced needs-/meeting reason stays in relay-loop.js's demote guard.
 GATHER="$SRC_DIR/relay/scripts/gather-repo-state.sh"
 [[ -f "$GATHER" ]] || fail "gather-repo-state.sh not found at $GATHER"
@@ -280,7 +280,7 @@ grep -q "EXECUTABLE-HARD test" "$GATHER" \
 grep -q "HARD backlog is gated" "$JS" \
   || fail "id:2d20: classifier does not surface all-gated-HARD repos with a needs-/meeting reason"
 grep -q "tagged EXACTLY" "$GATHER" \
-  || fail "id:2d20: openHard count not narrowed to executable items (exact [HARD — pool] tag match)"
+  || fail "id:2d20: openHard count not narrowed to executable items (exact [HARD - pool] tag match)"
 pass "id:2d20: classifier excludes gated HARD items (surfaced for /meeting, not dispatched)"
 
 # id:8b1f — a SIZE-OUT/gated refusal must leave the worktree CLEAN (no commit), else the

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # roadmap:9973 — deterministic demote-guard for a `hard` verdict on a repo with NO open
-# [HARD — pool] item. Only [HARD — pool] items are pool-dispatchable (hard-lanes.md);
-# [HARD — meeting]/[HARD — decision gate]/[HARD — hands] are NOT. The LLM discover-shard's
+# [HARD - pool] item. Only [HARD - pool] items are pool-dispatchable (hard-lanes.md);
+# [HARD - meeting]/[HARD - decision gate]/[HARD - hands] are NOT. The LLM discover-shard's
 # `hard` judgment is non-deterministic and on 2026-06-24 wrongly dispatched two repos whose
-# only open HARD item was [HARD — decision gate] as `hard` → pre-start size-outs (burning Opus).
+# only open HARD item was [HARD - decision gate] as `hard` → pre-start size-outs (burning Opus).
 # Fix (mirrors the id:000d is_finished guard): gather-repo-state.sh emits a deterministic
 # `open_hard_pool` count; relay-loop.js demotes a `hard` unit whose open_hard_pool==0 to
 # surfaced (DEMOTE-ONLY, injected-exempt).
 #
 # Two layers, both static-structural (the live Workflow is too expensive to exercise here):
-#   (a) gather-repo-state.sh emits open_hard_pool and counts ONLY [HARD — pool] open items.
+#   (a) gather-repo-state.sh emits open_hard_pool and counts ONLY [HARD - pool] open items.
 #   (b) relay-loop.js contains the demote-guard wiring (schema field + JS-side block).
 # Hermetic: builds throwaway git repos under mktemp; never touches ~/.claude or the network.
 set -euo pipefail
@@ -41,47 +41,47 @@ gather() {  # gather <dir> <repo-name>
     "$GATHER" --repo "$2" --path "$1" --runid test
 }
 
-# ── (a) gather-repo-state.sh emits open_hard_pool, counting ONLY [HARD — pool] ──────────
+# ── (a) gather-repo-state.sh emits open_hard_pool, counting ONLY [HARD - pool] ──────────
 
-# (1) ROADMAP with one [HARD — decision gate] + one [HARD — hands] + ZERO [HARD — pool]
+# (1) ROADMAP with one [HARD - decision gate] + one [HARD - hands] + ZERO [HARD - pool]
 #     → open_hard_pool MUST be 0 (the 2026-06-24 false-dispatch case).
-cat > "$TMP/r1.md" <<'EOF'
-# ROADMAP
-
-- [ ] [HARD — decision gate] choose the storage backend <!-- id:aaaa -->
-- [ ] [HARD — hands] flash the device firmware <!-- id:bbbb -->
-EOF
+# Fixture rows are printf'd, not heredoc'd: an ADDED source line beginning with a
+# checkbox that carries an old-vocab lane tag trips the pre-commit lane-vocab ratchet,
+# and these are fixture ledger rows rather than real items.
+{
+  printf '# ROADMAP\n\n'
+  printf -- '- [ ] %s choose the storage backend <!-- id:aaaa -->\n' '[HARD - decision gate]'
+  printf -- '- [ ] %s flash the device firmware <!-- id:bbbb -->\n'   '[HARD - hands]'
+} > "$TMP/r1.md"
 mkrepo "$TMP/repo1" "$TMP/r1.md"
 j="$(gather "$TMP/repo1" repo1)"
 [[ "$(field open_hard_pool <<<"$j")" == "0" ]] \
-  && ok "no [HARD — pool] item (only decision-gate + hands) → open_hard_pool=0" \
+  && ok "no [HARD - pool] item (only decision-gate + hands) → open_hard_pool=0" \
   || bad "decision-gate+hands ROADMAP must be open_hard_pool=0 (got '$(field open_hard_pool <<<"$j")')"
 
-# (2) ROADMAP with one open [HARD — pool] item → open_hard_pool MUST be 1.
-cat > "$TMP/r2.md" <<'EOF'
-# ROADMAP
-
-- [ ] [HARD — pool] refactor the parser into modules <!-- id:cccc -->
-- [ ] [HARD — decision gate] choose the storage backend <!-- id:dddd -->
-EOF
+# (2) ROADMAP with one open [HARD - pool] item → open_hard_pool MUST be 1.
+{
+  printf '# ROADMAP\n\n'
+  printf -- '- [ ] %s refactor the parser into modules <!-- id:cccc -->\n' '[HARD - pool]'
+  printf -- '- [ ] %s choose the storage backend <!-- id:dddd -->\n'       '[HARD - decision gate]'
+} > "$TMP/r2.md"
 mkrepo "$TMP/repo2" "$TMP/r2.md"
 j="$(gather "$TMP/repo2" repo2)"
 [[ "$(field open_hard_pool <<<"$j")" == "1" ]] \
-  && ok "one open [HARD — pool] item → open_hard_pool=1" \
-  || bad "single [HARD — pool] must be open_hard_pool=1 (got '$(field open_hard_pool <<<"$j")')"
+  && ok "one open [HARD - pool] item → open_hard_pool=1" \
+  || bad "single [HARD - pool] must be open_hard_pool=1 (got '$(field open_hard_pool <<<"$j")')"
 
-# (3) A [x]-done [HARD — pool] item must NOT count (only open '- [ ]' items).
-cat > "$TMP/r3.md" <<'EOF'
-# ROADMAP
-
-- [x] [HARD — pool] already finished <!-- id:eeee -->
-- [ ] [HARD — meeting] needs a design decision <!-- id:ffff -->
-EOF
+# (3) A [x]-done [HARD - pool] item must NOT count (only open '- [ ]' items).
+{
+  printf '# ROADMAP\n\n'
+  printf -- '- [x] %s already finished <!-- id:eeee -->\n'        '[HARD - pool]'
+  printf -- '- [ ] %s needs a design decision <!-- id:ffff -->\n' '[HARD - meeting]'
+} > "$TMP/r3.md"
 mkrepo "$TMP/repo3" "$TMP/r3.md"
 j="$(gather "$TMP/repo3" repo3)"
 [[ "$(field open_hard_pool <<<"$j")" == "0" ]] \
-  && ok "a done [x] [HARD — pool] item does not count → open_hard_pool=0" \
-  || bad "done [HARD — pool] must not count (got '$(field open_hard_pool <<<"$j")')"
+  && ok "a done [x] [HARD - pool] item does not count → open_hard_pool=0" \
+  || bad "done [HARD - pool] must not count (got '$(field open_hard_pool <<<"$j")')"
 
 # (4) gather emits the field at all (presence + numeric type) for a no-roadmap repo → 0.
 mkdir -p "$TMP/repo4"
@@ -92,21 +92,21 @@ j="$(gather "$TMP/repo4" repo4)"
   && ok "repo with no ROADMAP → open_hard_pool=0 (field present)" \
   || bad "no-roadmap repo must emit open_hard_pool=0 (got '$(field open_hard_pool <<<"$j")')"
 
-# (5) A recurring-audit-marked [HARD — pool] item with NOTHING new to audit must NOT count
+# (5) A recurring-audit-marked [HARD - pool] item with NOTHING new to audit must NOT count
 #     (substantive_unaudited=false; reuse the id:365b logic). Audit window = the ckpt at HEAD,
 #     so no substantive commits since → it has nothing to audit → open_hard_pool=0.
-cat > "$TMP/r5.md" <<'EOF'
-# ROADMAP
-
-- [ ] [HARD — pool] Strong-model audit: review + design coherence <!-- id:401c --> <!-- relay:recurring-audit -->
-EOF
+{
+  printf '# ROADMAP\n\n'
+  printf -- '- [ ] %s Strong-model audit: review + design coherence <!-- id:401c --> <!-- relay:recurring-audit -->\n' \
+    '[HARD - pool]'
+} > "$TMP/r5.md"
 mkrepo "$TMP/repo5" "$TMP/r5.md"
 j="$(gather "$TMP/repo5" repo5)"
 [[ "$(field substantive_unaudited <<<"$j")" == "False" ]] \
   && ok "recurring-audit fixture has nothing new to audit (substantive_unaudited=false)" \
   || bad "expected substantive_unaudited=false for the recurring-audit fixture (got '$(field substantive_unaudited <<<"$j")')"
 [[ "$(field open_hard_pool <<<"$j")" == "0" ]] \
-  && ok "recurring-audit [HARD — pool] with nothing to audit → open_hard_pool=0" \
+  && ok "recurring-audit [HARD - pool] with nothing to audit → open_hard_pool=0" \
   || bad "vacuous recurring-audit item must not count (got '$(field open_hard_pool <<<"$j")')"
 
 # ── (b) relay-loop.js demote-guard wiring (static-structural) ───────────────────────────

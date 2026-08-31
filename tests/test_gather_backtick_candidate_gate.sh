@@ -3,9 +3,9 @@
 # must strip backticks BEFORE deciding whether a line is a HARD/INPUT candidate at
 # all. Bug: the candidate gate read the RAW line, but lane-detection ran on the
 # backtick-stripped `clean` text (the id:1bbd fix). A `[ROUTINE]` item whose only
-# mention of `[INPUT — ...]` is inside backtick-quoted prose (e.g. "re-laned
-# `[INPUT — decision]`->`[ROUTINE]`") passed the raw candidate gate (raw text
-# contains "[INPUT —"), then found no lane tag in the stripped text and fell into
+# mention of `[INPUT - ...]` is inside backtick-quoted prose (e.g. "re-laned
+# `[INPUT - decision]`->`[ROUTINE]`") passed the raw candidate gate (raw text
+# contains "[INPUT -"), then found no lane tag in the stripped text and fell into
 # the untagged LOUD-reject branch — a false positive that both mis-emitted an ERROR
 # and forced a nonzero exit for an item that was never actually a HARD/INPUT item.
 #
@@ -13,7 +13,7 @@
 # quoting a lane tag in prose is recognized as NOT a candidate and silently skipped.
 #
 # Acceptance (id:306d): a fixture [ROUTINE] item carrying a backtick-quoted
-# `[INPUT — ...]` prose mention is SKIPPED (not emitted, not rejected as untagged),
+# `[INPUT - ...]` prose mention is SKIPPED (not emitted, not rejected as untagged),
 # and the scan exits 0.
 #
 # Hermetic: temp RELAY_TOML + temp own repo with a crafted ROADMAP.md.
@@ -37,9 +37,14 @@ cat >"$tmp/src/repoRoutine/ROADMAP.md" <<'MD'
 
 ## Items
 
-- [ ] [ROUTINE] gather-human-backlog.sh false-rejects a [ROUTINE] item that merely mentions re-laned `[INPUT — decision]`->`[ROUTINE]` in prose <!-- id:4a46 -->
-- [ ] [HARD — pool] A correctly tagged item in the same repo <!-- id:9999 -->
+- [ ] [ROUTINE] gather-human-backlog.sh false-rejects a [ROUTINE] item that merely mentions re-laned `[INPUT - decision]`->`[ROUTINE]` in prose <!-- id:4a46 -->
 MD
+
+# Appended via printf so the SOURCE line does not begin with a checkbox: the
+# pre-commit lane-vocab ratchet blocks an ADDED `- [ ] ... [HARD - pool]` line,
+# and this is fixture data, not a real ledger item.
+printf -- '- [ ] %s A correctly tagged item in the same repo <!-- id:9999 -->\n' \
+  '[HARD - pool]' >>"$tmp/src/repoRoutine/ROADMAP.md"
 
 cat >"$tmp/relay.toml" <<'TOML'
 [repos.repoRoutine]

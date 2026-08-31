@@ -67,7 +67,7 @@ out.push('summary_names_repo=' + (c.summary.includes('loderite') ? '1' : '0'))
 // A gated [HARD] reason still buckets separately (control — suppressed doesn't swallow gated).
 const c2 = classifyDrainBacklog([
   { repo: 'loderite', reason: suppressionReason },
-  { repo: 'other-repo', reason: 'HARD backlog is gated — needs a /meeting to unblock (items: id:abcd [HARD — meeting])' },
+  { repo: 'other-repo', reason: 'HARD backlog is gated -- needs a /meeting to unblock (items: id:abcd [HARD - meeting])' },
 ])
 out.push('mixed_suppressed=' + c2.suppressed.join('|'))
 out.push('mixed_gated=' + c2.gated.join('|'))

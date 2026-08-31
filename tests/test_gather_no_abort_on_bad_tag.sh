@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # roadmap:fa5c — gather-human-backlog.sh must never abort the WHOLE cross-repo scan
-# on a single untagged [HARD]/[INPUT — ...] item in one repo. Observed 2026-07-19: a
+# on a single untagged [HARD]/[INPUT - ...] item in one repo. Observed 2026-07-19: a
 # malformed lane tag in one repo (e.g. zkWhale id:770d/f0e5 carrying
-# `[HARD — strong model]`) truncated the entire multi-repo /relay human sweep,
+# `[HARD - strong model]`) truncated the entire multi-repo /relay human sweep,
 # silently dropping every repo not yet processed (~2/3 of the human backlog
 # invisible on the 2026-07-19 run).
 #
@@ -43,7 +43,7 @@ cat >"$tmp/src/repoAAA/ROADMAP.md" <<'MD'
 
 ## Items
 
-- [ ] An item with a bare HARD tag and no recognized lane [HARD — strong model REPOAAA] <!-- id:bbbb -->
+- [ ] An item with a bare HARD tag and no recognized lane [HARD - strong model REPOAAA] <!-- id:bbbb -->
 MD
 
 cat >"$tmp/src/repoMMM/REVIEW_ME.md" <<'MD'
@@ -57,7 +57,7 @@ cat >"$tmp/src/repoZZZ/ROADMAP.md" <<'MD'
 
 ## Items
 
-- [ ] Another item with a bare HARD tag and no recognized lane [HARD — strong model REPOZZZ] <!-- id:dddd -->
+- [ ] Another item with a bare HARD tag and no recognized lane [HARD - strong model REPOZZZ] <!-- id:dddd -->
 MD
 
 cat >"$tmp/relay.toml" <<'TOML'

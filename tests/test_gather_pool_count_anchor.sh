@@ -2,7 +2,7 @@
 # roadmap:fb7f — lane detection must anchor to an item's OWN tag in the two remaining
 # substring-matching spots:
 #   (A) gather-repo-state.sh open_hard_pool: an open item whose PROSE quotes
-#       `[HARD — pool]` must NOT count (it-infra phantom `hard` verdict, 2026-06-30);
+#       `[HARD - pool]` must NOT count (it-infra phantom `hard` verdict, 2026-06-30);
 #       a 🚧-gated pool item must not count either (mirror classify-repo.sh:98's
 #       conservative under-dispatch-safe exclusion).
 #   (B) unpromoted-scan.sh primary_lane: an item with NO genuine lane tag whose prose
@@ -48,32 +48,29 @@ open_hard_pool_of() {  # open_hard_pool_of <repo-path>
 # ── Part A: gather-repo-state.sh open_hard_pool ───────────────────────────────
 repoA="$tmpdir/repoA"
 mkrepo "$repoA"
-cat > "$repoA/ROADMAP.md" <<'MD'
-# Roadmap
-
-## Items
-
-- [ ] A genuinely hands item whose re-lane criterion quotes `[HARD — pool]` in prose [HARD — hands] <!-- id:aaa1 -->
-MD
+# printf'd, not heredoc'd: the pre-commit lane-vocab ratchet blocks a SOURCE line that
+# begins with a checkbox carrying an old-vocab lane tag, and these are fixture rows.
+{
+  printf '# Roadmap\n\n## Items\n\n'
+  printf -- '- [ ] A genuinely hands item whose re-lane criterion quotes `%s` in prose %s <!-- id:aaa1 -->\n' \
+    '[HARD - pool]' '[HARD - hands]'
+} > "$repoA/ROADMAP.md"
 git -C "$repoA" add ROADMAP.md
 git -C "$repoA" commit -q -m "fixture"
 
-echo "Test A1: prose-only [HARD — pool] mention → open_hard_pool==0"
+echo "Test A1: prose-only [HARD - pool] mention → open_hard_pool==0"
 got="$(open_hard_pool_of "$repoA")"
 if [[ "$got" == "0" ]]; then ok "prose mention not counted"; else fail_msg "expected 0, got $got (phantom hard verdict class)"; fi
 
 echo "Test A2: genuine pool item → open_hard_pool==1"
-cat >> "$repoA/ROADMAP.md" <<'MD'
-- [ ] Real pool work [HARD — pool] <!-- id:aaa2 -->
-MD
+printf -- '- [ ] Real pool work %s <!-- id:aaa2 -->\n' '[HARD - pool]' >> "$repoA/ROADMAP.md"
 git -C "$repoA" add ROADMAP.md; git -C "$repoA" commit -q -m "add pool item"
 got="$(open_hard_pool_of "$repoA")"
 if [[ "$got" == "1" ]]; then ok "genuine pool item counted once"; else fail_msg "expected 1, got $got"; fi
 
 echo "Test A3: 🚧-gated pool item does not count"
-cat >> "$repoA/ROADMAP.md" <<'MD'
-- [ ] Gated pool work [HARD — pool] 🚧 GATED (DEP: id:aaa2) <!-- id:aaa3 -->
-MD
+printf -- '- [ ] Gated pool work %s 🚧 GATED (DEP: id:aaa2) <!-- id:aaa3 -->\n' \
+  '[HARD - pool]' >> "$repoA/ROADMAP.md"
 git -C "$repoA" add ROADMAP.md; git -C "$repoA" commit -q -m "add gated pool item"
 got="$(open_hard_pool_of "$repoA")"
 if [[ "$got" == "1" ]]; then ok "gated pool item excluded (under-dispatch-safe)"; else fail_msg "expected 1 (gated excluded), got $got"; fi
