@@ -68,7 +68,7 @@ relay_FILES := SKILL.md \
                scripts/relay-doctor.sh scripts/run-anomaly-scan.sh scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs scripts/lint-embedded-literals.mjs \
                scripts/commit-ledger.sh scripts/acquire-resource.sh \
                scripts/unpromoted-scan.sh scripts/todo-conformance.sh \
-               scripts/scan-routed.sh scripts/host-gate.sh scripts/context-budget.sh scripts/self-transcript.sh scripts/transcript-shape-preflight.sh scripts/recipe-validate.sh scripts/lane-convert.sh \
+               scripts/scan-routed.sh scripts/host-gate.sh scripts/context-budget.sh scripts/self-transcript.sh scripts/transcript-shape-preflight.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/lane-delimiter-scan.sh \
                scripts/hooks-path-shadow-scan.sh \
                scripts/inbox-scan-repo.sh \
                scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/stranded-branch-scan.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
@@ -80,7 +80,7 @@ relay_FILES := SKILL.md \
                scripts/deny-tail-probe.sh scripts/death-record.sh \
                scripts/archive-closed.sh scripts/changelog-append.sh scripts/version-bump.sh scripts/relay-log-archive.sh \
                scripts/review-gate.sh scripts/consumer-enum.sh scripts/check-install-drift.sh \
-               scripts/lib-own-repos.sh scripts/lib-anchored-id.sh scripts/lib-typed-edges.sh scripts/lib-state-claim.sh \
+               scripts/lib-own-repos.sh scripts/lib-anchored-id.sh scripts/lib-typed-edges.sh scripts/lib-state-claim.sh scripts/lib-lane-anchor.sh \
                scripts/lib-roadmap-sections.sh scripts/lib-private-remote.sh scripts/lib-publish-remote.sh \
                scripts/lib-ledger-only-diff.sh scripts/lib-pool-runs.py \
                scripts/resolve-gates.sh scripts/ledger-slice.sh \
@@ -105,7 +105,7 @@ relay_EXEC  := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-ta
                scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh scripts/inbox-scan-repo.sh scripts/hooks-path-shadow-scan.sh \
-               scripts/host-gate.sh scripts/context-budget.sh scripts/self-transcript.sh scripts/transcript-shape-preflight.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/stranded-branch-scan.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
+               scripts/host-gate.sh scripts/context-budget.sh scripts/self-transcript.sh scripts/transcript-shape-preflight.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/lane-delimiter-scan.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/stranded-branch-scan.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \
@@ -133,7 +133,7 @@ relay_ALLOW := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-ta
                scripts/lint-workflow-templates.mjs scripts/lint-mech-model.mjs scripts/commit-ledger.sh \
                scripts/acquire-resource.sh scripts/unpromoted-scan.sh \
                scripts/todo-conformance.sh scripts/scan-routed.sh scripts/inbox-scan-repo.sh scripts/hooks-path-shadow-scan.sh \
-               scripts/host-gate.sh scripts/context-budget.sh scripts/self-transcript.sh scripts/transcript-shape-preflight.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/stranded-branch-scan.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
+               scripts/host-gate.sh scripts/context-budget.sh scripts/self-transcript.sh scripts/transcript-shape-preflight.sh scripts/recipe-validate.sh scripts/lane-convert.sh scripts/lane-delimiter-scan.sh scripts/classify-verdict.sh scripts/classify-repo.sh scripts/render-verdict.sh scripts/reconcile-repo.sh scripts/worktree-retire.sh scripts/provision-worktree.sh scripts/stranded-branch-scan.sh scripts/discover-repo.sh scripts/trunk-branch.sh scripts/backtest-verdict.py \
                scripts/backtest-historical.py \
                scripts/decision-queue.sh scripts/resource-probe.sh \
                scripts/file-surface-decisions.sh scripts/stop-sentinel.sh scripts/stop-request.sh \

@@ -116,6 +116,12 @@ fi
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 lanes_doc="$script_dir/../references/hard-lanes.md"
 
+# shellcheck source=relay/scripts/lib-lane-anchor.sh
+# The SHARED lane-anchoring engine (id:70bc): `leading_lane_run` (rule 3(g)'s
+# anchoring, adopted here in 7a86cdb3) and `mask_backticks` live there now, so this
+# lint and relay/scripts/lane-delimiter-scan.sh can never drift apart on what counts
+# as a LIVE lane tag versus a prose mention.
+source "$script_dir/lib-lane-anchor.sh"
 # shellcheck source=relay/scripts/lib-anchored-id.sh
 source "$script_dir/lib-anchored-id.sh"
 # shellcheck source=relay/scripts/lib-state-claim.sh
@@ -263,35 +269,9 @@ first_lane_tag() {
   printf '%s' "$best_tag"
 }
 
-# leading_lane_run <line> — the CONTIGUOUS run of recognized lane brackets at the
-# very start of the item text (immediately after `- [ ] `/`- [x] `). A lane bracket
-# appearing after any prose word is trailing audit-trail prose, not a live second
-# lane on the item (id:1781) — this helper isolates just the leading run so callers
-# can count/inspect lane tags WITHOUT trailing-prose mentions inflating the count.
-# Returns the matched tags space-joined (empty if the item opens with no lane tag).
-leading_lane_run() {
-  local line="$1" rest matched tag out=""
-  if [[ "$line" =~ ^-[[:space:]]\[[[:space:]xX]\][[:space:]]*(.*)$ ]]; then
-    rest="${BASH_REMATCH[1]}"
-  else
-    rest="$line"
-  fi
-  while :; do
-    # trim leading whitespace
-    while [[ "$rest" == [[:space:]]* ]]; do rest="${rest# }"; done
-    matched=0
-    for tag in "${all_lane_tags[@]}"; do
-      if [[ "$rest" == "$tag"* ]]; then
-        out+="$tag "
-        rest="${rest#"$tag"}"
-        matched=1
-        break
-      fi
-    done
-    [[ "$matched" -eq 1 ]] || break
-  done
-  printf '%s' "$out"
-}
+# `leading_lane_run <line>` (rule 3(g)'s anchoring) now lives in the shared
+# lib-lane-anchor.sh sourced above (id:70bc) — see the note there. It reads the
+# `all_lane_tags` array built just above.
 
 # item_id <line> — the item's OWN canonical id. ANCHORED (id:521f) to the
 # `<!-- id:XXXX -->` HTML-comment marker via lib-anchored-id.sh's own_id_of_line —
