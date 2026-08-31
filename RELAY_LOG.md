@@ -2694,3 +2694,20 @@ Em-dash migration: tracker/ledger-map.py's three lane regexes now accept the hyp
 ## 2026-08-31 22:35 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: suite green 532/0/1-expected-red (make test = the only declared tier, none skipped); resurrection pass over all 71 modified test files (2 non-spec fails adjudicated); S9 conservation re-measured independently (live ledgers 0, archives 38+47); FOUND id:1a03's own done-check still failing on the EMIT side -> filed id:32f9, plus id:4ce8 + promoted id:4d1c; ingested 3 inbox dead-letters; routine_open=3 [id:32f9,4ce8,4d1c] [id:32f9,4ce8,4d1c,41d3,d3bf,bfee,59f2,5c05,4e01]
+
+## 2026-08-31 — executor (sonnet)
+
+Worked id:4ce8 -- `lane-delimiter-scan.sh` treated a directory argument as
+readable (`[[ ! -r "$f" ]]` passes for directories) and fell through into the
+per-line read loop, dying under `set -u` with an unbound-variable trace
+instead of a usage error, indistinguishable from an unfinished migration.
+Added an explicit `[[ ! -f "$f" ]]` guard before the read loop: a non-regular
+argument now prints `lane-delimiter-scan: not a regular file: <path>` and
+exits 2 cleanly; missing-path and unreadable-file behaviour unchanged.
+Added a directory-argument regression case to tests/test_lane_delimiter_scan.sh.
+Full suite: 532 passed, 0 failed, 1 expected-red (id:6217, unrelated open item).
+Friction: none -- item was small and self-contained. One full-suite run showed
+a single transient failure in test_privacy_gate_prepush.sh that did not
+reproduce on immediate rerun (standalone and full-suite), unrelated to this
+change -- worth a look if it recurs.
+refactor: none needed -- one-line guard addition, no new duplication.
