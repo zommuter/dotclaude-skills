@@ -34,12 +34,11 @@ ROADMAP="$ROOT/ROADMAP.md"
 # particular a global `core.hooksPath` (e.g. this repo's own pre-commit-lane-vocab.sh /
 # pre-push-privacy-gate.sh, installed via `make install-lane-ratchet` /
 # `make install-privacy-gate`) must never fire inside a fixture repo just because the
-# fixture's relay.toml happens to list it as "own". Neutralize hooksPath for every git
-# invocation this test run spawns via the GIT_CONFIG_COUNT/KEY/VALUE env override
-# (git >= 2.31) — this overrides, never mutates, the developer's actual global config.
-export GIT_CONFIG_COUNT=1
-export GIT_CONFIG_KEY_0=core.hooksPath
-export GIT_CONFIG_VALUE_0=/dev/null
+# fixture's relay.toml happens to list it as "own". tests/lib/hermetic-git-env.sh is the
+# single source of this override (id:4d1c) — individual fixture-building test files
+# source it too, so `bash tests/test_foo.sh` run DIRECTLY is hermetic on its own and
+# does not depend on being launched through this runner.
+source "$ROOT/tests/lib/hermetic-git-env.sh"
 
 jobs="${JOBS:-}"
 args=()

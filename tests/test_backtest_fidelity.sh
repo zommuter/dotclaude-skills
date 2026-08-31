@@ -14,6 +14,10 @@
 # Hermetic: all state in mktemp -d; never touches ~/.config, ~/.claude, or live repos.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Neutralize the developer's global git core.hooksPath (id:4d1c) — this test's fixture
+# repos carry lane-tag content that a REAL installed pre-commit-lane-vocab.sh would
+# otherwise block when this file is run directly (not through tests/run-tests.sh).
+source "$ROOT/tests/lib/hermetic-git-env.sh"
 BH="$ROOT/relay/scripts/backtest-historical.py"
 [[ -f "$BH" ]] || { echo "backtest-historical.py not found (RED): $BH"; exit 1; }
 

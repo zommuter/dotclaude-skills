@@ -2779,3 +2779,32 @@ verified_green: 4ce8, 32f9. reopened: none. gaming_flags: none.
 ## 2026-08-31 23:02 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:4ce8 + id:32f9 both VERIFIED GREEN by independent done-check re-run (make test = the only declared tier, 532/0/1-expected-red, none skipped); gaming-scan clean, resurrection + over-reach + provenance passes all clean; re-measured id:1a03's grep 53->49 and read all 49 -- every one is prose, ZERO emitters, so filed id:ad2a (prose-blind done-check is a re-file trap) + id:9e86 (id:4ce8 added a dead `[[ ! -e ]]` branch its `refactor: none needed` glossed; NOT reopened); routine_open=1 [id:ad2a,9e86] [id:4ce8,32f9,ad2a,9e86]
+
+## 2026-08-31 — executor (claude-sonnet-5)
+
+Worked id:4d1c — hermetic test fixtures inheriting the developer's global git
+`core.hooksPath`. Root cause was two-shaped: (1) `test_backtest_fidelity.sh`'s
+fixture repos `git commit` real ROADMAP/TODO content through a plain `git
+init`, so a real installed `pre-commit-lane-vocab.sh` (via the caller's global
+`core.hooksPath`) fires on the fixture's own setup commits when the file is run
+directly; (2) `test_lane_vocab_ratchet_hook.sh` exports `LANE_VOCAB_RELAY_TOML`
+pointing at its own fixture (needed for its direct `bash "$HOOK"` invocations
+further down), and that same env var leaks into the REAL installed hook when
+the test's own setup commits (base/legacy/reset) fire it via inherited
+hooksPath, marking the fixture as relay-"own" and blocking those commits.
+Fix: extracted the neutralization `tests/run-tests.sh` already applied
+suite-wide (`GIT_CONFIG_COUNT`/`KEY_0`/`VALUE_0` = `core.hooksPath=/dev/null`)
+into a shared sourceable `tests/lib/hermetic-git-env.sh`, sourced by both
+affected test files and by `run-tests.sh` itself (single source, no drift).
+Verified: looped every `tests/test_*.sh` directly (env -u the three
+GIT_CONFIG_* vars) — before the fix 3 failed (test_backtest_fidelity.sh,
+test_lane_vocab_ratchet_hook.sh, and the unrelated pre-existing
+test_dryround_single_definition_6217.sh defect); after the fix only the
+unrelated dryround defect remains (out of scope for id:4d1c — a real
+`isDryRound` dual-definition bug, not a hermeticity issue). `tests/run-tests.sh`
+stays green: 532 passed, 0 failed, 1 expected-red.
+Friction: none — item was fully self-specified, no ambiguity.
+refactor: none needed — this is itself the refactor (de-duplicated the
+hooksPath-neutralization logic that previously lived only inline in
+run-tests.sh into a shared lib, rather than pasting the same three-line block
+into each fixture-building test file).
