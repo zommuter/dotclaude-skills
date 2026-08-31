@@ -3,7 +3,7 @@
 #
 # WHY (meeting amendment 2026-07-02, the `[MECHANICAL]` producer gap): slice-A A1 shipped
 # the CONSUMER half only — the classifier RECOGNIZES `[MECHANICAL]`→the pool-inert
-# `mechanical` verdict, but `handoff.md` C2 still only ever tags `[ROUTINE]`/`[HARD — *]`,
+# `mechanical` verdict, but `handoff.md` C2 still only ever tags `[ROUTINE]`/`[HARD - *]`,
 # so the tag is routed but never PRODUCED and nothing feeds the daemon (A3). M1 teaches the
 # handoff C2 contract prose to (i) recognize compute-only / no-LLM / benchmark-or-pilot work
 # and tag it `[MECHANICAL]`, and (ii) AUTHOR the A2 recipe (recipe-manifest.md schema,

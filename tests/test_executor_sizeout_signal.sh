@@ -10,12 +10,12 @@
 # discovery round re-dispatches the same un-doable item to another executor.
 #
 # The integrator GATE already works: handback-followup.py re-tags a [ROUTINE] parent to
-# the classifier-excluded [HARD — decision gate] (proven by test_handback_followup.sh),
+# the classifier-excluded [HARD - decision gate] (proven by test_handback_followup.sh),
 # and relay-loop.js calls it for ANY handback regardless of verdict. The missing half is
 # UPSTREAM: the executor must be TOLD to EMIT the structured size-out handback for a
 # [ROUTINE] item. This test pins that contract change.
 #
-# NOTE: a new [ROUTINE — oversized] tag is the WRONG fix — the classifier's dispatch
+# NOTE: a new [ROUTINE - oversized] tag is the WRONG fix — the classifier's dispatch
 # matcher (`^- \[ \].*\[ROUTINE\]`) and the HARD-lane exclude filter would BOTH still let
 # it through, so the spin would continue. The contract must reuse the existing gate.
 set -uo pipefail
