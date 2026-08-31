@@ -12,6 +12,7 @@
 - review: suite green 528/0/1-expected-red; b018 REMOVED_ASSERT adjudicated legitimate (overhead 12k->65k, stricter); filed id:7a5e (parked-orphan S4 regression) + id:1ccd (213a by-reference false positive); routine_open=2 (id:7a5e,1ccd,e8d4,71d6,70bc,2ee5)
 - Em-dash delimiter migration S6 (id:d0aa): orphan-scan.sh's two lane-tag grep sites (--promotion, --unbackrefed) now accept the hyphen delimiter alongside em-dash; classify.sh confirmed already delimiter-agnostic via new fixture test; suite green 530/0/1-expected-red. (id:d0aa)
 - Em-dash migration: tracker/ledger-map.py's three lane regexes now accept the hyphen delimiter, and the one golden fixture that carried it em-dash-spelled (repo-alpha/TODO.md + its expected JSONs) migrated together in one commit (id:c442) (id:c442)
+- review: suite green 532/0/1-expected-red (make test = the only declared tier, none skipped); resurrection pass over all 71 modified test files (2 non-spec fails adjudicated); S9 conservation re-measured independently (live ledgers 0, archives 38+47); FOUND id:1a03's own done-check still failing on the EMIT side -> filed id:32f9, plus id:4ce8 + promoted id:4d1c; ingested 3 inbox dead-letters; routine_open=3 [id:32f9,4ce8,4d1c] (id:32f9,4ce8,4d1c,41d3,d3bf,bfee,59f2,5c05,4e01)
 
 ## 2026-08-26
 
