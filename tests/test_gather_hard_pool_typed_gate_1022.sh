@@ -9,7 +9,7 @@
 # (`classify-repo.sh`'s `actionable_routine_open`, id:65f5) already does.
 #
 # The defect (gather-repo-state.sh ~:414-437 before the fix): the loop skipped a
-# `[HARD — pool]` line only on the PROSE gate forms (🚧 / "BLOCKED on" / "blocked (" …)
+# `[HARD - pool]` line only on the PROSE gate forms (🚧 / "BLOCKED on" / "blocked (" …)
 # and NEVER consulted the typed marker. That inverts the settled id:65f5/id:46f6 rule —
 # only typed edges are honoured, prose substrings never are — so a properly typed,
 # genuinely gated HARD item counted as pool-dispatchable.
