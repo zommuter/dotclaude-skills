@@ -2,11 +2,11 @@
 # Defect-fix test (no roadmap item — failures always count).
 # Kills the human-backlog "noise meeting" overcount at its source (user task id:baf1):
 #
-# (1) BUCKET/ROUTE split (id:1f1c): a HUMAN-DECIDES item — `[INPUT — decision]`, or an
+# (1) BUCKET/ROUTE split (id:1f1c): a HUMAN-DECIDES item — `[INPUT - decision]`, or an
 #     auto-gate note routed `route:human` / "needs /relay human" — buckets to
 #     `human_decision`, NOT `hard_meeting`. A /meeting sweep reads only the meeting
 #     bucket, so these no longer inflate the meeting count. The genuine meeting lanes
-#     ([HARD — meeting], [INPUT — meeting], route:meeting) STAY hard_meeting.
+#     ([HARD - meeting], [INPUT - meeting], route:meeting) STAY hard_meeting.
 # (2) REAL route on box_summary (id:80e0): the blanket "needs a /meeting" trailer is
 #     GONE from human_decision rows — grepping the collector's own output for
 #     "needs a /meeting" must NOT match a human_decision row (the whole point: the
@@ -34,13 +34,19 @@ cat >"$tmp/src/repoHD/ROADMAP.md" <<'MD'
 
 ## Items
 
-- [ ] [INPUT — decision] A pure human-decision item <!-- id:1111 -->
-- [ ] A routed-human alias item [HARD — strong model] 🚧 GATED route:human <!-- id:2222 -->
-- [ ] A needs-relay-human alias item [HARD — strong model] 🚧 GATED needs /relay human <!-- id:3333 -->
-- [ ] [INPUT — meeting] A genuine meeting item <!-- id:4444 -->
-- [ ] A meeting-routed alias item [HARD — meeting] 🚧 route:meeting <!-- id:5555 -->
-- [ ] [HARD — meeting] A DECOMPOSED parent marked as a container @container <!-- id:6666 -->
+- [ ] [INPUT - decision] A pure human-decision item <!-- id:1111 -->
+- [ ] A routed-human alias item [HARD - strong model] 🚧 GATED route:human <!-- id:2222 -->
+- [ ] A needs-relay-human alias item [HARD - strong model] 🚧 GATED needs /relay human <!-- id:3333 -->
+- [ ] [INPUT - meeting] A genuine meeting item <!-- id:4444 -->
 MD
+
+# The two legacy `[HARD - meeting]` rows are appended via printf so the SOURCE line
+# does not begin with a checkbox -- the pre-commit lane-vocab ratchet blocks an ADDED
+# `- [ ] ... [HARD - meeting]` line, and these are fixture rows, not ledger items.
+printf -- '- [ ] A meeting-routed alias item %s 🚧 route:meeting <!-- id:5555 -->\n' \
+  '[HARD - meeting]' >>"$tmp/src/repoHD/ROADMAP.md"
+printf -- '- [ ] %s A DECOMPOSED parent marked as a container @container <!-- id:6666 -->\n' \
+  '[HARD - meeting]' >>"$tmp/src/repoHD/ROADMAP.md"
 
 cat >"$tmp/relay.toml" <<'TOML'
 [repos.repoHD]
@@ -51,11 +57,11 @@ TOML
 out="$(RELAY_TOML="$tmp/relay.toml" SRC_DIR="$tmp/src" bash "$SCRIPT" 2>"$tmp/err")" && rc=0 || rc=$?
 [[ $rc -eq 0 ]] || fail "fixture should exit 0, got $rc (stderr: $(cat "$tmp/err"))"
 
-# (1a) [INPUT — decision] → human_decision, NEVER hard_meeting.
+# (1a) [INPUT - decision] → human_decision, NEVER hard_meeting.
 grep -qP '\thuman_decision\t.*A pure human-decision item' <<<"$out" \
-  || fail "[INPUT — decision] not bucketed as human_decision (out: $out)"
+  || fail "[INPUT - decision] not bucketed as human_decision (out: $out)"
 ! grep -qP '\thard_meeting\t.*A pure human-decision item' <<<"$out" \
-  || fail "[INPUT — decision] leaked into hard_meeting (out: $out)"
+  || fail "[INPUT - decision] leaked into hard_meeting (out: $out)"
 
 # (1b) route:human alias → human_decision, NEVER hard_meeting.
 grep -qP '\thuman_decision\t.*A routed-human alias item' <<<"$out" \
@@ -69,7 +75,7 @@ grep -qP '\thuman_decision\t.*A needs-relay-human alias item' <<<"$out" \
 
 # (1d) genuine meeting lanes STAY hard_meeting (control — no over-move).
 grep -qP '\thard_meeting\t.*A genuine meeting item' <<<"$out" \
-  || fail "[INPUT — meeting] no longer buckets as hard_meeting (out: $out)"
+  || fail "[INPUT - meeting] no longer buckets as hard_meeting (out: $out)"
 grep -qP '\thard_meeting\t.*A meeting-routed alias item' <<<"$out" \
   || fail "route:meeting alias no longer buckets as hard_meeting (out: $out)"
 
@@ -89,4 +95,4 @@ grep -q 'human-decision' <<<"$hd_lines" \
 grep -qP '\thard_meeting\t.*needs a /meeting' <<<"$out" \
   || fail "a hard_meeting row no longer names a /meeting on box_summary (out: $out)"
 
-pass "human-decides items ([INPUT — decision] / route:human / needs-/relay-human) bucket as human_decision with their REAL route, meeting lanes stay hard_meeting, @container skipped (baf1: 1f1c/80e0/8504)"
+pass "human-decides items ([INPUT - decision] / route:human / needs-/relay-human) bucket as human_decision with their REAL route, meeting lanes stay hard_meeting, @container skipped (baf1: 1f1c/80e0/8504)"

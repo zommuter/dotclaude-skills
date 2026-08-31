@@ -37,8 +37,8 @@ mkdir -p "$REPO"
 cat > "$REPO/ROADMAP.md" <<'EOF'
 # ROADMAP
 
-- [ ] [INPUT — meeting] **Twin item** — the ROADMAP view. <!-- id:aaaa -->
-- [ ] [INPUT — meeting] **Citing item** — body mentions id:cccc and id:dddd early. <!-- id:bbbb -->
+- [ ] [INPUT - meeting] **Twin item** — the ROADMAP view. <!-- id:aaaa -->
+- [ ] [INPUT - meeting] **Citing item** — body mentions id:cccc and id:dddd early. <!-- id:bbbb -->
 EOF
 
 # id:cccc is TODO-ONLY and its body cites id:bbbb (a ROADMAP-emitted id) FIRST. Before the
@@ -46,8 +46,8 @@ EOF
 cat > "$REPO/TODO.md" <<'EOF'
 # TODO
 
-- [ ] [INPUT — meeting] **Twin item** — the TODO view, relates id:9999 first. <!-- id:aaaa -->
-- [ ] [INPUT — meeting] **Todo-only item** — relates id:bbbb (cited first). <!-- id:cccc -->
+- [ ] [INPUT - meeting] **Twin item** — the TODO view, relates id:9999 first. <!-- id:aaaa -->
+- [ ] [INPUT - meeting] **Todo-only item** — relates id:bbbb (cited first). <!-- id:cccc -->
 EOF
 
 cat > "$TMP/relay.toml" <<EOF

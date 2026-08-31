@@ -60,10 +60,10 @@ MD
 cat >"$tmp/src/repoTODO/TODO.md" <<'MD'
 # TODO
 
-- [ ] [HARD — strong model REPOTODO] no such lane exists <!-- id:2222 -->
-- [ ] [INPUT — no-such-lane] also unrecognized <!-- id:3333 -->
+- [ ] [HARD - strong model REPOTODO] no such lane exists <!-- id:2222 -->
+- [ ] [INPUT - no-such-lane] also unrecognized <!-- id:3333 -->
 - [ ] [INBOUND routed:9999] an ingested cross-repo item with no lane tag <!-- id:4444 -->
-- [ ] [INPUT — meeting] a genuine human-lane TODO item <!-- id:5555 -->
+- [ ] [INPUT - meeting] a genuine human-lane TODO item <!-- id:5555 -->
 MD
 
 cat >"$tmp/src/repoTODO/REVIEW_ME.md" <<'MD'
