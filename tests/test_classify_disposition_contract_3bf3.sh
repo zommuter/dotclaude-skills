@@ -51,13 +51,13 @@ cat > "$TMP/TODO.md" <<'EOF'
 - [ ] **A linked ready item** docs/meeting-notes/2026-01-01-0000-x.md — link plus Decisions. <!-- id:aaa2 -->
 - [ ] **An item that is gated on something else** and cannot proceed yet. <!-- id:aaa3 -->
 - [ ] **An item blocked on a dependency** that has not landed. <!-- id:aaa4 -->
-- [ ] [INPUT — nonsense] **An unrecognized lane that is also gated** — both flags must appear. <!-- id:aaa5 -->
+- [ ] [INPUT - nonsense] **An unrecognized lane that is also gated** — both flags must appear. <!-- id:aaa5 -->
 - [ ] [HARD] **A pool item** that the apex pool runs unattended. <!-- id:aaa6 -->
 - [ ] [ROUTINE] **An executor item** for the cheap tier. <!-- id:aaa7 -->
 - [ ] [MECHANICAL] **A daemon item** with no model in the loop. <!-- id:aaa8 -->
-- [ ] [INPUT — access] **A hands item** needing physical presence. <!-- id:aaa9 -->
-- [ ] [INPUT — decision] **A human-call item** with no design session. <!-- id:aab0 -->
-- [ ] [INPUT — meeting] **A design-session item** for the meeting lane. <!-- id:aab1 -->
+- [ ] [INPUT - access] **A hands item** needing physical presence. <!-- id:aaa9 -->
+- [ ] [INPUT - decision] **A human-call item** with no design session. <!-- id:aab0 -->
+- [ ] [INPUT - meeting] **A design-session item** for the meeting lane. <!-- id:aab1 -->
 - [ ] Relay: 7 open ROADMAP items
 - [ ] **A very long summary line that runs well past the eighty character truncation boundary** so that the SUMMARY column width contract is actually exercised rather than assumed. <!-- id:aab2 -->
 EOF
@@ -161,9 +161,9 @@ pass "every lane-tagged skip-class item lands in the not-meeting-worthy half"
 
 # …and the meeting lane stays pick-eligible, so the partition is not vacuously all-skip.
 c="$(cls aab1)"
-[[ "$c" == "C3" ]] || fail "[INPUT — meeting] must stay a meeting candidate (C3), got '$c'"
-[[ "$PICKABLE" == *" $c "* ]] || fail "[INPUT — meeting] must be pick-eligible"
-pass "[INPUT — meeting] → C3 and pick-eligible (partition is non-vacuous)"
+[[ "$c" == "C3" ]] || fail "[INPUT - meeting] must stay a meeting candidate (C3), got '$c'"
+[[ "$PICKABLE" == *" $c "* ]] || fail "[INPUT - meeting] must be pick-eligible"
+pass "[INPUT - meeting] → C3 and pick-eligible (partition is non-vacuous)"
 
 # The RELAY mirror line is emitted with EMPTY note and gate columns (classify.sh returns
 # early for it) — pin that shape so the early-return keeps filling all 5 columns.

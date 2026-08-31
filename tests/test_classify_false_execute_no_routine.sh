@@ -8,16 +8,16 @@
 # Observed 2026-07-13 (pool run relay-20260713-130624-24135): two repos were
 # execute-dispatched and immediately handed back "no executor-actionable work",
 # wasting a worktree + a model child each:
-#   * isochrone — ZERO [ROUTINE] items at all (only [INPUT — meeting] + a gated
-#                 [MECHANICAL] [INTENSIVE — r5-jvm] item).
+#   * isochrone — ZERO [ROUTINE] items at all (only [INPUT - meeting] + a gated
+#                 [MECHANICAL] [INTENSIVE - r5-jvm] item).
 #   * it-infra  — its only two [ROUTINE] items (id:935e, id:6e27) are BOTH `[x]`
 #                 closed; the one open [INTENSIVE] item is a 🚧-gated
-#                 [HARD — pool] [INTENSIVE — local-llm] route:human item.
+#                 [HARD - pool] [INTENSIVE - local-llm] route:human item.
 #
 # Root cause (traced): classify-repo.sh derives actionable_routine_open == 0 for
 # BOTH repos CORRECTLY. The false `execute` is manufactured downstream: because
 # gather-repo-state.sh's top_intensive filter (id:ad74/a707) excludes only
-# `[HARD — hands|meeting|decision gate]` / `@manual` — but NOT `🚧`/`BLOCKED`-gated
+# `[HARD - hands|meeting|decision gate]` / `@manual` — but NOT `🚧`/`BLOCKED`-gated
 # lines and NOT the pool-inert `[MECHANICAL]` lane — a non-executor-actionable
 # INTENSIVE item still populates top_intensive. classify-verdict.sh fold (b) then
 # promotes actionable_routine 0 -> 1 from that non-empty top_intensive and labels
@@ -52,15 +52,15 @@ verdict_of() {  # verdict_of <repo> <path>
 fail=0
 
 # --- Case A (isochrone-like): ZERO [ROUTINE] items at all -------------------
-# Only an [INPUT — meeting] item and a 🚧-gated [MECHANICAL] [INTENSIVE — r5-jvm]
+# Only an [INPUT - meeting] item and a 🚧-gated [MECHANICAL] [INTENSIVE - r5-jvm]
 # item. There is nothing an executor can act on => must NOT be `execute`.
 A="$tmp/repoA"; mkdir -p "$A"
 git -C "$A" init -q; git -C "$A" config user.email t@e; git -C "$A" config user.name t
 cat > "$A/ROADMAP.md" <<'EOF'
 # Roadmap
 ## Items
-- [ ] [INPUT — meeting] design a thing that needs a human <!-- id:aaaa -->
-- [ ] [MECHANICAL] ** ** @container [INTENSIVE — r5-jvm] crop + field-gen + emit — 🚧 GATED (auto) <!-- id:bbbb -->
+- [ ] [INPUT - meeting] design a thing that needs a human <!-- id:aaaa -->
+- [ ] [MECHANICAL] ** ** @container [INTENSIVE - r5-jvm] crop + field-gen + emit — 🚧 GATED (auto) <!-- id:bbbb -->
 EOF
 git -C "$A" add -A; git -C "$A" commit -qm init
 vA="$(verdict_of repoA "$A")"
@@ -73,7 +73,7 @@ fi
 
 # --- Case B (it-infra-like): [ROUTINE] present but ALL `[x]` closed ----------
 # Both [ROUTINE] items are closed; the only open [INTENSIVE] item is a 🚧-gated
-# [HARD — pool] route:human item. No open actionable [ROUTINE] => must NOT be `execute`.
+# [HARD - pool] route:human item. No open actionable [ROUTINE] => must NOT be `execute`.
 B="$tmp/repoB"; mkdir -p "$B"
 git -C "$B" init -q; git -C "$B" config user.email t@e; git -C "$B" config user.name t
 cat > "$B/ROADMAP.md" <<'EOF'
@@ -81,7 +81,7 @@ cat > "$B/ROADMAP.md" <<'EOF'
 ## Items
 - [x] [ROUTINE] author-half toggle — already shipped <!-- id:cccc -->
 - [x] [ROUTINE] launch wrapper folds in toggle — already shipped <!-- id:dddd -->
-- [ ] [HARD — pool] [INTENSIVE — local-llm] GPU seed-hunt — 🚧 GATED (auto; route:human) needs /relay human <!-- id:eeee -->
+- [ ] [HARD - pool] [INTENSIVE - local-llm] GPU seed-hunt — 🚧 GATED (auto; route:human) needs /relay human <!-- id:eeee -->
 EOF
 git -C "$B" add -A; git -C "$B" commit -qm init
 vB="$(verdict_of repoB "$B")"
