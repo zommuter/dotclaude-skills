@@ -4,7 +4,7 @@
 #
 # (a) per-row reason+evidence + reconstructed input fields in --json output
 # (b) reconstruction-gap:legacy-lane-vocab for shard=hard rows where open_hard_pool=0
-#     but legacy [HARD — <non-lane>] items exist in the as-of ROADMAP
+#     but legacy [HARD - <non-lane>] items exist in the as-of ROADMAP
 # (c) tag-time filter: a ckpt tag created AFTER the event ts does NOT suppress
 #     substantive_unaudited (a future tag must not count as "already audited")
 # (d) reconstruction-gap:9973 note (gate is applied from git-show state; test
@@ -45,9 +45,9 @@ classification = "own"
 EOF
 
 # ===========================================================================
-# REPO 1: legacy-hard-repo — has [HARD — strong model] (pre-id:78ff vocab)
+# REPO 1: legacy-hard-repo — has [HARD - strong model] (pre-id:78ff vocab)
 #   The shard dispatched it as "hard"; classifier sees open_hard_pool=0 because
-#   it only counts [HARD — pool] (post-id:78ff). This is a legacy-lane-vocab gap.
+#   it only counts [HARD - pool] (post-id:78ff). This is a legacy-lane-vocab gap.
 # ===========================================================================
 R1="$SRC_DIR/legacy-hard-repo"
 init_repo "$R1"
@@ -55,7 +55,7 @@ init_repo "$R1"
 cat > "$R1/ROADMAP.md" <<'EOF'
 # Roadmap
 ## Hard
-- [ ] [HARD — strong model] Old-style hard item <!-- id:aa01 -->
+- [ ] [HARD - strong model] Old-style hard item <!-- id:aa01 -->
 EOF
 cat > "$R1/TODO.md" <<'EOF'
 # TODO
@@ -69,7 +69,7 @@ GIT_COMMITTER_DATE="2026-06-10T10:00:00Z" \
   git -C "$R1" tag -a "relay-ckpt-20260610-1000" -m "relay: checkpoint"
 
 # Dispatch event at 2026-06-15: shard said "hard" (old vocab), classifier will say handoff or idle
-# because [HARD — strong model] does NOT count as [HARD — pool] and the unpromoted TODO item
+# because [HARD - strong model] does NOT count as [HARD - pool] and the unpromoted TODO item
 # bb01 is not in ROADMAP → handoff.
 
 # ===========================================================================
@@ -99,18 +99,20 @@ GIT_COMMITTER_DATE="2026-06-12T10:00:00Z" \
 
 # ===========================================================================
 # REPO 3: recurring-audit-repo — test the id:9973 gate
-#   Has a [HARD — pool] item with relay:recurring-audit.
+#   Has a [HARD - pool] item with relay:recurring-audit.
 #   Latest commit is only a relay: checkpoint → sub_unaudited=false
 #   → 9973 gate fires: item is NOT counted in open_hard_pool
 # ===========================================================================
 R3="$SRC_DIR/recurring-audit-repo"
 init_repo "$R3"
 
-cat > "$R3/ROADMAP.md" <<'EOF'
-# Roadmap
-## Hard
-- [ ] [HARD — pool] Recurring audit item <!-- relay:recurring-audit --> <!-- id:dd01 -->
-EOF
+{
+  printf '# Roadmap\n## Hard\n'
+  # printf (not a heredoc) so this source line does not itself begin with a
+  # checkbox carrying an old-vocab lane tag -- hooks/pre-commit-lane-vocab.sh
+  # blocks any ADDED `- [ ] … [HARD - pool]` line, fixture or not.
+  printf -- '- [ ] %s Recurring audit item <!-- relay:recurring-audit --> <!-- id:dd01 -->\n' '[HARD - pool]'
+} > "$R3/ROADMAP.md"
 cat > "$R3/TODO.md" <<'EOF'
 # TODO
 EOF
@@ -235,9 +237,9 @@ rows = o["rows"]
 legacy = [r for r in rows if r["repo"] == "legacy-hard-repo"]
 assert len(legacy) == 1, f"expected 1 legacy-hard-repo row, got {legacy}"
 r = legacy[0]
-# Classifier must NOT agree with "hard" (open_hard_pool=0 for [HARD — strong model])
+# Classifier must NOT agree with "hard" (open_hard_pool=0 for [HARD - strong model])
 assert r["verdict"] != "hard", \
-    f"[HARD — strong model] must NOT count as open_hard_pool — expected non-hard verdict, got {r}"
+    f"[HARD - strong model] must NOT count as open_hard_pool — expected non-hard verdict, got {r}"
 # The row must be a diverge (shard said hard, classifier saw open_hard_pool=0)
 assert r["note"] == "diverge", f"legacy-hard-repo must diverge: {r}"
 # And it must be categorized as reconstruction-gap:legacy-lane-vocab
@@ -247,7 +249,7 @@ assert "legacy-lane-vocab" in r.get("reconstruction_gap_flags", []), \
     f"reconstruction_gap_flags must contain 'legacy-lane-vocab': {r}"
 # Also verify the reconstructed open_hard_pool is 0 (legacy tag was not counted)
 assert r["reconstructed"]["open_hard_pool"] == 0, \
-    f"[HARD — strong model] must yield open_hard_pool=0, got {r['reconstructed']['open_hard_pool']}"
+    f"[HARD - strong model] must yield open_hard_pool=0, got {r['reconstructed']['open_hard_pool']}"
 
 print("case (b) legacy-lane-vocab reconstruction-gap OK")
 PYEOF
