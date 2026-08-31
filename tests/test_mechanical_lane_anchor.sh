@@ -8,7 +8,7 @@
 #     right is history and must NOT set the lane.
 #   - the open_mechanical counter (~line 93) is a BARE SUBSTRING test `if "[MECHANICAL]" in ln`.
 #     "[MECHANICAL]" is NOT in LANE_TAGS and does NOT participate in the anchoring, so a mere
-#     backtick'd `[MECHANICAL]` mention on a line whose REAL lane is [HARD — pool]/[ROUTINE]
+#     backtick'd `[MECHANICAL]` mention on a line whose REAL lane is [HARD - pool]/[ROUTINE]
 #     falsely increments open_mechanical — which drives the priority-6 `mechanical` verdict
 #     (classify-verdict.sh:146, open_mechanical >= 1).
 #
@@ -51,19 +51,16 @@ commit_repo "$R1"; ckpt_head "$R1"
 [[ "$(mech_of "$R1")" == "0" ]]        || { echo "FAIL: backtick'd [MECHANICAL] on a [ROUTINE] line must NOT count in open_mechanical, got $(mech_of "$R1")"; exit 1; }
 [[ "$(verdict_of "$R1")" != "mechanical" ]] || { echo "FAIL: a [ROUTINE] line merely mentioning \`[MECHANICAL]\` must NOT classify mechanical, got mechanical"; exit 1; }
 
-# --- FALSE-POSITIVE (count): a [HARD — pool] item that mentions `[MECHANICAL]` in backticks.
+# --- FALSE-POSITIVE (count): a [HARD - pool] item that mentions `[MECHANICAL]` in backticks.
 # Its real lane is hard-pool (verdict `hard`, priority 3, masks mechanical), but the bug still
 # corrupts the open_mechanical COUNT — assert it directly via --emit unit.
 R2="$tmp/r_hardpool_mention"; mkrepo "$R2"
-cat > "$R2/ROADMAP.md" <<'EOF'
-# Roadmap
-## Items
-- [ ] [HARD — pool] real strong-model work; superseded a `[MECHANICAL]` sub-step <!-- id:2222 -->
-EOF
+printf '# Roadmap\n## Items\n' > "$R2/ROADMAP.md"
+printf -- '- [ ] %s real strong-model work; superseded a `[MECHANICAL]` sub-step <!-- id:2222 -->\n' '[HARD - pool]' >> "$R2/ROADMAP.md"
 printf '# TODO\n## Current\n' > "$R2/TODO.md"
 commit_repo "$R2"; ckpt_head "$R2"
-[[ "$(mech_of "$R2")" == "0" ]]      || { echo "FAIL: backtick'd [MECHANICAL] on a [HARD — pool] line must NOT count in open_mechanical, got $(mech_of "$R2")"; exit 1; }
-[[ "$(verdict_of "$R2")" == "hard" ]] || { echo "FAIL: the real [HARD — pool] item should classify hard, got $(verdict_of "$R2")"; exit 1; }
+[[ "$(mech_of "$R2")" == "0" ]]      || { echo "FAIL: backtick'd [MECHANICAL] on a [HARD - pool] line must NOT count in open_mechanical, got $(mech_of "$R2")"; exit 1; }
+[[ "$(verdict_of "$R2")" == "hard" ]] || { echo "FAIL: the real [HARD - pool] item should classify hard, got $(verdict_of "$R2")"; exit 1; }
 
 # --- GUARD (no over-correction): a GENUINE [MECHANICAL]-primary item MUST still count and MUST
 # still yield the `mechanical` verdict. HEAD audited + clean TODO + no routine/hard so mechanical

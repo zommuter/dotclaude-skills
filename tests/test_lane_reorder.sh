@@ -10,7 +10,7 @@
 #   1. `lane-convert.sh --reorder <file>` prints the ledger on stdout with, on each CHECKBOX
 #      line (`- [ ]` / `- [x]`), the lane-tag CLUSTER moved to immediately after the checkbox.
 #      The cluster = the anchored PRIMARY lane token (first recognized bare lane tag, ignoring
-#      backtick'd MENTIONS) PLUS any adjacent orthogonal `[INTENSIVE — <res>]`, order preserved.
+#      backtick'd MENTIONS) PLUS any adjacent orthogonal `[INTENSIVE - <res>]`, order preserved.
 #      Everything else on the line is left in place: title/body prose, NON-lane `[brackets]` in
 #      the body, backtick'd tag MENTIONS, and the trailing `<!-- id:XXXX -->`. Whitespace is
 #      normalized to single spaces where the cluster was lifted (no double space left behind).
@@ -58,21 +58,21 @@ want='- [ ] [ROUTINE] **build the thing** <!-- id:aa01 -->'
   || fail "(a) trailing [ROUTINE] must move to first position.\n  want: $want\n  got:  $got"
 pass "(a) reorder lifts a trailing lane tag to first position"
 
-# --- (b) multi-tag: primary + adjacent [INTENSIVE — res] both move, order kept -
+# --- (b) multi-tag: primary + adjacent [INTENSIVE - res] both move, order kept -
 b="$tmp/b.md"
 cat >"$b" <<'MD'
 # Roadmap
 
 ## Items
 
-- [ ] **run the battery** [MECHANICAL] [INTENSIVE — r5-jvm] <!-- id:aa02 -->
+- [ ] **run the battery** [MECHANICAL] [INTENSIVE - r5-jvm] <!-- id:aa02 -->
 MD
 out="$("$CONV" --reorder "$b" 2>/dev/null)" || fail "(b) --reorder failed"
 got="$(grep -F 'id:aa02' <<<"$out")"
-want='- [ ] [MECHANICAL] [INTENSIVE — r5-jvm] **run the battery** <!-- id:aa02 -->'
+want='- [ ] [MECHANICAL] [INTENSIVE - r5-jvm] **run the battery** <!-- id:aa02 -->'
 [[ "$got" == "$want" ]] \
-  || fail "(b) [MECHANICAL] + adjacent [INTENSIVE — res] must both move, order preserved.\n  want: $want\n  got:  $got"
-pass "(b) reorder moves the primary lane + adjacent [INTENSIVE — res] as a cluster"
+  || fail "(b) [MECHANICAL] + adjacent [INTENSIVE - res] must both move, order preserved.\n  want: $want\n  got:  $got"
+pass "(b) reorder moves the primary lane + adjacent [INTENSIVE - res] as a cluster"
 
 # --- (c) already-first is a no-op (both [ ] and [x]); second pass is a no-op ---
 c="$tmp/c.md"

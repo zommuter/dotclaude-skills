@@ -67,7 +67,7 @@ git -C "$REPO" tag -d relay-ckpt-1 >/dev/null
 git -C "$REPO" tag -a relay-ckpt-1 -m "ckpt one, fable-standin"
 S="$(changed "$S" "latest tag message")"
 # 2d ROADMAP.md content (hasRoutine / openHard / GATED all derive from it)
-printf 'roadmap\n- [ ] [HARD — strong model] big thing\n' > "$REPO/ROADMAP.md"
+printf 'roadmap\n- [ ] [HARD - strong model] big thing\n' > "$REPO/ROADMAP.md"
 S="$(changed "$S" "ROADMAP.md edit")"
 # 2e dirty working tree (porcelain)
 echo dirty > "$REPO/untracked"

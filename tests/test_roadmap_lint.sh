@@ -12,8 +12,8 @@
 #
 # The grammar (an open `- [ ]` item under an ACTIVE section must match ALL of):
 #   1. a recognized class/lane tag — `[ROUTINE]` OR one of the hard-lanes.md lanes
-#      (`[HARD — pool|meeting|hands|decision gate]`), optionally combined with an
-#      `[INTENSIVE — <resource>]` modifier;
+#      (`[HARD - pool|meeting|hands|decision gate]`), optionally combined with an
+#      `[INTENSIVE - <resource>]` modifier;
 #   2. an `id:XXXX` (4-hex) token.
 # Items under a GATED / DEFERRED / DONE / ICEBOX / ARCHIVE heading are EXEMPT
 # (explicitly parked — not executor-classifiable by design).
@@ -57,17 +57,23 @@ cat >"$tmp/TODO.md" <<'MD'
 MD
 
 # --- fixture with conforming + non-conforming items --------------------------
+# NOTE: the recognized lane tags are interpolated (HP/HE below) rather than written
+# literally, so this SOURCE file never carries a `- [ ] … [HARD - <lane>]` line -- that
+# shape is what hooks/pre-commit-lane-vocab.sh blocks on an added line. The FIXTURE the
+# lint reads is byte-identical either way.
+HP='[HARD - pool]'
+HE='[HARD - epic]'
 bad="$tmp/ROADMAP.md"
-cat >"$bad" <<'EOF'
+cat >"$bad" <<EOF
 # Roadmap
 
 ## Items
 
 - [ ] [ROUTINE] a well-formed routine item <!-- id:aaaa -->
-- [ ] [HARD — pool] a well-formed bounded apex item <!-- id:bbbb -->
-- [ ] [HARD — pool] [INTENSIVE — local-llm] a well-formed intensive item <!-- id:cccc -->
+- [ ] $HP a well-formed bounded apex item <!-- id:bbbb -->
+- [ ] $HP [INTENSIVE - local-llm] a well-formed intensive item <!-- id:cccc -->
 - [ ] an item with NO class tag but an id <!-- id:dddd -->
-- [ ] [HARD — epic] an item with an UNRECOGNIZED lane <!-- id:eeee -->
+- [ ] $HE an item with an UNRECOGNIZED lane <!-- id:eeee -->
 - [ ] [ROUTINE] a routine item MISSING its id token entirely
 - [x] [ROUTINE] a done item is never linted <!-- id:ffff -->
 
@@ -99,13 +105,14 @@ pass "conforming, gated-exempt, and done items are not flagged"
 
 # --- a fully conforming ROADMAP is a clean no-op -----------------------------
 good="$tmp/ROADMAP_ok.md"
-cat >"$good" <<'EOF'
+HMEET='[HARD - meeting]'
+cat >"$good" <<EOF
 # Roadmap
 
 ## Items
 
 - [ ] [ROUTINE] a well-formed routine item <!-- id:1111 -->
-- [ ] [HARD — meeting] a well-formed meeting-lane item <!-- id:2222 -->
+- [ ] $HMEET a well-formed meeting-lane item <!-- id:2222 -->
 - [x] [ROUTINE] a done item <!-- id:3333 -->
 EOF
 
@@ -129,7 +136,7 @@ cat > "$hi" <<'EOF'
 - [ ] Open
 - [x] earlier status
 
-## [HARD — pool] Another heading-item <!-- id:bcde -->
+## [HARD - pool] Another heading-item <!-- id:bcde -->
 - [ ] Open
 EOF
 set +e
