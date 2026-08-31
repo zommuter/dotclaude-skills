@@ -202,19 +202,19 @@ dual-vocab migration window is still open), so both are mapped, with legacy item
 | `[ROUTINE]` | `routine` | — |
 | `[HARD]` | `hard` | — |
 | `[MECHANICAL]` | `mechanical` | — |
-| `[INPUT — meeting\|decision\|access\|author\|user]` | `input` | `input:<kind>` |
-| `[HARD — pool]` *(legacy)* | `hard` | `venue:pool`, `vocab:legacy` |
-| `[HARD — meeting]` *(legacy)* | `input` | `input:meeting`, `vocab:legacy` |
-| `[HARD — decision gate]` *(legacy)* | `input` | `input:decision`, `vocab:legacy` |
-| `[HARD — hands]` *(legacy)* | `input` | `input:unresolved-hands`, `vocab:legacy` |
-| `[INTENSIVE — <resource>]` | *(unchanged)* | `resource:<resource>` — **orthogonal**, never a lane |
+| `[INPUT - meeting\|decision\|access\|author\|user]` | `input` | `input:<kind>` |
+| `[HARD - pool]` *(legacy)* | `hard` | `venue:pool`, `vocab:legacy` |
+| `[HARD - meeting]` *(legacy)* | `input` | `input:meeting`, `vocab:legacy` |
+| `[HARD - decision gate]` *(legacy)* | `input` | `input:decision`, `vocab:legacy` |
+| `[HARD - hands]` *(legacy)* | `input` | `input:unresolved-hands`, `vocab:legacy` |
+| `[INTENSIVE - <resource>]` | *(unchanged)* | `resource:<resource>` — **orthogonal**, never a lane |
 | `[host:<name>]` | *(unchanged)* | `host:<name>` |
 | no recognised tag | `untagged` | `lane:untagged` + **report** `untagged-lane` |
-| unrecognised `[HARD — <x>]` / `[INPUT — <x>]` | `untagged` / lane w/o kind | **report** `unknown-hard-lane` / `unknown-input-kind` |
+| unrecognised `[HARD - <x>]` / `[INPUT - <x>]` | `untagged` / lane w/o kind | **report** `unknown-hard-lane` / `unknown-input-kind` |
 
-**`[HARD — hands]` is never auto-resolved.** `hard-lanes.md` records that it fragments
-across **four** destinations (`[MECHANICAL]`, `[INPUT — access]`, `[INPUT — decision]`,
-`[INPUT — meeting]`) by per-item human judgment, and that `lane-convert.sh` deliberately
+**`[HARD - hands]` is never auto-resolved.** `hard-lanes.md` records that it fragments
+across **four** destinations (`[MECHANICAL]`, `[INPUT - access]`, `[INPUT - decision]`,
+`[INPUT - meeting]`) by per-item human judgment, and that `lane-convert.sh` deliberately
 refuses to guess. This mapper refuses too: it maps to the placeholder
 `input:unresolved-hands` **and reports every one** as `legacy-hands-unresolved`. A tracker
 label that silently picked one of the four would be exactly the drift the ledger rules

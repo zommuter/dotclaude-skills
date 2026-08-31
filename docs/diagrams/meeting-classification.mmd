@@ -21,8 +21,8 @@ flowchart TD
     %% the three classes
     preclassify -->|"design note WITH Decisions section,<br/>coverage confirmed"| C1["Class 1 — impl-ready (C1)"]
     preclassify -->|"link WITHOUT Decisions,<br/>or keyword hint / incomplete design"| C2["Class 2 — planning-worthy (C2)"]
-    preclassify -->|"no link / ambiguous scope /<br/>[HARD — meeting] / REVIEW_ME judgment"| C3["Class 3 — meeting-worthy (C3)"]
-    preclassify -.->|"POOL ([HARD — pool]) · HANDS ([HARD — hands]) ·<br/>RELAY (ROADMAP mirror) — NOT meeting-worthy"| notmeet["↪ surface separately;<br/>nudge /relay, never pick"]
+    preclassify -->|"no link / ambiguous scope /<br/>[HARD - meeting] / REVIEW_ME judgment"| C3["Class 3 — meeting-worthy (C3)"]
+    preclassify -.->|"POOL ([HARD - pool]) · HANDS ([HARD - hands]) ·<br/>RELAY (ROADMAP mirror) — NOT meeting-worthy"| notmeet["↪ surface separately;<br/>nudge /relay, never pick"]
 
     %% dispatch per class
     C1 --> C1do["implement in normal mode;<br/>in relay repos follow /relay executor contract (D7):<br/>previously-failing tests pass + refactor + full suite green"]
