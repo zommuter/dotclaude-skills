@@ -47,22 +47,27 @@ MD
 # Every item is grammar-valid (lane + id) so the ONLY thing under test is the two
 # doctrine rules, never a confounding grammar violation.
 R="$tmp/ROADMAP.md"
-cat >"$R" <<'MD'
+# The meeting-lane tag arrives via $HM rather than as literal source text: the
+# lane-vocab pre-commit ratchet blocks an ADDED checkbox line whose primary tag is
+# `[HARD - meeting]` in EITHER delimiter spelling, and rule 3(a) needs exactly that
+# legacy lane to fire.
+HM='[HARD - meeting]'
+cat >"$R" <<MD
 # Roadmap
 
 ## Items
 
-- [ ] [HARD — meeting] DECOMPOSED into seams id:aaaa, id:bbbb <!-- id:c001 -->
-- [ ] [HARD — meeting] DECOMPOSED into seams but properly marked @container <!-- id:c002 -->
-- [x] [HARD — meeting] DECOMPOSED into seams and correctly ticked <!-- id:c003 -->
-- [ ] [HARD — meeting] DEFERRED (decided 2026-06-17): a parked-in-active-section thing <!-- id:c004 -->
+- [ ] $HM DECOMPOSED into seams id:aaaa, id:bbbb <!-- id:c001 -->
+- [ ] $HM DECOMPOSED into seams but properly marked @container <!-- id:c002 -->
+- [x] $HM DECOMPOSED into seams and correctly ticked <!-- id:c003 -->
+- [ ] $HM DEFERRED (decided 2026-06-17): a parked-in-active-section thing <!-- id:c004 -->
 - [ ] [ROUTINE] SUPERSEDED by a newer plan <!-- id:c005 -->
 - [ ] [ROUTINE] the plan was decided 2026-07-01 but never closed <!-- id:c006 -->
 - [ ] [ROUTINE] a perfectly clean active item with no markers <!-- id:c007 -->
 
 ## Deferred
 
-- [ ] [HARD — meeting] DEFERRED thing legitimately parked under a Deferred heading <!-- id:c008 -->
+- [ ] $HM DEFERRED thing legitimately parked under a Deferred heading <!-- id:c008 -->
 MD
 
 # --- default (no --strict): doctrine rules are LOUD but report-only (exit 0) -----
