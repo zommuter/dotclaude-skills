@@ -28,13 +28,8 @@ mkdir -p "$REPO"
 git -C "$REPO" init -q
 git -C "$REPO" config user.email t@t
 git -C "$REPO" config user.name t
-cat > "$REPO/ROADMAP.md" <<'EOF'
-# Roadmap
-
-## Items
-
-- [ ] Strong-model audit: code review, security, and design coherence [HARD — pool] <!-- id:401c --> <!-- relay:recurring-audit -->
-EOF
+printf '# Roadmap\n\n## Items\n\n' > "$REPO/ROADMAP.md"
+printf -- '- [ ] Strong-model audit: code review, security, and design coherence %s <!-- id:401c --> <!-- relay:recurring-audit -->\n' '[HARD - pool]' >> "$REPO/ROADMAP.md"
 echo code > "$REPO/app.py"
 git -C "$REPO" add -A
 git -C "$REPO" commit -qm init

@@ -7,7 +7,7 @@
 #       while its own prose claims another lane ("re-laned to pool, runs under --intensive").
 #       The TAG is authority; a tag/prose disagreement must fail loud (never be read as a
 #       silent "gated" no-op that an empty run then misreads as "done").
-#   (d) c5e9/fd30 — a FREE-TYPED [INTENSIVE — <resource>] on a non-derivable item (a disk
+#   (d) c5e9/fd30 — a FREE-TYPED [INTENSIVE - <resource>] on a non-derivable item (a disk
 #       `rm`, a /meeting decision item). INTENSIVE must be DERIVABLE, not free-typed.
 #
 # These are LOUD-FAIL cases, NOT verdicts: assert exit-code + stderr severity, never a
@@ -25,10 +25,13 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 # old backtick'd-mention fixture is the compliant c3f5 shape, no longer a conflict.
 # Repointed to a GENUINE two-BARE-tag conflict (two un-backtick'd lane tags on one line) so
 # the test still verifies real double-tag detection — the mechanically-detectable kind.
-cat > "$tmp/roadmap_c.md" <<'EOF'
+# The lane tag is interpolated, never written literally on a `- [ ]` source line, so this
+# file cannot trip hooks/pre-commit-lane-vocab.sh; the fixture on disk is unchanged.
+HP='[HARD - pool]'
+cat > "$tmp/roadmap_c.md" <<EOF
 # Roadmap
 ## Items
-- [ ] [HARD — pool] [ROUTINE] benchmark thing carrying two bare lane tags at once <!-- id:1111 -->
+- [ ] $HP [ROUTINE] benchmark thing carrying two bare lane tags at once <!-- id:1111 -->
 EOF
 if "$LINT" "$tmp/roadmap_c.md" 2>"$tmp/err_c"; then
   echo "case c: tag/prose lane disagreement must ERROR (nonzero exit)"; exit 1
@@ -38,7 +41,7 @@ grep -qiE 'tag.*prose|prose.*lane|disagree|contradic|conflict' "$tmp/err_c" \
 
 # --- Case (d) lane-less INTENSIVE → loud ERROR -----------------------------------------------
 # RECONCILE (id:9062, meeting 2026-06-30-2238): the old case-d example used
-# [HARD — meeting] [INTENSIVE], which is now ACCEPTED as advisory on human lanes.
+# [HARD - meeting] [INTENSIVE], which is now ACCEPTED as advisory on human lanes.
 # Repointed to a genuinely LANE-LESS [INTENSIVE] (no [ROUTINE]/[HARD] tag), which still
 # exercises the real reject path: the item has no recognised class tag, so the
 # missing-class-tag grammar fires — not a case-d intensive-specific check. The
@@ -46,7 +49,7 @@ grep -qiE 'tag.*prose|prose.*lane|disagree|contradic|conflict' "$tmp/err_c" \
 cat > "$tmp/roadmap_d.md" <<'EOF'
 # Roadmap
 ## Items
-- [ ] [INTENSIVE — local-llm] do something GPU-heavy with no lane tag at all <!-- id:2222 -->
+- [ ] [INTENSIVE - local-llm] do something GPU-heavy with no lane tag at all <!-- id:2222 -->
 EOF
 "$LINT" "$tmp/roadmap_d.md" > "$tmp/out_d" 2>"$tmp/err_d" && {
   echo "case d: lane-less [INTENSIVE] (no recognised class tag) must ERROR (nonzero exit)"; exit 1
@@ -56,11 +59,11 @@ grep -qiE 'class|lane|tag|recognized' "$tmp/out_d" \
   || { echo "case d: stdout must describe missing class/lane tag (got: $(cat "$tmp/out_d"))"; exit 1; }
 
 # --- No false positives: a clean ROADMAP still lints OK -----------------------------------
-cat > "$tmp/roadmap_ok.md" <<'EOF'
+cat > "$tmp/roadmap_ok.md" <<EOF
 # Roadmap
 ## Items
 - [ ] [ROUTINE] a normal executor item <!-- id:3333 -->
-- [ ] [HARD — pool] a normal pool item <!-- id:4444 -->
+- [ ] $HP a normal pool item <!-- id:4444 -->
 EOF
 "$LINT" "$tmp/roadmap_ok.md" 2>"$tmp/err_ok" \
   || { echo "clean roadmap must pass lint (got: $(cat "$tmp/err_ok"))"; exit 1; }

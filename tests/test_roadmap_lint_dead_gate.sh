@@ -133,7 +133,7 @@ cat >"$b/ROADMAP.md" <<'MD'
 
 ## Deferred
 
-- [ ] [INPUT — meeting] parked item gated on a TODO-only id — section-exempt <!-- gated-on:d001 --> <!-- id:e007 -->
+- [ ] [INPUT - meeting] parked item gated on a TODO-only id — section-exempt <!-- gated-on:d001 --> <!-- id:e007 -->
 MD
 
 set +e
