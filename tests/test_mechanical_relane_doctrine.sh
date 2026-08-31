@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # roadmap:2313 — M2: the re-lane DOCTRINE must route compute-only/no-LLM work to
-# [MECHANICAL] at all THREE contract sites that today mis-lane it to [HARD — hands].
+# [MECHANICAL] at all THREE contract sites that today mis-lane it to [HARD - hands].
 #
 # WHY (meeting amendment 2026-07-02, M2): now that `[MECHANICAL]` exists (A1) and a daemon
 # (A3) can run it, three CONTRACT doc sites still route scriptable / no-human / no-LLM
-# "run X" work to `[HARD — hands]` (the human):
+# "run X" work to `[HARD - hands]` (the human):
 #   (a) hard-lanes.md — the 5-criterion (a–e) pool-vs-hands re-lane policy needs a
 #       "needs an LLM?" branch: compute-only + passes a–e ⇒ [MECHANICAL].
 #   (b) handoff.md — the author-then-run split must route the daemon-runnable "run X"
@@ -13,7 +13,7 @@
 #       (daemon-run, not human-run).
 # `gather-human-backlog.sh` already excludes `[MECHANICAL]` from human buckets in CODE
 # (slice-A A1) — M2 is the DOC/doctrine layer that keeps PRODUCERS from emitting
-# `[HARD — hands]` for daemon-runnable work in the first place. ORTHOGONAL to B2 (the
+# `[HARD - hands]` for daemon-runnable work in the first place. ORTHOGONAL to B2 (the
 # vocabulary rename): this routing must survive B2.
 #
 # STRUCTURAL (grep-style) test: asserts the bracketed `[MECHANICAL]` token appears in the

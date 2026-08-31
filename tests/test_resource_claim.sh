@@ -71,7 +71,7 @@ pass "wrap refuses to run the wrapped command when the resource is already held"
 # ── (6) the shared vocabulary doc exists and names the contract. ──
 [[ -f "$DOC" ]] || fail "shared vocabulary doc $DOC missing"
 grep -q 'resource:<name>' "$DOC" || fail "doc must document the resource:<name> key"
-grep -q 'INTENSIVE' "$DOC"       || fail "doc must tie the token to the [INTENSIVE — <resource>] tag"
+grep -q 'INTENSIVE' "$DOC"       || fail "doc must tie the token to the [INTENSIVE - <resource>] tag"
 pass "resource-claims.md documents the shared resource:<name> vocabulary"
 
 # ── (7) Makefile registration (id:69ef — no un-symlinked helper / un-installed doc). ──

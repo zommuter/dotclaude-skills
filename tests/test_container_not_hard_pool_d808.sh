@@ -6,7 +6,7 @@
 # The defect, verified in-code 2026-08-01 (gather-repo-state.sh ~:408-421):
 #   while read line; do
 #     [[ "$line" =~ ^[[:space:]]*-\ \[\ \]\  ]] || continue
-#     [[ "$(roadmap_primary_lane "$line")" == "[HARD — pool]" ]] || continue
+#     [[ "$(roadmap_primary_lane "$line")" == "[HARD - pool]" ]] || continue
 #     case "$line" in *'🚧'*|*'BLOCKED on'*|*'blocked on'*) continue ;; esac
 #     ...
 #     open_hard_pool=$((open_hard_pool + 1))
