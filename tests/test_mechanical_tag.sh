@@ -6,7 +6,7 @@
 # reviews the artifact. This RED spec pins the ADDITIVE tag+verdict plumbing only (the
 # daemon consumer is A3, gated):
 #   (a) roadmap-lint.sh ACCEPTS [MECHANICAL] standalone and composed with the orthogonal
-#       [INTENSIVE — <res>] modifier; a [MECHANICAL]+[HARD — pool] item is a two-lane conflict.
+#       [INTENSIVE - <res>] modifier; a [MECHANICAL]+[HARD - pool] item is a two-lane conflict.
 #   (b) gather-human-backlog.sh keeps a MECHANICAL-only repo OUT of every human lane.
 #   (c) classify-verdict.sh emits a NEW pool-inert `mechanical` verdict for open_mechanical>=1,
 #       with intensive="" (id:5ac6 invariant intact); a co-existing [ROUTINE] still wins.
@@ -40,26 +40,26 @@ cat >"$ok" <<'MD'
 ## Items
 
 - [ ] [MECHANICAL] a pure-compute mechanical item <!-- id:aa01 -->
-- [ ] [MECHANICAL] [INTENSIVE — local-llm] a mechanical intensive benchmark <!-- id:aa02 -->
+- [ ] [MECHANICAL] [INTENSIVE - local-llm] a mechanical intensive benchmark <!-- id:aa02 -->
 - [ ] [ROUTINE] a normal routine item <!-- id:aa03 -->
 MD
 "$LINT" "$ok" >/dev/null 2>&1 \
   || fail "(a) roadmap-lint must ACCEPT [MECHANICAL] (standalone + [INTENSIVE] composed)"
 pass "(a) roadmap-lint accepts [MECHANICAL] standalone and composed with [INTENSIVE]"
 
-# A [MECHANICAL] + [HARD — pool] item carries TWO capability lanes → conflict (nonzero).
+# A [MECHANICAL] + [HARD - pool] item carries TWO capability lanes → conflict (nonzero).
 bad="$tmp/ROADMAP_bad.md"
 cat >"$bad" <<'MD'
 # Roadmap
 
 ## Items
 
-- [ ] [MECHANICAL] [HARD — pool] two capability lanes on one item <!-- id:aa04 -->
+- [ ] [MECHANICAL] [HARD - pool] two capability lanes on one item <!-- id:aa04 -->
 MD
 if "$LINT" "$bad" >/dev/null 2>&1; then
-  fail "(a) roadmap-lint must REJECT a [MECHANICAL]+[HARD — pool] two-lane item (nonzero)"
+  fail "(a) roadmap-lint must REJECT a [MECHANICAL]+[HARD - pool] two-lane item (nonzero)"
 fi
-pass "(a) roadmap-lint rejects a [MECHANICAL]+[HARD — pool] two-lane conflict"
+pass "(a) roadmap-lint rejects a [MECHANICAL]+[HARD - pool] two-lane conflict"
 
 # --- (b) gather-human-backlog: a MECHANICAL-only repo yields NO human-lane line -
 mkdir -p "$tmp/src/repoMech"
@@ -69,7 +69,7 @@ cat >"$tmp/src/repoMech/ROADMAP.md" <<'MD'
 ## Items
 
 - [ ] [MECHANICAL] a compute-only item, no human/LLM lane <!-- id:aa05 -->
-- [ ] [MECHANICAL] [INTENSIVE — local-llm] a mechanical benchmark <!-- id:aa06 -->
+- [ ] [MECHANICAL] [INTENSIVE - local-llm] a mechanical benchmark <!-- id:aa06 -->
 MD
 cat >"$tmp/relay.toml" <<'TOML'
 [repos.repoMech]
