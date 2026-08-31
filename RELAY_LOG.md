@@ -2686,3 +2686,7 @@ Friction: none.
 refactor: none needed -- the fix is a single shared-constant delimiter widening (`_LANE_DELIM`)
 applied to three existing regexes, mirroring roadmap-lint.sh's established idiom; no new
 duplication was introduced.
+
+## 2026-08-31 22:12 — executor (sonnet, relay-loop)
+
+Em-dash migration: tracker/ledger-map.py's three lane regexes now accept the hyphen delimiter, and the one golden fixture that carried it em-dash-spelled (repo-alpha/TODO.md + its expected JSONs) migrated together in one commit (id:c442) [id:c442]
