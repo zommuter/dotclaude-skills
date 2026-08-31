@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-08-31
+
+- review: suite green 528/0/1-expected-red; b018 REMOVED_ASSERT adjudicated legitimate (overhead 12k->65k, stricter); filed id:7a5e (parked-orphan S4 regression) + id:1ccd (213a by-reference false positive); routine_open=2 (id:7a5e,1ccd,e8d4,71d6,70bc,2ee5)
+
 ## 2026-08-26
 
 - id:f2ef — flake-log width=1 confirmation run #2 done: appended a new suite row (ts 20260826T102748Z, pass=498 fail=0) to ~/.cache/dotclaude-flake/runs.jsonl (id:f2ef)
