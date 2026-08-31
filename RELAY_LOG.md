@@ -2619,3 +2619,42 @@ refactor: none needed -- a review unit writes ledger prose only, no code changed
 ## 2026-08-31 19:20 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: suite green 528/0/1-expected-red; b018 REMOVED_ASSERT adjudicated legitimate (overhead 12k->65k, stricter); filed id:7a5e (parked-orphan S4 regression) + id:1ccd (213a by-reference false positive); routine_open=2 [id:7a5e,1ccd,e8d4,71d6,70bc,2ee5]
+
+## 2026-08-31 — executor (claude-sonnet-5)
+
+Worked id:d0aa -- em-dash delimiter migration S6 (meeting/classify.sh, meeting/orphan-scan.sh,
+Makefile, hooks/lane-vocab.claude-rule.md to the two-delimiter alternation).
+
+classify.sh's lane floor (:144-204) turned out to be ALREADY delimiter-agnostic: it captures
+the whole `[LANE ...]` bracket with `grep -oE '\[(HARD|INPUT|ROUTINE|MECHANICAL)[^]]*\]'` and
+routes by SUBSTRING match on the lane word (`*pool*`, `*meeting*`, ...), never on the
+delimiter byte -- so `[HARD - pool]` was already routed identically to `[HARD — pool]` with
+zero code changes needed. Pinned that with a new fixture-per-lane test,
+tests/test_classify_hyphen_lane_delimiter_d0aa.sh (9 lanes, all pass unmodified).
+
+orphan-scan.sh's two lane-tag match sites were the genuine RED defect: `--promotion`
+(:203, `\[ROUTINE\]|\[HARD — pool\]`) and `--unbackrefed` (:515, `\[[^]]*— meeting\]|\[INPUT — decision\]`)
+were literal em-dash-pinned `grep -E` patterns that did not match the hyphen spelling.
+Converted both to the canonical two-delimiter alternation (`[[:space:]]*[—-][[:space:]]*`,
+matching roadmap-lint.sh's `lane_delim_re` convention) and added
+tests/test_orphan_scan_hyphen_lane_delimiter_d0aa.sh, which I verified is genuinely RED
+against the pre-fix code (stashed the orphan-scan.sh edit and re-ran: FAILs on the hyphen
+`[HARD - pool]` fixture while the em-dash control still passes) before restoring the fix.
+
+Also updated the two prose mentions in scope (Makefile's `install-lane-ratchet` echo and
+hooks/lane-vocab.claude-rule.md) to note the ratchet's old-vocab detection is
+delimiter-agnostic (both were already true post-S3/id:2ee5; the docs were stale). Left
+meeting/SKILL.md's em-dash-spelled lane examples untouched -- they document the ACCEPTED
+old-vocab spelling for a human reader and the dual-vocab window is still open (S10), so
+rewriting them is a spelling-preference edit with no acceptance/done-check basis, not part
+of this seam's actual scope (the done-check's `meeting/` grep is satisfied by classify.sh +
+orphan-scan.sh + SKILL.md carrying pre-existing em-dash comment matches; nothing in S6's
+acceptance requires SKILL.md's prose to flip).
+
+Full suite: 530 passed, 0 failed, 1 expected-red (open roadmap items) -- no regressions.
+
+refactor: none needed -- the two orphan-scan.sh regex sites were single-line delimiter
+substitutions using the SAME `[[:space:]]*[—-][[:space:]]*` idiom roadmap-lint.sh already
+established; no duplication was introduced to clean up.
+Friction: none -- id:e8d4 (S4, 12 bash files) remains open and is a separate, larger seam;
+this session worked only id:d0aa (S6) per the one-item-per-session rule.

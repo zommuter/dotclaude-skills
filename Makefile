@@ -452,7 +452,7 @@ install-lane-ratchet:
 		git config --global core.hooksPath $(GITHOOKS_DIR); \
 		echo "  ok  core.hooksPath -> $(GITHOOKS_DIR) (pre-commit -> pre-commit-lane-vocab.sh)"; \
 	fi
-	@echo "  note: HARD-DENY mode — blocks a commit that ADDS an old-vocab [HARD — <lane>] tag."
+	@echo "  note: HARD-DENY mode — blocks a commit that ADDS an old-vocab [HARD — <lane>] tag (either delimiter)."
 	@echo "        Self-gated to relay-onboarded (relay.toml own-set) repos; 'git commit --no-verify' escapes."
 	@$(MAKE) --no-print-directory install-lane-ratchet-claude-rule
 
