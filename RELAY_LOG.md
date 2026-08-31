@@ -2711,3 +2711,7 @@ a single transient failure in test_privacy_gate_prepush.sh that did not
 reproduce on immediate rerun (standalone and full-suite), unrelated to this
 change -- worth a look if it recurs.
 refactor: none needed -- one-line guard addition, no new duplication.
+
+## 2026-08-31 22:42 — executor (sonnet, relay-loop)
+
+execute: fixed lane-delimiter-scan.sh's directory-argument crash (id:4ce8) -- now a clean exit-2 usage error instead of an unbound-variable trace; full suite 532/0/1-expected-red [id:4ce8]
