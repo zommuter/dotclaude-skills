@@ -2775,3 +2775,7 @@ verdict=execute). Note the naive `[ROUTINE]`-plus-BLOCKED grep false-positives o
 id:4d1c, whose PROSE quotes a `lane-vocab: BLOCKED` message -- the substring
 class this repo keeps rediscovering.
 verified_green: 4ce8, 32f9. reopened: none. gaming_flags: none.
+
+## 2026-08-31 23:02 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:4ce8 + id:32f9 both VERIFIED GREEN by independent done-check re-run (make test = the only declared tier, 532/0/1-expected-red, none skipped); gaming-scan clean, resurrection + over-reach + provenance passes all clean; re-measured id:1a03's grep 53->49 and read all 49 -- every one is prose, ZERO emitters, so filed id:ad2a (prose-blind done-check is a re-file trap) + id:9e86 (id:4ce8 added a dead `[[ ! -e ]]` branch its `refactor: none needed` glossed; NOT reopened); routine_open=1 [id:ad2a,9e86] [id:4ce8,32f9,ad2a,9e86]
