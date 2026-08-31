@@ -21,6 +21,15 @@
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Neutralize the developer's global git core.hooksPath (id:4d1c). This test's own
+# fixture `git commit`s (base/legacy/reset below) carry old-vocab content and export
+# LANE_VOCAB_RELAY_TOML marking the fixture repo as "own" for its DIRECT invocations
+# of $HOOK further down — but that same env var also scopes-in a REAL installed
+# pre-commit-lane-vocab.sh via the developer's global hooksPath, which then blocks
+# this test's own setup commits when run directly (not through tests/run-tests.sh).
+# The direct `bash "$HOOK"` calls below are unaffected: they invoke the hook's logic
+# explicitly, not through a git-commit-triggered hooksPath lookup.
+source "$SRC_DIR/tests/lib/hermetic-git-env.sh"
 HOOK="$SRC_DIR/hooks/pre-commit-lane-vocab.sh"
 
 pass=0 fail=0
