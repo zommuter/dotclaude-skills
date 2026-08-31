@@ -29,45 +29,45 @@ Every open `[HARD]` ROADMAP item declares exactly one lane in its bracket tag:
 
 | Lane tag | Disposition | Who runs it |
 |---|---|---|
-| `[HARD — pool]` | Bounded, unattended-safe apex work | the `/relay --afk` pool's `hard` verdict (id:da26) — NOT surfaced to human triage |
-| `[HARD — meeting]` | Needs a design decision before anyone can build it | `/meeting` / `/meeting --cross` |
-| `[HARD — hands]` | Hardware / sudo / secret / on-device / rehearsal | the human ("you run these") — NOT a meeting, NOT the pool |
+| `[HARD - pool]` | Bounded, unattended-safe apex work | the `/relay --afk` pool's `hard` verdict (id:da26) — NOT surfaced to human triage |
+| `[HARD - meeting]` | Needs a design decision before anyone can build it | `/meeting` / `/meeting --cross` |
+| `[HARD - hands]` | Hardware / sudo / secret / on-device / rehearsal | the human ("you run these") — NOT a meeting, NOT the pool |
 
 ### Recognized aliases (meeting lane)
 
-The relay auto-gate machinery (id:3801) emits `[HARD — decision gate]` and inline
+The relay auto-gate machinery (id:3801) emits `[HARD - decision gate]` and inline
 `🚧 ... route:meeting|human|decision-gate` markers. These are EXACT SYNONYMS of the
 `meeting` lane — collectors recognize them as `bucket = meeting`, they are NOT
-untagged. Do not mass-rewrite an auto-emitted `[HARD — decision gate]` tag to
-`[HARD — meeting]` by hand: that tag is machine-managed and the two spellings are
+untagged. Do not mass-rewrite an auto-emitted `[HARD - decision gate]` tag to
+`[HARD - meeting]` by hand: that tag is machine-managed and the two spellings are
 equivalent in this contract.
 
 ## The `[MECHANICAL]` capability tier (id:7616, meeting 2026-07-02-1924 decision 1)
 
-A FOURTH capability tag, additive alongside `[ROUTINE]` and the `[HARD — *]` lanes:
+A FOURTH capability tag, additive alongside `[ROUTINE]` and the `[HARD - *]` lanes:
 pure-compute work no LLM or human runs at all — local-LLM benchmarks, pytorch pilots,
 any artifact a host daemon can produce unattended. An LLM session only REVIEWS the
 resulting artifact; it never runs the compute itself.
 
 | Property | Value |
 |---|---|
-| Class tag | `[MECHANICAL]` (standalone, or composed with `[INTENSIVE — <resource>]`) |
+| Class tag | `[MECHANICAL]` (standalone, or composed with `[INTENSIVE - <resource>]`) |
 | Who runs it | a **host daemon / CLI** (A3, gated — not built by this item) |
 | Pool disposition | **pool-inert** — the classifier's `mechanical` verdict is never dispatched by the `/relay --afk` pool (same non-dispatch treatment as a human verdict) |
 | Human disposition | **human-inert too** — `gather-human-backlog.sh` keeps a `[MECHANICAL]` item out of every human-triage bucket (hard_pool/hard_meeting/hard_hands/manual/review_me); it is neither pool work nor human-triage backlog |
-| `[INTENSIVE — <resource>]` | **composes** — an `[INTENSIVE]` resource-axis modifier may co-occur, e.g. `[MECHANICAL] [INTENSIVE — local-llm]`; the resource axis stays orthogonal, same as on any other lane |
-| Two-lane conflict | `[MECHANICAL]` is itself a capability lane — combining it with a `[HARD — *]` lane on the same item (e.g. `[MECHANICAL] [HARD — pool]`) is a tag/prose lane conflict, rejected by `roadmap-lint.sh` exactly like two `[HARD — *]` tags would be |
-| Classifier verdict | `mechanical` (`relay/scripts/classify-verdict.sh`) — fires when `open_mechanical >= 1` and nothing higher-priority is present (no actionable `[ROUTINE]` / unaudited commits / `[HARD — pool]` / promotable or surface TODO backlog); `intensive` stays `""` on it (id:5ac6 invariant `intensive!="" => verdict in {execute,hard}` holds unchanged) |
+| `[INTENSIVE - <resource>]` | **composes** — an `[INTENSIVE]` resource-axis modifier may co-occur, e.g. `[MECHANICAL] [INTENSIVE - local-llm]`; the resource axis stays orthogonal, same as on any other lane |
+| Two-lane conflict | `[MECHANICAL]` is itself a capability lane — combining it with a `[HARD - *]` lane on the same item (e.g. `[MECHANICAL] [HARD - pool]`) is a tag/prose lane conflict, rejected by `roadmap-lint.sh` exactly like two `[HARD - *]` tags would be |
+| Classifier verdict | `mechanical` (`relay/scripts/classify-verdict.sh`) — fires when `open_mechanical >= 1` and nothing higher-priority is present (no actionable `[ROUTINE]` / unaudited commits / `[HARD - pool]` / promotable or surface TODO backlog); `intensive` stays `""` on it (id:5ac6 invariant `intensive!="" => verdict in {execute,hard}` holds unchanged) |
 
 This item (id:7616, slice A) adds ONLY the tag + verdict plumbing — it does NOT build
-the daemon consumer (that is A3, gated). The slice-B `[HARD — *]` → two-axis-vocabulary
+the daemon consumer (that is A3, gated). The slice-B `[HARD - *]` → two-axis-vocabulary
 rename (gated, B1/B2) is where `[MECHANICAL]` folds into the renamed lane vocabulary
 alongside the resource axis; until then it stands as its own additive capability tier.
 
 ## The `@needs-auth` marker — human-held secret / interactive-auth wall (id:a505)
 
-`@needs-auth` is a **marker**, NOT a lane — it is orthogonal to the `[HARD — *]` /
-`[INPUT — *]` lanes AND to `@manual`. It records that a piece of work is blocked on a
+`@needs-auth` is a **marker**, NOT a lane — it is orthogonal to the `[HARD - *]` /
+`[INPUT - *]` lanes AND to `@manual`. It records that a piece of work is blocked on a
 **human-held secret or an interactive-auth wall** a relay child cannot clear unattended.
 The definition is **broad**: any human-held secret OR interactive auth — sudo/askpass,
 polkit/pamac, ssh/login, gpg/credential, browser-OAuth, a decryption passphrase, a
@@ -104,7 +104,7 @@ handback when separability is uncertain), rather than stranding the unit — see
 
 ## The `@owner-gated` marker — only the OWNER can discharge it (id:7517, OWNER RULING 2026-08-14)
 
-`@owner-gated` is a **marker**, NOT a lane — orthogonal to the `[HARD — *]` / `[INPUT — *]`
+`@owner-gated` is a **marker**, NOT a lane — orthogonal to the `[HARD - *]` / `[INPUT - *]`
 lanes and to `@manual`/`@needs-auth`/`@container`, exactly like them. It records that the
 item is the **owner's own call** (a GO/NO-GO, a scope cut, a design-direction verdict), so
 no executor — and no delegated agent — can discharge it.
@@ -128,7 +128,7 @@ section was parked only because `lib-roadmap-sections.sh`'s heading vocab substr
 
 ## The `@wire` marker — executor-verifiable-via-a-host/e2e-RED-spec (id:ac7f)
 
-`@wire` is a **marker**, NOT a lane — orthogonal to the `[HARD — *]` / `[INPUT — *]`
+`@wire` is a **marker**, NOT a lane — orthogonal to the `[HARD - *]` / `[INPUT - *]`
 lanes AND to `@manual`/`@needs-auth`, exactly like them. It records that a piece of work
 is **executor-verifiable via a host/e2e RED spec**: a strong (handoff) session can author
 a failing host/e2e test that pins the wiring, and a cheap executor can drive it green.
@@ -147,7 +147,7 @@ excluded, the verdict cascade never reached `execute`, the repo read as no-actio
 and an agent then wrote "drained" as freehand prose. The mislabel was the whole bug.
 
 **Mechanical contract (D4).** An open `@wire` item on a **primary executor lane**
-(`[ROUTINE]` / `[HARD — pool]` / `[HARD]`), NOT human-gated / `@manual` / blocked /
+(`[ROUTINE]` / `[HARD - pool]` / `[HARD]`), NOT human-gated / `@manual` / blocked /
 in an exempt section, **counts toward `actionable_routine_open`** in
 `relay/scripts/classify-repo.sh` — so `classify-verdict.sh`'s execute gate fires
 (`verdict=execute`). The identical item WITHOUT `@wire` stays plain pool-lane hard work
@@ -174,7 +174,7 @@ which human-triage bucket (if any) an item lands in.
 ## Executor-readiness markers — `@owner-verify` / `@owner-accepted` / `@manual` (id:65f5)
 
 Three markers govern whether a piece of work is **executor-ready**. They are
-**markers, NOT lanes** (orthogonal to `[HARD — *]` / `[INPUT — *]` and to each other),
+**markers, NOT lanes** (orthogonal to `[HARD - *]` / `[INPUT - *]` and to each other),
 documented side-by-side because they are easily confused — each says something different
 about *who* must act and *when* an executor may. (Meeting `docs/meeting-notes/2026-07-20-1918-relay-lease-scope-executor-readiness-bump-gate.md`, D2.)
 
@@ -203,8 +203,8 @@ authored) is excluded from `actionable_routine_open` and routes the repo to verd
 
 ## The `@owner-answered` marker -- a QUESTION inside the item is answered (id:ca14)
 
-`@owner-answered:YYYY-MM-DD` is a **marker**, NOT a lane, orthogonal to the `[HARD — *]` /
-`[INPUT — *]` lanes and to `@manual`/`@needs-auth`/`@container`/`@owner-gated`, exactly like
+`@owner-answered:YYYY-MM-DD` is a **marker**, NOT a lane, orthogonal to the `[HARD - *]` /
+`[INPUT - *]` lanes and to `@manual`/`@needs-auth`/`@container`/`@owner-gated`, exactly like
 its siblings. It records that **one question inside this item** has been ANSWERED by the
 owner, on that date, and it is **always paired with a citation**:
 
@@ -258,17 +258,17 @@ text can establish.
 
 ## The orthogonal resource axis (NOT a lane)
 
-`[INTENSIVE — <resource>]` (id:8d52) is an ORTHOGONAL resource modifier, not a lane.
+`[INTENSIVE - <resource>]` (id:8d52) is an ORTHOGONAL resource modifier, not a lane.
 An `[INTENSIVE]` item still carries one of the three lanes — e.g. a pool-executable
-intensive item is `[HARD — pool] [INTENSIVE — local-llm]`. The resource axis governs
+intensive item is `[HARD - pool] [INTENSIVE - local-llm]`. The resource axis governs
 *scheduling* (run-serially-alone, exclusive `resource:` claim); the lane governs
-*disposition* (who acts on it). Never use `[INTENSIVE — ...]` in place of a lane tag.
+*disposition* (who acts on it). Never use `[INTENSIVE - ...]` in place of a lane tag.
 
 ### Operative vs advisory (id:9062, meeting 2026-06-30-2238)
 
 `[INTENSIVE]` is **operative** (serial-alone scheduling, exclusive `resource:` claim,
 `--intensive` gate, classifier flag) **only on relay-dispatchable lanes** (`[ROUTINE]`,
-`[HARD — pool]`). On human lanes (`hands`, `meeting`, `decision gate`, `@manual`) it is
+`[HARD - pool]`). On human lanes (`hands`, `meeting`, `decision gate`, `@manual`) it is
 an **advisory OOM note** — mechanically inert, NOT a violation. Not "amplification of
 HARD" (routine-intensive is operative). The dispatch hazard is neutralised by
 `gather-repo-state.sh`'s `top_intensive` exclusion (id:a707), which already keeps human
@@ -279,7 +279,7 @@ tag at all) is a grammar error.
 ### Lane criterion for an INTENSIVE item: `pool` vs `hands` (id:db39, meeting 2026-06-30)
 
 "Intensive" is about compute weight, NOT who acts — an `[INTENSIVE]` item is NOT
-automatically `hands`. Lane it `[HARD — pool]` (so the `--intensive` pool runs it
+automatically `hands`. Lane it `[HARD - pool]` (so the `--intensive` pool runs it
 serially-alone via the `hard` verdict, id:da26) **iff ALL FIVE** hold; otherwise keep
 it `hands` (or `meeting` when (e) is the failure):
 
@@ -295,20 +295,20 @@ it `hands` (or `meeting` when (e) is the failure):
   `meeting`.*
 
 **Needs an LLM? branch (id:2313, meeting amendment 2026-07-02).** An item that passes
-a–e is not automatically `[HARD — pool]` — first ask whether the run itself needs an
+a–e is not automatically `[HARD - pool]` — first ask whether the run itself needs an
 LLM session at all:
 - **Compute-only, no-LLM, no human judgment** (a benchmark battery, a training/eval
   run, a `model-probe.sh`-style pilot) that passes a–e ⇒ **`[MECHANICAL]`** — daemon-run
   (A3, id:b3d0), not pool-dispatched. This is the producer instruction handoff.md C2
   follows (id:9c88) when it recognizes compute-only work.
 - **Needs an LLM session** (code review, judgment, an interactive turn) and passes a–e
-  ⇒ `[ROUTINE]`/`[HARD — pool]` as before.
-- **Fails a–e** (needs a human's hands/eyes/credential) ⇒ stays `[HARD — hands]` (or
+  ⇒ `[ROUTINE]`/`[HARD - pool]` as before.
+- **Fails a–e** (needs a human's hands/eyes/credential) ⇒ stays `[HARD - hands]` (or
   `meeting` when (e) is the failure) — unchanged.
 
 Worked verdicts (the policy is only as good as its calls):
 - `ai-codebench` id:244b (benchmark drain, idempotent `--resume`, dashboard done-check,
-  zomni-bound) → passes a–e → **`[HARD — pool] [INTENSIVE — local-llm] [host:zomni]`**.
+  zomni-bound) → passes a–e → **`[HARD - pool] [INTENSIVE - local-llm] [host:zomni]`**.
 - `it-infra` id:c5e9 (unused-GGUF `rm`) → fails (b) → **stays hands**.
 - `it-infra` id:fd30 (`--reasoning off` *post-gate decisions*) → fails (e) → **stays hands**.
 - `it-infra` id:9321 (XPU seed-hunt, live GPU+sudo+LLM-stack) → fails (c) → **stays hands**.
@@ -319,7 +319,7 @@ item carries — so `tests/test_hard_lane_buckets.sh` (marker-set cross-check) i
 ## North star — capability-keyed vocabulary (id:4f02, meeting 2026-07-02-1924 decision 1)
 
 **Ratified target vocabulary.** Two orthogonal axes, replacing the venue-keyed
-`[HARD — <lane>]` spelling above: the **capability** axis says *what kind of actor
+`[HARD - <lane>]` spelling above: the **capability** axis says *what kind of actor
 the item requires*, not *which queue it sits in* — dispatch venue is DERIVED from the
 capability tag, never spelled into it.
 
@@ -327,15 +327,15 @@ capability tag, never spelled into it.
 |---|---|---|
 | `[ROUTINE]` | executor-tier LLM (cheap Sonnet) | yes |
 | `[HARD]` | strong/apex LLM, unattended-safe | yes |
-| `[INPUT — meeting]` | human design judgment (`/meeting`) | yes (meeting session) |
-| `[INPUT — decision]` | human decides, no design session needed (auto-gate) | no |
-| `[INPUT — access]` | human credential/hardware/physical action | no |
-| `[INPUT — author]` | human-expert-authored content/prose (not a design decision, not credential/hardware) | no |
+| `[INPUT - meeting]` | human design judgment (`/meeting`) | yes (meeting session) |
+| `[INPUT - decision]` | human decides, no design session needed (auto-gate) | no |
+| `[INPUT - access]` | human credential/hardware/physical action | no |
+| `[INPUT - author]` | human-expert-authored content/prose (not a design decision, not credential/hardware) | no |
 | `[MECHANICAL]` | pure compute, no LLM or human runs it (a host daemon does) | no |
 
-The orthogonal **resource** axis is unchanged: `[INTENSIVE — <resource>]` composes
+The orthogonal **resource** axis is unchanged: `[INTENSIVE - <resource>]` composes
 with any capability tag (operative on `[ROUTINE]`/`[HARD]`/`[MECHANICAL]`,
-advisory-inert on the `[INPUT — …]` human lanes) — see "The orthogonal resource axis"
+advisory-inert on the `[INPUT - …]` human lanes) — see "The orthogonal resource axis"
 above, which stays coherent under the rename.
 
 ### Rename mapping (old → new)
@@ -343,34 +343,34 @@ above, which stays coherent under the rename.
 The three UNAMBIGUOUS 1:1 renames (auto-converted by `relay/scripts/lane-convert.sh`,
 id:4f02):
 
-| Old (`[HARD — *]`) | New | Ambiguity |
+| Old (`[HARD - *]`) | New | Ambiguity |
 |---|---|---|
-| `[HARD — pool]` | `[HARD]` | none — 1:1 |
-| `[HARD — meeting]` | `[INPUT — meeting]` | none — 1:1 |
-| `[HARD — decision gate]` | `[INPUT — decision]` | none — 1:1 (covers the `🚧 route:decision-gate` auto-gate alias too) |
+| `[HARD - pool]` | `[HARD]` | none — 1:1 |
+| `[HARD - meeting]` | `[INPUT - meeting]` | none — 1:1 |
+| `[HARD - decision gate]` | `[INPUT - decision]` | none — 1:1 (covers the `🚧 route:decision-gate` auto-gate alias too) |
 
-`[HARD — hands]` has **NO single auto-default** (amendment 2026-07-02, correcting
-decision 1's original coarse `[INPUT — access]` mapping). It fragments across
+`[HARD - hands]` has **NO single auto-default** (amendment 2026-07-02, correcting
+decision 1's original coarse `[INPUT - access]` mapping). It fragments across
 **FOUR** candidate destinations by **per-item human judgment** — the converter never
 guesses which:
 
 | Candidate destination | When |
 |---|---|
 | `[MECHANICAL]` | the run itself needs no LLM/human — a daemon can execute it (id:2313's "needs an LLM?" branch) |
-| `[INPUT — access]` | needs a live credential / physical hardware / on-device action, no open judgment call |
-| `[INPUT — decision]` | needs a human decision but not a design session (e.g. it-infra fd30 "post-gate decisions") |
-| `[INPUT — meeting]` | needs actual design judgment / interpretation (e.g. a rehearsal needing interpretation) |
+| `[INPUT - access]` | needs a live credential / physical hardware / on-device action, no open judgment call |
+| `[INPUT - decision]` | needs a human decision but not a design session (e.g. it-infra fd30 "post-gate decisions") |
+| `[INPUT - meeting]` | needs actual design judgment / interpretation (e.g. a rehearsal needing interpretation) |
 
-`relay/scripts/lane-convert.sh` therefore LEAVES every `[HARD — hands]` item
+`relay/scripts/lane-convert.sh` therefore LEAVES every `[HARD - hands]` item
 UNCHANGED and FLAGS it on stderr naming all four candidates — resolving each one is
 per-item judgment work (M3, id:3ef7 / B2), not a mechanical rewrite.
 
 ### Dual-vocab migration window (OPEN as of id:4f02; still open)
 
-Both spellings — the old `[HARD — pool|meeting|hands|decision gate]` venue-keyed
+Both spellings — the old `[HARD - pool|meeting|hands|decision gate]` venue-keyed
 lanes documented above, AND the new capability-keyed vocabulary in this section — are
 **ERROR-free** in `roadmap-lint.sh` during the window. An item carrying BOTH an old
-lane and its new rename simultaneously (e.g. `[HARD — pool]` + `[HARD]` on one line)
+lane and its new rename simultaneously (e.g. `[HARD - pool]` + `[HARD]` on one line)
 is still a case-c tag/prose conflict (never both). The window CLOSES (old-vocab →
 lint ERROR) only at the tail of B2 (id:8111), after every reader and this repo's own
 ledgers/tests are migrated — that flip is deliberately NOT part of this item.
@@ -378,13 +378,13 @@ ledgers/tests are migrated — that flip is deliberately NOT part of this item.
 ## Canonical marker set (the contract both consumers parse)
 
 ```
-[HARD — pool]                      → bucket: pool
-[HARD — meeting]                   → bucket: meeting
-[HARD — decision gate]             → bucket: meeting   (auto-gate alias, id:3801)
+[HARD - pool]                      → bucket: pool
+[HARD - meeting]                   → bucket: meeting
+[HARD - decision gate]             → bucket: meeting   (auto-gate alias, id:3801)
 🚧 ... route:meeting               → bucket: meeting   (auto-gate inline alias)
 🚧 ... route:human                 → bucket: meeting   (auto-gate inline alias)
 🚧 ... route:decision-gate         → bucket: meeting   (auto-gate inline alias)
-[HARD — hands]                     → bucket: hands
+[HARD - hands]                     → bucket: hands
 [HARD]  (no recognized lane)       → bucket: untagged  → LOUD reject, exit nonzero
 ```
 
@@ -394,8 +394,8 @@ so the gap is fixed at the source, never silently bucketed.
 
 ## Live-availability gate for `[INTENSIVE]` auto-launch (id:68dc, A5)
 
-The mechanical-run daemon (`[HARD — pool]` A3, gated on 68dc + others) does not launch
-an `[INTENSIVE — <resource>]` recipe on the permitted-intensity window (A4) alone. Two
+The mechanical-run daemon (`[HARD - pool]` A3, gated on 68dc + others) does not launch
+an `[INTENSIVE - <resource>]` recipe on the permitted-intensity window (A4) alone. Two
 conditions must BOTH hold:
 
 1. **Permitted-intensity window** (A4) — `relay intensity` graded window

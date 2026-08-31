@@ -68,49 +68,15 @@ id_re='id:[0-9a-fA-F]{4}'
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 lanes_doc="$script_dir/../references/hard-lanes.md"
 
-hard_lanes=""
-if [[ -f "$lanes_doc" ]]; then
-  hard_lanes="$(grep -oE '\[HARD — [a-z][a-z ]*[a-z]\]' "$lanes_doc" | sort -u || true)"
-fi
-if [[ -z "$hard_lanes" ]]; then
-  hard_lanes=$'[HARD — pool]\n[HARD — meeting]\n[HARD — hands]\n[HARD — decision gate]'
-fi
-
-input_lanes=""
-if [[ -f "$lanes_doc" ]]; then
-  input_lanes="$(grep -oE '\[INPUT — [a-z]+\]' "$lanes_doc" | sort -u || true)"
-fi
-if [[ -z "$input_lanes" ]]; then
-  input_lanes=$'[INPUT — meeting]\n[INPUT — decision]\n[INPUT — access]'
-fi
-
-all_lane_tags=("[ROUTINE]" "[MECHANICAL]" "[HARD]")
-while IFS= read -r _hl; do
-  [[ -n "$_hl" ]] && all_lane_tags+=("$_hl")
-done <<< "$hard_lanes"
-while IFS= read -r _il; do
-  [[ -n "$_il" ]] && all_lane_tags+=("$_il")
-done <<< "$input_lanes"
-
-# mask_backticks <str> — replace every backtick-quoted span (backticks included)
-# with '#' filler of the SAME LENGTH, so positions in the masked string line up
-# byte-for-byte with the original. A tag found only inside a masked span is a
-# prose MENTION, not a live lane, and must not be matched.
-mask_backticks() {
-  local s="$1" out="" c i in_tick=0
-  for (( i=0; i<${#s}; i++ )); do
-    c="${s:i:1}"
-    if [[ "$c" == '`' ]]; then
-      in_tick=$((1 - in_tick))
-      out+='#'
-    elif [[ "$in_tick" -eq 1 ]]; then
-      out+='#'
-    else
-      out+="$c"
-    fi
-  done
-  printf '%s' "$out"
-}
+# The SHARED scraper + masking/anchoring helpers (id:70bc/71d6). There is NO
+# hardcoded fallback vocabulary any more: this converter used to REWRITE tags out of
+# a built-in em-dash set while the SSOT said something else, with rc=0 and an EMPTY
+# stderr — the id:d35a silent-no-op class. An empty scrape is now fatal and names the
+# doc. `lane_vocab_scrape` populates hard_lanes / input_lanes (both delimiter
+# spellings), hard_lane_names / input_lane_names, and all_lane_tags.
+# shellcheck source=relay/scripts/lib-lane-anchor.sh
+source "$script_dir/lib-lane-anchor.sh"
+lane_vocab_scrape "$lanes_doc" || exit 2
 
 # find_tag_pos <haystack> <tag...> — leftmost byte position + tag string among
 # the given tags in haystack; sets globals TAG_POS (-1 if none) and TAG.
@@ -200,15 +166,23 @@ rename_rest() {
   find_tag_pos "$masked" "${all_lane_tags[@]}"
   local primary_pos="$TAG_POS" primary_tag="$TAG"
   [[ "$primary_pos" -lt 0 ]] && return
-  if [[ "$primary_tag" == '[HARD — hands]' ]]; then
+  # Key the rename on the LANE NAME, never on the delimiter byte (id:71d6): both
+  # `[HARD — pool]` and `[HARD - pool]` are the pool lane and rename identically.
+  # The emitted replacement keeps its current spelling — flipping what this
+  # converter WRITES is the emitter seam, not this one.
+  local lane_name=""
+  if [[ "$primary_tag" =~ ^\[HARD[[:space:]]*[—-][[:space:]]*(.*)\]$ ]]; then
+    lane_name="${BASH_REMATCH[1]}"
+  fi
+  if [[ "$lane_name" == 'hands' ]]; then
     HANDS_PRIMARY=1
     return
   fi
   local repl=""
-  case "$primary_tag" in
-    '[HARD — pool]')          repl='[HARD]' ;;
-    '[HARD — meeting]')       repl='[INPUT — meeting]' ;;
-    '[HARD — decision gate]') repl='[INPUT — decision]' ;;
+  case "$lane_name" in
+    'pool')          repl='[HARD]' ;;
+    'meeting')       repl='[INPUT — meeting]' ;;
+    'decision gate') repl='[INPUT — decision]' ;;
   esac
   if [[ -n "$repl" ]]; then
     local primary_end=$((primary_pos + ${#primary_tag}))

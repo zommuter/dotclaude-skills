@@ -76,25 +76,18 @@ fi
 # ── id:4da4-anchored lane-tag vocabulary (mirrors lane-convert.sh / roadmap-lint.sh) ────
 lanes_doc="$HOOK_REPO_DIR/relay/references/hard-lanes.md"
 
-hard_lanes=""
-if [[ -f "$lanes_doc" ]]; then
-  hard_lanes="$(grep -oE '\[HARD — [a-z][a-z ]*[a-z]\]' "$lanes_doc" | sort -u || true)"
+lane_lib="$HOOK_REPO_DIR/relay/scripts/lib-lane-anchor.sh"
+if [[ ! -r "$lane_lib" ]]; then
+  notice "FATAL — cannot read the shared lane-vocabulary scraper at $lane_lib; refusing to guess a lane set."
+  exit 1
 fi
-if [[ -z "$hard_lanes" ]]; then
-  hard_lanes=$'[HARD — pool]\n[HARD — meeting]\n[HARD — hands]\n[HARD — decision gate]'
-fi
-
-input_lanes=""
-if [[ -f "$lanes_doc" ]]; then
-  input_lanes="$(grep -oE '\[INPUT — [a-z]+\]' "$lanes_doc" | sort -u || true)"
-fi
-if [[ -z "$input_lanes" ]]; then
-  input_lanes=$'[INPUT — meeting]\n[INPUT — decision]\n[INPUT — access]'
-fi
-
-all_lane_tags=("[ROUTINE]" "[MECHANICAL]" "[HARD]")
-while IFS= read -r _hl; do [[ -n "$_hl" ]] && all_lane_tags+=("$_hl"); done <<< "$hard_lanes"
-while IFS= read -r _il; do [[ -n "$_il" ]] && all_lane_tags+=("$_il"); done <<< "$input_lanes"
+# shellcheck source=relay/scripts/lib-lane-anchor.sh
+source "$lane_lib"
+# NO hardcoded fallback vocabulary (id:71d6). The old one made a broken scrape look
+# like a working one and, being em-dash-keyed, would have silently disarmed this
+# ratchet the moment the SSOT's delimiter flipped — SILENTLY, with rc=0 and no
+# output. An empty/unreadable SSOT is now a LOUD block naming the doc path.
+lane_vocab_scrape "$lanes_doc" || exit 1
 
 # old-vocab tags = the [HARD — <lane>] set (everything in hard_lanes); new-vocab [HARD]
 # (bare) is never old-vocab.
@@ -106,23 +99,8 @@ declare -A old_vocab_replacement=(
 # [HARD — hands] has no 1:1 auto-default (fragments across 4 candidates, mirrors
 # lane-convert.sh's NEEDS JUDGMENT handling) — named specially below.
 
-# mask_backticks <str> — replace every backtick-quoted span (backticks included) with '#'
-# filler of the SAME LENGTH, so byte positions line up with the original. A tag found only
-# inside a masked span is a prose MENTION, not a live lane tag.
-mask_backticks() {
-  local s="$1" out="" c i in_tick=0
-  for (( i=0; i<${#s}; i++ )); do
-    c="${s:i:1}"
-    if [[ "$c" == '`' ]]; then
-      in_tick=$((1 - in_tick)); out+='#'
-    elif [[ "$in_tick" -eq 1 ]]; then
-      out+='#'
-    else
-      out+="$c"
-    fi
-  done
-  printf '%s' "$out"
-}
+# `mask_backticks` comes from the shared lib-lane-anchor.sh sourced above (id:70bc) —
+# this hook used to carry its own byte-identical copy.
 
 # first_lane_tag <line> — leftmost recognized lane tag by byte position, AFTER masking
 # backtick-quoted spans (mirrors roadmap-lint.sh's first_lane_tag strip=1 / lane-convert.sh's
