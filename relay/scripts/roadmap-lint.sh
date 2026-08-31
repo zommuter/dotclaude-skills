@@ -116,6 +116,12 @@ fi
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 lanes_doc="$script_dir/../references/hard-lanes.md"
 
+# shellcheck source=relay/scripts/lib-lane-anchor.sh
+# The SHARED lane-anchoring engine (id:70bc): `leading_lane_run` (rule 3(g)'s
+# anchoring, adopted here in 7a86cdb3) and `mask_backticks` live there now, so this
+# lint and relay/scripts/lane-delimiter-scan.sh can never drift apart on what counts
+# as a LIVE lane tag versus a prose mention.
+source "$script_dir/lib-lane-anchor.sh"
 # shellcheck source=relay/scripts/lib-anchored-id.sh
 source "$script_dir/lib-anchored-id.sh"
 # shellcheck source=relay/scripts/lib-state-claim.sh
@@ -134,24 +140,24 @@ source "$script_dir/lib-typed-edges.sh"
 # sibling to this script.
 STATE_CLAIM_BASELINE="${STATE_CLAIM_BASELINE:-$script_dir/../state-claim-baseline.txt}"
 
-# Extract every `[HARD — <lane>]` marker from the canonical doc → an alternation
-# of recognized hard-lane suffixes. Falls back to the documented set if the doc is
-# somehow unreadable (fail-safe: never crash the lint on a missing doc, but log it).
-hard_lanes=""
-if [[ -f "$lanes_doc" ]]; then
-  # Markers look like `[HARD — pool]`, `[HARD — decision gate]`, … (em dash U+2014).
-  hard_lanes="$(grep -oE '\[HARD — [a-z][a-z ]*[a-z]\]' "$lanes_doc" | sort -u || true)"
-fi
-if [[ -z "$hard_lanes" ]]; then
-  echo "roadmap-lint: WARNING — could not read lanes from $lanes_doc; using built-in fallback set" >&2
-  hard_lanes=$'[HARD — pool]\n[HARD — meeting]\n[HARD — hands]\n[HARD — decision gate]'
-fi
+# Read the recognized lane vocabulary out of the canonical doc (id:78ff single
+# source of truth) via the SHARED scraper in lib-lane-anchor.sh. There is NO
+# built-in fallback set any more (id:71d6): the fallback made a broken scrape look
+# like a working one, so flipping the doc's delimiter left all three readers
+# enforcing the old vocabulary in silence -- the id:d35a silent-no-op class inside
+# the tooling built to prevent it. An empty/unreadable doc is now FATAL and names
+# the path. `lane_vocab_scrape` sets hard_lanes / input_lanes (both delimiter
+# spellings of every lane), hard_lane_names / input_lane_names, and all_lane_tags.
+lane_vocab_scrape "$lanes_doc" || exit 2
 
-# Build a bash regex alternation of the lane suffixes (the part after `[HARD — `).
-# e.g. "pool|meeting|hands|decision gate"
-lane_alt="$(printf '%s\n' "$hard_lanes" \
-  | sed -E 's/^\[HARD — (.*)\]$/\1/' \
-  | paste -sd'|' -)"
+# A bash regex alternation of the lane NAMES (the part after the delimiter),
+# e.g. "pool|meeting|hands|decision gate". Names, never spellings -- the delimiter
+# is matched separately so both spellings stay recognized.
+lane_alt="$(printf '%s\n' "$hard_lane_names" | paste -sd'|' -)"
+
+# The delimiter itself, as a bash-regex fragment: an em dash OR an ASCII hyphen,
+# with optional surrounding whitespace. ONE definition, used by every pattern below.
+lane_delim_re='[[:space:]]*[—-][[:space:]]*'
 
 # --- PARKED-POOL-LANE pool-executable set (id:d35a, owner ruling 2026-08-27) ---
 # A `### Visibility-only — human lane, NOT dispatchable` heading was NOT recognized
@@ -183,10 +189,10 @@ lane_alt="$(printf '%s\n' "$hard_lanes" \
 # S1/S4/S5 — three of the five items in its own origin incident (id:d35a).
 # The `\[HARD\]` alternative matches ONLY the bare form; `[HARD — meeting]` and the
 # rest of the `[HARD — *]` family cannot match it (the `]` is anchored).
-if grep -qxF '[HARD — pool]' <<<"$hard_lanes"; then
-  pool_lane_re='\[ROUTINE\]|\[HARD\]|\[HARD — pool\]'
+if grep -qxF 'pool' <<<"$hard_lane_names"; then
+  pool_lane_re="\[ROUTINE\]|\[HARD\]|\[HARD${lane_delim_re}pool\]"
 else
-  echo "roadmap-lint: WARNING — [HARD — pool] not found in $lanes_doc; PARKED-POOL-LANE will only catch [ROUTINE] and bare [HARD]" >&2
+  echo "roadmap-lint: WARNING -- no 'pool' lane found in $lanes_doc; PARKED-POOL-LANE will only catch [ROUTINE] and bare [HARD]" >&2
   pool_lane_re='\[ROUTINE\]|\[HARD\]'
 fi
 
@@ -194,19 +200,10 @@ fi
 # The target capability-keyed vocabulary (`[HARD]` bare + `[INPUT — meeting|decision|
 # access]`) is ALSO read from hard-lanes.md's north-star section, so both spellings
 # stay ERROR-free during the migration window without a second hardcoded copy here.
-# Extract every `[INPUT — <kind>]` marker from the doc → an alternation of
-# recognized INPUT kinds.
-input_lanes=""
-if [[ -f "$lanes_doc" ]]; then
-  input_lanes="$(grep -oE '\[INPUT — [a-z]+\]' "$lanes_doc" | sort -u || true)"
-fi
-if [[ -z "$input_lanes" ]]; then
-  echo "roadmap-lint: WARNING — could not read INPUT lanes from $lanes_doc; using built-in fallback set" >&2
-  input_lanes=$'[INPUT — meeting]\n[INPUT — decision]\n[INPUT — access]'
-fi
-input_alt="$(printf '%s\n' "$input_lanes" \
-  | sed -E 's/^\[INPUT — (.*)\]$/\1/' \
-  | paste -sd'|' -)"
+# The `[INPUT — <kind>]` kinds come from the SAME scrape above (there are FOUR:
+# meeting, decision, access, author -- the deleted fallback listed only three, which
+# made an `[INPUT — author]` item invisible to this lint whenever the scrape failed).
+input_alt="$(printf '%s\n' "$input_lane_names" | paste -sd'|' -)"
 
 # A recognized class/lane tag: [ROUTINE] OR the [MECHANICAL] capability tag (id:7616 —
 # pure-compute work no LLM/human runs; a daemon dispatches it, an LLM session reviews
@@ -220,7 +217,10 @@ input_alt="$(printf '%s\n' "$input_lanes" \
 # lanes (hands/meeting/decision gate/INPUT — *). A lane-less INTENSIVE item has no
 # recognized class tag and is therefore caught by the missing-class-tag grammar below
 # (id:9062).
-class_re="\[ROUTINE\]|\[MECHANICAL\]|\[HARD\]|\[HARD — (${lane_alt})\]|\[INPUT — (${input_alt})\]"
+# The DELIMITER is matched by $lane_delim_re (em dash OR ASCII hyphen), so a ledger
+# that has not been rewritten yet lints exactly like one that has (id:71d6
+# tolerant-read / canonical-emit).
+class_re="\[ROUTINE\]|\[MECHANICAL\]|\[HARD\]|\[HARD${lane_delim_re}(${lane_alt})\]|\[INPUT${lane_delim_re}(${input_alt})\]"
 
 # --- TAG-FIRST-AMONG-TRAILING lint (id:ad8a) -----------------------------------
 # INVARIANT (id:4da4/id:0d58 PRIMARY-LANE anchoring): an item's genuine capability
@@ -233,13 +233,9 @@ class_re="\[ROUTINE\]|\[MECHANICAL\]|\[HARD\]|\[HARD — (${lane_alt})\]|\[INPUT
 # one. WARN (report-only) surfaces the disagreement without blocking the loop,
 # per "observe before preventing" and because the id:4f02/8111 dual-vocab window
 # actively churns lane-tag spellings.
-all_lane_tags=("[ROUTINE]" "[MECHANICAL]" "[HARD]")
-while IFS= read -r _hl; do
-  [[ -n "$_hl" ]] && all_lane_tags+=("$_hl")
-done <<< "$hard_lanes"
-while IFS= read -r _il; do
-  [[ -n "$_il" ]] && all_lane_tags+=("$_il")
-done <<< "$input_lanes"
+# `all_lane_tags` was populated by lane_vocab_scrape above -- it carries BOTH
+# delimiter spellings of every lane the doc declares, plus the three delimiter-less
+# capability tags.
 
 # first_lane_tag <line> <strip:0|1> — leftmost recognized lane-tag by byte
 # position; strip=1 removes backtick-quoted spans first (mirrors id:1bbd),
@@ -263,35 +259,9 @@ first_lane_tag() {
   printf '%s' "$best_tag"
 }
 
-# leading_lane_run <line> — the CONTIGUOUS run of recognized lane brackets at the
-# very start of the item text (immediately after `- [ ] `/`- [x] `). A lane bracket
-# appearing after any prose word is trailing audit-trail prose, not a live second
-# lane on the item (id:1781) — this helper isolates just the leading run so callers
-# can count/inspect lane tags WITHOUT trailing-prose mentions inflating the count.
-# Returns the matched tags space-joined (empty if the item opens with no lane tag).
-leading_lane_run() {
-  local line="$1" rest matched tag out=""
-  if [[ "$line" =~ ^-[[:space:]]\[[[:space:]xX]\][[:space:]]*(.*)$ ]]; then
-    rest="${BASH_REMATCH[1]}"
-  else
-    rest="$line"
-  fi
-  while :; do
-    # trim leading whitespace
-    while [[ "$rest" == [[:space:]]* ]]; do rest="${rest# }"; done
-    matched=0
-    for tag in "${all_lane_tags[@]}"; do
-      if [[ "$rest" == "$tag"* ]]; then
-        out+="$tag "
-        rest="${rest#"$tag"}"
-        matched=1
-        break
-      fi
-    done
-    [[ "$matched" -eq 1 ]] || break
-  done
-  printf '%s' "$out"
-}
+# `leading_lane_run <line>` (rule 3(g)'s anchoring) now lives in the shared
+# lib-lane-anchor.sh sourced above (id:70bc) -- see the note there. It reads the
+# `all_lane_tags` array built just above.
 
 # item_id <line> — the item's OWN canonical id. ANCHORED (id:521f) to the
 # `<!-- id:XXXX -->` HTML-comment marker via lib-anchored-id.sh's own_id_of_line —
@@ -893,7 +863,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # trailing marker came later on the line.
   idtoken="$(item_id "$line")"
   reasons=()
-  [[ "$has_class" -eq 0 ]] && reasons+=("NO recognized class/lane tag ([ROUTINE] / [HARD] / [HARD — ${lane_alt}] / [INPUT — ${input_alt}] / [MECHANICAL])")
+  [[ "$has_class" -eq 0 ]] && reasons+=("NO recognized class/lane tag ([ROUTINE] / [HARD] / [HARD - ${lane_alt}] / [INPUT - ${input_alt}] / [MECHANICAL])")
   [[ "$has_id" -eq 0 ]] && reasons+=("MISSING its id token")
   reason_str="$(IFS='; '; echo "${reasons[*]}")"
   handle="${idtoken:-<no id>}"
@@ -1043,7 +1013,7 @@ mkdir -p "$(dirname "$log")" 2>/dev/null || true
 if [[ "$violations" -gt 0 ]]; then
   echo "roadmap-lint: $violations open ROADMAP item(s) violate the grammar in $roadmap"
   printf '%s' "$report"
-  echo "Fix at source: assign a recognized lane tag ([ROUTINE] / [HARD] / [HARD — ${lane_alt}] / [INPUT — ${input_alt}] / [MECHANICAL]) and a 4-hex id: token, or park the item under a gated/deferred heading."
+  echo "Fix at source: assign a recognized lane tag ([ROUTINE] / [HARD] / [HARD - ${lane_alt}] / [INPUT - ${input_alt}] / [MECHANICAL]) and a 4-hex id: token, or park the item under a gated/deferred heading."
   exit 1
 fi
 

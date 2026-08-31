@@ -15,8 +15,10 @@ VOCAB="$ROOT/relay/references/hard-lanes.md"
 fail() { echo "FAIL: $*"; exit 1; }
 
 # (1) the shared contract defines the new lane marker.
-grep -qF '[INPUT — author]' "$VOCAB" \
-  || fail "hard-lanes.md does not define the [INPUT — author] capability marker (id:2b0b)"
+# Two-delimiter alternation, not a literal marker: assert the LANE exists, not which
+# dash byte spells it (id:71d6).
+grep -qE '\[INPUT[[:space:]]*[—-][[:space:]]*author\]' "$VOCAB" \
+  || fail "hard-lanes.md does not define the [INPUT - author] capability marker, either delimiter (id:2b0b)"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

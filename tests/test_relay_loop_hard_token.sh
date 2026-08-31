@@ -48,8 +48,8 @@ grep -qF '[HARD — pool]' "$JS" \
 pass "relay-loop.js references the canonical '[HARD — pool]' token"
 
 # 3. The token relay-loop.js keys on must be defined in the shared vocabulary (no drift).
-grep -qF '[HARD — pool]' "$VOCAB" \
-  || fail "hard-lanes.md does not define '[HARD — pool]' — the shared contract drifted"
+grep -qE '\[HARD[[:space:]]*[—-][[:space:]]*pool\]' "$VOCAB" \
+  || fail "hard-lanes.md does not define the [HARD - pool] lane, either delimiter -- the shared contract drifted"
 pass "the loop's lane token is defined in hard-lanes.md (consumers agree)"
 
 echo "ALL PASS: relay-loop.js hard-token canonicalization (roadmap:3c0f)"

@@ -109,14 +109,51 @@ old_d="$(grep -P '\t1003\t' <<<"$read_out" | cut -f3)"
 echo "== CROSS-CHECK: every marker in hard-lanes.md is recognized by the read side =="
 # ─────────────────────────────────────────────────────────────────────────────────────────
 # The next vocabulary move must fail HERE, loudly, instead of silently mis-bucketing a lane.
+# Both the SSOT scrape and the read-side check are delimiter-AGNOSTIC (id:71d6).
+# Before this they were pinned to the em dash, so flipping the SSOT to hyphens
+# narrowed this cross-check from 11 markers to 3 while it kept reporting PASS: the
+# 8 lane-qualified markers -- the entire point of the check -- went unverified. The
+# read side is checked in EITHER spelling because its consumers migrate on their own
+# seams (unpromoted-scan.sh is S4), so a spelling mismatch here is not yet a defect.
+markers_checked=0
 while IFS= read -r marker; do
   [[ -n "$marker" ]] || continue
-  if grep -qF -- "\"$marker\"" "$SCAN"; then
-    ok "unpromoted-scan recognizes $marker"
-  else
-    bad "hard-lanes.md defines $marker but unpromoted-scan.sh's primary_lane() tag list omits it — items in that lane silently fall through to 'surface' (id:4b64, routed:6629)"
-  fi
-done < <(grep -oE '\[(ROUTINE|MECHANICAL|HARD|HARD — [a-z][a-z ]*[a-z]|INPUT — [a-z]+)\]' "$LANES" | sort -u)
+  case "$marker" in
+    HARD:*|INPUT:*)
+      kind="${marker%%:*}"; lane="${marker#*:}"
+      if grep -qE "\"\[${kind}[[:space:]]*[—-][[:space:]]*${lane}\]\"" "$SCAN"; then
+        ok "unpromoted-scan recognizes [$kind - $lane] (either delimiter)"
+      else
+        bad "hard-lanes.md defines [$kind - $lane] but unpromoted-scan.sh's primary_lane() tag list omits it in BOTH delimiter spellings -- items in that lane silently fall through to 'surface' (id:4b64, routed:6629)"
+      fi ;;
+    *)
+      if grep -qF -- "\"$marker\"" "$SCAN"; then
+        ok "unpromoted-scan recognizes $marker"
+      else
+        bad "hard-lanes.md defines $marker but unpromoted-scan.sh's primary_lane() tag list omits it -- items in that lane silently fall through to 'surface' (id:4b64, routed:6629)"
+      fi ;;
+  esac
+  markers_checked=$((markers_checked + 1))
+done < <(
+  {
+    grep -oE '\[(ROUTINE|MECHANICAL|HARD)\]' "$LANES"
+    grep -oE '\[HARD[[:space:]]*[—-][[:space:]]*[a-z][a-z ]*[a-z]\]' "$LANES" \
+      | sed -E 's/\[HARD[[:space:]]*[—-][[:space:]]*/HARD:/; s/\]$//'
+    grep -oE '\[INPUT[[:space:]]*[—-][[:space:]]*[a-z]+\]' "$LANES" \
+      | sed -E 's/\[INPUT[[:space:]]*[—-][[:space:]]*/INPUT:/; s/\]$//'
+  } | sort -u
+)
+
+# FLOOR (id:71d6). The cross-check must actually ITERATE. A delimiter or vocabulary
+# change that shrinks the scrape must fail HERE, loudly, rather than pass while
+# verifying almost nothing. This file's own comment promised "the next vocabulary
+# move must fail HERE, loudly" -- it did not, because nothing asserted the loop ran.
+MARKER_FLOOR=11
+if [[ "$markers_checked" -ge "$MARKER_FLOOR" ]]; then
+  ok "cross-check iterated $markers_checked markers (floor $MARKER_FLOOR)"
+else
+  bad "cross-check iterated only $markers_checked markers, below the floor of $MARKER_FLOOR -- the hard-lanes.md scrape has SILENTLY NARROWED (delimiter or vocabulary drift), so this check was passing while verifying almost nothing (id:71d6)"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────────
 echo "== EMIT side: the auto-gate's tags are canonical AND pass the pre-commit ratchet =="
