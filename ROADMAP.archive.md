@@ -4421,3 +4421,6 @@ with their existing ids (single-id-two-views); `id:7986` is primary, `id:da51` r
 
 - [x] [ROUTINE] Em-dash delimiter migration S3 — make `hooks/pre-commit-lane-vocab.sh`'s ratchet delimiter-agnostic by deriving `old_vocab_replacement` from the same SSOT scrape that populates `all_lane_tags`, keyed on the LANE NAME rather than the delimiter byte; must land before any ledger rewrite (S9) or the ratchet is disarmed silently. <!-- gated-on:098a --> <!-- id:2ee5 -->
   - **Spec**: `tests/test_lane_vocab_ratchet_delimiter.sh` (`# roadmap:2ee5`). Full acceptance, Done-check and Context: `docs/migration-em-dash-delimiter.md` §2 "S3".
+
+- [x] [ROUTINE] Em-dash delimiter migration S6 — convert `meeting/classify.sh` (the lane floor, `:101-128`), `meeting/orphan-scan.sh`, `meeting/SKILL.md`, `Makefile` and `hooks/lane-vocab.claude-rule.md` to the two-delimiter alternation, verifying each hyphen-spelled lane routes identically to its em-dash twin. <!-- gated-on:2ee5 --> <!-- id:d0aa -->
+  - Full acceptance, Done-check and Context: `docs/migration-em-dash-delimiter.md` §2 "S6".
