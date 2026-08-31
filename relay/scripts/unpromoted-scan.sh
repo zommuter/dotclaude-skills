@@ -159,15 +159,28 @@ primary_lane() {
   # after `- [ ] `, optionally preceded by exactly one non-tag prefix bracket
   # (`[INBOUND ...]` / `[<target-repo>]`); or (b) a CLAUSE boundary — immediately
   # (mod whitespace) before the trailing `<!-- id:... -->` marker, or before a
-  # following em-dash aside. A bracket-token that sits fluidly mid-sentence, with
+  # following dash aside. A bracket-token that sits fluidly mid-sentence, with
   # more prose both before AND after it before the next boundary, is prose merely
   # DISCUSSING a lane (the id:3e14/id:be40 shapes) and must NOT set the lane.
   #
   # (b) is what keeps the pre-existing id:4da4 "first recognized tag wins" behaviour
   # for a line like `(i) design item [HARD — meeting] — note: supersedes an earlier
-  # [ROUTINE] plan`: `[HARD — meeting]` sits right before its own em-dash aside (a
+  # [ROUTINE] plan`: `[HARD — meeting]` sits right before its own aside (a
   # clause boundary) so it counts as genuine, while the `[ROUTINE]` mentioned deeper
   # inside that very aside sits mid-sentence and does not.
+  #
+  # id:6bf5 — the ASIDE MARKER is two-spelling, exactly as the lane DELIMITER is.
+  # The em-dash ban routes every newly written aside to `--`, so an item spelled
+  # entirely in the target vocabulary -- `(i) work item [HARD - pool] -- note: ...`
+  # -- hit NO boundary at all and returned empty, i.e. `surface` for a human lane
+  # and, worse, `surface` for the POOL lane instead of `promote`. That is the id:4b64
+  # lodelore silent-idle failure re-created in the new delimiter: a repo whose whole
+  # backlog is new-vocab counts 0 in promote AND 0 in laned and classifies idle.
+  # MEASURED before the fix (four fixture items, identical but for spelling):
+  #   [HARD — meeting] + em-dash aside → laned      [HARD - meeting] + `--` aside → surface
+  #   [HARD — pool]    + em-dash aside → promote    [HARD - pool]    + `--` aside → surface
+  # Only a RUN of two or more hyphens counts. A single `-` is ordinary prose
+  # punctuation and must never open a clause here.
   local head_re='^-\ \[\ \]\ (\[[^]]*\])(\ (\[[^]]*\]))?'
   if [[ "$line" =~ $head_re ]]; then
     local b1="${BASH_REMATCH[1]}" b2="${BASH_REMATCH[3]:-}"
@@ -186,7 +199,7 @@ primary_lane() {
         prefix="${line%%"$tag"*}"
         after="${line#"$prefix$tag"}"
         if [[ "$after" =~ ^[[:space:]]*$ ]] || [[ "$after" =~ ^[[:space:]]*\<!-- ]] \
-          || [[ "$after" =~ ^[[:space:]]*— ]]; then
+          || [[ "$after" =~ ^[[:space:]]*— ]] || [[ "$after" =~ ^[[:space:]]*-- ]]; then
           pos=${#prefix}
           if [[ "$best_pos" -lt 0 || "$pos" -lt "$best_pos" ]]; then
             best_pos=$pos; best_tag="$tag"
