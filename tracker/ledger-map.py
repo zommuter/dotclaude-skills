@@ -129,9 +129,14 @@ RE_HTML_COMMENT = re.compile(r"<!--.*?-->")
 
 # Lane / capability tags. Order matters: the legacy `[HARD — <lane>]` forms must be
 # matched BEFORE the bare `[HARD]`, or every legacy item reads as bare-hard.
-RE_HARD_LEGACY = re.compile(r"\[HARD\s+—\s+([a-z][a-z ]*[a-z])\]")
-RE_INPUT = re.compile(r"\[INPUT\s+—\s+([a-z]+)\]")
-RE_INTENSIVE = re.compile(r"\[INTENSIVE\s+—\s+([A-Za-z0-9_.-]+)\]")
+# The delimiter matches EITHER an em dash or an ASCII hyphen (dual-vocab migration
+# window, id:c442 — mirrors relay/scripts/roadmap-lint.sh's `lane_delim_re`); a
+# ledger already migrated to the hyphen spelling must not silently degrade to
+# lane:untagged just because this reader only knew the old em-dash form.
+_LANE_DELIM = r"\s*[—-]\s*"
+RE_HARD_LEGACY = re.compile(r"\[HARD" + _LANE_DELIM + r"([a-z][a-z ]*[a-z])\]")
+RE_INPUT = re.compile(r"\[INPUT" + _LANE_DELIM + r"([a-z]+)\]")
+RE_INTENSIVE = re.compile(r"\[INTENSIVE" + _LANE_DELIM + r"([A-Za-z0-9_.-]+)\]")
 RE_HOST = re.compile(r"\[host:([A-Za-z0-9_.-]+)\]", re.IGNORECASE)
 RE_ROUTE_INLINE = re.compile(r"route:(meeting|human|decision-gate)")
 RE_OWNER_ACCEPTED = re.compile(r"@owner-accepted:(\d{4}-\d{2}-\d{2})")

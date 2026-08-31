@@ -182,7 +182,7 @@
       "archived": false,
       "assignee": "human",
       "blocked_by": [],
-      "body": "[INPUT — meeting] Lives only in TODO — roadmap_status must be `absent`, not `open` <!-- id:5555 -->",
+      "body": "[INPUT - meeting] Lives only in TODO — roadmap_status must be `absent`, not `open` <!-- id:5555 -->",
       "children": [],
       "derived_status": "backlog",
       "drift": false,
@@ -218,7 +218,7 @@
       "archived": false,
       "assignee": "daemon",
       "blocked_by": [],
-      "body": "[MECHANICAL] [INTENSIVE — local-llm] [host:zomni] Composed capability + resource + host tags <!-- id:6666 -->",
+      "body": "[MECHANICAL] [INTENSIVE - local-llm] [host:zomni] Composed capability + resource + host tags <!-- id:6666 -->",
       "children": [],
       "derived_status": "backlog",
       "drift": false,
@@ -255,7 +255,7 @@
       "archived": false,
       "assignee": "human",
       "blocked_by": [],
-      "body": "[HARD — hands] Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED <!-- id:7777 -->",
+      "body": "[HARD - hands] Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED <!-- id:7777 -->",
       "children": [],
       "derived_status": "backlog",
       "drift": false,
@@ -292,7 +292,7 @@
       "archived": false,
       "assignee": "apex",
       "blocked_by": [],
-      "body": "[HARD — pool] Legacy pool lane — 1:1 rename to [HARD] <!-- children:3333,4444 --> <!-- id:8888 -->",
+      "body": "[HARD - pool] Legacy pool lane — 1:1 rename to [HARD] <!-- children:3333,4444 --> <!-- id:8888 -->",
       "children": [
         "repo-alpha/3333",
         "repo-alpha/4444"
@@ -827,7 +827,7 @@
       "file": "TODO.md",
       "line": 16,
       "reason": "[HARD — hands] has no 1:1 successor (hard-lanes.md names FOUR candidates); mapped to input:unresolved-hands, never guessed",
-      "text": "[HARD — hands] Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED"
+      "text": "[HARD - hands] Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED"
     },
     {
       "construct": "untagged-lane",
