@@ -33,8 +33,12 @@ fail() { echo "FAIL: $*"; exit 1; }
 
 # --- the shared lane vocabulary doc exists (the contract both tools read) -----
 [[ -f "$VOCAB" ]] || fail "lane vocabulary doc missing at $VOCAB (id:78ff/b466 shared contract)"
-for marker in '[HARD — pool]' '[HARD — meeting]' '[HARD — hands]' '[HARD — decision gate]'; do
-  grep -qF "$marker" "$VOCAB" || fail "vocab doc does not define the lane marker '$marker'"
+# Assert by lane NAME with a two-delimiter alternation, never by a literal marker
+# string: pinning the delimiter byte here is the same fault S1 (id:71d6) removed from
+# the readers, and it would re-break on the next delimiter change.
+for lane in 'pool' 'meeting' 'hands' 'decision gate'; do
+  grep -qE "\[HARD[[:space:]]*[—-][[:space:]]*${lane}\]" "$VOCAB" \
+    || fail "vocab doc does not define the [HARD - ${lane}] lane marker (either delimiter)"
 done
 
 tmp="$(mktemp -d)"
