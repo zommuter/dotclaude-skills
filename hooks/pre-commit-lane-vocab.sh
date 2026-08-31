@@ -78,14 +78,14 @@ lanes_doc="$HOOK_REPO_DIR/relay/references/hard-lanes.md"
 
 lane_lib="$HOOK_REPO_DIR/relay/scripts/lib-lane-anchor.sh"
 if [[ ! -r "$lane_lib" ]]; then
-  notice "FATAL — cannot read the shared lane-vocabulary scraper at $lane_lib; refusing to guess a lane set."
+  notice "FATAL -- cannot read the shared lane-vocabulary scraper at $lane_lib; refusing to guess a lane set."
   exit 1
 fi
 # shellcheck source=relay/scripts/lib-lane-anchor.sh
 source "$lane_lib"
 # NO hardcoded fallback vocabulary (id:71d6). The old one made a broken scrape look
 # like a working one and, being em-dash-keyed, would have silently disarmed this
-# ratchet the moment the SSOT's delimiter flipped — SILENTLY, with rc=0 and no
+# ratchet the moment the SSOT's delimiter flipped -- SILENTLY, with rc=0 and no
 # output. An empty/unreadable SSOT is now a LOUD block naming the doc path.
 lane_vocab_scrape "$lanes_doc" || exit 1
 
@@ -99,7 +99,7 @@ declare -A old_vocab_replacement=(
 # [HARD — hands] has no 1:1 auto-default (fragments across 4 candidates, mirrors
 # lane-convert.sh's NEEDS JUDGMENT handling) — named specially below.
 
-# `mask_backticks` comes from the shared lib-lane-anchor.sh sourced above (id:70bc) —
+# `mask_backticks` comes from the shared lib-lane-anchor.sh sourced above (id:70bc) --
 # this hook used to carry its own byte-identical copy.
 
 # first_lane_tag <line> — leftmost recognized lane tag by byte position, AFTER masking

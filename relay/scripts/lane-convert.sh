@@ -71,7 +71,7 @@ lanes_doc="$script_dir/../references/hard-lanes.md"
 # The SHARED scraper + masking/anchoring helpers (id:70bc/71d6). There is NO
 # hardcoded fallback vocabulary any more: this converter used to REWRITE tags out of
 # a built-in em-dash set while the SSOT said something else, with rc=0 and an EMPTY
-# stderr — the id:d35a silent-no-op class. An empty scrape is now fatal and names the
+# stderr -- the id:d35a silent-no-op class. An empty scrape is now fatal and names the
 # doc. `lane_vocab_scrape` populates hard_lanes / input_lanes (both delimiter
 # spellings), hard_lane_names / input_lane_names, and all_lane_tags.
 # shellcheck source=relay/scripts/lib-lane-anchor.sh
@@ -168,7 +168,7 @@ rename_rest() {
   [[ "$primary_pos" -lt 0 ]] && return
   # Key the rename on the LANE NAME, never on the delimiter byte (id:71d6): both
   # `[HARD — pool]` and `[HARD - pool]` are the pool lane and rename identically.
-  # The emitted replacement keeps its current spelling — flipping what this
+  # The emitted replacement keeps its current spelling -- flipping what this
   # converter WRITES is the emitter seam, not this one.
   local lane_name=""
   if [[ "$primary_tag" =~ ^\[HARD[[:space:]]*[—-][[:space:]]*(.*)\]$ ]]; then

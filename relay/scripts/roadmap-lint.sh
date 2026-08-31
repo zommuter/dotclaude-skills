@@ -144,14 +144,14 @@ STATE_CLAIM_BASELINE="${STATE_CLAIM_BASELINE:-$script_dir/../state-claim-baselin
 # source of truth) via the SHARED scraper in lib-lane-anchor.sh. There is NO
 # built-in fallback set any more (id:71d6): the fallback made a broken scrape look
 # like a working one, so flipping the doc's delimiter left all three readers
-# enforcing the old vocabulary in silence — the id:d35a silent-no-op class inside
+# enforcing the old vocabulary in silence -- the id:d35a silent-no-op class inside
 # the tooling built to prevent it. An empty/unreadable doc is now FATAL and names
 # the path. `lane_vocab_scrape` sets hard_lanes / input_lanes (both delimiter
 # spellings of every lane), hard_lane_names / input_lane_names, and all_lane_tags.
 lane_vocab_scrape "$lanes_doc" || exit 2
 
 # A bash regex alternation of the lane NAMES (the part after the delimiter),
-# e.g. "pool|meeting|hands|decision gate". Names, never spellings — the delimiter
+# e.g. "pool|meeting|hands|decision gate". Names, never spellings -- the delimiter
 # is matched separately so both spellings stay recognized.
 lane_alt="$(printf '%s\n' "$hard_lane_names" | paste -sd'|' -)"
 
@@ -192,7 +192,7 @@ lane_delim_re='[[:space:]]*[—-][[:space:]]*'
 if grep -qxF 'pool' <<<"$hard_lane_names"; then
   pool_lane_re="\[ROUTINE\]|\[HARD\]|\[HARD${lane_delim_re}pool\]"
 else
-  echo "roadmap-lint: WARNING — no 'pool' lane found in $lanes_doc; PARKED-POOL-LANE will only catch [ROUTINE] and bare [HARD]" >&2
+  echo "roadmap-lint: WARNING -- no 'pool' lane found in $lanes_doc; PARKED-POOL-LANE will only catch [ROUTINE] and bare [HARD]" >&2
   pool_lane_re='\[ROUTINE\]|\[HARD\]'
 fi
 
@@ -201,7 +201,7 @@ fi
 # access]`) is ALSO read from hard-lanes.md's north-star section, so both spellings
 # stay ERROR-free during the migration window without a second hardcoded copy here.
 # The `[INPUT — <kind>]` kinds come from the SAME scrape above (there are FOUR:
-# meeting, decision, access, author — the deleted fallback listed only three, which
+# meeting, decision, access, author -- the deleted fallback listed only three, which
 # made an `[INPUT — author]` item invisible to this lint whenever the scrape failed).
 input_alt="$(printf '%s\n' "$input_lane_names" | paste -sd'|' -)"
 
@@ -233,7 +233,7 @@ class_re="\[ROUTINE\]|\[MECHANICAL\]|\[HARD\]|\[HARD${lane_delim_re}(${lane_alt}
 # one. WARN (report-only) surfaces the disagreement without blocking the loop,
 # per "observe before preventing" and because the id:4f02/8111 dual-vocab window
 # actively churns lane-tag spellings.
-# `all_lane_tags` was populated by lane_vocab_scrape above — it carries BOTH
+# `all_lane_tags` was populated by lane_vocab_scrape above -- it carries BOTH
 # delimiter spellings of every lane the doc declares, plus the three delimiter-less
 # capability tags.
 
@@ -260,7 +260,7 @@ first_lane_tag() {
 }
 
 # `leading_lane_run <line>` (rule 3(g)'s anchoring) now lives in the shared
-# lib-lane-anchor.sh sourced above (id:70bc) — see the note there. It reads the
+# lib-lane-anchor.sh sourced above (id:70bc) -- see the note there. It reads the
 # `all_lane_tags` array built just above.
 
 # item_id <line> — the item's OWN canonical id. ANCHORED (id:521f) to the
