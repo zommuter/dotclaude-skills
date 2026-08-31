@@ -49,8 +49,8 @@ discriminates a wrong verdict) is guarded by `tests/test_shard_canary.sh`.
 |---|---|---|
 | `review` | ckpt tag + an unaudited commit after it | `review` |
 | `execute` | ckpt at HEAD, open `[ROUTINE]` | `execute` |
-| `hard-executable` | ckpt at HEAD, no routine, plain `[HARD — strong model]` | `hard` |
-| `hard-gated` | ckpt at HEAD, only `[HARD — decision gate]` + gated section | `surfaced:gated` (id:2d20) |
+| `hard-executable` | ckpt at HEAD, no routine, plain `[HARD - strong model]` | `hard` |
+| `hard-gated` | ckpt at HEAD, only `[HARD - decision gate]` + gated section | `surfaced:gated` (id:2d20) |
 | `idle` | ckpt at HEAD, all items ticked | `idle` |
 | `dirty` | ckpt at HEAD, open routine but dirty tree | `surfaced:dirty` |
 
