@@ -91,13 +91,28 @@ lane_vocab_scrape "$lanes_doc" || exit 1
 
 # old-vocab tags = the [HARD — <lane>] set (everything in hard_lanes); new-vocab [HARD]
 # (bare) is never old-vocab.
-declare -A old_vocab_replacement=(
-  ["[HARD — pool]"]="[HARD]"
-  ["[HARD — meeting]"]="[INPUT — meeting]"
-  ["[HARD — decision gate]"]="[INPUT — decision]"
+# S3 (id:2ee5): old-vocab-ness keys on the LANE NAME, never on the delimiter byte.
+# WHICH lanes are old vocab is DERIVED from the SSOT scrape; what each one renames to
+# is a ratified DECISION (lane-convert.sh's mapping) and stays a literal table here.
+# Keying the lookup on the em-dash tag -- as this did before -- meant a hyphen-spelled
+# `[HARD - pool]` fell straight through once the SSOT flipped: first_lane_tag matched
+# it, the map missed it, and no violation was raised. The guard read as armed while
+# passing exactly the vocabulary it exists to block.
+declare -A lane_rename=(
+  ["pool"]="[HARD]"
+  ["meeting"]="[INPUT - meeting]"
+  ["decision gate"]="[INPUT - decision]"
 )
-# [HARD — hands] has no 1:1 auto-default (fragments across 4 candidates, mirrors
-# lane-convert.sh's NEEDS JUDGMENT handling) — named specially below.
+# `hands` has no 1:1 auto-default (it fragments across 4 candidates, mirroring
+# lane-convert.sh's NEEDS JUDGMENT handling) -- named specially below.
+declare -A old_vocab_replacement=()
+while IFS= read -r _ln; do
+  [[ -n "$_ln" ]] || continue
+  _repl="${lane_rename[$_ln]:-}"
+  [[ -n "$_repl" ]] || continue
+  old_vocab_replacement["[HARD - ${_ln}]"]="$_repl"
+  old_vocab_replacement["[HARD — ${_ln}]"]="$_repl"
+done <<< "$hard_lane_names"
 
 # `mask_backticks` comes from the shared lib-lane-anchor.sh sourced above (id:70bc) --
 # this hook used to carry its own byte-identical copy.
@@ -135,8 +150,8 @@ while IFS= read -r dl; do
   [[ -n "$tag" ]] || continue
   if [[ -n "${old_vocab_replacement[$tag]:-}" ]]; then
     violations+="  ${tag} → ${old_vocab_replacement[$tag]}    | ${content}"$'\n'
-  elif [[ "$tag" == "[HARD — hands]" ]]; then
-    violations+="  ${tag} → (no auto-default — pick one of [MECHANICAL] / [INPUT — access] / [INPUT — decision] / [INPUT — meeting], see lane-convert.sh)    | ${content}"$'\n'
+  elif [[ "$tag" == "[HARD - hands]" || "$tag" == "[HARD — hands]" ]]; then
+    violations+="  ${tag} → (no auto-default -- pick one of [MECHANICAL] / [INPUT - access] / [INPUT - decision] / [INPUT - meeting], see lane-convert.sh)    | ${content}"$'\n'
   fi
 done <<< "$diff_out"
 
