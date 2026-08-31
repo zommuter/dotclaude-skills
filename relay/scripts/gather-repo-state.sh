@@ -334,8 +334,20 @@ roadmap_primary_lane() {
   # (the open_hard_pool anchor) keeps comparing against one canonical value. "[HARD]"
   # is an EXACT substring match — it never false-matches inside "[HARD — pool]"/
   # "[HARD — hands]"/etc. (those contain "[HARD —", never the literal "[HARD]").
-  for tag in "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]" \
-             "[HARD]" "[INPUT — access]" "[INPUT — meeting]" "[INPUT — decision]"; do
+  # id:098a (S2) — every tag is listed under BOTH delimiters, em dash and ASCII hyphen.
+  # These are EXACT substring matches, not a regex class, so each spelling must appear
+  # literally. NOTE the pre-existing narrowing kept as-is (NOT widened by S2): neither
+  # "[INPUT — author]" nor "[MECHANICAL]" is in this list, in either delimiter — see the
+  # note below the canonical map.
+  for tag in "[ROUTINE]" \
+             "[HARD — pool]"          "[HARD - pool]" \
+             "[HARD — hands]"         "[HARD - hands]" \
+             "[HARD — meeting]"       "[HARD - meeting]" \
+             "[HARD — decision gate]" "[HARD - decision gate]" \
+             "[HARD]" \
+             "[INPUT — access]"       "[INPUT - access]" \
+             "[INPUT — meeting]"      "[INPUT - meeting]" \
+             "[INPUT — decision]"     "[INPUT - decision]"; do
     case "$clean" in
       *"$tag"*)
         prefix="${clean%%"$tag"*}"; pos=${#prefix}
@@ -344,11 +356,20 @@ roadmap_primary_lane() {
         fi ;;
     esac
   done
+  # id:098a — the CANONICAL value is now the HYPHEN spelling. Both comparison sites that
+  # consume it (top_intensive_hard below, and the open_hard_pool walk further down) move
+  # with it in this same commit: the canonical string and its consumers must never be
+  # changed apart, which is the defect that had to be fixed in S4's residue (id:e8d4).
+  # The canonical value is INTERNAL to this script -- classify-verdict.sh consumes the
+  # derived counts (open_hard_pool, top_intensive*), never this tag string.
   case "$best_tag" in
-    "[HARD]")              best_tag="[HARD — pool]" ;;
-    "[INPUT — meeting]")   best_tag="[HARD — meeting]" ;;
-    "[INPUT — decision]")  best_tag="[HARD — decision gate]" ;;
-    "[INPUT — access]")    best_tag="[HARD — hands]" ;;
+    "[HARD]"|"[HARD — pool]")              best_tag="[HARD - pool]" ;;
+    "[HARD — hands]")                      best_tag="[HARD - hands]" ;;
+    "[HARD — meeting]")                    best_tag="[HARD - meeting]" ;;
+    "[HARD — decision gate]")              best_tag="[HARD - decision gate]" ;;
+    "[INPUT — meeting]"|"[INPUT - meeting]")   best_tag="[HARD - meeting]" ;;
+    "[INPUT — decision]"|"[INPUT - decision]") best_tag="[HARD - decision gate]" ;;
+    "[INPUT — access]"|"[INPUT - access]")     best_tag="[HARD - hands]" ;;
   esac
   printf '%s' "$best_tag"
 }
@@ -358,10 +379,14 @@ top_intensive_routine=""
 top_intensive_hard=""
 if [[ -n "$roadmap" ]]; then
   intensive_candidates="$(printf '%s\n' "$roadmap" \
-    | grep -P '^- \[ \].*\[INTENSIVE — ' 2>/dev/null \
-    | grep -vP '\[HARD — (hands|meeting|decision gate)\]|\[INPUT — (access|meeting|decision|author)\]|@manual|@container|@owner-gated|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
+    | grep -P '^- \[ \].*\[INTENSIVE\s*[—-]\s*' 2>/dev/null \
+    | grep -vP '\[HARD\s*[—-]\s*(hands|meeting|decision gate)\]|\[INPUT\s*[—-]\s*(access|meeting|decision|author)\]|@manual|@container|@owner-gated|\[MECHANICAL\]|🚧|BLOCKED on|blocked on' \
     || true)"
-  top_intensive="$(grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null < <(printf '%s\n' "$intensive_candidates") || true)"
+  # id:098a (S2) — `\s*[—-]\s*` on BOTH the candidate filter and the human-gate exclusion.
+  # The exclusion MUST widen together with the candidate filter: widening only the filter
+  # would admit hyphen-spelled human-lane items into the intensive set that the em-dash
+  # exclusion silently no longer catches.
+  top_intensive="$(grep -m1 -oP '\[INTENSIVE\s*[—-]\s*\K[^\]\s][^\]]*' 2>/dev/null < <(printf '%s\n' "$intensive_candidates") || true)"
   # id:2799 — PER-LANE split of the same (already human-gate-excluded) candidate set: a
   # repo-wide top_intensive stamped a WHOLE dispatch unit regardless of which lane the item
   # was actually in, so an unrelated [HARD] [INTENSIVE] item deferred every open [ROUTINE]
@@ -375,12 +400,12 @@ if [[ -n "$roadmap" ]]; then
     while IFS= read -r _ic_line; do
       [[ -z "$_ic_line" ]] && continue
       _ic_lane="$(roadmap_primary_lane "$_ic_line")"
-      _ic_res="$(grep -m1 -oP '\[INTENSIVE — \K[^\]]+' 2>/dev/null < <(printf '%s' "$_ic_line") || true)"
+      _ic_res="$(grep -m1 -oP '\[INTENSIVE\s*[—-]\s*\K[^\]\s][^\]]*' 2>/dev/null < <(printf '%s' "$_ic_line") || true)"
       [[ -z "$_ic_res" ]] && continue
       if [[ -z "$top_intensive_routine" && "$_ic_lane" == "[ROUTINE]" ]]; then
         top_intensive_routine="$_ic_res"
       fi
-      if [[ -z "$top_intensive_hard" && "$_ic_lane" == "[HARD — pool]" ]]; then
+      if [[ -z "$top_intensive_hard" && "$_ic_lane" == "[HARD - pool]" ]]; then
         top_intensive_hard="$_ic_res"
       fi
     done <<< "$intensive_candidates"
@@ -551,7 +576,7 @@ if [[ -n "$roadmap" ]]; then
     fi
     [[ "$in_exempt_section" -eq 1 ]] && continue
     [[ "$line" =~ ^[[:space:]]*-\ \[\ \]\  ]] || continue
-    [[ "$(roadmap_primary_lane "$line")" == "[HARD — pool]" ]] || continue
+    [[ "$(roadmap_primary_lane "$line")" == "[HARD - pool]" ]] || continue
     # id:d808 — a @container epic is never itself pool-dispatchable; its seams are the
     # units (mirrors classify-repo.sh's is_human `is_container` exclusion, id:0cf5).
     case "$line" in *'@container'*) continue ;; esac
