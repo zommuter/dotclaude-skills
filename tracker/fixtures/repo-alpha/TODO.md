@@ -11,10 +11,10 @@ a mapping or an explicit loud-lossy policy for. Not a real repo.
 - [x] [ROUTINE] Item DONE in TODO, OPEN in ROADMAP — drift in the other direction <!-- id:2222 -->
 - [ ] [HARD] Item open in both ledgers, no drift <!-- gated-on:1111 --> <!-- id:3333 -->
 - [x] [ROUTINE] Item done in both ledgers <!-- id:4444 -->
-- [ ] [INPUT — meeting] Lives only in TODO — roadmap_status must be `absent`, not `open` <!-- id:5555 -->
-- [ ] [MECHANICAL] [INTENSIVE — local-llm] [host:zomni] Composed capability + resource + host tags <!-- id:6666 -->
-- [ ] [HARD — hands] Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED <!-- id:7777 -->
-- [ ] [HARD — pool] Legacy pool lane — 1:1 rename to [HARD] <!-- children:3333,4444 --> <!-- id:8888 -->
+- [ ] [INPUT - meeting] Lives only in TODO — roadmap_status must be `absent`, not `open` <!-- id:5555 -->
+- [ ] [MECHANICAL] [INTENSIVE - local-llm] [host:zomni] Composed capability + resource + host tags <!-- id:6666 -->
+- [ ] [HARD - hands] Legacy venue-keyed lane with NO 1:1 successor — must map to input:unresolved-hands and be REPORTED <!-- id:7777 -->
+- [ ] [HARD - pool] Legacy pool lane — 1:1 rename to [HARD] <!-- children:3333,4444 --> <!-- id:8888 -->
 - [ ] [ROUTINE] @manual @needs-auth Human must run it AND supply a secret <!-- id:9999 -->
 - [x] [ROUTINE] @owner-accepted:2026-08-01 Owner-granted acceptance receipt <!-- id:aaaa -->
 - [ ] [ROUTINE] 🚧 BLOCKED on an upstream decision <!-- id:bbbb -->

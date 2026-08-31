@@ -2662,3 +2662,27 @@ this session worked only id:d0aa (S6) per the one-item-per-session rule.
 ## 2026-08-31 19:33 — executor (sonnet, relay-loop)
 
 Em-dash delimiter migration S6 (id:d0aa): orphan-scan.sh's two lane-tag grep sites (--promotion, --unbackrefed) now accept the hyphen delimiter alongside em-dash; classify.sh confirmed already delimiter-agnostic via new fixture test; suite green 530/0/1-expected-red. [id:d0aa]
+
+## 2026-08-31 — executor (sonnet, relay-loop)
+
+Worked id:c442 -- tracker/ledger-map.py's three lane regexes (RE_HARD_LEGACY/RE_INPUT/
+RE_INTENSIVE, :132-134) required a literal em dash and could not parse a hyphen-spelled
+`[HARD - <lane>]`/`[INPUT - <kind>]`/`[INTENSIVE - <resource>]` tag, silently degrading it
+to lane:untagged (measured 2026-08-31: flipping only the input fixture dropped the
+[INTENSIVE] resource, the venue, and the legacy-hands-unresolved report row). Fixed by
+widening the delimiter to `\s*[—-]\s*`, the same dual-vocab idiom roadmap-lint.sh's
+`lane_delim_re` already uses, then migrated the delimiter in the one fixture file that
+actually carried it as a tag (tracker/fixtures/repo-alpha/TODO.md:14-17 -- INPUT/INTENSIVE/
+HARD-hands/HARD-pool) and the corresponding body/text fields in
+tracker/fixtures/expected/{repo-alpha,fleet-collision}.json, as one commit so no window
+exists where input and expected disagree. Preserved the legacy-venue control pairing at
+lines 16-17 (no-1:1-successor / 1:1-rename paths) unchanged in meaning. Left the hardcoded
+`reason:` prose strings in ledger-map.py (e.g. "[HARD — hands] has no 1:1 successor...")
+em-dash-spelled -- they are fixed diagnostic text describing the vocabulary, not a copy of
+source text, and migrating them is outside this seam's acceptance. Full suite: 532 passed,
+0 failed, 1 expected-red -- no regressions.
+Friction: none.
+
+refactor: none needed -- the fix is a single shared-constant delimiter widening (`_LANE_DELIM`)
+applied to three existing regexes, mirroring roadmap-lint.sh's established idiom; no new
+duplication was introduced.
