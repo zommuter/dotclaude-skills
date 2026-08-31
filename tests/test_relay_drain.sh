@@ -39,8 +39,8 @@ out.push('review_null=' + unitIsSubstantive('review', null))
 {
   const blocked = [
     { repo: 'fin1', reason: 'finished repo (0 open items, clean, no unaudited commits) — not dispatched (anti-false-handoff guard id:000d)' },
-    { repo: 'gate1', reason: 'HARD backlog is gated — needs a /meeting to unblock/re-scope (items: id:abcd [HARD — meeting])' },
-    { repo: 'gate2', reason: 'HARD backlog is [HARD — hands] only (open_hard_pool=0)' },
+    { repo: 'gate1', reason: 'HARD backlog is gated -- needs a /meeting to unblock/re-scope (items: id:abcd [HARD - meeting])' },
+    { repo: 'gate2', reason: 'HARD backlog is [HARD - hands] only (open_hard_pool=0)' },
     { repo: 'cb1', reason: 'circuit breaker (id:365b): cb1 idle dispatched >3x this run with no substantive change' },
     { repo: 'dirty1', reason: "dirty main tree (porcelain: ' M ROADMAP.md') — not dispatched" },
   ]
