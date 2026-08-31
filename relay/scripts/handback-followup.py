@@ -58,10 +58,19 @@ import sys
 # gather-repo-state.sh's roadmap_primary_lane, gather-human-backlog.sh (human_decision
 # bucket) and roadmap-lint.sh, and accepted by hooks/pre-commit-lane-vocab.sh.
 GATE_TAG = "[INPUT — decision]"
-# Old-vocab gate spellings still LIVE in un-migrated ledgers: seeing any of them means the
-# item is ALREADY gated → idempotent no-op (never rewrite a line just to re-spell it; the
+# Lane-tag delimiter alternation (id:1a03 em-dash migration window): a lane tag's delimiter
+# is EITHER the legacy em dash (U+2014) or the canonical ASCII hyphen. Every READ site below
+# accepts BOTH. The EMIT side (GATE_TAG above) is unchanged in this seam -- flipping it is
+# coupled to the test-fixture seam, which owns the assertions on the emitted spelling.
+LANE_DELIM = r"[—-]"
+# Gate spellings that mean "ALREADY gated" when seen on a line: the canonical
+# `[INPUT - decision]` and the old-vocab `[HARD - decision gate]`, in either delimiter.
+# Seeing any of them is an idempotent no-op (never rewrite a line just to re-spell it; the
 # migration is lane-convert.sh's job, id:4f02).
-LEGACY_GATE_TAGS = ("[HARD — decision gate]",)
+GATED_RE = re.compile(
+    r"\[INPUT\s*" + LANE_DELIM + r"\s*decision\]"
+    r"|\[HARD\s*" + LANE_DELIM + r"\s*decision gate\]"
+)
 TIER_RE = re.compile(r"\[(?:ROUTINE|HARD[^\]]*)\]")  # first tier tag on a line
 ID_RE = lambda tok: re.compile(r"<!--\s*id:" + re.escape(tok) + r"\s*-->")
 SKILLS = os.path.expanduser("~/.claude/skills")
@@ -92,10 +101,12 @@ def find_line(lines, tok):
 
 def gate_line(line, reason, route):
     """Re-tag a parent item line to the decision-gate tag + inline reason (idempotent)."""
-    # Already gated (auto OR manual) — leave it untouched. id:4b64: the check spans BOTH
-    # vocabularies, so an un-migrated `[HARD — decision gate]` item is NOT re-gated (which
+    # Already gated (auto OR manual) -- leave it untouched. id:4b64: the check spans BOTH
+    # vocabularies, so an un-migrated `[HARD - decision gate]` item is NOT re-gated (which
     # would rewrite a line only to re-spell its tag) and no gate note is duplicated.
-    if GATE_TAG in line or any(t in line for t in LEGACY_GATE_TAGS):
+    # id:1a03: it also spans BOTH delimiter spellings, so a hyphenated gate tag is likewise
+    # recognised as already-gated instead of being double-gated.
+    if GATED_RE.search(line):
         return None
     note = f" — 🚧 GATED (auto, id:3801; route:{route}): {reason}".rstrip()
     # swap the tier tag; if none present, inject a bold tag right after the checkbox.

@@ -87,11 +87,18 @@ VERDICT_RANK = {
     "idle":    6,
 }
 
+# Lane-tag delimiter alternation (id:1a03 em-dash migration window). A lane tag's
+# delimiter is EITHER the legacy em dash (U+2014) or the canonical ASCII hyphen; every
+# match site below accepts BOTH. Seam (B) deletes the em-dash arm.
+LANE_DELIM = r"[—-]"
+
 # Post-id:78ff pool-dispatchable HARD lane tags (the ONLY ones counted in open_hard_pool)
-HARD_POOL_LANE = "[HARD — pool]"   # [HARD — pool] (em-dash)
+HARD_POOL_RE = re.compile(r"\[HARD\s*" + LANE_DELIM + r"\s*pool\]")
 
 # Human-gated lane markers (excluded from actionable counts)
-HUMAN_GATES = ("[HARD — hands]", "[HARD — meeting]", "[HARD — decision gate]")
+HUMAN_GATE_RE = re.compile(
+    r"\[HARD\s*" + LANE_DELIM + r"\s*(?:hands|meeting|decision gate)\]"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -325,9 +332,10 @@ def compute_substantive_unaudited(repo_path, commit, tags_with_dates, event_ts_s
 
 def has_legacy_hard_items(content):
     """Return True if ROADMAP has open '- [ ]' items with a HARD marker that is NOT
-    a post-id:78ff lane tag ([HARD — pool|meeting|hands]).
+    a post-id:78ff lane tag ([HARD - pool|meeting|hands]), in EITHER delimiter
+    spelling (id:1a03 window).
 
-    Detects the pre-id:78ff vocabulary like '[HARD — strong model]', '[HARD]', etc.
+    Detects the pre-id:78ff vocabulary like '[HARD - strong model]', '[HARD]', etc.
     Used to classify 'reconstruction-gap:legacy-lane-vocab' rows.
     """
     for ln in content.splitlines():
@@ -337,11 +345,9 @@ def has_legacy_hard_items(content):
         if not re.search(r"\[HARD", ln):
             continue
         # Exclude the current post-id:78ff lanes
-        has_pool     = "[HARD — pool]" in ln
-        has_meeting  = "[HARD — meeting]" in ln
-        has_hands    = "[HARD — hands]" in ln
-        has_decision = "[HARD — decision gate]" in ln
-        if not (has_pool or has_meeting or has_hands or has_decision):
+        has_pool     = bool(HARD_POOL_RE.search(ln))
+        has_gate     = bool(HUMAN_GATE_RE.search(ln))
+        if not (has_pool or has_gate):
             return True
     return False
 
@@ -366,8 +372,8 @@ def roadmap_fields(content, sub_unaudited):
             continue
         any_open = True
         is_routine = "[ROUTINE]" in ln
-        is_pool    = HARD_POOL_LANE in ln
-        is_human   = any(h in ln for h in HUMAN_GATES) or "@manual" in ln
+        is_pool    = bool(HARD_POOL_RE.search(ln))
+        is_human   = bool(HUMAN_GATE_RE.search(ln)) or "@manual" in ln
 
         if is_routine:
             has_routine = True
@@ -402,7 +408,7 @@ def unpromoted_counts(todo_content, roadmap_content):
         token = m.group(1)
         if f"id:{token}" in roadmap_text:
             continue
-        if re.search(r"\[ROUTINE\]|\[HARD — pool\]", ln):
+        if re.search(r"\[ROUTINE\]", ln) or HARD_POOL_RE.search(ln):
             promote += 1
         else:
             surface += 1
