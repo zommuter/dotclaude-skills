@@ -6976,3 +6976,50 @@ review-verified id:5eeb: context-budget.sh + executor-contract rule 2c (v12->v13
 ## 2026-08-27 08:50 — executor (sonnet, relay-loop)
 
 id:5eeb verified already-satisfied: context-budget.sh, its test, and the executor-contract v15 rule 2c (with ZERO-COMMIT branch) all already ship; full suite green 508/0/1-expected-red — no code change needed, just confirming done-check for the driver's tick. [id:5eeb]
+
+## 2026-08-31 — reviewer (claude-opus-5)
+
+Trust-but-verify pass over `relay-ckpt-20260827-0850`..HEAD (89 commits, 77 files,
++8,656/-501). Full suite: **528 passed, 0 failed, 1 expected-red**
+(`test_dryround_single_definition_6217.sh`, roadmap:6217 still open). Tiers enumerated
+per id:f032: this repo declares exactly ONE tier, `make test` -> `tests/run-tests.sh`
+(no package.json scripts, no CI workflow, no e2e/integration split) -- it RAN, nothing
+was skipped.
+
+Mechanical gaming-scan: one hit, `REMOVED_ASSERT:tests/test_prompt_size_gate_todo_b018.sh
+(removed=3,added=1)`. ADJUDICATED LEGITIMATE, not gaming. The resurrection check was run
+(original file from the checkpoint, executed in-tree): 22 ok / 3 bad, failing exactly
+`roadmap_only_under_budget`, `both_about_double`, `postarchive_254087_dispatches`. All
+three moved in the STRICTER direction because `FIXED_OVERHEAD_TOKENS` went 12,000 ->
+65,000 in `52bffddd` (per-tier dispatch budget, owner-ratified 2026-08-27 on 28,365
+measured transcripts), and each was replaced by a tier-anchored assertion pinning the new
+value in BOTH directions. The b018 property itself (`todo_actually_counted`) survives,
+re-sized onto a shape that still straddles the Sonnet cap. No assertion logic was weakened.
+
+Provenance (§2b.7/2b.9): 6 commits add `@owner-answered`/`answer-src:` lines, all in the
+id:ca14/id:6621 feature that BUILDS the marker and its lint rule -- fixtures and
+documentation, not a minted owner ruling on a live item. No `@owner-answered` line was
+MODIFIED in the window (§2b.10 grep empty). §2d over-reach: S1 (id:71d6) checked against
+its ratified source `docs/migration-em-dash-delimiter.md` §2 "S1" -- six regexes to a
+two-delimiter alternation, six fallbacks deleted for a loud nonzero exit -- verbatim what
+shipped, no superset.
+
+relay-doctor: 0 per-repo issues; registry parses, references installed, no install drift,
+inbox clean. Two non-repo findings stand as known: the relay-core shadow's 19,648
+mismatches over 249,870 rounds (already tracked, bash authoritative) and one parked orphan.
+
+Two REVIEW_ME boxes written: **id:7a5e** (the parked orphan from this run's dead S4 child
+carries a real regression -- a blanket `${line//—/-}` kills the em-dash-aside clause
+boundary at `unpromoted-scan.sh:179`) and **id:1ccd** (roadmap-lint 213a fires
+NO-ACCEPTANCE-NO-TWIN on 7 seams whose acceptance is cited by reference to the migration
+doc rather than inlined).
+
+Reverse-handoff (§5b): the 30 ROADMAP and 44 TODO items added this window all arrived
+qualified -- every one carries a lane tag and an id; roadmap-lint reports no
+MISSING-LANE/MISSING-ID violation. Nothing needed a mini-handoff.
+
+routine_open = 2 actionable (id:e8d4 S4, id:d0aa S6); 9 open `[ROUTINE]` lines total, the
+other 7 gated or `@owner-verify`. S3 (id:2ee5) landing cleared the `gated-on:2ee5` edge on
+both S4 and S6, so the queue is genuinely dispatchable again.
+
+refactor: none needed -- a review unit writes ledger prose only, no code changed.
