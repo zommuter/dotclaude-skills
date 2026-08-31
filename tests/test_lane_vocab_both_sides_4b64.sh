@@ -178,9 +178,9 @@ HANDBACK_NO_COMMIT=1 python3 "$FOLLOWUP" "$E" --parent-id bbbb --route hard-spli
   --gate-reason "too large" --split-json "$SPLIT" >/dev/null 2>&1
 
 emitted="$(cat "$E/ROADMAP.md")"
-grep -qF '[INPUT — decision]' <<<"$emitted" \
-  && ok "gate emitted as the canonical [INPUT — decision]" \
-  || bad "gate did not emit [INPUT — decision] (emit-side vocab, id:4b64):
+grep -qF '[INPUT - decision]' <<<"$emitted" \
+  && ok "gate emitted as the canonical [INPUT - decision]" \
+  || bad "gate did not emit [INPUT - decision] (emit-side vocab, id:4b64):
 $emitted"
 grep -qF '[HARD — decision gate]' <<<"$emitted" \
   && bad "gate emitted the OLD-vocab [HARD — decision gate] — the pre-commit ratchet blocks it (routed:8858)" \

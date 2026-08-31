@@ -3,7 +3,7 @@
 # Hermetic: temp ROADMAP fixture, HANDBACK_NO_COMMIT=1 (no git). Asserts gating, splitting,
 # and IDEMPOTENCY (the pool re-runs handbacks — a second apply must be a no-op).
 #
-# id:4b64 — the EMITTED tags are the canonical capability-keyed spelling: `[INPUT — decision]`
+# id:4b64 — the EMITTED tags are the canonical capability-keyed spelling: `[INPUT - decision]`
 # for the gate (was `[HARD — decision gate]`, which relay's own pre-commit lane-vocab ratchet
 # BLOCKS) and `[HARD]` for a HARD seam (was the pre-id:78ff `[HARD — strong model]`, which is
 # in no lane vocabulary at all). An OLD-vocab gate already on a line is still recognized as
@@ -38,7 +38,7 @@ run() { HANDBACK_NO_COMMIT=1 python3 "$HELPER" "$STORE" "$@" >/dev/null 2>&1; }
 echo "== decision-gate re-tags a [ROUTINE] parent + inline reason =="
 run --parent-id aaaa --route decision-gate --gate-reason "blocked on a design call"
 aaaa_line() { grep -- 'id:aaaa' "$RM"; }
-if grep -qF '[INPUT — decision]' < <(aaaa_line) ; then ok "aaaa now decision-gated (canonical [INPUT — decision])"; else bad "aaaa not gated with the canonical [INPUT — decision] tag"; fi
+if grep -qF '[INPUT - decision]' < <(aaaa_line) ; then ok "aaaa now decision-gated (canonical [INPUT - decision])"; else bad "aaaa not gated with the canonical [INPUT - decision] tag"; fi
 if grep -qF '[HARD — decision gate]' < <(aaaa_line) ; then bad "aaaa gated with the OLD-vocab tag (the pre-commit ratchet blocks it, id:4b64)"; else ok "no old-vocab tag emitted"; fi
 if grep -qF 'GATED (auto, id:3801; route:decision-gate)' < <(aaaa_line) ; then ok "auto-gate marker + route"; else bad "no auto-gate marker"; fi
 if grep -qF 'blocked on a design call' < <(aaaa_line) ; then ok "reason inlined"; else bad "reason missing"; fi
@@ -55,7 +55,7 @@ echo "== hard-split gates the parent + appends pickable seams =="
 run --parent-id bbbb --route hard-split --gate-reason "6-session money path" \
     --split-json "$SPLIT_JSON"
 bbbb_line() { grep -- '<!-- id:bbbb -->' "$RM"; }
-if grep -qF '[INPUT — decision]' < <(bbbb_line) ; then ok "parent bbbb gated"; else bad "parent not gated"; fi
+if grep -qF '[INPUT - decision]' < <(bbbb_line) ; then ok "parent bbbb gated"; else bad "parent not gated"; fi
 if grep -qF 'DECOMPOSED into seams' < <(bbbb_line) ; then ok "parent marked DECOMPOSED"; else bad "parent not marked decomposed"; fi
 has "$RM" 'id:1234'               "explicit-id seam appended"
 seam1() { grep -A3 -- '<!-- id:1234 -->' "$RM"; }

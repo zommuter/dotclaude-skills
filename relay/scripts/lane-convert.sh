@@ -169,8 +169,8 @@ rename_rest() {
   [[ "$primary_pos" -lt 0 ]] && return
   # Key the rename on the LANE NAME, never on the delimiter byte (id:71d6): both
   # `[HARD — pool]` and `[HARD - pool]` are the pool lane and rename identically.
-  # The emitted replacement keeps its current spelling -- flipping what this
-  # converter WRITES is the emitter seam, not this one.
+  # The emitted replacement now emits the canonical hyphen (id:32f9, S5b) regardless
+  # of the source tag's own delimiter spelling.
   local lane_name=""
   if [[ "$primary_tag" =~ ^\[HARD[[:space:]]*[—-][[:space:]]*(.*)\]$ ]]; then
     lane_name="${BASH_REMATCH[1]}"
@@ -182,8 +182,8 @@ rename_rest() {
   local repl=""
   case "$lane_name" in
     'pool')          repl='[HARD]' ;;
-    'meeting')       repl='[INPUT — meeting]' ;;
-    'decision gate') repl='[INPUT — decision]' ;;
+    'meeting')       repl='[INPUT - meeting]' ;;
+    'decision gate') repl='[INPUT - decision]' ;;
   esac
   if [[ -n "$repl" ]]; then
     local primary_end=$((primary_pos + ${#primary_tag}))

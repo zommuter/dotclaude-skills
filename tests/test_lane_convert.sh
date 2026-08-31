@@ -98,8 +98,8 @@ line() { grep -F "id:$1" <<<"$out"; }
 
 grep -qF '[HARD]'            <<<"$(line cd01)" || fail "(b) [HARD — pool] must convert to [HARD]"
 grep -qF '[HARD — pool]'     <<<"$(line cd01)" && fail "(b) old [HARD — pool] must be gone after convert"
-grep -qF '[INPUT — meeting]' <<<"$(line cd02)" || fail "(b) [HARD — meeting] must convert to [INPUT — meeting]"
-grep -qF '[INPUT — decision]'<<<"$(line cd03)" || fail "(b) [HARD — decision gate] must convert to [INPUT — decision]"
+grep -qF '[INPUT - meeting]' <<<"$(line cd02)" || fail "(b) [HARD — meeting] must convert to [INPUT - meeting]"
+grep -qF '[INPUT - decision]'<<<"$(line cd03)" || fail "(b) [HARD — decision gate] must convert to [INPUT - decision]"
 grep -qF '[ROUTINE]'         <<<"$(line cd05)" || fail "(b) [ROUTINE] must be left untouched"
 grep -qF '[MECHANICAL]'      <<<"$(line cd06)" || fail "(b) [MECHANICAL] must be left untouched"
 grep -qF '[INTENSIVE — local-llm]' <<<"$(line cd07)" || fail "(b) [INTENSIVE — res] must be left untouched"

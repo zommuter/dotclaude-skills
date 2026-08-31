@@ -2715,3 +2715,15 @@ refactor: none needed -- one-line guard addition, no new duplication.
 ## 2026-08-31 22:42 — executor (sonnet, relay-loop)
 
 execute: fixed lane-delimiter-scan.sh's directory-argument crash (id:4ce8) -- now a clean exit-2 usage error instead of an unbound-variable trace; full suite 532/0/1-expected-red [id:4ce8]
+
+## 2026-08-31 — executor (sonnet)
+
+Worked id:32f9 -- Em-dash delimiter migration S5b (the EMIT side). Flipped
+handback-followup.py's GATE_TAG and lane-convert.sh's two repl= strings from
+the legacy U+2014 lane delimiter to the canonical ASCII hyphen, in the same
+commit as the three test files the item named (test_handback_followup.sh,
+test_lane_vocab_both_sides_4b64.sh, test_lane_convert.sh) plus
+test_lane_convert_prose.sh, which pins the same lane-convert.sh emitter via a
+fourth assertion the item's own enumeration did not list -- full suite green
+(532 passed, 0 failed, 1 expected-red) confirmed this was the complete set.
+Friction: none.

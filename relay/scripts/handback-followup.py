@@ -7,7 +7,7 @@ SAME un-doable item every run (the d61a 4×-rerun, the f14f size-out). This make
 handback DURABLE in the repo's ROADMAP.md, under the same id-ecosystem (single-id-two-views):
 
   route=decision-gate / human  → re-tag the parent item to the classifier-EXCLUDED tag
-                                 `[INPUT — decision]` (id:2d20; id:4b64) with an inline
+                                 `[INPUT - decision]` (id:2d20; id:4b64) with an inline
                                  reason, so the pool stops dispatching it until a /meeting
                                  (or /relay human) resolves it.
   route=hard-split             → gate the parent AND append the child's recommended seam
@@ -17,7 +17,7 @@ handback DURABLE in the repo's ROADMAP.md, under the same id-ecosystem (single-i
   route=none                   → no-op (surfaced in RELAY_STATUS as before).
 
 Idempotent: re-running on the same handback makes NO further change (a parent already
-carrying ANY human gate — `[INPUT — decision]`, or the old-vocab `[HARD — decision gate]`
+carrying ANY human gate — `[INPUT - decision]`, or the old-vocab `[HARD — decision gate]`
 still present during the migration window — is left untouched, which also respects a
 human's manual gate; a seam whose id already exists is skipped). All writes go through the flock'd
 `meeting/md-merge.py update-ids` (atomic, re-reads under lock) — never a raw rewrite —
@@ -28,7 +28,7 @@ This is a CLAIM the next review re-checks (anti-gaming, id:3801 fork e): the gat
 reversible (a human/meeting re-tags it back to [ROUTINE]/[HARD]).
 
 VOCABULARY (id:4b64, routed:8858): every tag this script EMITS is the canonical
-capability-keyed spelling of `relay/references/hard-lanes.md` — `[INPUT — decision]` for
+capability-keyed spelling of `relay/references/hard-lanes.md` — `[INPUT - decision]` for
 the gate, `[HARD]`/`[ROUTINE]` for seams. It used to emit the OLD venue-keyed
 `[HARD — decision gate]` and the pre-id:78ff legacy `[HARD — strong model]`; the first is
 BLOCKED by relay's own `hooks/pre-commit-lane-vocab.sh` ratchet (so the gate write could
@@ -54,14 +54,15 @@ import subprocess
 import sys
 
 # The exact classifier-excluded gate tag (id:2d20). CANONICAL, capability-keyed (id:4b64):
-# `[INPUT — decision]` — recognized as a human gate by classify-repo.sh's HUMAN_GATES,
+# `[INPUT - decision]` — recognized as a human gate by classify-repo.sh's HUMAN_GATES,
 # gather-repo-state.sh's roadmap_primary_lane, gather-human-backlog.sh (human_decision
 # bucket) and roadmap-lint.sh, and accepted by hooks/pre-commit-lane-vocab.sh.
-GATE_TAG = "[INPUT — decision]"
+GATE_TAG = "[INPUT - decision]"
 # Lane-tag delimiter alternation (id:1a03 em-dash migration window): a lane tag's delimiter
 # is EITHER the legacy em dash (U+2014) or the canonical ASCII hyphen. Every READ site below
-# accepts BOTH. The EMIT side (GATE_TAG above) is unchanged in this seam -- flipping it is
-# coupled to the test-fixture seam, which owns the assertions on the emitted spelling.
+# accepts BOTH. The EMIT side (GATE_TAG above) now emits the canonical hyphen (id:32f9,
+# S5b) -- the delimiter alternation above stays for reads only, so old-vocab and
+# not-yet-migrated stored tags remain recognized.
 LANE_DELIM = r"[—-]"
 # Gate spellings that mean "ALREADY gated" when seen on a line: the canonical
 # `[INPUT - decision]` and the old-vocab `[HARD - decision gate]`, in either delimiter.
