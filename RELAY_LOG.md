@@ -2808,3 +2808,7 @@ refactor: none needed — this is itself the refactor (de-duplicated the
 hooksPath-neutralization logic that previously lived only inline in
 run-tests.sh into a shared lib, rather than pasting the same three-line block
 into each fixture-building test file).
+
+## 2026-08-31 23:26 — executor (sonnet, relay-loop)
+
+Fixed hermetic test fixtures inheriting the developer's global git core.hooksPath (id:4d1c): extracted the existing run-tests.sh neutralization into tests/lib/hermetic-git-env.sh, sourced by test_backtest_fidelity.sh and test_lane_vocab_ratchet_hook.sh so `bash tests/test_foo.sh` run directly is now hermetic; full suite 532 passed / 0 failed / 1 expected-red. [id:4d1c]
