@@ -2615,3 +2615,7 @@ other 7 gated or `@owner-verify`. S3 (id:2ee5) landing cleared the `gated-on:2ee
 both S4 and S6, so the queue is genuinely dispatchable again.
 
 refactor: none needed -- a review unit writes ledger prose only, no code changed.
+
+## 2026-08-31 19:20 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: suite green 528/0/1-expected-red; b018 REMOVED_ASSERT adjudicated legitimate (overhead 12k->65k, stricter); filed id:7a5e (parked-orphan S4 regression) + id:1ccd (213a by-reference false positive); routine_open=2 [id:7a5e,1ccd,e8d4,71d6,70bc,2ee5]
