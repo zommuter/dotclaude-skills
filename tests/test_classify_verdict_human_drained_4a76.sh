@@ -7,15 +7,15 @@
 # `idle → design-drained`, and `:237` computes waiting from ('needs-feedback','blocked') only —
 # so it never appears under "Waiting on a human". Two repos, 31 open items between them, read
 # as done:
-#   helferli — 18 open, ALL [INPUT — …] (14 access / 4 meeting / 1 decision), zero poolable
+#   helferli — 18 open, ALL [INPUT - …] (14 access / 4 meeting / 1 decision), zero poolable
 #              → reported `design-drained`, "Waiting on a human: _(none)_".
 #   csgebra  — 13 open; all 5 HARD/ROUTINE items carry gated-on: edges rooting in 940f
-#              [INPUT — decision] → the same false-clean.
+#              [INPUT - decision] → the same false-clean.
 #
 # THE FIX under test: UPSTREAM in classify-verdict.sh, NOT in the board. The board renders
 # faithfully; fixing it there would leave `/relay human`'s scope and the pool's Skipped rollup
 # still wrong. Emit `human` when roadmap_open > 0 AND every executable lane is zero AND >=1
-# open item sits in a human lane ([INPUT — *], @manual). `human → needs-feedback` already
+# open item sits in a human lane ([INPUT - *], @manual). `human → needs-feedback` already
 # lands in the right board section, so control-board.sh needs NO change.
 #
 # classify-verdict.sh is a pure stdin→stdout function and classify-repo.sh is a standalone
@@ -66,7 +66,7 @@ grep -qiE 'human[- ]lane|INPUT|waiting on a human|owner' <<<"$reason" \
 v="$(verdict_of '{'"$drained"',"repo":"csgebra","roadmap_open":13,"open_human_lane":1}')"
 [[ "$v" == "human" ]] \
   && ok "csgebra shape (13 open, ONE human-lane gate root) also classifies as human" \
-  || bad "id:4a76: csgebra shape gave '$v', expected human — a single [INPUT — decision] gate root still blocks the repo"
+  || bad "id:4a76: csgebra shape gave '$v', expected human — a single [INPUT - decision] gate root still blocks the repo"
 
 # ── (C) NEGATIVE CONTROLS — the load-bearing half. Over-firing `human` would make every
 #        genuinely-finished repo look blocked. ───────────────────────────────────────────────
@@ -125,9 +125,9 @@ cat > "$R/ROADMAP.md" <<'EOF'
 
 ## Items
 
-- [ ] [INPUT — access] plug in the device and run the probe <!-- id:aaa1 -->
-- [ ] [INPUT — meeting] decide the storage shape <!-- id:aaa2 -->
-- [ ] [INPUT — decision] owner picks the vendor <!-- id:aaa3 -->
+- [ ] [INPUT - access] plug in the device and run the probe <!-- id:aaa1 -->
+- [ ] [INPUT - meeting] decide the storage shape <!-- id:aaa2 -->
+- [ ] [INPUT - decision] owner picks the vendor <!-- id:aaa3 -->
 - [ ] [ROUTINE] @manual walk the checklist by hand <!-- id:aaa4 -->
 - [x] [ROUTINE] already done, must not count <!-- id:aaa5 -->
 EOF
@@ -151,7 +151,7 @@ unit="$("$CR" --emit unit --repo helferli --path "$R" 2>/dev/null || true)"
 if [[ -n "$unit" ]]; then
   n="$(printf '%s' "$unit" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("open_human_lane","<<MISSING>>"))')"
   [[ "$n" == "4" ]] \
-    && ok "classify-repo.sh derives open_human_lane=4 (3 [INPUT — *] + 1 @manual; the [x] item excluded)" \
+    && ok "classify-repo.sh derives open_human_lane=4 (3 [INPUT - *] + 1 @manual; the [x] item excluded)" \
     || bad "id:4a76: classify-repo.sh open_human_lane is '$n', expected 4 — the producer does not count human-lane items"
 else
   bad "id:4a76: classify-repo.sh --emit unit produced no JSON for the fixture"

@@ -4,7 +4,7 @@
 #
 # DECISION: encode [INTENSIVE] as a FLAG on the verdict object, NOT a new verdict value.
 # [INTENSIVE] is an orthogonal resource axis that is OPERATIVE only on relay-dispatchable
-# lanes (ROUTINE / HARD — pool); gather's `top_intensive` already excludes human-gated
+# lanes (ROUTINE / HARD - pool); gather's `top_intensive` already excludes human-gated
 # items (id:a707). classify-verdict.sh copies `top_intensive` VERBATIM to an `intensive`
 # field beside an UNCHANGED verdict.
 #
@@ -29,12 +29,12 @@ plain='{"repo":"x","is_finished":false,"hasRoutine":true,"substantive_unaudited"
   || { echo "output must always carry a string `intensive` field"; exit 1; }
 [[ "$(field "$plain" intensive)" == "" ]] || { echo "no intensive resource ⇒ intensive must be \"\""; exit 1; }
 
-# 2. A [ROUTINE] [INTENSIVE — local-llm] repo → verdict execute AND intensive=local-llm (flag rides execute).
+# 2. A [ROUTINE] [INTENSIVE - local-llm] repo → verdict execute AND intensive=local-llm (flag rides execute).
 ri='{"repo":"x","is_finished":false,"hasRoutine":true,"substantive_unaudited":false,"open_hard_pool":0,"top_intensive":"local-llm","roadmap_open":1,"roadmap_actionable_open":1,"unpromoted":{"promote":0,"surface":0}}'
 [[ "$(field "$ri" verdict)"   == "execute"   ]] || { echo "routine-intensive must keep verdict=execute (flag, not a verdict value)"; exit 1; }
 [[ "$(field "$ri" intensive)" == "local-llm" ]] || { echo "top_intensive must be copied verbatim to intensive"; exit 1; }
 
-# 3. A [HARD — pool] [INTENSIVE — local-llm] repo → verdict hard AND intensive=local-llm.
+# 3. A [HARD - pool] [INTENSIVE - local-llm] repo → verdict hard AND intensive=local-llm.
 hi='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"top_intensive":"local-llm","roadmap_open":1,"roadmap_actionable_open":1,"unpromoted":{"promote":0,"surface":0}}'
 [[ "$(field "$hi" verdict)"   == "hard"      ]] || { echo "pool-intensive must keep verdict=hard"; exit 1; }
 [[ "$(field "$hi" intensive)" == "local-llm" ]] || { echo "pool-intensive must carry intensive=local-llm"; exit 1; }
