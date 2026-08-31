@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # roadmap:1b13 — verify-isolation.sh: an EMPTY worktree with a DIRTY tree must FAIL (exit 2).
 #
-# OWNER-DECIDED 2026-08-14 (`/relay human .`), re-laned [INPUT — decision] -> [ROUTINE].
+# OWNER-DECIDED 2026-08-14 (`/relay human .`), re-laned [INPUT - decision] -> [ROUTINE].
 # Defect (confirmed against the script's own header behaviour table, review 2026-08-14):
 # branches (b1) "empty + main UNMOVED" and (b3) "empty + main advanced only by merge
 # commit(s)" both `exit 0` on the "no commits beyond base" test BEFORE the (c) dirty-tree

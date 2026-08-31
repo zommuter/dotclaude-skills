@@ -5,7 +5,7 @@
 # --settled reports a meeting-note `<!-- settles:XXXX -->` edge ONLY when its target
 # is still OPEN in the ledger union; a bare `id:XXXX` mention or a backticked bare
 # token under a Decisions heading is NEVER an edge (the refuted D1(ii) bare-grep
-# design). --unbackrefed reports OPEN `[* — meeting]`/`[INPUT — decision]` ledger
+# design). --unbackrefed reports OPEN `[* - meeting]`/`[INPUT - decision]` ledger
 # items with NO `decided-in:` backref (presence-only, never a date comparison).
 #
 # Hermetic: all fixtures live in mktemp -d; never touches ~/.claude or the network.
@@ -49,9 +49,9 @@ cat > "$repo/TODO.md" <<'EOF'
 - [x] item bbbb, fixed by D2 <!-- id:bbbb -->
 - [ ] item cccc, merely cited (bare mention) under D3 <!-- id:cccc -->
 - [ ] item dddd, merely cited (backticked bare token) under D4 <!-- id:dddd -->
-- [ ] [INPUT — decision] a decision item with no backref <!-- id:eeee -->
-- [ ] [INPUT — meeting] a meeting item WITH a decided-in backref <!-- decided-in:docs/meeting-notes/2026-01-01-0000-fixture-settled-8913.md --> <!-- id:ffff -->
-- [x] [INPUT — decision] a closed decision item, no backref (must not fire — not open) <!-- id:1111 -->
+- [ ] [INPUT - decision] a decision item with no backref <!-- id:eeee -->
+- [ ] [INPUT - meeting] a meeting item WITH a decided-in backref <!-- decided-in:docs/meeting-notes/2026-01-01-0000-fixture-settled-8913.md --> <!-- id:ffff -->
+- [x] [INPUT - decision] a closed decision item, no backref (must not fire — not open) <!-- id:1111 -->
 - [ ] [ROUTINE] an ordinary item, no meeting/decision lane tag (must not fire) <!-- id:2222 -->
 EOF
 : > "$repo/ROADMAP.md"
@@ -89,7 +89,7 @@ grep -q 'id:dddd\|dddd' < <(echo "$OUT") \
 run --unbackrefed
 
 grep -q 'id:eeee.*UNBACKREFED' < <(echo "$OUT") \
-  || fail "id:eeee is OPEN, tagged [INPUT — decision], no decided-in: marker — must fire UNBACKREFED"
+  || fail "id:eeee is OPEN, tagged [INPUT - decision], no decided-in: marker — must fire UNBACKREFED"
 
 grep -q 'id:ffff' < <(echo "$OUT") \
   && fail "id:ffff carries a decided-in: backref — must NOT fire"
@@ -98,6 +98,6 @@ grep -q 'id:1111' < <(echo "$OUT") \
   && fail "id:1111 is CLOSED ([x]) — must NOT fire even though it lacks a backref"
 
 grep -q 'id:2222' < <(echo "$OUT") \
-  && fail "id:2222 carries no [* — meeting]/[INPUT — decision] lane tag — must NOT fire"
+  && fail "id:2222 carries no [* - meeting]/[INPUT - decision] lane tag — must NOT fire"
 
 echo ok

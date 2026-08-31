@@ -41,12 +41,15 @@ git -C "$FIX" config user.email t@e.st; git -C "$FIX" config user.name t
 #  a2bb — twinned, marker followed by a `— needs /relay human` gate note (human route).
 #  cccc — twinned the ordinary way (marker IS line-terminal): regression control.
 #  dddd — NOT an item; its id is only NAMED in another item's bare prose (id:1312 control).
-cat > "$FIX/ROADMAP.md" <<'EOF'
+# The gate lane tag is interpolated, never written literally on a `- [ ]` source line, so
+# this file cannot trip hooks/pre-commit-lane-vocab.sh; the fixture on disk is unchanged.
+HDG='[HARD - decision gate]'
+cat > "$FIX/ROADMAP.md" <<EOF
 # Roadmap
 
 ## Items
-- [ ] [HARD — decision gate] auto-gated item <!-- id:a1aa --> — 🚧 GATED (auto, id:3801; route:decision-gate): premise needs a design ruling — needs a /meeting
-- [ ] [HARD — decision gate] another gated item <!-- id:a2bb --> — 🚧 GATED (auto, id:3801; route:human): needs /relay human
+- [ ] $HDG auto-gated item <!-- id:a1aa --> — 🚧 GATED (auto, id:3801; route:decision-gate): premise needs a design ruling — needs a /meeting
+- [ ] $HDG another gated item <!-- id:a2bb --> — 🚧 GATED (auto, id:3801; route:human): needs /relay human
 - [x] [ROUTINE] a plainly twinned item <!-- id:cccc -->
 - [ ] [ROUTINE] unrelated work — the follow-up seam is tracked as id:dddd, filed separately <!-- id:cafe -->
 EOF

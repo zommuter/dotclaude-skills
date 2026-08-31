@@ -78,7 +78,7 @@ sed -i 's/^- \[ \] untagged surface item one/- [ ] [ROUTINE] untagged surface it
 [[ "$(disp_of aaaa)" == "promote" ]] || { echo "(4) resolved+[ROUTINE]-tagged aaaa must promote"; exit 1; }
 
 # --- (5) a HUMAN lane tag → `laned` (verdict-neutral, never surface, never filed) -----------
-sed -i 's/^- \[ \] untagged surface item two/- [ ] [HARD — meeting] untagged surface item two/' "$REPO/TODO.md"
-[[ "$(disp_of bbbb)" == "laned" ]] || { echo "(5) [HARD — meeting]-tagged bbbb must be laned, got '$(disp_of bbbb)'"; exit 1; }
+sed -i 's/^- \[ \] untagged surface item two/- [ ] [HARD - meeting] untagged surface item two/' "$REPO/TODO.md"
+[[ "$(disp_of bbbb)" == "laned" ]] || { echo "(5) [HARD - meeting]-tagged bbbb must be laned, got '$(disp_of bbbb)'"; exit 1; }
 
 echo "PASS test_unpromoted_decision_queue_exclusion"
