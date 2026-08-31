@@ -2658,3 +2658,7 @@ substitutions using the SAME `[[:space:]]*[—-][[:space:]]*` idiom roadmap-lint
 established; no duplication was introduced to clean up.
 Friction: none -- id:e8d4 (S4, 12 bash files) remains open and is a separate, larger seam;
 this session worked only id:d0aa (S6) per the one-item-per-session rule.
+
+## 2026-08-31 19:33 — executor (sonnet, relay-loop)
+
+Em-dash delimiter migration S6 (id:d0aa): orphan-scan.sh's two lane-tag grep sites (--promotion, --unbackrefed) now accept the hyphen delimiter alongside em-dash; classify.sh confirmed already delimiter-agnostic via new fixture test; suite green 530/0/1-expected-red. [id:d0aa]
