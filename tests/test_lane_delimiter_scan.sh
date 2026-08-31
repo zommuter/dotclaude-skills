@@ -122,4 +122,19 @@ grep -q 'prose' <<<"$out" \
   || fail "default mode did not mark the old-spelling prose mentions as (prose): $out"
 pass "default mode lists prose mentions without failing"
 
+# ── id:4ce8 — a directory argument is a usage error, not a crash ──────────────
+mkdir -p "$tmp/adir"
+
+set +e
+out="$(bash "$SCAN" --live-only "$tmp/adir" 2>"$tmp/direrr")"; rc=$?
+set -e
+direrr="$(cat "$tmp/direrr")"
+[[ $rc -eq 2 ]] \
+  || fail "a directory argument did not exit 2 (rc=$rc, out: $out, err: $direrr)"
+grep -q 'unbound variable' <<<"$direrr" \
+  && fail "a directory argument produced a bash unbound-variable trace instead of a clean usage error: $direrr"
+grep -q "not a regular file: $tmp/adir" <<<"$direrr" \
+  || fail "a directory argument did not print the expected 'not a regular file' message: $direrr"
+pass "id:4ce8: a directory argument exits 2 with a clean message, never an unbound-variable trace"
+
 pass "lane-delimiter-scan.sh distinguishes live lane tags from prose mentions in both directions"
