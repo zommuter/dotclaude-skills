@@ -152,7 +152,7 @@ The three gates, in order, with the wall each caused on the ac14 first-run:
    competing `resource:<token>` claim. **Wall:** the probe only knew `gpu|ram|cpu|local-llm`;
    a bespoke token (`r5-jvm`/`lean`/`xvfb-electron`) returned exit 2 → `resource-unavailable`
    forever. Fixed 2026-07-13 (commit e980b07): bespoke tokens are now claim-only. If you add a
-   NEW `[INTENSIVE — <tok>]` token, add it to resource-probe.sh's allow-list too.
+   NEW `[INTENSIVE - <tok>]` token, add it to resource-probe.sh's allow-list too.
 3. **INTENSITY gate** — `relay-intensity.sh permits <est_wall> <resource>` needs an ACTIVE
    permit window (`~/.config/relay/permitted-intensity.json`); a HEAVY resource needs a
    `--heavy`/`--intensive` window (a `--light`/`--afk` window is not enough). **Wall:** with no
@@ -171,7 +171,7 @@ you can still `touch ~/.config/relay/recipes/pending/<recipe>.json`.
 
 **Auto-draft + surfacing (id:8a6b clauses a+b — SHIPPED).** `mechanical-orphan-draft.sh` turns
 every `relay-doctor` check-12 orphan into a `drafts/<id>.json` skeleton (id/repo prefilled; host
-from `[host:<name>]`; resource from `[INTENSIVE — <res>]`; cmd/est_wall/acceptance_artifact as
+from `[host:<name>]`; resource from `[INTENSIVE - <res>]`; cmd/est_wall/acceptance_artifact as
 `TODO:` placeholders), idempotently. `mechanical-orphan-scan.sh` (read-only) is the shared
 collector. Both orphans and un-promoted drafts are LOUD-surfaced in `RELAY_STATUS.md` (the
 "## Mechanical orphans / drafts" section, rendered by `relay-status-publish.sh`) and in

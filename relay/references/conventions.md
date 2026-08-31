@@ -64,18 +64,18 @@ rather than copying the full block — see §Executor-contract pointer below.
   and re-dispatch the unit if the mislocated changes are unrecoverable or entangled with
   unrelated concurrent edits.
 
-## Tagging `[INTENSIVE — <resource>]` (id:8d52)
+## Tagging `[INTENSIVE - <resource>]` (id:8d52)
 
-`[INTENSIVE — <resource>]` is a **resource modifier**, orthogonal to the verdict tag —
+`[INTENSIVE - <resource>]` is a **resource modifier**, orthogonal to the verdict tag —
 NOT a replacement for `[ROUTINE]`/`[HARD]` (or, during the dual-vocab migration
-window, the old `[HARD — <lane>]` spelling). Like the capability lane tags it names the
+window, the old `[HARD - <lane>]` spelling). Like the capability lane tags it names the
 resource so the dispatch gate knows what's contended. A ROADMAP item carries both:
 
 ```markdown
-- [ ] Re-run the embedding index [ROUTINE] [INTENSIVE — local-llm]
+- [ ] Re-run the embedding index [ROUTINE] [INTENSIVE - local-llm]
 ```
 
-**When a strong child (handoff/review) should tag an item `[INTENSIVE — local-llm]`** —
+**When a strong child (handoff/review) should tag an item `[INTENSIVE - local-llm]`** —
 when the item's work would:
 - (a) load a local GGUF / large model into RAM/VRAM (e.g. via llama-server / llama-swap /
   ollama),

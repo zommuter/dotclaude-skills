@@ -64,7 +64,7 @@ you were told you are the reviewer) follow these rules:
     field, not in RELAY_LOG.md / ROADMAP.md / REVIEW_ME.md. A clean worktree is
     auto-reaped; any commit on a refusal strands as an orphan worktree.
 
-    The id:3801 gate then re-tags the `[ROUTINE]` parent to `[HARD — decision gate]`
+    The id:3801 gate then re-tags the `[ROUTINE]` parent to `[HARD - decision gate]`
     (or applies the appropriate split/human follow-up), stopping the re-dispatch spin.
 
 2c. **Mid-run context-budget check — checkpoint-and-handback before you die of

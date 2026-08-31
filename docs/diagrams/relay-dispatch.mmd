@@ -29,7 +29,7 @@ flowchart TB
         %% enforced-by: test_relay_doctor_verdict_invariant.sh
         classify -->|"open [ROUTINE] work verified needed"| vreview(["verdict = review → Opus apex reviewer"])
         %% enforced-by: test_classify_verdict.sh
-        classify -->|"open [HARD — pool] item"| vhard(["verdict = hard → Opus apex HARD-execute child"])
+        classify -->|"open [HARD - pool] item"| vhard(["verdict = hard → Opus apex HARD-execute child"])
         %% enforced-by: test_classify_hard_floor.sh, test_classify_hard_lanes.sh
         classify -->|"repo needs docs/RED-specs/roadmap"| vhandoff(["verdict = handoff → Opus apex handoff child"])
         %% enforced-by: NONE — no test pins the handoff-verdict branch of classify-verdict.sh directly
@@ -108,7 +108,7 @@ flowchart TB
     subgraph humansub["Substrate 3 — human (interactive /relay human)"]
         direction TB
         hgather["gather-human-backlog.sh → tiers a/b/c"]
-        hbuckets["[INPUT — meeting|decision|access] · @manual ·<br/>[HARD — meeting] (→ /meeting) · [HARD — hands]<br/>(you run these) · REVIEW_ME judgment boxes"]
+        hbuckets["[INPUT - meeting|decision|access] · @manual ·<br/>[HARD - meeting] (→ /meeting) · [HARD - hands]<br/>(you run these) · REVIEW_ME judgment boxes"]
         hgather --> hbuckets
         %% enforced-by: test_gather_human_decision.sh, test_gather_todo_human_lanes.sh
         hinject["/relay inject — hand a decided item back to the pool;<br/>/relay reconcile — consume orphan-park refs (registry)"]

@@ -190,8 +190,8 @@ Open executor items: id:85df (classifier), id:297b (roadmap-lint case c/d loud-f
 **Capability-keyed lane taxonomy + mechanical-run daemon — slice A handed off**
 (meeting `docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`,
 umbrella TODO id + children A1–A5/B1–B2). The lane vocabulary is being re-based on
-*required capability* (two orthogonal axes: capability `[ROUTINE]`/`[HARD]`/`[INPUT —
-{meeting,decision,access}]`/`[MECHANICAL]` × resource `[INTENSIVE — <res>]`) rather than
+*required capability* (two orthogonal axes: capability `[ROUTINE]`/`[HARD]`/`[INPUT -
+{meeting,decision,access}]`/`[MECHANICAL]` × resource `[INTENSIVE - <res>]`) rather than
 dispatch venue, and a new `[MECHANICAL]` tier lets a host `--user` daemon run
 pure-compute work (local-LLM benchmarks, pytorch) while an LLM session reviews the
 result. The build is deliberately sliced: **slice A is additive** (touches no existing

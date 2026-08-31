@@ -20,7 +20,7 @@ checkboxes; only the reviewer adds, removes, or re-scopes items.
   - **Done-check**: `<exact command an executor runs to verify, e.g. uv run pytest -k xxxx>`
   - **Context**: <files involved, constraints, pointers into ARCHITECTURE.md>
 
-- [ ] <imperative title> [HARD — strong model] <!-- id:XXXX -->
+- [ ] <imperative title> [HARD - strong model] <!-- id:XXXX -->
   - **Why HARD**: <judgment/architecture/ambiguity reason>
   - **Acceptance**: <criteria>
 ```
@@ -35,7 +35,7 @@ Rules baked into the format:
   every roadmap change, tick when zero remain).
 - Orthogonal markers (NOT lanes) may co-occur on an item — `@manual` (human runs/verifies),
   `@needs-auth` (human-held secret), `@wire` (executor-verifiable via a host/e2e RED spec).
-  An open `@wire` item on a primary executor lane (`[ROUTINE]`/`[HARD — pool]`/`[HARD]`)
+  An open `@wire` item on a primary executor lane (`[ROUTINE]`/`[HARD - pool]`/`[HARD]`)
   counts as executor-actionable → `verdict=execute`; `@manual` stays excluded. A two-phase
   feature is the D3 **two-linked-items split** (a `@wire` executor item + a separate
   `@manual` human item `gated-on:` it), never a mutable re-tag. All markers are defined in

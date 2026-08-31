@@ -65,8 +65,8 @@ scripts/gather-human-backlog.sh repoA repoB     # named repos
 **Grammar-lint each own repo's ROADMAP alongside the gather (id:09a3).** Run
 `scripts/roadmap-lint.sh <repo-root>` across the same own repos — a POSITIVE-grammar
 validator that LOUD-rejects ANY open `- [ ]` item not matching the proper syntax (a
-recognized `[ROUTINE]`/`[HARD]`/`[INPUT — meeting|decision|access]` lane — or, during
-the dual-vocab migration window, the old `[HARD — pool|meeting|hands|decision gate]`
+recognized `[ROUTINE]`/`[HARD]`/`[INPUT - meeting|decision|access]` lane — or, during
+the dual-vocab migration window, the old `[HARD - pool|meeting|hands|decision gate]`
 spelling — from `hard-lanes.md` PLUS a 4-hex `id:` token; gated/deferred/icebox/archive
 sections are exempt). This widens the net beyond the gather's untagged-`[HARD]` check: it also catches
 an open item with NO class tag at all (invisible to BOTH the loop AND triage) and
@@ -125,7 +125,7 @@ It emits a TSV `repo  path  kind  box_summary` covering:
 - every OPEN `- [ ]` box in each repo's `REVIEW_ME.md` (`kind = review_me`), AND
 - open `@manual` boxes — REVIEW_ME `@manual` lines AND `ROADMAP.md` items tagged
   `@manual`/BDD that need a human to RUN them (`kind = manual`), AND
-- every open `- [ ]` `[HARD]`/`[INPUT — …]` `ROADMAP.md` item, bucketed by its EXPLICIT
+- every open `- [ ]` `[HARD]`/`[INPUT - …]` `ROADMAP.md` item, bucketed by its EXPLICIT
   lane tag (id:78ff) into one of three kinds — **`hard_pool` / `hard_meeting` /
   `hard_hands`** — re-derived from ROADMAP, not a possibly-stale live
   `RELAY_STATUS.md`. The lane is READ from the bracket tag, never inferred (decision
@@ -134,15 +134,15 @@ It emits a TSV `repo  path  kind  box_summary` covering:
   `scan.py` (id:b466 — keep the two in sync). CANONICAL vocab (id:4f02 north star) is
   capability-keyed; the old venue-keyed spelling is still ACCEPTED during the
   dual-vocab migration window (id:4f02/id:8111, still open). The buckets:
-  - **`hard_pool`** (bare `[HARD]`; old: `[HARD — pool]`) — bounded, unattended-safe
+  - **`hard_pool`** (bare `[HARD]`; old: `[HARD - pool]`) — bounded, unattended-safe
     apex work the `/relay --afk` pool already runs via its `hard` verdict (id:da26).
     **NOT a human action** — surface it as FYI, do not route it to a meeting.
-  - **`hard_meeting`** (`[INPUT — meeting]` and `[INPUT — decision]`; old:
-    `[HARD — meeting]`, plus the auto-gate aliases `[HARD — decision gate]` and
+  - **`hard_meeting`** (`[INPUT - meeting]` and `[INPUT - decision]`; old:
+    `[HARD - meeting]`, plus the auto-gate aliases `[HARD - decision gate]` and
     `🚧 route:meeting|human|decision-gate`, id:3801) — needs a `/meeting` design
-    decision (or, for `[INPUT — decision]`, just a human call — no design session)
+    decision (or, for `[INPUT - decision]`, just a human call — no design session)
     before anyone can build it. This is the tier-(c) "needs a /meeting" backlog.
-  - **`hard_hands`** (`[INPUT — access]`; old: `[HARD — hands]`) —
+  - **`hard_hands`** (`[INPUT - access]`; old: `[HARD - hands]`) —
     hardware/sudo/secret/on-device/rehearsal: the human runs it. Belongs on the "you
     run these" checklist (§4), NOT a meeting.
 
@@ -151,7 +151,7 @@ It emits a TSV `repo  path  kind  box_summary` covering:
   meetings. The pool-executable majority now bucket as `hard_pool` and only genuine
   decision/hands work reaches human triage. The collector spawns no model: each
   recognized row's `box_summary` carries the item text plus ` — <bucket>: <why>`.
-- **`untagged` is a HARD ERROR, not a kind.** An open `[HARD]`/`[INPUT — …]` item with
+- **`untagged` is a HARD ERROR, not a kind.** An open `[HARD]`/`[INPUT - …]` item with
   no recognized lane tag makes the collector print an `ERROR:` line to stderr (repo +
   item) and **exit nonzero** (id:415b grammar-tightening-with-loud-rejection). If
   `/relay human` sees a nonzero gather exit, the FIRST fix is to add the missing lane
@@ -232,9 +232,9 @@ them.** The collector has already READ each item's explicit lane, so route by `k
   **Author-then-run split (id:e175):** before surfacing a hands item, judge whether it is
   *(an authorable artifact) + (a thin on-device run)* — e.g. write systemd units in-repo,
   then `systemctl --user` enable + observe. When the authoring half is genuinely
-  worktree-buildable, propose the SPLIT (handoff.md C2): a `[HARD]` (old: `[HARD — pool]`)
+  worktree-buildable, propose the SPLIT (handoff.md C2): a `[HARD]` (old: `[HARD - pool]`)
   "author X" item the `--afk` pool builds unattended + a run residue gated
-  `(DEP: <author-id>)`. The run residue is `[INPUT — access]` (old: `[HARD — hands]`)
+  `(DEP: <author-id>)`. The run residue is `[INPUT - access]` (old: `[HARD - hands]`)
   only if it genuinely needs a human (device/sudo/physical/
   credential) — if it is daemon-runnable instead, it is `[MECHANICAL]` and does NOT
   appear on this checklist (hard-lanes.md's "needs an LLM?" branch, id:2313). It is

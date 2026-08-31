@@ -35,7 +35,7 @@ This invariant is mirrored in the `relay/scripts/claim.sh` header (the mechanism
 ACQUIRE the same key and therefore collide on it:
 
 - the relay pool's **intensive child** — `relay-loop.js` (~L1200) dispatches a unit
-  carrying an `[INTENSIVE — <resource>]` lane modifier (id:8d52) and does
+  carrying an `[INTENSIVE - <resource>]` lane modifier (id:8d52) and does
   `claim.sh acquire resource:<resource> --mode intensive`, stopping (handback) if busy;
 - a **standalone intensive job** running OUTSIDE the relay (e.g.
   `~/.claude/logs/ai-codebench-drain.sh`'s detached `llama-server -ngl 99`), which now
@@ -46,10 +46,10 @@ either side makes the other's `claim.sh acquire` exit non-zero — so two heavy 
 can never run concurrently and OOM-kill each other ([[oom-local-model-session-kills]],
 the 2026-06-12 Gemma-26B 6-session kill).
 
-## The contract: the resource token is the `[INTENSIVE — <resource>]` token
+## The contract: the resource token is the `[INTENSIVE - <resource>]` token
 
 The `<resource>` in a `resource:<resource>` claim key MUST be byte-identical to the
-`<resource>` an item's `[INTENSIVE — <resource>]` lane tag carries (id:8d52,
+`<resource>` an item's `[INTENSIVE - <resource>]` lane tag carries (id:8d52,
 `hard-lanes.md` §"The orthogonal resource axis"). That is the whole mechanism: the
 relay derives its claim key from the item's tag, and a standalone job names the same
 token, so the two keys are the same string and the claim collides.
@@ -57,10 +57,10 @@ token, so the two keys are the same string and the claim collides.
 | Resource token | What it serializes | Used by |
 |---|---|---|
 | `local-llm` | a single local GGUF / llama-server / llama-swap / ollama model load (the default `intensive = "local-llm"` repo coarse tag) | the relay intensive child; `ai-codebench-drain.sh` (and any future local-model drain) |
-| `gpu` | exclusive GPU use when the contention is the device itself rather than a specific model runtime | GPU-bound standalone jobs + any `[INTENSIVE — gpu]` item |
+| `gpu` | exclusive GPU use when the contention is the device itself rather than a specific model runtime | GPU-bound standalone jobs + any `[INTENSIVE - gpu]` item |
 
 The set is intentionally small — add a token here ONLY when a real second consumer
-needs to collide on it, and tag the corresponding ROADMAP items `[INTENSIVE — <token>]`
+needs to collide on it, and tag the corresponding ROADMAP items `[INTENSIVE - <token>]`
 with the same spelling. A typo'd token is NOT an error the tools can catch (the keys
 simply don't collide and the serialization silently fails) — so the spelling
 discipline lives here, in one doc both sides read.
