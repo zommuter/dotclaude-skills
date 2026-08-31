@@ -2731,3 +2731,47 @@ Friction: none.
 ## 2026-08-31 22:52 — executor (sonnet, relay-loop)
 
 Em-dash migration S5b: flipped handback-followup.py's GATE_TAG and lane-convert.sh's two repl= strings to emit the canonical hyphen [INPUT - decision]/[INPUT - meeting] instead of the legacy em dash, with all four affected pinning tests updated; full suite green (532/0/1-expected-red). [id:32f9]
+
+## 2026-08-31 — reviewer (claude-opus-5, relay-loop)
+
+review: chain-end re-ask over relay-ckpt-20260831-2235..HEAD (two execute units,
+id:4ce8 + id:32f9). gaming-scan.sh clean (no DELETED_TEST / ADDED_SKIP /
+REMOVED_ASSERT). Both done-checks re-run independently and PASS: GATE_TAG and
+lane-convert's two repl= strings now carry only the hyphen spelling, and
+`lane-delimiter-scan.sh --live-only /tmp` exits 2 with `not a regular file: /tmp`
+instead of the unbound-variable trace. Tiers: `make test` is this repo's ONLY
+declared tier (Makefile `test: lint`; no package.json, no CI workflows) -- it ran
+GREEN, 532 passed / 0 failed / 1 expected-red; no tier skipped.
+Resurrection (§2b.1): the four modified test files changed assertion LITERALS
+(em dash -> hyphen), which is the item's own stated acceptance ("flip both
+emitters and, IN THE SAME COMMIT, the tests that pin the emitted spelling"), not
+a weakened spec; the fourth file (test_lane_convert_prose.sh) was outside the
+item's enumeration and the executor disclosed it. Over-reach (§2d): re-read the
+cited ratified source `docs/migration-em-dash-delimiter.md` ("Every emitter and
+every stored tag is rewritten to the hyphen") -- the diff is a SUBSET of what was
+authorized (two emitters), not a superset. Provenance (§2b.7/9): no
+@owner-accepted / @owner-answered / answer-src introduced. No discard verbs in
+the window.
+Independently re-measured id:1a03's recorded done-check grep: 53 -> 49 hits, and
+read all 49 -- every one is prose/comment/log-string, ZERO ledger emitters, so
+id:32f9 is genuinely closed and the stale grep is a re-file trap, filed id:ad2a.
+Also filed id:9e86: id:4ce8's fix added a dead `[[ ! -e ]]` branch duplicating
+the existing `[[ ! -r ]]` message, which its `refactor: none needed` glossed --
+NOT reopened, acceptance is met and behaviour is identical.
+relay-doctor: 0 per-repo issues (cross-ledger clean, roadmap-lint clean,
+todo-conformance clean, no mechanical orphans, main checkout clean). Fleet
+findings are pre-existing and cross-repo: 1 inbox dead-letter routed:7ad4
+targeting relay-core (shadow-binary lane-recognition parity), and the relay-core
+shadow's 20,103 mismatches over 256,586 rounds -- both report-only, neither is
+dotclaude-skills work. orphan-scan --shipped: 90 advisory candidates, none
+TICK-READY in the top band; pre-existing backlog, nothing auto-ticked.
+Reverse-handoff (§5b): the only TODO/ROADMAP lines added this window are the two
+ticks the integrator wrote; no unqualified /meeting or manual additions to size.
+routine_open = 1 -- of 7 open [ROUTINE] lines in ROADMAP.md, six are gated or
+owner-gated (d4ca, 540f, c179, 554b, 6446 carry gated-on:/parked/@owner-gated;
+cf2d is an @owner-verify human item), leaving id:4d1c as the single dispatchable
+one. This matches the deterministic classifier (actionable_routine_open=1,
+verdict=execute). Note the naive `[ROUTINE]`-plus-BLOCKED grep false-positives on
+id:4d1c, whose PROSE quotes a `lane-vocab: BLOCKED` message -- the substring
+class this repo keeps rediscovering.
+verified_green: 4ce8, 32f9. reopened: none. gaming_flags: none.
