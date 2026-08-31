@@ -23,7 +23,7 @@ mkdir -p "$REPO"
 git -C "$REPO" init -q
 git -C "$REPO" config user.email t@e.x
 git -C "$REPO" config user.name t
-printf '# ROADMAP\n\n- [ ] [HARD — pool] thing <!-- id:aaaa -->\n' > "$REPO/ROADMAP.md"
+printf '# ROADMAP\n\n- [ ] [HARD - pool] thing <!-- id:aaaa -->\n' > "$REPO/ROADMAP.md"
 printf '# TODO\n\n- [ ] a todo <!-- id:aaaa -->\n' > "$REPO/TODO.md"
 printf 'code\n' > "$REPO/unrelated.txt"
 git -C "$REPO" add -A
@@ -31,14 +31,14 @@ git -C "$REPO" commit -qm init
 
 echo "== 1. a scoped ledger edit commits atomically (tree clean after) =="
 # Simulate gate-detection: re-tag the ROADMAP item in the main checkout.
-sed -i 's/\[HARD — pool\]/[HARD — decision gate]/' "$REPO/ROADMAP.md"
+sed -i 's/\[HARD - pool\]/[HARD - decision gate]/' "$REPO/ROADMAP.md"
 "$HELPER" "$REPO" -m "roadmap: gate id:aaaa (id:3801)" ROADMAP.md >/dev/null 2>&1
 if [ -z "$(git -C "$REPO" status --porcelain)" ]; then ok "tree clean after commit (no dirty residue)"; else bad "tree still dirty after commit: $(git -C "$REPO" status --porcelain)"; fi
 if grep -qF 'gate id:aaaa' < <(git -C "$REPO" log -1 --pretty=%s) ; then ok "commit landed with the message"; else bad "commit message missing"; fi
 if grep -qF 'ROADMAP.md' < <(git -C "$REPO" show --stat HEAD) ; then ok "ROADMAP.md is in the commit"; else bad "ROADMAP.md not committed"; fi
 
 echo "== 2. an UNRELATED concurrent edit is left untouched (scoped stage, no git add -A) =="
-sed -i 's/\[HARD — decision gate\]/[HARD — pool]/' "$REPO/ROADMAP.md"   # another ledger edit
+sed -i 's/\[HARD - decision gate\]/[HARD - pool]/' "$REPO/ROADMAP.md"   # another ledger edit
 printf 'concurrent foreign work\n' >> "$REPO/unrelated.txt"            # foreign dirty, NOT a ledger
 "$HELPER" "$REPO" -m "roadmap: revert gate (id:3801)" ROADMAP.md >/dev/null 2>&1
 # the foreign file must STILL be dirty + uncommitted (never swept into the commit, never stashed)
@@ -52,7 +52,7 @@ git -C "$REPO" checkout -- unrelated.txt
 
 echo "== 3. multi-file ledger commit (ROADMAP + TODO together) =="
 sed -i 's/a todo/a todo (gated)/' "$REPO/TODO.md"
-sed -i 's/\[HARD — pool\]/[HARD — decision gate]/' "$REPO/ROADMAP.md"
+sed -i 's/\[HARD - pool\]/[HARD - decision gate]/' "$REPO/ROADMAP.md"
 "$HELPER" "$REPO" -m "ledger: sync id:aaaa across ROADMAP+TODO" ROADMAP.md TODO.md >/dev/null 2>&1
 if [ -z "$(git -C "$REPO" status --porcelain)" ]; then ok "both ledgers committed, tree clean"; else bad "residue after multi-file commit"; fi
 if grep -qF 'TODO.md' < <(git -C "$REPO" show --stat HEAD) && grep -qF 'ROADMAP.md' < <(git -C "$REPO" show --stat HEAD) ; then ok "both files in one commit"; else bad "multi-file commit incomplete"; fi
@@ -66,12 +66,12 @@ if [ "$before" = "$after" ]; then ok "no empty commit created"; else bad "an emp
 if [ "$rc" = 0 ]; then ok "clean no-op exits 0"; else bad "no-op exited nonzero ($rc)"; fi
 
 echo "== 5. absolute ledger path is accepted (resolved repo-relative) =="
-sed -i 's/\[HARD — decision gate\]/[HARD — pool]/' "$REPO/ROADMAP.md"
+sed -i 's/\[HARD - decision gate\]/[HARD - pool]/' "$REPO/ROADMAP.md"
 "$HELPER" "$REPO" -m "ledger: abs path" "$REPO/ROADMAP.md" >/dev/null 2>&1
 if [ -z "$(git -C "$REPO" status --porcelain)" ]; then ok "absolute path committed, tree clean"; else bad "absolute path not handled"; fi
 
 echo "== 6. misuse is a loud nonzero (no commit message) =="
-sed -i 's/\[HARD — pool\]/[HARD — decision gate]/' "$REPO/ROADMAP.md"
+sed -i 's/\[HARD - pool\]/[HARD - decision gate]/' "$REPO/ROADMAP.md"
 if "$HELPER" "$REPO" ROADMAP.md >/dev/null 2>&1; then bad "missing -m did not fail"; else ok "missing -m exits nonzero"; fi
 # the ledger stays as the caller left it (dirty) — misuse never half-commits
 if grep -q 'ROADMAP.md' < <(git -C "$REPO" status --porcelain) ; then ok "misuse left the edit uncommitted (no partial commit)"; else bad "misuse mutated the commit graph"; fi

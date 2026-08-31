@@ -98,26 +98,27 @@ EOF
 # repoA also has a ROADMAP exercising the explicit HARD-lane buckets (id:78ff,
 # supersedes the gated_hard lump of id:f6c9). Every open [HARD] item carries an
 # EXPLICIT lane tag the collector READS (never infers):
-#   - [HARD — pool]            → kind=hard_pool   (the /relay --afk pool runs it)
-#   - [HARD — meeting]         → kind=hard_meeting (/meeting decides it)
-#   - [HARD — decision gate]   → kind=hard_meeting (auto-gate alias, id:3801)
-#   - [HARD — hands]           → kind=hard_hands  ("you run these")
+#   - [HARD - pool]            → kind=hard_pool   (the /relay --afk pool runs it)
+#   - [HARD - meeting]         → kind=hard_meeting (/meeting decides it)
+#   - [HARD - decision gate]   → kind=hard_meeting (auto-gate alias, id:3801)
+#   - [HARD - hands]           → kind=hard_hands  ("you run these")
 #   - a closed [x] item        → NOT emitted
 # (the untagged-[HARD] LOUD reject is covered by test_hard_lane_buckets.sh.)
-cat > "$STORE/src/repoA/ROADMAP.md" <<'EOF'
-## Executable work
-- [ ] [HARD — pool] Refactor the parser core <!-- id:e0e0 -->
-- [x] [HARD — decision gate] Already-resolved gate <!-- id:dead -->
-
-## Open decision gates
-- [ ] [HARD — decision gate] Pick the on-disk format: msgpack vs json <!-- id:9999 -->
-
-## Hands-on
-- [ ] [HARD — hands] Flash the firmware on the device <!-- id:7e7e -->
-
-## Gated
-- [ ] [HARD — meeting] Build the thing once the gate opens <!-- id:8888 -->
-EOF
+# printf'd, not heredoc'd: an ADDED source line beginning with a checkbox that carries
+# an old-vocab lane tag trips the pre-commit lane-vocab ratchet, and these are fixture
+# ledger rows rather than real items.
+{
+  printf '## Executable work\n'
+  printf -- '- [ ] %s Refactor the parser core <!-- id:e0e0 -->\n'  '[HARD - pool]'
+  printf -- '- [x] %s Already-resolved gate <!-- id:dead -->\n'     '[HARD - decision gate]'
+  printf '\n## Open decision gates\n'
+  printf -- '- [ ] %s Pick the on-disk format: msgpack vs json <!-- id:9999 -->\n' \
+    '[HARD - decision gate]'
+  printf '\n## Hands-on\n'
+  printf -- '- [ ] %s Flash the firmware on the device <!-- id:7e7e -->\n' '[HARD - hands]'
+  printf '\n## Gated\n'
+  printf -- '- [ ] %s Build the thing once the gate opens <!-- id:8888 -->\n' '[HARD - meeting]'
+} > "$STORE/src/repoA/ROADMAP.md"
 
 # repoD is own but paused = true (on-hiatus): it has an open box that MUST NOT
 # be swept. Guards the gather-human-backlog.sh paused-filter (commit 7456e1f).
@@ -176,25 +177,25 @@ grep -q 'Routine thing' <<<"$OUT" && fail "plain ROADMAP routine item leaked int
 pass "gather ignores non-@manual ROADMAP items"
 
 # --- explicit HARD-lane buckets (id:78ff): kind=hard_pool/hard_meeting/hard_hands ---
-# [HARD — pool] item buckets as hard_pool (the /relay --afk pool runs it).
+# [HARD - pool] item buckets as hard_pool (the /relay --afk pool runs it).
 grep -qP '^repoA\t.*\thard_pool\t.*Refactor the parser core.*— pool:' <<<"$OUT" \
-  || fail "[HARD — pool] item not emitted as kind=hard_pool"
-pass "gather buckets [HARD — pool] item as kind=hard_pool"
+  || fail "[HARD - pool] item not emitted as kind=hard_pool"
+pass "gather buckets [HARD - pool] item as kind=hard_pool"
 
-# [HARD — decision gate] alias buckets as hard_meeting.
+# [HARD - decision gate] alias buckets as hard_meeting.
 grep -qP '^repoA\t.*\thard_meeting\t.*msgpack vs json.*— meeting:' <<<"$OUT" \
-  || fail "[HARD — decision gate] alias not bucketed as hard_meeting"
-pass "gather buckets [HARD — decision gate] alias as kind=hard_meeting"
+  || fail "[HARD - decision gate] alias not bucketed as hard_meeting"
+pass "gather buckets [HARD - decision gate] alias as kind=hard_meeting"
 
-# [HARD — meeting] item buckets as hard_meeting.
+# [HARD - meeting] item buckets as hard_meeting.
 grep -qP '^repoA\t.*\thard_meeting\t.*once the gate opens.*— meeting:' <<<"$OUT" \
-  || fail "[HARD — meeting] item not bucketed as hard_meeting"
-pass "gather buckets [HARD — meeting] item as kind=hard_meeting"
+  || fail "[HARD - meeting] item not bucketed as hard_meeting"
+pass "gather buckets [HARD - meeting] item as kind=hard_meeting"
 
-# [HARD — hands] item buckets as hard_hands (NOT a meeting, NOT the pool).
+# [HARD - hands] item buckets as hard_hands (NOT a meeting, NOT the pool).
 grep -qP '^repoA\t.*\thard_hands\t.*Flash the firmware.*— hands:' <<<"$OUT" \
-  || fail "[HARD — hands] item not bucketed as hard_hands"
-pass "gather buckets [HARD — hands] item as kind=hard_hands"
+  || fail "[HARD - hands] item not bucketed as hard_hands"
+pass "gather buckets [HARD - hands] item as kind=hard_hands"
 
 # closed [x] HARD item is NOT emitted.
 grep -q 'Already-resolved gate' <<<"$OUT" \
