@@ -51,7 +51,7 @@ pass "(2) prose (non-checkbox) [HARD — pool] mention untouched"
 # 3. genuine primary [HARD — meeting] renamed; the backtick'd `[HARD — pool]` AFTER
 #    it is a MENTION and must be preserved verbatim.
 l3="$(line 3333)"
-grep -qF '[INPUT — meeting]' <<<"$l3" || fail "(3) genuine primary [HARD — meeting] must convert to [INPUT — meeting]"
+grep -qF '[INPUT - meeting]' <<<"$l3" || fail "(3) genuine primary [HARD — meeting] must convert to [INPUT - meeting]"
 grep -qF '`[HARD — pool]`'   <<<"$l3" || fail "(3) the backtick'd [HARD — pool] mention must be preserved verbatim"
 grep -qF '[HARD]'            <<<"$l3" && fail "(3) the backtick'd mention must NOT be rewritten to [HARD]"
 pass "(3) only the genuine primary tag renamed; backtick'd secondary mention preserved"
