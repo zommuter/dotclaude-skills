@@ -60,7 +60,9 @@ export function classifyDrainBacklog(blocked) {
     const reason = (b && b.reason) ? String(b.reason) : ''
     if (/finished repo|anti-false-handoff|0 open items/i.test(reason)) buckets.finished.push(repo)
     else if (/suppressed re-dispatch/i.test(reason)) buckets.suppressed.push(repo)
-    else if (/HARD backlog|\[HARD —|no open \[HARD — pool\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
+    // id:1a03 delimiter window: a lane tag's delimiter is EITHER the legacy em dash
+    // (U+2014) or the canonical ASCII hyphen, so every lane arm below matches both.
+    else if (/HARD backlog|\[HARD\s*[—-]|no open \[HARD\s*[—-]\s*pool\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
     else if (/circuit breaker/i.test(reason)) buckets.circuitBroken.push(repo)
     else if (/dirty main tree|dirty/i.test(reason)) buckets.dirty.push(repo)
     else buckets.other.push(repo)

@@ -1601,7 +1601,9 @@ function classifyDrainBacklog(blocked) {
     const reason = (b && b.reason) ? String(b.reason) : ''
     if (/finished repo|anti-false-handoff|0 open items/i.test(reason)) buckets.finished.push(repo)
     else if (/suppressed re-dispatch/i.test(reason)) buckets.suppressed.push(repo)
-    else if (/HARD backlog|\[HARD —|\[HARD\]|\[INPUT —|no open \[HARD — pool\]|no open \[HARD\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
+    // id:1a03 delimiter window: a lane tag's delimiter is EITHER the legacy em dash
+    // (U+2014) or the canonical ASCII hyphen, so every lane arm below matches both.
+    else if (/HARD backlog|\[HARD\s*[—-]|\[HARD\]|\[INPUT\s*[—-]|no open \[HARD\s*[—-]\s*pool\]|no open \[HARD\]|demote-guard|needs a \/meeting|@manual|human-only|requires human/i.test(reason)) buckets.gated.push(repo)
     else if (/circuit breaker/i.test(reason)) buckets.circuitBroken.push(repo)
     else if (/dirty main tree|dirty/i.test(reason)) buckets.dirty.push(repo)
     else buckets.other.push(repo)
@@ -2991,9 +2993,9 @@ function executeNamedInstruction(unit) {
 // or an injected unit carries no list, and must still be able to work).
 function hardNamedInstruction(unit) {
   const ids = hardPoolIdsFor(unit)
-  const NO_REDERIVE = 'That list is AUTHORITATIVE and already resolved by gather-repo-state.sh from the SAME predicate that counted them — do NOT re-derive it by grepping ROADMAP.md for a lane tag. The lane vocabulary is in a DUAL-VOCAB window: the pool lane is spelled BOTH as a bare "[HARD]" and as the retired "[HARD — pool]", so a grep for either spelling alone silently misses real items (id:7517/routed:2d94). '
+  const NO_REDERIVE = 'That list is AUTHORITATIVE and already resolved by gather-repo-state.sh from the SAME predicate that counted them — do NOT re-derive it by grepping ROADMAP.md for a lane tag. The lane vocabulary is in a DUAL-VOCAB window: the pool lane is spelled as a bare "[HARD]", as the retired "[HARD — pool]", AND (id:1a03 delimiter migration) as "[HARD - pool]" with a plain ASCII hyphen, so a grep for any one spelling alone silently misses real items (id:7517/routed:2d94). '
   if (!ids.length) {
-    return 'You are an Opus-apex HARD-execute child (id:da26). The classifier resolved NO pool-lane id list for this unit, so survey ROADMAP.md yourself and pick the TOP open "- [ ]" item on the POOL lane — that is an item tagged with a bare "[HARD]" OR with the retired "[HARD — pool]" spelling; BOTH are the same lane and you must accept either. Skip items that are parked, @container, @owner-gated, 🚧, BLOCKED, or gated-on an open id. SIZE it first. '
+    return 'You are an Opus-apex HARD-execute child (id:da26). The classifier resolved NO pool-lane id list for this unit, so survey ROADMAP.md yourself and pick the TOP open "- [ ]" item on the POOL lane — that is an item tagged with a bare "[HARD]", OR with the retired "[HARD — pool]" spelling, OR with the ASCII-hyphen "[HARD - pool]" spelling (id:1a03 delimiter migration); ALL THREE are the same lane and you must accept any of them. Skip items that are parked, @container, @owner-gated, 🚧, BLOCKED, or gated-on an open id. SIZE it first. '
   }
   const rest = ids.slice(1, 3)
   return sliceInstruction(unit)
