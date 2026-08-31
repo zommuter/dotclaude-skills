@@ -76,6 +76,16 @@ EM_TAG_RE='(\[(HARD|INPUT|INTENSIVE)[[:space:]]*—[^]]*\])'
 findings=0
 rc=0
 for f in "${files[@]}"; do
+  if [[ ! -e "$f" ]]; then
+    echo "lane-delimiter-scan: cannot read $f" >&2
+    rc=2
+    continue
+  fi
+  if [[ ! -f "$f" ]]; then
+    echo "lane-delimiter-scan: not a regular file: $f" >&2
+    rc=2
+    continue
+  fi
   if [[ ! -r "$f" ]]; then
     echo "lane-delimiter-scan: cannot read $f" >&2
     rc=2
