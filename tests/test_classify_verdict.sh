@@ -25,12 +25,12 @@ CV="$ROOT/relay/scripts/classify-verdict.sh"
 verdict_of() { "$CV" <<<"$1" | python3 -c 'import sys,json;print(json.load(sys.stdin)["verdict"])'; }
 
 # --- Case (a) id:fb7f — phantom `hard` ----------------------------------------------------
-# The `[HARD — pool]` token appears ONLY inside back-tick'd re-lane PROSE, so the deterministic
+# The `[HARD - pool]` token appears ONLY inside back-tick'd re-lane PROSE, so the deterministic
 # open_hard_pool count is 0. A repo with no actionable routine/unaudited/pool work must NOT be `hard`.
 a='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":0,"top_intensive":"","roadmap_open":2,"roadmap_actionable_open":0,"unpromoted":{"promote":0,"surface":0}}'
 [[ "$(verdict_of "$a")" != "hard" ]] || { echo "case a: open_hard_pool=0 must NOT yield hard"; exit 1; }
 
-# inverse: a genuine open [HARD — pool] item (open_hard_pool>=1, nothing earlier in D3 order) → hard
+# inverse: a genuine open [HARD - pool] item (open_hard_pool>=1, nothing earlier in D3 order) → hard
 ha='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"top_intensive":"","roadmap_open":1,"roadmap_actionable_open":1,"unpromoted":{"promote":0,"surface":0}}'
 [[ "$(verdict_of "$ha")" == "hard" ]] || { echo "case a inverse: open_hard_pool>=1 must be hard"; exit 1; }
 

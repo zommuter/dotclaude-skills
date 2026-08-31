@@ -39,6 +39,6 @@ z='{'"$base"',"unpromoted":{"promote":0,"surface":0}}'
 
 # The `human` verdict must NOT outrank real dispatchable work (it is rank 5, below execute/review/hard).
 hr='{"repo":"x","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":1,"top_intensive":"","roadmap_open":1,"roadmap_actionable_open":1,"unpromoted":{"promote":0,"surface":9}}'
-[[ "$(verdict_of "$hr")" == "hard" ]] || { echo "open [HARD — pool] must still outrank surface→human"; exit 1; }
+[[ "$(verdict_of "$hr")" == "hard" ]] || { echo "open [HARD - pool] must still outrank surface→human"; exit 1; }
 
 echo "PASS test_classify_verdict_humanlane"

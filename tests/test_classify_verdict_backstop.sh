@@ -10,7 +10,7 @@
 #     that would otherwise route it to execute/hard. is_finished is the independently-derived,
 #     holistic "truly nothing to do" signal and must override those counts DEFENSIVELY so the
 #     cascade falls through to promote/surface/idle instead.
-#   - id:ad74 (INTENSIVE promote): isochrone — carries an open `[INTENSIVE — r5-jvm]` (id:11c3)
+#   - id:ad74 (INTENSIVE promote): isochrone — carries an open `[INTENSIVE - r5-jvm]` (id:11c3)
 #     item that gather-repo-state.sh surfaces via `top_intensive`, but a stale/undercounted
 #     actionable_routine_open/open_hard_pool left classify-verdict.sh emitting `idle` instead
 #     of `execute` with the `intensive` flag set.
@@ -42,7 +42,7 @@ v2="$(field "$zelegator_drained" verdict)"
 [[ "$v2" == "idle" ]] || { echo "FAIL (a): finished + drained backlog must be idle, got $v2"; exit 1; }
 
 # --- Condition (b): id:ad74 INTENSIVE native promote (the isochrone fixture) --------------
-# top_intensive is set (an open [INTENSIVE — r5-jvm] item exists, gather already excludes
+# top_intensive is set (an open [INTENSIVE - r5-jvm] item exists, gather already excludes
 # human-gated lanes id:a707) but actionable_routine_open/open_hard_pool UNDERCOUNT it (both 0).
 # classify-verdict.sh must promote natively: verdict=execute AND intensive=r5-jvm (never idle).
 isochrone='{"repo":"isochrone","is_finished":false,"hasRoutine":false,"substantive_unaudited":false,"open_hard_pool":0,"actionable_routine_open":0,"top_intensive":"r5-jvm","unpromoted":{"promote":0,"surface":0}}'

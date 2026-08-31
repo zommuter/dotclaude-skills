@@ -58,7 +58,7 @@ classify() {  # classify <name> <path>; prints classify-repo.sh's default (verdi
 b1="$TMP/b1"; printf '%s\n' \
   '- [ ] [ROUTINE] fix widget A <!-- id:1a1a -->' \
   '- [ ] [ROUTINE] fix widget B <!-- id:1b1b -->' \
-  '- [ ] [HARD] a big unrelated audit [INTENSIVE — disk-io] <!-- id:1c1c -->' > "$b1"
+  '- [ ] [HARD] a big unrelated audit [INTENSIVE - disk-io] <!-- id:1c1c -->' > "$b1"
 r1="$(mkrepo repo1 "$b1")"
 out1="$(classify repo1 "$r1")"
 v1="$(field verdict <<<"$out1")"
@@ -73,7 +73,7 @@ i1="$(field intensive <<<"$out1")"
 # === (2) the intensive item IS [ROUTINE] itself -> intensive STILL stamped (no over-suppress) ==
 b2="$TMP/b2"; printf '%s\n' \
   '- [ ] [ROUTINE] fix widget A <!-- id:2a2a -->' \
-  '- [ ] [ROUTINE] run the gpu sweep [INTENSIVE — gpu-bench] <!-- id:2b2b -->' > "$b2"
+  '- [ ] [ROUTINE] run the gpu sweep [INTENSIVE - gpu-bench] <!-- id:2b2b -->' > "$b2"
 r2="$(mkrepo repo2 "$b2")"
 out2="$(classify repo2 "$r2")"
 v2="$(field verdict <<<"$out2")"
@@ -87,7 +87,7 @@ i2="$(field intensive <<<"$out2")"
 
 # === (3) only [HARD] work, incl. the intensive one -> verdict=hard, intensive stamped =======
 b3="$TMP/b3"; printf '%s\n' \
-  '- [ ] [HARD] audit the thing [INTENSIVE — disk-io] <!-- id:3a3a -->' > "$b3"
+  '- [ ] [HARD] audit the thing [INTENSIVE - disk-io] <!-- id:3a3a -->' > "$b3"
 r3="$(mkrepo repo3 "$b3")"
 out3="$(classify repo3 "$r3")"
 v3="$(field verdict <<<"$out3")"
@@ -102,8 +102,8 @@ i3="$(field intensive <<<"$out3")"
 # === (4) human-gated [INTENSIVE] still yields "" (id:a707/id:7517 guard, both vocabularies) ==
 b4="$TMP/b4"; printf '%s\n' \
   '- [ ] [ROUTINE] fix widget A <!-- id:4a4a -->' \
-  '- [ ] old-vocab human item [HARD — hands] [INTENSIVE — local-llm] <!-- id:4b4b -->' \
-  '- [ ] new-vocab human item [INPUT — access] [INTENSIVE — local-llm] <!-- id:4c4c -->' > "$b4"
+  '- [ ] old-vocab human item [HARD - hands] [INTENSIVE - local-llm] <!-- id:4b4b -->' \
+  '- [ ] new-vocab human item [INPUT - access] [INTENSIVE - local-llm] <!-- id:4c4c -->' > "$b4"
 r4="$(mkrepo repo4 "$b4")"
 out4="$(classify repo4 "$r4")"
 v4="$(field verdict <<<"$out4")"
