@@ -85,7 +85,7 @@ pass "(1b) control without the marker still classifies execute"
 #      STRENGTHENED, roadmap:4a76 (2026-08-21). This case originally asserted the
 #      not-actionable FACT through a verdict PROXY (`verdict == idle`). That proxy is
 #      exactly the false-clean id:4a76 was filed against: the fixture below IS the
-#      measured csgebra shape — every executable item gated-on an open [INPUT — *] root,
+#      measured csgebra shape — every executable item gated-on an open [INPUT - *] root,
 #      zero poolable work — and `idle` renders as `design-drained` on control-board.sh
 #      while the repo is in fact WAITING ON A HUMAN. `roadmap:4a76`'s ratified acceptance
 #      requires that shape to classify `human`, and its spec
@@ -100,14 +100,14 @@ cat > "$R2/ROADMAP.md" <<'EOF'
 # Roadmap
 ## Items
 - [ ] [ROUTINE] Build the exporter <!-- gated-on:bbb2 --> <!-- id:ccc3 -->
-- [ ] [INPUT — meeting] Decide the exporter format — see TODO.md <!-- id:bbb2 -->
+- [ ] [INPUT - meeting] Decide the exporter format — see TODO.md <!-- id:bbb2 -->
 EOF
 printf '# TODO\n## Current\n' > "$R2/TODO.md"
 commit_repo "$R2"; ckpt_head "$R2"
 v="$(verdict_of "$R2")"
 aro="$(classify "$R2" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("actionable_routine_open","<<MISSING>>"))')"
 [[ "$aro" == "0" ]] || fail "(2a) [ROUTINE] item gated-on an OPEN target must be excluded from actionable_routine_open (expected 0, got $aro)"
-[[ "$v" == "human" ]] || fail "(2a) a repo whose only executable item is gated-on an open [INPUT — *] root is WAITING ON A HUMAN (roadmap:4a76), expected human, got $v"
+[[ "$v" == "human" ]] || fail "(2a) a repo whose only executable item is gated-on an open [INPUT - *] root is WAITING ON A HUMAN (roadmap:4a76), expected human, got $v"
 pass "(2a) gated-on with OPEN target blocks (actionable_routine_open=0) → human, not a false-clean idle"
 
 # (2b) gated-on → target DONE ([x]) → the edge does NOT block → verdict=execute.
@@ -118,7 +118,7 @@ cat > "$R2b/ROADMAP.md" <<'EOF'
 # Roadmap
 ## Items
 - [ ] [ROUTINE] Build the exporter <!-- gated-on:bbb2 --> <!-- id:ccc3 -->
-- [x] [INPUT — meeting] Decide the exporter format — DECIDED 2026-07-19 <!-- id:bbb2 -->
+- [x] [INPUT - meeting] Decide the exporter format — DECIDED 2026-07-19 <!-- id:bbb2 -->
 EOF
 printf '# TODO\n## Current\n' > "$R2b/TODO.md"
 commit_repo "$R2b"; ckpt_head "$R2b"
@@ -149,7 +149,7 @@ cat > "$R2d/ROADMAP.md" <<'EOF'
 # Roadmap
 ## Items
 - [ ] [ROUTINE] Fix the scanner (its old `gated-on:bbb2` note was retired) <!-- id:eee4 -->
-- [ ] [INPUT — meeting] Decide the exporter format — see TODO.md <!-- id:bbb2 -->
+- [ ] [INPUT - meeting] Decide the exporter format — see TODO.md <!-- id:bbb2 -->
 EOF
 printf '# TODO\n## Current\n' > "$R2d/TODO.md"
 commit_repo "$R2d"; ckpt_head "$R2d"

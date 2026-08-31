@@ -5,7 +5,7 @@
 # The RED spec for a17a. The three Mermaid diagrams (docs/diagrams/*.mmd) must EXIST and their
 # declared vocabulary must NOT drift from the machine-readable source of truth: the verdict enum
 # emitted by classify-verdict.sh and the relay invocation modes in relay/SKILL.md. This is D2's
-# "guard, don't hand-sync" strategy — the diagram topology is authored by the [HARD — pool]
+# "guard, don't hand-sync" strategy — the diagram topology is authored by the [HARD - pool]
 # executor (design judgment, reconciled with the id:4da4 matrix), and THIS guard keeps the
 # authored vocabulary in sync so the diagram can't silently rot.
 #
