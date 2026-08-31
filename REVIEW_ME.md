@@ -3,6 +3,56 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-08-31c (chain-end re-ask, run `relay-20260831-220243-21277` -- id:8123)
+
+Window `relay-ckpt-20260831-1933`..HEAD (the S4/S5/S7/S8/S9 delimiter-migration chain plus the
+`id:c442` tracker seam). **One declared tier exists and it RAN**: `make test` (which runs `lint`
+first) -- **532 passed, 0 failed, 1 expected-red** (`6217`, an open item whose red test IS the
+spec). No `e2e`/`integration` tier is declared anywhere (no `.github/workflows`, no other
+`test*` Makefile target), so nothing was skipped. `gaming-scan.sh` raised exactly one line,
+`ADDED_SKIP:tests/test_gather_lane_canonical_delimiter.sh:52` -- **adjudicated a false positive**:
+line 52 is a prose comment ("...this item is skipped and top_intensive_hard falls through...")
+inside the fixture-ordering rationale, not a skip directive. No test file was deleted. **Resurrection
+check RUN over all 71 MODIFIED test files** (each `$LAST` version restored into a scratch copy of the
+CURRENT tree and executed): 69 pass unchanged; the 2 that fail do so for non-spec reasons, both
+verified -- `test_relay_intensive_criteria.sh` pinned the literal U+2014 heading in `conventions.md`
+that S7 was REQUIRED to migrate (its replacement is a two-delimiter alternation, i.e. STRICTLY more
+general, and still asserts the section exists), and `test_backtest_fidelity.sh`'s original heredoc is
+blocked by the lane ratchet, not by the implementation. No `@owner-accepted` / `@owner-answered` /
+`answer-src:` marker appears anywhere in the window. Contract pointer `v17` == canonical. `relay-doctor`:
+0 per-repo issues (cross-ledger clean, roadmap-lint clean, todo-conformance clean, main checkout clean).
+
+**S9's conservation claim verified INDEPENDENTLY** (not taken from the authoring agent): running
+`lane-delimiter-scan.sh --live-only` per ledger gives TODO.md 0, ROADMAP.md 0, REVIEW_ME.md 0,
+TODO.archive.md 38, ROADMAP.archive.md 47 -- exactly the 85 archive tags the item says are held for
+the `id:2065` ruling. `id:6958` correctly stays OPEN.
+
+- [ ] **`id:1a03` (S5) was closed while its OWN declared done-check still fails, and the residue is a
+  LIVE WRITER.** The migration doc's rule is *"Every **emitter** and every **stored** tag is rewritten
+  to the hyphen"* (`docs/migration-em-dash-delimiter.md:36`), and S5's stated done-check --
+  `git grep -nE '\[(HARD|INPUT|INTENSIVE) <U+2014> ' relay/scripts/*.js *.mjs *.py` returns nothing --
+  still returns **48 hits**. Most are comments and are harmless, but two are emitters that WRITE into a
+  ledger: `relay/scripts/handback-followup.py:60` (`GATE_TAG`, substituted into a ROADMAP line at
+  :114/:116, wired from `relay-loop.js` in 13 places) and `relay/scripts/lane-convert.sh:185-186`.
+  The next handback gate or vocabulary conversion therefore re-introduces the legacy delimiter into the
+  ledgers S9 just brought to zero, and breaks S10's closing condition. **I did NOT reopen the archived
+  seams** -- their reader half is genuinely done and re-opening an archived item is worse than a tracked
+  successor -- but that is a judgment call for you to overrule: the residue is filed as `id:32f9` with
+  the three emit-pinning tests named. Question: should the archived S4/S5 ticks be amended in place
+  instead?
+- [ ] **`lane-delimiter-scan.sh` -- S10's own closing-condition detector -- returns exit 1 (its "live
+  findings exist" code) when handed a directory, so a mis-pathed invocation is indistinguishable from an
+  unfinished migration.** Measured: `--live-only /tmp` exits 1 after a bash `unbound variable` trace,
+  while a MISSING path correctly exits 2. Filed as `id:4ce8`; flagging it here because `id:da55` gates
+  the irreversible half of the migration on this script's exit code.
+- [ ] **Three inbox dead-letters addressed to this repo were never ingested** (surfaced by
+  `relay-doctor` / `scan-routed.sh`): `routed:5fa9` (the adoption-form vs multi-marker-refusal
+  contradiction), `routed:de8f` (`roadmap-lint` DEAD-GATE never reads `ROADMAP.archive.md`) and
+  `routed:f854` (the consumed-state sweep script). I filed all three into `TODO.md` as `id:41d3`,
+  `id:d3bf`, `id:bfee` using the `[INBOUND routed:TOK from ...]` bracket-prefix form. A fourth,
+  `routed:7ad4`, targets **relay-core** (the shadow binary must follow `id:098a`'s lane changes or
+  classify parity goes red) and is left for that repo -- I did not write into it.
+
 ## Review 2026-08-26b (chain-end re-ask, run `relay-20260826-162405-7522` — id:8123)
 
 Window `relay-ckpt-20260826-1449`..HEAD = **18 commits, all owner-attended (`Co-Authored-By: Claude
