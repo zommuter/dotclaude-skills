@@ -10,7 +10,7 @@
 #      open_hard_pool, top_intensive, …)
 #   2. DERIVE from <path>/ROADMAP.md: hasRoutine (any open `- [ ]` with [ROUTINE]),
 #      roadmap_open (count open `- [ ]`), roadmap_actionable_open (open items tagged
-#      [ROUTINE] or [HARD — pool] AND NOT human-gated [HARD — hands|meeting|decision gate]/@manual).
+#      [ROUTINE] or [HARD - pool] AND NOT human-gated [HARD - hands|meeting|decision gate]/@manual).
 #   3. FOLD relay/scripts/unpromoted-scan.sh <path> → unpromoted {promote, surface} counts.
 #   4. Pipe the assembled JSON to relay/scripts/classify-verdict.sh and emit its output.
 # Must be SIDE-EFFECT-FREE (reads state, runs the helpers, emits a verdict; mutates nothing).
@@ -57,7 +57,7 @@ R2="$tmp/r_human"; mkrepo "$R2"
 cat > "$R2/ROADMAP.md" <<'EOF'
 # Roadmap
 ## Items
-- [ ] [HARD — hands] @manual run on device <!-- id:2222 -->
+- [ ] [HARD - hands] @manual run on device <!-- id:2222 -->
 EOF
 cat > "$R2/TODO.md" <<'EOF'
 # TODO
@@ -96,20 +96,20 @@ printf '# TODO\n## Current\n' > "$R4/TODO.md"
 commit_repo "$R4"; ckpt_head "$R4"
 [[ "$(verdict_of "$R4")" != "execute" ]] || { echo "id:4da4: @manual-only [ROUTINE] must NOT be execute, got execute"; exit 1; }
 
-# --- id:4da4 execute-precision (2): [ROUTINE] in a [HARD — pool] item's inline history -------
+# --- id:4da4 execute-precision (2): [ROUTINE] in a [HARD - pool] item's inline history -------
 # leAIrn2learn (/relay --once 2026-07-01): "[ROUTINE]" matched inside id:c3f5's post-id history
 # text → phantom execute. Anchor lane/type tags to the item TITLE (before <!-- id -->), backticks
-# stripped, so a real [HARD — pool] item classifies hard — never execute on a prose mention.
+# stripped, so a real [HARD - pool] item classifies hard — never execute on a prose mention.
 R5="$tmp/r_prose"; mkrepo "$R5"
 cat > "$R5/ROADMAP.md" <<'EOF'
 # Roadmap
 ## Items
-- [ ] [HARD — pool] real strong-model work <!-- id:7777 --> note: this superseded an earlier [ROUTINE] sub-step
+- [ ] [HARD - pool] real strong-model work <!-- id:7777 --> note: this superseded an earlier [ROUTINE] sub-step
 EOF
 printf '# TODO\n## Current\n' > "$R5/TODO.md"
 commit_repo "$R5"; ckpt_head "$R5"
-[[ "$(verdict_of "$R5")" != "execute" ]] || { echo "id:4da4: prose-[ROUTINE] inside a [HARD — pool] item must NOT be execute (tag-anchor), got execute"; exit 1; }
-[[ "$(verdict_of "$R5")" == "hard" ]] || { echo "id:4da4: the real [HARD — pool] item should classify hard, got $(verdict_of "$R5")"; exit 1; }
+[[ "$(verdict_of "$R5")" != "execute" ]] || { echo "id:4da4: prose-[ROUTINE] inside a [HARD - pool] item must NOT be execute (tag-anchor), got execute"; exit 1; }
+[[ "$(verdict_of "$R5")" == "hard" ]] || { echo "id:4da4: the real [HARD - pool] item should classify hard, got $(verdict_of "$R5")"; exit 1; }
 
 # --- id:4da4 execute-precision (3): a [ROUTINE] item marked BLOCKED-on-dep is NOT actionable -
 # zkm-threema id:180b (/relay --once 2026-07-01): "[ROUTINE] (BLOCKED on id:7364)" dispatched

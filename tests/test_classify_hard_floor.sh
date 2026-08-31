@@ -12,7 +12,7 @@
 #
 # These fixtures exercise the FLOOR itself — that a lane tag overrides a link+Decisions
 # C1/C2 classification: bare `[HARD]` (→POOL, the new-vocab pool lane) and
-# `[HARD — strong model]` (an UNRECOGNIZED lane → C3+HARD-NOLANE, the loud reject). The
+# `[HARD - strong model]` (an UNRECOGNIZED lane → C3+HARD-NOLANE, the loud reject). The
 # per-lane routing table is covered by test_classify_hard_lanes.sh.
 # Non-lane-tagged items are unaffected. The relay RELAY mirror line still classifies RELAY.
 set -euo pipefail
@@ -33,7 +33,7 @@ EOF
 cat > "$fix/TODO.md" <<'EOF'
 # TODO
 - [ ] **[HARD] big design** with link docs/meeting-notes/2026-01-01-0000-x.md <!-- id:aaaa -->
-- [ ] [HARD — strong model] em-dash variant docs/meeting-notes/2026-01-01-0000-x.md <!-- id:dddd -->
+- [ ] [HARD - strong model] delimited-lane variant docs/meeting-notes/2026-01-01-0000-x.md <!-- id:dddd -->
 - [ ] normal impl-ready docs/meeting-notes/2026-01-01-0000-x.md <!-- id:bbbb -->
 - [ ] plain bare item with no link <!-- id:cccc -->
 - [ ] Relay: 2 open ROADMAP items <!-- id:9999 -->
@@ -47,9 +47,9 @@ class_of() { grep -P "\tid:$1\t" <<<"$cls" | cut -f1; }
 # link+Decisions C1 this fixture would otherwise get, it just lands on POOL not C3.
 [[ "$(class_of aaaa)" == "POOL" ]] || { echo "[HARD] item must floor to POOL (new-vocab pool lane), got $(class_of aaaa)"; exit 1; }
 # An UNRECOGNIZED lane ("strong model" is not in hard-lanes.md) still floors to C3 + loud reject.
-[[ "$(class_of dddd)" == "C3" ]] || { echo "[HARD — strong model] must floor to C3, got $(class_of dddd)"; exit 1; }
+[[ "$(class_of dddd)" == "C3" ]] || { echo "[HARD - strong model] must floor to C3, got $(class_of dddd)"; exit 1; }
 grep -q 'HARD-NOLANE' < <(grep -P '\tid:dddd\t' <<<"$cls") \
-  || { echo "[HARD — strong model] (unrecognized lane) must be flagged HARD-NOLANE"; exit 1; }
+  || { echo "[HARD - strong model] (unrecognized lane) must be flagged HARD-NOLANE"; exit 1; }
 [[ "$(class_of bbbb)" == "C1" ]] || { echo "non-HARD link+Decisions must stay C1, got $(class_of bbbb)"; exit 1; }
 [[ "$(class_of cccc)" == "C3" ]] || { echo "bare item must be C3, got $(class_of cccc)"; exit 1; }
 [[ "$(class_of 9999)" == "RELAY" ]] || { echo "relay mirror line must stay RELAY, got $(class_of 9999)"; exit 1; }
