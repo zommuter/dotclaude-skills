@@ -2727,3 +2727,7 @@ test_lane_convert_prose.sh, which pins the same lane-convert.sh emitter via a
 fourth assertion the item's own enumeration did not list -- full suite green
 (532 passed, 0 failed, 1 expected-red) confirmed this was the complete set.
 Friction: none.
+
+## 2026-08-31 22:52 — executor (sonnet, relay-loop)
+
+Em-dash migration S5b: flipped handback-followup.py's GATE_TAG and lane-convert.sh's two repl= strings to emit the canonical hyphen [INPUT - decision]/[INPUT - meeting] instead of the legacy em dash, with all four affected pinning tests updated; full suite green (532/0/1-expected-red). [id:32f9]
