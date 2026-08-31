@@ -92,19 +92,29 @@ import json, os, re, sys
 # that narrowing silently misses it. Adding it is purely ADDITIVE for the dispatch gates —
 # it was not in LANE_TAGS either, so such an item already contributed to no executable
 # count; it now correctly counts as a human lane (see open_human_lane below).
+# id:e8d4 — two-delimiter alternation: each old-vocab tag is listed under BOTH the
+# legacy em dash and the target ASCII hyphen spelling (an EXACT-substring match stays
+# exact per tag; this is a dual-literal list, not a regex character class), matching
+# the convention lib-lane-anchor.sh / hooks/pre-commit-lane-vocab.sh already use.
 HUMAN_GATES = (
-    "[HARD — hands]", "[HARD — meeting]", "[HARD — decision gate]",
-    "[INPUT — meeting]", "[INPUT — decision]", "[INPUT — access]", "[INPUT — author]",
+    "[HARD — hands]", "[HARD - hands]",
+    "[HARD — meeting]", "[HARD - meeting]",
+    "[HARD — decision gate]", "[HARD - decision gate]",
+    "[INPUT — meeting]", "[INPUT - meeting]",
+    "[INPUT — decision]", "[INPUT - decision]",
+    "[INPUT — access]", "[INPUT - access]",
+    "[INPUT — author]", "[INPUT - author]",
 )
 # id:4da4 — recognized lane tags, in no particular order; the item's lane is whichever
 # appears FIRST on the line (see the primary-lane parse below). "[HARD]" (bare, no
-# dash-lane) is the new-vocab rename of "[HARD — pool]" — an EXACT-substring match, so
-# it never false-matches inside "[HARD — pool]"/"[HARD — hands]"/etc. (those contain
-# "[HARD —", never the literal "[HARD]").
+# dash-lane) is the new-vocab rename of "[HARD — pool]" / "[HARD - pool]" — an
+# EXACT-substring match, so it never false-matches inside "[HARD — pool]"/
+# "[HARD — hands]"/etc. (those contain "[HARD —" or "[HARD -", never the literal
+# "[HARD]").
 # id:0d58 — "[MECHANICAL]" joins LANE_TAGS so it is anchored through the SAME
 # positional primary-lane derivation as every other lane, rather than read by its own
 # bare-substring test (see the id:0d58 note at the open_mechanical counter below).
-LANE_TAGS = ("[ROUTINE]", "[HARD — pool]", "[HARD]", "[MECHANICAL]") + HUMAN_GATES
+LANE_TAGS = ("[ROUTINE]", "[HARD — pool]", "[HARD - pool]", "[HARD]", "[MECHANICAL]") + HUMAN_GATES
 
 path     = os.environ["CLASSIFY_PATH"]
 with open(os.environ["BASE_FILE"]) as _f: base_json = _f.read()
@@ -223,7 +233,7 @@ if os.path.isfile(rm):
             _found = [(ln.find(t), t) for t in LANE_TAGS if ln.find(t) >= 0]
             primary = min(_found)[1] if _found else ""
             is_routine    = primary == "[ROUTINE]"
-            is_pool       = primary in ("[HARD — pool]", "[HARD]")
+            is_pool       = primary in ("[HARD — pool]", "[HARD - pool]", "[HARD]")
             # id:0d58 — [MECHANICAL] capability tier: counted ONLY when it is the anchored
             # primary lane (id:4da4), same as every other lane. A bare-substring test here
             # let a backtick'd `[MECHANICAL]` mention on a differently-laned line (e.g. a

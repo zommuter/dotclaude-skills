@@ -108,9 +108,19 @@ primary_lane() {
   # POOL lane = both spellings: bare [HARD] (new) and [HARD — pool] (old) are the SAME
   # lane (hard-lanes.md's 1:1 rename table), so both map to `promote` in the disposition
   # below. Everything else here is recognized-but-laned (lane question already answered).
+  # id:e8d4 — two-delimiter alternation: each old-vocab tag is listed under BOTH the
+  # legacy em dash and the target ASCII hyphen spelling (matches the callers below,
+  # which do exact `==`/`case` string comparisons, not a regex character class).
   local -a tags=(
-    "[ROUTINE]" "[HARD — pool]" "[HARD — hands]" "[HARD — meeting]" "[HARD — decision gate]"
-    "[INPUT — meeting]" "[INPUT — access]" "[INPUT — decision]" "[INPUT — author]"
+    "[ROUTINE]"
+    "[HARD — pool]" "[HARD - pool]"
+    "[HARD — hands]" "[HARD - hands]"
+    "[HARD — meeting]" "[HARD - meeting]"
+    "[HARD — decision gate]" "[HARD - decision gate]"
+    "[INPUT — meeting]" "[INPUT - meeting]"
+    "[INPUT — access]" "[INPUT - access]"
+    "[INPUT — decision]" "[INPUT - decision]"
+    "[INPUT — author]" "[INPUT - author]"
     "[MECHANICAL]" "[HARD]"
   )
   # id:719a — tag-before-bold-title anchor: "- [ ] [TAG] **title** ..." (new-vocab items
@@ -377,7 +387,12 @@ for line in sys.stdin:
     # The pre-commit lane-vocab ratchet (hooks/pre-commit-lane-vocab.sh) pushes every
     # repo INTO that spelling, so the blind spot was actively spreading.
     # Human lanes stay `laned` — do NOT widen this to any other tag.
-    if [[ "$lane" =~ ^(\[ROUTINE\]|\[HARD\]|\[HARD\ —\ pool\])$ ]]; then
+    # id:e8d4 — BOTH pool spellings promote. primary_lane's tag list gained
+    # `[HARD - pool]`, so it now RETURNS the hyphen form; without the same addition
+    # here that item falls to `laned` and is never promoted -- which is precisely the
+    # lodelore failure described in the paragraph above, re-created in the new
+    # delimiter. The tag list and this disposition must always change together.
+    if [[ "$lane" =~ ^(\[ROUTINE\]|\[HARD\]|\[HARD\ —\ pool\]|\[HARD\ -\ pool\])$ ]]; then
       disposition="promote"
     elif [[ -n "$lane" ]]; then
       disposition="laned"

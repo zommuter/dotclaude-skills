@@ -63,6 +63,17 @@ cat > "$FIX/TODO.md" <<'EOF'
 - [ ] [HARD] **Strong-model refactor** — a genuine strong item; body references a [ROUTINE] follow-up <!-- id:4444 -->
 - [ ] [ROUTINE] **A real executor item** — plainly promotable <!-- id:3333 -->
 EOF
+
+# (p)'s fixture, id:2222 — the hyphen-spelled OLD-vocab pool tag. Assembled via printf
+# with the tag as an argument rather than written as a literal leading `- [ ]` line,
+# because the pre-commit lane ratchet (hooks/pre-commit-lane-vocab.sh) correctly BLOCKS
+# an ADDED checkbox line carrying old vocabulary in either delimiter -- and it should:
+# this is a test fixture, not a live ledger item. Same form the committed fixtures in
+# tests/test_lane_vocab_ratchet_delimiter.sh use, and it relies on the ratchet's own
+# checkbox anchor, which is the live-tag-vs-mention distinction, not a bypass.
+printf -- '- [ ] %s **Hyphen-spelled pool item** — the S4 target delimiter; body references a [ROUTINE] follow-up <!-- id:2222 -->\n' \
+  '[HARD - pool]' >> "$FIX/TODO.md"
+
 git -C "$FIX" add -A; git -C "$FIX" commit -qm init
 
 rc=0; out="$("$SH" "$FIX" 2>/dev/null)" || rc=$?
@@ -105,6 +116,20 @@ $out"
 grep -qP '\t4444\tpromote\t' <<<"$out" || fail "(n) bare [HARD] id 4444 not reported as promote (it is the 1:1 successor of [HARD — pool]):
 $out"
 pass "(n) bare [HARD] prefixed item → promote (pool lane, both spellings)"
+
+# (p) HYPHEN-spelled [HARD - pool] → promote, exactly as its em-dash twin (id:e8d4, S4).
+# Guards the pairing that broke in the S4 executor's parked residue: primary_lane's tag
+# list gained "[HARD - pool]" so the scan RETURNED the hyphen form, while the disposition
+# regex still listed only the em-dash spelling — so the item landed in `laned`, which is
+# verdict-neutral. That is case (n)'s lodelore failure re-created in the new delimiter,
+# and nothing caught it. The tag list and the disposition must always change together.
+grep -qP '\t2222\tsurface\t' <<<"$out" && fail "(p) [HARD - pool] id 2222 fell through to surface (primary_lane does not recognize the hyphen spelling):
+$out"
+grep -qP '\t2222\tlaned\t' <<<"$out" && fail "(p) [HARD - pool] id 2222 reported laned — the tag list knows the hyphen spelling but the promote disposition does not, so the item is verdict-invisible and the repo classifies idle (id:e8d4; same class as id:4b64/routed:5ccd):
+$out"
+grep -qP '\t2222\tpromote\t' <<<"$out" || fail "(p) [HARD - pool] id 2222 not reported as promote (both pool spellings are the same lane):
+$out"
+pass "(p) hyphen-spelled [HARD - pool] → promote (delimiter-agnostic pool lane)"
 
 # (o) genuine [ROUTINE] item is STILL promote (the fix must not over-correct).
 grep -qP '\t3333\tpromote\t' <<<"$out" || fail "(o) genuine [ROUTINE] id 3333 must remain promote:
