@@ -17,13 +17,17 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$CONV" ]] || fail "conventions.md not found"
 
 # (1) The new section exists.
-grep -q 'Tagging `\[INTENSIVE — <resource>\]`' "$CONV" \
-  || fail "no '## Tagging [INTENSIVE — <resource>]' section"
+# id:55c7 (S7) — match the TAG by name with a two-delimiter alternation, never a pinned
+# dash byte. This assertion read the em dash literally, so migrating conventions.md (which
+# S7 is required to do) turned it red. Re-pinning it to the hyphen would just re-break on
+# the next delimiter change; the alternation is the same fix S1 applied to the readers.
+grep -qE 'Tagging `\[INTENSIVE[[:space:]]*[—-][[:space:]]*<resource>\]`' "$CONV" \
+  || fail "no '## Tagging [INTENSIVE - <resource>]' section (either delimiter)"
 pass "section heading present"
 
 # (2) Two-part tag form is shown.
-grep -q '\[INTENSIVE — local-llm\]' "$CONV" \
-  || fail "two-part tag form [INTENSIVE — local-llm] not shown"
+grep -qE '\[INTENSIVE[[:space:]]*[—-][[:space:]]*local-llm\]' "$CONV" \
+  || fail "two-part tag form [INTENSIVE - local-llm] not shown (either delimiter)"
 pass "two-part tag form [INTENSIVE — local-llm] shown"
 
 # (3) Resource modifier is orthogonal to the verdict tag (not a replacement).
