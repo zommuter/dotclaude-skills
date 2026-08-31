@@ -113,17 +113,18 @@ reorder_rest() {
   local cluster_start=$primary_pos cluster_end=$primary_end cluster="$primary_tag"
 
   # Adjacent-AFTER: primary tag immediately followed (whitespace only) by an
-  # `[INTENSIVE — <res>]` modifier.
+  # `[INTENSIVE - <res>]` / `[INTENSIVE — <res>]` modifier (id:e8d4 — two-delimiter
+  # alternation, em dash OR ASCII hyphen; matches roadmap-lint.sh's `lane_delim_re`).
   local after="${rest:primary_end}"
-  if [[ "$after" =~ ^([[:space:]]+)(\[INTENSIVE[[:space:]]—[[:space:]][^]]*\]) ]]; then
+  if [[ "$after" =~ ^([[:space:]]+)(\[INTENSIVE[[:space:]]*[—-][[:space:]]*[^]]*\]) ]]; then
     local ws1="${BASH_REMATCH[1]}" itag="${BASH_REMATCH[2]}"
     cluster_end=$((primary_end + ${#ws1} + ${#itag}))
     cluster="$primary_tag $itag"
   else
-    # Adjacent-BEFORE: an `[INTENSIVE — <res>]` immediately precedes the primary
-    # tag (whitespace only in between).
+    # Adjacent-BEFORE: an `[INTENSIVE - <res>]` / `[INTENSIVE — <res>]` immediately
+    # precedes the primary tag (whitespace only in between).
     local masked_before="${masked:0:primary_pos}"
-    if [[ "$masked_before" =~ ^(.*)(\[INTENSIVE[[:space:]]—[[:space:]][^]]*\])([[:space:]]+)$ ]]; then
+    if [[ "$masked_before" =~ ^(.*)(\[INTENSIVE[[:space:]]*[—-][[:space:]]*[^]]*\])([[:space:]]+)$ ]]; then
       local pre="${BASH_REMATCH[1]}" itag="${BASH_REMATCH[2]}"
       cluster_start=${#pre}
       cluster="$itag $primary_tag"

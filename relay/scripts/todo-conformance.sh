@@ -141,7 +141,12 @@ scan_path() {
         # if it carries an id for batch-tracking — its children are REAL items that must
         # be linted. So detect on the LANE tag ONLY (matches roadmap-lint), never on a
         # bare id token (the id-token branch wrongly hid real items under id'd sections).
-        if [[ "$line" == *'[ROUTINE]'* || "$line" == *'[HARD —'* || "$line" == *'[HARD-'* ]]; then
+        # id:e8d4 — two-delimiter alternation (em dash OR ASCII hyphen, optional
+        # surrounding space), fixing the `'[HARD-'` defect: that literal had no
+        # space, so it matched NEITHER the em-dash spelling NOR the hyphen target
+        # spelling `[HARD - pool]` (space-hyphen-space) -- a third, silently-missed
+        # spelling (hazard 4, docs/migration-em-dash-delimiter.md).
+        if [[ "$line" == *'[ROUTINE]'* || "$line" =~ \[HARD[[:space:]]*[—-] ]]; then
           heading_is_item=1
         else
           heading_is_item=0
