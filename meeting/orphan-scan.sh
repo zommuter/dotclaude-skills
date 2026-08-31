@@ -191,7 +191,8 @@ if [[ "$mode" == "cross-ledger" ]]; then
     fi
   done
 elif [[ "$mode" == "promotion" ]]; then
-  # id:d9b0 — flag open TODO items with an executable lane tag ([ROUTINE] or [HARD — pool])
+  # id:d9b0 — flag open TODO items with an executable lane tag ([ROUTINE] or [HARD — pool],
+  # either delimiter — em-dash-delimited spelling migrating to hyphen, id:d0aa)
   # that have no twin id:XXXX in ROADMAP.md. Such items are "un-promoted, pool-invisible".
   # routed:42c9 — same widening as --cross-ledger: an item whose ROADMAP twin was
   # archived is PROMOTED, not un-promoted, so reading only the live file re-reported
@@ -199,8 +200,9 @@ elif [[ "$mode" == "promotion" ]]; then
   # no ROADMAP.md / no archive is a normal state, not an error.)
   roadmap_content="$(cat "$ROOT/ROADMAP.md" "$ROOT/ROADMAP.archive.md" 2>/dev/null || true)"
   while IFS= read -r l; do
-    # Executable lane tag: [ROUTINE] or [HARD — pool]
-    grep -qE '\[ROUTINE\]|\[HARD — pool\]' < <(echo "$l") || continue
+    # Executable lane tag: [ROUTINE] or [HARD — pool] / [HARD - pool] (two-delimiter
+    # alternation, id:d0aa — the em-dash migration's S6 seam).
+    grep -qE '\[ROUTINE\]|\[HARD[[:space:]]*[—-][[:space:]]*pool\]' < <(echo "$l") || continue
     token="$(echo "$l" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' || true)"
     [[ -z "$token" ]] && continue
     id_lines=$((id_lines+1))
@@ -503,14 +505,16 @@ elif [[ "$mode" == "settled" ]]; then
   done
 elif [[ "$mode" == "unbackrefed" ]]; then
   # id:8913 companion — reports OPEN [* — meeting] / [INPUT — decision] ledger items
-  # with NO decided-in: backref (presence-only, never a date comparison).
+  # (either delimiter — em-dash or hyphen, id:d0aa) with NO decided-in: backref
+  # (presence-only, never a date comparison).
   orphan_self="$(readlink -f "${BASH_SOURCE[0]}")"
   # shellcheck source=../relay/scripts/lib-typed-edges.sh
   source "$(dirname "$orphan_self")/../relay/scripts/lib-typed-edges.sh"
   while IFS=: read -r lineno text; do
-    # Lane-tag gate: `[* — meeting]` (any bracket ending "— meeting") or the exact
-    # `[INPUT — decision]` tag.
-    grep -qE '\[[^]]*— meeting\]|\[INPUT — decision\]' < <(echo "$text") || continue
+    # Lane-tag gate: `[* — meeting]`/`[* - meeting]` (any bracket ending "meeting", either
+    # delimiter) or the exact `[INPUT — decision]`/`[INPUT - decision]` tag (id:d0aa —
+    # the em-dash migration's S6 seam, two-delimiter alternation).
+    grep -qE '\[[^]]*[—-][[:space:]]*meeting\]|\[INPUT[[:space:]]*[—-][[:space:]]*decision\]' < <(echo "$text") || continue
     token=$(head -1 < <(echo "$text" | grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)') || true)
     [[ -z "$token" ]] && continue
     id_lines=$((id_lines+1))
