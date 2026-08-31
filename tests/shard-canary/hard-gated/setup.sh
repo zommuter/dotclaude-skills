@@ -8,9 +8,9 @@ ck() { git tag -a "relay-ckpt-$1" -m "checkpoint $1"; }
 {
   printf '%s\n' '# ROADMAP'
   printf '%s\n' ''
-  printf '%s\n' '- [ ] [HARD — decision gate] choose the storage backend <!-- id:dddd -->'
+  printf '%s\n' '- [ ] [HARD - decision gate] choose the storage backend <!-- id:dddd -->'
   printf '%s\n' ''
   printf '%s\n' '## Gated'
-  printf '%s\n' '- [ ] [HARD — strong model] build the index (blocked on: backend decision; no code before ratification) <!-- id:eeee -->'
+  printf '%s\n' '- [ ] [HARD - strong model] build the index (blocked on: backend decision; no code before ratification) <!-- id:eeee -->'
 } > ROADMAP.md
 co "init"; ck "20260617-1200"
