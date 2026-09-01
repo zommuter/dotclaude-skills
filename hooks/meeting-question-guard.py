@@ -206,6 +206,41 @@ def read_marker(session_id: str):
         return None
 
 
+def bump_block_count(session_id: str):
+    """Increment and persist this session's block counter; return the new
+    count, or None on any failure.  Never raises.
+
+    This is instrumentation on an ALREADY-DECIDED block (id:2419 second
+    round: 17 of 26 blocks recur in the same session, 30-90 min apart, with
+    nothing recording that a prior block happened).  It must never itself
+    become a reason to block or to crash: a missing/corrupt marker degrades
+    to restarting the counter at 1 (read_marker already logs the WARN for a
+    malformed file), and a write failure degrades to returning None so the
+    caller omits the count line rather than raising on the BLOCK path.  Any
+    other field already in the marker (disabled/active/class) is preserved
+    verbatim — this only ever adds/updates the "blocks" key.
+    """
+    if not session_id:
+        return None
+    data = read_marker(session_id)
+    if not isinstance(data, dict):
+        data = {}
+    try:
+        count = int(data.get("blocks") or 0) + 1
+    except Exception:
+        count = 1
+    data["blocks"] = count
+    data["session"] = session_id
+    path = marker_path(session_id)
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+    except Exception as exc:
+        log("WARN", f"could not persist block count to marker {path}: {exc!r}")
+        return None
+    return count
+
+
 # --------------------------------------------------------------------------- #
 # transcript parsing
 # --------------------------------------------------------------------------- #
@@ -375,7 +410,7 @@ def segment_text(seg: list) -> str:
 BLOCK_MESSAGE = """\
 BLOCKED by meeting-question-guard (routed:29bc / TODO id:2419).
 
-You ended this turn on {n} characters of meeting transcript prose with no
+{count_line}You ended this turn on {n} characters of meeting transcript prose with no
 AskUserQuestion call. meeting/format.md §Interactive mode (Sonnet/Opus/Haiku) and
 meeting/SKILL.md step 5 both require the transcript chunk AND the AskUserQuestion
 call in the SAME response — never end a turn on bare prose and send the question
@@ -385,6 +420,10 @@ Do this now: do NOT re-emit the prose you just wrote. Call AskUserQuestion for t
 decision that prose leads to, with an embedded tl;dr (2-3 sentences of the state
 of play), 3 implication-driven options derived from the personas' reasoning, and
 the recommended option first and labelled "(Recommended)".
+
+This is not a one-off fix: from here until the meeting note is written, EVERY
+remaining decision point works the same way -- transcript chunk AND
+AskUserQuestion in the same response, every time.
 
 If this turn genuinely had no decision point (e.g. answering a direct question
 mid-meeting), disable the guard for this session and continue:
@@ -510,8 +549,17 @@ def main() -> None:
         log("SKIP", f"session {session_id}: trailing prose {len(text)} < {min_chars} chars")
         return
 
-    log("BLOCK", f"session {session_id}: {len(text)} chars of prose, no AskUserQuestion")
-    print(BLOCK_MESSAGE.format(n=len(text)), file=sys.stderr)
+    try:
+        count = bump_block_count(session_id)
+    except Exception as exc:
+        log("WARN", f"block-count bump raised: {exc!r}")
+        count = None
+
+    count_line = f"This is BLOCK #{count} in this session.\n\n" if count else ""
+    log("BLOCK",
+        f"session {session_id}: {len(text)} chars of prose, no AskUserQuestion "
+        f"(block #{count if count else '?'})")
+    print(BLOCK_MESSAGE.format(n=len(text), count_line=count_line), file=sys.stderr)
     sys.exit(2)
 
 
