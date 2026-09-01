@@ -405,7 +405,19 @@ elif [[ "$mode" == "shipped" ]]; then
         < <(typed_edges_resolve_set local_state "$gated_csv")
       if (( g_all_resolve && g_all_closed )); then
         candidates=$((candidates+1))
-        output_lines+=("id:$token — GATE-READY (all gates [x]) — unblocked now. $(short_text "$text")")
+        # id:5b1f — an `@container` line is a TRACKING STUB whose own text says the work
+        # lives in its CHILDREN, so "unblocked now" invites dispatching a stub. Note the
+        # gates often resolve closed BECAUSE those children are done, which is exactly
+        # when the bare label is most misleading (observed live: id:ebbe, 2026-09-01).
+        # RELABEL, never drop — dropping a correctly-detected item is the id:4347
+        # silent-swallow anti-pattern this repo bans.
+        is_container=0
+        [[ "$text" == *"@container"* ]] && is_container=1
+        if (( is_container )); then
+          output_lines+=("id:$token — GATE-READY-CONTAINER (all gates [x], but @container) — TRACKING LINE: work the children, not this item. $(short_text "$text")")
+        else
+          output_lines+=("id:$token — GATE-READY (all gates [x]) — unblocked now. $(short_text "$text")")
+        fi
       fi
       # else: GATE-BLOCKED — ≥1 gate open or unresolved. Silent.
     fi
