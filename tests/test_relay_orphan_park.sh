@@ -57,8 +57,12 @@ grep -Eq "worktree remove --force" < <(grep -vE '^[[:space:]]*#' "$RECONCILE") \
 # So the invariant is no longer "zero forces" but "exactly one, and no second one sneaks in":
 # a bare count keeps this a real ratchet instead of an open door. `branch -D` stays ABSENT
 # outright -- id:373e's ban on force-DELETING a ref is untouched by the a290 ruling.
-retire_body="$(grep -vE '^[[:space:]]*#' "$RETIRE" | grep -vE '(^[[:space:]]*(log|echo)\b|[[:space:]]*msg=|[[:space:]]*(hatch_refused|why)=)')"
-n_force="$(printf '%s\n' "$retire_body" | grep -Ec "worktree remove --force" || true)"
+# TIGHTENED 2026-09-01: the exclusion patterns are ANCHORED. `[[:space:]]*msg=` was unanchored,
+# so ANY line merely CONTAINING `msg=` anywhere was invisible to the ban -- an open door, since a
+# real force could be smuggled onto such a line. And the count used `grep -Ec`, which counts
+# matching LINES, so two forces on one line read as one; `grep -o | wc -l` counts OCCURRENCES.
+retire_body="$(grep -vE '^[[:space:]]*#' "$RETIRE" | grep -vE '^[[:space:]]*((log|echo)\b|(msg|hatch_refused|why)=)')"
+n_force="$(printf '%s\n' "$retire_body" | grep -o "worktree remove --force" | wc -l)"
 [[ "$n_force" -eq 1 ]] \
   || fail "worktree-retire.sh must carry EXACTLY ONE 'git worktree remove --force' (the id:a290 submodule escape hatch); found $n_force (id:373e)"
 grep -Eq "remove +-f +-f|remove +--force +--force" <<<"$retire_body" \

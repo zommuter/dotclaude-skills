@@ -41,6 +41,11 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -x "$SH" ]] || fail "worktree-retire.sh not found/executable at $SH"
 
 export WORKTREE_RETIRE_LOG=/dev/null
+# Pin the harness's OWN locale so every fixture probe below is deterministic. Case L overrides
+# this per-invocation with de_DE.utf8 -- that is the ONE place a non-C locale is exercised, and
+# pinning here is what makes case L the thing that kills the "LC_ALL=C stripped" mutant instead
+# of some fixture-sanity probe firing first and masking it (mutation-verified 2026-09-01).
+export LC_ALL=C
 # Hermetic: no user/system git config, no network, deterministic identity.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@e
@@ -286,5 +291,146 @@ set -e
 [[ "$out_h" == *"disabled by WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1"* ]] \
   || fail "H hatch disabled: must say it was disabled by the env override -- out: $out_h"
 pass "H WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1 → hatch off, force-free behaviour restored ($out_h)"
+
+# ── I. DETACHED HEAD carrying an unreferenced commit → NOT force-removed ────
+# THE GUARD-2 KILLER (added 2026-09-01). Before this case, deleting the HEAD-matches check
+# entirely left the whole file green -- the guard survived mutation, i.e. it was untested.
+# The killing shape: the worktree is detached and carries a commit NO REF points at, while the
+# BRANCH NAME we are handed is genuinely clean+merged. Guards 1/3/4/5 all pass on their own
+# terms (the refusal is verbatim, the tree is spotless, relay/i IS an ancestor of HEAD, and no
+# gitlink object is worktree-only). Only guard 2 notices that the thing about to be destroyed is
+# not the thing that was vouched for -- and removing the worktree makes that commit unreachable.
+repo_i="$(mksuper i --with-submodule)"
+wt_i="$(mkwt "$repo_i" i --init-submodule)"
+git -C "$wt_i" checkout -q --detach
+printf 'work that no ref points at\n' > "$wt_i/detached.txt"
+git -C "$wt_i" add detached.txt
+git -C "$wt_i" commit -qm "detached-head work"
+det_sha="$(git -C "$wt_i" rev-parse HEAD)"
+# Fixture sanity: the OTHER guards must genuinely pass, or this is not a guard-2 test.
+[[ -z "$(git -C "$wt_i" status --porcelain --ignore-submodules=none)" ]] \
+  || fail "fixture I INVALID: tree must be clean, else guard 3 does the work instead of guard 2"
+git -C "$repo_i" merge-base --is-ancestor "refs/heads/relay/i" HEAD \
+  || fail "fixture I INVALID: relay/i must be an ancestor of HEAD, else guard 4 does the work"
+[[ -z "$(git -C "$wt_i" symbolic-ref --quiet HEAD 2>/dev/null || true)" ]] \
+  || fail "fixture I INVALID: HEAD must actually be detached"
+det_containing="$(git -C "$repo_i" branch --contains "$det_sha" 2>/dev/null || true)"
+[[ -z "$det_containing" ]] \
+  || fail "fixture I INVALID: the detached commit is reachable from branch(es) [$det_containing], so nothing is at risk"
+set +e
+out_i="$("$SH" "$repo_i" "$wt_i" "relay/i" --expect-merged 2>&1)"; rc_i=$?
+set -e
+[[ $rc_i -eq 3 ]] || fail "I detached HEAD: expected exit 3, got $rc_i -- out: $out_i"
+[[ "$out_i" != *"submodule-force-hatch"* ]] \
+  || fail "I detached HEAD: the hatch MUST NOT force a worktree whose HEAD is not the branch it was handed -- out: $out_i"
+[[ -e "$wt_i" ]] || fail "I detached HEAD: worktree must still be on disk (the unreferenced commit lives only here)"
+[[ "$out_i" == *"detached"* ]] || fail "I detached HEAD: report must name the detached HEAD -- out: $out_i"
+pass "I DETACHED-HEAD worktree handed a merged branch name → guard 2 refused, unreferenced commit safe ($out_i)"
+
+# ── J. submodule.<name>.ignore=all + submodule-internal dirt → NOT force-removed ──
+# THE GUARD-3 KILLER (added 2026-09-01). Case B2 already covers submodule-internal dirt, but it
+# does NOT kill the mutant that drops `--ignore-submodules=none`: by default `status --porcelain`
+# ALREADY reports submodule dirt, so B2 stays red-free either way. The flag only earns its place
+# when the repo sets `submodule.<name>.ignore = all` -- an ordinary, documented setting. Measured
+# here (git 2.55.0): with it set, default porcelain prints NOTHING while `--ignore-submodules=none`
+# prints ` M vendor/sub`. So without the flag the mutant sees a "clean" tree and destroys real
+# uncommitted content.
+repo_j="$(mksuper j --with-submodule)"
+wt_j="$(mkwt "$repo_j" j --init-submodule)"
+printf 'uncommitted work inside the submodule\n' >> "$wt_j/vendor/sub/f.txt"
+git -C "$repo_j" config submodule.vendor/sub.ignore all
+# Fixture sanity: the whole point is that the two status spellings DISAGREE here.
+[[ -z "$(git -C "$wt_j" status --porcelain)" ]] \
+  || fail "fixture J INVALID: default porcelain must show NOTHING under ignore=all, else the mutant would be caught anyway and this case proves nothing"
+[[ -n "$(git -C "$wt_j" status --porcelain --ignore-submodules=none)" ]] \
+  || fail "fixture J INVALID: --ignore-submodules=none must show the submodule as dirty"
+set +e
+out_j="$("$SH" "$repo_j" "$wt_j" "relay/j" --expect-merged 2>&1)"; rc_j=$?
+set -e
+[[ $rc_j -eq 3 ]] || fail "J ignore=all + submodule dirt: expected exit 3, got $rc_j -- out: $out_j"
+[[ "$out_j" != *"submodule-force-hatch"* ]] \
+  || fail "J ignore=all + submodule dirt: hatch MUST NOT fire -- the clean check has to override submodule.<name>.ignore -- out: $out_j"
+[[ -e "$wt_j" ]] || fail "J ignore=all: worktree must still be on disk"
+grep -q 'uncommitted work inside the submodule' "$wt_j/vendor/sub/f.txt" \
+  || fail "J ignore=all: the submodule-internal edit was destroyed"
+pass "J submodule.<name>.ignore=all hiding real dirt → guard 3's --ignore-submodules=none refused it ($out_j)"
+
+# ── K. gitlink object that exists ONLY in the worktree's private store → REFUSED ──
+# THE FIFTH GUARD (added 2026-09-01). This is the DATA-LOSS case that all four original guards
+# passed. A linked worktree gets its own submodule store at `.git/worktrees/<wt>/modules/<path>`.
+# Make a submodule commit INSIDE the worktree, bump the gitlink, merge that bump into the
+# superproject -- now HEAD matches, the tree is spotless, the branch IS an ancestor of HEAD, and
+# git's refusal is verbatim. `worktree remove --force` then deletes the admin dir with the ONLY
+# copy of those objects, and MAIN is left pointing at a gitlink nobody can resolve:
+#   fatal: remote error: upload-pack: not our ref <sha>
+# Measured verbatim by fixture 2026-09-01 (git 2.55.0) before the guard existed.
+repo_k="$(mksuper k --with-submodule)"
+wt_k="$(mkwt "$repo_k" k --init-submodule)"
+printf 'submodule work done inside the worktree\n' >> "$wt_k/vendor/sub/f.txt"
+git -C "$wt_k/vendor/sub" commit -qam "submodule work from the worktree"
+sub_sha="$(git -C "$wt_k/vendor/sub" rev-parse HEAD)"
+git -C "$wt_k" add vendor/sub
+git -C "$wt_k" commit -qm "bump submodule gitlink"
+git -C "$repo_k" merge -q --no-ff -m "merge relay/k" relay/k
+# Fixture sanity: the objects really are worktree-only, and guards 2/3/4 really do pass.
+git --git-dir="$repo_k/.git/modules/vendor/sub" cat-file -e "$sub_sha" 2>/dev/null \
+  && fail "fixture K INVALID: the submodule commit is ALREADY in the shared store, so nothing would be lost"
+git --git-dir="$repo_k/.git/worktrees/wt-k/modules/vendor/sub" cat-file -e "$sub_sha" 2>/dev/null \
+  || fail "fixture K INVALID: the submodule commit is not in the worktree's private store either"
+[[ "$(git -C "$repo_k" rev-parse "HEAD:vendor/sub")" == "$sub_sha" ]] \
+  || fail "fixture K INVALID: the superproject's MERGED gitlink does not point at the worktree-only commit"
+[[ "$(git -C "$wt_k" symbolic-ref --quiet HEAD)" == "refs/heads/relay/k" ]] || fail "fixture K INVALID: guard 2 would fire"
+[[ -z "$(git -C "$wt_k" status --porcelain --ignore-submodules=none)" ]] || fail "fixture K INVALID: guard 3 would fire"
+git -C "$repo_k" merge-base --is-ancestor "refs/heads/relay/k" HEAD || fail "fixture K INVALID: guard 4 would fire"
+set +e
+out_k="$("$SH" "$repo_k" "$wt_k" "relay/k" --expect-merged 2>&1)"; rc_k=$?
+set -e
+[[ $rc_k -eq 3 ]] || fail "K worktree-only gitlink objects: expected exit 3, got $rc_k -- out: $out_k"
+[[ "$out_k" != *"submodule-force-hatch"* ]] \
+  || fail "K worktree-only gitlink objects: hatch MUST NOT fire -- forcing here breaks MAIN, not just this worktree -- out: $out_k"
+[[ -e "$wt_k" ]] || fail "K worktree-only gitlink objects: worktree must still be on disk"
+git --git-dir="$repo_k/.git/worktrees/wt-k/modules/vendor/sub" cat-file -e "$sub_sha" 2>/dev/null \
+  || fail "K worktree-only gitlink objects: the only copy of $sub_sha was destroyed"
+[[ "$out_k" == *"nowhere else"* || "$out_k" == *"NOWHERE ELSE"* ]] \
+  || fail "K worktree-only gitlink objects: must say loudly WHY it refused -- out: $out_k"
+pass "K submodule commit living ONLY in the worktree's store → fifth guard refused, merged gitlink still resolvable ($out_k)"
+
+# ── L. NON-C LOCALE: the hatch still recognizes git's refusal ────────────────
+# git's refusal is a TRANSLATED string. Under LC_ALL=de_DE.utf8 (git 2.55.0, de.mo installed) it
+# reads "Schwerwiegend: Arbeitsverzeichnisse, die Submodule enthalten, können nicht verschoben
+# oder entfernt werden." -- so an unpinned probe misses the verbatim match AND misses the
+# `containing submodules` fallback, and the run falls through to the generic dirty-tree advice
+# this whole item exists to eliminate. It fails CLOSED, but it fails MISLEADINGLY. The script
+# pins LC_ALL=C around the probe and the force; this proves the pin works end to end.
+#
+# Guarded by a positive control: if this box has no German git translation the refusal comes back
+# in English anyway and the case would pass vacuously, so we SKIP loudly instead of pretending.
+loc_repo="$(mksuper l --with-submodule)"
+loc_wt="$(mkwt "$loc_repo" l --init-submodule)"
+set +e
+de_err="$(LC_ALL=de_DE.utf8 git -C "$loc_repo" worktree remove "$loc_wt" 2>&1)"
+c_err="$(LC_ALL=C git -C "$loc_repo" worktree remove "$loc_wt" 2>&1)"
+set -e
+if [[ "$de_err" == "$c_err" ]]; then
+  echo "SKIP: L locale — git emits the SAME refusal under de_DE.utf8 as under C on this box (no de translation installed), so a behavioural locale case would be vacuous. The LC_ALL=C pin is still asserted at the source level below."
+else
+  set +e
+  out_l="$(LC_ALL=de_DE.utf8 "$SH" "$loc_repo" "$loc_wt" "relay/l" --expect-merged 2>&1)"; rc_l=$?
+  set -e
+  [[ $rc_l -eq 0 ]] || fail "L non-C locale: expected exit 0 (hatch fires regardless of locale), got $rc_l -- out: $out_l"
+  [[ "$out_l" == *"submodule-force-hatch"* ]] \
+    || fail "L non-C locale: the hatch must recognize the refusal under ANY locale (probe pinned to LC_ALL=C) -- out: $out_l"
+  [[ "$out_l" != *"commit real work"* ]] \
+    || fail "L non-C locale: fell through to the generic dirty-tree advice -- exactly the misdirection id:a290 exists to remove -- out: $out_l"
+  [[ ! -e "$loc_wt" ]] || fail "L non-C locale: worktree dir should be gone"
+  pass "L under LC_ALL=de_DE.utf8 (git speaks German: ${de_err//$'\n'/ }) → hatch still fires ($out_l)"
+fi
+
+# ── Source-level assertion for the locale pin (holds even when L skips) ──────
+grep -Eq 'LC_ALL=C git -C "\$repo" worktree remove "\$wt"' "$SH" \
+  || fail "the no-force PROBE is not pinned to LC_ALL=C -- a translated refusal would miss the verbatim match (id:a290)"
+grep -Eq 'LC_ALL=C git -C "\$repo" worktree remove --force "\$wt"' "$SH" \
+  || fail "the FORCE is not pinned to LC_ALL=C -- its error text is parsed into the surfaced message (id:a290)"
+pass "both the refusal probe and the force are pinned to LC_ALL=C"
 
 echo "ALL PASS: $(basename "$0")"
