@@ -80,7 +80,12 @@
 #                     is scoped to its EXACT repo PAIR, not to the parent's whole plugin
 #                     family, so the same token minted independently in a THIRD family
 #                     repo stays a class-A ERROR (owner's narrowing ruling 2026-09-01).
-#                     A bare token is rejected by ledger-map.py.
+#                     A bare token is rejected by ledger-map.py (exit 2), and THIS
+#                     DRIVER matches the bare form too so that rejection is seen:
+#                     the file is handed over, the exit 2 propagates, and the run
+#                     stops with a message naming the file format. A declared mirror
+#                     whose declaration is REFUSED outranks --allowlist-file: it stays
+#                     a class-A ERROR even if the token is also allow-listed.
 #
 #   --state           durable state document (default $TRACKER_STATE or
 #                     ~/.cache/relay/tracker/fleet-state.json). Written atomically.
@@ -229,9 +234,14 @@ mirror_flags=()
 build_mirror_flags() {
   [[ -f "$mirror_file" ]] || return 0
   # A declaration is `<4-hex token> <repo> <repo>` (id:9fa2 narrowing, 2026-09-01). The
-  # BARE-token form is deliberately NOT matched here: ledger-map.py rejects it (exit 2),
-  # and matching it would hand over a file that aborts the run instead of skipping.
-  grep -qE '^[[:blank:]]*[0-9a-f]{4}[[:blank:]]+[^[:blank:]#]' "$mirror_file" || return 0
+  # BARE-token form IS matched here on purpose: an earlier spelling required the paired
+  # form, so a whole file still written in the old bare spelling matched nothing, the
+  # flag was never built, and the run continued with ZERO mention of "mirror" anywhere --
+  # the operator was told to adjudicate a collision, never that the mirror file was in
+  # the wrong format. Strict but SILENT is still a loudness defect. Matching the bare
+  # form hands the file to ledger-map.py, whose exit 2 propagates through run_validate
+  # (val_rc=2 -> the ERROR below -> exit 3, nothing written): loud AND strict.
+  grep -qE '^[[:blank:]]*[0-9a-f]{4}([[:blank:]]|$)' "$mirror_file" || return 0
   local help
   help="$(python3 "$LEDGER_MAP" validate --help 2>&1)" || {
     echo "fleet-import.sh: could not read 'ledger-map.py validate --help'" >&2; exit 2; }
@@ -388,7 +398,15 @@ if [[ "$val_rc" -ne 0 ]]; then
     publish_out
     echo "fleet-import.sh: --emit-unvalidated: wrote the UNVALIDATED merged document to $out_file (diagnostic only — it did NOT pass validate)." >&2
   fi
-  echo "fleet-import.sh: validate FAILED (rc=$val_rc) — NOTHING written to $state_file. A cross-repo collision that is not on $allowlist_file must be adjudicated, not switched off." >&2
+  if [[ "$val_rc" -eq 2 ]]; then
+    # rc=2 is ledger-map.py's USAGE/declaration exit, not a collision verdict -- most
+    # often a malformed line in $mirror_file (e.g. the old BARE-token spelling, which
+    # requires `<4-hex token> <repo> <repo>` since the id:9fa2 narrowing). Say THAT,
+    # rather than sending the operator off to adjudicate a collision.
+    echo "fleet-import.sh: validate REFUSED ITS INPUT (rc=2) -- NOTHING written to $state_file. This is a malformed FLAG or DECLARATION FILE, not a collision: check $mirror_file (each line must be '<4-hex token> <repo> <repo>'; the bare-token form is rejected since the id:9fa2 pair-scoping) and $allowlist_file. The ledger-map.py message above says which line." >&2
+  else
+    echo "fleet-import.sh: validate FAILED (rc=$val_rc) — NOTHING written to $state_file. A cross-repo collision that is not on $allowlist_file must be adjudicated, not switched off." >&2
+  fi
   exit 3
 fi
 cat "$tmpdir/val.out"

@@ -29,6 +29,50 @@
 #      pair and the observed set (owner's 2026-09-01 narrowing ruling);
 #   f. a BARE token line (the family-scoped spelling) is REJECTED outright — it is
 #      the exact spelling that used to carry the superset hole.
+#   g. the superset hole is closed in the PARENT'S OWN spelling too: `--mirror-token
+#      1c7d` (bare) over {zkm, zkm-whatsapp, zkm-notmuch} must not exit 0.
+#   h. a DECLARED mirror whose declaration is REFUSED outranks the homonym allow-list:
+#      allow-listing the token must NOT cancel the refusal or make the run pass, and
+#      the remediation text must not send the operator to the allow-list.
+#   i. an ORDINARY (undeclared) class-A homonym is still adjudicated by --allow-homonym
+#      exactly as before -- (h) must not over-fix into the plain allow-list path.
+#
+# REACHABILITY OF THE NEGATIVE CONTROL -- which assertions actually discriminate, and
+# against WHICH ancestor. This matters because an unreached fixture in a file that goes
+# red LOOKS like a passing negative control and is not one.
+#
+#   * Against 275fec46 (`tracker: record the parent/plugin mirror convention`, the
+#     bare-token FAMILY-scoped implementation): assertions (a)-(f) are UNREACHABLE.
+#     That commit's `collect_mirror_tokens` is the bare-token `_collect_tokens`, so the
+#     PAIRED file this test writes (`1c7d zkm zkm-whatsapp`) fails its 4-hex check and
+#     the run dies at exit 2 before any collision logic runs. The file goes red at (a)
+#     -- but for the wrong reason, and (e)/(f) are never evaluated at all.
+#     Assertion (g) is the DISCRIMINATING one: it is written in 275fec46's own
+#     bare-token spelling and pins the actual defect. It is therefore ORDERED FIRST in
+#     the file, ahead of the negative control and (a) -- otherwise the exit-2 abort at
+#     (a) would keep it from ever running there, and (g) would itself be an unreached
+#     fixture. Measured, against that commit:
+#       $ python3 ledger-map.py validate superset.json --mirror-token 1c7d
+#       WARN: cross-repo id MIRROR (class A downgraded): '1c7d' in repos
+#             ['zkm', 'zkm-notmuch', 'zkm-whatsapp'] — parent/plugin mirror
+#             convention (id:9fa2); parent 'zkm'
+#       validate: OK (3 items, 3 repos, 2 warning(s))          exit 0   <-- absorbed
+#     and against this tree, exit 2 (a bare token declares no repo PAIR).
+#
+#   * Against 66ed9f9a (`narrow the mirror ... to PAIR-scoped`, the first pair-scoped
+#     implementation): (a)-(g) all PASS -- that commit closed the superset hole. The
+#     DISCRIMINATING assertion there is (h): its `validate_doc` elif chain read
+#     `tok in mirror_tokens and mirror_refusal(...) is None`, so a REFUSED mirror fell
+#     through to the `allowed_homonyms` branch and the refusal was never emitted.
+#     Measured, against that commit:
+#       $ ledger-map.py validate superset.json --mirror-file mirror-tokens.txt \
+#             --allow-homonym 1c7d
+#       WARN: cross-repo id homonym (class A): '1c7d' in repos [...] — composite key
+#             disambiguates; ADJUDICATED via --allow-homonym 1c7d
+#       validate: OK (3 items, 3 repos, 4 warning(s))          exit 0   <-- absorbed
+#     Latent rather than live (no token is on both lists today), and signposted the
+#     wrong way: the refusal text said the allow-list is not the fix while the class-A
+#     ERROR printed beside it said "adjudicate it explicitly with --allow-homonym".
 #
 # THE SECOND TRAP (e/f, found by review of the first implementation): the
 # family guard accepts any SUPERSET, because `parent_plugin_family()` only asks
@@ -99,7 +143,46 @@ doc["repos"] = [repos[k] for k in sorted(repos)]
 json.dump(doc, open(sys.argv[2], "w"))
 PY
 
+# --- fixture 2: the SUPERSET topology (a THIRD family repo mints a declared token) --
+# Built here, before any assertion, because assertion (g) below is the one that must
+# stay REACHABLE against 275fec46 (see REACHABILITY in the header).
+python3 - "$tmp/alpha.json" "$tmp/superset.json" <<'PY' || fail "superset fixture derivation failed"
+import copy, json, sys
+doc = json.load(open(sys.argv[1]))
+tpl = next((i for i in doc["items"] if i.get("id") == "cccc"), None)
+if tpl is None:
+    print("ERROR: fixture template item cccc not found"); sys.exit(1)
+# 1c7d is a DECLARED zkm/zkm-whatsapp mirror; zkm-notmuch mints it independently.
+items, repos = [], {}
+for repo in ("zkm", "zkm-whatsapp", "zkm-notmuch"):
+    repos[repo] = {"repo": repo, "path": "fixtures/%s" % repo,
+                   "ledger_files": ["TODO.md"], "labels": [], "verdict": None}
+    it = copy.deepcopy(tpl)
+    it.update(repo=repo, id="1c7d", uid="%s/1c7d" % repo, links=[],
+              blocked_by=[], parent=None, parents=[], children=[])
+    items.append(it)
+doc["items"] = items
+doc["repos"] = [repos[k] for k in sorted(repos)]
+json.dump(doc, open(sys.argv[2], "w"))
+PY
+
 errors_naming() { grep '^ERROR' "$1" | grep -c "$2" || true; }
+
+# --- (g) FIRST, because it is the assertion that discriminates against 275fec46 -----
+# The superset hole must be closed in the PARENT'S OWN bare-token spelling. Ordered
+# ahead of (a)-(f) deliberately: those use the PAIRED file, which 275fec46 rejects at
+# exit 2 before any collision logic runs, so if (a) ran first this case would never be
+# evaluated there -- an unreached fixture masquerading as a negative control. Measured
+# against 275fec46 this exits 0, having absorbed the third repo's independent mint.
+set +e
+python3 "$MAP" validate "$tmp/superset.json" --mirror-token 1c7d \
+  > /dev/null 2> "$tmp/sup_bare.err"
+rc_sb=$?
+set -e
+[[ "$rc_sb" -ne 0 ]] \
+  || fail "(g) the family-scoped bare spelling '--mirror-token 1c7d' absorbed a superset repo set and exited 0 -- the original defect: $(cat "$tmp/sup_bare.err")"
+[[ "$(errors_naming "$tmp/sup_bare.err" 1c7d)" -ge 1 ]] \
+  || fail "(g) the bare-token spelling produced no ERROR naming 1c7d: $(cat "$tmp/sup_bare.err")"
 
 # --- negative control: with NO adjudication EVERY token is fatal -------------------
 set +e
@@ -186,26 +269,7 @@ grep -q 'abcd' "$tmp/stale.warn" \
 # --- (e) SUPERSET: a declared token that also appears in a THIRD family repo -------
 # The mirror is scoped to its declared PAIR. A fresh birthday collision minted in any
 # sibling plugin on one of the declared tokens must NOT be absorbed by the convention.
-python3 - "$tmp/alpha.json" "$tmp/superset.json" <<'PY' || fail "superset fixture derivation failed"
-import copy, json, sys
-doc = json.load(open(sys.argv[1]))
-tpl = next((i for i in doc["items"] if i.get("id") == "cccc"), None)
-if tpl is None:
-    print("ERROR: fixture template item cccc not found"); sys.exit(1)
-# 1c7d is a DECLARED zkm/zkm-whatsapp mirror; zkm-notmuch mints it independently.
-items, repos = [], {}
-for repo in ("zkm", "zkm-whatsapp", "zkm-notmuch"):
-    repos[repo] = {"repo": repo, "path": "fixtures/%s" % repo,
-                   "ledger_files": ["TODO.md"], "labels": [], "verdict": None}
-    it = copy.deepcopy(tpl)
-    it.update(repo=repo, id="1c7d", uid="%s/1c7d" % repo, links=[],
-              blocked_by=[], parent=None, parents=[], children=[])
-    items.append(it)
-doc["items"] = items
-doc["repos"] = [repos[k] for k in sorted(repos)]
-json.dump(doc, open(sys.argv[2], "w"))
-PY
-
+# (The superset fixture is built up front; see "fixture 2" above.)
 set +e
 python3 "$MAP" validate "$tmp/superset.json" --mirror-file "$tmp/mirrors.txt" \
   > /dev/null 2> "$tmp/sup.err"
@@ -242,6 +306,43 @@ set -e
 grep -qi 'repo' "$tmp/bare.err" \
   || fail "(f) the bare-token rejection does not say a repo pair is required"
 
+# --- (h) a REFUSED mirror declaration OUTRANKS the homonym allow-list --------------
+# The two surfaces make incompatible claims (SAME item vs two UNRELATED items), so an
+# allow-list entry must not cancel a refusal. Against 66ed9f9a this exited 0.
+set +e
+python3 "$MAP" validate "$tmp/superset.json" --mirror-file "$tmp/mirrors.txt" \
+  --allow-homonym 1c7d > /dev/null 2> "$tmp/both.err"
+rc_both=$?
+set -e
+[[ "$rc_both" -eq 3 ]] \
+  || fail "(h) a token that is BOTH a declared (refused) mirror AND allow-listed passed validate (exit $rc_both) -- the allow-list cancelled the refusal: $(cat "$tmp/both.err")"
+[[ "$(errors_naming "$tmp/both.err" 1c7d)" -ge 1 ]] \
+  || fail "(h) the refused mirror 1c7d produced no class-A ERROR while allow-listed"
+grep -qi 'REFUSED' "$tmp/both.err" \
+  || fail "(h) the mirror refusal was not emitted at all when the token was also allow-listed"
+if grep -q 'ADJUDICATED via --allow-homonym' "$tmp/both.err"; then
+  fail "(h) the allow-list still reports the refused mirror as adjudicated"
+fi
+# ...and the remediation TEXT must not contradict the refusal by telling the operator
+# to allow-list a token the refusal has just ruled out.
+grep '^ERROR' "$tmp/both.err" > "$tmp/both.errlines" || true
+if grep -q 'adjudicate it explicitly with --allow-homonym' "$tmp/both.errlines"; then
+  fail "(h) the class-A ERROR for a REFUSED mirror still tells the operator to allow-list it, contradicting the refusal in the WARN above"
+fi
+
+# --- (i) an ORDINARY, UNDECLARED class-A homonym is still adjudicated normally -----
+# (h) must not over-fix: df4e is a plain birthday collision that is NOT in the mirror
+# file, so --allow-homonym must still downgrade it to a warning, exactly as before.
+set +e
+python3 "$MAP" validate "$tmp/fleet.json" --mirror-file "$tmp/mirrors.txt" \
+  --allow-homonym df4e > /dev/null 2> "$tmp/df4e.err"
+set -e
+[[ "$(errors_naming "$tmp/df4e.err" df4e)" -eq 0 ]] \
+  || fail "(i) --allow-homonym df4e no longer adjudicates an ordinary class-A homonym: $(grep df4e "$tmp/df4e.err")"
+grep '^WARN' "$tmp/df4e.err" > "$tmp/df4e.warn" || true
+grep -q "ADJUDICATED via --allow-homonym df4e" "$tmp/df4e.warn" \
+  || fail "(i) the ordinary allow-list adjudication of df4e is no longer reported"
+
 # --- no wildcard / blanket spelling can stand in for the recorded convention -------
 set +e
 python3 "$MAP" validate "$tmp/fleet.json" --mirror-token 'all zkm zkm-whatsapp' \
@@ -257,6 +358,32 @@ python3 "$MAP" validate "$tmp/fleet.json" --mirror-token '1c7d zkm *' \
 rc_wr=$?
 set -e
 [[ "$rc_wr" -eq 2 ]] || fail "a wildcard mirror REPO must be rejected (exit 2), got $rc_wr"
+
+# ...and a wildcard as the ONLY repo gets the NO-GLOB message, not the misleading
+# "declares no repo PAIR" (repo shape is checked BEFORE the pair count).
+set +e
+python3 "$MAP" validate "$tmp/fleet.json" --mirror-token '1c7d zkm*' \
+  > /dev/null 2> "$tmp/wildonly.err"
+rc_wo=$?
+set -e
+[[ "$rc_wo" -eq 2 ]] || fail "a glob as the only mirror repo must be rejected (exit 2), got $rc_wo"
+grep -qi 'not a literal repo name' "$tmp/wildonly.err" \
+  || fail "a glob as the only mirror repo is misreported as a missing PAIR: $(cat "$tmp/wildonly.err")"
+
+# --- declarations are SPACE-separated; colon/comma forms are NOT silently accepted --
+# Every doc says `<4-hex token> <repo> <repo>`; a lenient split would quietly accept a
+# spelling no document describes.
+for bad_form in '1c7d:zkm:zkm-whatsapp' '1c7d,zkm,zkm-whatsapp'; do
+  set +e
+  python3 "$MAP" validate "$tmp/fleet.json" --mirror-token "$bad_form" \
+    > /dev/null 2> "$tmp/sep.err"
+  rc_sep=$?
+  set -e
+  [[ "$rc_sep" -eq 2 ]] \
+    || fail "a non-space-separated mirror declaration ($bad_form) must be rejected (exit 2), got $rc_sep"
+  grep -qi 'literal 4-hex token' "$tmp/sep.err" \
+    || fail "the rejection of $bad_form does not say the required form: $(cat "$tmp/sep.err")"
+done
 
 # --- the SHIPPED convention file records exactly the four S1 tokens, each PAIRED ---
 [[ -f "$MIRROR_FILE" ]] || fail "tracker/mirror-tokens.txt (the recorded convention) is missing"
