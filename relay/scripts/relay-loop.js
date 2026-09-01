@@ -275,6 +275,17 @@ const MAX_UNITS = A.MAX_UNITS || 20
 // in the schema enum + here for a valid round-trip and to SURFACE it (RELAY_STATUS Queued),
 // but — exactly like `human` — it is ABSENT from PHASE_BY_VERDICT and never spawns a child.
 const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3, human: 5, mechanical: 6 }
+// id:5c05 — the `--intensive` PREFERENCE order (owner-ruled 2026-09-01). A run launched
+// --intensive was launched to spend apex capacity on the HEAVY backlog, so routine Sonnet
+// `execute` work must not take the slots first: `hard` outranks `execute` here. The D3
+// anti-gaming rung is UNTOUCHED — `review` still outranks `hard` (fresh strong work), and it
+// now also outranks `execute`, which STRENGTHENS the invariant rather than reordering it.
+// handoff/human/mechanical keep their ranks. Applies ONLY when --intensive is set; a default
+// run sorts by PRIORITY exactly as before. The [INTENSIVE] half of id:5c05 is NOT here —
+// intensive units are partitioned out of this sort entirely (see the id:8d52 partition and
+// the runIntensivePhase() call site).
+const PRIORITY_INTENSIVE = { review: 0, hard: 1, execute: 2, handoff: 3, human: 5, mechanical: 6 }
+const PRIORITY_ACTIVE = ALLOW_INTENSIVE ? PRIORITY_INTENSIVE : PRIORITY
 
 // True when THIS session's strong tier is real Fable (not an Opus substitute). Gates
 // the standin re-review preference so an Opus run never re-reviews its own standin work.
@@ -2502,7 +2513,7 @@ const dispatchable = discovery.units.filter(u => u.verdict !== 'idle')
 let actionable = dispatchable
   .sort((a, b) =>
     ((b.injected ? 1 : 0) - (a.injected ? 1 : 0)) ||
-    (PRIORITY[a.verdict] - PRIORITY[b.verdict]) ||
+    (PRIORITY_ACTIVE[a.verdict] - PRIORITY_ACTIVE[b.verdict]) ||
     (priorityRank(a, prioritySet) - priorityRank(b, prioritySet)) ||
     ((b.income ? 1 : 0) - (a.income ? 1 : 0)) ||
     (standInRank(a) - standInRank(b))
@@ -2572,7 +2583,8 @@ if (FABLE_DOWN && STRONG_MODEL === 'claude-fable-5') {
 
 // [INTENSIVE] partition (id:8d52): pull resource-heavy units OUT of the parallel wave — they
 // are never auto-run (OOM risk). With --intensive (id:052c; synonym --allow-intensive) they run
-// serially-alone AFTER the wave (intensiveUnits); otherwise they are surfaced as skipped
+// serially-alone BEFORE the wave (intensiveUnits; id:5c05 moved that phase earlier — with
+// --intensive the heavy work is what the run was launched for); otherwise they are surfaced as skipped
 // (intensiveDeferred). A bare --afk does NOT enable them (id:052c — --afk stays non-intensive).
 let intensiveUnits = []
 let intensiveDeferred = []
@@ -2584,7 +2596,7 @@ let intensiveDeferred = []
   }
   actionable = normal
 }
-if (intensiveUnits.length) log(`relay-loop: --intensive — ${intensiveUnits.length} [INTENSIVE] unit(s) will run SERIALLY-ALONE after the wave: ${intensiveUnits.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
+if (intensiveUnits.length) log(`relay-loop: --intensive — ${intensiveUnits.length} [INTENSIVE] unit(s) will run SERIALLY-ALONE BEFORE the wave (id:5c05 preference; without --intensive they are deferred entirely): ${intensiveUnits.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
 if (intensiveDeferred.length) log(`relay-loop: ${intensiveDeferred.length} [INTENSIVE] unit(s) NOT dispatched — need --intensive (a bare --afk no longer enables them, id:052c): ${intensiveDeferred.map(u => `${u.repo}(${u.intensive})`).join(', ')}`)
 
 // id:5eb3 — human-verdict mechanical surface-filer: extract `human` units (promote==0 ∧ surface>0)
@@ -2759,6 +2771,9 @@ let roundCapHit = false   // per-round MAX_UNITS cap; distinct from quotaStopped
 // chain), whereas an operator stop must.
 let waveDispatchBudget = 0
 let dispatchDecisions = 0
+// id:5c05 — hoisted out of the (formerly post-wave) [INTENSIVE] serial phase so
+// runIntensivePhase() can be CALLED before the wave without hitting this binding's TDZ.
+let intensiveRan = 0
 let waveBudgetHit = false
 let userStopMidRound = false
 // The gate every dispatch decision passes through. Returns a REASON string when this decision
@@ -4505,12 +4520,69 @@ async function takeInjections() {
   return enforceInjectScope(parseInjectTake(raw, prelude.repos), 'mid-round take')
 }
 
+// ── [INTENSIVE] serial run-alone phase (id:8d52) ── run intensive units one-at-a-time,
+// draining each unit's integration before the next, so two heavy local-LLM loads never overlap
+// (the OOM fix). Each child also holds an exclusive resource:<name> claim (acquired in
+// unitPrompt) for cross-run exclusivity. Nothing else may be in flight while it runs, which is
+// why it is a phase of its own rather than a lane.
+//
+// id:5c05 — WHEN it runs is now flag-dependent (owner-ruled 2026-09-01):
+//   • --intensive  → BEFORE the parallel wave (the call just below). A run launched
+//     --intensive was launched FOR this work, so it goes first.
+//   • otherwise    → after the wave, exactly as before (the call at the old site below). That
+//     branch is a no-op today: without --intensive the partition sends every intensive unit to
+//     intensiveDeferred, so intensiveUnits is empty.
+// COST OF THE EARLY BRANCH, explicitly: every parallel unit of the round — execute, review,
+// hard, handoff, across ALL repos — waits for the WHOLE serial intensive phase, one unit at a
+// time INCLUDING each one's integration drain. With k intensive units that is k serial
+// child+integrate cycles before the first routine slot opens. Under `--once`/`--after` a round
+// that stops early may therefore never reach the wave at all. That is the owner-ruled
+// preference, not an accident. The wave-budget asymmetry is unchanged (the budget is
+// snapshotted from `queue` below, AFTER this phase, and intensive units were never in `queue`).
+async function runIntensivePhase() {
+  for (const unit of intensiveUnits) {
+    if (quotaStopped || roundCapHit) {
+      state.queued.push({ repo: unit.repo, verdict: `intensive:${unit.intensive} (not run — quota/cap)` })
+      continue
+    }
+    // id:a615 — the intensive phase is a DISPATCH DECISION too, so the operator's stop reaches it.
+    // NOTE the deliberate asymmetry: intensive units are part of the wave discovery produced and
+    // never chain, so the `--once`/`--after` WAVE BUDGET (sized from `queue`) does not apply to
+    // them — only the STOP sentinel does. That asymmetry is enforced inside dispatchGateBlock by
+    // the `where === 'lane'` guard on the budget clause.
+    if (userStopMidRound || await dispatchGateBlock('intensive')) {
+      state.queued.push({ repo: unit.repo, verdict: `intensive:${unit.intensive} (not run — operator stop, id:a615)` })
+      continue
+    }
+    log(`relay-loop: [INTENSIVE] serial run-alone dispatch ${unit.repo} (resource=${unit.intensive})`)
+    dispatchDecisions++   // id:a615
+    await runUnit(unit)
+    await Promise.all(debts)
+    await Promise.all([...integrationChains.values()])
+    intensiveRan++
+  }
+}
+
+// id:5c05 — the --intensive branch: the serial intensive phase runs FIRST, before any lane
+// starts. Scoped to ALLOW_INTENSIVE; a default run reaches the post-wave call instead.
+if (ALLOW_INTENSIVE && intensiveUnits.length) {
+  log(`relay-loop: id:5c05 --intensive — running the ${intensiveUnits.length} [INTENSIVE] unit(s) SERIALLY-ALONE BEFORE the parallel wave (the whole wave waits on them)`)
+  await runIntensivePhase()
+}
+
 // id:a615 — SNAPSHOT the wave dispatch budget before the lanes start. This is the whole
 // dispatch-scoped bound: under `--once`/`--after N` a round may dispatch exactly the units
 // DISCOVERY produced, and no more. Everything the id:8123 chain-end re-ask / the
 // review→execute re-chain / a mid-round injection pushes into `queue` afterwards lands ABOVE
 // the snapshot and is refused + surfaced. Disarmed (0) without a launch cap.
-waveDispatchBudget = DISPATCH_BOUND_ACTIVE ? queue.length : 0
+// id:5c05 — `+ dispatchDecisions`: the budget is compared against the RUNNING dispatchDecisions
+// counter, so any decision made before this snapshot would silently shrink the lanes' share.
+// Since id:5c05 the [INTENSIVE] serial phase runs BEFORE the wave under --intensive and bumps
+// that counter, which would have cost the wave one slot per intensive unit — exactly the
+// "intensive units must not consume the wave budget" asymmetry the clause in dispatchGateBlock
+// documents. Offsetting keeps the lanes' allowance at precisely queue.length in both orders;
+// without a launch cap the bound is disarmed (0) and none of this applies.
+waveDispatchBudget = DISPATCH_BOUND_ACTIVE ? queue.length + dispatchDecisions : 0
 if (waveDispatchBudget) log(`relay-loop: id:a615 --once/--after wave dispatch budget = ${waveDispatchBudget} unit(s) for round ${round} (chained follow-ons beyond this are surfaced, not dispatched)`)
 
 await parallel(
@@ -4567,33 +4639,12 @@ await parallel(
 await Promise.all(debts)
 await Promise.all([...integrationChains.values()])
 
-// ── [INTENSIVE] serial run-alone phase (id:8d52) ── the normal parallel wave + ALL its
-// integration have fully drained above, so nothing else is in flight. Run intensive units
-// one-at-a-time, draining each unit's integration before the next, so two heavy local-LLM
-// loads never overlap (the OOM fix). Each child also holds an exclusive resource:<name>
-// claim (acquired in unitPrompt) for cross-run exclusivity.
-let intensiveRan = 0
-for (const unit of intensiveUnits) {
-  if (quotaStopped || roundCapHit) {
-    state.queued.push({ repo: unit.repo, verdict: `intensive:${unit.intensive} (not run — quota/cap)` })
-    continue
-  }
-  // id:a615 — the intensive phase is a DISPATCH DECISION too, so the operator's stop reaches it.
-  // NOTE the deliberate asymmetry: intensive units are part of the wave discovery produced and
-  // never chain, so the `--once`/`--after` WAVE BUDGET (sized from `queue`) does not apply to
-  // them — only the STOP sentinel does. That asymmetry is enforced inside dispatchGateBlock by
-  // the `where === 'lane'` guard on the budget clause.
-  if (userStopMidRound || await dispatchGateBlock('intensive')) {
-    state.queued.push({ repo: unit.repo, verdict: `intensive:${unit.intensive} (not run — operator stop, id:a615)` })
-    continue
-  }
-  log(`relay-loop: [INTENSIVE] serial run-alone dispatch ${unit.repo} (resource=${unit.intensive})`)
-  dispatchDecisions++   // id:a615
-  await runUnit(unit)
-  await Promise.all(debts)
-  await Promise.all([...integrationChains.values()])
-  intensiveRan++
-}
+// id:5c05 — the phase BODY now lives in runIntensivePhase() (defined just above the wave) and
+// is CALLED BEFORE the wave when --intensive is set. This call is the !ALLOW_INTENSIVE branch.
+// It is a no-op today (without --intensive the id:8d52 partition routes every intensive unit to
+// intensiveDeferred, so intensiveUnits is empty) and is kept ONLY so the phase cannot be
+// silently lost if that partition ever changes — a dead call is cheaper than a dropped phase.
+if (!ALLOW_INTENSIVE) await runIntensivePhase()
 
 state.queued = state.queued.concat(queue.map(u => ({ repo: u.repo, verdict: `${u.verdict} (not dispatched)` })))
 scheduleStatusWrite(state)
