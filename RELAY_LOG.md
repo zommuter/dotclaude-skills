@@ -3035,3 +3035,7 @@ than an anticipated done-check.
 refactor: none needed -- the reconciliation pass is additive (one new loop) and
 the test fix corrects stale hardcoded counts/assumptions rather than adding new
 structure.
+
+## 2026-09-01 11:38 — executor (sonnet, relay-loop)
+
+tracker: id:59c5 -- children-of:/children: now resolve to one relation in ledger-map.py's assemble(); golden fixtures regenerated; fixed a downstream Plane-adapter test assertion whose premise the fix invalidated [id:59c5]
