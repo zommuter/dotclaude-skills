@@ -229,8 +229,57 @@ if [[ -n "$since_ckpt" ]]; then
   done
 
   if (( ${#since_ids[@]} == 0 )); then
-    echo "ledger-slice.sh: --since-ckpt $since_ckpt ($repo) derived NO ids — no commits, or no id-bearing changes, in TODO.md/ROADMAP.md/commit messages since that checkpoint. Nothing to slice; this is NOT a failure (id:dd59 exit 5) — the caller should fall back to the unsliced brief." >&2
-    exit 5
+    # EMPTY DERIVED SET → a MINIMAL slice, not exit 5 (id:dd59, corrected on live evidence
+    # from run relay-20260901-101120-32404). This used to exit 5 so the caller would "fall
+    # back to the unsliced brief" — which asked for the WHOLE 1.55 MB of ledgers in order to
+    # review zero id-bearing changes, and the prompt-size gate then refused at ~477,027 tok.
+    #
+    # Skipping the review instead would be WRONG, and this is the subtle part: an empty
+    # derived set does NOT mean "nothing to review". It means no ID-BEARING changes. The
+    # classifier reached `review` because substantive UNAUDITED COMMITS exist, and a commit
+    # like `chore: archive done items` carries no id marker at all. Skipping would silently
+    # leave real commits unreviewed — precisely the D3 anti-gaming blind spot this item
+    # exists to close.
+    #
+    # So emit a minimal slice: the repo-state header the child needs, plus an explicit note
+    # that the review is DIFF-SCOPED this round. review.md's core work (the diff window and
+    # the test-integrity audit) needs no ledger bulk; the ledgers are for re-derivation,
+    # which has nothing to re-derive when no item changed. The child gets a few hundred
+    # bytes instead of 1.55 MB and the review actually happens.
+    # $out is only defaulted further down (the --ids/single-id paths), so name it here.
+    if [[ -z "$out" ]]; then
+      out="${RELAY_SLICE_DIR:-$HOME/.cache/relay/slices}/${repo}-diffscoped-${since_ckpt}.md"
+    fi
+    mkdir -p "$(dirname "$out")"
+    tmp="$(mktemp)"
+    trap '[ -e "$tmp" ] && rm -- "$tmp"' EXIT
+    {
+      echo "# Ledger slice — ${repo} (diff-scoped: no id-bearing changes)"
+      echo
+      echo "## Repo state"
+      echo "- repo: ${repo}"
+      echo "- path: ${path}"
+      echo "- since checkpoint: ${since_ckpt}"
+      echo "- ROADMAP.md: $( [[ -f "$roadmap" ]] && wc -c < "$roadmap" || echo 0 ) B; TODO.md: $( [[ -f "$todo" ]] && wc -c < "$todo" || echo 0 ) B (NOT inlined)"
+      echo
+      echo "## No id-bearing changes since \`$since_ckpt\`"
+      echo
+      echo "This review is **DIFF-SCOPED**. No \`<!-- id:XXXX -->\` marker changed in"
+      echo "\`TODO.md\`/\`ROADMAP.md\` and no commit message named an id since that checkpoint,"
+      echo "so there is no item block to slice — but there ARE unaudited commits (that is why"
+      echo "the classifier asked for a review). Work the diff window and the test-integrity"
+      echo "audit; there is nothing to re-derive in the ledgers this round."
+      echo
+      echo "Ledgers are deliberately NOT inlined here (id:dd59): whole-ledger review for this"
+      echo "repo measures ~477,000 tok against a 300,000 budget and is refused. If you need a"
+      echo "specific item, \`grep -n 'id:XXXX' TODO.md ROADMAP.md\` then \`sed -n\` its range."
+    } >> "$tmp"
+    mv -- "$tmp" "$out"
+    trap - EXIT
+    echo "ledger-slice.sh: --since-ckpt $since_ckpt ($repo) derived NO ids — no id-bearing changes since that checkpoint. Wrote a MINIMAL diff-scoped slice instead of falling back to the whole ledgers (id:dd59); unaudited commits without id markers still get reviewed." >&2
+    printf 'slice-bytes: %s\n' "$(wc -c < "$out" | tr -d '[:space:]')"
+    printf '%s\n' "$out"
+    exit 0
   fi
   echo "ledger-slice.sh: --since-ckpt $since_ckpt ($repo) derived ${#since_ids[@]} id(s): ${since_ids[*]}" >&2
   ids_csv="$(IFS=,; echo "${since_ids[*]}")"

@@ -125,14 +125,28 @@ if [[ -e "$O2" ]]; then
   grep -q 'ITEM ONE' "$O2" && bad "id:dd59: invalid ref produced a slice covering the WHOLE repo (id:1111 present) -- the exact failure this change exists to prevent" || true
 fi
 
-# ── (7) A valid ref with an EMPTY derived set (tag == HEAD) is reported and distinguishable. ──
+# ── (7) A valid ref with an EMPTY derived set yields a MINIMAL DIFF-SCOPED slice. ───────────
+# CONTRACT CHANGED 2026-09-01 on live evidence (run relay-20260901-101120-32404). This used to
+# exit 5 with no file so the caller "fell back to the unsliced brief" -- which asked for the
+# WHOLE 1.55 MB of ledgers in order to review ZERO id-bearing changes, and the prompt-size gate
+# refused at ~477,027 tok. That was the one remaining refusal after dd59 otherwise worked.
+#
+# Skipping the review instead would be WRONG: an empty derived set does NOT mean "nothing to
+# review", it means no ID-BEARING changes. The classifier reaches `review` on substantive
+# UNAUDITED COMMITS, and `chore: archive done items` carries no id marker -- skipping would
+# silently leave real commits unreviewed, the exact D3 blind spot dd59 exists to close.
+# So: a minimal slice (repo state + an explicit diff-scoped note), exit 0, review happens.
 git -C "$R" tag ckpt_head
 O3="$TMP/since3.md"
 rc3=0
 "$SLICE" --repo repo --path "$R" --since-ckpt ckpt_head --out "$O3" >/dev/null 2>"$TMP/err3.txt" || rc3=$?
-[[ "$rc3" -eq 5 ]] && ok "an empty derived set exits 5 (distinct from 2=misuse and 4=unresolved-id)" || bad "id:dd59: empty derived set exited $rc3, expected 5"
-[[ -e "$O3" ]] && bad "id:dd59: empty derived set still wrote a slice file" || ok "empty derived set writes no slice file"
-grep -qi 'derived NO ids' "$TMP/err3.txt" && ok "empty derivation is reported on stderr with a reason" || bad "id:dd59: empty derivation not reported on stderr"
+[[ "$rc3" -eq 0 ]] && ok "an empty derived set exits 0 with a minimal slice (not a 1.5 MB fallback)" || bad "id:dd59: empty derived set exited $rc3, expected 0 -- the caller would fall back to the whole ledgers"
+[[ -s "$O3" ]] && ok "empty derived set DOES write a minimal slice file" || bad "id:dd59: empty derived set wrote no slice -- the caller falls back to the unsliced brief and gets refused"
+grep -qi 'derived NO ids' "$TMP/err3.txt" && ok "empty derivation is still reported on stderr with a reason" || bad "id:dd59: empty derivation not reported on stderr"
+grep -q 'DIFF-SCOPED' "$O3" && ok "the minimal slice tells the child the review is diff-scoped this round" || bad "id:dd59: minimal slice does not state that it is diff-scoped"
+# The whole point is that it is SMALL -- assert it, so a future change cannot quietly inline
+# the ledgers back into this path.
+[[ "$(wc -c < "$O3")" -lt 8000 ]] && ok "the minimal slice is small (<8 KB), not a ledger dump" || bad "id:dd59: the 'minimal' slice is $(wc -c < "$O3") B -- something inlined the ledgers"
 
 # ── (8) --since-ckpt is mutually exclusive with --id and --ids. ─────────────────────────────
 rc4=0; "$SLICE" --repo repo --path "$R" --since-ckpt ckpt1 --id 1111 --out "$TMP/x1.md" >/dev/null 2>"$TMP/errx1.txt" || rc4=$?
