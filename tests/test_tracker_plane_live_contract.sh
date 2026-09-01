@@ -197,15 +197,25 @@ assert stats["relations_skipped_dangling"] == 2, stats
 report = P.verify_live(doc, board)
 assert report["verdict"] == "PASS", report
 assert report["items_live"] == report["items_planned"] == 19, report
-# Plane materialises inverses, so the live edge set must be a strict SUPERSET.
-assert report["edges_live"] > report["edges_planned_non_dangling"], report
+# Plane must never DROP a planned edge on round-trip (`edges_live` is deduped
+# server-observed triples; `edges_planned_non_dangling` is the plan's own list).
+# Pre-id:59c5 this was a strict SUPERSET, because the ledger stored a parent/child
+# pair in only ONE direction and Plane's `parent` field implicitly supplied the
+# other on read-back. id:59c5 mirrors both directions into the document itself,
+# so the plan now already declares what Plane used to have to infer, and the two
+# counts legitimately coincide for this fixture — the invariant that matters
+# (no silent loss) is `>=`, not a stale `>` premised on the fixed asymmetry.
+assert report["edges_live"] >= report["edges_planned_non_dangling"], report
 
 # --- 2. apply is IDEMPOTENT -------------------------------------------------------
 again = P.apply_plan(P.build_plan(doc), board)
 assert again["items_created"] == 0, again
 assert again["labels_created"] == 0, again
 assert again["relations_set"] == 0, again
-assert again["relations_already_present"] == 3, again
+# 5 non-dangling ops now (id:59c5 mirrors both parent/child directions into the
+# document, so the plan carries 2 extra redundant-but-idempotent parent/child
+# ops beyond the 3 that ever actually write); all 5 read back as already-present.
+assert again["relations_already_present"] == 5, again
 assert P.verify_live(doc, board)["verdict"] == "PASS"
 
 # --- 3. the id:857d gate is NON-VACUOUS on a live-shaped board --------------------

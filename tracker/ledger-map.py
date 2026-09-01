@@ -662,6 +662,29 @@ def assemble(repo: str, observations: list, report: Report) -> list:
         elif it["assignee"] is None:
             it["assignee"] = "human"
 
+    # id:59c5 — reconcile `children-of:`/`children:` into ONE relation. Each
+    # spelling previously populated only its own item's field (a child-side
+    # `children-of:P` filled `parents` on the child; a parent-side `children:C`
+    # filled `children` on the parent), so a pair naming the same fact from
+    # opposite ends produced two different graphs depending on which end wrote
+    # it. Mirror both directions here: for every parent an item declares, add
+    # the item to that parent's `children`; for every child an item declares,
+    # add the item to that child's `parents`. A single pass over all items is
+    # sufficient and order-independent — each item's own `parents`/`children`
+    # already carry its own directive (populated above), so mirroring from
+    # every item's perspective reaches both ends of every edge regardless of
+    # which side wrote it or the dict's iteration order. A dangling reference
+    # to an id with no observed item is left as-is (nothing to mirror onto).
+    for it in items.values():
+        for p in it["parents"]:
+            parent = items.get(p)
+            if parent is not None and it["uid"] not in parent["children"]:
+                parent["children"].append(it["uid"])
+        for c in it["children"]:
+            child = items.get(c)
+            if child is not None and it["uid"] not in child["parents"]:
+                child["parents"].append(it["uid"])
+
     for it in items.values():
         # Backward-compat scalar: consumers that read the single `parent` field get
         # the first declared parent (previously they got whichever `children-of:`
