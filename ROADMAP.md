@@ -1135,7 +1135,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
       the correct owner-gated 540f/c179 DEAD-GATE noted, not this window's. Suite 394/0/1-xred.
       See `docs/meeting-notes/2026-08-12-1413-strong-model-audit.md`.
 
-- [ ] [INPUT - meeting] Sub-agent meeting simulation for main-ctx isolation <!-- id:3346 -->
+- [ ] [INPUT - meeting] Sub-agent meeting simulation for main-ctx isolation <!-- id:113e -->
   - **Why HARD**: architectural — moves the whole meeting transcript generation out
     of the main context into a sub-agent; touches broker contract, persona loading,
     decision routing, and note-writing; wrong cut loses the user's live view.
