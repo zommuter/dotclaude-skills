@@ -14,13 +14,23 @@
 #       TODO line reads as tick-ready. TICK-READY is an ACTION RECOMMENDATION, so the
 #       consequence is not safe even if the scope split is deliberate.
 #
-#   (2) THE `# roadmap:<token>` LINK MATCHES A FIXTURE REFERENCE. The contract trusts a
-#       test carrying `# roadmap:<token>` as the intentional test-owns-item link. Live,
-#       id:6217's cited test was tests/test_make_test_files.sh, whose only match is
-#       inside `red_fixture="...test_dryround_single_definition_6217.sh" # roadmap:6217,
-#       currently open+RED` — a line naming a DIFFERENT test file, precisely in order to
-#       say the item is RED. The scan cited, as evidence of doneness, a file asserting
-#       the opposite.
+#   (2) THE roadmap-token LINK MATCHES A FIXTURE REFERENCE. The contract trusts a
+#       test carrying a roadmap:<token> header comment as the intentional test-owns-item
+#       link. Live, id:6217's cited test was tests/test_make_test_files.sh, whose only
+#       match is inside `red_fixture="...test_dryround_single_definition_6217.sh"` with a
+#       trailing roadmap:6217 comment reading "currently open+RED" -- a line naming a
+#       DIFFERENT test file, precisely in order to say the item is RED. The scan cited, as
+#       evidence of doneness, a file asserting the opposite.
+#
+# ⚠ NOTE ON THIS FILE'S OWN MARKERS (defect found 2026-09-01, by the id:a73c review).
+# Every roadmap-token literal below is BUILT AT RUNTIME via printf, never written out in
+# this source. That is not style: `tests/run-tests.sh:170` takes `head -1` of a WHOLE-FILE
+# `grep -oE '# roadmap:[0-9a-f]{4}'`, so a literal anywhere -- prose, heredoc, fixture --
+# makes this file look like that item's RED SPEC. This file previously carried one in its
+# own docstring, and run-tests.sh therefore read it as the spec for roadmap:6217, which is
+# UNTICKED -- so its failures were reported EXPECTED-RED and did NOT fail the suite. A test
+# written to stop a false TICK-READY claim had its own failures silently swallowed. Keep
+# every marker constructed, and keep this file headerless (its failures always count).
 #
 # Contract asserted here:
 #   a. An item whose ROADMAP twin carries `🚧` / `GATED` is NEVER emitted as TICK-READY.
@@ -55,25 +65,24 @@ git -C "$repo" config user.name "Test"
 # The TODO line is deliberately clean of every gate lexeme the scan knows, so the ONLY
 # gate evidence anywhere is the ROADMAP twin's 🚧 marker — exactly the live id:6217 /
 # id:9eb7 shape. Must NOT be TICK-READY.
-cat > "$repo/tests/test_9eb7.sh" <<'EOF'
-#!/usr/bin/env bash
-# roadmap:9eb7
-set -euo pipefail
-exit 0
-EOF
-chmod +x "$repo/tests/test_9eb7.sh"
+# mkspec <path> <token> -- writes a green fixture test carrying a roadmap marker for <token>.
+# The marker is BUILT, never literal in this source (see the note in the header).
+mkspec() {
+  { printf '#!/usr/bin/env bash\n'
+    printf '# roadmap:%s\n' "$2"
+    printf 'set -euo pipefail\nexit 0\n'; } > "$1"
+  chmod +x "$1"
+}
+mkspec "$repo/tests/test_9eb7.sh" 9eb7
 
 # ── Case B (defect 2): the only `# roadmap:` match is a FIXTURE REFERENCE ─────────────
 # test_6217_harness.sh mentions token 6217 on a line that names a DIFFERENT test file,
 # to record that that other file is currently RED. The referenced spec genuinely fails.
 # The harness itself is green, so today the scan runs the WRONG file and reports ready.
-cat > "$repo/tests/test_6217_harness.sh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-red_fixture="tests/test_6217_spec.sh"  # roadmap:6217, currently open+RED
-[ -f "$red_fixture" ] || exit 1
-exit 0
-EOF
+{ printf '#!/usr/bin/env bash\n'
+  printf 'set -euo pipefail\n'
+  printf 'red_fixture="tests/test_6217_spec.sh"  # roadmap:%s, currently open+RED\n' 6217
+  printf '[ -f "$red_fixture" ] || exit 1\nexit 0\n'; } > "$repo/tests/test_6217_harness.sh"
 chmod +x "$repo/tests/test_6217_harness.sh"
 cat > "$repo/tests/test_6217_spec.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -83,23 +92,11 @@ EOF
 chmod +x "$repo/tests/test_6217_spec.sh"
 
 # ── Case C (regression guard): genuinely ungated, genuinely owned, green ──────────────
-cat > "$repo/tests/test_bb03.sh" <<'EOF'
-#!/usr/bin/env bash
-# roadmap:bb03
-set -euo pipefail
-exit 0
-EOF
-chmod +x "$repo/tests/test_bb03.sh"
+mkspec "$repo/tests/test_bb03.sh" bb03
 
 # ── Case D (regression guard): ROADMAP twin present and NOT gated ────────────────────
 # Proves the new suppression keys on the gate marker, not on merely having a twin.
-cat > "$repo/tests/test_bb04.sh" <<'EOF'
-#!/usr/bin/env bash
-# roadmap:bb04
-set -euo pipefail
-exit 0
-EOF
-chmod +x "$repo/tests/test_bb04.sh"
+mkspec "$repo/tests/test_bb04.sh" bb04
 
 cat > "$repo/TODO.md" <<'EOF'
 # TODO
