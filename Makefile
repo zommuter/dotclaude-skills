@@ -166,7 +166,7 @@ LANE_VOCAB_RULE_SRC := $(SRC_DIR)/hooks/lane-vocab.claude-rule.md
 ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks status-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
-        install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test lint gaming-canary shard-canary \
+        install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test lint verify-negatives gaming-canary shard-canary \
         install-quota-timer status-quota-timer uninstall-quota-timer \
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
@@ -216,6 +216,8 @@ help:
 	@echo "  test                 run the test suite (tests/run-tests.sh); runs lint first"
 	@echo "  test FILES=\"...\"     inner-loop subset (id:d3f8) — NOT the release check, full 'make test' still is"
 	@echo "  lint                 enforce the no-bare-rm-f rule (tools/check-no-bare-rm-f.sh --enforce)"
+	@echo "  verify-negatives     run each defect-fix test's DECLARED '# fails-against:' case and check"
+	@echo "                       it dies at the DECLARED assertion (id:a73c; opt-in, seconds per case)"
 	@echo "  gaming-canary        Tier B model anti-gaming canary harness (on-demand; costs tokens)"
 	@echo "  shard-canary         discover-shard classifier behavior canary (on-demand; costs tokens)"
 	@echo ""
@@ -306,6 +308,16 @@ lint:
 # definition-of-done gate (CLAUDE.md §Testing); FILES= is for the inner loop only.
 test: lint
 	@bash $(SRC_DIR)/tests/run-tests.sh $(FILES)
+
+# id:a73c -- the `# fails-against:` NEGATIVE-CASE runner. OPT-IN, deliberately NOT part of
+# `make test`: each declared case copies the tracked tree and runs the test TWICE (green-now
+# + red-there), which is seconds per case where the suite budgets milliseconds per file.
+#   make verify-negatives                          # every declared case
+#   make verify-negatives FILES="tests/test_x.sh"  # one file
+#   make verify-negatives ARGS="--changed origin/main"   # only what this branch touched
+#   make verify-negatives ARGS="--list"            # free: coverage report, runs nothing
+verify-negatives:
+	@python3 $(SRC_DIR)/tests/verify-negative-cases.py --root $(SRC_DIR) $(ARGS) $(FILES)
 
 # Tier B model canary harness (id:414a) — on-demand, costs tokens, NOT in `make test`.
 # Verifies the review procedure's JUDGMENT anti-gaming checks (resurrection-rewrite,

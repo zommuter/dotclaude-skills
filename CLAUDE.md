@@ -190,6 +190,21 @@ Plain-bash harness, zero dependencies beyond `bash`/`python3`/`jq`/`make`:
   fully green — that is the definition-of-done check.
 - Tests must be hermetic: work in `mktemp -d`, override `HOME`/`DEST_DIR`/roots via
   args or env, never touch `~/.claude` or the network.
+- **`# fails-against:` -- a defect-fix test declares the negative case it must fail against**
+  (id:292b), and `make verify-negatives` RUNS that case (id:a73c). The rule the runner
+  enforces, which the declaration alone cannot: **it is not enough that the test fails
+  against the declared revision -- the assertion that fails must be the one the file claims
+  to pin.** Dying at an earlier assertion, or being killed by a fixture-sanity probe, is red
+  for the wrong reason and is exactly as vacuous as passing. Machine-readable form, in the
+  file's LEADING comment block (directives lower down belong to fixture heredocs, not to the
+  file): `# fails-against-rev: <rev> -- <path>…` or `# fails-against-mutation: <command>`,
+  each followed by `# fails-against-assertion: <substring of the FAIL: line that must fire>`.
+  Where a fix changes a FORMAT, author the negative case in the ancestor's OWN spelling and
+  order it FIRST, and record per-ancestor reachability in the header -- some assertions are
+  structurally unreachable at the parent, which is legitimate but must be on the record.
+  `tests/lint-vacuous-fixtures.py` (advisory) checks the declaration; the runner is opt-in
+  and NOT part of `make test` (seconds per case). Exemptions live in ONE reviewable file,
+  `tests/negative-case-exemptions.txt`, each with a written reason.
 
 ## Relay contract <!-- relay-executor contract v18 -->
 

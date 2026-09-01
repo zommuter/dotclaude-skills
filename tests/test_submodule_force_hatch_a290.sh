@@ -10,6 +10,17 @@
 #   (every submodule worktree took the `retire-unretirable` exit-3 path, so case (a) below
 #   failed with rc=3 and no `submodule-force-hatch` marker on stdout).
 #
+# fails-against-mutation: bash tests/mutations/a290-strip-locale-pin.sh
+# fails-against-assertion: L non-C locale:
+#   (the whole of case L is the claim, not one line of it: without the pin the probe misses the
+#    translated refusal and L's FIRST assertion -- its exit code -- is what fires. Measured; a
+#    narrower spelling naming L's message line was REJECTED by the runner as WRONG REASON.)
+#   REACHABILITY: this mutant is killed ONLY by case L, and only on a box whose git ships a
+#   German translation -- case L SKIPS loudly otherwise and the runner will then report WRONG
+#   REASON rather than a silent pass. That loudness is deliberate: it is the same environment
+#   dependence that let a fixture-sanity probe, not case L, kill this mutant on the first
+#   attempt (TODO id:a73c instance (b)). Verified killing on zomni, git 2.55.0, 2026-09-01.
+#
 # WHAT IS BEING GUARDED, and why each case exists
 # -----------------------------------------------
 # `git worktree remove` (no --force) refuses a worktree whose submodules are INITIALIZED, with
