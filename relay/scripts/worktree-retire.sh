@@ -500,9 +500,21 @@ else
     if [[ "$err" == "$submodule_refusal" && "${WORKTREE_RETIRE_NO_SUBMODULE_FORCE:-0}" != "1" ]]; then
       hatch_refused=""
       wt_head="$(git -C "$wt" symbolic-ref --quiet HEAD 2>/dev/null || true)"
+      # id:a290 round-3 review, finding 1 -- guard 3 FAILED OPEN and destroyed uncommitted work.
+      # `$(git status … 2>/dev/null)` yields EMPTY when git FAILS, and empty read as CLEAN, so an
+      # unreadable/corrupt index (chmod 000 .git/worktrees/<bn>/index -- a CRASHED worktree, which
+      # this script's header calls "precisely this script's target population") took the force path
+      # and deleted uncommitted files. The round-3 "every nonzero git exit refuses" rewrite covered
+      # only private_submodule_stores_unsafe; the swallow survived HERE, in the guard the code
+      # itself calls "the only thing standing between this hatch and that bug". Capture the exit
+      # status SEPARATELY and refuse on it: no output is only evidence of cleanliness when git
+      # actually succeeded. Sibling guards 2 and 4 already fail closed.
+      wt_status_out="$(git -C "$wt" status --porcelain --ignore-submodules=none 2>/dev/null)" && wt_status_rc=0 || wt_status_rc=$?
       if [[ "$wt_head" != "refs/heads/$branch" ]]; then
         hatch_refused="the worktree's HEAD is '${wt_head:-<detached>}', not the 'refs/heads/$branch' we were handed -- refusing to force a worktree we cannot account for"
-      elif [[ -n "$(git -C "$wt" status --porcelain --ignore-submodules=none 2>/dev/null)" ]]; then
+      elif (( wt_status_rc != 0 )); then
+        hatch_refused="\`git status\` FAILED in the worktree (exit $wt_status_rc) -- its empty output is NOT evidence the tree is clean, and this hatch never forces a tree it could not read. A corrupt or unreadable index is exactly the crashed-worktree case this script exists for. Inspect: git -C $wt status"
+      elif [[ -n "$wt_status_out" ]]; then
         # This is the masked-dirty case. Say so explicitly: the operator sees git's submodule
         # message but the real blocker is uncommitted content git never got as far as reporting.
         hatch_refused="the worktree is DIRTY (git's submodule refusal MASKS this -- it validates submodules before it looks for modified/untracked files). Uncommitted content is present and nothing will be forced. Inspect: git -C $wt status"
