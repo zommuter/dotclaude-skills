@@ -2886,3 +2886,7 @@ the bump rationale. `tests/test_zero_commit_accumulator_durable_d8b3.sh` (RED be
 now PASS); full suite 537 passed, 0 failed, 2 expected-red (unrelated open items).
 Friction: none -- doc-only fix, small and well-scoped by the RED spec.
 refactor: none needed -- a contract-prose edit with no code duplication introduced.
+
+## 2026-09-01 10:40 — executor (sonnet, relay-loop)
+
+Fixed id:d8b3 -- executor-contract rule 2c's ZERO-COMMIT escalation counter now accumulates via relay-state-write.sh event-append into ~/.config/relay/relay-events.jsonl instead of the never-merged RELAY_LOG.md, making route=hard-split reachable; contract bumped v17-&gt;v18. [id:d8b3]
