@@ -419,9 +419,19 @@ merged_gitlinks_at_risk() {
     return 0
   fi
   mroot="$admin/modules"
-  # No private store at all => the force destroys no submodule objects. (git keys its refusal on
-  # this directory existing, so in practice we do not reach the hatch without one.)
-  [[ -d "$mroot" ]] || return 0
+  # NO PRIVATE STORE AT ALL, yet git issued the verbatim submodule refusal that got us here. That
+  # CONTRADICTS the mechanism this whole hatch is built on -- the 2026-09-01 archaeology found the
+  # refusal keyed on `.git/worktrees/<bn>/modules/<path>` existing -- so we are in territory nobody
+  # has characterised and the script's own fail-closed doctrine applies: never infer "then nothing
+  # submodule-shaped can be lost". It also covers the OLD-STYLE embedded `.git` DIRECTORY layout,
+  # where a submodule's objects live in the WORK TREE rather than in the admin dir and would be
+  # taken by the `rm -rf` while this enumeration saw nothing. Reading it as safe was the last
+  # fail-open in this function.
+  if [[ ! -d "$mroot" ]]; then
+    printf "git issued its verbatim SUBMODULE refusal, but this worktree has NO private submodule store at all (%s does not exist) -- that contradicts the mechanism the refusal was characterised on, so the reason for the refusal is unknown and nothing may be forced on it (it also describes an old-style EMBEDDED .git-directory submodule, whose objects live in the work tree and would be deleted unexamined)" \
+      "$mroot"
+    return 0
+  fi
   if ! tmpd="$(mktemp -d 2>/dev/null)"; then
     printf "the worktree's private submodule stores under %s could not be audited (mktemp failed) -- refusing rather than treating an unaudited store as safe" "$mroot"
     return 0

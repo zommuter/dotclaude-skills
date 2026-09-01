@@ -1002,6 +1002,51 @@ git --git-dir="$priv_z2" cat-file -e "$evil_sha" 2>/dev/null \
 [[ "$out_z2" == *"$evil_sha"* ]] || fail "Z2 evil merge: the refusal must NAME the gitlink -- out: $out_z2"
 pass "Z2 gitlink named ONLY by an evil merge's own resolution → refused, object safe ($out_z2)"
 
+# ── AA. the verbatim refusal with NO private store at all → REFUSED ─────────
+# THE LAST FAIL-OPEN in guard 5. The whole hatch rests on one characterised mechanism: git refuses
+# because `.git/worktrees/<bn>/modules/<path>` exists. If git issues that exact refusal and NO
+# private store exists, the mechanism does not hold and the reason for the refusal is unknown --
+# the script's own fail-closed doctrine says never force on that. It also covers the OLD-STYLE
+# EMBEDDED `.git` DIRECTORY layout, where a submodule's objects live in the WORK TREE and the
+# admin-dir enumeration sees nothing while the `rm -rf` takes them. Produced with a shim emitting
+# the refusal VERBATIM (so guard 1 passes) on a worktree whose submodule is uninitialised; `--force`
+# is delegated to the real git, so a wrongly-firing hatch really would remove the worktree.
+SHIM3="$TMP/shim-verbatim"
+mkdir -p "$SHIM3"
+cat > "$SHIM3/git" <<SHIM3EOF
+#!/usr/bin/env bash
+saw_wt=0; saw_rm=0; saw_force=0
+for a in "\$@"; do
+  case "\$a" in
+    worktree) saw_wt=1 ;;
+    remove) saw_rm=1 ;;
+    --force|-f) saw_force=1 ;;
+  esac
+done
+if [[ \$saw_wt -eq 1 && \$saw_rm -eq 1 && \$saw_force -eq 0 ]]; then
+  echo "fatal: working trees containing submodules cannot be moved or removed" >&2
+  exit 128
+fi
+exec "$REAL_GIT" "\$@"
+SHIM3EOF
+chmod +x "$SHIM3/git"
+repo_aa="$(mksuper aa --with-submodule)"
+wt_aa="$(mkwt "$repo_aa" aa)"   # deliberately NOT --init-submodule: no private store
+[[ ! -d "$repo_aa/.git/worktrees/wt-aa/modules" ]] \
+  || fail "fixture AA INVALID: a private store exists, so this is not the no-store case"
+[[ -z "$(git -C "$wt_aa" status --porcelain --ignore-submodules=none)" ]] || fail "fixture AA INVALID: guard 3 would fire"
+git -C "$repo_aa" merge-base --is-ancestor "refs/heads/relay/aa" HEAD || fail "fixture AA INVALID: guard 4 would fire"
+set +e
+out_aa="$(PATH="$SHIM3:$PATH" "$SH" "$repo_aa" "$wt_aa" "relay/aa" --expect-merged 2>&1)"; rc_aa=$?
+set -e
+[[ $rc_aa -eq 3 ]] || fail "AA verbatim refusal with no private store: expected exit 3 (fail CLOSED), got $rc_aa -- out: $out_aa"
+[[ "$out_aa" != *"submodule-force-hatch"* ]] \
+  || fail "AA verbatim refusal with no private store: the characterised mechanism is ABSENT, so the refusal is unexplained and must not be forced -- out: $out_aa"
+[[ -e "$wt_aa" ]] || fail "AA verbatim refusal with no private store: worktree must still be on disk"
+[[ "$out_aa" == *"NO private submodule store"* ]] \
+  || fail "AA verbatim refusal with no private store: must say loudly WHY it refused -- out: $out_aa"
+pass "AA git's verbatim refusal but NO private store → mechanism absent, fail closed ($out_aa)"
+
 # ── Source-level assertion for the locale pin (holds even when L skips) ──────
 grep -Eq 'LC_ALL=C git -C "\$repo" worktree remove "\$wt"' "$SH" \
   || fail "the no-force PROBE is not pinned to LC_ALL=C -- a translated refusal would miss the verbatim match (id:a290)"
