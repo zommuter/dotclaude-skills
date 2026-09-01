@@ -61,8 +61,17 @@ grep -Eq "worktree remove --force" < <(grep -vE '^[[:space:]]*#' "$RECONCILE") \
 # so ANY line merely CONTAINING `msg=` anywhere was invisible to the ban -- an open door, since a
 # real force could be smuggled onto such a line. And the count used `grep -Ec`, which counts
 # matching LINES, so two forces on one line read as one; `grep -o | wc -l` counts OCCURRENCES.
-retire_body="$(grep -vE '^[[:space:]]*#' "$RETIRE" | grep -vE '^[[:space:]]*((log|echo)\b|(msg|hatch_refused|why)=)')"
-n_force="$(printf '%s\n' "$retire_body" | grep -o "worktree remove --force" | wc -l)"
+# REWRITTEN 2026-09-01 (id:a290 round 3): even ANCHORED, a line-shaped exclusion is a smuggling
+# channel -- `msg=$(git worktree remove --force "$wt")` and `msg=; git worktree remove --force
+# "$wt"` both start with `msg=` and both EXECUTE a force, and the same held for indented `msg=`,
+# `why=`, `hatch_refused=`, `echo` and `log`. The ban now filters by QUOTING rather than by line:
+# lib-shell-code-only.py blanks comments and quoted-literal text but KEEPS `$( … )`/backtick
+# innards, so surfaced prose is invisible while a force on any line is not. The filter's
+# both-directions self-test lives in test_worktree_retire.sh, next to the sibling ban.
+CODEONLY="$SRC_DIR/tests/lib-shell-code-only.py"
+[[ -f "$CODEONLY" ]] || fail "lib-shell-code-only.py missing at $CODEONLY"
+retire_body="$(python3 "$CODEONLY" "$RETIRE")"
+n_force="$(printf '%s\n' "$retire_body" | { grep -o "worktree remove --force" || true; } | wc -l)"  # swallow-ok: a zero count must reach the assertion below, not abort the run under set -e/pipefail
 [[ "$n_force" -eq 1 ]] \
   || fail "worktree-retire.sh must carry EXACTLY ONE 'git worktree remove --force' (the id:a290 submodule escape hatch); found $n_force (id:373e)"
 grep -Eq "remove +-f +-f|remove +--force +--force" <<<"$retire_body" \

@@ -73,8 +73,9 @@
 # 2026-09-01). `git worktree remove` refuses a worktree whose submodules are POPULATED even
 # when it is spotless and fully merged, so relay debris on submodule repos accumulated with no
 # force-free route (1.8 GB before the owner cleared it by hand). This hatch force-removes such
-# a worktree -- but ONLY after this script has itself PROVED clean AND merged AND that no gitlink
-# object would be lost with the worktree's private submodule store, AND has POSITIVELY
+# a worktree -- but ONLY after this script has itself PROVED clean AND merged AND that no object
+# would be lost with any of the worktree's private submodule stores (enumerated recursively, since
+# they nest), AND has POSITIVELY
 # RECOGNIZED git's exact submodule refusal (probed under LC_ALL=C, since that refusal is a
 # TRANSLATED string). It is structurally unable to fire on dirty or unmerged work, it refuses when
 # a submodule commit lives only inside the worktree, and it FAILS CLOSED on any refusal it does
@@ -281,12 +282,12 @@ if [[ "$discard_residue" -eq 1 ]]; then
   fi
 fi
 
-# ---- 1a. GITLINK OBJECT SAFETY (id:a290 fifth guard) ------------------------
-# A linked worktree gets its OWN submodule object store at
-# `.git/worktrees/<wt>/modules/<name>` -- SEPARATE from the superproject's shared
-# `.git/modules/<name>`. `git worktree remove --force` deletes the whole admin dir, and with it
-# that private store. If a submodule commit was CREATED inside the worktree and its gitlink bump
-# was already merged into the superproject, that force takes the ONLY copy of those objects:
+# ---- 1a. PRIVATE SUBMODULE STORE SAFETY (id:a290 fifth guard) ---------------
+# A linked worktree gets its OWN submodule object stores under
+# `.git/worktrees/<bn>/modules/…` -- SEPARATE from the superproject's shared `.git/modules/…`.
+# `git worktree remove --force` deletes the whole admin dir, and with it every one of those
+# private stores. If a submodule commit was CREATED inside the worktree and something already
+# merged into the superproject references it, that force takes the ONLY copy of those objects:
 # the merged commit on MAIN then points at a gitlink nobody can resolve
 #   fatal: remote error: upload-pack: not our ref <sha>
 # and the damage is to main, not to the worktree. All four earlier guards pass LEGITIMATELY in
@@ -295,38 +296,132 @@ fi
 # the worktree's own dirtiness, and neither notices an object that exists in only one store.
 # Reproduced by fixture 2026-09-01 (git 2.55.0), case K in tests/test_submodule_force_hatch_a290.sh.
 #
-# So: for EVERY gitlink in the worktree's index, the recorded SHA must already be present in the
-# SHARED store. Anything missing -> refuse, loudly. Conservative in both unknowns: if the shared
-# store does not exist at all, or the name->path mapping cannot be resolved, the lookup fails and
-# we refuse rather than force.
+# THIS GUARD IS SCOPED TO THE PRIVATE STORE, NOT TO THE INDEX -- and that is the whole design,
+# rewritten 2026-09-01 after a third review round. GIT'S REFUSAL IS KEYED ON THE EXISTENCE OF
+# `.git/worktrees/<bn>/modules/`; an index-keyed guard therefore answers a DIFFERENT question
+# from the one the force actually poses, and two independent escapes came straight out of that
+# mismatch (both reproduced as fixtures before this rewrite, cases M and N):
 #
-# Echoes a `<path>@<sha>` list on stdout when something is missing; EMPTY output means every
-# gitlink object is safely duplicated in the shared store.
-gitlinks_missing_from_shared_store() {
-  local w="$1" r="$2"
-  local common line meta path sha name store missing=""
-  common="$(git -C "$r" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
-  [[ -n "$common" ]] || { printf '%s' "<could not resolve the repo's common git dir>"; return 0; }
-  # submodule STORES are keyed by NAME, which is not necessarily the PATH. Build path->name from
-  # .gitmodules; fall back to the path (and then simply fail the lookup, i.e. refuse).
-  declare -A name_of=()
-  if [[ -f "$w/.gitmodules" ]]; then
-    while read -r key val; do
-      key="${key#submodule.}"; key="${key%.path}"
-      [[ -n "$val" ]] && name_of["$val"]="$key"
-    done < <(git config -f "$w/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)
+#   * NESTED stores. Private stores nest -- `…/modules/vendor/sub/modules/lib/inner`. The inner
+#     gitlink lives in the SUBMODULE's index, not the superproject's, so an index scan never
+#     sees it. Push the outer submodule commit into the shared outer store and the index check
+#     passes while the inner commit still exists only in the worktree. Measured: force fired,
+#     then `submodule update --init --recursive` on MAIN died with `upload-pack: not our ref`.
+#   * INDEX vs MERGED HISTORY. `git rm` the submodule in a later commit and the worktree's index
+#     holds ZERO gitlinks -- the index check passes vacuously -- while the merged bump commit
+#     still references an object that lives only in the (still present) private store. Git still
+#     refuses the plain removal, so the hatch still fired. Measured: object destroyed.
+#   * It also removes the `.gitmodules` name->path mapping the old version needed, and with it
+#     a third escape: a submodule whose NAME differs from its PATH resolved to the wrong shared
+#     store. Store paths are now read from the filesystem, so no name derivation happens at all.
+#
+# So: enumerate the private stores RECURSIVELY, and for EACH one require that every object
+# reachable from ITS OWN refs (all refs, plus HEAD, which in a submodule is normally detached)
+# already exists in the correspondingly-named SHARED store. The private-to-shared mapping is the
+# path relative to the admin dir's `modules/`, which git lays out identically under
+# `.git/modules/` -- verified for the nested case 2026-09-01.
+#
+# FAIL CLOSED ON EVERY NONZERO GIT EXIT. The previous version read a git failure as "safe":
+# `common="$(git … 2>/dev/null)" || return 0` and `< <(git … ls-files … || true)` both made an
+# EMPTY result a PASS, so git-always-fails, --path-format-unsupported (git < 2.31), ls-files-fails
+# and ls-files-empty ALL opened the force -- in a CRASHED relay worktree, which is precisely this
+# script's target population. Every git invocation below refuses on failure and says which one
+# failed. Cases P/Q/R pin that.
+#
+# Echoes a human-readable reason on stdout when it is not safe to force; EMPTY output means every
+# private-store object is safely duplicated in its shared counterpart.
+
+# _store_unsafe_reason <private-store> <shared-store> <label> -> reason on stdout ("" = safe)
+_store_unsafe_reason() {
+  local store="$1" shared="$2" label="$3"
+  local tmpd head_sha n_missing first
+  if [[ ! -d "$shared" ]]; then
+    printf "private store '%s' has NO corresponding shared store at %s, so the force would destroy every object it holds with no second copy anywhere" "$label" "$shared"
+    return 0
   fi
-  while IFS= read -r -d '' line; do
-    [[ "$line" == 160000\ * ]] || continue           # gitlinks only
-    meta="${line%%$'\t'*}"; path="${line#*$'\t'}"
-    sha="$(awk '{print $2}' <<<"$meta")"
-    name="${name_of[$path]:-$path}"
-    store="$common/modules/$name"
-    if ! git --git-dir="$store" cat-file -e "${sha}^{commit}" 2>/dev/null; then
-      missing+="${missing:+, }$path@${sha:0:12} (absent from $store)"
+  if ! tmpd="$(mktemp -d 2>/dev/null)"; then
+    printf "private store '%s' could not be audited (mktemp failed) -- refusing rather than treating an unaudited store as safe" "$label"
+    return 0
+  fi
+  # A submodule checkout is normally on a DETACHED head, so `--all` alone can miss exactly the
+  # commit this guard exists to protect. Resolve HEAD separately and feed it in too.
+  # GIT_WORK_TREE: a store whose core.worktree points at a path that no longer exists (what
+  # `git rm <submodule>` leaves behind -- fixture N) makes every plain git call fail with
+  # "cannot chdir to …". Overriding the work tree lets the audit READ the store; rev-list and
+  # cat-file never touch a working tree.
+  head_sha="$(GIT_WORK_TREE="$store" git --git-dir="$store" rev-parse --verify --quiet HEAD 2>/dev/null || true)"  # swallow-ok: an UNBORN HEAD is legitimate and simply contributes no tip; a store that cannot be read at all still fails LOUDLY at the rev-list below
+  if ! GIT_WORK_TREE="$store" git --git-dir="$store" rev-list --objects --all ${head_sha:+"$head_sha"} \
+        >"$tmpd/objs" 2>"$tmpd/err"; then
+    printf "private store '%s' could not be enumerated (git rev-list failed: %s) -- refusing rather than reading an unreadable store as empty-and-safe" \
+      "$label" "$(tr '\n' ' ' <"$tmpd/err")"
+    rm -r -- "$tmpd"
+    return 0
+  fi
+  awk '{print $1}' "$tmpd/objs" >"$tmpd/names"
+  if ! GIT_WORK_TREE="$shared" git --git-dir="$shared" cat-file --batch-check <"$tmpd/names" \
+        >"$tmpd/chk" 2>"$tmpd/err2"; then
+    printf "shared store %s could not be queried for private store '%s' (git cat-file failed: %s) -- refusing" \
+      "$shared" "$label" "$(tr '\n' ' ' <"$tmpd/err2")"
+    rm -r -- "$tmpd"
+    return 0
+  fi
+  n_missing="$(awk '$2=="missing"' "$tmpd/chk" | wc -l)"
+  first="$(awk '$2=="missing"{print $1; exit}' "$tmpd/chk")"
+  if [[ "$n_missing" -gt 0 ]]; then
+    printf "private store '%s' holds %s object(s) reachable from its own refs that are ABSENT from the shared store %s (first: %s)" \
+      "$label" "$n_missing" "$shared" "$first"
+  fi
+  rm -r -- "$tmpd"
+}
+
+private_submodule_stores_unsafe() {
+  local w="$1" r="$2"
+  local common admin mroot headfile store shared rel reason problems=""
+  if ! common="$(git -C "$r" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+     || [[ "$common" != /* ]]; then
+    printf "the superproject's absolute common git dir could not be resolved ('git rev-parse --path-format=absolute --git-common-dir' failed or returned a relative path; --path-format needs git >= 2.31, this box reports '%s'). Without it the SHARED submodule stores cannot be located, so nothing can be proved safe" \
+      "$(git --version 2>/dev/null || printf '<git --version failed>')"
+    return 0
+  fi
+  if ! admin="$(git -C "$w" rev-parse --path-format=absolute --git-dir 2>/dev/null)" \
+     || [[ "$admin" != /* ]]; then
+    printf "the worktree's own admin dir could not be resolved ('git -C %s rev-parse --path-format=absolute --git-dir' failed or returned a relative path), so its PRIVATE submodule stores -- the things this force destroys -- cannot be enumerated" \
+      "$w"
+    return 0
+  fi
+  mroot="$admin/modules"
+  # No private store at all => the force destroys no submodule objects. (git keys its refusal on
+  # this directory existing, so in practice we do not reach the hatch without one.)
+  [[ -d "$mroot" ]] || return 0
+  local listing
+  if ! listing="$(mktemp 2>/dev/null)"; then
+    printf "the worktree's private submodule stores under %s could not be listed (mktemp failed) -- refusing" "$mroot"
+    return 0
+  fi
+  # find's own exit status matters: a traversal that fails part-way would otherwise hand this
+  # loop a SHORT list and read as "no hazardous store found", which is the fail-open shape this
+  # rewrite exists to remove.
+  if ! find "$mroot" -type f -name HEAD -print0 >"$listing" 2>&1; then
+    printf "the worktree's private submodule stores under %s could not be enumerated (find failed: %s) -- refusing rather than auditing a partial list" \
+      "$mroot" "$(tr -d '\000' <"$listing" | tr '\n' ' ')"
+    rm -- "$listing"
+    return 0
+  fi
+  while IFS= read -r -d '' headfile; do
+    store="$(dirname "$headfile")"
+    # A git dir has both objects/ and refs/; this rejects logs/HEAD and refs/remotes/*/HEAD,
+    # which `find -name HEAD` also matches.
+    if [[ -d "$store/objects" && -d "$store/refs" ]]; then
+      rel="${store#"$mroot"/}"
+      shared="$common/modules/$rel"
+      reason="$(_store_unsafe_reason "$store" "$shared" "$rel")"
+      if [[ -n "$reason" ]]; then
+        problems+="${problems:+; }$reason"
+      fi
     fi
-  done < <(git -C "$w" ls-files --stage -z 2>/dev/null || true)
-  printf '%s' "$missing"
+  done <"$listing"
+  rm -- "$listing"
+  printf '%s' "$problems"
 }
 
 # ---- 1. worktree removal (never --force) -----------------------------------
@@ -368,9 +463,12 @@ else
     #   (2) the worktree's HEAD really is the branch we were handed;
     #   (3) the tree is CLEAN, by our own check, submodule contents included;
     #   (4) the branch is already an ancestor of the repo HEAD (nothing unmerged to lose);
-    #   (5) every gitlink SHA in the worktree's index is ALSO in the SHARED submodule store, so
-    #       destroying the worktree's private store loses no objects (see step 1a). (1)-(4) all
-    #       pass legitimately on the data-loss case (5) catches, so it is not redundant.
+    #   (5) EVERY private submodule store the force is about to delete -- enumerated RECURSIVELY
+    #       from `.git/worktrees/<bn>/modules/`, which is what git's refusal is actually keyed on
+    #       -- holds only objects that the corresponding SHARED store also has, so destroying it
+    #       loses nothing (see step 1a). (1)-(4) all pass legitimately on the data-loss cases (5)
+    #       catches, so it is not redundant; and (5) is store-scoped rather than index-scoped
+    #       because an index-scoped version was escapable in three independent ways.
     #
     # WHAT roadmap:b02f GOT WRONG, and why (1) is string-matched rather than assumed.
     # b02f documented git as keying this refusal on `.gitmodules` being in the tree. That is
@@ -412,19 +510,21 @@ else
         hatch_refused="branch $branch is NOT an ancestor of the repo HEAD -- it carries unmerged commits, and this hatch never forces away work"
       fi
 
-      # (5) OBJECT-level: every gitlink SHA in the worktree's index must also live in the
-      # SHARED submodule store, because the force destroys the worktree's PRIVATE one. Checked
-      # last (it is the costliest) and only when the ref-level guards above already passed.
+      # (5) OBJECT-level: every object reachable from the refs of EVERY private submodule store
+      # the force is about to delete must also live in the corresponding SHARED store. Scoped to
+      # the private STORE (recursively), not to the index -- see step 1a for why the index is the
+      # wrong question. Checked last (it is the costliest) and only when the ref-level guards
+      # above already passed.
       if [[ -z "$hatch_refused" ]]; then
-        missing_objs="$(gitlinks_missing_from_shared_store "$wt" "$repo")"
+        missing_objs="$(private_submodule_stores_unsafe "$wt" "$repo")"
         if [[ -n "$missing_objs" ]]; then
-          hatch_refused="the worktree's own submodule object store holds gitlink commits that exist NOWHERE ELSE -- $missing_objs. Forcing would delete .git/worktrees/$bn/modules/* and take the only copy, leaving the ALREADY-MERGED superproject gitlink unresolvable ('upload-pack: not our ref'). That breaks main, not just this worktree. Push or fetch those submodule commits into the shared store first (e.g. cd $wt/<submodule> && git push <superproject-store> HEAD), then re-run"
+          hatch_refused="the worktree's own PRIVATE submodule object stores cannot be shown to be safely duplicated -- $missing_objs. Forcing deletes .git/worktrees/$bn/modules/** and would take the only copy of anything held there, leaving an ALREADY-MERGED superproject gitlink unresolvable ('upload-pack: not our ref'). That breaks main, not just this worktree. Push or fetch those submodule commits into the shared store first (e.g. cd $wt/<submodule> && git push <superproject-store> HEAD), then re-run"
         fi
       fi
 
       if [[ -z "$hatch_refused" ]]; then
         if ferr="$(LC_ALL=C git -C "$repo" worktree remove --force "$wt" 2>&1)"; then
-          msg="submodule-force-hatch $bn: worktree carried POPULATED submodules, which git refuses to remove without --force. Verified first: HEAD is refs/heads/$branch, tree CLEAN (submodules included), branch already an ancestor of HEAD, and every gitlink commit in its index also present in the SHARED submodule store. Force-removed (id:a290 shape (b), owner-ruled 2026-09-01). Nothing uncommitted, no unmerged commit, and no worktree-only submodule object existed to lose."
+          msg="submodule-force-hatch $bn: worktree carried POPULATED submodules, which git refuses to remove without --force. Verified first: HEAD is refs/heads/$branch, tree CLEAN (submodules included), branch already an ancestor of HEAD, and every object in every PRIVATE submodule store it carries (nested ones included) also present in the corresponding SHARED store. Force-removed (id:a290 shape (b), owner-ruled 2026-09-01). Nothing uncommitted, no unmerged commit, and no worktree-only submodule object existed to lose."
           log "SUBMODULE-FORCE-HATCH $msg"
           echo "$msg"
           # fall through to the normal branch disposition below

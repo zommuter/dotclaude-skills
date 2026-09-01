@@ -60,31 +60,66 @@ printf 'sub content\n' > "$SUB/f.txt"
 git -C "$SUB" add -A
 git -C "$SUB" commit -qm "sub init"
 
-# mksuper <name> [--with-submodule] → $TMP/<name>, a superproject on main
+# A NESTED submodule "remote": $NESTED itself carries $INNER at lib/inner. Used by the cases
+# that exercise private submodule stores which NEST (.../modules/vendor/sub/modules/lib/inner).
+INNER="$TMP/inner-remote"
+git init -q -b main "$INNER"
+printf 'inner content\n' > "$INNER/i.txt"
+git -C "$INNER" add -A
+git -C "$INNER" commit -qm "inner init"
+NESTED="$TMP/nested-remote"
+git init -q -b main "$NESTED"
+printf 'outer content\n' > "$NESTED/o.txt"
+git -C "$NESTED" add -A
+git -C "$NESTED" commit -qm "outer init"
+git -C "$NESTED" -c protocol.file.allow=always submodule add -q "$INNER" lib/inner >/dev/null 2>&1 \
+  || fail "fixture: nested submodule add failed in $NESTED"
+git -C "$NESTED" commit -qm "add inner submodule"
+
+# mksuper <name> [--with-submodule|--with-nested] → $TMP/<name>, a superproject on main
 mksuper() {
-  local n="$1" repo="$TMP/$1"
+  local n="$1" repo="$TMP/$1" url=""
   git init -q -b main "$repo"
   printf 'base\n' > "$repo/base.txt"
   git -C "$repo" add -A
   git -C "$repo" commit -qm init
-  if [[ "${2:-}" == "--with-submodule" ]]; then
+  case "${2:-}" in
+    --with-submodule) url="$SUB" ;;
+    --with-nested)    url="$NESTED" ;;
+    "") ;;
+    *) fail "mksuper: unknown option '${2:-}'" ;;
+  esac
+  if [[ -n "$url" ]]; then
     # protocol.file.allow: git refuses file:// submodules by default (CVE-2022-39253).
-    git -C "$repo" -c protocol.file.allow=always submodule add -q "$SUB" vendor/sub >/dev/null 2>&1 \
+    git -C "$repo" -c protocol.file.allow=always submodule add -q "$url" vendor/sub >/dev/null 2>&1 \
       || fail "fixture: submodule add failed in $repo"
     git -C "$repo" commit -qm "add submodule"
+    # Populate the MAIN checkout too, so the SHARED store exists and is the baseline every
+    # "objects are duplicated" assertion below is measured against.
+    git -C "$repo" -c protocol.file.allow=always submodule update --init --recursive >/dev/null 2>&1 \
+      || fail "fixture: superproject submodule update --init --recursive failed in $repo"
   fi
   printf '%s' "$repo"
 }
 
-# mkwt <repo> <name> [--init-submodule] → adds worktree $TMP/wt-<name> on branch relay/<name>
+# mkwt <repo> <name> [--init-submodule|--init-recursive] → worktree $TMP/wt-<name> on relay/<name>
 mkwt() {
   local repo="$1" n="$2" wt="$TMP/wt-$2"
   git -C "$repo" worktree add -q "$wt" -b "relay/$n"
-  if [[ "${3:-}" == "--init-submodule" ]]; then
-    git -C "$wt" -c protocol.file.allow=always submodule update --init >/dev/null 2>&1 \
-      || fail "fixture: submodule update --init failed in $wt"
-    [[ -f "$wt/vendor/sub/f.txt" ]] || fail "fixture: submodule not populated in $wt"
-  fi
+  case "${3:-}" in
+    --init-submodule)
+      git -C "$wt" -c protocol.file.allow=always submodule update --init >/dev/null 2>&1 \
+        || fail "fixture: submodule update --init failed in $wt"
+      [[ -e "$wt/vendor/sub" ]] || fail "fixture: submodule not populated in $wt"
+      ;;
+    --init-recursive)
+      git -C "$wt" -c protocol.file.allow=always submodule update --init --recursive >/dev/null 2>&1 \
+        || fail "fixture: submodule update --init --recursive failed in $wt"
+      [[ -f "$wt/vendor/sub/lib/inner/i.txt" ]] || fail "fixture: nested submodule not populated in $wt"
+      ;;
+    "") ;;
+    *) fail "mkwt: unknown option '${3:-}'" ;;
+  esac
   printf '%s' "$wt"
 }
 
@@ -391,8 +426,8 @@ set -e
 [[ -e "$wt_k" ]] || fail "K worktree-only gitlink objects: worktree must still be on disk"
 git --git-dir="$repo_k/.git/worktrees/wt-k/modules/vendor/sub" cat-file -e "$sub_sha" 2>/dev/null \
   || fail "K worktree-only gitlink objects: the only copy of $sub_sha was destroyed"
-[[ "$out_k" == *"nowhere else"* || "$out_k" == *"NOWHERE ELSE"* ]] \
-  || fail "K worktree-only gitlink objects: must say loudly WHY it refused -- out: $out_k"
+[[ "$out_k" == *"ABSENT from the shared store"* && "$out_k" == *"vendor/sub"* ]] \
+  || fail "K worktree-only gitlink objects: must say loudly WHY it refused, naming the store -- out: $out_k"
 pass "K submodule commit living ONLY in the worktree's store → fifth guard refused, merged gitlink still resolvable ($out_k)"
 
 # ── L. NON-C LOCALE: the hatch still recognizes git's refusal ────────────────
@@ -412,7 +447,7 @@ de_err="$(LC_ALL=de_DE.utf8 git -C "$loc_repo" worktree remove "$loc_wt" 2>&1)"
 c_err="$(LC_ALL=C git -C "$loc_repo" worktree remove "$loc_wt" 2>&1)"
 set -e
 if [[ "$de_err" == "$c_err" ]]; then
-  echo "SKIP: L locale — git emits the SAME refusal under de_DE.utf8 as under C on this box (no de translation installed), so a behavioural locale case would be vacuous. The LC_ALL=C pin is still asserted at the source level below."
+  echo "SKIP: L locale -- git emits the SAME refusal under de_DE.utf8 as under C on this box (no de translation installed), so a behavioural locale case would be vacuous. The LC_ALL=C pin is still asserted at the source level below."
 else
   set +e
   out_l="$(LC_ALL=de_DE.utf8 "$SH" "$loc_repo" "$loc_wt" "relay/l" --expect-merged 2>&1)"; rc_l=$?
@@ -425,6 +460,192 @@ else
   [[ ! -e "$loc_wt" ]] || fail "L non-C locale: worktree dir should be gone"
   pass "L under LC_ALL=de_DE.utf8 (git speaks German: ${de_err//$'\n'/ }) → hatch still fires ($out_l)"
 fi
+
+# ── M. NESTED private store: an inner submodule commit made inside the worktree → REFUSED ──
+# ESCAPE F1 (round-3 review, 2026-09-01). A worktree's private submodule stores NEST:
+#   .git/worktrees/<bn>/modules/vendor/sub/modules/lib/inner
+# An INDEX-scoped guard sees only the superproject's own gitlinks (vendor/sub) and is blind to
+# lib/inner, whose gitlink lives in the SUBMODULE's index. Push the outer sub commit into the
+# SHARED outer store and the index-scoped check passes -- while the inner commit still exists
+# only in the worktree's private inner store. Measured before the fix: the hatch fired, and a
+# later `submodule update --init --recursive` on MAIN died with
+#   fatal: remote error: upload-pack: not our ref <inner sha>
+repo_m="$(mksuper m --with-nested)"
+wt_m="$(mkwt "$repo_m" m --init-recursive)"
+printf 'inner work done inside the worktree\n' >> "$wt_m/vendor/sub/lib/inner/i.txt"
+git -C "$wt_m/vendor/sub/lib/inner" commit -qam "inner work from the worktree"
+inner_sha="$(git -C "$wt_m/vendor/sub/lib/inner" rev-parse HEAD)"
+git -C "$wt_m/vendor/sub" add lib/inner
+git -C "$wt_m/vendor/sub" commit -qm "bump inner gitlink"
+outer_sha="$(git -C "$wt_m/vendor/sub" rev-parse HEAD)"
+# Put the OUTER commit in the shared outer store so the top-level (index-scoped) check passes.
+git -C "$wt_m/vendor/sub" push -q "$repo_m/.git/modules/vendor/sub" "HEAD:refs/heads/pushed-from-wt" \
+  || fail "fixture M: could not push the outer submodule commit into the shared store"
+git -C "$wt_m" add vendor/sub
+git -C "$wt_m" commit -qm "bump sub gitlink"
+git -C "$repo_m" merge -q --no-ff -m "merge relay/m" relay/m
+priv_inner_m="$repo_m/.git/worktrees/wt-m/modules/vendor/sub/modules/lib/inner"
+# Fixture sanity: the escape's whole shape must actually hold, or this case proves nothing.
+git --git-dir="$repo_m/.git/modules/vendor/sub" cat-file -e "$outer_sha" 2>/dev/null \
+  || fail "fixture M INVALID: the OUTER commit is not in the shared store, so the top-level check would refuse for the wrong reason"
+git --git-dir="$repo_m/.git/modules/vendor/sub/modules/lib/inner" cat-file -e "$inner_sha" 2>/dev/null \
+  && fail "fixture M INVALID: the inner commit is ALREADY in the shared inner store, so nothing would be lost"
+[[ -d "$priv_inner_m" ]] || fail "fixture M INVALID: no NESTED private store at $priv_inner_m"
+[[ "$(git -C "$repo_m" rev-parse "HEAD:vendor/sub")" == "$outer_sha" ]] \
+  || fail "fixture M INVALID: the superproject's MERGED gitlink does not point at the worktree-made outer commit"
+[[ -z "$(git -C "$wt_m" status --porcelain --ignore-submodules=none)" ]] || fail "fixture M INVALID: guard 3 would fire"
+git -C "$repo_m" merge-base --is-ancestor "refs/heads/relay/m" HEAD || fail "fixture M INVALID: guard 4 would fire"
+set +e
+out_m="$("$SH" "$repo_m" "$wt_m" "relay/m" --expect-merged 2>&1)"; rc_m=$?
+set -e
+[[ $rc_m -eq 3 ]] || fail "M nested worktree-only gitlink: expected exit 3, got $rc_m -- out: $out_m"
+[[ "$out_m" != *"submodule-force-hatch"* ]] \
+  || fail "M nested worktree-only gitlink: hatch MUST NOT fire -- the inner object exists ONLY in the worktree's NESTED private store -- out: $out_m"
+[[ -e "$wt_m" ]] || fail "M nested worktree-only gitlink: worktree must still be on disk"
+git --git-dir="$priv_inner_m" cat-file -e "$inner_sha" 2>/dev/null \
+  || fail "M nested worktree-only gitlink: the only copy of the inner commit $inner_sha was destroyed"
+[[ "$out_m" == *"lib/inner"* ]] \
+  || fail "M nested worktree-only gitlink: the refusal must NAME the offending store -- out: $out_m"
+pass "M NESTED private store holding the only copy of an inner commit → refused, object safe ($out_m)"
+
+# ── N. gitlink REMOVED from the index but still referenced by MERGED history → REFUSED ──
+# ESCAPE F2 (round-3 review, 2026-09-01). Make a submodule commit inside the worktree, bump the
+# gitlink, then `git rm` the submodule in a LATER commit and merge both. The worktree's index now
+# holds ZERO gitlinks, so an index-scoped guard has nothing to check and passes vacuously -- yet
+# git still refuses the plain removal (the private store persists), the hatch fires, and the
+# object referenced by the merged bump commit is destroyed. Measured before the fix:
+#   fatal: remote error: upload-pack: not our ref <sha>
+repo_n="$(mksuper n --with-submodule)"
+wt_n="$(mkwt "$repo_n" n --init-submodule)"
+printf 'submodule work done inside the worktree\n' >> "$wt_n/vendor/sub/f.txt"
+git -C "$wt_n/vendor/sub" commit -qam "submodule work from the worktree"
+sub_sha_n="$(git -C "$wt_n/vendor/sub" rev-parse HEAD)"
+git -C "$wt_n" add vendor/sub
+git -C "$wt_n" commit -qm "bump submodule gitlink"
+bump_n="$(git -C "$wt_n" rev-parse HEAD)"
+git -C "$wt_n" rm -q vendor/sub
+git -C "$wt_n" commit -qm "drop the submodule from the tree"
+git -C "$repo_n" merge -q --no-ff -m "merge relay/n" relay/n
+priv_n="$repo_n/.git/worktrees/wt-n/modules/vendor/sub"
+# Fixture sanity: index empty of gitlinks, object worktree-only, merged history still needs it.
+[[ "$(git -C "$wt_n" ls-files --stage | grep -c '^160000' || true)" -eq 0 ]] \
+  || fail "fixture N INVALID: the index still carries a gitlink, so this is not the index-vs-history shape"
+git --git-dir="$repo_n/.git/modules/vendor/sub" cat-file -e "$sub_sha_n" 2>/dev/null \
+  && fail "fixture N INVALID: the submodule commit is already in the shared store, nothing would be lost"
+[[ -d "$priv_n" ]] || fail "fixture N INVALID: the worktree's private store is gone already"
+[[ "$(git -C "$repo_n" rev-parse "$bump_n:vendor/sub")" == "$sub_sha_n" ]] \
+  || fail "fixture N INVALID: the MERGED bump commit does not reference the worktree-only submodule commit"
+[[ -z "$(git -C "$wt_n" status --porcelain --ignore-submodules=none)" ]] || fail "fixture N INVALID: guard 3 would fire"
+git -C "$repo_n" merge-base --is-ancestor "refs/heads/relay/n" HEAD || fail "fixture N INVALID: guard 4 would fire"
+set +e
+out_n="$("$SH" "$repo_n" "$wt_n" "relay/n" --expect-merged 2>&1)"; rc_n=$?
+set -e
+[[ $rc_n -eq 3 ]] || fail "N index-vs-history: expected exit 3, got $rc_n -- out: $out_n"
+[[ "$out_n" != *"submodule-force-hatch"* ]] \
+  || fail "N index-vs-history: hatch MUST NOT fire -- the index is empty of gitlinks but MERGED history still needs the object -- out: $out_n"
+[[ -e "$wt_n" ]] || fail "N index-vs-history: worktree must still be on disk"
+[[ -d "$priv_n" ]] || fail "N index-vs-history: the private store holding the only copy of $sub_sha_n was destroyed"
+pass "N gitlink dropped from the index, still referenced by merged history → refused, object safe ($out_n)"
+
+# ── O. NO OVER-REFUSAL, nested: everything duplicated in the shared stores → HATCH FIRES ──
+# The mirror of M. A guard that refuses everything is not a guard, it is an outage. A nested
+# submodule worktree whose every private-store object is also in the corresponding shared store
+# must still force-remove cleanly.
+repo_o="$(mksuper o --with-nested)"
+wt_o="$(mkwt "$repo_o" o --init-recursive)"
+[[ -d "$repo_o/.git/worktrees/wt-o/modules/vendor/sub/modules/lib/inner" ]] \
+  || fail "fixture O INVALID: no nested private store, so this proves nothing about nested no-over-refusal"
+set +e
+out_o="$("$SH" "$repo_o" "$wt_o" "relay/o" --expect-merged 2>&1)"; rc_o=$?
+set -e
+[[ $rc_o -eq 0 ]] || fail "O nested clean+merged: expected exit 0 (no over-refusal), got $rc_o -- out: $out_o"
+[[ "$out_o" == *"submodule-force-hatch"* ]] \
+  || fail "O nested clean+merged: the hatch must still fire when every object is duplicated -- out: $out_o"
+[[ ! -e "$wt_o" ]] || fail "O nested clean+merged: worktree dir should be gone"
+pass "O NESTED submodules, all objects duplicated in the shared stores → hatch still fires, no over-refusal ($out_o)"
+
+# ── P/Q/R. FAIL-OPEN PROBES: every nonzero git exit inside the guard must REFUSE ──
+# ESCAPE F3 (round-3 review, 2026-09-01). The guard used to read a git failure as "safe":
+# `common="$(git … --git-common-dir 2>/dev/null)" || return 0` and
+# `done < <(git … ls-files --stage -z 2>/dev/null || true)` both made an EMPTY result a PASS.
+# Unit-probing with a fake git on PATH showed git-always-fails, --git-common-dir-unsupported,
+# ls-files-fails and ls-files-empty ALL forcing. A corrupt or unreadable index in a CRASHED
+# relay worktree -- exactly this script's target population -- silently opened the force.
+# Each case below breaks ONE git invocation the guard depends on and demands a LOUD refusal.
+# The shims delegate everything else (INCLUDING `--force`) to the real git, so a guard that
+# wrongly fired would really remove the worktree and the case would see it.
+mk_shim() { # <name> <binary> <bash test over "$args"> → shim dir to prepend to PATH
+  local name="$1" bin="$2" cond="$3" dir="$TMP/shim-$1" real
+  real="$(command -v "$bin")" || fail "mk_shim: no real $bin on PATH"
+  mkdir -p "$dir"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'args="$*"'
+    printf 'if %s; then\n' "$cond"
+    printf '  echo "fatal: simulated %s failure (test shim)" >&2\n' "$bin"
+    printf '%s\n' '  exit 128'
+    printf '%s\n' 'fi'
+    printf 'exec %q "$@"\n' "$real"
+  } > "$dir/$bin"
+  chmod +x "$dir/$bin"
+  printf '%s' "$dir"
+}
+
+failopen_case() { # <letter> <name> <binary> <shim-cond> <what broke>
+  local letter="$1" name="$2" bin="$3" cond="$4" what="$5"
+  local repo wt shim out rc
+  repo="$(mksuper "$name" --with-submodule)"
+  wt="$(mkwt "$repo" "$name" --init-submodule)"
+  shim="$(mk_shim "$name" "$bin" "$cond")"
+  set +e
+  out="$(PATH="$shim:$PATH" "$SH" "$repo" "$wt" "relay/$name" --expect-merged 2>&1)"; rc=$?
+  set -e
+  [[ $rc -eq 3 ]] || fail "$letter $what: expected exit 3 (fail CLOSED), got $rc -- out: $out"
+  [[ "$out" != *"submodule-force-hatch"* ]] \
+    || fail "$letter $what: a git failure inside the guard must never read as 'safe' -- out: $out"
+  [[ -e "$wt" ]] || fail "$letter $what: worktree must still be on disk (it was forced away)"
+  [[ -n "$out" ]] || fail "$letter $what: must refuse LOUDLY, printed nothing"
+  pass "$letter $what → guard refused loudly instead of failing open ($out)"
+}
+
+# ── S. a private store with NO shared counterpart at all → REFUSED ──────────
+# When the MAIN checkout never initialised the submodule, `submodule update --init` inside a
+# LINKED worktree creates ONLY the private store -- `.git/modules/<name>` does not exist at all
+# (measured 2026-09-01, git 2.55.0). Every object then has exactly one copy, inside the thing the
+# force deletes, so there is nothing to compare against and nothing can be proved safe. Pinned as
+# a REFUSAL, per the id:a290 round-3 ruling ("require every object … to exist in the corresponding
+# shared store; refuse otherwise"). NOTE this is deliberately conservative: those objects usually
+# also live on the submodule's remote and would be refetchable. Changing that is an owner call,
+# not a quiet loosening -- so it is asserted here rather than left to chance.
+repo_s="$(mksuper s --with-submodule)"
+git -C "$repo_s" submodule deinit -q --all
+rm -r -- "$repo_s/.git/modules"
+wt_s="$(mkwt "$repo_s" s --init-submodule)"
+[[ -d "$repo_s/.git/worktrees/wt-s/modules/vendor/sub" ]] \
+  || fail "fixture S INVALID: no private store was created, so this proves nothing"
+[[ ! -d "$repo_s/.git/modules/vendor/sub" ]] \
+  || fail "fixture S INVALID: a shared store exists after all, so this is not the no-counterpart case"
+set +e
+out_s="$("$SH" "$repo_s" "$wt_s" "relay/s" --expect-merged 2>&1)"; rc_s=$?
+set -e
+[[ $rc_s -eq 3 ]] || fail "S no shared counterpart: expected exit 3, got $rc_s -- out: $out_s"
+[[ "$out_s" != *"submodule-force-hatch"* ]] \
+  || fail "S no shared counterpart: hatch MUST NOT fire when every object has exactly one copy -- out: $out_s"
+[[ -e "$wt_s" ]] || fail "S no shared counterpart: worktree must still be on disk"
+[[ "$out_s" == *"NO corresponding shared store"* ]] \
+  || fail "S no shared counterpart: must say loudly WHY it refused -- out: $out_s"
+pass "S private store with NO shared counterpart → refused, nothing forced ($out_s)"
+
+failopen_case P p git '[[ "$args" == *--git-common-dir* ]]' \
+  "the superproject's common git dir cannot be resolved (also the git < 2.31 no---path-format case)"
+failopen_case Q q git '[[ "$args" == *rev-list* ]]' \
+  "the private submodule store's objects cannot be enumerated"
+failopen_case R r git '[[ "$args" == *cat-file* ]]' \
+  "the shared submodule store cannot be queried"
+failopen_case T t git '[[ "$args" == *--path-format=absolute* && "$args" == *--git-dir* && "$args" != *--git-common-dir* ]]' \
+  "the WORKTREE's own admin dir cannot be resolved (so its private stores cannot be located)"
+failopen_case U u find '[[ "$args" == *modules* ]]' \
+  "the private submodule stores cannot be enumerated (find fails, which would hand the audit a SHORT list)"
 
 # ── Source-level assertion for the locale pin (holds even when L skips) ──────
 grep -Eq 'LC_ALL=C git -C "\$repo" worktree remove "\$wt"' "$SH" \
