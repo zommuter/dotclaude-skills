@@ -35,6 +35,14 @@ set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SH="$SRC_DIR/relay/scripts/worktree-retire.sh"
 
+# The hatch is OPT-IN since the owner's 2026-09-01 reversal (round-3 review: a dangling submodule
+# object orphaned by an amended commit is invisible to the guard yet still named by MERGED
+# superproject history). This file EXERCISES the hatch, so it opts in explicitly for every case
+# below; case H0 asserts the PRODUCTION default -- env unset -- is inert. Exporting here rather
+# than per-invocation keeps each case's assertion about the guard it is actually testing, and case
+# H still overrides with the hard kill-switch to prove that one WINS.
+export WORKTREE_RETIRE_SUBMODULE_FORCE=1
+
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
@@ -314,7 +322,26 @@ set -e
   || fail "G reworded submodule refusal: must say loudly WHY it refused -- out: $out_g"
 pass "G submodule refusal with different wording → fail closed, not forced ($out_g)"
 
+# ── H0. PRODUCTION DEFAULT (opt-in UNSET) → hatch inert ────────────────────
+# The case that pins the owner's 2026-09-01 reversal. Every OTHER case in this file exports
+# WORKTREE_RETIRE_SUBMODULE_FORCE=1, so without this one the file could go fully green while the
+# shipped default silently flipped back to firing. `env -u` unsets it for this invocation only.
+repo_h0="$(mksuper h0 --with-submodule)"
+wt_h0="$(mkwt "$repo_h0" h0 --init-submodule)"
+set +e
+out_h0="$(env -u WORKTREE_RETIRE_SUBMODULE_FORCE "$SH" "$repo_h0" "$wt_h0" "relay/h0" --expect-merged 2>&1)"; rc_h0=$?
+set -e
+[[ $rc_h0 -eq 3 ]] || fail "H0 default-inert: expected exit 3, got $rc_h0 -- out: $out_h0"
+[[ "$out_h0" != *"submodule-force-hatch"* ]] \
+  || fail "H0 default-inert: the hatch FIRED with the opt-in unset -- the production default must be inert -- out: $out_h0"
+[[ -e "$wt_h0" ]] || fail "H0 default-inert: worktree must still be on disk"
+[[ "$out_h0" == *"OPT-IN"* && "$out_h0" == *"WORKTREE_RETIRE_SUBMODULE_FORCE=1 is not set"* ]] \
+  || fail "H0 default-inert: must say it is opt-in and unset -- out: $out_h0"
+pass "H0 production default (opt-in unset) → hatch inert, force-free behaviour, says why"
+
 # ── H. WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1 disables the hatch entirely ─────
+# Still meaningful under opt-in: the hard kill-switch must WIN over an explicit enable, so a
+# caller or doc that sets NO_ can never be silently upgraded into an enable.
 repo_h="$(mksuper h --with-submodule)"
 wt_h="$(mkwt "$repo_h" h --init-submodule)"
 set +e

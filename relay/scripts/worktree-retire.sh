@@ -80,9 +80,20 @@
 # TRANSLATED string). It is structurally unable to fire on dirty or unmerged work, it refuses when
 # a submodule commit lives only inside the worktree, and it FAILS CLOSED on any refusal it does
 # not recognize verbatim. See the
-# long comment at step 1b, including what roadmap:b02f documented and got wrong. No flag: it is
-# on by default (that is the point -- it ends the recurrence); `WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1`
-# disables it.
+# long comment at step 1b, including what roadmap:b02f documented and got wrong.
+#
+# ⚠ OPT-IN, NOT DEFAULT-ON (owner-ruled 2026-09-01, reversing the original ruling on the strength
+# of the round-3 adversarial review). It fires ONLY when `WORKTREE_RETIRE_SUBMODULE_FORCE=1` is
+# set. No relay call site sets it, so the hatch is INERT in production today -- deliberately.
+# WHY: the review found a data-loss path that ALL FIVE guards pass. An executor bumps a submodule,
+# the bump is MERGED, then it AMENDS the submodule commit -- the original object becomes DANGLING
+# in the private store, invisible to `rev-list --objects --all <HEAD>`, and the force destroys the
+# object a merged commit on main names ('upload-pack: not our ref'). Structural cause: this guard
+# asks "what do the private store's refs REACH", while the question that matters is "what gitlinks
+# does MERGED SUPERPROJECT HISTORY name" -- neither set contains the other. Reopening default-on
+# needs that answered (TODO id:a290), not another guard bolted on.
+# `WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1` still hard-disables, and WINS over the opt-in, so an
+# existing caller or doc that sets it can never silently become an enable.
 #
 # Exit codes:
 #   0  retired cleanly (worktree removed, branch deleted or parked as designed)
@@ -93,7 +104,9 @@
 #
 # Env overrides (hermetic tests):
 #   WORKTREE_RETIRE_LOG   default ~/.claude/logs/relay-worktree-retire.log
-#   WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1   disable the id:a290 submodule escape hatch entirely
+#   WORKTREE_RETIRE_SUBMODULE_FORCE=1      ENABLE the id:a290 submodule escape hatch (opt-in;
+#                                          absent/0 = inert, which is the production default)
+#   WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1   hard-disable it; WINS over the opt-in above
 set -euo pipefail
 
 LOG="${WORKTREE_RETIRE_LOG:-$HOME/.claude/logs/relay-worktree-retire.log}"
@@ -497,7 +510,13 @@ else
     # a single --force, so the lock remains an independent backstop (and empirically git reports
     # the lock refusal in preference to the submodule one, so (1) already fails there).
     submodule_refusal='fatal: working trees containing submodules cannot be moved or removed'
-    if [[ "$err" == "$submodule_refusal" && "${WORKTREE_RETIRE_NO_SUBMODULE_FORCE:-0}" != "1" ]]; then
+    # OPT-IN gate (owner-ruled 2026-09-01). Enabled only by an explicit
+    # WORKTREE_RETIRE_SUBMODULE_FORCE=1; the legacy NO_ kill-switch still WINS, so a caller that
+    # sets it can never be silently upgraded into an enable. Written as one predicate so there is
+    # a single place to flip when id:a290's dangling-object question is answered.
+    hatch_enabled=0
+    [[ "${WORKTREE_RETIRE_SUBMODULE_FORCE:-0}" == "1" && "${WORKTREE_RETIRE_NO_SUBMODULE_FORCE:-0}" != "1" ]] && hatch_enabled=1
+    if [[ "$err" == "$submodule_refusal" ]] && (( hatch_enabled )); then
       hatch_refused=""
       wt_head="$(git -C "$wt" symbolic-ref --quiet HEAD 2>/dev/null || true)"
       # id:a290 round-3 review, finding 1 -- guard 3 FAILED OPEN and destroyed uncommitted work.
@@ -556,7 +575,9 @@ else
       # Recognizably about submodules, but NOT the verbatim string the hatch is allowed to act
       # on (a different git version's wording?), or the hatch was disabled by env. FAIL CLOSED.
       if [[ "${WORKTREE_RETIRE_NO_SUBMODULE_FORCE:-0}" == "1" ]]; then
-        why="it is disabled by WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1"
+        why="it is hard-disabled by WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1"
+      elif [[ "${WORKTREE_RETIRE_SUBMODULE_FORCE:-0}" != "1" ]]; then
+        why="it is OPT-IN and WORKTREE_RETIRE_SUBMODULE_FORCE=1 is not set (owner-ruled 2026-09-01: inert by default until id:a290's dangling-object data-loss path is answered -- an object orphaned by an amended submodule commit is invisible to this guard yet still named by MERGED superproject history)"
       else
         why="git's refusal text is NOT the verbatim form the hatch is permitted to act on, so it refuses to force on an unrecognized refusal (fail closed). If this is a git-version wording change, update submodule_refusal in this script deliberately; never loosen it to a substring"
       fi
