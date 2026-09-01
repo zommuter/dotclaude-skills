@@ -596,6 +596,7 @@ def assemble(repo: str, observations: list, report: Report) -> list:
                 "labels": [],
                 "assignee": None,
                 "parent": None,
+                "parents": [],
                 "children": [],
                 "blocked_by": [],
                 "links": [],
@@ -639,7 +640,13 @@ def assemble(repo: str, observations: list, report: Report) -> list:
         if ob["tags"]["owner_accepted"]:
             it["owner_accepted"] = ob["tags"]["owner_accepted"]
         for t in ob["children_of"]:
-            it["parent"] = uid_of(repo, t)
+            # id:8302 — a child-side line can declare MULTIPLE parents
+            # (`<!-- children-of:aa01,aa02 -->`); collect ALL of them into the
+            # `parents` list rather than overwriting a single scalar slot, which
+            # silently dropped every parent but the last.
+            p = uid_of(repo, t)
+            if p not in it["parents"]:
+                it["parents"].append(p)
         for t in ob["children"]:
             c = uid_of(repo, t)
             if c not in it["children"]:
@@ -656,6 +663,11 @@ def assemble(repo: str, observations: list, report: Report) -> list:
             it["assignee"] = "human"
 
     for it in items.values():
+        # Backward-compat scalar: consumers that read the single `parent` field get
+        # the first declared parent (previously they got whichever `children-of:`
+        # token happened to be parsed last). The full, lossless fact lives in
+        # `parents`.
+        it["parent"] = it["parents"][0] if it["parents"] else None
         it["drift"] = (
             it["todo_status"] != "absent"
             and it["roadmap_status"] != "absent"
@@ -1020,8 +1032,11 @@ def validate_doc(doc: dict, allowed_homonyms=frozenset()) -> tuple:
             if b not in by_uid:
                 warns.append("%s: blocked_by %s is dangling (unresolvable in this document)"
                              % (it["uid"], b))
-        if it.get("parent") and it["parent"] not in by_uid:
-            warns.append("%s: parent %s is dangling" % (it["uid"], it["parent"]))
+        # id:8302 — warn on EVERY declared parent, not just the scalar first one, so a
+        # dangling second/third parent isn't silently invisible to this check.
+        for p in it.get("parents") or ([it["parent"]] if it.get("parent") else []):
+            if p not in by_uid:
+                warns.append("%s: parent %s is dangling" % (it["uid"], p))
 
     return errs, warns
 
