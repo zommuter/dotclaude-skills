@@ -19,6 +19,9 @@
 #
 # Hermetic: mktemp -d git fixtures, RELAY_WORKTREE_BASE/RELAY_TOML redirected into the temp
 # dir, no network beyond a local bare "origin", no ~/.claude or real-repo access.
+# fails-against-rev: 9f906d290cf1 -- relay/scripts/discover-repo.sh
+# fails-against-assertion: (1) id:f0ad(a) REGRESSION — a diverged (verdict=blocked) repo with open [ROUTINE] items must NOT be labelled STARVED, even though actionable_routine_open>0:
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

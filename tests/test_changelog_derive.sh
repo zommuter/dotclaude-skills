@@ -10,6 +10,11 @@
 #   D4 — semver repos are RELEASE-bucketed; changelog must not fire on them before the bump
 #        (e647) works. Enforced here by the OPT-IN gate: the helper is a NO-OP unless the
 #        repo already has a CHANGELOG.md, so a semver repo is untouched until e647 bootstraps it.
+# fails-against: rev df197b14c045 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/scripts/changelog-append.sh, relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: df197b14c045 -- Makefile relay/scripts/changelog-append.sh relay/scripts/relay-loop.js
+# fails-against-assertion: changelog-append.sh not found/executable at
+
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CL="$ROOT/relay/scripts/changelog-append.sh"

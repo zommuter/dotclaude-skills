@@ -20,6 +20,11 @@
 # Hermetic: everything under mktemp -d. The skill root is a $TMP tree whose relay/ is a
 # symlink to the repo's, so todo-conformance.sh (the id:bbb2 dependency) resolves; nothing
 # outside $TMP is written and the real ~/.claude/projects/todo-inbox.md is never touched.
+# fails-against: rev 6142f2329b34 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh, meeting/md-merge.py, meeting/orphan-scan.sh (+15 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 6142f2329b34 -- meeting/append.sh meeting/md-merge.py meeting/orphan-scan.sh relay/references/hard-lanes.md relay/scripts/classify-repo.sh relay/scripts/discover-sig.sh relay/scripts/gather-repo-state.sh relay/scripts/handback-guard.mjs relay/scripts/lib-anchored-id.sh relay/scripts/lib-roadmap-sections.sh relay/scripts/lib-typed-edges.sh relay/scripts/reconcile-repo.sh relay/scripts/relay-loop.js relay/scripts/resolve-gates.sh relay/scripts/roadmap-lint.sh relay/scripts/unpromoted-scan.sh tracker/SCHEMA.md tracker/ledger-map.py
+# fails-against-assertion: (1) -t inbox exited 0 although the entry never reached the store — a dropped write must fail LOUDLY (stdout:
+
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SH="$ROOT/meeting/append.sh"

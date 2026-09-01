@@ -9,6 +9,11 @@
 # Also pins: the refusal REPORTS which signal fired (not a compound assertion), it no
 # longer teaches the repo-banned tree-wide `git add -A`, and the pool-run predicate is
 # SHARED with relay/scripts/stop-request.sh rather than copied.
+# fails-against: rev ac49b1d1c64c -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, hooks/README.md, hooks/destructive-git-guard.py (+2 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: ac49b1d1c64c -- Makefile hooks/README.md hooks/destructive-git-guard.py relay/scripts/lib-pool-runs.py relay/scripts/stop-request.sh
+# fails-against-assertion: is_pool_run predicate is wrong
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

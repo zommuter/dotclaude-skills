@@ -15,6 +15,11 @@
 # id:8987 — a FRESH heartbeat marker whose runId is empty or non-string was silently
 # ignored (is_pool_run ⇒ False ⇒ `continue`), inverting the guard's own "cannot tell ⇒
 # block" doctrine.  It must now be a probe ERROR ⇒ ambiguous ⇒ BLOCK.
+# fails-against: rev 32dbec014e72 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix hooks/destructive-git-guard.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 32dbec014e72 -- hooks/destructive-git-guard.py
+# fails-against-assertion: runId did not block:
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

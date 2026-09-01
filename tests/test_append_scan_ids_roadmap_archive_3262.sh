@@ -18,6 +18,9 @@
 # The assertions below drive `append.sh scan-ids`, which prints the collision set directly.
 # That is deterministic — asserting instead that a random mint "avoids" a token would pass
 # ~65535/65536 of the time even with the defect present, i.e. a vacuous test.
+# fails-against-rev: fc3f4f61f00c -- meeting/append.sh
+# fails-against-assertion: ROADMAP.archive.md token aaa4 is NOT in the collision set — an archived id can be re-minted (id:3262)
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

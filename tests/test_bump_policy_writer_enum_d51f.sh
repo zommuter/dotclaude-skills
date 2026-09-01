@@ -27,6 +27,9 @@
 #
 # Hermetic: FABLES_CONFIG → mktemp -d; log → /dev/null; never touches ~/.config/relay,
 # ~/.claude, or the network.
+# fails-against-rev: 09eb27709c88 -- relay/scripts/relay-state-write.sh
+# fails-against-assertion: was ACCEPTED (exit 0) — the writer guard did not fire
+
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

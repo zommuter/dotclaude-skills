@@ -30,6 +30,10 @@
 #       NOT ripped out — so id:6eb3 can wire CASE A back in without re-deriving it.
 # relay-loop.js runs in a Workflow sandbox with no fs/net/subprocess (id:2ec4), so these are
 # static structural greps on the recipe/dispatch text (mirroring test_relay_discover_shard.sh).
+# fails-against: rev b575fff00be9 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: b575fff00be9 -- relay/scripts/relay-loop.js
+# fails-against-assertion: relay-loop.js no longer dispatches discover-chunk.sh (id:24ec CASE-B shard)
 
 set -euo pipefail
 

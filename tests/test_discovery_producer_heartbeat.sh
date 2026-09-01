@@ -21,6 +21,11 @@
 #
 # Hermetic: HEARTBEAT_BASE/RELAY_TOML/RELAY_DISCOVERY_QUEUE_DIR/watchdog state+evidence all
 # under mktemp -d; no real ~/.claude, ~/.config, or network touched.
+# fails-against: rev b575fff00be9 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/discover-repos-mechanical.sh, tools/relay-watchdog.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: b575fff00be9 -- relay/scripts/discover-repos-mechanical.sh tools/relay-watchdog.sh
+# fails-against-assertion: producer run did not create its heartbeat marker at
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROD="$ROOT/relay/scripts/discover-repos-mechanical.sh"

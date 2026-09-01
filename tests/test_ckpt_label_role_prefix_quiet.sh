@@ -12,6 +12,11 @@
 #
 # Contract: role prefix decides. executor/reconcile -> quiet `note:`; anything else with a
 # missing model id -> loud WARNING. Neither ever advances last_strong_ckpt.
+# fails-against: rev f20daca52c61 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/ckpt-tag.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: f20daca52c61 -- relay/scripts/ckpt-tag.sh
+# fails-against-assertion: (2) 'reconcile (auto/human)' still WARNs, but c500 part 1 ratified it as deliberately non-strong:
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

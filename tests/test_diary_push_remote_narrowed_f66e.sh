@@ -30,6 +30,8 @@
 #
 # SCOPE: asserts the SKILL.md contract only. It does NOT push, does not touch any remote,
 # and does not read ~/.claude — the canonical repo file is the single source under test.
+# fails-against-rev: 2a71ae406635 -- git-diary-workflow/SKILL.md
+# fails-against-assertion: SKILL.md must state the pre-push privacy gate is NOT a safety net (warn-only, diff-scoped — id:9bfc)
 
 set -uo pipefail
 

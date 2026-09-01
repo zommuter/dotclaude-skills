@@ -16,6 +16,11 @@
 # relay-loop.js in a stubbed Workflow sandbox pinned to MAX_ROUNDS=1, with children that always
 # report open [ROUTINE] work and a chain-end re-ask that always answers `review` — i.e. exactly
 # the chaining shape above. Every dispatch it counts happened inside ONE round.
+# fails-against: rev 3d5ade32bb8f -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/SKILL.md, relay/scripts/relay-loop.js, relay/scripts/stop-request.sh (+1 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 3d5ade32bb8f -- relay/SKILL.md relay/scripts/relay-loop.js relay/scripts/stop-request.sh relay/scripts/stop-sentinel.sh
+# fails-against-assertion: unit(s); the discovered wave was 3, so the id:a615 wave dispatch budget did not bound the chain (a round cap alone would have allowed
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

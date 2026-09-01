@@ -15,6 +15,10 @@
 #       of this class names itself instead of costing a run.
 #
 # Hermetic: no network, no ~/.config writes; proxy is imported, never bound to a port.
+# fails-against: rev 5e5784890306 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/classify-repo.sh, relay/scripts/mechanical-proxy.py, relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 5e5784890306 -- relay/scripts/classify-repo.sh relay/scripts/mechanical-proxy.py relay/scripts/relay-loop.js
+# fails-against-assertion: refused mechanical command is LOGGED with its text
 
 set -euo pipefail
 
