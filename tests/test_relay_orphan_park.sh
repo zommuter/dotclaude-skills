@@ -65,9 +65,12 @@ grep -Eq "worktree remove --force" < <(grep -vE '^[[:space:]]*#' "$RECONCILE") \
 # channel -- `msg=$(git worktree remove --force "$wt")` and `msg=; git worktree remove --force
 # "$wt"` both start with `msg=` and both EXECUTE a force, and the same held for indented `msg=`,
 # `why=`, `hatch_refused=`, `echo` and `log`. The ban now filters by QUOTING rather than by line:
-# lib-shell-code-only.py blanks comments and quoted-literal text but KEEPS `$( … )`/backtick
-# innards, so surfaced prose is invisible while a force on any line is not. The filter's
-# both-directions self-test lives in test_worktree_retire.sh, next to the sibling ban.
+# lib-shell-code-only.py blanks comments and PROSE literals but KEEPS `$( … )`/backtick innards
+# and word-like quoted literals, so surfaced prose is invisible while a force on any line is not
+# -- with ONE known, structural exception: a force laundered through `eval` cannot be seen by any
+# quote-aware filter (round 4, 2026-09-01; the earlier "a force on ANY line is counted" wording
+# here was false). test_worktree_retire.sh carries the separate `eval` ban that covers it, plus
+# the filter's both-directions self-test, next to the sibling ban.
 CODEONLY="$SRC_DIR/tests/lib-shell-code-only.py"
 [[ -f "$CODEONLY" ]] || fail "lib-shell-code-only.py missing at $CODEONLY"
 retire_body="$(python3 "$CODEONLY" "$RETIRE")"

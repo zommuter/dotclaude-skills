@@ -153,9 +153,28 @@ pass "single-target scope: sibling worktree+branch untouched"
 # `msg=; git worktree remove --force "$wt"` both EXECUTE a force and were invisible to the ban
 # (each demonstrated). The real distinction is quoting, not lines: prose lives inside a quoted
 # literal, while `$( … )` / backticks are code even inside double quotes. lib-shell-code-only.py
-# blanks comments and quoted-literal characters and keeps everything else, so a force smuggled
-# onto ANY line is still counted while the surfaced prose is not. Both directions are asserted
-# just below before the ban is trusted.
+# blanks comments and prose literals and keeps everything else. Both directions are asserted just
+# below before the ban is trusted.
+#
+# WHAT THIS BAN DOES AND DOES NOT COVER (corrected 2026-09-01, round 4). This comment used to
+# claim "a force smuggled onto ANY line is still counted". That was FALSE, and a review found
+# three concrete escapes it had already missed. Two are now closed by the filter's word-like-
+# literal rule (a quoted literal with no whitespace is a shell WORD, not prose, so it is emitted
+# as code with its delimiters dropped), and each has a fixture in 8a below:
+#
+#     git "worktree" "remove" "--force" "$wt"     # quoted command words   -- NOW COUNTED
+#     git worktree remove --for""ce "$wt"         # spliced empty literal  -- NOW COUNTED
+#
+# The third is `eval`, and it is STRUCTURAL -- unclosable by any quote-aware filter:
+#
+#     [[ -n "${SMUG:-}" ]] && eval "git worktree remove --force $wt"
+#
+# `eval` turns filter-DATA into CODE, and `eval "…"` is indistinguishable from `msg="…"` without
+# a real shell parser. So it is not pretended closed: 8c bans `eval` in the helper OUTRIGHT
+# (there is none today, and none is needed), which is the cheap structural answer. A green ban
+# here therefore means "no forbidden verb in executable code AND no eval to launder one through",
+# not "this script provably cannot force". Here-documents are the remaining known gap and are
+# excluded by the `<<` assertion above.
 CODEONLY="$SRC_DIR/tests/lib-shell-code-only.py"
 [[ -f "$CODEONLY" ]] || fail "lib-shell-code-only.py missing at $CODEONLY"
 # The filter does not parse here-documents; assert the target has none so it cannot mislead.
@@ -170,10 +189,16 @@ why=; git worktree remove --force "$wt"
 hatch_refused="$(git worktree remove --force "$wt")"
 echo "$(git worktree remove --force "$wt")"
 log "$(git worktree remove --force "$wt")"
+git "worktree" "remove" "--force" "$wt"
+git worktree remove --for""ce "$wt"
+git worktree remove '--force' "$wt"
 SMUGGLE
+# Every line above EXECUTES a real force. The last three were added 2026-09-01 (round 4): a
+# quoted literal carrying no whitespace is a shell WORD, not prose -- after quote removal the
+# shell runs it verbatim -- so the filter must emit it as code with the delimiters dropped.
 n_smuggled="$(python3 "$CODEONLY" "$selftest_dir/smuggle.sh" | { grep -o -- 'worktree remove --force' || true; } | wc -l)"  # swallow-ok: zero matches is the FAILURE this asserts against, not an error
-[[ "$n_smuggled" -eq 6 ]] \
-  || fail "lib-shell-code-only.py hides a REAL force: 6 executing smuggle lines, only $n_smuggled survived the filter"
+[[ "$n_smuggled" -eq 9 ]] \
+  || fail "lib-shell-code-only.py hides a REAL force: 9 executing smuggle lines, only $n_smuggled survived the filter"
 cat > "$selftest_dir/prose.sh" <<'PROSE'
 # only 'git worktree remove --force' removes it, which is the op id:373e avoids
 msg="git refuses to remove it without --force; a lock needs 'remove -f -f'"
@@ -183,11 +208,16 @@ hatch_refused="refusing to git worktree remove --force a tree we cannot account 
 echo "never run: git worktree remove --force"
 log "surfaced: git worktree remove --force was NOT run"
 submodule_refusal='fatal: working trees containing submodules cannot be moved or removed'
+git -C "$repo" worktree remove "$wt"
+[[ "$branch" == relay/* ]] && log "the force-free path; no --force was needed here"
 PROSE
+# The last two lines are the word-like rule's OTHER direction: `"$repo"`/`"$wt"`/`"$branch"` are
+# word-like and are now emitted as code (correctly -- they ARE code), and that must not turn the
+# legitimate force-FREE `worktree remove` into a ban hit.
 n_prose="$(python3 "$CODEONLY" "$selftest_dir/prose.sh" | { grep -oE -- '--force|branch -D|reset --hard|git clean' || true; } | wc -l)"  # swallow-ok: zero matches is the PASSING case here
 [[ "$n_prose" -eq 0 ]] \
   || fail "lib-shell-code-only.py flags PROSE as code ($n_prose hits): the ban would fire on legitimate surfaced text"
-pass "shell-code filter verified both ways: 6/6 smuggled forces visible, 0 false positives on prose"
+pass "shell-code filter verified both ways: 9/9 smuggled forces visible, 0 false positives on prose"
 
 code="$(python3 "$CODEONLY" "$SH")"
 # AMENDED 2026-09-01 (TODO id:a290, owner-ruled): ONE `git worktree remove --force` is now
@@ -206,6 +236,18 @@ n_wt_force="$({ grep -o -- 'worktree remove --force' <<<"$code" || true; } | wc 
 grep -Eq -- 'branch[[:space:]]+-D\b|reset[[:space:]]+--hard|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?clean|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?stash' < <(printf '%s\n' "$code") \
   && fail "helper executes a forbidden force/destructive git verb"
 pass "helper executes no forbidden destructive git verb (exactly one permitted a290 --force)"
+
+# 8c. STRUCTURAL companion ban: no `eval`, anywhere in executable code.
+# The verb ban above cannot see through `eval` -- `eval "git worktree remove --force $wt"` and
+# `msg="git worktree remove --force $wt"` are the same shape to a quote-aware filter, because
+# `eval` is exactly the construct that promotes filter-DATA to CODE. Rather than pretend the
+# force ban covers it, ban the promotion primitive itself. The helper has never needed `eval`
+# and does not use it; this keeps that true, and keeps the ban above meaningful. If `eval` ever
+# becomes genuinely necessary here, this assertion is the deliberate stop that forces the
+# question to be re-opened rather than quietly skipped.
+grep -nE '(^|[[:space:];&|(])eval([[:space:]]|$)' <<<"$code" \
+  && fail "worktree-retire.sh executes 'eval' -- that launders arbitrary text into code and makes the force ban above unenforceable. Rewrite without eval, or re-open the ban deliberately."
+pass "helper contains no 'eval' (the one channel the quote-aware force ban structurally cannot cover)"
 
 # ── 9. roadmap:8d76 — owner-authorized residue DISCARD (--discard-residue --ack <token>) ──
 # This is the ONE path that destroys uncommitted work, so every guard is asserted. It exists

@@ -322,6 +322,58 @@ set -e
   || fail "G reworded submodule refusal: must say loudly WHY it refused -- out: $out_g"
 pass "G submodule refusal with different wording → fail closed, not forced ($out_g)"
 
+# ── G2. a refusal that CONTAINS the verbatim string plus MORE → NOT forced ──
+# THE SUBSTRING-MUTANT KILLER (added 2026-09-01, round-4 review). Case G only varies the WORDING,
+# so relaxing the match from equality to a substring test
+#   -  if [[ "$err" == "$submodule_refusal" ]]
+#   +  if [[ "$err" == *"$submodule_refusal"* ]]
+# survived the ENTIRE suite -- G's reworded text contains no substring match either way. The
+# comment at the match site says in so many words "never loosen it to a substring"; nothing
+# enforced it. The hazard is concrete and near: a future git that appends a hint line after the
+# same fatal: line ("hint: use --force to override") would flip this hatch from FAIL-CLOSED to
+# FIRING on a refusal nobody has characterised. Note the hint below is emitted on the SAME stderr
+# the script captures with 2>&1, so it lands in "$err" exactly as a real git's would.
+SHIM2="$TMP/shim-superset"
+mkdir -p "$SHIM2"
+cat > "$SHIM2/git" <<SHIM2EOF
+#!/usr/bin/env bash
+# Intercept ONLY a no-force 'worktree remove': emit the VERBATIM refusal plus a trailing hint,
+# the way a future git version plausibly would. Everything else is the real git.
+saw_wt=0; saw_rm=0; saw_force=0
+for a in "\$@"; do
+  case "\$a" in
+    worktree) saw_wt=1 ;;
+    remove) saw_rm=1 ;;
+    --force|-f) saw_force=1 ;;
+  esac
+done
+if [[ \$saw_wt -eq 1 && \$saw_rm -eq 1 && \$saw_force -eq 0 ]]; then
+  echo "fatal: working trees containing submodules cannot be moved or removed" >&2
+  echo "hint: use 'git worktree remove --force' to override" >&2
+  exit 128
+fi
+exec "$REAL_GIT" "\$@"
+SHIM2EOF
+chmod +x "$SHIM2/git"
+repo_g2="$(mksuper g2 --with-submodule)"
+wt_g2="$(mkwt "$repo_g2" g2 --init-submodule)"
+# Fixture sanity: guards 2/3/4 all PASS here, so the ONLY thing standing between this fixture and
+# a real force is the string comparison. Without this, a green result could mean "some other guard
+# refused" rather than "the match is still exact".
+[[ "$(git -C "$wt_g2" symbolic-ref --quiet HEAD)" == "refs/heads/relay/g2" ]] || fail "fixture G2 INVALID: guard 2 would fire"
+[[ -z "$(git -C "$wt_g2" status --porcelain --ignore-submodules=none)" ]] || fail "fixture G2 INVALID: guard 3 would fire"
+git -C "$repo_g2" merge-base --is-ancestor "refs/heads/relay/g2" HEAD || fail "fixture G2 INVALID: guard 4 would fire"
+set +e
+out_g2="$(PATH="$SHIM2:$PATH" "$SH" "$repo_g2" "$wt_g2" "relay/g2" --expect-merged 2>&1)"; rc_g2=$?
+set -e
+[[ $rc_g2 -eq 3 ]] || fail "G2 refusal + trailing hint: expected exit 3 (fail closed), got $rc_g2 -- out: $out_g2"
+[[ "$out_g2" != *"submodule-force-hatch"* ]] \
+  || fail "G2 refusal + trailing hint: the hatch fired on a refusal that merely CONTAINS the recognized string -- the match has been loosened to a substring, which the code forbids -- out: $out_g2"
+[[ -e "$wt_g2" ]] || fail "G2 refusal + trailing hint: worktree was force-removed; the match is no longer exact"
+[[ "$out_g2" == *"NOT the verbatim form"* ]] \
+  || fail "G2 refusal + trailing hint: must refuse with the unrecognized-refusal reason -- out: $out_g2"
+pass "G2 refusal CONTAINING the verbatim string + extra text → unrecognized, fail closed ($out_g2)"
+
 # ── H0. PRODUCTION DEFAULT (opt-in UNSET) → hatch inert ────────────────────
 # The case that pins the owner's 2026-09-01 reversal. Every OTHER case in this file exports
 # WORKTREE_RETIRE_SUBMODULE_FORCE=1, so without this one the file could go fully green while the

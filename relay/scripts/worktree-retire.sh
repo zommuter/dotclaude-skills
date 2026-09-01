@@ -347,7 +347,7 @@ fi
 # _store_unsafe_reason <private-store> <shared-store> <label> -> reason on stdout ("" = safe)
 _store_unsafe_reason() {
   local store="$1" shared="$2" label="$3"
-  local tmpd head_sha n_missing first
+  local tmpd n_missing first
   if [[ ! -d "$shared" ]]; then
     printf "private store '%s' has NO corresponding shared store at %s, so the force would destroy every object it holds with no second copy anywhere" "$label" "$shared"
     return 0
@@ -356,14 +356,19 @@ _store_unsafe_reason() {
     printf "private store '%s' could not be audited (mktemp failed) -- refusing rather than treating an unaudited store as safe" "$label"
     return 0
   fi
-  # A submodule checkout is normally on a DETACHED head, so `--all` alone can miss exactly the
-  # commit this guard exists to protect. Resolve HEAD separately and feed it in too.
+  # A submodule checkout is normally on a DETACHED head, and that detached tip is exactly the
+  # commit this guard exists to protect. `--all` ALREADY covers it: `git rev-list --help` defines
+  # --all as "all the refs in refs/, along with HEAD", detached or not. An earlier version of this
+  # line resolved HEAD separately and appended it as `${head_sha:+"$head_sha"}`, with a comment
+  # claiming --all could miss it -- that claim is FALSE and the term was dead code (measured
+  # 2026-09-01, git 2.55.0: on a private submodule store holding a commit reachable ONLY from its
+  # detached HEAD, `rev-list --objects --all` and `rev-list --objects --all $HEAD` return
+  # SET-IDENTICAL output; case K is the standing behavioural pin for that path).
   # GIT_WORK_TREE: a store whose core.worktree points at a path that no longer exists (what
   # `git rm <submodule>` leaves behind -- fixture N) makes every plain git call fail with
   # "cannot chdir to …". Overriding the work tree lets the audit READ the store; rev-list and
   # cat-file never touch a working tree.
-  head_sha="$(GIT_WORK_TREE="$store" git --git-dir="$store" rev-parse --verify --quiet HEAD 2>/dev/null || true)"  # swallow-ok: an UNBORN HEAD is legitimate and simply contributes no tip; a store that cannot be read at all still fails LOUDLY at the rev-list below
-  if ! GIT_WORK_TREE="$store" git --git-dir="$store" rev-list --objects --all ${head_sha:+"$head_sha"} \
+  if ! GIT_WORK_TREE="$store" git --git-dir="$store" rev-list --objects --all \
         >"$tmpd/objs" 2>"$tmpd/err"; then
     printf "private store '%s' could not be enumerated (git rev-list failed: %s) -- refusing rather than reading an unreadable store as empty-and-safe" \
       "$label" "$(tr '\n' ' ' <"$tmpd/err")"
