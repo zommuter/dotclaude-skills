@@ -9,6 +9,27 @@
 # fails-against-rev: 0afb77c9e89b0473492df27c0d98139f2ddd8d3b -- relay/scripts/reconcile-repo.sh
 # fails-against-assertion: (a) NO reap was planned for an UNINITIALISED-submodule worktree
 #
+# fails-against: relay/scripts/reconcile-repo.sh at the FIRST cut of that reversal, which shipped
+#   three further defects in HOW it predicts and reports: (1) the marker predicate was NARROWER
+#   than git's own trigger on three counts (an outer `.gitmodules` gate, a non-empty `find` on
+#   `<admin>/modules`, and a gitdir resolved against the CWD instead of the worktree directory);
+#   (2) the reap path's `|| true` swallowed worktree-retire.sh's non-zero exit entirely, so a
+#   missed prediction was TOTAL SILENCE; (3) an UNMERGED unretirable worktree was planned for a
+#   park the helper can never complete, whose orphan-suppress then starved the item forever.
+# fails-against-rev: f297ea5710e3d896ff4e222bf4903531b453fce7 -- relay/scripts/reconcile-repo.sh
+# fails-against-assertion: (f1) STARVATION via the PARK route
+#   REACHABILITY, recorded per the CLAUDE.md rule: this file exits at its first failing
+#   assertion, so exactly ONE assertion can be declared per revision. Case (f) is ordered first
+#   among the new cases so the declared one is the STARVATION assertion (0 units where 1 was
+#   expected), which is the consequence the 2026-09-01 owner ruling is about. The other three
+#   reds at this same revision were each confirmed in isolation and are recorded here so they
+#   cannot be quietly lost:
+#     (g2) TOTAL SILENCE: a worktree git refuses to remove was neither predicted nor surfaced,
+#          because the predicate gated on .gitmodules being in the tree
+#     (h2) an EMPTY <admin>/modules directory was predicted retirable, but git refuses it
+#     (i1) a RELATIVE gitdir defeated the prediction
+#     (j1) the reap path SWALLOWED worktree-retire.sh's non-zero exit
+#
 # THE DEFECT.
 # `reconcile-repo.sh` short-circuited on `-e "$wtdir/$bn/.gitmodules"` with a bare `continue`,
 # placed BEFORE plan_reap/plan_park are populated. Consequence: worktree-retire.sh was never
@@ -38,6 +59,20 @@
 #   (e) the marker is ADDITIVE and fires EVERY round -- a repo carrying one is still dispatched.
 #       Load-bearing: a substitutive marker would suppress the repo forever (id:e7e4 loderite
 #       starvation shape).
+#   (f) THE PARK PATH (owner-ruled 2026-09-01): an UNMERGED worktree the helper will refuse is
+#       NOT planned for a park, IS still surfaced, keeps worktree + branch + partial work, and
+#       the repo STILL yields its unit. Checked against the parent revision, where it yielded 0.
+#       No relay/orphan ref is announced, so the id:1af1 phantom-park line cannot fire.
+#   (g) PREDICATE == git's TRIGGER, part 1: a POPULATED worktree with NO `.gitmodules` in its
+#       tree (submodule initialised, then `git reset --hard` to a commit predating it) is still
+#       refused by git and must still be reported.
+#   (h) part 2: an EMPTY `<admin>/modules` directory, in a repo with NO submodules at all, is
+#       refused by git -- so the marker must predict True on mere existence of that directory.
+#   (i) part 3: `worktree.useRelativePaths` writes `gitdir: ../../…`, relative to the WORKTREE
+#       directory; the prediction must survive it.
+#   (j) REPORT FROM THE OUTCOME: a non-zero worktree-retire.sh exit on the REAP path is reported
+#       on stderr, naming the worktree and quoting the helper. This is the half that guarantees
+#       nothing is silent -- a prediction can be wrong, an outcome cannot.
 #
 # SUPERSEDES tests/test_reconcile_unretirable_submodule_b02f.sh, DELETED in the same commit.
 # That file's assertion (1) -- "a submodule-carrying worktree is NOT planned for reap/park" --
@@ -182,7 +217,9 @@ pass "(b1) disposal IS planned, so the helper is reached"
 
 grep -q 'deadrun-review-repo-0' "$WORKTREE_RETIRE_LOG" \
   || fail "(b2) worktree-retire.sh was never invoked for the populated worktree (empty/irrelevant retire log): $(cat "$WORKTREE_RETIRE_LOG")"
-pass "(b2) worktree-retire.sh was actually invoked and logged its verdict"
+grep -q 'UNRETIRABLE-SUBMODULE-UNRECOGNIZED' "$WORKTREE_RETIRE_LOG" \
+  || fail "(b2b) the helper was reached but did not record its FAIL-CLOSED submodule verdict -- that log token exists in worktree-retire.sh and nowhere else, so its absence means the refusal came from somewhere other than the submodule guard: $(cat "$WORKTREE_RETIRE_LOG")"
+pass "(b2) worktree-retire.sh was actually invoked and logged its verdict (UNRETIRABLE-SUBMODULE-UNRECOGNIZED)"
 
 [[ -d "$WT_B" ]] \
   || fail "(b3) the POPULATED-submodule worktree was REMOVED -- something forced it; nothing here may force"
@@ -249,5 +286,164 @@ oe3="$("$DR" --repo pop --path "$tmp/pop" --runid freshrun --live-claims "" --ma
   || fail "(e2) STARVATION: a repo with an open actionable [ROUTINE] item was NOT dispatched while an unremovable worktree is surfaced every round -- the marker has become substitutive (id:e7e4 shape): $oe3"
 pass "(e2) the marker is ADDITIVE -- the repo is still dispatched"
 
+
+# =====================================================================================
+# (f) THE PARK PATH -- an UNMERGED worktree the helper will REFUSE must NOT be planned for
+#     a park (owner-ruled 2026-09-01). This is the handback/crash case the whole change
+#     exists for, and it was the one case with no test.
+#
+#     THE DEFECT: reconcile planned a park that can NEVER complete. worktree-retire.sh exits
+#     3 at the WORKTREE step and never reaches branch disposition, so relay/orphan/<bn> never
+#     comes into existence -- yet the park was ANNOUNCED, PARK VERIFY FAILED (id:1af1) fired
+#     every round, and the orphan-suppress step bound the PLANNED park and suppressed the
+#     item's re-dispatch permanently. Measured on the parent revision: discover-repo.sh
+#     yielded 0 units where it had yielded 1. Item-scoped, so a second open item still
+#     dispatches -- but that item is unreachable for good and a single-item repo goes dark.
+#     That is the id:e7e4 starvation class arriving by the park route.
+#
+#     ACCEPTED COST, asserted here so it is not "fixed" back by accident: the partial work
+#     stays on disk AND the item stays dispatchable, so a fresh executor may start over an
+#     abandoned worktree. The owner chose that over keeping the suppression, because a silent
+#     dispatch reduction is the worse failure. No suppression may reappear in another form.
+# =====================================================================================
+mksuper unmerged
+add_wt "$tmp/unmerged" unmerged deadrun-execute-57d1-0
+WT_F="$RELAY_WORKTREE_BASE/unmerged/deadrun-execute-57d1-0"
+git -C "$WT_F" submodule update --init -q
+printf 'PARTIAL WORK FROM A DEAD EXECUTOR\n' > "$WT_F/partial.txt"
+git -C "$WT_F" add partial.txt
+git -C "$WT_F" commit -qm "WIP partial work"
+if git -C "$tmp/unmerged" merge-base --is-ancestor relay/deadrun-execute-57d1-0 main; then
+  fail "(f0) fixture broken: the worktree branch is still an ancestor of main, so this is a REAP not a PARK"
+fi
+pass "(f0) fixture: an UNMERGED worktree carrying a populated private submodule store"
+
+of="$("$DR" --repo unmerged --path "$tmp/unmerged" --runid freshrun --live-claims "" --main-branch main 2>"$tmp/f.err")"
+[[ "$(printf '%s' "$of" | ucount)" == "1" ]] \
+  || fail "(f1) STARVATION via the PARK route: the repo yielded no unit for its open [ROUTINE] item. An unmerged worktree the retire helper cannot dispose of was planned for a park that can never complete, and the orphan-suppress step then suppressed the item permanently: $of"
+pass "(f1) the repo still yields its unit -- the item stays dispatchable"
+
+ofr="$("$RC" --repo unmerged --path "$tmp/unmerged" --live-claims "" --main-branch main 2>"$tmp/f2.err")"
+if grep -q 'park' <<<"$(printf '%s' "$ofr" | acts)"; then
+  fail "(f2) a PARK was planned for a worktree worktree-retire.sh structurally cannot park -- the helper exits before branch disposition, so relay/orphan/ can never appear: $ofr"
+fi
+pass "(f2) no park is planned for a worktree the helper will refuse"
+
+sf="$(printf '%s' "$ofr" | surf_join)"
+grep -q 'unretirable-submodule:' <<<"$sf" \
+  || fail "(f3) the unmergeable, unretirable worktree was SILENTLY dropped -- not planned, not surfaced: $sf"
+pass "(f3) it is still reported under the unretirable-submodule: class marker"
+
+if grep -q 'parked-orphan (planned):' <<<"$sf"; then
+  fail "(f4) a relay/orphan ref was ANNOUNCED for a worktree that can never be parked -- the id:1af1 phantom-park shape: $sf"
+fi
+pass "(f4) no phantom relay/orphan ref is announced"
+
+if git -C "$tmp/unmerged" show-ref --verify --quiet refs/heads/relay/orphan/deadrun-execute-57d1-0; then
+  fail "(f5) relay/orphan/deadrun-execute-57d1-0 exists -- something parked a branch this path must leave alone"
+fi
+git -C "$tmp/unmerged" show-ref --verify --quiet refs/heads/relay/deadrun-execute-57d1-0 \
+  || fail "(f6) the unmerged branch relay/deadrun-execute-57d1-0 was renamed or deleted"
+[[ -d "$WT_F" && "$(cat "$WT_F/partial.txt")" == "PARTIAL WORK FROM A DEAD EXECUTOR" ]] \
+  || fail "(f7) the unmerged worktree or its committed partial work did not survive"
+pass "(f5/f6/f7) worktree, branch and partial work are left exactly as they were"
+
+if grep -q 'PARK VERIFY FAILED' "$tmp/f.err" "$tmp/f2.err"; then
+  fail "(f8) PARK VERIFY FAILED still fires -- the phantom park was planned after all: $(cat "$tmp/f.err" "$tmp/f2.err")"
+fi
+pass "(f8) the id:1af1 phantom-park verification never fires, by construction"
+
+# =====================================================================================
+# (g) PREDICATE vs TRUTH, case 1 -- a POPULATED worktree with NO `.gitmodules` in its tree.
+#     Built the realistic way: initialise the submodule in the worktree, then `git reset
+#     --hard` to a commit predating it (git leaves the populated checkout behind, warning
+#     "unable to rmdir"). git STILL refuses to remove it, but the old outer
+#     `-e "$wtdir/$bn/.gitmodules"` gate skipped the whole block: reap planned, helper
+#     refused, and NOTHING was reported anywhere.
+# =====================================================================================
+mksuper nogm
+PRE_G="$(git -C "$tmp/nogm" rev-parse HEAD~1)"   # the commit BEFORE `submodule add`
+add_wt "$tmp/nogm" nogm probe-nogm
+add_wt "$tmp/nogm" nogm deadrun-review-repo-0
+for __w in probe-nogm deadrun-review-repo-0; do
+  git -C "$RELAY_WORKTREE_BASE/nogm/$__w" submodule update --init -q
+  # stderr captured, not swallowed: `reset --hard` legitimately warns "unable to rmdir
+  # 'vendor/x': Directory not empty", which is precisely the state this case is about.
+  git -C "$RELAY_WORKTREE_BASE/nogm/$__w" reset --hard -q "$PRE_G" 2>"$tmp/g.reset.err"
+done
+WT_G="$RELAY_WORKTREE_BASE/nogm/deadrun-review-repo-0"
+[[ ! -e "$WT_G/.gitmodules" ]] \
+  || fail "(g0) fixture broken: .gitmodules is still in the worktree tree, so this is not the no-.gitmodules case"
+[[ -d "$tmp/nogm/.git/worktrees/deadrun-review-repo-0/modules" ]] \
+  || fail "(g0b) fixture broken: the private submodule store was cleaned up, so git has nothing to refuse on"
+if LC_ALL=C git -C "$tmp/nogm" worktree remove "$RELAY_WORKTREE_BASE/nogm/probe-nogm" 2>"$tmp/g.err"; then
+  fail "(g1) git REMOVED a populated worktree that carries no .gitmodules -- the refusal this case is about is gone"
+fi
+grep -q 'containing submodules' "$tmp/g.err" \
+  || fail "(g1b) git refused with an unexpected message: $(cat "$tmp/g.err")"
+pass "(g1) git refuses a populated worktree whose tree carries NO .gitmodules"
+
+og="$("$RC" --repo nogm --path "$tmp/nogm" --live-claims "" --main-branch main 2>"$tmp/g2.err")"
+sg="$(printf '%s' "$og" | surf_join)"
+grep -q 'unretirable-submodule:' <<<"$sg" \
+  || fail "(g2) TOTAL SILENCE: a worktree git refuses to remove was neither predicted nor surfaced, because the predicate gated on .gitmodules being in the tree: $sg"
+pass "(g2) it is predicted and surfaced -- the predicate no longer gates on .gitmodules"
+
+# =====================================================================================
+# (h) PREDICATE vs TRUTH, case 2 -- an EMPTY `<admin>/modules` directory. git refuses on the
+#     mere EXISTENCE of that directory, even in a repo with NO submodules at all, so the
+#     old non-empty `find` test was narrower than git's own trigger.
+# =====================================================================================
+mkplain emptymod
+add_wt "$tmp/emptymod" emptymod probe-empty
+add_wt "$tmp/emptymod" emptymod deadrun-review-repo-0
+mkdir -p "$tmp/emptymod/.git/worktrees/probe-empty/modules"
+mkdir -p "$tmp/emptymod/.git/worktrees/deadrun-review-repo-0/modules"
+if LC_ALL=C git -C "$tmp/emptymod" worktree remove "$RELAY_WORKTREE_BASE/emptymod/probe-empty" 2>"$tmp/h.err"; then
+  fail "(h1) git removed a worktree with an EMPTY private modules/ directory -- its trigger is no longer mere existence"
+fi
+grep -q 'containing submodules' "$tmp/h.err" \
+  || fail "(h1b) git refused the empty-modules worktree with an unexpected message: $(cat "$tmp/h.err")"
+pass "(h1) git refuses on an EMPTY <admin>/modules directory, in a repo with no submodules at all"
+
+oh="$("$RC" --repo emptymod --path "$tmp/emptymod" --live-claims "" --main-branch main 2>"$tmp/h2.err")"
+sh_="$(printf '%s' "$oh" | surf_join)"
+grep -q 'unretirable-submodule:' <<<"$sh_" \
+  || fail "(h2) an EMPTY <admin>/modules directory was predicted retirable, but git refuses it -- the predicate is narrower than git's trigger: $sh_"
+pass "(h2) the marker predicts True for an empty private submodule store"
+
+# =====================================================================================
+# (i) GITDIR RESOLUTION -- `worktree.useRelativePaths` writes `gitdir: ../../…`, which is
+#     relative to the WORKTREE DIRECTORY. Resolving it against reconcile's own CWD yields a
+#     path that does not exist, so every worktree in such a repo predicted "retirable".
+# =====================================================================================
+mksuper relpath
+git -C "$tmp/relpath" config worktree.useRelativePaths true
+add_wt "$tmp/relpath" relpath deadrun-review-repo-0
+WT_I="$RELAY_WORKTREE_BASE/relpath/deadrun-review-repo-0"
+git -C "$WT_I" submodule update --init -q
+grep -q '^gitdir: [^/]' "$WT_I/.git" \
+  || fail "(i0) fixture broken: gitdir is NOT relative ($(cat "$WT_I/.git")) -- this case needs a git that honours worktree.useRelativePaths (>= 2.48)"
+pass "(i0) fixture: the worktree's .git carries a RELATIVE gitdir"
+
+oi="$("$RC" --repo relpath --path "$tmp/relpath" --live-claims "" --main-branch main 2>"$tmp/i.err")"
+si="$(printf '%s' "$oi" | surf_join)"
+grep -q 'unretirable-submodule:' <<<"$si" \
+  || fail "(i1) a RELATIVE gitdir defeated the prediction -- the admin path was resolved against reconcile's CWD instead of the worktree directory: $si"
+pass "(i1) the prediction works with a relative gitdir"
+
+# =====================================================================================
+# (j) REPORT FROM THE OUTCOME -- the reap path must not swallow a helper refusal.
+#     Case (b) above reaped a populated worktree and the helper exited non-zero. With the
+#     old `>/dev/null 2>&1 || true` that produced NOTHING on stderr, which is why a missed
+#     prediction was total silence rather than a bounded per-round cost.
+# =====================================================================================
+grep -q 'REAP RETIRE FAILED' "$tmp/b.err" \
+  || fail "(j1) the reap path SWALLOWED worktree-retire.sh's non-zero exit -- a refused reap is reported nowhere: $(cat "$tmp/b.err")"
+grep -q 'deadrun-review-repo-0' "$tmp/b.err" \
+  || fail "(j2) the reap failure line does not name the worktree it is about: $(cat "$tmp/b.err")"
+grep -q 'retire-unretirable' "$tmp/b.err" \
+  || fail "(j3) the reap failure line does not carry worktree-retire.sh's own message: $(cat "$tmp/b.err")"
+pass "(j1/j2/j3) a refused reap is reported on stderr, naming the worktree and quoting the helper"
 echo "---"
-echo "ALL PASS: reconcile reaches worktree-retire.sh for submodule worktrees; uninitialised ones are reaped force-free, populated ones refused and reported (id:a290)"
+echo "ALL PASS: reconcile reaches worktree-retire.sh for submodule worktrees; the predicate is git's own trigger, refused reaps are reported from the outcome, and an unparkable worktree is surfaced without a park (id:a290)"

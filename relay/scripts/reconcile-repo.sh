@@ -198,34 +198,84 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
         # hatch is OPT-IN (`WORKTREE_RETIRE_SUBMODULE_FORCE=1`) and NO caller here sets it --
         # deliberately, pending a separate owner decision -- so nothing is ever forced.
         #
-        # THE MARKER STAYS, and is now PREDICTED rather than assumed. `.gitmodules` alone no
-        # longer implies unretirable, so the marker fires only on the state git actually
-        # refuses on (a non-empty private submodule store for this worktree). PLAN is pure and
-        # read-only, so this is a filesystem read, never a probe. Predicting wrong is bounded
-        # in both directions: a missed prediction means one refused (swallowed, logged) helper
-        # call per round -- the pre-b02f status quo -- and a false prediction means one extra
-        # surfaced line for a worktree that then disposes cleanly.
+        # THE MARKER IS PREDICTED, and the predicate is now EXACTLY git's own trigger. git
+        # refuses `worktree remove` on the mere EXISTENCE of this worktree's PRIVATE submodule
+        # store, `<admin dir>/modules` -- probed directly on git 2.55: an EMPTY `modules/`
+        # directory, created by hand in a repo that has NO submodules at all, is refused with
+        # the same `fatal: working trees containing submodules cannot be moved or removed`. So
+        # `-d "$wt_admin/modules"` is the whole test, and prediction and truth coincide.
+        #
+        # TWO NARROWER TESTS WERE TRIED HERE AND BOTH UNDER-PREDICTED:
+        #   * an outer `-e "$wtdir/$bn/.gitmodules"` gate. A worktree whose submodule WAS
+        #     initialised and which was then `git reset --hard` to a commit predating the
+        #     submodule keeps its private store but carries no `.gitmodules` in its tree --
+        #     realistic for a crashed executor, and reproduced as a fixture. git still refuses
+        #     it; the gate skipped the whole block, so nothing was predicted and nothing was
+        #     reported anywhere.
+        #   * a non-empty `find` on `<admin dir>/modules`. git does not care whether the
+        #     directory has any content.
+        # PLAN is pure and read-only, so this stays a filesystem read, never a probe.
+        #
+        # NOT BOUNDED IN BOTH DIRECTIONS -- an earlier version of this comment claimed it was,
+        # and that wrong claim is what made the silence look acceptable. A FALSE prediction is
+        # genuinely cheap (one extra surfaced line for a worktree that then disposes cleanly).
+        # A MISSED prediction was NOT "one refused helper call per round": the reap path's
+        # `|| true` swallowed the helper's refusal entirely, so the cost was TOTAL SILENCE.
+        # APPLY therefore now also reports from the OUTCOME (the helper's exit status), which
+        # is the half that actually guarantees nothing is silent -- a prediction can be wrong,
+        # an outcome cannot.
         #
         # ADDITIVE by construction (id:bc49/e7e4): the marker is in discover-repo.sh's ADDITIVE
         # tuple, so it NEVER suppresses the repo. Getting that wrong is the loderite starvation
         # bug -- 6 open actionable [ROUTINE] items, zero dispatched, two rounds -- and it would
         # bite identically here, since the marker fires on EVERY round the worktree exists.
-        if [[ -e "$wtdir/$bn/.gitmodules" ]]; then
-          # A linked worktree's `.git` is a file holding `gitdir: <admin dir>`. The private
-          # submodule store lives at `<admin dir>/modules/`. A bare directory that is not a
-          # registered worktree has no `.git` file at all -- treat that as not-populated.
-          wt_admin=""
-          [[ -f "$wtdir/$bn/.git" ]] && wt_admin="$(sed -n '1s/^gitdir: //p' "$wtdir/$bn/.git")"
-          if [[ -n "$wt_admin" && -d "$wt_admin/modules" ]] \
-             && [[ -n "$(find "$wt_admin/modules" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
-            add_surfaced "unretirable-submodule: worktree $bn has POPULATED submodules (private store $wt_admin/modules), which is the state git actually refuses to remove -- NOT the mere presence of .gitmodules, which roadmap:b02f got wrong. Disposal IS attempted this round through worktree-retire.sh, force-free; the helper will refuse and leave it untouched. Clearing it needs a supervised decision (TODO id:a290), not a cleanup pass -- there is no dirt to find."
-          fi
+        #
+        # A linked worktree's `.git` is a FILE holding `gitdir: <admin dir>`. Under
+        # `worktree.useRelativePaths` git writes that path RELATIVE TO THE WORKTREE DIRECTORY
+        # (`gitdir: ../../../r/.git/worktrees/<bn>`); resolving it against reconcile's CWD
+        # instead yielded a path that does not exist, so every worktree in such a repo silently
+        # predicted "retirable". A bare directory that is not a registered worktree has no
+        # `.git` file at all -- treat that as retirable.
+        wt_admin=""
+        if [[ -f "$wtdir/$bn/.git" ]]; then
+          wt_admin="$(sed -n '1s/^gitdir: //p' "$wtdir/$bn/.git")"
+          [[ -n "$wt_admin" && "$wt_admin" != /* ]] && wt_admin="$wtdir/$bn/$wt_admin"
         fi
+        wt_unretirable=false
+        [[ -n "$wt_admin" && -d "$wt_admin/modules" ]] && wt_unretirable=true
 
         branch="relay/$bn"
         if git -C "$path" merge-base --is-ancestor "$branch" "$main_branch" 2>/dev/null; then
+          if [[ "$wt_unretirable" == true ]]; then
+            add_surfaced "unretirable-submodule: worktree $bn carries a private submodule store ($wt_admin/modules), which is the state git actually refuses to remove -- NOT the mere presence of .gitmodules, which roadmap:b02f got wrong. Disposal IS attempted this round through worktree-retire.sh, force-free; the helper refuses and leaves worktree and branch untouched, and APPLY reports that refusal on stderr. Clearing it needs a supervised decision (TODO id:a290), not a cleanup pass -- there is no dirt to find."
+          fi
           add_action "reap" "reaped stale empty worktree $bn"
           plan_reap+=("$bn:$branch")
+        elif [[ "$wt_unretirable" == true ]]; then
+          # NO PARK IS PLANNED for a worktree the helper will refuse (owner-ruled 2026-09-01,
+          # id:a290). An UNMERGED worktree carrying a private submodule store -- the
+          # handback/crash case this whole change exists for -- used to be planned for a park
+          # that can NEVER complete: worktree-retire.sh exits 3 at the worktree step, never
+          # reaching branch disposition, so `relay/orphan/$bn` never comes into existence.
+          # The consequences compounded: the id:1af1 PARK VERIFY FAILED line fired every round,
+          # and the orphan-suppress step bound the PLANNED park and suppressed the item's
+          # re-dispatch permanently. Measured against the parent revision: discover-repo.sh
+          # yielded 0 units where it had yielded 1. That is the id:e7e4 starvation class
+          # arriving by the park route, item-scoped, so a single-item repo goes fully dark.
+          #
+          # This keys the decision on the PREDICATE rather than on an outcome, and that is a
+          # deliberate, bounded choice: PLAN must be pure and the parity oracle (id:77ce)
+          # forbids APPLY adding to the emitted JSON, so the park/no-park call can only be made
+          # here. It is defensible only because the predicate above is now git's own trigger
+          # verbatim. If it ever misses, the failure is the OLD behaviour and stays loud (a
+          # park is planned, the helper refuses, PARK VERIFY FAILED fires) -- never silent.
+          #
+          # ACCEPTED COST, recorded rather than solved (owner's ruling): the partial work stays
+          # on disk AND the item stays dispatchable, so a fresh executor may start over an
+          # abandoned worktree. That is the status quo, and it was chosen over keeping the
+          # suppression because a silent dispatch reduction is the worse failure. Do NOT
+          # reintroduce a suppression here in some other form.
+          add_surfaced "unretirable-submodule: worktree $bn is UNMERGED and carries a private submodule store ($wt_admin/modules), so worktree-retire.sh cannot complete a park -- it exits at the worktree step and never touches the branch. NO park is planned and no relay/orphan/$bn is announced (it would never exist, and announcing it suppressed this item's re-dispatch permanently -- owner-ruled 2026-09-01, id:a290). Worktree and branch relay/$bn are left exactly as they are and the item stays dispatchable; a fresh executor may therefore start over this abandoned worktree. Disposal needs a supervised decision, not a cleanup pass."
         else
           add_action "park" "parked stale worktree $bn to relay/orphan/$bn"
           # id:1af1 — PLAN must not assert a COMPLETED rename. This line is emitted in the PLAN
@@ -389,7 +439,21 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
       bn="${entry%%:*}"; branch="${entry#*:}"
       # Reap: PLAN proved the branch is an ancestor of main (merged) → --expect-merged so a
       # `branch -d` refusal surfaces as an anomaly instead of a silent park.
-      "$RETIRE" "$path" "$wtdir/$bn" "$branch" --expect-merged >/dev/null 2>&1 || true  # swallow-ok: helper logs+surfaces to its own log; APPLY stays JSON-side-effect-free (id:77ce)
+      #
+      # REPORT FROM THE OUTCOME (id:a290). This call used to end `>/dev/null 2>&1 || true`,
+      # justified as "the helper logs to its own log". It does -- to a file nobody reads -- so
+      # a non-zero exit here was TOTAL SILENCE, not the "one refused call per round" the PLAN
+      # comment claimed. That is what let a missed prediction disappear completely. A
+      # prediction can be wrong; an outcome cannot, so the helper's own exit status is the
+      # thing that guarantees nothing is silent. Same discipline as the park verify below:
+      # stderr + the reconcile log ONLY, never actions/surfaced, so parity (id:77ce) holds.
+      retire_rc=0
+      retire_out="$("$RETIRE" "$path" "$wtdir/$bn" "$branch" --expect-merged 2>&1)" || retire_rc=$?
+      if (( retire_rc != 0 )); then
+        echo "reconcile-repo: REAP RETIRE FAILED -- worktree-retire.sh exited $retire_rc for the planned reap of worktree $bn (repo=$repo, branch=$branch). The worktree and/or its branch were NOT disposed of and are still on disk. Helper said: ${retire_out//$'\n'/ } (id:a290)" >&2
+        printf '%s reconcile-repo reap-retire-failed repo=%s branch=%s worktree=%s rc=%s\n' \
+          "$(date -Is)" "$repo" "$branch" "$bn" "$retire_rc" >> "${RECONCILE_LOG:-$HOME/.claude/logs/relay-reconcile.log}" 2>/dev/null || true
+      fi
     done
     for entry in "${plan_park[@]:-}"; do
       [[ -n "$entry" ]] || continue
