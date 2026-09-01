@@ -23,6 +23,13 @@ mechanism (1), a follow-up, not this item. This mechanism only checks that the h
 DECLARED, making the discipline conscious and on-record; it does not verify the claim.
 Also out of scope: mechanism (2) reached-fixture and mechanism (3) ledger-token-shape.
 
+  → THE RUNNER NOW EXISTS: `tests/verify-negative-cases.py` (TODO id:a73c) executes the
+    declared case and checks that the assertion which fails is the one the file claims to
+    pin. It is opt-in (`make verify-negatives`), not part of `tests/run-tests.sh`.
+
+Exemptions are shared with that runner and live in ONE reviewable allowlist,
+`tests/negative-case-exemptions.txt` (owner-decided) -- never scattered `n/a` comments.
+
 Advisory by default (exit 0); non-zero only under `--strict` (mirrors the sibling lint
 `tests/lint-source-grep-assertions.py`'s `--strict`/`--max N` shape).
 
@@ -49,6 +56,19 @@ def analyse(path):
     return True  # defect-fix test missing the declaration — violation
 
 
+def load_exempt(here):
+    """Basenames excused via the ONE shared allowlist (see module docstring)."""
+    path = os.path.join(here, "negative-case-exemptions.txt")
+    names = set()
+    if not os.path.exists(path):
+        return names
+    for raw in open(path, encoding="utf-8"):
+        if raw.lstrip().startswith("#") or not raw.strip():
+            continue
+        names.add(raw.split("--", 1)[0].strip())
+    return names
+
+
 def main(argv):
     strict = "--strict" in argv
     argv = [a for a in argv if a != "--strict"]
@@ -64,8 +84,11 @@ def main(argv):
         if f.startswith("test_") and f.endswith(".sh")
     )
 
+    exempt = load_exempt(here)
     violations = []
     for f in files:
+        if os.path.basename(f) in exempt:
+            continue
         if analyse(f):
             violations.append(f)
 

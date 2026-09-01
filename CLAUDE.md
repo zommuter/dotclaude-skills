@@ -190,6 +190,37 @@ Plain-bash harness, zero dependencies beyond `bash`/`python3`/`jq`/`make`:
   fully green — that is the definition-of-done check.
 - Tests must be hermetic: work in `mktemp -d`, override `HOME`/`DEST_DIR`/roots via
   args or env, never touch `~/.claude` or the network.
+- **`# fails-against:` -- a defect-fix test declares the negative case it must fail against**
+  (id:292b), and `make verify-negatives` RUNS that case (id:a73c). The rule the runner
+  enforces, which the declaration alone cannot: **it is not enough that the test fails
+  against the declared revision -- the assertion that fails must be the one the file claims
+  to pin.** Dying at an earlier assertion, or being killed by a fixture-sanity probe, is red
+  for the wrong reason and is exactly as vacuous as passing. Machine-readable form, in the
+  file's LEADING comment block (directives lower down belong to fixture heredocs, not to the
+  file): `# fails-against-rev: <rev> -- <path>…` or `# fails-against-mutation: <command>`,
+  each followed by `# fails-against-assertion: <substring of the FAIL: line that must fire>`.
+  Where a fix changes a FORMAT, author the negative case in the ancestor's OWN spelling and
+  order it FIRST, and record per-ancestor reachability in the header -- some assertions are
+  structurally unreachable at the parent, which is legitimate but must be on the record.
+  Two rules the runner ENFORCES, both learned by being fooled into a false pass on 2026-09-01:
+  **the declared substring must match EXACTLY ONE line of the file's body** (0 or 2+ is a
+  CONFIG ERROR, exit 2 -- a bare case prefix like `L non-C locale:` cannot say which of a
+  case's four assertions fired, and an early message that NAMES a later assertion, e.g.
+  `"(a) old format rejected outright, so (b) guard was never reached"`, matched `(b) guard` by
+  substring and was reported green); and **when a non-exiting accumulator emits several FAIL
+  lines, the declaration must match the LAST one** -- all fired lines are reported, and
+  matching any-of degrades the guarantee to little more than exit status. Narrow the
+  declaration; never loosen the check. A file that emits no line-leading `FAIL:` at all (55 of
+  546 today) can never be verified this way and needs an exemption with a reason.
+  `tests/lint-vacuous-fixtures.py` (advisory) checks the declaration; the runner is opt-in
+  and NOT part of `make test` (seconds per case). Exemptions live in ONE reviewable file,
+  `tests/negative-case-exemptions.txt`, each with a written reason.
+- **A `# fails-against-mutation:` command is an arbitrary `bash -c` and is NOT sandboxed.**
+  The runner gives it a private sandbox (its own `TMPDIR`, a `GIT_CEILING_DIRECTORIES` that
+  stops git discovery walking up out of the scratch, and a post-run stray-entry check), but a
+  mutation can still write any ABSOLUTE path the invoking user can write -- confirmed by
+  clobbering a canary in a real fixture repo. Treat a mutation command as reviewed code, like
+  any other script here; confine it to relative paths under its cwd.
 
 ## Relay contract <!-- relay-executor contract v18 -->
 

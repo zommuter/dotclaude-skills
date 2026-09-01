@@ -2,6 +2,13 @@
 # (no `# roadmap:` header — this specs TODO id:9fa2, which has NO ROADMAP twin.
 #  Its failures therefore ALWAYS count; there is no expected-red escape.)
 #
+# fails-against: 275fec46 (`tracker: record the parent/plugin mirror convention`) -- the
+#   bare-token FAMILY-scoped implementation, where `--mirror-token 1c7d` absorbed a SUPERSET
+#   repo set and exited 0. See the REACHABILITY block below: only assertion (g) discriminates
+#   there, which is why it is ordered FIRST.
+# fails-against-rev: 275fec46 -- tracker/ledger-map.py
+# fails-against-assertion: (g) the family-scoped bare spelling
+#
 # id:9fa2 — deliberate same-id MIRRORS across a parent repo and its plugin repo
 # (`zkm` / `zkm-whatsapp`) are EXPECTED and must stop producing a class-A error,
 # recorded as ONE convention rather than per-token ledger edges (owner-ratified
