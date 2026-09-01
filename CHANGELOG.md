@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-09-01
+
+- review: 20 owner commits audited clean (gaming-scan 0, 536 pass/0 fail); closed id:2065, promoted id:8302+id:d8b3 with red specs, unblocked id:6958 — repo flips review→execute (2 actionable) (id:2065,8302,d8b3,6958,9fa2)
+
 ## 2026-08-31
 
 - review: suite green 528/0/1-expected-red; b018 REMOVED_ASSERT adjudicated legitimate (overhead 12k->65k, stricter); filed id:7a5e (parked-orphan S4 regression) + id:1ccd (213a by-reference false positive); routine_open=2 (id:7a5e,1ccd,e8d4,71d6,70bc,2ee5)
