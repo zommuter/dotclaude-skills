@@ -135,8 +135,21 @@ first_lane_tag() {
   printf '%s' "$best_tag"
 }
 
-# ── Collect ADDED lines from the staged diff ────────────────────────────────────────────
-diff_out="$(git diff --cached -U0 --no-color 2>/dev/null || true)"
+# ── S9 archive carve-out (id:2065, owner-ratified): *.archive.md is exempt ──────────────
+# ROADMAP.archive.md / TODO.archive.md hold only closed [x] entries -- not dispatchable --
+# so the ratchet's purpose (stop old vocabulary on live work) does not apply to them, and
+# the em-dash delimiter migration must be able to rewrite their old-vocab tags byte-for-byte.
+# The skip is announced on stdout (never silent) so hook output shows the carve-out fired.
+archive_files="$(git diff --cached --name-only -- '*.archive.md' 2>/dev/null || true)"
+if [[ -n "$archive_files" ]]; then
+  while IFS= read -r af; do
+    [[ -n "$af" ]] || continue
+    echo "lane-vocab: skipping staged archive file (id:2065 carve-out): $af"
+  done <<< "$archive_files"
+fi
+
+# ── Collect ADDED lines from the staged diff, excluding *.archive.md ────────────────────
+diff_out="$(git diff --cached -U0 --no-color -- . ':(exclude)*.archive.md' 2>/dev/null || true)"
 
 violations=""
 while IFS= read -r dl; do
