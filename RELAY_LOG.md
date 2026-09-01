@@ -3002,3 +3002,36 @@ ZERO newly-added open items — nothing to qualify.
 ## 2026-09-01 11:20 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:d8b3 + id:8302 clause (a) VERIFIED GREEN by independent done-check re-run (make lint + make test = the only two declared tiers, 538 pass/0 fail/2 expected-red; gaming-canary + shard-canary SKIPPED-TIER, on-demand token canaries); gaming-scan, provenance, faked-clean-tree, refactor-claim and over-reach passes all clean; FOUND id:8302 shipped only clause (a) of its ratified acceptance -- clause (b) had a fixture in the RED spec but no assertion, so it shipped unimplemented with a green suite -- filed as id:59c5 with a genuinely-red spec rather than un-archiving 8302, flagged for owner; ingested inbox dead-letter routed:71ed; routine_open=1 [id:d8b3,8302,59c5,71ed]
+
+## 2026-09-01 — executor (claude-sonnet-5)
+
+Worked id:59c5 -- `children-of:`/`children:` now resolve to ONE relation in
+`tracker/ledger-map.py`'s `assemble()`: a reconciliation pass mirrors every
+declared `parents`/`children` edge onto the other end, so a child-side
+`children-of:P` and a parent-side `children:C` naming the same pair produce
+the same fact from both directions. `tests/test_ledger_map_spelling_symmetry_59c5.sh`
+now passes (was RED). Regenerated `tracker/fixtures/expected/repo-alpha.json`
+and `fleet-collision.json` per SCHEMA.md §6 (the fixture's `8888 children:3333,4444`
+pair now also carries the mirrored `parent`/`parents` on 3333/4444).
+Fixing the fixture surfaced a real second-order break in
+`tests/test_tracker_plane_live_contract.sh`: its strict-superset assertion
+("Plane materialises inverses, so live edges > planned edges") was implicitly
+relying on the exact one-directional-ledger asymmetry id:59c5 removes -- once
+the document itself carries both directions, the plan already declares what
+Plane used to have to infer, and the two counts legitimately coincide. Fixed
+the assertion to the invariant that still holds (`edges_live >= edges_planned`,
+i.e. Plane never drops a planned edge) with the reasoning recorded inline, and
+updated the one hardcoded `relations_already_present` count that shifted from
+3 to 5 for the same reason (2 extra idempotent-but-redundant parent/child plan
+ops, no new actual writes). `make test` / `tests/run-tests.sh`: 539 passed, 0
+failed, 1 expected-red (one transient unrelated flake on `test_verdict_event_c7dc.sh`
+reproduced clean on rerun and in isolation -- matches the known load-flakiness
+class at id:7518, not touched by this change).
+Friction: the item's own acceptance named only `test_tracker_golden_fixture.sh`
+and `test_tracker_schema_drift_roundtrip.sh` as the fixture-consuming tests to
+keep green; `test_tracker_plane_live_contract.sh` also consumes the same golden
+fixture and was not named, so its breakage was a downstream surprise rather
+than an anticipated done-check.
+refactor: none needed -- the reconciliation pass is additive (one new loop) and
+the test fix corrects stale hardcoded counts/assumptions rather than adding new
+structure.
