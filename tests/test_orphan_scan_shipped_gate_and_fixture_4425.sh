@@ -28,6 +28,12 @@
 #      does not establish the test-owns-item link.
 #   c. Neither suppression may break the existing positive path — a genuinely ungated
 #      item with a genuinely-owning green test still reports TICK-READY.
+#
+# The item asked that 6217 and 9eb7 be the RECORDED cases, so the fixture ledgers below
+# use those real tokens. Live, 6217 exhibits BOTH defects at once and 9eb7 only the gate
+# one. The fixture deliberately SEPARATES them — 9eb7 carries the gate alone, 6217 the
+# fixture reference alone — so each defect has an INDEPENDENT failing witness. Pinning
+# 6217 with both would let either fix alone turn the case green and hide the other.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -49,32 +55,32 @@ git -C "$repo" config user.name "Test"
 # The TODO line is deliberately clean of every gate lexeme the scan knows, so the ONLY
 # gate evidence anywhere is the ROADMAP twin's 🚧 marker — exactly the live id:6217 /
 # id:9eb7 shape. Must NOT be TICK-READY.
-cat > "$repo/tests/test_bb01.sh" <<'EOF'
+cat > "$repo/tests/test_9eb7.sh" <<'EOF'
 #!/usr/bin/env bash
-# roadmap:bb01
+# roadmap:9eb7
 set -euo pipefail
 exit 0
 EOF
-chmod +x "$repo/tests/test_bb01.sh"
+chmod +x "$repo/tests/test_9eb7.sh"
 
 # ── Case B (defect 2): the only `# roadmap:` match is a FIXTURE REFERENCE ─────────────
-# test_bb02_harness.sh mentions token bb02 on a line that names a DIFFERENT test file,
+# test_6217_harness.sh mentions token 6217 on a line that names a DIFFERENT test file,
 # to record that that other file is currently RED. The referenced spec genuinely fails.
 # The harness itself is green, so today the scan runs the WRONG file and reports ready.
-cat > "$repo/tests/test_bb02_harness.sh" <<'EOF'
+cat > "$repo/tests/test_6217_harness.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-red_fixture="tests/test_bb02_spec.sh"  # roadmap:bb02, currently open+RED
+red_fixture="tests/test_6217_spec.sh"  # roadmap:6217, currently open+RED
 [ -f "$red_fixture" ] || exit 1
 exit 0
 EOF
-chmod +x "$repo/tests/test_bb02_harness.sh"
-cat > "$repo/tests/test_bb02_spec.sh" <<'EOF'
+chmod +x "$repo/tests/test_6217_harness.sh"
+cat > "$repo/tests/test_6217_spec.sh" <<'EOF'
 #!/usr/bin/env bash
-# the spec that actually owns bb02 — still RED
+# the spec that actually owns 6217 — still RED
 exit 1
 EOF
-chmod +x "$repo/tests/test_bb02_spec.sh"
+chmod +x "$repo/tests/test_6217_spec.sh"
 
 # ── Case C (regression guard): genuinely ungated, genuinely owned, green ──────────────
 cat > "$repo/tests/test_bb03.sh" <<'EOF'
@@ -98,15 +104,15 @@ chmod +x "$repo/tests/test_bb04.sh"
 cat > "$repo/TODO.md" <<'EOF'
 # TODO
 ## Current
-- [ ] extract the shared definition and ship it <!-- id:bb01 -->
-- [ ] the harness change ships fully <!-- id:bb02 -->
+- [ ] extract the shared definition and ship it <!-- id:9eb7 -->
+- [ ] the harness change ships fully <!-- id:6217 -->
 - [ ] a genuinely finished thing <!-- id:bb03 -->
 - [ ] another genuinely finished thing <!-- id:bb04 -->
 EOF
 
 cat > "$repo/ROADMAP.md" <<'EOF'
 # ROADMAP
-- [ ] [INPUT - decision] extract the shared definition and ship it <!-- id:bb01 --> — 🚧 GATED pending an owner decision
+- [ ] [INPUT - decision] extract the shared definition and ship it <!-- id:9eb7 --> — 🚧 GATED pending an owner decision
 - [ ] [ROUTINE] another genuinely finished thing <!-- id:bb04 -->
 EOF
 
@@ -128,13 +134,13 @@ grep -q 'id:bb04 — TICK-READY' <<<"$out" \
   || report "case D: an item whose ROADMAP twin exists but carries NO gate marker must still be TICK-READY"
 
 # (a) gate marker on the ROADMAP twin suppresses TICK-READY
-grep -q 'id:bb01 — TICK-READY' <<<"$out" \
-  && report "case A (defect 1): id:bb01 is 🚧 GATED on its ROADMAP twin and must never be TICK-READY"
+grep -q 'id:9eb7 — TICK-READY' <<<"$out" \
+  && report "case A (defect 1): id:9eb7 is 🚧 GATED on its ROADMAP twin and must never be TICK-READY"
 
 # (b) a `# roadmap:` occurrence naming a DIFFERENT test file is a fixture reference,
 #     not the test-owns-item link
-grep -q 'id:bb02 — TICK-READY' <<<"$out" \
-  && report "case B (defect 2): id:bb02's only # roadmap: match is a fixture reference to another test file; it must not establish the link"
+grep -q 'id:6217 — TICK-READY' <<<"$out" \
+  && report "case B (defect 2): id:6217's only # roadmap: match is a fixture reference to another test file; it must not establish the link"
 
 if (( fail )); then
   echo "--- scan output ---"
