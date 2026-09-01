@@ -123,7 +123,15 @@
         "assignee": {
           "anyOf": [{ "enum": ["executor", "apex", "human", "daemon"] }, { "type": "null" }]
         },
-        "parent": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "parent": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "description": "Backward-compat single-parent view: the FIRST entry of `parents` (or null). A line declaring more than one `children-of:` parent is not fully represented here -- read `parents` for the lossless set (id:8302)."
+        },
+        "parents": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "ALL parents a child-side `<!-- children-of:a,b -->` line declares, in declaration order. `parent` is a convenience alias for `parents[0]` and drops any additional parent (id:8302)."
+        },
         "children": { "type": "array", "items": { "type": "string" } },
         "blocked_by": { "type": "array", "items": { "type": "string" } },
         "links": { "type": "array", "items": { "$ref": "#/$defs/link" } },

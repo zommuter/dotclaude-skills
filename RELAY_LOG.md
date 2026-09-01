@@ -2890,3 +2890,39 @@ refactor: none needed -- a contract-prose edit with no code duplication introduc
 ## 2026-09-01 10:40 — executor (sonnet, relay-loop)
 
 Fixed id:d8b3 -- executor-contract rule 2c's ZERO-COMMIT escalation counter now accumulates via relay-state-write.sh event-append into ~/.config/relay/relay-events.jsonl instead of the never-merged RELAY_LOG.md, making route=hard-split reachable; contract bumped v17-&gt;v18. [id:d8b3]
+
+## 2026-09-01 -- executor (sonnet)
+
+Worked id:8302 -- `tracker/ledger-map.py` looped over every `children-of:` token
+writing the SAME scalar `parent` slot, so a multi-parent line silently kept only
+the last parent (measured: `parent_aa01=0` in the RED fixture). Fixed by
+collecting every declared parent into a new `parents` list on the item (schema
+additive, `additionalProperties: true`, no `schema_version` bump needed), and
+kept `parent` as a backward-compat alias for `parents[0]` for the handful of
+downstream readers (`adapter_common.py`, `derived-index.py`,
+`homonym-worksheet.py`) that still expect a single scalar. Also widened the
+dangling-parent warn in `validate_doc` to check every declared parent, not just
+the first.
+Scope note: an earlier attempt additionally reconciled the OTHER direction
+(auto-backfilling a child's `parents` from a parent-side `children:`
+declaration) to more fully address the item's general "two spellings, one
+relation" framing. That is NOT required by the item's own Acceptance/test (which
+only pins the multi-`children-of:` case) and it broke `test_tracker_plane_live_contract.sh`
+by making `adapter_common.relation_edges()` emit both a `parent` edge (from the
+newly-backfilled child) and a `child` edge (from the pre-existing parent-side
+declaration) for the identical physical relation -- a genuine duplicate the
+Plane adapter's edge-counting had never had to handle. Reverted that half;
+cross-direction reconciliation for `children:`-only declarations stays exactly
+where `derived-index.py`'s `parent_child_edges()` already does it (at read
+time, not import time) -- unification of the whole `children-of:`/`children:`
+graph across both declaration directions is a separate, larger item than 8302.
+Regenerated `tracker/fixtures/expected/{repo-alpha,repo-beta,fleet-collision}.json`
+(the only change is the new, empty-or-populated `parents` array per item) and
+`tracker/schema/ledger-intermediate.schema.json` documents the new field.
+`make test`: 538 passed, 0 failed, 1 expected-red.
+refactor: none needed -- the fix is additive (a list field + a backward-compat
+scalar derivation); no duplication was introduced or removed.
+Friction: context-budget.sh --self reported a `handback` verdict
+(est_tokens=108379) after the work was already committed/green -- applying the
+v16 near-done carve-out (landing already-complete work, no new investigation
+started) rather than discarding a finished unit.
