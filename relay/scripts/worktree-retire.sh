@@ -69,6 +69,17 @@
 # normal park path, so "discard the residue" can never become "lose the work". The residue is
 # archived first, to a 0700 dir OUTSIDE any git repo — refused if that path is in a work tree.
 #
+# THE FOURTH BRANCH -- the NARROW SUBMODULE ESCAPE HATCH (id:a290 shape (b), owner-ruled
+# 2026-09-01). `git worktree remove` refuses a worktree whose submodules are POPULATED even
+# when it is spotless and fully merged, so relay debris on submodule repos accumulated with no
+# force-free route (1.8 GB before the owner cleared it by hand). This hatch force-removes such
+# a worktree -- but ONLY after this script has itself PROVED clean AND merged AND has POSITIVELY
+# RECOGNIZED git's exact submodule refusal. It is structurally unable to fire on dirty or
+# unmerged work, and it FAILS CLOSED on any refusal it does not recognize verbatim. See the
+# long comment at step 1b, including what roadmap:b02f documented and got wrong. No flag: it is
+# on by default (that is the point -- it ends the recurrence); `WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1`
+# disables it.
+#
 # Exit codes:
 #   0  retired cleanly (worktree removed, branch deleted or parked as designed)
 #   2  usage / not-a-git-repo error
@@ -78,6 +89,7 @@
 #
 # Env overrides (hermetic tests):
 #   WORKTREE_RETIRE_LOG   default ~/.claude/logs/relay-worktree-retire.log
+#   WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1   disable the id:a290 submodule escape hatch entirely
 set -euo pipefail
 
 LOG="${WORKTREE_RETIRE_LOG:-$HOME/.claude/logs/relay-worktree-retire.log}"
@@ -283,28 +295,103 @@ else
     # Dirty (non-ignored untracked or tracked-modified), locked, or otherwise unremovable.
     # Per the no-force policy: SURFACE and LEAVE. Do NOT touch the branch — worktree+branch
     # both stay on disk for a supervised reconcile. Nothing is discarded or forced.
-    # roadmap:b02f — SUBMODULE repos are a STRUCTURALLY different case and must not be given
-    # the dirty-tree advice. `git worktree remove` refuses any worktree whose tree carries
-    # submodules, regardless of state: measured 2026-08-26 on three CLEAN, fully-merged,
-    # zero-unmerged-commit yinyang-puzzle worktrees, the oldest a month old. Telling a human to
-    # "commit real work / gitignore throwaway" sends them hunting for dirt that does not exist.
+    # ---- 1b. THE NARROW SUBMODULE ESCAPE HATCH (id:a290 shape (b)) -----------
+    # SUBMODULE repos are a STRUCTURALLY different case and must not be given the dirty-tree
+    # advice: git refuses a worktree whose submodules are populated even when the tree is
+    # spotless and the branch fully merged (measured 2026-08-26 on three CLEAN, fully-merged
+    # yinyang-puzzle worktrees, the oldest a month old). Telling a human to "commit real work"
+    # sends them hunting for dirt that does not exist, and the debris just accumulates --
+    # 1.8 GB across five worktrees before the owner disposed of them by hand.
     #
-    # Direction (b) of b02f — deinit the submodules first — was TESTED and REFUTED the same day:
-    # `git submodule deinit --all` (no -f) succeeded and printed "Cleared directory
-    # 'vendor/spectre_py'", and `git worktree remove` STILL refused with the identical message.
-    # git keys this check on `.gitmodules` being in the tree, not on whether any submodule is
-    # actually checked out. So there is no force-free route, and we say so plainly instead of
-    # implying one exists.
-    if [[ "$err" == *"containing submodules"* ]]; then
-      msg="retire-unretirable $bn: this worktree's tree carries SUBMODULES, and git refuses to remove any such worktree regardless of its state — this one may be perfectly clean and merged. There is NO force-free route (roadmap:b02f: deinit-first was tested and does NOT lift the refusal; git checks .gitmodules, not checkout state). Only 'git worktree remove --force' removes it, which is the op id:373e avoids and id:221f(a) denies. LEFT on disk deliberately; do NOT go looking for dirt to clean. git said: ${err//$'\n'/ }"
-      log "UNRETIRABLE-SUBMODULE $msg"
+    # The owner ruled 2026-09-01 (TODO id:a290) that this ONE case may force, from inside this
+    # one audited script -- the same "deny the raw form, route through the gated script" shape
+    # as --discard-residue above. It fires ONLY when ALL FOUR hold, and every one is checked
+    # POSITIVELY here rather than inferred:
+    #
+    #   (1) git's refusal is EXACTLY the recognized submodule refusal (string equality, below);
+    #   (2) the worktree's HEAD really is the branch we were handed;
+    #   (3) the tree is CLEAN, by our own check, submodule contents included;
+    #   (4) the branch is already an ancestor of the repo HEAD (nothing unmerged to lose).
+    #
+    # WHAT roadmap:b02f GOT WRONG, and why (1) is string-matched rather than assumed.
+    # b02f documented git as keying this refusal on `.gitmodules` being in the tree. That is
+    # FALSE, refuted by fixture 2026-09-01 (git 2.55.0): a worktree with `.gitmodules` present
+    # and the gitlink in its index, but the submodule NEVER INITIALIZED, removes cleanly with
+    # no force at all. The refusal appears only once the submodule is POPULATED, and it
+    # SURVIVES `git submodule deinit --all` even after the gitlink directory itself is removed
+    # -- what persists is `.git/worktrees/<wt>/modules/<gitlink-path>`, which git tests for each
+    # gitlink in the worktree's index. `deinit` does not remove it. So the presence of
+    # `.gitmodules` proves NOTHING about whether this refusal is in play, in either direction,
+    # and we never reason from it.
+    #
+    # WHY (3) CANNOT BE SKIPPED -- the refusal MASKS dirtiness. git validates submodules BEFORE
+    # it checks for modified/untracked files, so a DIRTY populated-submodule worktree emits the
+    # IDENTICAL message as a clean one. Recognizing the refusal is therefore NOT evidence that
+    # the tree is clean, and matching the string alone would force away uncommitted work. Our
+    # own `status --porcelain` is the only thing standing between this hatch and that bug.
+    # `--ignore-submodules=none` so an edit inside the submodule counts as dirty too.
+    #
+    # FAIL CLOSED. Nobody has fully characterised the mechanism sustaining the refusal, so any
+    # refusal text we do not recognize VERBATIM -- a different git version's wording, a locked
+    # worktree, anything -- refuses to force, reports loudly, and exits non-zero. We never infer
+    # "it must be the submodule thing".
+    #
+    # Note we pass exactly ONE `--force`, never `-f -f`: a LOCKED worktree cannot be removed by
+    # a single --force, so the lock remains an independent backstop (and empirically git reports
+    # the lock refusal in preference to the submodule one, so (1) already fails there).
+    submodule_refusal='fatal: working trees containing submodules cannot be moved or removed'
+    if [[ "$err" == "$submodule_refusal" && "${WORKTREE_RETIRE_NO_SUBMODULE_FORCE:-0}" != "1" ]]; then
+      hatch_refused=""
+      wt_head="$(git -C "$wt" symbolic-ref --quiet HEAD 2>/dev/null || true)"
+      if [[ "$wt_head" != "refs/heads/$branch" ]]; then
+        hatch_refused="the worktree's HEAD is '${wt_head:-<detached>}', not the 'refs/heads/$branch' we were handed -- refusing to force a worktree we cannot account for"
+      elif [[ -n "$(git -C "$wt" status --porcelain --ignore-submodules=none 2>/dev/null)" ]]; then
+        # This is the masked-dirty case. Say so explicitly: the operator sees git's submodule
+        # message but the real blocker is uncommitted content git never got as far as reporting.
+        hatch_refused="the worktree is DIRTY (git's submodule refusal MASKS this -- it validates submodules before it looks for modified/untracked files). Uncommitted content is present and nothing will be forced. Inspect: git -C $wt status"
+      elif ! git -C "$repo" merge-base --is-ancestor "refs/heads/$branch" HEAD >/dev/null 2>&1; then
+        hatch_refused="branch $branch is NOT an ancestor of the repo HEAD -- it carries unmerged commits, and this hatch never forces away work"
+      fi
+
+      if [[ -z "$hatch_refused" ]]; then
+        if ferr="$(git -C "$repo" worktree remove --force "$wt" 2>&1)"; then
+          msg="submodule-force-hatch $bn: worktree carried POPULATED submodules, which git refuses to remove without --force. Verified first: HEAD is refs/heads/$branch, tree CLEAN (submodules included), branch already an ancestor of HEAD. Force-removed (id:a290 shape (b), owner-ruled 2026-09-01). Nothing uncommitted and no unmerged commit existed to lose."
+          log "SUBMODULE-FORCE-HATCH $msg"
+          echo "$msg"
+          # fall through to the normal branch disposition below
+        else
+          msg="retire-unretirable $bn: recognized the submodule refusal and the clean+merged preconditions held, but 'git worktree remove --force' ITSELF failed -- LEFT on disk, nothing else attempted (a lock needs 'remove -f -f', which this script deliberately never issues). git said: ${ferr//$'\n'/ }"
+          log "SUBMODULE-FORCE-FAILED $msg"
+          echo "$msg"
+          exit 3
+        fi
+      else
+        msg="retire-unretirable $bn: git refuses this worktree because its SUBMODULES are populated, and the id:a290 escape hatch REFUSED to force it -- $hatch_refused. LEFT on disk with branch $branch untouched; nothing forced, nothing lost. git said: ${err//$'\n'/ }"
+        log "UNRETIRABLE-SUBMODULE-HATCH-REFUSED $msg"
+        echo "$msg"
+        exit 3
+      fi
+    elif [[ "$err" == *"containing submodules"* ]]; then
+      # Recognizably about submodules, but NOT the verbatim string the hatch is allowed to act
+      # on (a different git version's wording?), or the hatch was disabled by env. FAIL CLOSED.
+      if [[ "${WORKTREE_RETIRE_NO_SUBMODULE_FORCE:-0}" == "1" ]]; then
+        why="it is disabled by WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1"
+      else
+        why="git's refusal text is NOT the verbatim form the hatch is permitted to act on, so it refuses to force on an unrecognized refusal (fail closed). If this is a git-version wording change, update submodule_refusal in this script deliberately; never loosen it to a substring"
+      fi
+      msg="retire-unretirable $bn: this worktree carries SUBMODULES and git refuses to remove it. The id:a290 escape hatch did NOT fire because $why. LEFT on disk deliberately; do NOT go looking for dirt to clean. git said: ${err//$'\n'/ }"
+      log "UNRETIRABLE-SUBMODULE-UNRECOGNIZED $msg"
       echo "$msg"
       exit 3
     fi
-    msg="retire-deferred $bn: worktree unremovable — LEFT on disk for supervised reconcile. git said: ${err//$'\n'/ } (inspect: git -C $wt status; then commit real work / gitignore throwaway, or remove by hand)"
-    log "DEFER $msg"
-    echo "$msg"
-    exit 3
+    # Reached only when the hatch did NOT remove the worktree (it exits 3 itself on refusal,
+    # and on success $wt is gone and we fall through to the branch step).
+    if [[ -e "$wt" ]]; then
+      msg="retire-deferred $bn: worktree unremovable -- LEFT on disk for supervised reconcile. git said: ${err//$'\n'/ } (inspect: git -C $wt status; then commit real work / gitignore throwaway, or remove by hand)"
+      log "DEFER $msg"
+      echo "$msg"
+      exit 3
+    fi
   fi
 fi
 

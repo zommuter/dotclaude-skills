@@ -146,10 +146,22 @@ pass "single-target scope: sibling worktree+branch untouched"
 # Strip comments, log(), echo, and msg= assignments — those legitimately mention the verbs
 # in prose/surfaced text ("do NOT -D", "commit real work"). What remains is actual command
 # invocations; none may carry a force/destructive git verb.
-code="$(grep -vE '^[[:space:]]*#' "$SH" | grep -vE '(^[[:space:]]*(log|echo)\b|[[:space:]]*msg=)')"
-grep -Eq -- '--force|branch[[:space:]]+-D\b|reset[[:space:]]+--hard|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?clean|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?stash' < <(printf '%s\n' "$code") \
+code="$(grep -vE '^[[:space:]]*#' "$SH" | grep -vE '(^[[:space:]]*(log|echo)\b|[[:space:]]*(msg|hatch_refused|why|submodule_refusal)=)')"
+# AMENDED 2026-09-01 (TODO id:a290, owner-ruled): ONE `git worktree remove --force` is now
+# permitted — the narrow submodule escape hatch, which fires only after the helper has itself
+# proved the tree CLEAN and the branch already merged, and only on git's verbatim submodule
+# refusal (behaviour pinned by tests/test_submodule_force_hatch_a290.sh). Everything else in
+# this ban is unchanged. Counting rather than allowing keeps it a ratchet: a second force, or a
+# force anywhere but `worktree remove`, still fails here.
+n_force="$(grep -Ec -- '--force' <<<"$code" || true)"
+n_wt_force="$(grep -Ec -- 'worktree remove --force' <<<"$code" || true)"
+[[ "$n_force" -eq 1 ]] \
+  || fail "helper must carry EXACTLY ONE --force (the id:a290 submodule escape hatch); found $n_force"
+[[ "$n_wt_force" -eq 1 ]] \
+  || fail "helper's only permitted --force is 'git worktree remove --force' (id:a290); found $n_wt_force such"
+grep -Eq -- 'branch[[:space:]]+-D\b|reset[[:space:]]+--hard|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?clean|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?stash' < <(printf '%s\n' "$code") \
   && fail "helper executes a forbidden force/destructive git verb"
-pass "helper executes no forbidden force/destructive git verb"
+pass "helper executes no forbidden destructive git verb (exactly one permitted a290 --force)"
 
 # ── 9. roadmap:8d76 — owner-authorized residue DISCARD (--discard-residue --ack <token>) ──
 # This is the ONE path that destroys uncommitted work, so every guard is asserted. It exists
