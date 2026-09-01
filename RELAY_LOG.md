@@ -2859,3 +2859,7 @@ archive half is runnable. Not ticked: the archive rewrite has not been performed
 relay-doctor: 0 per-repo issues (roadmap-lint clean of hard violations, todo-conformance
 clean, no main-checkout residue, no mechanical orphan). orphan-scan --cross-ledger clean.
 The 21,022 total it prints is the known relay-core shadow mismatch count, not a repo issue.
+
+## 2026-09-01 10:32 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: 20 owner commits audited clean (gaming-scan 0, 536 pass/0 fail); closed id:2065, promoted id:8302+id:d8b3 with red specs, unblocked id:6958 — repo flips review→execute (2 actionable) [id:2065,8302,d8b3,6958,9fa2]
