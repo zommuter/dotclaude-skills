@@ -68,7 +68,14 @@
 #
 # Usage:
 #   tracker/fleet-import.sh [--state <file>] [--out <fleet.json>] [--repo <name>]
-#                           [--allowlist-file <file>] [--dry-run] [-h|--help]
+#                           [--allowlist-file <file>] [--mirror-file <file>]
+#                           [--dry-run] [-h|--help]
+#
+#   --mirror-file     the recorded parent/plugin MIRROR convention (id:9fa2, default
+#                     tracker/mirror-tokens.txt). SEPARATE from --allowlist-file: a
+#                     mirror is the SAME item on both sides of a parent/plugin pair,
+#                     not two unrelated items sharing a token. Each recognised mirror
+#                     is COUNTED in validate's output, never silently downgraded.
 #
 #   --state           durable state document (default $TRACKER_STATE or
 #                     ~/.cache/relay/tracker/fleet-state.json). Written atomically.
@@ -106,6 +113,7 @@ state_file="${TRACKER_STATE:-$HOME/.cache/relay/tracker/fleet-state.json}"
 out_file=""
 only_repo=""
 allowlist_file="$SCRIPT_DIR/homonym-allowlist.txt"
+mirror_file="$SCRIPT_DIR/mirror-tokens.txt"
 dry_run=0
 emit_unvalidated=0
 
@@ -116,6 +124,7 @@ while [[ $# -gt 0 ]]; do
     --emit-unvalidated) emit_unvalidated=1; shift ;;
     --repo) only_repo="$2"; shift 2 ;;
     --allowlist-file) allowlist_file="$2"; shift 2 ;;
+    --mirror-file) mirror_file="$2"; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
     -h|--help) sed -n '2,4p;96,112p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "fleet-import.sh: unknown arg: $1" >&2; exit 2 ;;
@@ -198,6 +207,26 @@ EOF
   fi
   echo "fleet-import.sh: ledger-map.py validate exposes no homonym allow-list flag at all" >&2
   exit 5
+}
+
+# Parent/plugin MIRROR convention (id:9fa2, owner-ratified 2026-09-01). Passed as a
+# SEPARATE surface from the homonym allow-list on purpose: the allow-list claims "these
+# items are unrelated", which is the wrong claim for a deliberate mirror of ONE item
+# across a parent repo and its plugin repo. Absence of the flag on the on-disk
+# ledger-map.py is STRICTER, not laxer (the mirrors simply stay fatal), so it is a
+# warning here rather than the fail-closed abort the boolean allow-list gets.
+mirror_flags=()
+build_mirror_flags() {
+  [[ -f "$mirror_file" ]] || return 0
+  grep -qE '^[[:blank:]]*[0-9a-f]{4}[[:blank:]]*$' "$mirror_file" || return 0   # empty ⇒ no flag
+  local help
+  help="$(python3 "$LEDGER_MAP" validate --help 2>&1)" || {
+    echo "fleet-import.sh: could not read 'ledger-map.py validate --help'" >&2; exit 2; }
+  if grep -qE -- '--mirror-file' <<<"$help"; then
+    mirror_flags=(--mirror-file "$mirror_file")
+    return 0
+  fi
+  echo "fleet-import.sh: $LEDGER_MAP exposes no --mirror-file surface (id:9fa2); the recorded parent/plugin mirrors in $mirror_file stay FATAL for this run." >&2
 }
 
 # --------------------------------------------------------------------------------------
@@ -322,10 +351,12 @@ else
 fi
 
 build_homonym_flags
+build_mirror_flags
 
 run_validate() {
   local rc=0
-  python3 "$LEDGER_MAP" validate "${homonym_flags[@]+"${homonym_flags[@]}"}" "$fleet" \
+  python3 "$LEDGER_MAP" validate "${homonym_flags[@]+"${homonym_flags[@]}"}" \
+    "${mirror_flags[@]+"${mirror_flags[@]}"}" "$fleet" \
     > "$tmpdir/val.out" 2> "$tmpdir/val.err" || rc=$?
   return "$rc"
 }

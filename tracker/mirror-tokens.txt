@@ -1,0 +1,36 @@
+# parent/plugin MIRROR convention — id:9fa2, owner-ratified 2026-09-01
+# ("one recorded convention, no per-token edges").
+#
+# WHAT THIS FILE IS. A deliberate MIRROR is the SAME item recorded on both sides of a
+# parent repo and one of its plugin repos (`zkm` / `zkm-whatsapp`, …). The composite
+# (repo,id) key already keeps them apart, so the cross-repo class-A collision they raise
+# is expected rather than a defect. Passing this file to
+#     ledger-map.py validate <doc> --mirror-file tracker/mirror-tokens.txt
+# downgrades each listed token to a COUNTED warning — never a silent one — and only when
+# the repos actually form a `<parent>` / `<parent>-<suffix>` family.
+#
+# WHY THIS IS NOT tracker/homonym-allowlist.txt. `--allow-homonym` asserts "two UNRELATED
+# items happen to share a token". That claim is false for a mirror, and the owner ruled
+# mirrors must not be allow-listed as unrelated. Different claim ⇒ different surface.
+#
+# WHY NOT A PURE REPO-NAME RULE. Repo-name shape is not sound evidence, and a purely
+# structural `<parent>`/`<parent>-<suffix>` rule was tried and reverted because it also
+# swallowed:
+#   * 5e19, cfd1 — zkm / zkm-whatsapp doctrine-vs-instance tokens the owner separately
+#     ruled must get a FRESH id on the zkm-whatsapp side (routed:4ede). Capturing them
+#     silently REMOVES them from the decision queue.
+#   * df4e — zkm / zkm-notmuch, an ordinary birthday collision that was never in the
+#     needs-a-look set (it is on the ratified bucket-B allow-list).
+# Shape is therefore a GUARD (it can refuse a claim) and never a DRIVER (it can never
+# manufacture one). Absence from this file is the exclusion mechanism: nothing has to be
+# maintained as a growing negative list of "not actually a mirror" tokens.
+#
+# NOT COVERED. The repo-MOVE case (`dbe0`, loderite → lodelore, id carried verbatim) is
+# NOT structurally derivable — `lodelore` is not `loderite-<suffix>` — and is deliberately
+# out of scope here rather than stretched into the prefix guard.
+
+# ---- S1 — zkm / zkm-whatsapp mirrors -----------------------------------------------
+1c7d
+4b8e
+d058
+f5b7

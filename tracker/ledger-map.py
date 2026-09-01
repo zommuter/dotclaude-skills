@@ -920,8 +920,32 @@ def validate_repos(doc: dict) -> list:
     return errs
 
 
-def validate_doc(doc: dict, allowed_homonyms=frozenset()) -> tuple:
+def parent_plugin_family(repos):
+    """Return the PARENT repo name if `repos` is a `<parent>` / `<parent>-<suffix>`
+    family (e.g. `zkm` + `zkm-whatsapp`), else None.
+
+    This is a GUARD, never the driver (id:9fa2). Repo-name shape alone is not sound
+    evidence of a deliberate mirror: `zkm` / `zkm-notmuch` share the shape and their
+    `df4e` collision is an ordinary birthday collision, while `zkm` / `zkm-whatsapp`
+    carry BOTH deliberate mirrors and two tokens the owner ruled must be re-minted
+    (5e19, cfd1, routed:4ede). So the shape can only CONFIRM a declared mirror; it
+    can never manufacture one.
+    """
+    for cand in repos:
+        if all(r == cand or r.startswith(cand + "-") for r in repos):
+            return cand
+    return None
+
+
+def validate_doc(doc: dict, allowed_homonyms=frozenset(), mirror_tokens=frozenset()) -> tuple:
     """Return (errors, warnings). Errors are fatal (exit 3).
+
+    `mirror_tokens` records the parent/plugin MIRROR convention (id:9fa2,
+    owner-ratified 2026-09-01: "one recorded convention, no per-token edges"). A
+    listed token whose repos form a `<parent>`/`<parent>-<suffix>` family is a
+    deliberate same-item mirror and is downgraded to a COUNTED warning; a listed
+    token whose repos do not form such a family has its claim REFUSED, loudly, and
+    stays fatal. Class B is unaffected — a mirror never resolves an ambiguous edge.
 
     `allowed_homonyms` is an explicit ALLOW-LIST of adjudicated bare tokens (id:ca24,
     owner-decided 2026-08-10; supersedes the blanket boolean shipped by id:2bb1). A
@@ -1026,6 +1050,7 @@ def validate_doc(doc: dict, allowed_homonyms=frozenset()) -> tuple:
                 routed_tokens.add(ln["token"])
 
     seen_homonyms = set()
+    mirrors_recognised = []
     for tok, uids in sorted(by_bare_id.items()):
         repos = sorted({u.split("/", 1)[0] for u in uids})
         if len(repos) < 2:
@@ -1035,11 +1060,27 @@ def validate_doc(doc: dict, allowed_homonyms=frozenset()) -> tuple:
             errs.append("cross-repo id collision (class B, AMBIGUOUS REFERENCE): bare "
                         "token %r exists in repos %s and is used as a cross-repo routed "
                         "edge — the edge cannot be resolved to one (repo,id)" % (tok, repos))
+        elif tok in mirror_tokens and parent_plugin_family(repos):
+            # id:9fa2 — a DELIBERATE mirror of one item across a parent repo and its
+            # plugin repo. Reported and COUNTED (see the summary warning below): an
+            # invisible downgrade would hide real collisions inside a growing plugin
+            # family, which is the whole reason class A is loud.
+            mirrors_recognised.append(tok)
+            warns.append("cross-repo id MIRROR (class A downgraded): %r in repos %s — "
+                         "parent/plugin mirror convention (id:9fa2); parent %r"
+                         % (tok, repos, parent_plugin_family(repos)))
         elif tok in allowed_homonyms:
             warns.append("cross-repo id homonym (class A): %r in repos %s — composite "
                          "key disambiguates; ADJUDICATED via --allow-homonym %s"
                          % (tok, repos, tok))
         else:
+            if tok in mirror_tokens:
+                # The convention was CLAIMED for a pair that is not a parent/plugin
+                # family. Refuse it loudly and fall through to the normal class-A
+                # treatment rather than honouring a claim the repo names contradict.
+                warns.append("parent/plugin MIRROR declaration REFUSED for %r: repos %s "
+                             "are not a <parent>/<parent>-<suffix> family — the token is "
+                             "treated as an ordinary class-A homonym" % (tok, repos))
             errs.append("cross-repo id collision (class A, HOMONYM): bare token %r exists "
                         "in repos %s — adjudicate it explicitly with --allow-homonym %s "
                         "(per-token; there is no blanket downgrade)" % (tok, repos, tok))
@@ -1049,6 +1090,15 @@ def validate_doc(doc: dict, allowed_homonyms=frozenset()) -> tuple:
     for tok in sorted(set(allowed_homonyms) - seen_homonyms):
         warns.append("--allow-homonym %s is stale: %r is not a class-A cross-repo homonym "
                      "in this document" % (tok, tok))
+    for tok in sorted(set(mirror_tokens) - seen_homonyms):
+        warns.append("parent/plugin mirror %s is stale: %r is not a class-A cross-repo "
+                     "homonym in this document" % (tok, tok))
+
+    # id:9fa2 — the recognised mirrors are COUNTED, always, so the convention can never
+    # be a silent downgrade: a mirror set that starts growing is visible in every run.
+    if mirrors_recognised:
+        warns.append("parent/plugin mirror convention (id:9fa2): recognised %d mirror(s): %s"
+                     % (len(mirrors_recognised), ", ".join(sorted(mirrors_recognised))))
 
     for it in items:
         for b in it.get("blocked_by", []):
@@ -1089,12 +1139,11 @@ def render_status(doc: dict) -> str:
 ALLOW_TOKEN_RE = re.compile(r"^[0-9a-f]{4}$")
 
 
-def collect_allowed_homonyms(tokens, path) -> frozenset:
-    """Build the adjudicated allow-list from --allow-homonym / --allow-homonym-file.
+def _collect_tokens(tokens, path, flag, what) -> frozenset:
+    """Read a token set from a repeatable flag plus an optional one-per-line file.
 
     Every entry must be a literal 4-hex token. A malformed entry (a wildcard, `all`,
-    a range) dies loudly rather than being ignored — the only way to accept a class-A
-    homonym is to name it, one token at a time (id:ca24).
+    a range) dies loudly rather than being ignored.
     """
     out = set(tokens or [])
     if path:
@@ -1102,16 +1151,34 @@ def collect_allowed_homonyms(tokens, path) -> frozenset:
             with open(path, "r", encoding="utf-8") as fh:
                 lines = fh.read().splitlines()
         except OSError as exc:
-            die("--allow-homonym-file: %s" % exc)
+            die("%s-file: %s" % (flag, exc))
         for raw in lines:
             entry = raw.split("#", 1)[0].strip()
             if entry:
                 out.add(entry)
     bad = sorted(t for t in out if not ALLOW_TOKEN_RE.match(t))
     if bad:
-        die("--allow-homonym takes literal 4-hex tokens, one per adjudicated homonym; "
-            "rejected: %s (there is no blanket/wildcard downgrade)" % ", ".join(repr(b) for b in bad))
+        die("%s takes literal 4-hex tokens, one per %s; rejected: %s "
+            "(there is no blanket/wildcard downgrade)"
+            % (flag, what, ", ".join(repr(b) for b in bad)))
     return frozenset(out)
+
+
+def collect_allowed_homonyms(tokens, path) -> frozenset:
+    """Build the adjudicated allow-list from --allow-homonym / --allow-homonym-file.
+
+    The only way to accept a class-A homonym is to name it, one token at a time
+    (id:ca24).
+    """
+    return _collect_tokens(tokens, path, "--allow-homonym", "adjudicated homonym")
+
+
+def collect_mirror_tokens(tokens, path) -> frozenset:
+    """Build the parent/plugin MIRROR set from --mirror-token / --mirror-file (id:9fa2).
+
+    The shipped record of the convention is `tracker/mirror-tokens.txt`.
+    """
+    return _collect_tokens(tokens, path, "--mirror-token", "mirrored item")
 
 
 def read_doc(path: str) -> dict:
@@ -1144,6 +1211,18 @@ def main(argv=None) -> int:
     p_val.add_argument("--allow-homonym-file", metavar="PATH",
                        help="file of adjudicated tokens, one per line ('#' comments and "
                             "blank lines ignored) — same semantics as --allow-homonym")
+    # id:9fa2 — the parent/plugin MIRROR convention (owner-ratified 2026-09-01). A
+    # SEPARATE surface from --allow-homonym on purpose: the allow-list asserts "these
+    # are unrelated items whose composite key disambiguates them", which is the WRONG
+    # claim for a deliberate mirror of the SAME item across a parent and its plugin.
+    p_val.add_argument("--mirror-token", action="append", metavar="TOKEN", default=[],
+                       help="record a parent/plugin MIRROR (4-hex token); repeatable. "
+                            "Downgraded to a COUNTED warning only when the repos form a "
+                            "<parent>/<parent>-<suffix> family; otherwise the claim is "
+                            "refused and the token stays fatal")
+    p_val.add_argument("--mirror-file", metavar="PATH",
+                       help="file of mirrored tokens, one per line — the shipped record "
+                            "is tracker/mirror-tokens.txt")
 
     p_ren = sub.add_parser("render-status", help="project items back to per-view checkbox states")
     p_ren.add_argument("doc")
@@ -1169,8 +1248,9 @@ def main(argv=None) -> int:
     if args.cmd == "validate":
         doc = read_doc(args.doc)
         allowed = collect_allowed_homonyms(args.allow_homonym, args.allow_homonym_file)
+        mirrors = collect_mirror_tokens(args.mirror_token, args.mirror_file)
         errs = schema_cross_check(load_schema())
-        e2, warns = validate_doc(doc, allowed)
+        e2, warns = validate_doc(doc, allowed, mirrors)
         errs.extend(e2)
         for w in warns:
             print("WARN: %s" % w, file=sys.stderr)

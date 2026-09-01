@@ -116,6 +116,35 @@ python3 ledger-map.py validate fleet.json --allow-homonym-file adjudicated-homon
 - A listed token that is not actually a homonym in the document is reported as a **stale**
   adjudication (`WARN`), so the list cannot silently accumulate.
 
+#### Parent/plugin mirrors — one recorded convention (`id:9fa2`)
+
+A **mirror** is the *same* item deliberately recorded on both sides of a parent repo and
+one of its plugin repos (`zkm` / `zkm-whatsapp`). It raises a class-A collision, but the
+allow-list is the wrong instrument for it: `--allow-homonym` asserts *"two UNRELATED items
+happen to share a token"*, which is false here. Owner-ratified 2026-09-01 as **one recorded
+convention, no per-token ledger edges**, with its own surface:
+
+```bash
+python3 ledger-map.py validate fleet.json --mirror-file tracker/mirror-tokens.txt
+```
+
+- `tracker/mirror-tokens.txt` is the recorded convention (`--mirror-token TOKEN` is the
+  repeatable inline form). Same strict 4-hex parsing as the allow-list; no wildcard.
+- A listed token downgrades **only if** its repos form a `<parent>` / `<parent>-<suffix>`
+  family. Repo-name shape is a **guard, never the driver** — a purely structural rule was
+  tried and reverted because it also swallowed `5e19`/`cfd1` (which the owner ruled must be
+  re-minted on the plugin side, `routed:4ede`) and `df4e` (`zkm`/`zkm-notmuch`, an ordinary
+  birthday collision). Absence from the file *is* the exclusion mechanism, so no negative
+  list has to be maintained.
+- A listed token whose repos are **not** such a family has its claim **REFUSED** with a
+  warning and stays fatal; a listed token that is not a homonym at all is reported **stale**.
+- Every recognised mirror is named **and counted** (`recognised N mirror(s): …`). An
+  invisible downgrade would hide real collisions inside a growing plugin family.
+- Class B is unaffected: a mirror never resolves an ambiguous cross-repo edge.
+- **Not covered:** the repo-MOVE case (`dbe0`, `loderite` → `lodelore`, id carried
+  verbatim). `lodelore` is not `loderite-<suffix>`; the prefix guard is deliberately not
+  stretched to reach it.
+
 **Class B is never downgradable** and needs no policy debate: the edge is
 genuinely unresolvable, and a tracker that guesses one target is worse than one that stops.
 
