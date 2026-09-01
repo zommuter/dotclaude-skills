@@ -253,6 +253,34 @@ elif [[ "$mode" == "shipped" ]]; then
   declare -A local_state
   typed_edges_build_state_map local_state "$ROOT/TODO.md" "$ROOT/TODO.archive.md" "$ROOT/ROADMAP.md"
 
+  # --- ROADMAP-twin gate map (id:4425 defect 1) --------------------------------
+  # `--shipped` reads TODO.md and resolves typed edges against the TODO union only —
+  # ROADMAP drift is `--cross-ledger`'s job. But id:3801's auto-gating writes its
+  # `🚧 GATED` marker on the ROADMAP TWIN, not the TODO line, so under single-id-two-views
+  # a genuinely gated item presents a perfectly clean TODO line and reads as tick-ready.
+  # Live 2026-09-01: id:6217 and id:9eb7 are both [INPUT - decision] + 🚧 in ROADMAP.md and
+  # BOTH were reported "no gate ... ready to tick"; 6217 had already been surfaced that way
+  # once and nearly acted on. TICK-READY is an ACTION RECOMMENDATION, and `--cross-ledger`
+  # is a separate scan nothing cross-references, so the gate never reaches the reader being
+  # told to tick — ticking a gated [INPUT - decision] on a scan's say-so is the
+  # delegated-verdict-settled-without-owner-ratification class.
+  #
+  # Deliberately NARROW: this suppresses TICK-READY only. It does not widen resolution,
+  # does not touch GATE-STALE / the umbrella classes, and never ADDS an output line — so
+  # its entire blast radius is "claims doneness less often". Over-suppression is safe here
+  # (the item simply stays open for a human to look at); under-suppression is what bit us.
+  # First-wins with ROADMAP.md before ROADMAP.archive.md, so a LIVE line beats a recycled
+  # archived token (the id:9221 rule, applied on this side too).
+  declare -A roadmap_gated
+  while IFS= read -r l; do
+    rg=''
+    grep -qiE '🚧|\bGATED\b' <<<"$l" && rg='1'
+    while read -r tk; do
+      [[ -z "$tk" ]] && continue
+      [[ -n "${roadmap_gated[$tk]+x}" ]] || roadmap_gated["$tk"]="$rg"
+    done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
+  done < <(grep -hE '^\s*- \[[ xX]\] ' "$ROOT/ROADMAP.md" "$ROOT/ROADMAP.archive.md" 2>/dev/null || true)
+
   # Confirmed own-repo NAMES for the UMBRELLA-CROSS-REPO decision. These come from
   # relay.toml via the shared, tested reader lib-own-repos.sh — NEVER a ~/src glob
   # (correction 2026-07-10: zkm-ner lives at ~/src/zkm/plugins/zkm-ner, which a glob
@@ -423,7 +451,37 @@ elif [[ "$mode" == "shipped" ]]; then
       # inline `tests/test_*.sh` path mention is NOT trusted — a multi-part/umbrella
       # item routinely cites a sub-part's test in prose, which produced false
       # "ready to tick" hits on live items (id:401c/af30) when dogfooded 2026-07-07.
-      match=$(head -1 < <(grep -rlE "# roadmap:$token([^0-9a-f]|\$)" "$ROOT/tests" 2>/dev/null) || true)
+      #
+      # id:4425 defect 1 — an item whose ROADMAP TWIN carries a gate marker is gated,
+      # however clean its TODO line looks. Checked HERE (not at the top of the loop) so
+      # the suppression is scoped to the TICK-READY claim alone.
+      [[ -n "${roadmap_gated[$token]:-}" ]] && continue
+      #
+      # id:4425 defect 2 — REJECT FIXTURE REFERENCES. `grep -rl` accepts a file because
+      # the token appears SOMEWHERE in it; live, id:6217's cited "green" test was
+      # tests/test_make_test_files.sh, whose only match was
+      #   red_fixture="…/test_dryround_single_definition_6217.sh"  # roadmap:6217, currently open+RED
+      # — a line that names a DIFFERENT test file precisely in order to record that THAT
+      # file is red. So the scan ran the harness, saw green, and cited as evidence of
+      # doneness a file asserting the opposite (the owning spec itself exits 1).
+      #
+      # Rule: an occurrence whose LINE names a test file other than the containing file
+      # is a reference, not the test-owns-item link. A genuine header (`# roadmap:XXXX`)
+      # names no file at all and is unaffected. A line naming only its OWN basename still
+      # counts. Under-claiming by design, consistent with the language-dispatch skip
+      # (routed:15f3): a missed TICK-READY leaves the item open, which is safe.
+      match=""
+      while IFS=: read -r cand_file _cand_lno cand_line; do
+        [[ -z "$cand_file" ]] && continue
+        cand_base="${cand_file##*/}"
+        ref_foreign=0
+        while read -r named; do
+          [[ -z "$named" ]] && continue
+          [[ "${named##*/}" == "$cand_base" ]] || { ref_foreign=1; break; }
+        done < <(grep -oE '[A-Za-z0-9_./-]+\.(sh|bash|py)\b' <<<"$cand_line" || true)
+        (( ref_foreign )) && continue
+        match="$cand_file"; break
+      done < <(grep -rnE "# roadmap:$token([^0-9a-f]|\$)" "$ROOT/tests" 2>/dev/null || true)
       [[ -z "$match" ]] && continue
       test_rel="${match#"$ROOT"/}"
       [[ ! -f "$ROOT/$test_rel" ]] && continue
