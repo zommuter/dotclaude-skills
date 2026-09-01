@@ -96,6 +96,29 @@
 #       tag exists. Nothing to slice; not a failure — the caller falls back to the unsliced
 #       brief.
 #   6 = the slice was built but is at/above the dispatch-budget ceiling; refused, no file.
+#   7 = an item line points at a `docs/ledger-notes/<id>.md` detail file that does not exist;
+#       refused, no file (id:2ee1 -- see DETAIL POINTERS below).
+#
+# DETAIL POINTERS (id:2ee1): the ratified ledger line-shrink (meeting 2026-09-01-2226, D3)
+# relocates an item's prose body out of its ledger line into a per-id file at
+# `docs/ledger-notes/<id>.md`, leaving a slim head line plus a pointer to that path. The
+# acceptance criteria therefore live in the DETAIL FILE, so a slicer that does not follow the
+# pointer hands the child a well-formed, non-empty, honest-byte-count slice MISSING its
+# acceptance criteria -- verbatim the id:b015 failure this header describes above. So: when a
+# dispatched item's block (or its TODO twin line) contains the literal path
+# `docs/ledger-notes/<that item's own id>.md`, the file is INLINED into the slice.
+#   - Detection keys on the PATH, not on the pointer's prose or dash, so a markdown link, a
+#     backticked path and a bare mention all resolve the same way (same rule as the reference
+#     extractor's `hasPointer`).
+#   - Only the item's OWN id is followed. Under D3 an item's body lives in exactly one file
+#     named for that id, so a `docs/ledger-notes/XXXX.md` reference to some OTHER id is prose,
+#     not this item's spec, and following it would turn a prose mention into a hard failure.
+#   - A pointer whose file is MISSING is a LOUD, non-zero (7) refusal with NO file written. A
+#     silently short spec is the entire defect class (id:4347); under-delivering loudly is safe.
+#   - The reported `slice-bytes` is measured on the written file, so it accounts for the
+#     inlined bytes with no extra bookkeeping, which is what the id:4f9b/35b7 prompt-size gate
+#     keys on.
+#   - Override the notes directory with LEDGER_NOTES_DIR (tests, or a repo that renames it).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -173,6 +196,34 @@ owning_line_of() {
     done < <(grep -nF -- "id:$tok" "$f" || true)
   done
   return 1
+}
+
+# --- DETAIL-FILE POINTERS (id:2ee1) -------------------------------------------
+# See the DETAIL POINTERS block in this file's header for the rule and its rationale.
+LEDGER_NOTES_DIR="${LEDGER_NOTES_DIR:-docs/ledger-notes}"
+declare -A _detail_seen=()
+
+# detail_collect <id> <text> -- if <text> mentions this id's detail path, register it for
+# inlining. A registered path whose file is missing is a LOUD refusal, never a short slice.
+detail_collect() {
+  local tok="$1" text="$2" rel="${LEDGER_NOTES_DIR}/${1}.md"
+  [[ "$text" == *"$rel"* ]] || return 0
+  [[ -n "${_detail_seen[$rel]:-}" ]] && return 0
+  if [[ ! -f "$path/$rel" ]]; then
+    echo "ledger-slice.sh: id:$tok points at detail file '$rel', which does not exist under $path -- REFUSING to write a slice whose acceptance criteria were relocated out of the ledger and then not found. A child would read the short slice as a complete spec (id:2ee1, the id:b015 failure class; id:4347 no-silent-swallow)." >&2
+    exit 7  # id:2ee1 MISSING-GUARD -- never degrade to a silently short slice
+  fi
+  _detail_seen[$rel]=1
+}
+
+# detail_emit <id> -- write the inlined detail section, if that id registered one.
+detail_emit() {
+  local rel="${LEDGER_NOTES_DIR}/${1}.md"
+  [[ -n "${_detail_seen[$rel]:-}" ]] || return 0
+  echo
+  echo "#### Relocated body -- \`${rel}\` (inlined by ledger-slice.sh, id:2ee1)"
+  echo
+  cat -- "$path/$rel"  # id:2ee1 INLINE
 }
 
 # --- SINCE-CKPT DERIVATION (id:dd59) -------------------------------------------
@@ -371,7 +422,9 @@ if [[ -n "$ids_csv" ]]; then
       # under-review, which is strictly worse than the oversize problem it fixes.
       # So: fall back to the TODO.md owning line and emit it in its own section. Only
       # an id owning NEITHER is genuinely unresolved and drives the exit-4 path.
-      if owning_line_of "$tok" "$todo" >/dev/null; then
+      if _todo_row="$(owning_line_of "$tok" "$todo")"; then
+        # id:2ee1 -- a TODO-only item's body can be relocated too, and it is still worked.
+        detail_collect "$tok" "${_todo_row#*$'\t'}"
         todo_only_ids+=("$tok")
         continue
       fi
@@ -430,6 +483,12 @@ if [[ -n "$ids_csv" ]]; then
     BLOCKS[$k]="$(printf '%s\n' "${block[@]}")"
     HEADINGS[$k]="${SECTION_OF_LINE[$idx]}"
 
+    # id:2ee1 -- follow a relocated body's pointer, from the ROADMAP block or the TODO twin
+    # (either ledger's line may carry it; under D3 both name the SAME per-id file).
+    _scan="${BLOCKS[$k]}"
+    if _todo_row="$(owning_line_of "$tok" "$todo")"; then _scan+=$'\n'"${_todo_row#*$'\t'}"; fi
+    detail_collect "$tok" "$_scan"
+
     for l in "${block[@]}"; do
       for csv in "$(typed_edges_gated_of_line "$l")" "$(typed_edges_children_of_line "$l")" "$(edges_children_of_kind_of_line "$l")"; do
         [[ -z "$csv" ]] && continue
@@ -481,6 +540,7 @@ if [[ -n "$ids_csv" ]]; then
       fi
       echo
       printf '%s\n' "${BLOCKS[$k]}"
+      detail_emit "${resolved_ids[$k]}"
     done
     echo
     echo "## Typed edges"
@@ -522,6 +582,7 @@ if [[ -n "$ids_csv" ]]; then
         if row="$(owning_line_of "$tok" "$todo")"; then
           echo "${row#*$'\t'}"
         fi
+        detail_emit "$tok"
       done
     fi
   } > "$tmp"
@@ -688,6 +749,13 @@ for t in "${edge_tokens[@]:-}"; do
   seen[$t]=1; uniq_tokens+=("$t")
 done
 
+# --- relocated body (id:2ee1) -------------------------------------------------
+# Resolve the detail pointer BEFORE opening the output file, so a missing detail file exits
+# non-zero with no slice on disk rather than leaving a short one behind.
+_scan="$(printf '%s\n' "${block[@]}")"
+if _todo_row="$(owning_line_of "$id" "$todo")"; then _scan+=$'\n'"${_todo_row#*$'\t'}"; fi
+detail_collect "$id" "$_scan"
+
 # --- write the slice ----------------------------------------------------------
 tmp="$(mktemp "${out}.XXXXXX")"
 trap '[ -e "$tmp" ] && rm -- "$tmp"' EXIT
@@ -715,6 +783,7 @@ trap '[ -e "$tmp" ] && rm -- "$tmp"' EXIT
   echo "## Dispatched item (ROADMAP.md)"
   echo
   printf '%s\n' "${block[@]}"
+  detail_emit "$id"
   echo
   echo "## Typed edges"
   echo

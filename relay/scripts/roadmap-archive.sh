@@ -12,6 +12,17 @@
 # the <!-- id:XXXX --> token and original text verbatim. This also captures column-0
 # prose paragraphs and "> " blockquotes in the item's body (not just indented lines).
 #
+# routed:71ed -- AMBIGUOUS-BODY DEFERRAL. That block rule silently RE-ATTRIBUTES an open
+# item's body when a new item line is INSERTED between an existing header and its own
+# indented bullets: the bullets then follow the insertee, and archiving the insertee sweeps
+# them into ROADMAP.archive.md under the wrong id. Observed live (it-infra 090247f, repaired
+# by hand at 3f49174): an OPEN [INPUT - access] item lost its Why, gate history and whole
+# Acceptance criterion to a closed neighbour, and nothing failed. The shape is ambiguous
+# LOCALLY -- it is character-identical to a closed item that genuinely owns the bullets --
+# so this script does NOT guess. When an archived item's body is contiguous with a top-level
+# bullet that STAYS LIVE, it archives the header line only, LEAVES the body verbatim in
+# ROADMAP.md, and says so on stderr naming the id. See the guard below.
+#
 # id:cd9c: a one-line STUB is left behind in the LIVE ROADMAP.md for every moved
 # item — the header line verbatim plus " (archived — see ROADMAP.archive.md)" — so
 # the id keeps resolving from the live ledger alone. Only the header line becomes
@@ -114,6 +125,17 @@ heading_re  = re.compile(r'^#{1,6}\s')
 
 PROTECTED_TEXTS = {'items', 'current', 'done', 'backlog'}
 
+# ── Ambiguous-body deferral (routed:71ed) ───────────────────────────────────────────
+# Set False to restore the pre-fix block rule verbatim (the negative case in
+# tests/test_roadmap_archive_block_attribution_71ed.sh mutates exactly this line).
+AMBIGUITY_GUARD = True
+
+id_re = re.compile(r'<!--\s*id:([0-9a-f]{4})\s*-->')
+
+def id_of(line):
+    m = id_re.search(line)
+    return m.group(1) if m else None
+
 def heading_info(line):
     """Return (level, text) for a heading line, text stripped of a trailing
     HTML comment and surrounding whitespace. None if not a heading."""
@@ -143,11 +165,38 @@ heading_indices = [idx for idx, l in enumerate(lines) if heading_re.match(l)]
 
 # ── Pass 1: build an ordered list of entries, tagging each original line as
 #    kept-in-place or an archived item block. Entries preserve document order. ──
-# entry = ('keep', line, orig_idx) | ('arch', [block_lines], owning_heading_idx)
+# entry = ('keep', line, orig_idx) | ('arch', [block_lines], owning_heading_idx, ambiguous)
 entries = []
 archived_count_by_heading = {}   # owning heading orig idx (-1 = none) -> #items archived
+disposition = {}                 # orig idx of a TOP-LEVEL BULLET -> 'keep' | 'arch'
+deferred = []                    # (archived id or None, owner id or None) for the stderr report
 n = len(lines)
 i = 0
+
+def body_is_ambiguous(idx, unit):
+    """True when this archived item's continuation body cannot be attributed to it with
+    certainty, because it is contiguous with a top-level bullet that SURVIVES in the live
+    ledger and carries no body of its own -- the shape an inserted line creates
+    (routed:71ed). Deliberately narrow:
+      * an EMPTY body is never ambiguous (nothing to lose);
+      * an already-archived STUB above cannot own a body -- its body moved on an earlier
+        run -- so a stub never triggers the guard;
+      * a preceding bullet that THIS run also archives is excluded: both halves land in the
+        archive, so no live item loses anything, and firing there would multiply the
+        false-positive rate by roughly ten for no gain in safety.
+    Measured against 385 historical archiver inputs across 46 repos (13131 archived items),
+    this predicate fires on 12 -- one of them the live it-infra incident."""
+    if not AMBIGUITY_GUARD:
+        return False
+    if len(unit) <= 1 or not any(l.strip() for l in unit[1:]):
+        return False
+    k = idx - 1
+    if k < 0:
+        return False
+    prev = lines[k]
+    if not top_bullet_re.match(prev) or stub_line_re.match(prev):
+        return False
+    return disposition.get(k) == 'keep'
 while i < n:
     line = lines[i]
     # An already-archived stub is classified `keep`, never `arch` (routed:f833) — it falls
@@ -182,14 +231,21 @@ while i < n:
         if in_prior or aged_ok:
             slot = bisect.bisect_right(heading_indices, i) - 1
             owning = heading_indices[slot] if slot >= 0 else -1
-            entries.append(('arch', unit, owning))
+            disposition[i] = 'arch'
+            ambiguous = body_is_ambiguous(i, unit)
+            if ambiguous:
+                deferred.append((id_of(line), id_of(lines[i - 1])))
+            entries.append(('arch', unit, owning, ambiguous))
             archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
             i = j
         else:
             # Same-run tick — leave it in place.
+            disposition[i] = 'keep'
             entries.append(('keep', line, i))
             i += 1
     else:
+        if top_bullet_re.match(line):
+            disposition[i] = 'keep'
         entries.append(('keep', line, i))
         i += 1
 
@@ -250,8 +306,9 @@ for e in entries:
                     arch_out.append(line)
             else:
                 keep_out.append(line)
-    else:  # ('arch', block, owning)
+    else:  # ('arch', block, owning, ambiguous)
         block = e[1]
+        ambiguous = e[3]
         # id:cd9c — leave a one-line stub behind in the LIVE ledger so the item's
         # id keeps resolving from ROADMAP.md alone (orphan-scan --cross-ledger
         # reads only the live file). The stub is the header line verbatim plus the
@@ -259,13 +316,26 @@ for e in entries:
         # this exact grammar as `keep` on every subsequent run.
         header = block[0].rstrip('\n')
         keep_out.append(header + STUB_SUFFIX + '\n')
+        if ambiguous:
+            # routed:71ed -- ownership of this body cannot be decided locally, so it is NOT
+            # moved. The header is archived and stubbed as usual; the body stays verbatim in
+            # the live ledger, directly beneath the stub, exactly where it already was. A
+            # one-line note goes into the archive in its place so the missing body is
+            # explained where a reader would otherwise go looking for it. Stable across
+            # runs: the stub classifies `keep` from here on, so the body is never revisited.
+            keep_out.extend(block[1:])
+            out_block = [block[0],
+                         '  - (roadmap-archive routed:71ed: continuation body RETAINED in '
+                         'ROADMAP.md, attribution was ambiguous. See the live ledger.)\n']
+        else:
+            out_block = block
         if last_appended_heading:
             # First item directly under a just-moved heading — no separator, so
             # the heading and its item are adjacent in the archive.
-            arch_out.extend(block)
+            arch_out.extend(out_block)
         else:
             arch_out.append('\n')
-            arch_out.extend(block)
+            arch_out.extend(out_block)
         last_appended_heading = False
 
 # Append archived content to ROADMAP.archive.md (create if absent).
@@ -280,6 +350,20 @@ with archive_path.open('a') as af:
 # Preserve the original content exactly (no blank-line collapsing — ROADMAP
 # has structural gaps between items that must be preserved).
 roadmap_path.write_text(''.join(keep_out))
+
+# ── LOUD report for every deferral (routed:71ed). Never a silent skip: an unannounced
+#    deferral is the same defect class wearing a different coat (id:4347). Exit stays 0 so
+#    the rest of the run still archives; integrate.sh reads a non-zero exit as EX_ARCHIVE.
+for arch_id, owner_id in deferred:
+    a = f"id:{arch_id}" if arch_id else "an item with no id"
+    o = f"id:{owner_id}" if owner_id else "the item with no id above it"
+    print(
+        f"roadmap-archive: AMBIGUOUS BODY ATTRIBUTION for {a}. Its continuation body is\n"
+        f"  contiguous with {o}, which stays LIVE and has no body of its own, so the body may\n"
+        f"  belong to either. Archived the header line ONLY; the body was LEFT IN PLACE in\n"
+        f"  ROADMAP.md. Move it under its real owner by hand (this is the routed:71ed shape:\n"
+        f"  a new item line inserted between an existing header and its own bullets).",
+        file=sys.stderr)
 
 archived_count = sum(archived_count_by_heading.values())
 noun = 'item' if archived_count == 1 else 'items'

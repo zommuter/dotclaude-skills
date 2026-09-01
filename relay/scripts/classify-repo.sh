@@ -142,6 +142,58 @@ for _row in gates_tsv.splitlines():
 # stderr at the end (never a silent execute-suppression). Each names the item id + reason.
 why_not_ready = []
 
+# id:f3d2 -- the ledger-note DETAIL FILES a child actually loads. The ratified line-shrink
+# (docs/meeting-notes/2026-09-01-2226-ledger-line-shrink-format.md, D3) moves an item's PROSE
+# off its ledger line into `docs/ledger-notes/<id>.md`, leaving a slim head line plus a
+# pointer. A child that works that item reads the pointed-to file, so a gate that sizes only
+# the ledger FILE goes systematically OPTIMISTIC after the shrink: it under-estimates, waves
+# the dispatch through, and the child dies of the bare `Prompt is too long` that id:4f9b /
+# id:b018 exist to prevent -- the shrink would partly DISARM the guard against its own
+# founding failure. So every ledger's byte figure below is `file size + the detail files that
+# ledger points at`.
+#
+# Deliberately CONSERVATIVE, in three ways, because over-counting costs a needless handback
+# while under-counting costs a dead child:
+#   * a detail file pointed at from two ledgers is counted in BOTH (a child reading both
+#     ledgers may well load it once, so this over-counts by design);
+#   * a pointer whose target is MISSING or unreadable is counted at
+#     MISSING_LEDGER_NOTE_BYTES, never at zero -- zero is exactly the defect -- and is
+#     announced LOUDLY on stderr. Refusing the dispatch outright was rejected: a broken
+#     pointer would then stop the pool entirely, which is worse than the death this prevents.
+#     32768 exceeds the largest single ledger item measured in this repo (28,617 B, meeting
+#     note "Measured distribution"), so it over-states a typical relocated body.
+#   * pointers are matched on the PATH, not on any particular link syntax, so a bare path, a
+#     markdown link and a backticked path all count.
+# Fail-open is preserved end to end: an absent/unreadable LEDGER still reports 0, and 0 still
+# means "unmeasured" to the gate.
+LEDGER_NOTES_DIR = "docs/ledger-notes"
+LEDGER_NOTE_POINTER_RE = re.compile(r"docs/ledger-notes/([0-9A-Za-z][0-9A-Za-z._-]*)\.md")
+MISSING_LEDGER_NOTE_BYTES = 32768
+
+def _ledger_note_bytes(ledger_abs):
+    """Bytes of the detail files that <ledger_abs> points at. 0 when it cannot be read."""
+    try:
+        with open(ledger_abs, errors="replace") as _lf:
+            _text = _lf.read()
+    except OSError:
+        return 0
+    notes_total = 0
+    for _name in sorted(set(LEDGER_NOTE_POINTER_RE.findall(_text))):
+        _rel = LEDGER_NOTES_DIR + "/" + _name + ".md"
+        _abs = os.path.join(path, LEDGER_NOTES_DIR, _name + ".md")
+        try:
+            if os.path.isfile(_abs):
+                notes_total += os.path.getsize(_abs)
+                continue
+        except OSError:
+            pass
+        print("classify-repo: ledger-note pointer names a MISSING/unreadable detail file: "
+              + _rel + " -- counting " + str(MISSING_LEDGER_NOTE_BYTES)
+              + " B conservatively so the prompt-size gate cannot under-count (id:f3d2)",
+              file=sys.stderr)
+        notes_total += MISSING_LEDGER_NOTE_BYTES
+    return notes_total
+
 # --- Step 2: derive ROADMAP fields ----------------------------------------
 rm = os.path.join(path, "ROADMAP.md")
 # id:4f9b — the ROADMAP's SIZE IN BYTES, so relay-loop.js can size the child's assembled
@@ -151,7 +203,7 @@ rm = os.path.join(path, "ROADMAP.md")
 # the host, and ride along as a field. 0 when ROADMAP.md is absent/unreadable — the gate is
 # FAIL-OPEN on 0, so a missing measurement never blocks a dispatch.
 try:
-    roadmap_bytes = os.path.getsize(rm) if os.path.isfile(rm) else 0
+    roadmap_bytes = (os.path.getsize(rm) + _ledger_note_bytes(rm)) if os.path.isfile(rm) else 0
 except OSError:
     roadmap_bytes = 0
 # id:b018 — the SECOND ledger. The 4f9b gate sized ROADMAP.md alone and loderite cleared the
@@ -160,7 +212,8 @@ except OSError:
 # tick-back, the execute contract's id reuse). Measured exactly like roadmap_bytes, and
 # fail-open on the same terms — 0 when TODO.md is absent/unreadable.
 try:
-    todo_bytes = os.path.getsize(os.path.join(path, "TODO.md")) if os.path.isfile(os.path.join(path, "TODO.md")) else 0
+    _td = os.path.join(path, "TODO.md")
+    todo_bytes = (os.path.getsize(_td) + _ledger_note_bytes(_td)) if os.path.isfile(_td) else 0
 except OSError:
     todo_bytes = 0
 # id:7c5f — the two REVIEW-ONLY ledgers. b018 deliberately left these out of the gate because
@@ -172,7 +225,7 @@ except OSError:
 def _ledger_bytes(name):
     try:
         p = os.path.join(path, name)
-        return os.path.getsize(p) if os.path.isfile(p) else 0
+        return (os.path.getsize(p) + _ledger_note_bytes(p)) if os.path.isfile(p) else 0
     except OSError:
         return 0
 review_me_bytes = _ledger_bytes("REVIEW_ME.md")
