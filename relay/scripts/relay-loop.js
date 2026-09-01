@@ -265,6 +265,14 @@ const POOL_WIDTH = A.POOL_WIDTH || 5
 const MAX_UNITS = A.MAX_UNITS || 20
 // D3 policy invariant: Sonnet execute fills slots first; unreviewed-executor review
 // ranks above fresh strong work (keeps the anti-gaming window short). Lower = sooner.
+// ⚠ MODE-DEPENDENT SINCE id:5c05 (2026-09-01): the FIRST clause ("execute fills slots
+// first") holds for a DEFAULT run only. Under --intensive it is INVERTED — review takes a
+// slot ahead of routine execute — and that is ENTAILED, not chosen: the owner's ruling
+// requires hard < execute, this invariant requires review < hard, so transitivity forces
+// review < hard < execute. No map satisfies both and leaves execute above review. The
+// SECOND clause (review above fresh strong work) is unconditional and holds in both modes.
+// See PRIORITY_INTENSIVE below. Recorded here because a reader who takes this block as
+// unconditional would mis-describe what --intensive actually does.
 // hard (id:da26): Opus-apex HARD-execute, ranked AFTER execute and review but BEFORE
 // handoff — review still beats a fresh strong-execute (preserves the D3 anti-gaming
 // window), and a HARD item with a worked roadmap is more actionable than a fresh handoff.
@@ -278,8 +286,11 @@ const PRIORITY = { execute: 0, review: 1, hard: 2, handoff: 3, human: 5, mechani
 // id:5c05 — the `--intensive` PREFERENCE order (owner-ruled 2026-09-01). A run launched
 // --intensive was launched to spend apex capacity on the HEAVY backlog, so routine Sonnet
 // `execute` work must not take the slots first: `hard` outranks `execute` here. The D3
-// anti-gaming rung is UNTOUCHED — `review` still outranks `hard` (fresh strong work), and it
-// now also outranks `execute`, which STRENGTHENS the invariant rather than reordering it.
+// anti-gaming rung is UNTOUCHED — `review` still outranks `hard` (fresh strong work). It now
+// also outranks `execute`, which is ENTAILED by transitivity (review < hard is the invariant,
+// hard < execute is the ruling), NOT a separate design choice — and it does invert the first
+// clause of the D3 comment above under this mode. Whether to call that a strengthening is a
+// judgement the owner has not made; it is recorded as a consequence, not sold as a benefit.
 // handoff/human/mechanical keep their ranks. Applies ONLY when --intensive is set; a default
 // run sorts by PRIORITY exactly as before. The [INTENSIVE] half of id:5c05 is NOT here —
 // intensive units are partitioned out of this sort entirely (see the id:8d52 partition and
