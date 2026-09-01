@@ -2998,3 +2998,7 @@ ZERO newly-added open items — nothing to qualify.
 
 **routine_open = 1** (id:59c5), so the repo flips review -> execute with one actionable
 `[ROUTINE]` unit.
+
+## 2026-09-01 11:20 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:d8b3 + id:8302 clause (a) VERIFIED GREEN by independent done-check re-run (make lint + make test = the only two declared tiers, 538 pass/0 fail/2 expected-red; gaming-canary + shard-canary SKIPPED-TIER, on-demand token canaries); gaming-scan, provenance, faked-clean-tree, refactor-claim and over-reach passes all clean; FOUND id:8302 shipped only clause (a) of its ratified acceptance -- clause (b) had a fixture in the RED spec but no assertion, so it shipped unimplemented with a green suite -- filed as id:59c5 with a genuinely-red spec rather than un-archiving 8302, flagged for owner; ingested inbox dead-letter routed:71ed; routine_open=1 [id:d8b3,8302,59c5,71ed]
