@@ -3,6 +3,8 @@
 #   with only ".git/" pruned) — reverting the iter_shell_files() nested-checkout
 #   pruning added for id:b818 makes case (1) below flag the fixture worktree file
 #   and go RED.
+# fails-against-rev: 9f906d290cf1 -- tests/lint-pipefail-sigpipe.py
+# fails-against-assertion: case (1): scanning outer root flagged a site that lives ONLY in a nested checkout
 #
 # No `# roadmap:` header: this specs a test-infrastructure DEFECT (id:b818), not an
 # open ROADMAP item, so its failures always count per CLAUDE.md's Testing section.

@@ -50,3 +50,26 @@ test_no_silent_swallow.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …
 test_orphan_scan_plugin_aware.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
 test_quota_sample.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
 test_run_tests_parallel.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+
+# ---------------------------------------------------------------------------------------
+# STRUCTURALLY UNMATCHABLE, SECOND WAVE -- found 2026-09-01 while back-filling the corpus.
+# Same ground as the 12 above, different spellings: these 13 files DO print a per-assertion
+# failure line, but not as line-leading `FAIL:`, so the runner's deliberately narrow match
+# (only `FAIL:`-prefixed lines -- scanning whole output lets a `PASS: (e) …` line satisfy an
+# `(e)` expectation) can never see WHICH assertion fired. Each was RUN against its derived
+# ancestor: every one went red, and every one produced zero matchable lines. The spelling is
+# named per line so the follow-up (convert to the fail() helper, then delete these lines) is
+# mechanical. That follow-up edits 13 unrelated defect-fix tests and is NOT part of id:a73c.
+test_classify_intensive_lane_2799.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_gather_stale_strong_watermark.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_gather_substantive_nonauditable_exempt.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_gather_substantive_pointer_exempt.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_ledger_slice_multi_id_dd59.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_ledger_slice_since_ckpt_dd59.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_privacy_gate_scan_scale_b4dd.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_prompt_size_gate_tiers_10dc.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_slice_invitation_headroom_7575.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_slice_no_item_logs_f499.sh  -- prints `BAD: <msg>`, never a line-leading `FAIL:`; no assertion match is possible
+test_archive_closed_stub_reader_parity.sh  -- prints `FAIL(A2): <msg>` (no space, no colon after FAIL), which the `^\s*FAIL:` match cannot see
+test_relay_core_shadow.sh  -- prints `FAIL (2): <msg>` (space before the colon), which the `^\s*FAIL:` match cannot see
+test_lane_vocab_both_sides_4b64.sh  -- prints `  FAIL <msg>` with no colon at all, which the `^\s*FAIL:` match cannot see

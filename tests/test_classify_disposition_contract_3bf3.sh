@@ -21,6 +21,13 @@
 #       pick-eligible (a /meeting candidate) or not-meeting-worthy (routed to /relay or
 #       /relay human). That partition currently lives ONLY in SKILL.md prose. A lane-tagged
 #       skip-class item leaking into C1/C2/C3 is the exact "/meeting over-claim" regression.
+#
+# fails-against: added in a TESTS-ONLY commit, so there is no ancestor tree to overlay. The
+#   negative case is a MUTATION that neutralises exactly the GATE detection this file's
+#   part (1) exists to pin (classify.sh's `gate="GATED"` assignment), leaving every other
+#   column intact. Relative path only, inside the scratch tree.
+# fails-against-mutation: sed -i 's/gate="GATED"/gate=""/' meeting/classify.sh
+# fails-against-assertion: 'gated on' vocabulary must yield GATED, got
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SH="$ROOT/meeting/classify.sh"
