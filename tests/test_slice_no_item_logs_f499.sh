@@ -59,7 +59,12 @@ head = src[i:]
 end = head.find('let raw')
 head = head[:end] if end > 0 else head[:2000]
 
-guard = re.search(r'if \(!item\)\s*\{(.*?)\n  \}', head, re.S)
+# The guard must still START with `!item`, but may carry additional conjuncts: id:dd59
+# widened it to `if (!item && !sinceRef)` so a REVIEW unit (which names no single dispatch
+# item) can instead derive its id set from the checkpoint range. Pinning the literal
+# `if (!item)` spelling would fail that change while the f499 GUARANTEE -- this branch logs
+# WHY it produced no slice -- is untouched. Match the shape, not the exact conjunction.
+guard = re.search(r'if \(!item[^)]*\)\s*\{(.*?)\n  \}', head, re.S)
 if not guard:
     # a bare `if (!item) return null` (the defect) or an unrecognised shape
     print('no_item_branch_logs=' + ('0' if 'if (!item) return null' in head else 'UNKNOWN'))

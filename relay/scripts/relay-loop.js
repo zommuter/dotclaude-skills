@@ -4043,12 +4043,32 @@ const strandedDispatchReason = (unit, gate) => {
 // never dispatched silently (ledger-slice.sh exits 4 on an unresolvable id, id:4347).
 async function sliceLedgerForUnit(unit) {
   const item = dispatchItemFor(unit)
-  if (!item) {
+  // id:dd59 — REVIEW units name no single dispatch item, so they used to take the fail-open
+  // branch below and be charged the WHOLE ledgers. For dotclaude-skills that is 1,543,129 B,
+  // which put the assembled review prompt at ~470,285 tok against a 300,000 budget: the gate
+  // refused REVIEW dispatch 3x in one run and executor commits accumulated with no review
+  // path at all — the D3 anti-gaming blind spot this repo's own invariant exists to close.
+  //
+  // A review spans MANY ids, so `--id` cannot express it. `--since-ckpt <tag>` derives the set
+  // itself (commit-message id:/routed: tokens over <tag>..HEAD, UNIONed with anchored
+  // `<!-- id:X -->` markers on lines ADDED to TODO.md/ROADMAP.md — the review.md §5b
+  // reverse-handoff case) and slices their blocks, typed edges, TODO twins, and TODO-only
+  // items. Measured: 18 ids → 66,673 B, ~23x smaller, and the real oversizeDispatchReason
+  // flips from REFUSE to dispatch.
+  //
+  // FAIL-OPEN is preserved throughout: no lastCkpt, an unresolvable ref (exit 2), an empty
+  // derived set (exit 5) and any thrown/garbled output all fall through to the unsliced
+  // brief, exactly as before. This can only ever ADD a slice, never suppress a dispatch.
+  const sinceRef = (!item && unit.verdict === 'review') ? String(unit.lastCkpt || '').trim() : ''
+  // What this slice is FOR, in log lines: a single dispatch item, or the review set derived
+  // from a checkpoint range. Without this the review path logged "id:undefined".
+  const sliceLabel = sinceRef ? `review-set since ${sinceRef}` : `id:${item}`
+  if (!item && !sinceRef) {
     // id:f499 — this was the ONE silent branch of the five the header promises "logs WHY".
     // The unsliced-branch REMEDY in oversizeDispatchReason tells the operator the relay-loop
     // log records why no slice_path was produced; without this line that remedy dead-ends for
     // every unit (review units especially) whose verdict names no dispatch item.
-    log(`relay-loop: id:e68f no dispatch item for ${unit.repo} (verdict ${unit.verdict || '(none)'}) — nothing to slice, fail-open, dispatching with the unsliced brief`)
+    log(`relay-loop: id:e68f no dispatch item for ${unit.repo} (verdict ${unit.verdict || '(none)'})${unit.verdict === 'review' ? ' and no lastCkpt to derive a review set from (id:dd59)' : ''} — nothing to slice, fail-open, dispatching with the unsliced brief`)
     return null
   }
   let raw
@@ -4058,22 +4078,22 @@ async function sliceLedgerForUnit(unit) {
     const res = await agent(
       `Run EXACTLY this one command and report its stdout VERBATIM (id:e68f pre-dispatch ledger slice — writes the unit's item + typed edges to a file and prints its path):\n` +
       '```relay-mech\n' +
-      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} --id ${item}` +
+      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} ${sinceRef ? `--since-ckpt ${sinceRef}` : `--id ${item}`}` +
       '\n```',
       { label: `ledger-slice:${unit.repo}`, phase: 'Support', model: MECH_MODEL }
     )
     raw = typeof res === 'string' ? res : JSON.stringify(res == null ? '' : res)
   } catch (e) {
-    log(`relay-loop: id:e68f ledger-slice threw for ${unit.repo} id:${item} (${(e && e.message) || e}) — fail-open, dispatching with the unsliced brief`)
+    log(`relay-loop: id:e68f ledger-slice threw for ${unit.repo} ${sliceLabel} (${(e && e.message) || e}) — fail-open, dispatching with the unsliced brief`)
     return null
   }
   if (/^MECH-ERROR exit=/.test(String(raw))) {
-    log(`relay-loop: id:e68f ledger-slice errored for ${unit.repo} id:${item}: ${String(raw).replace(/\s+/g, ' ').slice(0, 200)} — fail-open, dispatching with the unsliced brief`)
+    log(`relay-loop: id:e68f ledger-slice errored for ${unit.repo} ${sliceLabel}: ${String(raw).replace(/\s+/g, ' ').slice(0, 200)} — fail-open, dispatching with the unsliced brief`)
     return null
   }
   const p = String(raw).split('\n').map(l => l.trim()).filter(Boolean).pop() || ''
   if (!/^[~/][^\s]*\.md$/.test(p)) {
-    log(`relay-loop: id:e68f ledger-slice produced no usable slice path for ${unit.repo} id:${item} (got '${p.slice(0, 120)}') — fail-open, dispatching with the unsliced brief`)
+    log(`relay-loop: id:e68f ledger-slice produced no usable slice path for ${unit.repo} ${sliceLabel} (got '${p.slice(0, 120)}') — fail-open, dispatching with the unsliced brief`)
     return null
   }
   unit.slice_path = p
@@ -4084,7 +4104,7 @@ async function sliceLedgerForUnit(unit) {
   // Absent/garbled ⇒ left unset ⇒ the gate treats the slice as unmeasured and fails OPEN.
   const bm = /^slice-bytes:\s*(\d+)\s*$/m.exec(String(raw))
   if (bm) unit.slice_bytes = Number(bm[1])
-  log(`relay-loop: id:e68f ledger slice for ${unit.repo} id:${item} → ${p}${bm ? ` (${bm[1]} B, id:35b7 gate sizes on this)` : ' (size unreported — gate fails open)'}`)
+  log(`relay-loop: id:e68f ledger slice for ${unit.repo} ${sliceLabel} → ${p}${bm ? ` (${bm[1]} B, id:35b7 gate sizes on this)` : ' (size unreported — gate fails open)'}`)
   return p
 }
 

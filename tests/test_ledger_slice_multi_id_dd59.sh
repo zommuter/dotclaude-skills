@@ -133,6 +133,37 @@ rc2=0
 [[ "$rc2" -ne 0 ]] && ok "all-unresolvable --ids set exits non-zero ($rc2)" || bad "id:dd59: all-unresolvable set exited 0"
 [[ ! -s "$O_none" ]] && ok "all-unresolvable --ids set writes no slice file (mirrors the single-id refusal)" || bad "id:dd59: a slice file was written even though nothing resolved"
 
+# ── (4b) TODO-ONLY ids are SLICED, not dropped (id:dd59 coverage gap fix). ──────────────────
+# ROADMAP.md is the relay's execution queue, but many ids live only in TODO.md (the design
+# ledger) and are worked there. Measured live before this fix: of 6 ids derived from one real
+# checkpoint range, FOUR owned no ROADMAP line and vanished from the slice, so a reviewer saw
+# 2 of 6 worked items with no signal the rest existed -- trading a LOUD oversize refusal for
+# quiet under-review. An id owning NEITHER ledger is still genuinely unresolved.
+printf -- '- [ ] [ROUTINE] design-ledger-only item <!-- id:7777 -->\n' >> "$R/TODO.md"
+O_to="$TMP/todo_only.md"
+err_to="$TMP/err_todo_only.txt"
+rc_to=0
+"$SLICE" --repo repo --path "$R" --ids 1111,7777 --out "$O_to" >/dev/null 2>"$err_to" || rc_to=$?
+[[ "$rc_to" -eq 0 ]] \
+  && ok "a TODO-only id does NOT trigger the unresolved exit path (exit 0)" \
+  || bad "id:dd59: TODO-only id:7777 exited $rc_to -- it owns a TODO.md entry and is not unresolved"
+grep -q '^## TODO-only items' "$O_to" \
+  && ok "the slice carries a TODO-only section for an id with no ROADMAP entry" \
+  || bad "id:dd59: no 'TODO-only items' section -- a worked design-ledger id was dropped from the slice"
+grep -q 'design-ledger-only item' "$O_to" \
+  && ok "the TODO-only item's actual text reaches the slice (not just its id)" \
+  || bad "id:dd59: TODO-only id:7777 named but its TODO.md line body is missing from the slice"
+grep -qF ' 1111' "$O_to" || grep -q 'id:1111' "$O_to" \
+  && ok "the ROADMAP-owning id in the same set is still sliced normally" \
+  || bad "id:dd59: mixing a TODO-only id into the set broke the normal ROADMAP path"
+
+# An id owning NEITHER ledger is still unresolved and still drives the non-zero exit.
+rc_n=0
+"$SLICE" --repo repo --path "$R" --ids 1111,ffff --out "$TMP/neither.md" >/dev/null 2>"$TMP/err_neither.txt" || rc_n=$?
+[[ "$rc_n" -ne 0 ]] \
+  && ok "an id owning NEITHER ROADMAP nor TODO is still unresolved (exit $rc_n)" \
+  || bad "id:dd59: the TODO-only fallback swallowed a genuinely unresolvable id -- exit 0"
+
 # ── (5) Malformed token / empty set / duplicate-flag misuse behave predictably. ─────────────
 rc3=0; "$SLICE" --repo repo --path "$R" --ids "1111,zzzz" --out "$TMP/bad1.md" >/dev/null 2>"$TMP/err3.txt" || rc3=$?
 [[ "$rc3" -eq 2 ]] && ok "a malformed (non-hex) token in --ids exits with the usage code (2)" || bad "id:dd59: malformed token exited $rc3, expected 2"

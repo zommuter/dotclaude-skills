@@ -259,7 +259,7 @@ if [[ -n "$ids_csv" ]]; then
     (( j <= last )) && [[ "${RM[$j]}" =~ ^-\ \[[\ xX]\] ]]
   }
 
-  declare -a resolved_ids=() resolved_linenos=() unresolved_ids=()
+  declare -a resolved_ids=() resolved_linenos=() unresolved_ids=() todo_only_ids=()
   declare -A lineno_seen=()
   # Union edge tokens across every requested item, de-duped in first-seen order and
   # excluding a requested id pointing at itself OR at another requested id — the
@@ -280,7 +280,20 @@ if [[ -n "$ids_csv" ]]; then
     done < <(grep -nF -- "id:$tok" "$roadmap" || true)
 
     if [[ -z "$item_lineno" ]]; then
-      echo "ledger-slice.sh: id:$tok owns no ROADMAP.md checkbox item in $repo ($roadmap) — omitted from the slice, not silently dropped (id:4347)" >&2
+      # id:dd59 — TODO-ONLY items are still WORKED items. ROADMAP.md is the relay's
+      # execution queue, but plenty of ids live only in TODO.md (the design ledger) and
+      # get worked there — measured live: of 6 ids derived from one real checkpoint
+      # range, FOUR (e977, cb22, 3e13, dd59) owned no ROADMAP line, so anchoring the
+      # slice on ROADMAP alone showed a reviewer 2 of 6 worked items with no signal
+      # that the rest existed. That trades this gate's LOUD refusal for quiet
+      # under-review, which is strictly worse than the oversize problem it fixes.
+      # So: fall back to the TODO.md owning line and emit it in its own section. Only
+      # an id owning NEITHER is genuinely unresolved and drives the exit-4 path.
+      if owning_line_of "$tok" "$todo" >/dev/null; then
+        todo_only_ids+=("$tok")
+        continue
+      fi
+      echo "ledger-slice.sh: id:$tok owns no ROADMAP.md checkbox item AND no TODO.md entry in $repo — omitted from the slice, not silently dropped (id:4347)" >&2
       unresolved_ids+=("$tok")
       continue
     fi
@@ -410,6 +423,21 @@ if [[ -n "$ids_csv" ]]; then
         echo "_(none — this id has no TODO.md entry)_"
       fi
     done
+    # id:dd59 — ids worked in the DESIGN ledger only. These carry no ROADMAP.md line, so
+    # they appear in no section above; without this they were dropped from the slice
+    # entirely and a reviewer had no signal they existed.
+    if (( ${#todo_only_ids[@]} > 0 )); then
+      echo
+      echo "## TODO-only items (worked in the design ledger; no ROADMAP.md entry)"
+      for tok in "${todo_only_ids[@]}"; do
+        echo
+        echo "### id:${tok}"
+        echo
+        if row="$(owning_line_of "$tok" "$todo")"; then
+          echo "${row#*$'\t'}"
+        fi
+      done
+    fi
   } > "$tmp"
 
   mv -- "$tmp" "$out"
