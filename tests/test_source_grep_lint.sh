@@ -8,6 +8,13 @@
 #
 # Every assertion below RUNS the lint over purpose-built fixture test files — there is no
 # assertion here about the lint's own source text (that would be the very defect being linted).
+#
+# fails-against: the lint and this test shipped in the SAME commit, so the ancestor tree has
+#   no lint to overlay and an ancestor case would only die at the file-exists probe -- red for
+#   the wrong reason. The negative case is therefore a MUTATION that neutralises exactly the
+#   SHAPE-ONLY/MIXED classification the file exists to pin. Relative path only.
+# fails-against-mutation: sed -i 's/kind = "MIXED" if var in executed else "SHAPE-ONLY"/kind = "MIXED"/' tests/lint-source-grep-assertions.py
+# fails-against-assertion: a grep over never-executed shipped source was NOT flagged SHAPE-ONLY
 
 set -euo pipefail
 

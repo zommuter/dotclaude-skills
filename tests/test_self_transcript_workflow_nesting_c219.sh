@@ -25,6 +25,10 @@
 #
 # Hermetic: fake projects tree in `mktemp -d`, injected --projects-root/--session-id.
 # Never reads $HOME/.claude, never touches the network, never runs a real agent.
+# fails-against: rev eb63006decc8 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/context-budget.sh, relay/scripts/self-transcript.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: eb63006decc8 -- relay/scripts/context-budget.sh relay/scripts/self-transcript.sh
+# fails-against-assertion: a workflow-nested child could not resolve its own transcript
 
 set -euo pipefail
 

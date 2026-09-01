@@ -26,6 +26,9 @@
 #       remote to push to, so "git push --follow-tags" would be a lie).
 #   (3) the object relay-loop.js's parser builds from that stdout carries
 #       ratification='pending', which is the key its surfacing condition reads.
+# fails-against-rev: b42d5a003b98 -- relay/scripts/integrate.sh relay/scripts/relay-loop.js
+# fails-against-assertion: — relay-loop.js keys its surfacing on 'pending', so this work is counted as a completion and vanishes
+
 set -uo pipefail
 
 # Hermeticity: neutralise the developer's global core.hooksPath for every git invocation.

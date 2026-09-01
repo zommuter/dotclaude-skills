@@ -33,6 +33,11 @@
 # Hermetic: mktemp repos with LOCAL BARE remotes, a FIXTURE private-host pattern file
 # (never the real ~/.config/dotclaude-skills/privacy-patterns.txt), GIT_CONFIG_COUNT to
 # neutralise a global core.hooksPath. No network, no real repos, no ~/.claude.
+# fails-against: rev aa1390764077 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/integrate.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: aa1390764077 -- relay/scripts/integrate.sh
+# fails-against-assertion: (1) the liar push was accepted (no handback= on stdout):
+
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

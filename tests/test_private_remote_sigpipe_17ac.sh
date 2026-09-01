@@ -24,6 +24,11 @@
 #
 # Hermetic: FIXTURE pattern files only — never the real, never-committed
 # ~/.config/dotclaude-skills/privacy-patterns.txt, whose CONTENTS are never inlined here.
+# fails-against: rev af7120f42452 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/lib-private-remote.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: af7120f42452 -- relay/scripts/lib-private-remote.sh
+# fails-against-assertion: left stderr noise (the id:17ac symptom):
+
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

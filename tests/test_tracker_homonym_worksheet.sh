@@ -17,6 +17,11 @@
 #
 # Hermetic: a synthetic 3-repo fleet under mktemp -d with its own relay.toml. No network,
 # no ~/.claude, none of the real own repos.
+# fails-against: rev 064ae4424967 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix .gitignore, CLAUDE.md, tracker/fleet-import.sh (+2 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 064ae4424967 -- .gitignore CLAUDE.md tracker/fleet-import.sh tracker/homonym-worksheet.py tracker/homonym-worksheet.sh
+# fails-against-assertion: tracker/homonym-worksheet.sh is missing or not executable
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

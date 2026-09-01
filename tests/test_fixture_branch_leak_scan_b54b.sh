@@ -6,6 +6,11 @@
 # ref in an own repo whose commit is reachable from no run id — the cheap, observe-only
 # check the TODO item names as the durable defense against another `relay/ok`-shaped
 # fixture leak going unnoticed. Hermetic: everything happens inside `mktemp -d`.
+# fails-against: rev 07855fa4b06c -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/scripts/fixture-branch-leak-scan.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 07855fa4b06c -- Makefile relay/scripts/fixture-branch-leak-scan.sh
+# fails-against-assertion: fixture-branch-leak-scan.sh not found/executable at
+
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

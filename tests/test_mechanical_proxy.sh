@@ -35,6 +35,10 @@
 # genuine file and (f)/(g)/(h) prove it rejects everything else.
 # No roadmap item (id:176f is a HARD—meeting TODO built apex-direct), so any failure
 # counts — this test must be GREEN.
+# fails-against: rev 6fb2d6c78cc9 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/scripts/mechanical-proxy.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 6fb2d6c78cc9 -- Makefile relay/scripts/mechanical-proxy.py
+# fails-against-assertion: module not found at
 
 set -euo pipefail
 

@@ -32,6 +32,11 @@
 #
 # Hermetic: mktemp -d git fixtures, HOME + RELAY_WORKTREE_BASE redirected into it; no
 # ~/.claude, no real relay.toml, no real loderite checkout, no network.
+# fails-against: rev 13a874287c76 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/reconcile-repo.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 13a874287c76 -- relay/scripts/reconcile-repo.sh
+# fails-against-assertion: (2) the suppress reason claims 'parked partial work for id:d050 still OPEN', but NO item owns d050 — d050 appears only as prose in id:ba09's body. Suppressing is right; this reason is not. Expected the ambiguous branch:
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -49,6 +49,9 @@
 # "$worktree"` call with no --base): (8) exits 0 having merged the breach, and (9) passes
 # for the wrong reason (its verify-isolation log says `ok … commits=2`, not
 # `empty+main_unmoved`). Both were run against that reverted script to confirm it.
+# fails-against-rev: 3c13d2c8df57 -- relay/scripts/integrate.sh relay/scripts/relay-loop.js
+# fails-against-assertion: for a SUBSTANTIVE unit (id:4d44 ratification gate did not fire)
+
 set -uo pipefail
 
 # Hermeticity: neutralise the developer's global core.hooksPath for every git invocation

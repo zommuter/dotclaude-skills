@@ -55,6 +55,8 @@
 # RELAY_STATUS_PATH and the classify hook (RUN_ANOMALY_CLASSIFY) are all overridden, so
 # the real ~/.claude, the real ~/.config/relay and the real repos are never touched, and
 # no network or git remote is involved.
+# fails-against-rev: 3c13d2c8df57 -- Makefile relay/scripts/run-anomaly-scan.sh
+# fails-against-assertion: run-anomaly-scan.sh not found at
 
 set -euo pipefail
 

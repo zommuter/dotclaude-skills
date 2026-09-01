@@ -14,6 +14,10 @@
 # Also: a DECOMPOSED parent marked `@container` (id:8504) is skipped entirely.
 #
 # Hermetic: a temp RELAY_TOML + a temp own repo with a crafted ROADMAP.md.
+# fails-against: rev 8ea4b4b588c8 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/references/handoff.md, relay/references/review.md, relay/scripts/gather-human-backlog.sh (+1 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 8ea4b4b588c8 -- relay/references/handoff.md relay/references/review.md relay/scripts/gather-human-backlog.sh relay/scripts/roadmap-lint.sh
+# fails-against-assertion: A needs-relay-human alias item [HARD - strong model] 🚧 GATED needs /relay human <!-- id:3333 -->
 
 set -euo pipefail
 

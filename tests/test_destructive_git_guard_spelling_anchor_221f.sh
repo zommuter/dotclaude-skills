@@ -21,6 +21,11 @@
 # path already reached.  The five tree-wide forms remain an UNCONDITIONAL deny
 # (owner ruling 2026-08-22); this file does not touch that and must not be read as
 # reopening it.
+# fails-against: rev dff9a707c214 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix hooks/destructive-git-guard.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: dff9a707c214 -- hooks/destructive-git-guard.py
+# fails-against-assertion: guard does not mention id:221f — the rationale has no anchor in the file
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

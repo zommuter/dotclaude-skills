@@ -27,6 +27,10 @@
 #       the run exits nonzero, so an incomplete TSV can never read as clean.
 #
 # Hermetic: temp RELAY_TOML + temp own repos under a temp SRC_DIR.
+# fails-against: rev 4a6b4bccf700 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/SKILL.md, relay/references/human.md, relay/scripts/gather-human-backlog.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 4a6b4bccf700 -- relay/SKILL.md relay/references/human.md relay/scripts/gather-human-backlog.sh
+# fails-against-assertion: a FAILING ROADMAP hard-lane emitter suppressed the REVIEW_ME emitter that runs after it
 
 set -euo pipefail
 

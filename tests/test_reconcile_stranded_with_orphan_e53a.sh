@@ -10,6 +10,10 @@
 #
 # Drives the REAL relay-reconcile.sh; no heartbeat marker exists under the overridden HOME, so
 # every run reads as not-alive and the stranded branch qualifies.
+# fails-against: rev dd8871507459 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/relay-reconcile.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: dd8871507459 -- relay/scripts/relay-reconcile.sh
+# fails-against-assertion: the STRANDED section vanished because the repo also has a parked orphan (THE DEFECT)
 
 set -euo pipefail
 

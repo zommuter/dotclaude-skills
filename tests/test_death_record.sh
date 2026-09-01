@@ -40,6 +40,8 @@
 # FABLES_CONFIG, RELAY_DEATH_RECORD_PATH, RELAY_WORKTREE_BASE and DEATH_RECORD_LOG are all
 # overridden, so the real ~/.claude, the real ~/.config/relay and the real repos are never
 # touched. Git is used only on repos created inside the temp dir; no network, no remote.
+# fails-against-rev: 9f906d290cf1 -- Makefile relay/scripts/death-record.sh
+# fails-against-assertion: death-record.sh not found at
 
 set -euo pipefail
 

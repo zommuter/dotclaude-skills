@@ -13,6 +13,11 @@
 # Fixture shape mirrors the real git-annex failure (run relay-20260826-122101-7415): a repo
 # whose only branch is NOT named main or master — here 'annex-dotgit' — so pre-fix code
 # (origin/main -> main) has nothing to resolve to and must hard-fail.
+# fails-against: rev f12ded2c1de0 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/stranded-branch-scan.sh, relay/scripts/verify-isolation.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: f12ded2c1de0 -- relay/scripts/stranded-branch-scan.sh relay/scripts/verify-isolation.sh
+# fails-against-assertion: stranded-branch-scan.sh: should exit 0 deriving base from HEAD on annex-dotgit-only repo, got
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

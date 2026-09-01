@@ -10,6 +10,11 @@
 # size-out takes the `if (!report.contract_met)` branch and NEVER reaches integrate(), but
 # `workCreated` was set ONLY at the integrate() push site — so id:c919, which exists precisely to
 # stop a decomposing round scoring dry, was inert for the one case it was built for.
+# fails-against: rev a85334644b72 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: a85334644b72 -- relay/scripts/relay-loop.js
+# fails-against-assertion: (1) id:bd04 REGRESSION: the size-out handback push does not set workCreated — id:c919 is inert for size-outs, and a decomposing round will score dry again
+
 set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 JS="$SRC_DIR/relay/scripts/relay-loop.js"

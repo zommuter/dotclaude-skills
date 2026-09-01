@@ -6,6 +6,11 @@
 # Static contract: meeting/SKILL.md wires REVIEW_ME.md into the no-arg flow as a
 # relay-detection-gated Class 3 candidate (read side) and a D5-invariant write-back
 # (write side, bookkeeping only — no roadmap re-derivation).
+# fails-against: rev cd99a4752550 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/SKILL.md. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: cd99a4752550 -- meeting/SKILL.md
+# fails-against-assertion: no D5 REVIEW_ME surface step
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

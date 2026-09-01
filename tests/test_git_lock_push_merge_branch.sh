@@ -12,6 +12,10 @@
 # same-path CONFLICT must have the second one fail loud (merge aborted, branch/commit
 # preserved for manual resolution) rather than silently last-writer-wins (D5.2 — the
 # plumbing-CAS approach was rejected specifically for this silent-loss failure mode).
+# fails-against: rev 57fa32b77f5f -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix git-diary-workflow/git-lock-push.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 57fa32b77f5f -- git-diary-workflow/git-lock-push.sh
+# fails-against-assertion: --merge-branch with no value did not print an explanatory error;
 
 set -euo pipefail
 

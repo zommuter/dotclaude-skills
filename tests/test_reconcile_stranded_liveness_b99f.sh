@@ -14,6 +14,10 @@
 # This drives the REAL relay-reconcile.sh against the REAL heartbeat.sh (its dependency),
 # isolated via HOME → $HEARTBEAT_BASE, so the JSON shape under test is the one production emits
 # rather than a retyped fixture.
+# fails-against: rev dd8871507459 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/relay-reconcile.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: dd8871507459 -- relay/scripts/relay-reconcile.sh
+# fails-against-assertion: a branch whose owning run is ALIVE was reported as STRANDED — the liveness gate never fired (THE DEFECT)
 
 set -euo pipefail
 

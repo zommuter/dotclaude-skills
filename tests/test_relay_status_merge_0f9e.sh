@@ -12,6 +12,11 @@
 # never a LOST update — the two are different properties and only the first was held.
 #
 # Hermetic: sandboxed HOME/FABLES_CONFIG/HEARTBEAT_BASE under mktemp; no network, no ~/.claude.
+# fails-against: rev 3357bf43c352 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/lib-ledger-only-diff.sh, relay/scripts/relay-loop.js, relay/scripts/relay-status-publish.sh (+2 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 3357bf43c352 -- relay/scripts/lib-ledger-only-diff.sh relay/scripts/relay-loop.js relay/scripts/relay-status-publish.sh relay/scripts/status-accounting.mjs relay/scripts/verify-isolation.sh
+# fails-against-assertion: (1) two live runs must yield TWO run sections, got
+
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

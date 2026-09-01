@@ -8,6 +8,10 @@
 # The inject.sh add/peek/take mechanics themselves are covered by
 # tests/test_relay_inject.sh; this asserts the ergonomic front door exists,
 # resolves repos safely, defaults verdict, mints nothing, and surfaces pending.
+# fails-against: rev 8a36c77a97df -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/SKILL.md. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 8a36c77a97df -- relay/SKILL.md
+# fails-against-assertion: SKILL.md invocation block has no /relay inject line
 
 set -euo pipefail
 

@@ -9,6 +9,11 @@
 # mktemp -d. Covers: end-to-end pointer dissolution; MEMORY.md no-op (no
 # recursion); non-memory dir no-op; non-edit tool no-op; malformed payload;
 # the loud path (feedback-* archived); and idempotence.
+# fails-against: rev 1b5849876bfd -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix hooks/README.md, hooks/memory-index-sync.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 1b5849876bfd -- hooks/README.md hooks/memory-index-sync.py
+# fails-against-assertion: hook not found at
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

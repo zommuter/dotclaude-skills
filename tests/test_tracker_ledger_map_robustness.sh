@@ -20,6 +20,11 @@
 #       `validate` must RE-DERIVE the field and fail loudly on any mismatch — otherwise
 #       an adapter round-trip can launder exactly the drift D2 (meeting 2026-08-10,
 #       finding 5) forced the schema to represent.
+# fails-against: rev 23b9f3f593e9 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/ledger-map.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 23b9f3f593e9 -- tracker/ledger-map.py
+# fails-against-assertion: python3 -OO ledger-map.py --help exited non-zero:
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

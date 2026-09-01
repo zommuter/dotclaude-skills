@@ -19,6 +19,11 @@
 #
 # Same failure family as [[relay-human-gather-underreport]] (id:fa5c) by a different
 # mechanism: /relay human quietly reporting less backlog than exists.
+# fails-against: rev ec05e19c7078 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/gather-human-backlog.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: ec05e19c7078 -- relay/scripts/gather-human-backlog.sh
+# fails-against-assertion: id:aaaa (in BOTH ledgers) must be emitted exactly once, got
+
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SH="$ROOT/relay/scripts/gather-human-backlog.sh"

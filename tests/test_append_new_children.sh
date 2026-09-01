@@ -6,6 +6,13 @@
 # and, in the SAME call, emits the parent's typed `children:` marker (form C) so the corpus
 # stops accruing umbrella blindspots (id:06e3, typed-ledger-edges 2026-07-10). Emit-only:
 # it never edits a ledger. Hermetic — runs against a mktemp -d fixture root.
+#
+# fails-against: this test was added in a TESTS-ONLY commit, so there is no ancestor tree to
+#   overlay. The negative case is therefore a MUTATION that deletes exactly the co-emission
+#   this file exists to pin -- `new-children`'s `<!-- children:… -->` marker line -- leaving
+#   the token minting intact. Relative path only, inside the scratch tree.
+# fails-against-mutation: sed -i '/children:%s/d' meeting/append.sh
+# fails-against-assertion: expected 3 tokens + 1 marker line, got
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SH="$ROOT/meeting/append.sh"

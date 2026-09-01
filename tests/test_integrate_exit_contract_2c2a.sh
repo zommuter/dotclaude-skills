@@ -20,6 +20,11 @@
 # parsed stdout contract first. So every case below is checked PER PATH — not once — for
 # `handback=<step>` + `handbackCode=<N>` + `handbackReason=` on STDOUT, which is the only
 # channel mechanical-proxy.py returns on a zero exit.
+# fails-against: rev 5979484a40b3 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/integrate.sh, relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 5979484a40b3 -- relay/scripts/integrate.sh relay/scripts/relay-loop.js
+# fails-against-assertion: — id:2c2a reserves non-zero for UNDETERMINABLE outcomes. stderr:
+
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

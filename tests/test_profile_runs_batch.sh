@@ -5,6 +5,11 @@
 # Hermetic: builds TWO synthetic relay wf_* dirs (journal mentions "verdict" so they
 # qualify as relay runs) under mktemp, points the batch driver at them via
 # RELAY_WF_SEARCH_ROOT, and asserts on the --json aggregate.
+# fails-against: rev b7b3509fae81 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/scripts/profile-run.sh, relay/scripts/profile-runs-batch.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: b7b3509fae81 -- Makefile relay/scripts/profile-run.sh relay/scripts/profile-runs-batch.sh
+# fails-against-assertion: profile-runs-batch.sh not found/executable at
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

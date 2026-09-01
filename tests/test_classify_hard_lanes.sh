@@ -26,6 +26,11 @@
 # an [INPUT — meeting] umbrella whose body discusses "[HARD — pool]" must not read as POOL
 # (anchoring regression, id:0d58/id:4da4), including when the mention is backtick-quoted
 # (id:306d/id:1bbd).
+# fails-against: rev 56650ae42087 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/SKILL.md, meeting/append.sh, meeting/classify.sh (+3 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 56650ae42087 -- meeting/SKILL.md meeting/append.sh meeting/classify.sh projects/SKILL.md relay/references/human.md relay/scripts/scan-routed.sh
+# fails-against-assertion: [HARD — pool] must be POOL, got
+
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SH="$ROOT/meeting/classify.sh"

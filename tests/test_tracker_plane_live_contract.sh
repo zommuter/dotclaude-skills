@@ -22,6 +22,11 @@
 #
 # HERMETIC: no test here touches the network. The Plane double is injected as the
 # client, and the whole file runs with sockets disabled to prove it.
+# fails-against: rev 064ae4424967 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/adapters/adapter_common.py, tracker/adapters/plane_adapter.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 064ae4424967 -- tracker/adapters/adapter_common.py tracker/adapters/plane_adapter.py
+# fails-against-assertion: Plane live-contract checks failed
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -37,6 +37,8 @@
 # item ids — this is recorded data, not invented structure.
 #
 # Hermetic: mktemp -d git fixtures only; no ~/.claude, no network.
+# fails-against-rev: 098c0a37aa97 -- relay/scripts/reconcile-repo.sh
+# fails-against-assertion: (4) THE DISAGREEMENT IS STILL LIVE: stranded-branch-scan.sh binds relay/orphan/…-execute-57d1-0 to item 57d1 (by branch name) while reconcile-repo.sh binds it to something else (by commit message). These two must agree or dd7d fires on an item b09e never suppressed.
 
 set -uo pipefail
 

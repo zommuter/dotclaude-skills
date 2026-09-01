@@ -3,6 +3,11 @@
 # pool pre-flight), not a ROADMAP item, so per tests/run-tests.sh's own convention this
 # file's failures are NEVER expected-red.
 #
+# fails-against: rev 07855fa4b06c -- the tree immediately before the commit that added this
+#   test, i.e. tests/run-tests.sh without the relay/* branch + worktree drift backstop.
+# fails-against-rev: 07855fa4b06c -- Makefile relay/scripts/fixture-branch-leak-scan.sh tests/run-tests.sh
+# fails-against-assertion: (A) run-tests.sh exited 0 despite a fixture leaking a real relay/* branch
+#
 # id:b54b part (b) — a test fixture leaked a real `relay/ok` branch (1 commit, "child
 # work ok") into THIS repo on 2026-08-22. tests/run-tests.sh now snapshots the cwd
 # repo's relay/* branches + worktree list before and after the whole run and fails

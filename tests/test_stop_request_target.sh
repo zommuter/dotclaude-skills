@@ -7,6 +7,10 @@
 # while the intended pool ran on for 4 more hours).
 #
 # Hermetic: fake heartbeat registry + mktemp sentinel dir; never touches ~/.config/relay.
+# fails-against: rev 3e95995368a1 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/SKILL.md, relay/scripts/stop-request.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 3e95995368a1 -- relay/SKILL.md relay/scripts/stop-request.sh
+# fails-against-assertion: missing or not executable
 
 set -euo pipefail
 

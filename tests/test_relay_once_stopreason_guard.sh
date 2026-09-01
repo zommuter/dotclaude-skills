@@ -8,6 +8,10 @@
 #
 # Structural test (house style — relay-loop.js is a Workflow script, not hermetically
 # runnable): assert the round-cap assignment is guarded by `if (!stopReason)`.
+# fails-against: rev 79495fd93160 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/quota-stop.sh, relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 79495fd93160 -- relay/scripts/quota-stop.sh relay/scripts/relay-loop.js
+# fails-against-assertion: round-cap stopReason assignment is not guarded by 'if (!stopReason)' (masks real quota stops)
 
 set -euo pipefail
 

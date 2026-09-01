@@ -9,6 +9,11 @@
 # via id:7633 + the inlined drain.mjs id:d58f/4ca8) — this test guards against a future
 # edit silently dropping the alias documentation, NOT a runtime behaviour (relay-loop.js
 # runs only in the Workflow sandbox, id:2d20).
+# fails-against: rev cb60dc589271 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/SKILL.md. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: cb60dc589271 -- relay/SKILL.md
+# fails-against-assertion: relay/SKILL.md config table has no
+
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 SKILL="$ROOT/relay/SKILL.md"

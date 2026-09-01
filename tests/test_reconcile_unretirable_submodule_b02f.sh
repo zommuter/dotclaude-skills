@@ -30,6 +30,11 @@
 #
 # Hermetic: mktemp -d fixture git repos, RELAY_WORKTREE_BASE/RELAY_TOML redirected into the temp
 # dir, no network, no ~/.claude or real-repo access.
+# fails-against: rev 0e4ee6601c21 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/discover-repo.sh, relay/scripts/reconcile-repo.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 0e4ee6601c21 -- relay/scripts/discover-repo.sh relay/scripts/reconcile-repo.sh
+# fails-against-assertion: (1) RETRY LOOP: a submodule-carrying worktree was still planned for reap/park, so APPLY will re-invoke worktree-retire.sh to be refused again every round:
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

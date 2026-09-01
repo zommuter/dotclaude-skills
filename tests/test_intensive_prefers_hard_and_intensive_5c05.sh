@@ -19,6 +19,11 @@
 #   (b) with --intensive, the [INTENSIVE] serial phase (execute:delta) runs BEFORE the wave
 #   (c) WITHOUT --intensive, the order is today's: execute,review,hard (intensive not run)
 #   (d) the D3 anti-gaming rung holds in BOTH modes: review:beta before hard:gamma
+# fails-against: rev ce85a4fa0a4a -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: ce85a4fa0a4a -- relay/scripts/relay-loop.js
+# fails-against-assertion: (b) --intensive ran the [INTENSIVE] serial phase at pos
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

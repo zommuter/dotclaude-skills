@@ -8,6 +8,10 @@
 # The pool can't test against the live Workflow, so it keeps reintroducing these — this guard is
 # the backstop. Values must come from agents (shell-expanded paths, agent-returned timestamps),
 # never the JS runtime.
+# fails-against: rev 91ea0d9d1e87 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 91ea0d9d1e87 -- relay/scripts/relay-loop.js
+# fails-against-assertion: forbidden Workflow-sandbox API in relay-loop.js (throws synchronously → pool crash):
 
 set -uo pipefail
 

@@ -23,6 +23,11 @@
 #
 # Ratified semantic: COMPOSE all ops for an id, in payload order. (The alternative —
 # refuse loudly — was considered; composing is what a caller means and loses nothing.)
+# fails-against: rev ff8b1c6f095d -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/md-merge.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: ff8b1c6f095d -- meeting/md-merge.py
+# fails-against-assertion: a same-class duplicate was silently overwritten:
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

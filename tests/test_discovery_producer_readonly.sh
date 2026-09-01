@@ -17,6 +17,11 @@
 #   (a) the worktree + branch SURVIVE intact (not force-removed, not renamed to relay/orphan/*);
 #   (b) the repo does NOT fetch / ff-merge / commit (HEAD + HEAD-reflog unchanged);
 #   (c) the producer STILL emits a schema-valid verdict snapshot that includes the repo.
+# fails-against: rev 6d39144469e4 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/references/discovery-queue-manifest.md, relay/scripts/discover-repo.sh, relay/scripts/discover-repos-mechanical.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 6d39144469e4 -- relay/references/discovery-queue-manifest.md relay/scripts/discover-repo.sh relay/scripts/discover-repos-mechanical.sh
+# fails-against-assertion: no longer exists (git worktree remove --force ran)
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROD="$ROOT/relay/scripts/discover-repos-mechanical.sh"

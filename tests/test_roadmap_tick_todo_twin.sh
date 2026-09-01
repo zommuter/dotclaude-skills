@@ -22,6 +22,11 @@
 #      checkbox (a multi-line `--append` payload is what moved it off before).
 #   7. Bare-token prose mention of another id (cf. id:c97c) is never mistaken for a twin.
 #   8. Already-ticked twin is idempotent; unrelated TODO items are never touched.
+# fails-against: rev 67d526b6c470 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/roadmap-tick.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 67d526b6c470 -- relay/scripts/roadmap-tick.sh
+# fails-against-assertion: T1: TODO twin id:aaaa not ticked
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

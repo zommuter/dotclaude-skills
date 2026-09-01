@@ -21,6 +21,11 @@
 # This file is that missing negative control. Its fixtures withhold the trailing
 # turn on the first read and append it from a BACKGROUND writer, reproducing the
 # real ordering. A hook without the flush-wait fails test 1 here.
+# fails-against: rev 5219428ab0d0 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix hooks/meeting-question-guard.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 5219428ab0d0 -- hooks/meeting-question-guard.py
+# fails-against-assertion: no NOFLUSH line for session flush-4 — the failure is silent (id:4347 anti-pattern); log tail:
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

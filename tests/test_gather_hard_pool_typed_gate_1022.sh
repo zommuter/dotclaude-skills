@@ -24,6 +24,11 @@
 #
 # Hermetic: real `git init` fixtures in mktemp, RELAY_TOML/RELAY_WORKTREE_BASE sandboxed,
 # no network, never reads ~/.config/relay. Idiom: tests/test_container_not_hard_pool_d808.sh.
+# fails-against: rev d449c4815224 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/gather-repo-state.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: d449c4815224 -- relay/scripts/gather-repo-state.sh
+# fails-against-assertion: parity: collectors disagree — gather
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

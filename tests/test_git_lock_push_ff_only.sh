@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Tests for git-lock-push.sh --ff-only and --follow-tags behaviour.
 # No roadmap item — defect fix for id:821c.
+# fails-against: rev a324e3fff792 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix fables-turn/SKILL.md, fables-turn/references/conventions.md, git-diary-workflow/git-lock-push.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: a324e3fff792 -- fables-turn/SKILL.md fables-turn/references/conventions.md git-diary-workflow/git-lock-push.sh
+# fails-against-assertion: --follow-tags did NOT push annotated tag to remote
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

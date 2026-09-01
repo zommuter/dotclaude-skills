@@ -17,6 +17,10 @@
 # ruling draws (the loderite heading itself stays unrecognized, on purpose).
 #
 # Hermetic: temp ROADMAP/TODO fixtures; no ~/.claude, no network.
+# fails-against: rev 7a8d0944ac1e -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/roadmap-lint.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 7a8d0944ac1e -- relay/scripts/roadmap-lint.sh
+# fails-against-assertion: lint must exit nonzero — [ROUTINE]/[HARD] under a parked heading are unconditional grammar violations (out:
 
 set -euo pipefail
 

@@ -15,6 +15,11 @@
 #       both true-but-misleading once a round can chain.
 #
 # Hermetic: mktemp sentinel + log paths, no ~/.config or ~/.claude touch, no network.
+# fails-against: rev 3d5ade32bb8f -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/SKILL.md, relay/scripts/relay-loop.js, relay/scripts/stop-request.sh (+1 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 3d5ade32bb8f -- relay/SKILL.md relay/scripts/relay-loop.js relay/scripts/stop-request.sh relay/scripts/stop-sentinel.sh
+# fails-against-assertion: relay/SKILL.md still describes Stop mode as draining 'the already-dispatched wave' — that assumes a wave boundary a chaining round does not have (id:a615)
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

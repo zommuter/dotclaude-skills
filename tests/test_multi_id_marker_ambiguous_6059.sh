@@ -26,6 +26,9 @@
 # (routed:20ce / cartulary id:344d) and is NOT decided here.
 #
 # Hermetic: pure function calls + mktemp -d fixtures. No ~/.claude, no network.
+# fails-against-rev: 6142f2329b34 -- meeting/append.sh meeting/md-merge.py meeting/orphan-scan.sh relay/references/hard-lanes.md relay/scripts/classify-repo.sh relay/scripts/discover-sig.sh relay/scripts/gather-repo-state.sh relay/scripts/handback-guard.mjs relay/scripts/lib-anchored-id.sh relay/scripts/lib-roadmap-sections.sh relay/scripts/lib-typed-edges.sh relay/scripts/reconcile-repo.sh relay/scripts/relay-loop.js relay/scripts/resolve-gates.sh relay/scripts/roadmap-lint.sh relay/scripts/unpromoted-scan.sh tracker/SCHEMA.md tracker/ledger-map.py
+# fails-against-assertion: (3-state) no <ambiguous:…> display handle
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

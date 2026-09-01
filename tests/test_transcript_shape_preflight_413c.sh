@@ -14,6 +14,10 @@
 # `-maxdepth 4` — i.e. a shape nobody has implemented support for. The preflight must
 # report it as uncovered. That is the test standing in for "the harness changed its layout
 # in a way we did not anticipate", which is the whole reason this script exists.
+# fails-against: rev 62b59f3436e9 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/SKILL.md, relay/scripts/self-transcript.sh (+1 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 62b59f3436e9 -- Makefile relay/SKILL.md relay/scripts/self-transcript.sh relay/scripts/transcript-shape-preflight.sh
+# fails-against-assertion: expected --list-candidates to print 2 paths at rc=0;
 
 set -uo pipefail
 

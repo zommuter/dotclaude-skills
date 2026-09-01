@@ -17,6 +17,11 @@
 # UNCONDITIONAL DENY.  The hook governs the AGENT's Bash tool, not the human's terminal,
 # so denying costs the human nothing.  The forced-`interactive` cases below are the exact
 # regression that would reintroduce that incident; they must DENY.
+# fails-against: rev a508a9f06373 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, hooks/destructive-git-guard.py, hooks/rm-force-guard.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: a508a9f06373 -- Makefile hooks/destructive-git-guard.py hooks/rm-force-guard.sh
+# fails-against-assertion: destructive-git-guard.py not found at
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

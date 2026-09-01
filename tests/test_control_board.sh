@@ -21,6 +21,11 @@
 #   (6) `--json` emits a machine-readable aggregate with a summary + per-repo rows.
 #   (7) PURITY (executor-contract purity-test-as-contract): running the board over a repo
 #       with a commit, a dirty file and a live worktree leaves that repo byte-identical.
+# fails-against: rev 8f1e25e1522b -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/SKILL.md, relay/scripts/control-board.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 8f1e25e1522b -- Makefile relay/SKILL.md relay/scripts/control-board.sh
+# fails-against-assertion: control-board.sh missing/not executable:
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CB="$ROOT/relay/scripts/control-board.sh"
