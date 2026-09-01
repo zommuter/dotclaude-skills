@@ -219,11 +219,11 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
         # NOT BOUNDED IN BOTH DIRECTIONS -- an earlier version of this comment claimed it was,
         # and that wrong claim is what made the silence look acceptable. A FALSE prediction is
         # genuinely cheap (one extra surfaced line for a worktree that then disposes cleanly).
-        # A MISSED prediction was NOT "one refused helper call per round": the reap path's
-        # `|| true` swallowed the helper's refusal entirely, so the cost was TOTAL SILENCE.
-        # APPLY therefore now also reports from the OUTCOME (the helper's exit status), which
-        # is the half that actually guarantees nothing is silent -- a prediction can be wrong,
-        # an outcome cannot.
+        # A MISSED prediction was NOT "one refused helper call per round": BOTH disposal paths
+        # ended `|| true` and swallowed the helper's refusal entirely, so the cost was TOTAL
+        # SILENCE. APPLY therefore now also reports from the OUTCOME (the helper's exit status)
+        # in BOTH loops, through one shared reporter, which is the half that actually guarantees
+        # nothing is silent -- a prediction can be wrong, an outcome cannot.
         #
         # ADDITIVE by construction (id:bc49/e7e4): the marker is in discover-repo.sh's ADDITIVE
         # tuple, so it NEVER suppresses the repo. Getting that wrong is the loderite starvation
@@ -234,8 +234,17 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
         # `worktree.useRelativePaths` git writes that path RELATIVE TO THE WORKTREE DIRECTORY
         # (`gitdir: ../../../r/.git/worktrees/<bn>`); resolving it against reconcile's CWD
         # instead yielded a path that does not exist, so every worktree in such a repo silently
-        # predicted "retirable". A bare directory that is not a registered worktree has no
-        # `.git` file at all -- treat that as retirable.
+        # predicted "retirable".
+        #
+        # A bare directory under $wtdir that is NOT a registered worktree has no `.git` file at
+        # all, so $wt_admin stays empty and it is predicted retirable. That is NOT because such
+        # a directory disposes cleanly -- it does not. worktree-retire.sh reaches `[[ -e "$wt" ]]`,
+        # `git worktree remove` fails with "is not a working tree", and it exits 3; the caller
+        # gets a REAP/PARK RETIRE FAILED line (and, on the park path, PARK VERIFY FAILED too)
+        # every round, permanently, until a human removes the directory. It is predicted
+        # retirable only because the SUBMODULE marker is specifically about git's submodule
+        # refusal, and this is a different failure that the marker would misdescribe. The
+        # outcome reporting in APPLY is what keeps it visible; do not read this as "harmless".
         wt_admin=""
         if [[ -f "$wtdir/$bn/.git" ]]; then
           wt_admin="$(sed -n '1s/^gitdir: //p' "$wtdir/$bn/.git")"
@@ -267,8 +276,20 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
           # deliberate, bounded choice: PLAN must be pure and the parity oracle (id:77ce)
           # forbids APPLY adding to the emitted JSON, so the park/no-park call can only be made
           # here. It is defensible only because the predicate above is now git's own trigger
-          # verbatim. If it ever misses, the failure is the OLD behaviour and stays loud (a
-          # park is planned, the helper refuses, PARK VERIFY FAILED fires) -- never silent.
+          # verbatim.
+          #
+          # WHAT A MISS ACTUALLY COSTS -- both halves, because an earlier version of this
+          # sentence named only the first and that is the half a maintainer widening the
+          # predicate would lean on. Measured on a real miss shape (an unmerged worktree git
+          # refuses for a reason the predicate does not see -- e.g. a locked worktree, no
+          # submodules involved): (1) it is LOUD -- a park is planned, the helper refuses, and
+          # both PARK RETIRE FAILED and PARK VERIFY FAILED fire, every round. (2) AND IT
+          # STARVES: the announced `parked-orphan (planned):` line is bound by the orphan-suppress
+          # step, so discover-repo.sh yields 0 units where it yielded 1, on every round,
+          # permanently. That second half is the exact consequence this whole branch exists to
+          # prevent, so a miss is not a graceful degradation -- it reinstates the failure, merely
+          # with a log line attached. Widen the predicate only in the direction of over-predicting
+          # (a false positive costs one surfaced line and a worktree that then disposes cleanly).
           #
           # ACCEPTED COST, recorded rather than solved (owner's ruling): the partial work stays
           # on disk AND the item stays dispatchable, so a fresh executor may start over an
@@ -434,38 +455,71 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
     # never force-cleaned. The helper logs+surfaces internally; APPLY must add nothing to the
     # emitted actions/surfaced JSON (parity oracle id:77ce), so its output is discarded here.
     RETIRE="$(dirname "$0")/worktree-retire.sh"
+
+    # REPORT FROM THE OUTCOME (id:a290), IN BOTH LOOPS. Each of these calls used to end
+    # `>/dev/null 2>&1 || true`, justified as "the helper logs to its own log". It does -- to a
+    # file nobody reads -- so a non-zero exit was TOTAL SILENCE, not the "one refused call per
+    # round" the PLAN comment claimed. A prediction can be wrong; an outcome cannot, so the
+    # helper's own exit status is the thing that guarantees nothing is silent.
+    #
+    # THE TWO LOOPS ARE DELIBERATELY SYMMETRIC, and this shared reporter is what keeps them so.
+    # The same defect was found on this file three reviews running, each time on whichever loop
+    # the tests did not cover: first on park while the tests covered reap, then on reap, then on
+    # park again after the reap-only version of THIS fix. Symmetry is the structural answer.
+    # Anything added to one loop's reporting belongs in here, not in one branch of it.
+    #
+    # WHY THE OUTCOME AND NOT AN EXISTENCE PROBE. The park loop's id:1af1 check asks "does
+    # refs/heads/relay/orphan/<bn> exist?", which is a DIFFERENT question from "did the helper
+    # succeed?" -- and the difference is reachable: worktree-retire.sh's ORPHAN-COLLISION branch
+    # (that ref already exists, from an earlier dead run) removes the worktree, KEEPS the branch
+    # as relay/<bn> and exits 3. show-ref then passes on the PRE-EXISTING ref, so reconcile
+    # announces relay/orphan/<bn> as where this run's work went while the work is stranded on
+    # relay/<bn>, whose worktree directory is now gone and which this path therefore never lists
+    # again. The id:1af1 phantom-park class with the ref PRESENT but the wrong object. The
+    # existence check is kept as defence in depth; the OUTCOME check is the load-bearing half.
+    #
+    # stderr + the reconcile log ONLY, never actions/surfaced, so the PLAN/APPLY parity oracle
+    # (id:77ce) still holds: the emitted JSON is byte-identical with and without this reporting.
+    report_retire_failure() { # <phase: REAP|PARK> <rc> <bn> <branch> <helper output>
+      local __phase="$1" __rc="$2" __bn="$3" __branch="$4" __out="$5" __disp
+      # Disposition per EXIT CODE -- worktree-retire.sh's codes mean different things and a
+      # blanket "still on disk" is wrong for two of them.
+      case "$__rc" in
+        2) __disp="the helper was mis-invoked (usage/precondition error) and attempted NOTHING: worktree and branch are both untouched" ;;
+        3) __disp="disposal did NOT complete. Either the worktree was refused and is still on disk, or -- on a branch-step refusal such as ORPHAN-COLLISION or a failed rename -- the worktree WAS removed and the branch is KEPT under its original name $__branch. The helper's message below says which" ;;
+        4) __disp="the worktree WAS removed; only the branch survives. --expect-merged was passed but 'git branch -d' refused it as unmerged (main moved, or a race). Investigate; do NOT -D" ;;
+        *) __disp="unrecognised exit code -- treat the disposition of both worktree and branch as UNKNOWN and inspect by hand" ;;
+      esac
+      echo "reconcile-repo: $__phase RETIRE FAILED -- worktree-retire.sh exited $__rc for the planned ${__phase,,} of worktree $__bn (repo=$repo, branch=$__branch). ${__disp}. Helper said: ${__out//$'\n'/ } (id:a290)" >&2
+      printf '%s reconcile-repo %s-retire-failed repo=%s branch=%s worktree=%s rc=%s\n' \
+        "$(date -Is)" "${__phase,,}" "$repo" "$__branch" "$__bn" "$__rc" \
+        >> "${RECONCILE_LOG:-$HOME/.claude/logs/relay-reconcile.log}" 2>/dev/null || true
+    }
+
     for entry in "${plan_reap[@]:-}"; do
       [[ -n "$entry" ]] || continue
       bn="${entry%%:*}"; branch="${entry#*:}"
       # Reap: PLAN proved the branch is an ancestor of main (merged) → --expect-merged so a
       # `branch -d` refusal surfaces as an anomaly instead of a silent park.
-      #
-      # REPORT FROM THE OUTCOME (id:a290). This call used to end `>/dev/null 2>&1 || true`,
-      # justified as "the helper logs to its own log". It does -- to a file nobody reads -- so
-      # a non-zero exit here was TOTAL SILENCE, not the "one refused call per round" the PLAN
-      # comment claimed. That is what let a missed prediction disappear completely. A
-      # prediction can be wrong; an outcome cannot, so the helper's own exit status is the
-      # thing that guarantees nothing is silent. Same discipline as the park verify below:
-      # stderr + the reconcile log ONLY, never actions/surfaced, so parity (id:77ce) holds.
       retire_rc=0
       retire_out="$("$RETIRE" "$path" "$wtdir/$bn" "$branch" --expect-merged 2>&1)" || retire_rc=$?
-      if (( retire_rc != 0 )); then
-        echo "reconcile-repo: REAP RETIRE FAILED -- worktree-retire.sh exited $retire_rc for the planned reap of worktree $bn (repo=$repo, branch=$branch). The worktree and/or its branch were NOT disposed of and are still on disk. Helper said: ${retire_out//$'\n'/ } (id:a290)" >&2
-        printf '%s reconcile-repo reap-retire-failed repo=%s branch=%s worktree=%s rc=%s\n' \
-          "$(date -Is)" "$repo" "$branch" "$bn" "$retire_rc" >> "${RECONCILE_LOG:-$HOME/.claude/logs/relay-reconcile.log}" 2>/dev/null || true
-      fi
+      (( retire_rc == 0 )) || report_retire_failure REAP "$retire_rc" "$bn" "$branch" "$retire_out"
     done
     for entry in "${plan_park[@]:-}"; do
       [[ -n "$entry" ]] || continue
       bn="${entry%%:*}"; branch="${entry#*:}"
       # Park: PLAN found the branch unmerged → the helper removes the clean worktree then
       # renames the unmerged branch to relay/orphan/<bn> (via `branch -d`-refusal fallthrough).
-      "$RETIRE" "$path" "$wtdir/$bn" "$branch" >/dev/null 2>&1 || true  # swallow-ok: see reap note (id:77ce)
-      # id:1af1 — VERIFY the park actually happened. The `|| true` above is required by the
-      # parity oracle (APPLY must stay JSON-side-effect-free, id:77ce), but silently swallowing
-      # a failed rename is what let a PLAN-phase claim outlive the action it described: the
-      # surface named relay/orphan/<bn>, the ref never existed, and the pool idled
-      # `blocked-pending-human` with 0 dispatched (2026-07-28, run relay-20260728-111835-4075).
+      retire_rc=0
+      retire_out="$("$RETIRE" "$path" "$wtdir/$bn" "$branch" 2>&1)" || retire_rc=$?
+      (( retire_rc == 0 )) || report_retire_failure PARK "$retire_rc" "$bn" "$branch" "$retire_out"
+      # id:1af1 -- DEFENCE IN DEPTH: also verify the park's ref actually appeared. This catches
+      # the complementary shape the outcome check cannot: a helper that exits 0 while the ref is
+      # missing. Silently swallowing a failed rename is what let a PLAN-phase claim outlive the
+      # action it described: the surface named relay/orphan/<bn>, the ref never existed, and the
+      # pool idled `blocked-pending-human` with 0 dispatched (2026-07-28, run
+      # relay-20260728-111835-4075). Note it is NOT sufficient on its own -- see the
+      # ORPHAN-COLLISION note above, where this check passes on another run's ref.
       # Verification writes ONLY to stderr + the log — never to actions/surfaced — so parity is
       # preserved while the failure stops being silent (no-silent-swallow, memory
       # `no-swallow-stderr` / id:4347).

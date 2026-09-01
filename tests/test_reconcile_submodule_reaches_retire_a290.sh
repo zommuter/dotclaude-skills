@@ -30,6 +30,22 @@
 #     (i1) a RELATIVE gitdir defeated the prediction
 #     (j1) the reap path SWALLOWED worktree-retire.sh's non-zero exit
 #
+# fails-against: relay/scripts/reconcile-repo.sh at the SECOND cut, which applied "report from
+#   the OUTCOME" to the REAP loop ONLY and left the PARK loop on `>/dev/null 2>&1 || true`,
+#   defended by an EXISTENCE probe (`show-ref refs/heads/relay/orphan/<bn>`) that asks a
+#   different question from "did the helper succeed?". worktree-retire.sh's ORPHAN-COLLISION
+#   branch removes the worktree, KEEPS the branch as relay/<bn> and exits 3; show-ref then
+#   passes on the PRE-EXISTING ref, so a park is announced onto ANOTHER run's commits, this
+#   run's work is stranded on a branch whose worktree directory is now gone, and nothing
+#   reaches stderr or the reconcile log in any round.
+# fails-against-rev: 3c130b1d3ad4c08bdfa2c15f6ca02869ce589b89 -- relay/scripts/reconcile-repo.sh
+# fails-against-assertion: (k2) the park path SWALLOWED worktree-retire.sh's non-zero exit
+#   REACHABILITY at this revision: (k2) is the FIRST and ONLY failing assertion. Everything
+#   before it passes there, and the cases added alongside it -- (l)/(m), the predicate's
+#   NEGATIVE direction for a non-directory `<admin>/modules`, and the rewritten (i) -- pass at
+#   this revision by design: they lock behaviour that was already correct so a future widening
+#   of git's trigger cannot silently break it.
+#
 # THE DEFECT.
 # `reconcile-repo.sh` short-circuited on `-e "$wtdir/$bn/.gitmodules"` with a bare `continue`,
 # placed BEFORE plan_reap/plan_park are populated. Consequence: worktree-retire.sh was never
@@ -73,6 +89,13 @@
 #   (j) REPORT FROM THE OUTCOME: a non-zero worktree-retire.sh exit on the REAP path is reported
 #       on stderr, naming the worktree and quoting the helper. This is the half that guarantees
 #       nothing is silent -- a prediction can be wrong, an outcome cannot.
+#   (k) THE SAME, ON THE PARK PATH -- and proof the existence probe cannot substitute for it:
+#       an ORPHAN-COLLISION park exits 3 while `relay/orphan/<bn>` DOES exist, holding another
+#       run's commits. The two loops are asserted symmetric (stderr line + reconcile-log row).
+#   (l)/(m) THE PREDICATE'S NEGATIVE DIRECTION: `<admin>/modules` as a regular FILE and as a
+#       DANGLING SYMLINK are both retirable, and really are removed. git's trigger is
+#       `is_directory()`; if a future git widened it to mere existence, the predicate would
+#       start UNDER-predicting, and nothing else in this file would notice.
 #
 # SUPERSEDES tests/test_reconcile_unretirable_submodule_b02f.sh, DELETED in the same commit.
 # That file's assertion (1) -- "a submodule-carrying worktree is NOT planned for reap/park" --
@@ -416,15 +439,31 @@ pass "(h2) the marker predicts True for an empty private submodule store"
 # (i) GITDIR RESOLUTION -- `worktree.useRelativePaths` writes `gitdir: ../../…`, which is
 #     relative to the WORKTREE DIRECTORY. Resolving it against reconcile's own CWD yields a
 #     path that does not exist, so every worktree in such a repo predicted "retirable".
+#
+#     THE RELATIVE `.git` FILE IS WRITTEN DIRECTLY, not via `worktree.useRelativePaths`.
+#     What this case asserts is RECONCILE'S GITDIR RESOLUTION, not git's ability to WRITE a
+#     relative gitdir -- and that config is only honoured from git 2.48, so keying the fixture
+#     on it made a headerless (always-counting) test hard-fail on e.g. Raspbian bookworm's
+#     2.39.5 for a reason unrelated to the code under test. Writing the one-line `.git` file
+#     by hand exercises the SAME code path on EVERY git version with no precondition: reading
+#     a relative `gitdir:` has been supported since long before 2.48 (it is how submodules
+#     have always been linked), so the worktree stays fully functional.
 # =====================================================================================
 mksuper relpath
-git -C "$tmp/relpath" config worktree.useRelativePaths true
 add_wt "$tmp/relpath" relpath deadrun-review-repo-0
 WT_I="$RELAY_WORKTREE_BASE/relpath/deadrun-review-repo-0"
 git -C "$WT_I" submodule update --init -q
+WT_I_ADMIN="$tmp/relpath/.git/worktrees/deadrun-review-repo-0"
+[[ -d "$WT_I_ADMIN/modules" ]] \
+  || fail "(i0a) fixture broken: no private submodule store at $WT_I_ADMIN/modules, so there is nothing for the predicate to find"
+printf 'gitdir: %s\n' \
+  "$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$WT_I_ADMIN" "$WT_I")" \
+  > "$WT_I/.git"
 grep -q '^gitdir: [^/]' "$WT_I/.git" \
-  || fail "(i0) fixture broken: gitdir is NOT relative ($(cat "$WT_I/.git")) -- this case needs a git that honours worktree.useRelativePaths (>= 2.48)"
-pass "(i0) fixture: the worktree's .git carries a RELATIVE gitdir"
+  || fail "(i0) fixture broken: gitdir is NOT relative ($(cat "$WT_I/.git"))"
+[[ "$(git -C "$WT_I" rev-parse --git-dir)" == "$WT_I_ADMIN" ]] \
+  || fail "(i0b) fixture broken: git itself no longer resolves the hand-written relative gitdir ($(git -C "$WT_I" rev-parse --git-dir))"
+pass "(i0) fixture: the worktree's .git carries a RELATIVE gitdir that git still resolves"
 
 oi="$("$RC" --repo relpath --path "$tmp/relpath" --live-claims "" --main-branch main 2>"$tmp/i.err")"
 si="$(printf '%s' "$oi" | surf_join)"
@@ -445,5 +484,117 @@ grep -q 'deadrun-review-repo-0' "$tmp/b.err" \
 grep -q 'retire-unretirable' "$tmp/b.err" \
   || fail "(j3) the reap failure line does not carry worktree-retire.sh's own message: $(cat "$tmp/b.err")"
 pass "(j1/j2/j3) a refused reap is reported on stderr, naming the worktree and quoting the helper"
+
+# =====================================================================================
+# (k) THE PARK PATH REPORTS FROM THE OUTCOME TOO -- and the id:1af1 EXISTENCE check alone
+#     structurally cannot see this shape.
+#
+#     worktree-retire.sh has an ORPHAN-COLLISION branch (`refs/heads/relay/orphan/<bn>`
+#     already exists): it removes the worktree, KEEPS the branch as `relay/<bn>`, and exits
+#     3. `show-ref --verify refs/heads/relay/orphan/<bn>` then PASSES -- on the PRE-EXISTING
+#     ref, which holds a DIFFERENT run's commits. So reconcile announces relay/orphan/<bn>
+#     as where this work went; the work is actually stranded on relay/<bn>; the worktree
+#     directory is gone, so this path never lists it again in any later round; and with the
+#     old `>/dev/null 2>&1 || true` NOTHING reached stderr or the reconcile log, ever.
+#     That is the id:1af1 phantom-park class with the ref PRESENT but the WRONG OBJECT.
+#
+#     "Does the ref exist?" and "did the helper succeed?" are DIFFERENT questions. The
+#     OUTCOME check is the load-bearing one; the existence check stays as defence in depth.
+#     Symmetric with the reap loop above by construction -- the two loops have now had the
+#     same defect found on them in three successive reviews, each time on whichever loop the
+#     tests did not cover.
+# =====================================================================================
+mkplain collide
+add_wt "$tmp/collide" collide deadrun-execute-6612-0
+WT_K="$RELAY_WORKTREE_BASE/collide/deadrun-execute-6612-0"
+printf 'WORK FROM THE SECOND DEAD RUN\n' > "$WT_K/two.txt"
+git -C "$WT_K" add two.txt
+git -C "$WT_K" commit -qm "WIP work from the second dead run"
+K_WORK="$(git -C "$tmp/collide" rev-parse relay/deadrun-execute-6612-0)"
+# A PRE-EXISTING orphan of the SAME basename, from an earlier dead run, at a DIFFERENT commit.
+git -C "$tmp/collide" branch relay/orphan/deadrun-execute-6612-0 main
+K_OLD="$(git -C "$tmp/collide" rev-parse relay/orphan/deadrun-execute-6612-0)"
+[[ "$K_WORK" != "$K_OLD" ]] \
+  || fail "(k0) fixture broken: the colliding orphan ref points at the same commit as the work, so a wrong-object announcement would be indistinguishable"
+if git -C "$tmp/collide" merge-base --is-ancestor relay/deadrun-execute-6612-0 main; then
+  fail "(k0b) fixture broken: the worktree branch is an ancestor of main, so this is a REAP not a PARK"
+fi
+pass "(k0) fixture: an UNMERGED worktree whose orphan ref name is ALREADY TAKEN by another run"
+
+ok="$("$RC" --repo collide --path "$tmp/collide" --live-claims "" --main-branch main 2>"$tmp/k.err")"
+grep -q 'park' <<<"$(printf '%s' "$ok" | acts)" \
+  || fail "(k1) no park was planned for an ordinary unmerged worktree, so the park path is not even exercised: $ok"
+pass "(k1) a park IS planned, so worktree-retire.sh is reached on the park path"
+
+grep -q 'PARK RETIRE FAILED' "$tmp/k.err" \
+  || fail "(k2) the park path SWALLOWED worktree-retire.sh's non-zero exit -- the helper hit ORPHAN-COLLISION, kept the work on relay/deadrun-execute-6612-0 and exited 3, yet nothing was reported. The existence check cannot catch this: relay/orphan/deadrun-execute-6612-0 exists, holding ANOTHER run's commits: $(cat "$tmp/k.err")"
+grep -q 'deadrun-execute-6612-0' "$tmp/k.err" \
+  || fail "(k3) the park failure line does not name the worktree it is about: $(cat "$tmp/k.err")"
+grep -q 'orphan ref' "$tmp/k.err" \
+  || fail "(k4) the park failure line does not carry worktree-retire.sh's own message (its ORPHAN-COLLISION text): $(cat "$tmp/k.err")"
+pass "(k2/k3/k4) a failed park is reported on stderr from the OUTCOME, naming the worktree and quoting the helper"
+
+grep -q 'park-retire-failed' "$RECONCILE_LOG" \
+  || fail "(k5) no reconcile-log row was written for the failed park -- the reap path writes one and the two loops must be symmetric: $(cat "$RECONCILE_LOG")"
+pass "(k5) a reconcile-log row is written, exactly as the reap path does"
+
+if grep -q 'PARK VERIFY FAILED' "$tmp/k.err"; then
+  fail "(k6) fixture assumption broken: the existence check DID fire, so this is not the wrong-object shape it is built to expose"
+fi
+pass "(k6) the existence check stays silent here -- proof it is not the load-bearing half"
+
+[[ "$(git -C "$tmp/collide" rev-parse relay/orphan/deadrun-execute-6612-0)" == "$K_OLD" ]] \
+  || fail "(k7) the pre-existing orphan ref was overwritten -- the helper must never clobber an older run's parked work"
+[[ "$(git -C "$tmp/collide" rev-parse relay/deadrun-execute-6612-0)" == "$K_WORK" ]] \
+  || fail "(k8) this run's work is no longer on relay/deadrun-execute-6612-0 -- the helper's ORPHAN-COLLISION branch must KEEP it there"
+pass "(k7/k8) the older orphan is untouched and this run's work is kept on relay/<bn> (stranded, but reported)"
+
+# =====================================================================================
+# (l) NEGATIVE DIRECTION of the predicate, shape 1: `<admin>/modules` as a REGULAR FILE.
+#     Nothing else locks this direction. git's trigger is `is_directory()`, so a plain file
+#     of that name is NOT refused; `[[ -d … ]]` agrees and predicts RETIRABLE. Asserted so
+#     that if a future git widened its trigger from is_directory to mere EXISTENCE, the
+#     predicate's under-prediction would be caught here instead of going silent.
+# =====================================================================================
+mkplain modfile
+add_wt "$tmp/modfile" modfile probe-file
+add_wt "$tmp/modfile" modfile deadrun-review-repo-0
+printf 'not a directory\n' > "$tmp/modfile/.git/worktrees/probe-file/modules"
+printf 'not a directory\n' > "$tmp/modfile/.git/worktrees/deadrun-review-repo-0/modules"
+LC_ALL=C git -C "$tmp/modfile" worktree remove "$RELAY_WORKTREE_BASE/modfile/probe-file" 2>"$tmp/l.err" \
+  || fail "(l1) git REFUSED a worktree whose <admin>/modules is a regular FILE -- its trigger is no longer is_directory, so the predicate now under-predicts: $(cat "$tmp/l.err")"
+pass "(l1) git removes a worktree whose <admin>/modules is a regular FILE"
+
+ol="$("$RC" --repo modfile --path "$tmp/modfile" --live-claims "" --main-branch main 2>"$tmp/l2.err")"
+if grep -q 'unretirable-submodule:' <<<"$(printf '%s' "$ol" | surf_join)"; then
+  fail "(l2) a regular FILE named modules was predicted unretirable, but git removes it -- the predicate now OVER-predicts: $(printf '%s' "$ol" | surf_join)"
+fi
+[[ ! -d "$RELAY_WORKTREE_BASE/modfile/deadrun-review-repo-0" ]] \
+  || fail "(l3) the worktree was not actually removed, so (l2) proves nothing about disposal"
+pass "(l2/l3) it is predicted RETIRABLE and really is disposed of"
+
+# =====================================================================================
+# (m) NEGATIVE DIRECTION, shape 2: `<admin>/modules` as a DANGLING SYMLINK. `[[ -d … ]]`
+#     follows symlinks, so a dangling one is false; git's is_directory() (a stat) agrees.
+# =====================================================================================
+mkplain modlink
+add_wt "$tmp/modlink" modlink probe-link
+add_wt "$tmp/modlink" modlink deadrun-review-repo-0
+ln -s ./no-such-target "$tmp/modlink/.git/worktrees/probe-link/modules"
+ln -s ./no-such-target "$tmp/modlink/.git/worktrees/deadrun-review-repo-0/modules"
+[[ -L "$tmp/modlink/.git/worktrees/probe-link/modules" && ! -e "$tmp/modlink/.git/worktrees/probe-link/modules" ]] \
+  || fail "(m0) fixture broken: modules is not a DANGLING symlink"
+LC_ALL=C git -C "$tmp/modlink" worktree remove "$RELAY_WORKTREE_BASE/modlink/probe-link" 2>"$tmp/m.err" \
+  || fail "(m1) git REFUSED a worktree whose <admin>/modules is a DANGLING SYMLINK -- its trigger is no longer is_directory, so the predicate now under-predicts: $(cat "$tmp/m.err")"
+pass "(m1) git removes a worktree whose <admin>/modules is a dangling symlink"
+
+om="$("$RC" --repo modlink --path "$tmp/modlink" --live-claims "" --main-branch main 2>"$tmp/m2.err")"
+if grep -q 'unretirable-submodule:' <<<"$(printf '%s' "$om" | surf_join)"; then
+  fail "(m2) a DANGLING SYMLINK named modules was predicted unretirable, but git removes it -- the predicate now OVER-predicts: $(printf '%s' "$om" | surf_join)"
+fi
+[[ ! -d "$RELAY_WORKTREE_BASE/modlink/deadrun-review-repo-0" ]] \
+  || fail "(m3) the worktree was not actually removed, so (m2) proves nothing about disposal"
+pass "(m2/m3) it is predicted RETIRABLE and really is disposed of"
+
 echo "---"
-echo "ALL PASS: reconcile reaches worktree-retire.sh for submodule worktrees; the predicate is git's own trigger, refused reaps are reported from the outcome, and an unparkable worktree is surfaced without a park (id:a290)"
+echo "ALL PASS: reconcile reaches worktree-retire.sh for submodule worktrees; the predicate is git's own trigger in BOTH directions, BOTH the reap and the park loop report from the outcome, and an unparkable worktree is surfaced without a park (id:a290)"
