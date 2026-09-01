@@ -169,27 +169,57 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
           continue
         fi
 
-        # roadmap:b02f direction (c) — KNOWN-UNRETIRABLE (submodules). `git worktree remove`
-        # refuses ANY worktree whose tree carries `.gitmodules`, regardless of how clean or
-        # merged it is; deinit-first was tested 2026-08-26 and does NOT lift it (git keys the
-        # check on the file being in the tree, not on checkout state). So there is no
-        # force-free disposal, and planning a reap/park here means APPLY re-invokes
-        # worktree-retire.sh every single round to be refused every single time.
+        # SUBMODULE-CARRYING WORKTREES (roadmap:b02f direction (c), REVERSED 2026-09-01 by
+        # owner ruling on id:a290). This block USED to `continue` here on `-e .gitmodules`,
+        # short-circuiting BEFORE plan_reap/plan_park were populated -- so worktree-retire.sh
+        # was NEVER reached from the reap path at all. Only integrate.sh step 9 reached the
+        # helper, and only for the one unit it had just integrated, which made every worktree
+        # that SURVIVED integrate (handback, crash, abandoned run) permanent debris. That is
+        # how 1.8 GB accumulated on yinyang-puzzle.
         #
-        # b02f closed on direction (a) (a clearer message) having ALSO named (c) — "have the
-        # census REPORT them as known-unretirable rather than re-attempting every run" — as
-        # cheap and composing. (c) was never built, so the retry loop stayed: 221 "containing
-        # submodules" lines and 51 UNRETIRABLE-SUBMODULE entries in the retire log, five
-        # worktrees and 1.8 GB accumulated on yinyang-puzzle between 2026-07-24 and today,
-        # visible only in a log nobody reads. This is (c).
+        # THE PREMISE THE SKIP RESTED ON IS REFUTED, by fixture, twice. b02f recorded that git
+        # keys its removal refusal on `.gitmodules` being IN THE TREE. It does not. A worktree
+        # with `.gitmodules` present and the gitlink in its index, whose submodule was NEVER
+        # INITIALISED, removes CLEANLY and FORCE-FREE (rc=0). The refusal appears only once the
+        # submodule is POPULATED, and the state git actually tests is the worktree's PRIVATE
+        # submodule store, `<common-git-dir>/worktrees/<name>/modules/<path>`. So the old skip
+        # also excluded uninitialised-submodule worktrees that would remove force-free TODAY,
+        # with no force op involved and no risk whatsoever.
         #
-        # ADDITIVE by construction (id:bc49/e7e4): the marker below is in discover-repo.sh's
-        # ADDITIVE tuple, so this NEVER suppresses the repo. Getting that wrong is the loderite
-        # starvation bug — 6 open actionable [ROUTINE] items, zero dispatched, two rounds —
-        # and it would bite yinyang-puzzle identically, since this fires on EVERY round.
+        # WHAT THIS DOES NOW: nothing is short-circuited. The ordinary merged/unmerged test
+        # below plans a reap or a park exactly as it does for any other worktree, and
+        # worktree-retire.sh -- the SINGLE place that decides what is safe to remove, which
+        # already proves clean AND merged, recognises git's refusal verbatim under LC_ALL=C,
+        # and FAILS CLOSED on anything it does not positively recognise -- makes the call.
+        # Reconcile's job is to stop pre-empting that decision. The immediate win is the
+        # UNINITIALISED case (now disposed of force-free); a POPULATED one is refused by the
+        # helper and left untouched on disk, which is still strictly better than a blanket skip
+        # because it produces a specific, actionable refusal. NOTE the helper's id:a290 force
+        # hatch is OPT-IN (`WORKTREE_RETIRE_SUBMODULE_FORCE=1`) and NO caller here sets it --
+        # deliberately, pending a separate owner decision -- so nothing is ever forced.
+        #
+        # THE MARKER STAYS, and is now PREDICTED rather than assumed. `.gitmodules` alone no
+        # longer implies unretirable, so the marker fires only on the state git actually
+        # refuses on (a non-empty private submodule store for this worktree). PLAN is pure and
+        # read-only, so this is a filesystem read, never a probe. Predicting wrong is bounded
+        # in both directions: a missed prediction means one refused (swallowed, logged) helper
+        # call per round -- the pre-b02f status quo -- and a false prediction means one extra
+        # surfaced line for a worktree that then disposes cleanly.
+        #
+        # ADDITIVE by construction (id:bc49/e7e4): the marker is in discover-repo.sh's ADDITIVE
+        # tuple, so it NEVER suppresses the repo. Getting that wrong is the loderite starvation
+        # bug -- 6 open actionable [ROUTINE] items, zero dispatched, two rounds -- and it would
+        # bite identically here, since the marker fires on EVERY round the worktree exists.
         if [[ -e "$wtdir/$bn/.gitmodules" ]]; then
-          add_surfaced "unretirable-submodule: worktree $bn carries .gitmodules, so git refuses to remove it regardless of state (roadmap:b02f) — NOT re-attempted this round; disposal needs a supervised decision, not a cleanup pass. There is no dirt to find."
-          continue
+          # A linked worktree's `.git` is a file holding `gitdir: <admin dir>`. The private
+          # submodule store lives at `<admin dir>/modules/`. A bare directory that is not a
+          # registered worktree has no `.git` file at all -- treat that as not-populated.
+          wt_admin=""
+          [[ -f "$wtdir/$bn/.git" ]] && wt_admin="$(sed -n '1s/^gitdir: //p' "$wtdir/$bn/.git")"
+          if [[ -n "$wt_admin" && -d "$wt_admin/modules" ]] \
+             && [[ -n "$(find "$wt_admin/modules" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+            add_surfaced "unretirable-submodule: worktree $bn has POPULATED submodules (private store $wt_admin/modules), which is the state git actually refuses to remove -- NOT the mere presence of .gitmodules, which roadmap:b02f got wrong. Disposal IS attempted this round through worktree-retire.sh, force-free; the helper will refuse and leave it untouched. Clearing it needs a supervised decision (TODO id:a290), not a cleanup pass -- there is no dirt to find."
+          fi
         fi
 
         branch="relay/$bn"
