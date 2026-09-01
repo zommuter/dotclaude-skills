@@ -128,16 +128,42 @@ convention, no per-token ledger edges**, with its own surface:
 python3 ledger-map.py validate fleet.json --mirror-file tracker/mirror-tokens.txt
 ```
 
-- `tracker/mirror-tokens.txt` is the recorded convention (`--mirror-token TOKEN` is the
-  repeatable inline form). Same strict 4-hex parsing as the allow-list; no wildcard.
-- A listed token downgrades **only if** its repos form a `<parent>` / `<parent>-<suffix>`
-  family. Repo-name shape is a **guard, never the driver** — a purely structural rule was
+- `tracker/mirror-tokens.txt` is the recorded convention (`--mirror-token DECL` is the
+  repeatable inline form). One declaration per line:
+
+  ```
+  1c7d zkm zkm-whatsapp
+  ```
+
+  the token **plus the exact repos it spans**. Same strict 4-hex parsing as the
+  allow-list, plus literal repo names — no wildcard, prefix or glob anywhere.
+- **A mirror is scoped to its exact repo PAIR, not to the parent's plugin family**
+  (owner's narrowing ruling, 2026-09-01). A declaration downgrades **only if** the
+  declared repo set **equals** the set of repos observed to carry the token, **and**
+  those repos form a `<parent>` / `<parent>-<suffix>` family. Pair equality is checked
+  first; the family shape is the original guard, applied after it.
+- A **bare token** (the earlier, family-scoped spelling) is **rejected outright**
+  (exit 2). It carried a superset hole: `parent_plugin_family()` asks only whether every
+  repo hangs off one parent, so re-minting a declared token in *any* further sibling
+  plugin (`zkm-ner`, `zkm-stt`, `zkm-notmuch`, …) was absorbed into the mirror and the
+  run exited 0. That is the hazard the convention exists to prevent, displaced one level:
+  growth in the token's **repo set** rather than in the token list. The file has one real
+  consumer (`tracker/fleet-import.sh`), so the old spelling is rejected rather than
+  reinterpreted.
+- Repo-name shape is a **guard, never the driver** — a purely structural rule was
   tried and reverted because it also swallowed `5e19`/`cfd1` (which the owner ruled must be
   re-minted on the plugin side, `routed:4ede`) and `df4e` (`zkm`/`zkm-notmuch`, an ordinary
   birthday collision). Absence from the file *is* the exclusion mechanism, so no negative
   list has to be maintained.
-- A listed token whose repos are **not** such a family has its claim **REFUSED** with a
-  warning and stays fatal; a listed token that is not a homonym at all is reported **stale**.
+- A declaration that does not hold has its claim **REFUSED** with a warning and stays
+  fatal, and the warning says **which** condition failed:
+  - the declared pair does not match the observed set — **both are named**, so the reader
+    can tell a real collision inside the family from an undeclared homonym, and knows the
+    fix is to re-mint the extra repo's id or widen the declaration deliberately (adding
+    the token to the homonym allow-list is *not* the fix);
+  - the declared repos are not a `<parent>`/`<parent>-<suffix>` family at all.
+
+  A declared token that is not a homonym in the document at all is reported **stale**.
 - Every recognised mirror is named **and counted** (`recognised N mirror(s): …`). An
   invisible downgrade would hide real collisions inside a growing plugin family.
 - Class B is unaffected: a mirror never resolves an ambiguous cross-repo edge.

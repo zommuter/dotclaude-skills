@@ -76,6 +76,11 @@
 #                     mirror is the SAME item on both sides of a parent/plugin pair,
 #                     not two unrelated items sharing a token. Each recognised mirror
 #                     is COUNTED in validate's output, never silently downgraded.
+#                     One declaration per line, `<4-hex token> <repo> <repo>`: a mirror
+#                     is scoped to its EXACT repo PAIR, not to the parent's whole plugin
+#                     family, so the same token minted independently in a THIRD family
+#                     repo stays a class-A ERROR (owner's narrowing ruling 2026-09-01).
+#                     A bare token is rejected by ledger-map.py.
 #
 #   --state           durable state document (default $TRACKER_STATE or
 #                     ~/.cache/relay/tracker/fleet-state.json). Written atomically.
@@ -126,7 +131,12 @@ while [[ $# -gt 0 ]]; do
     --allowlist-file) allowlist_file="$2"; shift 2 ;;
     --mirror-file) mirror_file="$2"; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
-    -h|--help) sed -n '2,4p;96,112p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    # NOTE the second range is the `# Usage:` block through `# Exit:`. It is ANCHORED by
+    # pattern, not by hardcoded line numbers: the header above grew and the old literal
+    # `96,112p` had drifted off the block entirely, printing code instead of usage.
+    -h|--help) sed -n '2,4p' "${BASH_SOURCE[0]}"
+               sed -n '/^# Usage:/,/^set -euo /{/^set -euo /!p;}' "${BASH_SOURCE[0]}"
+               exit 0 ;;
     *) echo "fleet-import.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -218,7 +228,10 @@ EOF
 mirror_flags=()
 build_mirror_flags() {
   [[ -f "$mirror_file" ]] || return 0
-  grep -qE '^[[:blank:]]*[0-9a-f]{4}[[:blank:]]*$' "$mirror_file" || return 0   # empty ⇒ no flag
+  # A declaration is `<4-hex token> <repo> <repo>` (id:9fa2 narrowing, 2026-09-01). The
+  # BARE-token form is deliberately NOT matched here: ledger-map.py rejects it (exit 2),
+  # and matching it would hand over a file that aborts the run instead of skipping.
+  grep -qE '^[[:blank:]]*[0-9a-f]{4}[[:blank:]]+[^[:blank:]#]' "$mirror_file" || return 0
   local help
   help="$(python3 "$LEDGER_MAP" validate --help 2>&1)" || {
     echo "fleet-import.sh: could not read 'ledger-map.py validate --help'" >&2; exit 2; }

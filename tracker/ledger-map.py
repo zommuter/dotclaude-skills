@@ -930,6 +930,10 @@ def parent_plugin_family(repos):
     carry BOTH deliberate mirrors and two tokens the owner ruled must be re-minted
     (5e19, cfd1, routed:4ede). So the shape can only CONFIRM a declared mirror; it
     can never manufacture one.
+
+    NOTE it is satisfied by any SUPERSET of a family — `{zkm, zkm-whatsapp,
+    zkm-notmuch}` passes just as `{zkm, zkm-whatsapp}` does. That is why it is not
+    sufficient on its own and `mirror_refusal()` requires PAIR EQUALITY first.
     """
     for cand in repos:
         if all(r == cand or r.startswith(cand + "-") for r in repos):
@@ -937,15 +941,60 @@ def parent_plugin_family(repos):
     return None
 
 
-def validate_doc(doc: dict, allowed_homonyms=frozenset(), mirror_tokens=frozenset()) -> tuple:
+def mirror_refusal(tok, repos, mirror_tokens):
+    """Return None if the declared mirror for `tok` holds over the observed `repos`,
+    else the WARN text explaining why the declaration is REFUSED (id:9fa2).
+
+    Two independent conditions, checked in this order because they are different
+    findings and the reader must be able to tell them apart:
+
+      1. PAIR EQUALITY. The declared repo set must EQUAL the set that actually carries
+         the token. A superset means some further repo minted the same 4-hex token
+         independently — a genuine birthday collision *inside* the family, which is
+         precisely what class A exists to catch. Honouring the declaration there would
+         re-open the hole one level up: the growth would be in the token's REPO SET
+         instead of in the token list. (Owner's narrowing ruling, 2026-09-01.)
+      2. FAMILY SHAPE. The declared repos must still be a `<parent>`/`<parent>-<suffix>`
+         family — the original guard, unchanged: shape can refuse a claim, never
+         manufacture one.
+    """
+    declared = mirror_tokens[tok]
+    observed = frozenset(repos)
+    if declared != observed:
+        extra = sorted(observed - declared)
+        absent = sorted(declared - observed)
+        detail = []
+        if extra:
+            detail.append("repos carrying it but NOT declared: %s" % extra)
+        if absent:
+            detail.append("declared but not carrying it here: %s" % absent)
+        return ("parent/plugin MIRROR declaration REFUSED for %r: the declared pair %s "
+                "does not equal the repos that actually carry the token, %s (%s). A "
+                "mirror is scoped to its EXACT pair, so a declared token appearing in a "
+                "further repo is a genuine collision inside the family, not part of the "
+                "mirror — it is NOT an undeclared homonym, and it is NOT resolved by "
+                "adding the token to the allow-list. Either re-mint the extra repo's id, "
+                "or widen the declaration deliberately. The token is treated as an "
+                "ordinary class-A homonym for now"
+                % (tok, sorted(declared), sorted(observed), "; ".join(detail)))
+    if not parent_plugin_family(repos):
+        return ("parent/plugin MIRROR declaration REFUSED for %r: repos %s "
+                "are not a <parent>/<parent>-<suffix> family — the token is "
+                "treated as an ordinary class-A homonym" % (tok, repos))
+    return None
+
+
+def validate_doc(doc: dict, allowed_homonyms=frozenset(), mirror_tokens=None) -> tuple:
     """Return (errors, warnings). Errors are fatal (exit 3).
 
-    `mirror_tokens` records the parent/plugin MIRROR convention (id:9fa2,
-    owner-ratified 2026-09-01: "one recorded convention, no per-token edges"). A
-    listed token whose repos form a `<parent>`/`<parent>-<suffix>` family is a
-    deliberate same-item mirror and is downgraded to a COUNTED warning; a listed
-    token whose repos do not form such a family has its claim REFUSED, loudly, and
-    stays fatal. Class B is unaffected — a mirror never resolves an ambiguous edge.
+    `mirror_tokens` is the parent/plugin MIRROR map `{token: frozenset(repos)}`
+    (id:9fa2, owner-ratified 2026-09-01: "one recorded convention, no per-token edges",
+    NARROWED the same day from family-scoped to REPO-PAIR-scoped). A declared token is
+    a deliberate same-item mirror — downgraded to a COUNTED warning — only when the
+    declared repo set EQUALS the repos that actually carry it AND those repos form a
+    `<parent>`/`<parent>-<suffix>` family. Any other outcome has its claim REFUSED,
+    loudly and with the reason (`mirror_refusal()`), and stays fatal. Class B is
+    unaffected — a mirror never resolves an ambiguous edge.
 
     `allowed_homonyms` is an explicit ALLOW-LIST of adjudicated bare tokens (id:ca24,
     owner-decided 2026-08-10; supersedes the blanket boolean shipped by id:2bb1). A
@@ -954,6 +1003,7 @@ def validate_doc(doc: dict, allowed_homonyms=frozenset(), mirror_tokens=frozense
     ratified "cross-repo 4-hex collisions fail loudly at import" stays operative for
     every token a human has not yet adjudicated. Class B is never downgradable.
     """
+    mirror_tokens = dict(mirror_tokens or {})
     errs = []
     warns = []
 
@@ -1060,27 +1110,29 @@ def validate_doc(doc: dict, allowed_homonyms=frozenset(), mirror_tokens=frozense
             errs.append("cross-repo id collision (class B, AMBIGUOUS REFERENCE): bare "
                         "token %r exists in repos %s and is used as a cross-repo routed "
                         "edge — the edge cannot be resolved to one (repo,id)" % (tok, repos))
-        elif tok in mirror_tokens and parent_plugin_family(repos):
+        elif tok in mirror_tokens and mirror_refusal(tok, repos, mirror_tokens) is None:
             # id:9fa2 — a DELIBERATE mirror of one item across a parent repo and its
             # plugin repo. Reported and COUNTED (see the summary warning below): an
             # invisible downgrade would hide real collisions inside a growing plugin
             # family, which is the whole reason class A is loud.
             mirrors_recognised.append(tok)
             warns.append("cross-repo id MIRROR (class A downgraded): %r in repos %s — "
-                         "parent/plugin mirror convention (id:9fa2); parent %r"
-                         % (tok, repos, parent_plugin_family(repos)))
+                         "parent/plugin mirror convention (id:9fa2), declared pair %s; "
+                         "parent %r"
+                         % (tok, repos, sorted(mirror_tokens[tok]),
+                            parent_plugin_family(repos)))
         elif tok in allowed_homonyms:
             warns.append("cross-repo id homonym (class A): %r in repos %s — composite "
                          "key disambiguates; ADJUDICATED via --allow-homonym %s"
                          % (tok, repos, tok))
         else:
             if tok in mirror_tokens:
-                # The convention was CLAIMED for a pair that is not a parent/plugin
-                # family. Refuse it loudly and fall through to the normal class-A
-                # treatment rather than honouring a claim the repo names contradict.
-                warns.append("parent/plugin MIRROR declaration REFUSED for %r: repos %s "
-                             "are not a <parent>/<parent>-<suffix> family — the token is "
-                             "treated as an ordinary class-A homonym" % (tok, repos))
+                # The convention was CLAIMED but does not hold: either the declared pair
+                # is not what the document shows (a THIRD repo minted the token — a
+                # genuine collision inside the family, not part of the mirror), or the
+                # declared repos are not a parent/plugin family at all. Refuse it loudly,
+                # saying WHICH, and fall through to the normal class-A treatment.
+                warns.append(mirror_refusal(tok, repos, mirror_tokens))
             errs.append("cross-repo id collision (class A, HOMONYM): bare token %r exists "
                         "in repos %s — adjudicate it explicitly with --allow-homonym %s "
                         "(per-token; there is no blanket downgrade)" % (tok, repos, tok))
@@ -1092,7 +1144,8 @@ def validate_doc(doc: dict, allowed_homonyms=frozenset(), mirror_tokens=frozense
                      "in this document" % (tok, tok))
     for tok in sorted(set(mirror_tokens) - seen_homonyms):
         warns.append("parent/plugin mirror %s is stale: %r is not a class-A cross-repo "
-                     "homonym in this document" % (tok, tok))
+                     "homonym in this document (declared pair %s)"
+                     % (tok, tok, sorted(mirror_tokens[tok])))
 
     # id:9fa2 — the recognised mirrors are COUNTED, always, so the convention can never
     # be a silent downgrade: a mirror set that starts growing is visible in every run.
@@ -1173,12 +1226,73 @@ def collect_allowed_homonyms(tokens, path) -> frozenset:
     return _collect_tokens(tokens, path, "--allow-homonym", "adjudicated homonym")
 
 
-def collect_mirror_tokens(tokens, path) -> frozenset:
-    """Build the parent/plugin MIRROR set from --mirror-token / --mirror-file (id:9fa2).
+MIRROR_REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+MIRROR_FORM = "<4-hex token> <repo> <repo> [...]"
+
+
+def collect_mirror_tokens(tokens, path) -> dict:
+    """Build the parent/plugin MIRROR map from --mirror-token / --mirror-file (id:9fa2).
+
+    Returns `{token: frozenset(repos)}`. A mirror is scoped to the EXACT repo pair it
+    is declared against, NOT to the parent's whole plugin family (owner's narrowing
+    ruling, 2026-09-01). Each declaration is therefore
+        `1c7d zkm zkm-whatsapp`
+    and `validate` requires SET EQUALITY between the declared repos and the repos that
+    actually carry the token.
+
+    A BARE token (no repos) is REJECTED, not defaulted to family scope. That spelling
+    IS the defect this narrowing closes: `parent_plugin_family()` is satisfied by any
+    SUPERSET, so a fresh birthday collision minted on a declared token in any sibling
+    plugin (`zkm-ner`, `zkm-stt`, …) was silently absorbed into the mirror — the exact
+    hazard id:9fa2 exists to prevent, displaced from the token list into the token's
+    repo set. Accepting the old spelling would preserve that hole under a compatible
+    surface; this file has exactly one real consumer (`tracker/fleet-import.sh`), so
+    rejecting is cheap and loud. Compare `_collect_tokens`, which stays bare-token for
+    `--allow-homonym`: an adjudicated homonym IS a claim about the token alone.
 
     The shipped record of the convention is `tracker/mirror-tokens.txt`.
     """
-    return _collect_tokens(tokens, path, "--mirror-token", "mirrored item")
+    decls = list(tokens or [])
+    if path:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
+        except OSError as exc:
+            die("--mirror-file: %s" % exc)
+        for raw in lines:
+            entry = raw.split("#", 1)[0].strip()
+            if entry:
+                decls.append(entry)
+
+    out = {}
+    for entry in decls:
+        fields = [f for f in re.split(r"[\s,:]+", entry.strip()) if f]
+        if not fields:
+            continue
+        tok, repos = fields[0], fields[1:]
+        if not ALLOW_TOKEN_RE.match(tok):
+            die("--mirror-token takes a literal 4-hex token; rejected %r in %r "
+                "(required form: %s; there is no blanket/wildcard downgrade)"
+                % (tok, entry, MIRROR_FORM))
+        if len(repos) < 2:
+            die("--mirror-token %s declares no repo PAIR: a mirror is scoped to the "
+                "EXACT repos it spans, never to a parent's whole plugin family — a bare "
+                "token would let a fresh collision in ANY sibling plugin be absorbed. "
+                "Required form: %s (got %r)" % (tok, MIRROR_FORM, entry))
+        bad = [r for r in repos if not MIRROR_REPO_RE.match(r)]
+        if bad:
+            die("--mirror-token %s: %s is not a literal repo name — a mirror declaration "
+                "names its repos exactly; no wildcard, prefix or glob (required form: %s)"
+                % (tok, ", ".join(repr(b) for b in bad), MIRROR_FORM))
+        if len(set(repos)) != len(repos):
+            die("--mirror-token %s repeats a repo: %r" % (tok, repos))
+        declared = frozenset(repos)
+        if tok in out and out[tok] != declared:
+            die("--mirror-token %s is declared twice with different repo sets, %s and %s "
+                "— one token cannot name two mirrors; the composite (repo,id) key would "
+                "not tell them apart" % (tok, sorted(out[tok]), sorted(declared)))
+        out[tok] = declared
+    return out
 
 
 def read_doc(path: str) -> dict:
@@ -1215,14 +1329,18 @@ def main(argv=None) -> int:
     # SEPARATE surface from --allow-homonym on purpose: the allow-list asserts "these
     # are unrelated items whose composite key disambiguates them", which is the WRONG
     # claim for a deliberate mirror of the SAME item across a parent and its plugin.
-    p_val.add_argument("--mirror-token", action="append", metavar="TOKEN", default=[],
-                       help="record a parent/plugin MIRROR (4-hex token); repeatable. "
-                            "Downgraded to a COUNTED warning only when the repos form a "
-                            "<parent>/<parent>-<suffix> family; otherwise the claim is "
-                            "refused and the token stays fatal")
+    p_val.add_argument("--mirror-token", action="append", metavar="DECL", default=[],
+                       help="record a parent/plugin MIRROR as '<4-hex token> <repo> "
+                            "<repo>'; repeatable. A mirror is scoped to its EXACT repo "
+                            "pair: it is downgraded to a COUNTED warning only when the "
+                            "declared repos EQUAL the repos actually carrying the token "
+                            "AND form a <parent>/<parent>-<suffix> family. A superset "
+                            "(the token also minted in a third family repo) is a real "
+                            "collision and stays FATAL. A BARE token is rejected")
     p_val.add_argument("--mirror-file", metavar="PATH",
-                       help="file of mirrored tokens, one per line — the shipped record "
-                            "is tracker/mirror-tokens.txt")
+                       help="file of mirror declarations, one '<token> <repo> <repo>' per "
+                            "line ('#' comments and blank lines ignored) — the shipped "
+                            "record is tracker/mirror-tokens.txt")
 
     p_ren = sub.add_parser("render-status", help="project items back to per-view checkbox states")
     p_ren.add_argument("doc")
