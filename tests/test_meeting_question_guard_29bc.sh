@@ -139,18 +139,30 @@ run_hook "$tmpdir/t3.jsonl" sess-3 false
 if [[ $HOOK_RC -eq 0 ]]; then ok "does not block outside a /meeting window"
 else bad "expected exit 0 with no meeting active, got $HOOK_RC (stderr: ${HOOK_ERR:0:200})"; fi
 
-# --- 4. Fable-class is EXEMPT (format.md requires prose-with-inline-options) -------
+# --- 4. Fable-class exemption DISABLED 2026-09-01 (owner-decided, provisional) -----
+# These two assertions are INVERTED from what they asserted before that date. The
+# exemption is commented out (not deleted) in the hook; when it is restored, invert
+# these two back -- expect exit 0, and restore the original ok/bad wording. Do not
+# "fix" a failure here by re-enabling the hook block: the disable is deliberate.
+# Reason, in short: class was inferred from the SESSION MODEL, never the meeting
+# PHASE, so a --fabled pass on an Opus facilitator inferred "default" and blocked
+# during the one step format.md:131 says must NOT call AskUserQuestion. Rather than
+# teach the guess a new special case, nobody is exempt for now.
 make_transcript "$tmpdir/t4.jsonl" claude-fable-5 open prose
 run_hook "$tmpdir/t4.jsonl" sess-4 false
-if [[ $HOOK_RC -eq 0 ]]; then ok "does not block on a Fable-class harness (exempt by format.md spec)"
-else bad "expected exit 0 on Fable-class, got $HOOK_RC (stderr: ${HOOK_ERR:0:200})"; fi
+if [[ $HOOK_RC -eq 2 ]]; then ok "blocks on a Fable-class harness (exemption disabled 2026-09-01)"
+else bad "expected exit 2 on Fable-class with the exemption disabled, got $HOOK_RC (stderr: ${HOOK_ERR:0:200})"; fi
 
-# --- 4b. Fable exemption also honoured when pinned via the marker -----------------
+# --- 4b. The marker class pin no longer exempts either ----------------------------
+# `meeting-guard-marker.sh start --class fable` still WRITES the marker; the hook
+# simply no longer reads `class` while the block above is commented out. The
+# `disable` escape hatch (case 9 below) is unaffected and remains the way out of a
+# false positive.
 make_transcript "$tmpdir/t4b.jsonl" claude-opus-5 open prose
 bash "$MARKER_SH" start --class fable --session sess-4b >/dev/null
 run_hook "$tmpdir/t4b.jsonl" sess-4b false
-if [[ $HOOK_RC -eq 0 ]]; then ok "marker --class fable exempts even when the transcript model is Opus"
-else bad "expected exit 0 with marker class=fable, got $HOOK_RC (stderr: ${HOOK_ERR:0:200})"; fi
+if [[ $HOOK_RC -eq 2 ]]; then ok "marker --class fable no longer exempts (exemption disabled 2026-09-01)"
+else bad "expected exit 2 with marker class=fable while disabled, got $HOOK_RC (stderr: ${HOOK_ERR:0:200})"; fi
 
 # --- 5. meeting note already written -> window closed -----------------------------
 make_transcript "$tmpdir/t5.jsonl" claude-opus-5 closed prose

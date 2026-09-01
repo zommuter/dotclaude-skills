@@ -464,14 +464,37 @@ def main() -> None:
         # The meeting note was written in this very turn; the window closed.
         return
 
-    cls = str((marker or {}).get("class") or "").strip().lower()
-    if not cls:
-        cls = "fable" if "fable" in last_model(entries).lower() else "default"
-    if cls == "fable":
-        # format.md §Interactive mode REQUIRES Fable-class to end on prose with
-        # inline numbered options and to NOT call AskUserQuestion.
-        log("SKIP", f"session {session_id}: fable-class harness is exempt by spec")
-        return
+    # ── Fable-class exemption DISABLED 2026-09-01 (owner-decided, provisional) ──────
+    # Commented rather than deleted so it can be restored verbatim.
+    #
+    # WHY IT WAS HERE: format.md §Interactive mode (:131) requires Fable-class to end
+    # on prose with inline numbered options and NOT call AskUserQuestion, so blocking
+    # such a turn would have been a false positive.
+    #
+    # WHY IT IS OFF: two reasons, one a defect and one an observation.
+    # (1) DEFECT — the class was inferred from the SESSION MODEL, never the meeting
+    #     PHASE. A `--fabled` pass runs on an Opus facilitator, so this inferred
+    #     "default" and the guard demanded a question during the one step that forbids
+    #     one. SKILL.md:94 states the assumption outright ("read from the session
+    #     model; pin it only if that inference could be wrong") and the --fabled step
+    #     never pins it, so the inference was wrong every single time it mattered.
+    # (2) OBSERVATION — the owner judges the Fable inline-prose protocol likely
+    #     obsolete, while Opus itself has started missing AskUserQuestion. Exempting
+    #     nobody is the cleaner experiment: it removes the wrong-inference class
+    #     entirely rather than teaching the guess a new special case.
+    #
+    # KNOWN EXPOSURE while this is off: a genuine Fable-class meeting now BLOCKS while
+    # format.md:131 still tells it not to call AskUserQuestion — a possible stall. The
+    # escape hatch is `meeting-guard-marker.sh disable`. Judged small: only 3 of 94
+    # logged guard events were ever fable-class. If this stalls a real Fable meeting,
+    # restore the block below OR retire format.md:131 — decide which, do not do both.
+    #
+    # cls = str((marker or {}).get("class") or "").strip().lower()
+    # if not cls:
+    #     cls = "fable" if "fable" in last_model(entries).lower() else "default"
+    # if cls == "fable":
+    #     log("SKIP", f"session {session_id}: fable-class harness is exempt by spec")
+    #     return
 
     if segment_has_question(seg):
         log("OK", f"session {session_id}: AskUserQuestion present (waited {waited:.2f}s)")
