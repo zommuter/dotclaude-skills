@@ -11,6 +11,7 @@
 
 - review: 20 owner commits audited clean (gaming-scan 0, 536 pass/0 fail); closed id:2065, promoted id:8302+id:d8b3 with red specs, unblocked id:6958 — repo flips review→execute (2 actionable) (id:2065,8302,d8b3,6958,9fa2)
 - Fixed id:d8b3 -- executor-contract rule 2c's ZERO-COMMIT escalation counter now accumulates via relay-state-write.sh event-append into ~/.config/relay/relay-events.jsonl instead of the never-merged RELAY_LOG.md, making route=hard-split reachable; contract bumped v17-&gt;v18. (id:d8b3)
+- Fixed id:8302 -- tracker/ledger-map.py no longer drops a parent on a multi-`children-of:` line (scalar overwrite -&gt; new lossless `parents` list, `parent` kept as backward-compat first-entry alias); regenerated golden fixtures, documented the field in the schema, full suite green (538/0). (id:8302)
 
 ## 2026-08-31
 
