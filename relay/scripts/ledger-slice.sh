@@ -92,7 +92,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib-typed-edges.sh
 source "$SCRIPT_DIR/lib-typed-edges.sh"
 
-repo=""; path=""; id=""; ids_csv=""; since_ckpt=""; out=""
+repo=""; path=""; id=""; ids_csv=""; since_ckpt=""; since_last_review=0; out=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) repo="${2:-}"; shift 2 ;;
@@ -100,6 +100,7 @@ while [[ $# -gt 0 ]]; do
     --id)   id="${2:-}";   shift 2 ;;
     --ids)  ids_csv="${2:-}"; shift 2 ;;
     --since-ckpt) since_ckpt="${2:-}"; shift 2 ;;
+    --since-last-review) since_last_review=1; shift ;;
     --out)  out="${2:-}";  shift 2 ;;
     *) echo "ledger-slice.sh: unknown argument '$1'" >&2; exit 2 ;;
   esac
@@ -107,10 +108,32 @@ done
 [[ -n "$path" ]] || { echo "ledger-slice.sh: --path is required" >&2; exit 2; }
 _selector_count=0
 for _sel in "$id" "$ids_csv" "$since_ckpt"; do [[ -n "$_sel" ]] && _selector_count=$(( _selector_count + 1 )); done
+(( since_last_review )) && _selector_count=$(( _selector_count + 1 ))
 if (( _selector_count > 1 )); then
-  echo "ledger-slice.sh: --id, --ids and --since-ckpt are mutually exclusive" >&2; exit 2
+  echo "ledger-slice.sh: --id, --ids, --since-ckpt and --since-last-review are mutually exclusive" >&2; exit 2
 fi
-(( _selector_count == 1 )) || { echo "ledger-slice.sh: one of --id, --ids or --since-ckpt is required" >&2; exit 2; }
+(( _selector_count == 1 )) || { echo "ledger-slice.sh: one of --id, --ids, --since-ckpt or --since-last-review is required" >&2; exit 2; }
+
+# --since-last-review (id:dd59) — resolve the REVIEW checkpoint family ourselves rather than
+# taking a ref from the caller. Two measured reasons this is not the caller's job:
+#   (a) `unit.lastCkpt` is DECLARED in relay-loop.js's schema (:716) and initialised for
+#       injected units (:1166), but NOTHING assigns it for a naturally-discovered unit --
+#       discover-repo.sh, the per-repo path the shard runs, never emits last_ckpt, and
+#       discovery is mechanical (model:'bash') so no LLM fills it. Passing it through would
+#       have made this whole path a SILENT NO-OP.
+#   (b) the one script that does emit it, discover-repos.sh:109, greps `fable-ckpt-*` — of
+#       which the newest here is 2026-06-15, ~3 months stale, against 512 `relay-ckpt-*`
+#       tags with the newest from yesterday. Measured: that stale ref spans 3,612 commits,
+#       derives 1,702 ids and yields a 1,515,130 B "slice" — 98% of the ledgers it exists to
+#       replace. See the size guard below, which now refuses exactly that outcome.
+if (( since_last_review )); then
+  since_ckpt="$(git -C "$path" tag -l 'relay-ckpt-*' 2>/dev/null | sort | tail -1)"
+  if [[ -z "$since_ckpt" ]]; then
+    echo "ledger-slice.sh: --since-last-review found no relay-ckpt-* tag in $path — nothing to slice from; the caller should fall back to the unsliced brief (id:dd59)" >&2
+    exit 5
+  fi
+  echo "ledger-slice.sh: --since-last-review resolved to $since_ckpt (id:dd59)" >&2
+fi
 repo="${repo:-$(basename "$path")}"
 
 roadmap="$path/ROADMAP.md"
@@ -440,9 +463,43 @@ if [[ -n "$ids_csv" ]]; then
     fi
   } > "$tmp"
 
+  # SIZE GUARD (id:dd59, owner-decided 2026-09-01): a slice exists to be SMALLER than the
+  # ledgers it replaces. One that is not has failed at its only job, and returning it anyway
+  # converts a LOUD oversize refusal into an expensive no-op that gets refused downstream
+  # anyway — burning a mechanical hop to learn nothing. Measured motivation: a stale ref
+  # (fable-ckpt-20260615, 3,612 commits) derived 1,702 ids and produced 1,515,130 B against
+  # 1,543,129 B of ledgers — 98%, and the slicer returned it without a word.
+  # Refuse LOUDLY, naming the id count and both sizes so a runaway RANGE is diagnosable
+  # rather than a mystery. Exit 6 is distinct from 4 (some ids unresolved) and 5 (empty set)
+  # so the caller can tell "your range is wrong" from "there was nothing to slice".
+  # The bound is the DISPATCH BUDGET, not a ratio of the ledgers. "Smaller than the ledgers"
+  # was the first rule tried and it MISSES its own motivating case: the stale-ref runaway came
+  # to 1,515,130 B against 1,555,658 B of ledgers — 97.4%, technically smaller, useless, and
+  # it sailed through. A percentage would work but every threshold is arbitrary.
+  #
+  # This one is not: the gate computes round((promptChars + sliceBytes)/4) + FIXED_OVERHEAD and
+  # refuses above the budget, so a slice larger than (BUDGET - OVERHEAD) * CHARS_PER_TOKEN
+  # cannot dispatch NO MATTER WHAT and returning it is guaranteed-wasted work.
+  # (300000 - 65000) * 4 = 940000 B. Override with LEDGER_SLICE_MAX_BYTES.
+  #
+  # DRIFT WARNING: those three constants live in relay/scripts/prompt-size-gate.mjs
+  # (OPUS_DISPATCH_TOKEN_BUDGET, FIXED_OVERHEAD_TOKENS, CHARS_PER_TOKEN). If they change there
+  # and not here, this guard goes stale — it fails toward REFUSING a dispatchable slice
+  # (loud, recoverable), never toward passing an oversized one.
+  _slice_bytes="$(wc -c < "$tmp" | tr -d '[:space:]')"
+  _max_bytes="${LEDGER_SLICE_MAX_BYTES:-940000}"
+  if (( _slice_bytes >= _max_bytes )); then
+    _ledger_bytes=0
+    for _lf in "$roadmap" "$todo"; do
+      [[ -f "$_lf" ]] && _ledger_bytes=$(( _ledger_bytes + $(wc -c < "$_lf" | tr -d '[:space:]') ))
+    done
+    echo "ledger-slice.sh: REFUSING a slice that cannot fit the dispatch budget — ${#resolved_ids[@]} ROADMAP + ${#todo_only_ids[@]} TODO-only id(s) produced ${_slice_bytes} B, at or above the ${_max_bytes} B ceiling (ledgers are ${_ledger_bytes} B). A slice this size cannot dispatch under any circumstances, so returning it would burn a hop to be refused downstream. This is a runaway RANGE, not a big repo: check the ref you passed (id:dd59)." >&2
+    exit 6
+  fi
+
   mv -- "$tmp" "$out"
   trap - EXIT
-  printf 'slice-bytes: %s\n' "$(wc -c < "$out" | tr -d '[:space:]')"
+  printf 'slice-bytes: %s\n' "$_slice_bytes"
   printf '%s\n' "$out"
   if (( ${#unresolved_ids[@]} > 0 )); then
     exit 4

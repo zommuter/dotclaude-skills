@@ -4059,11 +4059,19 @@ async function sliceLedgerForUnit(unit) {
   // FAIL-OPEN is preserved throughout: no lastCkpt, an unresolvable ref (exit 2), an empty
   // derived set (exit 5) and any thrown/garbled output all fall through to the unsliced
   // brief, exactly as before. This can only ever ADD a slice, never suppress a dispatch.
-  const sinceRef = (!item && unit.verdict === 'review') ? String(unit.lastCkpt || '').trim() : ''
+  // Deliberately does NOT read unit.lastCkpt. That field is declared (:716) and initialised
+  // for injected units (:1166) but NOTHING assigns it for a naturally-discovered one --
+  // discover-repo.sh never emits last_ckpt and discovery is mechanical, so keying off it made
+  // this whole path a silent no-op. The one script that does emit it greps `fable-ckpt-*`,
+  // whose newest here is ~3 months stale; measured, that ref spans 3,612 commits, derives
+  // 1,702 ids and yields a 1,515,130 B "slice". ledger-slice.sh resolves the REVIEW
+  // checkpoint family itself via --since-last-review, and refuses a slice that cannot fit
+  // the budget (exit 6). Both are fail-open here, like every other branch.
+  const useReviewSet = !item && unit.verdict === 'review'
   // What this slice is FOR, in log lines: a single dispatch item, or the review set derived
-  // from a checkpoint range. Without this the review path logged "id:undefined".
-  const sliceLabel = sinceRef ? `review-set since ${sinceRef}` : `id:${item}`
-  if (!item && !sinceRef) {
+  // from the last review checkpoint. Without this the review path logged "id:undefined".
+  const sliceLabel = useReviewSet ? 'review-set since last relay-ckpt' : `id:${item}`
+  if (!item && !useReviewSet) {
     // id:f499 — this was the ONE silent branch of the five the header promises "logs WHY".
     // The unsliced-branch REMEDY in oversizeDispatchReason tells the operator the relay-loop
     // log records why no slice_path was produced; without this line that remedy dead-ends for
@@ -4078,7 +4086,7 @@ async function sliceLedgerForUnit(unit) {
     const res = await agent(
       `Run EXACTLY this one command and report its stdout VERBATIM (id:e68f pre-dispatch ledger slice — writes the unit's item + typed edges to a file and prints its path):\n` +
       '```relay-mech\n' +
-      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} ${sinceRef ? `--since-ckpt ${sinceRef}` : `--id ${item}`}` +
+      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} ${useReviewSet ? '--since-last-review' : `--id ${item}`}` +
       '\n```',
       { label: `ledger-slice:${unit.repo}`, phase: 'Support', model: MECH_MODEL }
     )

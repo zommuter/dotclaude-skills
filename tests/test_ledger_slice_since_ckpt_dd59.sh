@@ -139,6 +139,53 @@ last_line="$(printf '%s\n' "$stdout1" | grep -v '^[[:space:]]*$' | tail -1)"
 [[ "$first" =~ ^slice-bytes:\ [0-9]+$ ]] && ok "slice-bytes line still leads stdout under --since-ckpt" || bad "id:dd59: stdout does not lead with 'slice-bytes: N' (got: '$first')"
 [[ "$last_line" == "$TMP/since_stdout.md" ]] && ok "the slice path is still the LAST stdout line under --since-ckpt" || bad "id:dd59: last stdout line is '$last_line', expected the slice path"
 
+# ── (10) --since-last-review resolves the REVIEW checkpoint family itself. ──────────────────
+# WHY THIS EXISTS: relay-loop.js used to pass `unit.lastCkpt`, which is NEVER assigned for a
+# naturally-discovered unit (discover-repo.sh emits no last_ckpt; discovery is mechanical), so
+# the review path was a silent no-op. The one script that does emit it greps `fable-ckpt-*`,
+# a family that here was ~3 months stale -- measured, that ref spanned 3,612 commits, derived
+# 1,702 ids and produced a 1,515,130 B "slice". So the slicer resolves `relay-ckpt-*` itself.
+# This test pins BOTH halves: the right family is chosen, and a STALER OTHER family present in
+# the same repo is NOT chosen.
+git -C "$R" tag relay-ckpt-20260101-0000 >/dev/null 2>&1
+git -C "$R" tag fable-ckpt-20990101-0000 >/dev/null 2>&1   # lexically NEWER, wrong family
+err_slr="$TMP/err_slr.txt"
+rc_slr=0
+"$SLICE" --repo repo --path "$R" --since-last-review --out "$TMP/slr.md" >/dev/null 2>"$err_slr" || rc_slr=$?
+grep -q 'resolved to relay-ckpt-20260101-0000' "$err_slr" \
+  && ok "--since-last-review resolves the newest relay-ckpt-* tag and says so" \
+  || bad "id:dd59: --since-last-review did not resolve relay-ckpt-20260101-0000 (got: $(head -2 "$err_slr"))"
+grep -q 'fable-ckpt' "$err_slr" \
+  && bad "id:dd59: --since-last-review picked up a fable-ckpt-* tag -- wrong checkpoint family" \
+  || ok "a lexically-newer fable-ckpt-* tag is correctly IGNORED (review family only)"
+
+# A repo with NO relay-ckpt-* tag is 'nothing to slice', not a failure: exit 5, no file.
+R2="$TMP/repo2"; mkdir -p "$R2"; git -C "$R2" init -q .
+git -C "$R2" config user.email t@e; git -C "$R2" config user.name t
+printf -- '- [ ] [ROUTINE] a <!-- id:1111 -->\n' > "$R2/ROADMAP.md"
+: > "$R2/TODO.md"
+git -C "$R2" add -A; git -C "$R2" commit -qm base >/dev/null
+rc_no=0
+"$SLICE" --repo repo2 --path "$R2" --since-last-review --out "$TMP/no_tag.md" >/dev/null 2>"$TMP/err_no.txt" || rc_no=$?
+[[ "$rc_no" -eq 5 ]] && ok "no relay-ckpt-* tag exits 5 (nothing to slice, distinguishable from failure)" || bad "id:dd59: expected exit 5 with no relay-ckpt tag, got $rc_no"
+[[ ! -e "$TMP/no_tag.md" ]] && ok "no relay-ckpt-* tag writes no slice file" || bad "id:dd59: a slice file was written with no relay-ckpt tag"
+
+rc_mx=0
+"$SLICE" --repo repo --path "$R" --since-last-review --ids 1111 --out "$TMP/mx.md" >/dev/null 2>&1 || rc_mx=$?
+[[ "$rc_mx" -eq 2 ]] && ok "--since-last-review + --ids together exits 2" || bad "id:dd59: mutual exclusion not enforced for --since-last-review (got $rc_mx)"
+
+# ── (11) SIZE GUARD: a slice that cannot fit the dispatch budget is REFUSED, not returned. ──
+# The first version of this guard was "refuse if not smaller than the ledgers" and it MISSED
+# its own motivating case: the runaway came to 1,515,130 B against 1,555,658 B of ledgers --
+# 97.4%, technically smaller, useless, and it sailed through. The bound is now the dispatch
+# budget: a slice above (BUDGET - OVERHEAD) * CHARS_PER_TOKEN cannot dispatch no matter what.
+rc_big=0
+LEDGER_SLICE_MAX_BYTES=1 "$SLICE" --repo repo --path "$R" --since-ckpt ckpt1 --out "$TMP/big.md" >/dev/null 2>"$TMP/err_big.txt" || rc_big=$?
+[[ "$rc_big" -eq 6 ]] && ok "an over-ceiling slice exits 6 (distinct from 4=unresolved and 5=empty)" || bad "id:dd59: expected exit 6 over the size ceiling, got $rc_big"
+[[ ! -e "$TMP/big.md" ]] && ok "an over-ceiling slice writes NO file (not returned to be refused downstream)" || bad "id:dd59: an over-ceiling slice was still written"
+grep -q 'cannot fit the dispatch budget' "$TMP/err_big.txt" && ok "the size refusal is LOUD and names the ceiling (id:4347)" || bad "id:dd59: size refusal message missing from stderr"
+grep -qE 'produced [0-9]+ B' "$TMP/err_big.txt" && ok "the size refusal names the actual slice size, so a runaway range is diagnosable" || bad "id:dd59: size refusal does not report the produced byte count"
+
 echo "---"
 echo "summary: $pass ok, $fail bad"
 [[ "$fail" -eq 0 ]] || exit 1
