@@ -566,7 +566,33 @@ def _find_violation_tokenised(command: str) -> Optional[str]:
     tokens: Optional[list[str]] = None
     if not _UNPARSEABLE_CONSTRUCT.search(command):
         try:
-            tokens = shlex.split(command, comments=False)
+            # BYPASS FIX (2026-09-01, reported by the loderite session as routed:7ae9,
+            # measured after a real execute child ran exactly this shape).
+            #
+            # `shlex.split()` DESTROYS the very boundaries `_split_git_commands` keys on:
+            # a newline is eaten as whitespace, and a `;` is GLUED to the preceding token
+            # (`'git status; git reset'` -> [..., 'status;', 'git', ...]). `_OPERATORS`
+            # already lists `;` and `\n`, so the bug was never a missing operator -- the
+            # operators were erased one layer earlier. The splitter therefore saw no
+            # boundary, opened `cur` at the FIRST `git`, and swallowed the second command
+            # into one argv whose subcommand read `status`; `classify_git_argv` returned
+            # safe and the `reset --hard` was never classified at all.
+            #
+            #   git status\ngit reset --hard X   -> ALLOWED (measured)
+            #   git status; git reset --hard X   -> ALLOWED (measured)
+            #   git status && git reset --hard X -> denied (spaces made `&&` a token)
+            #
+            # `git status` before a destructive op is the most natural thing an agent
+            # writes, so this was the DEFAULT path, not an adversarial edge.
+            #
+            # Normalising newline to `;` is safe: inside a quoted span the `;` stays part
+            # of that token, so this can never invent a boundary that shell would not
+            # honour. `punctuation_chars=True` then keeps `;`/`&&`/`||`/`|`/`&` as
+            # standalone tokens instead of gluing them to their neighbour.
+            lex = shlex.shlex(command.replace("\n", ";"), posix=True, punctuation_chars=True)
+            lex.whitespace_split = True
+            lex.commenters = ""
+            tokens = list(lex)
         except ValueError:
             tokens = None
 
