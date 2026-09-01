@@ -95,3 +95,93 @@ f7d3
 fadc
 ffbe
 
+# ---- Block ratification 2026-09-01 (owner-decided) ----------------------------
+# 61 birthday-collision tokens, ratified as ONE block. This asserts a PROCESS
+# verdict -- "the two-axis detector has no false negatives at this threshold" --
+# NOT 61 individual verdicts. Recoverable by construction: ledger-map.py re-checks
+# the whole list on every import and WARNs on any entry that is no longer a
+# class-A homonym, so a wrong entry surfaces rather than hiding.
+#
+# Bucket B means ZERO signal on BOTH detector axes (a cross-reference OR >=2 rare
+# shared words puts a token in bucket A), with a fleet-relative rarity threshold.
+1271
+1ab6
+1cfc
+1de4
+1f9a
+20e9
+2799
+28bc
+2b63
+3412
+3540
+3947
+3a50
+3f3a
+3f86
+409c
+41e4
+4438
+466d
+4d44
+4d6b
+5525
+55c7
+61a2
+61dd
+6d8f
+7182
+7249
+72ae
+73ee
+749d
+76d2
+7e6d
+89ef
+9298
+94ee
+9691
+a217
+a2e8
+a376
+a728
+a73c
+a83f
+aa05
+ae11
+c2bd
+c471
+c5ba
+c7a1
+cb1c
+ccad
+d367
+d6da
+e57b
+e8e6
+ec2c
+ec8a
+ee31
+f26d
+f63f
+fddb
+
+# ---- S5, adjudicated INDIVIDUALLY 2026-09-01 (owner-decided) ------------------
+# Not part of the block above: these two were in the "needs a look" bucket and
+# were each verified by READING both sides in their source repos.
+#
+# b427 -- collaib minted it for an inbound CHANGELOG-bootstrap item; the
+#   dotclaude-skills b427 is an unrelated /meeting-cross cost-instrumentation
+#   item. The [INBOUND routed:c6ba from dotclaude-skills] prefix on collaib's
+#   line is PROVENANCE, not ownership; the trailing <!-- id:b427 --> is collaib's
+#   own mint. (I first misread that prefix as ownership and wrongly called this a
+#   phantom -- recorded so the misreading is not repeated.)
+# d6f0 -- linguistic-universals minted it for the same CHANGELOG-bootstrap
+#   fan-out; the dotclaude-skills d6f0 is the stopReason-assertion spec.
+#
+# Both collisions trace to ONE fan-out where several repos each minted their own
+# id for the same routed item. That shared driver makes them coincidence, not
+# twins.
+b427
+d6f0
+
