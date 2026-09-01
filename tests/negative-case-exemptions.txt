@@ -24,3 +24,29 @@
 # (Deliberately EMPTY on first ship: every headerless test stays held, fail-closed, and the
 #  runner reports the unverified population every run rather than hiding it behind excuses
 #  nobody wrote down.)
+
+# ---------------------------------------------------------------------------------------
+# STRUCTURALLY UNMATCHABLE -- these 12 files emit NO line-leading `FAIL:` text anywhere.
+# They use the `<check> || { echo "<message>"; exit 1; }` idiom instead of this repo's
+# `fail() { echo "FAIL: $*"; exit 1; }` helper, so the runner -- which deliberately matches
+# only `FAIL:`-prefixed lines, because scanning whole output lets a `PASS: (e) …` line
+# satisfy an `(e)` expectation -- can never see WHICH assertion fired in them. Their
+# `# fails-against-assertion:` could only ever be unverifiable. Verified by measurement
+# 2026-09-01 (`grep -c 'FAIL:' <file>` == 0 for each).
+#
+# This is an exemption from THIS runner, not a verdict that the files are fine. Converting
+# them to the `fail()` helper would make all 12 verifiable and is the right follow-up, but
+# it edits 12 unrelated defect-fix tests and is NOT part of id:a73c -- do that as its own
+# change, then delete these lines.
+test_archive_closed.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_archive_done_multiline.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_classify_hard_floor.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_classify_repo_large.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_cross_ledger_guard.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_git_lock_push_slash_branch.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_git_lock_push_ssh_guard.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_lean_toolchain_drift.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_no_silent_swallow.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_orphan_scan_plugin_aware.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_quota_sample.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper
+test_run_tests_parallel.sh  -- emits no line-leading `FAIL:` (uses `|| { echo …; exit 1; }`), so no assertion match is possible; unblock by converting to the fail() helper

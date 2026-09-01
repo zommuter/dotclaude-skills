@@ -10,7 +10,7 @@
 #   is the mutation declared below.
 #
 # fails-against-mutation: bash tests/mutations/a73c-exit-status-only.sh
-# fails-against-assertion: (c) a test that dies at an EARLIER assertion
+# fails-against-assertion: (c) a test that dies at an EARLIER assertion than the one it declares
 #
 # REACHABILITY OF THE NEGATIVE CONTROL -- which assertions discriminate under that mutation.
 # (An unreached fixture in a file that goes red LOOKS like a passing negative control and is
@@ -20,6 +20,12 @@
 # touches only the WHICH-assertion comparison, and vacuity (rc==0), green-now, config errors
 # and coverage accounting are decided elsewhere. So nothing aborts before (c), and (c) -- the
 # wrong-reason case -- is the SOLE killer, which is exactly the axis this file exists to pin.
+# Cases (l)/(l2)/(m)/(m2)/(n)/(o)/(p)/(q), added 2026-09-01 for the six review findings, sit
+# AFTER (c) and are therefore UNREACHED under this mutation. That is on the record rather than
+# glossed: (m)/(m2) would also discriminate (the mutation defeats the last-FAIL-line rule
+# outright), while (l)/(l2)/(o) are STATIC config-error checks the mutation does not touch and
+# would still pass. Each of the eight has its own negative control, measured by running this
+# file against the pre-fix runner (da37bec8): all eight went red there and green here.
 # Measured 2026-09-01; the verbatim output is in the commit message.
 #
 # WHAT IS BEING SPECCED -- the runner half of TODO id:a73c.
@@ -70,6 +76,10 @@ case "${1:-}" in
 esac
 EOF
 chmod +x "$repo/src/tool.sh"
+
+# A BINARY tracked blob: `git show <rev>:<path>` on this used to raise UnicodeDecodeError
+# inside subprocess's newline translation and abort the entire run (case (p) below).
+printf '\x00\x01\xff\xfe binary payload\n' > "$repo/bin.dat"
 
 git -C "$repo" init -q
 git -C "$repo" add -A
@@ -122,8 +132,12 @@ EOF
 # (c) THE ID:A73C CASE -- red at the ancestor for the WRONG REASON. Assertion (a) checks the
 #     FORMAT, which the ancestor rejects outright, so the file dies there and assertion (c),
 #     the one it exists to pin, is UNREACHED. An exit-status-only runner calls this fine.
-#     The `echo` before (a) plants the expected substring in a NON-`FAIL:` line, so a runner
-#     that greps whole output rather than FAIL lines is caught here as well.
+#     The `printf` before (a) plants the expected substring in a NON-`FAIL:` OUTPUT line, so a
+#     runner that greps whole output rather than FAIL lines is caught here as well. It is
+#     ASSEMBLED from a format string rather than written literally, so that the SOURCE still
+#     contains exactly one site for the declared substring -- otherwise the unique-site check
+#     (case (l)) would reject this fixture before the FAIL-line-scoping axis is ever reached,
+#     and the decoy axis would go untested.
 mk test_wrong_reason.sh <<EOF
 #!/usr/bin/env bash
 # fails-against: $V1
@@ -132,7 +146,7 @@ mk test_wrong_reason.sh <<EOF
 set -euo pipefail
 R="\$(cd "\$(dirname "\$0")/.." && pwd)"
 fail() { echo "FAIL: \$*"; exit 1; }
-echo "about to check: (c) the path must be guarded"
+printf 'about to check: %s the path must be guarded\n' '(c)'
 [[ "\$(bash "\$R/src/tool.sh" format)" == new-format ]] || fail "(a) format must be new-format"
 [[ "\$(bash "\$R/src/tool.sh" guard)" == guarded ]] || fail "(c) the path must be guarded"
 echo "PASS: (a) (c)"
@@ -255,8 +269,15 @@ grep -q 'test_heredoc_decoy.sh' <<<"$out_g" \
   || { sed 's/^/    /' <<<"$out_g"; fail "(g) directives inside a FIXTURE heredoc must not be read as the file's own header -- the decoy must stay UNVERIFIED"; }
 grep -q 'test_prose_only.sh' <<<"$out_g" \
   || { sed 's/^/    /' <<<"$out_g"; fail "(g) a prose-only '# fails-against:' file must be reported UNVERIFIED, not silently ignored"; }
-grep -q 'test_roadmap_spec.sh' <<<"$out_g" \
-  && { sed 's/^/    /' <<<"$out_g"; fail "(g) a '# roadmap:' spec test must not be held by the runner"; }
+grep -q 'unverified:.*test_roadmap_spec.sh' <<<"$out_g" \
+  && { sed 's/^/    /' <<<"$out_g"; fail "(g) a '# roadmap:' spec test must not be HELD by the runner (it must not appear in the unverified population)"; }
+# ... but it must still be COUNTED and NAMED. Silently dropping the roadmap population is how
+# a file with a valid declaration plus a stray roadmap token vanished from every bucket
+# (finding 3 / case (n)); the carve-out is legitimate, the silence was not.
+grep -qE 'COVERAGE:.*1 roadmap-spec' <<<"$out_g" \
+  || { sed 's/^/    /' <<<"$out_g"; fail "(g) the roadmap-spec carve-out must be COUNTED in the coverage line, not silently dropped"; }
+grep -q 'roadmap-spec (not verified by this runner): 1 file(s): test_roadmap_spec.sh' <<<"$out_g" \
+  || { sed 's/^/    /' <<<"$out_g"; fail "(g) a carved-out roadmap-spec test must be NAMED, so nothing can vanish from every bucket"; }
 rc=0; run --list --strict-coverage >/dev/null || rc=$?
 [[ $rc -eq 1 ]] || fail "(g) --strict-coverage must exit 1 while an unverified defect-fix test remains, got rc=$rc"
 pass "(g) coverage is reported (prose-only = UNVERIFIED), roadmap specs are carved out, --strict-coverage bites"
@@ -288,5 +309,219 @@ python3 "$RUNNER" --root "$repo" --quiet tests/test_good.sh >/dev/null
 [[ "$(git -C "$ROOT" status --porcelain)" == "$before" ]] \
   || fail "(j) running the verifier must not touch the working tree of the repo under test"
 pass "(j) verification happens in scratch copies; the real tree is untouched"
+
+# ==========================================================================================
+# The six review findings of 2026-09-01. (a)-(j) above covered the `PASS:`-decoy axis and the
+# coverage accounting; they did NOT cover substring collision or multi-FAIL tests, which is
+# precisely why both got through. Each case below was REPRODUCED against the unfixed runner
+# first (verbatim false pass), then closed.
+# ==========================================================================================
+
+# --- (l) BLOCKING 1: substring collision ACROSS assertions is a CONFIG ERROR ---------------
+#     The declared `(b) guard` is a substring of assertion (a)'s own message, which NAMES the
+#     later assertion ("so (b) guard was never reached"). Against the ancestor the file dies
+#     at (a) and the unfixed runner reported OK -- id:a73c instance (a) verbatim, green.
+#     This is not a contrived spelling: CLAUDE.md §Testing tells back-fillers to author the
+#     ancestor case in the ancestor's OWN spelling and record per-ancestor reachability, so
+#     messages where an early assertion names a later one are what this corpus will contain.
+#     The check is STATIC -- it needs no run at all, so it also fires under --list.
+mk test_collision.sh <<EOF
+#!/usr/bin/env bash
+# fails-against: $V1
+# fails-against-rev: $V1 -- src/tool.sh
+# fails-against-assertion: (b) guard
+set -euo pipefail
+R="\$(cd "\$(dirname "\$0")/.." && pwd)"
+fail() { echo "FAIL: \$*"; exit 1; }
+[[ "\$(bash "\$R/src/tool.sh" format)" == new-format ]] || fail "(a) old format rejected outright, so (b) guard was never reached"
+[[ "\$(bash "\$R/src/tool.sh" guard)" == guarded ]] || fail "(b) guard must be present"
+echo "PASS: all"
+EOF
+rc=0; out_l="$(run --quiet tests/test_collision.sh)" || rc=$?
+[[ $rc -eq 2 ]] || { sed 's/^/    /' <<<"$out_l"; fail "(l) a declared assertion that matches TWO assertion sites must be a CONFIG ERROR (exit 2) -- matching it proves nothing about WHICH one fired; got rc=$rc"; }
+grep -q 'matches 2 lines' <<<"$out_l" \
+  || { sed 's/^/    /' <<<"$out_l"; fail "(l) the config error must say how many assertion sites the declaration matched"; }
+grep -q 'old format rejected outright' <<<"$out_l" \
+  || { sed 's/^/    /' <<<"$out_l"; fail "(l) the config error must QUOTE the colliding lines so the author can narrow the declaration"; }
+rc=0; run --list tests/test_collision.sh >/dev/null 2>&1 || rc=$?
+[[ $rc -eq 2 ]] || fail "(l) the unique-site check is static and must fire under --list too, got rc=$rc"
+rm -- "$repo/tests/test_collision.sh"
+pass "(l) a declared assertion matching 2+ sites in the file's body is refused as a CONFIG ERROR"
+
+# --- (l2) ... and one matching ZERO sites is refused as well -------------------------------
+mk test_nosite.sh <<EOF
+#!/usr/bin/env bash
+# fails-against: $V1
+# fails-against-rev: $V1 -- src/tool.sh
+# fails-against-assertion: (z) an assertion this file does not contain
+set -euo pipefail
+R="\$(cd "\$(dirname "\$0")/.." && pwd)"
+fail() { echo "FAIL: \$*"; exit 1; }
+[[ "\$(bash "\$R/src/tool.sh" guard)" == guarded ]] || fail "(a) the path must be guarded"
+echo "PASS: (a)"
+EOF
+rc=0; out_l2="$(run --quiet tests/test_nosite.sh)" || rc=$?
+[[ $rc -eq 2 ]] || { sed 's/^/    /' <<<"$out_l2"; fail "(l2) a declared assertion matching NO line of the file must be a CONFIG ERROR (exit 2), got rc=$rc"; }
+grep -q 'matches NO line' <<<"$out_l2" \
+  || { sed 's/^/    /' <<<"$out_l2"; fail "(l2) the config error must say the declaration matched no assertion site"; }
+rm -- "$repo/tests/test_nosite.sh"
+pass "(l2) a declared assertion that names nothing in the file is refused as a CONFIG ERROR"
+
+# --- (m) BLOCKING 2: a NON-EXITING accumulator emits several FAIL lines --------------------
+#     `note() { echo "FAIL: $*" >&2; bad=1; }` + one `exit` at the end. 36 of the 161 files
+#     this runner can hold are shaped like this, so the docstring's "a test exits at its FIRST
+#     failing assertion" was false. Accepting a hit on ANY fired FAIL line let a soft note
+#     satisfy the declaration while a different assertion was the real killer.
+acc_body() {  # <declared assertion substring>
+  cat <<EOF
+#!/usr/bin/env bash
+# fails-against: $V1
+# fails-against-rev: $V1 -- src/tool.sh
+# fails-against-assertion: $1
+set -uo pipefail
+R="\$(cd "\$(dirname "\$0")/.." && pwd)"
+bad=0
+note() { echo "FAIL: \$*" >&2; bad=1; }
+[[ "\$(bash "\$R/src/tool.sh" format)" == new-format ]] || note "(a) incidental format note"
+[[ "\$(bash "\$R/src/tool.sh" guard)" == guarded ]] || note "(b) THE REAL KILLER, guard missing"
+exit \$bad
+EOF
+}
+acc_body '(a) incidental format note' | mk test_accum_wrong.sh
+rc=0; out_m="$(run --quiet tests/test_accum_wrong.sh)" || rc=$?
+[[ $rc -eq 1 ]] || { sed 's/^/    /' <<<"$out_m"; fail "(m) with 2 FAIL lines fired, a declaration naming a NON-LAST one must be rejected -- accepting any-of degrades the guarantee to exit status; got rc=$rc"; }
+grep -q 'WRONG REASON' <<<"$out_m" \
+  || { sed 's/^/    /' <<<"$out_m"; fail "(m) a non-last accumulator note must be reported WRONG REASON"; }
+grep -q '2 FAIL lines' <<<"$out_m" \
+  || { sed 's/^/    /' <<<"$out_m"; fail "(m) the report must say how many FAIL lines fired"; }
+grep -q 'incidental format note' <<<"$out_m" \
+  || { sed 's/^/    /' <<<"$out_m"; fail "(m) ALL fired FAIL lines must be reported, not just the last"; }
+grep -q 'THE REAL KILLER' <<<"$out_m" \
+  || { sed 's/^/    /' <<<"$out_m"; fail "(m) the report must show the LAST fired FAIL line, which is the one the declaration has to match"; }
+rm -- "$repo/tests/test_accum_wrong.sh"
+pass "(m) with several FAIL lines, a declaration matching a non-last one is rejected and all lines are reported"
+
+# --- (m2) ... and the SAME accumulator declaring the LAST line verifies --------------------
+#     The negative control for (m): the rule rejects the wrong declaration, not the shape.
+acc_body '(b) THE REAL KILLER, guard missing' | mk test_accum_right.sh
+rc=0; out_m2="$(run --quiet tests/test_accum_right.sh)" || rc=$?
+[[ $rc -eq 0 ]] || { sed 's/^/    /' <<<"$out_m2"; fail "(m2) an accumulator declaring its LAST fired FAIL line must verify, got rc=$rc"; }
+rm -- "$repo/tests/test_accum_right.sh"
+pass "(m2) the same accumulator, declaring its LAST fired assertion, verifies"
+
+# --- (o) ADVISABLE 4: a declared path that is a DIRECTORY at that rev ----------------------
+#     `git show <rev>:<dir>` returns a TREE LISTING; writing it over the directory raised an
+#     uncaught IsADirectoryError that aborted the WHOLE run. Across 158 declarations one typo
+#     silently left every remaining file unverified.
+mk test_dirpath.sh <<EOF
+#!/usr/bin/env bash
+# fails-against: $V1
+# fails-against-rev: $V1 -- src
+# fails-against-assertion: (a) the path must be guarded
+set -euo pipefail
+R="\$(cd "\$(dirname "\$0")/.." && pwd)"
+fail() { echo "FAIL: \$*"; exit 1; }
+[[ "\$(bash "\$R/src/tool.sh" guard)" == guarded ]] || fail "(a) the path must be guarded"
+echo "PASS: (a)"
+EOF
+rc=0; out_o="$(run --quiet tests/test_dirpath.sh)" || rc=$?
+[[ $rc -eq 2 ]] || { sed 's/^/    /' <<<"$out_o"; fail "(o) a fails-against-rev path that is a DIRECTORY at that rev must be a CONFIG ERROR (exit 2), got rc=$rc"; }
+grep -q 'not a blob' <<<"$out_o" \
+  || { sed 's/^/    /' <<<"$out_o"; fail "(o) the config error must say the declared path is not a blob at that revision"; }
+grep -q 'Traceback' <<<"$out_o" \
+  && { sed 's/^/    /' <<<"$out_o"; fail "(o) a bad declared path must never surface as a Python traceback -- one typo would abort the whole back-fill"; }
+rm -- "$repo/tests/test_dirpath.sh"
+pass "(o) a directory named as a fails-against-rev path is a named config error, not a traceback"
+
+# --- (p) ADVISABLE 4b: a declared path that is BINARY at that rev --------------------------
+#     Blobs are bytes. `text=True` on `git show` raised UnicodeDecodeError, same whole-run
+#     abort. A binary path is LEGITIMATE and must simply work.
+mk test_binpath.sh <<EOF
+#!/usr/bin/env bash
+# fails-against: $V1
+# fails-against-rev: $V1 -- bin.dat src/tool.sh
+# fails-against-assertion: (a) the path must be guarded
+set -euo pipefail
+R="\$(cd "\$(dirname "\$0")/.." && pwd)"
+fail() { echo "FAIL: \$*"; exit 1; }
+[[ "\$(bash "\$R/src/tool.sh" guard)" == guarded ]] || fail "(a) the path must be guarded"
+echo "PASS: (a)"
+EOF
+rc=0; out_p="$(run --quiet tests/test_binpath.sh)" || rc=$?
+grep -q 'Traceback' <<<"$out_p" \
+  && { sed 's/^/    /' <<<"$out_p"; fail "(p) a BINARY path at the declared rev must not raise UnicodeDecodeError -- blobs are bytes"; }
+[[ $rc -eq 0 ]] || { sed 's/^/    /' <<<"$out_p"; fail "(p) a case naming a binary path alongside a source path must still verify, got rc=$rc"; }
+rm -- "$repo/tests/test_binpath.sh"
+pass "(p) a binary path in a fails-against-rev case is materialised byte-for-byte, not decoded"
+
+# --- (q) ADVISABLE 6: a mutation is CONTAINED, and its escape is reported ------------------
+#     The mutation is an arbitrary `bash -c`. Two things are now true and checked here: its
+#     TMPDIR and git-discovery ceiling are inside a private sandbox (so `git rev-parse
+#     --show-toplevel` cannot walk UP out of the not-yet-a-repo scratch into a real one), and
+#     a write that leaves the scratch tree is REPORTED rather than silently accepted.
+mk test_contained.sh <<EOF
+#!/usr/bin/env bash
+# fails-against: a tool.sh with the guard stripped, run under containment
+# fails-against-mutation: [[ "\$TMPDIR" == *negcase-* ]] || { echo "TMPDIR not sandboxed: \$TMPDIR" >&2; exit 9; }; [[ -n "\${GIT_CEILING_DIRECTORIES:-}" ]] || { echo "no git ceiling" >&2; exit 9; }; git rev-parse --show-toplevel >/dev/null 2>&1 && { echo "discovery escaped upward to a real repo" >&2; exit 9; }; sed -i 's/guarded/unguarded/' src/tool.sh
+# fails-against-assertion: (a) the path must be guarded
+set -euo pipefail
+R="\$(cd "\$(dirname "\$0")/.." && pwd)"
+fail() { echo "FAIL: \$*"; exit 1; }
+[[ "\$(bash "\$R/src/tool.sh" guard)" == guarded ]] || fail "(a) the path must be guarded"
+echo "PASS: (a)"
+EOF
+rc=0; out_q="$(run --quiet tests/test_contained.sh)" || rc=$?
+[[ $rc -eq 0 ]] || { sed 's/^/    /' <<<"$out_q"; fail "(q) a mutation must run with a sandboxed TMPDIR and a git ceiling that stops discovery walking out of the scratch, got rc=$rc"; }
+rm -- "$repo/tests/test_contained.sh"
+
+mk test_escape.sh <<EOF
+#!/usr/bin/env bash
+# fails-against: a mutation that writes outside its scratch tree
+# fails-against-mutation: printf 'stray\n' > ../STRAY; sed -i 's/guarded/unguarded/' src/tool.sh
+# fails-against-assertion: (a) the path must be guarded
+set -euo pipefail
+R="\$(cd "\$(dirname "\$0")/.." && pwd)"
+fail() { echo "FAIL: \$*"; exit 1; }
+[[ "\$(bash "\$R/src/tool.sh" guard)" == guarded ]] || fail "(a) the path must be guarded"
+echo "PASS: (a)"
+EOF
+rc=0; out_q2="$(run --quiet tests/test_escape.sh)" || rc=$?
+[[ $rc -eq 1 ]] || { sed 's/^/    /' <<<"$out_q2"; fail "(q) a mutation that writes OUTSIDE its scratch tree must be rejected, got rc=$rc"; }
+grep -q 'CONTAINMENT' <<<"$out_q2" \
+  || { sed 's/^/    /' <<<"$out_q2"; fail "(q) an escaping mutation must be reported as a CONTAINMENT violation, naming the stray entry"; }
+rm -- "$repo/tests/test_escape.sh"
+pass "(q) mutations run with a sandboxed TMPDIR + git ceiling, and an escape is reported loudly"
+
+# --- (n) BLOCKING 3: a roadmap token BELOW the header block must never silently vanish -----
+#     Roadmap detection is WHOLE-FILE (deliberately -- run-tests.sh and the lint both grep the
+#     whole file, and a third opinion would be worse) while the `fails-against-*` directives
+#     are header-block-scoped. A file with a valid declaration AND a roadmap token lower down
+#     therefore landed in NO bucket at all: not verified, not unverified, not undeclared, not
+#     exempt. It vanished. Two live files misfire this way today. Kept LAST because it adds a
+#     permanent fixture to the roadmap-spec population.
+#     The marker is ASSEMBLED, never written literally -- see fixture (f).
+{ printf '#!/usr/bin/env bash\n'
+  printf '# fails-against: %s\n' "$V1"
+  printf '# fails-against-rev: %s -- src/tool.sh\n' "$V1"
+  printf '# fails-against-assertion: (a) the path must be guarded\n'
+  printf 'set -euo pipefail\n'
+  printf 'R="$(cd "$(dirname "$0")/.." && pwd)"\n'
+  printf 'fail() { echo "FAIL: $*"; exit 1; }\n'
+  printf 'cat > /dev/null <<INNER\n# %s:9f9e\nINNER\n' roadmap
+  printf '[[ "$(bash "$R/src/tool.sh" guard)" == guarded ]] || fail "(a) the path must be guarded"\n'
+  printf 'echo "PASS: (a)"\n'
+} | mk test_roadmap_shadowed.sh
+out_n="$(run --list)"
+grep -q 'test_roadmap_shadowed.sh' <<<"$out_n" \
+  || { sed 's/^/    /' <<<"$out_n"; fail "(n) a file whose valid declaration is cancelled by a roadmap token lower down must be NAMED in the coverage report, not vanish from every bucket"; }
+grep -q 'ROADMAP-SHADOWED' <<<"$out_n" \
+  || { sed 's/^/    /' <<<"$out_n"; fail "(n) the shadowed-declaration population must be reported under its own loud heading"; }
+grep -q 'roadmap-spec' <<<"$out_n" \
+  || { sed 's/^/    /' <<<"$out_n"; fail "(n) the coverage line must carry a roadmap-spec count so the carve-out is visible"; }
+out_nq="$(run --list --quiet)"
+grep -q 'ROADMAP-SHADOWED' <<<"$out_nq" \
+  || { sed 's/^/    /' <<<"$out_nq"; fail "(n) the shadowed-declaration report must survive --quiet: it IS the silent-skip class"; }
+rm -- "$repo/tests/test_roadmap_shadowed.sh"
+pass "(n) a declaration shadowed by a roadmap token lower down is reported, never silently skipped"
 
 echo "ALL PASS: negative-case runner (id:a73c)"

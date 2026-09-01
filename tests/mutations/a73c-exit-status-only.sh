@@ -13,7 +13,7 @@
 set -euo pipefail
 
 target="tests/verify-negative-cases.py"
-anchor='        hit = [w for w in wanted if any(w in ln for ln in fl)]'
+anchor='        hit = [w for w in wanted if fl and w in fl[-1]]'
 
 [[ -f "$target" ]] || { echo "mutation: $target not found (cwd=$PWD)" >&2; exit 2; }
 grep -qF "$anchor" "$target" || {
