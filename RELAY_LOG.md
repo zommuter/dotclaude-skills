@@ -2926,3 +2926,7 @@ Friction: context-budget.sh --self reported a `handback` verdict
 (est_tokens=108379) after the work was already committed/green -- applying the
 v16 near-done carve-out (landing already-complete work, no new investigation
 started) rather than discarding a finished unit.
+
+## 2026-09-01 11:02 — executor (sonnet, relay-loop)
+
+Fixed id:8302 -- tracker/ledger-map.py no longer drops a parent on a multi-`children-of:` line (scalar overwrite -&gt; new lossless `parents` list, `parent` kept as backward-compat first-entry alias); regenerated golden fixtures, documented the field in the schema, full suite green (538/0). [id:8302]
