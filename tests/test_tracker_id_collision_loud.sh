@@ -9,6 +9,11 @@
 # into one item is the failure --fabled finding 6 named. Two classes are asserted:
 #   A homonym            — same bare token, no cross-repo reference   -> fatal by default
 #   B ambiguous routed   — a routed: edge resolving to >=2 repos      -> fatal ALWAYS
+# fails-against: rev 8f1e25e1522b -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/SCHEMA.md, tracker/fixtures/expected/fleet-collision.json, tracker/fixtures/expected/repo-alpha.json (+8 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 8f1e25e1522b -- tracker/SCHEMA.md tracker/fixtures/expected/fleet-collision.json tracker/fixtures/expected/repo-alpha.json tracker/fixtures/expected/repo-beta.json tracker/fixtures/repo-alpha/REVIEW_ME.md tracker/fixtures/repo-alpha/ROADMAP.md tracker/fixtures/repo-alpha/TODO.archive.md tracker/fixtures/repo-alpha/TODO.md tracker/fixtures/repo-beta/TODO.md tracker/ledger-map.py tracker/schema/ledger-intermediate.schema.json
+# fails-against-assertion: import repo-alpha exited non-zero
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

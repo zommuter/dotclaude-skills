@@ -14,6 +14,10 @@
 # (Deferred/Gated/…) heading are exempt.
 #
 # Hermetic: temp ROADMAP fixtures; no ~/.claude, no network.
+# fails-against: rev 8ea4b4b588c8 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/references/handoff.md, relay/references/review.md, relay/scripts/gather-human-backlog.sh (+1 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 8ea4b4b588c8 -- relay/references/handoff.md relay/references/review.md relay/scripts/gather-human-backlog.sh relay/scripts/roadmap-lint.sh
+# fails-against-assertion: default run must exit 0 (doctrine rules are WARN-only), got
 
 set -euo pipefail
 

@@ -12,6 +12,11 @@
 # Hermetic by construction: only the adapters' `plan`/`graph` verbs are
 # exercised, and those never touch the network (asserted below with sockets
 # disabled). `apply` is a manual, reported step and no test depends on a server.
+# fails-against: rev 4ef1c8b34f82 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/SCHEMA.md, tracker/adapters/adapter_common.py, tracker/adapters/plane_adapter.py (+1 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 4ef1c8b34f82 -- tracker/SCHEMA.md tracker/adapters/adapter_common.py tracker/adapters/plane_adapter.py tracker/adapters/vikunja_adapter.py
+# fails-against-assertion: vikunja graph failed on
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

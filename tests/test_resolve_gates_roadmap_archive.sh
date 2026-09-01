@@ -13,6 +13,11 @@
 # Fail direction: noise + a misleading "dangling gate target" report, never a stuck
 # dispatch (block=1 requires a RESOLVED-and-open target; dangling never sets it). That
 # is why this ships with the other two rather than as an incident.
+# fails-against: rev 6142f2329b34 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh, meeting/md-merge.py, meeting/orphan-scan.sh (+15 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 6142f2329b34 -- meeting/append.sh meeting/md-merge.py meeting/orphan-scan.sh relay/references/hard-lanes.md relay/scripts/classify-repo.sh relay/scripts/discover-sig.sh relay/scripts/gather-repo-state.sh relay/scripts/handback-guard.mjs relay/scripts/lib-anchored-id.sh relay/scripts/lib-roadmap-sections.sh relay/scripts/lib-typed-edges.sh relay/scripts/reconcile-repo.sh relay/scripts/relay-loop.js relay/scripts/resolve-gates.sh relay/scripts/roadmap-lint.sh relay/scripts/unpromoted-scan.sh tracker/SCHEMA.md tracker/ledger-map.py
+# fails-against-assertion: ff02 reported — its gate target ff01 is [x] in ROADMAP.archive.md, i.e. SATISFIED, but the resolution map is archive-blind so it reads as dangling
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

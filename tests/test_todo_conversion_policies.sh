@@ -4,6 +4,10 @@
 # conformance DETECTOR's findings are resolved by. Assert it exists, is installable (in the
 # Makefile relay_FILES manifest, enforced cross-check), and is wired into the three modes +
 # the detector script. Ratified 2026-06-26 from the 41-repo conversion sweep.
+# fails-against: rev df2bb5c89c5f -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/references/handoff.md, relay/references/human.md (+3 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: df2bb5c89c5f -- Makefile relay/references/handoff.md relay/references/human.md relay/references/review.md relay/references/todo-conversion-policies.md relay/scripts/todo-conformance.sh
+# fails-against-assertion: todo-conversion-policies.md not found at
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

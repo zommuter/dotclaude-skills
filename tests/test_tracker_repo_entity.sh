@@ -22,6 +22,11 @@
 #       assign — an anti-drift grep, so a new classifier verdict cannot land silently.
 #   (7) PURITY: deriving entities over a repo with a commit, a dirty file and a live
 #       worktree leaves that repo byte-identical.
+# fails-against: rev 4ef1c8b34f82 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/SCHEMA.md, tracker/repo-entity.py, tracker/schema/ledger-intermediate.schema.json. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 4ef1c8b34f82 -- tracker/SCHEMA.md tracker/repo-entity.py tracker/schema/ledger-intermediate.schema.json
+# fails-against-assertion: missing dependency:
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RE="$ROOT/tracker/repo-entity.py"

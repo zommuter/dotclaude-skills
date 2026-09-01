@@ -10,6 +10,11 @@
 #
 # Each mutation is driven against a COPY of the tree, so the checks are proved non-vacuous
 # (a cross-check that cannot fail is not a cross-check). Hermetic: mktemp only.
+# fails-against: rev 064ae4424967 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/SCHEMA.md, tracker/adapters/adapter_common.py, tracker/fixtures/expected/fleet-collision.json (+5 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 064ae4424967 -- tracker/SCHEMA.md tracker/adapters/adapter_common.py tracker/fixtures/expected/fleet-collision.json tracker/fixtures/expected/repo-alpha.json tracker/fixtures/expected/repo-beta.json tracker/ledger-map.py tracker/repo-entity.py tracker/schema/ledger-intermediate.schema.json
+# fails-against-assertion: expected 1.1.0 (id:8c7f)
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

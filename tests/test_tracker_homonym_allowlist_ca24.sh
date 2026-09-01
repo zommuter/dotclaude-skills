@@ -14,6 +14,11 @@
 #   * no wildcard/"all" entry can stand in for adjudication.
 # Rationale: id:94ce's recurring fleet import must not be able to switch class A off
 # wholesale — a NEW homonym must still fail loudly.
+# fails-against: rev 4ef1c8b34f82 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/SCHEMA.md, tracker/ledger-map.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 4ef1c8b34f82 -- tracker/SCHEMA.md tracker/ledger-map.py
+# fails-against-assertion: an UNLISTED homonym must still exit 3, got
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

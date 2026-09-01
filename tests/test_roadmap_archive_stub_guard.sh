@@ -26,6 +26,9 @@
 #   STUB_LINE_RE = /^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->{SUFFIX}/     (NOT end-anchored)
 # The missing end-anchor is load-bearing and is asserted below: real stubs carry trailing
 # annotations past the suffix, and anchoring would re-archive exactly those.
+# fails-against-rev: d690d6f0dd1b -- relay/scripts/roadmap-archive.sh
+# fails-against-assertion: the archived stub (id:1a2b) was REMOVED from ROADMAP.md — the generic archiver ate a stub
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

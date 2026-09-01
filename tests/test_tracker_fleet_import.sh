@@ -10,6 +10,11 @@
 #
 # Hermetic: a synthetic fleet of throwaway git repos under mktemp -d, its own relay.toml,
 # its own state file. No network, no ~/.claude, none of the real 60 repos.
+# fails-against: rev 4ef1c8b34f82 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/fleet-import.sh, tracker/fleet-state.py, tracker/homonym-allowlist.txt. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 4ef1c8b34f82 -- tracker/fleet-import.sh tracker/fleet-state.py tracker/homonym-allowlist.txt
+# fails-against-assertion: first run failed:
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

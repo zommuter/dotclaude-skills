@@ -14,6 +14,11 @@
 #        some repos create LIGHTWEIGHT v* tags that plain `git describe` silently ignores.
 #   finding (c) — the zkm parent bump CASCADES to plugin uv.locks via the repo's OWN
 #        scripts/relock-plugins.sh; call that tool, never re-implement the cascade.
+# fails-against: rev bd8306195e3f -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/scripts/relay-loop.js, relay/scripts/version-bump.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: bd8306195e3f -- Makefile relay/scripts/relay-loop.js relay/scripts/version-bump.sh
+# fails-against-assertion: version-bump.sh not found/executable at
+
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VB="$ROOT/relay/scripts/version-bump.sh"

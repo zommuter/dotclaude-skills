@@ -10,6 +10,11 @@
 # `meeting/orphan-scan.sh --cross-ledger` exists to report (meeting 2026-08-10, D2 as
 # amended by --fabled finding 5). This test drives the drift in BOTH directions and
 # asserts the projection back out matches the fixture ledgers' actual checkbox lines.
+# fails-against: rev 8f1e25e1522b -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/SCHEMA.md, tracker/fixtures/expected/fleet-collision.json, tracker/fixtures/expected/repo-alpha.json (+8 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 8f1e25e1522b -- tracker/SCHEMA.md tracker/fixtures/expected/fleet-collision.json tracker/fixtures/expected/repo-alpha.json tracker/fixtures/expected/repo-beta.json tracker/fixtures/repo-alpha/REVIEW_ME.md tracker/fixtures/repo-alpha/ROADMAP.md tracker/fixtures/repo-alpha/TODO.archive.md tracker/fixtures/repo-alpha/TODO.md tracker/fixtures/repo-beta/TODO.md tracker/ledger-map.py tracker/schema/ledger-intermediate.schema.json
+# fails-against-assertion: missing mapper
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

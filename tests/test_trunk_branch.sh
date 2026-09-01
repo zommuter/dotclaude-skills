@@ -12,6 +12,11 @@
 # Fix: trunk-branch.sh resolves the integration branch from the checked-out HEAD (the branch
 # children fork from), and reconcile-repo.sh / discover-repo.sh / relay-reconcile.sh consult
 # it instead of hardcoding `main`. This test pins that behavior.
+# fails-against: rev fcfc9355e413 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/scripts/discover-repo.sh, relay/scripts/reconcile-repo.sh (+3 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: fcfc9355e413 -- Makefile relay/scripts/discover-repo.sh relay/scripts/reconcile-repo.sh relay/scripts/relay-loop.js relay/scripts/relay-reconcile.sh relay/scripts/trunk-branch.sh
+# fails-against-assertion: trunk-branch.sh not found/executable at
+
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

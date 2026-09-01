@@ -2,6 +2,10 @@
 # Defect-fix test (no roadmap item): the statusbar's external CLI deps must be checked at
 # install time, classified by functional severity — ERROR (non-zero) on a missing CRITICAL dep
 # (jq), WARN (zero exit) on a missing optional dep that only degrades a feature. Hermetic.
+# fails-against: rev 6eb86ac8e0be -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, statusline/check-deps.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 6eb86ac8e0be -- Makefile statusline/check-deps.sh
+# fails-against-assertion: statusline/check-deps.sh not found
 
 set -uo pipefail
 

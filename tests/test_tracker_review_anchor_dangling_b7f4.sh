@@ -13,6 +13,11 @@
 # `validate` is whole-document and fails the lot.
 #
 # Hermetic: builds its own ledger tree in mktemp; never reads the pilot repo.
+# fails-against: rev 064ae4424967 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tracker/SCHEMA.md, tracker/adapters/adapter_common.py, tracker/fixtures/expected/fleet-collision.json (+5 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 064ae4424967 -- tracker/SCHEMA.md tracker/adapters/adapter_common.py tracker/fixtures/expected/fleet-collision.json tracker/fixtures/expected/repo-alpha.json tracker/fixtures/expected/repo-beta.json tracker/ledger-map.py tracker/repo-entity.py tracker/schema/ledger-intermediate.schema.json
+# fails-against-assertion: validate REJECTED a document whose only oddity is a dangling review anchor:
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -14,6 +14,10 @@
 # Hermetic: every assertion runs against a fake projects tree in `mktemp -d` with an
 # injected --projects-root/--session-id. Never reads $HOME/.claude, never touches the
 # network, never runs a real agent.
+# fails-against: rev 2f5c5ba0d140 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix CLAUDE.md, Makefile, relay/references/executor-contract.md (+2 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 2f5c5ba0d140 -- CLAUDE.md Makefile relay/references/executor-contract.md relay/scripts/context-budget.sh relay/scripts/self-transcript.sh
+# fails-against-assertion: relay/scripts/self-transcript.sh not found at
 
 set -euo pipefail
 
