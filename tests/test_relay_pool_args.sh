@@ -156,8 +156,12 @@ grep -q "function priorityRank" "$JS" || bad "relay-loop.js missing the inline p
 grep -q "priorityRank(a, prioritySet) - priorityRank(b, prioritySet)" "$JS" || bad "relay-loop.js sort comparator does not use priorityRank"
 # priorityRank must sit AFTER the verdict-class key and BEFORE the income key in the comparator
 # (above income, below the D3 order). Assert the ordering on the main comparator line.
-if grep -q "PRIORITY\[a.verdict\] - PRIORITY\[b.verdict\]) ||" "$JS" \
-   && grep -q "priorityRank(a, prioritySet)" < <(grep -A1 "PRIORITY\[a.verdict\] - PRIORITY\[b.verdict\]) ||" "$JS") ; then
+# id:5c05 — matched name-agnostically (`PRIORITY` or `PRIORITY_ACTIVE`, the --intensive-aware
+# selector): this assertion is about the priorityRank key's PLACEMENT relative to the
+# verdict-class key, not about which map that key reads.
+VCLASS='PRIORITY[A-Z_]*\[a\.verdict\] - PRIORITY[A-Z_]*\[b\.verdict\]) \|\|'
+if grep -qE "$VCLASS" "$JS" \
+   && grep -q "priorityRank(a, prioritySet)" < <(grep -EA1 "$VCLASS" "$JS") ; then
   ok "(c-wiring) priorityRank is placed directly after the verdict-class key (above income, below D3)"
 else
   bad "(c-wiring) priorityRank not placed after the verdict-class key in the comparator"
