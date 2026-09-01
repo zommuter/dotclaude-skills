@@ -142,14 +142,70 @@ mkwt s2
 git -C "$REPO" show-ref --verify --quiet refs/heads/relay/s2 || fail "scope: sibling branch relay/s2 must be untouched"
 pass "single-target scope: sibling worktree+branch untouched"
 
-# ── 8. never invokes a forbidden force op (static check of executable lines only) ──
-# Strip comments, log(), echo, and msg= assignments — those legitimately mention the verbs
-# in prose/surfaced text ("do NOT -D", "commit real work"). What remains is actual command
-# invocations; none may carry a force/destructive git verb.
-code="$(grep -vE '^[[:space:]]*#' "$SH" | grep -vE '(^[[:space:]]*(log|echo)\b|[[:space:]]*msg=)')"
-grep -Eq -- '--force|branch[[:space:]]+-D\b|reset[[:space:]]+--hard|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?clean|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?stash' < <(printf '%s\n' "$code") \
+# ── 8. never invokes a forbidden force op (static check of executable CODE only) ──
+# The helper legitimately NAMES these verbs in prose -- in comments, and in the `msg=`/`echo`/
+# `log` text a human reads when it refuses ("do NOT -D", "commit real work"). The ban has to skip
+# that prose without opening a hole.
+#
+# REWRITTEN 2026-09-01 (TODO id:a290 round 3). The old filter dropped whole LINES matching
+# `^\s*(log|echo)\b` or `(msg|hatch_refused|why|submodule_refusal)=`, which made every one of
+# those six line shapes a smuggling channel -- `msg=$(git worktree remove --force "$wt")` and
+# `msg=; git worktree remove --force "$wt"` both EXECUTE a force and were invisible to the ban
+# (each demonstrated). The real distinction is quoting, not lines: prose lives inside a quoted
+# literal, while `$( … )` / backticks are code even inside double quotes. lib-shell-code-only.py
+# blanks comments and quoted-literal characters and keeps everything else, so a force smuggled
+# onto ANY line is still counted while the surfaced prose is not. Both directions are asserted
+# just below before the ban is trusted.
+CODEONLY="$SRC_DIR/tests/lib-shell-code-only.py"
+[[ -f "$CODEONLY" ]] || fail "lib-shell-code-only.py missing at $CODEONLY"
+# The filter does not parse here-documents; assert the target has none so it cannot mislead.
+grep -qE '<<([^<]|$)' "$SH" && fail "worktree-retire.sh now contains a here-document; lib-shell-code-only.py does not parse those, so the force ban below would read heredoc BODY as code"
+
+# 8a. the filter itself, both directions, on fixtures that really do execute (or really are prose)
+selftest_dir="$TMP/codeonly"; mkdir -p "$selftest_dir"
+cat > "$selftest_dir/smuggle.sh" <<'SMUGGLE'
+msg=$(git worktree remove --force "$wt")
+  msg=$(git worktree remove --force "$wt")
+why=; git worktree remove --force "$wt"
+hatch_refused="$(git worktree remove --force "$wt")"
+echo "$(git worktree remove --force "$wt")"
+log "$(git worktree remove --force "$wt")"
+SMUGGLE
+n_smuggled="$(python3 "$CODEONLY" "$selftest_dir/smuggle.sh" | { grep -o -- 'worktree remove --force' || true; } | wc -l)"  # swallow-ok: zero matches is the FAILURE this asserts against, not an error
+[[ "$n_smuggled" -eq 6 ]] \
+  || fail "lib-shell-code-only.py hides a REAL force: 6 executing smuggle lines, only $n_smuggled survived the filter"
+cat > "$selftest_dir/prose.sh" <<'PROSE'
+# only 'git worktree remove --force' removes it, which is the op id:373e avoids
+msg="git refuses to remove it without --force; a lock needs 'remove -f -f'"
+  msg="... reset --hard / branch -D / git clean are all banned here ..."
+why="the hatch did not fire, so no --force was issued"
+hatch_refused="refusing to git worktree remove --force a tree we cannot account for"
+echo "never run: git worktree remove --force"
+log "surfaced: git worktree remove --force was NOT run"
+submodule_refusal='fatal: working trees containing submodules cannot be moved or removed'
+PROSE
+n_prose="$(python3 "$CODEONLY" "$selftest_dir/prose.sh" | { grep -oE -- '--force|branch -D|reset --hard|git clean' || true; } | wc -l)"  # swallow-ok: zero matches is the PASSING case here
+[[ "$n_prose" -eq 0 ]] \
+  || fail "lib-shell-code-only.py flags PROSE as code ($n_prose hits): the ban would fire on legitimate surfaced text"
+pass "shell-code filter verified both ways: 6/6 smuggled forces visible, 0 false positives on prose"
+
+code="$(python3 "$CODEONLY" "$SH")"
+# AMENDED 2026-09-01 (TODO id:a290, owner-ruled): ONE `git worktree remove --force` is now
+# permitted — the narrow submodule escape hatch, which fires only after the helper has itself
+# proved the tree CLEAN and the branch already merged, and only on git's verbatim submodule
+# refusal (behaviour pinned by tests/test_submodule_force_hatch_a290.sh). Everything else in
+# this ban is unchanged. Counting rather than allowing keeps it a ratchet: a second force, or a
+# force anywhere but `worktree remove`, still fails here.
+# Count OCCURRENCES, not matching lines: two forces on one line must read as two.
+n_force="$({ grep -o -- '--force' <<<"$code" || true; } | wc -l)"  # swallow-ok: a zero count must reach the assertion below, not abort the run
+n_wt_force="$({ grep -o -- 'worktree remove --force' <<<"$code" || true; } | wc -l)"  # swallow-ok: as above
+[[ "$n_force" -eq 1 ]] \
+  || fail "helper must carry EXACTLY ONE --force (the id:a290 submodule escape hatch); found $n_force"
+[[ "$n_wt_force" -eq 1 ]] \
+  || fail "helper's only permitted --force is 'git worktree remove --force' (id:a290); found $n_wt_force such"
+grep -Eq -- 'branch[[:space:]]+-D\b|reset[[:space:]]+--hard|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?clean|git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?stash' < <(printf '%s\n' "$code") \
   && fail "helper executes a forbidden force/destructive git verb"
-pass "helper executes no forbidden force/destructive git verb"
+pass "helper executes no forbidden destructive git verb (exactly one permitted a290 --force)"
 
 # ── 9. roadmap:8d76 — owner-authorized residue DISCARD (--discard-residue --ack <token>) ──
 # This is the ONE path that destroys uncommitted work, so every guard is asserted. It exists

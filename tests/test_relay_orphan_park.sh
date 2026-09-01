@@ -49,9 +49,35 @@ grep -Eq "worktree remove --force" < <(grep -vE '^[[:space:]]*#' "$RECONCILE") \
 # avoids" — precisely so a human is not left thinking a force-free route exists. A guard that
 # fires on a command merely QUOTED is the id:221f(b) anchoring defect; test_worktree_retire.sh's
 # equivalent check already strips these lines, and this one now matches it.
-grep -Eq "worktree remove --force|branch +-D\b" \
-  < <(grep -vE '^[[:space:]]*#' "$RETIRE" | grep -vE '(^[[:space:]]*(log|echo)\b|[[:space:]]*msg=)') \
-  && fail "worktree-retire.sh must not use --force / branch -D (id:373e)"
+# AMENDED 2026-09-01 (TODO id:a290, owner-ruled): the helper now carries EXACTLY ONE
+# `git worktree remove --force`, the narrow submodule escape hatch. It fires only after the
+# helper has itself proved the tree CLEAN and the branch already an ancestor of HEAD, and only
+# when it positively recognizes git's verbatim submodule refusal (behaviour pinned by
+# tests/test_submodule_force_hatch_a290.sh, including that a dirty or unmerged tree is refused).
+# So the invariant is no longer "zero forces" but "exactly one, and no second one sneaks in":
+# a bare count keeps this a real ratchet instead of an open door. `branch -D` stays ABSENT
+# outright -- id:373e's ban on force-DELETING a ref is untouched by the a290 ruling.
+# TIGHTENED 2026-09-01: the exclusion patterns are ANCHORED. `[[:space:]]*msg=` was unanchored,
+# so ANY line merely CONTAINING `msg=` anywhere was invisible to the ban -- an open door, since a
+# real force could be smuggled onto such a line. And the count used `grep -Ec`, which counts
+# matching LINES, so two forces on one line read as one; `grep -o | wc -l` counts OCCURRENCES.
+# REWRITTEN 2026-09-01 (id:a290 round 3): even ANCHORED, a line-shaped exclusion is a smuggling
+# channel -- `msg=$(git worktree remove --force "$wt")` and `msg=; git worktree remove --force
+# "$wt"` both start with `msg=` and both EXECUTE a force, and the same held for indented `msg=`,
+# `why=`, `hatch_refused=`, `echo` and `log`. The ban now filters by QUOTING rather than by line:
+# lib-shell-code-only.py blanks comments and quoted-literal text but KEEPS `$( … )`/backtick
+# innards, so surfaced prose is invisible while a force on any line is not. The filter's
+# both-directions self-test lives in test_worktree_retire.sh, next to the sibling ban.
+CODEONLY="$SRC_DIR/tests/lib-shell-code-only.py"
+[[ -f "$CODEONLY" ]] || fail "lib-shell-code-only.py missing at $CODEONLY"
+retire_body="$(python3 "$CODEONLY" "$RETIRE")"
+n_force="$(printf '%s\n' "$retire_body" | { grep -o "worktree remove --force" || true; } | wc -l)"  # swallow-ok: a zero count must reach the assertion below, not abort the run under set -e/pipefail
+[[ "$n_force" -eq 1 ]] \
+  || fail "worktree-retire.sh must carry EXACTLY ONE 'git worktree remove --force' (the id:a290 submodule escape hatch); found $n_force (id:373e)"
+grep -Eq "remove +-f +-f|remove +--force +--force" <<<"$retire_body" \
+  && fail "worktree-retire.sh must never issue 'remove -f -f' -- a LOCKED worktree stays an independent backstop the a290 hatch cannot override (id:373e/id:a290)"
+grep -Eq "branch +-D\b" <<<"$retire_body" \
+  && fail "worktree-retire.sh must not use branch -D (id:373e)"
 grep -Eq "worktree remove" "$RETIRE" \
   || fail "worktree-retire.sh never removes the orphan worktree dir (would re-surface every round)"
 
