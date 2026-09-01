@@ -2930,3 +2930,71 @@ started) rather than discarding a finished unit.
 ## 2026-09-01 11:02 — executor (sonnet, relay-loop)
 
 Fixed id:8302 -- tracker/ledger-map.py no longer drops a parent on a multi-`children-of:` line (scalar overwrite -&gt; new lossless `parents` list, `parent` kept as backward-compat first-entry alias); regenerated golden fixtures, documented the field in the schema, full suite green (538/0). [id:8302]
+
+## 2026-09-01 11:20 — reviewer (claude-opus-5, relay-loop)
+
+Chain-end review of run `relay-20260901-101120-32404` over the window
+`relay-ckpt-20260901-1032..HEAD` (the last REVIEW checkpoint; the two intervening
+tags 1040/1102 are the execute chain being audited). Two `[ROUTINE]` closes
+reviewed: id:d8b3 and id:8302.
+
+**Tiers (id:f032).** Declared tiers enumerated from the `Makefile`: `make lint`
+(`check-no-bare-rm-f.sh`) and `make test` (which runs `lint` first, then
+`tests/run-tests.sh`) — no CI config, no `.github/workflows`. Both RAN:
+**538 passed / 0 failed / 2 expected-red** after this pass (1 expected-red before
+it; the second is the new id:59c5 spec). `make gaming-canary` and `make shard-canary`
+are SKIPPED-TIER: both are explicitly on-demand token-spending model canaries that
+the Makefile documents as NOT part of `make test`, and a relay child must not spend
+tokens on them unasked. No tier was silently absent.
+
+**id:d8b3 — VERIFIED GREEN.** Done-check `bash tests/test_zero_commit_accumulator_durable_d8b3.sh`
+re-run independently, exit 0. Contract v17 -> v18; the ZERO-COMMIT accumulator now
+names `~/.config/relay/relay-events.jsonl` via `relay-state-write.sh event-append`
+and records at the point of use why `RELAY_LOG.md` cannot be the store. Checked the
+named subcommand actually EXISTS (`relay/scripts/relay-state-write.sh:179`, absolute-path
+guard at `:184`) — this is the prose-that-silently-no-ops class and the check was owed.
+`CLAUDE.md`'s `## Relay contract` pointer was refreshed to v18 in the same commit, so
+review §4's pointer check is satisfied. The executor implemented exactly the reviewer's
+REVIEW_ME recommendation, no superset (§2d clean).
+
+**id:8302 — VERIFIED GREEN on clause (a), UNMET on clause (b); NOT reopened.** Done-check
+`bash tests/test_ledger_map_multi_parent_8302.sh` exit 0; the multi-parent data loss is
+genuinely fixed (`parents` list, `parent` kept as a first-entry alias, dangling-parent
+warn widened, golden fixtures regenerated, schema documented). But the item's ratified
+acceptance had a SECOND clause — "the two spellings resolve to ONE relation" — that its
+RED spec set a fixture up for (`aa03 children:bb02`) and then asserted nothing about, so
+it shipped unimplemented with a green suite. MEASURED on the post-8302 tree: `bb01
+parents=[aa01,aa02] children=[]`, `aa01 parents=[] children=[]`, `aa03 parents=[]
+children=[bb02]`, `bb02 parents=[] children=[]` — resolvable in exactly one direction,
+and which direction depends on which end the author wrote from. Filed as new item
+**id:59c5** with its own RED spec `tests/test_ledger_map_spelling_symmetry_59c5.sh`
+(fails at assertion (a), `childside_parent_names_child=0`, with the earlier assertion
+passing so it is not vacuously red) rather than un-archiving 8302, whose headline fix and
+CHANGELOG entry are honest. Surfaced to `REVIEW_ME.md` for the owner to reverse if he
+would rather the token stay open.
+
+**Anti-gaming.** `gaming-scan.sh` clean (no DELETED_TEST / ADDED_SKIP / REMOVED_ASSERT).
+No test file was modified in the window, so §2b.1 resurrection has no candidates — the
+RED specs predate the window and the implementations moved to satisfy them, which is the
+correct shape. Provenance greps for executor-introduced `@owner-accepted:`,
+`@owner-answered:` and `<!-- answer-src:` returned nothing, and no line already carrying
+`@owner-answered` was modified. Faked-clean-tree (§2b.5): no discard/stash/reset language
+in the window and both acceptances are present in the diff. `refactor:` self-reports
+(§2b.6) match their diffs — d8b3's "contract-prose edit" is exactly that, 8302's carries
+no false "none needed" claim.
+
+**relay-doctor:** repo scope 0 issues (cross-ledger clean, roadmap-lint clean on lane+id,
+todo-conformance clean, main checkout clean, mechanical-orphan clean). Fleet-scope findings
+are pre-existing and already have REVIEW_ME boxes, except one that was mine to take: inbox
+DEAD-LETTER `routed:71ed` (roadmap-archive.sh's block rule re-attributing an open item's
+continuation body to a closed neighbour, observed in it-infra). INGESTED into `TODO.md` as
+`[INBOUND routed:71ed from it-infra]` with the anchored `<!-- id:71ed -->` twin.
+`append.sh inbox-done 71ed` was deliberately NOT run: the twin exists only on this
+worktree branch, so the guard would (correctly) refuse until the integrator merges —
+`scan-routed.sh --apply` will drain it on the next pass.
+
+**Reverse-handoff (§5b):** `git diff` over `TODO.md`/`ROADMAP.md` for the window shows
+ZERO newly-added open items — nothing to qualify.
+
+**routine_open = 1** (id:59c5), so the repo flips review -> execute with one actionable
+`[ROUTINE]` unit.
