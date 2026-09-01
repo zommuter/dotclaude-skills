@@ -58,9 +58,18 @@ cat > "$repo/TODO.md" <<'EOF'
 - [x] another finished gate target <!-- id:bb02 -->
 - [ ] [HARD] tracking stub, work the children <!-- gated-on:bb01 --> <!-- id:bb0c --> — 🚧 @container DECOMPOSED — TRACKING LINE ONLY, work the children.
 - [ ] [HARD] a real unblocked item <!-- gated-on:bb02 --> <!-- id:bb03 -->
+- [ ] [HARD] twin-only tracking stub, clean TODO line <!-- gated-on:bb01 --> <!-- id:bb0d -->
 EOF
 
-: > "$repo/ROADMAP.md"
+# bb0d is THE LIVE SHAPE (id:ebbe): the `@container` marker sits on the ROADMAP TWIN and the
+# TODO line is perfectly clean. `--shipped` reads TODO.md, so a TODO-line-only check never
+# sees it. The first version of this fix passed the whole suite and shipped INERT for exactly
+# this reason -- the fixture above put the marker on the TODO line, which is not how the live
+# item is written. Keep BOTH cases: bb0c pins the TODO-line form, bb0d pins the twin form.
+cat > "$repo/ROADMAP.md" <<'EOF'
+# ROADMAP
+- [ ] [HARD] twin-only tracking stub, clean TODO line <!-- id:bb0d --> — 🚧 @container DECOMPOSED — TRACKING LINE ONLY, work the children.
+EOF
 
 git -C "$repo" add -A
 d="$(date -d '-1 days' +%Y-%m-%dT12:00:00)"
@@ -83,6 +92,13 @@ grep -q 'id:bb0c' <<<"$out" \
 # (a) the defect itself.
 grep -q 'id:bb0c — GATE-READY (all gates' <<<"$out" \
   && report "case A: an @container item must NOT be reported as a bare GATE-READY"
+
+# (d) THE LIVE SHAPE -- marker on the ROADMAP twin, clean TODO line. This is the case the
+#     first version of this fix missed while the suite stayed green.
+grep -q 'id:bb0d' <<<"$out" \
+  || report "case D: the twin-only @container item must still be REPORTED"
+grep -q 'id:bb0d — GATE-READY (all gates' <<<"$out" \
+  && report "case D: an item whose @container marker is on its ROADMAP TWIN must NOT be a bare GATE-READY"
 
 if (( fail )); then
   echo "--- scan output ---"

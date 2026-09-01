@@ -272,12 +272,19 @@ elif [[ "$mode" == "shipped" ]]; then
   # First-wins with ROADMAP.md before ROADMAP.archive.md, so a LIVE line beats a recycled
   # archived token (the id:9221 rule, applied on this side too).
   declare -A roadmap_gated
+  # id:5b1f — the SAME single pass also records whether the ROADMAP twin is an `@container`
+  # TRACKING LINE. Live 2026-09-01: id:ebbe carries `@container` on its ROADMAP line ONLY,
+  # so this fix's first attempt (which read the TODO line alone) never saw it and shipped
+  # inert — the identical cross-ledger blindness id:4425 defect 1 documents, one class over.
+  declare -A roadmap_container
   while IFS= read -r l; do
-    rg=''
+    rg=''; rc=''
     grep -qiE '🚧|\bGATED\b' <<<"$l" && rg='1'
+    [[ "$l" == *"@container"* ]] && rc='1'
     while read -r tk; do
       [[ -z "$tk" ]] && continue
       [[ -n "${roadmap_gated[$tk]+x}" ]] || roadmap_gated["$tk"]="$rg"
+      [[ -n "${roadmap_container[$tk]+x}" ]] || roadmap_container["$tk"]="$rc"
     done < <(grep -oP '(?<=<!-- id:)[0-9a-f]{4}(?= -->)' <<<"$l" || true)
   done < <(grep -hE '^\s*- \[[ xX]\] ' "$ROOT/ROADMAP.md" "$ROOT/ROADMAP.archive.md" 2>/dev/null || true)
 
@@ -413,6 +420,8 @@ elif [[ "$mode" == "shipped" ]]; then
         # silent-swallow anti-pattern this repo bans.
         is_container=0
         [[ "$text" == *"@container"* ]] && is_container=1
+        # ...and on the ROADMAP TWIN, which is where the live case actually carries it.
+        [[ -n "${roadmap_container[$token]:-}" ]] && is_container=1
         if (( is_container )); then
           output_lines+=("id:$token — GATE-READY-CONTAINER (all gates [x], but @container) — TRACKING LINE: work the children, not this item. $(short_text "$text")")
         else
