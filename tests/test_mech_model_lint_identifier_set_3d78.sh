@@ -14,6 +14,10 @@
 # matcher when it EXISTS, and the spec is amended at that point (owner's call), not
 # pre-emptively. This suite pins both directions — the two real identifiers are still
 # matched, the two invented ones are not.
+# fails-against: rev 7b69fa084b2d -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/classify-repo.sh, relay/scripts/gather-repo-state.sh, relay/scripts/lib-roadmap-sections.sh (+3 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 7b69fa084b2d -- relay/scripts/classify-repo.sh relay/scripts/gather-repo-state.sh relay/scripts/lib-roadmap-sections.sh relay/scripts/lib-state-claim.sh relay/scripts/lint-mech-model.mjs relay/scripts/roadmap-lint.sh
+# fails-against-assertion: is matched, contradicting the ratified id:ed3f spec clause
 
 set -uo pipefail
 

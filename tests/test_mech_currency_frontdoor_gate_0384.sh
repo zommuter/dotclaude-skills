@@ -24,6 +24,8 @@
 # Hermetic: mktemp -d, a fixture proxy source and a fixture state file, no network, no ~/.claude,
 # and the RUNNING proxy on this host is never contacted (MECH_PROXY_SRC/MECH_PROXY_STATE are both
 # overridden, so nothing here reads or writes the operator's real state file).
+# fails-against-rev: 80afcfe431f7 -- relay/SKILL.md relay/scripts/mech-currency.sh
+# fails-against-assertion: step 0b does not make STALE a launch REFUSAL — it must match the mode-b abort posture (id:0384)
 
 set -uo pipefail
 

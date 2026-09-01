@@ -24,6 +24,11 @@
 # Hermetic: reads two repo files, executes mechArg extracted VERBATIM from relay-loop.js (never
 # hand-duplicated), and calls the REAL _command_allowed(). No ~/.claude, no ~/.config/relay,
 # no network, no writes.
+# fails-against: rev 0e97d1ab0feb -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 0e97d1ab0feb -- relay/scripts/relay-loop.js
+# fails-against-assertion: the pre-id:2e7a claim that backticks are 'preserved VERBATIM' is back in relay-loop.js — it is false of the proxy and caused the outage
+
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

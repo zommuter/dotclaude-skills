@@ -9,6 +9,11 @@
 # (form C, before the terminal `<!-- id:XXXX -->`) is decided by the typed predicate and
 # bypasses the wait_re gate-word heuristic entirely. Unmarked items keep their exact
 # prior behaviour. One fixture ledger per class, plus a regression + a no-regression case.
+# fails-against: rev 2004993f658f -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh, meeting/classify.sh, meeting/orphan-scan.sh (+1 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 2004993f658f -- meeting/append.sh meeting/classify.sh meeting/orphan-scan.sh relay/scripts/unpromoted-scan.sh
+# fails-against-assertion: expected UMBRELLA-READY for cccc
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -33,6 +33,11 @@
 #   sites). Both new steps must therefore hand back through handback() at exit 0, with their
 #   OWN distinct codes. Distinctness is asserted over EVERY EX_* in the file, not just the new
 #   pair — a duplicate anywhere collapses attribution.
+# fails-against: rev 92f9e875e8ae -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/archive-closed.sh, relay/scripts/integrate.sh, relay/scripts/lib-publish-remote.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 92f9e875e8ae -- relay/scripts/archive-closed.sh relay/scripts/integrate.sh relay/scripts/lib-publish-remote.sh
+# fails-against-assertion: (4b) --only review_me STILL ARCHIVED ROADMAP.md — that is the double-archiver collision, one step after step 6b already ran. Changed:
+
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

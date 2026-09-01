@@ -44,6 +44,11 @@
 # one. The fixture deliberately SEPARATES them — 9eb7 carries the gate alone, 6217 the
 # fixture reference alone — so each defect has an INDEPENDENT failing witness. Pinning
 # 6217 with both would let either fix alone turn the case green and hide the other.
+# fails-against: rev 077dce56aab0 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/orphan-scan.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 077dce56aab0 -- meeting/orphan-scan.sh
+# fails-against-assertion: case B (defect 2): id:6217's only # roadmap: match is a fixture reference to another test file; it must not establish the link
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

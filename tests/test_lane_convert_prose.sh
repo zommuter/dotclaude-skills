@@ -9,6 +9,11 @@
 # ROADMAP.md prose `f599 = [HARD — pool]` and backtick'd fixture docs).
 #
 # Hermetic: temp fixtures in mktemp; no ~/.claude, no network.
+# fails-against: rev ea2662f0fdab -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/lane-convert.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: ea2662f0fdab -- relay/scripts/lane-convert.sh
+# fails-against-assertion: (2) a non-checkbox prose line must be left byte-for-byte unchanged (found rename)
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

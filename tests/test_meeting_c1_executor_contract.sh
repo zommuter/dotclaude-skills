@@ -6,6 +6,11 @@
 # D7: in a relay-managed repo, a no-arg /meeting Class 1 dispatch follows the
 # /relay executor contract (test integrity, full suite green, RELAY_LOG self-report),
 # gated on ROADMAP.md existing; non-relay repos behave as before.
+# fails-against: rev 595419cbdb74 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/SKILL.md. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 595419cbdb74 -- meeting/SKILL.md
+# fails-against-assertion: Class 1 line missing D7 marker
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

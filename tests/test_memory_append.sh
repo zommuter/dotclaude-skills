@@ -10,6 +10,11 @@
 #   4. Idempotent-safe: repeated appends do not corrupt the file.
 #
 # Hermetic: works in mktemp -d, never touches ~/.claude or the network.
+# fails-against: rev f0314518c1f6 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, hooks/README.md, hooks/pathspec-drop-guard.py (+1 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: f0314518c1f6 -- Makefile hooks/README.md hooks/pathspec-drop-guard.py meeting/memory-append.sh
+# fails-against-assertion: memory-append.sh not found at
+
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -3,6 +3,11 @@
 # (No `# roadmap:XXXX` header — these are TODO/design ids, not ROADMAP queue items; this test
 #  must end GREEN, it is not expected-red. Grep-based contract check, like the sibling
 #  test_meeting_c1_executor_contract.sh — pins the spec prose so the gate can't silently regress.)
+# fails-against: rev 284a981e5477 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/SKILL.md, meeting/format.md. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 284a981e5477 -- meeting/SKILL.md meeting/format.md
+# fails-against-assertion: fc0f: format.md missing a 'Plan-mode gate' section
+
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SKILL="$ROOT/meeting/SKILL.md"

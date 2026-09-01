@@ -3,6 +3,11 @@
 # Hermetic tests for tools/memory-index.py — the derived MEMORY.md index.
 # Everything runs in a mktemp -d fixture dir; the real ~/.claude memory dir is
 # NEVER read or written.
+# fails-against: rev 47fc577531cf -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix tools/memory-index.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 47fc577531cf -- tools/memory-index.py
+# fails-against-assertion: memory-index.py not found at
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

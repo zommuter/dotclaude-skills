@@ -13,6 +13,11 @@
 # tests/test_meeting_question_guard_29bc.sh (which it deliberately does not
 # duplicate — see that file for the other cases: compliant turns, escape
 # hatches, fail-open, etc).
+# fails-against: rev c52ee7f029d7 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix hooks/meeting-question-guard.py. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: c52ee7f029d7 -- hooks/meeting-question-guard.py
+# fails-against-assertion: malformed marker: expected 'BLOCK #1' (degraded), got:
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -26,6 +26,11 @@
 # ROADMAP.archive.md must suppress, or the widened scan turns every already-marked
 # intentional split into a fresh false positive (the mute-training hazard D2's
 # ordering exists to prevent).
+# fails-against: rev 6142f2329b34 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh, meeting/md-merge.py, meeting/orphan-scan.sh (+15 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 6142f2329b34 -- meeting/append.sh meeting/md-merge.py meeting/orphan-scan.sh relay/references/hard-lanes.md relay/scripts/classify-repo.sh relay/scripts/discover-sig.sh relay/scripts/gather-repo-state.sh relay/scripts/handback-guard.mjs relay/scripts/lib-anchored-id.sh relay/scripts/lib-roadmap-sections.sh relay/scripts/lib-typed-edges.sh relay/scripts/reconcile-repo.sh relay/scripts/relay-loop.js relay/scripts/resolve-gates.sh relay/scripts/roadmap-lint.sh relay/scripts/unpromoted-scan.sh tracker/SCHEMA.md tracker/ledger-map.py
+# fails-against-assertion: id:aa01 NOT flagged — a ROADMAP item archived out of the live file no longer collides with its still-open TODO twin (routed:42c9 archive blind spot)
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

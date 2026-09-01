@@ -25,6 +25,10 @@
 # run the PRODUCTION scripts end-to-end. Case 3 proves single-SOURCE consumption by
 # mutating only the shared lib in a verbatim copy of relay/scripts and asserting every
 # reader — bash and python — follows it.
+# fails-against: rev 7b69fa084b2d -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/classify-repo.sh, relay/scripts/gather-repo-state.sh, relay/scripts/lib-roadmap-sections.sh (+3 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 7b69fa084b2d -- relay/scripts/classify-repo.sh relay/scripts/gather-repo-state.sh relay/scripts/lib-roadmap-sections.sh relay/scripts/lib-state-claim.sh relay/scripts/lint-mech-model.mjs relay/scripts/roadmap-lint.sh
+# fails-against-assertion: classify-repo.sh ignored the mutated shared vocabulary
 
 set -uo pipefail
 

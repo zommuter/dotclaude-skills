@@ -12,6 +12,11 @@
 # JSON and realistic session-transcript JSONL fixtures. It deliberately does NOT grep
 # the hook's source — this repo already has two tests that do that (id:3a50, id:05a2)
 # and both stayed green through a full revert of the code they were supposed to guard.
+# fails-against: rev 8d989adfc329 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, hooks/README.md, hooks/meeting-guard-marker.sh (+3 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 8d989adfc329 -- Makefile hooks/README.md hooks/meeting-guard-marker.sh hooks/meeting-question-guard.py meeting/SKILL.md meeting/format.md
+# fails-against-assertion: expected exit 0 with no meeting active, got
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

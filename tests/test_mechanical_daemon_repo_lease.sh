@@ -12,6 +12,11 @@
 #
 # REAL hermetic test — mktemp RELAY_RECIPE_DIR / CLAIM_BASE / INJECT_BASE /
 # RELAY_INTENSITY_FILE; no ~/.config / network touched.
+# fails-against: rev 97d1fdff109e -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/mechanical-daemon.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 97d1fdff109e -- relay/scripts/mechanical-daemon.sh
+# fails-against-assertion: (A) a recipe whose target repo is LEASED must be DEFERRED, not run (artifact was written INTO the leased checkout)
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

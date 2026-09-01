@@ -15,6 +15,11 @@
 #
 # This test reproduces the REAL topology: a skill dir holding per-file symlinks into a
 # canonical checkout dir.
+# fails-against: rev 4775010ed0e4 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 4775010ed0e4 -- meeting/append.sh
+# fails-against-assertion: $dest, detaching the install from the canonical checkout and forking the registry (routed:96da). It is now:
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APPEND="$ROOT/meeting/append.sh"
