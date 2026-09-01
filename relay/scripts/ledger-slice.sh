@@ -81,11 +81,21 @@
 # assumed: the gate exists because an unmeasured estimate let loderite through by 326 tokens.
 # Consumers that only want the path keep taking the last line and are unaffected.
 # SIDE-EFFECT-FREE apart from writing that one file.
-# Exit 0 = slice written, every requested id resolved; 2 = misuse (including a bad/unreachable
-# --since-ckpt ref); 4 = at least one id owns no ROADMAP.md item (LOUD, never a silent empty
-# slice — id:4347) — a slice may still have been written for the ids that DID resolve (see
-# --ids above); 5 = --since-ckpt resolved to a valid ref but derived ZERO ids — nothing to
-# slice, not a failure (see --since-ckpt above).
+# EXIT CODES — non-zero means exactly one thing: THERE IS NO USABLE SLICE PATH ON STDOUT.
+#   0 = a slice WAS written. Some requested ids may have resolved to nothing; they are named
+#       loudly on stderr (id:4347) but do NOT make this a failure, because partial resolution
+#       is the NORMAL case (a closed-and-archived id, an inbox routing token). This used to
+#       exit 4 and it broke the whole feature in live run relay-20260901-100342-3206: the
+#       mechanical hop flattens any non-zero exit to `MECH-ERROR exit=N`, so relay-loop.js
+#       discarded a good slice and fell back to the unsliced brief, and the prompt-size gate
+#       then refused the dispatch at ~473,290 tok. Callers key on the exit code, not on
+#       whether stderr was quiet.
+#   2 = misuse (bad flags, or a bad/unreachable --since-ckpt ref).
+#   4 = NOTHING resolved — no requested id owns a ROADMAP.md item or a TODO.md entry; no file.
+#   5 = --since-ckpt/--since-last-review resolved but derived ZERO ids, or no relay-ckpt-*
+#       tag exists. Nothing to slice; not a failure — the caller falls back to the unsliced
+#       brief.
+#   6 = the slice was built but is at/above the dispatch-budget ceiling; refused, no file.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -331,8 +341,12 @@ if [[ -n "$ids_csv" ]]; then
     resolved_linenos+=("$item_lineno")
   done
 
-  if (( ${#resolved_ids[@]} == 0 )); then
-    echo "ledger-slice.sh: none of the requested ids (${req_ids[*]}) own a ROADMAP.md checkbox item in $repo ($roadmap) — refusing to write an empty slice (id:4347)" >&2
+  # Nothing to slice ONLY when neither ledger owns any requested id. `todo_only_ids` must be
+  # counted here too (id:dd59): a review set whose ids all live in the design ledger is a
+  # perfectly good slice, and testing `resolved_ids` alone refused it outright. Not
+  # hypothetical for this repo — of 14 ids derived from the live run, 3 were TODO-only.
+  if (( ${#resolved_ids[@]} == 0 && ${#todo_only_ids[@]} == 0 )); then
+    echo "ledger-slice.sh: none of the requested ids (${req_ids[*]}) own a ROADMAP.md item OR a TODO.md entry in $repo — refusing to write an empty slice (id:4347)" >&2
     exit 4
   fi
 
@@ -501,9 +515,18 @@ if [[ -n "$ids_csv" ]]; then
   trap - EXIT
   printf 'slice-bytes: %s\n' "$_slice_bytes"
   printf '%s\n' "$out"
-  if (( ${#unresolved_ids[@]} > 0 )); then
-    exit 4
-  fi
+  # A WRITTEN SLICE IS A SUCCESS — exit 0 even when some requested ids resolved to nothing.
+  # This used to exit 4 on any unresolved id ("reported-and-continue with a non-zero exit").
+  # LIVE VALIDATION KILLED THAT (run relay-20260901-100342-3206): the review set derived 14
+  # ids, two of which own nothing (4313 is closed-and-archived, 3e13 is an inbox routing
+  # token), so the script exited 4 — the mechanical hop flattens ANY non-zero exit to
+  # `MECH-ERROR exit=4`, and sliceLedgerForUnit's `if (/^MECH-ERROR exit=/) return null`
+  # discarded a perfectly good slice and fell back to the unsliced brief. The gate then
+  # sized the whole ledgers (~473,290 tok) and refused the dispatch.
+  # Partial resolution is the NORMAL case, not an edge case, so a non-zero exit there made
+  # the feature essentially never fire. Non-zero now means exactly one thing to every
+  # caller: THERE IS NO USABLE SLICE ON STDOUT. The unresolved ids are still named loudly on
+  # stderr (id:4347) — the information is preserved, it just no longer masquerades as failure.
   exit 0
 fi
 

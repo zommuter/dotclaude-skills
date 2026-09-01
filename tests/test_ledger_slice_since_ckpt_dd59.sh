@@ -102,10 +102,18 @@ if [[ -s "$O1" ]]; then
 else
   bad "id:dd59: no slice file written even though ids were derived and some resolve"
 fi
-# id:4444 has no owning ROADMAP.md item (it lives only in TODO.md) -- same "reported, not
-# silently dropped" contract as a bad --ids token; the run must still exit non-zero.
-[[ "$rc" -ne 0 ]] && ok "an derived id with no owning ROADMAP item still exits non-zero ($rc)" || bad "id:dd59: derived id:4444 has no ROADMAP item but the run exited 0"
-grep -q '4444' "$err1" && grep -qi 'owns no ROADMAP' "$err1" && ok "id:4444's non-resolution is reported on stderr, not silently dropped" || bad "id:dd59: id:4444's non-resolution was not reported"
+# id:4444 has no owning ROADMAP.md item but DOES live in TODO.md. Two contract changes made
+# on live evidence (run relay-20260901-100342-3206) meet here, and this assertion is rewritten
+# rather than merely inverted:
+#   (a) TODO-only ids are SLICED, not dropped -- ROADMAP is the execution queue but plenty of
+#       worked ids live only in the design ledger (3 of the 14 derived live).
+#   (b) a written slice EXITS 0 even with unresolved ids -- a non-zero exit is flattened to
+#       `MECH-ERROR exit=N` by the mechanical hop and the good slice is thrown away.
+# So id:4444 is now RESOLVED (as TODO-only), the run exits 0, and it must NOT be reported as
+# owning nothing.
+[[ "$rc" -eq 0 ]] && ok "a derived TODO-only id does not fail the run (exit 0)" || bad "id:dd59: derived TODO-only id:4444 exited $rc -- the slice would be discarded as MECH-ERROR"
+grep -q '^## TODO-only items' "$TMP/since1.md" && ok "the TODO-only section carries the design-ledger id" || bad "id:dd59: id:4444 has no ROADMAP item and no TODO-only section was emitted"
+grep -qi '4444.*owns no ROADMAP.*AND no TODO' "$err1" && bad "id:dd59: id:4444 reported as owning nothing, but it has a TODO.md entry" || ok "a TODO-only id is NOT reported as unresolved"
 
 # ── (6) An INVALID / unreachable ref fails LOUDLY and does NOT silently slice everything. ──
 O2="$TMP/since2.md"

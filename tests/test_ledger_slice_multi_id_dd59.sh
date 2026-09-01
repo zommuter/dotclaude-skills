@@ -112,13 +112,22 @@ n2=$(grep -c '^- id:2222 —' "$O_overlap" || true)
 n3=$(grep -c 'GATE TARGET' "$O_overlap" || true)
 [[ "$n3" -eq 1 ]] && ok "the co-dispatched gate target's block is emitted exactly once" || bad "id:dd59: co-dispatched gate target block emitted $n3 times, expected 1"
 
-# ── (4) An unresolvable id is reported LOUDLY (stderr) and the run exits non-zero, but the ──
+# ── (4) An unresolvable id is reported LOUDLY (stderr) but does NOT fail the run. ───────────
+# CONTRACT CHANGED 2026-09-01 on live evidence (run relay-20260901-100342-3206), inverting
+# what this block used to assert. It required a NON-ZERO exit on partial resolution. The
+# mechanical hop flattens ANY non-zero exit to `MECH-ERROR exit=N`, and relay-loop.js's
+# `if (/^MECH-ERROR exit=/) return null` then DISCARDED a perfectly good slice and fell back
+# to the unsliced brief — the prompt-size gate refused the dispatch at ~473,290 tok. Partial
+# resolution is the NORMAL case (of 14 ids derived live, 4313 was closed-and-archived and
+# 3e13 was an inbox routing token), so a non-zero exit there made the feature never fire.
+# Non-zero now means exactly one thing: no usable slice path on stdout. The LOUD naming of
+# unresolved ids (id:4347) is the guarantee that survives, and is still asserted below.
 #        ids that DID resolve still get a slice (reported-and-continue, id:4347).
 O_partial="$TMP/partial.md"
 err="$TMP/err.txt"
 rc=0
 "$SLICE" --repo repo --path "$R" --ids 1111,ffff --out "$O_partial" >/dev/null 2>"$err" || rc=$?
-[[ "$rc" -ne 0 ]] && ok "one unresolvable id among several exits non-zero ($rc)" || bad "id:dd59: an unresolvable id in the set exited 0 — silent partial success"
+[[ "$rc" -eq 0 ]] && ok "one unresolvable id among several still exits 0 (a written slice is a success)" || bad "id:dd59: partial resolution exited $rc — a non-zero exit here is flattened to MECH-ERROR and the good slice is discarded"
 grep -q 'ffff' "$err" && ok "the unresolvable id is NAMED on stderr, not silently skipped (id:4347)" || bad "id:dd59: unresolvable id ffff never named on stderr"
 if [[ -s "$O_partial" ]]; then
   grep -q 'ITEM ONE' "$O_partial" && ok "the id that DID resolve still gets a slice (reported-and-continue, not whole-batch-fatal)" || bad "id:dd59: resolvable id's block missing from the partial slice"
@@ -157,12 +166,20 @@ grep -qF ' 1111' "$O_to" || grep -q 'id:1111' "$O_to" \
   && ok "the ROADMAP-owning id in the same set is still sliced normally" \
   || bad "id:dd59: mixing a TODO-only id into the set broke the normal ROADMAP path"
 
-# An id owning NEITHER ledger is still unresolved and still drives the non-zero exit.
+# An id owning NEITHER ledger must still be NAMED — the TODO-only fallback must not swallow
+# it. The exit stays 0 because a slice WAS written for the ids that did resolve (see the
+# contract note at case 4); the guarantee is the loud naming, not the exit code.
 rc_n=0
 "$SLICE" --repo repo --path "$R" --ids 1111,ffff --out "$TMP/neither.md" >/dev/null 2>"$TMP/err_neither.txt" || rc_n=$?
-[[ "$rc_n" -ne 0 ]] \
-  && ok "an id owning NEITHER ROADMAP nor TODO is still unresolved (exit $rc_n)" \
-  || bad "id:dd59: the TODO-only fallback swallowed a genuinely unresolvable id -- exit 0"
+[[ "$rc_n" -eq 0 ]] \
+  && ok "a partially-resolvable set still exits 0 (slice written for what resolved)" \
+  || bad "id:dd59: partial set exited $rc_n — a good slice would be discarded as MECH-ERROR"
+grep -q 'ffff' "$TMP/err_neither.txt" \
+  && ok "an id owning NEITHER ROADMAP nor TODO is still NAMED loudly (not swallowed by the TODO fallback)" \
+  || bad "id:dd59: the TODO-only fallback swallowed a genuinely unresolvable id -- ffff never named"
+[[ -s "$TMP/neither.md" ]] \
+  && ok "the partial slice is still written for the id that DID resolve" \
+  || bad "id:dd59: no slice written despite one resolvable id"
 
 # ── (5) Malformed token / empty set / duplicate-flag misuse behave predictably. ─────────────
 rc3=0; "$SLICE" --repo repo --path "$R" --ids "1111,zzzz" --out "$TMP/bad1.md" >/dev/null 2>"$TMP/err3.txt" || rc3=$?
