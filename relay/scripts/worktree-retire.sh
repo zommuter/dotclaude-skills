@@ -423,10 +423,17 @@ merged_gitlinks_at_risk() {
   # CONTRADICTS the mechanism this whole hatch is built on -- the 2026-09-01 archaeology found the
   # refusal keyed on `.git/worktrees/<bn>/modules/<path>` existing -- so we are in territory nobody
   # has characterised and the script's own fail-closed doctrine applies: never infer "then nothing
-  # submodule-shaped can be lost". It also covers the OLD-STYLE embedded `.git` DIRECTORY layout,
-  # where a submodule's objects live in the WORK TREE rather than in the admin dir and would be
-  # taken by the `rm -rf` while this enumeration saw nothing. Reading it as safe was the last
-  # fail-open in this function.
+  # submodule-shaped can be lost".
+  #
+  # ⚠ IT DOES NOT COVER THE OLD-STYLE EMBEDDED `.git` DIRECTORY LAYOUT -- an earlier version of this
+  # comment claimed it did, and the round-4 review REFUTED that by fixture. The guard only fires when
+  # there is NO private store AT ALL, so a worktree carrying ONE ordinary submodule (which creates
+  # $mroot) plus an embedded-`.git`-directory one sails straight through: no enumerated store holds
+  # the embedded submodule's gitlink, step (c)'s "no store holds it, so it is already unresolvable"
+  # rule skips it, and the `rm -rf` takes the only copy out of $wt/<path>/.git/objects. Guard 3 does
+  # NOT catch it either -- `status --porcelain --ignore-submodules=none` returns EMPTY on such a
+  # worktree. This is one of the two reproduced false-SAFE paths that keep the hatch OPT-IN and
+  # INERT; see TODO id:a290. Adding an ordinary submodule defeats this mitigation.
   if [[ ! -d "$mroot" ]]; then
     printf "git issued its verbatim SUBMODULE refusal, but this worktree has NO private submodule store at all (%s does not exist) -- that contradicts the mechanism the refusal was characterised on, so the reason for the refusal is unknown and nothing may be forced on it (it also describes an old-style EMBEDDED .git-directory submodule, whose objects live in the work tree and would be deleted unexamined)" \
       "$mroot"
@@ -717,7 +724,13 @@ else
 
       if [[ -z "$hatch_refused" ]]; then
         if ferr="$(LC_ALL=C git -C "$repo" worktree remove --force "$wt" 2>&1)"; then
-          msg="submodule-force-hatch $bn: worktree carried POPULATED submodules, which git refuses to remove without --force. Verified first: HEAD is refs/heads/$branch, tree CLEAN (submodules included), branch already an ancestor of HEAD, and every gitlink MERGED superproject history names (nested ones included) still resolves after the force -- from the SHARED submodule store, or from the submodule's own remote. Force-removed (id:a290 shape (b), owner-ruled 2026-09-01). Nothing uncommitted, no unmerged commit, and no merged gitlink left unresolvable."
+          # The wording below states what this hatch ACTUALLY PROVES, not what it would like to.
+          # An earlier version claimed "every gitlink merged superproject history names still
+          # resolves" / "no merged gitlink left unresolvable"; the round-4 review reproduced TWO
+          # cases where that sentence was printed and the object was destroyed anyway, so it is a
+          # false claim and the next reader would act on it. Both gaps are in the two escape clauses
+          # named here; see TODO id:a290.
+          msg="submodule-force-hatch $bn: worktree carried POPULATED submodules, which git refuses to remove without --force. Verified first: HEAD is refs/heads/$branch, tree CLEAN (submodules included), branch already an ancestor of HEAD, and every gitlink held by an ENUMERATED private store under the admin dir (nested ones included) has either a copy in the SHARED submodule store or a remote-tracking ref there that was current at some past fetch. Force-removed (id:a290 shape (b), owner-ruled 2026-09-01). NOT PROVEN, and why this stays opt-in: a gitlink held only by a store this enumeration cannot see (an embedded .git DIRECTORY submodule) is skipped as 'already unresolvable' when it is not, and a remote-tracking ref is evidence about the PAST -- an upstream branch deletion plus gc is enough to make it stale, with no force-push involved."
           log "SUBMODULE-FORCE-HATCH $msg"
           echo "$msg"
           # fall through to the normal branch disposition below
