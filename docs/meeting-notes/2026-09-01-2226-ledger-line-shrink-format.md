@@ -62,6 +62,52 @@ Hardening findings recorded and not separately actioned: (8) the round trip cert
 
 **Pre-registered escalation trigger:** 7 forced-amendment findings against a threshold of 2. This is the sixth recorded firing and ties the highest count to date. Fable's own summary: *"The direction itself (BUILD FULL per-item) is not undermined by any of this; every finding is about mechanism, sequencing, or an unstated assumption, not about whether prose should move."*
 
+## Amendment session -- post-closure, 2026-09-01 ~22:5x
+
+Evidence arriving AFTER the note was written and committed: loderite (session `loderite-3d`)
+IMPLEMENTED AND RAN the shrink in its own repo tonight and reported measured results. Two of its
+findings were new to this meeting; the other four (head-line-is-a-control-surface,
+refuse-rather-than-guess, provenance-names-its-true-source, and the 43.2k reference-doc cost)
+were already covered above and are unchanged.
+
+**AMENDS D2 (supersedes its acceptance check as ratified above; the derive-from-detectors
+ruling and the directional predicate both STAND).** loderite's shrink **silently dropped four
+ids** (`89f9`, `a5b6`, `ba07`, `ed26`). All four sat on INDENTED lines carrying their own
+`<!-- id:XXXX -->`; the parser anchors its item regex at column 0, so an indented sub-item reads
+as CONTINUATION of the preceding top-level item, and relocating that continuation carried its id
+marker off the ledger. The body survived in the note file; **the ADDRESS did not** --
+`md-merge update-ids` can no longer reach those ids and `orphan-scan` cannot see them. Nothing
+failed loudly: open-item counts were unchanged and their round-trip guard passed green.
+
+This is a class our ratified predicate provably misses, because a lost id need not change any
+detector verdict. The acceptance check is therefore **the directional verdict round trip AND an
+exact id-SET diff (before == after, per ledger)**, plus loderite's conservative rule: **REFUSE to
+relocate any continuation that contains another id marker**, and report it. A long line costs
+context; a lost id costs the item.
+
+**Exposure measured here:** `TODO.md` carries **21** indented lines with their own id (ROADMAP.md:
+0) -- e.g. `TODO.md:41-46`, `:101-111`, `:143`. The 2026-09-01 ruling to "promote the 11 then lint
+the construct out" is recorded against a count of 11; **11 and 21 are not reconciled**, and the
+owner ruled that 11 is UNVERIFIED until they are. Filed as `id:8679`. Sizing a promote pass at 11
+against a true population of 21 leaves ten ids in precisely the orphaning shape.
+
+**loderite's fifth finding (old-vocab lane tags block a sweep) is REAL as a mechanism but does
+NOT bind here, and the reason is worth recording.** Rewriting a line that carries an old-vocab
+lane tag turns a GRANDFATHERED tag into an ADDED one, so `hooks/pre-commit-lane-vocab.sh` blocks;
+loderite hit this on two `[HARD — hands]` items, a lane `hard-lanes.md` gives no auto-default.
+Checked against our hook rather than assumed: it masks backtick-quoted mentions and fires only on
+a CHECKBOX line's LEFTMOST lane bracket, and detail files contain no checkbox lines, so relocating
+prose into new files cannot trip it. Recognized old vocabulary is exactly four lanes (pool,
+meeting, decision gate, hands) and we have **zero live `[HARD — hands]`**. Note the trap that cost
+three re-measurements: `[INPUT — meeting]` is NEW vocabulary carrying the OLD em-dash DELIMITER,
+a separate in-flight migration the hook does not block -- raw greps conflate the two and
+over-report by an order of magnitude (118 raw hits vs effectively zero genuine blockers).
+
+**Sizing datum, for reference:** loderite measured 793,338 -> 453,327 chars overall (-43%), with
+TODO.md alone 418,764 -> 130,103 (-70%) and 131 items relocated; parity verified after at ids
+275/275 and 209/209, open items 137/137 and 198/198, all gate-marker counts identical, roadmap-lint
+unchanged at 14.
+
 ## Action items
 
 - [ ] Rewrite `id:0d7c` to the ratified format above, correcting its three disproved premises: the "cheap 90%" build plan, the "57 entries / 2 keyed" REVIEW_ME figure, and the "collapses single-id-two-views" claim. <!-- id:0d7c -->
@@ -69,4 +115,5 @@ Hardening findings recorded and not separately actioned: (8) the round trip cert
 - [ ] Extend the `id:4f9b` prompt-size gate to count pointed-to detail files. Contract: post-shrink the gate's byte estimate for an item is not lower than the bytes a child actually loads. <!-- id:f3d2 -->
 - [ ] Per-phase slicing of the review child's mandatory reference docs: `relay/references/review.md` (29,051 bytes verified) + `conventions.md` (14,188) = 43,239 chars loaded before any ledger is read. Different mechanism from body relocation; cites `routed:2711` point 5. <!-- id:a282 -->
 - [ ] Derived meeting-backlink index as its own file (`children-of:0d7c`). Independently useful with no line-shrink at all: 659 ids cited across 217 notes, 259 in two or more. Measured build time 0.034 s. Contract: regenerating is idempotent and never clobbers hand-edited content. <!-- id:e8af -->
+- [ ] Reconcile the indented-id count before any promote pass: the 2026-09-01 ruling says "promote the 11", measurement says 21 indented lines in `TODO.md` carry their own id (ROADMAP: 0). Treat 11 as UNVERIFIED until the two scopes are reconciled; each unpromoted line is an id a shrinker can orphan silently. Contract: the promote pass and the measurement agree on one population before it runs. <!-- id:8679 -->
 - [ ] relay-core shadow-binary parity: a ledger-format change puts `classify-verdict.sh` / `gather-repo-state.sh` parity RED. Different repo. -> routed to relay-core inbox <!-- routed:c6c5 -->
