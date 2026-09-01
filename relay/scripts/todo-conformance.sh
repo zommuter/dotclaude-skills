@@ -31,7 +31,45 @@
 #   prose blocks) is `orphan`. (Inbox auto-RECONCILE on cross-repo activity is the sibling
 #   id:678e — this only DETECTS + surfaces here.)
 #
+# HEAD-LINE LENGTH RATCHET (id:0d7c, meeting 2026-09-01-2226 D4 as amended) -------------
+# Budget: 500 characters on a top-level checkbox line. Enforced as a RATCHET, not as a
+# flat rule -- nearly every line in this repo's ledgers is over budget today, so a flat
+# rule would be a migration, not a guard.
+#
+# WHY NOT the id:cb3e baseline (D4 was AMENDED to say this explicitly): that baseline is
+# ID-KEYED (`state_claim_in_baseline <id> <file>`), and its own source documents at
+# lib-state-claim.sh:157 that it "silently RE-GRANDFATHERS ... There is no expiry". An
+# id-keyed exemption says "this item is forgiven forever", so every current id would be
+# permanently exempt and free to regrow to 30 KB -- exactly what the ratchet exists to
+# prevent. So this baselines the LENGTH, not the id, and enforces MONOTONIC SHRINK.
+#
+# THE RULE, per (ledger basename, id):
+#   len <= 500                     -> conforming, silent.
+#   len  > 500, no baseline entry  -> `length-over-budget`   ERROR (a NEW over-budget line;
+#                                     this is also how an under-budget line that GREW past
+#                                     the budget is caught, since it carries no entry).
+#   len  > 500, len > baselined    -> `length-regrowth`      ERROR (monotonic shrink broken).
+#   len  > 500, len <= baselined   -> `length-grandfathered` WARN, always reported.
+#   ...and the COMPOSITION RULE (also ratified): a line the shrinker would REFUSE to cut is
+#   `length-unshrinkable` WARN -- reported, NEVER blocking. A rule may not demand a cut the
+#   tool will not make. See head_refusable() for the predicate and its sync discipline.
+#
+# The baseline lives in a committed file (default `relay/head-length-baseline.txt`, override
+# with $LENGTH_BASELINE), format `<ledger-basename>\t<4-hex id>\t<length>`; `#` comments and
+# blank lines ignored. Keying on the BASENAME, not a path, is what lets a hermetic fixture
+# and the real ledger share one mechanism. Regenerating it is a DELIBERATE, SEPARATE act --
+# `--regen-length-baseline <path>` prints the new snapshot to stdout and writes nothing.
+# A regen TIGHTENS the ratchet (every line re-baselines at its current, smaller length);
+# nothing regenerates it automatically, exactly the cb3e discipline.
+#
+# INERT WITHOUT A BASELINE: if the baseline file does not exist the ratchet performs NO
+# length findings and says so LOUDLY on stderr. That is deliberate -- landing the rule
+# without a snapshot would fail every ledger line in the fleet at once. It also means the
+# ratchet is inert in OTHER repos unless they set $LENGTH_BASELINE, which is the intended
+# opt-in. `*.archive.md` is out of scope entirely (id:2065), and so is `--inbox`.
+#
 # Usage:  todo-conformance.sh [--fix] [--inbox] [--strict] [<path>]
+#         todo-conformance.sh --regen-length-baseline [<path>]
 #   <path> default = <cwd repo>/TODO.md (git rev-parse --show-toplevel). REPORT-ONLY
 #   (exit 0 with findings); `--strict` → nonzero when findings remain. An unreadable path
 #   or unknown flag is a LOUD reject (nonzero). No silent `2>/dev/null` swallow (id:415b/4e14).
@@ -47,19 +85,24 @@ source "$SCRIPTS_DIR/lib-typed-edges.sh"
 # WARN→ERROR boundary baseline (id:cb3e, gated on id:5533) — same shared snapshot
 # roadmap-lint.sh reads, so both linters agree on which ids are grandfathered.
 STATE_CLAIM_BASELINE="${STATE_CLAIM_BASELINE:-$SCRIPTS_DIR/../state-claim-baseline.txt}"
+# Head-line length ratchet (id:0d7c). Budget and baseline are both overridable so the
+# hermetic test can drive them; the defaults are the shipped contract.
+LEDGER_HEAD_BUDGET="${LEDGER_HEAD_BUDGET:-500}"
+LENGTH_BASELINE="${LENGTH_BASELINE:-$SCRIPTS_DIR/../head-length-baseline.txt}"
 # append.sh (the id mint) lives in meeting/ at the repo root; resolve via the scripts dir.
 APPEND_SH="${TODO_CONFORMANCE_APPEND:-$(cd "$SCRIPTS_DIR/../.." && pwd)/meeting/append.sh}"
 LOG="${TODO_CONFORMANCE_LOG:-$HOME/.claude/logs/todo-conformance.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s todo-conformance.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
-fix=0 inbox=0 strict=0 path=""
+fix=0 inbox=0 strict=0 path="" regen_length=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fix)    fix=1; shift ;;
     --inbox)  inbox=1; shift ;;
     --strict) strict=1; shift ;;
-    -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
+    --regen-length-baseline) regen_length=1; shift ;;
+    -h|--help) sed -n '2,80p' "$0"; exit 0 ;;
     --*) echo "todo-conformance.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)
       [[ -n "$path" ]] && { echo "todo-conformance.sh: only one path may be given (got extra '$1')" >&2; exit 2; }
@@ -81,6 +124,107 @@ fi
 id_tag_present() { grep -qP '<!-- id:[0-9a-f]{4}[-a-z0-9]* -->' <<<"$1"; }
 # exempt <line> : intentional opt-out (lint-ok) or an intentional cross-repo pointer (ref:).
 exempt() { [[ "$1" == *"<!-- lint-ok:"* ]] || grep -qP '<!-- ref:[0-9a-f]{4} -->' <<<"$1"; }
+
+# --- head-line length ratchet (id:0d7c) --------------------------------------------------
+# LENGTH_MUST_KEEP_RE -- the tokens that must stay on the head line no matter where the cut
+# falls (the anchor id, the inbox twin, the lane tag, gate markers). Mirrors the shrinker's
+# MUST_KEEP list; used here ONLY to compute how much movable prose a cut would actually
+# free, never to rewrite anything. This script never edits a line for length.
+# The `[-—–]` class is a MATCHER, not prose: the lane-tag delimiter is mid-migration from an
+# em dash to a spaced hyphen, so both spellings must be recognised (match both, emit the new
+# one) or a lane tag in the old spelling is invisible here.
+LENGTH_MUST_KEEP_RE='<!--[[:space:]]*(id|routed|gated-on):[^>]*-->|\[(ROUTINE|HARD|MECHANICAL)\]|\[(HARD|INPUT)[[:space:]]*[-—–][[:space:]]*[A-Za-z ]+\]|gated-on:[0-9a-f]{4}|🚧|`?@(manual|owner-gated|container|owner-answered:[0-9-]+)`?|BLOCKED on'
+
+# head_refusable <line> → 0 (REFUSABLE: the shrinker would decline to cut this line).
+#
+# THE COMPOSITION RULE this implements (ratified, not optional): a line the shrinker refuses
+# to cut is REPORTED but never BLOCKS. Measured on today's corpus, 150 of 674 TODO items and
+# 43 of 127 ROADMAP items have no bold run at all; without this, ticking one of their
+# checkboxes would block a commit with no mechanical remedy, and a human under commit
+# pressure would have to hand-invent a title.
+#
+# It is a LOCAL MIRROR of `splitHead`'s refusal conditions, deliberately NOT an import: the
+# ratchet must not take a dependency on the shrinker (different language, different repo of
+# origin, and a lint that cannot run without a rewriter is a lint that gets disabled).
+#
+# HOW IT STAYS IN SYNC -- and this is the important part, because this fleet has recorded
+# that a prose "keep this in sync" instruction has NEVER held. The sync obligation here is
+# DIRECTIONAL, not symmetric:
+#   * Refusing MORE than the shrinker does is always SAFE. It only means some line that
+#     could have been cut is reported instead of blocked; the ratchet is lenient, never
+#     wrong. No sync action is needed, ever.
+#   * Refusing LESS than the shrinker does is the FORBIDDEN direction -- that is precisely
+#     "a rule demanding a cut the tool will not make".
+# Therefore this predicate is written to be at least as refusing as the shrinker, and it is
+# only ever allowed to be WIDENED (more refusal). Concretely: D4 grants the shrinker a
+# FALLBACK cut point for bold-less items. That fallback is deliberately NOT mirrored here --
+# copying it would narrow refusal, the forbidden direction, on a guess about its exact
+# shape. When the fallback ships, narrowing this predicate to match is a deliberate,
+# separate act with its own test, exactly like a baseline regeneration.
+#
+# Conditions mirrored today:
+#   (a) no bold run -> no defensible cut point -> refuse;
+#   (b) less than 40 chars of movable residue after the cut once must-keep tokens are set
+#       aside -> nothing worth moving -> refuse.
+# An ALREADY-POINTERED line is deliberately NOT refusable, though the shrinker declines to
+# re-split it: its remedy exists and is mechanical (append the excess prose to the detail
+# file it already points at). Treating it as refusable would make every line exempt the
+# moment the shrink lands, silently zeroing the ratchet.
+head_refusable() {
+  local l="$1" bold rest residue
+  # `-m1` rather than `| head -1`: piping into an early-exiting consumer under
+  # `set -o pipefail` lets SIGPIPE on the producer become the pipeline's status
+  # (id:81d5). Reading from a here-string is not a pipe, so nothing can break.
+  bold="$( { grep -oP -m1 '\*\*[^*]+\*\*' <<<"$l" || true; } )"
+  [[ -z "$bold" ]] && return 0                       # (a) no bold run
+  rest="${l#*"$bold"}"
+  residue="$(sed -E "s/${LENGTH_MUST_KEEP_RE}//g" <<<"$rest")"
+  residue="$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' <<<"$residue")"
+  (( ${#residue} < 40 )) && return 0                 # (b) nothing meaningful to move
+  return 1
+}
+
+# LENGTH_BASELINE_MAP["<ledger>/<id>"] = baselined length. Loaded ONCE (a per-line grep over
+# an 800-entry file would be 800 greps per run).
+declare -A LENGTH_BASELINE_MAP=()
+LENGTH_RATCHET_ON=0
+LENGTH_LEDGER_KEY=""
+
+length_baseline_load() {
+  local f="$1" ledger id len
+  while read -r ledger id len; do
+    [[ -z "${ledger:-}" || "$ledger" == \#* ]] && continue
+    [[ -n "${id:-}" && -n "${len:-}" ]] || continue
+    LENGTH_BASELINE_MAP["$ledger/$id"]="$len"
+  done < "$f"
+}
+
+# length_id_of <line> → the line's own 4-hex id token, or "".
+length_id_of() {
+  { grep -oP '<!--\s*id:\K[0-9a-f]{4}(?=[-a-z0-9]*\s*-->)' <<<"$1" || true; } | tail -1
+}
+
+# length_ratchet_class <line> → "" | "<class> (<detail>)". See the header for the rule.
+length_ratchet_class() {
+  local l="$1" id len base
+  [[ "$l" =~ ^-\ \[[\ xX]\]\  ]] || return 0
+  id="$(length_id_of "$l")"
+  # An id-less line cannot be keyed to a baseline at all. An OPEN one is already reported as
+  # `missing-id`; fixing that is what brings it under the ratchet. Never guess a key.
+  [[ -n "$id" ]] || return 0
+  len=${#l}
+  (( len > LEDGER_HEAD_BUDGET )) || return 0
+  base="${LENGTH_BASELINE_MAP["$LENGTH_LEDGER_KEY/$id"]:-}"
+  if head_refusable "$l"; then
+    echo "length-unshrinkable ($len chars, budget $LEDGER_HEAD_BUDGET; the shrinker would refuse this line, so it is reported and never blocks)"
+  elif [[ -z "$base" ]]; then
+    echo "length-over-budget ($len chars > budget $LEDGER_HEAD_BUDGET, not baselined)"
+  elif (( len > base )); then
+    echo "length-regrowth ($len chars > baselined $base; an over-budget line may only shrink)"
+  else
+    echo "length-grandfathered ($len chars > budget $LEDGER_HEAD_BUDGET, within baseline $base)"
+  fi
+}
 
 # classify_todo <line> → echoes "" (conforming/skip) | "missing-id" | "orphan"
 classify_todo() {
@@ -113,6 +257,69 @@ classify_inbox() {
   echo "orphan"
 }
 
+# --- length-ratchet activation + regeneration (id:0d7c) ----------------------------------
+LENGTH_LEDGER_KEY="$(basename "$path")"
+
+# `--regen-length-baseline` is the DELIBERATE, SEPARATE act the header promises: it prints a
+# fresh snapshot to stdout and writes nothing, so capturing it is an explicit redirect the
+# operator performs and commits. Exclusive mode -- no linting, no --fix.
+if [[ "$regen_length" -eq 1 ]]; then
+  cat <<'REGEN_HEADER'
+# head-length-baseline.txt -- committed snapshot for the head-line LENGTH RATCHET
+# (id:0d7c, meeting 2026-09-01-2226 decision D4 AS AMENDED). GENERATED, not hand-edited.
+#
+# FORMAT: <ledger basename>TAB<4-hex id>TAB<length in chars>. `#` comments and blank lines
+# are ignored. One row per top-level checkbox line that was OVER the 500-char budget at
+# capture time; an under-budget line has nothing to grandfather and never enters this file.
+#
+# WHAT IT IS: the LENGTH each over-budget ledger head line had when the ratchet landed.
+# todo-conformance.sh reads it and enforces MONOTONIC SHRINK -- a listed line may be edited
+# only if the result is no longer than the recorded length; an over-budget line with NO row
+# here is a NEW violation and fails --strict.
+#
+# WHY LENGTH-KEYED AND NOT ID-KEYED, which is the amendment: relay/state-claim-baseline.txt
+# (id:cb3e) is a flat list of ids, and lib-state-claim.sh:157 documents that it "silently
+# RE-GRANDFATHERS ... There is no expiry". An id-keyed exemption means "this item is
+# forgiven forever" -- all 674 current TODO items would be permanently exempt and free to
+# regrow to 30 KB, which is exactly what the ratchet exists to prevent. Keying the LENGTH
+# grandfathers today's corpus (so the rule lands with no migration) while still refusing
+# every regrowth.
+#
+# KNOWN WEAKNESS, disclosed in the same spirit as the cb3e file: this is a SNAPSHOT, not a
+# live derivation. A line listed at 9,000 chars stays forgiven at 9,000 chars until this
+# file is regenerated. There is no expiry and no automatic refresh -- but unlike the
+# id-keyed baseline it cannot forgive UNBOUNDED growth, only the length already on record.
+#
+# REGENERATING IS A DELIBERATE, SEPARATE ACT, and it TIGHTENS the ratchet (every line
+# re-baselines at its current, smaller length). Do it after a shrink pass lands:
+#   relay/scripts/todo-conformance.sh --regen-length-baseline TODO.md    >  relay/head-length-baseline.txt
+#   relay/scripts/todo-conformance.sh --regen-length-baseline ROADMAP.md | grep -v '^#' >> relay/head-length-baseline.txt
+#
+# OUT OF SCOPE: *.archive.md (id:2065) and the shared inbox.
+REGEN_HEADER
+  printf '# Captured %s.\n' "$(date '+%Y-%m-%d')"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    (( ${#line} > LEDGER_HEAD_BUDGET )) || continue
+    [[ "$line" =~ ^-\ \[[\ xX]\]\  ]] || continue
+    _rid="$(length_id_of "$line")"
+    [[ -n "$_rid" ]] || continue
+    printf '%s\t%s\t%d\n' "$LENGTH_LEDGER_KEY" "$_rid" "${#line}"
+  done < "$path"
+  exit 0
+fi
+
+# The ratchet is INERT unless it has a baseline, and says so LOUDLY. Out of scope entirely:
+# the inbox (short routing lines, no detail-file tree) and `*.archive.md` (id:2065).
+if [[ "$inbox" -eq 0 && "$LENGTH_LEDGER_KEY" != *.archive.md ]]; then
+  if [[ -f "$LENGTH_BASELINE" && -r "$LENGTH_BASELINE" ]]; then
+    length_baseline_load "$LENGTH_BASELINE"
+    LENGTH_RATCHET_ON=1
+  else
+    echo "todo-conformance.sh: head-length ratchet INERT -- no baseline at $LENGTH_BASELINE (id:0d7c; regenerate with --regen-length-baseline)" >&2
+    log "length-ratchet inert baseline=$LENGTH_BASELINE path=$path"
+  fi
+fi
+
 findings=0 fixed=0
 # strict_findings (id:cb3e) — the WARN→ERROR boundary subset of findings: every
 # non-state-claim finding, PLUS state-claim findings whose id is NOT in the
@@ -128,7 +335,7 @@ declare -a fix_lines=()   # 1-based line numbers needing a minted id
 # `## [LANE] … <!-- id -->` heading-item is NOT flagged/auto-fixed (the heading owns
 # the id). `$1`=collect-fix (1 → record missing-id line numbers for --fix).
 scan_path() {
-  local collect_fix="$1" line cls lineno=0 heading_is_item=0
+  local collect_fix="$1" line cls lr lineno=0 heading_is_item=0
   findings=0; strict_findings=0; out_lines=(); fix_lines=()
   while IFS= read -r line || [[ -n "$line" ]]; do
     lineno=$((lineno+1))
@@ -171,7 +378,13 @@ scan_path() {
       # ROADMAP.md item's own ruling is WARN, not ERROR, and that never escalates.
       dp="$(typed_edges_dep_prose_untyped_of_line "$line")"
     fi
-    if [[ -z "$cls" && -z "$sc" && -z "$dp" ]]; then continue; fi
+    # Head-line length ratchet (id:0d7c). Computed BEFORE the skip below, since a line can
+    # be perfectly conforming by grammar and still be over budget / regrown.
+    lr=""
+    if [[ "$LENGTH_RATCHET_ON" -eq 1 ]]; then
+      lr="$(length_ratchet_class "$line")"
+    fi
+    if [[ -z "$cls" && -z "$sc" && -z "$dp" && -z "$lr" ]]; then continue; fi
     if [[ -n "$cls" ]]; then
       findings=$((findings+1)); strict_findings=$((strict_findings+1))
       out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
@@ -181,7 +394,14 @@ scan_path() {
       findings=$((findings+1))
       # WARN→ERROR boundary (id:cb3e): a baselined id never counts toward
       # strict_findings — it is reported (below) but can never fail --strict.
-      _sc_id="$(grep -oP '<!--\s*id:\K[0-9a-f]{4}(?=[-a-z0-9]*\s*-->)' <<<"$line" | tail -1)"
+      # `|| true`: a state-claim violation on an id-LESS line is legitimate (that line is
+      # already reported as `missing-id`), and grep's no-match exit 1 was, under `set -o
+      # pipefail`, killing the whole scan mid-file. Measured 2026-09-02 on this repo's own
+      # TODO.md: the script exited 1 having printed NOTHING at all, silently reporting zero
+      # findings on 576 real ones. Found while wiring id:0d7c; it is not the ratchet's own
+      # bug, but it made every rule in this file dead on the live ledger. The empty id then
+      # falls through to state_claim_in_baseline, which returns "not baselined" for "".
+      _sc_id="$( { grep -oP '<!--\s*id:\K[0-9a-f]{4}(?=[-a-z0-9]*\s*-->)' <<<"$line" || true; } | tail -1)"
       if state_claim_in_baseline "$_sc_id" "$STATE_CLAIM_BASELINE"; then
         out_lines+=("$(printf 'decided-left-open (baselined id:cb3e)\t%d\t%s' "$lineno" "$line")")
       else
@@ -192,6 +412,18 @@ scan_path() {
     if [[ -n "$dp" ]]; then
       findings=$((findings+1))
       out_lines+=("$(printf 'dep-prose-untyped (id:%s)\t%d\t%s' "$dp" "$lineno" "$line")")
+    fi
+    if [[ -n "$lr" ]]; then
+      findings=$((findings+1))
+      # Only the two RATCHET-BREAKING classes escalate. `length-grandfathered` and
+      # `length-unshrinkable` are always reported and can never fail --strict: the first is
+      # the grandfathering that lets this land without a migration, the second is the
+      # ratified composition rule (a rule may not demand a cut the tool will not make).
+      case "$lr" in
+        length-over-budget*) strict_findings=$((strict_findings+1)) ;;  # id:0d7c NEWOVER
+        length-regrowth*)    strict_findings=$((strict_findings+1)) ;;  # id:0d7c REGROWTH
+      esac
+      out_lines+=("$(printf '%s\t%d\t%s' "$lr" "$lineno" "$line")")
     fi
   done < "$path"
   return 0   # the while's EOF-exit status (1) must not become scan_path's return (set -e)
