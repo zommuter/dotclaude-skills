@@ -75,6 +75,40 @@ node -e '
 ' "$JS" "$CV_RANK" || fail "(C) PRIORITY.mechanical is not 6 / not below human"
 pass "(C) PRIORITY.mechanical === 6 (matches classify-verdict priority_rank), ranks below human"
 
+# --- (C2) EVERY priority map carries EVERY verdict key (id:5c05 review finding 7) -------------
+# id:5c05 added PRIORITY_INTENSIVE, selected by PRIORITY_ACTIVE when --intensive is set. (C)
+# above matches only the FIRST `const PRIORITY = {...}`, so a key dropped from the intensive map
+# is invisible to it — and the comparator would then compute `undefined - undefined = NaN` under
+# --intensive only, silently corrupting queue order with no test firing. The maps may legitimately
+# ORDER verdicts differently (that is the whole point of 5c05); what they may never do is DISAGREE
+# ON WHICH KEYS EXIST. Assert key-set equality, not value equality.
+node -e '
+  const fs = require("fs");
+  const src = fs.readFileSync(process.argv[1], "utf8");
+  const maps = [...src.matchAll(/const\s+(PRIORITY[A-Z_]*)\s*=\s*(\{[^}]*\})/g)]
+    .map(m => [m[1], eval("(" + m[2] + ")")]);
+  if (maps.length < 1) { console.error("no PRIORITY* object found at all"); process.exit(1); }
+  const [baseName, base] = maps[0];
+  const baseKeys = Object.keys(base).sort();
+  let bad = 0;
+  for (const [name, P] of maps) {
+    const keys = Object.keys(P).sort();
+    if (keys.join(",") !== baseKeys.join(",")) {
+      console.error(`${name} key set [${keys}] != ${baseName} key set [${baseKeys}] — a verdict missing from one map sorts as NaN in the mode that selects it`);
+      bad = 1;
+    }
+    for (const k of baseKeys) {
+      if (typeof P[k] !== "number" || !Number.isFinite(P[k])) {
+        console.error(`${name}.${k} is not a finite number (${P[k]}) — would sort as NaN`);
+        bad = 1;
+      }
+    }
+  }
+  if (bad) process.exit(1);
+  console.error(`ok: ${maps.length} priority map(s) agree on the verdict key set [${baseKeys}]`);
+' "$JS" || fail "(C2) the PRIORITY* maps disagree on their verdict key set"
+pass "(C2) every PRIORITY* map carries every verdict key with a finite rank (no NaN sort under any mode)"
+
 # --- (D) SURFACED: mechanical units are surfaced into RELAY_STATUS Queued with a pool-inert reason
 # The state.queued mapping must include a mechanicalSurfaced spread carrying a clear pool-inert
 # reason, so an operator SEES the [MECHANICAL] backlog rather than it vanishing silently.
