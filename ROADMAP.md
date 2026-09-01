@@ -1675,7 +1675,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 > Qualified from TODO.md items the owner filed manually this window. Ids REUSED
 > (single-id-two-views D2) -- both lines also live in `TODO.md` under the same token.
 
-- [ ] [ROUTINE] **`tracker/ledger-map.py` loses parents on a multi-`children-of:` line -- silent DATA LOSS.** <!-- id:8302 -->
+- [x] [ROUTINE] **`tracker/ledger-map.py` loses parents on a multi-`children-of:` line -- silent DATA LOSS.** <!-- id:8302 -->
   - **Context.** `children-of:` and `children:` are the SAME parent/child edge written from opposite ends (child-side vs parent-side declaration), but the importer assigns `children-of:` to a SCALAR `parent` at `tracker/ledger-map.py:641-642` (`for t in ob["children_of"]: it["parent"] = uid_of(repo, t)` -- a loop writing one slot, so last-write-wins) while `children:` goes to a LIST at `:643-646`, with no reconciliation between them. MEASURED this review on a two-parent fixture: the item ships `"parent": "repo/aa02"` and `aa01` is absent from every structural field. No warning, no non-zero exit. The scalar is what makes this DATA LOSS rather than an ergonomics gap.
   - **Do NOT use a spelling-frequency count** to justify migrating one spelling to the other -- which spelling dominates is a fact about AUTHORING POSITION, not a defect with a winning side.
   - **Acceptance**: a ledger line declaring TWO parents round-trips BOTH edges into the imported document; the two spellings resolve to ONE relation, so a parent-side `children:` edge and a child-side `children-of:` edge naming the same pair produce the same fact; existing single-parent lines are unaffected and the golden fixtures still round-trip.
