@@ -455,7 +455,12 @@ merged_gitlinks_at_risk() {
     rel="${store#"$mroot"/}"
     rels+=("$rel"); stores+=("$store"); shareds+=("$common/modules/$rel")
   done <"$tmpd/listing"
+  # Same reasoning as the missing-`modules/` branch above: the directory is there but holds no
+  # recognisable object store, so the mechanism git's refusal was characterised on is absent and
+  # its actual reason is unknown. Fail closed rather than conclude "then nothing can be lost".
   if [[ ${#stores[@]} -eq 0 ]]; then
+    printf "git issued its verbatim SUBMODULE refusal, but %s contains no recognisable submodule object store (no directory there has both objects/ and refs/) -- the mechanism the refusal was characterised on is absent, so its reason is unknown and nothing may be forced on it" \
+      "$mroot"
     rm -r -- "$tmpd"
     return 0
   fi
