@@ -68,7 +68,24 @@
 #
 # Usage:
 #   tracker/fleet-import.sh [--state <file>] [--out <fleet.json>] [--repo <name>]
-#                           [--allowlist-file <file>] [--dry-run] [-h|--help]
+#                           [--allowlist-file <file>] [--mirror-file <file>]
+#                           [--dry-run] [-h|--help]
+#
+#   --mirror-file     the recorded parent/plugin MIRROR convention (id:9fa2, default
+#                     tracker/mirror-tokens.txt). SEPARATE from --allowlist-file: a
+#                     mirror is the SAME item on both sides of a parent/plugin pair,
+#                     not two unrelated items sharing a token. Each recognised mirror
+#                     is COUNTED in validate's output, never silently downgraded.
+#                     One declaration per line, `<4-hex token> <repo> <repo>`: a mirror
+#                     is scoped to its EXACT repo PAIR, not to the parent's whole plugin
+#                     family, so the same token minted independently in a THIRD family
+#                     repo stays a class-A ERROR (owner's narrowing ruling 2026-09-01).
+#                     A bare token is rejected by ledger-map.py (exit 2), and THIS
+#                     DRIVER matches the bare form too so that rejection is seen:
+#                     the file is handed over, the exit 2 propagates, and the run
+#                     stops with a message naming the file format. A declared mirror
+#                     whose declaration is REFUSED outranks --allowlist-file: it stays
+#                     a class-A ERROR even if the token is also allow-listed.
 #
 #   --state           durable state document (default $TRACKER_STATE or
 #                     ~/.cache/relay/tracker/fleet-state.json). Written atomically.
@@ -106,6 +123,7 @@ state_file="${TRACKER_STATE:-$HOME/.cache/relay/tracker/fleet-state.json}"
 out_file=""
 only_repo=""
 allowlist_file="$SCRIPT_DIR/homonym-allowlist.txt"
+mirror_file="$SCRIPT_DIR/mirror-tokens.txt"
 dry_run=0
 emit_unvalidated=0
 
@@ -116,8 +134,14 @@ while [[ $# -gt 0 ]]; do
     --emit-unvalidated) emit_unvalidated=1; shift ;;
     --repo) only_repo="$2"; shift 2 ;;
     --allowlist-file) allowlist_file="$2"; shift 2 ;;
+    --mirror-file) mirror_file="$2"; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
-    -h|--help) sed -n '2,4p;96,112p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    # NOTE the second range is the `# Usage:` block through `# Exit:`. It is ANCHORED by
+    # pattern, not by hardcoded line numbers: the header above grew and the old literal
+    # `96,112p` had drifted off the block entirely, printing code instead of usage.
+    -h|--help) sed -n '2,4p' "${BASH_SOURCE[0]}"
+               sed -n '/^# Usage:/,/^set -euo /{/^set -euo /!p;}' "${BASH_SOURCE[0]}"
+               exit 0 ;;
     *) echo "fleet-import.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -198,6 +222,34 @@ EOF
   fi
   echo "fleet-import.sh: ledger-map.py validate exposes no homonym allow-list flag at all" >&2
   exit 5
+}
+
+# Parent/plugin MIRROR convention (id:9fa2, owner-ratified 2026-09-01). Passed as a
+# SEPARATE surface from the homonym allow-list on purpose: the allow-list claims "these
+# items are unrelated", which is the wrong claim for a deliberate mirror of ONE item
+# across a parent repo and its plugin repo. Absence of the flag on the on-disk
+# ledger-map.py is STRICTER, not laxer (the mirrors simply stay fatal), so it is a
+# warning here rather than the fail-closed abort the boolean allow-list gets.
+mirror_flags=()
+build_mirror_flags() {
+  [[ -f "$mirror_file" ]] || return 0
+  # A declaration is `<4-hex token> <repo> <repo>` (id:9fa2 narrowing, 2026-09-01). The
+  # BARE-token form IS matched here on purpose: an earlier spelling required the paired
+  # form, so a whole file still written in the old bare spelling matched nothing, the
+  # flag was never built, and the run continued with ZERO mention of "mirror" anywhere --
+  # the operator was told to adjudicate a collision, never that the mirror file was in
+  # the wrong format. Strict but SILENT is still a loudness defect. Matching the bare
+  # form hands the file to ledger-map.py, whose exit 2 propagates through run_validate
+  # (val_rc=2 -> the ERROR below -> exit 3, nothing written): loud AND strict.
+  grep -qE '^[[:blank:]]*[0-9a-f]{4}([[:blank:]]|$)' "$mirror_file" || return 0
+  local help
+  help="$(python3 "$LEDGER_MAP" validate --help 2>&1)" || {
+    echo "fleet-import.sh: could not read 'ledger-map.py validate --help'" >&2; exit 2; }
+  if grep -qE -- '--mirror-file' <<<"$help"; then
+    mirror_flags=(--mirror-file "$mirror_file")
+    return 0
+  fi
+  echo "fleet-import.sh: $LEDGER_MAP exposes no --mirror-file surface (id:9fa2); the recorded parent/plugin mirrors in $mirror_file stay FATAL for this run." >&2
 }
 
 # --------------------------------------------------------------------------------------
@@ -322,10 +374,12 @@ else
 fi
 
 build_homonym_flags
+build_mirror_flags
 
 run_validate() {
   local rc=0
-  python3 "$LEDGER_MAP" validate "${homonym_flags[@]+"${homonym_flags[@]}"}" "$fleet" \
+  python3 "$LEDGER_MAP" validate "${homonym_flags[@]+"${homonym_flags[@]}"}" \
+    "${mirror_flags[@]+"${mirror_flags[@]}"}" "$fleet" \
     > "$tmpdir/val.out" 2> "$tmpdir/val.err" || rc=$?
   return "$rc"
 }
@@ -344,7 +398,15 @@ if [[ "$val_rc" -ne 0 ]]; then
     publish_out
     echo "fleet-import.sh: --emit-unvalidated: wrote the UNVALIDATED merged document to $out_file (diagnostic only — it did NOT pass validate)." >&2
   fi
-  echo "fleet-import.sh: validate FAILED (rc=$val_rc) — NOTHING written to $state_file. A cross-repo collision that is not on $allowlist_file must be adjudicated, not switched off." >&2
+  if [[ "$val_rc" -eq 2 ]]; then
+    # rc=2 is ledger-map.py's USAGE/declaration exit, not a collision verdict -- most
+    # often a malformed line in $mirror_file (e.g. the old BARE-token spelling, which
+    # requires `<4-hex token> <repo> <repo>` since the id:9fa2 narrowing). Say THAT,
+    # rather than sending the operator off to adjudicate a collision.
+    echo "fleet-import.sh: validate REFUSED ITS INPUT (rc=2) -- NOTHING written to $state_file. This is a malformed FLAG or DECLARATION FILE, not a collision: check $mirror_file (each line must be '<4-hex token> <repo> <repo>'; the bare-token form is rejected since the id:9fa2 pair-scoping) and $allowlist_file. The ledger-map.py message above says which line." >&2
+  else
+    echo "fleet-import.sh: validate FAILED (rc=$val_rc) — NOTHING written to $state_file. A cross-repo collision that is not on $allowlist_file must be adjudicated, not switched off." >&2
+  fi
   exit 3
 fi
 cat "$tmpdir/val.out"

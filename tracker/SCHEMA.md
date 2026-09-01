@@ -116,6 +116,80 @@ python3 ledger-map.py validate fleet.json --allow-homonym-file adjudicated-homon
 - A listed token that is not actually a homonym in the document is reported as a **stale**
   adjudication (`WARN`), so the list cannot silently accumulate.
 
+#### Parent/plugin mirrors — one recorded convention (`id:9fa2`)
+
+A **mirror** is the *same* item deliberately recorded on both sides of a parent repo and
+one of its plugin repos (`zkm` / `zkm-whatsapp`). It raises a class-A collision, but the
+allow-list is the wrong instrument for it: `--allow-homonym` asserts *"two UNRELATED items
+happen to share a token"*, which is false here. Owner-ratified 2026-09-01 as **one recorded
+convention, no per-token ledger edges**, with its own surface:
+
+```bash
+python3 ledger-map.py validate fleet.json --mirror-file tracker/mirror-tokens.txt
+```
+
+- `tracker/mirror-tokens.txt` is the recorded convention (`--mirror-token DECL` is the
+  repeatable inline form). One declaration per line:
+
+  ```
+  1c7d zkm zkm-whatsapp
+  ```
+
+  the token **plus the exact repos it spans**, **space-separated**. Same strict 4-hex
+  parsing as the allow-list, plus literal repo names -- no wildcard, prefix or glob
+  anywhere. The separator is whitespace only: `1c7d:zkm:zkm-whatsapp` and comma forms
+  are **rejected** (exit 2) rather than leniently accepted, so the on-disk spelling is
+  the one every document describes.
+- **A mirror is scoped to its exact repo PAIR, not to the parent's plugin family**
+  (owner's narrowing ruling, 2026-09-01). A declaration downgrades **only if** the
+  declared repo set **equals** the set of repos observed to carry the token, **and**
+  those repos form a `<parent>` / `<parent>-<suffix>` family. Pair equality is checked
+  first; the family shape is the original guard, applied after it.
+- A **bare token** (the earlier, family-scoped spelling) is **rejected outright**
+  (exit 2). It carried a superset hole: `parent_plugin_family()` asks only whether every
+  repo hangs off one parent, so re-minting a declared token in *any* further sibling
+  plugin (`zkm-ner`, `zkm-stt`, `zkm-notmuch`, …) was absorbed into the mirror and the
+  run exited 0. That is the hazard the convention exists to prevent, displaced one level:
+  growth in the token's **repo set** rather than in the token list. The file has one real
+  consumer (`tracker/fleet-import.sh`), so the old spelling is rejected rather than
+  reinterpreted. That driver **matches the bare form too** and hands the file straight
+  to `ledger-map.py`, so the exit 2 propagates (`fleet-import.sh` exits 3, nothing
+  written) and the operator is told the *file format* is wrong. An earlier spelling of
+  the driver's probe matched only the paired form, so a wholly bare file silently built
+  **no** flag: strict, but with zero mention of "mirror" in the output -- the operator
+  was sent off to adjudicate a collision instead. Strict-but-silent is still a defect.
+- Repo-name shape is a **guard, never the driver** — a purely structural rule was
+  tried and reverted because it also swallowed `5e19`/`cfd1` (which the owner ruled must be
+  re-minted on the plugin side, `routed:4ede`) and `df4e` (`zkm`/`zkm-notmuch`, an ordinary
+  birthday collision). Absence from the file *is* the exclusion mechanism, so no negative
+  list has to be maintained.
+- A declaration that does not hold has its claim **REFUSED** with a warning and stays
+  fatal, and the warning says **which** condition failed:
+  - the declared pair does not match the observed set — **both are named**, so the reader
+    can tell an independently minted collision from an undeclared homonym, and knows the
+    fix is to re-mint the offending repo's id or widen the declaration deliberately
+    (adding the token to the homonym allow-list is *not* the fix). Equality is checked
+    **before** family shape, so the observed set need not be a family at all;
+  - the declared repos are not a `<parent>`/`<parent>-<suffix>` family at all.
+
+  A declared token that is not a homonym in the document at all is reported **stale**.
+- **A refused mirror outranks the allow-list.** A declared token is decided entirely by
+  the mirror rule and never falls through to `--allow-homonym`, so allow-listing it can
+  neither cancel the refusal nor make the run pass, and the class-A error it raises tells
+  the operator to fix or remove the *declaration* rather than to allow-list the token.
+  This is the claim the bullet above states, actually *enforced*: an earlier spelling
+  tested `tok in mirror_tokens and refusal is None` inside the `elif` chain, so a token
+  that was both declared and allow-listed reached the allow-list branch, the refusal was
+  never emitted, and the run exited 0 -- reinstating the superset absorption. Latent (no
+  token is on both lists today) but signposted the wrong way, since the class-A error
+  printed beside the refusal read *"adjudicate it explicitly with `--allow-homonym`"*.
+- Every recognised mirror is named **and counted** (`recognised N mirror(s): …`). An
+  invisible downgrade would hide real collisions inside a growing plugin family.
+- Class B is unaffected: a mirror never resolves an ambiguous cross-repo edge.
+- **Not covered:** the repo-MOVE case (`dbe0`, `loderite` → `lodelore`, id carried
+  verbatim). `lodelore` is not `loderite-<suffix>`; the prefix guard is deliberately not
+  stretched to reach it.
+
 **Class B is never downgradable** and needs no policy debate: the edge is
 genuinely unresolvable, and a tracker that guesses one target is worse than one that stops.
 
