@@ -2863,3 +2863,26 @@ The 21,022 total it prints is the known relay-core shadow mismatch count, not a 
 ## 2026-09-01 10:32 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: 20 owner commits audited clean (gaming-scan 0, 536 pass/0 fail); closed id:2065, promoted id:8302+id:d8b3 with red specs, unblocked id:6958 — repo flips review→execute (2 actionable) [id:2065,8302,d8b3,6958,9fa2]
+
+## 2026-09-01 -- executor (sonnet)
+
+Worked id:d8b3 -- the ZERO-COMMIT branch of executor-contract rule 2c named
+`RELAY_LOG.md` as the store for its own escalation counter, but that line is
+committed only on the handback branch, which the integrator never merges, so the
+next attempt always starts from a fresh `main` checkout, reads a count of 0, and
+`route="hard-split"` was unreachable (measured live on `git-annex`, run
+relay-20260831-220243-21277, handed back `hard` twice with the alert firing on the
+repeat). Rewrote the branch in `relay/references/executor-contract.md` to accumulate
+via the existing flock'd, branch-independent sink instead:
+`relay-state-write.sh event-append ~/.config/relay/relay-events.jsonl` (a
+`{"kind":"zero_commit_handback","item":...}` line), counted with
+`grep -c '"kind":"zero_commit_handback".*"item":"<id>"' ~/.config/relay/relay-events.jsonl`,
+per the reviewer's REVIEW_ME recommendation (`relay.toml` rejected as owner-facing
+config). The RELAY_LOG.md `HANDBACK: ... ZERO-COMMIT` line stays as the in-branch
+narrative but is no longer the counted store. Bumped the contract marker v17 -> v18
+(this changes the exact command an in-flight executor must run) and refreshed the
+CLAUDE.md pointer in the same commit, plus a Maintenance changelog entry recording
+the bump rationale. `tests/test_zero_commit_accumulator_durable_d8b3.sh` (RED before,
+now PASS); full suite 537 passed, 0 failed, 2 expected-red (unrelated open items).
+Friction: none -- doc-only fix, small and well-scoped by the RED spec.
+refactor: none needed -- a contract-prose edit with no code duplication introduced.

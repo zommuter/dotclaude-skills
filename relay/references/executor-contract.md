@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v17 -->
+## Executor contract <!-- relay-executor contract v18 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -136,19 +136,39 @@ you were told you are the reviewer) follow these rules:
    is not hypothetical — it is the measured case: the threshold was crossed at line 95
    of a unit whose first `Edit` was at line 133, so the pre-first-edit check point is
    precisely what GUARANTEES the empty handback in the case it was designed for.
-   Therefore:
-   1. Use the DISTINCT, greppable form — note the trailing marker:
+
+   **The escalation counter (id:d8b3) MUST live OUTSIDE the repo working tree, not in
+   RELAY_LOG.md.** The `HANDBACK:` line below is committed on this handback branch, and
+   the integrator never merges a handback -- the branch is discarded or left parked, so
+   a count read from RELAY_LOG.md on the next attempt always starts from a fresh `main`
+   checkout with that line absent, reads 0, and the `>= 1` escalation below can never
+   fire. The accumulator therefore goes through the existing, already-built, flock'd,
+   branch-independent JSONL substrate instead: `~/.claude/skills/relay/scripts/
+   relay-state-write.sh event-append ~/.config/relay/relay-events.jsonl` -- the same
+   append-only sink `dispatch`/`integrate`/`backstop` events already ride, living under
+   `~/.config/relay/`, entirely outside any repo's git history, so a discarded handback
+   branch cannot lose it. Do NOT write this counter into `relay.toml`: that file is
+   owner-facing durable configuration (`toml-set`'s surface, e.g. `bump_policy`), not a
+   runtime accumulator. Therefore:
+   1. Append one JSON line recording the occurrence, keyed by item id:
+      ```
+      printf '{"kind":"zero_commit_handback","item":"<item-id>","repo":"<repo-name>","bytes":<bytes>}\n' \
+        | ~/.claude/skills/relay/scripts/relay-state-write.sh event-append ~/.config/relay/relay-events.jsonl
+      ```
+      Also still append the DISTINCT, greppable human-readable form to RELAY_LOG.md and
+      commit it (rule 4's self-report) -- note the trailing marker:
       `HANDBACK: <item-id> context budget exceeded (<bytes> B) ZERO-COMMIT`
-      The `ZERO-COMMIT` suffix is the machine-readable accumulator; without it the
-      occurrence is invisible to the next executor and the loop closes again.
-   2. **Before writing it, count prior occurrences** for this item:
-      `grep -c "HANDBACK: <item-id> .*ZERO-COMMIT" RELAY_LOG.md`. If the count is
-      **≥ 1** — this is the second or later zero-commit handback for the same item —
-      return `route="hard-split"` instead of `route="none"`. `hard-split` is an
-      EXISTING enum (see 2b), so this still needs no `handback-followup.py` change, and
-      it routes the item to decomposition rather than to another doomed attempt.
+      It stays useful as the in-branch narrative even though it is not the counted store.
+   2. **Before writing it, count prior occurrences** for this item from the durable
+      store, not RELAY_LOG.md:
+      `grep -c '"kind":"zero_commit_handback".*"item":"<item-id>"' ~/.config/relay/relay-events.jsonl`.
+      If the count is **≥ 1** -- this is the second or later zero-commit handback for the
+      same item -- return `route="hard-split"` instead of `route="none"`. `hard-split` is
+      an EXISTING enum (see 2b), so this still needs no `handback-followup.py` change,
+      and it routes the item to decomposition rather than to another doomed attempt.
    Commit the RELAY_LOG.md line even though you have no work commit: on a zero-commit
-   handback that line IS the deliverable.
+   handback that line IS the in-repo narrative record, while the JSONL append (step 1)
+   is what makes the escalation count survive.
 
    A `warn` verdict is advisory only (exit 0) — **except at the pre-first-edit check
    point, where it is the actionable NARROW-SCOPE signal, not a shrug.** In both
@@ -393,6 +413,20 @@ and `roadmap-lint.sh`, so an executor could mint `@owner-answered:<today>` and n
 would flag it: the marker was a forgeable claim, i.e. exactly this repo's "prose relay rule
 that silently no-ops" class. Rule 8 is rule 7's twin, worded from it. This adds a
 prohibition an in-flight executor must know, so it bumps.
+
+**v17 → v18 (id:d8b3):** rule 2c's ZERO-COMMIT branch now names a concrete,
+branch-independent accumulator for its own escalation counter. v17's wording counted
+prior occurrences from `RELAY_LOG.md`, which is committed only on the handback branch
+itself -- a branch the integrator never merges -- so every subsequent attempt started
+from a fresh `main` checkout, read a count of 0, and the `route="hard-split"`
+escalation could never fire. Observed live on run `relay-20260831-220243-21277`:
+`git-annex` handed back `hard` TWICE through this exact branch, zero-commit both times,
+and the repeat-handback alert flagged it as a bug signal rather than the counter
+silently doing its job. v18 moves the count to the existing, already-built, flock'd
+`relay-state-write.sh event-append ~/.config/relay/relay-events.jsonl` sink -- outside
+any repo's git history, so a discarded handback branch cannot lose it -- and records,
+at the point of use, why RELAY_LOG.md cannot be the store. This changes the exact
+command an in-flight executor must run to reach the escalation, so it bumps.
 
 *Note for future readers:* v15 shipped before rule 2c had ever run in a live pool — it was
 inert until `id:c219` (2026-08-27) fixed the transcript resolver. So v15's disposition was
