@@ -2812,3 +2812,50 @@ into each fixture-building test file).
 ## 2026-08-31 23:26 — executor (sonnet, relay-loop)
 
 Fixed hermetic test fixtures inheriting the developer's global git core.hooksPath (id:4d1c): extracted the existing run-tests.sh neutralization into tests/lib/hermetic-git-env.sh, sourced by test_backtest_fidelity.sh and test_lane_vocab_ratchet_hook.sh so `bash tests/test_foo.sh` run directly is now hermetic; full suite 532 passed / 0 failed / 1 expected-red. [id:4d1c]
+
+## 2026-09-01 review — run relay-20260901-101120-32404 (reviewer, claude-opus-5)
+
+Window `relay-ckpt-20260831-2326`..HEAD: 20 commits, all owner/manual work — no
+executor-attributed commit and no ROADMAP/RELAY_LOG/REVIEW_ME edit in the window.
+
+TIERS (§3c): the repo declares two. `make test` (lint + `tests/run-tests.sh`) RAN
+GREEN — 536 passed, 0 failed, 3 expected-red (1 pre-existing, plus the 2 red specs
+this review authored); `tools/check-no-bare-rm-f.sh --enforce` clean at baseline 0.
+SKIPPED-TIER: `make gaming-canary` — Tier B model canary, on-demand and token-costing,
+declared NOT part of `make test`; no reviewed item's done-check depends on it.
+
+Test-integrity: `gaming-scan.sh` clean (no DELETED_TEST / ADDED_SKIP / REMOVED_ASSERT).
+Two modified tests inspected for resurrection. `test_meeting_question_guard_29bc.sh`
+cases 4/4b are INVERTED, which is a legitimate owner spec change, not gaming: commit
+c52ee7f0 disables the fable-class guard exemption because class was inferred from the
+SESSION MODEL and never the meeting PHASE, the hook block is COMMENTED rather than
+deleted, and the test carries a restore note. `test_slice_no_item_logs_f499.sh` widens
+`if \(!item\)` to `if \(!item[^)]*\)` so id:dd59's `&& !sinceRef` conjunct matches —
+matcher only; all six assertions (logs, names repo/verdict/cause, returns null, uses the
+log helper) are byte-identical, so the f499 guarantee is intact. No `@owner-accepted` /
+`@owner-answered` / `answer-src:` marker introduced or modified anywhere in the window.
+
+Over-reach (§2d) on the one item closed: id:2065's ratified source is its own ROADMAP
+line plus the owner's 2026-09-01 choice of option (a). The diff is keyed on the
+`*.archive.md` pathspec alone, announces each skip on stdout, and leaves the ratchet
+exiting 1 for the same old-vocab tag staged into a non-archive ledger. NOT a superset.
+
+Reverse-handoff (§5b), 14 open items added this window (6 owner-filed, 8 INBOUND):
+- id:8302 PROMOTED `[ROUTINE]`, id reused — multi-parent `children-of:` data loss,
+  confirmed live (`"parent": "repo/aa02"`, aa01 gone). Red spec authored.
+- id:d8b3 PROMOTED `[ROUTINE]`, id reused — rule 2c ZERO-COMMIT accumulator leak. Red
+  spec authored. Store narrowed to `relay-state-write.sh event-append` over `relay.toml`
+  (owner-facing config); surfaced in REVIEW_ME as a recommendation for confirmation.
+- id:9fa2 NOT promoted despite its `[ROUTINE]` tag — its two candidate mechanisms differ
+  in what happens to the next un-adjudicated plugin pair, which is the safety question
+  the reverted first attempt got wrong. Design-judgment per §5b; stays TODO, /meeting
+  candidate, REVIEW_ME box written.
+- id:c81b / id:af50 / id:ec54 are `[INPUT - …]` (owner-tagged) and the 8 INBOUND items
+  are routing stubs: left in TODO, not lane-guessed.
+
+id:6958 (S9) annotated — its stated blocker id:2065 is now cleared, so the 85-tag
+archive half is runnable. Not ticked: the archive rewrite has not been performed.
+
+relay-doctor: 0 per-repo issues (roadmap-lint clean of hard violations, todo-conformance
+clean, no main-checkout residue, no mechanical orphan). orphan-scan --cross-ledger clean.
+The 21,022 total it prints is the known relay-core shadow mismatch count, not a repo issue.
