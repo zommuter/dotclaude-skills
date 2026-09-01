@@ -72,6 +72,23 @@ _LANE_PATTERNS = [
 # `relay/references/hard-lanes.md`. A marker missing here is a marker that can be silently
 # dropped -- see D2: this list is cross-checked, not trusted.
 MUST_KEEP_PATTERNS = [
+    # STRUCTURAL CATCH-ALL, and it must stay FIRST. In this ecosystem an HTML comment IS
+    # structured metadata by construction -- item PROSE never uses one -- so every comment
+    # on an item line is a marker, whether or not anyone remembered to enumerate it.
+    #
+    # This exists because the enumerated list below was NOT enough, caught by the id:0d7c
+    # acceptance gate on the first real run against the live ledgers. Shrinking id:78ff's
+    # TODO line dropped TWO markers that no pattern named:
+    #   <!-- children:b466 -->   a TYPED EDGE (id:46f6); closure is computed from these, so
+    #                            losing one silently detaches a child from its parent.
+    #   <!-- xledger-ok: ... --> the marker that SUPPRESSES an orphan-scan --cross-ledger
+    #                            drift report; losing it made a knowingly-accepted TODO/
+    #                            ROADMAP divergence start firing as a new violation.
+    # Both are the id:d35a silent-no-op class. Enumerating marker NAMES is precisely how
+    # they were missed, and how the next one would be -- so the rule is now structural.
+    # The specific patterns below are kept as documentation of WHY each matters; the
+    # de-nesting step folds a match wholly contained in this one back to a single append.
+    re.compile(r"<!--[^>]*-->"),
     # The anchor: without it the item is unaddressable to `md-merge update-ids` and
     # invisible to `orphan-scan`.
     re.compile(r"<!--\s*id:[0-9a-f]{4}\s*-->"),

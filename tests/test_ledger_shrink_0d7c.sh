@@ -28,6 +28,14 @@
 #   F. Re-running is idempotent: ledger and note files byte-identical, nothing appended twice.
 #   G. Detail files use the LOGICAL ledger name (`## From TODO`), never the physical path,
 #      and contain no em dash or en dash anywhere.
+#   H. EVERY html comment survives on the head line, not merely the enumerated ones. The
+#      enumerated keep-list was NOT enough: the id:0d7c acceptance gate caught it on the
+#      first real run against the live ledgers, where shrinking id:78ff's TODO line dropped
+#      `<!-- children:b466 -->` (a TYPED EDGE, id:46f6 -- closure is computed from these)
+#      and `<!-- xledger-ok: ... -->` (which SUPPRESSES an orphan-scan --cross-ledger
+#      report, so losing it made a knowingly-accepted divergence fire as a new violation).
+#      In this ecosystem an html comment IS metadata by construction, so the rule is
+#      STRUCTURAL. Enumerating marker names is how those two were missed.
 #
 # fails-against: the tool and this spec land in the SAME commit, so there is no ancestor tree
 # to check out; both negative cases are mutations of the shipped tool.
@@ -204,7 +212,35 @@ fi
 grep -q 'items to shrink       : 0' "$tmp/out.txt" \
   || report "case F: the second run must report 0 items to shrink (got: $(grep 'items to shrink' "$tmp/out.txt" || echo none))"
 
+# ── case H: EVERY html comment survives, not just the enumerated ones ─────────────────
+# REGRESSION. The enumerated keep-list was not enough, and the id:0d7c acceptance gate
+# caught it on the first real run against the live ledgers: shrinking id:78ff's TODO line
+# dropped `<!-- children:b466 -->` (a TYPED EDGE, id:46f6 -- closure is computed from
+# these) and `<!-- xledger-ok: ... -->` (which SUPPRESSES an orphan-scan --cross-ledger
+# report, so losing it made a knowingly-accepted divergence fire as a new violation).
+# Neither was named by any pattern. In this ecosystem an HTML comment IS metadata by
+# construction -- item prose never uses one -- so the rule is structural, and this case
+# pins the STRUCTURE rather than a longer list of names.
+hrepo="$tmp/htmlcomments"
+mkdir -p "$hrepo"
+{ printf '# TODO\n\n'
+  printf -- '- [ ] [ROUTINE] **Multi-comment item** <!-- children:bb99 --> '
+  printf -- 'body prose that is comfortably long enough to be relocated by the splitter, '
+  printf -- 'padded out so the head line is well over the budget and the residue clears the '
+  printf -- 'forty character floor with room to spare. '
+  printf -- '<!-- xledger-ok: knowingly divergent, do not report --> <!-- id:dc01 -->\n'
+} > "$hrepo/TODO.md"
+python3 tools/ledger-shrink.py --root "$hrepo" --file TODO.md --min-chars 300 --apply \
+  > "$tmp/h.txt" 2>&1 || true
+hline="$(grep -F '<!-- id:dc01 -->' "$hrepo/TODO.md" || true)"
+for marker in '<!-- children:bb99 -->' '<!-- xledger-ok:' '<!-- id:dc01 -->'; do
+  case "$hline" in
+    *"$marker"*) ;;
+    *) report "case H: the html comment '$marker' was relocated off the item line; every html comment is a marker by construction and must stay" ;;
+  esac
+done
+
 if (( fail )); then
   exit 1
 fi
-echo "PASS: ledger-shrink.py slims over-long head lines, keeps every gate/lane/id/routed marker on the LINE, refuses foreign-id blocks, falls back without a bold run, and is idempotent (id:0d7c)"
+echo "PASS: ledger-shrink.py slims over-long head lines, keeps every gate/lane/id/routed marker AND every html comment on the LINE, refuses foreign-id blocks, falls back without a bold run, and is idempotent (id:0d7c)"
