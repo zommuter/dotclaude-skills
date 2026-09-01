@@ -169,6 +169,29 @@ if [[ -d "$path/.git" || -f "$path/.git" ]]; then
           continue
         fi
 
+        # roadmap:b02f direction (c) — KNOWN-UNRETIRABLE (submodules). `git worktree remove`
+        # refuses ANY worktree whose tree carries `.gitmodules`, regardless of how clean or
+        # merged it is; deinit-first was tested 2026-08-26 and does NOT lift it (git keys the
+        # check on the file being in the tree, not on checkout state). So there is no
+        # force-free disposal, and planning a reap/park here means APPLY re-invokes
+        # worktree-retire.sh every single round to be refused every single time.
+        #
+        # b02f closed on direction (a) (a clearer message) having ALSO named (c) — "have the
+        # census REPORT them as known-unretirable rather than re-attempting every run" — as
+        # cheap and composing. (c) was never built, so the retry loop stayed: 221 "containing
+        # submodules" lines and 51 UNRETIRABLE-SUBMODULE entries in the retire log, five
+        # worktrees and 1.8 GB accumulated on yinyang-puzzle between 2026-07-24 and today,
+        # visible only in a log nobody reads. This is (c).
+        #
+        # ADDITIVE by construction (id:bc49/e7e4): the marker below is in discover-repo.sh's
+        # ADDITIVE tuple, so this NEVER suppresses the repo. Getting that wrong is the loderite
+        # starvation bug — 6 open actionable [ROUTINE] items, zero dispatched, two rounds —
+        # and it would bite yinyang-puzzle identically, since this fires on EVERY round.
+        if [[ -e "$wtdir/$bn/.gitmodules" ]]; then
+          add_surfaced "unretirable-submodule: worktree $bn carries .gitmodules, so git refuses to remove it regardless of state (roadmap:b02f) — NOT re-attempted this round; disposal needs a supervised decision, not a cleanup pass. There is no dirt to find."
+          continue
+        fi
+
         branch="relay/$bn"
         if git -C "$path" merge-base --is-ancestor "$branch" "$main_branch" 2>/dev/null; then
           add_action "reap" "reaped stale empty worktree $bn"

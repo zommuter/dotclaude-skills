@@ -98,8 +98,15 @@ import sys, json
 #   "suppressed re-dispatch:"   — orphan-suppress, item-scoped (id:1f53)
 #   "parked-orphan (planned):"  — this rounds planned park of a dead runs leftover worktree
 #                                 (id:689c). Also a parked orphan under D1, hence additive.
+#   "unretirable-submodule:"    — a worktree git structurally REFUSES to remove because its
+#                                 tree carries .gitmodules (roadmap:b02f). MUST be additive:
+#                                 it is reported on EVERY round for as long as the worktree
+#                                 exists, and it says nothing about whether the repo has
+#                                 dispatchable work. Treating it as substitutive would suppress
+#                                 the repo permanently — the loderite starvation shape (id:e7e4),
+#                                 which would bite yinyang-puzzle (5 such worktrees) forever.
 # (NOTE: no apostrophes in this block — it lives inside a single-quoted `python3 -c ...`.)
-ADDITIVE = ("suppressed re-dispatch:", "parked-orphan (planned):")
+ADDITIVE = ("suppressed re-dispatch:", "parked-orphan (planned):", "unretirable-submodule:")
 surf = json.load(sys.stdin).get("surfaced", [])
 if not surf:
     print("clean")
