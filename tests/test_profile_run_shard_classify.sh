@@ -8,6 +8,11 @@
 # corrupting relay-econ.py category attribution (and id:9cb1's own verification
 # command). This test pins shards to `discover` and the real status-writer to
 # `status`. Hermetic: synthetic wf_* dir under mktemp; never touches ~/.claude.
+# fails-against: rev 137a98e17aaa -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/profile-run.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 137a98e17aaa -- relay/scripts/profile-run.sh
+# fails-against-assertion: shard prompt with SKIPPED ROLLUP must classify as discover (got phases:
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

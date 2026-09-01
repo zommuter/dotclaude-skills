@@ -20,6 +20,9 @@
 #
 # Hermetic: mktemp -d for everything, bare remotes on local paths, RELAY_RATIFICATION_QUEUE
 # overridden. Never touches ~/.config/relay, ~/.claude, real repos, or the network.
+# fails-against-rev: ecfbd0b77630 -- relay/SKILL.md relay/scripts/ratify-queue.sh
+# fails-against-assertion: relay/SKILL.md still describes only resolve
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

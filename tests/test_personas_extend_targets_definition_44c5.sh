@@ -13,6 +13,11 @@
 # CONTRACT asserted here: the extend targets the line that DEFINES the persona — the
 # registry's own format, `- <emoji> **Name** — lens…`, i.e. a list item whose FIRST bolded
 # token is the name — never a line that merely cites it in prose.
+# fails-against: rev bcde33a4d333 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: bcde33a4d333 -- meeting/append.sh
+# fails-against-assertion: (1) extending **Gil** REWROTE **Hank**'s entry — the extend targets the first line CONTAINING the name, and Hank's prose cites **Gil** (id:44c5). Hank's line is now:
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APPEND="$ROOT/meeting/append.sh"

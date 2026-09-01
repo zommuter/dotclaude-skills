@@ -15,6 +15,11 @@
 #
 # CONTRACT asserted here: an extend is LOSSLESS. The surviving entry carries the union of
 # the old and new text; the "don't create a duplicate entry" behaviour (id:069b) is kept.
+# fails-against: rev 4775010ed0e4 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 4775010ed0e4 -- meeting/append.sh
+# fails-against-assertion: (1) SILENT DATA LOSS: extending **Gil** DISCARDED its original lens text (RELEASE-TAG-PUSH-SEMANTICS). The id:069b branch whole-line-REPLACEs the matched entry instead of merging; personas.md is merge=union so the fragment is unrecoverable (routed:81b8). File now:
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APPEND="$ROOT/meeting/append.sh"

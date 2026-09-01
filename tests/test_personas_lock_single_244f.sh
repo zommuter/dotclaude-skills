@@ -18,6 +18,11 @@
 # CONTRACT asserted here: one underlying file has exactly ONE lock, regardless of the
 # invocation path — and holding that lock actually blocks a writer arriving by the
 # other path (real serialization, not just a matching filename).
+# fails-against: rev bcde33a4d333 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: bcde33a4d333 -- meeting/append.sh
+# fails-against-assertion: $dest, so an install-path writer and a repo-path writer take DIFFERENT locks and are not mutually excluded (id:244f). Locks found:
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APPEND="$ROOT/meeting/append.sh"

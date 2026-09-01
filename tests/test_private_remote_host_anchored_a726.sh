@@ -23,6 +23,11 @@
 #
 # Hermetic: a FIXTURE pattern file only — never the real, never-committed
 # ~/.config/dotclaude-skills/privacy-patterns.txt, whose CONTENTS are never inlined here.
+# fails-against: rev a2d3e45892e1 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/lib-private-remote.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: a2d3e45892e1 -- relay/scripts/lib-private-remote.sh
+# fails-against-assertion: a726(c) the builtin host ERE is defined in more than one place:
+
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

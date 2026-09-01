@@ -18,6 +18,10 @@
 #
 # Hermetic: temp samples JSONL + a deliberately MISSING cache + tokenless creds (no network);
 # RELAY_QUOTA_SAMPLES is always pointed at the temp file so the real ~/.config is never read.
+# fails-against: rev 497c9a0cf704 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/quota-stop.sh, relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 497c9a0cf704 -- relay/scripts/quota-stop.sh relay/scripts/relay-loop.js
+# fails-against-assertion: recent + low burn must PROCEED (exit 0), got
 
 set -euo pipefail
 

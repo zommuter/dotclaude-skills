@@ -8,6 +8,11 @@
 #
 # Two parts: (A) static contract on relay/SKILL.md; (B) behavioral check that claim.sh
 # actually enforces the pool:autonomous singleton (hermetic, CLAIM_BASE override).
+# fails-against: rev 87350939a4cc -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/SKILL.md, meeting/md-merge.py, relay/SKILL.md (+4 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 87350939a4cc -- meeting/SKILL.md meeting/md-merge.py relay/SKILL.md relay/references/human.md relay/references/resource-claims.md relay/scripts/claim.sh relay/scripts/relay-loop.js
+# fails-against-assertion: id:11c6: SKILL.md has no autonomous-pool singleton guard step
+
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

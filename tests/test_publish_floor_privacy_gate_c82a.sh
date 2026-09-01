@@ -40,6 +40,11 @@
 #   so the real relay.toml / ratification queue are never read or written; GIT_CONFIG_COUNT to
 #   neutralise a global core.hooksPath. NO NETWORK, and NO real remote URL appears anywhere —
 #   a fixture holding one WILL act on it (that is how id:99b7 was found).
+# fails-against: rev 92f9e875e8ae -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/archive-closed.sh, relay/scripts/integrate.sh, relay/scripts/lib-publish-remote.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 92f9e875e8ae -- relay/scripts/archive-closed.sh relay/scripts/integrate.sh relay/scripts/lib-publish-remote.sh
+# fails-against-assertion: there is still an ASSUMPTION and must be proven private.
+
 set -uo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

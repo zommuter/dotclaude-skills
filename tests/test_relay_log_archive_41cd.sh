@@ -16,6 +16,11 @@
 #   6. --dry-run mutates nothing.
 #   7. Lock contention: a second concurrent invocation backs off cleanly (exit 0,
 #      no mutation) while the lock is held.
+# fails-against: rev d096214b52d6 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/scripts/relay-log-archive.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: d096214b52d6 -- Makefile relay/scripts/relay-log-archive.sh
+# fails-against-assertion: relay-log-archive.sh not found/executable at
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

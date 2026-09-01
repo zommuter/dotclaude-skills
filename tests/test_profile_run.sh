@@ -6,6 +6,11 @@
 # Hermetic: builds a synthetic wf_* dir (journal.jsonl + agent-*.jsonl with
 # crafted timestamps/usage) under mktemp, runs profile-run.sh against it, and
 # asserts on the --json output. Never touches ~/.claude or the network.
+# fails-against: rev 275fed89b502 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix Makefile, relay/scripts/profile-run.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 275fed89b502 -- Makefile relay/scripts/profile-run.sh
+# fails-against-assertion: profile-run.sh not found/executable at
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

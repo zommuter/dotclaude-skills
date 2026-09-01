@@ -8,6 +8,10 @@
 #   (B) discover-prelude.sh threads $ONLY_REPO into the CONSUMING take
 #   (C) relay-loop.js passes its --only scope to BOTH takes (prelude + mid-round) and
 #       fail-CLOSES (sentinel, never a global drain) on an unsafe scope name
+# fails-against: rev aa6ad1b32347 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/discover-prelude.sh, relay/scripts/inject.sh, relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: aa6ad1b32347 -- relay/scripts/discover-prelude.sh relay/scripts/inject.sh relay/scripts/relay-loop.js
+# fails-against-assertion: scoped take emitted more than the in-scope unit
 
 set -euo pipefail
 

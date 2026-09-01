@@ -11,6 +11,10 @@
 # (2c); THIS test guards the CONTAINMENT (id:efaf) so that ANY future integrate() failure — for
 # any reason, not just a backtick — degrades to one recoverable per-unit handback, never a
 # pool-wide crash. Proven RED without the .catch (workflow rejects), GREEN with it.
+# fails-against: rev b6fb048c0c12 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/lint-workflow-templates.mjs, relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: b6fb048c0c12 -- relay/scripts/lint-workflow-templates.mjs relay/scripts/relay-loop.js
+# fails-against-assertion: integration failure
 
 set -uo pipefail
 

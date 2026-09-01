@@ -15,6 +15,11 @@
 # The live loop (relay-loop.js -> discover-repo.sh -> reconcile-repo.sh) ALWAYS passes
 # --live-claims (even when empty) + --runid, so it only ever hits cases (b)/(c), never (a) —
 # this is purely an additive guard against a future/alternate caller omitting the flag.
+# fails-against: rev 86b00f77d4d4 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/reconcile-repo.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 86b00f77d4d4 -- relay/scripts/reconcile-repo.sh
+# fails-against-assertion: (a) no-context: worktree dir was reaped despite ABSENT --live-claims (fail-open regression)
+
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

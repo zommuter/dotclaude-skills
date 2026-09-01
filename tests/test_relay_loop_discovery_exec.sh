@@ -13,6 +13,10 @@
 # (same "sandbox can't be unit-tested → static checks miss runtime throws" class), but this one
 # actually executes the dispatch, so it catches ANY synchronous throw in the discovery path, not
 # just a denylisted API name.
+# fails-against: rev c68b4c18b0bc -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix relay/scripts/relay-loop.js. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: c68b4c18b0bc -- relay/scripts/relay-loop.js
+# fails-against-assertion: runtime
 
 set -uo pipefail
 

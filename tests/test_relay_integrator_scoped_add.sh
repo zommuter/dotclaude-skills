@@ -9,6 +9,11 @@
 # Static contract check (the live loop is too expensive to run in a unit test, like
 # test_relay_loop_structure.sh): assert relay-loop.js carries the scoped-staging
 # invariant and contains NO broad `git add` form anywhere.
+# fails-against: rev 87350939a4cc -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/SKILL.md, meeting/md-merge.py, relay/SKILL.md (+4 more). Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: 87350939a4cc -- meeting/SKILL.md meeting/md-merge.py relay/SKILL.md relay/references/human.md relay/references/resource-claims.md relay/scripts/claim.sh relay/scripts/relay-loop.js
+# fails-against-assertion: id:debf: relay-loop.js does not dispatch integrate.sh
+
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"

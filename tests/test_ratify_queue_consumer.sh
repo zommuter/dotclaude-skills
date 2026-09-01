@@ -15,6 +15,9 @@
 # Hermetic: mktemp -d for everything, bare remotes on local paths, RELAY_RATIFICATION_QUEUE
 # and RELAY_TOML/SRC_DIR overridden. Never touches ~/.config/relay, ~/.claude, real repos,
 # or the network.
+# fails-against-rev: 3c13d2c8df57 -- Makefile relay/SKILL.md relay/references/human.md relay/scripts/gather-human-backlog.sh relay/scripts/ratify-queue.sh
+# fails-against-assertion: ratify-queue.sh missing/not executable:
+
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

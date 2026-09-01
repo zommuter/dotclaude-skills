@@ -13,6 +13,11 @@
 # token as a fixture, and a fragment of the real username as another — reproducing, inside the
 # regression test for the leak, the exact leak it specs. Use invented tokens with no relation
 # to any real name, and a made-up containing word (Zep/Zeppelin) for the substring case.
+# fails-against: rev e0104edbfecb -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix git-diary-workflow/SKILL.md, tools/privacy-audit.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: e0104edbfecb -- git-diary-workflow/SKILL.md tools/privacy-audit.sh
+# fails-against-assertion: threshold boundary wrong: 6-char rc=
+
 set -uo pipefail
 
 # PRIVACY_AUDIT_BIN lets a mutation check point this spec at a deliberately-broken copy, to

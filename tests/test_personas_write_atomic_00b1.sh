@@ -14,6 +14,11 @@
 # "wholly the new file" — asserted by a reader sampling the size continuously across the
 # write, since a torn write necessarily passes through intermediate sizes (0 first).
 # Assertions 3-4 re-assert the routed:96da properties the fix must not regress.
+# fails-against: rev bcde33a4d333 -- the tree as it stood immediately before the commit that
+#   added this test, i.e. the pre-fix meeting/append.sh. Derived + verified by tests/verify-negative-cases.py.
+# fails-against-rev: bcde33a4d333 -- meeting/append.sh
+# fails-against-assertion: …]. The personas write truncates in place (Path.write_text), so a reader can see a PARTIAL merge=union registry (id:00b1). Write to a temp file in the same directory as the RESOLVED target and os.replace() onto it.
+
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APPEND="$ROOT/meeting/append.sh"
