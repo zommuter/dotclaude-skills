@@ -348,6 +348,7 @@
 - [ ] [INPUT - meeting] **Custom agent types (`.claude/agents/*.md`) per relay subcommand — declarative per-subcommand model/effort/tool defaults** (user 2026-07-19; fold into the id:d03d executor-permissions meeting, do NOT spawn a parallel one). Feasible today and partly in use: `agentType` resolves from the `.claude/agents/` registry; `echo-runner` (Tools: Bash) already exists and `relay-loop.js` already pins `discover-shard` to `model:'sonnet'`. ** -- detail: `docs/ledger-notes/931c.md` <!-- id:931c -->
 
 - [ ] **Record the containment ≠ authorization invariant against `af30`** -- detail: `docs/ledger-notes/e2b1.md` <!-- id:e2b1 -->
+- [ ] [INPUT - meeting] **Digitally SIGN the owner's authorizations, so an agent can VERIFY that a claim carrying his authority actually came from him -- low-barrier UX is a requirement, not a nice-to-have.** -- detail: `docs/ledger-notes/1365.md` <!-- id:1365 -->
 - [ ] **SECURITY INVARIANT: `--disallowedTools` is NOT a containment boundary** -- detail: `docs/ledger-notes/453a.md` <!-- id:453a -->
 - [ ] **`actionable_routine_open` ignores `(DEP: …)` gating → pool burns empty executor rounds (RECURRENCE)** -- detail: `docs/ledger-notes/4470.md` `@manual` 🚧 BLOCKED on [ROUTINE] [HARD] <!-- id:4470 -->
 - [ ] **[TRIGGER-GATED] Evaluate the ssh-push boundary as a replacement for the general local worktree-merge integrator** -- detail: `docs/ledger-notes/d916.md` <!-- id:d916 -->
