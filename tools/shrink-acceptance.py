@@ -262,6 +262,31 @@ def _todo_conformance_argv(root: str) -> list:
     ]
 
 
+def normalise_signal(rule: str) -> str:
+    """Strip a rule token's trailing parenthetical qualifier (id:75c8).
+
+    A signal is an IDENTITY, so it must not carry a MEASUREMENT.  `todo-conformance.sh`
+    spells its length rules `length-grandfathered (1367 chars > budget 500, within
+    baseline 3004)`: the parenthetical moves on every run in which the item shrank at
+    all, so a shrink that merely made a line shorter reported the old signal LOST and a
+    new one GAINED -- for the same rule, on the same item, both non-blocking REPORT
+    lines.  MEASURED on the live gate run of 2026-09-02: 42 of 43 fatals were exactly
+    this (37 `length-unshrinkable` + 5 `length-grandfathered`), while that same
+    detector's real findings fell 669 -> 75, an improvement the gate could not see.
+    The false red is the more dangerous half -- it is how a gate gets baselined away on
+    day one.
+
+    The rule is deliberately blunt: keep the leading token, drop every qualifier.  The
+    two stable qualifiers this collapses (`decided-left-open (baselined id:cb3e)`,
+    `dep-prose-untyped (id:3ef7)`) lose no signal the gate acts on, because polarity and
+    item are carried separately and a genuine budget REGRESSION changes the leading
+    token itself (`length-grandfathered` -> `length-over-budget`).  Narrowing this to
+    "parentheticals containing a number" would keep an id-bearing qualifier and drop a
+    measurement, which is a distinction no output format promises to preserve.
+    """
+    return rule.split("(", 1)[0].strip()
+
+
 def _todo_conformance_parse(out: str, err: str, rc: int):
     records = set()
     for line in out.splitlines():
@@ -271,7 +296,9 @@ def _todo_conformance_parse(out: str, err: str, rc: int):
         rule, _lineno, text = parts[0], parts[1], "\t".join(parts[2:])
         m = ID_MARKER_RE.search(text)
         key = m.group(1) if m else "<no id>"
-        records.add((POLARITY_VIOLATION, "todo-conformance:" + rule, key))
+        records.add(
+            (POLARITY_VIOLATION, "todo-conformance:" + normalise_signal(rule), key)
+        )
     return records, {}, {}
 
 

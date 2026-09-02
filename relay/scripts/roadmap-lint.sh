@@ -347,19 +347,59 @@ item_body_end() {
   printf '%d' "${#_rl_lines[@]}"
 }
 
-# item_has_body_clause <start-index> <end-index> — TRUE when the item's body (the
-# half-open span [start,end)) mentions an Acceptance/Tests/Done-check clause as a
-# bold heading. Tolerant of a QUALIFIER after the word before the closing `**`
-# (e.g. `**Done-check (when built)**`, the real shape of id:89bb/8a5c) — matches
-# on the bold-open + word, not the exact closing bold marker (id:213a).
+# _clause_re_match <text> — TRUE when <text> carries an Acceptance/Tests/Done-check
+# clause as a bold heading. Tolerant of a QUALIFIER after the word before the
+# closing `**` (e.g. `**Done-check (when built)**`, the real shape of id:89bb/8a5c)
+# — matches on the bold-open + word, not the exact closing bold marker (id:213a).
+_clause_re_match() {
+  [[ "$1" =~ \*\*(Acceptance|Tests|Done-check)[^*]*\*\* ]]
+}
+
+# --- DETAIL-FILE POINTERS (id:e95b, the id:2ee1 rule applied to this lint) -----
+# The ratified line-shrink (meeting 2026-09-01-2226, D3) relocates an item's prose
+# body out of its ledger line into `docs/ledger-notes/<id>.md`, leaving a slim head
+# plus a pointer. The Acceptance/Tests/Done-check clause moves WITH it, so a rule
+# 3(c) that reads only the ledger body reports a perfectly workable item as
+# structurally un-workable. Same shape as id:2ee1 (ledger-slice) and id:f3d2 (the
+# byte gate); each was a consumer of relocated bodies that nobody had identified.
+# Only the item's OWN id is followed — under D3 a body lives in exactly one file
+# named for that id, so a reference to some OTHER id's note is prose, not this
+# item's spec (verbatim ledger-slice.sh's rule).
+LEDGER_NOTES_DIR="${LEDGER_NOTES_DIR:-docs/ledger-notes}"
+
+# item_detail_path <id-token> <start-index> <end-index> — echo the item's own
+# detail path when the head line or body points at it, else nothing. Detection
+# keys on the PATH, not on the pointer's prose or dash, so a markdown link, a
+# backticked path and a bare mention all resolve the same way.
+item_detail_path() {
+  local idtok="${1#id:}" start="$2" end="$3" rel k
+  [[ -z "$idtok" ]] && return 0
+  rel="${LEDGER_NOTES_DIR}/${idtok}.md"
+  for ((k = start - 1; k < end; k++)); do
+    [[ "${_rl_lines[$k]}" == *"$rel"* ]] && { printf '%s' "$rel"; return 0; }
+  done
+  return 0
+}
+
+# item_has_body_clause <id-token> <start-index> <end-index> — TRUE when the item's
+# body (the half-open span [start,end)) OR its relocated detail file carries the
+# clause. Exit 2 means the item points at a detail file that does NOT exist: the
+# body is unreachable, so neither answer is knowable and the caller must say THAT
+# rather than attribute it to a missing clause (id:4347 no-silent-swallow).
 item_has_body_clause() {
-  local start="$1" end="$2" k _bl
+  local idtok="$1" start="$2" end="$3" k _bl rel
   for ((k = start; k < end; k++)); do
     _bl="${_rl_lines[$k]}"
-    if [[ "$_bl" =~ \*\*(Acceptance|Tests|Done-check)[^*]*\*\* ]]; then
-      return 0
-    fi
+    _clause_re_match "$_bl" && return 0
   done
+  rel="$(item_detail_path "$idtok" "$start" "$end")"
+  [[ -z "$rel" ]] && return 1
+  if [[ ! -f "$_rl_notes_root/$rel" ]]; then
+    return 2
+  fi
+  while IFS= read -r _bl; do
+    _clause_re_match "$_bl" && return 0
+  done <"$_rl_notes_root/$rel"
   return 1
 }
 
@@ -384,6 +424,9 @@ has_todo_twin() {
 # retired, so the gate is permanent. Merging them (as resolve-gates.sh correctly
 # does for its own, different question) would erase exactly that distinction.
 _rl_dir="$(dirname "$roadmap")"
+# id:e95b — detail files are resolved relative to the LEDGER's directory, the same
+# root ledger-slice.sh uses, so a fixture ROADMAP in a temp dir resolves its own notes.
+_rl_notes_root="$_rl_dir"
 declare -A RL_GATE_ROADMAP RL_GATE_TODO RL_GATE_ARCHIVE
 typed_edges_build_state_map RL_GATE_ROADMAP "$roadmap"
 typed_edges_build_state_map RL_GATE_TODO    "$_rl_dir/TODO.md"
@@ -704,8 +747,19 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # --strict — a past-triage pattern mechanized, same shape as 3(a)/3(b), not a
   # positive-grammar clause that always fails.
   _nc_end="$(item_body_end "$_rl_i")"
-  if ! item_has_body_clause $((_rl_i + 1)) "$_nc_end"; then
-    _nc_id="$(item_id "$line")"
+  _nc_id="$(item_id "$line")"
+  set +e
+  item_has_body_clause "$_nc_id" $((_rl_i + 1)) "$_nc_end"
+  _nc_rc=$?
+  set -e
+  if [[ "$_nc_rc" -eq 2 ]]; then
+    # id:e95b — the body was relocated and the note is GONE. Reporting this as
+    # "no acceptance clause" would blame the item for a broken pointer, so name
+    # the real fault; the TODO twin cannot excuse it either, the file is missing.
+    echo "roadmap-lint: ${_dr_label} — DETAIL-POINTER-MISSING: open item ${_nc_id:-<no id>} points at '$(item_detail_path "$_nc_id" $((_rl_i + 1)) "$_nc_end")', which does not exist — its relocated body (and any Acceptance/Tests/Done-check clause) is unreachable; restore the note or drop the pointer (id:e95b, the id:2ee1 class)" >&2
+    echo "  $line" >&2
+    [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
+  elif [[ "$_nc_rc" -ne 0 ]]; then
     if ! has_todo_twin "$_nc_id" "$roadmap"; then
       echo "roadmap-lint: ${_dr_label} — NO-ACCEPTANCE-NO-TWIN: open item ${_nc_id:-<no id>} has no Acceptance/Tests/Done-check clause in its body and no TODO.md/TODO.archive.md twin — structurally un-workable (id:213a)" >&2
       echo "  $line" >&2
