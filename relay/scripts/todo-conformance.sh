@@ -88,6 +88,10 @@ STATE_CLAIM_BASELINE="${STATE_CLAIM_BASELINE:-$SCRIPTS_DIR/../state-claim-baseli
 # Head-line length ratchet (id:0d7c). Budget and baseline are both overridable so the
 # hermetic test can drive them; the defaults are the shipped contract.
 LEDGER_HEAD_BUDGET="${LEDGER_HEAD_BUDGET:-500}"
+# Mirrors ledger-shrink.py's MIN_MOVED_CHARS. Two copies exist because this is bash and
+# that is python; they are kept honest by head_refusable()'s sync discipline (see below)
+# and by the fact that refusing MORE than the shrinker is safe while refusing LESS is not.
+LEDGER_MIN_MOVED_CHARS="${LEDGER_MIN_MOVED_CHARS:-25}"
 LENGTH_BASELINE="${LENGTH_BASELINE:-$SCRIPTS_DIR/../head-length-baseline.txt}"
 # append.sh (the id mint) lives in meeting/ at the repo root; resolve via the scripts dir.
 APPEND_SH="${TODO_CONFORMANCE_APPEND:-$(cd "$SCRIPTS_DIR/../.." && pwd)/meeting/append.sh}"
@@ -180,7 +184,13 @@ head_refusable() {
   rest="${l#*"$bold"}"
   residue="$(sed -E "s/${LENGTH_MUST_KEEP_RE}//g" <<<"$rest")"
   residue="$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' <<<"$residue")"
-  (( ${#residue} < 40 )) && return 0                 # (b) nothing meaningful to move
+  # (b) nothing meaningful to move. MIRRORS ledger-shrink.py's MIN_MOVED_CHARS, which the
+  # owner lowered 40 -> 25 on 2026-09-02. Narrowing this predicate is the "deliberate,
+  # separate act with its own test" the header above promises, not a silent follow -- and it
+  # is narrowing, the direction the header calls forbidden to do carelessly: at 40 this
+  # reported `length-unshrinkable` for items the tool now cuts, which is safe but stale.
+  # Leaving it at 40 would have understated the ratchet by exactly the 11 items 25 unlocks.
+  (( ${#residue} < LEDGER_MIN_MOVED_CHARS )) && return 0
   return 1
 }
 

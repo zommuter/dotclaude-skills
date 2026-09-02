@@ -47,7 +47,19 @@ NOTES_DIR = "docs/ledger-notes"
 DEFAULT_MIN_CHARS = 500
 
 # Minimum prose that must actually move for a split to be worth its risk.
-MIN_MOVED_CHARS = 40
+#
+# 40 -> 25, owner-approved 2026-09-02, and 25 is where the DISTRIBUTION ends rather than a
+# taste call. MEASURED on the post-wave-3 ledgers by re-planning at each threshold: 40
+# yields 0 further items, 25 yields 11, and 20 and 10 also yield 11. Nothing sits between
+# 10 and 25, so lowering past 25 buys literally nothing and only invites relocating
+# fragments too small to be worth an indirection.
+#
+# Worth stating plainly because an earlier claim of mine overstated this knob: the residue
+# distribution on the remaining prose-carrying items has median 125 chars, and only 28% sit
+# under 40. This threshold was never the ceiling. Of 283 items still carrying prose, 190
+# are refused for want of a defensible CUT POINT and only 64 for residue size -- so the
+# titling rule, not this number, is what bounds the shrink from here.
+MIN_MOVED_CHARS = 25
 
 TOP_ITEM_RE = re.compile(r"^- \[([ xX])\]")
 HEADING_RE = re.compile(r"^#{1,6}\s")
@@ -279,19 +291,46 @@ def split_head(head: str, item_id: str, block: str = ""):
             continue
         seen.add(txt)
         if any(rx.fullmatch(txt) for rx in _LANE_PATTERNS):
-            # Only if the leading run does not already carry it; duplicating a lane tag is
-            # its own defect (wave 1 measured the token count falling 618 -> 562 precisely
-            # because a marker appearing twice is re-appended once).
             if txt not in prefix:
                 lane_parts.append(txt)
         else:
             tail_parts.append(txt)
 
+    # PROMOTE ONLY WHEN UNAMBIGUOUS. The first cut of this promoted every body lane token,
+    # and MEASURED against loderite 2026-09-02 that moved THREE OPEN items out of human
+    # lanes into pool/routine-carrying ones -- `[INPUT - access]` becoming
+    # `[HARD - pool] [HARD - decision gate] [INPUT - access]`, and so on. A lane token in an
+    # item's BODY is usually PROSE ABOUT a lane, not the item's lane, and hoisting it into
+    # the dispatch-carrying position is the OVER-DISPATCH direction: silently wrong, where
+    # the bug it was fixing (tail placement) was merely silently invisible. Given the
+    # choice, invisible is the safer default.
+    #
+    # So: promote only when the leading run carries NO lane at all AND the body offers
+    # exactly ONE distinct lane token. An item that already has a lane is not ambiguous, so
+    # a body token is prose by definition. A body offering several is prose discussing
+    # lanes, and the tool refuses to pick rather than guessing -- the same
+    # never-guess discipline that makes it skip an id-less line.
+    # THE TOOL NEVER PROMOTES. A body lane token is KEPT (in the tail, where it already was)
+    # and REPORTED, never hoisted into the leading run.
+    #
+    # Two rounds of evidence got here. Round 1 promoted unconditionally and moved three OPEN
+    # loderite items out of human lanes into pool-carrying ones. Round 2 promoted only when
+    # the leading run had no lane and the body offered exactly one -- and that still gave
+    # three open items here a dispatch lane inferred from prose (`01fa`, `cb9b` gaining
+    # `[HARD - meeting]`; `f447` gaining `[INPUT - meeting]`). Position cannot distinguish
+    # "the item's own lane happens to sit mid-body" from "the prose mentions a lane", and
+    # guessing wrong routes work to the wrong substrate.
+    #
+    # So this follows the file's own doctrine -- REFUSAL IS ALWAYS SAFE, A WRONG CUT IS NOT
+    # -- and the fleet rule that an untagged item must fail LOUDLY rather than be silently
+    # routed. Not promoting is the STATUS QUO: the tag is exactly as visible to the
+    # leading-run detectors as it was before the shrink, so nothing regresses. The genuine
+    # case loderite raised (an item whose real lane sits mid-body) is surfaced in the report
+    # as `lane-in-body` for a human to place deliberately, which is the only actor that can
+    # tell the two apart.
     head_prefix = prefix
-    if lane_parts:
-        m_top = TOP_ITEM_RE.match(prefix)
-        at = m_top.end() if m_top else 0
-        head_prefix = prefix[:at] + " " + " ".join(lane_parts) + prefix[at:]
+    tail_parts = tail_parts + lane_parts
+    lane_in_body = sorted(set(lane_parts))
 
     tail = " ".join(tail_parts)
     # Do not plant a SECOND pointer on a re-split line: the existing one is carried back by
@@ -299,7 +338,8 @@ def split_head(head: str, item_id: str, block: str = ""):
     # shape check would report.
     ptr = "" if already_pointered else pointer_for(item_id)
     keep = head_prefix + ptr + ((" " + tail) if tail else "")
-    return keep, rest.strip(), "split"
+    reason = "split:lane-in-body=" + ",".join(lane_in_body) if lane_in_body else "split"
+    return keep, rest.strip(), reason
 
 
 # --------------------------------------------------------------------------- parsing
@@ -388,6 +428,7 @@ def plan(lines, min_chars, path, open_only=False):
     actions = []
     refused = {}
     skipped_no_id = []
+    lane_in_body = []
     considered = 0
     for it in items:
         # CLOSED `[x]` items are in scope (owner ruling 2026-09-02). Wave 1 skipped them,
@@ -409,7 +450,10 @@ def plan(lines, min_chars, path, open_only=False):
             continue
         actions.append({"id": it.id, "line": it.index, "keep": keep, "moved": moved,
                         "before": len(it.head), "after": len(keep)})
+        if reason.startswith("split:lane-in-body="):
+            lane_in_body.append((it.id, reason.split("=", 1)[1]))
     return {"actions": actions, "refused": refused, "skipped_no_id": skipped_no_id,
+            "lane_in_body": lane_in_body,
             "considered": considered, "items": len(items), "path": path}
 
 
@@ -557,6 +601,18 @@ def main(argv=None):
             print("    ids: {}".format(" ".join(sorted(ids))))
     if planned["skipped_no_id"]:
         print("  SKIPPED (no id, never guessed): {}".format(len(planned["skipped_no_id"])))
+    if planned["lane_in_body"]:
+        # SURFACED, never acted on. These items carry a lane token outside their leading
+        # run. It may be the item's real lane sitting in the wrong place, or it may be prose
+        # mentioning a lane -- and nothing mechanical can tell them apart (loderite's
+        # ROADMAP has a literal `[HARD - decision gate|hands|meeting|pool]` enumeration that
+        # is one well-formed token by any regex and pure prose by meaning). The tag is KEPT
+        # on the line either way; only a human can decide whether it belongs in the leading
+        # run, so the tool reports and leaves it.
+        print("  LANE TOKEN OUTSIDE THE LEADING RUN (kept, never promoted -- a human "
+              "decides): {}".format(len(planned["lane_in_body"])))
+        for _id, lanes in planned["lane_in_body"][:12]:
+            print("    id:{}  {}".format(_id, lanes))
 
     if not args.apply:
         print("  (dry run -- nothing written)")
