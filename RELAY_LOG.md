@@ -3105,3 +3105,14 @@ orphan-scan --shipped now follows -- detail: `path` pointers, matching wait_re/c
 ## 2026-09-02 17:48 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:1608 verified green (spec unmodified since handoff; negative case re-run by hand against ba1880ba, all 5 cases red pre-fix); no gaming flags; typed 8524's prose-only saturation gate onto 2d17; 2 REVIEW_ME boxes [id:1608,8524,a9c5]
+
+## 2026-09-02 — executor (sonnet)
+
+Worked id:4983 — narrowed `tools/ledger-shrink.py`'s `_LANE_PATTERNS` dash-lane
+alternation from an open `[A-Za-z0-9 _./-]+` character class to the exact
+declared sub-lane names per class (HARD: pool/meeting/hands/decision gate;
+INPUT: meeting/decision/access/author), matching `classify-repo.sh`'s
+hand-enumerated `LANE_TAGS`/`HUMAN_GATES` and `relay/references/hard-lanes.md`.
+`tests/test_lane_grammar_ssot.sh` (roadmap:4983) went green; full suite 561
+passed, 0 failed, 1 expected-red.
+Friction: none.
