@@ -3074,3 +3074,26 @@ duplication introduced.
 ## 2026-09-02 17:03 — executor (sonnet, relay-loop)
 
 shrink-acceptance.py now attributes VIOLATION losses (attribute_violation_loss, mirroring attribute_dispatch_gain) so a detector going blind is FATAL, not an unconditional improvement; fixed find_item_line()'s search order bug this surfaced (id:5f34) [id:5f34]
+
+## 2026-09-02 — executor (sonnet)
+
+Worked id:1608 -- `meeting/orphan-scan.sh --shipped` now follows a line's `-- detail:
+\`<path>\`` pointer when present: it reads the path OFF the line (no hardcoded/guessed
+directory), and when the note file resolves, appends its body to the text matched by
+`wait_re`/`completion_re` (EXTERNAL-WAIT suppression, GATE-STALE lexeme) and the
+UNMARKED-GATE gate-vocabulary backstop, so relocating an item's prose into its detail
+note no longer blinds these three prose-keyed checks or manufactures a false
+TICK-READY. When the pointer does NOT resolve (note never written), the body is
+unknowable and TICK-READY/GATE-STALE are suppressed outright rather than guessed from
+the bare line -- refusing to recommend is safe, recommending wrongly is not (id:4347).
+The GATE-STALE AGE conjunct (git-blame line age) is explicitly NOT addressed -- a
+shrink rewrites the line and resets blame age by construction, and no pointer-follow
+can recover that; the test file's header documents this exemption in full. Fixed a
+latent `head -1` pipe-under-`pipefail` SIGPIPE-lint violation my first cut introduced
+(caught by `test_pipefail_sigpipe_lint.sh`) by capturing then slicing the first line
+instead of piping into `head`. `tests/test_orphan_scan_body_reading_1608.sh` green (was
+RED against the pre-fix script, all 5 asserted cases). Full suite: 560 passed, 0
+failed, 2 expected-red (unrelated open items).
+Friction: none.
+refactor: none needed -- the change is additive (one new pointer-resolution block plus
+threading `match_text` through three existing checks); no duplication introduced.
