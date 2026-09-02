@@ -1691,7 +1691,7 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 > `lib-state-claim.sh` reached from two directions, and `orphan-scan --shipped`). Six of
 > the seven fail toward SILENCE; the seventh invents a wrong recommendation.
 
-- [ ] [ROUTINE] **`shrink-acceptance.py` must ATTRIBUTE a lost violation, not score it as a win -- the gate is structurally blind to a detector going blind.** -- detail: `docs/ledger-notes/5f34.md` <!-- id:5f34 -->
+- [x] [ROUTINE] **`shrink-acceptance.py` must ATTRIBUTE a lost violation, not score it as a win -- the gate is structurally blind to a detector going blind.** -- detail: `docs/ledger-notes/5f34.md` <!-- id:5f34 -->
   - **Acceptance**: a LOST violation whose triggering lexeme is found verbatim in the item's AFTER detail file is FATAL (the detector went blind); one whose lexeme is gone from both line and note stays an IMPROVEMENT. That discriminating pair is the whole spec -- "make every loss fatal" is the wrong fix and case (b) exists to reject it.
   - **Tests**: `tests/test_shrink_acceptance_loss_attribution_5f34.sh` (`# roadmap:5f34`)
   - **Done-check**: `tests/run-tests.sh tests/test_shrink_acceptance_loss_attribution_5f34.sh` green, and re-running the gate over `b7743916..HEAD` reports the 40 blinded `decided-left-open` items as findings rather than improvements. A green suite alone proves nothing here -- that is exactly how the 40 were missed.
