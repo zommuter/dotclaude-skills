@@ -5,6 +5,14 @@
 # checkbox item missing an id → mint+append) and NEVER fabricates a task from prose.
 #
 # RED until the script + wiring land. Hermetic: tmp fixtures, no ~/.claude, no network.
+#
+# The "reports nothing" assertions below filter `^grammar-` for the same reason the id:bf19
+# twin test filters `^shape-prose`: todo-conformance emits several INDEPENDENT rules per
+# line, and this file specs the missing-id/orphan grammar only. The id:b048 line grammar
+# fires on these fixtures BY DESIGN -- they deliberately contain an indented continuation
+# line and a bare HTML-comment line, both of which the older grammar accepts and the b048
+# one does not. Filtering keeps each file asserting its own rule; it waives nothing, since
+# every `grammar-*` class is WARN and cannot move an exit code.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -39,7 +47,7 @@ cat > "$WORK/clean.md" <<'EOF'
 EOF
 rc=0; out="$("$SH" "$WORK/clean.md" 2>/dev/null)" || rc=$?
 [[ "$rc" -eq 0 ]] || fail "clean TODO must exit 0; got $rc"
-[[ -z "$(grep -vE '^\s*$' <<<"$out")" ]] || fail "clean TODO must report nothing; got:
+[[ -z "$(grep -vE '^\s*$|^grammar-' <<<"$out")" ]] || fail "clean TODO must report nothing; got:
 $out"
 pass "(a) clean TODO → no findings, exit 0"
 
@@ -59,7 +67,7 @@ grep -qP '^- \[ \] this open item has no id tag <!-- id:[0-9a-f]{4} -->$' "$WORK
   || fail "(b) --fix did not append a minted id:
 $(cat "$WORK/missing.md")"
 post="$("$SH" "$WORK/missing.md" 2>/dev/null)"
-[[ -z "$(grep -vE '^\s*$' <<<"$post")" ]] || fail "(b) post-fix re-lint not clean:
+[[ -z "$(grep -vE '^\s*$|^grammar-' <<<"$post")" ]] || fail "(b) post-fix re-lint not clean:
 $post"
 pass "(b) --fix mints+appends an id → re-lint clean"
 
@@ -91,7 +99,7 @@ some intentional note line <!-- lint-ok: kept on purpose -->
 - [ ] a real item [ROUTINE] <!-- id:dddd -->
 EOF
 out="$("$SH" "$WORK/exempt.md" 2>/dev/null)"
-[[ -z "$(grep -vE '^\s*$' <<<"$out")" ]] || fail "(d) lint-ok/ref lines must be exempt; got:
+[[ -z "$(grep -vE '^\s*$|^grammar-' <<<"$out")" ]] || fail "(d) lint-ok/ref lines must be exempt; got:
 $out"
 pass "(d) lint-ok + ref: pointer lines are exempt"
 
@@ -134,7 +142,7 @@ cat > "$WORK/heading.md" <<'EOF'
 EOF
 hbefore="$(cat "$WORK/heading.md")"
 out="$("$SH" "$WORK/heading.md" 2>/dev/null)"
-[[ -z "$(grep -vE '^\s*$' <<<"$out")" ]] || fail "(g) heading-as-item status sub-lines wrongly flagged:
+[[ -z "$(grep -vE '^\s*$|^grammar-' <<<"$out")" ]] || fail "(g) heading-as-item status sub-lines wrongly flagged:
 $out"
 "$SH" --fix "$WORK/heading.md" >/dev/null 2>&1 || fail "(g) --fix exited nonzero"
 [[ "$(cat "$WORK/heading.md")" == "$hbefore" ]] || fail "(g) --fix wrongly minted an id onto a heading-item status sub-line:

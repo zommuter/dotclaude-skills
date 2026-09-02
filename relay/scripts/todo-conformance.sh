@@ -68,7 +68,45 @@
 # ratchet is inert in OTHER repos unless they set $LENGTH_BASELINE, which is the intended
 # opt-in. `*.archive.md` is out of scope entirely (id:2065), and so is `--inbox`.
 #
-# Usage:  todo-conformance.sh [--fix] [--inbox] [--strict] [<path>]
+# LEDGER LINE GRAMMAR (id:b048) ----------------------------------------------------------
+# Owner-stated 2026-09-02, SUPERSEDING the block-size budget that item was originally
+# scoped as. The rule is not a size at all: a line in TODO.md / ROADMAP.md is valid iff it
+# is exactly one of three things, and everything else is a finding.
+#
+#   1. BLANK.
+#   2. HEADING  `^#{1,6} <text>` -- at most ~200 chars, FOLLOWED BY A BLANK LINE, opening a
+#      NON-EMPTY section (the next non-blank line is not another heading), and never the
+#      last thing in the file.
+#   3. ITEM     `^- \[[ xX]\]` + an optional lane tag + a title of at most ~200 chars +
+#      zero or more typed-edge comments (`routed:`/`children:`/`children-of:`/`gated-on:`/
+#      `answer-src:`) + the item's OWN anchored id marker + END OF LINE. Nothing, not even
+#      a trailing space, after the id marker.
+#
+# THERE ARE NO CONTINUATION LINES. That is the whole point: Acceptance/Tests/Done-check
+# prose does not live in the ledger, it lives in `docs/ledger-notes/<id>.md`. So an
+# indented line is INVALID -- not "a large block". This is why the earlier block-size
+# reading of id:b048 was dropped: a size budget legitimises the body it measures.
+#
+# REPORT-ONLY, ALWAYS. Every `grammar-*` class is a WARN: it is counted in `findings`
+# (so it is always printed) and NEVER added to `strict_findings`, so it can never fail
+# `--strict` and must never become a commit gate in this state. Measured 2026-09-02 on
+# this repo: 395 of 1080 TODO.md lines and 1559 of 1720 ROADMAP.md lines are
+# non-conforming. An ERROR would wedge the repo; promoting it is a separate, deliberate
+# act after the corpus has been migrated, exactly like the `shape-prose` promotion (id:8524).
+#
+# CONFIGURABLE, because the owner flagged that ids may change shape when cartulary lands:
+#   * the id token class is DERIVED from `lib-anchored-id.sh`'s ANCHORED_ID_MARKER_RE (the
+#     one place the rest of the tooling already shares; `meeting/md-merge.py` mirrors that
+#     same spelling deliberately) -- override with $LEDGER_ID_TOKEN_RE;
+#   * the typed-edge vocabulary is $LEDGER_EDGE_KINDS (an ERE alternation);
+#   * the two ~200 figures are the owner's APPROXIMATIONS, not ratified constants --
+#     $LEDGER_HEADING_MAX / $LEDGER_ITEM_TITLE_MAX. They exist so the exact number can be
+#     settled from counts later without another code change.
+# Out of scope, same as the ratchet: `--inbox` and `*.archive.md`. `--no-grammar` (or
+# LEDGER_GRAMMAR_CHECK=0) suppresses the rule for a caller that only wants the older
+# checks; nothing else disables it.
+#
+# Usage:  todo-conformance.sh [--fix] [--inbox] [--strict] [--no-grammar] [<path>]
 #         todo-conformance.sh --regen-length-baseline [<path>]
 #   <path> default = <cwd repo>/TODO.md (git rev-parse --show-toplevel). REPORT-ONLY
 #   (exit 0 with findings); `--strict` → nonzero when findings remain. An unreadable path
@@ -82,6 +120,11 @@ source "$SCRIPTS_DIR/lib-state-claim.sh"
 # Twin-consumer for the id:3f7e DEP-PROSE-UNTYPED check — the SAME engine
 # roadmap-lint.sh's rule 3(e) uses, so the two linters never silently diverge.
 source "$SCRIPTS_DIR/lib-typed-edges.sh"
+# The id-marker SSOT (id:521f). The b048 grammar DERIVES its token class from
+# ANCHORED_ID_MARKER_RE rather than re-spelling `[0-9a-f]{4}` a third time -- see
+# LEDGER_ID_TOKEN_RE below.
+# shellcheck source=relay/scripts/lib-anchored-id.sh
+source "$SCRIPTS_DIR/lib-anchored-id.sh"
 # WARN→ERROR boundary baseline (id:cb3e, gated on id:5533) — same shared snapshot
 # roadmap-lint.sh reads, so both linters agree on which ids are grandfathered.
 STATE_CLAIM_BASELINE="${STATE_CLAIM_BASELINE:-$SCRIPTS_DIR/../state-claim-baseline.txt}"
@@ -93,6 +136,44 @@ LEDGER_HEAD_BUDGET="${LEDGER_HEAD_BUDGET:-500}"
 # and by the fact that refusing MORE than the shrinker is safe while refusing LESS is not.
 LEDGER_MIN_MOVED_CHARS="${LEDGER_MIN_MOVED_CHARS:-25}"
 LENGTH_BASELINE="${LENGTH_BASELINE:-$SCRIPTS_DIR/../head-length-baseline.txt}"
+
+# --- LEDGER LINE GRAMMAR knobs (id:b048) -------------------------------------------------
+# THE ID TOKEN CLASS IS NOT HARDCODED. It is derived from lib-anchored-id.sh's
+# ANCHORED_ID_MARKER_RE, which is the shared spelling roadmap-lint.sh, scan-routed.sh,
+# unpromoted-scan.sh and (mirrored, by its own comment at md-merge.py:181) meeting's
+# md-merge.py already agree on. Deriving rather than re-spelling is the point: when ids
+# change shape -- the owner flagged cartulary as the likely trigger -- that one file
+# changes and this grammar follows. $LEDGER_ID_TOKEN_RE overrides it outright.
+#
+# The derivation is textual (strip the marker's fixed prefix/suffix and the capture
+# parens) because the lib exports the WHOLE marker regex, not the token class on its own.
+# If it ever stops yielding something plausible the fallback fires and says so LOUDLY --
+# a silently-wrong token class would make every item read as `grammar-item-no-id`.
+_ledger_derive_id_token_re() {
+  local t="${ANCHORED_ID_MARKER_RE:-}"
+  t="${t#*id:}"                       # -> ([0-9a-fA-F]{4})[[:space:]]*-->
+  t="${t%%\[\[:space:\]\]\*-->}"       # -> ([0-9a-fA-F]{4})
+  t="${t#\(}"; t="${t%\)}"            # -> [0-9a-fA-F]{4}
+  if [[ -z "$t" || "$t" == *'-->'* || "$t" == *'id:'* ]]; then
+    echo "todo-conformance.sh: could not derive the id token class from lib-anchored-id.sh's ANCHORED_ID_MARKER_RE ('${ANCHORED_ID_MARKER_RE:-<unset>}') -- falling back to [0-9a-fA-F]{4} (id:b048)" >&2
+    printf '%s' '[0-9a-fA-F]{4}'
+    return 0
+  fi
+  printf '%s' "$t"
+}
+LEDGER_ID_TOKEN_RE="${LEDGER_ID_TOKEN_RE:-$(_ledger_derive_id_token_re)}"
+# The typed-edge vocabulary an item line may carry BEFORE its own id marker. An ERE
+# alternation, deliberately open to extension ("and any future sibling"): a new edge kind
+# is one entry here, not a code change. `children-of:` is included because it is live in
+# this corpus; `lint-ok:` and `ref:` are NOT -- they are this script's own exemption
+# markers and are handled earlier, by exempt(), which skips the line wholesale.
+LEDGER_EDGE_KINDS="${LEDGER_EDGE_KINDS:-routed|children|children-of|gated-on|answer-src}"
+# APPROXIMATE, by the owner's own framing ("~200ish"), and named so the figure can be
+# settled from counts later without touching code. Conformance counts at candidate values
+# are in the id:b048 report; nothing downstream depends on the exact number.
+LEDGER_HEADING_MAX="${LEDGER_HEADING_MAX:-200}"
+LEDGER_ITEM_TITLE_MAX="${LEDGER_ITEM_TITLE_MAX:-200}"
+LEDGER_GRAMMAR_CHECK="${LEDGER_GRAMMAR_CHECK:-1}"
 # append.sh (the id mint) lives in meeting/ at the repo root; resolve via the scripts dir.
 APPEND_SH="${TODO_CONFORMANCE_APPEND:-$(cd "$SCRIPTS_DIR/../.." && pwd)/meeting/append.sh}"
 LOG="${TODO_CONFORMANCE_LOG:-$HOME/.claude/logs/todo-conformance.log}"
@@ -106,6 +187,7 @@ while [[ $# -gt 0 ]]; do
     --inbox)  inbox=1; shift ;;
     --strict) strict=1; shift ;;
     --regen-length-baseline) regen_length=1; shift ;;
+    --no-grammar) LEDGER_GRAMMAR_CHECK=0; shift ;;
     -h|--help) sed -n '2,80p' "$0"; exit 0 ;;
     --*) echo "todo-conformance.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)
@@ -287,6 +369,149 @@ shape_class() {
   echo "shape-prose (${#r} chars of prose outside lane/gate/id/title/pointer; id:30fe)"
 }
 
+# --- LEDGER LINE GRAMMAR (id:b048) -------------------------------------------------------
+#
+# ONE finding per non-conforming LINE, first failure wins. That is deliberate: the owner's
+# measurement is a per-LINE conformance count, so emitting two classes for one line would
+# make the report's arithmetic disagree with the number the rule was specified against.
+#
+# Classes (all WARN, never escalated -- see the header):
+#   grammar-continuation        an indented line. Under this grammar there is no such thing
+#                               as a continuation; the prose belongs in docs/ledger-notes/.
+#   grammar-line                a top-level line that is neither blank, heading, nor item.
+#   grammar-heading-long        heading over $LEDGER_HEADING_MAX chars.
+#   grammar-heading-no-blank    heading not followed by an empty line.
+#   grammar-heading-empty-sec   the next non-blank line is another heading (empty section).
+#   grammar-heading-eof         heading is the last non-blank thing in the file.
+#   grammar-item-no-id          item with no anchored `<!-- id:… -->` marker of its own.
+#   grammar-item-edge-after-id  a typed edge sits AFTER the id marker (order is fixed).
+#   grammar-item-after-id       anything else after the id marker, trailing space included.
+#   grammar-item-unknown-marker an HTML comment before the id that is not a known edge kind.
+#   grammar-item-title-long     title over $LEDGER_ITEM_TITLE_MAX chars.
+#
+# UNDERSPECIFIED, resolved conservatively and flagged rather than guessed silently:
+#   (i)  the owner said "an optional lane tag", singular. This corpus routinely carries
+#        several leading bracket groups (`[HARD - pool] [INTENSIVE - gpu]`, the
+#        `[INBOUND routed:… from …]` ingest prefix). Stripping ZERO OR MORE leading bracket
+#        groups is the reading that does not invent findings for shapes the fleet's own
+#        tools write; a strict one-tag reading would report thousands of lines whose lane
+#        syntax is not in question.
+#   (ii) an HTML-comment-only line (`<!-- … -->` alone) is CONFORMING under this script's
+#        older TODO grammar and is NOT one of the owner's three shapes. Reported as
+#        `grammar-line`; if those lines are meant to stay, the fix is one more shape, not
+#        a silent exemption.
+#  (iii) `*.archive.md` and `--inbox` are out of scope, matching the length ratchet
+#        (id:2065). Archives are history; re-grammaring them buys nothing.
+
+# GRAMMAR_FIND[<lineno>] = "<class> (<detail>)". Built in ONE pre-pass because the heading
+# rules are multi-line (blank-after / non-empty-section / not-at-EOF) and need lookahead --
+# but every finding still points at the offending heading's own line number.
+declare -A GRAMMAR_FIND=()
+
+# Composed once, not per line: bash's `[[ =~ ]]` takes the RHS as an ERE, and writing `<`
+# or `>` inline there needs escapes that a POSIX ERE then reinterprets (`\<` is a GNU
+# word-boundary operator, not a literal). Building the pattern in a variable keeps every
+# metacharacter meaning what it looks like.
+GRAMMAR_ID_MARKER_RE="<!--[[:space:]]*id:${LEDGER_ID_TOKEN_RE}[[:space:]]*-->"
+GRAMMAR_EDGE_MARKER_RE="<!--[[:space:]]*(${LEDGER_EDGE_KINDS}):[^>]*-->"
+
+# grammar_item_class <line> → "" | "<class> (<detail>)"
+grammar_item_class() {
+  local l="$1" rest tail title
+  # 1. the checkbox itself.
+  rest="$(sed -E 's/^-[[:space:]]\[[[:space:]xX]\][[:space:]]*//' <<<"$l")"
+  # 2. the item's OWN id marker must be the very last thing on the line.
+  # No `[[:space:]]*` before the `$`: "nothing after the id marker" is literal, and a
+  # trailing space is one of the edges the owner named explicitly.
+  if [[ ! "$l" =~ ${GRAMMAR_ID_MARKER_RE}$ ]]; then
+    if [[ "$l" =~ ${GRAMMAR_ID_MARKER_RE} ]]; then
+      # Greedy `^.*` deliberately: the tail is what follows the LAST id marker.
+      tail="$(sed -E "s/^.*${GRAMMAR_ID_MARKER_RE}//" <<<"$l")"
+      if [[ "$tail" =~ ${GRAMMAR_EDGE_MARKER_RE} ]]; then
+        echo "grammar-item-edge-after-id (a typed edge follows the id marker; the id marker ends the line)"
+      else
+        echo "grammar-item-after-id (${#tail} chars follow the id marker, trailing whitespace included)"
+      fi
+      return 0
+    fi
+    echo "grammar-item-no-id (no anchored id marker of its own)"
+    return 0
+  fi
+  # 3. strip the id marker, then every trailing typed-edge comment.
+  rest="$(sed -E "s/[[:space:]]*${GRAMMAR_ID_MARKER_RE}[[:space:]]*\$//" <<<"$rest")"
+  while [[ "$rest" =~ ${GRAMMAR_EDGE_MARKER_RE}[[:space:]]*$ ]]; do
+    rest="$(sed -E "s/[[:space:]]*${GRAMMAR_EDGE_MARKER_RE}[[:space:]]*\$//" <<<"$rest")"
+  done
+  # 4. an HTML comment surviving here is a marker this grammar does not know, sitting where
+  #    only the lane tag and the title may be. Reported, never silently accepted.
+  if [[ "$rest" == *'<!--'* ]]; then
+    echo "grammar-item-unknown-marker (an HTML comment appears before the id marker that is not one of: ${LEDGER_EDGE_KINDS//|/, })"
+    return 0
+  fi
+  # 5. lane tags: zero or more leading bracket groups (see UNDERSPECIFIED (i)).
+  title="$(sed -E 's/^([[:space:]]*\[[^]]*\])+[[:space:]]*//' <<<"$rest")"
+  title="$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' <<<"$title")"
+  if (( ${#title} > LEDGER_ITEM_TITLE_MAX )); then
+    echo "grammar-item-title-long (${#title} chars of title, approximate max $LEDGER_ITEM_TITLE_MAX)"
+    return 0
+  fi
+  return 0
+}
+
+# grammar_scan <path> — fill GRAMMAR_FIND for every non-conforming line in <path>.
+grammar_scan() {
+  local path="$1" n i l nxt j cls
+  GRAMMAR_FIND=()
+  local -a L=()
+  mapfile -t L < "$path"
+  n=${#L[@]}
+  for (( i = 0; i < n; i++ )); do
+    l="${L[i]}"
+    [[ -z "${l//[[:space:]]/}" ]] && continue                # 1. BLANK
+    exempt "$l" && continue                                  # explicit opt-out, as elsewhere
+    if [[ "$l" =~ ^#{1,6}[[:space:]] ]]; then                # 2. HEADING
+      if (( ${#l} > LEDGER_HEADING_MAX )); then
+        GRAMMAR_FIND[$((i+1))]="grammar-heading-long (${#l} chars, approximate max $LEDGER_HEADING_MAX)"
+        continue
+      fi
+      if (( i + 1 >= n )); then
+        GRAMMAR_FIND[$((i+1))]="grammar-heading-eof (a heading is the last line of the file; it opens no section)"
+        continue
+      fi
+      nxt="${L[i+1]}"
+      if [[ -n "${nxt//[[:space:]]/}" ]]; then
+        GRAMMAR_FIND[$((i+1))]="grammar-heading-no-blank (a heading must be followed by an empty line)"
+        continue
+      fi
+      # next NON-blank line: must exist, and must not be another heading.
+      cls=""
+      for (( j = i + 2; j < n; j++ )); do
+        [[ -z "${L[j]//[[:space:]]/}" ]] && continue
+        if [[ "${L[j]}" =~ ^#{1,6}[[:space:]] ]]; then
+          cls="grammar-heading-empty-sec (the section is empty -- the next non-blank line is another heading, at line $((j+1)))"
+        fi
+        break
+      done
+      if (( j >= n )) && [[ -z "$cls" ]]; then
+        cls="grammar-heading-eof (nothing but blank lines follow; the heading opens no section)"
+      fi
+      [[ -n "$cls" ]] && GRAMMAR_FIND[$((i+1))]="$cls"
+      continue
+    fi
+    if [[ "$l" =~ ^[[:space:]] ]]; then                      # an indented line
+      GRAMMAR_FIND[$((i+1))]="grammar-continuation (${#l} chars; this grammar has no continuation lines -- the prose belongs in the item's docs/ledger-notes file)"
+      continue
+    fi
+    if [[ "$l" =~ ^-\ \[[\ xX]\] ]]; then                    # 3. ITEM
+      cls="$(grammar_item_class "$l")"
+      [[ -n "$cls" ]] && GRAMMAR_FIND[$((i+1))]="$cls"
+      continue
+    fi
+    GRAMMAR_FIND[$((i+1))]="grammar-line (a top-level line that is neither blank, heading, nor item)"
+  done
+  return 0
+}
+
 declare -A LENGTH_BASELINE_MAP=()
 LENGTH_RATCHET_ON=0
 LENGTH_LEDGER_KEY=""
@@ -436,8 +661,14 @@ declare -a fix_lines=()   # 1-based line numbers needing a minted id
 # `## [LANE] … <!-- id -->` heading-item is NOT flagged/auto-fixed (the heading owns
 # the id). `$1`=collect-fix (1 → record missing-id line numbers for --fix).
 scan_path() {
-  local collect_fix="$1" line cls lr lineno=0 heading_is_item=0
+  local collect_fix="$1" line cls lr gr lineno=0 heading_is_item=0
   findings=0; strict_findings=0; out_lines=(); fix_lines=()
+  # b048 grammar pre-pass. Out of scope for `--inbox` (a routing queue, not a ledger) and
+  # for `*.archive.md` (id:2065). Re-run per scan so a --fix rescan sees the fixed lines.
+  GRAMMAR_FIND=()
+  if [[ "$LEDGER_GRAMMAR_CHECK" -eq 1 && "$inbox" -eq 0 && "$LENGTH_LEDGER_KEY" != *.archive.md ]]; then
+    grammar_scan "$path"
+  fi
   while IFS= read -r line || [[ -n "$line" ]]; do
     lineno=$((lineno+1))
     if [[ "$inbox" -eq 0 ]]; then
@@ -460,6 +691,14 @@ scan_path() {
           heading_is_item=0
         fi
       elif [[ "$heading_is_item" -eq 1 && "$line" =~ ^-\ \[[\ xX]\]\  ]]; then
+        # A status sub-line of a heading-as-item is not a separate ITEM for the older
+        # checks -- but it is still a LINE, and the b048 grammar is a line grammar. Emit
+        # its grammar finding (WARN) before skipping the rest.
+        gr="${GRAMMAR_FIND[$lineno]:-}"
+        if [[ -n "$gr" ]]; then
+          findings=$((findings+1))
+          out_lines+=("$(printf '%s\t%d\t%s' "$gr" "$lineno" "$line")")
+        fi
         continue   # status sub-line of a heading-as-item — not a separate item
       fi
     fi
@@ -489,7 +728,10 @@ scan_path() {
     # asks a different question, it needs no baseline, and it must still run in a repo
     # that has no baseline file at all (loderite today). WARN-only -- see the header.
     sh="$(shape_class "$line")"
-    if [[ -z "$cls" && -z "$sc" && -z "$dp" && -z "$lr" && -z "$sh" ]]; then continue; fi
+    # Ledger line grammar (id:b048) — precomputed by grammar_scan, looked up by line number
+    # so the multi-line heading rules still point at the offending line.
+    gr="${GRAMMAR_FIND[$lineno]:-}"
+    if [[ -z "$cls" && -z "$sc" && -z "$dp" && -z "$lr" && -z "$sh" && -z "$gr" ]]; then continue; fi
     if [[ -n "$cls" ]]; then
       findings=$((findings+1)); strict_findings=$((strict_findings+1))
       out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
@@ -535,6 +777,14 @@ scan_path() {
       # NEVER escalates today: 460 of 840 lines fail it, so --strict would refuse every
       # commit until id:6546 lands. Promoting it to ERROR is that item's closing act.
       out_lines+=("$(printf '%s\t%d\t%s' "$sh" "$lineno" "$line")")
+    fi
+    if [[ -n "$gr" ]]; then
+      findings=$((findings+1))
+      # NEVER escalates, by design and by the owner's instruction: 395 of 1080 TODO.md
+      # lines and 1559 of 1720 ROADMAP.md lines fail this today, so an ERROR here would
+      # wedge the repo. Promotion is a deliberate separate act after the migration, like
+      # the shape-prose promotion (id:8524). Do not add this to strict_findings.
+      out_lines+=("$(printf '%s\t%d\t%s' "$gr" "$lineno" "$line")")
     fi
   done < "$path"
   return 0   # the while's EOF-exit status (1) must not become scan_path's return (set -e)
