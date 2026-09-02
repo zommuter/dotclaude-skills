@@ -324,6 +324,29 @@ elif [[ "$mode" == "shipped" ]]; then
     [[ -z "$token" ]] && continue
     id_lines=$((id_lines+1))
 
+    # Detail-pointer follow (id:1608): a line-shrunk item carries its prose in
+    # `docs/ledger-notes/<id>.md` (or ANY other directory — the path is READ off the
+    # line, never hardcoded/guessed, per the fixture's two-directories requirement) via
+    # `-- detail: \`<path>\``. wait_re/completion_re/UNMARKED-GATE all key on PROSE, so a
+    # line-only match blinds them the instant the prose that used to carry the lexeme
+    # moves off the line. match_text is the line plus the note body when the pointer
+    # resolves; when it does NOT resolve (a stub pointer whose note was never written),
+    # the body is UNKNOWABLE and pointer_missing suppresses the two body-dependent
+    # recommendation classes below (TICK-READY, GATE-STALE) rather than guess from the
+    # bare line — refusing to recommend is safe, recommending wrongly is not (id:4347).
+    # UNMARKED-GATE is unaffected by pointer_missing: it still sees the line itself.
+    detail_path_all=$(grep -oP 'detail:\s*`\K[^`]+' <<<"$text" || true)
+    detail_path="${detail_path_all%%$'\n'*}"
+    pointer_missing=0
+    match_text="$text"
+    if [[ -n "$detail_path" ]]; then
+      if [[ -f "$ROOT/$detail_path" ]]; then
+        match_text="$text"$'\n'"$(cat "$ROOT/$detail_path" 2>/dev/null || true)"
+      else
+        pointer_missing=1
+      fi
+    fi
+
     # Short stdout: emit the item's TITLE, never the whole line. Ledger items run to
     # thousands of characters; echoing them verbatim turned a 0-byte report into 36 KB
     # (the audit-pass ctx-bloat class this sibling-helper pattern exists to avoid).
@@ -448,15 +471,22 @@ elif [[ "$mode" == "shipped" ]]; then
     # The 🚧/DEP forms were added after the live ledger showed cross-repo gates (e.g.
     # id:7df1, gate token in another repo, deliberately no local gated-on: edge) using
     # `🚧 GATED (DEP: …)` rather than the "gated on" phrasing.
-    if (( ! gate_prose_only )) && (( ! xgate_marked )) && grep -qiE '\bgated on\b|\bblocked until\b|\bblocked on\b|\bgate:|🚧[[:space:]]*gated\b|\bgated \(dep:' <<<"$text"; then
+    if (( ! gate_prose_only )) && (( ! xgate_marked )) && grep -qiE '\bgated on\b|\bblocked until\b|\bblocked on\b|\bgate:|🚧[[:space:]]*gated\b|\bgated \(dep:' <<<"$match_text"; then
       candidates=$((candidates+1))
       output_lines+=("id:$token — UNMARKED-GATE (gate vocabulary present, no gated-on: marker) — add a typed gated-on: edge or confirm the gate. $(short_text "$text")")
     fi
 
-    if grep -qiE "$wait_re" < <(echo "$text") ; then
+    if (( pointer_missing )); then
+      # id:1608 case D1 — the line points at a note that does not exist, so the body is
+      # unreachable and neither TICK-READY nor GATE-STALE is knowable. Refuse rather
+      # than guess from the bare (possibly stale) line text.
+      continue
+    fi
+
+    if grep -qiE "$wait_re" < <(echo "$match_text") ; then
       # EXTERNAL-WAIT clause: legitimately open — suppress from both classes.
       continue
-    elif grep -qiE "$completion_re" < <(echo "$text") ; then
+    elif grep -qiE "$completion_re" < <(echo "$match_text") ; then
       # GATE-STALE candidate: the completion clause may have lapsed — check line age.
       commit_epoch=$(awk '/^author-time /{print $2; exit}' \
         < <(git -C "$ROOT" blame -L "${lineno},${lineno}" --porcelain -- TODO.md 2>/dev/null) || true)
