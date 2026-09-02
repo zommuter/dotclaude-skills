@@ -137,8 +137,14 @@ step 2b); its semver sibling — the reviewer-only bump — is `relay/scripts/ve
   FALSE, so the declaration is what keeps the note honest about itself. It belongs in the
   header, not only in a commit message.
 - **`REVIEW_ME.md` is OUT of the ledger line-shrink; it is compacted by ARCHIVING resolved
-  boxes** (owner-ratified 2026-09-02; loderite's owner proposed it, same ruling both repos,
-  one fleet rule rather than two). A review box is evidence written to be read IN FULL by the
+  boxes** (ratified for THIS repo by its owner 2026-09-02). **Provenance, stated precisely
+  because the distinction is the point:** the reasoning came to us as loderite's session
+  RELAYING its owner's lean, and he had not ratified it there at the time we adopted it --
+  so this is our own owner's decision, taken on a relayed argument we found convincing, not
+  a joint fleet ruling. If loderite's ratification amends it, expect a delta rather than
+  assuming the two repos already agree. (This is `id:1365` in miniature: a claim carrying an
+  owner's authority, arriving through a channel that cannot be verified.) A review box is
+  evidence written to be read IN FULL by the
   person it is for, so relocating its prose into `docs/ledger-notes/<id>.md` puts the evidence
   one indirection away from its only reader -- a loss the byte count does not show. Archive
   RESOLVED boxes aggressively instead; never relocate prose out of an open one. A review box
