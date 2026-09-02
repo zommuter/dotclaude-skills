@@ -4580,3 +4580,8 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Acceptance**: `TICK-READY` must not fire for an item whose EXTERNAL-WAIT lexeme was relocated into its note (`id:2b4b` is the measured instance). `UNMARKED-GATE` recovers from the note likewise. The `GATE-STALE` half is `git blame` age and is NOT fixable by pointer-following -- if the spec exempts it, the exemption must be written down with its reason, not quietly omitted.
   - **Tests**: `tests/test_orphan_scan_body_reading_1608.sh` (`# roadmap:1608`)
   - **Done-check**: `tests/run-tests.sh tests/test_orphan_scan_body_reading_1608.sh` green, AND the before/after identity sets measured UNCAPPED (`ORPHAN_SCAN_LIMIT=9999 ORPHAN_SCAN_SHIPPED_AGE_DAYS=0`) -- at the default cap of 10 both sides return 10 rows with different membership, which reads as a composition change and is pure artifact.
+
+- [x] [ROUTINE] **The lane grammar is hand-mirrored in three places; make ONE source serve both the actor and the checker.** -- detail: `docs/ledger-notes/6546.md` <!-- id:4983 -->
+  - **Acceptance**: `classify-repo.sh`'s `LANE_TAGS` and `ledger-shrink.py`'s `_LANE_PATTERNS` recognise EXACTLY the token set `relay/references/hard-lanes.md` declares -- no token declared and unrecognised, none recognised and undeclared. BOTH dash spellings stay live and neither is normalised to the other in passing.
+  - **Tests**: `tests/test_lane_grammar_ssot.sh` (`# roadmap:4983`)
+  - **Done-check**: `tests/run-tests.sh tests/test_lane_grammar_ssot.sh` green. If the mirrors already agree today the test is a REGRESSION guard rather than a fix -- re-scope the item to "prevent a divergence" and say so, do not manufacture one to make it red.
