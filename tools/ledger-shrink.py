@@ -78,6 +78,11 @@ _LANE_PATTERNS = [
     re.compile(r"\[(?:HARD|INPUT|INTENSIVE)\s*" + _DASH + r"\s*[A-Za-z0-9 _./-]+\]"),
 ]
 
+# The retired VENUE-KEYED spellings the fleet is migrating away from (lane-convert.sh's
+# mapping, meeting 2026-07-02-1924 D2). Only the `[HARD <dash> venue]` family is retired --
+# `[INPUT <dash> venue]` is the NEW vocabulary and is untouched by the ratchet.
+_RETIRED_LANE_RE = re.compile(r"\[HARD\s*" + _DASH + r"\s*[A-Za-z0-9 _./-]+\]")
+
 # Tokens that MUST remain on the item line. Order-independent; each is re-appended in the
 # order it appeared. Derived from `relay/scripts/classify-repo.sh`'s substring matches
 # (HUMAN_GATES / LANE_TAGS / the @-marker family / the blocked lexemes) and
@@ -162,6 +167,23 @@ def pointer_for(item_id: str) -> str:
 def has_pointer(line: str, item_id: str) -> bool:
     """Idempotence guard. Keys on the note PATH, not on the pointer's punctuation."""
     return "{}/{}.md".format(NOTES_DIR, item_id) in line
+
+
+def _first_lane(text: str):
+    """(offset, token) of the FIRST lane tag on the line, or None.
+
+    Mirrors classify-repo.sh:286 `min([(ln.find(t), t) for t in LANE_TAGS ...])` -- the
+    id:4da4 PRIMARY-LANE anchoring rule. Deliberately no backtick handling: classify-repo
+    does not strip backticks either (its id:4da4 note says first-occurrence is what makes it
+    robust *where a backtick-strip is not*), so masking here would make this tool disagree
+    with the detector it exists to keep honest.
+    """
+    hits = []
+    for rx in _LANE_PATTERNS:
+        m = rx.search(text)
+        if m:
+            hits.append((m.start(), m.group(0)))
+    return min(hits) if hits else None
 
 
 def _protected_spans(text: str):
@@ -278,58 +300,52 @@ def split_head(head: str, item_id: str, block: str = ""):
     if len(residue.strip()) < MIN_MOVED_CHARS:
         return None, None, "too-little-to-move"
 
-    # A relocated LANE TAG goes back into the LEADING run, never the tail (loderite
-    # finding, 2026-09-02). `PARKED-POOL-LANE` and the classify-repo lane detectors anchor
-    # on the leading lane run, so a tag re-appended after the detail pointer is invisible
-    # to dispatch while looking perfectly present to a reader -- the id:d35a silent-no-op
-    # class. loderite's own extractor has this bug and documented rather than patched it.
+    # LANE HANDLING IS INVARIANCE, NOT INFERENCE. Two wrong answers preceded this one, so
+    # the question is stated precisely: not "what is this item's lane" (unknowable from a
+    # line) but "what does classify-repo COMPUTE as its lane, and does the shrink change
+    # it?" That is mechanical. id:4da4 defines it -- the FIRST recognised lane token on the
+    # line, wherever it sits (classify-repo.sh:279, `min(_found)`).
+    #
+    # So the rule falls out with no judgement anywhere:
+    #   * a token that is NOT first sets nothing and no detector reads it -> it is prose,
+    #     and it travels with the body like all other prose. Keeping it on the line drags
+    #     prose back onto a control surface (and made the shrunk line an ADDED line with an
+    #     old-vocabulary tag, which the pre-commit ratchet correctly BLOCKED).
+    #   * a token that IS first already IS the computed lane. Preserving it means keeping it
+    #     FIRST, which after the cut means the leading run. That is not inventing a lane, it
+    #     is stopping the shrink from REMOVING one.
+    #
+    # Round 1 promoted everything and moved three OPEN loderite items into pool-carrying
+    # lanes. Round 2 promoted "when unambiguous" and invented lanes here. Both were guesses;
+    # this is not. The invariant is asserted below and a violation REFUSES the split.
+    #
+    # NOTE what this deliberately does NOT do: it does not mask backticks. All three
+    # affected items here carry a BACKTICKED or foreign-id prose mention as their first
+    # token, so they already have a de-facto lane today that they should not have. That is
+    # a pre-existing classify-repo defect. A formatting migration must neither silently fix
+    # it nor silently cement it -- so the lane is preserved exactly as computed today, and
+    # the item is REPORTED for a human to place deliberately.
     seen = set()
     tail_parts = []
     lane_parts = []
+    primary = _first_lane(head)
+    primary_in_prefix = primary is not None and primary[0] < len(prefix)
     for _, txt in _keep_matches(rest):
         if txt in seen:
             continue
         seen.add(txt)
         if any(rx.fullmatch(txt) for rx in _LANE_PATTERNS):
-            if txt not in prefix:
-                lane_parts.append(txt)
+            if primary_in_prefix or primary is None or txt != primary[1]:
+                continue                      # prose by id:4da4 -- travels with the body
+            lane_parts.append(txt)            # this token IS the computed primary lane
         else:
             tail_parts.append(txt)
 
-    # PROMOTE ONLY WHEN UNAMBIGUOUS. The first cut of this promoted every body lane token,
-    # and MEASURED against loderite 2026-09-02 that moved THREE OPEN items out of human
-    # lanes into pool/routine-carrying ones -- `[INPUT - access]` becoming
-    # `[HARD - pool] [HARD - decision gate] [INPUT - access]`, and so on. A lane token in an
-    # item's BODY is usually PROSE ABOUT a lane, not the item's lane, and hoisting it into
-    # the dispatch-carrying position is the OVER-DISPATCH direction: silently wrong, where
-    # the bug it was fixing (tail placement) was merely silently invisible. Given the
-    # choice, invisible is the safer default.
-    #
-    # So: promote only when the leading run carries NO lane at all AND the body offers
-    # exactly ONE distinct lane token. An item that already has a lane is not ambiguous, so
-    # a body token is prose by definition. A body offering several is prose discussing
-    # lanes, and the tool refuses to pick rather than guessing -- the same
-    # never-guess discipline that makes it skip an id-less line.
-    # THE TOOL NEVER PROMOTES. A body lane token is KEPT (in the tail, where it already was)
-    # and REPORTED, never hoisted into the leading run.
-    #
-    # Two rounds of evidence got here. Round 1 promoted unconditionally and moved three OPEN
-    # loderite items out of human lanes into pool-carrying ones. Round 2 promoted only when
-    # the leading run had no lane and the body offered exactly one -- and that still gave
-    # three open items here a dispatch lane inferred from prose (`01fa`, `cb9b` gaining
-    # `[HARD - meeting]`; `f447` gaining `[INPUT - meeting]`). Position cannot distinguish
-    # "the item's own lane happens to sit mid-body" from "the prose mentions a lane", and
-    # guessing wrong routes work to the wrong substrate.
-    #
-    # So this follows the file's own doctrine -- REFUSAL IS ALWAYS SAFE, A WRONG CUT IS NOT
-    # -- and the fleet rule that an untagged item must fail LOUDLY rather than be silently
-    # routed. Not promoting is the STATUS QUO: the tag is exactly as visible to the
-    # leading-run detectors as it was before the shrink, so nothing regresses. The genuine
-    # case loderite raised (an item whose real lane sits mid-body) is surfaced in the report
-    # as `lane-in-body` for a human to place deliberately, which is the only actor that can
-    # tell the two apart.
     head_prefix = prefix
-    tail_parts = tail_parts + lane_parts
+    if lane_parts:
+        m_top = TOP_ITEM_RE.match(prefix)
+        at = m_top.end() if m_top else 0
+        head_prefix = prefix[:at] + " " + lane_parts[0] + prefix[at:]
     lane_in_body = sorted(set(lane_parts))
 
     tail = " ".join(tail_parts)
@@ -338,6 +354,28 @@ def split_head(head: str, item_id: str, block: str = ""):
     # shape check would report.
     ptr = "" if already_pointered else pointer_for(item_id)
     keep = head_prefix + ptr + ((" " + tail) if tail else "")
+    # THE INVARIANT, asserted rather than trusted: the lane classify-repo computes for this
+    # line must be identical before and after. A violation is a REFUSAL, never a warning --
+    # a shrink that silently re-lanes an item is the over-dispatch failure this whole rule
+    # exists to prevent, and refusing costs only a line left long.
+    _pb, _pa = _first_lane(head), _first_lane(keep)
+    if (_pb[1] if _pb else None) != (_pa[1] if _pa else None):
+        return None, None, "lane-would-change"
+
+    # RETIRED VOCABULARY: refuse rather than plant it. Preserving an item's computed lane
+    # can mean lifting a venue-keyed `[HARD <dash> venue]` tag into the leading run, and the
+    # pre-commit vocabulary ratchet correctly BLOCKS an added line carrying one -- it is
+    # mid-migration to the capability-keyed spelling (`relay/scripts/lane-convert.sh`:
+    # `[HARD - pool]` -> `[HARD]`, `[HARD - meeting]` -> `[INPUT - meeting]`).
+    #
+    # Cooperating with the guard beats fighting it. The alternatives were --no-verify
+    # (routing around a guard) or hand-swapping a delimiter, which the fleet rule forbids
+    # precisely because a lane tag whose delimiter stops matching its detector is invisible
+    # to dispatch. So: refuse this ONE item, report it, and let the canonical converter
+    # migrate the tag as its own deliberate act. Refusing costs a line left long.
+    if lane_parts and _RETIRED_LANE_RE.fullmatch(lane_parts[0]):
+        return None, None, "lane-retired-vocab:" + lane_parts[0]
+
     reason = "split:lane-in-body=" + ",".join(lane_in_body) if lane_in_body else "split"
     return keep, rest.strip(), reason
 
@@ -532,6 +570,9 @@ REFUSAL_LABELS = {
     "no-cut-point": "no defensible cut point",
     "too-little-to-move": "under {} chars would move".format(MIN_MOVED_CHARS),
     "foreign-id": "block carries ANOTHER item's id marker (would orphan it)",
+    "lane-would-change": "the split would CHANGE the item's computed lane (id:4da4)",
+    "lane-retired-vocab": "preserving the lane would plant RETIRED venue-keyed vocabulary; "
+                          "migrate the tag with relay/scripts/lane-convert.sh first",
 }
 
 

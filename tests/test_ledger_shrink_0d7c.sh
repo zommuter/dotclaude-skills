@@ -68,7 +68,7 @@ mkdir -p "$repo"
 # position" give different answers.
 # ---------------------------------------------------------------------------
 BB01_PREFIX='- [ ] **Keep-set survivor item**'
-BB01_REST=' [HARD - pool] this prose is what must move, and it is comfortably longer than the forty-character floor the splitter enforces before it will cut anything at all. gated-on:cc10 and a typed edge <!-- gated-on:cc11 --> plus 🚧 and `@manual` and @wire and @owner-verify and @needs-auth and @container and @owner-gated and @owner-answered:2026-08-14 and BLOCKED on the other thing and blocked on the lowercase thing. <!-- routed:dd20 --> <!-- id:bb01 -->'
+BB01_REST=' [ROUTINE] this prose is what must move, and it is comfortably longer than the forty-character floor the splitter enforces before it will cut anything at all. gated-on:cc10 and a typed edge <!-- gated-on:cc11 --> plus 🚧 and `@manual` and @wire and @owner-verify and @needs-auth and @container and @owner-gated and @owner-answered:2026-08-14 and BLOCKED on the other thing and blocked on the lowercase thing. <!-- routed:dd20 --> <!-- id:bb01 -->'
 
 BB04_PREFIX='- [ ] [ROUTINE] A plain title carrying no bold run at all'
 BB04_REST=' -- and then a body of prose that is long enough to be worth relocating, which is the whole point of the fallback cut point for the one hundred and ninety three bold-less items measured across the two ledgers. <!-- id:bb04 -->'
@@ -123,8 +123,14 @@ bb01_head="$(grep -F -- 'Keep-set survivor item' "$repo/TODO.md" || true)"
 # (B) every keep-set marker that sat AFTER the cut point must still be on the head line.
 # The lane tag is asserted on its own: it is the marker the reference implementation keeps
 # only by position, so it is the one a keep-by-rule regression drops first.
+# The lane token sits AFTER the cut and the head carries none before it, so by id:4da4 it
+# IS this item's computed lane -- and preserving that lane means keeping it FIRST, i.e.
+# lifting it into the leading run. (Was `[HARD - pool]`; changed to `[ROUTINE]` 2026-09-02
+# because the venue-keyed `[HARD - <venue>]` family is RETIRED vocabulary and the shrinker
+# now refuses to plant one, which is a different rule with its own case in
+# test_ledger_shrink_lane_promotion_6546.sh. The lane-survival intent is unchanged.)
 case "$bb01_head" in
-  *'[HARD - pool]'*) : ;;
+  *'[ROUTINE]'*) : ;;
   *) report "case B: the LANE TAG must survive on the head line by RULE, not by position -- got: ${bb01_head:0:160}" ;;
 esac
 for marker in '<!-- id:bb01 -->' '<!-- routed:dd20 -->' 'gated-on:cc10' '<!-- gated-on:cc11 -->' \
