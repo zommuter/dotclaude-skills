@@ -1699,7 +1699,7 @@ after D1–D3") stay in TODO.md — not executor work yet.
   - **Acceptance**: `classify-repo.sh`'s `LANE_TAGS` and `ledger-shrink.py`'s `_LANE_PATTERNS` recognise EXACTLY the token set `relay/references/hard-lanes.md` declares -- no token declared and unrecognised, none recognised and undeclared. BOTH dash spellings stay live and neither is normalised to the other in passing.
   - **Tests**: `tests/test_lane_grammar_ssot.sh` (`# roadmap:4983`)
   - **Done-check**: `tests/run-tests.sh tests/test_lane_grammar_ssot.sh` green. If the mirrors already agree today the test is a REGRESSION guard rather than a fix -- re-scope the item to "prevent a divergence" and say so, do not manufacture one to make it red.
-- [ ] [ROUTINE] **`shape-prose` becomes an ERROR -- the closing act of the no-prose bar.** <!-- gated-on:1608 --> <!-- id:8524 -->
+- [ ] [ROUTINE] **`shape-prose` becomes an ERROR -- the closing act of the no-prose bar.** <!-- gated-on:1608,2d17 --> <!-- id:8524 -->
   - **Acceptance**: `todo-conformance.sh` escalates `shape-prose` under `--strict`, and the ledgers pass. Blocked until the remaining prose-carrying items are shrunk or exempted: 231 on `TODO.md`, 51 on `ROADMAP.md` as of `20dc8154`.
   - **Done-check**: `relay/scripts/todo-conformance.sh --strict TODO.md` exits 0.
 - [ ] [INPUT - decision] **Three items carry a de-facto lane derived from BODY PROSE, which `classify-repo` reads as their real lane.** <!-- id:1254 -->
