@@ -1678,3 +1678,35 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] **`tracker/ledger-map.py` loses parents on a multi-`children-of:` line -- silent DATA LOSS.** <!-- id:8302 --> (archived — see ROADMAP.archive.md)
 - [x] [ROUTINE] **`children-of:` and `children:` still resolve to TWO different relations -- the UNMET half of id:8302's acceptance.** <!-- id:59c5 --> (archived — see ROADMAP.archive.md)
 - [x] [ROUTINE] **Executor-contract rule 2c's ZERO-COMMIT branch leaks its own escalation counter, so `route="hard-split"` is unreachable.** <!-- id:d8b3 --> (archived — see ROADMAP.archive.md)
+
+## 2026-09-02 shrink-programme gaps (handoff C2, run relay-handoff-019adc92)
+
+> Promoted from `TODO.md` after the wave-3 shrink landed. Ids REUSED where the item
+> already existed there (single-id-two-views D2); the three `roadmap:` tokens below are
+> NEW and name the RED specs authored in this handoff, whose items are the fix.
+>
+> The unifying finding: every consumer that reads an item's BODY breaks when the body
+> moves, and SEVEN have now been found this way (`id:2ee1` ledger-slice, `id:f3d2` the
+> byte gate, `id:e95b` roadmap-lint rule 3(c), roadmap-lint's `has_todo_twin`,
+> `lib-state-claim.sh` reached from two directions, and `orphan-scan --shipped`). Six of
+> the seven fail toward SILENCE; the seventh invents a wrong recommendation.
+
+- [ ] [ROUTINE] **`shrink-acceptance.py` must ATTRIBUTE a lost violation, not score it as a win -- the gate is structurally blind to a detector going blind.** -- detail: `docs/ledger-notes/5f34.md` <!-- id:5f34 -->
+  - **Acceptance**: a LOST violation whose triggering lexeme is found verbatim in the item's AFTER detail file is FATAL (the detector went blind); one whose lexeme is gone from both line and note stays an IMPROVEMENT. That discriminating pair is the whole spec -- "make every loss fatal" is the wrong fix and case (b) exists to reject it.
+  - **Tests**: `tests/test_shrink_acceptance_loss_attribution_5f34.sh` (`# roadmap:5f34`)
+  - **Done-check**: `tests/run-tests.sh tests/test_shrink_acceptance_loss_attribution_5f34.sh` green, and re-running the gate over `b7743916..HEAD` reports the 40 blinded `decided-left-open` items as findings rather than improvements. A green suite alone proves nothing here -- that is exactly how the 40 were missed.
+- [ ] [ROUTINE] **`orphan-scan --shipped` must follow the per-id detail pointer -- it is the only consumer measured to MANUFACTURE a wrong recommendation.** -- detail: `docs/ledger-notes/1608.md` <!-- gated-on:5f34 --> <!-- id:1608 -->
+  - **Acceptance**: `TICK-READY` must not fire for an item whose EXTERNAL-WAIT lexeme was relocated into its note (`id:2b4b` is the measured instance). `UNMARKED-GATE` recovers from the note likewise. The `GATE-STALE` half is `git blame` age and is NOT fixable by pointer-following -- if the spec exempts it, the exemption must be written down with its reason, not quietly omitted.
+  - **Tests**: `tests/test_orphan_scan_body_reading_1608.sh` (`# roadmap:1608`)
+  - **Done-check**: `tests/run-tests.sh tests/test_orphan_scan_body_reading_1608.sh` green, AND the before/after identity sets measured UNCAPPED (`ORPHAN_SCAN_LIMIT=9999 ORPHAN_SCAN_SHIPPED_AGE_DAYS=0`) -- at the default cap of 10 both sides return 10 rows with different membership, which reads as a composition change and is pure artifact.
+- [ ] [ROUTINE] **The lane grammar is hand-mirrored in three places; make ONE source serve both the actor and the checker.** -- detail: `docs/ledger-notes/6546.md` <!-- id:4983 -->
+  - **Acceptance**: `classify-repo.sh`'s `LANE_TAGS` and `ledger-shrink.py`'s `_LANE_PATTERNS` recognise EXACTLY the token set `relay/references/hard-lanes.md` declares -- no token declared and unrecognised, none recognised and undeclared. BOTH dash spellings stay live and neither is normalised to the other in passing.
+  - **Tests**: `tests/test_lane_grammar_ssot.sh` (`# roadmap:4983`)
+  - **Done-check**: `tests/run-tests.sh tests/test_lane_grammar_ssot.sh` green. If the mirrors already agree today the test is a REGRESSION guard rather than a fix -- re-scope the item to "prevent a divergence" and say so, do not manufacture one to make it red.
+- [ ] [ROUTINE] **`shape-prose` becomes an ERROR -- the closing act of the no-prose bar.** <!-- gated-on:1608 --> <!-- id:8524 -->
+  - **Acceptance**: `todo-conformance.sh` escalates `shape-prose` under `--strict`, and the ledgers pass. Blocked until the remaining prose-carrying items are shrunk or exempted: 231 on `TODO.md`, 51 on `ROADMAP.md` as of `20dc8154`.
+  - **Done-check**: `relay/scripts/todo-conformance.sh --strict TODO.md` exits 0.
+- [ ] [INPUT - decision] **Three items carry a de-facto lane derived from BODY PROSE, which `classify-repo` reads as their real lane.** <!-- id:1254 -->
+  - **Context**: surfaced by the wave-3 lane-invariance work, NOT caused by it. `01fa` and `cb9b` carry a backticked `[HARD - meeting]` mention; `f447` names ANOTHER id's lane (`id:ebdb sits at [INPUT - meeting]`). By `id:4da4` first-occurrence anchoring each is that item's computed lane today. The shrinker deliberately preserves rather than corrects this: a formatting migration must neither silently fix nor silently cement a pre-existing defect.
+  - **Done-check**: the owner has ruled, and either `classify-repo` masks backticks (with its own item and before/after measurement) or the three items carry real lanes. No executor work closes this box.
+  - **Decision needed**: whether `classify-repo` should mask backticks (the lane SSOT has `mask_backticks` for exactly this), and whether these three items should simply be given real lanes. Both are owner calls, not executor work.
