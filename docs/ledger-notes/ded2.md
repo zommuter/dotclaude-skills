@@ -1,0 +1,11 @@
+# id:ded2
+
+Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps
+its title, lane tag, `id:` anchor, every gate marker and a pointer back here.
+**Nothing was deleted** -- the prose below is reproduced verbatim.
+
+See `docs/ledger-notes/BACKLINKS.md` for meetings that cite this id.
+
+## From TODO
+
+(flagged 2026-06-30 `/relay --afk`) — when one logical change cascades the SAME mechanical diff across N sibling repos, the classifier emits an independent `review` unit per repo and the pool spends one Opus review-child apiece on near-identical diffs. Observed: the Option B ledger migration (`docs(todo): promote to own ledger (Option B, zkm f98d)`) landed one byte-similar commit in 10 zkm-* plugins, each becoming its own `review` verdict (their first audit since the migration was done in-session "no live relay pool"). Same shape recurs on **zkm-version-cascade `uv.lock` bumps** (a parent bump rewrites every plugin's lockfile — see CLAUDE.md versioning). Real spend, low marginal risk: ten reviews of essentially one change. **Idea:** detect a fan-out cohort — commits since last ckpt across multiple repos sharing a near-identical diff / subject / `id:`/`routed:` token — and verify the cohort in ONE pass (review the canonical diff once, confirm each repo's instance matches, checkpoint all), instead of fanning out a review-child per repo. Must stay anti-gaming-safe: still audits every commit (D3), just amortizes the judgment over the cohort rather than re-deriving it N times. Open design Qs: how to recognize "same mechanical diff" robustly (token match? normalized-diff hash? subject prefix?), and where it slots (classifier cohort-grouping vs a review-child that takes a repo-list). Likely `[HARD — meeting]` once scoped. <!-- id:ded2 -->

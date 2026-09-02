@@ -1,0 +1,11 @@
+# id:daf0
+
+Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps
+its title, lane tag, `id:` anchor, every gate marker and a pointer back here.
+**Nothing was deleted** -- the prose below is reproduced verbatim.
+
+See `docs/ledger-notes/BACKLINKS.md` for meetings that cite this id.
+
+## From TODO
+
+— the public repo is text-only (leads with `CLAUDE.md`; root `README.md` exists but is sparse) and has ZERO visuals, which undersells it for GitHub visitors. Two coupled deliverables: **(1) screenshots/recordings of each skill in action** — captures worth taking: the statusline render (model/ctx%/5h+7d quota/cost/relay segment), a `/meeting` persona round + discoveries output, the relay pool live (`RELAY_STATUS.md` Run-progress + the `🔁<round> ✓<done> ⚙<in-flight>` statusline segment + a `relay-events.jsonl tail -f`), `/projects` dashboard, `/todo-update` + `git-diary` flow, `quota-report.py --spark`. Decide medium: static PNGs (terminal screen-grabs) vs asciinema/svg-term recordings (animated, lighter in git) — lean svg-term/asciinema for terminal flows, PNG for the statusbar. Store under a committed `docs/img/` (or `assets/`); keep them small. **(2) README updates, global + per-skill** — refresh root `README.md` into a real landing page (what the toolkit is, install via `make install`, a one-line-per-skill table, embedded hero screenshots, link to `ARCHITECTURE.md`/`docs/`); update the 3 existing per-skill READMEs (`meeting/`, `git-diary-workflow/`, `todo-update/`) and CREATE missing ones for `relay/`, `projects/`, `meeting-cross/` (currently SKILL.md-only) — each a short user-facing README with its own screenshot + trigger/usage, distinct from the model-facing SKILL.md. Design qs: (a) screenshot medium + where stored + how regenerated (a `make screenshots` helper? or manual); (b) avoid leaking private data in captures (real repo names, quota numbers, paths, tokens — scrub or use a demo fixture); (c) per-skill README vs SKILL.md boundary (README = human/GitHub, SKILL.md = model contract — don't duplicate); (d) keep them from going stale (link, don't copy, the SKILL.md command surface). Scope/sequence: probably a focused docs pass, statusbar + relay + meeting first (highest-signal visuals). <!-- id:daf0 -->

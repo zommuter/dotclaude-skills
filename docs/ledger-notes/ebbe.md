@@ -1,0 +1,15 @@
+# id:ebbe
+
+Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps
+its title, lane tag, `id:` anchor, every gate marker and a pointer back here.
+**Nothing was deleted** -- the prose below is reproduced verbatim.
+
+See `docs/ledger-notes/BACKLINKS.md` for meetings that cite this id.
+
+## From TODO
+
+— **[RE-FRAMED 2026-07-24, owner-directed: reborn as Workflow-pool `pipeline()` fan-out (id:1f4f) since the off-Workflow drain driver was retired (id:93fe); the disjoint-greenlight children id:5367/2062 are substrate-agnostic and stand; off-Workflow live-residue id:7fae is moot.]** DECIDED 2026-07-19 (meeting 2026-07-19-2035-relay-drain-parallel-contract, D4/D5/D6). Fan out N executors within a drain round via **one-writer-to-main**: executors produce code+reports in their OWN worktrees only; the single driver holds the lease, merges each --no-ff serially, ticks checkboxes itself. **Mechanical fail-closed disjoint-path greenlight**: concurrent only if declared file-sets (RED spec # roadmap:XXXX / item Context) are disjoint+non-empty; re-enforce at merge (2nd worktree touched-paths vs 1st merged diff; intersection→handback, never auto-resolve); undeclarable/unknown-overlap→serial. Gated-on id:0534 (mechanical-daemon lease hole — LANDED this session, 154aa15). Route to handoff to spec (2d20). Relates id:5a39 (sibling one-writer pattern for /meeting), id:93fe, id:dc5b. **DECOMPOSED 2026-07-20 (handoff relay-20260720-144400-4669):** worktree-verifiable children id:5367 (disjoint-path greenlight, RED `tests/test_disjoint_greenlight.sh`) + id:2062 (serial one-writer integrator, RED `tests/test_drain_serial_integrator.sh`) in ROADMAP.md; live-only residue id:7fae (N>1 concurrent fan-out — needs real parallel executor agents) surfaced-as-blocked, never auto-executed. Parent = tracking line; stays open until the children close. <!-- gated-on:0534 --> **GATED-ON id:ae08 as of 2026-07-26** (meeting 2026-07-26-1922): the greenlight + one-writer integrator this item needs are built but UNREFERENCED by the engine (`grep -c` → 0), so id:ae08 must wire them first. **Re-evaluation note:** if id:cc90 (bounded serial execute→execute rechain, K≤3) delivers the single-repo drain win, concurrent fan-out may never be worth building — its remaining marginal value is wall-clock only, against a declaration discipline + four re-keyed sites + a lease change. Before deciding that retirement, check the depth-vs-width distinction (`--fabled` F7): cc90 reduces LATENCY BETWEEN DEPENDENT units, ebbe buys THROUGHPUT ACROSS INDEPENDENT ones — one substitutes for the other only on a mostly-dependent queue, which nobody has measured. <!-- gated-on:ae08 --> <!-- id:ebbe -->
+
+## From ROADMAP
+
+🚧 @container DECOMPOSED 2026-07-20 (handoff relay-20260720-144400-4669) — TRACKING LINE ONLY, work the children: verifiable id:5367 (disjoint-path greenlight) + id:2062 (serial one-writer integrator) below. Tick this parent only when the children are closed. Full context TODO.md. <!-- id:ebbe -->

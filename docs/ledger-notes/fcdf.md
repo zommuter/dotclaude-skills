@@ -1,0 +1,11 @@
+# id:fcdf
+
+Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps
+its title, lane tag, `id:` anchor, every gate marker and a pointer back here.
+**Nothing was deleted** -- the prose below is reproduced verbatim.
+
+See `docs/ledger-notes/BACKLINKS.md` for meetings that cite this id.
+
+## From TODO
+
+— a cycle makes every item on it permanently undispatchable while each one individually looks merely "gated", so nothing reports it and the starvation is silent. **Evidence (reporter's, two sessions)**: a live `158f → 412e → c21a → 158f` cycle, and an earlier `866f` `@container` cycle. **The mechanize-first trigger is met and then some** (`id:415b` determinism gate — pure-function-enough AND repeated/load-bearing): the reporter hand-rolled the DFS TWICE in one session, and I hand-rolled it a THIRD time while triaging this item, just to check whether this repo was affected. Three hand-rollings in two days of a pure graph algorithm is exactly the "mechanize it" branch. **Verified here before filing**: no cycle-detection exists anywhere (`roadmap-lint.sh`, `lib-typed-edges.sh`, `resolve-gates.sh` all clean — the only `cycle`-ish grep hits are about "recycled archive"), and `gated-on:` has TEN consumer scripts, so the blast radius of a cycle is wide. **This repo is currently CLEAN** — 45 gated nodes, 50 edges, zero cycles — so the check lands GREEN here and cannot red the suite on arrival, which makes it safe to add now rather than behind a fixture. **Build notes**: edges are comment-anchored (`<!-- gated-on:a,b -->`, form C per `lib-typed-edges.sh`); the owning id is the LAST `<!-- id: -->` on the line, never the first; read both ROADMAP.md and TODO.md since the two ledgers share one id space; report the cycle as the actual path (`a → b → c → a`), not just "a cycle exists", or the reader has to re-derive it by hand — which is the cost this item exists to remove. Relates `id:46f6` (typed edges), `id:4a64` (the `@container` deadlock, which is the same family: a gate that can never resolve). <!-- routed:cdfa --> <!-- id:fcdf -->

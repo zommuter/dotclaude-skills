@@ -1,0 +1,11 @@
+# id:d2cd
+
+Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps
+its title, lane tag, `id:` anchor, every gate marker and a pointer back here.
+**Nothing was deleted** -- the prose below is reproduced verbatim.
+
+See `docs/ledger-notes/BACKLINKS.md` for meetings that cite this id.
+
+## From TODO
+
+— across the relay/git toolchain, lock-related stalls keep costing manual intervention. Two goals: **(A) PREVENT avoidable locks** and **(B) AUTO-FIX/AUTO-RECOVER** the rest so a human never has to `rm` a lock or hand-clean a tree. Known lock surfaces to cover: (1) stale `.git/index.lock` left by a killed/OOM'd git process (cf. [[oom-local-model-session-kills]] — 6 sessions died at once) → blocks every subsequent git op until manually removed; a pre-op guard should detect a lock whose owning PID is dead (or older than a TTL) and clear it before retrying. (2) flock files — `.git-lock-push.lock`, `/tmp/claude-git-*.lock`, broker/append locks — the 30s flock timeout fails the op rather than diagnosing a dead holder; add PID-liveness + stale-age recovery and a clear error naming the holder. (3) the **fd-8 self-nesting deadlock** in `git-lock-push.sh` (a caller already holding the repo lock re-execs `8>` the same file → 30s deadlock) — id:3b18. (4) `claim.sh` leases that outlive a dead run (already TTL-expire, but verify no path leaves a permanent lease). (5) dirty-tree "soft locks" that block dispatch/integration: build-artifact false-positives (id:6366), `uv.lock` drift (id:bae5), orphan worktrees from un-`--force`d removal (id:d187). The deeper structural fix for write contention is worktree-per-session + flock'd merge (id:3558). **This item is the umbrella**: triage which lock surfaces are *avoidable by design* (eliminate) vs *need auto-recovery* (build a shared stale-lock reaper: PID-liveness + mtime-TTL, used by git-diary-workflow, relay integrator, append.sh, broker), then either close via the existing point-items or spawn new ones. Observe-before-preventing applies (cf. design heuristics) — but the manual-cost evidence already exists across the cited ids. Trigger: 2026-06-21 `/relay --afk` session (user request). <!-- children:3b18,6366,bae5,d187 --> <!-- id:d2cd -->

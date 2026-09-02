@@ -1,0 +1,11 @@
+# id:ec9a
+
+Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps
+its title, lane tag, `id:` anchor, every gate marker and a pointer back here.
+**Nothing was deleted** -- the prose below is reproduced verbatim.
+
+See `docs/ledger-notes/BACKLINKS.md` for meetings that cite this id.
+
+## From TODO
+
+— user 2026-06-16. A quick command that summarizes relay state WITHOUT launching the pool: render `RELAY_STATUS.md` (run progress, in-flight, completed, queued, blocked/handbacks) + a backlog-composition line (ROUTINE/HARD/REVIEW/HUMAN ratios, cf. inbox routed:01ac done) + the burnup one-liner ("$X · Yh wall · Z% overhead", reuses `relay-burn.sh report` + id:1a75) + live-claim/orphan summary (`claim.sh peek`, `relay/orphan/*` count). Distinct from `/relay next` (which ACTS on the cwd repo) and the autonomous pool (which dispatches) — this is pure observability. Open qs: cwd-repo vs cross-repo (`--all`) default; freshness when no pool is live (last-run snapshot vs recompute); whether it's a thin SKILL front-door section or a script (`relay-status.sh`). **Relates to the project_manager ↔ relay coupling:** the `/projects` dashboard skill + id:62f5(b) (upstream an `ownership` field into project_manager `scan.py` — relay currently classifies own-vs-clone in a sibling `discover-repos.sh`); a `/relay status` overview is the relay-side analog of `/projects` and could share the classification/ownership substrate rather than duplicate it. Also feeds the statusline runway/backlog work (id:15bd, routed:01ac) and the observability artifacts (id:c8b6). **MUST include the pool's gated-HARD-needs-/meeting list** (the `id:2d20` Blocked entries in RELAY_STATUS) so the human can see what's blocking the pool from one place — pairs with id:f6c9. <!-- id:ec9a -->

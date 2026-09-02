@@ -1,0 +1,11 @@
+# id:5bac
+
+Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps
+its title, lane tag, `id:` anchor, every gate marker and a pointer back here.
+**Nothing was deleted** -- the prose below is reproduced verbatim.
+
+See `docs/ledger-notes/BACKLINKS.md` for meetings that cite this id.
+
+## From TODO
+
+(user 2026-07-07, prompted by the discover-run backtick crash id had shipped GREEN) — build a hermetic end-to-end test that runs *actual `claude` / `/relay`* against a **fake `anthropic_endpoint`** replaying **pre-recorded LLM request/response pairs**, over a **pre-committed fixed repo fixture set**, exercising a WHOLE relay loop (prelude → discovery shards → dispatch → integrate → status) as the real harness runs it — not just the JS body under node stubs. This is the level ABOVE the 2026-07-07 stopgap (`tests/test_relay_loop_discovery_exec.sh` + `discovery-exec-harness.mjs`, which stub `agent()`/`parallel()` at the JS boundary and only cover the discovery dispatch): a record/replay endpoint would catch runtime breakage anywhere in the *real* Workflow sandbox + harness plumbing that in-repo node stubs cannot reach (the sandbox is un-runnable from bash — [[workflow-sandbox-no-mechanical-dispatch-2ec4]]). **Design Qs for the meeting:** (1) interception point — a local HTTP server bound via `ANTHROPIC_BASE_URL`/proxy env vs an SDK-level transport shim; whether `claude -p` honors a base-URL override for record + replay. (2) recording format + how to capture a golden loop (record once from a real run, redact secrets/PII, commit the cassette — cf. VCR/betamax). (3) determinism — pin model ids, strip timestamps, match requests by a stable key (prompt hash) since the loop is concurrency-ordered. (4) fixture repos — a tiny committed multi-repo set with known ROADMAP/TODO state so verdicts are predictable. (5) ToS/billing — replay must NOT hit the real API (offline by construction). (6) scope — one happy-path loop first (discovery→one execute→integrate), then failure paths. Relates to the state-machine model (id:4da4) as the oracle for expected transitions. This is the real gap-closer the backtick incident exposed; the node harness is the interim. <!-- id:5bac -->

@@ -1,0 +1,11 @@
+# id:e3bc
+
+Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps
+its title, lane tag, `id:` anchor, every gate marker and a pointer back here.
+**Nothing was deleted** -- the prose below is reproduced verbatim.
+
+See `docs/ledger-notes/BACKLINKS.md` for meetings that cite this id.
+
+## From TODO
+
+Filed 2026-08-18 (`/relay human .`, owner: "integrate + file repro follow-up") as the one genuine weakness found while checking `ecc555e` against its `id:87f5` pre-registration; the check otherwise PASSED (see `id:61f0`). `docs/relay-burn-ranking-2026-08-18.md` says so in its own Method notes: *"the one-off analysis script used for this report is not committed (read-only ad-hoc reuse of `relay-econ.py`'s own discovery + `profile-run.sh` plumbing at the raw-phase grain)"*. **What that costs:** the CATEGORY-level table IS reproducible (`relay-econ.py --json`), but the **raw-phase** table is not — and the raw-phase table is where the entire ranking lives, because `relay-econ.py`'s 4-bucket `PHASE_CAT` rollup (`work`/`status`/`scaffold`/`poll`) cannot isolate `integrate` from the rest of `work`. So the published 14.1% `integrate` share — the number the ≥25% gate was evaluated against, and the number `id:a955` vs `id:3ca7` was ordered on — currently rests on a script that no longer exists. Re-deriving it means rebuilding the analysis from scratch and hoping it lands on the same method. **Fix (either is acceptable, prefer (b)):** (a) commit the ad-hoc script under `relay/scripts/` or `tools/` as a read-only reporting helper; (b) extend `relay-econ.py` with a raw-phase lens (its `PHASE_CAT` map already holds the phase→category relation, so the finer grain is a rollup it discards rather than data it lacks) and re-point the doc's "Reproduce" line at it. Note the doc itself proposes (b) as the option worth taking "if a permanent raw-phase report becomes worth maintaining" — this item is the judgement that it is, since a pre-registered gate was settled on it. <!-- children-of:4438 --> <!-- id:e3bc -->
