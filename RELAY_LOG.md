@@ -3097,3 +3097,7 @@ failed, 2 expected-red (unrelated open items).
 Friction: none.
 refactor: none needed -- the change is additive (one new pointer-resolution block plus
 threading `match_text` through three existing checks); no duplication introduced.
+
+## 2026-09-02 17:30 — executor (sonnet, relay-loop)
+
+orphan-scan --shipped now follows -- detail: `path` pointers, matching wait_re/completion_re/UNMARKED-GATE against line+note body and refusing TICK-READY/GATE-STALE when the pointer resolves to nothing [id:1608] [id:1608]
