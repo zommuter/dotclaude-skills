@@ -108,6 +108,7 @@
 #
 # Usage:  todo-conformance.sh [--fix] [--inbox] [--strict] [--no-grammar] [<path>]
 #         todo-conformance.sh --regen-length-baseline [<path>]
+#         todo-conformance.sh --grammar-lines [<path>]   # b048 grammar only, `<lineno>TAB<class>`
 #   <path> default = <cwd repo>/TODO.md (git rev-parse --show-toplevel). REPORT-ONLY
 #   (exit 0 with findings); `--strict` → nonzero when findings remain. An unreadable path
 #   or unknown flag is a LOUD reject (nonzero). No silent `2>/dev/null` swallow (id:415b/4e14).
@@ -193,13 +194,14 @@ LOG="${TODO_CONFORMANCE_LOG:-$HOME/.claude/logs/todo-conformance.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s todo-conformance.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
-fix=0 inbox=0 strict=0 path="" regen_length=0
+fix=0 inbox=0 strict=0 path="" regen_length=0 grammar_lines=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fix)    fix=1; shift ;;
     --inbox)  inbox=1; shift ;;
     --strict) strict=1; shift ;;
     --regen-length-baseline) regen_length=1; shift ;;
+    --grammar-lines) grammar_lines=1; shift ;;
     --no-grammar) LEDGER_GRAMMAR_CHECK=0; shift ;;
     -h|--help) sed -n '2,80p' "$0"; exit 0 ;;
     --*) echo "todo-conformance.sh: unknown flag '$1'" >&2; exit 2 ;;
@@ -662,6 +664,38 @@ REGEN_HEADER
     [[ -n "$_rid" ]] || continue
     printf '%s\t%s\t%d\n' "$LENGTH_LEDGER_KEY" "$_rid" "${#line}"
   done < "$path"
+  exit 0
+fi
+
+# `--grammar-lines` (id:d667) -- the b048 LINE GRAMMAR as a per-line query, and nothing else.
+# Prints `<lineno>TAB<class> (<detail>)` for every non-conforming line in <path>, sorted by
+# line number; silent when the file conforms; always exit 0 (this is a QUERY, not a verdict).
+#
+# WHY THIS EXISTS AS A MODE rather than a caller re-deriving the grammar: the pre-commit
+# ledger-grammar ratchet (hooks/pre-commit-ledger-grammar.sh, id:d667) needs to know which
+# of a STAGED file's lines are non-conforming so it can intersect that set with the lines
+# the diff ADDED. A second copy of the grammar in the hook would drift from this one
+# SILENTLY -- the hook would keep passing exactly the shapes the grammar started rejecting.
+# So the predicate stays here, in one place, and the hook asks.
+#
+# It must be a WHOLE-FILE scan, not a per-line one: three of the heading classes
+# (heading-no-blank / heading-empty-sec / heading-eof) are decided by LOOKAHEAD, so a line
+# handed over in isolation cannot be classified at all. The caller passes the whole staged
+# blob and filters by line number afterwards.
+#
+# Exclusive mode: no length ratchet, no state-claim, no shape check, no --fix. Honors the
+# same out-of-scope carve-outs as the in-report grammar (id:2065): `--inbox` and
+# `*.archive.md` produce NO output at all.
+if [[ "$grammar_lines" -eq 1 ]]; then
+  if [[ "$LEDGER_GRAMMAR_CHECK" -eq 1 && "$inbox" -eq 0 && "$LENGTH_LEDGER_KEY" != *.archive.md ]]; then
+    grammar_scan "$path"
+    if (( ${#GRAMMAR_FIND[@]} > 0 )); then
+      for _gl in "${!GRAMMAR_FIND[@]}"; do
+        printf '%s\t%s\n' "$_gl" "${GRAMMAR_FIND[$_gl]}"
+      done | sort -n
+    fi
+  fi
+  log "grammar-lines path=$path findings=${#GRAMMAR_FIND[@]}"
   exit 0
 fi
 

@@ -69,6 +69,45 @@ Registration snippets are in the `settings.json` section below. Deeper documenta
 **Purpose:** Desktop notification when Claude needs input or a permission decision. Auto-dismisses when Claude resumes. Shows project name + short session ID; clicking "Focus Terminal" raises the window.  
 **Prerequisites:** `notify-send` (libnotify), `gdbus`, `wmctrl`, `xdotool`, a Claude icon at `~/.local/share/icons/claude.png`
 
+## Git hooks (not Claude Code hooks)
+
+Three scripts here are **git** hooks, wired through the global `core.hooksPath`
+(`~/.config/git/hooks`) by their own `make` targets -- they are not in the `settings.json`
+snippet below and `make install-hooks` does not touch them.
+
+### `pre-push-privacy-gate.sh`
+
+**Event:** git `pre-push` **Mode:** warn + LOG only, never blocks
+**Install:** `make install-privacy-gate`
+
+### `pre-commit-lane-vocab.sh`
+
+**Event:** git `pre-commit` **Mode:** HARD-DENY **Install:** `make install-lane-ratchet`
+Blocks a commit whose staged diff ADDS an old-vocabulary lane tag as a tag (not as prose).
+
+### `pre-commit-ledger-grammar.sh`
+
+**Event:** git `pre-commit`
+**Mode:** HARD-DENY -- but **SHIPS DISABLED**
+**Install (arming):** `make install-ledger-grammar-ratchet`; `make status-ledger-grammar-ratchet` reports whether it is armed
+**Purpose:** blocks a commit whose staged diff ADDS a non-conforming line to `TODO.md`,
+`ROADMAP.md` or `REVIEW_ME.md` under the `id:b048` ledger line grammar. **Unchanged lines are
+never inspected**, so the existing corpus is grandfathered structurally -- no exemption list,
+nothing to expire, and an item can only regrow by adding a line, which is exactly what the
+hook catches. Over-long titles **WARN only** (`id:64f9`: 257 existing titles are over budget).
+`*.archive.md` and the shared inbox are out of scope (`id:2065`).
+**The grammar is not reimplemented here** -- the hook asks
+`relay/scripts/todo-conformance.sh --grammar-lines`, which owns the `grammar-*` rule family.
+**Escape hatch:** `git commit --no-verify`.
+**Why it ships disabled:** `ROADMAP.md` is mid-migration under `id:40c0` and ~96%
+non-conforming; and `relay/scripts/roadmap-archive.sh` writes an `id:cd9c` stub line with text
+after the id marker, which this hook correctly blocks. Both need resolving before arming.
+**Prerequisites:** `bash`, `git`, `python3` (via `todo-conformance.sh`)
+
+Only one file may be named `pre-commit` inside `core.hooksPath`, so the lane-vocab ratchet and
+this one cannot both be armed today; `install-ledger-grammar-ratchet` refuses to clobber rather
+than silently replacing the other hook.
+
 ## settings.json registration
 
 Add to `~/.claude/settings.json` (or merge into the existing `hooks` object):

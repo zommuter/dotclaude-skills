@@ -176,6 +176,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
         install-relay-users install-relay-acls install-relay-hardened-units status-relay-hardened-units \
         install-privacy-gate install-privacy-claude-rule \
         install-lane-ratchet install-lane-ratchet-claude-rule \
+        install-ledger-grammar-ratchet status-ledger-grammar-ratchet \
         install-discovery-timer status-discovery-timer uninstall-discovery-timer \
         $(addprefix install-,$(SKILLS)) \
         $(addprefix uninstall-,$(SKILLS)) \
@@ -208,6 +209,8 @@ help:
 	@echo "  install-privacy-claude-rule  append the privacy-gate note to ~/.claude/CLAUDE.md (idempotent)"
 	@echo "  install-lane-ratchet install the global pre-commit old-vocab lane-tag ratchet (HARD-DENY) + the CLAUDE.md rule"
 	@echo "  install-lane-ratchet-claude-rule  append the lane-vocab-ratchet note to ~/.claude/CLAUDE.md (idempotent)"
+	@echo "  install-ledger-grammar-ratchet  ARM the pre-commit ledger line-grammar ratchet (id:d667; ships DISABLED)"
+	@echo "  status-ledger-grammar-ratchet   show whether the ledger line-grammar ratchet is armed"
 	@echo "  print-relay-env      preview the relay env policy entries (read-only)"
 	@echo "  uninstall            remove symlinks for all skills (local-only files preserved)"
 	@echo "  uninstall-<skill>    remove symlinks for one skill"
@@ -478,6 +481,55 @@ install-lane-ratchet-claude-rule:
 	else \
 		printf '\n' >> "$(CLAUDE_MD)"; cat "$(LANE_VOCAB_RULE_SRC)" >> "$(CLAUDE_MD)"; \
 		echo "  ok  appended lane-vocab-ratchet rule to $(CLAUDE_MD)"; \
+	fi
+
+# Ledger line-grammar ratchet pre-commit hook (id:d667). SHIPS DISABLED -- `make install` and
+# `make install-hooks` deliberately do NOT reference this target; arming it is this explicit,
+# separate act. ROADMAP.md is mid-migration under id:40c0 and ~96% non-conforming today, and a
+# hook armed against that teaches people to reach for --no-verify, which is how a guard dies.
+#
+# KNOWN COMPOSITION LIMIT, stated rather than papered over: `core.hooksPath` allows exactly ONE
+# file named `pre-commit`, and install-lane-ratchet (id:9ef7) already claims that slot. This
+# target therefore REFUSES to clobber it and says so, the same way install-privacy-gate refuses
+# a foreign hooksPath. Running both ratchets at once needs a small pre-commit dispatcher that
+# does not exist yet -- that is a separate item, not a silent overwrite here.
+install-ledger-grammar-ratchet:
+	@echo "→ installing ledger line-grammar ratchet pre-commit hook (global core.hooksPath)"
+	@mkdir -p $(GITHOOKS_DIR)
+	@cur=$$(readlink $(GITHOOKS_DIR)/pre-commit || true); \
+	if [ -e $(GITHOOKS_DIR)/pre-commit ] && [ "$$cur" != "$(SRC_DIR)/hooks/pre-commit-ledger-grammar.sh" ]; then \
+		echo "  !! $(GITHOOKS_DIR)/pre-commit is already taken by '$$cur' -- NOT overwriting."; \
+		echo "     core.hooksPath allows one 'pre-commit' file. Remove/redirect that hook first,"; \
+		echo "     or chain both from a dispatcher, then re-run this target."; \
+		exit 1; \
+	fi; \
+	ln -sf $(SRC_DIR)/hooks/pre-commit-ledger-grammar.sh $(GITHOOKS_DIR)/pre-commit; \
+	echo "  ok  pre-commit -> pre-commit-ledger-grammar.sh"
+	@existing=$$(git config --global --get core.hooksPath || true); \
+	if [ -n "$$existing" ] && [ "$$existing" != "$(GITHOOKS_DIR)" ]; then \
+		echo "  !! git core.hooksPath already set to '$$existing' -- NOT overwriting."; \
+		echo "     Add a 'pre-commit' entry there that runs $(GITHOOKS_DIR)/pre-commit, or unset it first."; \
+	else \
+		git config --global core.hooksPath $(GITHOOKS_DIR); \
+		echo "  ok  core.hooksPath -> $(GITHOOKS_DIR)"; \
+	fi
+	@echo "  note: HARD-DENY -- blocks a commit that ADDS a non-conforming line to TODO.md /"
+	@echo "        ROADMAP.md / REVIEW_ME.md under the b048 grammar. Unchanged lines are never"
+	@echo "        inspected, so the existing corpus is grandfathered structurally."
+	@echo "        Over-long titles WARN only (id:64f9). 'git commit --no-verify' escapes."
+	@echo "        Self-gated to relay-onboarded (relay.toml own-set) repos."
+	@echo "  KNOWN: relay/scripts/roadmap-archive.sh writes an id:cd9c stub with text after the"
+	@echo "         id marker, which this hook blocks. Fix that before arming for real."
+
+status-ledger-grammar-ratchet:
+	@echo "ledger-grammar ratchet (id:d667):"
+	@cur=$$(readlink $(GITHOOKS_DIR)/pre-commit 2>/dev/null || true); \
+	if [ "$$cur" = "$(SRC_DIR)/hooks/pre-commit-ledger-grammar.sh" ]; then \
+		echo "  ARMED  $(GITHOOKS_DIR)/pre-commit -> $$cur"; \
+	elif [ -e $(GITHOOKS_DIR)/pre-commit ]; then \
+		echo "  --     not armed; $(GITHOOKS_DIR)/pre-commit is '$$cur' (another hook owns the slot)"; \
+	else \
+		echo "  --     not armed (ships DISABLED; make install-ledger-grammar-ratchet)"; \
 	fi
 
 # statusline is a first-class target (mirrors install-<skill>): the quota/cost/model statusbar
