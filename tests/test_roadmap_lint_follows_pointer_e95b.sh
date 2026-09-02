@@ -108,6 +108,38 @@ grep -q 'DETAIL-POINTER-MISSING: open item id:f103' "$tmp/err" \
 grep -q 'NO-ACCEPTANCE-NO-TWIN: open item id:f104' "$tmp/err" \
   || fail "an item mentioning ANOTHER id's note as prose inherited that note's clause (err: $(cat "$tmp/err"))"
 
+# --- (e) the TWIN check follows relocated TODO bodies too -----------------------
+# The real shape that refused the shrink (id:6958): an item's only twin was a PROSE
+# MENTION inside ANOTHER item's TODO body, which the shrink relocated into that other
+# item's note. The mention must still count as a twin from there -- and only from a
+# `## From TODO` section, because a `## From ROADMAP` mention is ROADMAP prose and
+# counting it would WIDEN the exemption rather than preserve it.
+cat >>"$R" <<'MD'
+- [ ] [ROUTINE] twinned only by a prose mention relocated out of TODO <!-- id:f105 -->
+- [ ] [ROUTINE] mentioned only from a note's ROADMAP section, which is not a twin <!-- id:f106 -->
+MD
+cat >"$tmp/docs/ledger-notes/f107.md" <<'MD'
+# id:f107
+
+## From TODO
+
+Filed while verifying the id:f105 migration; nothing else tracks it here.
+
+## From ROADMAP
+
+Separately, id:f106 came up during the same sweep.
+MD
+
+set +e
+bash "$LINT" "$R" 2>"$tmp/err3" >/dev/null; rc3=$?
+set -e
+[[ $rc3 -eq 0 ]] || fail "(e) default run must exit 0, got $rc3 (err: $(cat "$tmp/err3"))"
+
+! grep -q 'NO-ACCEPTANCE-NO-TWIN: open item id:f105' "$tmp/err3" \
+  || fail "a twin relocated into a note's '## From TODO' section stopped counting as a twin (err: $(grep NO-ACCEPTANCE "$tmp/err3" | tr '\n' ' '))"
+grep -q 'NO-ACCEPTANCE-NO-TWIN: open item id:f106' "$tmp/err3" \
+  || fail "a mention in a note's '## From ROADMAP' section was counted as a TODO twin, widening the exemption (err: $(grep NO-ACCEPTANCE "$tmp/err3" | tr '\n' ' '))"
+
 # --- --strict: both findings become hard violations -----------------------------
 set +e
 bash "$LINT" --strict "$R" 2>"$tmp/err2" >/dev/null; rc_strict=$?
@@ -116,4 +148,4 @@ set -e
 grep -q 'ERROR — DETAIL-POINTER-MISSING' "$tmp/err2" \
   || fail "--strict report should be ERROR-labelled for DETAIL-POINTER-MISSING (err: $(cat "$tmp/err2"))"
 
-pass "roadmap-lint rule 3(c) follows a per-id detail pointer into docs/ledger-notes/<id>.md (id:e95b), still fires when the note carries no clause, reports a MISSING note as its own loud finding, and never follows another id's note"
+pass "roadmap-lint rule 3(c) follows a per-id detail pointer into docs/ledger-notes/<id>.md (id:e95b), still fires when the note carries no clause, reports a MISSING note as its own loud finding, never follows another id's note, and recovers a TWIN from a relocated '## From TODO' body without counting a '## From ROADMAP' mention"

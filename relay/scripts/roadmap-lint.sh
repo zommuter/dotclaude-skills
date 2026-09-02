@@ -407,12 +407,54 @@ item_has_body_clause() {
 # (e.g. "id:XXXX") also appears anywhere in the sibling TODO.md or
 # TODO.archive.md (single-id-two-views: a mirrored design-ledger entry means the
 # item IS tracked even with no inline Acceptance/Tests/Done-check block, id:213a).
+#
+# id:e95b — the search extends into RELOCATED TODO bodies. The line-shrink moves an
+# item's prose into `docs/ledger-notes/<id>.md`, and a twin is frequently only a
+# PROSE MENTION inside some OTHER item's body, so the shrink silently removed the
+# exemption from items it never touched. MEASURED 2026-09-02: `id:6958`'s only twin
+# was two mentions inside `id:cce9`'s TODO body ("Found while verifying the id:6958
+# archive migration"); relocating cce9 made 6958 fire as a new violation, and it was
+# the last thing refusing the shrink.
+#
+# Scoped to `## From TODO` sections. A note's sections are named by LOGICAL ledger
+# (D3), and `logical_ledger()` maps BOTH TODO.md and TODO.archive.md to "TODO", so
+# that heading is exactly the two files this predicate already reads. A mention in a
+# `## From ROADMAP` section is ROADMAP prose and must NOT count -- honouring the
+# heading is what keeps this a verdict-PRESERVING change rather than a widening.
+#
+# Substring matching, deliberately: this mirrors the existing `grep -qF` semantics
+# byte for byte. Whether a bare-token twin should be ANCHORED to `<!-- id:XXXX -->`
+# (the id:3743 precedent) is a real and separate question, filed rather than decided
+# here (owner 2026-09-02) -- a formatting migration must not smuggle in a change to
+# what the lint MEANS.
+_rl_note_todo_text=""
+
+# _rl_build_note_todo_text <roadmap-path> — concatenate every note's `## From TODO`
+# section into one scratch file, once. Empty (and harmless) when no notes exist.
+_rl_build_note_todo_text() {
+  local dir notes
+  dir="$(dirname "$1")"
+  notes="$dir/${LEDGER_NOTES_DIR}"
+  [[ -d "$notes" ]] || return 0
+  _rl_note_todo_text="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "[ -e '$_rl_note_todo_text' ] && rm -- '$_rl_note_todo_text'" EXIT
+  find "$notes" -maxdepth 1 -name '*.md' -print0 2>/dev/null \
+    | xargs -0 -r awk '
+        FNR == 1 { insec = 0 }
+        /^## From / { insec = ($0 ~ /^## From TODO[[:space:]]*$/); next }
+        insec { print }
+      ' >"$_rl_note_todo_text" 2>/dev/null || :
+}
+
 has_todo_twin() {
   local idtok="$1" roadmap_path="$2" dir
   [[ -z "$idtok" ]] && return 1
   dir="$(dirname "$roadmap_path")"
   grep -qF -- "$idtok" "$dir/TODO.md" 2>/dev/null && return 0
   grep -qF -- "$idtok" "$dir/TODO.archive.md" 2>/dev/null && return 0
+  [[ -n "$_rl_note_todo_text" ]] \
+    && grep -qF -- "$idtok" "$_rl_note_todo_text" 2>/dev/null && return 0
   return 1
 }
 
@@ -427,6 +469,7 @@ _rl_dir="$(dirname "$roadmap")"
 # id:e95b — detail files are resolved relative to the LEDGER's directory, the same
 # root ledger-slice.sh uses, so a fixture ROADMAP in a temp dir resolves its own notes.
 _rl_notes_root="$_rl_dir"
+_rl_build_note_todo_text "$roadmap"
 declare -A RL_GATE_ROADMAP RL_GATE_TODO RL_GATE_ARCHIVE
 typed_edges_build_state_map RL_GATE_ROADMAP "$roadmap"
 typed_edges_build_state_map RL_GATE_TODO    "$_rl_dir/TODO.md"

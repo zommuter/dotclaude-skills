@@ -287,19 +287,44 @@ def normalise_signal(rule: str) -> str:
     return rule.split("(", 1)[0].strip()
 
 
+# todo-conformance rules this gate counts but never treats as a violation (id:75c8).
+#
+# This file's own contract says it: "WHAT THIS GATE DOES NOT JUDGE. Line LENGTH is not
+# its business ... Budget enforcement is the D4 ratchet's job in todo-conformance.sh."
+# The implementation contradicted that by recording every length finding as a VIOLATION,
+# so a line that shrank from 4376 to 1974 chars -- correct, wanted, the whole point --
+# flipped from `length-grandfathered` to `length-unshrinkable` and was reported as "the
+# shrink broke the ledger grammar". MEASURED on the live run of 2026-09-02: 19 of the
+# 20 remaining fatals were this, and ALL 19 items had shrunk, none by less than 20%.
+#
+# Scoped to the two rules todo-conformance DECLARES non-blocking in its own header
+# ("`length-unshrinkable` WARN -- reported, NEVER blocking"; `length-grandfathered` WARN).
+# `length-over-budget` and `length-regrowth` are its ERRORs and stay FATAL here, so a
+# shrink that pushed a line past its baseline is still refused. Deliberately not "every
+# rule starting with length-": the ratchet's two error rules are the ones that would
+# catch this tool damaging a ledger, and waiving them to make a run pass is precisely
+# the day-one erosion the ratifying meeting warned about.
+TODO_CONFORMANCE_NONBLOCKING = frozenset(
+    ("length-unshrinkable", "length-grandfathered")
+)
+
+
 def _todo_conformance_parse(out: str, err: str, rc: int):
     records = set()
+    counts = {}
     for line in out.splitlines():
         parts = line.split("\t")
         if len(parts) < 3:
             continue
         rule, _lineno, text = parts[0], parts[1], "\t".join(parts[2:])
+        rule = normalise_signal(rule)
+        if rule in TODO_CONFORMANCE_NONBLOCKING:
+            counts[rule] = counts.get(rule, 0) + 1
+            continue
         m = ID_MARKER_RE.search(text)
         key = m.group(1) if m else "<no id>"
-        records.add(
-            (POLARITY_VIOLATION, "todo-conformance:" + normalise_signal(rule), key)
-        )
-    return records, {}, {}
+        records.add((POLARITY_VIOLATION, "todo-conformance:" + rule, key))
+    return records, counts, {}
 
 
 def _resolve_gates_argv(root: str) -> list:
