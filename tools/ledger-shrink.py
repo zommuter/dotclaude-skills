@@ -73,9 +73,32 @@ _DASH = "[-" + "\u2013" + "\u2014" + "]"
 # The lane tag, BY RULE rather than by position. The reference implementation preserves it
 # only because it usually sits left of the cut point, which is luck, not a rule: any item
 # whose lane bracket is not in the leading run loses it silently.
+#
+# id:4983 -- the dash-lane alternation used to accept ANY word after the dash
+# (`[A-Za-z0-9 _./-]+`), so it recognised undeclared tokens like `[HARD - kitchen]` that
+# `relay/scripts/classify-repo.sh`'s hand-enumerated `LANE_TAGS`/`HUMAN_GATES` tuple never
+# would -- a silent divergence `tests/test_lane_grammar_ssot.sh` pins. The sub-lane names
+# below are exactly `relay/references/hard-lanes.md`'s declared set (mirrored from
+# classify-repo.sh's own HUMAN_GATES tuple, "## The three lanes" + the INPUT table): pool /
+# meeting / hands / decision gate under [HARD], meeting / decision / access / author under
+# [INPUT]. `[INTENSIVE]` is deliberately excluded -- the SSOT states it is an orthogonal
+# resource-axis modifier, never a lane, and a consumer that anchors on it is a defect.
+_HARD_SUBNAMES = ("pool", "meeting", "hands", "decision gate")
+_INPUT_SUBNAMES = ("meeting", "decision", "access", "author")
+
+
+def _dash_lane_re(cls, subnames):
+    return re.compile(
+        r"\[" + cls + r"\s*" + _DASH + r"\s*(?:"
+        + "|".join(re.escape(n) for n in subnames)
+        + r")\]"
+    )
+
+
 _LANE_PATTERNS = [
-    re.compile(r"\[(?:ROUTINE|HARD|MECHANICAL|INTENSIVE)\]"),
-    re.compile(r"\[(?:HARD|INPUT|INTENSIVE)\s*" + _DASH + r"\s*[A-Za-z0-9 _./-]+\]"),
+    re.compile(r"\[(?:ROUTINE|HARD|MECHANICAL)\]"),
+    _dash_lane_re("HARD", _HARD_SUBNAMES),
+    _dash_lane_re("INPUT", _INPUT_SUBNAMES),
 ]
 
 # The retired VENUE-KEYED spellings the fleet is migrating away from (lane-convert.sh's
