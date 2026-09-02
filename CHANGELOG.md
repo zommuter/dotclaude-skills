@@ -10,6 +10,7 @@
 ## 2026-09-02
 
 - shrink-acceptance.py now attributes VIOLATION losses (attribute_violation_loss, mirroring attribute_dispatch_gain) so a detector going blind is FATAL, not an unconditional improvement; fixed find_item_line()'s search order bug this surfaced (id:5f34) (id:5f34)
+- orphan-scan --shipped now follows -- detail: `path` pointers, matching wait_re/completion_re/UNMARKED-GATE against line+note body and refusing TICK-READY/GATE-STALE when the pointer resolves to nothing [id:1608] (id:1608)
 
 ## 2026-09-01
 
