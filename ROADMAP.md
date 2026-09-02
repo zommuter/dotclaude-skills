@@ -1685,7 +1685,7 @@ after D1–D3") stay in TODO.md — not executor work yet.
 > the seven fail toward SILENCE; the seventh invents a wrong recommendation.
 
 - [x] [ROUTINE] **`shrink-acceptance.py` must ATTRIBUTE a lost violation, not score it as a win -- the gate is structurally blind to a detector going blind.** -- detail: `docs/ledger-notes/5f34.md` <!-- id:5f34 --> (archived — see ROADMAP.archive.md)
-- [ ] [ROUTINE] **`orphan-scan --shipped` must follow the per-id detail pointer -- it is the only consumer measured to MANUFACTURE a wrong recommendation.** -- detail: `docs/ledger-notes/1608.md` <!-- gated-on:5f34 --> <!-- id:1608 -->
+- [x] [ROUTINE] **`orphan-scan --shipped` must follow the per-id detail pointer -- it is the only consumer measured to MANUFACTURE a wrong recommendation.** -- detail: `docs/ledger-notes/1608.md` <!-- gated-on:5f34 --> <!-- id:1608 -->
   - **Acceptance**: `TICK-READY` must not fire for an item whose EXTERNAL-WAIT lexeme was relocated into its note (`id:2b4b` is the measured instance). `UNMARKED-GATE` recovers from the note likewise. The `GATE-STALE` half is `git blame` age and is NOT fixable by pointer-following -- if the spec exempts it, the exemption must be written down with its reason, not quietly omitted.
   - **Tests**: `tests/test_orphan_scan_body_reading_1608.sh` (`# roadmap:1608`)
   - **Done-check**: `tests/run-tests.sh tests/test_orphan_scan_body_reading_1608.sh` green, AND the before/after identity sets measured UNCAPPED (`ORPHAN_SCAN_LIMIT=9999 ORPHAN_SCAN_SHIPPED_AGE_DAYS=0`) -- at the default cap of 10 both sides return 10 rows with different membership, which reads as a composition change and is pure artifact.
