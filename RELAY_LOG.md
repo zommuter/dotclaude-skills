@@ -3116,3 +3116,7 @@ hand-enumerated `LANE_TAGS`/`HUMAN_GATES` and `relay/references/hard-lanes.md`.
 `tests/test_lane_grammar_ssot.sh` (roadmap:4983) went green; full suite 561
 passed, 0 failed, 1 expected-red.
 Friction: none.
+
+## 2026-09-02 17:52 — executor (sonnet, relay-loop)
+
+id:4983 -- ledger-shrink.py's _LANE_PATTERNS now recognises exactly the declared lane-token set from hard-lanes.md (no undeclared sub-lane names like "kitchen"); test_lane_grammar_ssot.sh green, full suite 561 passed / 0 failed / 1 expected-red. [id:4983]
