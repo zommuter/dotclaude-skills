@@ -3101,3 +3101,7 @@ threading `match_text` through three existing checks); no duplication introduced
 ## 2026-09-02 17:30 — executor (sonnet, relay-loop)
 
 orphan-scan --shipped now follows -- detail: `path` pointers, matching wait_re/completion_re/UNMARKED-GATE against line+note body and refusing TICK-READY/GATE-STALE when the pointer resolves to nothing [id:1608] [id:1608]
+
+## 2026-09-02 17:48 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:1608 verified green (spec unmodified since handoff; negative case re-run by hand against ba1880ba, all 5 cases red pre-fix); no gaming flags; typed 8524's prose-only saturation gate onto 2d17; 2 REVIEW_ME boxes [id:1608,8524,a9c5]
