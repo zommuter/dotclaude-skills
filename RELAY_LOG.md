@@ -3039,3 +3039,7 @@ structure.
 ## 2026-09-01 11:38 — executor (sonnet, relay-loop)
 
 tracker: id:59c5 -- children-of:/children: now resolve to one relation in ledger-map.py's assemble(); golden fixtures regenerated; fixed a downstream Plane-adapter test assertion whose premise the fix invalidated [id:59c5]
+
+## 2026-09-02 14:15 — handoff (claude-opus-5)
+
+handoff: C2 promoted 5 shrink-programme gaps; C3 red specs for id:5f34, id:1608, id:4983
