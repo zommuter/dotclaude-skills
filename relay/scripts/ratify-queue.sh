@@ -170,6 +170,15 @@ with open(path, encoding="utf-8", errors="replace") as fh:
             flat(rec.get("summary", "")), flat(pending),
             # id:99b7(b) — the retire reason, LAST so no older reader's positions shift.
             flat(rec.get("retire_reason", "")),
+            # id:3c04 — the RESOLVE note. `resolve --note` has always WRITTEN this field
+            # and nothing ever projected it, so it was write-only: `list` and `show` print
+            # `reason`, which is empty for a resolved entry, and the note existed only in
+            # the raw JSONL. That matters because the docstring's semantics ("the owner
+            # pushes, that IS the ratification") are what a reader applies to a resolved
+            # entry -- so a resolve carrying a disqualifying note read as a clean owner
+            # sign-off. Measured 2026-09-02: 17 entries resolved with a note recording that
+            # publication was INVOLUNTARY, none of it visible through the tool.
+            flat(rec.get("resolved_note", "")),
         ]
         # US (0x1f), NOT tab: a TAB is an IFS-*whitespace* character, so bash's
         # `IFS=$'\t' read` COLLAPSES consecutive tabs and an empty field (bump="" on a
@@ -409,7 +418,7 @@ case "$cmd" in
     rc=0
     recs="$(_read_records)" || rc=$?
     count=0
-    while IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason; do
+    while IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason note; do
       [ -n "${lineno:-}" ] || continue
       [ "$show_all" = 1 ] || [ "$status" = pending ] || continue
       [ -z "$filter_repo" ] || [ "$repo" = "$filter_repo" ] || continue
@@ -438,8 +447,12 @@ case "$cmd" in
           # id:99b7(b) — a RETIRED entry is closed WITHOUT the remote carrying it, so the
           # status alone is not enough: print the recorded reason right beside it, or the
           # listing reads identically to a genuine, verified resolve.
-          if [ -n "$reason" ]; then
-            printf '%-28s   ^ status=%s — %s\n' "" "$status" "$reason"
+          # id:3c04 — a RESOLVED entry may carry a note that DISQUALIFIES the plain reading
+          # ("the owner reviewed and pushed this"). Print it in the same slot as the retire
+          # reason: an unread disqualifier is the same as no disqualifier.
+          _closed_why="${reason:-$note}"
+          if [ -n "$_closed_why" ]; then
+            printf '%-28s   ^ status=%s -- %s\n' "" "$status" "$_closed_why"
           else
             printf '%-28s   ^ status=%s\n' "" "$status"
           fi
@@ -464,7 +477,7 @@ case "$cmd" in
   show)
     key="${1:-}"; [ -n "$key" ] || die "usage: ratify-queue.sh show <ckpt|merged-sha>"
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason note <<< "$line"
     printf 'repo      %s\n'  "$repo"
     printf 'path      %s\n'  "$path"
     printf 'merged    %s\n'  "$merged"
@@ -487,6 +500,16 @@ case "$cmd" in
     if [ "$status" = retired ]; then
       printf 'retired   %s\n' "${reason:-<no reason recorded — this should be impossible>}"
       printf 'note      CLOSED WITHOUT PUBLISHING: the remote does NOT carry %s and never will.\n' "$merged"
+      exit 0
+    fi
+    # id:3c04 — a RESOLVED entry is CLOSED. Two bugs lived here: its `--note` was never
+    # shown (so a disqualifying note was invisible), and the push/resolve/retire action
+    # lines below printed anyway, so a closed entry read as outstanding work. Both make a
+    # settled record look like something it is not, which is the failure this queue exists
+    # to prevent.
+    if [ "$status" = resolved ]; then
+      [ -n "$note" ] && printf 'note      %s\n' "$note"
+      printf 'resolved  the remote demonstrably carries %s; nothing outstanding.\n' "$merged"
       exit 0
     fi
     if [ -n "$pending" ]; then
@@ -514,7 +537,7 @@ case "$cmd" in
       shift || true
     done
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason note <<< "$line"
     res="$(_verify_pending "$path" "$merged" "$ckpt" "$remote" "$pending")"
     while IFS=' ' read -r v_verdict v_remote v_ref; do
       [ -n "${v_verdict:-}" ] || continue
@@ -538,7 +561,7 @@ case "$cmd" in
     done
 
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason note <<< "$line"
     # id:99b7(b) — never re-close a closed entry. A retired entry in particular must not be
     # re-opened into "resolved": its whole record is that the remote does NOT carry it.
     _require_pending resolve "$status" "$key"
@@ -633,7 +656,7 @@ PYEOF
     fi
 
     line="$(_find_one "$key")"
-    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason <<< "$line"
+    IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason note <<< "$line"
     _require_pending retire "$status" "$key"
 
     _flock_acquire
