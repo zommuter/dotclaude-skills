@@ -371,13 +371,33 @@ LEDGER_NOTES_DIR="${LEDGER_NOTES_DIR:-docs/ledger-notes}"
 # detail path when the head line or body points at it, else nothing. Detection
 # keys on the PATH, not on the pointer's prose or dash, so a markdown link, a
 # backticked path and a bare mention all resolve the same way.
+#
+# SELF-CONFIGURING (loderite finding, 2026-09-02): the directory is DERIVED from the
+# pointer the line already carries, not read from config. The first cut of this built
+# `rel="${LEDGER_NOTES_DIR}/${idtok}.md"` and compared that STRING against the line, so
+# it silently did nothing in any repo whose pointers spell a different directory --
+# loderite's say `docs/roadmap-notes/`, and the check was measured inert there while
+# reporting 19 findings that looked entirely real. A symlink cannot fix that (the
+# comparison is on the string, not the filesystem), and a bare parameter only moves the
+# failure from "wrong default" to "unset everywhere", which is indistinguishable in the
+# output -- the id:d35a silent-no-op class. The path is right there on the line; read it.
+#
+# Still anchored to the item's OWN id (`/<id>.md`), so a reference to another id's note
+# is prose, not this item's spec. LEDGER_NOTES_DIR remains as an override for the case an
+# item has no pointer yet.
 item_detail_path() {
-  local idtok="${1#id:}" start="$2" end="$3" rel k
+  local idtok="${1#id:}" start="$2" end="$3" k hit
   [[ -z "$idtok" ]] && return 0
-  rel="${LEDGER_NOTES_DIR}/${idtok}.md"
   for ((k = start - 1; k < end; k++)); do
-    [[ "${_rl_lines[$k]}" == *"$rel"* ]] && { printf '%s' "$rel"; return 0; }
+    # `-m1` rather than `| head -1`: piping into an early-exiting consumer under pipefail
+    # lets SIGPIPE become the pipeline's status (id:81d5). A here-string is not a pipe.
+    hit="$( { grep -oP -m1 "[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*/${idtok}\.md" <<<"${_rl_lines[$k]}" || true; } )"
+    [[ -n "$hit" ]] && { printf '%s' "$hit"; return 0; }
   done
+  # No pointer on the line: fall back to the configured directory, which is the only
+  # thing left to try and is exactly the "item has no pointer yet" case.
+  [[ -f "$_rl_notes_root/${LEDGER_NOTES_DIR}/${idtok}.md" ]] \
+    && printf '%s' "${LEDGER_NOTES_DIR}/${idtok}.md"
   return 0
 }
 
@@ -431,18 +451,31 @@ _rl_note_todo_text=""
 
 # _rl_build_note_todo_text <roadmap-path> — concatenate every note's `## From TODO`
 # section into one scratch file, once. Empty (and harmless) when no notes exist.
+# The heading whose section counts as relocated TODO body. Parameterised, not hardcoded:
+# `## From TODO` is THIS repo's D3-ratified naming, and loderite's 188 existing notes are
+# headed `## Continuation detail (verbatim, moved from TODO.md)`. Rewriting 188 headings is
+# a migration with its own silent-drop risk, so the reader bends instead of the corpus.
+LEDGER_NOTE_TODO_SECTION_RE="${LEDGER_NOTE_TODO_SECTION_RE:-^## From TODO[[:space:]]*$}"
+
 _rl_build_note_todo_text() {
-  local dir notes
+  local dir notes derived
   dir="$(dirname "$1")"
-  notes="$dir/${LEDGER_NOTES_DIR}"
+  # Derive the notes directory from a pointer the ledgers actually carry, for the same
+  # reason item_detail_path does; config is the fallback, not the source of truth.
+  # No `head` anywhere in this pipeline (id:81d5): `sort -rn` then `awk NR==1{...;exit}`
+  # reads its input to completion, so nothing upstream can take SIGPIPE.
+  derived="$( { grep -ohP "[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*(?=/[0-9a-f]{4}\.md)" \
+      "$dir/ROADMAP.md" "$dir/TODO.md" 2>/dev/null || true; } \
+      | sort | uniq -c | sort -rn | awk 'NR==1 {print $2}')"
+  notes="$dir/${derived:-$LEDGER_NOTES_DIR}"
   [[ -d "$notes" ]] || return 0
   _rl_note_todo_text="$(mktemp)"
   # shellcheck disable=SC2064
   trap "[ -e '$_rl_note_todo_text' ] && rm -- '$_rl_note_todo_text'" EXIT
   find "$notes" -maxdepth 1 -name '*.md' -print0 2>/dev/null \
-    | xargs -0 -r awk '
+    | xargs -0 -r awk -v re="$LEDGER_NOTE_TODO_SECTION_RE" '
         FNR == 1 { insec = 0 }
-        /^## From / { insec = ($0 ~ /^## From TODO[[:space:]]*$/); next }
+        /^## / { insec = ($0 ~ re); next }
         insec { print }
       ' >"$_rl_note_todo_text" 2>/dev/null || :
 }

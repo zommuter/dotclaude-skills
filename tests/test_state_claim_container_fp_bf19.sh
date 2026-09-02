@@ -147,7 +147,12 @@ $l_self
 $l_self_closed
 MD
 
-tout="$(bash "$TODOC" "$T" 2>/dev/null)"
+# Scoped to THIS rule's findings (id:30fe): todo-conformance emits several independent
+# rules per line, and the structural `shape-prose` check legitimately fires on these
+# fixtures (they are deliberately prose-carrying). Asserting "nothing mentions this id"
+# asserts the behaviour of every OTHER rule in the file too, which is not this test's
+# subject and made it fail the moment a new rule landed.
+tout="$(bash "$TODOC" "$T" 2>/dev/null | grep -v '^shape-prose' || true)"
 ! grep -qP '\bid:d001\b' <<<"$tout" || fail "todo-conformance.sh fired on @container item d001: $tout"
 ! grep -qP '\bid:d002\b' <<<"$tout" || fail "todo-conformance.sh fired on @container item d002: $tout"
 ! grep -qP '\bid:d003\b' <<<"$tout" || fail "todo-conformance.sh fired on other-id-scoped item d003: $tout"

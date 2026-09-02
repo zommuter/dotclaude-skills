@@ -186,6 +186,93 @@ head_refusable() {
 
 # LENGTH_BASELINE_MAP["<ledger>/<id>"] = baselined length. Loaded ONCE (a per-line grep over
 # an 800-entry file would be 800 greps per run).
+# --- STRUCTURAL SHAPE CHECK (id:30fe) ----------------------------------------------
+#
+# The owner's bar, stated 2026-09-02 once the wave-1 shrink had landed: an item line
+# carries ONLY a lane tag, gate markers, its `id:` anchor, a short title and a detail
+# pointer -- and NO PROSE. The D4 length ratchet above cannot express that. Length is a
+# single number, and a 237-char line can be perfectly conforming or entirely prose; the
+# ratchet reports both identically. This rule asks the structural question instead.
+#
+# METHOD: strip every ALLOWED component and report whatever text survives. That direction
+# matters. A positive grammar ("the line must MATCH this regex") fails closed on every
+# shape nobody anticipated, and this ecosystem keeps growing marker vocabulary -- loderite
+# alone carries `lint-ok:`, `xgate:` and `children-of:` that this repo has never seen.
+# Stripping what is allowed and reporting the remainder degrades gracefully: an unknown
+# HTML comment is stripped structurally (the c5d78046 rule -- an html comment IS metadata
+# by construction here, and item prose never uses one), so a new marker type costs a
+# little under-reporting rather than a wall of false violations.
+#
+# The allowed set is deliberately taken from LENGTH_MUST_KEEP_RE rather than re-listed.
+# That regex is already the mirror of the shrinker's keep-set, and a THIRD hand-maintained
+# copy of the same vocabulary is precisely the drift shape that produced this whole class
+# of defect (loderite measured its own mirror having already drifted from its shrinker's
+# list on 2026-09-02). One mirror is a liability; two is a guarantee.
+#
+# SEVERITY: WARN, reported and never blocking. 460 of 840 item lines fail this today
+# (measured on `3ef0be1d`: TODO 359/692 conforming, ROADMAP 11/127, REVIEW_ME 10/21), so
+# an ERROR would be a migration rather than a guard -- the same reasoning the length rule
+# gives for not being flat. It becomes an ERROR when `id:6546` (strict-shape wave 2) has
+# driven the count to zero, which is a deliberate separate act like a baseline regen.
+#
+# NOT added to shrink-acceptance.py's TODO_CONFORMANCE_NONBLOCKING set, deliberately: that
+# set exists for rules whose MESSAGE carries a moving measurement, and this rule's identity
+# is stable. A shape violation that NEWLY fires for an item across a shrink is a real
+# regression and the gate should refuse on it.
+# Matches ANY directory, not just `docs/ledger-notes` -- loderite's pointers say
+# `docs/roadmap-notes`, and a check that only recognises its own repo's spelling reports
+# every foreign pointer as prose. Keyed on the trailing `/<4-hex>.md`, which is the part
+# the format actually fixes.
+SHAPE_POINTER_RE='[[:space:]]*-{1,2}[[:space:]]*detail:[[:space:]]*`?[A-Za-z0-9_./-]*/[0-9a-f]{4}\.md`?'
+
+# shape_residue <line> → the prose surviving after every allowed component is removed.
+SHAPE_TITLE_MAX="${SHAPE_TITLE_MAX:-200}"
+
+shape_residue() {
+  local l="$1" bold title s
+  s="$(sed -E 's/^-[[:space:]]\[[[:space:]xX]\][[:space:]]*//' <<<"$l")"
+  s="$(sed -E 's/<!--[^>]*-->//g' <<<"$s")"            # structural: ALL html comments
+  s="$(sed -E "s#${SHAPE_POINTER_RE}##g" <<<"$s")"
+  s="$(sed -E "s/${LENGTH_MUST_KEEP_RE}//g" <<<"$s")"  # lanes, gates, @markers -- one mirror
+  # THE TITLE. First a bold run if there is one -- and only the FIRST: a second bold run is
+  # prose wearing emphasis, which is exactly how `**RED SPEC LANDED 2026-08-13**` survived
+  # wave 1 on dozens of lines.
+  #
+  # With NO bold run, the title is the leading text up to the first sentence or clause
+  # boundary. That is the owner's ratified titling rule (2026-09-02) and this predicate
+  # must agree with the shrinker's, or the checker demands a shape the tool will not
+  # produce -- the same composition rule head_refusable() documents. 183 open items have no
+  # bold run; without this branch every one of them reports its own TITLE as prose, and so
+  # does every bold-less fixture in the suite.
+  bold="$( { grep -oP -m1 '\*\*[^*]+\*\*' <<<"$s" || true; } )"
+  if [[ -n "$bold" ]]; then
+    s="${s/"$bold"/ }"
+  else
+    # Cut at the FIRST `. ` / ` -- ` / `: ` / `; `; with no boundary the whole run is the
+    # title. Non-greedy, so an item with several sentences yields the first, not the last.
+    title="$( { grep -oP -m1 '^.*?(?=\.[[:space:]]|[[:space:]]--[[:space:]]|:[[:space:]]|;[[:space:]])' <<<"$s" || true; } )"
+    [[ -z "$title" ]] && title="$s"
+    # A title longer than this is not a title -- it is an unpunctuated paragraph. The
+    # length ratchet catches the extreme cases; this catches the 400-char middle.
+    (( ${#title} > SHAPE_TITLE_MAX )) && title="${title:0:SHAPE_TITLE_MAX}"
+    s="${s#"$title"}"
+  fi
+  # Drop pure punctuation and whitespace: a stripped line legitimately leaves separators
+  # behind (`--`, `()`, backticks) and those are not prose.
+  sed -E 's/[[:space:][:punct:]]+//g' <<<"$s"
+}
+
+# shape_class <line> → "" | "shape-prose (<n> chars ...)"
+shape_class() {
+  local l="$1" r
+  [[ "$l" =~ ^-\ \[[\ xX]\]\  ]] || return 0
+  r="$(shape_residue "$l")"
+  # 8 chars of slack: a stray word fragment left by an unrecognised marker is not worth a
+  # finding, and the threshold keeps the rule from firing on its own stripping artefacts.
+  (( ${#r} > 8 )) || return 0
+  echo "shape-prose (${#r} chars of prose outside lane/gate/id/title/pointer; id:30fe)"
+}
+
 declare -A LENGTH_BASELINE_MAP=()
 LENGTH_RATCHET_ON=0
 LENGTH_LEDGER_KEY=""
@@ -384,7 +471,11 @@ scan_path() {
     if [[ "$LENGTH_RATCHET_ON" -eq 1 ]]; then
       lr="$(length_ratchet_class "$line")"
     fi
-    if [[ -z "$cls" && -z "$sc" && -z "$dp" && -z "$lr" ]]; then continue; fi
+    # Structural shape check (id:30fe). Independent of the length ratchet on purpose: it
+    # asks a different question, it needs no baseline, and it must still run in a repo
+    # that has no baseline file at all (loderite today). WARN-only -- see the header.
+    sh="$(shape_class "$line")"
+    if [[ -z "$cls" && -z "$sc" && -z "$dp" && -z "$lr" && -z "$sh" ]]; then continue; fi
     if [[ -n "$cls" ]]; then
       findings=$((findings+1)); strict_findings=$((strict_findings+1))
       out_lines+=("$(printf '%s\t%d\t%s' "$cls" "$lineno" "$line")")
@@ -424,6 +515,12 @@ scan_path() {
         length-regrowth*)    strict_findings=$((strict_findings+1)) ;;  # id:0d7c REGROWTH
       esac
       out_lines+=("$(printf '%s\t%d\t%s' "$lr" "$lineno" "$line")")
+    fi
+    if [[ -n "$sh" ]]; then
+      findings=$((findings+1))
+      # NEVER escalates today: 460 of 840 lines fail it, so --strict would refuse every
+      # commit until id:6546 lands. Promoting it to ERROR is that item's closing act.
+      out_lines+=("$(printf '%s\t%d\t%s' "$sh" "$lineno" "$line")")
     fi
   done < "$path"
   return 0   # the while's EOF-exit status (1) must not become scan_path's return (set -e)

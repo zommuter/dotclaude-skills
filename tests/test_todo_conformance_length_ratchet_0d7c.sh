@@ -56,9 +56,15 @@ cuttable() { # <id> <filler-repeats>
 
 run() { # <flags...> -- runs the linter, captures stdout/stderr/rc
   set +e
-  "$SH" "$@" > "$tmp/out.txt" 2> "$tmp/err.txt"
+  "$SH" "$@" > "$tmp/raw.txt" 2> "$tmp/err.txt"
   rc=$?
   set -e
+  # This file specs the LENGTH ratchet only. todo-conformance emits several independent
+  # rules per line, and the structural `shape-prose` check (id:30fe) fires on these
+  # fixtures by design -- their filler IS prose, which is what makes them cuttable. Every
+  # assertion below is of the form "this line must be silent", so leaving another rule's
+  # findings in the stream makes this test assert that rule's behaviour too.
+  grep -v '^shape-prose' "$tmp/raw.txt" > "$tmp/out.txt" || true
 }
 
 # ---------------------------------------------------------------------------
