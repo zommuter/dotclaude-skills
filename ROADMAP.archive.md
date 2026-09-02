@@ -4471,3 +4471,107 @@ with their existing ids (single-id-two-views); `id:7986` is primary, `id:da51` r
   - **Acceptance**: a child-side `<!-- children-of:P -->` on C and a parent-side `<!-- children:C -->` on P produce the SAME imported fact -- in both cases C names P and P names C in a structural edge field. Existing single-direction ledgers keep working, `tracker/fixtures/expected/*.json` are regenerated in the same commit, and `tests/test_tracker_golden_fixture.sh` + `tests/test_tracker_schema_drift_roundtrip.sh` stay green.
   - **Done-check**: `bash tests/test_ledger_map_spelling_symmetry_59c5.sh` exits 0 (RED today, at assertion (a) `childside_parent_names_child=0`), then tick this box and `make test` is fully green.
   - **Representation is the implementer's call** -- mirror on import, add a reconciliation pass after `assemble()`, or resolve at read time. The spec asserts the OBSERVABLE and excludes `body`/`title`/`sources` because `body` retains the raw marker verbatim and makes a substring match vacuous. **Do NOT resolve this by DROPPING the parent-side `children` list**: symmetry-by-deletion satisfies clause (c) while re-introducing the data loss id:8302 fixed, which is why the spec requires both directions to be `1`, not merely equal.
+
+- [x] [ROUTINE] Review→execute chaining within a pool — **emit a `review→execute re-enqueue` EVENT into `relay-events.jsonl`** -- detail: `docs/ledger-notes/b8ae.md` <!-- id:b8ae -->
+
+## Model probe (id:dba3 deliverable)
+Sub-items of the `[HARD — strong model]` umbrella id:dba3. Design fully settled in
+`docs/meeting-notes/2026-06-17-0836-opus-degradation-investigation.md` (D2/D5/D6) and
+`docs/meeting-notes/2026-06-17-0905-model-probe-tos-and-band.md` (D1/D2). Promoted to
+ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `[HARD]`.
+- [x] [INPUT - access] **Build the ebd0 privacy pre-push gate** -- detail: `docs/ledger-notes/ebd0.md` <!-- id:ebd0 -->
+
+- [x] [INPUT - decision] **Pre-register the burn-ranking decision rule — THE GATE that orders id:a955 and id:3ca7** -- detail: `docs/ledger-notes/87f5.md` <!-- children-of:1f4f --> <!-- id:87f5 --> gated-on:87f5 gated-on:4438
+
+- [x] [ROUTINE] **Run the burn measurement and publish the per-phase ranking (measurement half of `id:87f5`)** -- detail: `docs/ledger-notes/4438.md` <!-- children-of:87f5 --> <!-- gated-on:87f5 --> <!-- id:4438 -->
+
+- [x] [ROUTINE] **`top_intensive`'s human-gated exclusion list is OLD-VOCAB ONLY — a new-vocab human-gated `[INTENSIVE]` item will be auto-dispatched** -- detail: `docs/ledger-notes/7517.md` <!-- routed:2d94 --> `@owner-gated` `@container` 🚧 <!-- routed:34a2 --> @owner-gated <!-- id:7517 -->
+
+- [x] [HARD] **L1 — mechanize the integrator into one `integrate.sh` relay-mech hop** -- detail: `docs/ledger-notes/a955.md` <!-- children-of:1f4f --> <!-- gated-on:4438 --> <!-- id:a955 --> 🚧 gated-on:87f5 gated-on:4438
+
+- [x] [ROUTINE] **Teach the generic `roadmap-archive.sh` to LEAVE a one-line stub per moved item** -- detail: `docs/ledger-notes/cd9c.md` <!-- routed:f833 --> gated-on:cd9c <!-- id:cd9c --> <!-- id:XXXX -->
+
+- [x] [ROUTINE] **`md-merge.py update-ids` must ASSERT the id:6059 multi-marker REFUSAL — redefined 2026-08-20 (owner ruling, `/relay human --all`), supersedes the original last-vs-first own-id spec.** -- detail: `docs/ledger-notes/cc7e.md` <!-- id:XXXX --> <!-- id:cc7e -->
+
+- [x] [ROUTINE] **Make `@owner-gated` a FIRST-CLASS exclusion in `lib-roadmap-sections.sh` — the PREREQUISITE for `id:6446`** -- detail: `docs/ledger-notes/f391.md` @owner-gated <!-- id:f391 -->
+
+- [x] [HARD] **`scan-routed.sh --apply` silently DELETED inbox items whose token was merely quoted in a sibling item's prose — the twin check now requires the token to be a line's OWN marker** -- detail: `docs/ledger-notes/c97c.md` <!-- id:c97c -->
+
+- [x] [ROUTINE] **Author the systemd units + hardening for the two relay service users (authoring half of `id:8e7a`)** -- detail: `docs/ledger-notes/5bef.md` <!-- children-of:8e7a --> <!-- id:5bef -->
+
+- [x] [ROUTINE] **Re-dispatch of an item that already has a prior attempt's branch carrying commits must REFUSE and surface, and integrate must compare against any sibling branch for the same item.** -- detail: `docs/ledger-notes/dd7d.md` <!-- routed:d99c --> <!-- routed:678c --> <!-- id:dd7d -->
+
+- [x] [ROUTINE] **`tests/test_run_tests_parallel.sh` is itself load-flaky — its `-j 1`/`NESTED` seriality checks intermittently observe 2 when they require 1** -- detail: `docs/ledger-notes/f875.md` <!-- id:f875 -->
+
+- [x] [ROUTINE] **Mechanical `core.hooksPath` shadowing detector across the relay own-set** -- detail: `docs/ledger-notes/2bc6.md` <!-- id:2bc6 -->
+
+- [x] [ROUTINE] **`md-merge.py`: add insert-relative-to-id and an IN-LOCK line transform — the mandated flock path cannot express what agents actually need** -- detail: `docs/ledger-notes/f26d.md` <!-- routed:f88b --> <!-- routed:9aaf --> <!-- id:f26d -->
+
+- [x] [ROUTINE] **UNTRACKED-only dirt no longer blocks relay dispatch or integration; TRACKED dirt still does** -- detail: `docs/ledger-notes/27b4.md` <!-- id:27b4 -->
+
+- [x] [ROUTINE] **A POST-PUSH integrate failure is no longer misread as a retryable defer** -- detail: `docs/ledger-notes/5fe2.md` <!-- id:5fe2 -->
+
+- [x] [ROUTINE] **The `id:4f9b` prompt-size gate UNDER-COUNTS by ~50% — it never counts `TODO.md`** -- detail: `docs/ledger-notes/b018.md` <!-- id:b018 -->
+
+- [x] [ROUTINE] **Orchestrator writes the ledger SLICE to a tmp file and hands the child a PATH — the child can no longer over-read, because the bytes are not in its prompt** -- detail: `docs/ledger-notes/e68f.md` <!-- id:e68f -->
+
+- [x] [ROUTINE] **URGENT — prompt-size gate must measure the `id:e68f` SLICE when one exists (this repo was un-dispatchable)** -- detail: `docs/ledger-notes/35b7.md` <!-- id:35b7 --> <!-- relates:b018 --> <!-- relates:e68f -->
+
+- [x] [ROUTINE] **`id:e68f`'s slicer bounded an item block by INDENTATION, so column-0 acceptance criteria were silently dropped** -- detail: `docs/ledger-notes/b015.md` <!-- id:b015 -->
+
+- [x] [ROUTINE] **Suppression must DEMOTE the verdict, not DROP the unit — a stuck item starves every lower verdict class indefinitely** -- detail: `docs/ledger-notes/bc2b.md` <!-- id:bc2b -->
+
+- [x] [ROUTINE] **`drained` must distinguish FINISHED from HUMAN-BLOCKED — two repos with 31 open items between them read as done** -- detail: `docs/ledger-notes/4a76.md` <!-- id:4a76 -->
+
+- [x] [ROUTINE] **Remove the `pipefail` + early-exiting-pipe-consumer race repo-wide, and lint it so it cannot return** -- detail: `docs/ledger-notes/81d5.md` <!-- relates:7518 --> <!-- id:81d5 -->
+
+- [x] [ROUTINE] **POOL-BLOCKING — the mechanized TODO-twin tick wrote `TODO.md` but nothing staged or committed it, wedging the repo permanently** -- detail: `docs/ledger-notes/e82e.md` <!-- id:e82e -->
+
+- [x] [ROUTINE] **The `id:7575` hardened brief asserted a slicer defect `id:b015` had already removed** -- detail: `docs/ledger-notes/31c3.md` <!-- id:31c3 -->
+
+- [x] [ROUTINE] **Destructive-git PreToolUse guard — `hooks/destructive-git-guard.py`** -- detail: `docs/ledger-notes/3a09.md` <!-- id:3a09 -->
+
+- [x] [ROUTINE] **Destructive-git guard: the `discovery-producer` daemon is no longer read as an unattended run** -- detail: `docs/ledger-notes/6f62.md` <!-- id:6f62 -->
+
+- [x] [ROUTINE] **Destructive-git guard: a malformed PreToolUse payload no longer FAILS OPEN** -- detail: `docs/ledger-notes/3866.md` <!-- id:3866 -->
+
+- [x] [ROUTINE] **Destructive-git guard: a fresh heartbeat marker with an unusable `runId` is now a probe ERROR, not a non-signal** -- detail: `docs/ledger-notes/8987.md` <!-- id:8987 -->
+
+- [x] [ROUTINE] **Destructive-git guard no-drift test pins the RULE, not one spelling** -- detail: `docs/ledger-notes/4c14.md` <!-- id:4c14 -->
+
+- [x] [ROUTINE] **Version the last unmanaged hook — `rm-force-guard.sh`** -- detail: `docs/ledger-notes/5218.md` <!-- id:5218 -->
+
+- [x] [HARD] Em-dash delimiter migration S0 — build `relay/scripts/lane-delimiter-scan.sh`, the mechanical completion detector that distinguishes a LIVE lane tag from a backtick'd/prose mention (must reuse `roadmap-lint.sh`'s `leading_lane_run` anchoring exactly, not reimplement it); load-bearing for every later seam's rollback/half-applied detection, must land first. -- detail: `docs/ledger-notes/70bc.md` <!-- id:70bc -->
+
+- [x] [HARD] Em-dash delimiter migration S1 — flip `relay/references/hard-lanes.md` to hyphen delimiters, change all six scrape regexes (across `lane-convert.sh`, `roadmap-lint.sh`, `pre-commit-lane-vocab.sh`) to an explicit two-delimiter alternation, and DELETE all six hardcoded vocabulary fallbacks in favour of a loud non-zero exit; MUST land as one atomic commit (a split window makes the SSOT read new while readers silently enforce old). -- detail: `docs/ledger-notes/71d6.md` <!-- gated-on:70bc --> <!-- id:71d6 -->
+
+- [x] [HARD] Em-dash delimiter migration S2 — fix `gather-repo-state.sh`'s backwards lane-vocabulary map (`:337-351`) and its three `[INTENSIVE — ]` hardcodes (`:361/364/378`) to canonicalize on the hyphen spelling while accepting both delimiters on input; author the new RED spec pinning the canonical spelling (`tests/test_gather_lane_canonical_delimiter.sh` does not exist yet — writing it is part of this seam, and its RED evidence must be captured before the fix). -- detail: `docs/ledger-notes/098a.md` <!-- gated-on:71d6 --> <!-- id:098a -->
+
+- [x] [ROUTINE] Em-dash delimiter migration S3 — make `hooks/pre-commit-lane-vocab.sh`'s ratchet delimiter-agnostic by deriving `old_vocab_replacement` from the same SSOT scrape that populates `all_lane_tags`, keyed on the LANE NAME rather than the delimiter byte; must land before any ledger rewrite (S9) or the ratchet is disarmed silently. -- detail: `docs/ledger-notes/2ee5.md` <!-- gated-on:098a --> <!-- id:2ee5 -->
+
+- [x] [ROUTINE] Em-dash delimiter migration S4 — convert the em-dash lane-tag match patterns in the 12 remaining `relay/scripts/*.sh` readers (incl. `lane-convert.sh`'s own `[INTENSIVE — ]` regexes and the `todo-conformance.sh` `'[HARD-'` defect) to the two-delimiter alternation; do it in two batches of 6 files. <!-- gated-on:2ee5 --> — **BATCH 1 of 2 LANDED 2026-08-31** -- detail: `docs/ledger-notes/e8d4.md` <!-- children:6bf5 --> <!-- id:e8d4 -->
+
+- [x] [ROUTINE] Em-dash delimiter migration S4 BATCH 2 — convert the REMAINING 8 `relay/scripts/*.sh` readers to the two-delimiter alternation (batch 1 landed the first 4 as part of `id:e8d4`). -- detail: `docs/ledger-notes/6bf5.md` <!-- gated-on:2ee5 --> <!-- id:6bf5 -->
+
+- [x] [HARD] Em-dash delimiter migration S5 — convert the non-bash relay consumers (`relay-loop.js`, `drain.mjs`, `handback-guard.mjs`, `handback-followup.py`, `backtest-historical.py`) to the two-delimiter alternation; kept as a SEPARATE seam because a `relay-loop.js` template-string edit is the `loop-crash-class` runtime hazard that `node --check` + grep cannot catch — verify with the exec-smoke guard (id:5bac/aec5). -- detail: `docs/ledger-notes/1a03.md` <!-- gated-on:2ee5 --> <!-- id:1a03 -->
+
+- [x] [ROUTINE] Em-dash delimiter migration S6 — convert `meeting/classify.sh` (the lane floor, `:101-128`), `meeting/orphan-scan.sh`, `meeting/SKILL.md`, `Makefile` and `hooks/lane-vocab.claude-rule.md` to the two-delimiter alternation, verifying each hyphen-spelled lane routes identically to its em-dash twin. -- detail: `docs/ledger-notes/d0aa.md` <!-- gated-on:2ee5 --> <!-- id:d0aa -->
+
+- [x] [HARD] Em-dash delimiter migration S7 — flip the 26 NORMATIVE contract/doc markdown files (`relay/references/*.md`, `relay/SKILL.md`, `ARCHITECTURE.md`, `docs/diagrams/*.mmd`, `tracker/SCHEMA.md`, `hooks/lane-vocab.claude-rule.md`) to hyphen spelling while leaving every HISTORICAL doc (`docs/HANDOVER-*.md`, `docs/meeting-notes/**`, `CHANGELOG.md`, `*.archive.md` prose) byte-identical — distinguishing normative from historical is a judgment call per file, not a mechanical sweep, and rewriting a historical doc destroys the audit trail hazard 7 protects. -- detail: `docs/ledger-notes/55c7.md` <!-- gated-on:2ee5 --> <!-- id:55c7 -->
+
+- [x] [ROUTINE] Em-dash delimiter migration S8 — purely mechanical rewrite of the delimiter inside the 86 test-fixture files' heredocs and assertion strings, batched by prefix (`test_classify_*`, `test_gather_*`/`test_relay_*`, the rest, plus `tests/shard-canary/**` and `tracker/fixtures/**`); after EACH batch `tests/run-tests.sh` must read 519 passed / 0 failed / 1 expected-red plus the seam's own new specs — never open all 86 files in one turn. -- detail: `docs/ledger-notes/ee31.md` <!-- gated-on:e8d4 --> <!-- gated-on:1a03 --> <!-- gated-on:d0aa --> <!-- gated-on:55c7 --> <!-- id:ee31 -->
+
+- [x] [ROUTINE] Em-dash migration: `tracker/ledger-map.py` lane regexes + its golden fixtures, as ONE commit — `RE_HARD_LEGACY`/`RE_INPUT`/`RE_INTENSIVE` (`:132-134`) each require a literal em dash with `\\s+` around it, so a hyphen-spelled ledger cannot match. -- detail: `docs/ledger-notes/c442.md` <!-- gated-on:ee31 --> <!-- id:c442 -->
+
+- [x] [INPUT - decision] **S9 archive conflict: the delimiter migration and the vocabulary ratchet cannot both be satisfied on `*.archive.md` without a ruling.** MEASURED 2026-08-31: migrating the 85 live lane tags in `ROADMAP.archive.md` (47) + `TODO.archive.md` (38) makes them ADDED lines carrying venue-keyed old vocabulary (`[HARD - pool]` x39, `[HARD - hands]` x6, `[HARD - decision gate]` x4), so `hooks/pre-commit-lane-vocab.sh` blocks both files (exit 1, verified with `LANE_VOCAB_ALL_REPOS=1`). ALL 85 are closed `- [x]` entries; zero are open. Three ways out, none takeable without you: (a) ** -- detail: `docs/ledger-notes/2065.md` <!-- gated-on:6958 --> <!-- id:2065 -->
+
+- [x] [ROUTINE] Em-dash delimiter migration S5b (the EMIT side) -- the closed reader seams (id:e8d4/id:6bf5/id:1a03) left every EMITTER on the legacy U+2014 delimiter, contrary to the migration doc's own rule at `docs/migration-em-dash-delimiter.md:36` ("Every **emitter** -- detail: `docs/ledger-notes/32f9.md` <!-- id:32f9 -->
+
+- [x] [ROUTINE] `lane-delimiter-scan.sh` returns exit **1** -- detail: `docs/ledger-notes/4ce8.md` <!-- id:4ce8 -->
+
+- [x] [ROUTINE] Hermetic test fixtures INHERIT the global `core.hooksPath`, so a fixture repo whose `RELAY_TOML`/`SRC_DIR` point into itself makes the lane-vocab hook fire at test RUNTIME and the test exits 1 -- detail: `docs/ledger-notes/4d1c.md` <!-- id:4d1c -->
+
+- [x] [ROUTINE] **`shrink-acceptance.py` must ATTRIBUTE a lost violation, not score it as a win -- the gate is structurally blind to a detector going blind.** -- detail: `docs/ledger-notes/5f34.md` <!-- id:5f34 -->
+  - **Acceptance**: a LOST violation whose triggering lexeme is found verbatim in the item's AFTER detail file is FATAL (the detector went blind); one whose lexeme is gone from both line and note stays an IMPROVEMENT. That discriminating pair is the whole spec -- "make every loss fatal" is the wrong fix and case (b) exists to reject it.
+  - **Tests**: `tests/test_shrink_acceptance_loss_attribution_5f34.sh` (`# roadmap:5f34`)
+  - **Done-check**: `tests/run-tests.sh tests/test_shrink_acceptance_loss_attribution_5f34.sh` green, and re-running the gate over `b7743916..HEAD` reports the 40 blinded `decided-left-open` items as findings rather than improvements. A green suite alone proves nothing here -- that is exactly how the 40 were missed.
