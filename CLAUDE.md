@@ -136,6 +136,18 @@ step 2b); its semver sibling — the reviewer-only bump — is `relay/scripts/ve
   "Nothing was deleted -- the prose below is reproduced verbatim". An edit makes that sentence
   FALSE, so the declaration is what keeps the note honest about itself. It belongs in the
   header, not only in a commit message.
+- **`REVIEW_ME.md` is OUT of the ledger line-shrink; it is compacted by ARCHIVING resolved
+  boxes** (owner-ratified 2026-09-02; loderite's owner proposed it, same ruling both repos,
+  one fleet rule rather than two). A review box is evidence written to be read IN FULL by the
+  person it is for, so relocating its prose into `docs/ledger-notes/<id>.md` puts the evidence
+  one indirection away from its only reader -- a loss the byte count does not show. Archive
+  RESOLVED boxes aggressively instead; never relocate prose out of an open one. A review box
+  has a natural terminal state that a TODO item does not, which is what makes archiving the
+  right lever here and the wrong one there. **This was an ACCIDENTAL exemption before it was a
+  decision** -- wave 1 shrank 10 boxes because nothing said not to, which is the same
+  by-accident-not-by-decision shape as the notes-are-editable question. Most REVIEW_ME boxes
+  legitimately carry NO `id:` (7 of 21 here), so id-keyed tooling does not reach them and the
+  archive pass is the only mechanism that does.
 - **Shared-file writes use `flock`.** See `append.sh`, `diary-append.sh`,
   `git-lock-push.sh`, `ckpt-tag.sh` for the pattern (fd 8/9 + lock file; `*.lock`
   is gitignored).
