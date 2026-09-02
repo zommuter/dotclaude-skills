@@ -803,10 +803,22 @@ def run_detector(det, root, timeout):
         return None, str(exc)
 
 
+# find_item_line search order (id:5f34 fix): ROADMAP first then TODO, matching this
+# function's own docstring. LEDGER_FILES itself lists TODO.md before ROADMAP.md (it is
+# ordered for collect_markers' report, not for this lookup), so iterating it directly
+# silently returned the TODO.md twin's line whenever an item lived in both -- the twin
+# is deliberately a SHORTER line with no lane/state prose, so attribution read the wrong
+# line and any lexeme that only ever appears on the ROADMAP line was invisible.
+FIND_ITEM_LINE_ORDER = (
+    "ROADMAP.md", "TODO.md", "REVIEW_ME.md",
+    "ROADMAP.archive.md", "TODO.archive.md", "REVIEW_ME.archive.md",
+)
+
+
 def find_item_line(root, item_id):
     """The ledger line carrying `<!-- id:XXXX -->`, ROADMAP first then TODO."""
     needle = re.compile(r"<!--\s*id:%s\s*-->" % re.escape(item_id), re.IGNORECASE)
-    for name in LEDGER_FILES:
+    for name in FIND_ITEM_LINE_ORDER:
         path = os.path.join(root, name)
         if not os.path.isfile(path):
             continue
@@ -883,6 +895,68 @@ def attribute_dispatch_gain(item_id, before_root, after_root, notes_dir, markers
     )
 
 
+# --------------------------------------------------------------------------- #
+# Violation-loss attribution (id:5f34)                                        #
+# --------------------------------------------------------------------------- #
+# Mirrors attribute_dispatch_gain() in the other direction: a VIOLATION loss is
+# scored as an improvement UNCONDITIONALLY today, which is right for a spurious
+# substring hit disappearing and exactly wrong for a detector that went BLIND --
+# the two are indistinguishable from the record alone. MEASURED 2026-09-02 on
+# the wave-1 shrink: 40 of 54 `decided-left-open` losses were the triggering
+# RESOLVED/SUPERSEDED/DONE/CLOSED/DEFERRED lexeme relocating VERBATIM into the
+# item's detail note, not the state claim actually going away.
+#
+# Scoped to the terminal-word vocabulary lib-state-claim.sh's DECIDED-LEFT-OPEN
+# rule actually matches -- that is the concrete class that was measured blind,
+# and it is the shape that file's own doctrine already teaches
+# (state_claim_direction_i / ii). The boundary is NOT bare `\b`: a hyphen-joined
+# compound ("fail-CLOSED") is excluded the same way lib-state-claim.sh excludes
+# it, so a design-property phrase never counts as a self-assertion.
+VIOLATION_LEXEME_RES = [
+    re.compile(r"(?<![A-Za-z0-9_-])(RESOLVED|SUPERSEDED|DONE|CLOSED|DEFERRED)(?![A-Za-z0-9_-])"),
+    re.compile(r"[Dd]ecided[ \t]+[0-9]{4}-[0-9]{2}-[0-9]{2}"),
+    re.compile(r"closed[ \t]+[0-9]{4}-[0-9]{2}-[0-9]{2}"),
+]
+
+
+def attribute_violation_loss(item_id, before_root, after_root, notes_dir):
+    """Return (ok, message).  ok=True means an ACCEPTABLE genuine improvement
+    (the triggering lexeme is gone from everywhere); ok=False means the
+    detector went BLIND (the lexeme merely relocated into the detail note)."""
+    # id:5f34 ATTRIBUTION (mirrors attribute_dispatch_gain, opposite direction)
+    before_line = find_item_line(before_root, item_id)
+    after_line = find_item_line(after_root, item_id) or ""
+    if before_line is None:
+        return True, (
+            "id:%s lost a violation but carries no BEFORE ledger line -- cannot "
+            "attribute, treating conservatively as an improvement" % item_id
+        )
+    suspects = []
+    for rx in VIOLATION_LEXEME_RES:
+        for m in rx.finditer(before_line):
+            lexeme = m.group(0)
+            if lexeme not in after_line and lexeme not in suspects:
+                suspects.append(lexeme)
+    if not suspects:
+        return True, (
+            "id:%s: violation no longer fires and no known terminal-word lexeme "
+            "left the ledger line -- treating as a genuine improvement" % item_id
+        )
+    detail = read_detail_file(after_root, notes_dir, item_id)
+    for lexeme in suspects:
+        if detail is not None and lexeme in detail:
+            return False, (
+                "id:%s: violation LOST but %r still appears verbatim in %s/%s.md -- "
+                "the detector went BLIND, the item is still decided-and-left-open, "
+                "it just cannot see it any more" % (item_id, lexeme, notes_dir, item_id)
+            )
+    return True, (
+        "id:%s: violation lost and %s genuinely gone from both the ledger line and "
+        "any detail file -- a real improvement"
+        % (item_id, ", ".join(repr(s) for s in suspects))
+    )
+
+
 def check_detectors(before_root, after_root, notes_dir, markers, findings, timeout):
     lines = []
     improvements = []
@@ -951,9 +1025,13 @@ def check_detectors(before_root, after_root, notes_dir, markers, findings, timeo
                          "broke the ledger grammar." % (det["name"], signal, item))
                     )
                 else:
-                    improvements.append(
-                        "%s: %s no longer fires for %s" % (det["name"], signal, item)
+                    ok, msg = attribute_violation_loss(
+                        item, before_root, after_root, notes_dir
                     )
+                    if ok:
+                        improvements.append("%s: %s" % (det["name"], msg))
+                    else:
+                        findings.append(("FATAL", "verdict", "%s: %s" % (det["name"], msg)))
             elif polarity == POLARITY_GATE:
                 if was and not now:
                     findings.append(

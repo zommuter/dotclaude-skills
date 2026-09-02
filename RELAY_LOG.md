@@ -3043,3 +3043,30 @@ tracker: id:59c5 -- children-of:/children: now resolve to one relation in ledger
 ## 2026-09-02 14:15 — handoff (claude-opus-5)
 
 handoff: C2 promoted 5 shrink-programme gaps; C3 red specs for id:5f34, id:1608, id:4983
+
+## 2026-09-02 — executor (sonnet)
+
+Worked id:5f34 -- `tools/shrink-acceptance.py`'s CHECK 2 scored every VIOLATION-polarity
+loss as an unconditional improvement, so a detector going BLIND (the triggering lexeme
+relocated verbatim into the item's detail note, not actually removed) was indistinguishable
+from a genuine improvement (a spurious hit disappearing). Added `attribute_violation_loss()`,
+the mirror of the existing `attribute_dispatch_gain()`: a lost violation whose triggering
+terminal-word lexeme (RESOLVED/SUPERSEDED/DONE/CLOSED/DEFERRED/"Decided YYYY-MM-DD") is
+present verbatim in the item's AFTER detail file is now FATAL; one genuinely gone from both
+the ledger line and the note stays an improvement. Wired into `check_detectors`'s
+`POLARITY_VIOLATION` loss branch. Also fixed a pre-existing bug this surfaced:
+`find_item_line()`'s own docstring says "ROADMAP first then TODO" but it iterated
+`LEDGER_FILES` (TODO.md listed first), so any item with a TODO.md twin silently returned
+the twin's shorter line instead of the ROADMAP.md line carrying the actual prose --
+attribution read the wrong line and the fixture's case A never fired until this was
+corrected. `tests/test_shrink_acceptance_loss_attribution_5f34.sh` green (cases A-E);
+re-running the gate over the exact wave-1 shrink commit's parent/child ledger pair
+(63d8539b^..63d8539b) now reports 148 blinded violation losses as FATAL findings
+(3 via roadmap-lint's own DECIDED-LEFT-OPEN rule, 145 via todo-conformance's twin check
+reached through the same shared `lib-state-claim.sh` engine -- both consumers firing is
+by design, per the item's own note) where the unfixed gate reported all of them as
+IMPROVEMENTS. Full suite: 559 passed, 0 failed, 3 expected-red (unrelated open items).
+Friction: none.
+refactor: none needed -- the fix adds one function mirroring an existing one in the
+opposite direction and fixes one small pre-existing ordering bug it exposed; no new
+duplication introduced.
