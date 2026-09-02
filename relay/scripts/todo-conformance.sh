@@ -233,7 +233,11 @@ shape_residue() {
   s="$(sed -E 's/^-[[:space:]]\[[[:space:]xX]\][[:space:]]*//' <<<"$l")"
   s="$(sed -E 's/<!--[^>]*-->//g' <<<"$s")"            # structural: ALL html comments
   s="$(sed -E "s#${SHAPE_POINTER_RE}##g" <<<"$s")"
-  s="$(sed -E "s/${LENGTH_MUST_KEEP_RE}//g" <<<"$s")"  # lanes, gates, @markers -- one mirror
+  # Lanes, gate glyphs and the at-sign marker family, from the ONE mirror. Do not name an
+  # at-sign token literally in this file: shrink-acceptance.py's marker registry greps these
+  # scripts for the markers they read, and a trailing comment is not a comment line, so a
+  # token written here is discovered as a real marker and reported as a keep-list GAP.
+  s="$(sed -E "s/${LENGTH_MUST_KEEP_RE}//g" <<<"$s")"
   # THE TITLE. First a bold run if there is one -- and only the FIRST: a second bold run is
   # prose wearing emphasis, which is exactly how `**RED SPEC LANDED 2026-08-13**` survived
   # wave 1 on dozens of lines.
