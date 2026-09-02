@@ -3120,3 +3120,7 @@ Friction: none.
 ## 2026-09-02 17:52 — executor (sonnet, relay-loop)
 
 id:4983 -- ledger-shrink.py's _LANE_PATTERNS now recognises exactly the declared lane-token set from hard-lanes.md (no undeclared sub-lane names like "kitchen"); test_lane_grammar_ssot.sh green, full suite 561 passed / 0 failed / 1 expected-red. [id:4983]
+
+## 2026-09-02 18:07 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:4983 verified green (spec untouched since handoff; negative case re-run by hand at 4f309df2^, fails at the declared assertion (e)); no gaming flags; 3 REVIEW_ME boxes; routine_open 0 actionable of 7 raw (all gated/owner-bound, the id:59f2 shape) [id:4983]
