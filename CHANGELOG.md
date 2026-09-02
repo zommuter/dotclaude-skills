@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-09-02
+
+- shrink-acceptance.py now attributes VIOLATION losses (attribute_violation_loss, mirroring attribute_dispatch_gain) so a detector going blind is FATAL, not an unconditional improvement; fixed find_item_line()'s search order bug this surfaced (id:5f34) (id:5f34)
+
 ## 2026-09-01
 
 - review: 20 owner commits audited clean (gaming-scan 0, 536 pass/0 fail); closed id:2065, promoted id:8302+id:d8b3 with red specs, unblocked id:6958 — repo flips review→execute (2 actionable) (id:2065,8302,d8b3,6958,9fa2)
