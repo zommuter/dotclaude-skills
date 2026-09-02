@@ -121,6 +121,21 @@ step 2b); its semver sibling — the reviewer-only bump — is `relay/scripts/ve
   allowlisted, flock-guarded path.
 - **Local-only files.** `meeting/discoveries.md` and `meeting/user-profile.md` exist
   only in `~/.claude/skills/meeting/` and are **never committed** here.
+- **Detail notes are EDITABLE, and an edit is DECLARED in the note's header** (owner-ratified
+  2026-09-02; loderite raised it, same ruling both repos). When a fleet rule — retired
+  vocabulary, the lane-delimiter migration, a banned token — is violated inside prose that
+  `tools/ledger-shrink.py` relocated into `docs/ledger-notes/<id>.md`, **fix it in the note**
+  and say so in the header. Notes are not immutable. Two reasons: a note that permanently
+  violates a rule keeps that rule's guard red forever, and note prose gets copied back out
+  into new items, so a violation parked there is a violation in flight. Rejected alternative:
+  exempting notes — which is what we had, **by accident rather than by decision** (the
+  vocabulary ratchet is a staged-diff hook matching a checkbox line's leading lane bracket,
+  and notes contain no checkbox lines, so it structurally cannot fire on them). loderite found
+  a retired token that had been invisible for exactly that reason. **Why the declaration is
+  load-bearing and not bookkeeping:** every generated note asserts in its own header that
+  "Nothing was deleted -- the prose below is reproduced verbatim". An edit makes that sentence
+  FALSE, so the declaration is what keeps the note honest about itself. It belongs in the
+  header, not only in a commit message.
 - **Shared-file writes use `flock`.** See `append.sh`, `diary-append.sh`,
   `git-lock-push.sh`, `ckpt-tag.sh` for the pattern (fd 8/9 + lock file; `*.lock`
   is gitignored).

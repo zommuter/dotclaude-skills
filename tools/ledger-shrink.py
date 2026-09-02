@@ -107,8 +107,13 @@ MUST_KEEP_PATTERNS = [
     re.compile(r"`?@container`?"),
     re.compile(r"`?@wire`?"),
     re.compile(r"`?@needs-auth`?"),
-    re.compile(r"BLOCKED on"),
-    re.compile(r"blocked on"),
+    # CASE-INSENSITIVE, and the punctuated forms too (loderite finding, 2026-09-02).
+    # `classify-repo.sh:359` and `gather-repo-state.sh:602-604` exclude an item from
+    # dispatch on unanchored `blocked on` / `blocked (` / `blocked:` / `blocked -` without
+    # regard to case, while this keep-list matched two fixed spellings. Two loderite items
+    # are gated by a lowercase form ALONE, so relocating it makes them executor-ready --
+    # the failure direction is OVER-DISPATCH, not a missed lint.
+    re.compile(r"(?i)blocked(?:\s+on\b|\s*[(:-])"),
     # Both added after the marker-registry cross-check in tools/shrink-acceptance.py
     # reported them as the only remaining gaps against the real detectors.
     #
@@ -123,6 +128,10 @@ MUST_KEEP_PATTERNS = [
     # id:8089), enforced by review.md's gaming check as prose. That is exactly why it must
     # be kept: relocating it destroys the receipt with nothing mechanical left to notice.
     re.compile(r"`?@owner-accepted`?"),
+    # The DETAIL POINTER itself. Needed once re-splitting is allowed (below): on a second
+    # pass the pointer sits in the moved region, and without this it would be relocated
+    # INTO the note it points at -- severing the line from its own body.
+    re.compile(r"-{1,2}\s*detail:\s*`?[A-Za-z0-9_./-]*/[0-9a-f]{4}\.md`?"),
 ] + _LANE_PATTERNS  # KEEP-LANE
 
 
@@ -217,8 +226,16 @@ def split_head(head: str, item_id: str, block: str = ""):
 
     Returns ``(keep, moved, reason)`` on success, or ``(None, None, reason)`` on refusal.
     """
-    if has_pointer(head, item_id):
-        return None, None, "pointer-exists"
+    # RE-SPLIT IS ALLOWED (id:6546). Wave 1 refused any line that already carried a
+    # pointer, so an item was split exactly ONCE, ever -- and whatever prose sat left of
+    # that first cut stayed forever. MEASURED after wave 1: 140 of this repo's 460
+    # prose-carrying lines are in exactly that state, and loderite measured 57 of its 86
+    # over-long ROADMAP items the same way (its `hasPointer` guard returns null on a second
+    # pass, which is why `--min-chars 1000` there extracts ZERO). apply_plan() has appended
+    # to existing notes since wave 1 (11 appends, 0 overwrites), so the destination already
+    # handles this; only the guard stood in the way. The pointer is in MUST_KEEP_PATTERNS,
+    # so a second cut carries it back onto the line rather than into the note.
+    already_pointered = has_pointer(head, item_id)
 
     # The amendment's rule. Any `<!-- id:XXXX -->` in this block other than the item's own
     # means a split here can carry an ADDRESS off the ledger (or, if it sits in the head's
@@ -249,15 +266,39 @@ def split_head(head: str, item_id: str, block: str = ""):
     if len(residue.strip()) < MIN_MOVED_CHARS:
         return None, None, "too-little-to-move"
 
+    # A relocated LANE TAG goes back into the LEADING run, never the tail (loderite
+    # finding, 2026-09-02). `PARKED-POOL-LANE` and the classify-repo lane detectors anchor
+    # on the leading lane run, so a tag re-appended after the detail pointer is invisible
+    # to dispatch while looking perfectly present to a reader -- the id:d35a silent-no-op
+    # class. loderite's own extractor has this bug and documented rather than patched it.
     seen = set()
     tail_parts = []
+    lane_parts = []
     for _, txt in _keep_matches(rest):
         if txt in seen:
             continue
         seen.add(txt)
-        tail_parts.append(txt)
+        if any(rx.fullmatch(txt) for rx in _LANE_PATTERNS):
+            # Only if the leading run does not already carry it; duplicating a lane tag is
+            # its own defect (wave 1 measured the token count falling 618 -> 562 precisely
+            # because a marker appearing twice is re-appended once).
+            if txt not in prefix:
+                lane_parts.append(txt)
+        else:
+            tail_parts.append(txt)
+
+    head_prefix = prefix
+    if lane_parts:
+        m_top = TOP_ITEM_RE.match(prefix)
+        at = m_top.end() if m_top else 0
+        head_prefix = prefix[:at] + " " + " ".join(lane_parts) + prefix[at:]
+
     tail = " ".join(tail_parts)
-    keep = prefix + pointer_for(item_id) + ((" " + tail) if tail else "")
+    # Do not plant a SECOND pointer on a re-split line: the existing one is carried back by
+    # the keep-matches above, and two pointers to the same note is a grammar violation the
+    # shape check would report.
+    ptr = "" if already_pointered else pointer_for(item_id)
+    keep = head_prefix + ptr + ((" " + tail) if tail else "")
     return keep, rest.strip(), "split"
 
 
@@ -316,6 +357,11 @@ def note_file_text(item_id: str, body: str, heading: str) -> str:
         "Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps\n"
         "its title, lane tag, `id:` anchor, every gate marker and a pointer back here.\n"
         "**Nothing was deleted** -- the prose below is reproduced verbatim.\n\n"
+        "**This note is EDITABLE** (owner-ratified 2026-09-02). If a fleet rule is violated\n"
+        "in the prose below -- retired vocabulary, a lane delimiter, a banned token -- FIX IT\n"
+        "HERE and amend the line above to say what was changed. Notes are not immutable: an\n"
+        "unfixable violation keeps its guard red forever, and this prose gets copied back out\n"
+        "into new items. An undeclared edit makes the verbatim claim above a lie.\n\n"
         "See `{}/BACKLINKS.md` for meetings that cite this id.\n\n"
         "{}\n\n{}\n"
     ).format(item_id, NOTES_DIR, heading, body)
@@ -336,7 +382,7 @@ def append_section(existing: str, body: str, heading: str):
 
 # --------------------------------------------------------------------------- planning
 
-def plan(lines, min_chars, path):
+def plan(lines, min_chars, path, open_only=False):
     """Pure decision: which head lines to slim, and what each becomes. No file I/O."""
     items = parse_items(lines)
     actions = []
@@ -344,7 +390,12 @@ def plan(lines, min_chars, path):
     skipped_no_id = []
     considered = 0
     for it in items:
-        if not it.open:
+        # CLOSED `[x]` items are in scope (owner ruling 2026-09-02). Wave 1 skipped them,
+        # which is nearly all of ROADMAP.md's shortfall against the no-prose bar -- 65 of
+        # its 116 prose-carrying lines, because that file is mostly history. History is
+        # never dispatched and never sliced, so shrinking it is pure byte win at no risk
+        # to any detector that reads open items. Opt out with --open-only.
+        if open_only and not it.open:
             continue
         if len(it.head) < min_chars:
             continue
@@ -433,7 +484,7 @@ def _atomic_write(path, text):
 
 
 REFUSAL_LABELS = {
-    "pointer-exists": "already has a pointer (idempotent)",
+    "pointer-exists": "already has a pointer (idempotent)",  # unreachable since id:6546
     "no-cut-point": "no defensible cut point",
     "too-little-to-move": "under {} chars would move".format(MIN_MOVED_CHARS),
     "foreign-id": "block carries ANOTHER item's id marker (would orphan it)",
@@ -441,6 +492,7 @@ REFUSAL_LABELS = {
 
 
 def main(argv=None):
+    global NOTES_DIR
     ap = argparse.ArgumentParser(prog="ledger-shrink.py", add_help=True,
                                  description="Slim over-long ledger head lines into "
                                              "docs/ledger-notes/<id>.md.")
@@ -450,8 +502,23 @@ def main(argv=None):
                          "(default {})".format(DEFAULT_MIN_CHARS))
     ap.add_argument("--root", default=None, help="repo root (default: the file's repo)")
     ap.add_argument("--dry-run", action="store_true", help="report only (the default)")
+    ap.add_argument("--open-only", action="store_true",
+                    help="skip closed [x] items (wave-1 behaviour; the owner ruled closed "
+                         "items IN scope on 2026-09-02, so this is now opt-in)")
+    ap.add_argument("--notes-dir", default=None,
+                    help="directory for per-id detail files (default {}). Set it for a repo "
+                         "that spells the path differently -- loderite uses "
+                         "docs/roadmap-notes.".format(NOTES_DIR))
     ap.add_argument("--apply", action="store_true", help="actually move the prose")
     args = ap.parse_args(argv)
+
+    if args.notes_dir:
+        # Rebind the module constant so pointer_for/has_pointer/note_file_text/apply_plan
+        # all agree. A per-repo directory is a PARAMETER, not a fork of the tool -- but see
+        # roadmap-lint.sh's item_detail_path: readers DERIVE the dir from the pointer rather
+        # than trusting config, because an unset parameter and a wrong default are
+        # indistinguishable in the output (id:d35a).
+        NOTES_DIR = args.notes_dir.strip("/")
 
     if args.apply and args.dry_run:
         sys.stderr.write("ledger-shrink: --apply and --dry-run are mutually exclusive\n")
@@ -475,7 +542,7 @@ def main(argv=None):
         text = fh.read()
     lines = text.split("\n")
 
-    planned = plan(lines, args.min_chars, rel)
+    planned = plan(lines, args.min_chars, rel, open_only=args.open_only)
     before = len(text)
     delta = sum(a["before"] - a["after"] for a in planned["actions"])
 
