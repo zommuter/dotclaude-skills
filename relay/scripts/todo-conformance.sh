@@ -167,11 +167,24 @@ LEDGER_ID_TOKEN_RE="${LEDGER_ID_TOKEN_RE:-$(_ledger_derive_id_token_re)}"
 # is one entry here, not a code change. `children-of:` is included because it is live in
 # this corpus; `lint-ok:` and `ref:` are NOT -- they are this script's own exemption
 # markers and are handled earlier, by exempt(), which skips the line wholesale.
-LEDGER_EDGE_KINDS="${LEDGER_EDGE_KINDS:-routed|children|children-of|gated-on|answer-src}"
+# WIDENED 2026-09-02 to the marker vocabulary actually LIVE in this corpus, counted rather
+# than guessed (`grep -ohE '<!-- *[a-z-]+:' TODO.md ROADMAP.md`): relates 5, owner-hold 3,
+# xledger-ok 2, xgate 1, settles 1, relay 1, invocation-flags 1, claiming 1. They were
+# reporting as `grammar-item-unknown-marker`, which is a FALSE positive -- they are known,
+# in-use markers, and at least one is load-bearing: `xledger-ok:` SUPPRESSES an orphan-scan
+# --cross-ledger drift report, so flagging it as unknown trains a reader to ignore the very
+# class that hides a real divergence. Adding a live marker here is bookkeeping, not a
+# vocabulary decision; inventing one that nothing emits would be the opposite.
+LEDGER_EDGE_KINDS="${LEDGER_EDGE_KINDS:-routed|children|children-of|gated-on|answer-src|relates|settles|owner-hold|xledger-ok|xgate|relay|invocation-flags|claiming}"
 # APPROXIMATE, by the owner's own framing ("~200ish"), and named so the figure can be
 # settled from counts later without touching code. Conformance counts at candidate values
 # are in the id:b048 report; nothing downstream depends on the exact number.
 LEDGER_HEADING_MAX="${LEDGER_HEADING_MAX:-200}"
+# Deepest legal heading level (owner ruling 2026-09-02: "deeper level okay, but only up to
+# level four"). Unlike the two ~200 char figures above this is an EXACT ruling, not an
+# approximation. Slack today -- the live ledgers carry 2 level-1, 83 level-2 and 6 level-3
+# headings and nothing deeper -- so it is a forward guard, not a cleanup trigger.
+LEDGER_HEADING_MAX_LEVEL="${LEDGER_HEADING_MAX_LEVEL:-4}"
 LEDGER_ITEM_TITLE_MAX="${LEDGER_ITEM_TITLE_MAX:-200}"
 LEDGER_GRAMMAR_CHECK="${LEDGER_GRAMMAR_CHECK:-1}"
 # append.sh (the id mint) lives in meeting/ at the repo root; resolve via the scripts dir.
@@ -381,7 +394,9 @@ shape_class() {
 #   grammar-line                a top-level line that is neither blank, heading, nor item.
 #   grammar-heading-long        heading over $LEDGER_HEADING_MAX chars.
 #   grammar-heading-no-blank    heading not followed by an empty line.
-#   grammar-heading-empty-sec   the next non-blank line is another heading (empty section).
+#   grammar-heading-too-deep    heading deeper than $LEDGER_HEADING_MAX_LEVEL.
+#   grammar-heading-empty-sec   the next non-blank line is a SIBLING-or-SHALLOWER heading
+#                               (empty section). A DEEPER heading is legal nesting.
 #   grammar-heading-eof         heading is the last non-blank thing in the file.
 #   grammar-item-no-id          item with no anchored `<!-- id:… -->` marker of its own.
 #   grammar-item-edge-after-id  a typed edge sits AFTER the id marker (order is fixed).
@@ -470,8 +485,15 @@ grammar_scan() {
     [[ -z "${l//[[:space:]]/}" ]] && continue                # 1. BLANK
     exempt "$l" && continue                                  # explicit opt-out, as elsewhere
     if [[ "$l" =~ ^#{1,6}[[:space:]] ]]; then                # 2. HEADING
+      # Heading DEPTH, needed twice below: for the level cap and for the nesting rule.
+      hashes="${l%%[[:space:]]*}"; lvl=${#hashes}
       if (( ${#l} > LEDGER_HEADING_MAX )); then
         GRAMMAR_FIND[$((i+1))]="grammar-heading-long (${#l} chars, approximate max $LEDGER_HEADING_MAX)"
+        continue
+      fi
+      # Owner ruling 2026-09-02: nesting is legal, but only down to level four.
+      if (( lvl > LEDGER_HEADING_MAX_LEVEL )); then
+        GRAMMAR_FIND[$((i+1))]="grammar-heading-too-deep (level $lvl; max $LEDGER_HEADING_MAX_LEVEL)"
         continue
       fi
       if (( i + 1 >= n )); then
@@ -483,12 +505,21 @@ grammar_scan() {
         GRAMMAR_FIND[$((i+1))]="grammar-heading-no-blank (a heading must be followed by an empty line)"
         continue
       fi
-      # next NON-blank line: must exist, and must not be another heading.
+      # Next NON-blank line must exist. If it is another heading, the section is empty
+      # ONLY when that heading is a SIBLING or SHALLOWER (same level or fewer hashes).
+      # A DEEPER heading is legitimate nesting and counts as content -- owner ruling
+      # 2026-09-02 ("deeper level okay, but only up to level four"; the level cap is
+      # enforced above, on the deeper heading's own line, so it is not re-checked here).
+      # The literal reading -- ANY following heading means empty -- flagged the standard
+      # ledger preamble `# TODO` / `## Current` in every file, which is not a defect.
       cls=""
       for (( j = i + 2; j < n; j++ )); do
         [[ -z "${L[j]//[[:space:]]/}" ]] && continue
         if [[ "${L[j]}" =~ ^#{1,6}[[:space:]] ]]; then
-          cls="grammar-heading-empty-sec (the section is empty -- the next non-blank line is another heading, at line $((j+1)))"
+          nh="${L[j]%%[[:space:]]*}"
+          if (( ${#nh} <= lvl )); then
+            cls="grammar-heading-empty-sec (the section is empty -- the next non-blank line is a level-${#nh} heading at line $((j+1)), a sibling or shallower of this level-$lvl one)"
+          fi
         fi
         break
       done

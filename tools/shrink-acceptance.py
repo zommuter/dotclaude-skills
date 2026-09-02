@@ -308,6 +308,24 @@ TODO_CONFORMANCE_NONBLOCKING = frozenset(
     ("length-unshrinkable", "length-grandfathered")
 )
 
+# id:b048 -- the ledger LINE GRAMMAR family is non-blocking here too, and unlike the
+# `length-` family above it IS matched by prefix. The asymmetry is deliberate and rests
+# on a fact about each family, not on convenience: `length-` contains two ERROR rules
+# (`length-over-budget`, `length-regrowth`) that must stay fatal, so it can only be
+# waived rule-by-rule; `grammar-` is WARN-ONLY BY CONSTRUCTION -- todo-conformance.sh
+# adds every grammar class to `findings` and never to `strict_findings`, so there is no
+# grammar rule that could become fatal for a prefix match to swallow by accident.
+#
+# WHY THIS EXISTS AT ALL: the grammar check reports 382 findings on TODO.md and 532 on
+# ROADMAP.md today (almost everything is non-conforming, which is the point of filing
+# id:b048). Without this, every one of them would parse as a POLARITY_VIOLATION and this
+# gate -- the id:5f34 loss-attribution gate -- would go red for reasons that have nothing
+# to do with whether a shrink damaged anything. That would disarm the one instrument the
+# shrink programme relies on, which is the id:0b70 vacuous-check failure inverted.
+#
+# If a grammar rule is ever promoted to an ERROR, this prefix must become an enumeration.
+TODO_CONFORMANCE_NONBLOCKING_PREFIXES = ("grammar-",)
+
 
 def _todo_conformance_parse(out: str, err: str, rc: int):
     records = set()
@@ -318,7 +336,9 @@ def _todo_conformance_parse(out: str, err: str, rc: int):
             continue
         rule, _lineno, text = parts[0], parts[1], "\t".join(parts[2:])
         rule = normalise_signal(rule)
-        if rule in TODO_CONFORMANCE_NONBLOCKING:
+        if rule in TODO_CONFORMANCE_NONBLOCKING or rule.startswith(
+            TODO_CONFORMANCE_NONBLOCKING_PREFIXES
+        ):
             counts[rule] = counts.get(rule, 0) + 1
             continue
         m = ID_MARKER_RE.search(text)
