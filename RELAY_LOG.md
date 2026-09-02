@@ -3070,3 +3070,7 @@ Friction: none.
 refactor: none needed -- the fix adds one function mirroring an existing one in the
 opposite direction and fixes one small pre-existing ordering bug it exposed; no new
 duplication introduced.
+
+## 2026-09-02 17:03 — executor (sonnet, relay-loop)
+
+shrink-acceptance.py now attributes VIOLATION losses (attribute_violation_loss, mirroring attribute_dispatch_gain) so a detector going blind is FATAL, not an unconditional improvement; fixed find_item_line()'s search order bug this surfaced (id:5f34) [id:5f34]
