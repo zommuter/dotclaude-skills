@@ -106,8 +106,16 @@
 # LEDGER_GRAMMAR_CHECK=0) suppresses the rule for a caller that only wants the older
 # checks; nothing else disables it.
 #
+# BASELINE STALENESS (id:2654) -----------------------------------------------------------
+# Both ratchets above read a committed SNAPSHOT, and a snapshot's failure mode is SILENT
+# LOOSENESS: an item shrinks, the recorded floor stays at the old larger value, and a later
+# regrowth up to that old floor is forgiven. `--baseline-staleness` is the READ-ONLY detector
+# for that (`current < baselined`), a separate MODE rather than a finding class -- see the
+# block above the implementation for why, and for what it deliberately does not do.
+#
 # Usage:  todo-conformance.sh [--fix] [--inbox] [--strict] [--no-grammar] [<path>]
 #         todo-conformance.sh --regen-length-baseline [<path>]
+#         todo-conformance.sh --baseline-staleness [--strict] [<path>]
 #         todo-conformance.sh --grammar-lines [<path>]   # b048 grammar only, `<lineno>TAB<class>`
 #   <path> default = <cwd repo>/TODO.md (git rev-parse --show-toplevel). REPORT-ONLY
 #   (exit 0 with findings); `--strict` → nonzero when findings remain. An unreadable path
@@ -199,7 +207,7 @@ LOG="${TODO_CONFORMANCE_LOG:-$HOME/.claude/logs/todo-conformance.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s todo-conformance.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
-fix=0 inbox=0 strict=0 path="" regen_length=0 regen_shape=0 grammar_lines=0
+fix=0 inbox=0 strict=0 path="" regen_length=0 regen_shape=0 grammar_lines=0 staleness=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fix)    fix=1; shift ;;
@@ -207,6 +215,7 @@ while [[ $# -gt 0 ]]; do
     --strict) strict=1; shift ;;
     --regen-length-baseline) regen_length=1; shift ;;
     --regen-shape-baseline) regen_shape=1; shift ;;
+    --baseline-staleness) staleness=1; shift ;;
     --grammar-lines) grammar_lines=1; shift ;;
     --no-grammar) LEDGER_GRAMMAR_CHECK=0; shift ;;
     -h|--help) sed -n '2,80p' "$0"; exit 0 ;;
@@ -782,6 +791,145 @@ REGEN_SHAPE_HEADER
     (( ${#_res} > 8 )) || continue
     printf '%s\t%s\t%d\n' "$LENGTH_LEDGER_KEY" "$_rid" "${#_res}"
   done < "$path"
+  exit 0
+fi
+
+# --- BASELINE STALENESS DETECTOR (id:2654) -----------------------------------------------
+#
+# `--baseline-staleness [--strict] <path>` -- a PURE READ that answers one question about
+# BOTH snapshot ratchets above: has the recorded floor gone LOOSER than reality?
+#
+#   current < baselined  ->  BASELINE-STALE. The floor forgives more than reality requires;
+#                            regenerate it and commit.
+#
+# WHY THIS EXISTS. Both baselines are committed snapshots that only a deliberate regen moves,
+# which is the cb3e discipline on purpose. Their shared failure mode is SILENT LOOSENESS:
+# after a shrink pass every shrunk item keeps its OLD, LARGER floor, and a later regrowth back
+# up to that floor is `*-grandfathered` WARN rather than a `*-regrowth` ERROR. Measured on the
+# fleet: loderite's id:718c went 4,367 -> 222 -> 1,316 chars in one afternoon and nothing
+# fired. Forgetting the regen is indistinguishable from compliance -- so "remember to
+# regenerate" is not a mechanism, and this turns it into one the checker can state.
+#
+# ── WHY A SEPARATE MODE, AND NOT A FINDING IN THE ORDINARY REPORT ─────────────────────────
+#
+# THIS IS THE LOAD-BEARING DESIGN CHOICE, so it is recorded here rather than in a commit
+# message. `current < baselined` is TRUE EXACTLY WHEN AN ITEM HAS BEEN IMPROVED. A shrink IS
+# the stale state. Two consequences, both verified against the suite rather than reasoned
+# about:
+#
+#   * ESCALATING it (adding to strict_findings) fires on every legitimate shrink and breaks
+#     both `tests/test_todo_conformance_length_ratchet_0d7c.sh` case (b) and
+#     `tests/test_shape_prose_regrowth_baseline_2d17.sh` case (0), each of which pins
+#     "improving an item never breaks the ratchet". Recorded as dead end 1 in
+#     docs/ledger-notes/cf64.md; do not re-propose it.
+#   * Emitting it as a non-escalating WARN LINE in the ordinary report still breaks 2d17's
+#     case (0), whose assertion is stricter than "does not fail --strict": the shrunk item
+#     must report NO finding at all. A WARN line keyed to that item is a finding.
+#
+# So the detector is a MODE, not a class: an explicit, separate invocation whose output is
+# the whole report. The ordinary lint stream is byte-for-byte unchanged, which is what lets a
+# shrink stay clean while staleness is still visible on demand. The precedent is
+# mech-currency.sh (id:0384) -- a dedicated read-only check that detects a stale snapshot,
+# names the remedy, and deliberately does NOT apply it. Self-tightening (writing the tightened
+# floor from a read) was CONSIDERED AND REJECTED by the owner on 2026-09-02: a reader must not
+# have a write side effect (tree dirt feeds the id:aa93 deferral), it would need a flock, and
+# there is no concept of an AUTHORITATIVE invocation because this checker runs constantly
+# against fixtures, worktrees and hermetic tests where a tightening run would poison the real
+# baseline.
+#
+# EXIT STATUS. Bare `--baseline-staleness` ALWAYS exits 0 -- report-only, exactly as the item
+# scopes it, so wiring it anywhere can never block. `--baseline-staleness --strict` exits 1
+# when anything is stale, for a caller that deliberately wants a gate. That opt-in is not a
+# promotion: no existing caller passes --strict to this mode, and the ordinary lint path never
+# reaches this code at all.
+#
+# CLASSES (output `<class>\t<id>\t<detail>`; `#`-prefixed summary lines follow):
+#   length-baseline-stale / shape-baseline-stale    current < baselined; slack = the gap.
+#   length-baseline-orphan / shape-baseline-orphan  the baselined id is not in this ledger at
+#     all. The floor forgives a line that is not there, and grandfathers it at the old value
+#     the moment the id returns -- the same looseness, in its extreme form. Reported apart
+#     because its remedy is the same regen but its cause (a closed or archived item) is not a
+#     shrink.
+#
+# Out of scope, matching both ratchets (id:2065): `--inbox` and `*.archive.md`.
+if [[ "$staleness" -eq 1 ]]; then
+  if [[ "$inbox" -eq 1 || "$LENGTH_LEDGER_KEY" == *.archive.md ]]; then
+    echo "# baseline-staleness: $LENGTH_LEDGER_KEY is out of scope for both ratchets (id:2065); nothing checked."
+    log "baseline-staleness out-of-scope path=$path inbox=$inbox"
+    exit 0
+  fi
+
+  # The ledger, once: id -> its head line. A per-entry grep over a 329-row baseline would be
+  # 329 scans of the ledger.
+  declare -A STALE_LEDGER_LINE=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^-\ \[[\ xX]\]\  ]] || continue
+    _sid="$(length_id_of "$line")"
+    [[ -n "$_sid" ]] || continue
+    STALE_LEDGER_LINE["$_sid"]="$line"
+  done < "$path"
+
+  stale_n=0 stale_slack=0 orphan_n=0 checked_n=0 families_n=0
+
+  # The two per-family "current value" predicates. Each reuses the SAME function the ratchet
+  # itself uses, so the detector can never disagree with the rule it is auditing.
+  stale_value_length() { local l="$1"; printf '%d' "${#l}"; }
+  stale_value_shape()  { local r; r="$(shape_residue "$1")"; printf '%d' "${#r}"; }
+
+  # stale_family <family> <baseline file> <value-fn> <regen flag>
+  stale_family() {
+    local fam="$1" bfile="$2" vfn="$3" flag="$4"
+    local ledger id base cur slack fam_n=0 fam_orphan=0
+    if [[ ! -f "$bfile" || ! -r "$bfile" ]]; then
+      # LOUD, never silent: a detector that quietly checks nothing is the same silent-inert
+      # failure the ratchets' own INERT announcements exist to avoid (id:4347).
+      echo "todo-conformance.sh: baseline-staleness: no $fam baseline at $bfile -- that ratchet is INERT here, nothing to check (id:2654)" >&2
+      return 0
+    fi
+    families_n=$((families_n+1))
+    while read -r ledger id base; do
+      [[ -z "${ledger:-}" || "$ledger" == \#* ]] && continue
+      [[ -n "${id:-}" && -n "${base:-}" ]] || continue
+      # A baseline file legitimately carries rows for SEVERAL ledgers (TODO.md and ROADMAP.md
+      # are appended into one file). Only this path's basename is ours to judge; another
+      # ledger's rows would all read as orphans.
+      [[ "$ledger" == "$LENGTH_LEDGER_KEY" ]] || continue
+      checked_n=$((checked_n+1))
+      if [[ -z "${STALE_LEDGER_LINE[$id]:-}" ]]; then
+        orphan_n=$((orphan_n+1)); fam_orphan=$((fam_orphan+1))
+        printf '%s-baseline-orphan\t%s\tbaselined %s, but no item with this id is in %s; the floor forgives a line that is not there\n' \
+          "$fam" "$id" "$base" "$LENGTH_LEDGER_KEY"
+        continue
+      fi
+      cur="$("$vfn" "${STALE_LEDGER_LINE[$id]}")"
+      (( cur < base )) || continue
+      slack=$((base - cur))
+      stale_n=$((stale_n+1)); fam_n=$((fam_n+1)); stale_slack=$((stale_slack+slack))
+      printf '%s-baseline-stale\t%s\tcurrent %s < baselined %s; the floor forgives %s more chars than reality requires\n' \
+        "$fam" "$id" "$cur" "$base" "$slack"
+    done < "$bfile"
+    if (( fam_n > 0 || fam_orphan > 0 )); then
+      # THE REMEDY, named rather than implied -- the whole point of the mech-currency posture.
+      echo "# $fam: $fam_n stale, $fam_orphan orphaned. Regenerate and COMMIT:"
+      echo "#   relay/scripts/todo-conformance.sh $flag $path > <the $fam baseline>"
+    fi
+    return 0
+  }
+
+  stale_family length "$LENGTH_BASELINE" stale_value_length --regen-length-baseline
+  stale_family shape  "$SHAPE_BASELINE"  stale_value_shape  --regen-shape-baseline
+
+  if (( families_n == 0 )); then
+    echo "# baseline-staleness: no baseline exists for either ratchet; nothing to check (id:2654)."
+  elif (( stale_n == 0 && orphan_n == 0 )); then
+    echo "# baseline-staleness: current -- all $checked_n baselined entries for $LENGTH_LEDGER_KEY (across $families_n ratchet(s)) still sit at or above their recorded floor (id:2654)."
+  else
+    echo "# baseline-staleness: STALE -- $stale_n of $checked_n baselined entries for $LENGTH_LEDGER_KEY (across $families_n ratchet(s)) are below their recorded floor ($stale_slack chars of total slack), $orphan_n orphaned. Regenerate the baselines named above and commit them; nothing was written by this run."
+  fi
+  log "baseline-staleness path=$path checked=$checked_n stale=$stale_n orphan=$orphan_n slack=$stale_slack strict=$strict"
+  if [[ "$strict" -eq 1 ]] && (( stale_n + orphan_n > 0 )); then
+    exit 1
+  fi
   exit 0
 fi
 

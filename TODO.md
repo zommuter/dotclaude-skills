@@ -32,6 +32,8 @@
 - [ ] **Build a `/chidilog` skill — append a verification-failure case to the chidiAI collection** -- detail: `docs/ledger-notes/149c.md` <!-- id:149c -->
 - [ ] **New skill: `rebrand-project` — atomically re-brand/rename a project across git remote + local + Claude state** -- detail: `docs/ledger-notes/bb12.md` <!-- id:bb12 -->
 - [ ] [INPUT - meeting] **Use VISIBLE annotations, not HTML comments, for metadata that should render** -- detail: `docs/ledger-notes/ee62.md` <!-- id:XXXX --> <!-- routed:XXXX --> `@manual` <!-- xledger-ok:"*` at ~L63/72; back-compat or one-shot migrate); (3) update `tests/test_ledger_seam.sh`; (4) migrate the live annotation on **id:78ff**; (5) audit other HTML-comment-as-meaning uses across the skills (gate/route markers) for the same treatment. Small reversible design call on the exact syntax → `[HARD — meeting]`. <!-- id:ee62 -->
+- [ ] [INPUT - meeting] **Make the `id:` marker POSITIONAL and every typed edge VISIBLE -- withdraw ee62's opaque-key carve-out; escape non-meaningful mentions.** -- detail: `docs/ledger-notes/14e5.md` <!-- relates:ee62 --> <!-- id:14e5 -->
+- [ ] [ROUTINE] **`ledger-shrink.py` hoists an EXAMPLE marker quoted in prose as if it were real -- 30 lines, and it defeated the shrink on `ee62`.** -- detail: `docs/ledger-notes/8372.md` <!-- relates:14e5 --> <!-- id:8372 -->
 - [ ] **DECIDED 2026-06-23 — Unified DERIVED ledger index (md stays SSOT; index = cache, not truth)** -- detail: `docs/ledger-notes/2840.md` <!-- id:2840 -->
 - [ ] [INPUT - meeting] **Mechanize the keystone-unblock triage as a `/relay human` view (gate-graph fan-out ranking)** -- detail: `docs/ledger-notes/c3f6.md` <!-- id: --> <!-- id:c3f6 -->
 
@@ -263,7 +265,6 @@
 
 ## relay skill
 
-<!-- REVIEW_ME / relay-discipline cluster — meeting 2026-07-19-1058, grounded in chidiai 2026-07-18 cases (routed:16e3, routed:3684). All 7 sub-parts = a prose relay-contract rule that silently no-ops under context pressure. -->
 - [ ] **REVIEW_ME box syntactic-hygiene lint (prune + shape)** -- detail: `docs/ledger-notes/07dc.md` [HARD — pool] <!-- children-of:7a05 --> <!-- routed:16e3 --> <!-- id:07dc -->
 - [ ] [INPUT - meeting] **`drained` machine-verdict + `@wire`/`@manual` grammar split (folds in executor-no-own-RED + spec-completeness)** -- detail: `docs/ledger-notes/af48.md` [ROUTINE] [HARD] `@wire` `@manual` <!-- children:ac7f bea2 0c86 78df --> <!-- routed:3684 --> <!-- id:af48 -->
 - [ ] **Flag-only `@manual`→`@wire` mislabel detector** -- detail: `docs/ledger-notes/bea2.md` [HARD — pool] `@manual` `@wire` <!-- children-of:af48 --> <!-- gated-on:ac7f --> <!-- id:bea2 -->
@@ -1036,6 +1037,7 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] **`--fabled` escalation trigger fired a SIXTH time — loderite meeting `2026-08-18-1445` (2 forced-amendment findings), a DIFFERENT session from the 5th** -- detail: `docs/ledger-notes/1474.md` <!-- routed:0e9e --> <!-- id:1474 -->
 
 - [ ] [INPUT - meeting] **`wrapup` / `handover` / `resume` skills — mechanize the end-of-session sweep and the state a fresh session needs to pick up** -- detail: `docs/ledger-notes/7e9a.md` <!-- id:7e9a -->
+- [ ] [INPUT - decision] **An `/afk` skill: what an UNATTENDED session may still do alone, and the rule for when it must stop and power off.** -- detail: `docs/ledger-notes/55f4.md` <!-- relates:7e9a --> <!-- id:55f4 -->
 - [ ] [INPUT - decision] **Stop paying the cold-cache tax between sessions — an auto-ping to hold the prompt cache warm, and/or an automated "prepare handover for the next session"** -- detail: `docs/ledger-notes/5284.md` <!-- id:5284 -->
 - [ ] [ROUTINE] **Build the transcript cost/idle analyzer (meeting D2)** -- detail: `docs/ledger-notes/3412.md` <!-- id:3412 -->
 - [ ] [INPUT - access] **Quota-weighting probe: what is `w`, the weekly-quota cost of a cache-read token relative to an input token?** -- detail: `docs/ledger-notes/22f2.md` [INPUT — access] <!-- id:22f2 -->

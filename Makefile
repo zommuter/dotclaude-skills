@@ -167,6 +167,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks status-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
         install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test lint verify-negatives gaming-canary shard-canary \
+        baseline-staleness \
         install-quota-timer status-quota-timer uninstall-quota-timer \
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
@@ -221,6 +222,8 @@ help:
 	@echo "  lint                 enforce the no-bare-rm-f rule (tools/check-no-bare-rm-f.sh --enforce)"
 	@echo "  verify-negatives     run each defect-fix test's DECLARED '# fails-against:' case and check"
 	@echo "                       it dies at the DECLARED assertion (id:a73c; opt-in, seconds per case)"
+	@echo "  baseline-staleness   report head-line ratchet baselines whose floor has gone LOOSER than"
+	@echo "                       reality and needs a regen (id:2654; read-only, writes nothing)"
 	@echo "  gaming-canary        Tier B model anti-gaming canary harness (on-demand; costs tokens)"
 	@echo "  shard-canary         discover-shard classifier behavior canary (on-demand; costs tokens)"
 	@echo ""
@@ -304,6 +307,16 @@ status-relay-hardened-units:
 
 lint:
 	@bash $(SRC_DIR)/tools/check-no-bare-rm-f.sh --enforce
+
+# id:2654 -- BASELINE STALENESS. Both head-line ratchets read a committed SNAPSHOT, and a
+# snapshot goes SILENTLY LOOSE after a shrink pass: the floor stays at the old larger value
+# until someone regenerates, and a regrowth back up to it is forgiven. This is the READ-ONLY
+# detector for that; it writes nothing and names the regen command. Deliberately NOT part of
+# `make test` and NOT `--strict`: it is a report, and staleness is a state of the committed
+# corpus, not a test failure. Run it after a shrink pass, before trusting the ratchets.
+baseline-staleness:
+	@bash $(SRC_DIR)/relay/scripts/todo-conformance.sh --baseline-staleness $(SRC_DIR)/TODO.md
+	@bash $(SRC_DIR)/relay/scripts/todo-conformance.sh --baseline-staleness $(SRC_DIR)/ROADMAP.md
 
 # id:d3f8 — inner-loop subset runner. `make test FILES="tests/test_a.sh tests/test_b.sh"`
 # runs exactly those files; `make test` with no FILES is unchanged (full suite, lint
