@@ -3,7 +3,14 @@
 #
 # For every OPEN or CLOSED ROADMAP.md item that carries a comment-anchored
 # `<!-- gated-on:CSV -->` typed edge (the id:46f6 form-C grammar), resolve the target
-# tokens against their checkbox state over ROADMAP.md ∪ TODO.md ∪ TODO.archive.md,
+# tokens against their checkbox state over ROADMAP.md u TODO.md u TODO.archive.md u
+# ROADMAP.archive.md -- FOUR ledgers, not three. This line said THREE until 2026-09-03 while
+# the code below (see the resolution-map block) had spanned four since routed:42c9/8b21; the
+# stale count was caught by a sibling repo reading it to decide whether it could safely drop
+# its archive stubs. That decision hangs on this sentence, so it is load-bearing prose, not a
+# comment. VERIFIED 2026-09-03: 7 live gate targets exist ONLY in ROADMAP.archive.md
+# (2ee5 33b2 4438 70bc 93ac d0aa e8d4) and resolve-gates reports ZERO dangling, which is the
+# check that proves the fourth ledger is really in the set.
 # using the SHARED id:46f6 engine (lib-typed-edges.sh) — NOT a bare substring read of
 # "gated-on" (the id:4da4/0d58 trap).
 #

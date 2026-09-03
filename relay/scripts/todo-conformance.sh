@@ -347,6 +347,31 @@ head_refusable() {
 # the format actually fixes.
 SHAPE_POINTER_RE='[[:space:]]*-{1,2}[[:space:]]*detail:[[:space:]]*`?[A-Za-z0-9_./-]*/[0-9a-f]{4}\.md`?'
 
+# strip_chrome <text> → <text> with the detail pointer and every must-keep token removed.
+#
+# THE ONE STRIPPER (id:60eb, and the id:4983 rule "make ONE source serve both the actor and
+# the checker"). Two rules in this file measure the same line and used to disagree about what
+# a detail pointer is: `shape_residue` (id:30fe) excluded "lane/gate/id/title/POINTER" from
+# its residue, while `grammar_item_class`'s title check (id:b048) counted the pointer AS
+# TITLE TEXT. Since the id:0d7c topology REQUIRES that pointer on any item whose body was
+# relocated -- and roadmap-lint.sh rule 3(c) reports DETAIL-POINTER-MISSING without it --
+# planting a mandatory pointer pushed a conforming item over the title budget with no prose
+# added at all. Observed on `id:7408` / `id:372a` in commit 39146fc7.
+#
+# So both callers now go through this. A SECOND spelling of the pointer pattern is exactly
+# the drift this fixes; do not inline one.
+#
+# Lanes, gate glyphs and the at-sign marker family come from the ONE mirror
+# (LENGTH_MUST_KEEP_RE). Do not name an at-sign token literally in this file:
+# shrink-acceptance.py's marker registry greps these scripts for the markers they read, and
+# a trailing comment is not a comment line, so a token written here is discovered as a real
+# marker and reported as a keep-list GAP.
+strip_chrome() {
+  local s="$1"
+  s="$(sed -E "s#${SHAPE_POINTER_RE}##g" <<<"$s")"
+  sed -E "s/${LENGTH_MUST_KEEP_RE}//g" <<<"$s"
+}
+
 # shape_residue <line> → the prose surviving after every allowed component is removed.
 SHAPE_TITLE_MAX="${SHAPE_TITLE_MAX:-200}"
 
@@ -354,12 +379,7 @@ shape_residue() {
   local l="$1" bold title s
   s="$(sed -E 's/^-[[:space:]]\[[[:space:]xX]\][[:space:]]*//' <<<"$l")"
   s="$(sed -E 's/<!--[^>]*-->//g' <<<"$s")"            # structural: ALL html comments
-  s="$(sed -E "s#${SHAPE_POINTER_RE}##g" <<<"$s")"
-  # Lanes, gate glyphs and the at-sign marker family, from the ONE mirror. Do not name an
-  # at-sign token literally in this file: shrink-acceptance.py's marker registry greps these
-  # scripts for the markers they read, and a trailing comment is not a comment line, so a
-  # token written here is discovered as a real marker and reported as a keep-list GAP.
-  s="$(sed -E "s/${LENGTH_MUST_KEEP_RE}//g" <<<"$s")"
+  s="$(strip_chrome "$s")"
   # THE TITLE. First a bold run if there is one -- and only the FIRST: a second bold run is
   # prose wearing emphasis, which is exactly how `**RED SPEC LANDED 2026-08-13**` survived
   # wave 1 on dozens of lines.
@@ -532,6 +552,10 @@ grammar_item_class() {
   fi
   # 5. lane tags: zero or more leading bracket groups (see UNDERSPECIFIED (i)).
   title="$(sed -E 's/^([[:space:]]*\[[^]]*\])+[[:space:]]*//' <<<"$rest")"
+  # 5b. the detail pointer and any remaining must-keep token are CHROME, not title (id:60eb).
+  #     Through strip_chrome(), the same helper shape_residue uses -- the pointer is mandatory
+  #     under id:0d7c, so counting it as title penalised an item for obeying the format.
+  title="$(strip_chrome "$title")"
   title="$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' <<<"$title")"
   if (( ${#title} > LEDGER_ITEM_TITLE_MAX )); then
     echo "grammar-item-title-long (${#title} chars of title, approximate max $LEDGER_ITEM_TITLE_MAX)"

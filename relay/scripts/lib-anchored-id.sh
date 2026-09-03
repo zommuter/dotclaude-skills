@@ -42,12 +42,29 @@ ANCHORED_ID_MARKER_RE='<!--[[:space:]]*id:([0-9a-fA-F]{4})[[:space:]]*-->'
 # (define) and "this line REFERS to X" (refer). Both shapes are live, and they place the
 # item's own id at opposite ends:
 #
-#   BODY QUOTES A MARKER  → the own id is LAST.   Live here: TODO.md's `id:f346` item
-#     documents its own re-mint by quoting a literal marker, so its own marker trails.
-#   TRAILING REFERENCE    → the own id is FIRST.  Live in loderite's ROADMAP.md
-#     (routed:3ad9, 2026-08-14): three OPEN items at L211/L229/L628 each end
-#     `<!-- id:XXXX --> <!-- id:50f3 -->`, where the trailing marker REFERS to a CLOSED
-#     item. A last-match reader attributes all three open items to a closed id.
+#   BODY QUOTES A MARKER  → the own id is LAST.
+#   TRAILING REFERENCE    → the own id is FIRST.
+#
+# BOTH ORIGINAL EXAMPLES WENT STALE AND WERE REPLACED 2026-09-03. Recorded because the
+# rot is the point, not an embarrassment: this is load-bearing prose in a shared library,
+# and a GREEN consumer never re-reads it. Same class as resolve-gates.sh's header (said
+# three ledgers while the code spanned four) and loderite's expect() failure message
+# (structurally unreadable -- a passing test never prints it).
+#   - It cited loderite's ROADMAP.md L211/L229/L628 as ending `<!-- id:XXXX --> <!-- id:50f3 -->`.
+#     VERIFIED 2026-09-03: those lines carry ZERO id markers and that file has ZERO
+#     two-marker lines. The shape is absent, not drifted.
+#   - It cited THIS repo's `id:f346` for the quotes-a-marker shape. That line now carries
+#     exactly ONE marker: today's id:0d7c shrink relocated the quoting prose into its note.
+#     Worth knowing as a side effect -- moving bodies off head lines REMOVES this hazard
+#     from the ledger, which is why the live population keeps shrinking.
+#
+# LIVE EXAMPLE, verified 2026-09-03 (re-verify before citing; that is the whole lesson):
+#   TODO.md:679 (`routed:b52e`) carries FOUR markers -- 2f81 7756 2f81 7756 -- and this
+#   library refuses it with status 3. The line is an annotation ABOUT id-misattribution,
+#   and its own text says `2f81` "would land HERE instead of on the archived item that owns
+#   it" (tracked as id:cc7e). So the act of DOCUMENTING a marker defect manufactured a
+#   multi-marker line for every counter: the residue is the cost of the explanation. Until
+#   the schema-not-sigil grammar lands, de-literalise a quoted marker.
 #
 # So LAST is wrong for the second shape exactly as FIRST is wrong for the first. Picking
 # either is a silent WRONG ATTRIBUTION, and on a write path that is corruption — this is

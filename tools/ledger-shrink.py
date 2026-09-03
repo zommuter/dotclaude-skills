@@ -106,6 +106,10 @@ _LANE_PATTERNS = [
 # `[INPUT <dash> venue]` is the NEW vocabulary and is untouched by the ratchet.
 _RETIRED_LANE_RE = re.compile(r"\[HARD\s*" + _DASH + r"\s*[A-Za-z0-9 _./-]+\]")
 
+# The prose separator find_cut's fallback cuts on. One or two dashes, in any of the three
+# spellings the fleet is mid-migration between, spaced on both sides. See find_cut.
+_SEP_RE = re.compile(r" " + _DASH + r"{1,2} ")
+
 # Tokens that MUST remain on the item line. Order-independent; each is re-appended in the
 # order it appeared. Derived from `relay/scripts/classify-repo.sh`'s substring matches
 # (HUMAN_GATES / LANE_TAGS / the @-marker family / the blocked lexemes) and
@@ -210,11 +214,26 @@ def _first_lane(text: str):
 
 
 def _protected_spans(text: str):
-    """Character ranges a cut may never land inside: HTML comments and code spans."""
+    """Character ranges a cut may never land inside: HTML comments, code spans, brackets.
+
+    BRACKET RUNS were added with the dash-spelling fallback below, and they are what makes
+    that fallback safe rather than merely wider. A lane tag CONTAINS the separator the
+    fallback cuts on -- `[HARD <dash> decision gate]`, `[INPUT <dash> meeting]` -- so an
+    unbackticked lane tag mentioned in prose offers the dash rule a cut point INSIDE itself.
+    MEASURED on `id:2884` here: its body says ``lane tags ... -> valid [HARD <dash> <lane>]``
+    with no backticks, and the first spaced dash on that line sits at offset 163, between
+    `[HARD` and `<lane>]`. Cutting there leaves an unbalanced `[HARD` on the head line and
+    carries the rest of the tag into the note -- a mangled control surface, which is worse
+    than the long line it was fixing. No cut ever wants to land inside a bracket group
+    anyway: brackets here are lane tags, `[INBOUND ...]` provenance and `[HIGH PRIORITY]`
+    flags, none of which is a title boundary.
+    """
     spans = []
     for m in re.finditer(r"<!--.*?-->", text):
         spans.append((m.start(), m.end()))
     for m in re.finditer(r"`[^`]*`", text):
+        spans.append((m.start(), m.end()))
+    for m in re.finditer(r"\[[^\[\]]*\]", text):
         spans.append((m.start(), m.end()))
     return spans
 
@@ -232,8 +251,9 @@ def find_cut(head: str):
     Fallback, added here: items with NO bold run. Measured on this repo's ledgers, 150 of
     674 TODO items and 43 of 127 ROADMAP items have none, so without a fallback 193 items
     could never shrink at all and the ratchet (D4) would demand a cut the tool refuses to
-    make. The fallback cut is the earlier of the first ` -- ` and the first sentence
-    boundary; neither may land inside an HTML comment or a code span.
+    make. The fallback cut is the earlier of the first spaced dash separator (`_SEP_RE`, any
+    of the three dash spellings) and the first sentence boundary; neither may land inside an
+    HTML comment, a code span or a bracket group.
     """
     spans = _protected_spans(head)
 
@@ -265,7 +285,18 @@ def find_cut(head: str):
     body_start = TOP_ITEM_RE.match(head)
     start = body_start.end() if body_start else 0
     candidates = []
-    for sep in re.finditer(r" -- ", head):
+    # THE SEPARATOR IS SPELLED THREE WAYS, and reading only one of them is the same defect
+    # this module already fixed for its keep-patterns (`_DASH`, above): the fleet is
+    # mid-migration off the em/en dash, the detectors match BOTH spellings when READING, and
+    # this fallback matched ASCII alone. MEASURED here 2026-09-03 on the 63 open TODO.md
+    # items that carry no detail pointer: 42 offered find_cut NO candidate at all -- no bold
+    # run, no ASCII ` -- `, and no sentence boundary, because their periods sit inside
+    # filenames (`SKILL.md documents`, `archive-done.sh`). 39 of those 42 have a spaced em
+    # dash exactly where their title ends. They are historical `[INBOUND routed:...]` prose
+    # written before the ban, so the ASCII-only rule refused precisely the population it was
+    # most needed for. Nothing is REWRITTEN by this: the dash itself travels with the body
+    # into the note, verbatim, and the head keeps only the text left of it.
+    for sep in re.finditer(_SEP_RE, head):
         if sep.start() > start and not _inside(sep.start(), spans) and _ok(sep.start()):
             candidates.append(sep.start())
             break
@@ -414,6 +445,18 @@ def split_head(head: str, item_id: str, block: str = ""):
     _pb, _pa = _first_lane(head), _first_lane(keep)
     if (_pb[1] if _pb else None) != (_pa[1] if _pa else None):
         return None, None, "lane-would-change"
+
+    # THE HEAD MUST ACTUALLY SHRINK, and by the same margin the residue check demands.
+    # MIN_MOVED_CHARS was measured on the wrong side of the trade: it asks how much prose
+    # LEAVES, and says nothing about what the split COSTS. The pointer is ~45 chars, so a
+    # 46-char move is a wash and a 40-char move makes the line LONGER. Both were produced
+    # against the live TODO.md on 2026-09-03 -- `id:625a` went 349 -> 355 and `id:cb1c`
+    # 356 -> 356, each buying an indirection for no byte win and no title win. A split that
+    # does not shrink the head is pure cost: the reader loses the prose from the line and
+    # the ledger keeps the length. Refuse it here rather than leave the caller to filter,
+    # so every consumer of split_head gets the same answer.
+    if len(head) - len(keep) < MIN_MOVED_CHARS:
+        return None, None, "no-net-shrink"
 
     # RETIRED VOCABULARY: refuse rather than plant it. Preserving an item's computed lane
     # can mean lifting a venue-keyed `[HARD <dash> venue]` tag into the leading run, and the
@@ -622,6 +665,8 @@ REFUSAL_LABELS = {
     "pointer-exists": "already has a pointer (idempotent)",  # unreachable since id:6546
     "no-cut-point": "no defensible cut point",
     "too-little-to-move": "under {} chars would move".format(MIN_MOVED_CHARS),
+    "no-net-shrink": "the head would not shrink by {} chars (the pointer costs more than "
+                     "the split saves)".format(MIN_MOVED_CHARS),
     "foreign-id": "block carries ANOTHER item's id marker (would orphan it)",
     "lane-would-change": "the split would CHANGE the item's computed lane (id:4da4)",
     "lane-retired-vocab": "preserving the lane would plant RETIRED venue-keyed vocabulary; "
