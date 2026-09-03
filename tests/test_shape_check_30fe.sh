@@ -38,6 +38,15 @@ fail() { echo "FAIL: $*"; exit 1; }
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# HERMETICITY (id:2d17): todo-conformance.sh defaults BOTH ratchet baselines to committed
+# files, and this test's fixture ledgers use the real basenames, so without these overrides
+# the live repo's baseline decides this test's verdict. Latent since the length ratchet
+# landed -- masked only because its budget is 500 chars and these fixtures are short. The
+# shape ratchet fires at 8 chars of residue and unmasked it immediately. Pointing both at
+# absent paths keeps the ratchets INERT, which is the state this file's assertions describe.
+export SHAPE_BASELINE="$tmp/no-shape-baseline.txt"
+export LENGTH_BASELINE="$tmp/no-length-baseline.txt"
+
 T="$tmp/TODO.md"
 cat >"$T" <<'MD'
 # TODO

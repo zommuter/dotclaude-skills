@@ -425,7 +425,8 @@ after D1–D3") stay in TODO.md — not executor work yet.
 
 - [x] [ROUTINE] **`shrink-acceptance.py` must ATTRIBUTE a lost violation, not score it as a win -- the gate is structurally blind to a detector going blind.** -- detail: `docs/ledger-notes/5f34.md` <!-- id:5f34 --> (archived — see ROADMAP.archive.md)
 - [x] [ROUTINE] **`orphan-scan --shipped` must follow the per-id detail pointer -- it is the only consumer measured to MANUFACTURE a wrong recommendation.** -- detail: `docs/ledger-notes/1608.md` <!-- gated-on:5f34 --> <!-- id:1608 --> (archived — see ROADMAP.archive.md)
-- [ ] [HARD] **`shape-prose` SATURATES at ~114 standing findings, so it regulates nothing and cannot surface #115.** -- detail: `docs/ledger-notes/2d17.md` <!-- routed:3924 --> <!-- id:2d17 -->
+- [x] [HARD] **`shape-prose` SATURATES at ~114 standing findings, so it regulates nothing and cannot surface #115.** -- detail: `docs/ledger-notes/2d17.md` <!-- routed:3924 --> <!-- id:2d17 -->
+- [ ] [ROUTINE] **A regrowth BELOW the baselined value is forgiven -- the `id:718c` shape the snapshot ratchet structurally cannot catch.** -- detail: `docs/ledger-notes/cf64.md` <!-- children-of:2d17 --> <!-- gated-on:2654 --> <!-- id:cf64 -->
 - [ ] [HARD] **Reconcile the indented-id count before any promote pass -- 11 (ruled) vs 21 (measured) vs 10 (measured now).** -- detail: `docs/ledger-notes/8679.md` <!-- id:8679 -->
 - [ ] [ROUTINE] **`grammar_item_class` counts the `-- detail:` pointer as title while `shape-prose` excludes it, so planting a REQUIRED pointer pushes an item over budget.** -- detail: `docs/ledger-notes/60eb.md` <!-- id:60eb -->
 - [ ] [INPUT - decision] **Section preamble prose has no home in the three-shape grammar; 154 ROADMAP lines are refused with nowhere to go.** -- detail: `docs/ledger-notes/800f.md` <!-- id:800f -->

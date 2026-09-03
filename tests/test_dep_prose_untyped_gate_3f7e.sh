@@ -33,6 +33,15 @@ fail() { echo "FAIL: $*"; exit 1; }
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# HERMETICITY (id:2d17): todo-conformance.sh defaults BOTH ratchet baselines to committed
+# files, and this test's fixture ledgers use the real basenames, so without these overrides
+# the live repo's baseline decides this test's verdict -- a fixture id absent from the
+# baseline reports `shape-new`, which is an ERROR and breaks the "--strict must still exit 0"
+# assertion below even though nothing about DEP-PROSE-UNTYPED changed. Latent since the
+# length ratchet landed; only its 500-char budget kept it hidden.
+export SHAPE_BASELINE="$WORK/no-shape-baseline.txt"
+export LENGTH_BASELINE="$WORK/no-length-baseline.txt"
+
 # A sibling TODO.md twin for every fixture id (id:213a NO-ACCEPTANCE-NO-TWIN stays
 # silent here — this file's own concern is the DEP-PROSE-UNTYPED rule).
 cat > "$WORK/TODO.md" <<'MD'

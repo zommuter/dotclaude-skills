@@ -32,6 +32,13 @@ SH="$ROOT/relay/scripts/todo-conformance.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# HERMETICITY (id:2d17): this file drives LENGTH_BASELINE deliberately (that is its subject)
+# but the SHAPE ratchet shares the same default-to-a-committed-file design, and these
+# fixtures are long prose lines with ids absent from the live shape baseline -- so every one
+# of them reports `shape-new`, an ERROR, and the --strict assertions below fail for a reason
+# that has nothing to do with the length ratchet. Keep the shape ratchet INERT here.
+export SHAPE_BASELINE="$tmp/no-shape-baseline.txt"
+
 fail=0
 report() { echo "FAIL: $1"; fail=1; }
 

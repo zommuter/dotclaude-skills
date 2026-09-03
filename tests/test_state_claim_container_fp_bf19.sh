@@ -45,6 +45,14 @@ bash -n "$LIB" || fail "lib-state-claim.sh fails bash -n"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# HERMETICITY (id:2d17): todo-conformance.sh defaults BOTH ratchet baselines to committed
+# files, and this test's fixture ledgers use the real basenames, so without these overrides
+# the live repo's baseline decides this test's verdict. This file tests the state-claim
+# engine and has no opinion about either ratchet; keeping them INERT is what its assertions
+# assume. Latent since the length ratchet landed -- masked by its 500-char budget.
+export SHAPE_BASELINE="$tmp/no-shape-baseline.txt"
+export LENGTH_BASELINE="$tmp/no-length-baseline.txt"
+
 # --- direct-engine checks (fast, precise) -----------------------------------
 source "$LIB"
 
