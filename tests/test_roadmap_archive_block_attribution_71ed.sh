@@ -32,10 +32,18 @@
 #   owning header either way), while the 5f19 header line itself DOES mention "id:f6d3" in
 #   prose. The heuristic points the wrong way on the case that produced it.
 #
-#   So the archiver DEFERS instead of guessing: on the ambiguous shape it archives the header
-#   line only, leaves the continuation body verbatim in the live ROADMAP.md, and says so
-#   loudly on stderr naming the id. Nothing is lost in either direction, and the state is a
-#   fixed point (the stub classifies `keep` on every later run).
+#   So the archiver DEFERS instead of guessing, and says so loudly on stderr naming the id.
+#
+# WHAT THE DEFERRAL DOES, AND WHY IT CHANGED (id:2eba, 2026-09-03):
+#   It USED to archive the header line only, leave the continuation body in ROADMAP.md, and
+#   leave a stub above that body. That split relied on the STUB to hold the retained body
+#   apart from the live bullet above it. id:2eba removed the stub, so the retained body would
+#   silently re-attach to that neighbour -- the archiver would be GUESSING an attribution,
+#   which is the one thing routed:71ed exists to refuse.
+#   The deferral is therefore now TOTAL: on the ambiguous shape the item is NOT archived at
+#   all. Header and body both stay verbatim in the live ROADMAP.md, and stderr names the id.
+#   Nothing is lost in either direction, and the state is still a fixed point -- the next run
+#   re-derives the same refusal and mutates nothing.
 #
 # Contract asserted here:
 #   1. REGRESSION: an unambiguous closed item still archives with its whole body, exactly as
@@ -44,8 +52,8 @@
 #      ROADMAP.archive.md.
 #   3. The deferral is LOUD -- stderr names the ambiguous id. A silent skip is the same
 #      defect class wearing a different coat (id:4347).
-#   4. The closed item is still archived as a header + stub, so its id keeps resolving from
-#      the live ledger (id:cd9c) and the run is not stuck refusing forever.
+#   4. The closed item is NOT archived at all: it keeps its whole live line and nothing of it
+#      reaches ROADMAP.archive.md, so a human can repair the attribution from the live file.
 #
 # fails-against: the defect and its fix land in the SAME commit as this spec, so there is no
 # ancestor tree to check out; the negative case is the mutation below, which disables the
@@ -163,16 +171,21 @@ grep -qiE 'ambiguous|attribution' <<<"$err2" \
 pass "case 3: the ambiguous shape is announced on stderr, naming the id"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Case 4 -- the closed item is still ARCHIVED (header + stub), so its id keeps
-# resolving from the live ledger (id:cd9c) and the run does not refuse forever.
+# Case 4 -- the deferral is TOTAL (id:2eba): the ambiguous item is NOT archived at
+# all. Its whole live line stays, and nothing of it reaches the archive, so the
+# attribution can be repaired from the live file with both halves in front of you.
 # ─────────────────────────────────────────────────────────────────────────────
-stub2="$(grep -F 'id:5f19' "$repo2/ROADMAP.md" || true)"
-[[ -n "$stub2" ]] || fail "case 4: id:5f19 no longer resolves from the live ROADMAP.md"
-grep -qF '(archived' <<<"$stub2" \
-  || fail "case 4: id:5f19 was left unarchived -- deferral must archive the header and stub it, not refuse the item"
-grep -qF 'id:5f19' "$repo2/ROADMAP.archive.md" 2>/dev/null \
-  || fail "case 4: the closed item's header never reached ROADMAP.archive.md"
-pass "case 4: the closed item's header is archived and stubbed; only the ambiguous body stays put"
+live2="$(grep -F 'id:5f19' "$repo2/ROADMAP.md" || true)"
+[[ -n "$live2" ]] || fail "case 4: id:5f19 was archived despite the ambiguous body -- the deferral must refuse the whole item"
+grep -qF '(archived' <<<"$live2" \
+  && fail "case 4: id:5f19's live line carries an archive stub -- id:2eba writes none"
+grep -qE '^- \[x\] .*Lint: a file that generates NO unit' <<<"$live2" \
+  || fail "case 4: id:5f19's live line is not its original header verbatim -- got: >>>$live2<<<"
+if [[ -f "$repo2/ROADMAP.archive.md" ]]; then
+  grep -qF 'id:5f19' "$repo2/ROADMAP.archive.md" \
+    && fail "case 4: the ambiguous item reached ROADMAP.archive.md -- the deferral must archive nothing"
+fi
+pass "case 4: the ambiguous item is refused whole -- header and body both stay live, archive untouched"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Case 5 -- IDEMPOTENCE. Re-running must not re-open the question, re-archive the

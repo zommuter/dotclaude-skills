@@ -492,21 +492,31 @@ has_todo_twin() {
 }
 
 # --- rule 3(d) DEAD-GATE resolution maps (id:49e0) ----------------------------
-# THREE separate maps rather than one merged map: the whole point of the rule is
+# FOUR separate maps rather than one merged map: the whole point of the rule is
 # WHERE a `gated-on:` target lives. A target that is a ROADMAP checkbox (open OR
 # ticked) is a live/satisfied gate; one that resolves only in TODO.md was never
 # promoted to the execution queue; one that resolves only in TODO.archive.md is
 # retired, so the gate is permanent. Merging them (as resolve-gates.sh correctly
 # does for its own, different question) would erase exactly that distinction.
+#
+# id:2eba added the FOURTH, ROADMAP.archive.md. Until 2026-09-03 the archivers left a
+# one-line stub in ROADMAP.md for every item they moved, so an archived gate target
+# still resolved in RL_GATE_ROADMAP. With the stub gone that leg went blind, and the
+# blindness is not hypothetical: removing this repo's 62 stubs immediately produced two
+# false DEAD-GATE warnings (6446→f391 and 8524→1608) whose targets were promoted AND
+# shipped. An item in ROADMAP.archive.md was promoted and is done, so it satisfies a
+# gate for exactly the id:65f5 reason a ticked live item does. This is the same widening
+# routed:42c9 already made to `orphan-scan --cross-ledger`, applied to this consumer.
 _rl_dir="$(dirname "$roadmap")"
 # id:e95b — detail files are resolved relative to the LEDGER's directory, the same
 # root ledger-slice.sh uses, so a fixture ROADMAP in a temp dir resolves its own notes.
 _rl_notes_root="$_rl_dir"
 _rl_build_note_todo_text "$roadmap"
-declare -A RL_GATE_ROADMAP RL_GATE_TODO RL_GATE_ARCHIVE
+declare -A RL_GATE_ROADMAP RL_GATE_TODO RL_GATE_ARCHIVE RL_GATE_ROADMAP_ARCHIVE
 typed_edges_build_state_map RL_GATE_ROADMAP "$roadmap"
 typed_edges_build_state_map RL_GATE_TODO    "$_rl_dir/TODO.md"
 typed_edges_build_state_map RL_GATE_ARCHIVE "$_rl_dir/TODO.archive.md"
+typed_edges_build_state_map RL_GATE_ROADMAP_ARCHIVE "$_rl_dir/ROADMAP.archive.md"
 
 # --- rule 3(h) ANSWER-SRC (id:ca14) -------------------------------------------
 # The DECIDED-ANSWER marker `@owner-answered:YYYY-MM-DD` (owner-only, the
@@ -622,12 +632,16 @@ for ((_as_i = 0; _as_i < ${#_rl_lines[@]}; _as_i++)); do
     if [[ "$_as_tok" =~ ^id:([0-9a-fA-F]{4})$ ]]; then
       _as_t="${BASH_REMATCH[1]}"
       _as_tl="${_as_t,,}"
+      # id:2eba — ROADMAP.archive.md joins the resolution set for the same reason it
+      # joined DEAD-GATE's: with the archive stub gone, a citation of a shipped item
+      # would otherwise read as dangling.
       if [[ -n "${RL_GATE_ROADMAP[$_as_t]+x}" || -n "${RL_GATE_TODO[$_as_t]+x}" || -n "${RL_GATE_ARCHIVE[$_as_t]+x}" \
+         || -n "${RL_GATE_ROADMAP_ARCHIVE[$_as_t]+x}" || -n "${RL_GATE_ROADMAP_ARCHIVE[$_as_tl]+x}" \
          || -n "${RL_GATE_ROADMAP[$_as_tl]+x}" || -n "${RL_GATE_TODO[$_as_tl]+x}" || -n "${RL_GATE_ARCHIVE[$_as_tl]+x}" ]]; then
         continue
       fi
       violations=$((violations + 1))
-      echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source id:${_as_t}, which resolves NOWHERE (absent from ROADMAP.md, TODO.md and TODO.archive.md) — a dangling citation (id:ca14)" >&2
+      echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source id:${_as_t}, which resolves NOWHERE (absent from ROADMAP.md, ROADMAP.archive.md, TODO.md and TODO.archive.md) — a dangling citation (id:ca14)" >&2
       echo "  $_as_line" >&2
       report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling id citation id:${_as_t}"$'\n'
     else
@@ -870,6 +884,9 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
       [[ -z "$_dg_t" ]] && continue
       # A ROADMAP checkbox (open or ticked) — not a dead gate.
       [[ -n "${RL_GATE_ROADMAP[$_dg_t]+x}" ]] && continue
+      # An ARCHIVED ROADMAP item (id:2eba) — it was promoted and shipped, so the gate is
+      # SATISFIED. Same id:65f5 reason a ticked live item passes; see the map comment.
+      [[ -n "${RL_GATE_ROADMAP_ARCHIVE[$_dg_t]+x}" ]] && continue
       if [[ -n "${RL_GATE_ARCHIVE[$_dg_t]+x}" ]]; then
         _dg_why="it is RETIRED — archived in TODO.archive.md and not a ROADMAP item, so the gate is PERMANENT and can never open; drop or re-target the marker"
       elif [[ -n "${RL_GATE_TODO[$_dg_t]+x}" ]]; then

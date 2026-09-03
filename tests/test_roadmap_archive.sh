@@ -59,13 +59,13 @@ grep -q 'Done item one' "$arch"          || fail "T1: done header not in archive
 grep -q 'sub-bullet A' "$arch"           || fail "T1: sub-bullet A not in archive"
 grep -q 'sub-bullet B' "$arch"           || fail "T1: sub-bullet B not in archive"
 grep -q 'continuation prose' "$arch"    || fail "T1: continuation prose not in archive"
-# id:cd9c: the archiver leaves a one-line STUB behind for the header (so the id
-# still resolves from the live file) but the item's BODY must be fully gone.
-grep -q 'Done item one' "$road"          || fail "T1: stub for done header missing from ROADMAP.md"
+# id:2eba (supersedes id:cd9c): the archiver leaves NOTHING behind — header and body
+# both go. The id keeps resolving via ROADMAP.md U ROADMAP.archive.md (routed:42c9).
+grep -q 'Done item one' "$road"          && fail "T1: the done header was left in ROADMAP.md — id:2eba leaves no stub"
 grep -q '(archived — see ROADMAP.archive.md)' "$road" \
-                                          || fail "T1: stub suffix missing from ROADMAP.md"
+                                          && fail "T1: the archive-stub suffix was written into ROADMAP.md"
 grep -q 'sub-bullet A' "$road"           && fail "T1: sub-bullet A left in ROADMAP.md"
-pass "T1: multi-line block captured and moved as a unit, header stub left behind"
+pass "T1: multi-line block captured and moved as a unit, nothing left behind"
 
 # ─────────────────────────────────────────────────
 # Test 2: Open item + header preserved

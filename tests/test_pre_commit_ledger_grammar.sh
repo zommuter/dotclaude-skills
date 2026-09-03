@@ -223,13 +223,23 @@ else
   fail "(f1) a real archive-done.sh commit was BLOCKED -- id:d667 is gated on id:7909: $LAST_ERR"
 fi
 
-# (f2) relay/scripts/roadmap-archive.sh -- the hazard DOES bite here, and not because of the
-#      move. `id:cd9c` makes the archiver leave a STUB behind in the LIVE ROADMAP.md: the
-#      header line verbatim + " (archived - see ROADMAP.archive.md)". That is a genuine ADDED
-#      line with text AFTER the id marker, so `grammar-item-after-id` fires correctly on a
-#      line the fleet's own tooling wrote. This case PINS that measured fact so arming the
-#      hook stays gated on it; if roadmap-archive.sh ever emits a conforming stub, this case
-#      goes red and whoever reads it should re-check whether the hook can be armed.
+# (f2) relay/scripts/roadmap-archive.sh -- the hazard USED to bite here and NO LONGER DOES.
+#      `id:cd9c` made the archiver leave a STUB behind in the LIVE ROADMAP.md (the header
+#      line verbatim + " (archived - see ROADMAP.archive.md)"), which was a genuine ADDED
+#      line with text after the id marker, so `grammar-item-after-id` fired on a line the
+#      fleet's own tooling had written. This case pinned that, and said in as many words:
+#      "if roadmap-archive.sh ever emits a conforming stub, this case goes red and whoever
+#      reads it should re-check whether the hook can be armed."
+#
+#      id:2eba (owner-ratified 2026-09-03) went further than a conforming stub: the archiver
+#      emits NO stub at all, so a ROADMAP archive commit is now a PURE DELETION on the live
+#      ledger with the additions landing in ROADMAP.archive.md, which is out of grammar
+#      scope (id:2065) -- structurally the same shape as (f1). The case is inverted to pin
+#      the new measured fact.
+#
+#      WHAT THIS DOES *NOT* SAY: it does not claim id:d667 can now be armed. It removes ONE
+#      named blocker (this one) and says so; whether others remain is a separate reading and
+#      an owner call, not something this test settles.
 r="$(new_repo f2)"
 {
   printf '# ROADMAP\n\n## Items\n\n'
@@ -240,18 +250,23 @@ r="$(new_repo f2)"
 git -C "$r" add ROADMAP.md
 git -C "$r" -c core.hooksPath=/dev/null commit -q -m base
 ( cd "$r" && HOME="$WORK/home" bash "$REPO_ROOT/relay/scripts/roadmap-archive.sh" "$r" ) >/dev/null 2>&1
-if grep -q 'archived' "$r/ROADMAP.md"; then
-  ok "(f2) roadmap-archive.sh left an id:cd9c stub in the live ledger (precondition)"
+if [[ -f "$r/ROADMAP.archive.md" ]] && grep -q 'A closed roadmap item' "$r/ROADMAP.archive.md"; then
+  ok "(f2) roadmap-archive.sh actually moved something (precondition)"
 else
-  fail "(f2) roadmap-archive.sh left no stub -- the case no longer exercises what it claims"
+  fail "(f2) roadmap-archive.sh archived nothing -- the case would be vacuous"
+fi
+if grep -q 'archived — see' "$r/ROADMAP.md"; then
+  fail "(f2) roadmap-archive.sh still writes an archive stub into the live ledger -- id:2eba says it must not"
+else
+  ok "(f2) roadmap-archive.sh leaves no stub in the live ledger (id:2eba)"
 fi
 git -C "$r" add ROADMAP.md
 [[ -f "$r/ROADMAP.archive.md" ]] && git -C "$r" add ROADMAP.archive.md
 do_commit "$r" 'archive roadmap items'
-if [[ "$res" == BLOCKED ]] && grep -q 'grammar-item-after-id' <<<"$LAST_ERR"; then
-  ok "(f2) MEASURED: the id:cd9c archive stub IS blocked -- arming id:d667 stays gated on it"
+if [[ "$res" == COMMITTED ]]; then
+  ok "(f2) MEASURED: a roadmap-archive.sh commit is NOT blocked any more -- id:2eba removed the archive-stub blocker that gated arming id:d667 (one blocker, not a clearance)"
 else
-  fail "(f2) roadmap-archive.sh's stub is no longer blocked (res=$res). Behaviour changed -- re-check whether id:d667 can be armed, then update this case."
+  fail "(f2) a roadmap-archive.sh commit is STILL blocked (res=$res): $LAST_ERR"
 fi
 
 # ── (g) a repo NOT in the relay.toml own-set is unaffected ───────────────────────────────

@@ -23,10 +23,22 @@
 # bullet that STAYS LIVE, it archives the header line only, LEAVES the body verbatim in
 # ROADMAP.md, and says so on stderr naming the id. See the guard below.
 #
-# id:cd9c: a one-line STUB is left behind in the LIVE ROADMAP.md for every moved
-# item — the header line verbatim plus " (archived — see ROADMAP.archive.md)" — so
-# the id keeps resolving from the live ledger alone. Only the header line becomes
-# the stub; the rest of the block (continuations/body) moves to the archive only.
+# id:2eba (owner-ratified 2026-09-03) SUPERSEDES id:cd9c: NO STUB IS LEFT BEHIND.
+# An archived item is removed from ROADMAP.md entirely, block and header alike. The
+# 62 stubs this repo carried were 26,101 bytes -- 36% of ROADMAP.md -- of closed work
+# already present in ROADMAP.archive.md.
+#
+# The stub used to double as this script's IDEMPOTENCY GUARD, so the guard is REPLACED,
+# not deleted. The test is now ARCHIVE MEMBERSHIP -- "is this id already a `- [x]` item
+# line in ROADMAP.archive.md?" -- a pure read of the archive that cannot be defeated by
+# the stub being absent. It lives in ONE place, relay/scripts/lib-archive-idempotency.py,
+# shared with archive-closed.sh (id:4983: make one source serve both). See that file for
+# why membership is strictly stronger than the old suffix test, with the six live
+# dotclaude-skills items that prove it.
+#
+# `orphan-scan --cross-ledger` is NOT blinded by this. routed:42c9 already widened both
+# its ROADMAP legs to ROADMAP.md UNION ROADMAP.archive.md; the older comments claiming it
+# "reads ONLY the live file" predate that widening and are stale.
 #
 # NEVER touches open "- [ ]" items or the file preamble. A grouping heading (##/###/…)
 # that this run EMPTIES of all top-level items is MOVED into the archive with it,
@@ -36,6 +48,7 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 REPO_ROOT="${1:-$(git rev-parse --show-toplevel)}"
 ROADMAP_FILE="$REPO_ROOT/ROADMAP.md"
 ARCHIVE_FILE="$REPO_ROOT/ROADMAP.archive.md"
@@ -75,8 +88,8 @@ else
     : # empty — no prior-commit done items (also fine)
 fi
 
-python3 - "$ROADMAP_FILE" "$ARCHIVE_FILE" "$cutoff" "$PRIOR_DONE_FILE" <<'PYEOF'
-import sys, re, bisect
+python3 - "$ROADMAP_FILE" "$ARCHIVE_FILE" "$cutoff" "$PRIOR_DONE_FILE" "$SCRIPT_DIR" <<'PYEOF'
+import sys, re, bisect, os, importlib.util
 from pathlib import Path
 from datetime import date
 
@@ -84,6 +97,16 @@ roadmap_path = Path(sys.argv[1])
 archive_path = Path(sys.argv[2])
 cutoff       = date.fromisoformat(sys.argv[3])
 prior_file   = Path(sys.argv[4])
+script_dir   = sys.argv[5]
+
+# ── THE idempotency test, in ONE place (id:2eba / id:4983). Loaded by path because this
+#    is a heredoc with no __file__ — the same idiom lib-pool-runs.py uses. A failure to
+#    load is NOT swallowed: an archiver without its idempotency test duplicates bodies.
+_spec = importlib.util.spec_from_file_location(
+    "relay_lib_archive_idempotency",
+    os.path.join(script_dir, "lib-archive-idempotency.py"))
+_ai = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_ai)
 
 # Load the set of lines that were [x] in the prior commit (stripped, for lookup).
 prior_done = set()
@@ -100,26 +123,23 @@ top_done_re = re.compile(r'^- \[x\]')
 date_re     = re.compile(r'\bdone (\d{4}-\d{2}-\d{2})\.?', re.IGNORECASE)
 # Regex for any top-level bullet (open or done) — no leading whitespace, starts "- [".
 top_bullet_re = re.compile(r'^- \[')
-# ── Archived-stub guard (routed:f833 / loderite id:2ab3-B) ──────────────────────────
-# A stub left behind for an already-archived item is BY CONSTRUCTION `- [x]` + an id, and it
-# is present in the prior commit — so without this guard the archiver eats its own successor's
-# output: it deletes the stub from ROADMAP.md and re-appends the body to ROADMAP.archive.md,
-# duplicating ids there and re-blinding `orphan-scan --cross-ledger` (which reads ONLY the
-# live file). Reproduced in the fleet: loderite id:154a restored 59 stubs at 1dc91f6, and
-# c9059f0 — the SAME relay run, 12 minutes later — deleted 58 of them.
-# Grammar mirrors loderite's reference implementation (tools/archive-roadmap.mjs STUB_SUFFIX
-# / STUB_LINE_RE). NOT end-anchored, deliberately: real stubs carry trailing annotations past
-# the suffix (live: bfb3/3d6c/a10c each carry a `**⚠ …`), and an end anchor would re-archive
-# exactly those — the very defect this guard exists for.
-STUB_SUFFIX = " (archived — see ROADMAP.archive.md)"
-# The `.*` between the id marker and the suffix is LOAD-BEARING (cartulary 2026-08-14,
-# routed:4a12): an item line may carry prose AFTER its own `<!-- id:XXXX -->` marker —
-# ledger write-backs from `/relay human` and `/meeting` routinely append rationale there.
-# Without it the suffix had to follow the marker IMMEDIATELY, so every such stub read as
-# un-stubbed and was re-archived + re-stubbed EVERY round: cartulary accumulated up to 9
-# duplicate bodies per id in ROADMAP.archive.md and stub suffixes repeated 3x on one line.
-# Still NOT end-anchored, for the reason stated above (trailing annotations past the suffix).
-stub_line_re = re.compile(r'^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->.*' + re.escape(STUB_SUFFIX))
+# ── Already-archived guard (routed:f833 / loderite id:2ab3-B; RE-BASED by id:2eba) ──────
+# An item that is already in ROADMAP.archive.md is BY CONSTRUCTION `- [x]` + an id and is
+# present in the prior commit — so without this guard the archiver eats its own successor's
+# output: it re-appends the body to ROADMAP.archive.md, duplicating ids there.
+# Reproduced in the fleet: loderite id:154a restored 59 stubs at 1dc91f6, and c9059f0 — the
+# SAME relay run, 12 minutes later — deleted 58 of them; cartulary accumulated up to 9
+# duplicate bodies per id.
+#
+# The test USED to be "does this line carry the archive stub suffix?". Since id:2eba no
+# stub is written, so the test is ARCHIVE MEMBERSHIP instead: is this id already a `- [x]`
+# item line in ROADMAP.archive.md? Strictly stronger — it also catches a closed live item
+# whose stub was rewritten away by some other pass, which is a live, measured state in this
+# repo (six em-dash-migration seams, each already duplicated TWICE in the archive).
+# Definition + the legacy-stub fallback: relay/scripts/lib-archive-idempotency.py.
+archived_ids = _ai.archived_ids(archive_path)
+def already_archived(line):
+    return _ai.already_archived(line, archived_ids)
 # Regex for a ## or deeper section heading (matches H1 too — H1 is protected separately).
 heading_re  = re.compile(r'^#{1,6}\s')
 
@@ -170,6 +190,7 @@ entries = []
 archived_count_by_heading = {}   # owning heading orig idx (-1 = none) -> #items archived
 disposition = {}                 # orig idx of a TOP-LEVEL BULLET -> 'keep' | 'arch'
 deferred = []                    # (archived id or None, owner id or None) for the stderr report
+already = []                     # ids left in place because the archive already holds them
 n = len(lines)
 i = 0
 
@@ -179,8 +200,8 @@ def body_is_ambiguous(idx, unit):
     ledger and carries no body of its own -- the shape an inserted line creates
     (routed:71ed). Deliberately narrow:
       * an EMPTY body is never ambiguous (nothing to lose);
-      * an already-archived STUB above cannot own a body -- its body moved on an earlier
-        run -- so a stub never triggers the guard;
+      * an ALREADY-ARCHIVED line above cannot own a body -- its body moved on an earlier
+        run -- so it never triggers the guard;
       * a preceding bullet that THIS run also archives is excluded: both halves land in the
         archive, so no live item loses anything, and firing there would multiply the
         false-positive rate by roughly ten for no gain in safety.
@@ -194,14 +215,20 @@ def body_is_ambiguous(idx, unit):
     if k < 0:
         return False
     prev = lines[k]
-    if not top_bullet_re.match(prev) or stub_line_re.match(prev):
+    if not top_bullet_re.match(prev) or already_archived(prev):
         return False
     return disposition.get(k) == 'keep'
 while i < n:
     line = lines[i]
-    # An already-archived stub is classified `keep`, never `arch` (routed:f833) — it falls
-    # through to the else-branch below and stays in place, one line, exactly as written.
-    if top_done_re.match(line) and not stub_line_re.match(line):
+    # An already-archived line is classified `keep`, never `arch` (routed:f833, id:2eba) —
+    # it falls through to the else-branch below and stays in place, exactly as written, and
+    # is reported LOUDLY at the end of the run.
+    if top_done_re.match(line) and already_archived(line):
+        already.append(id_of(line))
+        disposition[i] = 'keep'
+        entries.append(('keep', line, i))
+        i += 1
+    elif top_done_re.match(line):
         # Gather the block: header + everything up to the next boundary.
         unit = [line]
         j = i + 1
@@ -229,13 +256,33 @@ while i < n:
                 pass
 
         if in_prior or aged_ok:
+            if body_is_ambiguous(i, unit):
+                # routed:71ed -- ownership of this body cannot be decided locally, so the
+                # item is NOT archived at all: header and body both stay verbatim in the
+                # live ledger and stderr says so, naming the id.
+                #
+                # id:2eba CHANGED THIS from "archive the header, stub it, retain the body".
+                # That split relied on the stub to hold the retained body apart from the
+                # live bullet above it. With no stub the body would silently re-attach to
+                # that neighbour -- the archiver would be GUESSING an attribution, which is
+                # exactly what routed:71ed exists to refuse. Refusing the whole item is the
+                # non-guessing option, loses nothing in either direction, and is still a
+                # fixed point: the next run re-derives the same refusal and mutates nothing.
+                deferred.append((id_of(line), id_of(lines[i - 1])))
+                disposition[i] = 'keep'
+                for off, bl in enumerate(unit):
+                    entries.append(('keep', bl, i + off))
+                i = i + len(unit)
+                continue
             slot = bisect.bisect_right(heading_indices, i) - 1
             owning = heading_indices[slot] if slot >= 0 else -1
             disposition[i] = 'arch'
-            ambiguous = body_is_ambiguous(i, unit)
-            if ambiguous:
-                deferred.append((id_of(line), id_of(lines[i - 1])))
-            entries.append(('arch', unit, owning, ambiguous))
+            entries.append(('arch', unit, owning))
+            tok = id_of(line)
+            if tok:
+                # Guard against a duplicate id appearing TWICE in the live file: the second
+                # occurrence now reads as already-archived within this same run.
+                archived_ids.add(tok)
             archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
             i = j
         else:
@@ -249,8 +296,37 @@ while i < n:
         entries.append(('keep', line, i))
         i += 1
 
+def report_deferrals():
+    """LOUD report for every item this run refused to move (routed:71ed, id:2eba). Never a
+    silent skip: an unannounced deferral is the same defect class wearing a different coat
+    (id:4347). Exit stays 0 so the rest of the run still archives; integrate.sh reads a
+    non-zero exit as EX_ARCHIVE. Runs on BOTH exit paths, including nothing-to-archive —
+    the already-archived report in particular fires precisely when nothing else does."""
+    for arch_id, owner_id in deferred:
+        a = f"id:{arch_id}" if arch_id else "an item with no id"
+        o = f"id:{owner_id}" if owner_id else "the item with no id above it"
+        print(
+            f"roadmap-archive: AMBIGUOUS BODY ATTRIBUTION for {a}. Its continuation body is\n"
+            f"  contiguous with {o}, which stays LIVE and has no body of its own, so the body may\n"
+            f"  belong to either. REFUSED to archive {a} at all — header AND body were LEFT IN\n"
+            f"  PLACE in ROADMAP.md. Move the body under its real owner by hand, then the item\n"
+            f"  archives normally (this is the routed:71ed shape: a new item line inserted\n"
+            f"  between an existing header and its own bullets).",
+            file=sys.stderr)
+    if already:
+        names = ' '.join(f"id:{t}" if t else "id:?" for t in already)
+        print(
+            f"roadmap-archive: {len(already)} closed item(s) in ROADMAP.md are ALREADY present\n"
+            f"  in ROADMAP.archive.md and were LEFT IN PLACE rather than archived a second time:\n"
+            f"  {names}\n"
+            f"  These are either pre-id:2eba archive stubs (safe to delete by hand — the archive\n"
+            f"  holds the full item) or a genuinely duplicated id. This script never deletes a\n"
+            f"  live line it did not archive, so the cleanup is a human call.",
+            file=sys.stderr)
+
 if not archived_count_by_heading:
     print("roadmap-archive: nothing to archive.", file=sys.stderr)
+    report_deferrals()
     sys.exit(0)
 
 # ── Pass 2: decide which non-protected headings this run EMPTIED (so they move
@@ -306,29 +382,11 @@ for e in entries:
                     arch_out.append(line)
             else:
                 keep_out.append(line)
-    else:  # ('arch', block, owning, ambiguous)
-        block = e[1]
-        ambiguous = e[3]
-        # id:cd9c — leave a one-line stub behind in the LIVE ledger so the item's
-        # id keeps resolving from ROADMAP.md alone (orphan-scan --cross-ledger
-        # reads only the live file). The stub is the header line verbatim plus the
-        # ratified suffix; the reader half (stub_line_re, above) already classifies
-        # this exact grammar as `keep` on every subsequent run.
-        header = block[0].rstrip('\n')
-        keep_out.append(header + STUB_SUFFIX + '\n')
-        if ambiguous:
-            # routed:71ed -- ownership of this body cannot be decided locally, so it is NOT
-            # moved. The header is archived and stubbed as usual; the body stays verbatim in
-            # the live ledger, directly beneath the stub, exactly where it already was. A
-            # one-line note goes into the archive in its place so the missing body is
-            # explained where a reader would otherwise go looking for it. Stable across
-            # runs: the stub classifies `keep` from here on, so the body is never revisited.
-            keep_out.extend(block[1:])
-            out_block = [block[0],
-                         '  - (roadmap-archive routed:71ed: continuation body RETAINED in '
-                         'ROADMAP.md, attribution was ambiguous. See the live ledger.)\n']
-        else:
-            out_block = block
+    else:  # ('arch', block, owning)
+        # id:2eba — NOTHING is left behind in the live ledger. The whole block moves.
+        # The id keeps resolving because orphan-scan reads ROADMAP.md UNION
+        # ROADMAP.archive.md on every leg that matters (routed:42c9).
+        out_block = e[1]
         if last_appended_heading:
             # First item directly under a just-moved heading — no separator, so
             # the heading and its item are adjacent in the archive.
@@ -351,19 +409,7 @@ with archive_path.open('a') as af:
 # has structural gaps between items that must be preserved).
 roadmap_path.write_text(''.join(keep_out))
 
-# ── LOUD report for every deferral (routed:71ed). Never a silent skip: an unannounced
-#    deferral is the same defect class wearing a different coat (id:4347). Exit stays 0 so
-#    the rest of the run still archives; integrate.sh reads a non-zero exit as EX_ARCHIVE.
-for arch_id, owner_id in deferred:
-    a = f"id:{arch_id}" if arch_id else "an item with no id"
-    o = f"id:{owner_id}" if owner_id else "the item with no id above it"
-    print(
-        f"roadmap-archive: AMBIGUOUS BODY ATTRIBUTION for {a}. Its continuation body is\n"
-        f"  contiguous with {o}, which stays LIVE and has no body of its own, so the body may\n"
-        f"  belong to either. Archived the header line ONLY; the body was LEFT IN PLACE in\n"
-        f"  ROADMAP.md. Move it under its real owner by hand (this is the routed:71ed shape:\n"
-        f"  a new item line inserted between an existing header and its own bullets).",
-        file=sys.stderr)
+report_deferrals()
 
 archived_count = sum(archived_count_by_heading.values())
 noun = 'item' if archived_count == 1 else 'items'

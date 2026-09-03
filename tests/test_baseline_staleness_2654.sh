@@ -55,6 +55,13 @@ TMP="$(mktemp -d)"; trap 'rm -rf -- "$TMP"' EXIT
 # BOTH baselines under our own tmp, never the committed ones.
 export LENGTH_BASELINE="$TMP/length-baseline.txt"
 export SHAPE_BASELINE="$TMP/shape-baseline.txt"
+# THERE IS A THIRD (independent review 2026-09-03, finding F6). Every `$CONF --strict` below
+# also consults `relay/state-claim-baseline.txt` via lib-state-claim.sh, and without this
+# export it reads the LIVE COMMITTED one -- the exact id:e350 non-hermeticity that broke four
+# tests the same day. Outcome is unaffected today (verified: 20 PASS with it absent and with
+# it live), but "unaffected today" is what id:e350 said about the length baseline for weeks.
+# If a FOURTH baseline appears, it belongs here too.
+export STATE_CLAIM_BASELINE="$TMP/absent-state-claim-baseline.txt"
 
 LEDGER="$TMP/TODO.md"
 

@@ -19,8 +19,16 @@
 # The pre-existing tests missed it because their fixture stubs all put the id marker
 # at END of line, which the broken regex still matched.
 #
-# Part A  — stub-reader parity: each stub shape survives untouched, only the genuine
-#           closed item is archived, and repeated runs are stable.
+# Part A  — LEGACY stub-reader parity: each stub shape survives untouched, only the
+#           genuine closed item is archived, and repeated runs are stable.
+#
+# id:2eba (2026-09-03) stopped both archivers WRITING the stub, and re-based the
+# idempotency test on ARCHIVE MEMBERSHIP (lib-archive-idempotency.py). The five stub
+# shapes below are LEGACY — no writer emits them any more, but they exist in this repo
+# and across the fleet, so the read half must still recognise them. That is exactly what
+# Part A pins, unchanged, and it is why the legacy regex was kept rather than deleted.
+# The one assertion that flipped is A1's second clause: the genuine item id:6666 now
+# leaves NO stub behind.
 # Part B  — safety regressions that must hold ACROSS an archive run:
 #           B1 twin-open protection still refuses to archive
 #           B2 resolve-gates.sh output byte-identical before vs after
@@ -75,8 +83,8 @@ RS="$repo/ROADMAP.md"; RA="$repo/ROADMAP.archive.md"
 #      fails, every assertion below is vacuous.
 grep -qF 'genuine closed item never yet archived' "$RA" \
   || { echo "FAIL(A1): genuine item id:6666 was not archived — fixture is inert"; cat "$RA"; exit 1; }
-grep -qF "<!-- id:6666 -->$SUF" "$RS" \
-  || { echo "FAIL(A1): id:6666 left no stub in the live ledger"; cat "$RS"; exit 1; }
+grep -qF "<!-- id:6666 -->" "$RS" \
+  && { echo "FAIL(A1): id:6666 was left in the live ledger — id:2eba leaves no stub"; cat "$RS"; exit 1; }
 
 # A2 — every pre-existing stub line is byte-identical: not re-archived, and in
 #      particular NO second suffix appended.

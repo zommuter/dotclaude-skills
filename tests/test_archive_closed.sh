@@ -72,15 +72,15 @@ TS="$repr/TODO.md";         RS="$repr/ROADMAP.md"
 [[ -f "$TA" ]] || { echo "TODO.archive.md not created"; exit 1; }
 [[ -f "$RA" ]] || { echo "ROADMAP.archive.md not created"; exit 1; }
 
-# 1) id:aaaa closed in BOTH → archived from BOTH. TODO.md is a plain remove;
-#    ROADMAP.md leaves a one-line stub behind (id:cd9c — ROADMAP-only, so the id
-#    keeps resolving from the live ledger; TODO.md is not in cd9c's scope).
+# 1) id:aaaa closed in BOTH → archived from BOTH, and BOTH are a plain remove.
+#    id:2eba supersedes id:cd9c: no ledger gets a stub any more, so ROADMAP.md now
+#    behaves exactly like TODO.md here.
 grep -qF 'closed both ledgers' "$TA" || { echo "aaaa not in TODO archive"; exit 1; }
 grep -qF 'closed both ledgers' "$RA" || { echo "aaaa not in ROADMAP archive"; exit 1; }
 grep -qF 'closed both ledgers' "$TS" && { echo "aaaa still in TODO.md"; exit 1; }
-grep -qF 'closed both ledgers' "$RS" || { echo "aaaa stub missing from ROADMAP.md"; exit 1; }
+grep -qF 'closed both ledgers' "$RS" && { echo "aaaa still in ROADMAP.md — id:2eba leaves no stub"; exit 1; }
 grep -qF '(archived — see ROADMAP.archive.md)' "$RS" \
-  || { echo "aaaa ROADMAP.md line is not the expected stub"; exit 1; }
+  && { echo "aaaa the archive-stub suffix was written into ROADMAP.md"; exit 1; }
 
 # 2) id:bbbb — ROADMAP [x] but TODO [ ] open → twin-open protection:
 #    NOT archived from ROADMAP; both sources keep their line.

@@ -910,8 +910,25 @@ if [[ "$staleness" -eq 1 ]]; then
     done < "$bfile"
     if (( fam_n > 0 || fam_orphan > 0 )); then
       # THE REMEDY, named rather than implied -- the whole point of the mech-currency posture.
-      echo "# $fam: $fam_n stale, $fam_orphan orphaned. Regenerate and COMMIT:"
-      echo "#   relay/scripts/todo-conformance.sh $flag $path > <the $fam baseline>"
+      #
+      # IT MUST REGENERATE **EVERY** LEDGER, NOT JUST THIS ONE. A baseline file legitimately
+      # holds rows for several ledgers (today: 242 TODO.md + 87 ROADMAP.md shape rows in one
+      # file). The obvious single-ledger form
+      #     todo-conformance.sh --regen-shape-baseline TODO.md > relay/shape-prose-baseline.txt
+      # TRUNCATES the file and DELETES the other ledger's rows. Those items then classify
+      # `shape-new`, which ESCALATES, so the next --strict run converts 87 warnings into
+      # errors. A remedy that damages the repo when followed literally is worse than no
+      # remedy: the caller trusts it precisely because it is printed by the detector.
+      # (Found by independent review 2026-09-03; the first version printed exactly that.)
+      #
+      # `--regen-*` emits a header block, so the second and later ledgers must strip it --
+      # naive concatenation duplicates the header. This mirrors the recipe the regen headers
+      # themselves document.
+      local bpath="${bfile}"
+      echo "# $fam: $fam_n stale, $fam_orphan orphaned. Regenerate ALL ledgers and COMMIT:"
+      echo "#   relay/scripts/todo-conformance.sh $flag TODO.md    >  $bpath"
+      echo "#   relay/scripts/todo-conformance.sh $flag ROADMAP.md | grep -v '^#' >> $bpath"
+      echo "#   (regenerating only $LENGTH_LEDGER_KEY would DELETE the other ledger's rows)"
     fi
     return 0
   }

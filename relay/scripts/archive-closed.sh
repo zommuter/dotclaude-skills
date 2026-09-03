@@ -53,13 +53,21 @@
 # --dry-run prints a per-ledger summary and mutates NOTHING (the default posture
 # to review before a real run). A second run is a no-op (idempotent).
 #
-# id:cd9c: archiving from ROADMAP.md leaves a one-line STUB behind in ROADMAP.md
-# for every moved item — the header line verbatim plus " (archived — see
-# ROADMAP.archive.md)" — so the id keeps resolving from the live ledger alone.
-# TODO.md and REVIEW_ME.md archiving do NOT get a stub (out of scope for cd9c;
-# the ratified grammar names ROADMAP.archive.md literally).
+# id:2eba (owner-ratified 2026-09-03) SUPERSEDES id:cd9c: NO STUB IS LEFT BEHIND on
+# ANY ledger. An archived item is removed from its live ledger entirely, so all three
+# sources now behave identically (before this, ROADMAP.md alone got a stub).
+#
+# The stub used to double as the idempotency guard. It is REPLACED, not deleted: the
+# test is now ARCHIVE MEMBERSHIP — "is this id already a `- [x]` item line in the
+# matching *.archive.md?" — which is a pure read of the archive and cannot be defeated
+# by the stub being absent. It lives in ONE place, shared with roadmap-archive.sh:
+# relay/scripts/lib-archive-idempotency.py (id:4983 — make one source serve both).
+# Applying it to all three ledgers (not just ROADMAP) is a strict gain: it is what stops
+# a re-added closed item duplicating its body into TODO.archive.md / REVIEW_ME.archive.md.
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 
 DRY_RUN=0
 ROOT=""
@@ -86,42 +94,36 @@ if [[ -z "$ROOT" ]]; then
 fi
 [[ -d "$ROOT" ]] || { echo "archive-closed: $ROOT is not a directory" >&2; exit 1; }
 
-python3 - "$ROOT" "$DRY_RUN" "$ONLY" <<'PYEOF'
-import sys, re, bisect
+python3 - "$ROOT" "$DRY_RUN" "$ONLY" "$SCRIPT_DIR" <<'PYEOF'
+import sys, re, bisect, os, importlib.util
 from pathlib import Path
 
 root    = Path(sys.argv[1])
 dry_run = sys.argv[2] == '1'
 only    = sys.argv[3] if len(sys.argv) > 3 else 'all'
+script_dir = sys.argv[4]
+
+# ── THE idempotency test, in ONE place (id:2eba / id:4983). Loaded by path because this
+#    is a heredoc with no __file__ — the same idiom lib-pool-runs.py uses. A failure to
+#    load is NOT swallowed: an archiver without its idempotency test duplicates bodies.
+_spec = importlib.util.spec_from_file_location(
+    "relay_lib_archive_idempotency",
+    os.path.join(script_dir, "lib-archive-idempotency.py"))
+_ai = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_ai)
 
 ID_RE      = re.compile(r'<!-- id:([0-9a-f]{4}) -->')
 HEADING_RE = re.compile(r'^#{1,6}\s')
 # Top-level (indent 0) checkbox bullet only.
 TOPBULLET  = re.compile(r'^- \[([ xX])\] ')
 
-# id:cd9c — ROADMAP-ledger stub grammar (writer half only asserted for ROADMAP.md;
-# see tests/test_roadmap_archive_leaves_stub.sh). Mirrors roadmap-archive.sh's
-# reader guard: a stub already left behind by a prior run must classify as `kb`
-# (kept, never re-archived) — without this, the next run eats its own successor's
-# output exactly like the defect roadmap-archive.sh's stub_line_re guards against.
-STUB_SUFFIX = " (archived — see ROADMAP.archive.md)"
-# The `.*` between the id marker and the suffix is LOAD-BEARING, and is the same
-# `.*` roadmap-archive.sh:111 carries (cartulary 2026-08-14, routed:4a12). An item
-# line routinely carries prose AFTER its own `<!-- id:XXXX -->` marker — `/relay
-# human` and `/meeting` write-backs append rationale there, and some lines end in a
-# DIFFERENT HTML comment (e.g. `<!-- 2cd0-decision-gate: ... -->`). Without the
-# `.*` the suffix had to follow the id marker IMMEDIATELY, so every such stub read
-# as un-stubbed and was RE-ARCHIVED on every run: a second body appended to
-# `*.archive.md` and a second ` (archived — see …)` suffix appended to the live
-# line, without bound. This copy had dropped the `.*` and reproduced exactly that
-# defect — measured 2026-08-26 across the 6 own repos: 24 stubs re-archived in one
-# run (loderite 14, dotclaude-skills 5, yinyang-puzzle 4, linguistic-universals 1),
-# duplicating 16 ids into loderite's ROADMAP.archive.md and inflating that run's
-# reported ROADMAP total from the 4 genuine items to 18.
-# Still NOT end-anchored: real stubs carry trailing annotations past the suffix,
-# and an end anchor would re-archive exactly those.
-STUB_LINE_RE = re.compile(r'^- \[x\] .*<!--\s*id:[0-9a-f]{4}\s*-->.*' + re.escape(STUB_SUFFIX))
-
+# id:2eba — the already-archived test. This file USED to carry its own hand-mirrored
+# copy of STUB_SUFFIX / STUB_LINE_RE, and that copy had silently dropped the
+# load-bearing `.*` between the id marker and the suffix (cartulary 2026-08-14,
+# routed:4a12), re-archiving 24 stubs across the 6 own repos in a single run on
+# 2026-08-26. That is precisely the "hand-mirrored in N places" defect id:4983 closed
+# for the lane grammar, so the definition now lives in ONE file, shared with
+# roadmap-archive.sh: relay/scripts/lib-archive-idempotency.py. Do not re-inline it.
 PROTECTED_TEXTS = {'items', 'current', 'done', 'backlog'}
 
 def heading_info(line):
@@ -222,7 +224,7 @@ def strip_trailing_blanks(block):
         b.pop()
     return b
 
-def plan(blocks, other_ids):
+def plan(blocks, other_ids, archived):
     """Build an ordered `entries` list preserving document order, plus the
     twin-skip set and per-owning-heading archived counts. Entry kinds:
       ('kh', [line], orig_idx)      kept heading line
@@ -230,11 +232,13 @@ def plan(blocks, other_ids):
       ('kb', [block_lines])         kept top-level bullet block (open or twin-skipped)
       ('arch', [block_lines], owning_heading_orig_idx)   archived item block
     A top-level closed [x] block is archived unless it carries an id whose
-    cross-ledger twin (in `other_ids`) is still open ' '."""
+    cross-ledger twin (in `other_ids`) is still open ' ', or its own id is already
+    present in `archived` (the id set of the matching *.archive.md — id:2eba)."""
     heading_indices = [start for kind, payload, start in blocks
                         if kind == 'other' and HEADING_RE.match(payload[0])]
     entries = []
     skipped = []           # ids skipped for twin-open protection
+    already = []           # ids left in place because the archive already holds them
     moved = 0              # archived item count
     archived_count_by_heading = {}
     heading_line = {}      # orig idx -> heading line text
@@ -251,8 +255,10 @@ def plan(blocks, other_ids):
         if state != 'x':
             entries.append(('kb', block))
             continue
-        if STUB_LINE_RE.match(block[0]):
-            # Already an archived-stub line (id:cd9c) — keep as-is, never re-archive.
+        if _ai.already_archived(block[0], archived):
+            # Already in the archive (or a pre-id:2eba stub) — keep as-is, never
+            # re-archive. Reported LOUDLY by the caller; never a silent skip.
+            already.append(_ai.item_id(block[0]))
             entries.append(('kb', block))
             continue
         tk = first_id(block)
@@ -264,21 +270,41 @@ def plan(blocks, other_ids):
         slot = bisect.bisect_right(heading_indices, start) - 1
         owning = heading_indices[slot] if slot >= 0 else -1
         entries.append(('arch', block, owning))
+        if tk is not None:
+            # Guard against the SAME id appearing twice in one live ledger: the second
+            # occurrence now reads as already-archived within this same run.
+            archived.add(tk)
         moved += 1
         archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
-    return entries, skipped, moved, archived_count_by_heading, heading_indices, heading_line
+    return entries, skipped, already, moved, archived_count_by_heading, heading_indices, heading_line
 
-def apply_and_report(name, src_path, blocks, other_ids, emit_stub=False):
+def report_already(name, arch_path, already, stream):
+    """LOUD report for closed live items the archive already holds (id:2eba). A silent
+    skip is the same defect class wearing a different coat (id:4347)."""
+    if not already:
+        return
+    names = ' '.join(f"id:{t}" if t else "id:?" for t in already)
+    print(f"archive-closed[{name}]: {len(already)} closed item(s) are ALREADY present in "
+          f"{arch_path.name} and were LEFT IN PLACE rather than archived a second time: "
+          f"{names} — these are either pre-id:2eba archive stubs (safe to delete by hand) "
+          f"or a genuinely duplicated id; this script never deletes a live line it did not "
+          f"archive.", file=stream)
+
+
+def apply_and_report(name, src_path, blocks, other_ids):
     if blocks is None:
         return
-    entries, skipped, moved, archived_count_by_heading, heading_indices, heading_line = plan(blocks, other_ids)
     arch_path = src_path.with_name(src_path.stem + '.archive.md')
+    # id:2eba — the archived-id set is read from the archive BEFORE this run appends.
+    archived = _ai.archived_ids(arch_path)
+    entries, skipped, already, moved, archived_count_by_heading, heading_indices, heading_line = plan(blocks, other_ids, archived)
 
     if dry_run:
         print(f"archive-closed[{name}]: would move {moved} item(s) -> {arch_path.name}")
         if skipped:
             for tk in skipped:
                 print(f"archive-closed[{name}]: SKIP id:{tk} — cross-ledger twin still OPEN; not archiving")
+        report_already(name, arch_path, already, sys.stdout)
         return
 
     if moved == 0:
@@ -286,6 +312,7 @@ def apply_and_report(name, src_path, blocks, other_ids, emit_stub=False):
         if skipped:
             for tk in skipped:
                 print(f"archive-closed[{name}]: skipped id:{tk} (twin open)", file=sys.stderr)
+        report_already(name, arch_path, already, sys.stderr)
         return
 
     # Which non-protected headings did this run EMPTY of all top-level items?
@@ -338,10 +365,9 @@ def apply_and_report(name, src_path, blocks, other_ids, emit_stub=False):
             else:
                 keep_out.extend(payload)
         else:  # ('arch', block, owning)
+            # id:2eba — NOTHING is left behind in the live ledger, on any of the three
+            # sources. The whole block moves.
             block = strip_trailing_blanks(e[1])
-            if emit_stub:
-                header = block[0].rstrip('\n')
-                keep_out.append(header + STUB_SUFFIX + '\n')
             if last_appended_heading:
                 arch_out.extend(block)
             else:
@@ -367,6 +393,7 @@ def apply_and_report(name, src_path, blocks, other_ids, emit_stub=False):
     print(f"archive-closed[{name}]: archived {moved} item(s){extra} -> {arch_path.name}", file=sys.stderr)
     for tk in skipped:
         print(f"archive-closed[{name}]: skipped id:{tk} (twin open)", file=sys.stderr)
+    report_already(name, arch_path, already, sys.stderr)
 
 # --only (id:046a) gates only the WRITE step. `todo_ids`/`road_ids` above are still built
 # from BOTH ledgers' original content, so a scoped run makes exactly the same twin-safe
@@ -375,7 +402,7 @@ def apply_and_report(name, src_path, blocks, other_ids, emit_stub=False):
 if only in ('all', 'todo'):
     apply_and_report('TODO',      todo_path,   todo_blocks,   road_ids)
 if only in ('all', 'roadmap'):
-    apply_and_report('ROADMAP',   road_path,   road_blocks,   todo_ids, emit_stub=True)
+    apply_and_report('ROADMAP',   road_path,   road_blocks,   todo_ids)
 # REVIEW_ME items are NOT cross-ledger twins — pass an empty id map so no twin
 # can ever block or skip an archive decision; archiving is based purely on the
 # item's own [x]/[ ] state.

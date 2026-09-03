@@ -29,6 +29,18 @@ ERRLOG="$TMP/integrate.stderr"
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; [[ -s "$ERRLOG" ]] && { echo "       last integrate.sh stderr:"; tail -n 20 "$ERRLOG" | sed 's/^/       | /'; }; exit 1; }
 
+# TICK-VISIBILITY, changed by id:2eba (2026-09-03): integrate.sh step 6b runs
+# roadmap-archive.sh AFTER the tick, and the archiver no longer leaves a stub -- it removes
+# the archived line from the live ledger outright. So a just-closed id is legitimately
+# ABSENT from ROADMAP.md and present as `- [x]` in ROADMAP.archive.md. Assert the UNION,
+# which is what orphan-scan --cross-ledger already reads (routed:42c9). Asserting only the
+# live file would pin the stub convention that id:2eba deliberately removed.
+ticked_in_union() { # <checkout> <id>
+  grep -q "^- \[x\].*id:$2" "$1/ROADMAP.md" 2>/dev/null && return 0
+  grep -q "^- \[x\].*id:$2" "$1/ROADMAP.archive.md" 2>/dev/null
+}
+
+
 [[ -x "$INT" ]] || fail "integrate.sh not found/executable at $INT"
 
 PUSH_STUB="$TMP/push-stub.sh"
@@ -112,15 +124,24 @@ porc="$(git -C "$M1" status --porcelain)"
 $porc"
 
 # both ledgers ticked ON DISK …
-grep -q '^- \[x\].*id:aaaa' "$M1/ROADMAP.md" || fail "(1) ROADMAP twin id:aaaa not ticked"
+ticked_in_union "$M1" aaaa || fail "(1) ROADMAP twin id:aaaa not ticked (checked ROADMAP.md and ROADMAP.archive.md)"
 grep -q '^- \[x\].*id:aaaa' "$M1/TODO.md"    || fail "(1) TODO twin id:aaaa not ticked"
 grep -q '^- \[ \].*id:bbbb' "$M1/TODO.md"    || fail "(1) an unworked TODO item was ticked — the twin write is not id-scoped"
 
 # … and ticked IN THE COMMITTED TREE (not merely in the working tree)
 grep -q '^- \[x\].*id:aaaa' < <(git -C "$M1" show HEAD:TODO.md) \
   || fail "(1) TODO.md tick is not present in the committed tree"
-grep -q '^- \[x\].*id:aaaa' < <(git -C "$M1" show HEAD:ROADMAP.md) \
-  || fail "(1) ROADMAP.md tick is not present in the committed tree"
+# Same id:2eba union rule as on disk: the archiver may have moved the closed line out of
+# ROADMAP.md and into ROADMAP.archive.md within the SAME integrate run, so the committed
+# proof of the tick can legitimately live in either file. Both are read from HEAD, so this
+# still proves the tick was COMMITTED and not merely left in the working tree -- which is
+# the property this assertion exists for.
+# `< <(…)` not `… | grep -q`: grep -q exits at the first match, which under `set -o pipefail`
+# SIGPIPEs the producer and makes the pipeline status non-zero at random. That is the id:81d5
+# shape and this repo lints for it with no exemptions.
+grep -q '^- \[x\].*id:aaaa' \
+  < <(git -C "$M1" show HEAD:ROADMAP.md 2>/dev/null; git -C "$M1" show HEAD:ROADMAP.archive.md 2>/dev/null) \
+  || fail "(1) ROADMAP tick is not present in the committed tree (checked HEAD:ROADMAP.md and HEAD:ROADMAP.archive.md)"
 
 # one scoped commit touching BOTH ledgers, and NOTHING else (id:debf: never -A/./-u)
 tickmsg="$(git -C "$M1" log -1 --format=%s -- TODO.md)"
@@ -158,7 +179,7 @@ out="$(FABLES_CONFIG="$C2" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
 porc="$(git -C "$M2" status --porcelain)"
 [[ -z "$porc" ]] || fail "(2) canonical checkout left dirty:
 $porc"
-grep -q '^- \[x\].*id:aaaa' "$M2/ROADMAP.md" || fail "(2) ROADMAP id:aaaa not ticked"
+ticked_in_union "$M2" aaaa || fail "(2) ROADMAP id:aaaa not ticked (checked ROADMAP.md and ROADMAP.archive.md)"
 grep -q '^- \[ \].*id:cccc' "$M2/TODO.md"    || fail "(2) an unrelated TODO item was ticked"
 
 # TODO.md must carry NO commit newer than the base commit …

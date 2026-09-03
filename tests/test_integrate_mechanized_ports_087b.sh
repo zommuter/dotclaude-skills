@@ -43,6 +43,18 @@ ERRLOG="$TMP/integrate.stderr"
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; [[ -s "$ERRLOG" ]] && { echo "       last integrate.sh stderr:"; tail -n 20 "$ERRLOG" | sed 's/^/       | /'; }; exit 1; }
 
+# TICK-VISIBILITY, changed by id:2eba (2026-09-03): integrate.sh step 6b runs
+# roadmap-archive.sh AFTER the tick, and the archiver no longer leaves a stub -- it removes
+# the archived line from the live ledger outright. So a just-closed id is legitimately
+# ABSENT from ROADMAP.md and present as `- [x]` in ROADMAP.archive.md. Assert the UNION,
+# which is what orphan-scan --cross-ledger already reads (routed:42c9). Asserting only the
+# live file would pin the stub convention that id:2eba deliberately removed.
+ticked_in_union() { # <checkout> <id>
+  grep -q "^- \[x\].*id:$2" "$1/ROADMAP.md" 2>/dev/null && return 0
+  grep -q "^- \[x\].*id:$2" "$1/ROADMAP.archive.md" 2>/dev/null
+}
+
+
 [[ -x "$INT" ]] || fail "integrate.sh not found/executable at $INT"
 
 # id:f5d9(a) — this stub must REALLY push (into the fixture's local bare origin), not just
@@ -124,7 +136,7 @@ out="$(FABLES_CONFIG="$CT" INTEGRATE_GIT_LOCK_PUSH="$PUSH_STUB" \
          --summary "close aaaa" --run r1 --label "executor (sonnet, relay-loop)" \
          --ids aaaa --verdict execute --substantive true 2>&1)" || rc=$?
 [[ $rc -eq 0 ]] || fail "(1) execute integrate exited $rc: $out"
-grep -q '^- \[x\].*id:aaaa' "$MT/ROADMAP.md" || fail "(1) worked id aaaa was NOT ticked in the canonical checkout"
+ticked_in_union "$MT" aaaa || fail "(1) worked id aaaa was NOT ticked in the canonical checkout (checked ROADMAP.md and ROADMAP.archive.md)"
 grep -q '^- \[ \].*id:bbbb' "$MT/ROADMAP.md" || fail "(1) an unworked item was ticked — the tick is not id-scoped"
 # the tick was COMMITTED (a dirty ROADMAP would have tripped worktree-retire)
 [[ -z "$(git -C "$MT" status --porcelain)" ]] || fail "(1) tree left dirty after integrate — the tick was not committed"

@@ -83,6 +83,7 @@ relay_FILES := SKILL.md \
                scripts/lib-own-repos.sh scripts/lib-anchored-id.sh scripts/lib-typed-edges.sh scripts/lib-state-claim.sh scripts/lib-lane-anchor.sh \
                scripts/lib-roadmap-sections.sh scripts/lib-private-remote.sh scripts/lib-publish-remote.sh \
                scripts/lib-ledger-only-diff.sh scripts/lib-pool-runs.py \
+               scripts/lib-archive-idempotency.py \
                scripts/resolve-gates.sh scripts/ledger-slice.sh \
                scripts/mechanical-proxy.py \
                scripts/provision-relay-users.sh scripts/apply-relay-acls.sh \

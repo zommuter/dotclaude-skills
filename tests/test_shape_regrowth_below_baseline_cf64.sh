@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # roadmap:cf64
 #
-# RED SPEC. The id:718c shape, MOVED here from tests/test_shape_prose_regrowth_baseline_2d17.sh
-# on 2026-09-03 when the owner accepted the split (option 3).
+# The id:718c shape, MOVED here from tests/test_shape_prose_regrowth_baseline_2d17.sh on
+# 2026-09-03 when the owner accepted the split (option 3), and AMENDED the same day when
+# id:2654 landed and the owner ruled option 1. It is GREEN now; it was a RED SPEC between
+# those two rulings. The "WHY THIS IS RED" section below is kept as the record of why the
+# bare snapshot design could not satisfy it -- read it as history, not as current state.
 #
 # THE SHAPE, and it is the incident id:2d17 was originally filed for:
 #
@@ -39,9 +42,17 @@
 # weaker guarantee than self-tightening -- it fails open through inaction -- and the owner
 # weighed exactly that and chose it anyway. Hence `gated-on:2654`.
 #
-# WHEN id:2654 LANDS, this file is expected to be AMENDED, not merely turned green: insert
-# the deliberate regen between state 1 and state 2 and assert the detector FIRES at state 2.
-# Turning it green by relaxing the assertion instead would be the id:0b70 vacuous-check class.
+# AMENDED 2026-09-03, exactly as this paragraph required: the deliberate regen is inserted
+# between state 1 and state 2, and the detector is asserted to FIRE at the shrunk state
+# (case 1) and to go QUIET after the regen (case 3). No assertion was relaxed -- the file
+# gained four cases and kept every original one, which is what distinguishes an amendment
+# from the id:0b70 vacuous-check class.
+#
+# WHAT THE GREEN NOW MEANS, stated plainly so nobody reads it as more than it is: the id:718c
+# shape is caught by a LOOP THAT REQUIRES A HUMAN ACT -- detector reports, person regenerates,
+# regrowth then fires. It is NOT caught automatically. The loop fails open through inaction,
+# which is the accepted weakness of regen-plus-detect over self-tightening; the owner weighed
+# that on 2026-09-02 and chose this path knowingly.
 #
 # Hermetic: mktemp ledgers, own baseline path, no ~/.claude, no live ledger, no network.
 
@@ -88,26 +99,74 @@ regen_rc=0
 (( regen_rc == 0 )) \
   || fail "(setup) --regen-shape-baseline failed (rc=$regen_rc): $(head -1 "$TMP/regen.err")"
 
-# ── state 1: Bravo SHRINKS. Must stay clean -- and this is the observation a tightening
-#    implementation needs. The checker is deliberately RUN here, not skipped.
+# ── state 1: Bravo SHRINKS. Must stay clean -- and this is the observation the loop needs.
 ledger "$BRAVO_SHRUNK"
 out_shrunk="$("$CONF" --strict "$LEDGER" 2>/dev/null)"; rc_shrunk=$?
 (( rc_shrunk == 0 )) \
   && pass "(0) the SHRINK is clean under --strict" \
   || fail "(0) the SHRUNK state failed --strict (rc=$rc_shrunk) -- a shrink must never be a violation:"$'\n'"$out_shrunk"
 
-# ── state 2: Bravo REGROWS to LESS than it was baselined at. The id:718c shape.
+# ── state 1b: THE DETECTOR MUST FIRE HERE. This is the amendment (owner ruled option 1,
+#    2026-09-03) and it is what makes the regen below a mechanism rather than a hope.
+#    Without this assertion the regen is unmotivated and the test would be pinning
+#    "someone remembered", which is not a guarantee.
+out_stale="$("$CONF" --baseline-staleness "$LEDGER" 2>/dev/null)"
+grep -qE "^shape-baseline-stale[[:space:]]+bbb2" <<<"$out_stale" \
+  && pass "(1) id:2654's detector REPORTS the shrunk item's floor as stale" \
+  || fail "(1) --baseline-staleness did NOT report bbb2 after the shrink -- the snapshot has gone silently loose, which is the whole failure this loop exists to close. Output was:"$'\n'"$out_stale"
+
+"$CONF" --baseline-staleness --strict "$LEDGER" >/dev/null 2>&1 && stale_rc=0 || stale_rc=$?
+(( stale_rc != 0 )) \
+  && pass "(2) --baseline-staleness --strict exits non-zero while stale, so a caller CAN gate on it" \
+  || fail "(2) --baseline-staleness --strict exited 0 while the floor was stale"
+
+# ── state 1c: the DELIBERATE REGEN. This is the human act the ratified design requires --
+#    the detector names it, a person performs it. Nothing here happens automatically, and
+#    that asymmetry is the accepted weakness of the regen-plus-detect design over
+#    self-tightening (owner weighed it 2026-09-02 and chose this path).
+"$CONF" --regen-shape-baseline "$LEDGER" > "$BASE.new" 2>/dev/null \
+  || fail "(3) regen failed at the point the detector asked for it"
+mv -- "$BASE.new" "$BASE"
+
+grep -qE "^shape-baseline-stale[[:space:]]+bbb2" <<<"$("$CONF" --baseline-staleness "$LEDGER" 2>/dev/null)" \
+  && fail "(3) the detector STILL reports bbb2 as stale after a regen -- the remedy it names does not work" \
+  || pass "(3) after the regen the detector is quiet -- the remedy it names actually clears it"
+
+# ── state 2: Bravo REGROWS to LESS than it was ORIGINALLY baselined at (29 < 76). Under the
+#    bare snapshot design this was forgiven. After the detector+regen loop it fires.
+#
+#    PRECISELY WHAT FIRES, because the obvious guess is wrong: the regen did not record
+#    bbb2 at a floor of 0. At the shrunk state its residue is BELOW the 8-char slack, so
+#    `--regen-shape-baseline` emits NO ROW for it at all. The regrowth is therefore caught
+#    as `shape-new` (an id absent from the baseline), not as `shape-regrowth`. Both are
+#    ERRORs and both are distinguishable from the grandfathered standing set, so the
+#    guarantee holds -- but the mechanism is baseline ABSENCE, not a tightened floor.
+#    Asserted below by class, so a future change that alters which of the two fires will
+#    show up here rather than passing silently.
 ledger "$BRAVO_REGROWN"
 out_re="$("$CONF" --strict "$LEDGER" 2>/dev/null)"; rc_re=$?
 cls_b="$(class_of "$out_re" bbb2)"
 cls_a="$(class_of "$out_re" aaa1)"
 
 (( rc_re != 0 )) \
-  && pass "(1) a regrowth BELOW the baselined value FAILS --strict" \
-  || fail "(1) regrowth below the baselined value did NOT fail --strict (rc=$rc_re) -- the floor went stale and forgave it. This is the id:718c shape. Output was:"$'\n'"$out_re"
+  && pass "(4) a regrowth BELOW the ORIGINAL floor now FAILS --strict, after detector+regen" \
+  || fail "(4) regrowth below the original floor did NOT fail --strict (rc=$rc_re) -- the floor went stale and forgave it. This is the id:718c shape. Output was:"$'\n'"$out_re"
+
+# The mechanism pin the comment above promises. Both `shape-new` and `shape-regrowth` are
+# ERRORs and either satisfies the GUARANTEE, so a bare "is an error" check would hide a
+# change in WHICH one fires. Today it is `shape-new` (baseline absence, because the shrunk
+# residue fell under the 8-char slack and so was never recorded). If the slack or the regen
+# emission changes, this flips to `shape-regrowth` -- still correct, but a different
+# mechanism, and that is worth failing on so a human confirms it rather than discovering it
+# later. Widen this pin deliberately; do not delete it.
+case "$cls_b" in
+  shape-new) pass "(5a) the firing mechanism is baseline ABSENCE ('shape-new'), as documented" ;;
+  shape-regrowth) fail "(5a) the mechanism CHANGED to 'shape-regrowth' -- the guarantee still holds, but the comment above and the note now describe the wrong mechanism. Confirm intended, then update both and re-pin." ;;
+  *) fail "(5a) unexpected class '$cls_b' -- expected shape-new (or shape-regrowth after a deliberate change)" ;;
+esac
 
 [[ -n "$cls_b" && "$cls_b" != "$cls_a" ]] \
-  && pass "(2) the regrowth class '$cls_b' is DISTINGUISHABLE from the untouched '$cls_a'" \
-  || fail "(2) regrown reports '$cls_b' against untouched '$cls_a' -- a forgiven regrowth is indistinguishable from a standing finding"
+  && pass "(5) the regrowth class '$cls_b' is DISTINGUISHABLE from the untouched '$cls_a'" \
+  || fail "(5) regrown reports '$cls_b' against untouched '$cls_a' -- a forgiven regrowth is indistinguishable from a standing finding"
 
 echo "ALL PASS"

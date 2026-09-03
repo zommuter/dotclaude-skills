@@ -71,6 +71,18 @@ ERRLOG="$TMP/integrate.stderr"
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; [[ -s "$ERRLOG" ]] && { echo "       last integrate.sh stderr:"; tail -n 30 "$ERRLOG" | sed 's/^/       | /'; }; exit 1; }
 
+# TICK-VISIBILITY, changed by id:2eba (2026-09-03): integrate.sh step 6b runs
+# roadmap-archive.sh AFTER the tick, and the archiver no longer leaves a stub -- it removes
+# the archived line from the live ledger outright. So a just-closed id is legitimately
+# ABSENT from ROADMAP.md and present as `- [x]` in ROADMAP.archive.md. Assert the UNION,
+# which is what orphan-scan --cross-ledger already reads (routed:42c9). Asserting only the
+# live file would pin the stub convention that id:2eba deliberately removed.
+ticked_in_union() { # <checkout> <id>
+  grep -q "^- \[x\].*id:$2" "$1/ROADMAP.md" 2>/dev/null && return 0
+  grep -q "^- \[x\].*id:$2" "$1/ROADMAP.archive.md" 2>/dev/null
+}
+
+
 [[ -x "$INT" ]] || fail "integrate.sh not found/executable at $INT"
 
 # A git-lock-push stub that REALLY pushes (the honest helper).
@@ -171,7 +183,7 @@ CKPT1="$(awk -F'=' '/^ckpt=/{print substr($0, 6); exit}' <<<"$out1")"
 git -C "$M1" rev-parse -q --verify "refs/tags/$CKPT1" >/dev/null \
   || fail "(1) ckpt tag '$CKPT1' does not exist locally — tagging was skipped along with the push"
 # the tick + relay.toml write + retire all still ran
-grep -q '^- \[x\].*id:aaaa' "$M1/ROADMAP.md" || fail "(1) the ROADMAP tick did not run"
+ticked_in_union "$M1" aaaa || fail "(1) the ROADMAP tick did not run (checked ROADMAP.md and ROADMAP.archive.md)"
 grep -q "last_ckpt = \"$CKPT1\"" "$C1/relay.toml" || fail "(1) relay.toml last_ckpt was not written"
 [[ ! -d "$W1" ]] || fail "(1) the worktree was not retired"
 # …AND THE REMOTE NEVER MOVED — the whole point.

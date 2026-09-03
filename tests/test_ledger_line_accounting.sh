@@ -120,7 +120,7 @@ cat > "$A" <<'EOF'
 
 - [x] **Nothing here yet.** <!-- id:0003 -->
 EOF
-a_total=$(wc -l < "$A")
+a_total=$(awk "END{print NR}" "$A")   # NOT wc -l: a file whose last line lacks a trailing newline counts N-1 there and N in every bucket grep, producing a FALSE "a line is invisible to the checker" (found by independent review 2026-09-03)
 a_left=$(leftover_lines "$A"); a_nleft=$(n_of "$a_left")
 a_rep=$(reported_lines "$A");  a_nrep=$(n_of "$a_rep")
 (( a_nleft == 0 )) || fail "case A: a conforming ledger must leave 0 unaccounted lines, got $a_nleft ($a_left)"
@@ -199,7 +199,7 @@ cat > "$D" <<'EOF'
 
 - [x] **Done item.** <!-- id:0032 -->
 EOF
-d_total=$(wc -l < "$D")
+d_total=$(awk "END{print NR}" "$D")
 d_rep=$(reported_lines "$D"); d_nrep=$(n_of "$d_rep")
 d_left=$(leftover_lines "$D")
 (( d_nrep == 1 )) || fail "case D: the comment-only line must be the single reported line, got $d_nrep ($d_rep)"
@@ -218,7 +218,7 @@ unset LENGTH_BASELINE SHAPE_BASELINE STATE_CLAIM_BASELINE
 live_case() {
   local tag="$1" f="$2" total blank head item ex rep nrep left sum
   [[ -f "$f" ]] || fail "case $tag: live ledger not found at $f"
-  total=$(wc -l < "$f")
+  total=$(awk "END{print NR}" "$f")
   blank=$(b_blank "$f"); head=$(b_head "$f"); item=$(b_item "$f"); ex=$(b_exempt "$f")
   left=$(leftover_lines "$f")
   rep=$(reported_lines "$f"); nrep=$(n_of "$rep")
@@ -235,6 +235,21 @@ live_case() {
   fi
   pass "case $tag: $(basename "$f") total=$total = blank $blank + heading $head + item $item + exempt $ex + reported $nrep, and the line SETS match"
 }
+
+# ── case G (independent review 2026-09-03, finding F1): a ledger whose LAST LINE HAS NO
+#    TRAILING NEWLINE. `wc -l` counts N-1 there while every bucket grep and awk NR count N,
+#    so the identity reported COUNT-MISMATCH -- i.e. "a line is invisible to the checker" --
+#    on a file the checker sees perfectly well. A WRONG DIAGNOSIS is worse than no check: it
+#    sends the next reader hunting a grammar bug that does not exist. Guards the awk NR fix.
+G="$TMP/G.md"
+printf '# TODO\n\n## Current\n\n- [ ] [ROUTINE] **G item** -- detail: `docs/ledger-notes/g001.md` <!-- id:g001 -->' > "$G"
+[[ -n "$(tail -c1 "$G")" ]] || fail "case G: fixture broken -- it MUST end WITHOUT a newline or it proves nothing"
+g_total=$(awk 'END{print NR}' "$G")
+g_rep=$(reported_lines "$G" | grep -c . || true)
+g_sum=$(( $(b_blank "$G") + $(b_head "$G") + $(b_item "$G") + $(b_exempt "$G") + g_rep ))
+(( g_total == g_sum )) \
+  && pass "case G: a file with no trailing newline still balances ($g_total == $g_sum)" \
+  || fail "case G: no-trailing-newline file MIS-COUNTS: total=$g_total sum=$g_sum -- that is the wc -l bug, NOT a blind checker"
 
 live_case E "$ROOT/ROADMAP.md"
 live_case F "$ROOT/TODO.md"
