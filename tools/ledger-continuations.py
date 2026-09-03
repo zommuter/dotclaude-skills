@@ -146,13 +146,19 @@ def normalise_dashes(text):
 # measured failure, not a precaution: the id was relocated, the suite went red, and the
 # block was put back. Never add one speculatively, and never remove one without re-running
 # the named consumer.
-REFUSE_IDS = {
-    "6b35": "tests/test_roadmap_scope_table_consistency_c480.sh greps ROADMAP.md for this "
-            "item's \"OUT of scope ... MUST STAY `model:'haiku'`\" bullet and fails when it "
-            "is not there; the spec says in as many words that the anchor must be "
-            "re-anchored rather than deleted, which is a change to a test file and not "
-            "this pass's to make",
-}
+# REFUSE_IDS -- items whose BODY is read by a live consumer, so relocating the body breaks it.
+# The id:2ee1 / id:1608 class. An entry here is a statement about a CONSUMER, so it becomes
+# STALE the moment that consumer is re-anchored: re-verify before trusting one.
+#
+# id:6b35 was listed here and the entry is now LIFTED (2026-09-03). Both of its consumers were
+# re-anchored to the LEDGER + NOTES UNION, which is what each of them asked for in its own
+# words: `roadmap-lint.sh`'s SCOPE-TABLE-DRIFT parser now reads docs/ledger-notes/*.md
+# alongside the ledger (and its empty-result branch FAILS LOUDLY instead of the silent
+# `return 0` that made a vanished table indistinguishable from a repo that never had one --
+# the id:d35a class), and `tests/test_roadmap_scope_table_consistency_c480.sh` greps the same
+# union. Refusing forever would have parked ~6.7 KB in the ledger permanently to avoid a
+# one-line change to each consumer.
+REFUSE_IDS = {}
 
 LANE_MENTION_RE = re.compile(r"\[(?:HARD|INPUT)\s*[-" + EN + EM + r"]\s*[^]\n]{1,24}\]")
 

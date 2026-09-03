@@ -68,9 +68,17 @@ release_dispatch="$(head -1 < <(grep -E "label: *\`release:" "$LOOP") || true)"
 grep -qE "model: *('bash'|MECH_MODEL)" < <(printf '%s\n' "$release_dispatch") && loop_release_is_bash=1
 
 # The ROADMAP side: the OUT-of-scope MUST-STAY-haiku bullet in the id:6b35 block.
-outbullet="$(grep -F 'OUT of scope' "$ROADMAP" | grep -F "MUST STAY \`model:'haiku'\`" || true)"
+#
+# RE-ANCHORED 2026-09-03 (id:40c0) to the LEDGER + NOTES UNION, which is what this file's own
+# failure message demanded: "if it was renamed, this spec and the lint rule must be
+# re-anchored, not deleted". Under the id:0d7c format an item's body lives in
+# docs/ledger-notes/<id>.md, so the bullet is no longer in ROADMAP.md -- and roadmap-lint.sh
+# now reads the same union. Anchoring on ROADMAP.md alone would fail the moment the body was
+# relocated, which is precisely why the id:40c0 pass refused to relocate it until now.
+outbullet="$(grep -rhF 'OUT of scope' "$ROADMAP" "$ROOT/docs/ledger-notes" 2>/dev/null \
+             | grep -F "MUST STAY \`model:'haiku'\`" || true)"
 [[ -n "$outbullet" ]] \
-  || fail "(1) could not locate the id:6b35 \"OUT of scope … MUST STAY model:'haiku'\" bullet in ROADMAP.md — if it was renamed, this spec and the lint rule must be re-anchored, not deleted"
+  || fail "(1) could not locate the id:6b35 \"OUT of scope … MUST STAY model:'haiku'\" bullet in ROADMAP.md OR docs/ledger-notes/ — if it was renamed, this spec and the lint rule must be re-anchored, not deleted"
 
 roadmap_says_release_haiku=0
 grep -qF '`release:`' < <(printf '%s\n' "$outbullet") && roadmap_says_release_haiku=1

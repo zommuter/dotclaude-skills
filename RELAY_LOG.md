@@ -3124,3 +3124,32 @@ id:4983 -- ledger-shrink.py's _LANE_PATTERNS now recognises exactly the declared
 ## 2026-09-02 18:07 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:4983 verified green (spec untouched since handoff; negative case re-run by hand at 4f309df2^, fails at the declared assertion (e)); no gaming flags; 3 REVIEW_ME boxes; routine_open 0 actionable of 7 raw (all gated/owner-bound, the id:59f2 shape) [id:4983]
+
+## 2026-09-03 -- relocated from ROADMAP.md (id:40c0)
+
+Two standalone HTML-comment provenance blocks sat at ROADMAP.md top level, carrying
+2026-07-19 relay handoff records. They had NO owning id, so no id-keyed tool could see them,
+and they are relay run history -- which is what this file is for. Moved here VERBATIM rather
+than deleted: the claims are independently checkable (all four named RED specs exist) but the
+narrative of WHICH items were promoted and which were deliberately left gated is not
+recoverable from the ledger alone.
+
+They carry the retired venue-keyed lane spelling `[HARD - pool]` in their original text. It is
+preserved as written because this is a HISTORICAL RECORD of what a 2026-07-19 handoff said;
+rewriting a quotation makes it false. This is the DECLARATIVE-vs-REFERENTIAL rule.
+
+```
+<!-- 2026-07-19 handoff C2 (run relay-handoff, this session): promoted the three ungated,
+     handoff-ready af48/related [HARD - pool] children from TODO.md — single-id-two-views
+     (D2): ac7f/78df reuse their TODO twins (children-of:af48), 66d4 reuses its TODO twin.
+     RED specs authored this handoff (C3): tests/test_wire_grammar_classify.sh (ac7f),
+     tests/test_review_gate_tier_coverage.sh (66d4), tests/test_consumer_enum.sh (78df).
+     GATED siblings NOT promoted: bea2/2b49 (gated-on:ac7f), 0c86 (gated-on:077d),
+     07dc (children-of:7a05 substrate). -->
+
+<!-- 2026-07-19 handoff C2 (supervised, mtg-1726): promoted a17a (state-machine diagram set)
+     from TODO — single-id-two-views (D2), reuses the TODO twin id:a17a. RED spec authored
+     this handoff (C3): tests/test_a17a_diagram_state_sync.sh. The diagram AUTHORING (topology
+     is design judgment, reconciled with the id:4da4 matrix) is the [HARD - pool] execution; the
+     guard-test keeps the authored vocabulary from drifting off classify-verdict.sh + SKILL.md. -->
+```

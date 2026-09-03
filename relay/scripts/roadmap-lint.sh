@@ -1053,11 +1053,26 @@ check_scope_table_drift() {
   local roadmap_path="$1" loop_js reqs kind hop esc dispatch
   loop_js="$(dirname "$roadmap_path")/relay/scripts/relay-loop.js"
 
+  # THE TABLE MAY LIVE IN A DETAIL NOTE (id:40c0/id:2ee1). Under the id:0d7c format an
+  # item's body is relocated to docs/ledger-notes/<id>.md and the ledger keeps only a
+  # pointer, so a scope table that used to sit under its item in ROADMAP.md now sits in
+  # that note. Reading only the ledger would make this check SILENTLY find nothing --
+  # `[[ -n "$reqs" ]] || return 0` below returns 0 with no message -- which is exactly
+  # the id:d35a silent-no-op class, and it is why the id:40c0 relocation of id:6b35 was
+  # (correctly) refused until this consumer was re-anchored. Read the UNION.
   reqs="$(python3 - "$roadmap_path" <<'PY'
-import re, sys
+import re, sys, os, glob
 
 path = sys.argv[1]
 text = open(path, encoding='utf-8').read()
+# Follow the item bodies: every ledger-note beside this ledger is part of the corpus this
+# check reads. Cheap (a few hundred small files) and it cannot miss a relocated table.
+_notes_dir = os.path.join(os.path.dirname(os.path.abspath(path)), 'docs', 'ledger-notes')
+for _n in sorted(glob.glob(os.path.join(_notes_dir, '*.md'))):
+    try:
+        text += '\n' + open(_n, encoding='utf-8').read()
+    except OSError:
+        pass
 out = []
 
 # --- (a) the CONVERTIBLE hop table: markdown rows following a "|---|" separator
@@ -1114,7 +1129,18 @@ for kind, hop in out:
     print(f"{kind}\t{hop}")
 PY
 )"
-  [[ -n "$reqs" ]] || return 0   # this ROADMAP carries no scope table — nothing to check
+  # EMPTY IS NOT AUTOMATICALLY FINE. A repo that never had a scope table is a silent no-op
+  # (correct); but THIS repo has one, and if it ever stops parsing -- relocated somewhere the
+  # union above does not reach, or reworded past the regex -- the old `return 0` reported
+  # NOTHING and exited 0, so the check would vanish without a word. That is strictly worse
+  # than a red test (id:d35a). Anchor on a repo that is KNOWN to carry the table.
+  if [[ -z "$reqs" ]]; then
+    if grep -rqlF 'CONVERTIBLE hops' "$(dirname "$roadmap_path")/docs/ledger-notes" "$roadmap_path" 2>/dev/null; then
+      echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: the corpus still mentions 'CONVERTIBLE hops' but NO hop table parsed. The table moved or was reworded past this parser, so this check is silently verifying NOTHING (id:c480/id:40c0). Re-anchor the parser; do not delete the check." >&2
+      return 1
+    fi
+    return 0   # this repo genuinely carries no scope table — nothing to check
+  fi
 
   if [[ ! -f "$loop_js" ]]; then
     echo "roadmap-lint: SCOPE-TABLE-DRIFT check SKIPPED — relay-loop.js not found at $loop_js (a scope table exists in $roadmap_path but there is nothing to verify it against)" >&2
