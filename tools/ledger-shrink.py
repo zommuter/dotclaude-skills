@@ -236,24 +236,54 @@ def find_cut(head: str):
     boundary; neither may land inside an HTML comment or a code span.
     """
     spans = _protected_spans(head)
+
+    # THE TITLE CANNOT FOLLOW THE ANCHOR (id:931c, found 2026-09-03).
+    #
+    # The bold-run rule assumes the bold run IS the title, near the START of the line. That
+    # is false for the `grammar-item-after-id` shape -- `title <!-- id:XXXX --> **annotation**`
+    # -- where the item's real title is unbolded text BEFORE the marker and the only bold run
+    # is a trailing annotation appended after it. Measured on ROADMAP.md:58 (id:931c, 994
+    # chars): the marker is at offset 102, the first bold run starts at 119, so the cut landed
+    # at 994 and the tool declared "too-little-to-move" with 0 residue -- while treating an
+    # 875-char annotation as title. The line then sits over budget forever, and nothing
+    # reports why.
+    #
+    # An item's own id marker is its ANCHOR, so no cut may land after it: whatever follows is
+    # annotation, which is exactly what should move. Everything below is clamped to it.
+    anchor = None
+    _am = re.search(r"<!--\s*id:[0-9a-f]{4}\s*-->", head)
+    if _am and not _inside(_am.start(), spans):
+        anchor = _am.start()
+
+    def _ok(off):
+        return anchor is None or off <= anchor
+
     m = re.search(r"\*\*[^*]+\*\*", head)
-    if m and not _inside(m.end(), spans):
+    if m and not _inside(m.end(), spans) and _ok(m.end()):
         return m.end()
 
     body_start = TOP_ITEM_RE.match(head)
     start = body_start.end() if body_start else 0
     candidates = []
     for sep in re.finditer(r" -- ", head):
-        if sep.start() > start and not _inside(sep.start(), spans):
+        if sep.start() > start and not _inside(sep.start(), spans) and _ok(sep.start()):
             candidates.append(sep.start())
             break
     for sent in re.finditer(r"(?<=[a-z0-9\)\]])[.!?](?=\s)", head):
-        if sent.start() > start and not _inside(sent.end(), spans):
+        if sent.start() > start and not _inside(sent.end(), spans) and _ok(sent.end()):
             candidates.append(sent.end())
             break
-    if not candidates:
-        return None
-    return min(candidates)
+    if candidates:
+        return min(candidates)
+
+    # LAST RESORT for the after-id shape: cut AT the anchor. The prefix is then the real
+    # title, and the marker itself is a MUST_KEEP token, so it is lifted out of the moved
+    # residue and re-emitted on the head line -- the id never leaves the ledger. Only taken
+    # when a genuine title precedes the anchor; the caller's own `len(title) < 8` and
+    # MIN_MOVED_CHARS checks still apply and still refuse if either half is too thin.
+    if anchor is not None and anchor > start:
+        return anchor
+    return None
 
 
 def _keep_matches(text: str):

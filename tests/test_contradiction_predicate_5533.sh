@@ -174,10 +174,22 @@ pass "cross-linter invariant holds: roadmap-lint.sh and todo-conformance.sh agre
 
 # --- ground-truth regression: the id:931c line (reverted from the refuted 'obsoleted'
 #     prose reword) must NOT fire — it is scoped to id:f599, not to 931c itself. -----
-grep -q 'obsoleted by the model' "$ROOT/ROADMAP.md" \
-  && fail "the refuted id:931c 'obsoleted' reword is still present in ROADMAP.md — must be reverted to SUPERSEDED"
-grep -q 'id:f599 is SUPERSEDED by the model' "$ROOT/ROADMAP.md" \
-  || fail "the id:931c line was not reverted to the scoped 'id:f599 is SUPERSEDED' wording"
+# RE-ANCHORED 2026-09-03 to the LEDGER + NOTES UNION. id:931c's annotation was relocated to
+# docs/ledger-notes/931c.md by the id:0d7c shrinker (its head line was 994 chars; the cut
+# point could not be found until the after-anchor fix landed). The wording this guards is
+# unchanged -- it MOVED. Anchoring on ROADMAP.md alone now fails for a reason that has
+# nothing to do with the predicate under test, which is the id:2ee1 "a consumer reads an
+# item's BODY and breaks when the body moves" class.
+#
+# WHAT THIS STILL PROVES, and it is the point: the scoped wording must survive SOMEWHERE in
+# the corpus, because the DECIDED-LEFT-OPEN engine reads it. Verified independently of this
+# grep: roadmap-lint reports id:931c ZERO times today, i.e. the predicate still does not
+# false-positive on it.
+_c="$ROOT/ROADMAP.md $ROOT/docs/ledger-notes"
+grep -rqF 'obsoleted by the model' $_c 2>/dev/null \
+  && fail "the refuted id:931c 'obsoleted' reword is still present — must be SUPERSEDED"
+grep -rqF 'id:f599 is SUPERSEDED by the model' $_c 2>/dev/null \
+  || fail "the id:931c scoped 'id:f599 is SUPERSEDED' wording is missing from BOTH ROADMAP.md and docs/ledger-notes/ — it was deleted, not relocated"
 pass "id:931c prose reword reverted (SUPERSEDED, scoped to id:f599, not the item itself)"
 
 echo "ALL PASS: id:5533 shared two-directional state-claim contradiction predicate"
