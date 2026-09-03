@@ -3153,3 +3153,94 @@ rewriting a quotation makes it false. This is the DECLARATIVE-vs-REFERENTIAL rul
      is design judgment, reconciled with the id:4da4 matrix) is the [HARD - pool] execution; the
      guard-test keeps the authored vocabulary from drifting off classify-verdict.sh + SKILL.md. -->
 ```
+
+
+## 2026-09-03 -- six ROADMAP.md sections retired (id:800f)
+
+The owner ruled 2026-09-03 that `ROADMAP.md` carries NO section-preamble prose at all. This
+AMENDS his own earlier `id:800f` ruling, which had legalised a bounded fourth grammar shape;
+the amendment is recorded in `docs/ledger-notes/800f.md`. Cluster findings that concern live
+items were relocated into a MEMBER ITEM's note with `relates:` edges on the other members.
+Six sections had no items left at all -- every member archived -- so their HEADING and their
+prose were both residue. Both are moved here VERBATIM rather than deleted: they are relay
+handoff and promotion provenance, which is what this file is for, and the narrative of WHICH
+items a given wave promoted is not recoverable from the ledger alone.
+
+Several blocks carry the retired venue-keyed lane vocabulary (the `HARD` tag suffixed with
+pool / meeting / decision gate / hands) in its original em-dash-delimited spelling. Both the
+vocabulary and the delimiter are preserved exactly as written, because this is a HISTORICAL
+RECORD of what those handoffs said and rewriting a quotation makes it false. This is the
+DECLARATIVE-vs-REFERENTIAL rule; do not "fix" the vocabulary here.
+
+```
+## Handoff C2 reconcile (2026-07-20, id:2dea) — un-promoted TODO backlog surfaced
+
+> Attended `/relay handoff` on this repo. dotclaude-skills keeps its DESIGN ledger in
+> TODO.md **by intent** (ROADMAP = lean executor queue). So this is a VISIBILITY reconcile,
+> not a bulk promote: spec-ready executor bugs are promoted in full; decided-lane HUMAN
+> items get concise pointers for `/relay human` gather visibility (TODO.md stays the prose
+> SSOT); large mostly-done design entries and ambiguous/untagged backlog stay in TODO,
+> never lane-guessed. See the turn summary for what was intentionally left.
+
+## Capability-keyed lane taxonomy — slice A (meeting 2026-07-02-1924)
+
+Slice A of the capability-keyed lane taxonomy + mechanical-run daemon
+(`docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`).
+**Additive only** — introduces the `[MECHANICAL]` capability tier, its recipe/permit/probe
+substrate, and the check-and-defer resource arbitration, WITHOUT renaming any existing lane
+(the `[HARD — *]`→new-vocab rename is slice B, GATED below). Single-id-two-views (D2): every
+id reuses its open TODO.md twin under the `[UMBRELLA]`.
+
+## Capability-keyed lane taxonomy — wave 2a (MECHANICAL end-to-end)
+
+Wave 2a makes the `[MECHANICAL]` tag END-TO-END: slice A shipped the CONSUMER half only
+(the classifier RECOGNIZES `[MECHANICAL]`→the pool-inert `mechanical` verdict), but no
+relay layer PRODUCES the tag and nothing RUNS it. Source of truth: the
+`## Amendment 2026-07-02 (post-build — the `[MECHANICAL]` producer gap)` section of
+`docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`. These
+three items (single-id-two-views D2 — each reuses its open TODO.md twin) are UN-GATED —
+their deps (A1 id:7616, A2 id:64d3, A4 id:e407, A5 id:68dc) are all landed `[x]`. Uses the
+CURRENT lane vocabulary (`[ROUTINE]`/`[HARD — pool]`) — the two-axis rename is wave 2b
+(B1/B2, GATED below), NOT here.
+
+## Capability-keyed lane taxonomy — wave 2b (lane-vocabulary RENAME)
+
+Wave 2b executes the `[HARD — <suffix>]` → two-axis-vocabulary RENAME ratified in the meeting
+(`docs/meeting-notes/2026-07-02-1924-relay-mechanical-lane-capability-taxonomy.md`, decisions
+1+2). **This is the meeting's flagged BLAST-RADIUS step** — the lane vocabulary was hardened
+four days ago across ~30 lane-asserting tests + the crash-prone `relay-loop.js` engine, so the
+rename is deliberately staged **additive-then-flip** with a deterministic converter and a
+DUAL-VOCABULARY lint window (both old and new accepted ERROR-free for one window). NEVER a
+flag-day (Riku). Dep A1 (id:7616, `[MECHANICAL]` tag) is landed `[x]`, so B1 is now UN-GATED
+and dispatchable; B2 stays gated on B1 (below). Single-id-two-views (D2): both ids reuse their
+open TODO.md twin.
+
+**Target taxonomy (decision 1).** Two orthogonal axes — **capability**: `[ROUTINE]` (executor
+LLM) · `[HARD]` (strong LLM) · `[INPUT — {meeting,decision,access}]` (human ± LLM; sub-type =
+effort) · `[MECHANICAL]` (compute only) — × **resource** (orthogonal): `[INTENSIVE — <res>]`.
+The MAPPING: the THREE UNAMBIGUOUS 1:1 renames the converter AUTO-APPLIES — `[HARD — pool]`→`[HARD]`,
+`[HARD — meeting]`→`[INPUT — meeting]`, `[HARD — decision gate]`→`[INPUT — decision]`. `[HARD — hands]`
+is DELIBERATELY NOT auto-converted: "hardware/sudo/secret/on-device/rehearsal" fragments across FOUR
+destinations — `[MECHANICAL]` (a daemon can run it) · `[INPUT — access]` (human provides a
+credential/key/physical access) · `[INPUT — decision]` (human must ratify, e.g. it-infra fd30
+post-gate decisions) · `[INPUT — meeting]` (human+LLM design judgment, e.g. a rehearsal whose
+outcome needs interpretation) — so the converter FLAGS every `[HARD — hands]` item for per-item
+human judgment (those four candidates) and converts it to NONE of them (no default). Aligns with M3
+(id:3ef7) + the conformance-sweep detector-surfaces/human-decides rule. `[ROUTINE]` / `[MECHANICAL]`
+/ `[INTENSIVE — <res>]` are UNCHANGED. **SCOPE (owner-locked):** this wave
+migrates THIS repo's contract + lane-readers + tests + THIS repo's own ROADMAP/TODO item tags
+only. Cross-repo item re-tagging in OTHER repos is a SEPARATE gated migration — the dual-vocab
+window is exactly what lets those migrate later.
+
+## Relay orphan-worktree reconcile (meeting 2026-06-16-0938, id:a4e9)
+
+Decomposition of the orphan-reconcile design. **Sequence: D1 → D2/D3** (D2's reconcile
+mode and D3's binding both operate on the `relay/orphan/*` namespace D1 creates). D4
+(id:a692, note-only forward-flag) and D6 (id:122f, fsck ADVISORY follow-on, gated "ships
+after D1–D3") stay in TODO.md — not executor work yet.
+
+## 2026-09-01 review reverse-handoff (run relay-20260901-101120-32404, review.md §5b)
+
+> Qualified from TODO.md items the owner filed manually this window. Ids REUSED
+> (single-id-two-views D2) -- both lines also live in `TODO.md` under the same token.
+```
