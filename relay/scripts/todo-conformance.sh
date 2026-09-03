@@ -137,6 +137,11 @@ LEDGER_HEAD_BUDGET="${LEDGER_HEAD_BUDGET:-500}"
 # and by the fact that refusing MORE than the shrinker is safe while refusing LESS is not.
 LEDGER_MIN_MOVED_CHARS="${LEDGER_MIN_MOVED_CHARS:-25}"
 LENGTH_BASELINE="${LENGTH_BASELINE:-$SCRIPTS_DIR/../head-length-baseline.txt}"
+# The SHAPE ratchet's baseline (id:2d17), the exact sibling of the length one above. Same
+# regen-plus-detect shape the owner ratified 2026-09-02 -- a committed snapshot that only a
+# deliberate --regen-shape-baseline moves. See the regen header for what it does and, more
+# importantly, for the one thing it provably does NOT do.
+SHAPE_BASELINE="${SHAPE_BASELINE:-$SCRIPTS_DIR/../shape-prose-baseline.txt}"
 
 # --- LEDGER LINE GRAMMAR knobs (id:b048) -------------------------------------------------
 # THE ID TOKEN CLASS IS NOT HARDCODED. It is derived from lib-anchored-id.sh's
@@ -194,13 +199,14 @@ LOG="${TODO_CONFORMANCE_LOG:-$HOME/.claude/logs/todo-conformance.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s todo-conformance.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
-fix=0 inbox=0 strict=0 path="" regen_length=0 grammar_lines=0
+fix=0 inbox=0 strict=0 path="" regen_length=0 regen_shape=0 grammar_lines=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fix)    fix=1; shift ;;
     --inbox)  inbox=1; shift ;;
     --strict) strict=1; shift ;;
     --regen-length-baseline) regen_length=1; shift ;;
+    --regen-shape-baseline) regen_shape=1; shift ;;
     --grammar-lines) grammar_lines=1; shift ;;
     --no-grammar) LEDGER_GRAMMAR_CHECK=0; shift ;;
     -h|--help) sed -n '2,80p' "$0"; exit 0 ;;
@@ -373,15 +379,65 @@ shape_residue() {
   sed -E 's/[[:space:][:punct:]]+//g' <<<"$s"
 }
 
-# shape_class <line> → "" | "shape-prose (<n> chars ...)"
+# --- SHAPE RATCHET (id:2d17) -------------------------------------------------------------
+#
+# The saturation this fixes, stated as the measurement: with ~114 shape-prose findings
+# standing, finding 115 is reported in the SAME WORDS as findings 1..114 and escalates
+# none of them, so the rule regulates nothing. Splitting the one class into three -- and
+# escalating only the two that are NEW information -- is what makes #115 visible.
+#
+#   residue > 8, no baseline entry      -> `shape-new`           ERROR (a NEW prose item)
+#   residue > 8, residue >  baselined   -> `shape-regrowth`      ERROR (it got worse)
+#   residue > 8, residue <= baselined   -> `shape-grandfathered` WARN, always reported
+#
+# INERT WITHOUT A BASELINE: with no baseline file the class stays exactly today's
+# report-only `shape-prose`, so every repo that has not captured one is unaffected and
+# id:8524 (the blanket WARN->ERROR promotion) remains a separate, later act.
+#
+# READ THE REGEN HEADER BEFORE TRUSTING THIS. A snapshot baseline cannot catch the
+# id:718c shape (shrink, then regrow to less than the baselined value), and id:718c is
+# the incident this item was filed for. That gap is deliberate and owner-ratified; it is
+# not an oversight in this implementation.
+declare -A SHAPE_BASELINE_MAP=()
+SHAPE_RATCHET_ON=0
+
+shape_baseline_load() {
+  local f="$1" ledger id len
+  while read -r ledger id len; do
+    [[ -z "${ledger:-}" || "$ledger" == \#* ]] && continue
+    [[ -n "${id:-}" && -n "${len:-}" ]] || continue
+    SHAPE_BASELINE_MAP["$ledger/$id"]="$len"
+  done < "$f"
+}
+
+# shape_class <line> → "" | "shape-prose (…)" | "shape-new (…)" | "shape-regrowth (…)"
+#                        | "shape-grandfathered (…)"
 shape_class() {
-  local l="$1" r
+  local l="$1" r id base
   [[ "$l" =~ ^-\ \[[\ xX]\]\  ]] || return 0
   r="$(shape_residue "$l")"
   # 8 chars of slack: a stray word fragment left by an unrecognised marker is not worth a
   # finding, and the threshold keeps the rule from firing on its own stripping artefacts.
   (( ${#r} > 8 )) || return 0
-  echo "shape-prose (${#r} chars of prose outside lane/gate/id/title/pointer; id:30fe)"
+  if (( SHAPE_RATCHET_ON == 0 )); then
+    echo "shape-prose (${#r} chars of prose outside lane/gate/id/title/pointer; id:30fe)"
+    return 0
+  fi
+  id="$(length_id_of "$l")"
+  # An id-less line cannot be keyed to a baseline. An OPEN one is already reported as
+  # `missing-id`; fixing that is what brings it under the ratchet. Never guess a key.
+  if [[ -z "$id" ]]; then
+    echo "shape-prose (${#r} chars of prose outside lane/gate/id/title/pointer; id:30fe)"
+    return 0
+  fi
+  base="${SHAPE_BASELINE_MAP["$LENGTH_LEDGER_KEY/$id"]:-}"
+  if [[ -z "$base" ]]; then
+    echo "shape-new (${#r} chars of prose, not baselined; a NEW prose item; id:2d17)"
+  elif (( ${#r} > base )); then
+    echo "shape-regrowth (${#r} chars of prose > baselined $base; prose may only shrink; id:2d17)"
+  else
+    echo "shape-grandfathered (${#r} chars of prose, within baseline $base; id:2d17)"
+  fi
 }
 
 # --- LEDGER LINE GRAMMAR (id:b048) -------------------------------------------------------
@@ -667,6 +723,68 @@ REGEN_HEADER
   exit 0
 fi
 
+# `--regen-shape-baseline` -- the SHAPE ratchet's capture path (id:2d17). Same contract as
+# its length sibling above: prints to stdout, writes nothing, exclusive mode.
+if [[ "$regen_shape" -eq 1 ]]; then
+  cat <<'REGEN_SHAPE_HEADER'
+# shape-prose-baseline.txt -- committed snapshot for the SHAPE RATCHET (id:2d17).
+# GENERATED, not hand-edited.
+#
+# FORMAT: <ledger basename>TAB<4-hex id>TAB<prose residue length in chars>. `#` comments
+# and blank lines are ignored. One row per top-level checkbox line whose shape residue
+# exceeded the 8-char slack at capture time; a conforming line has nothing to grandfather
+# and never enters this file.
+#
+# WHAT IT BUYS: it splits one saturated class into three, so a NEW prose item
+# (`shape-new`) and a WORSENED one (`shape-regrowth`) are ERRORS that fail --strict, while
+# the standing corpus reports as `shape-grandfathered` WARN and never blocks. That is what
+# makes finding 115 visible next to findings 1..114 -- the saturation id:2d17 was filed for.
+#
+# ── WHAT IT PROVABLY DOES *NOT* CATCH, AND WHY THAT IS DELIBERATE ────────────────────────
+#
+# This is a SNAPSHOT, exactly like head-length-baseline.txt, and it inherits that file's
+# disclosed weakness in a sharper form. Applied to id:718c, the incident id:2d17 was filed
+# for, IT DOES NOT FIRE:
+#
+#     id:718c went 4,367 -> 222 -> 1,316 chars in one afternoon.
+#     Baselined at 4,367, the regrowth to 1,316 is `1316 <= 4367` -> shape-grandfathered
+#     WARN. Only a baseline tightened to the observed 222 makes it an ERROR.
+#
+# So a shrink-then-regrow BELOW the baselined value is forgiven until this file is
+# regenerated. Catching that needs a baseline that TIGHTENS on observation, and
+# self-tightening was CONSIDERED AND REJECTED by the owner on 2026-09-02: it would give a
+# READER a write side effect, dirtying the tree on every run (which the id:aa93 guard turns
+# into a deferred relay dispatch), and it would need a flock plus a concept that does not
+# exist -- which invocation is AUTHORITATIVE -- since this checker also runs against
+# fixtures, worktrees and hermetic tests, where a tightening run would poison the real
+# baseline.
+#
+# What makes the snapshot safe is therefore NOT this file. It is the separate, READ-ONLY
+# staleness detector (id:2654): `current < baselined` is a pure read, and it turns "remember
+# to regenerate" into "the checker tells you to regenerate". Precedent: mech-currency.sh
+# (id:0384) detects a stale in-memory allowlist, fails closed, names the remedy, and
+# deliberately does not auto-restart. **Until id:2654 ships, this ratchet's floor can go
+# silently stale, and that is a known open gap -- not a bug in this file.**
+#
+# REGENERATING IS A DELIBERATE, SEPARATE ACT, and it TIGHTENS the ratchet. Do it after a
+# shrink pass lands:
+#   relay/scripts/todo-conformance.sh --regen-shape-baseline TODO.md    >  relay/shape-prose-baseline.txt
+#   relay/scripts/todo-conformance.sh --regen-shape-baseline ROADMAP.md | grep -v '^#' >> relay/shape-prose-baseline.txt
+#
+# OUT OF SCOPE: *.archive.md (id:2065) and the shared inbox.
+REGEN_SHAPE_HEADER
+  printf '# Captured %s.\n' "$(date '+%Y-%m-%d')"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^-\ \[[\ xX]\]\  ]] || continue
+    _rid="$(length_id_of "$line")"
+    [[ -n "$_rid" ]] || continue
+    _res="$(shape_residue "$line")"
+    (( ${#_res} > 8 )) || continue
+    printf '%s\t%s\t%d\n' "$LENGTH_LEDGER_KEY" "$_rid" "${#_res}"
+  done < "$path"
+  exit 0
+fi
+
 # `--grammar-lines` (id:d667) -- the b048 LINE GRAMMAR as a per-line query, and nothing else.
 # Prints `<lineno>TAB<class> (<detail>)` for every non-conforming line in <path>, sorted by
 # line number; silent when the file conforms; always exit 0 (this is a QUERY, not a verdict).
@@ -708,6 +826,16 @@ if [[ "$inbox" -eq 0 && "$LENGTH_LEDGER_KEY" != *.archive.md ]]; then
   else
     echo "todo-conformance.sh: head-length ratchet INERT -- no baseline at $LENGTH_BASELINE (id:0d7c; regenerate with --regen-length-baseline)" >&2
     log "length-ratchet inert baseline=$LENGTH_BASELINE path=$path"
+  fi
+  # The SHAPE ratchet (id:2d17), same scope and same inert-and-loud contract. Silent-inert
+  # is deliberately NOT an option: a saturation fix that quietly does nothing is the very
+  # failure class this item exists to close.
+  if [[ -f "$SHAPE_BASELINE" && -r "$SHAPE_BASELINE" ]]; then
+    shape_baseline_load "$SHAPE_BASELINE"
+    SHAPE_RATCHET_ON=1
+  else
+    echo "todo-conformance.sh: shape ratchet INERT -- no baseline at $SHAPE_BASELINE (id:2d17; regenerate with --regen-shape-baseline)" >&2
+    log "shape-ratchet inert baseline=$SHAPE_BASELINE path=$path"
   fi
 fi
 
@@ -839,8 +967,18 @@ scan_path() {
     fi
     if [[ -n "$sh" ]]; then
       findings=$((findings+1))
-      # NEVER escalates today: 460 of 840 lines fail it, so --strict would refuse every
-      # commit until id:6546 lands. Promoting it to ERROR is that item's closing act.
+      # `shape-prose` and `shape-grandfathered` NEVER escalate: 460 of 840 lines fail the
+      # bare class, so --strict would refuse every commit until id:8524 lands, and the
+      # grandfathered class is the standing corpus by definition. Promoting THOSE is
+      # id:8524's closing act, not this one's.
+      #
+      # `shape-new` and `shape-regrowth` DO escalate (id:2d17). That asymmetry is the whole
+      # fix: they are the two classes that did not exist at capture time, so escalating
+      # them adds information rather than re-litigating the backlog. A baseline may
+      # grandfather, never silence -- so the standing set keeps being REPORTED either way.
+      case "$sh" in
+        shape-new*|shape-regrowth*) strict_findings=$((strict_findings+1)) ;;
+      esac
       out_lines+=("$(printf '%s\t%d\t%s' "$sh" "$lineno" "$line")")
     fi
     if [[ -n "$gr" ]]; then
