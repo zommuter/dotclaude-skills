@@ -20,6 +20,9 @@
 # touches only the WHICH-assertion comparison, and vacuity (rc==0), green-now, config errors
 # and coverage accounting are decided elsewhere. So nothing aborts before (c), and (c) -- the
 # wrong-reason case -- is the SOLE killer, which is exactly the axis this file exists to pin.
+# Case (n2), added 2026-09-04 with id:7c82, is likewise not a discriminator for the mutation
+# above: it asserts WHICH population a file lands in and that it is executed at all, and the
+# mutation touches only the which-assertion comparison. (c) remains the sole killer.
 # Cases (l)/(l2)/(m)/(m2)/(n)/(o)/(p)/(q), added 2026-09-01 for the six review findings, sit
 # AFTER (c) and are therefore UNREACHED under this mutation. That is on the record rather than
 # glossed: (m)/(m2) would also discriminate (the mutation defeats the last-FAIL-line rule
@@ -194,6 +197,17 @@ cat > /dev/null <<'INNER'
 INNER
 echo "PASS: nothing"
 EOF
+
+# The fixture repo needs a ROADMAP.md, because since id:7c82 the runner's roadmap carve-out
+# keys on the item's CHECKBOX (`tests/run-tests.sh`'s own `item_open()`), not on the token's
+# presence. Without one, EVERY fixture roadmap token resolves to "no open item" and the
+# carve-out is spent before the carved-out path is ever exercised -- cases (f)/(g)/(n) would
+# then be testing the EXPIRED branch while claiming to test the carve-out. Both fixture
+# tokens are declared OPEN here; case (n2) ticks one, deliberately, to exercise expiry.
+{
+  printf -- '- [ ] [ROUTINE] **fixture roadmap-spec item.** <!-- id:9f9f -->\n'
+  printf -- '- [ ] [ROUTINE] **fixture shadowed-declaration item.** <!-- id:9f9e -->\n'
+} > "$repo/ROADMAP.md"
 
 git -C "$repo" add -A
 git -C "$repo" commit -qm "fixture tests"
@@ -521,7 +535,37 @@ grep -q 'roadmap-spec' <<<"$out_n" \
 out_nq="$(run --list --quiet)"
 grep -q 'ROADMAP-SHADOWED' <<<"$out_nq" \
   || { sed 's/^/    /' <<<"$out_nq"; fail "(n) the shadowed-declaration report must survive --quiet: it IS the silent-skip class"; }
-rm -- "$repo/tests/test_roadmap_shadowed.sh"
 pass "(n) a declaration shadowed by a roadmap token lower down is reported, never silently skipped"
+
+# --- (n2) the carve-out EXPIRES with the item's checkbox (id:7c82) -------------------------
+#     Same file, same stray token, one difference: the item is now TICKED. Before id:7c82 the
+#     carve-out keyed on the token's PRESENCE and so never expired -- `tests/run-tests.sh`
+#     stopped granting EXPECTED-RED the moment the item closed, while this runner went on
+#     cancelling that file's declaration forever, silently. Every CLOSED roadmap-spec test in
+#     the repo was permanently unverifiable. The property case (n) pins is NOT dropped: it is
+#     asserted above for the still-OPEN item, and the pair is the point -- shadowed while
+#     open, EXECUTED once closed.
+sed -i 's/^- \[ \] \(.*<!-- id:9f9e -->\)$/- [x] \1/' "$repo/ROADMAP.md"
+grep -q '^- \[x\] .*id:9f9e' "$repo/ROADMAP.md" \
+  || fail "(n2) fixture sanity: the ticked item was not written, so nothing below is tested"
+out_n2="$(run --list)"
+grep -q 'carve-out EXPIRED' <<<"$out_n2" \
+  || { sed 's/^/    /' <<<"$out_n2"; fail "(n2) once the item is TICKED the carve-out must expire and be REPORTED under its own heading"; }
+grep -q 'EXPIRED.*test_roadmap_shadowed.sh' <<<"$out_n2" \
+  || { sed 's/^/    /' <<<"$out_n2"; fail "(n2) the file whose carve-out expired must be NAMED, not just counted"; }
+if grep -q 'ROADMAP-SHADOWED' <<<"$out_n2"; then
+  sed 's/^/    /' <<<"$out_n2"
+  fail "(n2) a CLOSED item's declaration is not shadowed any more -- reporting it as shadowed is the pre-id:7c82 behaviour"
+fi
+rc=0; out_n2r="$(run --quiet tests/test_roadmap_shadowed.sh)" || rc=$?
+[[ $rc -eq 0 ]] || { sed 's/^/    /' <<<"$out_n2r"; fail "(n2) the declaration of a CLOSED roadmap item must be EXECUTED and verified, got rc=$rc"; }
+# rc=0 alone would also be the exit code of a run that EXECUTED NOTHING, which is precisely
+# the silent skip this case exists to forbid -- so assert the file was actually executed.
+# (`--quiet` suppresses the per-case `red-there` log lines; the TOTAL line is the durable
+# statement of how many files ran.)
+grep -q 'across 1 file(s) executed' <<<"$out_n2r" \
+  || { sed 's/^/    /' <<<"$out_n2r"; fail "(n2) the expired-carve-out file must actually be EXECUTED, not skipped with a green exit"; }
+rm -- "$repo/tests/test_roadmap_shadowed.sh"
+pass "(n2) the roadmap carve-out expires with the checkbox: a closed item's case is executed, not shadowed"
 
 echo "ALL PASS: negative-case runner (id:a73c)"

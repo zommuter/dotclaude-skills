@@ -112,7 +112,20 @@ the `fails-against-*` directives are header-block-scoped, so a file with a valid
 AND a `# roadmap:` token lower down -- in a fixture heredoc, say -- used to appear in NO
 bucket at all and vanish from verification silently. Two live files did exactly that
 (`test_orphan_scan_shipped.sh`, `test_orphan_scan_language_dispatch_15f3.sh`). Now they are
-counted and named. `--strict-coverage` turns a non-empty UNVERIFIED or UNDECLARED set into
+counted and named.
+
+THE ROADMAP CARVE-OUT EXPIRES (id:7c82). It keys on the item's CHECKBOX, not on the token's
+presence: a `# roadmap:XXXX` file whose item is still UNTICKED in `ROADMAP.md` is skipped
+(red IS its spec), and one whose item has closed is treated like any other file -- its
+machine-readable case is EXECUTED. Before this, the carve-out never expired, so every closed
+roadmap-spec test in the repo was permanently unverifiable with no signal, while
+`tests/run-tests.sh` had already stopped granting the same file EXPECTED-RED. The openness
+test is `run-tests.sh`'s own `item_open()`, imported from
+`tests/lib/negative_case_syntax.py` (which also holds the ONE spelling of all three
+`fails-against` markers, shared with the lint) rather than re-implemented here. A closed
+roadmap-spec file with NO declaration is NOT moved into UNDECLARED: it never owed one.
+
+`--strict-coverage` turns a non-empty UNVERIFIED or UNDECLARED set into
 exit 1. Exemptions live in ONE reviewable allowlist,
 `tests/negative-case-exemptions.txt` (owner-decided, id:a73c), shared with the lint -- never
 scattered `n/a` comments.
@@ -160,15 +173,14 @@ import subprocess
 import sys
 import tempfile
 
-CASE_RE = re.compile(r'^\s*#\s*fails-against-(rev|mutation):\s*(.+?)\s*$')
-ASSERT_RE = re.compile(r'^\s*#\s*fails-against-assertion:\s*(.+?)\s*$')
-PROSE_RE = re.compile(r'^\s*#\s*fails-against:\s*\S', re.MULTILINE)
-# ALIGNED with `tests/run-tests.sh:170` (`grep -oE '# roadmap:[0-9a-f]{4}'`). It used to be
-# `roadmap:\S+`, which is LOOSER than the harness's own rule -- a third opinion about which
-# files are roadmap specs is exactly the drift this runner is supposed to make impossible.
-# (Measured 2026-09-01: no file in the corpus carries a token the two regexes disagree on, so
-# the alignment is a no-op today and a guard tomorrow.)
-ROADMAP_RE = re.compile(r'^\s*#\s*roadmap:[0-9a-f]{4}\b', re.MULTILINE)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from negative_case_syntax import (  # noqa: E402
+    ASSERT_RE, CASE_RE, PROSE_RE, ROADMAP_RE, roadmap_item_open, roadmap_token)
+
+# The four header patterns above used to be spelled HERE, and `tests/lint-vacuous-fixtures.py`
+# spelled its own copies. They drifted (id:7c82): the lint saw only the bare
+# `# fails-against:` form. ONE definition now lives in `tests/lib/negative_case_syntax.py`
+# and both tools import it -- do not reintroduce a local copy.
 FAILLINE_RE = re.compile(r'^\s*FAIL:', re.MULTILINE)
 
 EXEMPTIONS = "tests/negative-case-exemptions.txt"
@@ -232,13 +244,21 @@ def assertion_sites(body, needle):
     return [(n, ln.strip()) for n, ln in enumerate(body.splitlines(), 1) if needle in ln]
 
 
-def parse_header(path):
-    """-> (prose_declared: bool, cases: [dict], errors: [str])."""
+def parse_header(path, carved=None):
+    """-> (prose_declared: bool, cases: [dict], errors: [str]).
+
+    `carved` says whether the roadmap carve-out APPLIES to this file (its item is still
+    open). It used to be recomputed here as "does a `# roadmap:` token appear anywhere",
+    which is the presence-keyed test id:7c82 removed -- the caller resolves the checkbox
+    once and passes the answer down, so there is exactly one carve-out decision per file.
+    """
     text = open(path, encoding="utf-8").read()
     head = header_block(text)
     body = text[len(head):]
     body_off = len(head.splitlines())
-    prose = bool(PROSE_RE.search(head)) if not ROADMAP_RE.search(text) else False
+    if carved is None:  # standalone/legacy call: fall back to the token's presence
+        carved = bool(ROADMAP_RE.search(text))
+    prose = bool(PROSE_RE.search(head)) and not carved
     cases, errors, cur = [], [], None
     for line in head.splitlines():
         m = CASE_RE.match(line)
@@ -623,6 +643,8 @@ def main(argv):
 
     verified, unverified, undeclared, skipped_exempt, config_errors = [], [], [], [], []
     roadmap_spec, roadmap_shadowed, roadmap_below_header = [], [], []
+    roadmap_expired = []        # item CLOSED + machine-readable case -> now verified
+    roadmap_expired_prose = []  # item CLOSED + prose-only declaration -> upgrade candidate
     plan = []
     for rel in collect_files(root, a.files, a.changed):
         path = os.path.join(root, rel)
@@ -637,7 +659,17 @@ def main(argv):
         # `fails-against-*` DIRECTIVES are header-block-scoped -- they are the ones fixture
         # heredocs counterfeit.
         text = open(path, encoding="utf-8", errors="replace").read()
-        if ROADMAP_RE.search(text):
+        # The carve-out EXPIRES with the item's checkbox (id:7c82). It used to key on the
+        # token's PRESENCE alone, so it never expired: `tests/run-tests.sh` stops granting
+        # EXPECTED-RED the moment the item is ticked (that is the definition-of-done check),
+        # while this runner went on cancelling the file's declaration forever, silently --
+        # every CLOSED roadmap-spec test in the repo was permanently unverifiable. The
+        # resolution is `run-tests.sh`'s own `item_open()`, imported rather than re-written;
+        # see RESOLUTION SCOPE in tests/lib/negative_case_syntax.py for what "open" consults
+        # (the live ROADMAP.md, nothing else) and why.
+        rm_token = roadmap_token(text)
+        carved = bool(rm_token) and roadmap_item_open(root, rm_token)
+        if carved:
             # roadmap-spec test: its redness IS the spec (same carve-out as the lint). REPORTED,
             # never silently dropped -- a file whose `# roadmap:` token sits BELOW its header
             # block (in a fixture heredoc, typically) has a header-scoped declaration and a
@@ -661,7 +693,29 @@ def main(argv):
         if base in exempt:
             skipped_exempt.append(base)
             continue
-        prose, cases, errors = parse_header(path)
+        prose, cases, errors = parse_header(path, carved=False)
+        if rm_token:
+            # The carve-out is SPENT (the item is ticked, archived, or absent from
+            # ROADMAP.md). The file is still not a defect-fix test, so it owes NO
+            # declaration and must never land in `undeclared`/`unverified` -- that is the
+            # lint's population, and the lint deliberately keeps exempting it. What changes
+            # is only this: if the file DOES carry a machine-readable case, it is now
+            # executed instead of being reported as ROADMAP-SHADOWED forever.
+            config_errors.extend(errors)
+            if cases and not errors:
+                verified.append(base)
+                plan.append((rel, cases))
+                roadmap_expired.append(base)
+            else:
+                roadmap_spec.append(base)
+                if prose:
+                    # Prose-only declaration on a file whose carve-out has expired: nothing
+                    # to execute, but it is a candidate for an upgrade to `-rev:`/
+                    # `-mutation:`, so NAME it rather than letting it fall into a bulk count.
+                    # Deliberately NOT counted as UNVERIFIED: that population is
+                    # `--strict-coverage`'s, and a roadmap-spec file owes no declaration.
+                    roadmap_expired_prose.append(base)
+            continue
         config_errors.extend(errors)
         if cases and not errors:
             verified.append(base)
@@ -692,7 +746,19 @@ def main(argv):
           f"(prose-only `# fails-against:`) · {len(undeclared)} undeclared "
           f"(no `# fails-against:` at all -- that is the LINT's finding, "
           f"tests/lint-vacuous-fixtures.py) · {len(skipped_exempt)} exempt "
-          f"({EXEMPTIONS}) · {len(roadmap_spec)} roadmap-spec (skipped: redness IS the spec).")
+          f"({EXEMPTIONS}) · {len(roadmap_spec)} roadmap-spec (skipped: redness IS the spec "
+          f"while the item is OPEN).")
+    if roadmap_expired:
+        # The population id:7c82 made reachable. Named, because "silently unverifiable
+        # forever" was the whole defect and a bare count would reproduce it in miniature.
+        print(f"  roadmap carve-out EXPIRED (item closed) -- {len(roadmap_expired)} file(s) "
+              f"carry a `# roadmap:` token AND a machine-readable case, and are now VERIFIED "
+              f"rather than shadowed: " + ", ".join(roadmap_expired))
+    if roadmap_expired_prose:
+        print(f"  roadmap carve-out EXPIRED, PROSE-ONLY declaration -- "
+              f"{len(roadmap_expired_prose)} file(s): nothing to execute, upgrade to "
+              f"`# fails-against-rev:`/`-mutation:` to have it verified: "
+              + ", ".join(roadmap_expired_prose))
     if unverified and not a.quiet:
         print("  unverified: " + ", ".join(unverified))
     if roadmap_spec and not a.quiet:
@@ -711,8 +777,9 @@ def main(argv):
         # Always printed, --quiet included: this is the silent-skip class itself.
         print(f"  ROADMAP-SHADOWED DECLARATION -- {len(roadmap_shadowed)} file(s) carry a "
               f"`# fails-against*` declaration in their own header AND a `# roadmap:` token "
-              f"elsewhere in the file, so the roadmap carve-out cancels the declaration and "
-              f"they are NOT verified: " + ", ".join(roadmap_shadowed))
+              f"for a STILL-OPEN item, so the carve-out cancels the declaration and they are "
+              f"NOT verified yet. Since id:7c82 this is TEMPORARY: each one becomes "
+              f"verifiable the moment its item is ticked. " + ", ".join(roadmap_shadowed))
     if a.list:
         print("LIST mode: nothing was executed.")
         return 1 if (a.strict_coverage and unverified) else 0

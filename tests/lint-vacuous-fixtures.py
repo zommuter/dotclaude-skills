@@ -9,12 +9,15 @@ would notice — three live 2026-08-13 instances motivated this lint (see TODO i
 What this mechanism checks
 ---------------------------
 Every "defect-fix" test file — a `tests/test_*.sh` carrying NO `# roadmap:XXXX` header (the
-harness convention, CLAUDE.md §Testing: a file WITH that header is the RED spec of an open
-ROADMAP item, and its redness IS the point, so it is exempt) — MUST declare a
-`# fails-against: <rev|mutation>` header naming the revision/mutation it must fail against.
+harness convention, CLAUDE.md §Testing: a file WITH that header is the RED spec of a
+ROADMAP item, and its redness IS the point, so it is exempt) MUST declare a
+`# fails-against…` header naming the revision/mutation it must fail against.
 
-  - A defect-fix test WITHOUT `# fails-against:` is FLAGGED.
-  - A defect-fix test WITH `# fails-against:` PASSES.
+  - A defect-fix test WITHOUT any declaration is FLAGGED.
+  - A defect-fix test WITH one PASSES. All THREE ratified spellings count (id:7c82):
+    the prose `# fails-against:` and the machine-readable `# fails-against-rev:` /
+    `# fails-against-mutation:`. This lint used to match only the bare form and so flagged
+    every file carrying a machine-readable case as undeclared.
   - A roadmap-spec test (carries `# roadmap:`) is NEVER flagged, regardless.
 
 Deliberately OUT of scope (see ROADMAP id:292b): actually checking out/mutating the named
@@ -37,11 +40,26 @@ Usage:
   tests/lint-vacuous-fixtures.py [--strict] [--max N] [tests/test_foo.sh …]
 """
 import os
-import re
 import sys
 
-ROADMAP_RE = re.compile(r'^\s*#\s*roadmap:\S+', re.MULTILINE)
-FAILS_AGAINST_RE = re.compile(r'^\s*#\s*fails-against:\s*\S', re.MULTILINE)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from negative_case_syntax import (  # noqa: E402
+    DECLARATION_RE, DECLARATION_SPELLINGS, ROADMAP_RE)
+
+# NOTE (id:7c82): the two regexes that used to live here are GONE. They said
+# `roadmap:\S+` and `fails-against:` (the BARE spelling only), so this lint could not see
+# the ratified `# fails-against-rev:` / `# fails-against-mutation:` forms and flagged every
+# file using them as undeclared -- while `tests/verify-negative-cases.py`, reading the same
+# headers, accepted them. Both tools now import ONE definition from
+# `tests/lib/negative_case_syntax.py` (the id:4983 defect class). Do not reintroduce a local
+# copy of either pattern.
+#
+# The roadmap carve-out here stays keyed on the token's PRESENCE, and that is NOT the bug
+# id:7c82 fixed in the runner. The two carve-outs answer different questions: this lint asks
+# "is this a defect-fix test, i.e. one that owes a declaration?", and a roadmap-spec file is
+# not one whatever its item's checkbox says. The RUNNER's carve-out asks "may I execute this
+# file's declared case?", which is inherently temporal -- red IS the spec only while the item
+# is OPEN -- so that one consults the checkbox and expires.
 
 
 def analyse(path):
@@ -51,8 +69,8 @@ def analyse(path):
         return None
     if ROADMAP_RE.search(text):
         return None  # roadmap-spec test — exempt, its redness is the spec
-    if FAILS_AGAINST_RE.search(text):
-        return None  # declared — compliant
+    if DECLARATION_RE.search(text):
+        return None  # declared (prose OR a machine-readable case): compliant
     return True  # defect-fix test missing the declaration — violation
 
 
@@ -93,12 +111,12 @@ def main(argv):
             violations.append(f)
 
     for f in violations:
-        print(f"VIOLATION: {os.path.relpath(f)}  — defect-fix test missing "
-              f"'# fails-against: <rev|mutation>' header")
+        print(f"VIOLATION: {os.path.relpath(f)}  -- defect-fix test missing a negative-case "
+              f"header (one of: {'; '.join(DECLARATION_SPELLINGS)})")
 
     print()
-    print(f"TOTAL: {len(violations)} defect-fix test file(s) missing '# fails-against:' "
-          f"in {len(files)} file(s) scanned.")
+    print(f"TOTAL: {len(violations)} defect-fix test file(s) missing a '# fails-against…' "
+          f"declaration in {len(files)} file(s) scanned.")
     print("ADVISORY: declares the negative case a defect-fix test must prove it fails "
           "against — see TODO id:292b. Does not verify the claim (that is the CI-runner "
           "follow-up, out of scope here).")
