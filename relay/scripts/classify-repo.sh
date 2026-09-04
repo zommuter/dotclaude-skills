@@ -164,10 +164,27 @@ why_not_ready = []
 #     note "Measured distribution"), so it over-states a typical relocated body.
 #   * pointers are matched on the PATH, not on any particular link syntax, so a bare path, a
 #     markdown link and a backticked path all count.
+#
+# id:d4d3 -- the notes DIRECTORY is DERIVED from the pointer, never hardcoded. This used to
+# read `LEDGER_NOTES_DIR = "docs/ledger-notes"` with that literal baked into the regex too,
+# which is THIS repo's spelling and no other's: on a repo that keeps its notes elsewhere
+# (loderite uses `docs/roadmap-notes`) the regex matched nothing and the accounting silently
+# added 0 B -- reopening the exact failure f3d2 was ratified to close, for 45 of the 46 repos
+# id:03a3 will migrate. A hardcoded notes path does not fail NEUTRALLY, it fails
+# PROGRESSIVELY: every note the shrink convention writes makes the gate blinder. Measured on
+# loderite 2026-09-04 -- 823,644 B of notes invisible against 447,575 B of ledger counted, so
+# the invisible half was already nearly TWICE the visible one, and growing.
+# `meeting/orphan-scan.sh` (detail-pointer follow) and
+# `relay/scripts/todo-conformance.sh` (SHAPE_POINTER_RE) already read the directory off the
+# line; this follows them rather than inventing a third shape. What the format actually fixes
+# is the BASENAME `<4-hex>.md` -- SHAPE_POINTER_RE keys on the same trailing component -- so
+# that is what anchors the match, and the directory is whatever precedes it. A stray non-note
+# path of that shape would over-count, which is the conservative direction this whole block
+# already leans (see the three bullets above).
+#
 # Fail-open is preserved end to end: an absent/unreadable LEDGER still reports 0, and 0 still
 # means "unmeasured" to the gate.
-LEDGER_NOTES_DIR = "docs/ledger-notes"
-LEDGER_NOTE_POINTER_RE = re.compile(r"docs/ledger-notes/([0-9A-Za-z][0-9A-Za-z._-]*)\.md")
+LEDGER_NOTE_POINTER_RE = re.compile(r"((?:[A-Za-z0-9_.-]+/)+[0-9a-f]{4}\.md)")
 MISSING_LEDGER_NOTE_BYTES = 32768
 
 def _ledger_note_bytes(ledger_abs):
@@ -178,9 +195,17 @@ def _ledger_note_bytes(ledger_abs):
     except OSError:
         return 0
     notes_total = 0
-    for _name in sorted(set(LEDGER_NOTE_POINTER_RE.findall(_text))):
-        _rel = LEDGER_NOTES_DIR + "/" + _name + ".md"
-        _abs = os.path.join(path, LEDGER_NOTES_DIR, _name + ".md")
+    _root = os.path.realpath(path)
+    for _rel in sorted(set(LEDGER_NOTE_POINTER_RE.findall(_text))):
+        _abs = os.path.realpath(os.path.join(path, _rel))
+        # A derived directory is attacker-adjacent in a way a constant was not: a pointer
+        # spelling `../../elsewhere/1234.md` would otherwise size a file outside the repo.
+        # Ignored LOUDLY rather than counted -- it is not a note pointer at all, so the
+        # conservative MISSING charge would be inflation, not caution.
+        if _abs != _root and not _abs.startswith(_root + os.sep):
+            print("classify-repo: ledger-note pointer escapes the repo root, ignored: "
+                  + _rel + " (id:d4d3)", file=sys.stderr)
+            continue
         try:
             if os.path.isfile(_abs):
                 notes_total += os.path.getsize(_abs)
