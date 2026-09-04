@@ -3248,3 +3248,7 @@ after D1–D3") stay in TODO.md — not executor work yet.
 ## 2026-09-04 14:37 — reviewer (claude-opus-5)
 
 review of 80 unaudited commits: 9ce0 negative case was red for the wrong reason (KeyError at setup, never reached its assertion); 7 mutations verify both self-test halves discriminate; 4 amendments all explicit; cf64/2654/60eb re-checked and hold; 3 REVIEW_ME boxes opened
+
+## 2026-09-04 15:18 — integrate (claude-opus-5)
+
+handoff C2/C3: 6 items promoted reusing their TODO ids (e047 0176 c132 8372 735f e567), 6 red specs each verified red at the assertion it claims; bfd3/37ea/2eba left in TODO as owner-decision or cross-repo
