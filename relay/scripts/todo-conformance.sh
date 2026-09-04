@@ -366,10 +366,70 @@ SHAPE_POINTER_RE='[[:space:]]*-{1,2}[[:space:]]*detail:[[:space:]]*`?[A-Za-z0-9_
 # shrink-acceptance.py's marker registry greps these scripts for the markers they read, and
 # a trailing comment is not a comment line, so a token written here is discovered as a real
 # marker and reported as a keep-list GAP.
-strip_chrome() {
+#
+# THE STRIP IS ANCHORED, NOT GLOBAL (id:a580) -----------------------------------------------
+# id:60eb's first cut applied LENGTH_MUST_KEEP_RE with `//g` over the whole title. That is
+# the direction that HIDES a violation, and it is a real regression against the step 5 it
+# replaced: step 5 stripped only LEADING bracket groups, so a keep-token quoted in mid-PROSE
+# still counted as title. Under a global strip it stops counting, and `BLOCKED on` alone buys
+# an over-long title 10 free characters. Four ~201-char pure-prose fixtures (`BLOCKED on`,
+# `[HARD]`, the gate glyph, `gated-on:abcd`) were reported by the old script and went SILENT
+# under the global one. The band is narrow -- roughly 201-210 chars for one 10-char token,
+# since the token has to be what carries the title across the budget -- which is exactly why
+# it survived review: it is invisible unless a fixture is built to the band.
+#
+# So the strip is anchored to the three regions where a token is CHROME by position:
+#   * everything at or after the detail pointer -- the shrinker parks relocated lane/gate
+#     tokens there, which is what id:60eb case (g) pins, so that region keeps the global
+#     strip verbatim;
+#   * a LEADING run of keep-tokens -- the lane tag and gate glyphs an item opens with, which
+#     is what shape_residue needs (grammar_item_class has already dropped leading BRACKET
+#     groups by the time it calls in, but not a leading glyph or at-sign marker);
+#   * a TRAILING run of keep-tokens.
+# Anything between those runs is PROSE and is counted, which restores the pre-60eb property
+# without reverting 60eb: a mandatory pointer still cannot push an item over budget.
+#
+# MEASURED on this repo's live ledgers when the anchoring landed: 69 TODO.md and 5 ROADMAP.md
+# title measurements grow (characters the global strip was eating out of the real title
+# region), and exactly ONE verdict flips -- `id:5ed7`, 199 -> 201, whose entire subject is
+# that unanchored substring matching re-applies a marker to anything that merely WRITES about
+# it. The measurement was reproducing the bug that item describes.
+#
+# KNOWN CONSEQUENCE, SURFACED RATHER THAN QUIETLY ABSORBED: `shape_residue` measures through
+# this same helper, so the anchoring makes shape residues measure LARGER too, and
+# relay/shape-prose-baseline.txt was captured under the global strip. Measured when this
+# landed: 16 TODO.md and 6 ROADMAP.md items move from `shape-grandfathered` WARN to
+# `shape-regrowth` ERROR with their ledger lines BYTE-IDENTICAL -- a measurement change, not
+# a regrowth. (`--strict` already exited 1 on both ledgers beforehand, so nothing newly
+# wedges.) The mechanical remedy is the deliberate regen the shape-baseline header documents,
+# BOTH ledgers into the one file; it is an owner act and was deliberately NOT performed here.
+#
+# _chrome_edge_strip <text> -- remove a LEADING and a TRAILING run of keep-tokens, nothing in
+# between. `+` on the outer group so a no-match leaves the text untouched; the inner
+# alternation cannot match empty, so the repetition terminates.
+_chrome_edge_strip() {
   local s="$1"
-  s="$(sed -E "s#${SHAPE_POINTER_RE}##g" <<<"$s")"
-  sed -E "s/${LENGTH_MUST_KEEP_RE}//g" <<<"$s"
+  s="$(sed -E "s/^([[:space:]]*(${LENGTH_MUST_KEEP_RE}))+[[:space:]]*//" <<<"$s")"
+  sed -E "s/([[:space:]]*(${LENGTH_MUST_KEEP_RE}))+[[:space:]]*\$//" <<<"$s"
+}
+
+strip_chrome() {
+  local s="$1" head tail
+  # ONE spelling of the pointer pattern, still (id:4983): the bash-regex probe below reads
+  # the same variable the sed does. `$SHAPE_POINTER_RE` unbraced deliberately -- id:60eb's
+  # test counts the LINES mentioning the braced form to pin "applied in exactly one place".
+  if [[ "$s" =~ $SHAPE_POINTER_RE ]]; then
+    head="${s%%"${BASH_REMATCH[0]}"*}"
+    tail="${s#*"${BASH_REMATCH[0]}"}"
+    # At/after the pointer: chrome by position. Strip globally, pointer included -- a
+    # re-split line can carry a second pointer here.
+    tail="$(sed -E "s#${SHAPE_POINTER_RE}##g;s/${LENGTH_MUST_KEEP_RE}//g" <<<"$tail")"
+    # No separator re-inserted: the pointer match absorbs its own leading whitespace, so
+    # this concatenation is byte-identical to the old global strip minus the anchoring.
+    printf '%s%s\n' "$(_chrome_edge_strip "$head")" "$tail"
+    return 0
+  fi
+  _chrome_edge_strip "$s"
 }
 
 # shape_residue <line> → the prose surviving after every allowed component is removed.

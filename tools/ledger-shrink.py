@@ -382,6 +382,24 @@ def split_head(head: str, item_id: str, block: str = ""):
     for _, txt in _keep_matches(rest):
         residue = residue.replace(txt, "", 1)
     if len(residue.strip()) < MIN_MOVED_CHARS:
+        # A REFUSAL COUNTER THAT GIVES THE WRONG REASON IS THE id:4347 SHAPE (id:a580):
+        # loud detection, silently wrong resolution. `too-little-to-move` reads as "there
+        # was a body and it was too small to bother with", and this module's own docstring
+        # already calls that message "true and completely misleading" in a different
+        # context. For `43dc`, `8254` and `dda3` here it is exactly that: their residue is
+        # not SMALL, it is EMPTY of prose. The first bold run runs all the way to the id
+        # anchor -- boldend 1406 against anchor 1407 on `43dc`, 891/892 on `8254`,
+        # 911/933 on `dda3` with only a `routed:` marker in between -- so find_cut's PRIMARY
+        # rule returns at the end of that run and the dash/sentence FALLBACKS are never
+        # reached. Everything right of the cut is markers.
+        #
+        # The remedy differs from the one `too-little-to-move` implies, which is why the
+        # reason has to differ: lowering MIN_MOVED_CHARS buys nothing at all here (the
+        # residue is 0), and the actual fix is a cut point INSIDE the bold run -- i.e. the
+        # item's whole title is bolded and needs a human or a titling rule, not a knob.
+        _bold = re.search(r"\*\*[^*]+\*\*", head)
+        if _bold is not None and _bold.end() == cut and not residue.strip():
+            return None, None, "bold-run-to-anchor"
         return None, None, "too-little-to-move"
 
     # LANE HANDLING IS INVARIANCE, NOT INFERENCE. Two wrong answers preceded this one, so
@@ -665,6 +683,9 @@ REFUSAL_LABELS = {
     "pointer-exists": "already has a pointer (idempotent)",  # unreachable since id:6546
     "no-cut-point": "no defensible cut point",
     "too-little-to-move": "under {} chars would move".format(MIN_MOVED_CHARS),
+    "bold-run-to-anchor": "the first bold run reaches the id anchor, so the primary cut "
+                          "leaves ONLY markers (the fallback cut rules are never reached; "
+                          "not a size problem -- lowering the threshold buys nothing)",
     "no-net-shrink": "the head would not shrink by {} chars (the pointer costs more than "
                      "the split saves)".format(MIN_MOVED_CHARS),
     "foreign-id": "block carries ANOTHER item's id marker (would orphan it)",
