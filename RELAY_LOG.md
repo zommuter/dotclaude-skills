@@ -3244,3 +3244,7 @@ after D1–D3") stay in TODO.md — not executor work yet.
 > Qualified from TODO.md items the owner filed manually this window. Ids REUSED
 > (single-id-two-views D2) -- both lines also live in `TODO.md` under the same token.
 ```
+
+## 2026-09-04 14:37 — reviewer (claude-opus-5)
+
+review of 80 unaudited commits: 9ce0 negative case was red for the wrong reason (KeyError at setup, never reached its assertion); 7 mutations verify both self-test halves discriminate; 4 amendments all explicit; cf64/2654/60eb re-checked and hold; 3 REVIEW_ME boxes opened
