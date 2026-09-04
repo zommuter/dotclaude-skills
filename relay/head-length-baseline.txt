@@ -29,7 +29,7 @@
 #   relay/scripts/todo-conformance.sh --regen-length-baseline ROADMAP.md | grep -v '^#' >> relay/head-length-baseline.txt
 #
 # OUT OF SCOPE: *.archive.md (id:2065) and the shared inbox.
-# Captured 2026-09-03.
+# Captured 2026-09-04.
 TODO.md	ee62	540
 TODO.md	78ff	540
 TODO.md	4425	4130
@@ -37,25 +37,16 @@ TODO.md	0749	548
 TODO.md	a13c	649
 TODO.md	a778	687
 TODO.md	857d	1302
-TODO.md	42ab	613
 TODO.md	378e	919
 TODO.md	6c11	625
 TODO.md	7756	2042
-TODO.md	63a0	531
-TODO.md	b5ff	924
-TODO.md	5065	510
 TODO.md	9f3a	591
 TODO.md	39a4	992
-TODO.md	9876	754
 TODO.md	7d70	552
-TODO.md	0f1e	557
-TODO.md	5ccc	919
-TODO.md	b07f	790
 TODO.md	2884	666
 TODO.md	43dc	1423
 TODO.md	8254	908
 TODO.md	dda3	949
-ROADMAP.md	931c	994
 ROADMAP.md	e3c0	514
 ROADMAP.md	99e5	637
 ROADMAP.md	372a	523
