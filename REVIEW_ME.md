@@ -3,6 +3,37 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-09-04 (run `relay-review-relay-20260904-140928-23126` -- the 80-commit window)
+
+Window `relay-ckpt-20260902-1807`..HEAD, **80 commits** (the scoping prompt said 76). **One
+declared test tier exists and it RAN**: `make test` (runs `lint` first) -- **578 passed, 0 failed,
+4 expected-red** (`6217`, `8679`, `7408`, `64f9`, each an open item whose red test IS its spec).
+No `e2e`/`integration` tier is declared (no `.github/workflows`, no other `test*` target), so
+nothing was silently skipped. `make verify-negatives` is opt-in and NOT part of `make test`; I ran
+it on the 12 files this window touched for its named items. `gaming-scan.sh` raised two
+`REMOVED_ASSERT` lines, both in the `id:2eba` stub inversion and both **adjudicated legitimate**:
+the owner ratified "stop leaving a stub at all", the test file declares its own contract inversion
+in a HISTORY header, and the idempotency guard was REPLACED (archive membership, one definition in
+`lib-archive-idempotency.py`) before the stub was removed. Provenance greps are CLEAN: no
+`@owner-accepted` / `@owner-answered` / `answer-src:` marker was minted this window (the two
+`@owner-answered` lines that left `ROADMAP.md` were DUPLICATE live copies of items already present
+verbatim in `ROADMAP.archive.md:4403/4405` with markers intact -- archiving removed the duplicate,
+not the marker; counts verified per file at both ends). Contract pointer `v18` == canonical.
+`relay-doctor`: no per-repo findings for this repo. `orphan-scan --cross-ledger`: clean.
+`roadmap-lint`: 4 pre-existing DEAD-GATE warnings plus one NO-ACCEPTANCE-NO-TWIN (`da55`), no errors.
+
+**Both self-tests were verified BY MUTATION, not by reading** (the prompt's priority 2). Seven
+mutations of `tools/ledger-continuations.py`, each exiting 4 and naming the specific assertion:
+`cited_by` forced True and forced False; `reads_notes` forced True and forced False; and
+`corpus_at` pinned to each of `CORPUS_LEDGER` / `CORPUS_UNION` / `CORPUS_OTHER`. Both halves
+discriminate in both directions. One methodology note against myself: my first `corpus_at` mutation
+matched the wrong signature and silently no-opped, and all three variants "passed" at exit 0 --
+an unreached fixture, not a green. Caught by reading the output rather than the exit code.
+
+- [ ] **`id:7c82`'s done-check is unsatisfiable as written -- BOTH clauses are false at HEAD, and the item is still open against them.** Clause 1 says `tests/test_todo_conformance_title_chrome_60eb.sh` "has a recorded but unverifiable mutation today" and will report `red-there OK` once `id:60eb` is ticked. `id:60eb` IS ticked (`ROADMAP.md:164`) and `roadmap_item_open('.','60eb')` correctly returns False, but that file carries **zero** `# fails-against` lines and never has -- it was created with none in `40db09d9`, and `git show relay-ckpt-20260902-1807:` confirms it did not exist at the tag. With no machine-readable case it can never report `red-there`; it lands in the deliberate "closed roadmap-spec file with NO declaration is NOT moved into UNDECLARED" branch. Clause 2 says `lint-vacuous-fixtures.py`'s count "drops by the 2 measured false positives"; measured at both ends it is **9 at the tag and 9 at HEAD** (562 -> 582 files scanned, so the 20 new files ARE all declared -- the mechanism works, the metric just never moved). **The mechanism itself is demonstrably live and should not be doubted:** four files whose carve-out expired are now executed rather than shadowed (`1608`, `ff7c`, `5f34`, `b048`). What is needed is a corrected acceptance naming a file that actually carries a declaration, or an explicit "the metric was already at its floor" amendment. I did NOT rewrite the clause: choosing the replacement acceptance is the item's design, not a review fix. <!-- id:7c82 -->
+- [ ] **Both head-line ratchet baselines are STALE at HEAD, so `id:0d7c`'s floor currently forgives 4,060 characters of regrowth -- and this is the exact failure `id:2654` was built to make visible.** `make baseline-staleness` reports **8 stale + 1 orphaned** entries for `TODO.md` (3,223 chars of total slack; e.g. `9876` current 245 vs baselined 754, `5ccc` current 423 vs 919) and **1 stale** for `ROADMAP.md` (`931c`, current 157 vs baselined 994, 837 chars). The orphan is `2d17`: baselined 84, but the id is no longer in `TODO.md` because it was ticked and archived this window. Nothing here is broken -- the detector is read-only by the owner's own 2026-09-02 ruling ("mandatory regen plus a read-only staleness detector, self-tightening rejected"), it exits 0, it writes nothing, and its printed remedy is now the two-ledger recipe that will not truncate the shared file. **The point is that the mandatory half did not fire:** `69456bd2` regenerated the SHAPE baseline after `a580`, and then `e567`'s 784-header migration, `64f9`'s 98 title rewrites and `a580`'s anchoring all shrank head lines again with no regen after them. Deciding when a regen commit fires, and whose turn it is, is the judgment I am surfacing rather than taking -- regenerating baselines mid-review would rewrite the floor for 239 entries on the strength of a review turn nobody asked to move it. <!-- id:2654 -->
+- [ ] **A CLOSED `[x]` item's deliverable is absent from the tree: `id:d119` claims to have replaced `id:540f`/`id:c179`'s dead `gated-on:b0b1` marker with an owner-hold annotation, and at HEAD both items still carry it and `roadmap-lint` still emits the false DEAD-GATE for both.** `TODO.archive.md:644` is `- [x] [ROUTINE] **Replace id:540f/id:c179's dead gated-on:b0b1 marker with an explicit OWNER-HOLD annotation roadmap-lint understands** (owner-decided 2026-08-13)`, and it names two deliverables: (1) an owner-hold marker grammar and (2) `roadmap-lint` treating it as INTENTIONAL. At HEAD the `gated-on:b0b1` typed edge (written as an HTML comment, de-literalised here so this box stays addressable by `md-merge`, per `id:6059`) still appears 4 times in `ROADMAP.md`, and `roadmap-lint` still reports DEAD-GATE for `540f` and `c179`. **Pre-existing, NOT this window's regression** -- the line was already `- [x]` at `relay-ckpt-20260902-1807`, so no commit reviewed here closed it. Two things make it worth a box rather than a shrug: an owner-hold grammar demonstrably EXISTS (`id:6446` carries `@owner-gated` on its live line), so deliverable (1) may simply never have been applied to these two; and the archived rationale records the owner explicitly REJECTING the obvious alternative (promoting `b0b1` to ROADMAP would convert an owner hold into a technical one and auto-dispatch both items the moment it ticked). Reopening a closed-and-archived item is the owner's call, not mine. <!-- id:d119 -->
+
 ## Review 2026-09-02b (run `relay-20260902-164744-26939` -- id:4983 window)
 
 Window `relay-ckpt-20260902-1748`..HEAD (one executor unit, `id:4983`). **One declared tier

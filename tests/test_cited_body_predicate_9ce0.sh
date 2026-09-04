@@ -30,7 +30,15 @@
 # state being repaired, a live `cited-body` counter wired to nothing. Assertions (A) and (E)
 # both fire against it; `fail()` exits on the first, so the declared assertion is (A), the
 # refusal count. The mutation touches only a relative path under its own cwd.
-# fails-against-mutation: sed -i 's/^    readers = find_readers(root)$/    readers = {"ledger_only": [], "union": [], "patterns": [], "unanalysable": []}/' tools/ledger-continuations.py
+#
+# CORRECTED 2026-09-04 (relay review). The stub dict must carry EVERY key `find_readers`
+# returns, or the mutation stops being a neutered predicate and becomes a crash: the id:1447
+# amendment added `untraced` and `cleared_other`, `main()` reads both, and the four-key stub
+# raised `KeyError: 'untraced'` -- so the case went red at `FAIL: setup: the tool exited
+# non-zero on the reader fixture` and never reached case A. Verified red for the WRONG reason
+# by `make verify-negatives`, and verified to fire the declared assertion after this fix. A
+# stub that omits a key tests the caller's key handling, not the predicate.
+# fails-against-mutation: sed -i 's/^    readers = find_readers(root)$/    readers = {"ledger_only": [], "union": [], "patterns": [], "unanalysable": [], "untraced": [], "cleared_other": 0}/' tools/ledger-continuations.py
 # fails-against-assertion: case A: cited-body must be COMPUTED, expected 2 refusals from the fixture reader set
 set -euo pipefail
 
