@@ -1360,11 +1360,41 @@ def scan(lines, patterns=None):
                             # EVERY site carries the CORPUS its subject traced to, so the
                             # caller can tell an evidenced consumer from an unresolved
                             # trace without re-deriving either (id:1447).
-                            named = "".join(
-                                "\n        [{}] {} matches body line {} (pattern `{}`)".format(
-                                    p.corpus, p.where(), i + 2 + k, p.raw)
-                                for p, k in hits)
+                            # THE TWO TIERS GET HEADINGS, not merely an ordering (id:1447
+                            # amendment, 2026-09-04). They were already segregated and
+                            # deterministically ordered, but a reader had to NOTICE the
+                            # ordering to use it, and an undisclosed ordering is not a
+                            # report. The headings say what each tier means so the caller
+                            # need not re-derive it.
+                            #
+                            # THE BOUNDARY IS PROVENANCE, NOT PRIORITY -- say so here, in
+                            # the output, because the alternative is that every reader
+                            # learns it the hard way. `ledger` does NOT mean "real" and
+                            # `untraced` does NOT mean "noise": measured on this tree, 3 of
+                            # 6 ledger-traced sites are `\n` string-hygiene artifacts, and
+                            # the ONLY genuine continuation-body consumer
+                            # (tracker/ledger-map.py:493) scores UNTRACED. Treating the
+                            # short tier as the actionable one is the wrong axis.
                             n_led = sum(1 for p, _k in hits if p.corpus == CORPUS_LEDGER)
+                            chunks = []
+                            prev_corpus = None
+                            for p, k in hits:
+                                if p.corpus != prev_corpus:
+                                    if p.corpus == CORPUS_LEDGER:
+                                        chunks.append(
+                                            "\n      -- {} LEDGER-TRACED (subject traced to a "
+                                            "ledger read)".format(n_led))
+                                    else:
+                                        chunks.append(
+                                            "\n      -- {} UNTRACED-SUBJECT (the pass could not "
+                                            "follow the subject; REFUSED, never cleared -- this "
+                                            "tier holds genuine consumers too)".format(
+                                                len(hits) - n_led))
+                                    prev_corpus = p.corpus
+                                chunks.append(
+                                    "\n        [{}] {} matches body line {} (pattern `{}`)".format(
+                                        p.corpus, p.where(), i + 2 + k, p.raw))
+                            named = "".join(chunks)
                             refused.append((
                                 "cited-body", i + 1,
                                 "id:{} -- body read by {} live consumer site(s) "
