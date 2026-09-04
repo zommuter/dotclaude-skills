@@ -28,11 +28,47 @@ REFUSALS (a refusal is always safe; a wrong cut is not):
   unowned      an indented line that follows no item at all (e.g. the continuation lines of
                a multi-line top-level HTML comment).
   cited-body   a LIVE consumer greps that item's body OUT OF the ledger file itself, so
-               relocating it turns the consumer red. Listed in REFUSE_IDS with its reason
-               and found the only way it can be found: by running the suite. This is the
+               relocating it turns the consumer red. COMPUTED EVERY RUN from the tree under
+               `--root`, never remembered: see "THE CITED-BODY PREDICATE" below. This is the
                id:2ee1 / id:1608 class -- "every consumer that reads an item's BODY breaks
                when the body moves" -- and the honest response is to refuse the item, not
                to weaken the consumer.
+
+THE CITED-BODY PREDICATE (id:9ce0). This check used to be a hand-maintained `REFUSE_IDS`
+dict of `id -> reason`. That dict WAS the mechanism, so emptying it (2026-09-03, when its
+one entry went stale) left the `REFUSED cited-body` counter reporting 0 unconditionally,
+for every ledger, forever: a check that structurally cannot fail, the id:0b70 vacuous-check
+class. An id-keyed list is the wrong SHAPE regardless -- it is the id:cb3e grandfathering
+trap, and it cannot know about a consumer minted tomorrow. So the list is gone and the
+predicate is recomputed on every invocation:
+
+  READER SET. A file under `--root` is a reader when it (a) names a LIVE ledger path and
+  (b) contains a content-matching construct over what it read. The ledger set is FOUR, not
+  three (routed:42c9): TODO.md, ROADMAP.md, REVIEW_ME.md and the `.archive.md` siblings --
+  distrust any docstring that says three. The DETECTOR set is part of the reader set:
+  `relay/scripts/roadmap-lint.sh` (its hop-table parser is the motivating case),
+  `relay/scripts/todo-conformance.sh`, `meeting/orphan-scan.sh`, `tools/ledger-shrink.py`
+  and the whole `tests/` tree read as infrastructure rather than as consumers, and omitting
+  them is precisely the bug.
+
+  UNION-ANCHORED READERS DO NOT REFUSE. A reader that also reads `docs/ledger-notes/` sees
+  the ledger + notes UNION, so relocation cannot break it. That, and only that, is why
+  `id:6b35` is no longer refused: both of its consumers were re-anchored. Revert
+  `roadmap-lint.sh`'s parser to read `ROADMAP.md` alone and the refusal returns by itself.
+
+  NO GRAMMAR SHORTCUT. "Every reader here anchors on `^- \\[ \\]`, therefore no reader reads
+  bodies" is true of THIS repo only because its bodies live in `docs/ledger-notes/`, and it
+  is vacuous in a repo whose body IS the item line. Patterns are matched against the actual
+  body text, with the reader's own anchors honoured as written.
+
+  UNANALYSABLE READERS FAIL LOUD. A search pattern built at run time or held in a variable
+  cannot be statically extracted. It is counted and printed as UNANALYSABLE, never scored
+  as "no match" -- silent success is the failure mode being repaired.
+
+  SELF-TEST. `selftest_predicate()` runs before every scan: a fixture reader plus a fixture
+  body that MUST be refused, a body that must NOT be, and a construct that must be reported
+  unanalysable. If the fixture is not refused the tool exits non-zero, so the next refactor
+  cannot re-vacuum the counter the way this one was vacuumed.
 
 FLEET-RULE EDITS, DECLARED. Per the CLAUDE.md "Detail notes are EDITABLE, and an edit is
 DECLARED in the note's header" rule, banned dashes in the relocated prose are FIXED in the
@@ -60,6 +96,7 @@ import argparse
 import os
 import re
 import sys
+import warnings
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -142,23 +179,444 @@ def normalise_dashes(text):
     return fixed, em_fixed, em_left, en_fixed
 
 
-# Items whose BODY a live consumer reads out of the ledger file directly. Each entry is a
-# measured failure, not a precaution: the id was relocated, the suite went red, and the
-# block was put back. Never add one speculatively, and never remove one without re-running
-# the named consumer.
-# REFUSE_IDS -- items whose BODY is read by a live consumer, so relocating the body breaks it.
-# The id:2ee1 / id:1608 class. An entry here is a statement about a CONSUMER, so it becomes
-# STALE the moment that consumer is re-anchored: re-verify before trusting one.
+# ------------------------------------------------- the computed cited-body predicate
 #
-# id:6b35 was listed here and the entry is now LIFTED (2026-09-03). Both of its consumers were
-# re-anchored to the LEDGER + NOTES UNION, which is what each of them asked for in its own
-# words: `roadmap-lint.sh`'s SCOPE-TABLE-DRIFT parser now reads docs/ledger-notes/*.md
-# alongside the ledger (and its empty-result branch FAILS LOUDLY instead of the silent
-# `return 0` that made a vanished table indistinguishable from a repo that never had one --
-# the id:d35a class), and `tests/test_roadmap_scope_table_consistency_c480.sh` greps the same
-# union. Refusing forever would have parked ~6.7 KB in the ledger permanently to avoid a
-# one-line change to each consumer.
-REFUSE_IDS = {}
+# THERE IS NO `REFUSE_IDS` AND THERE MUST NEVER BE ONE AGAIN. Everything below is
+# recomputed from the tree on every invocation. An id-keyed or token-keyed allow list
+# cannot know about a consumer minted tomorrow (id:cb3e), and the one this replaces
+# decayed into a counter that could only ever print 0 (id:9ce0).
+#
+# NOTHING HERE NAMES A FILE. `roadmap-lint.sh`, `todo-conformance.sh`, `orphan-scan.sh`
+# and `ledger-shrink.py` are WORKED EXAMPLES of what this computation must find -- proof
+# obligations, not a list. If this predicate ever needs one of those names hardcoded to
+# work, the predicate has failed and the honest move is to say so, not to type the name.
+# Likewise there is no per-repo and no per-grammar branch: a predicate that needs to know
+# which repo it is running in is wrong.
+
+# FOUR ledgers, not three (routed:42c9): the archives count. Matched as a BASENAME,
+# deliberately, because every real detector COMPOSES the basename onto a variable root
+# (`"$root/TODO.md"`, `"$_rl_dir/TODO.archive.md"`) and is invoked through a
+# `~/.claude/skills/` symlink, so no resolved path is ever present in the source.
+LEDGER_BASENAME_RE = re.compile(r"\b(?:TODO|ROADMAP|REVIEW_ME)(?:\.archive)?\.md\b")
+
+# A reader that ALSO reads the notes directory sees the ledger+notes UNION, so relocating
+# a body cannot break it. This, and only this, is what lifts a refusal -- which makes it
+# the one place a mistake is UNSAFE (a spurious union verdict hides a real consumer, while
+# a missed one only produces an extra refusal, and a refusal is always safe). So it demands
+# EVIDENCE OF A READ, not a mention: a bare `ledger-notes` occurrence is usually a comment
+# or a message string. `todo-conformance.sh` and `orphan-scan.sh` mention the directory and
+# never read it; scoring them union on the mention alone silently cleared the two readers
+# whose strip-then-match bodies matter most.
+NOTES_READ_RES = (
+    # a traversal or read whose target is the notes directory
+    re.compile(r"(?:glob|iglob|os\.walk|listdir|scandir|opendir|readdir|open\s*\(|"
+               r"\bcat\b|\bfind\b|\bls\b|grep\s+-[A-Za-z]*r)[^\n]*ledger-notes"),
+    re.compile(r"ledger-notes[^\n]*\*\.md"),
+    # a plain variable bound to the notes directory (it exists to be read from)
+    re.compile(r"^[ \t]*(?:local|export|readonly|declare)?[ \t]*"
+               r"[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*[^\n]*ledger-notes"),
+)
+
+
+def reads_notes(text):
+    for line in text.split("\n"):
+        stripped = line.lstrip()
+        if stripped.startswith("#") or stripped.startswith("//"):
+            continue
+        if "ledger-notes" not in line:
+            continue
+        if any(r.search(line) for r in NOTES_READ_RES):
+            return True
+    return False
+
+READER_EXTS = (".sh", ".bash", ".py", ".js", ".mjs", ".cjs", ".awk", ".pl")
+READER_SKIP_DIRS = {".git", "docs", "__pycache__", "node_modules", ".claude", "worktrees"}
+
+# Content-matching constructs. `sed`'s `s/PAT/REPL/` is INCLUDED, not skipped: several
+# readers strip a leading run and then match over the REMAINDER
+# (`todo-conformance.sh`'s `head_refusable`, `roadmap-lint.sh`'s backtick-stripping pass).
+# Scoring those as "anchor-only, body cleared" is the repo-shaped trap: here the remainder
+# is chrome, in a repo whose body IS the item line the same code matches the body.
+CONSTRUCT_RE = re.compile(
+    r"(?P<kind>"
+    r"\b(?P<grep>grep|egrep|fgrep|zgrep|rg)\b"
+    r"|\b(?P<sedawk>sed|awk|gawk|mawk)\b"
+    r"|(?P<py>re\.(?:search|match|fullmatch|compile|findall|finditer|sub|subn|split)\s*\()"
+    r"|(?P<js>\.(?:includes|startsWith|endsWith|match|matchAll|test|search)\s*\()"
+    r"|(?P<pyattr>\.(?:startswith|endswith|find|index|count)\s*\()"
+    r")")
+
+# `'LITERAL' in text` -- Python's substring test, e.g. roadmap-lint's `'CONVERTIBLE' in line`.
+IN_TEST_RE = re.compile(
+    r"""(?:r?'((?:[^'\\]|\\.)*)'|r?"((?:[^"\\]|\\.)*)")\s+in\s+(?![\[(])""")
+
+QUOTED_RE = re.compile(r"""(?:r?'((?:[^'\\]|\\.)*)'|r?"((?:[^"\\]|\\.)*)")""")
+
+# `NAME = re.compile(<literal>)` -- the same one-level fold, for the receiver form
+# `NAME.search(line)`. Without it every module-level compiled regex in the tree
+# (`md-merge.py`'s `_CHECKBOX_RE`, `archive-done.sh`'s `date_re`) is a FALSE loud failure.
+PY_COMPILE_RE = re.compile(
+    r"""^[ \t]*(?P<name>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*re\.compile\([ \t]*"""
+    r"""(?:r?'(?P<sq>(?:[^'\\]|\\.)*)'|r?"(?P<dq>(?:[^"\\]|\\.)*)")""")
+RECEIVER_RE = re.compile(
+    r"\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)"
+    r"\.(?:match|search|fullmatch|findall|finditer|sub|subn|split)\s*\(")
+
+# A ledger PATH argument grabbed where a pattern was expected. Anchored on the WHOLE
+# literal: `'(archived -- see ROADMAP.archive.md)'` is a genuine search pattern that
+# merely mentions a ledger, and calling it a path is how a real consumer goes missing.
+PATH_ARG_RE = re.compile(r"^\S*(?:TODO|ROADMAP|REVIEW_ME)(?:\.archive)?\.md$")
+JS_REGEX_RE = re.compile(r"/((?:[^/\\\n]|\\.)+)/[gimsuy]*")
+
+# One-level constant fold. A pattern held in a variable is analysable when that variable
+# has EXACTLY ONE assignment in the file and that assignment is a literal -- which is the
+# shape of `todo-conformance.sh`'s `LENGTH_MUST_KEEP_RE`. Reporting that UNANALYSABLE
+# would be a FALSE loud failure, and a loud failure nobody can act on only moves where the
+# information dies. UNANALYSABLE is reserved for genuine runtime composition.
+ASSIGN_RE = re.compile(
+    r"""^[ \t]*(?:local|declare|export|readonly|typeset)?[ \t]*"""
+    r"""(?P<name>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*"""
+    r"""(?:'(?P<sq>(?:[^'\\]|\\.)*)'|"(?P<dq>(?:[^"\\]|\\.)*)")[ \t]*$""")
+
+VAR_REF_RE = re.compile(r"\$\{(?P<b>[A-Za-z_][A-Za-z0-9_]*)\}|\$(?P<p>[A-Za-z_][A-Za-z0-9_]*)")
+# A `$` that is an ANCHOR (end of line / end of pattern) is not an expansion.
+EXPANSION_RE = re.compile(r"\$[A-Za-z_{(0-9]")
+# Shell-only, and only inside DOUBLE quotes: command substitution.
+RUNTIME_MARK_RE = re.compile(r"\$\(|`")
+# Python/JS interpolation. `{4}` is a regex quantifier and deliberately NOT here.
+FMT_MARK_RE = re.compile(r"\{\}|%s|\$\{")
+
+
+class Pattern:
+    """One statically extracted search pattern belonging to one reader."""
+
+    def __init__(self, path, lineno, rx, raw, snippet):
+        self.path = path
+        self.lineno = lineno
+        self.rx = rx
+        self.raw = raw
+        self.snippet = snippet
+
+    def where(self):
+        return "{}:{}".format(self.path, self.lineno)
+
+
+class Unanalysable:
+    """A reader construct whose pattern cannot be extracted statically.
+
+    `site` is the ASSIGNMENT site when the pattern came from a variable, because a bare
+    count leaves the caller exactly where the vacuous counter did.
+    """
+
+    def __init__(self, path, lineno, snippet, why, site=None):
+        self.path = path
+        self.lineno = lineno
+        self.snippet = snippet
+        self.why = why
+        self.site = site
+
+    def render(self):
+        head = "{}:{}: {}".format(self.path, self.lineno, self.snippet.strip()[:100])
+        tail = self.why if not self.site else "{} (assigned at {})".format(self.why, self.site)
+        return head + "  <- " + tail
+
+
+def _literal_assignments(text):
+    """name -> (value, lineno) for names assigned EXACTLY ONCE, to a literal.
+
+    A name assigned twice, or assigned anything non-literal even once, is absent: that is
+    runtime composition and must stay loud.
+    """
+    seen = {}
+    poisoned = set()
+    for n, line in enumerate(text.split("\n"), 1):
+        if "=" not in line:
+            continue
+        m = ASSIGN_RE.match(line)
+        if not m:
+            # An assignment we cannot read as a literal still POISONS the name.
+            bad = re.match(r"^[ \t]*(?:local|declare|export|readonly|typeset)?[ \t]*"
+                           r"([A-Za-z_][A-Za-z0-9_]*)[ \t]*=", line)
+            if bad:
+                poisoned.add(bad.group(1))
+            continue
+        name = m.group("name")
+        val = m.group("sq") if m.group("sq") is not None else m.group("dq")
+        if name in seen:
+            poisoned.add(name)
+        seen[name] = (val, m.group("dq") is not None, n)
+    return {k: v for k, v in seen.items() if k not in poisoned}
+
+
+def _fold(raw, assigns):
+    """One-level constant fold. Returns (folded, site) or (None, site) if not foldable.
+
+    A SINGLE-quoted shell assignment is literal text: `LENGTH_MUST_KEEP_RE='...`?@(...)`?...'`
+    carries backticks that are regex, not command substitution. Rejecting it would be the
+    false loud failure this fold exists to prevent.
+    """
+    site = None
+    out = raw
+    for m in list(VAR_REF_RE.finditer(raw)):
+        name = m.group("b") or m.group("p")
+        if name not in assigns:
+            return None, None
+        val, dq, ln = assigns[name]
+        if dq and (EXPANSION_RE.search(val) or RUNTIME_MARK_RE.search(val)):
+            return None, "line {}".format(ln)
+        site = "line {}".format(ln)
+        out = out.replace(m.group(0), val)
+    return out, site
+
+
+def _compile(pat, literal, flags=0):
+    """Best effort. A pattern that will not compile is treated as a fixed string, which
+    is the conservative reading: a refusal is always safe, a missed consumer is not."""
+    if literal:
+        return re.compile(re.escape(pat), flags)
+    # A grep BRE such as `[[:space:]]` makes Python emit a "possible nested set"
+    # FutureWarning. It still compiles and still matches; the warning is noise from
+    # analysing someone else's dialect, so it is silenced rather than printed 30 times.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        try:
+            return re.compile(pat, flags)
+        except re.error:
+            try:
+                return re.compile(re.escape(pat), flags)
+            except re.error:
+                return None
+
+
+def _sed_patterns(literal):
+    """Content-matching pieces of a sed/awk program: `/ADDR/` and `s/PAT/REPL/`."""
+    found = []
+    for m in re.finditer(r"s/((?:[^/\\]|\\.)*)/(?:[^/\\]|\\.)*/[a-zA-Z0-9]*", literal):
+        if m.group(1):
+            found.append(m.group(1))
+    for m in re.finditer(r"(?<!s)/((?:[^/\\]|\\.)+)/\s*(?![^/]*/)", literal):
+        if m.group(1) and m.group(1) not in found:
+            found.append(m.group(1))
+    return found
+
+
+def _compiled_regex_vars(text):
+    """name -> (pattern, dq, lineno) for `NAME = re.compile(<literal>)`, assigned once."""
+    seen = {}
+    dup = set()
+    for n, line in enumerate(text.split("\n"), 1):
+        m = PY_COMPILE_RE.match(line)
+        if not m:
+            continue
+        name = m.group("name")
+        if name in seen:
+            dup.add(name)
+        val = m.group("sq") if m.group("sq") is not None else m.group("dq")
+        seen[name] = (val, m.group("dq") is not None, n)
+    return {k: v for k, v in seen.items() if k not in dup}
+
+
+def extract_patterns(path, text):
+    """Return (patterns, unanalysables) for ONE reader file.
+
+    Quote kind is load-bearing. In a shell script a SINGLE-quoted string is literal text:
+    its `$`, its backticks and its `{n}` are regex syntax, not expansions. Only a
+    DOUBLE-quoted shell string can interpolate. Ignoring that reported every
+    backtick-stripping `sed -E 's/`[^`]*`//g'` -- the Amendment-B strip-then-match shape --
+    as runtime composition, which is a false loud failure over the exact readers that
+    matter most.
+    """
+    is_shell = path.endswith((".sh", ".bash"))
+    assigns = _literal_assignments(text)
+    compiled = _compiled_regex_vars(text)
+    pats = []
+    unan = []
+
+    def analyse(n, line, raw, dq, literal, flags, sedawk, site=None):
+        if is_shell and dq:
+            # Anything OUTSIDE the variable references must be plain text; a folded
+            # value is literal by construction and is not re-scanned for expansions.
+            residual = VAR_REF_RE.sub("", raw)
+            if EXPANSION_RE.search(residual) or RUNTIME_MARK_RE.search(residual):
+                unan.append(Unanalysable(path, n, line,
+                                         "pattern composed at run time", site))
+                return
+            if VAR_REF_RE.search(raw):
+                folded, fsite = _fold(raw, assigns)
+                if folded is None:
+                    unan.append(Unanalysable(path, n, line,
+                                             "pattern composed at run time", fsite or site))
+                    return
+                raw = folded
+        elif not is_shell and FMT_MARK_RE.search(raw):
+            unan.append(Unanalysable(path, n, line,
+                                     "pattern interpolated at run time", site))
+            return
+        if PATH_ARG_RE.match(raw.strip()):
+            # We grabbed the FILE argument, not the pattern: say so, do not guess.
+            unan.append(Unanalysable(path, n, line,
+                                     "could not tell pattern from path argument", site))
+            return
+        if not raw.strip():
+            return
+        for cand in (_sed_patterns(raw) if sedawk else [raw]):
+            rx = _compile(cand, literal, flags)
+            if rx:
+                pats.append(Pattern(path, n, rx, cand, line))
+
+    for n, line in enumerate(text.split("\n"), 1):
+        stripped = line.lstrip()
+        if stripped.startswith("#") or stripped.startswith("//"):
+            continue
+        for m in IN_TEST_RE.finditer(line):
+            lit = m.group(1) if m.group(1) is not None else m.group(2)
+            if lit:
+                rx = _compile(lit, True)
+                if rx:
+                    pats.append(Pattern(path, n, rx, lit, line))
+        if not is_shell:
+            for rm in RECEIVER_RE.finditer(line):
+                name = rm.group("name")
+                if name in ("re", "self"):
+                    continue
+                if name in compiled:
+                    val, dq, ln = compiled[name]
+                    analyse(n, line, val, dq, False, 0, False, "line {}".format(ln))
+                elif name.isupper() or name.lower().endswith("_re") or name.endswith("Re"):
+                    unan.append(Unanalysable(
+                        path, n, line, "pattern held in a variable this pass cannot fold"))
+        for cm in CONSTRUCT_RE.finditer(line):
+            rest = line[cm.end():]
+            qm = QUOTED_RE.search(rest)
+            jm = JS_REGEX_RE.search(rest) if cm.group("js") else None
+            if jm and (not qm or jm.start() < qm.start()):
+                raw, dq, literal, opts = jm.group(1), False, False, rest[:jm.start()]
+            elif qm:
+                raw = qm.group(1) if qm.group(1) is not None else qm.group(2)
+                dq = qm.group(2) is not None
+                opts = rest[:qm.start()]
+                literal = bool(cm.group("js") or cm.group("pyattr")
+                               or re.search(r"(?<![A-Za-z])-[A-Za-z]*F", opts))
+            else:
+                unan.append(Unanalysable(path, n, line, "no extractable pattern literal"))
+                continue
+            if cm.group("grep") and re.search(r"(?<![A-Za-z])-[A-Za-z]*f(?![A-Za-z])", opts):
+                unan.append(Unanalysable(path, n, line, "pattern read from a file (grep -f)"))
+                continue
+            flags = re.I if (cm.group("grep") and
+                             re.search(r"(?<![A-Za-z])-[A-Za-z]*i", opts)) else 0
+            analyse(n, line, raw, dq, literal, flags, bool(cm.group("sedawk")))
+    return pats, unan
+
+
+def find_readers(root):
+    """Compute the live reader set under `root`. Returns a dict of everything measured."""
+    ledger_only = []
+    union = []
+    pats = []
+    unan = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in READER_SKIP_DIRS]
+        for fn in sorted(filenames):
+            if not fn.endswith(READER_EXTS):
+                continue
+            full = os.path.join(dirpath, fn)
+            rel = os.path.relpath(full, root)
+            try:
+                text = open(full, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            if not LEDGER_BASENAME_RE.search(text):
+                continue
+            fpats, funan = extract_patterns(rel, text)
+            if not (fpats or funan):
+                continue          # names a ledger but never content-matches: not a reader
+            if reads_notes(text):
+                union.append(rel)
+                continue          # reads the ledger+notes UNION: relocation cannot break it
+            ledger_only.append(rel)
+            pats.extend(fpats)
+            unan.extend(funan)
+    return {"ledger_only": ledger_only, "union": union,
+            "patterns": pats, "unanalysable": unan}
+
+
+def cited_by(body_lines, patterns, elsewhere_lines=()):
+    """EVERY (pattern, body index) whose reader BREAKS if this block's body is relocated,
+    one per consumer site, in file order.
+
+    "Breaks" is the whole point, and it is stricter than "matches". A reader is broken by
+    the move only when its pattern matches something INSIDE the block and matches NOTHING
+    in what the ledger still holds afterwards: a pattern that also matches surviving text
+    finds the same thing before and after, so relocating this body changes nothing for it.
+    Without that second half the predicate answers "yes" for every reader whose pattern is
+    `\\s+` -- 232 of them on this repo's ROADMAP -- which is a different way of being
+    useless from the constant it replaces, not a fix. `elsewhere_lines` is the ledger
+    minus this block; pass it, or every generic pattern reads as a consumer.
+
+    Known and deliberate residue: a reader that COUNTS occurrences (`grep -c`) rather than
+    testing for presence can still be perturbed by a move this predicate clears. That is
+    reported by the suite, not by this check.
+
+    All of them, not the first: a refusal has to be able to NAME the consumer that
+    motivated it, and a single-hit answer lets an unrelated reader shadow the one the
+    caller is checking for.
+
+    Matched against the RAW body text, anchors and all. No shortcut of the form "every
+    reader anchors on the item line, therefore no reader reads bodies" -- that is true
+    here only because this repo's bodies live in `docs/ledger-notes/`, and vacuous in a
+    repo whose body IS the item line.
+    """
+    hits = []
+    seen = set()
+    for p in patterns:
+        key = (p.path, p.lineno)
+        if key in seen:
+            continue
+        for k, bl in enumerate(body_lines):
+            if p.rx.search(bl):
+                if any(p.rx.search(o) for o in elsewhere_lines):
+                    break                     # still satisfied after the move: not broken
+                seen.add(key)
+                hits.append((p, k))
+                break
+    return hits
+
+
+SELFTEST_TOKEN = "ZZ-ledger-continuations-selftest-token-ZZ"
+
+
+def selftest_predicate():
+    """A fixture reader plus a body that MUST be refused. Without this the counter can be
+    silently re-vacuumed by the next refactor exactly as it was by the last one."""
+    reader = "\n".join([
+        "#!/usr/bin/env bash",
+        "PAT_VAR='" + SELFTEST_TOKEN + "'",
+        'roadmap="$root/ROADMAP.md"',
+        'grep -q "${PAT_VAR}" "$roadmap"',
+        'grep -q "$RUNTIME_ONLY" "$roadmap"',
+    ])
+    pats, unan = extract_patterns("selftest-reader.sh", reader)
+    problems = []
+    if not pats:
+        problems.append("no pattern extracted from the fixture reader")
+    if not any(p.raw == SELFTEST_TOKEN for p in pats):
+        problems.append("one-level constant fold did not resolve PAT_VAR")
+    if not unan:
+        problems.append("a runtime-composed pattern was not reported UNANALYSABLE")
+    if not cited_by(["  - a body line mentioning " + SELFTEST_TOKEN + " inline"], pats):
+        problems.append("a cited body was NOT refused")
+    if cited_by(["  - a body line that nothing reads"], pats):
+        problems.append("an uncited body was refused (predicate matches everything)")
+    body = ["  - a body line mentioning " + SELFTEST_TOKEN + " inline"]
+    if cited_by(body, pats, ["- an item line also carrying " + SELFTEST_TOKEN]):
+        problems.append("a body whose text SURVIVES the move elsewhere was refused")
+    if not reads_notes("notes_dir = 'docs/ledger-notes'"):
+        problems.append("a genuine notes read was not recognised as union-anchored")
+    if reads_notes("# the prose belongs in docs/ledger-notes instead"):
+        problems.append("a COMMENT mention of the notes dir was scored union-anchored")
+    return problems
+
 
 LANE_MENTION_RE = re.compile(r"\[(?:HARD|INPUT)\s*[-" + EN + EM + r"]\s*[^]\n]{1,24}\]")
 
@@ -177,8 +635,13 @@ class Block:
         self.cont = cont
 
 
-def scan(lines):
-    """Return (blocks, refusals). `lines` is the file split on newlines."""
+def scan(lines, patterns=None):
+    """Return (blocks, refusals). `lines` is the file split on newlines.
+
+    `patterns` is the COMPUTED reader-pattern set (see find_readers); an empty/None set
+    means no live consumer was found, never "assume none".
+    """
+    patterns = patterns or []
     blocks = []
     refused = []
     i = 0
@@ -203,12 +666,23 @@ def scan(lines):
                     if foreign:
                         refused.append(("foreign-id", i + 1,
                                         "block carries id(s) " + ",".join(foreign)))
-                    elif idm.group(1) in REFUSE_IDS:
-                        refused.append(("cited-body", i + 1,
-                                        "id:{} -- {}".format(idm.group(1),
-                                                             REFUSE_IDS[idm.group(1)])))
                     else:
-                        blocks.append(Block(i, idm.group(1), line, cont))
+                        rest = lines[:i + 1] + lines[j:]
+                        hits = cited_by(cont, patterns, rest)
+                        if hits:
+                            # EVERY consumer, never a truncated head. The consumer that
+                            # motivates a refusal is frequently not the first one found,
+                            # and a reason that omits it cannot be acted on.
+                            named = "".join(
+                                "\n        {} matches body line {} (pattern `{}`)".format(
+                                    p.where(), i + 2 + k, p.raw)
+                                for p, k in hits)
+                            refused.append((
+                                "cited-body", i + 1,
+                                "id:{} -- body read by {} live consumer site(s):{}".format(
+                                    idm.group(1), len(hits), named)))
+                        else:
+                            blocks.append(Block(i, idm.group(1), line, cont))
             i = j
             continue
         if line.strip() and re.match(r"^[ \t]", line):
@@ -338,7 +812,17 @@ def main():
     raw = open(path, encoding="utf-8").read()
     lines = raw.split("\n")
 
-    blocks, refused = scan(lines)
+    problems = selftest_predicate()
+    if problems:
+        print("SELF-TEST FAILED -- the cited-body predicate is not working; its counter "
+              "would be meaningless (id:9ce0):", file=sys.stderr)
+        for p in problems:
+            print("  - " + p, file=sys.stderr)
+        return 4
+
+    readers = find_readers(root)
+
+    blocks, refused = scan(lines, readers["patterns"])
     heading = section_heading(args.file)
 
     # ---- ORPHAN PRECONDITION: every id addressable before must be addressable after.
@@ -347,6 +831,12 @@ def main():
     print("items with a continuation block : {}".format(len(blocks)))
     print("continuation lines to relocate  : {}".format(sum(len(b.cont) for b in blocks)))
     print("id markers in the ledger before : {}".format(len(ids_before)))
+    print("ledger-only readers (computed)   : {}".format(len(readers["ledger_only"])))
+    print("union-anchored readers (notes)   : {}".format(len(readers["union"])))
+    print("reader patterns extracted        : {}".format(len(readers["patterns"])))
+    print("UNANALYSABLE reader constructs   : {}".format(len(readers["unanalysable"])))
+    for u in readers["unanalysable"]:
+        print("    " + u.render())
     for kind in ("no-id", "foreign-id", "cited-body", "unowned"):
         hits = [r for r in refused if r[0] == kind]
         print("REFUSED {:<11} : {}".format(kind, len(hits)))
