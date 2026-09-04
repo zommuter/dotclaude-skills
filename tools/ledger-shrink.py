@@ -546,15 +546,15 @@ def section_heading(path: str) -> str:
 def note_file_text(item_id: str, body: str, heading: str) -> str:
     return (
         "# id:{}\n\n"
-        "Detail relocated out of the ledger by `tools/ledger-shrink.py`. The item line keeps\n"
-        "its title, lane tag, `id:` anchor, every gate marker and a pointer back here.\n"
-        "**Nothing was deleted** -- the prose below is reproduced verbatim.\n\n"
-        "**This note is EDITABLE** (owner-ratified 2026-09-02). If a fleet rule is violated\n"
-        "in the prose below -- retired vocabulary, a lane delimiter, a banned token -- FIX IT\n"
-        "HERE and amend the line above to say what was changed. Notes are not immutable: an\n"
-        "unfixable violation keeps its guard red forever, and this prose gets copied back out\n"
-        "into new items. An undeclared edit makes the verbatim claim above a lie.\n\n"
-        "See `{}/BACKLINKS.md` for meetings that cite this id.\n\n"
+        # id:e567 (owner-ratified 2026-09-04, option 2): ONE provenance line plus a
+        # pointer. The standing explanation -- the verbatim claim, the notes-are-editable
+        # convention, the backlinks index -- lives ONCE in docs/ledger-notes/README.md
+        # instead of once per note. The verbatim claim was RELOCATED there, never
+        # deleted: it holds BY DEFAULT and is defeated BY EXCEPTION, so a note whose
+        # prose was edited since relocation still declares that in its OWN header and
+        # that declaration overrides the default.
+        "Relocated from the ledger by `tools/ledger-shrink.py`. Conventions, the verbatim\n"
+        "claim and backlinks: `{}/README.md`.\n\n"
         "{}\n\n{}\n"
     ).format(item_id, NOTES_DIR, heading, body)
 
