@@ -17,6 +17,11 @@
 # the same time.
 #
 # The lint is run as the PRODUCTION script over fixture ledgers; nothing here greps its source.
+#
+# LEDGER READS ARE UNION-ANCHORED (id:37ea, 2026-09-04). Case (C) reads the LEDGER +
+# `docs/ledger-notes/` UNION, resolving each item's detail pointer off its own line,
+# because the guarded prose now lives in those notes; it also REFUSES to pass when the
+# guarded lexeme is in neither place. Do not narrow it back to `ROADMAP.md`.
 
 set -uo pipefail
 
@@ -79,18 +84,50 @@ done
   && ok "a line carrying BOTH a scoped word and a self-claim still fires (id:aaa4)" \
   || bad "id:aaa4 no longer fires — the strip swallowed a self-claim sitting beside a scoped word"
 
-# ── (C) the LIVE ledger lines, as they actually read today ─────────────────────────────
-# Extracted from the repo's own ROADMAP.md (read-only) so the fixture above cannot drift
-# away from the real prose. Skipped, loudly, if the items are gone/reworded.
+# ── (C) the LIVE ledger text, as it actually reads today ───────────────────────────────
+# Extracted from the repo's own ledger (read-only) so the fixture above cannot drift away
+# from the real prose. Skipped, loudly, if the items are gone/reworded.
+#
+# RE-ANCHORED 2026-09-04 (id:37ea) to the LEDGER + NOTES UNION. This case used to read
+# `ROADMAP.md` alone. `tools/ledger-shrink.py` has since relocated both items' bodies into
+# `docs/ledger-notes/<id>.md`, and the scoped "both targets are `[x]` DONE and archived"
+# prose that this whole file exists to keep quiet went WITH them -- so the two probes below
+# were still passing while the lexeme they guard was no longer in the text being probed.
+# A vacuous check (id:0b70), and the exact silent blindness id:9ce0 / id:1447 name.
+#
+# The reassembly is exact, not clever: `ledger-shrink.py` cuts ONE item line into a slim
+# head plus a residue, and writes that residue as the FIRST non-blank line under the note's
+# `## From <LEDGER>` heading. Head line + that line IS the pre-shrink item line, which is
+# what a per-line lint must be handed. Concatenating the WHOLE note would be wrong in the
+# other direction: later sections say DECIDED / RESOLVED about other things and would make
+# the lint fire. The pointer path is read OFF the line, never hardcoded, so an unshrunk
+# item resolves to its line alone and behaves exactly as before.
+#
+# AND IT MUST NOT GO QUIET AGAIN: the scoped lexeme has to be found in the assembled text
+# or this fails LOUDLY, instead of reporting a pass for prose that was deleted or reworded.
 live="$TMP/live.md"
-{ printf '# Roadmap\n\n## Items\n\n'
-  grep -hE '^- \[ \].*<!-- id:(d4ca|e405) -->' "$ROOT/ROADMAP.md" || true
-} > "$live"
-if [[ "$(grep -c '^- \[ \]' "$live")" == "2" ]]; then
+live_n=0
+printf '# Roadmap\n\n## Items\n\n' > "$live"
+for id in d4ca e405; do
+  l="$(head -1 < <(grep -hE "^- \[ \].*<!-- id:$id -->" "$ROOT/ROADMAP.md") )"
+  [[ -z "$l" ]] && continue
+  d="$(head -1 < <(grep -oP 'detail:\s*`\K[^`]+' <<<"$l") )"
+  if [[ -n "$d" && -f "$ROOT/$d" ]]; then
+    b="$(awk '/^## From ROADMAP[[:space:]]*$/{f=1;next} f && /^## /{exit} f && NF{print;exit}' \
+           "$ROOT/$d")"
+    [[ -n "$b" ]] && l="$l $b"
+  fi
+  printf '%s\n' "$l" >> "$live"
+  live_n=$((live_n+1))
+done
+if (( live_n == 2 )); then
+  grep -qF 'DONE and archived' "$live" \
+    && ok "the scoped gate-target lexeme is still present in the live ledger+notes union (this case asserts something)" \
+    || bad "the scoped 'DONE and archived' lexeme is in NEITHER the ROADMAP.md lines NOR the relocated bodies of id:d4ca/id:e405 -- case (C) would assert nothing; re-point it at prose that still exists"
   for id in d4ca e405; do
     [[ "$(fires "$id" "$live")" == "no" ]] \
-      && ok "the LIVE ROADMAP.md line for id:$id no longer false-fires" \
-      || bad "the LIVE ROADMAP.md line for id:$id still false-fires DECIDED-LEFT-OPEN"
+      && ok "the LIVE ledger+notes text for id:$id no longer false-fires" \
+      || bad "the LIVE ledger+notes text for id:$id still false-fires DECIDED-LEFT-OPEN"
   done
 else
   echo "  SKIP: id:d4ca/id:e405 are no longer open lines in ROADMAP.md (case A still covers the lexeme)"

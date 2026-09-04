@@ -12,6 +12,11 @@
 # lib-state-claim.sh. A standalone terminal word must still fire; existing id:8913
 # and id:5533 tests must stay green.
 #
+# LEDGER READS ARE UNION-ANCHORED (id:37ea, 2026-09-04). The ground-truth probe at the
+# bottom reads the LEDGER + `docs/ledger-notes/` UNION, resolving the detail pointer off
+# the item line, because id:6b35's prose now lives in its detail note. It also REFUSES to
+# pass when the guarded lexeme is in neither place. Do not narrow it back to `ROADMAP.md`.
+#
 # Hermetic: no ~/.claude, no network.
 
 set -uo pipefail
@@ -58,12 +63,47 @@ v_undone="$(state_claim_violation "$l_undone")"
 [[ -z "$v_undone" ]] || fail "'undone' wrongly fired direction (i): '$v_undone'"
 pass "'undone' does not fire (case-sensitive, unaffected by this fix)"
 
-# --- ground-truth regression: id:6b35's actual ROADMAP line must not fire -------
-b35_line="$(head -1 < <(grep -F 'id:6b35' "$ROOT/ROADMAP.md") )"
+# --- ground-truth regression: id:6b35's actual ledger TEXT must not fire ---------
+# RE-ANCHORED 2026-09-04 (id:37ea) to the LEDGER + NOTES UNION. This probe used to read
+# `ROADMAP.md` alone. `tools/ledger-shrink.py` has since relocated id:6b35's body into
+# `docs/ledger-notes/6b35.md`, so the bare item line no longer carries the `fail-closed`
+# prose this regression exists to pin -- the assertion kept PASSING while testing nothing,
+# which is the id:0b70 vacuous-check class and precisely the silent blindness id:9ce0 and
+# id:1447 were filed against.
+#
+# The pointer path is READ OFF THE LINE, never hardcoded (the id:1608 shape that
+# `meeting/orphan-scan.sh` uses): an item whose body was never relocated resolves to the
+# line alone and behaves exactly as before.
+#
+# THE PROBE IS NOT ALLOWED TO GO QUIET AGAIN. The `fail-closed` lexeme must be found
+# SOMEWHERE in the union, or this fails LOUDLY rather than reporting a pass for an item
+# whose prose was deleted or reworded. A missing item line is still a non-fatal skip --
+# that is a genuine "the item is gone" case, not a relocation.
+b35_line="$(head -1 < <(grep -E '^- \[[ xX]\].*<!-- id:6b35 -->' "$ROOT/ROADMAP.md") )"
 if [[ -n "$b35_line" ]]; then
-  v_b35="$(state_claim_violation "$b35_line")"
-  [[ "$v_b35" != *i* ]] || fail "id:6b35's own ROADMAP line still fires direction (i): '$v_b35' — line: $b35_line"
-  pass "id:6b35's own ROADMAP line (fail-CLOSED prose) does not fire direction (i)"
+  # `state_claim_violation` is a PER-ITEM-LINE predicate, so the union must be assembled
+  # as ONE item line, not as a blob. Concatenating the WHOLE note is wrong and was measured
+  # to be wrong: a note accumulates later sections whose prose legitimately says DECIDED /
+  # RESOLVED / CLOSED about other things, and feeding those to a self-claim predicate makes
+  # it fire. That is over-matching, the other half of the id:1447 hazard.
+  #
+  # The faithful reconstruction is exact rather than clever: `ledger-shrink.py` cuts ONE
+  # item line into a slim head plus a residue, and writes that residue as the FIRST
+  # non-blank line under the note's `## From <LEDGER>` heading. Head line + that line IS
+  # the pre-shrink item line. Section headings are matched on the LOGICAL ledger name
+  # (`## From ROADMAP`), the id:0d7c format, never on a physical path.
+  b35_detail="$(head -1 < <(grep -oP 'detail:\s*`\K[^`]+' <<<"$b35_line") )"
+  b35_text="$b35_line"
+  if [[ -n "$b35_detail" && -f "$ROOT/$b35_detail" ]]; then
+    b35_body="$(awk '/^## From ROADMAP[[:space:]]*$/{f=1;next} f && /^## /{exit} f && NF{print;exit}' \
+                  "$ROOT/$b35_detail")"
+    [[ -n "$b35_body" ]] && b35_text="$b35_line $b35_body"
+  fi
+  grep -qiF 'fail-closed' <<<"$b35_text" \
+    || fail "id:6b35's 'fail-CLOSED' prose is absent from BOTH its ROADMAP.md line and the relocated body in ${b35_detail:-<no detail pointer>} -- this ground-truth probe would assert nothing; re-point it at prose that still exists"
+  v_b35="$(state_claim_violation "$b35_text")"
+  [[ "$v_b35" != *i* ]] || fail "id:6b35's own ledger text still fires direction (i): '$v_b35' -- text: $b35_text"
+  pass "id:6b35's reassembled item line (ROADMAP head + relocated body, fail-CLOSED prose) does not fire direction (i)"
 else
   pass "id:6b35 line not found in current ROADMAP.md (not fatal — inline fixture above already covers the class)"
 fi

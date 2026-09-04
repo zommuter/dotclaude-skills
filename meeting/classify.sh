@@ -13,6 +13,12 @@
 #          particular must be SURFACED, never silently dropped: a [MECHANICAL] item is both
 #          pool-inert and human-inert and its daemon is not built, so this printout is
 #          currently the only place a human sees it).
+#   "Body", below, means the LEDGER + NOTES UNION (id:37ea): the item's TODO.md line plus
+#          the detail file that line points at, when it has been line-shrunk by
+#          tools/ledger-shrink.py. The pointer path is read off the line, never hardcoded.
+#          The three PROSE detectors (note link, keyword hint, gate vocabulary) read that
+#          union; SUMMARY, the RELAY mirror check and the lane floor read the LINE alone,
+#          because a title and a lane tag never leave it.
 #   GATE:  GATED if body contains gate/condition/blocked vocabulary; empty otherwise.
 #          HARD-NOLANE if a lane-bracketed item declares no recognized lane (id:78ff:
 #          untagged = LOUD reject — surface it, don't silently treat as meeting work).
@@ -65,6 +71,30 @@ while IFS= read -r line; do
         | sed 's/ *<!-- id:[a-f0-9]* -->//')
     summary=$(printf '%s' "$body" | cut -c1-80)
 
+    # LEDGER + NOTES UNION (id:37ea, 2026-09-04). `tools/ledger-shrink.py` relocates an
+    # item's prose off its TODO.md line into the detail file the line then points at, and
+    # keeps only the title plus the must-keep markers. The three PROSE detectors below --
+    # the meeting-note link, the planning-keyword hint and the gate vocabulary -- all read
+    # prose, so anchoring them on the line alone makes each of them go quiet the moment an
+    # item is shrunk: a linked item silently drops from C1/C2 to C3, and a gated item
+    # silently loses its GATED flag. Neither failure says anything, which is the id:d35a
+    # silent-no-op class.
+    #
+    # The pointer path is READ OFF THE LINE, never hardcoded or guessed -- the same id:1608
+    # shape `meeting/orphan-scan.sh` uses -- so this works for a foreign notes directory
+    # and an unshrunk item resolves to its line alone, exactly as before.
+    #
+    # SCOPE, deliberately: only the three prose detectors read the union. `summary` stays
+    # the LINE's text (it is the ≤80-char display title, and a note body would swamp it),
+    # the RELAY mirror check stays line-anchored (that mirror IS a whole line, and it is
+    # never shrunk), and the lane floor below stays line-anchored because a lane tag is a
+    # must-keep token that never leaves the line.
+    detail_rel=$(head -1 < <(printf '%s' "$line" | grep -oP 'detail:\s*`\K[^`]+') || true)
+    match_body="$body"
+    if [[ -n "$detail_rel" && -f "$ROOT/$detail_rel" ]]; then
+        match_body="$body"$'\n'"$(cat "$ROOT/$detail_rel" 2>/dev/null || true)"
+    fi
+
     # Relay mirror line (see ROADMAP.md template): executor work lives in
     # ROADMAP.md — classify as RELAY so dispatch never proposes a meeting on it.
     if grep -qE '^Relay: [0-9]+ open ROADMAP items[[:space:]]*$' < <(printf '%s' "$body") ; then
@@ -72,8 +102,8 @@ while IFS= read -r line; do
         continue
     fi
 
-    # Find first meeting-note link in line
-    note_link=$(head -1 < <(printf '%s' "$line" \
+    # Find first meeting-note link in the item's line + relocated body
+    note_link=$(head -1 < <(printf '%s' "$match_body" \
         | grep -oE 'docs/meeting-notes/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4}-[^)> .,`]+\.md') \
         || true)
 
@@ -86,16 +116,17 @@ while IFS= read -r line; do
         fi
     else
         # Keyword hint: signals planning work
-        if grep -qiE '(design|investigate|decide|evaluate|plan|deferred|forward-flag)' < <(printf '%s' "$body") ; then
+        if grep -qiE '(design|investigate|decide|evaluate|plan|deferred|forward-flag)' < <(printf '%s' "$match_body") ; then
             class="C2"
         else
             class="C3"
         fi
     fi
 
-    # Gate-text check (advisory): detect gate/condition/blocked vocabulary in body
+    # Gate-text check (advisory): detect gate/condition/blocked vocabulary in the item's
+    # line + relocated body
     gate=""
-    grep -qiE '\bgated?\b|\bgate:|reopen (gate|trigger)|condition-triggered|blocked on' < <(printf '%s' "$body") \
+    grep -qiE '\bgated?\b|\bgate:|reopen (gate|trigger)|condition-triggered|blocked on' < <(printf '%s' "$match_body") \
         && gate="GATED" || true
 
     # Lane floor, LANE-AWARE (D4 + id:78ff): a [HARD]/[INPUT — …] item needs a strong
