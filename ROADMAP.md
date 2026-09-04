@@ -173,3 +173,12 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 - [x] [ROUTINE] **`id:401c` is an append-only audit LOG occupying 42% of ROADMAP.md -- relocate its body under the ratified `id:0d7c` topology.** -- detail: `docs/ledger-notes/f193.md` <!-- relates:2d17 --> <!-- id:f193 -->
 - [ ] [ROUTINE] **`shape-prose` becomes an ERROR -- the closing act of the no-prose bar.** -- detail: `docs/ledger-notes/8524.md` <!-- gated-on:1608,2d17 --> <!-- relates:2d17 --> <!-- id:8524 -->
 - [ ] [INPUT - decision] **Three items carry a de-facto lane derived from BODY PROSE, which `classify-repo` reads as their real lane.** -- detail: `docs/ledger-notes/1254.md` <!-- relates:2d17 --> <!-- id:1254 -->
+
+## 2026-09-04 handoff C2 -- ledger-tooling and test-harness defects from the 09-04 design day (run relay-20260904-145432-15472)
+
+- [ ] [ROUTINE] 🔴 **`SH_ASSIGN_RE` truncates a multi-line shell assignment at the first quote, so a read's notes operand can vanish -- a corpus verdict the parser silently mis-reads, and the missed-union direction is the UNSAFE one the code itself names.** -- detail: `docs/ledger-notes/e047.md` <!-- children-of:1447 --> <!-- id:e047 -->
+- [ ] [ROUTINE] **`cited_by`'s surviving-text escape is evaluated against the WRONG future state in a batch move, and it silenced `ledger-map.py:493` -- the very consumer that justified the 1447 untraced amendment.** -- detail: `docs/ledger-notes/0176.md` <!-- children-of:1447 --> <!-- id:0176 -->
+- [ ] [ROUTINE] **The `id:b54b` hermeticity backstop fires on RELAY worktrees, so any `/relay` run concurrent with `make test` reports a false breach -- `.claude/worktrees/` is excluded for this exact reason and the relay root is not.** -- detail: `docs/ledger-notes/c132.md` <!-- id:c132 -->
+- [ ] [ROUTINE] **`ledger-shrink.py` hoists an EXAMPLE marker quoted in prose as if it were real -- 30 lines, and it defeated the shrink on `ee62`.** -- detail: `docs/ledger-notes/8372.md` <!-- relates:14e5 --> <!-- id:8372 -->
+- [ ] [ROUTINE] **Two tests flaked green-standalone/red-in-suite and neither is explained; `|| fail` after a grep cannot tell a FALSE assertion from a check that COULD NOT RUN (360 sites).** -- detail: `docs/ledger-notes/735f.md` <!-- id:735f -->
+- [ ] [ROUTINE] **The note-header shrink is DELIVERED (255 B/note); what remains is the gate -- `id:03a3` must cite the measured per-note header cost before the 46-repo migration runs.** -- detail: `docs/ledger-notes/e567.md` <!-- relates:03a3 --> <!-- id:e567 -->
