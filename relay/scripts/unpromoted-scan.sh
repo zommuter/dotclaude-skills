@@ -78,10 +78,10 @@ DQ="$(dirname "${BASH_SOURCE[0]}")/decision-queue.sh"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s unpromoted-scan.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
-# strip_detail_pointer <text> — echo <text> with ONE leading `-- detail: `path/XXXX.md``
+# strip_detail_pointer <text> -- echo <text> with ONE leading `-- detail: `path/XXXX.md``
 # pointer (plus the whitespace around it) removed; unchanged if it carries none.
 #
-# id:3795 — `tools/ledger-shrink.py` plants that pointer BETWEEN the bold title and
+# id:3795: `tools/ledger-shrink.py` plants that pointer BETWEEN the bold title and
 # whatever followed it, so a lane tag that used to sit immediately after the title ends up
 # immediately after the POINTER instead. `primary_lane()`'s bold branch reads only the
 # position right after the title, so a trimmed item went lane-DARK: measured on this repo's
@@ -180,7 +180,7 @@ primary_lane() {
   fi
   if [[ "$line" =~ ^-\ \[\ \]\ \*\*[^*]*\*\*[[:space:]]*(.*)$ ]]; then
     rest="${BASH_REMATCH[1]}"
-    # id:3795 — a `-- detail:` pointer is TRANSPARENT here: the shrinker plants it between
+    # id:3795: a `-- detail:` pointer is TRANSPARENT here: the shrinker plants it between
     # the title and the lane tag, so skip exactly it and re-anchor on what follows.
     rest="$(strip_detail_pointer "$rest")"
     for tag in "${tags[@]}"; do

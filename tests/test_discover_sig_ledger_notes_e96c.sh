@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DEFECT-FIX test (TODO id:e96c) — no `# roadmap:XXXX` header on purpose: this closes a
+# DEFECT-FIX test (TODO id:e96c). No `# roadmap:XXXX` header on purpose: this closes a
 # regression the id:0d7c ledger line-shrink introduced, and has no ROADMAP item of its own.
 # Failures here always count.
 #
@@ -66,7 +66,7 @@ S0="$(sig_of)"
 [[ -n "$S0" ]] || fail "signature empty for a valid repo (should only be empty on fail-open)"
 pass "baseline signature is non-empty"
 
-# --- Case 1 — THE DEFECT: three successive UNCOMMITTED edits to one pointed-to note must
+# --- Case 1. THE DEFECT: three successive UNCOMMITTED edits to one pointed-to note must
 # produce three DIFFERENT signatures. Pre-fix they produced one: the first edit moved the sig
 # only because `git status --porcelain` gained an `M` line, and every edit after that was
 # invisible.
@@ -84,12 +84,12 @@ S3="$(sig_of)"
   || fail "a THIRD uncommitted edit to the pointed-to note left the signature identical to the second"
 pass "three uncommitted note edits produce three different signatures"
 
-# --- Case 2 — determinism: unchanged on-disk state, identical sig.
+# --- Case 2. Determinism: unchanged on-disk state, identical sig.
 S3b="$(sig_of)"
 [[ "$S3b" == "$S3" ]] || fail "signature is not deterministic on unchanged state: '$S3b' != '$S3'"
 pass "still deterministic on unchanged state"
 
-# --- Case 3 — COMMITTED note edits move the sig too (via HEAD, and via the note hash).
+# --- Case 3. COMMITTED note edits move the sig too (via HEAD, and via the note hash).
 git -C "$REPO" commit -qam "note edit"
 S4="$(sig_of)"
 [[ "$S4" != "$S3" ]] || fail "committing the note edit left the signature identical"
@@ -99,7 +99,7 @@ S5="$(sig_of)"
 [[ "$S5" != "$S4" ]] || fail "a second COMMITTED note edit left the signature identical"
 pass "committed note edits move the signature"
 
-# --- Case 4 — THE id:d4d3 TRAP: the notes directory is DERIVED from the pointer. This repo's
+# --- Case 4. THE id:d4d3 TRAP: the notes directory is DERIVED from the pointer. This repo's
 # TODO.md points into `docs/roadmap-notes` (loderite's spelling), which a hardcoded
 # `docs/ledger-notes` would never see.
 printf 'foreign-dir body v1\n' >> "$REPO/docs/roadmap-notes/ab12.md"
@@ -112,7 +112,7 @@ S7="$(sig_of)"
   || fail "a second edit in the NON-default notes directory left the signature identical"
 pass "a pointer-derived notes directory is followed, not just docs/ledger-notes"
 
-# --- Case 5 — round-trip: restoring the exact prior content restores the prior signature
+# --- Case 5. Round-trip: restoring the exact prior content restores the prior signature
 # (the blob is a pure function of state, not an accumulator).
 git -C "$REPO" checkout -q -- docs/roadmap-notes/ab12.md
 git -C "$REPO" checkout -q -- docs/ledger-notes/ca02.md 2>/dev/null || true
@@ -121,7 +121,7 @@ S8="$(sig_of)"
   || fail "restoring the notes' committed content did not restore the signature -- the blob is not a pure function of on-disk state"
 pass "signature round-trips when note content is restored"
 
-# --- Case 6 — a MISSING pointer target is a normal, stable state, not a fail-open trigger.
+# --- Case 6. A MISSING pointer target is a normal, stable state, not a fail-open trigger.
 printf -- '- [ ] [ROUTINE] dangling -- detail: `docs/ledger-notes/dead.md` <!-- id:dead -->\n' \
   >> "$REPO/ROADMAP.md"
 S9="$(sig_of)"; S9b="$(sig_of)"
@@ -132,14 +132,14 @@ S10="$(sig_of)"
 [[ "$S10" != "$S9" ]] || fail "creating a previously-missing pointed-to note left the signature identical"
 pass "a missing pointer target is stable, and creating it moves the sig"
 
-# --- Case 7 — FAIL-OPEN, unchanged: a non-git path still yields the empty sentinel.
+# --- Case 7. FAIL-OPEN, unchanged: a non-git path still yields the empty sentinel.
 mkdir -p "$TMP/notarepo"
 SNG="$(printf '{"repos":[{"repo":"notarepo","path":"%s"}],"liveClaims":[]}\n' "$TMP/notarepo" \
         | "$SIG" | python3 -c 'import sys,json; print(json.loads(sys.stdin.readline())["sig"])')"
 [[ -z "$SNG" ]] || fail "fail-open broken: a non-git path produced a CONFIDENT signature '$SNG'"
 pass "fail-open preserved: non-git path yields the empty sentinel"
 
-# --- Case 8 — FAIL-OPEN on an UNREADABLE pointed-to note: the sig must NOT go confident and
+# --- Case 8. FAIL-OPEN on an UNREADABLE pointed-to note: the sig must NOT go confident and
 # stale behind input it could not read. Two successive calls must differ (a nonce forces a
 # re-classify). Skipped for root, for whom chmod 000 is not a read barrier.
 if [[ "$(id -u)" != "0" ]]; then

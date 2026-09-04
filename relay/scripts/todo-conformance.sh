@@ -624,7 +624,7 @@ grammar_item_class() {
   return 0
 }
 
-# grammar_scan <path> — fill GRAMMAR_FIND for every non-conforming line in <path>.
+# grammar_scan <path> -- fill GRAMMAR_FIND for every non-conforming line in <path>.
 grammar_scan() {
   local path="$1" n i l nxt j cls
   GRAMMAR_FIND=()
@@ -1170,7 +1170,7 @@ scan_path() {
     # asks a different question, it needs no baseline, and it must still run in a repo
     # that has no baseline file at all (loderite today). WARN-only -- see the header.
     sh="$(shape_class "$line")"
-    # Ledger line grammar (id:b048) — precomputed by grammar_scan, looked up by line number
+    # Ledger line grammar (id:b048): precomputed by grammar_scan, looked up by line number
     # so the multi-line heading rules still point at the offending line.
     gr="${GRAMMAR_FIND[$lineno]:-}"
     if [[ -z "$cls" && -z "$sc" && -z "$dp" && -z "$lr" && -z "$sh" && -z "$gr" ]]; then continue; fi

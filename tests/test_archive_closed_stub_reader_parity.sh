@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DEFECT-FIX test — no `# roadmap:XXXX` header on purpose (id:046a part (2) is an
+# DEFECT-FIX test. No `# roadmap:XXXX` header on purpose (id:046a part (2) is an
 # open item, but this covers a CORRECTNESS defect found while diagnosing it, not the
 # item's acceptance). Failures here always count.
 #
@@ -7,7 +7,7 @@
 # that had DROPPED the load-bearing `.*` between the `<!-- id:XXXX -->` marker and the
 # ratified " (archived — see ROADMAP.archive.md)" suffix. The `.*` is documented
 # in-file on the sibling as load-bearing (cartulary 2026-08-14, routed:4a12): a ledger
-# line routinely carries prose AFTER its own id marker — `/relay human` and `/meeting`
+# line routinely carries prose AFTER its own id marker: `/relay human` and `/meeting`
 # write-backs append rationale there, and some lines end in a DIFFERENT HTML comment.
 #
 # Without the `.*` every such stub read as un-stubbed and was RE-ARCHIVED on every
@@ -19,17 +19,17 @@
 # The pre-existing tests missed it because their fixture stubs all put the id marker
 # at END of line, which the broken regex still matched.
 #
-# Part A  — LEGACY stub-reader parity: each stub shape survives untouched, only the
+# Part A  -- LEGACY stub-reader parity: each stub shape survives untouched, only the
 #           genuine closed item is archived, and repeated runs are stable.
 #
 # id:2eba (2026-09-03) stopped both archivers WRITING the stub, and re-based the
 # idempotency test on ARCHIVE MEMBERSHIP (lib-archive-idempotency.py). The five stub
-# shapes below are LEGACY — no writer emits them any more, but they exist in this repo
+# shapes below are LEGACY: no writer emits them any more, but they exist in this repo
 # and across the fleet, so the read half must still recognise them. That is exactly what
 # Part A pins, unchanged, and it is why the legacy regex was kept rather than deleted.
 # The one assertion that flipped is A1's second clause: the genuine item id:6666 now
 # leaves NO stub behind.
-# Part B  — safety regressions that must hold ACROSS an archive run:
+# Part B  -- safety regressions that must hold ACROSS an archive run:
 #           B1 twin-open protection still refuses to archive
 #           B2 resolve-gates.sh output byte-identical before vs after
 #           B3 orphan-scan --cross-ledger clean before AND after
@@ -48,7 +48,7 @@ trap 'rm -rf "$tmp"' EXIT
 SUF=" (archived — see ROADMAP.archive.md)"
 
 # ===========================================================================
-# Part A — stub-reader parity
+# Part A -- stub-reader parity
 # ===========================================================================
 repo="$tmp/A"; mkdir -p "$repo"
 
@@ -79,14 +79,14 @@ out="$(HOME="$tmp" bash "$SCRIPT" "$repo" 2>&1)" || { echo "FAIL: run exited non
 RS="$repo/ROADMAP.md"; RA="$repo/ROADMAP.archive.md"
 [[ -f "$RA" ]] || { echo "FAIL: ROADMAP.archive.md not created — fixture unreached"; echo "$out"; exit 1; }
 
-# A1 — the genuine item WAS archived. Guards against an inert fixture: if this
+# A1: the genuine item WAS archived. Guards against an inert fixture: if this
 #      fails, every assertion below is vacuous.
 grep -qF 'genuine closed item never yet archived' "$RA" \
   || { echo "FAIL(A1): genuine item id:6666 was not archived — fixture is inert"; cat "$RA"; exit 1; }
 grep -qF "<!-- id:6666 -->" "$RS" \
   && { echo "FAIL(A1): id:6666 was left in the live ledger — id:2eba leaves no stub"; cat "$RS"; exit 1; }
 
-# A2 — every pre-existing stub line is byte-identical: not re-archived, and in
+# A2: every pre-existing stub line is byte-identical: not re-archived, and in
 #      particular NO second suffix appended.
 for id in 1111 2222 3333 4444 5555; do
   now="$(grep -F "<!-- id:$id -->" "$RS" || true)"
@@ -97,18 +97,18 @@ for id in 1111 2222 3333 4444 5555; do
     echo "  after : $now"; exit 1; }
 done
 
-# A3 — no stub body was copied into the archive. Only id:6666 belongs there.
+# A3: no stub body was copied into the archive. Only id:6666 belongs there.
 for id in 1111 2222 3333 4444 5555; do
   grep -qF "<!-- id:$id -->" "$RA" \
     && { echo "FAIL(A3): stub id:$id was re-archived into ROADMAP.archive.md"; exit 1; }
 done
 
-# A4 — no line ever carries the suffix twice as a RESULT of this run. (id:4444
+# A4: no line ever carries the suffix twice as a RESULT of this run. (id:4444
 #      arrives already damaged and must simply be left alone, not damaged further.)
 trip="$(grep -cF "${SUF}${SUF}${SUF}" "$RS" || true)"
 [[ "$trip" == "0" ]] || { echo "FAIL(A4): a third suffix was appended to a damaged line"; exit 1; }
 
-# A5 — stability under repetition: two further runs change nothing at all.
+# A5: stability under repetition, two further runs change nothing at all.
 snap_s="$(cat "$RS")"; snap_a="$(cat "$RA")"
 for n in 2 3; do
   HOME="$tmp" bash "$SCRIPT" "$repo" >/dev/null 2>&1 || { echo "FAIL(A5): run $n exited non-zero"; exit 1; }
@@ -117,14 +117,14 @@ for n in 2 3; do
 done
 
 # ===========================================================================
-# Part B — safety regressions across an archive run
+# Part B -- safety regressions across an archive run
 # ===========================================================================
 repo2="$tmp/B"; mkdir -p "$repo2"
 
 # id:7001 is closed in ROADMAP but its TODO twin is still OPEN → must NOT archive.
 # id:7002 is closed in both → archivable, AND it is a gate target of open id:7003,
 # so archiving it exercises the ROADMAP.archive.md leg of resolve-gates.sh's
-# four-file resolution map (resolve-gates.sh:42-43 — verified at the CALL SITE, not
+# four-file resolution map (resolve-gates.sh:42-43, verified at the CALL SITE, not
 # from lib-typed-edges.sh's header prose, which describes a different consumer).
 # id:7004 is an open item gated on a still-open target → a stable block=1 row.
 cat > "$repo2/ROADMAP.md" <<'EOF'
@@ -148,18 +148,18 @@ EOF
 rg_before="$("$RG" "$repo2" 2>/dev/null)"; rg_before_rc=$?
 os_before="$(bash "$OS" --cross-ledger "$repo2" 2>&1)" || true
 
-# B0 — the before-side must be LIVE: resolve-gates must actually emit rows here,
+# B0: the before-side must be LIVE. resolve-gates must actually emit rows here,
 #      otherwise "identical" is two empty strings and proves nothing.
 [[ -n "$rg_before" ]] || { echo "FAIL(B0): resolve-gates emitted nothing before archiving — unreached fixture"; exit 1; }
 grep -q '7004' <<<"$rg_before" || { echo "FAIL(B0): expected a block row for id:7004"; echo "$rg_before"; exit 1; }
 
 out2="$(HOME="$tmp" bash "$SCRIPT" "$repo2" 2>&1)" || { echo "FAIL: run on repo2 exited non-zero"; echo "$out2"; exit 1; }
 
-# B0b — and the archiver must have actually moved id:7002 out of ROADMAP.md.
+# B0b: and the archiver must have actually moved id:7002 out of ROADMAP.md.
 grep -qF '<!-- id:7002 -->' "$repo2/ROADMAP.archive.md" 2>/dev/null \
   || { echo "FAIL(B0b): id:7002 was not archived — safety comparison would be vacuous"; echo "$out2"; exit 1; }
 
-# B1 — twin-open protection: id:7001 stays in BOTH ledgers, archived from neither.
+# B1: twin-open protection. id:7001 stays in BOTH ledgers, archived from neither.
 grep -qF 'closed here but TODO twin is open' "$repo2/ROADMAP.md" \
   || { echo "FAIL(B1): twin-open item id:7001 was archived out of ROADMAP.md"; exit 1; }
 if [[ -f "$repo2/ROADMAP.archive.md" ]]; then
@@ -169,7 +169,7 @@ fi
 grep -qF 'still open over here' "$repo2/TODO.md" \
   || { echo "FAIL(B1): id:7001's open TODO twin was removed"; exit 1; }
 
-# B2 — resolve-gates.sh output BYTE-IDENTICAL before vs after. Archiving a gate
+# B2: resolve-gates.sh output BYTE-IDENTICAL before vs after. Archiving a gate
 #      target out of the live ROADMAP must not change gate resolution.
 rg_after="$("$RG" "$repo2" 2>/dev/null)"; rg_after_rc=$?
 [[ "$rg_before" == "$rg_after" ]] || {
@@ -178,8 +178,8 @@ rg_after="$("$RG" "$repo2" 2>/dev/null)"; rg_after_rc=$?
 [[ "$rg_before_rc" == "$rg_after_rc" ]] \
   || { echo "FAIL(B2): resolve-gates exit code changed ($rg_before_rc -> $rg_after_rc)"; exit 1; }
 
-# B3 — orphan-scan --cross-ledger output identical before vs after.
-#      id:7001 is DELIBERATELY in drift here (ROADMAP [x] / TODO [ ]) — that is the
+# B3: orphan-scan --cross-ledger output identical before vs after.
+#      id:7001 is DELIBERATELY in drift here (ROADMAP [x] / TODO [ ]). That is the
 #      exact state the twin-open rule exists to keep VISIBLE. So the property is not
 #      "clean", it is "unchanged, and the drift is still reported": archiving must
 #      never SILENCE a drift by sweeping one side of it into an archive orphan-scan

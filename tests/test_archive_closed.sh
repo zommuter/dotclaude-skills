@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# (no roadmap token — new-feature/defect test for relay/scripts/archive-closed.sh.
+# (no roadmap token: new-feature/defect test for relay/scripts/archive-closed.sh.
 #  This test always counts.)
 #
 # archive-closed.sh moves genuine top-level closed `- [x]` items from BOTH
 # TODO.md and ROADMAP.md into their `*.archive.md` siblings, TWIN-SAFELY:
 # an item bearing <!-- id:XXXX --> is only archived when its cross-ledger twin
-# is also closed OR absent — never when the twin is still open `- [ ]` (that is
+# is also closed OR absent, never when the twin is still open `- [ ]` (that is
 # the drift orphan-scan --cross-ledger guards). No-id items have no twin → safe.
 # Multi-line item bodies move as a whole block; headings are preserved; --dry-run
 # mutates nothing; a second run is a no-op.
@@ -43,7 +43,7 @@ EOF
 }
 
 # =========================================================================
-# Part A — --dry-run mutates nothing but reports would-move + skipped twin
+# Part A -- --dry-run mutates nothing but reports would-move + skipped twin
 # =========================================================================
 tmpd="$(mktemp -d)"; trap 'rm -rf "$tmpd" "$tmpr"' EXIT
 repd="$tmpd/repo"; seed "$repd"
@@ -62,7 +62,7 @@ grep -q 'bbbb' <<<"$out" || { echo "dry-run summary did not name skipped twin id
 grep -Eiq 'would.*(move|archiv)' <<<"$out" || { echo "dry-run summary lacks would-move count"; echo "$out"; exit 1; }
 
 # =========================================================================
-# Part B — real run archives twin-safely from both ledgers
+# Part B -- real run archives twin-safely from both ledgers
 # =========================================================================
 tmpr="$(mktemp -d)"; repr="$tmpr/repo"; seed "$repr"
 HOME="$tmpr" bash "$SCRIPT" "$repr" >/dev/null 2>&1 || { echo "real run exited non-zero"; exit 1; }
@@ -82,7 +82,7 @@ grep -qF 'closed both ledgers' "$RS" && { echo "aaaa still in ROADMAP.md — id:
 grep -qF '(archived — see ROADMAP.archive.md)' "$RS" \
   && { echo "aaaa the archive-stub suffix was written into ROADMAP.md"; exit 1; }
 
-# 2) id:bbbb — ROADMAP [x] but TODO [ ] open → twin-open protection:
+# 2) id:bbbb, ROADMAP [x] but TODO [ ] open → twin-open protection:
 #    NOT archived from ROADMAP; both sources keep their line.
 grep -qF 'roadmap closed but twin open' "$RA" && { echo "bbbb wrongly archived (twin open!)"; exit 1; }
 grep -qF 'roadmap closed but twin open' "$RS" || { echo "bbbb missing from ROADMAP.md"; exit 1; }

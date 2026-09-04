@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# discover-sig.sh (id:c3a6) — per-repo SUPERSET signature for the relay discovery cache.
+# discover-sig.sh (id:c3a6) -- per-repo SUPERSET signature for the relay discovery cache.
 #
 # The autonomous pool re-ran the LLM classifier shards fresh EVERY round, re-classifying repos
-# whose observable state had not changed — the bulk of the on-critical-path "status" overhead.
+# whose observable state had not changed, the bulk of the on-critical-path "status" overhead.
 # This helper lets the pool skip an LLM shard for an unchanged repo: it hashes EVERY input the
 # shard classifier reads into one signature; runRound reuses the cached verdict when the signature
 # is unchanged round-to-round.
@@ -14,7 +14,7 @@
 #     means "I'm not sure" → the caller MUST re-classify. The cache is never a correctness authority.
 #
 # I/O: reads one JSON object on stdin: {"repos":[{"repo":"name","path":"/abs","chain_ended":false}...],"liveClaims":[...]}
-#      the per-repo `chain_ended` flag is OPTIONAL (default false) — see the id:8123 section below
+#      the per-repo `chain_ended` flag is OPTIONAL (default false); see the id:8123 section below
 #      emits one JSON line per repo on stdout: {"repo":"name","sig":"<sha256-hex or empty>"}
 #
 # Env overrides (for hermetic tests; default to the live relay locations):
@@ -42,7 +42,7 @@ toml_block() {
   ' "$RELAY_TOML" 2>/dev/null || true
 }
 
-# id:e96c — LEDGER FILES the classifier shard reads (content) and scans for detail pointers.
+# id:e96c: LEDGER FILES the classifier shard reads (content) and scans for detail pointers.
 # classify-repo.sh applies `_ledger_note_bytes()` to ROADMAP.md / TODO.md / REVIEW_ME.md /
 # RELAY_LOG.md, and resolve-gates.sh reads the archives, so all seven are shard inputs.
 LEDGER_FILES=(ROADMAP.md ROADMAP.archive.md TODO.md TODO.archive.md
@@ -58,7 +58,7 @@ LEDGER_FILES=(ROADMAP.md ROADMAP.archive.md TODO.md TODO.archive.md
 # compute roadmap_bytes/todo_bytes. Those notes are therefore SHARD INPUTS. Before this
 # section they reached the blob only through `git status --porcelain`, which records THAT a
 # file changed and never WHAT changed, so three substantively different UNCOMMITTED edits to
-# one note collapsed to a single signature — under-invalidation, this cache's only hazard.
+# one note collapsed to a single signature: under-invalidation, this cache's only hazard.
 #
 # THE NOTES DIRECTORY IS DERIVED FROM THE POINTER, never hardcoded (the id:d4d3 trap): a
 # hardcoded `docs/ledger-notes` is INERT on the 45 fleet repos that name the directory
@@ -70,7 +70,7 @@ LEDGER_FILES=(ROADMAP.md ROADMAP.archive.md TODO.md TODO.archive.md
 # FAIL-OPEN, in both directions:
 #   * an absent ledger or note contributes a stable MISSING line (a normal state, not an error);
 #   * a ledger/note that EXISTS but cannot be read contributes a per-invocation NONCE, so the
-#     sig cannot go stale behind an unreadable input — it forces a re-classify instead.
+#     sig cannot go stale behind an unreadable input; it forces a re-classify instead.
 #     Over-hashing is free by this tool's contract; a confident sig over unread input is not.
 ledger_notes_section() {
   local path="$1"
@@ -83,14 +83,14 @@ ledger_notes_section() {
   done
 
   if [[ ${#present[@]} -gt 0 ]]; then
-    # (a) any path ending in `/<4-hex>.md` — the ratified detail-note spelling, in ANY directory.
+    # (a) any path ending in `/<4-hex>.md`, the ratified detail-note spelling, in ANY directory.
     # (b) any `detail:` pointer target, whatever the note is named.
     mapfile -t cands < <(
       { grep -hoE '[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_.-]+)*/[0-9a-fA-F]{4}\.md' "${present[@]}" 2>/dev/null || true
         grep -hoP 'detail:[[:space:]]*`?\K[^`[:space:])]+\.md' "${present[@]}" 2>/dev/null || true
       } | sort -u
     )
-    # (c) every OTHER `<dir>/<name>.md` under a directory a pointer named — classify-repo.sh's
+    # (c) every OTHER `<dir>/<name>.md` under a directory a pointer named. classify-repo.sh's
     # own note-name regex is broader than 4-hex, so widen to the DERIVED directory. Cheap: one
     # extra grep per DISTINCT notes directory (normally exactly one).
     for f in "${cands[@]}"; do
@@ -159,16 +159,16 @@ repo_sig() {
   orphans="$(git -C "$path" for-each-ref --format='%(refname:short) %(objectname)' refs/heads/relay/orphan/ 2>/dev/null || true)"
   block="$(toml_block "$repo")"
   roadmap="$(cat "$path/ROADMAP.md" 2>/dev/null || true)"
-  # routed:42c9/8b21 — ROADMAP.archive.md is a CLASSIFIER INPUT since the archive-blindness
+  # routed:42c9/8b21: ROADMAP.archive.md is a CLASSIFIER INPUT since the archive-blindness
   # fixes: resolve-gates.sh resolves `gated-on:` targets over it, and BOTH classify-repo.sh
   # and gather-repo-state.sh call resolve-gates.sh. Archiving a gate target flips it from
   # dangling to satisfied and can change the verdict, so it MUST move the sig or the cache
   # serves a stale one. `git status --porcelain` only accidentally covered the file's
-  # APPEARANCE (as an untracked entry) and never its CONTENT — and not even that once it is
+  # APPEARANCE (as an untracked entry) and never its CONTENT, and not even that once it is
   # committed. Over-hashing is free here; under-invalidation is this cache's only hazard.
   # (`2>/dev/null` on the cat: a repo with no archive is a normal state, not an error.)
   roadmap_archive="$(cat "$path/ROADMAP.archive.md" 2>/dev/null || true)"
-  # id:e96c — ledger CONTENT hashes + the pointed-to ledger-note detail files. See
+  # id:e96c: ledger CONTENT hashes + the pointed-to ledger-note detail files. See
   # ledger_notes_section() above for the rationale and the fail-open terms. Errors are NOT
   # swallowed into an empty section (that would be a CONFIDENT sig over unread input): a
   # failure is logged and replaced by a nonce, which forces a re-classify.
@@ -176,10 +176,10 @@ repo_sig() {
     log "fail-open: ledger_notes_section failed for $repo ($path) — nonce forces re-classify"
     ledger_notes="ERROR $(date +%s%N 2>/dev/null || date +%s)-$RANDOM"
   fi
-  # substantive_unaudited (id:e833 — 2a fix): mirrors gather-repo-state.sh's id:365b
+  # substantive_unaudited (id:e833, 2a fix): mirrors gather-repo-state.sh's id:365b
   # computation so the sig captures the AUDIT TARGET (which commit the audit ref
   # resolves to), not just the tag NAME/message. A force-retagged ckpt (same name,
-  # same annotation, different target commit — e.g. the audit anchor advancing from
+  # same annotation, different target commit, e.g. the audit anchor advancing from
   # execute-state to review-state) previously left `tags`/`tagmsg` byte-identical,
   # so the sig silently missed a real state change (the execute→review sig-collision
   # gap, id:3134/e833). Recomputing the same substantive-work verdict here closes it
@@ -220,7 +220,7 @@ repo_sig() {
   fi
   # Decision-queue records for this repo (open AND resolved): the classifier's verdict
   # depends on them via unpromoted-scan's case-g exclusion (id:47f1) + the resolved-record
-  # exclusion (2026-07-02 answer-then-re-ask fix) — the queue lives OUTSIDE the repo, so no
+  # exclusion (2026-07-02 answer-then-re-ask fix). The queue lives OUTSIDE the repo, so no
   # git-derived section covers it. Filing or resolving an entry must invalidate the sig.
   # Fail-open: missing helper / empty queue → empty section (over-hashing is the safe side).
   dq="$("$(dirname "${BASH_SOURCE[0]}")/decision-queue.sh" list --repo "$repo" --all 2>/dev/null || true)"
@@ -240,11 +240,11 @@ repo_sig() {
     printf '== dq ==\n%s\n'        "$dq"
     printf '== inlive ==\n%s\n'    "$inlive"
     printf '== substantive_unaudited ==\n%s\n' "$substantive_unaudited"
-    # id:8123 — CHAIN-END fact. classify-verdict.sh takes `chain_ended` as a named input and
+    # id:8123: CHAIN-END fact. classify-verdict.sh takes `chain_ended` as a named input and
     # ranks `review` above `execute` under it, so it is a REAL classifier signal and MUST be in
     # this blob. UNDER-invalidation is this cache's only hazard: without this section a
     # chain-end verdict could be served STALE from last round's cached (execute) verdict and the
-    # forced review would silently never fire — in exactly the situation the cadence fix exists
+    # forced review would silently never fire, in exactly the situation the cadence fix exists
     # for. relay-loop.js's integrator step 7a passes "chain_ended":true when the repo's chain
     # just ended, so its postSig deliberately differs from the plain next-round sig (a cache
     # MISS → re-classify; over-invalidation is the safe side, per the contract at the top).
@@ -258,7 +258,7 @@ while [[ "$i" -lt "$n" ]]; do
   repo="$(printf '%s' "$input" | jq -r ".repos[$i].repo")"
   path="$(printf '%s' "$input" | jq -r ".repos[$i].path")"
   inlive="$(printf '%s' "$input" | jq -r --arg r "$repo" '((.liveClaims // []) | index($r)) != null')"
-  # id:8123 — optional per-repo chain-end fact (absent → false; any non-null/non-false → true).
+  # id:8123: optional per-repo chain-end fact (absent → false; any non-null/non-false → true).
   chain_ended="$(printf '%s' "$input" | jq -r ".repos[$i].chain_ended // false | if . == false or . == null then \"false\" else \"true\" end")"
   sig="$(repo_sig "$repo" "$path" "$inlive" "$chain_ended")"
   jq -cn --arg repo "$repo" --arg sig "$sig" '{repo:$repo,sig:$sig}'

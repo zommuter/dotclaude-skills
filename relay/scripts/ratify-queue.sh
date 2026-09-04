@@ -170,7 +170,7 @@ with open(path, encoding="utf-8", errors="replace") as fh:
             flat(rec.get("summary", "")), flat(pending),
             # id:99b7(b) — the retire reason, LAST so no older reader's positions shift.
             flat(rec.get("retire_reason", "")),
-            # id:3c04 — the RESOLVE note. `resolve --note` has always WRITTEN this field
+            # id:3c04: the RESOLVE note. `resolve --note` has always WRITTEN this field
             # and nothing ever projected it, so it was write-only: `list` and `show` print
             # `reason`, which is empty for a resolved entry, and the note existed only in
             # the raw JSONL. That matters because the docstring's semantics ("the owner
@@ -447,7 +447,7 @@ case "$cmd" in
           # id:99b7(b) — a RETIRED entry is closed WITHOUT the remote carrying it, so the
           # status alone is not enough: print the recorded reason right beside it, or the
           # listing reads identically to a genuine, verified resolve.
-          # id:3c04 — a RESOLVED entry may carry a note that DISQUALIFIES the plain reading
+          # id:3c04: a RESOLVED entry may carry a note that DISQUALIFIES the plain reading
           # ("the owner reviewed and pushed this"). Print it in the same slot as the retire
           # reason: an unread disqualifier is the same as no disqualifier.
           _closed_why="${reason:-$note}"
@@ -502,7 +502,7 @@ case "$cmd" in
       printf 'note      CLOSED WITHOUT PUBLISHING: the remote does NOT carry %s and never will.\n' "$merged"
       exit 0
     fi
-    # id:3c04 — a RESOLVED entry is CLOSED. Two bugs lived here: its `--note` was never
+    # id:3c04: a RESOLVED entry is CLOSED. Two bugs lived here: its `--note` was never
     # shown (so a disqualifying note was invisible), and the push/resolve/retire action
     # lines below printed anyway, so a closed entry read as outstanding work. Both make a
     # settled record look like something it is not, which is the failure this queue exists

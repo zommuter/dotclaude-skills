@@ -49,7 +49,7 @@ trap 'rm -r -- "$tmp"' EXIT
 SUF=" (archived — see ROADMAP.archive.md)"
 
 make_repo() {
-    # make_repo <dir> <file> <content>  — seeds a git repo with one committed ledger
+    # make_repo <dir> <file> <content>  -- seeds a git repo with one committed ledger
     local repo="$1" file="$2" content="$3"
     mkdir -p "$repo"
     git -C "$repo" init -q
@@ -61,7 +61,7 @@ make_repo() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Case 1 — roadmap-archive.sh, prior-commit-done item: NOTHING is left behind in
+# Case 1: roadmap-archive.sh, prior-commit-done item. NOTHING is left behind in
 # the live file, and the whole block (header + body) is in the archive.
 # ─────────────────────────────────────────────────────────────────────────────
 repo1="$tmp/repo1"
@@ -97,7 +97,7 @@ grep -qF 'id:5e6f' "$repo1/ROADMAP.md" || fail "the open item was removed from R
 pass "open items are untouched"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Case 2 — TRIANGULATION (id:108e): three archived items via TWO DIFFERENT gate
+# Case 2: TRIANGULATION (id:108e). Three archived items via TWO DIFFERENT gate
 # paths (prior-commit-done and the ≥30-day `done YYYY-MM-DD` age gate). Each one
 # leaves the live file entirely and lands in the archive with its own title; the
 # surviving open item keeps its place. Hard-coding one fixture line cannot satisfy this.
@@ -116,7 +116,7 @@ make_repo "$repo2" ROADMAP.md "# Roadmap
   body of the second.
 "
 # Age-gated third item, ticked only in the working tree (NOT in the prior commit),
-# so it can only be archived via the date gate — a genuinely different codepath.
+# so it can only be archived via the date gate, a genuinely different codepath.
 printf '%s\n' "- [x] **Age-gated thing** done $OLD <!-- id:dd44 -->" >> "$repo2/ROADMAP.md"
 printf '%s\n' "  body of the age-gated one." >> "$repo2/ROADMAP.md"
 
@@ -141,7 +141,7 @@ grep -qF 'body of the first' "$repo2/ROADMAP.md" \
 pass "no archived body remains live"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Case 3 — IDEMPOTENCE, the property the stub used to buy. Run N+1 must be a
+# Case 3: IDEMPOTENCE, the property the stub used to buy. Run N+1 must be a
 # no-op: the live file unchanged and the archive not grown. Without a stub this
 # is carried by the ARCHIVE-MEMBERSHIP guard in lib-archive-idempotency.py.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ after_arch="$(cat "$repo3/ROADMAP.archive.md" 2>/dev/null || true)"
 pass "idempotent across runs with NO stub: run 2 changes nothing and duplicates nothing"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Case 4 — archive-closed.sh (the SECOND generic archiver) behaves the same way
+# Case 4: archive-closed.sh (the SECOND generic archiver) behaves the same way
 # on the ROADMAP ledger: no stub, whole block moved.
 # ─────────────────────────────────────────────────────────────────────────────
 repo4="$tmp/repo4"
@@ -212,7 +212,7 @@ HOME="$tmp" "$CLOSED_SCRIPT" "$repo4" >/dev/null 2>&1 || true
 pass "archive-closed.sh is idempotent without a stub"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Case 5 — THE PREMISE CHECK. cd9c existed because orphan-scan --cross-ledger was
+# Case 5: THE PREMISE CHECK. cd9c existed because orphan-scan --cross-ledger was
 # believed to read only the live ROADMAP.md. routed:42c9 widened it to the archive.
 # Verify that HERE rather than trusting the prose: with the ROADMAP twin archived
 # and no stub, --cross-ledger must NOT report drift; and it still must report a

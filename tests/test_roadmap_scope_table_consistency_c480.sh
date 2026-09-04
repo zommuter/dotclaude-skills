@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 # roadmap:c480
-# RED SPEC for id:c480 — the id:6b35 scope table is STALE, and nothing notices when it
+# RED SPEC for id:c480. The id:6b35 scope table is STALE, and nothing notices when it
 # drifts (meeting docs/meeting-notes/2026-07-29-0911-mechanical-hop-proxy-coupling.md).
 #
 # THE LIVE DEFECT: ROADMAP.md's id:6b35 block carries an
 #   "**OUT of scope — the 7 NON-eligible hops MUST STAY `model:'haiku'`**"
 # bullet that lists `release:`. That stopped being true when id:f7d3 split and converted
-# that hop — relay-loop.js now dispatches `label: `release:…`` as `model: 'bash'`, and
+# that hop. relay-loop.js now dispatches `label: `release:…`` as `model: 'bash'`, and
 # tests/test_release_hop_mechanical_f7d3.sh asserts exactly that. An implementer working
 # the table faithfully would "restore" model:'haiku' and re-introduce the invariant
 # violation f7d3 removed.
 #
-# THE DURABLE FIX is not the text edit — it is the missing CHECK. The table is a ledger
+# THE DURABLE FIX is not the text edit; it is the missing CHECK. The table is a ledger
 # claim about code; it drifted the moment the code changed and nothing detected it for a
 # week. So this spec pins BOTH: (§1) the specific contradiction is gone, and (§2-§5) a
 # consistency rule exists in relay/scripts/roadmap-lint.sh that fires on the drift.
 #
-# CONTRACT for the rule (implement it INSIDE roadmap-lint.sh — do not add a new one-off
+# CONTRACT for the rule (implement it INSIDE roadmap-lint.sh; do not add a new one-off
 # scanner; this repo's "use existing tools" rule):
 #   * It runs on the DEFAULT lint invocation (`roadmap-lint.sh <roadmap.md>`), so every
-#     existing caller inherits it — no opt-in flag to forget (id:de36: a check nothing
+#     existing caller inherits it, no opt-in flag to forget (id:de36: a check nothing
 #     invokes is not a check).
 #   * It locates relay-loop.js as `<dir-of-roadmap>/relay/scripts/relay-loop.js`.
 #     ABSENT ⇒ skip LOUDLY (a message), never silently.
-#   * Hop names are PARSED FROM THE ROADMAP ITSELF — the `| \`hop\` | … |` rows of the
+#   * Hop names are PARSED FROM THE ROADMAP ITSELF: the `| \`hop\` | … |` rows of the
 #     CONVERTIBLE table, and the backticked names in the OUT-of-scope bullet. A hardcoded
 #     hop list is the same drift one level down and §5 fails it.
 #   * For each hop the ROADMAP claims MUST STAY `model:'haiku'`: if relay-loop.js
@@ -32,7 +32,7 @@
 #     dispatches it as `model: 'haiku'` ⇒ VIOLATION. Both directions.
 #   * A violation prints a line containing the token SCOPE-TABLE-DRIFT and the hop name,
 #     and exits NON-ZERO (this is a factual code/ledger contradiction, not a doctrine
-#     WARN — it must not need --strict).
+#     WARN; it must not need --strict).
 #
 # Hermetic: fixtures in mktemp -d; no ~/.claude, no network, no writes to the repo.
 set -euo pipefail
@@ -57,7 +57,7 @@ trap 'rm -rf "$TMP"' EXIT
 # in the other direction without anyone noticing.
 #
 # The mechanical model is no longer a literal at every hop: commit 490ac6e (id:4239)
-# replaced the last hardcoded `model: 'bash'` sites — including this one — with the
+# replaced the last hardcoded `model: 'bash'` sites, including this one, with the
 # MECH_MODEL indirection (`const MECH_MODEL = MECH_FALLBACK === 'fallback-haiku' ?
 # 'haiku' : 'bash'`). So "f7d3 still holds" means the release hop dispatches EITHER a
 # literal `model: 'bash'` OR `model: MECH_MODEL`; what a genuine f7d3 revert would look

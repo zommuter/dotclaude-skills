@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roadmap-archive.sh — move done [x] items from ROADMAP.md into ROADMAP.archive.md.
+# roadmap-archive.sh -- move done [x] items from ROADMAP.md into ROADMAP.archive.md.
 # Usage: roadmap-archive.sh [repo-root]  (default: git rev-parse --show-toplevel)
 #
 # Conservative gate (mirrors archive-done.sh):
@@ -7,8 +7,8 @@
 #   - Items whose first line carries a trailing "done YYYY-MM-DD[.]" that is ≥30 days old.
 # Items ticked only in the working tree (same-run) are NEVER archived.
 #
-# Moves each top-level "- [x] …" line PLUS its WHOLE block — every line up to the
-# next top-level bullet ("- [") or any heading (#..######) — as one unit, preserving
+# Moves each top-level "- [x] …" line PLUS its WHOLE block -- every line up to the
+# next top-level bullet ("- [") or any heading (#..######) -- as one unit, preserving
 # the <!-- id:XXXX --> token and original text verbatim. This also captures column-0
 # prose paragraphs and "> " blockquotes in the item's body (not just indented lines).
 #
@@ -85,7 +85,7 @@ if git -C "$REPO_ABS" show "HEAD:$ROADMAP_REL" 2>/dev/null \
    | grep -E '^- \[x\]' > "$PRIOR_DONE_FILE"; then
     : # populated
 else
-    : # empty — no prior-commit done items (also fine)
+    : # empty; no prior-commit done items (also fine)
 fi
 
 python3 - "$ROADMAP_FILE" "$ARCHIVE_FILE" "$cutoff" "$PRIOR_DONE_FILE" "$SCRIPT_DIR" <<'PYEOF'
@@ -100,7 +100,7 @@ prior_file   = Path(sys.argv[4])
 script_dir   = sys.argv[5]
 
 # ── THE idempotency test, in ONE place (id:2eba / id:4983). Loaded by path because this
-#    is a heredoc with no __file__ — the same idiom lib-pool-runs.py uses. A failure to
+#    is a heredoc with no __file__, the same idiom lib-pool-runs.py uses. A failure to
 #    load is NOT swallowed: an archiver without its idempotency test duplicates bodies.
 _spec = importlib.util.spec_from_file_location(
     "relay_lib_archive_idempotency",
@@ -119,28 +119,28 @@ lines = roadmap_path.read_text().splitlines(keepends=True)
 # Regex to detect a top-level bullet (no leading whitespace) that is done.
 top_done_re = re.compile(r'^- \[x\]')
 # Regex for "done YYYY-MM-DD[.]" anywhere on the first line of a done item.
-# Does NOT require end-of-line — items may carry trailing <!-- id:XXXX --> comments.
+# Does NOT require end-of-line: items may carry trailing <!-- id:XXXX --> comments.
 date_re     = re.compile(r'\bdone (\d{4}-\d{2}-\d{2})\.?', re.IGNORECASE)
-# Regex for any top-level bullet (open or done) — no leading whitespace, starts "- [".
+# Regex for any top-level bullet (open or done): no leading whitespace, starts "- [".
 top_bullet_re = re.compile(r'^- \[')
 # ── Already-archived guard (routed:f833 / loderite id:2ab3-B; RE-BASED by id:2eba) ──────
 # An item that is already in ROADMAP.archive.md is BY CONSTRUCTION `- [x]` + an id and is
-# present in the prior commit — so without this guard the archiver eats its own successor's
+# present in the prior commit, so without this guard the archiver eats its own successor's
 # output: it re-appends the body to ROADMAP.archive.md, duplicating ids there.
-# Reproduced in the fleet: loderite id:154a restored 59 stubs at 1dc91f6, and c9059f0 — the
-# SAME relay run, 12 minutes later — deleted 58 of them; cartulary accumulated up to 9
+# Reproduced in the fleet: loderite id:154a restored 59 stubs at 1dc91f6, and c9059f0, the
+# SAME relay run 12 minutes later, deleted 58 of them; cartulary accumulated up to 9
 # duplicate bodies per id.
 #
 # The test USED to be "does this line carry the archive stub suffix?". Since id:2eba no
 # stub is written, so the test is ARCHIVE MEMBERSHIP instead: is this id already a `- [x]`
-# item line in ROADMAP.archive.md? Strictly stronger — it also catches a closed live item
+# item line in ROADMAP.archive.md? Strictly stronger: it also catches a closed live item
 # whose stub was rewritten away by some other pass, which is a live, measured state in this
 # repo (six em-dash-migration seams, each already duplicated TWICE in the archive).
 # Definition + the legacy-stub fallback: relay/scripts/lib-archive-idempotency.py.
 archived_ids = _ai.archived_ids(archive_path)
 def already_archived(line):
     return _ai.already_archived(line, archived_ids)
-# Regex for a ## or deeper section heading (matches H1 too — H1 is protected separately).
+# Regex for a ## or deeper section heading (matches H1 too; H1 is protected separately).
 heading_re  = re.compile(r'^#{1,6}\s')
 
 PROTECTED_TEXTS = {'items', 'current', 'done', 'backlog'}
@@ -170,7 +170,7 @@ def heading_info(line):
 def is_protected(line):
     info = heading_info(line)
     if info is None:
-        return True  # be conservative — shouldn't happen for a heading_re match
+        return True  # be conservative; shouldn't happen for a heading_re match
     level, text = info
     if level == 1:
         return True
@@ -220,8 +220,8 @@ def body_is_ambiguous(idx, unit):
     return disposition.get(k) == 'keep'
 while i < n:
     line = lines[i]
-    # An already-archived line is classified `keep`, never `arch` (routed:f833, id:2eba) —
-    # it falls through to the else-branch below and stays in place, exactly as written, and
+    # An already-archived line is classified `keep`, never `arch` (routed:f833, id:2eba).
+    # It falls through to the else-branch below and stays in place, exactly as written, and
     # is reported LOUDLY at the end of the run.
     if top_done_re.match(line) and already_archived(line):
         already.append(id_of(line))
@@ -286,7 +286,7 @@ while i < n:
             archived_count_by_heading[owning] = archived_count_by_heading.get(owning, 0) + 1
             i = j
         else:
-            # Same-run tick — leave it in place.
+            # Same-run tick: leave it in place.
             disposition[i] = 'keep'
             entries.append(('keep', line, i))
             i += 1
@@ -300,7 +300,7 @@ def report_deferrals():
     """LOUD report for every item this run refused to move (routed:71ed, id:2eba). Never a
     silent skip: an unannounced deferral is the same defect class wearing a different coat
     (id:4347). Exit stays 0 so the rest of the run still archives; integrate.sh reads a
-    non-zero exit as EX_ARCHIVE. Runs on BOTH exit paths, including nothing-to-archive —
+    non-zero exit as EX_ARCHIVE. Runs on BOTH exit paths, including nothing-to-archive:
     the already-archived report in particular fires precisely when nothing else does."""
     for arch_id, owner_id in deferred:
         a = f"id:{arch_id}" if arch_id else "an item with no id"
@@ -350,7 +350,7 @@ for H in heading_indices:
     if archived_count_by_heading.get(H, 0) == 0:
         continue  # nothing archived under it this run (incl. already-empty)
     if surviving_bullet.get(H):
-        continue  # items remain under this heading — do not move it
+        continue  # items remain under this heading; do not move it
     moved.add(H)
 
 # ── Pass 3: stream keep-lines and archive-lines in ORIGINAL document order.
@@ -383,12 +383,12 @@ for e in entries:
             else:
                 keep_out.append(line)
     else:  # ('arch', block, owning)
-        # id:2eba — NOTHING is left behind in the live ledger. The whole block moves.
+        # id:2eba: NOTHING is left behind in the live ledger. The whole block moves.
         # The id keeps resolving because orphan-scan reads ROADMAP.md UNION
         # ROADMAP.archive.md on every leg that matters (routed:42c9).
         out_block = e[1]
         if last_appended_heading:
-            # First item directly under a just-moved heading — no separator, so
+            # First item directly under a just-moved heading: no separator, so
             # the heading and its item are adjacent in the archive.
             arch_out.extend(out_block)
         else:
@@ -405,7 +405,7 @@ with archive_path.open('a') as af:
         af.write(bl if bl.endswith('\n') else bl + '\n')
 
 # Write the surviving lines back to ROADMAP.md.
-# Preserve the original content exactly (no blank-line collapsing — ROADMAP
+# Preserve the original content exactly (no blank-line collapsing; ROADMAP
 # has structural gaps between items that must be preserved).
 roadmap_path.write_text(''.join(keep_out))
 

@@ -632,7 +632,7 @@ for ((_as_i = 0; _as_i < ${#_rl_lines[@]}; _as_i++)); do
     if [[ "$_as_tok" =~ ^id:([0-9a-fA-F]{4})$ ]]; then
       _as_t="${BASH_REMATCH[1]}"
       _as_tl="${_as_t,,}"
-      # id:2eba — ROADMAP.archive.md joins the resolution set for the same reason it
+      # id:2eba: ROADMAP.archive.md joins the resolution set for the same reason it
       # joined DEAD-GATE's: with the archive stub gone, a citation of a shipped item
       # would otherwise read as dangling.
       if [[ -n "${RL_GATE_ROADMAP[$_as_t]+x}" || -n "${RL_GATE_TODO[$_as_t]+x}" || -n "${RL_GATE_ARCHIVE[$_as_t]+x}" \
@@ -884,7 +884,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
       [[ -z "$_dg_t" ]] && continue
       # A ROADMAP checkbox (open or ticked) — not a dead gate.
       [[ -n "${RL_GATE_ROADMAP[$_dg_t]+x}" ]] && continue
-      # An ARCHIVED ROADMAP item (id:2eba) — it was promoted and shipped, so the gate is
+      # An ARCHIVED ROADMAP item (id:2eba). It was promoted and shipped, so the gate is
       # SATISFIED. Same id:65f5 reason a ticked live item passes; see the map comment.
       [[ -n "${RL_GATE_ROADMAP_ARCHIVE[$_dg_t]+x}" ]] && continue
       if [[ -n "${RL_GATE_ARCHIVE[$_dg_t]+x}" ]]; then
@@ -1139,7 +1139,7 @@ PY
       echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: the corpus still mentions 'CONVERTIBLE hops' but NO hop table parsed. The table moved or was reworded past this parser, so this check is silently verifying NOTHING (id:c480/id:40c0). Re-anchor the parser; do not delete the check." >&2
       return 1
     fi
-    return 0   # this repo genuinely carries no scope table — nothing to check
+    return 0   # this repo genuinely carries no scope table; nothing to check
   fi
 
   if [[ ! -f "$loop_js" ]]; then

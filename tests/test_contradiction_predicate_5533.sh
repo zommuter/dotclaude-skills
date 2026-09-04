@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roadmap:5533 — Shared two-directional state-claim contradiction predicate (AMENDS
+# roadmap:5533 -- Shared two-directional state-claim contradiction predicate (AMENDS
 # id:dafa). ONE engine (relay/scripts/lib-state-claim.sh), TWO callers:
 # roadmap-lint.sh's DECIDED-LEFT-OPEN rule and todo-conformance.sh's twin check.
 #
@@ -57,7 +57,7 @@ pass "a clean open item fires nothing"
 
 # Backticked bare tokens are not edges either (mirrors id:8913's must-not-fire class);
 # a terminal word appearing only as a backtick-quoted CODE EXAMPLE would still count
-# under this simpler visible-text predicate (out of scope — this predicate is a
+# under this simpler visible-text predicate (out of scope: this predicate is a
 # textual assertion check, not the anchored `settles:`/`decided-in:` edge grammar).
 
 # --- roadmap-lint.sh wiring: uses the shared engine, preserves existing wording --
@@ -66,7 +66,7 @@ grep -q 'lib-state-claim.sh' "$LINT" || fail "roadmap-lint.sh does not source li
 pass "roadmap-lint.sh sources the shared engine"
 
 # A sibling TODO.md twin (id:213a's separate NO-ACCEPTANCE-NO-TWIN doctrine rule)
-# for the e00X ids below — none carry an inline Acceptance/Tests/Done-check
+# for the e00X ids below. None carry an inline Acceptance/Tests/Done-check
 # clause, and this file's concern is the state-claim predicate only, so the twin
 # keeps id:213a's rule out of the "must not fire" assertions here. Overwritten
 # below by the todo-conformance TODO fixture (same ids), after this lint check
@@ -173,7 +173,7 @@ done
 pass "cross-linter invariant holds: roadmap-lint.sh and todo-conformance.sh agree on every fixture line"
 
 # --- ground-truth regression: the id:931c line (reverted from the refuted 'obsoleted'
-#     prose reword) must NOT fire — it is scoped to id:f599, not to 931c itself. -----
+#     prose reword) must NOT fire: it is scoped to id:f599, not to 931c itself. -----
 # RE-ANCHORED 2026-09-03 to the LEDGER + NOTES UNION. id:931c's annotation was relocated to
 # docs/ledger-notes/931c.md by the id:0d7c shrinker (its head line was 994 chars; the cut
 # point could not be found until the after-anchor fix landed). The wording this guards is

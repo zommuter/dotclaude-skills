@@ -50,7 +50,7 @@ report() { echo "FAIL: $1"; fail=1; }
 # ambiguous. Its "INERT" notice goes to stderr, which is captured separately.
 NOBASE="$tmp/no-such-baseline.txt"
 
-# run <flags...> — capture stdout/stderr/rc; `out.txt` keeps only the grammar findings, so
+# run <flags...> -- capture stdout/stderr/rc; `out.txt` keeps only the grammar findings, so
 # an unrelated rule of this linter (shape-prose, dep-prose-untyped) cannot be asserted here
 # by accident. `raw.txt` keeps everything for the diagnostics.
 run() {
@@ -61,7 +61,7 @@ run() {
   grep '^grammar-' "$tmp/raw.txt" > "$tmp/out.txt" || true
 }
 
-# has <class> <lineno> — the finding must be exactly this class on exactly this line.
+# has <class> <lineno> -- the finding must be exactly this class on exactly this line.
 has() {
   grep -qP "^$1[^\t]*\t$2\t" "$tmp/out.txt" \
     || report "$3

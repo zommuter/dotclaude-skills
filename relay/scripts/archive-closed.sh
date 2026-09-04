@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# archive-closed.sh — TWIN-SAFELY archive closed `- [x]` items from BOTH
+# archive-closed.sh -- TWIN-SAFELY archive closed `- [x]` items from BOTH
 #   TODO.md and ROADMAP.md into their `*.archive.md` siblings. Also archives
 #   REVIEW_ME.md -> REVIEW_ME.archive.md as a third source; REVIEW_ME items are
 #   NOT cross-ledger twins, so REVIEW_ME archiving uses an empty twin map and is
@@ -9,16 +9,16 @@
 #   <repo-root> defaults to `git rev-parse --show-toplevel`.
 #
 # --only <ledger> (id:046a) restricts the run to ONE source ledger. The DEFAULT is
-# unchanged — all three — so every existing caller and test behaves exactly as before.
+# unchanged (all three), so every existing caller and test behaves exactly as before.
 #
 # WHY THE FLAG EXISTS: integrate.sh step 6c invokes this archiver automatically, and it
 # must invoke it as `--only review_me`. Two independent reasons, both measured:
 #   • ROADMAP.md is ALREADY archived one step earlier (step 6b, roadmap-archive.sh). Running
 #     both over the same ledger in the same integrate is a second archiver with its own stub
-#     grammar over the same lines — the collision id:fdc4 says to look at BEFORE either is
+#     grammar over the same lines. That is the collision id:fdc4 says to look at BEFORE either is
 #     wired anywhere.
-#   • The measured relief says REVIEW_ME is the only ledger worth it: REVIEW_ME 30.3–91.0%,
-#     TODO 2.7–56.1%, ROADMAP −0.5% to +3.0% — NET-NEGATIVE for two repos, because the
+#   • The measured relief says REVIEW_ME is the only ledger worth it: REVIEW_ME 30.3-91.0%,
+#     TODO 2.7-56.1%, ROADMAP -0.5% to +3.0%, NET-NEGATIVE for two repos, because the
 #     id:cd9c stub reproduces the header line verbatim, so a single-line item's stub is
 #     LONGER than what it replaced. ROADMAP.md structurally cannot shrink via archiving.
 # TODO.md is likewise left to its own owner-facing path (todo-update/archive-done.sh); it is
@@ -30,13 +30,13 @@
 #
 # Rationale: closed items clutter both ledgers and get caught by lane migration.
 # Unlike todo-update/archive-done.sh (TODO-only, age-gated), this archives ALL
-# qualifying closed items from BOTH ledgers, un-age-gated — but SAFELY w.r.t.
+# qualifying closed items from BOTH ledgers, un-age-gated, but SAFELY w.r.t.
 # meeting/orphan-scan.sh --cross-ledger, which correlates TODO<->ROADMAP by
 # `<!-- id:XXXX -->` token (single-id-two-views).
 #
 # TWIN-SAFE RULE: for an item bearing <!-- id:XXXX -->, only archive it when its
 # cross-ledger twin is ALSO closed `[x]` OR absent. NEVER archive a closed item
-# whose twin in the OTHER ledger is still open `- [ ]` — that is exactly the
+# whose twin in the OTHER ledger is still open `- [ ]`. That is exactly the
 # drift state orphan-scan --cross-ledger guards; archiving one side would hide
 # it. An item with NO id has no twin → safe to archive from its own ledger.
 #
@@ -58,10 +58,10 @@
 # sources now behave identically (before this, ROADMAP.md alone got a stub).
 #
 # The stub used to double as the idempotency guard. It is REPLACED, not deleted: the
-# test is now ARCHIVE MEMBERSHIP — "is this id already a `- [x]` item line in the
-# matching *.archive.md?" — which is a pure read of the archive and cannot be defeated
+# test is now ARCHIVE MEMBERSHIP: "is this id already a `- [x]` item line in the
+# matching *.archive.md?", which is a pure read of the archive and cannot be defeated
 # by the stub being absent. It lives in ONE place, shared with roadmap-archive.sh:
-# relay/scripts/lib-archive-idempotency.py (id:4983 — make one source serve both).
+# relay/scripts/lib-archive-idempotency.py (id:4983: make one source serve both).
 # Applying it to all three ledgers (not just ROADMAP) is a strict gain: it is what stops
 # a re-added closed item duplicating its body into TODO.archive.md / REVIEW_ME.archive.md.
 
@@ -104,7 +104,7 @@ only    = sys.argv[3] if len(sys.argv) > 3 else 'all'
 script_dir = sys.argv[4]
 
 # ── THE idempotency test, in ONE place (id:2eba / id:4983). Loaded by path because this
-#    is a heredoc with no __file__ — the same idiom lib-pool-runs.py uses. A failure to
+#    is a heredoc with no __file__, the same idiom lib-pool-runs.py uses. A failure to
 #    load is NOT swallowed: an archiver without its idempotency test duplicates bodies.
 _spec = importlib.util.spec_from_file_location(
     "relay_lib_archive_idempotency",
@@ -117,7 +117,7 @@ HEADING_RE = re.compile(r'^#{1,6}\s')
 # Top-level (indent 0) checkbox bullet only.
 TOPBULLET  = re.compile(r'^- \[([ xX])\] ')
 
-# id:2eba — the already-archived test. This file USED to carry its own hand-mirrored
+# id:2eba: the already-archived test. This file USED to carry its own hand-mirrored
 # copy of STUB_SUFFIX / STUB_LINE_RE, and that copy had silently dropped the
 # load-bearing `.*` between the id marker and the suffix (cartulary 2026-08-14,
 # routed:4a12), re-archiving 24 stubs across the 6 own repos in a single run on
@@ -140,7 +140,7 @@ def heading_info(line):
 def is_protected(line):
     info = heading_info(line)
     if info is None:
-        return True  # be conservative — shouldn't happen for a HEADING_RE match
+        return True  # be conservative; shouldn't happen for a HEADING_RE match
     level, text = info
     if level == 1:
         return True
@@ -233,7 +233,7 @@ def plan(blocks, other_ids, archived):
       ('arch', [block_lines], owning_heading_orig_idx)   archived item block
     A top-level closed [x] block is archived unless it carries an id whose
     cross-ledger twin (in `other_ids`) is still open ' ', or its own id is already
-    present in `archived` (the id set of the matching *.archive.md — id:2eba)."""
+    present in `archived` (the id set of the matching *.archive.md; id:2eba)."""
     heading_indices = [start for kind, payload, start in blocks
                         if kind == 'other' and HEADING_RE.match(payload[0])]
     entries = []
@@ -256,14 +256,14 @@ def plan(blocks, other_ids, archived):
             entries.append(('kb', block))
             continue
         if _ai.already_archived(block[0], archived):
-            # Already in the archive (or a pre-id:2eba stub) — keep as-is, never
+            # Already in the archive (or a pre-id:2eba stub): keep as-is, never
             # re-archive. Reported LOUDLY by the caller; never a silent skip.
             already.append(_ai.item_id(block[0]))
             entries.append(('kb', block))
             continue
         tk = first_id(block)
         if tk is not None and other_ids.get(tk) == ' ':
-            # Twin still open in the other ledger — MUST NOT archive.
+            # Twin still open in the other ledger: MUST NOT archive.
             skipped.append(tk)
             entries.append(('kb', block))
             continue
@@ -295,7 +295,7 @@ def apply_and_report(name, src_path, blocks, other_ids):
     if blocks is None:
         return
     arch_path = src_path.with_name(src_path.stem + '.archive.md')
-    # id:2eba — the archived-id set is read from the archive BEFORE this run appends.
+    # id:2eba: the archived-id set is read from the archive BEFORE this run appends.
     archived = _ai.archived_ids(arch_path)
     entries, skipped, already, moved, archived_count_by_heading, heading_indices, heading_line = plan(blocks, other_ids, archived)
 
@@ -332,7 +332,7 @@ def apply_and_report(name, src_path, blocks, other_ids):
         if archived_count_by_heading.get(H, 0) == 0:
             continue  # nothing archived under it this run (incl. already-empty)
         if surviving_bullet.get(H):
-            continue  # items remain under this heading — leave it
+            continue  # items remain under this heading; leave it
         moved_headings.add(H)
 
     # Stream kept + archived content in ORIGINAL document order. A moved heading
@@ -365,7 +365,7 @@ def apply_and_report(name, src_path, blocks, other_ids):
             else:
                 keep_out.extend(payload)
         else:  # ('arch', block, owning)
-            # id:2eba — NOTHING is left behind in the live ledger, on any of the three
+            # id:2eba: NOTHING is left behind in the live ledger, on any of the three
             # sources. The whole block moves.
             block = strip_trailing_blanks(e[1])
             if last_appended_heading:
@@ -397,13 +397,13 @@ def apply_and_report(name, src_path, blocks, other_ids):
 
 # --only (id:046a) gates only the WRITE step. `todo_ids`/`road_ids` above are still built
 # from BOTH ledgers' original content, so a scoped run makes exactly the same twin-safe
-# decisions a full run would — narrowing the scope can never turn a twin-open SKIP into an
+# decisions a full run would: narrowing the scope can never turn a twin-open SKIP into an
 # archive.
 if only in ('all', 'todo'):
     apply_and_report('TODO',      todo_path,   todo_blocks,   road_ids)
 if only in ('all', 'roadmap'):
     apply_and_report('ROADMAP',   road_path,   road_blocks,   todo_ids)
-# REVIEW_ME items are NOT cross-ledger twins — pass an empty id map so no twin
+# REVIEW_ME items are NOT cross-ledger twins: pass an empty id map so no twin
 # can ever block or skip an archive decision; archiving is based purely on the
 # item's own [x]/[ ] state.
 if only in ('all', 'review_me'):

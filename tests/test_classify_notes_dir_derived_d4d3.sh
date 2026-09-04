@@ -86,7 +86,7 @@ field() {
 
 size() { wc -c < "$1" | tr -d ' '; }
 
-# write_note <path> <id> — a body big enough that dropping it is unmistakable in the figure.
+# write_note <path> <id> -- a body big enough that dropping it is unmistakable in the figure.
 write_note() {
   local out="$1" id="$2" n=0
   { printf '# %s\n\n## Continuation detail (verbatim, moved from TODO.md)\n\n' "$id"

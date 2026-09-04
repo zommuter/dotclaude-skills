@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roadmap:6b67 — Relay ROADMAP archiver (roadmap-archive.sh).
+# roadmap:6b67 -- Relay ROADMAP archiver (roadmap-archive.sh).
 # Hermetic tests (mktemp only; no ~/.claude or network):
 #   1. Multi-line item-block capture: [x] header + all indented continuations move together.
 #   2. Open item + header preservation: [ ] items and ## headings are NEVER touched.
@@ -59,7 +59,7 @@ grep -q 'Done item one' "$arch"          || fail "T1: done header not in archive
 grep -q 'sub-bullet A' "$arch"           || fail "T1: sub-bullet A not in archive"
 grep -q 'sub-bullet B' "$arch"           || fail "T1: sub-bullet B not in archive"
 grep -q 'continuation prose' "$arch"    || fail "T1: continuation prose not in archive"
-# id:2eba (supersedes id:cd9c): the archiver leaves NOTHING behind — header and body
+# id:2eba (supersedes id:cd9c): the archiver leaves NOTHING behind, header and body
 # both go. The id keeps resolving via ROADMAP.md U ROADMAP.archive.md (routed:42c9).
 grep -q 'Done item one' "$road"          && fail "T1: the done header was left in ROADMAP.md — id:2eba leaves no stub"
 grep -q '(archived — see ROADMAP.archive.md)' "$road" \
@@ -89,7 +89,7 @@ make_repo "$repo3" "# Roadmap
   - detail line
 - [ ] Still open <!-- id:dddd -->
 "
-# The [x] item is already in HEAD — archiving should move it.
+# The [x] item is already in HEAD, so archiving should move it.
 bash "$SCRIPT" "$repo3" 2>/dev/null
 arch3="$repo3/ROADMAP.archive.md"
 road3="$repo3/ROADMAP.md"
@@ -100,7 +100,7 @@ grep -q 'Still open' "$road3"               || fail "T3: open item removed from 
 pass "T3: prior-commit [x] item is archived"
 
 # ─────────────────────────────────────────────────
-# Test 4: Prior-commit gate NEGATIVE (working-tree tick — same-run)
+# Test 4: Prior-commit gate NEGATIVE (working-tree tick, same-run)
 # (item is [x] in working tree but was [ ] in HEAD → NOT archived)
 # ─────────────────────────────────────────────────
 repo4="$tmp/repo4"
@@ -132,7 +132,7 @@ pass "T4: working-tree-ticked item NOT archived (conservative gate)"
 repo5="$tmp/repo5"
 old_date=$(date -d '60 days ago' '+%Y-%m-%d')
 # Commit this as [x] but with the old date in the header (different text, so prior_done won't match
-# unless git HEAD also has it — we'll commit it as [x] to test the aged path independently
+# unless git HEAD also has it, so we'll commit it as [x] to test the aged path independently
 # by using a repo where HEAD has a fresh [x] that doesn't have the age marker).
 # Easiest: commit as OPEN, tick in WTree, but carry the old date.
 make_repo "$repo5" "# Roadmap
@@ -177,7 +177,7 @@ pass "T6: recent-date [x] item (<30 days) NOT archived"
 # ─────────────────────────────────────────────────
 # Test 7: Idempotent no-op on second run
 # ─────────────────────────────────────────────────
-# Run on repo3 again — all done items are already in the archive; ROADMAP.md has
+# Run on repo3 again. All done items are already in the archive; ROADMAP.md has
 # only open items (or was already modified). Re-running must be clean.
 bash "$SCRIPT" "$repo3" 2>/dev/null
 # Archive must not have grown duplicates.
@@ -197,7 +197,7 @@ pass "T8: id token preserved verbatim"
 # ─────────────────────────────────────────────────
 # ## Items is a PROTECTED heading name (Items/Current/Done/Backlog, case-insensitive)
 # so it stays even though all items under it moved to the archive this run.
-# Non-protected transient grouping headers DO move once emptied — see
+# Non-protected transient grouping headers DO move once emptied. See
 # tests/test_roadmap_archive_prose_headers.sh Case B for that behavior.
 grep -q '## Items' "$repo3/ROADMAP.md" \
     || fail "T9: ## Items header was pruned (must be left in place)"
