@@ -78,7 +78,7 @@ make_repo "$repo1" ROADMAP.md "# Roadmap
 "$ARCHIVE_SCRIPT" "$repo1" >/dev/null 2>&1 || true
 
 grep -qF 'id:1a2b' "$repo1/ROADMAP.md" \
-  && fail "id:1a2b still appears in the LIVE ROADMAP.md — id:2eba says archiving leaves NO stub"
+  && fail "id:1a2b still appears in the LIVE ROADMAP.md; id:2eba says archiving leaves NO stub"
 pass "no stub is left behind in the live ledger"
 
 grep -qF "$SUF" "$repo1/ROADMAP.md" \
@@ -125,7 +125,7 @@ printf '%s\n' "  body of the age-gated one." >> "$repo2/ROADMAP.md"
 for pair in "aa11:First archived thing" "cc33:Second archived thing" "dd44:Age-gated thing"; do
     id="${pair%%:*}"; title="${pair#*:}"
     grep -qF "id:$id" "$repo2/ROADMAP.md" \
-      && fail "id:$id ($title) still has a live line — archiving must remove it entirely"
+      && fail "id:$id ($title) still has a live line; archiving must remove it entirely"
     grep -qF "$title" "$repo2/ROADMAP.archive.md" 2>/dev/null \
       || fail "id:$id lost its own title ($title) on the way to the archive"
 done
@@ -133,7 +133,7 @@ pass "each archived item leaves the live file and lands in the archive with its 
 
 order="$(grep -oE 'id:(aa11|bb22|cc33|dd44)' "$repo2/ROADMAP.md" | tr '\n' ' ')"
 [[ "$order" == "id:bb22 " ]] \
-  || fail "the live file should now hold ONLY the open item — got: >>>$order<<<"
+  || fail "the live file should now hold ONLY the open item; got: >>>$order<<<"
 pass "only the open item survives in the live ledger"
 
 grep -qF 'body of the first' "$repo2/ROADMAP.md" \
@@ -157,7 +157,7 @@ make_repo "$repo3" ROADMAP.md "# Roadmap
 
 "$ARCHIVE_SCRIPT" "$repo3" >/dev/null 2>&1 || true
 grep -qF 'id:c0de' "$repo3/ROADMAP.archive.md" 2>/dev/null \
-  || fail "run 1 archived nothing for id:c0de — the idempotence check below would be vacuous"
+  || fail "run 1 archived nothing for id:c0de, so the idempotence check below would be vacuous"
 
 git -C "$repo3" add -A >/dev/null 2>&1 || true
 git -C "$repo3" commit -qm 'after run 1' >/dev/null 2>&1 || true
@@ -169,9 +169,9 @@ after_live="$(cat "$repo3/ROADMAP.md")"
 after_arch="$(cat "$repo3/ROADMAP.archive.md" 2>/dev/null || true)"
 
 [[ "$before_live" == "$after_live" ]] \
-  || fail "run 2 mutated ROADMAP.md — archiving is not idempotent without the stub"
+  || fail "run 2 mutated ROADMAP.md; archiving is not idempotent without the stub"
 [[ "$before_arch" == "$after_arch" ]] \
-  || fail "run 2 grew ROADMAP.archive.md — the archiver duplicated its own output"
+  || fail "run 2 grew ROADMAP.archive.md; the archiver duplicated its own output"
 [[ "$(grep -cF 'id:c0de' "$repo3/ROADMAP.archive.md")" == "1" ]] \
   || fail "id:c0de appears more than once in ROADMAP.archive.md after two runs"
 pass "idempotent across runs with NO stub: run 2 changes nothing and duplicates nothing"
@@ -193,7 +193,7 @@ make_repo "$repo4" ROADMAP.md "# Roadmap
 HOME="$tmp" "$CLOSED_SCRIPT" "$repo4" >/dev/null 2>&1 || true
 
 grep -qF 'id:ee55' "$repo4/ROADMAP.md" \
-  && fail "archive-closed.sh left a live line for id:ee55 — it must leave no stub either"
+  && fail "archive-closed.sh left a live line for id:ee55; it must leave no stub either"
 grep -qF "$SUF" "$repo4/ROADMAP.md" \
   && fail "archive-closed.sh still writes the archive-stub suffix"
 grep -qF 'body that archive-closed must move' "$repo4/ROADMAP.archive.md" 2>/dev/null \
@@ -237,21 +237,21 @@ EOF
 
 os_before="$(bash "$ORPHAN_SCAN" --cross-ledger "$repo5" 2>&1 || true)"
 grep -q '7001' <<<"$os_before" \
-  || fail "case 5: fixture unreached — id:7001 drift was not reported BEFORE archiving"
+  || fail "case 5: fixture unreached; id:7001 drift was not reported BEFORE archiving"
 grep -q '7002' <<<"$os_before" \
-  && fail "case 5: fixture wrong — id:7002 agrees and must not be reported"
+  && fail "case 5: fixture wrong; id:7002 agrees and must not be reported"
 
 HOME="$tmp" "$CLOSED_SCRIPT" "$repo5" >/dev/null 2>&1 || true
 grep -qF 'id:7002' "$repo5/ROADMAP.archive.md" 2>/dev/null \
-  || fail "case 5: id:7002 was not archived — the comparison would be vacuous"
+  || fail "case 5: id:7002 was not archived, so the comparison would be vacuous"
 grep -qF 'id:7002' "$repo5/ROADMAP.md" \
   && fail "case 5: id:7002 left a live line"
 
 os_after="$(bash "$ORPHAN_SCAN" --cross-ledger "$repo5" 2>&1 || true)"
 grep -q '7002' <<<"$os_after" \
-  && { echo "$os_after"; fail "case 5: archiving id:7002 with NO stub invented cross-ledger drift — the archive leg is missing"; }
+  && { echo "$os_after"; fail "case 5: archiving id:7002 with NO stub invented cross-ledger drift; the archive leg is missing"; }
 grep -q '7001' <<<"$os_after" \
   || { echo "$os_after"; fail "case 5: the genuine id:7001 drift stopped being reported"; }
-pass "case 5: orphan-scan --cross-ledger reads the archive — no stub is needed for an id to keep resolving"
+pass "case 5: orphan-scan --cross-ledger reads the archive; no stub is needed for an id to keep resolving"
 
 echo "ALL PASS"

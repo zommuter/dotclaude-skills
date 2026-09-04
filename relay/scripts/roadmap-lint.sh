@@ -612,17 +612,17 @@ for ((_as_i = 0; _as_i < ${#_rl_lines[@]}; _as_i++)); do
 
   if [[ "$_as_has_marker" -eq 1 ]] && ! grep -qiE "$ANSWER_WELLFORMED_RE" <<<"$_as_masked"; then
     violations=$((violations + 1))
-    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} carries a MALFORMED @owner-answered marker — the only accepted form is @owner-answered:YYYY-MM-DD (id:ca14)" >&2
+    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} carries a MALFORMED @owner-answered marker; the only accepted form is @owner-answered:YYYY-MM-DD (id:ca14)" >&2
     echo "  $_as_line" >&2
     report+="  - [${_as_id:-<no id>}] ANSWER-SRC: malformed @owner-answered marker"$'\n'
   elif [[ "$_as_has_marker" -eq 1 && -z "$_as_srcs" ]]; then
     violations=$((violations + 1))
-    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} claims an owner answer but cites NO source — add <!-- answer-src:<path[#anchor]|id:XXXX> --> naming where the answer is recorded; an uncited answer is just another unfalsifiable claim (id:ca14)" >&2
+    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} claims an owner answer but cites NO source; add <!-- answer-src:<path[#anchor]|id:XXXX> --> naming where the answer is recorded; an uncited answer is just another unfalsifiable claim (id:ca14)" >&2
     echo "  $_as_line" >&2
     report+="  - [${_as_id:-<no id>}] ANSWER-SRC: @owner-answered with no citation"$'\n'
   elif [[ "$_as_has_marker" -eq 0 ]]; then
     violations=$((violations + 1))
-    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} carries an answer-src citation with NO @owner-answered:YYYY-MM-DD marker — nothing records WHO answered or WHEN; add the marker or drop the citation (id:ca14)" >&2
+    echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} carries an answer-src citation with NO @owner-answered:YYYY-MM-DD marker, so nothing records WHO answered or WHEN; add the marker or drop the citation (id:ca14)" >&2
     echo "  $_as_line" >&2
     report+="  - [${_as_id:-<no id>}] ANSWER-SRC: citation with no @owner-answered marker"$'\n'
   fi
@@ -641,7 +641,7 @@ for ((_as_i = 0; _as_i < ${#_rl_lines[@]}; _as_i++)); do
         continue
       fi
       violations=$((violations + 1))
-      echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source id:${_as_t}, which resolves NOWHERE (absent from ROADMAP.md, ROADMAP.archive.md, TODO.md and TODO.archive.md) — a dangling citation (id:ca14)" >&2
+      echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source id:${_as_t}, which resolves NOWHERE (absent from ROADMAP.md, ROADMAP.archive.md, TODO.md and TODO.archive.md): a dangling citation (id:ca14)" >&2
       echo "  $_as_line" >&2
       report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling id citation id:${_as_t}"$'\n'
     else
@@ -652,12 +652,12 @@ for ((_as_i = 0; _as_i < ${#_rl_lines[@]}; _as_i++)); do
       [[ "$_as_tok" == *#* ]] && _as_anchor="${_as_tok#*#}"
       if [[ -z "$_as_path" || ! -f "$_rl_dir/$_as_path" ]]; then
         violations=$((violations + 1))
-        echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source ${_as_tok}, but no such FILE exists (resolved repo-relative as ${_rl_dir}/${_as_path}) — a dangling citation (id:ca14)" >&2
+        echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source ${_as_tok}, but no such FILE exists (resolved repo-relative as ${_rl_dir}/${_as_path}): a dangling citation (id:ca14)" >&2
         echo "  $_as_line" >&2
         report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling path citation ${_as_tok}"$'\n'
       elif [[ -n "$_as_anchor" ]] && ! _as_anchor_resolves "$_rl_dir/$_as_path" "$_as_anchor"; then
         violations=$((violations + 1))
-        echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source ${_as_tok}, but no heading in ${_as_path} matches the #${_as_anchor} anchor — a dangling citation (id:ca14)" >&2
+        echo "roadmap-lint: ERROR — ANSWER-SRC: item ${_as_id:-<no id>} cites answer source ${_as_tok}, but no heading in ${_as_path} matches the #${_as_anchor} anchor: a dangling citation (id:ca14)" >&2
         echo "  $_as_line" >&2
         report+="  - [${_as_id:-<no id>}] ANSWER-SRC: dangling anchor citation ${_as_tok}"$'\n'
       fi
@@ -737,7 +737,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
       _pp_tag="${BASH_REMATCH[0]}"
       _pp_id="$(item_id "$line")"
       violations=$((violations + 1))
-      echo "roadmap-lint: ERROR — PARKED-POOL-LANE: open item ${_pp_id:-<no id>} sits under a parked/human-lane heading yet carries the pool-executable tag ${_pp_tag} — an executable lane must never appear under a parked heading (id:d35a)" >&2
+      echo "roadmap-lint: ERROR — PARKED-POOL-LANE: open item ${_pp_id:-<no id>} sits under a parked/human-lane heading yet carries the pool-executable tag ${_pp_tag}; an executable lane must never appear under a parked heading (id:d35a)" >&2
       echo "  $line" >&2
       report+="  - [${_pp_id:-<no id>}] PARKED-POOL-LANE: pool-executable tag ${_pp_tag} under a parked/human-lane heading"$'\n'
       report+="      ${line}"$'\n'
@@ -781,7 +781,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # zero-marker-safe, and reusing it keeps one spelling of the marker regex.
   _mi_count="$(marker_tokens_of_line "$line" id | wc -l)"
   if [[ "$_mi_count" -gt 1 ]]; then
-    echo "roadmap-lint: ${_dr_label} — MULTI-ID: open item carries ${_mi_count} anchored id markers on ONE line — AMBIGUOUS, so id-resolvers REFUSE it and the item addresses nothing (id:6059). De-literalise the quoted marker, or spell a reference as a typed edge." >&2
+    echo "roadmap-lint: ${_dr_label} — MULTI-ID: open item carries ${_mi_count} anchored id markers on ONE line, which is AMBIGUOUS, so id-resolvers REFUSE it and the item addresses nothing (id:6059). De-literalise the quoted marker, or spell a reference as a typed edge." >&2
     echo "  $line" >&2
     [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
   fi
@@ -794,7 +794,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   # wearing a live lane double-counts against its own seams.
   if [[ "$line" == *DECOMPOSED* && "$has_class" -eq 1 && "$line" != *@container* ]]; then
     _dc_id="$(item_id "$line")"
-    echo "roadmap-lint: ${_dr_label} — DECOMPOSED-CONTAINER: open item ${_dc_id:-<no id>} says DECOMPOSED (into seams) yet still carries a dispatchable/meeting lane — a decomposed parent is a CONTAINER, its seams are the work; tick it (superseded-by-seams) or add an @container marker (collectors exclude it)" >&2
+    echo "roadmap-lint: ${_dr_label} — DECOMPOSED-CONTAINER: open item ${_dc_id:-<no id>} says DECOMPOSED (into seams) yet still carries a dispatchable/meeting lane. A decomposed parent is a CONTAINER, its seams are the work; tick it (superseded-by-seams) or add an @container marker (collectors exclude it)" >&2
     echo "  $line" >&2
     [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
   fi
@@ -813,7 +813,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
     if state_claim_in_baseline "${_do_id#id:}" "$STATE_CLAIM_BASELINE"; then
       _dr_label_i="WARN (baselined id:cb3e)"
     fi
-    echo "roadmap-lint: ${_dr_label_i} — DECIDED-LEFT-OPEN: open item ${_do_id:-<no id>} carries a decided/deferred/superseded marker but is still open — close it (tick + done-note) or drop the marker" >&2
+    echo "roadmap-lint: ${_dr_label_i} — DECIDED-LEFT-OPEN: open item ${_do_id:-<no id>} carries a decided/deferred/superseded marker but is still open. Close it (tick + done-note) or drop the marker" >&2
     echo "  $line" >&2
     [[ "$strict" -eq 1 && "$_dr_label_i" != "WARN (baselined id:cb3e)" ]] && violations=$((violations + 1))
   fi
@@ -846,12 +846,12 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
     # id:e95b — the body was relocated and the note is GONE. Reporting this as
     # "no acceptance clause" would blame the item for a broken pointer, so name
     # the real fault; the TODO twin cannot excuse it either, the file is missing.
-    echo "roadmap-lint: ${_dr_label} — DETAIL-POINTER-MISSING: open item ${_nc_id:-<no id>} points at '$(item_detail_path "$_nc_id" $((_rl_i + 1)) "$_nc_end")', which does not exist — its relocated body (and any Acceptance/Tests/Done-check clause) is unreachable; restore the note or drop the pointer (id:e95b, the id:2ee1 class)" >&2
+    echo "roadmap-lint: ${_dr_label} — DETAIL-POINTER-MISSING: open item ${_nc_id:-<no id>} points at '$(item_detail_path "$_nc_id" $((_rl_i + 1)) "$_nc_end")', which does not exist, so its relocated body (and any Acceptance/Tests/Done-check clause) is unreachable; restore the note or drop the pointer (id:e95b, the id:2ee1 class)" >&2
     echo "  $line" >&2
     [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
   elif [[ "$_nc_rc" -ne 0 ]]; then
     if ! has_todo_twin "$_nc_id" "$roadmap"; then
-      echo "roadmap-lint: ${_dr_label} — NO-ACCEPTANCE-NO-TWIN: open item ${_nc_id:-<no id>} has no Acceptance/Tests/Done-check clause in its body and no TODO.md/TODO.archive.md twin — structurally un-workable (id:213a)" >&2
+      echo "roadmap-lint: ${_dr_label} — NO-ACCEPTANCE-NO-TWIN: open item ${_nc_id:-<no id>} has no Acceptance/Tests/Done-check clause in its body and no TODO.md/TODO.archive.md twin: structurally un-workable (id:213a)" >&2
       echo "  $line" >&2
       [[ "$strict" -eq 1 ]] && violations=$((violations + 1))
     fi
@@ -888,11 +888,11 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
       # SATISFIED. Same id:65f5 reason a ticked live item passes; see the map comment.
       [[ -n "${RL_GATE_ROADMAP_ARCHIVE[$_dg_t]+x}" ]] && continue
       if [[ -n "${RL_GATE_ARCHIVE[$_dg_t]+x}" ]]; then
-        _dg_why="it is RETIRED — archived in TODO.archive.md and not a ROADMAP item, so the gate is PERMANENT and can never open; drop or re-target the marker"
+        _dg_why="it is RETIRED, archived in TODO.archive.md and not a ROADMAP item, so the gate is PERMANENT and can never open; drop or re-target the marker"
       elif [[ -n "${RL_GATE_TODO[$_dg_t]+x}" ]]; then
-        _dg_why="it lives ONLY in TODO.md and was never promoted to the execution queue, so nothing in ROADMAP.md can ever clear the gate; promote it (handoff C2's call — never guess its lane) or re-target the marker"
+        _dg_why="it lives ONLY in TODO.md and was never promoted to the execution queue, so nothing in ROADMAP.md can ever clear the gate; promote it (handoff C2's call; never guess its lane) or re-target the marker"
       else
-        _dg_why="it resolves NOWHERE (absent from ROADMAP.md, TODO.md and TODO.archive.md) — a dangling gate target"
+        _dg_why="it resolves NOWHERE (absent from ROADMAP.md, TODO.md and TODO.archive.md): a dangling gate target"
       fi
       echo "roadmap-lint: ${_dr_label} — DEAD-GATE: open item ${_dg_id:-<no id>} is gated-on id:${_dg_t}, but ${_dg_why} (id:49e0)" >&2
       echo "  $line" >&2
@@ -910,7 +910,7 @@ for ((_rl_i = 0; _rl_i < ${#_rl_lines[@]}; _rl_i++)); do
   _dp_csv="$(typed_edges_dep_prose_untyped_of_line "$line")"
   if [[ -n "$_dp_csv" ]]; then
     _dp_id="$(item_id "$line")"
-    echo "roadmap-lint: WARN — DEP-PROSE-UNTYPED: open item ${_dp_id:-<no id>} carries \"(DEP: …)\" prose naming id(s) ${_dp_csv} with no matching <!-- gated-on:${_dp_csv} --> marker — retype it as a typed gate (id:3f7e)" >&2
+    echo "roadmap-lint: WARN — DEP-PROSE-UNTYPED: open item ${_dp_id:-<no id>} carries \"(DEP: …)\" prose naming id(s) ${_dp_csv} with no matching <!-- gated-on:${_dp_csv} --> marker; retype it as a typed gate (id:3f7e)" >&2
     echo "  $line" >&2
   fi
 
@@ -1103,7 +1103,7 @@ for line in lines:
 # --- (b) the OUT-of-scope MUST-STAY-haiku bullet: a comma-separated prose list
 # of backtick hop labels, each optionally followed by a "(~line, note)" aside.
 # Track paren depth so a nested backtick INSIDE an aside (e.g. `<<`, `python3`,
-# `$(...)`) is never mistaken for a hop label — only depth-0 backticks count. ---
+# `$(...)`) is never mistaken for a hop label; only depth-0 backticks count. ---
 m = re.search(r"MUST STAY `model:'haiku'`\*\*:\s*(.*)$", text, re.MULTILINE)
 if m:
     tail = m.group(1)
@@ -1143,7 +1143,7 @@ PY
   fi
 
   if [[ ! -f "$loop_js" ]]; then
-    echo "roadmap-lint: SCOPE-TABLE-DRIFT check SKIPPED — relay-loop.js not found at $loop_js (a scope table exists in $roadmap_path but there is nothing to verify it against)" >&2
+    echo "roadmap-lint: SCOPE-TABLE-DRIFT check SKIPPED: relay-loop.js not found at $loop_js (a scope table exists in $roadmap_path but there is nothing to verify it against)" >&2
     return 0
   fi
 
@@ -1157,16 +1157,16 @@ PY
     # false-negative while developing this check). All known dispatch shapes in
     # this repo are single-line `agent(..., { label: …, model: … })` calls.
     dispatch="$(head -1 < <(grep -P "label:\s*[\`'\"]${esc}" "$loop_js") || true)"
-    [[ -n "$dispatch" ]] || continue   # no matching dispatch found — nothing to compare
+    [[ -n "$dispatch" ]] || continue   # no matching dispatch found, nothing to compare
     if [[ "$kind" == "haiku" ]]; then
       if grep -qP "model:\s*'bash'" < <(printf '%s' "$dispatch") ; then
         violations=$((violations + 1))
-        echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: hop '${hop}' is listed as MUST-STAY \`model:'haiku'\` but relay-loop.js dispatches it as model:'bash' — the ROADMAP scope table is STALE: ${dispatch}" >&2
+        echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: hop '${hop}' is listed as MUST-STAY \`model:'haiku'\` but relay-loop.js dispatches it as model:'bash'. The ROADMAP scope table is STALE: ${dispatch}" >&2
       fi
     else
       if grep -qP "model:\s*'haiku'" < <(printf '%s' "$dispatch") ; then
         violations=$((violations + 1))
-        echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: hop '${hop}' is listed as CONVERTIBLE (\`model:'bash'\`) but relay-loop.js dispatches it as model:'haiku' — the ROADMAP scope table is STALE: ${dispatch}" >&2
+        echo "roadmap-lint: ERROR — SCOPE-TABLE-DRIFT: hop '${hop}' is listed as CONVERTIBLE (\`model:'bash'\`) but relay-loop.js dispatches it as model:'haiku'. The ROADMAP scope table is STALE: ${dispatch}" >&2
       fi
     fi
   done <<< "$reqs"

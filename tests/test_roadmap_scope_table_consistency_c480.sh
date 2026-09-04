@@ -78,7 +78,7 @@ grep -qE "model: *('bash'|MECH_MODEL)" < <(printf '%s\n' "$release_dispatch") &&
 outbullet="$(grep -rhF 'OUT of scope' "$ROADMAP" "$ROOT/docs/ledger-notes" 2>/dev/null \
              | grep -F "MUST STAY \`model:'haiku'\`" || true)"
 [[ -n "$outbullet" ]] \
-  || fail "(1) could not locate the id:6b35 \"OUT of scope … MUST STAY model:'haiku'\" bullet in ROADMAP.md OR docs/ledger-notes/ — if it was renamed, this spec and the lint rule must be re-anchored, not deleted"
+  || fail "(1) could not locate the id:6b35 \"OUT of scope … MUST STAY model:'haiku'\" bullet in ROADMAP.md OR docs/ledger-notes/. If it was renamed, this spec and the lint rule must be re-anchored, not deleted"
 
 roadmap_says_release_haiku=0
 grep -qF '`release:`' < <(printf '%s\n' "$outbullet") && roadmap_says_release_haiku=1
@@ -87,7 +87,7 @@ if (( loop_release_is_bash == 1 && roadmap_says_release_haiku == 1 )); then
   fail "(1) LIVE CONTRADICTION: relay-loop.js dispatches a 'release:' label mechanically (model:'bash'/MECH_MODEL, id:f7d3) while the id:6b35 OUT-of-scope bullet still lists \`release:\` as MUST STAY model:'haiku'"
 fi
 (( loop_release_is_bash == 1 )) \
-  || fail "(1) precondition lost: the 'release:'-labelled dispatch in relay-loop.js is neither model:'bash' nor model:MECH_MODEL — id:f7d3 appears to have been reverted; fix that before touching the table. Line found: ${release_dispatch:-<none>}"
+  || fail "(1) precondition lost: the 'release:'-labelled dispatch in relay-loop.js is neither model:'bash' nor model:MECH_MODEL, so id:f7d3 appears to have been reverted; fix that before touching the table. Line found: ${release_dispatch:-<none>}"
 pass "(1) the id:6b35 OUT-of-scope bullet no longer contradicts relay-loop.js's release: hop"
 
 # ── fixture builder ───────────────────────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ mkfixture "$TMP/badA" '`release:`' "$CONSISTENT_ROWS" \
 "    agent(p, { label: \`release:\${repo}:claim\`, model: 'bash' })
     agent(p, { label: \`file-surface:\${repo}\`, model: 'bash' })"
 if out="$("$LINT" "$TMP/badA/ROADMAP.md" 2>&1)"; then
-  fail "(3) lint exited 0 on table-says-haiku/code-says-bash — the drift must be a hard non-zero, not a --strict WARN. Output:
+  fail "(3) lint exited 0 on table-says-haiku/code-says-bash. The drift must be a hard non-zero, not a --strict WARN. Output:
 $out"
 fi
 grep -q 'SCOPE-TABLE-DRIFT' < <(printf '%s\n' "$out") \
@@ -172,11 +172,11 @@ mkfixture "$TMP/parsed" '`zzz-invented-hop`' "$CONSISTENT_ROWS" \
 "    agent(p, { label: 'zzz-invented-hop', model: 'bash' })
     agent(p, { label: \`file-surface:\${repo}\`, model: 'bash' })"
 if out="$("$LINT" "$TMP/parsed/ROADMAP.md" 2>&1)"; then
-  fail "(5) lint exited 0 on an INVENTED hop name — the hop list is hardcoded, not parsed from the ROADMAP. Output:
+  fail "(5) lint exited 0 on an INVENTED hop name. The hop list is hardcoded, not parsed from the ROADMAP. Output:
 $out"
 fi
 grep -q 'zzz-invented-hop' < <(printf '%s\n' "$out") \
-  || fail "(5) the invented hop name is absent from the violation output — hop names are not parsed from the ROADMAP:
+  || fail "(5) the invented hop name is absent from the violation output; hop names are not parsed from the ROADMAP:
 $out"
 pass "(5) hop names are parsed from the ROADMAP table, not hardcoded"
 
@@ -185,7 +185,7 @@ mkfixture "$TMP/noloop" '`release:`' "$CONSISTENT_ROWS" "// unused"
 rm -- "$TMP/noloop/relay/scripts/relay-loop.js"
 out="$("$LINT" "$TMP/noloop/ROADMAP.md" 2>&1)" || true
 grep -qiE 'relay-loop\.js.*(not found|missing|skip)' < <(printf '%s\n' "$out") \
-  || fail "(6) a missing relay-loop.js was skipped SILENTLY — it must say so (no-silent-swallow):
+  || fail "(6) a missing relay-loop.js was skipped SILENTLY; it must say so (no-silent-swallow):
 $out"
 pass "(6) an absent relay-loop.js is skipped loudly, with a message"
 

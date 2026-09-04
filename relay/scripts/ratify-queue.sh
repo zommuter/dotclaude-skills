@@ -132,7 +132,7 @@ with open(path, encoding="utf-8", errors="replace") as fh:
             continue
         kind = rec.get("kind")
         if kind != "ratification-pending":
-            print("MALFORMED: %s:%d unknown kind %r — this consumer only understands "
+            print("MALFORMED: %s:%d unknown kind %r. This consumer only understands "
                   "'ratification-pending' (id:4d44); the entry is NOT skipped, fix it or "
                   "move it out of the queue"
                   % (path, n, kind), file=sys.stderr)
@@ -140,7 +140,7 @@ with open(path, encoding="utf-8", errors="replace") as fh:
             continue
         missing = [k for k in ("repo", "path", "merged", "status") if not rec.get(k)]
         if missing:
-            print("MALFORMED: %s:%d ratification record missing required field(s) %s — "
+            print("MALFORMED: %s:%d ratification record missing required field(s) %s: "
                   "repo=%r merged=%r; a merge may be sitting UNPUSHED with no usable "
                   "queue entry, record it by hand"
                   % (path, n, ",".join(missing), rec.get("repo"), rec.get("merged")),
@@ -149,7 +149,7 @@ with open(path, encoding="utf-8", errors="replace") as fh:
             continue
         merged = str(rec["merged"])
         if len(merged) < 7 or any(c not in HEX for c in merged.lower()):
-            print("MALFORMED: %s:%d merged=%r is not a git sha — cannot be verified "
+            print("MALFORMED: %s:%d merged=%r is not a git sha, so it cannot be verified "
                   "against any remote" % (path, n, merged), file=sys.stderr)
             bad = 1
             continue
@@ -219,7 +219,7 @@ _find_one() {
   local key="$1" recs rc=0 hits scope=pending
   recs="$(_read_records)" || rc=$?
   if (( rc == 3 )); then
-    loud "the queue contains MALFORMED entries (listed above) — fix them first; refusing to act on a queue this consumer cannot fully read"
+    loud "the queue contains MALFORMED entries (listed above). Fix them first; refusing to act on a queue this consumer cannot fully read"
     exit "$EX_MALFORMED"
   fi
   _match() {  # $1 = "pending" to restrict to pending records, "" for any status
@@ -244,7 +244,7 @@ _find_one() {
     exit "$EX_USAGE"
   fi
   if [ "$n" -gt 1 ]; then
-    loud "key '$key' is AMBIGUOUS — it matches $n $scope entries; name the full ckpt tag or merged sha:"
+    loud "key '$key' is AMBIGUOUS: it matches $n $scope entries; name the full ckpt tag or merged sha:"
     printf '%s\n' "$hits" | awk -F'\037' '{printf "  ckpt=%s merged=%s repo=%s status=%s\n", $7, $6, $3, $2}' >&2
     exit "$EX_USAGE"
   fi
@@ -255,7 +255,7 @@ _find_one() {
 _require_pending() {
   local verb="$1" status="$2" key="$3"
   [ "$status" = pending ] || {
-    loud "$verb: entry '$key' is already $status — refusing. A closed entry is never re-closed (its recorded evidence would be overwritten). See: ratify-queue.sh show $key"
+    loud "$verb: entry '$key' is already $status. Refusing: a closed entry is never re-closed (its recorded evidence would be overwritten). See: ratify-queue.sh show $key"
     exit "$EX_USAGE"
   }
 }
@@ -269,11 +269,11 @@ _verify_remote() {
   local ls_out="" remotes="" ref="" verdict=""
 
   if [ ! -d "$path" ]; then
-    loud "repo path does not exist: $path — the recorded merge $merged cannot be verified. Do NOT resolve; find the checkout (or the record is stale/wrong)."
+    loud "repo path does not exist: $path, so the recorded merge $merged cannot be verified. Do NOT resolve; find the checkout (or the record is stale/wrong)."
     exit "$EX_UNVERIFIABLE"
   fi
   if ! git -C "$path" rev-parse --git-dir >/dev/null 2>&1; then
-    loud "$path is not a git repository — the recorded merge $merged cannot be verified."
+    loud "$path is not a git repository, so the recorded merge $merged cannot be verified."
     exit "$EX_UNVERIFIABLE"
   fi
   if [ -z "$remote" ]; then
@@ -283,16 +283,16 @@ _verify_remote() {
     elif [ "$(printf '%s\n' "$remotes" | grep -c . || true)" -eq 1 ]; then
       remote="$(printf '%s\n' "$remotes" | tr -d '[:space:]')"
     else
-      loud "cannot choose a remote for $path (remotes: $(printf '%s' "$remotes" | tr '\n' ' ')) — pass --remote NAME. Refusing to resolve on a guess."
+      loud "cannot choose a remote for $path (remotes: $(printf '%s' "$remotes" | tr '\n' ' ')). Pass --remote NAME. Refusing to resolve on a guess."
       exit "$EX_UNVERIFIABLE"
     fi
   fi
   if ! ls_out="$(git -C "$path" ls-remote --heads --tags "$remote" 2>&1)"; then
-    loud "git ls-remote $remote failed in $path — the push CANNOT be verified, so this entry stays PENDING (id:f5d9(a): an unverifiable push is treated as NOT landed). Output: $(printf '%s' "$ls_out" | tr '\n' ' ')"
+    loud "git ls-remote $remote failed in $path. The push CANNOT be verified, so this entry stays PENDING (id:f5d9(a): an unverifiable push is treated as NOT landed). Output: $(printf '%s' "$ls_out" | tr '\n' ' ')"
     exit "$EX_UNVERIFIABLE"
   fi
   if [ -z "$(printf '%s' "$ls_out" | tr -d '[:space:]')" ]; then
-    loud "git ls-remote $remote returned NOTHING in $path — no evidence the remote carries anything, let alone $merged. Treated as NOT landed (id:f5d9(a))."
+    loud "git ls-remote $remote returned NOTHING in $path. No evidence the remote carries anything, let alone $merged. Treated as NOT landed (id:f5d9(a))."
     exit "$EX_UNVERIFIABLE"
   fi
 
@@ -333,9 +333,9 @@ _verify_remote() {
     remote_tag_refs="$(awk '{print $2}' <<< "$ls_out" | sed 's/\^{}$//')"
     if ! grep -qx "refs/tags/$ckpt" <<< "$remote_tag_refs"; then
       if [ "${ALLOW_MISSING_TAG:-0}" = "1" ]; then
-        loud "WARNING: $remote carries the merge but NOT the ckpt tag $ckpt — resolving anyway (--allow-missing-tag)."
+        loud "WARNING: $remote carries the merge but NOT the ckpt tag $ckpt; resolving anyway (--allow-missing-tag)."
       else
-        loud "PARTIAL: $remote carries the merge $merged but NOT its checkpoint tag $ckpt — the unit is half-published and last_strong_ckpt consumers will read stale. Push the tag, then resolve:"
+        loud "PARTIAL: $remote carries the merge $merged but NOT its checkpoint tag $ckpt. The unit is half-published and last_strong_ckpt consumers will read stale. Push the tag, then resolve:"
         loud "  git -C $path push $remote $ckpt"
         loud "  (or re-run with --allow-missing-tag if the tag is deliberately local)"
         exit "$EX_NOTLANDED"
@@ -365,7 +365,7 @@ _verify_pending() {
     # An explicit override must COVER every pending remote, else it would resolve an entry
     # on partial evidence. Refuse rather than narrow silently.
     if [ -n "$pending" ] && [ "$pending" != "$remote" ]; then
-      loud "--remote '$remote' does not cover this entry's PENDING remotes ($pending) — resolving on it would mark the entry done while $pending still lack the merge. Omit --remote to verify all of them."
+      loud "--remote '$remote' does not cover this entry's PENDING remotes ($pending). Resolving on it would mark the entry done while $pending still lack the merge. Omit --remote to verify all of them."
       exit "$EX_USAGE"
     fi
     targets="$remote"
@@ -436,10 +436,10 @@ case "$cmd" in
         if [ -n "$pending" ]; then
           rq_what="pool merged LOCALLY and pushed only the PRIVATE/LAN remote(s); [$pending] still need an owner push: $(printf '%s' "$pending" | tr ',' '\n' | sed "s|^|git -C $path push --follow-tags |" | tr '\n' ';')"
         else
-          rq_what="pool merged LOCALLY and did NOT push — review then push: git -C $path push --follow-tags"
+          rq_what="pool merged LOCALLY and did NOT push; review then push: git -C $path push --follow-tags"
         fi
         printf '%s\t%s\t%s\t%s\n' "$repo" "$path" ratification_pending \
-          "[RATIFY id:4d44] $rq_what (merged=${merged:0:12} ckpt=${ckpt:--} ids=${ids:--} bump=${bump:-none} age=$(_age "$ts")) — ${summary:-no summary}"
+          "[RATIFY id:4d44] $rq_what (merged=${merged:0:12} ckpt=${ckpt:--} ids=${ids:--} bump=${bump:-none} age=$(_age "$ts")): ${summary:-no summary}"
       else
         printf '%-28s %-22s %-12s ids=%-24s bump=%-8s age=%s\n' \
           "${ckpt:--}" "$repo" "${merged:0:12}" "${ids:--}" "${bump:-none}" "$(_age "$ts")"
@@ -498,7 +498,7 @@ case "$cmd" in
     # `pending_remotes` is kept as evidence of what could never land, so print the
     # retirement instead of a push command nobody is ever going to run.
     if [ "$status" = retired ]; then
-      printf 'retired   %s\n' "${reason:-<no reason recorded — this should be impossible>}"
+      printf 'retired   %s\n' "${reason:-<no reason recorded; this should be impossible>}"
       printf 'note      CLOSED WITHOUT PUBLISHING: the remote does NOT carry %s and never will.\n' "$merged"
       exit 0
     fi
@@ -579,7 +579,7 @@ case "$cmd" in
       v_ref="${v_ref:+$v_ref,}$_f"
     done <<< "$res"
     if [ -z "$v_remote" ]; then
-      loud "verification produced no result for '${ckpt:-$merged}' — refusing to resolve on no evidence"
+      loud "verification produced no result for '${ckpt:-$merged}'; refusing to resolve on no evidence"
       exit "$EX_UNVERIFIABLE"
     fi
 
@@ -619,7 +619,7 @@ with open(queue, encoding="utf-8") as fh:
         hit = True
 
 if not hit:
-    raise SystemExit("ERROR: line %d vanished from %s while resolving — queue changed underneath; nothing written" % (lineno, queue))
+    raise SystemExit("ERROR: line %d vanished from %s while resolving; queue changed underneath, nothing written" % (lineno, queue))
 
 with open(tmp, "w", encoding="utf-8") as fh:
     for l in out:
@@ -652,7 +652,7 @@ PYEOF
       die "retire: --reason TEXT is MANDATORY. Retiring closes an entry WITHOUT the remote carrying its merge, so the recorded reason is the only thing that keeps the queue auditable. If the merge CAN be published, push it and use \`resolve\` instead."
     fi
     if [ -z "$(printf '%s' "$reason_arg" | tr -d '[:space:]')" ]; then
-      die "retire: --reason is EMPTY — an empty reason is no reason. Say why this entry can never land (e.g. 'pending remote is a read-only third-party upstream we never publish to', or 'merge commit no longer exists; ids landed via <path>')."
+      die "retire: --reason is EMPTY. An empty reason is no reason. Say why this entry can never land (e.g. 'pending remote is a read-only third-party upstream we never publish to', or 'merge commit no longer exists; ids landed via <path>')."
     fi
 
     line="$(_find_one "$key")"
@@ -693,7 +693,7 @@ with open(queue, encoding="utf-8") as fh:
         hit = True
 
 if not hit:
-    raise SystemExit("ERROR: line %d vanished from %s while retiring — queue changed underneath; nothing written" % (lineno, queue))
+    raise SystemExit("ERROR: line %d vanished from %s while retiring; queue changed underneath, nothing written" % (lineno, queue))
 
 with open(tmp, "w", encoding="utf-8") as fh:
     for l in out:
@@ -701,7 +701,7 @@ with open(tmp, "w", encoding="utf-8") as fh:
 PYEOF
     mv "$tmp" "$QUEUE"
     _flock_release
-    printf 'RETIRED %s (%s): closed WITHOUT publishing %s — %s\n' "${ckpt:-$merged}" "$repo" "$merged" "$reason_arg"
+    printf 'RETIRED %s (%s): closed WITHOUT publishing %s: %s\n' "${ckpt:-$merged}" "$repo" "$merged" "$reason_arg"
     printf '  (the remote does NOT carry this merge; `ratify-queue.sh list --all` shows the entry and this reason)\n'
     exit 0
     ;;

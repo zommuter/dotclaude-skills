@@ -173,7 +173,7 @@ repo_sig() {
   # swallowed into an empty section (that would be a CONFIDENT sig over unread input): a
   # failure is logged and replaced by a nonce, which forces a re-classify.
   if ! ledger_notes="$(ledger_notes_section "$path")"; then
-    log "fail-open: ledger_notes_section failed for $repo ($path) — nonce forces re-classify"
+    log "fail-open: ledger_notes_section failed for $repo ($path); nonce forces re-classify"
     ledger_notes="ERROR $(date +%s%N 2>/dev/null || date +%s)-$RANDOM"
   fi
   # substantive_unaudited (id:e833, 2a fix): mirrors gather-repo-state.sh's id:365b

@@ -78,7 +78,7 @@ TS="$repr/TODO.md";         RS="$repr/ROADMAP.md"
 grep -qF 'closed both ledgers' "$TA" || { echo "aaaa not in TODO archive"; exit 1; }
 grep -qF 'closed both ledgers' "$RA" || { echo "aaaa not in ROADMAP archive"; exit 1; }
 grep -qF 'closed both ledgers' "$TS" && { echo "aaaa still in TODO.md"; exit 1; }
-grep -qF 'closed both ledgers' "$RS" && { echo "aaaa still in ROADMAP.md — id:2eba leaves no stub"; exit 1; }
+grep -qF 'closed both ledgers' "$RS" && { echo "aaaa still in ROADMAP.md; id:2eba leaves no stub"; exit 1; }
 grep -qF '(archived — see ROADMAP.archive.md)' "$RS" \
   && { echo "aaaa the archive-stub suffix was written into ROADMAP.md"; exit 1; }
 

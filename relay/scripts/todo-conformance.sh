@@ -1259,7 +1259,7 @@ if [[ "$fix" -eq 1 && "${#fix_lines[@]}" -gt 0 ]]; then
       # as some repos use), do NOT mint — that would create a DUPLICATE id. Surface it for a
       # human/handoff to MIGRATE the notation to `<!-- id:XXXX -->` (reusing the same token).
       if grep -qP '\bid:[0-9a-f]{4}\b' <<<"$cur"; then
-        echo "todo-conformance.sh: line $ln has a non-canonical inline id — NOT auto-minted (migrate to <!-- id:XXXX --> by hand to avoid a duplicate id)" >&2
+        echo "todo-conformance.sh: line $ln has a non-canonical inline id, NOT auto-minted (migrate to <!-- id:XXXX --> by hand to avoid a duplicate id)" >&2
         log "skip-inline-id line=$ln file=$path"
         continue
       fi

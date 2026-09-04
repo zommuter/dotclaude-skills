@@ -77,14 +77,14 @@ done
 out="$(HOME="$tmp" bash "$SCRIPT" "$repo" 2>&1)" || { echo "FAIL: run exited non-zero"; echo "$out"; exit 1; }
 
 RS="$repo/ROADMAP.md"; RA="$repo/ROADMAP.archive.md"
-[[ -f "$RA" ]] || { echo "FAIL: ROADMAP.archive.md not created — fixture unreached"; echo "$out"; exit 1; }
+[[ -f "$RA" ]] || { echo "FAIL: ROADMAP.archive.md not created; fixture unreached"; echo "$out"; exit 1; }
 
 # A1: the genuine item WAS archived. Guards against an inert fixture: if this
 #      fails, every assertion below is vacuous.
 grep -qF 'genuine closed item never yet archived' "$RA" \
-  || { echo "FAIL(A1): genuine item id:6666 was not archived — fixture is inert"; cat "$RA"; exit 1; }
+  || { echo "FAIL(A1): genuine item id:6666 was not archived; fixture is inert"; cat "$RA"; exit 1; }
 grep -qF "<!-- id:6666 -->" "$RS" \
-  && { echo "FAIL(A1): id:6666 was left in the live ledger — id:2eba leaves no stub"; cat "$RS"; exit 1; }
+  && { echo "FAIL(A1): id:6666 was left in the live ledger; id:2eba leaves no stub"; cat "$RS"; exit 1; }
 
 # A2: every pre-existing stub line is byte-identical: not re-archived, and in
 #      particular NO second suffix appended.
@@ -150,14 +150,14 @@ os_before="$(bash "$OS" --cross-ledger "$repo2" 2>&1)" || true
 
 # B0: the before-side must be LIVE. resolve-gates must actually emit rows here,
 #      otherwise "identical" is two empty strings and proves nothing.
-[[ -n "$rg_before" ]] || { echo "FAIL(B0): resolve-gates emitted nothing before archiving — unreached fixture"; exit 1; }
+[[ -n "$rg_before" ]] || { echo "FAIL(B0): resolve-gates emitted nothing before archiving; unreached fixture"; exit 1; }
 grep -q '7004' <<<"$rg_before" || { echo "FAIL(B0): expected a block row for id:7004"; echo "$rg_before"; exit 1; }
 
 out2="$(HOME="$tmp" bash "$SCRIPT" "$repo2" 2>&1)" || { echo "FAIL: run on repo2 exited non-zero"; echo "$out2"; exit 1; }
 
 # B0b: and the archiver must have actually moved id:7002 out of ROADMAP.md.
 grep -qF '<!-- id:7002 -->' "$repo2/ROADMAP.archive.md" 2>/dev/null \
-  || { echo "FAIL(B0b): id:7002 was not archived — safety comparison would be vacuous"; echo "$out2"; exit 1; }
+  || { echo "FAIL(B0b): id:7002 was not archived; safety comparison would be vacuous"; echo "$out2"; exit 1; }
 
 # B1: twin-open protection. id:7001 stays in BOTH ledgers, archived from neither.
 grep -qF 'closed here but TODO twin is open' "$repo2/ROADMAP.md" \
@@ -189,7 +189,7 @@ os_after="$(bash "$OS" --cross-ledger "$repo2" 2>&1)" || true
   echo "FAIL(B3): orphan-scan --cross-ledger output changed across archiving"
   head -20 < <(diff <(echo "$os_before") <(echo "$os_after")); exit 1; }
 grep -q '7001' <<<"$os_before" \
-  || { echo "FAIL(B3): fixture unreached — expected id:7001 drift to be reported BEFORE archiving"; echo "$os_before"; exit 1; }
+  || { echo "FAIL(B3): fixture unreached; expected id:7001 drift to be reported BEFORE archiving"; echo "$os_before"; exit 1; }
 grep -q '7001' <<<"$os_after" \
   || { echo "FAIL(B3): archiving HID the id:7001 cross-ledger drift"; echo "$os_after"; exit 1; }
 # and archiving a properly-closed twin (id:7002) must not INVENT new drift.

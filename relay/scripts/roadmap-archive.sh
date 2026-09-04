@@ -59,14 +59,14 @@ LOG_FILE="$LOG_DIR/roadmap-archive.log"
 mkdir -p "$LOG_DIR"
 
 if [[ ! -f "$ROADMAP_FILE" ]]; then
-    echo "roadmap-archive: $ROADMAP_FILE not found — skipping." >&2
+    echo "roadmap-archive: $ROADMAP_FILE not found; skipping." >&2
     exit 0
 fi
 
 # flock-guard the entire operation (fd 9)
 exec 9>"$LOCK_FILE"
 if ! flock -n 9 2>/dev/null; then
-    echo "roadmap-archive: another instance is running (lock held by $LOCK_FILE) — skipping." >&2
+    echo "roadmap-archive: another instance is running (lock held by $LOCK_FILE); skipping." >&2
     exit 0
 fi
 trap 'rm -- "$LOCK_FILE"' EXIT   # created by `exec 9>` above ⇒ exists; no -f needed
@@ -308,7 +308,7 @@ def report_deferrals():
         print(
             f"roadmap-archive: AMBIGUOUS BODY ATTRIBUTION for {a}. Its continuation body is\n"
             f"  contiguous with {o}, which stays LIVE and has no body of its own, so the body may\n"
-            f"  belong to either. REFUSED to archive {a} at all — header AND body were LEFT IN\n"
+            f"  belong to either. REFUSED to archive {a} at all: header AND body were LEFT IN\n"
             f"  PLACE in ROADMAP.md. Move the body under its real owner by hand, then the item\n"
             f"  archives normally (this is the routed:71ed shape: a new item line inserted\n"
             f"  between an existing header and its own bullets).",
@@ -319,7 +319,7 @@ def report_deferrals():
             f"roadmap-archive: {len(already)} closed item(s) in ROADMAP.md are ALREADY present\n"
             f"  in ROADMAP.archive.md and were LEFT IN PLACE rather than archived a second time:\n"
             f"  {names}\n"
-            f"  These are either pre-id:2eba archive stubs (safe to delete by hand — the archive\n"
+            f"  These are either pre-id:2eba archive stubs (safe to delete by hand, since the archive\n"
             f"  holds the full item) or a genuinely duplicated id. This script never deletes a\n"
             f"  live line it did not archive, so the cleanup is a human call.",
             file=sys.stderr)

@@ -187,9 +187,9 @@ pass "cross-linter invariant holds: roadmap-lint.sh and todo-conformance.sh agre
 # false-positive on it.
 _c="$ROOT/ROADMAP.md $ROOT/docs/ledger-notes"
 grep -rqF 'obsoleted by the model' $_c 2>/dev/null \
-  && fail "the refuted id:931c 'obsoleted' reword is still present — must be SUPERSEDED"
+  && fail "the refuted id:931c 'obsoleted' reword is still present; must be SUPERSEDED"
 grep -rqF 'id:f599 is SUPERSEDED by the model' $_c 2>/dev/null \
-  || fail "the id:931c scoped 'id:f599 is SUPERSEDED' wording is missing from BOTH ROADMAP.md and docs/ledger-notes/ — it was deleted, not relocated"
+  || fail "the id:931c scoped 'id:f599 is SUPERSEDED' wording is missing from BOTH ROADMAP.md and docs/ledger-notes/: it was deleted, not relocated"
 pass "id:931c prose reword reverted (SUPERSEDED, scoped to id:f599, not the item itself)"
 
 echo "ALL PASS: id:5533 shared two-directional state-claim contradiction predicate"

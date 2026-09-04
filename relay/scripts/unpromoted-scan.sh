@@ -296,12 +296,12 @@ scan_repo() {
   local name="$1" path="$2"
 
   if [[ ! -d "$path" ]]; then
-    printf 'ERROR: %s — path not found (%s); cannot scan.\n' "$name" "$path" >&2
+    printf 'ERROR: %s: path not found (%s); cannot scan.\n' "$name" "$path" >&2
     log "repo=$name path-missing=$path"
     return 1
   fi
   if ! git -C "$path" rev-parse --git-dir >/dev/null 2>&1; then
-    printf 'ERROR: %s (%s) is not a readable git repo — check the path override in relay.toml.\n' "$name" "$path" >&2
+    printf 'ERROR: %s (%s) is not a readable git repo; check the path override in relay.toml.\n' "$name" "$path" >&2
     log "repo=$name not-git=$path"
     return 1
   fi

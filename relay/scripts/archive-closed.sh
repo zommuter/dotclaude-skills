@@ -286,7 +286,7 @@ def report_already(name, arch_path, already, stream):
     names = ' '.join(f"id:{t}" if t else "id:?" for t in already)
     print(f"archive-closed[{name}]: {len(already)} closed item(s) are ALREADY present in "
           f"{arch_path.name} and were LEFT IN PLACE rather than archived a second time: "
-          f"{names} — these are either pre-id:2eba archive stubs (safe to delete by hand) "
+          f"{names}. These are either pre-id:2eba archive stubs (safe to delete by hand) "
           f"or a genuinely duplicated id; this script never deletes a live line it did not "
           f"archive.", file=stream)
 
@@ -303,7 +303,7 @@ def apply_and_report(name, src_path, blocks, other_ids):
         print(f"archive-closed[{name}]: would move {moved} item(s) -> {arch_path.name}")
         if skipped:
             for tk in skipped:
-                print(f"archive-closed[{name}]: SKIP id:{tk} — cross-ledger twin still OPEN; not archiving")
+                print(f"archive-closed[{name}]: SKIP id:{tk}: cross-ledger twin still OPEN; not archiving")
         report_already(name, arch_path, already, sys.stdout)
         return
 
