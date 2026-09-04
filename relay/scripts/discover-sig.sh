@@ -42,6 +42,103 @@ toml_block() {
   ' "$RELAY_TOML" 2>/dev/null || true
 }
 
+# id:e96c — LEDGER FILES the classifier shard reads (content) and scans for detail pointers.
+# classify-repo.sh applies `_ledger_note_bytes()` to ROADMAP.md / TODO.md / REVIEW_ME.md /
+# RELAY_LOG.md, and resolve-gates.sh reads the archives, so all seven are shard inputs.
+LEDGER_FILES=(ROADMAP.md ROADMAP.archive.md TODO.md TODO.archive.md
+              REVIEW_ME.md REVIEW_ME.archive.md RELAY_LOG.md)
+
+# ledger_notes_section <repo-path>
+#
+# Emits one `<relpath> <sha256|MISSING|UNREADABLE …>` line per LEDGER and per ledger-note
+# DETAIL FILE the ledgers point at, sorted, for inclusion in the signature blob.
+#
+# WHY (id:e96c): the ratified line-shrink (id:0d7c) moves an item's prose OFF its ledger line
+# into a per-id detail note, and classify-repo.sh (id:f3d2) stats every pointed-to note to
+# compute roadmap_bytes/todo_bytes. Those notes are therefore SHARD INPUTS. Before this
+# section they reached the blob only through `git status --porcelain`, which records THAT a
+# file changed and never WHAT changed, so three substantively different UNCOMMITTED edits to
+# one note collapsed to a single signature — under-invalidation, this cache's only hazard.
+#
+# THE NOTES DIRECTORY IS DERIVED FROM THE POINTER, never hardcoded (the id:d4d3 trap): a
+# hardcoded `docs/ledger-notes` is INERT on the 45 fleet repos that name the directory
+# differently (loderite uses `docs/roadmap-notes`), i.e. it would silently do nothing exactly
+# where it is most needed. Same shape as meeting/orphan-scan.sh and todo-conformance.sh's
+# SHAPE_POINTER_RE: read the path off the line, then treat that path's DIRECTORY as the notes
+# directory and take every `<dir>/<name>.md` the ledgers mention.
+#
+# FAIL-OPEN, in both directions:
+#   * an absent ledger or note contributes a stable MISSING line (a normal state, not an error);
+#   * a ledger/note that EXISTS but cannot be read contributes a per-invocation NONCE, so the
+#     sig cannot go stale behind an unreadable input — it forces a re-classify instead.
+#     Over-hashing is free by this tool's contract; a confident sig over unread input is not.
+ledger_notes_section() {
+  local path="$1"
+  local -a present=() rels=() cands=() keep=() readable=()
+  local f d dre rel out dirs="" nonce=""
+
+  for f in "${LEDGER_FILES[@]}"; do
+    rels+=("$f")
+    [[ -e "$path/$f" ]] && present+=("$path/$f")
+  done
+
+  if [[ ${#present[@]} -gt 0 ]]; then
+    # (a) any path ending in `/<4-hex>.md` — the ratified detail-note spelling, in ANY directory.
+    # (b) any `detail:` pointer target, whatever the note is named.
+    mapfile -t cands < <(
+      { grep -hoE '[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_.-]+)*/[0-9a-fA-F]{4}\.md' "${present[@]}" 2>/dev/null || true
+        grep -hoP 'detail:[[:space:]]*`?\K[^`[:space:])]+\.md' "${present[@]}" 2>/dev/null || true
+      } | sort -u
+    )
+    # (c) every OTHER `<dir>/<name>.md` under a directory a pointer named — classify-repo.sh's
+    # own note-name regex is broader than 4-hex, so widen to the DERIVED directory. Cheap: one
+    # extra grep per DISTINCT notes directory (normally exactly one).
+    for f in "${cands[@]}"; do
+      [[ "$f" == */* ]] || continue
+      d="${f%/*}"
+      case $'\n'"$dirs" in *$'\n'"$d"$'\n'*) continue ;; esac
+      dirs+="$d"$'\n'
+    done
+    while IFS= read -r d; do
+      [[ -n "$d" ]] || continue
+      dre="${d//./\\.}"
+      mapfile -t -O "${#cands[@]}" cands < <(
+        grep -hoE "$dre/[A-Za-z0-9_][A-Za-z0-9_.-]*\.md" "${present[@]}" 2>/dev/null || true
+      )
+    done <<< "$dirs"
+    [[ ${#cands[@]} -gt 0 ]] && rels+=("${cands[@]}")
+  fi
+
+  mapfile -t keep < <(printf '%s\n' "${rels[@]}" | sort -u)
+  for rel in "${keep[@]}"; do
+    [[ -n "$rel" ]] || continue
+    # Repo-relative paths only, and never a traversal.
+    case "$rel" in /*|*..*) continue ;; esac
+    if [[ ! -e "$path/$rel" ]]; then
+      printf '%s MISSING\n' "$rel"
+    elif [[ -f "$path/$rel" && -r "$path/$rel" ]]; then
+      readable+=("$rel")
+    else
+      [[ -n "$nonce" ]] || nonce="$(date +%s%N 2>/dev/null || date +%s)-$RANDOM"
+      printf '%s UNREADABLE %s\n' "$rel" "$nonce"
+    fi
+  done
+
+  # ONE sha256sum over the whole readable set. Per-file invocations were MEASURED at ~4 s per
+  # repo per discovery round on this repo's 746 pointed-to notes (750 forks); batched it is
+  # ~0.1 s. Output is `<hash>  <relpath>` in ARGUMENT order, and the argument list is sorted,
+  # so the section stays a deterministic pure function of on-disk state.
+  if [[ ${#readable[@]} -gt 0 ]]; then
+    if out="$( cd "$path" && sha256sum -- "${readable[@]}" )"; then
+      printf '%s\n' "$out"
+    else
+      # A partial batch is discarded rather than trusted: a nonce forces a re-classify.
+      nonce="$(date +%s%N 2>/dev/null || date +%s)-$RANDOM"
+      printf 'BATCH-HASH-FAILED %s\n' "$nonce"
+    fi
+  fi
+}
+
 repo_sig() {
   local repo="$1" path="$2" inlive="$3" chain_ended="$4"
   # FAIL-OPEN gate: not a git work tree → empty sentinel.
@@ -50,7 +147,7 @@ repo_sig() {
     printf ''
     return 0
   fi
-  local head tags latest tagmsg porcelain upstream worktrees orphans block roadmap dq
+  local head tags latest tagmsg porcelain upstream worktrees orphans block roadmap dq ledger_notes
   head="$(git -C "$path" rev-parse HEAD 2>/dev/null || true)"
   tags="$(git -C "$path" tag -l 'fable-ckpt-*' 'relay-ckpt-*' 2>/dev/null | sort || true)"
   latest="$(printf '%s' "$tags" | tail -n1)"
@@ -71,6 +168,14 @@ repo_sig() {
   # committed. Over-hashing is free here; under-invalidation is this cache's only hazard.
   # (`2>/dev/null` on the cat: a repo with no archive is a normal state, not an error.)
   roadmap_archive="$(cat "$path/ROADMAP.archive.md" 2>/dev/null || true)"
+  # id:e96c — ledger CONTENT hashes + the pointed-to ledger-note detail files. See
+  # ledger_notes_section() above for the rationale and the fail-open terms. Errors are NOT
+  # swallowed into an empty section (that would be a CONFIDENT sig over unread input): a
+  # failure is logged and replaced by a nonce, which forces a re-classify.
+  if ! ledger_notes="$(ledger_notes_section "$path")"; then
+    log "fail-open: ledger_notes_section failed for $repo ($path) — nonce forces re-classify"
+    ledger_notes="ERROR $(date +%s%N 2>/dev/null || date +%s)-$RANDOM"
+  fi
   # substantive_unaudited (id:e833 — 2a fix): mirrors gather-repo-state.sh's id:365b
   # computation so the sig captures the AUDIT TARGET (which commit the audit ref
   # resolves to), not just the tag NAME/message. A force-retagged ckpt (same name,
@@ -131,6 +236,7 @@ repo_sig() {
     printf '== toml ==\n%s\n'      "$block"
     printf '== roadmap ==\n%s\n'   "$roadmap"
     printf '== roadmap_archive ==\n%s\n' "$roadmap_archive"
+    printf '== ledger_notes ==\n%s\n' "$ledger_notes"
     printf '== dq ==\n%s\n'        "$dq"
     printf '== inlive ==\n%s\n'    "$inlive"
     printf '== substantive_unaudited ==\n%s\n' "$substantive_unaudited"
