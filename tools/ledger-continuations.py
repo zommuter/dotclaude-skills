@@ -51,10 +51,15 @@ predicate is recomputed on every invocation:
   and the whole `tests/` tree read as infrastructure rather than as consumers, and omitting
   them is precisely the bug.
 
-  UNION-ANCHORED READERS DO NOT REFUSE. A reader that also reads `docs/ledger-notes/` sees
-  the ledger + notes UNION, so relocation cannot break it. That, and only that, is why
-  `id:6b35` is no longer refused: both of its consumers were re-anchored. Revert
-  `roadmap-lint.sh`'s parser to read `ROADMAP.md` alone and the refusal returns by itself.
+  UNION-ANCHORED CONSTRUCTS DO NOT REFUSE, AND UNION IS RESOLVED PER CONSTRUCT (id:1447).
+  A search over the ledger + notes UNION cannot be broken by relocation. `id:9ce0` decided
+  that at FILE level, which is a SILENT false clear: a file that reads the notes in one
+  function and the ledger alone in another was cleared entire. Reverting
+  `roadmap-lint.sh`'s heredoc parser did not flip its verdict until that file's two
+  unrelated notes reads were neutered as well, and the same class cost a peer repo four id
+  markers on 2026-09-01. Union is now a property of a CONSTRUCT's own subject: see
+  "CONSTRUCT-TO-CORPUS DATAFLOW" below. Revert `roadmap-lint.sh`'s heredoc parser ALONE and
+  its four constructs go union -> ledger while its notes reads stay exactly where they are.
 
   NO GRAMMAR SHORTCUT. "Every reader here anchors on `^- \\[ \\]`, therefore no reader reads
   bodies" is true of THIS repo only because its bodies live in `docs/ledger-notes/`, and it
@@ -229,6 +234,565 @@ def reads_notes(text):
             return True
     return False
 
+# ------------------------------ CONSTRUCT-TO-CORPUS DATAFLOW (id:1447) ------------
+#
+# WHY. `id:9ce0` anchored the union verdict at FILE level, and that is wrong in both
+# directions at once.
+#
+#   LOUDLY: every regex in a file that happens to name a ledger counted as a search over
+#   ledger text, because static extraction alone cannot say WHICH regex inside a file is
+#   applied to what the file read. 18 restored continuation lines drew one refusal naming
+#   dozens of consumer sites, most of them patterns a reader applies to its OWN source.
+#
+#   SILENTLY, and this is the worse one: a file that reads `docs/ledger-notes/` in ONE
+#   function and the ledger ALONE in another was CLEARED by the first. That is why
+#   `relay/scripts/roadmap-lint.sh` stayed cleared while its heredoc hop-table parser read
+#   `ROADMAP.md` on its own -- reverting that parser did not flip the verdict until the
+#   file's two UNRELATED notes reads were neutered as well. On 2026-09-01 that class cost a
+#   peer repo four id markers (89f9, a5b6, ba07, ed26).
+#
+# WHAT IS COMPUTED. For every construct, the CORPUS of its SUBJECT -- the text the pattern
+# is actually applied to:
+#
+#   ledger    the subject traces to a read of TODO/ROADMAP/REVIEW_ME(.archive).md
+#   union     the subject traces to a read that also takes in `docs/ledger-notes/`, so
+#             relocation cannot break it
+#   other     the subject traces to an origin that is demonstrably NOT a ledger (a reader's
+#             own source text, a sibling `.js` file, a literal). The only QUIET verdict,
+#             and quiet because it rests on positive evidence: the corpus never arrives.
+#   untraced  the subject traces to a read whose target this pass cannot identify, or no
+#             subject could be located at all.
+#
+# `untraced` IS NOT CLEARED. It is named in the refusal beside the ledger-traced sites,
+# tagged as untraced, and counted separately. Refusing is the safe direction and this pass
+# may only ever REMOVE refusals that `9ce0` made, never add a clear it cannot justify.
+#
+# THE INSTRUMENT IS A CONSTRUCT-LEVEL CASE LIKE ANY OTHER. There is NO exclusion for
+# `tools/ledger-continuations.py` and there must never be one: naming itself would be an
+# id-keyed list wearing a path (the id:cb3e shape id:9ce0 removed), and it would settle the
+# self-reference by fiat with nothing recording that it had. It is traced like every other
+# reader, and MEASURED (2026-09-04, not asserted) its 106 analysable constructs come out
+# 103 untraced / 2 union / 1 other -- so it refuses on almost all of them. Both of its two
+# corpora arrive through a read this pass cannot identify: the ledger through
+# `open(os.path.join(root, args.file))`, whose target is a command-line value, and a
+# reader's own source through `open(full)` under an `os.walk` that could in principle walk
+# over a ledger. Neither is resolvable without assuming something, so both stay loud. The
+# instrument gets no better treatment than anyone else and no worse; what it does NOT get
+# is a quiet answer that nothing recorded.
+#
+# NO PER-REPO AND NO PER-GRAMMAR BRANCH. Nothing below asks which repo it is running in or
+# what an item line looks like. It follows assignments, loop bindings, redirections,
+# function parameters and heredoc argv, and nothing else.
+#
+# LIMITS, STATED RATHER THAN DISCOVERED LATER:
+#   - flow is IN-FILE. Ledger text handed to a helper in ANOTHER file (a Python import, a
+#     sourced shell library) is not followed, and such a subject reads `untraced`, never
+#     `other`, so the unfollowed edge refuses rather than clears.
+#   - taint is per REGION (a shell function, a `def`) over the unit's globals, so two
+#     functions that both use a name `line` do not bleed into one another.
+#   - a construct line hosting several subjects takes the UNION of their taints, which can
+#     over-report but never under-report.
+
+LBL_LEDGER = "L"
+LBL_NOTES = "N"
+LBL_OTHER = "X"
+LBL_UNKNOWN = "U"
+
+CORPUS_LEDGER = "ledger"
+CORPUS_UNION = "union"
+CORPUS_OTHER = "other"
+CORPUS_UNTRACED = "untraced"
+
+def corpus_of(labels, found_subject, file_may_hold_ledger=True):
+    """The verdict for ONE construct, from its subject's labels.
+
+    A subject with NO label at all is not automatically clean -- it may simply be a flow
+    this pass failed to follow. It is cleared only under CONTAINMENT: when nothing in the
+    whole file binds a ledger read or an unidentified read, no construct in it can be
+    searching ledger text, whatever this pass did or did not manage to follow inside it.
+    That is a positive statement about the file, not an absence of evidence about the line.
+    Everything else unresolved stays `untraced`, which refuses.
+    """
+    if not found_subject:
+        return CORPUS_UNTRACED if file_may_hold_ledger else CORPUS_OTHER
+    if LBL_NOTES in labels:
+        return CORPUS_UNION
+    if LBL_LEDGER in labels:
+        return CORPUS_LEDGER
+    if LBL_OTHER in labels and LBL_UNKNOWN not in labels:
+        return CORPUS_OTHER
+    if not file_may_hold_ledger:
+        return CORPUS_OTHER
+    return CORPUS_UNTRACED
+
+
+SH_VAR_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*|[0-9])")
+PY_WORD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+ARGV_INDEX_RE = re.compile(r"argv\s*\[\s*(\d+)\s*\]")
+HEREDOC_OPEN_RE = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+HEREDOC_LANG_RE = re.compile(r"\b(python3?|node|deno|perl|awk|gawk|mawk|sed|ruby)\b")
+# Evidence that an expression READS something. Used only to decide whether an untainted
+# expression is an unexplained read (LBL_UNKNOWN) or merely a value (no label).
+READ_CALL_RE = re.compile(
+    r"\bopen\s*\(|\.read\s*\(|\.readlines\s*\(|readFileSync|read_text\s*\(")
+# A PROCESS's output is not a file read. Whatever a subprocess prints, it is not this
+# ledger's text unless the command line names the ledger -- and if it does, the ledger
+# basename test above has already fired on the very same expression. Scoring process
+# output as an unidentified READ made most of a test suite unresolvable for no reason.
+PROC_CALL_RE = re.compile(
+    r"\bsubprocess\b|\bcheck_output\b|\bPopen\b|\bexecSync\b|\bspawnSync\b|"
+    r"\bjson\.loads?\b|\.stdout\b")
+# A quoted literal that looks like a path or a filename. Positive evidence of a NON-ledger
+# origin, because the ledger basenames were already tested for above it.
+PATHISH_LITERAL_RE = re.compile(r"""['"][^'"\n]*/[^'"\n]*['"]|['"][^'"\n/]+\.[A-Za-z0-9]{1,5}['"]""")
+
+PY_ASSIGN_RE = re.compile(
+    r"^[ \t]*(?:const |let |var )?(?P<n>[A-Za-z_$][A-Za-z0-9_$]*)[ \t]*"
+    r"(?<![=!<>+\-*/%])\+?=(?!=)[ \t]*(?P<rhs>.+)$")
+PY_TUPLE_FOR_RE = re.compile(
+    r"^[ \t]*for[ \t]+(?P<names>[A-Za-z_][A-Za-z0-9_, \t]*)[ \t]+in[ \t]+(?P<rhs>.+?):?[ \t]*$")
+PY_WITH_RE = re.compile(
+    r"^[ \t]*with[ \t]+(?P<rhs>.+?)[ \t]+as[ \t]+(?P<n>[A-Za-z_][A-Za-z0-9_]*)[ \t]*:")
+JS_FOR_OF_RE = re.compile(
+    r"for[ \t]*\([ \t]*(?:const|let|var)[ \t]+(?P<n>[A-Za-z_$][\w$]*)[ \t]+of[ \t]+(?P<rhs>[^)]+)\)")
+PY_DEF_RE = re.compile(r"^(?P<ind>[ \t]*)def[ \t]+(?P<n>[A-Za-z_]\w*)[ \t]*\((?P<p>[^)]*)\)")
+SH_FUNC_RE = re.compile(r"^(?P<ind>[ \t]*)(?:function[ \t]+)?(?P<n>[A-Za-z_][A-Za-z0-9_.-]*)[ \t]*\(\)[ \t]*\{")
+SH_ASSIGN_RE = re.compile(
+    r"""(?:^|[;&|(\t ])(?P<n>[A-Za-z_][A-Za-z0-9_]*)="""
+    r"""(?P<rhs>"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\$\([^)]*\)|[^\s;|&)]*)""")
+SH_READ_RE = re.compile(r"\bread\b(?P<opts>(?:[ \t]+-[A-Za-z]+)*)(?P<names>(?:[ \t]+[A-Za-z_]\w*)+)")
+SH_DONE_REDIR_RE = re.compile(r"^[ \t]*done[ \t]*<(?P<rhs>.*)$")
+SH_MAPFILE_RE = re.compile(r"\b(?:mapfile|readarray)\b[^<]*?(?P<n>[A-Za-z_]\w*)[ \t]*<(?P<rhs>.*)$")
+SH_FOR_IN_RE = re.compile(r"^[ \t]*for[ \t]+(?P<n>[A-Za-z_]\w*)[ \t]+in[ \t]+(?P<rhs>.*?);?[ \t]*(?:do)?[ \t]*$")
+
+PY_RE_CALL_RE = re.compile(
+    r"\bre\.(?P<f>search|match|fullmatch|findall|finditer|sub|subn|split)[ \t]*\(")
+PY_RECV_CALL_RE = re.compile(
+    r"\b(?P<recv>[A-Za-z_]\w*)\.(?P<f>match|search|fullmatch|findall|finditer|sub|subn|split)[ \t]*\(")
+STR_METHOD_RE = re.compile(
+    r"\.(?P<f>startswith|endswith|find|index|count|includes|startsWith|endsWith"
+    r"|match|matchAll|search|test)[ \t]*\(")
+IN_TEST_SUBJ_RE = re.compile(
+    r"""(?:r?'(?:[^'\\]|\\.)*'|r?"(?:[^"\\]|\\.)*")[ \t]+in[ \t]+(?P<subj>[^:\)\],]+)""")
+
+_RECV_STOP = set(" \t([{,=+;:!&|<>~")
+
+
+def _receiver_before(line, idx):
+    """The expression immediately left of position `idx` -- the method call's receiver."""
+    j = idx
+    while j > 0 and line[j - 1] not in _RECV_STOP:
+        j -= 1
+    return line[j:idx]
+
+
+def _split_args(line, open_idx):
+    """Top-level argument expressions of the call whose `(` is at `open_idx`."""
+    depth = 0
+    args = []
+    cur = []
+    quote = None
+    i = open_idx
+    n = len(line)
+    while i < n:
+        c = line[i]
+        if quote:
+            cur.append(c)
+            if c == "\\":
+                if i + 1 < n:
+                    cur.append(line[i + 1])
+                    i += 2
+                    continue
+            elif c == quote:
+                quote = None
+            i += 1
+            continue
+        if c in "'\"":
+            quote = c
+            cur.append(c)
+        elif c in "([{":
+            depth += 1
+            if depth == 1:
+                i += 1
+                continue
+            cur.append(c)
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                args.append("".join(cur))
+                return [a.strip() for a in args]
+            cur.append(c)
+        elif c == "," and depth == 1:
+            args.append("".join(cur))
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    args.append("".join(cur))
+    return [a.strip() for a in args]
+
+
+def _sh_tokens(text):
+    """Whitespace tokens of a shell command, quotes kept intact."""
+    out = []
+    cur = []
+    quote = None
+    for c in text:
+        if quote:
+            cur.append(c)
+            if c == quote:
+                quote = None
+            continue
+        if c in "'\"":
+            quote = c
+            cur.append(c)
+        elif c.isspace():
+            if cur:
+                out.append("".join(cur))
+                cur = []
+        else:
+            cur.append(c)
+    if cur:
+        out.append("".join(cur))
+    return out
+
+
+class Unit:
+    """A contiguous run of lines analysed in ONE language.
+
+    A shell file with an embedded `python3 - "$x" <<'PY'` heredoc is TWO units: the host
+    shell, and the Python program, whose `sys.argv[1]` is bound to the shell expression
+    `"$x"`. Without that binding the heredoc parser that motivates this whole item reads as
+    an unrooted program and could never be traced to the ledger it is handed.
+    """
+
+    def __init__(self, lang, lines, argv_exprs=(), opener=None, inherit=False):
+        self.lang = lang
+        self.lines = lines
+        self.argv_exprs = list(argv_exprs)
+        self.opener = opener
+        self.inherit = inherit
+        self.argv = {}
+        self.globals = {}
+        self.regions = []
+
+
+class Region:
+    def __init__(self, name, start, end, params):
+        self.name = name
+        self.start = start
+        self.end = end
+        self.params = params
+        self.env = {}
+
+
+def _heredoc_argv(opener):
+    """argv expressions of an interpreter invoked with a heredoc program on `opener`."""
+    head = opener.split("<<")[0]
+    # Locate the interpreter in the RAW text, never in tokens: the real shape is
+    # `reqs="$(python3 - "$roadmap_path"`, whose leading `"` opens a quote that swallows
+    # the interpreter and every argument after it if the line is tokenised whole. That is
+    # exactly the invocation this whole item is about, so getting it wrong would leave the
+    # motivating consumer untraceable while every fixture passed.
+    lm = HEREDOC_LANG_RE.search(head)
+    if not lm:
+        return []
+    rest = _sh_tokens(head[lm.end():])
+    # Skip interpreter options; `-` is the read-program-from-stdin placeholder and
+    # occupies argv[0], as does an explicit script name.
+    while rest and rest[0].startswith("-") and rest[0] != "-":
+        rest = rest[1:]
+    if rest:
+        rest = rest[1:]
+    return rest
+
+
+def _split_units(path, lines):
+    if path.endswith(".py"):
+        return [Unit("py", list(enumerate(lines, 1)))]
+    if path.endswith((".js", ".mjs", ".cjs")):
+        return [Unit("js", list(enumerate(lines, 1)))]
+    host = []
+    units = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        host.append((i + 1, line))
+        m = HEREDOC_OPEN_RE.search(line)
+        if m:
+            tag = m.group(2)
+            body = []
+            j = i + 1
+            while j < n and lines[j].strip() != tag:
+                body.append((j + 1, lines[j]))
+                j += 1
+            lm = HEREDOC_LANG_RE.search(line.split("<<")[0])
+            word = lm.group(1) if lm else ""
+            lang = "py" if word.startswith("python") else ("js" if word in ("node", "deno") else None)
+            units.append(Unit(lang or "sh", body,
+                              argv_exprs=_heredoc_argv(line) if lang else [],
+                              opener=(i + 1, line), inherit=lang is None))
+            i = j + 1
+            continue
+        i += 1
+    units.insert(0, Unit("sh", host))
+    return units
+
+
+class FileFlow:
+    """Construct-to-corpus dataflow for ONE reader file."""
+
+    def __init__(self, path, text):
+        self.path = path
+        self.lines = text.split("\n")
+        self.by_no = {i + 1: l for i, l in enumerate(self.lines)}
+        self.units = _split_units(path, self.lines)
+        self.unit_of = {}
+        for u in self.units:
+            self._build_regions(u)
+            for no, _t in u.lines:
+                self.unit_of[no] = u
+        for _pass in range(3):
+            for u in self.units:
+                self._propagate(u)
+        # CONTAINMENT. Does anything in this file bind ledger text, or text from a read
+        # whose target we could not identify? If not, the corpus never arrives here and
+        # every construct is cleared -- the one place a file-wide verdict is legitimate,
+        # because it is the NEGATIVE direction (nothing enters) rather than the positive
+        # one (something else was also read) that produced the id:9ce0 false clear.
+        self.may_hold_ledger = False
+        for u in self.units:
+            envs = [u.globals] + [r.env for r in u.regions] + [u.argv]
+            for env in envs:
+                for labels in env.values():
+                    if LBL_LEDGER in labels or LBL_UNKNOWN in labels:
+                        self.may_hold_ledger = True
+
+    # -- environments ---------------------------------------------------------------
+    def _build_regions(self, unit):
+        if unit.lang == "py":
+            starts = []
+            for no, line in unit.lines:
+                m = PY_DEF_RE.match(line)
+                if m:
+                    starts.append((no, len(m.group("ind")), m.group("n"),
+                                   [p.strip().split("=")[0].strip().lstrip("*")
+                                    for p in m.group("p").split(",") if p.strip()]))
+            for k, (no, ind, name, params) in enumerate(starts):
+                end = unit.lines[-1][0] if unit.lines else no
+                for no2, line2 in unit.lines:
+                    if no2 <= no or not line2.strip():
+                        continue
+                    lead = len(line2) - len(line2.lstrip())
+                    if lead <= ind:
+                        end = no2 - 1
+                        break
+                unit.regions.append(Region(name, no, end, params))
+        elif unit.lang == "sh":
+            for no, line in unit.lines:
+                m = SH_FUNC_RE.match(line)
+                if not m:
+                    continue
+                end = unit.lines[-1][0] if unit.lines else no
+                for no2, line2 in unit.lines:
+                    if no2 > no and re.match(r"^[ \t]*\}[ \t]*$", line2):
+                        end = no2
+                        break
+                unit.regions.append(Region(m.group("n"), no, end, []))
+
+    def _region_at(self, unit, lineno):
+        best = None
+        for r in unit.regions:
+            if r.start <= lineno <= r.end:
+                if best is None or r.start > best.start:
+                    best = r
+        return best
+
+    def _env_at(self, unit, lineno):
+        env = dict(unit.globals)
+        r = self._region_at(unit, lineno)
+        if r:
+            env.update(r.env)
+        return env
+
+    def _bind(self, unit, lineno, name, labels, local):
+        if not labels:
+            return
+        r = self._region_at(unit, lineno) if local else None
+        target = r.env if r is not None else unit.globals
+        target[name] = target.get(name, set()) | labels
+
+    def taint_of(self, expr, env, unit):
+        labels = set()
+        if not expr:
+            return labels
+        if LEDGER_BASENAME_RE.search(expr):
+            labels.add(LBL_LEDGER)
+        if "ledger-notes" in expr:
+            labels.add(LBL_NOTES)
+        names = SH_VAR_RE.findall(expr) if unit.lang == "sh" else PY_WORD_RE.findall(expr)
+        for nm in names:
+            labels |= env.get(nm, set())
+        for idx in ARGV_INDEX_RE.findall(expr):
+            labels |= unit.argv.get(int(idx), set())
+        if unit.lang == "sh":
+            for idx in re.findall(r"\$\{?([0-9])\}?", expr):
+                labels |= env.get(idx, set())
+        if not labels and (PATHISH_LITERAL_RE.search(expr) or PROC_CALL_RE.search(expr)):
+            labels.add(LBL_OTHER)
+        if not labels and READ_CALL_RE.search(expr):
+            labels.add(LBL_UNKNOWN)
+        return labels
+
+    def _propagate(self, unit):
+        # heredoc argv, resolved in the HOST unit's environment at the opener line
+        if unit.opener:
+            host = self.units[0]
+            env = self._env_at(host, unit.opener[0])
+            for k, expr in enumerate(unit.argv_exprs, 1):
+                lb = self.taint_of(expr, env, host)
+                if lb:
+                    unit.argv[k] = unit.argv.get(k, set()) | lb
+        funcs = {r.name: r for r in unit.regions}
+        for no, line in unit.lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            env = self._env_at(unit, no)
+            if unit.lang == "sh":
+                for m in SH_ASSIGN_RE.finditer(line):
+                    local = "local " in line or "declare " in line or "typeset " in line
+                    self._bind(unit, no, m.group("n"),
+                               self.taint_of(m.group("rhs"), env, unit), local)
+                m = SH_MAPFILE_RE.search(line)
+                if m:
+                    self._bind(unit, no, m.group("n"),
+                               self.taint_of(m.group("rhs"), env, unit), False)
+                m = SH_FOR_IN_RE.match(line)
+                if m:
+                    self._bind(unit, no, m.group("n"),
+                               self.taint_of(m.group("rhs"), env, unit), False)
+                m = SH_DONE_REDIR_RE.match(line)
+                if m:
+                    lb = self.taint_of(m.group("rhs"), env, unit)
+                    if lb:
+                        for no2, line2 in unit.lines:
+                            if no2 >= no:
+                                break
+                            rm = SH_READ_RE.search(line2)
+                            if rm and "while" in line2:
+                                for nm in rm.group("names").split():
+                                    self._bind(unit, no2, nm, lb, False)
+                # a call to a function defined in this unit propagates argument taints
+                toks = _sh_tokens(stripped)
+                if toks and toks[0] in funcs:
+                    callee = funcs[toks[0]]
+                    for k, arg in enumerate(toks[1:], 1):
+                        lb = self.taint_of(arg, env, unit)
+                        if lb:
+                            callee.env[str(k)] = callee.env.get(str(k), set()) | lb
+            else:
+                m = PY_ASSIGN_RE.match(line)
+                if m:
+                    self._bind(unit, no, m.group("n"),
+                               self.taint_of(m.group("rhs"), env, unit),
+                               self._region_at(unit, no) is not None)
+                m = PY_TUPLE_FOR_RE.match(line) if unit.lang == "py" else None
+                if m:
+                    lb = self.taint_of(m.group("rhs"), env, unit)
+                    for nm in m.group("names").split(","):
+                        self._bind(unit, no, nm.strip(), lb,
+                                   self._region_at(unit, no) is not None)
+                m = JS_FOR_OF_RE.search(line) if unit.lang == "js" else None
+                if m:
+                    self._bind(unit, no, m.group("n"),
+                               self.taint_of(m.group("rhs"), env, unit),
+                               self._region_at(unit, no) is not None)
+                m = PY_WITH_RE.match(line)
+                if m:
+                    self._bind(unit, no, m.group("n"),
+                               self.taint_of(m.group("rhs"), env, unit),
+                               self._region_at(unit, no) is not None)
+                for fname, region in funcs.items():
+                    for cm in re.finditer(r"\b" + re.escape(fname) + r"[ \t]*\(", line):
+                        if cm.start() > 0 and line[cm.start() - 1] == ".":
+                            continue
+                        args = _split_args(line, cm.end() - 1)
+                        for k, arg in enumerate(args):
+                            if k >= len(region.params):
+                                break
+                            lb = self.taint_of(arg, env, unit)
+                            if lb:
+                                pn = region.params[k]
+                                region.env[pn] = region.env.get(pn, set()) | lb
+
+    # -- subjects -------------------------------------------------------------------
+    def _sh_subject(self, lineno, span):
+        text = self.by_no.get(lineno, "")
+        if span:
+            text = text[:span[0]] + " " + text[span[1]:]
+        parts = []
+        k = lineno - 1
+        while k >= 1 and len(parts) < 3:
+            prev = self.by_no.get(k, "").rstrip()
+            if prev.endswith("|") or prev.endswith("\\"):
+                parts.insert(0, prev.rstrip("\\").rstrip())
+                k -= 1
+                continue
+            break
+        return " ".join(parts + [text])
+
+    def _code_subjects(self, lineno):
+        line = self.by_no.get(lineno, "")
+        subs = []
+        for m in PY_RE_CALL_RE.finditer(line):
+            args = _split_args(line, m.end() - 1)
+            idx = 2 if m.group("f") in ("sub", "subn") else 1
+            if len(args) > idx:
+                subs.append(args[idx])
+        for m in PY_RECV_CALL_RE.finditer(line):
+            if m.group("recv") == "re":
+                continue
+            args = _split_args(line, m.end() - 1)
+            idx = 1 if m.group("f") in ("sub", "subn") else 0
+            if len(args) > idx:
+                subs.append(args[idx])
+        for m in STR_METHOD_RE.finditer(line):
+            if m.group("f") == "test":
+                args = _split_args(line, m.end() - 1)
+                if args:
+                    subs.append(args[0])
+            else:
+                subs.append(_receiver_before(line, m.start()))
+        for m in IN_TEST_SUBJ_RE.finditer(line):
+            subs.append(m.group("subj"))
+        return [s for s in subs if s.strip()]
+
+    def corpus_at(self, lineno, span=None):
+        unit = self.unit_of.get(lineno)
+        if unit is None:
+            return CORPUS_UNTRACED
+        if unit.inherit and unit.opener:
+            # A heredoc for a non-py/js interpreter (awk, sed) is a PROGRAM over the
+            # stream the opening command was handed, so its subject is that command's.
+            host = self.units[0]
+            env = self._env_at(host, unit.opener[0])
+            expr = self._sh_subject(unit.opener[0], None)
+            return corpus_of(self.taint_of(expr, env, host), True, self.may_hold_ledger)
+        env = self._env_at(unit, lineno)
+        if unit.lang == "sh":
+            expr = self._sh_subject(lineno, span)
+            return corpus_of(self.taint_of(expr, env, unit), True, self.may_hold_ledger)
+        subs = self._code_subjects(lineno)
+        if not subs:
+            return corpus_of(set(), False, self.may_hold_ledger)
+        labels = set()
+        for s in subs:
+            labels |= self.taint_of(s, env, unit)
+        return corpus_of(labels, True, self.may_hold_ledger)
+
+
 READER_EXTS = (".sh", ".bash", ".py", ".js", ".mjs", ".cjs", ".awk", ".pl")
 READER_SKIP_DIRS = {".git", "docs", "__pycache__", "node_modules", ".claude", "worktrees"}
 
@@ -288,14 +852,24 @@ FMT_MARK_RE = re.compile(r"\{\}|%s|\$\{")
 
 
 class Pattern:
-    """One statically extracted search pattern belonging to one reader."""
+    """One statically extracted search pattern belonging to one reader.
 
-    def __init__(self, path, lineno, rx, raw, snippet):
+    `span` is the half-open extent of the pattern LITERAL inside its line, when the
+    extraction knew it. The construct-to-corpus pass (id:1447) removes that extent before
+    reading the line for a subject, so a pattern that merely QUOTES a ledger basename --
+    `grep -q 'see TODO.md' "$somefile"` -- is not mistaken for a read of one.
+
+    `corpus` is filled in by `FileFlow`: one of ledger / union / other / untraced.
+    """
+
+    def __init__(self, path, lineno, rx, raw, snippet, span=None):
         self.path = path
         self.lineno = lineno
         self.rx = rx
         self.raw = raw
         self.snippet = snippet
+        self.span = span
+        self.corpus = CORPUS_UNTRACED
 
     def where(self):
         return "{}:{}".format(self.path, self.lineno)
@@ -314,6 +888,7 @@ class Unanalysable:
         self.snippet = snippet
         self.why = why
         self.site = site
+        self.corpus = CORPUS_UNTRACED
 
     def render(self):
         head = "{}:{}: {}".format(self.path, self.lineno, self.snippet.strip()[:100])
@@ -432,7 +1007,7 @@ def extract_patterns(path, text):
     pats = []
     unan = []
 
-    def analyse(n, line, raw, dq, literal, flags, sedawk, site=None):
+    def analyse(n, line, raw, dq, literal, flags, sedawk, site=None, span=None):
         if is_shell and dq:
             # Anything OUTSIDE the variable references must be plain text; a folded
             # value is literal by construction and is not re-scanned for expansions.
@@ -462,7 +1037,7 @@ def extract_patterns(path, text):
         for cand in (_sed_patterns(raw) if sedawk else [raw]):
             rx = _compile(cand, literal, flags)
             if rx:
-                pats.append(Pattern(path, n, rx, cand, line))
+                pats.append(Pattern(path, n, rx, cand, line, span))
 
     for n, line in enumerate(text.split("\n"), 1):
         stripped = line.lstrip()
@@ -473,7 +1048,7 @@ def extract_patterns(path, text):
             if lit:
                 rx = _compile(lit, True)
                 if rx:
-                    pats.append(Pattern(path, n, rx, lit, line))
+                    pats.append(Pattern(path, n, rx, lit, line, m.span()))
         if not is_shell:
             for rm in RECEIVER_RE.finditer(line):
                 name = rm.group("name")
@@ -489,12 +1064,15 @@ def extract_patterns(path, text):
             rest = line[cm.end():]
             qm = QUOTED_RE.search(rest)
             jm = JS_REGEX_RE.search(rest) if cm.group("js") else None
+            base = cm.end()
             if jm and (not qm or jm.start() < qm.start()):
                 raw, dq, literal, opts = jm.group(1), False, False, rest[:jm.start()]
+                span = (base + jm.start(), base + jm.end())
             elif qm:
                 raw = qm.group(1) if qm.group(1) is not None else qm.group(2)
                 dq = qm.group(2) is not None
                 opts = rest[:qm.start()]
+                span = (base + qm.start(), base + qm.end())
                 literal = bool(cm.group("js") or cm.group("pyattr")
                                or re.search(r"(?<![A-Za-z])-[A-Za-z]*F", opts))
             else:
@@ -505,16 +1083,27 @@ def extract_patterns(path, text):
                 continue
             flags = re.I if (cm.group("grep") and
                              re.search(r"(?<![A-Za-z])-[A-Za-z]*i", opts)) else 0
-            analyse(n, line, raw, dq, literal, flags, bool(cm.group("sedawk")))
+            analyse(n, line, raw, dq, literal, flags, bool(cm.group("sedawk")),
+                    span=span)
     return pats, unan
 
 
 def find_readers(root):
-    """Compute the live reader set under `root`. Returns a dict of everything measured."""
+    """Compute the live reader set under `root`. Returns a dict of everything measured.
+
+    CONSTRUCT-LEVEL, NOT FILE-LEVEL (id:1447). `9ce0` dropped a whole file from the
+    consumer set the moment ANY line in it read `docs/ledger-notes/`. That cleared
+    `roadmap-lint.sh`'s ledger-only heredoc parser on the strength of two unrelated notes
+    reads elsewhere in the same file, which is a SILENT false clear -- the failure class
+    that cost a peer repo four id markers. Here every construct carries its own corpus and
+    a union verdict clears only the constructs whose OWN subject reads the union.
+    """
     ledger_only = []
     union = []
     pats = []
     unan = []
+    other = 0
+    untraced_pats = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in READER_SKIP_DIRS]
         for fn in sorted(filenames):
@@ -531,14 +1120,31 @@ def find_readers(root):
             fpats, funan = extract_patterns(rel, text)
             if not (fpats or funan):
                 continue          # names a ledger but never content-matches: not a reader
-            if reads_notes(text):
+            flow = FileFlow(rel, text)
+            for p in fpats:
+                p.corpus = flow.corpus_at(p.lineno, p.span)
+            for u in funan:
+                u.corpus = flow.corpus_at(u.lineno)
+            kinds = set(p.corpus for p in fpats) | set(u.corpus for u in funan)
+            if CORPUS_UNION in kinds or reads_notes(text):
                 union.append(rel)
-                continue          # reads the ledger+notes UNION: relocation cannot break it
-            ledger_only.append(rel)
-            pats.extend(fpats)
-            unan.extend(funan)
+            if kinds & {CORPUS_LEDGER, CORPUS_UNTRACED}:
+                ledger_only.append(rel)
+            for p in fpats:
+                if p.corpus == CORPUS_LEDGER:
+                    pats.append(p)
+                elif p.corpus == CORPUS_UNTRACED:
+                    untraced_pats.append(p)
+                else:
+                    other += 1
+            # An UNANALYSABLE construct is only worth printing when the corpus it reads
+            # could be the ledger. One whose subject is demonstrably other text is noise,
+            # and a loud channel nobody can act on is a saturated detector (id:2d17).
+            unan.extend(u for u in funan
+                        if u.corpus in (CORPUS_LEDGER, CORPUS_UNTRACED))
     return {"ledger_only": ledger_only, "union": union,
-            "patterns": pats, "unanalysable": unan}
+            "patterns": pats, "unanalysable": unan,
+            "untraced": untraced_pats, "cleared_other": other}
 
 
 def cited_by(body_lines, patterns, elsewhere_lines=()):
@@ -615,6 +1221,84 @@ def selftest_predicate():
         problems.append("a genuine notes read was not recognised as union-anchored")
     if reads_notes("# the prose belongs in docs/ledger-notes instead"):
         problems.append("a COMMENT mention of the notes dir was scored union-anchored")
+    problems.extend(_selftest_dataflow())
+    return problems
+
+
+def _selftest_dataflow():
+    """The id:1447 half: the construct-to-corpus pass must be able to FAIL too.
+
+    Its whole value is a NARROWING, and a narrowing that silently answers "not a ledger
+    search" for everything is the id:0b70 vacuous check in a new costume -- exactly what
+    the constant it descends from was. So the fixture pins all four verdicts, including
+    the two that must NOT be cleared, and the FALSE-CLEAR case that motivated the item:
+    two functions in ONE file, one reading the notes union and one reading the ledger
+    alone, where file-level anchoring cleared the second on the strength of the first.
+    """
+    problems = []
+    shell = "\n".join([
+        "#!/usr/bin/env bash",
+        "check_union() {",
+        '  local p="$1"',
+        '  cat "$p" "$(dirname "$p")/docs/ledger-notes"/*.md | grep -q "UNION-SUBJECT"',
+        "}",
+        "check_ledger_only() {",
+        '  local p="$1"',
+        '  grep -q "LEDGER-SUBJECT" "$p"',
+        "}",
+        "check_other() {",
+        '  grep -q "OTHER-SUBJECT" "$root/relay/scripts/relay-loop.js"',
+        "}",
+        'roadmap="$root/ROADMAP.md"',
+        'check_union "$roadmap"',
+        'check_ledger_only "$roadmap"',
+        "check_other",
+    ])
+    flow = FileFlow("selftest-two-functions.sh", shell)
+    verdicts = {}
+    for n, line in enumerate(shell.split("\n"), 1):
+        if "UNION-SUBJECT" in line and "grep" in line:
+            verdicts["union"] = flow.corpus_at(n)
+        if "LEDGER-SUBJECT" in line and "grep" in line:
+            verdicts["ledger"] = flow.corpus_at(n)
+        if "OTHER-SUBJECT" in line and "grep" in line:
+            verdicts["other"] = flow.corpus_at(n)
+    if verdicts.get("ledger") != CORPUS_LEDGER:
+        problems.append(
+            "the FALSE-CLEAR case is back: a ledger-only function in a file that also "
+            "reads the notes scored '{}', not '{}'".format(
+                verdicts.get("ledger"), CORPUS_LEDGER))
+    if verdicts.get("union") != CORPUS_UNION:
+        problems.append("a genuine ledger+notes union subject scored '{}'".format(
+            verdicts.get("union")))
+    if verdicts.get("other") != CORPUS_OTHER:
+        problems.append(
+            "a subject that reads a NON-ledger file scored '{}', so the narrowing "
+            "narrows nothing".format(verdicts.get("other")))
+
+    # A heredoc program is a unit of its own, and its `sys.argv` must be bound to what the
+    # host shell handed it -- otherwise the motivating consumer (a python hop-table parser
+    # inside a shell function) can never be traced to the ledger it parses.
+    heredoc = "\n".join([
+        "#!/usr/bin/env bash",
+        'roadmap="$root/ROADMAP.md"',
+        "parse() {",
+        '  python3 - "$1" <<\'PY\'',
+        "import re, sys",
+        "text = open(sys.argv[1], encoding='utf-8').read()",
+        "for line in text.split('\\n'):",
+        "    if re.match(r'^HEREDOC-SUBJECT', line):",
+        "        print(line)",
+        "PY",
+        "}",
+        'parse "$roadmap"',
+    ])
+    hflow = FileFlow("selftest-heredoc.sh", heredoc)
+    hline = [n for n, l in enumerate(heredoc.split("\n"), 1) if "HEREDOC-SUBJECT" in l][0]
+    if hflow.corpus_at(hline) != CORPUS_LEDGER:
+        problems.append(
+            "a heredoc program's subject did not trace through argv to the ledger "
+            "(scored '{}')".format(hflow.corpus_at(hline)))
     return problems
 
 
@@ -673,14 +1357,20 @@ def scan(lines, patterns=None):
                             # EVERY consumer, never a truncated head. The consumer that
                             # motivates a refusal is frequently not the first one found,
                             # and a reason that omits it cannot be acted on.
+                            # EVERY site carries the CORPUS its subject traced to, so the
+                            # caller can tell an evidenced consumer from an unresolved
+                            # trace without re-deriving either (id:1447).
                             named = "".join(
-                                "\n        {} matches body line {} (pattern `{}`)".format(
-                                    p.where(), i + 2 + k, p.raw)
+                                "\n        [{}] {} matches body line {} (pattern `{}`)".format(
+                                    p.corpus, p.where(), i + 2 + k, p.raw)
                                 for p, k in hits)
+                            n_led = sum(1 for p, _k in hits if p.corpus == CORPUS_LEDGER)
                             refused.append((
                                 "cited-body", i + 1,
-                                "id:{} -- body read by {} live consumer site(s):{}".format(
-                                    idm.group(1), len(hits), named)))
+                                "id:{} -- body read by {} live consumer site(s) "
+                                "({} ledger-traced, {} untraced-subject):{}".format(
+                                    idm.group(1), len(hits), n_led,
+                                    len(hits) - n_led, named)))
                         else:
                             blocks.append(Block(i, idm.group(1), line, cont))
             i = j
@@ -822,7 +1512,11 @@ def main():
 
     readers = find_readers(root)
 
-    blocks, refused = scan(lines, readers["patterns"])
+    # LEDGER-TRACED AND UNTRACED BOTH REFUSE. Only a subject traced to a demonstrably
+    # non-ledger origin is cleared quietly; an unresolved trace is named in the refusal
+    # and tagged, because this pass may only ever REMOVE a refusal it can justify, never
+    # add a clear it cannot (id:1447).
+    blocks, refused = scan(lines, readers["patterns"] + readers["untraced"])
     heading = section_heading(args.file)
 
     # ---- ORPHAN PRECONDITION: every id addressable before must be addressable after.
@@ -834,6 +1528,8 @@ def main():
     print("ledger-only readers (computed)   : {}".format(len(readers["ledger_only"])))
     print("union-anchored readers (notes)   : {}".format(len(readers["union"])))
     print("reader patterns extracted        : {}".format(len(readers["patterns"])))
+    print("patterns over UNTRACED subjects  : {}".format(len(readers["untraced"])))
+    print("patterns cleared (non-ledger)    : {}".format(readers["cleared_other"]))
     print("UNANALYSABLE reader constructs   : {}".format(len(readers["unanalysable"])))
     for u in readers["unanalysable"]:
         print("    " + u.render())
