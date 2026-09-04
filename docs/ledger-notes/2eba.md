@@ -107,3 +107,29 @@ set is complete". Delivered:
   apart from the live bullet above it. Without a stub the body would silently re-attach to
   that neighbour, which is the guessing `71ed` exists to refuse, so the archiver now refuses
   the whole item and leaves header and body live. Still a fixed point, still loud.
+
+## STATUS 2026-09-04 -- STAYS OPEN on the CROSS-REPO clause only
+
+Re-verified by running the done-check. **Four of its five clauses PASS; the fifth does not**,
+so the item stays open even though this repo's half is complete.
+
+| clause | result |
+|---|---|
+| decision recorded | PASS -- the owner-ratified "stop leaving a stub at all" section above |
+| both local writers stop emitting | PASS -- guard now `relay/scripts/lib-archive-idempotency.py`, imported by `roadmap-archive.sh` and `archive-closed.sh` |
+| `tests/` pins the new shape | PASS -- `test_roadmap_archive_leaves_stub.sh:81`, `test_archive_closed.sh:81`, `test_pre_commit_ledger_grammar.sh` case (f2) |
+| archiver is a no-op on an already-archived ledger | PASS -- measured in a scratch clone: run 1 archived 4 newly-closed items and refused 6 already-present ids by archive membership, naming them on stderr; runs 2 and 3 were BYTE-EXACT no-ops (`md5sum -c` OK on both files). The `d05d` idempotency property holds under the replacement guard |
+| **loderite's mirror agrees** | **FAIL** |
+
+`loderite/tools/archive-roadmap.mjs:45` still defines
+``STUB_SUFFIX = " (archived -- see ROADMAP.archive.md)"`` and still writes it at `:204`. The
+two repos DIVERGE on this convention.
+
+**That divergence is deliberate and correctly parked, not an oversight.** loderite holds its
+port (their `id:d9a9`) until their shrink hold lifts, and there is no runtime coupling since
+each repo archives its own ledger. But the done-check as written names the mirror, and the
+mirror does not agree, so the honest state is OPEN-pending-loderite rather than done.
+
+`HANDOVER-2026-09-03-2130.md` section 3 therefore OVERSTATES this item, and section 7 of the
+same file already says so. When two sections of one handover disagree, the one carrying the
+specific cross-repo detail has been the reliable half both times this has come up.
