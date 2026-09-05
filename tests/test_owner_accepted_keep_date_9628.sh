@@ -13,20 +13,25 @@
 # form out of the keep-set entirely, relocating every bare receipt in every repo (1,774
 # bare vs 222 dated across this tree). Case B exists to fail against that fix.
 #
-# fails-against-mutation: python3 - <<'EOF'
-# import re,pathlib
-# p = pathlib.Path("tools/ledger-shrink.py")
-# s = p.read_text()
-# s = s.replace('re.compile(r"`?@owner-accepted(?::[0-9-]+)?`?"),',
-#               're.compile(r"`?@owner-accepted`?"),')
-# p.write_text(s)
-# EOF
+# fails-against-mutation: python3 -c 'import pathlib; p = pathlib.Path("tools/ledger-shrink.py"); s = p.read_text(); n = s.replace("@owner-accepted(?::[0-9-]+)?", "@owner-accepted"); assert n != s, "mutation matched nothing"; p.write_text(n)'
 # fails-against-assertion: (A) dated receipt lost its date
 #
 # The mutation restores the pre-fix pattern verbatim. Case A is the assertion that
 # fires there; case B is reachable but green at the parent (the bare form was always
 # kept), so A is the only one the ancestor can be pinned on -- recorded here rather
 # than left implicit.
+#
+# THE DECLARATION MUST BE ONE LINE, AND THIS ONE WAS NOT (found by review 2026-09-05).
+# It was originally authored as a `python3 - <<'EOF'` heredoc spread over 8 comment
+# lines. `verify-negative-cases.py`'s CASE_RE takes only the REMAINDER OF THE MATCHED
+# LINE as the command, so the extracted mutation was the bare string `python3 - <<'EOF'`:
+# bash warns about the unterminated heredoc, python reads an empty stdin, and it exits 0.
+# The mutation was a silent NO-OP, the test ran against the UNMUTATED tree, passed, and
+# `make verify-negatives` reported it VACUOUS -- correct verdict, misleading cause. The
+# replacement is a single `python3 -c` whose target substring occurs exactly ONCE in the
+# file (the code at line 183; line 174's prose mentions the date group WITHOUT the marker
+# prefix, so it is not matched) and whose `assert n != s` makes a missed match a LOUD
+# nonzero exit instead of another silent pass. Generator-level gap filed as id:b890.
 
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
