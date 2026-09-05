@@ -4585,3 +4585,17 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Acceptance**: `classify-repo.sh`'s `LANE_TAGS` and `ledger-shrink.py`'s `_LANE_PATTERNS` recognise EXACTLY the token set `relay/references/hard-lanes.md` declares -- no token declared and unrecognised, none recognised and undeclared. BOTH dash spellings stay live and neither is normalised to the other in passing.
   - **Tests**: `tests/test_lane_grammar_ssot.sh` (`# roadmap:4983`)
   - **Done-check**: `tests/run-tests.sh tests/test_lane_grammar_ssot.sh` green. If the mirrors already agree today the test is a REGRESSION guard rather than a fix -- re-scope the item to "prevent a divergence" and say so, do not manufacture one to make it red.
+
+- [x] [HARD] **`shape-prose` SATURATES at ~114 standing findings, so it regulates nothing and cannot surface #115.** -- detail: `docs/ledger-notes/2d17.md` <!-- routed:3924 --> <!-- id:2d17 -->
+
+- [x] [ROUTINE] **A regrowth BELOW the baselined value is forgiven -- the `id:718c` shape the snapshot ratchet structurally cannot catch.** -- detail: `docs/ledger-notes/cf64.md` <!-- children-of:2d17 --> <!-- gated-on:2654 --> <!-- relates:2d17 --> <!-- id:cf64 -->
+
+- [x] [ROUTINE] **`grammar_item_class` counts the `-- detail:` pointer as title while `shape-prose` excludes it, so planting a REQUIRED pointer pushes an item over budget.** -- detail: `docs/ledger-notes/60eb.md` <!-- relates:2d17 --> <!-- id:60eb -->
+
+- [x] [ROUTINE] **The `id:0d7c` ratchet keys on HEAD-LINE length, so it is structurally blind to 79% of ROADMAP.md and can be fully GREEN while the file grows without limit.** -- detail: `docs/ledger-notes/b048.md` <!-- gated-on:f193 --> <!-- relates:2d17 --> <!-- id:b048 -->
+
+- [x] [ROUTINE] **The length ratchet cannot detect its own STALE baseline, so a shrunk item silently keeps its old floor and a regrowth reads as grandfathered.** -- detail: `docs/ledger-notes/2654.md` <!-- relates:2d17 --> <!-- id:2654 -->
+
+- [x] [ROUTINE] **Build the DIRECTIONAL round-trip validator the id:0d7c format ratified and nobody built -- a trimming pass must be provable, not eyeballed.** -- detail: `docs/ledger-notes/ff7c.md` <!-- relates:2d17 --> <!-- id:ff7c -->
+
+- [x] [ROUTINE] **`id:401c` is an append-only audit LOG occupying 42% of ROADMAP.md -- relocate its body under the ratified `id:0d7c` topology.** -- detail: `docs/ledger-notes/f193.md` <!-- relates:2d17 --> <!-- id:f193 -->
