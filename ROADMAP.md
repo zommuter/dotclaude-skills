@@ -168,6 +168,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 - [ ] [INPUT - decision] **Three items carry a de-facto lane derived from BODY PROSE, which `classify-repo` reads as their real lane.** -- detail: `docs/ledger-notes/1254.md` <!-- relates:2d17 --> <!-- id:1254 -->
 - [ ] [ROUTINE] **Both ledger ratchets are INERT on the install path, their baseline key has no repo dimension, and their length metric is locale-dependent -- fix all three or none.** -- detail: `docs/ledger-notes/4839.md` <!-- relates:0d7c --> <!-- id:4839 -->
 - [ ] [ROUTINE] **`verify-negative-cases.py` runs a TRUNCATED `-mutation:` command and blames the test: a multi-line heredoc declaration is cut to its first line, exits 0 as a no-op, and the file is reported VACUOUS.** -- detail: `docs/ledger-notes/b890.md` <!-- relates:a73c --> <!-- id:b890 -->
+- [ ] [ROUTINE] **The `id:b54b` hermeticity backstop fails the whole suite when the runner's OWN relay branch advances, so a relay child that commits as its contract requires can never get a green run.** -- detail: `docs/ledger-notes/b87b.md` <!-- relates:b54b --> <!-- id:b87b -->
 - [ ] [ROUTINE] [INBOUND routed:3b3a from loderite] **`todo-update/archive-done.sh` archives items completed IN THE CURRENT SESSION, moving `routed:` breadcrumbs out of `TODO.md` and stranding the inbox twin-guard.** -- detail: `docs/ledger-notes/5355.md` <!-- routed:3b3a --> <!-- id:5355 -->
 
 ## 2026-09-04 handoff C2 -- ledger-tooling and test-harness defects from the 09-04 design day (run relay-20260904-145432-15472)
