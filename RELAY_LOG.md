@@ -3256,3 +3256,33 @@ handoff C2/C3: 6 items promoted reusing their TODO ids (e047 0176 c132 8372 735f
 ## 2026-09-05 08:52 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 handoff C2+C3+C4: promoted id:3bd4 + id:4f0f to ROADMAP reusing their TODO ids, authored 2 verified-red specs for the md-merge.py update-ids silent-no-op and wrapped-item-reach defects, 2 REVIEW_ME judgment calls; make test 579 passed / 0 failed [id:3bd4,4f0f]
+
+## 2026-09-05 -- reviewer (claude-opus-5, chain-end re-ask, run relay-20260905-083048-18379)
+
+Chain-end review re-ask (id:8123) on an EMPTY diff window: LAST=relay-ckpt-20260905-0852 IS HEAD
+(3fd942ba), `git rev-list --count $LAST..HEAD` = 0. The chain that ended was this morning's own
+handoff, which checkpointed itself, so there was no executor work to audit. gaming-scan clean by
+construction; provenance greps (@owner-accepted / @owner-answered / answer-src:) clean over an
+empty input set, recorded as such rather than reported as a pass. verified_green is [] on purpose.
+Tiers (id:f032): `make test` RAN -- 579 passed / 0 failed / 12 expected-red; `make
+baseline-staleness` RAN -- current (230 TODO + 37 ROADMAP entries at or above floor).
+SKIPPED-TIER: verify-negatives -- opt-in, seconds per case, zero-commit window selects nothing.
+SKIPPED-TIER: gaming-canary, shard-canary -- spawn real agents, cost tokens, on-demand by design.
+No item was closed on a skipped tier because no item was closed.
+Five REVIEW_ME boxes filed. The substantive one is id:4839: the id:0d7c head-length and id:2d17
+shape-prose ratchets are INERT for every INSTALL-path caller -- measured 1 finding via the repo
+path vs 216 via the install path, because relay_FILES declares scripts/*+references/* and the two
+baselines live at relay/*.txt, so `make install` never places them. It fails OPEN (noisy), not
+silent, but the ratchet SEMANTIC is what is lost. Aggravated by relay-doctor.sh:298 redirecting
+the INERT warnings to $LOG, and by install-drift structurally only walking scripts/+references/.
+Also filed: id:c773 (--fix can never fix TODO.md:907 -- the duplicate-id guard matches prose
+CITATIONS of other ids), id:c47f (lib-archive-idempotency.py declared but not installed),
+id:0bb7 (two inbox dead-letters targeting this repo, routed:df51 + routed:3b3a, verified absent
+and deliberately NOT ingested -- the adopt path runs through md-merge.py update-ids, which has two
+open verified-red specs as of this morning), id:62fd (REVIEW_ME at 31 open boxes vs its own stated
+max ~10, with zero resolved boxes to archive -- a throughput problem, owner's to act on).
+ROADMAP re-derivation closed nothing (nothing shipped). routine_open = 18 open [ROUTINE] items,
+unchanged; classify-repo reports 12 of those as actionable once gates are excluded.
+Friction: the review verdict fired on a window with zero commits -- the chain-end re-ask does not
+check whether the chain it follows was a handoff that already checkpointed itself.
+refactor: none needed -- this unit wrote only ledger prose, no code.

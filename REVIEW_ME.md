@@ -403,3 +403,102 @@ re-derives from the evidence named here; reopen any whose evidence does not hold
 - [ ] **`todo-conformance.sh --fix` REFUSES the repo's one `missing-id` finding and says so on STDERR only, so the hand-migration it asks for is tracked nowhere.** `TODO.md` line 907 (the `[INPUT - decision]` item on whitelisting the destructive-git ops in a provably-disposable worktree) is the single `missing-id` line; `--fix` correctly declines to mint, printing *"line 907 has a non-canonical inline id -- NOT auto-minted (migrate to an id comment by hand to avoid a duplicate id)"*. That is the same-or-sibling-id ambiguity review.md 4b tells a reviewer NOT to guess: the body cites `id:3a09`, `id:458c`, `id:9320`, `id:5937` and `id:2840` as related work, and adopting any of them as this line's own key would collide. It needs a human to mint or adopt one. Two things to note while it stands: the item is invisible to every id-keyed collector (orphan-scan, unpromoted-scan, the typed-edge engine), and the refusal reaching only stderr means a `--fix` run that resolves nothing still exits 0 and reads as a clean pass. <!-- id:a9c5 -->
 - [ ] **id:3bd4 -- the spec invents an opt-in flag `--allow-noop`, and it takes a position on what counts as a no-op. Confirm both.** The item's FIX text says a deliberate no-op "can opt in via an explicit flag" without naming it; case (G) of `tests/test_md_merge_silent_noop_3bd4.sh` pins the spelling `--allow-noop`. It exists because an idempotent caller re-running its own delta would otherwise hit the new hard failure. The second, larger call: the spec treats a `regex_sub` whose PATTERN DOES NOT MATCH as the no-op, and deliberately says nothing about a pattern that matches but whose replacement is byte-identical (`sub('a','a')`). Both are "nothing changed", but only the first is unambiguously a caller mistake; failing the second would break a genuinely idempotent normalisation. If you want both to fail, the spec needs a case for it. <!-- id:a03e -->
 - [ ] **id:4f0f -- the JSON key `scope` and the value `item` are the SPEC's choice, not yours. Confirm the surface before an executor builds it.** The TODO item ratified the BEHAVIOUR (an item-scoped mode over the head line plus its continuation lines) and named no spelling. `tests/test_md_merge_item_scope_4f0f.sh` pins `{"id":"XXXX","scope":"item","regex_sub":{...}}` because it composes with the existing per-op shape rather than adding a parallel op family, and because `id:5d7e` already folds several ops per id. Two consequences worth ratifying with it: the spec makes an unsupported `scope`+op combination and an unrecognised `scope` value LOUD refusals rather than a silent fall-back to line scope (cases B and C), which is a deliberate widening of the failure surface; and item-scoped `append` and item-scoped whole-block replacement are deliberately NOT specced, because each needs its own answer to where the text lands and what happens to the id marker. The block boundary itself is NOT a judgment call -- it reuses the definition already in `tools/ledger-continuations.py`. <!-- id:b5c1 -->
+
+## Review 2026-09-05 (chain-end re-ask, run `relay-20260905-083048-18379` -- id:8123)
+
+**The diff window is EMPTY and that is the honest headline.** `LAST=relay-ckpt-20260905-0852`
+resolves to `3fd942ba`, which IS `HEAD`: `git rev-list --count $LAST..HEAD` = **0**. The chain
+that just ended was this morning's handoff (C2/C3/C4, promoting `id:3bd4` + `id:4f0f` with two
+verified-red specs), and it checkpointed itself. So there is **no executor work to audit in this
+window** -- `gaming-scan.sh` returned empty, and it returned empty *by construction*, not because
+an executor was found clean. `verified_green` is deliberately `[]`: nothing went red-to-green here,
+and crediting the 579 passing tests as "verified green this review" would be exactly the
+subset-green wording §3(c) bans. The §2b judgment-residue checks, the §2b.7/§2b.9 provenance greps
+and the §2d over-reach check all have an empty input set; I ran the greps anyway and they are
+clean, but a clean grep over zero commits is not evidence of anything and is recorded as such.
+
+**Test tiers, enumerated then run-or-skipped (§3).** Declared tiers from `Makefile` (there is no
+`.github/workflows`, so CI declares none): `make test` (runs `lint` first) -- **RAN, 579 passed /
+0 failed / 12 expected-red**, each expected-red an open roadmap item whose red test IS its spec.
+`make baseline-staleness` -- **RAN**, both ratchets current (230 baselined TODO entries, 37 ROADMAP,
+none below floor). **SKIPPED-TIER: `verify-negatives`** -- opt-in by design, seconds per case, and
+with a zero-commit window `--changed` selects nothing; no item's done-check depends on it here.
+**SKIPPED-TIER: `gaming-canary` / `shard-canary`** -- both spawn real agents and cost tokens
+(`Makefile`: "on-demand, NOT in `make test`"); neither gates any item closed this window. No item
+was closed on the strength of a skipped tier, because no item was closed at all.
+
+- [ ] **VERIFIED DEFECT -- the `id:0d7c` head-length and `id:2d17` shape-prose ratchets are INERT
+  for every caller that uses the INSTALL path, which is the path `review.md` §4b and `relay-doctor`
+  both prescribe.** Measured, not inferred, on this worktree's own `TODO.md`:
+  `bash relay/scripts/todo-conformance.sh TODO.md` emits **1** `head-length-regrowth|shape-prose`
+  line; `bash ~/.claude/skills/relay/scripts/todo-conformance.sh TODO.md` emits **216**, and prints
+  `head-length ratchet INERT -- no baseline at .../skills/relay/../head-length-baseline.txt`
+  plus the same for the shape baseline. Cause: the script resolves its baselines as
+  `$(dirname $0)/../<name>`, the two files live at `relay/head-length-baseline.txt` and
+  `relay/shape-prose-baseline.txt` in the repo, and the `relay_FILES` manifest declares
+  `scripts/*` + `references/*` only -- so `make install` symlinks the script and never the
+  baselines. **Direction matters and I had it backwards at first: this fails OPEN (216 ungrandfathered
+  findings), not silent.** The loss is not a missed defect, it is the RATCHET SEMANTIC itself -- with
+  no baseline there is no "regrowth vs grandfathered" distinction, so the 1 genuine regrowth is
+  indistinguishable from 215 forgiven ones, and `id:0d7c`'s monotonic-shrink guarantee is
+  unavailable to precisely the callers built to enforce it. Two aggravations: `relay-doctor.sh:298`
+  invokes it as `2>>"$LOG"`, so the two INERT warnings never reach the reviewer who is reading its
+  output; and `relay-doctor`'s own `install-drift` check walks `scripts/*`+`references/*`, so it
+  **structurally cannot see** a manifest gap in a non-script file. Fix is one line of manifest plus
+  widening install-drift's walk. <!-- id:4839 -->
+
+- [ ] **`todo-conformance.sh --fix` can never fix `TODO.md:907`, and the reason generalizes to most
+  of this ledger.** The one `missing-id` finding is a real one -- the line carries no
+  `<!-- id:XXXX -->` of its own -- but `--fix` refuses it with
+  `line 907 has a non-canonical inline id, NOT auto-minted`. That duplicate-id safety guard is
+  `grep -qP '\bid:[0-9a-f]{4}\b'` over the WHOLE line, and line 907 cites `id:458c`, `id:3a09`,
+  `id:9320` and `id:5937` in its PROSE. So a prose citation of another item's token is
+  indistinguishable, to the guard, from the item wearing a non-canonical id of its own. Fail-closed
+  is the right direction and the refusal is LOUD, so this is not the silent-no-op class -- but in a
+  ledger where cross-citation is the norm, "auto-fixable via `--fix`" (the wording `relay-doctor`
+  prints) is a promise the tool cannot keep, and the item stays permanently non-conforming. The
+  narrow fix is to test for an id OUTSIDE backticks and outside a `docs/ledger-notes/` pointer.
+  Owner's call whether that is worth the parsing. <!-- id:c773 -->
+
+- [ ] **`relay/scripts/lib-archive-idempotency.py` is declared in `relay_FILES` but is not present
+  in the install tree** (`relay-doctor` install-drift, id:1102, found this itself; recorded here so
+  it is not lost with the run log). Same family as the baseline gap above -- worth fixing in one
+  pass. <!-- id:c47f -->
+
+- [ ] **Two inbox dead-letters target THIS repo and were never ingested; I deliberately did not
+  ingest them, and the reason is itself a finding.** `routed:df51` (cap Claude and all descendants
+  under one persistent `claude.slice` cgroup -- owner-asked 2026-09-04 after nice-only capping was
+  judged insufficient) and `routed:3b3a` (`todo-update/archive-done.sh` archives items completed in
+  the CURRENT session: its `line.strip() in prior_done` branch dates them `today_ym` regardless of
+  their own date, and the mandated skill order guarantees this session's just-committed `[x]` items
+  ARE in the prior commit -- observed live in lodelore on `id:b0a0`/`id:3cd8`, restored by hand,
+  and it moves `routed:` breadcrumbs out of `TODO.md` where the cross-repo twin-guard looks for
+  them). Both verified absent from `TODO.md`+`ROADMAP.md`. The documented adopt path writes them
+  through `md-merge.py`, and `md-merge.py update-ids` is the subject of **two open, verified-red
+  specs promoted this very morning** (`id:3bd4` silent no-op when an op changes nothing, `id:4f0f`
+  cannot reach a wrapped item's continuation lines) -- so driving the ledger helper to add new
+  wrapped items is the one edit currently known to be unreliable. Routing is the handoff's or the
+  human's call per §4b; `routed:3b3a` should jump the queue, since it silently mis-dates the
+  archive of every same-session close fleet-wide. <!-- id:0bb7 -->
+
+- [ ] **`REVIEW_ME.md` carries 31 open boxes against its own header's "Max ~10 open boxes; the
+  reviewer prunes resolved ones each review turn", and I could prune NONE of them: the file has
+  **zero** `- [x]` boxes.** Under this repo's ratified convention (CLAUDE.md: REVIEW_ME is out of
+  the ledger line-shrink and is compacted by ARCHIVING resolved boxes), archiving is the only
+  sanctioned lever and it has nothing to grip -- boxes are accumulating open across eight review
+  sections back to 2026-08-11 because nobody is resolving them, not because nobody is archiving
+  them. That is a queue-throughput problem, not a formatting one, and it is the owner's to act on.
+  <!-- id:62fd -->
+
+**Everything else checked and clean, stated so a silent pass is distinguishable from not looking.**
+Contract pointer `CLAUDE.md:258` is `v18`, matching the canonical marker in
+`relay/references/executor-contract.md:7` -- no refresh needed. `orphan-scan --cross-ledger`: clean.
+`orphan-scan --shipped`: **0 TICK-READY, 0 GATE-STALE** -- the `id:4425` fix continues to hold
+(it took those emissions 2 -> 0 on 2026-09-01 and they have stayed there). `roadmap-lint`: every
+open item carries a recognized lane tag + id. `clean-tree-gate`: main checkout has no residue.
+`mechanical-orphan`: every open `[MECHANICAL]` item has an authored recipe. `relay.toml` parses.
+Lean toolchain pins agree. Spec-drift (§4) is vacuous this window -- nothing shipped, so
+`ARCHITECTURE.md`/`README.md` cannot have drifted from it. Ambient, unchanged, recorded for
+continuity: relay-core shadow parity is **30,540 mismatches over 302,652 rounds** (bash stays
+authoritative; the flip gate is 100% parity + 5 clean rounds), and 3 parked orphan branches sit
+across the fleet (loderite, lean4btc, git-annex).
