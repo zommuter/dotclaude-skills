@@ -3252,3 +3252,7 @@ review of 80 unaudited commits: 9ce0 negative case was red for the wrong reason 
 ## 2026-09-04 15:18 — integrate (claude-opus-5)
 
 handoff C2/C3: 6 items promoted reusing their TODO ids (e047 0176 c132 8372 735f e567), 6 red specs each verified red at the assertion it claims; bfd3/37ea/2eba left in TODO as owner-decision or cross-repo
+
+## 2026-09-05 08:52 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+handoff C2+C3+C4: promoted id:3bd4 + id:4f0f to ROADMAP reusing their TODO ids, authored 2 verified-red specs for the md-merge.py update-ids silent-no-op and wrapped-item-reach defects, 2 REVIEW_ME judgment calls; make test 579 passed / 0 failed [id:3bd4,4f0f]
