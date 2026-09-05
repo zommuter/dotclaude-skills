@@ -12,6 +12,7 @@
 - handoff C2+C3+C4: promoted id:3bd4 + id:4f0f to ROADMAP reusing their TODO ids, authored 2 verified-red specs for the md-merge.py update-ids silent-no-op and wrapped-item-reach defects, 2 REVIEW_ME judgment calls; make test 579 passed / 0 failed (id:3bd4,4f0f)
 - review: chain-end re-ask on an EMPTY window (LAST==HEAD, 0 commits); make test 579/0/12-expected-red; 5 REVIEW_ME boxes, chief being id:4839 -- ratchet baselines are never installed so id:0d7c/id:2d17 go inert via the install path (1 vs 216 findings measured) (id:4839,c773,c47f,0bb7,62fd)
 - handoff id:4839 -- REVIEW_ME box amended (its filed one-line remedy was known-wrong), filed to TODO + promoted to ROADMAP [ROUTINE] under the same token, corrected three-dimension scope in docs/ledger-notes/4839.md, 4 red specs verified red for the right assertion; suite 580 pass / 0 fail / 16 expected-red (id:4839)
+- review: id:9628 genuinely green but its negative case was INERT (heredoc declaration truncated to a no-op); repaired + generator filed id:b890; id:7408 DECOMPOSED-CONTAINER fixed; 2 dead-letters adopted (16a4/5355); id:b87b filed after the b54b guard false-fired on our own branch; 4 red specs, suite 580/0/19-expected-red (id:9628,7408,b890,5355,16a4,b87b,2724,0bb7)
 
 ## 2026-09-02
 
