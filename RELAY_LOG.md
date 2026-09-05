@@ -3290,3 +3290,7 @@ refactor: none needed -- this unit wrote only ledger prose, no code.
 ## 2026-09-05 09:11 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: chain-end re-ask on an EMPTY window (LAST==HEAD, 0 commits); make test 579/0/12-expected-red; 5 REVIEW_ME boxes, chief being id:4839 -- ratchet baselines are never installed so id:0d7c/id:2d17 go inert via the install path (1 vs 216 findings measured) [id:4839,c773,c47f,0bb7,62fd]
+
+## 2026-09-05 12:07 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+handoff id:4839 -- REVIEW_ME box amended (its filed one-line remedy was known-wrong), filed to TODO + promoted to ROADMAP [ROUTINE] under the same token, corrected three-dimension scope in docs/ledger-notes/4839.md, 4 red specs verified red for the right assertion; suite 580 pass / 0 fail / 16 expected-red [id:4839]
