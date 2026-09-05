@@ -3286,3 +3286,7 @@ unchanged; classify-repo reports 12 of those as actionable once gates are exclud
 Friction: the review verdict fired on a window with zero commits -- the chain-end re-ask does not
 check whether the chain it follows was a handoff that already checkpointed itself.
 refactor: none needed -- this unit wrote only ledger prose, no code.
+
+## 2026-09-05 09:11 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: chain-end re-ask on an EMPTY window (LAST==HEAD, 0 commits); make test 579/0/12-expected-red; 5 REVIEW_ME boxes, chief being id:4839 -- ratchet baselines are never installed so id:0d7c/id:2d17 go inert via the install path (1 vs 216 findings measured) [id:4839,c773,c47f,0bb7,62fd]
