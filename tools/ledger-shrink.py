@@ -171,7 +171,16 @@ MUST_KEEP_PATTERNS = [
     # receipt that a @manual-acceptance item may be bump-closed (hard-lanes.md:185,
     # id:8089), enforced by review.md's gaming check as prose. That is exactly why it must
     # be kept: relocating it destroys the receipt with nothing mechanical left to notice.
-    re.compile(r"`?@owner-accepted`?"),
+    # The DATE is part of the receipt (id:9628). Without `(?::[0-9-]+)?` the pattern
+    # matches only the TOKEN, so `@owner-accepted:2026-09-01` keeps `@owner-accepted` on
+    # the head line and relocates `:2026-09-01` into the note -- a receipt that survives
+    # DATELESS, which is precisely the destruction the comment above forbids. Found by
+    # loderite's 03a3 wave-1 run: 6 items lost their date, while all 8 `@owner-answered`
+    # kept theirs, because THAT pattern names the date. The date is OPTIONAL, not
+    # mandatory: unlike @owner-answered this marker has a dominant BARE form (1,774 bare
+    # vs 222 dated across this tree), and making it mandatory would drop every bare
+    # receipt out of the keep-set and relocate it wholesale -- a wider loss than the bug.
+    re.compile(r"`?@owner-accepted(?::[0-9-]+)?`?"),
     # The DETAIL POINTER itself. Needed once re-splitting is allowed (below): on a second
     # pass the pointer sits in the moved region, and without this it would be relocated
     # INTO the note it points at -- severing the line from its own body.
