@@ -95,7 +95,9 @@ drift="$(RELAY_INSTALL_ROOT="$FAKE_INSTALL" RELAY_DOCTOR_LOG="$tmp/doctor.log" \
   bash "$FAKE_REPO/relay/scripts/relay-doctor.sh" --only install-drift 2>&1 || true)"
 
 if assert_ran "install-drift" "$drift"; then
-  if grep -q 'SKIP — no relay install' <<<"$drift" || grep -q 'WARN — could not find' <<<"$drift"; then
+  # Matched WITHOUT the dash: relay-doctor spells these with an em dash today and the fleet is
+  # mid-migration to `--`, so anchoring on the delimiter would silently stop matching.
+  if grep -qE '^SKIP .*no relay install' <<<"$drift" || grep -qE '^WARN .*could not find' <<<"$drift"; then
     report "fixture sanity: install-drift declined to run against the fixture (output: $(head -3 <<<"$drift" | tr '\n' ' ')) -- assertions (a) and (b) would be vacuous"
   elif ! grep -q 'install-drift' <<<"$drift"; then
     report "fixture sanity: the install-drift section did not run at all (output: $(head -3 <<<"$drift" | tr '\n' ' '))"

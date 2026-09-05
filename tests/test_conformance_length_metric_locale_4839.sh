@@ -42,7 +42,9 @@ report() { echo "FAIL: $1"; fail=1; }
 # not a silent pass.
 UTF_LOCALE=""
 for cand in de_CH.utf8 de_CH.UTF-8 en_US.utf8 en_US.UTF-8 C.utf8 C.UTF-8; do
-  if locale -a 2>/dev/null | grep -qx "$cand"; then UTF_LOCALE="$cand"; break; fi
+  # `< <(...)` rather than a pipe: an early-exiting consumer under `pipefail` is the id:81d5
+  # shape, and tests/test_pipefail_sigpipe_lint.sh enforces that repo-wide with no exemptions.
+  if grep -qx "$cand" < <(locale -a 2>/dev/null); then UTF_LOCALE="$cand"; break; fi
 done
 if [[ -z "$UTF_LOCALE" ]]; then
   echo "FAIL: no UTF-8 locale available on this host -- cannot compare against LC_ALL=C, and a silent pass here would be vacuous (id:4839 dimension c)"
@@ -85,9 +87,16 @@ run_at() { # <locale> <args...> -> stdout of the linter
 # both locales and what is being compared is the CHAR COUNT it prints, not which class fired.
 PERMISSIVE="$tmp/permissive-len.txt"
 printf '%s\t%s\t%s\n' "ROADMAP.md" "$TOK" 99999 > "$PERMISSIVE"
+# Capture-then-extract throughout: `producer | grep | head -1` is the id:81d5 pipefail shape
+# the repo lint refuses, so every extraction below runs over a captured string.
+first_count() { # <text> <class prefix> -> the first char count printed for that class family
+  grep -oP "$2-[a-z-]+ \(\K[0-9]+" <<<"$1" | { read -r n || true; printf '%s' "${n:-}"; }
+}
 run_len_at() { # <locale> -> the char count from the length class line
-  LC_ALL="$1" LANG="$1" LENGTH_BASELINE="$PERMISSIVE" SHAPE_BASELINE="$tmp/absent-shape.txt" \
-    bash "$SH" "$FIX" 2>/dev/null | grep -oP 'length-[a-z-]+ \(\K[0-9]+' | head -1 || true
+  local out
+  out="$(LC_ALL="$1" LANG="$1" LENGTH_BASELINE="$PERMISSIVE" SHAPE_BASELINE="$tmp/absent-shape.txt" \
+    bash "$SH" "$FIX" 2>/dev/null || true)"
+  first_count "$out" length
 }
 len_c="$(run_len_at C)"
 len_u="$(run_len_at "$UTF_LOCALE")"
@@ -101,8 +110,8 @@ fi
 
 # (b) The SHAPE reporter, independently. Its residue is a different substring of the same
 # line, so a fix applied to only one measurement site is caught here.
-sh_c="$(run_at C "$FIX" | grep -oP 'shape-[a-z-]+ \(\K[0-9]+' | head -1 || true)"
-sh_u="$(run_at "$UTF_LOCALE" "$FIX" | grep -oP 'shape-[a-z-]+ \(\K[0-9]+' | head -1 || true)"
+sh_c="$(first_count "$(run_at C "$FIX")" shape)"
+sh_u="$(first_count "$(run_at "$UTF_LOCALE" "$FIX")" shape)"
 if [[ -z "$sh_c" || -z "$sh_u" ]]; then
   report "fixture sanity: no shape-* class was reported under one or both locales (C='$sh_c' UTF='$sh_u') -- assertion (b) cannot fire (id:4839 dimension c)"
 elif [[ "$sh_c" != "$sh_u" ]]; then
