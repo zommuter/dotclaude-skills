@@ -166,6 +166,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 - [ ] [ROUTINE] **257 ledger items have a TITLE that is itself over budget -- no relocation can shorten a title, so these need rewriting.** -- detail: `docs/ledger-notes/64f9.md` <!-- gated-on:ff7c,2654 --> <!-- relates:2d17 --> <!-- id:64f9 -->
 - [ ] [INPUT - decision] **`shape-prose` becomes an ERROR -- the closing act of the no-prose bar.** -- detail: `docs/ledger-notes/8524.md` <!-- gated-on:1608,2d17 --> <!-- relates:2d17 --> <!-- id:8524 --> — 🚧 GATED (auto, id:3801; route:decision-gate): Acceptance needs 0 remaining shape-prose findings but 216 (TODO.md) + 31 (ROADMAP.md) remain; recorded gates 1608/2d17 are closed yet don't track this real precondition -- needs an owner call on how to gate/schedule the remaining shrink work. — needs a /meeting
 - [ ] [INPUT - decision] **Three items carry a de-facto lane derived from BODY PROSE, which `classify-repo` reads as their real lane.** -- detail: `docs/ledger-notes/1254.md` <!-- relates:2d17 --> <!-- id:1254 -->
+- [ ] [ROUTINE] **Both ledger ratchets are INERT on the install path, their baseline key has no repo dimension, and their length metric is locale-dependent -- fix all three or none.** -- detail: `docs/ledger-notes/4839.md` <!-- relates:0d7c --> <!-- id:4839 -->
 
 ## 2026-09-04 handoff C2 -- ledger-tooling and test-harness defects from the 09-04 design day (run relay-20260904-145432-15472)
 

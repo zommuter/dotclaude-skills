@@ -445,7 +445,23 @@ was closed on the strength of a skipped tier, because no item was closed at all.
   invokes it as `2>>"$LOG"`, so the two INERT warnings never reach the reviewer who is reading its
   output; and `relay-doctor`'s own `install-drift` check walks `scripts/*`+`references/*`, so it
   **structurally cannot see** a manifest gap in a non-script file. Fix is one line of manifest plus
-  widening install-drift's walk. <!-- id:4839 -->
+  widening install-drift's walk. **AMENDED 2026-09-05 -- THAT LAST SENTENCE IS WRONG, and
+  implementing it as written SHIPS A REGRESSION.** The defect has THREE dimensions, of which
+  only (a), above, was originally filed; (b) and (c) are verified on this tree. **(b) the
+  baseline KEY has no repo dimension** -- rows are `<ledger BASENAME>TAB<id>TAB<len>` and the
+  lookup is `basename/$id` (`:769`, `:725`, `:522`), so every repo's `TODO.md`/`ROADMAP.md`
+  satisfies the same key. Token `55c7` is baselined here as `ROADMAP.md 55c7 642` and exists
+  unrelated in loderite, whose `ROADMAP.md` line (968 chars) would read as REGROWTH against
+  our ceiling while its 208-char `TODO.md` twin would be silently GRANDFATHERED -- both
+  directions, one entry, no warning; and `tracker/homonym-allowlist.txt:129` already lists
+  `55c7` among 187 adjudicated cross-repo homonyms. **(c) the length metric is
+  locale-dependent** -- every site measures with bash `${#r}`, which counts CHARACTERS under
+  UTF-8 and BYTES under `LC_ALL=C` (measured 968 vs 986 on one real line, 365 vs 367 on
+  `TODO.md:983`), and the baseline records no locale, so a line within ~18 chars of its
+  ceiling flips class on the invoking environment alone. **ORDERING IS ACCEPTANCE:** shipping
+  the manifest line alone converts an ANNOUNCED INERT into an UNANNOUNCED WRONG on 46 repos,
+  so the manifest change must NOT land first. Corrected scope, evidence and done-checks:
+  `docs/ledger-notes/4839.md`; filed as a `[ROUTINE]` unit under the same id. <!-- id:4839 -->
 
 - [ ] **`todo-conformance.sh --fix` can never fix `TODO.md:907`, and the reason generalizes to most
   of this ledger.** The one `missing-id` finding is a real one -- the line carries no
