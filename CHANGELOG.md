@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-09-05
+
+- handoff C2+C3+C4: promoted id:3bd4 + id:4f0f to ROADMAP reusing their TODO ids, authored 2 verified-red specs for the md-merge.py update-ids silent-no-op and wrapped-item-reach defects, 2 REVIEW_ME judgment calls; make test 579 passed / 0 failed (id:3bd4,4f0f)
+
 ## 2026-09-02
 
 - shrink-acceptance.py now attributes VIOLATION losses (attribute_violation_loss, mirroring attribute_dispatch_gain) so a detector going blind is FATAL, not an unconditional improvement; fixed find_item_line()'s search order bug this surfaced (id:5f34) (id:5f34)
