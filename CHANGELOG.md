@@ -10,6 +10,7 @@
 ## 2026-09-05
 
 - handoff C2+C3+C4: promoted id:3bd4 + id:4f0f to ROADMAP reusing their TODO ids, authored 2 verified-red specs for the md-merge.py update-ids silent-no-op and wrapped-item-reach defects, 2 REVIEW_ME judgment calls; make test 579 passed / 0 failed (id:3bd4,4f0f)
+- review: chain-end re-ask on an EMPTY window (LAST==HEAD, 0 commits); make test 579/0/12-expected-red; 5 REVIEW_ME boxes, chief being id:4839 -- ratchet baselines are never installed so id:0d7c/id:2d17 go inert via the install path (1 vs 216 findings measured) (id:4839,c773,c47f,0bb7,62fd)
 
 ## 2026-09-02
 
