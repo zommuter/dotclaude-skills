@@ -182,3 +182,8 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 - [ ] [ROUTINE] **`ledger-shrink.py` hoists an EXAMPLE marker quoted in prose as if it were real -- 30 lines, and it defeated the shrink on `ee62`.** -- detail: `docs/ledger-notes/8372.md` <!-- relates:14e5 --> <!-- id:8372 -->
 - [ ] [ROUTINE] **Two tests flaked green-standalone/red-in-suite and neither is explained; `|| fail` after a grep cannot tell a FALSE assertion from a check that COULD NOT RUN (360 sites).** -- detail: `docs/ledger-notes/735f.md` <!-- id:735f -->
 - [ ] [ROUTINE] **The note-header shrink is DELIVERED (255 B/note); what remains is the gate -- `id:03a3` must cite the measured per-note header cost before the 46-repo migration runs.** -- detail: `docs/ledger-notes/e567.md` <!-- relates:03a3 --> <!-- id:e567 -->
+
+## 2026-09-05 handoff C2 -- `md-merge.py update-ids` silent no-op + wrapped-item reach (user-injected `id:baf1`, run relay-20260905-083048-18379)
+
+- [ ] [ROUTINE] 🔴 **`md-merge.py update-ids` SILENTLY no-ops when an op's id IS found but the op changes nothing -- a `regex_sub` whose pattern misses and an `append` whose payload is empty both write the file back unchanged and exit 0.** -- detail: `docs/ledger-notes/3bd4.md` <!-- id:3bd4 -->
+- [ ] [ROUTINE] **`md-merge.py update-ids` cannot reach a WRAPPED item's continuation lines at all, so the flock'd helper has no compliant path for the commonest ledger edit there is.** -- detail: `docs/ledger-notes/4f0f.md` <!-- relates:3bd4 --> <!-- id:4f0f -->
