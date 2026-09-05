@@ -3294,3 +3294,7 @@ review: chain-end re-ask on an EMPTY window (LAST==HEAD, 0 commits); make test 5
 ## 2026-09-05 12:07 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 handoff id:4839 -- REVIEW_ME box amended (its filed one-line remedy was known-wrong), filed to TODO + promoted to ROADMAP [ROUTINE] under the same token, corrected three-dimension scope in docs/ledger-notes/4839.md, 4 red specs verified red for the right assertion; suite 580 pass / 0 fail / 16 expected-red [id:4839]
+
+## 2026-09-05 12:41 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:9628 genuinely green but its negative case was INERT (heredoc declaration truncated to a no-op); repaired + generator filed id:b890; id:7408 DECOMPOSED-CONTAINER fixed; 2 dead-letters adopted (16a4/5355); id:b87b filed after the b54b guard false-fired on our own branch; 4 red specs, suite 580/0/19-expected-red [id:9628,7408,b890,5355,16a4,b87b,2724,0bb7]
