@@ -31,7 +31,7 @@
 
 - [ ] **Build a `/chidilog` skill — append a verification-failure case to the chidiAI collection** -- detail: `docs/ledger-notes/149c.md` <!-- id:149c -->
 - [ ] **New skill: `rebrand-project` — atomically re-brand/rename a project across git remote + local + Claude state** -- detail: `docs/ledger-notes/bb12.md` <!-- id:bb12 -->
-- [ ] [INPUT - meeting] **Use VISIBLE annotations, not HTML comments, for metadata that should render** -- detail: `docs/ledger-notes/ee62.md` <!-- id:XXXX --> <!-- routed:XXXX --> `@manual` <!-- xledger-ok:"*` at ~L63/72; back-compat or one-shot migrate); (3) update `tests/test_ledger_seam.sh`; (4) migrate the live annotation on **id:78ff**; (5) audit other HTML-comment-as-meaning uses across the skills (gate/route markers) for the same treatment. Small reversible design call on the exact syntax → `[HARD — meeting]`. <!-- id:ee62 -->
+- [ ] [INPUT - meeting] **Use VISIBLE annotations, not HTML comments, for metadata that should render** -- detail: `docs/ledger-notes/ee62.md` `@manual` <!-- id:ee62 -->
 - [ ] [INPUT - meeting] **Make the `id:` marker POSITIONAL and every typed edge VISIBLE -- withdraw ee62's opaque-key carve-out; escape non-meaningful mentions.** -- detail: `docs/ledger-notes/14e5.md` <!-- relates:ee62 --> <!-- id:14e5 -->
 - [ ] [ROUTINE] **Declare the ledger grammar in `relay/references/ledger-grammar.md` with a `vN` marker; CLAUDE.md POINTS, never restates -- and the doc must not become a second copy of the checker.** -- detail: `docs/ledger-notes/fa9a.md` <!-- relates:800f --> <!-- id:fa9a -->
 - [ ] [ROUTINE] 🔴 **DECIDED 2026-09-04 -- option 2: migrate 779 note headers to a one-line pointer (497 B/note, 17.4% of note bytes); sequenced after a580.** -- detail: `docs/ledger-notes/e567.md` <!-- relates:03a3 --> <!-- id:e567 -->
@@ -52,7 +52,7 @@
 
 - [ ] [HARD] **Classify `[HARD]` into pool-executable vs human-decision vs human-hands — stop routing every HARD to "/meeting"** -- detail: `docs/ledger-notes/78ff.md` [HARD] [HARD — pool] [HARD — meeting] [HARD — decision gate] 🚧 [HARD — hands] [HARD — strong model] <!-- children:b466 --> <!-- id:78ff --> <!-- xledger-ok: ROADMAP relay/bash half closed (hard-lanes.md + emit_hard_lanes + test_hard_lane_buckets.sh); TODO umbrella stays open for the project_manager Python half (id:b466) + cross-repo lane back-fill of other own-repos -->
 
-- [ ] **Mechanization audit across ALL skills — replace LLM-judgment steps with deterministic scripts, even at the cost of more rigid structure** -- detail: `docs/ledger-notes/415b.md` <!-- id:XXXX --> <!-- id:415b -->
+- [ ] **Mechanization audit across ALL skills — replace LLM-judgment steps with deterministic scripts, even at the cost of more rigid structure** -- detail: `docs/ledger-notes/415b.md` <!-- id:415b -->
 - [ ] **[swallow-ban] `tests/test_no_silent_swallow.sh`** -- detail: `docs/ledger-notes/4347.md` <!-- id:4347 -->
 - [ ] **[/meeting] todo-update: formalize TODO.md grammar + fail-loud parser + scripted add/dedup/mark-done** -- detail: `docs/ledger-notes/9b13.md` <!-- id:9b13 -->
 - [ ] **[G] meeting: end-of-meeting write-back assertion** -- detail: `docs/ledger-notes/69a3.md` <!-- id:69a3 -->
@@ -144,7 +144,7 @@
 - [ ] **Resume the cross-gated-HARD triage tail** -- detail: `docs/ledger-notes/fc04.md` <!-- children:5d27,6bef,7b4e --> <!-- id:fc04 -->
 - [ ] **`/loop /relay` re-fires blindly — no feedback from relay's exit reason (quota cap / pool drain) to suppress or postpone the next cron tick** -- detail: `docs/ledger-notes/8602.md` <!-- id:8602 -->
 - [ ] **Relay executor "Prompt is too long" — the executor prompt embeds the full ROADMAP, so a repo with a large ROADMAP can't be dispatched ANY execute/INTENSIVE work** -- detail: `docs/ledger-notes/93cc.md` [INTENSIVE] [ROUTINE] <!-- id:93cc -->
-- [ ] **`dotclaude-skills` is now UN-REVIEWABLE: the sliced review prompt is ~470,285 tok against the 300,000 tok dispatch budget** -- detail: `docs/ledger-notes/dd59.md` <!-- id:X --> <!-- id:dd59 -->
+- [ ] **`dotclaude-skills` is now UN-REVIEWABLE: the sliced review prompt is ~470,285 tok against the 300,000 tok dispatch budget** -- detail: `docs/ledger-notes/dd59.md` <!-- id:dd59 -->
 - [ ] [ROUTINE] **Implement the parent/plugin mirror convention WITHOUT swallowing the S4 tokens** -- detail: `docs/ledger-notes/9fa2.md` <!-- children-of:cb22 --> <!-- id:9fa2 -->
 - [ ] [INPUT - meeting] **Cross-repo links are not `(repo,id)`-qualified, so linking two colliding items is impossible and `c3f7` cannot be fixed** -- detail: `docs/ledger-notes/c81b.md` <!-- id:c81b -->
 - [ ] [INPUT - decision] **Move the meeting same-turn rule to the point of use, or accept the guard as the mechanism.** -- detail: `docs/ledger-notes/ec54.md` <!-- children-of:2419 --> <!-- id:ec54 -->
@@ -535,7 +535,7 @@ deliberately left unbounded — see `id:da1a`).
 
 ## inbox intake 2026-08-10 (`/relay review` — routed from todo-inbox.md)
 
-- [ ] [ROUTINE] [INBOUND routed:cd7f from zkWhale 2026-08-10] **`archive-done.sh` appends to the archive with NO dedupe against what is already there — a re-run duplicates entries verbatim** -- detail: `docs/ledger-notes/bf9d.md` <!-- id:XXXX --> <!-- routed:cd7f --> <!-- id:bf9d -->
+- [ ] [ROUTINE] [INBOUND routed:cd7f from zkWhale 2026-08-10] **`archive-done.sh` appends to the archive with NO dedupe against what is already there — a re-run duplicates entries verbatim** -- detail: `docs/ledger-notes/bf9d.md` <!-- routed:cd7f --> <!-- id:bf9d -->
 
 - [ ] [ROUTINE] [INBOUND routed:d160 from loderite 2026-08-10] **BUG `todo-conformance.sh --fix` silently refuses exactly the lines cross-repo routing produces — a prose CITATION of another item's id is mistaken for the line's own id** -- detail: `docs/ledger-notes/480c.md` <!-- routed:d160 --> <!-- id:480c -->
 
@@ -719,7 +719,7 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] [INBOUND routed:757c from loderite /relay human 2026-08-14] `roadmap-lint.sh` DECIDED-LEFT-OPEN is a FALSE-POSITIVE generator: it reads a resolution note as a closure marker -- detail: `docs/ledger-notes/d313.md` [HARD] [INTENSIVE — local-llm] <!-- id:d313 -->
 - [ ] [INBOUND routed:2137 from loderite id:596f] Relay-integrate hook for loderite's per-commit perf-census row: fire tools/perf-census.ts at integrate, gated on import-graph reachability from the census inputs, and surface the delta in the checkpoint summary -- detail: `docs/ledger-notes/9340.md` <!-- id:9340 -->
 - [ ] [INPUT - decision] **Decide whether to MECHANIZE the Bash-first guard, or wait for the steer to prove durable** -- detail: `docs/ledger-notes/efa7.md` <!-- id:efa7 -->
-- [ ] [ROUTINE] **`relay-reconcile.sh --auto`'s surfaced REVIEW_ME boxes carry no `<!-- id:XXXX -->` marker, so they cannot be closed through the flock'd `md-merge.py` helper.** -- detail: `docs/ledger-notes/5817.md` <!-- id:XXXX --> <!-- id:' REVIEW_ME.md` rises as new boxes are surfaced, and closing one needs no `Edit`. <!-- id:5817 -->
+- [ ] [ROUTINE] **`relay-reconcile.sh --auto`'s surfaced REVIEW_ME boxes carry no `<!-- id:XXXX -->` marker, so they cannot be closed through the flock'd `md-merge.py` helper.** -- detail: `docs/ledger-notes/5817.md` <!-- id:5817 -->
 - [ ] [ROUTINE] **A DELIBERATELY-parked orphan has no way to say so: `relay-reconcile.sh` re-lists it forever AND `--auto` accretes a fresh REVIEW_ME box per relay-loop restart.** -- detail: `docs/ledger-notes/df66.md` <!-- id:df66 -->
 - [ ] [INBOUND routed:f0bb from csgebra run relay-20260819-001735-13151; identical to the 866f trap the same repo already recorded; a cycle/dangling DFS canNOT catch it since every edge resolves and no cycle exists — needs its own lint] hard-split (id:3801) must RE-POINT dependants when it containerises an item: splitting csgebra id:c21a into seams left 4 gates (158f, 412e, 9691, ea0e) pointing at the now-@container c21a, which never ticks — all 4 permanently blocked <!-- id:a2e8 -->
 - [ ] [INBOUND routed:236d from csgebra run relay-20260819-001735-13151] relay-loop: 'id:34b7 pre-dispatch worktree provisioning failed -- detail: `docs/ledger-notes/bd2d.md` <!-- id:bd2d -->
@@ -757,7 +757,7 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] 🔴 **[ROUTINE] The relay reports SUCCESS for a push that never landed, and misnames a blocked hop as an integrator bug — two false-signal defects on the merge-to-main path.** -- detail: `docs/ledger-notes/f5d9.md` <!-- id:f5d9 -->
 - [ ] **`git-lock-push.sh` exits 0 without pushing when ssh stalls — and a `github` stall silently costs the `origin` push too** -- detail: `docs/ledger-notes/dc4f.md` <!-- id:dc4f -->
 - [ ] **`handback-followup.py` 2-min timeout reports a FALSE "FAILED" in RELAY_STATUS although the ledger write landed** -- detail: `docs/ledger-notes/a9c6.md` 🚧 <!-- id:a9c6 -->
-- [ ] **[ROUTINE] `todo-conformance.sh --fix` refuses any line whose PROSE mentions another item's token — teach it the own-id rule instead** -- detail: `docs/ledger-notes/ca7d.md` <!-- id:XXXX --> <!-- id: --> <!-- routed:XXXX --> <!-- id:ca7d -->
+- [ ] **[ROUTINE] `todo-conformance.sh --fix` refuses any line whose PROSE mentions another item's token — teach it the own-id rule instead** -- detail: `docs/ledger-notes/ca7d.md` <!-- id:ca7d -->
 - [ ] **[ROUTINE] Onboarding a NEW repo into `relay.toml` has no mechanized path — `relay-state-write.sh toml-set` can only UPDATE an existing block** -- detail: `docs/ledger-notes/d6da.md` <!-- id:d6da -->
 - [ ] [INPUT - decision] **Operationalize D1's shipping gate — pre-register a concrete QUERY CLASS** -- detail: `docs/ledger-notes/eb52.md` blocked on <!-- id:eb52 -->
 - [ ] [ROUTINE] **Record the tracker pilot's CLOCK-START as a dated, greppable line** -- detail: `docs/ledger-notes/fddb.md` <!-- gated-on:695d --> <!-- id:fddb -->
@@ -810,13 +810,13 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] [ROUTINE] **Gated `git-read.sh` wrapper -- restore frictionless CROSS-REPO git reads after the 11 `git -C *` allow rules were removed as an option-injection hole** -- detail: `docs/ledger-notes/c80e.md` <!-- id:c80e -->
 - [ ] [ROUTINE] **Audit the 5 REMAINING wildcard-followed-by-literal allow entries — decide on EVIDENCE, not on their shape.** -- detail: `docs/ledger-notes/9ccd.md` <!-- id:9ccd -->
 - [ ] [INBOUND routed:21b1 from it-infra] meeting/md-merge.py `update-sections` DESTROYS content: it drops the target heading line, and when the named section contains a nested subsection it deleted 31 lines incl. -- detail: `docs/ledger-notes/97ad.md` <!-- id:97ad -->
-- [ ] [ROUTINE] [INBOUND routed:2e43 from yinyang-puzzle] **`roadmap-archive.sh`'s archived-stub guard is ID-ANCHORED but its stub WRITER is not — every round re-archives and re-stubs the same item.** -- detail: `docs/ledger-notes/e278.md` <!-- id:XXXX --> <!-- id:e278 -->
+- [ ] [ROUTINE] [INBOUND routed:2e43 from yinyang-puzzle] **`roadmap-archive.sh`'s archived-stub guard is ID-ANCHORED but its stub WRITER is not — every round re-archives and re-stubs the same item.** -- detail: `docs/ledger-notes/e278.md` <!-- id:e278 -->
 - [ ] [INBOUND routed:5bb6 from kienzler-solutions] Fable-Eskalations-Trigger (Schritt 0f.6) hat gefeuert: 6 Befunde erzwangen Amendments an bereits ratifizierten Entscheiden in EINER Session (Schwelle >=2) -- detail: `docs/ledger-notes/b662.md` <!-- id:b662 -->
 - [ ] [INBOUND routed:e794 from loderite relay review 2026-08-26] relay integrate: a version bump mints a new MINOR with no gallery and no ack, so loderite's `check-gallery-gate.mjs` goes RED on main after an internal-only bump -- detail: `docs/ledger-notes/9566.md` <!-- id:9566 -->
 - [ ] [ROUTINE] **Relay preflight liveness check for the `--self` transcript resolver — a green suite cannot tell you the resolver is inert** -- detail: `docs/ledger-notes/413c.md` <!-- children-of:c219 --> <!-- id:413c -->
 - [ ] [ROUTINE] **The ratification queue can mint entries that are UNRESOLVABLE BY CONSTRUCTION, and has no sanctioned way to retire one** -- detail: `docs/ledger-notes/99b7.md` <!-- id:99b7 -->
 - [ ] [HIGH PRIORITY] [ROUTINE] **A TEST FIXTURE LEAKED A `relay/ok` BRANCH INTO THIS REPO, and `relay-reconcile.sh` enumerates that namespace -- a pool can auto-integrate junk into `main`** -- detail: `docs/ledger-notes/b54b.md` <!-- id:b54b -->
-- [ ] [ROUTINE] **`roadmap-lint.sh`'s NO-ACCEPTANCE-NO-TWIN twin check uses an UNANCHORED `grep -F`, so an unrelated repo's id spuriously satisfies it** -- detail: `docs/ledger-notes/3af4.md` <!-- id:XXXX --> <!-- routed:XXXX --> <!-- id:3af4 -->
+- [ ] [ROUTINE] **`roadmap-lint.sh`'s NO-ACCEPTANCE-NO-TWIN twin check uses an UNANCHORED `grep -F`, so an unrelated repo's id spuriously satisfies it** -- detail: `docs/ledger-notes/3af4.md` <!-- id:3af4 -->
 - [ ] [ROUTINE] [INBOUND routed:d359 from it-infra 2026-08-27] **`self-transcript.sh --marker <worktree-path>` does not discriminate siblings, so `context-budget.sh --self` may measure ANOTHER child's transcript** -- detail: `docs/ledger-notes/9d12.md` <!-- routed:d359 --> <!-- id:9d12 -->
 - [ ] [ROUTINE] **`lib-typed-edges.sh` does not parse `children-of:` at all, and that is the MAJORITY spelling, so the shared closure machinery is blind to roughly four fifths of the fleet's parent/child edges** -- detail: `docs/ledger-notes/cb00.md` <!-- children:a,b --> <!-- id:cb00 -->
 - [ ] [ROUTINE] **`tracker/ledger-map.py` reads both child-marker spellings but does not NORMALISE them -- each spelling populates only ONE direction** -- detail: `docs/ledger-notes/7a9c.md` <!-- children:X --> <!-- children-of:P --> <!-- id:7a9c -->
@@ -862,7 +862,7 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] [INBOUND routed:88b8 from loderite 2026-09-02] Thanks for the ledger-shrink.py leading-run + lane-invariance reference -- detail: `docs/ledger-notes/cf41.md` <!-- id:cf41 -->
 - [ ] [ROUTINE] **The parked `id:3bd4`/`id:4f0f` attempt HANGS the four md-merge tests named for those ids -- rc=124 at 90s on the branch vs rc=0 in seconds on `main` at the same load.** Found 2026-09-07 by `/relay reconcile --all`. Not localized -- recorded as a dead end for the next executor to re-check, not as a diagnosis. -- detail: `docs/ledger-notes/be51.md` -- `ROADMAP.md` <!-- relates:3bd4 --> <!-- relates:4f0f --> <!-- id:be51 -->
 - [ ] [ROUTINE] **The parked `id:4d65` attempt is 11 PASS / 1 FAIL, and the failure INVERTS the item: `list --tsv` drops a genuinely-PENDING entry rather than a landed one.** Found 2026-09-07 by `/relay reconcile --all`. Its 193-line test encodes 4d65's acceptance incl. the no-mutation invariant. -- detail: `docs/ledger-notes/ceca.md` -- `ROADMAP.md` <!-- relates:4d65 --> <!-- id:ceca -->
-- [ ] [ROUTINE] **`ledger-shrink.py`'s `<!--[^>]*-->` keep-set catch-all over-matches across PROSE, splicing sentence fragments into head lines -- 2 corrupted lines, 13 hoisted `id:XXXX` placeholders.** -- detail: `docs/ledger-notes/2964.md` <!-- relates:0d7c --> <!-- id:2964 -->
+- [x] [ROUTINE] **`ledger-shrink.py`'s `<!--[^>]*-->` keep-set catch-all over-matches across PROSE, splicing sentence fragments into head lines -- 2 corrupted lines, 13 hoisted `id:XXXX` placeholders.** -- detail: `docs/ledger-notes/2964.md` DONE 2026-09-07: keep-set anchored to a marker SHAPE (`_MARKER_RE`, open-ended over marker NAMES -- pinned by case (E) of `tests/test_ledger_shrink_marker_grammar_2964.sh`) plus a code-span mask for QUOTED markers; 11 head lines repaired via `md-merge.py`, 0 hoisted `id:XXXX` left (the 6 remaining are backticked prose), suite 581/0/19-expected-red. <!-- relates:0d7c --> <!-- id:2964 -->
 ## Done
 - [ ] [INBOUND routed:0537 from zkm-scan review relay-20260702-080357-17669] relay dispatch/classifier dropped relay.toml `# path:` override for zkm-scan: review child prompt said main checkout /home/tobias/src/zkm-scan (nonexistent) + 'Last checkpoint tag: (none)' while canonical ~/src/zkm/plugins/zkm-scan has relay-ckpt-20260702-0031 on HEAD -- detail: `docs/ledger-notes/f5b1.md` <!-- id:f5b1 -->
 - [ ] [INBOUND routed:3715 from zkm-vcard review 2026-07-02] `classify-verdict.sh` must not emit a dispatchable verdict on `is_git=false`: a fail-open `gather-repo-state` stub produced a false `review` on a clean repo -- detail: `docs/ledger-notes/3465.md` <!-- id:3465 -->
@@ -938,7 +938,7 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] 🔴 [ROUTINE] **`orphan-scan.sh --shipped` reported TICK-READY for a RED, GATED item -- the owner-linked-test lookup is unanchored** -- detail: `docs/ledger-notes/535d.md` [INPUT — decision] 🚧 <!-- id:535d -->
 - [ ] [ROUTINE] **`orphan-scan.sh --shipped`'s GATE-STALE class has ZERO demonstrated signal — 7 of 7 hits were false positives on a full 2026-08-26 sweep.** -- detail: `docs/ledger-notes/e1bb.md` 🚧 <!-- id:e1bb -->
 - [ ] [ROUTINE] **Two ledger anomalies found by the 2026-08-26 advisory sweep — a gate target that is INVISIBLE to the live ledgers, and a directive citation whose source is closed.** -- detail: `docs/ledger-notes/203e.md` blocked on [INPUT — decision] [ROUTINE] <!-- id:203e -->
-- [ ] [ROUTINE] **`check-ledger-duplicates.mjs` belongs in dotclaude-skills, not in loderite — the other five own repos are UNCHECKED for a class that just produced two real findings.** -- detail: `docs/ledger-notes/fdc4.md` <!-- id:XXXX --> <!-- id:fdc4 -->
+- [ ] [ROUTINE] **`check-ledger-duplicates.mjs` belongs in dotclaude-skills, not in loderite — the other five own repos are UNCHECKED for a class that just produced two real findings.** -- detail: `docs/ledger-notes/fdc4.md` <!-- id:fdc4 -->
 - [ ] [ROUTINE] **Residuals from the `id:bb32`/`id:3d78` fixes — two more local heading regexes and one speculative matcher, all left deliberately in scope-discipline, all one-line follow-ups.** -- detail: `docs/ledger-notes/3986.md` <!-- id:3986 -->
 
 ## relay human 2026-08-13 (filed by `/relay human .`)
@@ -966,7 +966,7 @@ deliberately left unbounded — see `id:da1a`).
 
 - [ ] [ROUTINE] [INBOUND routed:5d10 from loderite] **Fix the `id:3801` hard-split GENERATOR, not more instances** -- detail: `docs/ledger-notes/d7c7.md` 🚧 `@container` <!-- id:d7c7 -->
 - [ ] [ROUTINE] [INBOUND routed:c843 from loderite] **Two narrow `roadmap-lint` classes.** -- detail: `docs/ledger-notes/9ceb.md` 🚧 `@container` <!-- id:9ceb -->
-- [ ] [ROUTINE] [INBOUND routed:3750 from leAIrn2learn] **ONE anchored id-matcher for all ledger tooling — RESCOPED 2026-08-14 after verifying each named script against the code.** -- detail: `docs/ledger-notes/6059.md` <!-- id:XXXX --> <!-- routed:b71e --> <!-- id:6059 -->
+- [ ] [ROUTINE] [INBOUND routed:3750 from leAIrn2learn] **ONE anchored id-matcher for all ledger tooling — RESCOPED 2026-08-14 after verifying each named script against the code.** -- detail: `docs/ledger-notes/6059.md` <!-- routed:b71e --> <!-- id:6059 -->
 
 ## background-agent batch 2026-08-14 (found while verifying the routed-item batch)
 
@@ -984,7 +984,7 @@ deliberately left unbounded — see `id:da1a`).
 
 - [ ] [ROUTINE] [INBOUND routed:af1b from lodelore] **`relay-loop.js` labels HANDOFF-mode checkpoints `reviewer (<model>)` — the exact `id:ecce` mislabel, which SKILL.md reserves for a real `/relay review` pass.** -- detail: `docs/ledger-notes/3913.md` <!-- routed:af1b --> <!-- id:3913 -->
 
-- [ ] [ROUTINE] [INBOUND routed:3ad9 from loderite] **ID-EXTRACTION HAZARD — a ledger line can carry TWO `<!-- id:XXXX -->` comments (its OWN definition plus a REFERENCE to another id inside an annotation), so ANY positional extraction attributes the line to the WRONG id.** -- detail: `docs/ledger-notes/7cd6.md` <!-- id:X --> <!-- routed:3ad9 --> <!-- id:7cd6 -->
+- [ ] [ROUTINE] [INBOUND routed:3ad9 from loderite] **ID-EXTRACTION HAZARD — a ledger line can carry TWO `<!-- id:XXXX -->` comments (its OWN definition plus a REFERENCE to another id inside an annotation), so ANY positional extraction attributes the line to the WRONG id.** -- detail: `docs/ledger-notes/7cd6.md` <!-- routed:3ad9 --> <!-- id:7cd6 -->
 
 - [ ] [ROUTINE] **Test-suite performance — PREMISE CORRECTED: the suite is ~5.2 min wall / 4.4 min CPU sequentially, NOT the ~1 hour this item was originally filed on (2026-08-14, owner ask).** -- detail: `docs/ledger-notes/5785.md` <!-- id:5785 -->
 

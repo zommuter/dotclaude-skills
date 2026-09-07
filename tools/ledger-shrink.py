@@ -115,10 +115,58 @@ _SEP_RE = re.compile(r" " + _DASH + r"{1,2} ")
 # (HUMAN_GATES / LANE_TAGS / the @-marker family / the blocked lexemes) and
 # `relay/references/hard-lanes.md`. A marker missing here is a marker that can be silently
 # dropped -- see D2: this list is cross-checked, not trusted.
+# THE MARKER GRAMMAR (id:2964). The structural catch-all below used to be spelled
+# `<!--[^>]*-->`, which is not anchored to any marker SHAPE at all: `[^>]*` happily runs
+# from a `<!--` appearing in PROSE forward to the next `>` anywhere on the line. Measured on
+# the live TODO.md 2026-09-07, that spliced body prose onto two head lines it was supposed to
+# be protecting -- `id:5817` (a mid-sentence fragment) and `id:ee62` (five list items) -- and
+# on ee62 it defeated the shrink entirely. Both items are, unsurprisingly, items ABOUT marker
+# syntax: the failure mode selects for exactly the items most likely to discuss it.
+#
+# THE PROPERTY THAT MUST SURVIVE. The catch-all is not a convenience; it is why `children:`
+# and `xledger-ok:` stopped being silently dropped (see the comment on the pattern itself).
+# So this is a grammar over marker SHAPE, never an enumeration of marker NAMES: any
+# `<!-- <name>[:<value>] -->` is kept, whatever `<name>` is, including one minted after this
+# file was written. `tests/test_ledger_shrink_marker_grammar_2964.sh` case (E) pins that with
+# a name that appears nowhere in the tree.
+#
+# What the grammar refuses, and why each clause earns its place:
+#   * the value may not contain `<` or `>`  -- an over-match that runs to a LATER marker's
+#     `-->` must cross that marker's `<!--`, so this alone kills both live corruptions;
+#   * the value may not contain `--`        -- the HTML comment rule itself: a comment ends
+#     at the first `-->`, so `--` inside one is never legal and a match that spans one is
+#     always an over-match;
+#   * the value is length-bounded           -- a backstop, sized off the longest REAL marker
+#     in this tree (a 232-char `xledger-ok:` prose reason at TODO.md:53), not off taste.
+# Verified by diffing old-vs-new matches across all five live ledgers: the ONLY changes are
+# the two corrupted lines and four regex/ellipsis placeholders quoted in prose.
+_MARKER_NAME = r"[A-Za-z0-9][A-Za-z0-9_.+-]{0,39}"
+_MARKER_VALUE = r"(?:[^<>\-]|-(?!-)){0,400}"
+_MARKER_RE_SRC = r"<!--\s*" + _MARKER_NAME + r"(?:[:\s]" + _MARKER_VALUE + r")?-->"
+_MARKER_RE = re.compile(_MARKER_RE_SRC)
+
+# THE SECOND HALF (id:2964). Shape is not enough on its own: `<!-- id:XXXX -->` written as a
+# worked EXAMPLE is byte-identical in shape to a real marker, and 13 head lines here carry
+# one hoisted out of their own body. The discriminator that does exist is the one the author
+# already used -- a marker quoted as an example is written inside an inline-code span, and a
+# LOAD-BEARING marker never is (checked across the five ledgers: every backticked comment is
+# a placeholder, a quoted regex, or a prose mention of ANOTHER item's id, and that last class
+# is refused wholesale by FOREIGN-ID-GUARD before it ever reaches here).
+#
+# Scoped DELIBERATELY to comment-shaped keeps only. It is NOT extended to lane brackets:
+# `relay/scripts/classify-repo.sh` does not mask backticks (id:1254), so a backticked lane
+# bracket IS that line's computed lane today, and masking here would put this tool into
+# disagreement with the detector it exists to keep honest. Nor to the `@marker` family, whose
+# dominant real spelling on a head line is itself backticked (`@manual`) -- that half of the
+# quoting problem is ROADMAP id:8372 and is not resolved here.
+_MASK_QUOTED_MARKERS = True
+_CODE_SPAN_RE = re.compile(r"`[^`]*`")
+
 MUST_KEEP_PATTERNS = [
     # STRUCTURAL CATCH-ALL, and it must stay FIRST. In this ecosystem an HTML comment IS
-    # structured metadata by construction -- item PROSE never uses one -- so every comment
-    # on an item line is a marker, whether or not anyone remembered to enumerate it.
+    # structured metadata by construction -- item PROSE never uses one, except when quoting
+    # a marker as an example, which _MASK_QUOTED_MARKERS handles -- so every comment on an
+    # item line is a marker, whether or not anyone remembered to enumerate it.
     #
     # This exists because the enumerated list below was NOT enough, caught by the id:0d7c
     # acceptance gate on the first real run against the live ledgers. Shrinking id:78ff's
@@ -132,7 +180,9 @@ MUST_KEEP_PATTERNS = [
     # they were missed, and how the next one would be -- so the rule is now structural.
     # The specific patterns below are kept as documentation of WHY each matters; the
     # de-nesting step folds a match wholly contained in this one back to a single append.
-    re.compile(r"<!--[^>]*-->"),
+    # Anchored to a marker SHAPE since id:2964 -- see the grammar above; still open-ended
+    # over marker NAMES, which is the whole point of it.
+    _MARKER_RE,
     # The anchor: without it the item is unaddressable to `md-merge update-ids` and
     # invisible to `orphan-scan`.
     re.compile(r"<!--\s*id:[0-9a-f]{4}\s*-->"),
@@ -331,10 +381,18 @@ def _keep_matches(text: str):
 
     A match wholly contained in another (the bare `gated-on:XXXX` inside its typed
     `<!-- gated-on:... -->` comment) is dropped, so a token is re-appended once.
+
+    A COMMENT-shaped match that begins inside an inline-code span is a marker QUOTED AS AN
+    EXAMPLE, not this item's own marker, and is not kept (id:2964). See _MASK_QUOTED_MARKERS
+    for why the rule stops at comment shapes and does not extend to lanes or `@markers`.
     """
+    spans = [(m.start(), m.end()) for m in _CODE_SPAN_RE.finditer(text)] \
+        if _MASK_QUOTED_MARKERS else []
     raw = []
     for rx in MUST_KEEP_PATTERNS:
         for m in rx.finditer(text):
+            if m.group(0).startswith("<!--") and any(a <= m.start() < b for a, b in spans):
+                continue
             raw.append((m.start(), m.end(), m.group(0)))
     raw.sort(key=lambda t: (t[0], -(t[1] - t[0])))
     out = []
