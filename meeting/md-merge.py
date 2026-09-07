@@ -347,7 +347,7 @@ def _first_archive_heading_index(result: list) -> int | None:
 
 
 def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
-               allow_new: bool = False) -> None:
+               allow_new: bool = False, allow_noop: bool = False) -> None:
     """Replace (or append to, or in-lock-transform) lines containing
     <!-- id:XXXX -->, and/or insert new lines relative to an anchor id — under flock.
 
@@ -480,6 +480,15 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                     found.add(item_id)
                     composed = line.rstrip('\n')
                     op_err = None
+                    # id:3bd4 — per-op no-op tracking: an id being FOUND is not enough to
+                    # call an op a success — a regex_sub whose pattern doesn't match, or an
+                    # append whose payload strips to nothing, changes nothing and must not
+                    # exit 0 by default. Tracked per OP (not by comparing the final composed
+                    # line to the original) because ops for one id are FOLDED (id:5d7e): a
+                    # delta of two regex_subs where the first hits and the second misses
+                    # still changes the line overall, so a whole-line comparison cannot see
+                    # the dropped op.
+                    op_noop = []  # ordered [(kind, detail), ...] for ops that changed nothing
                     for kind, payload in ops_by_id[item_id]:
                         if kind == 'line':
                             # Full replacement is validated against the ORIGINAL line —
@@ -505,6 +514,11 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                                 op_err = ('append: composed line no longer carries its '
                                           'own id marker — refusing')
                                 break
+                            if not payload.strip():
+                                # id:3bd4(E)/(F) — _append_to_line strips the payload and
+                                # rebuilds the original line for an empty/whitespace-only
+                                # payload, so the caller must not be told this landed.
+                                op_noop.append(('append', None))
                             composed = _append_to_line(composed, cm, payload)
                         elif kind == 'regex_sub':
                             # id:f26d — TOCTOU-free in-lock transform: the input is the
@@ -512,11 +526,28 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                             # earlier op here), never a caller-supplied literal computed
                             # before the lock.
                             try:
-                                composed = re.sub(payload['pattern'], payload['repl'],
-                                                  composed)
+                                composed, n = re.subn(payload['pattern'], payload['repl'],
+                                                      composed)
                             except re.error as e:
                                 op_err = f'regex_sub: invalid pattern: {e}'
                                 break
+                            if n == 0:
+                                # id:3bd4(H)/(I) — the id was found but this op's pattern
+                                # matched nothing; the previous guard (regex_sub_ids -
+                                # found) only ever fired for an id absent from the file
+                                # entirely, so this exact shape wrote the file back
+                                # unchanged and reported success.
+                                op_noop.append(('regex_sub', payload['pattern']))
+                    if op_err is None and op_noop and not allow_noop:
+                        # id:3bd4(G) — a deliberate no-op opts in explicitly instead of
+                        # being the silent default, so an idempotent caller re-running its
+                        # own delta still has a correct way to do so.
+                        details = '; '.join(
+                            f'{k} pattern {p!r} matched nothing' if k == 'regex_sub'
+                            else 'append produced no change (empty/whitespace payload)'
+                            for k, p in op_noop)
+                        op_err = (f'op(s) produced no change ({details}) — refusing '
+                                  '(pass --allow-noop for a deliberate no-op)')
                     if op_err is None:
                         op_err = _final_line_marker_error(f'{file_path}:{lineno}', composed)
                     if op_err:
@@ -716,6 +747,11 @@ def main() -> None:
     p_ids.add_argument('--allow-new', action='store_true',
                        help='id:1b1a — opt in to appending ids not found in the file '
                             '(default: an unmatched id fails LOUD and writes nothing).')
+    p_ids.add_argument('--allow-noop', action='store_true',
+                       help='id:3bd4 — opt in to a delta whose id is found but whose op(s) '
+                            'change nothing (a regex_sub pattern that does not match, or an '
+                            'empty/whitespace append) (default: refuses LOUD and writes '
+                            'nothing, naming the id and the offending pattern).')
 
     p_sec = sub.add_parser('update-sections', help='Replace ## section blocks by heading (for user-profile.md)')
     p_sec.add_argument('--file', required=True, help='Path to the markdown file')
@@ -737,7 +773,7 @@ def main() -> None:
     try:
         if args.cmd == 'update-ids':
             update_ids(Path(args.file), delta.get('updates', []), getattr(args, 'commit', None),
-                       getattr(args, 'allow_new', False))
+                       getattr(args, 'allow_new', False), getattr(args, 'allow_noop', False))
         elif args.cmd == 'update-sections':
             update_sections(Path(args.file), delta.get('sections', []), getattr(args, 'commit', None))
         else:

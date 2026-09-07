@@ -393,10 +393,16 @@ def md_merge_probe(md_merge, workdir, ledger, ids):
     copy it runs on -- and it still exercises the full resolution path: the unmatched-id
     refusal (id:1b1a), the id:6059 multi-marker refusal, and the write-side final-line
     guard. The copy is a throwaway; the AFTER tree is never touched.
+
+    id:3bd4 -- an empty `append` is now itself a refusal (a found id whose op changes
+    nothing), which is orthogonal to what this probe tests. `--allow-noop` opts back
+    into the deliberate no-op so a refusal here still means what it always meant:
+    id:1b1a/id:6059 resolution, never "the probe's own payload was empty".
     """
     payload = json.dumps({"updates": [{"id": i, "append": ""} for i in sorted(ids)]})
     proc = subprocess.run(
-        [sys.executable, md_merge, "update-ids", "--file", os.path.join(workdir, ledger)],
+        [sys.executable, md_merge, "update-ids", "--file", os.path.join(workdir, ledger),
+         "--allow-noop"],
         input=payload, capture_output=True, text=True,
     )
     return proc.returncode, (proc.stderr or "").strip()
