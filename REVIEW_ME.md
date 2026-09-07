@@ -92,20 +92,6 @@ the `id:2065` ruling. `id:6958` correctly stays OPEN.
   unfinished migration.** Measured: `--live-only /tmp` exits 1 after a bash `unbound variable` trace,
   while a MISSING path correctly exits 2. Filed as `id:4ce8`; flagging it here because `id:da55` gates
   the irreversible half of the migration on this script's exit code.
-- [x] **Three inbox dead-letters addressed to this repo were never ingested** (surfaced by
-  `relay-doctor` / `scan-routed.sh`): `routed:5fa9` (the adoption-form vs multi-marker-refusal
-  contradiction), `routed:de8f` (`roadmap-lint` DEAD-GATE never reads `ROADMAP.archive.md`) and
-  `routed:f854` (the consumed-state sweep script). I filed all three into `TODO.md` as `id:41d3`,
-  `id:d3bf`, `id:bfee` using the `[INBOUND routed:TOK from ...]` bracket-prefix form. A fourth,
-  `routed:7ad4`, targets **relay-core** (the shadow binary must follow `id:098a`'s lane changes or
-  classify parity goes red) and is left for that repo -- I did not write into it.
-  **TICKED 2026-09-07 (`/relay human --all`, tier-(a)):** all four routings verified landed, and the
-  fourth is the one worth recording -- `routed:7ad4` was deliberately deferred to another repo here,
-  and it HAS since landed: `grep -c routed:7ad4 ~/src/relay-core/TODO.md` = 1. Our own three are
-  present as `INBOUND routed:5fa9` / `de8f` / `f854` (one occurrence each in `TODO.md`), and all four
-  are drained from `~/.claude/projects/todo-inbox.md` (0 hits). So the deferral did not become a
-  dead letter, which is the failure mode this box existed to prevent.
-
 ## Review 2026-08-26b (chain-end re-ask, run `relay-20260826-162405-7522` — id:8123)
 
 Window `relay-ckpt-20260826-1449`..HEAD = **18 commits, all owner-attended (`Co-Authored-By: Claude
@@ -486,22 +472,6 @@ was closed on the strength of a skipped tier, because no item was closed at all.
   in the install tree** (`relay-doctor` install-drift, id:1102, found this itself; recorded here so
   it is not lost with the run log). Same family as the baseline gap above -- worth fixing in one
   pass. <!-- id:c47f -->
-
-- [x] **Two inbox dead-letters target THIS repo and were never ingested; I deliberately did not
-  ingest them, and the reason is itself a finding.** `routed:df51` (cap Claude and all descendants
-  under one persistent `claude.slice` cgroup -- owner-asked 2026-09-04 after nice-only capping was
-  judged insufficient) and `routed:3b3a` (`todo-update/archive-done.sh` archives items completed in
-  the CURRENT session: its `line.strip() in prior_done` branch dates them `today_ym` regardless of
-  their own date, and the mandated skill order guarantees this session's just-committed `[x]` items
-  ARE in the prior commit -- observed live in lodelore on `id:b0a0`/`id:3cd8`, restored by hand,
-  and it moves `routed:` breadcrumbs out of `TODO.md` where the cross-repo twin-guard looks for
-  them). Both verified absent from `TODO.md`+`ROADMAP.md`. The documented adopt path writes them
-  through `md-merge.py`, and `md-merge.py update-ids` is the subject of **two open, verified-red
-  specs promoted this very morning** (`id:3bd4` silent no-op when an op changes nothing, `id:4f0f`
-  cannot reach a wrapped item's continuation lines) -- so driving the ledger helper to add new
-  wrapped items is the one edit currently known to be unreliable. Routing is the handoff's or the
-  human's call per §4b; `routed:3b3a` should jump the queue, since it silently mis-dates the
-  archive of every same-session close fleet-wide. **ROUTING DONE 2026-09-05 (review, run relay-20260905-113859-5807): both dead-letters adopted into `TODO.md` under fresh own-ids -- `routed:df51` as `id:16a4` (`[HARD]`, the `claude.slice` cgroup cap; kept out of `ROADMAP.md` because its acceptance requires an empirical nested-scope escape probe on a real host, not pool work) and `routed:3b3a` as `id:5355` (`[ROUTINE]`, promoted to `ROADMAP.md` with a verified-red spec `tests/test_archive_done_same_session_5355.sh`).** This box's own warning about `md-merge` was well-founded and is now a live datapoint for `id:4f0f`: the writes themselves went through cleanly, but this box CANNOT BE TICKED by the helper, because its `- [ ]` checkbox and its `id:` marker sit on different lines and `update-ids` only reaches the marker's line -- exactly the wrapped-item defect `id:4f0f` describes. Treat the box as resolved; the unticked checkbox is the tool's limitation, not an open action. **TICKED 2026-09-07 (`/relay human --all`, tier-(a)):** re-verified independently of the box's own claim -- `grep -c "routed:df51"` = 1 in `TODO.md`, `routed:3b3a` = 1 in `TODO.md` + 1 in `ROADMAP.md`, and `grep -c 'routed:df51\|routed:3b3a' ~/.claude/projects/todo-inbox.md` = **0**, i.e. that run's `scan-routed.sh --apply` drained both as twinned rather than leaving them dead-lettered. The FINDING the box carries (driving `md-merge.py` to add wrapped items is the one edit currently known to be unreliable) is separately tracked as `id:3bd4` + `id:4f0f` and is NOT closed by this tick. <!-- id:0bb7 -->
 
 - [ ] **`REVIEW_ME.md` carries 31 open boxes against its own header's "Max ~10 open boxes; the
   reviewer prunes resolved ones each review turn", and I could prune NONE of them: the file has
