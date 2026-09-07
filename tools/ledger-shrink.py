@@ -156,11 +156,50 @@ _MARKER_RE = re.compile(_MARKER_RE_SRC)
 # Scoped DELIBERATELY to comment-shaped keeps only. It is NOT extended to lane brackets:
 # `relay/scripts/classify-repo.sh` does not mask backticks (id:1254), so a backticked lane
 # bracket IS that line's computed lane today, and masking here would put this tool into
-# disagreement with the detector it exists to keep honest. Nor to the `@marker` family, whose
-# dominant real spelling on a head line is itself backticked (`@manual`) -- that half of the
-# quoting problem is ROADMAP id:8372 and is not resolved here.
+# disagreement with the detector it exists to keep honest.
+#
+# THE `@marker` FAMILY (id:8372) needs a DIFFERENT discriminator than comment-masking above,
+# not merely the same one extended. A real HTML-comment marker is NEVER backticked, so
+# code-span masking alone tells real from quoted-example apart. An `@marker`'s DOMINANT real
+# spelling on a head line IS backticked (`@manual`), so "is it inside a code span" answers
+# nothing -- both the real marker and an example quotation of it are.
+#
+# What DOES discriminate is narrower than "prose follows": `tests/test_ledger_shrink_0d7c.sh`
+# case B deliberately keeps a whole LIST of genuine markers joined by plain-English "and"
+# (`` `@manual` and @wire and @owner-verify and ... ``), so "the next word is lowercase prose"
+# is not a safe signal -- a real marker in a list is followed by lowercase prose too. What
+# actually distinguishes an EXAMPLE quotation is that the sentence NAMES the thing it just
+# quoted as a marker ("a `@manual` marker is prose, not a comment") -- i.e. the very next word
+# is "marker"/"markers". A real marker is never immediately followed by that word: nothing in
+# this tree's live usage reads "`@manual` marker" as the item's own trailing tag. See
+# `_at_marker_is_prose_example`.
 _MASK_QUOTED_MARKERS = True
 _CODE_SPAN_RE = re.compile(r"`[^`]*`")
+
+# The AT-marker family's shape: an optional leading backtick, `@`, then the marker name. Used
+# to recognise a MUST_KEEP match as belonging to this family (as opposed to, say, the detail
+# pointer or a comment marker) without re-deriving the family's pattern list.
+_AT_MARKER_TXT_RE = re.compile(r"^`@[A-Za-z0-9_-]+(?::[0-9-]+)?`$")
+
+# id:8372: the word that turns "a real marker followed by prose" into "prose describing a
+# marker as an example of one". Deliberately narrow (see the discriminator note above) rather
+# than "any lowercase word", which test_ledger_shrink_0d7c.sh case B disproves.
+_MARKER_NOUN_RE = re.compile(r"\s+markers?\b", re.IGNORECASE)
+
+
+def _at_marker_is_prose_example(text: str, end: int) -> bool:
+    """True when a fully-backticked `@marker` match at `text[:end]` is QUOTED AS AN EXAMPLE.
+
+    id:8372. Looks at whether the match is immediately followed (after whitespace) by the
+    word "marker"/"markers" -- the shape a sentence takes when it is EXPLAINING what the
+    quoted token is ("a `@manual` marker is prose, not a comment"), as opposed to a real
+    trailing marker, which this tree's live ledgers never follow with that word (including
+    when several real markers are chained with "and" -- see the note above). Scoped to
+    fully-quoted matches only (bare `@manual` is unaffected, matching how the family already
+    behaves) and never applied to comment-shaped markers, which have the stronger
+    comment-masking rule above instead.
+    """
+    return bool(_MARKER_NOUN_RE.match(text[end:end + 12]))
 
 MUST_KEEP_PATTERNS = [
     # STRUCTURAL CATCH-ALL, and it must stay FIRST. In this ecosystem an HTML comment IS
@@ -383,17 +422,22 @@ def _keep_matches(text: str):
     `<!-- gated-on:... -->` comment) is dropped, so a token is re-appended once.
 
     A COMMENT-shaped match that begins inside an inline-code span is a marker QUOTED AS AN
-    EXAMPLE, not this item's own marker, and is not kept (id:2964). See _MASK_QUOTED_MARKERS
-    for why the rule stops at comment shapes and does not extend to lanes or `@markers`.
+    EXAMPLE, not this item's own marker, and is not kept (id:2964). A fully-backticked
+    `@marker`-shaped match followed by ordinary lowercase prose is the same phenomenon seen
+    from the `@marker` family's own shape, and is excluded by `_at_marker_is_prose_example`
+    instead (id:8372) -- see _MASK_QUOTED_MARKERS for why these are two different rules.
     """
     spans = [(m.start(), m.end()) for m in _CODE_SPAN_RE.finditer(text)] \
         if _MASK_QUOTED_MARKERS else []
     raw = []
     for rx in MUST_KEEP_PATTERNS:
         for m in rx.finditer(text):
-            if m.group(0).startswith("<!--") and any(a <= m.start() < b for a, b in spans):
+            txt = m.group(0)
+            if txt.startswith("<!--") and any(a <= m.start() < b for a, b in spans):
                 continue
-            raw.append((m.start(), m.end(), m.group(0)))
+            if _AT_MARKER_TXT_RE.match(txt) and _at_marker_is_prose_example(text, m.end()):
+                continue
+            raw.append((m.start(), m.end(), txt))
     raw.sort(key=lambda t: (t[0], -(t[1] - t[0])))
     out = []
     for start, end, txt in raw:
