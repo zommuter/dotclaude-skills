@@ -3549,3 +3549,7 @@ single-block behaviour unchanged); full suite 592/0/10-expected-red.
 Friction: none.
 refactor: none needed -- the fix restructures scan() into its natural two passes rather
 than adding new logic; no leftover duplication.
+
+## 2026-09-07 15:40 — executor (sonnet, relay-loop)
+
+Fixed id:0176 -- cited_by's surviving-text escape in ledger-continuations.py now scores each block against the shared post-batch state (all candidates' bodies removed at once) instead of per-block, so mutually-cancelling readers across a batch move are correctly refused; full suite 592/0/10-expected-red. [id:0176]
