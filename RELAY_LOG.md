@@ -3580,3 +3580,22 @@ existing report loop, no duplication introduced.
 ## 2026-09-07 16:14 — executor (sonnet, relay-loop)
 
 id:735f: added tests/lib/check.sh (assert-vs-error helper) and taught run-tests.sh to report exit-3 as a distinct ERROR outcome, never EXPECTED-RED; full suite 593/0/0-errored/9-expected-red. [id:735f]
+
+## 2026-09-07 — executor (sonnet)
+
+Worked id:8372 -- `tools/ledger-shrink.py` hoisted an `@marker`-family token (e.g. `@manual`)
+quoted as a prose example onto the item's head line, same class as id:2964's HTML-comment
+hoist but unresolved there because the `@marker` family's dominant real spelling is itself
+backticked, so backtick-quoting alone can't discriminate real from example. Added a narrower
+discriminator (`_at_marker_is_prose_example`): a fully-backticked `@marker` match is masked
+only when immediately followed by the word "marker"/"markers" -- the shape of a sentence
+explaining the token, never how a real trailing marker reads (checked against
+`test_ledger_shrink_0d7c.sh` case B's list of real markers joined by plain "and", which an
+earlier "any lowercase word follows" attempt broke). `tests/test_shrink_example_marker_hoist_8372.sh`
+all four cases green; full suite 594 passed, 0 failed, 0 errored, 8 expected-red.
+Friction: context-budget.sh --self reported a `handback` verdict (est_tokens=96287) after the
+fix was already committed and the full suite already green -- landed under the v16 near-done
+carve-out rather than discarding complete, verified work.
+refactor: none needed -- a scoped addition (one new regex, one new helper function, one new
+call-site branch) documented alongside the existing comment-masking rule it complements; no
+duplication introduced.
