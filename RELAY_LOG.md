@@ -3477,3 +3477,7 @@ worth re-running any timeout-124 test with a longer budget before assuming it is
 merely slow, per the `timing-needs-load` lesson.
 refactor: none needed -- the fix is additive within the existing per-id fold loop; no
 new duplication introduced.
+
+## 2026-09-07 14:18 — executor (sonnet, relay-loop)
+
+id:3bd4 -- md-merge.py update-ids no longer silently no-ops on a found-id op that changes nothing (regex_sub miss / empty append); fixed a real regression this introduced in roundtrip-validate.py's writability probe; full suite 589/0/13-expected-red [id:3bd4]
