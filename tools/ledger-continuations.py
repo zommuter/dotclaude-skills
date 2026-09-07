@@ -1381,17 +1381,32 @@ def scan(lines, patterns=None):
 
     `patterns` is the COMPUTED reader-pattern set (see find_readers); an empty/None set
     means no live consumer was found, never "assume none".
+
+    THE POST-BATCH STATE (id:0176). A single `scan()` call relocates every candidate
+    block's body in ONE move, not one at a time -- that is the actual shape of every real
+    migration. So `cited_by`'s "does this pattern also match something the ledger still
+    holds afterwards" escape must be evaluated against the state AFTER THE WHOLE BATCH,
+    never "this block removed, every other candidate's body still sitting there". The old
+    per-block `rest = lines[:i+1] + lines[j:]` computed exactly that wrong, too-generous
+    state: two blocks that cite only EACH OTHER's body both read as "safe, the pattern
+    survives elsewhere" when in fact neither survives once both move together. Pass 1
+    below does the structural split (no-id / foreign-id / unowned) exactly as before and
+    collects every surviving CANDIDATE's body-line range; `batch_rest` is the document
+    with every candidate's body removed and everything else -- head lines included --
+    left standing, i.e. the actual state once this call's batch lands. Pass 2 runs
+    `cited_by` for every candidate against that ONE shared state, so a reader is cleared
+    only by text no candidate in this batch is about to take with it.
     """
     patterns = patterns or []
-    blocks = []
+    n = len(lines)
+
+    # ---- pass 1: structural split -- unchanged from before this fix ----
+    candidates = []          # (head_index, next_index, item_id, head_line, cont)
     refused = []
     i = 0
-    n = len(lines)
-    cur_owner = None
     while i < n:
         line = lines[i]
         if TOP_ITEM_RE.match(line):
-            cur_owner = i
             j = i + 1
             cont = []
             while j < n and lines[j].strip() and re.match(r"^[ \t]", lines[j]):
@@ -1408,63 +1423,74 @@ def scan(lines, patterns=None):
                         refused.append(("foreign-id", i + 1,
                                         "block carries id(s) " + ",".join(foreign)))
                     else:
-                        rest = lines[:i + 1] + lines[j:]
-                        hits = cited_by(cont, patterns, rest)
-                        if hits:
-                            # EVERY consumer, never a truncated head. The consumer that
-                            # motivates a refusal is frequently not the first one found,
-                            # and a reason that omits it cannot be acted on.
-                            # EVERY site carries the CORPUS its subject traced to, so the
-                            # caller can tell an evidenced consumer from an unresolved
-                            # trace without re-deriving either (id:1447).
-                            # THE TWO TIERS GET HEADINGS, not merely an ordering (id:1447
-                            # amendment, 2026-09-04). They were already segregated and
-                            # deterministically ordered, but a reader had to NOTICE the
-                            # ordering to use it, and an undisclosed ordering is not a
-                            # report. The headings say what each tier means so the caller
-                            # need not re-derive it.
-                            #
-                            # THE BOUNDARY IS PROVENANCE, NOT PRIORITY -- say so here, in
-                            # the output, because the alternative is that every reader
-                            # learns it the hard way. `ledger` does NOT mean "real" and
-                            # `untraced` does NOT mean "noise": measured on this tree, 3 of
-                            # 6 ledger-traced sites are `\n` string-hygiene artifacts, and
-                            # the ONLY genuine continuation-body consumer
-                            # (tracker/ledger-map.py:493) scores UNTRACED. Treating the
-                            # short tier as the actionable one is the wrong axis.
-                            n_led = sum(1 for p, _k in hits if p.corpus == CORPUS_LEDGER)
-                            chunks = []
-                            prev_corpus = None
-                            for p, k in hits:
-                                if p.corpus != prev_corpus:
-                                    if p.corpus == CORPUS_LEDGER:
-                                        chunks.append(
-                                            "\n      -- {} LEDGER-TRACED (subject traced to a "
-                                            "ledger read)".format(n_led))
-                                    else:
-                                        chunks.append(
-                                            "\n      -- {} UNTRACED-SUBJECT (the pass could not "
-                                            "follow the subject; REFUSED, never cleared -- this "
-                                            "tier holds genuine consumers too)".format(
-                                                len(hits) - n_led))
-                                    prev_corpus = p.corpus
-                                chunks.append(
-                                    "\n        [{}] {} matches body line {} (pattern `{}`)".format(
-                                        p.corpus, p.where(), i + 2 + k, p.raw))
-                            named = "".join(chunks)
-                            refused.append((
-                                "cited-body", i + 1,
-                                "id:{} -- body read by {} live consumer site(s) "
-                                "({} ledger-traced, {} untraced-subject):{}".format(
-                                    idm.group(1), len(hits), n_led,
-                                    len(hits) - n_led, named)))
-                        else:
-                            blocks.append(Block(i, idm.group(1), line, cont))
+                        candidates.append((i, j, idm.group(1), line, cont))
             i = j
             continue
         if line.strip() and re.match(r"^[ \t]", line):
             refused.append(("unowned", i + 1, line.strip()[:80]))
         i += 1
+
+    # ---- the state this batch actually leaves behind: every candidate's body gone,
+    # every head line (and everything not a candidate body) untouched.
+    cont_idx = set()
+    for (ci, cj, _cid, _chead, _ccont) in candidates:
+        cont_idx.update(range(ci + 1, cj))
+    batch_rest = [ln for k, ln in enumerate(lines) if k not in cont_idx]
+
+    # ---- pass 2: the cited-body check, once, against the shared post-batch state ----
+    blocks = []
+    for (i, j, item_id, line, cont) in candidates:
+        hits = cited_by(cont, patterns, batch_rest)
+        if hits:
+            # EVERY consumer, never a truncated head. The consumer that
+            # motivates a refusal is frequently not the first one found,
+            # and a reason that omits it cannot be acted on.
+            # EVERY site carries the CORPUS its subject traced to, so the
+            # caller can tell an evidenced consumer from an unresolved
+            # trace without re-deriving either (id:1447).
+            # THE TWO TIERS GET HEADINGS, not merely an ordering (id:1447
+            # amendment, 2026-09-04). They were already segregated and
+            # deterministically ordered, but a reader had to NOTICE the
+            # ordering to use it, and an undisclosed ordering is not a
+            # report. The headings say what each tier means so the caller
+            # need not re-derive it.
+            #
+            # THE BOUNDARY IS PROVENANCE, NOT PRIORITY -- say so here, in
+            # the output, because the alternative is that every reader
+            # learns it the hard way. `ledger` does NOT mean "real" and
+            # `untraced` does NOT mean "noise": measured on this tree, 3 of
+            # 6 ledger-traced sites are `\n` string-hygiene artifacts, and
+            # the ONLY genuine continuation-body consumer
+            # (tracker/ledger-map.py:493) scores UNTRACED. Treating the
+            # short tier as the actionable one is the wrong axis.
+            n_led = sum(1 for p, _k in hits if p.corpus == CORPUS_LEDGER)
+            chunks = []
+            prev_corpus = None
+            for p, k in hits:
+                if p.corpus != prev_corpus:
+                    if p.corpus == CORPUS_LEDGER:
+                        chunks.append(
+                            "\n      -- {} LEDGER-TRACED (subject traced to a "
+                            "ledger read)".format(n_led))
+                    else:
+                        chunks.append(
+                            "\n      -- {} UNTRACED-SUBJECT (the pass could not "
+                            "follow the subject; REFUSED, never cleared -- this "
+                            "tier holds genuine consumers too)".format(
+                                len(hits) - n_led))
+                    prev_corpus = p.corpus
+                chunks.append(
+                    "\n        [{}] {} matches body line {} (pattern `{}`)".format(
+                        p.corpus, p.where(), i + 2 + k, p.raw))
+            named = "".join(chunks)
+            refused.append((
+                "cited-body", i + 1,
+                "id:{} -- body read by {} live consumer site(s) "
+                "({} ledger-traced, {} untraced-subject):{}".format(
+                    item_id, len(hits), n_led,
+                    len(hits) - n_led, named)))
+        else:
+            blocks.append(Block(i, item_id, line, cont))
     return blocks, refused
 
 
