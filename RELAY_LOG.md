@@ -3382,3 +3382,9 @@ as a cutoff.
 ## 2026-09-07 12:16 — executor (sonnet, relay-loop)
 
 todo-conformance.sh's ${#var} length/shape/residue measurements are now pinned to characters via a forced UTF-8 LC_CTYPE, closing id:eccb (a seam of id:4839); suite 583/0/17-expected-red. [id:eccb]
+
+## 2026-09-07 — executor (sonnet)
+
+Worked id:b890 — `verify-negative-cases.py`'s `CASE_RE` matched a `# fails-against-mutation:` declaration one line at a time, so a heredoc declaration spanning several comment lines contributed only its first line as the mutation command, which ran as a silent no-op (bash warns to stderr, exits 0) and was reported VACUOUS with the wrong cause. Added `validate_mutation_arg()`: runs `bash -n -c "$arg"` and treats any stderr output (the `here-document ... delimited by end-of-file` warning) as proof the declaration is truncated, refusing it as a CONFIG ERROR (exit 2) naming the one-line requirement, instead of executing the fragment. The RED spec `tests/test_negcase_multiline_mutation_b890.sh` (already committed at the last checkpoint) now passes; negative control (a well-formed single-line mutation) still executes and verifies normally. Full suite: 585 passed, 0 failed, 16 expected-red.
+Friction: none — the RED spec and detector method were already fully specified in `docs/ledger-notes/b890.md`, so this was a straight implementation.
+refactor: none needed — one function added at the natural point in the existing rev/mutation case-dispatch, no new duplication.
