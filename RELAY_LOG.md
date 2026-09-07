@@ -3500,3 +3500,7 @@ duplication introduced.
 ## 2026-09-07 14:29 — executor (sonnet, relay-loop)
 
 Fixed id:5355 -- archive-done.sh's prior-commit branch no longer sweeps a same-session close before its own on-YYYY-MM-DD date says it's due; full suite 590/0/12-expected-red. [id:5355]
+
+## 2026-09-07 14:51 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review(8123): id:5355 verified green by independent negative control (spec untouched, reddens at exactly its 3 declared assertions, over-correction trap still passes); CLAUDE.md archive-done gotcha de-staled; c7dd escalated with measured 389-file magnitude; suite 590/0/12 [id:5355]
