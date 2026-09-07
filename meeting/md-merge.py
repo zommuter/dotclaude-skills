@@ -326,6 +326,93 @@ def _final_line_marker_error(where: str, final_line: str) -> str | None:
             f'describes; de-literalise it or use a typed edge.')
 
 
+def _item_block_range(lines: list, head_idx: int) -> int:
+    """id:4f0f — exclusive end index of the continuation block starting after `head_idx`.
+
+    The SAME boundary `tools/ledger-continuations.py:1334-1338` already defines: consecutive
+    following lines that are non-blank and begin with whitespace. A blank line, EOF, or the
+    next column-0 line ends the block. Reusing this definition rather than a fresh guess is
+    deliberate — two tools disagreeing about where an item ends is the id:4983 defect class.
+    """
+    j = head_idx + 1
+    n = len(lines)
+    while j < n and lines[j].strip() and re.match(r'^[ \t]', lines[j]):
+        j += 1
+    return j
+
+
+def _apply_item_scope_ops(lines: list, item_scope_ops: dict, allow_noop: bool):
+    """id:4f0f — apply `scope:"item"` regex_sub ops over each id's BLOCK (head line plus
+    continuation lines), before the line-scoped pass runs. Returns
+    `(new_lines, errors, found_ids)`; on any error the caller must write nothing.
+
+    Runs as a pass separate from the line-scoped loop in `update_ids` so that loop's
+    per-line logic is untouched by this mode — the two never see the same id (the caller
+    refuses a mix of scope:item and scope:line for the same id before this is reached).
+    """
+    result = []
+    found = set()
+    errors = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        try:
+            m = _own_id_match_of_line(line)
+        except AmbiguousOwnId as amb:
+            cands = [c.lower() for c in str(amb).split(', ')]
+            hit = [c for c in cands if c in item_scope_ops]
+            if hit:
+                errors.append(
+                    f'line {i + 1}: AMBIGUOUS own id — line carries {len(cands)} anchored '
+                    f'id markers ({", ".join(cands)}) and the grammar cannot tell "this '
+                    f'line IS X" from "this line REFERS to X"; REFUSING to update '
+                    f'{", ".join(hit)} here (id:6059).')
+            result.append(line)
+            i += 1
+            continue
+        item_id = m.group(1).lower() if m else None
+        if item_id is None or item_id not in item_scope_ops:
+            result.append(line)
+            i += 1
+            continue
+        found.add(item_id)
+        end = _item_block_range(lines, i)
+        block_lines = lines[i:end]
+        composed = ''.join(block_lines)
+        op_noop = []
+        op_err = None
+        for payload in item_scope_ops[item_id]:
+            try:
+                composed, cnt = re.subn(payload['pattern'], payload['repl'], composed)
+            except re.error as e:
+                op_err = f'regex_sub: invalid pattern: {e}'
+                break
+            if cnt == 0:
+                # id:3bd4's no-op refusal, mirrored at item scope: a pattern matching
+                # nothing across the whole block must not silently exit 0.
+                op_noop.append(payload['pattern'])
+        if op_err is None and op_noop and not allow_noop:
+            details = '; '.join(f'regex_sub pattern {p!r} matched nothing' for p in op_noop)
+            op_err = (f'op(s) produced no change in item scope ({details}) — refusing '
+                      '(pass --allow-noop for a deliberate no-op)')
+        if op_err is None:
+            new_block_lines = composed.splitlines(keepends=True)
+            head_text = new_block_lines[0].rstrip('\n') if new_block_lines else ''
+            op_err = _final_line_marker_error(f'item id:{item_id}', head_text)
+        if op_err:
+            errors.append(f'id:{item_id}: {op_err}')
+            result.extend(block_lines)
+        else:
+            result.extend(composed.splitlines(keepends=True))
+        i = end
+    unmatched = sorted(set(item_scope_ops) - found)
+    if unmatched:
+        errors.append(
+            'scope:item id(s) not found (nothing to transform): ' + ", ".join(unmatched))
+    return result, errors, found
+
+
 def _append_to_line(line: str, marker_match: re.Match, append_text: str) -> str:
     """Append `append_text` to `line` (sans trailing newline), preserving every
     byte of the original content and re-anchoring the id marker as the LAST
@@ -392,6 +479,15 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
         error, same class as id:1b1a's unmatched-id guard — it never silently falls
         back to an EOF append, because EOF is the wrong place for a seam that must
         sit beside its siblings.
+
+    id:4f0f — every update above (except insert) may also carry `"scope": "item"`,
+    which applies a `regex_sub` to the item's BLOCK (head line plus continuation
+    lines, per `_item_block_range`) instead of just the head line. `scope` DEFAULTS
+    to `"line"`, so every existing caller's delta keeps its present meaning. Two
+    combinations are refused LOUD, never silently downgraded to line scope:
+    `scope:"item"` paired with any op other than `regex_sub`, and an unrecognised
+    `scope` value. Mixing `scope:"item"` and `scope:"line"` updates for the SAME id
+    in one call is likewise refused. See `_apply_item_scope_ops`.
     """
     lock_path = file_path.with_suffix(file_path.suffix + '.lock')
     # id:5d7e — ops are held as an ORDERED LIST PER ID, never one dict per op-class.
@@ -405,6 +501,8 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
     replace_map = {}        # id -> line, for the --allow-new EOF path only
     regex_sub_ids = set()   # ids carrying >=1 regex_sub, for the unmatched guard
     insert_ops = []  # ordered [(anchor_id, 'before'|'after', new_line_text), ...]
+    item_scope_ops = {}     # id -> ordered [regex_sub payload, ...], id:4f0f
+    scope_errors = []
     for u in updates:
         item_id = u['id']
         if 'insert_before' in u:
@@ -413,15 +511,49 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
         if 'insert_after' in u:
             insert_ops.append((item_id, 'after', u['insert_after'].rstrip('\n')))
             continue
+        # id:4f0f — `scope` is validated BEFORE the op is even inspected, and never
+        # silently coerced: an unrecognised value must be refused, not defaulted.
+        scope = u.get('scope', 'line')
+        if scope not in ('line', 'item'):
+            scope_errors.append(
+                f'id:{item_id}: unrecognised scope {scope!r} (must be "line" or '
+                '"item") — refusing rather than silently falling back to line '
+                'scope (id:4f0f)')
+            continue
         if 'append' in u:
             kind, payload = 'append', u['append']
         elif 'regex_sub' in u:
             kind, payload = 'regex_sub', u['regex_sub']
-            regex_sub_ids.add(item_id)
         else:
             kind, payload = 'line', u['line'].rstrip('\n')
+        if scope == 'item':
+            if kind != 'regex_sub':
+                scope_errors.append(
+                    f'id:{item_id}: scope:item does not support op {kind!r} — only '
+                    'regex_sub is supported at item scope (id:4f0f); refusing '
+                    'rather than silently degrading to line scope')
+                continue
+            item_scope_ops.setdefault(item_id, []).append(payload)
+            continue
+        if kind == 'regex_sub':
+            regex_sub_ids.add(item_id)
+        elif kind == 'line':
             replace_map[item_id] = payload
         ops_by_id.setdefault(item_id, []).append((kind, payload))
+    mixed_scope = sorted(set(item_scope_ops) & set(ops_by_id))
+    if mixed_scope:
+        scope_errors.append(
+            'id(s) mixing scope:item and scope:line updates in the same call are '
+            f'not supported: {", ".join(mixed_scope)}')
+    if scope_errors:
+        # No file has been touched yet — refuse before ever opening the lock,
+        # exactly like every other malformed-payload guard here.
+        print(
+            'md-merge: update-ids: refusing malformed replacement(s) for '
+            f'{file_path}:\n  ' + '\n  '.join(scope_errors),
+            file=sys.stderr,
+        )
+        sys.exit(1)
     # union, for the unmatched/new-item path below (insert anchors are tracked
     # separately — they name a POSITION, not an id to overwrite, and must fail
     # loud rather than fall into the --allow-new EOF-append path).
@@ -434,6 +566,21 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
 
             pre_text = file_path.read_text()   # id:4b64 rollback snapshot (under lock)
             lines = pre_text.splitlines(keepends=True)
+
+            # id:4f0f — item-scoped ops run as a pass BEFORE the line-scoped loop
+            # below, over the block each targets. `mixed_scope` above guarantees no
+            # id is handled by both passes.
+            if item_scope_ops:
+                lines, item_scope_errors, _ = _apply_item_scope_ops(
+                    lines, item_scope_ops, allow_noop)
+                if item_scope_errors:
+                    print(
+                        'md-merge: update-ids: refusing malformed replacement(s) '
+                        f'for {file_path}:\n  ' + '\n  '.join(item_scope_errors),
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+
             found = set()
             found_anchor = set()
             anchor_index = {}   # anchor id -> index of its (post-edit) line in `result`
