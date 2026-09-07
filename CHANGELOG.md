@@ -18,6 +18,7 @@
 - id:b87b -- hermeticity backstop no longer flags the runner's own advancing relay branch as a leak; ref-classified breach messages; full suite 587/0/14-expected-red (id:b87b)
 - review(8123): id:b87b verified green by negative control (spec untouched, fails pre-fix at exactly its own assertion); closed the untested half of its acceptance with regression-guard id:d06a; suite 588/0/14 (id:b87b,d06a)
 - id:3bd4 -- md-merge.py update-ids no longer silently no-ops on a found-id op that changes nothing (regex_sub miss / empty append); fixed a real regression this introduced in roundtrip-validate.py's writability probe; full suite 589/0/13-expected-red (id:3bd4)
+- Fixed id:5355 -- archive-done.sh's prior-commit branch no longer sweeps a same-session close before its own on-YYYY-MM-DD date says it's due; full suite 590/0/12-expected-red. (id:5355)
 
 ## 2026-09-05
 
