@@ -3576,3 +3576,7 @@ Friction: none -- the RED spec's interface (`tests/lib/check.sh`, exit-3 = ERROR
 already pinned by the handoff, so this was implement-to-spec.
 refactor: none needed -- one new small helper file plus a single new branch in the
 existing report loop, no duplication introduced.
+
+## 2026-09-07 16:14 — executor (sonnet, relay-loop)
+
+id:735f: added tests/lib/check.sh (assert-vs-error helper) and taught run-tests.sh to report exit-3 as a distinct ERROR outcome, never EXPECTED-RED; full suite 593/0/0-errored/9-expected-red. [id:735f]
