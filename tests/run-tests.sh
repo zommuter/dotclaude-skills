@@ -111,7 +111,27 @@ trap 'rm -rf -- "$tmp"' EXIT
 # repo root for every normal invocation and a scratch fixture repo for a nested
 # self-test — never `$ROOT`, since a nested run's `$ROOT` still points at THIS repo.
 snapshot_repo_state() {
-  git for-each-ref --format='%(refname) %(objectname)' refs/heads/relay/ 2>/dev/null | sort
+  # RELAY worktree root (id:c132): the relay's own documented location for a child's
+  # worktree is `$RELAY_WORKTREE_BASE/<repo>/...` (default `~/.cache/relay/worktrees`,
+  # deliberately outside the repo tree per the relay SKILL.md invariant 4). Derived from
+  # the same env var the relay scripts already read (never hardcoded — id:d4d3), so a
+  # relocated root stays correctly excluded without a code change here.
+  local relay_wt_base="${RELAY_WORKTREE_BASE:-$HOME/.cache/relay/worktrees}"
+  # A relay child's `git worktree add -b relay/<runId>-...` mints BOTH a worktree AND
+  # the branch it checks out, atomically — so excluding only the worktree line (as
+  # `.claude/worktrees/` does, where the harness never creates a branch) leaves the new
+  # `refs/heads/relay/*` ref behind as a spurious breach. Collect the branch(es) actually
+  # checked out by a worktree under the relay root, and exclude only THOSE refs — a bare
+  # `relay/*` branch with no such worktree (a genuine leak, or one leaked into the cwd
+  # repo instead of the relay root) still fails unconditionally.
+  local relay_wt_branches
+  relay_wt_branches="$(git worktree list --porcelain 2>/dev/null | awk -v base="$relay_wt_base/" '
+    /^worktree / { path = substr($0, 10); in_relay = (index(path, base) == 1) }
+    /^branch /   { if (in_relay) { sub(/^branch /, ""); print } }
+  ')"
+  git for-each-ref --format='%(refname) %(objectname)' refs/heads/relay/ 2>/dev/null \
+    | { if [[ -n "$relay_wt_branches" ]]; then grep -vFf <(printf '%s\n' "$relay_wt_branches"); else cat; fi; } \
+    | sort
   echo '--worktrees--'
   # Exclude HARNESS-created agent worktrees (`.claude/worktrees/<name>`). Claude Code
   # creates one per isolated subagent and auto-removes it when the agent ends, so a
@@ -120,9 +140,13 @@ snapshot_repo_state() {
   # test creates them: fixtures work in `mktemp -d`, which is never under `.claude/`.
   # The leak signature this guard exists for (a fixture writing into the cwd repo) is
   # unaffected, since such a worktree would not live in that directory.
+  #
+  # Also exclude RELAY worktrees (id:c132), for the identical stated reason: a concurrent
+  # `/relay` child starting or finishing mid-`make test` trips the same spurious breach.
   git worktree list --porcelain 2>/dev/null \
     | grep '^worktree ' \
     | grep -v '/\.claude/worktrees/' \
+    | grep -vF "worktree $relay_wt_base/" \
     | sort
 }
 hermeticity_before="$(snapshot_repo_state)"

@@ -3325,3 +3325,25 @@ reconcile integrate: roadmap: shrink 3 over-budget ROADMAP.md titles (id:64f9 ba
 ## 2026-09-07 10:45 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:2964 verified green (581/0/19, both live corruptions repaired); filed id:32ba -- only the MASK half of its two-half fix is pinned, a shape-anchor revert leaves the suite green [id:2964,32ba,8372,168c,5121,b555]
+
+## 2026-09-07 — executor (claude-sonnet-5)
+
+Worked id:c132 -- the already-authored RED spec (`tests/test_hermeticity_relay_worktree_c132.sh`)
+went green. `snapshot_repo_state()` in `tests/run-tests.sh` now excludes worktrees under
+`$RELAY_WORKTREE_BASE` (default `~/.cache/relay/worktrees`, derived from the same env var the
+relay scripts already read -- never hardcoded, per id:d4d3) the same way `.claude/worktrees/`
+is already excluded, for the identical stated reason (a concurrent relay child starting or
+finishing mid-`make test` should not trip a spurious breach). The RED spec's case (A) also
+required excluding the `refs/heads/relay/*` branch that worktree checks out -- a bare
+worktree-path exclusion left the freshly-minted branch behind as a spurious ref diff, since
+`git worktree add -b relay/<runId>-...` mints the branch and the worktree atomically. Fixed by
+correlating `git worktree list --porcelain`'s `branch` lines to their `worktree` lines and
+excluding only the branch(es) actually checked out by a worktree under the relay root -- a bare
+`relay/*` branch with no such worktree, or one leaked into the cwd repo instead of the relay
+root, still fails the suite unconditionally (spec cases B and C, both re-verified green). Also
+re-ran the sibling `test_run_tests_hermeticity_backstop_b54b.sh` to confirm no regression.
+`make test`: 582 passed, 0 failed, 18 expected-red.
+Friction: none -- the RED spec and ledger note (`docs/ledger-notes/c132.md`) fully specified the
+fix; the only wrinkle was the ref-vs-worktree correlation the spec's case (A) required, which
+the ledger note's prose (single-line worktree-only diff) had not anticipated.
+refactor: none needed -- this is a scoped guard fix; no duplication introduced.
