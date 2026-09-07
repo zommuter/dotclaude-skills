@@ -27,10 +27,12 @@
 #     (dotclaude-skills et al.) stay exempt BY CONSTRUCTION — no special case (mirrors the opt-in
 #     style of changelog-append.sh).
 #   • Rewrites ONLY the version line in the manifest (exact-line edit, never a full rewrite).
-#   • Regenerates the lockfile IN-REPO via an INJECTABLE command ($VERSION_BUMP_LOCK_CMD — default
-#     `uv lock` for pyproject / `npm install --package-lock-only` for package.json) so the test can
-#     stub it (a real `uv lock` needs network+deps). If no lockfile exists after regen, staging it
-#     is skipped (fine).
+#   • Regenerates the lockfile IN-REPO via an INJECTABLE command ($VERSION_BUMP_LOCK_CMD) so the
+#     test can stub it (a real `uv lock` needs network+deps). If no lockfile exists after regen,
+#     staging it is skipped (fine). The DEFAULT is keyed on the lockfile actually PRESENT, never
+#     assumed: `uv lock` for pyproject; for package.json, `pnpm install --lockfile-only` when
+#     pnpm-lock.yaml exists, a LOUD refusal when yarn.lock does, else `npm install
+#     --package-lock-only`. Assuming npm broke zkWhale on 2026-09-07 — see the detection block.
 #   • zkm cascade (finding c): if <repo>/scripts/relock-plugins.sh exists, INVOKE it — never
 #     re-implement the ~18-plugin uv.lock cascade (a hand-rolled loop once relocked but skipped the
 #     commits, leaving 17 repos dirty). Its args are injectable via $VERSION_BUMP_CASCADE_ARGS
@@ -76,7 +78,24 @@ manifest=""; kind=""; lockfile=""; default_lock_cmd=""
 if [[ -f "$repo/pyproject.toml" ]] && grep -qE '^version[[:space:]]*=[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' "$repo/pyproject.toml"; then
   manifest="$repo/pyproject.toml"; kind="pyproject"; lockfile="uv.lock"; default_lock_cmd="uv lock"
 elif [[ -f "$repo/package.json" ]] && grep -qE '"version"[[:space:]]*:[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' "$repo/package.json"; then
-  manifest="$repo/package.json"; kind="package"; lockfile="package-lock.json"; default_lock_cmd="npm install --package-lock-only"
+  manifest="$repo/package.json"; kind="package"
+  # Which node package manager? Keyed on the lockfile PRESENT, not assumed.
+  # Running `npm install --package-lock-only` in a pnpm workspace fails ("Cannot read
+  # properties of null (reading 'matches')") and, if it had succeeded, would have written a
+  # SECOND, wrong lockfile beside pnpm-lock.yaml. Observed 2026-09-07 on zkWhale: the bump
+  # half-applied (package.json moved, lock did not), the dirty tree then tripped the id:aa93
+  # clean-tree gate on the next 3 integrates and stranded 4 branches of real work.
+  if [[ -f "$repo/pnpm-lock.yaml" ]]; then
+    lockfile="pnpm-lock.yaml"; default_lock_cmd="pnpm install --lockfile-only"
+  elif [[ -f "$repo/yarn.lock" ]]; then
+    # Deliberately NOT guessed: the lockfile-only invocation differs between yarn classic
+    # and berry, and picking the wrong one re-creates exactly the bug above. Refuse loudly;
+    # $VERSION_BUMP_LOCK_CMD is the escape hatch once a real yarn repo pins the command.
+    echo "version-bump.sh: $repo uses yarn (yarn.lock) — no verified lockfile-only command; set VERSION_BUMP_LOCK_CMD to the right one for this repo's yarn major and re-run" >&2
+    exit 1
+  else
+    lockfile="package-lock.json"; default_lock_cmd="npm install --package-lock-only"
+  fi
 else
   echo "version-bump.sh: note: $repo has no versioned manifest (pyproject.toml/package.json) — skipping (version-less repo, no bump; D3)" >&2
   exit 0
