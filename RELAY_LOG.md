@@ -3347,3 +3347,7 @@ Friction: none -- the RED spec and ledger note (`docs/ledger-notes/c132.md`) ful
 fix; the only wrinkle was the ref-vs-worktree correlation the spec's case (A) required, which
 the ledger note's prose (single-line worktree-only diff) had not anticipated.
 refactor: none needed -- this is a scoped guard fix; no duplication introduced.
+
+## 2026-09-07 11:05 — executor (sonnet, relay-loop)
+
+tests/run-tests.sh's hermeticity backstop no longer false-fires on a concurrent /relay child's worktree+branch (id:c132); RED spec goes green, suite 582/0/18-expected-red. [id:c132]
