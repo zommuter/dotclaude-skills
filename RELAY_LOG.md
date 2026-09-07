@@ -3481,3 +3481,18 @@ new duplication introduced.
 ## 2026-09-07 14:18 — executor (sonnet, relay-loop)
 
 id:3bd4 -- md-merge.py update-ids no longer silently no-ops on a found-id op that changes nothing (regex_sub miss / empty append); fixed a real regression this introduced in roundtrip-validate.py's writability probe; full suite 589/0/13-expected-red [id:3bd4]
+
+## 2026-09-07 — executor (sonnet)
+
+Worked id:5355 -- fixed `todo-update/archive-done.sh`'s prior-commit branch archiving
+same-session closes: an explicit `on YYYY-MM-DD` date newer than the 30-day cutoff now
+beats the `prior_done` membership check, so an item closed and committed this session
+(which the mandated git-diary-workflow -> todo-update order always puts into "the prior
+commit") stays in TODO.md instead of being swept immediately and stranding its `routed:`
+breadcrumb out of the cross-repo twin-guard's view. Genuinely old items (no date, or a
+date older than cutoff) still archive exactly as before. The RED spec
+(`tests/test_archive_done_same_session_5355.sh`) was already committed by a prior
+session; this unit only landed the fix. Full suite 590/0/12-expected-red.
+Friction: none.
+refactor: none needed -- the fix is a reordering of an existing three-way branch, no new
+duplication introduced.
