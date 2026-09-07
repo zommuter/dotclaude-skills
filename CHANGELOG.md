@@ -23,6 +23,7 @@
 - Fixed id:e047 -- _sh_subject now walks forward across backslash-newline continuations (mirroring its existing backward walk), so a grep's docs/ledger-notes operand on a continuation line is seen and the read scores union instead of the unsafe ledger-only mis-trace; SH_ASSIGN_RE's assignment-rhs binding widened the same way; full suite 591/0/11-expected-red. (id:e047)
 - Fixed id:0176 -- cited_by's surviving-text escape in ledger-continuations.py now scores each block against the shared post-batch state (all candidates' bodies removed at once) instead of per-block, so mutually-cancelling readers across a batch move are correctly refused; full suite 592/0/10-expected-red. (id:0176)
 - review: id:0176 verified green by independent negative control (pre-fix tree fails at case A, the claimed assertion); 4 inbox dead-letters ingested as id:b115/9a72/bf91/f03d; CLAUDE.md scan() two-pass drift fixed; suite 592/0/10-expected-red (id:0176,b115,9a72,bf91,f03d)
+- id:735f: added tests/lib/check.sh (assert-vs-error helper) and taught run-tests.sh to report exit-3 as a distinct ERROR outcome, never EXPECTED-RED; full suite 593/0/0-errored/9-expected-red. (id:735f)
 
 ## 2026-09-05
 
