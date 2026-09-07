@@ -3553,3 +3553,7 @@ than adding new logic; no leftover duplication.
 ## 2026-09-07 15:40 — executor (sonnet, relay-loop)
 
 Fixed id:0176 -- cited_by's surviving-text escape in ledger-continuations.py now scores each block against the shared post-batch state (all candidates' bodies removed at once) instead of per-block, so mutually-cancelling readers across a batch move are correctly refused; full suite 592/0/10-expected-red. [id:0176]
+
+## 2026-09-07 16:01 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:0176 verified green by independent negative control (pre-fix tree fails at case A, the claimed assertion); 4 inbox dead-letters ingested as id:b115/9a72/bf91/f03d; CLAUDE.md scan() two-pass drift fixed; suite 592/0/10-expected-red [id:0176,b115,9a72,bf91,f03d]
