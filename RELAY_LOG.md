@@ -3416,3 +3416,7 @@ under `## From TODO` was altered). `tests/test_note_header_cost_cited_e567.sh` (
 now green (was RED). Full suite: 586 passed, 0 failed, 15 expected-red.
 Friction: none — the acceptance/done-check were already fully specified in `docs/ledger-notes/e567.md`.
 refactor: none needed — one-line citation addition, no new duplication.
+
+## 2026-09-07 13:08 — executor (sonnet, relay-loop)
+
+id:e567 -- 03a3.md now cites the measured per-note header cost (255 B/note) before the 46-repo fleet migration runs; RED spec now green, full suite 586/0/15-expected-red [id:e567]
