@@ -3557,3 +3557,22 @@ Fixed id:0176 -- cited_by's surviving-text escape in ledger-continuations.py now
 ## 2026-09-07 16:01 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:0176 verified green by independent negative control (pre-fix tree fails at case A, the claimed assertion); 4 inbox dead-letters ingested as id:b115/9a72/bf91/f03d; CLAUDE.md scan() two-pass drift fixed; suite 592/0/10-expected-red [id:0176,b115,9a72,bf91,f03d]
+
+## 2026-09-07 — executor (sonnet)
+
+Worked id:735f -- added `tests/lib/check.sh`'s `check <cmd>...` helper (exit 0 = holds,
+exit 1 = FALSE assertion -> `FAIL:` + return 1, exit >=2 = the check COULD NOT RUN ->
+`ERROR:` naming the command and status + return 3), and taught `tests/run-tests.sh` to
+treat a test file's exit 3 as a distinct `ERROR` outcome -- reported `ERROR <name>`,
+counted in its own `errored` summary bucket, listed on an `errored:` line, and NEVER
+granted EXPECTED-RED (redness-is-the-spec is a claim about assertions, not about a check
+that could not execute). Two pre-existing tests pinned the old three-field summary line
+verbatim (`test_make_test_files.sh`, `test_run_tests_parallel.sh`) and needed their
+expected strings updated to the new four-field shape (`... failed, N errored, ...`);
+`tests/test_shard_canary.sh`'s substring match survives unchanged. `tests/run-tests.sh
+tests/test_assertion_execution_error_735f.sh` green (cases A-E); full suite 593/0/0
+errored/9 expected-red.
+Friction: none -- the RED spec's interface (`tests/lib/check.sh`, exit-3 = ERROR) was
+already pinned by the handoff, so this was implement-to-spec.
+refactor: none needed -- one new small helper file plus a single new branch in the
+existing report loop, no duplication introduced.

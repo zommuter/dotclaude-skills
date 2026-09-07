@@ -70,7 +70,7 @@ else echo "FAIL - -j 4 did not run concurrently (max observed: $maxc)"; fails=$(
 
 # --- 5. summary triple, and 6. stable file order -------------------------------
 check "summary triple emitted" \
-  "$(grep -c '^summary: 4 passed, 0 failed, 0 expected-red' "$WORK/out.txt")" "1"
+  "$(grep -c '^summary: 4 passed, 0 failed, 0 errored, 0 expected-red' "$WORK/out.txt")" "1"
 check "exit 0 on all-pass" "$(cat "$WORK/rc.txt")" "0"
 check "results emitted in file order, not completion order" \
   "$(grep -oE 'test_[a-z]+\.sh' "$WORK/out.txt" | tr '\n' ' ')" \

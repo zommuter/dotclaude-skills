@@ -7,13 +7,18 @@
 #   JOBS=4 tests/run-tests.sh               # same, via env (an explicit -j wins)
 #   tests/run-tests.sh tests/test_foo.sh …  # subset
 #
-# Each tests/test_*.sh is an independent bash script: exit 0 = pass.
+# Each tests/test_*.sh is an independent bash script: exit 0 = pass, exit 3 = ERROR
+# (id:735f — the check could not RUN at all, e.g. via tests/lib/check.sh's exit-2+
+# branch; distinct from a false assertion and NEVER expected-red), any other nonzero =
+# a failed assertion.
 # Expected-red semantics (see CLAUDE.md §Testing):
-#   A FAILING test file whose `# roadmap:XXXX` item is still UNTICKED in
+#   A FAILING (non-error) test file whose `# roadmap:XXXX` item is still UNTICKED in
 #   ROADMAP.md is reported EXPECTED-RED and does not fail the suite — red tests
 #   are the executable spec for open roadmap items. Once the item's checkbox is
-#   ticked, its failures are real failures. Passing tests always count.
-# Exit code: 0 if no real failures, 1 otherwise.
+#   ticked, its failures are real failures. Passing tests always count. An ERRORED
+#   test is never expected-red — redness-is-the-spec is a claim about assertions, not
+#   about a check that could not execute.
+# Exit code: 0 if no real failures/errors, 1 otherwise.
 #
 # Parallelism contract:
 #   * `-j 1` reproduces the historical serial behaviour EXACTLY (same lines, same
@@ -72,8 +77,9 @@ else
   files=("$ROOT"/tests/test_*.sh)
 fi
 
-pass=0 fail=0 xred=0
+pass=0 fail=0 xred=0 errored=0
 failed_names=()
+errored_names=()
 
 item_open() {
   # roadmap item with this token exists and is unticked
@@ -225,9 +231,19 @@ for i in "${!files[@]}"; do
   name="$(basename "$f")"
   token="$(head -1 < <(grep -oE '# roadmap:[0-9a-f]{4}' "$f") | sed 's/.*roadmap://' )" || true
   out="$(cat "$tmp/$i.out")"
-  if [[ "$(cat "$tmp/$i.rc")" == 0 ]]; then
+  rc="$(cat "$tmp/$i.rc")"
+  if [[ "$rc" == 0 ]]; then
     echo "PASS   $name"
     (( ++pass ))
+  elif [[ "$rc" == 3 ]]; then
+    # id:735f: exit 3 is a distinct EXECUTION ERROR (a check that could not run, e.g.
+    # via tests/lib/check.sh), never a false assertion — it is NEVER granted
+    # EXPECTED-RED, since redness-is-the-spec is a claim about assertions, not about a
+    # check that could not execute at all.
+    echo "ERROR  $name"
+    printf '%s\n' "$out" | sed 's/^/       | /'
+    errored_names+=("$name")
+    (( ++errored ))
   else
     if [[ -n "${token:-}" ]] && item_open "$token"; then
       echo "EXPECTED-RED $name (roadmap:$token still open — red test is the spec)"
@@ -256,14 +272,17 @@ if [[ -n "$DURCACHE" ]]; then
 fi
 
 echo
-echo "summary: $pass passed, $fail failed, $xred expected-red (open roadmap items)"
+echo "summary: $pass passed, $fail failed, $errored errored, $xred expected-red (open roadmap items)"
 if (( fail > 0 )); then
   printf 'failed: %s\n' "${failed_names[*]}"
+fi
+if (( errored > 0 )); then
+  printf 'errored: %s\n' "${errored_names[*]}"
 fi
 if (( hermeticity_breach )); then
   echo "summary: HERMETICITY BREACH — see above (id:b54b)"
 fi
-if (( fail > 0 || hermeticity_breach )); then
+if (( fail > 0 || errored > 0 || hermeticity_breach )); then
   exit 1
 fi
 exit 0

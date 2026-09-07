@@ -24,7 +24,7 @@ grep -q "PASS   test_makefile_skills.sh" <<<"$out" \
   || { echo "pass fixture not reported PASS"; echo "$out"; exit 1; }
 grep -q "EXPECTED-RED test_dryround_single_definition_6217.sh" <<<"$out" \
   || { echo "red fixture not reported EXPECTED-RED"; echo "$out"; exit 1; }
-grep -q "^summary: 1 passed, 0 failed, 1 expected-red" <<<"$out" \
+grep -q "^summary: 1 passed, 0 failed, 0 errored, 1 expected-red" <<<"$out" \
   || { echo "summary line does not show exactly the two fixture files (FILES= didn't scope the run)"; echo "$out"; exit 1; }
 
 # `make test` with no FILES stays the full suite: the recipe line run-tests.sh actually
