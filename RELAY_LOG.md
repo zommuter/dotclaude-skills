@@ -3351,3 +3351,30 @@ refactor: none needed -- this is a scoped guard fix; no duplication introduced.
 ## 2026-09-07 11:05 — executor (sonnet, relay-loop)
 
 tests/run-tests.sh's hermeticity backstop no longer false-fires on a concurrent /relay child's worktree+branch (id:c132); RED spec goes green, suite 582/0/18-expected-red. [id:c132]
+
+## 2026-09-07 — executor (sonnet)
+
+Worked id:eccb -- pinned every ${#var} length/residue measurement site in
+relay/scripts/todo-conformance.sh (head length, shape residue, and both regen writers)
+to CHARACTERS regardless of the invoking locale. Root cause: bash's ${#var} is
+multibyte-aware only when LC_CTYPE resolves to a UTF-8 locale, and a caller's LC_ALL (when
+set) overrides LC_CTYPE outright, so LC_ALL=C silently degraded every measurement to a byte
+count. Fix: unset LC_ALL at script start and export LC_CTYPE to the first available UTF-8
+locale (de_CH.UTF-8/en_US.UTF-8/C.UTF-8 fallback chain) before any measurement runs --
+touches only character classification, not collation/messages. tests/test_conformance_length_metric_locale_4839.sh
+goes green under both LC_ALL=C and LC_ALL=de_CH.utf8; full suite 583 passed, 0 failed, 17
+expected-red (one item, id:64f9, closed by an unrelated batch in the meantime -- re-derived,
+not assumed). Friction: the fix's own locale-probe (`locale -a | grep -qx`) piped into an
+early-exiting grep under `set -euo pipefail` tripped this repo's own
+test_pipefail_sigpipe_lint.sh (id:81d5) -- rewrote as `grep -qx ... < <(locale -a ...)`
+per the repo's own convention; no exemption needed once fixed.
+refactor: none needed -- a scoped, self-contained fix to one measurement-pinning concern; no
+duplication introduced.
+
+Context-budget note: `context-budget.sh --self` reported ambiguous marker resolution (40
+candidate transcripts, no unique match on this session's worktree-path marker) and fell back
+to the most-recently-modified sibling transcript, which read `handback` (306,762 B) -- this
+does not reliably describe MY transcript. Per rule 2c's near-done carve-out: work for id:eccb
+was already complete and green at that point (tests passing, only commit/report remaining), so
+landing it normally per v16 rather than treating an unverifiable, likely-misattributed reading
+as a cutoff.

@@ -122,6 +122,26 @@
 #   or unknown flag is a LOUD reject (nonzero). No silent `2>/dev/null` swallow (id:415b/4e14).
 set -euo pipefail
 
+# CHARACTER-COUNT PIN (id:4839 dimension c) ----------------------------------------------
+# Every `${#var}` length/residue measurement below must count CHARACTERS, matching
+# tools/ledger-shrink.py's candidate gate (Python len() on a str) -- not bytes. Bash's
+# `${#var}` is multibyte-aware ONLY when LC_CTYPE resolves to a UTF-8 locale; under
+# LC_ALL=C (or any caller that exports LC_ALL) it silently degrades to a byte count, and
+# a line within ~18 chars of its ceiling flips between shape-grandfathered and
+# shape-regrowth depending on the INVOKING ENVIRONMENT alone, independent of the ledger
+# content. LC_ALL, when set, overrides every other locale category including LC_CTYPE, so
+# a caller's `LC_ALL=C` cannot be out-voted by exporting LC_CTYPE alone -- it must be
+# unset first. This affects only character classification (LC_CTYPE); it does not touch
+# collation/messages/other categories the caller may rely on.
+unset LC_ALL
+for _ledger_charlen_locale in de_CH.UTF-8 de_CH.utf8 en_US.UTF-8 en_US.utf8 C.UTF-8 C.utf8; do
+  if grep -qx "$_ledger_charlen_locale" < <(locale -a 2>/dev/null); then
+    export LC_CTYPE="$_ledger_charlen_locale"
+    break
+  fi
+done
+unset _ledger_charlen_locale
+
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=relay/scripts/lib-state-claim.sh
 source "$SCRIPTS_DIR/lib-state-claim.sh"
