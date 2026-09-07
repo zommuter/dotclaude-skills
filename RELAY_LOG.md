@@ -3298,3 +3298,22 @@ handoff id:4839 -- REVIEW_ME box amended (its filed one-line remedy was known-wr
 ## 2026-09-05 12:41 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:9628 genuinely green but its negative case was INERT (heredoc declaration truncated to a no-op); repaired + generator filed id:b890; id:7408 DECOMPOSED-CONTAINER fixed; 2 dead-letters adopted (16a4/5355); id:b87b filed after the b54b guard false-fired on our own branch; 4 red specs, suite 580/0/19-expected-red [id:9628,7408,b890,5355,16a4,b87b,2724,0bb7]
+## 2026-09-05 — executor (claude-sonnet-5)
+
+Worked id:64f9 -- rewrote 3 of the 14 over-budget ROADMAP.md titles (id:e047, id:c132,
+id:3bd4), each 20-40 chars over `LEDGER_ITEM_TITLE_MAX` (200), by trimming redundant
+phrasing from the head-line bold-run while the full prose stays verbatim in each item's
+existing `docs/ledger-notes/<id>.md` note (nothing was moved or summarised away, only
+reworded down to fit). Verified with `tools/roundtrip-validate.py --before <pre-edit
+snapshot> --after .`: DIRECTIONAL VERDICT CLEAN, all five assertions hold (0 ids lost, 0
+new unwritable ids, 0 lane/typed-edge changes, ROADMAP.md grammar findings 49->46 with 0
+gained, 0 new roadmap-lint/orphan-scan findings). `make test`: 579 passed, 0 failed, 12
+expected-red. The item is NOT closed -- 11 of 14 ROADMAP.md findings and all 43 of TODO.md's
+remain (its own Acceptance requires the WHOLE corpus at zero plus a human spot-check of 10
+rewrites, neither reachable in one session at the corpus's current size) -- this session
+advanced it by the batch the "Batchable per item" note anticipates; the checkbox stays
+unticked for the next batch.
+Friction: id:64f9 is sized for many sessions, not one -- each rewrite needs a careful
+read of the item's own note to avoid changing what it means, so throughput per session is
+small by construction, not by mistake.
+refactor: none needed -- this unit only reworded ledger prose, no code touched.
