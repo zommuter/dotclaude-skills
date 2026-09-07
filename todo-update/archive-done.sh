@@ -7,6 +7,11 @@
 # Archives [x] entries that were already done in the prior commit (count-based),
 # or entries ending with "on YYYY-MM-DD[.]" that are ≥30 days old (age-based).
 # Entries without a parseable date and not in the prior commit are left in place.
+# An explicit "on YYYY-MM-DD" date NEWER than the cutoff always beats the prior-commit
+# heuristic (id:5355): the mandated git-diary-workflow→todo-update order means a
+# same-session close is already in "the prior commit" by the time this runs, so without
+# this exemption every item closed this session gets swept immediately regardless of
+# its own date, stranding routed: breadcrumbs out of TODO.md a month early.
 
 set -euo pipefail
 
@@ -103,18 +108,23 @@ while i < n:
             j -= 1
             unit.pop()
 
+        own_date = None
+        m = date_re.search(line)
+        if m:
+            try:
+                own_date = date.fromisoformat(m.group(1))
+            except ValueError:
+                own_date = None
+
         ym = None
-        if line.rstrip('\n').strip() in prior_done:
+        if own_date is not None and own_date > cutoff:
+            # An explicit recent date beats the prior-commit heuristic (id:5355) —
+            # do NOT archive, even if this exact line is already in the prior commit.
+            ym = None
+        elif line.rstrip('\n').strip() in prior_done:
             ym = today_ym
-        else:
-            m = date_re.search(line)
-            if m:
-                try:
-                    d = date.fromisoformat(m.group(1))
-                    if d <= cutoff:
-                        ym = d.strftime('%Y-%m')
-                except ValueError:
-                    ym = None
+        elif own_date is not None and own_date <= cutoff:
+            ym = own_date.strftime('%Y-%m')
 
         if ym is not None:
             for u in unit:
