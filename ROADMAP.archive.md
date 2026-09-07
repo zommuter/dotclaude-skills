@@ -4609,3 +4609,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] **The `id:b54b` hermeticity backstop fails the whole suite when the runner's OWN relay branch advances, so a relay child that commits as its contract requires can never get a green run.** -- detail: `docs/ledger-notes/b87b.md` <!-- relates:b54b --> <!-- id:b87b -->
 
 - [x] [ROUTINE] 🔴 **`md-merge.py update-ids` SILENTLY no-ops when an id is found but the op changes nothing -- a missed `regex_sub` or an empty `append` both write back unchanged and exit 0.** -- detail: `docs/ledger-notes/3bd4.md` <!-- id:3bd4 -->
+
+- [x] [ROUTINE] [INBOUND routed:3b3a from loderite] **`todo-update/archive-done.sh` archives items completed IN THE CURRENT SESSION, moving `routed:` breadcrumbs out of `TODO.md` and stranding the inbox twin-guard.** -- detail: `docs/ledger-notes/5355.md` <!-- routed:3b3a --> <!-- id:5355 -->
