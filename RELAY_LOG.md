@@ -3321,3 +3321,7 @@ refactor: none needed -- this unit only reworded ledger prose, no code touched.
 ## 2026-09-07 07:36 — reconcile (auto/human, non-strong by design — id:c500)
 
 reconcile integrate: roadmap: shrink 3 over-budget ROADMAP.md titles (id:64f9 batch 1/many)
+
+## 2026-09-07 10:45 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:2964 verified green (581/0/19, both live corruptions repaired); filed id:32ba -- only the MASK half of its two-half fix is pinned, a shape-anchor revert leaves the suite green [id:2964,32ba,8372,168c,5121,b555]
