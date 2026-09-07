@@ -4601,3 +4601,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] **`id:401c` is an append-only audit LOG occupying 42% of ROADMAP.md -- relocate its body under the ratified `id:0d7c` topology.** -- detail: `docs/ledger-notes/f193.md` <!-- relates:2d17 --> <!-- id:f193 -->
 
 - [x] [ROUTINE] **The `id:b54b` hermeticity backstop fires on RELAY worktrees during a concurrent `/relay` run -- `.claude/worktrees/` is excluded for this reason but the relay worktree root is not.** -- detail: `docs/ledger-notes/c132.md` <!-- id:c132 -->
+
+- [x] [ROUTINE] **`verify-negative-cases.py` runs a TRUNCATED `-mutation:` command and blames the test: a multi-line heredoc declaration is cut to its first line, exits 0 as a no-op, and the file is reported VACUOUS.** -- detail: `docs/ledger-notes/b890.md` <!-- relates:a73c --> <!-- id:b890 -->
