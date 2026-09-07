@@ -780,3 +780,102 @@ recorded work that is already done. The queue-health note Review 07c raised for 
 stands unchanged and I am not restating it as a new item: `archive-closed.sh --only review_me`
 reaches only boxes already ticked `[x]`, so a backlog of OPEN boxes is structurally outside the
 one tool wired to compact this file.
+
+## Review 2026-09-07e (chain-end re-ask, run `relay-20260907-100619-27900` -- id:8123)
+
+**Diff-window note, because it changes what was reviewed.** `git tag | sort | tail -1` gives
+`relay-ckpt-20260907-1105`, which is at HEAD, so the literal review.md §1 window is EMPTY. That
+tag is an EXECUTOR checkpoint (`executor (sonnet, relay-loop)`), written by the unit that closed
+`id:c132`. Reviewing the literal window would have silently passed that unit unreviewed. The
+window actually reviewed is `relay-ckpt-20260907-1045..HEAD` -- the last REVIEWER checkpoint.
+This is structural, not a one-off: every execute unit checkpoints, so the tail-1 rule hides
+exactly the work a chain-end review exists to check.
+
+- [ ] **`id:c132` is genuinely green, but it silently NARROWED the ref half of the hermeticity
+  guard, and the narrowing realised the exact hazard `id:b87b`'s acceptance had named.** `c132`
+  was specified as a worktree-only exclusion -- its note says in as many words that "the ref half
+  of the snapshot is untouched by this change", and its control case (C) is worded from that
+  belief. It could not be true: case (A)'s own fixture runs `git branch relay/20260904-child`
+  MID-RUN, so a new ref appears in the after-snapshot and a worktree-only exclusion leaves case
+  (A) red. The delivered fix therefore also drops the refs checked out by worktrees under
+  `$RELAY_WORKTREE_BASE`. Measured, one probe repo per configuration, each driving the REAL
+  `tests/run-tests.sh`: (1) a relay-base runner committing on its own branch mid-run -> no
+  breach, rc=0 (this DISCHARGES `id:b87b`'s stated symptom, as a side effect rather than by
+  design); (2) a plain checkout on a `relay/*` branch NOT under the relay base, same commit ->
+  BREACH, rc=1 (so `b87b` survives, keyed on the wrong thing -- its acceptance asked for "the ref
+  `HEAD` points at", `c132` delivered "any relay-base worktree's branch"); (3) a fixture
+  force-moving a SIBLING relay-base worktree's ref -> NO breach, rc=0, verified by the ref itself
+  moving `0812b8ce` -> `1304cb76`, not by an exit code. Row (3) is `b87b`'s own words: the fix
+  must "NOT [drop] object names entirely, which would stop the guard noticing a fixture
+  force-moving some other relay ref". This repo routinely holds two relay worktrees at once
+  during a pool round (this review observed its own branch plus
+  `relay/relay-20260907-100619-27900-execute-4839-0`), so the blind set is not hypothetical.
+  **Disposition: `id:c132` is NOT reopened** -- its acceptance is met and the widening was FORCED
+  by its own ratified RED spec, so this is an honest superset (review.md §2d), not gaming.
+  `id:b87b` is RE-SCOPED instead, in ROADMAP.md and TODO.md, with the three measured rows, a
+  revised acceptance (re-key the exclusion to `HEAD`'s ref so rows (1) and (3) hold together) and
+  a revised done-check. `docs/ledger-notes/c132.md` had its false sentence struck and corrected,
+  with the edit declared in its header per the notes-are-editable convention. <!-- relates:c132 --> <!-- id:b87b -->
+
+- [ ] **The inbox now holds 4 dead-letters addressed to this repo, up from 0 at the 10:45
+  review.** `routed:de13` (relay worktrees symlink `node_modules` into the main checkout, so
+  `pnpm <script>` aborts and every pnpm-shelling test reads red; the obvious `CI=true` /
+  `confirmModulesPurge=false` fix would purge the MAIN checkout's `node_modules` through the
+  symlink and must be refused explicitly), `routed:37ce` (a CORRECTION to `de13`: pnpm DOES run
+  in a relay worktree with `PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false`, which authorises no
+  removal; verified in zkWhale 2026-09-07, and it proposes setting it in the relay child env),
+  `routed:f83a` (`classify-repo.sh`'s `LEDGER_NOTE_POINTER_RE` matches a note path quoted in
+  PROSE, not only a `detail:` pointer, and charges the fail-safe 32,768 B for it -- over-counts
+  only, so the direction is safe, but it is the `id:fff8` measurement-artefact class inside the
+  measuring tool), and `routed:1fd4` (`roadmap-lint` DETAIL-POINTER-MISSING false-positives when
+  one line carries the same note path in BOTH an `answer-src:` and a `detail:` pointer -- it
+  JOINS the two captures with a newline and reports the concatenation missing). I did NOT ingest
+  them: `scan-routed.sh --apply` is the canonical writer and it resolves the target from
+  `relay.toml` to the MAIN checkout, which is outside this child's worktree, and it also DELETES
+  inbox lines. Surfaced rather than acted on, per the conservative-default rule. Resolution is
+  one `scan-routed.sh --apply` from a `/relay human` pass in the main checkout; note that `de13`
+  and `37ce` are one topic and `37ce` supersedes `de13`'s proposed fix, so they want adopting
+  together (as two lines -- one `routed:` breadcrumb each, per `id:6059`). <!-- id:7b8d -->
+- [ ] 🔴 **The `id:f91a` hazard is LIVE right now: this repo's MAIN checkout carries 35 lines of uncommitted, unreviewed work that no worktree contains, and it will DEFER this repo from every later pool round.** Observed at 11:56 while confirming my own worktree was clean: `git -C ~/src/dotclaude-skills status` shows `M meeting/md-merge.py` (mtime 11:52) and untracked `tests/test_md_merge_multiline_line_guard_f833.sh` (mtime 11:54) -- both written DURING this review (started 11:44), neither by me (I only ever invoked `md-merge.py`, never edited it, and all my writes are in my worktree and committed at `486e6737`). The work itself looks sound and deliberate: a real defect fix for `id:f833` (`md-merge.py update-ids` replaces only the marker line, so a multi-line `line` payload DUPLICATES an item instead of updating it -- found in kienzler-solutions' TODO.md) with a matching hermetic test that deliberately carries no `# roadmap:` header. So this is MISLOCATED, not bad: the conventions.md `id:f682` recovery doctrine says favour salvage over discard, and nothing here should be reverted. Two facts make it urgent rather than cosmetic. (1) It is the exact `verify-isolation.sh` failure signature -- the sibling execute worktree `relay/relay-20260907-100619-27900-execute-4839-0` is CLEAN and sits **0 commits beyond main**, i.e. an empty worktree beside a dirty main checkout, which is precisely the shape `id:f682` describes as a silently-wrong 'commit in the worktree' self-report. (2) A dirty main checkout trips the `id:aa93` dirty-guard, so every later pool round DEFERS this repo -- the self-perpetuating backlog review.md §5 exists to prevent. I did NOT commit it (it is another actor's in-flight work, unreviewed, and committing it under my review's checkpoint would launder it as reviewed) and did NOT revert it. I also cannot prove WHO wrote it: no `execute-4839` process survives, and the run's children share one `CLAUDE_SESSION_ID`, so authorship is inferred from timing and location, not established. There is no `id:f833` item in this repo's TODO.md or ROADMAP.md -- only a `routed:f833` mention inside `id:689e` -- so if this came from a cross-repo child it also bypassed the shared-inbox rule. Owner/integrator call: salvage-commit it in the main checkout under the held lease, or hand it back to whoever owns it. <!-- relates:f91a --> <!-- id:b923 -->
+
+**Everything else checked and clean, stated so a silent pass is distinguishable from not
+looking.** `gaming-scan.sh` over `relay-ckpt-20260907-1045..HEAD`: no output -- 0 `DELETED_TEST`,
+0 `ADDED_SKIP`, 0 `REMOVED_ASSERT`. No test file was added OR modified in the window (the `c132`
+RED spec was authored earlier, in `5017bf07`), so the resurrection check (§2b.1) has no candidate
+and the spec that went green is byte-identical to the one authored before the implementation --
+the strongest form of that check. Fixture special-casing (§2b.2): none -- the exclusion is
+derived from `$RELAY_WORKTREE_BASE` and from `git worktree list --porcelain`, and the spec
+deliberately points that variable at a `mktemp` path so a hardcoded literal cannot satisfy it.
+Provenance (§2b.7/9/10): no commit in the window introduces `@owner-accepted:`,
+`@owner-answered:` or `<!-- answer-src:`, and no line carrying one was modified. Faked-clean-tree
+(§2b.5): the acceptance behaviour is present in the diff and re-derived here by probe, not
+inferred. Refactor claim (§2b.6): `none needed -- scoped guard fix` is consistent with a 26-line
+single-function change. Host gate (§2c): no `[host:]` tag on the item. Test tiers (§3)
+enumerated from the `Makefile`, there being no CI config and no `package.json`: `make lint` +
+`make test` RAN green -- **582 passed / 0 failed / 18 expected-red, exit 0, no hermeticity
+breach**, matching the executor's claimed 582/0/18 (suite wall-clock measured at `load average:
+18.7-21.0` on 8 cores, so timing here says nothing about the suite). `make verify-negatives` RAN
+for the `c132` spec: 0 failures, correctly reported `roadmap-spec` -- I chased that label,
+suspecting the `id:7c82` carve-out had been reintroduced through the ARCHIVE path, and it had
+NOT: `roadmap_item_open()` returns False for `c132`, the carve-out is SPENT, and the file lands
+in `roadmap_spec` only because it carries no machine-readable case and, as a roadmap-spec file,
+owes none. (One cosmetic residue: the summary line prints "skipped: redness IS the spec while the
+item is OPEN" for files whose carve-out has EXPIRED, which is what sent me looking.)
+`make gaming-canary` and `make shard-canary` are Tier-B model canaries, deliberately out of `make
+test` because they cost tokens -- SKIPPED-TIER, not folded into the green claim. Contract pointer
+`CLAUDE.md` is `v18`, matching `relay/references/executor-contract.md` -- no refresh needed.
+Spec drift (§4): the window touched one guard function in `tests/run-tests.sh`; `CLAUDE.md`'s
+Testing section describes the hermeticity backstop's semantics only in terms of `# fails-against:`
+and expected-red, neither of which changed, and `README.md` does not document the backstop -- no
+drift. `orphan-scan --cross-ledger`: clean, no output. `roadmap-lint`: exit 0, the same 4
+DEAD-GATE warnings (`d4ca`, `e405`, `540f`, `c179` -- all gated on `09e4`/`b0b1`, which live only
+in `TODO.md`) and 1 NO-ACCEPTANCE-NO-TWIN (`da55`), all pre-existing and unchanged by this
+window. `orphan-scan --shipped`: no TICK-READY hits; the 90 candidates are UNMARKED-GATE and
+container advisories, pre-existing. Reverse-handoff (§5b): the window added NO new open ledger
+item -- its only ledger edits were ticking `c132` and archiving it -- so no mini-handoff was
+owed. Parked orphans are unchanged at 4 for this repo and remain covered by `id:5121`; the
+2026-09-05 execute residues and this run's own `execute-64f9-0` are all `id:f272` WIP
+auto-commits. Ambient, unchanged, recorded for continuity: relay-core shadow parity is 31,292
+mismatches over 307,113 rounds (bash stays authoritative; the flip gate is 100% parity + 5 clean
+rounds), Lean toolchain pins agree at `v4.30.0-rc2`, and `hooks-path-shadow-scan` reports 57 own
+repos, 0 EMPTY-SHADOW, 2 DELIBERATE.
