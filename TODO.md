@@ -1068,3 +1068,10 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] [INPUT - decision] [INBOUND routed:5fa9 from /relay human 2026-08-31] The cross-repo routing convention and the multi-marker ambiguity refusal COLLIDE: adopt-by-keeping-the-breadcrumb versus the `id:6059` two-owning-markers refusal -- detail: `docs/ledger-notes/41d3.md` <!-- id:41d3 -->
 - [ ] [ROUTINE] [INBOUND routed:de8f from /relay human 2026-08-31] `roadmap-lint`'s DEAD-GATE check (id:49e0) has a FALSE-POSITIVE class: it searches only `ROADMAP.md`, `TODO.md` and `TODO.archive.md` -- detail: `docs/ledger-notes/d3bf.md` gated-on:0001 <!-- id:d3bf -->
 - [ ] [ROUTINE] [INBOUND routed:f854 from /relay human 2026-08-31] Land the consumed-state fleet-sweep SCRIPT as a committed tool -- detail: `docs/ledger-notes/bfee.md` <!-- id:bfee -->
+
+## inbox intake 2026-09-07 (filed at relay review, chain-end re-ask over id:0176)
+
+- [ ] [ROUTINE] **Relay worktrees symlink `node_modules` into the main checkout, so `pnpm <script>` aborts and pnpm repos read as red -- and the `CI=true`/`confirmModulesPurge=false` fix must be REFUSED.** -- detail: `docs/ledger-notes/b115.md` <!-- routed:de13 --> <!-- id:b115 -->
+- [ ] [ROUTINE] **`PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false` lets pnpm run inside a relay worktree while authorising no removal -- set it in the relay child env.** -- detail: `docs/ledger-notes/9a72.md` <!-- relates:b115 --> <!-- routed:37ce --> <!-- id:9a72 -->
+- [ ] [ROUTINE] **`classify-repo.sh`'s `LEDGER_NOTE_POINTER_RE` carries no `detail:` anchor, so a note path quoted in PROSE is charged the fail-safe 32,768 B.** -- detail: `docs/ledger-notes/bf91.md` <!-- routed:f83a --> <!-- id:bf91 -->
+- [ ] [ROUTINE] **`roadmap-lint`'s DETAIL-POINTER-MISSING false-positives on a double-pointer line: `grep -oP -m1` bounds matching LINES, not matches.** -- detail: `docs/ledger-notes/f03d.md` <!-- routed:1fd4 --> <!-- id:f03d -->

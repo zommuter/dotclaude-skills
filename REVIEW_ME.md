@@ -683,3 +683,97 @@ opening a 43rd. Flagged for the owner as a queue-health note, not as a new item:
 this file's own header promises ("the reviewer prunes resolved ones each review turn") is not
 keeping up, and `archive-closed.sh --only review_me` only reaches boxes already ticked `[x]`,
 so an over-budget queue of OPEN boxes is structurally outside the one tool wired to compact it.
+
+## Review 2026-09-07d (chain-end re-ask, run `relay-20260907-100619-27900` -- id:8123)
+
+Window `relay-ckpt-20260907-1516`..HEAD, **6 commits**, one worked item: **`id:0176`**
+(`cited_by`'s surviving-text escape evaluated against the wrong future state in a batch move).
+Same base caveat as Review 2026-09-07c: the repo's latest tag is `relay-ckpt-20260907-1540`,
+which is the checkpoint OF the work under review, so `review.md` §1's `git tag | tail -1`
+recipe yields an EMPTY window. The dispatched `-1516` is the correct base and is what was used.
+
+**`id:0176` VERIFIED GREEN by an independent negative control.** The RED spec
+`tests/test_cited_body_batch_state_0176.sh` was authored at handoff (`5017bf07`) and the
+executor **did not touch it**: `git diff --name-only <base>..HEAD -- tests/` is EMPTY, so no
+part of the test surface moved. I rebuilt the pre-fix tree (`tools/ledger-continuations.py` at
+`relay-ckpt-20260907-1516`, plus its `ledger-shrink` sibling import) under the UNTOUCHED spec.
+It fails at exactly case **(A)** -- the named defect -- and not at an earlier setup assertion:
+`FAIL: (A) neither cc01 nor cc02 was reported -- each was cleared by text in the OTHER block`.
+Controls (B) site-named, (C) an unread block still moves, and (D) single-block behaviour
+unchanged all pass on the new implementation. (C) is the load-bearing control here: abandoning
+the escape wholesale would have turned it red, so the fix could not have been a blunt
+disablement. `gaming-scan.sh`: clean -- no deleted test, no added skip, no removed assert.
+
+First attempt at that control failed for the WRONG reason (`ModuleNotFoundError: ledger-shrink`
+-- my scratch tree, not the code), which the spec caught as a `setup:` failure rather than
+reporting a false red. Recording it because an unreached fixture that LOOKS like a passing
+negative control is the failure mode this repo has been bitten by before.
+
+**Over-reach (§2d): not a superset.** The cited ratified source is `docs/ledger-notes/0176.md`,
+read directly rather than through the ROADMAP restatement. It authorises exactly two repairs
+verbatim -- "Compute `elsewhere_lines` against the ledger state AFTER the whole batch" or
+"the escape must be disabled for a multi-block run and the sites reported". The diff implements
+the FIRST and nothing wider. The source's own acceptance requires "a single-block move behaves
+as it does today", and the new code satisfies that structurally rather than by special-casing:
+with one candidate, `batch_rest` is `lines` minus that one body, which is byte-identical to the
+old `lines[:i+1] + lines[j:]`.
+
+**Test tiers (§3), enumerated from the `Makefile` (there is no CI config):** `make test` RAN
+green -- **592 passed / 0 failed / 10 expected-red**, matching the executor's claimed 592/0/10
+exactly. **SKIPPED-TIER: `verify-negatives`** -- opt-in, seconds per case, deliberately not part
+of `make test`; I ran its logic by hand for the one file that matters here. **SKIPPED-TIER:
+`gaming-canary`** -- on-demand and costs tokens by design. Neither is folded into the green
+claim.
+
+**Provenance and residue: clean.** §2b.7/2b.9: no `@owner-accepted`, `@owner-answered` or
+`answer-src:` marker was minted this window. §2b.10: no line already carrying one was modified.
+§2b.6: `refactor: none needed` is honest -- the change restructures `scan()` into two passes and
+moves the reporting block verbatim; no duplication is left behind. §2b.4 invariants survived the
+refactor: `REFUSE_IDS` still appears only in the two prose warnings against it, and
+`selftest_predicate()` still runs before every scan. §2c: `id:0176` carries no `[host:]` tag.
+§5b reverse-handoff: the window adds no new open `- [ ]` line to `TODO.md`/`ROADMAP.md`, so no
+mini-handoff was owed. Contract pointer is `v18`, matching the canonical marker -- no refresh.
+
+**The 4 inbox dead-letters are now INGESTED, which is the change from Reviews 07b/07c.** Both
+pointed at `routed:de13`, `f83a`, `1fd4`, `37ce` rather than copying them into a parallel
+record; that was right while nothing had adopted them, but it left `scan-routed.sh` reporting
+the same four every run with no path to resolution. They are now filed as `TODO.md` items with
+their `[INBOUND routed:XXXX from ...]` breadcrumb -- `id:b115`, `id:9a72`, `id:bf91`, `id:f03d`,
+each with a detail note. `append.sh inbox-done` is deliberately NOT run here: the next
+`scan-routed.sh --apply` auto-drains an item whose target already carries the twin, so planting
+the twin is the whole obligation and running the delete from a review child is the half that
+can go wrong.
+
+**Two of the four were re-verified against this tree rather than adopted on the filer's word,
+and one of those verifications changes the diagnosis.** `routed:1fd4` (roadmap-lint's
+DETAIL-POINTER-MISSING false positive) is CONFIRMED, and the cause is not quite what was filed.
+`item_detail_path` (`relay/scripts/roadmap-lint.sh:394`) captures with `grep -oP -m1` under a
+comment explaining that `-m1` was chosen over `| head -1` to avoid SIGPIPE under `pipefail`
+(`id:81d5`). That reasoning is correct for the hazard it names and does not do what the code
+needs: **`-m1` bounds matching LINES, never matches WITHIN a line.** Measured here on a
+one-line here-string carrying the same note path twice, `-m1` emits BOTH. So the repair must
+take the first match explicitly while KEEPING the no-pipe property -- swapping in `| head -1`
+would restore the exact SIGPIPE hazard that comment exists to prevent. `routed:f83a` is
+confirmed by reading `classify-repo.sh:187`: `LEDGER_NOTE_POINTER_RE` is a bare
+`<dir>/<4hex>.md` path shape with no `detail:` anchor, so prose is collected as a pointer. It
+over-counts only, so the gate goes pessimistic -- the safe direction, and filed as a defect
+rather than an incident for that reason.
+
+**Spec drift (§4): one gap, FIXED INLINE.** `CLAUDE.md`'s `tools/` entry described
+`ledger-continuations.py`'s `cited_by` but said nothing about the two-pass structure the fix
+just made load-bearing. A reader optimising `scan()` back into a single loop would silently
+reintroduce `id:0176`, and the entry already carries a "do NOT re-spell this" warning for the
+neighbouring `ledger-shrink.py` for the same reason. The entry now records the two passes, the
+shared `batch_rest`, what the per-block state got wrong, and the consumer it silenced.
+`orphan-scan --cross-ledger`: clean. `roadmap-lint`: clean -- every open item carries a
+recognised lane tag and id. `relay-doctor`: otherwise unchanged from Reviews 07b/07c -- same
+parked orphans, same relay-core shadow mismatch count, same `todo-conformance` shape-prose
+backlog, all already boxed or tracked under the `id:0d7c`/`id:2d17` line-shrink work.
+
+**NO new boxes added, deliberately -- for the second review running.** The queue stands at
+**42 open against a stated max of ~10**. Every finding here either resolved into `TODO.md` (the
+four dead-letters) or was fixed inline (the `CLAUDE.md` drift), so opening a 43rd box would have
+recorded work that is already done. The queue-health note Review 07c raised for the owner still
+stands unchanged and I am not restating it as a new item: `archive-closed.sh --only review_me`
+reaches only boxes already ticked `[x]`, so a backlog of OPEN boxes is structurally outside the
+one tool wired to compact this file.
