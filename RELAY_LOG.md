@@ -3378,3 +3378,7 @@ does not reliably describe MY transcript. Per rule 2c's near-done carve-out: wor
 was already complete and green at that point (tests passing, only commit/report remaining), so
 landing it normally per v16 rather than treating an unverifiable, likely-misattributed reading
 as a cutoff.
+
+## 2026-09-07 12:16 — executor (sonnet, relay-loop)
+
+todo-conformance.sh's ${#var} length/shape/residue measurements are now pinned to characters via a forced UTF-8 LC_CTYPE, closing id:eccb (a seam of id:4839); suite 583/0/17-expected-red. [id:eccb]
