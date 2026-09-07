@@ -3453,3 +3453,27 @@ id:b87b -- hermeticity backstop no longer flags the runner's own advancing relay
 ## 2026-09-07 13:45 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review(8123): id:b87b verified green by negative control (spec untouched, fails pre-fix at exactly its own assertion); closed the untested half of its acceptance with regression-guard id:d06a; suite 588/0/14 [id:b87b,d06a]
+
+## 2026-09-07 — executor (sonnet)
+
+Worked id:3bd4 -- `md-merge.py update-ids` was a SILENT NO-OP when an op's id IS found
+but the op changes nothing (a `regex_sub` whose pattern doesn't match, or an `append`
+that strips to nothing). Per-op tracking added inside the id:5d7e fold (composed line
+alone can't see a dropped op when an earlier op in the same fold DID change the line);
+a found-but-no-op delta now refuses LOUD, writes nothing, and names both the id and the
+offending pattern on stderr; a deliberate no-op opts in via the new `--allow-noop` flag.
+`tests/test_md_merge_silent_noop_3bd4.sh` (roadmap:3bd4) now green (all 11 cases).
+Regression found and fixed in the same pass: `tools/roundtrip-validate.py`'s writability
+probe (`md_merge_probe`, assertion (b) of id:ff7c) deliberately sends `append: ""` as a
+byte-identical no-op to exercise md-merge's id-resolution path without risking damage --
+this is now itself refused by the new guard, which is orthogonal to what the probe
+tests. Passed `--allow-noop` there so a refusal still means id:1b1a/id:6059 resolution,
+never "the probe's own payload was empty"; `tests/test_roundtrip_validate_ff7c.sh`
+(roadmap:ff7c, already `[x]`) confirmed still green after the fix. Full suite:
+589 passed, 0 failed, 13 expected-red.
+Friction: the roundtrip-validate.py regression was silent under the normal test-file
+timeout (`rc=124` looked like a hang, not the real failure at cases B/Z2 underneath) --
+worth re-running any timeout-124 test with a longer budget before assuming it is
+merely slow, per the `timing-needs-load` lesson.
+refactor: none needed -- the fix is additive within the existing per-id fold loop; no
+new duplication introduced.
