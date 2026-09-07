@@ -4603,3 +4603,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] **The `id:b54b` hermeticity backstop fires on RELAY worktrees during a concurrent `/relay` run -- `.claude/worktrees/` is excluded for this reason but the relay worktree root is not.** -- detail: `docs/ledger-notes/c132.md` <!-- id:c132 -->
 
 - [x] [ROUTINE] **`verify-negative-cases.py` runs a TRUNCATED `-mutation:` command and blames the test: a multi-line heredoc declaration is cut to its first line, exits 0 as a no-op, and the file is reported VACUOUS.** -- detail: `docs/ledger-notes/b890.md` <!-- relates:a73c --> <!-- id:b890 -->
+
+- [x] [ROUTINE] **The note-header shrink is DELIVERED (255 B/note); what remains is the gate -- `id:03a3` must cite the measured per-note header cost before the 46-repo migration runs.** -- detail: `docs/ledger-notes/e567.md` <!-- relates:03a3 --> <!-- id:e567 -->
