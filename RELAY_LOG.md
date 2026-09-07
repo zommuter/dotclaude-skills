@@ -3449,3 +3449,7 @@ breach-reporting shape; no new duplication introduced.
 ## 2026-09-07 13:29 — executor (sonnet, relay-loop)
 
 id:b87b -- hermeticity backstop no longer flags the runner's own advancing relay branch as a leak; ref-classified breach messages; full suite 587/0/14-expected-red [id:b87b]
+
+## 2026-09-07 13:45 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review(8123): id:b87b verified green by negative control (spec untouched, fails pre-fix at exactly its own assertion); closed the untested half of its acceptance with regression-guard id:d06a; suite 588/0/14 [id:b87b,d06a]
