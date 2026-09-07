@@ -20,6 +20,7 @@
 - id:3bd4 -- md-merge.py update-ids no longer silently no-ops on a found-id op that changes nothing (regex_sub miss / empty append); fixed a real regression this introduced in roundtrip-validate.py's writability probe; full suite 589/0/13-expected-red (id:3bd4)
 - Fixed id:5355 -- archive-done.sh's prior-commit branch no longer sweeps a same-session close before its own on-YYYY-MM-DD date says it's due; full suite 590/0/12-expected-red. (id:5355)
 - review(8123): id:5355 verified green by independent negative control (spec untouched, reddens at exactly its 3 declared assertions, over-correction trap still passes); CLAUDE.md archive-done gotcha de-staled; c7dd escalated with measured 389-file magnitude; suite 590/0/12 (id:5355)
+- Fixed id:e047 -- _sh_subject now walks forward across backslash-newline continuations (mirroring its existing backward walk), so a grep's docs/ledger-notes operand on a continuation line is seen and the read scores union instead of the unsafe ledger-only mis-trace; SH_ASSIGN_RE's assignment-rhs binding widened the same way; full suite 591/0/11-expected-red. (id:e047)
 
 ## 2026-09-05
 
