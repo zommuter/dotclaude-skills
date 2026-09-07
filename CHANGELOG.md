@@ -15,6 +15,7 @@
 - Fixed verify-negative-cases.py to REFUSE a truncated multi-line `-mutation:` declaration as a CONFIG ERROR (exit 2, detected via bash -n -c stderr) instead of running the truncated fragment and mis-diagnosing the test as VACUOUS (id:b890); RED spec now green, full suite 585/0/16-expected-red. (id:b890)
 - id:b890 verified green (RED spec authored by prior review, untouched by executor); ticked id:7c82 (shipped 09-04, unticked, invisible to both mechanical scans); @container id:4839; verify-negatives tier RED with 5 pre-existing violations proven pre-existing against the pre-window verifier (id:b890,7c82,4839,c7dd)
 - id:e567 -- 03a3.md now cites the measured per-note header cost (255 B/note) before the 46-repo fleet migration runs; RED spec now green, full suite 586/0/15-expected-red (id:e567)
+- id:b87b -- hermeticity backstop no longer flags the runner's own advancing relay branch as a leak; ref-classified breach messages; full suite 587/0/14-expected-red (id:b87b)
 
 ## 2026-09-05
 
