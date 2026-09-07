@@ -3404,3 +3404,15 @@ Ledger re-derivation. Ticked **id:7c82** after verifying all three of its accept
 ## 2026-09-07 13:02 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 id:b890 verified green (RED spec authored by prior review, untouched by executor); ticked id:7c82 (shipped 09-04, unticked, invisible to both mechanical scans); @container id:4839; verify-negatives tier RED with 5 pre-existing violations proven pre-existing against the pre-window verifier [id:b890,7c82,4839,c7dd]
+
+## 2026-09-07 — executor (sonnet, relay-loop)
+
+Worked id:e567 — its done-check required `id:03a3` (the 46-repo fleet migration note) to
+cite, before the migration runs, the per-note header cost `e567` measured and the owner
+ratified (497 -> 255 B/note, delivered `342b5c14`); `03a3.md` did not mention `e567` at all.
+Added one bullet under 03a3's `## From TODO` citing e567 with the 255 B/note figure, and
+declared the edit in the note's header per the notes-are-editable convention (nothing else
+under `## From TODO` was altered). `tests/test_note_header_cost_cited_e567.sh` (roadmap:e567)
+now green (was RED). Full suite: 586 passed, 0 failed, 15 expected-red.
+Friction: none — the acceptance/done-check were already fully specified in `docs/ledger-notes/e567.md`.
+refactor: none needed — one-line citation addition, no new duplication.
