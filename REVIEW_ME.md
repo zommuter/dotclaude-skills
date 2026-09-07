@@ -536,3 +536,75 @@ and both already carry a `[ROUTINE]` lane, a detail pointer, an Acceptance and a
 mini-handoff was owed. Ambient, unchanged, recorded for continuity: relay-core shadow parity is
 31,272 mismatches over 306,597 rounds (bash stays authoritative; the flip gate is 100% parity + 5
 clean rounds), and the Lean toolchain pins agree at `v4.30.0-rc2`.
+
+## Review 2026-09-07b (chain-end re-ask, run `relay-20260907-100619-27900` -- id:8123)
+
+Window `relay-ckpt-20260907-1308`..HEAD, **6 commits**, one worked item: **`id:b87b`** (the
+`id:b54b` hermeticity backstop firing on the runner's OWN advancing relay branch).
+
+**`id:b87b` VERIFIED GREEN, and verified the hard way.** The RED spec
+`tests/test_hermeticity_own_branch_b87b.sh` was authored by the prior review (`d1351d61`,
+a confirmed ancestor of the fix `a1d21ef2`) and the executor **did not touch it** -- the only
+test-directory change in the whole window is `tests/run-tests.sh` itself. I ran the spec
+against the PRE-fix runner (`a1d21ef2^`) in a scratch repo: it fails at exactly assertion
+**(1)**, the one it claims to pin, while assertions **(2)** and **(3)** still pass. That is
+the shape a narrow fix must have -- had the executor "fixed" it by dropping object names from
+the snapshot, (3) would have failed too. `gaming-scan.sh`: clean (no deleted test, no added
+skip, no removed assert). Provenance greps (§2b.7/2b.9/2b.10): no `@owner-accepted`,
+`@owner-answered` or `answer-src:` marker was minted or modified this window.
+
+**Over-reach (§2d): not a superset.** The cited ratified source is `docs/ledger-notes/b87b.md`,
+read directly rather than through the ROADMAP restatement. It authorises exactly two things,
+and the diff does exactly those two: exclude **only** the ref `git symbolic-ref HEAD` names
+from the object-name comparison (not object names generally), and split the breach message
+into added/removed/moved findings. The exclusion is keyed on a single ref, so a fixture moving
+any OTHER `refs/heads/relay/*` ref still trips the guard -- which the spec's cases (2) and (3)
+independently hold.
+
+**Test tiers (§3), enumerated from the `Makefile` (there is no CI config):** `make lint` RAN
+green (0 bare-`rm -f` violations, within baseline); `tests/run-tests.sh` RAN green, **587
+passed / 0 failed / 14 expected-red**, matching the executor's claimed 587/0/14 exactly, and
+**588 / 0 / 14** on a second full run once this review's own regression-guard was added.
+`make verify-negatives` is opt-in, seconds-per-case, and NOT part of `make test`; I ran its
+logic by hand for the two files that matter here (both negative controls below) rather than
+the whole tier -- **SKIPPED-TIER: verify-negatives (opt-in, full-tier not run)**, not folded
+into the green claim. `make check-statusline-deps` is a dependency probe, not a test tier.
+
+**One real gap found, and closed rather than filed.** `id:b87b` had TWO acceptance clauses;
+the pre-authored RED spec covers the first fully and the second **not at all**. The note's own
+Done-check case (3) was *"assert the breach text for case (2) names the addition"*, and the
+spec that got written substituted a force-moved-ref coverage assertion for it. So the ~20 lines
+of added/removed/moved classification in `run-tests.sh` shipped **green with zero tests** --
+the executor built what was asked, and the spec simply did not ask for the second half. I
+verified the classification by hand end-to-end (all three labels fire, each naming the right
+ref) and then made that check durable as
+`tests/test_hermeticity_breach_classification.sh`. Box `id:d06a` below is the §2b.3 entry that
+a green regression-guard is required to carry.
+
+- [ ] **`id:d06a` -- new GREEN regression-guard `tests/test_hermeticity_breach_classification.sh`: is the pinned message format correct, or am I freezing a shape you would rather change?** Written by this review, not by an executor, because the behaviour it pins already worked. It drives the REAL `tests/run-tests.sh` in a `mktemp -d` repo checked out on a `relay/*` branch and asserts that an ADDED, a REMOVED and a MOVED `refs/heads/relay/*` ref each produce their own label naming the right ref, that the two WRONG labels are absent in each case, and that an own-branch commit produces no breach at all. **Non-vacuous, proven by mutation:** against the pre-fix runner (`a1d21ef2^`) all 4 assertions fail; against HEAD all 4 pass. Two authoring traps I hit and am recording because both are the "unreached fixture is not a passing negative control" class: (a) `"removed ref(s):"` CONTAINS `"moved ref(s):"` as a substring, so the first draft's unanchored negative assertion reported the removed case as also claiming a move -- every label pattern is now line-anchored on the runner's two-space indent, and that anchoring is load-bearing, not tidiness; and (b) my first fixture ran `git init` on a default `main` branch, which puts the runner's own ref OUTSIDE the watched `refs/heads/relay/` namespace, so case (4) could never have detected a `b87b` regression and passed against the pre-fix runner too -- the fixture now inits on `relay/fixture-review-repo-0` and case (4) correctly fails pre-fix. **What needs your call:** the guard pins an exact human-readable message format (label text and indentation), which is deliberately more brittle than pinning behaviour. If you would rather the classification be asserted structurally, say so and it should be narrowed. <!-- relates:b87b --> <!-- id:d06a -->
+
+**Nothing else new.** Reverse-handoff (§5b): the window adds no new open `- [ ]` line to
+`TODO.md` or `ROADMAP.md` -- the only ledger edits are `b87b`'s own close (removed from
+`ROADMAP.md`, appended to `ROADMAP.archive.md`, TODO twin ticked at `TODO.md:845`) and the
+CHANGELOG entry. No mini-handoff was owed. Contract pointer `CLAUDE.md:258` is `v18`, matching
+`relay/references/executor-contract.md:7` -- no refresh. Spec drift (§4): the change is
+internal to the test harness and `CLAUDE.md` §Testing does not describe the hermeticity
+backstop's message format, so nothing there went stale. `orphan-scan --cross-ledger`: clean.
+`roadmap-lint`: exit 0; the 4 DEAD-GATE warnings (`d4ca`, `e405`, `540f`, `c179`) and the one
+NO-ACCEPTANCE-NO-TWIN (`da55`) are pre-existing, unchanged by this window, and already boxed
+above -- no duplicate boxes added. `todo-conformance`: all findings grandfathered or
+pre-existing. `relay-doctor`: 1 install-drift MISSING
+(`relay/scripts/lib-archive-idempotency.py` declared in `relay_FILES` but absent from the
+install tree -- a `make install-relay` would clear it), 7 parked orphans, 4 inbox dead-letters
+targeting this repo (`routed:de13`, `routed:f83a`, `routed:1fd4`, `routed:37ce`); all live
+durably in the git-tracked inbox and are surfaced by `/relay human`, so they are pointed at
+rather than re-copied into a third parallel record. One escalation on an EXISTING box rather
+than a new one: `classify-repo.sh` now emits `ledger-note pointer names a MISSING/unreadable
+detail file: docs/ledger-notes/4983.md -- counting 32768 B conservatively` on every run of this
+repo. That is the box already open at `REVIEW_ME.md:49`, and its own text predicted this
+("load-bearing now because `id:1608` made pointer-following live"); it has now moved from a
+latent wrong-address to a standing 32 KB over-charge against this repo's prompt-size gate on
+every classification. Still the owner's call, since the fix means rewriting an archived line.
+Ambient and unchanged: relay-core shadow
+parity 31,422 mismatches over 309,382 rounds (bash stays authoritative), Lean pins agree at
+`v4.30.0-rc2`.
