@@ -12,6 +12,7 @@
 - review: id:2964 verified green (581/0/19, both live corruptions repaired); filed id:32ba -- only the MASK half of its two-half fix is pinned, a shape-anchor revert leaves the suite green (id:2964,32ba,8372,168c,5121,b555)
 - tests/run-tests.sh's hermeticity backstop no longer false-fires on a concurrent /relay child's worktree+branch (id:c132); RED spec goes green, suite 582/0/18-expected-red. (id:c132)
 - todo-conformance.sh's ${#var} length/shape/residue measurements are now pinned to characters via a forced UTF-8 LC_CTYPE, closing id:eccb (a seam of id:4839); suite 583/0/17-expected-red. (id:eccb)
+- Fixed verify-negative-cases.py to REFUSE a truncated multi-line `-mutation:` declaration as a CONFIG ERROR (exit 2, detected via bash -n -c stderr) instead of running the truncated fragment and mis-diagnosing the test as VACUOUS (id:b890); RED spec now green, full suite 585/0/16-expected-red. (id:b890)
 
 ## 2026-09-05
 
