@@ -4605,3 +4605,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] **`verify-negative-cases.py` runs a TRUNCATED `-mutation:` command and blames the test: a multi-line heredoc declaration is cut to its first line, exits 0 as a no-op, and the file is reported VACUOUS.** -- detail: `docs/ledger-notes/b890.md` <!-- relates:a73c --> <!-- id:b890 -->
 
 - [x] [ROUTINE] **The note-header shrink is DELIVERED (255 B/note); what remains is the gate -- `id:03a3` must cite the measured per-note header cost before the 46-repo migration runs.** -- detail: `docs/ledger-notes/e567.md` <!-- relates:03a3 --> <!-- id:e567 -->
+
+- [x] [ROUTINE] **The `id:b54b` hermeticity backstop fails the whole suite when the runner's OWN relay branch advances, so a relay child that commits as its contract requires can never get a green run.** -- detail: `docs/ledger-notes/b87b.md` <!-- relates:b54b --> <!-- id:b87b -->
