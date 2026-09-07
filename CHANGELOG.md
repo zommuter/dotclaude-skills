@@ -11,6 +11,7 @@
 
 - review: id:2964 verified green (581/0/19, both live corruptions repaired); filed id:32ba -- only the MASK half of its two-half fix is pinned, a shape-anchor revert leaves the suite green (id:2964,32ba,8372,168c,5121,b555)
 - tests/run-tests.sh's hermeticity backstop no longer false-fires on a concurrent /relay child's worktree+branch (id:c132); RED spec goes green, suite 582/0/18-expected-red. (id:c132)
+- todo-conformance.sh's ${#var} length/shape/residue measurements are now pinned to characters via a forced UTF-8 LC_CTYPE, closing id:eccb (a seam of id:4839); suite 583/0/17-expected-red. (id:eccb)
 
 ## 2026-09-05
 
