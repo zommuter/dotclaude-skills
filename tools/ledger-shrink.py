@@ -423,9 +423,17 @@ def _keep_matches(text: str):
 
     A COMMENT-shaped match that begins inside an inline-code span is a marker QUOTED AS AN
     EXAMPLE, not this item's own marker, and is not kept (id:2964). A fully-backticked
-    `@marker`-shaped match followed by ordinary lowercase prose is the same phenomenon seen
-    from the `@marker` family's own shape, and is excluded by `_at_marker_is_prose_example`
-    instead (id:8372) -- see _MASK_QUOTED_MARKERS for why these are two different rules.
+    `@marker`-shaped match IMMEDIATELY FOLLOWED BY THE WORD "marker"/"markers" is the same
+    phenomenon seen from the `@marker` family's own shape, and is excluded by
+    `_at_marker_is_prose_example` instead (id:8372) -- see _MASK_QUOTED_MARKERS for why these
+    are two different rules.
+
+    Do NOT restate that as "followed by ordinary lowercase prose": _MASK_QUOTED_MARKERS spells
+    out why the looser wording is WRONG (test_ledger_shrink_0d7c.sh case B keeps a list of
+    GENUINE markers joined with plain "and", so lowercase prose follows a real marker too).
+    That narrowness is also why this does NOT yet cover the founding case -- `ee62` writes
+    `` `@manual` `` followed by a COMMA and is still hoisted, so id:8372 was REOPENED by
+    review 2026-09-07; the reproduction is in docs/ledger-notes/8372.md.
     """
     spans = [(m.start(), m.end()) for m in _CODE_SPAN_RE.finditer(text)] \
         if _MASK_QUOTED_MARKERS else []
