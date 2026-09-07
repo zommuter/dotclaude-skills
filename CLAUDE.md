@@ -185,7 +185,13 @@ step 2b); its semver sibling — the reviewer-only bump — is `relay/scripts/ve
   see global CLAUDE.md). For `~/.claude` git ops use `git -C ~/.claude`.
 - **archive-done.sh** only archives `[x]` items that were already done in the prior
   commit, or are ≥30 days old by trailing "on YYYY-MM-DD" date; section pruning
-  protects `Done`/`Current` headings.
+  protects `Done`/`Current` headings. **An item's OWN trailing date wins over the
+  prior-commit rule when it is newer than the cutoff (id:5355)** -- the prior-commit
+  branch is NOT unconditional, and must never be restored to that shape: the mandated
+  `git-diary-workflow` → `todo-update` order guarantees a same-session close is already
+  in "the prior commit", so an unconditional branch sweeps every item closed this
+  session, carrying its `routed:` breadcrumb out of `TODO.md` and starving the
+  cross-repo twin-guard (`inbox-done` refuses without the twin).
 - **relay discovery is signature-cached** (id:c3a6): `discover-sig.sh` hashes a SUPERSET
   of every input the classifier shard reads; `relay-loop.js` reuses last round's verdict
   when a repo's sig is unchanged, so the shard re-runs only on churn. It is **fail-open** —
