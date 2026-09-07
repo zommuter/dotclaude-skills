@@ -4607,3 +4607,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] **The note-header shrink is DELIVERED (255 B/note); what remains is the gate -- `id:03a3` must cite the measured per-note header cost before the 46-repo migration runs.** -- detail: `docs/ledger-notes/e567.md` <!-- relates:03a3 --> <!-- id:e567 -->
 
 - [x] [ROUTINE] **The `id:b54b` hermeticity backstop fails the whole suite when the runner's OWN relay branch advances, so a relay child that commits as its contract requires can never get a green run.** -- detail: `docs/ledger-notes/b87b.md` <!-- relates:b54b --> <!-- id:b87b -->
+
+- [x] [ROUTINE] 🔴 **`md-merge.py update-ids` SILENTLY no-ops when an id is found but the op changes nothing -- a missed `regex_sub` or an empty `append` both write back unchanged and exit 0.** -- detail: `docs/ledger-notes/3bd4.md` <!-- id:3bd4 -->
