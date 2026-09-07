@@ -528,3 +528,40 @@ Lean toolchain pins agree. Spec-drift (§4) is vacuous this window -- nothing sh
 continuity: relay-core shadow parity is **30,540 mismatches over 302,652 rounds** (bash stays
 authoritative; the flip gate is 100% parity + 5 clean rounds), and 3 parked orphan branches sit
 across the fleet (loderite, lean4btc, git-annex).
+
+## Review 2026-09-07 (chain-end re-ask, run `relay-20260907-100619-27900` -- id:8123)
+
+- [ ] **The `id:2964` fix landed in TWO halves and only ONE of them is pinned by any assertion.** `d7685ee4` both (1) anchored the keep-set to a marker SHAPE (`_MARKER_RE`, the half its own commit subject names) and (2) added `_MASK_QUOTED_MARKERS`, which drops a comment-shaped keep beginning inside an inline-code span. Reverting (1) ALONE leaves the entire suite green. Every over-match fixture in `tests/test_ledger_shrink_marker_grammar_2964.sh` (cases A, C) and in `tests/test_shrink_example_marker_hoist_8372.sh` writes its prose `<!--` inside backticks -- 5 fixture lines, 5 backticked -- so the mask suppresses the over-match before the shape rule is consulted. Replaying case C's body against the OLD `<!--[^>]*-->` and the code-span list directly: one 366-char over-match, and it STARTS inside a code span. Case (E) does not discriminate either -- it pins that an unenumerated marker NAME survives, which the old pattern also satisfied. Consistently, the file's `# fails-against-assertion:` names the MASK half, and `make verify-negatives` reports `red-there OK` against the two-half mutation; that verdict is honest, it simply cannot see that one half is carrying the whole result. **This is NOT a reopen of `id:2964`** -- its acceptance is met and I re-verified it independently (`make test` 581/0/19-expected-red; `ee62` 169 chars and `5817` 233, the two measured corruptions; hoisted `id:XXXX` down to one genuinely-unbackticked prose mention at `TODO.md:668`). The commit itself declared the adjacent gap ("NOT verified: that each fix half reddens independently -- the sandboxed copy-and-mutate probe was denied"); the same probe was denied to this review, and I did not route around the guard. What is new here is WHICH half is unpinned, established by reading rather than mutating. The shape anchor is untested, not unnecessary: `TODO.md:668` carries an UNBACKTICKED `'<!-- id:XXXX -->'` in prose, so the unmasked class exists in the live corpus. Filed + promoted as `id:32ba` with acceptance and a done-check. <!-- relates:2964 --> <!-- id:32ba -->
+
+- [ ] **`relay-doctor` install-drift: `relay/scripts/lib-archive-idempotency.py` is declared in `relay_FILES` but is not installed under `~/.claude/skills/relay`.** A declared-but-uninstalled library is the `id:1102` class -- the manifest and the install tree disagree, so a caller resolving it through the install path fails at runtime while every in-repo test passes. One file; `make install-relay` is the likely resolution, but which side is authoritative (drop the declaration, or install it) is the owner's call. <!-- id:168c -->
+
+- [ ] **Four parked orphan branches now sit on this repo, and one of them is THIS run's own execute worktree.** `relay/orphan/relay-20260907-100619-27900-execute-64f9-0` (`ca6a4a04`) is the WIP residue of the execute unit whose agent-error triggered this chain-end re-ask -- expected, but it means `id:64f9` was attempted and left unfinished this round. The other three are `recovered-20260826-review-3d9ca6f3` and the two 2026-09-05 execute residues, of which `relay/scripts` reconcile already mined `id:be51` and `id:ceca`. Nothing here is lost work; the question for the owner is whether the 2026-08-26 recovered review branch still has anything unmerged worth taking, since it is the oldest and is the only one that is not an executor WIP auto-commit. <!-- id:5121 -->
+
+- [ ] **`scan-routed` reports 2 twinned-resolvable inbox items -- 0 dead-letters.** Both have their `routed:` twin already present in the target repo, so `--apply` would simply drain them from the inbox. Report-only per the review contract; a `/relay human` or a `--apply` pass closes them. <!-- id:b555 -->
+
+**Everything else checked and clean, stated so a silent pass is distinguishable from not looking.**
+`gaming-scan.sh` over `relay-ckpt-20260907-0736..HEAD`: no output -- 0 `DELETED_TEST`, 0
+`ADDED_SKIP`, 0 `REMOVED_ASSERT`. No test file was MODIFIED in the window (one was added), so the
+resurrection check (§2b.1) has no candidate. Provenance (§2b.7/9/10): no commit in the window
+introduces `@owner-accepted:`, `@owner-answered:` or `<!-- answer-src:`, and no line carrying one
+was modified. Over-reach (§2d): `id:2964`'s diff is a NARROWING of an over-matching regex plus a
+mask deliberately scoped to comment shapes only -- explicitly NOT extended to lane brackets
+(`id:1254`, where masking would put this tool into disagreement with `classify-repo.sh`) nor to
+the `@marker` family, which is left to `id:8372`; I confirmed that scoping by running the `8372`
+spec, which now advances past its A1/A2 cases and fails at `(A3)` -- the backticked `@manual` --
+exactly as the commit claims. No superset. Test tiers (§3) enumerated from the `Makefile`, there
+being no CI config: `make lint` + `make test` RAN green (581 passed / 0 failed / 19 expected-red,
+against the commit's claimed 581/0/19 baseline 580/0/19); `make verify-negatives` RAN for the new
+file (`green-now OK` / `red-there OK`); `make gaming-canary` and `make shard-canary` are the Tier-B
+model canaries, deliberately out of `make test` because they cost tokens -- SKIPPED-TIER, not folded
+into the green claim. Contract pointer `CLAUDE.md:258` is `v18`, matching
+`relay/references/executor-contract.md:7` -- no refresh needed. Spec drift (§4): `CLAUDE.md`'s
+Layout table was updated in the same commit that changed the tool, and no longer endorses the old
+`<!--[^>]*-->` spelling. `orphan-scan --cross-ledger`: clean. `roadmap-lint`: exit 0, 4 DEAD-GATE
+warnings (`d4ca`, `e405`, `540f`, `c179` -- all gated on `09e4`/`b0b1`, which live only in
+`TODO.md`) and 1 NO-ACCEPTANCE-NO-TWIN (`da55`), all pre-existing and unchanged by this window.
+Reverse-handoff (§5b): the only genuinely new open items this window are `id:be51` and `id:ceca`,
+and both already carry a `[ROUTINE]` lane, a detail pointer, an Acceptance and a Done-check -- no
+mini-handoff was owed. Ambient, unchanged, recorded for continuity: relay-core shadow parity is
+31,272 mismatches over 306,597 rounds (bash stays authoritative; the flip gate is 100% parity + 5
+clean rounds), and the Lean toolchain pins agree at `v4.30.0-rc2`.
