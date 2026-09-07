@@ -4599,3 +4599,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] **Build the DIRECTIONAL round-trip validator the id:0d7c format ratified and nobody built -- a trimming pass must be provable, not eyeballed.** -- detail: `docs/ledger-notes/ff7c.md` <!-- relates:2d17 --> <!-- id:ff7c -->
 
 - [x] [ROUTINE] **`id:401c` is an append-only audit LOG occupying 42% of ROADMAP.md -- relocate its body under the ratified `id:0d7c` topology.** -- detail: `docs/ledger-notes/f193.md` <!-- relates:2d17 --> <!-- id:f193 -->
+
+- [x] [ROUTINE] **The `id:b54b` hermeticity backstop fires on RELAY worktrees during a concurrent `/relay` run -- `.claude/worktrees/` is excluded for this reason but the relay worktree root is not.** -- detail: `docs/ledger-notes/c132.md` <!-- id:c132 -->
