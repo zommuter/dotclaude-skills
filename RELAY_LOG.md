@@ -3496,3 +3496,7 @@ session; this unit only landed the fix. Full suite 590/0/12-expected-red.
 Friction: none.
 refactor: none needed -- the fix is a reordering of an existing three-way branch, no new
 duplication introduced.
+
+## 2026-09-07 14:29 — executor (sonnet, relay-loop)
+
+Fixed id:5355 -- archive-done.sh's prior-commit branch no longer sweeps a same-session close before its own on-YYYY-MM-DD date says it's due; full suite 590/0/12-expected-red. [id:5355]
