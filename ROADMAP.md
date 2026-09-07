@@ -170,7 +170,6 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 ## 2026-09-04 handoff C2 -- ledger-tooling and test-harness defects from the 09-04 design day (run relay-20260904-145432-15472)
 
 - [ ] [ROUTINE] **`ledger-shrink.py` hoists an EXAMPLE marker quoted in prose as if it were real -- 30 lines, and it defeated the shrink on `ee62`.** -- detail: `docs/ledger-notes/8372.md` <!-- relates:14e5 --> <!-- id:8372 -->
-- [x] [ROUTINE] **Two tests flaked green-standalone/red-in-suite and neither is explained; `|| fail` after a grep cannot tell a FALSE assertion from a check that COULD NOT RUN (360 sites).** -- detail: `docs/ledger-notes/735f.md` <!-- id:735f -->
 ## 2026-09-05 handoff C2 -- `md-merge.py update-ids` silent no-op + wrapped-item reach (user-injected `id:baf1`, run relay-20260905-083048-18379)
 
 - [ ] [ROUTINE] **`md-merge.py update-ids` cannot reach a WRAPPED item's continuation lines at all, so the flock'd helper has no compliant path for the commonest ledger edit there is.** -- detail: `docs/ledger-notes/4f0f.md` <!-- relates:3bd4 --> <!-- id:4f0f -->

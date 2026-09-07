@@ -4615,3 +4615,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] 🔴 **`SH_ASSIGN_RE` truncates a multi-line shell assignment at the first quote, silently dropping a read's notes operand -- the missed-union direction is the UNSAFE one the code names.** -- detail: `docs/ledger-notes/e047.md` <!-- children-of:1447 --> <!-- id:e047 -->
 
 - [x] [ROUTINE] **`cited_by`'s surviving-text escape is evaluated against the WRONG future state in a batch move, and it silenced `ledger-map.py:493` -- the very consumer that justified the 1447 untraced amendment.** -- detail: `docs/ledger-notes/0176.md` <!-- children-of:1447 --> <!-- id:0176 -->
+
+- [x] [ROUTINE] **Two tests flaked green-standalone/red-in-suite and neither is explained; `|| fail` after a grep cannot tell a FALSE assertion from a check that COULD NOT RUN (360 sites).** -- detail: `docs/ledger-notes/735f.md` <!-- id:735f -->
