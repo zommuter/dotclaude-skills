@@ -261,6 +261,31 @@ def _validate_replacement(item_id: str, target_line: str, new_line: str) -> str 
     return None
 
 
+_MULTILINE_ONTO_WRAPPED = (
+    'multi-line "line" payload targets a WRAPPED item (id:f833). "line" replaces ONLY '
+    'the line carrying the id marker, so the existing indented continuation lines stay '
+    'beneath the new block: this DUPLICATES the item instead of updating it, silently '
+    '(exit 0, and the marker count stays correct, so `grep -c` cannot see it). '
+    'Use "append"/"regex_sub" to transform the head line, or edit the block under '
+    'ROADMAP id:4f0f once its item-scoped mode lands (REVIEW_ME id:b5c1). '
+    'A multi-line payload onto a NEW or single-line item is unaffected and still works.'
+)
+
+
+def _has_continuation(lines: list, marker_idx: int) -> bool:
+    """id:f833 — does the item whose head line is `lines[marker_idx]` wrap?
+
+    READ-ONLY detection for the guard above; it never decides what gets WRITTEN, so it
+    does not settle the block-boundary question that ROADMAP id:4f0f owns. The predicate
+    is deliberately the SAME one already in `tools/ledger-continuations.py` (non-blank
+    and starting with whitespace) rather than a second opinion — two tools with two
+    answers for "where does this item end" is the id:4983 defect class, and id:4f0f will
+    make this a single shared definition.
+    """
+    nxt = lines[marker_idx + 1:marker_idx + 2]
+    return bool(nxt) and bool(nxt[0].strip()) and bool(re.match(r'^[ \t]', nxt[0]))
+
+
 def _final_line_marker_error(where: str, final_line: str) -> str | None:
     """WRITE-SIDE guard (id:6059). Return an error string if `final_line` is a ledger
     ITEM line (`- [ ]` / `- [x]`) that would be written with a number of anchored
@@ -331,11 +356,26 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
     opt back into the append behaviour for genuinely new items.
 
     Each update is one of:
-      - REPLACE  {"id", "line"} — whole-line overwrite. TOCTOU-prone: the caller
+      - REPLACE  {"id", "line"} — whole-line overwrite of the MARKER LINE ONLY; an
+        item's indented continuation lines are left untouched. TOCTOU-prone: the caller
         must compose `line` from a read taken OUTSIDE this lock, so a concurrent
         in-lock write to the SAME id between that read and this call is silently
         clobbered (last-under-lock wins). Prefer append/regex_sub below when the
         edit can be expressed as a transform instead of a fresh literal.
+        id:f833 — a multi-line `line` payload is REFUSED **when the target item already
+        wraps**. Because only the marker line is replaced, such a payload wrote a fresh
+        block and left the OLD continuation lines beneath it, duplicating the item while
+        exiting 0 and keeping the marker count correct (so the obvious
+        `grep -c "id:XXXX"` check saw nothing). The refusal is deliberately narrow: a
+        multi-line payload onto a NEW item (--allow-new) or a single-line one is
+        correct and in production use — relay/scripts/handback-followup.py emits seam
+        items as a head line plus indented Acceptance/Done-check/Context lines (owner
+        requirement 2026-07-26), and that path is untouched.
+        There is deliberately NO whole-block replacement here: that surface belongs to
+        ROADMAP id:4f0f and is pending owner ratification (REVIEW_ME id:b5c1), which
+        also makes the block boundary a single shared definition with
+        tools/ledger-continuations.py. Until it lands, rewriting a wrapped item is
+        refused rather than silently corrupted.
       - APPEND   {"id", "append"} (id:0af4) — preserves the existing line and adds
         text before its id marker. TOCTOU-free: computed from the line as read
         UNDER this lock.
@@ -446,6 +486,9 @@ def update_ids(file_path: Path, updates: list, commit_msg: str | None = None,
                             # that is what _validate_replacement's contract compares.
                             op_err = _validate_replacement(item_id, line, payload)
                             if op_err:
+                                break
+                            if '\n' in payload and _has_continuation(lines, lineno - 1):
+                                op_err = _MULTILINE_ONTO_WRAPPED
                                 break
                             composed = payload
                         elif kind == 'append':
