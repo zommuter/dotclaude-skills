@@ -4613,3 +4613,5 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
 - [x] [ROUTINE] [INBOUND routed:3b3a from loderite] **`todo-update/archive-done.sh` archives items completed IN THE CURRENT SESSION, moving `routed:` breadcrumbs out of `TODO.md` and stranding the inbox twin-guard.** -- detail: `docs/ledger-notes/5355.md` <!-- routed:3b3a --> <!-- id:5355 -->
 
 - [x] [ROUTINE] 🔴 **`SH_ASSIGN_RE` truncates a multi-line shell assignment at the first quote, silently dropping a read's notes operand -- the missed-union direction is the UNSAFE one the code names.** -- detail: `docs/ledger-notes/e047.md` <!-- children-of:1447 --> <!-- id:e047 -->
+
+- [x] [ROUTINE] **`cited_by`'s surviving-text escape is evaluated against the WRONG future state in a batch move, and it silenced `ledger-map.py:493` -- the very consumer that justified the 1447 untraced amendment.** -- detail: `docs/ledger-notes/0176.md` <!-- children-of:1447 --> <!-- id:0176 -->
