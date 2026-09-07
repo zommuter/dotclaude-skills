@@ -129,8 +129,21 @@ snapshot_repo_state() {
     /^worktree / { path = substr($0, 10); in_relay = (index(path, base) == 1) }
     /^branch /   { if (in_relay) { sub(/^branch /, ""); print } }
   ')"
+  # id:b87b: the branch HEAD points at in THIS repo is expected to advance -- the
+  # executor contract requires a relay child to "commit in the worktree as you go", and
+  # every relay worktree branch lives inside the very `refs/heads/relay/` namespace this
+  # guard watches. Exclude only that ONE ref's object-name from the comparison (replace
+  # it with a fixed placeholder) rather than dropping object names generally: a fixture
+  # force-moving some OTHER relay ref, or one being added/removed, must still trip the
+  # guard. This is narrower than (and independent of) the id:c132 worktree-branch
+  # exclusion above, which only fires when the branch is registered as a worktree under
+  # $RELAY_WORKTREE_BASE -- a plain checkout on a `relay/*` branch (e.g. a hermeticity
+  # fixture repo, or this repo's own root when run directly on such a branch) is not.
+  local own_ref
+  own_ref="$(git symbolic-ref -q HEAD 2>/dev/null || true)"
   git for-each-ref --format='%(refname) %(objectname)' refs/heads/relay/ 2>/dev/null \
     | { if [[ -n "$relay_wt_branches" ]]; then grep -vFf <(printf '%s\n' "$relay_wt_branches"); else cat; fi; } \
+    | awk -v own="$own_ref" '{ if (own != "" && $1 == own) print $1, "<own-branch-head>"; else print }' \
     | sort
   echo '--worktrees--'
   # Exclude HARNESS-created agent worktrees (`.claude/worktrees/<name>`). Claude Code
@@ -173,10 +186,29 @@ hermeticity_breach=0
 if [[ "$hermeticity_before" != "$hermeticity_after" ]]; then
   hermeticity_breach=1
   echo
-  echo "HERMETICITY BREACH (id:b54b): the test run left new relay/* refs and/or worktrees in $(pwd) —"
+  echo "HERMETICITY BREACH (id:b54b): the test run left relay/* ref or worktree drift in $(pwd) —"
   echo "a fixture reached the real repo instead of its own mktemp sandbox. This ALWAYS fails the"
   echo "suite, independent of every individual test's exit code. Diff (before -> after):"
   diff <(printf '%s\n' "$hermeticity_before") <(printf '%s\n' "$hermeticity_after") | sed 's/^/       | /' || true
+  # id:b87b: name the finding precisely -- an added ref, a removed ref, and a moved ref
+  # are three different things, and only the first is "left new relay/* refs".
+  before_refs="$(awk '/^--worktrees--$/{exit} {print $1}' < <(printf '%s\n' "$hermeticity_before") | sort -u)"
+  after_refs="$(awk '/^--worktrees--$/{exit} {print $1}' < <(printf '%s\n' "$hermeticity_after") | sort -u)"
+  added_refs="$(comm -13 <(printf '%s\n' "$before_refs") <(printf '%s\n' "$after_refs") | grep -v '^$' || true)"
+  removed_refs="$(comm -23 <(printf '%s\n' "$before_refs") <(printf '%s\n' "$after_refs") | grep -v '^$' || true)"
+  common_refs="$(comm -12 <(printf '%s\n' "$before_refs") <(printf '%s\n' "$after_refs") | grep -v '^$' || true)"
+  moved_refs=""
+  if [[ -n "$common_refs" ]]; then
+    while IFS= read -r r; do
+      [[ -z "$r" ]] && continue
+      b_obj="$(awk -v r="$r" '$1==r{print $2; exit}' < <(printf '%s\n' "$hermeticity_before"))"
+      a_obj="$(awk -v r="$r" '$1==r{print $2; exit}' < <(printf '%s\n' "$hermeticity_after"))"
+      [[ "$b_obj" != "$a_obj" ]] && moved_refs+="$r"$'\n'
+    done <<<"$common_refs"
+  fi
+  [[ -n "$added_refs" ]] && echo "  added ref(s):   $(printf '%s' "$added_refs" | tr '\n' ' ')"
+  [[ -n "$removed_refs" ]] && echo "  removed ref(s): $(printf '%s' "$removed_refs" | tr '\n' ' ')"
+  [[ -n "$moved_refs" ]] && echo "  moved ref(s):   $(printf '%s' "$moved_refs" | tr '\n' ' ')"
   echo "Rerun the suspect file(s) alone (or with -j 1) to localize which test caused this."
 fi
 

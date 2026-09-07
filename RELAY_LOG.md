@@ -3420,3 +3420,28 @@ refactor: none needed — one-line citation addition, no new duplication.
 ## 2026-09-07 13:08 — executor (sonnet, relay-loop)
 
 id:e567 -- 03a3.md now cites the measured per-note header cost (255 B/note) before the 46-repo fleet migration runs; RED spec now green, full suite 586/0/15-expected-red [id:e567]
+
+## 2026-09-07 — executor (sonnet, relay-loop)
+
+Worked id:b87b — the `id:b54b` hermeticity backstop in `tests/run-tests.sh` treated the
+runner's own current `relay/*` branch advancing (a normal commit, exactly what the executor
+contract requires) as a fixture leak, because `snapshot_repo_state()` records object names
+and any commit on a watched ref is a diff even when no ref was added/removed. Fixed narrowly:
+the ref that `HEAD` currently points at has its object-name replaced with a fixed placeholder
+in the snapshot (only that one ref, so a fixture force-moving or adding/removing any OTHER
+`refs/heads/relay/*` ref still trips the guard). This is independent of the pre-existing
+id:c132 exclusion, which only fires when the branch is registered as a worktree under
+`$RELAY_WORKTREE_BASE` — a bare checkout on a `relay/*` branch (e.g. this item's own
+hermeticity fixture, or a repo run directly on such a branch) is not. Also split the breach
+message into added/removed/moved ref classifications per the item's acceptance criteria
+(previously it always said "left new relay/* refs" regardless of which kind of drift fired).
+`tests/test_hermeticity_own_branch_b87b.sh` (roadmap:b87b, pre-authored RED spec) now green;
+`tests/test_run_tests_hermeticity_backstop_b54b.sh` and `tests/test_hermeticity_relay_worktree_c132.sh`
+re-verified still green. The new ref-classification code originally used
+`producer | awk '... {exit}'` under `set -o pipefail`, which `test_pipefail_sigpipe_lint.sh`
+correctly flagged as the id:81d5 SIGPIPE shape; rewrote as `awk ... < <(producer)` per the
+lint's own suggested rewrite. Full suite: 587 passed, 0 failed, 14 expected-red.
+Friction: none — the RED spec and acceptance were already fully specified in
+`docs/ledger-notes/b87b.md`.
+refactor: none needed — the fix is additive within the existing `snapshot_repo_state()`/
+breach-reporting shape; no new duplication introduced.
