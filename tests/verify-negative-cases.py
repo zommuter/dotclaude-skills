@@ -304,7 +304,36 @@ def parse_header(path, carved=None):
                 errors.append(f"{base}: `fails-against-rev: {c['arg']}` names no "
                               f"path -- expected `<rev> -- <path> [<path>…]`")
             c["rev"], c["paths"] = rev, paths
+        elif c["kind"] == "mutation":
+            m_err = validate_mutation_arg(c["arg"])
+            if m_err:
+                errors.append(f"{base}: `fails-against-mutation: {c['arg']}` {m_err}")
     return prose, cases, errors
+
+
+def validate_mutation_arg(arg):
+    """-> error string, or None if `arg` is a COMPLETE bash command (id:b890).
+
+    `CASE_RE` matches `# fails-against-mutation:` one line at a time, so a declaration
+    authored as a heredoc spanning several comment lines (`python3 - <<'EOF'` on the case
+    line, its body on the following `#`-prefixed lines) contributes only that FIRST line
+    as `arg`. The truncated fragment parses and RUNS as a no-op -- bash treats the missing
+    terminator as end-of-input, python reads an empty stdin, and the pipeline exits 0 --
+    so it was previously executed and reported VACUOUS instead of refused.
+
+    The exit code is NOT the discriminator: `bash -n -c` also exits 0 for a truncated
+    heredoc (a syntactically valid partial parse), measured 2026-09-05. What differs is
+    that bash writes a `here-document ... delimited by end-of-file` warning to STDERR
+    while parsing it -- so any stderr from `bash -n -c "$arg"` means `arg` is not a
+    complete, self-contained command and must be refused as a CONFIG ERROR rather than run.
+    """
+    r = subprocess.run(["bash", "-n", "-c", arg], capture_output=True, text=True)
+    if r.stderr.strip():
+        return (f"looks like a TRUNCATED multi-line declaration -- `bash -n` reported "
+                f"{r.stderr.strip()!r}. A `# fails-against-mutation:` heredoc split across "
+                f"several comment lines contributes only its FIRST line here (id:b890). "
+                f"Declare the mutation as ONE complete bash command on a single line.")
+    return None
 
 
 def split_rev_arg(arg):
