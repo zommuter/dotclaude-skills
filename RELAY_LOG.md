@@ -3603,3 +3603,7 @@ duplication introduced.
 ## 2026-09-07 16:38 — executor (sonnet, relay-loop)
 
 Fixed ledger-shrink.py's @-marker prose-example hoist (id:8372): a `@manual`-family token quoted as an example in item prose no longer gets hoisted onto the head line; full suite 594/0/0-errored/8-expected-red. [id:8372]
+
+## 2026-09-07 17:00 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review(8123): REOPENED id:8372 -- its fix does not cover its own founding case (ee62 comma-list still hoists, reproduced); gaming-scan clean, spec never touched, 594/0/0/8-expected-red [id:8372]
