@@ -3523,3 +3523,7 @@ now passes all three cases (A/B/C); full suite green, 591/0/11-expected-red.
 Friction: none.
 refactor: none needed -- both changes add a bounded lookahead alongside an existing
 one of the same shape, no new duplication.
+
+## 2026-09-07 15:16 — executor (sonnet, relay-loop)
+
+Fixed id:e047 -- _sh_subject now walks forward across backslash-newline continuations (mirroring its existing backward walk), so a grep's docs/ledger-notes operand on a continuation line is seen and the read scores union instead of the unsafe ledger-only mis-trace; SH_ASSIGN_RE's assignment-rhs binding widened the same way; full suite 591/0/11-expected-red. [id:e047]
