@@ -3599,3 +3599,7 @@ carve-out rather than discarding complete, verified work.
 refactor: none needed -- a scoped addition (one new regex, one new helper function, one new
 call-site branch) documented alongside the existing comment-masking rule it complements; no
 duplication introduced.
+
+## 2026-09-07 16:38 — executor (sonnet, relay-loop)
+
+Fixed ledger-shrink.py's @-marker prose-example hoist (id:8372): a `@manual`-family token quoted as an example in item prose no longer gets hoisted onto the head line; full suite 594/0/0-errored/8-expected-red. [id:8372]
