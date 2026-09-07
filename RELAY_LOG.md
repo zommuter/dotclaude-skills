@@ -3504,3 +3504,22 @@ Fixed id:5355 -- archive-done.sh's prior-commit branch no longer sweeps a same-s
 ## 2026-09-07 14:51 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review(8123): id:5355 verified green by independent negative control (spec untouched, reddens at exactly its 3 declared assertions, over-correction trap still passes); CLAUDE.md archive-done gotcha de-staled; c7dd escalated with measured 389-file magnitude; suite 590/0/12 [id:5355]
+
+## 2026-09-07 — executor (sonnet)
+
+Worked id:e047 -- `_sh_subject` in `tools/ledger-continuations.py` only walked BACKWARD
+across backslash-newline continuations (to find lines the matched one continues), never
+FORWARD (to find lines that continue the matched one). A grep whose pattern literal sits
+on the opening line and whose `docs/ledger-notes` operand sits on a continuation line
+therefore never saw that operand in its subject text, and the read was mis-traced
+`ledger`-only instead of `union`. Added a symmetric forward walk (capped like the
+existing backward one) that strips the trailing backslash and appends the continuation
+text before the subject is handed to `taint_of`. Also widened `SH_ASSIGN_RE`'s use in
+`_propagate` the same way via a new `_sh_join_continuation` helper, so a multi-line
+assignment's rhs is bound whole rather than truncated at the first physical newline --
+belt-and-braces with the subject fix, since both paths read the same truncated-rhs
+class of bug the item names. `tests/test_sh_assign_continuation_e047.sh` (roadmap:e047)
+now passes all three cases (A/B/C); full suite green, 591/0/11-expected-red.
+Friction: none.
+refactor: none needed -- both changes add a bounded lookahead alongside an existing
+one of the same shape, no new duplication.

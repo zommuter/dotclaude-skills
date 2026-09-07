@@ -432,6 +432,37 @@ def _split_args(line, open_idx):
     return [a.strip() for a in args]
 
 
+def _sh_join_continuation(lines, idx):
+    """Logical text of the shell statement starting at `lines[idx]`, joining any
+    backslash-newline continuations (id:e047).
+
+    `SH_ASSIGN_RE`'s rhs alternation -- a quoted string, `$(...)` with no `)` crossing, or
+    a bare non-space run -- ends at the first physical newline. A command substitution
+    like
+
+        outbullet=$(grep -rhF 'OUT of scope' "$ROADMAP" \\
+                                             "$ROOT/docs/ledger-notes")
+
+    is therefore read as though its second operand did not exist. This joins the
+    continuation lines into one string for MATCHING only; callers still bind at the
+    ORIGINAL line number, since that is where the assignment's name comes into scope.
+    A line with no trailing continuation returns itself unchanged (the common case),
+    so this is a pure widening, never a behaviour change for un-continued assignments.
+    """
+    j = idx
+    parts = [lines[j][1]]
+    # A literal trailing backslash continues the line; a trailing `\\` is an ESCAPED
+    # backslash (not a continuation) -- checked on the un-joined tail so escaping is
+    # judged per physical line, not against text already spliced in.
+    while parts[-1].endswith("\\") and not parts[-1].endswith("\\\\"):
+        j += 1
+        if j >= len(lines):
+            break
+        parts[-1] = parts[-1][:-1]
+        parts.append(lines[j][1])
+    return " ".join(p.strip() for p in parts)
+
+
 def _sh_tokens(text):
     """Whitespace tokens of a shell command, quotes kept intact."""
     out = []
@@ -655,13 +686,20 @@ class FileFlow:
                 if lb:
                     unit.argv[k] = unit.argv.get(k, set()) | lb
         funcs = {r.name: r for r in unit.regions}
-        for no, line in unit.lines:
+        for idx, (no, line) in enumerate(unit.lines):
             stripped = line.strip()
             if not stripped:
                 continue
             env = self._env_at(unit, no)
             if unit.lang == "sh":
-                for m in SH_ASSIGN_RE.finditer(line):
+                # SH_ASSIGN_RE's rhs alternation cannot cross a physical newline, so a
+                # backslash-continued assignment (id:e047) is joined into one logical
+                # string for MATCHING only -- the bind still lands on `no`, the line the
+                # assignment itself starts on, since that is where the name comes into
+                # scope. Un-continued lines pass through `_sh_join_continuation`
+                # unchanged (single-element join), so this never disturbs the common case.
+                assign_text = _sh_join_continuation(unit.lines, idx)
+                for m in SH_ASSIGN_RE.finditer(assign_text):
                     local = "local " in line or "declare " in line or "typeset " in line
                     self._bind(unit, no, m.group("n"),
                                self.taint_of(m.group("rhs"), env, unit), local)
@@ -741,6 +779,25 @@ class FileFlow:
                 k -= 1
                 continue
             break
+        # FORWARD continuation (id:e047): the matched line itself can be the one that
+        # trails a `\` -- e.g. `outbullet=$(grep -F 'pat' "$ROADMAP" \` continuing onto
+        # `                     "$ROOT/docs/ledger-notes")` -- and without this the
+        # trailing operand (often the very one that makes the read UNION-anchored) never
+        # enters the subject text at all. Symmetric with the backward walk above, capped
+        # the same way (line-number lookup, not an unbounded scan).
+        fwd = [text.rstrip()]
+        k = lineno + 1
+        while len(fwd) <= 3:
+            cur = fwd[-1]
+            if not (cur.endswith("\\") and not cur.endswith("\\\\")):
+                break
+            nxt = self.by_no.get(k)
+            if nxt is None:
+                break
+            fwd[-1] = cur[:-1]
+            fwd.append(nxt.strip())
+            k += 1
+        text = " ".join(fwd)
         return " ".join(parts + [text])
 
     def _code_subjects(self, lineno):
