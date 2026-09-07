@@ -3527,3 +3527,25 @@ one of the same shape, no new duplication.
 ## 2026-09-07 15:16 — executor (sonnet, relay-loop)
 
 Fixed id:e047 -- _sh_subject now walks forward across backslash-newline continuations (mirroring its existing backward walk), so a grep's docs/ledger-notes operand on a continuation line is seen and the read scores union instead of the unsafe ledger-only mis-trace; SH_ASSIGN_RE's assignment-rhs binding widened the same way; full suite 591/0/11-expected-red. [id:e047]
+
+## 2026-09-07 — executor (sonnet)
+
+Worked id:0176 -- `cited_by`'s surviving-text escape in `tools/ledger-continuations.py`'s
+`scan()` computed its "does this pattern also match something the ledger still holds
+afterwards" state as `rest = lines[:i+1] + lines[j:]`, i.e. this block removed and every
+OTHER candidate's body still sitting in place. A batch move is not modelled: when many
+blocks move together (the actual shape of every real migration), a pattern cancelled only
+by text in ANOTHER block that the same batch is also about to relocate is scored safe
+against a ledger state that will never exist. Measured live: `tracker/ledger-map.py:493`,
+the only genuine continuation-body consumer on this tree and the consumer whose existence
+justified the id:1447 untraced amendment, was silenced this way. Split `scan()` into a
+structural pass-1 (unchanged: no-id/foreign-id/unowned refusals, now collecting surviving
+candidates) and a pass-2 that runs `cited_by` for every candidate against ONE shared
+`batch_rest` -- the document with every candidate's body removed and everything else
+(head lines included) left standing, i.e. the state the batch actually leaves behind.
+`tests/test_cited_body_batch_state_0176.sh` (roadmap:0176) now passes all four cases
+(A mutually-cancelling pair reported, B site named, C unread block still moves, D
+single-block behaviour unchanged); full suite 592/0/10-expected-red.
+Friction: none.
+refactor: none needed -- the fix restructures scan() into its natural two passes rather
+than adding new logic; no leftover duplication.
