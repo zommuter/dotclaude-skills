@@ -3317,3 +3317,7 @@ Friction: id:64f9 is sized for many sessions, not one -- each rewrite needs a ca
 read of the item's own note to avoid changing what it means, so throughput per session is
 small by construction, not by mistake.
 refactor: none needed -- this unit only reworded ledger prose, no code touched.
+
+## 2026-09-07 07:36 — reconcile (auto/human, non-strong by design — id:c500)
+
+reconcile integrate: roadmap: shrink 3 over-budget ROADMAP.md titles (id:64f9 batch 1/many)
