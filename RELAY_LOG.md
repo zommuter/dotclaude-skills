@@ -3445,3 +3445,7 @@ Friction: none — the RED spec and acceptance were already fully specified in
 `docs/ledger-notes/b87b.md`.
 refactor: none needed — the fix is additive within the existing `snapshot_repo_state()`/
 breach-reporting shape; no new duplication introduced.
+
+## 2026-09-07 13:29 — executor (sonnet, relay-loop)
+
+id:b87b -- hermeticity backstop no longer flags the runner's own advancing relay branch as a leak; ref-classified breach messages; full suite 587/0/14-expected-red [id:b87b]
