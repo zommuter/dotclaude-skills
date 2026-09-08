@@ -211,7 +211,7 @@ e1="$(write line1_export_shape 'export const meta = { name: "x" };
 const q = await Promise.resolve(1);
 if (q) { return q; }')"
 workflow_node_check "$e1" \
-  || fail "(e1) the line-1-export + top-level await + top-level return shape was refused -- that is relay-loop.js'"'"'s own shape and every hardening change must leave it green"
+  || fail "(e1) the line-1-export + top-level await + top-level return shape was refused -- that is relay-loop.js's own shape and every hardening change must leave it green"
 pass "(e1) relay-loop.js's own minimal shape is still accepted"
 
 echo "OK: tests/test_workflow_check_hardening.sh"
