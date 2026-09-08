@@ -201,4 +201,4 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Done-check**: tests/test_relay_doctor_sees_manifest_gap_4839.sh green (a fixture install tree missing a declared non-script file; assert install-drift reports it, and assert todo-conformance's INERT warnings reach relay-doctor's own output); make test green.
   - **Context**: relay/scripts/relay-doctor.sh (the todo-conformance invocation around line 298, and the install-drift check)
 - [ ] [ROUTINE] **The parked `id:4d65` attempt is RED two ways: a silent-truncation defect in `ratify-queue.sh list`, and a typo in its own negative-case declaration.** -- detail: `docs/ledger-notes/95a3.md` <!-- relates:4d65 --> <!-- id:95a3 -->
-- [ ] [ROUTINE] 🔴 **URGENT -- repair the INSTRUMENT, not `relay-loop.js` (owner ruling 2026-09-08): the ~46 `node --check` guard sites need one shared Workflow-aware helper.** -- detail: `docs/ledger-notes/62c9.md` <!-- id:62c9 -->
+- [x] [ROUTINE] 🔴 **URGENT -- repair the INSTRUMENT, not `relay-loop.js` (owner ruling 2026-09-08): the ~46 `node --check` guard sites need one shared Workflow-aware helper.** -- detail: `docs/ledger-notes/62c9.md` <!-- id:62c9 -->
