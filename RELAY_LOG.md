@@ -3583,3 +3583,7 @@ refactor: none needed -- pure ledger-text edits via `md-merge.py update-ids`, no
 ## 2026-09-08 23:38 — executor (sonnet, relay-loop)
 
 id:64f9: shrank 4 of 46 over-budget item titles (8627, 0640, 83c2, 0220) in TODO.md, verified clean by roundtrip-validate.py; item stays open (42 remain, most needing real relocation work) [id:64f9]
+
+## 2026-09-09 00:09 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:4263 verified green (negative case machine-verified); REOPENED id:64f9, ticked+archived while its spec test was RED; filed id:963c (tick-guard) and corrected 3 stale `--all` auto-publish docs [id:4263,64f9,963c]
