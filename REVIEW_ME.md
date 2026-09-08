@@ -964,7 +964,9 @@ line) still returns non-zero, because `export`/`import` declarations are SyntaxE
 function body and `node --check` is a hard backstop. What degrades is the MESSAGE: the loud
 refusal naming the source file is replaced by a node error naming the temp path
 (`/tmp/tmp.XXXXXX.js:3`), which is precisely what assertions `(b2)`/`(c4b)` exist to prevent
-given that ~40 of the 50 call sites redirect stderr. The single construct for which a false green
+given that call sites redirect stderr (26 of 74 `workflow_node_check` invocations under
+`tests/`, measured here; the `id:62c9` note's "~40 of 48" counts differently and neither figure
+was re-derived for the other's method). The single construct for which a false green
 IS reachable is `import.meta` -- invisible to the regex (it requires whitespace after the
 keyword) and ACCEPTED by `node --check` inside an async function in a `.js` script (measured,
 rc=0). Latent: zero occurrences in `relay-loop.js`. Recorded in `docs/ledger-notes/8627.md`, not
