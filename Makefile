@@ -23,8 +23,10 @@ AGENTS_DIR := $(HOME)/.claude/agents
 # orphan (see the paragraph above); an unused definition is not free, it is a permanent
 # entry in the registry block of every delegated agent's preamble -- the very cost c3c1
 # exists to reduce. preamble-probe-exec is the one whose delta transfers to a future
-# `relay-implementer`; the wide/narrow pair only exists to split prompt cost from tool cost.
-AGENT_FILES := echo-runner.md preamble-probe-wide.md preamble-probe-narrow.md preamble-probe-exec.md
+# `relay-implementer` (now authored, and NOT covered by this expiry); the wide/narrow pair
+# only exists to split prompt cost from tool cost.
+AGENT_FILES := echo-runner.md relay-implementer.md \
+               preamble-probe-wide.md preamble-probe-narrow.md preamble-probe-exec.md
 
 meeting_FILES := SKILL.md format.md personas.md broker-mode.md cross-mode.md append.sh cost-of.sh \
                  find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
