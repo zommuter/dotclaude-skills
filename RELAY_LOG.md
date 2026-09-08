@@ -3799,3 +3799,18 @@ was the stale hardcoded "21" in `ledger-shrink.py`'s docstring.
 ## 2026-09-08 19:34 — strong-execute (claude-opus-5, fable-standin, relay-loop)
 
 hard id:8679 — committed tools/count-indented-ids.py; 11/21/10 reconciled as one population under two predicates at two commits; suite 604/0/8 [id:8679]
+
+## 2026-09-08 — executor (sonnet)
+
+Worked id:32ba — added the missing negative-case fixture (F) and its own machine-readable
+`# fails-against-mutation:` declaration to `tests/test_ledger_shrink_marker_grammar_2964.sh`,
+pinning the SHAPE-anchor half of the id:2964 fix independently of the quoted-example mask.
+Fixture F mirrors fixture C but drops the backticks, so `_MASK_QUOTED_MARKERS` (left `True`
+in the new mutation) cannot suppress it -- only `_MARKER_RE`'s refusal of `<`/`>`/`--` in the
+value stands between the bogus unbackticked `<!--` opener and a splice onto the head line.
+`python3 tests/verify-negative-cases.py --root . tests/test_ledger_shrink_marker_grammar_2964.sh`
+reports `green-now OK` / `red-there OK` for both declared cases. `make test`: 604 passed,
+1 failed (test_indented_id_population_8679.sh, pre-existing and unrelated -- reproduced
+identically on a clean stash of this worktree before my edit), 7 expected-red.
+Friction: none on sizing.
+refactor: none needed -- test-fixture-only addition, no production code touched.
