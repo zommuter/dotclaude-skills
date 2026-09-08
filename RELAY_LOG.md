@@ -3608,3 +3608,37 @@ duplication.
 ## 2026-09-09 00:19 — executor (sonnet, relay-loop)
 
 Fixed id:78e6: roadmap-lint.sh's item_detail_path() now takes the first match when a ledger line names its own detail note twice, so a real note is no longer reported DETAIL-POINTER-MISSING and its Acceptance clause is actually read; full suite 611 passed, 0 failed, 5 expected-red. [id:78e6]
+
+## 2026-09-09 -- reviewer (claude-opus-5), chain-end re-ask, run relay-20260908-231617-32609
+
+Trust-but-verify over relay-ckpt-20260909-0009..HEAD (one executor unit, id:78e6).
+`gaming-scan.sh`: clean (no DELETED_TEST / ADDED_SKIP / REMOVED_ASSERT). Resurrection,
+fixture-special-casing, faked-clean-tree, refactor-claim, `@owner-accepted` and
+`@owner-answered` provenance checks: all clean. Over-reach (§2d) against the item's own
+ratified Acceptance in `ROADMAP.archive.md:4665`: the diff is the narrowest possible fix
+(take the first newline-delimited match), not a superset.
+
+The one finding was in the DECLARATION, not the work: `make verify-negatives` reported
+that unit's own test VACUOUS, because its `# fails-against-rev: HEAD~1` had come to name a
+revision already containing the fix once the integrator added four commits. Re-pinned to
+`4d133c76ce48`, it reports `red-there OK` at the declared assertion, so **id:78e6 is
+verified green**. Its sibling `test_roadmap_lint_follows_pointer_e95b.sh` had rotted the
+same way (pinned to `8115c2ae73a8`). Guarded as **id:0801**: a moving rev is now a CONFIG
+ERROR, decided on the BASE ref before any `~`/`^` traversal.
+
+Also ticked **id:cb9a**, green since the 2026-09-08 reconcile but never ticked because the
+reconcile path does not reach `roadmap-tick.sh`; verified both directions (spec untouched
+since handoff; fails at (a) and (c) against `93c8cf46^`). Its siblings id:c655 / id:aa5e
+are correctly still RED and stay open.
+
+TIERS (review.md §3): `make lint` + `make test` GREEN (612 passed, 0 failed, 5
+expected-red); `make gaming-canary` GREEN (3/0); `make shard-canary` GREEN (6/0);
+`make verify-negatives` run on the 3 touched files, all `green-now` + `red-there` OK, and
+`--list` clean over the whole corpus (158 verifiable, 0 config errors under the new guard).
+No tier skipped. Reverse-handoff (§5b): the window added no unqualified open ledger items.
+`roadmap-lint`: 3 pre-existing WARNs, none from this window (DEAD-GATE id:540f + id:c179 on
+the unpromoted `b0b1`; NO-ACCEPTANCE-NO-TWIN id:da55) -- all surfaced to REVIEW_ME, none
+resolvable without a handoff/meeting call. Cross-ledger drift: clean.
+
+refactor: none needed -- one new pure predicate (`validate_rev_immutable`) modelled on the
+existing `validate_mutation_arg` sibling, plus its single call site.
