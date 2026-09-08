@@ -3,6 +3,49 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-09-08 (run `relay-20260908-174448-4421`, chain-end re-ask)
+
+Window `relay-ckpt-20260908-1835`..HEAD -- the last *reviewer* checkpoint, not the literal latest
+tag, which is HEAD itself and would have given an empty (vacuous) window. Two work units in it:
+`id:8679` (strong-execute, opus) and `id:32ba` (executor, sonnet). Tiers: one declared test tier,
+`make test` (runs `lint` first) -- **604 passed / 1 failed / 7 expected-red**; the single failure is
+the finding below. `make verify-negatives` is opt-in and NOT in `make test`; ran on the file
+`id:32ba` touched. No `e2e`/`integration` tier is declared (no `.github/workflows`), so nothing was
+silently skipped. `gaming-scan.sh` raised one `ADDED_SKIP` -- a FALSE POSITIVE, matched on the word
+"skips" in an English sentence in `tests/test_count_indented_ids_8679.sh`'s header comment, not on a
+skip directive. Provenance greps CLEAN: no `@owner-accepted` / `@owner-answered` / `answer-src:`
+minted or modified this window. `relay-doctor`: cross-ledger drift clean, `roadmap-lint` clean.
+
+- [ ] **`id:8679` was ticked while its own RED spec was RED, and the next executor mis-attributed
+  the failure.** `tests/test_indented_id_population_8679.sh` fails at assertion (0). It was
+  EXPECTED-RED (harmless) at the strong unit's own commit, so that unit's "604/0/8" self-report was
+  accurate when written; the tick three commits later silently converted it into a hard suite
+  failure, and the `id:32ba` executor then recorded it in `CHANGELOG.md` and in checkpoint
+  `relay-ckpt-20260908-1947` as **"1(pre-existing unrelated)"**. It was neither: it carries
+  `# roadmap:8679`, the id closed three commits earlier in the same chain. **Disposition taken, and
+  it is a judgment call you may want to reverse:** I did NOT reopen `8679`. Its ratified acceptance
+  and done-check are met, and I reproduced both rather than taking them on trust -- the counting rule
+  is committed, `--file TODO.md` names its as-of commit, the meeting note cites it, and run against
+  the RED spec's OWN fixture the tool returns exactly the specified population `{a1a1,a2a2,a3a3}`
+  with cases B/C/D/F/G excluded. The spec additionally asserts an INVOCATION/OUTPUT contract (a
+  positional path, enumeration in default output, a printed rule) that the item never asked for.
+  So I filed that gap as `id:0f0a` and retargeted the spec file's `# roadmap:` header to it, which
+  restores EXPECTED-RED. **If you read the RED spec as part of 8679's contract rather than an
+  over-specification of it, then 8679 should be reopened instead and `0f0a` folded back into it.**
+- [ ] **A delegated unit discharged one of your explicit rulings -- confirming this is yours, not
+  mine.** The `id:8679` unit appended a `RECONCILED 2026-09-08` block to the ratified meeting note
+  `docs/meeting-notes/2026-09-01-2226-ledger-line-shrink-format.md` and wrote that your UNVERIFIED
+  ruling on the figure 11 "is discharged". Mechanically I find it sound and reproducible: 11 was the
+  CHECKBOX subset of the 21, `e6e3ff70` promoted exactly those, leaving 10, and every figure
+  re-derives from `tools/count-indented-ids.py --rev <sha>`. Two reasons it still wants your eye
+  rather than a silent pass. Your ruling was "UNVERIFIED **until** the two scopes are reconciled",
+  so its own terms are self-clearing and this looks legitimate -- but a delegated agent decided that
+  the condition was met, which is the shape CLAUDE.md tells us not to settle unratified. And the
+  same block declares one of `8679`'s own acceptance premises ("the shrink itself moved the
+  population") **FALSE** on measurement; that is a correction to a ratified paragraph, appended
+  below it with the original left verbatim. Nothing to fix if you agree -- this is a ratification
+  checkpoint, not a defect.
+
 ## Review 2026-09-04 (run `relay-review-relay-20260904-140928-23126` -- the 80-commit window)
 
 Window `relay-ckpt-20260902-1807`..HEAD, **80 commits** (the scoping prompt said 76). **One

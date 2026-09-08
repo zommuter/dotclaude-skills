@@ -1,7 +1,23 @@
 #!/usr/bin/env bash
-# roadmap:8679
+# roadmap:0f0a
 #
 # RED SPEC (authored by relay handoff C3, not implemented here).
+#
+# RETARGETED 2026-09-08 by the review of run relay-20260908-174448-4421, from `roadmap:8679`
+# to `roadmap:0f0a`. id:8679's own acceptance and done-check were MET and independently
+# reproduced by that review -- the counting rule is committed as `tools/count-indented-ids.py`,
+# it names its as-of commit, and `docs/meeting-notes/2026-09-01-2226-ledger-line-shrink-format.md`
+# cites it -- so 8679 stays closed. What this file additionally asserts is an INVOCATION and
+# OUTPUT contract (a positional ledger path, enumeration in DEFAULT output, a printed counting
+# rule) that the item itself never required, and the delivered tool does not honour: it dies at
+# assertion (0) below. Left pointing at a CLOSED item this file was a hard suite failure that
+# the next executor then mis-attributed as "pre-existing unrelated"; pointing at the OPEN seam
+# it is EXPECTED-RED, which is what a RED spec for unbuilt work is supposed to be.
+#
+# The PREDICATE this file encodes is already satisfied -- the review ran the tool against the
+# very fixture below and got exactly {a1a1,a2a2,a3a3}, so cases B/C/D/F/G discriminate as
+# specified. Do NOT weaken an assertion to close id:0f0a; change the tool, or, for an
+# assertion genuinely superseded, amend it HERE with a written reason.
 #
 # WHY THIS ITEM GETS A TEST AT ALL, since it is a MEASUREMENT item and the obvious
 # reading is that a measurement cannot be a test. It is testable because the item's own
