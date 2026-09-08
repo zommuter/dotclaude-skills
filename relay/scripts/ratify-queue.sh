@@ -384,6 +384,54 @@ _verify_pending() {
   done <<< "$targets"
 }
 
+# ── id:4d65 self-verification for `list` (seam of id:7408) ──────────────────────────────
+# $1 path, $2 merged, $3 ckpt, $4 pending (comma-separated, may be empty).
+# Read-only: quietly asks whether the remote(s) already carry this PENDING entry's merge,
+# WITHOUT mutating the queue (`list` never writes — `resolve` remains the only writer, per
+# the file header). Returns 0 if landed, nonzero otherwise — an unverifiable push (missing
+# path, unreachable remote, an ambiguous multi-remote legacy record) is deliberately treated
+# the SAME as not-landed (id:f5d9(a)'s fail-closed rule), so a self-verify `list` can never
+# claim more than it actually confirmed.
+#
+# DELIBERATELY NOT a bare call into `_verify_pending` (which this function otherwise
+# duplicates the shape of): that helper's internal `res="$(_verify_remote ...)"` relies on
+# `set -e` ABORTING the function the instant that assignment fails, to skip the rest of the
+# loop and the trailing `printf`. Per the bash manual, a function's `-e` is ignored for the
+# ENTIRE duration of a call made from a position whose own failure doesn't matter — the
+# condition of `if`, or the left side of `&&` — and this is exactly how `list`'s per-row
+# check must be written (`[ status = pending ] && _list_self_verify_landed ...`). Called
+# from there, `_verify_pending`'s internal abort silently does NOT fire: execution falls
+# through past the failed assignment to the `printf`/loop-continuation and the function
+# returns 0 regardless of the real verdict — confirmed by tracing it live (rc=0 with a NOT
+# LANDED message already on stderr). So this checks each remote's exit status EXPLICITLTY,
+# right after the assignment that produced it, rather than depending on an abort that this
+# call site structurally cannot receive.
+#
+# swallow-ok: `_verify_remote` is LOUD by design elsewhere (its job there is to explain a
+# refusal to a human running `resolve`) — but here it runs once per pending row just to
+# decide whether to still call the row pending, and "not landed" is the ROUTINE, expected
+# outcome for every entry that is genuinely still outstanding. Surfacing that stderr noise
+# on every plain `list` would drown the one thing `list` exists to show.
+_list_self_verify_landed() {
+  local path="$1" merged="$2" ckpt="$3" pending="$4"
+  local targets t res rc
+  if [ -n "$pending" ]; then
+    targets="$(printf '%s' "$pending" | tr ',' '\n')"
+  else
+    # legacy record (pre-id:4d44), no per-remote knowledge — single default-remote check,
+    # same fallback `_verify_pending` itself uses.
+    res="$(_verify_remote "$path" "$merged" "$ckpt" "" 2>/dev/null)"; rc=$?
+    [ "$rc" -eq 0 ] && [ -n "$res" ]
+    return $?
+  fi
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
+    res="$(_verify_remote "$path" "$merged" "$ckpt" "$t" 2>/dev/null)"; rc=$?
+    [ "$rc" -eq 0 ] && [ -n "$res" ] || return 1
+  done <<< "$targets"
+  return 0
+}
+
 cmd="${1:-}"; shift || true
 
 case "$cmd" in
@@ -422,6 +470,24 @@ case "$cmd" in
       [ -n "${lineno:-}" ] || continue
       [ "$show_all" = 1 ] || [ "$status" = pending ] || continue
       [ -z "$filter_repo" ] || [ "$repo" = "$filter_repo" ] || continue
+
+      # id:4d65 (seam of id:7408) — a PENDING entry whose remote already carries the merge
+      # (the owner pushed by hand without ever running `resolve`) is a false "still
+      # outstanding" report. Self-verify it here, read-only, and treat it as landed for
+      # DISPLAY purposes only — the stored record is untouched; `resolve` remains the only
+      # writer (file header).
+      self_landed=0
+      if [ "$status" = pending ] \
+        && _list_self_verify_landed "$path" "$merged" "$ckpt" "$pending"; then
+        self_landed=1
+      fi
+      # Under the default (non---all) view a self-verified-landed entry is excluded
+      # entirely, exactly like a resolved one — it is not pending any more, and it was
+      # never actually marked resolved so it must not appear as though it were.
+      if [ "$self_landed" = 1 ] && [ "$show_all" != 1 ]; then
+        continue
+      fi
+
       count=$(( count + 1 ))
       if [ "$fmt" = tsv ]; then
         # id:99b7(b) — the TSV feeds /relay human's backlog. A CLOSED entry (resolved or
@@ -429,6 +495,9 @@ case "$cmd" in
         # --all; emitting it would put a "still needs an owner push" row in front of the
         # owner for a merge that will never be pushed.
         [ "$status" = pending ] || { count=$(( count - 1 )); continue; }
+        # id:4d65 — nor is a self-verified-landed one: the remote already carries the
+        # merge, so a "still need an owner push" box would be actively wrong.
+        [ "$self_landed" != 1 ] || { count=$(( count - 1 )); continue; }
         # gather-human-backlog.sh column contract: repo \t path \t kind \t box_summary
         # id:4d44 per-remote: when the record names its pending remotes, the box must name
         # them too — "did NOT push" is false for a unit that already published to its LAN
@@ -443,7 +512,13 @@ case "$cmd" in
       else
         printf '%-28s %-22s %-12s ids=%-24s bump=%-8s age=%s\n' \
           "${ckpt:--}" "$repo" "${merged:0:12}" "${ids:--}" "${bump:-none}" "$(_age "$ts")"
-        if [ "$show_all" = 1 ] && [ "$status" != pending ]; then
+        if [ "$show_all" = 1 ] && [ "$status" = pending ] && [ "$self_landed" = 1 ]; then
+          # id:4d65 — under --all, a self-verified-landed PENDING entry is shown (never
+          # vanished) but distinguishable: it is not yet marked resolved, so it must not
+          # read like a plain outstanding pending row.
+          printf '%-28s   ^ status=pending -- self-verified LANDED: the remote already carries %s (owner has not run `resolve` yet)\n' \
+            "" "${merged:0:12}"
+        elif [ "$show_all" = 1 ] && [ "$status" != pending ]; then
           # id:99b7(b) — a RETIRED entry is closed WITHOUT the remote carrying it, so the
           # status alone is not enough: print the recorded reason right beside it, or the
           # listing reads identically to a genuine, verified resolve.

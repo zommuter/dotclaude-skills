@@ -285,9 +285,22 @@ out="$("$RQ" resolve "$CK2" --allow-missing-tag 2>&1)"; rc=$?
 # 6. MALFORMED RECORDS ARE SURFACED, NEVER SKIPPED.
 # ─────────────────────────────────────────────────────────────────────────────
 Q="$T/mal.jsonl"; export RELAY_RATIFICATION_QUEUE="$Q"
+# The valid neighbour must be GENUINELY PENDING -- a commit the remote does NOT carry.
+# id:4d65 made `list` self-verify each pending entry against its remote and exclude one the
+# remote already has, so reusing $M1b/$CK1b here (pushed at the section-4 `push --follow-tags`
+# above) made this assertion test the wrong thing: the entry vanished because the FEATURE
+# correctly hid a landed record, not because a malformed line suppressed it. Mint an unpushed
+# commit instead, so "a bad line must not suppress the good ones" is what is actually pinned.
+echo neighbour > "$R1/pending-neighbour"
+git_q -C "$R1" add -A
+git_q -C "$R1" commit -m unpushed-neighbour
+M1c="$(git -C "$R1" rev-parse HEAD)"
+CK1c="relay-ckpt-20260821-0945"
+git_q -C "$R1" tag -a -m ckpt "$CK1c"
+# deliberately NOT pushed -- that is the point
 {
   printf '%s\n' 'this is not json at all'
-  record alpha "$R1" "$M1b" "$CK1b"
+  record alpha "$R1" "$M1c" "$CK1c"
   printf '%s\n' '{"kind":"ratification-pending","repo":"gamma","status":"pending"}'
   printf '%s\n' '{"kind":"something-else","repo":"delta"}'
 } > "$Q"
@@ -299,7 +312,7 @@ n_mal="$(grep -c '^MALFORMED:' <<< "$out")"
 [[ "$n_mal" -eq 3 ]] \
   && pass "all 3 bad records are named individually on stderr (unparseable, missing fields, unknown kind)" \
   || fail "expected 3 MALFORMED lines, got $n_mal:"$'\n'"$out"
-grep -q "$CK1b" <<< "$out" \
+grep -q "$CK1c" <<< "$out" \
   && pass "the VALID neighbour is still listed alongside the malformed report" \
   || fail "a malformed line suppressed the valid entries — silent truncation"
 
