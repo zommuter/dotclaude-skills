@@ -3,115 +3,120 @@
 Point-in-time snapshot for the next session. Durable detail lives in the ledger items and
 notes cited below -- read those; do not trust this doc if it disagrees with them.
 
-## READ THIS FIRST: use the custom agent definitions
+## Can the pool be run again? YES -- verified, not assumed
 
-**A newly installed agent definition is NOT visible to an already-running session** -- the
-registry is read once at startup, and dispatching an unregistered type fails with
-`Agent type '<name>' not found`. This session hit that, installed the definitions, and only
-after a restart could use them. So: `make install-agents` does not activate anything; a
-restart does.
+Checked at handover, all green:
 
-Three definitions are live and repo-managed (`agents/`, `AGENT_FILES` in the Makefile,
-`make install-agents`, `make status-agents`):
+| Precondition | State |
+|---|---|
+| `make test` | **609 passed, 0 failed, 0 errored, 5 expected-red** |
+| Working tree | clean, pushed (`eeead92e`) |
+| Parked orphans, all own repos | **0** |
+| Stranded branches | **0** |
+| Relay worktrees on disk | **0** |
+| Live claims | **0** |
+| Live pools | none (only the non-pool `discovery-producer` heartbeat) |
+| `ratification_pending` | **0** |
 
-| Type | Purpose | Use it for |
-|---|---|---|
-| `echo-runner` | minimal prompt, `tools: Bash`, haiku | mechanical one-command dispatch; has a live consumer in `mechanical-proxy.py` |
-| `preamble-probe-wide` | minimal prompt, ALL 21 default tools, sonnet | MEASUREMENT ONLY -- not for real work |
-| `preamble-probe-narrow` | minimal prompt, Bash only, sonnet | MEASUREMENT ONLY -- not for real work |
-| `preamble-probe-exec` | minimal prompt, `Bash, Read, Edit, Write`, sonnet | MEASUREMENT ONLY -- the realistic executor set |
+Run `/relay --intensive` (or plain `/relay`) as normal. The last run stopped cleanly via a
+targeted sentinel; nothing is wedged and no residue is left to trip over.
 
-**FIRST JOB OF THE NEXT SESSION: re-run the three probes.** They were repaired after the
-last measurement and a changed/added definition is invisible to the session that installed
-it, so the corrected split has never been taken. Dispatch each with the prompt
-`Reply with exactly the word OK.` and read the first-request context per the method at the
-foot of this doc. `default - wide` = system-prompt cost; `wide - exec` = the tool cost an
-executor could NOT avoid; `exec - narrow` = the rest.
+**One caveat that is NOT a blocker:** the `id:b54b` hermeticity guard false-fires while relay
+worktrees are live (`id:c132`/`id:b87b`). There are none right now, so a suite run today is
+trustworthy; during a pool run it may fire spuriously. Re-run once before believing it.
+
+## READ THIS FIRST: the custom agent definitions
+
+**A changed or newly installed agent definition is NOT visible to an already-running
+session** -- the registry is read once at startup, and dispatching an unregistered type
+fails with `Agent type '<name>' not found`. `make install-agents` does not activate
+anything; a restart does. This cost this session two measurement rounds.
+
+| Type | Purpose |
+|---|---|
+| `relay-implementer` | the trimmed executor definition (`id:c3c1` step 3); `Bash, Read, Edit, Write`, sonnet |
+| `echo-runner` | mechanical one-command dispatch; live consumer in `mechanical-proxy.py` |
+| `preamble-probe-wide` | MEASUREMENT ONLY -- all 21 default tools |
+| `preamble-probe-narrow` | MEASUREMENT ONLY -- Bash only |
+| `preamble-probe-exec` | MEASUREMENT ONLY -- the realistic executor set |
+
+**`relay-implementer` deliberately has NO `Skill` tool.** An earlier revision added it,
+reasoning that an executor needs `/relay executor` to load its contract. That premise is
+FALSE: `relay-loop.js:3192` sends every child an explicit SKILL COUNTERMAND (`id:9eb7`)
+because the Skill tool ignores the `executor` arg and injects the ~26.4k-token ORCHESTRATOR
+SKILL.md, which does not contain the contract. The contract is loaded with **Read**, from
+`~/.claude/skills/relay/references/executor-contract.md` (~5.5k). Do not re-add Skill.
+
+## FIRST JOB: re-run the three probes
+
+They were repaired after the last measurement and are invisible until a restart, so the
+corrected split has never been taken. Dispatch each with `Reply with exactly the word OK.`
+and read the first-request context (method at the foot of this doc).
+`default - wide` = system-prompt cost; `wide - exec` = the tool cost an executor cannot
+avoid; `exec - narrow` = the rest.
 
 **Do not trust any prompt-vs-tools split quoted anywhere before that run.** `Glob`, `Grep`
-and `TodoWrite` are NOT real tool names in this harness (Glob/Grep go through `Bash`;
-`TodoWrite` was superseded by `TaskCreate`/`TaskList` behind `CLAUDE_CODE_ENABLE_TASKS`),
-so the original probe declared 11 tools of which only 8 resolved, against a real roster of
-21.
-
-The two probes are instruments, not workers. Their bodies say "Reply with exactly the word
-OK". Do not dispatch real tasks to them.
-
-**What is NOT yet built: `relay-implementer`.** That is the actual trimmed executor
-definition, and authoring it is blocked on an OWNER DECISION, not on effort -- see below.
+and `TodoWrite` are NOT real tool names in this harness, so the original probe declared 11
+tools of which only 8 resolved, against a real roster of 21.
 
 ## What LANDED this session
 
-- **`id:c3c1` step (1) DISCHARGED -- the preamble trim mechanism is PROVEN.** The owner's
-  2026-08-22 ruling was "prove the shrink first, cheaply, before migrating"; nothing had ever
-  exercised it. **The result that stands**, matched-model haiku, real default dispatch vs real
-  custom definition: **54,844 -> 29,796 = 25,048 tok saved, 45.7%.** A custom agent definition
-  roughly halves the preamble. Sonnet default baseline for reference: **73,369**.
-- **RETRACTED, same session: the prompt-vs-tools SPLIT.** An in-session review found the
-  instruments invalid: `preamble-probe-wide` declared 11 tools where a default child receives
-  **21** -- missing `Skill` (which carries the whole skills catalogue), `Artifact` and
-  `Monitor` (largest schemas), and 6 MCP tools. So `default - wide` measured the system prompt
-  PLUS 13 tool schemas PLUS the catalogue, and the resulting "system prompt = 26,212 tok
-  (35.7%), tools = 6,717 (9.2%), a 4:1 prompt win" **must not be quoted**. The error flatters
-  the migration case, which is the dangerous direction. Corrective probes are in flight
-  (wide rebuilt to the literal 21-tool roster, plus a new `preamble-probe-exec` carrying the
-  realistic executor list). **Re-measure before quoting any split.**
-- **`id:77d9`** -- the delegated-subagent preamble is now **~82k, not the 58.6k banked by
-  `id:c3c1`/`id:10dc`**: ~40% growth in 18 days. Sonnet wall measured at ~176.7k; fixed floor
-  ~95k (54% of the window before any repo work). 5 of 15 execute children died
-  `Prompt is too long` in run `relay-20260908-174448-4421` -- all Sonnet, 0 of 12 Opus, which
-  peaked ABOVE the Sonnet wall and survived.
-- **`id:3cc7`** -- `agent-failures` (`id:06a1`) reported 2 while 7 children failed; the sets
-  are DISJOINT. It counts mechanical hop failures and never child deaths, which land in the
-  handback stream looking like legitimate refusals.
-- **`id:e63d`** -- the `id:1432` repeat-handback alert keys on repo+verdict, not item, so
-  "wisenheimer: 4 handbacks" concealed that the SAME six ids were refused all three times.
-- **`id:0640`** -- `RELAY_STATUS.md` section-assignment is unstable across rounds (round 1
-  left the run's only dispatched unit in no section; round 6 left 12 different repos in
-  none). **Half of this item was RETRACTED in-session**: the claim that
-  `relay-events.jsonl` never lands a dispatch event was a true measurement and a false
-  inference -- rows land late and backdated via the `id:c8b6` off-critical-path flush.
-- **`id:4263`** -- `relay-reconcile.sh --integrate` pushes `git-lock-push.sh --ff-only --all`
-  and so auto-publishes to a PUBLIC remote, violating `id:f66e`. `integrate.sh` already
-  narrows per-remote via `lib-private-remote.sh` + the ratification queue (`id:4d44`); the
-  reconcile path never got the fix. A/B evidence: the pool withheld GitHub 5x the same day
-  while one reconcile published.
-- **`id:0220`** -- pool-driven mechanical daemon (move the TRIGGER, not the executor). The
-  `bash`-proxy variant of that idea is REFUTED by `id:e62c`; do not re-derive it.
-- **`id:3294`** (from zom.fi) and **`routed:e8e9`** (to loderite) filed/routed.
-- **Orphan reconcile**: `...execute-8372-0` integrated (`relay-ckpt-20260908-1754`) after
-  verifying its merge onto current main is green; `...execute-repo-0` discarded (it HANGS the
-  md-merge suite, measurement preserved in `be51.md`).
+- **`id:c3c1` step (1) DISCHARGED** -- the owner's 2026-08-22 "prove the shrink cheaply
+  before migrating" ruling, unexercised for three weeks. `echo-runner` at matched haiku:
+  **54,844 -> 29,796 = 25,048 saved, 45.7%.** The mechanism works. The prompt-vs-tools SPLIT
+  was measured, found invalid, and **retracted** -- see the probe note above.
+- **`id:c3c1` steps (3) and (4)** -- `agents/relay-implementer.md` authored on the owner's
+  ratified subset, and `EXECUTE_AGENT_TYPE` wired into `relay-loop.js`: off by default,
+  execute-lane only, fail-loud on a missing type. Adversarially reviewed; the key name
+  `opts.agentType` is CORRECT (the harness echoes it back in a real error), so it is not an
+  `id:d35a` no-op.
+- **`id:77d9`** -- the preamble is ~82k, not the 58.6k banked by `id:c3c1`/`id:10dc`: ~40%
+  growth in 18 days. Sonnet wall ~176.7k; fixed floor ~95k (54%). 5 of 15 execute children
+  died `Prompt is too long` in run `relay-20260908-174448-4421`, all Sonnet, 0 of 12 Opus.
+- **`id:3cc7`** -- `agent-failures` reported 2 while 7 children failed, disjoint sets. The
+  data is collected correctly (the Workflow `<failures>` block is complete); the status
+  write drops it, so the fix is plumbing, not instrumentation.
+- **`id:e63d`** -- the `id:1432` repeat-handback alert keys on repo+verdict, so it could not
+  express that wisenheimer refused the SAME six ids in all three handbacks.
+- **`id:4263`** -- `relay-reconcile.sh --integrate` pushes `--all` and auto-publishes to a
+  PUBLIC remote, violating `id:f66e`. **Escalated:** one such push also DRAINED the
+  `ratification_pending` queue (6 -> 0), because `ratify-queue.sh` self-verifies via
+  `git ls-remote`. The queue that exists to hold a public push for an owner decision was
+  cleared BY the unreviewed push. Fired three times tonight.
+- **`id:0640`, `id:0220`, `id:3294`, `id:4839` (REPO_KEY finding), `id:a0a8`** filed/routed.
+- **Reconcile swept clean.** Integrated `8372-0`, `45ff-0` (trustless-ai), `5ad9-0`,
+  `aa5e-0`. Discarded `64f9-0`, `c655-0`, `repo-0`, and the 09-05 hanging branch. Every
+  disposition was verified in a scratch worktree first, never on the strength of a stamp.
+- **Global `CLAUDE.md`**: two owner directives, on `zomni/claude` (NOT `main`) --
+  **don't install software** (inverted from which-installer; project-local `uv`/`pnpm`/`lake`
+  explicitly allowed), and the **btrfs CoW directive for Lean** (`~/src/leancow`).
 
 ## OPEN threads, priority order
 
-1. **OWNER DECISION -- which subset of the global `CLAUDE.md` a `relay-implementer` keeps.**
-   This is the only thing blocking the trim. `id:c3c1`'s own text warns that cutting the
-   wrong half "silently degrades agent quality in a way no test catches", and names the rules
-   that demonstrably produce good agent behaviour: no `sudo pamac`, the flock'd ledger
-   helpers, `Edit`-not-`sed -i`, destructive-op hygiene, verify-before-asserting. Do NOT
-   author the definition without that call.
-2. **The measured win does NOT reach the children that died.** Those were relay POOL execute
-   children, and the pool cannot dispatch a custom type -- `grep -c agentType
-   relay/scripts/relay-loop.js` = **0**. Parent-session `Agent` dispatches get the 26.2k with
-   no new plumbing; pool children need the step-(4) wiring, gated on `id:4313`. Do not
-   conflate the two.
-3. **Baseline gap, unexplained**: `id:77d9` measured pool Sonnet children at ~82k preamble;
-   this session's default `general-purpose` sonnet baseline is 73,369. ~9k apart, different
-   dispatch paths. The 26,212 saving is measured against 73,369 and its transfer to a pool
-   child is UNTESTED.
-4. **5 pending ratifications** on `dotclaude-skills` awaiting an owner push to GitHub
-   (ckpts `1804`, `1835`, `1934`, `1947`, `2042`) -- `ratify-queue.sh list`.
-5. **`...execute-64f9-0` still parked.** Do NOT integrate it: verified superseded -- it would
-   re-add three CLOSED+archived items to the live `TODO.md` and overwrite a more-developed
-   `37ea.md` note. Discard is the right disposition; it was left for the owner.
+1. **Re-run the probes** (above). Everything about sizing the trim waits on it.
+2. **`EXECUTE_AGENT_TYPE` is off by default and needs front-door threading.** The Workflow
+   sandbox has no `process.env`, so the env var only works if `/relay` reads it and passes
+   `args.EXECUTE_AGENT_TYPE`. Same shape as `POOL_WIDTH`; a forgotten thread means the knob
+   is silently off.
+3. **The fail-loud regex is unproven against a live rejection.** It matches all three real
+   error spellings found on disk, but a harness reword disarms it silently.
+4. **`executor-contract.md:229-243` tells children to prefer `Grep`/`Glob`/LSP** -- tools
+   that do not exist in this harness. Pre-existing; same fictional-name class that
+   invalidated the probe measurement.
+5. **`id:4263` is unfixed** and fires on every reconcile integrate.
 
-## Run state at handover
+## Corrections made this session -- do not rebuild on the superseded versions
 
-`/relay stop` was issued for run `relay-20260908-174448-4421` -- a TARGETED sentinel at
-`~/.config/relay/STOP.relay-20260908-174448-4421`. The pool drains in-flight children and
-integration debt, then returns with `stopReason: "user-stop"`. It had reached round 6:
-26 dispatched, 16 integrated, 14 handbacks, 7 real child failures.
+- `id:0640`'s events-feed half is **RETRACTED**: `relay-events.jsonl` is complete-but-
+  delayed (the `id:c8b6` off-critical-path flush), not lossy. The `RELAY_STATUS.md` half
+  stands and is wider than filed (12 of 59 unaccounted at round 6).
+- `id:c3c1`'s "gated on the `id:4313` do-not-modify directive" is **wrong twice over**: it is
+  not a standing gate (the item is closed), and it does not "say nothing about relay-loop.js"
+  (it says exactly that, verbatim). It is a **spent** time-bound directive -- "loderite is
+  running fine on it", 2026-07-30. Converting it into a permanent gate suppressed step (4)
+  for weeks.
+- `fa13`'s `[INTENSIVE - local-llm]` tag was **earned**, not inherited. `id:45ff` is the one
+  that was MIS-tagged (missing `[INTENSIVE]`); fixed in trustless-ai.
 
 ## Measurement method, so it is not re-derived
 
