@@ -3842,3 +3842,7 @@ duplication introduced.
 ## 2026-09-08 20:52 — executor (sonnet, relay-loop)
 
 id:09e4: mechanical-proxy now refuses a relay-mech-stdin fence on a multi-stage pipeline (admission was keyed to the last stage, delivery reached the first) -- loud mechanical_stdin_refused log, RED spec green, make test 605/0/7-expected-red [id:09e4]
+
+## 2026-09-08 21:54 — reconcile (auto/human, non-strong by design — id:c500)
+
+reconcile integrate: chore(relay): WIP UNVERIFIED residue auto-commit for worktree relay-20260908-174448-4421-execute-5ad9-0 (id:f272 commit-and-park; do not treat as reviewed)
