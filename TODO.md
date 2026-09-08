@@ -47,6 +47,7 @@
 - [ ] [INPUT - meeting] **Mechanize the keystone-unblock triage as a `/relay human` view (gate-graph fan-out ranking)** -- detail: `docs/ledger-notes/c3f6.md` <!-- id: --> <!-- id:c3f6 -->
 
 - [ ] [HARD] **Classify `[HARD]` into pool-executable vs human-decision vs human-hands — stop routing every HARD to "/meeting"** -- detail: `docs/ledger-notes/78ff.md` [HARD] [HARD — pool] [HARD — meeting] [HARD — decision gate] 🚧 [HARD — hands] [HARD — strong model] <!-- children:b466 --> <!-- id:78ff --> <!-- xledger-ok: ROADMAP relay/bash half closed (hard-lanes.md + emit_hard_lanes + test_hard_lane_buckets.sh); TODO umbrella stays open for the project_manager Python half (id:b466) + cross-repo lane back-fill of other own-repos -->
+- [ ] [ROUTINE] **`hard-lanes.md` documents the superseded lane vocabulary as current, and its own enforcers hard-deny it** -- detail: `docs/ledger-notes/1a50.md` <!-- relates:9ef7 --> <!-- relates:78ff --> <!-- id:1a50 -->
 
 - [ ] **Mechanization audit across ALL skills — replace LLM-judgment steps with deterministic scripts, even at the cost of more rigid structure** -- detail: `docs/ledger-notes/415b.md` <!-- id:415b -->
 - [ ] **[swallow-ban] `tests/test_no_silent_swallow.sh`** -- detail: `docs/ledger-notes/4347.md` <!-- id:4347 -->
