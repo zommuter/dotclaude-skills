@@ -10,6 +10,7 @@
 ## 2026-09-09
 
 - review: id:4263 verified green (negative case machine-verified); REOPENED id:64f9, ticked+archived while its spec test was RED; filed id:963c (tick-guard) and corrected 3 stale `--all` auto-publish docs (id:4263,64f9,963c)
+- Fixed id:78e6: roadmap-lint.sh's item_detail_path() now takes the first match when a ledger line names its own detail note twice, so a real note is no longer reported DETAIL-POINTER-MISSING and its Acceptance clause is actually read; full suite 611 passed, 0 failed, 5 expected-red. (id:78e6)
 
 ## 2026-09-08
 
