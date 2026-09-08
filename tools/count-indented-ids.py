@@ -124,7 +124,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description="Count ledger lines that are indented and carry their own id anchor "
                     "(id:8679). The counting rule is documented in this file's docstring.")
-    ap.add_argument("--root", default=".")
+    ap.add_argument("path", nargs="?", default=None,
+                    help="a single ledger path, e.g. TODO.md or /abs/path/TODO.md -- a "
+                         "positional synonym for `--root <dirname> --file <basename>`. "
+                         "Implies enumeration in the default (non-json) report, since this "
+                         "is the invocation a promote pass or a spec uses to see WHICH ids "
+                         "are in the population, not just how many.")
+    ap.add_argument("--root", default=None)
     ap.add_argument("--file", action="append", dest="files",
                     help="ledger to count (repeatable); default: the four live ledgers")
     ap.add_argument("--rev", default=None,
@@ -135,6 +141,16 @@ def main() -> int:
     ap.add_argument("--expect", type=int, default=None,
                     help="exit 2 unless the ADDRESSABLE total over all counted files is N")
     args = ap.parse_args()
+
+    positional_used = args.path is not None
+    if positional_used:
+        if args.root is None:
+            args.root = os.path.dirname(os.path.abspath(args.path)) or "."
+        if not args.files:
+            args.files = [os.path.basename(args.path)]
+        args.show_lines = True
+    if args.root is None:
+        args.root = "."
 
     root = os.path.abspath(args.root)
     files = args.files if args.files else DEFAULT_FILES
@@ -170,7 +186,10 @@ def main() -> int:
     if args.json:
         print(json.dumps(report, indent=2))
     else:
-        print("== indented lines carrying their own id anchor (id:8679) ==")
+        print("== indented lines carrying their own id anchor ==")
+        print("counting rule: INDENTED (^[ \\t]+), NOT FENCED (outside ``` blocks), "
+              "ANCHORED by exactly one <!-- id:XXXX --> not inside an inline-code span; "
+              "see this script's docstring for the full criteria and rationale.")
         print("as-of commit : {}".format(asof))
         for rel in files:
             d = report["files"][rel]
@@ -195,6 +214,7 @@ def main() -> int:
                   t["addressable"], t["addressable_checkbox"],
                   t["addressable"] - t["addressable_checkbox"],
                   t["unaddressable"], t["indented_anchored"]))
+        print("population: {} addressable".format(t["addressable"]))
 
     if args.expect is not None and args.expect != report["totals"]["addressable"]:
         print("DRIFT: expected addressable {}, measured {} (as-of {})".format(
