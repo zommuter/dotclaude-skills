@@ -3645,3 +3645,7 @@ id:62c9 execute: tests/lib-workflow-check.sh + 47 guard sites migrated; suite 59
 ## 2026-09-08 09:35 — reviewer (claude-opus-5)
 
 review id:62c9: VERDICT sound-with-caveats; suite 596/0/0/8 re-derived, gaming-scan clean, negative case now EXECUTES (7c82 carve-out expired); files id:1b0e + id:e044, both reproduced independently by the integrator
+
+## 2026-09-08 09:58 — integrate (claude-opus-5)
+
+handoff C3 for id:1b0e/e044/ad67: one RED spec tests/test_workflow_check_hardening.sh; 3 strict-only false greens re-measured live
