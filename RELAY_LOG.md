@@ -3607,3 +3607,7 @@ Fixed ledger-shrink.py's @-marker prose-example hoist (id:8372): a `@manual`-fam
 ## 2026-09-07 17:00 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review(8123): REOPENED id:8372 -- its fix does not cover its own founding case (ee62 comma-list still hoists, reproduced); gaming-scan clean, spec never touched, 594/0/0/8-expected-red [id:8372]
+
+## 2026-09-08 08:59 — integrate (claude-opus-5)
+
+handoff C2+C3 for id:62c9: re-lane to [ROUTINE] + RED spec tests/test_workflow_node_check_62c9.sh; helper unimplemented by design
