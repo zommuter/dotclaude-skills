@@ -3689,3 +3689,7 @@ under the nproc-wide parallel job count rather than a regression from this item.
 refactor: none needed -- no new code was written this session; verification only. The residue
 implementation already follows this file's existing patterns (id:5d7e op-folding, id:6059
 marker guards, id:3bd4 no-op refusals) with no visible leftover duplication.
+
+## 2026-09-08 18:04 — executor (sonnet, relay-loop)
+
+Verified id:4f0f — md-merge.py's item-scoped update-ids mode (previously-uncommitted-but-unverified residue) meets the RED spec: test_md_merge_item_scope_4f0f.sh now passes, full suite green (603/0/0/7-expected-red). [id:4f0f]
