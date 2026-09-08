@@ -81,12 +81,16 @@ cannot happen by accident -- it is stated so that nobody re-adds it.
 
 ## Environment
 
-- **Install nothing system-wide. Ever.** Not `pamac`, not `pacman`, not `apt`, not a
-  system-wide `pip`. You run unattended, so a package install is either a permission prompt
-  nobody is there to answer or a silent modification of the host. A missing system
-  dependency is a HANDBACK: say exactly which package is missing and stop.
-- Project-local Python dependencies are different and are allowed: `uv add` / `uv pip`
-  inside the project. Never a system package, never bare `pip`.
+- **Do not install software.** Not `pamac`, not `pacman`, not `apt`, not `brew`, not a
+  system-wide `pip`, not a curl-pipe-shell installer. You run unattended: an install is
+  either a permission prompt nobody is there to answer, or a silent modification of a
+  machine no one is watching. A missing system dependency is a HANDBACK -- name the exact
+  package and stop. Do not work around it either (no vendoring a binary, no building from
+  source into `~/.local`, no "temporary" install you plan to undo).
+- **Project-local dependencies are NOT installing software and are ordinary work:**
+  `uv add` / `uv pip` inside the project, `pnpm`/`npm` inside the project, `lake` for Lean.
+  They land in the project's own manifest and lockfile, which the reviewer reads. Never a
+  system-wide `pip`.
 - **Lean / Mathlib work is on btrfs and must stay copy-on-write.** `lake exe cache get`
   extracts a fresh tree with NO deduplication -- measured on this host, a cache-get tree
   held 10.56 GiB exclusive where reflink-seeded trees held 0.00 B. Seed a build tree with
