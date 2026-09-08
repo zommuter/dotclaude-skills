@@ -250,6 +250,68 @@ list_stranded() {
   done < <(git -C "$r" for-each-ref --format='%(refname:short)' 'refs/heads/relay/*')
 }
 
+# Where relay worktrees live. Overridable for tests; the default is the convention the
+# orchestrator and worktree-retire.sh already use.
+RELAY_WORKTREE_CACHE="${RELAY_WORKTREE_CACHE:-$HOME/.cache/relay/worktrees}"
+
+# list_retirable <repo-path> <repo-name> — id:ba95, REPORT-ONLY. Echo `<kind>\t<detail>` for
+# relay residue that carries NO unmerged work and therefore has exactly one mechanical
+# disposition: `worktree-retire.sh --expect-merged`.
+#
+# WHY THIS IS NOT list_stranded's JOB, and must not be folded into it. `list_stranded` reports
+# only a branch "which carries commits the trunk does not have" — its whole purpose is work
+# that could be LOST, and its recommended disposition is the destructive `--discard`. A MERGED
+# branch has nothing to lose, so it is excluded there BY DESIGN. Keeping the two groups
+# separate is what lets a reader act without re-deriving which case they are in: STRANDED
+# needs a judgement, RETIRABLE needs a command.
+#
+# The cost of leaving this unreported is not lost work — it is that the residue looks exactly
+# like hidden work until someone spends an investigation proving it is not. Observed
+# 2026-09-08 on `relay/relay-20260907-100619-27900-execute-4839-0`: a clean, fully-merged
+# worktree that every sweep correctly ignored and which therefore read as a missed orphan.
+#
+# Two kinds:
+#   worktree  a registered worktree under the relay cache whose branch is merged into trunk
+#   leftover  a directory under the cache that NO worktree registration mentions
+list_retirable() {
+  local r="${1:?list_retirable <repo-path> <repo-name>}" rname="${2:?}"
+  local trunk wt_path wt_branch br registered="" cache_dir d
+  trunk="$(main_ref "$r")" || return 0
+
+  # (1) registered worktrees under the cache whose branch is fully merged into trunk.
+  while IFS= read -r line; do
+    case "$line" in
+      worktree\ *) wt_path="${line#worktree }" ;;
+      branch\ *)
+        wt_branch="${line#branch }"
+        br="${wt_branch#refs/heads/}"
+        registered="$registered$wt_path"$'\n'
+        case "$br" in
+          "$ORPHAN_NS"*) ;;                                   # parked ones are another listing
+          relay/*)
+            case "$wt_path" in
+              "$RELAY_WORKTREE_CACHE"/*)
+                # Merged == nothing to lose. Unmerged belongs to list_stranded, not here.
+                if [ "$(git -C "$r" rev-list --count "$trunk..$br" 2>/dev/null || echo 1)" -eq 0 ]; then
+                  printf 'worktree\t%s\t%s\n' "$br" "$wt_path"
+                fi
+                ;;
+            esac
+            ;;
+        esac
+        ;;
+    esac
+  done < <(git -C "$r" worktree list --porcelain 2>/dev/null || true)
+
+  # (2) directories under this repo's cache that no registration mentions.
+  cache_dir="$RELAY_WORKTREE_CACHE/$rname"
+  [ -d "$cache_dir" ] || return 0
+  for d in "$cache_dir"/*; do
+    [ -d "$d" ] || continue
+    grep -qxF "$d" <<< "$registered" || printf 'leftover\t%s\t%s\n' "(no registration)" "$d"
+  done
+}
+
 if [[ $all_repos -eq 1 && "$action" == "list" ]]; then
   total_orphans=0
   while IFS=$'\t' read -r rname rpath; do
@@ -296,7 +358,31 @@ if [[ $all_repos -eq 1 && "$action" == "list" ]]; then
   if [[ "$total_stranded" -gt 0 ]]; then
     echo "$total_stranded stranded branch(es) — NOT auto-disposable here; inspect, then salvage or park."
   fi
-  log "--all list stranded=$total_stranded"
+
+  # id:ba95 — RETIRABLE RESIDUE, reported in its OWN group. Deliberately separate from
+  # STRANDED above: that group is unmerged work needing a human judgement and a destructive
+  # disposition, this one is merged residue with a single mechanical command. Folding them
+  # would force every reader to re-derive which case they are looking at.
+  total_retirable=0
+  while IFS=$'\t' read -r rname rpath; do
+    [[ -n "$rname" && -n "$rpath" ]] || continue
+    git -C "$rpath" rev-parse --git-dir >/dev/null 2>&1 || continue
+    while IFS=$'\t' read -r kind detail path; do
+      [[ -n "$kind" ]] || continue
+      if [[ "$total_retirable" -eq 0 ]]; then
+        echo ""
+        echo "RETIRABLE RESIDUE (merged or unregistered — no unmerged work, id:ba95):"
+        echo "  disposition: worktree-retire.sh <repo> <worktree-dir> <branch> --expect-merged"
+      fi
+      printf '%s\t%s\t%s\t%s\n' "$rname" "$kind" "$detail" "$path"
+      total_retirable=$((total_retirable+1))
+    done < <(list_retirable "$rpath" "$rname")
+  done < <(own_repos)
+  if [[ "$total_retirable" -gt 0 ]]; then
+    echo "$total_retirable retirable item(s) — no work at risk; retire with worktree-retire.sh --expect-merged."
+  fi
+
+  log "--all list stranded=$total_stranded retirable=$total_retirable"
   exit 0
 fi
 
