@@ -3676,3 +3676,78 @@ script's argument handling and report formatting; no new duplication introduced.
 ## 2026-09-09 01:05 — executor (sonnet, relay-loop)
 
 fix(count-indented-ids): satisfy id:8679's own RED spec (id:0f0a) -- positional path arg, printed counting rule, labelled population count [id:0f0a]
+
+## relay(review): id:0f0a verified green — chain-end re-ask, run `relay-20260908-231617-32609` (2026-09-09)
+
+**Window.** The literal latest tag is `relay-ckpt-20260909-0105`, which is HEAD itself, so
+`$LAST..HEAD` is EMPTY and reviewing it would have been vacuous. Reviewed instead against the
+last *reviewer* checkpoint `relay-ckpt-20260909-0053`..HEAD -- 6 commits, one executor unit
+(`id:0f0a`), touching `tools/count-indented-ids.py`, `tests/test_indented_id_population_8679.sh`
+and the derived ledgers. Stating the substitution explicitly because a "0 commits, nothing to
+review" report and a genuine clean pass are indistinguishable otherwise.
+
+**Tiers (§3).** One declared test tier exists: `make test` (target `test: lint`, so `lint` runs
+first) -> `tests/run-tests.sh`. No `.github/workflows` and no other `test*` target, so no
+`e2e`/`integration` tier was silently skipped. Measured **613 passed, 0 failed, 0 errored, 4
+expected-red**, run twice with identical totals. The 4 expected-red each belong to a still-OPEN
+roadmap item and are therefore legitimate specs, not excused failures:
+`test_conformance_baseline_installed_4839.sh` and `test_conformance_baseline_repo_key_4839.sh`
+(`id:4839`), `test_dryround_single_definition_6217.sh` (`id:6217`),
+`test_title_rewrite_batch_acceptance_64f9.sh` (`id:64f9`). `make verify-negatives` is opt-in and
+NOT part of `make test`; not run this pass -- the unit touched no `# fails-against` declaration.
+
+**`id:0f0a` -- VERIFIED GREEN, and the verification is the point, because the executor edited the
+very RED spec it was measured by.** `tests/test_indented_id_population_8679.sh`'s `COUNTER`
+default moved from `tools/count-indented-ids.sh` (a path that has never existed -- the spec's own
+header calls it "the spec's proposal") to the delivered `tools/count-indented-ids.py`. That is a
+spec-file edit inside the diff under review, so it was not taken on trust. Resurrection check
+(§2b.1): the ORIGINAL file at `relay-ckpt-20260909-0053`, with only `INDENTED_ID_COUNTER`
+redirected to the delivered tool and nothing else altered, runs **all six assertions PASS** against
+the new implementation -- population enumerated as exactly `{a1a1,a2a2,a3a3}`, labelled count 3,
+counting rule stated, as-of commit named, add-one-line delta correct, byte-identical repeat runs.
+The edit changed the INPUT and left every assertion intact, which is precisely the `id:3b02`
+negative-control shape, not a weakened spec. Both done-check clauses hold:
+`test_indented_id_population_8679.sh` PASS and `test_count_indented_ids_8679.sh` STAYS PASS.
+
+**Over-reach (§2d).** `id:0f0a`'s cited source is the previous review's REVIEW_ME finding plus the
+RED spec file itself, both re-read directly rather than via the ROADMAP restatement. Three gaps
+were authorized -- positional path argument, enumeration in DEFAULT output, printed counting rule
+-- and the diff delivers exactly those three plus the labelled `population: N addressable` line
+that assertion (2) requires. NOT a superset: the `show_lines` implication is guarded by
+`positional_used`, so existing `--root`/`--file` callers are unaffected, and `--root`'s default
+moves from `"."` to `None` only to be re-defaulted to `"."`. The item's own standing instruction
+("the PREDICATE is already correct and must NOT change") is honoured -- the counting logic is
+untouched and both historical figures (21 and 10, `docs/ledger-notes/8679.md`) still reproduce.
+
+**Gaming + provenance: CLEAN.** `gaming-scan.sh` over the window: no `DELETED_TEST`, no
+`ADDED_SKIP`, no `REMOVED_ASSERT` (exit 0). No `@owner-accepted:`, `@owner-answered:` or
+`<!-- answer-src:` introduced by any commit in the window (§2b.7/§2b.9), and no diff hunk removes
+or modifies a line already carrying `@owner-answered` (§2b.10). No `[host:...]` tag exists in this
+`ROADMAP.md`, so the §2c host gate does not apply. `refactor:` line present in the self-report and
+NOT contradicted by the diff (§2b.6): a 24-line argparse-and-report change to a single-purpose
+script, with no duplicated block the acceptance implies unifying.
+
+**One self-report inaccuracy, recorded rather than flagged as gaming.** The executor's paragraph
+ends "613 passed, 0 failed, 0 expected-red". Measured here twice: 613 / 0 / 0 errored / **4**
+expected-red. It cannot be a regression -- the passed count is identical at both ends, so no test
+flipped -- and all four belong to items (`4839`, `6217`, `64f9`) that were already open at the
+executor's own commit. It is a transcription slip in the tier line, in the exact field §3(c) makes
+load-bearing, so it is on the record; nothing is reopened for it.
+
+**Ledger re-derivation (§5) -- no changes were warranted, stated with its evidence.** Nothing to
+close: the window's only item was already ticked and archived by the integrator, and the
+cross-ledger check confirms no twin was left behind. `roadmap-lint.sh`: exit 0 with 3 pre-existing
+WARNs (`id:540f` and `id:c179` DEAD-GATE on `b0b1`, `id:da55` NO-ACCEPTANCE-NO-TWIN) -- the same
+three the previous review adjudicated and left alone for the same reason, that promoting `b0b1`
+is handoff C2's lane call and must never be guessed. `orphan-scan.sh --shipped`: **zero** genuine
+TICK-READY and zero GATE-STALE verdicts (the three lines matching those words are item TITLES that
+happen to name the classes -- `id:4425`, `id:535d`, `id:e1bb`). `relay-doctor`: cross-ledger drift
+clean, roadmap grammar clean, no mechanical orphan. §5b reverse-handoff: `git diff` over the window
+adds ZERO new `- [ ]` lines to `TODO.md`/`ROADMAP.md`, so there is nothing unqualified to size.
+Contract pointer `v18` == canonical `v18` in `relay/references/executor-contract.md`. No REVIEW_ME
+box added -- every finding available was already open from the previous pass, and REVIEW_ME already
+carries 58 open boxes against a stated `budget: 15 min` / ~10-box cap, so adding a duplicate would
+cost more than it records.
+
+`routine_open` after re-derivation: **10** open `[ROUTINE]` items (4 of them gated:
+`540f`/`c179` on `b0b1`, `554b` on `540f`, `d4ca` on `33b2`/`93ac`).
