@@ -158,7 +158,6 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## 2026-09-02 shrink-programme gaps (handoff C2, run relay-handoff-019adc92)
 
-- [x] [HARD] **Reconcile the indented-id count before any promote pass -- 11 (ruled) vs 21 (measured) vs 10 (measured now).** -- detail: `docs/ledger-notes/8679.md` <!-- relates:2d17 --> <!-- id:8679 -->
 - [ ] [INPUT - decision] **Section preamble prose has no home in the three-shape grammar; 154 ROADMAP lines are refused with nowhere to go.** -- detail: `docs/ledger-notes/800f.md` <!-- relates:2d17 --> <!-- id:800f -->
 - [ ] [INPUT - decision] **The archive stub is written AFTER the id marker, which the grammar forbids; 2 writers and 7 tests pin it.** -- detail: `docs/ledger-notes/d05d.md` <!-- relates:2d17 --> <!-- id:d05d -->
 - [ ] [INPUT - decision] **Move ROADMAP.md continuation lines into per-id notes -- under the ratified line grammar they are not large blocks to budget, they are INVALID.** -- detail: `docs/ledger-notes/40c0.md` <!-- gated-on:b048 --> <!-- relates:2d17 --> <!-- id:40c0 --> — 🚧 GATED (auto, id:3801; route:decision-gate): Acceptance requires a fleet-wide (46-repo) recoverable-fraction measurement under undefined "options" plus id:03a3 citing it -- id:03a3 itself is gated on unresolved shrink-programme items (id:5f34/1608/4983) and this repo's worktree cannot touch other repos' ledgers; needs a /meeting decision on what "each option" even means before any executor can act. — needs a /meeting
