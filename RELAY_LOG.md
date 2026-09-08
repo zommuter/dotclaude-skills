@@ -3661,3 +3661,7 @@ id:1b0e/e044/ad67 integrate: helper hardened, suite 597/0/0/8; merge-window coll
 ## 2026-09-08 10:51 — reviewer (claude-opus-5)
 
 review id:1b0e/e044/ad67: sound-with-caveats; files id:8627 (1,251-line scanner blind window, reproduced by the integrator) + id:0165 (mutation-proven unpinned mechanisms); strict REVIEW_ME box resolved
+
+## 2026-09-08 11:08 — integrate (claude-opus-5)
+
+id:4d65 salvage-integrate: self-verifying list landed from the parked branch; 3 defects fixed incl. a negative case that had never executed; suite 598/0/0/8
