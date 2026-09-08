@@ -3637,3 +3637,7 @@ refactor: none needed -- each migrated site is a one-line mechanical substitutio
 (`node --check "$JS"` -> `workflow_node_check "$JS"`) plus one sourcing line; no new
 duplication introduced, and the helper itself is the de-duplication (47 call sites now share
 one implementation instead of each reimplementing a bare parse check).
+
+## 2026-09-08 09:16 — integrate (claude-opus-5)
+
+id:62c9 execute: tests/lib-workflow-check.sh + 47 guard sites migrated; suite 596/0/0/8-expected-red; deliberate-breakage probe fires
