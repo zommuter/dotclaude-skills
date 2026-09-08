@@ -91,6 +91,21 @@ the construct out" is recorded against a count of 11; **11 and 21 are not reconc
 owner ruled that 11 is UNVERIFIED until they are. Filed as `id:8679`. Sizing a promote pass at 11
 against a true population of 21 leaves ten ids in precisely the orphaning shape.
 
+> **RECONCILED 2026-09-08 (`id:8679`), appended after ratification -- the ratified text above is
+> unchanged.** The counting rule is now committed as `tools/count-indented-ids.py` and every
+> figure is reproducible from it at a named commit:
+> `tools/count-indented-ids.py --file TODO.md --rev c63c7f20` reports **19 addressable
+> (11 checkbox / 8 other) + 2 unaddressable = 21**, and `--rev e6e3ff70` (or `HEAD`) reports
+> **8 (0 checkbox) + 2 = 10**. So **11 and 21 counted the same population under two different
+> predicates**: 21 is every indented anchored line, 11 is the CHECKBOX subset of it -- the only
+> promotable shape -- and `e6e3ff70` promoted exactly those 11, leaving 10. The UNVERIFIED
+> ruling on 11 is discharged; it was correct for what it names. Two corrections to the
+> paragraph above: the residue is **10, not "ten ids"** in the orphaning shape (2 of the 10
+> carry MULTIPLE anchors, so per `id:6059` they are unaddressable and a promote pass cannot
+> move them at all -- they must be split first), and the `id:8679` premise that "the shrink
+> itself moved the population" is FALSE, measured per commit: the count has been invariant at
+> 8 + 2 across every shrink wave since. Full derivation: `docs/ledger-notes/8679.md`.
+
 **loderite's fifth finding (old-vocab lane tags block a sweep) is REAL as a mechanism but does
 NOT bind here, and the reason is worth recording.** Rewriting a line that carries an old-vocab
 lane tag turns a GRANDFATHERED tag into an ADDED one, so `hooks/pre-commit-lane-vocab.sh` blocks;

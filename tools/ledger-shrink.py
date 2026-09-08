@@ -24,7 +24,9 @@ failure: a pointer already present (idempotence); no defensible cut point; under
 would actually move; and -- the amendment's rule -- the item's block carries ANOTHER item's
 `<!-- id:XXXX -->`. loderite's sweep silently dropped four ids (89f9, a5b6, ba07, ed26) that
 way: the body survived in the note file, the ADDRESS did not, and nothing failed loudly.
-`TODO.md` here carries 21 indented lines with their own id, so this rule is load-bearing.
+This rule is load-bearing on a population that is COUNTED, never remembered: run
+`tools/count-indented-ids.py --file TODO.md` (id:8679). The bare "21" this line used to
+assert was true at `c63c7f20` and stale within hours -- `e6e3ff70` promoted 11 of them away.
 
 Usage:
   tools/ledger-shrink.py --file TODO.md --dry-run [--min-chars N]   # report, write nothing
