@@ -3669,3 +3669,23 @@ id:4d65 salvage-integrate: self-verifying list landed from the parked branch; 3 
 ## 2026-09-08 17:54 — reconcile (auto/human, non-strong by design — id:c500)
 
 reconcile integrate: chore(relay): WIP UNVERIFIED residue auto-commit for worktree relay-20260907-100619-27900-execute-8372-0 (id:f272 commit-and-park; do not treat as reviewed)
+
+## 2026-09-08 — executor (claude-sonnet-5)
+
+Worked id:4f0f -- verified `meeting/md-merge.py`'s item-scoped `update-ids` mode (an
+`_item_block_range`/`_apply_item_scope_ops` implementation that had already landed via the
+id:f272 unverified residue auto-commit 8b40b1fc, itself carried in from worktree
+relay-20260907-100619-27900-execute-8372-0) actually meets id:4f0f's RED spec:
+`tests/test_md_merge_item_scope_4f0f.sh` now runs ALL PASS (was the pinned RED case). Confirmed
+the block boundary reuses `tools/ledger-continuations.py`'s definition verbatim (now at line
+1412; the comment's `1334-1338` pointer is stale but the logic it names is unchanged) rather than
+inventing a second one -- the id:4983 defect class the spec exists to prevent. Full suite:
+603 passed, 0 failed, 0 errored, 7 expected-red (open roadmap items), across two full runs.
+Friction: a first full run reported 1 failed + a HERMETICITY BREACH (id:b54b) on
+`test_mech_currency_frontdoor_gate_0384.sh` -- unrelated to md-merge/id:4f0f (no `[ROUTINE]`
+work touched mech-currency/proxy code this unit); the test passed standalone, passed in a small
+parallel batch, and a full rerun came back clean (0 failed), so it reads as load-induced flake
+under the nproc-wide parallel job count rather than a regression from this item.
+refactor: none needed -- no new code was written this session; verification only. The residue
+implementation already follows this file's existing patterns (id:5d7e op-folding, id:6059
+marker guards, id:3bd4 no-op refusals) with no visible leftover duplication.
