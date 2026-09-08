@@ -30,11 +30,18 @@ definition, and authoring it is blocked on an OWNER DECISION, not on effort -- s
 
 - **`id:c3c1` step (1) DISCHARGED -- the preamble trim mechanism is PROVEN.** The owner's
   2026-08-22 ruling was "prove the shrink first, cheaply, before migrating"; nothing had ever
-  exercised it. Measured, matched-model sonnet, first-request context: default
-  `general-purpose` **73,369** / minimal prompt + 11 tools **47,157** / minimal prompt + 1
-  tool **40,440**. **System prompt = 26,212 tok (35.7%); tool definitions = 6,717 (9.2%).**
-  The win is the PROMPT by ~4:1, which is the favourable answer -- an executor needs a wide
-  toolset and can still capture the 26.2k. An irreducible ~40.4k floor survives everything.
+  exercised it. **The result that stands**, matched-model haiku, real default dispatch vs real
+  custom definition: **54,844 -> 29,796 = 25,048 tok saved, 45.7%.** A custom agent definition
+  roughly halves the preamble. Sonnet default baseline for reference: **73,369**.
+- **RETRACTED, same session: the prompt-vs-tools SPLIT.** An in-session review found the
+  instruments invalid: `preamble-probe-wide` declared 11 tools where a default child receives
+  **21** -- missing `Skill` (which carries the whole skills catalogue), `Artifact` and
+  `Monitor` (largest schemas), and 6 MCP tools. So `default - wide` measured the system prompt
+  PLUS 13 tool schemas PLUS the catalogue, and the resulting "system prompt = 26,212 tok
+  (35.7%), tools = 6,717 (9.2%), a 4:1 prompt win" **must not be quoted**. The error flatters
+  the migration case, which is the dangerous direction. Corrective probes are in flight
+  (wide rebuilt to the literal 21-tool roster, plus a new `preamble-probe-exec` carrying the
+  realistic executor list). **Re-measure before quoting any split.**
 - **`id:77d9`** -- the delegated-subagent preamble is now **~82k, not the 58.6k banked by
   `id:c3c1`/`id:10dc`**: ~40% growth in 18 days. Sonnet wall measured at ~176.7k; fixed floor
   ~95k (54% of the window before any repo work). 5 of 15 execute children died
