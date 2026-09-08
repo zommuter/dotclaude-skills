@@ -933,6 +933,7 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] [ROUTINE] **Capture every `Prompt is too long` failure durably and auto-dispatch a transcript analysis — today three agents died and their evidence survived only by luck.** -- detail: `docs/ledger-notes/7b73.md` <!-- id:7b73 -->
 - [ ] [ROUTINE] **Nothing in this fleet's tool-choice guidance mentions LSP -- sessions navigate large files with whole-file `Read` when `goToDefinition` would cost a fraction** -- detail: `docs/ledger-notes/b59f.md` <!-- id:b59f -->
 - [ ] [ROUTINE] **Install-drift keeps recurring and is only ever caught by a human reading a review — decide the gate.** -- detail: `docs/ledger-notes/83c3.md` <!-- gated-on:7a05 --> gated-on:7a05 <!-- id:83c3 -->
+- [ ] [ROUTINE] **Consolidate the seven copies of the relay.toml `[repos.<name>]` section-name regex into one shared reader.** Each inline `python3 -c` heredoc now unquotes the captured name itself (id:02fe); they sit in shell heredocs with no import path, which is why the fix went in place rather than into a module. `lib-repo-section.sh` is the writer-side equivalent that DOES exist. <!-- relates:02fe --> <!-- id:9220 -->
 
 - [ ] [ROUTINE] **`relay-reconcile.sh:209` recommends `--discard` for a STRANDED branch, but `--discard` accepts only PARKED refs — the disposition is reachable, just not by the route the comment names.** -- detail: `docs/ledger-notes/331a.md` <!-- id:331a -->
 
