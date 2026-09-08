@@ -5024,3 +5024,331 @@ Shipped relay/scripts/lint-mech-model.mjs — lints every relay-mech fence-carry
 
 handoff: 5 items promoted (f91a @container, 34b7, ecce, 2047, d808) + 4 RED specs; 2 loderite inbox items adopted (ecd0, 08ad); 3 doc-staleness fixes. Owner ratified the id:34b7 hold-lift at integrate. Suite 352/0/10-xred.
 
+
+## 2026-08-10 — executor (claude-opus-5)
+
+Worked id:f54d and id:4f9b — the two ABSOLUTELY-URGENT items of the executor-death
+cluster (parent id:93cc), strictly in gate order. **id:f54d**: `roadmap-archive.sh` had
+been built, tested and Makefile-targeted since id:6b67 and called by nothing —
+confirmed `grep -c roadmap-archive relay/scripts/relay-loop.js` = 0. Ran it on this repo
+as immediate relief (ROADMAP.md 2619→1738 lines, 523,926→254,087 bytes; 100 `- [x]`
+blocks and 12 emptied headings moved to ROADMAP.archive.md; all 70 open items verified
+preserved before and after), then added integrator step 2c between the CHANGELOG derive
+and ckpt-tag so it runs unconditionally on every integrate, scope-committing only
+ROADMAP.md + ROADMAP.archive.md and only when it actually changed something.
+`tests/test_roadmap_archive_wired_f54d.sh` pins the wiring statically (real invocation,
+inside the integrator prompt, before ckpt-tag, scope-staged) plus two hermetic
+behavioural checks of the "safe no-op on any repo" claim the step relies on.
+**id:4f9b**: the pre-dispatch size gate. The interesting friction was that the obvious
+implementation is impossible — relay-loop.js runs in the Workflow sandbox with no
+filesystem and no `process.env`, so it cannot stat ROADMAP.md and cannot take a
+threshold from the environment. Resolved by splitting the measurement (classify-repo.sh
+emits `roadmap_bytes` on the host, the id:b09e passthrough pattern) from the decision
+(`relay/scripts/prompt-size-gate.mjs`, pure, with byte-identical inline copies in
+relay-loop.js per the round-plan.mjs discipline). Over budget ⇒ no dispatch, no
+worktree, and a handback naming both cause and remedy on all three surfaces
+(state.handbacks → RELAY_STATUS Blocked, the event log, the id:4a46 backstop).
+Budget derivation and its two calibration points (523,926 B refuses, 254,087 B
+dispatches) are written down in the module and pinned by the test, so a future change
+to the number is a conscious act rather than a drift.
+
+Friction: the 100k-token dispatch budget is a *derived* number, not a measured one — it
+comes from "~200k window minus ~100k working room", anchored on the two observed deaths
+(peak ctx 176,841) and the two known ROADMAP sizes. It is the honest best estimate
+available without a tokenizer in the sandbox, and the chars-per-token approximation
+deliberately under-counts so the gate fires late rather than early; a real measurement
+would be a better basis and is worth a follow-up if the gate ever misfires. Also worth
+recording: `test_relay_install_manifest.sh` caught the new `.mjs` missing from the
+Makefile manifest — that guard earned its keep.
+
+refactor: pulled the size decision into a pure importable module instead of inlining a
+bespoke check at the dispatch site (which is what makes the behavioural half of the
+id:4f9b test possible), reusing the existing handback-summary.mjs/round-plan.mjs
+pattern rather than inventing a third one; removed a dead loop line from the new test's
+fixture builder.
+
+
+## 2026-08-10 10:38 — reviewer (claude-opus-5)
+
+review of relay-ckpt-20260801-2135..HEAD (12 commits): id:f54d + id:4f9b verified green (354 pass / 0 fail / 10 expected-red); fixed prompt-size-gate.mjs install drift; ingested routed:cd7f/d160/24e3; extended id:f6d5 with integrate step 2c; 3 REVIEW_ME findings [id:f54d, id:4f9b, id:bf9d, id:480c, id:f6d5]
+
+
+## 2026-08-10 11:52 — reviewer (claude-opus-5)
+
+handoff C2+C3: promote id:798b + id:8c85 with RED specs; 798b remove-on-exit direction REJECTED as unsound (async dirty-sampler + unlink race) — gitdir-lock pattern recommended; id:8c85 mechanism corrected to snapshotState field omission [id:798b, id:8c85]
+
+
+## 2026-08-10 — executor (sonnet)
+
+Worked id:798b — moved `changelog-append.sh`'s flock off `<repo>/.changelog.lock` (working tree)
+onto `<gitdir>/changelog-append.lock`, the pattern ckpt-tag.sh/version-bump.sh/diary-append.sh
+already use. Chose the git-dir mechanism over remove-on-exit deliberately: the dirty-guard is an
+async `git status` sampler, so a transiently-present lock still parks the repo, and unlinking a
+flock'd path reintroduces the unlink race. Non-git target dirs (a supported case — `test_changelog_derive.sh`
+uses plain `mkdir` fixtures) fall back to a stable per-path lock under `$TMPDIR`, still outside
+the target. Deleted the false "matches the *.lock gitignore" header claim.
+Friction: none. The atomic-rename temp file `.changelog.XXXXXX` is STILL created in the working
+tree (`os.replace` needs the same filesystem) — ROADMAP marks it explicitly out of scope for 798b,
+so it was left in place and documented in the header instead of silently changed.
+refactor: none needed — the change is a lock-path relocation plus a corrected header comment; no
+duplication introduced and no dead scaffolding removed.
+
+## 2026-08-10 — executor (claude-opus-5)
+
+Worked id:ef9e — recovered the orphaned `relay/orphan/relay-20260810-103858-20326-execute` work (`lint-embedded-literals.mjs` + `tests/test_embedded_literal_lint_ef9e.sh`), registered the linter in the Makefile `relay_FILES` manifest (the one gap that kept `test_relay_install_manifest.sh` red), and closed a COVERAGE gap found while verifying it: the linter reported the motivating incident's own shape (`… sh's quoting …` — closing quote glued to a bareword, `bash -n` CLEAN, runtime IndentationError) as UNCHECKED/exit 0, i.e. clean on the exact bug it exists to catch. Single-quoted bodies glued to a BAREWORD character are now prefix-syntax-checked and REJECTED on failure; `"`/`$`/`\'` concatenation stays UNCHECKED (no false positives — live tree still 78 scripts clean, 5 UNCHECKED unchanged). Two regression cases added (7, 7b). Full suite 356 pass / 0 fail / 12 expected-red.
+Friction: the recovered work was complete and coherent apart from the manifest line; the UNCHECKED-swallows-the-incident gap was only visible by replaying the historical corruption against the real `discover-repo.sh`, not from the fixtures.
+refactor: none needed — one manifest token plus a narrowly-scoped severity escalation in an existing branch; no duplication introduced.
+
+## 2026-08-10 — executor (claude-opus-5)
+
+Worked id:8c85 — RELAY_STATUS.md accounted for every own repo. Added the pure module
+`relay/scripts/status-accounting.mjs` (`assertCompleteAccounting` generic core + a thin
+`assertStatusAccounting` wrapper over ownRepos × the five sections) with a behaviour-equivalent
+inline copy in relay-loop.js (Workflow sandbox cannot import, id:2ec4). Fixed `snapshotState` to
+carry `surfaced` + `handbacks` and dropped the vestigial `blocked` (nothing read or wrote it since
+id:1735) — that single omission was erasing classes (a) dirty-deferred, (b) in-flight-suppressed
+and (d) HANDBACK from every write since id:cb50. Hoisted `humanUnits` out of its block as
+`humanSurfaced` and folded it into `state.skipped` with its routing reason (class (c)); rewrote the
+:1823-1825 comment that CLAIMED that placement while no code performed it. Put the in-scope
+own-repo list on `state.ownRepos` and WIRED the invariant at both write sites — a new
+`## Accounting invariant (id:8c85)` section in the rendered file plus a loud `log()` naming every
+missing repo. Fixed the Claims renderer to fall back to the claim `key` (jq `//` never falls
+through on `""`, so a keyed claim rendered with no subject at all).
+
+Friction: the new module forced ONE line in `Makefile` (relay_FILES) — `test_relay_install_manifest.sh`
+fails otherwise, so the suite could not be green without it, despite the unit's "do not touch
+Makefile" scope guard (a sibling agent edits it in parallel). Added as its OWN new line to keep the
+merge conflict-free; integrator please check.
+
+refactor: extracted the accounting logic as a reusable generic core (`assertCompleteAccounting`)
+rather than a bespoke own-repo check, so id:eb63(b) can instantiate it at item granularity without
+touching this wrapper or its tests; removed the dead `state.blocked` snapshot field; replaced a
+false explanatory comment with an accurate one instead of leaving both the bug and its denial.
+
+
+## 2026-08-10 12:44 — reviewer (claude-opus-5)
+
+review: fix chain closed — id:798b (git-dir lock, tree stays clean), id:8c85 (RELAY_STATUS accounts every own repo; snapshotState carries surfaced+handbacks), id:ef9e (linter recovered + coverage hole on its own motivating incident fixed); 358 pass/0 fail; follow-ups id:d525/340f/b3a3/5b21 [id:798b, id:8c85, id:ef9e]
+
+
+## 2026-08-10 — strong-execute (claude-opus-5)
+
+Worked id:2bb1 — authored the common intermediate JSON schema + the full bespoke-grammar→tracker
+mapping, per the ratified meeting `docs/meeting-notes/2026-08-10-0906-tracker-substrate-replacing-markdown-ledgers.md`
+(D2 as amended by `--fabled` findings 5/6/7), NOT a restatement of it. New `tracker/`: `SCHEMA.md`
+(the durable artifact — every construct in the brief mapped or given an explicit loud-lossy policy),
+`schema/ledger-intermediate.schema.json` (JSON Schema 2020-12, `schema_version` as a contract-surface
+marker per CLAUDE.md §Versioning — this repo still has no repo-wide version), `ledger-map.py`
+(stdlib-only reference mapper / validator / round-trip projector), and fixture ledgers + golden
+documents. Three judgment calls worth flagging for review: (1) **id-less TODO lines import as
+untracked** with a content-derived `~`-prefixed synthetic key, not skip-and-report — a skipped item
+is invisible on the board, and the accepted cost (rewording re-keys it) is documented rather than
+hidden; (2) **REVIEW_ME boxes attach when anchored** (`<!-- roadmap:XXXX -->` sets `review_status` on
+the existing item + a `has:review-box` label) and stand alone as untracked `review_box` items when
+not, with `review_status` a **third** view rather than folded into either ledger view; (3) cross-repo
+collisions are split into class A (homonym — fatal by default, `--allow-homonyms` downgrades to a
+counted WARN because at ~60 repos over a 65 536-token space homonyms are expected and the composite
+key already disambiguates) and class B (a `routed:` edge resolving to ≥2 repos — **never**
+downgradable, because that edge is genuinely unresolvable). The default is fatal-on-both so the
+meeting's ratified "fail loudly at import" wording is honoured literally; the scoped mode is the
+owner's knob, surfaced not chosen. `[HARD — hands]` is deliberately NOT auto-resolved — `hard-lanes.md`
+records four candidate destinations and `lane-convert.sh` refuses to guess, so this mapper refuses too
+and reports every one. Round-trip is scoped to the **status pair + relation graph**, not byte-exact
+prose: D1 records that markdown need not survive as an export, and claiming an untested byte-exact
+round-trip would be exactly the derived-doc drift this repo's rules forbid — said so in SCHEMA.md §4
+rather than quietly narrowing the contract. Three tests, all header-less (id:2bb1 has no ROADMAP entry,
+so their failures always count): drift round-trip in both directions + the collapse being structurally
+rejected; the synthetic cross-repo collision exiting 3 and naming both tokens, both repos and both
+classes; and a golden-fixture/determinism test that also mutates the JSON Schema to prove the
+schema↔mapper cross-check can actually fail rather than passing vacuously. Suite 361 passed / 0 failed
+/ 10 expected-red.
+
+refactor: added `tracker` to the `SKILL_DIRS` list in BOTH `tools/check-no-bare-rm-f.sh` and
+`tools/check-no-silent-swallow.sh` — a new top-level script directory that no repo guard scans is a
+silent coverage hole, and the two lists had already drifted out of sync with the tree once. No other
+cleanup: the mapping is greenfield and re-implements the anchored-marker regexes in python rather than
+shelling out to `lib-anchored-id.sh`/`lib-typed-edges.sh`, which is a deliberate duplication (a pure
+python producer, and the regexes ARE the contract here) recorded in SCHEMA.md, not an accident.
+
+Friction: the item's contract says "a synthetic cross-repo id collision exits non-zero", but a flat
+fatal on every duplicate bare token is impractical at fleet scale — 459+ items over 65 536 tokens makes
+homonyms near-certain, so a strict-only importer would never complete a full pass. Rather than quietly
+reinterpret the contract I implemented it literally (default fatal, test asserts exit 3) and added the
+scoped mode as an explicit, documented knob with class B permanently fatal. Also: `tracker/` is a new
+top-level directory — I proposed it per the brief, but the repo's layout table had no obvious home for
+a non-skill, non-tool artifact, so that placement is a call the integrator may want to confirm.
+Worked id:8066 — built the tracker pilot's **control-arm board** (`relay/scripts/control-board.sh`)
+plus its spec `tests/test_control_board.sh`, registered in the Makefile relay manifest and pointed
+to from `relay/SKILL.md`'s Shared resources. The item's mandatory reconcile gate was run FIRST and
+found **no duplication**: `id:36f1` is the ITEM-level blocking-DAG visual over project_manager's
+`edges.json` (producer `id:dc60`), and `id:51d8` is the ITEM-level, interactive, LLM-free
+human-action dashboard over `gather-human-backlog.sh`'s tiers — this board is REPO-level over relay
+classify output and shares a data source with neither, so all three obey the "ONE canonical
+producer, N renders" steer rather than duplicating one. To keep that true it deliberately does NOT
+re-derive the human backlog: its "waiting on a human" section is only the per-repo `human`/`blocked`
+verdict, and `--json` is offered so id:51d8 can consume the repo-level roll-up instead of shelling
+out per repo again. No second classifier: verdicts are `classify-repo.sh --emit unit` verbatim and
+the display label comes from `render-verdict.sh` (the only sanctioned emitter of "drained"); the
+five board columns are a documented DISPLAY grouping that always carries the raw verdict alongside,
+so nothing is collapsed. Repo set is `relay.toml`'s own-set via the shared `own_repos()` parser
+(`# path:` override + `paused` honoured, never a `~/src` glob), with its exit status checked
+explicitly so a corrupt relay.toml aborts loudly instead of rendering an empty board. Writes
+nothing at all — stdout only, no artifact to go stale, no tracker write. Smoke-run over the live
+49-repo fleet in 45 s with zero producer errors. Suite 359 pass / 0 fail / 10 expected-red.
+
+Friction: the item's checkbox says "read-only, derived over existing classify-repo.sh output", but
+`classify-repo.sh --emit unit` does not carry the `unpromoted` promote/surface counts it computed
+one step earlier (they are folded into the classifier input and dropped from the unit), so a board
+that wanted "N items awaiting promotion per repo" would have to re-run `unpromoted-scan.sh` — i.e.
+re-derive. Left out rather than re-derived; if the pilot wants that column, the honest fix is a
+passthrough field on the unit, not a second scan in the board.
+
+refactor: none needed — this unit is one new script plus one new test; no existing code path was
+touched beyond a manifest registration and a docs pointer, so there was nothing to clean up. The
+one reuse opportunity that existed (`own_repos()` and `render-verdict.sh` rather than fresh
+enumeration/labelling) was taken by construction, not extracted after the fact.
+
+
+## 2026-08-10 20:19 — reviewer (claude-opus-5)
+
+hard-execute: id:2bb1 tracker intermediate schema+mapping; id:8066 control-arm fleet board (362 pass/0 fail)
+
+
+## 2026-08-10 21:00 — reviewer (claude-opus-5)
+
+review: id:2bb1 + id:8066 accept-with-fixes — -OO crash + derived_status enforcement; 3 owner boxes, follow-ups id:6daf/857d (363 pass/0 fail)
+
+
+## 2026-08-10 — strong-execute (claude-opus-5)
+
+Worked id:ca24 — replaced `tracker/ledger-map.py`'s boolean `--allow-homonyms` with an
+explicit per-token allow-list: `--allow-homonym TOKEN` (repeatable) plus
+`--allow-homonym-file PATH` (one token per line, `#` comments). Entries must be literal
+4-hex tokens — a wildcard/prefix/`all` is rejected at exit 2, so there is no blanket
+downgrade. The bare boolean is GONE (not an option, not an argparse prefix of either new
+flag ⇒ rejected), asserted by the new `tests/test_tracker_homonym_allowlist_ca24.sh`.
+Default stays STRICT; a LISTED class-A homonym warns, an UNLISTED one is still fatal and
+named; class B (ambiguous cross-repo `routed:` edge) stays always-fatal even when its token
+is listed. Added a stale-adjudication WARN for a listed token that is not a homonym in the
+document, so `id:94ce`'s list cannot silently accumulate. `tracker/SCHEMA.md` §1.3 rewritten
+(it previously conceded the gap). Suite: 364 passed / 0 failed / 10 expected-red.
+
+Friction: the existing `tests/test_tracker_id_collision_loud.sh` exercised the superseded
+boolean on three lines; those were re-pointed at `--allow-homonym cccc` with every assertion
+kept in substance (class B fatal, adjudicated class A warns) — no assertion weakened or
+skipped. Deriving the "one listed + one unlisted" contract fixture in-test (clone the `cccc`
+pair into `beef`, drop the class-B `cafe` material) avoided editing the shared golden
+fixtures, which other tracker tests hash.
+
+refactor: none needed — the change is confined to the collision block, one new pure helper
+(`collect_allowed_homonyms`), and the argparse surface; no surrounding code was restructured.
+Worked id:c17d — repo-level entity derivation. `tracker/repo-entity.py` (new) fills the
+`repos[].verdict` hole `ledger-map.py` deliberately leaves null, quoting
+`classify-repo.sh --emit unit` verbatim out of `control-board.sh --json` (id:8066, landed
+this session) and `render-verdict.sh`'s display label — no second classifier, no second
+board renderer, no new status vocabulary. Three subcommands: `emit` (repos-only document
+that `ledger-map.py validate` accepts), `enrich` (fills a mapped document in place,
+items untouched), `validate-repos`. Pure function of two JSON documents: reads no
+relay.toml, resolves no path, writes no file (D4 holds; the fleet driver stays id:94ce).
+Spec `tests/test_tracker_repo_entity.sh` asserts the item's contract literally — per
+fixture repo it runs `classify-repo.sh` and compares the verdict byte-for-byte — plus a
+purity assertion on `tests/lib/assert-repo-unchanged.sh` and an anti-drift grep over
+`classify-verdict.sh`'s `verdict = "…"` assignments. Suite 364/0/10.
+
+Findings surfaced, not worked around:
+- `ledger-map.py validate` checks `items[]` exhaustively and does **not** look at
+  `repos[]` at all — a repo entity with a missing required key or a bogus verdict passes.
+  `validate-repos` covers it meanwhile; folding it in belongs to that file's owner (a
+  sibling held `ledger-map.py` this round, so it was not touched).
+- id:6daf (the `unpromoted` counts `--emit unit` drops) is named in the schema + prose and
+  deliberately NOT re-derived — a second `unpromoted-scan.sh` call would be the drift the
+  ledger rules forbid.
+- `schema_version` stays 1.0.0 on purpose: SCHEMA.md §5 bumps on a required-key/enum
+  change, and this adds only optional properties to a `$defs/repo` that already required
+  `verdict`.
+
+refactor: none — no existing code was restructured. `tracker/repo-entity.py` and
+`tests/test_tracker_repo_entity.sh` are new files; `tracker/SCHEMA.md` and
+`tracker/schema/ledger-intermediate.schema.json` gained additive documentation only (a §7,
+one artifact-table row, one scope-boundary row, and optional `$defs/repo` properties). No
+required key, enum, or existing behaviour was changed, and no test was weakened.
+
+Friction: the natural home for this verdict is `ledger-map.py`'s repo-entity builder, but
+a sibling child owned that file this round, so the derivation ships as a separate composable
+step. That turned out better (the mapper stays a pure markdown→JSON function with no
+classifier dependency), but it does mean a consumer now needs two calls; if the owner
+prefers one, `enrich` is a ~10-line fold into `ledger-map.py import`.
+Worked id:94ce — fleet markdown→intermediate-JSON importer. `tracker/fleet-import.sh` (driver)
++ `tracker/fleet-state.py` (pure upsert/tombstone fold) + `tracker/homonym-allowlist.txt`
+(adjudication surface) + `tests/test_tracker_fleet_import.sh` (11 sections, hermetic synthetic
+fleet). Repo set comes from `relay.toml` via the SHARED `own_repos()` in
+`relay/scripts/lib-own-repos.sh`, exit status checked explicitly — no `~/src/*` glob anywhere,
+and a corrupt registry exits 3 with nothing written rather than reading as an empty fleet.
+Two-phase run: pin every repo's HEAD sha FIRST, then read every ledger with
+`git show <sha>:<file>` into a scratch tree, so no byte is ever read from a working tree and
+one run is a coherent cut. Upsert on `(repo,id)`; unchanged records are CARRIED byte-identically
+and the state document holds NO timestamp, which is what makes two-runs-zero-diff hold.
+Tombstones are scoped to repos that imported successfully — a failed repo contributes none.
+
+Friction: (1) the real-fleet dry run over 49 own repos surfaces **78 class-A homonyms** (0 class
+B), so the fleet-wide import is BLOCKED until id:ca24's per-token allow-list lands AND those
+tokens are adjudicated. The driver codes against the explicit per-token contract and REFUSES
+(exit 5) to fall back to the superseded boolean, so it will not silently blanket-downgrade.
+(2) The same dry run found a genuine `ledger-map.py` defect (id:2bb1 residue), NOT fixed here
+because a sibling unit owns that file this round: a `REVIEW_ME` box anchored to an id with no
+TODO/ROADMAP twin (`loderite/ecc3`) yields an item with `id: null` but a NON-synthetic key, which
+`validate` then rejects fatally — `uid 'loderite/ecc3' has no id but its key is not a synthetic
+'~' key`. Needs a follow-up item. (3) `ledger-map.py` records `repos[].path` as given, so the
+driver rewrites it back to the relay.toml path after import; otherwise the scratch tree's mktemp
+name would churn the state document every run.
+
+refactor: none — this unit is two new files plus a new test; no existing file was modified.
+The reuse that mattered (`lib-own-repos.sh`'s `own_repos()`, `ledger-map.py`'s CLI,
+`tests/lib/assert-repo-unchanged.sh`) was taken by construction, and `tracker/ledger-map.py`
+was deliberately left untouched — the sibling id:ca24 owns it this round.
+Worked id:90f2 — both tracker adapters (Plane, Vikunja) against the intermediate schema.
+`tracker/adapters/{adapter_common,vikunja_adapter,plane_adapter}.py` + hermetic
+`tests/test_tracker_adapter_equivalence.sh` (364 pass / 0 fail / 10 expected-red).
+The equivalence contract is stated over an item graph RECOVERED from each adapter's own
+emitted target payloads — not re-derived from the source document, which would have made
+the comparison vacuous. Verbs `plan`/`graph` are pure and offline (asserted with sockets
+disabled); `apply`/`verify` are networked and no test invokes them.
+
+id:857d (binding) is enforced by `adapter_common.check_gate()` for BOTH adapters, and the
+test proves the gate is not vacuous: a deliberately collapsed, derived_status-only plan is
+rejected for each adapter. The per-view triple is carried twice — `view:<view>=<state>`
+labels and an anchored `[[ledger-views …]]` description marker — and recovery cross-checks
+them, so a half-edited board is loud rather than quietly wrong.
+
+VERIFIED LIVE (Vikunja v2.4.0, pilot project): 19 items / 39 labels / 3 relations applied,
+`verify` PASS, re-apply idempotent (0 created), and a deliberately removed `view:todo=`
+label was caught (exit 3) and repaired by re-apply. Live board shows both drift directions
+with all three views intact.
+
+NOT VERIFIED (Plane): `apply` has never issued a live request — the pilot does not serve
+(id:02f7). Built and fixture-tested only; reported as BLOCKED, not as a pass.
+
+Friction: (a) the supplied Vikunja API token is scoped projects/tasks/labels and 401s on
+`/tasks/{id}/labels` and `/tasks/{id}/relations`, so the adapter prefers a JWT from
+VIKUNJA_USER/VIKUNJA_PASSWORD — worth widening the token if an unattended importer is
+wanted. (b) Plane's public API v1 documents no issue-relation endpoint, so `blocked_by`/
+`link` edges cannot be written natively; the adapter WARNs and leaves them in the body
+rather than guessing a URL. (c) `derived_status → Plane workflow state` is not injective
+(`backlog` and `needs-decision` share a column) — the `derived:<state>` label is what
+keeps that lossless.
+
+refactor: none — this unit is three new modules and one new test; the only pre-existing
+file touched is `tracker/SCHEMA.md`, additively (a new §7). Shared logic between the two
+adapters was factored into `adapter_common.py` up front rather than extracted afterwards,
+so no behaviour-preserving rewrite of existing code happened and none is claimed.
+
+
+## 2026-08-10 22:32 — reviewer (claude-opus-5)
+
+hard-execute batch: id:ca24 allow-list, id:94ce fleet importer, id:c17d repo entities, id:90f2 adapters (partial); cross-child flag-name defect fixed at integrate (367 pass/0 fail)
+
+
+## 2026-08-10 23:04 — reviewer (claude-opus-5)
+
+review: tracker batch accept-with-fixes — dead plural fallbacks removed, too-tolerant test pinned, id:857d gate vacuity closed, SCHEMA subsection renumber completed (367 pass/0 fail)
+
