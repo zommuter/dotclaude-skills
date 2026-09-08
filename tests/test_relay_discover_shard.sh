@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:9ed4 — parallel-shard discovery. The single sequential Opus discover agent is split
 # into a once-only PRELUDE (runId + the CONSUMING inject.sh take + claim.sh peek + own-repo list
 # + non-own skipped) and N SHARD classifiers run in PARALLEL, then merged into the same discovery
@@ -13,7 +14,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # (1) prelude + shard schemas exist, and the shard-count knob.
 grep -q "PRELUDE_SCHEMA" "$JS" || fail "no PRELUDE_SCHEMA"

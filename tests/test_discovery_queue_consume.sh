@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # No `# roadmap:XXXX` header — a defect-fix / invariant guard whose failures ALWAYS count
 # (CLAUDE.md Testing section).
 #
@@ -46,7 +47,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
 [[ -x "$CHUNK_SH" ]] || fail "discover-chunk.sh not found/executable (id:24ec CASE-B wrapper)"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # (1) CASE-B mechanization: the discover-run shard is a model:'bash' dispatch of discover-chunk.sh.
 grep -q "discover-chunk.sh" "$JS" || fail "relay-loop.js no longer dispatches discover-chunk.sh (id:24ec CASE-B shard)"

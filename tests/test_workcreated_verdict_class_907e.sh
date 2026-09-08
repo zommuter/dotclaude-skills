@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:907e
 # RED SPEC for id:907e — amend id:c919's `workCreated` predicate to VERDICT-CLASS CHANGE.
 #
@@ -94,7 +95,7 @@ v_after="$( mk false 0 | bash "$CV" | python3 -c 'import json,sys; print(json.lo
 pass "(6) premise holds: the gate-write flips the repo's verdict class $v_before -> $v_after"
 
 # 7. The engine still parses and lints clean after the edit.
-node --check "$JS" >/dev/null 2>&1 || fail "(7) node --check failed on relay-loop.js after the 907e edit"
+workflow_node_check "$JS" >/dev/null 2>&1 || fail "(7) node --check failed on relay-loop.js after the 907e edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 [[ -f "$LINT" ]] || fail "(7) lint-workflow-templates.mjs not found; cannot verify template safety"
 if ! out="$(node "$LINT" "$JS" 2>&1)"; then

@@ -3611,3 +3611,29 @@ review(8123): REOPENED id:8372 -- its fix does not cover its own founding case (
 ## 2026-09-08 08:59 — integrate (claude-opus-5)
 
 handoff C2+C3 for id:62c9: re-lane to [ROUTINE] + RED spec tests/test_workflow_node_check_62c9.sh; helper unimplemented by design
+
+## 2026-09-08 09:07 — executor (sonnet, manual dispatch)
+
+Worked id:62c9 -- built `tests/lib-workflow-check.sh` (`workflow_node_check <file>`), the
+shared Workflow-aware `node --check` wrapper the ledger note prototyped: wraps the source in
+an `async function __relay_wf__(){ ... }`, strips a line-1 `export`, writes to a `.js`-suffixed
+mktemp (the extension-less-temp `ERR_UNKNOWN_FILE_EXTENSION` gotcha was already flagged in the
+ledger note and confirmed here), then `node --check`s the wrapped copy. Refuses loudly
+(non-zero, names the file) on a line-initial `export `/`import ` anywhere but line 1, since
+that shape is outside what the wrapper can model. Migrated all 47 bare `node --check
+"$JS"`/`"$LOOP"` sites guarding relay-loop.js (mechanically verified against
+`tests/test_workflow_node_check_62c9.sh`'s own detector, assertion (d)) to call the helper;
+left the 3 non-sites (`test_source_grep_lint.sh`'s fixture heredoc, `test_workflow_template_lint.sh`,
+and drain.mjs/lint-*.mjs sites in `test_dryround_single_definition_6217.sh`/`test_embedded_literal_lint_ef9e.sh`/
+`test_mech_model_lint_*.sh`) untouched, per the ledger note's own list. Did NOT touch the RED
+spec itself. Full suite: 596 passed, 0 failed, 0 errored, 8 expected-red (measured, not
+inferred) -- the +2 over the note's baseline 594 accounts for the new spec file plus the item
+itself flipping from expected-red to counted-pass. `relay/scripts/todo-conformance.sh` finding
+count unchanged (381 lines both before and after, diffed byte-for-byte) -- all pre-existing,
+none touch `tests/`.
+Friction: none -- item was well-scoped by the ledger note's measured prototype and executor
+notes; no ambiguity encountered.
+refactor: none needed -- each migrated site is a one-line mechanical substitution
+(`node --check "$JS"` -> `workflow_node_check "$JS"`) plus one sourcing line; no new
+duplication introduced, and the helper itself is the de-duplication (47 call sites now share
+one implementation instead of each reimplementing a bare parse check).

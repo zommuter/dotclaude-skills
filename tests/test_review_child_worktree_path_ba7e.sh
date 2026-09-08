@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:ba7e — id:34b7 part (3) is incomplete: review children still get the MAIN checkout path.
 #
 # RED SPEC authored at handoff 2026-08-11. relay-loop.js:2176 still interpolates `unit.path` into
@@ -21,7 +22,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # Every line that splices unit.path into a prompt string (the review-child site is one of them).
 mapfile -t hits < <(grep -n "unit\.path" "$JS" | grep -vE "worktreePathFor|provision-worktree|^\s*//" || true)

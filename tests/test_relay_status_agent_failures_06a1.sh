@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:06a1 — RELAY_STATUS.md must surface per-agent/per-hop failures.
 #
 # RED SPEC authored at handoff 2026-08-11. buildRelayStatus (relay-loop.js:356-420) renders
@@ -23,7 +24,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$LOOP" ]] || fail "relay-loop.js not found at $LOOP"
-node --check "$LOOP" || fail "relay-loop.js fails node --check"
+workflow_node_check "$LOOP" || fail "relay-loop.js fails node --check"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT

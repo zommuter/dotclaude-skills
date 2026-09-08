@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:b8ae
 # Static source-shape assertion: mechanize the review->execute (or execute->execute) re-chain
 # signal — the observe-only remainder ("watch the log line") went uncaught for six weeks
@@ -44,7 +45,7 @@ grep -Eq "pushEvent\('rechain'|chainDepth" < <(echo "$block") \
 pass "(4) rechain event is marked as a re-chain"
 
 # 5. The engine still parses and still lints clean.
-node --check "$JS" >/dev/null 2>&1 || fail "(5) node --check failed on relay-loop.js after the b8ae edit"
+workflow_node_check "$JS" >/dev/null 2>&1 || fail "(5) node --check failed on relay-loop.js after the b8ae edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 [[ -f "$LINT" ]] || fail "(5) lint-workflow-templates.mjs not found; cannot verify template safety"
 if ! out="$(node "$LINT" "$JS" 2>&1)"; then

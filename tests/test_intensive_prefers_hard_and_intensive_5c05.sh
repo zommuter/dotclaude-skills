@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # id:5c05 — `--intensive` must PREFER [INTENSIVE] and [HARD] units over routine [ROUTINE]
 # execute work (owner-ruled 2026-09-01), not merely permit them.
 #
@@ -38,7 +39,7 @@ bad()  { echo "FAIL: $*"; fail=$((fail+1)); }
 [[ -f "$HARNESS" ]] || { echo "FAIL: loop-schedule-order-harness.mjs not found"; exit 1; }
 command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 0; }
 
-node --check "$JS" || { echo "FAIL: relay-loop.js fails node --check"; exit 1; }
+workflow_node_check "$JS" || { echo "FAIL: relay-loop.js fails node --check"; exit 1; }
 
 run_order() {  # $1 = intensive|default
   local out

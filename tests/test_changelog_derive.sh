@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # Specs TODO id:b8fa — the CHANGELOG deriver (`relay/scripts/changelog-append.sh`).
 # (No `# roadmap:XXXX` header: b8fa is a TODO/design id, not a ROADMAP queue item; this is a
 #  /meeting Class-1 inline impl, so the test must end GREEN — it is not expected-red.)
@@ -137,7 +138,7 @@ grep -q 'relay/scripts/integrate.sh' "$JS" \
 pass "(7) integrator wiring: integrate.sh invokes changelog-append.sh, dispatched from relay-loop.js"
 
 # (8) node --check still passes after the integrator-prompt edit (guard the template edit).
-node --check "$JS" >/dev/null 2>&1 || fail "(8) relay-loop.js fails node --check after wiring edit"
+workflow_node_check "$JS" >/dev/null 2>&1 || fail "(8) relay-loop.js fails node --check after wiring edit"
 pass "(8) relay-loop.js still parses (node --check) after the integrator edit"
 
 echo "ALL PASS: id:b8fa changelog-append.sh deriver + integrator wiring"

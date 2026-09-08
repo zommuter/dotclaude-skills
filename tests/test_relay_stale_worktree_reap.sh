@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:3ac8 — discovery must distinguish a STALE worktree left by a dead run (no fresh
 # claim) from a genuinely in-flight one (fresh claim), instead of treating any foreign-runId
 # worktree's existence as "in-flight elsewhere" (which falsely starved the pool of 14 repos
@@ -17,7 +18,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 [[ -x "$RECONCILE" ]] || fail "reconcile-repo.sh not found at $RECONCILE"
 
 # (1) the prelude consults LIVE claims (claim.sh peek), ONCE, to build the live-claims set —

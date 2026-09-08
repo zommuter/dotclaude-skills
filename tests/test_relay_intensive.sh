@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:8d52 — [INTENSIVE — <resource>] gating in relay-loop.js (cluster step 5).
 # Resource-heavy units (local-LLM benchmarks, big index rebuilds — the OOM risk that killed
 # 6 sessions) are NEVER auto-dispatched; with --intensive (synonym --allow-intensive) they run
@@ -14,7 +15,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-command -v node >/dev/null && { node --check "$JS" || fail "relay-loop.js is not valid JS"; }
+command -v node >/dev/null && { workflow_node_check "$JS" || fail "relay-loop.js is not valid JS"; }
 
 # (1) Opt-in flag: --intensive / --allow-intensive ONLY — id:052c decoupled --afk from intensive.
 grep -q "const ALLOW_INTENSIVE = !!A.allowIntensive$" "$JS" \

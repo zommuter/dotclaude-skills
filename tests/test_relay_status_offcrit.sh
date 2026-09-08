@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:cb50 — the Haiku RELAY_STATUS write is OFF the pool's critical path. It used to be
 # `await`ed between discover→dispatch and at round end, so the next discover/dispatch blocked
 # on a pure visibility side-effect. Now it is snapshotted + queued on a serialized tail; the
@@ -13,7 +14,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # (1) the non-blocking machinery exists: a serialized tail + a scheduler.
 grep -q "let statusTail" "$JS" || fail "no statusTail serializer for status writes"

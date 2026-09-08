@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:aec5 — generalize the discovery-only exec-smoke guard to ALL relay-loop.js inline
 # prompt-builder template literals. `test_relay_loop_discovery_exec.sh` EXECUTES only the
 # discovery dispatch, so an unescaped-backtick (or any other synchronous runtime fault) in the
@@ -31,7 +32,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
 command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 0; }
 
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 [[ -f "$HARNESS" ]] \
   || fail "loop-round-exec-harness.mjs not found — the generalized exec-smoke harness that drives EVERY prompt builder (integrate/execute-child/review-child/handoff-child/quota/inject-take/auto-reconcile) is the id:aec5 deliverable"

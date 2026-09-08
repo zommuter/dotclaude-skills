@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:8123
 # RED SPEC for id:8123 — chain-end classifier RE-ASK replaces the chainDepth===K forced-review
 # trigger, and the two false-premise sites are corrected.
@@ -101,7 +102,7 @@ fi
 pass "(6) the relay-loop.js false-premise comment is corrected"
 
 # 7. The engine still parses and lints clean.
-node --check "$JS" >/dev/null 2>&1 || fail "(7) node --check failed on relay-loop.js after the 8123 edit"
+workflow_node_check "$JS" >/dev/null 2>&1 || fail "(7) node --check failed on relay-loop.js after the 8123 edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 [[ -f "$LINT" ]] || fail "(7) lint-workflow-templates.mjs not found; cannot verify template safety"
 if ! out="$(node "$LINT" "$JS" 2>&1)"; then

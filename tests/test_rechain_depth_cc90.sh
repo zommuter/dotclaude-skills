@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:cc90
 # RED SPEC for id:cc90 — L2 bounded execute->execute rechain (K<=3).
 #
@@ -68,7 +69,7 @@ pass "(6) all three pre-registered answers are recorded in-source"
 
 # 7. The engine still parses and still lints clean (relay-loop.js has 17 ```relay-mech fences,
 #    some built by concatenation and one from a variable; a template-literal slip is silent).
-node --check "$JS" >/dev/null 2>&1 || fail "(7) node --check failed on relay-loop.js after the cc90 edit"
+workflow_node_check "$JS" >/dev/null 2>&1 || fail "(7) node --check failed on relay-loop.js after the cc90 edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 [[ -f "$LINT" ]] || fail "(7) lint-workflow-templates.mjs not found; cannot verify template safety"
 if ! out="$(node "$LINT" "$JS" 2>&1)"; then

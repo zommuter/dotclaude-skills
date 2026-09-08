@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # Defect-fix test (no roadmap item). EXECUTES the relay-loop.js discovery dispatch under node
 # with stubbed Workflow globals — the capability the rest of the suite lacks. Every other
 # relay-loop.js test is `node --check` (syntax) + grep (source-text) only; none RUN the Workflow
@@ -31,7 +32,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$HARNESS" ]] || fail "discovery-exec-harness.mjs not found"
 command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 0; }
 
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 out="$(node "$HARNESS" "$JS" 2>&1)"; rc=$?
 if [[ $rc -ne 0 ]]; then

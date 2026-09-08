@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:391b — wires the ALREADY-BUILT mechanical-orphan draft loop (id:8a6b) into
 # relay-loop.js's PER-ROUND cadence (owner ratification 2026-08-26). Two owner decisions this
 # tests holds to: (A) the pool NEVER authors into recipes/pending/ — mechanical-orphan-draft.sh
@@ -29,7 +30,7 @@ bad() { echo "BAD: $*"; fail=$((fail+1)); }
 command -v node >/dev/null 2>&1 || { echo "FAIL: node not found"; exit 1; }
 
 # ── 1. node --check + the Workflow template lexer must both stay clean after this edit ──
-if node --check "$JS" 2>/tmp/391b_check.err; then
+if workflow_node_check "$JS" 2>/tmp/391b_check.err; then
   ok "node --check relay-loop.js passes"
 else
   bad "node --check failed: $(cat /tmp/391b_check.err)"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:c012 — first-class graceful (patient) operator stop for the autonomous pool.
 #
 # Before this, a live `relay-loop.js` pool ended ONLY on quota cap / two dry discoveries /
@@ -24,7 +25,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
 [[ -f "$SKILL" ]] || fail "relay/SKILL.md not found at $SKILL"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 pass "relay-loop.js exists and parses"
 
 # (1) Config knobs: STOP_PATH (sentinel) + a launch-time round cap derived from --once/--after.

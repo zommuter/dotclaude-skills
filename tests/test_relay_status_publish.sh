@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:0d31 — [skeleton L1] thin-glue: relay-status-publish.sh replaces the ~40-line
 # writeRelayStatus haiku recipe with one deterministic call (short+precise agent prompt → no
 # target-drift). This tests the SCRIPT's deterministic behavior; the relay-loop.js wiring is
@@ -55,7 +56,7 @@ pass "non-absolute target is refused"
 # (4) relay-loop.js wiring: writeRelayStatus delegates to the script (one-line invocation),
 #     and node --check still passes.
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 grep -q "relay-status-publish.sh" "$JS" || fail "writeRelayStatus does not call relay-status-publish.sh"
 grep -q "id:0d31" "$JS" || fail "no id:0d31 marker tying the wiring to the roadmap item"
 pass "relay-loop.js writeRelayStatus delegates to relay-status-publish.sh (0d31)"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:7354 — the id:1432 repeat-handback ALERT must count EVERY handback, not just
 # the child-report one.
 #
@@ -30,7 +31,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$LOOP" ]] || fail "relay-loop.js not found at $LOOP"
-node --check "$LOOP" || fail "relay-loop.js fails node --check"
+workflow_node_check "$LOOP" || fail "relay-loop.js fails node --check"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT

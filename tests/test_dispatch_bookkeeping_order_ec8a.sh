@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:ec8a — dispatch bookkeeping must not fire before provisioning succeeds.
 #
 # RED SPEC authored at handoff 2026-08-11. relay-loop.js:2840-2849 does unitsDispatched++,
@@ -20,7 +21,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # Work within runUnit() only — the file has other dispatch-ish lines elsewhere. Take from the
 # runUnit declaration to the end of file; every statement we check lives in its first ~60 lines,

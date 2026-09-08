@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:c3f7 — relay-loop.js discovery guards: sync-with-origin (c3f7) + worktree-aware
 # (ebfb step 1). Static checks on the discovery agent prompt (live discovery is the id:1ad7
 # pilot — too expensive for unit tests; this pins the prompt contract that prevents the
@@ -15,7 +16,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-command -v node >/dev/null && { node --check "$JS" || fail "relay-loop.js is not valid JS"; pass "relay-loop.js parses"; }
+command -v node >/dev/null && { workflow_node_check "$JS" || fail "relay-loop.js is not valid JS"; pass "relay-loop.js parses"; }
 
 # ── Sync-with-origin guard (id:c3f7) ──
 # id:11ad: the per-repo git operations (fetch + ahead/behind compute) moved into

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:9973 — deterministic demote-guard for a `hard` verdict on a repo with NO open
 # [HARD - pool] item. Only [HARD - pool] items are pool-dispatchable (hard-lanes.md);
 # [HARD - meeting]/[HARD - decision gate]/[HARD - hands] are NOT. The LLM discover-shard's
@@ -135,7 +136,7 @@ grep -q "deterministic demote-guard id:9973" "$JS" \
   || bad "id:9973: surfaced reason does not cite the guard id (id:9973)"
 
 # (c) Workflow-sandbox safety: the new wiring introduced no forbidden API + JS still parses.
-node --check "$JS" >/dev/null 2>&1 \
+workflow_node_check "$JS" >/dev/null 2>&1 \
   && ok "relay-loop.js still parses (node --check)" \
   || bad "relay-loop.js fails node --check after the demote-guard edit"
 

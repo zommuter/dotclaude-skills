@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:c3a6 — content-addressed discovery cache wiring in relay-loop.js. The classifier shards
 # re-ran fresh EVERY round (≤MAX_ROUNDS), re-classifying unchanged repos — the bulk of the
 # on-critical-path "status" overhead. Fix: the prelude returns a per-repo SUPERSET signature
@@ -16,7 +17,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # (D1) the two discovery agents (discover-prelude + the discover-run mechanical runner that
 #      replaced the old discover-shard LLM prompt) must be EXPLICITLY pinned to a fixed cheap

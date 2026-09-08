@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:689c — D1: park unmerged orphans on discovery (relay orphan-reconcile, meeting
 # 2026-06-16-0938). Today (id:3ac8, test_relay_stale_worktree_reap.sh) a commit-bearing stale
 # worktree from a DEAD run is only SURFACED as "needs manual integration" every round and the
@@ -20,7 +21,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 [[ -x "$RECONCILE" ]] || fail "reconcile-repo.sh not found at $RECONCILE"
 [[ -x "$RETIRE" ]] || fail "worktree-retire.sh not found at $RETIRE"
 

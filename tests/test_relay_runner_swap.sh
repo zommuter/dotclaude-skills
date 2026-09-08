@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:a0b6 — the relay-loop.js verdict-source swap (flip step b). Static-structural checks
 # that the LLM discovery SHARD has been replaced by the MECHANICAL runner (discover-repo.sh per
 # repo) while the downstream merge/backstop contract is untouched.
@@ -14,7 +15,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # (1) The old LLM classifier shard prompt is DELETED (not commented) — it was the template-
 #     literal-lint liability that crashed the pool 3×.
