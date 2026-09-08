@@ -61,6 +61,35 @@ Every recipe is a flat JSON object with exactly these 7 fields:
 | `resource` | string | non-empty; the `resource:<name>` claim token this recipe should acquire (see `resource-claims.md`) |
 | `acceptance_artifact` | string | non-empty; path/pointer to the artifact that proves completion |
 
+### ⚠ THE CAP DOES NOT COVER `resource: local-llm` RECIPES (measured 2026-09-08)
+
+**Read this before trusting the cap for anything that talks to a model server.** The section
+below is accurate for a recipe that does its own work in-process. It is **worthless** for one
+that delegates to `llama-swap`, and the `local-llm` recipes all delegate.
+
+`ai-codebench judge` is an HTTP **client**. It does not load the model — it asks
+`llama-swap` (a *root system service*, `system.slice`) to, and llama-swap's `llama-server`
+children live in **its** cgroup, not ours:
+
+    /proc/<llama-server>/cgroup  ->  0::/system.slice/llama-swap.service
+    systemctl show llama-swap.service -p MemoryMax -p MemorySwapMax
+      MemoryMax=infinity      MemorySwapMax=infinity
+
+So `relay-mech.slice` capped a 378 MB HTTP client while ~17 GiB of model weights loaded
+somewhere entirely outside it. Observed live: the owner's machine filled RAM **and** swap and
+crawled, while the capped scope reported `MemoryCurrent=396439552`. That 378 MB figure was the
+tell and it was misread as "climbing" — a 30B model load is not 378 MB.
+
+Compounding it, the GPU is an **Intel Arc 140V iGPU with SHARED system memory**, so `-ngl 99`
+("offload all layers to GPU") does not move the weights off system RAM; it allocates them from
+the same 30 GB. The 30B entry also runs `--ctx-size 32768` against 8192 elsewhere.
+
+`llama-swap` v255 has **no memory limits of its own** — its `groups`/`exclusive`/`swap` keys
+govern which models may be RESIDENT TOGETHER, not how much they may use. Containing this needs
+a lever at the server, not the recipe (a `systemd-run --scope` wrapper inside the model's
+`cmd:`, or a `MemoryMax` drop-in on `llama-swap.service`), and both need root. Until one exists,
+treat every `resource: local-llm` recipe as **UNCAPPED** and run it only when you can watch it.
+
 ### Execution is CAPPED, and `est_wall` estimates — it does not kill (id:c057)
 
 `mechanical-daemon.sh` runs a recipe through **`capped-run.sh`**, not a bare `bash -c`. The
