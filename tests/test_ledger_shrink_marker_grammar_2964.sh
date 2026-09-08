@@ -8,6 +8,16 @@
 # fails-against-mutation: sed -i -e 's|^_MARKER_RE = re.compile(_MARKER_RE_SRC)$|_MARKER_RE = re.compile(r"<!--[^>]*-->")|' -e 's|^_MASK_QUOTED_MARKERS = True$|_MASK_QUOTED_MARKERS = False|' tools/ledger-shrink.py
 # fails-against-assertion: (A) a marker QUOTED inside an inline-code span was hoisted
 #
+# id:32ba. The two-half mutation above cannot tell the SHAPE anchor apart from the MASK: it
+# reverts both, and every over-match fixture above (A, C) writes its prose `<!--` INSIDE
+# backticks, so the mask alone already suppresses the over-match before the shape rule is
+# ever consulted -- reverting the shape anchor ALONE, mask left enabled, turns every
+# assertion above green for the wrong reason. The second case below reverts ONLY
+# `_MARKER_RE` (the mask stays `True`) and pins fixture F -- an UNBACKTICKED prose `<!--`,
+# which the mask cannot see at all, so only the shape anchor stood between it and a splice.
+# fails-against-mutation: sed -i -e 's|^_MARKER_RE = re.compile(_MARKER_RE_SRC)$|_MARKER_RE = re.compile(r"<!--[^>]*-->")|' tools/ledger-shrink.py
+# fails-against-assertion: (F) an UNBACKTICKED
+#
 # THE DEFECT (TODO id:2964). `tools/ledger-shrink.py`'s structural keep-set catch-all
 # `<!--[^>]*-->` is not anchored to any marker SHAPE. Two consequences, both measured on the
 # live `TODO.md` on 2026-09-07:
@@ -109,5 +119,24 @@ headE="$(grep -F 'id:aa03' "$E/TODO.md" || true)"
 grep -qF '<!-- zz-unknown-marker:7f3a -->' <<<"$headE" \
   || fail "(E) an UNENUMERATED marker type was relocated off the head line -- the structural catch-all property was lost (do not replace it with a fixed list of today's marker names): $headE"
 pass "(E) an unenumerated marker type is still kept by SHAPE"
+
+# --------------------------------------------------------------------------------------
+# fixture F: an UNBACKTICKED, unterminated `<!--` in plain prose (id:32ba)
+# --------------------------------------------------------------------------------------
+# Same shape as fixture C, but with the backticks removed. The mask (_MASK_QUOTED_MARKERS)
+# only ever suppresses a match wholly inside a code span, so it has nothing to say about this
+# one -- only the SHAPE anchor (`_MARKER_RE`'s refusal of `<`/`>`/`--` in the value) stops the
+# bogus opener from running forward across the whole body to the real marker's own `-->`.
+F="$TMP/f"
+mkledger "$F" "- [ ] [ROUTINE] **Cross-ledger note, no backticks this time.** The opener reads as <!-- xledger-ok:almost a real marker but never closed on this line, plain prose throughout. ${PAD}${PAD}TAIL_SENTINEL_2964F sits deep in the body and must stay there. ${PAD} <!-- id:aa04 -->"
+
+python3 "$SHRINK" --file TODO.md --root "$F" --apply >/dev/null 2>&1 \
+  || fail "setup: the shrinker exited non-zero on fixture F"
+headF="$(grep -F 'id:aa04' "$F/TODO.md" || true)"
+[[ -n "$headF" ]] || fail "setup: the aa04 item vanished from the ledger"
+
+grep -qF 'TAIL_SENTINEL_2964F' <<<"$headF" \
+  && fail "(F) an UNBACKTICKED \`<!--\` in prose spliced body prose onto the head line: $headF"
+pass "(F) an unbackticked, unterminated \`<!--\` in prose does not splice body prose onto the head line"
 
 echo "ALL PASS: id:2964 keep-set markers are matched by shape, not by running across prose"
