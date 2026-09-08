@@ -10,6 +10,7 @@
 ## 2026-09-08
 
 - Verified id:4f0f — md-merge.py's item-scoped update-ids mode (previously-uncommitted-but-unverified residue) meets the RED spec: test_md_merge_item_scope_4f0f.sh now passes, full suite green (603/0/0/7-expected-red). (id:4f0f)
+- review: id:4f0f verified green by its unchanged spec + negative case at 9d5048a6; closed id:be51, promoted id:09e4 with a RED spec (lint WARNs 6->3), filed id:740a/id:4cd4 hit live; 603/0/0/8-expected-red (id:4f0f,be51,09e4,3294,740a,4cd4,c057,f9dc,ba95)
 
 ## 2026-09-07
 
