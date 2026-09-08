@@ -3646,3 +3646,29 @@ existing `validate_mutation_arg` sibling, plus its single call site.
 ## 2026-09-09 00:53 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:78e6 verified green after re-pinning its ROTTED `HEAD~1` negative case; guarded the class as id:0801 (moving fails-against-rev now a CONFIG ERROR); ticked id:cb9a; reproduced id:740a live [id:78e6,0801,cb9a,e95b,740a] [id:78e6,0801,cb9a,e95b,740a]
+
+## 2026-09-09 — executor (sonnet)
+
+Worked id:0f0a -- `tools/count-indented-ids.py` failed its own RED spec
+(`tests/test_indented_id_population_8679.sh`) on three counts: no positional-path
+invocation (`argparse` rejected a bare `TODO.md` argument), no id enumeration in the
+default (non-`--json`, non-`--show-lines`) report, and no printed counting rule. Added a
+`path` positional argument that is a synonym for `--root <dirname> --file <basename>` and
+implies `--show-lines` (the exact shape the spec invokes: `"$COUNTER" "$FIX/TODO.md"`);
+added a one-line counting-rule summary and a `population: N addressable` line to the
+default text report (careful to avoid embedding a 4-hex-looking token in that text, since
+the spec's own population-enumeration assertion greps `\b[0-9a-f]{4}\b` and a stray
+"id:8679" in the banner line was briefly counted as a phantom population member). Also
+fixed the test file's own default `COUNTER` path, which pointed at a never-built
+`count-indented-ids.sh` placeholder the RED spec's own header called "the spec's
+proposal" -- retargeted to the actual delivered `count-indented-ids.py` (the file is
+directly executable via its `#!/usr/bin/env python3` shebang, so the spec's direct-exec
+invocation style needed no other change). Verified both existing invocation forms
+(`--file TODO.md --rev <sha>` and the new positional form) still reproduce the 21/10
+historical figures from `docs/ledger-notes/8679.md`. Full suite: 613 passed, 0 failed, 0
+expected-red.
+Friction: none -- the RED spec was precise and its three gaps were each independently
+verifiable by running it against the tool with an env override before touching any code.
+
+refactor: none needed -- this is a small, targeted fix to an existing single-purpose
+script's argument handling and report formatting; no new duplication introduced.

@@ -58,8 +58,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/lib/hermetic-git-env.sh"
 
 # The counting script. Path is injectable so renaming it costs one line here, not a
-# rewrite; the DEFAULT is the spec's proposal.
-COUNTER="${INDENTED_ID_COUNTER:-$ROOT/tools/count-indented-ids.sh}"
+# rewrite; the DEFAULT now points at the actual delivered tool (id:8679 shipped it as
+# `count-indented-ids.py`, not the `.sh` this spec originally guessed at -- the tool is
+# executable with a `#!/usr/bin/env python3` shebang, so invoking it directly, as this
+# file does below, works either way).
+COUNTER="${INDENTED_ID_COUNTER:-$ROOT/tools/count-indented-ids.py}"
 
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
