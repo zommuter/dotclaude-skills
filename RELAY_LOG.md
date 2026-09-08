@@ -3587,3 +3587,20 @@ id:64f9: shrank 4 of 46 over-budget item titles (8627, 0640, 83c2, 0220) in TODO
 ## 2026-09-09 00:09 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:4263 verified green (negative case machine-verified); REOPENED id:64f9, ticked+archived while its spec test was RED; filed id:963c (tick-guard) and corrected 3 stale `--all` auto-publish docs [id:4263,64f9,963c]
+
+## 2026-09-09 — executor (sonnet)
+
+Worked id:78e6 -- fixed `item_detail_path()` in `relay/scripts/roadmap-lint.sh`:
+`grep -oP -m1` into a here-string bounds matching LINES, not matches per line, so a
+line naming its own detail note twice (the real id:8372 gate-annotation shape,
+which quotes the item's own pointer path a second time in its reason prose) made
+`hit` a two-line string; `item_has_body_clause()`'s `-f` test on that never
+succeeds, so a present note was reported DETAIL-POINTER-MISSING and its real
+Acceptance clause was never read. Took the first newline-delimited match instead.
+Verified `roadmap-lint.sh .` no longer warns on id:8372. New
+`tests/test_roadmap_lint_duplicate_detail_pointer_78e6.sh` fails against HEAD~1 at
+the declared assertion, passes here; full suite 611 passed, 0 failed, 5
+expected-red.
+Friction: none.
+refactor: none needed -- one-line extractor fix plus an explanatory comment, no new
+duplication.
