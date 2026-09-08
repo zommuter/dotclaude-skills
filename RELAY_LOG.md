@@ -3795,3 +3795,7 @@ refactor: none needed -- the counting rule is a new single-purpose script; the o
 opportunity was taken up front by importing `code_spans`/`ID_RE` from the existing shrink
 tooling rather than re-deriving a marker/code-span parser, and the only duplication removed
 was the stale hardcoded "21" in `ledger-shrink.py`'s docstring.
+
+## 2026-09-08 19:34 — strong-execute (claude-opus-5, fable-standin, relay-loop)
+
+hard id:8679 — committed tools/count-indented-ids.py; 11/21/10 reconciled as one population under two predicates at two commits; suite 604/0/8 [id:8679]
