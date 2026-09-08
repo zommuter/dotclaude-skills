@@ -15,7 +15,7 @@ HOOKS_DIR := $(HOME)/.claude/hooks
 # install target, no drift check, absent on every other machine and lost on a rebuild. That
 # is the same unmanaged-artifact class that cost two dead pool rounds (id:83c3).
 AGENTS_DIR := $(HOME)/.claude/agents
-AGENT_FILES := echo-runner.md
+AGENT_FILES := echo-runner.md preamble-probe-wide.md preamble-probe-narrow.md
 
 meeting_FILES := SKILL.md format.md personas.md broker-mode.md cross-mode.md append.sh cost-of.sh \
                  find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
