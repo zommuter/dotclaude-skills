@@ -3867,3 +3867,7 @@ case arm) -- caught by test_relay_doctor_invocation_path_cbd2.sh going red.
 Friction: none on sizing.
 refactor: none needed -- both fixes are localized to the two functions the review's RED spec
 named; no new duplication introduced.
+
+## 2026-09-08 22:45 — reconcile (auto/human, non-strong by design — id:c500)
+
+reconcile integrate: fix(relay-doctor): id:4839 aggravations -- surface INERT ratchet stderr + widen install-drift to all relay_FILES [id:cb9a]
