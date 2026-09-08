@@ -22,3 +22,12 @@ RELAY_STATUS.md
 homonym-worksheet.md
 homonym-allowlist.draft.txt
 fleet.json
+
+# Handover docs are LOCAL-ONLY (owner ruling 2026-09-08, /relay human).
+# They are working notes for the next session and they quote fleet internals from
+# mostly PRIVATE sibling repos -- item ids, ledger sizes, internal tool names and
+# their known bugs -- while this repo is PUBLIC. HANDOVER-2026-09-05-1301.md was the
+# worst case: it tabulated the exact tokens a censor was meant to remove, which made
+# the rest findable. The 26 already-published ones stay in history (retraction is
+# id:d29b half (b), still open); this rule stops any further ones being published.
+docs/HANDOVER-*.md
