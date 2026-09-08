@@ -24,6 +24,12 @@
 #       Close an entry that can NEVER land, WITHOUT the remote carrying it, recording WHY.
 #       `--reason` is MANDATORY. Marks status=retired (distinct from resolved) and writes
 #       NO landing evidence. Refuses an entry that is not pending.
+#   pending-blocking <repo> [--ref REF]
+#       id:5ad9 (seam of id:7408): READ-ONLY. Does REPO have a pending, not-self-verified-
+#       landed entry whose merge is an ancestor of REF (default HEAD)? Prints one
+#       `<merged>\t<ckpt>\t<pending>` line per such entry; consumed by integrate.sh step 8
+#       to withhold a declared-public remote's push regardless of the CURRENT unit's own
+#       substantive-ness. Writes nothing.
 #
 # <key> is the entry's ckpt tag, or its merged sha (full or a >=7-char prefix). It must
 # match EXACTLY ONE entry; an ambiguous key is a loud refusal, never a guess.
@@ -546,6 +552,55 @@ case "$cmd" in
       fi
     fi
     if [ "$rc" = 3 ]; then exit "$EX_MALFORMED"; fi
+    exit 0
+    ;;
+
+  pending-blocking)
+    # id:5ad9 (seam of id:7408, option A) — READ-ONLY query for integrate.sh step 8: does
+    # REPO have any PENDING, not-self-verified-landed entry (id:4d65) whose recorded merge
+    # sha is an ANCESTOR of --ref (default HEAD) in that entry's own path? If so, a
+    # declared-public remote push for THIS run must be withheld — pushing `main` would
+    # carry the still-unratified merge out regardless of whether the CURRENT unit is itself
+    # substantive (the gate is a decision about a unit; `git push` is an operation on a
+    # branch, and cannot carry commit N+1 while leaving commit N behind).
+    # Prints one line per blocking entry: `<merged>\t<ckpt>\t<pending-remotes-or-*>`.
+    # Never mutates the queue (`list`'s sibling) — exit 0 always, callers test for
+    # non-empty stdout, exactly like `_list_self_verify_landed`'s caller does.
+    q_repo="${1:-}"; [ -n "$q_repo" ] || die "pending-blocking: repo required"
+    shift || true
+    q_ref=HEAD
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --ref) shift; q_ref="${1:-HEAD}" ;;
+        *) die "pending-blocking: unknown flag '$1'" ;;
+      esac
+      shift || true
+    done
+    rc=0
+    recs="$(_read_records)" || rc=$?
+    if [ "${rc:-0}" = 3 ]; then exit "$EX_MALFORMED"; fi
+    while IFS=$'\x1f' read -r lineno status repo path branch merged ckpt ids bump run verdict ts summary pending reason note; do
+      [ -n "${lineno:-}" ] || continue
+      [ "$status" = pending ] || continue
+      [ "$repo" = "$q_repo" ] || continue
+      # Ancestry is checked against the RECORD's OWN path, not the caller's — a record
+      # always names the checkout it was queued from. Fail-closed (id:f5d9(a)'s direction,
+      # reapplied here): a path that vanished or a sha this checkout cannot resolve is
+      # treated as STILL BLOCKING, never silently waved through.
+      if [ ! -d "$path" ] || ! git -C "$path" rev-parse --git-dir >/dev/null 2>&1; then
+        printf '%s\t%s\t%s\n' "$merged" "$ckpt" "${pending:-*}"
+        continue
+      fi
+      if ! git -C "$path" cat-file -e "${merged}^{commit}" 2>/dev/null; then
+        printf '%s\t%s\t%s\n' "$merged" "$ckpt" "${pending:-*}"
+        continue
+      fi
+      git -C "$path" merge-base --is-ancestor "$merged" "$q_ref" 2>/dev/null || continue
+      # id:4d65 — an entry the remote already demonstrably carries is not blocking; it just
+      # has not been `resolve`d yet. This is what lets the gate OPEN once the owner pushes.
+      _list_self_verify_landed "$path" "$merged" "$ckpt" "$pending" && continue
+      printf '%s\t%s\t%s\n' "$merged" "$ckpt" "${pending:-*}"
+    done <<< "$recs"
     exit 0
     ;;
 

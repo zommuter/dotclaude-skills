@@ -423,6 +423,9 @@ LIB_PRIVATE_REMOTE="${INTEGRATE_LIB_PRIVATE_REMOTE:-$SCRIPT_DIR/lib-private-remo
 # LEAK SCAN, this gates the PUSH, and conflating them would skip a leak scan. See that file's
 # header for the third-party-upstream defect it closes.
 LIB_PUBLISH_REMOTE="${INTEGRATE_LIB_PUBLISH_REMOTE:-$SCRIPT_DIR/lib-publish-remote.sh}"
+# id:5ad9 (seam of id:7408) — the READ-ONLY ratify-queue.sh query that binds a declared-
+# public remote's push to the whole repo's ratification queue, not just the current unit.
+RATIFY_QUEUE_SCRIPT="${INTEGRATE_RATIFY_QUEUE:-$SCRIPT_DIR/ratify-queue.sh}"
 
 # ── args ──
 repo="" path="" worktree="" branch="" summary="" run="" label=""
@@ -1094,6 +1097,34 @@ if [ "$publish_floored" = 1 ] && [ "$floor_has_origin" = 1 ] && [ "$repo_has_ori
 fi
 log "step8 id:99b7 publish set for [$repo]: [$(printf '%s' "$publish_set" | tr '\n' ' ')]"
 
+# ── id:5ad9 (seam of id:7408, option A) — BIND THE GATE TO THE REMOTE, NOT THE UNIT. ────
+#    id:4d44's ratification gate is a decision about a UNIT, but `git push` is an operation
+#    on a REF: it cannot carry commit N+1 while leaving commit N behind on the same branch.
+#    So once a substantive unit's merge lands on `main` deferred, the very next
+#    NON-substantive unit's "push everything" branch (two lines below) carries the deferred
+#    merge out anyway — measured 2026-09-02 after run relay-20260902-164744-26939: 17 queue
+#    entries, 17 already ancestors of the public remote head, 0 genuinely withheld. Query
+#    the queue for THIS repo, READ-ONLY, once per integrate — never per remote, since the
+#    answer does not depend on which remote is being classified, only on what is still
+#    outstanding for the repo as a whole.
+#
+#    Unreadable/unresolvable query ⇒ FAIL CLOSED, same direction as everywhere else in this
+#    gate: treat as blocking rather than silently letting an unratified merge back out.
+ratify_blocking=""
+if _ratify_pb_out="$("$RATIFY_QUEUE_SCRIPT" pending-blocking "$repo" --ref "$merged_head" 2>&1)"; then
+  if [ -n "$(printf '%s' "$_ratify_pb_out" | tr -d '[:space:]')" ]; then
+    ratify_blocking="$_ratify_pb_out"
+    printf 'integrate.sh: WITHHOLDING PUBLIC REMOTE(S) (id:5ad9, seam of id:7408): [%s] has an unresolved ratification-queue entry ancestral to this run'"'"'s HEAD — a declared-public remote will NOT be pushed this run regardless of whether THIS unit is itself substantive, closing the id:4d44 gate-does-not-bind regression. Outstanding entr(y|ies) (merged, ckpt, still-pending remotes): %s\n' \
+      "$repo" "$(printf '%s' "$ratify_blocking" | tr '\n' ';')" >&2
+    log "step8 id:5ad9 ratify-queue reports BLOCKING for [$repo] ancestral to $merged_head: $(printf '%s' "$ratify_blocking" | tr '\n' ';')"
+  fi
+else
+  ratify_blocking="UNVERIFIABLE: $_ratify_pb_out"
+  printf 'integrate.sh: WITHHOLDING PUBLIC REMOTE(S) (id:5ad9): the ratify-queue.sh pending-blocking query for [%s] FAILED — treating as blocking (fail-closed), never silently publishing on an unproven query. Output: %s\n' \
+    "$repo" "$_ratify_pb_out" >&2
+  log "step8 id:5ad9 ratify-queue query FAILED for [$repo] — fail-closed to blocking: $_ratify_pb_out"
+fi
+
 # Classify every remote. `no_push` pushurls are not remotes at all for this purpose —
 # git-lock-push.sh skips them by the same rule, so they are neither pushed nor deferred.
 to_push="" eligible_count=0
@@ -1127,10 +1158,18 @@ for _r in $all_remotes; do
     continue
   fi
   eligible_count=$(( eligible_count + 1 ))
-  if [ -z "$defer_push" ]; then
-    to_push="${to_push}${_r}"$'\n'                       # non-substantive: push everything
-  elif [ "$priv_lib_ok" = 1 ] && is_private_remote_url "$_rurl"; then
-    to_push="${to_push}${_r}"$'\n'                       # substantive: private/LAN → push
+  if [ "$priv_lib_ok" = 1 ] && is_private_remote_url "$_rurl"; then
+    to_push="${to_push}${_r}"$'\n'                       # private/LAN → always push
+  elif [ -n "$ratify_blocking" ]; then
+    # id:5ad9 — a declared-PUBLIC remote is withheld whenever the repo carries an
+    # unresolved queue entry ancestral to HEAD, regardless of THIS unit's own
+    # substantive-ness: the push is a branch operation and cannot leave the deferred
+    # commit behind. This is the one branch that did not exist before id:5ad9 — a
+    # non-substantive unit used to reach `to_push` unconditionally right here.
+    push_deferred="${push_deferred}${_r}"$'\n'
+    log "step8 id:5ad9 remote '$_r' WITHHELD — repo [$repo] has an unresolved ratification entry ancestral to $merged_head"
+  elif [ -z "$defer_push" ]; then
+    to_push="${to_push}${_r}"$'\n'                       # non-substantive, nothing pending: push
   else
     push_deferred="${push_deferred}${_r}"$'\n'           # substantive: public/unproven → defer
     log "step8 id:4d44 remote '$_r' is NOT provably private — DEFERRED for owner ratification"
