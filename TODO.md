@@ -827,7 +827,7 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] [INBOUND routed:a96c from inflownistration] meeting/classify.sh reports a phantom GATED on items that merely MENTION an edge name in prose: its gate regex matches the bare word 'gated', so inflownistration id:2b63 -- detail: `docs/ledger-notes/a0ae.md` <!-- id:a0ae -->
 - [ ] [INBOUND routed:1deb from kienzler-solutions] Fable-Eskalationszaehler ausgeloest: 5 Befunde erzwangen ein Amendment eines bereits ratifizierten Entscheids (Schwelle >=2), meeting-Skill Schritt 0f.6 -- detail: `docs/ledger-notes/270f.md` <!-- id:270f -->
 - [ ] [HARD] [INBOUND routed:2711 from loderite] **Per-phase slicing of the review child mandatory reference docs.** -- detail: `docs/ledger-notes/a282.md` <!-- id:a282 -->
-- [ ] [HARD] **Reconcile the indented-id count before any promote pass -- 11 (ruled) vs 21 (measured).** -- detail: `docs/ledger-notes/8679.md` <!-- id:8679 -->
+- [x] [HARD] **Reconcile the indented-id count before any promote pass -- 11 (ruled) vs 21 (measured).** -- detail: `docs/ledger-notes/8679.md` <!-- id:8679 -->
 - [ ] [HARD] [INBOUND routed:d67b from loderite] **Execute child committed to a target repo's MAIN checkout: the REAL residual is that isolation is DETECTED at integrate, not PREVENTED at dispatch.** -- detail: `docs/ledger-notes/9128.md` <!-- id:9128 -->
 - [ ] [ROUTINE] **`archive-closed.sh` carries the SAME block-rule mis-attribution `id:71ed` just fixed in `roadmap-archive.sh`, and its blast radius is wider.** -- detail: `docs/ledger-notes/9cac.md` <!-- id:9cac -->
 - [ ] [HARD] **Decide caller-side handling of `ledger-slice.sh` exit 7 (dangling detail pointer) in `relay-loop.js`.** -- detail: `docs/ledger-notes/5446.md` <!-- gated-on:2ee1 --> <!-- id:5446 -->
