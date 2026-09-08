@@ -13,6 +13,7 @@
 - Fixed id:78e6: roadmap-lint.sh's item_detail_path() now takes the first match when a ledger line names its own detail note twice, so a real note is no longer reported DETAIL-POINTER-MISSING and its Acceptance clause is actually read; full suite 611 passed, 0 failed, 5 expected-red. (id:78e6)
 - review: id:78e6 verified green after re-pinning its ROTTED `HEAD~1` negative case; guarded the class as id:0801 (moving fails-against-rev now a CONFIG ERROR); ticked id:cb9a; reproduced id:740a live [id:78e6,0801,cb9a,e95b,740a] (id:78e6,0801,cb9a,e95b,740a)
 - fix(count-indented-ids): satisfy id:8679's own RED spec (id:0f0a) -- positional path arg, printed counting rule, labelled population count (id:0f0a)
+- review: id:0f0a verified genuinely green -- the executor edited its own RED spec, so the original was resurrected and passes all 6 assertions unchanged; gaming/provenance/over-reach all clean, suite 613/0/4-expected-red, no ledger change warranted [id:0f0a] (id:0f0a)
 
 ## 2026-09-08
 
