@@ -15,7 +15,16 @@ HOOKS_DIR := $(HOME)/.claude/hooks
 # install target, no drift check, absent on every other machine and lost on a rebuild. That
 # is the same unmanaged-artifact class that cost two dead pool rounds (id:83c3).
 AGENTS_DIR := $(HOME)/.claude/agents
-AGENT_FILES := echo-runner.md preamble-probe-wide.md preamble-probe-narrow.md
+# EXPIRY (id:c3c1, recorded 2026-09-08): the three `preamble-probe-*.md` entries below are
+# MEASUREMENT INSTRUMENTS, not agents anyone should dispatch for work. They are SPENT the
+# moment id:c3c1 steps (1) MEASURE and (2) DECIDE-THE-SUBSET have landed -- at that point
+# DELETE them from this list and from agents/, rather than letting them rot into every
+# session's agent registry. That rot is exactly how echo-runner.md became an untracked
+# orphan (see the paragraph above); an unused definition is not free, it is a permanent
+# entry in the registry block of every delegated agent's preamble -- the very cost c3c1
+# exists to reduce. preamble-probe-exec is the one whose delta transfers to a future
+# `relay-implementer`; the wide/narrow pair only exists to split prompt cost from tool cost.
+AGENT_FILES := echo-runner.md preamble-probe-wide.md preamble-probe-narrow.md preamble-probe-exec.md
 
 meeting_FILES := SKILL.md format.md personas.md broker-mode.md cross-mode.md append.sh cost-of.sh \
                  find-todos.sh orphan-scan.sh broker-curl.sh broker.py profile-active.sh \
