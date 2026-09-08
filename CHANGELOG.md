@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-09-08
+
+- Verified id:4f0f — md-merge.py's item-scoped update-ids mode (previously-uncommitted-but-unverified residue) meets the RED spec: test_md_merge_item_scope_4f0f.sh now passes, full suite green (603/0/0/7-expected-red). (id:4f0f)
+
 ## 2026-09-07
 
 - review: id:2964 verified green (581/0/19, both live corruptions repaired); filed id:32ba -- only the MASK half of its two-half fix is pinned, a shape-anchor revert leaves the suite green (id:2964,32ba,8372,168c,5121,b555)
