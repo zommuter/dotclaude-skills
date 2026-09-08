@@ -3604,3 +3604,7 @@ expected-red.
 Friction: none.
 refactor: none needed -- one-line extractor fix plus an explanatory comment, no new
 duplication.
+
+## 2026-09-09 00:19 — executor (sonnet, relay-loop)
+
+Fixed id:78e6: roadmap-lint.sh's item_detail_path() now takes the first match when a ledger line names its own detail note twice, so a real note is no longer reported DETAIL-POINTER-MISSING and its Acceptance clause is actually read; full suite 611 passed, 0 failed, 5 expected-red. [id:78e6]
