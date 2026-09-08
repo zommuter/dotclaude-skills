@@ -3871,3 +3871,26 @@ named; no new duplication introduced.
 ## 2026-09-08 22:45 — reconcile (auto/human, non-strong by design — id:c500)
 
 reconcile integrate: fix(relay-doctor): id:4839 aggravations -- surface INERT ratchet stderr + widen install-drift to all relay_FILES [id:cb9a]
+
+## 2026-09-08 — executor (sonnet)
+
+Worked id:64f9 -- rewrote 4 of the 46 over-budget item titles (id:8627, id:0640, id:83c2,
+id:0220 in TODO.md; id:8627 also has a ROADMAP.md twin that was already conforming and
+needed no edit). All four already had their full detail preserved elsewhere (an existing
+`docs/ledger-notes/<id>.md`, or, for id:8627, the removal of stray non-format cruft after
+the detail pointer) so no content was lost -- only wording was tightened / junk stripped.
+Verified with `todo-conformance.sh --grammar-lines` (all 4 findings gone, 0 new) and with
+`tools/roundtrip-validate.py --before <HEAD snapshot> --after <worktree> --ledgers
+TODO.md,ROADMAP.md`: DIRECTIONAL VERDICT CLEAN, all five assertions hold, grammar findings
+TODO.md 129->125 (4 removed, 0 gained), ROADMAP.md 56->56 (0/0), no id lost, no lane/gate
+change, no new roadmap-lint/orphan-scan finding. Full suite green: 610 passed, 0 failed, 5
+expected-red (unrelated open items).
+Friction: id:64f9 is genuinely large (46 items total per the re-measured count) and each
+remaining item needs individual judgment -- most of what is still open has NO existing bold
+title / no detail note yet, which is real relocation work (author a new
+`docs/ledger-notes/<id>.md`, move the full original prose there, then write a short faithful
+title), materially more expensive per item than the four picked here (the cheap subset where
+the title already existed and its note was already complete). Leaving the item open,
+unticked, for a follow-up batch; this session made real, verified progress rather than a
+size-out.
+refactor: none needed -- pure ledger-text edits via `md-merge.py update-ids`, no code changed.
