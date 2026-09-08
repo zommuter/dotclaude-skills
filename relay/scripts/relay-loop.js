@@ -136,6 +136,51 @@ const FABLE_DOWN = !!A.fableDown
 const MECH_FALLBACK = A.MECH_FALLBACK || ''
 const MECH_MODEL = MECH_FALLBACK === 'fallback-haiku' ? 'haiku' : 'bash'
 
+// EXECUTE_AGENT_TYPE (id:c3c1 step 4) -- dispatch pool `execute` children under a NAMED CUSTOM
+// AGENT TYPE (a `~/.claude/agents/<name>.md` definition, repo-managed here via `AGENT_FILES` +
+// `make install-agents`), so the child gets that definition's trimmed system prompt and narrowed
+// tool list instead of the ~82k default delegated-subagent preamble. Measured 2026-09-08: that
+// preamble is 46% of the ~176.7k Sonnet wall, and 5 of 15 execute children died
+// "Prompt is too long" in one run -- ALL Sonnet, 0 of 12 Opus.
+//
+// SCOPE: execute ONLY. review/handoff/hard run on STRONG_MODEL (Opus), are not dying, and are
+// deliberately NOT covered: `executeAgentTypeFor()` below is the single gate and keys on the
+// verdict, so a future caller cannot widen it by accident.
+//
+// DEFAULT IS OFF. When unset/empty, `opts.agentType` is never set at all and dispatch is
+// byte-identical to the pre-id:c3c1 behaviour. This is a deliberate opt-in: a custom definition
+// replaces the SYSTEM PROMPT, and cutting the wrong half of it degrades agent quality SILENTLY
+// (no test catches it; see id:c3c1's own "decide the subset" warning). Do not flip the default.
+//
+// FAIL LOUD, NEVER SILENT (id:4347 no-silent-swallow). When a type name IS configured but the
+// harness rejects it (error text "Agent type '<name>' not found"), the unit is handed back with
+// the remedy named, and is NOT retried on the default agent. Falling back silently would look
+// like a working run while every child quietly kept paying the full preamble, i.e. the exact
+// misconfiguration the knob exists to fix would be invisible. This is the EXPECTED failure, not a
+// hypothetical: an agent definition installed after a session started is invisible to that
+// session, so the first run after `make install-agents` hits it until the session is restarted.
+const EXECUTE_AGENT_TYPE = String(A.EXECUTE_AGENT_TYPE == null ? '' : A.EXECUTE_AGENT_TYPE).trim()
+
+// --- id:c3c1 pure helpers (awk-extracted and executed stand-alone by
+// --- tests/test_relay_execute_agent_type_c3c1.sh -- keep this block contiguous, dependency-free)
+function executeAgentTypeFor (verdict, typeName) {
+  const t = String(typeName == null ? '' : typeName).trim()
+  return (verdict === 'execute' && t) ? t : ''
+}
+const AGENT_TYPE_MISSING_RE = /Agent type '[^']*' not found/i
+function agentTypeMissingReason (err, typeName, repo) {
+  const t = String(typeName == null ? '' : typeName).trim()
+  if (!t) return ''
+  const msg = String((err && err.message) || err || '')
+  if (!AGENT_TYPE_MISSING_RE.test(msg)) return ''
+  return 'id:c3c1 execute agent type "' + t + '" NOT FOUND. The harness refused the dispatch for ' +
+    String(repo || '(unknown repo)') + ', so NO child ran and nothing was silently retried on the default agent. ' +
+    'REMEDY: (1) run "make install-agents" in ~/src/dotclaude-skills so ~/.claude/agents/' + t + '.md exists, ' +
+    'then RESTART the relay session (a definition installed after a session started is invisible to it); ' +
+    'or (2) re-run with EXECUTE_AGENT_TYPE unset to dispatch execute children on the default agent.'
+}
+// --- end id:c3c1 pure helpers
+
 // id:c012 — graceful (patient) operator stop. THREE entry points, all converging on
 // stopReason="user-stop" + a clean drain (the prior round's wave + integration debt are
 // already drained by runRound before the next round's discovery runs, so a stop between
@@ -4337,6 +4382,12 @@ async function runUnit(unit) {
   // re-derive the verdict→model mapping here: a second copy could drift and let the gate size a
   // unit against a tier it is not actually dispatched on.
   opts.model = unitModel
+  // id:c3c1 -- custom agent type for the execute (Sonnet) lane only, OFF unless configured.
+  // `executeAgentTypeFor` is the single gate: it returns '' for every non-execute verdict and for
+  // an unset/blank name, and the key is only assigned when non-empty, so the opts object handed to
+  // agent() is IDENTICAL to the pre-id:c3c1 one when the knob is off (not `agentType: undefined`).
+  const unitAgentType = executeAgentTypeFor(unit.verdict, EXECUTE_AGENT_TYPE)
+  if (unitAgentType) opts.agentType = unitAgentType
   // API-error failsafe: agent() can throw or return null on a terminal API error after
   // the harness's own retries. Don't let that orphan a worktree with committed
   // checkpoints — catch it, and for a handoff attempt ONE auto-resume from the last
@@ -4346,6 +4397,21 @@ async function runUnit(unit) {
   try {
     report = await agent(unitPrompt(unit), opts)
   } catch (e) {
+    // id:c3c1 FAIL-LOUD branch -- a configured-but-missing agent type is a MISCONFIGURATION, not a
+    // transient API error: hand the unit back naming the remedy and return, rather than dropping
+    // through to the generic failsafe (which for a handoff would auto-resume into the same missing
+    // type, and for an execute would surface a reason that never mentions the agent type at all).
+    const typeMissing = agentTypeMissingReason(e, opts.agentType, unit.repo)
+    if (typeMissing) {
+      log(`relay-loop: ${typeMissing}`)
+      state.handbacks.push({ repo: unit.repo, reason: typeMissing, worktreePath: worktreePathFor(unit) })
+      pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason: 'id:c3c1 execute agent type not found' })
+      emittedHandbackEvents.push({ repo: unit.repo, reason: typeMissing })  // id:4a46 backstop
+      if (typeof trackHandback === 'function') trackHandback(handbackTracker, unit.repo, unit.verdict, typeMissing)  // id:7354
+      state.inFlight = state.inFlight.filter(r => r.key !== unitKey({ verdict: unit.verdict, itemId: choice.item || '', attempt: unit.attempt || 0 }))
+      scheduleStatusWrite(state)
+      return
+    }
     log(`relay-loop: ${unit.verdict} child for ${unit.repo} failed (${(e && e.message) || e}) — ${unit.verdict === 'handoff' ? 'attempting auto-resume' : 'will surface as handback'}`)
   }
   if (!report && unit.verdict === 'handoff') {

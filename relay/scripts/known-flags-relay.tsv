@@ -19,6 +19,7 @@
 --quota-7d	1
 --quota-5h	1
 --pool-width	1
+--execute-agent-type	1
 --once	0
 --after	1
 --drain	0
