@@ -3653,3 +3653,7 @@ handoff C3 for id:1b0e/e044/ad67: one RED spec tests/test_workflow_check_hardeni
 ## 2026-09-08 10:20 — integrate (claude-opus-5)
 
 id:1b0e/e044/ad67 execute: helper hardened (readability guard, lexical template/comment scan, strict wrapper); spec syntax error fixed; suite 597/0/0/8
+
+## 2026-09-08 10:26 — integrate (claude-opus-5)
+
+id:1b0e/e044/ad67 integrate: helper hardened, suite 597/0/0/8; merge-window collision with a parallel session recorded on id:d0e0
