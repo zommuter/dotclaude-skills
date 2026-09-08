@@ -47,17 +47,37 @@ because the Skill tool ignores the `executor` arg and injects the ~26.4k-token O
 SKILL.md, which does not contain the contract. The contract is loaded with **Read**, from
 `~/.claude/skills/relay/references/executor-contract.md` (~5.5k). Do not re-add Skill.
 
-## FIRST JOB: re-run the three probes
+## ~~FIRST JOB: re-run the three probes~~ -- DONE 2026-09-08, and the answer INVERTED
 
-They were repaired after the last measurement and are invisible until a restart, so the
-corrected split has never been taken. Dispatch each with `Reply with exactly the word OK.`
-and read the first-request context (method at the foot of this doc).
-`default - wide` = system-prompt cost; `wide - exec` = the tool cost an executor cannot
-avoid; `exec - narrow` = the rest.
+Run in this session with corrected instruments. Full record: `docs/ledger-notes/c3c1.md`
+(§ *RE-MEASUREMENT 2026-09-08, corrected instruments*). Matched `model: sonnet`,
+token-identical prompts, zero tool uses:
 
-**Do not trust any prompt-vs-tools split quoted anywhere before that run.** `Glob`, `Grep`
-and `TodoWrite` are NOT real tool names in this harness, so the original probe declared 11
-tools of which only 8 resolved, against a real roster of 21.
+| Probe | tools | first-request |
+|---|---|---|
+| default `general-purpose` | default full set | **74,529** |
+| `preamble-probe-wide` | literal 21-name roster | **74,162** |
+| `preamble-probe-exec` | `Bash, Read, Edit, Write` | **43,499** |
+| `preamble-probe-narrow` | `Bash` | **41,654** |
+
+**The win is the TOOL LIST, not the system prompt, by ~89:1** -- the opposite of the
+retracted 4:1 finding. System-prompt body swap = **367 tokens (0.5%)**; tool definitions
+beyond Bash = **32,508 (43.6%)**; floor = **41,654 (55.9%)**, unreachable by any definition.
+
+Two consequences that change the plan: **`relay-implementer` captures 31,030 (41.6%)**,
+because Read+Edit+Write cost only 1,845 combined -- the retracted split said an executor
+could capture almost none of the win. And **step (2), "decide which subset of the global
+`CLAUDE.md` to keep", is very nearly moot**: the 367 delta proves a custom definition does
+not drop `CLAUDE.md`, the memory index, or the harness scaffolding at all, so the owner
+judgement call this item warned would silently degrade agent quality is not on the path.
+
+The labelling in the superseded version of this section was also wrong: `wide - exec` is the
+tool cost an executor **can** avoid (30,663), and `exec - narrow` (1,845) is what it cannot.
+
+**Instrument note that now cuts the other way.** `default - wide` = 367 is a self-validation:
+a definition carrying the literal default roster reproduces the default child within 0.5%,
+which is evidence the 21 names are right. The old probe failed exactly this check -- `Glob`,
+`Grep` and `TodoWrite` are NOT real tool names here, so it declared 11 of which 8 resolved.
 
 ## What LANDED this session
 
@@ -93,7 +113,8 @@ tools of which only 8 resolved, against a real roster of 21.
 
 ## OPEN threads, priority order
 
-1. **Re-run the probes** (above). Everything about sizing the trim waits on it.
+1. ~~Re-run the probes~~ **DONE** (above). Sizing is settled; the trim is worth 41.6% per
+   executor child and the hard subset-decision gate turned out not to exist.
 2. **`EXECUTE_AGENT_TYPE` is off by default and needs front-door threading.** The Workflow
    sandbox has no `process.env`, so the env var only works if `/relay` reads it and passes
    `args.EXECUTE_AGENT_TYPE`. Same shape as `POOL_WIDTH`; a forgotten thread means the knob
