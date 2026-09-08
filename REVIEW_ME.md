@@ -922,7 +922,7 @@ Two defects found in the helper are mechanically actionable and were filed rathe
 measured evidence in `docs/ledger-notes/`. Neither is a failure of `id:62c9`'s ratified acceptance,
 so the item stays ticked.
 
-- [ ] id:62c9 -- **does the Workflow runtime execute `relay-loop.js` in STRICT mode?** The wrapper
+- [x] id:62c9 -- **does the Workflow runtime execute `relay-loop.js` in STRICT mode?** The wrapper
   makes the source a sloppy-mode async function BODY, so strict-only syntax errors stop being
   errors. Measured on the landed helper: `const a = 0755;`, `function f(a,a){}` and `with(o){}` all
   pass `workflow_node_check` and would all be rejected by an ESM parse. This is not a regression --
@@ -930,3 +930,77 @@ so the item stays ticked.
   the wrapper is faithful to the runtime IF the runtime is sloppy. I could not verify that; the
   Workflow runtime is not in this repo. If it is strict, the guard under-detects and the wrapper
   should add `'use strict';` to its prologue. Owner/runtime-doc call, not a code call.
+
+  **RESOLVED 2026-09-08 by the hardening review.** Answered by direct probe, not by argument:
+  the Workflow runtime is STRICT -- `{"thisIsUndefined":true,"implicitGlobalThrew":"ReferenceError","verdict":"STRICT"}`,
+  two independent signals agreeing, recorded with its method in `docs/ledger-notes/ad67.md`.
+  `id:ad67` acted on it (`'use strict';` in the joined prologue) and is closed and specced by
+  three distinct strict-only constructs, so the box's own conditional -- *"If it is strict [...]
+  the wrapper should add `'use strict';`"* -- is discharged. Resolving it does NOT pre-empt an
+  owner decision: the box was framed as an owner call only because the FACT was unverifiable from
+  this repo, and a measurement, not a preference, is what settled it. Leaving it open would
+  present a settled fact as a live question. Verified alongside: the pristine `relay-loop.js`
+  carries no strict-hostile syntax (no legacy octal escapes, no `with`, no unqualified `delete`),
+  so the directive changed no verdict it should not have -- I could not construct a file shape
+  legal in a strict runtime that the strict wrapper now refuses.
+
+## Review 2026-09-08 (hardening audit of id:1b0e / id:e044 / id:ad67, window `relay-ckpt-20260908-0958`..HEAD)
+
+Verdict: **sound with caveats**. All three items' functional acceptance criteria are genuinely
+met, and I verified that BY MUTATION rather than by reading: `'use strict';` removed from the
+prologue reddens `(d1)`, and removing BOTH id:1b0e mechanisms reddens `(b1)` at exactly the
+substring the file's own `# fails-against-assertion:` declares. `gaming-scan.sh` clean;
+`orphan-scan.sh --cross-ledger` clean; provenance greps for `@owner-accepted` /
+`@owner-answered` / `answer-src:` over the window: none minted; `relay/scripts/relay-loop.js`
+byte-unchanged; full suite re-run here at **597 passed, 0 failed, 0 errored, 8 expected-red**;
+`roadmap-lint` carries 4 DEAD-GATE + 1 NO-ACCEPTANCE warning, all pre-existing and none on this
+window's items. All mutants were built in an isolated mirror root; the tracked helper was never
+modified.
+
+**No false GREEN exists in the shipped scanner, and I looked hard for one.** Every input I could
+construct where the lexical state goes wrong in the fail-OPEN direction (a backtick inside a
+double- or single-quoted string, an escaped backtick, `/*` inside a string, three backticks on a
+line) still returns non-zero, because `export`/`import` declarations are SyntaxErrors inside a
+function body and `node --check` is a hard backstop. What degrades is the MESSAGE: the loud
+refusal naming the source file is replaced by a node error naming the temp path
+(`/tmp/tmp.XXXXXX.js:3`), which is precisely what assertions `(b2)`/`(c4b)` exist to prevent
+given that ~40 of the 50 call sites redirect stderr. The single construct for which a false green
+IS reachable is `import.meta` -- invisible to the regex (it requires whitespace after the
+keyword) and ACCEPTED by `node --check` inside an async function in a `.js` script (measured,
+rc=0). Latent: zero occurrences in `relay-loop.js`. Recorded in `docs/ledger-notes/8627.md`, not
+filed as work.
+
+**Readability guard: complete, measured.** FIFO refused by `[[ -f ]]` with no hang (returns
+immediately under an 8s kill); directory refused; symlink to an unreadable target correctly
+caught by `[[ ! -r ]]`; empty file and a file with no trailing newline both behave; NUL byte and
+200 KB of binary both rejected. `sed_rc` was hand-verified to propagate out of the redirected
+brace group (measured `sed_rc=2`), so the TOCTOU backstop does work -- it is simply untested by
+the suite (now `id:0165`). No temp-file leak on any early-return path. The two `rm -f "$tmp"`
+sites are a `CLAUDE.md` style nit only (`rm --` is preferred for a known file); not worth a
+commit of their own, folded into `id:8627` if that item touches those lines.
+
+**Filed as mechanically actionable rather than boxed here:** `id:8627` (the scanner goes blind
+over 1,251 of `relay-loop.js`'s 4,930 lines because two `//` comments containing `relay/orphan/*`
+open a block-comment state that runs 520 and 731 lines; plus three surviving false refusals and a
+header comment that again claims more than the code does) and `id:0165` (the id:1b0e spec passes
+with either mechanism removed).
+
+- [ ] **Should `id:e044` be REOPENED, or does `id:8627` carry its unfinished half?** `id:e044`'s
+  acceptance had five clauses. The four functional ones are met and specced by
+  `tests/test_workflow_check_hardening.sh` `(c1)`-`(c4)`. The fifth -- *"Fix the helper's own
+  comment in the same change -- it currently states a guarantee the code does not provide"*, which
+  the note itself flags as NOT mechanically checked -- is **not** met: the rewritten header now
+  claims *"a real lexical scan (not just a line-initial substring) confirms"* (it is a per-line
+  backtick-parity heuristic) and *"A `//` line comment [...] never trips this refusal either
+  way"* (a `//` comment containing `/*` opens a 520-line blind window on the live file, measured).
+  The inline comment further down is honest, so the file contradicts itself. I did NOT untick
+  `id:e044`: its spec is green, unticking would confuse the ledger, and `id:8627` names the same
+  correction as an acceptance clause. But that is a judgement about ledger hygiene, not a fact,
+  and review.md says an unmet acceptance clause reopens the item -- so it is yours, not mine.
+  <!-- relates:e044 --> <!-- relates:8627 --> <!-- id:07ef -->
+
+**Tooling note, found while trying to resolve the box below.** The stale `id:62c9` box carried a
+BARE `id:62c9` rather than the owning `<!-- id:62c9 -->` form, so `md-merge.py update-ids` cannot
+address it at all -- it refuses loudly (`regex_sub id(s) not found`), correctly, per the `id:3743`
+anchoring rule. It was resolved via `update-sections` instead, which is still under the flock. Any
+future REVIEW_ME box that wants to be machine-resolvable needs the HTML-comment marker.
