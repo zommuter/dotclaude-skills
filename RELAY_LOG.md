@@ -3838,3 +3838,7 @@ Friction: none on sizing -- the fix was a single guard clause, well-scoped by th
 RED spec.
 refactor: none needed -- one guard clause added at the point the review's diagnosis named; no
 duplication introduced.
+
+## 2026-09-08 20:52 — executor (sonnet, relay-loop)
+
+id:09e4: mechanical-proxy now refuses a relay-mech-stdin fence on a multi-stage pipeline (admission was keyed to the last stage, delivery reached the first) -- loud mechanical_stdin_refused log, RED spec green, make test 605/0/7-expected-red [id:09e4]
