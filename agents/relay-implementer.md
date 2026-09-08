@@ -74,12 +74,23 @@ general guidance below where the two differ.
 
 ## Environment
 
-- Manjaro: install with `pamac`, never `pacman -S`. (Restored deliberately: the Safety rule
-  above forbids `sudo pamac` but the machine inventory that named the right tool was cut, so
-  the agent knew one package manager was forbidden and not which one to use. A half-rule
-  points at the wrong answer, which is worse than silence.)
-- Python dependencies go through `uv` (`uv add` / `uv pip`), never a system package or bare
-  `pip`.
+- **Install nothing system-wide. Ever.** Not `pamac`, not `pacman`, not `apt`, not a
+  system-wide `pip`. You run unattended, so a package install is either a permission prompt
+  nobody is there to answer or a silent modification of the host. A missing system
+  dependency is a HANDBACK: say exactly which package is missing and stop.
+- Project-local Python dependencies are different and are allowed: `uv add` / `uv pip`
+  inside the project. Never a system package, never bare `pip`.
+- **Lean / Mathlib work is on btrfs and must stay copy-on-write.** `lake exe cache get`
+  extracts a fresh tree with NO deduplication -- measured on this host, a cache-get tree
+  held 10.56 GiB exclusive where reflink-seeded trees held 0.00 B. Seed a build tree with
+  `cp -a --reflink=always`, never a plain `cp -r`, and never run `cache get` into a worktree
+  when an existing tree at the same pinned revision can be reflinked. Use `lake` from PATH
+  (`~/.local/bin/lake` wraps it transparently); do not bypass the wrapper. Two traps:
+  `--reflink=auto` SILENTLY degrades to a full byte-for-byte copy across filesystems, which
+  for a Mathlib tree is worse than doing nothing -- so use `=always` and let it fail loudly;
+  and `/tmp` is tmpfs and cannot reflink at all, so never stage a Lean tree there. A reflink
+  is a snapshot, not a live link: it goes stale the moment the pinned revision moves. See
+  `~/src/leancow`.
 - Never `git pull --rebase` with a dirty tree -- it fails on unstaged changes. Use `git
   fetch` then `git rebase`, or stash first. Prefer plain `git` in the repo you are in over
   `git -C <same-path>`, which triggers a permission prompt.
