@@ -3818,3 +3818,7 @@ refactor: none needed -- test-fixture-only addition, no production code touched.
 ## 2026-09-08 19:47 — executor (sonnet, relay-loop)
 
 id:32ba — added fixture F + a second machine-readable fails-against-mutation case pinning the id:2964 SHAPE-anchor half independently of the quoted-example mask; both cases green-now/red-there OK, make test 604/1(pre-existing unrelated)/7 [id:32ba]
+
+## 2026-09-08 20:42 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:32ba verified green (both negative cases fire); id:8679 ticked with its RED spec still red -- spec retargeted to new id:0f0a, filed id:78e6 (roadmap-lint grep -o -m1 detail-pointer defect); make test 604/0/8-expected-red [32ba,8679,0f0a,78e6] [id:32ba,8679,0f0a,78e6]
