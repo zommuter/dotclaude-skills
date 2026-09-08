@@ -13,6 +13,7 @@
 - review: id:4f0f verified green by its unchanged spec + negative case at 9d5048a6; closed id:be51, promoted id:09e4 with a RED spec (lint WARNs 6->3), filed id:740a/id:4cd4 hit live; 603/0/0/8-expected-red (id:4f0f,be51,09e4,3294,740a,4cd4,c057,f9dc,ba95)
 - hard id:8679 — committed tools/count-indented-ids.py; 11/21/10 reconciled as one population under two predicates at two commits; suite 604/0/8 (id:8679)
 - id:32ba — added fixture F + a second machine-readable fails-against-mutation case pinning the id:2964 SHAPE-anchor half independently of the quoted-example mask; both cases green-now/red-there OK, make test 604/1(pre-existing unrelated)/7 (id:32ba)
+- review: id:32ba verified green (both negative cases fire); id:8679 ticked with its RED spec still red -- spec retargeted to new id:0f0a, filed id:78e6 (roadmap-lint grep -o -m1 detail-pointer defect); make test 604/0/8-expected-red [32ba,8679,0f0a,78e6] (id:32ba,8679,0f0a,78e6)
 
 ## 2026-09-07
 
