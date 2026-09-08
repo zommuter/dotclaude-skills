@@ -3822,3 +3822,19 @@ id:32ba — added fixture F + a second machine-readable fails-against-mutation c
 ## 2026-09-08 20:42 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:32ba verified green (both negative cases fire); id:8679 ticked with its RED spec still red -- spec retargeted to new id:0f0a, filed id:78e6 (roadmap-lint grep -o -m1 detail-pointer defect); make test 604/0/8-expected-red [32ba,8679,0f0a,78e6] [id:32ba,8679,0f0a,78e6]
+
+## 2026-09-08 — executor (sonnet, relay-loop)
+
+Worked id:09e4 -- fixed the mechanical-proxy stdin/pipeline misdirect: a ```relay-mech-stdin
+fence on a multi-stage pipeline is now REFUSED in `_mechanical_dispatch` (admission was keyed
+to the LAST pipeline stage while `_run_mechanical` delivers stdin to the FIRST, so a piped
+command was admitted on the strength of a stage that would never see the payload). The refusal
+logs a `mechanical_stdin_refused` entry naming the pipeline shape (id:4347 no-silent-swallow).
+Negative controls (bare admitted invocation with a fence; multi-stage command with no fence)
+were verified unaffected -- both were RED-spec assertions (A) and (D), already passing before
+my change and still passing after. `tests/test_mech_stdin_pipeline_misdirect_09e4.sh` RED at
+promotion, now green; full `make test` 605 passed / 0 failed / 7 expected-red.
+Friction: none on sizing -- the fix was a single guard clause, well-scoped by the review's own
+RED spec.
+refactor: none needed -- one guard clause added at the point the review's diagnosis named; no
+duplication introduced.

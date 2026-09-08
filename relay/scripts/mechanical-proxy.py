@@ -682,6 +682,22 @@ def _mechanical_dispatch(body: bytes):
     stdin_payload = _extract_mechanical_stdin(body)
     if stdin_payload is None:
         return (command, None)           # legacy path — byte-identical to pre-id:33b2
+    # id:09e4 -- admission (_command_allowed / _last_stage_relay_script) keys off the LAST
+    # pipeline stage, but delivery (`_run_mechanical`) hands the stdin payload to the
+    # SHELL, which feeds it to the FIRST stage. On a multi-stage pipeline those are two
+    # different commands: the admitted last stage never sees the payload at all, and
+    # whichever stage leads the pipe silently consumes (or discards) it instead. A
+    # ```relay-mech-stdin fence therefore requires the command to be a SINGLE stage --
+    # refuse (fail open) rather than admit a pipeline on the strength of a stage that
+    # will not receive the bytes.
+    segments = [seg for seg in _SEG_SPLIT_RE.split(command) if seg.strip()]
+    if len(segments) > 1:
+        _log({"event": "mechanical_stdin_refused", "command": command,
+              "reason": "```relay-mech-stdin fence on a multi-stage pipeline (%d stages); "
+                        "admission is keyed to the LAST stage but stdin delivery reaches "
+                        "the FIRST -- refusing rather than misdeliver the payload (id:09e4)"
+                        % len(segments)})
+        return None
     # A ```relay-mech-stdin fence is present. Option B (id:a05c): honour it ONLY when the
     # command's pinned last-stage script is an EXPLICIT member of STDIN_ALLOWED_SCRIPTS —
     # a separate set from ALLOWED_RELAY_SCRIPTS. Not admitted → refuse (fail open), never
