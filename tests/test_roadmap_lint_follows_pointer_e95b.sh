@@ -28,7 +28,12 @@
 # overlaid on the CURRENT tree, not extracted beside a bare fixture: it FATALs without
 # `relay/references/hard-lanes.md`, its lane-vocabulary SSOT (id:71d6), and a run that
 # dies at that probe is red for the wrong reason -- exactly as vacuous as green.
-# fails-against-rev: HEAD~1 -- relay/scripts/roadmap-lint.sh
+# The rev is pinned to an IMMUTABLE sha (the parent of 3cee0dda, the commit that
+# introduced this spec and its fix) and must never be written `HEAD~1`: a relative
+# rev names a different commit after every commit that lands on top, so it stops
+# naming the pre-fix revision and `make verify-negatives` reports VACUOUS for a
+# reason with nothing to do with the test's killing power. Measured 2026-09-09.
+# fails-against-rev: 8115c2ae73a8 -- relay/scripts/roadmap-lint.sh
 # fails-against-assertion: a shrunk item whose clause lives in its detail file still fired
 #
 # Hermetic: temp ROADMAP + TODO + docs/ledger-notes fixtures; no ~/.claude, no network.

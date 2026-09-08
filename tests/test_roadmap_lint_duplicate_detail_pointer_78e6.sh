@@ -17,9 +17,15 @@
 # Acceptance/Tests/Done-check clause is never consulted (NO-ACCEPTANCE-NO-TWIN
 # fires as a second, wrong finding). Measured live on id:8372 this review.
 #
-# fails-against: the defect and its fix land in the SAME commit as this spec, so
-# the negative case is the parent revision of roadmap-lint.sh alone.
-# fails-against-rev: HEAD~1 -- relay/scripts/roadmap-lint.sh
+# fails-against: the defect and its fix land in the SAME commit as this spec
+# (ec7fc74e), so the negative case is THAT commit's parent revision of
+# roadmap-lint.sh alone. The rev is pinned to an IMMUTABLE sha and must never be
+# written `HEAD~1`: a relative rev names a different commit after every commit
+# that lands on top, so within one integrate it stops naming the pre-fix revision
+# and `make verify-negatives` reports VACUOUS for a reason with nothing to do with
+# the test's killing power. Measured 2026-09-09: this file and its e95b sibling
+# had both rotted exactly this way.
+# fails-against-rev: 4d133c76ce48 -- relay/scripts/roadmap-lint.sh
 # fails-against-assertion: a note named twice on its own line was reported DETAIL-POINTER-MISSING even though it exists
 #
 # Hermetic: temp ROADMAP + TODO + docs/ledger-notes fixtures; no ~/.claude, no network.
