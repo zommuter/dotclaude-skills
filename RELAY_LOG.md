@@ -3759,3 +3759,7 @@ One REVIEW_ME box added: id:02fe names landed, tested, green work that has NO le
 any of the seven ledger files -- the token lives only in a commit message, a test filename and
 one `relates:` edge from id:9220. Nothing to reopen; whether to backfill the record is the
 owner's call.
+
+## 2026-09-08 18:35 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:4f0f verified green by its unchanged spec + negative case at 9d5048a6; closed id:be51, promoted id:09e4 with a RED spec (lint WARNs 6->3), filed id:740a/id:4cd4 hit live; 603/0/0/8-expected-red [id:4f0f,be51,09e4,3294,740a,4cd4,c057,f9dc,ba95]
