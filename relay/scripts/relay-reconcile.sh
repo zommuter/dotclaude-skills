@@ -14,8 +14,13 @@
 #                                                   NO CAS plumbing — conflicts must surface)
 #                    on conflict: git merge --abort → LEFT + surfaced, never half-merged
 #                 3. ckpt-tag.sh <repo>           (atomic RELAY_LOG entry + relay-ckpt-* tag)
-#                 4. git-lock-push.sh --ff-only   (flock'd; --ff-only won't race the pool)
-#                 5. git branch -d <orphan>       (force-free; ref is merged once integrated+pushed)
+#                 4. git-lock-push.sh --ff-only --remote <each PROVABLY-PRIVATE remote>
+#                                                 (flock'd; --ff-only won't race the pool.
+#                                                  id:4263 — PUBLIC/unproven remotes are
+#                                                  WITHHELD and surfaced, never auto-published;
+#                                                  fail-closed if the predicate lib is missing)
+#                 5. git branch -d <orphan>       (force-free; the ref is merged by step 2, so
+#                                                  this is correct even when step 4 withheld)
 #   discard   — git branch -D <orphan>            (drop the parked work; gated: RELAY_DISCARD_CONFIRM=1)
 #   leave     — do nothing, keep the ref for a later pass
 #
@@ -466,18 +471,79 @@ integrate_branch() {
   #    rather than a WARNING.
   ckpt_tag="$("$CKPT_TAG" "$repo" -m "reconcile integrate: $subj" -l "reconcile (auto/human, non-strong by design — id:c500)")"
 
-  # 4. git-lock-push.sh --ff-only --all — flock'd push; --ff-only won't race/clobber the
-  #    live pool. --all (2026-08-26): the helper's absent-flag default flipped to
-  #    origin-only; this reuses the SAME serialized-integrator recipe integrate.sh uses
-  #    and must still reach every eligible remote.
-  if [ -x "$LOCK_PUSH" ]; then
-    "$LOCK_PUSH" "$repo" --ff-only --all
-    push_status="pushed"
+  # 4. PER-REMOTE push narrowing (id:4263) — flock'd, --ff-only so it won't race/clobber
+  #    the live pool, and PRIVATE/LAN REMOTES ONLY.
+  #
+  #    WHAT THIS REPLACED AND WHY. This step was `--ff-only --all`, which pushes EVERY
+  #    remote including a PUBLIC one. That violates id:f66e, and it is reachable UNATTENDED:
+  #    relay-loop.js invokes `--auto-restart`, which runs its own `--all --auto`, which calls
+  #    this same shared `integrate_branch`. So a pool run with a stale heartbeat and one
+  #    ledger-only parked orphan could publish agent-authored work to a public remote with
+  #    nobody watching.
+  #
+  #    THE ESCALATION IS THE REAL REASON, not the push itself. `ratify-queue.sh` verifies an
+  #    entry by asking the REMOTE whether it carries the merge (`git ls-remote`). So a public
+  #    push performed HERE makes every pending ratification entry ancestral to it self-verify
+  #    as landed: observed 2026-09-08, the queue went 6 -> 0. The queue whose entire purpose
+  #    is to HOLD a public push for an owner decision was drained BY the unreviewed push.
+  #
+  #    FAIL DIRECTION IS FAIL-CLOSED, matching lib-private-remote.sh's own contract: a remote
+  #    that cannot be PROVEN private is treated as public and WITHHELD. An unreadable or
+  #    missing predicate library withholds everything rather than falling back to --all —
+  #    never auto-publish on an unproven assumption.
+  #
+  #    SCOPE, stated so it is not mistaken for complete: this withholds and SURFACES; it does
+  #    NOT mint an id:4d44 ratification-queue entry, because the producer for those is
+  #    integrate.sh step 8b and duplicating it here is a separate change. A withheld reconcile
+  #    integrate therefore leaves a LOCAL, TAGGED, UNPUSHED merge announced loudly on stderr.
+  local _priv_ok=0 _r _rurl _pushed_to="" _withheld=""
+  if [ -r "$SCRIPTS_DIR/lib-private-remote.sh" ]; then
+    # shellcheck source=/dev/null
+    . "$SCRIPTS_DIR/lib-private-remote.sh" && _priv_ok=1
+  fi
+  if [ "$_priv_ok" -ne 1 ]; then
+    echo "relay-reconcile.sh: WITHHOLDING ALL PUSHES for $br — lib-private-remote.sh unreadable, so no remote can be PROVEN private (id:4263 fail-closed)." >&2
+    log "integrate push FAIL-CLOSED repo=$repo branch=$br reason=no-private-remote-lib"
   else
-    push_status="push-skipped (no git-lock-push.sh)"
+    while IFS= read -r _r; do
+      [ -n "$_r" ] || continue
+      _rurl="$(git -C "$repo" remote get-url --push "$_r" 2>/dev/null || true)"
+      if is_private_remote_url "$_rurl"; then
+        _pushed_to="${_pushed_to}${_r}"$'\n'
+      else
+        _withheld="${_withheld}${_r}"$'\n'
+      fi
+    done <<< "$(git -C "$repo" remote 2>/dev/null || true)"
   fi
 
-  # 5. ref consumed — the committed work is now on main, tagged and pushed. The branch was
+  if [ -n "$_withheld" ]; then
+    # LOUD, and the URL is deliberately NOT printed — this text can reach status output that
+    # is committed to a PUBLIC repo, and an undeclared remote may name an internal host.
+    printf 'relay-reconcile.sh: PUBLIC/UNPROVEN REMOTE WITHHELD (id:4263): [%s] %s merged and tagged %s LOCALLY but NOT pushed to: %s. Review the merge and push it yourself if you want it published.\n' \
+      "$repo" "$br" "$ckpt_tag" "$(printf '%s' "$_withheld" | tr '\n' ' ')" >&2
+    log "integrate push WITHHELD repo=$repo branch=$br tag=$ckpt_tag remotes=\"$(printf '%s' "$_withheld" | tr '\n' ' ')\""
+  fi
+
+  if [ ! -x "$LOCK_PUSH" ]; then
+    push_status="push-skipped (no git-lock-push.sh)"
+  elif [ -z "$_pushed_to" ]; then
+    push_status="push-withheld (no provably-private remote)"
+  else
+    local _push_args=(--ff-only)
+    while IFS= read -r _r; do
+      [ -n "$_r" ] || continue
+      _push_args+=(--remote "$_r")
+    done <<< "$_pushed_to"
+    "$LOCK_PUSH" "$repo" "${_push_args[@]}"
+    if [ -n "$_withheld" ]; then
+      push_status="pushed-private-only (withheld: $(printf '%s' "$_withheld" | tr '\n' ' '))"
+    else
+      push_status="pushed"
+    fi
+  fi
+
+  # 5. ref consumed — the work is on main and tagged (pushed only to remotes step 4 proved
+  #    private; a withheld public remote does NOT change this step's correctness). The branch was
   #    just --no-ff merged (step 2), so it IS merged: a FORCE-FREE `git branch -d` succeeds
   #    (id:373e). A refusal is an anomaly — surface and LEAVE the ref, never force-delete.
   if ! git -C "$repo" branch -d "$br"; then
