@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:c855 — [skeleton L2] push-seed discoverCache from the integrator's post-merge state.
 # After the pool integrates a repo, its discovery sig changes (new ckpt tag + RELAY_LOG/ROADMAP),
 # so the next round re-classifies (an LLM shard — the dominant discover cost, id:9cb1) the exact
@@ -17,7 +18,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # (1) INTEGRATE_SCHEMA carries the push-seed inputs the integrator returns.
 for f in postSig openRoutine openHard; do

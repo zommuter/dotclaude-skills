@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:315c — the provision attempt counter must survive ACROSS rounds, not just within one.
 #
 # id:9834 correctly made a collided provision bump `attempt` and retry once. But it bumped the
@@ -25,7 +26,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT

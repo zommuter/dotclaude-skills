@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:8af2
 #
 # RED SPEC — the pool silently works `actionable_routine_ids[0]` (id:b09e) and NOTHING says so.
@@ -129,7 +130,7 @@ $(cat "$tmpdir/status.out")"
 fi
 
 # ── (7) the engine still parses and lints clean (backtick-in-template hazard) ──────────
-node --check "$LOOP" >/dev/null 2>&1 || note "(7) relay-loop.js fails node --check after the 8af2 edit"
+workflow_node_check "$LOOP" >/dev/null 2>&1 || note "(7) relay-loop.js fails node --check after the 8af2 edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 if [[ -f "$LINT" ]]; then
   node "$LINT" "$LOOP" >/dev/null 2>&1 || note "(7) relay-loop.js has a template-literal violation after the 8af2 edit"

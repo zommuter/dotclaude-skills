@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:dd7d — re-dispatch of an item with a committed stranded branch must REFUSE and
 # surface, and integrate must compare against any sibling branch for the same item.
 #
@@ -126,7 +127,7 @@ pass "the scan is observe-only (repo clean, branch set unchanged)"
 
 # ── (H) WIRING — built+green is not wired (id:5367/id:2062 failure mode) ──────────────────
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 # KNOWN + INTENTIONAL source-grep hit (lint-source-grep-assertions.py reports this file
 # SHAPE-ONLY on $JS). It is the legitimate case that lint's own docstring carves out: the
 # contract here genuinely IS "relay-loop.js must reference this script". relay-loop.js is a

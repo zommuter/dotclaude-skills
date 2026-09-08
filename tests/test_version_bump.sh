@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # Specs TODO id:e647 — the reviewer-at-integrate version bumper (`relay/scripts/version-bump.sh`).
 # (No `# roadmap:XXXX` header: e647 is a TODO/design id, not a ROADMAP queue item; this is a
 #  /meeting Class-1 inline impl, so the test must end GREEN — it is NOT expected-red, mirroring
@@ -192,7 +193,7 @@ merge_line=$(head -1 < <(grep -n 'merge --no-ff "\$branch"' "$INTEG") | cut -d: 
 pass "(8b) the semver bump trigger is resolved pre-merge and hands back loudly when undeterminable (id:e647)"
 
 # ── (9) relay-loop.js still parses + template lint passes after the integrator edit. ──
-node --check "$JS" >/dev/null 2>&1 || fail "(9) relay-loop.js fails node --check after wiring edit"
+workflow_node_check "$JS" >/dev/null 2>&1 || fail "(9) relay-loop.js fails node --check after wiring edit"
 if [[ -f "$ROOT/relay/scripts/lint-workflow-templates.mjs" ]]; then
   node "$ROOT/relay/scripts/lint-workflow-templates.mjs" "$JS" >/dev/null 2>&1 \
     || fail "(9) lint-workflow-templates.mjs failed on relay-loop.js after wiring edit"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:c7dc
 # RED SPEC for id:c7dc — emit a `verdict`-kind event per repo per round.
 #
@@ -116,7 +117,7 @@ grep -Eq 'event-append' "$JS" \
 pass "(B5) the existing event-append sink is still the only sink"
 
 # B6. Engine still parses and lints clean.
-node --check "$JS" >/dev/null 2>&1 || fail "(B6) node --check failed on relay-loop.js after the c7dc edit"
+workflow_node_check "$JS" >/dev/null 2>&1 || fail "(B6) node --check failed on relay-loop.js after the c7dc edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 [[ -f "$LINT" ]] || fail "(B6) lint-workflow-templates.mjs not found; cannot verify template safety"
 if ! out="$(node "$LINT" "$JS" 2>&1)"; then

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:854c — instrument that the three JS-side dispatch backstops in relay-loop.js FIRE.
 # Each backstop (id:000d finished-demote, id:9973 HARD-pool demote, id:ad74 INTENSIVE promote)
 # already log() when it fires, but that log goes only to Workflow-sandbox stdout — nothing
@@ -81,7 +82,7 @@ done
 grep -q "id:854c" "$JS" \
   && ok "854c: relay-loop.js carries the id:854c marker" \
   || bad "854c: no id:854c marker in relay-loop.js tying the fire-log wiring to the roadmap item"
-node --check "$JS" >/dev/null 2>&1 \
+workflow_node_check "$JS" >/dev/null 2>&1 \
   && ok "854c: relay-loop.js still parses (node --check)" \
   || bad "854c: relay-loop.js fails node --check after the fire-log edit"
 if [[ -f "$LINT" ]]; then

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # routed:a923 — scope-aware `inject.sh take`. NO roadmap: header: this is a defect fix (a
 # scoped pool stole and LOST another pool's injection, run relay-20260811-221031-22542), so
 # its failures always count.
@@ -89,7 +90,7 @@ RELAY_TOML="$INJECT_BASE/nonexistent.toml" ONLY_REPO=scoped-repo \
 pass "discover-prelude.sh end-to-end: consumes in-scope, leaves out-of-scope PENDING"
 
 # ── (C) relay-loop.js wiring ──────────────────────────────────────────────────────────────
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 grep -q 'INJECT_SCOPE' "$JS" || fail "relay-loop.js has no INJECT_SCOPE (scope never reaches the takes)"
 grep -q 'ONLY_REPO=\${INJECT_SCOPE}' "$JS" \

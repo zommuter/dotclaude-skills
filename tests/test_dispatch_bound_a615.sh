@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # id:a615 — the three OUTSIDE controls on a pool run (STOP sentinel, --once, --after N) must be
 # DISPATCH-scoped, not round-scoped.
 #
@@ -33,7 +34,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 0; }
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
 [[ -f "$HARNESS" ]] || fail "dispatch-bound harness not found at $HARNESS"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

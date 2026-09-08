@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # Defect-fix test (no roadmap item, id:efaf). EXECUTES relay-loop.js through one full round to a
 # THROWING integrator agent and asserts the whole workflow still RESOLVES (unit recorded blocked)
 # instead of a single integration failure crashing the entire pool.
@@ -29,7 +30,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$HARNESS" ]] || fail "integrate-contain-harness.mjs not found"
 command -v node >/dev/null 2>&1 || { echo "SKIP: node not available"; exit 0; }
 
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 out="$(node "$HARNESS" "$JS" 2>&1)"; rc=$?
 if [[ $rc -ne 0 ]]; then

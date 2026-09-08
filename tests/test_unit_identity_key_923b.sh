@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:923b
 # RED SPEC for id:923b — per-unit identity key; re-key the repo-as-primary-key collision sites.
 #
@@ -103,7 +104,7 @@ KEYLINE="$keyline" node -e '
 pass "(7) unitKey separates all four probe shapes and is stable"
 
 # 8. The engine still parses and lints clean.
-node --check "$JS" >/dev/null 2>&1 || fail "(8) node --check failed on relay-loop.js after the 923b edit"
+workflow_node_check "$JS" >/dev/null 2>&1 || fail "(8) node --check failed on relay-loop.js after the 923b edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 [[ -f "$LINT" ]] || fail "(8) lint-workflow-templates.mjs not found; cannot verify template safety"
 if ! out="$(node "$LINT" "$JS" 2>&1)"; then

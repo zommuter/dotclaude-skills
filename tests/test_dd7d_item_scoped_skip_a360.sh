@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:a360
 #
 # RED SPEC for id:a360 — the id:dd7d pre-dispatch stranded-branch guard is ITEM-scoped in its
@@ -206,7 +207,7 @@ node "$tmpdir/run.js" >"$tmpdir/run.out" 2>&1 \
 $(sed 's/^/    /' "$tmpdir/run.out")"
 
 # ── (F) the engine still parses + lints clean after the a360 edit ─────────────────────────
-node --check "$LOOP" >/dev/null 2>&1 || note "(F) relay-loop.js fails node --check after the a360 edit"
+workflow_node_check "$LOOP" >/dev/null 2>&1 || note "(F) relay-loop.js fails node --check after the a360 edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 if [[ -f "$LINT" ]]; then
   node "$LINT" "$LOOP" >/dev/null 2>&1 || note "(F) relay-loop.js has a template-literal violation after the a360 edit"

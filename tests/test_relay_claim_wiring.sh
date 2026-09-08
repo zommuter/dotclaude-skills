@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:ebfb — relay-loop.js wires the claim registry into the dispatch path (cluster
 # step 4): work children ACQUIRE the cross-session repo lease before working, the
 # integrator RELEASES it (run-scoped), and RELAY_STATUS projects live claims via peek.
@@ -13,7 +14,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-command -v node >/dev/null && { node --check "$JS" || fail "relay-loop.js is not valid JS"; }
+command -v node >/dev/null && { workflow_node_check "$JS" || fail "relay-loop.js is not valid JS"; }
 
 # (1) Work child acquires the lease FIRST, keyed by repo + runId, and stops on refusal.
 grep -q 'claim.sh acquire ${unit.repo} --run ${state.runId}' "$JS" \

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:6e9d — a freed dispatch lane pulls pending injections mid-round (poll-once-on-drain)
 # so an injected unit runs as soon as a slot frees with the queue empty, instead of idling
 # until the round boundary. Static-structural checks on relay-loop.js (live dispatch behaviour
@@ -15,7 +16,7 @@ fail() { echo "FAIL: $*"; exit 1; }
 [[ -f "$JS" ]] || fail "relay-loop.js not found at $JS"
 
 # (0) the change is JS-valid
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # (1) a dedicated mid-round take function exists, distinct from the discovery-time take.
 grep -q "function takeInjections" "$JS" || fail "no takeInjections() — lanes can't pull mid-round injections (id:6e9d)"

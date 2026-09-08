@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:66d9 — provisionWorktree() must fail CLOSED.
 #
 # RED SPEC authored at handoff 2026-08-11. The defect: relay-loop.js:2777-2789 discards the
@@ -72,7 +73,7 @@ grep -q "|| true" "$SH" || fail "the deliberate best-effort '|| true' on the sym
 pass "the best-effort symlink provisioning is preserved"
 
 # ── (4) parent side: the hop's return value must be BOUND and TESTED ──────────────────────
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # Extract provisionWorktree()'s body (from its declaration to the next top-level `async function`).
 body="$(awk '/^async function provisionWorktree/,/^}/' "$JS")"

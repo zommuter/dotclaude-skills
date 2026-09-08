@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:6217
 # RED SPEC for id:6217 — ONE definition of isDryRound/isBlockedRound + the workCreated
 # predicate, and the "keep the two in sync" admission DELETED rather than left lying.
@@ -92,7 +93,7 @@ grep -q '7488' "$JS" \
 pass "(7) the moot-by-retirement rationale cites id:7488 in-source"
 
 # 8. Both files still parse; relay-loop.js still lints clean.
-node --check "$JS"  >/dev/null 2>&1 || fail "(8) node --check failed on relay-loop.js after the 6217 edit"
+workflow_node_check "$JS"  >/dev/null 2>&1 || fail "(8) node --check failed on relay-loop.js after the 6217 edit"
 node --check "$MJS" >/dev/null 2>&1 || fail "(8) node --check failed on drain.mjs after the 6217 edit"
 LINT="$ROOT/relay/scripts/lint-workflow-templates.mjs"
 [[ -f "$LINT" ]] || fail "(8) lint-workflow-templates.mjs not found; cannot verify template safety"

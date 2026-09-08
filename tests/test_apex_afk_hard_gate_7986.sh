@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:7986 — apex `hard` dispatch requires `--afk`; the gate keys on STRONG_TIER, not a model id.
 #
 # ONE unit combining two owner-ratified TODO items (2026-08-23):
@@ -192,7 +193,7 @@ fi
 # (B) relay-loop.js — wiring + the da51 de-coupling
 # ─────────────────────────────────────────────────────────────────────────────
 [[ -f "$JS" ]] || { echo "FAIL: relay-loop.js not found at $JS"; exit 1; }
-node --check "$JS" || fail "(B0) relay-loop.js is not valid JS"
+workflow_node_check "$JS" || fail "(B0) relay-loop.js is not valid JS"
 
 grep -q 'enforceApexGate' "$JS" \
   || fail "(B1) relay-loop.js does not reference enforceApexGate — the gate is wired to nothing"

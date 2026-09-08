@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # Defect-fix test (no roadmap item). The Workflow sandbox FORBIDS Node APIs and nondeterministic
 # built-ins — new Date()/Date.now()/.toISOString() (ShimDate throws), process.* / require() / fs.*
 # (no Node API access), Math.random() (nondeterministic). On 2026-06-15 the pool's autonomous
@@ -22,7 +23,7 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; exit 1; }
 
 [[ -f "$JS" ]] || fail "relay-loop.js not found"
-node --check "$JS" || fail "relay-loop.js fails node --check"
+workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
 
 # Flag any Workflow-forbidden API that is NOT inside a comment line (the `:[[:space:]]*//`
 # filter drops whole-line comments, where these are legitimately named in warnings).

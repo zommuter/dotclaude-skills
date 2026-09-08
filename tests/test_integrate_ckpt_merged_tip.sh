@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-workflow-check.sh"  # id:62c9 workflow_node_check
 # roadmap:25aa — integrator `-c` anchor: when a review/recheck branch CARRIES commits, the
 # checkpoint tag must anchor on the POST-MERGE tip (the run's own merged commits inside the
 # audited window), NOT on the child's branch tip / base. This is the carries-commits COMPLEMENT
@@ -34,7 +35,7 @@ bash -n "$INTEG" || fail "integrate.sh fails bash -n"
 
 # --- engine-edit safety: the whole file must still parse (template-literal-lint hazard) ---
 command -v node >/dev/null && {
-  node --check "$JS" || fail "relay-loop.js fails node --check"
+  workflow_node_check "$JS" || fail "relay-loop.js fails node --check"
   LINT="$SRC_DIR/relay/scripts/lint-workflow-templates.mjs"
   [[ -f "$LINT" ]] && { node "$LINT" "$JS" >/dev/null || fail "relay-loop.js fails the template-literal lint"; }
 }
