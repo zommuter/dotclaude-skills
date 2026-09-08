@@ -3641,3 +3641,7 @@ one implementation instead of each reimplementing a bare parse check).
 ## 2026-09-08 09:16 — integrate (claude-opus-5)
 
 id:62c9 execute: tests/lib-workflow-check.sh + 47 guard sites migrated; suite 596/0/0/8-expected-red; deliberate-breakage probe fires
+
+## 2026-09-08 09:35 — reviewer (claude-opus-5)
+
+review id:62c9: VERDICT sound-with-caveats; suite 596/0/0/8 re-derived, gaming-scan clean, negative case now EXECUTES (7c82 carve-out expired); files id:1b0e + id:e044, both reproduced independently by the integrator
