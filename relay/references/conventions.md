@@ -35,7 +35,13 @@ rather than copying the full block — see §Executor-contract pointer below.
 - One subagent per repo; within a repo, parallel tasks only on disjoint paths.
 - Verification-before-merge: tests green in the worktree → single integration branch →
   `--no-ff` merge by the orchestrator → ONE push per repo per turn via
-  `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only --all`. Children NEVER push.
+  `~/.claude/skills/git-diary-workflow/git-lock-push.sh --ff-only --remote <each remote proved
+  PRIVATE by `lib-private-remote.sh`>`. Children NEVER push. **NOT `--all`** -- that publishes to
+  a PUBLIC remote, which `id:f66e` forbids; `integrate.sh` has narrowed per-remote since `id:4d44`
+  and `relay-reconcile.sh` since `id:4263`, and both are fail-closed (a remote that cannot be
+  PROVEN private is withheld and surfaced, never pushed). This line said `--all` until
+  2026-09-08; it was a stale DESCRIPTION of code that had already been narrowed, in the very
+  file whose text is injected into child prompts.
 - Children do not run git-diary-workflow or todo-update; they return a
   `diary_fragment` and the orchestrator batches.
 - Every touched repo ends the turn with a `relay-ckpt-YYYYMMDD-HHMM` annotated tag and
