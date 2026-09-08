@@ -22,6 +22,10 @@
 #   RELAY_WORKTREE_BASE  default ~/.cache/relay/worktrees      (stale/claimed-elsewhere worktree dirs)
 set -euo pipefail
 
+# id:02fe — THE shared `[repos.<name>]` header renderer (repo_section_headers below).
+# shellcheck source=relay/scripts/lib-repo-section.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-repo-section.sh"
+
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
 RELAY_WORKTREE_BASE="${RELAY_WORKTREE_BASE:-$HOME/.cache/relay/worktrees}"
 LOG="${HOME}/.claude/logs/relay-discover-sig.log"
@@ -32,11 +36,20 @@ log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG" 2>/dev/nu
 input="$(cat)"
 
 # Extract the [repos.<name>] TOML block (until the next [section] header or EOF). Empty if absent.
+#
+# id:02fe — the header is matched against every spelling TOML permits for <name>, not the
+# single interpolated `[repos.$name]`. A non-bare-key name (`zom.fi` → `[repos."zom.fi"]`)
+# missed the old exact compare, so the block came back EMPTY and the signature silently
+# omitted the repo's relay.toml state — a cache-staleness bug with no error surface.
+# `wants` is newline-joined and probed with delimiters on both sides, so a blank input line
+# (which would compare equal to an empty `want`) can never match.
 toml_block() {
-  local name="$1"
+  local name="$1" wants
   [[ -f "$RELAY_TOML" ]] || return 0
-  awk -v want="[repos.$name]" '
-    $0 == want { inb=1; print; next }
+  wants="$(repo_section_headers "$name")"
+  awk -v wants="$wants" '
+    BEGIN { hay = "\n" wants "\n" }
+    index(hay, "\n" $0 "\n") { inb=1; print; next }
     inb && /^[[:space:]]*\[/ { inb=0 }
     inb { print }
   ' "$RELAY_TOML" 2>/dev/null || true

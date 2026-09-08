@@ -32,6 +32,10 @@
 # Prints the tag name on stdout. Pushing is the caller's job (git-lock-push.sh).
 set -euo pipefail
 
+# id:02fe — THE shared `[repos.<name>]` header renderer (repo_section_grep_file below).
+# shellcheck source=relay/scripts/lib-repo-section.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-repo-section.sh"
+
 repo="${1:?Usage: ckpt-tag.sh <repo-path> [-m summary] [-l label]}"
 shift
 
@@ -107,7 +111,11 @@ $label" ${tag_commit:+"$tag_commit"}
   cfg="${FABLES_CONFIG:-$HOME/.config/relay}"
   name="$(basename "$(cd "$repo" && pwd)")"
   sw="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/relay-state-write.sh"
-  if [[ -f "$cfg/relay.toml" ]] && grep -qxF "[repos.$name]" "$cfg/relay.toml"; then
+  # id:02fe — accept every spelling TOML permits for this name, not just the bare-key one.
+  # A non-bare-key repo (`zom.fi`, whose section must be written `[repos."zom.fi"]`) failed
+  # this `grep -qxF` and was therefore read as UNMANAGED — so the watermark sync below was
+  # skipped SILENTLY, on the branch designed to log a no-op for genuinely unmanaged repos.
+  if [[ -f "$cfg/relay.toml" ]] && repo_section_grep_file "$name" "$cfg/relay.toml"; then
     "$sw" toml-set "$name" last_ckpt "\"$tag\"" >&2 \
       || echo "ckpt-tag.sh: WARNING: relay.toml last_ckpt sync failed for $name (tag $tag stands)" >&2
     # id:ecce — an INTEGRATE checkpoint (`-l "integrate (<model>)"`) must NEVER advance the

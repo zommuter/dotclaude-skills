@@ -44,11 +44,20 @@ comment_path = {}
 cur = None
 sect_re = re.compile(r"^\s*\[repos\.([^\]]+)\]\s*$")
 path_re  = re.compile(r"^\s*#\s*path:\s*(.+?)\s*$")
+# id:02fe -- TOML treats a bare and a quoted section name as the SAME table, and a name that
+# is not a bare key (zom.fi) MUST be quoted. tomllib above returns the UNQUOTED name, so a
+# captured name kept verbatim would never match it and the `# path:` override would silently
+# not apply. chr(34)/chr(39) avoid embedding a quote character in this shell heredoc.
+def _sect_name(raw):
+    n = raw.strip()
+    if len(n) >= 2 and n[0] == n[-1] and n[0] in (chr(34), chr(39)):
+        return n[1:-1]
+    return n
 with open(toml_path, encoding="utf-8") as f:
     for line in f:
         m = sect_re.match(line)
         if m:
-            cur = m.group(1)
+            cur = _sect_name(m.group(1))
             continue
         if cur:
             pm = path_re.match(line)

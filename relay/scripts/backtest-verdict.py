@@ -55,7 +55,13 @@ def own_repos():
             s = ln.strip()
             m = re.match(r"\[repos\.([^\]]+)\]", s)
             if m:
-                flush(); name, path, cls = m.group(1), None, None; continue
+                # id:02fe -- a non-bare-key repo name (zom.fi) is written quoted in TOML;
+                # strip the delimiters so the name here matches the one every other reader
+                # (tomllib, via lib-own-repos.sh) reports.
+                _n = m.group(1).strip()
+                if len(_n) >= 2 and _n[0] == _n[-1] and _n[0] in ("\"", "'"):
+                    _n = _n[1:-1]
+                flush(); name, path, cls = _n, None, None; continue
             if s.startswith("# path:"):
                 path = s.split("# path:", 1)[1].strip()
             elif s.startswith("classification"):

@@ -39,6 +39,11 @@
 # Override $FABLES_CONFIG for hermetic tests.
 set -euo pipefail
 
+# id:02fe — THE shared `[repos.<name>]` header renderer. Sourced (not reimplemented) so the
+# quoting rule for non-bare-key repo names lives in exactly one place.
+# shellcheck source=relay/scripts/lib-repo-section.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-repo-section.sh"
+
 BASE="${FABLES_CONFIG:-$HOME/.config/relay}"
 TOML="$BASE/relay.toml"
 LOCK="$BASE/.state-write.lock"
@@ -112,11 +117,24 @@ case "$cmd" in
     exec 9>"$LOCK"
     flock -w 30 9 || { echo "relay-state-write.sh toml-set: lock timeout" >&2; exit 1; }
 
-    header="[repos.$repo]"
+    # id:02fe — resolve the header from the SPELLINGS TOML actually permits, rather than
+    # interpolating `[repos.$repo]` and hoping the name is a bare key. `zom.fi` is written
+    # `[repos."zom.fi"]` (a dot is not a bare-key character, so the unquoted form would be a
+    # NESTED table and tomllib would drop the repo silently). Bare-key names still render and
+    # match exactly as before, so every already-registered repo is byte-for-byte unaffected.
+    #
+    # The header is resolved to the spelling PRESENT IN THE FILE, not to the canonical one:
+    # awk below matches it with `$0 == hdr`, so writing the canonical form into `hdr` while
+    # the file holds an equivalent variant would find the block in the pre-check and then
+    # append the key at EOF instead of inside the block.
+    header=""
+    while IFS= read -r _cand; do
+      if grep -qxF "$_cand" "$TOML"; then header="$_cand"; break; fi
+    done < <(repo_section_headers "$repo")
     # Pre-check: the block must exist (else abort without clobbering).
-    if ! grep -qxF "$header" "$TOML"; then
+    if [ -z "$header" ]; then
       flock -u 9 || true
-      echo "relay-state-write.sh toml-set: block $header not found in $TOML" >&2
+      echo "relay-state-write.sh toml-set: no [repos.*] block for '$repo' found in $TOML (looked for: $(repo_section_headers "$repo" | tr '\n' ' '))" >&2
       exit 1
     fi
 

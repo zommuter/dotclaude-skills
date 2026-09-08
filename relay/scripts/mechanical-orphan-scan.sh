@@ -95,11 +95,19 @@ def own_repos():
     comment_path, cur = {}, None
     sect_re = re.compile(r"^\s*\[repos\.([^\]]+)\]\s*$")
     path_re = re.compile(r"^\s*#\s*path:\s*(.+?)\s*$")
+    # id:02fe -- a non-bare-key section name (zom.fi) is written quoted; tomllib returns it
+    # UNQUOTED, so strip the delimiters here or the two never agree. chr(34)/chr(39) avoid
+    # embedding a quote character in this shell heredoc.
+    def _sect_name(raw):
+        n = raw.strip()
+        if len(n) >= 2 and n[0] == n[-1] and n[0] in (chr(34), chr(39)):
+            return n[1:-1]
+        return n
     with open(toml_path, encoding="utf-8") as f:
         for line in f:
             m = sect_re.match(line)
             if m:
-                cur = m.group(1); continue
+                cur = _sect_name(m.group(1)); continue
             if cur:
                 pm = path_re.match(line)
                 if pm and cur not in comment_path:

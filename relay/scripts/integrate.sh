@@ -250,6 +250,10 @@
 #   INTEGRATE_REVIEW_ARCHIVE INTEGRATE_RELAY_LOG_ARCHIVE                      (id:046a)
 set -euo pipefail
 
+# id:02fe — THE shared `[repos.<name>]` header renderer (repo_section_headers below).
+# shellcheck source=relay/scripts/lib-repo-section.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-repo-section.sh"
+
 # ── distinct STEP-IDENTITY codes (per step) ──
 # id:2c2a — these are no longer EXIT codes. Every one of them is now reported as
 # `handbackCode=<N>` on the stdout contract and the script exits 0 (a handback is a verdict
@@ -652,12 +656,18 @@ else
   policy="" policy_state="absent" policy_line=""
   policy_toml="${FABLES_CONFIG:-$HOME/.config/relay}/relay.toml"
   if [ -f "$policy_toml" ]; then
-    policy_read="$(awk -v want="[repos.$repo]" -v sq="'" '
+    # id:02fe — `wants` is every header spelling TOML permits for this repo name, newline-
+    # joined, replacing the single interpolated `[repos.$repo]`. A non-bare-key name
+    # (`zom.fi` → `[repos."zom.fi"]`) missed the old exact compare, so its block was never
+    # entered and bump_policy read as ABSENT — which is not a neutral outcome: absent takes
+    # the id:65ad fleet default and BUMPS, exactly the direction a recorded `never` forbids.
+    policy_read="$(awk -v wants="$(repo_section_headers "$repo")" -v sq="'" '
       function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+      BEGIN { hay = "\n" wants "\n" }
       {
         line = trim($0)
         if (line == "" || substr(line, 1, 1) == "#") next
-        if (line == want) { inblk = 1; next }
+        if (index(hay, "\n" line "\n")) { inblk = 1; next }
         if (substr(line, 1, 1) == "[") { if (inblk) exit; next }
         if (!inblk) next
         eq  = index(line, "=")

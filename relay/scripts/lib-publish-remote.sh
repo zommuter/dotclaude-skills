@@ -85,6 +85,12 @@
 # Safe to source under `set -euo pipefail`: no bare `cmd && return` tails, no producer piped
 # into an early-exiting consumer (id:81d5), and a missing relay.toml is a clean floor result.
 
+# id:02fe — THE shared `[repos.<name>]` header renderer (repo_section_headers below).
+# Sourcing is idempotent (it only defines functions), so a caller that already sourced it
+# directly is unaffected.
+# shellcheck source=relay/scripts/lib-repo-section.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-repo-section.sh"
+
 # Path of the TOML the declaration is read from. $RELAY_PUBLISH_TOML is an escape hatch for
 # hermetic tests that do not want to move the whole $FABLES_CONFIG dir.
 publish_remotes_toml_file() {
@@ -99,7 +105,11 @@ _publish_raw_decls() {
   local repo="${1-}" f
   f="$(publish_remotes_toml_file)"
   if [ -f "$f" ] && [ -r "$f" ]; then
-    awk -v want="[repos.$repo]" -v sq="'" '
+    # id:02fe — match the current table against every header spelling TOML permits for this
+    # repo name (newline-joined in `wants`), not the single interpolated `[repos.$repo]`. A
+    # non-bare-key name (`zom.fi` → `[repos."zom.fi"]`) missed the old compare, so its
+    # `publish_remotes` was read as UNDECLARED and the set fell back to the `origin` floor.
+    awk -v wants="$(repo_section_headers "$repo")" -v sq="'" '
       function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
       # Emit every QUOTED token inside an array literal. Scanning for quotes (rather than
       # splitting on commas) is what makes a trailing `# comment`, a trailing comma and an
@@ -126,7 +136,7 @@ _publish_raw_decls() {
         eq = index(t, "="); if (!eq) next
         key = trim(substr(t, 1, eq - 1)); val = trim(substr(t, eq + 1))
         if (tbl == "[publish]" && key == "default_remotes")   tag = "default"
-        else if (tbl == want   && key == "publish_remotes")   tag = "repo"
+        else if (tbl != "" && index("\n" wants "\n", "\n" tbl "\n") && key == "publish_remotes") tag = "repo"
         else next
         if (index(val, "]")) emit(val, tag)
         else { acc = val; acctag = tag }
