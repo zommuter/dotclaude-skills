@@ -294,8 +294,23 @@ check_repo() {
   echo "--- TODO grammar conformance (todo-conformance.sh, id:3441) ---"
   if [[ -x "$TODO_CONFORMANCE" ]]; then
     if [[ -f "$path/TODO.md" ]]; then
-      local tc
-      tc="$(bash "$TODO_CONFORMANCE" "$path/TODO.md" 2>>"$LOG" || true)"
+      local tc tc_err
+      tc_err="$(mktemp)"
+      tc="$(bash "$TODO_CONFORMANCE" "$path/TODO.md" 2>"$tc_err" || true)"
+      # id:4839 aggravation 1 — todo-conformance's own INERT-ratchet warnings go to
+      # stderr; forward anything worth a human's attention (the "ratchet INERT" class)
+      # to relay-doctor's OWN stdout, not only the log, so the tool's announcement of
+      # its own disablement is actually seen. Everything on stderr still also reaches
+      # $LOG for full detail.
+      if [[ -s "$tc_err" ]]; then
+        cat "$tc_err" >>"$LOG"
+        local tc_inert
+        tc_inert="$(grep -i 'ratchet INERT' "$tc_err" || true)"
+        if [[ -n "$tc_inert" ]]; then
+          printf '%s\n' "$tc_inert"
+        fi
+      fi
+      rm -- "$tc_err"
       tc="$(printf '%s' "$tc" | grep -vE '^[[:space:]]*$' || true)"
       if [[ -n "$tc" ]]; then
         local nmiss norph
@@ -612,24 +627,32 @@ install_drift_check() {
     echo
     return 0
   fi
+  # id:4839 aggravation 2 — widened to walk EVERY declared relay_FILES entry, not just
+  # scripts/*|references/*: a non-script entry (e.g. a baseline .txt file) that is
+  # declared but never installed is exactly the class of gap that disabled the ledger
+  # ratchets, and the old scripts/*|references/*-only case arm structurally could not
+  # see it (the `*) ;;` no-op). SKILL.md and any bare top-level filename are still
+  # checked — they simply resolve directly under $install_root/relay/<tok>.
   local missing=0 tok
   for tok in $manifest; do
+    # relay_files_manifest() joins the RHS of `relay_FILES := ...` verbatim, so the
+    # variable name and the assignment operator themselves are the first two tokens —
+    # never real paths. Skip them explicitly rather than narrowing by pattern, so a
+    # genuine file token is never silently excluded.
     case "$tok" in
-      scripts/*|references/*)
-        if [[ ! -e "$install_root/relay/$tok" ]]; then
-          printf 'MISSING: relay/%s is declared in relay_FILES but not installed under %s (install root: %s)\n' \
-            "$tok" "$install_root/relay" "$install_root"
-          missing=$((missing + 1))
-        fi
-        ;;
-      *) ;;  # SKILL.md and any non-scripts/non-references entry is out of scope here
+      relay_FILES|:=) continue ;;
     esac
+    if [[ ! -e "$install_root/relay/$tok" ]]; then
+      printf 'MISSING: relay/%s is declared in relay_FILES but not installed under %s (install root: %s)\n' \
+        "$tok" "$install_root/relay" "$install_root"
+      missing=$((missing + 1))
+    fi
   done
   if [[ "$missing" -gt 0 ]]; then
     issues_total=$((issues_total + missing))
-    echo "$missing declared relay scripts/*+references/* file(s) missing from the install tree ($install_root/relay)"
+    echo "$missing declared relay_FILES entry(ies) missing from the install tree ($install_root/relay)"
   else
-    echo "clean (every manifested relay scripts/*+references/* entry is installed under $install_root/relay)"
+    echo "clean (every manifested relay_FILES entry is installed under $install_root/relay)"
   fi
   echo
   log "install-drift missing=$missing root=$install_root"

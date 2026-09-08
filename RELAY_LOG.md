@@ -3846,3 +3846,24 @@ id:09e4: mechanical-proxy now refuses a relay-mech-stdin fence on a multi-stage 
 ## 2026-09-08 21:54 — reconcile (auto/human, non-strong by design — id:c500)
 
 reconcile integrate: chore(relay): WIP UNVERIFIED residue auto-commit for worktree relay-20260908-174448-4421-execute-5ad9-0 (id:f272 commit-and-park; do not treat as reviewed)
+## 2026-09-08 — executor (sonnet, relay-loop)
+
+id:aa5e was picked up as dispatched but is genuinely gated: its own Acceptance clause
+states "This seam must not be started before the repo-dimension seam has landed" (id:c655),
+and id:c655 is still open (unticked, orphan-parked, and the dispatch brief explicitly said
+not to work it). Moved to the next classifier-actionable candidate.
+
+Worked id:cb9a -- relay-doctor.sh's two id:4839 aggravations fixed: (1) todo-conformance.sh's
+"ratchet INERT" stderr warnings (its own announcement of a disabled baseline ratchet) now
+reach relay-doctor's own stdout, not only $LOG -- previously `2>>"$LOG"` swallowed them from
+the reviewer entirely; (2) install_drift_check's manifest->tree walk widened from
+`scripts/*|references/*` to every relay_FILES entry, so a missing non-script manifest file
+(e.g. a baseline .txt) is now reported instead of silently falling through the `*) ;;` no-op.
+The widened walk had to explicitly skip the `relay_FILES`/`:=` tokens that relay_files_manifest()
+emits as the first two words of its joined string (previously invisible behind the narrower
+case arm) -- caught by test_relay_doctor_invocation_path_cbd2.sh going red.
+`tests/test_relay_doctor_sees_manifest_gap_4839.sh` RED at promotion, now green; full
+`make test` 606 passed / 0 failed / 6 expected-red.
+Friction: none on sizing.
+refactor: none needed -- both fixes are localized to the two functions the review's RED spec
+named; no new duplication introduced.
