@@ -3642,3 +3642,7 @@ resolvable without a handoff/meeting call. Cross-ledger drift: clean.
 
 refactor: none needed -- one new pure predicate (`validate_rev_immutable`) modelled on the
 existing `validate_mutation_arg` sibling, plus its single call site.
+
+## 2026-09-09 00:53 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:78e6 verified green after re-pinning its ROTTED `HEAD~1` negative case; guarded the class as id:0801 (moving fails-against-rev now a CONFIG ERROR); ticked id:cb9a; reproduced id:740a live [id:78e6,0801,cb9a,e95b,740a] [id:78e6,0801,cb9a,e95b,740a]
