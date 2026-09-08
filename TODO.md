@@ -575,7 +575,7 @@ deliberately left unbounded — see `id:da1a`).
 
 ## strong-model audit 2026-08-11 (Run 71, id:401c — meeting note `docs/meeting-notes/2026-08-11-2145-strong-model-audit.md`)
 
-- [ ] [ROUTINE] **The id:33b2 opt-in stdin channel silently MISDIRECTS its payload when the admitted script is a non-leading pipeline stage** -- detail: `docs/ledger-notes/09e4.md` <!-- id:09e4 -->
+- [x] [ROUTINE] **The id:33b2 opt-in stdin channel silently MISDIRECTS its payload when the admitted script is a non-leading pipeline stage** -- detail: `docs/ledger-notes/09e4.md` <!-- id:09e4 -->
 
 ## docs & presentation
 
