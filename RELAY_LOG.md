@@ -3672,3 +3672,7 @@ verifiable by running it against the tool with an env override before touching a
 
 refactor: none needed -- this is a small, targeted fix to an existing single-purpose
 script's argument handling and report formatting; no new duplication introduced.
+
+## 2026-09-09 01:05 — executor (sonnet, relay-loop)
+
+fix(count-indented-ids): satisfy id:8679's own RED spec (id:0f0a) -- positional path arg, printed counting rule, labelled population count [id:0f0a]
