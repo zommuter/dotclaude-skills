@@ -3814,3 +3814,7 @@ reports `green-now OK` / `red-there OK` for both declared cases. `make test`: 60
 identically on a clean stash of this worktree before my edit), 7 expected-red.
 Friction: none on sizing.
 refactor: none needed -- test-fixture-only addition, no production code touched.
+
+## 2026-09-08 19:47 — executor (sonnet, relay-loop)
+
+id:32ba — added fixture F + a second machine-readable fails-against-mutation case pinning the id:2964 SHAPE-anchor half independently of the quoted-example mask; both cases green-now/red-there OK, make test 604/1(pre-existing unrelated)/7 [id:32ba]
