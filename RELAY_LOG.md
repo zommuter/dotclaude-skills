@@ -3665,3 +3665,7 @@ review id:1b0e/e044/ad67: sound-with-caveats; files id:8627 (1,251-line scanner 
 ## 2026-09-08 11:08 — integrate (claude-opus-5)
 
 id:4d65 salvage-integrate: self-verifying list landed from the parked branch; 3 defects fixed incl. a negative case that had never executed; suite 598/0/0/8
+
+## 2026-09-08 17:54 — reconcile (auto/human, non-strong by design — id:c500)
+
+reconcile integrate: chore(relay): WIP UNVERIFIED residue auto-commit for worktree relay-20260907-100619-27900-execute-8372-0 (id:f272 commit-and-park; do not treat as reviewed)
