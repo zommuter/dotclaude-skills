@@ -15,6 +15,7 @@
 - id:32ba — added fixture F + a second machine-readable fails-against-mutation case pinning the id:2964 SHAPE-anchor half independently of the quoted-example mask; both cases green-now/red-there OK, make test 604/1(pre-existing unrelated)/7 (id:32ba)
 - review: id:32ba verified green (both negative cases fire); id:8679 ticked with its RED spec still red -- spec retargeted to new id:0f0a, filed id:78e6 (roadmap-lint grep -o -m1 detail-pointer defect); make test 604/0/8-expected-red [32ba,8679,0f0a,78e6] (id:32ba,8679,0f0a,78e6)
 - id:09e4: mechanical-proxy now refuses a relay-mech-stdin fence on a multi-stage pipeline (admission was keyed to the last stage, delivery reached the first) -- loud mechanical_stdin_refused log, RED spec green, make test 605/0/7-expected-red (id:09e4)
+- id:64f9: shrank 4 of 46 over-budget item titles (8627, 0640, 83c2, 0220) in TODO.md, verified clean by roundtrip-validate.py; item stays open (42 remain, most needing real relocation work) (id:64f9)
 
 ## 2026-09-07
 
