@@ -392,6 +392,11 @@ item_detail_path() {
     # `-m1` rather than `| head -1`: piping into an early-exiting consumer under pipefail
     # lets SIGPIPE become the pipeline's status (id:81d5). A here-string is not a pipe.
     hit="$( { grep -oP -m1 "[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*/${idtok}\.md" <<<"${_rl_lines[$k]}" || true; } )"
+    # `-o` bounds MATCHES PER LINE, not lines matched -- `-m1` bounds only the latter,
+    # so a line naming this id's note twice (id:78e6) makes `hit` a two-line string
+    # here. Take the first match only; the SIGPIPE reasoning above still holds since
+    # this is a here-string command substitution, not a live pipe.
+    hit="${hit%%$'\n'*}"
     [[ -n "$hit" ]] && { printf '%s' "$hit"; return 0; }
   done
   # No pointer on the line: fall back to the configured directory, which is the only
