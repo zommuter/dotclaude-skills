@@ -303,6 +303,9 @@ def parse_header(path, carved=None):
             if not paths:
                 errors.append(f"{base}: `fails-against-rev: {c['arg']}` names no "
                               f"path -- expected `<rev> -- <path> [<path>…]`")
+            r_err = validate_rev_immutable(rev)
+            if r_err:
+                errors.append(f"{base}: `fails-against-rev: {c['arg']}` {r_err}")
             c["rev"], c["paths"] = rev, paths
         elif c["kind"] == "mutation":
             m_err = validate_mutation_arg(c["arg"])
@@ -343,6 +346,45 @@ def split_rev_arg(arg):
     if rest and rest[0] == "--":
         rest = rest[1:]
     return rev, rest
+
+
+def validate_rev_immutable(rev):
+    """-> error string, or None if `rev` cannot come to name a DIFFERENT commit (id:0801).
+
+    A `# fails-against-rev:` declaration is DURABLE -- it is re-read weeks later, long
+    after commits have landed on top of the one its author was sitting on. `HEAD~1` names
+    the pre-fix revision only until the very next commit; after that the runner overlays a
+    revision that ALREADY CONTAINS the fix, the test passes, and the case is reported
+    VACUOUS. That report is the failure this whole file exists to make impossible, arriving
+    from the declaration side rather than the test side: it says "no killing power" about a
+    test whose killing power was never exercised, and it is indistinguishable from the real
+    thing. Measured 2026-09-09 (relay review of id:78e6): BOTH of this repo's relative
+    declarations -- `test_roadmap_lint_duplicate_detail_pointer_78e6.sh`, written hours
+    earlier, and `test_roadmap_lint_follows_pointer_e95b.sh` -- had rotted this way, the
+    first within a single integrate. So the spelling is REFUSED, not documented against.
+
+    Immutability is decided by the BASE ref, before any `~`/`^`/`@{…}` traversal: `<sha>^`
+    is as immutable as `<sha>`, while `HEAD~1` and `main~3` are not. A BARE name with no
+    traversal is accepted -- that is the tag case (`relay-ckpt-*`), which this repo treats
+    as stable by convention. A bare BRANCH name would slip through that allowance; no
+    declaration uses one today (census 2026-09-09: 107 declarations, 105 already hex), and
+    tightening it to "hex or an existing tag" needs a repo handle this parser does not
+    take. Recorded as known residue rather than silently implied to be covered.
+    """
+    if not rev:
+        return "names no revision"
+    base = re.split(r'[~^@]', rev, maxsplit=1)[0]
+    if re.fullmatch(r'[0-9a-fA-F]{7,40}', base):
+        return None
+    if base == "HEAD" or not base:
+        return ("is RELATIVE to HEAD, so it names a different commit after every commit "
+                "that lands on top and silently stops naming the pre-fix revision -- pin "
+                "the immutable sha instead (`git rev-parse --short=12 <the fix>^`)")
+    if base != rev:
+        return (f"traverses from the moving ref `{base}`, so it names a different commit "
+                f"as that ref advances -- pin the immutable sha instead "
+                f"(`git rev-parse --short=12 {rev}`)")
+    return None
 
 
 # ------------------------------------------------------------------------ tree materialisation
