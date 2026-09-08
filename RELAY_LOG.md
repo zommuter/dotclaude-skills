@@ -3693,3 +3693,69 @@ marker guards, id:3bd4 no-op refusals) with no visible leftover duplication.
 ## 2026-09-08 18:04 — executor (sonnet, relay-loop)
 
 Verified id:4f0f — md-merge.py's item-scoped update-ids mode (previously-uncommitted-but-unverified residue) meets the RED spec: test_md_merge_item_scope_4f0f.sh now passes, full suite green (603/0/0/7-expected-red). [id:4f0f]
+
+## 2026-09-08 — review (claude-opus-5, relay-20260908-174448-4421)
+
+Window relay-ckpt-20260908-1108..HEAD (27 commits, incl. checkpoints 1754 + 1804).
+TIERS: `make lint` + `make test` RAN GREEN (603 passed / 0 failed / 0 errored / 8
+expected-red -- 7 before this review, +1 for the new id:09e4 RED spec).
+SKIPPED-TIER: `make verify-negatives` -- opt-in by design (CLAUDE.md section Testing:
+seconds per case, deliberately not part of `make test`); run TARGETED instead on the two
+files whose roadmap carve-out expired this window (below). No CI tier exists (no
+`.github/workflows`).
+
+TRUST-BUT-VERIFY. `gaming-scan.sh` clean: no DELETED_TEST / ADDED_SKIP / REMOVED_ASSERT.
+id:4f0f is GENUINELY green and this is the strong evidence, not the suite: its spec file
+`tests/test_md_merge_item_scope_4f0f.sh` is BYTE-UNCHANGED since the checkpoint (only
+`meeting/md-merge.py` moved, +149), so the resurrection check is satisfied by construction;
+and `verify-negative-cases.py` now runs it (carve-out expired on close) with green-now OK and
+red-there OK, failing at rev 9d5048a6 on exactly the declared flagship assertion "(F) an
+item-scoped regex_sub must rewrite the matching text on the item's CONTINUATION lines".
+Read the implementation for fixture special-casing: none -- `_apply_item_scope_ops` reuses
+`_own_id_match_of_line`, `_final_line_marker_error` and `ledger-continuations.py`'s block
+boundary verbatim, with no test literals. Over-reach (2d) against `docs/ledger-notes/4f0f.md`:
+NOT a superset -- the note's two deliberate exclusions (item-scoped `append`, whole-block
+replace) are both loudly refused, and the added item-scope no-op refusal is authorized by the
+note's own id:3bd4 cross-reference rather than invented. `refactor: none needed` is honest for
+a verification-only unit. Provenance greps for executor-introduced `@owner-accepted` /
+`@owner-answered` / `answer-src:`: none (the one `-@owner-answered` diff hit is a previous
+REVIEW_ME box QUOTING the marker names, now archived). No `[host:]` tags, so 2c does not apply.
+id:c057's live cgroup cases are NOT skipped here -- systemd-run is available and (c) passes
+including the 137 memory-cap kill; its same-day SCOPE CORRECTION (the cap cannot reach
+`llama-swap`) is an honest under-claim with successor id:3770 filed, the opposite of over-reach.
+id:ba95's negative case verifies green-now/red-there on a second run.
+
+LEDGER. Closed id:be51 (was DECIDED-LEFT-OPEN in roadmap-lint): its superseding green
+iteration LANDED -- 8b40b1fc is an ancestor of HEAD via merge e834375a, the `...execute-8372-0`
+branch is gone from `git branch -a`, and the four md-merge tests run rc=0 in seconds at HEAD.
+Ticked in ROADMAP.md and its TODO.md twin. REVERSE-HANDOFF (5b): 12 open items were added to
+TODO.md this window and none had a ROADMAP twin; promoted id:09e4 (REUSING its id) with
+Acceptance / Done-check / Context plus a new RED spec
+`tests/test_mech_stdin_pipeline_misdirect_09e4.sh` -- chosen because it unblocks two
+ROADMAP items gated on it (d4ca, e405) and clears 2 of the 4 stale roadmap-lint DEAD-GATE
+warnings at the source. roadmap-lint WARNs: 6 -> 3. Cross-ledger drift: clean.
+`todo-conformance.sh --fix` wrote nothing -- the repo's single `missing-id` finding is the one
+it refuses (already boxed in REVIEW_ME).
+
+relay-doctor: findings are all ALREADY boxed in REVIEW_ME (parked orphan 64f9-0, 2
+twinned-resolvable scan-routed items, relay-core shadow mismatches, the 4 stale DEAD-GATE
+WARNs), so no duplicate boxes were opened.
+
+NEW FINDINGS, both hit live while doing this review, both filed to TODO.md:
+id:740a -- `md-merge.py`'s `insert_after`/`insert_before` anchor on the id-bearing LINE, not
+the item BLOCK. Promoting id:09e4 with `insert_after` on the wrapped id:cb9a placed the new
+item BETWEEN cb9a's head and cb9a's own Acceptance/Done-check/Context lines, silently
+transferring them to the new item's block. Exit 0, nothing on stderr, marker count unchanged.
+id:4f0f gave `regex_sub` block reach and left the INSERT ops line-anchored; this is the
+remaining half. Repaired here by re-anchoring the insert on the FOLLOWING item
+(`insert_before` id:8627) after one Edit to undo the split -- the helper has no move/delete op
+that could express the repair, which is part of the finding.
+id:4cd4 -- `tests/verify-negative-cases.py` reports a runner-INTERNAL cleanup crash
+(`OSError: [Errno 39] Directory not empty` from `sandbox_tree`'s TemporaryDirectory rmtree
+racing git) through the same `VIOLATION` channel as a vacuous test, and counts it in the
+"do not fail for the declared reason" TOTAL. The verdict had already been computed and was
+discarded. Re-run alone, the same case verified clean.
+One REVIEW_ME box added: id:02fe names landed, tested, green work that has NO ledger line in
+any of the seven ledger files -- the token lives only in a commit message, a test filename and
+one `relates:` edge from id:9220. Nothing to reopen; whether to backfill the record is the
+owner's call.

@@ -942,3 +942,19 @@ BARE `id:62c9` rather than the owning `<!-- id:62c9 -->` form, so `md-merge.py u
 address it at all -- it refuses loudly (`regex_sub id(s) not found`), correctly, per the `id:3743`
 anchoring rule. It was resolved via `update-sections` instead, which is still under the flock. Any
 future REVIEW_ME box that wants to be machine-resolvable needs the HTML-comment marker.
+
+- [ ] **`id:02fe` names landed, tested work that has NO ledger line anywhere — the token exists
+  only in a commit message, a test filename, and one `relates:` edge.** Commit `f6fa91d1`
+  ("a repo name is not the string-matcher's to choose (id:02fe)") and
+  `tests/test_repo_section_quoting_02fe.sh` (160 lines, green) fix the `[repos."zom.fi"]`
+  quoted-section class end to end, and open TODO item `id:9220` carries `relates:02fe` pointing
+  at it. But `grep 02fe` over `ROADMAP.md`, `ROADMAP.archive.md`, `TODO.md`, `TODO.archive.md`,
+  `REVIEW_ME.md`, `REVIEW_ME.archive.md` and `RELAY_LOG.md` returns exactly one hit: the
+  `relates:` edge itself. So `orphan-scan`'s exact-token correlation finds nothing, the
+  single-id-two-views cross-ledger check has nothing to compare, and `9220`'s typed edge points
+  at a token no ledger owns. **No code defect and nothing to reopen** — the work is done and the
+  test passes (verified: the file carries no `# roadmap:` header, so its failures always count
+  and it is not silently carved out). The question is the RECORD: backfill a `- [x]` line into
+  `ROADMAP.archive.md` reusing `02fe` so the edge resolves, or accept that a fix landed with no
+  ledger entry. Owner's call — a reviewer should not mint a closed item's history unasked.
+  Found by relay review, run relay-20260908-174448-4421.
