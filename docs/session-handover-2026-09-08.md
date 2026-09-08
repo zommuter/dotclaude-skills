@@ -17,8 +17,22 @@ Three definitions are live and repo-managed (`agents/`, `AGENT_FILES` in the Mak
 | Type | Purpose | Use it for |
 |---|---|---|
 | `echo-runner` | minimal prompt, `tools: Bash`, haiku | mechanical one-command dispatch; has a live consumer in `mechanical-proxy.py` |
-| `preamble-probe-wide` | minimal prompt, 11 tools, sonnet | MEASUREMENT ONLY -- not for real work |
+| `preamble-probe-wide` | minimal prompt, ALL 21 default tools, sonnet | MEASUREMENT ONLY -- not for real work |
 | `preamble-probe-narrow` | minimal prompt, Bash only, sonnet | MEASUREMENT ONLY -- not for real work |
+| `preamble-probe-exec` | minimal prompt, `Bash, Read, Edit, Write`, sonnet | MEASUREMENT ONLY -- the realistic executor set |
+
+**FIRST JOB OF THE NEXT SESSION: re-run the three probes.** They were repaired after the
+last measurement and a changed/added definition is invisible to the session that installed
+it, so the corrected split has never been taken. Dispatch each with the prompt
+`Reply with exactly the word OK.` and read the first-request context per the method at the
+foot of this doc. `default - wide` = system-prompt cost; `wide - exec` = the tool cost an
+executor could NOT avoid; `exec - narrow` = the rest.
+
+**Do not trust any prompt-vs-tools split quoted anywhere before that run.** `Glob`, `Grep`
+and `TodoWrite` are NOT real tool names in this harness (Glob/Grep go through `Bash`;
+`TodoWrite` was superseded by `TaskCreate`/`TaskList` behind `CLAUDE_CODE_ENABLE_TASKS`),
+so the original probe declared 11 tools of which only 8 resolved, against a real roster of
+21.
 
 The two probes are instruments, not workers. Their bodies say "Reply with exactly the word
 OK". Do not dispatch real tasks to them.
