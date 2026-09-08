@@ -51,6 +51,12 @@ INTENSITY="$ROOT/relay-intensity.sh"
 PROBE="$ROOT/resource-probe.sh"
 INJECT="$ROOT/inject.sh"
 CLAIM="$ROOT/claim.sh"
+CAPPED="$ROOT/capped-run.sh"
+
+# Hard wall-clock ceiling for a recipe = est_wall * FACTOR, floored (id:c057). See the long
+# comment at the run site for why this is deliberately NOT est_wall itself.
+MECH_TIMEOUT_FACTOR="${MECH_TIMEOUT_FACTOR:-2}"
+MECH_TIMEOUT_FLOOR="${MECH_TIMEOUT_FLOOR:-600}"
 
 RECIPE_DIR="${RELAY_RECIPE_DIR:-$HOME/.config/relay/recipes}"
 PENDING="$RECIPE_DIR/pending"
@@ -80,7 +86,11 @@ log() { printf '%s mechanical-daemon.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*
 cmd_run() {
   mkdir -p "$PENDING" "$RUNNING" "$DONE" "$REJECTED" "$(dirname "$LOG")"
   shopt -s nullglob
-  local ran=0 deferred=0 rejected=0 f base id repo cmd_str est_wall resource artifact err
+  # `failed` is counted and REPORTED (id:c057). Before, a recipe that ran and failed
+  # incremented nothing, so the summary line read "ran=0 deferred=0 rejected=0" — identical
+  # to a tick where nothing happened at all. A cap kill would have been invisible in exactly
+  # the summary a human reads to decide whether to look at the log.
+  local ran=0 deferred=0 rejected=0 failed=0 f base id repo cmd_str est_wall resource artifact err
 
   for f in "$PENDING"/*.json; do
     [ -f "$f" ] || continue
@@ -145,22 +155,51 @@ cmd_run() {
     fi
 
     # (4) permitted — pending -> running -> done, then inject a review-request.
+    #
+    # CAPPED (id:c057): the recipe runs inside a cgroup scope with MemoryMax, MemorySwapMax=0
+    # and a wall-clock ceiling, NOT as a bare `bash -c`. It used to be bare, which meant a
+    # local-LLM benchmark (est_wall 4500-5400s, ~20 GB resident) could thrash the machine into
+    # unusability with nothing to stop it; `Nice=10` on the service unit is CPU priority and
+    # never addressed memory. capped-run.sh REFUSES rather than running uncapped, so a missing
+    # systemd-run surfaces as a failed recipe instead of an unprotected run.
+    #
+    # WHY THE CEILING IS NOT est_wall: `est_wall` is an ADMISSION estimate, consumed by
+    # `relay-intensity.sh permits` above to decide whether now is a good time. Reusing it as a
+    # kill deadline would silently redefine a field every existing recipe already sets, and a
+    # run that overran its own estimate by 10% would be killed having done all the work and
+    # written no artifact. So the hard ceiling is a MULTIPLE of it: generous enough that
+    # hitting it means genuinely stuck, not merely slower than guessed.
+    local cap_secs=$(( est_wall * MECH_TIMEOUT_FACTOR ))
+    [ "$cap_secs" -lt "$MECH_TIMEOUT_FLOOR" ] && cap_secs="$MECH_TIMEOUT_FLOOR"
     mv "$f" "$RUNNING/$base"
-    if bash -c "$cmd_str"; then
+    local rc=0
+    "$CAPPED" -t "$cap_secs" -- bash -c "$cmd_str" || rc=$?
+    if [ "$rc" -eq 0 ]; then
       mv "$RUNNING/$base" "$DONE/$base"
-      log "RAN $base id=$id repo=$repo artifact=$artifact"
+      log "RAN $base id=$id repo=$repo artifact=$artifact cap_secs=$cap_secs"
       ran=$((ran + 1))
       "$INJECT" add "$repo" --item "$id" --verdict review \
         --prompt "mechanical run $id complete; review acceptance_artifact=$artifact" \
         >/dev/null 2>&1 || log "INJECT FAILED for $base id=$id repo=$repo"
     else
+      # Name WHY it failed. A cap kill and a genuinely failing benchmark look identical in a
+      # bare "exited non-zero", and mistaking the first for the second sends someone hunting a
+      # flaky test that never ran to completion (id:c057).
+      local why
+      case "$rc" in
+        137) why="KILLED by the memory cap (MemoryMax breached; raise RELAY_MECH_MEM or shrink the run)" ;;
+        124) why="KILLED by the wall-clock ceiling after ${cap_secs}s (est_wall=$est_wall x factor $MECH_TIMEOUT_FACTOR)" ;;
+        3)   why="REFUSED by capped-run.sh: systemd-run unavailable, so it would not run uncapped" ;;
+        *)   why="cmd exited non-zero (rc=$rc)" ;;
+      esac
       mv "$RUNNING/$base" "$DONE/$base"
-      echo "cmd exited non-zero" >"$DONE/$base.error"
-      log "FAILED $base id=$id repo=$repo cmd exited non-zero (no review injected)"
+      echo "$why" >"$DONE/$base.error"
+      log "FAILED $base id=$id repo=$repo $why (no review injected)"
+      failed=$((failed + 1))
     fi
   done
 
-  echo "mechanical-daemon: ran=$ran deferred=$deferred rejected=$rejected"
+  echo "mechanical-daemon: ran=$ran deferred=$deferred rejected=$rejected failed=$failed"
 }
 
 case "${1:-}" in

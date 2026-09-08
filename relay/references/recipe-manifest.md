@@ -57,9 +57,35 @@ Every recipe is a flat JSON object with exactly these 7 fields:
 | `repo` | string | non-empty; which repo the command runs in |
 | `cmd` | string | non-empty; the shell command to execute |
 | `host` | string | non-empty; which host the recipe is bound to (mirrors the `[host:<name>]` ROADMAP tag) |
-| `est_wall` | integer | **positive** integer seconds; the estimated wall-clock budget |
+| `est_wall` | integer | **positive** integer seconds; the ADMISSION estimate — see "est_wall estimates, it does not kill" below |
 | `resource` | string | non-empty; the `resource:<name>` claim token this recipe should acquire (see `resource-claims.md`) |
 | `acceptance_artifact` | string | non-empty; path/pointer to the artifact that proves completion |
+
+### Execution is CAPPED, and `est_wall` estimates — it does not kill (id:c057)
+
+`mechanical-daemon.sh` runs a recipe through **`capped-run.sh`**, not a bare `bash -c`. The
+command executes inside a systemd user scope with `MemoryMax` (default 24G, `RELAY_MECH_MEM`),
+`MemorySwapMax=0`, `CPUQuota` (default 200%, `RELAY_MECH_CPU`) and a wall-clock ceiling. On a
+breach the kernel kills only the processes inside that scope, so the machine stays responsive.
+If `systemd-run` is unavailable, `capped-run.sh` **refuses** (exit 3) rather than running
+uncapped — a silent fallback would reintroduce the very bug this exists to prevent.
+
+**`est_wall` is an ADMISSION estimate, not a deadline.** It is consumed by
+`relay-intensity.sh permits <est_wall> <resource>` to decide whether *now* is a good moment to
+start. The kill deadline is a separate, deliberately generous multiple:
+
+    ceiling = max(est_wall * MECH_TIMEOUT_FACTOR, MECH_TIMEOUT_FLOOR)   # default 2x, floor 600s
+
+They are kept distinct on purpose. Reusing `est_wall` directly as the deadline would silently
+redefine a field every existing recipe already sets, and a run that merely overran its own
+estimate by 10% would be killed having done all the work and written no artifact. Hitting the
+ceiling should mean *genuinely stuck*, not *slower than guessed*.
+
+**Failure is classified, not lumped.** A cap kill (137), a ceiling timeout (124) and a
+`capped-run` refusal (3) each write a distinct reason into `done/<recipe>.error` and the log,
+and the tick's summary line carries a `failed=` count. Before this, a failed recipe incremented
+nothing, so `ran=0 deferred=0 rejected=0` read identically to a tick where nothing happened —
+a cap kill was invisible in exactly the line a human reads to decide whether to look.
 
 Example:
 

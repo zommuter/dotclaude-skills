@@ -150,7 +150,7 @@ only=""    # id:f69b — empty means "run every check", i.e. the unchanged defau
 
 # The complete check vocabulary, in RUN ORDER. `repo` is the per-repo bundle (check_repo);
 # the rest are the once-only checks and match their <name>_check function names.
-DOCTOR_CHECKS="repo registry-parse refs-install install-drift parked-orphans routed-deadletters quota-config relay-core-shadow lean-toolchain-drift hooks-path-shadow"
+DOCTOR_CHECKS="repo registry-parse refs-install install-drift parked-orphans routed-deadletters quota-config relay-core-shadow lean-toolchain-drift hooks-path-shadow trunk-vs-default"
 
 # want <name> — true when <name> should run under the current --only selection. With no
 # --only it is true for every check, so the default path runs exactly what it always ran.
@@ -800,6 +800,56 @@ lean_toolchain_drift_check() {
 # scan script, never reimplements its logic.
 HOOKS_PATH_SHADOW_SCAN="$SCRIPTS_DIR/hooks-path-shadow-scan.sh"
 HOOKS_PATH_SHADOW_SCAN="${RELAY_DOCTOR_HOOKS_PATH_SHADOW_SCAN:-$HOOKS_PATH_SHADOW_SCAN}"
+# --- check: trunk vs the remote's default branch (id:f9dc, cross-repo once-only) ---
+# INFORMATIONAL, not a fault. A repo whose trunk is not its remote's default branch is a
+# LEGITIMATE, supported configuration -- trunk-branch.sh:12-13 exists precisely because
+# ai-codebench works on `claude/opusplan` while its `main` is frozen at an old checkpoint,
+# and hardcoding `main` parked a correctly-integrated worktree every single round. So this
+# does NOT say "wrong branch". It says: writes here land off origin/HEAD, know that once.
+#
+# Two deliberate silences:
+#   - NO origin/HEAD -> report NOTHING. Absence of a declared default is not divergence, and
+#     guessing `main` is the id:758a anti-pattern verify-isolation.sh:88-117 refuses to make.
+#   - A repo whose relay.toml declares `trunk_intentional = "<branch>"` is suppressed -- but
+#     ONLY while the declaration still matches the live trunk. A stale exemption that no
+#     longer describes reality is worse than no exemption, so a mismatch is reported LOUDER
+#     than an undeclared divergence, naming both values.
+trunk_vs_default_check() {
+  echo "=== trunk vs remote default branch (id:f9dc, informational) ==="
+  local name path trunk deflt declared n=0
+  while IFS=$'\t' read -r name path; do
+    [[ -d "$path/.git" || -f "$path/.git" ]] || continue
+    trunk="$(bash "$SCRIPTS_DIR/trunk-branch.sh" "$path" 2>/dev/null || true)"
+    [[ -n "$trunk" ]] || continue
+    deflt="$(git -C "$path" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    deflt="${deflt#origin/}"
+    [[ -n "$deflt" ]] || continue          # no origin/HEAD -> say nothing (see header)
+    [[ "$trunk" == "$deflt" ]] && continue # agrees -> nothing to say
+    declared="$(RELAY_TOML="$RELAY_TOML" python3 -c '
+import os,sys,tomllib
+try:
+    with open(os.environ["RELAY_TOML"],"rb") as f: d=tomllib.load(f)
+except Exception: sys.exit(0)
+e=d.get("repos",{}).get(sys.argv[1],{})
+v=e.get("trunk_intentional")
+if isinstance(v,str): print(v)
+' "$name" 2>/dev/null || true)"
+    if [[ -n "$declared" && "$declared" == "$trunk" ]]; then
+      continue                              # declared and still accurate -> suppressed
+    elif [[ -n "$declared" ]]; then
+      echo "STALE-DECLARATION $name: relay.toml says trunk_intentional=\"$declared\" but the live trunk is \"$trunk\" (origin/HEAD=$deflt) — fix or drop the declaration"
+      n=$((n + 1))
+    else
+      echo "TRUNK-OFF-DEFAULT $name: trunk=\"$trunk\" origin/HEAD=\"$deflt\" — ledger writes land on $trunk, not $deflt. If deliberate, declare it: relay-state-write.sh toml-set $name trunk_intentional $trunk"
+      n=$((n + 1))
+    fi
+  done < <(own_repos)
+  [[ "$n" -eq 0 ]] && echo "clean — every own repo's trunk matches its remote default (or has no origin/HEAD)"
+  issues_total=$((issues_total + n))
+  log "trunk-vs-default n=$n"
+  echo
+}
+
 hooks_path_shadow_check() {
   echo "=== core.hooksPath shadowing across the own-set (id:2bc6) ==="
   if [[ -x "$HOOKS_PATH_SHADOW_SCAN" ]]; then
@@ -952,6 +1002,7 @@ if want quota-config;          then quota_config_check; fi   # id:a883 — quota
 if want relay-core-shadow;     then relay_core_shadow_check; fi   # id:82c4 — which classify path is live (legacy bash vs relay-core shadow)
 if want lean-toolchain-drift;  then lean_toolchain_drift_check; fi   # id:50c4 — F4 local lean-toolchain drift compare
 if want hooks-path-shadow;     then hooks_path_shadow_check; fi   # id:2bc6 — repo-local core.hooksPath silently shadowing the global hook dir
+if want trunk-vs-default;      then trunk_vs_default_check; fi   # id:f9dc — trunk != origin/HEAD (informational; a supported config, not a fault)
 
 # --- coverage honesty (D4, meeting 2026-06-24): never look falsely-green ---------
 # LIST the checks that are designed but NOT yet wired, so this report's coverage is
