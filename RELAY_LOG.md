@@ -3763,3 +3763,35 @@ owner's call.
 ## 2026-09-08 18:35 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:4f0f verified green by its unchanged spec + negative case at 9d5048a6; closed id:be51, promoted id:09e4 with a RED spec (lint WARNs 6->3), filed id:740a/id:4cd4 hit live; 603/0/0/8-expected-red [id:4f0f,be51,09e4,3294,740a,4cd4,c057,f9dc,ba95]
+
+## 2026-09-08 — hard (claude-opus-5)
+
+Worked id:8679 — reconciled the 11 / 21 / 10 indented-id counts and committed the counting
+rule as `tools/count-indented-ids.py`. All three figures are the SAME population under two
+predicates at two commits: `--rev c63c7f20` reports 19 addressable (11 checkbox / 8 other)
++ 2 unaddressable = 21, and `--rev e6e3ff70` (= HEAD) reports 8 (0 checkbox) + 2 = 10; the
+promote pass at e6e3ff70 moved exactly the 11 checkbox-shaped ones. 11 was the promotable
+SUBSET, never a rival count, so the owner's UNVERIFIED ruling on it is discharged. The
+script masks backticked anchors (id:2964's mask half, imported from
+`ledger-continuations.code_spans` rather than re-derived) and refuses to call a
+multi-marker line addressable (id:6059), which is what every ad-hoc grep got wrong.
+`--expect N` exits 2 on drift, so a promote pass can assert its population.
+
+Surprise worth recording: the item's own acceptance premise, "the shrink itself moved the
+population", is FALSE. Measured per commit over every TODO.md revision since 2026-08-31 the
+count is 19+2 through c63c7f20, drops to 8+2 at the promote pass, and is 8+2 at every commit
+since -- invariant across the id:0d7c relocation, the reverted-and-reapplied wave 3, and the
+id:40c0 continuation move. The promote ran three hours BEFORE the first shrink wave. Also
+corrected a stale derived claim this created: `tools/ledger-shrink.py`'s docstring asserted
+the bare "21", true at c63c7f20 and stale within hours; it now points at the counter.
+
+Friction: none on sizing. The dispatch brief named id:166a as the first pool-lane item;
+it is not workable (its input seam id:372a is decomposed and one required flake-log run,
+id:97e0, is gated route:human, so only 3 of 4 confirmation rows exist), and id:6958 records
+itself as mechanically complete with its residue split out as id:cce9 -- so this unit fell
+through to id:8679, the third and only workable entry on the resolved list.
+
+refactor: none needed -- the counting rule is a new single-purpose script; the one reuse
+opportunity was taken up front by importing `code_spans`/`ID_RE` from the existing shrink
+tooling rather than re-deriving a marker/code-span parser, and the only duplication removed
+was the stale hardcoded "21" in `ledger-shrink.py`'s docstring.
