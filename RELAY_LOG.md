@@ -3894,3 +3894,7 @@ the title already existed and its note was already complete). Leaving the item o
 unticked, for a follow-up batch; this session made real, verified progress rather than a
 size-out.
 refactor: none needed -- pure ledger-text edits via `md-merge.py update-ids`, no code changed.
+
+## 2026-09-08 23:38 — executor (sonnet, relay-loop)
+
+id:64f9: shrank 4 of 46 over-budget item titles (8627, 0640, 83c2, 0220) in TODO.md, verified clean by roundtrip-validate.py; item stays open (42 remain, most needing real relocation work) [id:64f9]
