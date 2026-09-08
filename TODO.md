@@ -266,6 +266,7 @@
 ## Fable review 2026-07-08 — relay mechanization (verified findings; full trail in the 2026-07-08 diary entry)
 
 - [ ] [HARD] ** mechanical-daemon hardening: running/ reaper, `.timer` retry companion, flock, wall-clock timeout, resource ACQUIRE not probe, single resource vocabulary, loud inject-failure** -- detail: `docs/ledger-notes/1cb8.md` <!-- id:1cb8 -->
+- [ ] [INPUT - meeting] **Let an `--intensive` pool round DRIVE the mechanical daemon (drop the recipe, then tick it) under ONE shared `claim.sh acquire` -- composes `id:1cb8` defects (2) + (5); the `bash`-proxy variant of the same idea is REFUTED by `id:e62c`** -- detail: `docs/ledger-notes/0220.md` <!-- id:0220 -->
 
 ## /batch — built-in parallel worktree command
 
@@ -1075,3 +1076,11 @@ deliberately left unbounded — see `id:da1a`).
 - [ ] [ROUTINE] **`PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false` lets pnpm run inside a relay worktree while authorising no removal -- set it in the relay child env.** -- detail: `docs/ledger-notes/9a72.md` <!-- relates:b115 --> <!-- routed:37ce --> <!-- id:9a72 -->
 - [ ] [ROUTINE] **`classify-repo.sh`'s `LEDGER_NOTE_POINTER_RE` carries no `detail:` anchor, so a note path quoted in PROSE is charged the fail-safe 32,768 B.** -- detail: `docs/ledger-notes/bf91.md` <!-- routed:f83a --> <!-- id:bf91 -->
 - [ ] [ROUTINE] **`roadmap-lint`'s DETAIL-POINTER-MISSING false-positives on a double-pointer line: `grep -oP -m1` bounds matching LINES, not matches.** -- detail: `docs/ledger-notes/f03d.md` <!-- routed:1fd4 --> <!-- id:f03d -->
+
+## inbox intake 2026-09-08 (routed from todo-inbox.md -- five items from project_manager sessions)
+
+- [ ] [HARD] [INBOUND routed:7f74 from project_manager] **`meeting-question-guard` (`id:2419`) does not correct behaviour on ANY block: 3 re-offences in one session, the owner intervened manually twice** -- detail: `docs/ledger-notes/9616.md` <!-- id:9616 -->
+- [ ] [HARD] [INBOUND routed:956c from project_manager] **`meeting-question-guard` fires but does not CORRECT -- a single Stop block is not durable across the rest of a meeting** -- the same Opus session ended on bare transcript prose again one decision point after the hook's own text said "EVERY remaining decision point works the same way". SHARPENED by `id:9616` (`routed:7f74`), which carries the corrected severity and the candidate fixes; work that line, not this one. <!-- id:6d77 -->
+- [ ] [INPUT - decision] [INBOUND routed:70da from project_manager] **The `--fabled` escalation trigger (`id:8df5`) FIRED again: the wisenheimer scoping meeting 2026-09-08 returned 4 forced-amendment findings against the pre-registered >=2 threshold** -- pre-registered evidence for building the per-decision Fable pass (fire Fable before each `AskUserQuestion`) and the full multi-pass. Design NOT settled: owner's call. Source: `~/src/project_manager/docs/meeting-notes/2026-09-08-1546-wisenheimer-scoping.md`. <!-- id:c3a2 -->
+- [ ] [ROUTINE] [INBOUND routed:b3fe from project_manager] **`relay.toml` read sites FAIL OPEN on a corrupt registry: `discover-repos.sh` tracebacks on a `TOMLDecodeError` but STILL emits its normal TSV, so a stdout-only caller sees a healthy classification over an unparseable own-repo registry** -- detail: `docs/ledger-notes/3a70.md` <!-- id:3a70 -->
+- [ ] [ROUTINE] [INBOUND routed:86e1 from project_manager] **`check-install-drift.sh` reported a FALSE CLEAN over a missing `lib-repo-section.sh` that broke `ckpt-tag.sh` fleet-wide; half (a) is already fixed incidentally by `f6fa91d1`, and half (b)'s stated mechanism is REFUTED by a hermetic probe -- get the reporter's exact invocation before touching the guard** -- detail: `docs/ledger-notes/c742.md` <!-- id:c742 -->
