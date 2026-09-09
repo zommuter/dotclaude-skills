@@ -29,6 +29,7 @@
 - handoff(5295): promoted the rule-2c marker defect to ROADMAP as [ROUTINE] after re-triage (no nonce needed -- it is a tilde-vs-absolute spelling mismatch), plus a 10-case RED spec and one owner box (id:5295)
 - Fixed id:5295: self-transcript.sh now normalizes tilde/absolute worktree-path spelling in --marker matching so context-budget.sh --self stops fail-opening to `unknown`; full suite green (623/0/3-expected-red). (id:5295)
 - review: id:5295 verified genuinely green by spec-replay (reddens at case 1, the assertion the item names); 4 REVIEW_ME boxes -- c219 fixture-fidelity residue, 5 parked orphans holding every un-gated ROUTINE id, routine_open 4-of-10 judgment, one-sided isolation gate; unit+lint tiers green (623/0/0/3-expected-red), 3 opt-in tiers recorded-skipped (id:5295)
+- handoff(dotclaude-skills): promoted id:6d7e to ROADMAP [ROUTINE] with a verified-RED spec for the ambiguous-self-marker refusal; owner's branch-(b) ruling recorded against the id:5295 review box (id:6d7e)
 
 ## 2026-09-08
 
