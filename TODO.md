@@ -200,6 +200,7 @@
 - [ ] [ROUTINE] **The `hard` lane can never be sliced: `dispatchItemFor` reads only `actionable_routine_ids`, which a hard unit has none of, so big-ledger repos refuse forever.** Measured fix: 1,659,917 -> 21,496 bytes -- detail: `docs/ledger-notes/f957.md` <!-- relates:e68f --> <!-- relates:4f9b --> <!-- id:f957 -->
 - [ ] [ROUTINE] **`test_title_rewrite_batch_acceptance_64f9.sh` case 3 is unsatisfiable -- its fixture title is 194 chars against the 200 it must exceed, so no implementation can pass it.** Blocks id:521b (the implementing item, not the gated id:64f9); cases 4-7 have never run -- detail: `docs/ledger-notes/9088.md` <!-- relates:521b --> <!-- relates:64f9 --> <!-- id:9088 -->
 - [ ] [INBOUND routed:caac from code.lawless] [ROUTINE] **`verify-isolation.sh:190` calls any porcelain output DIRTY with no `git diff` cross-check, so annex pointer noise hands back every execute round on an annex repo.** Same class as the closed id:de4a, other half -- detail: `docs/ledger-notes/3016.md` <!-- relates:f682 --> <!-- relates:de4a --> <!-- id:3016 -->
+- [ ] [INBOUND routed:f8da from code.lawless] [HARD] **A handback leaves the box unticked, so the item re-dispatches next round; `repeatHandbacks` detects at threshold 2 without altering dispatch.** id:4d8e detection-no-op class; carries an unresolved gate-vs-selection question -- detail: `docs/ledger-notes/79a9.md` <!-- relates:1432 --> <!-- relates:4d8e --> <!-- id:79a9 -->
 
 ## meeting skill
 
