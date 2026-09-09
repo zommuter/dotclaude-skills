@@ -17,6 +17,7 @@
 - id:5ad9 verified genuinely done: integrate.sh step 8 + ratify-queue.sh pending-blocking withhold declared-public remotes ancestral to an unresolved queue entry regardless of unit substantiveness; RED spec test_ratify_gate_binds_remote_7408.sh (unmodified) now passes all 5 scenarios, full suite 613/0/4-expected-red. (id:5ad9)
 - review: id:5ad9 re-verified green independently (RED spec has one commit, never touched; impl on integrate.sh's real push path); zero test files changed in window so gaming-scan and all provenance greps are clean; cleared id:64f9's DECOMPOSED-CONTAINER with @container (id:8504), lint 4 WARNs -> 3; 3 REVIEW_ME findings incl. a measured re-grandfathering hazard in the baseline-staleness remedy; make lint+test 613/0/0/4-expected-red (id:5ad9,64f9)
 - roadmap-tick.sh now refuses (reverts + exits non-zero) a checkbox tick whose own # roadmap:&lt;id&gt; spec test is still red after ticking, closing id:963c (id:963c)
+- Fixed workflow_node_check's lexical scanner (id:8627): replaced the line-oriented regex heuristic with a shared character-level state machine, closing three defects (// glob comments opening a false block-comment blind window, escaped backticks mis-toggling template state, same-line close-then-open block comments) -- full suite 615/0/0/4-expected-red (id:8627)
 
 ## 2026-09-08
 
