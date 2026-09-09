@@ -178,10 +178,6 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## 2026-09-08 review findings (run relay-20260908-231617-32609)
 
-- [x] **[ROUTINE]** Implement the batch-acceptance invariance checks in tools/shrink-acceptance.py that the id:64f9 RED spec already demands (verbatim title preservation in notes, checkbox/lane/gated-on-edge invariance, dropped-prose refusal) — seam of id:64f9 (auto, id:3801) -- PARKED: a reviewed NEEDS-WORK attempt exists on an orphan branch; read the note before restarting -- detail: `docs/ledger-notes/521b.md` <!-- id:521b -->
-  - **Acceptance**: tests/test_title_rewrite_batch_acceptance_64f9.sh cases (2) through (7) all PASS (currently case 2 fails: a batch that drops original title prose is wrongly accepted)
-  - **Done-check**: bash tests/test_title_rewrite_batch_acceptance_64f9.sh prints ALL PASS; make test still fully green (610 passed / 0 failed / 5 expected-red)
-  - **Context**: tools/shrink-acceptance.py, tests/test_title_rewrite_batch_acceptance_64f9.sh
 - [ ] **[ROUTINE]** Rewrite the first ~10 over-budget TODO.md titles (of 42) with full original preserved verbatim in docs/ledger-notes/<id>.md, verified against the new shrink-acceptance.py gate (after id:(the gate seam above)) — seam of id:64f9 (auto, id:3801) <!-- id:b437 -->
   - **Acceptance**: todo-conformance.sh grammar-item-title-long count for TODO.md drops by the number of items rewritten; each item's id, lane, checkbox state and every marker (gated-on:, relates:, routed:) is byte-identical; shrink-acceptance.py run over before/after accepts the batch
   - **Done-check**: relay/scripts/todo-conformance.sh TODO.md | grep -c grammar-item-title-long shows the reduced count; python3 tools/shrink-acceptance.py --before <snapshot> --after TODO.md --notes-dir docs/ledger-notes exits 0
