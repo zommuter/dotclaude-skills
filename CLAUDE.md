@@ -219,16 +219,21 @@ step 2b); its semver sibling — the reviewer-only bump — is `relay/scripts/ve
   brief a child reads says `~/.cache/relay/worktrees/...`. Executor-contract rule 2c tells
   that child to run `context-budget.sh --self --marker "<your worktree path>"`, and a child
   that supplies `$(pwd)` supplies `/home/<user>/.cache/relay/worktrees/...`.
-  `self-transcript.sh`'s marker filter is a literal `[[ "$head" == *"$marker"* ]]`, so the
-  two spellings can never match and the resolver exits 4 -- `--self` then fails OPEN to
-  verdict `unknown` and the budget guard is inert. Reproduced live 2026-09-09 in
-  session `88e0cae7`: the absolute form matched 0 of 707 transcripts, the tilde form
-  matched 2. Anything comparing a path a dispatcher WROTE against a path a child MEASURED
-  must normalize `~/` against `$HOME/` on both sides. Second trap on the same line: even
-  the tilde form is NOT unique -- the id:34b7 `provision-worktree.sh` child's own prompt
-  carries the same path, so a per-unit marker matches at least two transcripts. Open item
-  `id:5295`; the pre-existing fixture in `tests/test_self_transcript_workflow_nesting_c219.sh`
-  missed both because it modelled the dispatch prompt as carrying an ABSOLUTE path.
+  `self-transcript.sh`'s marker filter is a literal `[[ "$head" == *"$marker"* ]]`, which
+  was blind to that spelling difference until `id:5295` added the `$HOME`-anchored
+  tilde/absolute normalization it carries today; before it, the two spellings could never
+  match, the resolver exited 4, and `--self` failed OPEN to verdict `unknown` with the
+  budget guard inert. Reproduced live 2026-09-09 in session `88e0cae7`: the absolute form
+  matched 0 of 707 transcripts, the tilde form matched 2. **The durable rule: anything
+  comparing a path a dispatcher WROTE against a path a child MEASURED must normalize `~/`
+  against `$HOME/` on both sides, and anchored to the caller's own `$HOME`, never a
+  hardcoded `/home/*` guess.** Second trap on the same line, and NOT fixed by that
+  normalization: a per-unit worktree path is not a unique self-marker at all -- the id:34b7
+  `provision-worktree.sh` child's own dispatch prompt names the same worktree as a command
+  argument, so the marker matches at least two transcripts and the resolver must decide
+  what an ambiguous identity means (tracked as `id:6d7e`). The pre-existing fixture in
+  `tests/test_self_transcript_workflow_nesting_c219.sh` missed both traps because it
+  modelled the dispatch prompt as carrying an ABSOLUTE path.
 
 ## Testing
 
