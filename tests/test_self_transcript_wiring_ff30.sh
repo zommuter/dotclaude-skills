@@ -114,16 +114,18 @@ pass "a missing projects root is loud too (rc=$rc)"
 
 # ------------------------------------------------------------------ 6. ambiguity policy
 # Two transcripts carrying the SAME marker (a resume child reusing a worktree path):
-# newest mtime wins, and EVERY candidate is named on stderr.
+# id:6d7e made a bare ambiguous match a REFUSAL (exit 4); the newest-mtime pick now
+# requires the explicit --allow-ambiguous opt-in, and every candidate is still named on
+# stderr either way.
 F_DUP="$(mk_child dddd4444 "$WT_A" 500)"
 touch -d '2020-01-01 00:00:00' "$F_A"
 touch -d '2030-01-01 00:00:00' "$F_DUP"
-got="$("$RESOLVER" --session-id "$SESSION" --projects-root "$PROJ" --marker "$WT_A" 2>"$tmpdir/e3")"
+got="$("$RESOLVER" --session-id "$SESSION" --projects-root "$PROJ" --marker "$WT_A" --allow-ambiguous 2>"$tmpdir/e3")"
 [[ "$got" == "$F_DUP" ]] || fail "ambiguous marker chose '$got'; the most-recently-modified '$F_DUP' should win"
 [[ -s "$tmpdir/e3" ]] || fail "an ambiguous marker resolved SILENTLY — every candidate must be named on stderr"
 err3="$(cat "$tmpdir/e3")"
 [[ "$err3" == *"$F_A"* ]] || fail "the ambiguity warning did not name the losing candidate $F_A"
-pass "ambiguous marker → newest wins, all candidates named on stderr"
+pass "ambiguous marker (--allow-ambiguous) → newest wins, all candidates named on stderr"
 rm -- "$F_DUP"
 touch "$F_A"
 

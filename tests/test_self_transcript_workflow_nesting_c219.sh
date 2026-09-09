@@ -135,18 +135,19 @@ set -e
 pass "context-budget.sh --self --marker <worktree-basename> now yields: $out"
 
 # ------------------------------------------------------------------ 7. ambiguity stays LOUD
-# Same marker in a flat child AND a workflow child (a resumed unit). Existing policy:
-# newest mtime wins and EVERY candidate is named on stderr — never a silent guess.
+# Same marker in a flat child AND a workflow child (a resumed unit). id:6d7e policy: a
+# bare ambiguous match now REFUSES (exit 4); the newest-mtime pick requires the explicit
+# --allow-ambiguous opt-in, and every candidate is still named on stderr either way.
 F_DUP="$(mk_child "$SUBS" adddd4444dddd4444 "$MARK_ME" 500)"
 touch -d '2020-01-01 00:00:00' "$F_ME"
 touch -d '2030-01-01 00:00:00' "$F_DUP"
-got="$(run_resolver --marker "$MARK_ME" 2>"$tmpdir/e7")"
+got="$(run_resolver --marker "$MARK_ME" --allow-ambiguous 2>"$tmpdir/e7")"
 [[ "$got" == "$F_DUP" ]] \
   || fail "ambiguous marker across shapes chose '$got'; the most-recently-modified '$F_DUP' should win"
 [[ -s "$tmpdir/e7" ]] || fail "an ambiguous marker resolved SILENTLY (id:4347 no-silent-swallow)"
 err7="$(cat "$tmpdir/e7")"
 [[ "$err7" == *"$F_ME"* ]] || fail "the ambiguity warning did not name the losing candidate $F_ME"
-pass "ambiguity across flat+workflow shapes → newest wins, all candidates named on stderr"
+pass "ambiguity across flat+workflow shapes (--allow-ambiguous) → newest wins, all candidates named on stderr"
 rm -- "$F_DUP"
 touch "$F_ME"
 

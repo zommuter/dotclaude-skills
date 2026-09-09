@@ -39,15 +39,24 @@
 #      "Your worktree <wt> on branch <branch> was already created for you"), which is
 #      unique per repo per run. No new nonce, and no dispatcher change, is needed.
 #
-# AMBIGUITY POLICY: with N children in flight, the marker is what disambiguates. If the
-# marker still matches more than one transcript (e.g. an id:a4e9 resume child reusing the
-# same worktree path as the child it replaced), the MOST RECENTLY MODIFIED wins — the
-# calling agent is by definition actively writing its own transcript right now, so its
-# file has the newest mtime among the matches — and EVERY candidate is named on stderr.
-# Never silent (id:4347).
+# AMBIGUITY POLICY (REVISED, id:6d7e, owner-ruled 2026-09-09): with N children in
+# flight, the marker is what disambiguates. If the marker still matches more than one
+# transcript (e.g. an id:a4e9 resume child reusing the same worktree path as the child
+# it replaced, or the id:34b7 provisioner's dispatch prompt naming the same worktree as
+# a bare command argument), that is an UNRESOLVED IDENTITY, not a tie to break — the
+# resolver REFUSES: exit 4, nothing on stdout, every candidate named on stderr. This
+# mirrors the zero-match branch below, which already exits 4 for the same underlying
+# failure ("I cannot tell which transcript is mine"); before this revision multi-match
+# instead picked the most-recently-modified candidate and returned it with exit 0, which
+# meant `context-budget.sh --self` could report ANOTHER child's byte count as an
+# authoritative verdict. A wrong byte count is worse than `unknown`, because it looks
+# authoritative. The old newest-mtime pick survives ONLY behind the explicit opt-in
+# `--allow-ambiguous` — it still names every candidate on stderr (never silent, id:4347),
+# it just also resolves instead of refusing.
 #
 # Usage:
 #   self-transcript.sh [--marker STR] [--session-id ID] [--projects-root DIR] [--bytes]
+#                       [--allow-ambiguous]
 #
 #   --marker STR        disambiguate among sibling children by a string that appears in
 #                       THIS agent's dispatch prompt (relay executor: your worktree path).
@@ -55,19 +64,29 @@
 #   --session-id ID     override $CLAUDE_SESSION_ID (testing).
 #   --projects-root DIR override $HOME/.claude/projects (testing).
 #   --bytes             print the SIZE in bytes instead of the path.
+#   --allow-ambiguous   opt IN to the pre-id:6d7e newest-mtime tie-break when the marker
+#                       matches more than one transcript, instead of refusing (exit 4).
+#                       Every candidate is still named on stderr. Does NOT relax the
+#                       zero-match branch — a marker matching nothing is still exit 4
+#                       regardless of this flag.
 #   --list-candidates   print this resolver's OWN candidate set (one path per line,
 #                       pre-marker-filter) and exit 0. For transcript-shape-preflight.sh
 #                       (id:413c), so the coverage check asks the resolver what it
 #                       searches instead of re-deriving the glob — a second copy of that
 #                       knowledge is what made id:c219 possible.
 #
-# Output: exactly one line on stdout (the path, or the byte count with --bytes).
+# Output: exactly one line on stdout (the path, or the byte count with --bytes) when
+# resolved; nothing on stdout on an UNRESOLVED refusal (exit 4).
 #
 # Exit codes:
-#   0  resolved (stdout carries the answer).
-#   4  UNRESOLVED — nothing printed to stdout, a loud reason on stderr. Callers MUST
-#      fail OPEN on 4 (a measurement failure must never block work); `context-budget.sh
-#      --self` does exactly that, yielding verdict `unknown`.
+#   0  resolved (stdout carries the answer) — zero ambiguity, or resolved via
+#      --allow-ambiguous.
+#   4  UNRESOLVED — nothing printed to stdout, a loud reason on stderr. This now covers
+#      BOTH the zero-match case ("matched none") and the multi-match case ("N transcripts
+#      matched — refusing") — distinguishable by message text, since the remedies are
+#      opposite (fix the marker string vs. make the marker unique). Callers MUST fail
+#      OPEN on 4 (a measurement failure must never block work); `context-budget.sh --self`
+#      does exactly that, yielding verdict `unknown`.
 #   2  MISUSE — bad/missing arguments.
 #
 # Pure read-only: never writes, creates, or removes a file; never touches git state.
@@ -83,6 +102,7 @@ session_id=""
 projects_root=""
 want_bytes=0
 list_candidates=0
+allow_ambiguous=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -91,6 +111,7 @@ while [[ $# -gt 0 ]]; do
     --projects-root)  projects_root="${2:-}"; shift 2 ;;
     --bytes)          want_bytes=1; shift ;;
     --list-candidates) list_candidates=1; shift ;;
+    --allow-ambiguous) allow_ambiguous=1; shift ;;
     *)
       echo "self-transcript.sh: unknown arg '$1'" >&2
       exit 2 ;;
@@ -225,6 +246,12 @@ elif (( ${#candidates[@]} > 1 )); then
 fi
 
 # ---------------------------------------------------------------- resolve to exactly one
+#
+# id:6d7e: more than one surviving candidate is an UNRESOLVED IDENTITY, not a tie to
+# break, unless the caller explicitly opted in with --allow-ambiguous. This mirrors the
+# zero-match branch above (:165) — same underlying failure ("I cannot tell which
+# transcript is mine"), same exit code, distinct message text so the two are tellable
+# apart (the remedies are opposite: fix the marker string vs. make the marker unique).
 winner="${candidates[0]}"
 if (( ${#candidates[@]} > 1 )); then
   best_mtime=-1
@@ -236,7 +263,12 @@ if (( ${#candidates[@]} > 1 )); then
       winner="$f"
     fi
   done
-  echo "self-transcript.sh: ${#candidates[@]} transcripts matched — choosing the most recently modified ($winner). Candidates: ${candidates[*]}" >&2
+  if (( allow_ambiguous )); then
+    echo "self-transcript.sh: ${#candidates[@]} transcripts matched — --allow-ambiguous given, choosing the most recently modified ($winner). Candidates: ${candidates[*]}" >&2
+  else
+    echo "self-transcript.sh: ${#candidates[@]} transcripts matched for session $session_id — refusing to guess (pass --allow-ambiguous to opt into the newest-mtime tie-break). Candidates: ${candidates[*]}" >&2
+    exit 4
+  fi
 fi
 
 if (( want_bytes )); then
