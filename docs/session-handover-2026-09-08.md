@@ -220,6 +220,12 @@ inspection.
 7. **`id:6a5d`** -- a withheld reconcile integrate mints no `id:4d44` ratification-queue
    entry, so the local unpushed merge lives only in an stderr line.
 8. **Four retirable worktrees + the `b54b-fix` worktree** left for you (commands above).
+9. **Possible `id:5355` regression, NOT traced -- verify before acting.** `archive-done.sh`
+   archived `id:4263` the day after it closed, though its own trailing date (`on 2026-09-08`)
+   was well inside the 30-day cutoff and `id:5355` says an item's own date outranks the
+   prior-commit rule. Harmless here (no `routed:` breadcrumb, genuinely closed), so it was
+   left alone rather than "fixed" unattended at 04:00. Plausible cause, unverified: the
+   date sits before the trailing `<!-- id:4263 -->` comment rather than at end-of-line.
 
 ~~`EXECUTE_AGENT_TYPE` needs front-door threading~~ -- **was already done** (`relay/SKILL.md:313`,
 documented `:922`); the thread was stale when written, and the knob worked in production tonight.
