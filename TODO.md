@@ -196,6 +196,7 @@
 - [ ] [HARD] **PreToolUse hook denying a delegated child's `Edit`/`Write` outside its assigned worktree.** Prevention half; author and test only, wiring is the owner's step -- detail: `docs/ledger-notes/73a0.md` <!-- relates:f682 --> <!-- relates:8e7a --> <!-- relates:76e4 --> <!-- id:73a0 -->
 - [ ] [ROUTINE] **`control-board.sh` under-counts human-lane items -- helferli reports 2 of 19 when all 19 carry `[INPUT ...]`.** Gating, delimiter and vocabulary tested and rejected -- detail: `docs/ledger-notes/95c8.md` <!-- relates:8066 --> <!-- relates:4a76 --> <!-- id:95c8 -->
 - [ ] [INPUT - decision] **Lane-delimiter migration BLOCKED: `project_manager` `scan.py` matches em-dash-only literals, so a bare swap silently un-counts gated items.** Routed to inflownistration as a use case -- detail: `docs/ledger-notes/0ec3.md` <!-- routed:0ec3 --> <!-- relates:70bc --> <!-- id:0ec3 -->
+- [ ] [ROUTINE] **The trimmed `relay-implementer` executor still dies `Prompt is too long` -- `id:c3c1` step 4 is partially effective, not validated.** 1 of 4 execute children this run; do not close on dispatch success -- detail: `docs/ledger-notes/3846.md` <!-- relates:c3c1 --> <!-- relates:77d9 --> <!-- id:3846 -->
 
 ## meeting skill
 
