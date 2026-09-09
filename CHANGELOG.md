@@ -31,6 +31,7 @@
 - review: id:5295 verified genuinely green by spec-replay (reddens at case 1, the assertion the item names); 4 REVIEW_ME boxes -- c219 fixture-fidelity residue, 5 parked orphans holding every un-gated ROUTINE id, routine_open 4-of-10 judgment, one-sided isolation gate; unit+lint tiers green (623/0/0/3-expected-red), 3 opt-in tiers recorded-skipped (id:5295)
 - handoff(dotclaude-skills): promoted id:6d7e to ROADMAP [ROUTINE] with a verified-RED spec for the ambiguous-self-marker refusal; owner's branch-(b) ruling recorded against the id:5295 review box (id:6d7e)
 - review(2026-09-09d): no executor unit in window so nothing claimed green; id:6e02's observe-first gate FIRED -- this child's own worktree+branch were reaped twice mid-run under a held lease, with relay-doctor publishing the live worktree as "no work at risk"; breadcrumbed where id:799f's and id:aa5e's died-mid-work residue actually went; 4 REVIEW_ME boxes; 623/0/0/5-expected-red (id:6e02,799f,aa5e,0165,7f4c)
+- Fixed id:799f's fixture (invalid hex roadmap token o799 -> a799) so its post-close-graft RED spec goes fully green; id:aa5e stayed gated on orphan-parked id:c655 and was not worked. (id:799f)
 
 ## 2026-09-08
 
