@@ -81,6 +81,31 @@ RELAY_LOG.md, hygiene).
 4. **Adjust the registry when asked** — new repos are only ever included after
    you confirm them (in `--interactive` mode or a manual handoff turn).
 
+## What NOT to do while a run is live
+
+**Stay out of a repo's main checkout while a pool is live on it — or commit before
+every round boundary.** This is the one operator habit that reliably breaks a run,
+and it breaks it in two independent ways:
+
+- **Uncommitted edits at classification time pin the repo at verdict `blocked`**
+  (rank 0, never dispatched). On a `--only <repo>` run that is the whole round, so
+  the pool ends `blocked-pending-human` having done nothing.
+- **Committing inside a child's window conflicts its branch at integrate**, which
+  costs the whole unit — the child's work is parked, not merged.
+
+Observed twice in a single `--only` run on 2026-09-09, from one habit. Both effects
+are the shared-ledger design working as intended (`TODO.md`/`ROADMAP.md`/`REVIEW_ME.md`
+are not `merge=union`, so git surfaces the collision rather than silently losing a
+toggle) — the run is not damaged, but the round is wasted.
+
+Cross-repo runs are far less exposed: you are usually editing one repo, and the pool
+is working four others. It is the single-repo forms (`/relay <repo>`, `--only`,
+`/relay .`) where your editing and the pool's scope are the same repo by construction.
+
+If you must work in the repo, `git commit` your changes *before* the next round
+starts — a committed tree classifies normally, and a child branched from it merges
+cleanly.
+
 ## Knobs
 
 | Knob | Default | Meaning |
