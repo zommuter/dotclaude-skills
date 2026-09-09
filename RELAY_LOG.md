@@ -3966,3 +3966,7 @@ refactor: none needed -- scoped bugfix plus one new report bucket, no duplicatio
 ## 2026-09-09 17:02 — executor (sonnet, relay-loop)
 
 Fixed id:227d: shrink-acceptance.py's title-rewrite Check 4 no longer misreports a title that GREW past budget as "LEFT unmodified"; new case (8) in test_title_rewrite_batch_acceptance_64f9.sh reddens against the pre-fix code and passes after; full suite 622/0/3-expected-red. [id:227d]
+
+## 2026-09-09 17:35 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:227d verified genuinely green by spec-replay (reddens at case 8, the acceptance's named assertion) and its rc=0/SAFE-TO-LAND residual re-measured rather than assumed; corrected id:b437's stale caveat in both directions; filed id:799f -- the DECLARATION-axis sibling of id:11a4, where a defect-fix case grafted into a landed roadmap-keyed spec inherits a file-scoped exemption and is verifiable by neither the lint nor the runner (355 of 625 files in that population); suite 622/0/0/3-expected-red, lint clean [id:227d,b437,11a4,799f] [id:227d,b437,11a4,799f]
