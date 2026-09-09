@@ -1363,17 +1363,32 @@ def check_title_rewrites(before_root, after_root, notes_dir, findings):
             ))
             continue
 
+    # id:227d -- this loop's candidate set is deliberately UNSCOPED by `before_title_long`
+    # (unlike `common` above): an item can end up over budget AFTER without ever having
+    # been over budget BEFORE, and that case still needs a home. What it must NOT get is
+    # `touched`'s FATAL "rewritten but STILL grammar-item-title-long" treatment -- this
+    # item was never claimed as part of the title-rewrite batch, so nothing here refuses
+    # it. But it must also not be reported as "LEFT unmodified": the line changed, so
+    # calling it unmodified is false on its face, and it is the one direction (growing
+    # PAST the budget) this whole check exists to catch. `grown` -- BEFORE-line differs
+    # from AFTER-line, and BEFORE was not itself over budget -- is that third bucket.
+    grown = []
     for item_id in sorted(before_ids & after_ids):
         if item_id in touched:
             continue
         b_line = find_item_line(before_root, item_id)
+        a_line = find_item_line(after_root, item_id)
         if b_line is None:
             continue
         if after_title_long is None:
             # No touch was ever found this run, so compute once here to still be
             # able to report LEFT items in an otherwise-clean batch.
             after_title_long = _title_long_ids(after_root)
-        if item_id in after_title_long:
+        if item_id not in after_title_long:
+            continue
+        if a_line is not None and a_line != b_line:
+            grown.append(item_id)
+        else:
             left.append(item_id)
 
     # "LEFT and reported, never mangled" (acceptance text) means this report must
@@ -1389,10 +1404,19 @@ def check_title_rewrites(before_root, after_root, notes_dir, findings):
             "id:%s -- LEFT unmodified, still over the title budget (reported, not a "
             "refusal)" % item_id
         ))
+    # id:227d -- reported, deliberately not refused: whether a grown title should also be
+    # a FATAL refusal is the item's OPEN DESIGN RESIDUE, left for an owner call. This is
+    # the reporting-half fix only -- make the claim it prints true.
+    for item_id in grown:
+        findings.append((
+            "WARN", "title-rewrite",
+            "id:%s -- title CHANGED and is now over budget (was not over budget "
+            "before) -- not a leave, the line was edited" % item_id
+        ))
 
     lines = [
-        "  items checked=%d   touched=%d   left-still-over-budget=%d"
-        % (len(common), len(touched), len(left))
+        "  items checked=%d   touched=%d   left-still-over-budget=%d   grown-past-budget=%d"
+        % (len(common), len(touched), len(left), len(grown))
     ]
     return lines
 
