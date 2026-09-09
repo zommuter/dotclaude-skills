@@ -114,12 +114,16 @@ pass "an absolute \$(pwd) marker matches the tilde-spelled worktree in the dispa
 # ------------------------------------------------------------------ 2. the other direction
 # A dispatcher that one day writes the ABSOLUTE form must not break a child that pastes
 # the tilde form out of its brief. Normalization has to be symmetric, not a one-way
-# special case for today's spelling.
+# special case for today's spelling. F_ME from case 1 ALSO matches this marker (it is the
+# same worktree, tilde-spelled) — id:6d7e made that a genuine two-candidate ambiguity, so
+# this case needs --allow-ambiguous to reach a resolved answer; the assertion below (the
+# NEWER of the two, F_ABSPROMPT, wins) is exactly the tie-break id:6d7e gated behind that
+# flag, not a regression in this case's own subject.
 WFDIR2="$SUBS/workflows/wf_5295beef-def"
 mkdir -p "$WFDIR2"
 F_ABSPROMPT="$(mk_child "$WFDIR2" ab437c0ffee123450 "$WT_ABS" 1000)"
 set +e
-out="$(run_resolver --marker "$WT_TILDE" 2>"$tmpdir/e2")"; rc=$?
+out="$(run_resolver --marker "$WT_TILDE" --allow-ambiguous 2>"$tmpdir/e2")"; rc=$?
 set -e
 (( rc == 0 )) || fail "a tilde marker did not match an absolute-spelled dispatch prompt (rc=$rc): $(cat "$tmpdir/e2")"
 [[ "$out" == "$F_ABSPROMPT" ]] \
