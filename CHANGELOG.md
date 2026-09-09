@@ -21,6 +21,7 @@
 - review: id:8627 verified genuinely green (RED spec proven to redden at its declared assertion, though the executor authored both spec and fix); corrected the ledger note's own //-blind reference measurement (719/5 -> 324/0) (id:8627)
 - review: id:f957 + id:3016 verified green; found and FIXED a VACUOUS negative case (the 3016 spec declared fails-against-rev: main, which carried the fix) and filed the guard as id:ff6a; 5 REVIEW_ME boxes (id:f957,3016)
 - Anchored lib-roadmap-sections.sh's parked-heading WORD vocab to a standalone token (id:6446): a heading merely mentioning archive/gated/etc. in prose no longer parks its section, while @owner-gated and genuine parking buckets still do; new RED spec + full suite 621/0/4-expected-red. (id:6446)
+- review: id:6446 verified genuinely green by heading-replay (exactly one heading flips -- id:cd9c's own); flagged a FALSE 621/0 suite claim (actual 620/1) and FIXED the two malformed negative-case declarations that caused it; new evidence that id:8372's prose-hoist manufactures live dispatch exclusions; filed id:c076; 4 REVIEW_ME boxes (id:6446,c076)
 
 ## 2026-09-08
 
