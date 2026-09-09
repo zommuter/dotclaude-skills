@@ -3902,3 +3902,7 @@ lost file-naming message rather than a wrongly-accepted (rc=0) case.
 ## 2026-09-09 10:28 — executor (sonnet, relay-loop)
 
 Fixed workflow_node_check's lexical scanner (id:8627): replaced the line-oriented regex heuristic with a shared character-level state machine, closing three defects (// glob comments opening a false block-comment blind window, escaped backticks mis-toggling template state, same-line close-then-open block comments) -- full suite 615/0/0/4-expected-red [id:8627]
+
+## 2026-09-09 10:49 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:8627 verified genuinely green (RED spec proven to redden at its declared assertion, though the executor authored both spec and fix); corrected the ledger note's own //-blind reference measurement (719/5 -> 324/0) [id:8627]
