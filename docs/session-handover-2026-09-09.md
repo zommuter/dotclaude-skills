@@ -398,4 +398,33 @@ deliberate act, not a default.
 
 **Outcome:**
 
+**IN PROGRESS as of 00:57 -- and already producing evidence, recorded now in case the
+session does not survive to write the conclusion.**
+
+`0ce2` (ai-codebench, `uv run codebench judge -j Qwen3-Coder-30B-A3B-Q4_K_M`, est_wall 4500s)
+promoted at 00:54:32 under a deliberately-opened HEAVY window.
+
+**The system-wide memory pressure `TODO.md:873` predicts is REAL and was observed within
+90 seconds:**
+
+    00:54:32  promoted            MemAvailable 23G,   swap used 19.0G
+    00:55:13  model loading       MemAvailable 4.4G,  swap used 21.5G
+    00:56:40  steady              MemAvailable 3.7G,  swap free 11.2G
+
+**TWO of this session's own background processes were KILLED by the harness for low system
+memory** -- first a 60-second memory sampler, then a shell doing nothing but `sleep 60` in a
+loop. Neither was a kernel OOM kill (`journalctl -k` shows none); the harness pre-empted them
+on a low-memory threshold.
+
+That is the point worth keeping: **the recipe process is inside a cgroup with `MemoryMax` and
+`MemorySwapMax=0`, and it made no difference**, because `llama-swap` -- the actual model host --
+lives OUTSIDE that cgroup. The cap contained the wrapper and not the memory. An unrelated
+`sleep` loop in a different session was collateral. This is `TODO.md:873` observed live rather
+than reasoned about, and it is first-hand evidence for keeping the remaining three `local-llm`
+recipes as drafts until the cap can reach `llama-swap`, which needs root.
+
+Memory did NOT spiral: it plateaued after model load (available 4.0G -> 3.7G while swap FREED
+0.4G), consistent with a ~18GB Q4 30B model resident. The pressure is steady-state, not
+runaway.
+
 <!-- LOCAL-LLM-OUTCOME -->
