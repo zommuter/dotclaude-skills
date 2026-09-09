@@ -1495,3 +1495,11 @@ no refresh. `orphan-scan --cross-ledger`: clean. `orphan-scan --shipped`: the on
   would leave that path covered by nothing but the new spec's case 6. Flagging it because
   "handoff rewrites the tests of two closed items" is the shape that usually deserves a second
   look, even when, as here, the behaviour under them was deliberately changed by an owner ruling.  (against `id:6d7e`.)
+  **CORRECTION 2026-09-09: there was NO owner ruling.** The owner was asked directly and said
+  "it wasn't my call". The text the handoff child read as his was the `inject.sh --prompt` I
+  wrote to dispatch the item; this box then cited that child's inference as established fact,
+  one hop further. He did endorse the DIRECTION ("multi-match must fail loudly"), but was never
+  shown the `(a)`/`(b)` framing or branch (b)'s cost (rule 2c returns `unknown` for every pooled
+  child until the marker is unique at source). The behaviour change is a standing engineering
+  judgement, open to revision; `(a)` is reopened. See the correction banner in
+  `docs/ledger-notes/6d7e.md`.
