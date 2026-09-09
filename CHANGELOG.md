@@ -35,6 +35,7 @@
 - self-transcript.sh refuses (exit 4, all candidates named on stderr) on a multi-match self-marker instead of silently newest-mtime-guessing (id:6d7e); the old behaviour survives only behind --allow-ambiguous. (id:6d7e)
 - review(2026-09-09e): id:799f + id:6d7e both verified GENUINELY green by spec-replay (all 3 modified originals redden at exactly the assertion their item names; 799f's fixture token was non-hex so the carve-out could never apply); gaming-scan + provenance greps clean, 0 reopened; 5 REVIEW_ME boxes; CLAUDE.md drift fixed; tiers RUN test 625/0/0/3-expected-red + gaming-canary + shard-canary + baseline-staleness, verify-negatives/check-statusline-deps RECORDED-SKIP [id:799f,6d7e] (id:799f,6d7e)
 - id:11a4 — item_open() now excludes @container/DECOMPOSED items from EXPECTED-RED while preserving the literal grep the 7c82 SSOT twin-check pins; 626/0/0/3 green (id:11a4)
+- review(2026-09-09f): id:11a4 verified GENUINELY green by spec-replay (its new spec reddens at case (B) against the pre-fix run-tests.sh, control case (A) still green; the 7c82 SSOT twin is PASS and zero test files still key an open @container item); gaming-scan + provenance greps clean, 0 reopened; the [INPUT - decision] scope narrowing surfaced not swallowed; 3 REVIEW_ME boxes; 3 inbox dead-letters ingested (fa6d/1107/526b); tiers RUN test 626/0/0/3-expected-red + gaming-canary + shard-canary + baseline-staleness, verify-negatives/check-statusline-deps RECORDED-SKIP [id:11a4] (id:11a4,11b1,68c3,33db)
 
 ## 2026-09-08
 
