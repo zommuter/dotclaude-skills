@@ -1117,7 +1117,16 @@ saying `+ TODO twins [id:521b,9088]`; ticked here.
   line that was modified, in the one direction a shrink gate exists to prevent. **The judgment
   call is yours**: the misreport is unambiguously a bug and `id:227d` owns fixing it, but whether
   a grown title should additionally be a FATAL refusal has a real blast radius (it could newly
-  reject otherwise-honest batches). The item deliberately does NOT decide that. <!-- id:227d -->
+  reject otherwise-honest batches). The item deliberately does NOT decide that.
+  **UPDATE 2026-09-09 (relay review, run relay-20260909-143257-21736): the REPORTING half has
+  LANDED and is verified green** -- `dfbf6e24` adds a third `grown` bucket, and the same fixture
+  pair now prints `WARN [title-rewrite] id:b2b2 -- title CHANGED and is now over budget (was not
+  over budget before) -- not a leave, the line was edited`. The executor implemented reporting
+  only and left the refusal question open, exactly as the item required. **Re-measured here, the
+  batch still exits `rc=0, VERDICT: SAFE TO LAND`** -- so the question below is unchanged and
+  still yours, and until you answer it a title-rewrite batch must be READ for the WARN rather than
+  trusted on its exit code (id:b437's ROADMAP line now says so). Box left OPEN for that decision
+  alone, not for the bug. <!-- id:227d -->
 
 - [ ] **A spec keyed to a `@container` id is never allowed to fail -- 9 more files are in this
   state, 3 of them red and swallowed today.** Filed as `id:11a4`. `run-tests.sh`'s `item_open`
@@ -1128,6 +1137,25 @@ saying `+ TODO twins [id:521b,9088]`; ticked here.
   with the reasoning written into the file). I did NOT sweep the other 9 -- retargeting is only
   safe per-file, since a spec whose seam has not landed is legitimately red. Your call on whether
   the runner should hard-refuse a container key or merely warn. <!-- id:11a4 -->
+
+- [ ] **The negative-case discipline has a second, independent umbrella on the DECLARATION axis:
+  a defect-fix case grafted into a landed `# roadmap:`-keyed spec is verifiable by nothing.**
+  Filed as `id:799f`; the declaration-axis sibling of `id:11a4` above, same root, different file.
+  `lint-vacuous-fixtures.py` exempts any roadmap-keyed file outright (its own line 21: *"NEVER
+  flagged, regardless"*), and with no declaration `verify-negative-cases.py` has nothing to
+  execute -- so such a file falls in the `roadmap-spec (not verified)` bucket rather than the
+  `roadmap carve-out EXPIRED` bucket, which only catches files that DID declare. Neither side has
+  a detector for the gap. **Found live in the work I was reviewing**: case (8) of
+  `tests/test_title_rewrite_batch_acceptance_64f9.sh` (the `id:227d` fix) landed into a file whose
+  `# roadmap:521b` key already pointed at a closed item, with no declaration and no exemption.
+  **I verified that case by hand** -- restored the pre-fix `tools/shrink-acceptance.py`, re-ran the
+  file, cases 0-7 pass and case 8 fails at the exact assertion it names -- so `id:227d` is sound
+  and I am not reopening it. The finding is that the verification was mine, not the machine's.
+  355 of 625 test files sit inside the same file-scoped exemption; that is the population a future
+  graft hides in, NOT 355 defects, and a "fix" that turns the advisory lint into a 355-line wall
+  would be a regression. **Your call on the shape** (per-case declarations, or the lint noticing a
+  closed-item file that gained assertions) -- id:799f states both and decides neither.
+  <!-- id:799f -->
 
 - [ ] **This queue is at 65 open boxes against its own stated `Max ~10`, and I did not prune it.**
   The file's header says the reviewer prunes resolved boxes each review turn; the repo convention
