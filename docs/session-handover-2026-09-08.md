@@ -4,7 +4,13 @@ Point-in-time snapshot for the next session. Durable detail lives in the ledger 
 notes cited below -- read those; do not trust this doc if it disagrees with them.
 
 *Second half written unattended at 03:47 on 09-09 by a scheduled backstop, after the
-overnight pool died without sending a completion notification.*
+overnight pool stopped without sending a completion notification.*
+
+> **CORRECTED 2026-09-09 by the following session (interactive).** The backstop's account of
+> the pool's death is wrong in four places; the diagnosis is now `id:76e4` /
+> `docs/ledger-notes/76e4.md`. Corrections are marked inline below. In short: the run did not
+> crash, it **blocked on a permission prompt nobody could answer**, and the `id:98f0` watchdog
+> **did** fire. Where this doc and `76e4.md` disagree, `76e4.md` wins.
 
 ## Can the pool be run again? YES -- verified at 03:47 on 09-09, not assumed
 
@@ -25,23 +31,50 @@ worktree-retire.sh dotclaude-skills ~/.cache/relay/worktrees/dotclaude-skills/re
 worktree-retire.sh wisenheimer ~/.cache/relay/worktrees/wisenheimer/relay-20260908-231617-32609-hard-repo-0 relay/relay-20260908-231617-32609-hard-repo-0 --expect-merged
 ```
 
+> **CORRECTION 3 -- do NOT retire `-execute-repo-0` blind.** The "4 (merged, no unmerged
+> work)" row above is true of the branches and false of the working tree. That worktree
+> still holds **uncommitted work**: `M tools/shrink-acceptance.py`, 181 insertions, from the
+> child that was in-flight when the run stopped. `worktree-retire.sh` is force-free so it
+> should refuse rather than destroy, but the row as written invites a blind sweep. Note the
+> shape: the child hung *while trying to `git checkout --` exactly that file*, so the work
+> survives only because the prompt blocked it.
+
 **The `id:b54b` hermeticity caveat is RESOLVED, not merely dormant.** The prior handover said
 the guard false-fires while relay worktrees are live. The 609-green run on 09-08 was taken
 under **29 live worktrees**, which is exactly that condition -- so the fix (commit `40af4ebb`,
 "exclude harness agent worktrees from the hermeticity snapshot", already merged to main) works.
 Its `b54b-fix` worktree is leftover residue and can be removed.
 
-## The overnight pool DIED without reporting -- read this before relaunching
+## ~~The overnight pool DIED without reporting~~ -- DIAGNOSED 2026-09-09, it HUNG on a prompt
 
-Run `relay-20260908-231617-32609` (`--afk --execute-agent-type relay-implementer`) is **gone
-from the heartbeat registry** with **one child still in-flight**; its last `RELAY_STATUS.md`
-write was 01:25, and no Workflow completion notification ever arrived. It was found dead at
-03:47 by a scheduled backstop, not by the notification path.
+**The account in this section was wrong; the corrected diagnosis is `id:76e4` /
+`docs/ledger-notes/76e4.md`.** What actually happened: the run **blocked on a permission
+prompt nobody could answer**. Its last in-flight child, `agent-ae932ecfc6732dad3`, ends its
+transcript at **01:36:48** on a `tool_use` block with **no `tool_result`** -- a compound
+`cd … && git checkout -- tools/shrink-acceptance.py && git status --porcelain`.
+`~/.claude/settings.json` carries `Bash(git checkout -- *)` under `permissions.ask`, and the
+`cd … &&` chain matches no allowlist pattern besides. On an unattended run there was nobody
+to answer, so the child blocked, the loop blocked on the child, and it sat there until the
+clean shutdown at 03:53:38. Ruled out by evidence, not assumption: every proxied response in
+the window is 200; there is no crash or kill in the journal; the only OOM (01:03:45,
+`relay-mech.slice`) is the mechanical-sandbox **test fixture**; and
+`hooks/destructive-git-guard.py` is not involved (single-file checkout is explicitly allowed).
 
-Final state: **12 dispatched, 8 completed, 8 blocked, 1 in-flight at death, agent-failures=0.**
-Eight checkpoints landed (project_manager, zkWhale, and six on dotclaude-skills). No orphans,
-no lost work -- but **the death itself is unexplained and is the first thing to look at.**
-This is the `id:98f0` outage-watchdog case firing for real: nothing local noticed for 2h20m.
+The superseded text, and what each clause got wrong:
+
+| Said | Actually |
+|---|---|
+| "**gone from the heartbeat registry**" | Still **present** at `~/.config/relay/heartbeats/relay-20260908-231617-32609.json`. Stale, not gone -- which is exactly what `heartbeat.sh` defines as dead. |
+| "nothing local noticed for 2h20m" | The `id:98f0` watchdog **fired correctly**: `NOTIFIED 1 new dead run(s)` at **02:13:19**, one full TTL after the 01:13:02 beat, plus a row in `relay-outage-deaths.jsonl`. Whether a desktop notification wakes a sleeping human is a separate question from whether the mechanism worked. |
+| died at ~01:13 (last heartbeat) | Worked until **01:36:48**. The heartbeat stopped earlier only because it beats once per round and that round never completed. |
+| watchdog silent after 03:43 | That is the **clean shutdown at 03:53:38** (boot again 07:55), not a second fault. |
+
+Final state stands as recorded: **12 dispatched, 8 completed, 8 blocked, 1 in-flight,
+agent-failures=0.** Eight checkpoints landed (project_manager, zkWhale, six on
+dotclaude-skills). No orphans. **The `agent-failures=0` is the finding, not a reassurance:**
+a child wedged on a prompt is counted as in-flight forever, nothing times out, and no
+handback is produced -- so the floor on noticing a hung unattended pool is one heartbeat TTL,
+and the verdict it then emits ("dead") is the wrong diagnosis. That is `id:76e4`.
 
 ## READ THIS FIRST: the custom agent definitions
 
@@ -200,14 +233,21 @@ inspection.
 
 ## OPEN threads, priority order
 
-1. **WHY DID THE POOL DIE?** Run `relay-20260908-231617-32609` vanished from the heartbeat
-   registry with a child in flight and never notified. Nothing local noticed for 2h20m --
-   the `id:98f0` outage watchdog exists for exactly this and did not reach anyone. Start
-   here; a pool that can die silently makes every unattended run untrustworthy.
+1. ~~**WHY DID THE POOL DIE?**~~ **ANSWERED 2026-09-09 -- it did not die, it hung on a
+   permission prompt.** Filed as **`id:76e4`** (`docs/ledger-notes/76e4.md`); see the
+   corrected section above. What remains open is not the diagnosis but the **disposition**,
+   and that is the owner's: auto-deny any `permissions.ask` match under `--afk`, pre-approve
+   a narrow set for pool children, or fail-fast handback. Note that option 2 is the dangerous
+   one -- `git checkout -- <file>` is precisely the class of the 2026-08-22 unconditional-deny
+   ruling, and this would relax it in the least supervised context there is. The **detection**
+   half needs no decision: a child with no tool result for N minutes should be surfaced as
+   wedged rather than counted as in-flight, and the watchdog needs a verdict between "alive"
+   and "dead".
 2. **Decide the bake-vs-split question** (measurement above, `routed:5997`). Owner's call.
-3. **`ae932ecfc6732dad` edited without reading the contract** -- the one execute child that
-   did. Worth reading its transcript to see whether it violated a rule it never loaded, which
-   would convert the bake question from a hygiene argument into a correctness one.
+3. ~~**`ae932ecfc6732dad` edited without reading the contract**~~ -- **partly answered**: it is
+   the same child that hung, and its transcript is the primary evidence for `id:76e4`. Its last
+   act was an attempt to `git checkout --` its own modified file. Whether it violated a rule it
+   never loaded is still worth a read, but the transcript is no longer unexamined.
 4. **The fail-loud regex is STILL unproven against a live rejection.** Six children ran under
    `relay-implementer` and all resolved, so the rejection path never fired.
 5. **`executor-contract.md:229-243` tells children to prefer `Grep`/`Glob`/LSP** -- tools
