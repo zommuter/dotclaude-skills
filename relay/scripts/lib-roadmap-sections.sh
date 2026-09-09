@@ -75,7 +75,14 @@
 # valid as BOTH an ERE (bash `=~`) and a Python `re` pattern — python's `re` does not
 # understand POSIX bracket expressions, and this string is consumed by both.
 ROADMAP_PARKED_HEADING_MARKERS='(^|[^A-Za-z0-9_])@owner-gated([^A-Za-z0-9_-]|$)'
-ROADMAP_PARKED_HEADING_WORDS='(gated|deferred|done|icebox|archive|parked)'
+# id:6446 (2026-09-09): anchored to a STANDALONE token, so a heading merely MENTIONING a
+# vocab word in descriptive prose ("… archive-path stub design call") no longer parks its
+# section, while a genuine parking bucket ("## Gated / deferred", "## Done", "## Icebox")
+# still does. This is the exact faithful stand-in tests/test_owner_gated_first_class_f391.sh
+# case (3) already verified: `@owner-gated` keeps parking (via the separate MARKERS half
+# above, untouched here) and `@owner-gatedness` does not. Do not widen this pattern without
+# re-running that test.
+ROADMAP_PARKED_HEADING_WORDS='(^|[^A-Za-z0-9_@-])(gated|deferred|done|icebox|archive|parked)([^A-Za-z0-9_-]|$)'
 ROADMAP_PARKED_HEADING_VOCAB="(${ROADMAP_PARKED_HEADING_MARKERS}|${ROADMAP_PARKED_HEADING_WORDS})"
 ROADMAP_HEADING_LINE_ERE='^[[:space:]]*#{1,6}[[:space:]]'
 ROADMAP_HEADING_LINE_PCRE='^[ \t]*#{1,6}[ \t]'
@@ -93,12 +100,11 @@ is_heading_line() {
 # is_exempt_heading <heading-line> — exit 0 when the heading names a parked bucket,
 # EITHER by carrying a first-class exclusion MARKER (`@owner-gated`, standalone-anchored)
 # OR by matching the descriptive parking WORD vocabulary. An item is EXEMPT when its
-# nearest preceding heading matches. Matched case-insensitively on the heading TEXT; the
-# WORD half is substring, not anchored — real headings vary ("## Gated / deferred",
-# "### Gated on OPEN owner decisions", "## Done", "## Icebox").
-# (The unanchored-substring false positive on the WORD half — "ungated" — is a KNOWN
-# separate defect, TODO id:920b / ROADMAP id:6446; do not fix it here, fix it in this one
-# place when it is ruled, and see the ⚠️ note above before you do.)
+# nearest preceding heading matches. Matched case-insensitively on the heading TEXT; both
+# halves are standalone-token anchored (id:6446, 2026-09-09) — real headings vary
+# ("## Gated / deferred", "### Gated on OPEN owner decisions", "## Done", "## Icebox"),
+# but a heading that merely MENTIONS a vocab word in prose ("… archive-path stub design
+# call") no longer parks its section. TODO id:920b is the sibling defect this fixed.
 is_exempt_heading() {
   local h="$1"
   shopt -s nocasematch
