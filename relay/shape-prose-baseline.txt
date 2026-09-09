@@ -1,10 +1,11 @@
 # shape-prose-baseline.txt -- committed snapshot for the SHAPE RATCHET (id:2d17).
 # GENERATED, not hand-edited.
 #
-# FORMAT: <ledger basename>TAB<4-hex id>TAB<prose residue length in chars>. `#` comments
-# and blank lines are ignored. One row per top-level checkbox line whose shape residue
-# exceeded the 8-char slack at capture time; a conforming line has nothing to grandfather
-# and never enters this file.
+# FORMAT: <repo key>TAB<ledger basename>TAB<4-hex id>TAB<prose residue length in chars>.
+# `#` comments and blank lines are ignored. One row per top-level checkbox line whose shape
+# residue exceeded the 8-char slack at capture time; a conforming line has nothing to
+# grandfather and never enters this file. THE REPO KEY (id:4839 dimension b): same
+# rationale and same refuse-legacy-loudly rule as head-length-baseline.txt's twin comment.
 #
 # WHAT IT BUYS: it splits one saturated class into three, so a NEW prose item
 # (`shape-new`) and a WORSENED one (`shape-regrowth`) are ERRORS that fail --strict, while
@@ -43,244 +44,292 @@
 #   relay/scripts/todo-conformance.sh --regen-shape-baseline ROADMAP.md | grep -v '^#' >> relay/shape-prose-baseline.txt
 #
 # OUT OF SCOPE: *.archive.md (id:2065) and the shared inbox.
-# Captured 2026-09-04.
-TODO.md	79fd	18
-TODO.md	3ca7	9
-TODO.md	4d8e	17
-TODO.md	3554	87
-TODO.md	93cc	9
-TODO.md	cce9	31
-TODO.md	4425	3084
-TODO.md	5c05	33
-TODO.md	0749	368
-TODO.md	85d2	117
-TODO.md	f579	78
-TODO.md	e956	80
-TODO.md	3103	66
-TODO.md	14c1	66
-TODO.md	045a	56
-TODO.md	a13c	465
-TODO.md	6788	255
-TODO.md	a778	506
-TODO.md	931c	58
-TODO.md	d190	9
-TODO.md	50c4	13
-TODO.md	7746	90
-TODO.md	8df5	9
-TODO.md	90f2	153
-TODO.md	857d	887
-TODO.md	f116	51
-TODO.md	a532	66
-TODO.md	6f01	68
-TODO.md	da1a	216
-TODO.md	d826	19
-TODO.md	8266	59
-TODO.md	0f7f	46
-TODO.md	0433	36
-TODO.md	379e	37
-TODO.md	3a89	37
-TODO.md	8f6a	37
-TODO.md	03a1	37
-TODO.md	5e9c	37
-TODO.md	f764	37
-TODO.md	a1b7	37
-TODO.md	ecd0	49
-TODO.md	08ad	37
-TODO.md	5b21	24
-TODO.md	bf9d	36
-TODO.md	480c	37
-TODO.md	5ed7	46
-TODO.md	fcdf	36
-TODO.md	b0c3	36
-TODO.md	bd04	36
-TODO.md	a8a4	36
-TODO.md	ee2e	36
-TODO.md	b4e8	36
-TODO.md	3652	36
-TODO.md	16bf	36
-TODO.md	bbc2	106
-TODO.md	319b	257
-TODO.md	8567	41
-TODO.md	acc1	48
-TODO.md	7398	72
-TODO.md	fd49	105
-TODO.md	a1c9	96
-TODO.md	7f46	80
-TODO.md	3962	38
-TODO.md	9e06	58
-TODO.md	b381	79
-TODO.md	fee1	15
-TODO.md	625a	130
-TODO.md	1f60	82
-TODO.md	cd6e	115
-TODO.md	e7df	31
-TODO.md	b659	23
-TODO.md	077d	60
-TODO.md	ce10	143
-TODO.md	8a9b	29
-TODO.md	b03a	101
-TODO.md	55e1	51
-TODO.md	8f38	93
-TODO.md	df87	192
-TODO.md	21ae	109
-TODO.md	2da8	104
-TODO.md	3a7a	29
-TODO.md	f6d5	106
-TODO.md	75b3	115
-TODO.md	4b70	14
-TODO.md	42ab	207
-TODO.md	9eb7	44
-TODO.md	61fa	98
-TODO.md	51f0	122
-TODO.md	5749	17
-TODO.md	3e14	72
-TODO.md	9ddd	89
-TODO.md	378e	535
-TODO.md	85ac	67
-TODO.md	be65	53
-TODO.md	945e	73
-TODO.md	c489	93
-TODO.md	dafd	77
-TODO.md	382a	159
-TODO.md	6c11	380
-TODO.md	e7af	85
-TODO.md	ae4f	85
-TODO.md	920b	112
-TODO.md	7902	29
-TODO.md	cb1c	106
-TODO.md	ccad	54
-TODO.md	316f	95
-TODO.md	650d	59
-TODO.md	5578	49
-TODO.md	f447	109
-TODO.md	1022	148
-TODO.md	2b93	267
-TODO.md	94ee	47
-TODO.md	795d	58
-TODO.md	7756	1520
-TODO.md	2419	51
-TODO.md	b724	20
-TODO.md	bf54	92
-TODO.md	63a0	87
-TODO.md	c2eb	46
-TODO.md	a5da	55
-TODO.md	6037	70
-TODO.md	7352	167
-TODO.md	9486	97
-TODO.md	3464	112
-TODO.md	ab01	97
-TODO.md	948c	81
-TODO.md	01dc	31
-TODO.md	d313	55
-TODO.md	9340	121
-TODO.md	a2e8	315
-TODO.md	bd2d	43
-TODO.md	8c8d	118
-TODO.md	f269	56
-TODO.md	9f3a	247
-TODO.md	39a4	582
-TODO.md	b818	36
-TODO.md	502f	19
-TODO.md	eb52	9
-TODO.md	e18f	28
-TODO.md	32c3	95
-TODO.md	3eb0	102
-TODO.md	e6f1	102
-TODO.md	78b1	42
-TODO.md	6193	92
-TODO.md	bad5	106
-TODO.md	9915	97
-TODO.md	c08d	131
-TODO.md	6983	68
-TODO.md	b3fb	28
-TODO.md	d4cf	16
-TODO.md	9b70	65
-TODO.md	c15f	28
-TODO.md	aa83	28
-TODO.md	2a3e	28
-TODO.md	c00b	28
-TODO.md	c80e	94
-TODO.md	97ad	94
-TODO.md	e278	34
-TODO.md	b662	83
-TODO.md	9566	113
-TODO.md	b54b	19
-TODO.md	9d12	36
-TODO.md	d28a	28
-TODO.md	ddec	131
-TODO.md	82ec	99
-TODO.md	ab98	97
-TODO.md	a0ae	59
-TODO.md	270f	95
-TODO.md	a282	29
-TODO.md	9128	29
-TODO.md	8f29	21
-TODO.md	2d5e	47
-TODO.md	6777	106
-TODO.md	e793	75
-TODO.md	dd44	71
-TODO.md	7d70	340
-TODO.md	8693	69
-TODO.md	d082	64
-TODO.md	f5b1	149
-TODO.md	3465	60
-TODO.md	27be	78
-TODO.md	20d5	104
-TODO.md	b95d	111
-TODO.md	0b0e	159
-TODO.md	5ccc	189
-TODO.md	b07f	130
-TODO.md	2884	436
-TODO.md	43dc	386
-TODO.md	7295	196
-TODO.md	3a82	179
-TODO.md	abe7	94
-TODO.md	9fa5	86
-TODO.md	1f63	40
-TODO.md	0344	73
-TODO.md	8254	279
-TODO.md	55f6	9
-TODO.md	0d7c	29
-TODO.md	7829	25
-TODO.md	0a08	25
-TODO.md	d35a	25
-TODO.md	203e	9
-TODO.md	dda3	569
-TODO.md	d7c7	29
-TODO.md	9ceb	29
-TODO.md	6059	33
-TODO.md	3f3a	29
-TODO.md	ec2c	29
-TODO.md	d167	29
-TODO.md	3913	29
-TODO.md	7cd6	29
-TODO.md	3a6c	29
-TODO.md	41d3	65
-TODO.md	d3bf	45
-ROADMAP.md	ebbe	14
-ROADMAP.md	a08d	42
-ROADMAP.md	5a39	65
-ROADMAP.md	6613	53
-ROADMAP.md	68b1	63
-ROADMAP.md	3a1c	68
-ROADMAP.md	d03d	60
-ROADMAP.md	abe7	20
-ROADMAP.md	0e56	14
-ROADMAP.md	e3c0	327
-ROADMAP.md	401c	36
-ROADMAP.md	7df1	122
-ROADMAP.md	51f0	42
-ROADMAP.md	02b2	264
-ROADMAP.md	99e5	428
-ROADMAP.md	372a	312
-ROADMAP.md	166a	212
-ROADMAP.md	97e0	262
-ROADMAP.md	6ab7	262
-ROADMAP.md	71d6	188
-ROADMAP.md	098a	204
-ROADMAP.md	1a03	158
-ROADMAP.md	55c7	272
-ROADMAP.md	ee31	306
-ROADMAP.md	6958	313
-ROADMAP.md	2065	107
-ROADMAP.md	da55	181
+# Captured 2026-09-09.
+dotclaude-skills	TODO.md	d29b	509
+dotclaude-skills	TODO.md	6740	624
+dotclaude-skills	TODO.md	c076	1369
+dotclaude-skills	TODO.md	79fd	18
+dotclaude-skills	TODO.md	3ca7	9
+dotclaude-skills	TODO.md	4d8e	17
+dotclaude-skills	TODO.md	3554	87
+dotclaude-skills	TODO.md	93cc	9
+dotclaude-skills	TODO.md	cce9	31
+dotclaude-skills	TODO.md	4425	3084
+dotclaude-skills	TODO.md	5c05	33
+dotclaude-skills	TODO.md	76e4	42
+dotclaude-skills	TODO.md	73a0	52
+dotclaude-skills	TODO.md	95c8	45
+dotclaude-skills	TODO.md	0ec3	34
+dotclaude-skills	TODO.md	3846	108
+dotclaude-skills	TODO.md	ff6a	316
+dotclaude-skills	TODO.md	79a9	102
+dotclaude-skills	TODO.md	0749	368
+dotclaude-skills	TODO.md	85d2	117
+dotclaude-skills	TODO.md	f579	78
+dotclaude-skills	TODO.md	e956	80
+dotclaude-skills	TODO.md	3103	66
+dotclaude-skills	TODO.md	14c1	66
+dotclaude-skills	TODO.md	045a	56
+dotclaude-skills	TODO.md	a13c	465
+dotclaude-skills	TODO.md	6788	255
+dotclaude-skills	TODO.md	a778	506
+dotclaude-skills	TODO.md	931c	58
+dotclaude-skills	TODO.md	d190	9
+dotclaude-skills	TODO.md	50c4	13
+dotclaude-skills	TODO.md	7746	90
+dotclaude-skills	TODO.md	8df5	9
+dotclaude-skills	TODO.md	90f2	153
+dotclaude-skills	TODO.md	857d	887
+dotclaude-skills	TODO.md	f116	51
+dotclaude-skills	TODO.md	a532	66
+dotclaude-skills	TODO.md	6f01	68
+dotclaude-skills	TODO.md	da1a	216
+dotclaude-skills	TODO.md	d826	19
+dotclaude-skills	TODO.md	8266	59
+dotclaude-skills	TODO.md	0f7f	46
+dotclaude-skills	TODO.md	0433	36
+dotclaude-skills	TODO.md	379e	37
+dotclaude-skills	TODO.md	3a89	37
+dotclaude-skills	TODO.md	8f6a	37
+dotclaude-skills	TODO.md	03a1	37
+dotclaude-skills	TODO.md	5e9c	37
+dotclaude-skills	TODO.md	f764	37
+dotclaude-skills	TODO.md	a1b7	37
+dotclaude-skills	TODO.md	ecd0	49
+dotclaude-skills	TODO.md	08ad	37
+dotclaude-skills	TODO.md	5b21	24
+dotclaude-skills	TODO.md	bf9d	36
+dotclaude-skills	TODO.md	480c	37
+dotclaude-skills	TODO.md	5ed7	46
+dotclaude-skills	TODO.md	fcdf	36
+dotclaude-skills	TODO.md	b0c3	36
+dotclaude-skills	TODO.md	bd04	36
+dotclaude-skills	TODO.md	a8a4	36
+dotclaude-skills	TODO.md	ee2e	36
+dotclaude-skills	TODO.md	b4e8	36
+dotclaude-skills	TODO.md	3652	36
+dotclaude-skills	TODO.md	16bf	36
+dotclaude-skills	TODO.md	bbc2	106
+dotclaude-skills	TODO.md	319b	257
+dotclaude-skills	TODO.md	8567	41
+dotclaude-skills	TODO.md	acc1	48
+dotclaude-skills	TODO.md	7398	72
+dotclaude-skills	TODO.md	fd49	105
+dotclaude-skills	TODO.md	a1c9	96
+dotclaude-skills	TODO.md	7f46	80
+dotclaude-skills	TODO.md	3962	38
+dotclaude-skills	TODO.md	9e06	58
+dotclaude-skills	TODO.md	b381	79
+dotclaude-skills	TODO.md	fee1	15
+dotclaude-skills	TODO.md	625a	130
+dotclaude-skills	TODO.md	1f60	82
+dotclaude-skills	TODO.md	cd6e	115
+dotclaude-skills	TODO.md	e7df	31
+dotclaude-skills	TODO.md	b659	23
+dotclaude-skills	TODO.md	077d	60
+dotclaude-skills	TODO.md	ce10	143
+dotclaude-skills	TODO.md	8a9b	29
+dotclaude-skills	TODO.md	b03a	101
+dotclaude-skills	TODO.md	55e1	51
+dotclaude-skills	TODO.md	8f38	93
+dotclaude-skills	TODO.md	df87	192
+dotclaude-skills	TODO.md	21ae	109
+dotclaude-skills	TODO.md	2da8	104
+dotclaude-skills	TODO.md	3a7a	29
+dotclaude-skills	TODO.md	f6d5	106
+dotclaude-skills	TODO.md	75b3	115
+dotclaude-skills	TODO.md	4b70	14
+dotclaude-skills	TODO.md	42ab	207
+dotclaude-skills	TODO.md	9eb7	44
+dotclaude-skills	TODO.md	61fa	98
+dotclaude-skills	TODO.md	51f0	122
+dotclaude-skills	TODO.md	5749	17
+dotclaude-skills	TODO.md	3e14	72
+dotclaude-skills	TODO.md	9ddd	89
+dotclaude-skills	TODO.md	378e	535
+dotclaude-skills	TODO.md	85ac	67
+dotclaude-skills	TODO.md	be65	53
+dotclaude-skills	TODO.md	945e	73
+dotclaude-skills	TODO.md	c489	93
+dotclaude-skills	TODO.md	dafd	77
+dotclaude-skills	TODO.md	382a	159
+dotclaude-skills	TODO.md	6c11	380
+dotclaude-skills	TODO.md	e7af	85
+dotclaude-skills	TODO.md	ae4f	85
+dotclaude-skills	TODO.md	920b	112
+dotclaude-skills	TODO.md	7902	29
+dotclaude-skills	TODO.md	cb1c	106
+dotclaude-skills	TODO.md	ccad	54
+dotclaude-skills	TODO.md	316f	95
+dotclaude-skills	TODO.md	650d	59
+dotclaude-skills	TODO.md	5578	49
+dotclaude-skills	TODO.md	f447	109
+dotclaude-skills	TODO.md	1022	148
+dotclaude-skills	TODO.md	2b93	267
+dotclaude-skills	TODO.md	94ee	47
+dotclaude-skills	TODO.md	795d	58
+dotclaude-skills	TODO.md	7756	1520
+dotclaude-skills	TODO.md	2419	51
+dotclaude-skills	TODO.md	b724	20
+dotclaude-skills	TODO.md	bf54	92
+dotclaude-skills	TODO.md	63a0	87
+dotclaude-skills	TODO.md	c2eb	46
+dotclaude-skills	TODO.md	a5da	55
+dotclaude-skills	TODO.md	6037	70
+dotclaude-skills	TODO.md	7352	167
+dotclaude-skills	TODO.md	9486	97
+dotclaude-skills	TODO.md	3464	112
+dotclaude-skills	TODO.md	ab01	97
+dotclaude-skills	TODO.md	948c	81
+dotclaude-skills	TODO.md	01dc	31
+dotclaude-skills	TODO.md	d313	55
+dotclaude-skills	TODO.md	9340	121
+dotclaude-skills	TODO.md	5817	38
+dotclaude-skills	TODO.md	df66	50
+dotclaude-skills	TODO.md	a2e8	315
+dotclaude-skills	TODO.md	bd2d	43
+dotclaude-skills	TODO.md	8c8d	118
+dotclaude-skills	TODO.md	f269	56
+dotclaude-skills	TODO.md	9f3a	247
+dotclaude-skills	TODO.md	39a4	582
+dotclaude-skills	TODO.md	b818	36
+dotclaude-skills	TODO.md	502f	19
+dotclaude-skills	TODO.md	eb52	9
+dotclaude-skills	TODO.md	f833	960
+dotclaude-skills	TODO.md	e18f	28
+dotclaude-skills	TODO.md	32c3	95
+dotclaude-skills	TODO.md	3eb0	102
+dotclaude-skills	TODO.md	e6f1	102
+dotclaude-skills	TODO.md	78b1	42
+dotclaude-skills	TODO.md	6193	92
+dotclaude-skills	TODO.md	bad5	106
+dotclaude-skills	TODO.md	9915	97
+dotclaude-skills	TODO.md	c08d	131
+dotclaude-skills	TODO.md	6983	68
+dotclaude-skills	TODO.md	b3fb	28
+dotclaude-skills	TODO.md	d4cf	16
+dotclaude-skills	TODO.md	9b70	65
+dotclaude-skills	TODO.md	c15f	28
+dotclaude-skills	TODO.md	aa83	28
+dotclaude-skills	TODO.md	2a3e	28
+dotclaude-skills	TODO.md	c00b	28
+dotclaude-skills	TODO.md	c80e	94
+dotclaude-skills	TODO.md	97ad	94
+dotclaude-skills	TODO.md	e278	34
+dotclaude-skills	TODO.md	b662	83
+dotclaude-skills	TODO.md	9566	113
+dotclaude-skills	TODO.md	b54b	19
+dotclaude-skills	TODO.md	9d12	36
+dotclaude-skills	TODO.md	d28a	28
+dotclaude-skills	TODO.md	ddec	131
+dotclaude-skills	TODO.md	82ec	99
+dotclaude-skills	TODO.md	ab98	97
+dotclaude-skills	TODO.md	a0ae	59
+dotclaude-skills	TODO.md	270f	95
+dotclaude-skills	TODO.md	a282	29
+dotclaude-skills	TODO.md	9128	29
+dotclaude-skills	TODO.md	16a4	39
+dotclaude-skills	TODO.md	3c04	469
+dotclaude-skills	TODO.md	8f29	21
+dotclaude-skills	TODO.md	2d5e	47
+dotclaude-skills	TODO.md	6777	106
+dotclaude-skills	TODO.md	e793	75
+dotclaude-skills	TODO.md	dd44	71
+dotclaude-skills	TODO.md	7d70	340
+dotclaude-skills	TODO.md	8693	69
+dotclaude-skills	TODO.md	d082	64
+dotclaude-skills	TODO.md	cb74	35
+dotclaude-skills	TODO.md	d0e0	79
+dotclaude-skills	TODO.md	45e8	116
+dotclaude-skills	TODO.md	0165	9
+dotclaude-skills	TODO.md	59d1	1085
+dotclaude-skills	TODO.md	6ead	696
+dotclaude-skills	TODO.md	ee5e	934
+dotclaude-skills	TODO.md	3770	1608
+dotclaude-skills	TODO.md	2b7a	507
+dotclaude-skills	TODO.md	4e84	554
+dotclaude-skills	TODO.md	f5b1	149
+dotclaude-skills	TODO.md	3465	60
+dotclaude-skills	TODO.md	27be	78
+dotclaude-skills	TODO.md	20d5	104
+dotclaude-skills	TODO.md	b95d	111
+dotclaude-skills	TODO.md	0b0e	159
+dotclaude-skills	TODO.md	5ccc	189
+dotclaude-skills	TODO.md	b07f	130
+dotclaude-skills	TODO.md	2884	436
+dotclaude-skills	TODO.md	43dc	386
+dotclaude-skills	TODO.md	7295	196
+dotclaude-skills	TODO.md	3a82	179
+dotclaude-skills	TODO.md	abe7	94
+dotclaude-skills	TODO.md	9fa5	86
+dotclaude-skills	TODO.md	1f63	40
+dotclaude-skills	TODO.md	0344	73
+dotclaude-skills	TODO.md	8254	279
+dotclaude-skills	TODO.md	55f6	9
+dotclaude-skills	TODO.md	0d7c	29
+dotclaude-skills	TODO.md	7829	25
+dotclaude-skills	TODO.md	0a08	25
+dotclaude-skills	TODO.md	d35a	25
+dotclaude-skills	TODO.md	9220	203
+dotclaude-skills	TODO.md	203e	9
+dotclaude-skills	TODO.md	dda3	569
+dotclaude-skills	TODO.md	d7c7	29
+dotclaude-skills	TODO.md	9ceb	29
+dotclaude-skills	TODO.md	6059	33
+dotclaude-skills	TODO.md	3f3a	29
+dotclaude-skills	TODO.md	ec2c	29
+dotclaude-skills	TODO.md	d167	29
+dotclaude-skills	TODO.md	3913	29
+dotclaude-skills	TODO.md	7cd6	29
+dotclaude-skills	TODO.md	3a6c	29
+dotclaude-skills	TODO.md	41d3	65
+dotclaude-skills	TODO.md	d3bf	45
+dotclaude-skills	TODO.md	9616	35
+dotclaude-skills	TODO.md	6d77	267
+dotclaude-skills	TODO.md	c3a2	240
+dotclaude-skills	TODO.md	3a70	35
+dotclaude-skills	TODO.md	c742	35
+dotclaude-skills	TODO.md	3294	1294
+dotclaude-skills	TODO.md	6a5d	222
+dotclaude-skills	TODO.md	740a	1072
+dotclaude-skills	TODO.md	4cd4	1226
+dotclaude-skills	TODO.md	11b1	32
+dotclaude-skills	TODO.md	68c3	45
+dotclaude-skills	TODO.md	33db	50
+dotclaude-skills	ROADMAP.md	ebbe	14
+dotclaude-skills	ROADMAP.md	a08d	42
+dotclaude-skills	ROADMAP.md	5a39	65
+dotclaude-skills	ROADMAP.md	6613	53
+dotclaude-skills	ROADMAP.md	68b1	63
+dotclaude-skills	ROADMAP.md	3a1c	68
+dotclaude-skills	ROADMAP.md	d03d	60
+dotclaude-skills	ROADMAP.md	abe7	20
+dotclaude-skills	ROADMAP.md	0e56	14
+dotclaude-skills	ROADMAP.md	e3c0	327
+dotclaude-skills	ROADMAP.md	401c	36
+dotclaude-skills	ROADMAP.md	7df1	122
+dotclaude-skills	ROADMAP.md	51f0	42
+dotclaude-skills	ROADMAP.md	02b2	264
+dotclaude-skills	ROADMAP.md	99e5	428
+dotclaude-skills	ROADMAP.md	372a	312
+dotclaude-skills	ROADMAP.md	166a	412
+dotclaude-skills	ROADMAP.md	97e0	262
+dotclaude-skills	ROADMAP.md	6ab7	262
+dotclaude-skills	ROADMAP.md	71d6	188
+dotclaude-skills	ROADMAP.md	098a	204
+dotclaude-skills	ROADMAP.md	1a03	158
+dotclaude-skills	ROADMAP.md	55c7	272
+dotclaude-skills	ROADMAP.md	ee31	306
+dotclaude-skills	ROADMAP.md	6958	313
+dotclaude-skills	ROADMAP.md	2065	107
+dotclaude-skills	ROADMAP.md	da55	181
+dotclaude-skills	ROADMAP.md	40c0	330
+dotclaude-skills	ROADMAP.md	7408	244
+dotclaude-skills	ROADMAP.md	64f9	221
+dotclaude-skills	ROADMAP.md	8524	236
+dotclaude-skills	ROADMAP.md	4839	226
+dotclaude-skills	ROADMAP.md	8372	407
+dotclaude-skills	ROADMAP.md	c655	133
+dotclaude-skills	ROADMAP.md	aa5e	700
+dotclaude-skills	ROADMAP.md	0165	321
+dotclaude-skills	ROADMAP.md	b437	820
