@@ -4052,3 +4052,7 @@ Friction: none — the item's own Context/Collateral notes named the right files
 ## 2026-09-09 22:25 — executor (sonnet, relay-loop)
 
 self-transcript.sh refuses (exit 4, all candidates named on stderr) on a multi-match self-marker instead of silently newest-mtime-guessing (id:6d7e); the old behaviour survives only behind --allow-ambiguous. [id:6d7e]
+
+## 2026-09-09 22:45 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review(2026-09-09e): id:799f + id:6d7e both verified GENUINELY green by spec-replay (all 3 modified originals redden at exactly the assertion their item names; 799f's fixture token was non-hex so the carve-out could never apply); gaming-scan + provenance greps clean, 0 reopened; 5 REVIEW_ME boxes; CLAUDE.md drift fixed; tiers RUN test 625/0/0/3-expected-red + gaming-canary + shard-canary + baseline-staleness, verify-negatives/check-statusline-deps RECORDED-SKIP [id:799f,6d7e] [id:799f,6d7e]
