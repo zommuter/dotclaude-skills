@@ -4064,3 +4064,7 @@ Friction: none — the orphan branch's non-run-tests.sh changes (the 5 retargete
 refactor: none needed — the fix is a 2-line restructuring of an existing function, no new duplication introduced.
 
 Full suite: `tests/run-tests.sh` → 626 passed, 0 failed, 0 errored, 3 expected-red (open roadmap items, all legitimately open non-container items — `test_dispatch_skill_countermand_9eb7.sh`, `test_dryround_single_definition_6217.sh`, `test_shrink_example_marker_hoist_8372.sh` remain correctly expected-red; ROADMAP.md:195's "9 further spec files" blast-radius figure is now fully retargeted or confirmed-exempt: 5 landed by the orphan's own commit, `test_tracker_derived_index.sh` targets a still-open non-container `[INPUT - decision]` id (`dcf3`) needing no retarget, and the 3 named above are likewise still-open non-container items).
+
+## 2026-09-09 22:56 — executor (sonnet, relay-loop)
+
+id:11a4 — item_open() now excludes @container/DECOMPOSED items from EXPECTED-RED while preserving the literal grep the 7c82 SSOT twin-check pins; 626/0/0/3 green [id:11a4]
