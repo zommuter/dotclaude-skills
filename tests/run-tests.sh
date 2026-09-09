@@ -96,9 +96,9 @@ item_open() {
   # plenty of those are legitimately open with no seam yet, and stay expected-red.
   local token="$1"
   [[ -f "$ROADMAP" ]] || return 1
+  grep -qE "^- \[ \] .*<!-- id:${token} -->" "$ROADMAP" || return 1
   local line
-  line="$(grep -m1 -E "^- \[ \] .*<!-- id:${token} -->" "$ROADMAP")" || return 1
-  [[ -n "$line" ]] || return 1
+  line="$(grep -m1 -E "^- \[ \] .*<!-- id:${token} -->" "$ROADMAP")"
   if grep -qE '@container|DECOMPOSED' <<<"$line"; then
     return 1
   fi
