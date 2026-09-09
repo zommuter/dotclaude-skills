@@ -3,6 +3,82 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-09-09e (run `relay-20260909-205831-5121`, chain-end re-ask)
+
+Window `relay-ckpt-20260909-2156..HEAD` (12 commits) -- the last *reviewer* checkpoint, not the
+literal latest tag, which is this chain's own executor checkpoint `relay-ckpt-20260909-2225`. Two
+executor units: `id:799f` and `id:6d7e`, **both verified GENUINELY green by spec-replay, not by
+taking the suite's word.** Tiers: `make test` (runs `lint` first) **625 passed / 0 failed / 0
+errored / 3 expected-red**, plus `make gaming-canary` (3/0), `make shard-canary` (6/0/0) and `make
+baseline-staleness` -- all four RAN. `make verify-negatives` and `make check-statusline-deps` are
+opt-in, not in `make test`: RECORDED-SKIP, not folded into the green claim. No e2e/integration tier
+is declared (no `.github/workflows`). `gaming-scan.sh`: clean, no output. Provenance greps (§2b.7,
+§2b.9, §2b.10): no `@owner-accepted`/`@owner-answered`/`answer-src` marker introduced or modified
+anywhere in the window. `relay-doctor`: cross-ledger drift clean, roadmap-lint lane grammar clean.
+`orphan-scan --shipped`: zero TICK-READY, so nothing was ticked on a scan's say-so.
+
+- [ ] **`id:6d7e`'s executor converted a THIRD test case that the handoff's collateral survey
+  explicitly said would not need converting -- the conversion is correct, but it means one case now
+  reaches its subject only through the opt-in flag.** The handoff authorised exactly two rewrites
+  (`test_self_transcript_wiring_ff30.sh` case 6, `test_self_transcript_workflow_nesting_c219.sh`
+  case 7) and stated that `tests/test_self_transcript_tilde_marker_5295.sh` *"case 8 already
+  tolerates a non-zero rc and stays green as written"*. The executor also added `--allow-ambiguous`
+  to that file's **case 2**. I replayed the ORIGINAL file against the new implementation: it dies at
+  case 2 with `2 transcripts matched ... refusing to guess`, naming case 1's `F_ME` and case 2's
+  `F_ABSPROMPT` -- so the ambiguity is REAL and the executor's diagnosis is right, not an excuse.
+  The case also still discriminates its own subject: with a tilde marker, `F_ABSPROMPT` (absolute
+  prompt) can only become a candidate at all if tilde/absolute normalisation works, so a
+  two-candidate ambiguity is itself the proof, and the surviving assertion (the newer
+  `F_ABSPROMPT` wins) is unchanged. **Not flagged as gaming -- flagged as fixture coupling:** case 2
+  now depends on case 1's leftover transcript and exercises the opt-in path rather than the default
+  one. A one-line fixture isolation (build case 2 in its own session dir, or remove `F_ME` first)
+  would restore it to a single-candidate test of normalisation alone, which is what it was written
+  to be. Worth doing before someone reads the flag as evidence that normalisation needs it.
+  <!-- relates:6d7e --> <!-- relates:5295 -->
+
+- [ ] **The exit-code question the handoff raised against `id:6d7e` has now SHIPPED as exit 4 --
+  the decision window is closed unless you reopen it deliberately.** The open box in the
+  `Handoff 2026-09-09` section below asks whether the ambiguity refusal should mint a distinct exit
+  code instead of reusing `4`. The executor implemented `4`, the spec pins only that the two
+  MESSAGES differ, and `make test` is green on that basis, so the item is closed and archived.
+  Nothing about that is wrong -- the handoff proposed 4 and nobody objected in time -- but a shipped
+  exit table is a compatibility surface, so adding a distinct code later is a breaking change rather
+  than a free choice. Decide now if you want one. <!-- relates:6d7e -->
+
+- [ ] **Two open `[ROUTINE]` items are gated on `id:b0b1`, which lives ONLY in `TODO.md` and was
+  never promoted, so nothing in `ROADMAP.md` can ever clear the gate.** `roadmap-lint.sh` reports
+  this as `DEAD-GATE` for `id:540f` and `id:c179` (both `🚧`). It is a structural dead end, not a
+  wait: the executor queue can never reach either item. Fix is promote `b0b1` to the execution queue
+  (handoff C2's call -- lane must not be guessed) or re-target the two markers (`id:49e0`). Same
+  scan also reports `NO-ACCEPTANCE-NO-TWIN` for `id:da55` (`[INPUT - meeting]`, no acceptance clause
+  and no TODO twin, so structurally un-workable, `id:213a`). Pre-existing, not from this window;
+  surfaced because both make items permanently undispatchable while still counting as open.
+
+- [ ] **`make baseline-staleness` reports the TODO.md ledger ratchet STALE and I deliberately did
+  NOT regenerate it.** 1 of 230 baselined `TODO.md` entries now sits BELOW its recorded floor (371
+  chars of total slack, 0 orphaned); `ROADMAP.md`'s 37 entries are all current. Regenerating records
+  the new, lower floor -- which is the ratchet working as designed after a shrink -- but it is still
+  an action that LOWERS a guard's threshold, and the global CLAUDE.md rule about grandfathering-vs-
+  ratchet says that is the owner's ledger-shrink program (`id:0d7c`/`id:2d17`), not a review turn's
+  housekeeping. The command the tool prints appends to `relay/head-length-baseline.txt`; note its
+  own warning that regenerating only one ledger DELETES the other's rows.
+
+- [ ] **Three cross-repo inbox items are addressed to THIS repo and have never been ingested --
+  surfaced, not filed, because filing them means inventing their scope.** `scan-routed.sh` reports
+  them as dead-letters: `routed:fa6d` (running Workflow/pool children ARE addressable mid-run via
+  SendMessage to the raw agent id from `agent-<id>.meta.json`; `ListAgents` does not list them until
+  you send, so its silence is not evidence -- verified end-to-end on run
+  `relay-20260909-212820-29294`; `docs/relay.md` and `inject.sh --prompt-only` both understate what
+  is reachable), `routed:1107` (`context-budget.sh` thresholds are hard-coded for a 200k window, so
+  every `claude-opus-5[1m]` child gets a spurious `handback` verdict -- in zom.fi the baseline
+  transcript alone exceeds the 300000 B default before any work, making executor rule 2c an
+  unconditional zero-commit livelock there) and `routed:526b` (cross-session "last one switches off
+  the PC" coordination; the owner sketched two marker shapes and the note is explicit that it should
+  COMPOSE `heartbeat.sh` + `claim.sh`, not build new lockfile machinery). `routed:1107` looks like
+  the one with live blast radius. Run `scan-routed.sh --apply` to write stubs, or file them by hand
+  with the lanes you want -- an unattended review picking lanes for three items is exactly the
+  overstep the global CLAUDE.md forbids.
+
 ## Review 2026-09-09d (run `relay-20260909-205831-5121`, chain-end re-ask)
 
 Window: the literal latest tag `relay-ckpt-20260909-2121` IS HEAD (the chain ended on a handoff),
