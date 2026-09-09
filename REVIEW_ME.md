@@ -1338,22 +1338,6 @@ saying `+ TODO twins [id:521b,9088]`; ticked here.
   trusted on its exit code (id:b437's ROADMAP line now says so). Box left OPEN for that decision
   alone, not for the bug. <!-- id:227d -->
 
-- [x] **A spec keyed to a `@container` id is never allowed to fail -- 9 more files are in this
-  state, 3 of them red and swallowed today.** Filed as `id:11a4`. `run-tests.sh`'s `item_open`
-  is satisfied by any open `- [ ]` line with the token, and a `@container`/`DECOMPOSED`/`[INPUT -
-  decision]` item is open indefinitely by design. This review found it live: the id:64f9 spec was
-  green for `id:521b` yet still reported EXPECTED-RED, so a regression in it would not have failed
-  the suite. **I fixed that one file** (retargeted its header `# roadmap:64f9` -> `# roadmap:521b`,
-  with the reasoning written into the file). I did NOT sweep the other 9 -- retargeting is only
-  safe per-file, since a spec whose seam has not landed is legitimately red. Your call on whether
-  the runner should hard-refuse a container key or merely warn.
-  **RESOLVED 2026-09-09 by `id:11a4`'s close** -- HARD-REFUSE is the disposition that shipped,
-  and the whole 9-file blast radius is cleared (5 retargeted, 4 reclassified as
-  `[INPUT - decision]` and left legitimately expected-red; verified mechanically -- zero
-  `tests/test_*.sh` now key an open `@container`/`DECOMPOSED` item). Recorded plainly because
-  the hard-refuse-vs-warn choice was made by the implementation, not ratified by you: reopen
-  if you wanted warn. See the `id:11a4` narrowing box in Review 2026-09-09f. <!-- id:11a4 -->
-
 - [ ] **The negative-case discipline has a second, independent umbrella on the DECLARATION axis:
   a defect-fix case grafted into a landed `# roadmap:`-keyed spec is verifiable by nothing.**
   Filed as `id:799f`; the declaration-axis sibling of `id:11a4` above, same root, different file.
