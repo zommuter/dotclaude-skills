@@ -3988,3 +3988,7 @@ Fixed id:5295: self-transcript.sh now normalizes tilde/absolute worktree-path sp
 ## 2026-09-09 19:39 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:5295 verified genuinely green by spec-replay (reddens at case 1, the assertion the item names); 4 REVIEW_ME boxes -- c219 fixture-fidelity residue, 5 parked orphans holding every un-gated ROUTINE id, routine_open 4-of-10 judgment, one-sided isolation gate; unit+lint tiers green (623/0/0/3-expected-red), 3 opt-in tiers recorded-skipped [id:5295]
+
+## 2026-09-09 20:42 — reconcile (auto/human, non-strong by design — id:c500)
+
+reconcile integrate: chore(relay): WIP UNVERIFIED residue auto-commit for worktree relay-20260909-143257-21736-execute-799f-0 (id:f272 commit-and-park; do not treat as reviewed)
