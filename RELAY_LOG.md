@@ -3838,3 +3838,7 @@ items at their present length. Both are REVIEW_ME boxes.
 refactor: none needed -- review-only unit; the sole ledger change is one `@container` marker.
 Friction: the classifier's diff window and the review's diff window disagree when the chain
 ends on a checkpoint commit; the re-ask arrived with `$LAST == HEAD`.
+
+## 2026-09-09 09:53 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:5ad9 re-verified green independently (RED spec has one commit, never touched; impl on integrate.sh's real push path); zero test files changed in window so gaming-scan and all provenance greps are clean; cleared id:64f9's DECOMPOSED-CONTAINER with @container (id:8504), lint 4 WARNs -> 3; 3 REVIEW_ME findings incl. a measured re-grandfathering hazard in the baseline-staleness remedy; make lint+test 613/0/0/4-expected-red [id:5ad9,64f9]
