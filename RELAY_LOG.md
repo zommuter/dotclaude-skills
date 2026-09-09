@@ -3928,3 +3928,7 @@ review: id:f957 + id:3016 verified green; found and FIXED a VACUOUS negative cas
 Worked id:6446 -- anchored `ROADMAP_PARKED_HEADING_WORDS` in `relay/scripts/lib-roadmap-sections.sh` to a standalone-token boundary, per the ⚠️ note left by the id:f391 prerequisite and the exact faithful stand-in already exercised by `tests/test_owner_gated_first_class_f391.sh` case (3). A heading that merely MENTIONS a vocab word in descriptive prose ("… archive-path stub design call") no longer parks its section; a genuine parking bucket ("## Gated / deferred", "## Done", "## Icebox", `@owner-gated`) still does -- verified both directions with a new RED spec (`tests/test_roadmap_parked_heading_anchor_6446.sh`, id:cd9c's exact regression shape end-to-end through `classify-repo.sh`, `gather-repo-state.sh`, and `roadmap-lint.sh`), plus a manual mutation check confirming the new spec fails against the pre-fix unanchored form at the declared assertion. `id:f391` and `bb32` re-run clean, no regression. Full suite: 621 passed, 0 failed, 4 expected-red.
 Friction: none.
 refactor: none needed -- the fix is a one-line pattern change plus its own new test; no duplication introduced or found nearby.
+
+## 2026-09-09 15:16 — executor (sonnet, relay-loop)
+
+Anchored lib-roadmap-sections.sh's parked-heading WORD vocab to a standalone token (id:6446): a heading merely mentioning archive/gated/etc. in prose no longer parks its section, while @owner-gated and genuine parking buckets still do; new RED spec + full suite 621/0/4-expected-red. [id:6446]
