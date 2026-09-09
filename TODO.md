@@ -194,6 +194,7 @@
 - [ ] [INPUT - decision] **`overnight-standby` skill — codify the two-session handoff where A works, B runs an unattended pool and powers the machine off.** -- detail: `docs/ledger-notes/8e9a.md` <!-- id:8e9a -->
 - [ ] [INPUT - decision] **An unattended `--afk` child that hits a `permissions.ask` match hangs forever, invisible to every counter.** Killed one live pool run; disposition is the owner's -- detail: `docs/ledger-notes/76e4.md` <!-- relates:98f0 --> <!-- relates:8e9a --> <!-- id:76e4 -->
 - [ ] [HARD] **PreToolUse hook denying a delegated child's `Edit`/`Write` outside its assigned worktree.** Prevention half; author and test only, wiring is the owner's step -- detail: `docs/ledger-notes/73a0.md` <!-- relates:f682 --> <!-- relates:8e7a --> <!-- relates:76e4 --> <!-- id:73a0 -->
+- [ ] [ROUTINE] **`control-board.sh` under-counts human-lane items -- helferli reports 2 of 19 when all 19 carry `[INPUT ...]`.** Gating, delimiter and vocabulary tested and rejected -- detail: `docs/ledger-notes/95c8.md` <!-- relates:8066 --> <!-- relates:4a76 --> <!-- id:95c8 -->
 
 ## meeting skill
 
