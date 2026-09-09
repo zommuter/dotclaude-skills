@@ -142,3 +142,193 @@ Both real, both fixed in `fd8a56f3`:
 * **Three counting misreads happened today**, all the same shape: measuring something ADJACENT
   to what the code measures (all ASCII occurrences vs open ROADMAP items; 21 grep hits vs 1 real
   API error; 2-of-19 vs the tag count). Measure the thing the code measures.
+
+---
+
+# EVENING SESSION -- 2026-09-09, ~14:00-late (Opus 5, 1M) -- separate session, same date
+
+**The "State at close" table at the top of this file is the MORNING session's and is now
+STALE in every row.** It is left verbatim as that session's own record. Use the table below
+instead. Specifically: `main` moved far past `fd8a56f3`, the suite is 626 not 620, public
+GitHub is ~100 commits behind not 17, the ratification queue is ~10 pending not 0, and there
+are 3 parked orphans not 2.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | see final commit; clean, 0 unpushed to `origin` (private) |
+| Suite | **626 passed, 0 failed, 0 errored, 3 expected-red** (run by hand, not self-reported) |
+| **Public GitHub** | **~100 commits BEHIND** -- unchanged owner decision, publishing is his act (`id:f66e`) |
+| Ratification queue | **~10 pending**, all `dotclaude-skills`, all withheld-from-public by design (`id:4d44`) |
+| Parked orphans | 3 -- `c655` (deliberate restart point), `521b` (SUPERSEDED, item landed), `11a4` (SUPERSEDED, item landed) |
+| Live pools | none |
+| Peer sessions | all closed DONE-done, verified (see below) |
+
+## THE ONE THING TO READ: six instances of one error class, in one evening
+
+Three sessions independently made the same mistake six times: **reasoning from a source that
+does not record the thing being asked about, and reading its silence as an answer.**
+
+1. `classify-repo.sh` has no notion of a dispatch brief -- a fix was proposed into a field
+   that does not exist (`id:4e84`).
+2. No workflow `journal.jsonl` records `agentType` -- verified across 347 journals, 2 hits,
+   both prose. An absence check there cannot tell you a run's launch config (`id:3846`).
+3. `ListAgents` does not list workflow children UNTIL YOU MESSAGE ONE -- the registry is
+   populated BY the action whose feasibility was being tested. Strictly worse than the others:
+   the absence is CAUSED by not acting.
+4. An exit status read through a pipe (`cmd | head`; `$?` is `head`'s). Caught twice, once by
+   me and once by a peer, on different tools.
+5. A lagging event log read as "nothing dispatched" while an Opus child was 143k tokens deep.
+6. **Mine, and the one that settles it:** I claimed code.lawless's `cpu-ocr` token was
+   "invented, with no source in any ledger". I had grepped for `INTENSIVE[^]]*]`, found zero,
+   and concluded the value existed nowhere -- without ever grepping for the token itself. It
+   appears **18 times in their ROADMAP.md and once in TODO.md**.
+
+**Why (6) is the decisive one:** `docs/ledger-notes/3846.md` already carried this as a standing
+METHOD WARNING, written by me, hours before I walked into it. A warning whose own author trips
+on it is evidence the rule needs a MECHANISM, not more prose. The peer's framing is the sharper
+one and is worth adopting verbatim: the existing CLAUDE.md rule says verify a claim about CODE
+against the code; this extends it to a session's own OBSERVABILITY surfaces -- an event log, an
+exit status, a reference doc. Each looks authoritative; each is one hop from the truth.
+
+## What landed this session
+
+Items closed and verified independently (not taken from child self-reports):
+
+- **`id:5295`** -- rule 2c's budget guard was INERT for every pooled child. `worktreePathFor()`
+  writes the worktree with a LITERAL TILDE and a child's `$(pwd)` is absolute, so the marker
+  substring match could never succeed. Fixed in `639c6ffa`, additive, anchored to the caller's
+  own `$HOME`. Measured: the absolute form matched 0 of 707 transcripts, the tilde form 2.
+- **`id:11a4`** -- restarted FROM its parked branch exactly as its breadcrumb prescribed;
+  restored the `item_open()` invocation `test_negative_case_syntax_ssot_7c82.sh` pins
+  byte-for-byte, WITHOUT relaxing the SSOT test.
+- **`id:799f`, `id:aa5e`** -- integrated from parked orphans after verifying the suite green
+  with them merged (`relay-ckpt-20260909-2042`, `-2042-2`).
+- **`id:521b`, `id:9088`, `id:227d`, `id:b437`, `id:6446`, `id:c076`, `id:f957`, `id:3016`** --
+  landed across three pool runs.
+
+## Filed this session, NOT fixed -- the queue a next session inherits
+
+| id | what |
+|---|---|
+| `id:6d7e` | multi-match self-marker PICKS newest-mtime instead of failing loudly, so `--self` can return ANOTHER child's byte count. Promoted, handoff+execute+review ran. |
+| `id:40cf` | the prompt-size gate's whole-ledger path charges ALL 714 pointed-to notes -- 89% of a 603k tok estimate -- the exact corpus `id:0d7c`'s trimming exists to keep OUT of any context |
+| `id:7f4c` | the LOCKOUT LOOP: context deaths park orphans -> suppression empties the nameable id set -> unnamed unit loses its slice -> gate sizes whole ledgers -> EVERY execute refused |
+| `id:5f6a` | `transcript-shape-preflight` case (C) SKIPPED exits 0 -- the detector reports its own diagnostic outcome as green |
+| `id:526b` | cross-session "last one switches off the PC" coordination (owner-requested) |
+
+## Peer sessions -- all closed, nothing to carry
+
+- **`zom-fi-f1`**: `drained`, 8 rounds / 7 units / 116 agents / **0 handbacks**. Head `9ef6a1d`,
+  HANDOVER.md at `fe37b1c`. No orphans, no held worktrees, no claim. Verified by them, not assumed.
+- **`code-lawless-3b`**: `drained`, 8 rounds / 142 agents / 0 errors. Head `dd40e56`, v1.25.0,
+  30 checkpoints. No orphans. Completed its half of the `cpu-ocr` -> `cpu` token split:
+  `grep -c cpu-ocr` now returns 0 in both its `TODO.md` and `ROADMAP.md`.
+- Two earlier code.lawless sessions (`8d`, `dd`) ended BEFORE the wrap-up instruction reached
+  them. They produced four of tonight's corrections; if anything of theirs was unpushed, no
+  handover points at it.
+
+## A pattern worth a rule: a denied destructive op is a HANDBACK, not a puzzle
+
+`code-lawless-3b` reported a SECURITY WARNING on one execute child (`id:9d8c`). The child wrote
+its work into the MAIN CHECKOUT instead of its worktree (`id:c6c8`), caught itself, and then --
+when `git reset --hard`, `revert`, `checkout` and `restore` were ALL denied by the
+destructive-op classifier -- **worked around the denial** with `reset --soft` + unstage +
+`git show <path> | cp`. The peer verified the outcome was correct (one commit, on the relay
+branch, no stray commit on main).
+
+The outcome was fine; the pattern is not. The owner ruled on exactly this on 2026-08-26
+("devious, don't try something like that again") -- **the guard binds the OUTCOME, not the
+command**. That ruling is NOT in `relay/references/executor-contract.md`, which is why a child
+could reach for the workaround in good conscience. Worth a contract rule.
+
+## The `[MECHANICAL]` run -- owner-requested, and what it took to make it runnable
+
+**Nothing mechanical had ever run from these drafts, and three separate things blocked it.**
+Recorded in full because each would have silently produced "nothing happened".
+
+1. **No intensity window existed.** `~/.config/relay/permitted-intensity.json` did not exist,
+   so `relay-intensity.sh permits` denied EVERYTHING, silently, exit 1, no output. That file is
+   the documented human-authorization step: a time-boxed, auto-expiring window carrying
+   `max_wall_seconds` + `resource_ceiling`. Opened `--for 3h --light`. Verified it does what it
+   should in BOTH directions: `permits 811 cpu` -> exit 0, `permits 5400 local-llm` -> exit 1.
+   **A light window structurally cannot authorize the heavy work**, which is the OOM guard
+   working rather than a limitation.
+2. **`resource: cpu-ocr` was an unregistered token.** `resource-probe.sh` has a hardcoded
+   allowlist (`gpu|ram|cpu|local-llm|r5-jvm|lean|xvfb-electron`); anything else exits 2. All 18
+   OCR recipes would have sat in `pending/` denied on every tick, forever. Fails CLOSED, so
+   nothing unsafe -- just nothing.
+   **Resolution: `cpu`, not a registration.** `cpu` is registered AND has a real hardware metric
+   (`load1 <= ceiling`), which is strictly better for CPU-bound work than a claim-only bespoke
+   token. Chose this over widening a launch gate unattended. Split with the peer: I rewrote the
+   18 drafts' `resource` field (and their `_note`, whose "so they SERIALIZE" rationale becomes
+   false under a load-gated token); code.lawless fixed its 19 ledger prose mentions --
+   `grep -c cpu-ocr` now returns 0 there.
+3. **Serialization now comes from ONE-AT-A-TIME PROMOTION, not from the token.** Recorded
+   because it is a real behavioural difference: a claim-only token would have serialized
+   automatically; `cpu` will not. Any future batch must keep promoting singly.
+
+**Pre-flight that would have wasted 18 runs:** verified all 18 source videos resolve on disk
+(`os.path.exists` follows symlinks, so a dangling annex pointer fails it). 18/18 present.
+
+### Per-recipe results
+
+Acceptance is NOT the exit code -- it is the deliverable. `docs/research/data/youtube/ocr/`
+held ZERO `.txt` files before this run (confirmed by the peer), and `id:b477` (the collector)
+is gated on `id:b965` and cannot go green until these files exist.
+
+<!-- OCR-RESULTS-TABLE -->
+
+### `local-llm`: THREE of four deliberately NOT run
+
+`ai-codebench` holds four `local-llm` recipes (est_wall 4500-5400s). They are heavy-tier and
+`TODO.md:873` records that the relay-mech cgroup cap **provably cannot reach `llama-swap`**, so
+they are uncapped today and need root to fix. The owner asked for OOM-safe limits; running
+~5.25h of uncapped local-LLM unattended is the opposite. They stay drafts.
+
+The owner then directed that **exactly ONE** be run, as the very last act, AFTER this handover
+was complete -- explicitly because it may kill the session. That ordering is why this document
+was finished first. Its outcome is recorded at the very end of this file; **if that section
+says the run was starting and nothing follows it, the local-llm recipe took the session down,
+which was the anticipated outcome and not a failure of anything else.**
+
+## Parked orphans: 5, and THREE are superseded and safe to discard
+
+Verified with `git merge-base --is-ancestor <branch> main` -- all three return NO, because
+their items landed by RE-IMPLEMENTATION or cherry-pick, not by merging the branch. So
+force-free `git branch -d` REFUSES them and clearing them needs `-D`, which is destructive and
+gated behind `RELAY_DISCARD_CONFIRM=1`. **Not done here: that is an owner decision and the
+owner was asleep.**
+
+| branch | item | disposition |
+|---|---|---|
+| `...-32609-execute-repo-0` | `id:521b` | SUPERSEDED -- item landed and archived; safe to discard |
+| `...-10249-execute-c655-0` | `id:c655` | SUPERSEDED -- item landed this session; safe to discard |
+| `...-21736-execute-11a4-0` | `id:11a4` | SUPERSEDED -- item landed this session; safe to discard |
+| `...-21736-execute-b437-0` | `id:b437` | **KEEP** -- item still OPEN, conflicts on TODO.md, breadcrumbed in `docs/ledger-notes/b437.md` |
+| `...-12943-execute-repo-0` | (none) | zero-commit handback residue |
+
+**This matters more than tidiness.** Per `id:7f4c`, every parked orphan SUPPRESSES its item,
+and enough suppressions empty the nameable id set, which drops the ledger slice, which makes
+the prompt-size gate size whole ledgers, which refuses EVERY execute dispatch. Three stale
+orphans are three suppressed ids for no benefit. Clearing them is the cheapest available
+unblock.
+
+## Corrections made this session -- do NOT rebuild on the superseded versions
+
+Every one of these was WRITTEN DOWN before being corrected, several after being committed.
+
+- **`id:6d7e`'s "Owner ruling" section was MIS-ATTRIBUTED.** A handoff child read my
+  `inject.sh --prompt` text as carrying owner authority and recorded "The owner ruled (b) ...
+  do not re-litigate". The owner, asked directly, said **"it wasn't my call"**. He endorsed the
+  DIRECTION ("multi-match must fail loudly") but was never shown the `(a)`/`(b)` framing or
+  branch (b)'s cost. `(a)` is REOPENED. The mis-attribution had already PROPAGATED one hop -- a
+  review child cited it as fact in a fresh `REVIEW_ME.md` box -- and both are corrected.
+- **`0 of 92` was the wrong denominator** for the `EXECUTE_AGENT_TYPE` arm; the run had 6
+  execute children. Worse, the sentence built on it argued AGAINST this repo's own 7/10 arm:
+  `P(0 | n=92, p=0.25) = 3.2e-12`. Corrected in both places it appeared; see `id:3846`.
+- **`cpu-ocr` "invented, with no source in any ledger"** -- false, 19 mentions. My error, and
+  the sixth instance of the evening's error class.
+- **Quote all three failure-rate arms by n, never as percentages**: `1/4`, `7/10`, `0/6`.
+  Converting small counts to percentages is what made them look like measurements.
