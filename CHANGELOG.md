@@ -22,6 +22,7 @@
 - review: id:f957 + id:3016 verified green; found and FIXED a VACUOUS negative case (the 3016 spec declared fails-against-rev: main, which carried the fix) and filed the guard as id:ff6a; 5 REVIEW_ME boxes (id:f957,3016)
 - Anchored lib-roadmap-sections.sh's parked-heading WORD vocab to a standalone token (id:6446): a heading merely mentioning archive/gated/etc. in prose no longer parks its section, while @owner-gated and genuine parking buckets still do; new RED spec + full suite 621/0/4-expected-red. (id:6446)
 - review: id:6446 verified genuinely green by heading-replay (exactly one heading flips -- id:cd9c's own); flagged a FALSE 621/0 suite claim (actual 620/1) and FIXED the two malformed negative-case declarations that caused it; new evidence that id:8372's prose-hoist manufactures live dispatch exclusions; filed id:c076; 4 REVIEW_ME boxes (id:6446,c076)
+- Implemented Check 4 (title-rewrite batch invariance) in tools/shrink-acceptance.py, restarting from the parked orphan attempt and fixing both review findings plus a third scoping gap and the id:9088 fixture bug; all 8 RED-spec cases pass, full suite 622/0/3-expected-red. (id:521b,9088)
 
 ## 2026-09-08
 
