@@ -4027,3 +4027,7 @@ correctly stays in TODO; `id:7f4c` is tagged `[ROUTINE]` but its acceptance says
 which" among three fix shapes, so it was NOT promoted -- promoting it would settle a design choice
 that is the owner's. No new ids minted. 4 REVIEW_ME boxes. routine_open 6 actionable, but only
 `aa5e`/`799f`/`6d7e` are dispatchable: `11a4`/`b437`/`c655` are orphan-suppressed. [id:6e02,799f,aa5e,0165,7f4c]
+
+## 2026-09-09 21:56 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review(2026-09-09d): no executor unit in window so nothing claimed green; id:6e02's observe-first gate FIRED -- this child's own worktree+branch were reaped twice mid-run under a held lease, with relay-doctor publishing the live worktree as "no work at risk"; breadcrumbed where id:799f's and id:aa5e's died-mid-work residue actually went; 4 REVIEW_ME boxes; 623/0/0/5-expected-red [id:6e02,799f,aa5e,0165,7f4c]
