@@ -5,7 +5,7 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
 ## Handoff 2026-09-09 (run `relay-20260909-185356-12943`, user-injected id:5295)
 
-- [ ] **A relay worktree path is NOT a unique self-marker -- it matches at least two transcripts
+- [x] **A relay worktree path is NOT a unique self-marker -- it matches at least two transcripts
   per unit -- and `self-transcript.sh` resolves that by picking the newest mtime. Should a
   multi-match be a hard refusal instead? Your call; I did not change it.** Measured live during
   this handoff, session `88e0cae7`: probing with the tilde-spelled worktree matched **two**
@@ -29,6 +29,20 @@ Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
   therefore asserts only that the multi-match is **LOUD** -- every candidate named on stderr -- and
   explicitly tells the executor not to touch the tie-break. If you pick (b), case 8 needs its
   `rc == 0` branch inverted and the item's Acceptance amended in the same edit. <!-- id:5295 -->
+
+  **RULED 2026-09-09 -- branch (b), REFUSE.** The owner answered by injecting the work as the
+  high-priority unit of run `relay-20260909-205831-5121`, in his own words: the resolver *"must
+  exit non-zero and name every candidate, with any most-recent behaviour behind an explicit
+  opt-in flag, so `context-budget.sh --self` reports unknown rather than a number computed from
+  another child's transcript"*, because **a wrong byte count is worse than `unknown` -- it looks
+  authoritative**. Tracked as `id:6d7e` (ROADMAP.md, `[ROUTINE]`), RED spec written this handoff
+  as `tests/test_self_transcript_multimatch_refusal_6d7e.sh`. The box's own closing instruction
+  is superseded on one point of detail, verified rather than assumed: case 8 does NOT need its
+  `rc == 0` branch inverted -- that branch is already conditional and its loudness assertions
+  hold under either policy, so the case stays green as written; only its stale "do not change the
+  tie-break" comment was updated. The cost the box named is real and accepted: rule 2c yields
+  `unknown` for every pooled child until the marker is made unique at source, which stays a
+  separate lane call.
 
 ## Review 2026-09-08 (run `relay-20260908-174448-4421`, chain-end re-ask)
 
@@ -1295,3 +1309,30 @@ no refresh. `orphan-scan --cross-ledger`: clean. `orphan-scan --shipped`: the on
   correction. Recording it rather than proposing a fix, because "should a child be able to
   reset a main checkout" is exactly the kind of guard question that must not be answered by
   the child that wants the permission. <!-- relates:f682 -->
+
+## Handoff 2026-09-09 (run `relay-20260909-205831-5121`, user-injected id:6d7e)
+
+- [ ] **The ambiguity refusal reuses exit code 4 rather than minting a distinct one, so no
+  caller can branch on "not unique" vs "no such marker".** The ruling said "exit non-zero"; I
+  read that as 4, the resolver's existing UNRESOLVED code, because `context-budget.sh --self`
+  fails open on ANY non-zero and the acceptance requires it to land on `unknown` -- a new code
+  would work identically there, so 4 costs nothing today and keeps the exit table at three
+  values. The case against: the two failures have OPPOSITE remedies (fix the marker string vs.
+  make the marker unique at source), and a caller that one day wants to retry-with-a-narrower
+  marker on ambiguity, but not on a genuine miss, cannot tell them apart from the status alone.
+  The RED spec pins only that the two MESSAGES differ (case 2), which is enough for a human
+  reading a run log and not enough for a program. If you want a distinct code, say so before the
+  executor picks this up -- adding one later is a compatibility change to a documented table.  (against `id:6d7e`.)
+
+- [ ] **Two landed test cases pin the behaviour the ruling reverses, and I prescribed EDITING
+  them rather than deleting them -- an executor will be rewriting cases whose own items are
+  closed.** `tests/test_self_transcript_wiring_ff30.sh` case 6 and
+  `tests/test_self_transcript_workflow_nesting_c219.sh` case 7 assert the newest-mtime pick, and
+  under the fix they die mid-file as REAL failures (neither carries a `# roadmap:` header, so
+  neither can be swallowed as expected-red). The item tells the executor to convert both to
+  `--allow-ambiguous`, keeping their assertions byte-for-byte otherwise, on the grounds that the
+  guarantee they encode (newest wins, every candidate named) is exactly what the opt-in path must
+  still provide -- so the conversion is the opt-in's only regression cover, and deleting them
+  would leave that path covered by nothing but the new spec's case 6. Flagging it because
+  "handoff rewrites the tests of two closed items" is the shape that usually deserves a second
+  look, even when, as here, the behaviour under them was deliberately changed by an owner ruling.  (against `id:6d7e`.)
