@@ -33,6 +33,7 @@
 - review(2026-09-09d): no executor unit in window so nothing claimed green; id:6e02's observe-first gate FIRED -- this child's own worktree+branch were reaped twice mid-run under a held lease, with relay-doctor publishing the live worktree as "no work at risk"; breadcrumbed where id:799f's and id:aa5e's died-mid-work residue actually went; 4 REVIEW_ME boxes; 623/0/0/5-expected-red (id:6e02,799f,aa5e,0165,7f4c)
 - Fixed id:799f's fixture (invalid hex roadmap token o799 -> a799) so its post-close-graft RED spec goes fully green; id:aa5e stayed gated on orphan-parked id:c655 and was not worked. (id:799f)
 - self-transcript.sh refuses (exit 4, all candidates named on stderr) on a multi-match self-marker instead of silently newest-mtime-guessing (id:6d7e); the old behaviour survives only behind --allow-ambiguous. (id:6d7e)
+- review(2026-09-09e): id:799f + id:6d7e both verified GENUINELY green by spec-replay (all 3 modified originals redden at exactly the assertion their item names; 799f's fixture token was non-hex so the carve-out could never apply); gaming-scan + provenance greps clean, 0 reopened; 5 REVIEW_ME boxes; CLAUDE.md drift fixed; tiers RUN test 625/0/0/3-expected-red + gaming-canary + shard-canary + baseline-staleness, verify-negatives/check-statusline-deps RECORDED-SKIP [id:799f,6d7e] (id:799f,6d7e)
 
 ## 2026-09-08
 
