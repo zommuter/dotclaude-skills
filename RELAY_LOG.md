@@ -3842,3 +3842,22 @@ ends on a checkpoint commit; the re-ask arrived with `$LAST == HEAD`.
 ## 2026-09-09 09:53 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:5ad9 re-verified green independently (RED spec has one commit, never touched; impl on integrate.sh's real push path); zero test files changed in window so gaming-scan and all provenance greps are clean; cleared id:64f9's DECOMPOSED-CONTAINER with @container (id:8504), lint 4 WARNs -> 3; 3 REVIEW_ME findings incl. a measured re-grandfathering hazard in the baseline-staleness remedy; make lint+test 613/0/0/4-expected-red [id:5ad9,64f9]
+
+## 2026-09-09 — executor (claude-sonnet-5)
+
+Worked id:963c — `roadmap-tick.sh` now re-verifies each id's own `# roadmap:<id>` spec
+test AFTER flipping its checkbox to `[x]`, by shelling out to the repo's own
+`tests/run-tests.sh` (never reimplementing its expected-red mapping): a spec that is
+still a REAL failure with the id now ticked reverts the checkbox, skips the TODO twin,
+prints a loud `REFUSED` message naming the id and spec file(s), and the script exits
+non-zero -- the existing `integrate.sh` `EX_TICK` handback path already treats any
+non-zero exit from this script as a hard stop, so no integrate.sh change was needed. An
+id with no matching spec test, or a repo with no test suite, is byte-identical to prior
+behaviour. New fixture test `tests/test_tick_refuses_red_spec_963c.sh` (4 cases: red spec
+refused+reverted+loud, clean spec ticks normally, no-spec-test id unaffected, and a mixed
+batch refuses only the red id while still ticking the clean one). Full suite green:
+614 passed / 0 failed / 0 errored / 4 expected-red.
+refactor: extracted `verify_spec_or_revert()` as its own named helper alongside the
+existing `has_own_line`/`tick_todo_twin` helpers, matching the file's existing style --
+no other duplication to clean up in this diff.
+Friction: none -- item was well-scoped with acceptance/done-check already written.
