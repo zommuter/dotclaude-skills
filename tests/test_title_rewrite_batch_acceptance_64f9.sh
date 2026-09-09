@@ -135,7 +135,11 @@ out="$(run_gate "$DROP")"
 #     title is byte-identical to BEFORE, a botched one is not.
 # =====================================================================================
 BOTCH="$TMP/after-botch"
-A1_BOTCH='- [ ] [ROUTINE] **Alpha** the title on this line is still a whole paragraph rather than a title and remains well past the two hundred character budget, having been edited without actually being shortened at all <!-- id:a1a1 -->'
+# id:9088 -- lengthened past the 200-char title budget (measured 194 chars before this
+# fix, so it never actually exceeded the budget it claims to and case 3 could never fail
+# for the reason it names; see docs/ledger-notes/9088.md). Do not shorten this again --
+# the case needs a genuinely still-over-budget title, not a merely-plausible one.
+A1_BOTCH='- [ ] [ROUTINE] **Alpha** the title on this line is still a whole paragraph rather than a title and remains well past the two hundred character budget, having been edited without actually being shortened at all, and now with extra words appended to push it clearly over the limit for good measure <!-- id:a1a1 -->'
 mkafter "$BOTCH" "$A1_BOTCH" "$A2_OK" "$L3" yes
 out="$(run_gate "$BOTCH")"
 [[ "$(gate_rc)" != 0 ]] \

@@ -1166,6 +1166,238 @@ def check_keep_list(markers, keep_patterns, keep_source, strict, findings):
 
 
 # --------------------------------------------------------------------------- #
+# Check 4 -- title-rewrite batch invariance (id:521b, RED spec id:64f9)        #
+# --------------------------------------------------------------------------- #
+# A TITLE rewrite is a distinct pass from the relocation-based shrink checks 1-3
+# above: it edits the head line's own prose rather than moving a block off it, so
+# none of the id-set / detector / keep-list machinery above ever looks at whether the
+# title text itself was preserved somewhere.  `tests/test_title_rewrite_batch_acceptance_64f9.sh`
+# (`# roadmap:64f9`) is the RED spec this satisfies; see that file for the full
+# rationale.  Runs regardless of `--skip-detectors` -- that flag disables CHECK 2's
+# detector re-run, not this independent check, and `todo-conformance.sh` is invoked
+# directly here because "is this title still over budget" is exactly its own
+# `grammar-item-title-long` rule, not a question worth re-implementing.
+
+CHECKBOX_RE = re.compile(r"^(\s*-\s*)\[([ xX])\]")
+LINE_COMMENT_RE = re.compile(r"<!--.*?-->")
+
+# The same four lane-tag shapes CHECK 3's marker registry already declares (id:8d52's
+# two-delimiter migration window: both dash spellings are live in the corpus).
+LANE_SHAPE_RES = (
+    re.compile(r"\[(?:ROUTINE|MECHANICAL)\]"),
+    re.compile(r"\[HARD(?:\s*[-—–]\s*[a-z ]+)?\]", re.IGNORECASE),
+    re.compile(r"\[INPUT\s*[-—–]\s*[a-z ]+\]", re.IGNORECASE),
+    re.compile(r"\[INTENSIVE\s*[-—–]\s*[a-z-]+\]", re.IGNORECASE),
+)
+
+
+def _line_checkbox(line):
+    m = CHECKBOX_RE.search(line)
+    return m.group(2).lower() if m else None
+
+
+def _line_lanes(line):
+    """The SET of lane tags on the line.
+
+    A set, not a multiset (id:521b review finding 2): a doubled lane tag that gets
+    de-duplicated (one occurrence dropped, the other kept) is not a re-lane -- the
+    line still carries the same lane. Comparing sorted lists instead read a pure
+    occurrence-count drop as a lane CHANGE, which broke a currently-green relocation
+    fixture (`tests/test_shrink_acceptance_0d7c.sh` case F, id:bb04) where the shrink
+    relocated a body-prose repetition of the item's own lane tag off the line.
+    """
+    lanes = set()
+    for rx in LANE_SHAPE_RES:
+        lanes.update(m.group(0) for m in rx.finditer(line))
+    return lanes
+
+
+def _is_relocation_line(after_line, item_id, notes_dir):
+    """True when the AFTER line carries `tools/ledger-shrink.py`'s detail pointer for
+    THIS item (its own `has_pointer()` predicate, reimplemented here rather than
+    imported: it keys on the note PATH appearing in the line, not on punctuation).
+
+    A pointer means the head line changed because ledger-shrink.py MECHANICALLY
+    relocated body prose behind a `-- detail:` marker, not because a title was
+    rewritten -- Checks 1-3 above already own that pass's invariants (id-set diff,
+    directional detector verdicts, marker-registry keep-list). Without this
+    distinction (id:521b review finding 1), an ordinary relocation shrink -- which
+    changes the head line by design -- was misread as an undocumented title rewrite
+    and refused for not preserving its own now-shorter line verbatim in the note, even
+    though the relocated prose IS there under a different heading. Broke two
+    currently-green fixtures (`tests/test_shrink_acceptance_0d7c.sh` cases B/E,
+    `tests/test_shrink_acceptance_loss_attribution_5f34.sh` cases B/C) that relocate a
+    plain rationale or spurious-prose-hit body without ever touching the title.
+    """
+    return "{}/{}.md".format(notes_dir, item_id) in after_line
+
+
+def _line_edges(line, item_id):
+    """Every HTML comment on the line except the item's OWN `<!-- id:XXXX -->` anchor.
+
+    Covers `gated-on:`/`children-of:`/`relates:`/`routed:` and anything minted later --
+    a structural catch-all rather than an enumeration, matching this repo's own stated
+    preference (`tools/ledger-shrink.py`'s keep-set doctrine) for a marker-SHAPE guard
+    over a marker-NAME enumeration.
+    """
+    own_id_re = re.compile(r"<!--\s*id:%s\s*-->" % re.escape(item_id), re.IGNORECASE)
+    return sorted(c for c in LINE_COMMENT_RE.findall(line) if not own_id_re.match(c))
+
+
+def _title_long_ids(root):
+    """ids `todo-conformance.sh` flags `grammar-item-title-long` on, TODO + ROADMAP."""
+    ids = set()
+    script = os.path.join(REPO_ROOT, "relay", "scripts", "todo-conformance.sh")
+    for name in ("TODO.md", "ROADMAP.md"):
+        path = os.path.join(root, name)
+        if not os.path.isfile(path):
+            continue
+        env = dict(os.environ)
+        env["LC_ALL"] = "C.UTF-8"
+        try:
+            proc = subprocess.run(
+                [script, path], capture_output=True, text=True, timeout=180, env=env
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            continue
+        for line in proc.stdout.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 3:
+                continue
+            rule, _lineno, text = parts[0], parts[1], "\t".join(parts[2:])
+            if normalise_signal(rule) != "grammar-item-title-long":
+                continue
+            m = ID_MARKER_RE.search(text)
+            if m:
+                ids.add(m.group(1))
+    return ids
+
+
+def check_title_rewrites(before_root, after_root, notes_dir, findings):
+    before_markers = collect_markers(before_root)
+    after_markers = collect_markers(after_root)
+    before_ids, after_ids = set(), set()
+    for name in LEDGER_FILES:
+        b = before_markers.get(name)
+        if b:
+            before_ids |= b["id"]
+        a = after_markers.get(name)
+        if a:
+            after_ids |= a["id"]
+    # SCOPE: only items whose BEFORE title was itself over budget are a "title rewrite"
+    # in the id:64f9 sense -- that is the whole premise the batch's acceptance text is
+    # written against ("257 items have a title that is itself over budget"). Without
+    # this gate (id:521b review finding, discovered past the two named in the parked
+    # note) an UNRELATED edit to an item whose title was never over budget -- e.g.
+    # fixing a stale "DEFERRED" clause in ordinary prose, which changes the head line
+    # exactly as much as a real title rewrite does -- got misread as an undocumented
+    # title rewrite and refused for not preserving a line that was never the subject
+    # of this check to begin with (`tests/test_shrink_acceptance_loss_attribution_5f34.sh`
+    # case C, id:cc02: no pointer, no notes dir, a plain in-place prose fix).
+    before_title_long = _title_long_ids(before_root)
+    common = sorted((before_ids & after_ids) & before_title_long)
+
+    touched = []
+    left = []
+    after_title_long = None  # computed lazily -- only if a touch is found
+
+    for item_id in common:
+        b_line = find_item_line(before_root, item_id)
+        a_line = find_item_line(after_root, item_id)
+        if b_line is None or a_line is None or b_line == a_line:
+            continue  # nothing on this item's own line changed at all -- a genuine leave
+
+        if _is_relocation_line(a_line, item_id, notes_dir):
+            continue  # mechanical relocation shrink, not a title rewrite -- see docstring
+
+        touched.append(item_id)
+
+        b_box, a_box = _line_checkbox(b_line), _line_checkbox(a_line)
+        if b_box != a_box:
+            findings.append((
+                "FATAL", "title-rewrite",
+                "id:%s -- checkbox state changed (%r -> %r) on a title-touched line; "
+                "'the checkbox state is untouched' is acceptance text"
+                % (item_id, b_box, a_box)
+            ))
+            continue
+
+        b_lanes, a_lanes = _line_lanes(b_line), _line_lanes(a_line)
+        if b_lanes != a_lanes:
+            findings.append((
+                "FATAL", "title-rewrite",
+                "id:%s -- lane tag changed (%s -> %s) on a title-touched line; a silently "
+                "re-laned item is dispatched to the wrong substrate"
+                % (item_id, sorted(b_lanes), sorted(a_lanes))
+            ))
+            continue
+
+        b_edges, a_edges = set(_line_edges(b_line, item_id)), set(_line_edges(a_line, item_id))
+        dropped = b_edges - a_edges
+        if dropped:
+            findings.append((
+                "FATAL", "title-rewrite",
+                "id:%s -- typed edge marker dropped on a title-touched line: %s -- "
+                "a typed edge is an address, not decoration"
+                % (item_id, ", ".join(sorted(dropped)))
+            ))
+            continue
+
+        detail = read_detail_file(after_root, notes_dir, item_id) or ""
+        if b_line.strip() not in detail:
+            findings.append((
+                "FATAL", "title-rewrite",
+                "id:%s -- title changed but the FULL ORIGINAL LINE is not preserved "
+                "verbatim in %s/%s.md -- shortening a title is not licence to drop content"
+                % (item_id, notes_dir, item_id)
+            ))
+            continue
+
+        if after_title_long is None:
+            after_title_long = _title_long_ids(after_root)
+        if item_id in after_title_long:
+            findings.append((
+                "FATAL", "title-rewrite",
+                "id:%s -- rewritten but STILL grammar-item-title-long; a touched-but-"
+                "unfixed item is not a deliberate leave" % item_id
+            ))
+            continue
+
+    for item_id in sorted(before_ids & after_ids):
+        if item_id in touched:
+            continue
+        b_line = find_item_line(before_root, item_id)
+        if b_line is None:
+            continue
+        if after_title_long is None:
+            # No touch was ever found this run, so compute once here to still be
+            # able to report LEFT items in an otherwise-clean batch.
+            after_title_long = _title_long_ids(after_root)
+        if item_id in after_title_long:
+            left.append(item_id)
+
+    # "LEFT and reported, never mangled" (acceptance text) means this report must
+    # survive `--quiet` -- a caller driving batches at scale runs quiet by
+    # construction (id:521b review finding: case 7's report was a plain summary
+    # line the quiet filter drops, so an accepted batch's left items were invisible
+    # to exactly the caller who needs to see them). Routed through `findings` as an
+    # INFO level rather than the plain `lines` list so it rides the same filter as
+    # FATAL/WARN, not a separate, easily-missed channel.
+    for item_id in left:
+        findings.append((
+            "INFO", "title-rewrite",
+            "id:%s -- LEFT unmodified, still over the title budget (reported, not a "
+            "refusal)" % item_id
+        ))
+
+    lines = [
+        "  items checked=%d   touched=%d   left-still-over-budget=%d"
+        % (len(common), len(touched), len(left))
+    ]
+    return lines
+
+
+# --------------------------------------------------------------------------- #
 # main                                                                         #
 # --------------------------------------------------------------------------- #
 
@@ -1238,6 +1470,10 @@ def main(argv=None):
         out.append("    %-7s %-22s %s" % (state, marker, ", ".join(markers[marker][:3])))
     out.append("")
 
+    out.append("CHECK 4 -- title-rewrite batch invariance (id:521b)")
+    out.extend(check_title_rewrites(args.before, args.after, args.notes_dir, findings))
+    out.append("")
+
     if improvements:
         out.append("IMPROVEMENTS (verdict moved the ALLOWED way -- spurious hit removed)")
         for msg in improvements:
@@ -1246,7 +1482,8 @@ def main(argv=None):
 
     fatal = [f for f in findings if f[0] == "FATAL"]
     warn = [f for f in findings if f[0] == "WARN"]
-    out.append("FINDINGS: %d fatal, %d warning" % (len(fatal), len(warn)))
+    info = [f for f in findings if f[0] == "INFO"]
+    out.append("FINDINGS: %d fatal, %d warning, %d info" % (len(fatal), len(warn), len(info)))
     for level, check, msg in findings:
         out.append("  %-5s [%s] %s" % (level, check, msg))
     out.append("")
@@ -1256,7 +1493,7 @@ def main(argv=None):
         out.append("VERDICT: SAFE TO LAND.")
 
     if args.quiet:
-        sys.stdout.write("\n".join(l for l in out if l.startswith(("  FATAL", "  WARN", "VERDICT"))) + "\n")
+        sys.stdout.write("\n".join(l for l in out if l.startswith(("  FATAL", "  WARN", "  INFO", "VERDICT"))) + "\n")
     else:
         sys.stdout.write("\n".join(out) + "\n")
     return 1 if fatal else 0
