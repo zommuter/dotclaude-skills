@@ -3755,3 +3755,29 @@ cost more than it records.
 ## 2026-09-09 01:25 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:0f0a verified genuinely green -- the executor edited its own RED spec, so the original was resurrected and passes all 6 assertions unchanged; gaming/provenance/over-reach all clean, suite 613/0/4-expected-red, no ledger change warranted [id:0f0a] [id:0f0a]
+
+## 2026-09-09 -- executor (sonnet-5)
+
+Worked id:5ad9 -- verified, did not re-implement. The item had already been implemented
+and landed on main by a prior executor session (relay-20260908-174448-4421-execute-5ad9-0),
+committed as WIP UNVERIFIED residue (b660420b, id:f272 commit-and-park) and then auto-
+reconciled onto main (bae7a980) without review. This session confirmed the work is
+genuinely done: relay/scripts/ratify-queue.sh's `pending-blocking` subcommand (READ-ONLY,
+fail-closed on unreadable/unresolvable ancestry) and relay/scripts/integrate.sh step 8's
+new id:5ad9 block query it once per repo and withhold every declared-public remote
+when a pending, not-self-verified-landed ratification-queue entry is ancestral to HEAD,
+regardless of the current unit's own substantive-ness -- exactly the Acceptance A text.
+The RED spec this seam targets, tests/test_ratify_gate_binds_remote_7408.sh (authored
+by the earlier C3 handoff, unmodified since -- `git diff` against that commit is empty,
+so nothing was gamed to pass it), is now green end to end: control case, the regression
+case (non-substantive unit still withholds), loud surfacing via `pushRemote=<r>:deferred`
+and stderr, self-verification closing a landed-but-unresolved entry, and the gate
+reopening once nothing is outstanding. `make test`: 613 passed, 0 failed, 0 errored,
+4 expected-red (open items, unrelated). id:4d65 (the gated-on self-verifying-read seam)
+was already closed and archived before this session. No code change was needed or made.
+refactor: none needed -- verification-only session, no diff to refactor.
+Friction: the item's own done-check names a new file `tests/test_integrate_remote_gate_binds.sh`;
+the functionally-equivalent (and more thorough, 5-scenario) test already existed under
+the id:7408 seam's own name, `test_ratify_gate_binds_remote_7408.sh`, from the C3 RED-spec
+authoring. Treated that as satisfying the done-check in substance rather than adding a
+duplicate file asserting the same behaviour under a different name.
