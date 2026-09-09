@@ -3865,3 +3865,36 @@ Friction: none -- item was well-scoped with acceptance/done-check already writte
 ## 2026-09-09 10:05 — executor (sonnet, relay-loop)
 
 roadmap-tick.sh now refuses (reverts + exits non-zero) a checkbox tick whose own # roadmap:&lt;id&gt; spec test is still red after ticking, closing id:963c [id:963c]
+
+## 2026-09-09 — executor (sonnet)
+
+Worked id:8627 — `tests/lib-workflow-check.sh`'s `workflow_node_check` refusal scan was a
+line-oriented regex heuristic that its own header comment mis-described as "a real lexical
+scan": (1) a `//` comment containing a `/*`-looking substring (e.g. the glob
+`relay/orphan/*`, live on `relay/scripts/relay-loop.js`) opened a block-comment state that
+swallowed everything up to the next `*/`-bearing line -- previously measured at 1,251 of
+4,930 lines; (2) an escaped backtick (`` \` ``) threw off the naive all-backticks parity
+count on both a template-opening line and a template-continuation line, wrongly closing (or
+never opening) the template state; (3) any `*/` anywhere on a line suppressed the opener
+check even when it belonged to an EARLIER comment on the same line, so a genuine same-line
+close-then-open (`const a = 1; /* x */ /*`) never carried the second, real comment into the
+next line. Replaced the awk scan with one shared character-level state machine
+(`code`/`comment`/`template`, `is_escaped()` counting immediately-preceding backslashes) used
+by both `workflow_node_check` (the refusal) and a new `workflow_scan_stats` (a read-only
+measurement entry point over the identical machine, so the two can't drift). Corrected the
+header comment to describe what the code now actually does (character-level, not a full
+tokenizer -- quoted strings still unmodelled, out of scope). New RED-then-green spec
+`tests/test_workflow_scan_lexical_8627.sh` pins all three defects plus a direct regression
+measurement on the live `relay-loop.js` (asserts `skipped-in-comment` stays near zero, not
+1,251) and re-runs `tests/test_workflow_check_hardening.sh` as a negative control for
+id:1b0e/e044/ad67. Verified the RED spec actually reddens against the pre-fix helper
+(fails at assertion (b2), matching its `# fails-against-rev` declaration) before committing.
+Full suite: 615 passed / 0 failed / 0 errored / 4 expected-red.
+refactor: folded in the two `rm -f "$tmp"` → `rm -- "$tmp"` cleanups the ledger note
+explicitly invited ("fold it in if this item touches those lines anyway") since the diff
+already touches the whole function.
+Friction: none -- the ledger note (`docs/ledger-notes/8627.md`) already carried a measured
+repro and a precise acceptance list; the only surprise was that the glob-comment defect is
+fail-OPEN-but-backstopped rather than a true false-green (an `export` declaration is always
+a SyntaxError inside the async-function-wrapper body), so its RED assertion had to pin the
+lost file-naming message rather than a wrongly-accepted (rc=0) case.
