@@ -20,6 +20,7 @@
 --quota-5h	1
 --pool-width	1
 --execute-agent-type	1
+--auto-integrate-orphans	0
 --once	0
 --after	1
 --drain	0

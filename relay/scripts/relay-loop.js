@@ -181,6 +181,57 @@ function agentTypeMissingReason (err, typeName, repo) {
 }
 // --- end id:c3c1 pure helpers
 
+// AUTO_INTEGRATE_ORPHANS (id:1048 wiring) -- opt-in permission for the pool to AUTO-CONSUME a
+// parked `relay/orphan/*` branch by merging it to main, via the already-built, already-tested
+// host primitive `relay/scripts/auto-integrate-orphan.sh`. That primitive was green and
+// referenced ZERO times from this file (the built-green-but-unreferenced class), so the
+// "reconcile-first (integrate-if-safe)" half of meeting 2026-07-23-1735 A1/D1 was a NULL op:
+// a parked orphan was surfaced and then sat there forever.
+//
+// DEFAULT IS OFF, and that is a STANDING OWNER DECISION, not a preference. a4e9-D1 ruled "NO
+// auto-integration"; id:1048 amends it only to a HARD-bounded form. Turning this on grants the
+// pool the ability to advance main autonomously, so it must be an explicit per-run act.
+// Unset/empty/false is a STRICT no-op: `autoIntegrateParkedOrphans()` returns 0 before doing
+// anything, no agent is dispatched, no field is added to the discovery object, and the round is
+// shaped exactly as it was before this wiring. Do not flip the default.
+//
+// THE GATES ARE THE SCRIPT'S, NOT THIS FILE'S -- deliberately. auto-integrate-orphan.sh proves,
+// per orphan: the bound item ticked `[x]` on the orphan (or unbindable, meeting A3), main not
+// diverged (ahead+behind) from origin, a CONFLICT-FREE 3-way merge, and the FULL suite GREEN in
+// a throwaway scratch worktree POST-merge. Any failure leaves the orphan parked and main
+// untouched. This file must never re-implement or relax any of that; it only decides WHETHER to
+// offer a branch to the primitive.
+//
+// FAIL-OPEN AND LOUD (id:4347). Every failure mode of the hop -- an agent throw, a MECH-ERROR
+// sentinel, garbled/empty stdout, a repo whose path cannot be resolved -- logs WHY and CONTINUES
+// the round unchanged. Auto-integration is an opportunistic convenience; it may never become a
+// reason a round cannot proceed. A refusal by the primitive is a NORMAL outcome (it exits
+// non-zero and surfaces on stderr), so a non-success is logged as "left parked", never as a
+// loop error.
+const AUTO_INTEGRATE_ORPHANS = (() => {
+  const v = A.AUTO_INTEGRATE_ORPHANS == null ? A.autoIntegrateOrphans : A.AUTO_INTEGRATE_ORPHANS
+  if (v === true) return true
+  const s = String(v == null ? '' : v).trim().toLowerCase()
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on'
+})()
+
+// --- id:1048 pure helper (awk-extracted and executed stand-alone by
+// --- tests/test_relay_auto_integrate_orphans_1048.sh -- keep this block contiguous, dependency-free)
+// Extract the PARKED orphan branch name out of ONE discovery `surfaced` reason.
+// reconcile-repo.sh emits exactly one shape for an orphan that suppressed re-dispatch:
+//   "suppressed re-dispatch: <why> on relay/orphan/<bn> ... manual /relay reconcile; cost hint: ..."
+// Returns '' for every other surfaced class, so a repo-level block (in-flight / diverged /
+// e3ad-refusal / discover-error) can NEVER route here. A PLANNED park (id:e7e4) is still named by
+// its pre-rename `relay/<bn>` form and is deliberately NOT matched: the rename has not happened
+// yet and may fail (id:1af1 honest tense), and the next round sees it as a real parked orphan.
+function orphanBranchFromSuppressReason (reason) {
+  const r = String(reason == null ? '' : reason)
+  if (!r.startsWith('suppressed re-dispatch:')) return ''
+  const m = r.match(/\bon (relay\/orphan\/[^\s]+)/)
+  return m ? m[1] : ''
+}
+// --- end id:1048 pure helper
+
 // id:c012 — graceful (patient) operator stop. THREE entry points, all converging on
 // stopReason="user-stop" + a clean drain (the prior round's wave + integration debt are
 // already drained by runRound before the next round's discovery runs, so a stop between
@@ -2445,6 +2496,11 @@ if (prelude && Array.isArray(prelude.repos)) {
     for (const s of surfaced) pushEvent('verdict', { repo: s.repo, round: round, verdict: s.verdict || '', priority_rank: s.priority_rank || 0, reason: s.reason || '', sig: sigByRepo[s.repo] || '', cached: reusedRepoSet.has(s.repo) })
     for (const s of skipped) pushEvent('verdict', { repo: s.repo, round: round, verdict: s.verdict || '', priority_rank: s.priority_rank || 0, reason: s.reason || '', sig: sigByRepo[s.repo] || '', cached: reusedRepoSet.has(s.repo) })
     discovery = { runId: prelude.runId, ts: prelude.ts, units, surfaced, skipped }
+    // id:1048 -- the auto-integrate hop needs each repo's MAIN-CHECKOUT PATH, and a `surfaced`
+    // entry carries only {repo, reason, queue_sig}. Publish the in-scope name->path map from
+    // ownRepos (this round's relay.toml read, honoring `# path:` -- never a ~/src glob) ONLY
+    // when the knob is on, so the discovery object is byte-identical in shape when it is off.
+    if (AUTO_INTEGRATE_ORPHANS) discovery.paths = Object.fromEntries(ownRepos.map(r => [r.repo, r.path]))
   }
   else log('relay-loop: all discovery shards failed this round (network outage?) — round fails, completed work preserved')
 }
@@ -2453,6 +2509,22 @@ if (!discovery) {
   log('relay-loop: discovery prelude/shards failed this round')
   return { failed: true }
 }
+
+// id:1048 -- RECONCILE-FIRST (integrate-if-safe). Placed HERE, immediately after discovery is
+// established and BEFORE any verdict mutation / sort / dispatch, for three reasons:
+//   (1) the discovery shard has just run reconcile-repo.sh LIVE, so `surfaced` holds this
+//       round's freshest orphan-suppress lines -- the only place in the loop that names a
+//       parked `relay/orphan/*` branch;
+//   (2) it must run before dispatch so an orphan that IS safely consumable stops suppressing
+//       the repo (the id:1f53/bc49-D1 same-item carve-out) rather than being re-surfaced round
+//       after round; and
+//   (3) main advances only via the primitive's own merge, which happens BEFORE this round's
+//       children are provisioned off main -- never concurrently with them.
+// The unit list for THIS round was already computed from the pre-merge state and is NOT
+// recomputed; a consumed orphan frees its item on the NEXT round's fresh discovery. That is
+// deliberate (no re-classification mid-round) and costs at most one round of latency.
+// Strict no-op when the knob is off: one boolean test, zero awaits.
+if (AUTO_INTEGRATE_ORPHANS) await autoIntegrateParkedOrphans(discovery)
 
 // Fable-return re-review (id:9821): after a clean handoff a repo's HEAD *is* its
 // fable-ckpt tag, so it has no unaudited commits and the classifier calls it
@@ -4841,6 +4913,76 @@ async function draftMechanicalOrphans() {
     log(`relay-loop: id:391b mechanical-orphan-draft — ${drafted} new draft(s) written this round, ${skipped} already existed (drafts/ → pending/ promotion stays human, id:64d3)`)
   }
   return { drafted, skipped }
+}
+
+// id:1048 -- BOUNDED AUTO-INTEGRATE of parked orphans (OPT-IN, see the AUTO_INTEGRATE_ORPHANS
+// declaration at the top of this file for why the default is off and stays off).
+//
+// For each of THIS round's orphan-suppress `surfaced` lines, offer the named `relay/orphan/*`
+// branch to the host primitive `auto-integrate-orphan.sh`. The primitive owns every safety gate
+// (item complete on the orphan, main non-diverged, conflict-free merge, full suite green in a
+// scratch worktree post-merge) and leaves the orphan parked + main untouched on ANY failure.
+// This function decides only WHICH branch to offer -- it never inspects a repo, never merges,
+// and never relaxes a gate.
+//
+// Mechanical hop, MECH_MODEL/model:'bash' (id:6176), a single ```relay-mech fenced command --
+// the same shape as sliceLedgerForUnit / provision-worktree / draftMechanicalOrphans above.
+//
+// FAIL-OPEN AND LOUD at EVERY branch; the return value is advisory (a count) and no caller
+// depends on it:
+//   • unresolvable repo path        -> log, skip that orphan, keep going
+//   • agent throw                   -> log, skip that orphan, keep going
+//   • MECH-ERROR sentinel           -> log; this is ALSO the primitive's normal REFUSAL channel
+//                                      (it exits non-zero to say "left parked"), so it is never
+//                                      treated as a loop error
+//   • stdout without the success marker -> log as "left parked", keep going
+// Nothing here can make a round fail, and nothing here mutates the dispatch set.
+async function autoIntegrateParkedOrphans(disc) {
+  if (!AUTO_INTEGRATE_ORPHANS) return 0
+  const paths = (disc && disc.paths) || {}
+  const seen = new Set()
+  let integrated = 0, offered = 0
+  for (const s of ((disc && disc.surfaced) || [])) {
+    const branch = orphanBranchFromSuppressReason(s && s.reason)
+    if (!branch) continue
+    const repo = String((s && s.repo) || '')
+    const key = repo + '|' + branch
+    if (seen.has(key)) continue
+    seen.add(key)
+    const path = paths[repo]
+    if (!path) {
+      log(`relay-loop: id:1048 auto-integrate SKIPPED ${repo} ${branch} -- no main-checkout path for that repo in this round's own-repo map (fail-open, orphan stays parked)`)
+      continue
+    }
+    offered++
+    let raw
+    try {
+      const res = await agent(
+        'Run exactly this one command and report its stdout verbatim (id:1048 BOUNDED auto-integrate of a parked relay orphan; the script itself proves complete + non-diverged + conflict-free + full-suite-green in a scratch worktree before it advances main, and leaves the orphan parked on ANY failure):\n' +
+        '```relay-mech\n' +
+        `~/.claude/skills/relay/scripts/auto-integrate-orphan.sh --repo ${path} --orphan-branch ${branch}` +
+        '\n```',
+        { label: `auto-integrate:${repo}`, phase: 'Integrate', model: MECH_MODEL }
+      )
+      raw = typeof res === 'string' ? res : JSON.stringify(res == null ? '' : res)
+    } catch (e) {
+      log(`relay-loop: id:1048 auto-integrate threw for ${repo} ${branch} (${(e && e.message) || e}) -- fail-open, orphan stays parked, round continues`)
+      continue
+    }
+    const flat = String(raw).replace(/\s+/g, ' ').slice(0, 200)
+    if (/^MECH-ERROR exit=/.test(String(raw))) {
+      log(`relay-loop: id:1048 auto-integrate did NOT integrate ${repo} ${branch} (non-zero exit, the primitive's normal refusal channel, or a hop error): ${flat} -- orphan LEFT PARKED, main unchanged, human /relay reconcile`)
+      continue
+    }
+    if (/\bauto-integrated\b/.test(String(raw))) {
+      integrated++
+      log(`relay-loop: id:1048 auto-integrated ${repo} ${branch} -- main advanced by the primitive (all four gates green): ${flat}`)
+      continue
+    }
+    log(`relay-loop: id:1048 auto-integrate produced no success marker for ${repo} ${branch} (got '${flat}') -- treated as LEFT PARKED, fail-open, round continues`)
+  }
+  if (offered) log(`relay-loop: id:1048 auto-integrate -- offered ${offered} parked orphan(s), integrated ${integrated} (opt-in AUTO_INTEGRATE_ORPHANS; everything else stays parked for a human /relay reconcile)`)
+  return integrated
 }
 
 async function stopHeartbeat() {
