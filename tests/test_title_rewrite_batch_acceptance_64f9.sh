@@ -198,4 +198,46 @@ grep -q 'a3a3' <<<"$OK_OUT" \
   && pass "(7) the deliberately-LEFT item a3a3 is REPORTED in the accepted batch's output" \
   || fail "(7) the LEFT item a3a3 is named nowhere in the accepted batch's output -- 'left and reported' is half the acceptance, and an unreported skip is indistinguishable from an item nobody looked at:"$'\n'"$OK_OUT"
 
+# =====================================================================================
+# (8) id:227d -- A GROWN TITLE (BEFORE under budget, AFTER over budget) MUST NOT BE
+#     REPORTED AS "LEFT unmodified". The `before_title_long` scope that fixed case (3)'s
+#     class of false positive (id:521b review finding) correctly keeps an item whose
+#     BEFORE title was never over budget out of `touched` -- but the reciprocal `left`
+#     loop was UNSCOPED, so any item still over budget AFTER fell into it regardless of
+#     whether its line had actually changed. A batch that rewrites b2b2 from a short
+#     title to a much longer one, past the budget, is a real edit -- calling it "LEFT
+#     unmodified" is false on its face, in the one direction (growing PAST budget) this
+#     whole check exists to catch. Uses its own isolated fixture pair, deliberately not
+#     the shared BEFORE/OK/etc above, to exercise exactly this one item in isolation.
+# =====================================================================================
+GROW_B="$TMP/grow-before"; mkdir -p "$GROW_B/docs/ledger-notes"
+D_SHORT='- [ ] [ROUTINE] **Delta** a short title well inside the budget <!-- id:b2b2 -->'
+{ echo '# TODO'; echo; echo '## Current'; echo; echo "$D_SHORT"; } > "$GROW_B/TODO.md"
+printf '# id:b2b2\n\nExisting note body for delta.\n' > "$GROW_B/docs/ledger-notes/b2b2.md"
+
+GROW_A="$TMP/grow-after"; mkdir -p "$GROW_A/docs/ledger-notes"
+D_GROWN="- [ ] [ROUTINE] **Delta** $(printf 'x%.0s' $(seq 1 260)) <!-- id:b2b2 -->"
+{ echo '# TODO'; echo; echo '## Current'; echo; echo "$D_GROWN"; } > "$GROW_A/TODO.md"
+printf '# id:b2b2\n\nExisting note body for delta.\n' > "$GROW_A/docs/ledger-notes/b2b2.md"
+
+grow_before_long="$("$CONF" "$GROW_B/TODO.md" 2>/dev/null | grep -c 'grammar-item-title-long' || true)"
+[[ "$grow_before_long" == 0 ]] \
+  && pass "(8) fixture: b2b2's title is NOT over budget BEFORE" \
+  || fail "(8) fixture sanity: expected b2b2 to start under budget, todo-conformance found $grow_before_long over-budget titles"
+
+grow_after_long="$("$CONF" "$GROW_A/TODO.md" 2>/dev/null | grep -c 'grammar-item-title-long' || true)"
+[[ "$grow_after_long" == 1 ]] \
+  && pass "(8) fixture: b2b2's title IS over budget AFTER growing" \
+  || fail "(8) fixture sanity: expected b2b2 to be over budget after growth, todo-conformance found $grow_after_long"
+
+grow_out="$(python3 "$GATE" --before "$GROW_B" --after "$GROW_A" --skip-detectors --quiet --notes-dir docs/ledger-notes 2>&1)"
+if grep -q 'b2b2 -- LEFT unmodified' <<<"$grow_out"; then
+  fail "(8) id:227d -- a GROWN title (under budget before, over budget after) was reported as 'LEFT unmodified', but the line was edited, not left:"$'\n'"$grow_out"
+else
+  pass "(8) id:227d -- a grown title is not misreported as LEFT unmodified"
+fi
+grep -q 'b2b2' <<<"$grow_out" \
+  && pass "(8) id:227d -- the grown item b2b2 is still named somewhere in the report" \
+  || fail "(8) id:227d -- b2b2 vanished from the report entirely, silently dropping the finding:"$'\n'"$grow_out"
+
 echo "ALL PASS"
