@@ -3956,3 +3956,9 @@ Implemented Check 4 (title-rewrite batch invariance) in tools/shrink-acceptance.
 ## 2026-09-09 16:54 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:521b verified genuinely green by spec-replay against the pre-fix implementation (reddens at case 2, the acceptance's named assertion) and id:9088's 194-vs-200 vacuity claim re-derived through todo-conformance; ticked 9088's TODO twin the executor left open; FIXED a permanent expected-red umbrella (spec keyed to @container id:64f9 could never fail once seam 521b landed) and measured 9 more files in that class as id:11a4; filed id:227d for a verified rc=0 accept of a title that GREW; suite 622/0/0/3-expected-red, lint clean [id:521b,9088,227d,11a4] [id:521b,9088,227d,11a4,b437]
+
+## 2026-09-09 -- executor (claude-sonnet-5)
+
+Worked id:227d -- fixed `check_title_rewrites()`'s `left` loop in `tools/shrink-acceptance.py`: it was scoped only by `before_ids & after_ids`, not by `before_title_long` the way `touched`'s `common` set is, so an item whose BEFORE title was under budget but whose AFTER title grew past budget fell through to `left` and was reported "LEFT unmodified, still over the title budget" even though its line was edited -- exactly the direction (growing past budget) the check exists to catch. Added a third `grown` bucket (before-line differs from after-line) reported as a WARN naming the edit, deliberately reporting-only per the item's stated open design residue (whether a grown title should also FATAL-refuse is an owner call, left unsettled). New case (8) in `tests/test_title_rewrite_batch_acceptance_64f9.sh` verified to redden against the pre-fix code at the exact named assertion (the LEFT-unmodified claim) before landing the fix. Full suite 622 passed, 0 failed, 3 expected-red.
+Friction: none -- item was well-scoped, single function, one new test case.
+refactor: none needed -- scoped bugfix plus one new report bucket, no duplication introduced.
