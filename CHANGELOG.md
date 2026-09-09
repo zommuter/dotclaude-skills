@@ -24,6 +24,7 @@
 - review: id:6446 verified genuinely green by heading-replay (exactly one heading flips -- id:cd9c's own); flagged a FALSE 621/0 suite claim (actual 620/1) and FIXED the two malformed negative-case declarations that caused it; new evidence that id:8372's prose-hoist manufactures live dispatch exclusions; filed id:c076; 4 REVIEW_ME boxes (id:6446,c076)
 - Implemented Check 4 (title-rewrite batch invariance) in tools/shrink-acceptance.py, restarting from the parked orphan attempt and fixing both review findings plus a third scoping gap and the id:9088 fixture bug; all 8 RED-spec cases pass, full suite 622/0/3-expected-red. (id:521b,9088)
 - review: id:521b verified genuinely green by spec-replay against the pre-fix implementation (reddens at case 2, the acceptance's named assertion) and id:9088's 194-vs-200 vacuity claim re-derived through todo-conformance; ticked 9088's TODO twin the executor left open; FIXED a permanent expected-red umbrella (spec keyed to @container id:64f9 could never fail once seam 521b landed) and measured 9 more files in that class as id:11a4; filed id:227d for a verified rc=0 accept of a title that GREW; suite 622/0/0/3-expected-red, lint clean [id:521b,9088,227d,11a4] (id:521b,9088,227d,11a4,b437)
+- Fixed id:227d: shrink-acceptance.py's title-rewrite Check 4 no longer misreports a title that GREW past budget as "LEFT unmodified"; new case (8) in test_title_rewrite_batch_acceptance_64f9.sh reddens against the pre-fix code and passes after; full suite 622/0/3-expected-red. (id:227d)
 
 ## 2026-09-08
 
