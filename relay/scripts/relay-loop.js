@@ -4139,10 +4139,35 @@ async function sliceLedgerForUnit(unit) {
   // checkpoint family itself via --since-last-review, and refuses a slice that cannot fit
   // the budget (exit 6). Both are fail-open here, like every other branch.
   const useReviewSet = !item && unit.verdict === 'review'
+  // id:f957 — the HARD lane could never be sliced, and so a big-ledger repo could never be
+  // dispatched on it. `dispatchItemFor` -> `namedItemsFor` reads `actionable_routine_ids`
+  // EXCLUSIVELY, and a `hard` unit fires precisely when a repo has no actionable [ROUTINE]
+  // work, so that array is empty BY CONSTRUCTION: no item, verdict is not `review`, and the
+  // no-item branch below fired every time. The unit was then sized on the WHOLE ledgers, which
+  // for loderite (ROADMAP 834,162 B + TODO 825,755 B) is an automatic prompt-size refusal --
+  // observed handing back 3x in ONE run, and unfixable by archiving because its bulk is OPEN.
+  //
+  // The ids were already here: the classifier emits `open_hard_pool_ids` and `hardPoolIdsFor`
+  // (defined a dozen lines above `dispatchItemFor`) already parses it to build the prompt's
+  // item survey. The two halves simply never talked.
+  //
+  // Why the CSV and not `--id <first>`: the hard lane's contract is that the CHILD surveys the
+  // open [HARD] items and picks one it can finish (the handoff-C5 sizing rule). Slicing on a
+  // single id would silently convert that into named-item dispatch and delete the choice the
+  // lane is designed around. `--ids` (the id:dd59 shape) preserves the survey -- all items,
+  // their typed edges and TODO twins -- measured at 21,496 B against 1,659,917 B for the whole
+  // ledgers on loderite: ~77x smaller, ~5.4k tok against a 300k budget.
+  //
+  // FAIL-OPEN is preserved exactly: an empty list leaves `hardIds` empty, so the no-item branch
+  // below still fires and dispatch proceeds unsliced. This can only ever ADD a slice.
+  const hardIds = (!item && !useReviewSet && unit.verdict === 'hard') ? hardPoolIdsFor(unit) : []
+  const useHardSet = hardIds.length > 0
   // What this slice is FOR, in log lines: a single dispatch item, or the review set derived
   // from the last review checkpoint. Without this the review path logged "id:undefined".
-  const sliceLabel = useReviewSet ? 'review-set since last relay-ckpt' : `id:${item}`
-  if (!item && !useReviewSet) {
+  const sliceLabel = useReviewSet
+    ? 'review-set since last relay-ckpt'
+    : (useHardSet ? `hard-set ids:${hardIds.join(',')}` : `id:${item}`)
+  if (!item && !useReviewSet && !useHardSet) {
     // id:f499 — this was the ONE silent branch of the five the header promises "logs WHY".
     // The unsliced-branch REMEDY in oversizeDispatchReason tells the operator the relay-loop
     // log records why no slice_path was produced; without this line that remedy dead-ends for
@@ -4157,7 +4182,7 @@ async function sliceLedgerForUnit(unit) {
     const res = await agent(
       `Run EXACTLY this one command and report its stdout VERBATIM (id:e68f pre-dispatch ledger slice — writes the unit's item + typed edges to a file and prints its path):\n` +
       '```relay-mech\n' +
-      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} ${useReviewSet ? '--since-last-review' : `--id ${item}`}` +
+      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} ${useReviewSet ? '--since-last-review' : (useHardSet ? `--ids ${hardIds.join(',')}` : `--id ${item}`)}` +
       '\n```',
       { label: `ledger-slice:${unit.repo}`, phase: 'Support', model: MECH_MODEL }
     )
