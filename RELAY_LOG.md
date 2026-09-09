@@ -3785,3 +3785,56 @@ duplicate file asserting the same behaviour under a different name.
 ## 2026-09-09 09:28 — executor (sonnet, relay-loop)
 
 id:5ad9 verified genuinely done: integrate.sh step 8 + ratify-queue.sh pending-blocking withhold declared-public remotes ancestral to an unresolved queue entry regardless of unit substantiveness; RED spec test_ratify_gate_binds_remote_7408.sh (unmodified) now passes all 5 scenarios, full suite 613/0/4-expected-red. [id:5ad9]
+
+## 2026-09-09 -- reviewer (claude-opus-5, relay-loop)
+
+Chain-end review re-ask after an agent-error (run relay-20260909-091623-10249). The strict
+diff window `$LAST..HEAD` is EMPTY -- `relay-ckpt-20260909-0928` IS HEAD -- so the audit was
+run against the previous checkpoint, `relay-ckpt-20260909-0125..HEAD`, and that is stated
+here rather than silently substituted.
+
+Test-integrity audit: `gaming-scan.sh` clean (no DELETED_TEST / ADDED_SKIP / REMOVED_ASSERT),
+and `git log -- 'tests/*'` over the window is EMPTY -- not one test file changed, so the
+resurrection and fixture-special-casing checks have no candidates. Provenance greps for an
+executor-introduced `@owner-accepted:` / `@owner-answered:` / `<!-- answer-src:` returned
+nothing, and no ledger line already carrying `@owner-answered` was modified. No stash/reset/
+checkout-shaped commit in the window (faked-clean-tree check).
+
+id:5ad9 re-verified INDEPENDENTLY rather than taken from the previous review's word: the
+behaviour is on the real push path (`relay/scripts/integrate.sh` step 8's id:5ad9 block,
+`relay/scripts/ratify-queue.sh pending-blocking`), not a harness, and the RED spec
+`tests/test_ratify_gate_binds_remote_7408.sh` has exactly ONE commit in its history
+(`6433b65c`, the C3 handoff that authored it) -- it was never touched to make it pass, and it
+runs green standalone. Genuinely green; stays closed. One authoring defect recorded to
+REVIEW_ME: the item's Done-check names `tests/test_integrate_remote_gate_binds.sh`, a file
+that does not exist and never did, so that done-check could not be executed as written.
+
+Test tiers (id:f032), named rather than summarised: `make lint` + `make test` (the
+definition-of-done gate) ran GREEN -- 613 passed, 0 failed, 0 errored, 4 expected-red.
+`make baseline-staleness` ran (report-only; 1 stale row, see below). SKIPPED-TIER:
+`make verify-negatives` -- opt-in by design, explicitly not part of `make test`, seconds per
+case, and the machine was at load 25-31 from sibling pool children. SKIPPED-TIER:
+`make gaming-canary` and `make shard-canary` -- both spawn real classifier/review agents and
+cost tokens; documented as on-demand, not part of `make test`.
+
+Re-derivation: `roadmap-lint` went from 4 WARNs to 3. The one cleared was id:64f9's
+DECOMPOSED-CONTAINER -- its seams id:521b and id:b437 are both open `[ROUTINE]` in ROADMAP.md,
+so the parent is a container and now carries `@container` (id:8504's prescribed resolution;
+it is NOT ticked, because the owner reopened it on 2026-09-08). The remaining 3 WARNs
+(540f/c179 DEAD-GATE on b0b1, da55 NO-ACCEPTANCE-NO-TWIN) all predate the window and are
+already tracked under id:3294. Cross-ledger drift: clean. relay-doctor: clean apart from the
+recorded shadow-counter drift and the routed:5997 dead-letter.
+
+Reverse-handoff (5b): two items were added to TODO.md this window by a manual session --
+id:76e4 `[INPUT - decision]` (an `--afk` child hanging forever on a permissions.ask match) and
+id:73a0 `[HARD]` (a PreToolUse hook denying out-of-worktree child edits). Both are correctly
+laned with ids and detail notes; neither is promotable -- a decision-lane item and a HARD
+design task are both explicit SKIPs under 5b. Nothing to qualify.
+
+Surfaced, not acted on: this run's own id:c655 execute child died and parked 79 lines of
+unreviewed code on `relay/scripts/todo-conformance.sh`; and `make baseline-staleness` prints a
+remedy that, measured against a scratch regen, would grandfather 13 currently-over-budget
+items at their present length. Both are REVIEW_ME boxes.
+refactor: none needed -- review-only unit; the sole ledger change is one `@container` marker.
+Friction: the classifier's diff window and the review's diff window disagree when the chain
+ends on a checkpoint commit; the re-ask arrived with `$LAST == HEAD`.
