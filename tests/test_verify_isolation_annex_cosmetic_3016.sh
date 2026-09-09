@@ -2,8 +2,18 @@
 # roadmap:3016 — verify-isolation.sh must not call a git-annex worktree DIRTY on cosmetic
 # pointer noise, and must STILL catch every real dirt.
 #
-# fails-against-rev: main -- relay/scripts/verify-isolation.sh
+# fails-against-rev: 478d70d2 -- relay/scripts/verify-isolation.sh
 # fails-against-assertion: (1) cosmetic-only tree did not pass
+#
+# THE REV IS PINNED TO A SHA, NOT `main`, AND THAT IS LOAD-BEARING (review run
+# relay-20260909-143257-21736). This line read `main` as authored, which was the pre-fix tip
+# when the branch was cut. Once d5e096a5 merged, `main` CARRIED THE FIX, so the declared
+# negative case applied the fixed file to itself and the test passed against it --
+# `make verify-negatives` reported `VACUOUS -- the test PASSES against its declared negative
+# case`. A moving ref in a `fails-against-rev:` declaration is self-defeating by construction:
+# it decays into a no-op on exactly the merge that makes the fix real, and it decays SILENTLY,
+# because the opt-in runner is not part of `make test`. 478d70d2 is the last commit touching
+# this file before the fix; never re-spell this as a branch name.
 #
 # Measured against that revision: exactly ONE FAIL line fires, and it is the declared one.
 # Cases 2-5 PASS against the pre-fix code, and that is correct rather than vacuous — the old
