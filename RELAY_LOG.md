@@ -4113,3 +4113,7 @@ Friction: none — the parked orphan's breadcrumb (docs/ledger-notes/c655.md) na
 precisely, so this session started from its findings rather than from zero.
 refactor: none needed — extending the existing baseline-loader/regen/staleness structure
 with one shared parser and one repo-key helper, no new duplication introduced.
+
+## 2026-09-09 23:41 — executor (sonnet, relay-loop)
+
+id:c655 landed: relay/scripts/todo-conformance.sh's head-length and shape-prose baselines now key on repo+ledger+id (via git-common-dir), refusing legacy 3-column rows loudly; both committed baseline files regenerated in the new 4-column format; full suite 627/0/0/2-expected-red. [id:c655]
