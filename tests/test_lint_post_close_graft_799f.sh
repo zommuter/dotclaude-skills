@@ -92,10 +92,10 @@ pass "(2) an untouched landed RED spec stays exempt after its item closes"
 # still-OPEN roadmap item stays fully exempt regardless of later edits (unchanged behaviour).
 O="$TMP/open"
 mkdir -p "$O/tests"
-printf -- '- [ ] [ROUTINE] **fixture item, still open.** <!-- id:o799 -->\n' > "$O/ROADMAP.md"
+printf -- '- [ ] [ROUTINE] **fixture item, still open.** <!-- id:a799 -->\n' > "$O/ROADMAP.md"
 {
   printf '#!/usr/bin/env bash\n'
-  printf '# roadmap:o799\n'
+  printf '# roadmap:a799\n'
   printf 'set -euo pipefail\n'
   printf 'fail() { echo "FAIL: $*"; exit 1; }\n'
   printf '[[ 1 -eq 1 ]] || fail "(1) baseline"\n'
