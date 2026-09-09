@@ -183,8 +183,16 @@ pass "workflows/wf_*/journal.jsonl is never a candidate"
 # the unit child). The documented AMBIGUITY POLICY then picks the newest mtime.
 #
 # This case pins the LOUDNESS only — every candidate named on stderr, never a silent
-# pick. Whether a multi-match should instead be a hard refusal is an OWNER call, filed
-# in REVIEW_ME.md against id:5295. Do not change the tie-break to make this pass.
+# pick. Whether a multi-match should instead be a hard refusal was an OWNER call, filed
+# in REVIEW_ME.md against id:5295.
+#
+# SUPERSEDED 2026-09-09: he ruled REFUSE (that box's branch (b)), tracked as `id:6d7e` and
+# specced in tests/test_self_transcript_multimatch_refusal_6d7e.sh. The instruction that
+# stood here — "do not change the tie-break to make this pass" — no longer applies: the
+# tie-break moves behind an explicit `--allow-ambiguous` opt-in. This case needs NO edit to
+# survive that and is deliberately left as written: its newest-wins assertion is already
+# guarded by `if (( rc == 0 ))`, and its loudness assertions hold under either policy, so it
+# remains a valid regression guard on both sides of the change.
 F_PROVISIONER="$(mk_child "$WFDIR" aa1b3d25b1ab57ce3 "$WT_TILDE" 500)"
 # Make the provisioner's prompt the real shape: a bare command argument, no prose.
 printf '{"agentId":"aa1b3d25b1ab57ce3","type":"user","message":{"role":"user","content":"Run exactly this one command and report its stdout VERBATIM (id:34b7 pre-dispatch worktree creation):\\n```relay-mech\\n~/.claude/skills/relay/scripts/provision-worktree.sh /src/dotclaude-skills %s relay/x\\n```"}}\n' "$WT_TILDE" > "$F_PROVISIONER"
