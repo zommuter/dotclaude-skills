@@ -82,10 +82,27 @@ failed_names=()
 errored_names=()
 
 item_open() {
-  # roadmap item with this token exists and is unticked
+  # roadmap item with this token exists, is unticked, AND is not a CONTAINER.
+  #
+  # id:11a4: a @container / DECOMPOSED item is open indefinitely BY DESIGN -- its
+  # seams are the work, not itself. Granting EXPECTED-RED to a spec keyed to the
+  # container's own token would swallow a genuine regression forever, since the
+  # container never ticks even after every seam lands. So a line carrying the
+  # literal `@container` marker (bare or backticked) or the word `DECOMPOSED` in
+  # its own gate annotation is NOT "open" for expected-red purposes: a test still
+  # keyed to it is a real FAIL, forcing the header onto a landed/open seam id
+  # instead. This is a claim about ONE bullet's own line, not about whether the
+  # umbrella id happens to be an [INPUT - decision]/[HARD] item in general --
+  # plenty of those are legitimately open with no seam yet, and stay expected-red.
   local token="$1"
   [[ -f "$ROADMAP" ]] || return 1
-  grep -qE "^- \[ \] .*<!-- id:${token} -->" "$ROADMAP"
+  local line
+  line="$(grep -m1 -E "^- \[ \] .*<!-- id:${token} -->" "$ROADMAP")" || return 1
+  [[ -n "$line" ]] || return 1
+  if grep -qE '@container|DECOMPOSED' <<<"$line"; then
+    return 1
+  fi
+  return 0
 }
 
 # Longest-first scheduling: durations are LEARNED from previous runs into a cache

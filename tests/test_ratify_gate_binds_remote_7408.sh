@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
-# roadmap:7408
+# roadmap:5ad9
+#
+# Retargeted 2026-09-09 (id:11a4) from the container `` `@container` `` `id:7408`
+# to its seam `id:5ad9` ("integrate.sh step 8: bind the declared-public remote push
+# to the whole repo's ratification queue, not the current unit" -- Acceptance A).
+# id:7408 was DECOMPOSED into seams id:4d65 (Acceptance D, self-verifying queue
+# list) and id:5ad9 (Acceptance A, the remote-push gate this file's sections
+# (1)/(2)/(3)/(5) exercise); both seams are now `[x]` closed. This file also
+# covers section (4), a slice of Acceptance D (id:4d65) -- there is no single
+# `# roadmap:` header that names both, and id:5ad9 is the closer match for the
+# item's own title ("make the ratification gate BIND"). id:7408 stays open
+# forever by design (it is the container), so leaving this header on it would
+# have granted permanent EXPECTED-RED cover even with both seams landed; this
+# file passes green today, so the retarget is a pure keying correction.
 #
 # RED SPEC (authored by relay handoff C3, not implemented here).
 #
