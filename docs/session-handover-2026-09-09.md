@@ -116,6 +116,15 @@ Both real, both fixed in `fd8a56f3`:
 5. **`id:95c8`** -- `control-board.sh` under-counts human-lane items (helferli 2 of 19). Three
    hypotheses already tested and rejected in the note; do not re-run them.
 6. **Four `manual/*` branches are merged but not deleted** -- safe to delete whenever.
+7. **`verify-isolation.sh` has a FALSE-POSITIVE FAMILY, not a single bug.** Noticed at session
+   close and worth treating as one shape rather than three tickets: (a) `id:3016` annex pointer
+   noise -- FIXED today; (b) `id:01dc` (inbound `routed:9102` from escapement, still OPEN) --
+   the `id:88f0` ledger-only exclusion omits the ARCHIVE files, so a routine archive commit
+   reads as an isolation breach; (c) the unfiled third wrinkle from the `id:3016` note, where
+   `status --porcelain` read 0 while `git worktree remove` still judged the tree dirty. Each was
+   found separately by a different repo hitting it. The gate's predicate is "any signal means
+   unsafe", and every one of these is a signal that does not mean unsafe -- so expect more until
+   someone reframes it rather than patching case by case.
 
 ## Method notes, so they are not re-derived
 
