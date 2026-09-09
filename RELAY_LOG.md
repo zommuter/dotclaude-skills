@@ -3996,3 +3996,7 @@ reconcile integrate: chore(relay): WIP UNVERIFIED residue auto-commit for worktr
 ## 2026-09-09 20:42 — reconcile (auto/human, non-strong by design — id:c500)
 
 reconcile integrate: chore(relay): WIP UNVERIFIED residue auto-commit for worktree relay-20260909-143257-21736-execute-aa5e-0 (id:f272 commit-and-park; do not treat as reviewed)
+
+## 2026-09-09 21:21 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+handoff(dotclaude-skills): promoted id:6d7e to ROADMAP [ROUTINE] with a verified-RED spec for the ambiguous-self-marker refusal; owner's branch-(b) ruling recorded against the id:5295 review box [id:6d7e]
