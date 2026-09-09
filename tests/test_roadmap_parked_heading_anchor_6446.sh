@@ -16,17 +16,17 @@
 # survive this exact anchoring, and that is verified separately by
 # tests/test_owner_gated_first_class_f391.sh case (3), not re-proven here).
 #
-# fails-against-mutation: python3 -c "
-# import re
-# p = 'relay/scripts/lib-roadmap-sections.sh'
-# s = open(p).read()
-# s = s.replace(
-#     \"ROADMAP_PARKED_HEADING_WORDS='(^|[^A-Za-z0-9_@-])(gated|deferred|done|icebox|archive|parked)([^A-Za-z0-9_-]|\$)'\",
-#     \"ROADMAP_PARKED_HEADING_WORDS='(gated|deferred|done|icebox|archive|parked)'\",
-# )
-# open(p, 'w').write(s)
-# "
-# fails-against-assertion: classify-repo.sh actionable_routine_open=0, expected 1 (the item under a heading that merely MENTIONS a vocab word must not be parked)
+# The mutation reverts the id:6446 anchoring back to the pre-fix UNANCHORED word vocab.
+# It MUST be ONE complete bash command on a SINGLE line: a `# fails-against-mutation:`
+# heredoc split across several comment lines contributes only its FIRST line to the runner
+# (id:b890), which is then syntactically invalid -- that is how this file shipped, and
+# `test_negative_case_runner_a73c.sh` case (i) refused it. Rewritten by review 2026-09-09.
+# fails-against-mutation: python3 -c 'import re; p="relay/scripts/lib-roadmap-sections.sh"; s=open(p).read(); r=chr(39).join(["ROADMAP_PARKED_HEADING_WORDS=","(gated|deferred|done|icebox|archive|parked)",""]); s2=re.sub(r"^ROADMAP_PARKED_HEADING_WORDS=.*$", r, s, count=1, flags=re.M); assert s2 != s; open(p,"w").write(s2)'
+# The declared assertion must be the LAST `FAIL:` line the mutation makes fire, because
+# `bad()` here is a non-exiting accumulator: under the unanchored form the bash predicate,
+# classify-repo.sh, gather-repo-state.sh AND roadmap-lint.sh all go red, and matching any
+# earlier one would degrade the guarantee to little more than exit status.
+# fails-against-assertion: roadmap-lint.sh treats the mention-only heading as parked
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
