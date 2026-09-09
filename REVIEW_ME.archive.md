@@ -1211,3 +1211,43 @@ clean rounds), and the Lean toolchain pins agree at `v4.30.0-rc2`.
   **DISPOSITIONED 2026-09-09 (`/relay human`, owner-decided): LEAVE BOTH PARKED.** Both branches were re-verified this turn against `main` before deciding, not taken from the boxes: `036524f0` is `M tools/shrink-acceptance.py` +181 (adds `check_title_rewrites`, absent from `main`), `7425c29b` is +79/-15 on `relay/scripts/todo-conformance.sh` (adds the `REPO_KEY` dimension, absent from `main` — `grep -c 'REPO_KEY\|4839'` returns 1, a comment only). Neither is mergeable as it stands: `521b` breaks 2 green tests (its rewrite-vs-relocation discriminator does not exist, and it compares lanes as a multiset) and is additionally blocked behind `id:9088`'s unsatisfiable case 3, so cases 4-7 have never run; `c655` breaks 10 tests, hard-`exit 2`s on legacy 3-column baseline rows without regenerating the committed baselines (so the tool can no longer lint its own repo), and did only the shape-prose half while an added comment falsely claims all three baseline readers share the new parser. Discarding was rejected because both `docs/ledger-notes/521b.md` and `docs/ledger-notes/c655.md` record the reviewed findings AND instruct the next executor to start FROM the branch ("do not start from zero"), and both ROADMAP items (`id:521b` at ROADMAP.md:186, `id:c655` at ROADMAP.md:174) already carry the `PARKED: ... read the note before restarting` breadcrumb. The branches stay on disk as the documented restart point; neither item is ticked and neither is credited. Re-check on the next restart, not before.
 
 - [x] *(CLOSED 2026-09-09 `/relay human`: SUPERSEDED by the newest snapshot in the 2026-09-09b section; `routed:5997` filed this turn.)* **`relay-doctor` (report-only), recorded so the silence is on the record rather than assumed.** Cross-ledger drift: CLEAN (`orphan-scan.sh --cross-ledger` returned nothing). `relay.toml` parse, reference-install completeness, install-drift, quota-config, lean-toolchain pins, trunk-vs-remote, `core.hooksPath` shadowing (59 repos, 0 empty-shadow, 2 deliberate): all clean. `relay-core` shadow now reports 35,850 mismatches over 331,154 rounds, up from 34,925/328,396 at the previous review — bash stays authoritative and the flip gate (100% parity + N=5 clean rounds) is moving AWAY, not toward. `routed:5997` -> `[inflownistration]` remains an inbox dead-letter (routing it is a cross-repo act this worktree must not perform). The single "retirable worktree" is this review's own live child, not residue.
+
+## Handoff 2026-09-09 (run `relay-20260909-185356-12943`, user-injected id:5295)
+- [x] **A relay worktree path is NOT a unique self-marker -- it matches at least two transcripts
+  per unit -- and `self-transcript.sh` resolves that by picking the newest mtime. Should a
+  multi-match be a hard refusal instead? Your call; I did not change it.** Measured live during
+  this handoff, session `88e0cae7`: probing with the tilde-spelled worktree matched **two**
+  transcripts -- the unit child (`agent-a7e1a9161a4073efc`) and the `id:34b7`
+  `provision-worktree.sh` mechanical child (`agent-aa1b3d25b1ab57ce3`), whose own dispatch prompt
+  names the same worktree as a command argument. The tie-break picked correctly here, but its
+  stated justification no longer covers the case: the resolver's AMBIGUITY POLICY argues *"the
+  calling agent is by definition actively writing its own transcript right now, so its file has
+  the newest mtime"*, which held for the resume-child case it was written for (`id:a4e9`) and does
+  not hold for a **concurrent** sibling. A wrong pick makes `context-budget.sh --self` measure
+  someone else's context and return a confidently wrong `ok`/`handback` -- worse than the
+  `unknown` the item is fixing, because nothing downstream can tell it apart from a real verdict.
+  **The two defensible readings, and why I refused to choose:** (a) keep mtime, on the grounds
+  that the provisioner is short-lived and always finishes before the unit child starts, so the
+  ordering is structural rather than lucky -- but that is an argument about today's dispatch
+  order, exactly the kind of premise this repo keeps finding rotted; (b) exit 4 on any
+  multi-match, which fails open to `unknown` and is honest, at the cost of disabling rule 2c for
+  every pooled child until a genuinely unique marker exists -- and a unique marker means either a
+  dispatch nonce (`relay-loop.js` change, the loop-crash class) or matching on something narrower
+  than the path. `id:5295`'s RED spec (`tests/test_self_transcript_tilde_marker_5295.sh`, case 8)
+  therefore asserts only that the multi-match is **LOUD** -- every candidate named on stderr -- and
+  explicitly tells the executor not to touch the tie-break. If you pick (b), case 8 needs its
+  `rc == 0` branch inverted and the item's Acceptance amended in the same edit. <!-- id:5295 -->
+
+  **RULED 2026-09-09 -- branch (b), REFUSE.** The owner answered by injecting the work as the
+  high-priority unit of run `relay-20260909-205831-5121`, in his own words: the resolver *"must
+  exit non-zero and name every candidate, with any most-recent behaviour behind an explicit
+  opt-in flag, so `context-budget.sh --self` reports unknown rather than a number computed from
+  another child's transcript"*, because **a wrong byte count is worse than `unknown` -- it looks
+  authoritative**. Tracked as `id:6d7e` (ROADMAP.md, `[ROUTINE]`), RED spec written this handoff
+  as `tests/test_self_transcript_multimatch_refusal_6d7e.sh`. The box's own closing instruction
+  is superseded on one point of detail, verified rather than assumed: case 8 does NOT need its
+  `rc == 0` branch inverted -- that branch is already conditional and its loudness assertions
+  hold under either policy, so the case stays green as written; only its stale "do not change the
+  tie-break" comment was updated. The cost the box named is real and accepted: rule 2c yields
+  `unknown` for every pooled child until the marker is made unique at source, which stays a
+  separate lane call.
