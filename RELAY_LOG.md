@@ -4000,3 +4000,30 @@ reconcile integrate: chore(relay): WIP UNVERIFIED residue auto-commit for worktr
 ## 2026-09-09 21:21 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 handoff(dotclaude-skills): promoted id:6d7e to ROADMAP [ROUTINE] with a verified-RED spec for the ambiguous-self-marker refusal; owner's branch-(b) ruling recorded against the id:5295 review box [id:6d7e]
+
+## 2026-09-09 21:5x — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review (run `relay-20260909-205831-5121`, chain-end re-ask): the literal latest tag was HEAD, so the
+window was widened to the last reviewer checkpoint `relay-ckpt-20260909-1939`..HEAD -- 21 commits
+containing NO executor unit (one handoff promoting id:6d7e, two reconcile integrates of auto-parked
+residue). Nothing was closed, so nothing is claimed verified-green. Tiers: `make test` (lint + unit)
+623 passed / 0 failed / 0 errored / 5 expected-red; SKIPPED-TIER: `make verify-negatives` -- opt-in,
+not part of `make test`, seconds per case; SKIPPED-TIER: `make check-statusline-deps` -- opt-in
+environment probe. No e2e/integration tier is declared. gaming-scan clean on both windows; provenance
+greps clean; the one modified closed-item test (`test_self_transcript_tilde_marker_5295.sh`) is a
+comments-only edit with no assertion touched.
+Findings: this child's OWN worktree and branch were destroyed twice mid-run while it held the repo
+lease -- the recurrence of `id:6e02`, whose note still called itself the "first logged instance", and
+whose observe-first gate is therefore now fired. `relay-doctor.sh` had published the live worktree as
+`RETIRABLE RESIDUE ... no work at risk` minutes earlier. Recovered by re-provisioning and making an
+empty marker commit immediately, the workaround `id:6e02` itself documents; the recurrence is written
+up in `docs/ledger-notes/6e02.md` with the edit declared in its header.
+Ledger work: breadcrumbed `id:799f` (141 lines of unverified partial implementation already merged to
+main via `3929d248`/`71f51e78`, spec case 3 red -- read that diff, do not restart from scratch) and
+`id:aa5e` (its park `18359d7a` contains NO aa5e work at all -- it is `id:0165`'s test cases; the seam
+starts clean). Reverse-handoff (§5b): three TODO items added this window -- `id:6d7e` was already
+promoted by the handoff (same token, no duplicate minted); `id:40cf` is `[INPUT - decision]` and
+correctly stays in TODO; `id:7f4c` is tagged `[ROUTINE]` but its acceptance says "Pick one and state
+which" among three fix shapes, so it was NOT promoted -- promoting it would settle a design choice
+that is the owner's. No new ids minted. 4 REVIEW_ME boxes. routine_open 6 actionable, but only
+`aa5e`/`799f`/`6d7e` are dispatchable: `11a4`/`b437`/`c655` are orphan-suppressed. [id:6e02,799f,aa5e,0165,7f4c]

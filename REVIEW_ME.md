@@ -3,6 +3,79 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-09-09d (run `relay-20260909-205831-5121`, chain-end re-ask)
+
+Window: the literal latest tag `relay-ckpt-20260909-2121` IS HEAD (the chain ended on a handoff),
+so that window is empty and vacuous. Widened to the last *reviewer* checkpoint,
+`relay-ckpt-20260909-1939`..HEAD -- 21 commits, no executor unit among them: one handoff (promoting
+`id:6d7e`) and two reconcile integrates of auto-parked residue. **No item was closed this review, so
+nothing was verified-green and the §2d over-reach check has no closed item to test.** Tiers: one
+declared tier, `make test` (runs `lint` first) -- **623 passed / 0 failed / 0 errored / 5
+expected-red** (`4839` x2, `6217`, `799f`, `6d7e`, all open items). `make verify-negatives` and
+`make check-statusline-deps` are opt-in and NOT in `make test`; RECORDED-SKIP, not folded into the
+green claim. No e2e/integration tier is declared (no `.github/workflows`). `gaming-scan.sh`: clean
+over both the literal and the widened window. Provenance greps (§2b.7/2b.9/2b.10) CLEAN -- no
+`@owner-accepted` / `@owner-answered` / `answer-src:` minted or modified. §2b.1 resurrection: the one
+modified closed-item test, `tests/test_self_transcript_tilde_marker_5295.sh`, changed **comments
+only** -- no assertion touched; legitimate. `relay-doctor`: cross-ledger drift clean, `roadmap-lint`
+grammar clean (2 pre-existing DEAD-GATE warns on `540f`/`c179` and 1 NO-ACCEPTANCE-NO-TWIN on
+`da55`, all previously known).
+
+- [ ] **`id:6e02`'s observe-first gate has FIRED -- this review child's own worktree and branch were
+  destroyed TWICE mid-run, while it held the repo lease.** `id:6e02` was filed 2026-07-01 as
+  `[INPUT - meeting]` and closes "Observe-first: first logged instance". That is no longer true.
+  Same repo, same shape, same ~1-minute window: the pre-created worktree
+  `relay-20260909-205831-5121-review-repo-0` and its branch vanished mid-audit while `claim.sh peek`
+  still showed this run holding the lease **with that exact worktree path recorded in the claim**;
+  re-provisioning produced a replacement that was destroyed again about a minute later. Only the
+  third attempt survived, because it made an empty marker commit immediately -- the workaround the
+  2026-07-01 note already describes. **The new evidence is that a shipped tool actively RECOMMENDS
+  the deletion:** `relay-doctor.sh`, run by this child minutes before the first reap, listed the
+  child's own live worktree under `RETIRABLE RESIDUE ... 4 retirable item(s) -- no work at risk;
+  retire with worktree-retire.sh --expect-merged`. "No work at risk" was false as printed. A review
+  child is the worst case, because it accumulates no commits until its ledger edits at the very end,
+  so its tip equals `main` for nearly its whole life and is `branch -d`-deletable throughout.
+  **`id:7570` does not cover this** -- it is keyed on the same zero-commit predicate, so it is inert
+  for exactly the window in which a review child is vulnerable. **Your call, and the lane stays
+  `[INPUT - meeting]`:** the note poses two options, and the marker-commit-at-birth one is now much
+  the cheaper to evaluate -- `provision-worktree.sh` is already the single pre-dispatch creation
+  point (`id:34b7`), so it is one `git commit --allow-empty` in one place and closes the window
+  structurally, rather than asking every present and future sweep to remember to consult the claim.
+  That is a cost argument, not a recommendation to adopt it; consulting the claim may still be the
+  right or the additional answer. Full recurrence write-up appended to `docs/ledger-notes/6e02.md`
+  (edit declared in its header). <!-- id:6e02 -->
+
+- [ ] **`id:0165`'s implementation landed GREEN on main inside an UNVERIFIED park labelled for a
+  different item, and the item's lane disagrees across the two ledgers.** The residue commit
+  `18359d7a` says *"for worktree ...-execute-aa5e-0"*, but its entire content is `id:0165`'s work:
+  62 lines adding the `(b3)` sed-TOCTOU and `(b4)` awk-failure mutation-pinning cases to
+  `tests/test_workflow_check_hardening.sh`. The 20:42 reconcile merged it to main and those cases now
+  pass, so `id:0165`'s two named unpinned mechanisms appear to be pinned. **I did not tick it**, for
+  two reasons: it arrived through a path stamped "do NOT treat as reviewed", and the item is
+  `[INPUT - decision]` in `ROADMAP.md:177` but `[ROUTINE]` in `TODO.md:869`. **That lane divergence is
+  invisible to `orphan-scan --cross-ledger`, which compares checkbox state and both are `- [ ]`** --
+  worth knowing independently of this item. Needs your call on whether the landed cases close it and
+  which lane is correct. <!-- id:0165 -->
+
+- [ ] **`id:7f4c` is `[ROUTINE]` in TODO but its acceptance clause does not name a fix -- it asks the
+  reader to pick one of three.** Added to `TODO.md` this window with a full Acceptance and Done-check,
+  which is why it reads as execution-ready, but the acceptance literally says *"Pick one and state
+  which: (a) ... (b) ... (c) ..."*. Its own note recommends (a) and rejects (c). Per review.md §5b I
+  did **not** mini-handoff it to `ROADMAP.md`: promoting it as `[ROUTINE]` would settle a live design
+  choice on your behalf, which is the delegated-verdict class. It is load-bearing right now -- it
+  describes the exact orphan-suppression lockout this repo is sitting in (3 of 6 actionable
+  `[ROUTINE]` ids suppressed today). Either pick (a)/(b) so it can be promoted, or re-lane it
+  `[INPUT - decision]`. <!-- id:7f4c -->
+
+- [ ] **Five parked orphans are suppressing 3 of this repo's 6 actionable `[ROUTINE]` items, and two
+  of the five are unnamed.** `discover-repo.sh` publishes `suppressed_item_ids = [11a4, b437, c655]`,
+  leaving only `aa5e`, `799f`, `6d7e` dispatchable. Per `docs/ledger-notes/7f4c.md` these are NOT one
+  class and must not be swept together: `c655` is a deliberate, owner-ratified park kept as the
+  documented restart point, whereas `11a4`/`b437` are run-1 context-death residue. The two
+  `-execute-repo-0` branches (from runs `relay-20260908-231617-32609` and
+  `relay-20260909-185356-12943`) are unnamed -- they carry no item id in their key, which is itself
+  the `id:7f4c` unnamed-unit signature. Disposition is a `/relay reconcile` decision, i.e. yours.
+
 ## Review 2026-09-08 (run `relay-20260908-174448-4421`, chain-end re-ask)
 
 Window `relay-ckpt-20260908-1835`..HEAD -- the last *reviewer* checkpoint, not the literal latest
