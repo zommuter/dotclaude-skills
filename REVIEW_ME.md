@@ -3,6 +3,33 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Handoff 2026-09-09 (run `relay-20260909-185356-12943`, user-injected id:5295)
+
+- [ ] **A relay worktree path is NOT a unique self-marker -- it matches at least two transcripts
+  per unit -- and `self-transcript.sh` resolves that by picking the newest mtime. Should a
+  multi-match be a hard refusal instead? Your call; I did not change it.** Measured live during
+  this handoff, session `88e0cae7`: probing with the tilde-spelled worktree matched **two**
+  transcripts -- the unit child (`agent-a7e1a9161a4073efc`) and the `id:34b7`
+  `provision-worktree.sh` mechanical child (`agent-aa1b3d25b1ab57ce3`), whose own dispatch prompt
+  names the same worktree as a command argument. The tie-break picked correctly here, but its
+  stated justification no longer covers the case: the resolver's AMBIGUITY POLICY argues *"the
+  calling agent is by definition actively writing its own transcript right now, so its file has
+  the newest mtime"*, which held for the resume-child case it was written for (`id:a4e9`) and does
+  not hold for a **concurrent** sibling. A wrong pick makes `context-budget.sh --self` measure
+  someone else's context and return a confidently wrong `ok`/`handback` -- worse than the
+  `unknown` the item is fixing, because nothing downstream can tell it apart from a real verdict.
+  **The two defensible readings, and why I refused to choose:** (a) keep mtime, on the grounds
+  that the provisioner is short-lived and always finishes before the unit child starts, so the
+  ordering is structural rather than lucky -- but that is an argument about today's dispatch
+  order, exactly the kind of premise this repo keeps finding rotted; (b) exit 4 on any
+  multi-match, which fails open to `unknown` and is honest, at the cost of disabling rule 2c for
+  every pooled child until a genuinely unique marker exists -- and a unique marker means either a
+  dispatch nonce (`relay-loop.js` change, the loop-crash class) or matching on something narrower
+  than the path. `id:5295`'s RED spec (`tests/test_self_transcript_tilde_marker_5295.sh`, case 8)
+  therefore asserts only that the multi-match is **LOUD** -- every candidate named on stderr -- and
+  explicitly tells the executor not to touch the tie-break. If you pick (b), case 8 needs its
+  `rc == 0` branch inverted and the item's Acceptance amended in the same edit. <!-- id:5295 -->
+
 ## Review 2026-09-08 (run `relay-20260908-174448-4421`, chain-end re-ask)
 
 Window `relay-ckpt-20260908-1835`..HEAD -- the last *reviewer* checkpoint, not the literal latest
