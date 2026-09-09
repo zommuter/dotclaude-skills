@@ -1076,3 +1076,71 @@ pointer in `CLAUDE.md` is `v18`, matching the canonical marker -- no refresh nee
   shapes, owner's call: pass `actionable_routine_ids` into the executor's dispatch prompt as the
   permitted set, or restate the marker exclusions in `executor-contract.md` rule 1 (cheaper, but
   it is prose an executor can miss -- the `id:d35a` failure mode). <!-- id:c076 -->
+
+## Review 2026-09-09 (run `relay-20260909-143257-21736`, chain-end re-ask)
+
+Window `relay-ckpt-20260909-1547`..HEAD -- the last *reviewer* checkpoint, not the literal latest
+tag (`relay-ckpt-20260909-1609`), which is HEAD itself and would have given an empty, vacuous
+window. One work unit in it: `id:521b` + `id:9088` (executor, sonnet). Tiers: one declared test
+tier, `make test` / `tests/run-tests.sh` -- **622 passed / 0 failed / 0 errored / 3 expected-red**,
+independently re-run here and matching the executor's claim (the previous review caught a FALSE
+621/0 claim, so this was verified rather than taken). No `e2e`/`integration` tier is declared (no
+`.github/workflows`), so nothing was silently skipped; `make verify-negatives` is opt-in and not
+part of `make test`. `gaming-scan.sh`: CLEAN, no output. Provenance greps CLEAN: no
+`@owner-accepted` / `@owner-answered` / `answer-src:` minted or modified this window. No
+`[host:]` tag on any reviewed item, so the id:43b9 host gate does not apply. `orphan-scan
+--cross-ledger`: clean. `roadmap-lint`: 3 pre-existing WARNs (DEAD-GATE id:540f and id:c179 both
+gated on `b0b1`, which lives only in TODO.md; NO-ACCEPTANCE-NO-TWIN id:da55) -- unchanged by this
+window, already known.
+
+**Verified green: `id:521b`.** Not taken on the suite result. The RED spec was replayed against
+the PRE-fix `tools/shrink-acceptance.py` (restored from `relay-ckpt-20260909-1547`) and reddens at
+case (2) -- exactly the assertion the item's acceptance names as the failing one -- then passes all
+8 cases against the new implementation. The one test-file change in the window is INPUT-only (the
+case-3 fixture string); every assertion is byte-identical, so the resurrection check's negative
+control holds.
+
+**`id:9088` independently confirmed and ticked.** The claim was that case 3 was UNSATISFIABLE -- a
+fixture title of 194 chars against the 200 it must exceed. Re-derived by feeding both the old and
+new fixture lines to `relay/scripts/todo-conformance.sh` directly: the OLD line emits only
+`shape-new` and NO `grammar-item-title-long`, the NEW line emits `grammar-item-title-long (280
+chars of title, approximate max 200)`. The case genuinely could not fail for the reason it named.
+Its TODO.md checkbox was left open by the executor's tick commit despite that commit's message
+saying `+ TODO twins [id:521b,9088]`; ticked here.
+
+- [ ] **A shrink batch that makes a title LONGER is accepted, and is misreported as a deliberate
+  leave.** Filed as `id:227d`. `check_title_rewrites()` scopes `common`/`touched` to items whose
+  BEFORE title was already over budget (a correct fix for a real false positive), but the `left`
+  loop iterates `before_ids & after_ids` UNSCOPED. Measured with a constructed fixture pair: an
+  item rewritten from a 66-char title to a 280-char title exits **rc=0, ACCEPTED**, printing
+  `items checked=0   touched=0   left-still-over-budget=1` -- describing as `LEFT unmodified` a
+  line that was modified, in the one direction a shrink gate exists to prevent. **The judgment
+  call is yours**: the misreport is unambiguously a bug and `id:227d` owns fixing it, but whether
+  a grown title should additionally be a FATAL refusal has a real blast radius (it could newly
+  reject otherwise-honest batches). The item deliberately does NOT decide that. <!-- id:227d -->
+
+- [ ] **A spec keyed to a `@container` id is never allowed to fail -- 9 more files are in this
+  state, 3 of them red and swallowed today.** Filed as `id:11a4`. `run-tests.sh`'s `item_open`
+  is satisfied by any open `- [ ]` line with the token, and a `@container`/`DECOMPOSED`/`[INPUT -
+  decision]` item is open indefinitely by design. This review found it live: the id:64f9 spec was
+  green for `id:521b` yet still reported EXPECTED-RED, so a regression in it would not have failed
+  the suite. **I fixed that one file** (retargeted its header `# roadmap:64f9` -> `# roadmap:521b`,
+  with the reasoning written into the file). I did NOT sweep the other 9 -- retargeting is only
+  safe per-file, since a spec whose seam has not landed is legitimately red. Your call on whether
+  the runner should hard-refuse a container key or merely warn. <!-- id:11a4 -->
+
+- [ ] **This queue is at 65 open boxes against its own stated `Max ~10`, and I did not prune it.**
+  The file's header says the reviewer prunes resolved boxes each review turn; the repo convention
+  (CLAUDE.md) says REVIEW_ME is compacted by ARCHIVING resolved boxes rather than by relocating
+  their prose, and to do it aggressively. Adjudicating 65 boxes is not a rushed side-task inside a
+  review turn -- deciding a box is resolved is exactly the judgment that must not be guessed, and
+  most boxes here carry no `id:` so no tooling reaches them. Surfacing rather than sweeping is the
+  conservative default. If you want this mechanized, it wants its own item.
+
+- [ ] **Cross-repo dead-letter, unresolved: `routed:d357` -> `it-infra`.** `relay-doctor` reports
+  it absent from both `it-infra`'s TODO.md and ROADMAP.md (route `www.whaleverifier.com` through
+  the fievel tunnel; blocked because the stored Cloudflare token lacks
+  `cfd_tunnel/*/configurations`, error 1001). Left untouched deliberately: it targets another
+  repo, and `scan-routed` is report-only unless run with `--apply`. Noted here so it is not lost.
+  `relay-doctor` also reports the relay-core shadow at 37,312 mismatches over 339,373 rounds --
+  pre-existing, bash stays authoritative.
