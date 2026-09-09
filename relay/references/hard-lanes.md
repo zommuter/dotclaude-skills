@@ -25,6 +25,26 @@ silently default a disposition).
 
 ## The three lanes
 
+> **READ THIS BEFORE THE TABLE -- the spellings below are the RETIRED venue-keyed forms.**
+> Banner added 2026-09-09 (declared edit). The table is left INTACT because the dual-vocab
+> migration window is still open and both spellings are still ACCEPTED by every detector --
+> but a reader landing here gets the old vocabulary presented as current, with the rename
+> mapping ~300 lines further down under "Rename mapping (old -> new)". That is not
+> hypothetical: on 2026-09-09 a live peer session cited line 32 to its owner as the current
+> form and was wrong because this file taught it so.
+>
+> The CANONICAL capability-keyed forms are:
+>
+> | This table says | Write this instead |
+> |---|---|
+> | `[HARD - pool]` | `[HARD]` |
+> | `[HARD - meeting]` | `[INPUT - meeting]` |
+> | `[HARD - decision gate]` | `[INPUT - decision]` |
+> | `[HARD - hands]` | NO 1:1 default -- fragments across FOUR `[INPUT - …]` destinations by human judgment |
+>
+> `relay/scripts/lane-convert.sh` performs the three unambiguous renames. Emit the new form
+> when writing; accept both when reading.
+
 Every open `[HARD]` ROADMAP item declares exactly one lane in its bracket tag:
 
 | Lane tag | Disposition | Who runs it |
