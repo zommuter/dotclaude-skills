@@ -1,29 +1,47 @@
-# Session handover -- 2026-09-08 (Opus 5, 1M)
+# Session handover -- 2026-09-08/09 (Opus 5, 1M)
 
 Point-in-time snapshot for the next session. Durable detail lives in the ledger items and
 notes cited below -- read those; do not trust this doc if it disagrees with them.
 
-## Can the pool be run again? YES -- verified, not assumed
+*Second half written unattended at 03:47 on 09-09 by a scheduled backstop, after the
+overnight pool died without sending a completion notification.*
 
-Checked at handover, all green:
+## Can the pool be run again? YES -- verified at 03:47 on 09-09, not assumed
 
 | Precondition | State |
 |---|---|
-| `make test` | **609 passed, 0 failed, 0 errored, 5 expected-red** |
-| Working tree | clean, pushed (`eeead92e`) |
-| Parked orphans, all own repos | **0** |
-| Stranded branches | **0** |
-| Relay worktrees on disk | **0** |
-| Live claims | **0** |
+| Working tree | clean, pushed (`98fc043a`) |
+| Parked orphans, all own repos | **0** -- nothing at risk |
+| Retirable worktree residue | **4** (merged, no unmerged work) -- see below |
 | Live pools | none (only the non-pool `discovery-producer` heartbeat) |
-| `ratification_pending` | **0** |
+| `make test` | **610 passed, 0 failed, 5 expected-red** (measured 09-08 pre-pool; NOT re-run after the pool's own commits -- re-run before trusting it) |
 
-Run `/relay --intensive` (or plain `/relay`) as normal. The last run stopped cleanly via a
-targeted sentinel; nothing is wedged and no residue is left to trip over.
+**Retirable residue, deliberately LEFT for you** (`relay-reconcile.sh --all` says no work is
+at risk; the unattended-conservative rule is surface-don't-act, so nothing was disposed of):
 
-**One caveat that is NOT a blocker:** the `id:b54b` hermeticity guard false-fires while relay
-worktrees are live (`id:c132`/`id:b87b`). There are none right now, so a suite run today is
-trustworthy; during a pool run it may fire spuriously. Re-run once before believing it.
+```
+worktree-retire.sh dotclaude-skills ~/.cache/relay/worktrees/dotclaude-skills/relay-20260908-231617-32609-execute-64f9-0 relay/relay-20260908-231617-32609-execute-64f9-0 --expect-merged
+  (same for -execute-64f9-1 and -execute-repo-0)
+worktree-retire.sh wisenheimer ~/.cache/relay/worktrees/wisenheimer/relay-20260908-231617-32609-hard-repo-0 relay/relay-20260908-231617-32609-hard-repo-0 --expect-merged
+```
+
+**The `id:b54b` hermeticity caveat is RESOLVED, not merely dormant.** The prior handover said
+the guard false-fires while relay worktrees are live. The 609-green run on 09-08 was taken
+under **29 live worktrees**, which is exactly that condition -- so the fix (commit `40af4ebb`,
+"exclude harness agent worktrees from the hermeticity snapshot", already merged to main) works.
+Its `b54b-fix` worktree is leftover residue and can be removed.
+
+## The overnight pool DIED without reporting -- read this before relaunching
+
+Run `relay-20260908-231617-32609` (`--afk --execute-agent-type relay-implementer`) is **gone
+from the heartbeat registry** with **one child still in-flight**; its last `RELAY_STATUS.md`
+write was 01:25, and no Workflow completion notification ever arrived. It was found dead at
+03:47 by a scheduled backstop, not by the notification path.
+
+Final state: **12 dispatched, 8 completed, 8 blocked, 1 in-flight at death, agent-failures=0.**
+Eight checkpoints landed (project_manager, zkWhale, and six on dotclaude-skills). No orphans,
+no lost work -- but **the death itself is unexplained and is the first thing to look at.**
+This is the `id:98f0` outage-watchdog case firing for real: nothing local noticed for 2h20m.
 
 ## READ THIS FIRST: the custom agent definitions
 
@@ -79,8 +97,77 @@ a definition carrying the literal default roster reproduces the default child wi
 which is evidence the 21 names are right. The old probe failed exactly this check -- `Glob`,
 `Grep` and `TodoWrite` are NOT real tool names here, so it declared 11 of which 8 resolved.
 
+## MEASURED 03:47 on 09-09: half the unit children never read their contract
+
+The owner asked whether the executor contract should be BAKED into the agent definition's
+system prompt (generated, kept in sync) instead of each child `Read`ing it at runtime. The
+deciding question was whether children actually read it. Measured on run
+`relay-20260908-231617-32609`'s 12 real unit children (denominator taken from
+`*.meta.json` `agentType`/`model`, NOT from prompt-text grepping -- a looser filter first gave
+a garbage n=76 by sweeping in discovery shards and the 225 mechanical `bash` hops):
+
+| Tier | children | read a governing ref doc | read NONE | **edited anyway, unbound** |
+|---|---|---|---|---|
+| `relay-implementer` / sonnet (execute) | 6 | 4 (all at tool call #2) | 2 | **1** |
+| `workflow-subagent` / opus (review, hard) | 6 | 2 | 4 | **3** |
+| **total** | **12** | **6** | **6** | **4** |
+
+**Half the unit children read no contract at all, and four of twelve edited a repo without
+ever loading the rules that govern them.** Zero read it *late* (after a first edit) -- the
+failure mode is not reading it at all. Children that did read it did so immediately, at tool
+call #2, so the instruction works when it is followed; it is simply skippable.
+
+**Opus children were counted fairly.** Review/hard children legitimately follow
+`references/review.md` rather than the executor contract, so "read a governing ref doc" counts
+either. Even so, 4 of 6 Opus children read **nothing**: `a0d18f73` (13 tools, no edit),
+`a5c56711` (edit@42), `acb7b65b` (edit@21), `afdc0e13` (edit@23). The one clean Opus child
+read all three docs. Note the direction, which is the opposite of the usual prior: the trimmed
+Sonnet definition had the BETTER read rate (4/6) than Opus (2/6).
+
+**This settles the reliability half of the bake question, and it is the whole case.** Baking
+is token-neutral (the same ~31KB arrives via the system prompt instead of a `Read`), so it buys
+no window headroom -- its only prize is that a system prompt cannot be skipped, and the skip
+rate is now measured at 50% rather than assumed. It would also dissolve the `id:9eb7` SKILL
+COUNTERMAND paragraph outright.
+
+**NOT DECIDED -- this is the owner's call, and the argument against is real.** Agent
+definitions are read once at session start, so a baked contract cannot be updated for a running
+pool, or by `make install-agents`, until a restart -- today a contract edit reaches the very
+next child. And the `id:35b7`/`id:4f9b` prompt-size gate sizes the *brief*: move 8-12k into the
+system prompt and the gate stops counting bytes that still consume the window (the `id:f3d2`
+class). **Recommended shape if adopted:** split rather than bake wholesale -- the binding rules
+(contract lines 7-280, ~21KB) generated into the body where they cannot be skipped, the
+reference tail (ROADMAP format, RELAY_LOG conventions, maintenance -- ~10KB) left as a live
+`Read`. Add a `--check` digest gate, the pattern `tools/memory-index.py --check` already uses.
+Filed as an information-flow instance for inflownistration (`routed:5997`).
+
+**Caveats: n=12, one run, and `verdict=` was not recoverable from the prompt text**, so the
+review-vs-hard split within the Opus six is not established. The headline (6/12 read nothing,
+4/12 edited unbound) does not depend on it.
+
+## `EXECUTE_AGENT_TYPE` WORKED in a live pool -- `id:c3c1` step 4 is validated end-to-end
+
+Six execute children ran with `agentType: relay-implementer` / `model: sonnet`, confirmed in
+their `*.meta.json`. No `Agent type '<name>' not found` failures, `agent-failures=0`. The
+fail-loud path was therefore **not** exercised (open thread 3 stands -- it is still unproven
+against a live rejection), but the happy path is now proven in production rather than by
+inspection.
+
 ## What LANDED this session
 
+- **`id:4263` FIXED and ticked** (`abc681c3`). `relay-reconcile.sh`'s `integrate_branch()` no
+  longer pushes `--all`: it sources `lib-private-remote.sh` (the same single predicate
+  `integrate.sh` uses), classifies each remote by push URL, and pushes only provably-private
+  ones via repeated `--remote`. Public/unproven remotes are withheld and surfaced loudly, URL
+  deliberately unprinted. **Fail-closed** -- an absent predicate lib withholds everything.
+  Test `tests/test_reconcile_private_remote_push_4263.sh`, five cases, negative case
+  machine-verified (`green-now OK` / `red-there OK` against a mutation restoring `--all`).
+  The urgency the item as filed did NOT record: it is reachable **unattended** via
+  `relay-loop.js:4860` -> `--auto-restart` -> its own `--all --auto` -> the same shared
+  `integrate_branch`. Scope limit: no ratification-queue entry is minted (`id:6a5d`).
+- **The corrected preamble split** -- see the probe section above. The win is the TOOL LIST,
+  not the system prompt, by ~89:1, inverting the retracted finding in direction as well as
+  magnitude. Written into `docs/ledger-notes/c3c1.md` and `77d9.md` (`08f35661`).
 - **`id:c3c1` step (1) DISCHARGED** -- the owner's 2026-08-22 "prove the shrink cheaply
   before migrating" ruling, unexercised for three weeks. `echo-runner` at matched haiku:
   **54,844 -> 29,796 = 25,048 saved, 45.7%.** The mechanism works. The prompt-vs-tools SPLIT
@@ -113,18 +200,30 @@ which is evidence the 21 names are right. The old probe failed exactly this chec
 
 ## OPEN threads, priority order
 
-1. ~~Re-run the probes~~ **DONE** (above). Sizing is settled; the trim is worth 41.6% per
-   executor child and the hard subset-decision gate turned out not to exist.
-2. **`EXECUTE_AGENT_TYPE` is off by default and needs front-door threading.** The Workflow
-   sandbox has no `process.env`, so the env var only works if `/relay` reads it and passes
-   `args.EXECUTE_AGENT_TYPE`. Same shape as `POOL_WIDTH`; a forgotten thread means the knob
-   is silently off.
-3. **The fail-loud regex is unproven against a live rejection.** It matches all three real
-   error spellings found on disk, but a harness reword disarms it silently.
-4. **`executor-contract.md:229-243` tells children to prefer `Grep`/`Glob`/LSP** -- tools
+1. **WHY DID THE POOL DIE?** Run `relay-20260908-231617-32609` vanished from the heartbeat
+   registry with a child in flight and never notified. Nothing local noticed for 2h20m --
+   the `id:98f0` outage watchdog exists for exactly this and did not reach anyone. Start
+   here; a pool that can die silently makes every unattended run untrustworthy.
+2. **Decide the bake-vs-split question** (measurement above, `routed:5997`). Owner's call.
+3. **`ae932ecfc6732dad` edited without reading the contract** -- the one execute child that
+   did. Worth reading its transcript to see whether it violated a rule it never loaded, which
+   would convert the bake question from a hygiene argument into a correctness one.
+4. **The fail-loud regex is STILL unproven against a live rejection.** Six children ran under
+   `relay-implementer` and all resolved, so the rejection path never fired.
+5. **`executor-contract.md:229-243` tells children to prefer `Grep`/`Glob`/LSP** -- tools
    that do not exist in this harness. Pre-existing; same fictional-name class that
-   invalidated the probe measurement.
-5. **`id:4263` is unfixed** and fires on every reconcile integrate.
+   invalidated the probe measurement. Cheap to fix and it misdirects every child that
+   *does* read the contract.
+6. **`relay-loop.js:3192` tells every child the contract is "~5.5k"; it is 31,074 B**
+   (~8-12k tok). Understated 1.4-2x, in a live dispatch prompt. Left unfixed deliberately --
+   a pool was running on that file, which is the in-flight-automation case.
+7. **`id:6a5d`** -- a withheld reconcile integrate mints no `id:4d44` ratification-queue
+   entry, so the local unpushed merge lives only in an stderr line.
+8. **Four retirable worktrees + the `b54b-fix` worktree** left for you (commands above).
+
+~~`EXECUTE_AGENT_TYPE` needs front-door threading~~ -- **was already done** (`relay/SKILL.md:313`,
+documented `:922`); the thread was stale when written, and the knob worked in production tonight.
+~~`id:4263` is unfixed~~ -- **FIXED**, see below.
 
 ## Corrections made this session -- do not rebuild on the superseded versions
 
