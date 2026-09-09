@@ -180,13 +180,40 @@ if (( list_candidates )); then
 fi
 
 # ---------------------------------------------------------------- filter by marker
+#
+# TILDE/ABSOLUTE NORMALIZATION (id:5295): relay-loop.js's worktreePathFor() builds the
+# dispatch-prompt worktree as the literal template `~/.cache/relay/worktrees/...` — the
+# tilde is never expanded before it is written into the child's transcript — while a
+# child that answers "your worktree path" with `$(pwd)` reports the ABSOLUTE form. A
+# plain substring match can therefore never succeed even though both strings name the
+# same worktree. Build BOTH spellings of the caller-supplied marker (anchored to THIS
+# process's own $HOME, never a hardcoded /home/* guess — a different $HOME must still
+# fail to match, which is what keeps this a real identity check and not a fuzzy one) and
+# accept a candidate if EITHER spelling is found. This is additive: an exact-spelling
+# marker (today's only path) and a basename marker (id:c219's fixture) still match
+# unchanged, since the original literal marker is always variant zero.
+marker_variants=()
+if [[ -n "$marker" ]]; then
+  marker_variants+=("$marker")
+  if [[ "$marker" == "~/"* ]]; then
+    if [[ -n "${HOME:-}" ]]; then
+      marker_variants+=("${HOME}/${marker#\~/}")
+    fi
+  elif [[ -n "${HOME:-}" && "$marker" == "${HOME}/"* ]]; then
+    marker_variants+=("~/${marker#"${HOME}/"}")
+  fi
+fi
+
 if [[ -n "$marker" ]]; then
   matched=()
   for f in "${candidates[@]}"; do
     head_bytes="$(head -c "$MARKER_SCAN_BYTES" -- "$f" 2>/dev/null)" || head_bytes=""
-    if [[ "$head_bytes" == *"$marker"* ]]; then
-      matched+=("$f")
-    fi
+    for variant in "${marker_variants[@]}"; do
+      if [[ "$head_bytes" == *"$variant"* ]]; then
+        matched+=("$f")
+        break
+      fi
+    done
   done
   if (( ${#matched[@]} == 0 )); then
     echo "self-transcript.sh: marker '$marker' matched none of the ${#candidates[@]} transcript(s) for session $session_id — cannot identify which one is mine" >&2
