@@ -1,9 +1,13 @@
 # head-length-baseline.txt -- committed snapshot for the head-line LENGTH RATCHET
 # (id:0d7c, meeting 2026-09-01-2226 decision D4 AS AMENDED). GENERATED, not hand-edited.
 #
-# FORMAT: <ledger basename>TAB<4-hex id>TAB<length in chars>. `#` comments and blank lines
-# are ignored. One row per top-level checkbox line that was OVER the 500-char budget at
-# capture time; an under-budget line has nothing to grandfather and never enters this file.
+# FORMAT: <repo key>TAB<ledger basename>TAB<4-hex id>TAB<length in chars>. `#` comments and
+# blank lines are ignored. One row per top-level checkbox line that was OVER the 500-char
+# budget at capture time; an under-budget line has nothing to grandfather and never enters
+# this file. THE REPO KEY (id:4839 dimension b): the 4-hex id space is per-repo, not
+# fleet-unique, so a row with no repo dimension can silently supply the ceiling for an
+# unrelated item of the same id in a DIFFERENT repo. A row with only 3 tab-separated fields
+# is the pre-4839 legacy shape and is REFUSED loudly, never silently treated as "any repo".
 #
 # WHAT IT IS: the LENGTH each over-budget ledger head line had when the ratchet landed.
 # todo-conformance.sh reads it and enforces MONOTONIC SHRINK -- a listed line may be edited
@@ -29,31 +33,56 @@
 #   relay/scripts/todo-conformance.sh --regen-length-baseline ROADMAP.md | grep -v '^#' >> relay/head-length-baseline.txt
 #
 # OUT OF SCOPE: *.archive.md (id:2065) and the shared inbox.
-# Captured 2026-09-04.
-TODO.md	ee62	540
-TODO.md	78ff	540
-TODO.md	4425	4130
-TODO.md	0749	548
-TODO.md	a13c	649
-TODO.md	a778	687
-TODO.md	857d	1302
-TODO.md	378e	919
-TODO.md	6c11	625
-TODO.md	7756	2042
-TODO.md	9f3a	591
-TODO.md	39a4	992
-TODO.md	7d70	552
-TODO.md	2884	666
-TODO.md	43dc	1423
-TODO.md	8254	908
-TODO.md	dda3	949
-ROADMAP.md	e3c0	514
-ROADMAP.md	99e5	637
-ROADMAP.md	372a	523
-ROADMAP.md	71d6	523
-ROADMAP.md	098a	548
-ROADMAP.md	1a03	501
-ROADMAP.md	55c7	642
-ROADMAP.md	ee31	598
-ROADMAP.md	6958	553
-ROADMAP.md	2065	683
+# Captured 2026-09-09.
+dotclaude-skills	TODO.md	d29b	761
+dotclaude-skills	TODO.md	6740	1000
+dotclaude-skills	TODO.md	78ff	540
+dotclaude-skills	TODO.md	c076	1890
+dotclaude-skills	TODO.md	4425	4130
+dotclaude-skills	TODO.md	0749	548
+dotclaude-skills	TODO.md	a13c	649
+dotclaude-skills	TODO.md	a778	687
+dotclaude-skills	TODO.md	857d	1302
+dotclaude-skills	TODO.md	378e	919
+dotclaude-skills	TODO.md	6c11	625
+dotclaude-skills	TODO.md	7756	2042
+dotclaude-skills	TODO.md	9f3a	591
+dotclaude-skills	TODO.md	39a4	992
+dotclaude-skills	TODO.md	f833	1429
+dotclaude-skills	TODO.md	3c04	698
+dotclaude-skills	TODO.md	7d70	552
+dotclaude-skills	TODO.md	59d1	1518
+dotclaude-skills	TODO.md	6ead	994
+dotclaude-skills	TODO.md	ee5e	1259
+dotclaude-skills	TODO.md	3770	2209
+dotclaude-skills	TODO.md	2b7a	750
+dotclaude-skills	TODO.md	4e84	886
+dotclaude-skills	TODO.md	2884	666
+dotclaude-skills	TODO.md	43dc	1423
+dotclaude-skills	TODO.md	8254	908
+dotclaude-skills	TODO.md	dda3	949
+dotclaude-skills	TODO.md	c3a2	529
+dotclaude-skills	TODO.md	3294	1727
+dotclaude-skills	TODO.md	6a5d	512
+dotclaude-skills	TODO.md	740a	1458
+dotclaude-skills	TODO.md	4cd4	1618
+dotclaude-skills	ROADMAP.md	e3c0	514
+dotclaude-skills	ROADMAP.md	99e5	637
+dotclaude-skills	ROADMAP.md	372a	523
+dotclaude-skills	ROADMAP.md	166a	623
+dotclaude-skills	ROADMAP.md	71d6	523
+dotclaude-skills	ROADMAP.md	098a	548
+dotclaude-skills	ROADMAP.md	1a03	501
+dotclaude-skills	ROADMAP.md	55c7	642
+dotclaude-skills	ROADMAP.md	ee31	598
+dotclaude-skills	ROADMAP.md	6958	553
+dotclaude-skills	ROADMAP.md	2065	683
+dotclaude-skills	ROADMAP.md	40c0	696
+dotclaude-skills	ROADMAP.md	7408	646
+dotclaude-skills	ROADMAP.md	64f9	555
+dotclaude-skills	ROADMAP.md	8524	515
+dotclaude-skills	ROADMAP.md	4839	578
+dotclaude-skills	ROADMAP.md	8372	754
+dotclaude-skills	ROADMAP.md	aa5e	936
+dotclaude-skills	ROADMAP.md	0165	689
+dotclaude-skills	ROADMAP.md	b437	1116

@@ -4082,3 +4082,34 @@ Ledger work: ticked the resolved `id:11a4` REVIEW_ME box with its disposition re
 ## 2026-09-09 23:19 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review(2026-09-09f): id:11a4 verified GENUINELY green by spec-replay (its new spec reddens at case (B) against the pre-fix run-tests.sh, control case (A) still green; the 7c82 SSOT twin is PASS and zero test files still key an open @container item); gaming-scan + provenance greps clean, 0 reopened; the [INPUT - decision] scope narrowing surfaced not swallowed; 3 REVIEW_ME boxes; 3 inbox dead-letters ingested (fa6d/1107/526b); tiers RUN test 626/0/0/3-expected-red + gaming-canary + shard-canary + baseline-staleness, verify-negatives/check-statusline-deps RECORDED-SKIP [id:11a4] [id:11a4,11b1,68c3,33db]
+
+## 2026-09-09 23:37 — executor (sonnet, relay-loop)
+
+Worked id:c655 (seam of id:4839 dimension b) — added a repo dimension to both ledger
+baselines (head-length-baseline.txt, shape-prose-baseline.txt). `_ledger_repo_key()`
+derives the key from `git rev-parse --git-common-dir` (stable across a relay worktree,
+unlike `--show-toplevel`, whose basename would be the throwaway worktree directory name),
+falling back to the `$LEDGER_NO_REPO_KEY` sentinel outside any git repo. All three baseline
+readers (`length_baseline_load`, `shape_baseline_load`, and the `--baseline-staleness`
+detector's `stale_family`) now share one parser, `baseline_parse_line()`, which REFUSES a
+legacy 3-column row loudly (exit 2, naming the regen command) rather than silently treating
+it as "matches any repo" — closing exactly the finding the prior NEEDS-WORK review of the
+parked orphan branch (`relay/orphan/relay-20260909-091623-10249-execute-c655-0`, now
+superseded and safe to discard) raised: that attempt updated only `shape_baseline_load` and
+hard-refused legacy rows without a migration path, which would have broken this repo's own
+linting. This session regenerated and committed BOTH real baseline files under the new
+4-column format (`--regen-length-baseline`/`--regen-shape-baseline` on TODO.md and
+ROADMAP.md), so the hard refusal never fires against this repo's own committed state. Two
+pre-existing tests that hand-wrote raw baseline rows in the old 3-column shape
+(`tests/test_todo_conformance_length_ratchet_0d7c.sh` case (g),
+`tests/test_conformance_length_metric_locale_4839.sh`'s permissive-ceiling fixture) were
+updated to the new 4-column shape with the `no-repo` sentinel (their fixtures run outside
+any git repo) — a mechanical format migration of the fixture, not a change to either test's
+assertion. `tests/test_conformance_baseline_repo_key_4839.sh` (the item's own RED spec) now
+passes; full suite green, 627 passed / 0 failed / 0 errored / 2 expected-red
+(`test_conformance_baseline_installed_4839.sh`→aa5e, still gated on this landing;
+`test_dryround_single_definition_6217.sh`→6217, unrelated).
+Friction: none — the parked orphan's breadcrumb (docs/ledger-notes/c655.md) named both gaps
+precisely, so this session started from its findings rather than from zero.
+refactor: none needed — extending the existing baseline-loader/regen/staleness structure
+with one shared parser and one repo-key helper, no new duplication introduced.

@@ -96,7 +96,9 @@ run_at() { # <locale> <args...> -> stdout of the linter
 # Give it a deliberately unreachable ceiling: the class is then `length-grandfathered` under
 # both locales and what is being compared is the CHAR COUNT it prints, not which class fired.
 PERMISSIVE="$tmp/permissive-len.txt"
-printf '%s\t%s\t%s\n' "ROADMAP.md" "$TOK" 99999 > "$PERMISSIVE"
+# 4-column format (id:4839 dimension b: repo key first); this fixture runs in a bare mktemp
+# dir with no `git init`, which resolves to the LEDGER_NO_REPO_KEY sentinel.
+printf '%s\t%s\t%s\t%s\n' "no-repo" "ROADMAP.md" "$TOK" 99999 > "$PERMISSIVE"
 # Capture-then-extract throughout: `producer | grep | head -1` is the id:81d5 pipefail shape
 # the repo lint refuses, so every extraction below runs over a captured string.
 first_count() { # <text> <class prefix> -> the first char count printed for that class family

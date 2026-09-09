@@ -110,7 +110,9 @@ mkdir -p "$tmp/b"
   cuttable bb01 12
 } > "$tmp/b/TODO.md"
 b_len=$(awk 'NR==4{print length($0)}' "$tmp/b/TODO.md")
-printf '# baseline\nTODO.md\tbb01\t%d\n' $((b_len + 400)) > "$tmp/b/baseline.txt"
+# 4-column format (id:4839 dimension b: repo key first); these fixtures live in a bare
+# mktemp dir with no `git init`, which resolves to the LEDGER_NO_REPO_KEY sentinel.
+printf '# baseline\nno-repo\tTODO.md\tbb01\t%d\n' $((b_len + 400)) > "$tmp/b/baseline.txt"
 
 LENGTH_BASELINE="$tmp/b/baseline.txt" run --strict "$tmp/b/TODO.md"
 (( rc == 0 )) \
@@ -133,7 +135,7 @@ mkdir -p "$tmp/c"
   cuttable cc01 12
 } > "$tmp/c/TODO.md"
 c_len=$(awk 'NR==4{print length($0)}' "$tmp/c/TODO.md")
-printf '# baseline\nTODO.md\tcc01\t%d\n' $((c_len - 50)) > "$tmp/c/baseline.txt"
+printf '# baseline\nno-repo\tTODO.md\tcc01\t%d\n' $((c_len - 50)) > "$tmp/c/baseline.txt"
 
 LENGTH_BASELINE="$tmp/c/baseline.txt" run --strict "$tmp/c/TODO.md"
 grep -qP '^length-regrowth' "$tmp/out.txt" \
@@ -205,8 +207,8 @@ $(cat "$tmp/err.txt")"
 run --regen-length-baseline "$tmp/a/TODO.md"
 (( rc == 0 )) || report "case (g) REGEN: --regen-length-baseline exited $rc"
 cp "$tmp/out.txt" "$tmp/a/regen.txt"
-grep -qP '^TODO\.md\taa01\t[0-9]+$' "$tmp/a/regen.txt" \
-  || report "case (g) REGEN: the snapshot must carry a <ledger>TAB<id>TAB<length> row for the over-budget item. got:
+grep -qP '^no-repo\tTODO\.md\taa01\t[0-9]+$' "$tmp/a/regen.txt" \
+  || report "case (g) REGEN: the snapshot must carry a <repo>TAB<ledger>TAB<id>TAB<length> row for the over-budget item (id:4839 dimension b; these fixtures live outside any git repo, so the repo key is the LEDGER_NO_REPO_KEY sentinel). got:
 $(cat "$tmp/a/regen.txt")"
 grep -q 'aa02' "$tmp/a/regen.txt" \
   && report "case (g) REGEN: an UNDER-budget line must not enter the baseline (it has nothing to grandfather)"

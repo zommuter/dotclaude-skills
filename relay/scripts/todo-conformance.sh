@@ -55,12 +55,25 @@
 #   tool will not make. See head_refusable() for the predicate and its sync discipline.
 #
 # The baseline lives in a committed file (default `relay/head-length-baseline.txt`, override
-# with $LENGTH_BASELINE), format `<ledger-basename>\t<4-hex id>\t<length>`; `#` comments and
-# blank lines ignored. Keying on the BASENAME, not a path, is what lets a hermetic fixture
-# and the real ledger share one mechanism. Regenerating it is a DELIBERATE, SEPARATE act --
-# `--regen-length-baseline <path>` prints the new snapshot to stdout and writes nothing.
-# A regen TIGHTENS the ratchet (every line re-baselines at its current, smaller length);
-# nothing regenerates it automatically, exactly the cb3e discipline.
+# with $LENGTH_BASELINE), format `<repo key>\t<ledger-basename>\t<4-hex id>\t<length>`; `#`
+# comments and blank lines ignored. THE REPO KEY (id:4839 dimension b): the 4-hex id space is
+# per-REPO, not fleet-unique (187 adjudicated cross-repo homonyms sit in
+# tracker/homonym-allowlist.txt already), so a row keyed only on `<ledger>/<id>` silently
+# supplied the ceiling for an unrelated item of the same id in a DIFFERENT repo -- in both
+# directions: a foreign row that happened to be shorter read the local item as regrowth, one
+# that happened to be longer silently grandfathered it. See `_ledger_repo_key` for how the key
+# is derived and `baseline_parse_line` for the shared row parser both baselines use. Keying on
+# the ledger BASENAME (not a path) plus the repo key is what lets a hermetic fixture and the
+# real ledger share one mechanism while staying repo-scoped. Regenerating it is a DELIBERATE,
+# SEPARATE act -- `--regen-length-baseline <path>` prints the new snapshot to stdout and
+# writes nothing. A regen TIGHTENS the ratchet (every line re-baselines at its current,
+# smaller length); nothing regenerates it automatically, exactly the cb3e discipline.
+#
+# A row with exactly THREE tab fields is the pre-id:4839 legacy shape (no repo dimension) and
+# is REFUSED LOUDLY (exit 2) by `baseline_parse_line` rather than silently treated as
+# "matches any repo" -- the whole point of the repo dimension is that a row with no repo can
+# never again supply a ceiling for someone else's item. Regenerate with
+# `--regen-length-baseline`/`--regen-shape-baseline` (now 4 columns) to migrate.
 #
 # INERT WITHOUT A BASELINE: if the baseline file does not exist the ratchet performs NO
 # length findings and says so LOUDLY on stderr. That is deliberate -- landing the rule
@@ -254,6 +267,64 @@ fi
 [[ -f "$path" ]] || { echo "todo-conformance.sh: file not found: $path" >&2; exit 2; }
 [[ -r "$path" ]] || { echo "todo-conformance.sh: file not readable: $path" >&2; exit 2; }
 
+# --- REPO DIMENSION (id:4839 dimension b) -------------------------------------------------
+# Both baselines used to key SOLELY on `<ledger basename>/<4-hex id>`. The 4-hex id space is
+# per-REPO, not fleet-unique (187 adjudicated cross-repo homonyms already sit in
+# tracker/homonym-allowlist.txt), so a row minted for one repo's item silently supplied a
+# ceiling for an unrelated item of the same id in another repo -- in both directions: a
+# foreign row that happened to be SHORTER read the local item as regrowth, one that happened
+# to be LONGER silently grandfathered it. See tests/test_conformance_baseline_repo_key_4839.sh
+# for the live instance (token 55c7, this repo vs loderite) that motivated this.
+#
+# THE KEY SOURCE: `git rev-parse --git-common-dir`, resolved to an absolute path and then one
+# directory up, NOT `git rev-parse --show-toplevel`. The common dir is SHARED by every
+# worktree of one repo (git worktree add gives each worktree its own toplevel but the same
+# .git/worktrees/<n> -> common dir link), so this is stable across a relay executor's
+# throwaway worktree checkout, where show-toplevel's basename would instead be the worktree's
+# own generated directory name (e.g. `relay-<run>-execute-<id>-0`) -- a value that must never
+# end up baked into a COMMITTED baseline row, or the row goes unreadable the moment it merges
+# into the real checkout under its real name.
+#
+# A ledger outside any git repo (a bare mktemp fixture with no `git init`, which is most of
+# this file's own test suite) gets the fixed sentinel $LEDGER_NO_REPO_KEY -- ALL such fixtures
+# collapse into the one bucket, which is what lets a before/after pair of temp dirs
+# (test_shrink_acceptance_signal_identity_75c8.sh) keep sharing one baseline row exactly as
+# before this item, while two REAL, git-initialised fixture repos (the repo-key test above)
+# still resolve to two distinct keys.
+LEDGER_NO_REPO_KEY="${LEDGER_NO_REPO_KEY:-no-repo}"
+_ledger_repo_key() { # <path> -> the repo key for the ledger at <path>
+  local ledger_dir common abs_common
+  ledger_dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd)" || { printf '%s' "$LEDGER_NO_REPO_KEY"; return 0; }
+  common="$(git -C "$ledger_dir" rev-parse --git-common-dir 2>/dev/null || true)"
+  [[ -n "$common" ]] || { printf '%s' "$LEDGER_NO_REPO_KEY"; return 0; }
+  abs_common="$(cd "$ledger_dir" && cd "$common" 2>/dev/null && pwd)" || { printf '%s' "$LEDGER_NO_REPO_KEY"; return 0; }
+  basename "$(dirname "$abs_common")"
+}
+REPO_KEY="$(_ledger_repo_key "$path")"
+
+# baseline_parse_line <file> <line> -> on a usable row, sets BL_REPO/BL_LEDGER/BL_ID/BL_LEN
+# and returns 0; returns 1 to signal "skip" (blank/comment/malformed field count). A row with
+# exactly THREE tab fields is the pre-id:4839 legacy shape (no repo dimension) and is REFUSED
+# LOUDLY (exit 2) rather than silently treated as "matches any repo" -- the whole point of the
+# repo dimension is that a row with no repo can never again supply a ceiling for someone
+# else's item, and treating a legacy row as a wildcard would do exactly that. Shared by both
+# loaders below AND the staleness detector, so all three baseline readers agree on the format
+# and none of them can drift into accepting the legacy shape silently.
+baseline_parse_line() {
+  local f="$1" line="$2"
+  local -a flds
+  IFS=$'\t' read -r -a flds <<<"$line"
+  [[ -z "${flds[0]:-}" || "${flds[0]:-}" == \#* ]] && return 1
+  if [[ "${#flds[@]}" -eq 3 ]]; then
+    echo "todo-conformance.sh: $f: legacy baseline row with no repo dimension: '$line' (id:4839) -- regenerate with --regen-length-baseline/--regen-shape-baseline (now 4 columns: repo, ledger, id, length), or migrate the row explicitly" >&2
+    exit 2
+  fi
+  [[ "${#flds[@]}" -eq 4 ]] || return 1
+  BL_REPO="${flds[0]}"; BL_LEDGER="${flds[1]}"; BL_ID="${flds[2]}"; BL_LEN="${flds[3]}"
+  [[ -n "$BL_REPO" && -n "$BL_LEDGER" && -n "$BL_ID" && -n "$BL_LEN" ]] || return 1
+  return 0
+}
+
 # id_tag_present <line> : true if the line carries an `<!-- id:XXXX -->` token. Accepts a
 # bare 4-hex id AND a suffixed variant (`id:2dea-ref`, `id:abcd-A`) so --fix never
 # double-tags an item that already has an id-namespaced token.
@@ -326,8 +397,8 @@ head_refusable() {
   return 1
 }
 
-# LENGTH_BASELINE_MAP["<ledger>/<id>"] = baselined length. Loaded ONCE (a per-line grep over
-# an 800-entry file would be 800 greps per run).
+# LENGTH_BASELINE_MAP["<repo>/<ledger>/<id>"] = baselined length (id:4839 dimension b). Loaded
+# ONCE (a per-line grep over an 800-entry file would be 800 greps per run).
 # --- STRUCTURAL SHAPE CHECK (id:30fe) ----------------------------------------------
 #
 # The owner's bar, stated 2026-09-02 once the wave-1 shrink had landed: an item line
@@ -511,11 +582,10 @@ declare -A SHAPE_BASELINE_MAP=()
 SHAPE_RATCHET_ON=0
 
 shape_baseline_load() {
-  local f="$1" ledger id len
-  while read -r ledger id len; do
-    [[ -z "${ledger:-}" || "$ledger" == \#* ]] && continue
-    [[ -n "${id:-}" && -n "${len:-}" ]] || continue
-    SHAPE_BASELINE_MAP["$ledger/$id"]="$len"
+  local f="$1" line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    baseline_parse_line "$f" "$line" || continue
+    SHAPE_BASELINE_MAP["$BL_REPO/$BL_LEDGER/$BL_ID"]="$BL_LEN"
   done < "$f"
 }
 
@@ -539,7 +609,7 @@ shape_class() {
     echo "shape-prose (${#r} chars of prose outside lane/gate/id/title/pointer; id:30fe)"
     return 0
   fi
-  base="${SHAPE_BASELINE_MAP["$LENGTH_LEDGER_KEY/$id"]:-}"
+  base="${SHAPE_BASELINE_MAP["$REPO_KEY/$LENGTH_LEDGER_KEY/$id"]:-}"
   if [[ -z "$base" ]]; then
     echo "shape-new (${#r} chars of prose, not baselined; a NEW prose item; id:2d17)"
   elif (( ${#r} > base )); then
@@ -719,11 +789,10 @@ LENGTH_RATCHET_ON=0
 LENGTH_LEDGER_KEY=""
 
 length_baseline_load() {
-  local f="$1" ledger id len
-  while read -r ledger id len; do
-    [[ -z "${ledger:-}" || "$ledger" == \#* ]] && continue
-    [[ -n "${id:-}" && -n "${len:-}" ]] || continue
-    LENGTH_BASELINE_MAP["$ledger/$id"]="$len"
+  local f="$1" line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    baseline_parse_line "$f" "$line" || continue
+    LENGTH_BASELINE_MAP["$BL_REPO/$BL_LEDGER/$BL_ID"]="$BL_LEN"
   done < "$f"
 }
 
@@ -742,7 +811,7 @@ length_ratchet_class() {
   [[ -n "$id" ]] || return 0
   len=${#l}
   (( len > LEDGER_HEAD_BUDGET )) || return 0
-  base="${LENGTH_BASELINE_MAP["$LENGTH_LEDGER_KEY/$id"]:-}"
+  base="${LENGTH_BASELINE_MAP["$REPO_KEY/$LENGTH_LEDGER_KEY/$id"]:-}"
   if head_refusable "$l"; then
     echo "length-unshrinkable ($len chars, budget $LEDGER_HEAD_BUDGET; the shrinker would refuse this line, so it is reported and never blocks)"
   elif [[ -z "$base" ]]; then
@@ -796,9 +865,13 @@ if [[ "$regen_length" -eq 1 ]]; then
 # head-length-baseline.txt -- committed snapshot for the head-line LENGTH RATCHET
 # (id:0d7c, meeting 2026-09-01-2226 decision D4 AS AMENDED). GENERATED, not hand-edited.
 #
-# FORMAT: <ledger basename>TAB<4-hex id>TAB<length in chars>. `#` comments and blank lines
-# are ignored. One row per top-level checkbox line that was OVER the 500-char budget at
-# capture time; an under-budget line has nothing to grandfather and never enters this file.
+# FORMAT: <repo key>TAB<ledger basename>TAB<4-hex id>TAB<length in chars>. `#` comments and
+# blank lines are ignored. One row per top-level checkbox line that was OVER the 500-char
+# budget at capture time; an under-budget line has nothing to grandfather and never enters
+# this file. THE REPO KEY (id:4839 dimension b): the 4-hex id space is per-repo, not
+# fleet-unique, so a row with no repo dimension can silently supply the ceiling for an
+# unrelated item of the same id in a DIFFERENT repo. A row with only 3 tab-separated fields
+# is the pre-4839 legacy shape and is REFUSED loudly, never silently treated as "any repo".
 #
 # WHAT IT IS: the LENGTH each over-budget ledger head line had when the ratchet landed.
 # todo-conformance.sh reads it and enforces MONOTONIC SHRINK -- a listed line may be edited
@@ -831,7 +904,7 @@ REGEN_HEADER
     [[ "$line" =~ ^-\ \[[\ xX]\]\  ]] || continue
     _rid="$(length_id_of "$line")"
     [[ -n "$_rid" ]] || continue
-    printf '%s\t%s\t%d\n' "$LENGTH_LEDGER_KEY" "$_rid" "${#line}"
+    printf '%s\t%s\t%s\t%d\n' "$REPO_KEY" "$LENGTH_LEDGER_KEY" "$_rid" "${#line}"
   done < "$path"
   exit 0
 fi
@@ -843,10 +916,11 @@ if [[ "$regen_shape" -eq 1 ]]; then
 # shape-prose-baseline.txt -- committed snapshot for the SHAPE RATCHET (id:2d17).
 # GENERATED, not hand-edited.
 #
-# FORMAT: <ledger basename>TAB<4-hex id>TAB<prose residue length in chars>. `#` comments
-# and blank lines are ignored. One row per top-level checkbox line whose shape residue
-# exceeded the 8-char slack at capture time; a conforming line has nothing to grandfather
-# and never enters this file.
+# FORMAT: <repo key>TAB<ledger basename>TAB<4-hex id>TAB<prose residue length in chars>.
+# `#` comments and blank lines are ignored. One row per top-level checkbox line whose shape
+# residue exceeded the 8-char slack at capture time; a conforming line has nothing to
+# grandfather and never enters this file. THE REPO KEY (id:4839 dimension b): same
+# rationale and same refuse-legacy-loudly rule as head-length-baseline.txt's twin comment.
 #
 # WHAT IT BUYS: it splits one saturated class into three, so a NEW prose item
 # (`shape-new`) and a WORSENED one (`shape-regrowth`) are ERRORS that fail --strict, while
@@ -893,7 +967,7 @@ REGEN_SHAPE_HEADER
     [[ -n "$_rid" ]] || continue
     _res="$(shape_residue "$line")"
     (( ${#_res} > 8 )) || continue
-    printf '%s\t%s\t%d\n' "$LENGTH_LEDGER_KEY" "$_rid" "${#_res}"
+    printf '%s\t%s\t%s\t%d\n' "$REPO_KEY" "$LENGTH_LEDGER_KEY" "$_rid" "${#_res}"
   done < "$path"
   exit 0
 fi
@@ -983,7 +1057,7 @@ if [[ "$staleness" -eq 1 ]]; then
   # stale_family <family> <baseline file> <value-fn> <regen flag>
   stale_family() {
     local fam="$1" bfile="$2" vfn="$3" flag="$4"
-    local ledger id base cur slack fam_n=0 fam_orphan=0
+    local line id cur slack fam_n=0 fam_orphan=0
     if [[ ! -f "$bfile" || ! -r "$bfile" ]]; then
       # LOUD, never silent: a detector that quietly checks nothing is the same silent-inert
       # failure the ratchets' own INERT announcements exist to avoid (id:4347).
@@ -991,26 +1065,27 @@ if [[ "$staleness" -eq 1 ]]; then
       return 0
     fi
     families_n=$((families_n+1))
-    while read -r ledger id base; do
-      [[ -z "${ledger:-}" || "$ledger" == \#* ]] && continue
-      [[ -n "${id:-}" && -n "${base:-}" ]] || continue
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      baseline_parse_line "$bfile" "$line" || continue
       # A baseline file legitimately carries rows for SEVERAL ledgers (TODO.md and ROADMAP.md
-      # are appended into one file). Only this path's basename is ours to judge; another
-      # ledger's rows would all read as orphans.
-      [[ "$ledger" == "$LENGTH_LEDGER_KEY" ]] || continue
+      # are appended into one file), and (id:4839 dimension b) for several REPOS sharing the
+      # same 4-hex id space. Only this invocation's own repo+ledger is ours to judge; anything
+      # else's rows would all read as orphans -- exactly the repo-crossing this item closes.
+      [[ "$BL_REPO" == "$REPO_KEY" && "$BL_LEDGER" == "$LENGTH_LEDGER_KEY" ]] || continue
+      id="$BL_ID"
       checked_n=$((checked_n+1))
       if [[ -z "${STALE_LEDGER_LINE[$id]:-}" ]]; then
         orphan_n=$((orphan_n+1)); fam_orphan=$((fam_orphan+1))
         printf '%s-baseline-orphan\t%s\tbaselined %s, but no item with this id is in %s; the floor forgives a line that is not there\n' \
-          "$fam" "$id" "$base" "$LENGTH_LEDGER_KEY"
+          "$fam" "$id" "$BL_LEN" "$LENGTH_LEDGER_KEY"
         continue
       fi
       cur="$("$vfn" "${STALE_LEDGER_LINE[$id]}")"
-      (( cur < base )) || continue
-      slack=$((base - cur))
+      (( cur < BL_LEN )) || continue
+      slack=$((BL_LEN - cur))
       stale_n=$((stale_n+1)); fam_n=$((fam_n+1)); stale_slack=$((stale_slack+slack))
       printf '%s-baseline-stale\t%s\tcurrent %s < baselined %s; the floor forgives %s more chars than reality requires\n' \
-        "$fam" "$id" "$cur" "$base" "$slack"
+        "$fam" "$id" "$cur" "$BL_LEN" "$slack"
     done < "$bfile"
     if (( fam_n > 0 || fam_orphan > 0 )); then
       # THE REMEDY, named rather than implied -- the whole point of the mech-currency posture.
