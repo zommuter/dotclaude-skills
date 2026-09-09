@@ -4689,3 +4689,6 @@ ROADMAP 2026-06-17 so executors can work them; id:dba3 and id:23e9 (seed) stay `
   - **Context**: `relay/scripts/roadmap-tick.sh` (the tick pass and its post-write assertion), `relay/scripts/integrate.sh` (~lines 803-825, the `EX_TICK` handback path already exists and is the natural place to fail), `tests/run-tests.sh` (the `# roadmap:` / expected-red mapping this re-uses -- read it, do not reimplement it).
 
 - [x] [ROUTINE] **`workflow_node_check`'s lexical scan goes blind over 1,251 of relay-loop.js's 4,930 lines: a `//` comment holding a glob like `relay/orphan/*` opens a never-closing block-comment state.** -- detail: `docs/ledger-notes/8627.md` <!-- relates:e044 --> <!-- id:8627 -->
+
+## Review-derived promotion 2026-08-14 (relay review, reverse-handoff §5b)
+- [x] [ROUTINE] **Parked-section vocab match is a bare substring — a heading that merely mentions `archive`/`done`/`gated`/etc. in descriptive prose parks its whole section** -- detail: `docs/ledger-notes/6446.md` 🚧 `@owner-gated` <!-- gated-on:f391 --> <!-- id:6446 -->
