@@ -364,3 +364,38 @@ Every one of these was WRITTEN DOWN before being corrected, several after being 
   the sixth instance of the evening's error class.
 - **Quote all three failure-rate arms by n, never as percentages**: `1/4`, `7/10`, `0/6`.
   Converting small counts to percentages is what made them look like measurements.
+
+## FINAL ACT: one `local-llm` recipe -- state recorded BEFORE it runs
+
+**If this is the last section in this file, the local-llm run took the session down.** That was
+the anticipated outcome, explicitly planned for by the owner, and is NOT a failure of anything
+above it. Everything before this point is complete, committed and pushed to the private remote.
+
+The owner directed exactly ONE `local-llm` recipe be run as the very last activity, after the
+whole handover was written, because it may kill the session. Ordering honoured: OCR results are
+already in this file and pushed (`6e6e0b72`) before this run starts.
+
+**Pre-run state, recorded because a post-mortem cannot recover it:**
+
+    Mem: 30Gi total, 7.6Gi used, 5.9Gi free, 23Gi available
+    Swap: /swap/swapfile32, 32G total, 19G ALREADY USED
+    llama-swap: 5 processes already resident
+
+**The 19G of swap already in use is the thing to look at first if the machine misbehaved.**
+It was consumed before this run started, not by it.
+
+**Why this run is genuinely uncapped, stated plainly:** `TODO.md:873` records that the
+relay-mech cgroup cap CANNOT reach `llama-swap` -- the recipe process is capped, but the actual
+model host is a separate service outside that cgroup, and containing it needs root. So the
+`capped-run.sh` MemoryMax/MemorySwapMax=0 protection does NOT cover the memory that matters
+here. This is the known gap, accepted deliberately for one run at the owner's direction, and it
+is why the other three recipes stay drafts.
+
+A HEAVY intensity window had to be opened for this: the light window used for the OCR batch
+correctly REFUSED `local-llm` (`permits 5400 local-llm` -> exit 1). That refusal working is
+worth recording as evidence the graded window does its job -- the heavy window is a separate,
+deliberate act, not a default.
+
+**Outcome:**
+
+<!-- LOCAL-LLM-OUTCOME -->
