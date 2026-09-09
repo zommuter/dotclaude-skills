@@ -20,6 +20,7 @@
 - Fixed workflow_node_check's lexical scanner (id:8627): replaced the line-oriented regex heuristic with a shared character-level state machine, closing three defects (// glob comments opening a false block-comment blind window, escaped backticks mis-toggling template state, same-line close-then-open block comments) -- full suite 615/0/0/4-expected-red (id:8627)
 - review: id:8627 verified genuinely green (RED spec proven to redden at its declared assertion, though the executor authored both spec and fix); corrected the ledger note's own //-blind reference measurement (719/5 -> 324/0) (id:8627)
 - review: id:f957 + id:3016 verified green; found and FIXED a VACUOUS negative case (the 3016 spec declared fails-against-rev: main, which carried the fix) and filed the guard as id:ff6a; 5 REVIEW_ME boxes (id:f957,3016)
+- Anchored lib-roadmap-sections.sh's parked-heading WORD vocab to a standalone token (id:6446): a heading merely mentioning archive/gated/etc. in prose no longer parks its section, while @owner-gated and genuine parking buckets still do; new RED spec + full suite 621/0/4-expected-red. (id:6446)
 
 ## 2026-09-08
 
