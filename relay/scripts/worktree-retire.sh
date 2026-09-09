@@ -241,9 +241,23 @@ if [[ "$discard_residue" -eq 1 ]]; then
   if [[ -z "$status" ]]; then
     echo "worktree-retire.sh: --discard-residue but the worktree is CLEAN — nothing to discard; falling through to the normal path."
   else
-    # The digest covers the porcelain status AND the tracked diff AND every untracked file's
-    # bytes, so ANY change to the residue invalidates a previously-issued token.
+    # The digest covers the WORKTREE PATH, the porcelain status, the tracked diff, and every
+    # untracked file's bytes, so ANY change to the residue -- or a DIFFERENT worktree --
+    # invalidates a previously-issued token.
+    #
+    # id:8d76 follow-up, reported 2026-09-09 from code.lawless: the path was NOT in the digest,
+    # so the token was bound to the residue's CONTENT and not to its LOCATION. Two worktrees of
+    # the same repo holding byte-identical residue minted the SAME token (observed:
+    # `0aa7ea46f3ae` for both `…-execute-c381-0` and `…-execute-c381-1`), so a token obtained by
+    # inspecting ONE worktree silently authorised discarding ANOTHER whose residue the operator
+    # had never seen. On a git-annex repo that is not an edge case but the NORM -- the cosmetic
+    # pointer noise is the same paths in every worktree of the repo, so every worktree yields
+    # the same token. It was a near-miss there (both residues genuinely were cosmetic), not an
+    # incident. Binding the path closes it: an operator can now only discard the worktree they
+    # actually inspected. Note this correctly INVALIDATES any token minted before this change,
+    # which fails safe -- a stale token refuses and reprints the current one.
     residue_blob="$(
+      printf 'worktree=%s\n' "$wt"
       printf '%s\n' "$status"
       git -C "$wt" diff HEAD 2>/dev/null || true
       git -C "$wt" ls-files --others --exclude-standard -z 2>/dev/null \

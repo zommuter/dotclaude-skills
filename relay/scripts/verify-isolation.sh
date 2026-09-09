@@ -229,7 +229,20 @@ if [ -n "$porcelain" ]; then
   if [ "$cosmetic_only" -eq 1 ]; then
     n_cosmetic="$(printf '%s\n' "$porcelain" | grep -c . || true)"
     log "cosmetic-dirty (annex pointers, id:3016) worktree=$worktree base=$base entries=$n_cosmetic"
-    echo "note: $n_cosmetic path(s) report modified with an EMPTY diff — cosmetic git-annex pointer noise (id:3016), not a real modification; run 'git annex restage' in the worktree to clear the display. Treating the tree as CLEAN."
+    # The remedy is CONDITIONAL, and getting this wrong wastes the reader's time in a way that
+    # looks like the fix not working. Measured 2026-09-09 on code.lawless: with `.git` still a
+    # SYMLINK (the normal state of a fresh relay worktree), `git annex restage` prints
+    # `restage ok` and changes NOTHING — annex warns it is "unable to convert .git file to
+    # symlink that will work with git-annex" and cannot update the index through the symlinked
+    # admin dir. It only works once `.git` has been normalised to a gitdir FILE, which is what
+    # worktree-retire.sh's id:de4a fix does. So de4a is a PREREQUISITE of this remedy, not an
+    # adjacent fix — name the right step for the shape actually present.
+    if [ -L "$worktree/.git" ]; then
+      remedy="normalise the worktree's \`.git\` symlink to a gitdir file FIRST (worktree-retire.sh does this, id:de4a) and THEN run 'git annex restage' — restage through a symlinked .git prints 'restage ok' and silently no-ops"
+    else
+      remedy="run 'git annex restage' in the worktree to clear the display"
+    fi
+    echo "note: $n_cosmetic path(s) report modified with an EMPTY diff — cosmetic git-annex pointer noise (id:3016), not a real modification; $remedy. Treating the tree as CLEAN."
   else
     log "dirty worktree=$worktree base=$base"
     echo "isolation failure: worktree has a DIRTY tree (uncommitted changes) — not safe to merge"
