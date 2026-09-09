@@ -42,6 +42,16 @@
 #     * LOUD on a real failure: if a twin EXISTS but the write or the post-write assertion
 #       fails, this exits non-zero. Silence is the defect being fixed.
 #   - NEVER edits an item's Acceptance/Tests/Done-check/Context body — only the checkbox char.
+#   - id:963c guard: a `worked_ids` self-report is untrusted — after flipping an id's
+#     checkbox to "[x]" (this pass only, never a checkbox already ticked on a prior pass),
+#     if $REPO_ROOT/tests/run-tests.sh exists AND the id has a `# roadmap:<id>`-headed spec
+#     test that is a REAL failure with the id now ticked (item_open() reads false, so a red
+#     assertion is scored FAIL not EXPECTED-RED — re-using run-tests.sh's own mapping, never
+#     reimplemented here), the checkbox is REVERTED, the id is never twinned, and this
+#     script exits non-zero naming the id and spec file(s) — the existing integrate.sh
+#     EX_TICK handback path already treats any non-zero exit as a hard stop. An id with no
+#     matching spec test, or a repo with no test suite at all, is byte-identical to
+#     pre-963c behaviour.
 #   - flock-guarded (shares nothing with archive); logs detail to ~/.claude/logs.
 #   - Prints one short line: "roadmap-tick: ticked <ids>" (or "nothing to tick").
 #
@@ -99,6 +109,42 @@ has_own_line() {
         (is_box($0) && tolower(own_id($0)) == wl) { found = 1 }
         END { exit (found ? 0 : 1) }
     ' "$1"
+}
+
+# verify_spec_or_revert <id> — the id:963c guard. An executor's `worked_ids` self-report
+# cannot be trusted on its own: a PARTIAL close still reports the id as worked, and
+# ticking it would archive an item whose own `# roadmap:<id>`-headed test is still RED
+# (a real failure, not the ordinary pre-tick expected-red). Re-uses tests/run-tests.sh's
+# OWN expected-red mapping (never reimplemented here) by invoking it, AFTER this id's
+# checkbox has already been flipped to "[x]" in $ROADMAP_FILE on disk, against exactly
+# the spec file(s) carrying "# roadmap:<id>" as their first such marker — with the id
+# now ticked, item_open() reads false and any assertion failure is scored a REAL FAIL,
+# which is precisely the state we must refuse to record. No matching spec file (most
+# ids) ⇒ untouched, byte-identical to pre-963c behaviour. No $REPO_ROOT/tests/run-tests.sh
+# at all (a repo with no test suite) ⇒ nothing to verify against, also a clean pass.
+# Returns 0 = safe to keep ticked; 1 = REFUSED, caller must revert the checkbox.
+verify_spec_or_revert() {
+    local id="$1"
+    local tests_root="$REPO_ROOT/tests"
+    local runner="$tests_root/run-tests.sh"
+    [[ -x "$runner" ]] || return 0
+    local specs=() f token
+    shopt -s nullglob
+    for f in "$tests_root"/test_*.sh; do
+        token="$(head -1 < <(grep -oE '# roadmap:[0-9a-fA-F]{4}' "$f" 2>/dev/null) | sed 's/.*roadmap://')" || true
+        if [[ -n "$token" && "${token,,}" == "${id,,}" ]]; then
+            specs+=("$f")
+        fi
+    done
+    shopt -u nullglob
+    [[ "${#specs[@]}" -eq 0 ]] && return 0
+    local out
+    if out="$("$runner" "${specs[@]}" 2>&1)"; then
+        return 0
+    fi
+    echo "roadmap-tick: REFUSED to tick id:$id -- its spec test(s) [$(printf '%s ' "${specs[@]##*/}")] are still RED after ticking (id:963c guard: an executor's own worked_ids report cannot be trusted). Reverting the checkbox." >&2
+    printf '%s\n' "$out" | sed 's/^/  | /' >&2
+    return 1
 }
 
 # tick_todo_twin <id> — converge the id's TODO.md checkbox with its (now ticked) ROADMAP
@@ -160,9 +206,11 @@ fi
 
 TICKED=()
 TWINNED=()
+REFUSED=()
 for id in "${IDS[@]}"; do
     # Only flip the FIRST open checkbox line carrying this id. awk edits in place via a temp.
     tmp=$(mktemp)
+    just_ticked=0
     if awk -v want="${id}" "$OWN_ID_AWK"'
         BEGIN { done = 0; wl = tolower(want) }
         (!done && $0 ~ /^- \[ \]/ && tolower(own_id($0)) == wl) {
@@ -173,7 +221,7 @@ for id in "${IDS[@]}"; do
         END { exit (done ? 0 : 1) }
     ' "$ROADMAP_FILE" > "$tmp"; then
         mv -- "$tmp" "$ROADMAP_FILE"
-        TICKED+=("$id")
+        just_ticked=1
     else
         rm -- "$tmp"
         # Not found as an OPEN line: either already ticked, or not a ROADMAP checkbox id.
@@ -181,9 +229,34 @@ for id in "${IDS[@]}"; do
             "$(date -Iseconds)" "$id" "$ROADMAP_FILE" >> "$LOG_FILE"
     fi
 
+    # id:963c guard — only for a checkbox WE just flipped this pass, never for one that
+    # was already ticked on a prior/hand pass (that state is pre-existing, not this run's
+    # to police).
+    if [[ "$just_ticked" -eq 1 ]]; then
+        if verify_spec_or_revert "$id"; then
+            TICKED+=("$id")
+        else
+            tmp2=$(mktemp)
+            awk -v want="${id}" "$OWN_ID_AWK"'
+                BEGIN { done = 0; wl = tolower(want) }
+                (!done && ($0 ~ /^- \[x\]/ || $0 ~ /^- \[X\]/) && tolower(own_id($0)) == wl) {
+                    sub(/^- \[[xX]\]/, "- [ ]")
+                    done = 1
+                }
+                { print }
+            ' "$ROADMAP_FILE" > "$tmp2"
+            mv -- "$tmp2" "$ROADMAP_FILE"
+            REFUSED+=("$id")
+            printf '%s roadmap-tick: REFUSED id:%s -- spec still RED after tick, checkbox reverted (id:963c)\n' \
+                "$(date -Iseconds)" "$id" >> "$LOG_FILE"
+            continue
+        fi
+    fi
+
     # Single-id-two-views: converge the TODO twin whenever the ROADMAP line now reads [x]
-    # (flipped just now, or already ticked on an earlier/hand pass — the repair path).
-    # An id with NO ticked ROADMAP line never touches TODO.md.
+    # (flipped just now and kept, or already ticked on an earlier/hand pass — the repair
+    # path). An id with NO ticked ROADMAP line (absent, still open, or just reverted by
+    # the guard above) never touches TODO.md.
     if has_own_line "$ROADMAP_FILE" "$id" done; then
         tick_todo_twin "$id"
     fi
@@ -196,10 +269,18 @@ if [[ "${#TWINNED[@]}" -gt 0 ]]; then
 fi
 
 if [[ "${#TICKED[@]}" -eq 0 ]]; then
-    echo "roadmap-tick: nothing to tick (all ids already ticked or absent)."
+    echo "roadmap-tick: nothing to tick (all ids already ticked, absent, or refused)."
     printf '%s roadmap-tick: nothing to tick for [%s] in %s\n' "$(date -Iseconds)" "$IDS_CSV" "$REPO_ROOT" >> "$LOG_FILE"
-    exit 0
+else
+    echo "roadmap-tick: ticked ${TICKED[*]}"
+    printf '%s roadmap-tick: ticked [%s] in %s\n' "$(date -Iseconds)" "${TICKED[*]}" "$REPO_ROOT" >> "$LOG_FILE"
 fi
 
-echo "roadmap-tick: ticked ${TICKED[*]}"
-printf '%s roadmap-tick: ticked [%s] in %s\n' "$(date -Iseconds)" "${TICKED[*]}" "$REPO_ROOT" >> "$LOG_FILE"
+# id:963c: a refusal is a REAL failure of this invocation, even if OTHER ids in the same
+# CSV ticked cleanly — the caller (integrate.sh's EX_TICK handback path) already treats
+# any non-zero exit from this script as "roadmap-tick failed", which is exactly the loud,
+# non-silent disposition this guard exists to produce.
+if [[ "${#REFUSED[@]}" -gt 0 ]]; then
+    echo "roadmap-tick: REFUSED (spec still RED after tick, id:963c): ${REFUSED[*]}" >&2
+    exit 1
+fi
