@@ -1199,3 +1199,99 @@ saying `+ TODO twins [id:521b,9088]`; ticked here.
   repo, and `scan-routed` is report-only unless run with `--apply`. Noted here so it is not lost.
   `relay-doctor` also reports the relay-core shadow at 37,312 mismatches over 339,373 rounds --
   pre-existing, bash stays authoritative.
+
+## Review 2026-09-09d (chain-end re-ask, run `relay-20260909-185356-12943` -- id:8123)
+
+Window `relay-ckpt-20260909-1910..HEAD`: one executor unit (`id:5295`) plus its integrate
+commits. `gaming-scan.sh`: no output (no DELETED_TEST / ADDED_SKIP / REMOVED_ASSERT).
+Provenance greps for `@owner-accepted:` / `@owner-answered:` / `<!-- answer-src:` in the
+window: none introduced, none modified. Tiers: `tests/run-tests.sh` **623 passed, 0 failed,
+0 errored, 3 expected-red**; `make lint` (`check-no-bare-rm-f.sh --enforce`) clean at
+baseline 0. **SKIPPED-TIER: `verify-negatives`, `gaming-canary`, `shard-canary`** -- all
+three are opt-in by design and NOT part of `make test` (seconds-per-case sandboxing; the
+two canaries spawn real agents and cost tokens); no closed item's done-check depends on
+them. Executor-contract pointer in `CLAUDE.md` is `v18`, matching the canonical marker --
+no refresh. `orphan-scan --cross-ledger`: clean. `orphan-scan --shipped`: the only three
+`TICK-READY`/`GATE-STALE` string hits are items *about* those classes (`id:4425`,
+`id:535d`, `id:e1bb`) matched on their titles -- no real hit, same as the prior window.
+`roadmap-lint` exit 0 with the same three pre-existing WARNs (`540f`/`c179` DEAD-GATE,
+`da55` NO-ACCEPTANCE-NO-TWIN), all already boxed above; no new box.
+
+- [ ] **`id:5295` is verified GENUINELY green by spec-replay, not by taking the suite's word
+  -- but one clause of the item's own body was NOT delivered, and I closed it anyway.** The
+  spec `tests/test_self_transcript_tilde_marker_5295.sh` was authored by the handoff
+  (`a18bc832`) and is **byte-unmodified** by the executor, so §2b.1's resurrection check is
+  satisfied structurally: the implementation moved, the spec did not. I re-ran the spec
+  against the PRE-fix `relay/scripts/self-transcript.sh` (extracted from
+  `relay-ckpt-20260909-1910` into a scratch tree) and it dies at **case 1** -- `an
+  absolute-path marker did not match a tilde-spelled dispatch prompt (rc=4)` -- which is the
+  assertion the item names, not an earlier fixture-sanity death. The spec's own negative
+  controls are real and pass: case 4 (a different `$HOME` must still MISS), case 5 (two
+  sibling worktrees differing only in the trailing unit key stay discriminated), case 6 (a
+  marker naming nothing still exits 4 loudly). §2d over-reach: the diff is a strict SUBSET of
+  what the item authorized, not a superset -- 30 lines confined to the marker filter, no
+  `relay-loop.js` edit, no nonce, and the tie-break semantics the item explicitly forbade
+  touching are untouched. **The residue:** the item's body says *"Fixing the fixture's
+  fidelity is part of this item"* about `tests/test_self_transcript_workflow_nesting_c219.sh`
+  (which writes an ABSOLUTE dispatch prompt and passes a BASENAME marker -- the two
+  divergences that hid this defect for weeks). That file is unchanged. The new 5295 spec
+  models the real shape instead, so the *coverage* gap is closed by a second file rather than
+  by repairing the first; but `c219`'s fixture still models a shape the dispatcher does not
+  emit, and the next defect on that path will be hidden by it the same way. I did **not**
+  reopen: the item's explicit **Acceptance** and **Done-check** bullets are both fully met,
+  and the fixture sentence sits in a rationale bullet. Flagging the judgment because reading
+  the body and reading the acceptance give different answers here. <!-- relates:5295 -->
+  <!-- relates:c219 -->
+
+- [ ] **Every executor-actionable `[ROUTINE]` item in this repo was attempted on 2026-09-09
+  and PARKED with real unmerged work: five orphan branches carry 253/249/70/62 insertions
+  that a re-dispatch will silently redo from scratch.** `relay-doctor` lists 6 parked orphans
+  for this repo; measured with `git diff --stat main...relay/orphan/<b>`, four of them hold
+  substantive WIP -- `...-143257-21736-execute-11a4-0` (7 files, +253),
+  `...-143257-21736-execute-799f-0` (2 files, +249, including a whole new
+  `tests/test_lint_post_close_graft_799f.sh`), `...-143257-21736-execute-b437-0` (11 files,
+  +70), `...-143257-21736-execute-aa5e-0` (1 file, +62) -- plus
+  `...-091623-10249-execute-c655-0` from the earlier run. Those ids are `11a4`, `799f`,
+  `b437`, `aa5e`, `c655`: **that is the entire un-gated `[ROUTINE]` set.** Note what
+  `relay-doctor`'s own summary says two lines later -- *"5 retirable item(s) -- no work at
+  risk"* -- which is about WORKTREES, not these branches; a reader skimming the report would
+  conclude nothing is stranded. The commits are honest (`id:f272` commit-and-park, labelled
+  `WIP UNVERIFIED ... do not treat as reviewed`), so this is not a gaming finding; it is a
+  *throughput* finding, and it is the live shape of `id:3846` (the trimmed
+  `relay-implementer` still dying `Prompt is too long`; its own line records 7/10 without the
+  flag vs 1/4 with). The decision I am NOT making: whether to salvage these branches
+  (cherry-pick / re-dispatch onto them) or discard them. Both are owner calls and the diffs
+  are UNREVIEWED. <!-- relates:3846 --> <!-- relates:f272 -->
+
+- [ ] **`routine_open` returned as 4, not the raw 10 -- confirm the call (the `id:59f2`
+  judgment, second occurrence).** Raw count of open `- [ ] ... [ROUTINE]` in `ROADMAP.md` is
+  10. `resolve-gates.sh` reports `540f`, `c179`, `554b` blocked=1. Of the remaining seven:
+  `d4ca` carries 🚧 plus four `gated-on:` markers (`33b2`/`93ac` in prose, `09e4`/`b0b1`
+  typed); `cf2d` is `@owner-verify` and its body says the evidence can only come from a LIVE
+  harness the pool cannot manufacture; `aa5e`'s own title gates it on the repo-dimension seam
+  (`c655`) landing first. That leaves `c655`, `b437`, `799f`, `11a4` = **4**, every one of
+  which is a parked-orphan id from the box above. So `routine_open: 4` is honest under
+  `review.md`'s *"is there executor work left"* reading, but the supervisor should know the
+  work is not virgin -- re-enqueueing an execute unit hands it four items that four children
+  already started and lost today. <!-- relates:59f2 -->
+
+- [ ] **The executor committed `id:5295`'s fix into the MAIN checkout on `main` before
+  noticing, and the isolation gate never fired -- it self-healed by luck of merge topology,
+  not by a guard.** Its own `RELAY_LOG` friction note is candid: it committed `639c6ffa` in
+  `~/src/dotclaude-skills` on `main` instead of its worktree, cherry-picked the identical
+  content to `64d6de3c` on the worktree branch, then had every attempt to undo the stray
+  commit (`reset --soft`, `revert`, `branch -f`) denied by the permission classifier, and
+  handed the residue over asking for an operator reset. **That reset never happened and is no
+  longer needed:** the integrator's merge `975f835f` took `639c6ffa` as its FIRST parent, so
+  the stray commit is now an ancestor of `HEAD` (`git merge-base --is-ancestor 639c6ffa HEAD`
+  -> yes), and `git -C ~/src/dotclaude-skills status -sb` reads `## main...origin/main` with
+  a clean tree. I verified the double-apply did no damage: `grep -c 'marker_variants=()'` is
+  **1**, and `bash -n` on the file is clean. Two things worth a human's eye anyway.
+  (a) `verify-isolation.sh` checks that the WORKTREE has commits and a clean tree -- both
+  were true here, because the cherry-pick fixed the worktree side -- so it structurally
+  cannot see that the same work also landed on `main`. The gate is one-sided. (b) The
+  executor's honest attempt to CLEAN UP was blocked while the mislocated WRITE was not,
+  which inverts the intended pressure: the classifier permitted the mistake and forbade the
+  correction. Recording it rather than proposing a fix, because "should a child be able to
+  reset a main checkout" is exactly the kind of guard question that must not be answered by
+  the child that wants the permission. <!-- relates:f682 -->
