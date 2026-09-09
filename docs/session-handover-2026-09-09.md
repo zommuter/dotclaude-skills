@@ -427,4 +427,45 @@ Memory did NOT spiral: it plateaued after model load (available 4.0G -> 3.7G whi
 0.4G), consistent with a ~18GB Q4 30B model resident. The pressure is steady-state, not
 runaway.
 
-<!-- LOCAL-LLM-OUTCOME -->
+**SUCCEEDED, and the session survived.** `MARKER exit=0 finished=2026-09-10T00:59:05+02:00`.
+
+**Verified against the deliverables, not the exit code** (the standing rule, and it mattered
+here -- see the stale-`.error` trap below). Three `verdicts.json` were produced tonight, all
+re-checked on disk after the run and one parsed to confirm it is a real judgment record
+(`schema_version`, `judge`, `judge_run_id`, `prompt`, `label_map`, `verdict`):
+
+    00:55  740 B  .../judgments/easy/fizzbuzz-python/20260909T225433-7f821b/verdicts.json
+    00:57  451 B  .../judgments/hard/broken-repo-bisect/20260909T225525-d1f12f/verdicts.json
+    00:59  637 B  .../judgments/medium/multi-file-refactor/20260909T225737-198c59/verdicts.json
+
+One prompt was skipped by the tool itself, correctly and loudly: "Skipping
+medium/json-schema-validator -- fewer than 2 submissions".
+
+**It took 4.5 minutes, not the 75 its `est_wall` implied.** That is not a failure: the workload
+was 1 judge x 4 prompts = 4 judgment runs over 2-5 submissions each. `est_wall: 4500` is a
+CEILING for the intensity gate, not a prediction, and the gate does not care that the real run
+was 16x shorter.
+
+**A TRAP THAT NEARLY PRODUCED A FALSE FAILURE REPORT, worth recording as the evening's seventh
+instance of the same class.** The daemon's `done/` directory contains `0ce2.json.error`, a loud
+sibling error file. Read at face value it says the run was killed and the cap "remains
+UNVALIDATED". It is **STALE**: dated 2026-09-08, describing an OPERATOR KILL of a canary run
+two days earlier ("2026-09-08 13:11 start, 13:14:52 killed", exit 143). It was left in `done/`
+by that earlier attempt and has nothing to do with tonight. Tonight's marker is `exit=0`.
+
+The failure mode: an artifact directory that accumulates per-id files across runs, where a
+STALE sibling from a previous attempt sits next to a fresh success under the same id, with
+nothing in the filename distinguishing them. Checking "is there an .error file for this id?"
+returns YES and means nothing. Same shape as the other six: a surface consulted for a
+question it does not actually answer.
+
+**What this run does and does not tell us about the cap.** It does NOT validate the cgroup cap
+against a sustained 30B workload -- the stale note's own point stands, for a different reason
+than it gives: the run was too SHORT and too small. What it DOES establish, first-hand, is that
+**the cap does not contain `llama-swap`**: system-wide available memory fell 23G -> 3.7G, and
+the harness killed two of this session's unrelated background processes on a low-memory
+threshold. `TODO.md:873` is confirmed, not merely argued.
+
+**Disposition unchanged: the remaining three `local-llm` recipes stay drafts.** One short run
+succeeding is not evidence that a long one is safe, and this one never approached its own
+ceiling.
