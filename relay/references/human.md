@@ -36,7 +36,7 @@ scripts/gather-human-backlog.sh repoA repoB     # named repos
 > **NEVER pipe the collector through `head`/`tail` — and never let a sub-agent
 > summarise it from a capped preview (id:da87).** Rows are emitted PER REPO in a
 > fixed order: ROADMAP hard lanes → TODO hard lanes → mechanical →
-> `ratification_pending` → **`review_me`** → ROADMAP `@manual`.
+> `parked_orphan` → `ratification_pending` → **`review_me`** → ROADMAP `@manual`.
 > `review_me` — the one bucket this mode exists to serve — is
 > emitted **LAST**, so it is the FIRST thing a truncating reader loses, and it is
 > lost **silently**: the short TSV reads as a legitimate "no boxes / nothing to do".
@@ -111,6 +111,21 @@ the repo-scoped complement.
 
 It emits a TSV `repo  path  kind  box_summary` covering:
 
+- every parked **`relay/orphan/*` branch** (`kind = parked_orphan`) -- UNMERGED work from
+  a relay run that DIED, parked by `worktree-retire.sh` (id:689c) so the commit stays
+  reachable after its worktree is removed. Disposing of one is a deliberate human decision
+  (integrate / discard / leave, id:3313 D2), so it is human backlog by construction -- but
+  until this kind existed the ONLY views of it were `/relay health` (`relay-doctor.sh`)
+  and `relay-reconcile.sh --all`, both of which must be run on purpose, so the one mode
+  designed to surface everything needing a human silently omitted real code. `box_summary`
+  carries the branch, its short sha, the parked commit subject, and the exact
+  `relay-reconcile.sh <path> --integrate <branch>` / `--discard <branch>` commands
+  (discard is gated behind `RELAY_DISCARD_CONFIRM=1`). The enumeration is DELEGATED to
+  `relay-reconcile.sh --list`, never re-implemented as a per-repo `for-each-ref` sweep --
+  that shape is the id:4e14 false-clean bug, where an unreadable repo reads as "no
+  orphans". Here an unreadable repo gets a NAMED stderr line saying its
+  branches could not be checked; a clean-looking absence of `parked_orphan` rows for a
+  repo therefore always means "checked, none found". Surface only. AND
 - every PENDING entry in the **ratification queue** (`kind = ratification_pending`,
   id:4d44) — a substantive unit `integrate.sh` merged, bumped and ckpt-tagged **locally**
   and deliberately did NOT push. Until you review it and push, that work exists only in

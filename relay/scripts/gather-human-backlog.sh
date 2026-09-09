@@ -42,6 +42,27 @@
 #                format); box_summary carries the exact `git -C <path> push --follow-tags`
 #                command plus merged sha / ckpt / ids / age. Surface only — this collector
 #                never resolves an entry (resolution VERIFIES the remote; see ratify-queue.sh).
+#   parked_orphan -- a `relay/orphan/*` branch: UNMERGED work from a relay run that DIED,
+#                parked by worktree-retire.sh (id:689c) so the commit stays reachable while
+#                its worktree is removed. Disposing of one is a deliberate human decision
+#                (integrate / discard / leave, relay-reconcile.sh, id:3313 D2), so it is
+#                human backlog by construction -- yet before this kind existed the only
+#                views of it were `/relay health` (relay-doctor.sh) and
+#                `relay-reconcile.sh --all`, BOTH of which must be run deliberately. The
+#                one mode designed to surface everything needing a human silently omitted
+#                real, unmerged code. box_summary carries the branch, its short sha, the
+#                parked commit subject and the exact integrate/discard commands.
+#                ENUMERATION IS DELEGATED, never hand-rolled: this emitter shells out to
+#                relay-reconcile.sh's own `--list`, the canonical parked-orphan lister. A
+#                fresh per-repo `git for-each-ref ... 2>/dev/null` sweep is the id:4e14
+#                false-clean bug -- an unreadable or missing repo would read as "no
+#                orphans". Here an unreadable repo gets a NAMED stderr line saying the
+#                branches could not be checked (never a clean result), matching what
+#                relay-reconcile.sh's own `--all` pass does for the same case; any
+#                OTHER failure of the lister is reported LOUDLY via emitter_failed() and
+#                exits the run nonzero (id:da87), with the remaining emitters still run.
+#                Surface only: this collector never integrates, discards or otherwise
+#                touches a parked ref.
 #   mechanical_draft  — an auto-DRAFTED recipe skeleton (drafts/) awaiting an Opus/human to fill
 #                its TODO cmd/est_wall/acceptance_artifact and deliberately promote it to
 #                pending/ (id:8a6b). A draft is NEVER executed by the daemon. Surface only.
@@ -104,7 +125,7 @@
 # Do NOT pipe this collector through `head`/`tail`/`sed Nq`, and do not let a
 # sub-agent summarise it from a capped preview. Rows are emitted PER REPO in a
 # FIXED order — `answered_question` (id:6621), then ROADMAP hard lanes, then TODO
-# hard lanes, then mechanical rows,
+# hard lanes, then mechanical rows, then `parked_orphan` (relay/orphan/*),
 # then `ratification_pending` (id:4d44), then `review_me` (REVIEW_ME.md), then
 # ROADMAP `@manual` — so `review_me`, the
 # one bucket `/relay human` exists to serve, is emitted LAST and is the FIRST
@@ -145,6 +166,12 @@ MECH_SCAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mechanical-orphan-scan.
 # fixture it stays inside the fixture, so this collector can never reach into the real
 # ~/.config/relay/.
 RATIFY_QUEUE_SH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ratify-queue.sh"
+# parked_orphan -- the CANONICAL parked-`relay/orphan/*` lister. Deliberately delegated
+# rather than re-implemented: a fresh `git for-each-ref ... 2>/dev/null` per repo is the
+# id:4e14 false-clean shape (an unreadable repo reads as "no orphans"). relay-reconcile.sh
+# is the same enumeration `/relay reconcile` and `--all` use, and it FAILS LOUDLY on a repo
+# it cannot read, which scan_repo turns into an emitter_failed() report (id:da87).
+RECONCILE_SH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/relay-reconcile.sh"
 RATIFY_QUEUE="${RELAY_RATIFICATION_QUEUE:-${FABLES_CONFIG:-$(dirname "$RELAY_TOML")}/ratification-queue.jsonl}"
 
 # Set to 1 by emit_hard_lanes() when an open [HARD] item carries no recognized lane
@@ -363,6 +390,58 @@ emit_answered_questions() {
         "$f: RECORDED ANSWER ($date_str), cited at ${src} -- READ IT BEFORE RE-ASKING: $summary"
     done < <(grep -E '^[[:space:]]*- \[ \] ' "$file")
   done
+  return 0
+}
+
+# --- emit parked `relay/orphan/*` branches (kind = parked_orphan) ------------
+# One row per branch parked by worktree-retire.sh after a relay run died (id:689c): the
+# commit is reachable on the ref, the worktree is gone, and only a human decides whether
+# it is integrated or discarded (relay-reconcile.sh, id:3313 D2). That makes it human
+# backlog by construction, but `/relay human --all` could not see it -- only `/relay
+# health` and `relay-reconcile.sh --all`, both run deliberately.
+#
+# The enumeration is DELEGATED to relay-reconcile.sh's own `--list` action (see
+# RECONCILE_SH above). Its per-orphan stdout is TSV `<branch>\t<sha>\t<subject>`; its
+# other lines ("no parked orphans", the id:2b4b STRANDED block, whose branches live in
+# the `relay/<runId>-*` namespace) are filtered out by the `relay/orphan/` prefix, so a
+# format addition on that side can never be mistaken for an orphan row. Its stderr is
+# NOT redirected -- it streams to ours, which is where an unreadable repo must land.
+#
+# Read-only: this never integrates, discards, or renames a ref.
+# $1 repo name, $2 repo path.
+emit_parked_orphans() {
+  local name="$1" path="$2" out="" rc=0 br sha subj
+  [[ -x "$RECONCILE_SH" ]] || return 0
+  # A configured path that exists but is NOT a readable git repo: say so on stderr and
+  # carry on -- relay-reconcile.sh's own `--all` pass makes the same call for this case.
+  # STATED REASON for not making it fatal: the repo is a relay.toml misconfiguration, not
+  # a failure of this collector, and every OTHER emitter (REVIEW_ME, hard lanes, ...) reads
+  # plain files and still has real rows to contribute for it. What id:4e14 forbids is the
+  # SILENT version -- a swallowed error read as "no orphans" -- and that cannot happen: the
+  # line below always fires, and this emitter then contributes NO orphan row rather than a
+  # fabricated clean one. `NOTE:`, not `ERROR:`, deliberately: this is the same "not a
+  # local checkout we can inspect" class as scan_repo's existing missing-path NOTE, and the
+  # `ERROR:` token is reserved here for a genuine collector failure (emitter_failed, the
+  # untagged-lane rejects) that makes the whole run exit nonzero.
+  #
+  # `2>&1` on the probe below, with its reason stated (the no-silent-swallow rule): git's
+  # own "not a git repository" text is REPLACED by the explicit, repo-naming ERROR line,
+  # not dropped -- the same trade relay-reconcile.sh --all already makes for this probe.
+  if ! git -C "$path" rev-parse --git-dir >/dev/null 2>&1; then
+    printf 'NOTE: %s (%s) is not a readable git repo -- parked `relay/orphan/*` branches could NOT be checked for it (id:4e14: this is NOT a "no parked orphans" result). Fix its path override in relay.toml.\n' \
+      "$name" "$path" >&2
+    return 0
+  fi
+  out="$("$RECONCILE_SH" "$path" --list)" || rc=$?
+  (( rc == 0 )) || return "$rc"
+  while IFS=$'\t' read -r br sha subj; do
+    case "$br" in "relay/orphan/"*) ;; *) continue ;; esac
+    # TSV-safe: the commit subject is arbitrary text, so flatten tabs/newlines exactly
+    # as every other box_summary in this collector does.
+    subj="$(printf '%s' "${subj:-}" | tr '\t\n' '  ' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//')"
+    printf '%s\t%s\t%s\t%s\n' "$name" "$path" parked_orphan \
+      "PARKED ORPHAN \`$br\` (${sha:-???????}) holds UNMERGED work from a dead relay run -- a human disposes of it, the pool never will: \`relay-reconcile.sh $path --integrate $br\` to merge+ckpt+push, or \`RELAY_DISCARD_CONFIRM=1 relay-reconcile.sh $path --discard $br\` to drop it. Subject: ${subj:-(no commit subject)}"
+  done <<< "$out"
   return 0
 }
 
@@ -819,6 +898,17 @@ scan_repo() {
       esac
     done <<< "$mech_out"
   fi
+  # PARKED ORPHANS for this repo (surface-only): `relay/orphan/*` branches holding
+  # unmerged work from dead runs. Emitted here -- AFTER the mechanical rows, BEFORE
+  # `ratification_pending` -- so the id:da87 ordering contract is untouched: `review_me`
+  # stays the LAST bucket before ROADMAP @manual, which is what makes truncation
+  # detectable. rc-captured and LOUD like every other emitter: relay-reconcile.sh exits
+  # nonzero on a repo it cannot read, and that MUST surface rather than read as a clean
+  # "no orphans" (the id:4e14 false-clean failure this kind exists to end).
+  local po_rc=0 po_out=""
+  po_out="$(emit_parked_orphans "$name" "$path")" || po_rc=$?
+  (( po_rc == 0 )) || emitter_failed "$name" "parked orphan branches (relay/orphan/*)" "$po_rc"
+  if [[ -n "$po_out" ]]; then printf '%s\n' "$po_out"; fi
   # id:4d44 — PENDING RATIFICATIONS for this repo (surface-only). A substantive unit the
   # pool merged locally and deliberately did NOT push: until the owner reviews + pushes it,
   # the work exists only in this checkout. Emitted here — AFTER the mechanical rows, BEFORE
