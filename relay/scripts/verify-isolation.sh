@@ -187,15 +187,58 @@ if [ -z "$commits" ]; then
 fi
 
 # (c): dirty tree?
+#
+# id:3016 — a BARE `status --porcelain` non-empty test false-trips on git-annex. Unlocked
+# annex pointer files report ` M` while `git diff` is EMPTY: the index holds the pointer blob
+# and the worktree holds the real content, and annex could not update the index during
+# checkout. git-annex's own message calls it "only a cosmetic problem affecting git status"
+# and names `git-annex restage` as the remedy. Reproduced live 2026-09-09 on code.lawless
+# (run relay-20260909-115705-28382, unit id:6df0): 77 paths ` M`, `git diff --stat` 0 lines,
+# index blob 99 B (pointer) against a 5297 B working PNG, annex.addunlocked true, repo v10.
+# Before this, the gate refused the merge and the unit handed back on EVERY execute round on
+# an annex repo. `id:de4a` fixed the adjacent `.git`-symlink half in worktree-retire.sh; both
+# fire on the same worktree in sequence, so de4a is necessary but not sufficient.
+#
+# WHY NOT `git update-index --refresh` FIRST: measured in that reproduction — it did NOT clear
+# the 77. It is the obvious cheap fix and it does not work here; do not re-add it.
+#
+# WHY NOT "just require a non-empty `git diff`": `status --porcelain` also reports UNTRACKED
+# files, which `git diff` NEVER shows. Relaxing on an empty diff alone would blind this gate to
+# genuine untracked residue — which is most of what it exists to catch, since a child that
+# writes to the main checkout leaves exactly that. So the relaxation is narrowed to ONE case:
+# EVERY porcelain entry is worktree-modified-only (` M`, i.e. index column blank) AND `git diff`
+# reports no unstaged change. Anything staged, untracked, added, deleted or conflicted keeps a
+# non-` M` entry and stays DIRTY. Fail-safe direction is preserved: an unreadable repo, a diff
+# that errors, or any entry we cannot classify all fall through to DIRTY.
 porcelain="$(git -C "$worktree" status --porcelain 2>/dev/null || true)"
 if [ -n "$porcelain" ]; then
-  log "dirty worktree=$worktree base=$base"
-  echo "isolation failure: worktree has a DIRTY tree (uncommitted changes) — not safe to merge"
+  # Residue = every entry that is NOT plain worktree-modified. `${entry:0:2}` is the XY status
+  # pair; only the exact pair ' M' qualifies for the annex relaxation.
+  residue=""
   while IFS= read -r entry; do
     [ -n "$entry" ] || continue
-    printf '  %s\n' "$entry"
+    [ "${entry:0:2}" = " M" ] && continue
+    residue="${residue}${entry}"$'\n'
   done <<< "$porcelain"
-  exit 2
+
+  cosmetic_only=0
+  if [ -z "$residue" ] && git -C "$worktree" diff --quiet 2>/dev/null; then
+    cosmetic_only=1
+  fi
+
+  if [ "$cosmetic_only" -eq 1 ]; then
+    n_cosmetic="$(printf '%s\n' "$porcelain" | grep -c . || true)"
+    log "cosmetic-dirty (annex pointers, id:3016) worktree=$worktree base=$base entries=$n_cosmetic"
+    echo "note: $n_cosmetic path(s) report modified with an EMPTY diff — cosmetic git-annex pointer noise (id:3016), not a real modification; run 'git annex restage' in the worktree to clear the display. Treating the tree as CLEAN."
+  else
+    log "dirty worktree=$worktree base=$base"
+    echo "isolation failure: worktree has a DIRTY tree (uncommitted changes) — not safe to merge"
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      printf '  %s\n' "$entry"
+    done <<< "$porcelain"
+    exit 2
+  fi
 fi
 
 n_commits="$(printf '%s\n' "$commits" | wc -l | tr -d ' ')"
