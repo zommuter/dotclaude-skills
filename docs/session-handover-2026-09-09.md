@@ -278,7 +278,39 @@ Acceptance is NOT the exit code -- it is the deliverable. `docs/research/data/yo
 held ZERO `.txt` files before this run (confirmed by the peer), and `id:b477` (the collector)
 is gated on `id:b965` and cannot go green until these files exist.
 
-<!-- OCR-RESULTS-TABLE -->
+**ALL 18 SUCCEEDED.** Every recipe exited 0; every deliverable is non-empty.
+
+| id | outcome | frames / OCR lines |
+|---|---|---|
+| 1283 | OK | 76 frames, 428 OCR lines |
+| 1a46 | OK | 252 frames, 1436 OCR lines |
+| 2110 | OK | 73 frames, 397 OCR lines |
+| 26db | OK | 142 frames, 820 OCR lines |
+| 2cc4 | OK | 127 frames, 700 OCR lines |
+| 3c0a | OK | 74 frames, 347 OCR lines |
+| 4ae7 | OK | 159 frames, 830 OCR lines |
+| 50a2 | OK | 150 frames, 841 OCR lines |
+| 5f7d | OK | 112 frames, 614 OCR lines |
+| 83a9 | OK | 220 frames, 1287 OCR lines |
+| 875f | OK | 110 frames, 622 OCR lines |
+| a4ed | OK | 78 frames, 447 OCR lines |
+| b47f | OK | 108 frames, 584 OCR lines |
+| b613 | OK | 155 frames, 895 OCR lines |
+| b965 | OK | 78 frames, 430 OCR lines |
+| c6d2 | OK | 130 frames, 735 OCR lines |
+| ce52 | OK | 138 frames, 787 OCR lines |
+| dbf7 | OK | 92 frames, 520 OCR lines |
+
+Verified against the DELIVERABLES, not the exit codes: `docs/research/data/youtube/ocr/`
+now holds **18 `.txt` files, 12,720 lines total, zero empty**. It held zero before this run.
+Batch completed 2026-09-10T00:52. Wall time ~65 min for 18 jobs, well under the 2.2h the
+est_wall figures implied.
+
+**The deliverables were UNTRACKED and their session had ended**, so this session committed
+them in `code.lawless` (`77fd16c`, pushed to the private remote). `.txt` stays in git there,
+not annex (`annex.largefiles=nothing`), so this is a plain commit. **The 18 `[MECHANICAL]`
+ROADMAP items and `id:b477`'s gate were deliberately NOT ticked** -- that is a done-ness claim
+for that repo's own review to make, not for the session that ran the batch.
 
 ### `local-llm`: THREE of four deliberately NOT run
 
