@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
-# roadmap:4839
+# roadmap:eccb
+#
+# Retargeted 2026-09-09 (id:11a4) from the container `id:4839` to its landed seam
+# `id:eccb` ("Pin todo-conformance.sh's length measurements to CHARACTERS
+# regardless of locale"), which is exactly this file's dimension-(c) coverage.
+# id:4839 is `@container DECOMPOSED into seams id:eccb, id:c655, id:aa5e, id:cb9a`
+# and stays open forever by design, so keying this spec to it would have granted
+# permanent EXPECTED-RED cover even though id:eccb has already landed and ticked.
+# This file passes green today, so the retarget is a pure keying correction --
+# id:eccb being closed now means a future regression here is a real FAIL, not
+# silently swallowed under id:4839.
 #
 # RED SPEC for dimension (c) of id:4839: the length metric is LOCALE-DEPENDENT.
 #

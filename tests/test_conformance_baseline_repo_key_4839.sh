@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
-# roadmap:4839
+# roadmap:c655
+#
+# Retargeted 2026-09-09 (id:11a4) from the container `id:4839` to its seam `id:c655`
+# ("Add a repo dimension to the head-length and shape-prose baseline keys"), which is
+# exactly this file's own Done-check. id:4839 is `@container DECOMPOSED into seams
+# id:eccb, id:c655, id:aa5e, id:cb9a` and stays open forever by design, so keying this
+# spec to it would have granted this test EXPECTED-RED permanently even after id:c655
+# lands and ticks. id:c655 is itself still open (unticked), so this file remains
+# legitimately red for now -- the retarget changes WHO it is swallowed under, not
+# whether it is currently red.
 #
 # RED SPEC for dimension (b) of id:4839: the ratchet baselines key on
 # `<ledger BASENAME>/<4-hex id>` (todo-conformance.sh:769 builds LENGTH_LEDGER_KEY from

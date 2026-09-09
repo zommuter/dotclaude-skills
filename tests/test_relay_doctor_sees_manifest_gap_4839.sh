@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
-# roadmap:4839
+# roadmap:cb9a
+#
+# Retargeted 2026-09-09 (id:11a4) from the container `id:4839` to its landed seam
+# `id:cb9a` ("Surface todo-conformance.sh's INERT baseline warnings from
+# relay-doctor.sh, and widen install-drift to cover all of relay_FILES"), which
+# matches this file's aggravation-1/2 coverage. id:4839 is `@container DECOMPOSED
+# into seams id:eccb, id:c655, id:aa5e, id:cb9a` and stays open forever by design,
+# so keying this spec to it would have granted permanent EXPECTED-RED cover even
+# though id:cb9a has already landed and ticked. This file passes green today, so
+# the retarget is a pure keying correction -- id:cb9a being closed now means a
+# future regression here is a real FAIL, not silently swallowed under id:4839.
 #
 # RED SPEC for the TWO AGGRAVATIONS of id:4839 -- the pair that explains why dimension (a)
 # went unnoticed for as long as it did.
