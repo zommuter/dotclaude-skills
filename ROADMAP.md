@@ -178,7 +178,7 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
 
 ## 2026-09-08 review findings (run relay-20260908-231617-32609)
 
-- [ ] **[ROUTINE]** Implement the batch-acceptance invariance checks in tools/shrink-acceptance.py that the id:64f9 RED spec already demands (verbatim title preservation in notes, checkbox/lane/gated-on-edge invariance, dropped-prose refusal) — seam of id:64f9 (auto, id:3801) -- PARKED: a reviewed NEEDS-WORK attempt exists on an orphan branch; read the note before restarting -- detail: `docs/ledger-notes/521b.md` <!-- id:521b -->
+- [x] **[ROUTINE]** Implement the batch-acceptance invariance checks in tools/shrink-acceptance.py that the id:64f9 RED spec already demands (verbatim title preservation in notes, checkbox/lane/gated-on-edge invariance, dropped-prose refusal) — seam of id:64f9 (auto, id:3801) -- PARKED: a reviewed NEEDS-WORK attempt exists on an orphan branch; read the note before restarting -- detail: `docs/ledger-notes/521b.md` <!-- id:521b -->
   - **Acceptance**: tests/test_title_rewrite_batch_acceptance_64f9.sh cases (2) through (7) all PASS (currently case 2 fails: a batch that drops original title prose is wrongly accepted)
   - **Done-check**: bash tests/test_title_rewrite_batch_acceptance_64f9.sh prints ALL PASS; make test still fully green (610 passed / 0 failed / 5 expected-red)
   - **Context**: tools/shrink-acceptance.py, tests/test_title_rewrite_batch_acceptance_64f9.sh
