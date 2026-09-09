@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-# roadmap:64f9
+# roadmap:521b
 #
-# RED SPEC (authored by relay handoff C3, not implemented here).
+# EXPECTED-RED KEY RETARGETED 64f9 -> 521b (relay review 2026-09-09). The file is NAMED
+# for id:64f9 and that stays, but the expected-red key must name the item whose WORK this
+# spec verifies, which is the implementing seam id:521b -- now `- [x]` in
+# ROADMAP.archive.md. id:64f9 is a `@container` decision item, DECOMPOSED into seams and
+# open indefinitely, so keying on it granted this file a PERMANENT expected-red umbrella:
+# `item_open 64f9` is true, so every future failure here would have been swallowed as
+# "red test is the spec" and never failed the suite. With the key on the closed 521b,
+# `item_open` returns false and a regression is a real FAIL. The docs/ledger-notes/9088.md
+# note predicted exactly this split ("a reader who ticks 521b will find the spec still
+# classified expected-red against 64f9"); this is the fix, not a re-scoping of the spec.
+#
+# RED SPEC (authored by relay handoff C3, now IMPLEMENTED -- id:521b, all 8 cases green).
 #
 # 257 ledger items (252 TODO.md, 5 ROADMAP.md, measured 2026-09-02 by the id:b048 grammar
 # check) have a TITLE that is itself over budget. No relocation can shorten a title, so
