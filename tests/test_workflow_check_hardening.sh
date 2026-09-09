@@ -130,6 +130,68 @@ chmod 644 "$b_src"
 pass "(b) an unreadable file is refused, loudly, naming the file"
 
 # ---------------------------------------------------------------------------------------
+# (b3) id:0165 -- TOCTOU: the file is READABLE when `[[ ! -r ]]` checks it, so the guard is
+#     satisfied and cannot fire, but becomes unreadable before `sed` actually reads it. This is
+#     the path that has NO assertion at all today: mutant-tested (docs/ledger-notes/0165.md),
+#     removing the sed_rc capture+check while KEEPING `[[ ! -r ]]` still passes the whole suite,
+#     because (b1)/(b2) exercise a file that is already unreadable at guard time and never reach
+#     this branch. A fake `sed` shim is placed first on PATH: it chmods the source file to 000
+#     as its FIRST action -- after the readability guard and the awk scan have both already run
+#     against the still-readable file -- and only then execs the REAL sed, which now genuinely
+#     fails to read it. This reproduces "readable at guard/awk time, unreadable at sed time"
+#     deterministically instead of racing a real TOCTOU window, and the failure (and its message)
+#     come from the real sed, not a faked one.
+# ---------------------------------------------------------------------------------------
+b3_src="$tmp/toctou_sed.js"
+printf 'const a = 1;\nconst q = await Promise.resolve(a);\nif (q) { return q; }\n' > "$b3_src"
+chmod 644 "$b3_src"
+
+b3_bin="$tmp/b3-bin"
+mkdir -p "$b3_bin"
+real_sed="$(command -v sed)"
+cat > "$b3_bin/sed" <<SHIM
+#!/usr/bin/env bash
+chmod 000 "$b3_src" 2>/dev/null || true
+out="\$("$real_sed" "\$@")"
+rc=\$?
+printf '%s\n' "\$out"
+exit "\$rc"
+SHIM
+chmod +x "$b3_bin/sed"
+
+b3_msg="$(PATH="$b3_bin:$PATH" workflow_node_check "$b3_src" 2>&1)" \
+  && { chmod 644 "$b3_src"; fail "(b3) a file that turned unreadable AFTER the guard check but BEFORE sed read it was ACCEPTED -- the sed_rc capture+check is the only thing that can catch a TOCTOU window, and this proves it is unpinned without this assertion"; }
+chmod 644 "$b3_src"
+grep -qF "sed exit" <<<"$b3_msg" \
+  || fail "(b3b) the TOCTOU-before-sed refusal did not name it as a sed failure: $b3_msg"
+pass "(b3) a file that turns unreadable between the guard check and the sed read is refused via the sed_rc capture"
+
+# ---------------------------------------------------------------------------------------
+# (b4) id:0165 -- pin the awk_rc capture+check's own failure message. A fake `awk` shim is placed
+#     first on PATH that always fails (exit 7) instead of scanning -- this isolates the awk_rc
+#     branch specifically (workflow_node_check must never reach `node --check` when the module-
+#     syntax scan itself could not run) and pins the exact message text, so a mutant that drops
+#     the `awk exit $awk_rc` wording (or the branch itself) is caught even though this shim never
+#     touches file permissions at all.
+# ---------------------------------------------------------------------------------------
+b4_src="$tmp/awk_failure.js"
+printf 'const a = 1;\nconst q = await Promise.resolve(a);\nif (q) { return q; }\n' > "$b4_src"
+
+b4_bin="$tmp/b4-bin"
+mkdir -p "$b4_bin"
+cat > "$b4_bin/awk" <<'SHIM'
+#!/usr/bin/env bash
+exit 7
+SHIM
+chmod +x "$b4_bin/awk"
+
+b4_msg="$(PATH="$b4_bin:$PATH" workflow_node_check "$b4_src" 2>&1)" \
+  && fail "(b4) a file was ACCEPTED while the module-syntax scan (awk) itself failed to run -- the awk_rc capture+check is the only thing that can catch this"
+grep -qF "awk exit 7" <<<"$b4_msg" \
+  || fail "(b4b) the awk-scan-failure refusal did not pin the awk exit status in its message: $b4_msg"
+pass "(b4) an awk scan that fails to run is refused, naming its exit status"
+
+# ---------------------------------------------------------------------------------------
 # (c) id:e044 -- the refusal must key on real module constructs, not on prose that happens to
 #     start a line with `export `/`import `. Four cases: three that must be ACCEPTED and one
 #     that must still be REFUSED, so "stop refusing anything" cannot pass.
