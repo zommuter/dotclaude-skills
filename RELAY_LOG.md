@@ -3861,3 +3861,7 @@ refactor: extracted `verify_spec_or_revert()` as its own named helper alongside 
 existing `has_own_line`/`tick_todo_twin` helpers, matching the file's existing style --
 no other duplication to clean up in this diff.
 Friction: none -- item was well-scoped with acceptance/done-check already written.
+
+## 2026-09-09 10:05 — executor (sonnet, relay-loop)
+
+roadmap-tick.sh now refuses (reverts + exits non-zero) a checkbox tick whose own # roadmap:&lt;id&gt; spec test is still red after ticking, closing id:963c [id:963c]
