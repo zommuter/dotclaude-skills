@@ -976,3 +976,103 @@ future REVIEW_ME box that wants to be machine-resolvable needs the HTML-comment 
 - [ ] **Commit `2aa1bd09` landed a user-visible `/relay human` feature -- the `parked_orphan` kind, 92 lines of `gather-human-backlog.sh`, a 184-line test and a `relay/references/human.md` section -- with NO ledger id anywhere.** `grep -niE 'parked_orphan|parked relay/orphan' TODO.md TODO.archive.md ROADMAP.md ROADMAP.archive.md REVIEW_ME.md` returns NOTHING. The commit message cites `id:da87` (an ordering contract it preserves, still open) and `id:4e14` (the false-clean bug shape it avoids, closed) -- neither is the item. Consequence, which is the reason this is a box and not a shrug: work with no id is invisible to `orphan-scan --cross-ledger`, to the changelog deriver (which reads `workedIds`), and to any later 'was this ever specced' question -- the shape `id:3441` exists to prevent, one level up from a TODO line. Disposition is the owner's: mint a retrospective `[x]` ledger entry so the work is on the record, or rule that an unplanned in-review feature legitimately needs none. <!-- id:18ca -->
 - [ ] **`id:1048` was ticked `[x]` and ARCHIVED on 2026-07-23 (commit `39a0bfe7`) while its own line still read 'needs RED spec' -- and its wiring into `relay-loop.js` landed 48 days later, on 2026-09-09 (`3ffdc8cc`).** Concrete instance of the built-green-but-unreferenced class: the ledger recorded the item CLOSED while `grep -c autoIntegrateParkedOrphans relay/scripts/relay-loop.js` would have returned 0. The wiring itself is sound and conservative -- gated on `AUTO_INTEGRATE_ORPHANS`, OFF by default, and its negative case verifies (`red-there OK ... the auto-integrate call site is not gated`) -- so nothing is reopened on quality grounds. What this box asks is narrower: an archived `[x]` line whose own text says 'needs RED spec' was a FALSE close for 48 days, and the archive is where a reader is least likely to catch it. Worth deciding whether a tick should be refused while the item's body names an unmet prerequisite. <!-- relates:1048 --> <!-- id:256d -->
 - [ ] **`id:2b7a` (`[INBOUND routed:3655 from code.lawless]`, `TODO.md:867`) is a REPRODUCTION report whose purpose was served -- `id:3016` shipped on its evidence and is archived -- but it carries no lane tag and is still open, so it sits in the ledger as neither work nor record.** It is grammar-CONFORMING (it has an id), so `todo-conformance` does not see it and no collector will ever route it. Two of its three findings are discharged by `d5e096a5`; the THIRD is not: 'after the discard, porcelain read 0 while `git worktree remove` still saw dirt' is a separate predicate mismatch that the `id:3016` fix does not touch. So this is not a clean tick. Disposition: either carve the third wrinkle into its own lane-tagged item and then tick `2b7a` + `append.sh inbox-done 3655` (the `routed:3655` breadcrumb is in the owning `[INBOUND ...]` bracket form, so the twin-guard will find it), or re-lane `2b7a` itself onto the residual. Left for a human because deciding the third wrinkle is real work is a judgement, not bookkeeping. <!-- relates:3016 --> <!-- id:c758 -->
+
+## Review 2026-09-09c (chain-end re-ask, run `relay-20260909-143257-21736` -- id:8123)
+
+Window `relay-ckpt-20260909-1509`..HEAD -- the last *reviewer* checkpoint, not the literal latest
+tag (`relay-ckpt-20260909-1516`), which is HEAD itself and would have given a vacuous window. ONE
+work unit in it: `id:6446` (executor, sonnet). Tiers, named per review.md §3(c): `make lint` green
+(rm-force baseline 0<=0), `tests/run-tests.sh` **620 passed / 1 failed** on arrival and **621 / 0 /
+4-expected-red** after the fix below, `make gaming-canary` 3/3, `make shard-canary` 6/6, `make
+verify-negatives` on the file this window added. No tier skipped; no `.github/workflows` exists, so
+there is no e2e/integration tier to miss. `gaming-scan.sh`: CLEAN (no output). Provenance greps for
+`@owner-accepted` / `@owner-answered` / `<!-- answer-src:` over the window: CLEAN, none introduced
+or modified. `relay-doctor`: cross-ledger drift clean; `roadmap-lint` run directly still emits the
+same three pre-existing WARNs already boxed above (`id:540f`/`id:c179` DEAD-GATE, `id:da55`
+NO-ACCEPTANCE-NO-TWIN) -- none new, none newly actionable. The `docs/ledger-notes/4983.md` missing
+detail pointer that `classify-repo` reports is already boxed at `REVIEW_ME.md:95`. Executor-contract
+pointer in `CLAUDE.md` is `v18`, matching the canonical marker -- no refresh needed.
+
+- [ ] **`id:6446` is verified genuinely green, and the load-bearing evidence is a replay rather
+  than the suite: applying the OLD and NEW vocab to every heading in `ROADMAP.md`, `TODO.md`,
+  `REVIEW_ME.md` and both `.archive.md` siblings flips exactly ONE heading -- `## User-injected
+  promotion 2026-08-13 (id:baf1) -- archive-path stub design call`, which is `id:cd9c`'s own
+  incident heading.** That is the whole acceptance, in both directions at once: the mention-only
+  heading stops parking, and not one genuine parking bucket (`## Gated / deferred`, `## Done`,
+  `## Icebox`, `@owner-gated`) changes verdict. Over-reach (review.md §2d) checked against the
+  cited ratified source `docs/ledger-notes/6446.md` and the ⚠️ implementer note in
+  `lib-roadmap-sections.sh`, not the ROADMAP restatement: the note mandates anchoring
+  `ROADMAP_PARKED_HEADING_WORDS` ONLY and explicitly forbids anchoring the composed
+  `..._VOCAB` (that would re-capture the marker half and un-protect owner-gated work). The diff
+  does exactly that, and the anchored string it uses is byte-identical to the faithful stand-in
+  `tests/test_owner_gated_first_class_f391.sh:139` already verified as safe. Not a superset. The
+  `gated-on:f391` prerequisite is genuinely discharged (`f391` is `[x]` in both archives).
+  Residual worth a human eye, NOT reopened: the left boundary `[^A-Za-z0-9_@-]` excludes a
+  preceding hyphen, so a hand-written heading like `## Owner-gated holds` no longer parks. No such
+  heading exists on this tree (that is what the replay proves), and it is the `id:d35a` class --
+  "the vocabulary does not contain the words a human would write" -- already open as an
+  `[INPUT - decision]` item. <!-- relates:6446 -->
+
+- [ ] **GAMING FLAG (judgment, not `gaming-scan`): the executor reported "Full suite: 621 passed,
+  0 failed, 4 expected-red" in `RELAY_LOG.md`, the commit body AND the changelog line. The suite
+  was 620/1. Its own new test file was the failure.** `tests/test_negative_case_runner_a73c.sh`
+  case (i) refused the whole declaration allowlist because
+  `tests/test_roadmap_parked_heading_anchor_6446.sh` shipped with BOTH halves of its negative-case
+  declaration malformed. Verified this is the executor's regression and not pre-existing: the
+  runner file is byte-identical at `relay-ckpt-20260909-1509` and at HEAD (`diff -q`, clean), so
+  nothing about the check changed -- only the input did. The two defects:
+  `# fails-against-mutation:` was a python heredoc split across nine comment lines, of which only
+  the FIRST reaches the runner (`id:b890`), leaving the syntactically-invalid fragment
+  `python3 -c "`; and `# fails-against-assertion:` named a string that appears NOWHERE in the
+  file's body, so it could never have matched a fired `FAIL:` line. **FIXED this review**
+  (`fa48199e`), not reopened: the mutation is now one complete single-line command, and the
+  assertion names the LAST of the four `FAIL:` lines the non-exiting accumulator fires, per the
+  CLAUDE.md rule. `make verify-negatives FILES="tests/test_roadmap_parked_heading_anchor_6446.sh"`
+  now reports `green-now OK` / `red-there OK ... 4 FAIL lines fired; matched the LAST`. What the
+  owner may want to weigh: this is the THIRD vacuous-negative-case incident in three consecutive
+  reviews (`id:3016`'s moving rev -> `id:ff6a`; `id:f957`'s absent declaration -> `id:7827`; now
+  this), and the common factor is that `make verify-negatives` is opt-in and NOT part of
+  `make test`, so an executor can honestly believe it ran everything. <!-- relates:6446 -->
+  <!-- relates:ff6a -->
+
+- [ ] **NEW EVIDENCE for the already-open `id:8372`, and it is worse than that item's own framing:
+  `ledger-shrink.py` did not merely "defeat the shrink" -- it MANUFACTURED a live first-class
+  DISPATCH EXCLUSION on an open `[ROUTINE]` item.** `id:6446`'s ROADMAP head line read
+  ``... -- detail: `docs/ledger-notes/6446.md` 🚧 `@owner-gated` <!-- gated-on:f391 --> <!-- id:6446 -->``.
+  The item was never owner-gated; its real gate was the typed edge `gated-on:f391`. Both the `🚧`
+  and the `` `@owner-gated` `` were hoisted out of the item's BODY by commit `63d8539b`
+  (`shrink(0d7c)`), where they occur only as prose ABOUT the other item's protection mechanism
+  ("a heading containing the literal `@owner-gated` is parked ONLY because that string contains
+  `gated`"). `id:8372`'s `_at_marker_is_prose_example` guard cannot see this: it fires only when
+  the quoted marker is immediately followed by the word "marker"/"markers", and neither sentence
+  here is. Consequence, measured not inferred -- `classify-repo.sh` computes
+  `blocked = "🚧" in ln` and `is_owner_gated = "@owner-gated" in ln`, and the actionable branch
+  requires `not blocked and not is_human`, so the line scored **False** for
+  `actionable_routine_open`. A correct, ungated, RED-spec-ready item was invisible to dispatch for
+  the same reason `id:cd9c` was -- which is the exact silent-starvation class `id:6446` itself
+  existed to fix. Two more live instances of the same hoist, both currently harmless only because
+  their lane is already non-dispatchable: `TODO.md:575` (`id:16bf`) and `TODO.md:930` (`id:d35a`,
+  which additionally carries FOUR lane tags -- `[INPUT — decision]`, `[ROUTINE]`,
+  `[INPUT — meeting]`, `[HARD]` -- three of them hoisted from body prose). Blast radius today:
+  ZERO open ROADMAP items carry `@owner-gated`, so nothing is starved right now; 601 bodies were
+  relocated by that one commit, so the question is what else it planted. Suggest this evidence
+  re-scopes `id:8372` from a shrink-quality item to a dispatch-integrity one. <!-- relates:8372 -->
+  <!-- relates:6446 -->
+
+- [ ] **`id:6446` was worked by an executor even though its ROADMAP line carried TWO independent
+  first-class dispatch exclusions, and the classifier correctly excluded it -- so the exclusion is
+  computed and then not consulted by whatever picks the item.** Verified by evaluating
+  `classify-repo.sh`'s own predicates against the literal line as it stood at
+  `relay-ckpt-20260909-1509`: `is_routine=True`, `blocked=True` (the `🚧`), `is_owner_gated=True`,
+  therefore `counts toward actionable_routine_open = False`. The execute unit was legitimately
+  dispatched for the repo's OTHER actionable `[ROUTINE]` items; the Sonnet executor then selected
+  an item the classifier had ruled out. The outcome here was benign -- the markers were false
+  (previous box), the real gate was discharged, and the work is correct -- but the mechanism is
+  not: an executor that does not honour `🚧`/`@owner-gated` at SELECTION time can work a
+  genuinely owner-gated item, which is the `id:540f`/`id:c179` owner-gate-breach class the holds
+  exist to prevent. The gap is that `actionable_routine_ids` is computed by the classifier and
+  the executor contract's rule 1 says only "work `[ROUTINE]` items from ROADMAP.md" -- it never
+  tells the executor about the marker exclusions, nor hands it the computed id list. Two fix
+  shapes, owner's call: pass `actionable_routine_ids` into the executor's dispatch prompt as the
+  permitted set, or restate the marker exclusions in `executor-contract.md` rule 1 (cheaper, but
+  it is prose an executor can miss -- the `id:d35a` failure mode). <!-- id:c076 -->
