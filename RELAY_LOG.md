@@ -3781,3 +3781,7 @@ the functionally-equivalent (and more thorough, 5-scenario) test already existed
 the id:7408 seam's own name, `test_ratify_gate_binds_remote_7408.sh`, from the C3 RED-spec
 authoring. Treated that as satisfying the done-check in substance rather than adding a
 duplicate file asserting the same behaviour under a different name.
+
+## 2026-09-09 09:28 — executor (sonnet, relay-loop)
+
+id:5ad9 verified genuinely done: integrate.sh step 8 + ratify-queue.sh pending-blocking withhold declared-public remotes ancestral to an unresolved queue entry regardless of unit substantiveness; RED spec test_ratify_gate_binds_remote_7408.sh (unmodified) now passes all 5 scenarios, full suite 613/0/4-expected-red. [id:5ad9]
