@@ -230,8 +230,17 @@ step 2b); its semver sibling — the reviewer-only bump — is `relay/scripts/ve
   hardcoded `/home/*` guess.** Second trap on the same line, and NOT fixed by that
   normalization: a per-unit worktree path is not a unique self-marker at all -- the id:34b7
   `provision-worktree.sh` child's own dispatch prompt names the same worktree as a command
-  argument, so the marker matches at least two transcripts and the resolver must decide
-  what an ambiguous identity means (tracked as `id:6d7e`). The pre-existing fixture in
+  argument, so the marker matches at least two transcripts. **A multi-match marker is an
+  UNRESOLVED IDENTITY, not a tie to break** (`id:6d7e`, owner-ruled 2026-09-09): the
+  resolver REFUSES -- exit 4, empty stdout, every candidate named on stderr -- mirroring
+  the zero-match branch, which already exits 4 for the same underlying failure ("I cannot
+  tell which transcript is mine"); the two are told apart by message text, because their
+  remedies are opposite (fix the marker string vs. make the marker unique at source). The
+  pre-id:6d7e newest-mtime pick survives ONLY behind an explicit `--allow-ambiguous`. The
+  reason is that `context-budget.sh --self` fails OPEN on any non-zero, so a refusal costs
+  a verdict of `unknown`, whereas a guess costs ANOTHER child's byte count reported as
+  authoritative -- and a wrong number is worse than no number precisely because it looks
+  like an answer. The pre-existing fixture in
   `tests/test_self_transcript_workflow_nesting_c219.sh` missed both traps because it
   modelled the dispatch prompt as carrying an ABSOLUTE path.
 
