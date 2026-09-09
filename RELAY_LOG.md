@@ -3898,3 +3898,7 @@ repro and a precise acceptance list; the only surprise was that the glob-comment
 fail-OPEN-but-backstopped rather than a true false-green (an `export` declaration is always
 a SyntaxError inside the async-function-wrapper body), so its RED assertion had to pin the
 lost file-naming message rather than a wrongly-accepted (rc=0) case.
+
+## 2026-09-09 10:28 — executor (sonnet, relay-loop)
+
+Fixed workflow_node_check's lexical scanner (id:8627): replaced the line-oriented regex heuristic with a shared character-level state machine, closing three defects (// glob comments opening a false block-comment blind window, escaped backticks mis-toggling template state, same-line close-then-open block comments) -- full suite 615/0/0/4-expected-red [id:8627]
