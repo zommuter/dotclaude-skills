@@ -3,6 +3,67 @@
 Judgment calls encoded in red tests — confirm or correct the interpretation.
 Max ~10 open boxes; the reviewer prunes resolved ones each review turn.
 
+## Review 2026-09-09f (chain-end re-ask, run `relay-20260909-205831-5121` -- id:8123)
+
+Window `relay-ckpt-20260909-2245..HEAD` (8 commits) -- the last *reviewer* checkpoint, not the
+literal latest tag (`relay-ckpt-20260909-2256` is this chain's own executor checkpoint and IS
+HEAD, so the literal rule would have given an empty window). One executor unit, `id:11a4`,
+**verified GENUINELY green by spec-replay rather than by taking the suite's word**: its new spec
+`tests/test_container_never_expected_red_11a4.sh` was re-run against the pre-fix
+`tests/run-tests.sh` extracted from `relay-ckpt-20260909-2245` and reddens at `FAIL: (B) the
+runner exited 0 with a real failure hidden under a @container umbrella` -- exactly the assertion
+the item names -- while control case (A) still passes, so the fix is not an overcorrection. The
+five retargeted `# roadmap:` headers are comment-only diffs; no assertion text changed anywhere
+in the window. The SSOT twin the parked attempt broke, `tests/test_negative_case_syntax_ssot_7c82.sh`,
+is PASS, and the live example the item was filed on, `test_title_rewrite_batch_acceptance_64f9.sh`,
+is PASS rather than EXPECTED-RED. Tiers RUN: `make test` (runs `lint` first) **626 passed / 0
+failed / 0 errored / 3 expected-red**, `make gaming-canary` (3/0), `make shard-canary` (6/0/0),
+`make baseline-staleness` (advisory, see box below). RECORDED-SKIP: `make verify-negatives` and
+`make check-statusline-deps` -- opt-in, not part of `make test`, not folded into the green claim.
+No e2e/integration tier is declared (no `.github/workflows`). `gaming-scan.sh`: clean, no output.
+Provenance greps (S2b.7/9/10): no `@owner-accepted`/`@owner-answered`/`answer-src` introduced or
+modified. `orphan-scan --cross-ledger`: clean. `roadmap-lint`: 3 pre-existing WARNs (two b0b1
+dead-gates, one no-acceptance-no-twin on `id:da55`), unchanged by this window.
+
+- [ ] **`id:11a4` shipped a DELIBERATE NARROWING of its own written premise, and an executor made
+  that call.** The item's body says a `@container` / `DECOMPOSED` / **`[INPUT - decision]`** item
+  "is open indefinitely BY DESIGN", and its measured blast radius counted 9 files on that basis.
+  The landed predicate in `run-tests.sh:item_open()` matches only `@container|DECOMPOSED` on the
+  item's own line; the four remaining files (`test_dispatch_skill_countermand_9eb7.sh`,
+  `test_dryround_single_definition_6217.sh`, `test_shrink_example_marker_hoist_8372.sh`,
+  `test_tracker_derived_index.sh`) all key `[INPUT - decision]` ids (`9eb7`, `6217`, `8372`,
+  `dcf3`) and were reclassified as legitimately-expected-red rather than fixed. I think the
+  narrowing is RIGHT and I am not reopening on it: a container never ticks even after all its
+  seams land, whereas a decision-gated item ticks when its decision lands, so the umbrella is
+  permanent in the first case and temporary in the second -- and the reasoning is written into
+  the new spec's header, not left implicit. Two things are still worth your eye. (a) One of those
+  four, `test_dryround_single_definition_6217.sh`, is RED and swallowed RIGHT NOW under
+  `[INPUT - decision] id:6217`, and stays swallowed until an owner ruling lands -- the item's
+  "3 of them red and swallowed today" figure is therefore only partly discharged. (b) The scope
+  cut was decided inside an execute turn, against the item's own text, which is the kind of call
+  the ledger usually routes to you. Verified mechanically, not inferred: zero `tests/test_*.sh`
+  now key an open `@container`/`DECOMPOSED` ROADMAP item. <!-- relates:11a4 -->
+
+- [ ] **The parked orphan `relay/orphan/relay-20260909-143257-21736-execute-11a4-0` is now fully
+  SUPERSEDED but is still parked, still counted, and still suppressing.** `id:11a4`'s executor
+  restarted FROM that branch and cherry-picked its commit, so every line it held is on `main`
+  (its `item_open()` reshape, the 5 retargeted headers, the new spec) plus the twin fix the park
+  existed to force. `relay-doctor` still lists it among 5 parked orphans for this repo, and per
+  `id:7f4c` a parked orphan SUPPRESSES its item -- so a branch whose entire content has landed
+  keeps voting. Disposition is a retire, not a merge: `worktree-retire.sh` on that branch. I did
+  not run it -- branch deletion is destructive and outside a review child's remit. Same question
+  applies to `docs/ledger-notes/11a4.md`, whose "Parked work" section I have UPDATED in place
+  (edit declared in its header) because it asserted "the branch is not merged and nothing here
+  ticks the item", which is now false and is exactly the breadcrumb a future executor would read.
+
+- [ ] **`make baseline-staleness` reports 1 of 230 baselined `TODO.md` entries below its recorded
+  floor (371 chars of slack), and I did NOT regenerate.** It is pre-existing, not caused by this
+  window. The printed remedy regenerates ALL rows for BOTH ledgers in one shot, which sets every
+  floor to its current length -- tightening the one that shrank, but also re-baselining the other
+  229 in the same act. That is precisely the shape the global grandfathering rule warns about
+  (a baseline whose predicate re-grants silently), so it is a deliberate act for you or a
+  `/meeting`, not a reviewer's cleanup. `ROADMAP.md`'s 37 entries are all current.
+
 ## Review 2026-09-09e (run `relay-20260909-205831-5121`, chain-end re-ask)
 
 Window `relay-ckpt-20260909-2156..HEAD` (12 commits) -- the last *reviewer* checkpoint, not the
@@ -1277,7 +1338,7 @@ saying `+ TODO twins [id:521b,9088]`; ticked here.
   trusted on its exit code (id:b437's ROADMAP line now says so). Box left OPEN for that decision
   alone, not for the bug. <!-- id:227d -->
 
-- [ ] **A spec keyed to a `@container` id is never allowed to fail -- 9 more files are in this
+- [x] **A spec keyed to a `@container` id is never allowed to fail -- 9 more files are in this
   state, 3 of them red and swallowed today.** Filed as `id:11a4`. `run-tests.sh`'s `item_open`
   is satisfied by any open `- [ ]` line with the token, and a `@container`/`DECOMPOSED`/`[INPUT -
   decision]` item is open indefinitely by design. This review found it live: the id:64f9 spec was
@@ -1285,7 +1346,13 @@ saying `+ TODO twins [id:521b,9088]`; ticked here.
   the suite. **I fixed that one file** (retargeted its header `# roadmap:64f9` -> `# roadmap:521b`,
   with the reasoning written into the file). I did NOT sweep the other 9 -- retargeting is only
   safe per-file, since a spec whose seam has not landed is legitimately red. Your call on whether
-  the runner should hard-refuse a container key or merely warn. <!-- id:11a4 -->
+  the runner should hard-refuse a container key or merely warn.
+  **RESOLVED 2026-09-09 by `id:11a4`'s close** -- HARD-REFUSE is the disposition that shipped,
+  and the whole 9-file blast radius is cleared (5 retargeted, 4 reclassified as
+  `[INPUT - decision]` and left legitimately expected-red; verified mechanically -- zero
+  `tests/test_*.sh` now key an open `@container`/`DECOMPOSED` item). Recorded plainly because
+  the hard-refuse-vs-warn choice was made by the implementation, not ratified by you: reopen
+  if you wanted warn. See the `id:11a4` narrowing box in Review 2026-09-09f. <!-- id:11a4 -->
 
 - [ ] **The negative-case discipline has a second, independent umbrella on the DECLARATION axis:
   a defect-fix case grafted into a landed `# roadmap:`-keyed spec is verifiable by nothing.**
