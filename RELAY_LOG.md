@@ -3360,3 +3360,7 @@ handoff lane sliced via unpromoted-scan (id:a060) + cross-ledger note dedupe (id
 ## 2026-09-10 21:15 — integrate (claude-opus-5)
 
 annex worktree retirement fixed (id:1a5c): re-normalize before removal; 8 code.lawless worktrees reaped, 762 MB reclaimed
+
+## 2026-09-11 01:39 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:7c75 + id:8cc6 verified green and closed; 3 residue items filed (2381 verify-negatives runner-error conflation, 341e twin stat-cache predicates, 0c8a 120 unreachable boxes); suite 645/0/0/1-expected-red; routine_open 0 of 6 (all gated/owner-bound/parked) [id:7c75,8cc6,2381,341e,0c8a]
