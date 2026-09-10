@@ -260,3 +260,57 @@ token_own_checkbox_marker_in_text() {
   _valid_tok "$tok" || return 2
   grep -qE "^- \[[ x]\].*<!--[[:space:]]*id:${tok}[[:space:]]*-->"
 }
+
+# --- OWNERSHIP-ANCHORED checkbox closure (id:a192) ------------------------------
+# `token_own_checkbox_marker_in_text` above is a PLAIN grep: it does not inherit the
+# id:6059 multi-marker refusal, so a checkbox line carrying TWO `<!-- id:XXXX -->`
+# markers (this repo's TODO.md has 3 such lines today) would satisfy it for EITHER
+# token, silently attributing ownership to both. A consumer whose verdict is
+# "is this id CLOSED" (expires-on-scan.sh) needs the REFUSING resolver instead --
+# own_id_of_line et al. -- so an ambiguous line resolves to NOTHING (loud on stderr,
+# via own_id_of_line/own_routed_of_line) rather than a guessed match.
+
+# checkbox_line_owns_token <line> [context] -- print the token a CHECKBOX line
+# (leading `- [ ]`/`- [x]`, any case) OWNS, as "id:XXXX" or "routed:XXXX", or print
+# nothing (return 1). A non-checkbox line never owns anything regardless of marker
+# content. Recognises BOTH ownership spellings this corpus uses (id:c97c): the
+# HTML-comment marker via `own_token_of_line` (which already refuses a same-kind
+# multi-marker line, id:6059) and the leading INBOUND ingest-stub tag
+# (`- [ ] [LANE] [INBOUND routed:XXXX from src] ...`, `scan-routed.sh --apply`'s own
+# write shape). exit 0 resolved / 1 absent / $OWN_ID_AMBIGUOUS (3) refused.
+checkbox_line_owns_token() {
+  local line="$1" ctx="${2:-}"
+  [[ "$line" =~ ^-\ \[[\ xX]\] ]] || return 1
+  if [[ "$line" =~ ^-\ \[[\ xX]\][[:space:]]*(\[[^]]*\][[:space:]]*)*\[INBOUND[[:space:]]+routed:([0-9a-fA-F]{4}) ]]; then
+    printf 'routed:%s' "${BASH_REMATCH[2]}"
+    return 0
+  fi
+  own_token_of_line "$line" "$ctx"
+}
+
+# token_owned_by_checkbox_in_files <tok> <closed_only:0|1> <file>... -- return 0 iff
+# some checkbox line in one of <file>... OWNS <tok> (id:TOK or routed:TOK, via
+# checkbox_line_owns_token), narrowed to `- [x]`/`- [X]` lines when <closed_only> is
+# 1. A line whose own marker is AMBIGUOUS (id:6059) is treated exactly like a line
+# with no marker at all -- it resolves to nothing, never a guessed match; the loud
+# stderr warning still fires from within checkbox_line_owns_token. Missing/unreadable
+# files are skipped (mirrors token_marker_in_files's convention -- an absent archive
+# simply contributes nothing). Return 2 on a malformed <tok>; 1 if absent everywhere.
+token_owned_by_checkbox_in_files() {
+  local tok="$1" closed_only="$2"; shift 2
+  _valid_tok "$tok" || return 2
+  local f line own rc
+  for f in "$@"; do
+    [[ -r "$f" ]] || continue
+    while IFS= read -r line; do
+      if [[ "$closed_only" -eq 1 ]]; then
+        [[ "$line" =~ ^-\ \[[xX]\] ]] || continue
+      fi
+      rc=0
+      own="$(checkbox_line_owns_token "$line" "$f")" || rc=$?
+      [[ $rc -eq 0 ]] || continue
+      [[ "$own" == "id:$tok" || "$own" == "routed:$tok" ]] && return 0
+    done < "$f"
+  done
+  return 1
+}
