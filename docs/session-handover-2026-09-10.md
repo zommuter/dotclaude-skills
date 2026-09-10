@@ -492,7 +492,7 @@ in a repo with a public remote. Deleted on the owner's instruction, and `import`
 | | |
 |---|---|
 | `main` | `e3e65bad`, clean except a peer's `meeting/personas.md` (predates this session, attributed to `project_manager/quovadis-522a-scoping`; its owning session should commit it) |
-| Suite | see the Suite row addendum at the end of this section -- run at close, ledger/docs-only changes |
+| Suite | **639 passed, 0 failed, 0 errored, 1 expected-red** -- run at close, exit 0. Up from 637 at the evening handover; this session added no tests, so the +2 came from elsewhere today. Changes here were ledger/docs only, so a green suite CONFIRMS rather than clears anything. |
 | REVIEW_ME here | **84 open**, unchanged (this session opened none) |
 | Parked orphans | **2** (was 1): the surviving `...-execute-b437-0` plus a NEW `code.lawless/...-114832-18641-execute-repo-1` |
 | Retirable residue | **8 worktrees, 762 MB, ALL code.lawless** -- see the section below, this is the headline |
