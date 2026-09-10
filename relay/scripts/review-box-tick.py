@@ -22,6 +22,38 @@ EXACTLY ONE checkbox inside it, appends the caller's re-checkable rationale to t
 line, and hands the whole rewritten section to `md-merge.py update-sections`, so the write
 still happens under md-merge's flock. It never writes a ledger itself.
 
+WHERE THE RATIONALE GOES: ITS OWN PARAGRAPH AT THE END OF THE BOX
+-----------------------------------------------------------------
+NOT appended to the checkbox line. The first shipped version did append there, and it was
+wrong on 188 of 431 open boxes fleet-wide (44%) -- every box whose TITLE WRAPS. A REVIEW_ME
+head line is a PHYSICAL line, not a semantically complete unit: this repo's own
+`REVIEW_ME.md:1286` opens "- [ ] **id:6446 was worked ... carried TWO independent" and
+continues `first-class dispatch exclusions ...` on the next line, with the `**` bold run
+closing two lines later. Appending to the head line spliced the rationale into the middle
+of that sentence AND left it inside an unterminated bold run, so the markdown was malformed
+from that point on. This is the id:2964 class in miniature -- there, a `<!--[^>]*-->` regex
+ran across prose because it treated a backticked `<!--` as a marker opener; here, a physical
+line was treated as a logical one.
+
+So the rationale is emitted as its own paragraph, blank-line separated, at the end of the
+box block, indented to the box's own continuation indent. Three reasons this beats
+"append at the end of the logical title":
+  * The logical title also ends MID-LINE (`...picks the item.** Verified by evaluating`),
+    so appending there splices into body prose instead of title prose. It moves the bug,
+    it does not fix it.
+  * It is UNIFORM. Wrapped and unwrapped boxes take the identical path, so there is no
+    branch that can pick the wrong one -- which is exactly how the first version failed.
+  * The checkbox line stays byte-identical apart from the `[ ]`->`[x]` character, so an
+    anchored `<!-- id:XXXX -->` marker stays line-final and every anchored-id reader
+    (orphan-scan, lib-anchored-id.sh, roadmap-tick.sh's own_id rule) keeps its grip.
+The cost is that a short single-line box now carries a two-line answer instead of a longer
+one-liner. That is cosmetic, and uniformity is worth more.
+
+`markup_imbalance()` backs requirement 2: if a `**` or backtick run is still OPEN where the
+paragraph would land, the tool REFUSES (exit 9) instead of emitting into it. Measured over
+every open box in every `~/src/*/REVIEW_ME.md` on 2026-09-10, that fires on 3 of 431, and
+all three are genuinely malformed today.
+
 THE ONE-BOX GUARANTEE IS THE WHOLE VALUE
 ----------------------------------------
 Every refusal below exists because flipping the wrong box in a 12-box section is silent
@@ -62,6 +94,8 @@ EXIT CODES (every non-zero refusal prints NOTHING on stdout)
     7  INTERNAL INVARIANT: the composed section did not flip exactly one box
     8  md-merge.py itself failed (its own status is NOT propagated -- its exit 3 means
        LedgerCommitError, which would collide with the ambiguous-selector code here)
+    9  THE BOX'S OWN INLINE MARKUP IS UNBALANCED at the insertion point (an open `**` or
+       backtick run) -- the rationale would be emitted inside it
 
 REPEATED HEADINGS: WE REFUSE (exit 5)
 -------------------------------------
@@ -102,8 +136,11 @@ ANY_CHECKBOX_RE = re.compile(r'^(\s*- \[)([ xX])(\])')
 # A trailing run of HTML comment markers (`<!-- id:XXXX -->`, `<!-- routed:XXXX -->`, ...).
 # The rationale is inserted BEFORE this run so an anchored marker stays line-final, which
 # is what the anchored-id readers (orphan-scan, lib-anchored-id.sh) expect.
-TRAILING_MARKERS_RE = re.compile(r'((?:\s*<!--[^>]*-->)+)\s*$')
 DASH_RE = re.compile(r'[–—]')
+FENCE_RE = re.compile(r'^\s*```')
+# An inline code span of ANY backtick-run length: the run length is captured and the
+# closer must be the same run.
+INLINE_CODE_RE = re.compile(r'(`+)(?:(?!\1).)*?\1', re.S)
 
 
 class Refusal(Exception):
@@ -221,33 +258,102 @@ def enclosing_heading(lines: list[str], target: int) -> tuple[int, int, str]:
     return head_idx, end, key
 
 
-def tick_line(line: str, rationale: str) -> str:
-    """`- [ ] foo <!-- id:x -->` -> `- [x] foo -- <rationale> <!-- id:x -->`."""
+def flip_only(line: str) -> str:
+    """`- [ ] ...` -> `- [x] ...`, changing the checkbox CHARACTER and nothing else.
+
+    Deliberately does not append anything. See `rationale_placement` in the module
+    docstring: text appended to this line lands mid-sentence on a wrapped title.
+    """
     m = ANY_CHECKBOX_RE.match(line)
-    flipped = line[:m.start(2)] + 'x' + line[m.end(2):]
-    newline = '\n' if flipped.endswith('\n') else ''
-    body = flipped[:-1] if newline else flipped
-    body = body.rstrip()
-    tail = ''
-    tm = TRAILING_MARKERS_RE.search(body)
-    if tm:
-        tail = tm.group(1).strip()
-        body = body[:tm.start()].rstrip()
-    parts = [body, f'-- {rationale}']
-    if tail:
-        parts.append(tail)
-    return ' '.join(parts) + newline
+    return line[:m.start(2)] + 'x' + line[m.end(2):]
+
+
+def _strip_code(text: str) -> str:
+    """Remove fenced blocks and inline code spans, so markup counting sees prose only."""
+    kept, in_fence = [], False
+    for ln in text.splitlines():
+        if FENCE_RE.match(ln):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            kept.append(ln)
+    return INLINE_CODE_RE.sub('', '\n'.join(kept))
+
+
+def markup_imbalance(text: str) -> str | None:
+    """Name the unbalanced inline-markup run in `text`, or None if it is balanced.
+
+    Honest limits: this is a counter over prose, not a CommonMark parse. It strips fenced
+    blocks and inline code spans (any backtick-run length) first, then requires an even
+    number of `**` runs and no surviving backtick. It cannot see escaping (`\\*\\*`) or
+    intraword asterisks. Measured against every open box in every `~/src/*/REVIEW_ME.md`
+    on 2026-09-10 it fired on 3 of 431 -- and all three are genuinely malformed today, so
+    it is a loud refusal on real breakage rather than a tax on ordinary prose.
+    """
+    stripped = _strip_code(text)
+    if '`' in stripped:
+        return 'an unclosed backtick run'
+    if stripped.count('**') % 2 == 1:
+        return 'an unclosed `**` bold run'
+    return None
+
+
+def box_extent(lines: list[str], head_idx: int, end: int) -> tuple[int, str]:
+    """(index AFTER the box's last non-blank line, the box's continuation indent).
+
+    The box's LOGICAL extent, not its first physical line. Trailing blank lines are left
+    where they are so the separation from the next box is preserved.
+    """
+    stop = end
+    for j in range(head_idx + 1, end):
+        if BOX_HEAD_RE.match(lines[j]) or HEADING_RE.match(lines[j]):
+            stop = j
+            break
+    last = stop
+    while last > head_idx + 1 and not lines[last - 1].strip():
+        last -= 1
+
+    indent = '  '
+    for j in range(head_idx + 1, last):
+        m = re.match(r'^([ \t]+)\S', lines[j])
+        if m:
+            indent = m.group(1)
+            break
+    return last, indent
 
 
 def compose(lines: list[str], target: int, head_idx: int, end: int, rationale: str) -> str:
-    """Return the rewritten section text. Verbatim except for the ONE flipped line."""
+    """Return the rewritten section text.
+
+    Verbatim except for ONE flipped checkbox character and ONE inserted rationale
+    paragraph at the end of that box. Nothing is appended to the checkbox line itself --
+    see the module docstring for why that placement, and only that placement, is safe.
+    """
     section = lines[head_idx:end]
     rel = target - head_idx
-    new_section = list(section)
-    new_section[rel] = tick_line(section[rel], rationale)
+    box_end, indent = box_extent(lines, target, end)
+    ins = box_end - head_idx
 
-    # The one-box invariant, checked rather than asserted in prose.
-    differing = [i for i in range(len(section)) if section[i] != new_section[i]]
+    open_run = markup_imbalance(''.join(lines[target:box_end]))
+    if open_run is not None:
+        raise Refusal(
+            9,
+            f'The box at line {target + 1} carries {open_run} that is still OPEN at the end\n'
+            'of the box, so the rationale paragraph would be emitted INSIDE it and the\n'
+            'markdown would stay malformed from there on. REFUSING rather than emitting it.\n'
+            'Balance the box\'s own markup first; this tool will not guess where the run\n'
+            'was meant to close.',
+        )
+
+    new_section = list(section)
+    new_section[rel] = flip_only(section[rel])
+    new_section[ins:ins] = ['\n', f'{indent}{rationale}\n']
+
+    # The one-box invariant, CHECKED rather than asserted in prose.
+    if len(new_section) != len(section) + 2:
+        raise Refusal(7, 'INTERNAL INVARIANT VIOLATED: unexpected inserted line count.')
+    survivors = new_section[:ins] + new_section[ins + 2:]
+    differing = [i for i in range(len(section)) if section[i] != survivors[i]]
     unticked_before = sum(1 for ln in section if ANY_CHECKBOX_RE.match(ln)
                           and ANY_CHECKBOX_RE.match(ln).group(2) == ' ')
     unticked_after = sum(1 for ln in new_section if ANY_CHECKBOX_RE.match(ln)
@@ -258,6 +364,12 @@ def compose(lines: list[str], target: int, head_idx: int, end: int, rationale: s
             'INTERNAL INVARIANT VIOLATED: the composed section did not flip exactly one '
             f'box (changed lines {differing}, open boxes {unticked_before} -> '
             f'{unticked_after}). Nothing was written.',
+        )
+    if markup_imbalance(''.join(new_section[rel:ins + 2])) is not None:
+        raise Refusal(
+            7,
+            'INTERNAL INVARIANT VIOLATED: the composed box has unbalanced inline markup. '
+            'Nothing was written.',
         )
     return ''.join(new_section)
 
@@ -323,6 +435,10 @@ def main() -> int:
     if DASH_RE.search(rationale):
         raise Refusal(1, '--rationale contains an em/en dash, which is banned fleet-wide. '
                          'Use `--` or restructure.')
+    own_run = markup_imbalance(rationale)
+    if own_run is not None:
+        raise Refusal(1, f'--rationale itself carries {own_run}. Emitting it would leave the '
+                         'box malformed from that point on; balance it or drop the markup.')
 
     before = path.read_text()
     digest = hashlib.sha256(before.encode()).hexdigest()

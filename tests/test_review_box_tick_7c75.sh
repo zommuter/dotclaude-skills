@@ -20,8 +20,15 @@
 #      nothing.
 #   C. ONE-BOX GUARANTEE: in a 12-box section under a single `## ` heading, exactly one box
 #      flips and the other 11 lines survive VERBATIM.
-#   D. The rationale is appended to the ticked line, and a trailing anchored marker stays
-#      line-final (the anchored-id readers require that).
+#   W. A REAL WRAPPED-TITLE BOX (this repo's own REVIEW_ME.md:1286, verbatim) ticks without
+#      splicing the rationale into the middle of its sentence and without leaving its `**`
+#      run unterminated. A REVIEW_ME head line is a PHYSICAL line, not a logical one; 188 of
+#      431 open boxes fleet-wide wrap. This is the id:2964 class one layer up.
+#   X. An inline-markup run still OPEN where the rationale would land is a REFUSAL (exit 9),
+#      in the box or in the caller's own --rationale (exit 1). Never emitted into.
+#   D. Nothing is appended to the checkbox line: it changes by exactly its checkbox
+#      character, so a trailing anchored marker stays line-final (the anchored-id readers
+#      require that), and the rationale goes on its own line.
 #   E. Idempotent: re-running on an already-ticked box is a clean exit-0 no-op that writes
 #      nothing, not a double-tick and not an error.
 #   F/G. A selector matching 2+ boxes and one matching 0 REFUSE with DIFFERENT exit codes
@@ -47,6 +54,29 @@
 # as vacuous as passing. Verified with `make verify-negatives`.
 # fails-against-mutation: sed -i -e 's|^            write_target = Path(td) / path.name$|            write_target = path|' -e 's|^            shutil.copyfile(path, write_target)$||' relay/scripts/review-box-tick.py
 # fails-against-assertion: case A: --dry-run must leave the ledger BYTE-IDENTICAL
+#
+# fails-against: SECOND case, for the wrapped-title placement (the defect found on first
+# real use, 2026-09-10). The mutation restores the first version's behaviour in its purest
+# form: it APPENDS the rationale to the checkbox line's text. On a wrapped title that lands
+# mid-sentence, and inside a `**` run that does not close until two lines later.
+# ORDERING, which is load-bearing: case W runs 4th, immediately after C, and cases A/B/C all
+# survive this mutation -- their fixture boxes have single-line titles whose bold run opens
+# and closes on the head line, A's diff assertion is anchored on the line's PREFIX, and B
+# counts changed lines (still 4) rather than their content. Case D asserts the same "nothing
+# is appended to the head line" property and would also fire, which is why W is ordered
+# BEFORE D and not after it.
+# REACHABILITY, recorded because it decides which assertion is declared: W2 (the bold-run
+# balance) is NOT reachable under this mutation -- appending text to a line does not change
+# the `**` COUNT, so the box still balances even though the rationale sits inside the open
+# run. W1 (the head line changed by more than its checkbox character) is the assertion that
+# fires and the one declared. An earlier attempt to mutate the INSERTION INDEX instead
+# (`ins = rel + 1`) was rejected: the tool's own exit-7 markup invariant caught it first, so
+# the case died at "case W: apply exited 7" -- red for the wrong reason, and exactly as
+# vacuous as passing. That is the second time this file's negative case had to be re-aimed;
+# both were caught by `make verify-negatives`, neither by reading. The mutation touches only
+# a relative path under its own cwd.
+# fails-against-mutation: sed -i 's|^    new_section\[rel\] = flip_only(section\[rel\])$|    new_section[rel] = flip_only(section[rel]).replace(chr(10), " -- APPENDED TO THE HEAD LINE" + chr(10))|' relay/scripts/review-box-tick.py
+# fails-against-assertion: case W: a WRAPPED title must not be interrupted
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -127,8 +157,10 @@ diff -u "$TMP/a.md" "$TMP/b.md" > "$TMP/b.realdiff" || true
 # rather than by pattern; a `^[+-][^+-]` filter silently matches nothing here.
 tail -n +3 "$TMP/b.realdiff" | grep -E '^[+-]' > "$TMP/b.changed" || true
 real_changed="$(wc -l < "$TMP/b.changed")"
-[[ "$real_changed" == "2" ]] \
-  || fail "case B: the real apply changed $real_changed lines, expected exactly 2 (one -/one +)"
+# 4 = the head line out, the flipped head line in, and the two inserted rationale lines
+# (blank + the paragraph). The rationale is NOT appended to the head line -- see case W.
+[[ "$real_changed" == "4" ]] \
+  || fail "case B: the real apply changed $real_changed lines, expected exactly 4"
 while IFS= read -r ln; do
   grep -qxF -e "$ln" "$TMP/a.out" \
     || fail "case B: the real apply produced a line the dry run did not predict: $ln"
@@ -154,6 +186,85 @@ grep -qxF -e '- [x] Something already closed.' "$TMP/b.md" \
   || fail "case C: the sibling section's content was destroyed"
 pass "C: exactly one of 12 boxes flipped; the other 11 and the sibling section are verbatim"
 
+# ================================================ (W) a REAL wrapped-title box, id:2964 class
+# The bytes below are lines 1286-1288 of this repo's own REVIEW_ME.md as of 2026-09-10,
+# copied VERBATIM (the box's body below its title is truncated; the title, its wrap and its
+# `**` run -- the only properties under test -- are untouched). This is the box that broke
+# the first shipped version: its head line is a PHYSICAL line that ends mid-sentence
+# ("...carried TWO independent" / "first-class dispatch exclusions..."), with the `**` bold
+# run opened on the head line and closed two lines later. Appending to the head line spliced
+# the rationale into the middle of that sentence AND left it inside an unterminated bold run.
+# 188 of 431 open boxes fleet-wide (44%) have a wrapped title, so this is the common shape,
+# not an edge case.
+cat > "$TMP/w.md" <<'EOF'
+# Human review queue
+
+## Review 2026-09-09c
+
+- [ ] **`id:6446` was worked by an executor even though its ROADMAP line carried TWO independent
+  first-class dispatch exclusions, and the classifier correctly excluded it -- so the exclusion is
+  computed and then not consulted by whatever picks the item.** Verified by evaluating
+  `classify-repo.sh`'s own predicates against the literal line. <!-- id:c076 -->
+
+- [ ] **A second box** that must not be disturbed. SECOND-BOX
+EOF
+head_before="$(sed -n '5p' "$TMP/w.md")"
+rc=0
+python3 "$TOOL" --file "$TMP/w.md" --match 'carried TWO independent' --rationale "$RAT" \
+  > /dev/null 2> "$TMP/w.err" || rc=$?
+(( rc == 0 )) || { cat "$TMP/w.err"; fail "case W: apply exited $rc, expected 0"; }
+head_after="$(sed -n '5p' "$TMP/w.md")"
+# (W1) THE SENTENCE IS NOT INTERRUPTED: the head line differs from the original in exactly
+# one character position, the checkbox. Anything spliced in mid-sentence changes more.
+[[ "$head_after" == "${head_before/- \[ \]/- [x]}" ]] \
+  || { printf 'before: %s\nafter:  %s\n' "$head_before" "$head_after"; \
+       fail "case W: a WRAPPED title must not be interrupted -- the checkbox line may change ONLY the checkbox character"; }
+# (W2) THE RENDERED RESULT IS WELL-FORMED: `**` runs balance across the whole box, and the
+# bold run that opens on the head line still closes on the line it always closed on.
+box_bold="$(sed -n '5,10p' "$TMP/w.md" | grep -o '\*\*' | wc -l)"
+(( box_bold % 2 == 0 )) \
+  || { sed -n '5,10p' "$TMP/w.md"; fail "case W: the box was left with an UNBALANCED ** run ($box_bold markers)"; }
+grep -qxF -e '  computed and then not consulted by whatever picks the item.** Verified by evaluating' "$TMP/w.md" \
+  || fail "case W: the line closing the bold run was not preserved verbatim"
+# (W3) The rationale is present, on its own line, AFTER the box's last body line.
+rat_line="$(grep -nxF -e "  $RAT" "$TMP/w.md" | cut -d: -f1)"
+[[ -n "$rat_line" ]] || { cat "$TMP/w.md"; fail "case W: the rationale is missing from the box"; }
+close_line="$(grep -n 'own predicates against the literal line' "$TMP/w.md" | cut -d: -f1)"
+(( rat_line > close_line )) \
+  || fail "case W: the rationale (line $rat_line) must come AFTER the box's last body line (line $close_line)"
+# (W4) The anchored marker is still line-final on the body line that carried it.
+grep -q 'literal line\. <!-- id:c076 -->$' "$TMP/w.md" \
+  || fail "case W: the box's anchored marker was disturbed"
+grep -qxF -e '- [ ] **A second box** that must not be disturbed. SECOND-BOX' "$TMP/w.md" \
+  || fail "case W: the neighbouring box was disturbed"
+pass "W: a real wrapped-title box ticks without splicing the sentence or breaking the bold run"
+
+# ================================================ (X) refuse an OPEN inline-markup run
+# If the box's own markup is unbalanced where the paragraph would land, emitting into it
+# would leave the file malformed from there on. That is a refusal, not something to emit.
+cat > "$TMP/x.md" <<'EOF'
+## Open
+
+- [ ] **A box whose bold run never closes. UNBALANCED-BOX
+  and its continuation line does not close it either.
+EOF
+sum_before="$(sha256sum < "$TMP/x.md")"
+rc=0
+python3 "$TOOL" --file "$TMP/x.md" --match 'UNBALANCED-BOX' --rationale "$RAT" \
+  > "$TMP/x.out" 2> "$TMP/x.err" || rc=$?
+(( rc == 9 )) || { cat "$TMP/x.err"; fail "case X: an open ** run at the insertion point must exit 9, got $rc"; }
+[[ ! -s "$TMP/x.out" ]] || fail "case X: a refusal must print NOTHING on stdout"
+grep -q 'bold run' "$TMP/x.err" || fail "case X: the message must name the open run"
+[[ "$sum_before" == "$(sha256sum < "$TMP/x.md")" ]] || fail "case X: a refusal must not write"
+# The same guard on the caller's own text: a rationale that opens a run and never closes it
+# would break the box just as surely.
+rc=0
+python3 "$TOOL" --file "$TMP/w.md" --match 'SECOND-BOX' --rationale 'ANSWERED: **never closed' \
+  > "$TMP/x2.out" 2> "$TMP/x2.err" || rc=$?
+(( rc == 1 )) || fail "case X: an unbalanced --rationale must be refused, got $rc"
+[[ ! -s "$TMP/x2.out" ]] || fail "case X: the rationale refusal must print NOTHING on stdout"
+pass "X: an open ** run in the box (exit 9) or in the rationale (exit 1) is refused, never emitted"
+
 # ============================================================ (D) rationale + marker order
 cat > "$TMP/d.md" <<'EOF'
 ## Open
@@ -165,9 +276,14 @@ rc=0
 python3 "$TOOL" --file "$TMP/d.md" --match 'MARKED-BOX' --rationale "$RAT" \
   > /dev/null 2> "$TMP/d.err" || rc=$?
 (( rc == 0 )) || { cat "$TMP/d.err"; fail "case D: apply exited $rc, expected 0"; }
-grep -qxF -e "- [x] **A box with an anchored marker** MARKED-BOX -- $RAT <!-- id:ab12 -->" "$TMP/d.md" \
-  || { grep -n 'MARKED-BOX' "$TMP/d.md"; fail "case D: rationale must be appended BEFORE the trailing anchored marker, leaving it line-final"; }
-pass "D: rationale appended, trailing anchored marker still line-final"
+# The checkbox line must be byte-identical to the original apart from the `[ ]`->`[x]`
+# character: nothing appended, so the anchored marker is still the LAST thing on it and
+# every anchored-id reader keeps its grip.
+grep -qxF -e '- [x] **A box with an anchored marker** MARKED-BOX <!-- id:ab12 -->' "$TMP/d.md" \
+  || { grep -n 'MARKED-BOX' "$TMP/d.md"; fail "case D: the checkbox line must change ONLY the checkbox character, leaving the anchored marker line-final"; }
+grep -qxF -e "  $RAT" "$TMP/d.md" \
+  || { cat "$TMP/d.md"; fail "case D: the rationale must be emitted on its OWN indented line"; }
+pass "D: only the checkbox char changes; marker line-final; rationale on its own line"
 
 # ============================================================ (E) idempotent no-op
 sum_before="$(sha256sum < "$TMP/d.md")"

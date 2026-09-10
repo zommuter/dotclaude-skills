@@ -582,10 +582,15 @@ What it does (full procedure in `references/human.md`):
      many boxes, and hand-composing that replacement is where the wrong box gets ticked
      silently. `review-box-tick.py --file <REVIEW_ME.md> --match '<unique substring>'
      --rationale '<why>' [--dry-run]` extracts the section verbatim, flips exactly ONE box,
-     and hands it back to `md-merge.py update-sections` under its flock. It REFUSES loudly
-     (non-zero, empty stdout) on a selector matching 0 boxes (exit 2) or 2+ (exit 3), on a
-     box with no `## ` heading above it (exit 4), and on a heading that repeats in the file
-     (exit 5). `--dry-run` prints the byte-exact diff and writes nothing. Where the box DOES
+     and hands it back to `md-merge.py update-sections` under its flock. The rationale is
+     emitted as its OWN paragraph at the end of the box, never appended to the checkbox
+     line: a REVIEW_ME head line is a PHYSICAL line, and 188 of 431 open boxes fleet-wide
+     have a title that WRAPS, where appending splices the text mid-sentence and inside an
+     unterminated `**` run. It REFUSES loudly (non-zero, empty stdout) on a selector
+     matching 0 boxes (exit 2) or 2+ (exit 3), on a box with no `## ` heading above it
+     (exit 4), on a heading that repeats in the file (exit 5), and on an inline-markup run
+     still OPEN where the paragraph would land (exit 9). `--dry-run` prints the byte-exact
+     diff and writes nothing. Where the box DOES
      carry an anchored marker, `md-merge.py update-ids` (or `scripts/roadmap-tick.sh` for
      the ROADMAP/TODO twin) remains the direct path.
    - **(b) BATCH-DECIDABLE** — quick human yes/no, presented in small multiple-choice
