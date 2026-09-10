@@ -7,6 +7,10 @@
      Semver repos across the fleet are release-bucketed instead, gated on the id:e647 bump.
      Started from now — history is NOT backfilled (per-close tags are unrecoverable). -->
 
+## 2026-09-11
+
+- review: id:7c75 + id:8cc6 verified green and closed; 3 residue items filed (2381 verify-negatives runner-error conflation, 341e twin stat-cache predicates, 0c8a 120 unreachable boxes); suite 645/0/0/1-expected-red; routine_open 0 of 6 (all gated/owner-bound/parked) (id:7c75,8cc6,2381,341e,0c8a)
+
 ## 2026-09-10
 
 - id:aa5e: relay_FILES now ships the head-length/shape-prose baseline files so make install-relay stops the ratchet going INERT (id:aa5e)
