@@ -81,7 +81,15 @@
 # which is loud, not silent. A second case for defect (1) is deliberately NOT declared -- its
 # mutation has no stable anchor until the widened predicate exists; add one in the same commit
 # as the fix, anchored on whatever marker that predicate carries.
-# fails-against-mutation: sed -i '/--emit unit --chain-ended/s/--exclude/--no-exclude-NEUTERED/' relay/scripts/relay-loop.js
+# RE-ANCHORED 2026-09-10 by the reviewer. The original declaration was
+#   sed -i '/--emit unit --chain-ended/s/--exclude/--no-exclude-NEUTERED/' relay/scripts/relay-loop.js
+# and the adversarial review PROVED it a complete no-op: the landed fix appends `--exclude` on a
+# SEPARATE line from `--emit unit --chain-ended`, so that address never matches a line containing
+# `--exclude` and the sed left the file byte-identical (diff exit 0). This file's own header had
+# instructed the fix commit to re-anchor it and the fix commit did not. Anchoring on the
+# `chainEndExclude` identifier instead, which is where the set is BUILT and cannot drift onto
+# another line without renaming the variable.
+# fails-against-mutation: sed -i 's/const chainEndExclude = \[\.\.\.dispatchedThisRound\]/const chainEndExclude = []; const _neutered = [...dispatchedThisRound]/' relay/scripts/relay-loop.js
 # fails-against-assertion: (D) the chain-end re-ask passes NO --exclude naming this run's dispatches
 set -euo pipefail
 

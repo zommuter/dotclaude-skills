@@ -2908,6 +2908,18 @@ const debts = []
 // outage) the repo is SURFACED-AND-SKIPPED for the round (state.queued + a loud log) rather
 // than the loop halting or silently dropping the audit. Cleared per round with the queue.
 const chainEndReasked = new Set()
+// id:4e84 REVIEW FIX (D2) — `${repo}:${verdict}` for units this ROUND actually reached runUnit.
+// The first cut built the chain-end `--exclude` set from `redispatchGuard` keys, which is wrong in
+// two ways the review measured: (i) `breakerAllows` records a key at COUNT time, FOUR gates
+// upstream of dispatch (enforceApexGate :2685, fable-down demote :2705, id:7616 mechanical
+// surface :2794, enforceOneUnitPerRepo :2824, id:a615 wave budget :4807) -- so a `hard` DEFERRED
+// by dc5b C2 was still excluded, and the hop could not return the one class id:4e84 exists to
+// unstarve; and (ii) `redispatchGuard` is declared OUTSIDE runRound (:1454), so it accumulates for
+// the whole RUN and never resets -- after a repo has walked execute/hard/handoff once, all three
+// stay excluded forever and the widening silently decays to pre-fix behaviour.
+// PER-ROUND is also the semantically right scope: the exclusion exists to make the re-ask answer
+// something OTHER than what this round just did, not to remember the whole run.
+const dispatchedThisRound = new Set()
 let unitsDispatched = 0
 let roundCapHit = false   // per-round MAX_UNITS cap; distinct from quotaStopped (run-ending)
 // ── id:a615 — DISPATCH-SCOPED launch bound + mid-round operator stop ────────────────────────
@@ -4368,6 +4380,9 @@ async function provisionWorktree(unit, isRetry) {
 }
 
 async function runUnit(unit) {
+  // id:4e84 (D2) — record the ACTUAL dispatch here, past every deferral gate. This is the
+  // earliest point at which "this unit is being run" is true rather than prospective.
+  if (unit && unit.repo && unit.verdict) dispatchedThisRound.add(`${unit.repo}:${unit.verdict}`)
   const tier = unit.verdict === 'execute' ? 'sonnet' : 'strong'
   // Injected units (id:baf1) skip the quota gate — an explicit user request runs even near
   // the cap. They were already consumed by `inject.sh take`, so deferring them would lose
@@ -4624,9 +4639,12 @@ async function runUnit(unit) {
     // redispatchGuard keys (`${repo}:${verdict}`) already recorded at dispatch time — NOT the
     // id:365b breaker's >3x-same-verdict condition, which is false on round 1, exactly when
     // starvation begins (docs/ledger-notes/4e84.md). Demote-only, same as the id:bc2b hop.
-    const chainEndExclude = Object.keys(redispatchGuard)
-      .filter(k => k.startsWith(unit.repo + ':'))
-      .map(k => k.slice(unit.repo.length + 1))
+    // Split on the LAST ':' so a repo name containing ':' cannot contaminate the class (the
+    // review constructed `alpha:beta:hard` under repo `alpha` yielding a bogus class `beta:hard`,
+    // which classify-verdict.sh then rejected with exit 2, killing that repo's re-ask for the run).
+    const chainEndExclude = [...dispatchedThisRound]
+      .filter(k => k.slice(0, k.lastIndexOf(':')) === unit.repo)
+      .map(k => k.slice(k.lastIndexOf(':') + 1))
       .filter(Boolean)
     let chainEndResult = null
     try {
@@ -4651,7 +4669,25 @@ async function runUnit(unit) {
     // id:4e84 — widen the accepted set from 'review' alone to the whole DISPATCHABLE set
     // (relay-loop.js:1705 — execute|hard|handoff — plus review, the shipped id:8123 behaviour).
     // idle/blocked/mechanical/human stay non-dispatchable, mirroring the id:bc2b demote escapes.
-    if (chainEndVerdict && (chainEndVerdict === 'review' || chainEndVerdict === 'execute' || chainEndVerdict === 'hard' || chainEndVerdict === 'handoff') && !quotaStopped) {
+    // id:4e84 REVIEW FIX (D1) — the chain-end push goes into `queue`, and enforceApexGate
+    // (relay-loop.js:2685) only ever sees `actionable`. So before this guard a chain-end `hard`
+    // dispatched with AFK=0 AND on STRONG_TIER=fable, straight past the gate -- measured, with a
+    // discovered `hard` correctly deferred in the same harness as the control. Pre-fix that was
+    // UNREACHABLE (a `hard` verdict could not leave this hop at all), so the widening is what
+    // opened it. Reusing enforceApexGate rather than re-testing its conditions keeps one
+    // predicate: the owner's 2026-08-22 ruling (HARD-execute at apex requires --afk) applies to
+    // every path or it is not a ruling. NOTE this is deliberately the CONSERVATIVE reading -- the
+    // `id:4e84` accept-the-apex-cost ruling was about whether the WIDENING is gated and never
+    // mentioned this gate, and the motivating incident was a run WITH --afk, so it does not cover
+    // the non-afk branch. If the owner wants a chain-end hard exempt, that is a new ruling.
+    const chainEndGate = (chainEndVerdict === 'hard')
+      ? enforceApexGate([{ repo: unit.repo, verdict: 'hard' }], { strongTier: STRONG_TIER, afk: AFK })
+      : { plan: [1], hardDeferred: [] }
+    if (chainEndGate.hardDeferred.length) {
+      log(`relay-loop: id:4e84 chain-end HARD deferred by the apex gate (id:7986/da51) for ${unit.repo}: ${chainEndGate.hardDeferred[0].gateReason}; surfaced, not dispatched`)
+      state.queued.push({ repo: unit.repo, verdict: `hard (id:4e84 chain-end re-ask gated: ${chainEndGate.hardDeferred[0].gateReason})` })
+    }
+    if (chainEndVerdict && chainEndGate.plan.length && (chainEndVerdict === 'review' || chainEndVerdict === 'execute' || chainEndVerdict === 'hard' || chainEndVerdict === 'handoff') && !quotaStopped) {
       queue.push({
         repo: unit.repo, path: unit.path, verdict: chainEndVerdict,
         reason: `chain-end ${chainEndVerdict} re-ask (${chainEndReason}): classify-verdict.sh returned ${chainEndVerdict} for the chain just ended (id:8123/id:4e84)`,
@@ -4659,7 +4695,14 @@ async function runUnit(unit) {
         // id:4e84 — carry the RE-CLASSIFIED intensive claim for the NEW verdict (id:5ac6
         // invariant: non-empty only for execute/hard), never the suppressed lane's old claim
         // (contrast the id:bc2b demote path above, which correctly blanks it instead).
-        intensive: (chainEndResult && typeof chainEndResult.intensive === 'string') ? chainEndResult.intensive : '',
+        // id:4e84 REVIEW FIX (D3) — ENFORCE the id:5ac6 invariant here, do not merely cite it.
+        // The previous spelling copied `intensive` through for ANY verdict: measured, a `handoff`
+        // unit carrying intensive='local-llm' reached runUnit and tripped the fail-closed gate --
+        // the very id:2799 shape the design rationale invokes. classify-verdict.sh:427-433 upholds
+        // the invariant, but MECH_MODEL is NOT always 'bash' (relay-loop.js:137: under
+        // MECH_FALLBACK='fallback-haiku' the reply is an LLM transcription of that stdout), so a
+        // malformed field needs no classifier bug. Non-empty only for execute/hard.
+        intensive: ((chainEndVerdict === 'execute' || chainEndVerdict === 'hard') && chainEndResult && typeof chainEndResult.intensive === 'string') ? chainEndResult.intensive : '',
       })
       log(`relay-loop: id:8123/id:4e84 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says ${chainEndVerdict}; enqueued`)
     } else if (!chainEndVerdict) {
@@ -4669,11 +4712,17 @@ async function runUnit(unit) {
     } else {
       // id:4e84 — wording follows the widening: this branch no longer means "no review owed"
       // (it said that when `review` was the only accepted verdict, and the pre-fix red output
-      // quoted it while silently dropping a `hard`). It now means the classifier named a
-      // NON-DISPATCHABLE class — idle / blocked / mechanical / human — which is a legitimate
-      // answer, not an escape. Naming the class is the point: a log line that misstates WHY
-      // nothing happened is the same adjacent-surface trap as id:3f59.
-      log(`relay-loop: id:8123/id:4e84 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says ${chainEndVerdict}, a non-dispatchable class; nothing enqueued`)
+      // quoted it while silently dropping a `hard`).
+      // REVIEW FIX (D5): it must also not claim "non-dispatchable class" when the class IS
+      // dispatchable and something else stopped it. The predicate has three conjuncts, and the
+      // first version of this line enumerated only the verdict -- so a dispatchable `hard` under
+      // `quotaStopped` (reachable at :3379 and :4831, both able to flip mid-flight) was reported
+      // as non-dispatchable. That is the id:3f59 adjacent-surface sin this line was written to
+      // REMOVE, reintroduced on the one input I did not enumerate. Name the actual reason.
+      const chainEndWhy = quotaStopped
+        ? 'the run is quota-stopped'
+        : (chainEndGate.hardDeferred.length ? 'the apex gate deferred it' : 'it is a non-dispatchable class')
+      log(`relay-loop: id:8123/id:4e84 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says ${chainEndVerdict}; nothing enqueued because ${chainEndWhy}`)
     }
   }
 
