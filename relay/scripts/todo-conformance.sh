@@ -66,8 +66,16 @@
 # the ledger BASENAME (not a path) plus the repo key is what lets a hermetic fixture and the
 # real ledger share one mechanism while staying repo-scoped. Regenerating it is a DELIBERATE,
 # SEPARATE act -- `--regen-length-baseline <path>` prints the new snapshot to stdout and
-# writes nothing. A regen TIGHTENS the ratchet (every line re-baselines at its current,
-# smaller length); nothing regenerates it automatically, exactly the cb3e discipline.
+# writes nothing; nothing regenerates it automatically, exactly the cb3e discipline.
+#
+# `--regen-*` IS A RECAPTURE, NOT A TIGHTENING -- CORRECTED 2026-09-10 (id:7e3b). This header
+# used to claim "a regen TIGHTENS the ratchet (every line re-baselines at its current, smaller
+# length)". Measured on this repo, that is false: recapturing the length baseline turned 50
+# committed rows into 61, forgiving 36,513 new chars, and RAISED two existing ceilings
+# (`2b7a` 750 -> 10,190, `3770` 2,209 -> 2,536). A recapture writes whatever is there now, in
+# both directions. Use `--tighten-length-baseline` / `--tighten-shape-baseline` (id:7e3b) for
+# the monotonic, row-scoped regen that may only lower a floor and REFUSES to raise or mint
+# one; `--regen-*` remains the tool for a genuine FIRST capture of a new ledger.
 #
 # A row with exactly THREE tab fields is the pre-id:4839 legacy shape (no repo dimension) and
 # is REFUSED LOUDLY (exit 2) by `baseline_parse_line` rather than silently treated as
@@ -127,7 +135,9 @@
 # block above the implementation for why, and for what it deliberately does not do.
 #
 # Usage:  todo-conformance.sh [--fix] [--inbox] [--strict] [--no-grammar] [<path>]
-#         todo-conformance.sh --regen-length-baseline [<path>]
+#         todo-conformance.sh --regen-length-baseline [<path>]        # FIRST capture only
+#         todo-conformance.sh --tighten-length-baseline [--emit-baseline] [--allow-new] [--only ids] <path>...
+#         todo-conformance.sh --tighten-shape-baseline  [--emit-baseline] [--allow-new] [--only ids] <path>...
 #         todo-conformance.sh --baseline-staleness [--strict] [<path>]
 #         todo-conformance.sh --grammar-lines [<path>]   # b048 grammar only, `<lineno>TAB<class>`
 #   <path> default = <cwd repo>/TODO.md (git rev-parse --show-toplevel). REPORT-ONLY
@@ -241,6 +251,12 @@ mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 log() { printf '%s todo-conformance.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
 fix=0 inbox=0 strict=0 path="" regen_length=0 regen_shape=0 grammar_lines=0 staleness=0
+# --- row-scoped TIGHTENING regen (id:7e3b) ------------------------------------------------
+# `tighten_fam` is "" (mode off), "length" or "shape". `emit_baseline` switches the mode from
+# its default DRY REPORT to printing the new baseline file; `allow_new` is the explicit,
+# off-by-default opt-in to mint rows for ids that have none. See the mode's own header.
+tighten_fam="" emit_baseline=0 allow_new=0 only_ids=""
+declare -a paths=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fix)    fix=1; shift ;;
@@ -248,24 +264,47 @@ while [[ $# -gt 0 ]]; do
     --strict) strict=1; shift ;;
     --regen-length-baseline) regen_length=1; shift ;;
     --regen-shape-baseline) regen_shape=1; shift ;;
+    --tighten-length-baseline) tighten_fam="length"; shift ;;
+    --tighten-shape-baseline) tighten_fam="shape"; shift ;;
+    --emit-baseline) emit_baseline=1; shift ;;
+    --allow-new) allow_new=1; shift ;;
+    --only) [[ $# -ge 2 ]] || { echo "todo-conformance.sh: --only needs a comma-separated id list" >&2; exit 2; }
+            only_ids="$2"; shift 2 ;;
+    --only=*) only_ids="${1#--only=}"; shift ;;
     --baseline-staleness) staleness=1; shift ;;
     --grammar-lines) grammar_lines=1; shift ;;
     --no-grammar) LEDGER_GRAMMAR_CHECK=0; shift ;;
     -h|--help) sed -n '2,80p' "$0"; exit 0 ;;
     --*) echo "todo-conformance.sh: unknown flag '$1'" >&2; exit 2 ;;
     *)
-      [[ -n "$path" ]] && { echo "todo-conformance.sh: only one path may be given (got extra '$1')" >&2; exit 2; }
-      path="$1"; shift ;;
+      paths+=("$1"); shift ;;
   esac
 done
 
+# Only the tightening mode takes several ledgers at once, and it needs them: its output is
+# the WHOLE baseline file, so every ledger the file covers must be in scope in one run or the
+# out-of-scope ledgers' rows would be judged with no ledger to judge them against.
+if [[ "${#paths[@]}" -gt 1 && -z "$tighten_fam" ]]; then
+  echo "todo-conformance.sh: only one path may be given (got ${#paths[@]}: ${paths[*]})" >&2; exit 2
+fi
+if [[ "$emit_baseline" -eq 1 || "$allow_new" -eq 1 || -n "$only_ids" ]] && [[ -z "$tighten_fam" ]]; then
+  echo "todo-conformance.sh: --emit-baseline/--allow-new/--only are only meaningful with --tighten-length-baseline or --tighten-shape-baseline" >&2; exit 2
+fi
+if [[ -n "$tighten_fam" ]] && (( regen_length + regen_shape + staleness + grammar_lines + fix > 0 )); then
+  echo "todo-conformance.sh: --tighten-*-baseline is an exclusive mode; it cannot be combined with --regen-*/--baseline-staleness/--grammar-lines/--fix" >&2; exit 2
+fi
+
+path="${paths[0]:-}"
 if [[ -z "$path" ]]; then
   root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   [[ -n "$root" ]] || { echo "todo-conformance.sh: no path given and cwd is not a git repo" >&2; exit 2; }
   path="$root/TODO.md"
+  paths=("$path")
 fi
-[[ -f "$path" ]] || { echo "todo-conformance.sh: file not found: $path" >&2; exit 2; }
-[[ -r "$path" ]] || { echo "todo-conformance.sh: file not readable: $path" >&2; exit 2; }
+for _p in "${paths[@]}"; do
+  [[ -f "$_p" ]] || { echo "todo-conformance.sh: file not found: $_p" >&2; exit 2; }
+  [[ -r "$_p" ]] || { echo "todo-conformance.sh: file not readable: $_p" >&2; exit 2; }
+done
 
 # --- REPO DIMENSION (id:4839 dimension b) -------------------------------------------------
 # Both baselines used to key SOLELY on `<ledger basename>/<4-hex id>`. The 4-hex id space is
@@ -906,8 +945,20 @@ if [[ "$regen_length" -eq 1 ]]; then
 # file is regenerated. There is no expiry and no automatic refresh -- but unlike the
 # id-keyed baseline it cannot forgive UNBOUNDED growth, only the length already on record.
 #
-# REGENERATING IS A DELIBERATE, SEPARATE ACT, and it TIGHTENS the ratchet (every line
-# re-baselines at its current, smaller length). Do it after a shrink pass lands:
+# THIS FLAG IS A RECAPTURE, NOT A TIGHTENING -- correction landed 2026-09-10 (id:7e3b). It
+# used to say it "TIGHTENS the ratchet (every line re-baselines at its current, smaller
+# length)". Measured on this repo the same day: recapturing turned 50 rows into 61, forgave
+# 36,513 new chars, and RAISED `2b7a` 750 -> 10,190 and `3770` 2,209 -> 2,536. It writes
+# whatever is there now, in both directions, and a grandfathering row has no expiry.
+#
+# AFTER A SHRINK PASS, USE THE MONOTONIC ROW-SCOPED REGEN INSTEAD (id:7e3b) -- it lowers a
+# floor, refuses to raise one, refuses to mint a row for a new item, exits non-zero on any
+# refusal, and passes other ledgers' and other repos' rows through so nothing is truncated:
+#   relay/scripts/todo-conformance.sh --tighten-length-baseline TODO.md ROADMAP.md   # dry report
+#   relay/scripts/todo-conformance.sh --tighten-length-baseline --emit-baseline TODO.md ROADMAP.md \
+#       > /tmp/bl.new && mv /tmp/bl.new relay/head-length-baseline.txt
+#
+# THIS flag stays for the genuine FIRST capture of a ledger that has no rows yet:
 #   relay/scripts/todo-conformance.sh --regen-length-baseline TODO.md    >  relay/head-length-baseline.txt
 #   relay/scripts/todo-conformance.sh --regen-length-baseline ROADMAP.md | grep -v '^#' >> relay/head-length-baseline.txt
 #
@@ -968,8 +1019,15 @@ if [[ "$regen_shape" -eq 1 ]]; then
 # deliberately does not auto-restart. **Until id:2654 ships, this ratchet's floor can go
 # silently stale, and that is a known open gap -- not a bug in this file.**
 #
-# REGENERATING IS A DELIBERATE, SEPARATE ACT, and it TIGHTENS the ratchet. Do it after a
-# shrink pass lands:
+# THIS FLAG IS A RECAPTURE, NOT A TIGHTENING (id:7e3b, 2026-09-10) -- it used to claim it
+# "TIGHTENS the ratchet", and its length sibling was measured raising two ceilings and
+# forgiving 36,513 fresh chars in one run. After a shrink pass use the monotonic row-scoped
+# regen, which may only LOWER a floor and refuses to raise or mint one:
+#   relay/scripts/todo-conformance.sh --tighten-shape-baseline TODO.md ROADMAP.md   # dry report
+#   relay/scripts/todo-conformance.sh --tighten-shape-baseline --emit-baseline TODO.md ROADMAP.md \
+#       > /tmp/bl.new && mv /tmp/bl.new relay/shape-prose-baseline.txt
+#
+# THIS flag stays for the genuine FIRST capture of a ledger that has no rows yet:
 #   relay/scripts/todo-conformance.sh --regen-shape-baseline TODO.md    >  relay/shape-prose-baseline.txt
 #   relay/scripts/todo-conformance.sh --regen-shape-baseline ROADMAP.md | grep -v '^#' >> relay/shape-prose-baseline.txt
 #
@@ -984,6 +1042,195 @@ REGEN_SHAPE_HEADER
     (( ${#_res} > 8 )) || continue
     printf '%s\t%s\t%s\t%d\n' "$REPO_KEY" "$LENGTH_LEDGER_KEY" "$_rid" "${#_res}"
   done < "$path"
+  exit 0
+fi
+
+# --- ROW-SCOPED TIGHTENING REGEN (id:7e3b) -----------------------------------------------
+#
+# `--tighten-length-baseline` / `--tighten-shape-baseline [--emit-baseline] [--allow-new]
+#  [--only <id>[,<id>...]] <ledger>...` -- the regen that may only ever TIGHTEN a floor.
+#
+# WHY IT EXISTS, MEASURED RATHER THAN ARGUED. The `--regen-*-baseline` flags above describe
+# themselves as tightening ("every line re-baselines at its current, smaller length"). That
+# claim is FALSE and was measured false on this repo on 2026-09-10: a whole-file recapture of
+# the length baseline turned 50 committed rows into 61 -- 16 added, 5 dropped, 36,513 chars
+# newly forgiven -- and two of the additions were not new items at all but EXISTING ceilings
+# RAISED, `2b7a` 750 -> 10,190 (a 13.6x raise) and `3770` 2,209 -> 2,536. A grandfathering row
+# has no expiry, so a raise is permanent. That is precisely the re-grandfathering the global
+# CLAUDE.md heuristic forbids, and it is what made a blanket regen look safe.
+#
+# THE CONTRACT, per row rather than per file:
+#   current <  baselined  -> LOWER the floor to `current`. The tightening the old flag claims.
+#   current == baselined  -> no-op, row passes through byte-identical.
+#   current >  baselined  -> REFUSE, loudly and non-zero, naming id, old, new and delta. The
+#                            OLD row is preserved verbatim: a line that grew past its floor is
+#                            a ratchet VIOLATION for the operator to fix, never a row to raise.
+#   no row at all         -> REFUSE to mint by default. A new item has no grandfathering
+#                            claim; it should meet the budget. `--allow-new` is the explicit,
+#                            off-by-default opt-in, and it prints every row it creates.
+#   row for an id NOT in any in-scope ledger -> KEPT verbatim and reported as an orphan.
+#     Dropping orphans is strictly a tightening but it is a SEPARATE act the owner already
+#     took by hand on 2026-09-10 (48e51a83); this mode deliberately does not fold it in.
+#   row for another repo or another ledger   -> PASSED THROUGH verbatim, untouched, counted.
+#   `--only a1b2,c3d4` narrows all of the above to a named id set; every other row of an
+#     in-scope ledger passes through byte-identical. An `--only` id that matches no row and no
+#     over-threshold line is REFUSED, so a typo cannot masquerade as a clean run.
+#
+# WHY IT PASSES FOREIGN ROWS THROUGH INSTEAD OF RE-EMITTING FROM SCRATCH. One baseline file
+# legitimately holds rows for several ledgers and several repos. The whole-file regen's own
+# printed remedy has to be a two-command `>` then `| grep -v '^#' >>` dance precisely because
+# a single-ledger recapture TRUNCATES the others away. Reading the existing file and rewriting
+# it row by row removes that hazard entirely: rows outside the given ledgers cannot be lost,
+# and the file's header comments survive because comment and blank lines are copied verbatim.
+#
+# OUTPUT. Default is a DRY REPORT on stdout, `<class>TAB<id>TAB<detail>` plus `#` summary
+# lines, and NOTHING is written -- the same read-only posture as `--baseline-staleness`.
+# `--emit-baseline` prints the new baseline file to stdout instead and routes the report to
+# stderr; it still writes no file itself, so capturing it stays the operator's explicit
+# redirect. EXIT: 1 if anything was refused (a raise, or a mint declined for want of
+# `--allow-new`), else 0 -- so a caller can never read silence as success.
+#
+# WHAT THIS DOES NOT DO: it does not touch relay/state-claim-baseline.txt. That baseline is
+# ID-KEYED (`state_claim_in_baseline` greps for a bare id), so it holds no value to compare
+# and structurally cannot express a ratchet at all. Making it monotonic is not a regen mode,
+# it is a format change, and it is out of scope here.
+if [[ -n "$tighten_fam" ]]; then
+  case "$tighten_fam" in
+    length) T_BASELINE="$LENGTH_BASELINE"; T_OVER="$LEDGER_HEAD_BUDGET"; T_FLAG="--tighten-length-baseline"; T_UNIT="chars" ;;
+    shape)  T_BASELINE="$SHAPE_BASELINE";  T_OVER=8;                     T_FLAG="--tighten-shape-baseline";  T_UNIT="chars of prose" ;;
+  esac
+
+  # `--only a1b2,c3d4` narrows the run to a named set of ids: every other row of an in-scope
+  # ledger passes through byte-identical. That is the one-id form the item asks for -- tighten
+  # exactly the item you just shrank, and leave the rest of the corpus alone. An id that
+  # matches nothing is REFUSED rather than silently doing nothing, because a typo'd id and a
+  # clean run are otherwise indistinguishable.
+  declare -A T_ONLY=() T_ONLY_HIT=()
+  if [[ -n "$only_ids" ]]; then
+    IFS=', ' read -r -a _oids <<<"$only_ids"
+    for _o in "${_oids[@]}"; do [[ -n "$_o" ]] && T_ONLY["$_o"]=1; done
+    (( ${#T_ONLY[@]} > 0 )) || { echo "todo-conformance.sh: --only was given an empty id list" >&2; exit 2; }
+  fi
+  t_selected() { [[ -z "$only_ids" || -n "${T_ONLY[$1]:-}" ]]; }
+
+  # Report goes to stdout in dry mode and to stderr when stdout carries the baseline, so a
+  # refusal is never swallowed and never corrupts the emitted file.
+  t_say() { if [[ "$emit_baseline" -eq 1 ]]; then printf '%s\n' "$*" >&2; else printf '%s\n' "$*"; fi; }
+
+  # The current metric, reusing the SAME functions the ratchets themselves use so this mode
+  # can never disagree with the rule it is maintaining.
+  tighten_value() {
+    if [[ "$tighten_fam" == "length" ]]; then printf '%d' "${#1}"
+    else local r; r="$(shape_residue "$1")"; printf '%d' "${#r}"; fi
+  }
+
+  if [[ ! -f "$T_BASELINE" || ! -r "$T_BASELINE" ]]; then
+    # LOUD, never silent: with no baseline there is nothing to tighten, and inventing one
+    # here would be exactly the blanket first-capture this mode exists to replace.
+    echo "todo-conformance.sh: $T_FLAG: no $tighten_fam baseline at $T_BASELINE -- there is nothing to tighten; a genuine FIRST capture of a new ledger is still --regen-${tighten_fam}-baseline (id:7e3b)" >&2
+    exit 2
+  fi
+
+  # Build, once per given ledger, the id -> head-line map this mode judges rows against.
+  declare -A T_LINE=() T_SCOPE=() T_SEEN_ROW=()
+  for _p in "${paths[@]}"; do
+    _lk="$(basename "$_p")"
+    if [[ "$inbox" -eq 1 || "$_lk" == *.archive.md ]]; then
+      echo "todo-conformance.sh: $T_FLAG: $_lk is out of scope for both ratchets (id:2065); refusing rather than judging its rows" >&2
+      exit 2
+    fi
+    _rk="$(_ledger_repo_key "$_p")"
+    T_SCOPE["$_rk/$_lk"]=1
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ "$line" =~ ^-\ \[[\ xX]\]\  ]] || continue
+      _tid="$(length_id_of "$line")"
+      [[ -n "$_tid" ]] || continue
+      T_LINE["$_rk/$_lk/$_tid"]="$line"
+    done < "$_p"
+  done
+
+  n_tight=0 n_same=0 n_grow=0 n_orphan=0 n_foreign=0 n_new=0 t_freed=0 t_raise=0 n_unselected=0 n_unknown=0
+  declare -a OUT=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ -z "${line//[[:space:]]/}" || "$line" == \#* ]]; then OUT+=("$line"); continue; fi
+    if ! baseline_parse_line "$T_BASELINE" "$line"; then OUT+=("$line"); continue; fi
+    _key="$BL_REPO/$BL_LEDGER"
+    if [[ -z "${T_SCOPE[$_key]:-}" ]]; then
+      OUT+=("$line"); n_foreign=$((n_foreign+1)); continue
+    fi
+    T_SEEN_ROW["$_key/$BL_ID"]=1
+    if ! t_selected "$BL_ID"; then OUT+=("$line"); n_unselected=$((n_unselected+1)); continue; fi
+    T_ONLY_HIT["$BL_ID"]=1
+    _l="${T_LINE["$_key/$BL_ID"]:-}"
+    if [[ -z "$_l" ]]; then
+      OUT+=("$line"); n_orphan=$((n_orphan+1))
+      t_say "$(printf '%s-baseline-orphan\t%s\tbaselined %s, but no item with this id is in %s; row KEPT verbatim (dropping orphans is a separate act)' "$tighten_fam" "$BL_ID" "$BL_LEN" "$BL_LEDGER")"
+      continue
+    fi
+    _cur="$(tighten_value "$_l")"
+    if (( _cur < BL_LEN )); then
+      n_tight=$((n_tight+1)); t_freed=$((t_freed + BL_LEN - _cur))
+      OUT+=("$(printf '%s\t%s\t%s\t%d' "$BL_REPO" "$BL_LEDGER" "$BL_ID" "$_cur")")
+      t_say "$(printf '%s-baseline-tighten\t%s\tbaselined %s -> current %s (-%s %s); floor LOWERED\n' "$tighten_fam" "$BL_ID" "$BL_LEN" "$_cur" "$((BL_LEN - _cur))" "$T_UNIT")"
+    elif (( _cur == BL_LEN )); then
+      n_same=$((n_same+1)); OUT+=("$line")
+    else
+      n_grow=$((n_grow+1)); t_raise=$((t_raise + _cur - BL_LEN)); OUT+=("$line")
+      t_say "$(printf '%s-baseline-REFUSE-raise\t%s\tbaselined %s, current %s (+%s %s); a floor may only be LOWERED -- this line grew past its budget, which is the ratchet detecting exactly what it exists to detect. Row left at %s; shrink the line instead\n' "$tighten_fam" "$BL_ID" "$BL_LEN" "$_cur" "$((_cur - BL_LEN))" "$T_UNIT" "$BL_LEN")"
+    fi
+  done < "$T_BASELINE"
+
+  # Ids present in an in-scope ledger, over the family's threshold, with NO row. Sorted so the
+  # report and the emitted file are deterministic run to run.
+  declare -a T_NEW=()
+  for _k in "${!T_LINE[@]}"; do
+    [[ -z "${T_SEEN_ROW[$_k]:-}" ]] || continue
+    _id="${_k##*/}"; _rest="${_k%/*}"; _lk="${_rest##*/}"; _rk="${_rest%/*}"
+    t_selected "$_id" || continue
+    _cur="$(tighten_value "${T_LINE[$_k]}")"
+    (( _cur > T_OVER )) || continue
+    T_ONLY_HIT["$_id"]=1
+    T_NEW+=("$(printf '%s\t%s\t%s\t%d' "$_rk" "$_lk" "$_id" "$_cur")")
+  done
+  if (( ${#T_NEW[@]} > 0 )); then
+    mapfile -t T_NEW < <(printf '%s\n' "${T_NEW[@]}" | LC_ALL=C sort)
+  fi
+  n_new=${#T_NEW[@]}
+  for _row in "${T_NEW[@]:-}"; do
+    [[ -n "$_row" ]] || continue
+    IFS=$'\t' read -r _rk _lk _id _cur <<<"$_row"
+    if [[ "$allow_new" -eq 1 ]]; then
+      OUT+=("$_row")
+      t_say "$(printf '%s-baseline-MINT\t%s\tno row; current %s > threshold %s in %s; CREATING a row at %s because --allow-new was given\n' "$tighten_fam" "$_id" "$_cur" "$T_OVER" "$_lk" "$_cur")"
+    else
+      t_say "$(printf '%s-baseline-REFUSE-new\t%s\tno row; current %s > threshold %s in %s; a NEW item has no grandfathering claim and must meet the budget. Pass --allow-new to mint it deliberately\n' "$tighten_fam" "$_id" "$_cur" "$T_OVER" "$_lk")"
+    fi
+  done
+
+  # An --only id that reached nothing at all: no row of an in-scope ledger, and no over-budget
+  # line that could have been minted. Loud, and counted as a refusal.
+  for _o in "${!T_ONLY[@]}"; do
+    [[ -z "${T_ONLY_HIT[$_o]:-}" ]] || continue
+    n_unknown=$((n_unknown+1))
+    t_say "$(printf '%s-baseline-REFUSE-unknown\t%s\t--only named this id, but it has no row in %s and no over-threshold line in the given ledger(s); nothing was done for it\n' "$tighten_fam" "$_o" "$(basename "$T_BASELINE")")"
+  done
+
+  _refused=$((n_grow + n_unknown))
+  [[ "$allow_new" -eq 1 ]] || _refused=$((_refused + n_new))
+
+  t_say "# $tighten_fam baseline tighten over ${#paths[@]} ledger(s): $n_tight lowered ($t_freed $T_UNIT of slack reclaimed), $n_same unchanged, $n_grow REFUSED-raise ($t_raise $T_UNIT of would-be forgiveness declined), $n_new with no row ($( [[ "$allow_new" -eq 1 ]] && echo minted || echo REFUSED )), $n_orphan orphaned rows kept, $n_foreign foreign rows passed through${only_ids:+, $n_unselected rows outside --only left untouched, $n_unknown --only id(s) matched nothing}."
+  if [[ "$emit_baseline" -eq 1 ]]; then
+    if (( ${#OUT[@]} > 0 )); then printf '%s\n' "${OUT[@]}"; fi
+    printf '# Tightened %s -- row-scoped, monotonic (id:7e3b): %d floors lowered, %d raises refused.\n' "$(date '+%Y-%m-%d')" "$n_tight" "$n_grow"
+  else
+    t_say "# Nothing was written. Re-run with --emit-baseline and redirect to capture the tightened file, e.g."
+    # Print the baseline path with `scripts/..` collapsed -- a remedy line is copy-pasted, so
+    # it should name the file the way the repo does.
+    _tb_dir="$(cd "$(dirname "$T_BASELINE")" 2>/dev/null && pwd || dirname "$T_BASELINE")"
+    t_say "#   relay/scripts/todo-conformance.sh $T_FLAG --emit-baseline ${paths[*]} > /tmp/bl.new && mv /tmp/bl.new $_tb_dir/$(basename "$T_BASELINE")"
+  fi
+  log "tighten-baseline fam=$tighten_fam paths=${paths[*]} tightened=$n_tight same=$n_same refused_raise=$n_grow new=$n_new allow_new=$allow_new orphan=$n_orphan foreign=$n_foreign emit=$emit_baseline only=${only_ids:-all} unselected=$n_unselected unknown=$n_unknown"
+  (( _refused == 0 )) || exit 1
   exit 0
 fi
 
@@ -1071,7 +1318,7 @@ if [[ "$staleness" -eq 1 ]]; then
 
   # stale_family <family> <baseline file> <value-fn> <regen flag>
   stale_family() {
-    local fam="$1" bfile="$2" vfn="$3" flag="$4"
+    local fam="$1" bfile="$2" vfn="$3" flag="$4" regen_flag="$5"
     local line id cur slack fam_n=0 fam_orphan=0
     if [[ ! -f "$bfile" || ! -r "$bfile" ]]; then
       # LOUD, never silent: a detector that quietly checks nothing is the same silent-inert
@@ -1105,30 +1352,30 @@ if [[ "$staleness" -eq 1 ]]; then
     if (( fam_n > 0 || fam_orphan > 0 )); then
       # THE REMEDY, named rather than implied -- the whole point of the mech-currency posture.
       #
-      # IT MUST REGENERATE **EVERY** LEDGER, NOT JUST THIS ONE. A baseline file legitimately
-      # holds rows for several ledgers (today: 242 TODO.md + 87 ROADMAP.md shape rows in one
-      # file). The obvious single-ledger form
-      #     todo-conformance.sh --regen-shape-baseline TODO.md > relay/shape-prose-baseline.txt
-      # TRUNCATES the file and DELETES the other ledger's rows. Those items then classify
-      # `shape-new`, which ESCALATES, so the next --strict run converts 87 warnings into
-      # errors. A remedy that damages the repo when followed literally is worse than no
-      # remedy: the caller trusts it precisely because it is printed by the detector.
-      # (Found by independent review 2026-09-03; the first version printed exactly that.)
+      # IT IS THE ROW-SCOPED TIGHTENING REGEN (id:7e3b), NOT `--regen-*`. This block used to
+      # print the whole-file recapture, and that remedy was measured HARMFUL on 2026-09-10:
+      # following it would have reclaimed ~371 chars of the slack reported here while minting
+      # 13 fresh rows forgiving ~15,700 chars and RAISING two existing ceilings (`2b7a`
+      # 750 -> 10,190, `3770` 2,209 -> 2,536). A detector's printed remedy is trusted
+      # precisely because the detector printed it, so it may not loosen the thing it is
+      # auditing.
       #
-      # `--regen-*` emits a header block, so the second and later ledgers must strip it --
-      # naive concatenation duplicates the header. This mirrors the recipe the regen headers
-      # themselves document.
+      # IT MUST STILL COVER **EVERY** LEDGER, NOT JUST THIS ONE. A baseline file legitimately
+      # holds rows for several ledgers (today: 242 TODO.md + 87 ROADMAP.md shape rows in one
+      # file). The tightening mode passes rows for ledgers it was not given through verbatim,
+      # so it cannot truncate them the way the `>` recapture did -- but a ledger left off the
+      # command line simply goes untightened, so name them all.
       local bpath="${bfile}"
-      echo "# $fam: $fam_n stale, $fam_orphan orphaned. Regenerate ALL ledgers and COMMIT:"
-      echo "#   relay/scripts/todo-conformance.sh $flag TODO.md    >  $bpath"
-      echo "#   relay/scripts/todo-conformance.sh $flag ROADMAP.md | grep -v '^#' >> $bpath"
-      echo "#   (regenerating only $LENGTH_LEDGER_KEY would DELETE the other ledger's rows)"
+      echo "# $fam: $fam_n stale, $fam_orphan orphaned. Tighten (monotonic, refuses any raise) and COMMIT:"
+      echo "#   relay/scripts/todo-conformance.sh $flag TODO.md ROADMAP.md                   # dry report first"
+      echo "#   relay/scripts/todo-conformance.sh $flag --emit-baseline TODO.md ROADMAP.md > /tmp/bl.new && mv /tmp/bl.new $bpath"
+      echo "#   (do NOT use the whole-file $regen_flag recapture: it also RAISES floors and mints rows -- id:7e3b)"
     fi
     return 0
   }
 
-  stale_family length "$LENGTH_BASELINE" stale_value_length --regen-length-baseline
-  stale_family shape  "$SHAPE_BASELINE"  stale_value_shape  --regen-shape-baseline
+  stale_family length "$LENGTH_BASELINE" stale_value_length --tighten-length-baseline --regen-length-baseline
+  stale_family shape  "$SHAPE_BASELINE"  stale_value_shape  --tighten-shape-baseline  --regen-shape-baseline
 
   if (( families_n == 0 )); then
     echo "# baseline-staleness: no baseline exists for either ratchet; nothing to check (id:2654)."

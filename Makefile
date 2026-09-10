@@ -181,7 +181,7 @@ ALLOWLIST_SCRIPTS := $(foreach s,$(SKILLS),$(addprefix $(s)/,$($(s)_ALLOW)))
 
 .PHONY: help install install-hooks status-hooks install-statusline check-statusline-deps status-statusline uninstall-statusline \
         install-allowlist print-allowlist install-relay-env print-relay-env uninstall status test lint verify-negatives gaming-canary shard-canary \
-        baseline-staleness \
+        baseline-staleness baseline-tighten \
         install-quota-timer status-quota-timer uninstall-quota-timer \
         install-gap-sample status-gap-sample uninstall-gap-sample \
         install-relay-watchdog status-relay-watchdog uninstall-relay-watchdog \
@@ -238,6 +238,9 @@ help:
 	@echo "                       it dies at the DECLARED assertion (id:a73c; opt-in, seconds per case)"
 	@echo "  baseline-staleness   report head-line ratchet baselines whose floor has gone LOOSER than"
 	@echo "                       reality and needs a regen (id:2654; read-only, writes nothing)"
+	@echo "  baseline-tighten     DRY report of the MONOTONIC row-scoped regen: which floors would be"
+	@echo "                       lowered, and which raises/mints are REFUSED (id:7e3b). Writes nothing;"
+	@echo "                       exits non-zero when anything was refused. Capture with --emit-baseline."
 	@echo "  gaming-canary        Tier B model anti-gaming canary harness (on-demand; costs tokens)"
 	@echo "  shard-canary         discover-shard classifier behavior canary (on-demand; costs tokens)"
 	@echo ""
@@ -331,6 +334,19 @@ lint:
 baseline-staleness:
 	@bash $(SRC_DIR)/relay/scripts/todo-conformance.sh --baseline-staleness $(SRC_DIR)/TODO.md
 	@bash $(SRC_DIR)/relay/scripts/todo-conformance.sh --baseline-staleness $(SRC_DIR)/ROADMAP.md
+
+# id:7e3b -- the DRY half of the monotonic, row-scoped regen. It reports which floors it would
+# LOWER and refuses, by name and with the delta, every raise and every mint of a row for an
+# item that has none. It writes nothing here: capturing the tightened file is the operator's
+# separate, explicit act (add --emit-baseline and redirect, see the flag's own header).
+# A NON-ZERO exit means something was refused, which is the ratchet working, not a broken
+# target. Both ledgers go in ONE invocation per family because the output is the whole
+# baseline file. Deliberately NOT part of `make test`.
+baseline-tighten:
+	@rc=0; \
+	bash $(SRC_DIR)/relay/scripts/todo-conformance.sh --tighten-length-baseline $(SRC_DIR)/TODO.md $(SRC_DIR)/ROADMAP.md || rc=$$?; \
+	bash $(SRC_DIR)/relay/scripts/todo-conformance.sh --tighten-shape-baseline  $(SRC_DIR)/TODO.md $(SRC_DIR)/ROADMAP.md || rc=$$?; \
+	exit $$rc
 
 # id:d3f8 — inner-loop subset runner. `make test FILES="tests/test_a.sh tests/test_b.sh"`
 # runs exactly those files; `make test` with no FILES is unchanged (full suite, lint

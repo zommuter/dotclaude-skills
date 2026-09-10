@@ -170,9 +170,14 @@ $out"
 
 # ── (5) THE REMEDY, named as a runnable command -- the mech-currency.sh contract. A detector
 #    that states a condition without its remedy makes the reader guess.
-grep -q -- '--regen-length-baseline' <<<"$out" && grep -q -- '--regen-shape-baseline' <<<"$out" \
-  && pass "(5) both regen commands are named as the remedy" \
-  || report "(5) the output does not name the regen command(s). out:
+#    AMENDED 2026-09-10 (id:7e3b): the remedy is the MONOTONIC row-scoped regen, not the
+#    whole-file `--regen-*` recapture. This assertion used to require the recapture flags and
+#    would therefore have passed on a remedy measured to RAISE two ceilings and forgive 36,513
+#    fresh chars. The recapture flags may still be MENTIONED (the remedy names them as the
+#    thing not to use), so this pins the tighten flags specifically.
+grep -q -- '--tighten-length-baseline' <<<"$out" && grep -q -- '--tighten-shape-baseline' <<<"$out" \
+  && pass "(5) both MONOTONIC tighten commands are named as the remedy (id:7e3b)" \
+  || report "(5) the output does not name the tighten command(s). out:
 $out"
 
 # ── (6) IT WRITES NOTHING. The whole reason self-tightening was rejected.
