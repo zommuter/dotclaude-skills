@@ -1283,7 +1283,7 @@ pointer in `CLAUDE.md` is `v18`, matching the canonical marker -- no refresh nee
   re-scopes `id:8372` from a shrink-quality item to a dispatch-integrity one. <!-- relates:8372 -->
   <!-- relates:6446 -->
 
-- [ ] **`id:6446` was worked by an executor even though its ROADMAP line carried TWO independent
+- [x] **`id:6446` was worked by an executor even though its ROADMAP line carried TWO independent
   first-class dispatch exclusions, and the classifier correctly excluded it -- so the exclusion is
   computed and then not consulted by whatever picks the item.** Verified by evaluating
   `classify-repo.sh`'s own predicates against the literal line as it stood at
@@ -1300,6 +1300,8 @@ pointer in `CLAUDE.md` is `v18`, matching the canonical marker -- no refresh nee
   shapes, owner's call: pass `actionable_routine_ids` into the executor's dispatch prompt as the
   permitted set, or restate the marker exclusions in `executor-contract.md` rule 1 (cheaper, but
   it is prose an executor can miss -- the `id:d35a` failure mode). **RESOLVED 2026-09-10 (owner ruling): the permitted-id set is now PASSED INTO the dispatch prompt.** `permittedIdsFor()` in `relay-loop.js` renders the classifier's full `actionable_routine_ids` (minus the orphan/stranded subtraction, injected item first) as a CLOSED PERMITTED SET in the execute brief, with unlisted ids declared OUT OF SCOPE and a hand-back instruction rather than a preference. The prose alternative -- restating the marker exclusions in `executor-contract.md` rule 1 -- was NOT taken, for the reason this box gives. An EMPTY set fails CLOSED: the historical `Work the open [ROUTINE] items in ROADMAP.md` fallback is replaced by `EXECUTE_NO_PERMITTED_SET`, a refusal that authorises no work and instructs an immediate structured handback. Pinned by `tests/test_permitted_id_set_c076.sh` (mutation-verified). <!-- id:c076 -->
+
+  ANSWERED 2026-09-10 (/relay human 3a): RESOLVED as the box records. permittedIdsFor() renders the closed permitted set into the execute brief (2 call sites in relay-loop.js), an empty set fails closed via EXECUTE_NO_PERMITTED_SET (3 sites), and tests/test_permitted_id_set_c076.sh passes cases A-D. Re-checkable by rerunning that test.
 
 ## Review 2026-09-09 (run `relay-20260909-143257-21736`, chain-end re-ask)
 
