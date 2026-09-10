@@ -575,6 +575,19 @@ What it does (full procedure in `references/human.md`):
    - **(a) AUTO-ANSWERABLE** — unambiguous from code/tests/spec; the apex model verifies,
      ticks with a re-checkable rationale, and flows back to ROADMAP/TODO under the **same
      id** (single-id-two-views, flock'd `meeting/md-merge.py`).
+     **Use `scripts/review-box-tick.py` for the tick itself (id:7c75)** — never `Edit`,
+     which bypasses the flock exactly as `sed -i` does. `md-merge.py` can only address a
+     box by an anchored `<!-- id:XXXX -->` marker (`update-ids`) or by a `## ` heading,
+     whose unit is the WHOLE section; the common REVIEW_ME shape is one coarse heading over
+     many boxes, and hand-composing that replacement is where the wrong box gets ticked
+     silently. `review-box-tick.py --file <REVIEW_ME.md> --match '<unique substring>'
+     --rationale '<why>' [--dry-run]` extracts the section verbatim, flips exactly ONE box,
+     and hands it back to `md-merge.py update-sections` under its flock. It REFUSES loudly
+     (non-zero, empty stdout) on a selector matching 0 boxes (exit 2) or 2+ (exit 3), on a
+     box with no `## ` heading above it (exit 4), and on a heading that repeats in the file
+     (exit 5). `--dry-run` prints the byte-exact diff and writes nothing. Where the box DOES
+     carry an anchored marker, `md-merge.py update-ids` (or `scripts/roadmap-tick.sh` for
+     the ROADMAP/TODO twin) remains the direct path.
    - **(b) BATCH-DECIDABLE** — quick human yes/no, presented in small multiple-choice
      `AskUserQuestion` batches (≤3–4 per call, ONE `questions` array) with REAL per-item
      context (read the box + cited code so options aren't one-liners).

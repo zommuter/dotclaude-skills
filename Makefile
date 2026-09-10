@@ -104,7 +104,7 @@ relay_FILES := SKILL.md \
                scripts/validate-flags.sh scripts/known-flags-relay.tsv scripts/known-flags-meeting.tsv \
                scripts/probe-mech-proxy.sh scripts/mech-preflight.sh scripts/mech-currency.sh scripts/relay-spawn-bench.sh \
                scripts/diagram-edge-coverage.sh scripts/control-board.sh scripts/ratify-queue.sh \
-               scripts/fixture-branch-leak-scan.sh scripts/expires-on-scan.sh \
+               scripts/fixture-branch-leak-scan.sh scripts/expires-on-scan.sh scripts/review-box-tick.py \
                head-length-baseline.txt shape-prose-baseline.txt
 relay_EXEC  := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
@@ -133,7 +133,7 @@ relay_EXEC  := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-ta
                scripts/auto-integrate-orphan.sh \
                scripts/validate-flags.sh scripts/probe-mech-proxy.sh scripts/mech-preflight.sh scripts/mech-currency.sh \
                scripts/relay-spawn-bench.sh scripts/diagram-edge-coverage.sh scripts/control-board.sh scripts/ratify-queue.sh \
-               scripts/fixture-branch-leak-scan.sh scripts/expires-on-scan.sh
+               scripts/fixture-branch-leak-scan.sh scripts/expires-on-scan.sh scripts/review-box-tick.py
 relay_ALLOW := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-tag.sh scripts/fable-config.sh \
                scripts/gather-human-backlog.sh scripts/quota-stop.sh scripts/inject.sh \
                scripts/claim.sh scripts/heartbeat.sh scripts/sync-origin.sh scripts/clean-tree-gate.sh scripts/verify-isolation.sh \
@@ -161,7 +161,7 @@ relay_ALLOW := scripts/death-record.sh scripts/discover-repos.sh scripts/ckpt-ta
                scripts/auto-integrate-orphan.sh \
                scripts/validate-flags.sh scripts/probe-mech-proxy.sh scripts/mech-preflight.sh scripts/mech-currency.sh \
                scripts/relay-spawn-bench.sh scripts/diagram-edge-coverage.sh scripts/control-board.sh scripts/ratify-queue.sh \
-               scripts/fixture-branch-leak-scan.sh scripts/expires-on-scan.sh
+               scripts/fixture-branch-leak-scan.sh scripts/expires-on-scan.sh scripts/review-box-tick.py
 relay_LOCAL :=
 
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
