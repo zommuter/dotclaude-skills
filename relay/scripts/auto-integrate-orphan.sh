@@ -93,8 +93,36 @@ fi
 # orphan (no id token) is allowed to proceed on the strength of the suite-green gate alone
 # (meeting A3: a complete unbound orphan is consumed here; the suite is the real safety).
 # ---------------------------------------------------------------------------------------------
-item="$(git -C "$REPO" log -1 --format='%B' "$ORPHAN" 2>/dev/null \
-          | grep -oiE 'id:[0-9a-fA-F]{4,}' | head -n1 | cut -d: -f2 || true)"
+# id:ed35 -- bind from the BRANCH NAME first, never from prose. The branch is written by the
+# dispatcher (`worktreePathFor`/`relay/<runId>-<kind>-<item>-<n>`), so it is structured data; a
+# commit message is prose and the first `id:` token in it may belong to the MECHANISM rather than
+# the work. Observed live: a commit-and-park residue commit reads
+#   "chore(relay): WIP UNVERIFIED residue auto-commit ... (id:f272 commit-and-park; do not treat
+#    as reviewed)"
+# so the old scan bound the unit to `f272` (the commit-and-park FEATURE) instead of `b437` (the
+# work). Both GATE 1 checks then ask about the wrong item: measured on that orphan, f272 has 0
+# open AND 0 `[x]` boxes on the orphan's live ledgers, so the second check refuses it as "not
+# marked COMPLETE". That direction is FAIL-SAFE -- it over-refuses, it never clears unreviewed
+# work -- which is why this is a correctness-and-inertness fix, not a security fix. Do not
+# re-describe it as the latter; an earlier draft of docs/ledger-notes/ed35.md did.
+# No `| head` here: $ORPHAN is a single line, so sed emits at most one match, and a pipe into an
+# early-exiting consumer under `set -euo pipefail` is the id:81d5 SIGPIPE shape the suite BLOCKS.
+item="$(sed -nE 's#.*-(execute|hard)-([0-9a-fA-F]{4})-[0-9]+$#\2#p' <<<"$ORPHAN")"
+if [[ -z "$item" ]]; then
+  # No item in the branch name (e.g. a `-execute-repo-0` unnamed unit). Fall back to the commit
+  # message, but REFUSE to bind from a commit the mechanism itself authored -- for those the
+  # honest answer is UNBINDABLE, which routes to the suite-only A3 path rather than asking a
+  # cleanly-wrong question.
+  head_msg="$(git -C "$REPO" log -1 --format='%B' "$ORPHAN" 2>/dev/null || true)"
+  if [[ "$head_msg" == *"WIP UNVERIFIED residue auto-commit"* ]]; then
+    log "residue auto-commit HEAD (id:f272 shape) repo=$REPO branch=$ORPHAN -- deliberately UNBINDABLE (id:ed35), not bound to the mechanism's own id"
+    item=""
+  else
+    # `grep -m1` rather than `| head -n1`: same first-match semantics without piping into an
+    # early-exiting consumer (id:81d5). `cut` reads to EOF, so it is safe downstream.
+    item="$(grep -m1 -oiE 'id:[0-9a-fA-F]{4,}' <<<"$head_msg" | cut -d: -f2 || true)"
+  fi
+fi
 if [[ -n "$item" ]]; then
   orphan_ledger="$(
     git -C "$REPO" show "$ORPHAN:ROADMAP.md" 2>/dev/null || true
