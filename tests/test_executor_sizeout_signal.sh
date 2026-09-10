@@ -75,8 +75,34 @@ echo "== relay-loop.js EXECUTE-verdict prompt covers ROUTINE size-out =="
 # executor hands back instead of committing a no-op checkpoint that leaves the [ROUTINE]
 # re-dispatchable. (Scope to that segment — grepping the whole file would match the
 # 'hard'-verdict prompt and pass trivially.)
-exec_seg="$(head -1 < <(grep -nE "unit\.verdict === 'execute' \?" "$LOOP" | grep -i routine) )"
-if [ -n "$exec_seg" ] && grep -qiE 'size[ -]?out|too large to land|hand ?back' <<<"$exec_seg"; then
+#
+# id:c076 (owner ruling 2026-09-10) CHANGED HOW THE SEGMENT IS RESOLVED, not what is asserted.
+# The template line used to carry the fallback text inline ("Work the open [ROUTINE] items in
+# ROADMAP.md …" + EXECUTE_SIZEOUT), so a one-line grep saw the whole execute brief. c076
+# replaced that fallback with the fail-closed EXECUTE_NO_PERMITTED_SET, and the line is now
+# nothing but two identifiers -- through which a line-scoped grep cannot see. The wiring itself
+# is intact; the LOOK-UP was what broke. So the segment now FOLLOWS the identifiers the execute
+# line actually resolves to, and still nothing else: the 'hard'-verdict prompt is not in it, so
+# the "grepping the whole file would pass trivially" guard above is preserved.
+#
+# NO CONSTANT BODY IS INLINED. The original assertion was satisfied by the IDENTIFIER
+# `EXECUTE_SIZEOUT` appearing on the template line (`size[ -]?out` matches "SIZEOUT"), so the
+# standard has always been "the execute path REFERENCES the size-out rule". Pasting that
+# constant's body in would drop the standard to "the wording exists somewhere", which passes
+# with the reference deleted -- verified by removing `+ EXECUTE_SIZEOUT` and watching an
+# inlining version stay green. One hop of reference-following, source text only.
+exec_line="$(head -1 < <(grep -nE "unit\.verdict === 'execute' \?" "$LOOP"))"
+exec_named="$(awk '/^function executeNamedInstruction\(/,/^\}$/' "$LOOP")"
+exec_seg="$exec_line
+$exec_named"
+# THE `hand ?back` DISJUNCT IS DROPPED, and that is a STRENGTHENING. It was the loosest of the
+# three and it is now satisfied independently by the id:c076 permitted-set prose ("say so in
+# your handback"), so keeping it would let the size-out reference be deleted with this case
+# still green -- confirmed by removing `+ EXECUTE_SIZEOUT` and re-running. The file's subject is
+# the SIZE-OUT signal, so the size-out disjuncts are what it must actually require.
+if [ -n "$exec_line" ] \
+  && grep -qi 'routine' <<<"$exec_seg" \
+  && grep -qiE 'size[ -]?out|too large to land|id:08c0' <<<"$exec_seg"; then
   ok "execute-verdict prompt wires ROUTINE size-out → handback"
 else
   bad "relay-loop.js execute-verdict prompt does not cover ROUTINE size-out → handback"

@@ -123,16 +123,30 @@ let bad = 0
 const need = (cond, msg) => { if (!cond) { console.error('  ' + msg); bad = 1 } }
 need(/<!-- id:aaa1 -->/.test(named), 'named dispatch does not mention the selected item id:aaa1')
 need(!/Work the open \[ROUTINE\] items/.test(named), 'named dispatch still carries the plural "Work the open [ROUTINE] items" survey instruction')
-need(!/aaa4/.test(named), 'named dispatch leaks a 4th candidate — the candidate list must stay bounded')
+// id:c076 (owner ruling 2026-09-10) NARROWS this assertion, deliberately and on the record.
+// It used to read `need(!/aaa4/.test(named), 'named dispatch leaks a 4th candidate — the
+// candidate list must stay bounded')`. The id:c076 PERMITTED SET legitimately mentions aaa4:
+// it enumerates EVERY id the classifier permits, and a set that omits members cannot be the
+// authority on what is out of scope. What b09e was protecting is the SURVEY SIZE, and that is
+// preserved and still asserted — the bounded WALK list is at most primary + 2 alternates, and
+// a bare 4-hex id costs ~8 characters against the whole-ROADMAP survey b09e deleted. This is a
+// narrowing to the assertion's actual intent, not a weakening to make a change pass.
+need((named.match(/<!-- id:[0-9a-f]{4} -->/g) || []).length <= 3, 'the bounded candidate WALK list grew beyond primary + 2 alternates')
+need(!/<!-- id:aaa4 -->/.test(named), 'aaa4 leaked into the bounded candidate WALK list')
+need(/PERMITTED SET \(id:c076\)/.test(named) && /id:aaa4/.test(named), 'the id:c076 permitted set must enumerate EVERY classifier-permitted id, aaa4 included')
 need(/id:08c0/.test(named), 'named dispatch dropped the SIZE-OUT rule (id:08c0)')
 
 // injection still outranks the classifier pick
 const inj = executeInstruction({ verdict: 'execute', inject_item: 'bbbb', actionable_routine_ids: ['aaa1'] })
 need(/<!-- id:bbbb -->/.test(inj), 'a user-injected --item must outrank the classifier pick')
 
-// fail-open: no ids at all -> '' so the caller uses the historical plural instruction inline
+// no ids at all -> '' so the CALLER supplies the fallback branch. What that fallback SAYS
+// changed under id:c076: it is no longer the historical plural "work the open [ROUTINE]
+// items" survey but a FAIL-CLOSED refusal (EXECUTE_NO_PERMITTED_SET). The contract asserted
+// here is unchanged and is about this helper only — it must yield '' rather than inventing a
+// brief of its own. tests/test_permitted_id_set_c076.sh pins what the caller then emits.
 const none = executeInstruction({ verdict: 'execute' })
-need(none === '', 'with no ids available the named branch must yield \'\' so dispatch falls OPEN to the historical plural instruction')
+need(none === '', 'with no ids available the named branch must yield \'\' so the caller supplies the fallback branch')
 
 // deterministic: same input -> same instruction
 need(executeInstruction({ verdict: 'execute', actionable_routine_ids: ['aaa1', 'aaa2'] })

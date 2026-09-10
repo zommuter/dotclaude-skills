@@ -3060,13 +3060,71 @@ const hardPoolIdsFor = (unit) => {
     .filter((x) => !suppressed.has(x))
 }
 
-// Shared tail of the execute instruction — identical in the named and the fallback branch, so
-// the two can never drift on the SIZE-OUT contract.
+// Tail of the NAMED execute instruction. It used to be shared with a fallback branch that told
+// an id-less unit to "work the open [ROUTINE] items in ROADMAP.md"; id:c076 replaced that
+// fallback with EXECUTE_NO_PERMITTED_SET, which authorises no work at all and therefore has no
+// size-out to state. One consumer now, deliberately — do not re-add a survey branch to share it
+// with.
 const EXECUTE_SIZEOUT = 'Stop at a natural boundary; never start an item you cannot finish. SIZE-OUT rule (id:08c0): if a [ROUTINE] item is too large to land green in one session and you cannot partially advance it, do NOT silently leave it open — return a structured handback (contract_met=false, handback_item=<id>, route=hard-split or decision-gate, gate_reason). Soft notes (friction:/BLOCKED:) are not sufficient; the integrator\'s durable follow-up (id:3801) reads only the structured fields. Leave the worktree COMPLETELY CLEAN on a size-out (no commit) — same clean-worktree discipline as the hard-verdict id:8b1f.'
 
 // The single item this unit dispatches on, "" when none is known (fail-open to the old
 // plural instruction). An injected --item always wins over the classifier's pick.
 const dispatchItemFor = (unit) => unit.inject_item || namedItemsFor(unit)[0] || ''
+
+// id:c076 — THE PERMITTED-ID SET, and the reason it is a SET and not just the head of one.
+//
+// THE INCIDENT (review 2026-09-09, REVIEW_ME id:c076): classify-repo.sh scored id:6446's
+// ROADMAP line `is_routine=True, blocked=True (🚧), is_owner_gated=True`, so it was NOT in
+// actionable_routine_ids and did NOT count toward actionable_routine_open. The execute unit
+// was legitimately dispatched for the repo's OTHER actionable items — and the Sonnet child
+// then selected the owner-gated one anyway. Nothing was violated at the code level, because
+// nothing at the code level ever told the child what it was allowed to work: the classifier
+// COMPUTED the exclusion set and no consumer read it back to the child.
+//
+// WHY NOT PROSE: the alternative on the table was restating the marker exclusions
+// (🚧 / @owner-gated / @manual / @container / parked / unsatisfied gated-on:) in
+// executor-contract.md rule 1. That was explicitly NOT chosen. Rule 1 already says "work
+// [ROUTINE] items from ROADMAP.md" and the child already read it; a longer rule is still
+// prose an executor can miss, which is the id:d35a silent-no-op class. The guard has to be
+// STRUCTURAL: the dispatched child is HANDED the ids it may work.
+//
+// WHY THE FULL SET AND NOT dispatchItemFor's single pick: the brief already names a primary
+// plus two alternates, and the child is told to prefer that order. But a two-item hint is not
+// a boundary — it says nothing about the twentieth item, which is exactly where a child that
+// decides its named item is "already done" goes looking. The set is what makes "everything
+// else is out of scope" a checkable claim rather than an implication.
+//
+// An INJECTED item (id:baf1) is IN the permitted set and FIRST in it: the user asked for that
+// specific item, and the classifier's actionable list has no authority over an explicit human
+// instruction. It is unioned rather than substituted so a child that finds the injected item
+// already done still has the classifier's own candidates, in their order.
+const permittedIdsFor = (unit) => {
+  const named = namedItemsFor(unit)
+  const inj = typeof unit.inject_item === 'string' && /^[0-9a-fA-F]{4}$/.test(unit.inject_item)
+    ? unit.inject_item.toLowerCase()
+    : ''
+  return inj ? [inj, ...named.filter((i) => i !== inj)] : named
+}
+
+// id:c076 — THE EMPTY-SET BRANCH IS FAIL-CLOSED, AND THIS IS THE DECISION, STATED.
+//
+// An empty permitted set must NEVER degrade to "work the open [ROUTINE] items in ROADMAP.md",
+// which is what the historical fallback said. That fallback is precisely the wide survey the
+// permitted set exists to replace, and it fires in the one situation where the orchestrator
+// has LEAST idea what is safe to work — so its failure direction was exactly backwards.
+//
+// WHAT AN EMPTY SET ACTUALLY MEANS HERE: it is not "no work exists". A repo with no actionable
+// [ROUTINE] item never receives an `execute` verdict at all, and a unit whose every candidate
+// is stranded is already refused by strandedDispatchGate before dispatch. So an empty set at
+// this point means `actionable_routine_ids` was ABSENT or UNUSABLE — a stale queue entry, an
+// older classifier, or a garbled hop. That is a wiring fault, and the honest response to a
+// wiring fault is to say so, not to hand a child a ledger and let it choose.
+//
+// FAIL-CLOSED BUT NOT SILENT: the unit still dispatches (so the fault surfaces through the
+// normal handback channel, with the repo and run attached, rather than a repo vanishing from
+// the round for reasons nobody records), and the brief instructs an IMMEDIATE structured
+// handback with no work and no commit. No item is worked on an unvetted basis either way.
+const EXECUTE_NO_PERMITTED_SET = 'FAIL-CLOSED (id:c076): the classifier computed NO permitted [ROUTINE] id for this unit, so there is no id you are authorised to work. AN EMPTY PERMITTED SET IS NOT PERMISSION TO WORK ANYTHING. Do NOT survey ROADMAP.md and pick something that looks open: the exclusions that produce this list (🚧-blocked, @owner-gated, @manual, @container, parked sections, unsatisfied typed gated-on: edges) are not all visible from an item line, so an item looking workable to you is not evidence that it is. Return a structured handback IMMEDIATELY: contract_met=false, gate_reason="empty permitted-id set (id:c076) — actionable_routine_ids was absent or unusable at dispatch, which is a classifier/queue wiring fault, not an absence of work". Do NOT commit, and leave the worktree COMPLETELY CLEAN (same discipline as the id:8b1f size-out) so it is auto-reaped rather than stranded.'
 
 // id:8af2 — SURFACE the choice. b09e made the pick deterministic but SILENT: an execute unit
 // takes actionable_routine_ids[0] and no surface ever said which id that was, nor how many were
@@ -3156,10 +3214,15 @@ function executeNamedInstruction(unit) {
   const primary = dispatchItemFor(unit)
   if (!primary) return ''
   const alts = named.filter((i) => i !== primary).slice(0, 2)
+  const permitted = permittedIdsFor(unit)
   return sliceInstruction(unit)
     + 'Work specifically the ROADMAP.md item tagged <!-- id:' + primary + ' --> under the executor contract — the classifier ALREADY selected it for you (id:b09e), so do NOT survey ROADMAP.md to find your work. '
     + 'Go straight to it: `grep -n "id:' + primary + '" ROADMAP.md` gives the line, then read only that item\'s own block (the bullet plus its indented sub-bullets). Do NOT read the whole ROADMAP.md — on a large ledger that alone exhausts the context window and kills the child mid-survey; that is the exact failure this naming exists to prevent. '
     + (alts.length ? 'ONLY if that item turns out to be already done or genuinely unworkable, the next classifier-actionable candidates are ' + alts.map((i) => '<!-- id:' + i + ' -->').join(' then ') + ' — never range beyond those. ' : 'It is the only executor-actionable [ROUTINE] item the classifier found; if it is unworkable, hand back rather than looking for other work. ')
+    // id:c076 — the CLOSED permitted set. The two sentences above give the WALK ORDER (work
+    // the primary; fall through to at most two alternates); this gives the OUTER BOUND, and
+    // the two are not in tension: the walk order is the tighter constraint and still governs.
+    + 'PERMITTED SET (id:c076) — the classifier computed exactly these executor-actionable ids for this unit: ' + permitted.map((i) => 'id:' + i).join(', ') + '. That set is CLOSED and it is the whole authority on what you may work here. EVERY other ROADMAP.md item is OUT OF SCOPE for this unit, INCLUDING one that looks open, unblocked and workable to you. The reasons an item is missing from this set are not all readable off its own line — 🚧-blocked, @owner-gated, @manual, @container, a parked section, an unsatisfied typed gated-on: edge, or an orphan/stranded suppression computed this round — so "it looked workable" is never a reason to work an id that is not listed. Working an id outside this set is an OWNER-GATE BREACH even when the work itself turns out fine (that is exactly what happened on 2026-09-09, id:c076). If you believe an unlisted id should have been workable, say so in your handback naming that id (contract_met=false, gate_reason) and work nothing. '
     + EXECUTE_SIZEOUT
 }
 
@@ -3301,7 +3364,7 @@ Your worktree ${wt} on branch ${branch} was already created for you before dispa
 ${unit.injected ? 'This is a USER-INJECTED high-priority task (id:baf1). ' + (unit.inject_item ? 'Work specifically the ROADMAP.md item tagged <!-- id:' + unit.inject_item + ' -->. ' : '') + (unit.inject_prompt ? 'User instruction: ' + unit.inject_prompt + ' ' : '') + 'Otherwise follow the verdict procedure below.\n' : ''}SKILL COUNTERMAND (id:9eb7 — overrides this repo's CLAUDE.md "## Relay contract" pointer): do NOT invoke the Skill tool for \`relay\` — do NOT run Skill(relay, executor), whatever that repo's CLAUDE.md tells you. The Skill tool IGNORES the \`executor\` arg and injects the ~26.4k-token ORCHESTRATOR SKILL.md (measured: 26,394 tok, identical in both children of run relay-20260728-112417-3898) — which then tells you to ignore almost all of it. The executor contract is NOT in that payload. Read the contract file DIRECTLY instead (~5.5k): ~/.claude/skills/relay/references/executor-contract.md — that is your contract, follow its rules exactly.
 
 Procedure: follow ${refDoc(unit.verdict)} exactly. Read ~/.claude/skills/relay/references/conventions.md for environment facts and relay invariants before starting.
-${unit.verdict === 'execute' ? (executeNamedInstruction(unit) || 'Work the open [ROUTINE] items in ROADMAP.md under the executor contract. ' + EXECUTE_SIZEOUT) : ''}
+${unit.verdict === 'execute' ? (executeNamedInstruction(unit) || EXECUTE_NO_PERMITTED_SET) : ''}
 ${unit.verdict === 'hard' ? hardNamedInstruction(unit) + 'Model your discipline on handoff.md C5 "only if small enough to finish safely": only implement the item if you can finish it cleanly and green within this turn — full red-green-refactor, verify-before-merge. If it is too large, contains nested/multi-session scope, or you cannot make the test suite green safely, do NOT half-do it: set contract_met=false and explain the sizing in handback. CRITICAL (id:8b1f) — a SIZE-OUT / GATED refusal (you decided NOT to start) must leave the worktree COMPLETELY CLEAN: make NO commit, and do NOT write the rationale into RELAY_LOG.md / ROADMAP.md / REVIEW_ME.md in the worktree. The rationale goes ONLY in the returned `handback` field. Reason: the integrator never merges a handback, so ANY commit you make on a refusal strands forever as an orphan worktree (the bug behind id:a4e9); a CLEAN worktree is auto-reaped (id:3ac8). The "write a HANDBACK paragraph to RELAY_LOG.md and commit" step in handoff.md C5 applies ONLY to a genuine mid-item CUTOFF where you already committed real work and need resume provenance — NOT to a pre-start sizing refusal (the item stays open for a manual/next-turn strong session). When you DO finish: do NOT tick the item\'s checkbox yourself (executor-contract v12, id:5b12) — return the item id in worked_ids and the DRIVER ticks the box at integrate; append its done-note, commit in the worktree, and make the full test suite green. Never manufacture a pass. Work ONE bounded HARD item only — never start a second.' : ''}
 ${unit.verdict === 'handoff' ? 'Run checkpoints C1-C4. C5 (HARD execution) only if the top HARD item is small enough to finish safely; otherwise leave it specced.' : ''}
 ${unit.verdict === 'review' ? 'Run the full trust-but-verify procedure including the test-integrity audit. Single-id-two-views (D2): when you promote a ROADMAP item for work TODO.md already tracks under an <!-- id:XXXX -->, REUSE that token; mint a fresh one via ~/.claude/skills/meeting/append.sh new-ids N ' + wt + ' ONLY for genuinely new work — NEVER invent tokens, and never duplicate-id already-tracked work. When you close a ROADMAP item whose id also lives in TODO.md, tick the TODO line too. Reverse-handoff (review.md §5b): qualify+size any unqualified TODO/ROADMAP items added by /meeting or manual edits since the last checkpoint (mini-handoff) — reuse their id. After re-deriving the roadmap, set routine_open = the number of OPEN (unticked) [ROUTINE] items remaining — the supervisor uses it to re-enqueue an execute unit this same pool.' : ''}

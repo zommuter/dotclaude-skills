@@ -1299,7 +1299,7 @@ pointer in `CLAUDE.md` is `v18`, matching the canonical marker -- no refresh nee
   tells the executor about the marker exclusions, nor hands it the computed id list. Two fix
   shapes, owner's call: pass `actionable_routine_ids` into the executor's dispatch prompt as the
   permitted set, or restate the marker exclusions in `executor-contract.md` rule 1 (cheaper, but
-  it is prose an executor can miss -- the `id:d35a` failure mode). <!-- id:c076 -->
+  it is prose an executor can miss -- the `id:d35a` failure mode). **RESOLVED 2026-09-10 (owner ruling): the permitted-id set is now PASSED INTO the dispatch prompt.** `permittedIdsFor()` in `relay-loop.js` renders the classifier's full `actionable_routine_ids` (minus the orphan/stranded subtraction, injected item first) as a CLOSED PERMITTED SET in the execute brief, with unlisted ids declared OUT OF SCOPE and a hand-back instruction rather than a preference. The prose alternative -- restating the marker exclusions in `executor-contract.md` rule 1 -- was NOT taken, for the reason this box gives. An EMPTY set fails CLOSED: the historical `Work the open [ROUTINE] items in ROADMAP.md` fallback is replaced by `EXECUTE_NO_PERMITTED_SET`, a refusal that authorises no work and instructs an immediate structured handback. Pinned by `tests/test_permitted_id_set_c076.sh` (mutation-verified). <!-- id:c076 -->
 
 ## Review 2026-09-09 (run `relay-20260909-143257-21736`, chain-end re-ask)
 
