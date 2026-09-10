@@ -247,7 +247,6 @@ dotclaude-skills	TODO.md	6ead	696
 dotclaude-skills	TODO.md	ee5e	934
 dotclaude-skills	TODO.md	3770	1608
 dotclaude-skills	TODO.md	2b7a	507
-dotclaude-skills	TODO.md	4e84	554
 dotclaude-skills	TODO.md	f5b1	149
 dotclaude-skills	TODO.md	3465	60
 dotclaude-skills	TODO.md	27be	78
@@ -329,7 +328,5 @@ dotclaude-skills	ROADMAP.md	64f9	221
 dotclaude-skills	ROADMAP.md	8524	236
 dotclaude-skills	ROADMAP.md	4839	226
 dotclaude-skills	ROADMAP.md	8372	407
-dotclaude-skills	ROADMAP.md	c655	133
-dotclaude-skills	ROADMAP.md	aa5e	700
 dotclaude-skills	ROADMAP.md	0165	321
 dotclaude-skills	ROADMAP.md	b437	820

@@ -930,6 +930,7 @@ deliberately left unbounded — see `id:da1a`).
 ## meeting 2026-08-13 — interim ledger substrate (`docs/meeting-notes/2026-08-13-1415-interim-ledger-substrate-per-item-tree.md`)
 
 - [ ] [ROUTINE] **Lint the `priority:` field so it cannot silently rot** -- detail: `docs/ledger-notes/5a14.md` <!-- children-of:55f6 --> <!-- id:5a14 -->
+- [ ] [ROUTINE] **Row-scoped ratchet-baseline regen that may ONLY TIGHTEN a budget, never loosen one** -- detail: `docs/ledger-notes/7e3b.md` <!-- relates:0d7c --> <!-- relates:2d17 --> <!-- id:7e3b -->
 
 - [ ] [INPUT - meeting] **Interim ledger substrate — MERGED ITEM (absorbs `id:c74e`, INBOUND `routed:207b`): per-item ledger files for `TODO`/`ROADMAP`/`REVIEW_ME`. ✅ RULED 2026-08-13 (owner): BUILD FULL per-item.** -- detail: `docs/ledger-notes/55f6.md` [ROUTINE] <!-- routed:207b --> blocked on <!-- id:55f6 -->
 - [ ] [HARD] [INBOUND routed:04cf from loderite] **Ledger LINE-SHRINK: item lines become TITLE + LANE + ID + GATES; prose moves to a per-id detail file, plus a length RATCHET.** -- detail: `docs/ledger-notes/0d7c.md` gated-on:e95b <!-- id:0d7c -->
