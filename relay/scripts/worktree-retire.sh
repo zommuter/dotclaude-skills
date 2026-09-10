@@ -159,9 +159,32 @@ orphan_ref="relay/orphan/$bn"
 #
 # GUARDED: we normalize ONLY when the symlink resolves to THIS repo's own admin dir for THIS
 # worktree. Anything else is surfaced untouched — we never rewrite a pointer we don't recognize.
-if [[ -L "$wt/.git" ]]; then
+# IDEMPOTENT AND CALLED TWICE (id:1a5c). This began as a straight-line block here at step 0 and
+# is now a function, because a step-0-only normalization is STALE BY THE TIME IT MATTERS on an
+# annex repo: the residue steps below (0c `--commit-residue`, 0d `--discard-residue`) run git
+# commands in the worktree, git-annex's `filter.annex.process` re-creates the symlink as a side
+# effect of ANY such invocation, and the `git worktree remove` at step 1 then fails its own
+# validation with `'.git' is not a .git file, error code 10`. So the second call site, immediately
+# before that removal, is the load-bearing one; this first call is kept because a worktree can
+# ALREADY be symlinked on entry (the plain no-residue-flag path) and step 0 is where the
+# unrecognized-pointer refusal belongs.
+#
+# MEASURED 2026-09-10 on code.lawless (8 leaked worktrees, 687 MB at the time): with `.git` a
+# proper `gitdir:` file the code-10 validation PASSES, and `--discard-residue` then clears the
+# 93 cosmetic entries -- but the discard itself re-symlinks `.git`, so removal failed anyway.
+# Re-normalizing between the discard and the removal is what made it succeed. Do NOT "simplify"
+# this back to a single call at step 0.
+#
+# NOT A DEADLOCK, and an earlier version of this comment wrongly said so: the two failures are
+# sequential, not alternating. A contaminated measurement produced that claim -- the diagnostic
+# that reported `.git` as a regular file ran `git status` in the same shell line, which tripped
+# the filter before `worktree remove` was reached, making the removal look like the thing that
+# re-created the symlink. It is not; any filtered git read is.
+normalize_annex_gitfile() { # 0 = normalized or nothing to do; 3 = unrecognized, caller defers
+  [[ -L "$wt/.git" ]] || return 0
   # --path-format=absolute: a bare --git-common-dir is repo-RELATIVE (".git"), which would
   # make the comparison below compare against a nonsense path and always defer.
+  local admin_expect admin_actual msg
   admin_expect="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)/worktrees/$bn"
   admin_expect="$(readlink -f "$admin_expect" || printf '%s' "$admin_expect")"
   admin_actual="$(readlink -f "$wt/.git" || true)"
@@ -169,13 +192,15 @@ if [[ -L "$wt/.git" ]]; then
     rm -- "$wt/.git"
     printf 'gitdir: %s\n' "$admin_actual" > "$wt/.git"
     log "normalized annex .git symlink -> gitdir file repo=$repo wt=$wt admin=$admin_actual"
-  else
-    msg="retire-deferred $bn: '$wt/.git' is a SYMLINK that does not resolve to this repo's own admin dir (expected '$admin_expect', got '${admin_actual:-<unresolvable>}') — LEFT untouched for a human. Not normalizing a pointer we do not recognize."
-    log "DEFER-UNRECOGNIZED-SYMLINK $msg"
-    echo "$msg"
-    exit 3
+    return 0
   fi
-fi
+  msg="retire-deferred $bn: '$wt/.git' is a SYMLINK that does not resolve to this repo's own admin dir (expected '$admin_expect', got '${admin_actual:-<unresolvable>}') — LEFT untouched for a human. Not normalizing a pointer we do not recognize."
+  log "DEFER-UNRECOGNIZED-SYMLINK $msg"
+  echo "$msg"
+  return 3
+}
+
+normalize_annex_gitfile || exit 3
 
 # ---- 0c. optional dirty-residue commit (id:f272, opt-in via --commit-residue) --
 # Runs BEFORE the removal attempt below so a dirty tree becomes clean and the normal
@@ -634,6 +659,12 @@ else
   # while that FAILS CLOSED it then prints the generic "commit real work / gitignore throwaway"
   # advice this whole item exists to eliminate -- sending a human hunting for dirt that does not
   # exist. Pin the locale so the comparison is deterministic wherever this runs.
+  # id:1a5c — RE-NORMALIZE immediately before the removal, with no filtered git read in between.
+  # This is the load-bearing call: on an annex repo the residue steps above re-created the `.git`
+  # symlink after step 0's normalization, and the removal then died on its own code-10 validation.
+  # Keep this adjacent to the `worktree remove` below; inserting any git command between them
+  # re-introduces the failure, because that is what trips `filter.annex.process`.
+  normalize_annex_gitfile || exit 3
   if err="$(LC_ALL=C git -C "$repo" worktree remove "$wt" 2>&1)"; then
     log "removed repo=$repo wt=$wt"
   else
