@@ -418,9 +418,20 @@ if os.path.isfile(rm):
                     "id:{} not executor-ready — @owner-verify (owner-on-device-pending); "
                     "excluded from actionable_routine_open".format(own_id or "?"))
             if own_id and own_id in gate_dangling and not in_exempt_section:
-                why_not_ready.append(
-                    "id:{} gated-on: target(s) [{}] resolve NOWHERE (dangling) — not a block, "
-                    "but the marker may be stale; fix the edge".format(own_id, gate_dangling[own_id]))
+                # id:aa0d — a dangling value PREFIXED "unparseable:" came from resolve-gates.sh's
+                # forced-block row for a gated-on payload that isn't valid hex-CSV (`=pass`,
+                # `zzzz`, empty). That row ALSO set block=1 (gate_blocked above), so the message
+                # must not claim "not a block" for it the way a genuinely dangling hex token gets.
+                _dang_val = gate_dangling[own_id]
+                if _dang_val.startswith("unparseable:"):
+                    why_not_ready.append(
+                        "id:{} gated-on: payload '{}' is UNPARSEABLE (not valid hex-CSV) — "
+                        "treated as BLOCKED, not ungated; fix the marker".format(
+                            own_id, _dang_val[len("unparseable:"):]))
+                else:
+                    why_not_ready.append(
+                        "id:{} gated-on: target(s) [{}] resolve NOWHERE (dangling) — not a block, "
+                        "but the marker may be stale; fix the edge".format(own_id, _dang_val))
             if (is_routine or is_pool) and not is_human and not in_exempt_section:
                 roadmap_actionable_open += 1
 

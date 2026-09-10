@@ -53,9 +53,24 @@ while IFS= read -r line; do
   # Only checkbox lines can carry an item id + edge.
   [[ "$line" =~ ^[[:space:]]*-\ \[[\ xX]\]\  ]] || continue
   gated_csv="$(typed_edges_gated_of_line "$line")"
-  [[ -z "$gated_csv" ]] && continue
+  # id:aa0d -- an anchored `gated-on:` marker whose payload is NOT valid hex-CSV
+  # (`=pass`, `zzzz`, or empty) must never read as "no gate": gated_csv comes back
+  # empty for it too (same as a line with no marker at all), so the UNPARSEABLE
+  # signal is checked SEPARATELY and, when present, forces a block row for THIS
+  # line only -- the conservative "gated but unresolvable" direction recommended in
+  # docs/ledger-notes/aa0d.md, never a silent skip and never a whole-file bail-out.
+  unparseable_raw="$(typed_edges_gated_unparseable_of_line "$line")"
+  if [[ -z "$gated_csv" && -z "$unparseable_raw" ]]; then
+    continue
+  fi
   own_id="$(typed_edges_own_id_of_line "$line")"
   [[ -z "$own_id" ]] && continue
+
+  if [[ -n "$unparseable_raw" ]]; then
+    echo "resolve-gates.sh: id:$own_id carries an UNPARSEABLE gated-on payload '$unparseable_raw' -- treating it as gated (blocked), not ungated; fix the marker" >&2
+    printf '%s\t%s\t%s\n' "$own_id" "1" "unparseable:$unparseable_raw"
+    continue
+  fi
 
   read -r all_resolve _all_closed dangling_csv \
     < <(typed_edges_resolve_set EDGE_STATE "$gated_csv")

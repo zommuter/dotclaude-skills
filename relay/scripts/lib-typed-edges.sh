@@ -17,7 +17,59 @@
 # --- Anchored per-line extractors (echo the CSV payload, or nothing) ----------
 # Only the comment-wrapped form matches; prose/backticked mentions never do.
 typed_edges_children_of_line() { grep -oP '(?<=<!-- children:)[0-9a-f,]+(?= -->)' <<<"$1" || true; }
-typed_edges_gated_of_line()    { grep -oP '(?<=<!-- gated-on:)[0-9a-f,]+(?= -->)' <<<"$1" || true; }
+# id:aa0d — the gated-on extractor used to require ` -->' IMMEDIATELY after the hex-CSV
+# class, so ANY unexpected payload (`0d8e=pass`, `zzzz`, or an empty payload) broke the
+# WHOLE match and yielded an empty string, indistinguishable from "no gate at all" — the
+# id:d35a silent no-op, and on the dispatch path it AUTHORISES dispatch of a gated item.
+# Measured live: relay-20260910-114832-18641 dispatched leAIrn2learn id:89ef despite its
+# `<!-- gated-on:0d8e=pass -->` target being open.
+#
+# Fixed in two steps, split ACROSS TWO FUNCTIONS on purpose:
+#   1. typed_edges_gated_of_line (below) keeps echoing the happy-path hex-CSV, UNCHANGED,
+#      and keeps returning rc=0 ALWAYS — five live call sites (resolve-gates.sh,
+#      meeting/orphan-scan.sh, roadmap-lint.sh, ledger-slice.sh ×2) all run under
+#      `set -euo pipefail` and assign this call's command substitution directly (no
+#      `|| true` at the call site), so a non-zero return here would ABORT every one of
+#      them on the first unparseable marker in a repo — do NOT reintroduce that. The one
+#      new behaviour it adds is a LOUD stderr line (never stdout, never rc) when the
+#      marker is anchored but its payload doesn't parse — audible to a human tailing
+#      logs, silent to every existing consumer's command substitution.
+#   2. typed_edges_gated_unparseable_of_line (below) is the SEPARATE, POSITIVE signal a
+#      consumer checks to tell "no marker at all" apart from "marker present, payload
+#      unparseable" — both leave typed_edges_gated_of_line's stdout empty, and only the
+#      second must change dispatch. resolve-gates.sh is the one caller that reads it.
+#
+# Deliberately does NOT touch `=pass`/`=either`'s MEANING (routed:784a, leAIrn2learn's
+# call) — both functions only detect the SHAPE (valid hex-CSV or not), never evaluate a
+# condition suffix.
+_typed_edges_gated_marker_present() { grep -qP '<!-- gated-on:[^[:space:]]*? -->' <<<"$1"; }
+_typed_edges_gated_raw_payload_of_line() {
+  grep -oP '(?<=<!-- gated-on:)[^[:space:]]*?(?= -->)' <<<"$1" || true
+}
+typed_edges_gated_of_line() {
+  local line="$1" raw
+  _typed_edges_gated_marker_present "$line" || return 0
+  raw="$(_typed_edges_gated_raw_payload_of_line "$line")"
+  if [[ "$raw" =~ ^[0-9a-f]+(,[0-9a-f]+)*$ ]]; then
+    printf '%s\n' "$raw"
+    return 0
+  fi
+  echo "lib-typed-edges: UNPARSEABLE gated-on payload '$raw' -- refusing to resolve it as a gate (an item with an unparseable marker must read as GATED, never ungated): $line" >&2
+  return 0
+}
+# typed_edges_gated_unparseable_of_line <line> — echoes the RAW payload of an anchored
+# `<!-- gated-on:PAYLOAD -->` marker when PAYLOAD is NOT valid hex-CSV (non-hex chars, a
+# condition suffix like `=pass`, or empty). Echoes nothing when the line carries no
+# anchored marker at all, OR when the payload is valid hex-CSV (the happy path) — the
+# positive signal resolve-gates.sh uses to treat such a line as gated-but-unparseable
+# rather than silently ungated.
+typed_edges_gated_unparseable_of_line() {
+  local line="$1" raw
+  _typed_edges_gated_marker_present "$line" || return 0
+  raw="$(_typed_edges_gated_raw_payload_of_line "$line")"
+  [[ "$raw" =~ ^[0-9a-f]+(,[0-9a-f]+)*$ ]] && return 0
+  printf '%s\n' "$raw"
+}
 # An item's OWN id — the single `<!-- id:XXXX -->` comment on the line.
 #
 # id:6059 — this used to be `| head -1` (FIRST wins). That was a silent POSITIONAL GUESS,
