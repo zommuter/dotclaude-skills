@@ -1503,3 +1503,67 @@ no refresh. `orphan-scan --cross-ledger`: clean. `orphan-scan --shipped`: the on
   child until the marker is unique at source). The behaviour change is a standing engineering
   judgement, open to revision; `(a)` is reopened. See the correction banner in
   `docs/ledger-notes/6d7e.md`.
+
+## Review 2026-09-10 (run `relay-20260910-114832-18641`, window `relay-ckpt-20260909-2341..HEAD`)
+
+36 commits, ALL hand/session work (no executor unit in this window -- `RELAY_LOG.md` gained
+nothing, so every §2 check ran against owner-attributed commits). `gaming-scan.sh`: clean, no
+output. Provenance greps (§2b.7/9/10): no `@owner-accepted` / `@owner-answered` / `answer-src`
+introduced or modified anywhere. Exactly ONE test file was MODIFIED rather than added
+(`tests/test_prelude_mechanized_86a2.sh`, the `id:1975` hermeticity fix) -- read line by line: it
+adds five `export`s and a comment block, and touches no assertion, so §2b.1's resurrection check
+has nothing to replay. Tiers RUN: `make test` (runs `lint` first) **634 passed / 1 failed / 0
+errored / 1 expected-red**, `make gaming-canary` (3/0), `make shard-canary` (6/0/0),
+`make baseline-staleness` (advisory: 1 ORPHANED shape row for the now-closed `id:c655`, 0 stale),
+and `verify-negatives --changed relay-ckpt-20260909-2341` (6 files executed, every declared
+negative case fires at its declared assertion except `id:0246`'s, which is red-now by design).
+RECORDED-SKIP: `make check-statusline-deps` and the full `verify-negatives` sweep (opt-in, not part
+of `make test`). No e2e/integration tier is declared. `orphan-scan --cross-ledger`: clean.
+`roadmap-lint`: 4 WARNs, 3 pre-existing, 1 NEW (box below). Verified green and CLOSED: `id:4e84`,
+`id:aa5e` (ROADMAP), `id:ed35` (TODO). Ingested the 3 `routed:` dead-letters aimed at this repo
+(`2af2`->`id:a33d`, `4887`->`id:9635`, `5831`->`id:5239`), each with a detail note; not
+`inbox-done`'d here, since the twin-guard reads the MAIN checkout and auto-reconcile drains them
+after integrate.
+
+- [ ] **The suite is RED at HEAD on purpose, and that makes the executor contract's
+  definition-of-done unreachable for every future unit in this repo.**
+  `tests/test_inbox_own_token_extractor_0246.sh` deliberately carries NO `# roadmap:` header, so
+  its failures always count; the implementation it specs was REVERTED (`eb2587fd`) after the
+  adversarial review found 9 defects, 2 HIGH, on a destructive write path. That was the right call.
+  The consequence is the part nothing has recorded: executor-contract rule 2 says done means "the
+  FULL test suite is green", so until `id:0246` ships, every executor either hands back or quietly
+  redefines green -- and `id:0246` cannot ship, because its D5 and D6 need YOUR ruling (is an
+  indented inbox line legal; does the multi-marker refusal extend to a line that merely CITES the
+  token). I did not weaken the test or add a header: both would hide a live defect. Your call is
+  which of three: rule on D5/D6 so it can ship, give the file a temporary exemption with a named
+  expiry (`<!-- expires-on:0246 -->` now exists for exactly this, via `id:a192`), or accept a red
+  suite and tell executors so explicitly.
+
+- [ ] **`id:4e84` is ticked although HALF of what `routed:71c6` filed did not ship -- confirm the
+  split rather than the tick.** The inbound report named two faults. Fault (b) (strict rank order
+  starves apex and handoff) is fixed and independently verified: spec cases A-G green, and the
+  declared mutation reddens at the declared assertion, not an earlier one. Fault (a) (an
+  excluded-but-open item pins the verdict) is NOT fixed -- `classify-verdict.sh` still has no
+  notion of a dispatch brief, and the widening only changes the CONSEQUENCE, because the round's
+  second pass now reaches `hard`/`handoff`. I ticked the item (its ROADMAP line, detail note and
+  RED spec all scope it to the loop-side widening) and filed fault (a) as `id:fe67`
+  `[INPUT - decision]` so it cannot vanish inside a closed item. If you would rather the parent
+  stay open until (a) is answered, reopen both lines -- `ROADMAP.md` `id:4e84` and its
+  `TODO.md` twin.
+
+- [ ] **`id:a192` shipped, is green, and has NO ledger line anywhere -- the token exists only in
+  commits and its own detail note.** The `expires-on:` edge plus `relay/scripts/expires-on-scan.sh`
+  landed in `91264d35` with a verified negative case, and `grep -rn 'id:a192'` finds nothing in
+  `TODO.md`, `ROADMAP.md` or either archive. Nothing is open, so nothing is starved -- but
+  `orphan-scan --cross-ledger`, `unpromoted-scan` and `expires-on-scan`'s own DANGLING check are
+  all id-keyed, so a shipped feature that no checkbox ever described is invisible to every one of
+  them. Same class as the already-open box on `id:02fe`; recording it here rather than
+  retro-filing a closed item, which is your call, not mine.
+
+- [ ] **NEW `roadmap-lint` WARN, introduced by this window: `id:32c3` trips DECIDED-LEFT-OPEN.**
+  Its hand-promoted ROADMAP line carries "the CLAUDE.md (c) amendment's 'belongs to (b)' clause is
+  SUPERSEDED", and the lint reads `SUPERSEDED` as a claim about THIS item's status; the item is
+  genuinely open (the skill is unbuilt). So the WARN is a false positive on a true sentence. I left
+  the prose alone: rewording a recorded owner ruling to placate a linter is the wrong direction,
+  and suppressing the check repo-wide is worse. Either accept a standing WARN on this one item, or
+  the lint learns that a decided-marker inside a quoted ruling is not a status marker.
