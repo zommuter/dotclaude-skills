@@ -233,16 +233,35 @@ if [[ "${1:-}" == "inbox-done" ]]; then
   # ROADMAP.archive.md (id:1d83 -- an archived closed item is a durable record of landing
   # too, and archive-done.sh archives aggressively enough that an undated same-session
   # close can be swept before this check ever runs).
-  own_line="$(python3 - "$inbox" "$token" <<'PYEOF'
-import re, sys, pathlib
-path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
-own_marker = re.compile(r'<!--\s*routed:' + re.escape(token) + r'\s*-->\s*$')
-for l in path.read_text().splitlines():
-    if own_marker.search(l.rstrip()) and l.lstrip().startswith("- ["):
-        print(l)
-        break
-PYEOF
-)"
+  # id:0246 -- find the line that OWNS $token via the SHARED extractor
+  # (inbox_line_own_token), not a hand-rolled end-of-line regex. The end-of-line anchor
+  # this replaced (`\s*-->\s*$`) found no owning line at all for a marker followed by
+  # trailing prose (id:798d, e.g. `<!-- routed:XXXX --> -- GATED (auto, id:3801)`) -- a
+  # LEGAL shape that was therefore unresolvable by construction. inbox_line_own_token
+  # tolerates trailing prose and, per id:6059, REFUSES (rather than guesses) a line
+  # carrying more than one anchored routed marker.
+  own_line="" ambiguous_line=""
+  while IFS= read -r candidate; do
+    [[ -z "$candidate" ]] && continue
+    cand_rc=0
+    cand_out="$(inbox_line_own_token "$candidate" "$inbox")" || cand_rc=$?
+    if [[ $cand_rc -eq 0 && "$cand_out" == "routed:$token" ]]; then
+      own_line="$candidate"
+      break
+    elif [[ $cand_rc -eq "$OWN_ID_AMBIGUOUS" ]] \
+      && grep -qxF "$token" < <(marker_tokens_of_line "$candidate" routed); then
+      # $token IS one of this line's candidates, but which marker it OWNS is
+      # ambiguous -- this is THE line, but attributing it would be a guess (id:6059).
+      ambiguous_line="$candidate"
+      break
+    fi
+  done < "$inbox"
+  if [[ -n "$ambiguous_line" ]]; then
+    echo "inbox-done: REFUSING to delete routed:$token — its inbox line carries MORE THAN ONE anchored routed marker, so which one it OWNS is ambiguous (id:6059/id:0246):" >&2
+    echo "  $ambiguous_line" >&2
+    echo "  De-literalise the quoted marker (or spell it as a typed edge) and re-run; this delete is DESTRUCTIVE and UNRECOVERABLE for the local-only inbox store." >&2
+    exit 3
+  fi
   if [[ -z "$own_line" ]]; then
     # No inbox line owns this marker → nothing to delete (unchanged no-op contract).
     exit 0
@@ -272,24 +291,17 @@ PYEOF
     exit 3
   fi
 
+  # Vanish: drop every line EXACTLY equal to the owning line just identified above
+  # (id:0246 -- deletion now reuses the SAME shared-extractor verdict computed above
+  # instead of re-deriving ownership a second time with a second regex; exact-text
+  # match is safe here because $own_line was itself selected by the anchored,
+  # ambiguity-refusing predicate, never a bare substring). Non-checkbox prose /
+  # sibling citations never matched that predicate, so they are untouched (id:411d).
   (
     flock -x 9
-    python3 - "$inbox" "$token" <<'PYEOF'
-import re, sys, pathlib
-path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
-lines = path.read_text().splitlines(keepends=True)
-# Anchor on the item's OWN trailing marker `<!-- routed:XXXX -->` (optional whitespace),
-# not a bare substring — a sibling item's prose may legitimately CITE this token (e.g.
-# "the contrast with routed:4fa9 is the signal") while its own marker is different. A
-# substring test would delete that citing item too; the inbox is local-only and
-# destructive (vanish-on-resolve), so a wrong match is unrecoverable (id:411d).
-own_marker = re.compile(r'<!--\s*routed:' + re.escape(token) + r'\s*-->\s*$')
-# Vanish: drop the routed checkbox line entirely (any "- [ ]" / "- [x]") whose OWN
-# marker matches. Non-checkbox prose / sibling citations are left untouched.
-new_lines = [l for l in lines
-             if not (own_marker.search(l.rstrip('\n')) and l.lstrip().startswith("- ["))]
-path.write_text("".join(new_lines))
-PYEOF
+    tmp_inbox="$(mktemp "$(dirname "$inbox")/.inbox-done.XXXXXX")"
+    grep -vxF -- "$own_line" "$inbox" > "$tmp_inbox"
+    mv -- "$tmp_inbox" "$inbox"
   ) 9>"$(lock_path_for "$inbox")"
   exit 0
 fi
@@ -703,7 +715,34 @@ append_verified "$dest" "$dest_lock" "$entry"
 # --- (C) echo what was written: `-t inbox`, raw -e/-f/stdin form --------------------------
 # stdout is the token PARSED BACK OUT of the line just appended — never the caller's own
 # variable — so `filed routed:$(append.sh …)` cannot lie about what landed on disk.
+#
+# id:0246 -- this used to be a bare `tail -1` over every anchored marker on the line, so a
+# LITERALLY-QUOTED foreign marker in trailing prose (`… supersedes \`<!-- routed:a6a6 -->\``)
+# won the echo over the entry's own leading marker — a false filing report (stdout is
+# contractually "what landed on disk"). Adopts the shared inbox_line_own_token extractor
+# instead. Chosen disposition for the ambiguous case: FAIL LOUD, nonzero, nothing on
+# stdout — not "resolve to the one unambiguous marker and hope" — because an entry whose
+# prose literally quotes an HTML-comment marker is itself malformed (the conforming
+# convention is a bare backticked token, never a quoted comment), and failing at WRITE time
+# (when a human is looking at the exact payload) is strictly better than filing it clean and
+# letting it become id:798d/id:6059's unresolvable-ambiguous-inbox-line defect later. The
+# entry is already durably appended at this point (append_verified above); only the receipt
+# is refused.
 if [[ "$target" == "inbox" ]]; then
-  written_token="$(grep -oP '<!--\s*routed:\K[0-9a-f]{4}(?=\s*-->)' <<<"$entry" | tail -1)"
-  [[ -n "$written_token" ]] && printf '%s\n' "$written_token"
+  lib_anchored="$(cd "$SKILL_DIR/.." && pwd)/relay/scripts/lib-anchored-id.sh"
+  if [[ -f "$lib_anchored" ]]; then
+    # shellcheck source=../relay/scripts/lib-anchored-id.sh
+    source "$lib_anchored"
+  fi
+  own_rc=0
+  written_token_full="$(inbox_line_own_token "$entry" "$dest")" || own_rc=$?
+  if [[ $own_rc -eq 0 ]]; then
+    printf '%s\n' "${written_token_full#routed:}"
+  elif [[ $own_rc -eq "${OWN_ID_AMBIGUOUS:-3}" ]]; then
+    echo "append.sh: the just-appended inbox entry carries MORE THAN ONE anchored routed marker, so which one it OWNS is ambiguous (id:6059/id:0246) — refusing to report a token. The entry WAS written to $dest; de-literalise the quoted marker and re-check the store directly:" >&2
+    echo "  $entry" >&2
+    exit 1
+  fi
+  # own_rc==1 (no anchored marker at all) prints nothing, matching the pre-existing
+  # silent-success contract for a marker-less entry.
 fi
