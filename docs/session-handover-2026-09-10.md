@@ -309,3 +309,153 @@ A targeted STOP sentinel is only consumed if the pool reaches a dispatch decisio
 any other way leaves its file behind and nothing reaps them -- `~/.config/relay/STOP.relay-20260826-162405-7522`
 has sat there since 26 Aug. Harmless (keyed to a run id, so it cannot false-stop another pool; that
 scoping is exactly what `id:cd94` bought) but it accumulates. Unfiled.
+
+---
+
+# EVENING -- same day, a `/relay human --all` sweep. THIS IS NOW THE AUTHORITATIVE CLOSE STATE.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | `102a499d` at the time of writing, plus whatever the in-flight agent below adds. Clean except a peer's `meeting/personas.md`. |
+| Suite | **637 passed, 0 failed, 0 errored, 1 expected-red** -- `id:0246` re-landed, so the repo is no longer red at HEAD |
+| REVIEW_ME here | **90 -> 84 open** |
+| Parked orphans | **1** (was 6): only `...-execute-b437-0` survives |
+| Shared inbox | 4 open, none targeted here |
+| Ratification queue | 0 pending, verified with `ratify-queue.sh list` |
+
+## READ FIRST: `md-merge.py` cannot tick most REVIEW_ME boxes, and that is why tier-(a) looks empty
+
+`/relay human` section 3(a) mandates an apply step its own tooling cannot perform. `md-merge.py`
+addresses a line only by an anchored `<!-- id:XXXX -->` marker or a `## ` heading; most repos' boxes
+carry neither on the checkbox line. **Six independent agents hit this and all six refused to reach
+for Edit**, which bypasses the flock exactly as `sed -i` does. So *zero applied auto-answers across
+nine repos was the correct behaviour, not a shortfall* -- and a prior run DID tick boxes
+(`ai-codebench@20e4e90`), which means it used a flock-bypassing path.
+
+Filed as `id:7c75`, with the measurement across 26 repos on the item. **There are TWO viable
+anchors, not one** -- the part worth carrying forward: wisenheimer has zero id markers but exactly
+one `## ` heading per box, which gives `update-sections` a working handle with no marker at all. The
+hard case is one coarse heading over many boxes (csgebra's `## Open` over 7, jobAI's 3 over 9). The
+dotclaude-skills agent proved the section door at scale: a composer that extracts a section verbatim,
+flips exactly one checkbox, and hands the payload to md-merge under flock, dry-run diffed first.
+
+## What landed
+
+* **`id:0246` re-landed green** (`69587e46`) with all 9 review defects fixed -- D1 now follows the
+  `personas.md` realpath pattern, D2 rejects at WRITE time so a retry cannot double-file. Suite
+  637/0. The red-suite box closed itself.
+* **5 of 6 parked orphans disposed.** trustless-ai integrated (`relay-ckpt-20260910-1559`, a 100-line
+  results expansion recovered); the dotclaude-skills review orphan cherry-picked for its 4 unsalvaged
+  REVIEW_ME boxes then discarded; 2 zero-commit session logs discarded; **5 ledger-shrink pairs
+  completed** off b437 (`8d42e18d`).
+* **Fleet defects filed:** `id:b9f3`, `id:7c75`, `id:c293`, `id:302f`, plus `id:a715` from a peer.
+* **`hard-lanes.md` corrected** (`b0724d28`) -- see the consumer-divergence section below.
+* **loderite marker repair** (`6f4d1573`, `f9391bb8`, `e34b9221`) -- see the correction below.
+* Ticks applied elsewhere: ai-codebench `id:515b` (`597d4e5`), leancow (`294bff3`), lean4btc
+  (`d6377a3`), trustless-ai (`26cd318`), mri (`4671697`).
+
+## IN FLIGHT at handover time -- do not assume these landed
+
+One agent is applying three owner rulings and had `TODO.md`, both ratchet baselines and a new
+`docs/ledger-notes/7e3b.md` modified when this was written. **Check `git log` before trusting any of
+it.** The three rulings, so they survive even if the agent did not:
+
+1. **Ratchet baselines: regen ORPHAN ROWS ONLY**, plus file a tighten-only regen item. The obvious
+   remedy was rejected on measurement: the tool's own printed fix would MINT 13 new grandfathering
+   rows, forgiving ~15,700 chars for items over budget today, to reclaim ~371.
+2. **Fold `verify-negatives --changed <base>` into relay INTEGRATE.** Bounded form only; the full
+   tier stays out of `make test`.
+3. **`id:c076`: pass the computed `actionable_routine_ids` into the dispatch prompt.** Restating the
+   exclusions in contract prose was explicitly NOT chosen -- that is the `id:d35a` mode that let an
+   executor work a `@owner-gated` item.
+
+## Needs the owner
+
+1. **`code.lawless` (29 boxes) is the only untriaged queue**, parked deliberately for a supervised
+   annex pass. It has landed-but-unfinished three times; a retry mints a second checkpoint tag.
+2. **loderite's nested worktree** (`~/src/loderite/github`) makes its counts unreliable, and 10
+   `PARKED-POOL-LANE` errors sit there -- an executable lane under a parked heading, the `id:d35a`
+   invisibility shape.
+3. **cartulary's committed `uv.lock` is stale**, so ANY `uv run` there dirties the tree and the
+   `id:aa93` dirty-guard will defer that repo in every pool round until it is refreshed deliberately.
+4. **jobAI is one sitting**: `uv sync; uv run jobai scan --since 2026-04-21` starting with `id:b455`,
+   which produces the data the other seven boxes are judged against. `id:5d2e` needs a separate
+   sitting because a FRESH Claude session is the point.
+5. **inflownistration** is the most consequential blocked queue in the fleet: a 3-step ratification
+   chain gating `id:466d` then `id:431c`, with every box saying in its own text that nothing is
+   model-answerable.
+
+## THE CORRECTION THAT MATTERS MOST: I put a false premise in front of the owner
+
+I asked him to rule on repairing a shrink that had "ticked an item you explicitly rejected"
+(`id:718c`). The repair agent verified before editing and found the pre-shrink line carried a LATER
+clause the triage report had not quoted: `@owner-accepted:2026-09-04 -- owner looked on-device
+(dev-menu checks 1 and 3) and accepted`, where check 3 is precisely the short-coordinate badge
+overprint the 2026-09-02 look rejected. `git show` across six revisions places the `- [x]` at
+`bfe95a5e`, the commit that recorded the acceptance, not at the shrink. **Only the two UNDATED
+copies were residue; the agent refused to reopen the item and was right.**
+
+The chain is the lesson: a triage agent quoted a real negation, I compressed it into a question, and
+the owner ruled on my compression. What caught it was the applying agent re-verifying a premise it
+had been handed as settled. Same shape as the `id:3f59` class -- reasoning from a source that does
+not record the thing being asked about -- one layer further out, since here the source DID record it
+and the summary dropped it.
+
+Two smaller ones, same day: my b437 option said "3 missing notes" when it was FIVE paired edits, and
+landing notes without their line replacements would have duplicated prose with nothing pointing at
+it (caught by inspecting pairing, reverted, re-done with verification). And the loderite agent's
+first repair text spelled `@owner-accepted` literally, putting the guard's grep string back onto two
+OPEN lines -- the same lifted-out-of-a-negation shape, self-inflicted, caught in a third commit.
+
+## The consumer divergence worth knowing before touching lanes
+
+`hard-lanes.md` taught BOTH answers for a bare `[HARD]`. Its rename table and 2026-09-09 banner make
+it the canonical capability-keyed POOL lane; its "Canonical marker set" block still called it
+untagged/LOUD-reject. So `gather-human-backlog.sh:74,:492` buckets it `hard_pool` while
+`project_manager/scan.py:299,:333` buckets it `untagged`, and a NEW project_manager guard test now
+FREEZES the scan.py reading -- `id:b466`'s sync contract is broken today. **The doc is fixed
+(`b0724d28`); neither consumer is changed**, deliberately, because aligning them is a dispatch
+change in two repos. That is `id:c293`.
+
+## Verified defects other repos should know about
+
+* **`lib-private-remote.sh` returns NOT-PRIVATE when SOURCED from zsh** and not-private means
+  publish. `mapfile` is a bash builtin; `zsh -c 'source ...; is_private_remote_url fievel:src/x.git'`
+  exits 1 where bash exits 0. Verified directly. A triage agent hit it live and nearly classified
+  `fievel` as public. `id:b9f3`. **Until it is fixed, run that predicate under `bash`.**
+* **Two `gated-on:` markers on one line concatenate into an unparseable payload**, so neither gate
+  can ever resolve or expire. Fails SAFE since `id:aa0d` (both read as gated) but the item is then
+  permanently blocked. Four repos: lean4btc `191a`/`abc7`, linguistic-universals `cc76`, loderite
+  `27f7`. `abc7` is inside lean4btc's live pinned-statement cluster, so it blocks real work.
+  `id:302f`.
+* **`ROADMAP_PARKED_HEADING_WORDS` excludes the hyphen** (`lib-roadmap-sections.sh:85`), so
+  `### Meeting-gated backlog` is NOT recognised as a parked heading and rule 3(g) never runs there.
+  Tracked as `id:6446`. This inverted a linguistic-universals box's whole question.
+* **ai-codebench's Peer-Review Matrix had never rendered, in any judge run**, because `judge.py:442`
+  spells `prompt_label.replace("/", "/")` (a no-op) producing a five-segment path while both readers
+  glob four. Owner ruled `1899`/`7772` stay closed; `id:027e` is the fix.
+
+## Screen captures in the repo root, and the deny rule
+
+Six untracked files named `argparse`, `fcntl`, `json`, `re`, `subprocess`, `sys`, 11.8 MB each,
+71 MB total, were ImageMagick `import(1)` SCREEN CAPTURES of the desktop -- something ran a Python
+import line in a shell and `import` is ImageMagick's screenshot tool. Untracked AND not gitignored,
+in a repo with a public remote. Deleted on the owner's instruction, and `import` / `magick import` /
+`xwd` are now in `~/.claude/settings.json` `permissions.deny`.
+
+## Method notes
+
+* **In zsh, the variable `path` is TIED to `PATH`.** A `while read -r name path` loop destroyed the
+  environment mid-sweep (`env: 'bash': No such file or directory` for every subsequent repo). Name
+  the loop variable anything else.
+* **`git checkout -- <dir>` is refused by the destructive-git guard** even to undo your own staged
+  adds. Scope the revert to enumerated paths; the guard allows that.
+* **`git-lock-push.sh` can print "Everything up-to-date" for a commit that DID land.** Verify with
+  `git ls-remote`, never the exit code or the message (`id:f5d9`/`dc4f`).
+* **A relay-toml parser must expect QUOTED section names** -- `[repos."code.lawless"]`. A regex
+  capturing `[^\]]+` yields `"code.lawless"` with quotes and silently drops every dotted repo.
+* **The `--all` gather counts INDENTED sub-boxes** while `grep -c '^- \[ \]'` does not. loderite's
+  55-vs-49 gap was that, not its nested worktree. Cross-check with `grep -cE '^\s*- \[ \]'` before
+  blaming a second tree.
