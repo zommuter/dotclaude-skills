@@ -44,24 +44,6 @@ dead-gates, one no-acceptance-no-twin on `id:da55`), unchanged by this window.
   the ledger usually routes to you. Verified mechanically, not inferred: zero `tests/test_*.sh`
   now key an open `@container`/`DECOMPOSED` ROADMAP item. <!-- relates:11a4 -->
 
-- [x] **The parked orphan `relay/orphan/relay-20260909-143257-21736-execute-11a4-0` is now fully
-  SUPERSEDED but is still parked, still counted, and still suppressing.** `id:11a4`'s executor
-  restarted FROM that branch and cherry-picked its commit, so every line it held is on `main`
-  (its `item_open()` reshape, the 5 retargeted headers, the new spec) plus the twin fix the park
-  existed to force. `relay-doctor` still lists it among 5 parked orphans for this repo, and per
-  `id:7f4c` a parked orphan SUPPRESSES its item -- so a branch whose entire content has landed
-  keeps voting. Disposition is a retire, not a merge: `worktree-retire.sh` on that branch. I did
-  not run it -- branch deletion is destructive and outside a review child's remit. Same question
-  applies to `docs/ledger-notes/11a4.md`, whose "Parked work" section I have UPDATED in place
-  (edit declared in its header) because it asserted "the branch is not merged and nothing here
-  ticks the item", which is now false and is exactly the breadcrumb a future executor would read.
-
-  RESOLVED 2026-09-10 (`/relay human`, tier-(a)): the branch is GONE, so there is nothing left to
-  retire or suppress. `git for-each-ref refs/heads/relay/orphan/` now returns exactly ONE ref,
-  `relay/orphan/relay-20260909-143257-21736-execute-b437-0`, and that one is a different item
-  still carrying unmerged residue (see the b437 note in the 2026-09-09d section).
-  Re-check: `git for-each-ref --format='%(refname:short)' refs/heads/relay/orphan/`.
-
 - [ ] **`make baseline-staleness` reports 1 of 230 baselined `TODO.md` entries below its recorded
   floor (371 chars of slack), and I did NOT regenerate.** It is pre-existing, not caused by this
   window. The printed remedy regenerates ALL rows for BOTH ledgers in one shot, which sets every
@@ -129,30 +111,6 @@ anywhere in the window. `relay-doctor`: cross-ledger drift clean, roadmap-lint l
   ratchet says that is the owner's ledger-shrink program (`id:0d7c`/`id:2d17`), not a review turn's
   housekeeping. The command the tool prints appends to `relay/head-length-baseline.txt`; note its
   own warning that regenerating only one ledger DELETES the other's rows.
-
-- [x] **Three cross-repo inbox items are addressed to THIS repo and have never been ingested --
-  surfaced, not filed, because filing them means inventing their scope.** `scan-routed.sh` reports
-  them as dead-letters: `routed:fa6d` (running Workflow/pool children ARE addressable mid-run via
-  SendMessage to the raw agent id from `agent-<id>.meta.json`; `ListAgents` does not list them until
-  you send, so its silence is not evidence -- verified end-to-end on run
-  `relay-20260909-212820-29294`; `docs/relay.md` and `inject.sh --prompt-only` both understate what
-  is reachable), `routed:1107` (`context-budget.sh` thresholds are hard-coded for a 200k window, so
-  every `claude-opus-5[1m]` child gets a spurious `handback` verdict -- in zom.fi the baseline
-  transcript alone exceeds the 300000 B default before any work, making executor rule 2c an
-  unconditional zero-commit livelock there) and `routed:526b` (cross-session "last one switches off
-  the PC" coordination; the owner sketched two marker shapes and the note is explicit that it should
-  COMPOSE `heartbeat.sh` + `claim.sh`, not build new lockfile machinery). `routed:1107` looks like
-  the one with live blast radius. Run `scan-routed.sh --apply` to write stubs, or file them by hand
-  with the lanes you want -- an unattended review picking lanes for three items is exactly the
-  overstep the global CLAUDE.md forbids.
-
-  RESOLVED 2026-09-10 (`/relay human`, tier-(a)): all three ARE ingested now and all three are
-  drained from the inbox -- `routed:fa6d`, `routed:1107` and `routed:526b` each appear in
-  `TODO.md` and none appears in `~/.claude/projects/todo-inbox.md`. No lane was invented by this
-  turn; the filing happened upstream. The one inbox item targeting this repo TODAY is a NEW,
-  unrelated one (`routed:b015`, from quovadis, on `relay-state-write.sh` having no `repo-add`).
-  Re-check: `bash relay/scripts/inbox-scan-repo.sh dotclaude-skills` and
-  `grep -c 'routed:fa6d\|routed:1107\|routed:526b' TODO.md`.
 
 ## Review 2026-09-09d (run `relay-20260909-205831-5121`, chain-end re-ask)
 
@@ -316,10 +274,6 @@ runner structurally cannot verify it -- I ran the negative case by hand instead 
 pre-fix `tools/ledger-shrink.py` fails at exactly the assertion its header predicts --
 `(e) ledger-shrink _LANE_PATTERNS recognises undeclared lane tokens`.
 
-- [x] **`id:4983`'s detail pointer points at ANOTHER item's note, and it is now a live input rather than dead decoration.** The ROADMAP line reads ``-- detail: `docs/ledger-notes/6546.md` `` followed by its own id marker; `docs/ledger-notes/4983.md` does not exist, and `6546.md` is `id:6546`'s note (strict-shape shrink wave 2 -- the 460-of-840 prose census), which says nothing about lane grammar. Introduced by the handoff commit `109d6f10`, where the two sibling items promoted in the SAME commit got correct pointers (`5f34`->`5f34.md`, `1608`->`1608.md`) -- so this is a slip on one line, not a convention. **Measured blast radius: 2 of 773 pointer-bearing item lines across all five ledgers, and both are this same item (`ROADMAP.md:1698` + its `ROADMAP.archive.md:4584` copy).** Isolated, not systemic. It did no harm HERE only because the ROADMAP block carried its Acceptance/Tests/Done-check inline; a reader or slicer following the pointer gets wave-2-shrink prose instead. Load-bearing now because `id:1608` (closed LAST review) made pointer-following live in `orphan-scan --shipped`, and `id:2ee1` exists precisely so `ledger-slice.sh` follows these pointers into executor prompts -- this is the `id:b015` shape (body relocated, address wrong). **Fix is either creating `docs/ledger-notes/4983.md` or dropping the pointer; I did NEITHER, because the item is closed+archived and rewriting an archived line is the owner's call.** <!-- id:4983 -->
-
-  RESOLVED 2026-09-10 (/relay human --all, owner ruling): the missing note was CREATED as docs/ledger-notes/4983.md, composed from id:4983's own archived text (ROADMAP.archive.md:4584 head line + its Acceptance/Tests/Done-check bullets) and the WHY block of the test it specifies, tests/test_lane_grammar_ssot.sh. The note declares in its own header that it was hand-written rather than relocated by ledger-shrink.py, so it makes no false 'reproduced verbatim' claim. The MECHANICAL half is verified gone: classify-repo.sh charges MISSING_LEDGER_NOTE_BYTES (32,768 B) for any unreadable pointer-shaped path, and this REVIEW_ME box's own prose names docs/ledger-notes/4983.md, so every classification of this repo was inflated by 32,768 B; 'bash relay/scripts/classify-repo.sh --repo dotclaude-skills --path ~/src/dotclaude-skills 2>&1 >/dev/null | grep 4983' now returns empty (exit 1), where it previously printed the MISSING/unreadable warning. RESIDUAL, stated rather than papered over: the archived ledger line at ROADMAP.archive.md:4584 STILL spells its pointer as docs/ledger-notes/6546.md and was deliberately NOT edited -- the owner's ruling was to create the note, and rewriting an archived line remains the owner's call. So the note now exists while the item's own line still addresses another item's note; the repoint is a one-token change if wanted. Also corrected for the record: this box's line reference 'ROADMAP.md:1698' is stale -- id:4983 is no longer present in the live ROADMAP.md (grep returns no item line), so the blast radius is the single archive copy, not two live lines.
-- [x] **`id:dd44` cites `id:4983` as an instance of "a checker that derives its notion of correctness from the thing it checks cannot fail" -- for the LANDED test that premise does not hold, and the hazard-class item should not be built on it.** `TODO.md:848` (INBOUND `routed:4dc2` from loderite) names three instances, the third being *"your lane check borrowing the shrinker's own regex, id:4983"*. Measured against the file: `tests/test_lane_grammar_ssot.sh` derives its EXPECTED set by scraping `relay/references/hard-lanes.md` (the SSOT doc, `SSOT_DOC` at line 56) and imports `_LANE_PATTERNS` only as the SUBJECT under test (line 145). Expectation and subject are different sources, and the test genuinely fired RED against the pre-fix implementation -- a self-referential check could not have. **The narrower residue IS real and is worth keeping in `dd44`:** the doc SCRAPER (`DASH_RE`, line 90) uses the same permissive `[A-Za-z0-9 _./-]+` bracket shape the fix just removed from the shrinker, so a lane the SSOT declares in an unusual spelling would be invisible to the scraper AND to the consumer, and assertion `(a)` only guards against total vacuity (`len(ssot) < 5`). That is a coverage limit, not a tautology. **Confirm the correction so `dd44` is filed on the accurate claim.** **CONFIRMED 2026-09-10 (`/relay human`, tier-(a)): the correction holds and `id:dd44` should be filed on the narrower claim.** Re-derived by reading the file rather than adopting the box: `tests/test_lane_grammar_ssot.sh` exports `SSOT_DOC=relay/references/hard-lanes.md` and scrapes it for the EXPECTED lane set, then imports `_LANE_PATTERNS` from `tools/ledger-shrink.py` only as the SUBJECT under test -- two different sources, so the self-referential premise is false for the landed test. The scraper-permissiveness residue named in this box is the accurate claim and is what `dd44` should carry. Re-check: `grep -n 'SSOT_DOC=\|_LANE_PATTERNS' tests/test_lane_grammar_ssot.sh`. <!-- id:dd44 -->
 - [ ] **All 7 open `[ROUTINE]` items are gated or owner-bound, so this repo has ZERO executor-actionable routine work -- I am returning `routine_open: 0`, not 7; confirm the call.** Raw count of open `- [ ] ... [ROUTINE]` in `ROADMAP.md` is 7. `resolve-gates.sh` reports `d4ca`, `540f`, `c179`, `554b`, `8524` all blocked=1; `6446` carries `🚧 @owner-gated` + `gated-on:f391`; `cf2d` is `@owner-verify` and its own body states it *"can only be produced by exercising a real `/meeting`, which the pool cannot manufacture"*. `review.md` defines this field as *"is there executor work left"*, and reporting 7 would re-enqueue an execute unit that finds nothing dispatchable -- **which is exactly `id:59f2`, the defect this repo already tracks, reproduced live.** Reporting the actionable count answers the question the field is for; flagging it because the raw/actionable split is a judgment the supervisor cannot see. <!-- id:59f2 -->
 
 ## Review 2026-08-31c (chain-end re-ask, run `relay-20260831-220243-21277` -- id:8123)
@@ -1048,50 +1002,6 @@ exactly the work a chain-end review exists to check.
   a revised done-check. `docs/ledger-notes/c132.md` had its false sentence struck and corrected,
   with the edit declared in its header per the notes-are-editable convention. <!-- relates:c132 --> <!-- id:b87b -->
 
-- [x] 🔴 **The `id:f91a` hazard is LIVE right now: this repo's MAIN checkout carries 35 lines of uncommitted, unreviewed work that no worktree contains, and it will DEFER this repo from every later pool round.** Observed at 11:56 while confirming my own worktree was clean: `git -C ~/src/dotclaude-skills status` shows `M meeting/md-merge.py` (mtime 11:52) and untracked `tests/test_md_merge_multiline_line_guard_f833.sh` (mtime 11:54) -- both written DURING this review (started 11:44), neither by me (I only ever invoked `md-merge.py`, never edited it, and all my writes are in my worktree and committed at `486e6737`). The work itself looks sound and deliberate: a real defect fix for `id:f833` (`md-merge.py update-ids` replaces only the marker line, so a multi-line `line` payload DUPLICATES an item instead of updating it -- found in kienzler-solutions' TODO.md) with a matching hermetic test that deliberately carries no `# roadmap:` header. So this is MISLOCATED, not bad: the conventions.md `id:f682` recovery doctrine says favour salvage over discard, and nothing here should be reverted. Two facts make it urgent rather than cosmetic. (1) It is the exact `verify-isolation.sh` failure signature -- the sibling execute worktree `relay/relay-20260907-100619-27900-execute-4839-0` is CLEAN and sits **0 commits beyond main**, i.e. an empty worktree beside a dirty main checkout, which is precisely the shape `id:f682` describes as a silently-wrong 'commit in the worktree' self-report. (2) A dirty main checkout trips the `id:aa93` dirty-guard, so every later pool round DEFERS this repo -- the self-perpetuating backlog review.md §5 exists to prevent. I did NOT commit it (it is another actor's in-flight work, unreviewed, and committing it under my review's checkpoint would launder it as reviewed) and did NOT revert it. I also cannot prove WHO wrote it: no `execute-4839` process survives, and the run's children share one `CLAUDE_SESSION_ID`, so authorship is inferred from timing and location, not established. There is no `id:f833` item in this repo's TODO.md or ROADMAP.md -- only a `routed:f833` mention inside `id:689e` -- so if this came from a cross-repo child it also bypassed the shared-inbox rule. Owner/integrator call: salvage-commit it in the main checkout under the held lease, or hand it back to whoever owns it. <!-- relates:f91a --> **RESOLVED 2026-09-10 (`/relay human`, tier-(a)): the disposition was SALVAGE, and the hazard this box raised is gone.** Both artefacts are on `main` and the main checkout is clean of them: `git ls-files tests/test_md_merge_multiline_line_guard_f833.sh` returns the file, and `8b40b1fc` (the `id:f272` commit-and-park residue carrying the `md-merge.py` f833 multi-line guard) is an ancestor of HEAD. So the `id:aa93` dirty-guard is no longer deferring this repo, which is what made the box urgent. **Residue deliberately NOT closed with it, and it is the owner's:** the content reached `main` through a commit labelled `WIP UNVERIFIED ... do not treat as reviewed`, so the f833 guard and its test have still never had a review pass -- that is a separate question from the checkout hygiene this box was filed on. Re-check: `git merge-base --is-ancestor 8b40b1fc HEAD`. <!-- id:b923 -->
-
-**Everything else checked and clean, stated so a silent pass is distinguishable from not
-looking.** `gaming-scan.sh` over `relay-ckpt-20260907-1045..HEAD`: no output -- 0 `DELETED_TEST`,
-0 `ADDED_SKIP`, 0 `REMOVED_ASSERT`. No test file was added OR modified in the window (the `c132`
-RED spec was authored earlier, in `5017bf07`), so the resurrection check (§2b.1) has no candidate
-and the spec that went green is byte-identical to the one authored before the implementation --
-the strongest form of that check. Fixture special-casing (§2b.2): none -- the exclusion is
-derived from `$RELAY_WORKTREE_BASE` and from `git worktree list --porcelain`, and the spec
-deliberately points that variable at a `mktemp` path so a hardcoded literal cannot satisfy it.
-Provenance (§2b.7/9/10): no commit in the window introduces `@owner-accepted:`,
-`@owner-answered:` or `<!-- answer-src:`, and no line carrying one was modified. Faked-clean-tree
-(§2b.5): the acceptance behaviour is present in the diff and re-derived here by probe, not
-inferred. Refactor claim (§2b.6): `none needed -- scoped guard fix` is consistent with a 26-line
-single-function change. Host gate (§2c): no `[host:]` tag on the item. Test tiers (§3)
-enumerated from the `Makefile`, there being no CI config and no `package.json`: `make lint` +
-`make test` RAN green -- **582 passed / 0 failed / 18 expected-red, exit 0, no hermeticity
-breach**, matching the executor's claimed 582/0/18 (suite wall-clock measured at `load average:
-18.7-21.0` on 8 cores, so timing here says nothing about the suite). `make verify-negatives` RAN
-for the `c132` spec: 0 failures, correctly reported `roadmap-spec` -- I chased that label,
-suspecting the `id:7c82` carve-out had been reintroduced through the ARCHIVE path, and it had
-NOT: `roadmap_item_open()` returns False for `c132`, the carve-out is SPENT, and the file lands
-in `roadmap_spec` only because it carries no machine-readable case and, as a roadmap-spec file,
-owes none. (One cosmetic residue: the summary line prints "skipped: redness IS the spec while the
-item is OPEN" for files whose carve-out has EXPIRED, which is what sent me looking.)
-`make gaming-canary` and `make shard-canary` are Tier-B model canaries, deliberately out of `make
-test` because they cost tokens -- SKIPPED-TIER, not folded into the green claim. Contract pointer
-`CLAUDE.md` is `v18`, matching `relay/references/executor-contract.md` -- no refresh needed.
-Spec drift (§4): the window touched one guard function in `tests/run-tests.sh`; `CLAUDE.md`'s
-Testing section describes the hermeticity backstop's semantics only in terms of `# fails-against:`
-and expected-red, neither of which changed, and `README.md` does not document the backstop -- no
-drift. `orphan-scan --cross-ledger`: clean, no output. `roadmap-lint`: exit 0, the same 4
-DEAD-GATE warnings (`d4ca`, `e405`, `540f`, `c179` -- all gated on `09e4`/`b0b1`, which live only
-in `TODO.md`) and 1 NO-ACCEPTANCE-NO-TWIN (`da55`), all pre-existing and unchanged by this
-window. `orphan-scan --shipped`: no TICK-READY hits; the 90 candidates are UNMARKED-GATE and
-container advisories, pre-existing. Reverse-handoff (§5b): the window added NO new open ledger
-item -- its only ledger edits were ticking `c132` and archiving it -- so no mini-handoff was
-owed. Parked orphans are unchanged at 4 for this repo and remain covered by `id:5121`; the
-2026-09-05 execute residues and this run's own `execute-64f9-0` are all `id:f272` WIP
-auto-commits. Ambient, unchanged, recorded for continuity: relay-core shadow parity is 31,292
-mismatches over 307,113 rounds (bash stays authoritative; the flip gate is 100% parity + 5 clean
-rounds), Lean toolchain pins agree at `v4.30.0-rc2`, and `hooks-path-shadow-scan` reports 57 own
-repos, 0 EMPTY-SHADOW, 2 DELIBERATE.
-
 ## Review 2026-09-08 (hardening audit of id:1b0e / id:e044 / id:ad67, window `relay-ckpt-20260908-0958`..HEAD)
 
 Verdict: **sound with caveats**. All three items' functional acceptance criteria are genuinely
@@ -1154,24 +1064,6 @@ BARE `id:62c9` rather than the owning `<!-- id:62c9 -->` form, so `md-merge.py u
 address it at all -- it refuses loudly (`regex_sub id(s) not found`), correctly, per the `id:3743`
 anchoring rule. It was resolved via `update-sections` instead, which is still under the flock. Any
 future REVIEW_ME box that wants to be machine-resolvable needs the HTML-comment marker.
-
-- [x] **`id:02fe` names landed, tested work that has NO ledger line anywhere — the token exists
-  only in a commit message, a test filename, and one `relates:` edge.** Commit `f6fa91d1`
-  ("a repo name is not the string-matcher's to choose (id:02fe)") and
-  `tests/test_repo_section_quoting_02fe.sh` (160 lines, green) fix the `[repos."zom.fi"]`
-  quoted-section class end to end, and open TODO item `id:9220` carries `relates:02fe` pointing
-  at it. But `grep 02fe` over `ROADMAP.md`, `ROADMAP.archive.md`, `TODO.md`, `TODO.archive.md`,
-  `REVIEW_ME.md`, `REVIEW_ME.archive.md` and `RELAY_LOG.md` returns exactly one hit: the
-  `relates:` edge itself. So `orphan-scan`'s exact-token correlation finds nothing, the
-  single-id-two-views cross-ledger check has nothing to compare, and `9220`'s typed edge points
-  at a token no ledger owns. **No code defect and nothing to reopen** — the work is done and the
-  test passes (verified: the file carries no `# roadmap:` header, so its failures always count
-  and it is not silently carved out). The question is the RECORD: backfill a `- [x]` line into
-  `ROADMAP.archive.md` reusing `02fe` so the edge resolves, or accept that a fix landed with no
-  ledger entry. Owner's call — a reviewer should not mint a closed item's history unasked.
-  Found by relay review, run relay-20260908-174448-4421.
-
-  Owner-ratified 2026-09-10: backfill chosen over accept-no-entry. `id:02fe` is now `- [x] [ROUTINE]` under ROADMAP.md "## 2026-09-10 review-minted tokens promoted (owner-ratified)", with a hand-authored `docs/ledger-notes/02fe.md` reconstructed from commit `f6fa91d1` and this box (the note says so in its header and carries no verbatim claim). `id:9220`s `relates:02fe` edge now resolves to a line a ledger owns; `tests/test_repo_section_quoting_02fe.sh` re-run green (exit 0, 2026-09-10). No code changed and nothing was reopened.
 
 ## Review 2026-09-08b (chain-end re-ask, run `relay-20260908-231617-32609` -- id:8123)
 
@@ -1287,26 +1179,6 @@ pointer in `CLAUDE.md` is `v18`, matching the canonical marker -- no refresh nee
   re-scopes `id:8372` from a shrink-quality item to a dispatch-integrity one. <!-- relates:8372 -->
   <!-- relates:6446 -->
 
-- [x] **`id:6446` was worked by an executor even though its ROADMAP line carried TWO independent
-  first-class dispatch exclusions, and the classifier correctly excluded it -- so the exclusion is
-  computed and then not consulted by whatever picks the item.** Verified by evaluating
-  `classify-repo.sh`'s own predicates against the literal line as it stood at
-  `relay-ckpt-20260909-1509`: `is_routine=True`, `blocked=True` (the `🚧`), `is_owner_gated=True`,
-  therefore `counts toward actionable_routine_open = False`. The execute unit was legitimately
-  dispatched for the repo's OTHER actionable `[ROUTINE]` items; the Sonnet executor then selected
-  an item the classifier had ruled out. The outcome here was benign -- the markers were false
-  (previous box), the real gate was discharged, and the work is correct -- but the mechanism is
-  not: an executor that does not honour `🚧`/`@owner-gated` at SELECTION time can work a
-  genuinely owner-gated item, which is the `id:540f`/`id:c179` owner-gate-breach class the holds
-  exist to prevent. The gap is that `actionable_routine_ids` is computed by the classifier and
-  the executor contract's rule 1 says only "work `[ROUTINE]` items from ROADMAP.md" -- it never
-  tells the executor about the marker exclusions, nor hands it the computed id list. Two fix
-  shapes, owner's call: pass `actionable_routine_ids` into the executor's dispatch prompt as the
-  permitted set, or restate the marker exclusions in `executor-contract.md` rule 1 (cheaper, but
-  it is prose an executor can miss -- the `id:d35a` failure mode). **RESOLVED 2026-09-10 (owner ruling): the permitted-id set is now PASSED INTO the dispatch prompt.** `permittedIdsFor()` in `relay-loop.js` renders the classifier's full `actionable_routine_ids` (minus the orphan/stranded subtraction, injected item first) as a CLOSED PERMITTED SET in the execute brief, with unlisted ids declared OUT OF SCOPE and a hand-back instruction rather than a preference. The prose alternative -- restating the marker exclusions in `executor-contract.md` rule 1 -- was NOT taken, for the reason this box gives. An EMPTY set fails CLOSED: the historical `Work the open [ROUTINE] items in ROADMAP.md` fallback is replaced by `EXECUTE_NO_PERMITTED_SET`, a refusal that authorises no work and instructs an immediate structured handback. Pinned by `tests/test_permitted_id_set_c076.sh` (mutation-verified). <!-- id:c076 -->
-
-  ANSWERED 2026-09-10 (/relay human 3a): RESOLVED as the box records. permittedIdsFor() renders the closed permitted set into the execute brief (2 call sites in relay-loop.js), an empty set fails closed via EXECUTE_NO_PERMITTED_SET (3 sites), and tests/test_permitted_id_set_c076.sh passes cases A-D. Re-checkable by rerunning that test.
-
 ## Review 2026-09-09 (run `relay-20260909-143257-21736`, chain-end re-ask)
 
 Window `relay-ckpt-20260909-1547`..HEAD -- the last *reviewer* checkpoint, not the literal latest
@@ -1384,22 +1256,6 @@ saying `+ TODO twins [id:521b,9088]`; ticked here.
   review turn -- deciding a box is resolved is exactly the judgment that must not be guessed, and
   most boxes here carry no `id:` so no tooling reaches them. Surfacing rather than sweeping is the
   conservative default. If you want this mechanized, it wants its own item.
-
-- [x] **Cross-repo dead-letter, unresolved: `routed:d357` -> `it-infra`.** `relay-doctor` reports
-  it absent from both `it-infra`'s TODO.md and ROADMAP.md (route `www.whaleverifier.com` through
-  the fievel tunnel; blocked because the stored Cloudflare token lacks
-  `cfd_tunnel/*/configurations`, error 1001). Left untouched deliberately: it targets another
-  repo, and `scan-routed` is report-only unless run with `--apply`. Noted here so it is not lost.
-  `relay-doctor` also reports the relay-core shadow at 37,312 mismatches over 339,373 rounds --
-  pre-existing, bash stays authoritative.
-
-  RESOLVED 2026-09-10 (`/relay human`, tier-(a)): it is no longer a dead-letter. `it-infra/TODO.md`
-  line 320 carries `[INBOUND routed:d357 from zkWhale relay review 2026-09-09]` as `id:7f3b`,
-  lane `[INPUT - access]`, `gated-on:5b71` -- correctly qualified as needing an account-level
-  Cloudflare Tunnel:Edit token nobody here can mint. The token is gone from the inbox.
-  The relay-core shadow-parity half of this box is NOT resolved and is already carried by its own
-  box in the `## Review 2026-08-26` section (`id:82c4`).
-  Re-check: `grep -n 'routed:d357' ~/src/it-infra/TODO.md`.
 
 ## Review 2026-09-09d (chain-end re-ask, run `relay-20260909-185356-12943` -- id:8123)
 
@@ -1499,25 +1355,6 @@ no refresh. `orphan-scan --cross-ledger`: clean. `orphan-scan --shipped`: the on
 
 ## Handoff 2026-09-09 (run `relay-20260909-205831-5121`, user-injected id:6d7e)
 
-- [x] **The ambiguity refusal reuses exit code 4 rather than minting a distinct one, so no
-  caller can branch on "not unique" vs "no such marker".** The ruling said "exit non-zero"; I
-  read that as 4, the resolver's existing UNRESOLVED code, because `context-budget.sh --self`
-  fails open on ANY non-zero and the acceptance requires it to land on `unknown` -- a new code
-  would work identically there, so 4 costs nothing today and keeps the exit table at three
-  values. The case against: the two failures have OPPOSITE remedies (fix the marker string vs.
-  make the marker unique at source), and a caller that one day wants to retry-with-a-narrower
-  marker on ambiguity, but not on a genuine miss, cannot tell them apart from the status alone.
-  The RED spec pins only that the two MESSAGES differ (case 2), which is enough for a human
-  reading a run log and not enough for a program. If you want a distinct code, say so before the
-  executor picks this up -- adding one later is a compatibility change to a documented table.  (against `id:6d7e`.)
-
-  CLOSED AS SUPERSEDED 2026-09-10 (`/relay human`, tier-(a)) -- this is a bookkeeping close, NOT an
-  answer. Its literal ask ("say so before the executor picks this up") is spent: the executor
-  shipped exit 4 and `id:6d7e` is closed and archived. The SAME question, correctly reframed as a
-  compatibility change to a shipped exit table, is carried by the still-OPEN box in the
-  `## Review 2026-09-09e` section ("The exit-code question the handoff raised against `id:6d7e`
-  has now SHIPPED as exit 4"). Decide it there; nothing is lost by closing this duplicate.
-
 - [ ] **Two landed test cases pin the behaviour the ruling reverses, and I prescribed EDITING
   them rather than deleting them -- an executor will be rewriting cases whose own items are
   closed.** `tests/test_self_transcript_wiring_ff30.sh` case 6 and
@@ -1560,51 +1397,6 @@ of `make test`). No e2e/integration tier is declared. `orphan-scan --cross-ledge
 `inbox-done`'d here, since the twin-guard reads the MAIN checkout and auto-reconcile drains them
 after integrate.
 
-- [x] **The suite is RED at HEAD on purpose, and that makes the executor contract's
-  definition-of-done unreachable for every future unit in this repo.**
-  `tests/test_inbox_own_token_extractor_0246.sh` deliberately carries NO `# roadmap:` header, so
-  its failures always count; the implementation it specs was REVERTED (`eb2587fd`) after the
-  adversarial review found 9 defects, 2 HIGH, on a destructive write path. That was the right call.
-  The consequence is the part nothing has recorded: executor-contract rule 2 says done means "the
-  FULL test suite is green", so until `id:0246` ships, every executor either hands back or quietly
-  redefines green -- and `id:0246` cannot ship, because its D5 and D6 need YOUR ruling (is an
-  indented inbox line legal; does the multi-marker refusal extend to a line that merely CITES the
-  token). I did not weaken the test or add a header: both would hide a live defect. Your call is
-  which of three: rule on D5/D6 so it can ship, give the file a temporary exemption with a named
-  expiry (`<!-- expires-on:0246 -->` now exists for exactly this, via `id:a192`), or accept a red
-  suite and tell executors so explicitly.
-
-  RESOLVED 2026-09-10 (relay human, tier-(a)): the premise is gone. D5 and D6 were both
-  ruled on 2026-09-10 (D5 refuse an indented line LOUDLY; D6 DISSOLVED -- reject a multi-marker
-  inbox line at write time), so `id:0246` was no longer blocked. It re-landed as `69587e46` with
-  all 9 review defects fixed and the suite reports `637 passed, 0 failed, 0 errored, 1
-  expected-red`. No exemption was minted and the headerless spec kept its header-less shape.
-  Re-check: `git show 69587e46 --stat` and `make test`.
-- [x] **`id:4e84` is ticked although HALF of what `routed:71c6` filed did not ship -- confirm the
-  split rather than the tick.** The inbound report named two faults. Fault (b) (strict rank order
-  starves apex and handoff) is fixed and independently verified: spec cases A-G green, and the
-  declared mutation reddens at the declared assertion, not an earlier one. Fault (a) (an
-  excluded-but-open item pins the verdict) is NOT fixed -- `classify-verdict.sh` still has no
-  notion of a dispatch brief, and the widening only changes the CONSEQUENCE, because the round's
-  second pass now reaches `hard`/`handoff`. I ticked the item (its ROADMAP line, detail note and
-  RED spec all scope it to the loop-side widening) and filed fault (a) as `id:fe67`
-  `[INPUT - decision]` so it cannot vanish inside a closed item. If you would rather the parent
-  stay open until (a) is answered, reopen both lines -- `ROADMAP.md` `id:4e84` and its
-  `TODO.md` twin.
-
-  Owner-ratified 2026-09-10: fault (a) now has its own ROADMAP line. `id:fe67` is `- [ ] [INPUT - decision]` under ROADMAP.md "## 2026-09-10 review-minted tokens promoted (owner-ratified)", pointing at `docs/ledger-notes/fe67.md`, with a Done-check naming both admissible outcomes (exclusion input with the measured ladder pinned, or WONTFIX on the second-pass relief). The parent `id:4e84` stays ticked; the split is confirmed, not the tick.
-
-- [x] **`id:a192` shipped, is green, and has NO ledger line anywhere -- the token exists only in
-  commits and its own detail note.** The `expires-on:` edge plus `relay/scripts/expires-on-scan.sh`
-  landed in `91264d35` with a verified negative case, and `grep -rn 'id:a192'` finds nothing in
-  `TODO.md`, `ROADMAP.md` or either archive. Nothing is open, so nothing is starved -- but
-  `orphan-scan --cross-ledger`, `unpromoted-scan` and `expires-on-scan`'s own DANGLING check are
-  all id-keyed, so a shipped feature that no checkbox ever described is invisible to every one of
-  them. Same class as the already-open box on `id:02fe`; recording it here rather than
-  retro-filing a closed item, which is your call, not mine.
-
-  Owner-ratified 2026-09-10: retro-filed as CLOSED, not open. `id:a192` is now `- [x] [ROUTINE]` under ROADMAP.md "## 2026-09-10 review-minted tokens promoted (owner-ratified)" -- the work shipped in `91264d35` and `tests/test_expires_on_edge_guard_a192.sh` re-runs green (exit 0, 2026-09-10), so an open line would have been false. The line records the residue explicitly: nothing wires a non-test `EXPIRES_ON_EXTRA_PATHS` entry point, so the motivating clause in `~/.claude/CLAUDE.md` stays unguarded, and the two owner rulings stay in `docs/ledger-notes/a192.md`. The id-keyed scans (orphan-scan --cross-ledger, unpromoted-scan, expires-on-scan DANGLING) can now see the token.
-
 - [ ] **NEW `roadmap-lint` WARN, introduced by this window: `id:32c3` trips DECIDED-LEFT-OPEN.**
   Its hand-promoted ROADMAP line carries "the CLAUDE.md (c) amendment's 'belongs to (b)' clause is
   SUPERSEDED", and the lint reads `SUPERSEDED` as a claim about THIS item's status; the item is
@@ -1630,20 +1422,6 @@ DECLARED assertions. RECORDED-SKIP: the FULL negative-case corpus (~35 min, opt-
 outside `make test`); the changed-file slice is the part `id:abcc` makes mandatory and it ran.
 `make gaming-canary` / `make shard-canary` NOT run -- they cost model tokens on demand and are
 not part of the definition-of-done.
-
-- [x] **`id:8cc6` VERIFIED GREEN and closed -- both halves of its acceptance sketch shipped, and
-  the declared negative case was re-run rather than trusted.** `23083671` carves stat-cache dirt
-  (exact XY pair ` M` plus an empty worktree-vs-index diff, ONE `git diff --name-only` per repo,
-  fail-closed and loud, `RELAY_STRICT_STATCACHE=1` restores strict) and fixes the mislabelling
-  half by naming the inspected path in the dirty line. Spec exits 0; `verify-negative-cases.py`
-  says red-there at `case B`. Close record appended to `docs/ledger-notes/5239.md` (the edit is
-  declared in that note's header, per the notes-are-editable rule).
-
-- [x] **`id:7c75` VERIFIED GREEN and closed -- answered by a THIRD shape, not either branch the
-  item offered.** `relay/scripts/review-box-tick.py` (`ee0b17ed`, wrapped-title fix `c9a24cf5`)
-  uses the anchor `update-sections` already has and takes over the dangerous half, composing the
-  section. 11 cases green; BOTH declared mutations red-there at their declared assertions. Close
-  record: `docs/ledger-notes/7c75.md`.
 
 - [ ] **`routine_open` is 0, not 6 -- CONFIRM. This review reached that independently, and the
   identical question raised by the previous review is still open and unanswered above.** Raw
