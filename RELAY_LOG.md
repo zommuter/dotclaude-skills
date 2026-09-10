@@ -3491,3 +3491,7 @@ with one shared parser and one repo-key helper, no new duplication introduced.
 ## 2026-09-09 23:41 — executor (sonnet, relay-loop)
 
 id:c655 landed: relay/scripts/todo-conformance.sh's head-length and shape-prose baselines now key on repo+ledger+id (via git-common-dir), refusing legacy 3-column rows loudly; both committed baseline files regenerated in the new 4-column format; full suite 627/0/0/2-expected-red. [id:c655]
+
+## 2026-09-10 12:21 — executor (sonnet, relay-loop)
+
+id:aa5e: relay_FILES now ships the head-length/shape-prose baseline files so make install-relay stops the ratchet going INERT [id:aa5e]
