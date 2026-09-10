@@ -1,5 +1,12 @@
 # Session handover -- 2026-09-10 (Opus 5, 1M context)
 
+> **The "State at close" table below is from the MORNING half and is STALE in several rows.**
+> It is left verbatim as that half's record. The authoritative close state is the
+> **AFTERNOON section at the end of this file** -- specifically: public GitHub is now **0 behind**
+> (195 commits PUBLISHED on the owner's decision), the ratification queue is **drained for this
+> repo** (19 resolved with remote verification), `id:0246` is **reverted and reopened**, and
+> `id:aa0d` **landed**.
+
 Point-in-time snapshot. Durable detail lives in the ledger items and `docs/ledger-notes/<id>.md`
 files cited below -- read those; do not trust this doc where it disagrees with them.
 
@@ -75,7 +82,10 @@ budget/round-robin and starvation-counter options stay closed), and the **apex c
 
 ## Needs the owner
 
-1. **PUBLISH DECISION, not taken.** 182 commits behind public GitHub. The tree-scoped audit
+1. ~~**PUBLISH DECISION, not taken.**~~ **RESOLVED later the same day -- 195 commits PUBLISHED on
+   the owner's decision after the 8 indices were classified; see the AFTERNOON section. The text
+   below is the morning state, kept because its AUDIT METHOD is the reusable part.**
+   182 commits behind public GitHub. The tree-scoped audit
    (`tools/privacy-audit.sh`, exit **1** = findings) found **8 pattern indices with hits**: `#2`
    (76 occurrences / 41 files), `#7` (2/1), `#8` (2/2), `#9` (2/2), `#12` (155/149), `#13` (1/1),
    `#16` (3/1), `#21` (66/23).
@@ -158,3 +168,96 @@ misleading log line reproducing the same sin on the one input I had not enumerat
   (`id:81d5`). It caught three of my own edits today. Use `head -1 < <(...)` or drop the pipe.
 * **The `id:aa93` dirty-guard refuses a push while another session's work is uncommitted** -- that
   is correct; use a plain fast-forward `git push`, never commit their files.
+
+---
+
+# AFTERNOON -- same session, continued. THIS IS THE AUTHORITATIVE CLOSE STATE.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | see final commit; clean |
+| **Public GitHub** | **0 behind -- 195 commits PUBLISHED 2026-09-10 on the owner's decision** |
+| Ratification queue | **drained for this repo** (19 resolved, each verified via `git ls-remote`, 0 refused). 2 `toesnail` entries remain, not ours. |
+| Suite | 635 passed, 1 failed, 1 expected-red -- the 1 failure IS `id:0246`'s headerless RED spec (reopened item) |
+| Parked orphans | 4, all deliberate |
+| Shared inbox | 3 open, NONE targeted here (cartulary `3e13`, meeting-rpg `cef7`, leAIrn2learn `784a`) |
+
+## The publish decision, and how it was actually resolved
+
+The audit exited **1** with **8** pattern indices. Rather than treat that as a blocker, each index
+was resolved to a CLASS (never to pattern text -- the gate's own output spells the private pattern,
+so it must never reach a tracked file):
+
+* `#12` (155 hits / 149 files) -- **139 are session-id provenance**, the owner's explicitly ratified
+  not-a-leak class.
+* `#21` (66 / 23) -- **65 are absolute `/home/<user>/...` paths.** The only substantive class.
+* `#2` (76 / 41) -- 71 prose: this is the documented 3-character UNANCHORED pattern whose substring
+  noise once camouflaged a genuine hit.
+* `#16` (3 / 1) -- 2 commit-trailer provenance, all inside the doc that EXPLAINS the intentional
+  trailer. `#7`/`#8`/`#9`/`#13` -- 1-2 hits each, trivial.
+
+**The decisive measurement: of the 23 files carrying the home-path class, 22 are ALREADY on
+`github/main` with the same content.** So publishing propagated an existing exposure rather than
+creating one. That is what turned a blocker into a decision. The owner published.
+
+If you want to REDUCE that class, it is a separate cleanup item and the time to do it is before a
+push, not after.
+
+## What landed in the afternoon
+
+* **`id:aa0d`** -- a `gated-on:XXXX=<condition>` edge parsed to EMPTY, so the gate was invisible and
+  the item dispatched as UNGATED. Fixed, and **verified end-to-end against the original incident**
+  rather than its own fixtures: `resolve-gates.sh ~/src/leAIrn2learn` now emits
+  `89ef 1 unparseable:0d8e=pass` with 10 loud refusals, and `classify-repo.sh` returns
+  `actionable_routine_ids: []`, verdict `human`. The over-dispatch cannot recur.
+* **Salvage of the pool's stranded review branch** -- 4 ledger notes recovered, `id:4e84` and
+  `id:ed35` ticked with their tests re-run on `main` as evidence. `id:aa5e` deliberately NOT ticked:
+  `main` had already closed and archived it, and the branch's hunk would have re-added a duplicate.
+* **4 inbox dead-letters routed** -- `id:ac90`, `id:8cc6`, `id:3dea`, plus `routed:4887` FOLDED into
+  the existing `id:3770` rather than opened as a second item for one defect.
+* **3 defects filed from the first pool run** -- `id:aa0d`, `id:0923` (both ledger ratchets INERT for
+  every consumer of the INSTALLED path), `id:36bc` (relay-doctor substring-matching `[MECHANICAL]`).
+
+## OWNER RULINGS -- ten this session, all in the ledgers
+
+The morning six, plus: **`id:0246` D5** refuse an indented inbox line LOUDLY (the defect was the
+silent exit-0 no-op, not the strictness); **`id:0923`** regenerate each repo's baseline, then arm;
+**publish** after classification; and **D6 DISSOLVED rather than answered** -- the owner asked
+"should decoy lines exist at all?", and the answer is no. Nothing currently prevents a multi-marker
+inbox line (`todo-conformance --inbox` has no such check), the inbox rule already says ONE line, and
+`id:6059`'s ambiguity is MANUFACTURED by spelling a citation in the owning comment form. So: reject
+a multi-marker inbox line at WRITE time, lint the existing ones, keep the resolver refusal as a
+backstop. Consequence: both live inbox lines need de-literalising before they can drain, and
+`routed:3e13` -- which is literally an item about quoted markers being misread -- gets to fix itself.
+
+## THE CORRECTION THAT MATTERS MOST: I verified a null result as a success
+
+`id:3dea` (inbound `routed:82ec`, verified before ingesting). A `[MECHANICAL]` recipe's
+`acceptance_artifact` is checked for EXISTENCE only. All three of `id:0ce2`'s `verdicts.json` carry
+`"verdict": null` -- well-formed JSON, 7 keys, correct schema, **no judgment in any of them**.
+
+Last night I recorded that run as *"SUCCEEDED -- 3 verdicts.json verified"* and described parsing one
+to confirm a real judgment record, listing `verdict` among the fields present. **I checked that the
+field EXISTED and never looked at its VALUE**, then committed that into a handover as evidence. The
+fleet's own diagnostic is *"if this were broken, would this check look different?"* -- mine would not
+have. The note names me, because the daemon-side gap and mine are the same shape one layer apart:
+fixing only the daemon leaves the reviewer free to repeat it.
+
+## The day's dominant failure mode, and the argument it settles
+
+**A check whose output does not depend on the thing it reports.** Three instances today: the two
+ledger ratchets silently INERT (`id:0923`), `transcript-shape-preflight` case (C) reporting SKIPPED
+while exiting 0 (`id:5f6a`), and the acceptance-artifact existence check (`id:3dea`). Plus my own:
+an exit status read through a pipe twice, one of two gate clauses tested and generalised, an audit
+file read while it was still being written, and a harness exit code that belonged to the wrapper
+shell.
+
+`id:3f59` asks for a MECHANISM rather than more prose. The strongest evidence for it is that the
+prose rule was in front of me and I wrote the claim anyway.
+
+**And the two highest-value findings of the day both came from something REFUSING, not from
+analysis:** a review agent that would not ship (the apex-gate bypass my own commit opened), and an
+executor child that would not work an item it judged gated (`id:aa0d`). Worth weighting when
+deciding how much adversarial review to keep buying.
