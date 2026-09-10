@@ -37,6 +37,29 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 # hermetic relay.toml: two confirmed-own repos (one income) + one external (skipped).
 mkdir -p "$tmp/src/alpha" "$tmp/src/beta"
 export RELAY_TOML="$tmp/relay.toml"
+
+# HERMETICITY (added 2026-09-10 after this test DESTROYED 19 live injected review units).
+# The prelude's step 6 runs a CONSUMING `inject.sh take`, and inject.sh resolves its queue from
+# $INJECT_BASE (default ~/.config/relay). This test isolated RELAY_TOML and nothing else, so
+# every `make test` silently drained the REAL global injection queue into inject.done/ --
+# consumed injections have NO re-enqueue path, so they were lost from both the inbox and the
+# ledger. Measured: a `make test` run at 07:35:35 logged `take scope=<global> consumed=19`,
+# taking 18 code.lawless OCR review units plus ai-codebench 0ce2 that a pool had never seen.
+# The other state the prelude touches is isolated here for the same reason: CLAIM_BASE (claim.sh
+# WRITES there), STOP_PATH (a real operator STOP sentinel would silently change the assertions
+# below), and the log. SRC_DIR is deliberately LEFT alone -- the fixture's own assertions depend
+# on the current resolution and changing it is a separate question, not a leak.
+export INJECT_BASE="$tmp/inject-base"
+export CLAIM_BASE="$tmp/claim-base"
+export STOP_PATH="$tmp/STOP-absent"
+export RELAY_DISCOVER_PRELUDE_LOG="$tmp/discover-prelude.log"
+# INJECT_LOG too: an isolated INJECT_BASE still writes to the SHARED ~/.claude/logs/
+# relay-inject.log, so a scratch-queue consume appears there as `take scope=<global>
+# consumed=N` and reads as a take against the LIVE queue. Three such phantom lines were
+# logged while diagnosing this very incident, and they are exactly the kind of adjacent,
+# authoritative-looking surface that sent the first diagnosis to the wrong component.
+export INJECT_LOG="$tmp/relay-inject.log"
+mkdir -p "$INJECT_BASE/inject.d" "$CLAIM_BASE"
 cat > "$RELAY_TOML" <<EOF
 [repos.alpha]
 classification = "own"
