@@ -484,3 +484,167 @@ in a repo with a public remote. Deleted on the owner's instruction, and `import`
 * **The `--all` gather counts INDENTED sub-boxes** while `grep -c '^- \[ \]'` does not. loderite's
   55-vs-49 gap was that, not its nested worktree. Cross-check with `grep -cE '^\s*- \[ \]'` before
   blaming a second tree.
+
+# NIGHT -- same day, a `/relay --afk --quota-7d 60` pool plus a cross-session annex investigation. THIS IS NOW THE AUTHORITATIVE CLOSE STATE.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | `e3e65bad`, clean except a peer's `meeting/personas.md` (predates this session, attributed to `project_manager/quovadis-522a-scoping`; its owning session should commit it) |
+| Suite | see the Suite row addendum at the end of this section -- run at close, ledger/docs-only changes |
+| REVIEW_ME here | **84 open**, unchanged (this session opened none) |
+| Parked orphans | **2** (was 1): the surviving `...-execute-b437-0` plus a NEW `code.lawless/...-114832-18641-execute-repo-1` |
+| Retirable residue | **8 worktrees, 762 MB, ALL code.lawless** -- see the section below, this is the headline |
+| Shared inbox | **7 open** (was 4), **4 now targeted here**; 1 twinned-resolvable (`routed:b015`) |
+| Ratification queue | 0 pending, verified with `ratify-queue.sh list` |
+| Relay run | `relay-20260910-173729-12338`: 2 rounds, 2 integrated+pushed, 1 handback, `stopReason: blocked-pending-human` |
+
+## READ FIRST: 762 MB of leaked worktrees, and the fix is ONE missing predicate
+
+`worktree-retire.sh:190` gates removal on `git status --porcelain` with **no `git diff`
+cross-check**. That is the EXACT predicate `id:3016` fixed in `verify-isolation.sh:190` on
+2026-09-09 -- same line number, same shape -- and it was never applied to the retire side. So
+`id:3016` fixed the false-handback half and left the false-refuse-to-reap half live.
+
+On an annex repo the pointer noise reads as dirt and retire refuses forever. Measured across all
+8 residual worktrees, every one IDENTICAL: `porcelain=93`, `untracked=0`, `git diff --stat`
+**empty**, `rev-list --count main..HEAD` **0**. Nothing to lose in any of them.
+
+**`relay-reconcile.sh --all` independently agrees** -- it classifies all 8 as `RETIRABLE RESIDUE
+(merged or unregistered -- no unmerged work, id:ba95)`, "8 retirable item(s) -- no work at risk".
+And then it hands you `worktree-retire.sh --expect-merged` as the disposition, which is precisely
+the command the log shows refusing them. **The reconcile tool correctly identifies safe residue
+and recommends the one command that cannot dispose of it.** That closes the loop on why this
+accumulated silently all day rather than being cleared by the normal path.
+
+Filed on `id:2b7a`, which was already the open reproduction item. Root cause, scope, and the
+corrected count are all on the item. **I reaped none of the 8** -- supervised-reconcile is the
+owner's call.
+
+## The defer count: 30, not 92, and the method is the lesson
+
+`relay-worktree-retire.log` has **225 `DEFER` lines today, of which 195 name `/tmp/tmp.*`
+HARNESS FIXTURES**. Only **30 are real**: `114832-18641` x24, `143324-11403` x3,
+`074741-25003` x2, `173729-12338` x1.
+
+**24 of 30 in a single run is the substantive finding, ahead of the raw count**: the refusal
+repeats PER ROUND, not once per worktree. The disk figure is residue; the repeat rate is the
+behaviour.
+
+I first stated **92**, a peer countered **90**, and both were wrong. Two compounding errors in
+mine: `grep -oE 'relay-[0-9]{8}-[0-9]{6}-[0-9]+'` emits EVERY occurrence on a line and these
+lines name the run token twice (in `wt=` and again in the inspect hint), so a per-line count
+became per-occurrence; and the filter `defer|unremovable|fail|refus` is broader than `DEFER` and
+swept in fixtures. I produced THREE different wrong numbers -- the third from a greedy `sed`
+that silently took the LAST token -- before classifying lines by kind and getting a defensible
+one. **Durable rule, now on the item: filter on `\.cache/relay/worktrees` and extract at most
+ONE run token per line.** A raw `grep -c DEFER` over-reports by ~7.5x today.
+
+## THE CORRECTION THAT MATTERS MOST: I refuted a report correctly and then built on its false premise anyway
+
+A peer routed `routed:a5fc` claiming annex `.git`-symlink worktrees are unreapable and that
+`id:de4a` never fired. I verified before filing and **refuted three of its claims**:
+
+1. **Mechanism**: not `git annex init`. `id:de4a`'s own closure record proves the symlink appears
+   at `git worktree add`, before any annex command -- it is `filter.annex.process`, and the
+   post-checkout-hook hypothesis was tested and DISPROVED.
+2. **Correlation**: dead. 8 of 9 worktrees carried an `annex` gitdir entry and exactly ONE was
+   symlinked; 7 annex worktrees in the SAME repo had normal `gitdir:` files. An annex-keyed
+   detector would fire on 8 of 9, seven wrongly. Shape (`-L`) is the right predicate, which is
+   what de4a already uses.
+3. **"Silent"**: half wrong in the half that mattered. `id:a290`'s `report_retire_failure` DOES
+   log it; withholding it from `RELAY_STATUS.md` is DELIBERATE
+   (`reconcile-repo.sh:481-482`) to keep the `id:77ce` PLAN/APPLY parity oracle byte-identical.
+   Any "surface it in RELAY_STATUS.md" proposal must address that oracle first.
+
+**And then I accepted the framing that SOMETHING had failed, and filed `id:26ed` around a
+question that did not exist.** The peer retracted hours later: quovadis never leaked, and de4a
+did not merely fire, it **WORKED 6 of 6** -- 6 normalizations, 6 removals, 6 merged-branch
+deletions, and `grep -icE 'defer|fail|refus|unremovable'` over every quovadis line returns
+**0**. The pool REUSES one worktree path across rounds, so their point-in-time `git worktree
+list` between a removal and the next re-create showed a LIVE worktree; they then ran raw
+`git worktree remove`, hit its expected `error code 10`, and read that as an auto-reap failure.
+
+**I had read both scripts at source and never opened their runtime log.** One grep answered it.
+Refuting three claims correctly gave me false confidence in the fourth, unexamined one -- that
+the incident was real at all. `id:26ed`'s line and its detail note both carry the retraction,
+with the required edited-declaration in the note header. **The quovadis instance must NOT be
+cited as corroboration for `id:2b7a`** -- it would be a false second data point.
+
+## Two of my own verification harnesses were broken, and I nearly reported their output
+
+Both discarded, neither reported as a finding, and only caught by calibrating against a
+known-good line first:
+
+* One mis-called `checkbox_line_owns_token` and returned "refused" for **every** input,
+  including a trivially valid `- [ ] simple <!-- id:abcd -->`. Had I not calibrated, it would
+  have "shown" that my own filed line was malformed.
+* One ran **bash ERE under zsh**, where `[[ =~ ]]` differs, and reported the INBOUND branch as
+  non-matching when it does match. It would have "shown" that INBOUND precedence does not exist.
+
+The peer hit the same class in real time (a missing `<closed_only:0|1>` argument put a filename
+into `[[ "$closed_only" -eq 1 ]]`, erroring every line) and discarded it because this failure
+mode had just been named. **A BEFORE side that errors is an unreached fixture, not a negative
+control** -- calibrate on a known-good input before trusting any negative result.
+
+## What landed
+
+* **`id:26ed`** filed with detail note, then **retracted in part** and the note edited with an
+  explicit header declaration (`edad18c8`, `68bf2e6d`, `fa0fd140`, `c735cda6`).
+* **`id:2b7a`** carries the live reproduction, the `:190` root cause, the 8-worktree/762 MB
+  scope, and the corrected 30-count with its filtering rule (`0840864a`, `fa0fd140`, `e3e65bad`).
+* **`id:1ce0`** filed (`ad456e4f`): the global `~/.claude/CLAUDE.md` inbox section has TWO
+  defects that EACH produced a wrong claim today -- see Needs the owner.
+* Relay pool integrated and pushed 2 units: `code.lawless` execute `id:d6f3` (substantive) and
+  `project_manager` review `51a4`/`d1dc`.
+
+## Needs the owner
+
+1. **Dispose the 8 retirable worktrees (762 MB), or fix `worktree-retire.sh:190` first.** The
+   one-line fix makes the normal path work and prevents recurrence; hand-disposal clears today's
+   residue but the next annex run leaks again. Recommend the fix, then let reconcile drain it.
+   Not mine to reap.
+2. **`id:1ce0` -- your `~/.claude/CLAUDE.md`, deliberately not allowlisted, so surfaced not
+   edited.** (a) Its `CAUTION, delete this clause when id:0246 closes` block about
+   `scan-routed.sh --apply` is now STALE -- `id:0246` closed today and the clause instructs its
+   own deletion on that event. (b) Its adopt-the-breadcrumb sentence names only the
+   `routed:XXXX` HTML-comment spelling, never the `id:3743` `[INBOUND routed:TOK from X]`
+   BRACKET-PREFIX form -- even though `scan-routed.sh --apply` writes exactly that shape and 176
+   lines in `TODO.md` + 52 in `TODO.archive.md` use it. A peer trusting that sentence concluded a
+   correctly-filed stub was missing its twin; the guard was green all along
+   (`token_marker_in_files a5fc` -> 0).
+3. **loderite is BLOCKED and handed back twice**: its assembled handoff prompt is ~484k tokens
+   against the 300k `id:4f9b` budget. Almost certainly wants the `id:0d7c` line-shrink it is
+   already mid-migration on.
+4. **Shared inbox: 7 open, 4 targeted here, 1 twinned-resolvable (`routed:b015`).** I did NOT run
+   `scan-routed.sh --apply` -- `id:5a5a` carries TODAY's owner ruling that inbox deletion stays
+   ATTENDED and `--apply` must not run in the pool. Today's containment was kept on purpose.
+5. **A pre-existing grammar sharp edge, deliberately NOT touched.** `checkbox_line_owns_token`
+   tests the INBOUND branch FIRST and returns, so an INBOUND stub owns its `routed:` token and
+   its OWN `<!-- id: -->` is SHADOWED: `token_owned_by_checkbox_in_files 26ed` -> 1 (not found),
+   `a5fc` -> 0, while `token_marker_in_files 26ed` -> 0. Closure-tracking an INBOUND stub by its
+   own id through that path does not see it. **176 lines in `TODO.md` + 52 in `TODO.archive.md`
+   share the shape** -- a 228-line grammar decision, not a cleanup pass.
+
+## Method notes
+
+* **`relay-worktree-retire.log` is ~7.5x contaminated by the test harness's own `/tmp` fixture
+  lines.** Any count over it needs a `\.cache/relay/worktrees` filter. This bit two sessions
+  independently on the same day.
+* **These log lines name the run token TWICE** (`wt=` and the trailing inspect hint), so
+  `grep -oE` counts occurrences, not lines. Add `| head -1` per line.
+* **`-f` follows symlinks.** `reconcile-repo.sh:249`'s `[[ -f "$wt/.git" ]]` is FALSE for an
+  annex-symlinked `.git` (it points at a directory), so `wt_admin` stays empty. That only gates
+  the SUBMODULE prediction, not the reap plan -- worth knowing before reading it as the cause.
+* **The `git-lock-push.sh` id:aa93 dirty-guard refuses to rebase over a peer's tracked-dirty
+  file and exits 0 WITHOUT pushing.** `--ff-only` takes a different branch that does no rebase
+  and no SHA rewrite, so the guard's hazard is structurally absent; with 0 commits behind it is
+  the right call and keeps the flock, unlike the bare `git push` the guard's own message suggests.
+* **The annex smudge filter can FAIL to install its symlink** -- `unable to convert .git file to
+  symlink ... createSymbolicLink '../../annex' to './.git/annex': already exists`. That, not a
+  transient rewrite-back, is the better explanation for 7-of-8 worktrees carrying normal
+  `gitdir:` files. **Do NOT read `.git` mtime ordering as evidence of a transient window** -- a
+  failed conversion produces the identical ordering. I over-read that and corrected it.
+* **`transcript-shape-preflight.sh` exit 4 INDETERMINATE at launch is normal**, not a fault: a
+  fresh session has no child transcripts yet. Distinct from exit 3 by design.
