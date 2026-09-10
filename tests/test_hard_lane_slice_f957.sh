@@ -51,9 +51,14 @@ else
   bad "(b) fail-open guard missing -- an empty list could suppress a dispatch"
 fi
 
-# The no-item branch must still be reachable, i.e. it tests all three sources.
-if grep -q 'if (!item && !useReviewSet && !useHardSet) {' "$JS"; then
-  ok "(b) the no-slice branch accounts for all three id sources"
+# The no-item branch must still be reachable, i.e. it tests the hard set alongside the other
+# sources. Matched as a PREFIX, deliberately: id:a060 added a FOURTH source (the handoff lane's
+# un-promoted set), so pinning the closing paren pinned "exactly three sources" -- a shape this
+# test never meant to assert, and one that turns any future lane gaining a slice into a red
+# here. What must hold is that the bail still requires !useHardSet; extra `&& !useXSet` terms
+# after it are additional lanes being sliced, never the hard lane losing its slice.
+if grep -q 'if (!item && !useReviewSet && !useHardSet' "$JS"; then
+  ok "(b) the no-slice branch accounts for the hard id source"
 else
   bad "(b) the no-slice branch was not updated for the hard set"
 fi

@@ -933,6 +933,18 @@ const DISCOVER_SCHEMA = {
           // ABSENT/[] on older queue entries and injected units → fail-open to the old
           // survey-the-ledger instruction, so this can only narrow the child's search.
           open_hard_pool_ids: { type: 'array', items: { type: 'string' } },
+          // unpromoted_ids (id:a060): the un-promoted TODO.md ids behind the `unpromoted`
+          // {promote, surface} counts, in TODO.md file order, emitted by classify-repo.sh from
+          // the SAME single pass over the unpromoted-scan.sh TSV that produces those counts.
+          // This is the ONLY id set a `handoff` unit has: a handoff names no dispatch item BY
+          // CONSTRUCTION (C2's job is to CREATE the ROADMAP entries), so sliceLedgerForUnit
+          // had nothing to slice on and every handoff was sized on the WHOLE ledgers -- an
+          // automatic prompt-size refusal for a big-ledger repo. `laned` rows are excluded
+          // (verdict-neutral: the lane question is already answered on the line) and
+          // `untracked` rows carry no id at all, so neither can appear here. Sibling of
+          // open_hard_pool_ids above. ABSENT/[] on older queue entries and injected units ⇒
+          // fail-open to the unsliced brief, exactly as today.
+          unpromoted_ids: { type: 'array', items: { type: 'string' } },
           // queue_sig (id:4860): the discover-sig.sh SUPERSET signature the MECHANICAL
           // discovery producer (discover-repos-mechanical.sh, id:9d97) stamped onto this
           // entry in the discovery queue, present ONLY on units the runner copied from the
@@ -3060,6 +3072,31 @@ const hardPoolIdsFor = (unit) => {
     .filter((x) => !suppressed.has(x))
 }
 
+// id:a060 -- the HANDOFF-lane sibling of hardPoolIdsFor. `unit.unpromoted_ids` is emitted by
+// classify-repo.sh from the unpromoted-scan.sh TSV: the open TODO.md ids with no ROADMAP twin,
+// dispositions `promote` + `surface`, which handoff.md C2 names as exactly its own working set
+// ("`promote`-disposition items get sized into ROADMAP here; `surface` ones get lane-triaged
+// below"). `laned` rows are excluded upstream as verdict-neutral, and an `untracked` row has no
+// id to name; see the classify-repo.sh comment for the per-disposition justification.
+//
+// USED ONLY TO SLICE, never to name an item. A handoff SURVEYS its un-promoted backlog and
+// decides what to promote; the ids scope which ledger blocks the child is handed, and the
+// dispatch text keeps saying "run checkpoints C1-C4" with no item named. Same reasoning as the
+// hard lane's `--ids`-not-`--id` note below.
+//
+// DELIBERATELY does NOT subtract `suppressed_item_ids`, unlike its two siblings. They subtract
+// because they NAME an item imperatively and a suppressed id would contradict the "do NOT work
+// id:X" text in the same prompt (id:b09e). This list names nothing. It only decides which
+// blocks the slice carries, and orphan suppression is keyed on ROADMAP items, while every id
+// here is un-twinned in ROADMAP by definition. Subtracting would only risk handing the child a
+// slice that omits a block it is surveying.
+// FAIL-OPEN: an empty/absent list leaves the no-item branch in sliceLedgerForUnit firing, so
+// the handoff dispatches on the unsliced brief exactly as it does today.
+const unpromotedIdsFor = (unit) =>
+  (Array.isArray(unit.unpromoted_ids) ? unit.unpromoted_ids : [])
+    .filter((x) => typeof x === 'string' && /^[0-9a-fA-F]{4}$/.test(x))
+    .map((x) => x.toLowerCase())
+
 // Tail of the NAMED execute instruction. It used to be shared with a fallback branch that told
 // an id-less unit to "work the open [ROUTINE] items in ROADMAP.md"; id:c076 replaced that
 // fallback with EXECUTE_NO_PERMITTED_SET, which authorises no work at all and therefore has no
@@ -4345,17 +4382,58 @@ async function sliceLedgerForUnit(unit) {
   // below still fires and dispatch proceeds unsliced. This can only ever ADD a slice.
   const hardIds = (!item && !useReviewSet && unit.verdict === 'hard') ? hardPoolIdsFor(unit) : []
   const useHardSet = hardIds.length > 0
+  // id:a060 -- the SAME defect one lane over, and the same fix. A `handoff` unit names no
+  // dispatch item BY CONSTRUCTION: its whole job is C2 promotion, so the ROADMAP item does not
+  // exist yet and `dispatchItemFor` has nothing to return. Verdict is not `review` and not
+  // `hard`, so the no-item branch below fired on EVERY handoff and the unit was sized on the
+  // whole ledgers. Measured on loderite 2026-09-10: 417,734 tok of ledger fields plus ~66,351
+  // tok of brief/reference overhead against a 300,000 Opus budget, a byte-identical refusal
+  // every round, 0 integrates across two separate runs, so a big-ledger repo could never
+  // RECEIVE a handoff, which is the one verdict that would have shrunk its ledgers.
+  //
+  // The id set is `unpromoted_ids` (classify-repo.sh, from unpromoted-scan.sh): precisely the
+  // backlog a C2 promotion works from. Measured on loderite: 14 ids → 6,716 B (~1,679 tok)
+  // against 1,670,936 B for the whole ledgers, and the gate flips from REFUSE to dispatch.
+  //
+  // Why `--ids` and not `--id <first>`, for exactly the reason spelled out for the hard lane
+  // above: a handoff SURVEYS its un-promoted backlog and decides what to promote and what to
+  // lane-triage. Slicing on one id would convert that survey into named-item dispatch and
+  // delete the choice the lane exists to make. Nothing in the dispatch text changes: it still
+  // says "run checkpoints C1-C4" and names no item.
+  //
+  // FAIL-OPEN, identically: an empty list leaves `handoffIds` empty, the no-item branch below
+  // still fires and logs WHY, and dispatch proceeds unsliced. This can only ever ADD a slice.
+  const handoffIds = (!item && !useReviewSet && !useHardSet && unit.verdict === 'handoff')
+    ? unpromotedIdsFor(unit)
+    : []
+  const useHandoffSet = handoffIds.length > 0
   // What this slice is FOR, in log lines: a single dispatch item, or the review set derived
   // from the last review checkpoint. Without this the review path logged "id:undefined".
   const sliceLabel = useReviewSet
     ? 'review-set since last relay-ckpt'
-    : (useHardSet ? `hard-set ids:${hardIds.join(',')}` : `id:${item}`)
-  if (!item && !useReviewSet && !useHardSet) {
+    : (useHardSet
+      ? `hard-set ids:${hardIds.join(',')}`
+      : (useHandoffSet ? `unpromoted-set ids:${handoffIds.join(',')}` : `id:${item}`))
+  // id:a060 -- the slice flag for whichever of the four shapes applies. Named once here so the
+  // fenced command below stays one readable line instead of a nested ternary chain.
+  const sliceFlag = useReviewSet
+    ? '--since-last-review'
+    : (useHardSet
+      ? `--ids ${hardIds.join(',')}`
+      : (useHandoffSet ? `--ids ${handoffIds.join(',')}` : `--id ${item}`))
+  if (!item && !useReviewSet && !useHardSet && !useHandoffSet) {
     // id:f499 — this was the ONE silent branch of the five the header promises "logs WHY".
     // The unsliced-branch REMEDY in oversizeDispatchReason tells the operator the relay-loop
     // log records why no slice_path was produced; without this line that remedy dead-ends for
     // every unit (review units especially) whose verdict names no dispatch item.
-    log(`relay-loop: id:e68f no dispatch item for ${unit.repo} (verdict ${unit.verdict || '(none)'})${unit.verdict === 'review' ? ' and no lastCkpt to derive a review set from (id:dd59)' : ''} — nothing to slice, fail-open, dispatching with the unsliced brief`)
+    //
+    // id:a060 -- the handoff branch says WHY too, and it says the ONE thing that distinguishes
+    // it: a handoff never names an item, so reaching here means `unpromoted_ids` was empty or
+    // absent (an older discovery-queue entry, an injected unit, or a repo whose whole backlog
+    // dispositioned `laned`/`untracked`). Without that clause the operator reads "no dispatch
+    // item for repo (verdict handoff)" as the defect a060 fixed, and re-diagnoses a fix that
+    // is already in place.
+    log(`relay-loop: id:e68f no dispatch item for ${unit.repo} (verdict ${unit.verdict || '(none)'})${unit.verdict === 'review' ? ' and no lastCkpt to derive a review set from (id:dd59)' : ''}${unit.verdict === 'handoff' ? ' and no unpromoted_ids to derive an un-promoted backlog set from (id:a060): a handoff NEVER names an item, so this means the field was absent/empty, not that slicing is unimplemented' : ''} — nothing to slice, fail-open, dispatching with the unsliced brief`)
     return null
   }
   let raw
@@ -4365,7 +4443,7 @@ async function sliceLedgerForUnit(unit) {
     const res = await agent(
       `Run EXACTLY this one command and report its stdout VERBATIM (id:e68f pre-dispatch ledger slice — writes the unit's item + typed edges to a file and prints its path):\n` +
       '```relay-mech\n' +
-      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} ${useReviewSet ? '--since-last-review' : (useHardSet ? `--ids ${hardIds.join(',')}` : `--id ${item}`)}` +
+      `~/.claude/skills/relay/scripts/ledger-slice.sh --repo ${unit.repo} --path ${unit.path} ${sliceFlag}` +
       '\n```',
       { label: `ledger-slice:${unit.repo}`, phase: 'Support', model: MECH_MODEL }
     )
