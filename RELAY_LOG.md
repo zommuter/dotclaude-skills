@@ -3499,3 +3499,7 @@ id:aa5e: relay_FILES now ships the head-length/shape-prose baseline files so mak
 ## 2026-09-10 20:47 — integrate (claude-opus-5)
 
 handoff lane sliced via unpromoted-scan (id:a060) + cross-ledger note dedupe (id:1737); loderite handoff 417,734 -> ~1,679 tok
+
+## 2026-09-10 21:15 — integrate (claude-opus-5)
+
+annex worktree retirement fixed (id:1a5c): re-normalize before removal; 8 code.lawless worktrees reaped, 762 MB reclaimed
