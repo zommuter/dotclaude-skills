@@ -6,7 +6,10 @@
 # Assembles the full classify-verdict input for a single repo by:
 #   1. Running gather-repo-state.sh --repo --path   → base JSON fields
 #   2. Deriving hasRoutine / roadmap_open / roadmap_actionable_open from <path>/ROADMAP.md
-#   3. Running unpromoted-scan.sh <path>            → unpromoted {promote, surface} counts
+#   3. Running unpromoted-scan.sh <path>            → unpromoted {promote, surface} counts,
+#      plus (id:a060, `--emit unit` only) `unpromoted_ids`: the 4-hex ids behind those two
+#      counts, in TODO.md order, which is the only id set a `handoff` unit can be sliced on
+
 #   4. Merging into one JSON object and piping to classify-verdict.sh → emit its output,
 #      plus (id:b09e) the two ROADMAP-derived passthrough fields `actionable_routine_open`
 #      and `actionable_routine_ids` (the 4-hex ids BEHIND that count, in ROADMAP file order,
@@ -77,7 +80,15 @@ trap 'rm -rf "$blobdir"' EXIT
 printf '%s' "$base_json" > "$blobdir/base.json"
 printf '%s' "$scan_tsv"  > "$blobdir/scan.tsv"
 printf '%s' "$gates_tsv" > "$blobdir/gates.tsv"
-export CLASSIFY_PATH="$path" BASE_FILE="$blobdir/base.json" SCAN_FILE="$blobdir/scan.tsv" GATES_FILE="$blobdir/gates.tsv"
+# id:a060 -- UNPROMOTED_IDS_FILE is a SIDE channel out of the step-3 fold below, deliberately
+# NOT a new key in assembled.json. assembled.json is the byte-for-byte input the relay-core
+# Lean SHADOW is fed (id:82c4, the block further down hashes exactly that file), so every
+# ROADMAP-derived id list this script owns is folded in AFTER that surface -- the same rule the
+# `--emit unit` / default-mode comments already state for actionable_routine_ids. Writing the
+# ids here keeps the shadow input unchanged while the unpromoted TSV is still parsed exactly
+# ONCE (the id:b09e count-vs-list drift lesson: two parses of one input are two answers
+# waiting to disagree).
+export CLASSIFY_PATH="$path" BASE_FILE="$blobdir/base.json" SCAN_FILE="$blobdir/scan.tsv" GATES_FILE="$blobdir/gates.tsv" UNPROMOTED_IDS_FILE="$blobdir/unpromoted-ids.json"
 python3 - <<'PYEOF' > "$blobdir/assembled.json"
 import json, os, re, sys
 
@@ -479,6 +490,27 @@ actionable_routine_open = len(actionable_routine_ids)
 # --- Step 3: fold unpromoted-scan TSV counts ------------------------------
 promote = 0
 surface = 0
+# id:a060 -- the IDS behind those two counts, collected in the SAME single pass. The `handoff`
+# lane names no dispatch item by construction (its C2 job is to CREATE the ROADMAP entries), so
+# relay-loop.js had no id set to slice on and every handoff unit was sized on the whole ledgers.
+# These are the ids a C2 promotion actually works from.
+#
+# WHICH DISPOSITIONS, and why exactly these two:
+#   promote   IN  -- handoff.md C2: "`promote`-disposition items get sized into ROADMAP here".
+#   surface   IN  -- same sentence: "`surface` ones get lane-triaged below". Both are the set
+#                    classify-verdict.sh folds into its handoff/human decision, so the slice
+#                    covers exactly the evidence that produced the verdict.
+#   laned     OUT -- verdict-NEUTRAL by design (the lane question is already answered on the
+#                    line; classify-verdict counts neither). A handoff neither promotes nor
+#                    triages it, so slicing it in would only inflate the payload.
+#   untracked OUT -- STRUCTURALLY unsliceable: unpromoted-scan.sh emits `----` in the id column
+#                    for an open item that carries no `<!-- id:XXXX -->` at all, and an `--ids`
+#                    slice can only name real tokens. Dropped HERE, at the parse, rather than
+#                    being passed on to malform the CSV or to resolve to nothing downstream.
+# The 4-hex filter is the mechanism for that last exclusion and is belt-and-braces for the
+# other two: only a real token ever reaches the list.
+unpromoted_ids = []
+_ID_RE = re.compile(r"^[0-9a-f]{4}$")
 for ln in scan_tsv.splitlines():
     cols = ln.split("\t")
     if len(cols) >= 3:
@@ -486,6 +518,13 @@ for ln in scan_tsv.splitlines():
             promote += 1
         elif cols[2] == "surface":
             surface += 1
+        else:
+            continue
+        tok = cols[1].strip().lower()
+        if _ID_RE.match(tok) and tok not in unpromoted_ids:
+            unpromoted_ids.append(tok)
+with open(os.environ["UNPROMOTED_IDS_FILE"], "w") as _f:
+    json.dump(unpromoted_ids, _f)
 
 # --- Merge into full JSON object ------------------------------------------
 base = json.loads(base_json)
@@ -596,6 +635,19 @@ with open(sys.argv[1]) as f:
 with open(sys.argv[2]) as f:
     v = json.load(f)
 
+# id:a060 -- the un-promoted TODO id list, written by the step-3 fold to a side file rather
+# than into assembled.json (see the UNPROMOTED_IDS_FILE comment where it is exported: that
+# file is the relay-core shadow's byte-for-byte input). FAIL-OPEN on anything unexpected --
+# a missing file, unreadable JSON, or a non-list -- because an empty list leaves relay-loop's
+# existing no-slice branch firing and the handoff dispatches exactly as it does today.
+try:
+    with open(os.environ["UNPROMOTED_IDS_FILE"]) as f:
+        unpromoted_ids = json.load(f)
+    if not isinstance(unpromoted_ids, list):
+        unpromoted_ids = []
+except (OSError, KeyError, ValueError):
+    unpromoted_ids = []
+
 toml_block = base.get("toml_block", "") or ""
 ckpt_msg   = base.get("latest_ckpt_msg", "") or ""
 
@@ -662,6 +714,17 @@ unit = {
     # (loderite run relay-20260814-133435-24323). Schema-safe extra field, exactly like
     # actionable_routine_ids (id:b09e) below.
     "open_hard_pool_ids": base.get("open_hard_pool_ids", []),
+    # id:a060 -- the un-promoted TODO ids (dispositions `promote` + `surface`) behind the
+    # `unpromoted` counts, in TODO.md file order, collected by the step-3 fold in the SAME pass
+    # that produces those counts. This is the ONLY id set a `handoff` unit has: its verdict
+    # names no dispatch item because C2's job is to CREATE the ROADMAP entries, so before this
+    # field relay-loop.js's sliceLedgerForUnit() had nothing to slice on and sized every handoff
+    # on the WHOLE ledgers -- an automatic prompt-size refusal on a big-ledger repo (loderite,
+    # 2026-09-10: ~484,085 tok against a 300,000 Opus budget, byte-identical every round, 0
+    # integrates across two runs). Exact sibling of open_hard_pool_ids (id:7517) and
+    # actionable_routine_ids (id:b09e); schema-safe extra field. ABSENT/[] on an older discovery-
+    # queue entry or an injected unit => relay-loop fails OPEN to the unsliced brief, unchanged.
+    "unpromoted_ids": unpromoted_ids,
     "strongRecheckPending": strong_recheck_pending,
     # id:188c (relay-doctor check 10 / invariant I2) — expose the derived executor-actionable
     # [ROUTINE] count so the invalid-state detector can cross-check `verdict==execute ⟹
