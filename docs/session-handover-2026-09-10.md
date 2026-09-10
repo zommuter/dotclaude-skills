@@ -261,3 +261,51 @@ prose rule was in front of me and I wrote the claim anyway.
 analysis:** a review agent that would not ship (the apex-gate bypass my own commit opened), and an
 executor child that would not work an item it judged gated (`id:aa0d`). Worth weighting when
 deciding how much adversarial review to keep buying.
+
+## FINAL: the `EXECUTE_AGENT_TYPE` experiment (`id:3846`) -- PROMISING, and INCONCLUSIVE
+
+Run `relay-20260910-143324-11403`, launched with `EXECUTE_AGENT_TYPE=relay-implementer` and
+`--exclude dotclaude-skills` (so it could not collide with the salvage running in this checkout).
+Ended `stopReason: "user-stop"` -- the targeted sentinel was consumed at 15:29 and logged with
+`scope=targeted` plus the run id, so the graceful stop path worked end to end.
+
+| | previous run (no agent type) | this run (`relay-implementer`) |
+|---|---|---|
+| agents | 396 | 94 |
+| **agent errors** | **6** (3 of them `Prompt is too long`) | **0** |
+| execute dispatches | ~6 | 3 (2 completed, 1 gate-handback) |
+| rounds | 8+ | 2 (stopped early, by request) |
+
+**The one genuinely paired observation:** `trustless-ai`'s execute child DIED on
+`Prompt is too long` in the previous run and COMPLETED substantively here (`id:eb00`, checkpoint
+`relay-ckpt-20260910-1445`). Same repo, same lane, across the flag change. That is the most
+suggestive evidence available and it is n=1.
+
+**Verdict: do NOT promote the flag on this.** Three execute dispatches cannot distinguish a real
+fix from chance -- this repo's own pilot-sample rule says n=10 cannot separate rates within ~10pp,
+and 0/3 is consistent with both outcomes. Recording it as promising-and-unproven is the same
+discipline `id:0b6c` demands of the `1048` trial: **zero events is inconclusive, not a pass.** What
+it needs is a full unbounded run with the flag on and no early stop, then the same table.
+
+## The other findings from that run
+
+* **`leAIrn2learn` `id:89ef` was dispatched and handed back AGAIN** -- and this is the OLD defect
+  recurring, not the fix failing. The pool launched at 14:35, before `id:aa0d` was committed
+  (`d4f16c18`), so its round-1 discovery classified with the unfixed parser. Measured directly after
+  the fix: `classify-repo.sh --repo leAIrn2learn` now returns `actionable_routine_ids: []`, verdict
+  `human`, so it cannot recur. The child refused correctly both times.
+* **`code.lawless` landed-but-unfinished AGAIN** (`relay-ckpt-20260910-1528`, merged + tagged +
+  pushed, `worktree-retire` deferred because the worktree holds modified/untracked files). That is
+  now the third time today on that repo specifically, and it is an ANNEX repo -- the
+  `id:5239`/`id:3016` family, where annex pointer/availability noise reads as uncommitted work.
+  **Do NOT re-dispatch or re-merge**: a retry takes the zero-commit path and mints a second
+  checkpoint tag. Needs a supervised reconcile in that repo.
+* **3 repos queued as `mechanical` and pool-inert by design** -- `trAIdBTC`, `llm-from-scratch`,
+  `isochrone`. They are waiting on the host daemon, not on the pool. Nothing is stuck.
+
+## Sentinel litter, worth one line
+
+A targeted STOP sentinel is only consumed if the pool reaches a dispatch decision. A run that ends
+any other way leaves its file behind and nothing reaps them -- `~/.config/relay/STOP.relay-20260826-162405-7522`
+has sat there since 26 Aug. Harmless (keyed to a run id, so it cannot false-stop another pool; that
+scoping is exactly what `id:cd94` bought) but it accumulates. Unfiled.
