@@ -35,7 +35,7 @@
 # OUT OF SCOPE: *.archive.md (id:2065) and the shared inbox.
 # Captured 2026-09-09.
 dotclaude-skills	TODO.md	d29b	761
-dotclaude-skills	TODO.md	6740	1000
+dotclaude-skills	TODO.md	6740	233
 dotclaude-skills	TODO.md	78ff	540
 dotclaude-skills	TODO.md	c076	1890
 dotclaude-skills	TODO.md	4425	4130
@@ -48,7 +48,7 @@ dotclaude-skills	TODO.md	6c11	625
 dotclaude-skills	TODO.md	7756	2042
 dotclaude-skills	TODO.md	9f3a	591
 dotclaude-skills	TODO.md	39a4	992
-dotclaude-skills	TODO.md	f833	1429
+dotclaude-skills	TODO.md	f833	270
 dotclaude-skills	TODO.md	3c04	698
 dotclaude-skills	TODO.md	7d70	552
 dotclaude-skills	TODO.md	59d1	1518
@@ -62,7 +62,7 @@ dotclaude-skills	TODO.md	8254	908
 dotclaude-skills	TODO.md	dda3	949
 dotclaude-skills	TODO.md	c3a2	529
 dotclaude-skills	TODO.md	3294	1727
-dotclaude-skills	TODO.md	6a5d	512
+dotclaude-skills	TODO.md	6a5d	270
 dotclaude-skills	TODO.md	740a	1458
 dotclaude-skills	TODO.md	4cd4	1618
 dotclaude-skills	ROADMAP.md	e3c0	514
@@ -84,3 +84,4 @@ dotclaude-skills	ROADMAP.md	4839	578
 dotclaude-skills	ROADMAP.md	8372	754
 dotclaude-skills	ROADMAP.md	0165	689
 dotclaude-skills	ROADMAP.md	b437	1116
+# Tightened 2026-09-10 -- row-scoped, monotonic (id:7e3b): 3 floors lowered, 2 raises refused.

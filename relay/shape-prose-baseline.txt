@@ -46,7 +46,7 @@
 # OUT OF SCOPE: *.archive.md (id:2065) and the shared inbox.
 # Captured 2026-09-09.
 dotclaude-skills	TODO.md	d29b	509
-dotclaude-skills	TODO.md	6740	624
+dotclaude-skills	TODO.md	6740	0
 dotclaude-skills	TODO.md	c076	1369
 dotclaude-skills	TODO.md	79fd	18
 dotclaude-skills	TODO.md	3ca7	9
@@ -61,7 +61,7 @@ dotclaude-skills	TODO.md	73a0	52
 dotclaude-skills	TODO.md	95c8	45
 dotclaude-skills	TODO.md	0ec3	34
 dotclaude-skills	TODO.md	3846	108
-dotclaude-skills	TODO.md	ff6a	316
+dotclaude-skills	TODO.md	ff6a	0
 dotclaude-skills	TODO.md	79a9	102
 dotclaude-skills	TODO.md	0749	368
 dotclaude-skills	TODO.md	85d2	117
@@ -195,7 +195,7 @@ dotclaude-skills	TODO.md	39a4	582
 dotclaude-skills	TODO.md	b818	36
 dotclaude-skills	TODO.md	502f	19
 dotclaude-skills	TODO.md	eb52	9
-dotclaude-skills	TODO.md	f833	960
+dotclaude-skills	TODO.md	f833	0
 dotclaude-skills	TODO.md	e18f	28
 dotclaude-skills	TODO.md	32c3	95
 dotclaude-skills	TODO.md	3eb0	102
@@ -269,7 +269,7 @@ dotclaude-skills	TODO.md	0d7c	29
 dotclaude-skills	TODO.md	7829	25
 dotclaude-skills	TODO.md	0a08	25
 dotclaude-skills	TODO.md	d35a	25
-dotclaude-skills	TODO.md	9220	203
+dotclaude-skills	TODO.md	9220	0
 dotclaude-skills	TODO.md	203e	9
 dotclaude-skills	TODO.md	dda3	569
 dotclaude-skills	TODO.md	d7c7	29
@@ -289,7 +289,7 @@ dotclaude-skills	TODO.md	c3a2	240
 dotclaude-skills	TODO.md	3a70	35
 dotclaude-skills	TODO.md	c742	35
 dotclaude-skills	TODO.md	3294	1294
-dotclaude-skills	TODO.md	6a5d	222
+dotclaude-skills	TODO.md	6a5d	0
 dotclaude-skills	TODO.md	740a	1072
 dotclaude-skills	TODO.md	4cd4	1226
 dotclaude-skills	TODO.md	11b1	32
@@ -330,3 +330,4 @@ dotclaude-skills	ROADMAP.md	4839	226
 dotclaude-skills	ROADMAP.md	8372	407
 dotclaude-skills	ROADMAP.md	0165	321
 dotclaude-skills	ROADMAP.md	b437	820
+# Tightened 2026-09-10 -- row-scoped, monotonic (id:7e3b): 5 floors lowered, 3 raises refused.
