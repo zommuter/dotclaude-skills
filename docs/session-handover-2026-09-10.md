@@ -356,20 +356,45 @@ flips exactly one checkbox, and hands the payload to md-merge under flock, dry-r
 * Ticks applied elsewhere: ai-codebench `id:515b` (`597d4e5`), leancow (`294bff3`), lean4btc
   (`d6377a3`), trustless-ai (`26cd318`), mri (`4671697`).
 
-## IN FLIGHT at handover time -- do not assume these landed
+## The three late owner rulings -- ALL LANDED (this section was written while they were in flight)
 
-One agent is applying three owner rulings and had `TODO.md`, both ratchet baselines and a new
-`docs/ledger-notes/7e3b.md` modified when this was written. **Check `git log` before trusting any of
-it.** The three rulings, so they survive even if the agent did not:
+1. **Ratchet baselines: ORPHAN ROWS ONLY** (`48e51a83`). Exactly 5 rows dropped, each forgiving a
+   line no longer in its ledger; all three ids verified to appear only as prose citations, never as
+   an owning item. No row regenerated, none added. `make baseline-staleness` before/after: TODO
+   `8 of 283 ... 2 orphaned` -> `8 of 281 ... 0 orphaned`; ROADMAP `3 orphaned` -> current. **The 8
+   stale rows are untouched by design** -- the rejected remedy would have MINTED 13 new
+   grandfathering rows, forgiving ~15,700 chars to reclaim ~371. Tighten-only regen filed as
+   `id:7e3b` (row-scoped, LOWERS a floor when the line shrank, REFUSES loudly to raise or mint).
+2. **`verify-negatives --changed <base>` folded into integrate** (`bf49929e`, `id:abcc`), as
+   `integrate.sh` **step 3d**, PRE-LAND with the other pre-mutation gates. The base is `iso_base`
+   (the canonical checkout's HEAD, id:8739), deliberately NOT `origin/main`, which id:4d44 freezes
+   and which would widen the diff to the whole unratified backlog. Non-zero is
+   `HANDBACK[verify-negatives]`, `handbackCode=38`. No `2>/dev/null`, no `|| true`.
+3. **`id:c076`: permitted-id set threaded into dispatch** (`af47190d`). `permittedIdsFor(unit)` =
+   classifier's `actionable_routine_ids` minus the b09e/a360 orphan+stranded subtraction, with an
+   injected `--item` unioned in first. The prompt now carries a CLOSED PERMITTED SET declaring
+   unlisted ids out of scope. **Empty set FAILS CLOSED**: `EXECUTE_NO_PERMITTED_SET` authorises no
+   work and instructs an immediate handback -- the unit still dispatches, so a wiring fault surfaces
+   with repo and run attached instead of a repo silently vanishing from the round.
 
-1. **Ratchet baselines: regen ORPHAN ROWS ONLY**, plus file a tighten-only regen item. The obvious
-   remedy was rejected on measurement: the tool's own printed fix would MINT 13 new grandfathering
-   rows, forgiving ~15,700 chars for items over budget today, to reclaim ~371.
-2. **Fold `verify-negatives --changed <base>` into relay INTEGRATE.** Bounded form only; the full
-   tier stays out of `make test`.
-3. **`id:c076`: pass the computed `actionable_routine_ids` into the dispatch prompt.** Restating the
-   exclusions in contract prose was explicitly NOT chosen -- that is the `id:d35a` mode that let an
-   executor work a `@owner-gated` item.
+Suite after all three: **639 passed, 0 failed, 0 errored, 1 expected-red**.
+
+**Two things the applying agent flagged that are worth more than mechanics:**
+
+* It changed two existing tests and **declared both narrowings in-file rather than quietly weakening
+  them**. For `test_executor_sizeout_signal.sh` it dropped the loosest `hand ?back` disjunct and then
+  confirmed the assertion still discriminates by deleting `+ EXECUTE_SIZEOUT` and watching the case
+  go red. That check is the difference between a narrowing and a vacuous test.
+* It reported that `test_dispatch_names_item_b09e.sh` was granted `EXPECTED-RED` although `id:b09e`
+  is `[x]` in `ROADMAP.archive.md`, concluding that an archived-closed item's spec is forgiven
+  forever. **CHECKED, and the defect does not exist as described.** `item_open()`
+  (`tests/run-tests.sh:97-106`) greps ONLY the live `ROADMAP.md` for an unticked line and returns 1
+  when the token is absent; `:265` grants expected-red only when `item_open` returns 0. Measured:
+  `grep 'id:b09e -->' ROADMAP.md` is empty, the archive carries it, so that file takes the `else`
+  branch and **FAILS LOUDLY**. The blindness runs in the SAFE direction -- an archived token cannot
+  buy expected-red. Nothing filed. Recorded because the claim was nearly transcribed into this
+  handover as fact: a delegated agent's incidental observation is a claim to verify, not a finding
+  to bank, and this one was one command away from being disproved.
 
 ## Needs the owner
 
