@@ -648,3 +648,119 @@ control** -- calibrate on a known-good input before trusting any negative result
   failed conversion produces the identical ordering. I over-read that and corrected it.
 * **`transcript-shape-preflight.sh` exit 4 INDETERMINATE at launch is normal**, not a fault: a
   fresh session has no child transcripts yet. Distinct from exit 3 by design.
+
+# LATE NIGHT -- same session, continued after the pool. THIS IS NOW THE AUTHORITATIVE CLOSE STATE.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | `6954170f`, 0 unpushed, clean except a peer's `meeting/personas.md` (still not mine, still theirs to commit) |
+| Suite | **641 passed, 0 failed, 0 errored, 1 expected-red** (`roadmap:6217`, pre-existing and unrelated) |
+| Latest ckpt | `relay-ckpt-20260910-2047`, label `integrate (claude-opus-5)` -- strong-watermark sync deliberately SKIPPED, see below |
+| REVIEW_ME here | **84 open**, unchanged (this stretch opened none) |
+| Shared inbox | **10 open** (was 7), **5 targeted here** |
+| Parked orphans | 2, unchanged (`...-execute-b437-0` here, `...-execute-repo-1` on code.lawless) |
+| Retirable relay residue | **8 worktrees / 762 MB, all code.lawless** -- UNCHANGED, still the owner's call |
+| Agent-tool worktrees | **415 MB / 29 worktrees / 58 merged branches** -- NEW finding, `id:5d91` |
+
+## What landed, and loderite is UNBLOCKED
+
+Two authorised fixes, one delegated and one direct. The number that matters:
+
+| loderite handoff | charged | tok |
+|---|---|---|
+| unsliced, before today | 1,670,936 B | **417,734** |
+| after `id:1737` dedupe alone | 1,237,291 B | **309,323** -- STILL over the 300,000 budget |
+| sliced via `id:a060` | 6,716 B | **~1,679** |
+
+* **`id:a060`** (background agent, merged `64293502`, ticked) -- the `handoff` lane had NO slice
+  shape, so it was always sized on whole ledgers and a big-ledger repo could never RECEIVE a
+  handoff. Same class as the closed `id:f957` one lane over. `classify-repo.sh` now emits
+  `unpromoted_ids` (promote+surface, same single pass as the counts per the `id:b09e` drift
+  lesson); `relay-loop.js` gains `unpromotedIdsFor` and a fourth `!useHandoffSet` bail term.
+  Shape is `--ids`, never `--id`, so the C2 SURVEY survives.
+* **`id:1737`** (direct, `41da4120`, ticked) -- the prompt-size gate charged a detail note
+  pointed at from BOTH ledgers TWICE, penalising exactly the repos following the mandated
+  single-id-two-views convention correctly. 67 shared notes, 433,645 B, ~108,411 tok on loderite.
+* **Global `~/.claude/CLAUDE.md`, both halves of `id:1ce0`** (`6fe77c39c`, `0d331dc88`) -- removed
+  the stale `delete-when-id:0246-closes` CAUTION clause, and named BOTH `id:3743` twin-guard
+  spellings in the adopt rule. Each defect had already produced a wrong claim that same day.
+* **Filed, not built:** `id:6de0` (`sliceInstruction`'s singular "the item's own block", false for
+  three of four lanes now, with an UNPINNED inline twin at `relay-loop.js:2666`), `id:5d91`
+  (the 415 MB agent-worktree surface).
+
+## READ FIRST: three separate leaks, one shared shape
+
+All three found today, all invisible for the same structural reason -- **the tool that could
+dispose of the residue does not enumerate it**:
+
+1. `id:2b7a` -- 762 MB, 8 code.lawless worktrees, behind ONE missing `git diff` cross-check at
+   `worktree-retire.sh:190`. `relay-reconcile.sh --all` correctly calls them "no work at risk"
+   and then recommends the very command the log shows refusing them 30 times that day.
+2. `id:5d91` -- 415 MB, 29 Agent-tool worktrees, 58 merged branches. `relay-reconcile.sh` cannot
+   see them at all: not `relay/orphan/*`, not under `~/.cache/relay/worktrees`.
+3. The quovadis report that started it all -- a leak that **never happened** (see below).
+
+Both (1) and (2) are pure reclaimable residue with nothing at risk, and both are the owner's
+call, not a cleanup pass. Neither was reaped.
+
+## THE CORRECTION THAT MATTERS MOST: I refuted three claims correctly, then built on the fourth I never checked
+
+A peer routed `routed:a5fc` claiming annex `.git`-symlink worktrees are unreapable and `id:de4a`
+never fired. I verified before filing and **refuted three claims**: wrong mechanism (it is
+`filter.annex.process`, proven at `worktree add`, not `git annex init`); the annex-symlink
+correlation is dead (8 of 9 worktrees carry an annex entry, exactly ONE is symlinked); and
+"silent" was half wrong in the load-bearing half (`id:a290` logs it; withholding it from
+`RELAY_STATUS.md` is DELIBERATE, to keep the `id:77ce` PLAN/APPLY parity oracle byte-identical).
+
+**Then I accepted the premise underneath all three -- that an incident happened at all -- and
+filed `id:26ed` around a question that did not exist.** It did not: `relay-worktree-retire.log`
+shows 6 normalized / 6 removed / 6 merged-branch deletions for quovadis and ZERO defers.
+`id:de4a` worked 6 of 6. The pool REUSES one worktree path across rounds, so a point-in-time
+`git worktree list` between a removal and the next re-create shows a LIVE worktree that reads as
+residue. **I had read both scripts at source and never opened their runtime log**; one grep
+answered it. That lesson is now a durable rule in the global `CLAUDE.md` ("Read the tool's own
+log before its source or its current state"). `id:26ed` and its note carry the retraction with
+the declared edit; **the quovadis instance must NOT be cited as corroboration for `id:2b7a`**.
+
+## My own measurement errors today, all self-caught, none shipped as findings
+
+Five, and the pattern is one thing: **a one-liner applied to a corpus I had not characterised.**
+
+* **Defer count 92, then 90, then 30.** Real answer 30. Two compounding errors: `grep -oE` emits
+  EVERY token occurrence and these lines name the run token twice; and my filter
+  `defer|unremovable|fail|refus` was broader than `DEFER` and swept in `/tmp` fixtures -- **195
+  of 225 DEFER lines today are harness fixtures.** A raw `grep -c DEFER` over-reports ~7.5x.
+* **Two broken verification harnesses.** One mis-called `checkbox_line_owns_token` and returned
+  "refused" for EVERY input including a valid control; one ran bash ERE under **zsh**, where
+  `[[ =~ ]]` differs, and reported the INBOUND branch as non-matching when it matches. Either
+  would have "confirmed" a false story. Only calibrating on a known-good input caught them.
+* **A monitor pattern that matched a FILENAME.** `passed|FAIL|failed` fired on
+  `test_integrate_failed_push_ratification_5155.sh` and reported one `PASS` line as the summary.
+* **`.split(",")` on a JSON array**, which made the a060 agent's correct "14 ids" read as 0.
+
+The rule that caught all five: **calibrate on a known-good input before trusting any negative
+result.** A BEFORE side that errors is an unreached fixture, not a passing negative control.
+
+## Method notes
+
+* **A background agent's branch can render your own newer work as DELETED.** The a060 agent
+  branched before `id:1737` landed, so `main..HEAD` showed 1737 removed -- a branch-point
+  artifact. A diff-apply would have silently reverted it; a `--no-ff` 3-way merge kept both, and
+  I verified AFTER (`_CHARGED_NOTES` present, 1737 test present, both effects live together).
+* **Audit a delegated agent's relaxation of an EXISTING test.** a060 relaxed
+  `test_hard_lane_slice_f957.sh` to a prefix match -- legitimate: the old assertion included the
+  closing `) {` and so pinned EXACTLY three slice sources, an arity it never meant to assert.
+  Verified rather than accepted; that is the shape test-weakening takes.
+* **`integrate (...)` NOT `reviewer (...)`.** `ckpt-tag.sh` acknowledged the non-strong role and
+  skipped the strong-watermark sync BY DESIGN. I audited specific claims but ran no full review
+  pass, and `reviewer` would advance `last_strong_ckpt` for work nobody reviewed (`id:ecce`).
+* **A `fails-against-assertion` must match the LAST FAIL line, and uniquely.** My first 1737 spec
+  tripped three FAIL lines; matching a generic summary would be the vacuous-prefix case the same
+  rule bans. Converting the test to fail-fast makes exactly one line-leading `FAIL:` possible.
+* **`~/.claude` pushes need `--ff-only` while other sessions hold it tracked-dirty.** The
+  `id:aa93` guard refuses to rebase over foreign dirt and exits 0 WITHOUT pushing; `--ff-only`
+  takes the no-rebase branch where that hazard is structurally absent.
+* **Name a token only AFTER minting it.** I wrote "filed as id:33fb" into a ticked item before
+  minting; the real token was `6de0`, and the dangling reference had to be corrected.
