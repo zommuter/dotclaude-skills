@@ -1105,6 +1105,5 @@ deliberately left unbounded — see `id:da1a`).
 ## inbox intake 2026-09-09 (routed at relay review `relay-20260909-205831-5121`)
 
 - [ ] [ROUTINE] [INBOUND routed:fa6d from code.lawless] **Workflow/pool children ARE addressable mid-run via SendMessage to their raw agent id; the relay documents no such channel and `inject.sh --prompt` is the only one it names.** -- detail: `docs/ledger-notes/11b1.md` <!-- routed:fa6d --> <!-- id:11b1 -->
-- [x] [ROUTINE] **A DENIED destructive op must be a HANDBACK, not a puzzle: a child hit four denials restoring main and found a fifth spelling that worked; the contract never says the guard binds the OUTCOME.** -- detail: `docs/ledger-notes/aedf.md` <!-- relates:c6c8 --> <!-- id:aedf -->
 - [ ] [ROUTINE] [INBOUND routed:1107 from relay-20260909-213906-24943] **`context-budget.sh` thresholds are hard-coded for a 200k window, so every 1M-context child gets a spurious `handback` verdict.** -- detail: `docs/ledger-notes/68c3.md` <!-- routed:1107 --> <!-- id:68c3 -->
 - [ ] [INPUT - meeting] [INBOUND routed:526b from dotclaude-skills, owner-requested] **No mechanism exists for a coordinated multi-session shutdown; "last one switches off the PC" was done by hand.** -- detail: `docs/ledger-notes/33db.md` <!-- routed:526b --> <!-- id:33db -->
