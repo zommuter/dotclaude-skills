@@ -764,3 +764,117 @@ result.** A BEFORE side that errors is an unreached fixture, not a passing negat
   takes the no-rebase branch where that hazard is structurally absent.
 * **Name a token only AFTER minting it.** I wrote "filed as id:33fb" into a ticked item before
   minting; the real token was `6de0`, and the dangling reference had to be corrected.
+
+# CLEANUP TAIL -- same session, after the late-night section. THIS IS NOW THE AUTHORITATIVE CLOSE STATE.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | `045dea02` + the commits below; clean except a peer's `meeting/personas.md` |
+| Suite | **642 passed, 0 failed, 0 errored, 1 expected-red** (`roadmap:6217`, pre-existing) -- run AFTER the archive merge, since the archives feed `orphan-scan`, `roadmap-lint` and the lane-vocab ratchet |
+| Latest ckpt | `relay-ckpt-20260910-2115`, label `integrate (claude-opus-5)` |
+| REVIEW_ME here | **84 open**, unchanged |
+| Shared inbox | **9 open**, 4 targeted here |
+| Parked orphans | 2, unchanged and both deliberate |
+| **Relay worktrees** | **0 dirs, 0 bytes** (was 8 dirs / 762 MB) |
+| **Agent worktrees** | **0 dirs, 0 bytes, 0 branches** (was 29 dirs / 415 MB / 58 branches) |
+
+## ~1.16 GB reclaimed across TWO surfaces, both force-free, nothing lost
+
+* **Relay side, 762 MB, 8 code.lawless worktrees** -- unblocked by fixing `id:1a5c` (below), then
+  retired by the tool: `branch -d` never `-D`, residue archived and recoverable under
+  `~/.cache/relay/discarded-residue/`.
+* **Agent-tool side, 415 MB, 29 worktrees + 58 branches** (`id:5d91`) -- 28 retired by the
+  UNMODIFIED `worktree-retire.sh --expect-merged`, plus 29 merged worktree-less branches deleted
+  force-free. The 29 branch-only refs were HALF the surface and are a big part of why 415 MB stayed
+  invisible: `relay-reconcile.sh` cannot see any of it.
+* **The last holdout was resolved by COMMITTING, not discarding** (owner instruction): worktree
+  `agent-a6bb08543e21587fe` held an uncommitted archive lane-delimiter migration. Verified pure
+  BEFORE committing -- 85 removed / 85 added, every pair byte-identical after normalising dashes,
+  ZERO non-delimiter changes, and only the LEADING lane tag converted so in-prose citations keep
+  their em-dash (14 such lines). Committed on its branch, `--no-ff` merged, worktree then retired.
+  The "never hand-swap a delimiter in isolation" hazard does not reach this surface: archived items
+  are closed and never dispatched, and the ratchet blocks only the reverse direction (and per
+  `id:2065` skips archive files regardless).
+
+## READ FIRST: `id:1a5c` -- the annex normalization was STALE BY THE TIME IT MATTERED
+
+`worktree-retire.sh` ran `id:de4a`'s `.git`-symlink normalization ONCE, at step 0. But the residue
+steps run `git checkout -- .`, git-annex's `filter.annex.process` re-creates the symlink as a side
+effect, and the `git worktree remove` at step 1 then fails its OWN validation with `'.git' is not a
+.git file, error code 10`. So a worktree could have its residue successfully discarded and still be
+unremovable, every run, forever. **Fixed** (`ecb6c22c`): the normalization is now an idempotent
+function called TWICE, the load-bearing call immediately before the removal with no filtered git
+read between. All 7 remaining worktrees then retired through the unmodified tool.
+
+**IS IT A GIT OR ANNEX BUG? Neither -- an INTEROP gap, both sides reasonable.** annex deliberately
+symlinks a linked worktree's `.git` so annexed relative symlinks (`../.git/annex/objects/...`)
+resolve inside the worktree. git's worktree-remove validation requires a FILE and runs BEFORE
+`--force`, so force cannot override it, even though a symlink resolving to the correct admin dir is
+functionally equivalent -- that stricter-than-necessary check is the only half worth an upstream
+report. annex itself calls the resulting status *"only a cosmetic problem affecting git status; git
+add, git commit, etc won't be affected"*; git has no channel to hear it. **WHY THIS REPO ONLY:** the
+filter only has work when the index is stale against annexed files (93 PNGs on code.lawless), which
+is why zkWhale's 3 worktrees and quovadis's 6 normalize+remove pairs all succeeded. **A green run on
+a clean-index repo proves nothing about this path.**
+
+## THE CORRECTION THAT MATTERS MOST: I invented a deadlock out of my own contaminated measurement
+
+I told the owner these worktrees were a TWO-STATE DEADLOCK -- that the two failure modes alternate
+so neither `.git` state is removable -- and filed that on `id:2b7a`. **It was false.** With a proper
+`gitdir:` file the code-10 validation PASSES; the failures are SEQUENTIAL. The claim came from a
+diagnostic that reported `.git` as a regular file while running `git status` on the SAME SHELL LINE,
+which tripped the filter before `worktree remove` was reached -- so the removal looked like the thing
+re-creating the symlink. It is not; any filtered git read is. The owner corrected the framing
+directly ("you can replace the .git symlink by the .git file a worktree usually sets up, we've had
+this thousands of times before"). `id:2b7a` now carries an explicit disregard-that-paragraph
+correction rather than a quiet edit. **The generalisable part:** a measurement and the thing it
+measures must not share a shell line when the measurement has side effects.
+
+## The test took FOUR attempts and the first three were vacuous or silent
+
+`tests/test_worktree_retire_renormalize_1a5c.sh`. Worth reading before writing a fixture here:
+
+1. symlinked `.git` UP FRONT -- so step 0 normalized it and the pre-removal call was never needed;
+   the mutation passed and the test pinned NOTHING.
+2. extracted the `--ack` token with `[0-9a-f]+`, which matches the **`ac` inside the word "ack"** and
+   yields a stale token -- reporting a fix defect that was really a grep defect.
+3. dropped a `|| true`, so the token-minting run's deliberate exit 3 propagated under
+   `set -e`/`pipefail` and killed the script **SILENTLY** -- no ok, no FAIL, a truncated run that
+   reads as a pass to a skimming eye.
+4. drives the re-symlink with a **SMUDGE FILTER**, which is what annex actually uses and which DOES
+   fire on a pathspec checkout -- a `post-checkout` hook does not. `make verify-negatives`:
+   green-now OK, red-there OK; declared substring matches exactly one body line.
+
+## Filed for next session
+
+* **`id:8a76`** -- teach `relay-reconcile.sh` to enumerate and retire the agent-worktree surface,
+  carrying the PROVEN recipe (28 retirals) plus the four things the implementation must get right:
+  the three-part eligibility test (0 ahead AND clean AND merged); the residue flags' by-design
+  refusal of non-`relay/*` branches, so a dirty one can only be SURFACED; worktree-LESS merged
+  branches as a second independent surface; and liveness gating (plus: the shell must not be
+  CWD-inside a worktree it is removing -- I tripped that myself).
+* **`id:5d91`** part (b) still open: whether `/relay health` / `relay-doctor.sh` should REPORT this
+  surface at all. Today nothing does, so a human can only find it by looking.
+* **`id:ab95`** -- `archive-done.sh`'s `id:5355` own-date guard is blind to 48 of 61 dated items
+  (regex anchors the date to EOL; the ledger convention puts `<!-- id:XXXX -->` there). Severity
+  REDUCED and stated as such: `id:1d83` made the twin check archive-inclusive, verified here, so the
+  residual harm is discoverability, not guard starvation.
+* **`id:6de0`** -- `sliceInstruction`'s singular "the item's own block", now false for three of four
+  lanes, with an UNPINNED inline twin at `relay-loop.js:2666`.
+
+## Method notes
+
+* **A measurement with side effects must not share a shell line with what it measures.** The whole
+  phantom deadlock came from `stat` and `git status` in one `echo`.
+* **`git worktree remove` cannot be beaten by `--force` on a symlinked `.git`** -- validation
+  precedes force. The route is to repair the layout to git's own supported shape first.
+* **`worktree-retire.sh` works UNCHANGED on Agent-tool worktrees** (`--expect-merged`), but its
+  residue flags refuse a non-`relay/*` branch by design. Do not add a residue path there without an
+  owner decision.
+* **The destructive-git guard governs the AGENT's Bash tool, not the scripts it invokes.** A
+  tree-wide `git checkout -- .` is refused for me and runs fine inside `worktree-retire.sh`. That is
+  the intended asymmetry, not a bug to route around.
+* **A markdown diff line reads `-- [x]`** -- the diff's `-` plus the checkbox's own `-`. A pattern
+  like `^[+-][^+-]` therefore excludes exactly the lines you want, and silently reports 0 changes.
