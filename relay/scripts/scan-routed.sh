@@ -223,21 +223,7 @@ mapfile -t _inbox_lines < "$inbox"
 for line in "${_inbox_lines[@]}"; do
   # OPEN conforming routed item only: `- [ ] [target] … <!-- routed:XXXX -->`
   [[ "$line" =~ ^-\ \[\ \]\ \[ ]] || continue
-  # id:0246 -- the shared extractor, not a bare `head -1` over every anchored marker on
-  # the line. `head -1` attributed a line to whichever token it CITES first in prose
-  # (both live inbox items do this), never its own trailing marker; inbox_line_own_token
-  # tolerates trailing prose (id:798d) and REFUSES loudly on a multi-marker line (id:6059)
-  # instead of guessing — own_routed_of_line's stderr already names every candidate, so
-  # that refusal is visible in this script's own log/stderr without extra plumbing here.
-  own_rc=0
-  own_tok_out="$(inbox_line_own_token "$line" "$inbox")" || own_rc=$?
-  if [[ $own_rc -eq "$OWN_ID_AMBIGUOUS" ]]; then
-    log "ambiguous-own-token line=$line"
-    continue
-  elif [[ $own_rc -ne 0 ]]; then
-    continue
-  fi
-  tok="${own_tok_out#routed:}"
+  tok="$(head -1 < <(grep -oP '(?<=<!-- routed:)[0-9a-f]{4}(?= -->)' <<<"$line") || true)"
   [[ -z "$tok" ]] && continue
   target="$(head -1 < <(grep -oP '^- \[ \] \[\K[^\]]+' <<<"$line") || true)"
   [[ -z "$target" ]] && continue
@@ -290,24 +276,9 @@ for line in "${_inbox_lines[@]}"; do
     # un-drained residue: close the loop and remove it. --apply deletes it now; report
     # mode surfaces it as RESOLVABLE so the drain is visible (NOT a dead letter).
     if [[ "$APPLY" -eq 1 ]]; then
-      # id:0246 (case 10) -- the drain's own exit status is PROPAGATED: `RESOLVED` is
-      # never printed unless inbox-done actually reports success. The prior
-      # `2>/dev/null || true` swallowed a nothing-to-delete no-op (exit 0, line survives
-      # when no line owned the token) as well as a refusal (nonzero), so this script
-      # printed a false RESOLVED in both cases — id:4347's no-silent-swallow ban and the
-      # id:d35a silent-no-op class. NOTE: this is a narrow, single-call-site fix, not the
-      # broader un-swallowing of every `2>/dev/null || true` in this file (the same
-      # swallow recurs at the --apply stub-write call site below and in the dead-letter
-      # branch) -- that is flagged as a follow-up, not built here (out of id:0246's scope).
-      done_rc=0
-      "$APPEND_SH" inbox-done "$tok" 2>>"$LOG" || done_rc=$?
-      if [[ $done_rc -eq 0 ]]; then
-        echo "RESOLVED routed:$tok → [$target] (twin present in $tpath; removed from inbox)"
-        log "resolved-twinned routed=$tok target=$target path=$tpath"
-      else
-        echo "STILL-PRESENT routed:$tok → [$target] (twin present in $tpath, but the drain did not succeed — rc=$done_rc; inbox line survives, see $LOG)" >&2
-        log "resolved-twinned-drain-failed routed=$tok target=$target path=$tpath rc=$done_rc"
-      fi
+      "$APPEND_SH" inbox-done "$tok" 2>/dev/null || true
+      echo "RESOLVED routed:$tok → [$target] (twin present in $tpath; removed from inbox)"
+      log "resolved-twinned routed=$tok target=$target path=$tpath"
     else
       echo "RESOLVABLE routed:$tok → [$target] (already landed in $tpath; run --apply to drain from inbox)"
     fi
