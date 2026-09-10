@@ -26,9 +26,18 @@
 #      itself, so it is the one option ruled out.
 #   B. The shrink case: for a ledger whose item bodies were relocated, the reported figure is
 #      NOT LOWER than the bytes a child actually loads (head lines + the detail files they
-#      point at). The INEQUALITY is asserted, never an exact number -- over-counting is safe
-#      by design (a file pointed at from two ledgers is counted in both), under-counting is
-#      the defect.
+#      point at). The INEQUALITY is asserted, never an exact number -- over-counting is safe,
+#      under-counting is the defect.
+#      CORRECTED 2026-09-10 (id:1737, owner-authorised): this clause used to add "by design (a
+#      file pointed at from two ledgers is counted in both)". That parenthetical described the
+#      accounting as it then stood, and it no longer holds -- a note shared between ROADMAP.md
+#      and TODO.md is now charged EXACTLY ONCE across the pair, first-charge-wins with ROADMAP
+#      first. The change rests on this clause's OWN rationale, not against it: over-counting
+#      "merely costs a needless handback", and on loderite the needless handbacks were total
+#      (~108,411 tok of double-charge, 5 dispatch slots burned across two runs, 0 integrates).
+#      The INEQUALITY asserted here is unaffected and this test still passes unchanged -- its
+#      fixtures never share a note across ledgers. The exact-once equality is pinned by its own
+#      spec, tests/test_classify_shared_note_charged_once_1737.sh; do not re-assert it here.
 #
 # SHADOW-BINARY NOTE: the relay-core Lean shadow reimplements `classify-verdict.sh` and
 # `gather-repo-state.sh`. Neither mentions bytes at all; the byte accounting lives in

@@ -187,8 +187,40 @@ why_not_ready = []
 LEDGER_NOTE_POINTER_RE = re.compile(r"((?:[A-Za-z0-9_.-]+/)+[0-9a-f]{4}\.md)")
 MISSING_LEDGER_NOTE_BYTES = 32768
 
+# id:1737 -- CHARGE EACH NOTE ONCE ACROSS ALL LEDGERS, not once per ledger.
+# `sorted(set(...))` below dedupes WITHIN one ledger. It never deduped ACROSS ledgers, so a
+# detail note pointed at from BOTH ROADMAP.md and TODO.md -- which is what the MANDATED
+# single-id-two-views convention produces, since the same id lives in both views and both
+# carry the same `-- detail:` pointer -- was charged TWICE. The child reads that file ONCE.
+# Measured on loderite 2026-09-10: 67 shared notes, 433,645 B, ~108,411 tok of pure
+# over-charge (gate 417,734 tok vs a true unique payload of 309,323 tok). The repos this hit
+# hardest were precisely the ones following the convention correctly.
+#
+# THE DEDUPE IS KEYED ON THE RESOLVED REALPATH, never the relative spelling: two ledgers may
+# legitimately spell one note differently (`docs/notes/ab12.md` vs `./docs/notes/ab12.md`),
+# and a spelling-keyed set would miss that and keep double-charging.
+#
+# CALL ORDER IS LOAD-BEARING -- do not reorder the call sites below. `countedLedgersFor`
+# (prompt-size-gate.mjs) counts ROADMAP.md and TODO.md for EVERY verdict, and adds
+# REVIEW_ME.md + RELAY_LOG.md only for `review`. Attribution is first-charge-wins, so the
+# two ALWAYS-counted ledgers must be measured FIRST: ROADMAP -> TODO -> the review-only pair.
+# Measure a review-only ledger first and a note shared with ROADMAP would be attributed to a
+# field that a non-review verdict never counts, silently UNDER-counting it -- the one
+# direction this gate must never fail, since the whole point is that the child does not die
+# of `Prompt is too long`. Deduping is safe in the always-counted direction because both
+# fields are summed together, so the union is preserved exactly.
+#
+# A MISSING note is deduped on the same terms: charging the conservative
+# MISSING_LEDGER_NOTE_BYTES twice for one absent file is the same over-charge. Its warning
+# fires on the FIRST encounter only, which is a noise reduction and not a lost signal.
+_CHARGED_NOTES = set()
+
 def _ledger_note_bytes(ledger_abs):
-    """Bytes of the detail files that <ledger_abs> points at. 0 when it cannot be read."""
+    """Bytes of the detail files that <ledger_abs> points at. 0 when it cannot be read.
+
+    Notes already charged to an earlier ledger are skipped (id:1737) -- see the call-order
+    invariant above.
+    """
     try:
         with open(ledger_abs, errors="replace") as _lf:
             _text = _lf.read()
@@ -198,6 +230,8 @@ def _ledger_note_bytes(ledger_abs):
     _root = os.path.realpath(path)
     for _rel in sorted(set(LEDGER_NOTE_POINTER_RE.findall(_text))):
         _abs = os.path.realpath(os.path.join(path, _rel))
+        if _abs in _CHARGED_NOTES:
+            continue
         # A derived directory is attacker-adjacent in a way a constant was not: a pointer
         # spelling `../../elsewhere/1234.md` would otherwise size a file outside the repo.
         # Ignored LOUDLY rather than counted -- it is not a note pointer at all, so the
@@ -209,6 +243,7 @@ def _ledger_note_bytes(ledger_abs):
         try:
             if os.path.isfile(_abs):
                 notes_total += os.path.getsize(_abs)
+                _CHARGED_NOTES.add(_abs)
                 continue
         except OSError:
             pass
@@ -217,6 +252,7 @@ def _ledger_note_bytes(ledger_abs):
               + " B conservatively so the prompt-size gate cannot under-count (id:f3d2)",
               file=sys.stderr)
         notes_total += MISSING_LEDGER_NOTE_BYTES
+        _CHARGED_NOTES.add(_abs)
     return notes_total
 
 # --- Step 2: derive ROADMAP fields ----------------------------------------
