@@ -878,3 +878,224 @@ measures must not share a shell line when the measurement has side effects.
   the intended asymmetry, not a bug to route around.
 * **A markdown diff line reads `-- [x]`** -- the diff's `-` plus the checkbox's own `-`. A pattern
   like `^[+-][^+-]` therefore excludes exactly the lines you want, and silently reports 0 changes.
+
+# RELAY-HUMAN SWEEP -- new session, 2026-09-10 late. THIS IS NOW THE AUTHORITATIVE CLOSE STATE.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | `27a702a4`, clean, 0 unpushed to private `origin` |
+| Suite | **645 passed, 0 failed, 0 errored, 1 expected-red** -- run at close on `27a702a4`, exit 0. The 1 is `test_dryround_single_definition_6217.sh`, a pre-existing open roadmap item, untouched all session |
+| **Ledger ratchets** | **ARMED** -- `0` INERT via the installed path (was 4), 51 findings live, and TIGHTENED (3 length + 5 shape floors lowered) |
+| REVIEW_ME here | **79 open** (was 84) |
+| Shared inbox | **2 open** (was 9) |
+| Parked orphans | 1 (`...-execute-b437-0`, deliberate) |
+| Ratification queue | 0 pending |
+| Public GitHub | **16 behind, all withheld by design** -- every push tonight went to private `fievel:` only |
+
+## READ FIRST: `scan-routed.sh --apply --dry-run` DELETES REAL INBOX LINES
+
+Its header at `:31` promises dry-run "writes NOTHING". `DRY_RUN` is consulted at exactly ONE
+place in the body -- `:388`, the stub path. The twinned-drain branch at `:324` guards on `APPLY`
+alone, so `append.sh inbox-done` runs and vanish-on-resolve removes the line. The summary then
+prints **"APPLY DRY-RUN: no writes performed."**
+
+Observed live: a dry-run drained `routed:b015` and `routed:51a4`; the log records
+`resolved=2 apply=1 dry_run=1`. The PER-LINE output was honest (`RESOLVED ... removed from
+inbox`); the SUMMARY lied -- and a dry-run is read for its summary. Filed **`id:f563`**.
+
+The irony is on the record: `id:0246` re-landed earlier the same day after 9 review defects and
+hardened *this exact branch* against counting a failed drain as success, leaving the dry-run hole
+beside it.
+
+## The `id:7c75` composer exists now, and it is what makes `/relay human` 3(a) performable
+
+`relay/scripts/review-box-tick.py`. `md-merge.py` addresses a line only by an anchored
+`<!-- id:XXXX -->` marker or a `## ` heading whose unit is the WHOLE section, and the common
+REVIEW_ME shape is one coarse heading over many boxes. The composer extracts the section
+verbatim, flips EXACTLY ONE checkbox, appends the rationale, and hands the section back to
+`md-merge.py update-sections` under its flock.
+
+**Measured by RUNNING it against all 431 open boxes fleet-wide, not by a predicate: 308 tick
+well-formed, 120 refuse exit 4 (no `## ` heading), 3 refuse exit 9 (box markup already broken).**
+Its own static estimate of 311 was 3 too high.
+
+Refusals are code-distinguished per the `id:6d7e` ruling: 0 matches exit 2, 2+ exit 3, no heading
+exit 4, **repeated heading exit 5** (md-merge keys on heading TEXT and rewrites every match, so
+taking the first would duplicate one section into all of them), unbalanced inline markup exit 9.
+`--dry-run` is inert BY CONSTRUCTION, not by a re-checked flag -- deliberately, because of
+`id:f563` above.
+
+**It shipped with a placement defect that its own tests missed, caught on first real use.** v1
+appended to the box's first PHYSICAL line, splicing the rationale mid-sentence and leaving `**`
+unclosed. **188 of 431 boxes (44%) have a wrapped title.** Fixed by appending as its own
+paragraph at end-of-box -- uniform for wrapped and unwrapped, so no branch is left that can pick
+wrong, and the checkbox line then changes by exactly its checkbox character, which keeps an
+anchored id line-final.
+
+## Ratchets: ARMED first, then TIGHTENED. Do not blanket-regen.
+
+Both baselines were tracked in-repo and **absent from `~/.claude/skills/relay/`**, so they fired
+for no repo. `make install-relay` fixed it: 0 INERT, 51 findings live.
+
+Then the owner REFUSED a blanket regen on measurement. `todo-conformance.sh`'s own docstring
+claimed *"A regen TIGHTENS the ratchet"*. **That claim was false** -- a regen RAISES a ceiling
+whenever a line grew:
+
+| id | old | blanket regen | |
+|---|---|---|---|
+| `2b7a` | 750 | **10,190** | +9,440, a 13.6x raise |
+| `3770` | 2,209 | 2,536 | +327 |
+
+plus 14 new length rows and 27 shape rows: **36,513 chars forgiven**, more than twice the remedy
+rejected that morning in `48e51a83`. A grandfathering row has **no expiry**.
+
+`id:7e3b` was built instead and applied: **3 length + 5 shape floors LOWERED, `2b7a` and `3770`
+REFUSED by name in both families, 17,474 chars of forgiveness declined.** Verified independently
+before landing: 0 rows rose, 0 minted, counts unchanged.
+
+**Gotcha:** the documented invocation chains `--emit-baseline > file && mv`, but the tool exits
+NON-ZERO whenever anything is refused -- which is the normal case -- so the `mv` never fires and
+the regen looks like it ran and did nothing. `make baseline-tighten` inherits that exit.
+
+## code.lawless was FALSE-DIRTY all day, and the mechanism generalises
+
+111 paths ` M` with an EMPTY `git diff`. Cause: **unlocked git-annex pointer files**. The index
+cached the 100 B pointer's stat; annex swapped in the 15,641 B content 0.3 s later; git never
+re-stat'd. Content identical on all 111 (`git hash-object --path` vs index blob:
+`identical=111 differing=0`).
+
+**Why it never self-heals, proven with `GIT_TRACE`:** `git update-index --really-refresh` spawns
+**ZERO** subprocesses, so it never runs the clean filter and compares a 15,641 B PNG to a 100 B
+blob. `git diff --quiet` spawns `git-annex filter-process` and reports equal. `git status` and
+the refresh path are filter-blind; `git diff` is not.
+
+**btrfs contributes nothing** -- not a subvolume, cached dev matches. The discriminator was a
+calibration: a LOCKED annexed file carries a genuinely stale device number and still reads clean,
+so stat drift alone self-heals and only the filter-requiring size mismatch is fatal.
+
+Two plausible checks did NOT discriminate and are recorded as such: `annex fsck --fast` printed
+`ok` and left the file dirty; `restage.log` holds 837 queued entries of which **zero** are the
+dirty paths.
+
+**204 unlocked annexed files remain, so it WILL recur.** `id:8cc6` fixed `clean-tree-gate.sh`
+(a `git diff` cross-check, demonstrated on a real annex repo the agent built), but its adversarial
+pass correctly reported **this does NOT unblock dispatch**: the closed door is
+`gather-repo-state.sh:191`, its own bare `git status --porcelain`. **That is the FOURTH instance
+of one missing predicate** (`verify-isolation.sh:190` = `id:3016`, `worktree-retire.sh:190` =
+`id:1a5c`, `clean-tree-gate.sh:60` = `id:8cc6`, and now the classifier). It was left alone
+deliberately: relay-core's shadow binary reimplements those semantics, so a change there goes
+parity-red cross-repo and needs inbox routing.
+
+## What landed
+
+* **`id:f563`** -- the dry-run deletion defect, filed.
+* **`id:7c75`** -- the composer, plus its wrapped-title fix. **STILL OPEN** by owner choice.
+* **`id:7e3b`** -- tighten-only baseline regen, built AND applied. Ticked by its own build commit.
+* **`id:8cc6`** -- `clean-tree-gate.sh` cross-check. **STILL OPEN** by owner choice, correctly.
+* **`id:099d`** -- `LEDGER_NOTE_POINTER_RE` (`classify-repo.sh:198`) is unanchored, matching any
+  path-shaped `<4hex>.md` in raw text, and `:303` scans `REVIEW_ME.md` too. **Two confirmed
+  instances in one evening**: this repo charged 32,768 B for `4983.md` named only in the box
+  DESCRIBING the charge, loderite for `e57b.md` named only in *"no ... e57b.md exists"*. The
+  `id:2964` class one tool over.
+* **`id:1e82`** -- `expires-on-scan.sh` is installed, allowlisted, tested green, and **nothing
+  invokes it**. 0 refs in `relay-loop.js` (control: `ledger-slice` = 10), 3 in the Makefile all
+  MANIFEST vars not a recipe, 0 in SKILL/references. The `id:5367`/`id:2062` built-green-but-
+  unwired class. `a192`'s residue is the narrower second half.
+* **`docs/ledger-notes/4983.md`** created -- the 32 KB overcharge on every classification is gone.
+* **loderite handoff MERGED** (`a11d993a`): 9 ids promoted reusing their TODO tokens, 4 RED specs
+  verified red, `unpromoted-scan` now `45 laned / 5 surface / 0 promote`.
+* **code.lawless handoff**: `a736` promoted `[ROUTINE]` with a RED spec, verdict flipped
+  `hard` -> `execute`. `eb1f` re-laned `[HARD]` -> `[INPUT - meeting]` -- on the pool lane an
+  `--afk` run would have tried to BUILD a design question whose done-check is a meeting note.
+* **Inbox 9 -> 2**: 6 INBOUND stubs written and committed, twinned items drained.
+* **`fe67` / `02fe` / `a192` promoted** after being confirmed ABSENT from all four ledgers.
+* **toesnail `id:0720`**: `verify/dreamed_lean_pin.sh` added as its own CI step (0.02 s), NOT
+  `tests/run.sh` which would drag a cold Mathlib build into every push.
+* **zkWhale `id:bf66`**: ticked with `@owner-accepted:2026-09-10`, the repo's FIRST real marker.
+
+## OWNER RULINGS this session
+
+1. Inbox `--apply` **excluding loderite** while its handoff was live.
+2. code.lawless orphan: **inspect and report**, decide after (still undisposed -- see below).
+3. Ticks: **tick what is reachable AND build the composer** (both, not either).
+4. Baselines: **install first, then build `id:7e3b`, then tighten** -- explicitly NOT a blanket regen.
+5. ai-codebench **`515b`: accept the 1-judge matrix** -- the four `[INTENSIVE]` seams become
+   ENRICHMENT, no GPU needed.
+6. dotclaude-skills **`4983`: create the note** (not edit the archive, not fix the counter).
+7. project_manager: **un-gate `71f5`, drop `cb9e`'s pool tag** -- both lint ERRORs cleared.
+8. mathematical-writing **`f8d5`: lane `[ROUTINE]` and promote**.
+9. **`fe67`/`02fe`/`a192`: promote all three.**
+10. toesnail **`0720`: standalone guard as its own CI step.**
+11. zkWhale **`bf66`: add `@owner-accepted` and tick.**
+12. Of the three unticked items, **close `7e3b` only** -- `7c75` and `8cc6` stay open.
+13. **File the `a192` residue** as tracked work (became `id:1e82`).
+
+## Needs the owner
+
+1. **`gather-repo-state.sh:191`** -- the fourth instance, and the only one still blocking
+   dispatch. Needs inbox routing to relay-core because of shadow parity, not a local edit.
+2. **ai-codebench's `515b` tick is on a SIDE BRANCH.** `git branch --contains 597d4e5` lists only
+   `claude/opusplan` and its remote; `main` has no `Surface the peer-review matrix` line at all,
+   so it is structurally different, not merely behind. **The ruling is recorded nowhere on `main`.**
+3. **code.lawless parked orphan** `relay/orphan/relay-20260910-114832-18641-execute-repo-1`
+   (`fd962dc`) is **NOT residue**: it adds a 168-line second write-up of the `id:f0de`
+   investigation whose 194-line sibling is already on main. Different blobs, each carrying content
+   the other lacks (the orphan uniquely has the bundle-size table and the playwright
+   reproduction commands). **`--integrate` CANNOT work** -- the file did not exist at the
+   merge-base, so it is an add/add conflict; reconcile will abort and re-park, correctly. The real
+   choice is salvage-by-hand or discard.
+4. **120 REVIEW_ME boxes have no `## ` heading** and are unreachable by any flock'd path.
+   13 repos, including 4 with zero headings entirely (mathematical-writing, ai-codebench,
+   project_manager, zkWhale). Closing them needs a decision `id:7c75` still poses: mint anchored
+   markers onto the checkbox lines, or give the boxes headings. The composer deliberately mints
+   neither.
+5. **`02fe` was closed `[x]` on an agent's own judgement**, not on a stated ruling -- the owner's
+   option said "file them as open items", and the closed-if-done path was authorised only for
+   `a192`. Test-backed (`test_repo_section_quoting_02fe.sh` exit 0), flagged rather than passed
+   off as ratified. One `md-merge` call to reverse.
+6. **A guard for review-minted tokens that nothing owns** -- proposed, not built. Third instance.
+   Two design questions left open deliberately: does a token in a COMMIT SUBJECT alone count as
+   ownership (it is what surfaced `02fe`, but would flag transient tokens), and does REVIEW_ME
+   PROSE count (which is where all three of tonight's tokens actually lived).
+7. **toesnail's new CI step is unverified on Actions** -- pushed to private `origin` only, while
+   Actions runs from `github`. `test_ci.sh` proves the file is well-formed, not that the run is green.
+
+## THE CORRECTIONS THAT MATTER MOST
+
+**I read an agent's silence as an answer, on the exact item I had filed that day for it.** I told
+the owner `id:7e3b` was unticked and asked him to rule on it. `git blame` puts the tick at
+`8713787b`, the build agent's OWN commit. Its report had a "what I did not do" section that never
+mentioned ticking. That is `id:3f59` -- reasoning from a source that does not record the thing
+being asked about -- and it cost the owner a question he should not have been asked.
+
+**A `grep -c INERT` matched the PROSE of the item about inert ratchets.** My first verification
+that the ratchets were armed returned "2 INERT remaining". Both hits were the text of a ROADMAP
+item discussing inert ratchets. Anchoring to stderr and to `ratchet INERT --` gives 0. Same shape
+as the `id:099d` pointer regex and the monitor pattern that matched a filename: **a pattern
+matching a corpus that talks about the thing it is looking for.** Three instances, three tools,
+one evening.
+
+**My own brief sent an agent after the wrong file.** I told it `ROADMAP.archive.md:4584`'s pointer
+named the missing `4983.md`. It does not -- it points at `6546.md`, which exists. The 32 KB charge
+came from `REVIEW_ME.md:319`, the review box's own prose. The agent verified before acting, found
+the premise wrong in mechanism but right in remedy, and said so instead of either stopping or
+silently complying. That is the behaviour to keep.
+
+## Method notes
+
+* **`review-box-tick.py` is the `/relay human` 3(a) apply path.** Always `--dry-run` first and
+  READ the diff -- the wrapped-title defect was invisible in tests and obvious in one dry-run.
+* **Calibrate a wiring grep with a known-wired control.** `grep -c expires-on-scan relay-loop.js`
+  = 0 means nothing until `grep -c ledger-slice relay-loop.js` = 10 proves the grep works. A
+  Makefile hit may be a MANIFEST variable, not a recipe -- check which.
+* **Use `token_marker_in_files` (`lib-anchored-id.sh`), never a bare `grep -c`, to ask whether a
+  checkbox owns a token** -- and include BOTH archives (`id:1d83`). A multi-file `grep -c` in a
+  zsh loop returns per-file lines and will produce garbage.
+* **A measurement and the thing it measures must not share a shell line** when the measurement has
+  side effects. Still true; still bit someone today.
+* **`git-lock-push.sh` exit code is not evidence.** Verify with `git ls-remote`.
+* **`| head` under `set -euo pipefail` is BLOCKED** by `tests/test_pipefail_sigpipe_lint.sh`.
+* **A `fails-against-mutation` can be red for the WRONG reason** and the runner catches it. Three
+  agents hit this tonight; each narrowed the declaration rather than loosening the check.
