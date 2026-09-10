@@ -1612,3 +1612,99 @@ after integrate.
   the prose alone: rewording a recorded owner ruling to placate a linter is the wrong direction,
   and suppressing the check repo-wide is worse. Either accept a standing WARN on this one item, or
   the lint learns that a decided-marker inside a quoted ruling is not a status marker.
+
+## Review 2026-09-10b (run `relay-20260910-234645-16942`, window `relay-ckpt-20260910-2115`..HEAD)
+
+Trust-but-verify over 24 commits. `gaming-scan.sh` produced NO output (no deleted test file, no
+added skip/xfail/`.only`, no net-removed assertion). All 24 commits are owner-attributed
+`/relay human` and review work, not executor units; no `@owner-accepted` / `@owner-answered`
+marker was introduced on any item in this repo (the single `@owner-accepted:` string added this
+window is PROSE in `docs/session-handover-2026-09-10.md` describing zkWhale `id:bf66`, not a
+marker planted on a line here). No line already carrying `@owner-answered` was modified.
+
+TIERS RUN, named per §3(c): `make test` (which runs `make lint` first) -- **645 passed, 0
+failed, 0 errored, 1 expected-red** (`test_dryround_single_definition_6217.sh`, roadmap:6217
+still open, unrelated to this window). `tests/verify-negative-cases.py --changed
+relay-ckpt-20260910-2115` -- 3 files, 4 declared cases, all green-now/red-there at their
+DECLARED assertions. RECORDED-SKIP: the FULL negative-case corpus (~35 min, opt-in by design,
+outside `make test`); the changed-file slice is the part `id:abcc` makes mandatory and it ran.
+`make gaming-canary` / `make shard-canary` NOT run -- they cost model tokens on demand and are
+not part of the definition-of-done.
+
+- [x] **`id:8cc6` VERIFIED GREEN and closed -- both halves of its acceptance sketch shipped, and
+  the declared negative case was re-run rather than trusted.** `23083671` carves stat-cache dirt
+  (exact XY pair ` M` plus an empty worktree-vs-index diff, ONE `git diff --name-only` per repo,
+  fail-closed and loud, `RELAY_STRICT_STATCACHE=1` restores strict) and fixes the mislabelling
+  half by naming the inspected path in the dirty line. Spec exits 0; `verify-negative-cases.py`
+  says red-there at `case B`. Close record appended to `docs/ledger-notes/5239.md` (the edit is
+  declared in that note's header, per the notes-are-editable rule).
+
+- [x] **`id:7c75` VERIFIED GREEN and closed -- answered by a THIRD shape, not either branch the
+  item offered.** `relay/scripts/review-box-tick.py` (`ee0b17ed`, wrapped-title fix `c9a24cf5`)
+  uses the anchor `update-sections` already has and takes over the dangerous half, composing the
+  section. 11 cases green; BOTH declared mutations red-there at their declared assertions. Close
+  record: `docs/ledger-notes/7c75.md`.
+
+- [ ] **`routine_open` is 0, not 6 -- CONFIRM. This review reached that independently, and the
+  identical question raised by the previous review is still open and unanswered above.** Raw
+  count of open `- [ ] ... [ROUTINE]` in `ROADMAP.md` is 6 (was 7; the count moved because the
+  window's work closed nothing in ROADMAP -- `id:7e3b`, `id:7c75`, `id:8cc6` are all TODO-only
+  lines). Every one of the 6 is excluded: `resolve-gates.sh` reports `d4ca`, `540f`, `c179`,
+  `554b` all blocked=1; `cf2d` is an `@owner-verify` item, owner-bound; `b437` is orphan-parked
+  and this review's own dispatch brief says "do NOT work id:b437". The classifier agrees --
+  execute was SUPPRESSED this round and the repo was re-classified to review (`id:bc2b`
+  demote), which is why this unit exists. Returning 6 would re-enqueue an execute unit the
+  classifier just suppressed.
+
+- [ ] **`id:302f` (two `gated-on:` markers on one line concatenate into an unparseable payload)
+  has THREE live instances in THIS repo, and its own line names only lean4btc,
+  linguistic-universals and loderite.** `resolve-gates.sh` refuses payload `'09e4\nb0b1'` on
+  `id:d4ca` and `id:e405`, and `'e8d4\n1a03\nd0aa\n55c7'` on `id:ee31`. The refusal is
+  fail-safe (all read as GATED), but `d4ca` is one of the 6 open `[ROUTINE]` items and is
+  therefore permanently unungatable here, which makes this repo an instance of the blocking case
+  `id:302f` describes rather than a bystander. Not fixed in this review: collapsing the markers
+  by hand on a shared ledger line is the id:302f decision, not a review's.
+
+- [ ] **`tests/verify-negative-cases.py` reported a VIOLATION that was a teardown race, and
+  `id:abcc` now makes that cost a MERGE.** `OSError: [Errno 39] Directory not empty:
+  '/tmp/negcase-vgz6fjs3/tree/.git/objects'` surfaced as `TOTAL: 1 negative case(s) that do not
+  fail for the declared reason`; the same declaration then verified clean on two subsequent runs
+  with nothing changed. Since `integrate.sh` step 3d hands back (`HANDBACK[verify-negatives]`,
+  exit 38) on any non-zero, a harness flake now blames the child for a finding that does not
+  exist. Filed as `id:2381`. Surfaced, not fixed -- whether a harness failure should still block
+  the land is the owner's call.
+
+- [ ] **The `id:8cc6` fix took the branch its own detail note warned against: there are now TWO
+  independently-drifting stat-cache predicates and they disagree.** `verify-isolation.sh`
+  (id:3016) is all-or-nothing (`git diff --quiet` repo-wide); `clean-tree-gate.sh` (id:8cc6) is
+  per-path set subtraction. On 100 stat-cache paths plus one real edit the first calls all 101
+  dirty, the second calls 1. `docs/ledger-notes/5239.md` asked for one predicate and two call
+  sites (the `id:4d44` shape); no `lib-*.sh` owns it. Filed as `id:341e`. This does not reopen
+  `8cc6` -- its own acceptance is fully met -- but the reconcile is now a separate debt.
+
+- [ ] **`id:7c75` closes the apply gap for 311 of 431 boxes; 120 in 13 repos stay unreachable.**
+  it-infra 22, mathematical-writing 15, git-annex 12, ai-codebench 11, project_manager 11,
+  zkWhale 10, yinyang-puzzle 7 and others have no `## ` heading and no anchored marker, so 3(a)
+  still cannot apply an answer there. Filed as `id:0c8a` (`[INPUT - decision]` -- every candidate
+  branch writes into other repos' ledgers).
+
+- [ ] **relay-doctor findings, report-only.** Cross-ledger drift CLEAN; `roadmap-lint` CLEAN
+  (every open item carries a recognized lane tag + id); install-drift CLEAN; inbox dead-letters
+  CLEAN; quota-config OK; lean-toolchain pins agree; no empty-shadow `core.hooksPath`. Open:
+  **6 parked orphan branches** across the own-set (this repo's is
+  `relay/orphan/relay-20260909-143257-21736-execute-b437-0`, the `id:b437` residue the dispatch
+  brief names) and **12 retirable worktrees/branches** with no work at risk, retirable force-free
+  with `worktree-retire.sh --expect-merged`. The **relay-core shadow** reports 42,606 mismatches
+  over 362,568 rounds -- bash stays authoritative and the flip gate (100% parity + 5 clean
+  rounds) is nowhere near met; that number is the pre-existing standing figure, not a regression
+  from this window.
+
+- [ ] **Four INBOUND items were added to `TODO.md` this window with no lane qualifier
+  (reverse-handoff, review.md 5b): `id:d661`, `id:1007`, the `routed:43d3` line, `id:a25f`.**
+  All four are cross-repo reports whose scope is a DECISION rather than a change with an
+  observable done-state (`43d3` is a governance finding about building through an open gate;
+  `a25f` is a pre-registered evidence-bar trigger for `id:8df5`, which the memory record marks
+  as explicitly the owner's call). Per 5b they are left as TODO/`/meeting` candidates rather than
+  forced into ROADMAP with an invented acceptance criterion -- naming them here so the omission
+  is on the record rather than silent. `id:d661` and `id:1007` are the two that could become
+  `[ROUTINE]` once someone confirms the reported behaviour in this repo's own tooling.
