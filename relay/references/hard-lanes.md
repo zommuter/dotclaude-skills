@@ -398,19 +398,37 @@ ledgers/tests are migrated — that flip is deliberately NOT part of this item.
 ## Canonical marker set (the contract both consumers parse)
 
 ```
-[HARD - pool]                      → bucket: pool
-[HARD - meeting]                   → bucket: meeting
+[HARD]                             → bucket: pool      (CANONICAL, capability-keyed)
+[HARD - pool]                      → bucket: pool      (old venue-keyed spelling)
+[INPUT - meeting]                  → bucket: meeting
+[INPUT - decision]                 → bucket: meeting   (human call, no design session)
+[HARD - meeting]                   → bucket: meeting   (old venue-keyed spelling)
 [HARD - decision gate]             → bucket: meeting   (auto-gate alias, id:3801)
 🚧 ... route:meeting               → bucket: meeting   (auto-gate inline alias)
 🚧 ... route:human                 → bucket: meeting   (auto-gate inline alias)
 🚧 ... route:decision-gate         → bucket: meeting   (auto-gate inline alias)
-[HARD - hands]                     → bucket: hands
-[HARD]  (no recognized lane)       → bucket: untagged  → LOUD reject, exit nonzero
+[INPUT - access]                   → bucket: hands
+[HARD - hands]                     → bucket: hands     (old venue-keyed spelling)
+[HARD - <unrecognized suffix>]     → bucket: untagged  → LOUD reject, exit nonzero
 ```
 
-`untagged` is a HARD ERROR, not a default: a `[HARD]` item with no recognized lane
-makes `gather-human-backlog.sh` print a loud `ERROR:` line to stderr and exit nonzero
-so the gap is fixed at the source, never silently bucketed.
+`untagged` is a HARD ERROR, not a default: a `[HARD - …]` carrying a lane suffix this
+table does not list makes `gather-human-backlog.sh` print a loud `ERROR:` line to
+stderr and exit nonzero so the gap is fixed at the source, never silently bucketed.
+
+> **A BARE `[HARD]` IS THE POOL LANE, NOT AN ERROR.** This block previously read
+> `[HARD]  (no recognized lane) → bucket: untagged → LOUD reject`, which predates the
+> capability-keyed rename above and contradicted this file's own rename table
+> (`[HARD - pool]` → `[HARD]`) and `relay/references/human.md:152`. Corrected 2026-09-10
+> (`id:c293`) after the contradiction was traced to a live consumer divergence.
+>
+> **The two consumers `id:b466` keeps in sync DISAGREE as of this correction, and this
+> doc fix deliberately does NOT change either.** `gather-human-backlog.sh:74,:492` already
+> buckets a bare `[HARD]` as `hard_pool` (correct per this table);
+> `project_manager/scan.py:299,:333` buckets it `untagged`, and a project_manager guard
+> test now freezes that reading. Aligning them is a dispatch-behaviour change in two
+> repos and is tracked separately as `id:c293` -- fix the source of truth first, decide
+> the consumers after.
 
 ## Live-availability gate for `[INTENSIVE]` auto-launch (id:68dc, A5)
 
