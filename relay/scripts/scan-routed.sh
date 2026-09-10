@@ -245,12 +245,16 @@ for line in "${_inbox_lines[@]}"; do
     findings=$((findings+1)); dead=$((dead+1)); continue
   fi
 
-  # Twin = the token is the OWN MARKER of some line in the target's TODO or ROADMAP —
-  # either an `<!-- routed:XXXX -->`/`<!-- id:XXXX -->` HTML comment, or the leading
-  # `[INBOUND routed:XXXX …]` tag of the ingest stub this very script writes. Delegated
-  # to the shared `token_marker_in_files` primitive (lib-anchored-id.sh, id:3add) — one
-  # predicate for this check and for `append.sh inbox-done`'s id:9fdb refusal guard,
-  # which must agree or a successful write is followed by a refused drain.
+  # Twin = the token is the OWN MARKER of some line in the target's TODO, ROADMAP, or
+  # either ledger's archive (id:1d83 -- an archived closed item still carries its
+  # `routed:XXXX`/`id:XXXX` breadcrumb and is a durable record of landing; archive-done.sh
+  # archives aggressively enough that an undated same-session close can be swept before
+  # this check ever runs) — either an `<!-- routed:XXXX -->`/`<!-- id:XXXX -->` HTML
+  # comment, or the leading `[INBOUND routed:XXXX …]` tag of the ingest stub this very
+  # script writes. Delegated to the shared `token_marker_in_files` primitive
+  # (lib-anchored-id.sh, id:3add) — one predicate for this check and for `append.sh
+  # inbox-done`'s id:9fdb refusal guard, which must agree or a successful write is
+  # followed by a refused drain.
   #
   # Two false-match classes it rejects, both of which caused real damage:
   #   * a BARE SUBSTRING (the original `grep -F "$tok"`) matches the HHMM field of a
@@ -265,7 +269,8 @@ for line in "${_inbox_lines[@]}"; do
   #     re-opens it), so B is then read as "landed". The per-iteration fresh read is
   #     deliberately KEPT — it is what makes a concurrent/earlier write visible, and with
   #     an ownership-anchored predicate the citation no longer registers.
-  if token_marker_in_files "$tok" "$tpath/TODO.md" "$tpath/ROADMAP.md"; then
+  if token_marker_in_files "$tok" "$tpath/TODO.md" "$tpath/ROADMAP.md" \
+    "$tpath/TODO.archive.md" "$tpath/ROADMAP.archive.md"; then
     # Twin present → the item already LANDED in its target. Under vanish-on-resolve
     # (user decision 2026-06-30) an OPEN inbox line for an already-landed item is just
     # un-drained residue: close the loop and remove it. --apply deletes it now; report
@@ -283,7 +288,7 @@ for line in "${_inbox_lines[@]}"; do
 
   if [[ "$APPLY" -eq 0 ]]; then
     # Report-only (slice 1) — unchanged behaviour
-    echo "DEAD-LETTER routed:$tok → [$target] (absent from $tpath/TODO.md+ROADMAP.md): $desc"
+    echo "DEAD-LETTER routed:$tok → [$target] (absent from $tpath/TODO.md+ROADMAP.md and their archives): $desc"
     echo "  ↳ to file: add to $tpath/TODO.md — \"- [ ] [INBOUND routed:$tok from ${src_name:-?}] $desc <!-- id:NEW -->\" (mint NEW via \`$APPEND_SH new-id\`), then \`$APPEND_SH inbox-done $tok\`"
     findings=$((findings+1)); dead=$((dead+1))
   else

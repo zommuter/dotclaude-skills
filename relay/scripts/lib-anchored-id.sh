@@ -231,9 +231,18 @@ token_marker_in_text() {
 }
 
 # token_marker_in_files <tok> <file>... — same own-marker check over one or more files
-# (missing/unreadable files are skipped via grep -s, mirroring scan-routed.sh which greps
-# TODO.md + ROADMAP.md that may not both exist). Return 2 on a malformed <tok>; 0 if
-# present in any file; 1 if absent from all.
+# (missing/unreadable files are skipped via grep -s, mirroring both callers, which since
+# id:1d83 grep TODO.md + ROADMAP.md + TODO.archive.md + ROADMAP.archive.md -- the archives
+# in particular are often absent). Return 2 on a malformed <tok>; 0 if present in any file;
+# 1 if absent from all.
+#
+# CAUTION for a caller choosing its file set (id:1d83 review): form 1 of `_own_marker_re`
+# is NOT line-position-anchored, so a marker QUOTED as an example inside another item's
+# body (`... renders as \`<!-- id:XXXX -->\` ...`) satisfies this predicate. Measured on
+# this repo 2026-09-10: tokens whose ONLY match is such a quote went 2 -> 15 when the two
+# archives were added, because retrospective prose concentrates in the archives. Every
+# file added here widens that surface; the ledger archives are ~2.0 MB against ~0.26 MB
+# live. See the id:c97c block above -- that failure class deleted three inbox items.
 token_marker_in_files() {
   local tok="$1"; shift
   _valid_tok "$tok" || return 2

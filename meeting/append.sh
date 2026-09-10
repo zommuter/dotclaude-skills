@@ -227,9 +227,12 @@ if [[ "${1:-}" == "inbox-done" ]]; then
   # inbox-done is DESTRUCTIVE (vanish-on-resolve) against a LOCAL-ONLY store — a wrong
   # delete is unrecoverable. Before deleting, verify the durable `routed:<token>` twin
   # actually landed in the target repo's committed TODO/ROADMAP; REFUSE otherwise.
-  # Find the token's OWN inbox line (anchored on its trailing marker, NOT a substring —
+  # Find the token's OWN inbox line (anchored on its trailing marker, NOT a substring --
   # do not regress id:411d), extract its [<target>], resolve the repo, and require the
-  # literal `routed:<token>` in that repo's TODO.md OR ROADMAP.md.
+  # literal `routed:<token>` in that repo's TODO.md, ROADMAP.md, TODO.archive.md or
+  # ROADMAP.archive.md (id:1d83 -- an archived closed item is a durable record of landing
+  # too, and archive-done.sh archives aggressively enough that an undated same-session
+  # close can be swept before this check ever runs).
   own_line="$(python3 - "$inbox" "$token" <<'PYEOF'
 import re, sys, pathlib
 path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
@@ -255,12 +258,13 @@ PYEOF
   tgt_path="$(resolve_target "$target" || true)"
   twin_found=0
   if [[ -n "$tgt_path" ]]; then
-    if token_marker_in_files "$token" "$tgt_path/TODO.md" "$tgt_path/ROADMAP.md"; then
+    if token_marker_in_files "$token" "$tgt_path/TODO.md" "$tgt_path/ROADMAP.md" \
+      "$tgt_path/TODO.archive.md" "$tgt_path/ROADMAP.archive.md"; then
       twin_found=1
     fi
   fi
   if [[ "$twin_found" -ne 1 ]]; then
-    echo "inbox-done: REFUSING to delete routed:$token — its durable twin (\`routed:$token\`) was NOT found in [$target]'s TODO.md/ROADMAP.md${tgt_path:+ ($tgt_path)}." >&2
+    echo "inbox-done: REFUSING to delete routed:$token — its durable twin (\`routed:$token\`) was NOT found in [$target]'s TODO.md, ROADMAP.md, TODO.archive.md or ROADMAP.archive.md${tgt_path:+ ($tgt_path)}." >&2
     [[ -z "$tgt_path" ]] && echo "  (target repo '[$target]' could not be resolved on disk via RELAY_TOML # path: or \$SRC_DIR/$target)" >&2
     echo "  This delete is DESTRUCTIVE and UNRECOVERABLE for the local-only inbox store." >&2
     echo "  Safe path: run 'relay/scripts/scan-routed.sh --apply' (writes the twin, then resolves)," >&2
