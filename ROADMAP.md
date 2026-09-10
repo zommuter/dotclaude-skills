@@ -178,3 +178,20 @@ be fully green (see CLAUDE.md §Testing for the expected-red semantics).
   - **Done-check**: relay/scripts/todo-conformance.sh TODO.md | grep -c grammar-item-title-long shows the reduced count; python3 tools/shrink-acceptance.py --before <snapshot> --after TODO.md --notes-dir docs/ledger-notes exits 0
   - **Context**: TODO.md, docs/ledger-notes/<id>.md for each rewritten item
 
+
+## 2026-09-10 review-minted tokens promoted (owner-ratified)
+
+Three tokens were minted by reviews so the work they name "cannot vanish inside a closed
+item", and all three then vanished anyway: `token_marker_in_files` found `fe67`, `02fe` and
+`a192` ABSENT from `TODO.md`, `ROADMAP.md`, `TODO.archive.md` and `ROADMAP.archive.md`.
+Promoted here by owner ruling 2026-09-10. Two of the three are `- [x]` backfills, because the
+work is genuinely done and an open line would be false.
+
+- [ ] [INPUT - decision] **Fault (a) of `routed:71c6`: an excluded-but-open item still pins the classifier verdict -- rule on whether the dispatch brief's exclusion set reaches `classify-verdict.sh`, or close (a) as WONTFIX on the second-pass relief.** -- detail: `docs/ledger-notes/fe67.md` <!-- relates:4e84 --> <!-- id:fe67 -->
+  - **Done-check**: an owner ruling is on the record in `docs/ledger-notes/fe67.md`, and EITHER `classify-verdict.sh` gains an exclusion input (a new SOURCE for the existing `--exclude` cascade of `id:bc2b`, not a new mechanism) with a spec pinning the measured ladder -- no flag gives `execute`, `--exclude execute` gives `hard`, `--exclude execute,hard` gives `handoff`, plus `handoff` gives `idle` -- OR this item is ticked WONTFIX with the second-pass-relief reasoning written into the note.
+  - **Context**: `docs/ledger-notes/fe67.md`, `docs/ledger-notes/4e84.md`, `relay/scripts/classify-verdict.sh`. Fault (b) of the same inbound report shipped as `id:4e84` and is green; only (a) is carried here.
+- [x] [ROUTINE] **`[repos."zom.fi"]` quoted repo sections: a repo name is not the string-matcher's to choose. Shipped `f6fa91d1`; backfilled 2026-09-10 by owner ruling so `id:9220`'s `relates:02fe` edge resolves to a line some ledger owns.** -- detail: `docs/ledger-notes/02fe.md` <!-- relates:9220 --> <!-- id:02fe --> on 2026-09-10
+  - **Done-check**: `bash tests/test_repo_section_quoting_02fe.sh` exits 0 (14 hermetic cases; no `# roadmap:` header, so its failures always count). Re-run at backfill time 2026-09-10: exit 0.
+- [x] [ROUTINE] **`expires-on:` typed edge plus `relay/scripts/expires-on-scan.sh` -- a clause that is only correct until an item closes declares its own expiry, and the scanner reports it once that item closes. Shipped `91264d35`; backfilled 2026-09-10 by owner ruling so an id-keyed scan can see it.** -- detail: `docs/ledger-notes/a192.md` <!-- id:a192 --> on 2026-09-10
+  - **Done-check**: `bash tests/test_expires_on_edge_guard_a192.sh` exits 0, and `make install` symlinks `expires-on-scan.sh` (the install-manifest test caught that it would otherwise not). Re-run at backfill time 2026-09-10: exit 0.
+  - **Residue, NOT covered by this close**: nothing wires a non-test entry point that passes `EXPIRES_ON_EXTRA_PATHS`, so the motivating clause in `~/.claude/CLAUDE.md` -- outside this repo, unreachable by the hermetic test -- is still unguarded. Two owner rulings from 2026-09-10 also live in the note: the inflownistration carve stays parked, and an instance row in `inflownistration/docs/instances.md` is approved but not yet written.

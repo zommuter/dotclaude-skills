@@ -1155,7 +1155,7 @@ address it at all -- it refuses loudly (`regex_sub id(s) not found`), correctly,
 anchoring rule. It was resolved via `update-sections` instead, which is still under the flock. Any
 future REVIEW_ME box that wants to be machine-resolvable needs the HTML-comment marker.
 
-- [ ] **`id:02fe` names landed, tested work that has NO ledger line anywhere — the token exists
+- [x] **`id:02fe` names landed, tested work that has NO ledger line anywhere — the token exists
   only in a commit message, a test filename, and one `relates:` edge.** Commit `f6fa91d1`
   ("a repo name is not the string-matcher's to choose (id:02fe)") and
   `tests/test_repo_section_quoting_02fe.sh` (160 lines, green) fix the `[repos."zom.fi"]`
@@ -1170,6 +1170,8 @@ future REVIEW_ME box that wants to be machine-resolvable needs the HTML-comment 
   `ROADMAP.archive.md` reusing `02fe` so the edge resolves, or accept that a fix landed with no
   ledger entry. Owner's call — a reviewer should not mint a closed item's history unasked.
   Found by relay review, run relay-20260908-174448-4421.
+
+  Owner-ratified 2026-09-10: backfill chosen over accept-no-entry. `id:02fe` is now `- [x] [ROUTINE]` under ROADMAP.md "## 2026-09-10 review-minted tokens promoted (owner-ratified)", with a hand-authored `docs/ledger-notes/02fe.md` reconstructed from commit `f6fa91d1` and this box (the note says so in its header and carries no verbatim claim). `id:9220`s `relates:02fe` edge now resolves to a line a ledger owns; `tests/test_repo_section_quoting_02fe.sh` re-run green (exit 0, 2026-09-10). No code changed and nothing was reopened.
 
 ## Review 2026-09-08b (chain-end re-ask, run `relay-20260908-231617-32609` -- id:8123)
 
@@ -1578,7 +1580,7 @@ after integrate.
   all 9 review defects fixed and the suite reports `637 passed, 0 failed, 0 errored, 1
   expected-red`. No exemption was minted and the headerless spec kept its header-less shape.
   Re-check: `git show 69587e46 --stat` and `make test`.
-- [ ] **`id:4e84` is ticked although HALF of what `routed:71c6` filed did not ship -- confirm the
+- [x] **`id:4e84` is ticked although HALF of what `routed:71c6` filed did not ship -- confirm the
   split rather than the tick.** The inbound report named two faults. Fault (b) (strict rank order
   starves apex and handoff) is fixed and independently verified: spec cases A-G green, and the
   declared mutation reddens at the declared assertion, not an earlier one. Fault (a) (an
@@ -1590,7 +1592,9 @@ after integrate.
   stay open until (a) is answered, reopen both lines -- `ROADMAP.md` `id:4e84` and its
   `TODO.md` twin.
 
-- [ ] **`id:a192` shipped, is green, and has NO ledger line anywhere -- the token exists only in
+  Owner-ratified 2026-09-10: fault (a) now has its own ROADMAP line. `id:fe67` is `- [ ] [INPUT - decision]` under ROADMAP.md "## 2026-09-10 review-minted tokens promoted (owner-ratified)", pointing at `docs/ledger-notes/fe67.md`, with a Done-check naming both admissible outcomes (exclusion input with the measured ladder pinned, or WONTFIX on the second-pass relief). The parent `id:4e84` stays ticked; the split is confirmed, not the tick.
+
+- [x] **`id:a192` shipped, is green, and has NO ledger line anywhere -- the token exists only in
   commits and its own detail note.** The `expires-on:` edge plus `relay/scripts/expires-on-scan.sh`
   landed in `91264d35` with a verified negative case, and `grep -rn 'id:a192'` finds nothing in
   `TODO.md`, `ROADMAP.md` or either archive. Nothing is open, so nothing is starved -- but
@@ -1598,6 +1602,8 @@ after integrate.
   all id-keyed, so a shipped feature that no checkbox ever described is invisible to every one of
   them. Same class as the already-open box on `id:02fe`; recording it here rather than
   retro-filing a closed item, which is your call, not mine.
+
+  Owner-ratified 2026-09-10: retro-filed as CLOSED, not open. `id:a192` is now `- [x] [ROUTINE]` under ROADMAP.md "## 2026-09-10 review-minted tokens promoted (owner-ratified)" -- the work shipped in `91264d35` and `tests/test_expires_on_edge_guard_a192.sh` re-runs green (exit 0, 2026-09-10), so an open line would have been false. The line records the residue explicitly: nothing wires a non-test `EXPIRES_ON_EXTRA_PATHS` entry point, so the motivating clause in `~/.claude/CLAUDE.md` stays unguarded, and the two owner rulings stay in `docs/ledger-notes/a192.md`. The id-keyed scans (orphan-scan --cross-ledger, unpromoted-scan, expires-on-scan DANGLING) can now see the token.
 
 - [ ] **NEW `roadmap-lint` WARN, introduced by this window: `id:32c3` trips DECIDED-LEFT-OPEN.**
   Its hand-promoted ROADMAP line carries "the CLAUDE.md (c) amendment's 'belongs to (b)' clause is
