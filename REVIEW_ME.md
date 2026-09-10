@@ -1525,7 +1525,7 @@ of `make test`). No e2e/integration tier is declared. `orphan-scan --cross-ledge
 `inbox-done`'d here, since the twin-guard reads the MAIN checkout and auto-reconcile drains them
 after integrate.
 
-- [ ] **The suite is RED at HEAD on purpose, and that makes the executor contract's
+- [x] **The suite is RED at HEAD on purpose, and that makes the executor contract's
   definition-of-done unreachable for every future unit in this repo.**
   `tests/test_inbox_own_token_extractor_0246.sh` deliberately carries NO `# roadmap:` header, so
   its failures always count; the implementation it specs was REVERTED (`eb2587fd`) after the
@@ -1539,6 +1539,12 @@ after integrate.
   expiry (`<!-- expires-on:0246 -->` now exists for exactly this, via `id:a192`), or accept a red
   suite and tell executors so explicitly.
 
+  RESOLVED 2026-09-10 (relay human, tier-(a)): the premise is gone. D5 and D6 were both
+  ruled on 2026-09-10 (D5 refuse an indented line LOUDLY; D6 DISSOLVED -- reject a multi-marker
+  inbox line at write time), so `id:0246` was no longer blocked. It re-landed as `69587e46` with
+  all 9 review defects fixed and the suite reports `637 passed, 0 failed, 0 errored, 1
+  expected-red`. No exemption was minted and the headerless spec kept its header-less shape.
+  Re-check: `git show 69587e46 --stat` and `make test`.
 - [ ] **`id:4e84` is ticked although HALF of what `routed:71c6` filed did not ship -- confirm the
   split rather than the tick.** The inbound report named two faults. Fault (b) (strict rank order
   starves apex and handoff) is fixed and independently verified: spec cases A-G green, and the
