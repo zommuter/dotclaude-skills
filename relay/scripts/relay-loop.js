@@ -1952,6 +1952,31 @@ async function mechVerdictHop(note, command, label) {
   )
   return parseVerdictClass(raw)
 }
+// id:4e84 — sibling of mechVerdictHop that returns the WHOLE classifier reply object, not just
+// the verdict string. parseVerdictClass (above) deliberately narrows to the verdict alone, which
+// is correct for its two existing callers but throws away fields a caller may need to carry
+// forward onto a NEW unit — e.g. the chain-end re-ask's `intensive` claim (id:5ac6 invariant:
+// non-empty only for execute/hard). Same shape, same parse strictness, same fall-back-null-on-
+// anything-unparseable contract; only the return value differs.
+function parseVerdictObject(raw) {
+  const text = (raw == null) ? '' : String(raw)
+  if (/^MECH-ERROR exit=/.test(text)) return null
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  try {
+    const obj = JSON.parse(text.slice(start, end + 1))
+    return (obj && typeof obj.verdict === 'string' && obj.verdict) ? obj : null
+  } catch (_) { return null }
+}
+async function mechVerdictHopFull(note, command, label) {
+  const raw = await agent(
+    'Run EXACTLY this one command and report its stdout VERBATIM (' + note + '):\n' +
+    '```relay-mech\n' + command + '\n```',
+    { label, phase: 'Classify', model: MECH_MODEL }
+  )
+  return parseVerdictObject(raw)
+}
 
 // ── id:a615 — PER-DISPATCH STOP-SENTINEL CHECK ──────────────────────────────────────────────
 // The round-boundary check in discover-prelude (id:c012 step 8) is structurally unreachable
@@ -4595,10 +4620,18 @@ async function runUnit(unit) {
     chainEndReasked.add(unit.repo)
     unit.chainEnded = true            // read by integrate()'s step-7a postSig (discover-sig input)
     unit.chainEndReason = chainEndReason
-    let chainEndVerdict = null
+    // id:4e84 — the exclusion set is THIS RUN's dispatches for THIS repo, read off the
+    // redispatchGuard keys (`${repo}:${verdict}`) already recorded at dispatch time — NOT the
+    // id:365b breaker's >3x-same-verdict condition, which is false on round 1, exactly when
+    // starvation begins (docs/ledger-notes/4e84.md). Demote-only, same as the id:bc2b hop.
+    const chainEndExclude = Object.keys(redispatchGuard)
+      .filter(k => k.startsWith(unit.repo + ':'))
+      .map(k => k.slice(unit.repo.length + 1))
+      .filter(Boolean)
+    let chainEndResult = null
     try {
-      chainEndVerdict = await mechVerdictHop(
-        'chain-end classifier RE-ASK for ' + unit.repo + ' — id:8123; the loop supplies only the chain-end FACT, classify-verdict.sh decides the verdict',
+      chainEndResult = await mechVerdictHopFull(
+        'chain-end classifier RE-ASK for ' + unit.repo + ' — id:8123/id:4e84; the loop supplies only the chain-end FACT plus this run\'s already-dispatched classes, classify-verdict.sh decides the verdict',
         // id:5552 — the `| jq -c '. + {chain_ended:true,…}' |` middle stage is GONE:
         // classify-repo.sh now owns the field via --chain-ended. `jq` is not in
         // mechanical-proxy.py's _SAFE_PLUMBING, so _command_allowed() refused this whole
@@ -4607,25 +4640,40 @@ async function runUnit(unit) {
         // _command_allowed on the exact string). Two pinned relay scripts pass the gate.
         // id:ba7e — DELIBERATE canonical-checkout use, same rationale as the id:907e re-ask
         // above: a PARENT-side mechanical hop that must classify the repo's real main state.
-        `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}' --emit unit --chain-ended '${String(chainEndReason).replace(/'/g, "'\\''")}' | ~/.claude/skills/relay/scripts/classify-verdict.sh`,
+        `~/.claude/skills/relay/scripts/classify-repo.sh --repo '${unit.repo}' --path '${unit.path}' --emit unit --chain-ended '${String(chainEndReason).replace(/'/g, "'\\''")}' | ~/.claude/skills/relay/scripts/classify-verdict.sh` +
+          (chainEndExclude.length ? ' --exclude ' + mechArg(chainEndExclude.join(',')) : ''),
         `chain-end-reask:${unit.repo}`
       )
     } catch (err) {
       log(`relay-loop: id:8123 chain-end re-ask for ${unit.repo} failed (${err})`)
     }
-    if (chainEndVerdict === 'review' && !quotaStopped) {
+    const chainEndVerdict = (chainEndResult && typeof chainEndResult.verdict === 'string') ? chainEndResult.verdict : null
+    // id:4e84 — widen the accepted set from 'review' alone to the whole DISPATCHABLE set
+    // (relay-loop.js:1705 — execute|hard|handoff — plus review, the shipped id:8123 behaviour).
+    // idle/blocked/mechanical/human stay non-dispatchable, mirroring the id:bc2b demote escapes.
+    if (chainEndVerdict && (chainEndVerdict === 'review' || chainEndVerdict === 'execute' || chainEndVerdict === 'hard' || chainEndVerdict === 'handoff') && !quotaStopped) {
       queue.push({
-        repo: unit.repo, path: unit.path, verdict: 'review',
-        reason: `chain-end review re-ask (${chainEndReason}): classify-verdict.sh returned review for the chain just ended (id:8123)`,
+        repo: unit.repo, path: unit.path, verdict: chainEndVerdict,
+        reason: `chain-end ${chainEndVerdict} re-ask (${chainEndReason}): classify-verdict.sh returned ${chainEndVerdict} for the chain just ended (id:8123/id:4e84)`,
         lastCkpt: unit.lastCkpt, income: unit.income, chainEndReask: true,
+        // id:4e84 — carry the RE-CLASSIFIED intensive claim for the NEW verdict (id:5ac6
+        // invariant: non-empty only for execute/hard), never the suppressed lane's old claim
+        // (contrast the id:bc2b demote path above, which correctly blanks it instead).
+        intensive: (chainEndResult && typeof chainEndResult.intensive === 'string') ? chainEndResult.intensive : '',
       })
-      log(`relay-loop: id:8123 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says review; enqueued`)
+      log(`relay-loop: id:8123/id:4e84 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says ${chainEndVerdict}; enqueued`)
     } else if (!chainEndVerdict) {
       // NAMED ESCAPE — surfaced-and-skipped, never a silent drop and never a halt.
       state.queued.push({ repo: unit.repo, verdict: `review (id:8123 chain-end re-ask unanswered — surfaced, skipped this round)` })
       log(`relay-loop: id:8123 CHAIN-END ESCAPE — no readable verdict for ${unit.repo} after a chain end (${chainEndReason}); surfaced-and-skipped, next round re-derives (discover-sig carries the chain_ended fact)`)
     } else {
-      log(`relay-loop: id:8123 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says ${chainEndVerdict}; no review owed`)
+      // id:4e84 — wording follows the widening: this branch no longer means "no review owed"
+      // (it said that when `review` was the only accepted verdict, and the pre-fix red output
+      // quoted it while silently dropping a `hard`). It now means the classifier named a
+      // NON-DISPATCHABLE class — idle / blocked / mechanical / human — which is a legitimate
+      // answer, not an escape. Naming the class is the point: a log line that misstates WHY
+      // nothing happened is the same adjacent-surface trap as id:3f59.
+      log(`relay-loop: id:8123/id:4e84 chain-end re-ask ${unit.repo} (${chainEndReason}) → classifier says ${chainEndVerdict}, a non-dispatchable class; nothing enqueued`)
     }
   }
 
