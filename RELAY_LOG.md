@@ -3495,3 +3495,7 @@ id:c655 landed: relay/scripts/todo-conformance.sh's head-length and shape-prose 
 ## 2026-09-10 12:21 — executor (sonnet, relay-loop)
 
 id:aa5e: relay_FILES now ships the head-length/shape-prose baseline files so make install-relay stops the ratchet going INERT [id:aa5e]
+
+## 2026-09-10 20:47 — integrate (claude-opus-5)
+
+handoff lane sliced via unpromoted-scan (id:a060) + cross-ledger note dedupe (id:1737); loderite handoff 417,734 -> ~1,679 tok
