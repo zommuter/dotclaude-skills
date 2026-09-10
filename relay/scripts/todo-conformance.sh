@@ -849,6 +849,21 @@ classify_inbox() {
   [[ "$l" =~ ^# ]] && return 0                          # the inbox `#` comment header lines
   # conforming routed entry: checkbox + [target] + routed token
   if [[ "$l" =~ ^-\ \[[\ xX]\]\ \[.+\]\  ]] && grep -qP '<!-- routed:[0-9a-f]{4} -->' <<<"$l"; then
+    # MULTI-MARKER (id:0246 D6, owner ruling 2026-09-10 -- the question "does the refusal
+    # extend to a line that merely CITES the token" was DISSOLVED rather than answered:
+    # such a line should not EXIST). An inbox entry carrying more than one anchored
+    # `routed:` marker cannot be attributed by any resolver (id:6059 refuses it), so it can
+    # never be drained -- it is malformed, and nothing used to say so. The ambiguity is
+    # MANUFACTURED by spelling a citation in the owning comment form; the conforming
+    # spelling of a citation is a bare backticked token. Reported here (the lint half) and
+    # rejected by `append.sh -t inbox` at WRITE time (the prevention half); the resolver
+    # refusal stays as the backstop.
+    local mm
+    mm="$(marker_tokens_of_line "$l" routed | tr '\n' ' ')"
+    if [[ "$(wc -w <<<"$mm")" -gt 1 ]]; then
+      echo "multi-marker (${mm% })"
+      return 0
+    fi
     return 0
   fi
   echo "orphan"

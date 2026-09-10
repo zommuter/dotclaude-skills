@@ -37,6 +37,11 @@
 #     --dry-run         with --apply: print plan, write nothing
 #     --exclude <repo>  drop that target repo from the dead-letter scan (repeatable)
 #   Unknown flag / unreadable inbox = LOUD reject (nonzero). No silent 2>/dev/null swallow.
+#
+# EXIT STATUS: 0 = the scan ran (findings alone do NOT make it nonzero -- it is a report);
+#   1/2 = misuse; 4 = --apply asked `append.sh inbox-done` to drain a line and the drain
+#   did NOT succeed (id:0246 D3). A failed drain is a state change that did not happen, so
+#   it must be visible without parsing prose.
 set -euo pipefail
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -79,6 +84,10 @@ resolve_inbox() {
 INBOX_DEFAULT="$(resolve_inbox)"
 
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+# Scratch file for the shared own-token extractor's stderr (id:0246). Created once, reaped
+# on exit; see the capture in the dead-letter loop for why it is not `2>>"$LOG"`.
+OWN_ERR="$(mktemp)"
+trap '[ -e "$OWN_ERR" ] && rm -- "$OWN_ERR"' EXIT
 log() { printf '%s scan-routed.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }
 
 # --- own repos from relay.toml (same parser as relay-doctor / unpromoted-scan) ---------
@@ -215,15 +224,52 @@ else
 fi
 dead=0
 resolved=0
+# failed_drains (id:0246 D3): a drain that did not happen. It reaches the SUMMARY and the
+# EXIT STATUS, because the only thing worse than a failed drain is a failed drain reported
+# as a clean run.
+failed_drains=0
+# refusals (id:0246 D4): lines this pass REFUSED to attribute (multi-marker / indented).
+# They are neither dead letters nor resolvable -- but a pass that refused to ask the
+# question must never print `clean`, which is a claim about an answer it does not have.
+refusals=0
 # Read the inbox into memory BEFORE looping: in --apply mode we call `inbox-done`
 # (which now DELETES lines, vanish-on-resolve), and a `done < "$inbox"` live-fd loop
 # would have its read offset corrupted by the file shrinking mid-iteration — skipping
 # later items. Iterating an in-memory snapshot decouples iteration from mutation.
 mapfile -t _inbox_lines < "$inbox"
 for line in "${_inbox_lines[@]}"; do
-  # OPEN conforming routed item only: `- [ ] [target] … <!-- routed:XXXX -->`
-  [[ "$line" =~ ^-\ \[\ \]\ \[ ]] || continue
-  tok="$(head -1 < <(grep -oP '(?<=<!-- routed:)[0-9a-f]{4}(?= -->)' <<<"$line") || true)"
+  # OPEN routed item only: `- [ ] [target] … <!-- routed:XXXX -->`. Leading whitespace is
+  # ALLOWED THROUGH on purpose (id:0246 D5): an indented entry used to be dropped here
+  # without a word, which is the silent no-op this item exists to kill. The shared
+  # extractor below refuses it LOUDLY and it is reported as a finding.
+  [[ "$line" =~ ^[[:space:]]*-\ \[\ \]\ \[ ]] || continue
+  # id:0246 -- the shared extractor, not a bare `head -1` over every anchored marker on
+  # the line. `head -1` attributed a line to whichever token it CITES first in prose
+  # (both live inbox items do this), never its own trailing marker; inbox_line_own_token
+  # tolerates trailing prose (id:798d) and REFUSES on a multi-marker line (id:6059).
+  #
+  # A REFUSAL IS A FINDING, not a `continue` (id:0246 D4): it used to `log; continue` with
+  # nothing on stdout and no findings++, so a line the tool REFUSED TO ASK ABOUT could
+  # vanish into `clean (no dead letters; nothing to drain)` -- a false clean, which is
+  # worse than the wrong answer it replaced.
+  own_rc=0
+  # stderr goes to a scratch file, then into the log via log() -- NOT `2>>"$LOG"`, whose
+  # redirection would itself fail (and be misread as "this line owns nothing") if the log
+  # directory could not be created, and NOT `2>/dev/null`, which is the banned swallow.
+  own_tok_out="$(inbox_line_own_token "$line" "$inbox" 2>"$OWN_ERR")" || own_rc=$?
+  [[ -s "$OWN_ERR" ]] && log "own-token-stderr: $(tr '\n' ' ' < "$OWN_ERR")"
+  if [[ $own_rc -eq "$OWN_ID_AMBIGUOUS" ]]; then
+    echo "AMBIGUOUS-OWNER inbox line carries MORE THAN ONE anchored routed marker, so no verdict can be attributed to it (id:6059/id:0246); it can never be drained until the quoted marker is de-literalised: $line"
+    log "ambiguous-own-token line=$line"
+    findings=$((findings+1)); refusals=$((refusals+1)); continue
+  elif [[ $own_rc -eq "${INBOX_LINE_INDENTED:-4}" ]]; then
+    echo "INDENTED inbox line is not a conforming entry (must start at column 0) and no resolver can own it (id:0246 D5): $line"
+    log "indented-inbox-line line=$line"
+    findings=$((findings+1)); refusals=$((refusals+1)); continue
+  elif [[ $own_rc -ne 0 ]]; then
+    continue
+  fi
+  tok="${own_tok_out#routed:}"
   [[ -z "$tok" ]] && continue
   target="$(head -1 < <(grep -oP '^- \[ \] \[\K[^\]]+' <<<"$line") || true)"
   [[ -z "$target" ]] && continue
@@ -276,13 +322,29 @@ for line in "${_inbox_lines[@]}"; do
     # un-drained residue: close the loop and remove it. --apply deletes it now; report
     # mode surfaces it as RESOLVABLE so the drain is visible (NOT a dead letter).
     if [[ "$APPLY" -eq 1 ]]; then
-      "$APPEND_SH" inbox-done "$tok" 2>/dev/null || true
-      echo "RESOLVED routed:$tok → [$target] (twin present in $tpath; removed from inbox)"
-      log "resolved-twinned routed=$tok target=$target path=$tpath"
+      # id:0246 (D3, case 10) -- the drain's own exit status is PROPAGATED, and a FAILED
+      # drain is NOT counted as resolved. The prior `2>/dev/null || true` swallowed both a
+      # nothing-to-delete no-op (exit 0, line survives) and a refusal (nonzero), so this
+      # script printed a false `RESOLVED` in either case; and `resolved++` sat OUTSIDE the
+      # branch, so even after the message was withheld the SUMMARY still reported the item
+      # as drained and the run still exited 0. Counting a failure as a success is the same
+      # defect one layer up (id:4347 no-silent-swallow, id:d35a silent no-op).
+      done_rc=0
+      "$APPEND_SH" inbox-done "$tok" 2>"$OWN_ERR" || done_rc=$?
+      [[ -s "$OWN_ERR" ]] && log "inbox-done-stderr routed=$tok: $(tr '\n' ' ' < "$OWN_ERR")"
+      if [[ $done_rc -eq 0 ]]; then
+        echo "RESOLVED routed:$tok → [$target] (twin present in $tpath; removed from inbox)"
+        log "resolved-twinned routed=$tok target=$target path=$tpath"
+        resolved=$((resolved+1))
+      else
+        echo "STILL-PRESENT routed:$tok → [$target] (twin present in $tpath, but the drain did NOT succeed -- rc=$done_rc; the inbox line survives, see $LOG)"
+        log "resolved-twinned-drain-failed routed=$tok target=$target path=$tpath rc=$done_rc"
+        failed_drains=$((failed_drains+1)); findings=$((findings+1))
+      fi
     else
       echo "RESOLVABLE routed:$tok → [$target] (already landed in $tpath; run --apply to drain from inbox)"
+      resolved=$((resolved+1))
     fi
-    resolved=$((resolved+1))
     continue
   fi
 
@@ -345,22 +407,41 @@ for line in "${_inbox_lines[@]}"; do
         "TODO.md" \
         || log "commit-ledger non-fatal error for $target routed=$tok"
 
-      # Mark inbox item as done (best-effort; default inbox path may differ)
-      "$APPEND_SH" inbox-done "$tok" 2>/dev/null || true
+      # Mark inbox item as done. Same id:0246 D3 treatment as the twinned-drain call
+      # above: the status is propagated and a failure is surfaced, not swallowed. The
+      # stub HAS landed at this point, so a failed drain is not fatal to the ingest --
+      # but it leaves an un-drained inbox line that a "clean" report would deny.
+      done_rc=0
+      "$APPEND_SH" inbox-done "$tok" 2>"$OWN_ERR" || done_rc=$?
+      [[ -s "$OWN_ERR" ]] && log "inbox-done-stderr routed=$tok: $(tr '\n' ' ' < "$OWN_ERR")"
+      if [[ $done_rc -ne 0 ]]; then
+        echo "  ↳ STILL-PRESENT routed:$tok -- the stub landed but the inbox drain did NOT succeed (rc=$done_rc; see $LOG)"
+        log "post-stub-drain-failed routed=$tok target=$target rc=$done_rc"
+        failed_drains=$((failed_drains+1))
+      fi
     fi
   fi
 done
-[[ "$dead" -eq 0 && "$resolved" -eq 0 ]] && echo "clean (no dead letters; nothing to drain)"
+[[ "$dead" -eq 0 && "$resolved" -eq 0 && "$failed_drains" -eq 0 && "$refusals" -eq 0 ]] && echo "clean (no dead letters; nothing to drain)"
 [[ "$dead" -eq 0 && "$resolved" -gt 0 ]] && echo "no dead letters ($resolved already-landed item(s) drained/drainable)"
+[[ "$refusals" -gt 0 ]] && echo "NOT CLEAN: $refusals inbox line(s) could not be ATTRIBUTED at all (see AMBIGUOUS-OWNER/INDENTED above) -- their dead-letter question was never asked"
+[[ "$failed_drains" -gt 0 ]] && echo "NOT CLEAN: $failed_drains drain(s) FAILED -- those inbox lines are still present"
 echo
 
 echo "=== summary ==="
+fd_note=""
+[[ "$refusals" -gt 0 ]] && fd_note=" $refusals unattributable line(s) REFUSED."
+[[ "$failed_drains" -gt 0 ]] && fd_note="$fd_note $failed_drains FAILED drain(s) -- inbox line(s) still present."
 if [[ "$APPLY" -eq 1 && "$DRY_RUN" -eq 1 ]]; then
-  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved, $resolved twinned-resolvable. APPLY DRY-RUN: no writes performed."
+  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved, $resolved twinned-resolvable. APPLY DRY-RUN: no writes performed.$fd_note"
 elif [[ "$APPLY" -eq 1 ]]; then
-  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved (class-A stubs written), $resolved twinned item(s) drained from inbox (vanish-on-resolve)."
+  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved (class-A stubs written), $resolved twinned item(s) drained from inbox (vanish-on-resolve).$fd_note"
 else
-  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved, $resolved twinned-resolvable. REPORT-ONLY (run --apply to write stubs + drain twinned items, id:678e)."
+  echo "scan-routed: $findings finding(s) — $dead dead-letter/unresolved, $resolved twinned-resolvable. REPORT-ONLY (run --apply to write stubs + drain twinned items, id:678e).$fd_note"
 fi
-log "inbox=$inbox findings=$findings dead=$dead resolved=$resolved apply=$APPLY dry_run=$DRY_RUN"
+log "inbox=$inbox findings=$findings dead=$dead resolved=$resolved refusals=$refusals failed_drains=$failed_drains apply=$APPLY dry_run=$DRY_RUN"
+# EXIT STATUS (id:0246 D3): findings alone stay exit 0 -- this is a report. A FAILED DRAIN
+# is different in kind: --apply was asked to change the store and did not, so the caller
+# must be able to tell without parsing prose. 4 keeps it distinct from the misuse exits.
+[[ "$failed_drains" -gt 0 ]] && exit 4
 exit 0

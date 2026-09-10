@@ -288,6 +288,45 @@ checkbox_line_owns_token() {
   own_token_of_line "$line" "$ctx"
 }
 
+# --- INBOX LINE OWNERSHIP (id:0246) --------------------------------------------
+# Three call sites each re-derived "which token owns this inbox line" differently and
+# disagreed: scan-routed.sh took the FIRST anchored `routed:` marker (`head -1`),
+# append.sh's `-t inbox` add path took the LAST (`tail -1`), and append.sh's `inbox-done`
+# anchored on END-OF-LINE, under which a marker followed by trailing prose (legal, id:798d)
+# owns NOTHING at all. `inbox_line_own_token` is the one shared answer all three now call,
+# so the anchoring cannot be re-derived wrongly a third time (it already was, twice -- see
+# docs/ledger-notes/0246.md).
+
+# INBOX_LINE_INDENTED is the return status for the id:0246 D5 refusal below. It is
+# DISTINCT from 1 ("not an inbox entry at all") on purpose: 1 is a silent, correct
+# no-answer for the store's `#` header and for free prose, whereas an INDENTED checkbox
+# line is a malformed ENTRY, and the owner's 2026-09-10 ruling is that it must be refused
+# LOUDLY. The defect that ruling fixes was a SILENT exit-0 no-op, not the strictness.
+INBOX_LINE_INDENTED=4
+
+# inbox_line_own_token <line> [context] -- print "routed:XXXX" for <line>'s own anchored
+# `routed:` marker, or nothing. A non-checkbox line (e.g. the inbox's own
+# `# Line format: ...` header, which carries a marker-shaped string) owns nothing, even
+# with exactly one marker present -- only a column-0 `- [ ]`/`- [x]` line can own a token
+# at all. Otherwise this IS own_routed_of_line: trailing PROSE after the marker does not
+# destroy ownership (id:798d), a bare prose citation never counts (id:411d/id:c97c), and
+# more than one anchored marker on the line is the id:6059 ambiguity -- REFUSE rather than
+# guess (own_routed_of_line's existing spelling is reused verbatim, not reinvented).
+#   exit 0 -- resolved, "routed:XXXX" on stdout
+#   exit 1 -- not a checkbox line, or a checkbox line with no anchored routed marker
+#   exit $OWN_ID_AMBIGUOUS (3) -- more than one anchored routed marker: refused, loud
+#   exit $INBOX_LINE_INDENTED (4) -- an INDENTED checkbox line: refused, loud (D5)
+inbox_line_own_token() {
+  local line="$1" ctx="${2:-}"
+  if [[ "$line" =~ ^[[:space:]]+-[[:space:]]+\[[\ xX]\] ]]; then
+    echo "lib-anchored-id: INDENTED inbox checkbox line${ctx:+ at $ctx} -- an inbox entry MUST be ONE line starting at column 0 ('- [ ] [target] <desc> <!-- routed:XXXX -->'). An indented line is not an entry the drain can own, and answering 'no owner' silently is the id:d35a no-op class; REFUSING loudly instead (id:0246 D5, owner ruling 2026-09-10). Un-indent the line and re-run:" >&2
+    echo "  $line" >&2
+    return "$INBOX_LINE_INDENTED"
+  fi
+  [[ "$line" =~ ^-\ \[[\ xX]\] ]] || return 1
+  own_routed_of_line "$line" "$ctx"
+}
+
 # token_owned_by_checkbox_in_files <tok> <closed_only:0|1> <file>... -- return 0 iff
 # some checkbox line in one of <file>... OWNS <tok> (id:TOK or routed:TOK, via
 # checkbox_line_owns_token), narrowed to `- [x]`/`- [X]` lines when <closed_only> is

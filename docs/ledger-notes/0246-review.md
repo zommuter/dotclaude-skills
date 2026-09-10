@@ -1,5 +1,31 @@
 # id:0246 -- REVIEW FINDINGS, and why the implementation was REVERTED (2026-09-10)
 
+> **STATUS, appended 2026-09-10 after the re-land. This note is now HISTORY, not a
+> prescription.** All nine findings below were fixed and the item re-landed. What changed
+> against the reverted `6d5befed`: the drain follows the `personas.md` symlink-safe pattern
+> (`os.path.realpath` -> temp in the resolved parent -> `os.chmod` -> `os.replace`) with a
+> post-write read-back, so D1/D7/D8 are gone by construction; the add path REJECTS a
+> multi-marker entry at WRITE time (nothing appended), which dissolves D2 rather than
+> renaming its exit status; the `inbox-done` scan is EXHAUSTIVE so an unambiguous owner
+> beats a decoy refusal seen earlier (D6), with the id:6059 refusal kept as the backstop;
+> an INDENTED line is refused LOUDLY via a distinct status (D5, owner ruling);
+> `scan-routed.sh` counts refusals and failed drains, surfaces both, and exits 4 on a
+> failed drain (D3/D4); and spec case 8 now asserts the POSITIVE receipt as well as the
+> refusal (D9). Two test files pin all of it, both verified in BOTH directions by
+> `verify-negative-cases.py`: `tests/test_inbox_own_token_extractor_0246.sh` (the spec,
+> red against `d7861a6a`) and `tests/test_inbox_done_destructive_defects_0246.sh` (the
+> defect fixes, red against `6d5befed` itself).
+>
+> The "FOURTH live opinion" (`todo-conformance.sh --inbox` calling the id:798d legal shape
+> `shape-prose`) is UNCHANGED here and now has its own id: **`id:a715`**, filed by a peer
+> session (`ad89dc1a`, `docs/ledger-notes/a715.md`). It is not fixed by this re-land.
+>
+> One measurement worth recording, because it changes the cost the owner accepted: at
+> re-land time the live inbox carries **3 items and NONE of them refuses** -- their foreign
+> citations are already spelled as bare backticked tokens, so `scan-routed.sh` attributes
+> all three to their own tokens (`3e13`, `cef7`, `784a`) and reports them as dead letters.
+> The de-literalise-by-hand cost the ruling accepted has therefore already been paid.
+
 The `id:0246` implementation landed as `6d5befed`, was adversarially reviewed, and was **REVERTED**
 (`eb2587fd`) before being pushed. The library and spec are good work; the commit rewrote a
 DESTRUCTIVE, unrecoverable write path by hand and walked into two failure classes the same file had

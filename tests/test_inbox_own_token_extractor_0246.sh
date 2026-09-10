@@ -57,11 +57,20 @@
 # bare tokens -- so each line carries 2-3 anchored routed markers and the id:6059 refusal fires
 # on BOTH. Under this spec neither live item can be drained until its citations are
 # de-literalised, which is exactly the fix the `routed:3e13` item itself prescribes ("render the
-# two citations as plain backticked text so they stop being markers"). A refusal is strictly
-# better than today's silent false RESOLVED, but it is a BEHAVIOUR CHANGE on live data and the
-# owner may prefer a positional rule for this shape; if so, amend cases 3, 7 and 9 together --
-# they are the same ruling asked at three sites, and splitting them re-creates the divergence
-# this item exists to remove.
+# two citations as plain backticked text so they stop being markers").
+#
+# OWNER RULING 2026-09-10, recorded here because this file asked the question. The owner was
+# asked "should the refusal extend to a line that merely CITES the token?" and DISSOLVED it
+# rather than answering: such a line should not EXIST. So the refusal is kept AND paired with
+# prevention -- `append.sh -t inbox` REJECTS a multi-marker entry at write time (case 8b),
+# `todo-conformance.sh --inbox` LINTS the existing ones (class `multi-marker`), and the
+# resolver refusal stays as the backstop (cases 3, 7b, 9). Consequence accepted with its cost:
+# both live inbox lines must be de-literalised by hand before they can drain.
+#
+# SECOND OWNER RULING, same day: an INDENTED inbox line is REFUSED, and refused LOUDLY. The
+# defect the review found there was the SILENT exit-0 no-op (a previously drainable shape
+# became immortal without a word), not the strictness -- so the extractor returns a distinct
+# status ($INBOX_LINE_INDENTED, 4) and names the line, and both consumers report it.
 #
 # fails-against: the three divergent rules -- scan-routed.sh:226 `head -1`, append.sh:707
 #   `tail -1`, and append.sh inbox-done's end-of-line-anchored `own_marker` python regex -- with
@@ -129,6 +138,9 @@ L_HEADER='# Line format: - [ ] [<target>] <desc> (from <src>, <note>) <!-- route
 # The add path's shape: own marker FIRST, a literally-quoted foreign marker in the TRAILING
 # prose. `tail -1` picks the citation, so the token echoed as "what was filed" is a foreign one.
 L_ADD='- [ ] [depot] a newly routed item (from meeting, n.md) <!-- routed:b6b6 --> -- supersedes `<!-- routed:a6a6 -->`'
+# The same shape with the citation spelled CONFORMINGLY (a bare backticked token): one
+# anchored marker, so it files cleanly. This is case 8's positive control.
+L_ADD_OK='- [ ] [depot] a newly routed item (from meeting, n.md) <!-- routed:b7b7 --> -- supersedes `routed:a6a6`'
 
 # --- site 1: the shared library extractor -----------------------------------------------
 # A tiny runner so a MISSING function is reported as a clean failure per case instead of
@@ -293,20 +305,55 @@ else
   pass "(7) inbox-done: a cited token drains nothing, and a multi-marker line is refused loudly"
 fi
 
-# --- case 8: site 3 (the add path) must not echo a FOREIGN token as "what was filed" ----
+# --- case 8: site 3 (the add path) -- POSITIVE receipt, and a LOUD refusal ---------------
 # append.sh -t inbox echoes the token PARSED BACK OUT of the line it wrote, so a caller can
 # say `filed routed:$(append.sh ...)`. With `tail -1`, a literally-quoted marker in the
 # TRAILING prose wins and the echoed token names an item that was never filed.
+#
+# THIS CASE ASSERTS BOTH DIRECTIONS ON PURPOSE (adversarial review 2026-09-10, D9): it used
+# to assert ONLY that stdout lacks the foreign token, which is satisfied by printing
+# NOTHING -- including by deleting site 3's adoption entirely. A spec whose own header
+# invokes the id:ae08 built-but-unwired class must not itself be passable by removing the
+# wiring. So: (8a) a conforming entry must produce its OWN token on stdout, and (8b) the
+# two-marker entry must be refused LOUDLY, nonzero, with nothing appended.
 scenario add_path depot
-ADD_RC=0
-ADD_OUT="$(HOME="$SC_HOME" RELAY_INBOX="$SC_INBOX" SRC_DIR="$SC_SRC" RELAY_TOML="$SC_TOML" \
-  bash "$APPEND" -t inbox -e "$L_ADD" 2>"$SC_DIR/add.err")" || ADD_RC=$?
-if grep -q 'a6a6' <<<"$ADD_OUT"; then
-  note "(8) the add path echoed the FOREIGN token a6a6 as the filed token (stdout='$ADD_OUT'). stdout is contractually 'what landed on disk', so this is a false filing report: the line's own token is b6b6. Adopt the shared extractor (which REFUSES this two-marker line) or resolve to b6b6 -- but never echo a cited token
+add_entry() {  # add_entry <line> -- sets ADD_RC / ADD_OUT
+  ADD_RC=0
+  ADD_OUT="$(HOME="$SC_HOME" RELAY_INBOX="$SC_INBOX" SRC_DIR="$SC_SRC" RELAY_TOML="$SC_TOML" \
+    bash "$APPEND" -t inbox -e "$1" 2>"$SC_DIR/add.err")" || ADD_RC=$?
+}
+
+# (8a) POSITIVE: the conforming entry's own token IS the receipt, and the line is on disk.
+add_entry "$L_ADD_OK"
+if [[ $ADD_RC -ne 0 || "$ADD_OUT" != "b7b7" ]] || ! has_line "$L_ADD_OK"; then
+  note "(8a) the add path must echo the entry's OWN token as the filing receipt: rc=$ADD_RC stdout='$ADD_OUT' (want rc=0 stdout='b7b7'), line-on-disk=$(has_line "$L_ADD_OK" && echo yes || echo no). A receipt that prints NOTHING is not a pass -- it is site 3's adoption removed (id:ae08)
 --- stderr ---
 $(cat "$SC_DIR/add.err")"
 else
-  pass "(8) the add path does not echo a cited foreign token (stdout='$ADD_OUT')"
+  pass "(8a) the add path echoes the entry's own token (stdout='$ADD_OUT') and the line is on disk"
+fi
+
+# (8b) NEGATIVE: the two-marker entry is REFUSED, loudly, and nothing is appended.
+add_entry "$L_ADD"
+add_err="$(cat "$SC_DIR/add.err")"
+if grep -q 'a6a6' <<<"$ADD_OUT"; then
+  note "(8b) the add path echoed the FOREIGN token a6a6 as the filed token (stdout='$ADD_OUT'). stdout is contractually 'what landed on disk', so this is a false filing report: the line's own token is b6b6
+--- stderr ---
+$add_err"
+elif [[ $ADD_RC -eq 0 ]]; then
+  note "(8b) a two-marker inbox entry must be REFUSED, not filed silently: rc=$ADD_RC (want nonzero). No resolver can attribute it (id:6059), so once written it can never be drained
+--- stderr ---
+$add_err"
+elif has_line "$L_ADD"; then
+  note "(8b) the refused two-marker entry was nevertheless APPENDED to the store (rc=$ADD_RC). A nonzero \`-t inbox\` exit means 'nothing appended' -- a caller that retries would DOUBLE-FILE it
+--- inbox now ---
+$(cat "$SC_INBOX")"
+elif ! grep -q 'b6b6' <<<"$add_err" || ! grep -q 'a6a6' <<<"$add_err"; then
+  note "(8b) the refusal must NAME the offending entry and its competing tokens on stderr so an operator can fix it: stderr did not mention both b6b6 and a6a6
+--- stderr ---
+$add_err"
+else
+  pass "(8b) a two-marker entry is refused loudly (rc=$ADD_RC), nothing is appended, both tokens are named"
 fi
 
 # --- case 9: site 4 (scan-routed report) must not attribute a line to a CITED token ------

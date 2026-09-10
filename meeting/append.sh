@@ -28,8 +28,19 @@
 # `-t inbox` ALWAYS prints the routed token actually written to disk on success — for
 # `--route-to`, the one it minted; for the raw `-e`/`-f`/stdin form, the one parsed back
 # out of the appended line. It also VALIDATES: a non-conforming `-t inbox` entry (missing
-# the `- [ ]/[x] [<target>] … <!-- routed:XXXX -->` shape) is rejected (non-zero, nothing
+# the `- [ ]/[x] [<target>] … <!-- routed:XXXX -->` shape) is rejected (exit 1, nothing
 # appended) rather than silently written — see docs/meeting-notes/2026-07-17-1450-acc7-*.
+# An entry carrying MORE THAN ONE anchored `routed:` marker is rejected the same way
+# (exit 1, nothing appended): no resolver can tell which token it owns, so it could never
+# be drained (id:0246 D6 / id:6059).
+#
+# EXIT-STATUS CONTRACT for `-t inbox` (id:0246 D2 — a caller may retry on 1, so 1 must
+# mean nothing landed):
+#   0  appended; the routed token is on stdout (or nothing, for a marker-less entry)
+#   1  REJECTED — nothing was appended; retrying after a fix is safe
+#   3  the entry WAS appended but no receipt could be issued (its own token is not
+#      attributable), or a required relay dependency is missing before any write.
+#      NEVER retry a 3 blindly: the entry is already on disk and a retry DOUBLE-FILES.
 # `-t discoveries` / `-t personas` are UNCHANGED: free prose, no validation, no echo.
 #
 # No git operations — the caller (git-diary-workflow) commits the result.
@@ -233,16 +244,59 @@ if [[ "${1:-}" == "inbox-done" ]]; then
   # ROADMAP.archive.md (id:1d83 -- an archived closed item is a durable record of landing
   # too, and archive-done.sh archives aggressively enough that an undated same-session
   # close can be swept before this check ever runs).
-  own_line="$(python3 - "$inbox" "$token" <<'PYEOF'
-import re, sys, pathlib
-path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
-own_marker = re.compile(r'<!--\s*routed:' + re.escape(token) + r'\s*-->\s*$')
-for l in path.read_text().splitlines():
-    if own_marker.search(l.rstrip()) and l.lstrip().startswith("- ["):
-        print(l)
-        break
-PYEOF
-)"
+  #
+  # id:0246 -- ownership comes from the SHARED extractor (inbox_line_own_token), never a
+  # hand-rolled end-of-line regex. The regex this replaced (`\s*-->\s*$`) found NO owning
+  # line at all when a marker was followed by trailing prose (id:798d, e.g.
+  # `<!-- routed:XXXX --> -- GATED (auto, id:3801)`) -- a LEGAL shape that was therefore
+  # unresolvable by construction, and silently so.
+  #
+  # THE SCAN IS EXHAUSTIVE, and that is the id:0246 D6 fix: an UNAMBIGUOUS owner anywhere
+  # in the store wins over an ambiguous or malformed line seen earlier. Breaking at the
+  # first ambiguous candidate (the shape this file shipped with on 2026-09-10) let a decoy
+  # line that merely CITES $token in a second anchored marker block its genuine, perfectly
+  # conforming sibling FOREVER, and the refusal message then pointed at the decoy -- a
+  # refusal about a line the operator never asked about. Refusals are RECORDED and reported
+  # only if no unambiguous owner exists at all, which keeps the id:6059 resolver refusal as
+  # the backstop the owner ruled for without letting it misattribute.
+  own_line="" ambiguous_line="" ambiguous_err="" indented_line="" indented_err=""
+  cand_err_file="$(mktemp)"
+  trap '[ -e "$cand_err_file" ] && rm -- "$cand_err_file"' EXIT
+  while IFS= read -r candidate || [[ -n "$candidate" ]]; do
+    [[ -z "$candidate" ]] && continue
+    cand_rc=0
+    # stderr is CAPTURED, not discarded: the library names every candidate token on a
+    # refusal, and that text is what the operator needs -- but only for the line this
+    # invocation actually ends up refusing about, not for every unrelated malformed line
+    # in the store. It is replayed verbatim below (never swallowed, CLAUDE.md id:4347).
+    cand_out="$(inbox_line_own_token "$candidate" "$inbox" 2>"$cand_err_file")" || cand_rc=$?
+    if [[ $cand_rc -eq 0 && "$cand_out" == "routed:$token" ]]; then
+      own_line="$candidate"
+      break
+    elif [[ $cand_rc -eq "$OWN_ID_AMBIGUOUS" || $cand_rc -eq "${INBOX_LINE_INDENTED:-4}" ]]; then
+      # Only a refusal about a line that actually carries $token concerns this call.
+      grep -qxF "$token" < <(marker_tokens_of_line "$candidate" routed) || continue
+      if [[ $cand_rc -eq "$OWN_ID_AMBIGUOUS" && -z "$ambiguous_line" ]]; then
+        ambiguous_line="$candidate"; ambiguous_err="$(cat "$cand_err_file")"
+      elif [[ $cand_rc -ne "$OWN_ID_AMBIGUOUS" && -z "$indented_line" ]]; then
+        indented_line="$candidate"; indented_err="$(cat "$cand_err_file")"
+      fi
+    fi
+  done < "$inbox"
+  rm -- "$cand_err_file"; trap - EXIT
+  if [[ -z "$own_line" && -n "$ambiguous_line" ]]; then
+    echo "inbox-done: REFUSING to delete routed:$token -- its inbox line carries MORE THAN ONE anchored routed marker, so which one it OWNS is ambiguous (id:6059/id:0246), and no other line owns it unambiguously:" >&2
+    echo "  $ambiguous_line" >&2
+    [[ -n "$ambiguous_err" ]] && printf '%s\n' "$ambiguous_err" >&2
+    echo "  De-literalise the quoted marker (or spell it as a typed edge) and re-run; this delete is DESTRUCTIVE and UNRECOVERABLE for the local-only inbox store." >&2
+    exit 3
+  fi
+  if [[ -z "$own_line" && -n "$indented_line" ]]; then
+    echo "inbox-done: REFUSING to delete routed:$token -- the only line carrying it is INDENTED, so it is not a conforming inbox entry (id:0246 D5):" >&2
+    [[ -n "$indented_err" ]] && printf '%s\n' "$indented_err" >&2
+    echo "  Un-indent it into a single column-0 entry and re-run; this delete is DESTRUCTIVE and UNRECOVERABLE for the local-only inbox store." >&2
+    exit 3
+  fi
   if [[ -z "$own_line" ]]; then
     # No inbox line owns this marker → nothing to delete (unchanged no-op contract).
     exit 0
@@ -272,23 +326,68 @@ PYEOF
     exit 3
   fi
 
+  # --- vanish: delete the ONE line the shared extractor selected ------------------------
+  # Deletion reuses the verdict computed above instead of re-deriving ownership a second
+  # time with a second regex (that divergence IS id:0246). Exact-text match is safe
+  # precisely because `$own_line` was selected by the anchored, ambiguity-refusing
+  # predicate and never by a bare substring, so a sibling item's prose citation of this
+  # token is untouched (id:411d).
+  #
+  # THE WRITE FOLLOWS THE personas.md PATTERN (routed:96da + id:00b1), and must:
+  #   * os.path.realpath FIRST. The inbox path can be a SYMLINK (`$RELAY_INBOX` may point
+  #     at a per-file symlink, exactly as the installed skill files do -- id:244f). A
+  #     `mktemp` + `mv` onto the symlink REPLACES the symlink with a regular file, leaves
+  #     the canonical store still holding the "resolved" line, and exits 0: the store now
+  #     exists TWICE and diverges, with no error anywhere. That is the id:0246 D1 defect.
+  #   * put the temp file in the RESOLVED parent, so the rename is same-filesystem/atomic
+  #     and there is no /tmp -> home hop.
+  #   * restore the mode: mkstemp is 0600 and the store is group-readable (D8).
+  #   * read the file BACK and require the line to be gone. A drain that removed nothing
+  #     must fail LOUDLY, never exit 0 with the line still there -- that silent no-op is
+  #     the entire class this item exists to kill (D7 / id:4347 / id:d35a).
   (
     flock -x 9
-    python3 - "$inbox" "$token" <<'PYEOF'
-import re, sys, pathlib
-path, token = pathlib.Path(sys.argv[1]), sys.argv[2]
-lines = path.read_text().splitlines(keepends=True)
-# Anchor on the item's OWN trailing marker `<!-- routed:XXXX -->` (optional whitespace),
-# not a bare substring — a sibling item's prose may legitimately CITE this token (e.g.
-# "the contrast with routed:4fa9 is the signal") while its own marker is different. A
-# substring test would delete that citing item too; the inbox is local-only and
-# destructive (vanish-on-resolve), so a wrong match is unrecoverable (id:411d).
-own_marker = re.compile(r'<!--\s*routed:' + re.escape(token) + r'\s*-->\s*$')
-# Vanish: drop the routed checkbox line entirely (any "- [ ]" / "- [x]") whose OWN
-# marker matches. Non-checkbox prose / sibling citations are left untouched.
-new_lines = [l for l in lines
-             if not (own_marker.search(l.rstrip('\n')) and l.lstrip().startswith("- ["))]
-path.write_text("".join(new_lines))
+    python3 - "$inbox" "$own_line" <<'PYEOF'
+import os, pathlib, stat, sys, tempfile
+
+path, own_line = sys.argv[1], sys.argv[2]
+target = pathlib.Path(os.path.realpath(path))
+data = target.read_text(encoding="utf-8")
+lines = data.splitlines(keepends=True)
+kept = [l for l in lines if l.rstrip("\n") != own_line]
+removed = len(lines) - len(kept)
+if removed == 0:
+    sys.stderr.write(
+        "append.sh inbox-done: FAILED -- the owning line was identified but is NOT present "
+        "in %s, so NOTHING was deleted (the store changed underneath this call, or the path "
+        "resolves elsewhere). Nothing written:\n    %s\n" % (target, own_line))
+    sys.exit(6)
+
+perm = stat.S_IMODE(target.stat().st_mode)
+fd, tmpname = tempfile.mkstemp(dir=str(target.parent), prefix=".inbox-done-", suffix=".tmp")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write("".join(kept))
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.chmod(tmpname, perm)           # mkstemp defaults to 0600 -- restore the store's mode
+    os.replace(tmpname, str(target))  # atomic; a symlink at `path` is never the target
+except BaseException:
+    try:
+        os.unlink(tmpname)
+    except FileNotFoundError:
+        pass
+    raise
+
+# Post-write read-back through the ORIGINAL path (id:729c's twin for the delete side): the
+# drain must be observable by the next reader, or this is a silent unrecoverable no-op.
+back = pathlib.Path(os.path.realpath(path)).read_text(encoding="utf-8", errors="replace")
+if own_line in back.splitlines():
+    sys.stderr.write(
+        "append.sh inbox-done: FAILED -- the line is STILL PRESENT in %s after the atomic "
+        "replace (post-write read-back). The drain did NOT happen; do not report it as "
+        "resolved:\n    %s\n" % (os.path.realpath(path), own_line))
+    sys.exit(7)
 PYEOF
   ) 9>"$(lock_path_for "$inbox")"
   exit 0
@@ -518,6 +617,20 @@ if [[ "$target" == "inbox" ]]; then
     echo "Install the relay skill (e.g. 'make install-relay') so the inbox conforming-form check can run. NOTHING was appended (fail-closed — id:bbb2)." >&2
     exit 3
   fi
+  # The shared own-token extractor (id:0246) is needed by the receipt at (C) below. Probe
+  # and source it HERE, before anything is appended: sourcing it lazily after the write
+  # made a missing library fail rc 1 with EMPTY stderr under `set -e`, indistinguishable
+  # from the "rejected, nothing appended" contract while the entry was in fact on disk.
+  # Same fail-closed, name-the-dependency shape as the id:bbb2 probe above.
+  lib_anchored="$(cd "$SKILL_DIR/.." && pwd)/relay/scripts/lib-anchored-id.sh"
+  if [[ ! -f "$lib_anchored" ]]; then
+    echo "Error: -t inbox requires the relay skill's lib-anchored-id.sh, which is missing:" >&2
+    echo "  $lib_anchored" >&2
+    echo "Install the relay skill (e.g. 'make install-relay'). NOTHING was appended (fail-closed)." >&2
+    exit 3
+  fi
+  # shellcheck source=../relay/scripts/lib-anchored-id.sh
+  source "$lib_anchored"
   tmp_check="$(mktemp)"
   printf '%s\n' "$entry" > "$tmp_check"
   conf_out="$("$conf_sh" --inbox "$tmp_check" 2>&1)"
@@ -526,6 +639,20 @@ if [[ "$target" == "inbox" ]]; then
     echo "Error: -t inbox entry does not match the conforming inbox form and was NOT appended:" >&2
     echo "  $entry" >&2
     echo "Expected form: - [ ]/[x] [<target-repo>] <description> <!-- routed:XXXX -->" >&2
+    exit 1
+  fi
+  # id:0246 D6 -- reject a MULTI-MARKER entry at WRITE time, from the SAME classifier
+  # (classify_inbox's `multi-marker` class, no second grammar here). An entry carrying two
+  # anchored `routed:` markers is unattributable by every resolver -- id:6059 refuses it,
+  # so it can never be drained and becomes an immortal inbox line. The owner's 2026-09-10
+  # ruling DISSOLVED the "should the refusal extend to a citing line?" question: such a
+  # line should not exist, so it is refused where a human is looking at the exact payload.
+  # Nothing is appended, which is the documented meaning of a nonzero `-t inbox` exit.
+  if grep -q '^multi-marker' <<<"$conf_out"; then
+    echo "Error: -t inbox entry carries MORE THAN ONE anchored routed marker, so no resolver can tell which token it OWNS (id:6059/id:0246). NOT appended:" >&2
+    echo "  $entry" >&2
+    printf '  %s\n' "$(head -1 < <(grep '^multi-marker' <<<"$conf_out"))" >&2
+    echo "Cite a sibling token as a bare backticked token (\`routed:XXXX\`) or a typed edge, never as a literal <!-- routed:XXXX --> comment -- only the entry's OWN marker may be spelled that way." >&2
     exit 1
   fi
 fi
@@ -703,7 +830,31 @@ append_verified "$dest" "$dest_lock" "$entry"
 # --- (C) echo what was written: `-t inbox`, raw -e/-f/stdin form --------------------------
 # stdout is the token PARSED BACK OUT of the line just appended — never the caller's own
 # variable — so `filed routed:$(append.sh …)` cannot lie about what landed on disk.
+#
+# id:0246 -- this used to be a bare `tail -1` over every anchored marker on the line, so a
+# LITERALLY-QUOTED foreign marker in trailing prose (`... supersedes \`<!-- routed:a6a6 -->\``)
+# won the echo over the entry's own leading marker: a FALSE FILING REPORT, since stdout is
+# contractually "what landed on disk". It now asks the shared inbox_line_own_token.
+#
+# EXIT STATUS, and why it is 3 and not 1 (id:0246 D2): by this point the entry is ALREADY
+# durably on disk (append_verified, above). This script's own header documents a nonzero
+# `-t inbox` exit as "rejected, nothing appended", and a non-conforming entry really does
+# exit 1 with nothing written -- so returning 1 HERE would be indistinguishable from that,
+# and a caller retrying on failure would DOUBLE-FILE the entry. 3 is the same
+# $OWN_ID_AMBIGUOUS `inbox-done` already uses for a refusal-not-a-rejection, and it is
+# documented in the header. In practice this branch is now unreachable for a multi-marker
+# entry -- the WRITE-time check above rejects that before anything is appended -- and is
+# kept as a belt-and-braces guard so the receipt can never silently name the wrong token.
 if [[ "$target" == "inbox" ]]; then
-  written_token="$(grep -oP '<!--\s*routed:\K[0-9a-f]{4}(?=\s*-->)' <<<"$entry" | tail -1)"
-  [[ -n "$written_token" ]] && printf '%s\n' "$written_token"
+  own_rc=0
+  written_token_full="$(inbox_line_own_token "$entry" "$dest")" || own_rc=$?
+  if [[ $own_rc -eq 0 ]]; then
+    printf '%s\n' "${written_token_full#routed:}"
+  elif [[ $own_rc -ne 1 ]]; then
+    echo "append.sh: the just-appended inbox entry could not be attributed to a single owning routed token (rc=$own_rc, id:6059/id:0246) -- refusing to report a token. The entry WAS written to $dest; fix the line in the store directly:" >&2
+    echo "  $entry" >&2
+    exit "${OWN_ID_AMBIGUOUS:-3}"
+  fi
+  # own_rc==1 (no anchored marker at all) prints nothing, matching the pre-existing
+  # silent-success contract for a marker-less entry.
 fi
