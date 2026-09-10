@@ -20,6 +20,15 @@
 #       remaining line is recorded VERBATIM on stdout as `sibling=<line>`.
 #   3c. BUMP-TRIGGER resolution (id:e647 — port of the one residual reviewer judgement).
 #       Resolved BEFORE any mutation so an unresolvable trigger defers with main unmoved.
+#   3d. NEGATIVE-CASE gate (id:abcc, owner ruling 2026-09-10) — `verify-negative-cases.py
+#       --changed <canonical main HEAD>`, run INSIDE the worktree over exactly the test files
+#       this window touched. The tier is opt-in and deliberately NOT in `make test`, so an
+#       executor can honestly believe it ran everything; that gap produced a VACUOUS
+#       negative-case incident in three consecutive reviews. Bounded form only: never the
+#       full corpus (~35 min), never a timer. Reviewer/integrator only — an executor never
+#       runs it. A repo with no `tests/verify-negative-cases.py` is a silent no-op, the same
+#       shape as step 6's changelog no-op; a repo that HAS one and reports a violation is a
+#       LOUD HANDBACK before any mutation.
 #   4. merge --no-ff   (conflict => abort, main unmoved). The id:8e3e/id:25aa `-c` anchor is
 #      DERIVED here, not judged: HEAD unmoved ("Already up to date") => zero-commit case =>
 #      anchor on the reviewed branch tip; HEAD moved => the branch carried commits => NO `-c`
@@ -248,6 +257,7 @@
 #   INTEGRATE_STATE_WRITE INTEGRATE_ROADMAP_TICK INTEGRATE_ROADMAP_ARCHIVE
 #   INTEGRATE_STRANDED_SCAN INTEGRATE_DISCOVER_SIG
 #   INTEGRATE_REVIEW_ARCHIVE INTEGRATE_RELAY_LOG_ARCHIVE                      (id:046a)
+#   INTEGRATE_VERIFY_NEGATIVES                                                (id:abcc)
 set -euo pipefail
 
 # id:02fe — THE shared `[repos.<name>]` header renderer (repo_section_headers below).
@@ -288,6 +298,10 @@ EX_RATIFY=35        # id:4d44 — the merge landed locally but could NOT be reco
 # so a handback names WHICH ledger's rotation refused rather than "an archive step".
 EX_REVIEW_ARCHIVE=36  # archive-closed.sh --only review_me failed, or its scoped commit failed
 EX_LOG_ARCHIVE=37     # relay-log-archive.sh failed, or its scoped commit failed
+# ── id:abcc (owner ruling 2026-09-10): the NEGATIVE-CASE gate, step 3d ──
+EX_NEGCASE=38         # tests/verify-negative-cases.py --changed reported a violation or a
+                      # CONFIG ERROR over the files THIS window touched. PRE-LAND: it runs
+                      # before the step-4 merge, so main is byte-identical on a handback.
 
 LOG="${INTEGRATE_LOG:-$HOME/.claude/logs/relay-integrate.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
@@ -296,7 +310,8 @@ log()  { printf '%s integrate.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$L
 # The LAND POINT splits every handback into two classes the caller MUST tell apart:
 #   • PRE-LAND  — nothing durable happened that a re-run would duplicate, so re-running the
 #     whole script is CORRECT. (isolation, sync, wiring, bump, merge, tick, version,
-#     changelog, the three archives — roadmap 32, review 36, relay-log 37 (id:046a) — and
+#     changelog, the negative-case gate 38 (id:abcc, step 3d — it runs BEFORE the merge),
+#     the three archives — roadmap 32, review 36, relay-log 37 (id:046a) — and
 #     ckpt; AND push itself: exit 27 means the push FAILED or could not
 #     be VERIFIED to have landed, so the remote never moved.)
 #   • POST-LAND — the merge is committed and TAGGED (and PUSHED, for a pushing unit); only a
@@ -413,6 +428,12 @@ ROADMAP_ARCHIVE="${INTEGRATE_ROADMAP_ARCHIVE:-$SCRIPT_DIR/roadmap-archive.sh}"
 REVIEW_ARCHIVE="${INTEGRATE_REVIEW_ARCHIVE:-$SCRIPT_DIR/archive-closed.sh}"
 RELAY_LOG_ARCHIVE="${INTEGRATE_RELAY_LOG_ARCHIVE:-$SCRIPT_DIR/relay-log-archive.sh}"
 STRANDED_SCAN="${INTEGRATE_STRANDED_SCAN:-$SCRIPT_DIR/stranded-branch-scan.sh}"
+# id:abcc — the negative-case verifier lives in the REPO UNDER INTEGRATION, not here: it is
+# `tests/verify-negative-cases.py` of whichever repo this unit worked, and it must be the
+# CHILD's copy (the worktree's), because the whole point is to verify the declarations the
+# child just wrote. Resolved against $worktree below, after tilde expansion; the env override
+# exists for the hermetic failure-injection tests.
+VERIFY_NEGATIVES_OVERRIDE="${INTEGRATE_VERIFY_NEGATIVES:-}"
 DISCOVER_SIG="${INTEGRATE_DISCOVER_SIG:-$SCRIPT_DIR/discover-sig.sh}"
 # id:4d44 — THE single "is this remote a PRIVATE/LAN host?" predicate. Shared with
 # hooks/pre-push-privacy-gate.sh; never re-derived here. See lib-private-remote.sh's header
@@ -764,6 +785,52 @@ else
   esac
 fi
 log "step3c bump-trigger: level=${bump_level:-none} — $bump_reason"
+
+# ── step 3d: NEGATIVE-CASE gate (id:abcc, owner ruling 2026-09-10) ───────────────────
+#
+# WHAT IT CLOSES: `make verify-negatives` (the id:a73c `# fails-against-*` runner) is OPT-IN
+# and deliberately NOT part of `make test` — the full corpus costs seconds per case, ~35 min
+# here. The consequence is not that it is slow, it is that it is INVISIBLE: an executor runs
+# `make test`, sees green, and honestly reports that it ran everything, while the declaration
+# pinning its own new defect-fix test is vacuous. That has now produced a vacuous-negative-case
+# incident in THREE CONSECUTIVE REVIEWS (RELAY_LOG 2026-09-09; REVIEW_ME id:b890, id:2724).
+#
+# WHY THE BOUNDED FORM AND ONLY THE BOUNDED FORM: `--changed <base>` selects only the test
+# files this window actually touched, which is what makes the gate affordable on the
+# merge-to-main critical path. Today's review ran exactly this over 6 files during integrate.
+# The full tier stays OUT of `make test` and gets NO timer; do not "upgrade" this to a corpus
+# run, and do not add a cadence — those were both explicitly NOT chosen.
+#
+# THE BASE IS `iso_base`, REUSED not re-derived: step 2 already established it as the
+# CANONICAL CHECKOUT'S CURRENT HEAD (id:8739), i.e. the exact commit step 4 is about to merge
+# INTO. `git diff --name-only $iso_base` inside the worktree is therefore precisely "what this
+# unit changed relative to main". `origin/main` would be WRONG here for the id:8739 reason:
+# the id:4d44 ratification gate freezes it, so it drifts arbitrarily far behind and the diff
+# would silently widen to the whole unratified backlog.
+#
+# WHERE IT RUNS: the WORKTREE, before the merge. Pre-land by construction — a handback leaves
+# main byte-identical and the worktree on disk, the same contract as steps 1-3.
+#
+# NO SILENT SWALLOW (the id:4347 ban): there is no `2>/dev/null` and no `|| true` on the
+# verifier below. Its status is captured and ANY non-zero is a handback — exit 1 (a vacuous
+# or wrong-reason declaration) and exit 2 (a CONFIG ERROR in a declaration) alike. The only
+# no-op is STRUCTURAL and named: a repo that does not carry the verifier at all cannot be
+# gated by it, exactly as step 6 no-ops on a repo with no CHANGELOG.md.
+#
+# EXECUTORS NEVER RUN IT. This is integrate.sh, which only the reviewer/integrator path
+# invokes; nothing was added to the executor contract, and nothing should be. Restating the
+# tier in executor prose is the id:d35a silent-no-op mode this gate exists to replace.
+neg_verifier="${VERIFY_NEGATIVES_OVERRIDE:-$worktree/tests/verify-negative-cases.py}"
+if [ ! -f "$neg_verifier" ]; then
+  log "step3d id:abcc negative-case gate SKIPPED: no verifier at $neg_verifier (repo does not carry the id:a73c tier)"
+else
+  neg_rc=0
+  neg_out="$(python3 "$neg_verifier" --root "$worktree" --changed "$iso_base" 2>&1)" || neg_rc=$?
+  if [ "$neg_rc" -ne 0 ]; then
+    handback verify-negatives "$EX_NEGCASE" "NEGATIVE-CASE GATE FAILED (id:abcc, exit $neg_rc) over the test files this window touched vs $iso_base. A defect-fix test whose declared \`# fails-against-*\` case does not actually redden AT THE ASSERTION IT NAMES demonstrates no killing power — it is exactly as vacuous as no test at all, and \`make test\` cannot see it (the tier is opt-in by design). NOTHING WAS MUTATED: main is byte-identical, the worktree is on disk, re-running this script after the fix is correct. Reproduce with: python3 $neg_verifier --root $worktree --changed $iso_base . Fix the DECLARATION or the TEST, or add an exemption with a written reason to tests/negative-case-exemptions.txt. Verifier output follows. $neg_out"
+  fi
+  log "step3d id:abcc negative-case gate PASSED (--changed $iso_base)"
+fi
 
 # ── step 4: merge --no-ff. On conflict/failure: abort (main unmoved), hand back. ──
 pre_head="$(git -C "$path" rev-parse HEAD)"

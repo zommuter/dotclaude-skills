@@ -241,6 +241,16 @@ Playwright was silently absent.) To make that impossible:
   e.g. "unit + integration green; e2e SKIPPED (no node_modules)" — never a bare
   suite-wide green that hides an unrun tier.
 
+- **(d) The NEGATIVE-CASE tier's bounded form is MECHANICALLY ENFORCED at integrate
+  (`id:abcc`, owner ruling 2026-09-10) — it is no longer yours to skip.** `integrate.sh`
+  step 3d runs `tests/verify-negative-cases.py --changed <canonical main HEAD>` inside the
+  child's worktree, before the merge, and hands back (`HANDBACK[verify-negatives]`, code 38,
+  pre-land) on any non-zero. So a `RECORDED-SKIP: verify-negatives` line no longer describes
+  the window's own changed files — record a skip only for the FULL corpus, which stays
+  opt-in and outside `make test` by design (~35 min). The gate exists because that opt-in
+  status let three consecutive reviews land a vacuous negative-case declaration behind a
+  green `make test`.
+
 **BDD suites** are one such tier. Run them; for `@manual` scenarios, emit the checklist
 into REVIEW_ME.md (or the return report) for the human rather than attempting to automate
 them. A skipped BDD/e2e tier is recorded per (b), never folded silently into a green claim.
