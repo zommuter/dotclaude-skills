@@ -292,7 +292,7 @@ Plain-bash harness, zero dependencies beyond `bash`/`python3`/`jq`/`make`:
   clobbering a canary in a real fixture repo. Treat a mutation command as reviewed code, like
   any other script here; confine it to relative paths under its cwd.
 
-## Relay contract <!-- relay-executor contract v18 -->
+## Relay contract <!-- relay-executor contract v19 -->
 
 This repo is managed by a reviewer/executor relay. Load `/relay executor` before
 working on any item, then follow its rules exactly.

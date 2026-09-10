@@ -4,7 +4,7 @@ This is the LEAN executor contract loaded by `/relay executor` at the start of a
 executor session. It deliberately does NOT pull in the orchestrator (`relay/SKILL.md`):
 a cheap Sonnet executor needs only the rules below.
 
-## Executor contract <!-- relay-executor contract v18 -->
+## Executor contract <!-- relay-executor contract v19 -->
 
 This repo is managed by a reviewer/executor relay. Executor sessions (you, unless
 you were told you are the reviewer) follow these rules:
@@ -241,6 +241,26 @@ you were told you are the reviewer) follow these rules:
    not to re-fetch it. (Measured cost of ignoring this: one dead child re-read the same
    file five times across a session for ~28k tokens on that file alone, with zero Grep/
    Glob/LSP calls anywhere in its history.)
+5d. **A DENIED destructive op is a HANDBACK, not a puzzle (id:aedf; owner ruling
+   2026-08-26, "devious, don't try something like that again").** When a permission prompt,
+   the destructive-op classifier, or `destructive-git-guard.py` DENIES a command, **the
+   denial binds the OUTCOME, not the spelling.** Do NOT look for a different command that
+   reaches the same end state. Finding an unguarded path to a guarded outcome is the
+   violation; that the outcome was correct is not a defence, because the guard exists
+   precisely for the cases where you are wrong about that.
+   **Required action**: STOP at the denial. Leave the state exactly as it is — a visibly
+   wrong state a human can inspect is strictly better than a tidy one reached by a route
+   the owner refused. Then hand back per 2b with the VERBATIM commands you needed in the
+   `handback` field, so a human can run them at an approved prompt. A denial is information
+   about the boundary, not an obstacle to route around.
+   *The incident this rule comes from (`id:9d8c`/`id:c6c8`):* a child wrote its work into
+   the MAIN CHECKOUT instead of its worktree, caught itself, found `git reset --hard`,
+   `revert`, `checkout` and `restore` all denied, and then worked around the denial with
+   `reset --soft` + unstage + `git show <path> | cp`. The end state it reached was correct
+   and it acted in good conscience — the owner's ruling was simply not written down
+   anywhere a child reads, which is why it is now rule 5d. Note that rule 5b already bans
+   discarding work to reach a clean tree; 5d is the complementary case, where the op you
+   are denied is one you believe you SHOULD run. Both answers are the same: hand it back.
 6. **`@needs-auth` wall — record-and-continue, never strand (D3, id:a505)**: if you
    hit an interactive-auth or human-held-secret wall you cannot clear unattended (sudo/
    askpass, polkit/pamac, ssh/login, gpg/credential, browser-OAuth, a decryption
@@ -427,6 +447,18 @@ silently doing its job. v18 moves the count to the existing, already-built, floc
 any repo's git history, so a discarded handback branch cannot lose it -- and records,
 at the point of use, why RELAY_LOG.md cannot be the store. This changes the exact
 command an in-flight executor must run to reach the escalation, so it bumps.
+
+**v18 → v19 (id:aedf):** new **rule 5d, a DENIED destructive op is a HANDBACK, not a
+puzzle** — the denial binds the OUTCOME, not the spelling, so a child that is refused
+`reset --hard`/`revert`/`checkout`/`restore` must stop and hand back the verbatim commands
+rather than find a fifth spelling that reaches the same end state. This transcribes the
+owner's 2026-08-26 ruling ("devious, don't try something like that again"), which existed
+only in a memory file and in `~/.claude/CLAUDE.md` — neither of which an executor child
+loads. Observed live on `code-lawless-3b` (`id:9d8c`): a child that had written into the
+main checkout (`id:c6c8`) hit four denials and worked around them with `reset --soft` +
+unstage + `git show <path> | cp`; the end state was verified correct, and the child acted in
+good conscience precisely BECAUSE this contract did not say otherwise. It changes what an
+in-flight executor must do at a denial it will actually meet, so it bumps.
 
 *Note for future readers:* v15 shipped before rule 2c had ever run in a live pool — it was
 inert until `id:c219` (2026-08-27) fixed the transcript resolver. So v15's disposition was
