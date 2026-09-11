@@ -273,6 +273,7 @@
 
 - [ ] **D6 — sub-agent parallel Class 1 dispatcher (build-gated)** -- detail: `docs/ledger-notes/cbb5.md` <!-- id:cbb5 -->
 - [ ] [ROUTINE] **`worktree-retire.sh` gates on a BARE `git status --porcelain` with no `git diff` cross-check, so cosmetic git-annex pointer dirt reads as residue; port the id:3016 filter-aware predicate from `verify-isolation.sh` (lines 215 / 265 / 744).** -- detail: `docs/ledger-notes/68e2.md` <!-- relates:2b7a --> <!-- relates:3016 --> <!-- id:68e2 -->
+- [ ] [ROUTINE] **`verify-isolation.sh` treats an UNKNOWN clean-tree probe (git itself failed, rc=2) as CLEAN, so a git error reads as "no work at risk" -- the id:a290 round-3 fail-open shape.** The id:68e2 port preserved this deliberately rather than bundling a dispatch-behaviour change: the retire side's destructive `--discard-residue` branch now REFUSES on UNKNOWN (exit 3), so the two sides disagree on purpose. Making verify-isolation fail closed would start blocking work that currently proceeds, so it needs its own test. <!-- relates:68e2 --> <!-- relates:a290 --> <!-- id:b545 -->
 
 ## hooks / commit safety
 
