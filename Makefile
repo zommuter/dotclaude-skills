@@ -2,7 +2,7 @@ SRC_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEST_DIR := $(HOME)/.claude/skills
 export DEST_DIR
 
-SKILLS := meeting meeting-cross git-diary-workflow todo-update relay projects
+SKILLS := meeting meeting-cross git-diary-workflow todo-update relay projects decision-brief
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
@@ -167,6 +167,15 @@ relay_LOCAL :=
 # NOTE: the deprecated /fables-turn + /fables-executor alias stubs were untracked from this
 # repo 2026-06-15 (migrated to /relay; no remaining cron/invocations). Their dirs are
 # .gitignore'd and kept locally only as a fat-finger redirect — no longer installed by make.
+
+# decision-brief (id:6fda) -- turns open OWNER-lane ledger decisions into brief +
+# recommendation + ONE batched AskUserQuestion. docket.sh is the read-only collector; it
+# DELEGATES enumeration/bucketing to relay/scripts/gather-human-backlog.sh, so this skill
+# requires `relay` to be installed too (the source tree resolves it as a sibling).
+decision-brief_FILES := SKILL.md docket.sh
+decision-brief_EXEC  := docket.sh
+decision-brief_ALLOW := docket.sh
+decision-brief_LOCAL :=
 
 projects_FILES := SKILL.md
 projects_EXEC  :=
