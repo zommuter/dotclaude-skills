@@ -1099,3 +1099,152 @@ silently complying. That is the behaviour to keep.
 * **`| head` under `set -euo pipefail` is BLOCKED** by `tests/test_pipefail_sigpipe_lint.sh`.
 * **A `fails-against-mutation` can be red for the WRONG reason** and the runner catches it. Three
   agents hit this tonight; each narrowed the declaration rather than loosening the check.
+
+# INTENSIVE POOL RUN -- overnight 2026-09-10 23:46 -> 2026-09-11 02:00. THIS IS NOW THE AUTHORITATIVE CLOSE STATE.
+
+Run `relay-20260910-234645-16942`, launched `--intensive --quota-7d 65` (intensive implies
+`--afk`, so apex `hard` dispatch was live). 597 agents, 5.45 M subagent tokens, 2 h 18 m.
+
+## State at close
+
+| | |
+|---|---|
+| `main` (this repo) | `3541b328`, clean, 0 unpushed to private `origin` |
+| Pool outcome | **17 units integrated, 17 handbacks, 6 rounds**, `stopReason: blocked-pending-human` |
+| Quota | **NOT the stopper** -- `quotaStopped: false`; 7d went 46% -> 55% against the 65% cap, 5h 30% |
+| REVIEW_ME here | 86 open |
+| Shared inbox | **0 open** (3 stubs filed pre-launch, all twinned) |
+| Residue | **10 leaked worktrees, 6 parked orphans** -- enumerated below, none disposed |
+| MECHANICAL queue | **empty** -- `recipes/pending/` and `recipes/running/` both empty, daemon timer live |
+
+Integrated: quovadis (x5), trustless-ai (x4), code.lawless (x2 `hard`), it-infra, toesnail,
+project_manager, dotclaude-skills (review).
+
+## READ FIRST: this repo cannot dispatch `execute` work at all -- 650 k tokens against a 100 k budget
+
+Five consecutive handbacks, the id:4f9b/id:b018 prompt-size gate:
+
+> the assembled execute prompt for dotclaude-skills is **~650,104 tok**, over the **100,000 tok**
+> dispatch budget, so the child would die with "Prompt is too long"
+
+The gate did its job -- it refused rather than burning a child. But dotclaude-skills is now
+**structurally undispatchable on the execute lane** until the prompt is sliced. This is the same
+family as the correction we sent loderite hours earlier (`routed:08c5`): their `id:a060` is "the
+handoff lane has no slice shape at all". Ours is the execute lane, 6.5x over budget. Whether they
+share one root cause is **not established** -- I did not verify it, and the loderite item is about
+a different lane.
+
+## Four children died `Prompt is too long`, and the knob that prevents it was not set
+
+`execute` failures in loderite, project_manager, mathematical-writing, code.lawless -- all four
+Sonnet, which is the id:c3c1 signature exactly (the ~82 k default delegated-subagent preamble is
+46% of the Sonnet wall). **`EXECUTE_AGENT_TYPE` was unset for this run**, so every execute child
+carried the full default preamble. `relay-implementer` is installed and is precisely the trimmed
+definition for this. Recommendation for the next pool: pass
+`--execute-agent-type relay-implementer`. I did not set it retroactively -- it is a per-run posture
+change and the owner's call, and note it FAILS LOUD if the definition is not visible to the session.
+
+## `id:c076` fail-closed fired 5 times across 4 repos -- classifier/queue wiring, not absent work
+
+quovadis (x2), code.lawless, trustless-ai, project_manager all handed back with an **empty
+permitted-id set**: the classifier dispatched a unit whose dispatch reason cited open `[ROUTINE]`
+items while computing no permitted id for it. The children correctly refused to survey ROADMAP and
+work something unauthorised. Every one of those reports says the same thing: *"a classifier/queue
+wiring fault, not an absence of work."* Five instances in one run makes this the run's largest
+systematic defect. Not filed as an item -- I did not diagnose it, and filing a cause I have not
+established would be the `id:3f59` class.
+
+## code.lawless: the predicted false-dirty class cost 7 dispatches, plus one landed-but-unfinished merge
+
+* **7 repeat handbacks**, `id:34b7 pre-dispatch worktree provisioning failed -- no child dispatched`.
+  The morning handover predicted this exactly: `gather-repo-state.sh:191`'s bare
+  `git status --porcelain` is the fourth instance of the missing filter-aware predicate, and it was
+  left alone deliberately because relay-core's shadow binary reimplements those semantics. **That
+  decision has a measured price now: 7 dispatches in one run.** It still needs inbox routing to
+  relay-core, not a local edit.
+* **`id:5fe2` LANDED-BUT-UNFINISHED** (ids a736, 7627, b819, 25fd, e4a1): merge
+  `866b226a` is **COMMITTED, TAGGED (`relay-ckpt-20260911-0031`) and PUSHED**; integrate.sh handed
+  back at the POST-LAND `worktree-retire` step (handbackCode 28) because the worktree contains
+  modified/untracked files. `relay.toml last_ckpt` was reconciled. **DO NOT re-merge or re-dispatch**
+  -- a retry takes the zero-commit path and mints a SECOND checkpoint tag. Steps that did not run:
+  worktree-retire, state-write, strong-state, push-seed. Needs a supervised reconcile.
+
+## project_manager's 3 dirty-tree handbacks are EXPLAINED, not a defect
+
+`integrate.sh handback=clean-tree handbackCode=20 ... dirty 1: M IDEAS.md`. A live
+project_manager session was working that repo concurrently all evening -- it messaged this session
+mid-run. The id:aa93 guard refusing to integrate over a concurrent edit is the guard **working**.
+No action; expect it to clear once that session closes.
+
+## Residue -- 10 leaked worktrees, 6 parked orphans, NONE disposed
+
+Deliberately left for a supervised pass (`id:8a76` is the item that would mechanize this):
+
+* worktrees: code.lawless x4, quovadis x2, project_manager x2, trustless-ai x2
+* parked orphans: code.lawless x2, project_manager, mathematical-writing, loderite, and the
+  pre-existing deliberate `dotclaude-skills ...-execute-b437-0`
+
+Four of the orphans are `id:f272` WIP-UNVERIFIED residue auto-commits from the children that died
+`Prompt is too long` -- **do not treat them as reviewed work.**
+
+## The `[MECHANICAL]` queue is empty -- there was nothing to launch
+
+Asked to run the remaining `[MECHANICAL]` tasks sequentially, I found **none runnable**, and the
+count that looks obvious is wrong:
+
+* A bare `grep '[MECHANICAL]'` over own-repo ROADMAPs reports **9** items. **3** is the truth.
+  Six of the nine carry the word only in trailing prose while their primary lane is something else
+  -- five ai-codebench items are `[INPUT - decision] [INTENSIVE - local-llm]` GPU runs, one
+  isochrone item is `[HARD - hands]`. Resolved with `leading_lane_run` against the scraped
+  vocabulary, not by eye. This is the third instance this week of **a pattern matching a corpus
+  that discusses the thing it searches for**.
+* Of the 3 real ones: isochrone `id:11c3` is a `@container`, GATED, and says in its own text *"pick
+  those, not this container"*; isochrone `id:ac14` already ran its `--mode transit` recipe in July
+  and its residue needs a **new recipe authored** (a sanctioned-author act) covering `--mode car` +
+  `stop_matrix` + `extract_features.sh`; trAIdBTC `id:3a50` is scheduled LOW-PRIORITY for a
+  *"next human-coordinated network-bulk session"*.
+* The launcher is already automated regardless: `mechanical-daemon.timer` is live (ran 01:52, next
+  02:22) and drains `recipes/pending/`, which is **empty**. `recipes/drafts/` holds 12 unapproved
+  drafts -- including `bde7` (the decision-gated GPU run) and `11c3` (the gated container).
+  **Promoting a draft to `pending/` unattended would have run exactly the work that is gated.** Not
+  done.
+
+## Also landed this session
+
+* **`a1ec` re-laned `[INPUT - access]`** in it-infra (`841ded0`, pushed, remote verified). Flagged
+  by the live project_manager session. It had been adopted untagged by the pre-launch
+  `scan-routed.sh --apply` and was invisible to the lane detector -- verified with a negative
+  control: the pre-fix line returns `[]` from `leading_lane_run`, the fixed line returns
+  `[INPUT - access]`. Lane had to precede the `[INBOUND ...]` prefix to be seen, which is the shape
+  `lib-anchored-id.sh:205` documents as canonical, so the inbox twin guard still matches (verified).
+  Chose `access` over `meeting` despite its "no open judgment call" wording: the deliverable is a
+  touch-ergonomics verdict and a meeting venue has no phone. Not split -- the poolable half opens no
+  gate. Gates project_manager `id:c935`.
+* **3 inbox dead-letter stubs filed** pre-launch: `a31f` (loderite), `a25f` (here, the `id:7e87`
+  escalation trigger), `a1ec` (it-infra). Inbox is now 0 open. Safe to run attended because
+  `0 twinned-resolvable` meant the run deleted nothing.
+
+## Needs the owner
+
+1. **The 650 k execute prompt here** -- this repo is undispatchable on its own execute lane. Needs
+   a slice shape; related in family to loderite's `id:a060` but not proven to share a root.
+2. **`EXECUTE_AGENT_TYPE=relay-implementer`** for the next pool -- 4 children died without it.
+3. **`id:c076` x5** -- wants an actual diagnosis before anything is filed.
+4. **`gather-repo-state.sh:191`** -- unchanged from this morning's list, but now carries a measured
+   price (7 code.lawless dispatches). Inbox-route to relay-core.
+5. **`id:5fe2` supervised reconcile** on code.lawless -- and the standing **DO NOT re-merge**.
+6. **10 worktrees + 6 orphans** to dispose.
+7. Still open from this morning, untouched: the code.lawless parked orphan salvage-vs-discard, the
+   `02fe` closed-on-agent-judgement reversal, and the 120 heading-less REVIEW_ME boxes.
+
+## Method notes
+
+* **Resolve a lane with `leading_lane_run` + `lane_vocab_scrape`, never a grep.** The vocabulary is
+  scraped from `hard-lanes.md` at runtime; sourcing `lib-lane-anchor.sh` alone leaves
+  `all_lane_tags` EMPTY, so a standalone probe returns "no lane" for every line on earth. My first
+  probe did exactly that and I nearly read its empty output as a finding -- an unpopulated fixture
+  is not a negative control.
+* **zsh's builtin `echo` eats backslashes**, so `echo '{"pattern": "\\["}' | md-merge` dies with
+  "Invalid \escape". Use a quoted heredoc and validate the JSON before piping it.
+* **A workflow result file is the wrapper's JSON with the real payload nested under `result`**;
+  `json.load(...)['completed']` on the outer object silently returns 0 units for a 17-unit run.
