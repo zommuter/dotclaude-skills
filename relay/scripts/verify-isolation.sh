@@ -29,7 +29,9 @@
 #   (b0) EMPTY worktree (no commits beyond base) AND a DIRTY tree  → exit 2, names dirty
 #        entries — checked BEFORE b1/b3 below, regardless of whether main moved (id:1b13,
 #        owner-decided 2026-08-14: breach-shaped, the closest signature to "the child worked
-#        but never committed").
+#        but never committed"). "DIRTY" is the SHARED lib-clean-tree.sh predicate (id:0fad),
+#        so cosmetic git-annex pointer noise (` M` with an empty diff) is NOT b0: it prints a
+#        note and falls through to b1/b2/b3 like any other clean empty worktree.
 #   (b1) EMPTY worktree (no commits beyond base), CLEAN tree, main UNMOVED → exit 0
 #        (legitimate id:8e3e no-op review; a handback here would re-dispatch the same
 #        review forever).
@@ -137,8 +139,42 @@ if [ -z "$commits" ]; then
   # closest signature to "the child worked but never committed" (the same breach family
   # this gate exists for), so check dirty FIRST and fail loud before any of the
   # main-moved discrimination gets a chance to wave it through.
-  porcelain_empty="$(git -C "$worktree" status --porcelain 2>/dev/null || true)"
-  if [ -n "$porcelain_empty" ]; then
+  #
+  # id:0fad -- "DIRTY" here MUST be the SAME question the (c) branch below asks, answered by
+  # the SAME shared predicate. It was not: this branch tested a BARE `status --porcelain` for
+  # non-emptiness, so on a git-annex repo the id:3016/id:68e2 filter-aware predicate was never
+  # reached (it is only consulted after the commits-beyond-base test, i.e. for NON-empty
+  # worktrees), and cosmetic pointer noise read as a breach. Measured 2026-09-11, pool run
+  # relay-20260911-103808-7255: code.lawless unit a736 handed back `handbackCode=21 ...
+  # breach-shaped (id:1b13)` listing ` M` annexed PNGs under docs/research/img/card-match/,
+  # with `workCreated:false` -- a child that legitimately did nothing, called a breach. Its
+  # worktree measured ahead=0 porcelain=204 diff=0.
+  #
+  # THE id:1b13 SEMANTIC IS UNCHANGED AND MUST STAY UNCHANGED. Only the COSMETIC case moves,
+  # and it moves to the id:8b1f clean-sized-out shape (no commits + nothing to lose), NOT to
+  # "merge it": a cosmetic tree falls THROUGH to the b1/b2/b3 main-moved discrimination below
+  # exactly as a genuinely clean empty worktree does, so a real breach that ALSO left main
+  # moved still exits 2. Untracked / staged / added / deleted / conflicted entries keep a
+  # non-` M` porcelain pair and stay DIRTY (`git diff` never shows untracked), and a `git diff`
+  # that errors stays DIRTY -- both enforced inside tree_clean_probe, see lib-clean-tree.sh.
+  #
+  # rc=2 (UNKNOWN -- `git status` ITSELF failed) is deliberately NOT treated as a breach here.
+  # That is the pre-existing behaviour preserved byte-for-byte: the old
+  # `$(... 2>/dev/null || true)` yielded an empty string on a git error, which read as
+  # not-dirty and fell through to the same discrimination. Flipping it to fail-closed is a
+  # DISPATCH-behaviour change (it would start blocking work that proceeds today) and is
+  # id:b545's, which owns the identical fail-open on the (c) branch at the bottom of this file
+  # and must fix BOTH together -- half-closing it here would leave the gate refusing an
+  # unreadable EMPTY worktree while still merging an unreadable one WITH commits, which is
+  # strictly harder to reason about than the consistent fail-open we have. What id:0fad does
+  # guarantee is that an error can never reach the new RELAXATION: on rc=2 the probe leaves
+  # TREE_COSMETIC=0 and TREE_PORCELAIN empty, so the cosmetic branch is unreachable and the
+  # verdict is identical to today's.
+  empty_tree_rc=0
+  tree_clean_probe "$worktree" || empty_tree_rc=$?
+  # Only rc 1 is DIRTY. rc 2 leaves TREE_PORCELAIN empty and is handled as not-dirty, above.
+  porcelain_empty="$TREE_PORCELAIN"
+  if [ "$empty_tree_rc" -eq 1 ]; then
     log "empty+dirty worktree=$worktree base=$base"
     echo "isolation failure: worktree has NO commits beyond base '$base' AND a DIRTY tree (uncommitted changes) — breach-shaped (id:1b13): looks like the child worked but never committed, not safe to merge"
     while IFS= read -r entry; do
@@ -146,6 +182,10 @@ if [ -z "$commits" ]; then
       printf '  %s\n' "$entry"
     done <<< "$porcelain_empty"
     exit 2
+  fi
+  if [ "$TREE_COSMETIC" -eq 1 ]; then
+    log "empty+cosmetic-dirty (annex pointers, id:0fad) worktree=$worktree base=$base entries=$TREE_COSMETIC_COUNT"
+    echo "note: $TREE_COSMETIC_COUNT path(s) report modified with an EMPTY diff -- cosmetic git-annex pointer noise (id:3016), not a real modification; $(tree_cosmetic_remedy "$worktree"). NOT breach-shaped (id:0fad); treating the tree as CLEAN and continuing the id:1b13/8e3e discrimination."
   fi
   main_head="$(git -C "$worktree" rev-parse --verify -q "$base")"
   merge_base="$(git -C "$worktree" merge-base HEAD "$base" 2>/dev/null || true)"
