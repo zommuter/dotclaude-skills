@@ -107,6 +107,15 @@
 #   WORKTREE_RETIRE_NO_SUBMODULE_FORCE=1   hard-disable it; WINS over the opt-in above
 set -euo pipefail
 
+# THE clean-tree predicate (id:68e2). This script asked "is the tree dirty?" in three places
+# with a BARE `git status --porcelain` non-empty test, while verify-isolation.sh answered the
+# SAME question with the id:3016 filter-aware predicate -- so on a git-annex repo the two
+# disagreed about the very same worktree and retirement never happened. All three sites now go
+# through this one definition. Its header carries the full reasoning; see each site for what
+# the relaxation does and does not change there.
+# shellcheck source=lib-clean-tree.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-clean-tree.sh"
+
 LOG="${WORKTREE_RETIRE_LOG:-$HOME/.claude/logs/relay-worktree-retire.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true  # swallow-ok: log dir best-effort; a missing log must never abort a retire
 log() { printf '%s worktree-retire.sh %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*" >>"$LOG" 2>/dev/null || true; }  # swallow-ok: logging is advisory, never fatal
@@ -202,6 +211,61 @@ normalize_annex_gitfile() { # 0 = normalized or nothing to do; 3 = unrecognized,
 
 normalize_annex_gitfile || exit 3
 
+# ---- 0b. COSMETIC INDEX REFRESH (id:68e2) -----------------------------------
+# WHY THIS EXISTS AT ALL, and why the filter-aware predicate alone is not the whole fix.
+# `git worktree remove` runs its OWN `contains modified or untracked files` check, and that
+# check sees the annex pointer noise exactly as a bare porcelain test does. Measured in a
+# clean-filter fixture 2026-09-11:
+#
+#   porcelain ' M big.bin', `git diff` EMPTY  ->  git worktree remove
+#     fatal: '../wt' contains modified or untracked files, use --force to delete it
+#
+# So teaching the three gates below to call such a tree CLEAN, and nothing else, would have
+# them fall straight through into a removal that still refuses -- the worktree would keep
+# leaking, only now with a nicer explanation. Something has to make the index stop reporting
+# the difference, and the two existing routes both do it as a SIDE EFFECT of an act we do not
+# want here: `--commit-residue`'s `git add -A`, and the tracked-file restore inside the gated
+# `--discard-residue` block. (That op is deliberately NOT named verbatim here: the f272 test
+# bans its literal spelling anywhere outside that block, comments included, and rightly so.)
+#
+# `git add -u` is that same refresh with NOTHING else attached. It touches only TRACKED files,
+# so it can never stage untracked residue; and we run it ONLY on a tree the predicate has
+# already proved cosmetic, which means `git diff` is empty, which means re-running the clean
+# filter reproduces the blob the index already holds. It therefore stages no content change by
+# construction, writes no commit, and leaves every byte in the work tree alone (verified in the
+# fixture above: content intact, HEAD unmoved, porcelain empty, removal then succeeded).
+#
+# NOT `git update-index --refresh`: measured under id:3016 (2026-09-09) on the real repo, it
+# did NOT clear the entries. It is the obvious cheap fix and it does not work.
+# NOT `git annex restage`: it is the right remedy but needs the annex binary, and through a
+# symlinked `.git` it prints `restage ok` and silently no-ops (id:de4a).
+#
+# FAIL-SAFE: a dirty or unreadable tree returns untouched, and if the refresh somehow leaves
+# the tree non-clean (a real annex `add` behaving unlike the fixture) we log it LOUDLY and
+# change nothing else -- the removal below then refuses on its own, which is the same
+# surface-and-leave outcome as before this step existed.
+refresh_cosmetic_index() {
+  [[ -e "$wt" ]] || return 0
+  local rc=0 n
+  tree_clean_probe "$wt" || rc=$?
+  [[ "$rc" -eq 0 && "$TREE_COSMETIC" -eq 1 ]] || return 0
+  n="$TREE_COSMETIC_COUNT"
+  if ! git -C "$wt" add -u 2>/dev/null; then   # swallow-ok: a failed refresh is advisory; the removal below still guards
+    log "cosmetic-refresh FAILED (git add -u) wt=$wt entries=$n -- leaving the tree as found"
+    return 0
+  fi
+  rc=0
+  tree_clean_probe "$wt" || rc=$?
+  if [[ "$rc" -eq 0 && -z "$TREE_PORCELAIN" ]]; then
+    log "cosmetic-refresh cleared $n annex pointer entr(ies) (id:68e2) wt=$wt"
+    echo "note: $n path(s) reported modified with an EMPTY diff -- cosmetic git-annex pointer noise (id:3016); refreshed the index (no commit, no discard, no content touched) so the force-free removal can proceed."
+  else
+    log "cosmetic-refresh did NOT clear the tree wt=$wt rc=$rc entries=$n -- removal will refuse as usual"
+  fi
+}
+
+refresh_cosmetic_index
+
 # ---- 0c. optional dirty-residue commit (id:f272, opt-in via --commit-residue) --
 # Runs BEFORE the removal attempt below so a dirty tree becomes clean and the normal
 # remove+park path can proceed unmodified — commit-and-park reuses the existing park logic
@@ -212,7 +276,27 @@ normalize_annex_gitfile || exit 3
 # it discards nothing, it only moves untracked/modified content into a new commit on the
 # worktree's OWN branch (id:373e bans discarding, not committing).
 if [[ "$commit_residue" -eq 1 && -e "$wt" && "$expect_merged" -eq 0 && "$branch" == relay/* ]]; then
-  if [[ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
+  # id:68e2 -- FILTER-AWARE. The bare porcelain test here took the commit path on a tree with
+  # nothing to preserve (measured 2026-09-11 on code.lawless: 204 ` M` paths, empty diff, zero
+  # commits ahead). tree_clean_probe returns 0 for an empty tree AND for a cosmetically dirty
+  # one, so both now skip the commit; step 0b has already refreshed the latter's index.
+  #
+  # HONEST NOTE on what this site was actually costing, because the filing overstated it and a
+  # later reader would otherwise look for a defect that is not there: on a PURELY cosmetic tree
+  # the old code did NOT mint a junk commit. `git add -A` refreshes the index, the dirt
+  # vanishes, and the commit then fails with "nothing to commit" and is logged as a FAILED
+  # commit (fixture-measured 2026-09-11). The real costs were a misleading log line and a
+  # `git add -A` on a tree that had no residue -- the one that WOULD have staged untracked
+  # residue if any had appeared between the check and the add. The junk commit only ever
+  # materialised if something genuinely differed after the clean filter, in which case it was
+  # not cosmetic and is still committed today.
+  #
+  # UNKNOWN (rc 2, `git status` itself failed) is treated as DIRTY and still takes the commit
+  # path: committing discards nothing (id:373e bans discarding, not committing), so the
+  # fail-safe direction here is to preserve rather than to skip.
+  tree_rc=0
+  tree_clean_probe "$wt" || tree_rc=$?
+  if [[ "$tree_rc" -ne 0 ]]; then
     git -C "$wt" add -A
     # --no-verify: this is an emergency preservation commit, not a reviewed change — a
     # repo-local pre-commit hook (e.g. a lint/lane-vocab gate) must never cause residue to be
@@ -262,9 +346,33 @@ if [[ "$discard_residue" -eq 1 ]]; then
     echo "worktree-retire.sh: --discard-residue refused — '$branch' is not a relay-owned branch (relay/…). This helper never destroys work on a branch it does not own." >&2
     exit 2
   fi
-  status="$(git -C "$wt" status --porcelain 2>/dev/null || true)"
-  if [[ -z "$status" ]]; then
-    echo "worktree-retire.sh: --discard-residue but the worktree is CLEAN — nothing to discard; falling through to the normal path."
+  # id:68e2 -- FILTER-AWARE. A bare porcelain test here demanded an OWNER-AUTHORIZED DISCARD
+  # TOKEN for nothing: on an annex worktree the 204 cosmetic ` M` entries read as residue, so
+  # the first run refused with a token, and the operator's only way to retire a provably clean
+  # worktree was to authorise DESTROYING content that was never modified. That is the step the
+  # id:2b7a close reports having had to use. A cosmetic tree is now "nothing to discard" and
+  # falls through, its index already refreshed by step 0b so the force-free removal succeeds.
+  #
+  # UNKNOWN (rc 2, `git status` itself failed) is NOT clean and NOT discardable: it refuses
+  # outright. Folding it into the clean branch is the id:a290 round-3 fail-open shape (empty
+  # output read as cleanliness), and folding it into the dirty branch would let a token be
+  # minted from a state nobody can read, on the one code path that destroys uncommitted work.
+  # A corrupt or unreadable index is exactly the crashed-worktree case this script exists for.
+  tree_rc=0
+  tree_clean_probe "$wt" || tree_rc=$?
+  status="$TREE_PORCELAIN"
+  if [[ "$tree_rc" -eq 2 ]]; then
+    echo "worktree-retire.sh: --discard-residue REFUSED -- \`git status\` FAILED in '$wt' (exit $TREE_STATUS_RC). Its empty output is NOT evidence the tree is clean, and nothing is discarded from a tree that cannot be read. Inspect: git -C $wt status" >&2
+    log "DISCARD-REFUSED-UNREADABLE wt=$wt branch=$branch status_rc=$TREE_STATUS_RC"
+    exit 3
+  fi
+  if [[ "$tree_rc" -eq 0 ]]; then
+    if [[ "$TREE_COSMETIC" -eq 1 ]]; then
+      echo "worktree-retire.sh: --discard-residue but the worktree's $TREE_COSMETIC_COUNT reported path(s) are cosmetic git-annex pointer noise with an EMPTY diff (id:3016/68e2) -- there is NOTHING to discard; falling through to the normal path. No token is needed and none would be honoured."
+      log "discard-residue: cosmetic-only tree, nothing to discard wt=$wt entries=$TREE_COSMETIC_COUNT"
+    else
+      echo "worktree-retire.sh: --discard-residue but the worktree is CLEAN -- nothing to discard; falling through to the normal path."
+    fi
   else
     # The digest covers the WORKTREE PATH, the porcelain status, the tracked diff, and every
     # untracked file's bytes, so ANY change to the residue -- or a DIFFERENT worktree --
@@ -741,7 +849,24 @@ else
       # itself calls "the only thing standing between this hatch and that bug". Capture the exit
       # status SEPARATELY and refuse on it: no output is only evidence of cleanliness when git
       # actually succeeded. Sibling guards 2 and 4 already fail closed.
-      wt_status_out="$(git -C "$wt" status --porcelain --ignore-submodules=none 2>/dev/null)" && wt_status_rc=0 || wt_status_rc=$?
+      #
+      # id:68e2 -- FILTER-AWARE, and the round-3 fail-closed property is UNCHANGED. The probe
+      # captures `git status`'s own exit separately and reports it as rc 2, which is mapped
+      # straight back onto the `wt_status_rc != 0` refusal below, so an unreadable index still
+      # refuses exactly as it has since id:a290 round 3. What changes is only the ` M`-with-
+      # empty-diff case: cosmetic annex pointer noise no longer reads as masked dirtiness on a
+      # provably clean tree. `--ignore-submodules=none` is passed to the diff cross-check as
+      # well as to the status, so an edit INSIDE a submodule still counts as dirty on both
+      # halves of the predicate and can never be forgiven as cosmetic.
+      wt_tree_rc=0
+      wt_status_rc=0
+      wt_status_out=""
+      tree_clean_probe "$wt" --ignore-submodules=none || wt_tree_rc=$?
+      if [[ "$wt_tree_rc" -eq 2 ]]; then
+        wt_status_rc="$TREE_STATUS_RC"
+      elif [[ "$wt_tree_rc" -ne 0 ]]; then
+        wt_status_out="$TREE_PORCELAIN"
+      fi
       if [[ "$wt_head" != "refs/heads/$branch" ]]; then
         hatch_refused="the worktree's HEAD is '${wt_head:-<detached>}', not the 'refs/heads/$branch' we were handed -- refusing to force a worktree we cannot account for"
       elif (( wt_status_rc != 0 )); then

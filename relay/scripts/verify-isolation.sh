@@ -54,6 +54,8 @@ set -euo pipefail
 
 # shellcheck source=lib-ledger-only-diff.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-ledger-only-diff.sh"
+# shellcheck source=lib-clean-tree.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-clean-tree.sh"
 
 LOG="${VERIFY_ISOLATION_LOG:-$HOME/.claude/logs/relay-verify-isolation.log}"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
@@ -188,61 +190,34 @@ fi
 
 # (c): dirty tree?
 #
-# id:3016 — a BARE `status --porcelain` non-empty test false-trips on git-annex. Unlocked
-# annex pointer files report ` M` while `git diff` is EMPTY: the index holds the pointer blob
-# and the worktree holds the real content, and annex could not update the index during
-# checkout. git-annex's own message calls it "only a cosmetic problem affecting git status"
-# and names `git-annex restage` as the remedy. Reproduced live 2026-09-09 on code.lawless
-# (run relay-20260909-115705-28382, unit id:6df0): 77 paths ` M`, `git diff --stat` 0 lines,
-# index blob 99 B (pointer) against a 5297 B working PNG, annex.addunlocked true, repo v10.
-# Before this, the gate refused the merge and the unit handed back on EVERY execute round on
-# an annex repo. `id:de4a` fixed the adjacent `.git`-symlink half in worktree-retire.sh; both
-# fire on the same worktree in sequence, so de4a is necessary but not sufficient.
+# The id:3016 filter-aware predicate now lives in relay/scripts/lib-clean-tree.sh (id:68e2),
+# sourced above, because worktree-retire.sh asked the same question with a BARE porcelain test
+# and therefore answered it differently about the very same worktree. The full reasoning --
+# why annex pointer files report ` M` with an empty diff, why `git update-index --refresh`
+# does NOT clear them, and why "empty diff means clean" would blind this gate to untracked
+# residue -- is in that file's header. It is not restated here, so there is one copy to keep
+# true.
 #
-# WHY NOT `git update-index --refresh` FIRST: measured in that reproduction — it did NOT clear
-# the 77. It is the obvious cheap fix and it does not work here; do not re-add it.
-#
-# WHY NOT "just require a non-empty `git diff`": `status --porcelain` also reports UNTRACKED
-# files, which `git diff` NEVER shows. Relaxing on an empty diff alone would blind this gate to
-# genuine untracked residue — which is most of what it exists to catch, since a child that
-# writes to the main checkout leaves exactly that. So the relaxation is narrowed to ONE case:
-# EVERY porcelain entry is worktree-modified-only (` M`, i.e. index column blank) AND `git diff`
-# reports no unstaged change. Anything staged, untracked, added, deleted or conflicted keeps a
-# non-` M` entry and stays DIRTY. Fail-safe direction is preserved: an unreadable repo, a diff
-# that errors, or any entry we cannot classify all fall through to DIRTY.
-porcelain="$(git -C "$worktree" status --porcelain 2>/dev/null || true)"
+# UNKNOWN (`git status` itself failed) is deliberately handled HERE the way this script has
+# always handled it: the old `$(... 2>/dev/null || true)` produced an empty string, which read
+# as a clean tree. That is preserved BYTE-FOR-BYTE rather than quietly upgraded, because
+# tightening it is a real behaviour change (an unreadable worktree would start failing the
+# isolation gate) and belongs to its own decision, not to this extraction. It is the same
+# fail-open shape that id:a290 round-3 found destroying work in worktree-retire.sh's hatch, so
+# it is flagged, not hidden. The retire-side call sites added under id:68e2 all treat UNKNOWN
+# as DIRTY.
+tree_rc=0
+tree_clean_probe "$worktree" || tree_rc=$?
+if [ "$tree_rc" -eq 2 ]; then
+  TREE_PORCELAIN=""   # preserved pre-id:68e2 behaviour, see the paragraph above
+fi
+porcelain="$TREE_PORCELAIN"
 if [ -n "$porcelain" ]; then
-  # Residue = every entry that is NOT plain worktree-modified. `${entry:0:2}` is the XY status
-  # pair; only the exact pair ' M' qualifies for the annex relaxation.
-  residue=""
-  while IFS= read -r entry; do
-    [ -n "$entry" ] || continue
-    [ "${entry:0:2}" = " M" ] && continue
-    residue="${residue}${entry}"$'\n'
-  done <<< "$porcelain"
-
-  cosmetic_only=0
-  if [ -z "$residue" ] && git -C "$worktree" diff --quiet 2>/dev/null; then
-    cosmetic_only=1
-  fi
-
-  if [ "$cosmetic_only" -eq 1 ]; then
-    n_cosmetic="$(printf '%s\n' "$porcelain" | grep -c . || true)"
+  if [ "$TREE_COSMETIC" -eq 1 ]; then
+    n_cosmetic="$TREE_COSMETIC_COUNT"
     log "cosmetic-dirty (annex pointers, id:3016) worktree=$worktree base=$base entries=$n_cosmetic"
-    # The remedy is CONDITIONAL, and getting this wrong wastes the reader's time in a way that
-    # looks like the fix not working. Measured 2026-09-09 on code.lawless: with `.git` still a
-    # SYMLINK (the normal state of a fresh relay worktree), `git annex restage` prints
-    # `restage ok` and changes NOTHING — annex warns it is "unable to convert .git file to
-    # symlink that will work with git-annex" and cannot update the index through the symlinked
-    # admin dir. It only works once `.git` has been normalised to a gitdir FILE, which is what
-    # worktree-retire.sh's id:de4a fix does. So de4a is a PREREQUISITE of this remedy, not an
-    # adjacent fix — name the right step for the shape actually present.
-    if [ -L "$worktree/.git" ]; then
-      remedy="normalise the worktree's \`.git\` symlink to a gitdir file FIRST (worktree-retire.sh does this, id:de4a) and THEN run 'git annex restage' — restage through a symlinked .git prints 'restage ok' and silently no-ops"
-    else
-      remedy="run 'git annex restage' in the worktree to clear the display"
-    fi
-    echo "note: $n_cosmetic path(s) report modified with an EMPTY diff — cosmetic git-annex pointer noise (id:3016), not a real modification; $remedy. Treating the tree as CLEAN."
+    remedy="$(tree_cosmetic_remedy "$worktree")"
+    echo "note: $n_cosmetic path(s) report modified with an EMPTY diff -- cosmetic git-annex pointer noise (id:3016), not a real modification; $remedy. Treating the tree as CLEAN."
   else
     log "dirty worktree=$worktree base=$base"
     echo "isolation failure: worktree has a DIRTY tree (uncommitted changes) — not safe to merge"
