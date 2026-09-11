@@ -272,6 +272,7 @@
 - [ ] **AI-4 (worktree TODO.md scope)** -- detail: `docs/ledger-notes/3507.md` <!-- id:3507 -->
 
 - [ ] **D6 — sub-agent parallel Class 1 dispatcher (build-gated)** -- detail: `docs/ledger-notes/cbb5.md` <!-- id:cbb5 -->
+- [ ] [ROUTINE] **`worktree-retire.sh` gates on a BARE `git status --porcelain` with no `git diff` cross-check, so cosmetic git-annex pointer dirt reads as residue; port the id:3016 filter-aware predicate from `verify-isolation.sh` (lines 215 / 265 / 744).** -- detail: `docs/ledger-notes/68e2.md` <!-- relates:2b7a --> <!-- relates:3016 --> <!-- id:68e2 -->
 
 ## hooks / commit safety
 
