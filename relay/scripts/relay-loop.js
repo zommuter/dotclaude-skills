@@ -4594,6 +4594,73 @@ async function runUnit(unit) {
   if (strandedGate.stranded.length) {
     log(`relay-loop: id:a360 skipped stranded item(s) ${strandedGate.skipped.map((i) => `id:${i}`).join(', ')} for ${unit.repo} (${strandedGate.stranded.join('; ')}) — dispatching the next actionable item id:${strandedGate.item} instead; the stranded item(s) stay un-dispatched (id:dd7d) pending a manual /relay reconcile`)
   }
+  // id:ffc4 -- EMPTY-PERMITTED-SET GATE. An execute unit whose classifier found actionable
+  // [ROUTINE] work, but every one of whose named ids has since been subtracted by
+  // namedItemsFor() (orphan-suppressed, id:b09e, or stranded, id:a360), has a CLOSED permitted
+  // set of NOTHING. Dispatching it can only produce the id:c076 empty-permitted-set handback
+  // from a child that correctly refuses to work an item it was never permitted to work: 2 of
+  // the 7 c076 firings in pool run relay-20260910-234645-16942 were exactly this, and the
+  // remaining 5 came from the RECHAIN path below, which builds its unit literal by hand and
+  // never carries actionable_routine_ids at all (out of scope here, deliberately).
+  //
+  // This ALSO has to run BEFORE sliceLedgerForUnit()/the id:4f9b size gate, and that ordering is
+  // the whole of the second half of the fix. With no named item, dispatchItemFor() returns "",
+  // sliceLedgerForUnit takes its no-item branch and writes NO slice, so the size gate falls back
+  // to sizing the WHOLE ledgers and refuses with a byte count. That refusal is real but its
+  // MESSAGE is wrong: this repo handed back five execute units in that run reporting ~650,104
+  // tok against a 100,000 budget and pointing the operator at ledger-slice.sh and the archivers,
+  // none of which was the lever -- the one actionable id (b437) had simply been orphan-
+  // suppressed, and its normal slice measures ~5.4 KB. Gating here replaces a misleading
+  // byte-count refusal with the actual cause and the actual remedy.
+  //
+  // FAIL-CLOSED, deliberately, on a path where the guards around it (dd7d/a360 stranded, 4f9b
+  // size) all fail OPEN. That asymmetry is intentional and must not be "harmonised" away: the
+  // fail-open guards are protecting against a MEASUREMENT they may not have (an unmeasured
+  // ledger, an unreadable branch list), so absent evidence they let the dispatch through. Here
+  // there is no missing measurement -- the classifier NAMED n nameable ids and all n were
+  // subtracted, which is a COMPLETE observation that the permitted set is empty, and
+  // dispatching on it has no success branch whatsoever.
+  //
+  // KEYED ON THE ID LIST, NOT ON actionable_routine_open. The first cut of this guard used
+  // `(unit.actionable_routine_open || 0) > 0` and was WRONG: classify-repo.sh:725 documents
+  // actionable_routine_ids as "ABSENT/[] on an older discovery-queue entry or an injected unit
+  // => relay-loop fails OPEN to the unsliced brief, unchanged", and a unit carrying the COUNT
+  // without the LIST is exactly that documented fail-open state. Keying on the count turned it
+  // into a refusal and starved such a unit outright (caught by
+  // tests/test_chain_end_widen_verdict_set_4e84.sh, whose one-round harness pushes precisely
+  // that shape: actionable_routine_open 1, no ids). An absent or empty list is a MISSING
+  // OBSERVATION and must fall through; only a NON-EMPTY list, wholly subtracted, is evidence.
+  const permittedRaw = (Array.isArray(unit.actionable_routine_ids) ? unit.actionable_routine_ids : [])
+    .filter((x) => typeof x === 'string' && /^[0-9a-fA-F]{4}$/.test(x))
+  if (
+    unit.verdict === 'execute' &&
+    permittedRaw.length > 0 &&
+    namedItemsFor(unit).length === 0
+  ) {
+    const subtracted = [
+      ...(Array.isArray(unit.suppressed_item_ids) ? unit.suppressed_item_ids : []),
+      ...(Array.isArray(unit.stranded_item_ids) ? unit.stranded_item_ids : []),
+    ].filter((x) => typeof x === 'string' && x)
+    const reason =
+      `id:ffc4 empty permitted set -- ${unit.repo} classified execute with ` +
+      `${permittedRaw.length} nameable actionable [ROUTINE] item(s) ` +
+      `(${permittedRaw.map((i) => `id:${i}`).join(', ')}), but every one was ` +
+      `subtracted before dispatch` +
+      (subtracted.length ? ` (suppressed/stranded: ${[...new Set(subtracted)].map((i) => `id:${i}`).join(', ')})` : '') +
+      `. NOT dispatching: the child would be handed a closed permitted set of nothing and could ` +
+      `only hand back (id:c076). This is NOT a ledger-size problem -- do not run roadmap-archive.sh. ` +
+      `REMEDY: run a manual /relay reconcile for ${unit.repo} to retire or integrate the parked ` +
+      `orphan branch(es) behind those ids (relay/scripts/relay-reconcile.sh), then re-dispatch.`
+    log(`relay-loop: ${reason}`)
+    state.handbacks.push({ repo: unit.repo, reason, worktreePath: '-' })
+    pushEvent('handback', { repo: unit.repo, mode: unit.verdict, reason })
+    // id:7354 -- guarded exactly as the dd7d handback above is, for the same reason: this
+    // dispatch-path region is extracted stand-alone by hermetic awk-driven tests that do not
+    // carry the module-level handbackTracker/trackHandback definitions.
+    if (typeof trackHandback === 'function') trackHandback(handbackTracker, unit.repo, unit.verdict, reason)
+    scheduleStatusWrite(state)
+    return
+  }
   // id:e68f — write this unit's ledger SLICE and stamp unit.slice_path BEFORE the prompt is
   // assembled, so the named-item instructions below can hand the child the path. Fail-open:
   // sliceLedgerForUnit() logs and returns null on any failure, and dispatch continues.

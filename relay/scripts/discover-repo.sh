@@ -179,11 +179,14 @@ unit_json="$("$CLASSIFY" --emit unit --repo "$repo" --path "$path")"
 # ADDITIVELY and apply the SAME-ITEM carve-out + item-scoped reconcile-first note. REC_JSON is
 # "" under --no-reconcile or when reconcile was clean → no suppress entries → identical to the
 # pre-bc49 routing.
-REPO_ARG="$repo" ROADMAP_PATH="$path/ROADMAP.md" REC_JSON="$rec_json" python3 -c '
+REPO_ARG="$repo" REC_JSON="$rec_json" python3 -c '
 import json, os, re, sys
 
 repo = os.environ["REPO_ARG"]
-roadmap_path = os.environ["ROADMAP_PATH"]
+# id:790d -- ROADMAP_PATH used to be read here for the SAME-ITEM carve-out re-derivation
+# below. That re-derivation is gone (the carve-out now reads the classifier own
+# actionable_routine_ids), so the path is no longer plumbed in: a dead env var is an
+# invitation to grow a fifth copy of the predicate against it.
 rec_raw = os.environ.get("REC_JSON", "")
 unit = json.load(sys.stdin)
 verdict = unit.get("verdict", "")
@@ -231,26 +234,44 @@ else:
 # entries, or none at all — the substitutive class already returned above).
 if additive_surf:
     if suppress_surf and verdict == "execute" and units:
-        # SAME-ITEM carve-out (D1): collect open executable [ROUTINE] item ids; if EVERY one is
+        # SAME-ITEM carve-out (D1): take the open executable [ROUTINE] item ids; if EVERY one is
         # bound to a suppressed orphan (none free), drop the duplicate execute unit (reconcile-
-        # first). Fail-open: if we parse no routine ids at all, keep the unit (never wrong-suppress).
-        # id:0cf5 (routed:02d9) — @container is excluded alongside @manual, the THIRD copy of the
-        # predicate classify-repo.sh:is_human and gather-repo-state.sh:top_intensive also carry.
-        # Here the old behaviour was fail-OPEN (a stray @container id inflated routine_open, so
-        # `routine_open - suppressed_ids` stayed non-empty and the SAME-ITEM carve-out declined to
-        # drop a duplicate execute unit) — over-dispatch, not wrong-suppress. Fixed anyway: per the
-        # lib-state-claim.sh header rule, twin consumers of one predicate must return one answer.
+        # first). Fail-open: if we have no routine ids at all, keep the unit (never wrong-suppress).
+        #
+        # id:790d -- the set is READ from the unit that classify-repo.sh just emitted
+        # (`actionable_routine_ids`, id:b09e), never re-derived here. This block used to carry a
+        # FOURTH, LOOSER copy of the "which [ROUTINE] items count" predicate: a raw
+        # `- [ ]` + `[ROUTINE]` + not-@manual + not-@container line scan, which knew nothing about
+        # the strict classifier exclusions (a leading 🚧 / "BLOCKED on", @owner-verify and the
+        # other HUMAN_GATES, ⚠ SURFACED, an unsatisfied typed `gated-on:` edge, and parked/exempt
+        # ROADMAP sections). Measured on code.lawless during pool run
+        # relay-20260910-234645-16942 the loose scan yielded {5ab8, a736, e4a1} where the strict
+        # classifier yielded just a736; {5ab8,a736,e4a1} minus {a736,f272} is non-empty, so this
+        # carve-out DECLINED to drop a unit whose entire permitted set was about to be suppressed
+        # away, and the child correctly refused with an empty-permitted-set handback (id:c076).
+        # Comparing against the unit own list is what makes the carve-out agree, by construction,
+        # with the set relay-loop.js namedItemsFor() will actually offer the child.
+        # Case is normalised the same way namedItemsFor does it: classify-repo.sh accepts
+        # [0-9a-fA-F] while the suppressed_ids regex above is lowercase-only, so an uppercase-hex
+        # id would otherwise never subtract.
+        #
+        # The EMPTY-STRING placeholders classify-repo.sh appends for an actionable item that
+        # carries NO id are kept, each as its own unsuppressable token. This is the fail-open
+        # direction and it MATTERS: such an item is real, free, actionable work that simply
+        # cannot be named, so it can never be PROVEN bound to a suppressed orphan. Dropping the
+        # placeholders instead (the first cut of this fix did) makes a repo whose only other
+        # item is orphan-suppressed read as same-item-only and lose its execute unit outright --
+        # wrong-suppress, the one direction the carve-out header has always forbidden. The
+        # removed line scan had the same hole for the same reason (its `if m:` skipped an
+        # id-less line), so this is a latent wrong-suppress the unification closes for free.
+        # A sentinel can never collide with suppressed_ids, which holds only lowercase 4-hex.
         # (NOTE: no apostrophes in this block — it lives inside a single-quoted `python3 -c '...'`.)
         routine_open = set()
-        try:
-            with open(roadmap_path) as f:
-                for line in f:
-                    if re.match(r"^\s*- \[ \]", line) and "[ROUTINE]" in line and "@manual" not in line and "@container" not in line:
-                        m = re.search(r"id:([0-9a-f]{4})", line)
-                        if m:
-                            routine_open.add(m.group(1))
-        except OSError:
-            pass
+        for _i, _x in enumerate(unit.get("actionable_routine_ids") or []):
+            if isinstance(_x, str) and re.match(r"^[0-9a-fA-F]{4}$", _x):
+                routine_open.add(_x.lower())
+            else:
+                routine_open.add("unnameable-item-%d" % _i)
         if routine_open and not (routine_open - suppressed_ids):
             units = []   # same-item only → reconcile-first, no duplicate execute unit
         else:

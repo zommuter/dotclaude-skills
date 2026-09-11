@@ -13,12 +13,22 @@
 #   * gather-repo-state.sh — the top_intensive `grep -vP` exclusion list omits it.
 #   * discover-repo.sh  — the SAME-ITEM orphan carve-out's routine_open filter omits it.
 #
+# UPDATED 2026-09-11 (id:790d): discover-repo.sh's copy of the predicate is GONE. The
+# SAME-ITEM carve-out no longer re-derives a routine_open set from ROADMAP.md at all; it reads
+# the unit's own `actionable_routine_ids`, which classify-repo.sh computed with the strict
+# predicate case 1 below proves. So @container parity there is now structural rather than
+# textual: there is no second spelling that CAN drift. Case 5 is re-aimed accordingly -- it now
+# pins the ABSENCE of a re-derivation instead of the presence of an @container clause in one.
+# That is a strictly stronger guard (it fails on ANY resurrected copy, not only on one that
+# forgets @container), and it is why the old anchor `'"@manual" not in line'` no longer exists.
+#
 # COVERAGE HONESTY: cases 1-4 are BEHAVIOURAL (they run the collector and read its output).
-# Case 5 is a SOURCE-PARITY drift guard, not a behavioural proof — discover-repo.sh's
-# routine_open is only reachable through an orphan-suppress reconcile fixture, which costs
-# more setup than the fail-OPEN bug it guards is worth. It is labelled as a parity guard
-# here rather than dressed up as a third behavioural case. Its rationale is the
-# lib-state-claim.sh header rule: twin consumers of one predicate must return one answer.
+# Case 5 is a SOURCE-level structural guard, not a behavioural proof. The BEHAVIOURAL proof
+# that the carve-out now agrees with the strict predicate lives in
+# tests/test_same_item_carveout_strict_predicate_790d.sh, which drives discover-repo.sh through
+# a real orphan-suppress reconcile fixture -- the setup this file declined to pay for. Its
+# rationale is the lib-state-claim.sh header rule: twin consumers of one predicate must return
+# one answer, and the cheapest way to guarantee that is to have only one consumer.
 #
 # RED until `@container` is added to all three per-line exclusions.
 # Hermetic: mktemp git repos, RELAY_TOML/RELAY_WORKTREE_BASE sandboxed, no ~/.config touch.
@@ -102,19 +112,20 @@ got="$(intensive_of '- [ ] [ROUTINE] [INTENSIVE - local-llm] DECOMPOSED parent @
 [[ -z "$got" ]] && ok "gather-repo-state: @container [INTENSIVE] not surfaced as top_intensive" \
                 || bad "gather-repo-state: @container [INTENSIVE] should not surface, got '$got'"
 
-# ── Case 5 (SOURCE-PARITY drift guard — NOT a behavioural proof; see header) ─────
-# discover-repo.sh:154's routine_open filter is only reachable via an orphan-suppress
-# reconcile fixture. Its bug is fail-OPEN (a stray @container id keeps the SAME-ITEM
-# carve-out from dropping a duplicate execute unit), so it over-dispatches rather than
-# wrong-suppresses. Asserted at source level so the third copy of the predicate cannot
-# silently drift from the two proven above.
-if grep -q '"@manual" not in line' "$DISCOVER"; then
-  grep -q '"@container" not in line' "$DISCOVER" \
-    && ok "parity: discover-repo.sh routine_open filter names @container" \
-    || bad "parity: discover-repo.sh routine_open filter omits @container (fail-open dup-dispatch)"
+# ── Case 5 (SOURCE-level STRUCTURAL guard -- NOT a behavioural proof; see header) ─────
+# The strongest form of parity is having nothing to keep in parity with. Since id:790d the
+# SAME-ITEM carve-out reads the unit's own actionable_routine_ids, so the only per-line
+# [ROUTINE]/@manual/@container predicate in the dispatch path is classify-repo.sh's, proven
+# behaviourally by case 1 above. Assert BOTH halves: no resurrected line predicate, and the
+# carve-out really does consume the classifier's list.
+if grep -qE '"@manual" not in line|"@container" not in line' "$DISCOVER"; then
+  bad "parity: discover-repo.sh has grown a per-line [ROUTINE] predicate again (id:790d removed it). A second spelling WILL drift from classify-repo.sh's; the carve-out must consume actionable_routine_ids instead"
 else
-  bad "parity: discover-repo.sh routine_open filter not found — test anchor stale, re-derive it"
+  ok "parity: discover-repo.sh carries no per-line [ROUTINE]/@manual/@container predicate of its own"
 fi
+grep -q 'actionable_routine_ids' "$DISCOVER" \
+  && ok "parity: discover-repo.sh's SAME-ITEM carve-out consumes the classifier's actionable_routine_ids" \
+  || bad "parity: discover-repo.sh no longer reads actionable_routine_ids -- the carve-out has lost its strict input and must be re-deriving the set somewhere"
 
 echo
 echo "  ${pass} passed, ${fail} failed"
