@@ -18,10 +18,22 @@
 # Env overrides (hermetic tests; default to the live relay locations):
 #   RELAY_TOML           default ~/.config/relay/relay.toml
 #   RELAY_WORKTREE_BASE  default ~/.cache/relay/worktrees
+#   GATHER_REPO_STATE_LOG  default ~/.claude/logs/relay-gather-repo-state.log
 set -euo pipefail
 
 RELAY_TOML="${RELAY_TOML:-$HOME/.config/relay/relay.toml}"
 RELAY_WORKTREE_BASE="${RELAY_WORKTREE_BASE:-$HOME/.cache/relay/worktrees}"
+GATHER_REPO_STATE_LOG="${GATHER_REPO_STATE_LOG:-$HOME/.claude/logs/relay-gather-repo-state.log}"
+
+# THE single "is this work tree CLEAN?" predicate (id:68e2). stdout here is JSON, so this file
+# never prints a note; anything worth saying goes to the log above.
+# shellcheck source=lib-clean-tree.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-clean-tree.sh"
+
+glog() {  # never let logging break a gather (a missing/unwritable log dir must not abort a round)
+  mkdir -p "$(dirname "$GATHER_REPO_STATE_LOG")" 2>/dev/null || return 0
+  printf '%s %s\n' "$(date -Is)" "$*" >> "$GATHER_REPO_STATE_LOG" 2>/dev/null || true
+}
 
 repo="" path="" runid=""
 while [[ $# -gt 0 ]]; do
@@ -188,8 +200,68 @@ if [[ -n "$latest" ]]; then
 else
   commits_since="$(git -C "$path" log --oneline -n 50 2>/dev/null || true)"
 fi
-porcelain="$(git -C "$path" status --porcelain 2>/dev/null || true)"
-[[ -n "$porcelain" ]] && dirty=true || dirty=false
+# id:fac7 -- `dirty` is the SHARED lib-clean-tree.sh predicate, not a bare porcelain test.
+#
+# THE DEFECT THIS REPLACES: `porcelain=$(git status --porcelain ...)` then `[[ -n $porcelain ]]`,
+# with no `git diff` cross-check. On a git-annex repo whose index is stale against annexed files,
+# unlocked pointer files report ` M` while `git diff` is EMPTY -- annex's own message calls it
+# "only a cosmetic problem affecting git status". That set dirty=true, classify-verdict.sh turned
+# it into dirty_block, and the repo surfaced `blocked` with nothing actually wrong. Measured cost:
+# 7 code.lawless dispatches lost in run relay-20260910-234645-16942.
+#
+# FOURTH and LAST instance of one predicate class. Siblings, all now reusing this ONE helper:
+# verify-isolation.sh main path (id:3016), worktree-retire.sh (id:68e2, which extracted
+# lib-clean-tree.sh), verify-isolation.sh's id:1b13 empty-worktree branch (id:0fad). No fifth copy.
+#
+# WHY `dirty` IS RELAXED IN PLACE rather than reported true alongside a new
+# `dirty_cosmetic_only` flag folded into dirty_block (the id:bae5 / id:27b4 precedent):
+#   - The field has exactly THREE consumers. (1) `classify-verdict.sh:246` -> `dirty_block =
+#     dirty and not dirty_lock_only and not dirty_untracked_only`, which is the blocking decision
+#     this fix exists to correct. (2) THIS file's own is_finished (`clean_for_finished` below):
+#     cosmetic dirt is nothing-to-commit, so counting it as clean is the RIGHT answer there too,
+#     and dirty_lock_only already establishes that some dirt counts as clean for is_finished.
+#     (3) `backtest-historical.py`, which hardcodes dirty=False and never reads this.
+#     relay-loop.js and drain.mjs only regex the human-readable REASON STRING, not the field.
+#     So no consumer depends on cosmetic dirt being reported dirty.
+#   - Visibility is NOT lost: the raw `porcelain` field is still emitted verbatim, so a cosmetic
+#     tree still ships all of its entries in the JSON. Nothing is silently swallowed, and the
+#     relaxation is recorded in GATHER_REPO_STATE_LOG when it fires.
+#   - The new-flag shape would require editing classify-verdict.sh's dirty_block fold, which IS
+#     shadowed by relay-core's `RelayCore/ClassifyVerdict.lean:221` and would turn the parity
+#     oracle red. relay-core's own triage of this defect (its id:df48) says so explicitly:
+#     relaxing in place leaves the compared verdict.json surface UNMOVED and relay-core owes
+#     nothing, whereas a new flag folded into dirty_block is a verdict-contract change needing a
+#     coordinated id:5c76-shaped unit there. gather-repo-state.sh itself is NOT shadowed (that
+#     repo has no such file), so this edit does not touch the parity oracle at all.
+#
+# WHAT STAYS DIRTY, deliberately: `git diff` NEVER shows untracked files, so relaxing on an empty
+# diff alone would blind this gate to genuine untracked residue. The relaxation is narrowed inside
+# tree_clean_probe to ONE case -- EVERY porcelain entry is worktree-modified-only (` M`) AND
+# `git diff` reports no unstaged change. Anything staged, untracked, added, deleted or conflicted
+# keeps a non-` M` entry and stays dirty.
+#
+# FAIL DIRECTION, and this one IS a deliberate behaviour change: rc=2 (`git status` ITSELF failed)
+# now reads DIRTY. The old `$(... 2>/dev/null || true)` yielded an empty string on a git error,
+# which read as CLEAN -- the id:a290 round-3 fail-open shape, and worse here than in
+# verify-isolation.sh because an empty porcelain ALSO satisfied is_finished's clean test, so a
+# repo whose git was broken could be reported FINISHED. Unlike verify-isolation.sh (where the
+# identical fail-open is id:b545's and must move on both branches together) there is no paired
+# branch here, so it is closed now. Consequence to know: a bare repo, where `rev-parse --git-dir`
+# succeeds but `git status` cannot run, now classifies `blocked` instead of not-dirty.
+tree_rc=0
+tree_clean_probe "$path" || tree_rc=$?
+porcelain="$TREE_PORCELAIN"
+if [[ "$tree_rc" -eq 0 ]]; then
+  dirty=false
+  if [[ "$TREE_COSMETIC" -eq 1 ]]; then
+    glog "$repo: $TREE_COSMETIC_COUNT path(s) modified with an EMPTY diff -- cosmetic git-annex pointer noise (id:3016/id:fac7), treated as CLEAN; $(tree_cosmetic_remedy "$path") [path=$path runid=${runid:-}]"
+  fi
+else
+  dirty=true
+  if [[ "$tree_rc" -eq 2 ]]; then
+    glog "$repo: 'git status --porcelain' FAILED (rc=$TREE_STATUS_RC) -- failing SAFE to dirty=true (id:fac7); an unreadable tree is NOT evidence of a clean one [path=$path runid=${runid:-}]"
+  fi
+fi
 
 # id:bae5 — uv.lock-only exemptions (the zkm cascade). Conservative: only the
 # unambiguous root "uv.lock" path is exempt; any other changed/dirty path defeats it.
@@ -203,8 +275,12 @@ if [[ -n "$latest" && -n "$commits_since" ]]; then
 fi
 # dirty_lock_only: the working tree is dirty with ONLY uv.lock modified (still
 # dispatchable — the executor child regenerates+commits it in its worktree).
+# The `-n "$porcelain"` arm is LOAD-BEARING, not defensive noise (id:fac7): on rc=2 dirty is now
+# true while TREE_PORCELAIN is EMPTY, and an empty porcelain makes both of these exemption tests
+# vacuously true -- which would hand the fail-safe straight back, since
+# dirty_block = dirty and not lock_only and not untracked_only.
 dirty_lock_only=false
-if [[ "$dirty" == true ]]; then
+if [[ "$dirty" == true && -n "$porcelain" ]]; then
   dirty_nonlock="$(printf '%s\n' "$porcelain" | grep -v '^[[:space:]]*$' | awk '{print $NF}' | grep -vx 'uv.lock' || true)"
   [[ -z "$dirty_nonlock" ]] && dirty_lock_only=true
 fi
@@ -214,7 +290,7 @@ fi
 # precedent: some dirt is still dispatchable. This NEVER authorises cleaning a tree —
 # id:aa93 stands; untracked files are exactly what `git clean` destroys.
 dirty_untracked_only=false
-if [[ "$dirty" == true ]]; then
+if [[ "$dirty" == true && -n "$porcelain" ]]; then
   dirty_tracked="$(printf '%s\n' "$porcelain" | grep -v '^[[:space:]]*$' | grep -v '^??' || true)"
   [[ -z "$dirty_tracked" ]] && dirty_untracked_only=true
 fi
