@@ -183,3 +183,136 @@ either. `0d7c` remains worthwhile on its own merits; it is not a prompt-size lev
 One stale STOP sentinel remains in `~/.config/relay/`. Harmless (keyed to a run id, so it cannot
 false-stop another pool -- that scoping is what `id:cd94` bought) but nothing reaps them. Still
 unfiled, as it was yesterday.
+
+---
+
+# AFTERNOON -- same session, two pool runs and the predicate class closed. THIS IS THE AUTHORITATIVE CLOSE STATE.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | `c4871d74`, clean, 0 unpushed |
+| **Public GitHub** | **0 behind -- published twice today** (`3541b328..29db4baa`, then `..c4871d74`) |
+| Suite | **653 passed, 0 failed, 0 errored, 1 expected-red** -- re-run independently |
+| Parked orphans, fleet-wide | **0** across 61 canonical repos |
+| Leaked relay worktrees | **0** |
+| Shared inbox | **0 open** |
+| REVIEW_ME here | 86 open |
+| 7d quota | 62%, never the stopper today (two pool runs cost ~3 points total) |
+
+## READ FIRST: the bare-porcelain predicate class is CLOSED, all four instances
+
+One shared helper, `relay/scripts/lib-clean-tree.sh`, sourced by every site. No fifth copy.
+
+| id | site | note |
+|---|---|---|
+| `id:3016` | `verify-isolation.sh` main path | pre-existing |
+| `id:68e2` | `worktree-retire.sh` | created the shared helper |
+| `id:0fad` | `verify-isolation.sh` id:1b13 breach branch | the fix landed in that FILE without reaching that BRANCH |
+| `id:fac7` | `gather-repo-state.sh:191` | the last one; was mis-routed to relay-core first, see below |
+
+**Proven end-to-end, not just by fixtures:** the code.lawless annex worktree that handed back
+`handbackCode=21 breach-shaped` in the morning retired force-free in the afternoon. Each fix was
+also checked against a GENUINE dirty tree and an UNTRACKED-only tree, both of which must still
+read dirty -- that control matters more than the happy path, because inverting it destroys work.
+
+**`id:fac7` carries ONE owner-ratified change beyond its scope:** `rc=2` (git status itself
+failed) now reads DIRTY where it used to read clean. Consequence on the record: **a bare repo now
+classifies `blocked`.** The `-n "$porcelain"` arms on both `dirty_lock_only` and
+`dirty_untracked_only` are LOAD-BEARING for that and must not be removed -- on rc=2 the porcelain
+is empty, which would make both exemptions vacuously true and hand the fail-safe straight back out.
+
+## The correction that matters most: I mis-routed a fix on a stale memory
+
+I routed `gather-repo-state.sh:191` to relay-core as `routed:b062`, on a memory saying relay-core's
+shadow binary reimplements both `classify-verdict.sh` and `gather-repo-state.sh`. **The second half
+is false.** relay-core contains no `gather-repo-state.sh` at all, and `RelayCore/ClassifyVerdict.lean`
+branches on DERIVED COUNTS from assembled JSON -- every ROADMAP/porcelain string in it is a comment
+or a reason string, and `grep -c primary_lane` is 0. A delegated handoff agent caught it; I verified
+against the code before accepting.
+
+**The distinction that makes it hold, and the reason the memory is now narrowed rather than
+deleted:** `gather-repo-state.sh` produces the SHARED INPUT both sides consume, so changing its
+internals feeds both the same new value and parity cannot diverge. Only a DERIVATION the shadow
+re-implements can. `classify-verdict.sh` derivations ARE shadowed and still need cross-repo routing.
+
+Cost: the routing became a relay-core stub for a file that repo does not contain, was resolved out
+of the inbox, and briefly left the bash half with no home. Re-filed as `id:fac7`, `id:0fad`'s
+instruction corrected in place, memory `classify-shadow-parity` narrowed.
+
+## Two pool runs
+
+**`relay-20260911-103808-7255`** (`--once --execute-agent-type relay-implementer`): 4 integrated,
+4 handbacks, 1 round. **`relay-20260911-130708-23209`** (`--only relay-core --afk`): 1 integrated,
+**0 handbacks, 0 agent errors, `stopReason: drained`** -- the first fully clean run of the day.
+
+**`f8d5` was finished BY the pool**, hours after being merged with one red test as a documented
+spec. mathematical-writing went 204/1-failed to 205/0. Leaving a precisely-scoped red as the spec
+is what made that possible.
+
+**relay-core went blocked -> human -> hard -> drained in one session**, each step a different
+problem: nine-day-old uncommitted stubs, then no lanes, then one apex unit, then closed. Its
+`id:1841` resolved the way its verify-first DoD was designed to allow -- the executor re-derived
+the premise, found both greps 0, **ported nothing**, and pinned the tolerance with 912 probes over
+228 fixtures, parity 228/228.
+
+## `EXECUTE_AGENT_TYPE`: the question is answered, and the flag is not the lever
+
+One execute child still died `Prompt is too long` WITH `relay-implementer` set. **The death was
+MID-RUN, not at dispatch** -- proven by its own `id:f272` residue commit containing 24 completed
+shrink pairs, which a child dying at dispatch could not have produced. `id:c3c1` trims a fixed
+~82k preamble; this is unbounded growth during work in a repo with a 266 KB `TODO.md`. Filed as
+**`id:677b`**, which front-loads the question that must come first: executor-contract rule 2c's
+budget check ALREADY EXISTS, fails OPEN to `unknown`, and did not prevent this. Establish whether
+it fired before building a second mechanism around it.
+
+Flag stays ON, unpromoted. 1-of-5 versus 4-of-6 is encouraging and is a SMALLER sample than the
+run that already failed to settle `id:3846`.
+
+## Filed today, unworked
+
+* **`id:677b`** -- mid-run context death (above).
+* **`id:8ab8`** -- `inbox-done`'s twin guard checks the target file ON DISK, not whether it is
+  COMMITTED. Observed live: two routings survived only as a nine-day-old uncommitted edit, their
+  inbox lines already deleted. **Second, independent cost:** an uncommitted ledger edit makes
+  `classify-repo.sh` return `blocked`, so resolving an inbox item is what left the tree dirty --
+  the guard's success condition and the repo's health were in direct conflict.
+* **`id:153f`** -- a lane tag after an item's `-- detail:` pointer is invisible to anchored readers.
+  Scope deliberately UNESTABLISHED: 9 in the collector's candidate set, ~32 by a crude grep, and a
+  bare grep over-reports on this corpus.
+* **`id:b545`** -- `verify-isolation.sh`'s UNKNOWN-is-clean fail-open, deliberately NOT bundled.
+
+## Method notes -- additions from this half
+
+* **A flagged risk is a CLAIM TO CHECK, not a finding to inherit.** An agent warned that a marker
+  had lost line-finality and that anchored tooling might break. It had not -- `md-merge.py` places
+  an appended note BEFORE the marker by design. One command disposed of it; inheriting it would
+  have produced a phantom item.
+* **The privacy GATE and the privacy AUDIT have different SCOPES and look contradictory when both
+  are right.** The gate is DIFF-scoped and flags a whole changed line including text already on it;
+  the audit counts OCCURRENCES. Today's publish moved the audit's `#2` count +1 across +2 files --
+  reconciled exactly: the ledger shrink RELOCATED one occurrence out of `TODO.md` (4 -> 3) into a
+  note, and the handover added one. **Zero whole-word matches in the entire delta**; every hit was
+  inside the word "Evidence". Prose moving between files changes per-file counts without changing
+  exposure.
+* **`check-install-drift.sh` earns its keep the first launch after a NEW shared lib lands.** It
+  caught `lib-clean-tree.sh` uninstalled; `verify-isolation.sh` resolves
+  `dirname "${BASH_SOURCE[0]}"`, which through the installed SYMLINK is `~/.claude/skills/...`, so
+  it died outright. That script is invariant 5's isolation gate -- EVERY unit would have failed to
+  integrate. A `realpath`-based source would be robust; the current form breaks precisely because
+  the install is a symlink.
+* **Sequence an agent that edits a live relay script against a running pool.** Installed relay
+  scripts are per-file symlinks, so an edit is live mid-round. `gather-repo-state.sh` is read by
+  discovery every round; the `id:fac7` fix was held until the relay-core pool could follow it.
+* **Backticks inside a double-quoted `git commit -m` are COMMAND SUBSTITUTION.** zsh ran `path`
+  and ate the word. The git-diary skill mandates a quoted heredoc for exactly this. Use
+  `git commit -F <file>`. It cost one mangled (already-pushed, not amended) commit message.
+* **A bare grep over-reported FOUR times today**, always on a corpus that discusses what is being
+  searched for: `[MECHANICAL]` 9 vs a true 3; lane-after-pointer 87 then 32 vs 9 in scope; and an
+  old-vocab lane-tag check that flagged 4 hits, every one of them a deliberately-broken citation or
+  a quoted COUNT rather than a lane tag. The pre-commit ratchet was right and my grep was wrong.
+* **A deliberately-broken token citation is the sanctioned way past the vocab ratchet** -- NOT
+  `--no-verify`, and NOT rewriting the citation into the new vocabulary, which destroys the meaning
+  of a sentence whose subject IS the old spelling. Follow the `id:c076` precedent and declare the
+  edit in the commit message.
