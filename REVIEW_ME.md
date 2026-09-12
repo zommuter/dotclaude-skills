@@ -1567,3 +1567,48 @@ not part of the definition-of-done.
   it is simply not in the execution queue. Whether the promotion rate is the real bottleneck
   here, and whether it should be a standing handoff budget rather than incidental review work,
   is an owner call, not one a review should quietly make by promoting a batch.
+
+## Audit 2026-09-12 (id:401c Run 73, run `relay-20260912-191938-25818`)
+
+Both boxes come from the strong-model audit note
+`docs/meeting-notes/2026-09-12-2142-strong-model-audit.md`, which carries the measurements.
+
+- [ ] **The relay driver has no `relay:recurring-audit` carve-out, so finishing `id:401c`
+  CLOSES an item that says it "stays open by design".** The DISPATCH side knows about the
+  marker -- `gather-repo-state.sh` and `backtest-historical.py` both gate on
+  `<!-- relay:recurring-audit -->` so an audit with nothing new to audit is not dispatchable.
+  The TICK side does not: `grep -n 'recurring' relay/scripts/roadmap-tick.sh` returns nothing,
+  and under executor-contract v12 (`id:5b12`) the driver ticks every id a child returns in
+  `worked_ids`. Run 73 returned `401c`, so **its box will have been ticked at integrate and
+  needs re-opening.** This never surfaced before because the reviewer used to tick and re-open
+  in the same turn; the split-brain only appears now the tick has moved to the driver. Your
+  call which way it goes, because the two remedies point opposite ways: teach `roadmap-tick.sh`
+  to skip a recurring-audit line (the dispatch side's own rule, applied consistently), or have
+  the child omit the id from `worked_ids` (which silently loses the provenance the id:de69
+  contract exists to carry). Recorded as a finding, not decided.
+
+- [ ] **`review-box-tick.py` claims its heading regex is identical to md-merge's; it is not,
+  and md-merge disagrees with itself.** The docstring states the extracted block "is exactly
+  the block md-merge will replace". Measured: md-merge tests its section OPENER against
+  `line.rstrip('\n')` (`md-merge.py:849`) but scans for the section END against the raw line
+  (`:854`), so a titleless `###` CLOSES a section it could never have opened.
+  `review-box-tick.py` mirrors only the opener, so it would compose a section running PAST a
+  bare `###` that md-merge stops at -- and md-merge writing the longer content over the
+  shorter span duplicates the tail. NOT live today (zero titleless headings in this repo's
+  `REVIEW_ME.md` / `TODO.md` / `ROADMAP.md`, measured), so this is forward-robustness. Not
+  fixed in Run 73 on purpose: the fix is to decide which of md-merge's two disagreeing regexes
+  is canonical and change both files in one commit, which is a contract change to a shared
+  writer rather than a local patch.
+
+- [ ] **Run 73 audited a BOUNDED surface, and the rest of the window is uncertified.** The
+  strict `id:401c` window is `1b7e9bb..HEAD` = 4,940 commits / 649 code files / 81,429
+  insertions (~28,000 outside `tests/` and `tracker/fixtures/`). A 3-pass adversarial audit of
+  that is not soundly performable in one turn, so Run 73 took the Run 70 precedent and audited
+  the four production files ADDED since 2026-09-10 (~1,570 lines: `decision-brief/docket.sh`,
+  `relay/scripts/review-box-tick.py`, `relay/scripts/expires-on-scan.sh`,
+  `relay/scripts/lib-clean-tree.sh`). Everything else in that window, including ~3.3 kLOC of
+  MODIFIED production code from the same two days (`relay-loop.js` +333,
+  `todo-conformance.sh` +292, `meeting/append.sh` +187, `worktree-retire.sh` +167), is
+  UNAUDITED. Windows before Run 70 also remain uncertified, and the watermark defect behind
+  the original starvation (`id:da95`) is untouched. Flagged so a green audit line is not read
+  as coverage it does not have.
