@@ -1538,3 +1538,19 @@ not part of the definition-of-done.
   N=5 clean rounds) is nowhere near met. Recorded because the number grew this window and the
   owner may want it triaged rather than left accumulating; it is not a finding against anything
   in this diff.
+- [ ] **`id:6fda`'s negative-case declaration would have BLOCKED the merge of this whole
+  window, and it was invisible behind a green `make test`.** Fixed in `bae670d4`, recorded
+  here because the shape recurs. `test_decision_brief_write_refusal_6fda.sh` declared
+  `# fails-against-assertion: (g) the sanctioned attended+confirmed write failed` -- line
+  [13] of the 14 that fire against its mutation. The runner requires the LAST, [14]
+  (`the confirmed write did not land the @owner-answered marker`). The trap: case (g) is TWO
+  assertions, and the file runs `set -uo pipefail` WITHOUT `-e`, so "the case I meant" and
+  "the line that fires last" are different things. This is verbatim the rule CLAUDE.md
+  banked after being fooled into a false pass on 2026-09-01. **Why it matters more than a
+  lint nit:** since `id:abcc` the gate runs MECHANICALLY at integrate (`integrate.sh` step
+  3d, `--changed`, HANDBACK code 38, pre-land), so the mis-declaration is a merge refusal,
+  not an advisory line -- and `make test` is green either way, which is exactly why nothing
+  caught it for a day. The mutation, fixtures and assertions were NOT touched, so the case's
+  killing power is unchanged; only the claim about it is now true. Worth considering whether
+  `verify-negative-cases.py --changed` should run in the executor's own definition-of-done
+  rather than first at integrate.
