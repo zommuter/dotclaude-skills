@@ -10,6 +10,7 @@
 ## 2026-09-12
 
 - review: id:0fad + id:fac7 verified-green (clean-tree predicate class closed, 4/4 share one helper), id:6294 filed+promoted with a RED spec for a live in-suite SIGPIPE flake the id:81d5 sweep could not see, id:6fda negative-case mis-declaration fixed before it could HANDBACK the merge, 7 REVIEW_ME boxes (id:0fad,fac7,6294,6fda)
+- hard: id:6294 lint now sees the SCRIPT consumer AND wrapped pipelines -- flag-outright branch, 3 hidden id:81d5 head sites exposed (one production), privacy-gate test 8->19 reportable assertions, 654/0/1 (id:6294)
 
 ## 2026-09-11
 
