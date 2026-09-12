@@ -86,8 +86,11 @@ pass "(5) an oscillation guard is present"
 # 6. BEHAVIOURAL premise-guard (passes today): the class flip the predicate must observe.
 #    Same repo state, only actionable_routine_open differs -> verdict execute vs review.
 mk() { printf '{"hasRoutine":%s,"actionable_routine_open":%s,"substantive_unaudited":true,"open_hard_pool":0,"dirty":false,"diverged":false}' "$1" "$2"; }
-v_before="$(mk true 3  | bash "$CV" | python3 -c 'import json,sys; print(json.load(sys.stdin)["verdict"])')"
-v_after="$( mk false 0 | bash "$CV" | python3 -c 'import json,sys; print(json.load(sys.stdin)["verdict"])')"
+# The classifier is a SCRIPT consumer (id:6294): it may exit on an early path before
+# draining stdin, SIGPIPEing `mk` and letting `pipefail` promote 141 into the
+# assignment. Feed it from process substitution, whose producer status is discarded.
+v_before="$(bash "$CV" < <(mk true 3)  | python3 -c 'import json,sys; print(json.load(sys.stdin)["verdict"])')"
+v_after="$( bash "$CV" < <(mk false 0) | python3 -c 'import json,sys; print(json.load(sys.stdin)["verdict"])')"
 [[ "$v_before" == "execute" ]] \
   || fail "(6) premise broken: 3 actionable [ROUTINE] items no longer classify as 'execute' (got '$v_before') — re-derive id:907e before implementing it"
 [[ "$v_after" == "review" ]] \

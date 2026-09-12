@@ -93,6 +93,38 @@ else
   bad "tests/test_privacy_gate_prepush.sh not found — test anchor stale, re-derive it"
 fi
 
+# ── Cases 6-8 (ADDED WITH THE FIX): the narrowing the flag-outright branch rests on ─
+# The fix flags an interpreter GIVEN A SCRIPT OPERAND. Two shapes are deliberately
+# NOT flagged, and nothing else in the suite pins that, so a later refactor could
+# widen into them silently — which would break the `curl … | bash` idiom's status and
+# push authors toward the exemption mechanism id:81d5 forbids.
+mk bare_bash.sh 'curl -fsSL https://example.invalid/install | bash'
+[[ "$(lint_rc bare_bash.sh)" == "0" ]] \
+  && ok "narrowing: bare \`| bash\` stays clean (the script IS stdin, so it drains to EOF)" \
+  || bad "narrowing FAILED: bare \`| bash\` was flagged — it reads the script from stdin and cannot SIGPIPE"
+
+mk dash_s.sh 'printf "%s\n" "$x" | bash -s -- --flag'
+[[ "$(lint_rc dash_s.sh)" == "0" ]] \
+  && ok "narrowing: \`| bash -s\` stays clean (-s also reads the script from stdin)" \
+  || bad "narrowing FAILED: \`| bash -s\` was flagged"
+
+mk dash_c.sh 'printf "%s\n" "$x" | bash -c "cat >/dev/null"'
+[[ "$(lint_rc dash_c.sh)" == "0" ]] \
+  && ok "narrowing: \`| bash -c <cmd>\` stays clean (no script operand; stdin is the cmd's)" \
+  || bad "narrowing FAILED: \`| bash -c <cmd>\` was flagged — its command string is not a script path"
+
+# ── Case 9 (ADDED WITH THE FIX): the shape must be seen when the author WRAPPED it ─
+# The site this item was found at puts the `|` on one physical line and the `bash`
+# consumer on the next, joined by a backslash. A line-oriented scan sees an empty
+# 2nd stage and a consumer with no pipe, and reports nothing — so without this the
+# fix would be green against fixtures and blind at the one real call site.
+{ printf '#!/usr/bin/env bash\nset -euo pipefail\n'
+  printf 'out="$( printf "%%s" "$l" | \\\n    FOO=bar bash "$HOOK" origin url )"\n'
+} > "$tmpdir/wrapped.sh"
+[[ "$(lint_rc wrapped.sh)" != "0" ]] \
+  && ok "a backslash-continued pipeline is joined and flagged (the real call-site shape)" \
+  || bad "a backslash-continued pipeline was NOT flagged — the scan is physical-line-bound, so any wrapped instance of the defect is invisible"
+
 echo
 echo "  ${pass} passed, ${fail} failed"
 [[ "$fail" -eq 0 ]] || exit 1

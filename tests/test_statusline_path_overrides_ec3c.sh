@@ -40,13 +40,16 @@ JSON
 
 # HOME into the sandbox so no real OAuth token is read (keeps even the RED-state run from
 # authenticating against the live API); stdin is a minimal session JSON.
-out="$(printf '%s' '{}' | \
+# stdin via process substitution, not a pipe (id:6294): the statusline is a SCRIPT
+# consumer and is free to exit on an early path before it reads stdin, which would
+# SIGPIPE the `printf` and let `pipefail` promote 141 into this assignment.
+out="$( \
   HOME="$tmp/home" \
   CLAUDE_USAGE_CACHE="$tmp/cache" \
   CLAUDE_USAGE_HISTORY="$tmp/history" \
   CLAUDE_USAGE_BACKOFF="$tmp/backoff" \
   CLAUDE_USAGE_LOCK="$tmp/lock" \
-  bash "$SL" 2>/dev/null)"   # 2>/dev/null: statusline logs cosmetic warnings to stderr; only stdout render is asserted (id:4347)
+  bash "$SL" 2>/dev/null < <(printf '%s' '{}'))"   # 2>/dev/null: statusline logs cosmetic warnings to stderr; only stdout render is asserted (id:4347)
 
 [[ -n "$out" ]] || fail "statusline produced no stdout"
 

@@ -57,8 +57,11 @@ PY
 # durable", so any `durable|survives`-style keyword check passes VACUOUSLY against the
 # present, broken text (measured — that is exactly how the first draft of this test
 # self-satisfied). A path either is outside the repo or it is not.
-store="$(grep -oE '(~|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|/)[A-Za-z0-9._/${}-]*\.(jsonl|json|txt|state|toml)' "$tmp/branch.txt" \
-         | grep -vE '(^|/)(RELAY_LOG|ROADMAP|TODO|REVIEW_ME)\.' | head -1 || true)"
+# `head -1` reads from process substitution rather than being a pipeline stage
+# (id:81d5/id:6294): as a stage it exits at line 1 while the greps are still writing
+# and `pipefail` promotes the SIGPIPE 141 into this assignment.
+store="$(head -1 < <(grep -oE '(~|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|/)[A-Za-z0-9._/${}-]*\.(jsonl|json|txt|state|toml)' "$tmp/branch.txt" \
+         | grep -vE '(^|/)(RELAY_LOG|ROADMAP|TODO|REVIEW_ME)\.') || true)"
 
 [[ -n "$store" ]] \
   || fail "id:d8b3 (a): the ZERO-COMMIT branch names no accumulator path outside the repo — the count is read only from RELAY_LOG.md, which is committed on the handback branch the integrator never merges, so it is structurally always 0 and route=\"hard-split\" is unreachable"
