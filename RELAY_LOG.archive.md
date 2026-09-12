@@ -6190,3 +6190,238 @@ refactor: none needed — audit is a read + document unit; no code changed, so n
 
 audit(relay): Run 72 strong-model audit (id:401c) over 0454e8f..HEAD — code+security clean, 1 coherence finding tracked (stale gated-on:33b2,93ac on d4ca/e405); suite 394/0/1-xred [id:401c]
 
+
+## 2026-08-13 16:18 — reviewer (claude-opus-5)
+
+review: window relay-ckpt-20260812-1417..HEAD (13 commits, 8 more than the brief stated). gaming-scan clean; suite 400/0/1-xred; cross-ledger clean; actionable_routine_open=0 (unchanged — gate re-target verified NOT actionable: resolve-gates d4ca/e405 block=1 zero-dangling). 9 findings filed, 2 REAL BUGS in 82643ab (id:b99f live-runs JSON vs bare-token grep => live runs mislabelled STRANDED, proven empirically; id:e53a stranded hidden when orphans present); test-integrity finding id:3a50 (315c test passes against a functionally-disabled fix, mutation-tested). 55f6/c74e meeting ledger fidelity VERIFIED. routed:832e adopted.
+
+
+## 2026-08-13 18:03 — reviewer (claude-opus-5)
+
+review: window relay-ckpt-20260813-1618..HEAD (21 commits, all owner-authored — this window
+is the FIX + bookkeeping response to the 16:18 review's findings, plus a `/meeting` amendment
+and a `/relay human` pass, no executor units). gaming-scan clean; suite 411/0/1-xred
+(`roadmap:6217`, an open decision-gated item — its red test IS the spec, legitimate). The
+16:18 review found id:b99f/e53a/3a50 as REAL BUGS; this window's `f0fdeb1`/`d2f645d`/`8dd5d42`
+landed the fixes and `54c3e2c` ticked the 8 defects. Test-integrity VERIFIED not gamed:
+spot-checked the load-bearing `test_reconcile_stranded_liveness_b99f.sh` side-by-side — it
+FAILS against the pre-fix `relay-reconcile.sh` (grep -qxF against a bare runId, gate could
+never fire) and PASSES against the jq `.runId` fix; genuinely non-vacuous. cross-ledger clean;
+contract pointer v11 == canonical v11 (no drift); roadmap-lint WARN-only (pre-existing gate
+warnings, already owned by id:d119). actionable_routine_open=0 after re-derivation — all 5 open
+[ROUTINE] items are gated (d4ca/540f/c179/554b) or @container (f91a), none dispatchable, so no
+execute re-enqueue. New TODO items this window arrived pre-qualified (lane+id) from the owner
+`/relay human` pass; promotion of the [ROUTINE] subset is itself owner-gated by id:eb16. Nothing
+reopened.
+
+
+## 2026-08-13 18:21 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: 16:18-findings fixes (b99f/e53a/3a50/15f3) verified non-gamed; suite 411/0/1-xred; cross-ledger clean; routine_open=0 [id:b99f,e53a,3a50,15f3]
+
+
+## 2026-08-13 — hard-execute (claude-opus-4-8, relay-loop)
+
+Worked id:5b12 (seam of id:ae08) — tick-ownership inversion. Bumped the executor contract
+v11→v12: execute/hard children no longer tick their own ROADMAP.md checkbox — they return
+worked_ids and the serialized integrator ticks the box in the canonical checkout via a new
+`relay/scripts/roadmap-tick.sh` (idempotent, flock'd; ticks `- [ ]`→`- [x]` by worked id,
+never edits an item body). Added the driver-tick step to relay-loop.js's integrate path,
+gated to execute/hard (review/handoff keep self-ticking in their own merged worktree, since
+their reopen/verify semantics differ and they run as barriers, not N-wide). Updated the hard
+child prompt to defer ticking to the driver, and the CLAUDE.md pointer + Layout table to v12.
+Asserted by `tests/test_relay_driver_ticks.sh` over BOTH the contract text and the integrate
+path; the helper is exercised end-to-end by `tests/test_roadmap_tick.sh` (7/7). Registered
+the new script in the Makefile relay_FILES/_EXEC/_ALLOW manifest (caught by
+test_relay_install_manifest.sh). refactor: none needed — additive helper + a bounded
+integrate step; no existing duplication to fold. Friction: none. Transition is safe because
+roadmap-tick.sh is idempotent, so an in-flight v11 executor that still self-ticks plus the new
+integrator tick is a harmless double-flip. Note: this seam only inverts tick OWNERSHIP; the
+disjoint-greenlight/drain-integrate wiring (sibling seams id:02b2/id:99e5) is out of scope.
+
+
+## 2026-08-13 18:50 — strong-execute (claude-opus-4-8, fable-standin, relay-loop)
+
+Invert ROADMAP tick ownership: driver ticks from worked_ids via roadmap-tick.sh; executor-contract v11→v12 (id:5b12) [id:5b12]
+
+
+## 2026-08-13 18:47 — `/meeting` C1 inline (id:3bf3), apex (claude-opus-5)
+
+Worked `id:3bf3` (/meeting disposition-routing surface) as a Class-1 inline implementation
+under the `/relay executor` contract (D7). **The item was NOT what its ledger line implied.**
+Its stated contract — "Red test: a fixture item per lane/state maps to the right disposition
+label" — reads as untested, and a filename grep for `3bf3`/`disposition` in `tests/` returns
+nothing. Reading the actual suite showed the LANE half was already fully discharged by
+`tests/test_classify_hard_lanes.sh` (all 8 lanes across both the canonical capability-keyed and
+accepted venue-keyed vocabularies, head-anchoring per id:0d58/id:4da4, backtick-stripping per
+id:306d/id:1bbd) and the RELAY mirror line by `tests/test_classify_hard_floor.sh`. Writing "the"
+missing test would have duplicated existing coverage. Verified-uncovered remainder, by grep over
+all `tests/test_classify*.sh`: **GATED had no assertion anywhere**, and **no test pinned the TSV
+column contract** — which `CLAUDE.md` §Versioning independently lists as an unmarked *candidate
+contract surface* with the rationale that SKILL.md parses fixed columns.
+
+Added `tests/test_classify_disposition_contract_3bf3.sh` (15 assertions) covering exactly that
+remainder: (1) the STATE axis — empty-GATE on ungated items, `GATED` from both `gated on` and
+`blocked on` vocabulary, and the `GATED;HARD-NOLANE` *composition* (a naive overwrite instead of
+append would silently drop one marker); (2) the 5-column TSV contract — arity via `NF!=5` plus
+positional shape checks on columns 1/2/4/5, so a transposition that preserves arity still fails;
+(3) the disposition PARTITION — `{C1,C2,C3}` pickable vs `{RELAY,POOL,EXEC,MECH,HANDS,HUMAN}`
+skipped, asserted disjoint and non-vacuous, with every lane-tagged skip-class item required to
+land in the skip half. That partition previously lived only in SKILL.md prose; it is the
+"/meeting over-claim" regression (a pool-executable item surfacing as a redundant meeting
+candidate) made mechanical.
+
+**Non-vacuity established by mutation, not assumed** (the id:292b vacuous-fixture concern): three
+independent mutations applied to a COPY of `classify.sh` in a tempdir — dropping `blocked on`
+from the gate detector, removing the GATE column from the `printf` (5→4 fields), and routing
+`[ROUTINE]` to C1 — each kill the test. Worth recording that the third mutation FIRST reported
+`ALL PASS`, because my `sed` anchor silently failed to match; re-running it through a Python
+replace with an `assert anchor in source` proved it applied and the test then failed correctly.
+A green mutation run that actually means "the mutation never applied" is the same false-negative
+shape id:292b exists to catch, encountered live while testing for it.
+
+`refactor: none needed` — the new file shares no logic with the existing classify tests by
+construction (it was scoped to their complement) and introduces no duplication to factor out.
+Full suite **414 passed, 0 failed, 1 expected-red**. Ledger: `id:3bf3` ticked in `TODO.md` only —
+it has zero refs in `ROADMAP.md`, so single-id-two-views needs no second write.
+
+**Surfaced, not fixed** — `classify.sh`'s gate detector `grep -qiE 'gated?|…'` matches the bare
+substring `gate`, so any body containing *investigate*, *mitigate*, *aggregate*, *delegate* or
+*navigate* is flagged `GATED`. Real false positive on live data; deliberately NOT asserted in the
+new test (pinning it would encode the defect as intended behaviour) and NOT fixed here (out of
+this item's scope). The new fixtures are worded around it. Owner's call whether to tighten the
+pattern to a word-boundary form.
+
+
+## 2026-08-13 19:12 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Handoff C2-C4: promoted 3 self-contained non-dispatch items (292b/f657/d119) with verified RED specs; minted local ids for 3 inbound items; 2 REVIEW_ME boxes; dispatch-semantics promote items left for owner per id:eb16 [id:292b,f657,d119,1f9a,dda0,0bbc]
+
+
+## 2026-08-13 19:21 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+review: id:3bf3 verified green (414/0/1-xred), test behavioural+mutation-verified, no over-reach; id:259f surfaced; routine_open=0 [id:3bf3,259f]
+
+
+## 2026-08-13 — executor (claude-sonnet-5)
+
+Worked id:292b — built `tests/lint-vacuous-fixtures.py`, mechanism (1) of the vacuous-fixture
+lint: flags a "defect-fix" test (`tests/test_*.sh` with no `# roadmap:XXXX` header) that omits
+a `# fails-against: <rev|mutation>` header naming the negative case it must fail against; a
+roadmap-spec test (carries `# roadmap:`) is exempt. Advisory by default (exit 0), non-zero only
+under `--strict`/`--max N`, mirroring the sibling `tests/lint-source-grep-assertions.py`. OUT of
+scope per the item: the CI runner that actually checks out/mutates and re-runs the negative case
+(mechanism (1)'s second half), plus mechanisms (2) reached-fixture and (3) ledger-token-shape.
+`tests/test_vacuous_fixture_lint_292b.sh` (already RED-authored) is now green; full suite
+415 passed, 0 failed, 3 expected-red (a `test_lean_toolchain_drift.sh` failure on the first run
+was order-dependent/flaky — reran green in isolation and in a full clean rerun, unrelated to
+this item's diff).
+Friction: none.
+refactor: none needed — new standalone file, no shared logic with the sibling lint to factor
+out (deliberately mirrors its shape rather than extending it, per the item's scope).
+
+
+## 2026-08-13 19:38 — executor (sonnet, relay-loop)
+
+Add tests/lint-vacuous-fixtures.py (id:292b mechanism 1) — advisory lint flagging defect-fix tests missing a `# fails-against:` header [id:292b]
+
+
+## 2026-08-13 19:46 — executor (sonnet, relay-loop)
+
+id:292b already fully implemented/committed by a prior session in this worktree (tests/lint-vacuous-fixtures.py + green RED-authored test); verified full suite green (415 passed, 0 failed, 3 expected-red) and worktree already clean — no new work needed. [id:292b]
+
+
+## 2026-08-13 20:45 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+C2: promoted routed:f833/id:cd9c (loderite archive-stub design call) into ROADMAP.md as [INPUT — decision], reusing existing TODO id (single-id-two-views), no RED spec [id:cd9c]
+
+
+## 2026-08-13 — executor (Sonnet) id:f657
+
+Worked id:f657 — added ARCHITECTURE.md §11 (Pool ∥ meeting: same-repo concurrent-safety
+convention), naming the three load-bearing mechanisms (distinct claim keys id:0ee1,
+ledger-only writes not lease-gated id:c144, flock+atomic commit on shared ledgers) and
+the two expected (non-defect) interactions, without restating either id's mutable
+checkbox state. `tests/test_architecture_pool_meeting_convention_f657.sh` went RED→GREEN;
+full suite 418 passed / 0 failed / 2 expected-red (id:d119 still open — its RED spec
+`test_roadmap_lint_owner_hold_d119.sh` is the unimplemented linter feature; id:292b's
+`test_vacuous_fixture_lint_292b.sh` was already GREEN from a prior session's commit
+55900b6, unticked in ROADMAP — left for the driver to tick, not re-worked here).
+Friction: none — content was well-scoped by the RED spec + existing TODO id:f657 prose
+and claim.sh's own SCOPE INVARIANT comments; no code changes, doc-only.
+refactor: none needed — a single new doc subsection, no duplication introduced.
+
+
+## 2026-08-13 21:19 — executor (sonnet, relay-loop)
+
+Added ARCHITECTURE.md §11 recording the pool ∥ meeting same-repo concurrent-safety convention (id:f657); RED spec went green, full suite 418/0/2-expected-red. [id:f657]
+
+
+## 2026-08-13 — executor (sonnet)
+
+Worked id:d119 — `roadmap-lint`'s DEAD-GATE rule (3(d), id:49e0) now recognizes an explicit
+`<!-- owner-hold:REASON -->` marker: an item carrying it is treated as an intentional owner
+hold, so the false DEAD-GATE finding no longer fires for it, while an identically-gated twin
+with no marker still fires unchanged (WARN default, ERROR under --strict). Implemented as a
+new anchored extractor `typed_edges_owner_hold_of_line` in `lib-typed-edges.sh` (mirrors the
+existing `gated-on`/`children`/`settles` extractors) plus a one-line guard in the DEAD-GATE
+loop in `roadmap-lint.sh`. Scoped exactly per the ROADMAP item: this only teaches the
+report-only linter to recognize the marker — migrating `id:540f`/`id:c179`'s real
+`gated-on:e62c,b0b1` onto it, and teaching `classify-repo.sh`'s dispatch gate to honour it,
+are explicitly OUT of scope (separate coordinated step, per REVIEW_ME's still-open judgment
+call on the marker grammar/scoping). The RED spec (`tests/test_roadmap_lint_owner_hold_d119.sh`)
+was already authored at handoff and required no changes; it now passes as-is. Full suite:
+419 passed, 0 failed, 1 expected-red.
+Friction: none — the RED spec was already precise and the fix was a small, well-isolated addition.
+refactor: none needed — the change reuses the existing typed-edge extractor pattern and adds
+one guard clause; no new duplication introduced.
+
+
+## 2026-08-13 21:31 — executor (sonnet, relay-loop)
+
+roadmap-lint recognizes an explicit owner-hold marker, suppressing false DEAD-GATE findings on intentionally-held gates (id:d119) [id:d119]
+
+
+## 2026-08-13 21:42 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Chain-end review: verified id:f657 green (ARCHITECTURE §11 doc, not over-reach), closed id:292b (green on HEAD; tick was stranded on unmerged orphan) in ROADMAP+TODO; suite 418/0/2-expected-red; routine_open=1 (id:d119) [id:f657,292b]
+
+
+## 2026-08-13 20:40 — handoff (claude-opus-4-8, relay-loop)
+
+Cross-ledger reconcile + one promotion. The unpromoted-scan flagged ~22 `promote` items, but
+7 were already-fixed work whose TODO checkbox lagged the landed fix (fix commits 347866e/
+ef43739 landed the same day; b99f/e53a/f657 already review-verified; suite green 419/0/1-xred).
+CLOSED those 7 in TODO.md with inline dated evidence notes: id:3262 (scan-labelled 1a30),
+id:315c, id:4b8f, id:aa05, id:b99f, id:e53a, id:f657 — none had a ROADMAP twin, so no
+cross-ledger disagreement was created. Promoted the one genuinely-open, cheaply-specc'able bug
+to ROADMAP with an authored RED spec: id:259f (classify.sh GATE detector matches the bare
+substring `gate`, so investigate/mitigate/aggregate/delegate/navigate all render `[GATED]`);
+tests/test_classify_gate_word_boundary_259f.sh is RED (investigate → GATED today), 5 distinct
+false-positive words + 2 true-positive phrases (id:108e triangulation). Left promote-ready-but-
+unspecced bugs (id:9dd0/dda0/ec3c/331a/8132/f544/7be4/3986) as [ROUTINE] in TODO — each needs a
+git-worktree-fixture or Workflow-JS static harness that did not fit one turn; a follow-up handoff
+should author them (this is why the scan will still show promotable items — resumable by design).
+Design-nuanced/gated/apex items (5a14/d119/7e2a/04d6/0bbc) left in TODO, never lane-guessed.
+Friction: none. C4 skipped — no user-facing surface (infra/scripts repo).
+
+
+## 2026-08-13 22:13 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Handoff: cross-ledger reconcile — closed 7 already-landed items in TODO, promoted id:259f to ROADMAP with RED spec (classify.sh gate substring FP) [id:259f,3262,315c,4b8f,aa05,b99f,e53a,f657]
+
+
+## 2026-08-13 22:22 — executor (sonnet, relay-loop)
+
+Fixed classify.sh's GATE detector to be word-boundary anchored (id:259f) — investigate/mitigate/aggregate/delegate/navigate no longer false-positive as GATED; genuine gate/blocked phrases still detected. [id:259f]
+
+
+## 2026-08-13 22:40 — reviewer (claude-opus-4-8, fable-standin, relay-loop)
+
+Review: id:259f verified genuine-green (classify.sh word-boundary gate fix, not gamed/over-reach); suite 420/0/1-xred; @container on ae08; routine_open=0; surfaced d119 cross-ledger drift + roadmap-tick.sh install-drift [id:259f,ae08]
+
+
+## 2026-08-13 23:32 — integrate (claude-opus-5)
+
+C3 red spec for id:cd9c (archivers must leave a one-line stub); verified RED against unmodified roadmap-archive.sh; suite 420/0/3-xred
+
