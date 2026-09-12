@@ -3226,3 +3226,7 @@ scaffolding.
 ## 2026-09-12 21:02 — strong-execute (claude-opus-5, fable-standin, relay-loop)
 
 hard: id:68c1 inflownistration skill skeleton -- SKILL.md pointers-only surface, three-branch never-act router, Makefile wiring, spec exercises install/status/uninstall, 655/0/1 [id:68c1]
+
+## 2026-09-12 21:51 — strong-execute (claude-opus-5, fable-standin, relay-loop)
+
+hard: id:401c Run 73 strong-model audit -- bounded 3-pass pass over the 4 newest production files; 1 MEDIUM fixed inline (docket.sh draft-answer duplicated the anchored id marker into the id:6059 refusal), 2 tracked, residue declared; 656/0/1-xred [id:401c]
