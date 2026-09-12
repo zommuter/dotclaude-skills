@@ -3151,3 +3151,7 @@ annex worktree retirement fixed (id:1a5c): re-normalize before removal; 8 code.l
 ## 2026-09-11 01:39 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:7c75 + id:8cc6 verified green and closed; 3 residue items filed (2381 verify-negatives runner-error conflation, 341e twin stat-cache predicates, 0c8a 120 unreachable boxes); suite 645/0/0/1-expected-red; routine_open 0 of 6 (all gated/owner-bound/parked) [id:7c75,8cc6,2381,341e,0c8a]
+
+## 2026-09-12 20:04 — reviewer (claude-opus-5, fable-standin, relay-loop)
+
+review: id:0fad + id:fac7 verified-green (clean-tree predicate class closed, 4/4 share one helper), id:6294 filed+promoted with a RED spec for a live in-suite SIGPIPE flake the id:81d5 sweep could not see, id:6fda negative-case mis-declaration fixed before it could HANDBACK the merge, 7 REVIEW_ME boxes [id:0fad,fac7,6294,6fda]
