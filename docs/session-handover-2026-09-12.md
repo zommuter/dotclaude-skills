@@ -7,15 +7,20 @@ row** -- see the comparison below rather than reading it as current.
 Point-in-time snapshot. Durable detail lives in the ledger items and `docs/ledger-notes/<id>.md`
 files cited here; read those, and do not trust this doc where it disagrees with them.
 
-This session was a single `/relay --afk --exclude unidle` run plus a handover check. It is a
-THIN day by comparison: one pool, no owner rulings, no publish.
+This session was a single `/relay --afk --exclude unidle` run, a handover check, and then four
+owner decisions taken and executed at close.
 
-## State at close
+> **READ THE `AT CLOSE` SECTION AT THE END OF THIS FILE FIRST.** The table immediately below was
+> written BEFORE those decisions and several of its rows are superseded there (published to
+> GitHub, ratification queue drained, inbox drained, sentinel reaped, 9 worktrees retired, suite
+> 657). It is kept because the AT CLOSE section is a delta against it, not a replacement.
+
+## State at close of the pool run (PRE-decision -- superseded below)
 
 | | |
 |---|---|
 | `main` | clean, 0 unpushed to private origin |
-| **Public GitHub** | **38 behind** -- NOT published today; 4 of those merges are ratification-gated (below) |
+| **Public GitHub** | **0 behind -- PUBLISHED at close on the owner's decision.** See the AT CLOSE section; the table row below describes the state BEFORE that decision |
 | Suite | **656 passed, 0 failed, 0 errored, 1 expected-red** -- re-run independently at load ~5.4 with one `lake build` active, not taken from an agent's report (it happens to match the `id:401c` child's claim) |
 | Parked orphans, fleet-wide | **3** (dotclaude-skills x2, loderite x1) -- all `id:f272` WIP-residue auto-commits |
 | Retirable relay worktrees | **15**, flagged no-work-at-risk by `relay-reconcile.sh --all` |
@@ -197,3 +202,133 @@ all (`empty permitted-id set`). See `id:cbee` below.
   move **15 unrelated items**. Authoring `docs/ledger-notes/<id>.md` directly and keeping the
   head line short is the sanctioned route (`README.md` "Authored notes"), and it reaches the
   same end state without a 15-item sweep nobody asked for.
+
+---
+
+# AT CLOSE -- four owner decisions taken and executed. THIS IS THE AUTHORITATIVE CLOSE STATE.
+
+The "Needs the owner" list above was put to the owner as one batched question and answered.
+Everything below supersedes the corresponding rows of the table at the top of this file.
+
+## State at close
+
+| | |
+|---|---|
+| `main` | `f7fa822c`, clean, 0 unpushed |
+| **Public GitHub** | **0 behind -- PUBLISHED** (`e9b5d1e3..f7fa822c`, 41 commits + 4 checkpoint tags) |
+| Suite | **657 passed, 0 failed, 0 errored, 1 expected-red** -- re-run after the change, not inherited |
+| Ratification queue | **0 pending** (all 4 resolved, each verified against the remote by `ratify-queue.sh`) |
+| Parked orphans | **3** -- unchanged; the gate REFUSED all three, see below |
+| Retirable worktrees | 9 retired; **unidle's 4 deliberately left** |
+| Shared inbox | **0 open** |
+| Stale STOP sentinels | **0** |
+
+## D1 -- `relay-implementer` is now the DEFAULT execute agent type (`id:5e5a`)
+
+Owner chose "default it AND fix the class". Both halves landed.
+
+The flip AMENDS the in-code "Do not flip the default" instruction, which is quoted verbatim
+where it stood rather than deleted, because the warning it carries is still true: a custom
+definition replaces the system prompt and a bad one degrades quality silently. What changed is
+the other side of the trade.
+
+**The defect the spec pins is not "the default is wrong".** It is that flipping a default
+COLLAPSES TWO INPUTS THAT USED TO BE IDENTICAL. While OFF, `undefined` and `''` both meant "no
+custom agent", so any falsiness test was right by accident; they now mean OPPOSITE things, and
+`A.EXECUTE_AGENT_TYPE || DEFAULT` silently destroys the opt-out. That is assertion (B) of
+`tests/test_relay_execute_agent_type_default_5e5a.sh`, and the negative case was verified BY HAND
+to redden there and nowhere else.
+
+**Two self-inflicted defects in that spec's own declarations, caught before shipping green** --
+worth recording because both would have produced a vacuous test that looked fine:
+1. The first `fails-against-mutation` used `|` as the `s|||` delimiter, which collides with the
+   `||` being inserted. Perl aborted, the mutation never applied, and the spec "passed" against
+   an unmutated file. An UNREACHED FIXTURE, not a passing negative control -- exactly the shape
+   the memory rule about before/after harnesses warns of. Read the output, not the exit code.
+2. The declared assertion named the RUNTIME value (`"relay-implementer"`), which appears nowhere
+   in the source line (it reads `got \"$(get blank)\"`), and both `(B)` assertions shared
+   identical text. `test_negative_case_runner_a73c.sh` caught this as a CONFIG ERROR. **Declare
+   the static prefix of the assertion, never the interpolated output.**
+
+**New exposure this creates, stated because it did not exist while the default was OFF:**
+dispatch FAILS LOUD on a missing agent type, so a checkout that has not run `make install` now
+hands back EVERY execute unit rather than only opt-in ones. `make install` does include
+`install-agents`. **Never "fix" this with a silent fallback** -- that is the `id:4347` failure the
+loud path exists to prevent.
+
+`id:f043` is the class half: nothing in the relay front door reads the previous handover, so a
+standing ruling is invisible at launch. WARN-only like `id:83c3`, never a gate (it would wedge
+every `--afk` run), never a parser (it would rot and silently surface nothing, reintroducing the
+bug one layer down).
+
+## D2 -- PUBLISHED, on a controlled before/after audit
+
+Owner chose "audit, then publish". The audit was a measurement, not a judgement, per the 09-11
+method note: a detached worktree at `github/main`, `tools/privacy-audit.sh` run there, diffed
+against the same report at HEAD.
+
+**Both sides byte-identical: 309 occurrences across 222 file-hits, all 8 pattern indices
+unchanged.** So 41 commits added ZERO new occurrences in ZERO new files. Published on that basis,
+then all 4 ratification entries resolved -- `ratify-queue.sh resolve` verifies the remote with
+`git ls-remote` itself and would have refused otherwise.
+
+## D3 -- the orphans were NOT safe, and the gate is what established that
+
+Owner chose "auto-integrate the safe ones". `auto-integrate-orphan.sh` ran on all three and
+**refused all three**, each on the COMPLETE check: `id:b437`, `id:ccf7` and loderite's `id:6371`
+all still have an OPEN checkbox on their orphan (PARTIAL). Main unchanged, all three still parked,
+surfaced for a human `/relay reconcile`.
+
+**This is the better outcome than the inspect-first alternative**, and worth noting as a method
+point: the gate PROVED partiality mechanically, where a hand inspection would have produced a
+judgement. The `id:677b` precedent (an `id:f272` residue commit holding 24 completed shrink pairs)
+is exactly why they could not be discarded unexamined -- and equally why they could not be merged
+unexamined. They are neither finished nor worthless.
+
+## D4 -- housekeeping, with one deliberate deviation
+
+Inbox dead-letter `routed:5915` filed as `id:0682` (twin-guard verified present, inbox now 0).
+Stale sentinel reaped. **9 of the 15 worktrees retired, not 15**: two unidle entries vanished
+between the listing and the retirement, which means a session is live in that repo. unidle was
+excluded from this whole session by the owner, so its 4 remaining worktrees were left to it rather
+than reaped under a live session.
+
+## Found while checking `routed:5915`, and NOT acted on -- the owner's call
+
+**`id:8df5` now has 11 open inbound items citing its pre-registered escalation trigger** -- from
+project_manager (x3), escapement, leAIrn2learn, inflownistration, lean4btc, trustless-ai and
+unidle (x2). The parent item's own head line still reads *"the pre-registered trigger has now
+FIRED TWICE with nowhere to land"*.
+
+That count is stale by a factor of five, **and the staleness IS the pathology the item names**:
+evidence keeps arriving and accreting as separate inbox stubs instead of forcing the decision the
+trigger was pre-registered to force. The memory note `fabled-escalation-trigger-fired-4` is behind
+too (it says 5).
+
+Two further wrinkles: `routed:1b5a` and `routed:5915` are BOTH from the same unidle session on the
+same day, filed as two items covering the same firing, and they DISAGREE on magnitude -- 1b5a says
+"5 forces-amendment findings", 5915 says "~12 amendments". At least one is wrong about one event.
+
+`id:8df5` is `[HARD] [INTENSIVE]`, so the build-vs-defer call is the owner's and was left
+untouched. The stale count is a plain factual error and could be corrected independently of that
+decision; it was surfaced rather than edited.
+
+## Method notes from this half
+
+* **The zsh `path`-is-tied-to-`PATH` trap fired a THIRD consecutive session.** A loop variable
+  named `path` destroyed `PATH` mid-sweep and every subsequent command failed `command not found`.
+  It failed LOUDLY here and nothing was half-done, unlike the 09-11 instance which produced a
+  confident wrong answer. Three sessions running is an argument for the lint that handover
+  proposed -- prose in a method-notes section is not a mechanism, which is `id:f043` again.
+* **`worktree-retire.sh` takes a repo PATH, not a repo NAME**, and the name form fails with
+  "is not a git repository". Resolve via `lib-own-repos.sh`'s `own_repos` with `RELAY_TOML` and
+  `SRC_DIR` exported -- WITHOUT those it returns zero repos and exit 0, which is the `id:0fa0`
+  silent-empty trap in its own right.
+* **`node --check` cannot parse `relay-loop.js`** -- a Workflow script legitimately uses top-level
+  `return`, so the checker fails at line 5389 on the UNMODIFIED file too. Confirm against
+  `git show HEAD:` before reading such a failure as your own; the real gate is
+  `test_workflow_node_check_62c9.sh`.
+* **Filing a finding is not exempt from the ledger's own ratchet.** Today's items went in at 1213
+  and 1337 chars against a 500 budget. The fix was NOT `ledger-shrink.py --apply` -- it has no
+  per-id filter and its dry run showed it would move 15 unrelated items. Author
+  `docs/ledger-notes/<id>.md` directly and keep the head line short.
