@@ -11,6 +11,7 @@ Public Claude Code skills by [@zommuter](https://github.com/zommuter).
 | [todo-update](todo-update/) | Updates TODO.md after every substantive prompt — mandatory alongside git-diary-workflow |
 | [relay](relay/) | The reviewer/executor relay: autonomous pool (bare `/relay`), handoff, anti-gaming review, `reconcile` (human-invoked parked-orphan disposal), and `human` modes, plus the lean executor contract loaded by `/relay executor` (Sonnet sessions in relay-managed repos) |
 | [projects](projects/) | Personal project dashboard — recent activity, open task counts, prioritization |
+| [decision-brief](decision-brief/) | Turns open owner-lane ledger decisions into a brief + recommendation + ONE batched `AskUserQuestion`; recommends, never decides — its only write path drafts `@owner-answered` and refuses outright in an unattended context |
 
 (The `fables-turn` / `fables-executor` alias stubs were **removed 2026-06-15** — use
 `/relay` and `/relay executor`. `.gitignore` blocks accidental re-add.)
