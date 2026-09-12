@@ -1554,3 +1554,16 @@ not part of the definition-of-done.
   killing power is unchanged; only the claim about it is now true. Worth considering whether
   `verify-negative-cases.py --changed` should run in the executor's own definition-of-done
   rather than first at integrate.
+- [ ] **§5b disposition, stated rather than silently skipped: 15 of the 16 new open `[ROUTINE]`
+  TODO items added this window were NOT promoted, and the standing backlog is 288.** Measured
+  with the repo's own `relay/scripts/unpromoted-scan.sh`, not a hand grep: 288 `promote` / 106
+  `laned` / 362 `surface` / 1 `untracked`. The 15 unpromoted from this window alone are
+  `b9f3 302f c293 8ab8 b545 6ead ee5e 3dea 153f 6de0 8a76 ab95 3294 740a 4cd4`. Only `id:6294`
+  was mini-handed-off this review, because a promotion that is worth anything needs acceptance,
+  a done-check and a RED spec, and inventing 15 sets of those is how a queue fills with items an
+  executor cannot finish. **This is the direct explanation for a number that otherwise looks
+  wrong:** `classify-repo` reports `actionable_routine_open=2` (`b437`, `6294`) for a repo whose
+  `TODO.md` carries dozens of concrete, well-specified `[ROUTINE]` defects -- the work exists,
+  it is simply not in the execution queue. Whether the promotion rate is the real bottleneck
+  here, and whether it should be a standing handoff budget rather than incidental review work,
+  is an owner call, not one a review should quietly make by promoting a batch.
