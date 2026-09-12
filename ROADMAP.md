@@ -192,7 +192,7 @@ work is genuinely done and an open line would be false.
 
 ## 2026-09-12 review findings (run relay-20260912-191938-25818, window `relay-ckpt-20260911-0139`..HEAD)
 
-- [ ] **[HARD]** inflownistration skill skeleton: SKILL.md, the parameter-less router, and mode (a) surface, plus Makefile/allowlist wiring — seam of id:32c3 (auto, id:3801) <!-- id:68c1 -->
+- [x] **[HARD]** inflownistration skill skeleton: SKILL.md, the parameter-less router, and mode (a) surface, plus Makefile/allowlist wiring — seam of id:32c3 (auto, id:3801) <!-- id:68c1 -->
   - **Acceptance**: A new `inflownistration/SKILL.md` exists and is installable as a skill. Its router section documents the no-argument behaviour as audit-then-RECOMMEND, never act: inspect preceding context and offer (b) for a claim, (c) for a described system, (a) otherwise. Mode (a) surfaces the concept plus its four docs and degrades gracefully (a stated, non-fatal message) when `~/src/inflownistration` is absent, since this skill is public and that repo is private. No `/infln` alias is introduced.
   - **Done-check**: tests/test_inflownistration_skeleton_32c3.sh green (asserts SKILL.md declares all three router branches, the never-act rule, and the absent-repo degradation), `make DEST_DIR=$(mktemp -d) install-inflownistration` exits 0 and `make status` reports the skill, and `tests/run-tests.sh` is fully green.
   - **Context**: inflownistration/SKILL.md (new), Makefile (SKILLS := line 5 and the SKILL_RULES foreach), tools/allowlist.py + tools/allow-extra.txt if a helper script is added, tests/test_inflownistration_skeleton_32c3.sh (new)
