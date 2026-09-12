@@ -2,7 +2,8 @@ SRC_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DEST_DIR := $(HOME)/.claude/skills
 export DEST_DIR
 
-SKILLS := meeting meeting-cross git-diary-workflow todo-update relay projects decision-brief
+SKILLS := meeting meeting-cross git-diary-workflow todo-update relay projects decision-brief \
+          inflownistration
 
 HOOKS_DIR := $(HOME)/.claude/hooks
 
@@ -181,6 +182,15 @@ projects_FILES := SKILL.md
 projects_EXEC  :=
 projects_ALLOW :=
 projects_LOCAL :=
+
+# inflownistration (id:32c3, skeleton seam id:68c1) -- surfaces a concept whose home repo is
+# PRIVATE while this skill is PUBLIC, so the skill carries pointers and procedure only, never
+# the concept's content and never an instance name. Seam 1 is SKILL.md alone: modes (b) and
+# (c) add their own scripts under id:d846 / id:a187 and extend _EXEC/_ALLOW then.
+inflownistration_FILES := SKILL.md
+inflownistration_EXEC  :=
+inflownistration_ALLOW :=
+inflownistration_LOCAL :=
 
 SETTINGS_JSON    := $(HOME)/.claude/settings.json
 CLAUDE_MD        := $(HOME)/.claude/CLAUDE.md

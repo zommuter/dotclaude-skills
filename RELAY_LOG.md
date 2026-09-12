@@ -3198,3 +3198,27 @@ returns nothing), so this unit's own slice item was the dispatchable work.
 ## 2026-09-12 20:38 — strong-execute (claude-opus-5, fable-standin, relay-loop)
 
 hard: id:6294 lint now sees the SCRIPT consumer AND wrapped pipelines -- flag-outright branch, 3 hidden id:81d5 head sites exposed (one production), privacy-gate test 8->19 reportable assertions, 654/0/1 [id:6294]
+
+## 2026-09-12 21:05 - hard-execute (claude-opus-5, relay-loop)
+
+Worked id:68c1 (skeleton seam of id:32c3) - built `inflownistration/SKILL.md`, the
+parameter-less router and mode (a), plus the Makefile wiring
+(`install/status/uninstall-inflownistration`, SKILL.md-only `_FILES`, empty `_ALLOW` so
+the allowlist generator is untouched) and the RED-then-green spec
+`tests/test_inflownistration_skeleton_32c3.sh`. Suite 655/0/1 (baseline was 654/0/1).
+The design call worth recording: mode (a) POINTS at the home repo's four topical docs and
+deliberately does NOT summarize them, because a restatement living in a second repo is
+precisely the drift shape mode (b) is being built to detect - a surface mode that
+paraphrased the grammar would mint the defect the skill exists to catch. Same reasoning
+drives the absent-repo branch, which is a stated non-fatal degradation that must never
+reconstruct the missing content from memory. Modes (b) and (c) are documented in SKILL.md
+as contracts with their constraints (report-only / fails loud / no mark-reading;
+propose-then-confirm / refuses under --afk) and pointed at their own seams id:d846 and
+id:a187, so the skeleton is honest about what it does not yet do.
+Friction: none on sizing. One real trap hit and fixed in the spec itself - `grep -rn --
+PATTERN ROOT --exclude=...` puts the excludes AFTER `--`, so grep reads them as file
+operands and the tree-wide check silently searches everything; the first run reported every
+prose mention of the banned alias as a violation. The excludes now precede `--`.
+refactor: none needed - the seam is one new SKILL.md plus four Makefile variable lines and a
+new test file; there is no pre-existing code to deduplicate and the RED spec forced no
+scaffolding.
