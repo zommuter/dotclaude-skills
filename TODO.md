@@ -322,7 +322,7 @@
 - [ ] **Fable-return: surface `fable-standin` checkpoints as priority review units** -- detail: `docs/ledger-notes/9821.md` <!-- id:9821 -->
 
 - [ ] **Consider moving relay pointer to global `~/.claude/CLAUDE.md`** -- detail: `docs/ledger-notes/ef8a.md` <!-- id:ef8a -->
-- [ ] [ROUTINE] **Strong-model audit** -- detail: `docs/ledger-notes/401c.md` [MECHANICAL] [ROUTINE] <!-- id:401c -->
+- [x] [ROUTINE] **Strong-model audit** -- detail: `docs/ledger-notes/401c.md` [MECHANICAL] [ROUTINE] <!-- id:401c -->
 - [ ] **Audit repos for unintended local-only annotated tags** -- detail: `docs/ledger-notes/c3c8.md` <!-- id:c3c8 -->
 - [ ] **Observe `test_git_lock_push_slash_branch.sh` flake** -- detail: `docs/ledger-notes/456a.md` <!-- id:456a -->
 - [ ] **Manual graceful-drain knob for the relay pool** -- detail: `docs/ledger-notes/d0bc.md` <!-- id:d0bc -->
