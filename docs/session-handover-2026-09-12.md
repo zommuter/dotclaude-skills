@@ -214,8 +214,8 @@ Everything below supersedes the corresponding rows of the table at the top of th
 
 | | |
 |---|---|
-| `main` | `f7fa822c`, clean, 0 unpushed |
-| **Public GitHub** | **0 behind -- PUBLISHED** (`e9b5d1e3..f7fa822c`, 41 commits + 4 checkpoint tags) |
+| `main` | `5ea7793c` (this file's own commit; the substantive close is `f7fa822c`), clean, 0 unpushed |
+| **Public GitHub** | **0 behind -- PUBLISHED TWICE** (`e9b5d1e3..f7fa822c`, 41 commits + 4 checkpoint tags; then `..5ea7793c`, this file) |
 | Suite | **657 passed, 0 failed, 0 errored, 1 expected-red** -- re-run after the change, not inherited |
 | Ratification queue | **0 pending** (all 4 resolved, each verified against the remote by `ratify-queue.sh`) |
 | Parked orphans | **3** -- unchanged; the gate REFUSED all three, see below |
@@ -332,3 +332,34 @@ decision; it was surfaced rather than edited.
   and 1337 chars against a 500 budget. The fix was NOT `ledger-shrink.py --apply` -- it has no
   per-id filter and its dry run showed it would move 15 unrelated items. Author
   `docs/ledger-notes/<id>.md` directly and keep the head line short.
+
+## Publishing this file required its OWN audit, and that generalises
+
+The AT CLOSE section above was written after the publish, so publishing IT needed a second
+before/after run. That result: **still 309 occurrences / 222 file-hits, all 8 indices identical**
+to the pre-publish baseline. Published on that basis.
+
+**The general point, which cost nothing here but will not always:** a handover documenting a
+publish can never itself be covered by the audit that authorised that publish. Prose ADDS
+occurrences even when it adds no secrets -- the 09-11 note records a publish that moved index
+`#2` by +1 across +2 files purely because a ledger shrink relocated one occurrence and the
+handover added another, every hit being inside the ordinary English word "Evidence". So the
+sequence is: audit, publish, write the handover, **audit again**, publish the handover. Do not
+assume the second run is a formality because the first was clean; run it.
+
+There is a small terminal recursion here -- the sentence you are reading was not covered by the
+audit that published it. It is bounded and harmless (a handover's final bookkeeping paragraph
+introduces no new file and no new identity string), and the alternative is an infinite regress.
+Noted rather than hidden, so a future reader does not "discover" it as a gap.
+
+## What was NOT done, and is the next session's first question
+
+* **`id:8df5`, eleven inbound firings against a head line saying "FIRED TWICE."** The owner's
+  call, deliberately untouched. The stale COUNT is a plain factual error and can be corrected
+  without pre-judging the build-vs-defer decision.
+* **3 parked orphans**, all refused by the auto-integrate gate as PARTIAL. They need a human
+  `/relay reconcile`, and `id:677b`'s precedent says do not discard them unexamined.
+* **unidle's 4 retirable worktrees**, left to that repo's live session.
+* **`id:cbee`** (the `id:c076` recurrence) and **`id:f518`** (the sentinel reaper) are filed and
+  unworked. `id:f043` (surface standing rulings at launch) is filed and unworked, and is the one
+  that would have prevented this session's founding mistake.
