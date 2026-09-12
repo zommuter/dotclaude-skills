@@ -147,10 +147,34 @@ const MECH_MODEL = MECH_FALLBACK === 'fallback-haiku' ? 'haiku' : 'bash'
 // deliberately NOT covered: `executeAgentTypeFor()` below is the single gate and keys on the
 // verdict, so a future caller cannot widen it by accident.
 //
-// DEFAULT IS OFF. When unset/empty, `opts.agentType` is never set at all and dispatch is
-// byte-identical to the pre-id:c3c1 behaviour. This is a deliberate opt-in: a custom definition
-// replaces the SYSTEM PROMPT, and cutting the wrong half of it degrades agent quality SILENTLY
-// (no test catches it; see id:c3c1's own "decide the subset" warning). Do not flip the default.
+// DEFAULT IS `relay-implementer` SINCE 2026-09-12 (owner decision). This AMENDS the original
+// opt-in default recorded here, whose text read: "DEFAULT IS OFF. ... This is a deliberate
+// opt-in: a custom definition replaces the SYSTEM PROMPT, and cutting the wrong half of it
+// degrades agent quality SILENTLY (no test catches it; see id:c3c1's own 'decide the subset'
+// warning). Do not flip the default."
+//
+// THAT WARNING STILL STANDS on its own terms and is NOT withdrawn -- a custom definition does
+// replace the system prompt, and a bad one still degrades quality silently. What changed is the
+// evidence on the OTHER side of the trade, none of which existed when the warning was written:
+//   • THREE recorded silent non-adoptions. code.lawless adopted the flag at 15:55 on 2026-09-09
+//     and had dropped it by 20:18; the 2026-09-11 close pool carried it; the 2026-09-12 pool did
+//     not. A mitigation that must be remembered per launch demonstrably is not remembered, and
+//     `id:3846` concludes that is "a better argument for making the flag a default than any
+//     success count is."
+//   • Pooled arms on this repo: 2/9 execute children died WITH the trim, 14/22 WITHOUT
+//     (n/N deliberately, never percentages -- `id:3846`'s own rule).
+// The decisive argument is ASYMMETRIC COST, not the arms: a dead child costs a whole unit and
+// parks an orphan, while a wrong default costs a quality regression that `/relay review` is
+// built to catch. Set `EXECUTE_AGENT_TYPE=''` (or `--execute-agent-type ''`) to restore OFF.
+//
+// KNOWN EXPOSURE THIS CREATES, stated because it is new and was acceptable only while OFF was
+// the default: dispatch FAILS LOUD when the named type is missing (below), so on a machine where
+// `~/.claude/agents/relay-implementer.md` is absent, EVERY execute unit now hands back instead of
+// merely the opt-in ones. `make install` does include `install-agents`, so this bites only a
+// checkout that has not reinstalled, or a session started before the definition landed. The
+// remedy text below already names both. Do NOT "fix" this by falling back to the default agent:
+// that silent fallback is the exact failure `id:4347` forbids and would hide the misconfiguration.
+const EXECUTE_AGENT_TYPE_DEFAULT = 'relay-implementer'
 //
 // FAIL LOUD, NEVER SILENT (id:4347 no-silent-swallow). When a type name IS configured but the
 // harness rejects it (error text "Agent type '<name>' not found"), the unit is handed back with
@@ -159,7 +183,12 @@ const MECH_MODEL = MECH_FALLBACK === 'fallback-haiku' ? 'haiku' : 'bash'
 // misconfiguration the knob exists to fix would be invisible. This is the EXPECTED failure, not a
 // hypothetical: an agent definition installed after a session started is invisible to that
 // session, so the first run after `make install-agents` hits it until the session is restarted.
-const EXECUTE_AGENT_TYPE = String(A.EXECUTE_AGENT_TYPE == null ? '' : A.EXECUTE_AGENT_TYPE).trim()
+// `null`/absent means "caller said nothing" => take the default. An EXPLICIT empty string is a
+// deliberate opt-OUT and must survive as '' -- these two cases were indistinguishable while the
+// default was OFF and are not any more, so the check is on `== null`, never on falsiness.
+const EXECUTE_AGENT_TYPE = A.EXECUTE_AGENT_TYPE == null
+  ? EXECUTE_AGENT_TYPE_DEFAULT
+  : String(A.EXECUTE_AGENT_TYPE).trim()
 
 // --- id:c3c1 pure helpers (awk-extracted and executed stand-alone by
 // --- tests/test_relay_execute_agent_type_c3c1.sh -- keep this block contiguous, dependency-free)

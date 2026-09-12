@@ -7,10 +7,16 @@
 # children died `Prompt is too long` in one run -- all Sonnet, 0 of 12 Opus.
 #
 # Clause, three parts:
-#   (1) an OPT-IN knob `args.EXECUTE_AGENT_TYPE` names a custom agent type for the `execute`
-#       (Sonnet) lane. Unset/blank is a STRICT no-op: `opts.agentType` must not be present on
-#       the object handed to agent() at all (not `agentType: undefined`), so an unconfigured
-#       run dispatches exactly as it did before this item.
+#   (1) the knob `args.EXECUTE_AGENT_TYPE` names a custom agent type for the `execute`
+#       (Sonnet) lane. A BLANK value is a STRICT no-op: `opts.agentType` must not be present on
+#       the object handed to agent() at all (not `agentType: undefined`), so a blanked run
+#       dispatches exactly as it did before this item.
+#       AMENDED 2026-09-12 (owner decision): this clause originally read "Unset/blank is a
+#       STRICT no-op", when UNSET and BLANK were the same thing because the default was OFF.
+#       The default is now `relay-implementer`, so they differ: UNSET takes the default, and an
+#       EXPLICIT blank is the opt-out. The no-op assertions below are unchanged and still pin
+#       the blank case -- what changed is only which input reaches them. The default-resolution
+#       half is specced separately in test_relay_execute_agent_type_default_5e5a.sh.
 #   (2) it is `execute`-ONLY. review/handoff/hard run Opus, are not dying, and must never be
 #       given a custom type by this knob.
 #   (3) it FAILS LOUD. A configured-but-missing type ("Agent type '<name>' not found") must
