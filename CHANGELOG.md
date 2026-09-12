@@ -12,6 +12,7 @@
 - review: id:0fad + id:fac7 verified-green (clean-tree predicate class closed, 4/4 share one helper), id:6294 filed+promoted with a RED spec for a live in-suite SIGPIPE flake the id:81d5 sweep could not see, id:6fda negative-case mis-declaration fixed before it could HANDBACK the merge, 7 REVIEW_ME boxes (id:0fad,fac7,6294,6fda)
 - hard: id:6294 lint now sees the SCRIPT consumer AND wrapped pipelines -- flag-outright branch, 3 hidden id:81d5 head sites exposed (one production), privacy-gate test 8->19 reportable assertions, 654/0/1 (id:6294)
 - hard: id:68c1 inflownistration skill skeleton -- SKILL.md pointers-only surface, three-branch never-act router, Makefile wiring, spec exercises install/status/uninstall, 655/0/1 (id:68c1)
+- hard: id:401c Run 73 strong-model audit -- bounded 3-pass pass over the 4 newest production files; 1 MEDIUM fixed inline (docket.sh draft-answer duplicated the anchored id marker into the id:6059 refusal), 2 tracked, residue declared; 656/0/1-xred (id:401c)
 
 ## 2026-09-11
 
