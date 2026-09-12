@@ -86,7 +86,9 @@
 #   docket.sh calibrate            run the calibration controls only; exit 0 or 3
 #
 # Exit codes: 0 ok · 2 usage · 3 CALIBRATION REFUSAL · 4 write refused (no owner
-# confirmation) · 5 write refused (unattended context) · 6 repo enumeration failed.
+# confirmation) · 5 write refused (unattended context) · 6 repo enumeration failed ·
+# 7 write refused (the target line's anchored id marker is not line-final, so appending
+# would duplicate it into the id:6059 multi-marker refusal -- see cmd_draft_answer).
 #
 # Env: $RELAY_TOML and $SRC_DIR are read (and defaulted) exactly as every other relay
 # script defaults them, and are honoured by the hermetic tests.
@@ -673,6 +675,25 @@ cmd_draft_answer() {
   if [[ "$marker_count" != "1" ]]; then
     echo "docket.sh draft-answer: the target line carries $marker_count anchored id markers; md-merge.py REFUSES a multi-marker line (id:6059). Surface this to the owner; do not hand-edit." >&2
     return 2
+  fi
+
+  # THE MARKER MUST BE LINE-FINAL, and this is checked rather than assumed. The strip
+  # below removes a SUFFIX: on a line with anything after the marker it silently no-ops,
+  # and the append then emits a line carrying TWO `<!-- id:XXXX -->` markers. md-merge.py
+  # and lib-typed-edges.sh both REFUSE a multi-marker line (id:6059), so such a write
+  # leaves the item unaddressable by every anchored-id writer and resolves its own id to
+  # nothing -- silent ledger damage from the one write path in this skill. MEASURED
+  # 2026-09-12 on this repo: 14 open TODO.md items and 22 open ROADMAP.md items are in that
+  # shape, `ROADMAP.md`'s `[INPUT - decision]` id:32c3 among them, i.e. exactly the kind of
+  # row this subcommand is pointed at.
+  #
+  # REFUSE, do not guess. Splicing the marker "somewhere before the trailing run" is the
+  # guess review-box-tick.py refuses for the stated id:6d7e reason: a physical ledger line
+  # is not a semantically complete unit, so there is no safe insertion point to infer. The
+  # remedy is at the source line.
+  if [[ "$existing" != *"<!-- id:$item_id -->" ]]; then
+    echo "docket.sh draft-answer: REFUSED -- the anchored '<!-- id:$item_id -->' marker is NOT line-final on the target line; text follows it. Appending here would emit a SECOND anchored marker, and md-merge.py / lib-typed-edges.sh REFUSE a multi-marker line (id:6059), making the item unaddressable. Fix the ledger line so its anchored marker is last (move the trailing text ahead of it, or into the item's detail note), then re-run. This tool will not guess an insertion point." >&2
+    return 7
   fi
 
   local proposed
