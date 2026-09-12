@@ -3194,3 +3194,7 @@ Friction: the dispatched pool-lane list (id:32c3, id:6958) was stale -- id:32c3 
 `GATED (auto, id:3801; route:hard-split)` carrying "pick those, not this", and id:6958's
 closing condition already holds (`lane-delimiter-scan.sh --live-only` over all five ledgers
 returns nothing), so this unit's own slice item was the dispatchable work.
+
+## 2026-09-12 20:38 — strong-execute (claude-opus-5, fable-standin, relay-loop)
+
+hard: id:6294 lint now sees the SCRIPT consumer AND wrapped pipelines -- flag-outright branch, 3 hidden id:81d5 head sites exposed (one production), privacy-gate test 8->19 reportable assertions, 654/0/1 [id:6294]
