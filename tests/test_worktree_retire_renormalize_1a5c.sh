@@ -113,8 +113,13 @@ echo dirt > "$wtB/seed.txt"                      # tracked modification -> resid
 # and under `set -e` + `pipefail` that status propagates out of the command substitution and kills
 # this script SILENTLY -- no ok, no FAIL, just a truncated run that reads as a pass to a skimming
 # eye. Dropping it is how the second version of this fixture broke.
-tokB="$("$WR" "$B" "$wtB" relay/wtB --expect-merged --discard-residue 2>&1 \
-        | sed -n 's/.*--discard-residue --ack \([0-9a-f]\{6,\}\).*/\1/p' | head -1 || true)"
+# `head -1` reads from process substitution rather than being a pipeline stage
+# (id:81d5/id:6294): as a stage it exits at line 1 while `sed` is still writing and
+# `pipefail` promotes the SIGPIPE. The `|| true` above still covers the deliberate
+# exit 3, but it must not be the only thing standing between this fixture and a
+# status that has nothing to do with the assertion.
+tokB="$(head -1 < <("$WR" "$B" "$wtB" relay/wtB --expect-merged --discard-residue 2>&1 \
+        | sed -n 's/.*--discard-residue --ack \([0-9a-f]\{6,\}\).*/\1/p') || true)"
 [[ -n "$tokB" ]] || { echo "FAIL: fixture sanity: case B minted no --ack token, so the discard path was never reached"; exit 1; }
 out="$("$WR" "$B" "$wtB" relay/wtB --expect-merged --discard-residue --ack "$tokB" 2>&1)" || true
 if [[ ! -d "$wtB" ]]; then

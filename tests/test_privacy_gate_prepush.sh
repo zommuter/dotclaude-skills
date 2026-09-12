@@ -68,15 +68,27 @@ export PRIVACY_GATE_RELAY_TOML="$RELAYTOML"
 LOG="$TMP/gate.log"
 STDIN_LINE="refs/heads/main $SHA_B refs/heads/main $SHA_A"
 
+# id:6294 — the hook's stdin comes from PROCESS SUBSTITUTION, never a pipe.
+# `printf … | bash "$HOOK"` is the id:81d5 shape with a consumer that lint could
+# not name: `hooks/pre-push-privacy-gate.sh` takes its absent-pattern-file /
+# skip-this-repo `exit 0` at :48, BEFORE its `while IFS= read -r line` at :54, so
+# it never drains stdin, `printf` dies of SIGPIPE (141) and `pipefail` promotes
+# 141 to the assignment's status. That flaked this file live on 2026-09-12 with
+# every assertion it reached TRUE. `< <(producer)` discards the producer's status.
 run_hook() { # <remote-name> <remote-url>
-  ( cd "$REPO" && printf '%s\n' "$STDIN_LINE" | \
+  ( cd "$REPO" && \
       PRIVACY_GATE_PATTERNS="$PAT" PRIVACY_GATE_LOG="$LOG" \
-      bash "$HOOK" "$1" "$2" ) 2>&1
+      bash "$HOOK" "$1" "$2" < <(printf '%s\n' "$STDIN_LINE") ) 2>&1
 }
+
+# id:6294 — `out="$(cmd)"; rc=$?` CANNOT report a failure: a simple assignment
+# takes the substitution's status and is not a `set -e` condition context, so the
+# shell exits before `rc=$?` is read and the `[[ $rc -eq 0 ]] || bad …` guard
+# below it can never fire. `rc=0; out="$(cmd)" || rc=$?` makes it reportable.
 
 # ── (1) PUBLIC remote: seeded pattern in an added line is logged + printed, exit 0 ──
 : > "$LOG"
-out="$(run_hook origin 'git@github.com:acme/repo.git')"; rc=$?
+rc=0; out="$(run_hook origin 'git@github.com:acme/repo.git')" || rc=$?
 [[ $rc -eq 0 ]] && ok "ebd0: public-remote scan exits 0 (never blocks)" \
                 || bad "ebd0: public-remote scan exited $rc — must be 0 (warn+log, never blocks)"
 grep -q 'ZZLEAKTOKEN-4242' <<<"$out" \
@@ -97,7 +109,7 @@ grep -qiE 'unrecognized option|Usage: grep' <<<"$out" \
 
 # ── (2) PRIVATE remote (matches fixture private-host): scan SKIPPED, exit 0 ──
 : > "$LOG"
-out="$(run_hook backup 'git@fievel:acme/repo.git')"; rc=$?
+rc=0; out="$(run_hook backup 'git@fievel:acme/repo.git')" || rc=$?
 [[ $rc -eq 0 ]] && ok "ebd0: private-remote push exits 0" \
                 || bad "ebd0: private-remote push exited $rc"
 grep -q 'ZZLEAKTOKEN-4242' <<<"$out" \
@@ -111,9 +123,11 @@ fi
 
 # ── (3) ABSENT pattern file: clean no-op + notice, exit 0, nothing logged ──
 : > "$LOG"
-out="$( ( cd "$REPO" && printf '%s\n' "$STDIN_LINE" | \
+rc=0
+out="$( ( cd "$REPO" && \
     PRIVACY_GATE_PATTERNS="$TMP/does-not-exist.txt" PRIVACY_GATE_LOG="$LOG" \
-    bash "$HOOK" origin 'git@github.com:acme/repo.git' ) 2>&1 )"; rc=$?
+    bash "$HOOK" origin 'git@github.com:acme/repo.git' \
+    < <(printf '%s\n' "$STDIN_LINE") ) 2>&1 )" || rc=$?
 [[ $rc -eq 0 ]] && ok "ebd0: absent pattern file is a clean no-op (exit 0)" \
                 || bad "ebd0: absent pattern file exited $rc — must be a clean no-op"
 grep -qiE 'no-?op|absent|not found|no pattern' <<<"$out" \
@@ -128,9 +142,13 @@ git -C "$REPO" commit -q -m add-allowed
 SHA_C="$(git -C "$REPO" rev-parse HEAD)"
 unset GIT_DIR GIT_WORK_TREE
 : > "$LOG"
-out="$( ( cd "$REPO" && printf 'refs/heads/main %s refs/heads/main %s\n' "$SHA_C" "$SHA_B" | \
+rc=0
+out="$( ( cd "$REPO" && \
     PRIVACY_GATE_PATTERNS="$PAT" PRIVACY_GATE_LOG="$LOG" \
-    bash "$HOOK" origin 'git@github.com:acme/repo.git' ) 2>&1 )"
+    bash "$HOOK" origin 'git@github.com:acme/repo.git' \
+    < <(printf 'refs/heads/main %s refs/heads/main %s\n' "$SHA_C" "$SHA_B") ) 2>&1 )" || rc=$?
+[[ $rc -eq 0 ]] && ok "ebd0: allowlist case exits 0" \
+                || bad "ebd0: allowlist case exited $rc — the gate must never block"
 grep -q 'ZZALLOWED-77' <<<"$out" \
   && bad "ebd0: allowlisted token fired — allowlist not honored" \
   || ok "ebd0: allowlisted token is suppressed"
@@ -144,9 +162,11 @@ grep -qE '^install-privacy-gate:' "$SRC_DIR/Makefile" \
 # This is what keeps the global core.hooksPath from firing inside throwaway/temp repos.
 : > "$LOG"
 EMPTYTOML="$TMP/relay-empty.toml"; printf '# no own repos\n' > "$EMPTYTOML"
-out="$( ( cd "$REPO" && printf '%s\n' "$STDIN_LINE" | \
+rc=0
+out="$( ( cd "$REPO" && \
     PRIVACY_GATE_PATTERNS="$PAT" PRIVACY_GATE_LOG="$LOG" PRIVACY_GATE_RELAY_TOML="$EMPTYTOML" \
-    bash "$HOOK" origin 'git@github.com:acme/repo.git' ) 2>&1 )"; rc=$?
+    bash "$HOOK" origin 'git@github.com:acme/repo.git' \
+    < <(printf '%s\n' "$STDIN_LINE") ) 2>&1 )" || rc=$?
 [[ $rc -eq 0 ]] && ok "ebd0: non-relay repo exits 0" || bad "ebd0: non-relay repo exited $rc"
 grep -qiE 'not in the relay own-repo set|skipping leak scan' <<<"$out" \
   && ok "ebd0: repo absent from relay.toml is SKIPPED (relay-scoping)" \
@@ -159,9 +179,13 @@ grep -q 'ZZLEAKTOKEN-4242' <<<"$out" \
 
 # ── (7) PRIVACY_GATE_ALL_REPOS=1 overrides relay-scoping → scans even a non-relay repo ──
 : > "$LOG"
-out="$( ( cd "$REPO" && printf '%s\n' "$STDIN_LINE" | \
+rc=0
+out="$( ( cd "$REPO" && \
     PRIVACY_GATE_PATTERNS="$PAT" PRIVACY_GATE_LOG="$LOG" PRIVACY_GATE_RELAY_TOML="$EMPTYTOML" \
-    PRIVACY_GATE_ALL_REPOS=1 bash "$HOOK" origin 'git@github.com:acme/repo.git' ) 2>&1 )"
+    PRIVACY_GATE_ALL_REPOS=1 bash "$HOOK" origin 'git@github.com:acme/repo.git' \
+    < <(printf '%s\n' "$STDIN_LINE") ) 2>&1 )" || rc=$?
+[[ $rc -eq 0 ]] && ok "ebd0: ALL_REPOS override exits 0" \
+                || bad "ebd0: ALL_REPOS override exited $rc — the gate must never block"
 grep -q 'ZZLEAKTOKEN-4242' <<<"$out" \
   && ok "ebd0: PRIVACY_GATE_ALL_REPOS=1 scans a non-relay repo (override)" \
   || bad "ebd0: ALL_REPOS override did not scan. Output: $out"

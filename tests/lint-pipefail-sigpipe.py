@@ -154,6 +154,42 @@ def early_exit_reason(stage, raw=None):
             return "awk exits early (exit statement)"
         return None
 
+    # A SCRIPT consumer (id:6294): `producer | bash <script>` / `| sh <script>`.
+    # The interpreter runs an arbitrary script, and ANY `exit` on a path that has
+    # not yet drained stdin SIGPIPEs the producer — exactly the id:81d5 mechanism
+    # with a consumer the id:81d5 classifier could not name.  Reproduced live:
+    # `tests/test_privacy_gate_prepush.sh:114` piped `printf` into
+    # `bash "$HOOK"`, and `hooks/pre-push-privacy-gate.sh` takes its
+    # absent-pattern-file `exit 0` at :48, BEFORE its `while read` at :54.
+    #
+    # BRANCH TAKEN — flag outright, do NOT try to prove the callee drains.
+    # Proving it would mean resolving the operand (usually a variable such as
+    # `"$HOOK"`) to a path and then reasoning about every `exit` reachable before
+    # the script's first stdin read — interprocedural analysis this line-oriented
+    # tokenizer cannot do, and a WRONG "it drains" verdict is silent, whereas a
+    # wrong flag is loud and has a one-line safe rewrite (`< <(producer)`).
+    #
+    # Narrowed to the shape that can actually strand a producer:
+    #   * a bare `| bash` (or `| sh`) reads the SCRIPT ITSELF from stdin and so
+    #     always drains to EOF — NOT flagged (this is the `curl … | bash` idiom);
+    #   * `-s` likewise reads the script from stdin — NOT flagged;
+    #   * `-c '<cmd>'` has no script operand, and its stdin belongs to whatever
+    #     `<cmd>` runs — out of this branch's reach, left to the other classifiers.
+    # Only an interpreter given a script OPERAND is flagged.
+    if cmd in ("bash", "sh", "zsh", "ksh", "dash", "busybox"):
+        for w in rest:
+            if w == "--":
+                continue          # the next operand is the script path
+            if w.startswith("-") and w != "-":
+                if not w.startswith("--") and ("c" in w[1:] or "s" in w[1:]):
+                    return None   # -c: no script operand; -s: script comes from stdin
+                if w in ("--command", "--stdin"):
+                    return None
+                continue
+            return ("script consumer may exit before draining stdin "
+                    f"({cmd} <script>)")
+        return None               # bare `| bash` — the script IS stdin, so it drains
+
     return None
 
 
@@ -166,22 +202,42 @@ HEREDOC = re.compile(r"<<-?\s*(\\?)([\"\']?)([A-Za-z_][A-Za-z0-9_]*)\2")
 
 
 def code_lines(text):
-    """Yield (lineno, line) for lines that are CODE in this file.
+    r"""Yield (lineno, line) for lines that are CODE in this file.
 
     Heredoc BODIES are data, not commands this shell runs, so they are skipped —
     that is parser correctness, not an exemption.  (Fixture scripts written from
     a heredoc are separately reported by `--heredoc`.)
+
+    A BACKSLASH-CONTINUED line is joined into the single logical command it is
+    (id:6294).  Without this the scanner is blind to the shape at the site it was
+    found at: `tests/test_privacy_gate_prepush.sh:114` ends `printf … | \` and puts
+    the `bash "$HOOK"` consumer on :116, so the physical line 114 has an EMPTY
+    second stage (classified None) and line 116 has no `|` at all.  A defect that
+    is invisible whenever its author wrapped the line is not detected, it is
+    merely under-reported — the same physical-line-vs-logical-unit confusion as
+    `review-box-tick.py`'s wrapped-title bug.  The yielded line number is the
+    FIRST physical line of the logical one, which is where a reader looks.
     """
     term = None
+    pending = None                      # (first-lineno, text-so-far)
     for lineno, line in enumerate(text.splitlines(), 1):
         if term is not None:
             if line.strip() == term:
                 term = None
             continue
+        if pending is not None:
+            lineno, acc = pending[0], pending[1]
+            line = acc + " " + line.lstrip()
+            pending = None
+        if line.endswith("\\") and not line.endswith("\\\\"):
+            pending = (lineno, line[:-1].rstrip())
+            continue
         m = HEREDOC.search(line)
         yield lineno, line
         if m:
             term = m.group(3)
+    if pending is not None:             # file ends on a continuation
+        yield pending[0], pending[1]
 
 
 def scan(path):

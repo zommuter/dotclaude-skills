@@ -3155,3 +3155,42 @@ review: id:7c75 + id:8cc6 verified green and closed; 3 residue items filed (2381
 ## 2026-09-12 20:04 — reviewer (claude-opus-5, fable-standin, relay-loop)
 
 review: id:0fad + id:fac7 verified-green (clean-tree predicate class closed, 4/4 share one helper), id:6294 filed+promoted with a RED spec for a live in-suite SIGPIPE flake the id:81d5 sweep could not see, id:6fda negative-case mis-declaration fixed before it could HANDBACK the merge, 7 REVIEW_ME boxes [id:0fad,fac7,6294,6fda]
+
+## 2026-09-12 — hard executor (claude-opus-5)
+
+Worked id:6294 — taught `tests/lint-pipefail-sigpipe.py` the SCRIPT consumer and rewrote
+the call sites it then found. Branch taken for acceptance (a) is FLAG-OUTRIGHT, not
+prove-it-drains: proving a callee drains stdin means resolving an operand that is almost
+always a variable (`"$HOOK"`) and then reasoning about every `exit` reachable before its
+first read -- interprocedural analysis this line-oriented tokenizer cannot do -- and a wrong
+"it drains" verdict is SILENT while a wrong flag is loud with a one-line rewrite. Narrowed
+so the flag needs a script OPERAND: bare `| bash` and `| bash -s` read the script from
+stdin and therefore drain, `-c` has no script operand; all three are pinned as new negative
+controls, since otherwise nothing guarded the `curl ... | bash` idiom against a later widening.
+
+Surprise, and the reason the fix is two changes rather than one: the lint could not see the
+site the item was BORN at. `tests/test_privacy_gate_prepush.sh` puts its `|` on :114 and the
+`bash "$HOOK"` consumer on :116, joined by a backslash, so a physical-line scan classified an
+EMPTY second stage on one line and found no pipe at all on the other. `early_exit_reason()`
+alone would have gone green on fixtures and stayed blind at the real call site. `code_lines()`
+now joins backslash continuations into the logical command they are (the same physical-line-
+vs-logical-unit confusion as `review-box-tick.py`'s wrapped-title defect). That join exposed
+three GENUINE pre-existing id:81d5 `head` sites that line-wrapping had hidden all along --
+`relay/scripts/mechanical-daemon.sh:149` (production: a SIGPIPE there defers a recipe for a
+lease that does not exist, intermittently and only under load), plus two test fixtures whose
+`|| true` was the only thing between them and a lying status.
+
+Also acceptance (c): the `out="$(...)"; rc=$?` sites could never report anything -- a simple
+assignment takes the substitution's status and is not a `set -e` condition context, so the
+shell exits before `rc=$?` is read and the `[[ $rc -eq 0 ]] || bad ...` guard below it is
+dead code. Now `rc=0; out="$(...)" || rc=$?`, and the two sites that had no guard at all
+gained one. That file went from 8 reported assertions to 19.
+
+refactor: none needed -- the change is one new classifier branch plus one loop in
+`code_lines()`; the call-site rewrites are all the same `< <(producer)` form and introduced
+no duplication worth extracting.
+
+Friction: the dispatched pool-lane list (id:32c3, id:6958) was stale -- id:32c3 is already
+`GATED (auto, id:3801; route:hard-split)` carrying "pick those, not this", and id:6958's
+closing condition already holds (`lane-delimiter-scan.sh --live-only` over all five ledgers
+returns nothing), so this unit's own slice item was the dispatchable work.

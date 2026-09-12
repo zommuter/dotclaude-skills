@@ -146,9 +146,12 @@ cmd_run() {
     # defers above (cheap, non-consuming `claim.sh peek`). A repo hard lease records the repo
     # NAME as its claim key (claim.sh SCOPE INVARIANT); also match a claim's `.repo` field.
     # `peek` emits only LIVE claims, so a stale/dead lease never over-blocks.
-    if [ -n "$repo" ] && [ -n "$("$CLAIM" peek 2>/dev/null \
-         | jq -r --arg repo "$repo" 'select(.key == $repo or .repo == $repo) | .key' \
-         | head -1)" ]; then
+    # `head -1` reads from process substitution, never a pipe (id:81d5/id:6294): as a
+    # pipeline stage it exits at line 1 while `peek`/`jq` are still writing, and
+    # `pipefail` would promote that SIGPIPE 141 into this test — deferring a recipe
+    # for a lease that does not exist, intermittently and only under load.
+    if [ -n "$repo" ] && [ -n "$(head -1 < <("$CLAIM" peek 2>/dev/null \
+         | jq -r --arg repo "$repo" 'select(.key == $repo or .repo == $repo) | .key'))" ]; then
       log "DEFERRED $base id=$id repo=$repo reason=repo-leased"
       deferred=$((deferred + 1))
       continue
