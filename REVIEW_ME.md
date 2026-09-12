@@ -1486,3 +1486,84 @@ not part of the definition-of-done.
   forced into ROADMAP with an invented acceptance criterion -- naming them here so the omission
   is on the record rather than silent. `id:d661` and `id:1007` are the two that could become
   `[ROUTINE]` once someone confirms the reported behaviour in this repo's own tooling.
+
+## Review 2026-09-12 (chain-end re-ask, run `relay-20260912-191938-25818`, window `relay-ckpt-20260911-0139`..HEAD)
+
+- [ ] **A test that printed only `ok:` lines still failed the suite -- `id:6294` filed, and it is
+  a CONFIRM observation for `id:7518` clause 4, not a kill.** `make test` this review:
+  `652 passed, 1 failed, 0 errored, 1 expected-red`, the failure being
+  `tests/test_privacy_gate_prepush.sh`, which emitted **8 `ok:` lines, zero `bad:`, and no
+  `---- N ok, M bad ----` summary** before dying mid-file, then passed standalone
+  (`1 passed, 0 failed`). Load average 22.09, parallel suite. Traced to the exact line pair
+  rather than filed as "it flaked": `tests/test_privacy_gate_prepush.sh:114` pipes `printf` into
+  `bash "$HOOK"` with the pattern file deliberately absent, and
+  `hooks/pre-push-privacy-gate.sh` takes its D4 `exit 0` at `:48`, which is BEFORE its
+  `while IFS= read -r line` at `:54` -- so the hook never drains stdin, `printf` dies of
+  SIGPIPE, and `pipefail` promotes 141. **Why this matters beyond one test:**
+  `tests/lint-pipefail-sigpipe.py` flags only what its own docstring calls a "KNOWN-early-exiting
+  consumer" and enumerates `grep -q/-m/-l`, `head`, `sed Nq`, `awk ... exit`. A script consumer
+  is not in that set, so `id:81d5`'s measured 427-site / 162-file population **undercounts** the
+  real one. Judgment for the owner: whether the lint should flag `| bash <path>` outright
+  (cheap, false-positive-prone) or attempt to prove the callee drains stdin (precise, harder).
+  Detail and acceptance: `docs/ledger-notes/6294.md`.
+- [ ] **The same flake is the first one recorded in a file that used to be MASKED, which is
+  `id:86ca` arriving.** The 2026-08-22 review named `test_privacy_gate_prepush.sh` as one of
+  three maskable files and stated the consequence that a flake inside the masked set "can never
+  fail the suite in either direction". Its `# roadmap:ebd0` item is now `[x]` in
+  `ROADMAP.archive.md`, so the test is armed and the flake is now visible -- and it took the
+  suite red on its first armed appearance. Worth reading as evidence for arming tests the moment
+  they first go green, not as an argument against it.
+- [ ] **`id:302f` is live in THIS repo's own ROADMAP, biting two items.** `roadmap-lint.sh`
+  reports `lib-typed-edges: UNPARSEABLE gated-on payload '09e4\nb0b1'` for `id:d4ca` and
+  `id:e405`: both carry `<!-- gated-on:09e4 --> <!-- gated-on:b0b1 -->`, the two markers
+  concatenate, and the parser refuses -- which correctly reads the items as GATED, but means
+  **neither gate can ever resolve or expire**. A third item, the closed `id:ee31`, carries a
+  FOUR-marker payload (`e8d4`/`1a03`/`d0aa`/`55c7`) and trips `lib-typed-edges.sh` and
+  `resolve-gates.sh` both, so the defect is not confined to the two-marker case. `id:302f`
+  already tracks the general defect; this box records that the repo filing it is itself
+  affected, so the fix has a live test case at home. The refusal itself is behaving CORRECTLY
+  -- unparseable reads as BLOCKED, never as ungated -- so this is a stuck-forever problem,
+  not a safety one.
+- [ ] **Three `roadmap-lint.sh` findings surfaced, none auto-fixed (lane/gate assignment is not
+  the reviewer's to guess).** (a) DECIDED-LEFT-OPEN: `id:32c3` carries an OWNER RULING
+  2026-09-10 and a `SUPERSEDED` clause but is still `- [ ]`; it needs closing with a done-note or
+  the marker dropped. (b) DEAD-GATE ×2: `id:540f` and `id:c179` are both `gated-on:b0b1`, and
+  `b0b1` lives ONLY in `TODO.md` -- never promoted -- so nothing in `ROADMAP.md` can ever clear
+  either gate. Per `id:49e0` the remedy is promote-or-retarget, and handoff C2 owns the promote
+  call. (c) NO-ACCEPTANCE-NO-TWIN: `id:da55` (em-dash migration S10) has no
+  Acceptance/Tests/Done-check clause and no TODO twin, so it is structurally un-workable as
+  written.
+- [ ] **`relay-doctor` is otherwise clean here, but reports the relay-core shadow at 44,966
+  mismatches over 369,228 rounds.** Bash stays authoritative and the flip gate (100% parity +
+  N=5 clean rounds) is nowhere near met. Recorded because the number grew this window and the
+  owner may want it triaged rather than left accumulating; it is not a finding against anything
+  in this diff.
+- [ ] **`id:6fda`'s negative-case declaration would have BLOCKED the merge of this whole
+  window, and it was invisible behind a green `make test`.** Fixed in `bae670d4`, recorded
+  here because the shape recurs. `test_decision_brief_write_refusal_6fda.sh` declared
+  `# fails-against-assertion: (g) the sanctioned attended+confirmed write failed` -- line
+  [13] of the 14 that fire against its mutation. The runner requires the LAST, [14]
+  (`the confirmed write did not land the @owner-answered marker`). The trap: case (g) is TWO
+  assertions, and the file runs `set -uo pipefail` WITHOUT `-e`, so "the case I meant" and
+  "the line that fires last" are different things. This is verbatim the rule CLAUDE.md
+  banked after being fooled into a false pass on 2026-09-01. **Why it matters more than a
+  lint nit:** since `id:abcc` the gate runs MECHANICALLY at integrate (`integrate.sh` step
+  3d, `--changed`, HANDBACK code 38, pre-land), so the mis-declaration is a merge refusal,
+  not an advisory line -- and `make test` is green either way, which is exactly why nothing
+  caught it for a day. The mutation, fixtures and assertions were NOT touched, so the case's
+  killing power is unchanged; only the claim about it is now true. Worth considering whether
+  `verify-negative-cases.py --changed` should run in the executor's own definition-of-done
+  rather than first at integrate.
+- [ ] **§5b disposition, stated rather than silently skipped: 15 of the 16 new open `[ROUTINE]`
+  TODO items added this window were NOT promoted, and the standing backlog is 288.** Measured
+  with the repo's own `relay/scripts/unpromoted-scan.sh`, not a hand grep: 288 `promote` / 106
+  `laned` / 362 `surface` / 1 `untracked`. The 15 unpromoted from this window alone are
+  `b9f3 302f c293 8ab8 b545 6ead ee5e 3dea 153f 6de0 8a76 ab95 3294 740a 4cd4`. Only `id:6294`
+  was mini-handed-off this review, because a promotion that is worth anything needs acceptance,
+  a done-check and a RED spec, and inventing 15 sets of those is how a queue fills with items an
+  executor cannot finish. **This is the direct explanation for a number that otherwise looks
+  wrong:** `classify-repo` reports `actionable_routine_open=2` (`b437`, `6294`) for a repo whose
+  `TODO.md` carries dozens of concrete, well-specified `[ROUTINE]` defects -- the work exists,
+  it is simply not in the execution queue. Whether the promotion rate is the real bottleneck
+  here, and whether it should be a standing handoff budget rather than incidental review work,
+  is an owner call, not one a review should quietly make by promoting a batch.

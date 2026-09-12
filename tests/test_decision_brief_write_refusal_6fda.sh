@@ -33,13 +33,25 @@
 # against anything outside the temp tree.
 #
 # fails-against-mutation: sed -i 's|^  if \[\[ -n "${RELAY_AFK:-}|  if [[ -z "${RELAY_AFK:-}|' decision-brief/docket.sh
-# fails-against-assertion: (g) the sanctioned attended+confirmed write failed
+# fails-against-assertion: (g) the confirmed write did not land the @owner-answered marker
 #   The mutation INVERTS the unattended sentinel test, so the guard fires exactly when it
 #   should not and stays quiet when it should. That reddens the four (c) cases, every
 #   `unchanged` check after them, and finally case (g) -- the positive control, which is
-#   refused with exit 5 in a perfectly attended session. (g) is the LAST line to fire, and
-#   naming it is also the honest choice: an inverted guard's most damaging symptom is not
-#   that it lets a pool write, it is that it blocks the owner.
+#   refused with exit 5 in a perfectly attended session. Naming (g) is also the honest
+#   choice: an inverted guard's most damaging symptom is not that it lets a pool write, it
+#   is that it blocks the owner.
+#
+#   CORRECTED 2026-09-12 (review, run relay-20260912-191938-25818). This declaration read
+#   `(g) the sanctioned attended+confirmed write failed` and `make verify-negatives
+#   --changed` reported it WRONG REASON: case (g) is not one line but TWO, and the runner
+#   requires the LAST of the 14 that fire, which is the marker-did-not-land line, not the
+#   write-failed line that precedes it. The old spelling is the exact trap CLAUDE.md names
+#   -- "when a non-exiting accumulator emits several FAIL lines, the declaration must match
+#   the LAST one" -- and because this file uses `set -uo pipefail` WITHOUT `-e`, every
+#   assertion after the first keeps running, so "the case I meant" and "the line that fires
+#   last" are different things. Since id:abcc this is enforced at integrate (step 3d,
+#   HANDBACK code 38, pre-land), so the mis-declaration would have blocked the merge rather
+#   than merely sitting in an advisory report.
 
 set -uo pipefail
 
