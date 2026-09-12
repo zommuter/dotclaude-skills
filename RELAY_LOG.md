@@ -3222,3 +3222,7 @@ prose mention of the banned alias as a violation. The excludes now precede `--`.
 refactor: none needed - the seam is one new SKILL.md plus four Makefile variable lines and a
 new test file; there is no pre-existing code to deduplicate and the RED spec forced no
 scaffolding.
+
+## 2026-09-12 21:02 — strong-execute (claude-opus-5, fable-standin, relay-loop)
+
+hard: id:68c1 inflownistration skill skeleton -- SKILL.md pointers-only surface, three-branch never-act router, Makefile wiring, spec exercises install/status/uninstall, 655/0/1 [id:68c1]
